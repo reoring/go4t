@@ -1,0 +1,13 @@
+package main
+
+func sumThrough(n Int, total Int) Int {
+  if n == 0 {
+    total
+  } else {
+    sumThrough(n - 1, total + n)
+  }
+}
+
+func main() IO[Unit] {
+  println(show(sumThrough(1000000, 0)))
+}

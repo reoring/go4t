@@ -19,7 +19,7 @@ func erasedFuncType(arity int) string {
 func (g *generator) recursiveLambdaBinding(sourceName string, value *ast.Lambda) string {
 	name := mangle(sourceName)
 	return "var " + name + " " + erasedFuncType(len(value.Params)) + "\n" +
-		name + " = " + g.expr(value) + "\n_ = " + name + "\n"
+		name + " = " + g.namedLambda(sourceName, value) + "\n_ = " + name + "\n"
 }
 
 func (g *generator) localFunctions(group []*ast.FuncDecl, body string) string {
@@ -35,7 +35,7 @@ func (g *generator) localFunctions(group []*ast.FuncDecl, body string) string {
 			Body:     &ast.BlockExpr{ExprBase: ast.ExprBase{Pos: decl.Body.Pos}, Block: decl.Body},
 		}
 		name := mangle(decl.Name)
-		out.WriteString(name + " = " + g.expr(lambda) + "\n_ = " + name + "\n")
+		out.WriteString(name + " = " + g.namedLambda(decl.Name, lambda) + "\n_ = " + name + "\n")
 	}
 	out.WriteString(body)
 	out.WriteString("}\n")

@@ -1,0 +1,12 @@
+package main
+
+func divideBy(n Int) Int {
+  match n {
+    0 => 1 / n
+    _ => 10 / n
+  }
+}
+
+func main() IO[Unit] {
+  println(show(divideBy(0)))
+}

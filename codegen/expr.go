@@ -17,6 +17,10 @@ func (g *generator) block(block *ast.Block) string {
 }
 
 func (g *generator) statements(stmts []ast.Stmt, result ast.Expr) string {
+	return g.tailStatements(stmts, result, nil)
+}
+
+func (g *generator) tailStatements(stmts []ast.Stmt, result ast.Expr, plan *tailPlan) string {
 	var out strings.Builder
 	for i, stmt := range stmts {
 		switch stmt := stmt.(type) {
@@ -31,12 +35,12 @@ func (g *generator) statements(stmts []ast.Stmt, result ast.Expr) string {
 				group = append(group, decl)
 				next++
 			}
-			out.WriteString(g.localFunctions(group, g.statements(stmts[next:], result)))
+			out.WriteString(g.localFunctions(group, g.tailStatements(stmts[next:], result, plan)))
 			return out.String()
 		case *ast.LetStmt:
 			// A nested scope preserves lexical shadowing, including the case where
 			// the initializer refers to the previous binding of the same name.
-			out.WriteString(g.letStatement(stmt.Name, stmt.Pat, stmt.Value, g.statements(stmts[i+1:], result)))
+			out.WriteString(g.letStatement(stmt.Name, stmt.Pat, stmt.Value, g.tailStatements(stmts[i+1:], result, plan)))
 			return out.String()
 		case *ast.ExprStmt:
 			fmt.Fprintf(&out, "_ = %s\n", g.expr(stmt.X))
@@ -44,7 +48,7 @@ func (g *generator) statements(stmts []ast.Stmt, result ast.Expr) string {
 			g.fail(ast.Pos{}, "unsupported statement %T", stmt)
 		}
 	}
-	fmt.Fprintf(&out, "return %s\n", g.expr(result))
+	out.WriteString(g.result(result, plan))
 	return out.String()
 }
 
@@ -73,7 +77,8 @@ func (g *generator) letBinding(name string, value ast.Expr) string {
 			body = "return " + g.expr(value) + "\n"
 		}
 		g.dictScope = previous
-		return name + " := func(" + strings.Join(g.dictParams(scheme.Constraints), ", ") + ") any {\n" + body + "}\n_ = " + name + "\n"
+		wrapper := g.sourceExpr(value.GetPos(), "func("+strings.Join(g.dictParams(scheme.Constraints), ", ")+") any {\n"+body+"}")
+		return name + " := " + wrapper + "\n_ = " + name + "\n"
 	}
 	if ann != nil && ann.Recursive {
 		return g.recursiveLambdaBinding(sourceName, value.(*ast.Lambda))
@@ -81,7 +86,12 @@ func (g *generator) letBinding(name string, value ast.Expr) string {
 	return "var " + name + " any = " + g.expr(value) + "\n_ = " + name + "\n"
 }
 
-func (g *generator) expr(expr ast.Expr) string {
+func (g *generator) expr(expr ast.Expr) (code string) {
+	defer func() {
+		if strings.HasPrefix(code, "func(") {
+			code = g.sourceExpr(expr.GetPos(), code)
+		}
+	}()
 	g.collectAnnotation(expr)
 	switch e := expr.(type) {
 	case *ast.IntLit:
@@ -200,7 +210,7 @@ func (g *generator) expr(expr ast.Expr) string {
 		return "any(" + g.expr(e.Fn) + ").(func(" + strings.Join(params, ", ") + ") any)(" + strings.Join(args, ", ") + ")"
 	case *ast.Lambda:
 		params := make([]string, len(e.Params))
-		body := "return " + g.expr(e.Body) + "\n"
+		body := g.result(e.Body, nil)
 		for i := len(e.Params) - 1; i >= 0; i-- {
 			param := e.Params[i]
 			params[i] = fmt.Sprintf("p%d any", i)
@@ -214,27 +224,12 @@ func (g *generator) expr(expr ast.Expr) string {
 	case *ast.BlockExpr:
 		return "func() any {\n" + g.block(e.Block) + "}()"
 	case *ast.If:
-		return "func() any {\nif any(" + g.expr(e.Cond) + ").(bool) {\nreturn " + g.expr(e.Then) + "\n}\nreturn " + g.expr(e.Else) + "\n}()"
+		return "func() any {\nif any(" + g.expr(e.Cond) + ").(bool) {\n" + g.result(e.Then, nil) + "}\n" + g.result(e.Else, nil) + "}()"
 	case *ast.Match:
-		var out strings.Builder
-		value := g.fresh()
-		fmt.Fprintf(&out, "func() any {\nvar %s any = %s\n_ = %s\n", value, g.expr(e.Scrut), value)
-		for i, arm := range e.Arms {
-			body := "return " + g.expr(arm.Body) + "\n"
-			if arm.Guard != nil {
-				body = "if any(" + g.expr(arm.Guard) + ").(bool) {\n" + body + "}\n"
-			}
-			code, guarded := g.pattern(arm.Pat, value, body, i == len(e.Arms)-1 && arm.Guard == nil)
-			out.WriteString(code)
-			if i == len(e.Arms)-1 && (guarded || arm.Guard != nil) {
-				out.WriteString("panic(\"non-exhaustive match\")\n")
-			}
-		}
-		out.WriteString("}()")
-		return out.String()
+		return "func() any {\n" + g.matchResult(e, nil) + "}()"
 	case *ast.Do:
 		dict := g.dict(g.ann(e).Monad)
-		body := "return " + g.expr(e.Result) + "\n"
+		body := g.result(e.Result, nil)
 		for i := len(e.Stmts) - 1; i >= 0; i-- {
 			var value ast.Expr
 			var name string
@@ -268,7 +263,8 @@ func (g *generator) expr(expr ast.Expr) string {
 			default:
 				g.fail(e.GetPos(), "unsupported do statement %T", stmt)
 			}
-			body = "return (" + dict + ").Bind(" + g.expr(value) + ", func(" + name + " any) any {\n" + body + "})\n"
+			continuation := g.sourceExpr(value.GetPos(), "func("+name+" any) any {\n"+body+"}")
+			body = "return (" + dict + ").Bind(" + g.expr(value) + ", " + continuation + ")\n"
 		}
 		return "func() any {\n" + body + "}()"
 	case *ast.Binary:

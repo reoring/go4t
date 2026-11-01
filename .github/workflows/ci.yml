@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: false
+      - run: go vet ./...
+      - run: go test ./...
+      - name: Run examples
+        shell: bash
+        run: |
+          set -euo pipefail
+          for source in examples/*/main.gfx; do
+            directory="${source%/*}"
+            input=/dev/null
+            if [[ -f "$directory/input.txt" ]]; then
+              input="$directory/input.txt"
+            fi
+            args=()
+            if [[ -f "$directory/args.txt" ]]; then
+              # Argument fixtures are whitespace-separated, without shell evaluation.
+              read -r -d '' -a args < "$directory/args.txt" || true
+            fi
+            echo "Running $source"
+            go run ./cmd/gofx run "$source" -- "${args[@]}" < "$input"
+          done
