@@ -142,7 +142,7 @@ func typesUnifyList(pos Pos, expected List[Type], actual List[Type]) Check[Bool]
 
 func substTVars(mapping Map[String, Type], t Type) Type {
   match t {
-    TVar(name, _) => fromOption(t, mapLookup(mapping, name))
+    TVar(name, _) => fromOption(mapLookup(mapping, name), t)
     TApp(fun, args) => tApp(substTVars(mapping, fun), fmap(args, func(arg) => substTVars(mapping, arg)))
     TFunc(params, ret) => TFunc(fmap(params, func(param) => substTVars(mapping, param)), substTVars(mapping, ret))
     _ => t
@@ -199,7 +199,7 @@ func typesGeneralizeList(ts List[Type], fixed List[Int], collected (Map[Int, Typ
 
 func typesReplaceMetas(mapping Map[Int, Type], t Type) Type {
   match t {
-    TMeta(id, _) => fromOption(t, mapLookup(mapping, id))
+    TMeta(id, _) => fromOption(mapLookup(mapping, id), t)
     TApp(fun, args) => tApp(typesReplaceMetas(mapping, fun), fmap(args, func(arg) => typesReplaceMetas(mapping, arg)))
     TFunc(params, ret) => TFunc(fmap(params, func(param) => typesReplaceMetas(mapping, param)), typesReplaceMetas(mapping, ret))
     _ => t

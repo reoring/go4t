@@ -69,11 +69,13 @@ generalize(fixed List[Int], constraints List[(String, Type)], t Type) Check[(Sch
      // constraints on them become scheme constraints; the rest are returned unchanged
 substTVars(mapping Map[String, Type], t Type) Type          // rigid-var substitution (no Check)
 resolveSType(scope Map[String, Type], t SType) Check[Type]  // names→kinds via env.typeKinds; arity/kind errors
-defaultMetas(metas List[Int], origins Map[Int, (Pos, String)], constrained List[Int]) Check[Unit]
-     // §5: each unresolved meta id in `metas`: arrow kind or in `constrained` -> error (defaults.go wording);
-     // else bind to Unit and warn at origins[id] = (pos, what) with
-     // "type of <what> defaulted to Unit; add an annotation or use the value"; warnings in pos order.
-     // Infer computes `origins` (priority rules of defaults.go prepareDefaults) and `constrained`.
+defaultMetas(metas List[Type], origins Map[Int, (Pos, String)], constraints List[(String, Type)]) Check[Unit]
+     // §5: `metas` are the (zonked, still unresolved) TMeta nodes of the body; `constraints` the
+     // unresolved (class, type) obligations. Each meta: arrow kind -> error; appears in a constraint
+     // -> error "unresolved class constraint C[?n]" (defaults.go/expr.go wording); else bind to Unit and
+     // warn at origins[id] = (pos, what) with "type of <what> defaulted to Unit; add an annotation or
+     // use the value"; warnings in pos order. Infer computes `origins` (priorities of
+     // defaults.go prepareDefaults) and passes its leftover constraints.
 
 // decls.gfx (W4)
 checkProgram(files List[File]) Result[Program]

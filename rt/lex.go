@@ -28,6 +28,18 @@ func IsSpace(s any) any {
 	return unicode.IsSpace(r)
 }
 
+// IsLower reports unicode.IsLower on the first rune of s.
+func IsLower(s any) any {
+	r, _ := utf8.DecodeRuneInString(s.(string))
+	return unicode.IsLower(r)
+}
+
+// IsUpper reports unicode.IsUpper on the first rune of s.
+func IsUpper(s any) any {
+	r, _ := utf8.DecodeRuneInString(s.(string))
+	return unicode.IsUpper(r)
+}
+
 // Unquote decodes a Go-syntax double-quoted literal (quotes included);
 // returns Option[String] (None when invalid).
 func Unquote(s any) any {
