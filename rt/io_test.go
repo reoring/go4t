@@ -196,6 +196,15 @@ func TestRunMain(t *testing.T) {
 	case "failure":
 		RunMain(Fail("main failed"))
 		os.Exit(0)
+	case "extern error":
+		RunMain(IO(func() (any, error) { return nil, errors.New("extern failed") }))
+		os.Exit(0)
+	case "panic":
+		RunMain(IO(func() (any, error) { panic("main panicked") }))
+		os.Exit(0)
+	case "error panic":
+		RunMain(IO(func() (any, error) { panic(errors.New("panic error")) }))
+		os.Exit(0)
 	}
 	for _, tt := range []struct {
 		name   string
@@ -205,6 +214,9 @@ func TestRunMain(t *testing.T) {
 	}{
 		{"success", 0, "ran main\n", ""},
 		{"failure", 1, "", "error: main failed\n"},
+		{"extern error", 1, "", "error: extern failed\n"},
+		{"panic", 2, "", "error: panic: main panicked\n"},
+		{"error panic", 2, "", "error: panic: panic error\n"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			command := exec.Command(os.Args[0], "-test.run=^TestRunMain$")

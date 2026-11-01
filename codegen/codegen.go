@@ -14,8 +14,8 @@
 // lets evaluate their initializer once and remain monomorphic. Boolean operators
 // short circuit in Go; comparisons dispatch through Eq/Ord dictionaries. Derived
 // instances use the ordinary checked instance representation and dictionary ABI.
-// Programs declaring the standard List and Option constructors register their
-// erased value shapes with rt during init, without exposing generated types to rt.
+// Programs declaring the standard List, Option and Result constructors register
+// their erased value shapes with rt during init, without exposing generated types to rt.
 package codegen
 
 import (
@@ -115,6 +115,19 @@ func Generate(prog *types.Program, goPackage string) (source []byte, err error) 
 	}
 }
 `, ctorName(cons), ctorName(nilCtor), ctorName(some), ctorName(none), ctorName(cons))
+		}
+	}
+	if result := prog.DataTypes["Result"]; result != nil {
+		ok, err := g.ctors["Ok"], g.ctors["Err"]
+		if ok != nil && ok.Data == result && len(ok.Fields) == 1 &&
+			err != nil && err.Data == result && len(err.Fields) == 1 {
+			fmt.Fprintf(&out, `func rt_ok(a any) any { return &%s{F0: a} }
+func rt_err(e any) any { return &%s{F0: e} }
+func init() {
+	rt.Shapes.Ok = rt_ok
+	rt.Shapes.Err = rt_err
+}
+`, ctorName(ok), ctorName(err))
 		}
 	}
 	for _, name := range sortedKeys(prog.Classes) {

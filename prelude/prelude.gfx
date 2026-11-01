@@ -37,6 +37,12 @@ class Ord[A] : Eq[A] {
 
 type Option[A] = None | Some(A) deriving Eq, Ord, Debug
 
+type Result[E, A] = Err(E) | Ok(A) deriving Eq, Ord, Debug
+
+instance Show[Result[E, A]] given Show[E], Show[A] {
+  show(r) { match r { Err(e) => "Err(" + show(e) + ")"; Ok(a) => "Ok(" + show(a) + ")" } }
+}
+
 type List[A] = Nil | Cons(A, List[A]) deriving Eq, Ord, Debug
 
 type State[S, A] = State(func(S) (A, S))
@@ -57,6 +63,19 @@ instance Monad[Option] {
       None => None
       Some(a) => f(a)
     }
+  }
+}
+
+instance Functor[Result[E]] {
+  fmap(r, f) {
+    match r { Err(e) => Err(e) | Ok(a) => Ok(f(a)) }
+  }
+}
+
+instance Monad[Result[E]] {
+  pure(a) { Ok(a) }
+  bind(r, f) {
+    match r { Err(e) => Err(e) | Ok(a) => f(a) }
   }
 }
 
@@ -185,6 +204,42 @@ instance Show[Option[A]] given Show[A] {
   show(a) { match a { None => "None"; Some(x) => "Some(" + show(x) + ")" } }
 }
 
+func mapErr[E, F, A](r Result[E, A], f func(E) F) Result[F, A] {
+  match r { Err(e) => Err(f(e)) | Ok(a) => Ok(a) }
+}
+
+func fromResult[E, A](r Result[E, A], d A) A {
+  match r { Err(_) => d | Ok(a) => a }
+}
+
+func okOr[E, A](o Option[A], e E) Result[E, A] {
+  match o { None => Err(e) | Some(a) => Ok(a) }
+}
+
+func toOption[E, A](r Result[E, A]) Option[A] {
+  match r { Err(_) => None | Ok(a) => Some(a) }
+}
+
+func isOk[E, A](r Result[E, A]) Bool {
+  match r { Err(_) => false | Ok(_) => true }
+}
+
+func isErr[E, A](r Result[E, A]) Bool {
+  match r { Err(_) => true | Ok(_) => false }
+}
+
+func either[E, A, B](r Result[E, A], onErr func(E) B, onOk func(A) B) B {
+  match r { Err(e) => onErr(e) | Ok(a) => onOk(a) }
+}
+
+func liftResult[E Show, A](r Result[E, A]) IO[A] {
+  match r { Err(e) => ioFail(show(e)) | Ok(a) => ioPure(a) }
+}
+
+func ioFailWith[E Show, A](e E) IO[A] {
+  ioFail(show(e))
+}
+
 instance Show[List[A]] given Show[A] {
   show(xs) {
     match xs {
@@ -248,6 +303,21 @@ extern func readAll() IO[String] = "gofx/rt".ReadAll
 extern func args() IO[List[String]] = "gofx/rt".Args
 extern func exit[A](code Int) IO[A] = "gofx/rt".Exit
 extern func getEnv(name String) IO[Option[String]] = "gofx/rt".GetEnv
+
+extern func tryIO[A](io IO[A]) IO[Result[String, A]] = "gofx/rt".TryIO
+extern func readFile(path String) IO[String] = "gofx/rt".ReadFile
+extern func writeFile(path String, content String) IO[Unit] = "gofx/rt".WriteFile
+extern func appendFile(path String, content String) IO[Unit] = "gofx/rt".AppendFile
+extern func fileExists(path String) IO[Bool] = "gofx/rt".FileExists
+extern func listDir(path String) IO[List[String]] = "gofx/rt".ListDir
+extern func removeFile(path String) IO[Unit] = "gofx/rt".RemoveFile
+extern func eprintln(s String) IO[Unit] = "gofx/rt".Eprintln
+extern func print(s String) IO[Unit] = "gofx/rt".Print
+extern func nowMillis() IO[Int] = "gofx/rt".NowMillis
+extern func monotonicMillis() IO[Int] = "gofx/rt".MonotonicMillis
+extern func formatTime(millis Int, layout String) String = "gofx/rt".FormatTime
+extern func randomInt(lo Int, hi Int) IO[Int] = "gofx/rt".RandomInt
+extern func sleep(millis Int) IO[Unit] = "gofx/rt".Sleep
 
 instance Show[Int] {
   show(a) { showInt(a) }

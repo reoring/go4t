@@ -1,0 +1,174 @@
+package main
+
+// Kept as the parser's focused acceptance driver. dumpFile lives in parser.gfx
+// so integration can use the identical rendering without linking this main.
+// Run with the five frozen contracts, lexer.gfx and parser.gfx via gofx run.
+// Each NEG fixture is written to selfhost/dev/parser_negative_<index>.gfx for
+// `go run ./cmd/gofx check <fixture>` parity checks; remove those after comparing.
+// With no program arguments all current examples and the prelude are dumped;
+// program arguments may instead supply additional source paths to inspect.
+extern func readFile(path String) IO[String] = "gofx/rt".ReadFile
+extern func writeFile(path String, content String) IO[Unit] = "gofx/rt".WriteFile
+
+func showFile(file File) String { dumpFile(file) }
+
+func parserExamplePaths() List[String] {
+  ["prelude/prelude.gfx", "examples/bank/main.gfx", "examples/calc/main.gfx",
+   "examples/cards/main.gfx", "examples/eqord/main.gfx", "examples/http/main.gfx",
+   "examples/inventory/main.gfx", "examples/lists/main.gfx", "examples/monoid/main.gfx",
+   "examples/orders/main.gfx", "examples/parser/main.gfx", "examples/records/main.gfx",
+   "examples/routes/main.gfx", "examples/scheduler/main.gfx", "examples/state/main.gfx",
+   "examples/strings/main.gfx", "examples/tree/main.gfx", "examples/wc/main.gfx"]
+}
+
+func parserCheckFile(path String) IO[Unit] {
+  do {
+    src <- readFile(path)
+    match parseFile(path, src) {
+      Err(d) => do { println("FAIL " + path + " " + show(d)); ioFail("file did not parse: " + path) }
+      Ok(file) => println("PASS " + path + " " + showFile(file))
+    }
+  }
+}
+
+func parserNegatives() List[(String, String)] {
+  [("package main\nfunc f() Int {}", "2:15: block must end with an expression"),
+   ("package main\nfunc f() Int { do {} }", "2:20: do block must end with an expression"),
+   ("package main\nfunc f() Int { match x {} }", "2:16: match needs at least one arm"),
+   ("package main\nclass Monad[M[_]] : Functor[F] {}", "2:1: superclass must be applied to M"),
+   ("package main\ninstance C[T] given D[A] {}", "2:15: given requires instance type parameters"),
+   ("package main\ninstance C[T[A, A]] {}", "2:17: duplicate instance type parameter A"),
+   ("package main\ninstance C[T[A]] given D[B] {}", "2:26: undeclared instance type parameter B"),
+   ("package main\ntype Empty = Empty{}", "2:14: record constructor needs at least one field"),
+   ("package class", "1:9: expected identifier, found \"class\""),
+   ("package main\nfunc f() Int { (a,) }", "2:19: expected expression, found \")\""),
+   ("package main\nfunc f() Int { func(_ Int) => 0 }", "2:23: pattern parameters cannot be annotated"),
+   ("package main\nfunc f() Int { match p { Point{x: 0, x: y} => 0 } }", "2:38: duplicate field x in record pattern"),
+   ("package main\nfunc f() Int { match p { Point{.., x: 0} => 0 } }", "2:32: .. must be last in record pattern"),
+   ("package main\nfunc f() Int { match p { Whole @ x => 0 } }", "2:26: as-pattern name must be a lower-case identifier"),
+   ("package main\nfunc f() Int { 999999999999999999999999999999999999 }", "2:16: bad integer literal 999999999999999999999999999999999999"),
+   ("package main\nfunc f() Int { p.999999999999999999999999999999999999 }", "2:18: bad tuple index 999999999999999999999999999999999999"),
+   ("package main\nfunc f() String { \"$${x y}\" }", "2:24: expected end of expression, found \"y\"")]
+}
+
+func parserCheckNegative(item (Int, (String, String))) IO[Unit] {
+  let path = "selfhost/dev/parser_negative_" + show(item.0) + ".gfx"
+  let src = item.1.0
+  let expected = item.1.1
+  do {
+    writeFile(path, src)
+    match parseFile(path, src) {
+      Ok(_) => ioFail("negative accepted: " + path)
+      Err(d) => do {
+        println("NEG " + path + " " + show(d))
+        if show(d) == expected { pure(unit()) }
+        else { ioFail("expected " + expected + ", got " + show(d)) }
+      }
+    }
+  }
+}
+
+// Compact shape rendering for precedence, grouping and backtracking assertions.
+func parserShape(expr Expr) String {
+  match expr {
+    EIdent(_, name) => name
+    EInt(_, value) => show(value)
+    EString(_, value) => quote(value)
+    EBool(_, value) => show(value)
+    EBinary(_, op, left, right) => "(" + parserShape(left) + " " + op + " " + parserShape(right) + ")"
+    EUnary(_, op, value) => "(" + op + parserShape(value) + ")"
+    ECall(_, fun, args) => parserShape(fun) + "(" + join(", ", fmap(args, parserShape)) + ")"
+    EField(_, value, name) => parserShape(value) + "." + name
+    ETupleField(_, value, index) => parserShape(value) + "." + show(index)
+    ERecordLit(_, name, fields) => name + parserFields(fields)
+    ERecordUpdate(_, value, fields) => parserShape(value) + parserFields(fields)
+    ETuple(_, elems) => "(" + join(", ", fmap(elems, parserShape)) + ")"
+    EList(_, elems) => "[" + join(", ", fmap(elems, parserShape)) + "]"
+    ELambda(_, _, body) => "lambda:" + parserShape(body)
+    EBlock(_, block) => "block:" + parserShape(block.result)
+    EIf(_, cond, yes, no) => "if(" + parserShape(cond) + ", " + parserShape(yes) + ", " + parserShape(no) + ")"
+    EDo(_, _, result) => "do:" + parserShape(result)
+    EMatch(_, value, _) => "match:" + parserShape(value)
+    EInterp(_, texts, exprs) => "interp:" + join("|", texts) + ":" + join("|", fmap(exprs, parserShape))
+  }
+}
+
+func parserFields(fields List[(String, Expr)]) String {
+  "{" + join(", ", fmap(fields, func(field) => field.0 + ": " + parserShape(field.1))) + "}"
+}
+
+func parserExpressions() List[(String, String)] {
+  [("a || b && c == d + e * f", "(a || (b && (c == (d + (e * f)))))"),
+   ("8 - 3 - 1", "((8 - 3) - 1)"),
+   ("8 / 2 * 3 % 4", "(((8 / 2) * 3) % 4)"),
+   ("a < b == c > d", "(((a < b) == c) > d)"),
+   ("a != b || c <= d && e >= f", "((a != b) || ((c <= d) && (e >= f)))"),
+   ("-f(a) * !!b", "((-f(a)) * (!(!b)))"),
+   ("f(a)(b)", "f(a)(b)"),
+   ("(a, (b, c)).1", "(a, (b, c)).1"),
+   ("((x))", "x"),
+   ("f([1, 2,], [])", "f([1, 2], [])"),
+   ("f().0.name(1).2", "f().0.name(1).2"),
+   ("Point{y: 2, x: 1}{x: 3}.x + 4", "(Point{y: 2, x: 1}{x: 3}.x + 4)"),
+   ("Point{\n x: 1,\n y: 2,\n}", "Point{x: 1, y: 2}"),
+   ("if r.ok { yes } else if b { two } else { no }", "if(r.ok, block:yes, if(b, block:two, block:no))"),
+   ("func((a, b), _, c Int,) => a + c", "lambda:(a + c)"),
+   ("func(α @ (a, b), _name) => _name", "lambda:_name"),
+   ("match p { | Point{x: 0, ..} if x > 0 => x | _ => 0 }", "match:p"),
+   ("do { (a + 1, s); Box(a + 1); Point{x: f(a), y: b + 1}; pure(0) }", "do:pure(0)"),
+   ("do { (a, s) <- runState(m, 0); let Point{x: x, ..}: Point = pt; pure(a) }", "do:pure(a)"),
+   ("\"hello $${name}: $${1 + 2}!\"", "interp:hello |: |!:name|(1 + 2)"),
+   ("x;\n;", "x")]
+}
+
+func parserCheckExpression(item (String, String)) IO[Unit] {
+  match parseExprSource(item.0, Pos{line: 7, col: 11}) {
+    Err(d) => ioFail("expression " + item.0 + ": " + show(d))
+    Ok(expr) => if parserShape(expr) == item.1 { println("EXPR " + item.1) }
+      else { ioFail("shape " + parserShape(expr) + ", expected " + item.1) }
+  }
+}
+
+func parserCheckDetails() IO[Unit] {
+  do {
+    match parseExprSource("α +\n  x", Pos{line: 7, col: 11}) {
+      Ok(EBinary(pos, "+", EIdent(left, "α"), EIdent(right, "x"))) =>
+        if pos == Pos{line: 7, col: 13} && left == Pos{line: 7, col: 11} && right == Pos{line: 8, col: 3} {
+          println("DETAIL interpolation-base positions")
+        } else { ioFail("incorrect expression positions") }
+      _ => ioFail("incorrect expression node")
+    }
+    match parseFile("heads", "package main\ninstance C[(A, B)] given D[A], E[B] {}\ninstance F[T[E]] {}") {
+      Ok(File{decls: Cons(DeclInstance(a), Cons(DeclInstance(b), Nil)), ..}) =>
+        if a.typeCon == "Tuple2" && a.params == ["A", "B"] && length(a.context) == 2 && b.typeCon == "T" && b.params == ["E"] {
+          println("DETAIL tuple and partial instance heads")
+        } else { ioFail("incorrect instance heads") }
+      _ => ioFail("instance heads did not parse")
+    }
+    match parseExprSource("do { α <- action(); Box(x + 1); pure(α) }", noPos()) {
+      Ok(EDo(_, Cons(DoBind(_, LName("α"), _), Cons(DoExpr(ECall(_, _, _)), Nil)), _)) =>
+        println("DETAIL Unicode binding and do backtracking")
+      _ => ioFail("incorrect do backtracking")
+    }
+    match parseExprSource("match p { | R{x: whole @ Some(v), ..} if v > 0 => v; | ; _ => 0 | }", noPos()) {
+      Ok(EMatch(_, _, Cons(Arm{pat: PRecord(_, "R", Cons(("x", PAs(_, "whole", PCtor(_, "Some", _))), Nil), true), guard: Some(_), ..}, Cons(_, Nil)))) =>
+        println("DETAIL nested record/as patterns, guards and mixed arm separators")
+      _ => ioFail("incorrect pattern AST")
+    }
+    match parseFile("constraint", "package main\nfunc f[A Eq Show](a A) A { a }") {
+      Err(d) if d.msg == "type parameter may have at most one constraint" => println("DETAIL SPEC single-constraint rejection")
+      _ => ioFail("multiple constraints were not rejected")
+    }
+  }
+}
+
+func main() IO[Unit] {
+  do {
+    paths <- args()
+    forEach(if length(paths) == 0 { parserExamplePaths() } else { paths }, parserCheckFile)
+    forEach(parserExpressions(), parserCheckExpression)
+    parserCheckDetails()
+    forEach(zipWithIndex(parserNegatives()), parserCheckNegative)
+    println("PARSER PASS: files, 21 expression shapes, 5 structural checks, 17 diagnostics")
+  }
+}

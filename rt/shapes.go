@@ -1,6 +1,6 @@
 package rt
 
-// ShapeFuncs bridges the generated program's List and Option representations.
+// ShapeFuncs bridges the generated program's List, Option and Result representations.
 // Generated init functions register these operations before any runtime calls.
 // Uncons returns ok=false for Nil and the head and tail for Cons.
 type ShapeFuncs struct {
@@ -8,6 +8,8 @@ type ShapeFuncs struct {
 	Nil    func() any
 	Some   func(a any) any
 	None   func() any
+	Ok     func(a any) any
+	Err    func(e any) any
 	Uncons func(l any) (h, t any, ok bool)
 }
 
@@ -56,4 +58,20 @@ func NoneOf() any {
 		panic("rt.Shapes is not initialized: None is required")
 	}
 	return Shapes.None()
+}
+
+// OkOf constructs a generated successful Result.
+func OkOf(value any) any {
+	if Shapes.Ok == nil {
+		panic("rt.Shapes is not initialized: Ok is required")
+	}
+	return Shapes.Ok(value)
+}
+
+// ErrOf constructs a generated failed Result.
+func ErrOf(value any) any {
+	if Shapes.Err == nil {
+		panic("rt.Shapes is not initialized: Err is required")
+	}
+	return Shapes.Err(value)
 }

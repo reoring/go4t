@@ -8,7 +8,7 @@ package main
 func typesKindString(k Kind) String {
   match k {
     KStar => "*"
-    KArrow(n) => "(" + join(", ", fmap(range(0, n), func(i) => "*")) + ") -> *"
+    KArrow(n) => if n <= 0 { "() -> *" } else { "(" + repeat("*, ", n - 1) + "*) -> *" }
   }
 }
 
@@ -68,23 +68,75 @@ func zonk(t Type) Check[Type] {
   }
 }
 
-func typesOccurs(id Int, t Type) Bool {
+// Unification only normalizes the current head, rather than deep-zonking
+// every subtree again at each recursive step (types/unify.go:53-73).
+func typesPrune(t Type) Check[Type] {
   match t {
-    TMeta(other, _) => id == other
-    TApp(fun, args) => typesOccurs(id, fun) || any(args, func(arg) => typesOccurs(id, arg))
-    TFunc(params, ret) => any(params, func(param) => typesOccurs(id, param)) || typesOccurs(id, ret)
-    _ => false
+    TMeta(id, _) => do {
+      link <- lookupMeta(id)
+      match link {
+        None => pure(t)
+        Some(bound) => do {
+          resolved <- typesPrune(bound)
+          bindMeta(id, resolved)
+          pure(resolved)
+        }
+      }
+    }
+    _ => pure(t)
   }
 }
 
-func typesBind(pos Pos, id Int, typ Type) Check[Bool] {
-  if typesOccurs(id, typ) {
-    checkFail(pos, "occurs check: ?${id} occurs in ${typeString(typ)}")
-  } else { do {
+func typesNormalize(t Type) Check[Type] { do {
+  resolved <- typesPrune(t)
+  match resolved {
+    TApp(fun, args) => do {
+      resolvedFun <- typesNormalize(fun)
+      match resolvedFun {
+        TApp(_, _) => pure(tApp(resolvedFun, args))
+        _ => if fun == resolvedFun { pure(resolved) } else { pure(tApp(resolvedFun, args)) }
+      }
+    }
+    _ => pure(resolved)
+  }
+} }
+
+func typesOccurs(id Int, t Type) Check[Bool] { do {
+  resolved <- typesPrune(t)
+  match resolved {
+    TMeta(other, _) => pure(id == other)
+    TApp(fun, args) => do {
+      inHead <- typesOccurs(id, fun)
+      if inHead { pure(true) } else { typesOccursAny(id, args) }
+    }
+    TFunc(params, ret) => do {
+      inParams <- typesOccursAny(id, params)
+      if inParams { pure(true) } else { typesOccurs(id, ret) }
+    }
+    _ => pure(false)
+  }
+} }
+
+func typesOccursAny(id Int, ts List[Type]) Check[Bool] {
+  match ts {
+    Nil => pure(false)
+    Cons(t, rest) => do {
+      found <- typesOccurs(id, t)
+      if found { pure(true) } else { typesOccursAny(id, rest) }
+    }
+  }
+}
+
+func typesBind(pos Pos, id Int, typ Type) Check[Bool] { do {
+  occurs <- typesOccurs(id, typ)
+  if occurs { do {
+    resolved <- zonk(typ)
+    checkFail(pos, "occurs check: ?${id} occurs in ${typeString(resolved)}")
+  } } else { do {
     bindMeta(id, typ)
     pure(true)
   } }
-}
+} }
 
 // Structural failure returns false so the outermost pair supplies the error.
 // Occurs/kind failures keep their specific diagnostics (unify.go:106-171).
@@ -98,8 +150,8 @@ func unify(pos Pos, expected Type, actual Type) Check[Unit] { do {
 } }
 
 func typesUnify(pos Pos, expected Type, actual Type) Check[Bool] { do {
-  e <- zonk(expected)
-  a <- zonk(actual)
+  e <- typesNormalize(expected)
+  a <- typesNormalize(actual)
   typesRequireKind(pos, kindOf(a), kindOf(e))
   match (e, a) {
     (TMeta(id, _), TMeta(other, _)) if id == other => pure(true)
@@ -176,25 +228,27 @@ func instantiate(sch Scheme) Check[(Type, List[(String, Type)])] { do {
   pure((substTVars(mapping, sch.typ), constraints))
 } }
 
-func typesGeneralizeMetas(t Type, fixed List[Int], found Map[Int, Type], revParams List[(String, Kind)]) (Map[Int, Type], List[(String, Kind)]) {
+type TypesGeneralization = TypesGeneralization{mapping: Map[Int, Type], revParams: List[(String, Kind)], next: Int}
+
+func typesGeneralizeMetas(t Type, fixed List[Int], collected TypesGeneralization) TypesGeneralization {
   match t {
     TMeta(id, k) =>
-      if elem(id, fixed) || mapMember(found, id) { (found, revParams) }
+      if elem(id, fixed) || mapMember(collected.mapping, id) { collected }
       else {
-        let name = "t${mapSize(found)}"
-        (mapInsert(found, id, TVar(name, k)), Cons((name, k), revParams))
+        let name = "t${collected.next}"
+        TypesGeneralization{
+          mapping: mapInsert(collected.mapping, id, TVar(name, k)),
+          revParams: Cons((name, k), collected.revParams), next: collected.next + 1
+        }
       }
-    TApp(fun, args) => typesGeneralizeList(args, fixed, typesGeneralizeMetas(fun, fixed, found, revParams))
-    TFunc(params, ret) => {
-      let collected = typesGeneralizeList(params, fixed, (found, revParams))
-      typesGeneralizeMetas(ret, fixed, fst(collected), snd(collected))
-    }
-    _ => (found, revParams)
+    TApp(fun, args) => typesGeneralizeList(args, fixed, typesGeneralizeMetas(fun, fixed, collected))
+    TFunc(params, ret) => typesGeneralizeMetas(ret, fixed, typesGeneralizeList(params, fixed, collected))
+    _ => collected
   }
 }
 
-func typesGeneralizeList(ts List[Type], fixed List[Int], collected (Map[Int, Type], List[(String, Kind)])) (Map[Int, Type], List[(String, Kind)]) {
-  fold(ts, collected, func(acc, t) => typesGeneralizeMetas(t, fixed, fst(acc), snd(acc)))
+func typesGeneralizeList(ts List[Type], fixed List[Int], collected TypesGeneralization) TypesGeneralization {
+  fold(ts, collected, func(acc, t) => typesGeneralizeMetas(t, fixed, acc))
 }
 
 func typesReplaceMetas(mapping Map[Int, Type], t Type) Type {
@@ -225,11 +279,11 @@ func typesGeneralizeConstraints(constraints List[(String, Type)], mapping Map[In
 
 func generalize(fixed List[Int], constraints List[(String, Type)], t Type) Check[(Scheme, List[(String, Type)])] { do {
   resolved <- zonk(t)
-  let collected = typesGeneralizeMetas(resolved, fixed, MEmpty, Nil)
-  let mapping = fst(collected)
+  let collected = typesGeneralizeMetas(resolved, fixed, TypesGeneralization{mapping: MEmpty, revParams: Nil, next: 0})
+  let mapping = collected.mapping
   splitConstraints <- typesGeneralizeConstraints(constraints, mapping)
   let sch = Scheme{
-    tparams: reverse(snd(collected)), constraints: fst(splitConstraints),
+    tparams: reverse(collected.revParams), constraints: fst(splitConstraints),
     typ: typesReplaceMetas(mapping, resolved)
   }
   pure((sch, snd(splitConstraints)))
@@ -281,3 +335,49 @@ func resolveSType(scope Map[String, Type], t SType) Check[Type] {
     } }
   }
 }
+
+// Origins and obligations belong to the body checker, not the substitution.
+// Check explicit class ambiguity before any defaults (types/resolve.go:22-34).
+// checkWarn stores reverse chronological order, so emit in source order and
+// leave the established CheckState.warnings convention intact.
+type TypesDefault = TypesDefault{meta: Type, pos: Pos, what: String}
+
+func typesDefaultOrigin(origins Map[Int, (Pos, String)], id Int) Check[(Pos, String)] {
+  match mapLookup(origins, id) {
+    Some(origin) => pure(origin)
+    None => checkFail(noPos(), "missing default origin for ?${id}")
+  }
+}
+
+func typesCheckDefaultConstraint(origins Map[Int, (Pos, String)], constraint (String, Type)) Check[Unit] { do {
+  arg <- zonk(snd(constraint))
+  match mapKeys(typesMetaSet(arg, MEmpty)) {
+    Nil => pure(unit())
+    Cons(id, _) => do {
+      origin <- typesDefaultOrigin(origins, id)
+      checkFail(fst(origin), "unresolved class constraint ${fst(constraint)}[${typeString(arg)}]")
+    }
+  }
+} }
+
+func typesDefaultOne(entry TypesDefault) Check[Unit] {
+  match entry.meta {
+    TMeta(id, KStar) => do {
+      checkWarn(entry.pos, "type of ${entry.what} defaulted to Unit; add an annotation or use the value")
+      bindMeta(id, tUnit())
+    }
+    TMeta(_, k) => checkFail(entry.pos, "cannot infer type constructor of kind ${typesKindString(k)}")
+    _ => pure(unit())
+  }
+}
+
+func defaultMetas(metas List[Type], origins Map[Int, (Pos, String)], constraints List[(String, Type)]) Check[Unit] { do {
+  forEachCheck(constraints, func(constraint) => typesCheckDefaultConstraint(origins, constraint))
+  resolved <- mapMCheck(metas, zonk)
+  let remaining = fold(resolved, MEmpty, func(found, t) => typesMetaSet(t, found))
+  defaults <- mapMCheck(mapToList(remaining), func(entry) => do {
+    origin <- typesDefaultOrigin(origins, fst(entry))
+    pure(TypesDefault{meta: TMeta(fst(entry), snd(entry)), pos: fst(origin), what: snd(origin)})
+  })
+  forEachCheck(sortBy(defaults, func(a, b) => compare(a.pos, b.pos)), typesDefaultOne)
+} }

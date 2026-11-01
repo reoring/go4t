@@ -10,6 +10,8 @@ type testCons struct{ head, tail any }
 type testNil struct{}
 type testSome struct{ value any }
 type testNone struct{}
+type testOk struct{ value any }
+type testErr struct{ value any }
 
 func installTestShapes(t *testing.T) {
 	t.Helper()
@@ -20,6 +22,8 @@ func installTestShapes(t *testing.T) {
 		Nil:  func() any { return testNil{} },
 		Some: func(a any) any { return testSome{a} },
 		None: func() any { return testNone{} },
+		Ok:   func(a any) any { return testOk{a} },
+		Err:  func(e any) any { return testErr{e} },
 		Uncons: func(l any) (any, any, bool) {
 			switch l := l.(type) {
 			case testCons:
@@ -76,6 +80,8 @@ func TestUnsetShapesPanicClearly(t *testing.T) {
 		{"Uncons unset", ShapeFuncs{}, func() { ListToStrings(testNil{}) }, "rt.Shapes is not initialized: Uncons is required"},
 		{"Some unset", ShapeFuncs{}, func() { SomeOf(int64(1)) }, "rt.Shapes is not initialized: Some is required"},
 		{"None unset", ShapeFuncs{}, func() { NoneOf() }, "rt.Shapes is not initialized: None is required"},
+		{"Ok unset", ShapeFuncs{}, func() { OkOf(int64(1)) }, "rt.Shapes is not initialized: Ok is required"},
+		{"Err unset", ShapeFuncs{}, func() { ErrOf("failed") }, "rt.Shapes is not initialized: Err is required"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			Shapes = tt.shapes

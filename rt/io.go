@@ -6,10 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand/v2"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Unit is the value returned by effects that have no meaningful result.
@@ -41,8 +43,31 @@ func Fail(msg any) any {
 	return IO(func() (any, error) { return nil, err })
 }
 
-// RunMain runs a program's main effect and exits with status 1 on failure.
+// TryIO captures errors and panics from running an action as a generated Result.
+// Like Bind, it is lazy; panics while constructing its argument are outside it.
+func TryIO(io any) any {
+	return IO(func() (value any, err error) {
+		defer func() {
+			if p := recover(); p != nil {
+				value, err = ErrOf(fmt.Sprint(p)), nil
+			}
+		}()
+		result, failure := io.(IO)()
+		if failure != nil {
+			return ErrOf(failure.Error()), nil
+		}
+		return OkOf(result), nil
+	})
+}
+
+// RunMain exits with status 1 for failed IO and status 2 for an uncaught panic.
 func RunMain(io any) {
+	defer func() {
+		if p := recover(); p != nil {
+			fmt.Fprintln(os.Stderr, "error: panic:", p)
+			os.Exit(2)
+		}
+	}()
 	if _, err := io.(IO)(); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
@@ -158,6 +183,128 @@ func Eprintln(s any) any {
 	return IO(func() (any, error) {
 		if _, err := fmt.Fprintln(os.Stderr, s.(string)); err != nil {
 			return nil, err
+		}
+		return Unit{}, nil
+	})
+}
+
+// AppendFile appends content, creating the file and its parents if needed.
+func AppendFile(path, content any) any {
+	return IO(func() (any, error) {
+		p := path.(string)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			return nil, err
+		}
+		f, err := os.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o644)
+		if err != nil {
+			return nil, err
+		}
+		_, writeErr := io.WriteString(f, content.(string))
+		closeErr := f.Close()
+		if writeErr != nil {
+			return nil, writeErr
+		}
+		if closeErr != nil {
+			return nil, closeErr
+		}
+		return Unit{}, nil
+	})
+}
+
+// FileExists returns false only for a missing path; other stat errors fail the IO.
+func FileExists(path any) any {
+	return IO(func() (any, error) {
+		_, err := os.Stat(path.(string))
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		return true, nil
+	})
+}
+
+// ListDir returns sorted entry names, not full paths.
+func ListDir(path any) any {
+	return IO(func() (any, error) {
+		entries, err := os.ReadDir(path.(string))
+		if err != nil {
+			return nil, err
+		}
+		if Shapes.Cons == nil || Shapes.Nil == nil {
+			panic("rt.Shapes is not initialized: Cons and Nil are required")
+		}
+		list := Shapes.Nil()
+		for i := len(entries) - 1; i >= 0; i-- {
+			list = Shapes.Cons(entries[i].Name(), list)
+		}
+		return list, nil
+	})
+}
+
+// RemoveFile removes a file or empty directory; a missing path fails the IO.
+func RemoveFile(path any) any {
+	return IO(func() (any, error) {
+		if err := os.Remove(path.(string)); err != nil {
+			return nil, err
+		}
+		return Unit{}, nil
+	})
+}
+
+// Print writes a string to stdout without adding a newline.
+func Print(s any) any {
+	return IO(func() (any, error) {
+		if _, err := fmt.Fprint(os.Stdout, s.(string)); err != nil {
+			return nil, err
+		}
+		return Unit{}, nil
+	})
+}
+
+// NowMillis reads the Unix wall clock in milliseconds when its IO runs.
+func NowMillis() any {
+	return IO(func() (any, error) { return time.Now().UnixMilli(), nil })
+}
+
+var monotonicOrigin = time.Now()
+
+// MonotonicMillis returns elapsed milliseconds since runtime initialization.
+func MonotonicMillis() any {
+	return IO(func() (any, error) { return time.Since(monotonicOrigin).Milliseconds(), nil })
+}
+
+// FormatTime formats Unix milliseconds in UTC using a Go time layout.
+func FormatTime(millis, layout any) any {
+	return time.UnixMilli(millis.(int64)).UTC().Format(layout.(string))
+}
+
+// RandomInt samples the inclusive interval uniformly, including the full Int range.
+// It is not a cryptographic random source.
+func RandomInt(lo, hi any) any {
+	return IO(func() (any, error) {
+		lower, upper := lo.(int64), hi.(int64)
+		if lower > upper {
+			return nil, errors.New("randomInt: lo must be <= hi")
+		}
+		width := uint64(upper) - uint64(lower) + 1
+		if width == 0 {
+			return int64(rand.Uint64()), nil
+		}
+		return int64(uint64(lower) + rand.Uint64N(width)), nil
+	})
+}
+
+// Sleep waits for positive milliseconds; nonpositive durations return immediately.
+func Sleep(millis any) any {
+	return IO(func() (any, error) {
+		n := millis.(int64)
+		if n > int64((1<<63-1)/time.Millisecond) {
+			return nil, errors.New("sleep: duration out of range")
+		}
+		if n > 0 {
+			time.Sleep(time.Duration(n) * time.Millisecond)
 		}
 		return Unit{}, nil
 	})

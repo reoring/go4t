@@ -1,0 +1,38 @@
+package main
+
+// Validation is pure. A failed parse or nonpositive value skips every later bind.
+func positive(text String, label String) Result[String, Int] {
+  do {
+    n <- okOr(parseInt(text), label + ": expected an integer")
+    if n > 0 { Ok(n) } else { Err(label + ": must be positive") }
+  }
+}
+
+func validate(config String) Result[String, Int] {
+  match words(config) {
+    Cons(first, Cons(second, Nil)) => do {
+      a <- positive(first, "first")
+      b <- positive(second, "second")
+      pure(a + b)
+    }
+    _ => Err("expected two integers")
+  }
+}
+
+func main() IO[Unit] {
+  do {
+    argv <- args()
+    let configPath = fromOption(head(argv), "examples/io-effects/missing.conf")
+    let output = fromOption(head(tail(argv)), "io-effects")
+    loaded <- tryIO(readFile(configPath))
+    let config = fromResult(loaded, "3 4")
+    println(match loaded { Err(_) => "config: defaults (read failed)" | Ok(_) => "config: file" })
+    let result = validate(config)
+    println("validation: ${result}")
+    println("early error: ${validate("bad also-bad")}")
+    writeFile(output + ".report.txt", "sum: ${result}\n")
+    timestamp <- nowMillis()
+    appendFile(output + ".log", formatTime(timestamp, "2006-01-02T15:04:05.000Z") + " sum: ${result}\n")
+    println("wrote report and appended timestamped log")
+  }
+}

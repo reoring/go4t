@@ -15,8 +15,6 @@ type Failure =
   | Insufficient{id: AccountId, need: Int, have: Int}
   | BadAmount(Int)
 
-type Result[E, A] = Err(E) | Ok(A)
-
 // ===== インスタンス =====
 
 instance Show[AccountId] { show(a) { match a { AccountId(s) => s } } }
@@ -44,18 +42,6 @@ instance Show[Failure] {
       BadAmount(n) => "bad amount ${n}"
     }
   }
-}
-
-instance Show[Result[E, A]] given Show[E], Show[A] {
-  show(r) { match r { Err(e) => "Err(${e})" | Ok(a) => "Ok(${a})" } }
-}
-
-instance Functor[Result[E]] {
-  fmap(r, f) { match r { Err(e) => Err(e) | Ok(a) => Ok(f(a)) } }
-}
-instance Monad[Result[E]] {
-  pure(a) { Ok(a) }
-  bind(r, f) { match r { Err(e) => Err(e) | Ok(a) => f(a) } }
 }
 
 // ===== 純粋ロジック =====
