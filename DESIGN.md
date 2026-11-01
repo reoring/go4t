@@ -961,12 +961,18 @@ named in their contract) — `docs/slices/` is not used any more; `docs/check_te
   same pattern as Tuple2) — rt returns `(status, headers, body)` tuples and the gofx side builds
   the records. Client has a default 30 s timeout; `requestWithTimeout(r, millis)`.
 - **Dependencies.** A gofx library is a Go module containing `.gfx` files and a `gofx.mod`.
-  `gofx init <module-path>` writes `go.mod` (module path, `require gofx`) and `gofx.mod`.
-  `gofx get <path>@<version>` runs `go get` in the project's go.mod and appends
-  `require <path> <version>` to `gofx.mod`. Import resolution order: project module root →
-  `gofx.mod` requires, resolved via `go list -m -json <path>` to the module cache directory →
-  `GOFX_PATH` → embedded `std`. Tests use a fixture library module wired with `replace`
-  (no network).
+  `gofx init <module-path>` writes `go.mod` (module path, Go 1.22, `require gofx
+  v0.0.0`) and `gofx.mod`. Its runtime replacement uses the `Dir` resolved by
+  `go list -m -json gofx` from cwd, otherwise the embedded runtime extracted
+  atomically to the user cache `gofx/runtime/<sha256>` (XDG_CACHE_HOME on Linux,
+  default HOME/.cache); never a project-local runtime copy.
+  `gofx get <path>@<version>` runs `go get` in the project root and adds/updates
+  `require <path> <selected-version>` in `gofx.mod`. Import resolution order:
+  nearest source module root → matching `gofx.mod` requires, longest prefix,
+  resolved via `go list -m -json <path>` in the entry project's Go graph →
+  `GOFX_PATH` → embedded `std`. Go owns replacements, version selection and
+  checksums; dependency modules carry their own gofx manifests. Tests use a
+  fixture library module wired with `replace` (no network).
 - **Show/Float.** `show(Float)` always contains a decimal point or exponent (`1.0`, `1.5`,
   `1e+21`, `NaN`, `+Inf`) — same formatter as `Debug[Float]`. `showFloatFixed` is the display
   recommendation for money (SPEC §4.8 / §10.1 note).

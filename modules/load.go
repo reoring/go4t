@@ -88,7 +88,14 @@ func LoadFiles(files []*ast.File, directory string) ([]*ast.Module, error) {
 	if err := samePackage(entry); err != nil {
 		return nil, err
 	}
-	l := loader{base: base, seen: map[string]*ast.Module{base: entry}}
+	root, _, err := FindRoot(base)
+	if err != nil {
+		return nil, err
+	}
+	if root == "" {
+		root = base
+	}
+	l := loader{base: base, projectRoot: root, seen: map[string]*ast.Module{base: entry}, dependencies: make(map[string]string)}
 	if _, err := l.importModule("std/prelude", base); err != nil {
 		return nil, err
 	}
@@ -100,9 +107,11 @@ func LoadFiles(files []*ast.File, directory string) ([]*ast.Module, error) {
 }
 
 type loader struct {
-	base  string
-	seen  map[string]*ast.Module
-	order []*ast.Module
+	base         string
+	projectRoot  string
+	seen         map[string]*ast.Module
+	dependencies map[string]string
+	order        []*ast.Module
 }
 
 func parse(source, name string) (*ast.File, error) {
@@ -160,37 +169,11 @@ func (l *loader) importModule(importPath, from string) (*ast.Module, error) {
 	if importPath == "" || path.IsAbs(importPath) || path.Clean(importPath) != importPath || strings.Contains(importPath, "\\") || importPath == ".." || strings.HasPrefix(importPath, "../") {
 		return nil, fmt.Errorf("invalid import path %q", importPath)
 	}
-	root, moduleName, err := moduleRoot(from, l.base)
+	dir, err := l.resolveDirectory(importPath, from)
 	if err != nil {
 		return nil, err
 	}
-	relative := importPath
-	if moduleName != "" {
-		if importPath == moduleName {
-			relative = "."
-		} else {
-			relative = strings.TrimPrefix(importPath, moduleName+"/")
-		}
-	}
-	roots := append([]string{root}, filepath.SplitList(os.Getenv("GOFX_PATH"))...)
-	for _, root := range roots {
-		if root == "" {
-			continue
-		}
-		dir, err := filepath.Abs(filepath.Join(root, filepath.FromSlash(relative)))
-		if err != nil {
-			return nil, err
-		}
-		info, err := os.Stat(dir)
-		if os.IsNotExist(err) {
-			continue
-		}
-		if err != nil {
-			return nil, err
-		}
-		if !info.IsDir() {
-			continue
-		}
+	if dir != "" {
 		if m := l.seen[dir]; m != nil {
 			if strings.HasPrefix(importPath, "std/") {
 				m.ImportPath = importPath
@@ -260,23 +243,77 @@ func (l *loader) importModule(importPath, from string) (*ast.Module, error) {
 	}
 	return nil, fmt.Errorf("module %q not found", importPath)
 }
-func moduleRoot(dir, fallback string) (string, string, error) {
-	for {
-		contents, err := os.ReadFile(filepath.Join(dir, "gofx.mod"))
-		if err == nil {
-			fields := strings.Fields(string(contents))
-			if len(fields) != 2 || fields[0] != "module" || strings.Contains(strings.TrimSpace(string(contents)), "\n") {
-				return "", "", fmt.Errorf("invalid gofx.mod in %s: expected module <name>", dir)
-			}
-			return dir, fields[1], nil
-		}
-		if !os.IsNotExist(err) {
-			return "", "", err
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return fallback, "", nil
-		}
-		dir = parent
+func (l *loader) resolveDirectory(importPath, from string) (string, error) {
+	root, manifest, err := FindRoot(from)
+	if err != nil {
+		return "", err
 	}
+	if root == "" {
+		root = l.base
+	}
+	relative := importPath
+	if manifest != nil {
+		relative = moduleRelative(importPath, manifest.Module)
+	}
+	if dir, err := existingDirectory(root, relative); dir != "" || err != nil {
+		return dir, err
+	}
+	if manifest != nil {
+		// Nested module paths take precedence over their parent requirement.
+		var selected *Requirement
+		for i := range manifest.Requires {
+			req := &manifest.Requires[i]
+			if (importPath == req.Path || strings.HasPrefix(importPath, req.Path+"/")) && (selected == nil || len(req.Path) > len(selected.Path)) {
+				selected = req
+			}
+		}
+		if selected != nil {
+			dir := l.dependencies[selected.Path]
+			if dir == "" {
+				module, err := ResolveGoModule(l.projectRoot, selected.Path)
+				if err != nil {
+					return "", fmt.Errorf("resolve dependency %s: %w", selected.Path, err)
+				}
+				dir = module.Dir
+				l.dependencies[selected.Path] = dir
+			}
+			if resolved, err := existingDirectory(dir, moduleRelative(importPath, selected.Path)); resolved != "" || err != nil {
+				return resolved, err
+			}
+		}
+	}
+	for _, root := range filepath.SplitList(os.Getenv("GOFX_PATH")) {
+		if root == "" {
+			continue
+		}
+		if dir, err := existingDirectory(root, relative); dir != "" || err != nil {
+			return dir, err
+		}
+	}
+	return "", nil
+}
+
+func moduleRelative(importPath, modulePath string) string {
+	if importPath == modulePath {
+		return "."
+	}
+	return strings.TrimPrefix(importPath, modulePath+"/")
+}
+
+func existingDirectory(root, relative string) (string, error) {
+	dir, err := filepath.Abs(filepath.Join(root, filepath.FromSlash(relative)))
+	if err != nil {
+		return "", err
+	}
+	info, err := os.Stat(dir)
+	if os.IsNotExist(err) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	if !info.IsDir() {
+		return "", nil
+	}
+	return dir, nil
 }

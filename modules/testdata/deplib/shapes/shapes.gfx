@@ -1,0 +1,3 @@
+package shapes
+import "example.com/lib/dimensions"
+func area(width Int, height Int) Int { dimensions.product(width, height) }

@@ -1,0 +1,7 @@
+package main
+
+import "example.com/lib/shapes"
+
+func main() IO[Unit] {
+  println("area: " + show(shapes.area(6, 7)))
+}

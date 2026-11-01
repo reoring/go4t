@@ -122,15 +122,39 @@ deriving classes and constructor patterns are supported.
 Import paths are nonempty clean relative slash paths: no absolute paths,
 backslashes, `..` or leading `../`. Search in this order:
 
-1. The importing module's nearest ancestor `gofx.mod`, containing one line
-   `module <name>`; absent a file, the entry program's directory is the root.
-   An exact module name refers to the root; a `<name>/` prefix is stripped.
-2. Nonempty `GOFX_PATH` entries in platform path-list order.
-3. The compiler's embedded `std/` sources for `std/...` imports.
+1. The importing module's nearest ancestor `gofx.mod`; absent a file, the entry
+   program's directory is the root. An exact module name refers to the root;
+   a `<name>/` prefix is stripped.
+2. Matching `require <path> <version>` declarations in that `gofx.mod`.
+   Imports use `<path>` for the dependency root or `<path>/<subdir>` for a
+   subdirectory. Matching requires use the longest slash-delimited prefix.
+   `go list -m -json <path>` runs in the entry project's root, and its `Dir`
+   supplies the dependency root, including local `go.mod` replacements.
+3. Nonempty `GOFX_PATH` entries in platform path-list order.
+4. The compiler's embedded `std/` sources for `std/...` imports.
 
 The first existing directory wins, even if it is empty or invalid; errors do
 not fall through. A filesystem std override retains its logical std identity
 for intrinsic types and reexports, alongside its absolute-directory identity.
+
+A `gofx.mod` begins with `module <name>`, followed by zero or more single-line
+`require <path> <version>` directives. Blank lines and `//` comments are allowed;
+duplicate requires, extra module directives and other directives are errors.
+Module paths are clean relative slash paths using ASCII letters, digits,
+`-`, `.`, `_`, `~`; `.`/`..` components and a leading `-` are not allowed.
+Go module path/version rules additionally apply when invoking Go tooling.
+`replace` directives belong in **go.mod**, not gofx.mod.
+
+A dependency is a Go module containing `go.mod`, `gofx.mod` and `.gfx` sources.
+Its own imports use its nearest gofx root and requires, but Go queries always
+use the entry project's selected Go graph, so application replacements and Go's
+version selection apply transitively. `gofx.mod` declares language dependencies;
+`go.mod`/`go.sum` remain authoritative for selected versions and checksums.
+`gofx get` synchronizes the requested requirement with Go's selected version.
+A declared dependency that cannot be resolved by Go is an error, not a
+GOFX_PATH fallback. A resolved dependency lacking the requested subdirectory
+can fall through; an existing empty/invalid directory cannot. Unused requires
+are not resolved eagerly.
 
 Every top-level name is public unless it begins `_`; private names remain usable
 throughout their owning module but not through another module's qualification.
@@ -962,6 +986,8 @@ and linear conversion space; the old quadratic `insertBy` helper is removed.
 ### 8.2 Commands and flags
 
 ```text
+gofx init <module-path>
+gofx get <path>@<version>
 gofx check [--full-types] FILE.gfx|DIR...
 gofx build [--full-types] [-o DIR | --emit-go DIR --package NAME] FILE.gfx|DIR...
 gofx run [--full-types] FILE.gfx|DIR... [-- args...]
@@ -972,6 +998,28 @@ gofx fmt [-w|-d|-l] FILE...|DIR
 gofx lsp
 ```
 
+- `init` creates `go.mod` and `gofx.mod` in the current directory; it refuses
+  to overwrite either existing file. `go.mod` contains `module <module-path>`,
+  `go 1.22`, `require gofx v0.0.0` and a local replacement for `gofx`.
+  Before writing, it runs `go list -m -json gofx` from the current directory:
+  a resolved `Dir` (normally a checkout inherited from a parent Go module) is
+  used directly. Otherwise it extracts the binary's embedded runtime to
+  `<user-cache>/gofx/runtime/<sha256>` and replaces `gofx` with that absolute
+  directory. On Linux `<user-cache>` is `$XDG_CACHE_HOME`, or `$HOME/.cache`
+  when unset. The digest covers embedded file paths and contents; extraction
+  is published atomically and reused. No `.gofx` tree is created in the project.
+  `gofx.mod` initially contains only `module <module-path>`. Keep the referenced
+  checkout/cache directory available; local replacements are machine-specific.
+- `get` accepts exactly one `<path>@<version>` (not `@none`). From the nearest
+  ancestor `gofx.mod` root, which must also contain `go.mod`, it runs
+  `go get <path>@<version>` with the caller's Go environment and streams.
+  On success it queries Go's selected module version and adds/updates one
+  `require <path> <version>` in `gofx.mod`, preserving comments and other
+  requirements. Version queries such as `@latest` are recorded as the selected
+  version, not the query. On Go failure `gofx.mod` is unchanged; any `go.mod`
+  or `go.sum` changes made by Go are not rolled back. Ordinary Go `replace`
+  directives support offline local libraries; no separate download manager
+  or gofx lockfile is used.
 - `check` loads/checks only; no foreign-signature validation or execution.
 - `--full-types` on `check`, `build` or `run` prints diagnostic types without
   depth elision (§5.2), retaining alias names. It may precede or follow inputs;
@@ -1491,13 +1539,15 @@ share immutable storage, but empty slices do not retain the backing allocation.
 | Boundary | Behaviour |
 | --- | --- |
 | Directory inputs | check/build/run/test/eval load immediate .gfx only; fmt recursively loads regular .gfx; explicit entry files must share directory |
-| Import search | Source root before GOFX_PATH before embedded std; first matching directory is authoritative even invalid/empty |
+| Import search | Nearest source root before matching gofx.mod requires (longest prefix, project Go graph) before GOFX_PATH before embedded std; first existing directory wins even invalid/empty |
 | Privacy / identity | `_` private outside owning module; aliases file-scoped; cycles deduplicated; global duplicate instances name both modules |
 | Prelude shadow | Local wins, top-level shadow warns; no implicit JSON or non-listed methods/functions |
 | Diagnostic spans | One-based rune starts/exclusive ends; CLI caret clamps first line; missing end gives one caret; warnings exit 0 |
 | test | Empty suite succeeds; only explicit Bool/IO[Bool], monomorphic zero-arg `test` plus suffix; user main removed before checking; false/IO failure continues, panic uses ordinary runtime policy |
 | eval | One expression; imports from first entry file; Show needed; failed pure and IO wrappers report original error; no special Unit display |
 | build | Go sources not executable; -o vs --emit-go exclusive; --emit-go/--package paired; unrelated Go files preserved |
+| init | Refuses either existing manifest; resolved gofx Dir wins over content-addressed user-cache runtime; no project-local runtime extraction |
+| get | Exactly path@version; requires go.mod beside nearest gofx.mod; Go failure leaves gofx.mod unchanged; success updates without duplicate requires |
 | fmt | No typecheck/main required; -l differences exit 1, -d differences exit 0; invalid file not written; earlier writes survive later error |
 | LSP overlays | Full sync and increasing versions only; stale/incremental/unopened changes ignored; close restores disk; failed check drops index |
 | LSP framing | 16 MiB body / 8192-byte header limit; malformed/truncated framing errors; EOF ends cleanly |
@@ -1519,7 +1569,11 @@ LSP request error codes:
 
 Module errors include `invalid import path "PATH"`, `module "PATH" not found`,
 `entry files must belong to one directory`, `no .gfx files in DIR`,
-`invalid gofx.mod in DIR: expected module <name>`, `package NAME differs from NAME`,
+`invalid gofx.mod in DIR: expected module <name>`,
+`invalid gofx.mod in DIR: line N: expected require <path> <version>`,
+`invalid gofx.mod in DIR: duplicate require PATH`,
+`resolve dependency PATH: go list -m -json PATH: ...`,
+`package NAME differs from NAME`,
 `duplicate or invalid import alias ALIAS`, `unknown import alias ALIAS`,
 `module MODULE has no exported name NAME`, `NAME is private to module MODULE`,
 and `duplicate instance CLASS[TYPE] in modules FIRST and SECOND`.

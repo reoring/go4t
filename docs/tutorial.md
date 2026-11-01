@@ -6,7 +6,8 @@ runtime, so saved programs can live anywhere: `run`, `test`, and `eval` create a
 temporary Go module when needed and clean it afterward. Keep the Go toolchain on
 PATH. Alternatively use `go run ./cmd/gofx` from the checkout root. Externs outside
 `gofx/rt` and its subpackages need an application Go module providing those packages
-and `gofx`. `gofx.mod` controls gofx imports, not Go dependencies.
+and `gofx`. `gofx init` creates that project; `gofx get` records language
+dependencies in `gofx.mod` while Go manages their versions and checksums.
 
 Every `gofx` block below is a complete checkable example, alone or with the files
 in its named group. For ordinary blocks, save as `lesson.gfx` and run
@@ -261,9 +262,44 @@ mutually visible, and cyclic module graphs are supported.
 
 For a stable project root, put the line `module demo` in `module-demo/gofx.mod`;
 then `"demo/greeting"` also resolves to the greeting directory. Resolution tries
-the nearest module root, then GOFX_PATH entries, then embedded std. No download
-manager is involved. Local declarations may shadow implicit prelude names with a
+the nearest module root, matching `gofx.mod` requires, GOFX_PATH entries, then
+embedded std. Local declarations may shadow implicit prelude names with a
 warning; explicit module qualification removes ambiguity.
+
+### Adding a library dependency
+
+In a new directory, `gofx init example.com/myapp` creates `go.mod` and
+`gofx.mod`, refusing to overwrite either. The Go module uses `go 1.22`,
+`require gofx v0.0.0` and a local runtime replacement. It first tries
+`go list -m -json gofx` from the current directory and uses its resolved `Dir`.
+If that fails, it extracts the embedded runtime to
+`$XDG_CACHE_HOME/gofx/runtime/<sha256>` on Linux (default
+`$HOME/.cache/gofx/runtime/<sha256>`). This content-addressed cache is reused;
+no project-local `.gofx` directory is created. The replacement is machine-local,
+so keep the referenced checkout/cache or adjust the replacement when relocating.
+
+For a published library, run `gofx get example.com/lib@v1.0.0`.
+For a local library at `../lib`, first put
+`replace example.com/lib => ../lib` in **go.mod** and run the same command;
+Go accepts that replacement offline, without a published version.
+The command runs `go get` at the nearest gofx project root and adds or updates
+one `require example.com/lib v1.0.0` line in `gofx.mod`. `@latest` and other
+Go version queries are recorded as the selected version. Go owns `go.sum`
+checksums and all replacements; `gofx.mod` supports module/require lines,
+blank lines and `//` comments, not `replace` directives.
+
+Import `"example.com/lib/shapes"` to load the dependency's `shapes/` sources.
+`go list -m -json example.com/lib` supplies its directory using the entry
+project's Go graph, so its replacements also apply to transitive dependencies.
+A dependency's own imports use its own gofx root and requires. Missing Go
+dependencies are errors, not silent fallbacks to GOFX_PATH.
+
+Try the complete offline [dependency example](../examples/deps):
+
+```sh
+gofx run examples/deps/app
+# area: 42
+```
 
 ## 7. Pipelines, sections and recursive helpers
 

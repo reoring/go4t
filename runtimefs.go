@@ -2,6 +2,7 @@
 package runtimefs
 
 import (
+	"crypto/sha256"
 	"embed"
 	"fmt"
 	"io/fs"
@@ -25,6 +26,27 @@ func GoVersion() string {
 		}
 	}
 	panic("embedded go.mod has no go directive")
+}
+
+// Digest identifies the embedded file names and contents for persistent caches.
+func Digest() (string, error) {
+	hash := sha256.New()
+	err := fs.WalkDir(sources, ".", func(path string, entry fs.DirEntry, err error) error {
+		if err != nil || entry.IsDir() {
+			return err
+		}
+		data, err := sources.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(hash, "%d:%s%d:", len(path), path, len(data))
+		hash.Write(data)
+		return nil
+	})
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%x", hash.Sum(nil)), nil
 }
 
 // Write extracts a minimal gofx module into dir. The runtime depends only on

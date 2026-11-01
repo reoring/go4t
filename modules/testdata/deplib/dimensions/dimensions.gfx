@@ -1,0 +1,2 @@
+package dimensions
+func product(width Int, height Int) Int { width * height }

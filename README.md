@@ -53,13 +53,55 @@ Outside a usable Go module it prints a compilation note: to compile those source
 yourself, configure a module with `require gofx v0.0.0` and
 `replace gofx => /absolute/path/to/gofx`, then run `go build` in the generated
 directory. Externs outside `gofx/rt` and its subpackages require a real application
-Go module providing those packages and `gofx`. A `gofx.mod` file controls language
-import roots, not Go dependencies.
+Go module providing those packages and `gofx`. Use `gofx init` to create a project;
+`gofx.mod` declares language imports while Go manages dependency versions.
+
+## Dependencies
+
+A gofx library is a Go module with `go.mod`, `gofx.mod` and `.gfx` files.
+In a new directory, run `gofx init example.com/myapp`. It creates both manifests:
+`go.mod` declares `go 1.22`, requires `gofx v0.0.0`, and replaces it with the
+`Dir` returned by `go list -m -json gofx` from the original directory, when
+available (typically a parent module's checkout replacement). Otherwise it
+extracts the embedded runtime to the user cache:
+`$XDG_CACHE_HOME/gofx/runtime/<sha256>` on Linux, or
+`$HOME/.cache/gofx/runtime/<sha256>` when XDG_CACHE_HOME is unset. The hash covers
+embedded paths and contents; repeated initialization reuses the same runtime.
+No `.gofx` runtime directory is added to the project. Existing manifests are
+never overwritten. The generated replacement is an absolute, machine-local
+path: keep that checkout/cache available and adjust it when moving the project.
+
+Install a published library with `gofx get example.com/lib@v1.0.0`.
+This runs `go get` in the nearest `gofx.mod` project root (which must also have
+`go.mod`), then adds or updates `require example.com/lib v1.0.0` in `gofx.mod`.
+Go selects the version; queries such as `@latest` are saved as concrete selected
+versions. Checksums and replacements stay in `go.sum` and `go.mod`. Import the
+library's sources as `"example.com/lib/shapes"` for its `shapes/` directory.
+
+For an offline local library, first add
+`replace example.com/lib => ../lib` to the application's **go.mod**, then run
+`gofx get example.com/lib@v1.0.0`. A local replacement needs no published tag or
+network access. The checked-in [dependency example](examples/deps) is ready to run:
+
+```sh
+gofx run examples/deps/app
+# area: 42
+```
+
+Resolution tries the importing module's nearest source root, matching
+`gofx.mod` requires via `go list -m -json` in the entry project, `GOFX_PATH`,
+then embedded std. Dependency imports and transitive versions honor the
+application's Go replacements; longest module-path prefixes win. The first
+existing directory is authoritative, even when empty or invalid. `gofx.mod`
+accepts one `module` line, single-line `require` directives, blank lines and
+`//` comments; it does not accept `replace`.
 
 ## CLI overview
 
 | Command | Purpose and important flags |
 | --- | --- |
+| `gofx init <module-path>` | Create go.mod/gofx.mod, using a resolved gofx checkout or the cached embedded runtime. |
+| `gofx get <path>@<version>` | Run Go dependency installation and add/update the selected version in gofx.mod. |
 | `gofx check [--full-types] FILE.gfx\|DIR...` | Load modules and type-check; warnings do not fail; no foreign ABI check. |
 | `gofx build [--full-types] [-o DIR] FILE.gfx\|DIR...` | Emit one file per gofx module into one Go package. |
 | `gofx build [--full-types] --emit-go DIR --package NAME FILE.gfx\|DIR...` | Emit an embeddable non-main package exposing `Main() rt.IO`; incompatible with -o. |
@@ -117,6 +159,7 @@ historical observed output; current imports/signatures are defined by SPEC/std.
 | [codegen-quality](examples/codegen-quality) | Million-step direct-self tail recursion and source locations. | `gofx run examples/codegen-quality/main.gfx` |
 | [collections](examples/collections) | Persistent Map/Set/Array, grouping and snapshot preservation. | `gofx run examples/collections/main.gfx` |
 | [concurrency](examples/concurrency) | Fork/await, ordered parallel work, race and timeout. | `gofx run examples/concurrency/main.gfx` |
+| [deps](examples/deps) | Offline Go-module dependency resolution with a local library replacement. | `gofx run examples/deps/app` |
 | [deriving](examples/deriving) | Structural Debug and derived Functor/Foldable/Traversable. | `gofx run examples/deriving/main.gfx` |
 | [diagnostics](examples/diagnostics) | Successful exhaustive Bool matching; sibling bad files demonstrate failures/warnings. | `gofx run examples/diagnostics/main.gfx` |
 | [eqord](examples/eqord) | Custom equality/ordering and stable list operations. | `gofx run examples/eqord/main.gfx` |

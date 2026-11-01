@@ -30,9 +30,15 @@ func main() {
 	}
 }
 
-const usage = "gofx:1:1: usage: gofx check [--full-types] FILE.gfx|DIR... | gofx build [--full-types] [-o DIR | --emit-go DIR --package NAME] FILE.gfx|DIR... | gofx run [--full-types] FILE.gfx|DIR... [-- args...] | gofx test FILE.gfx|DIR... | gofx eval 'EXPR' [FILE.gfx|DIR...] | gofx bind IMPORT [FILE.gfx|DIR...] [-o FILE.gfx|DIR] [--prefix STR] | gofx lsp | gofx fmt [-w|-d|-l] FILE...|DIR"
+const usage = "gofx:1:1: usage: gofx init <module-path> | gofx get <path>@<version> | gofx check [--full-types] FILE.gfx|DIR... | gofx build [--full-types] [-o DIR | --emit-go DIR --package NAME] FILE.gfx|DIR... | gofx run [--full-types] FILE.gfx|DIR... [-- args...] | gofx test FILE.gfx|DIR... | gofx eval 'EXPR' [FILE.gfx|DIR...] | gofx bind IMPORT [FILE.gfx|DIR...] [-o FILE.gfx|DIR] [--prefix STR] | gofx lsp | gofx fmt [-w|-d|-l] FILE...|DIR"
 
 func run(args []string) error {
+	if len(args) > 0 && args[0] == "init" {
+		return runInit(args[1:])
+	}
+	if len(args) > 0 && args[0] == "get" {
+		return runGet(args[1:])
+	}
 	if len(args) > 0 && args[0] == "lsp" {
 		if len(args) != 1 {
 			return errors.New(usage)
