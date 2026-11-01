@@ -130,6 +130,34 @@ Source: [`float/float.gfx`](../std/float/float.gfx). 24 top-level declarations.
 | `instance Eq[Float]` | Compare Float values for equality. | NaN unequal to itself; positive/negative zero equal. |
 | `instance Ord[Float]` | Compare Float values with Ordering. | NaN lowest; two NaNs compare EQ; signed zeros EQ. |
 
+## `std/http`
+
+Source: [`http/http.gfx`](../std/http/http.gfx). 14 top-level declarations.
+
+All client/server effects honor their IO context. Headers are lists of pairs,
+not maps, so repeated values survive the ABI. Bodies are buffered Strings.
+Records are built in gofx: runtime client results and server handler results use
+`rt.Shapes.Tuple3/Untuple3` for `(status, headers, body)`; the server supplies the
+six Request fields individually to the gofx adapter. No generated record layout
+is assumed by rt. See SPEC §6.4 and the runnable [HTTP example](../examples/http).
+
+| Source signature | Semantics | Boundary behaviour |
+| --- | --- | --- |
+| `type Request = Request{method: String, url: String, path: String, query: List[(String, String)], headers: List[(String, String)], body: String}` | Client request or incoming server request fields. | Client url must be absolute; nonempty path overrides the URL path, query pairs append. Incoming url is normally relative; path/query are decoded. |
+| `type Response = Response{status: Int, headers: List[(String, String)], body: String}` | Complete HTTP response. | Non-2xx is a normal value, not an IO failure; headers preserve repeated values. |
+| `extern func _request(method String, url String, path String, query List[(String, String)], headers List[(String, String)], body String, millis Int) IO[(Int, List[(String, String)], String)] = "gofx/rt".HTTPRequest` | Private field-list client ABI returning a triple. | Deferred; uses context through connection, redirects and full body read; no record-layout dependency. |
+| `extern func _header(headers List[(String, String)], name String) Option[String] = "gofx/rt".HTTPHeader` | Private case-insensitive header lookup. | First matching value, including empty; None if absent. |
+| `extern func _serve(port Int, handler func(String, String, String, List[(String, String)], List[(String, String)], String) IO[(Int, List[(String, String)], String)]) IO[Unit] = "gofx/rt".HTTPServe` | Private server field-list/triple ABI. | Request fields are method, url, path, query, headers, body; handler results are status, headers, body. |
+| `func request(r Request) IO[Response]` | Send a request with a 30 s overall timeout. | Replay sends again; Network/Timeout/Cancelled on transport failure; non-2xx succeeds. No retries. |
+| `func requestWithTimeout(r Request, millis Int) IO[Response]` | Send with an explicit millisecond budget. | Parent cancellation checked first; nonpositive fails Timeout without sending; overflow fails `requestWithTimeout: duration out of range`. |
+| `func get(url String) IO[Response]` | GET with no explicit body/headers/query override. | Uses request's 30 s budget and net/http redirect defaults. |
+| `func post(url String, contentType String, body String) IO[Response]` | POST with Content-Type and complete String body. | Uses request's 30 s budget; status is not restricted to 2xx. |
+| `func response(status Int, body String) Response` | Pure response constructor with no headers. | Does not execute IO or infer a content type; net/http supplies wire defaults when served. |
+| `func jsonResponse[A json.Encode](status Int, a A) Response` | Encode through std/json and set Content-Type to application/json. | Requires Encode; strict encoding may panic before IO construction (e.g. non-finite numbers). |
+| `func requestHeader(r Request, name String) Option[String]` | Read first case-insensitive request header. | Absent → None; present empty → Some(""); Host is exposed on incoming requests. |
+| `func responseHeader(r Response, name String) Option[String]` | Read first case-insensitive response header. | Repeated headers are not joined; first wins. |
+| `func serve(port Int, handler func(Request) IO[Response]) IO[Unit]` | Listen on all interfaces; run each request concurrently with its request context. | Deferred bind; Network on bind error; cancellation shuts down with 5 s grace and fails Cancelled/Timeout; handler failure/panic → 500 with exact message body and `http handler: <message>` stderr line. Fork is not a readiness signal. |
+
 ## `std/io`
 
 Source: [`io/io.gfx`](../std/io/io.gfx). 31 top-level declarations.

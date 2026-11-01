@@ -1,6 +1,7 @@
 package main
 
 import "std/prelude"
+import "std/http"
 
 // ---- ドメイン: 純粋な代数的データ型と状態遷移 ----
 type Order = Pending(Int, Int) | Shipped(Int, Int) | Cancelled(Int)
@@ -64,16 +65,15 @@ func amountOf(o Order) Int {
   }
 }
 
-// ---- 効果は IO に隔離。Go の net/http は extern ----
-extern func httpGet(url String) IO[Int] = "gofx/rt/stdhttp".GetStatus
+// ---- 効果は IO に隔離。HTTP は std/http ----
 
 func notify(total Int) IO[Unit] {
   do {
-    status <- httpGet("https://example.com")
-    if status == 200 {
+    response <- http.get("https://example.com")
+    if response.status == 200 {
       println("notified warehouse: total=" + show(total))
     } else {
-      ioFail("warehouse returned " + show(status))
+      ioFail("warehouse returned " + show(response.status))
     }
   }
 }

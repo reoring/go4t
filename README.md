@@ -140,14 +140,21 @@ constructors such as `io.NotFound(message)`; use `io.ioErrorMessage(e)` or
 `ioFail("unavailable")` is captured as `Err(io.Failure("unavailable"))`, whose
 Show output remains `Err(unavailable)`; Debug includes the Failure constructor.
 
+`std/http` provides Request/Response records, `request`/`get`/`post`,
+`requestWithTimeout`, `response`/`jsonResponse`, header lookup and `serve`.
+Clients default to 30 s and honor fiber cancellation; non-2xx statuses remain
+Responses. Servers run handlers concurrently with request contexts and shut
+down with a 5 s grace when cancelled. No Go extern declaration is needed.
+
 ## Examples
 
 Commands run from the checkout root with an installed `gofx` (or substitute
 `go run ./cmd/gofx`). This table covers **every examples subdirectory**. Use the
 explicit files below instead of blindly running directories containing negative
-fixtures or multiple main functions. HTTP examples need network access;
-concurrency timings and filesystem timestamps vary. Example READMEs contain
-historical observed output; current imports/signatures are defined by SPEC/std.
+fixtures or multiple main functions. The HTTP service example uses only loopback;
+bank/inventory/orders use external network access. Concurrency timings and
+filesystem timestamps vary. Example READMEs contain historical observed output;
+current imports/signatures are defined by SPEC/std.
 
 | Example | Purpose | Run command |
 | --- | --- | --- |
@@ -165,7 +172,7 @@ historical observed output; current imports/signatures are defined by SPEC/std.
 | [eqord](examples/eqord) | Custom equality/ordering and stable list operations. | `gofx run examples/eqord/main.gfx` |
 | [float-num](examples/float-num) | Statistics, Float parsing/formatting, IEEE numeric edges. | `gofx run examples/float-num/main.gfx` |
 | [fmt](examples/fmt) | Canonical formatter input; also try `gofx fmt -d examples/fmt/before.gfx`. | `gofx run examples/fmt/before.gfx` |
-| [http](examples/http) | Natural Go HTTP extern and Option; requires network. | `gofx run examples/http/main.gfx` |
+| [http](examples/http) | std/http server/client, JSON health/sum routes and fiber cancellation; loopback only. | `gofx run examples/http/main.gfx -- 8080` |
 | [inventory](examples/inventory) | Records, inventory validation and HTTP notification (network). | `gofx run examples/inventory/main.gfx` |
 | [io-effects](examples/io-effects) | Read configuration, validate, write a report and append a log (filesystem effects). | `out=$(mktemp -d); gofx run examples/io-effects/main.gfx -- examples/io-effects/config.txt "$out/report"` |
 | [json-deriving](examples/json-deriving) | JSON schema derivation, round trips and nested error paths. | `gofx run examples/json-deriving/main.gfx` |
@@ -212,7 +219,7 @@ gofx check examples/diagnostics/bad_unused.gfx            # warnings, exit 0
 ## Documentation and editors
 
 - [Tutorial for Go developers](docs/tutorial.md): classes, IO/do, errors, modules,
-  tests, FFI, concurrency and JSON, with checked complete examples.
+  tests, FFI, concurrency, HTTP and JSON, with checked complete examples.
 - [Language specification](SPEC.md): current grammar, type/effect rules, CLI,
   deriving, implementation limits and consolidated boundary tables.
 - [Standard library reference](docs/stdlib.md): every std declaration's signature,

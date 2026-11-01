@@ -9,7 +9,6 @@ import (
 
 	"gofx/ast"
 	"gofx/modules"
-	"gofx/parser"
 	"gofx/types"
 )
 
@@ -44,8 +43,6 @@ func TestNaturalExternAdapters(t *testing.T) {
 		extern(p, "typed"+tc.name, []string{"value"}, []types.Type{tc.typ}, "gofx/extern/testdata/natural", tc.name)
 		p.Funcs["typed"+tc.name].Scheme.Type.Ret = app("IO", tc.typ)
 	}
-	extern(p, "httpStatus", []string{"url"}, []types.Type{types.String}, "gofx/rt/stdhttp", "GetStatus")
-	p.Funcs["httpStatus"].Scheme.Type.Ret = app("IO", types.Int)
 	source, err := generate(p, "main")
 	if err != nil {
 		t.Fatal(err)
@@ -98,16 +95,8 @@ func TestExternMismatchDiagnostics(t *testing.T) {
 	}
 }
 
-func TestHTTPExampleUsesNaturalExtern(t *testing.T) {
-	source, err := os.ReadFile("../examples/http/main.gfx")
-	if err != nil {
-		t.Fatal(err)
-	}
-	file, err := parser.Parse(string(source))
-	if err != nil {
-		t.Fatal(err)
-	}
-	modules, err := modules.LoadFiles([]*ast.File{file}, ".")
+func TestTypedExternExampleUsesNaturalABI(t *testing.T) {
+	modules, err := modules.Load([]string{"../examples/typed-extern"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,8 +108,8 @@ func TestHTTPExampleUsesNaturalExtern(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(generated), ".GetStatus(url_.(string))") {
-		t.Fatalf("HTTP example did not adapt its natural extern")
+	if !strings.Contains(string(generated), ".ToUpper(p0_.(string))") {
+		t.Fatalf("typed-extern example did not adapt its natural extern")
 	}
 }
 
@@ -128,8 +117,6 @@ const adapterRuntimeTests = `package main
 import (
     "context"
     "errors"
-    "net/http"
-    "net/http/httptest"
     "reflect"
     "testing"
     "gofx/rt"
@@ -179,17 +166,5 @@ func TestAdapters(t *testing.T) {
         got, err := tc.action.(rt.IO)(context.Background())
         if err != nil || !reflect.DeepEqual(got, tc.want) { t.Fatalf("boxed IO result: %#v, %v", got, err) }
     }
-}
-func TestHTTPAdapter(t *testing.T) {
-    requests := 0
-    server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { requests++; w.WriteHeader(418) }))
-    defer server.Close()
-    action := httpStatus_(server.URL).(rt.IO)
-    if requests != 0 { t.Fatal("HTTP effect before IO") }
-    if status, err := action(context.Background()); status != int64(418) || err != nil { t.Fatalf("HTTP result = %v, %v", status, err) }
-    server.Close()
-    status, err := action(context.Background())
-    failure, ok := err.(*rt.Failure)
-    if status != nil || !ok || failure.Kind != rt.Network { t.Fatalf("HTTP error result = %v, %v", status, err) }
 }
 `

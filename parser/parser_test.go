@@ -53,10 +53,10 @@ instance Functor[Option] {
  fmap(fa, f) { match fa { None => None; Some(a) => Some(f(a)) } }
 }
 func twice[F[_] Functor, A](fa F[A], f func(A) A) F[A] { fmap(fmap(fa, f), f) }
-extern func httpGet(url String) IO[Int] = "gofx/rt/stdhttp".GetStatus
+extern func upper(s String) String = "strings".ToUpper
 func main() IO[Unit] {
  do {
-  code <- httpGet("https://example.com")
+  code <- ioPure(upper("gofx"))
   println(show(code))
  }
 }
@@ -102,11 +102,11 @@ func main() IO[Unit] {
 	}
 	typeName(t, twice.Ret, "F", "A")
 	ext := f.Decls[5].(*ast.FuncDecl)
-	if ext.Name != "httpGet" || ext.Body != nil || ext.Extern == nil || *ext.Extern != (ast.ExternRef{ImportPath: "gofx/rt/stdhttp", Name: "GetStatus"}) {
+	if ext.Name != "upper" || ext.Body != nil || ext.Extern == nil || *ext.Extern != (ast.ExternRef{ImportPath: "strings", Name: "ToUpper"}) {
 		t.Fatalf("extern = %#v", ext)
 	}
 	typeName(t, ext.Params[0].Type, "String")
-	typeName(t, ext.Ret, "IO", "Int")
+	typeName(t, ext.Ret, "String")
 	main := f.Decls[6].(*ast.FuncDecl)
 	typeName(t, main.Ret, "IO", "Unit")
 	d := main.Body.Result.(*ast.Do)

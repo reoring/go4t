@@ -2,6 +2,7 @@ package main
 
 import "std/prelude"
 import "std/string"
+import "std/http"
 
 // ===== ドメイン =====
 type Sku = Sku(String) deriving Show
@@ -96,19 +97,17 @@ func tag[F[_] Functor, A Show](fa F[A], prefix String) F[String] {
 }
 
 // ===== 効果 =====
-extern func httpGet(url String) IO[Int] = "gofx/rt/stdhttp".GetStatus
-
 func report(title String, r Result[String, List[Line]]) IO[Unit] {
   println("${title}: ${r}")
 }
 
 func notify(lines List[Line]) IO[Unit] {
   do {
-    status <- httpGet("https://example.com")
-    if status == 200 {
+    response <- http.get("https://example.com")
+    if response.status == 200 {
       println("  notified ${length(lines)} lines")
     } else {
-      ioFail("notify failed: ${status}")
+      ioFail("notify failed: ${response.status}")
     }
   }
 }

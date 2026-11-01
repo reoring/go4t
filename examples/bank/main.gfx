@@ -3,6 +3,7 @@ package main
 import "std/list"
 import "std/prelude"
 import "std/state"
+import "std/http"
 
 // ===== ドメイン =====
 type AccountId = AccountId(String) deriving Show
@@ -136,12 +137,10 @@ func total(book List[Account]) Int {
 }
 
 // ===== 効果 =====
-extern func httpGet(url String) IO[Int] = "gofx/rt/stdhttp".GetStatus
-
 func audit(label String, book List[Account]) IO[Unit] {
   do {
-    status <- httpGet("https://example.com")
-    let ok = status == 200
+    response <- http.get("https://example.com")
+    let ok = response.status == 200
     println("  audit ${label}: sent=${ok} total=${total(book)}")
   }
 }

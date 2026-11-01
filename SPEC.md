@@ -670,7 +670,8 @@ Go errors from filesystem, stream, time/random and natural-ABI extern boundaries
 are classified in this order (including wrapped errors): not-exist → NotFound,
 permission → PermissionDenied, already-exists → AlreadyExists,
 `context.DeadlineExceeded` → Timeout, `context.Canceled` → Cancelled,
-`net.Error` → Network, otherwise Failure. Existing typed failures retain their
+`net.Error` with `Timeout() == true` → Timeout, other `net.Error` (including URL
+errors) → Network, otherwise Failure. Existing typed failures retain their
 kind and message. Timeout/Cancelled have canonical messages because their ADT
 constructors carry no payload. Generated code registers the `rt.Shapes.IoError`
 constructor bridge and `rt.Shapes.IoErrorOf` destructor bridge alongside Result.
@@ -741,6 +742,47 @@ IO failures without a `panic:` prefix; awaiting one uses exit 1 unless handled. 
 global join; unawaited fibers do not keep a completed main alive. §10 gives all
 edge cases.
 
+### 6.4 HTTP
+
+Import `std/http` for deferred client requests and a cancellable server. `Request`
+has `method`, `url`, `path`, `query`, `headers`, `body`; `Response` has `status`,
+`headers`, `body`. Query and header collections are `List[(String, String)]`;
+request/response bodies are complete Strings, not streams. Non-2xx responses
+are normal values; transport failures use Network, Timeout or Cancelled.
+
+`request(r)`, `get(url)` and `post(url, contentType, body)` have a 30 s timeout
+covering connection, redirects and reading the full body. `requestWithTimeout(r,
+millis)` replaces that budget; an enclosing deadline/cancellation still wins.
+Clients use the absolute `r.url`; a nonempty `r.path` replaces its decoded path,
+and `r.query` pairs append to the URL's existing query. Repeated pairs are retained.
+An empty method follows Go's GET default. HTTP redirects and response compression
+follow `net/http` defaults. No retry policy is added by the library.
+
+`response(status, body)` constructs a response with no headers.
+`jsonResponse[A json.Encode](status, a)` uses `std/json` to encode the body and
+sets `Content-Type: application/json`. Header lookup is case-insensitive and
+returns the first matching value or None: `requestHeader(r, name)` and
+`responseHeader(r, name)`. Client Host headers set the request's host override;
+server requests expose Host in their header list.
+
+`serve(port, handler)` listens on all local interfaces and blocks until its IO
+context is cancelled. Each request runs in its own `net/http` goroutine with
+the request context, descended from the server context. Incoming `url` is the
+request URL (normally relative), `path` is decoded, and `query` contains decoded
+key/value pairs. Header/query keys from Go maps are sorted, repeated values keep
+their order. Handler construction/action panics use the existing worker
+panic-to-Panic failure boundary. Handler failure returns 500 with the exact
+message body and writes `http handler: <message>` plus a newline to stderr.
+Cancellation closes the listener and gives active handlers a 5 s graceful
+shutdown window, then force-closes connections; serve ends with Cancelled
+(or Timeout for a deadline). Noncooperative foreign handlers can outlive it.
+
+The ABI does not depend on generated record layouts: rt returns
+`(status, headers, body)` through `rt.Shapes.Tuple3/Untuple3`, and `std/http`
+constructs Response. The server passes six individual Request fields to a
+gofx adapter which constructs Request and returns the handler's Response as a
+triple. Codegen emits `rt_tuple3`/`rt_untuple3` with source directives like Tuple2.
+
 ## 7. Prelude, deriving and standard modules
 
 ### 7.1 Classes and module distribution
@@ -772,6 +814,7 @@ class Ord[A] : Eq[A] { compare(a A, b A) Ordering }
 | `std/state` | State and Functor/Monad instances, state operations |
 | `std/lazy` | Lazy, delay/force; explicitly **nonmemoising** |
 | `std/json` | Json, Encode/Decode and codecs; not implicitly exported |
+| `std/http` | Request/Response, request/get/post/requestWithTimeout, response/jsonResponse, requestHeader/responseHeader, serve |
 
 Functor/Monad are provided for Option, List, Result[E], IO and State[S];
 Array and Map[K] have Functor. Option/List have Foldable/Traversable. Show/Eq/Ord
@@ -1108,9 +1151,10 @@ For Go `(T, error)` returns declared as IO[T], the call, conversions and boxing
 are **inside** the generated context-taking action. Re-running repeats the call;
 non-nil errors become classified `*rt.Failure` errors (§6.2). The adapter checks
 cancellation before the call, but cannot interrupt a foreign function without context support.
-For cancellable foreign effects, return `rt.IO` and honor its execution context:
-`gofx/rt/stdhttp.GetStatus(string) rt.IO` uses the HTTP request context and returns
-any HTTP status, including non-2xx, or a classified `*rt.Failure` error.
+For cancellable foreign effects, return `rt.IO` and honor its execution context,
+as the HTTP runtime behind `std/http` does (§6.4). For a pure natural-ABI proof,
+`examples/typed-extern` binds `strings.ToUpper(string) string` and slice-returning
+functions without a runtime-specific HTTP shim.
 
 `bind` emits a complete declaration file in lexical exported-function order,
 stdout by default. `-o` names a file or an existing directory (`bindings.gfx`).
@@ -1532,7 +1576,20 @@ share immutable storage, but empty slices do not retain the backing allocation.
 | Go types | True aliases accepted, distinct named types not coerced; Go int narrowing follows target width; no-result function is not Unit |
 | Extern errors | `(T, error)` conversion/call occurs inside IO; creation is lazy; each run repeats Go call; check alone does not validate foreign ABI |
 | bind inference | Does not guess Option inputs; skips uninferable any/rt.IO and unsupported functions with reason comments; declarations are toolchain-dependent |
-| Runtime shapes | Generated constructors registered once; unregistered Tuple2/Ordering/Ok/Err/List bridge use panics (programming/configuration error), not a source value |
+| Runtime shapes | Generated constructors registered once; unregistered Tuple2/Tuple3/Ordering/Ok/Err/List bridge use panics (programming/configuration error), not a source value |
+
+### HTTP boundaries
+
+| Operation | Boundary |
+| --- | --- |
+| `request`, `get`, `post` | Deferred/replayable; 30 s overall budget; HTTP 4xx/5xx are Responses, transport errors are Network, expiry Timeout, cancellation Cancelled |
+| `requestWithTimeout(r, millis)` | Nonpositive budget fails Timeout without sending; duration overflow fails `Failure("requestWithTimeout: duration out of range")`; parent cancellation is checked first; body reads share the deadline |
+| Request URL/path/query | Absolute URL required; nonempty path overrides URL path, explicit query pairs append; invalid URL/method/scheme fails Network |
+| Headers | Repeated pairs preserved; lookup is case-insensitive and first-match; absent is None, present empty is Some(""); Host is supported on both sides |
+| `response`, `jsonResponse` | Pure constructors; first has no headers, second encodes via Encode and sets application/json; strict JSON encoding can panic before an IO is constructed |
+| `serve` | Binding is deferred; bind failure is Network; fork is not a readiness signal; cancellation stops accepting and allows up to 5 s for shutdown before force-close |
+| Handler contexts | One goroutine per request; client disconnect or server cancellation reaches its IO context; handlers are concurrent, not sequential |
+| Handler failure/panic | HTTP 500, exact failure message body (no added newline), stderr `http handler: <message>` plus newline; construction and action panics use Panic failure |
 
 ### 10.8 Modules, diagnostics and tools
 

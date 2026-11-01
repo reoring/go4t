@@ -14,18 +14,19 @@ type testOk struct{ value any }
 type testErr struct{ value any }
 type testIoError struct{ kind, message string }
 type testTuple2 struct{ a, b any }
+type testTuple3 struct{ a, b, c any }
 
 func installTestShapes(t *testing.T) {
 	t.Helper()
 	previous := Shapes
 	t.Cleanup(func() { Shapes = previous })
 	Shapes = ShapeFuncs{
-		Cons: func(h, tail any) any { return testCons{h, tail} },
-		Nil:  func() any { return testNil{} },
-		Some: func(a any) any { return testSome{a} },
-		None: func() any { return testNone{} },
-		Ok:   func(a any) any { return testOk{a} },
-		Err:  func(e any) any { return testErr{e} },
+		Cons:    func(h, tail any) any { return testCons{h, tail} },
+		Nil:     func() any { return testNil{} },
+		Some:    func(a any) any { return testSome{a} },
+		None:    func() any { return testNone{} },
+		Ok:      func(a any) any { return testOk{a} },
+		Err:     func(e any) any { return testErr{e} },
 		IoError: func(kind, message string) any { return testIoError{kind, message} },
 		IoErrorOf: func(v any) (string, string) {
 			failure := v.(testIoError)
@@ -45,6 +46,11 @@ func installTestShapes(t *testing.T) {
 		Untuple2: func(p any) (any, any) {
 			pair := p.(testTuple2)
 			return pair.a, pair.b
+		},
+		Tuple3: func(a, b, c any) any { return testTuple3{a, b, c} },
+		Untuple3: func(p any) (any, any, any) {
+			triple := p.(testTuple3)
+			return triple.a, triple.b, triple.c
 		},
 	}
 }
@@ -97,6 +103,7 @@ func TestUnsetShapesPanicClearly(t *testing.T) {
 		{"IoError unset", ShapeFuncs{}, func() { failureValue(&Failure{Kind: FailureKind, Message: "failed"}) }, "rt.Shapes is not initialized: IoError is required"},
 		{"IoErrorOf unset", ShapeFuncs{}, func() { Raise(testIoError{"Failure", "failed"}) }, "rt.Shapes is not initialized: IoErrorOf is required"},
 		{"Tuple2 unset", ShapeFuncs{}, func() { Tuple2Of(int64(1), "two") }, "rt.Shapes is not initialized: Tuple2 is required"},
+		{"Tuple3 unset", ShapeFuncs{}, func() { Tuple3Of(int64(1), "two", true) }, "rt.Shapes is not initialized: Tuple3 is required"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			Shapes = tt.shapes
