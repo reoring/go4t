@@ -1,0 +1,166 @@
+package main
+
+// ===== ドメイン =====
+
+type Sku = MkSku(String)
+type Stock = MkStock(Sku, Int)               // 在庫: sku, 数量
+type Line = MkLine(Sku, Int)                 // 注文明細: sku, 要求数
+
+type Result[A] = Err(String) | Ok(A)       // 自前の Either(エラーは String 固定: 部分適用が無いため)
+
+type Pair[A, B] = MkPair(A, B)
+
+// ===== 型クラスのインスタンス =====
+
+instance Show[Sku] {
+  show(s) { match s { | MkSku(code) => code } }
+}
+
+instance Show[Stock] {
+  show(s) { match s { | MkStock(sku, qty) => show(sku) + "=" + show(qty) } }
+}
+
+instance Show[Line] {
+  show(l) { match l { | MkLine(sku, qty) => show(qty) + "x" + show(sku) } }
+}
+
+instance Show[Pair[A, B]] given Show[A], Show[B] {
+  show(p) { match p { | MkPair(a, b) => "(" + show(a) + ", " + show(b) + ")" } }
+}
+
+instance Show[Result[A]] given Show[A] {
+  show(r) {
+    match r {
+      | Err(e) => "Err(" + e + ")"
+      | Ok(a) => "Ok(" + show(a) + ")"
+    }
+  }
+}
+
+// Result[E, _] は Functor / Monad。Monad は Functor のサブクラスなので両方書く
+instance Functor[Result] {
+  fmap(r, f) {
+    match r {
+      | Err(e) => Err(e)
+      | Ok(a) => Ok(f(a))
+    }
+  }
+}
+
+instance Monad[Result] {
+  pure(a) { Ok(a) }
+  bind(r, f) {
+    match r {
+      | Err(e) => Err(e)
+      | Ok(a) => f(a)
+    }
+  }
+}
+
+// ===== 純粋ロジック =====
+
+func sameSku(a Sku, b Sku) Bool {
+  match MkPair(a, b) { | MkPair(MkSku(x), MkSku(y)) => x == y }
+}
+
+// 複数倉庫の在庫を sku ごとに合算
+func merge(stocks List[Stock]) List[Stock] {
+  fold(stocks, [], func(acc, s) => addStock(acc, s))
+}
+
+func addStock(acc List[Stock], s Stock) List[Stock] {
+  match MkPair(acc, s) {
+    | MkPair(Nil, _) => [s]
+    | MkPair(Cons(MkStock(sku, qty), rest), MkStock(sku2, qty2)) =>
+        if sameSku(sku, sku2) { Cons(MkStock(sku, qty + qty2), rest) }
+        else { Cons(MkStock(sku, qty), addStock(rest, s)) }
+  }
+}
+
+func available(stocks List[Stock], sku Sku) Int {
+  fold(stocks, 0, func(acc, s) => match s {
+    | MkStock(sku2, qty) => if sameSku(sku, sku2) { acc + qty } else { acc }
+  })
+}
+
+// 1 明細の引当。失敗理由を Err に積む
+func allocate(stocks List[Stock], line Line) Result[Line] {
+  match line {
+    | MkLine(sku, want) =>
+        if want <= 0 { Err("invalid quantity for " + show(sku)) }
+        else if available(stocks, sku) < want { Err("short of " + show(sku) + ": need " + show(want) + ", have " + show(available(stocks, sku))) }
+        else { Ok(line) }
+  }
+}
+
+// 注文全体の引当: Result モナドで最初の失敗で止まる
+func allocateAll(stocks List[Stock], lines List[Line]) Result[List[Line]] {
+  match lines {
+    | Nil => Ok([])
+    | Cons(l, rest) => do {
+        done <- allocate(stocks, l)
+        others <- allocateAll(stocks, rest)
+        pure(Cons(done, others))
+      }
+  }
+}
+
+// 引当後の在庫を減らす
+func consume(stocks List[Stock], lines List[Line]) List[Stock] {
+  fold(lines, stocks, func(acc, l) => match l {
+    | MkLine(sku, want) => fmap(acc, func(s) => match s {
+        | MkStock(sku2, qty) => if sameSku(sku, sku2) { MkStock(sku2, qty - want) } else { s }
+      })
+  })
+}
+
+// HKT: Functor であれば何にでも適用できる汎用ヘルパ
+func tag[F[_] Functor, A Show](fa F[A], prefix String) F[String] {
+  fmap(fa, func(a) => prefix + show(a))
+}
+
+// ===== 効果 =====
+
+extern func httpGet(url String) IO[Int] = "gofx/rt/stdhttp".GetStatus
+
+func report(title String, r Result[List[Line]]) IO[Unit] {
+  println(title + ": " + show(r))
+}
+
+func notify(lines List[Line]) IO[Unit] {
+  do {
+    status <- httpGet("https://example.com")
+    if status == 200 {
+      println("  notified " + show(length(lines)) + " lines")
+    }
+    else {
+      ioFail("notify failed: " + show(status))
+    }
+  }
+}
+
+func main() IO[Unit] {
+  let warehouseA = [MkStock(MkSku("apple"), 5), MkStock(MkSku("pear"), 2)]
+  let warehouseB = [MkStock(MkSku("apple"), 3), MkStock(MkSku("fig"), 9)]
+  let stocks = merge(append(warehouseA, warehouseB))
+  let order1 = [MkLine(MkSku("apple"), 7), MkLine(MkSku("fig"), 1)]
+  let order2 = [MkLine(MkSku("apple"), 7), MkLine(MkSku("pear"), 3)]
+  let order3 = [MkLine(MkSku("apple"), 0)]
+  do {
+    println("stocks:   " + show(stocks))
+    println("tagged:   " + show(tag(stocks, "stock:")))
+    println("tagged?:  " + show(tag(Some(42), "n=")))
+    report("order1", allocateAll(stocks, order1))
+    report("order2", allocateAll(stocks, order2))
+    report("order3", allocateAll(stocks, order3))
+    match allocateAll(stocks, order1) {
+      | Ok(lines) => do {
+          notify(lines)
+          println("  remaining " + show(consume(stocks, lines)))
+        }
+      | Err(e) => println("  skipped: " + e)
+    }
+    x <- tag(ioPure(MkPair(1, true)), "io:")
+    println(x)
+  }
+}
