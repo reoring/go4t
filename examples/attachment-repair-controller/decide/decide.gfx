@@ -1,0 +1,270 @@
+package decide
+
+// Workflow state machine of the attachment repair operation. Go performs the
+// observations and the delete; decide says which one is needed next, or what to
+// publish. Each Action other than Publish fills exactly one Option in Observed,
+// and decide is simply called again.
+
+type Timestamp = NoTimestamp | InvalidTimestamp | AtNanos(Int) deriving Eq, Debug
+
+// What Go read from the approval object (binding checks are decided here).
+type Approval = Approval{
+  deleting: Bool,
+  refMatches: Bool,
+  opIdentityMatches: Bool,
+  generation: Option[Int],
+  targetBindingMatches: Bool,
+  digestValid: Bool,
+  evidenceComplete: Bool,
+  approvedAt: Timestamp,
+  expiresAt: Timestamp,
+  phase: String,
+  digest: String
+} deriving Eq, Debug
+
+type ApprovalRead = NoRef | ReadFailed | Missing | Read(Approval) deriving Eq, Debug
+type Mode = DryRun | Live(ApprovalRead) deriving Eq, Debug
+
+// Observation outcomes come from Go's dependent-read chains; their reasons are
+// I/O facts and cross as text.
+type Observation = ObsBlocked(String, String) | ObsOk(String) deriving Eq, Debug
+type Target = Present | Deleting | Absent deriving Eq, Debug
+type AuthOkObs = AuthOkObs{target: Target, digest: String, currentAttached: Bool} deriving Eq, Debug
+type AuthorizedObservation = AuthBlocked(String, String) | AuthOk(AuthOkObs) deriving Eq, Debug
+type DeleteResult = Deleted | CasFailed | DeleteFailed deriving Eq, Debug
+
+type Observed = Observed{
+  mode: Mode,
+  featureGateEnabled: Bool,
+  operationGeneration: Int,
+  authorized: Bool,
+  committed: Bool,
+  requested: Bool,
+  approvedObservationDigest: String,
+  nowNanos: Int,
+  approvalMaxAgeNanos: Int,
+  initial: Option[Observation],
+  authorizedObs: Option[AuthorizedObservation],
+  deleteResult: Option[DeleteResult]
+} deriving Eq, Debug
+
+type Reason = ApprovalReferenceMissing | ApprovalReadFailed
+  | ApprovalDeletionInProgress | ApprovalReferenceMismatch | ApprovalOperationIdentityMismatch
+  | ApprovalOperationGenerationMismatch | ApprovalTargetBindingMismatch | ApprovalEvidenceIncomplete
+  | ApprovalTimeInvalid | ApprovalWindowInvalid
+  | ApprovalExpired | ApprovalNoLongerAccepted | ApprovalRejected | ApprovalSuperseded
+  | ApprovalObservationSuperseded | ApprovalBindingChanged | FeatureGateDisabled
+  | DeletionStateLost | DeleteCompareAndSwapFailed | DeleteRequestFailed
+  deriving Eq, Debug, Show
+
+type ReasonCode = Decided(Reason) | FromObservation(String) deriving Eq, Debug
+
+// Status names the Go status builder. Blocked carries whether the accepted
+// approval was already proven to match the observation (safety evidence).
+// Running/Succeeded(stage, message, requested).
+type Status = Blocked{stage: String, reason: ReasonCode, message: String, approvalMatches: Bool}
+  | Running(String, String, Bool)
+  | Succeeded(String, String, Bool)
+  | AwaitingApproval
+  | Authorized
+  | Committed
+  deriving Eq, Debug
+
+type Action = ObserveInitial | ObserveAuthorized | DeleteStale | Publish(Status) deriving Eq, Debug
+
+type ApprovalState = Pending | Accepted | Rejected | Superseded | Expired | Unknown deriving Eq, Debug
+
+func decide(o Observed) Action {
+  match o.mode {
+    DryRun => match o.initial {
+      None => ObserveInitial
+      Some(ObsBlocked(reason, message)) => Publish(Blocked("ValidateObservation", FromObservation(reason), message, false))
+      Some(ObsOk(_)) => Publish(Succeeded("DryRunComplete", "Storage attachment repair observation completed without mutation", false))
+    }
+    Live(approval) => match _approvalState(o, approval) {
+      Err(reason) => Publish(_blocked("ValidateApproval", reason, _approvalMessage(reason)))
+      Ok(state) => _decideLive(o, state)
+    }
+  }
+}
+
+func _decideLive(o Observed, state ApprovalState) Action {
+  let committed = o.committed || o.requested
+  if state == Expired && committed {
+    _decideAuthorized(o, committed)
+  } else if o.authorized {
+    if state == Expired {
+      Publish(_blocked("ValidateApproval", ApprovalExpired, "Attachment repair approval expired before deletion commitment"))
+    } else if state != Accepted {
+      Publish(_blocked("ValidateApproval", ApprovalNoLongerAccepted, "Attachment repair approval is no longer accepted"))
+    } else {
+      _decideAuthorized(o, committed)
+    }
+  } else {
+    match o.initial {
+      None => ObserveInitial
+      Some(ObsBlocked(reason, message)) => Publish(Blocked("ValidateObservation", FromObservation(reason), message, false))
+      Some(ObsOk(digest)) => _decideAwaiting(o, state, digest)
+    }
+  }
+}
+
+func _decideAwaiting(o Observed, state ApprovalState, digest String) Action {
+  match state {
+    Pending => Publish(AwaitingApproval)
+    Unknown => Publish(AwaitingApproval)
+    Rejected => Publish(_blocked("ValidateApproval", ApprovalRejected, "Attachment repair approval was rejected"))
+    Superseded => Publish(_blocked("ValidateApproval", ApprovalSuperseded, "Attachment repair approval was superseded by newer observation evidence"))
+    Expired => Publish(_blocked("ValidateApproval", ApprovalExpired, "Attachment repair approval expired before deletion authorization"))
+    Accepted =>
+      if _approvalDigest(o) != digest {
+        Publish(_blocked("ValidateApproval", ApprovalObservationSuperseded, "Accepted approval does not match the current attachment observation"))
+      } else if !o.featureGateEnabled {
+        Publish(Blocked("ValidateApproval", Decided(FeatureGateDisabled), "Storage attachment repair execution is disabled", true))
+      } else {
+        Publish(Authorized)
+      }
+  }
+}
+
+func _decideAuthorized(o Observed, committed Bool) Action {
+  let approved = _approvalDigest(o)
+  if !o.requested && !o.featureGateEnabled {
+    Publish(_blocked("DeleteExactAttachment", FeatureGateDisabled, "Storage attachment repair execution is disabled"))
+  } else if approved == "" || approved != o.approvedObservationDigest {
+    Publish(_blocked("ValidateApproval", ApprovalBindingChanged, "Approval binding no longer matches the authorized observation"))
+  } else {
+    match o.authorizedObs {
+      None => ObserveAuthorized
+      Some(AuthBlocked(reason, message)) => Publish(Blocked("RevalidateObservation", FromObservation(reason), message, false))
+      Some(AuthOk(obs)) =>
+        if !committed {
+          if obs.target != Present || obs.digest != approved {
+            Publish(_blocked("CommitExactDeletion", ApprovalObservationSuperseded, "Live observation changed before deletion commitment; no attachment was deleted"))
+          } else {
+            Publish(Committed)
+          }
+        } else {
+          _decideCommitted(o, obs, approved)
+        }
+    }
+  }
+}
+
+func _decideCommitted(o Observed, obs AuthOkObs, approved String) Action {
+  match obs.target {
+    Present =>
+      if o.requested {
+        Publish(_blocked("WaitForConvergence", DeletionStateLost, "Deletion was requested but the exact stale attachment is no longer deleting"))
+      } else if obs.digest != approved {
+        Publish(_blocked("DeleteExactAttachment", ApprovalObservationSuperseded, "Live observation changed after approval; no attachment was deleted"))
+      } else {
+        match o.deleteResult {
+          None => DeleteStale
+          Some(CasFailed) => Publish(_blocked("DeleteExactAttachment", DeleteCompareAndSwapFailed, "The exact deletion target changed before compare-and-swap delete"))
+          Some(DeleteFailed) => Publish(_blocked("DeleteExactAttachment", DeleteRequestFailed, "The exact stale attachment delete request failed"))
+          Some(Deleted) => Publish(Running("WaitForConvergence", "Exact stale attachment deletion was requested", true))
+        }
+      }
+    Deleting => Publish(Running("WaitForConvergence", "Authorized stale attachment deletion is converging", true))
+    Absent =>
+      if obs.currentAttached {
+        Publish(Succeeded("Complete", "Storage attachment repair converged", true))
+      } else {
+        Publish(Running("WaitForConvergence", "Stale attachment is absent and the exact current attachment is converging", true))
+      }
+  }
+}
+
+// readBoundApproval's pure part: binding validity, expiry, then phase.
+func _approvalState(o Observed, read ApprovalRead) Result[Reason, ApprovalState] {
+  match read {
+    NoRef => Err(ApprovalReferenceMissing)
+    ReadFailed => Err(ApprovalReadFailed)
+    Missing => Ok(Pending)
+    Read(a) => match _bindingProblem(o, a) {
+      Some(reason) => Err(reason)
+      None =>
+        if !_before(o.nowNanos, a.expiresAt) {
+          Ok(Expired)
+        } else {
+          Ok(_phase(a.phase))
+        }
+    }
+  }
+}
+
+func _bindingProblem(o Observed, a Approval) Option[Reason] {
+  if a.deleting {
+    Some(ApprovalDeletionInProgress)
+  } else if !a.refMatches {
+    Some(ApprovalReferenceMismatch)
+  } else if !a.opIdentityMatches {
+    Some(ApprovalOperationIdentityMismatch)
+  } else if a.generation != Some(o.operationGeneration) {
+    Some(ApprovalOperationGenerationMismatch)
+  } else if !a.targetBindingMatches {
+    Some(ApprovalTargetBindingMismatch)
+  } else if !a.digestValid || !a.evidenceComplete {
+    Some(ApprovalEvidenceIncomplete)
+  } else {
+    match (a.approvedAt, a.expiresAt) {
+      (AtNanos(approvedAt), AtNanos(expiresAt)) =>
+        if approvedAt > o.nowNanos {
+          Some(ApprovalTimeInvalid)
+        } else if expiresAt <= approvedAt || expiresAt - approvedAt > o.approvalMaxAgeNanos {
+          Some(ApprovalWindowInvalid)
+        } else {
+          None
+        }
+      (AtNanos(_), _) => Some(ApprovalWindowInvalid)
+      (_, _) => Some(ApprovalTimeInvalid)
+    }
+  }
+}
+
+func _before(nowNanos Int, t Timestamp) Bool {
+  match t {
+    AtNanos(at) => nowNanos < at
+    _ => false
+  }
+}
+
+func _phase(phase String) ApprovalState {
+  if phase == "" { Pending }
+  else if phase == "Pending" { Pending }
+  else if phase == "Accepted" { Accepted }
+  else if phase == "Rejected" { Rejected }
+  else if phase == "Superseded" { Superseded }
+  else if phase == "Expired" { Expired }
+  else { Unknown }
+}
+
+func _approvalDigest(o Observed) String {
+  match o.mode {
+    Live(Read(a)) => a.digest
+    _ => ""
+  }
+}
+
+func _blocked(stage String, reason Reason, message String) Status {
+  Blocked(stage, Decided(reason), message, false)
+}
+
+func _approvalMessage(reason Reason) String {
+  match reason {
+    ApprovalReferenceMissing => "Non-dry-run attachment repair requires approvalRef"
+    ApprovalReadFailed => "Attachment repair approval could not be read"
+    ApprovalDeletionInProgress => "Attachment repair approval is deleting"
+    ApprovalReferenceMismatch => "Operation does not reference this attachment repair approval"
+    ApprovalOperationIdentityMismatch => "Approval does not reference the exact operation UID"
+    ApprovalOperationGenerationMismatch => "Approval does not reference the exact operation generation"
+    ApprovalTargetBindingMismatch => "Approval does not reference the exact operation target binding"
+    ApprovalEvidenceIncomplete => "Attachment repair approval evidence is incomplete"
+    ApprovalTimeInvalid => "Attachment repair approval time is invalid"
+    ApprovalWindowInvalid => "Attachment repair approval window is invalid"
+    _ => ""
+  }
+}
+
+func main() IO[Unit] { ioPure(unit()) }

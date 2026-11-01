@@ -9,6 +9,10 @@ import (
 	"strings"
 	"time"
 
+	"attachrepairctl/decide"
+
+	"gofx/rt"
+
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -98,109 +102,116 @@ func (r *AttachmentRepairOperationReconciler) Reconcile(ctx context.Context, req
 }
 
 func (r *AttachmentRepairOperationReconciler) reconcileOperation(ctx context.Context, operation *unstructured.Unstructured) (map[string]any, time.Duration) {
-	if attachmentRepairDryRun(operation) {
-		obs, reason, message := r.observeInitialSafety(ctx, operation)
-		if reason != "" {
-			return r.blockedStatus(operation, "ValidateObservation", reason, message, obs, nil), attachmentRepairRequeueInterval
-		}
-		return r.succeededStatus(operation, "DryRunComplete", "Storage attachment repair observation completed without mutation", obs, nil, false), 0
+	mode, approval := r.readMode(ctx, operation)
+	o := decide.Observed{
+		Mode:                      mode,
+		FeatureGateEnabled:        r.FeatureGates.AttachmentRepairExecution,
+		OperationGeneration:       operation.GetGeneration(),
+		Authorized:                nestedStatusBool(operation, "execution", "deletionAuthorized"),
+		Committed:                 nestedStatusBool(operation, "execution", "deletionCommitted"),
+		Requested:                 nestedStatusBool(operation, "execution", "deletionRequested"),
+		ApprovedObservationDigest: firstStatusString(operation, "status", "execution", "approvedObservationDigest"),
+		NowNanos:                  r.now().UnixNano(),
+		ApprovalMaxAgeNanos:        int64(attachmentRepairApprovalMaxAge),
 	}
-
-	approval, approvalState, reason, message := r.readBoundApproval(ctx, operation)
-	if reason != "" {
-		return r.blockedStatus(operation, "ValidateApproval", reason, message, nil, approval), attachmentRepairRequeueInterval
-	}
-	authorized := nestedStatusBool(operation, "execution", "deletionAuthorized")
-	committed := nestedStatusBool(operation, "execution", "deletionCommitted")
-	requested := nestedStatusBool(operation, "execution", "deletionRequested")
-	committed = committed || requested
-	if approvalState == "Expired" && (committed || requested) {
-		return r.reconcileAuthorized(ctx, operation, approval, committed, requested)
-	}
-	if authorized {
-		if approvalState == "Expired" {
-			return r.blockedStatus(operation, "ValidateApproval", "ApprovalExpired", "Attachment repair approval expired before deletion commitment", nil, approval), attachmentRepairRequeueInterval
+	var obs *attachmentRepairObservation
+	for {
+		switch a := decide.Decide(o).(type) {
+		case decide.ActionObserveInitial:
+			if o.Initial.Present {
+				panic("decide asked twice")
+			}
+			var reason, message string
+			obs, reason, message = r.observeInitialSafety(ctx, operation)
+			var observation decide.Observation
+			if reason != "" {
+				observation = decide.ObservationObsBlocked{F0: reason, F1: message}
+			} else {
+				observation = decide.ObservationObsOk{F0: obs.digest}
+			}
+			o.Initial = rt.Option[decide.Observation]{Present: true, Value: observation}
+		case decide.ActionObserveAuthorized:
+			if o.AuthorizedObs.Present {
+				panic("decide asked twice")
+			}
+			var targetState, reason, message string
+			obs, targetState, reason, message = r.observeAuthorizedSafety(ctx, operation, o.Requested)
+			var observation decide.AuthorizedObservation
+			if reason != "" {
+				observation = decide.AuthorizedObservationAuthBlocked{F0: reason, F1: message}
+			} else {
+				var target decide.Target
+				switch targetState {
+				case "present":
+					target = decide.TargetPresent
+				case "deleting":
+					target = decide.TargetDeleting
+				case "absent":
+					target = decide.TargetAbsent
+				default:
+					panic("unknown attachment target state")
+				}
+				observation = decide.AuthorizedObservationAuthOk{F0: decide.AuthOkObs{
+					Target:          target,
+					Digest:          obs.digest,
+					CurrentAttached: obs.currentAttachment != nil && obs.currentAttachment.Status.Attached,
+				}}
+			}
+			o.AuthorizedObs = rt.Option[decide.AuthorizedObservation]{Present: true, Value: observation}
+		case decide.ActionDeleteStale:
+			if o.DeleteResult.Present {
+				panic("decide asked twice")
+			}
+			uid := obs.staleAttachment.GetUID()
+			resourceVersion := obs.staleAttachment.GetResourceVersion()
+			err := r.Client.Delete(ctx, obs.staleAttachment, client.Preconditions{UID: &uid, ResourceVersion: &resourceVersion})
+			result := decide.DeleteResultDeleted
+			switch {
+			case apierrors.IsNotFound(err) || apierrors.IsConflict(err) || apierrors.IsInvalid(err):
+				result = decide.DeleteResultCasFailed
+			case err != nil:
+				result = decide.DeleteResultDeleteFailed
+			}
+			o.DeleteResult = rt.Option[decide.DeleteResult]{Present: true, Value: result}
+		case decide.ActionPublish:
+			return r.publish(operation, a.F0, obs, approval)
+		default:
+			panic("unknown decide action")
 		}
-		if approvalState != "Accepted" {
-			return r.blockedStatus(operation, "ValidateApproval", "ApprovalNoLongerAccepted", "Attachment repair approval is no longer accepted", nil, approval), attachmentRepairRequeueInterval
-		}
-		return r.reconcileAuthorized(ctx, operation, approval, committed, requested)
-	}
-
-	obs, reason, message := r.observeInitialSafety(ctx, operation)
-	if reason != "" {
-		return r.blockedStatus(operation, "ValidateObservation", reason, message, obs, approval), attachmentRepairRequeueInterval
-	}
-	switch approvalState {
-	case "Missing", "Pending":
-		return r.awaitingApprovalStatus(operation, obs), attachmentRepairRequeueInterval
-	case "Rejected":
-		return r.blockedStatus(operation, "ValidateApproval", "ApprovalRejected", "Attachment repair approval was rejected", obs, approval), attachmentRepairRequeueInterval
-	case "Superseded":
-		return r.blockedStatus(operation, "ValidateApproval", "ApprovalSuperseded", "Attachment repair approval was superseded by newer observation evidence", obs, approval), attachmentRepairRequeueInterval
-	case "Expired":
-		return r.blockedStatus(operation, "ValidateApproval", "ApprovalExpired", "Attachment repair approval expired before deletion authorization", obs, approval), attachmentRepairRequeueInterval
-	case "Accepted":
-		approvalDigest := nestedAttachmentRepairString(approval, "spec", "observationDigest")
-		if approvalDigest != obs.digest {
-			return r.blockedStatus(operation, "ValidateApproval", "ApprovalObservationSuperseded", "Accepted approval does not match the current attachment observation", obs, approval), attachmentRepairRequeueInterval
-		}
-		obs.safety["approvalMatchesObservation"] = true
-		if !r.FeatureGates.AttachmentRepairExecution {
-			return r.blockedStatus(operation, "ValidateApproval", "FeatureGateDisabled", "Storage attachment repair execution is disabled", obs, approval), attachmentRepairRequeueInterval
-		}
-		return r.authorizedStatus(operation, obs, approval), 0
-	default:
-		return r.awaitingApprovalStatus(operation, obs), attachmentRepairRequeueInterval
 	}
 }
 
-func (r *AttachmentRepairOperationReconciler) reconcileAuthorized(ctx context.Context, operation, approval *unstructured.Unstructured, committed, requested bool) (map[string]any, time.Duration) {
-	if !requested && !r.FeatureGates.AttachmentRepairExecution {
-		return r.blockedStatus(operation, "DeleteExactAttachment", "FeatureGateDisabled", "Storage attachment repair execution is disabled", nil, approval), attachmentRepairRequeueInterval
-	}
-	approvedDigest := nestedAttachmentRepairString(approval, "spec", "observationDigest")
-	if approvedDigest == "" || approvedDigest != firstStatusString(operation, "status", "execution", "approvedObservationDigest") {
-		return r.blockedStatus(operation, "ValidateApproval", "ApprovalBindingChanged", "Approval binding no longer matches the authorized observation", nil, approval), attachmentRepairRequeueInterval
-	}
-
-	obs, targetState, reason, message := r.observeAuthorizedSafety(ctx, operation, requested)
-	if reason != "" {
-		return r.blockedStatus(operation, "RevalidateObservation", reason, message, obs, approval), attachmentRepairRequeueInterval
-	}
-	if !committed {
-		if targetState != "present" || obs.digest != approvedDigest {
-			return r.blockedStatus(operation, "CommitExactDeletion", "ApprovalObservationSuperseded", "Live observation changed before deletion commitment; no attachment was deleted", obs, approval), attachmentRepairRequeueInterval
+func (r *AttachmentRepairOperationReconciler) publish(operation *unstructured.Unstructured, status decide.Status, obs *attachmentRepairObservation, approval *unstructured.Unstructured) (map[string]any, time.Duration) {
+	switch s := status.(type) {
+	case decide.StatusBlocked:
+		if s.ApprovalMatches {
+			obs.safety["approvalMatchesObservation"] = true
 		}
+		return r.blockedStatus(operation, s.Stage, reasonString(s.Reason), s.Message, obs, approval), attachmentRepairRequeueInterval
+	case decide.StatusRunning:
+		return r.runningStatus(operation, s.F0, s.F1, obs, approval, s.F2), attachmentRepairRequeueInterval
+	case decide.StatusSucceeded:
+		return r.succeededStatus(operation, s.F0, s.F1, obs, approval, s.F2), 0
+	case decide.StatusAwaitingApproval:
+		return r.awaitingApprovalStatus(operation, obs), attachmentRepairRequeueInterval
+	case decide.StatusAuthorized:
+		obs.safety["approvalMatchesObservation"] = true
+		return r.authorizedStatus(operation, obs, approval), 0
+	case decide.StatusCommitted:
 		return r.committedStatus(operation, obs, approval), 0
-	}
-	switch targetState {
-	case "present":
-		if requested {
-			return r.blockedStatus(operation, "WaitForConvergence", "DeletionStateLost", "Deletion was requested but the exact stale attachment is no longer deleting", obs, approval), attachmentRepairRequeueInterval
-		}
-		if obs.digest != approvedDigest {
-			return r.blockedStatus(operation, "DeleteExactAttachment", "ApprovalObservationSuperseded", "Live observation changed after approval; no attachment was deleted", obs, approval), attachmentRepairRequeueInterval
-		}
-		uid := obs.staleAttachment.GetUID()
-		resourceVersion := obs.staleAttachment.GetResourceVersion()
-		err := r.Client.Delete(ctx, obs.staleAttachment, client.Preconditions{UID: &uid, ResourceVersion: &resourceVersion})
-		if err != nil {
-			if apierrors.IsNotFound(err) || apierrors.IsConflict(err) || apierrors.IsInvalid(err) {
-				return r.blockedStatus(operation, "DeleteExactAttachment", "DeleteCompareAndSwapFailed", "The exact deletion target changed before compare-and-swap delete", obs, approval), attachmentRepairRequeueInterval
-			}
-			return r.blockedStatus(operation, "DeleteExactAttachment", "DeleteRequestFailed", "The exact stale attachment delete request failed", obs, approval), attachmentRepairRequeueInterval
-		}
-		return r.runningStatus(operation, "WaitForConvergence", "Exact stale attachment deletion was requested", obs, approval, true), attachmentRepairRequeueInterval
-	case "deleting":
-		return r.runningStatus(operation, "WaitForConvergence", "Authorized stale attachment deletion is converging", obs, approval, true), attachmentRepairRequeueInterval
-	case "absent":
-		if obs.currentAttachment != nil && obs.currentAttachment.Status.Attached {
-			return r.succeededStatus(operation, "Complete", "Storage attachment repair converged", obs, approval, true), 0
-		}
-		return r.runningStatus(operation, "WaitForConvergence", "Stale attachment is absent and the exact current attachment is converging", obs, approval, true), attachmentRepairRequeueInterval
 	default:
-		return r.blockedStatus(operation, "RevalidateObservation", "AttachmentStateAmbiguous", "Attachment state is ambiguous", obs, approval), attachmentRepairRequeueInterval
+		panic("unknown decide status")
+	}
+}
+
+func reasonString(reason decide.ReasonCode) string {
+	switch r := reason.(type) {
+	case decide.ReasonCodeDecided:
+		return r.F0.String()
+	case decide.ReasonCodeFromObservation:
+		return r.F0
+	default:
+		panic("unknown decide reason")
 	}
 }
 
@@ -223,30 +234,60 @@ func (r *AttachmentRepairOperationReconciler) committedStatus(operation *unstruc
 	return status
 }
 
-func (r *AttachmentRepairOperationReconciler) readBoundApproval(ctx context.Context, operation *unstructured.Unstructured) (*unstructured.Unstructured, string, string, string) {
+func (r *AttachmentRepairOperationReconciler) readMode(ctx context.Context, operation *unstructured.Unstructured) (decide.Mode, *unstructured.Unstructured) {
+	if attachmentRepairDryRun(operation) {
+		return decide.ModeDryRun{}, nil
+	}
 	approvalName := firstNonEmptyNestedString(operation.Object, []string{"spec", "approvalRef", "name"})
 	if approvalName == "" {
-		return nil, "", "ApprovalReferenceMissing", "Non-dry-run attachment repair requires approvalRef"
+		return decide.ModeLive{F0: decide.ApprovalReadNoRef{}}, nil
 	}
 	approval := newStorageAttachmentRepairApprovalObject()
 	if err := r.Client.Get(ctx, client.ObjectKey{Namespace: operation.GetNamespace(), Name: approvalName}, approval); err != nil {
 		if apierrors.IsNotFound(err) {
-			return nil, "Missing", "", ""
+			return decide.ModeLive{F0: decide.ApprovalReadMissing{}}, nil
 		}
-		return nil, "", "ApprovalReadFailed", "Attachment repair approval could not be read"
+		return decide.ModeLive{F0: decide.ApprovalReadReadFailed{}}, nil
 	}
-	now := r.now()
-	if reason, message := validateAttachmentRepairApprovalBinding(operation, approval, now); reason != "" {
-		return approval, "", reason, message
+	return decide.ModeLive{F0: decide.ApprovalReadRead{F0: projectApproval(operation, approval)}}, approval
+}
+
+func projectApproval(operation, approval *unstructured.Unstructured) decide.Approval {
+	generation, generationFound := nestedAttachmentRepairInt64(approval, "spec", "operationRef", "generation")
+	operationTarget, operationTargetFound, operationTargetErr := unstructured.NestedMap(operation.Object, "spec", "targetBinding")
+	approvalTarget, approvalTargetFound, approvalTargetErr := unstructured.NestedMap(approval.Object, "spec", "targetBinding")
+	digest := nestedAttachmentRepairString(approval, "spec", "observationDigest")
+	approvedBy := nestedAttachmentRepairString(approval, "spec", "approvedBy")
+	reason := nestedAttachmentRepairString(approval, "spec", "reason")
+	auditID := nestedAttachmentRepairString(approval, "spec", "auditCorrelationID")
+	approvedAtRaw := nestedAttachmentRepairString(approval, "spec", "approvedAt")
+	expiresAtRaw := nestedAttachmentRepairString(approval, "spec", "expiresAt")
+	return decide.Approval{
+		Deleting:   approval.GetDeletionTimestamp() != nil,
+		RefMatches: firstNonEmptyNestedString(operation.Object, []string{"spec", "approvalRef", "name"}) == approval.GetName(),
+		OpIdentityMatches: nestedAttachmentRepairString(approval, "spec", "operationRef", "name") == operation.GetName() &&
+			types.UID(nestedAttachmentRepairString(approval, "spec", "operationRef", "uid")) == operation.GetUID(),
+		Generation: rt.Option[int64]{Present: generationFound, Value: generation},
+		TargetBindingMatches: operationTargetErr == nil && approvalTargetErr == nil && operationTargetFound && approvalTargetFound &&
+			apiequality.Semantic.DeepEqual(operationTarget, approvalTarget),
+		DigestValid:      validAttachmentRepairDigest(digest),
+		EvidenceComplete: approvedBy != "" && reason != "" && auditID != "" && approvedAtRaw != "" && expiresAtRaw != "",
+		ApprovedAt:       projectApprovalTimestamp(approvedAtRaw),
+		ExpiresAt:        projectApprovalTimestamp(expiresAtRaw),
+		Phase:            firstStatusString(approval, "status", "phase"),
+		Digest:           digest,
 	}
-	if expiresAt, ok := attachmentRepairApprovalExpiresAt(approval); !ok || !now.Before(expiresAt) {
-		return approval, "Expired", "", ""
+}
+
+func projectApprovalTimestamp(raw string) decide.Timestamp {
+	if raw == "" {
+		return decide.TimestampNoTimestamp{}
 	}
-	phase := firstStatusString(approval, "status", "phase")
-	if phase == "" {
-		return approval, "Pending", "", ""
+	value, err := parseAttachmentRepairApprovalTime(raw)
+	if err != nil || value.IsZero() {
+		return decide.TimestampInvalidTimestamp{}
 	}
-	return approval, phase, "", ""
+	return decide.TimestampAtNanos{F0: value.UnixNano()}
 }
 
 func validateAttachmentRepairApprovalBinding(operation, approval *unstructured.Unstructured, now time.Time) (string, string) {

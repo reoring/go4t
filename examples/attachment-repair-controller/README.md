@@ -1,14 +1,78 @@
 # Attachment repair controller extraction
 
+## Provenance
+
 Standalone Go module `attachrepairctl`, package `storage`, extracted from
 `/workspace/platform/internal/controllers/storage/` at platform commit
 `0a9a5de52b47d70f5ad8f5174d1f98efbedef3c3`.
 
-This is a pure extraction with no logic changes. Both
+The initial extraction copied
 `storage_attachment_repair_operation_controller.go` and
-`storage_attachment_repair_operation_controller_test.go` are verbatim copies.
-`cmp` against each original exited 0. The original tests are the oracle for a
-later gofx rewrite; no rewrite is included here.
+`storage_attachment_repair_operation_controller_test.go` verbatim; `cmp`
+against each original exited 0. The operation workflow now delegates decisions
+to gofx. The 22 original tests remain byte-unchanged as its oracle.
+
+## Decision in gofx
+
+`decide/decide.gfx` owns the operation workflow: approval binding decisions,
+expiry and phase interpretation, authorization, durable deletion commitment,
+compare-and-swap outcomes, and convergence. Its generated boundary is
+`decide.Decide(decide.Observed) decide.Action`.
+
+Interpreter protocol:
+
+1. Read dry-run/live mode and approval facts; initialize all three observation/result Options absent.
+2. Call `Decide`; `ObserveInitial` runs the existing initial observation and fills its Option.
+3. `ObserveAuthorized` runs the existing authorized observation and fills its Option.
+4. `DeleteStale` deletes the observed attachment with exact UID/resource-version preconditions and fills its result Option.
+5. Call `Decide` again after each effect; `Publish` maps the final status to the existing builder and returns.
+
+Every effect guards its Option with `panic("decide asked twice")`. Observation
+chains, digests, status builders, and the approval reconciler are unchanged.
+The shared `validateAttachmentRepairApprovalBinding` and
+`attachmentRepairApprovalExpiresAt` functions remain verbatim because the
+approval reconciler still calls them; only the operation's decisions moved.
+`projectApproval` projects the same predicates and timestamp facts without
+making the workflow decision.
+
+Iteration counts include the final `Publish`:
+
+| Path | Calls to `Decide` |
+| --- | ---: |
+| Approval rejection or authorized pre-observation gate/binding rejection | 1 |
+| Dry-run; initial observation block; awaiting/rejected/expired approval; authorization | 2 |
+| Authorized observation block; commitment; already deleting/absent convergence | 2 |
+| Committed, present target: successful delete, CAS failure, or other delete failure | 3 |
+
+`decision_protocol_test.go` observes representative 1/2/3-call traces, including
+all three delete results; maximum observed is **3**. It also preserves the
+matched-approval safety evidence when a disabled feature gate blocks
+authorization. There is no package-global iteration counter or shared
+measurement state in production reconciliation.
+
+The publisher passes the last observation (nil before any observation) and
+the approval only after a successful live read. Thus dry-run has nil approval;
+early approval/authorized-gate failures have nil observation; later failures
+retain their observation. `AwaitingApproval` uses its original builder, which
+does not take an approval. Both `Authorized` and a `Blocked` status carrying
+`ApprovalMatches` set `safety["approvalMatchesObservation"]` before publishing:
+the original controller set this evidence before checking the feature gate.
+
+Decision-boundary Go line counts (function declarations through closing braces,
+including internal blank lines, excluding imports and between-function blanks):
+
+| Change | Lines |
+| --- | ---: |
+| Removed `reconcileOperation`, `reconcileAuthorized`, `readBoundApproval` bodies/functions | 130 |
+| Added interpreter/initialization, publisher, reason mapping, mode/approval/timestamp projection | 164 |
+| Net boundary increase | 34 |
+| Interpreter `for` loop itself, including its closing brace | 64 |
+| `publish` status mapping function | 22 |
+| `reasonString` function | 10 |
+
+These counts exclude generated Go, the retained shared validator/expiry helper,
+and test code. The interpreter's branches correspond to protocol effects, not
+individual workflow outcomes.
 
 ## Production helpers
 
@@ -46,7 +110,7 @@ with a local import block and only the required declarations selected:
 
 No extra whole production files are copied. The repair operation and approval
 GVKs, reconcilers, digest helpers, and node/attachment logic already live in the
-verbatim controller file.
+extracted controller file.
 
 ## Test fixtures and trimming
 
@@ -67,25 +131,37 @@ therefore not copied; no Ceph evidence injection is introduced.
 Run within this directory:
 
 ```sh
-GOFLAGS=-mod=mod go mod tidy
-# Restore require gofx v0.0.0 if tidy removes it; retain replace gofx => ../..
+go generate ./...
+go generate ./... # generated Go must be byte-identical
 go vet ./...
 go test ./... -count=1
-cmp /workspace/platform/internal/controllers/storage/storage_attachment_repair_operation_controller.go storage_attachment_repair_operation_controller.go
-cmp /workspace/platform/internal/controllers/storage/storage_attachment_repair_operation_controller_test.go storage_attachment_repair_operation_controller_test.go
+go test . -run '^TestAttachmentRepairDecisionProtocol$' -count=1 -v
+git diff --stat -- storage_attachment_repair_operation_controller_test.go
 ```
 
-Observed: tidy succeeded, vet succeeded without diagnostics, both comparisons
-exited 0, and all 22 original top-level tests passed (including the three
-bounded-time-window subtests). Exact test output, excluding the VM test-lock
+Both generation runs exited 0, and all nine generated Go files were
+byte-identical. Vet exited 0 without diagnostics. All 22 original top-level
+tests (including the three bounded-time-window subtests), plus the new protocol
+trace test, passed. Exact module test output, excluding the VM test-lock
 wrapper's acquisition/release diagnostics:
 
 ```text
-ok  	attachrepairctl	0.142s
+ok  	attachrepairctl	0.155s
+?   	attachrepairctl/decide	[no test files]
 ```
+
+The focused trace run reported `max decision iterations observed: 3` and:
+
+```text
+PASS
+ok  	attachrepairctl	0.065s
+```
+
+The oracle's SHA-256 before and after the rewrite is
+`ab5840c99a046b16f20c9fb8e66067a000cb4366c265aa1e9486ac8b1f6c0a14`.
 
 The module uses the same Go line (`1.26.9`) and direct Kubernetes,
 controller-runtime, and logr versions as `../approval-controller/go.mod`.
-`require gofx v0.0.0` and `replace gofx => ../..` are retained even though this
-pure extraction does not import gofx yet. This is a nested module, not added
-to the root module or a workspace.
+`require gofx v0.0.0` and `replace gofx => ../..` resolve the generated boundary's
+runtime and the local generator. This is a nested module, not added to the root
+module or a workspace.
