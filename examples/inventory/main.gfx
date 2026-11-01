@@ -1,4 +1,7 @@
 package main
+import "std/prelude"
+import "std/string"
+
 
 // ===== ドメイン =====
 
@@ -62,21 +65,21 @@ func allocateAll(stocks List[Stock], lines List[Line]) Result[String, List[Line]
     | Cons(l, rest) => do {
         done <- allocate(stocks, l)
         others <- allocateAll(stocks, rest)
-        pure(Cons(done, others))
+        prelude.pure(Cons(done, others))
       }
   }
 }
 
 // 引当後の在庫を減らす
 func consume(stocks List[Stock], lines List[Line]) List[Stock] {
-  fold(lines, stocks, func(acc, l) => fmap(acc, func(s) =>
+  fold(lines, stocks, func(acc, l) => prelude.fmap(acc, func(s) =>
     if l.sku == s.sku { s{qty: s.qty - l.qty} } else { s }
   ))
 }
 
 // HKT: Functor であれば何にでも適用できる汎用ヘルパ
 func tag[F[_] Functor, A Show](fa F[A], prefix String) F[String] {
-  fmap(fa, func(a) => "${prefix}${a}")
+  prelude.fmap(fa, func(a) => "${prefix}${a}")
 }
 
 // ===== 効果 =====

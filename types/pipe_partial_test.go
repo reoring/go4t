@@ -31,7 +31,7 @@ func value() ` + tc.want + ` { ` + tc.expression + ` }
 func value() func(Int, String) (Int, String) { pair(_, _) }
 ` + pass5Main
 			}
-			p, err := types.Check(parseFiles(t, source))
+			p, err := types.Check([]*ast.Module{{Files: parseFiles(t, source)}})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -60,9 +60,9 @@ func TestPipePartialInference(t *testing.T) {
 		`func value() Int { let _ = 1; (func(_) => 2)(true) }`,
 	} {
 		t.Run(source, func(t *testing.T) {
-			_, err := types.Check(parseFiles(t, `func add(a Int, b Int) Int { a + b }
+			_, err := types.Check([]*ast.Module{{Files: parseFiles(t, `func add(a Int, b Int) Int { a + b }
 func pair(a Int, b String) (Int, String) { (a, b) }
-`+source+pass5Main))
+`+source+pass5Main)}})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -98,7 +98,7 @@ func TestPipePartialTypeErrors(t *testing.T) {
 func value() Int { `+tc.body+` }
 `+pass5Main)
 		files[1].Name = "pipe-partial.gfx"
-		_, err := types.Check(files)
+		_, err := types.Check([]*ast.Module{{Files: files}})
 		var typed *types.Error
 		if !errors.As(err, &typed) || typed.Msg != tc.want || typed.File != "pipe-partial.gfx" {
 			t.Fatalf("%s: error = %v, want %q", tc.body, err, tc.want)

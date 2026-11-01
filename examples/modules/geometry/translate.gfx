@@ -1,0 +1,5 @@
+package geometry
+
+func translate(p Point, dx Int, dy Int) Point {
+  Point{x: p.x + dx, y: p.y + dy}
+}

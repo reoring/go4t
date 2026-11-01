@@ -9,7 +9,8 @@ import (
 	"strings"
 
 	"gofx/ast"
-	"gofx/prelude"
+	"gofx/modules"
+	"gofx/std"
 	"gofx/types"
 )
 
@@ -24,6 +25,10 @@ func diagnostic(file string, err error) error {
 	var checked *types.Error
 	if errors.As(err, &checked) && checked.File != "" {
 		file = checked.File
+	}
+	var loaded *modules.Error
+	if errors.As(err, &loaded) {
+		return fmt.Errorf("%s:%s: %s%s", loaded.File, loaded.Pos, loaded.Msg, sourceExcerpt(loaded.File, loaded.Pos, loaded.End))
 	}
 	pos, end := ast.Pos{Line: 1, Col: 1}, ast.Pos{}
 	var positioned sourcePosition
@@ -48,15 +53,14 @@ func printWarning(file string, warning *types.Error) {
 }
 
 func sourceExcerpt(file string, pos, end ast.Pos) string {
-	source := prelude.Source
-	if file != "prelude.gfx" {
-		bytes, err := os.ReadFile(file)
-		if err != nil {
-			return ""
-		}
-		source = string(bytes)
+	source, err := os.ReadFile(file)
+	if err != nil && strings.HasPrefix(file, "std/") {
+		source, err = std.FS.ReadFile(strings.TrimPrefix(file, "std/"))
 	}
-	return renderExcerpt(source, pos, end)
+	if err != nil {
+		return ""
+	}
+	return renderExcerpt(string(source), pos, end)
 }
 
 // Positions use rune columns, not byte offsets. Preserve tabs in the underline

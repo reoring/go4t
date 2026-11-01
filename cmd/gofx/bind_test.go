@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	"gofx/ast"
+	"gofx/modules"
 	"gofx/parser"
-	"gofx/prelude"
 	"gofx/types"
 )
 
@@ -70,7 +70,7 @@ func TestBindPrefixProducesUsableDeclarations(t *testing.T) {
 		}
 	}
 	var files []*ast.File
-	for _, source := range []string{prelude.Source, string(got), `package main
+	for _, source := range []string{string(got), `package main
 func main() IO[Unit] { println(fixtureGreeting("world")) }
 `} {
 		file, err := parser.Parse(source)
@@ -79,7 +79,11 @@ func main() IO[Unit] { println(fixtureGreeting("world")) }
 		}
 		files = append(files, file)
 	}
-	if _, err := types.Check(files); err != nil {
+	modules, err := modules.LoadFiles(files, ".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := types.Check(modules); err != nil {
 		t.Fatalf("prefixed bindings are unusable: %v", err)
 	}
 }

@@ -1,4 +1,7 @@
 package main
+import "std/list"
+import "std/prelude"
+
 
 // 自作 Parser の Functor / Monad インスタンスと、do による構文解析。
 // 字句解析は扱わず、入力は明示的なトークン列とする。
@@ -66,7 +69,7 @@ func chainRest[A](value A, operand Parser[A], op Parser[func(A, A) A]) Parser[A]
     apply <- op
     right <- operand
     chainRest(apply(value, right), operand, op)
-  }, pure(value))
+  }, prelude.pure(value))
 }
 
 func chainLeft[A](operand Parser[A], op Parser[func(A, A) A]) Parser[A] {
@@ -95,7 +98,7 @@ func factor() Parser[Int] {
     // do の継続内なので、再帰するのは Open を読み取った後。
     value <- expression()
     symbol(Close)
-    pure(value)
+    prelude.pure(value)
   })
 }
 
@@ -121,6 +124,6 @@ func main() IO[Unit] {
     ("()", [Open, Close])
   ]
   let parser = expression()
-  forEach(cases, func((source, tokens)) =>
+  list.forEach(cases, func((source, tokens)) =>
     println("${source} => ${parseAll(parser, tokens)}"))
 }

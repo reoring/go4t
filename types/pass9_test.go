@@ -50,7 +50,7 @@ func TestAnnotatedLets(t *testing.T) {
 		t.Run(source, func(t *testing.T) {
 			files := parseFiles(t, source+pass5Main)
 			for range 2 {
-				p, err := types.Check(files)
+				p, err := types.Check([]*ast.Module{{Files: files}})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -101,7 +101,7 @@ func TestPass9Diagnostics(t *testing.T) {
 		{`func value(x Option[Int]) Int { match x { Some(n) => n; _ if true => 0 } }`, "non-exhaustive match; missing: None"},
 	} {
 		t.Run(tt.source, func(t *testing.T) {
-			p, err := types.Check(parseFiles(t, tt.source+pass5Main))
+			p, err := types.Check([]*ast.Module{{Files: parseFiles(t, tt.source+pass5Main)}})
 			var typed *types.Error
 			if p != nil || !errors.As(err, &typed) || typed.Msg != tt.want || typed.Pos.Line == 0 || typed.Pos.Col == 0 {
 				t.Fatalf("Check = (%v, %v), want positioned %q", p, err, tt.want)
@@ -121,7 +121,7 @@ func superclass[A Ord](a A, b A) Bool { a == b }
 func ordered[A Ord](a A, b A) Bool { a >= b }
 `+pass5Main)
 	for range 2 {
-		p, err := types.Check(files)
+		p, err := types.Check([]*ast.Module{{Files: files}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -162,7 +162,7 @@ func TestPrimitiveComparisonDictionaries(t *testing.T) {
 			{"1", "2", "Int"}, {`"a"`, `"b"`, "String"}, {"false", "true", "Bool"},
 		} {
 			t.Run(operands.con+op, func(t *testing.T) {
-				p, err := types.Check(parseFiles(t, "func value() Bool { "+operands.left+op+operands.right+" }"+pass5Main))
+				p, err := types.Check([]*ast.Module{{Files: parseFiles(t, "func value() Bool { "+operands.left+op+operands.right+" }"+pass5Main)}})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -181,7 +181,7 @@ func TestPrimitiveComparisonDictionaries(t *testing.T) {
 }
 
 func TestComparisonDefaulting(t *testing.T) {
-	p, err := types.Check(parseFiles(t, `func value() Unit { func(x) => x == x; unit() }`+pass5Main))
+	p, err := types.Check([]*ast.Module{{Files: parseFiles(t, `func value() Unit { func(x) => x == x; unit() }`+pass5Main)}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -197,7 +197,7 @@ func TestComparisonDefaulting(t *testing.T) {
 }
 
 func TestComparisonLetGeneralization(t *testing.T) {
-	p, err := types.Check(parseFiles(t, `func value() Bool { let same = func(x) => x == x; same(1) && same(true) }`+pass5Main))
+	p, err := types.Check([]*ast.Module{{Files: parseFiles(t, `func value() Bool { let same = func(x) => x == x; same(1) && same(true) }`+pass5Main)}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -228,7 +228,7 @@ func value() Bool { 1 ` + op + ` 2 }
 			if err != nil {
 				t.Fatal(err)
 			}
-			p, err := types.Check([]*ast.File{file})
+			p, err := types.Check([]*ast.Module{{Files: []*ast.File{file}}})
 			class := "Ord"
 			if op == "==" || op == "!=" {
 				class = "Eq"
@@ -257,7 +257,7 @@ func TestLambdaParameterPatterns(t *testing.T) {
 		t.Run(source, func(t *testing.T) {
 			files := parseFiles(t, "type Entry = Entry{n: Int, label: String}\n"+source+pass5Main)
 			for range 2 {
-				p, err := types.Check(files)
+				p, err := types.Check([]*ast.Module{{Files: files}})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -283,7 +283,7 @@ func TestMatchGuards(t *testing.T) {
 	} {
 		t.Run(source, func(t *testing.T) {
 			files := parseFiles(t, source+pass5Main)
-			p, err := types.Check(files)
+			p, err := types.Check([]*ast.Module{{Files: files}})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -312,7 +312,7 @@ extern func main() IO[Unit] = "example".Main
 		t.Fatal(err)
 	}
 	for range 2 {
-		p, err := types.Check([]*ast.File{file})
+		p, err := types.Check([]*ast.Module{{Files: []*ast.File{file}}})
 		if err != nil {
 			t.Fatal(err)
 		}

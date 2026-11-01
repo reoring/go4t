@@ -1,4 +1,8 @@
 package main
+import "std/list"
+import "std/prelude"
+import "std/state"
+
 
 // 小さな式言語のインタプリタ。
 //   式:   数値 / 変数 / 二項演算 / let 束縛 / if
@@ -128,18 +132,18 @@ func eval(env Env, e Expr) Result[EvalError, Value] {
 
 // ===== 静的解析: 自由変数を State で収集 =====
 
-func freeVars(bound List[String], e Expr) State[List[String], Unit] {
+func freeVars(bound List[String], e Expr) state.State[List[String], Unit] {
   match e {
-    Num(_) => pure(unit())
+    Num(_) => prelude.pure(unit())
     Var(x) =>
-      if elem(x, bound) || elem("*", bound) { pure(unit()) }
-      else { modify(func(acc) => append(acc, [x])) }
-    Bin(_, l, r) => forEach([l, r], func(sub) => freeVars(bound, sub))
+      if list.elem(x, bound) || list.elem("*", bound) { prelude.pure(unit()) }
+      else { state.modify(func(acc) => append(acc, [x])) }
+    Bin(_, l, r) => list.forEach([l, r], func(sub) => freeVars(bound, sub))
     Let(x, v, body) => do {
       freeVars(bound, v)
       freeVars(Cons(x, bound), body)
     }
-    If(c, t, f) => forEach([c, t, f], func(sub) => freeVars(bound, sub))
+    If(c, t, f) => list.forEach([c, t, f], func(sub) => freeVars(bound, sub))
   }
 }
 
@@ -168,12 +172,12 @@ func main() IO[Unit] {
           body: Let{name: "b", value: mul(v("a"), v("a")),
                     body: If{cond: lt(v("a"), v("b")), thenE: v("b"), elseE: v("a")}}})
   ]
-  let run = func(p (String, Expr)) => "${p.0}: ${p.1}\n  => ${eval(empty, p.1)}\n  free: ${execState(freeVars([], p.1), [])}"
+  let run = func(p (String, Expr)) => "${p.0}: ${p.1}\n  => ${eval(empty, p.1)}\n  free: ${state.execState(freeVars([], p.1), [])}"
   do {
-    forEach(programs, func(p) => println(run(p)))
-    let results = mapM(programs, func(p) => eval(empty, p.1))
+    list.forEach(programs, func(p) => println(run(p)))
+    let results = list.mapM(programs, func(p) => eval(empty, p.1))
     println("all: ${results}")
-    let okOnly = mapM(filter(programs, func(p) => p.0 != "free" && p.0 != "div0" && p.0 != "type"),
+    let okOnly = list.mapM(filter(programs, func(p) => p.0 != "free" && p.0 != "div0" && p.0 != "type"),
                       func(p) => eval(empty, p.1))
     println("ok:  ${okOnly}")
   }

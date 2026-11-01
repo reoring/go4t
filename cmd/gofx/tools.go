@@ -63,12 +63,15 @@ func testFiles(inputs []string) error {
 	if err != nil {
 		return err
 	}
-	removeMain(files)
-	harness, err := testHarness(files)
+	entry := files[len(files)-1]
+	removeMain(entry.Files)
+	harness, err := testHarness(entry.Files)
 	if err != nil {
 		return err
 	}
-	program, err := checkFiles(append(files, harness))
+	harness.Package = entry.Name
+	entry.Files = append(entry.Files, harness)
+	program, err := checkFiles(files)
 	if err != nil {
 		return err
 	}
@@ -87,12 +90,17 @@ func evalExpression(source string, inputs []string) error {
 	if err != nil {
 		return err
 	}
-	removeMain(files)
+	entry := files[len(files)-1]
+	removeMain(entry.Files)
 	wrapper, err := evalWrapper(expression, false)
 	if err != nil {
 		return err
 	}
-	files = append(files, wrapper)
+	wrapper.Package = entry.Name
+	if len(entry.Files) != 0 {
+		wrapper.Imports = entry.Files[0].Imports
+	}
+	entry.Files = append(entry.Files, wrapper)
 	program, originalErr := checkFiles(files)
 	if originalErr != nil {
 		// Checking the IO wrapper supplies the IO context without relying on
@@ -101,7 +109,11 @@ func evalExpression(source string, inputs []string) error {
 		if err != nil {
 			return err
 		}
-		files[len(files)-1] = wrapper
+		wrapper.Package = entry.Name
+		if len(entry.Files) > 1 {
+			wrapper.Imports = entry.Files[0].Imports
+		}
+		entry.Files[len(entry.Files)-1] = wrapper
 		program, err = checkFiles(files)
 		if err != nil {
 			return originalErr
@@ -121,7 +133,7 @@ func sourceArguments(inputs []string) error {
 
 // Remove the user's entry before type checking; test/eval provide their own.
 func removeMain(files []*ast.File) {
-	for _, file := range files[1:] {
+	for _, file := range files {
 		decls := file.Decls[:0]
 		for _, decl := range file.Decls {
 			if f, ok := decl.(*ast.FuncDecl); ok && f.Name == "main" {
@@ -166,7 +178,7 @@ func testHarness(files []*ast.File) (*ast.File, error) {
 				}
 			case *ast.FuncDecl:
 				names[d.Name] = true
-				if file == files[0] || d.Extern != nil || len(d.Params) != 0 || len(d.TParams) != 0 ||
+				if d.Extern != nil || len(d.Params) != 0 || len(d.TParams) != 0 ||
 					!strings.HasPrefix(d.Name, "test") || len(d.Name) == len("test") {
 					continue
 				}
@@ -181,7 +193,7 @@ func testHarness(files []*ast.File) (*ast.File, error) {
 		runner += "_"
 	}
 	var source strings.Builder
-	fmt.Fprintf(&source, "package main\nextern func %s(name String, action func() IO[Bool]) IO[Bool] = %q.Run\n", runner, "gofx/cmd/gofx/testrt")
+	fmt.Fprintf(&source, "package main\nimport \"std/io\"\nextern func %s(name String, action func() IO[Bool]) IO[Bool] = %q.Run\n", runner, "gofx/cmd/gofx/testrt")
 	source.WriteString("func main() IO[Unit] { do {\n")
 	for i, test := range tests {
 		action := test.Name + "()"
@@ -195,7 +207,7 @@ func testHarness(files []*ast.File) (*ast.File, error) {
 		fmt.Fprintf(&source, " + (if gofxTestResult%d { 1 } else { 0 })", i)
 	}
 	fmt.Fprintf(&source, "\nprintln(show(gofxTestPassed) + \" passed, \" + show(%d - gofxTestPassed) + \" failed\")\n", len(tests))
-	fmt.Fprintf(&source, "if gofxTestPassed == %d { ioPure(unit()) } else { exit(1) }\n} }\n", len(tests))
+	fmt.Fprintf(&source, "if gofxTestPassed == %d { ioPure(unit()) } else { io.exit(1) }\n} }\n", len(tests))
 	file, err := parser.Parse(source.String())
 	if err != nil {
 		return nil, diagnostic("<test>", err)
@@ -217,13 +229,16 @@ func isIOBool(typ ast.Type) bool {
 // Test/eval artifacts never replace a program's ordinary build output. The
 // input's module (or the current module for standalone eval) resolves externs.
 func runTemporary(program *types.Program, inputs []string, file string) error {
-	source, err := codegen.Generate(program, "main")
+	sources, err := codegen.Generate(program, "main")
 	if err != nil {
 		return diagnostic(file, err)
 	}
 	base := "."
 	if len(inputs) != 0 {
-		base = filepath.Dir(inputs[0])
+		base = inputs[0]
+		if info, statErr := os.Stat(base); statErr != nil || !info.IsDir() {
+			base = filepath.Dir(base)
+		}
 	}
 	base, err = filepath.Abs(base)
 	if err != nil {
@@ -233,14 +248,13 @@ func runTemporary(program *types.Program, inputs []string, file string) error {
 	if err != nil {
 		return diagnostic(file, err)
 	}
-	dir, err := os.MkdirTemp("", "gofx-source-")
+	dir, err := os.MkdirTemp(root, ".gofx-source-")
 	if err != nil {
 		return diagnostic(file, err)
 	}
 	defer os.RemoveAll(dir)
-	path := filepath.Join(dir, "main.go")
-	if err := os.WriteFile(path, source, 0o644); err != nil {
+	if err := emitModules(dir, sources); err != nil {
 		return diagnostic(file, err)
 	}
-	return execute(root, path, file, nil)
+	return execute(root, "./"+filepath.Base(dir), file, nil)
 }

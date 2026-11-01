@@ -1,4 +1,11 @@
 package main
+import "std/array"
+import "std/list"
+import collections "std/map"
+import "std/result"
+import "std/set"
+import "std/string"
+
 
 type Order = Order{customer: String, item: String, quantity: Int}
 
@@ -7,8 +14,8 @@ instance Show[Order] {
 }
 
 func wordFrequency(text String) Map[String, Int] {
-  fold(words(text), emptyMap(), func(counts, word) =>
-    mapAlter(counts, word, func(previous) => Some(fromOption(previous, 0) + 1)))
+  fold(string.words(text), collections.emptyMap(), func(counts, word) =>
+    collections.mapAlter(counts, word, func(previous) => Some(result.fromOption(previous, 0) + 1)))
 }
 
 func main() IO[Unit] {
@@ -18,20 +25,20 @@ func main() IO[Unit] {
     Order{customer: "Ada", item: "coffee", quantity: 1},
     Order{customer: "Bob", item: "cake", quantity: 3}
   ]
-  let grouped = groupBy(orders, func(order) => order.customer)
-  let colors = setFromList(["red", "blue", "red", "green"])
-  let shared = setIntersection(colors, setFromList(["blue", "yellow", "red"]))
-  let numbers = arrayFromList([10, 20, 30])
-  let updated = arraySet(numbers, 1, 99)
+  let grouped = collections.groupBy(orders, func(order) => order.customer)
+  let colors = set.setFromList(["red", "blue", "red", "green"])
+  let shared = set.setIntersection(colors, set.setFromList(["blue", "yellow", "red"]))
+  let numbers = array.arrayFromList([10, 20, 30])
+  let updated = array.arraySet(numbers, 1, 99)
   do {
     println("word frequency: ${counts}")
     println("orders by customer: ${grouped}")
     println("deduplicated: ${colors}")
     println("intersection: ${shared}")
-    println("array[1]: ${arrayGet(numbers, 1)}")
+    println("array[1]: ${array.arrayGet(numbers, 1)}")
     println("updated: ${updated}")
     println("original: ${numbers}")
-    println("out of range: ${arrayGet(numbers, 3)}")
+    println("out of range: ${array.arrayGet(numbers, 3)}")
     println("map functor: ${map(counts, func(n) => n * 10)}")
     println("array functor: ${map(updated, func(n) => n + 1)}")
   }

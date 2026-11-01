@@ -8,8 +8,8 @@ import (
 	"testing"
 
 	"gofx/ast"
+	"gofx/modules"
 	"gofx/parser"
-	"gofx/prelude"
 	"gofx/types"
 )
 
@@ -35,21 +35,25 @@ func TestResultShapeRegistration(t *testing.T) {
 
 func TestResultHelpersExecute(t *testing.T) {
 	const source = `package main
+import "std/result"
+import "std/io"
+import "std/string"
+import "std/prelude"
 func checkPositive(n Int) Result[String, Int] {
   if n > 0 { Ok(n) } else { Err("nonpositive") }
 }
 func validate(text String) Result[String, Int] {
   do {
-    n <- okOr(parseInt(text), "not an int")
+    n <- result.okOr(string.parseInt(text), "not an int")
     valid <- checkPositive(n)
-    pure(valid * 2)
+    prelude.pure(valid * 2)
   }
 }
 func shortCircuit(r Result[String, Int]) Result[String, Int] {
-  do { x <- r; pure(x / 0) }
+  do { x <- r; prelude.pure(x / 0) }
 }
 func panicAction() IO[Int] { do { n <- ioPure(0); ioPure(1 / n) } }
-func badIO() IO[Int] { ioFailWith(42) }
+func badIO() IO[Int] { io.ioFailWith(42) }
 func main() IO[Unit] {
   do {
     let good: Result[String, Int] = Ok(4)
@@ -58,21 +62,21 @@ func main() IO[Unit] {
     println(show(validate("no")))
     println(show(validate("0")))
     println(show(shortCircuit(bad)))
-    println(show(fmap(good, func(n) => n + 1)))
-    println(show(fmap(bad, func(n) => n / 0)))
-    println(show(mapErr(bad, strLength)))
-    println(show(mapErr(good, strLength)))
-    println(show((fromResult(good, 9), fromResult(bad, 9))))
-    println(show((toOption(good), toOption(bad))))
-    println(show((isOk(good), isErr(good))))
-    println(show((isOk(bad), isErr(bad))))
-    println(either(good, func(e) => "error " + e, showInt))
-    println(either(bad, func(e) => "error " + e, showInt))
+    println(show(prelude.fmap(good, func(n) => n + 1)))
+    println(show(prelude.fmap(bad, func(n) => n / 0)))
+    println(show(result.mapErr(bad, string.strLength)))
+    println(show(result.mapErr(good, string.strLength)))
+    println(show((result.fromResult(good, 9), result.fromResult(bad, 9))))
+    println(show((result.toOption(good), result.toOption(bad))))
+    println(show((result.isOk(good), result.isErr(good))))
+    println(show((result.isOk(bad), result.isErr(bad))))
+    println(result.either(good, func(e) => "error " + e, prelude.showInt))
+    println(result.either(bad, func(e) => "error " + e, prelude.showInt))
     println(show((good == Ok(4), bad < good)))
-    success <- tryIO(liftResult(good))
-    failure <- tryIO(liftResult(bad))
-    typedFailure <- tryIO(badIO())
-    panicFailure <- tryIO(panicAction())
+    success <- io.tryIO(result.liftResult(good))
+    failure <- io.tryIO(result.liftResult(bad))
+    typedFailure <- io.tryIO(badIO())
+    panicFailure <- io.tryIO(panicAction())
     println(show(success))
     println(show(failure))
     println(show(typedFailure))
@@ -80,19 +84,19 @@ func main() IO[Unit] {
   }
 }
 `
-	var files []*ast.File
-	for _, src := range []string{prelude.Source, source} {
-		file, err := parser.Parse(src)
-		if err != nil {
-			t.Fatal(err)
-		}
-		files = append(files, file)
-	}
-	program, err := types.Check(files)
+	user, err := parser.Parse(source)
 	if err != nil {
 		t.Fatal(err)
 	}
-	generated, err := Generate(program, "main")
+	modules, err := modules.LoadFiles([]*ast.File{user}, ".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	program, err := types.Check(modules)
+	if err != nil {
+		t.Fatal(err)
+	}
+	generated, err := generate(program, "main")
 	if err != nil {
 		t.Fatal(err)
 	}

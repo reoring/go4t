@@ -1,4 +1,4 @@
-package prelude
+package std_test
 
 import (
 	"context"
@@ -11,12 +11,16 @@ import (
 
 	"gofx/ast"
 	"gofx/codegen"
+	"gofx/modules"
 	"gofx/parser"
 	"gofx/types"
 )
 
 func TestDerivingPreludeProgram(t *testing.T) {
 	const source = `package main
+import "std/list"
+import "std/state"
+import "std/prelude"
 
 type Tree[A] = Tip | Leaf(A) | Fork(Tree[A], Tree[A]) deriving Functor, Foldable, Traversable, Debug
 type Nested[E, A] = Nested{tag: E, values: (A, List[Option[A]], (String, A)), children: List[Nested[E, A]]} deriving Functor, Foldable, Traversable
@@ -26,41 +30,44 @@ instance Show[Record] { show(a) { "display" } }
 func emptyOption() Option[Int] { None }
 func emptyList() List[Int] { Nil }
 func safe(n Int) Option[Int] { if n == 0 { None } else { Some(10 / (n - 1)) } }
-func step(n Int) State[List[Int], Int] { do { modify(func(xs) => append(xs, [n])); pure(n + 10) } }
+func step(n Int) state.State[List[Int], Int] { do { state.modify(func(xs) => append(xs, [n])); prelude.pure(n + 10) } }
 func main() IO[Unit] {
   let tree = Fork(Leaf(1), Fork(Leaf(2), Leaf(3)))
   let tip: Tree[Int] = Tip
   let empty: Empty[Int] = Empty
   let nested = Nested("keep", (1, [Some(2), None], ("tag", 3)), [Nested("child", (4, [], ("fixed", 5)), [])])
-  let ordered = traverse(nested, step)
+  let ordered = prelude.traverse(nested, step)
   do {
     println("${1}|${"raw"}|${true}|${Some("raw")}|${emptyOption()}|${["a", "b"]}|${("raw", false)}|${LT}|${EQ}|${GT}")
     println("${debug(1)}|${debug("a\n\"\\\t")}|${debug(false)}|${debug(unit())}|${debug(GT)}")
     println("${debug(Some("x"))}|${debug(emptyOption())}|${debug(["a", "b"])}|${debug(emptyList())}|${debug(("x", true))}")
     println("${Record(1, "x")}|${debug(Record(1, "x"))}")
     println(debug(tree))
-    println(show(toList(fmap(tree, func(n) => n + 10))))
-    println("${foldr(tree, "z", func(n, rest) => "(" + show(n) + rest + ")")}|${foldl(tree, 0, func(acc, n) => acc * 10 + n)}")
-    println("${toList(tip)}|${toList(empty)}|${toList(emptyOption())}|${toList(Some(7))}")
-    println("${foldr(emptyList(), 9, func(a, b) => a - b)}|${foldr(Some(3), 9, func(a, b) => a - b)}|${foldl(Some(3), 9, func(a, b) => a - b)}")
-    println(show(toList(fmap(nested, func(n) => n * 2))))
-    println(show(foldMapList(nested, func(n) => [n, 0 - n])))
-    println(show(execState(ordered, [])))
-    println(show(toList(evalState(ordered, []))))
-    println("${traverse([0, 1], safe)}|${debug(traverse(Fork(Leaf(0), Leaf(1)), safe))}")
-    println("${traverse(emptyList(), safe)}|${traverse(emptyOption(), safe)}|${traverse(Some(3), safe)}")
+    println(show(list.toList(prelude.fmap(tree, func(n) => n + 10))))
+    println("${prelude.foldr(tree, "z", func(n, rest) => "(" + show(n) + rest + ")")}|${list.foldl(tree, 0, func(acc, n) => acc * 10 + n)}")
+    println("${list.toList(tip)}|${list.toList(empty)}|${list.toList(emptyOption())}|${list.toList(Some(7))}")
+    println("${prelude.foldr(emptyList(), 9, func(a, b) => a - b)}|${prelude.foldr(Some(3), 9, func(a, b) => a - b)}|${list.foldl(Some(3), 9, func(a, b) => a - b)}")
+    println(show(list.toList(prelude.fmap(nested, func(n) => n * 2))))
+    println(show(list.foldMapList(nested, func(n) => [n, 0 - n])))
+    println(show(state.execState(ordered, [])))
+    println(show(list.toList(state.evalState(ordered, []))))
+    println("${prelude.traverse([0, 1], safe)}|${debug(prelude.traverse(Fork(Leaf(0), Leaf(1)), safe))}")
+    println("${prelude.traverse(emptyList(), safe)}|${prelude.traverse(emptyOption(), safe)}|${prelude.traverse(Some(3), safe)}")
   }
 }
 `
-	var files []*ast.File
-	for _, src := range []string{Source, source} {
-		file, err := parser.Parse(src)
-		if err != nil {
-			t.Fatal(err)
-		}
-		files = append(files, file)
+	var user *ast.File
+	var err error
+	user, err = parser.Parse(source)
+	if err != nil {
+		t.Fatal(err)
 	}
-	p, err := types.Check(files)
+	user.Name = "deriving.gfx"
+	mods, err := modules.LoadFiles([]*ast.File{user}, ".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := types.Check(mods)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +81,8 @@ func main() IO[Unit] {
 		t.Fatal(err)
 	}
 	mod := "module derivingtest\n\ngo 1.22\n\nrequire gofx v0.0.0\nreplace gofx => " + root + "\n"
-	for name, content := range map[string][]byte{"go.mod": []byte(mod), "main.go": generated} {
+	generated["go.mod"] = []byte(mod)
+	for name, content := range generated {
 		if err := os.WriteFile(filepath.Join(dir, name), content, 0o644); err != nil {
 			t.Fatal(err)
 		}

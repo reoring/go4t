@@ -10,11 +10,11 @@ import (
 )
 
 func TestMultiConstraintSchemeOrder(t *testing.T) {
-	p, err := types.Check(parseFiles(t, `
+	p, err := types.Check([]*ast.Module{{Files: parseFiles(t, `
 func ordered[F[_] Monad, A Show + Ord, B Eq + Show](fa F[A], b B) String { show(b) }
 class Render[X] { render[F[_] Monad, A Eq + Show](x X, fa F[A]) F[String] }
 instance Render[Int] { render(x, fa) { fmap(fa, func(a) => if eq(a, a) { show(a) } else { "" }) } }
-`+pass5Main))
+`+pass5Main)}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,7 +47,7 @@ func TestMultiConstraintDiagnostics(t *testing.T) {
 		t.Run(tc.source, func(t *testing.T) {
 			files := parseFiles(t, tc.source+pass5Main)
 			files[1].Name = "multi.gfx"
-			_, err := types.Check(files)
+			_, err := types.Check([]*ast.Module{{Files: files}})
 			var typed *types.Error
 			if !errors.As(err, &typed) || typed.Msg != tc.want || typed.Pos.Line == 0 || typed.Pos.Col == 0 {
 				t.Fatalf("Check error = %v, want positioned %q", err, tc.want)
@@ -59,11 +59,11 @@ func TestMultiConstraintDiagnostics(t *testing.T) {
 func TestMultiConstraintSubclassResolution(t *testing.T) {
 	for _, constraints := range []string{"Eq + Ord", "Ord + Eq", "Show + Eq + Ord", "Eq + Show + Ord"} {
 		t.Run(constraints, func(t *testing.T) {
-			p, err := types.Check(parseFiles(t, `
+			p, err := types.Check([]*ast.Module{{Files: parseFiles(t, `
 func both[A `+constraints+`](x A) Bool { eq(x, x) }
 func forward[A Show + Ord](x A) Bool { both(x) }
 func concrete() Bool { both(1) }
-`+pass5Main))
+`+pass5Main)}})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -96,7 +96,7 @@ func value() String {
 }
 `+pass5Main)
 	for range 2 {
-		p, err := types.Check(files)
+		p, err := types.Check([]*ast.Module{{Files: files}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -126,12 +126,12 @@ func value() String {
 }
 
 func TestMultiConstraintInstanceContext(t *testing.T) {
-	p, err := types.Check(parseFiles(t, `
+	p, err := types.Check([]*ast.Module{{Files: parseFiles(t, `
 instance Show[Option[A]] given Show[A], Eq[A], Ord[A] {
  show(x) { match x { None => ""; Some(a) => if eq(a, a) { show(a) } else { "" } } }
 }
 func value() String { show(Some(1)) }
-`+pass5Main))
+`+pass5Main)}})
 	if err != nil {
 		t.Fatal(err)
 	}

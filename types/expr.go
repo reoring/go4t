@@ -116,17 +116,6 @@ func (c *checker) instantiate(params []*TVar) (map[*TVar]Type, []Type) {
 }
 
 func (b *bodyChecker) ident(e *ast.Ident, env *locals, ann *Ann) Type {
-	if capitalised(e.Name) {
-		if ctor := b.c.ctors[e.Name]; ctor != nil {
-			fields, ret, inst := b.c.instantiateCtor(ctor)
-			ann.Ref, ann.Inst, ann.Ctor = RefCtor, inst, ctor
-			if len(fields) == 0 {
-				return ret
-			}
-			return &TFunc{Params: fields, Ret: ret}
-		}
-		fail(e.GetPos(), "unknown identifier %s", e.Name)
-	}
 	if t, scheme := env.lookup(e.Name); t != nil {
 		if scheme == nil {
 			return t
@@ -136,6 +125,14 @@ func (b *bodyChecker) ident(e *ast.Ident, env *locals, ann *Ann) Type {
 		ann.Inst = inst
 		b.obligations = append(b.obligations, obligation{expr: e, constraints: subConstraints(scheme.scheme.Constraints, sub)})
 		return substitute(scheme.typ, sub)
+	}
+	if ctor := b.c.ctors[e.Name]; ctor != nil {
+		fields, ret, inst := b.c.instantiateCtor(ctor)
+		ann.Ref, ann.Inst, ann.Ctor = RefCtor, inst, ctor
+		if len(fields) == 0 {
+			return ret
+		}
+		return &TFunc{Params: fields, Ret: ret}
 	}
 	if f := b.c.program.Funcs[e.Name]; f != nil {
 		sub, inst := b.c.instantiate(f.Scheme.TParams)

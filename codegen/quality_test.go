@@ -16,8 +16,8 @@ import (
 	"time"
 
 	"gofx/ast"
+	"gofx/modules"
 	"gofx/parser"
-	"gofx/prelude"
 	"gofx/types"
 )
 
@@ -120,6 +120,7 @@ func TestNamedLambdaTailCall(t *testing.T) {
 
 func TestMillionElementFoldWithoutStackGrowth(t *testing.T) {
 	source := qualityProgram(t, "million.gfx", `package main
+import "std/result"
 func millionList(n Int, xs List[Int]) List[Int] {
   if n == 0 { xs } else { millionList(n - 1, Cons(n, xs)) }
 }
@@ -128,7 +129,7 @@ func main() IO[Unit] {
   let total = fold(xs, 0, func(acc, n) => acc + n)
   let size = length(xs)
   let reversed = reverse(xs)
-  println("${total} ${size} ${fromOption(head(reversed), 0)} ${length(reversed)}")
+  println("${total} ${size} ${result.fromOption(head(reversed), 0)} ${length(reversed)}")
 }`)
 	output, err := runQualityGo(t, source, true)
 	if err != nil || output != "500000500000 1000000 1000000 1000000\n" {
@@ -176,7 +177,7 @@ func choose(n Int) Int {
 }
 func main() IO[Unit] { println(show(choose(0))) }
 `)
-	for _, line := range []string{"//line positions.gfx:2", "//line positions.gfx:4", "//line positions.gfx:5", "//line positions.gfx:8", "//line prelude.gfx:"} {
+	for _, line := range []string{"//line positions.gfx:2", "//line positions.gfx:4", "//line positions.gfx:5", "//line positions.gfx:8", "//line std/prelude/prelude.gfx:"} {
 		if !bytes.Contains(source, []byte(line)) {
 			t.Errorf("missing source directive %q", line)
 		}
@@ -212,7 +213,7 @@ func main() IO[Unit] { println(show(choose(0))) }
 func TestFormattingFailureRetainsGeneratedSource(t *testing.T) {
 	p := fixture()
 	addFunc(p, "bad-name", nil, nil, integer(0))
-	source, err := Generate(p, "main")
+	source, err := generate(p, "main")
 	if err == nil || !strings.HasPrefix(err.Error(), "format generated Go:") || !bytes.Contains(source, []byte("func bad-name_")) {
 		t.Fatalf("format failure lost its source or error: %q, %v", source, err)
 	}
@@ -222,7 +223,7 @@ func TestSourceFilenameNewlineRejected(t *testing.T) {
 	p := fixture()
 	p.Main.Decl.Pos = ast.Pos{Line: 2, Col: 1}
 	p.Files = []*ast.File{{Name: "bad\nname.gfx", Decls: []ast.Decl{p.Main.Decl}}}
-	if _, err := Generate(p, "main"); err == nil || err.Error() != "2:1: source filename contains a newline" {
+	if _, err := generate(p, "main"); err == nil || err.Error() != "2:1: source filename contains a newline" {
 		t.Fatalf("filename diagnostic = %v", err)
 	}
 }
@@ -264,21 +265,20 @@ func TestRuntimePanicReportsGfxPosition(t *testing.T) {
 
 func qualityProgram(t *testing.T, filename, source string) []byte {
 	t.Helper()
-	pre, err := parser.Parse(prelude.Source)
-	if err != nil {
-		t.Fatal(err)
-	}
-	pre.Name = "prelude.gfx"
 	user, err := parser.Parse(source)
 	if err != nil {
 		t.Fatal(err)
 	}
 	user.Name = filename
-	program, err := types.Check([]*ast.File{pre, user})
+	modules, err := modules.LoadFiles([]*ast.File{user}, ".")
 	if err != nil {
 		t.Fatal(err)
 	}
-	generated, err := Generate(program, "main")
+	program, err := types.Check(modules)
+	if err != nil {
+		t.Fatal(err)
+	}
+	generated, err := generate(program, "main")
 	if err != nil {
 		t.Fatalf("generate: %v\n%s", err, generated)
 	}

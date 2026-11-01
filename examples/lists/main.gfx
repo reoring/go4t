@@ -1,4 +1,7 @@
 package main
+import "std/list"
+import "std/prelude"
+
 
 // The result type fixes the element type of the empty literal.
 func emptyInts() List[Int] { [] }
@@ -8,7 +11,7 @@ func main() IO[Unit] {
   let sums = do {
     x <- [1, 2]
     y <- [10, 20]
-    pure(x + y)
+    prelude.pure(x + y)
   }
   do {
     println("empty:    " + show(emptyInts()))

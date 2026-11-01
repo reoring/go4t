@@ -131,7 +131,7 @@ func use() String { display(1) }` + main, ""},
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			files := parseFiles(t, tt.source)
-			p, err := types.Check(files)
+			p, err := types.Check([]*ast.Module{{Files: files}})
 			if tt.wantError != "" {
 				var typed *types.Error
 				if !errors.As(err, &typed) || !strings.Contains(typed.Msg, tt.wantError) {
@@ -170,7 +170,7 @@ func TestAdditionAnnotations(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			files := parseFiles(t, tt.source+"\nfunc main() IO[Unit] { ioPure(unit()) }\n")
-			p, err := types.Check(files)
+			p, err := types.Check([]*ast.Module{{Files: files}})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -224,7 +224,7 @@ func TestDiagnosticMessages(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			files := parseFiles(t, tt.source+"\nfunc main() IO[Unit] { ioPure(unit()) }\n")
-			p, err := types.Check(files)
+			p, err := types.Check([]*ast.Module{{Files: files}})
 			var typed *types.Error
 			if p != nil || !errors.As(err, &typed) || typed.Msg != tt.want || typed.Pos.Line == 0 || typed.Pos.Col == 0 {
 				t.Fatalf("Check = (%v, %v), want positioned error %q", p, err, tt.want)
@@ -237,7 +237,7 @@ func TestDoMismatchContext(t *testing.T) {
 	for _, body := range []string{"do { ioPure(1); x <- 2; ioPure(x) }", "do { ioPure(1); 2; ioPure(3) }", "do { ioPure(1); 2 }"} {
 		t.Run(body, func(t *testing.T) {
 			files := parseFiles(t, "func bad() IO[Int] { "+body+" }\nfunc main() IO[Unit] { ioPure(unit()) }\n")
-			p, err := types.Check(files)
+			p, err := types.Check([]*ast.Module{{Files: files}})
 			var typed *types.Error
 			// The item type is not yet inferred, so its meta ID is intentionally
 			// unspecified; the expected outer IO application must be retained.
@@ -277,7 +277,7 @@ func TestReservedIdentifiers(t *testing.T) {
 				name := prefix + "reserved"
 				source = strings.ReplaceAll(source, "RESERVED", name)
 				files := parseFiles(t, source+"\nfunc main() IO[Unit] { ioPure(unit()) }\n")
-				p, err := types.Check(files)
+				p, err := types.Check([]*ast.Module{{Files: files}})
 				var typed *types.Error
 				want := "identifier \"" + name + "\" uses reserved prefix"
 				if p != nil || !errors.As(err, &typed) || typed.Msg != want || typed.Pos.Line == 0 || typed.Pos.Col == 0 {
@@ -297,7 +297,7 @@ func option() Option[Int] { twice(Some(1), func(a) => a) }
 func effect() IO[Int] { twice(ioPure(1), func(a) => a) }
 func main() IO[Unit] { do { ioPure(unit()) } }
 `)
-	p, err := types.Check(files)
+	p, err := types.Check([]*ast.Module{{Files: files}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -339,7 +339,7 @@ func through[M[_] Strong, A](ma M[A]) M[A] { fmap(ma, func(a) => a) }
 func conversion() Option[Int] { convert(1, Some(1), func(x) => x + 1) }
 func main() IO[Unit] { ioPure(unit()) }
 `)
-	p, err := types.Check(files)
+	p, err := types.Check([]*ast.Module{{Files: files}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -378,7 +378,7 @@ func unused() Unit { None; let identity = func(x) => x; unit() }
 func main() IO[Unit] { ioPure(unit()) }
 `)
 	for range 2 {
-		p, err := types.Check(files)
+		p, err := types.Check([]*ast.Module{{Files: files}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -401,7 +401,7 @@ func bad() Int { 1 + true }
 func main() IO[Unit] { ioPure(unit()) }
 `)
 	bad := files[1].Decls[0].(*ast.FuncDecl).Body.Result.(*ast.Binary).R
-	p, err := types.Check(files)
+	p, err := types.Check([]*ast.Module{{Files: files}})
 	var typed *types.Error
 	if p != nil || !errors.As(err, &typed) || typed.Pos != bad.GetPos() {
 		t.Fatalf("Check = (%v, %v), want error at %s", p, err, bad.GetPos())
@@ -421,7 +421,7 @@ func TestListLiteralAnnotations(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			files := parseFiles(t, tt.source+"\nfunc main() IO[Unit] { ioPure(unit()) }\n")
-			p, err := types.Check(files)
+			p, err := types.Check([]*ast.Module{{Files: files}})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -473,7 +473,7 @@ func generic[A Show](a A) String { show(Some(a)) }
 func main() IO[Unit] { ioPure(unit()) }
 `)
 	for range 2 {
-		p, err := types.Check(files)
+		p, err := types.Check([]*ast.Module{{Files: files}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -564,7 +564,7 @@ func TestConstrainedInstanceDiagnostics(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			files := parseFiles(t, tt.source+"\nfunc main() IO[Unit] { ioPure(unit()) }\n")
-			p, err := types.Check(files)
+			p, err := types.Check([]*ast.Module{{Files: files}})
 			var typed *types.Error
 			if p != nil || !errors.As(err, &typed) || typed.Msg != tt.want || typed.Pos.Line == 0 || typed.Pos.Col == 0 {
 				t.Fatalf("Check = (%v, %v), want positioned error %q", p, err, tt.want)
@@ -597,7 +597,7 @@ instance Show[Pair[A, B]] given Show[A] { show(p) { "pair" } }
 func main() IO[Unit] { ioPure(unit()) }
 `)
 			tt.mutate(files[1].Decls[1].(*ast.InstanceDecl))
-			p, err := types.Check(files)
+			p, err := types.Check([]*ast.Module{{Files: files}})
 			var typed *types.Error
 			if p != nil || !errors.As(err, &typed) || typed.Msg != tt.want {
 				t.Fatalf("Check = (%v, %v), want %q", p, err, tt.want)
@@ -617,7 +617,7 @@ instance Show[Pair[A, B]] given Show[B], Describe[A] {
 func pair() String { show(PairOf(1, Some(2))) }
 func main() IO[Unit] { ioPure(unit()) }
 `)
-	p, err := types.Check(files)
+	p, err := types.Check([]*ast.Module{{Files: files}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -653,7 +653,7 @@ func value() String { inspect(Some(1), 2) }
 func option() String { show(Some(unit())) }
 func main() IO[Unit] { ioPure(unit()) }
 `)
-	p, err := types.Check(files)
+	p, err := types.Check([]*ast.Module{{Files: files}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -690,7 +690,7 @@ func main() IO[Unit] { []; ioPure(unit()) }
 			if err != nil {
 				t.Fatal(err)
 			}
-			p, err := types.Check([]*ast.File{file})
+			p, err := types.Check([]*ast.Module{{Files: []*ast.File{file}}})
 			var typed *types.Error
 			if p != nil || !errors.As(err, &typed) || typed.Msg != "list literal requires prelude List" {
 				t.Fatalf("Check = (%v, %v), want missing prelude List error", p, err)
@@ -724,7 +724,7 @@ instance ` + tt.parent + " {}\ninstance " + tt.child + " {}\n")
 			if err != nil {
 				t.Fatal(err)
 			}
-			p, err := types.Check([]*ast.File{file})
+			p, err := types.Check([]*ast.Module{{Files: []*ast.File{file}}})
 			if !tt.wantError {
 				if err != nil {
 					t.Fatal(err)

@@ -1,48 +1,52 @@
 package main
+import "std/list"
+import "std/prelude"
+import "std/state"
 
-func counter() State[Int, Int] {
+
+func counter() state.State[Int, Int] {
   do {
-    before <- get()
-    put(before + 1)
-    modify(func(n) => n * 2)
-    after <- get()
-    pure(after - before)
+    before <- state.get()
+    state.put(before + 1)
+    state.modify(func(n) => n * 2)
+    after <- state.get()
+    prelude.pure(after - before)
   }
 }
 
-func push(value Int) State[List[Int], Unit] {
-  modify(func(xs) => Cons(value, xs))
+func push(value Int) state.State[List[Int], Unit] {
+  state.modify(func(xs) => Cons(value, xs))
 }
 
-func pop() State[List[Int], Option[Int]] {
+func pop() state.State[List[Int], Option[Int]] {
   do {
-    xs <- get()
+    xs <- state.get()
     match xs {
-      | Nil => pure(None)
+      | Nil => prelude.pure(None)
       | Cons(x, rest) => do {
-          put(rest)
-          pure(Some(x))
+          state.put(rest)
+          prelude.pure(Some(x))
         }
     }
   }
 }
 
-func stack() State[List[Int], Option[Int]] {
+func stack() state.State[List[Int], Option[Int]] {
   do {
-    forEach([3, 5], push)
+    list.forEach([3, 5], push)
     pop()
   }
 }
 
 func main() IO[Unit] {
   do {
-    let (v, s) = runState(counter(), 10)
+    let (v, s) = state.runState(counter(), 10)
     println("counter: ${(v, s)}")
-    println("value:   ${evalState(counter(), 10)}")
-    println("state:   ${execState(counter(), 10)}")
-    println("mapped:  ${runState(fmap(counter(), func(n) => n * 10), 10)}")
-    println("stack:   ${runState(stack(), [1])}")
-    println("empty:   ${runState(pop(), [])}")
-    forEach(["first", "second", "third"], func(label) => println("IO: ${label}"))
+    println("value:   ${state.evalState(counter(), 10)}")
+    println("state:   ${state.execState(counter(), 10)}")
+    println("mapped:  ${state.runState(prelude.fmap(counter(), func(n) => n * 10), 10)}")
+    println("stack:   ${state.runState(stack(), [1])}")
+    println("empty:   ${state.runState(pop(), [])}")
+    list.forEach(["first", "second", "third"], func(label) => println("IO: ${label}"))
   }
 }

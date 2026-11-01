@@ -1,4 +1,6 @@
 package main
+import "std/prelude"
+
 
 type User = User{name: String, age: Int, email: Option[String]}
 
@@ -9,7 +11,7 @@ instance Show[User] {
 func contact(u User) Option[String] {
   do {
     email <- u.email
-    pure("${u.name}: ${email}")
+    prelude.pure("${u.name}: ${email}")
   }
 }
 
@@ -24,9 +26,9 @@ func main() IO[Unit] {
   let pair = func(x) => (x, x)
   do {
     println("users:    ${users}")
-    println("older:    ${fmap(users, older)}")
+    println("older:    ${prelude.fmap(users, older)}")
     println("ints:     ${pair(7)}")
     println("strings:  ${pair("hi")}")
-    println("contacts: ${fmap(users, contact)}")
+    println("contacts: ${prelude.fmap(users, contact)}")
   }
 }

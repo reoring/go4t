@@ -1,4 +1,4 @@
-// Package codegen lowers a checked gofx program to a single, formatted Go file.
+// Package codegen lowers a checked gofx program to one Go file per module.
 // Values use the erased any ABI; type-class constraints become Go dictionaries.
 // Constrained instances store their context dictionaries on the method receiver;
 // functions, method-local constraints, and generalised lets use explicit params.
@@ -33,11 +33,11 @@ import (
 	"gofx/types"
 )
 
-// Generate emits the prelude and user declarations together. An empty goPackage
-// selects main; other package names expose Main() rt.IO for embedding instead of
+// generate lowers declarations before module naming and file partitioning.
+// An empty goPackage selects main; other names expose Main() rt.IO for embedding instead of
 // a Go main function. The input must carry the fully zonked annotations from Check.
 // Extern functions adapt checked natural Go signatures or forward the any ABI.
-func Generate(prog *types.Program, goPackage string) (source []byte, err error) {
+func generate(prog *types.Program, goPackage string) (source []byte, err error) {
 	if prog == nil {
 		return nil, fmt.Errorf("nil program")
 	}

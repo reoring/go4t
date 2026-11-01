@@ -35,7 +35,7 @@ func main() IO[Unit] { main() }
 	}
 	// This fixture only compiles generated Go; the runnable slice example
 	// exercises actual IO and both constructors end to end.
-	p, err := types.Check([]*ast.File{file})
+	p, err := types.Check([]*ast.Module{{Files: []*ast.File{file}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,7 +80,7 @@ func main() IO[Unit] { main() }
 	if err != nil {
 		t.Fatal(err)
 	}
-	p, err := types.Check([]*ast.File{file})
+	p, err := types.Check([]*ast.Module{{Files: []*ast.File{file}}})
 	if err != nil {
 		t.Fatal(err)
 	}

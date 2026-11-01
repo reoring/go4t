@@ -1033,18 +1033,18 @@ func TestPolymorphicLetDictionaryScopes(t *testing.T) {
 func TestGenerationErrors(t *testing.T) {
 	p := fixture()
 	p.Main.Decl.Body.Result = &ast.Ident{ExprBase: ast.ExprBase{Pos: ast.Pos{Line: 3, Col: 7}}, Name: "missing"}
-	if _, err := Generate(p, "main"); err == nil || err.Error() != "3:7: expression has no annotation" {
+	if _, err := generate(p, "main"); err == nil || err.Error() != "3:7: expression has no annotation" {
 		t.Fatalf("missing-annotation error = %v", err)
 	}
-	if _, err := Generate(nil, "main"); err == nil || err.Error() != "nil program" {
+	if _, err := generate(nil, "main"); err == nil || err.Error() != "nil program" {
 		t.Fatalf("nil-program error = %v", err)
 	}
-	if _, err := Generate(fixture(), "func"); err == nil || err.Error() != `invalid Go package name "func"` {
+	if _, err := generate(fixture(), "func"); err == nil || err.Error() != `invalid Go package name "func"` {
 		t.Fatalf("package error = %v", err)
 	}
 	withoutMain := fixture()
 	withoutMain.Main = nil
-	if _, err := Generate(withoutMain, "main"); err == nil || err.Error() != "program has no main function" {
+	if _, err := generate(withoutMain, "main"); err == nil || err.Error() != "program has no main function" {
 		t.Fatalf("missing-main error = %v", err)
 	}
 }
@@ -1216,7 +1216,7 @@ func instanceDict(instance *types.Instance, args ...types.DictRef) types.DictRef
 
 func assertSource(t *testing.T, p *types.Program, fragments ...string) string {
 	t.Helper()
-	source, err := Generate(p, "main")
+	source, err := generate(p, "main")
 	if err != nil {
 		t.Fatal(err)
 	}

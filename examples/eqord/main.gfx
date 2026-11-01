@@ -1,4 +1,8 @@
 package main
+import "std/float"
+import "std/list"
+import "std/string"
+
 
 type AccountId = AccountId(String)
 
@@ -46,23 +50,23 @@ func main() IO[Unit] {
   let scores = [42, 7, 99]
   do {
     println("accounts: ${filter(ids, func(id) => id == alice)}")
-    println("priorities: ${sort(priorities)}")
-    println("contains: ${elem(Normal, priorities)} / ${elem(AccountId("Z-9"), ids)}")
-    println("maximum: ${maximum(priorities)}")
-    println("minimum: ${minimum(priorities)}")
-    println("empty: ${xs} / ${head(xs)} / ${tail(xs)} / ${maximum(xs)}")
+    println("priorities: ${list.sort(priorities)}")
+    println("contains: ${list.elem(Normal, priorities)} / ${list.elem(AccountId("Z-9"), ids)}")
+    println("maximum: ${list.maximum(priorities)}")
+    println("minimum: ${list.minimum(priorities)}")
+    println("empty: ${xs} / ${head(xs)} / ${tail(xs)} / ${list.maximum(xs)}")
     let numbers: List[Int] = [1, 2, 3]
     println("head/tail: ${head(numbers)} / ${tail(numbers)}")
-    println("take/drop: ${take(2, numbers)} / ${drop(2, numbers)}")
-    println("sum: ${sum(numbers)}")
-    println("concatMap: ${concatMap(numbers, func(n) => [n, n * 10])}")
-    println("descending: ${sortBy(numbers, func(a, b) => compare(b, a))}")
-    println("tuples: ${filter(zip(names, scores), func(p) => p == ("Ada", 42))}")
-    forEach(zip(names, scores), func((n, s)) => println("${n}: ${s}"))
+    println("take/drop: ${list.take(2, numbers)} / ${list.drop(2, numbers)}")
+    println("sum: ${list.sum(numbers)}")
+    println("concatMap: ${list.concatMap(numbers, func(n) => [n, n * 10])}")
+    println("descending: ${list.sortBy(numbers, func(a, b) => compare(b, a))}")
+    println("tuples: ${filter(list.zip(names, scores), func(p) => p == ("Ada", 42))}")
+    list.forEach(list.zip(names, scores), func((n, s)) => println("${n}: ${s}"))
     println("guard: ${describe(Some(42))} / ${describe(Some(7))} / ${describe(None)}")
     println("starts with 1: ${xs != Nil && head(xs) == Some(1)} / ${numbers != Nil && head(numbers) == Some(1)}")
     // Neither division by zero is evaluated.
     println("short-circuit: ${false && 1 / 0 == 0} / ${true || 1 / 0 == 0}")
-    println("bounds: ${minInt()} / ${maxInt()}")
+    println("bounds: ${float.minInt()} / ${float.maxInt()}")
   }
 }

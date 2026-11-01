@@ -1,4 +1,8 @@
 package main
+import "std/float"
+import "std/list"
+import "std/result"
+
 
 // ===== ドメイン =====
 
@@ -46,13 +50,13 @@ func plan(tasks List[Task], hours Int) (List[Task], List[Task]) {
   let open = filter(tasks, func(t) => t.status != Done)
   let step = func(acc (List[Task], Int), t Task) =>
     if acc.1 >= t.est { (Cons(t, acc.0), acc.1 - t.est) } else { acc }
-  let picked: (List[Task], Int) = fold(sort(open), ([], hours), step)
+  let picked: (List[Task], Int) = fold(list.sort(open), ([], hours), step)
   let chosen = reverse(picked.0)
-  let rest = filter(open, func(t) => !elem(t, chosen))
+  let rest = filter(open, func(t) => !list.elem(t, chosen))
   (chosen, rest)
 }
 
-func totalHours(ts List[Task]) Int { sum(map(ts, func(t) => t.est)) }
+func totalHours(ts List[Task]) Int { list.sum(map(ts, func(t) => t.est)) }
 
 func start(t Task) Task { t{status: Doing} }
 
@@ -73,16 +77,16 @@ func main() IO[Unit] {
         func(b) => (b, map(filter(tasks, func(t) => bucket(t) == b), func(t) => t.id)))
   do {
     println("== all (sorted) ==")
-    forEach(sort(tasks), func(t) => println("  ${t}"))
+    list.forEach(list.sort(tasks), func(t) => println("  ${t}"))
     println("== buckets ==")
-    forEach(groups, func((name, ids)) => println("  ${name}: ${ids}"))
+    list.forEach(groups, func((name, ids)) => println("  ${name}: ${ids}"))
     println("== today (6h) ==")
-    forEach(map(today, start), func(t) => println("  ${t}"))
+    list.forEach(map(today, start), func(t) => println("  ${t}"))
     println("  total ${totalHours(today)}h, ${length(later)} left")
     println("== stats ==")
-    println("  top: ${maybe(head(sort(tasks)), "none", func(t) => t.title)}")
-    println("  longest: ${maximum(map(tasks, func(t) => t.est))}")
-    println("  Low < Urgent = ${Low < Urgent}, minInt = ${minInt()}")
-    println("  next after today: ${head(sortBy(later, func(a, b) => compare(a.est, b.est)))}")
+    println("  top: ${result.maybe(head(list.sort(tasks)), "none", func(t) => t.title)}")
+    println("  longest: ${list.maximum(map(tasks, func(t) => t.est))}")
+    println("  Low < Urgent = ${Low < Urgent}, minInt = ${float.minInt()}")
+    println("  next after today: ${head(list.sortBy(later, func(a, b) => compare(a.est, b.est)))}")
   }
 }

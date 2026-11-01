@@ -43,7 +43,7 @@ instance Monad[Option] {
 			if err != nil {
 				t.Fatal(err)
 			}
-			program, err := types.Check([]*ast.File{file})
+			program, err := types.Check([]*ast.Module{{Files: []*ast.File{file}}})
 			if err != nil {
 				t.Fatal(err)
 			}

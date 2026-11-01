@@ -53,7 +53,7 @@ instance Functor[Result[E, A]] { fmap(r, f) { r } }`, "kind mismatch"},
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			files := parseFiles(t, tt.source+"\nfunc main() IO[Unit] { ioPure(unit()) }\n")
-			p, err := types.Check(files)
+			p, err := types.Check([]*ast.Module{{Files: files}})
 			if tt.want != "" {
 				var typed *types.Error
 				if p != nil || !errors.As(err, &typed) || !strings.Contains(typed.Msg, tt.want) {
@@ -78,7 +78,7 @@ func pair() (Int, (Int, Int)) { (1, (2, 3)) }
 func display() String { show((1, (2, 3))) }
 func main() IO[Unit] { ioPure(unit()) }
 `)
-	p, err := types.Check(files)
+	p, err := types.Check([]*ast.Module{{Files: files}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,7 +121,7 @@ func sequenced(r Result[String, Int]) Result[String, Int] { do { x <- r; pure(x 
 func main() IO[Unit] { ioPure(unit()) }
 `)
 	for range 2 {
-		p, err := types.Check(files)
+		p, err := types.Check([]*ast.Module{{Files: files}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -184,7 +184,7 @@ func generic[E Show, A](r Result[E, A]) Result[E, A] { fmap(r, func(x) => x) }
 func sequenced(r Result[String, Int]) Result[String, Int] { do { x <- r; pure(x) } }
 func main() IO[Unit] { ioPure(unit()) }
 `)
-	p, err := types.Check(files)
+	p, err := types.Check([]*ast.Module{{Files: files}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -251,7 +251,7 @@ instance Monad[Result[E, X]] given Show[X] {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			files := parseFiles(t, tt.source+"\nfunc main() IO[Unit] { ioPure(unit()) }\n")
-			p, err := types.Check(files)
+			p, err := types.Check([]*ast.Module{{Files: files}})
 			var typed *types.Error
 			if p != nil || !errors.As(err, &typed) || typed.Msg != tt.want {
 				t.Fatalf("Check = (%v, %v), want %q", p, err, tt.want)

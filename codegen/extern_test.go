@@ -8,8 +8,8 @@ import (
 	"testing"
 
 	"gofx/ast"
+	"gofx/modules"
 	"gofx/parser"
-	"gofx/prelude"
 	"gofx/types"
 )
 
@@ -46,7 +46,7 @@ func TestNaturalExternAdapters(t *testing.T) {
 	}
 	extern(p, "httpStatus", []string{"url"}, []types.Type{types.String}, "gofx/rt/stdhttp", "GetStatus")
 	p.Funcs["httpStatus"].Scheme.Type.Ret = app("IO", types.Int)
-	source, err := Generate(p, "main")
+	source, err := generate(p, "main")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +91,7 @@ func TestExternMismatchDiagnostics(t *testing.T) {
 		extern(p, "foreign", []string{"value"}, []types.Type{types.String}, "gofx/extern/testdata/natural", tc.symbol)
 		p.Funcs["foreign"].Decl.Pos = ast.Pos{Line: 3, Col: 7}
 		p.Funcs["foreign"].Scheme.Type.Ret = types.Bool
-		_, err := Generate(p, "main")
+		_, err := generate(p, "main")
 		if err == nil || err.Error() != "3:7: "+tc.want {
 			t.Errorf("error = %v, want 3:7: %s", err, tc.want)
 		}
@@ -103,19 +103,19 @@ func TestHTTPExampleUsesNaturalExtern(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var files []*ast.File
-	for _, source := range []string{prelude.Source, string(source)} {
-		file, err := parser.Parse(source)
-		if err != nil {
-			t.Fatal(err)
-		}
-		files = append(files, file)
-	}
-	program, err := types.Check(files)
+	file, err := parser.Parse(string(source))
 	if err != nil {
 		t.Fatal(err)
 	}
-	generated, err := Generate(program, "main")
+	modules, err := modules.LoadFiles([]*ast.File{file}, ".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	program, err := types.Check(modules)
+	if err != nil {
+		t.Fatal(err)
+	}
+	generated, err := generate(program, "main")
 	if err != nil {
 		t.Fatal(err)
 	}

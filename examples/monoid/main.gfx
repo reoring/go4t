@@ -1,4 +1,8 @@
 package main
+import "std/list"
+import "std/prelude"
+import "std/state"
+
 
 // ===== 型クラス: Monoid =====
 // 結合法則と単位元を持つ型。fold で畳み込むときの「足し方」を抽象化する。
@@ -53,7 +57,7 @@ instance Functor[Tree] {
   fmap(t, f) {
     match t {
       Leaf => Leaf
-      Node(l, v, r) => Node(fmap(l, f), f(v), fmap(r, f))
+      Node(l, v, r) => Node(prelude.fmap(l, f), f(v), prelude.fmap(r, f))
     }
   }
 }
@@ -88,15 +92,15 @@ func depth[A](t Tree[A]) Int {
 
 // ===== State: 訪問順に番号を振る =====
 
-func label[A](t Tree[A]) State[Int, Tree[(Int, A)]] {
+func label[A](t Tree[A]) state.State[Int, Tree[(Int, A)]] {
   match t {
-    Leaf => pure(Leaf)
+    Leaf => prelude.pure(Leaf)
     Node(l, v, r) => do {
       l2 <- label(l)
-      n <- get()
-      put(n + 1)
+      n <- state.get()
+      state.put(n + 1)
       r2 <- label(r)
-      pure(Node(l2, (n, v), r2))
+      prelude.pure(Node(l2, (n, v), r2))
     }
   }
 }
@@ -115,7 +119,7 @@ func main() IO[Unit] {
     println("max   : ${foldMap(sorted, func(n) => Max(n))}")
     println("joined: ${foldMap(sorted, func(n) => "${n};")}")
     println("evens : ${mconcat([filter(sorted, func(n) => n / 2 * 2 == n), [100]])}")
-    let labelled = evalState(label(fmap(tree, func(n) => n * 10)), 0)
-    forEach(treeToList(labelled), func(p) => println("  #${p.0} -> ${p.1}"))
+    let labelled = state.evalState(label(prelude.fmap(tree, func(n) => n * 10)), 0)
+    list.forEach(treeToList(labelled), func(p) => println("  #${p.0} -> ${p.1}"))
   }
 }

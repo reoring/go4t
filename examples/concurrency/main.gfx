@@ -1,40 +1,44 @@
 package main
+import "std/conc"
+import "std/io"
+import "std/list"
+
 
 func delayed[A](millis Int, value A) IO[A] {
   do {
-    sleep(millis)
+    io.sleep(millis)
     ioPure(value)
   }
 }
 
 func main() IO[Unit] {
   do {
-    first <- fork(delayed(90, "first"))
-    second <- fork(delayed(60, "second"))
-    third <- fork(delayed(30, "third"))
-    a <- await(first)
-    b <- await(second)
-    c <- await(third)
-    again <- await(first)
+    first <- conc.fork(delayed(90, "first"))
+    second <- conc.fork(delayed(60, "second"))
+    third <- conc.fork(delayed(30, "third"))
+    a <- conc.await(first)
+    b <- conc.await(second)
+    c <- conc.await(third)
+    again <- conc.await(first)
     println("await: ${a}, ${b}, ${c}; again: ${again}")
 
     let sleeps = [300, 200, 100]
-    start <- monotonicMillis()
-    values <- parMapIO(sleeps, func(millis) => delayed(millis, millis))
-    end <- monotonicMillis()
+    start <- io.monotonicMillis()
+    values <- conc.parMapIO(sleeps, func(millis) => delayed(millis, millis))
+    end <- io.monotonicMillis()
     let elapsed = end - start
-    let sequential = sum(sleeps)
+    let sequential = list.sum(sleeps)
     println("parMapIO: ${values}")
     println("wall time: ${elapsed} ms; sum of sleeps: ${sequential} ms")
     println("parallel faster than sequential: ${elapsed < sequential}")
 
-    both <- parBoth(delayed(30, 7), delayed(10, "ready"))
+    both <- conc.parBoth(delayed(30, 7), delayed(10, "ready"))
     println("parBoth: ${both}")
-    winner <- race(delayed(1000, "slow"), delayed(10, "fast"))
+    winner <- conc.race(delayed(1000, "slow"), delayed(10, "fast"))
     println("race: ${winner}")
-    late <- timeout(20, delayed(1000, "late"))
+    late <- conc.timeout(20, delayed(1000, "late"))
     println("timeout slow: ${late}")
-    early <- timeout(1000, delayed(10, "ready"))
+    early <- conc.timeout(1000, delayed(10, "ready"))
     println("timeout fast: ${early}")
   }
 }

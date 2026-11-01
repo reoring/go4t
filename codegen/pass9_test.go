@@ -109,7 +109,7 @@ func TestComparisonRequiresDictionary(t *testing.T) {
 	expr.ExprBase.Pos = ast.Pos{Line: 3, Col: 7}
 	types.AnnOf(expr).Dicts = nil
 	p.Main.Decl.Body.Result = expr
-	if _, err := Generate(p, "main"); err == nil || err.Error() != "3:7: comparison requires one dictionary annotation" {
+	if _, err := generate(p, "main"); err == nil || err.Error() != "3:7: comparison requires one dictionary annotation" {
 		t.Fatalf("missing comparison dictionary error = %v", err)
 	}
 }

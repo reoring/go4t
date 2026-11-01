@@ -11,7 +11,7 @@ import (
 // same inference and dictionary resolution as handwritten instances. Consume
 // the clauses only after the whole file expands successfully: checking the same
 // AST again must not append another copy of its instances.
-func expandDeriving(f *ast.File) error {
+func expandDeriving(f *ast.File, sourceNames map[string]string) error {
 	var instances []ast.Decl
 	for _, decl := range f.Decls {
 		d, ok := decl.(*ast.TypeDecl)
@@ -61,7 +61,7 @@ func expandDeriving(f *ast.File) error {
 			case "Ord":
 				method.Name, method.Body.Result = "compare", deriveOrd(d)
 			case "Debug":
-				method.Name, method.Params, method.Body.Result = "debug", []string{"a"}, deriveDebug(d)
+				method.Name, method.Params, method.Body.Result = "debug", []string{"a"}, deriveDebug(d, sourceNames)
 			case "Functor":
 				method.Name, method.Params = "fmap", []string{"a", "f"}
 				method.Body.Result = deriveLast(d, class)
@@ -171,13 +171,17 @@ func deriveOrd(d *ast.TypeDecl) ast.Expr {
 	return m
 }
 
-func deriveDebug(d *ast.TypeDecl) ast.Expr {
+func deriveDebug(d *ast.TypeDecl, sourceNames map[string]string) ast.Expr {
 	base := ast.ExprBase{Pos: d.Pos}
 	m := &ast.Match{ExprBase: base, Scrut: deriveIdent(d.Pos, "a")}
 	for _, ctor := range d.Ctors {
+		display := sourceNames[ctor.Name]
+		if display == "" {
+			display = ctor.Name
+		}
 		var body ast.Expr
 		if len(ctor.Fields) == 0 {
-			body = &ast.StringLit{ExprBase: base, Value: ctor.Name}
+			body = &ast.StringLit{ExprBase: base, Value: display}
 		} else {
 			interp := &ast.Interp{ExprBase: base, Texts: make([]string, len(ctor.Fields)+1), Exprs: make([]ast.Expr, len(ctor.Fields))}
 			for i := range ctor.Fields {
@@ -190,10 +194,10 @@ func deriveDebug(d *ast.TypeDecl) ast.Expr {
 				}
 			}
 			if ctor.FieldNames == nil {
-				interp.Texts[0] = ctor.Name + "(" + interp.Texts[0]
+				interp.Texts[0] = display + "(" + interp.Texts[0]
 				interp.Texts[len(ctor.Fields)] = ")"
 			} else {
-				interp.Texts[0] = ctor.Name + "{" + interp.Texts[0]
+				interp.Texts[0] = display + "{" + interp.Texts[0]
 				interp.Texts[len(ctor.Fields)] = "}"
 			}
 			body = interp

@@ -178,6 +178,14 @@ func (p *Parser) ident() string {
 	return t.Text
 }
 
+func (p *Parser) qualified() string {
+	name := p.ident()
+	if p.acceptP(".") {
+		name += "." + p.ident()
+	}
+	return name
+}
+
 func (p *Parser) skipSemis() {
 	for p.isP(";") {
 		p.next()
@@ -199,6 +207,19 @@ func (p *Parser) file() *ast.File {
 	p.expectK("package")
 	f := &ast.File{Package: p.ident()}
 	p.skipSemis()
+	for p.isK("import") {
+		i := ast.Import{Pos: p.next().Pos}
+		if p.tok().Kind == lexer.Ident {
+			i.Alias = p.ident()
+		}
+		if p.tok().Kind != lexer.String {
+			p.fail(p.pos(), "expected import path string")
+		}
+		i.Path = p.next().Text
+		i.End = p.end()
+		f.Imports = append(f.Imports, i)
+		p.skipSemis()
+	}
 	for p.tok().Kind != lexer.EOF {
 		f.Decls = append(f.Decls, p.decl())
 		p.skipSemis()
@@ -243,9 +264,9 @@ func (p *Parser) tparam() ast.TypeParam {
 		p.expectP("]")
 	}
 	if p.tok().Kind == lexer.Ident {
-		tp.Constraints = append(tp.Constraints, p.ident())
+		tp.Constraints = append(tp.Constraints, p.qualified())
 		for p.acceptP("+") {
-			tp.Constraints = append(tp.Constraints, p.ident())
+			tp.Constraints = append(tp.Constraints, p.qualified())
 		}
 	}
 	return tp
@@ -289,7 +310,7 @@ func (p *Parser) classDecl() ast.Decl {
 	c.Param = p.tparam()
 	p.expectP("]")
 	if p.acceptP(":") {
-		c.Super = p.ident()
+		c.Super = p.qualified()
 		p.expectP("[")
 		if n := p.ident(); n != c.Param.Name {
 			p.fail(pos, "superclass must be applied to %s", c.Param.Name)
@@ -313,12 +334,12 @@ func (p *Parser) classDecl() ast.Decl {
 
 func (p *Parser) instanceDecl() ast.Decl {
 	pos := p.next().Pos
-	d := &ast.InstanceDecl{Pos: pos, Class: p.ident()}
+	d := &ast.InstanceDecl{Pos: pos, Class: p.qualified()}
 	p.expectP("[")
 	headPos := p.pos()
 	tupleHead := p.acceptP("(")
 	if !tupleHead {
-		d.TypeCon = p.ident()
+		d.TypeCon = p.qualified()
 	}
 	if tupleHead || p.acceptP("[") {
 		for {
@@ -349,7 +370,7 @@ func (p *Parser) instanceDecl() ast.Decl {
 			p.fail(givenPos, "given requires instance type parameters")
 		}
 		for {
-			c := ast.Constraint{Pos: p.pos(), Class: p.ident()}
+			c := ast.Constraint{Pos: p.pos(), Class: p.qualified()}
 			p.expectP("[")
 			paramPos := p.pos()
 			c.Param = p.ident()
@@ -455,7 +476,7 @@ func (p *Parser) typeDecl() ast.Decl {
 	if p.isK("deriving") {
 		p.next()
 		for {
-			d.Deriving = append(d.Deriving, p.ident())
+			d.Deriving = append(d.Deriving, p.qualified())
 			if !p.acceptP(",") {
 				break
 			}
@@ -518,7 +539,7 @@ func (p *Parser) typ() (typ ast.Type) {
 		p.expectP(")")
 		return tuple
 	}
-	tn := &ast.TypeName{Pos: pos, Name: p.ident()}
+	tn := &ast.TypeName{Pos: pos, Name: p.qualified()}
 	if p.acceptP("[") {
 		for {
 			tn.Args = append(tn.Args, p.typ())
@@ -796,7 +817,7 @@ func (p *Parser) pattern() (pat ast.Pattern) {
 			return &ast.PLit{Pos: t.Pos, X: p.primary()}
 		}
 	case lexer.Ident:
-		p.next()
+		t.Text = p.qualified()
 		if p.acceptP("@") {
 			first, _ := utf8.DecodeRuneInString(t.Text)
 			if !unicode.IsLower(first) && first != '_' {
@@ -816,7 +837,7 @@ func (p *Parser) pattern() (pat ast.Pattern) {
 			p.expectP(")")
 			return c
 		}
-		if isUpper(t.Text) {
+		if isUpper(t.Text) || strings.Contains(t.Text, ".") {
 			if p.acceptP("{") {
 				record := &ast.PRecord{Pos: t.Pos, Ctor: t.Text}
 				p.skipSemis()
@@ -859,7 +880,11 @@ func (p *Parser) pattern() (pat ast.Pattern) {
 	return nil
 }
 
-func isUpper(s string) bool { return s != "" && s[0] >= 'A' && s[0] <= 'Z' }
+func isUpper(s string) bool {
+	s = strings.TrimLeft(s, "_")
+	r, _ := utf8.DecodeRuneInString(s)
+	return unicode.IsUpper(r)
+}
 
 var binPrec = map[string]int{
 	"|>": 1, "||": 2, "&&": 3,

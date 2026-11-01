@@ -59,9 +59,29 @@ type Param struct {
 
 // ---- declarations ----
 
+// Module is one directory of same-package source files. Path is its resolved
+// import identity; the entry module is last in a compilation's module list.
+type Module struct {
+	Path  string
+	Name  string
+	Files []*File
+}
+
+type Import struct {
+	Pos, End Pos
+	Alias    string // empty selects the last import-path component
+	Path     string
+	Resolved string // loader-assigned target identity; empty uses Path
+}
+
+func (i *Import) GetPos() Pos    { return i.Pos }
+func (i *Import) GetEnd() Pos    { return i.End }
+func (i *Import) SetEnd(end Pos) { i.End = end }
+
 type File struct {
 	Package string
 	Name    string // display name used in diagnostics (e.g. "prelude.gfx"); set by the caller
+	Imports []Import
 	Decls   []Decl
 }
 

@@ -255,6 +255,11 @@ type FuncInfo struct {
 }
 
 type Program struct {
+	Modules []*ast.Module
+	// ModuleNames maps canonical declarations to their source spelling.
+	ModuleNames map[string]string
+	// Owners maps canonical declarations to their owning module path.
+	Owners    map[string]string
 	Classes   map[string]*Class
 	Instances []*Instance
 	DataTypes map[string]*DataType

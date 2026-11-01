@@ -161,12 +161,17 @@ func TestEvalCommand(t *testing.T) {
 		{"string uses Show", `"hello"`, "", "hello\n"},
 		{"pure Option", "Some(1)", "", "Some(1)\n"},
 		{"IO", "ioPure(7)", "", "7\n"},
-		{"stdin", "readLine()", "hello\n", "Some(hello)\n"},
-		{"EOF", "readLine()", "", "None\n"},
+		{"stdin", "io.readLine()", "hello\n", "Some(hello)\n"},
+		{"EOF", "io.readLine()", "", "None\n"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := toolsModule(t)
-			out, stderr, status := toolsCommand(t, dir, tt.input, "eval", tt.expression)
+			args := []string{"eval", tt.expression}
+			if strings.HasPrefix(tt.expression, "io.") {
+				file := toolsWrite(t, filepath.Join(dir, "imports.gfx"), "package main\nimport \"std/io\"\n")
+				args = append(args, file)
+			}
+			out, stderr, status := toolsCommand(t, dir, tt.input, args...)
 			if out != tt.want || stderr != "" || status != 0 {
 				t.Fatalf("stdout=%q stderr=%q status=%d; want stdout=%q status=0", out, stderr, status, tt.want)
 			}
@@ -210,7 +215,9 @@ func TestEvalPreservesOriginalError(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, original := checkFiles(append(files, wrapper))
+		entry := files[len(files)-1]
+		entry.Files = append(entry.Files, wrapper)
+		_, original := checkFiles(files)
 		got := run([]string{"eval", expression})
 		if original == nil || got == nil || original.Error() != got.Error() {
 			t.Errorf("eval %q error=%v, original=%v", expression, got, original)
@@ -282,9 +289,10 @@ func TestBuildOutputOverride(t *testing.T) {
 func TestEmitGoPackageCanBeImported(t *testing.T) {
 	dir := toolsModule(t)
 	file := toolsWrite(t, filepath.Join(dir, "source.gfx"), `package main
+import "std/string"
 func main() IO[Unit] {
     do {
-        println(show(split(",", "a,b")))
+        println(show(string.split(",", "a,b")))
         ioPure(unit())
     }
 }

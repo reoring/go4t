@@ -30,7 +30,7 @@ func nestedIdentity(x Identity[Identity[Int]]) Int { x }
 func scoped[Name](x Name) Name { x }
 `+pass5Main)
 	for range 2 {
-		p, err := types.Check(files)
+		p, err := types.Check([]*ast.Module{{Files: files}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -77,7 +77,7 @@ func TestAliasErrors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			files := parseFiles(t, tt.source+pass5Main)
 			files[1].Name = "aliases.gfx"
-			p, err := types.Check(files)
+			p, err := types.Check([]*ast.Module{{Files: files}})
 			var typed *types.Error
 			if p != nil || !errors.As(err, &typed) || typed.Msg != tt.want {
 				t.Fatalf("Check = (%v, %v), want %q", p, err, tt.want)
@@ -107,7 +107,7 @@ func display() String { label(Box(1, 2)) + label("name") }
 func mapped() Box[String, Int] { fmap(Box("name", 2), func(n) => n + 1) }
 `+pass5Main)
 	for range 2 {
-		p, err := types.Check(files)
+		p, err := types.Check([]*ast.Module{{Files: files}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -129,7 +129,7 @@ func TestAliasInstanceHeadErrors(t *testing.T) {
 		{`alias Name = Int; instance Label[Name] {}; instance Label[Int] {}`, "duplicate instance Label[Int]"},
 	} {
 		t.Run(tt.source, func(t *testing.T) {
-			p, err := types.Check(parseFiles(t, "class Label[A] {}; "+tt.source+pass5Main))
+			p, err := types.Check([]*ast.Module{{Files: parseFiles(t, "class Label[A] {}; "+tt.source+pass5Main)}})
 			var typed *types.Error
 			if p != nil || !errors.As(err, &typed) || typed.Msg != tt.want {
 				t.Fatalf("Check = (%v, %v), want %q", p, err, tt.want)
@@ -151,7 +151,7 @@ type Choice[A] = One{run: func(A) A, pair: (A, Name)} | Two{pair: (A, String), r
 func run[A](x Choice[A], a A) A { x.run(a) }
 func pair[A](x Choice[A]) (A, String) { x.pair }
 `+pass5Main)
-	p, err := types.Check(files)
+	p, err := types.Check([]*ast.Module{{Files: files}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -191,7 +191,7 @@ func TestCommonFieldErrors(t *testing.T) {
 		{`type R = First{a: Int} | Last{a: Int}; func f(x R) R { x{a: 1, a: 2} }`, "duplicate field a in constructor First"},
 	} {
 		t.Run(tt.source, func(t *testing.T) {
-			p, err := types.Check(parseFiles(t, tt.source+pass5Main))
+			p, err := types.Check([]*ast.Module{{Files: parseFiles(t, tt.source+pass5Main)}})
 			var typed *types.Error
 			if p != nil || !errors.As(err, &typed) || typed.Msg != tt.want {
 				t.Fatalf("Check = (%v, %v), want %q", p, err, tt.want)

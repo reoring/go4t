@@ -1,4 +1,7 @@
 package main
+import "std/list"
+import "std/prelude"
+
 
 type Tree[A] = Leaf(A) | Branch(Tree[A], Tree[A])
   deriving Functor, Foldable, Traversable, Debug
@@ -22,13 +25,13 @@ func main() IO[Unit] {
   do {
     println("display: ${tree}")
     println("debug: ${debug(tree)}")
-    println("mapped: ${fmap(tree, func(n) => n + 1)}")
-    println("foldr: ${foldr(tree, 0, func(n, total) => n + total)}")
-    println("traverse: ${traverse(tree, positive)}")
-    println("failure: ${traverse(Branch(Leaf(1), Leaf(0)), positive)}")
-    println("toList: ${toList(tree)}")
-    println("foldl: ${foldl(tree, 0, func(acc, n) => acc * 10 + n)}")
-    println("foldMapList: ${foldMapList(tree, func(n) => [n, n])}")
+    println("mapped: ${prelude.fmap(tree, func(n) => n + 1)}")
+    println("foldr: ${prelude.foldr(tree, 0, func(n, total) => n + total)}")
+    println("traverse: ${prelude.traverse(tree, positive)}")
+    println("failure: ${prelude.traverse(Branch(Leaf(1), Leaf(0)), positive)}")
+    println("toList: ${list.toList(tree)}")
+    println("foldl: ${list.foldl(tree, 0, func(acc, n) => acc * 10 + n)}")
+    println("foldMapList: ${list.foldMapList(tree, func(n) => [n, n])}")
     println("strings: ${debug(Leaf("hello\nworld"))}")
   }
 }

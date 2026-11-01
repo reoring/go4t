@@ -1,4 +1,6 @@
 package main
+import "std/list"
+
 
 alias Name = String
 alias Pair[A] = (A, A)

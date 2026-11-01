@@ -20,6 +20,8 @@ func TestPass9GeneratedProgram(t *testing.T) {
 	}
 	file := filepath.Join(dir, "pass9.gfx")
 	source := `package main
+import "std/float"
+import "std/prelude"
 
 type Box[A] = Box{value: A}
 instance Eq[Box[A]] given Eq[A] {
@@ -55,8 +57,8 @@ func main() IO[Unit] {
         println("(${Box(Box(1)) < Box(Box(2))}, ${[1, 2] == [1, 2]}, ${(1, 2) < (1, 3)})")
         println("(${pair((2, 3))}, ${boxed(Box(7))}, ${aliased((4, 6))}, ${ignored(0)})")
         println("(${guarded(Some(4))}, ${guarded(Some(2))}, ${guarded(Some(0))}, ${guarded(None)})")
-        println(show((minInt(), maxInt())))
-        pure(unit())
+        println(show((float.minInt(), float.maxInt())))
+        prelude.pure(unit())
     }
 }
 `

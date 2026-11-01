@@ -1,4 +1,7 @@
 package main
+import "std/list"
+import "std/prelude"
+
 
 // 最短経路探索: 不変のリストだけで Dijkstra 法を実装する。
 // 前提: 所要時間は非負。優先キューは整列リストなので小規模な路線向け。
@@ -29,13 +32,13 @@ func enqueue(visit Visit, queue List[Visit]) List[Visit] {
 func search(roads List[Road], goal Station, queue List[Visit], settled List[Station]) Option[Route] {
   match queue {
     Nil => None
-    Cons(current, rest) if elem(current.station, settled) =>
+    Cons(current, rest) if list.elem(current.station, settled) =>
       search(roads, goal, rest, settled)
     Cons(current, _) if current.station == goal =>
       Some(Route{stops: reverse(Cons(current.station, current.previous)), minutes: current.minutes})
     Cons(current, rest) => {
       let visited = Cons(current.station, settled)
-      let outgoing = filter(roads, func(r) => r.from == current.station && !elem(r.to, visited))
+      let outgoing = filter(roads, func(r) => r.from == current.station && !list.elem(r.to, visited))
       let previous = Cons(current.station, current.previous)
       let frontier = fold(outgoing, rest, func(q, r) => enqueue(
         Visit{station: r.to, minutes: current.minutes + r.minutes, previous: previous}, q))
@@ -53,7 +56,7 @@ func via(roads List[Road], start Station, waypoint Station, goal Station) Option
   do {
     first <- shortest(roads, start, waypoint)
     second <- shortest(roads, waypoint, goal)
-    pure(Route{stops: append(first.stops, tail(second.stops)),
+    prelude.pure(Route{stops: append(first.stops, tail(second.stops)),
       minutes: first.minutes + second.minutes})
   }
 }
@@ -67,7 +70,7 @@ func printRoute(label String, result Option[Route]) IO[Unit] {
 
 func main() IO[Unit] {
   // 各区間を往復可能にする。直行便より乗り継ぎが速いネットワーク。
-  let roads = concatMap([
+  let roads = list.concatMap([
     (Home, Harbor, 20),
     (Home, Market, 4),
     (Home, Park, 2),

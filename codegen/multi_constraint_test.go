@@ -30,7 +30,7 @@ func multiConstraintProgram(t *testing.T, source string) *types.Program {
 	if err != nil {
 		t.Fatal(err)
 	}
-	p, err := types.Check([]*ast.File{file})
+	p, err := types.Check([]*ast.Module{{Files: []*ast.File{file}}})
 	if err != nil {
 		t.Fatal(err)
 	}

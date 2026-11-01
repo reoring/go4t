@@ -1,0 +1,66 @@
+package result
+import "std/prelude"
+
+type Result[E, A] = Err(E) | Ok(A) deriving Eq, Ord, Debug
+
+instance Show[Result[E, A]] given Show[E], Show[A] {
+  show(r) { match r { Err(e) => "Err(" + show(e) + ")"; Ok(a) => "Ok(" + show(a) + ")" } }
+}
+instance Functor[Result[E]] {
+  fmap(r, f) {
+    match r { Err(e) => Err(e) | Ok(a) => Ok(f(a)) }
+  }
+}
+
+instance Monad[Result[E]] {
+  pure(a) { Ok(a) }
+  bind(r, f) {
+    match r { Err(e) => Err(e) | Ok(a) => f(a) }
+  }
+}
+func fromOption[A](o Option[A], d A) A {
+  match o { None => d | Some(a) => a }
+}
+
+func maybe[A, B](o Option[A], d B, f func(A) B) B {
+  match o { None => d | Some(a) => f(a) }
+}
+
+func isSome[A](o Option[A]) Bool {
+  match o { None => false | Some(_) => true }
+}
+
+func isNone[A](o Option[A]) Bool {
+  match o { None => true | Some(_) => false }
+}
+func mapErr[E, F, A](r Result[E, A], f func(E) F) Result[F, A] {
+  match r { Err(e) => Err(f(e)) | Ok(a) => Ok(a) }
+}
+
+func fromResult[E, A](r Result[E, A], d A) A {
+  match r { Err(_) => d | Ok(a) => a }
+}
+
+func okOr[E, A](o Option[A], e E) Result[E, A] {
+  match o { None => Err(e) | Some(a) => Ok(a) }
+}
+
+func toOption[E, A](r Result[E, A]) Option[A] {
+  match r { Err(_) => None | Ok(a) => Some(a) }
+}
+
+func isOk[E, A](r Result[E, A]) Bool {
+  match r { Err(_) => false | Ok(_) => true }
+}
+
+func isErr[E, A](r Result[E, A]) Bool {
+  match r { Err(_) => true | Ok(_) => false }
+}
+
+func either[E, A, B](r Result[E, A], onErr func(E) B, onOk func(A) B) B {
+  match r { Err(e) => onErr(e) | Ok(a) => onOk(a) }
+}
+
+func liftResult[E Show, A](r Result[E, A]) IO[A] {
+  match r { Err(e) => ioFail(show(e)) | Ok(a) => ioPure(a) }
+}

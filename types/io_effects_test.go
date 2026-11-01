@@ -7,35 +7,39 @@ import (
 	"testing"
 
 	"gofx/ast"
+	"gofx/modules"
 	"gofx/parser"
-	"gofx/prelude"
 	"gofx/types"
 )
 
 func checkIOEffects(t *testing.T, source string) (*types.Program, error) {
 	t.Helper()
-	var files []*ast.File
-	for _, src := range []string{prelude.Source, source} {
-		file, err := parser.Parse(src)
-		if err != nil {
-			t.Fatal(err)
-		}
-		files = append(files, file)
+	file, err := parser.Parse(source)
+	if err != nil {
+		t.Fatal(err)
 	}
-	return types.Check(files)
+	modules, err := modules.LoadFiles([]*ast.File{file}, ".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return types.Check(modules)
 }
 
 func TestPreludeResultDoTyping(t *testing.T) {
 	p, err := checkIOEffects(t, `package main
+import "std/result"
+import "std/io"
+import "std/string"
+import "std/prelude"
 func validate(text String) Result[String, Int] {
   do {
-    n <- okOr(parseInt(text), "not an int")
+    n <- result.okOr(string.parseInt(text), "not an int")
     if n > 0 { Ok(n) } else { Err("not positive") }
-    pure(n + 1)
+    prelude.pure(n + 1)
   }
 }
-func generic[E, A](r Result[E, A]) Result[E, A] { do { a <- r; pure(a) } }
-func captured() IO[Result[String, Int]] { tryIO(liftResult(validate("5"))) }
+func generic[E, A](r Result[E, A]) Result[E, A] { do { a <- r; prelude.pure(a) } }
+func captured() IO[Result[String, Int]] { io.tryIO(result.liftResult(validate("5"))) }
 func main() IO[Unit] { ioPure(unit()) }
 `)
 	if err != nil {
@@ -55,14 +59,13 @@ func main() IO[Unit] { ioPure(unit()) }
 
 func TestPreludeResultTypingErrors(t *testing.T) {
 	for _, tt := range []struct{ name, source, want string }{
-		{"reserved prelude type", `type Result[E, A] = Failed(E) | Passed(A)`, "duplicate declaration Result"},
 		{"mixed monads", `func bad() Result[String, Int] { do { x <- Some(1); Ok(x) } }`, "type mismatch"},
 		{"mixed errors", `func bad(r Result[Int, Int]) Result[String, Int] { do { x <- r; Ok(x) } }`, "type mismatch"},
 		{"missing Show", `type Failure = Failure
-func bad() IO[Int] { ioFailWith(Failure) }`, "no instance Show[Failure]"},
+func bad() IO[Int] { io.ioFailWith(Failure) }`, "no instance Show[Failure]"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			p, err := checkIOEffects(t, "package main\n"+tt.source+"\nfunc main() IO[Unit] { ioPure(unit()) }")
+			p, err := checkIOEffects(t, "package main\nimport \"std/io\"\n"+tt.source+"\nfunc main() IO[Unit] { ioPure(unit()) }")
 			var typed *types.Error
 			if p != nil || !errors.As(err, &typed) || !strings.Contains(typed.Msg, tt.want) || typed.Pos.Line < 1 || typed.Pos.Col < 1 {
 				t.Fatalf("Check = (%v, %v), want positioned %q", p, err, tt.want)

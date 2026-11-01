@@ -1,18 +1,21 @@
 package main
+import "std/list"
+import "std/string"
+
 
 func nonEmpty(s String) Bool {
-  trim(s) |> (_ != "")
+  string.trim(s) |> (_ != "")
 }
 
 func add(a Int, b Int) Int { a + b }
 
 func main() IO[Unit] {
   let input = " pear \n\n apple\n banana \n   \n"
-  let cleaned = lines(input)
+  let cleaned = string.lines(input)
     |> filter(_, nonEmpty)
-    |> map(_, trim)
-    |> sortBy(_, compare)
-    |> join("\n", _)
+    |> map(_, string.trim)
+    |> list.sortBy(_, compare)
+    |> string.join("\n", _)
   let increment = add(1, _)
   let less = (_ < _)
   let equalApple = (_ == "apple")
@@ -20,7 +23,7 @@ func main() IO[Unit] {
     |> map(_, (_ + 1))
     |> map(_, (2 * _))
     |> map(_, show)
-    |> join(", ", _)
+    |> string.join(", ", _)
   do {
     println(cleaned)
     println("scores: " + scores)

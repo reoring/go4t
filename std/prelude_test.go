@@ -1,20 +1,56 @@
-package prelude
+package std_test
 
 import (
+	"io/fs"
 	"os"
+	"strings"
 	"testing"
 
 	"gofx/ast"
 	"gofx/parser"
+	"gofx/std"
 )
 
-func TestPreludeParses(t *testing.T) {
-	file, err := parser.Parse(Source)
-	if err != nil {
+func TestStdInventoryParses(t *testing.T) {
+	var files []string
+	if err := fs.WalkDir(std.FS, ".", func(name string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !entry.IsDir() && strings.HasSuffix(name, ".gfx") {
+			files = append(files, name)
+		}
+		return nil
+	}); err != nil {
 		t.Fatal(err)
 	}
-	if file.Package != "prelude" {
-		t.Errorf("package = %q, want prelude", file.Package)
+	names := make(map[string]bool)
+	for _, name := range files {
+		source, err := std.FS.ReadFile(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		file, err := parser.Parse(string(source))
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		for _, decl := range file.Decls {
+			switch decl := decl.(type) {
+			case *ast.ClassDecl:
+				names["class "+decl.Name] = true
+			case *ast.TypeDecl:
+				names["type "+decl.Name] = true
+			case *ast.InstanceDecl:
+				names["instance "+decl.Class+"["+decl.TypeCon+"]"] = true
+			case *ast.FuncDecl:
+				names["func "+decl.Name] = true
+			default:
+				t.Fatalf("%s: unexpected declaration %T", name, decl)
+			}
+		}
+	}
+	if len(files) == 0 {
+		t.Fatal("std embedded filesystem contains no .gfx files")
 	}
 	want := []string{
 		"class Functor", "class Monad", "class Show", "class Eq", "type Ordering", "class Ord",
@@ -46,24 +82,9 @@ func TestPreludeParses(t *testing.T) {
 		"func head", "func tail", "func take", "func drop", "func sum", "func concatMap",
 		"func elem", "func insertBy", "func sortBy", "func sort", "func maximum", "func minimum",
 	}
-	names := make(map[string]bool)
-	for _, decl := range file.Decls {
-		switch decl := decl.(type) {
-		case *ast.ClassDecl:
-			names["class "+decl.Name] = true
-		case *ast.TypeDecl:
-			names["type "+decl.Name] = true
-		case *ast.InstanceDecl:
-			names["instance "+decl.Class+"["+decl.TypeCon+"]"] = true
-		case *ast.FuncDecl:
-			names["func "+decl.Name] = true
-		default:
-			t.Fatalf("unexpected declaration %T", decl)
-		}
-	}
 	for _, name := range want {
 		if !names[name] {
-			t.Errorf("missing prelude declaration %s", name)
+			t.Errorf("missing std declaration %s", name)
 		}
 	}
 }

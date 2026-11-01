@@ -43,7 +43,7 @@ func TestBuildUsesPerProgramDirectories(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, fragment := range []string{"package main", "return println_(\"" + name + "\")"} {
+		for _, fragment := range []string{"package main", "return io_println_(\"" + name + "\")"} {
 			if !strings.Contains(string(output), fragment) {
 				t.Errorf("%s output does not contain %q", name, fragment)
 			}
@@ -125,15 +125,15 @@ func TestWarningsContinueForEveryCommand(t *testing.T) {
 }
 
 func TestDiagnosticUsesCheckerFilename(t *testing.T) {
-	for _, file := range []string{"", "prelude.gfx"} {
+	for _, file := range []string{"", "std/prelude/prelude.gfx"} {
 		err := &types.Error{Pos: ast.Pos{Line: 2, Col: 3}, Msg: "invalid type", File: file}
 		wantFile := file
 		if wantFile == "" {
 			wantFile = "user.gfx"
 		}
 		want := wantFile + ":2:3: invalid type"
-		if file == "prelude.gfx" {
-			want += "\n\n^"
+		if file == "std/prelude/prelude.gfx" {
+			want += "\nimport \"std/list\"\n  ^"
 		}
 		if got := diagnostic("user.gfx", err).Error(); got != want {
 			t.Errorf("diagnostic = %q, want %q", got, want)
@@ -179,9 +179,10 @@ func TestRunPassesProgramArguments(t *testing.T) {
 	}
 	file := filepath.Join(dir, "args.gfx")
 	source := `package main
+import "std/io"
 func main() IO[Unit] {
     do {
-        values <- args()
+        values <- io.args()
         println(show(values))
     }
 }

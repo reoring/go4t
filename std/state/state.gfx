@@ -1,0 +1,40 @@
+package state
+import "std/prelude"
+
+type State[S, A] = State(func(S) (A, S))
+instance Functor[State[S]] {
+  fmap(st, f) {
+    State(func(s) => match runState(st, s) { (a, s2) => (f(a), s2) })
+  }
+}
+
+instance Monad[State[S]] {
+  pure(a) { State(func(s) => (a, s)) }
+  bind(st, f) {
+    State(func(s) => match runState(st, s) { (a, s2) => runState(f(a), s2) })
+  }
+}
+
+func runState[S, A](st State[S, A], s S) (A, S) {
+  match st { State(run) => run(s) }
+}
+
+func evalState[S, A](st State[S, A], s S) A {
+  fst(runState(st, s))
+}
+
+func execState[S, A](st State[S, A], s S) S {
+  snd(runState(st, s))
+}
+
+func get[S]() State[S, S] {
+  State(func(s) => (s, s))
+}
+
+func put[S](s S) State[S, Unit] {
+  State(func(_ignored) => (unit(), s))
+}
+
+func modify[S](f func(S) S) State[S, Unit] {
+  State(func(s) => (unit(), f(s)))
+}

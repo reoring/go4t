@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"gofx/ast"
+	"gofx/modules"
 	"gofx/parser"
-	"gofx/prelude"
 	"gofx/types"
 )
 
@@ -20,7 +20,7 @@ func TestFloatArithmeticInference(t *testing.T) {
 			`func value() func(Float) Float { func(x) => x ` + op + ` x }`,
 		} {
 			t.Run(source, func(t *testing.T) {
-				p, err := types.Check(parseFiles(t, source+pass5Main))
+				p, err := types.Check([]*ast.Module{{Files: parseFiles(t, source+pass5Main)}})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -44,7 +44,7 @@ func TestFloatArithmeticInference(t *testing.T) {
 		`func value() Float { let t = ((1.5, 2.0), 3.0); t.0.1 + t.1 }`,
 		`func value() Bool { match 1.5 { 1.5 => true; _ => false } }`,
 	} {
-		if _, err := types.Check(parseFiles(t, source+pass5Main)); err != nil {
+		if _, err := types.Check([]*ast.Module{{Files: parseFiles(t, source+pass5Main)}}); err != nil {
 			t.Errorf("%s: %v", source, err)
 		}
 	}
@@ -67,7 +67,7 @@ func TestFloatArithmeticDiagnostics(t *testing.T) {
 		t.Run(tt.source, func(t *testing.T) {
 			files := parseFiles(t, tt.source+pass5Main)
 			files[1].Name = "float.gfx"
-			p, err := types.Check(files)
+			p, err := types.Check([]*ast.Module{{Files: files}})
 			var typed *types.Error
 			if p != nil || !errors.As(err, &typed) || typed.Msg != tt.want || typed.File != "float.gfx" || typed.Pos.Line != 2 || typed.Pos.Col == 0 {
 				t.Fatalf("Check = (%v, %v), want positioned %q", p, err, tt.want)
@@ -77,17 +77,17 @@ func TestFloatArithmeticDiagnostics(t *testing.T) {
 }
 
 func TestFloatPreludeInstances(t *testing.T) {
-	library, err := parser.Parse(prelude.Source)
-	if err != nil {
-		t.Fatal(err)
-	}
 	file, err := parser.Parse(`package main
 func value() String { "${1.5} ${min(1.5, 2.0)} ${max(1, 2)} ${debug(1.5)}" }
 func main() IO[Unit] { println(value()) }`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := types.Check([]*ast.File{library, file}); err != nil {
+	modules, err := modules.LoadFiles([]*ast.File{file}, ".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := types.Check(modules); err != nil {
 		t.Fatal(err)
 	}
 }

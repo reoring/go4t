@@ -1,4 +1,6 @@
 package main
+import "std/prelude"
+
 
 // ---- ドメイン: 純粋な代数的データ型と状態遷移 ----
 
@@ -36,7 +38,7 @@ instance Show[Order] {
 // ---- HKT: Functor なら何でも受ける ----
 
 func twice[F[_] Functor, A](fa F[A], f func(A) A) F[A] {
-  fmap(fmap(fa, f), f)
+  prelude.fmap(prelude.fmap(fa, f), f)
 }
 
 // ---- Option モナドで検証を連鎖 ----
@@ -46,7 +48,7 @@ func shipTwo(a Order, b Order) Option[Int] {
     sa <- ship(a)
     sb <- ship(b)
     let total = amountOf(sa) + amountOf(sb)
-    if total > 1000 { None } else { pure(total) }
+    if total > 1000 { None } else { prelude.pure(total) }
   }
 }
 
@@ -78,9 +80,9 @@ func main() IO[Unit] {
   let orders = [Pending(1, 300), Pending(2, 0), Cancelled(3)]
   do {
     println("orders:    " + show(orders))
-    println("cancelled: " + show(fmap(orders, cancel)))
+    println("cancelled: " + show(prelude.fmap(orders, cancel)))
     println("twice:     " + show(twice(orders, cancel)))
-    let shipped = fmap(orders, ship)
+    let shipped = prelude.fmap(orders, ship)
     println("shipped:   " + show(shipped))
     match shipTwo(Pending(1, 300), Pending(4, 500)) {
       Some(total) => notify(total)

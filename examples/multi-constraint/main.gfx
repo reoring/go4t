@@ -1,13 +1,16 @@
 package main
+import "std/list"
+import "std/prelude"
+
 
 func showSorted[A Show + Ord](xs List[A]) String {
-  show(sort(xs))
+  show(list.sort(xs))
 }
 
 func showMatching[F[_] Monad, A Eq + Show](fa F[A], expected A) F[String] {
   do {
     a <- fa
-    pure(if eq(a, expected) { "match: " + show(a) } else { "different: " + show(a) })
+    prelude.pure(if eq(a, expected) { "match: " + show(a) } else { "different: " + show(a) })
   }
 }
 

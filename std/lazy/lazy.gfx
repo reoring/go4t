@@ -1,0 +1,13 @@
+package lazy
+import "std/prelude"
+
+// Lazy delays a pure computation; each force re-evaluates it (no memoisation).
+type Lazy[A] = Lazy(func(Unit) A)
+
+func delay[A](f func(Unit) A) Lazy[A] {
+  Lazy(f)
+}
+
+func force[A](l Lazy[A]) A {
+  match l { Lazy(f) => f(unit()) }
+}

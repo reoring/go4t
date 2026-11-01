@@ -9,7 +9,7 @@ import (
 
 func TestPackageEntryPoint(t *testing.T) {
 	for _, pkg := range []string{"", "main", "embedded"} {
-		source, err := Generate(fixture(), pkg)
+		source, err := generate(fixture(), pkg)
 		if err != nil {
 			t.Fatal(err)
 		}

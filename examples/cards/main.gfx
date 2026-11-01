@@ -1,4 +1,9 @@
 package main
+import "std/list"
+import "std/prelude"
+import "std/result"
+import "std/state"
+
 
 // ===== ドメイン(deriving で Eq/Ord/Debug を自動生成) =====
 
@@ -21,28 +26,28 @@ type Hand =
 
 // ===== 決定的な擬似乱数: State[Int] 上の LCG =====
 
-func nextInt(bound Int) State[Int, Int] {
+func nextInt(bound Int) state.State[Int, Int] {
   do {
-    seed <- get()
+    seed <- state.get()
     let seed2 = (seed * 6364136223846793005 + 1442695040888963407) / 65536
-    put(seed2)
+    state.put(seed2)
     let r = seed2 / 7 - (seed2 / 7 / bound) * bound
-    pure(if r < 0 { 0 - r } else { r })
+    prelude.pure(if r < 0 { 0 - r } else { r })
   }
 }
 
 // Fisher–Yates の代わり: 各要素にランダムキーを付けてソート
-func shuffle[A](xs List[A]) State[Int, List[A]] {
+func shuffle[A](xs List[A]) state.State[Int, List[A]] {
   do {
-    keyed <- mapM(xs, func(x) => map(nextInt(1000000), func(k) => (k, x)))
-    pure(map(sortBy(keyed, func((ka, _), (kb, _)) => compare(ka, kb)), snd))
+    keyed <- list.mapM(xs, func(x) => map(nextInt(1000000), func(k) => (k, x)))
+    prelude.pure(map(list.sortBy(keyed, func((ka, _), (kb, _)) => compare(ka, kb)), snd))
   }
 }
 
 func fullDeck() List[Card] {
   let suits = [Clubs, Diamonds, Hearts, Spades]
   let ranks = [Two, Three, Four, Five, Six, Seven, Eight, Nine, Ten, Jack, Queen, King, Ace]
-  concatMap(suits, func(s) => map(ranks, func(r) => Card{rank: r, suit: s}))
+  list.concatMap(suits, func(s) => map(ranks, func(r) => Card{rank: r, suit: s}))
 }
 
 // ===== 役判定 =====
@@ -54,30 +59,30 @@ func allRanks() List[Rank] {
 
 // (枚数, ランク) を枚数降順・ランク降順で
 func groups(cards List[Card]) List[(Int, Rank)] {
-  let ranks = sort(map(cards, func(c) => c.rank))
+  let ranks = list.sort(map(cards, func(c) => c.rank))
   let counted = map(ranks, func(r) => (length(filter(ranks, func(x) => x == r)), r))
-  let uniq = fold(counted, [], func(acc, g) => if elem(g, acc) { acc } else { Cons(g, acc) })
-  sortBy(uniq, func(a, b) => compare(b, a))
+  let uniq = fold(counted, [], func(acc, g) => if list.elem(g, acc) { acc } else { Cons(g, acc) })
+  list.sortBy(uniq, func(a, b) => compare(b, a))
 }
 
 func isStraight(rs List[Rank]) Bool {
-  match zip(rs, tail(rs)) {
+  match list.zip(rs, tail(rs)) {
     Nil => false
     pairs => fold(pairs, true, func(ok, (a, b)) => ok && rankIndex(b) == rankIndex(a) + 1)
   }
 }
 
 func classify(cards List[Card]) Hand {
-  let sorted = sort(cards)
+  let sorted = list.sort(cards)
   let ranks = map(sorted, func(c) => c.rank)
-  let top = fromOption(maximum(ranks), Two)
-  let flush = maybe(head(sorted), false, func(c0) => fold(sorted, true, func(ok, c) => ok && c.suit == c0.suit))
+  let top = result.fromOption(list.maximum(ranks), Two)
+  let flush = result.maybe(head(sorted), false, func(c0) => fold(sorted, true, func(ok, c) => ok && c.suit == c0.suit))
   let straight = isStraight(ranks)
   match groups(cards) {
     _ if straight && flush => StraightFlush(top)
     Cons((4, r), _) => Quads(r)
     Cons((3, r), Cons((2, s), _)) => FullHouse(r, s)
-    _ if flush => Flush(fromOption(map(head(sorted), func(c) => c.suit), Clubs))
+    _ if flush => Flush(result.fromOption(map(head(sorted), func(c) => c.suit), Clubs))
     _ if straight => Straight(top)
     Cons((3, r), _) => Trips(r)
     Cons((2, r), Cons((2, s), _)) => TwoPair(r, s)
@@ -92,11 +97,11 @@ func showCards(cs List[Card]) String {
   fold(cs, "", func(acc, Card{rank: r, suit: s}) => "${acc}${debug(r)}/${debug(s)} ")
 }
 
-func deal(n Int, players Int) State[Int, List[List[Card]]] {
+func deal(n Int, players Int) state.State[Int, List[List[Card]]] {
   do {
     deck <- shuffle(fullDeck())
-    let hands = map(take(players, [0, 1, 2, 3, 4, 5]), func(i) => take(n, drop(i * n, deck)))
-    pure(hands)
+    let hands = map(list.take(players, [0, 1, 2, 3, 4, 5]), func(i) => list.take(n, list.drop(i * n, deck)))
+    prelude.pure(hands)
   }
 }
 
@@ -107,17 +112,17 @@ func main() IO[Unit] {
     ("twopair",   [Card{rank: Five, suit: Clubs}, Card{rank: Five, suit: Hearts}, Card{rank: King, suit: Clubs}, Card{rank: King, suit: Spades}, Card{rank: Ace, suit: Diamonds}]),
     ("straight",  [Card{rank: Six, suit: Clubs}, Card{rank: Seven, suit: Hearts}, Card{rank: Eight, suit: Clubs}, Card{rank: Nine, suit: Spades}, Card{rank: Ten, suit: Diamonds}])
   ]
-  let (hands, seed) = runState(deal(5, 3), 20261101)
+  let (hands, seed) = state.runState(deal(5, 3), 20261101)
   let results = map(hands, func(h) => (classify(h), h))
-  let (best, bestHand) = fromOption(maximum(results), (HighCard(Two), []))
+  let (best, bestHand) = result.fromOption(list.maximum(results), (HighCard(Two), []))
   do {
     println("== fixed hands ==")
-    forEach(fixed, func((name, cs)) => println("  ${name}: ${debug(classify(cs))}"))
+    list.forEach(fixed, func((name, cs)) => println("  ${name}: ${debug(classify(cs))}"))
     println("== deck ==")
-    println("  ${length(fullDeck())} cards, min ${debug(head(sort(fullDeck())))}")
+    println("  ${length(fullDeck())} cards, min ${debug(head(list.sort(fullDeck())))}")
     println("== dealt (seed -> ${seed}) ==")
-    forEach(results, func((hand, cs)) => println("  ${showCards(cs)}=> ${debug(hand)}"))
+    list.forEach(results, func((hand, cs)) => println("  ${showCards(cs)}=> ${debug(hand)}"))
     println("  winner: ${debug(best)} with ${showCards(bestHand)}")
-    println("  Pair(Ace) < Trips(Two) = ${Pair(Ace) < Trips(Two)}, isSome(head(hands)) = ${isSome(head(hands))}")
+    println("  Pair(Ace) < Trips(Two) = ${Pair(Ace) < Trips(Two)}, isSome(head(hands)) = ${result.isSome(head(hands))}")
   }
 }

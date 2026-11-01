@@ -7,36 +7,36 @@ import (
 	"testing"
 
 	"gofx/ast"
+	"gofx/modules"
 	"gofx/parser"
-	"gofx/prelude"
 	"gofx/types"
 )
 
-func derivingFiles(t *testing.T, source string) []*ast.File {
+func derivingFiles(t *testing.T, source string) []*ast.Module {
 	t.Helper()
-	var files []*ast.File
-	for i, source := range []string{prelude.Source, "package main\n" + source + pass5Main} {
-		file, err := parser.Parse(source)
-		if err != nil {
-			t.Fatal(err)
-		}
-		file.Name = []string{"prelude.gfx", "deriving.gfx"}[i]
-		files = append(files, file)
+	file, err := parser.Parse("package main\nimport \"std/list\"\nimport \"std/prelude\"\n" + source + pass5Main)
+	if err != nil {
+		t.Fatal(err)
 	}
-	return files
+	file.Name = "deriving.gfx"
+	mods, err := modules.LoadFiles([]*ast.File{file}, ".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return mods
 }
 
 func TestDerivingHigherKinds(t *testing.T) {
 	for _, source := range []string{
 		`type Tree[A] = Tip | Branch(A, Tree[A], Tree[A]) deriving Functor, Foldable, Traversable, Debug
-func value() Option[Tree[String]] { traverse(Branch(1, Tip, Tip), func(n) => Some(show(n))) }`,
+func value() Option[Tree[String]] { prelude.traverse(Branch(1, Tip, Tip), func(n) => Some(show(n))) }`,
 		`type Nested[E, A] = Nested{tag: E, value: (A, List[Option[A]], (String, A)), children: Option[List[Nested[E, A]]]} deriving Functor, Foldable, Traversable
-func value() Nested[String, String] { fmap(Nested("tag", (1, [Some(2)], ("fixed", 3)), None), show) }`,
+func value() Nested[String, String] { prelude.fmap(Nested("tag", (1, [Some(2)], ("fixed", 3)), None), show) }`,
 		`type Box[A] = Box(A) deriving Functor, Foldable, Traversable
 type Uses[A] = Uses(List[Box[Option[A]]]) deriving Functor, Foldable, Traversable`,
 		`type Phantom[A] = Phantom(Int, func(Int) Int) deriving Functor, Foldable, Traversable`,
 		`type Leading[A, B] = Leading(A, B) deriving Functor, Foldable, Traversable
-func value() Option[Leading[Int, String]] { traverse(Leading(1, 2), func(n) => Some(show(n))) }`,
+func value() Option[Leading[Int, String]] { prelude.traverse(Leading(1, 2), func(n) => Some(show(n))) }`,
 	} {
 		t.Run(source, func(t *testing.T) {
 			files := derivingFiles(t, source)
@@ -91,7 +91,7 @@ func TestDerivingDiagnostics(t *testing.T) {
 
 func TestTraversableMethodMonadDictionary(t *testing.T) {
 	p, err := types.Check(derivingFiles(t, `type Tree[A] = Leaf(A) | Fork(Tree[A], Tree[A]) deriving Functor, Traversable
-func value() Option[Tree[Int]] { traverse(Leaf(1), func(a) => Some(a)) }`))
+func value() Option[Tree[Int]] { prelude.traverse(Leaf(1), func(a) => Some(a)) }`))
 	if err != nil {
 		t.Fatal(err)
 	}

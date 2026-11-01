@@ -13,25 +13,25 @@ import (
 type instanceKey struct{ class, con string }
 
 type checker struct {
-	program    *Program
-	cons       map[string]*TCon
-	aliases    map[string]*typeAlias
-	instDecls  map[*ast.InstanceDecl]*Instance
-	ctors      map[string]*Ctor
-	methods    map[string]*Method
-	instances  map[instanceKey]*Instance
-	nextMeta   int
-	file       string
-	sources    map[ast.Decl]string
-	derivedOrd []*ast.TypeDecl
-	decl       ast.Decl // current source declaration for diagnostic spans
+	program     *Program
+	cons        map[string]*TCon
+	aliases     map[string]*typeAlias
+	instDecls   map[*ast.InstanceDecl]*Instance
+	ctors       map[string]*Ctor
+	methods     map[string]*Method
+	instances   map[instanceKey]*Instance
+	nextMeta    int
+	file        string
+	sources     map[ast.Decl]string
+	derivedOrd  []*ast.TypeDecl
+	decl        ast.Decl // current source declaration for diagnostic spans
+	mainName    string
+	moduleFiles map[string]string
 }
 
-// Check collects all declarations before checking bodies, so signatures and
-// instances may refer forward across files. Files share type, constructor and
-// value namespaces and must be supplied in prelude-first order. Every expression,
-// including literals in patterns, has a fully resolved Ann. No input annotation is used
-// as evidence: the same parsed files may safely be checked again.
+// Check collects module declarations before checking bodies. Imports are
+// file-scoped, instances are global, and the entry module is last. Expressions
+// in Program.Files carry resolved annotations; named input modules are preserved.
 // Declared identifiers may not use the generated-code prefixes dict_ or ext_.
 //
 // List literals use the prelude List data type. Parameterized instance heads
@@ -54,12 +54,12 @@ type checker struct {
 // with source-ordered warnings. Higher-kinded or explicit class ambiguities
 // remain errors. Failures return a positioned *Error and a nil program; partial
 // annotations are not usable.
-func Check(files []*ast.File) (program *Program, err error) {
+func Check(modules []*ast.Module) (program *Program, err error) {
 	var c *checker
 	defer func() {
 		if r := recover(); r != nil {
 			if e, ok := r.(*Error); ok {
-				if c != nil {
+				if c != nil && e.File == "" {
 					e.File = c.file
 				}
 				program, err = nil, e
@@ -71,16 +71,25 @@ func Check(files []*ast.File) (program *Program, err error) {
 			c.completeSpan(e)
 		}
 	}()
+	resolved, files := qualifyModules(modules)
 	c = &checker{
 		program: &Program{
 			Classes: make(map[string]*Class), DataTypes: make(map[string]*DataType),
 			Funcs: make(map[string]*FuncInfo), Files: files,
+			Modules: resolved.modules, ModuleNames: resolved.names, Owners: resolved.owners,
+			Warnings:   resolved.orderedWarnings(),
 			RecordPats: make(map[*ast.PRecord]RecordPat),
 		},
 		cons: make(map[string]*TCon), ctors: make(map[string]*Ctor),
 		methods: make(map[string]*Method), instances: make(map[instanceKey]*Instance),
 		aliases: make(map[string]*typeAlias), instDecls: make(map[*ast.InstanceDecl]*Instance),
-		sources: make(map[ast.Decl]string),
+		sources:  make(map[ast.Decl]string),
+		mainName: resolved.mainName(), moduleFiles: make(map[string]string),
+	}
+	for _, module := range resolved.modules {
+		for _, file := range module.Files {
+			c.moduleFiles[file.Name] = module.Path
+		}
 	}
 	for _, file := range files {
 		c.file = file.Name
@@ -94,7 +103,7 @@ func Check(files []*ast.File) (program *Program, err error) {
 				}
 			}
 		}
-		if err := expandDeriving(file); err != nil {
+		if err := expandDeriving(file, c.program.ModuleNames); err != nil {
 			return nil, err
 		}
 	}
@@ -161,7 +170,7 @@ func checkName(pos ast.Pos, name string) {
 }
 
 func capitalised(name string) bool {
-	first, _ := utf8.DecodeRuneInString(name)
+	first, _ := utf8.DecodeRuneInString(strings.TrimLeft(name, "_"))
 	return unicode.IsUpper(first)
 }
 
@@ -414,7 +423,12 @@ func (c *checker) collectInstances(files []*ast.File) {
 				requireKind(d.Pos, con.Kind, class.Param.Kind)
 			}
 			key := instanceKey{class.Name, con.Name}
-			if c.instances[key] != nil {
+			if previous := c.instances[key]; previous != nil {
+				oldModule := c.moduleFiles[c.sources[previous.Decl]]
+				newModule := c.moduleFiles[file.Name]
+				if oldModule != newModule {
+					fail(d.Pos, "duplicate instance %s[%s] in modules %s and %s", class.Name, con.Name, oldModule, newModule)
+				}
 				fail(d.Pos, "duplicate instance %s[%s]", class.Name, con.Name)
 			}
 			inst := &Instance{Class: class, TypeCon: con, Decl: d}
@@ -547,7 +561,7 @@ func (c *checker) superclassArgs(inst, parent *Instance) ([]DictRef, bool) {
 }
 
 func (c *checker) checkMain() {
-	f := c.program.Funcs["main"]
+	f := c.program.Funcs[c.mainName]
 	pos := ast.Pos{Line: 1, Col: 1}
 	if f != nil {
 		c.file = c.sources[f.Decl]

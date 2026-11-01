@@ -1,15 +1,17 @@
 package main
+import "std/prelude"
+
 
 extern func httpGet(url String) IO[Int] = "gofx/rt/stdhttp".GetStatus
 
 func twice[F[_] Functor, A](fa F[A], f func(A) A) F[A] {
-  fmap(fmap(fa, f), f)
+  prelude.fmap(prelude.fmap(fa, f), f)
 }
 
 func optionIncrement(value Option[Int]) Option[Int] {
   do {
     n <- value
-    pure(n + 1)
+    prelude.pure(n + 1)
   }
 }
 

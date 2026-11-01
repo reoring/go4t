@@ -1,0 +1,20 @@
+package main
+
+import "geometry"
+import g "geometry"
+
+func map(n Int) Int { n * 2 }
+
+func coordinates(p g.Point) String {
+  match p { geometry.Point{x: x, y: y} => "(${x}, ${y})" }
+}
+
+func main() IO[Unit] {
+  let p = g.Point{x: 3, y: 4}
+  do {
+    println("point: " + coordinates(p))
+    println("squared distance: ${geometry.squaredDistance(p)}")
+    println("translated: ${debug(g.translate(p, 1, 2))}")
+    println("local map: ${map(21)}")
+  }
+}

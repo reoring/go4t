@@ -1,8 +1,10 @@
 package main
+import "std/string"
+
 
 func testArithmetic() Bool { 1 + 2 == 3 }
 
-func testWords() Bool { length(words("small practical tools")) == 3 }
+func testWords() Bool { length(string.words("small practical tools")) == 3 }
 
 func testIO() IO[Bool] { ioPure(true) }
 
