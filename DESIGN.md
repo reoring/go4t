@@ -170,7 +170,7 @@ Uniform erased representation: every gofx value is `any` in generated Go.
 | function with constrained tparams `func twice[F[_] Functor, A](...)` | `func twice(dict_F Functor, fa any, f any) any` — one dict param per Constraint in Scheme order, named `dict_<TParam>`; a tparam with two constraints gets two dict params `dict_F_Functor`… (PoC: at most one constraint per tparam; checker rejects more) |
 | `DictSuper` | the subclass interface embeds the superclass, so the value is passed as-is (Go interface upcast); no accessor call needed |
 | extern `= "pkg".Name` | import `pkg` as alias `ext_<n>`; the Go function uses the uniform ABI: every param `any`, result `any` (an `IO[...]` extern returns `rt.IO` boxed in `any`). Codegen emits a plain forwarding wrapper `func name_(a0 any, ...) any { return ext_n.Name(a0, ...) }`. |
-| binary ops | `rt.AddInt(a, b any) any` / `rt.AddString` chosen by the Binary's zonked type, `rt.EqInt`, `rt.EqString`, `rt.LtInt`, …, `rt.And`, `rt.Or`, `rt.NegInt`, `rt.Not` (runtime package exports exactly the list in `rt/ops.go`) |
+| binary ops | `+ - * /` → `rt.AddInt`/`rt.AddString`/`rt.SubInt`/…; `== != < <= > >=` → `Eq`/`Ord` dictionary calls (pass 9); `&&`/`\|\|` → native Go short-circuit; unary → `rt.NegInt`, `rt.Not` |
 | `main` | generated `func main() { rt.RunMain(main_()) }` — user functions are emitted with a trailing `_` to avoid clashing with Go `main` and keywords: every gofx identifier `x` becomes Go `x_`. |
 
 `rt` package exports (runtime worker implements; codegen emits exactly these names):
@@ -186,8 +186,8 @@ func Println(s any) any             // IO[Unit]
 func ShowInt(n any) any             // string
 func ShowBool(b any) any            // "true" / "false"
 func ShowString(s any) any          // identity
-// ops.go: AddInt AddString SubInt MulInt DivInt NegInt EqInt NeInt LtInt LeInt GtInt GeInt
-//         EqString NeString LtString LeString GtString GeString EqBool NeBool And Or Not
+// ops.go: AddInt AddString SubInt MulInt DivInt NegInt Not Concat MinInt MaxInt
+//         EqInt LtInt EqString LtString EqBool   (backing the prelude Eq/Ord externs)
 ```
 
 `rt/stdhttp`: `func GetStatus(url any) any` returning an `IO` whose result is `int64` status code
