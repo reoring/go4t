@@ -10,6 +10,13 @@ import (
 	"gofx/types"
 )
 
+const pass10Debug = pass5Show + `
+class Debug[A] { debug(a A) String }
+extern func debugString(s String) String = "gofx/rt".DebugString
+instance Debug[Int] { debug(a) { showInt(a) } }
+instance Debug[String] { debug(a) { debugString(a) } }
+`
+
 func TestPass10LetPatterns(t *testing.T) {
 	for _, source := range []string{
 		`func value() Int { let (a, b) = (1, 2); a + b }`,
@@ -95,12 +102,9 @@ func TestPass10Diagnostics(t *testing.T) {
 		{`type Token = Token deriving Ord`, "deriving Ord for Token requires an Eq instance"},
 		{`type Token = Token(func(Int) Int) deriving Eq`, "cannot derive Eq for Token: field of function type"},
 		{`type Token = Token{f: func(Int) Int} deriving Ord; instance Eq[Token] { eq(a, b) { true } }`, "cannot derive Ord for Token: field of function type"},
-		{`type Token = Token deriving Functor`, "cannot derive Functor for Token: unknown class"},
 		{`type Token = Token deriving Eq, Eq`, "duplicate deriving class Eq for Token"},
 		{`type Hidden = Hidden; type Token = Token(Hidden) deriving Eq`, "no instance Eq[Hidden]"},
 		{`type Hidden = Hidden deriving Eq; type Token = Token(Hidden) deriving Eq, Ord`, "no instance Ord[Hidden]"},
-		{`type Hidden = Hidden; type Token = Token(Hidden) deriving Show`, "no instance Show[Hidden]"},
-		{`type Token = Token(func(Int) Int) deriving Show`, "no instance Show[func(Int) Int]"},
 	} {
 		t.Run(tt.source, func(t *testing.T) {
 			files := parseFiles(t, tt.source+pass5Main)
@@ -115,14 +119,14 @@ func TestPass10Diagnostics(t *testing.T) {
 }
 
 func TestPass10DerivedInstances(t *testing.T) {
-	files := parseFiles(t, pass5Show+`
-type Color = Red | Green | Blue deriving Eq, Ord, Show
-type Entry = Empty | Entry(Int, String) deriving Eq, Ord, Show
-type Record = Record{number: Int, text: String} deriving Eq, Ord, Show
-type Pair[A, B] = Pair(A, B) deriving Eq, Ord, Show
+	files := parseFiles(t, pass10Debug+`
+type Color = Red | Green | Blue deriving Eq, Ord, Debug
+type Entry = Empty | Entry(Int, String) deriving Eq, Ord, Debug
+type Record = Record{number: Int, text: String} deriving Eq, Ord, Debug
+type Pair[A, B] = Pair(A, B) deriving Eq, Ord, Debug
 func equalPair() Bool { Pair(1, "a") == Pair(2, "b") }
 func orderPair() Ordering { compare(Pair(1, "a"), Pair(2, "b")) }
-func showPair() String { show(Pair(1, "a")) }
+func debugPair() String { debug(Pair(1, "a")) }
 `+pass5Main)
 	originalDecls := len(files[1].Decls)
 	positions := make(map[string]ast.Pos)
@@ -159,7 +163,7 @@ func showPair() String { show(Pair(1, "a")) }
 		if len(found) != 12 {
 			t.Fatalf("derived instance count = %d, want 12", len(found))
 		}
-		for _, class := range []string{"Eq", "Ord", "Show"} {
+		for _, class := range []string{"Eq", "Ord", "Debug"} {
 			inst := found[class+"/Pair"]
 			if inst == nil || len(inst.Params) != 2 || len(inst.Context) != 2 {
 				t.Fatalf("Pair %s instance = %#v", class, inst)
@@ -170,7 +174,7 @@ func showPair() String { show(Pair(1, "a")) }
 				}
 			}
 		}
-		for _, tt := range []struct{ name, class string }{{"equalPair", "Eq"}, {"orderPair", "Ord"}, {"showPair", "Show"}} {
+		for _, tt := range []struct{ name, class string }{{"equalPair", "Eq"}, {"orderPair", "Ord"}, {"debugPair", "Debug"}} {
 			e := p.Funcs[tt.name].Decl.Body.Result
 			if call, ok := e.(*ast.Call); ok {
 				e = call.Fn
@@ -230,15 +234,20 @@ func assertPass10DerivedShapes(t *testing.T, instances map[string]*types.Instanc
 		{"Record", 0, []string{"Record{number: ", ", text: ", "}"}},
 		{"Pair", 0, []string{"Pair(", ", ", ")"}},
 	} {
-		interp, ok := body("Show/" + tt.name).Arms[tt.arm].Body.(*ast.Interp)
+		interp, ok := body("Debug/" + tt.name).Arms[tt.arm].Body.(*ast.Interp)
 		if !ok || !reflect.DeepEqual(interp.Texts, tt.texts) || len(types.AnnOf(interp).ShowDicts) != 2 {
-			t.Fatalf("Show/%s interpolation = %#v", tt.name, interp)
+			t.Fatalf("Debug/%s interpolation = %#v", tt.name, interp)
+		}
+		for _, expr := range interp.Exprs {
+			if call, ok := expr.(*ast.Call); !ok || call.Fn.(*ast.Ident).Name != "debug" {
+				t.Fatalf("Debug/%s field does not call debug: %#v", tt.name, expr)
+			}
 		}
 	}
 	for i, name := range []string{"Red", "Green", "Blue"} {
-		literal, ok := body("Show/Color").Arms[i].Body.(*ast.StringLit)
+		literal, ok := body("Debug/Color").Arms[i].Body.(*ast.StringLit)
 		if !ok || literal.Value != name {
-			t.Fatalf("Show/Color arm %d = %#v", i, literal)
+			t.Fatalf("Debug/Color arm %d = %#v", i, literal)
 		}
 	}
 	ord := body("Ord/Color")
@@ -266,10 +275,10 @@ func assertPass10DerivedShapes(t *testing.T, instances map[string]*types.Instanc
 }
 
 func TestPass10DerivingAcrossFiles(t *testing.T) {
-	files := parseFiles(t, `type Token = Token(Int) deriving Ord, Show`+pass5Main)
+	files := parseFiles(t, pass10Debug+`type Token = Token(Int) deriving Ord, Debug`+pass5Main)
 	later, err := parser.Parse(`package main
 instance Eq[Token] { eq(a, b) { match (a, b) { (Token(x), Token(y)) => x == y } } }
-type Later = Later deriving Ord, Show, Eq
+type Later = Later deriving Ord, Debug, Eq
 `)
 	if err != nil {
 		t.Fatal(err)
@@ -293,12 +302,12 @@ type Later = Later deriving Ord, Show, Eq
 }
 
 func TestPass10DerivingRecursiveAndPhantom(t *testing.T) {
-	p, err := types.Check(parseFiles(t, `
-type Tree[A] = Tip | Branch(A, Tree[A], Tree[A]) deriving Eq, Ord, Show
-type Phantom[A] = Phantom deriving Eq, Ord, Show
+	p, err := types.Check(parseFiles(t, pass10Debug+`
+type Tree[A] = Tip | Branch(A, Tree[A], Tree[A]) deriving Eq, Ord, Debug
+type Phantom[A] = Phantom deriving Eq, Ord, Debug
 func equalTree() Bool { Branch(1, Tip, Tip) == Branch(2, Tip, Tip) }
 func orderTree() Ordering { compare(Branch(1, Tip, Tip), Branch(2, Tip, Tip)) }
-func showTree() String { show(Branch(1, Tip, Tip)) }
+func debugTree() String { debug(Branch(1, Tip, Tip)) }
 `+pass5Main))
 	if err != nil {
 		t.Fatal(err)

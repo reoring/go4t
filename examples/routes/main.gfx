@@ -5,7 +5,12 @@ package main
 // 通常11分、Market閉鎖15分、Park遅延12分。孤立駅への経路は None。
 // 実行: go run ./cmd/gofx run examples/routes/main.gfx
 
-type Station = Home | Market | Park | Museum | Harbor | Island deriving Eq, Show
+type Station = Home | Market | Park | Museum | Harbor | Island deriving Eq, Debug
+
+// Station labels are also the user-facing names; keep list display compact.
+instance Show[Station] {
+  show(station) { debug(station) }
+}
 
 type Road = Road{from: Station, to: Station, minutes: Int}
 type Route = Route{stops: List[Station], minutes: Int}

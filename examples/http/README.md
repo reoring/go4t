@@ -359,7 +359,7 @@ the contained value or the default, and the predicates `isSome(o)` / `isNone(o)`
 ## Cards
 
 `examples/cards/main.gfx` (contributed by review): poker hand classification with
-`deriving Eq, Ord, Show` on enums and the `Hand` ADT (declaration order = hand strength), an
+`deriving Eq, Ord, Debug` on enums and the `Hand` ADT (declaration order = hand strength), an
 LCG shuffle in `State[Int]`, `let (hands, seed) = runState(...)`, record/tuple patterns in
 lambda parameters, guards mixed with structural patterns, and `fromOption`/`maybe`/`isSome`.
 
