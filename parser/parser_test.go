@@ -160,6 +160,65 @@ func consume[F[_] Functor Monad, A](x F[A]) func(A, A) A { func(a, b) => a }
 	}
 }
 
+func TestInstanceHeadsAndContexts(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		head    string
+		params  []string
+		context []ast.Constraint
+	}{
+		{"bare", "C[T]", nil, nil},
+		{"parameterized", "C[T[A, B]]", []string{"A", "B"}, nil},
+		{"one constraint", "C[T[A]] given\n D[A]", []string{"A"},
+			[]ast.Constraint{{Pos: ast.Pos{Line: 3, Col: 2}, Class: "D", Param: "A"}}},
+		{"two constraints", "C[T[A, B]] given\n D[A],\n E[B]", []string{"A", "B"},
+			[]ast.Constraint{
+				{Pos: ast.Pos{Line: 3, Col: 2}, Class: "D", Param: "A"},
+				{Pos: ast.Pos{Line: 4, Col: 2}, Class: "E", Param: "B"},
+			}},
+		{"inline constraints", "C[T[A, B]] given D[A], E[B]", []string{"A", "B"},
+			[]ast.Constraint{
+				{Pos: ast.Pos{Line: 2, Col: 27}, Class: "D", Param: "A"},
+				{Pos: ast.Pos{Line: 2, Col: 33}, Class: "E", Param: "B"},
+			}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := parse(t, "package main\ninstance "+tc.head+" { value(x) { x } }")
+			d := f.Decls[0].(*ast.InstanceDecl)
+			if d.Pos != (ast.Pos{Line: 2, Col: 1}) || d.Class != "C" || d.TypeCon != "T" {
+				t.Fatalf("instance = %#v", d)
+			}
+			if !reflect.DeepEqual(d.Params, tc.params) || !reflect.DeepEqual(d.Context, tc.context) {
+				t.Errorf("params/context = %#v / %#v, want %#v / %#v", d.Params, d.Context, tc.params, tc.context)
+			}
+			if len(d.Methods) != 1 || d.Methods[0].Name != "value" ||
+				!reflect.DeepEqual(d.Methods[0].Params, []string{"x"}) || exprShape(d.Methods[0].Body.Result) != "x" {
+				t.Errorf("methods = %#v", d.Methods)
+			}
+		})
+	}
+}
+
+func TestInstanceHeadErrorsWithPositions(t *testing.T) {
+	for _, tc := range []struct{ name, src, want string }{
+		{"given without params", "instance C[T] given D[A] {}", "2:15: given requires instance type parameters"},
+		{"undeclared context param", "instance C[T[A]] given D[B] {}", "2:26: undeclared instance type parameter B"},
+		{"second undeclared context param", "instance C[T[A, B]] given D[A], E[C] {}", "2:35: undeclared instance type parameter C"},
+		{"duplicate param", "instance C[T[A, A]] {}", "2:17: duplicate instance type parameter A"},
+		{"empty head params", "instance C[T[]] {}", `2:14: expected identifier, found "]"`},
+		{"nested head param", "instance C[T[A[B]]] {}", `2:15: expected "]", found "["`},
+		{"empty context", "instance C[T[A]] given {}", `2:24: expected identifier, found "{"`},
+		{"non-parameter context", "instance C[T[A]] given D[T[A]] {}", "2:26: undeclared instance type parameter T"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := parser.Parse("package main\n" + tc.src)
+			if err == nil || err.Error() != tc.want {
+				t.Fatalf("error = %v, want %q", err, tc.want)
+			}
+		})
+	}
+}
+
 func TestLambdas(t *testing.T) {
 	for _, tc := range []struct {
 		src   string
@@ -329,6 +388,73 @@ func TestIfElseIfElse(t *testing.T) {
 	}
 }
 
+func TestIfElseNewlineLayout(t *testing.T) {
+	for _, gap := range []string{"\n", "\n\n  ", " // trailing\n// between\n "} {
+		t.Run(gap, func(t *testing.T) {
+			e := result(t, "if a { 1 }"+gap+"else if b { 2 }"+gap+"else { 3 }").(*ast.If)
+			if exprShape(e.Cond) != "a" || exprShape(e.Then.(*ast.BlockExpr).Block.Result) != "1" {
+				t.Fatalf("if = %#v", e)
+			}
+			nested := e.Else.(*ast.If)
+			if exprShape(nested.Cond) != "b" || exprShape(nested.Then.(*ast.BlockExpr).Block.Result) != "2" ||
+				exprShape(nested.Else.(*ast.BlockExpr).Block.Result) != "3" {
+				t.Fatalf("else if = %#v", nested)
+			}
+		})
+	}
+}
+
+func TestListLiterals(t *testing.T) {
+	for _, tc := range []struct {
+		src  string
+		want string
+		size int
+	}{
+		{"[]", "[]", 0},
+		{"[1, 2]", "[1, 2]", 2},
+		{"[[1], []]", "[[1], []]", 2},
+		{"[1 + 2, f(3)]", "[(1 + 2), f(3)]", 2},
+		{"[\n 1,\n 2,\n]", "[1, 2]", 2},
+	} {
+		t.Run(tc.src, func(t *testing.T) {
+			e := result(t, tc.src)
+			list, ok := e.(*ast.ListLit)
+			if !ok {
+				t.Fatalf("expression = %T, want ListLit", e)
+			}
+			if list.GetPos() != (ast.Pos{Line: 2, Col: 19}) || len(list.Elems) != tc.size {
+				t.Errorf("list = %#v, want %d elements at 2:19", list, tc.size)
+			}
+			if got := exprShape(list); got != tc.want {
+				t.Errorf("shape = %s, want %s", got, tc.want)
+			}
+		})
+	}
+	call := result(t, "f([1, 2], [])").(*ast.Call)
+	if got := exprShape(call); got != "f([1, 2], [])" {
+		t.Errorf("list call = %s", got)
+	}
+	if len(call.Args) != 2 {
+		t.Fatalf("arguments = %#v, want two lists", call.Args)
+	}
+	for _, arg := range call.Args {
+		if _, ok := arg.(*ast.ListLit); !ok {
+			t.Errorf("argument = %T, want ListLit", arg)
+		}
+	}
+}
+
+func TestListIsNotIndexing(t *testing.T) {
+	f := parse(t, "package main\nfunc f() List[Int] { xs[1] }")
+	b := f.Decls[0].(*ast.FuncDecl).Body
+	if len(b.Stmts) != 1 || exprShape(b.Stmts[0].(*ast.ExprStmt).X) != "xs" {
+		t.Fatalf("statements = %#v, want xs expression", b.Stmts)
+	}
+	if _, ok := b.Result.(*ast.ListLit); !ok || exprShape(b.Result) != "[1]" {
+		t.Fatalf("result = %#v, want separate [1] list literal", b.Result)
+	}
+}
+
 func TestExpressionPrecedenceAndCalls(t *testing.T) {
 	for _, tc := range []struct{ src, want string }{
 		{"1 + 2 * 3", "(1 + (2 * 3))"},
@@ -410,6 +536,12 @@ func exprShape(e ast.Expr) string {
 			args[i] = exprShape(arg)
 		}
 		return exprShape(e.Fn) + "(" + strings.Join(args, ", ") + ")"
+	case *ast.ListLit:
+		elems := make([]string, len(e.Elems))
+		for i, elem := range e.Elems {
+			elems[i] = exprShape(elem)
+		}
+		return "[" + strings.Join(elems, ", ") + "]"
 	case *ast.Lambda:
 		return "lambda"
 	default:

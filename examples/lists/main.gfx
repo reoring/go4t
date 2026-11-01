@@ -1,0 +1,22 @@
+package main
+
+// The result type fixes the element type of the empty literal.
+func emptyInts() List[Int] { [] }
+
+func main() IO[Unit] {
+  let xs = [1, 2, 3, 4]
+  let sums = do {
+    x <- [1, 2]
+    y <- [10, 20]
+    pure(x + y)
+  }
+  do {
+    println("empty:    " + show(emptyInts()))
+    println("nested:   " + show([[1, 2], [3]]))
+    println("filter:   " + show(filter(xs, func(x) => x > 2)))
+    println("reverse:  " + show(reverse(xs)))
+    println("append:   " + show(append([1, 2], [3, 4])))
+    println("length:   " + show(length(xs)))
+    println("product:  " + show(sums))
+  }
+}

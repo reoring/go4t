@@ -43,6 +43,16 @@ func (g *generator) expr(expr ast.Expr) string {
 		return strconv.Quote(e.Value)
 	case *ast.BoolLit:
 		return strconv.FormatBool(e.Value)
+	case *ast.ListLit:
+		rest := g.construct(g.ctor("Nil", e.GetPos()), nil)
+		if len(e.Elems) == 0 {
+			return rest
+		}
+		cons := g.ctor("Cons", e.GetPos())
+		for i := len(e.Elems) - 1; i >= 0; i-- {
+			rest = g.construct(cons, []string{g.expr(e.Elems[i]), rest})
+		}
+		return rest
 	case *ast.Ident:
 		ann := g.ann(e)
 		switch ann.Ref {

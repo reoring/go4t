@@ -46,6 +46,75 @@ func TestNoSemicolonInsertion(t *testing.T) {
 	}
 }
 
+func TestElseLookahead(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		gap  string
+		pos  ast.Pos
+	}{
+		{"newline", "\n", ast.Pos{Line: 2, Col: 1}},
+		{"whitespace", "\r\n \t\n  ", ast.Pos{Line: 3, Col: 3}},
+		{"comment line", "\n// between\n  ", ast.Pos{Line: 3, Col: 3}},
+		{"multiple comments", " // trailing\n // else is in a comment\n\n\t// another\n ", ast.Pos{Line: 5, Col: 2}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := tokens(t, "if a { x }"+tc.gap+"else { y }")
+			want := strings.Fields("if a { x } else { y } ;")
+			if len(got) != len(want)+1 || got[len(want)].Kind != lexer.EOF {
+				t.Fatalf("tokens = %#v, want %v and EOF", got, want)
+			}
+			for i, text := range want {
+				if got[i].Text != text {
+					t.Errorf("token %d = %#v, want %q", i, got[i], text)
+				}
+			}
+			if got[5].Kind != lexer.Keyword || got[5].Pos != tc.pos {
+				t.Errorf("else = %#v, want keyword at %s", got[5], tc.pos)
+			}
+		})
+	}
+}
+
+func TestElseLookaheadIdentifierBoundary(t *testing.T) {
+	for _, name := range []string{"else_", "elsewhere", "else2", "elseα", "else٢"} {
+		t.Run(name, func(t *testing.T) {
+			got := tokens(t, "x\n"+name+" = 1")
+			if len(got) != 7 || got[1].Kind != lexer.Punct || got[1].Text != ";" ||
+				got[1].Pos != (ast.Pos{Line: 1, Col: 2}) || got[2].Kind != lexer.Ident || got[2].Text != name {
+				t.Fatalf("tokens = %#v, want semicolon before identifier %q", got, name)
+			}
+		})
+	}
+}
+
+func TestElseLookaheadDoesNotSkipOtherTokens(t *testing.T) {
+	for _, next := range []string{`"else"`, "/ else", "other else", "; else"} {
+		t.Run(next, func(t *testing.T) {
+			got := tokens(t, "x\n"+next)
+			if got[1].Kind != lexer.Punct || got[1].Text != ";" || got[1].Pos != (ast.Pos{Line: 1, Col: 2}) {
+				t.Errorf("tokens = %#v, want semicolon at first newline", got)
+			}
+		})
+	}
+	got := tokens(t, "x;\nelse")
+	if len(got) != 4 || got[1].Text != ";" || got[2].Text != "else" {
+		t.Errorf("explicit semicolon removed: %#v", got)
+	}
+}
+
+func TestGivenKeyword(t *testing.T) {
+	got := tokens(t, "given\ngiven_")
+	want := []lexer.Token{
+		{Kind: lexer.Keyword, Text: "given", Pos: ast.Pos{Line: 1, Col: 1}},
+		{Kind: lexer.Ident, Text: "given_", Pos: ast.Pos{Line: 2, Col: 1}},
+		{Kind: lexer.Punct, Text: ";", Pos: ast.Pos{Line: 2, Col: 7}},
+		{Kind: lexer.EOF, Pos: ast.Pos{Line: 2, Col: 7}},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("tokens = %#v, want %#v", got, want)
+	}
+}
+
 func TestCommentsAndPositions(t *testing.T) {
 	got := tokens(t, "// heading\n  α // trailing\n// between\n  beta // end")
 	want := []lexer.Token{

@@ -15,11 +15,13 @@ class Show[A] {
 
 type Option[A] = None | Some(A)
 
+type List[A] = Nil | Cons(A, List[A])
+
 instance Functor[Option] {
   fmap(fa, f) {
     match fa {
-      None => None
-      Some(a) => Some(f(a))
+      | None => None
+      | Some(a) => Some(f(a))
     }
   }
 }
@@ -28,8 +30,45 @@ instance Monad[Option] {
   pure(a) { Some(a) }
   bind(ma, f) {
     match ma {
-      None => None
-      Some(a) => f(a)
+      | None => None
+      | Some(a) => f(a)
+    }
+  }
+}
+
+instance Functor[List] {
+  fmap(xs, f) {
+    match xs {
+      | Nil => Nil
+      | Cons(x, rest) => Cons(f(x), fmap(rest, f))
+    }
+  }
+}
+
+instance Monad[List] {
+  pure(a) { Cons(a, Nil) }
+  bind(xs, f) {
+    match xs {
+      | Nil => Nil
+      | Cons(x, rest) => append(f(x), bind(rest, f))
+    }
+  }
+}
+
+instance Show[Option[A]] given Show[A] {
+  show(o) {
+    match o {
+      | None => "None"
+      | Some(a) => "Some(" + show(a) + ")"
+    }
+  }
+}
+
+instance Show[List[A]] given Show[A] {
+  show(xs) {
+    match xs {
+      | Nil => "[]"
+      | Cons(x, rest) => "[" + fold(rest, show(x), func(acc, a) => acc + ", " + show(a)) + "]"
     }
   }
 }
@@ -70,4 +109,33 @@ func map[F[_] Functor, A, B](fa F[A], f func(A) B) F[B] {
 
 func flatMap[M[_] Monad, A, B](ma M[A], f func(A) M[B]) M[B] {
   bind(ma, f)
+}
+
+func fold[A, B](xs List[A], init B, f func(B, A) B) B {
+  match xs {
+    | Nil => init
+    | Cons(x, rest) => fold(rest, f(init, x), f)
+  }
+}
+
+func length[A](xs List[A]) Int {
+  fold(xs, 0, func(n, x) => n + 1)
+}
+
+func append[A](xs List[A], ys List[A]) List[A] {
+  match xs {
+    | Nil => ys
+    | Cons(x, rest) => Cons(x, append(rest, ys))
+  }
+}
+
+func filter[A](xs List[A], p func(A) Bool) List[A] {
+  match xs {
+    | Nil => Nil
+    | Cons(x, rest) => if p(x) { Cons(x, filter(rest, p)) } else { filter(rest, p) }
+  }
+}
+
+func reverse[A](xs List[A]) List[A] {
+  fold(xs, Nil, func(acc, x) => Cons(x, acc))
 }

@@ -1,6 +1,10 @@
 package types
 
-import "gofx/ast"
+import (
+	"fmt"
+
+	"gofx/ast"
+)
 
 func (b *bodyChecker) finish() {
 	// Defer + validation so arguments and return context can resolve its type.
@@ -58,6 +62,18 @@ func (b *bodyChecker) finish() {
 }
 
 func (b *bodyChecker) dictionary(pos ast.Pos, constraint Constraint) DictRef {
+	constraint.Arg = zonk(pos, constraint.Arg)
+	dict, message := b.resolveDictionary(constraint)
+	if message != "" {
+		fail(pos, "%s", message)
+	}
+	return dict
+}
+
+// Context arguments are resolved recursively on smaller head arguments. Rigid
+// arguments terminate at the in-scope dictionary, including recursive uses of
+// the current instance inside its own methods.
+func (b *bodyChecker) resolveDictionary(constraint Constraint) (DictRef, string) {
 	arg := prune(constraint.Arg)
 	if param, ok := arg.(*TVar); ok {
 		boundClass := ""
@@ -70,7 +86,7 @@ func (b *bodyChecker) dictionary(pos ast.Pos, constraint Constraint) DictRef {
 			dict := DictRef{Kind: DictParam, Class: bound.Class, Param: param.Name, ParamClass: bound.Class}
 			for class != nil {
 				if class.Name == constraint.Class {
-					return dict
+					return dict, ""
 				}
 				if class.Super == "" {
 					break
@@ -82,16 +98,36 @@ func (b *bodyChecker) dictionary(pos ast.Pos, constraint Constraint) DictRef {
 		}
 		if b.types[param.Name] == param {
 			if boundClass == "" {
-				fail(pos, "no instance %s[%s] (type parameter %s has no class constraints)", constraint.Class, param.Name, param.Name)
+				return DictRef{}, fmt.Sprintf("no instance %s[%s] (type parameter %s has no class constraints)", constraint.Class, param.Name, param.Name)
 			}
-			fail(pos, "no instance %s[%s] (type parameter %s is constrained only by %s)", constraint.Class, param.Name, param.Name, boundClass)
+			return DictRef{}, fmt.Sprintf("no instance %s[%s] (type parameter %s is constrained only by %s)", constraint.Class, param.Name, param.Name, boundClass)
 		}
 	}
-	if con, ok := arg.(*TCon); ok {
-		if inst := b.c.instances[instanceKey{constraint.Class, con.Name}]; inst != nil {
-			return DictRef{Kind: DictInstance, Class: constraint.Class, Instance: inst}
+	head := arg
+	var args []Type
+	if app, ok := arg.(*TApp); ok {
+		head, args = prune(app.Fun), app.Args
+	}
+	if con, ok := head.(*TCon); ok {
+		if inst := b.c.instances[instanceKey{constraint.Class, con.Name}]; inst != nil && len(inst.Params) == len(args) {
+			dict := DictRef{Kind: DictInstance, Class: constraint.Class, Instance: inst}
+			if len(inst.Context) != 0 {
+				sub := make(map[*TVar]Type, len(inst.Params))
+				for i, param := range inst.Params {
+					sub[param] = args[i]
+				}
+				dict.Args = make([]DictRef, len(inst.Context))
+				for i, context := range inst.Context {
+					required := Constraint{Class: context.Class, Arg: substitute(context.Arg, sub)}
+					nested, message := b.resolveDictionary(required)
+					if message != "" {
+						return DictRef{}, fmt.Sprintf("%s (required by instance %s[%s])", message, inst.Class.Name, TypeString(inst.head()))
+					}
+					dict.Args[i] = nested
+				}
+			}
+			return dict, ""
 		}
 	}
-	fail(pos, "no instance %s[%s]", constraint.Class, TypeString(arg))
-	return DictRef{}
+	return DictRef{}, fmt.Sprintf("no instance %s[%s]", constraint.Class, TypeString(arg))
 }

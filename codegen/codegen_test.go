@@ -36,6 +36,166 @@ func TestDataEmission(t *testing.T) {
 		"func main() { rt.RunMain(main_()) }")
 }
 
+func TestListLiterals(t *testing.T) {
+	p := fixture()
+	list(p)
+	addFunc(p, "empty", nil, nil, listLiteral())
+	addFunc(p, "singleton", nil, nil, listLiteral(integer(1)))
+	addFunc(p, "numbers", nil, nil, listLiteral(integer(1), integer(2), integer(3)))
+	addFunc(p, "nested", nil, nil, listLiteral(listLiteral(), listLiteral(integer(4))))
+	addFunc(p, "element", []string{"x"}, []types.Type{types.Int}, local("x", types.Int))
+	addFunc(p, "calls", nil, nil, listLiteral(
+		call(function("element", fnType(types.Int)), integer(5)),
+		call(function("element", fnType(types.Int)), integer(6))))
+	out := assertSource(t, p,
+		"type List interface{ isList() }",
+		"type List_Nil struct{}",
+		"type List_Cons struct {",
+		"F0 any\n\tF1 any",
+		"func (*List_Cons) isList()",
+		"return &List_Nil{}",
+		"return &List_Cons{F0: int64(1), F1: &List_Nil{}}",
+		"return &List_Cons{F0: int64(1), F1: &List_Cons{F0: int64(2), F1: &List_Cons{F0: int64(3), F1: &List_Nil{}}}}",
+		"return &List_Cons{F0: &List_Nil{}, F1: &List_Cons{F0: &List_Cons{F0: int64(4), F1: &List_Nil{}}, F1: &List_Nil{}}}",
+		"return &List_Cons{F0: element_(int64(5)), F1: &List_Cons{F0: element_(int64(6)), F1: &List_Nil{}}}")
+	for _, value := range []string{"5", "6"} {
+		if strings.Count(out, "element_(int64("+value+"))") != 1 {
+			t.Errorf("list element %s was not emitted exactly once:\n%s", value, out)
+		}
+	}
+}
+
+func TestConstrainedInstances(t *testing.T) {
+	p, showInt, showOption := showFixture()
+	ft := showInt.Class.Methods[0].Scheme.Type
+	concrete := instanceDict(showOption, instanceDict(showInt))
+	addFunc(p, "concrete", nil, nil, call(method("show", ft, concrete), call(ctor("Some"), integer(7))))
+	nested := instanceDict(showOption, concrete)
+	addFunc(p, "nested", nil, nil, call(method("show", ft, nested), call(ctor("Some"), call(ctor("Some"), integer(8)))))
+	param := types.DictRef{Kind: types.DictParam, Class: "Show", Param: "A", ParamClass: "Show"}
+	generic := addFunc(p, "generic", []string{"x"}, []types.Type{types.Unit},
+		call(method("show", ft, instanceDict(showOption, param)), local("x", types.Unit)))
+	generic.Scheme.Constraints = showOption.Context
+	assertSource(t, p,
+		"type Show_Option struct {\n\tdict_A Show\n}",
+		"func (dictself Show_Option) Show(dictself_ any) any",
+		"(dictself.dict_A).Show(a_)",
+		"(Show_Option{dict_A: Show_Int{}}).Show(&Option_Some{F0: int64(7)})",
+		"(Show_Option{dict_A: Show_Option{dict_A: Show_Int{}}}).Show(",
+		"func generic_(dict_A Show, x_ any) any",
+		"(Show_Option{dict_A: dict_A}).Show(x_)")
+}
+
+func TestInstanceContextDictionaryClosuresAndRecursion(t *testing.T) {
+	p, showInt, showOption := showFixture()
+	ft := showInt.Class.Methods[0].Scheme.Type
+	param := types.DictRef{Kind: types.DictParam, Class: "Show", Param: "A", ParamClass: "Show"}
+	showOption.Decl.Methods[0].Body = &ast.Block{
+		Stmts: []ast.Stmt{
+			&ast.LetStmt{Name: "showValue", Value: method("show", ft, param)},
+			&ast.LetStmt{Name: "dictself", Value: local("dictself", types.Unit)},
+		},
+		Result: &ast.If{
+			Cond: boolean(true),
+			Then: call(&ast.Lambda{
+				ExprBase: annotated(&types.Ann{Type: ft}),
+				Params:   []ast.Param{{Name: "value"}},
+				Body:     call(method("show", ft, param), local("value", types.Unit)),
+			}, local("dictself", types.Unit)),
+			Else: call(method("show", ft, instanceDict(showOption, param)), local("dictself", types.Unit)),
+		},
+	}
+	assertSource(t, p,
+		"var showValue_ any = (dictself.dict_A).Show",
+		"var dictself_ any = dictself_",
+		"return (dictself.dict_A).Show(value_)",
+		"(Show_Option{dict_A: dictself.dict_A}).Show(dictself_)")
+}
+
+func TestMultipleInstanceContextDictionaries(t *testing.T) {
+	p, showInt, _ := showFixture()
+	a, b := &types.TVar{Name: "A"}, &types.TVar{Name: "B"}
+	data := &types.DataType{Name: "Pair", TParams: []*types.TVar{a, b}}
+	data.Ctors = []*types.Ctor{{Name: "Pair", Data: data, Fields: []types.Type{a, b}}}
+	p.DataTypes[data.Name] = data
+	ft := showInt.Class.Methods[0].Scheme.Type
+	paramA := types.DictRef{Kind: types.DictParam, Class: "Show", Param: "A", ParamClass: "Show"}
+	paramB := types.DictRef{Kind: types.DictParam, Class: "Show", Param: "B", ParamClass: "Show"}
+	pair := &types.Instance{
+		Class: showInt.Class, TypeCon: &types.TCon{Name: "Pair"}, Params: data.TParams,
+		Context: []types.Constraint{{Class: "Show", Arg: b}, {Class: "Show", Arg: a}},
+		Decl: &ast.InstanceDecl{Class: "Show", TypeCon: "Pair", Params: []string{"A", "B"},
+			Context: []ast.Constraint{{Class: "Show", Param: "B"}, {Class: "Show", Param: "A"}},
+			Methods: []ast.InstMethod{{Name: "show", Params: []string{"pair"}, Body: &ast.Block{
+				Result: &ast.Match{Scrut: local("pair", types.Unit), Arms: []ast.Arm{{
+					Pat: &ast.PCtor{Name: "Pair", Args: []ast.Pattern{&ast.PVar{Name: "a"}, &ast.PVar{Name: "b"}}},
+					Body: &ast.Binary{
+						ExprBase: annotated(&types.Ann{Type: types.String}), Op: "+",
+						L: call(method("show", ft, paramA), local("a", types.Unit)),
+						R: call(method("show", ft, paramB), local("b", types.Unit)),
+					},
+				}}},
+			}}},
+		},
+	}
+	p.Instances = append(p.Instances, pair)
+	addFunc(p, "pair", nil, nil, call(method("show", ft, instanceDict(pair, instanceDict(showInt), instanceDict(showInt))),
+		call(ctor("Pair"), integer(1), integer(2))))
+	assertSource(t, p,
+		"type Show_Pair struct {\n\tdict_B Show\n\tdict_A Show\n}",
+		"rt.AddString((dictself.dict_A).Show(a_), (dictself.dict_B).Show(b_))",
+		"(Show_Pair{dict_B: Show_Int{}, dict_A: Show_Int{}}).Show(&Pair_Pair{F0: int64(1), F1: int64(2)})")
+}
+
+func TestConstrainedSuperclassInstances(t *testing.T) {
+	p, showInt, showOption := showFixture()
+	b := &types.TVar{Name: "B"}
+	debug := &types.Class{Name: "Debug", Param: b, Super: "Show"}
+	debug.Methods = []*types.Method{{Name: "debug", Class: debug, Scheme: &types.Scheme{Type: fnType(b)}}}
+	p.Classes[debug.Name] = debug
+	param := types.DictRef{Kind: types.DictParam, Class: "Show", Param: "B", ParamClass: "Show"}
+	instance := &types.Instance{
+		Class: debug, TypeCon: showOption.TypeCon, Params: []*types.TVar{b},
+		Context: []types.Constraint{{Class: "Show", Arg: b}},
+		Decl: &ast.InstanceDecl{Class: "Debug", TypeCon: "Option", Params: []string{"B"},
+			Context: []ast.Constraint{{Class: "Show", Param: "B"}},
+			Methods: []ast.InstMethod{{Name: "debug", Params: []string{"value"}, Body: &ast.Block{
+				Result: call(method("show", showInt.Class.Methods[0].Scheme.Type, instanceDict(showOption, param)), local("value", types.Unit)),
+			}}},
+		},
+	}
+	p.Instances = append(p.Instances, instance)
+	dict := instanceDict(instance, instanceDict(showInt))
+	addFunc(p, "debug", nil, nil, call(method("debug", debug.Methods[0].Scheme.Type, dict), call(ctor("Some"), integer(1))))
+	super := types.DictRef{Kind: types.DictSuper, Class: "Show", Super: &dict}
+	addFunc(p, "super", nil, nil, call(method("show", showInt.Class.Methods[0].Scheme.Type, super), call(ctor("Some"), integer(2))))
+	assertSource(t, p,
+		"type Debug_Option struct {\n\tShow_Option\n\tdict_B Show\n}",
+		"(Show_Option{dict_A: dictself.dict_B}).Show(value_)",
+		"(Debug_Option{Show_Option: Show_Option{dict_A: Show_Int{}}, dict_B: Show_Int{}}).Debug(",
+		"(Debug_Option{Show_Option: Show_Option{dict_A: Show_Int{}}, dict_B: Show_Int{}}).Show(")
+}
+
+func TestInstanceContextSuperclassUpcast(t *testing.T) {
+	p, showInt, showOption := showFixture()
+	debug := &types.Class{Name: "Debug", Param: &types.TVar{Name: "A"}, Super: "Show"}
+	p.Classes[debug.Name] = debug
+	debugInt := &types.Instance{Class: debug, TypeCon: types.Int, Decl: &ast.InstanceDecl{Class: "Debug", TypeCon: "Int"}}
+	p.Instances = append(p.Instances, debugInt)
+	showOption.Context[0].Class = "Debug"
+	showOption.Decl.Context[0].Class = "Debug"
+	param := types.DictRef{Kind: types.DictParam, Class: "Debug", Param: "A", ParamClass: "Debug"}
+	super := types.DictRef{Kind: types.DictSuper, Class: "Show", Super: &param}
+	showOption.Decl.Methods[0].Body.Result.(*ast.Match).Arms[1].Body =
+		call(method("show", showInt.Class.Methods[0].Scheme.Type, super), local("a", types.Unit))
+	addFunc(p, "debug", nil, nil, call(method("show", showInt.Class.Methods[0].Scheme.Type,
+		instanceDict(showOption, instanceDict(debugInt))), call(ctor("Some"), integer(1))))
+	assertSource(t, p,
+		"type Show_Option struct {\n\tdict_A Debug\n}",
+		"(dictself.dict_A).Show(a_)",
+		"(Show_Option{dict_A: Debug_Int{}}).Show(")
+}
+
 func TestClassesAndSuperclassInstances(t *testing.T) {
 	p, functor, monad := classFixture()
 	fn := method("pure", fnType(types.Int), instanceDict(monad))
@@ -50,8 +210,8 @@ func TestClassesAndSuperclassInstances(t *testing.T) {
 		"Bind(a0 any, a1 any) any",
 		"type Functor_Option struct{}",
 		"type Monad_Option struct {\n\tFunctor_Option",
-		"func (Functor_Option) Fmap(fa_ any, f_ any) any",
-		"func (Monad_Option) Bind(ma_ any, f_ any) any",
+		"func (dictself Functor_Option) Fmap(fa_ any, f_ any) any",
+		"func (dictself Monad_Option) Bind(ma_ any, f_ any) any",
 		"(Monad_Option{}).Pure(int64(1))",
 		"(Functor_Option{}).Fmap(")
 }
@@ -100,9 +260,14 @@ func TestMethodOwnDictionaryConstraints(t *testing.T) {
 	addFunc(p, "direct", nil, nil, call(ref, call(ctor("Some"), integer(1)), identity()))
 	bound := addFunc(p, "bound", nil, nil, call(local("apply", scheme.Type), call(ctor("Some"), integer(2)), identity()))
 	bound.Decl.Body.Stmts = []ast.Stmt{&ast.LetStmt{Name: "apply", Value: ref}}
+	param := types.DictRef{Kind: types.DictParam, Class: "Functor", Param: "G", ParamClass: "Functor"}
+	localMethod := method("fmap", scheme.Type, param)
+	types.AnnOf(localMethod).Dicts = append(types.AnnOf(localMethod).Dicts, param)
+	functor.Decl.Methods[0].Body.Result = call(localMethod, local("fa", types.Unit), local("f", fnType(types.Int)))
 	assertSource(t, p,
 		"Fmap(dict_G Functor, a0 any, a1 any) any",
-		"func (Functor_Option) Fmap(dict_G Functor, fa_ any, f_ any) any",
+		"func (dictself Functor_Option) Fmap(dict_G Functor, fa_ any, f_ any) any",
+		"return (dict_G).Fmap(dict_G, fa_, f_)",
 		"(Functor_Option{}).Fmap(Functor_Option{}, &Option_Some{F0: int64(1)}",
 		"return (Functor_Option{}).Fmap(Functor_Option{}, a0, a1)")
 }
@@ -276,6 +441,58 @@ func option(p *types.Program) {
 	p.DataTypes[d.Name] = d
 }
 
+func list(p *types.Program) {
+	a := &types.TVar{Name: "A", Kind: types.KStar{}}
+	listType := &types.TApp{Fun: &types.TCon{Name: "List"}, Args: []types.Type{a}}
+	d := &types.DataType{Name: "List", TParams: []*types.TVar{a}}
+	d.Ctors = []*types.Ctor{{Name: "Nil", Data: d}, {Name: "Cons", Data: d, Fields: []types.Type{a, listType}, Index: 1}}
+	p.DataTypes[d.Name] = d
+}
+
+func listLiteral(elems ...ast.Expr) *ast.ListLit {
+	return &ast.ListLit{ExprBase: annotated(&types.Ann{Type: &types.TApp{
+		Fun: &types.TCon{Name: "List"}, Args: []types.Type{types.Int},
+	}}), Elems: elems}
+}
+
+func showFixture() (*types.Program, *types.Instance, *types.Instance) {
+	p := fixture()
+	option(p)
+	a := &types.TVar{Name: "A", Kind: types.KStar{}}
+	show := &types.Class{Name: "Show", Param: a}
+	ft := &types.TFunc{Params: []types.Type{a}, Ret: types.String}
+	show.Methods = []*types.Method{{Name: "show", Class: show, Scheme: &types.Scheme{Type: ft}}}
+	p.Classes[show.Name] = show
+	extern(p, "showInt", []string{"value"}, []types.Type{types.Int}, "gofx/rt", "ShowInt")
+	showInt := &types.Instance{
+		Class: show, TypeCon: types.Int,
+		Decl: &ast.InstanceDecl{Class: "Show", TypeCon: "Int", Methods: []ast.InstMethod{{
+			Name: "show", Params: []string{"value"}, Body: &ast.Block{
+				Result: call(function("showInt", ft), local("value", types.Int)),
+			},
+		}}},
+	}
+	param := types.DictRef{Kind: types.DictParam, Class: "Show", Param: "A", ParamClass: "Show"}
+	showOption := &types.Instance{
+		Class: show, TypeCon: &types.TCon{Name: "Option"}, Params: []*types.TVar{a},
+		Context: []types.Constraint{{Class: "Show", Arg: a}},
+		Decl: &ast.InstanceDecl{Class: "Show", TypeCon: "Option", Params: []string{"A"},
+			Context: []ast.Constraint{{Class: "Show", Param: "A"}},
+			Methods: []ast.InstMethod{{
+				Name: "show", Params: []string{"dictself"}, Body: &ast.Block{
+					Result: &ast.Match{Scrut: local("dictself", types.Unit), Arms: []ast.Arm{
+						{Pat: &ast.PCtor{Name: "None"}, Body: text("None")},
+						{Pat: &ast.PCtor{Name: "Some", Args: []ast.Pattern{&ast.PVar{Name: "a"}}},
+							Body: call(method("show", ft, param), local("a", types.Unit))},
+					}},
+				},
+			}},
+		},
+	}
+	p.Instances = append(p.Instances, showInt, showOption)
+	return p, showInt, showOption
+}
+
 func classFixture() (*types.Program, *types.Instance, *types.Instance) {
 	p := fixture()
 	option(p)
@@ -345,8 +562,8 @@ func identity() *ast.Lambda {
 	return &ast.Lambda{ExprBase: annotated(&types.Ann{Type: fnType(types.Int)}), Params: []ast.Param{{Name: "x"}}, Body: local("x", types.Int)}
 }
 
-func instanceDict(instance *types.Instance) types.DictRef {
-	return types.DictRef{Kind: types.DictInstance, Class: instance.Class.Name, Instance: instance}
+func instanceDict(instance *types.Instance, args ...types.DictRef) types.DictRef {
+	return types.DictRef{Kind: types.DictInstance, Class: instance.Class.Name, Instance: instance, Args: args}
 }
 
 func assertSource(t *testing.T, p *types.Program, fragments ...string) string {

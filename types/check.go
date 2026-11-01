@@ -26,6 +26,10 @@ type checker struct {
 // as evidence: the same parsed files may safely be checked again.
 // Declared identifiers may not use the generated-code prefixes dict_ or ext_.
 //
+// List literals use the prelude List data type. Parameterized instance heads
+// bind rigid variables; their contexts supply dictionaries during body checking
+// and become recursive dictionary arguments at each concrete instance use.
+//
 // Unresolved ordinary metas default to Unit only when no class constraint
 // depends on them. Unresolved higher-kinded metas are errors: Unit cannot be a
 // kind-correct default for a type constructor. Failures return a positioned
@@ -64,12 +68,24 @@ func Check(files []*ast.File) (program *Program, err error) {
 				}
 			case *ast.InstanceDecl:
 				inst := c.instances[instanceKey{decl.Class, decl.TypeCon}]
+				head := inst.head()
 				for _, method := range decl.Methods {
 					m := c.methods[method.Name]
-					sub := map[*TVar]Type{inst.Class.Param: inst.TypeCon}
-					scope := paramScope(m.Scheme.TParams)
-					scope[inst.Class.Param.Name] = inst.TypeCon
-					b := c.body(subConstraints(m.Scheme.Constraints, sub), scope)
+					sub := map[*TVar]Type{inst.Class.Param: head}
+					scope := paramScope(inst.Params)
+					if scope[inst.Class.Param.Name] == nil {
+						scope[inst.Class.Param.Name] = head
+					}
+					for _, param := range m.Scheme.TParams {
+						scope[param.Name] = param
+					}
+					constraints := inst.Context
+					if len(m.Scheme.Constraints) != 0 {
+						constraints = make([]Constraint, len(inst.Context), len(inst.Context)+len(m.Scheme.Constraints))
+						copy(constraints, inst.Context)
+						constraints = append(constraints, subConstraints(m.Scheme.Constraints, sub)...)
+					}
+					b := c.body(constraints, scope)
 					params := make([]ast.Param, len(method.Params))
 					for i, name := range method.Params {
 						params[i].Name = name
@@ -322,12 +338,47 @@ func (c *checker) collectInstances(files []*ast.File) {
 			if con == nil {
 				fail(d.Pos, "unknown type constructor %s", d.TypeCon)
 			}
-			requireKind(d.Pos, con.Kind, class.Param.Kind)
+			if len(d.Params) == 0 {
+				requireKind(d.Pos, con.Kind, class.Param.Kind)
+			} else {
+				requireKind(d.Pos, class.Param.Kind, KStar{})
+				kind, ok := con.Kind.(KArrow)
+				if !ok || len(kind.Params) != len(d.Params) {
+					fail(d.Pos, "kind mismatch applying %s to %d arguments", con.Name, len(d.Params))
+				}
+			}
 			key := instanceKey{class.Name, con.Name}
 			if c.instances[key] != nil {
 				fail(d.Pos, "duplicate instance %s[%s]", class.Name, con.Name)
 			}
 			inst := &Instance{Class: class, TypeCon: con, Decl: d}
+			scope := make(map[string]*TVar, len(d.Params))
+			for _, name := range d.Params {
+				checkName(d.Pos, name)
+				if scope[name] != nil {
+					fail(d.Pos, "duplicate type parameter %s", name)
+				}
+				param := &TVar{Name: name, Kind: KStar{}}
+				scope[name] = param
+				inst.Params = append(inst.Params, param)
+			}
+			constrained := make(map[string]bool, len(d.Context))
+			for _, constraint := range d.Context {
+				required := c.program.Classes[constraint.Class]
+				if required == nil {
+					fail(constraint.Pos, "unknown class %s", constraint.Class)
+				}
+				param := scope[constraint.Param]
+				if param == nil {
+					fail(constraint.Pos, "unknown instance type parameter %s", constraint.Param)
+				}
+				if constrained[param.Name] {
+					fail(constraint.Pos, "at most one constraint per type parameter %s", param.Name)
+				}
+				constrained[param.Name] = true
+				requireKind(constraint.Pos, param.Kind, required.Param.Kind)
+				inst.Context = append(inst.Context, Constraint{Class: constraint.Class, Arg: param})
+			}
 			c.instances[key] = inst
 			c.program.Instances = append(c.program.Instances, inst)
 			seen := make(map[string]bool)
@@ -356,10 +407,47 @@ func (c *checker) collectInstances(files []*ast.File) {
 		}
 	}
 	for _, inst := range c.program.Instances {
-		if super := inst.Class.Super; super != "" && c.instances[instanceKey{super, inst.TypeCon.Name}] == nil {
-			fail(inst.Decl.Pos, "no instance %s[%s] (required superclass)", super, inst.TypeCon.Name)
+		if super := inst.Class.Super; super != "" {
+			parent := c.instances[instanceKey{super, inst.TypeCon.Name}]
+			if parent == nil {
+				fail(inst.Decl.Pos, "no instance %s[%s] (required superclass)", super, inst.TypeCon.Name)
+			}
+			if !sameInstanceContext(inst, parent) {
+				fail(inst.Decl.Pos, "superclass instance %s[%s] must declare the same context", super, inst.TypeCon.Name)
+			}
 		}
 	}
+}
+
+func (inst *Instance) head() Type {
+	if len(inst.Params) == 0 {
+		return inst.TypeCon
+	}
+	args := make([]Type, len(inst.Params))
+	for i, param := range inst.Params {
+		args[i] = param
+	}
+	return &TApp{Fun: inst.TypeCon, Args: args}
+}
+
+// Compare parameter positions, not names: contexts are alpha-equivalent, but
+// constraining a different head argument would pass the wrong superclass dict.
+func sameInstanceContext(inst, parent *Instance) bool {
+	if len(inst.Params) != len(parent.Params) || len(inst.Context) != len(parent.Context) {
+		return false
+	}
+	for i, constraint := range inst.Context {
+		other := parent.Context[i]
+		if constraint.Class != other.Class {
+			return false
+		}
+		for j, param := range inst.Params {
+			if constraint.Arg == param && other.Arg != parent.Params[j] {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func (c *checker) checkMain() {

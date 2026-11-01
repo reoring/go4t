@@ -137,6 +137,17 @@ func (b *bodyChecker) infer(e ast.Expr, env *locals) Type {
 		result = Bool
 	case *ast.Ident:
 		result = b.ident(e, env, ann)
+	case *ast.ListLit:
+		data := b.c.program.DataTypes["List"]
+		nilCtor, consCtor := b.c.ctors["Nil"], b.c.ctors["Cons"]
+		if data == nil || len(data.TParams) != 1 || nilCtor == nil || nilCtor.Data != data || consCtor == nil || consCtor.Data != data {
+			fail(pos, "list literal requires prelude List")
+		}
+		item := b.c.fresh(KStar{})
+		for _, elem := range e.Elems {
+			unify(elem.GetPos(), item, b.infer(elem, env))
+		}
+		result = &TApp{Fun: b.c.cons[data.Name], Args: []Type{item}}
 	case *ast.Call:
 		fn := prune(b.infer(e.Fn, env))
 		ft, ok := fn.(*TFunc)

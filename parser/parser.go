@@ -1,11 +1,13 @@
 // Package parser builds the gofx AST.
 //
-// Grammar (';' is inserted by the lexer at newlines, Go-style):
+// Grammar (';' is inserted at newlines, Go-style, except before 'else'):
 //
 //	File     := 'package' Ident ';' { Decl ';' }
 //	Decl     := Class | Instance | TypeDecl | Func | Extern
 //	Class    := 'class' Ident '[' TParam ']' [ ':' Ident '[' Ident ']' ] '{' { MethodSig ';' } '}'
-//	Instance := 'instance' Ident '[' Ident ']' '{' { Ident '(' Idents ')' Block ';' } '}'
+//	Instance := 'instance' Ident '[' Ident [ '[' Idents ']' ] ']' [ 'given' Context ] '{' { Ident '(' Idents ')' Block ';' } '}'
+//	Context  := Constraint { ',' Constraint }
+//	Constraint := Ident '[' Ident ']' // parameter declared in the instance head
 //	TypeDecl := 'type' Ident [ '[' Idents ']' ] '=' Ctor { '|' Ctor }
 //	Func     := 'func' Ident [ TParams ] '(' Params ')' Type Block
 //	Extern   := 'extern' 'func' Ident [ TParams ] '(' Params ')' Type '=' String '.' Ident
@@ -18,10 +20,14 @@
 //	Arm      := Pattern '=>' Expr
 //	ArmSep   := ( ';' | '|' ) { ';' | '|' }
 //	Pattern  := '_' | Lit | Ident [ '(' Pattern { ',' Pattern } ')' ]
+//	Postfix  := Primary { '(' [ Expr { ',' Expr } [ ',' ] ] ')' } // no indexing
+//	Primary  := Ident | Lit | '(' Expr ')' | Block | List
+//	List     := '[' [ Expr { ',' Expr } [ ',' ] ] ']'
 package parser
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 
 	"gofx/ast"
@@ -229,7 +235,41 @@ func (p *Parser) instanceDecl() ast.Decl {
 	d := &ast.InstanceDecl{Pos: pos, Class: p.ident()}
 	p.expectP("[")
 	d.TypeCon = p.ident()
+	if p.acceptP("[") {
+		for {
+			paramPos := p.pos()
+			name := p.ident()
+			if slices.Contains(d.Params, name) {
+				p.fail(paramPos, "duplicate instance type parameter %s", name)
+			}
+			d.Params = append(d.Params, name)
+			if !p.acceptP(",") {
+				break
+			}
+		}
+		p.expectP("]")
+	}
 	p.expectP("]")
+	if p.isK("given") {
+		givenPos := p.next().Pos
+		if len(d.Params) == 0 {
+			p.fail(givenPos, "given requires instance type parameters")
+		}
+		for {
+			c := ast.Constraint{Pos: p.pos(), Class: p.ident()}
+			p.expectP("[")
+			paramPos := p.pos()
+			c.Param = p.ident()
+			if !slices.Contains(d.Params, c.Param) {
+				p.fail(paramPos, "undeclared instance type parameter %s", c.Param)
+			}
+			p.expectP("]")
+			d.Context = append(d.Context, c)
+			if !p.acceptP(",") {
+				break
+			}
+		}
+	}
 	p.expectP("{")
 	p.skipSemis()
 	for !p.isP("}") {
@@ -592,6 +632,18 @@ func (p *Parser) primary() ast.Expr {
 		}
 		if t.Text == "{" {
 			return p.blockExpr()
+		}
+		if t.Text == "[" {
+			p.next()
+			list := &ast.ListLit{ExprBase: base}
+			for !p.isP("]") {
+				list.Elems = append(list.Elems, p.expr())
+				if !p.acceptP(",") {
+					break
+				}
+			}
+			p.expectP("]")
+			return list
 		}
 	}
 	p.fail(t.Pos, "expected expression, found %s", t)

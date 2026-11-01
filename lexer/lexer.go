@@ -1,5 +1,5 @@
 // Package lexer tokenizes gofx source. Semicolons are inserted at newlines
-// after the same token classes as Go.
+// after the same token classes as Go, except before the keyword else.
 package lexer
 
 import (
@@ -38,7 +38,7 @@ func (t Token) String() string {
 var keywords = map[string]bool{
 	"package": true, "class": true, "instance": true, "type": true, "func": true,
 	"extern": true, "let": true, "do": true, "match": true, "if": true, "else": true,
-	"true": true, "false": true,
+	"true": true, "false": true, "given": true,
 }
 
 // puncts ordered longest-first for maximal munch.
@@ -94,6 +94,32 @@ func (l *Lexer) needSemi() bool {
 	return false
 }
 
+// elseAhead peeks past whitespace and line comments without changing positions.
+func (l *Lexer) elseAhead() bool {
+	i := l.i
+	for i < len(l.src) {
+		if unicode.IsSpace(l.src[i]) {
+			i++
+			continue
+		}
+		if l.src[i] == '/' && i+1 < len(l.src) && l.src[i+1] == '/' {
+			i += 2
+			for i < len(l.src) && l.src[i] != '\n' {
+				i++
+			}
+			continue
+		}
+		break
+	}
+	for _, r := range "else" {
+		if i >= len(l.src) || l.src[i] != r {
+			return false
+		}
+		i++
+	}
+	return i == len(l.src) || !isIdentRune(l.src[i])
+}
+
 // All tokenizes the whole input.
 func (l *Lexer) All() ([]Token, error) {
 	var out []Token
@@ -115,9 +141,10 @@ func (l *Lexer) emit(t Token) Token {
 }
 
 func (l *Lexer) next() (Token, error) {
+	insertSemi := l.needSemi()
 	for {
 		if l.i >= len(l.src) {
-			if l.needSemi() {
+			if insertSemi {
 				return l.emit(Token{Punct, ";", ast.Pos{Line: l.line, Col: l.col}}), nil
 			}
 			return l.emit(Token{Kind: EOF, Pos: ast.Pos{Line: l.line, Col: l.col}}), nil
@@ -126,8 +153,12 @@ func (l *Lexer) next() (Token, error) {
 		if r == '\n' {
 			pos := ast.Pos{Line: l.line, Col: l.col}
 			l.advance()
-			if l.needSemi() {
-				return l.emit(Token{Punct, ";", pos}), nil
+			if insertSemi {
+				if !l.elseAhead() {
+					return l.emit(Token{Punct, ";", pos}), nil
+				}
+				// The next token is else; do not repeat lookahead at blank lines.
+				insertSemi = false
 			}
 			continue
 		}

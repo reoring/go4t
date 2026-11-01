@@ -18,13 +18,16 @@ func TestPreludeParses(t *testing.T) {
 		t.Errorf("package = %q, want prelude", file.Package)
 	}
 	want := []string{
-		"class Functor", "class Monad", "class Show", "type Option",
+		"class Functor", "class Monad", "class Show", "type Option", "type List",
 		"instance Functor[Option]", "instance Monad[Option]",
+		"instance Functor[List]", "instance Monad[List]",
+		"instance Show[Option]", "instance Show[List]",
 		"func ioPure", "func ioBind", "func ioFail", "func println",
 		"func showInt", "func showBool", "func showString", "func unit",
 		"instance Show[Int]", "instance Show[String]", "instance Show[Bool]",
 		"instance Functor[IO]", "instance Monad[IO]",
 		"func map", "func flatMap",
+		"func fold", "func length", "func append", "func filter", "func reverse",
 	}
 	if len(file.Decls) != len(want) {
 		t.Fatalf("declaration count = %d, want %d", len(file.Decls), len(want))

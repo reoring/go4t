@@ -5,8 +5,6 @@ package main
 type Order = Pending(Int, Int) | Shipped(Int, Int) | Cancelled(Int)
 //           Pending(id, amount)  Shipped(id, amount)  Cancelled(id)
 
-type List[A] = Nil | Cons(A, List[A])
-
 func cancel(o Order) Order {
   match o {
     | Pending(id, _) => Cancelled(id)
@@ -23,7 +21,7 @@ func ship(o Order) Option[Order] {
   }
 }
 
-// ---- 型クラス: Show を自前の型へ、Functor を自前のコンテナへ ----
+// ---- 型クラス: Show を自前の型へ ----
 
 instance Show[Order] {
   show(o) {
@@ -33,26 +31,6 @@ instance Show[Order] {
       | Cancelled(id) => "Cancelled#" + show(id)
     }
   }
-}
-
-instance Functor[List] {
-  fmap(xs, f) {
-    match xs {
-      | Nil => Nil
-      | Cons(x, rest) => Cons(f(x), fmap(rest, f))
-    }
-  }
-}
-
-func fold[A, B](xs List[A], init B, f func(B, A) B) B {
-  match xs {
-    | Nil => init
-    | Cons(x, rest) => fold(rest, f(init, x), f)
-  }
-}
-
-func joinShown[A Show](xs List[A]) String {
-  fold(xs, "", func(acc, x) => if acc == "" { show(x) } else { acc + ", " + show(x) })
 }
 
 // ---- HKT: Functor なら何でも受ける ----
@@ -89,20 +67,21 @@ func notify(total Int) IO[Unit] {
     status <- httpGet("https://example.com")
     if status == 200 {
       println("notified warehouse: total=" + show(total))
-    } else {
+    }
+    else {
       ioFail("warehouse returned " + show(status))
     }
   }
 }
 
 func main() IO[Unit] {
-  let orders = Cons(Pending(1, 300), Cons(Pending(2, 0), Cons(Cancelled(3), Nil)))
+  let orders = [Pending(1, 300), Pending(2, 0), Cancelled(3)]
   do {
-    println("orders:    " + joinShown(orders))
-    println("cancelled: " + joinShown(fmap(orders, cancel)))
-    println("twice:     " + joinShown(twice(orders, cancel)))
+    println("orders:    " + show(orders))
+    println("cancelled: " + show(fmap(orders, cancel)))
+    println("twice:     " + show(twice(orders, cancel)))
     let shipped = fmap(orders, ship)
-    println("shipped:   " + joinShown(fmap(shipped, func(o) => match o { | Some(s) => show(s) | None => "-" })))
+    println("shipped:   " + show(shipped))
     match shipTwo(Pending(1, 300), Pending(4, 500)) {
       | Some(total) => notify(total)
       | None => println("cannot ship both")
