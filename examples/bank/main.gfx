@@ -67,7 +67,7 @@ func find(book List[Account], id AccountId) Result[Failure, Account] {
   }
 }
 
-func put(book List[Account], acct Account) List[Account] {
+func updateAccount(book List[Account], acct Account) List[Account] {
   fmap(book, func(a) => if sameId(a.id, acct.id) { acct } else { a })
 }
 
@@ -79,14 +79,14 @@ func debit(book List[Account], id AccountId, amt Int) Result[Failure, List[Accou
   do {
     a <- find(book, id)
     if a.balance < amt { Err(Insufficient{id: id, need: amt, have: a.balance}) }
-    else { pure(put(book, a{balance: a.balance - amt})) }
+    else { pure(updateAccount(book, a{balance: a.balance - amt})) }
   }
 }
 
 func credit(book List[Account], id AccountId, amt Int) Result[Failure, List[Account]] {
   do {
     a <- find(book, id)
-    pure(put(book, a{balance: a.balance + amt}))
+    pure(updateAccount(book, a{balance: a.balance + amt}))
   }
 }
 
@@ -109,17 +109,19 @@ func apply(book List[Account], tx Tx) Result[Failure, List[Account]] {
   }
 }
 
-// 全取引を順に適用。失敗したら (失敗, その時点までの成功数) を返す
+// 失敗後は台帳を保ち、スキップした取引数を数える
+func step(st (List[Account], Option[(Failure, Int)]), tx Tx) (List[Account], Option[(Failure, Int)]) {
+  match st {
+    | (b, None) => match apply(b, tx) {
+        Ok(b2) => (b2, None)
+        Err(f) => (b, Some((f, 0)))
+      }
+    | (b, Some((f, n))) => (b, Some((f, n + 1)))
+  }
+}
+
 func applyAll(book List[Account], txs List[Tx]) (List[Account], Option[(Failure, Int)]) {
-  fold(txs, (book, None), func(state, tx) =>
-    match state {
-      | (b, None) => match apply(b, tx) {
-          Ok(b2) => (b2, None)
-          Err(f) => (b, Some((f, 0)))
-        }
-      | (b, Some((f, n))) => (b, Some((f, n + 1)))
-    }
-  )
+  execState(forEach(txs, func(tx) => modify(func(st) => step(st, tx))), (book, None))
 }
 
 func total(book List[Account]) Int {
@@ -166,5 +168,7 @@ func main() IO[Unit] {
     println("sum:   ${total(book)} -> ${total(fst(r2))}")
     x <- fmap(ioPure(zip(["a", "b"], [1, 2])), func(ps) => fmap(ps, fst))
     println("zip:   ${x}")
+    let ids = [alice, bob]
+    println("mapM:  ${mapM(ids, func(id) => find(book, id))}")
   }
 }

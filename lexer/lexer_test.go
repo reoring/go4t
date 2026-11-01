@@ -18,87 +18,141 @@ func tokens(t *testing.T, src string) []lexer.Token {
 	return got
 }
 
-func TestSemicolonInsertion(t *testing.T) {
-	for _, src := range []string{"name", "123", `"text"`, `"${x}"`, ")", "]", "}", "_", "true", "false"} {
-		t.Run(src, func(t *testing.T) {
-			for _, ending := range []string{"", "\n", "\n\n", " // comment\n"} {
-				got := tokens(t, src+ending)
-				if len(got) != 3 || got[1].Kind != lexer.Punct || got[1].Text != ";" || got[2].Kind != lexer.EOF {
-					t.Errorf("source %q: tokens = %#v, want token, semicolon, EOF", src+ending, got)
-				}
-			}
-		})
+func TestLayoutMatrix(t *testing.T) {
+	type layoutCase struct {
+		name, src, want string
 	}
-}
+	var cases []layoutCase
 
-func TestNoSemicolonInsertion(t *testing.T) {
-	for _, src := range []string{"=>", "<-", "{", "+", "-", "*", "/", "==", "!=", "<", "<=", ">", ">=", "&&", "||", "!", "=", "(", "[", ",", ":", "|", "@", "func", "let"} {
-		t.Run(src, func(t *testing.T) {
-			got := tokens(t, src+"\nnext")
-			if len(got) < 3 || got[1].Text != "next" {
-				t.Errorf("tokens = %#v, want no semicolon before next", got)
-			}
-		})
-	}
-	got := tokens(t, "name;\n")
-	if len(got) != 3 {
-		t.Errorf("explicit semicolon duplicated: %#v", got)
-	}
-}
-
-func TestElseLookahead(t *testing.T) {
-	for _, tc := range []struct {
-		name string
-		gap  string
-		pos  ast.Pos
+	// Rule 1: every terminating token class, and all remaining keywords and
+	// punctuation. An explicit final semicolon isolates the tested newline.
+	previous := []struct {
+		name, src, text string
+		insert          bool
 	}{
-		{"newline", "\n", ast.Pos{Line: 2, Col: 1}},
-		{"whitespace", "\r\n \t\n  ", ast.Pos{Line: 3, Col: 3}},
-		{"comment line", "\n// between\n  ", ast.Pos{Line: 3, Col: 3}},
-		{"multiple comments", " // trailing\n // else is in a comment\n\n\t// another\n ", ast.Pos{Line: 5, Col: 2}},
-	} {
+		{"identifier", "name", "name", true},
+		{"int", "123", "123", true},
+		{"string", `"text"`, "text", true},
+		{"interpolation", `"${x}"`, `"${x}"`, true},
+		{"true", "true", "true", true},
+		{"false", "false", "false", true},
+		{"close-paren", ")", ")", true},
+		{"close-bracket", "]", "]", true},
+		{"close-brace", "}", "}", true},
+		{"underscore", "_", "_", true},
+		{"empty", "", "", false},
+	}
+	for _, text := range strings.Fields("package class instance type func extern let do match if else given => <- == != <= >= && || ( [ { , ; . = : | @ + - * / < > !") {
+		previous = append(previous, struct {
+			name, src, text string
+			insert          bool
+		}{text, text, text, false})
+	}
+	for _, prev := range previous {
+		want := prev.text
+		if prev.insert {
+			want += " ;"
+		}
+		cases = append(cases, layoutCase{
+			"previous/" + prev.name, prev.src + "\nnext;", strings.TrimSpace(want + " next ;"),
+		})
+		// EOF follows the same previous-token and nesting rules, with no
+		// continuation token. Blank lines and comments never duplicate `;`.
+		for _, ending := range []struct{ name, text string }{
+			{"bare", ""},
+			{"newline", "\n"},
+			{"blank-lines", "\n\n"},
+			{"comment-newline", " // comment\n"},
+			{"comment-eof", " // comment"},
+		} {
+			cases = append(cases, layoutCase{
+				"eof/" + prev.name + "/" + ending.name, prev.src + ending.text, strings.TrimSpace(want),
+			})
+		}
+	}
+
+	// Rule 2: only the innermost delimiter controls layout; braces restore
+	// statement layout inside parens/brackets and closing them restores it.
+	cases = append(cases,
+		layoutCase{"nesting/parens", "f(\n a\n b\n)\nx", "f ( a b ) ; x ;"},
+		layoutCase{"nesting/brackets", "[\n a\n b\n]\nx", "[ a b ] ; x ;"},
+		layoutCase{"nesting/braces", "{\n a\n b\n}\nx", "{ a ; b ; } ; x ;"},
+		layoutCase{"nesting/brackets-in-parens", "f(\n [1,\n 2]\n)\nx", "f ( [ 1 , 2 ] ) ; x ;"},
+		layoutCase{"nesting/block-in-parens", "f(func() => {\n a\n b\n})", "f ( func ( ) => { a ; b ; } ) ;"},
+		layoutCase{"nesting/restore-parens", "f({\n a\n b\n}\n c\n)\nx", "f ( { a ; b ; } c ) ; x ;"},
+		layoutCase{"nesting/restore-brackets", "[{\n a\n b\n}\n c\n]\nx", "[ { a ; b ; } c ] ; x ;"},
+		layoutCase{"nesting/restore-braces", "{\nf(\n a\n b\n)\nx\n}", "{ f ( a b ) ; x ; } ;"},
+		layoutCase{"eof/open-paren", "(x", "( x"},
+		layoutCase{"eof/open-bracket", "[x", "[ x"},
+		layoutCase{"eof/open-brace", "{x", "{ x ;"},
+		layoutCase{"eof/block-in-parens", "({x", "( { x ;"},
+		layoutCase{"eof/restore-parens", "({x}", "( { x }"},
+		layoutCase{"eof/comment-only", "// comment", ""},
+		layoutCase{"eof/else-continuation", "x\nelse", "x else"},
+		layoutCase{"eof/given-continuation", "x\ngiven", "x given"},
+		layoutCase{"eof/bar-continuation", "x\n|", "x |"},
+		layoutCase{"explicit-semicolon", "x;\nelse", "x ; else"},
+		layoutCase{"if-else", "if a { x }\nelse { y }", "if a { x } else { y } ;"},
+		layoutCase{"leading-bar", "type T =\n A(Int)\n | B\nx", "type T = A ( Int ) | B ; x ;"},
+		// DESIGN deliberately treats line-leading -x as continuation, not a
+		// new unary-minus statement. Use 0 - x or parentheses to start one.
+		layoutCase{"leading-unary-minus", "x\n-x;", "x - x ;"},
+	)
+
+	// Rule 3: all leading continuation tokens, plus token-boundary negatives.
+	// Apply the same whitespace/comment gaps to both outcomes.
+	leading := []struct {
+		src, text string
+		continues bool
+	}{
+		{"else", "else", true}, {"|", "|", true}, {".", ".", true},
+		{")", ")", true}, {"]", "]", true}, {"given", "given", true},
+		{"=>", "=>", true}, {"<-", "<-", true},
+		{"+", "+", true}, {"-", "-", true}, {"*", "*", true}, {"/", "/", true},
+		{"==", "==", true}, {"!=", "!=", true}, {"<", "<", true}, {"<=", "<=", true},
+		{">", ">", true}, {">=", ">=", true}, {"&&", "&&", true},
+		{"||", "||", true},
+		{"elsewhere", "elsewhere", false}, {"else_", "else_", false},
+		{"else2", "else2", false}, {"elseα", "elseα", false}, {"else٢", "else٢", false},
+		{"given2", "given2", false}, {"given_", "given_", false},
+		{"givenα", "givenα", false}, {"given٢", "given٢", false},
+		{`"else"`, "else", false}, {`"given"`, "given", false},
+		{"other else", "other else", false},
+		{"=", "=", false}, {"!", "!", false}, {";", ";", false},
+		{",", ",", false}, {":", ":", false}, {"@", "@", false},
+		{"(", "(", false}, {"[", "[", false}, {"{", "{", false}, {"}", "}", false},
+	}
+	for _, lead := range leading {
+		want := "x "
+		if !lead.continues {
+			want += "; "
+		}
+		want += lead.text + " next ;"
+		for _, gap := range []struct{ name, text string }{
+			{"newline", "\n"},
+			{"whitespace", "\r\n \t\n  "},
+			{"comment", "\n// between\n  "},
+			{"multiple-comments", " // trailing\n // else given | + are comment text\n\n\t// another\n "},
+		} {
+			cases = append(cases, layoutCase{
+				"leading/" + lead.src + "/" + gap.name, "x" + gap.text + lead.src + " next;", want,
+			})
+		}
+	}
+
+	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := tokens(t, "if a { x }"+tc.gap+"else { y }")
-			want := strings.Fields("if a { x } else { y } ;")
+			got := tokens(t, tc.src)
+			want := strings.Fields(tc.want)
 			if len(got) != len(want)+1 || got[len(want)].Kind != lexer.EOF {
-				t.Fatalf("tokens = %#v, want %v and EOF", got, want)
+				t.Fatalf("source %q: tokens = %#v, want %v and EOF", tc.src, got, want)
 			}
 			for i, text := range want {
-				if got[i].Text != text {
+				if got[i].Text != text || text == ";" && got[i].Kind != lexer.Punct {
 					t.Errorf("token %d = %#v, want %q", i, got[i], text)
 				}
 			}
-			if got[5].Kind != lexer.Keyword || got[5].Pos != tc.pos {
-				t.Errorf("else = %#v, want keyword at %s", got[5], tc.pos)
-			}
 		})
-	}
-}
-
-func TestElseLookaheadIdentifierBoundary(t *testing.T) {
-	for _, name := range []string{"else_", "elsewhere", "else2", "elseα", "else٢"} {
-		t.Run(name, func(t *testing.T) {
-			got := tokens(t, "x\n"+name+" = 1")
-			if len(got) != 7 || got[1].Kind != lexer.Punct || got[1].Text != ";" ||
-				got[1].Pos != (ast.Pos{Line: 1, Col: 2}) || got[2].Kind != lexer.Ident || got[2].Text != name {
-				t.Fatalf("tokens = %#v, want semicolon before identifier %q", got, name)
-			}
-		})
-	}
-}
-
-func TestElseLookaheadDoesNotSkipOtherTokens(t *testing.T) {
-	for _, next := range []string{`"else"`, "/ else", "other else", "; else"} {
-		t.Run(next, func(t *testing.T) {
-			got := tokens(t, "x\n"+next)
-			if got[1].Kind != lexer.Punct || got[1].Text != ";" || got[1].Pos != (ast.Pos{Line: 1, Col: 2}) {
-				t.Errorf("tokens = %#v, want semicolon at first newline", got)
-			}
-		})
-	}
-	got := tokens(t, "x;\nelse")
-	if len(got) != 4 || got[1].Text != ";" || got[2].Text != "else" {
-		t.Errorf("explicit semicolon removed: %#v", got)
 	}
 }
 
@@ -339,67 +393,5 @@ func TestInterpolationErrorsWithPositions(t *testing.T) {
 				t.Fatalf("error = %v, want prefix %q", err, tc.want)
 			}
 		})
-	}
-}
-
-func TestNoSemicolonInsideOpenBrackets(t *testing.T) {
-	src := "f(\n  [1,\n   2]\n)\nx"
-	toks, err := lexer.New(src).All()
-	if err != nil {
-		t.Fatal(err)
-	}
-	var got []string
-	for _, tk := range toks {
-		if tk.Kind == lexer.EOF {
-			break
-		}
-		got = append(got, tk.Text)
-	}
-	want := []string{"f", "(", "[", "1", ",", "2", "]", ")", ";", "x", ";"}
-	if strings.Join(got, " ") != strings.Join(want, " ") {
-		t.Fatalf("got %q, want %q", got, want)
-	}
-	// A block nested inside a call still separates its statements.
-	src = "f(func() => {\n  a\n  b\n})"
-	toks, _ = lexer.New(src).All()
-	got = got[:0]
-	for _, tk := range toks {
-		if tk.Kind == lexer.EOF {
-			break
-		}
-		got = append(got, tk.Text)
-	}
-	want = []string{"f", "(", "func", "(", ")", "=>", "{", "a", ";", "b", ";", "}", ")", ";"}
-	if strings.Join(got, " ") != strings.Join(want, " ") {
-		t.Fatalf("got %q, want %q", got, want)
-	}
-}
-
-func TestLeadingBarContinuesLine(t *testing.T) {
-	src := "type T =\n    A(Int)\n  | B\nx"
-	var got []string
-	for _, tk := range tokens(t, src) {
-		if tk.Kind == lexer.EOF {
-			break
-		}
-		got = append(got, tk.Text)
-	}
-	want := "type T = A ( Int ) | B ; x ;"
-	if strings.Join(got, " ") != want {
-		t.Fatalf("got %q, want %q", strings.Join(got, " "), want)
-	}
-	// `||` on the next line is an operator, not a continuation marker: still
-	// no semicolon because a binary operator cannot start a statement anyway?
-	// No: Go-style insertion only looks at the previous token, so `a\n|| b`
-	// gets a `;`. Preserve that.
-	got = got[:0]
-	for _, tk := range tokens(t, "a\n|| b") {
-		if tk.Kind == lexer.EOF {
-			break
-		}
-		got = append(got, tk.Text)
-	}
-	if strings.Join(got, " ") != "a ; || b ;" {
-		t.Fatalf("got %q", strings.Join(got, " "))
 	}
 }

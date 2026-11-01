@@ -7,6 +7,8 @@
 // their context constraints contribute dictionary fields.
 // Records reuse positional constructor fields, updates copy a single evaluated
 // base, and interpolation sends each expression through its Show dictionary.
+// Final match arms omit their proven head guard; only refutable nested patterns
+// retain guards and a defensive non-exhaustive-match panic.
 package codegen
 
 import (

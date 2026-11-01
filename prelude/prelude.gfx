@@ -17,6 +17,8 @@ type Option[A] = None | Some(A)
 
 type List[A] = Nil | Cons(A, List[A])
 
+type State[S, A] = State(func(S) (A, S))
+
 instance Functor[Option] {
   fmap(fa, f) {
     match fa {
@@ -53,6 +55,43 @@ instance Monad[List] {
       Cons(x, rest) => append(f(x), bind(rest, f))
     }
   }
+}
+
+instance Functor[State[S]] {
+  fmap(st, f) {
+    State(func(s) => match runState(st, s) { (a, s2) => (f(a), s2) })
+  }
+}
+
+instance Monad[State[S]] {
+  pure(a) { State(func(s) => (a, s)) }
+  bind(st, f) {
+    State(func(s) => match runState(st, s) { (a, s2) => runState(f(a), s2) })
+  }
+}
+
+func runState[S, A](st State[S, A], s S) (A, S) {
+  match st { State(run) => run(s) }
+}
+
+func evalState[S, A](st State[S, A], s S) A {
+  fst(runState(st, s))
+}
+
+func execState[S, A](st State[S, A], s S) S {
+  snd(runState(st, s))
+}
+
+func get[S]() State[S, S] {
+  State(func(s) => (s, s))
+}
+
+func put[S](s S) State[S, Unit] {
+  State(func(ignored) => (unit(), s))
+}
+
+func modify[S](f func(S) S) State[S, Unit] {
+  State(func(s) => (unit(), f(s)))
 }
 
 instance Show[Option[A]] given Show[A] {
@@ -117,6 +156,20 @@ func map[F[_] Functor, A, B](fa F[A], f func(A) B) F[B] {
 
 func flatMap[M[_] Monad, A, B](ma M[A], f func(A) M[B]) M[B] {
   bind(ma, f)
+}
+
+func forEach[M[_] Monad, A](xs List[A], f func(A) M[Unit]) M[Unit] {
+  match xs {
+    Nil => pure(unit())
+    Cons(x, rest) => bind(f(x), func(ignored) => forEach(rest, f))
+  }
+}
+
+func mapM[M[_] Monad, A, B](xs List[A], f func(A) M[B]) M[List[B]] {
+  match xs {
+    Nil => pure(Nil)
+    Cons(x, rest) => bind(f(x), func(y) => bind(mapM(rest, f), func(ys) => pure(Cons(y, ys))))
+  }
 }
 
 func fold[A, B](xs List[A], init B, f func(B, A) B) B {

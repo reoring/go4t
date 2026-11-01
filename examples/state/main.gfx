@@ -1,0 +1,47 @@
+package main
+
+func counter() State[Int, Int] {
+  do {
+    before <- get()
+    put(before + 1)
+    modify(func(n) => n * 2)
+    after <- get()
+    pure(after - before)
+  }
+}
+
+func push(value Int) State[List[Int], Unit] {
+  modify(func(xs) => Cons(value, xs))
+}
+
+func pop() State[List[Int], Option[Int]] {
+  do {
+    xs <- get()
+    match xs {
+      | Nil => pure(None)
+      | Cons(x, rest) => do {
+          put(rest)
+          pure(Some(x))
+        }
+    }
+  }
+}
+
+func stack() State[List[Int], Option[Int]] {
+  do {
+    forEach([3, 5], push)
+    pop()
+  }
+}
+
+func main() IO[Unit] {
+  do {
+    println("counter: ${runState(counter(), 10)}")
+    println("value:   ${evalState(counter(), 10)}")
+    println("state:   ${execState(counter(), 10)}")
+    println("mapped:  ${runState(fmap(counter(), func(n) => n * 10), 10)}")
+    println("stack:   ${runState(stack(), [1])}")
+    println("empty:   ${runState(pop(), [])}")
+    forEach(["first", "second", "third"], func(label) => println("IO: ${label}"))
+  }
+}

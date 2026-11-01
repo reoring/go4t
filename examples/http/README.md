@@ -152,6 +152,13 @@ syntax such as `Account{id: ..., owner: ..., balance: ...}` or
 line without a leading `|`, retaining leading separators when arms span
 several lines.
 
+`applyAll` sequences each transaction with `forEach` and `modify` over
+`State[(List[Account], Option[(Failure, Int)]), Unit]`, then uses `execState`
+to return the final book and failure. The pure `step` transition preserves the
+book after the first failure and counts subsequent skipped transactions.
+The final `mapM` traverses account IDs in `Result[Failure]`, collecting the
+accounts in order or returning the first lookup failure.
+
 With a successful HTTP 200 response, expected stdout is:
 
 ```text
@@ -164,13 +171,43 @@ ugly:  Some((no such account Z-9, 0))
 check: Err(bad amount 0)
 sum:   120 -> 140
 zip:   [a, b]
+mapM:  Ok([alice<A-1>:100, bob<B-2>:20])
+```
+
+## State
+
+`go run ./cmd/gofx run examples/state/main.gfx` needs no network access.
+`counter` is a `do` block over `State[Int]`: `get` reads the counter, `put`
+replaces it, and `modify` doubles it. Starting at 10, it returns the increase
+of 12 and leaves the state at 22. `runState` returns both values, while
+`evalState` and `execState` select the result and final state, respectively.
+`fmap` changes only the result, leaving the final state untouched.
+
+The stack uses `State[List[Int]]` and `forEach` to push 3 and then 5 before
+popping; popping an empty stack returns `None` without changing the stack.
+The same generic `forEach` sequences the final three `IO` prints in order.
+Both `forEach` and `mapM` work with any `Monad` and recurse over the list
+using `bind` and `pure`; `forEach` discards results, while `mapM` collects them.
+
+Expected stdout:
+
+```text
+counter: (12, 22)
+value:   12
+state:   22
+mapped:  (120, 22)
+stack:   (Some(5), [3, 1])
+empty:   (None, [])
+IO: first
+IO: second
+IO: third
 ```
 
 ## Generated Go
 
 `go run ./cmd/gofx build examples/http/main.gfx` writes
 `examples/http/main_gen/main.go` with `package main`; the tree, orders, lists,
-inventory, records, and bank examples similarly use their own `main_gen/main.go`.
+inventory, records, bank, and state examples similarly use their own `main_gen/main.go`.
 Each source file gets its own `<base>_gen/` directory, so multiple `.gfx`
 programs can share a source directory.
 `run` builds this directory and executes it with `go run` from the module root.

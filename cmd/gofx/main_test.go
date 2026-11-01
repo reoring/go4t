@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -13,6 +14,14 @@ import (
 
 func TestBuildUsesPerProgramDirectories(t *testing.T) {
 	dir := t.TempDir()
+	root, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	mod := "module buildtest\n\ngo 1.22\n\nrequire gofx v0.0.0\nreplace gofx => " + root + "\n"
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(mod), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	legacyPath := filepath.Join(dir, "first_gen.go")
 	legacy := []byte("user-owned legacy output\n")
 	if err := os.WriteFile(legacyPath, legacy, 0o644); err != nil {
@@ -39,6 +48,15 @@ func TestBuildUsesPerProgramDirectories(t *testing.T) {
 			if !strings.Contains(string(output), fragment) {
 				t.Errorf("%s output does not contain %q", name, fragment)
 			}
+		}
+		rel, err := filepath.Rel(dir, filepath.Join(dir, name+"_gen"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		vet := exec.Command("go", "vet", "./"+filepath.ToSlash(rel))
+		vet.Dir = dir
+		if output, err := vet.CombinedOutput(); err != nil {
+			t.Fatalf("go vet generated %s: %v\n%s", name, err, output)
 		}
 	}
 

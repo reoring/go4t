@@ -1,5 +1,5 @@
-// Package lexer tokenizes gofx source. Semicolons are inserted at newlines
-// after the same token classes as Go, except before the keyword else.
+// Package lexer tokenizes gofx source. Semicolon insertion follows the single
+// Layout rule in DESIGN.md, Pass 7.
 package lexer
 
 import (
@@ -100,28 +100,34 @@ func (l *Lexer) advance() rune {
 	return r
 }
 
+// needSemi applies all three DESIGN layout conditions at a newline or EOF.
 func (l *Lexer) needSemi() bool {
-	if n := len(l.nest); n > 0 && l.nest[n-1] != '{' {
-		return false
-	}
+	// Rule 1: only these token classes can end a statement.
 	switch l.lastKind {
 	case Ident, Int, String, InterpTok:
-		return true
 	case Keyword:
-		return l.lastText == "true" || l.lastText == "false"
+		if l.lastText != "true" && l.lastText != "false" {
+			return false
+		}
 	case Punct:
 		switch l.lastText {
 		case ")", "]", "}", "_":
-			return true
+		default:
+			return false
 		}
+	default:
+		return false
 	}
-	return false
+	// Rule 2: the innermost delimiter must be a brace, or absent.
+	if n := len(l.nest); n > 0 && l.nest[n-1] != '{' {
+		return false
+	}
+	// Rule 3: a leading continuation token joins the preceding line.
+	return !l.continuationAhead()
 }
 
-// continuationAhead peeks past whitespace and line comments without changing
-// positions and reports whether the next token is `else` or a `|` that is not
-// `||`: both continue the previous line (if/else layout; leading-bar match
-// arms and constructor alternatives).
+// continuationAhead recognizes DESIGN's leading continuation tokens after
+// whitespace and line comments without changing source positions.
 func (l *Lexer) continuationAhead() bool {
 	i := l.i
 	for i < len(l.src) {
@@ -138,16 +144,31 @@ func (l *Lexer) continuationAhead() bool {
 		}
 		break
 	}
-	if i < len(l.src) && l.src[i] == '|' {
-		return i+1 == len(l.src) || l.src[i+1] != '|'
+	if i == len(l.src) {
+		return false
 	}
-	for _, r := range "else" {
-		if i >= len(l.src) || l.src[i] != r {
-			return false
+	switch l.src[i] {
+	case '.', ')', ']', '|', '+', '-', '*', '/', '<', '>':
+		// Covers single | and binary ||, <=, >= and the <- bind arrow.
+		return true
+	case '=':
+		return i+1 < len(l.src) && (l.src[i+1] == '=' || l.src[i+1] == '>')
+	case '!':
+		return i+1 < len(l.src) && l.src[i+1] == '='
+	case '&':
+		return i+1 < len(l.src) && l.src[i+1] == '&'
+	case 'e', 'g':
+		for _, word := range [...]string{"else", "given"} {
+			j := 0
+			for j < len(word) && i+j < len(l.src) && l.src[i+j] == rune(word[j]) {
+				j++
+			}
+			if j == len(word) {
+				return i+j == len(l.src) || !isIdentRune(l.src[i+j])
+			}
 		}
-		i++
 	}
-	return i == len(l.src) || !isIdentRune(l.src[i])
+	return false
 }
 
 // All tokenizes the whole input.
@@ -181,10 +202,10 @@ func (l *Lexer) emit(t Token) Token {
 }
 
 func (l *Lexer) next() (Token, error) {
-	insertSemi := l.needSemi()
+	layoutChecked := false
 	for {
 		if l.i >= len(l.src) {
-			if insertSemi {
+			if !layoutChecked && l.needSemi() {
 				return l.emit(Token{Kind: Punct, Text: ";", Pos: ast.Pos{Line: l.line, Col: l.col}}), nil
 			}
 			return l.emit(Token{Kind: EOF, Pos: ast.Pos{Line: l.line, Col: l.col}}), nil
@@ -193,12 +214,13 @@ func (l *Lexer) next() (Token, error) {
 		if r == '\n' {
 			pos := ast.Pos{Line: l.line, Col: l.col}
 			l.advance()
-			if insertSemi {
-				if !l.continuationAhead() {
+			if !layoutChecked {
+				// The previous token and next non-comment token stay the same
+				// across blank lines, so check this boundary only once.
+				layoutChecked = true
+				if l.needSemi() {
 					return l.emit(Token{Kind: Punct, Text: ";", Pos: pos}), nil
 				}
-				// The next token is else; do not repeat lookahead at blank lines.
-				insertSemi = false
 			}
 			continue
 		}

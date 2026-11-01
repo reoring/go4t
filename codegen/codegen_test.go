@@ -54,7 +54,7 @@ func TestSameNamedTypeAndConstructor(t *testing.T) {
 		"type Sku_Sku struct {",
 		"func (*Sku_Sku) isSku()",
 		`return &Sku_Sku{F0: "123"}`,
-		"case *Sku_Sku:",
+		".(*Sku_Sku)",
 		"return value_")
 }
 
@@ -565,9 +565,90 @@ func TestNestedConstructorAndLiteralPatterns(t *testing.T) {
 		{Pat: &ast.PWild{}, Body: integer(0)},
 	}}
 	addFunc(p, "nested", []string{"x"}, []types.Type{types.Unit}, match)
-	out := assertSource(t, p, "case *Option_Some:", "case *Option_None:", ".(int64) == int64(7)", "var n_ any =", "return n_", `panic("non-exhaustive match")`)
+	out := assertSource(t, p, "case *Option_Some:", "case *Option_None:", ".(int64) == int64(7)", "var n_ any =", "return n_", "return int64(0)")
+	if strings.Contains(out, `panic("non-exhaustive match")`) {
+		t.Fatalf("wildcard final arm has an unreachable panic:\n%s", out)
+	}
 	if strings.Count(out, "case *Option_Some:") != 5 {
 		t.Fatalf("nested/repeated outer constructor patterns lost their own continuation:\n%s", out)
+	}
+}
+
+func TestFinalMatchArm(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		pattern  ast.Pattern
+		previous []ast.Arm
+		want     []string
+		guarded  bool
+	}{
+		{
+			name: "variable", pattern: &ast.PVar{Name: "value"},
+			want: []string{"var value_ any = _gofx0"},
+		},
+		{
+			name: "wildcard", pattern: &ast.PWild{},
+		},
+		{
+			name: "literal", pattern: &ast.PLit{X: boolean(false)},
+			previous: []ast.Arm{{Pat: &ast.PLit{X: boolean(true)}, Body: integer(1)}},
+			want:     []string{".(bool) == true"},
+		},
+		{
+			name: "constructor", pattern: &ast.PCtor{Name: "Some", Args: []ast.Pattern{&ast.PVar{Name: "value"}}},
+			previous: []ast.Arm{{Pat: &ast.PCtor{Name: "None"}, Body: integer(1)}},
+			want:     []string{"case *Option_None:", ".(*Option_Some)", "var value_ any ="},
+		},
+		{
+			name: "tuple", pattern: &ast.PTuple{Elems: []ast.Pattern{&ast.PVar{Name: "value"}, &ast.PWild{}}},
+			want: []string{".(*Tuple2)", "var value_ any ="},
+		},
+		{
+			name: "as constructor", pattern: &ast.PAs{Name: "whole", Pat: &ast.PCtor{Name: "Some", Args: []ast.Pattern{&ast.PWild{}}}},
+			previous: []ast.Arm{{Pat: &ast.PCtor{Name: "None"}, Body: integer(1)}},
+			want:     []string{"var whole_ any = _gofx0", ".(*Option_Some)"},
+		},
+		{
+			name: "nested tuple", pattern: &ast.PTuple{Elems: []ast.Pattern{
+				&ast.PTuple{Elems: []ast.Pattern{&ast.PVar{Name: "value"}, &ast.PWild{}}}, &ast.PWild{},
+			}},
+			want: []string{".(*Tuple2)", "var value_ any ="},
+		},
+		{
+			name: "nested single constructor", pattern: &ast.PTuple{Elems: []ast.Pattern{
+				&ast.PCtor{Name: "Box", Args: []ast.Pattern{&ast.PVar{Name: "value"}}}, &ast.PWild{},
+			}},
+			want: []string{".(*Tuple2)", ".(*Box_Box)", "var value_ any ="},
+		},
+		{
+			name: "nested literal", pattern: &ast.PTuple{Elems: []ast.Pattern{&ast.PLit{X: boolean(false)}, &ast.PWild{}}},
+			previous: []ast.Arm{{Pat: &ast.PTuple{Elems: []ast.Pattern{&ast.PLit{X: boolean(true)}, &ast.PWild{}}}, Body: integer(1)}},
+			want:     []string{".(*Tuple2)", ".(bool) == false"}, guarded: true,
+		},
+		{
+			name: "nested multiple constructors", pattern: &ast.PTuple{Elems: []ast.Pattern{&ast.PCtor{Name: "None"}, &ast.PWild{}}},
+			previous: []ast.Arm{{Pat: &ast.PTuple{Elems: []ast.Pattern{&ast.PCtor{Name: "Some", Args: []ast.Pattern{&ast.PWild{}}}, &ast.PWild{}}}, Body: integer(1)}},
+			want:     []string{".(*Tuple2)", "case *Option_None:"}, guarded: true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			p := fixture()
+			option(p)
+			box := &types.DataType{Name: "Box"}
+			box.Ctors = []*types.Ctor{{Name: "Box", Data: box, Fields: []types.Type{types.Int}}}
+			p.DataTypes[box.Name] = box
+			arms := append(tt.previous, ast.Arm{Pat: tt.pattern, Body: integer(0)})
+			addFunc(p, "match", []string{"x"}, []types.Type{types.Unit}, &ast.Match{Scrut: local("x", types.Unit), Arms: arms})
+			out := assertSource(t, p, tt.want...)
+			if got := strings.Contains(out, `panic("non-exhaustive match")`); got != tt.guarded {
+				t.Fatalf("final arm panic = %t, want %t:\n%s", got, tt.guarded, out)
+			}
+			if !tt.guarded {
+				if strings.Contains(out, "case *Option_Some:") || strings.Contains(out, ".(bool) == false") || strings.Contains(out, "case *Tuple2:") || strings.Contains(out, "case *Box_Box:") {
+					t.Fatalf("total final arm still has a guard:\n%s", out)
+				}
+			}
+		})
 	}
 }
 

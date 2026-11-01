@@ -178,10 +178,14 @@ func (g *generator) expr(expr ast.Expr) string {
 		var out strings.Builder
 		value := g.fresh()
 		fmt.Fprintf(&out, "func() any {\nvar %s any = %s\n_ = %s\n", value, g.expr(e.Scrut), value)
-		for _, arm := range e.Arms {
-			out.WriteString(g.pattern(arm.Pat, value, "return "+g.expr(arm.Body)+"\n"))
+		for i, arm := range e.Arms {
+			code, guarded := g.pattern(arm.Pat, value, "return "+g.expr(arm.Body)+"\n", i == len(e.Arms)-1)
+			out.WriteString(code)
+			if i == len(e.Arms)-1 && guarded {
+				out.WriteString("panic(\"non-exhaustive match\")\n")
+			}
 		}
-		out.WriteString("panic(\"non-exhaustive match\")\n}()")
+		out.WriteString("}()")
 		return out.String()
 	case *ast.Do:
 		dict := g.dict(g.ann(e).Monad)
@@ -273,20 +277,27 @@ func construct(name string, args []string) string {
 
 // Each arm has its own failure continuation: a failed nested pattern falls
 // through to the next complete arm, including arms with the same outer ctor.
-func (g *generator) pattern(pattern ast.Pattern, value, success string) string {
+// The final arm's head is guaranteed by exhaustiveness; nested heads are only
+// unguarded when they are irrefutable on their own. The result reports whether
+// a guard can still fall through and needs a continuation.
+func (g *generator) pattern(pattern ast.Pattern, value, success string, unguarded bool) (string, bool) {
 	switch p := pattern.(type) {
 	case *ast.PWild:
-		return "{\n" + success + "}\n"
+		return "{\n" + success + "}\n", false
 	case *ast.PVar:
-		return "{\nvar " + mangle(p.Name) + " any = " + value + "\n_ = " + mangle(p.Name) + "\n" + success + "}\n"
+		return "{\nvar " + mangle(p.Name) + " any = " + value + "\n_ = " + mangle(p.Name) + "\n" + success + "}\n", false
 	case *ast.PAs:
-		return "{\nvar " + mangle(p.Name) + " any = " + value + "\n_ = " + mangle(p.Name) + "\n" + g.pattern(p.Pat, value, success) + "}\n"
+		code, guarded := g.pattern(p.Pat, value, success, unguarded)
+		return "{\nvar " + mangle(p.Name) + " any = " + value + "\n_ = " + mangle(p.Name) + "\n" + code + "}\n", guarded
 	case *ast.PTuple:
-		return g.structPattern(g.tupleName(len(p.Elems)), p.Elems, value, success)
+		return g.structPattern(g.tupleName(len(p.Elems)), p.Elems, value, success, unguarded)
 	case *ast.PCtor:
 		ctor := g.ctor(p.Name, p.Pos)
-		return g.structPattern(ctorName(ctor), p.Args, value, success)
+		return g.structPattern(ctorName(ctor), p.Args, value, success, unguarded)
 	case *ast.PLit:
+		if unguarded {
+			return "{\n" + success + "}\n", false
+		}
 		var rep string
 		switch p.X.(type) {
 		case *ast.IntLit:
@@ -298,18 +309,36 @@ func (g *generator) pattern(pattern ast.Pattern, value, success string) string {
 		default:
 			g.fail(p.Pos, "unsupported literal pattern %T", p.X)
 		}
-		return "if " + value + ".(" + rep + ") == " + g.expr(p.X) + " {\n" + success + "}\n"
+		return "if " + value + ".(" + rep + ") == " + g.expr(p.X) + " {\n" + success + "}\n", true
 	}
 	g.fail(ast.Pos{}, "unsupported pattern %T", pattern)
-	return ""
+	return "", false
 }
 
-func (g *generator) structPattern(name string, fields []ast.Pattern, value, success string) string {
-	matched := g.fresh()
-	for i := len(fields) - 1; i >= 0; i-- {
-		success = g.pattern(fields[i], fmt.Sprintf("%s.F%d", matched, i), success)
+func (g *generator) irrefutableHead(pattern ast.Pattern) bool {
+	switch p := pattern.(type) {
+	case *ast.PWild, *ast.PVar, *ast.PTuple:
+		return true
+	case *ast.PAs:
+		return g.irrefutableHead(p.Pat)
+	case *ast.PCtor:
+		return len(g.ctor(p.Name, p.Pos).Data.Ctors) == 1
 	}
-	return "switch " + matched + " := " + value + ".(type) {\ncase *" + name + ":\n_ = " + matched + "\n" + success + "}\n"
+	return false
+}
+
+func (g *generator) structPattern(name string, fields []ast.Pattern, value, success string, unguarded bool) (string, bool) {
+	matched := g.fresh()
+	guarded := !unguarded
+	for i := len(fields) - 1; i >= 0; i-- {
+		var fieldGuarded bool
+		success, fieldGuarded = g.pattern(fields[i], fmt.Sprintf("%s.F%d", matched, i), success, unguarded && g.irrefutableHead(fields[i]))
+		guarded = guarded || fieldGuarded
+	}
+	if unguarded {
+		return "{\n" + matched + " := " + value + ".(*" + name + ")\n_ = " + matched + "\n" + success + "}\n", guarded
+	}
+	return "switch " + matched + " := " + value + ".(type) {\ncase *" + name + ":\n_ = " + matched + "\n" + success + "}\n", true
 }
 
 func isCon(typ types.Type, name string) bool {
