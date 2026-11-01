@@ -30,6 +30,10 @@ func TestPreludeParses(t *testing.T) {
 		"func showInt", "func showBool", "func showString", "func unit",
 		"func eqInt", "func ltInt", "func eqString", "func ltString", "func eqBool",
 		"func minInt", "func maxInt", "func abs",
+		"func strLength", "func strConcat", "func join", "func split", "func lines", "func words",
+		"func trim", "func toUpper", "func toLower", "func startsWith", "func endsWith", "func contains",
+		"func replace", "func substring", "func chars", "func repeat", "func parseInt", "func showPadLeft",
+		"func readLine", "func readAll", "func args", "func exit", "func getEnv",
 		"instance Show[Int]", "instance Show[String]", "instance Show[Bool]",
 		"instance Eq[Int]", "instance Ord[Int]", "instance Eq[String]", "instance Ord[String]",
 		"instance Eq[Bool]", "instance Ord[Bool]", "instance Eq[Unit]",
@@ -96,5 +100,30 @@ func TestHTTPExampleParses(t *testing.T) {
 		if function.Name != want[i] {
 			t.Errorf("declaration %d = %s, want %s", i, function.Name, want[i])
 		}
+	}
+}
+
+func TestTextExamplesParse(t *testing.T) {
+	for _, name := range []string{"wc", "strings"} {
+		t.Run(name, func(t *testing.T) {
+			source, err := os.ReadFile("../examples/" + name + "/main.gfx")
+			if err != nil {
+				t.Fatal(err)
+			}
+			file, err := parser.Parse(string(source))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if file.Package != "main" {
+				t.Errorf("package = %q, want main", file.Package)
+			}
+			if len(file.Decls) == 0 {
+				t.Fatal("example has no declarations")
+			}
+			main, ok := file.Decls[len(file.Decls)-1].(*ast.FuncDecl)
+			if !ok || main.Name != "main" {
+				t.Fatalf("last declaration = %#v, want main function", file.Decls[len(file.Decls)-1])
+			}
+		})
 	}
 }

@@ -379,6 +379,66 @@ lambda parameters, guards mixed with structural patterns, and `fromOption`/`mayb
   Pair(Ace) < Trips(Two) = true, isSome(head(hands)) = true
 ```
 
+## Wc
+
+`examples/wc/main.gfx` reads stdin, reports line and word counts, and folds the
+words into a `List[(String, Int)]` frequency table. It sorts by descending count,
+then ascending word for ties. The first argument selects the top N entries;
+without an argument it defaults to 10. Words are case-sensitive whitespace
+tokens, with no punctuation removal.
+
+Run from the repository root:
+
+```sh
+go run ./cmd/gofx run examples/wc/main.gfx -- 3 < examples/wc/input.txt
+```
+
+Expected output (unverified):
+
+```text
+lines: 12, words: 60
+   24 the
+    5 garden
+    5 leaves
+```
+
+The invalid-number path prints usage to stdout and exits with status 2:
+
+```sh
+go run ./cmd/gofx run examples/wc/main.gfx -- x < examples/wc/input.txt
+```
+
+Expected stdout (unverified):
+
+```text
+usage: wc [N]
+```
+
+The generated program exits 2; the outer `go run` wrapper may additionally
+report `exit status 2` on stderr and return its own nonzero status.
+
+## Strings
+
+`go run ./cmd/gofx run examples/strings/main.gfx` needs no network or stdin.
+Fixed data demonstrates splitting, trimming and joining, Unicode rune indexes
+and counts, replacement of all occurrences, repetition, integer parsing, and
+decimal padding.
+
+Expected output (unverified):
+
+```text
+split: [  red,  green , blue  ]
+join/trim: red / green / blue
+upper: RED / GREEN / BLUE
+replace: baNANA
+substring: é界
+chars: [A, é, 界]
+repeat: hahaha
+parse: Some(42) / None
+padded: [   42]
+length: 3
+```
+
 ## Generated Go
 
 `go run ./cmd/gofx build examples/http/main.gfx` writes

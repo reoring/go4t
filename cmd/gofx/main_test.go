@@ -136,3 +136,77 @@ func TestDiagnosticUsesCheckerFilename(t *testing.T) {
 		}
 	}
 }
+
+func TestRunUsage(t *testing.T) {
+	for _, args := range [][]string{
+		nil,
+		{"run"},
+		{"unknown", "main.gfx"},
+		{"run", "main.gfx", "argument"},
+		{"check", "main.gfx", "--"},
+		{"build", "main.gfx", "--", "argument"},
+	} {
+		err := run(args)
+		want := "gofx:1:1: usage: gofx {check|build} FILE.gfx | gofx run FILE.gfx [-- args...]"
+		if err == nil || err.Error() != want {
+			t.Errorf("run(%q) = %v, want %q", args, err, want)
+		}
+	}
+}
+
+func TestRunPassesProgramArguments(t *testing.T) {
+	if os.Getenv("GOFX_CLI_RUN_ARGS_TEST") == "1" {
+		for i, arg := range os.Args {
+			if arg == "--" {
+				if err := run(os.Args[i+1:]); err != nil {
+					t.Fatal(err)
+				}
+				os.Exit(0)
+			}
+		}
+		t.Fatal("missing helper argument separator")
+	}
+	dir := t.TempDir()
+	root, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	mod := "module argstest\n\ngo 1.22\n\nrequire gofx v0.0.0\nreplace gofx => " + root + "\n"
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(mod), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	file := filepath.Join(dir, "args.gfx")
+	source := `package main
+func main() IO[Unit] {
+    do {
+        values <- args()
+        println(show(values))
+    }
+}
+`
+	if err := os.WriteFile(file, []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, tt := range []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"no arguments", nil, "[]\n"},
+		{"empty separator", []string{"--"}, "[]\n"},
+		{"arguments", []string{"--", "first", "--flag", "two words", "", "日本", "--", "-n"}, "[first, --flag, two words, , 日本, --, -n]\n"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			args := append([]string{"-test.run=^TestRunPassesProgramArguments$", "--", "run", file}, tt.args...)
+			command := exec.Command(os.Args[0], args...)
+			command.Env = append(os.Environ(), "GOFX_CLI_RUN_ARGS_TEST=1")
+			output, err := command.CombinedOutput()
+			if err != nil {
+				t.Fatalf("gofx run args program: %v\n%s", err, output)
+			}
+			if string(output) != tt.want {
+				t.Errorf("output = %q, want %q", output, tt.want)
+			}
+		})
+	}
+}

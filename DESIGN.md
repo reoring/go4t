@@ -211,7 +211,7 @@ left side failed). `ioFail` constructs a failing IO. Panics inside IO are not re
 
 ```
 gofx build DIR/NAME.gfx   # writes DIR/NAME_gen/main.go (package main); several programs may share DIR
-gofx run DIR/NAME.gfx     # build then `go run ./DIR/NAME_gen` from the module root; exit code mirrored
+gofx run DIR/NAME.gfx [-- args]  # build to a temp binary, exec it with inherited stdio; its exit status is mirrored
 gofx check FILE.gfx   # type-check only
 ```
 

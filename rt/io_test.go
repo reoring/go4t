@@ -1,11 +1,15 @@
 package rt
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"io"
 	"os"
 	"os/exec"
+	"reflect"
+	"slices"
+	"strings"
 	"testing"
 )
 
@@ -218,6 +222,164 @@ func TestRunMain(t *testing.T) {
 			}
 			if stdout.String() != tt.stdout || stderr.String() != tt.stderr {
 				t.Errorf("stdout/stderr = (%q, %q), want (%q, %q)", stdout.String(), stderr.String(), tt.stdout, tt.stderr)
+			}
+		})
+	}
+}
+
+func setTestInput(t *testing.T, reader io.Reader) {
+	t.Helper()
+	previous := stdinReader
+	stdinReader = bufio.NewReader(reader)
+	t.Cleanup(func() { stdinReader = previous })
+}
+
+func TestReadLine(t *testing.T) {
+	installTestShapes(t)
+	for _, tt := range []struct {
+		name  string
+		input string
+		want  []any
+	}{
+		{"empty", "", []any{testNone{}, testNone{}}},
+		{"terminated", "one\ntwo\r\n\n", []any{testSome{"one"}, testSome{"two"}, testSome{""}, testNone{}}},
+		{"unterminated", "one\n日本🙂", []any{testSome{"one"}, testSome{"日本🙂"}, testNone{}}},
+		{"bare CR", "one\r", []any{testSome{"one\r"}, testNone{}}},
+		{"long line", strings.Repeat("x", 100000) + "\n", []any{testSome{strings.Repeat("x", 100000)}, testNone{}}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			setTestInput(t, strings.NewReader(tt.input))
+			action := ReadLine().(IO)
+			for i, want := range tt.want {
+				got, err := action()
+				if err != nil || !reflect.DeepEqual(got, want) {
+					t.Fatalf("read %d = (%#v, %v), want (%#v, nil)", i, got, err, want)
+				}
+			}
+		})
+	}
+}
+
+func TestReadLineAndReadAllShareInput(t *testing.T) {
+	installTestShapes(t)
+	setTestInput(t, strings.NewReader("first\r\nsecond\nthird"))
+	readAll, readLine := ReadAll().(IO), ReadLine().(IO)
+	if got, err := readLine(); got != (testSome{"first"}) || err != nil {
+		t.Fatalf("ReadLine = (%#v, %v), want Some(first)", got, err)
+	}
+	if got, err := readAll(); got != "second\nthird" || err != nil {
+		t.Fatalf("ReadAll = (%#v, %v), want remaining buffered input", got, err)
+	}
+	if got, err := readLine(); got != (testNone{}) || err != nil {
+		t.Fatalf("ReadLine after ReadAll = (%#v, %v), want None", got, err)
+	}
+	if got, err := readAll(); got != "" || err != nil {
+		t.Fatalf("ReadAll at EOF = (%#v, %v), want empty string", got, err)
+	}
+}
+
+func TestReadAll(t *testing.T) {
+	for _, input := range []string{"", "one\n日本\r\n🙂", strings.Repeat("long", 30000)} {
+		setTestInput(t, strings.NewReader(input))
+		if got, err := ReadAll().(IO)(); got != input || err != nil {
+			t.Fatalf("ReadAll = (%#v, %v), want (%q, nil)", got, err, input)
+		}
+	}
+}
+
+type failingInput struct{ err error }
+
+func (r failingInput) Read([]byte) (int, error) { return 0, r.err }
+
+func TestInputErrors(t *testing.T) {
+	wantErr := errors.New("input failed")
+	for _, tt := range []struct {
+		name   string
+		action func() any
+	}{
+		{"ReadLine", ReadLine},
+		{"ReadAll", ReadAll},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			setTestInput(t, failingInput{wantErr})
+			if got, err := tt.action().(IO)(); got != nil || err != wantErr {
+				t.Fatalf("%s = (%#v, %v), want (nil, %v)", tt.name, got, err, wantErr)
+			}
+		})
+	}
+}
+
+func TestArgs(t *testing.T) {
+	installTestShapes(t)
+	previous := programArgs
+	t.Cleanup(func() { programArgs = previous })
+	programArgs = []string{"before"}
+	action := Args().(IO)
+	for _, want := range [][]string{nil, {"first", "--flag", "two words", "", "日本"}} {
+		programArgs = want
+		got, err := action()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if values := ListToStrings(got); !slices.Equal(values, want) {
+			t.Errorf("Args = %q, want %q", values, want)
+		}
+	}
+}
+
+func TestGetEnv(t *testing.T) {
+	installTestShapes(t)
+	const name = "GOFX_RT_GET_ENV_TEST"
+	t.Setenv(name, "before")
+	action := GetEnv(name).(IO)
+	t.Setenv(name, "日本 text")
+	if got, err := action(); got != (testSome{"日本 text"}) || err != nil {
+		t.Fatalf("GetEnv = (%#v, %v), want Some of current value", got, err)
+	}
+	t.Setenv(name, "")
+	if got, err := action(); got != (testSome{""}) || err != nil {
+		t.Fatalf("GetEnv empty = (%#v, %v), want Some of empty string", got, err)
+	}
+	if err := os.Unsetenv(name); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := action(); got != (testNone{}) || err != nil {
+		t.Fatalf("GetEnv missing = (%#v, %v), want None", got, err)
+	}
+}
+
+func TestExit(t *testing.T) {
+	if code := os.Getenv("GOFX_RT_EXIT_TEST"); code != "" {
+		n := int64(0)
+		if code == "7" {
+			n = 7
+		}
+		action := Exit(n).(IO)
+		RunMain(Println("before exit"))
+		RunMain(action)
+		RunMain(Println("after exit"))
+		os.Exit(99)
+	}
+	for _, tt := range []struct {
+		value string
+		code  int
+	}{
+		{"0", 0},
+		{"7", 7},
+	} {
+		t.Run(tt.value, func(t *testing.T) {
+			command := exec.Command(os.Args[0], "-test.run=^TestExit$")
+			command.Env = append(os.Environ(), "GOFX_RT_EXIT_TEST="+tt.value)
+			output, err := command.CombinedOutput()
+			var exitErr *exec.ExitError
+			if err != nil && !errors.As(err, &exitErr) {
+				t.Fatal(err)
+			}
+			if code := command.ProcessState.ExitCode(); code != tt.code {
+				t.Errorf("exit code = %d, want %d", code, tt.code)
+			}
+			if string(output) != "before exit\n" {
+				t.Errorf("output = %q, want only the effect before Exit", output)
 			}
 		})
 	}

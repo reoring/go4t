@@ -13,7 +13,7 @@ func AbsInt(a any) any {
 	}
 	return a
 }
-func NegInt(a any) any    { return -a.(int64) }
+func NegInt(a any) any { return -a.(int64) }
 
 // MinInt and MaxInt expose the signed 64-bit bounds through the erased ABI.
 func MinInt() any { return int64(-1 << 63) }

@@ -36,6 +36,58 @@ func TestDataEmission(t *testing.T) {
 		"func main() { rt.RunMain(main_()) }")
 }
 
+func TestRuntimeShapeRegistration(t *testing.T) {
+	for _, tt := range []struct {
+		name       string
+		withList   bool
+		withOption bool
+	}{
+		{name: "neither"},
+		{name: "list only", withList: true},
+		{name: "option only", withOption: true},
+		{name: "both", withList: true, withOption: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			p := fixture()
+			if tt.withList {
+				list(p)
+			}
+			if tt.withOption {
+				option(p)
+			}
+			out := assertSource(t, p)
+			want := tt.withList && tt.withOption
+			wantCount := 0
+			if want {
+				wantCount = 1
+			}
+			if got := strings.Count(out, "func init() {"); got != wantCount {
+				t.Fatalf("init count = %d, want %d:\n%s", got, wantCount, out)
+			}
+			if !want {
+				if strings.Contains(out, "rt.Shapes") || strings.Contains(out, "rt.ShapeFuncs") {
+					t.Fatalf("shape registration without both types:\n%s", out)
+				}
+				return
+			}
+			for _, fragment := range []string{
+				"rt.Shapes = rt.ShapeFuncs{",
+				"Cons: func(h, t any) any { return &List_Cons{F0: h, F1: t} }",
+				"Nil:  func() any { return &List_Nil{} }",
+				"Some: func(a any) any { return &Option_Some{F0: a} }",
+				"None: func() any { return &Option_None{} }",
+				"Uncons: func(l any) (any, any, bool) {",
+				"if c, ok := l.(*List_Cons); ok {\n\t\t\t\treturn c.F0, c.F1, true\n\t\t\t}",
+				"return nil, nil, false",
+			} {
+				if !strings.Contains(out, fragment) {
+					t.Errorf("missing shape fragment %q:\n%s", fragment, out)
+				}
+			}
+		})
+	}
+}
+
 func TestSameNamedTypeAndConstructor(t *testing.T) {
 	p := fixture()
 	data := &types.DataType{Name: "Sku"}
@@ -1209,6 +1261,39 @@ func (fakeImporter) Import(path string) (*gotypes.Package, error) {
 		return nil, fmt.Errorf("unexpected import %q", path)
 	}
 	anyType := gotypes.Universe.Lookup("any").Type()
+	if path == "gofx/rt" {
+		var fields []*gotypes.Var
+		for _, shape := range []struct {
+			name    string
+			params  int
+			results int
+		}{
+			{"Cons", 2, 1},
+			{"Nil", 0, 1},
+			{"Some", 1, 1},
+			{"None", 0, 1},
+			{"Uncons", 1, 3},
+		} {
+			params := make([]*gotypes.Var, shape.params)
+			for i := range params {
+				params[i] = gotypes.NewVar(token.NoPos, pkg, "", anyType)
+			}
+			results := make([]*gotypes.Var, shape.results)
+			for i := range results {
+				typ := anyType
+				if shape.name == "Uncons" && i == 2 {
+					typ = gotypes.Typ[gotypes.Bool]
+				}
+				results[i] = gotypes.NewVar(token.NoPos, pkg, "", typ)
+			}
+			sig := gotypes.NewSignatureType(nil, nil, nil, gotypes.NewTuple(params...), gotypes.NewTuple(results...), false)
+			fields = append(fields, gotypes.NewVar(token.NoPos, pkg, shape.name, sig))
+		}
+		typeName := gotypes.NewTypeName(token.NoPos, pkg, "ShapeFuncs", nil)
+		shapes := gotypes.NewNamed(typeName, gotypes.NewStruct(fields, nil), nil)
+		pkg.Scope().Insert(typeName)
+		pkg.Scope().Insert(gotypes.NewVar(token.NoPos, pkg, "Shapes", shapes))
+	}
 	for name, arity := range funcs {
 		params := make([]*gotypes.Var, arity)
 		for i := range params {

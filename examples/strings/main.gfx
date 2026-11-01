@@ -1,0 +1,19 @@
+package main
+
+func main() IO[Unit] {
+  let pieces = split(",", "  red, green ,blue  ")
+  let cleaned = map(pieces, func(piece) => trim(piece))
+  let text = join(" / ", cleaned)
+  do {
+    println("split: ${pieces}")
+    println("join/trim: " + text)
+    println("upper: " + toUpper(text))
+    println("replace: " + replace("banana", "na", "NA"))
+    println("substring: " + substring("Aé界Z", 1, 3))
+    println("chars: ${chars("Aé界")}")
+    println("repeat: " + repeat("ha", 3))
+    println("parse: ${parseInt("42")} / ${parseInt("oops")}")
+    println("padded: [" + showPadLeft(42, 5) + "]")
+    println("length: ${strLength("Aé界")}")
+  }
+}

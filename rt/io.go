@@ -2,10 +2,13 @@
 package rt
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strconv"
+	"strings"
 )
 
 // Unit is the value returned by effects that have no meaningful result.
@@ -63,3 +66,63 @@ func ShowBool(b any) any { return strconv.FormatBool(b.(bool)) }
 
 // ShowString returns a String unchanged.
 func ShowString(s any) any { return s }
+
+// Keep a single reader so ReadAll includes input buffered by earlier ReadLine calls.
+var stdinReader = bufio.NewReader(os.Stdin)
+var programArgs = os.Args[1:]
+
+// ReadLine defers reading one line from stdin. LF and CRLF terminators are removed;
+// a final unterminated line is Some, and only an empty EOF is None.
+func ReadLine() any {
+	return IO(func() (any, error) {
+		line, err := stdinReader.ReadString('\n')
+		if err != nil && err != io.EOF {
+			return nil, err
+		}
+		if err == io.EOF && line == "" {
+			return NoneOf(), nil
+		}
+		if strings.HasSuffix(line, "\n") {
+			line = strings.TrimSuffix(line, "\n")
+			line = strings.TrimSuffix(line, "\r")
+		}
+		return SomeOf(line), nil
+	})
+}
+
+// ReadAll defers reading the remaining stdin, including any buffered bytes.
+func ReadAll() any {
+	return IO(func() (any, error) {
+		text, err := io.ReadAll(stdinReader)
+		if err != nil {
+			return nil, err
+		}
+		return string(text), nil
+	})
+}
+
+// Args defers constructing the program's arguments, excluding the executable.
+func Args() any {
+	return IO(func() (any, error) {
+		return ListFromStrings(programArgs), nil
+	})
+}
+
+// Exit terminates only when its IO is executed. Runtime stdout is unbuffered.
+func Exit(code any) any {
+	return IO(func() (any, error) {
+		os.Exit(int(code.(int64)))
+		return Unit{}, nil
+	})
+}
+
+// GetEnv distinguishes an absent environment variable from a present empty one.
+func GetEnv(name any) any {
+	return IO(func() (any, error) {
+		value, ok := os.LookupEnv(name.(string))
+		if !ok {
+			return NoneOf(), nil
+		}
+		return SomeOf(value), nil
+	})
+}

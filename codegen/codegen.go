@@ -14,6 +14,8 @@
 // lets evaluate their initializer once and remain monomorphic. Boolean operators
 // short circuit in Go; comparisons dispatch through Eq/Ord dictionaries. Derived
 // instances use the ordinary checked instance representation and dictionary ABI.
+// Programs declaring the standard List and Option constructors register their
+// erased value shapes with rt during init, without exposing generated types to rt.
 package codegen
 
 import (
@@ -91,6 +93,28 @@ func Generate(prog *types.Program, goPackage string) (source []byte, err error) 
 				fmt.Fprintf(&out, "F%d any\n", i)
 			}
 			fmt.Fprintf(&out, "}\nfunc (*%s) is%s() {}\n", ctorName(ctor), d.Name)
+		}
+	}
+	if list, option := prog.DataTypes["List"], prog.DataTypes["Option"]; list != nil && option != nil {
+		cons, nilCtor := g.ctors["Cons"], g.ctors["Nil"]
+		some, none := g.ctors["Some"], g.ctors["None"]
+		if cons != nil && cons.Data == list && len(cons.Fields) == 2 &&
+			nilCtor != nil && nilCtor.Data == list && len(nilCtor.Fields) == 0 &&
+			some != nil && some.Data == option && len(some.Fields) == 1 &&
+			none != nil && none.Data == option && len(none.Fields) == 0 {
+			fmt.Fprintf(&out, `func init() {
+	rt.Shapes = rt.ShapeFuncs{
+		Cons: func(h, t any) any { return &%s{F0: h, F1: t} },
+		Nil: func() any { return &%s{} },
+		Some: func(a any) any { return &%s{F0: a} },
+		None: func() any { return &%s{} },
+		Uncons: func(l any) (any, any, bool) {
+			if c, ok := l.(*%s); ok { return c.F0, c.F1, true }
+			return nil, nil, false
+		},
+	}
+}
+`, ctorName(cons), ctorName(nilCtor), ctorName(some), ctorName(none), ctorName(cons))
 		}
 	}
 	for _, name := range sortedKeys(prog.Classes) {

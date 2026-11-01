@@ -353,6 +353,28 @@ runState[S, A](st State[S, A], s S) (A, S)   evalState …  A   execState … S
 get[S]() State[S, S]   put[S](s S) State[S, Unit]   modify[S](f func(S) S) State[S, Unit]
 ```
 
+Strings (rune-based; `split("", s)` yields runes):
+```
+strLength(s String) Int          strConcat(xs List[String]) String
+join(sep String, xs List[String]) String        split(sep String, s String) List[String]
+lines(s String) List[String]     words(s String) List[String]      trim(s String) String
+toUpper(s String) String         toLower(s String) String
+startsWith(s String, p String) Bool   endsWith(s String, p String) Bool   contains(s String, sub String) Bool
+replace(s String, old String, new String) String   substring(s String, start Int, end Int) String
+chars(s String) List[String]     repeat(s String, n Int) String
+parseInt(s String) Option[Int]   showPadLeft(n Int, width Int) String
+```
+
+Input, arguments and process:
+```
+readLine() IO[Option[String]]    // None at end of input; newline stripped
+readAll() IO[String]             args() IO[List[String]]
+getEnv(name String) IO[Option[String]]
+exit[A](code Int) IO[A]          // terminates the process
+```
+`gofx run FILE.gfx -- a b c` passes `a b c` to `args()`; standard input is inherited and the
+program's exit status is the status of `gofx run`.
+
 ## 8. Compilation model (informative)
 
 Types and dictionaries are erased to Go `any`; classes become Go interfaces, instances
@@ -364,7 +386,7 @@ tuples become `TupleN` structs. Generated code imports `gofx/rt` and the extern 
 
 ## 9. Known limitations
 
-- No floats, chars, arrays, maps, or mutable references.
+- No floats, chars (strings of one rune stand in), arrays, maps, or mutable references.
 - No type ascription on expressions (only on `let` and parameters).
 - Field access on a lambda parameter requires the type to be known (annotation or call
   context).
