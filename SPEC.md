@@ -137,6 +137,10 @@ The first existing directory wins, even if it is empty or invalid; errors do
 not fall through. A filesystem std override retains its logical std identity
 for intrinsic types and reexports, alongside its absolute-directory identity.
 
+`gofxbind/<Go import path>` is a generated directory under the project root,
+not a special import namespace. It resolves by rule 1 exactly like any other
+local subdirectory; no resolver extension or additional search step is needed.
+
 A `gofx.mod` begins with `module <name>`, followed by zero or more single-line
 `require <path> <version>` directives. Blank lines and `//` comments are allowed;
 duplicate requires, extra module directives and other directives are errors.
@@ -1065,13 +1069,14 @@ and linear conversion space; the old quadratic `insertBy` helper is removed.
 
 ```text
 gofx init <module-path>
-gofx get <path>@<version>
+gofx get [--no-bind] <path>@<version>
 gofx check [--full-types] FILE.gfx|DIR...
 gofx build [--full-types] [-o DIR | --emit-go DIR --package NAME] FILE.gfx|DIR...
 gofx run [--full-types] FILE.gfx|DIR... [-- args...]
 gofx test FILE.gfx|DIR...
 gofx eval 'EXPR' [FILE.gfx|DIR...]
 gofx bind IMPORT [FILE.gfx|DIR...] [-o FILE.gfx|DIR] [--prefix STR] [--shim DIR]
+gofx bind --module PATH
 gofx fmt [-w|-d|-l] FILE...|DIR
 gofx lsp
 ```
@@ -1088,16 +1093,33 @@ gofx lsp
   is published atomically and reused. No `.gofx` tree is created in the project.
   `gofx.mod` initially contains only `module <module-path>`. Keep the referenced
   checkout/cache directory available; local replacements are machine-specific.
-- `get` accepts exactly one `<path>@<version>` (not `@none`). From the nearest
-  ancestor `gofx.mod` root, which must also contain `go.mod`, it runs
-  `go get <path>@<version>` with the caller's Go environment and streams.
-  On success it queries Go's selected module version and adds/updates one
-  `require <path> <version>` in `gofx.mod`, preserving comments and other
-  requirements. Version queries such as `@latest` are recorded as the selected
-  version, not the query. On Go failure `gofx.mod` is unchanged; any `go.mod`
-  or `go.sum` changes made by Go are not rolled back. Ordinary Go `replace`
-  directives support offline local libraries; no separate download manager
-  or gofx lockfile is used.
+- `get` accepts exactly one `<path>@<version>` (not `@none`) and optionally
+  `--no-bind`, before or after it. From the nearest ancestor `gofx.mod` root,
+  which must also contain `go.mod`, it runs `go get <path>@<version>` with the
+  caller's Go environment and streams. On success it queries Go's selected
+  module version and adds/updates one `require <path> <version>` in `gofx.mod`,
+  preserving comments and other requirements. Version queries such as `@latest`
+  are recorded as the selected version, not the query. Unless `--no-bind` is
+  present, it then generates declarations and Go shims as described below.
+  On Go failure `gofx.mod` is unchanged; any `go.mod` or `go.sum` changes made by
+  Go are not rolled back. Binding errors do not roll back the successful get or
+  requirement update. Ordinary Go `replace` directives support offline local
+  libraries; no separate download manager or gofx lockfile is used.
+- `bind --module PATH` generates the same bindings without `go get` or changing
+  `gofx.mod`. `PATH` is an already-required Go module (including a local
+  replacement), or one standard package such as `database/sql`, not `std`.
+  Both manifests must exist in the nearest `gofx.mod` root. For a module, Go's
+  `go list -m -json` supplies `Dir`; `go list -e -f '{{.ImportPath}} {{.Name}}'
+  ./...` enumerates packages there with the caller's Go environment. Packages
+  named `main`, `internal` path components, and `_test` packages are excluded.
+  Export data is loaded in the project's selected Go graph; packages that fail
+  to load are skipped with a diagnostic. A standard path binds only that
+  package, not its subpackages. Each package writes
+  `gofxbind/<import path>/bindings.gfx` and `gofx_shim_<base>.go`; the `.gfx`
+  package spelling is the last path component sanitized as a Go identifier.
+  A gofx-only keyword additionally gains a trailing `_`.
+  Re-running regenerates the same bytes when inputs are unchanged. Existing
+  unrelated files are preserved; generated bindings should be committed.
 - `check` loads/checks only; no foreign-signature validation or execution.
 - `--full-types` on `check`, `build` or `run` prints diagnostic types without
   depth elision (§5.2), retaining alias names. It may precede or follow inputs;
@@ -1290,6 +1312,11 @@ A wrong dynamic type panics with
 `gofx shim: Type_Method: receiver is <dynamic Go type>`. A typed nil pointer
 retains the underlying method's nil behaviour. `examples/typed-extern` also
 demonstrates explicit erased Go helpers and generated methods.
+
+`get` and `bind --module` (§8.2) use the same declaration-and-shim pipeline per
+package, placing each in its own `gofxbind/<import path>` directory. Import the
+generated `.gfx` module using that project-relative path (§2.2). Go shims use
+the receiving project's Go module path; no global cache of bindings is involved.
 
 
 ### 8.4 Formatting

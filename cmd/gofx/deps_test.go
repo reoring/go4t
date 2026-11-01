@@ -108,12 +108,14 @@ func TestDependencyCommandArgumentErrors(t *testing.T) {
 		{[]string{"init", "one", "two"}, "usage: gofx init <module-path>"},
 		{[]string{"init", "../escape"}, "gofx init: invalid module path \"../escape\""},
 		{[]string{"init", "bad\nmodule name"}, "gofx init: invalid module path \"bad\\nmodule name\""},
-		{[]string{"get"}, "usage: gofx get <path>@<version>"},
-		{[]string{"get", "example.com/lib"}, "usage: gofx get <path>@<version>"},
-		{[]string{"get", "example.com/lib@"}, "usage: gofx get <path>@<version>"},
-		{[]string{"get", "example.com/lib@none"}, "usage: gofx get <path>@<version>"},
-		{[]string{"get", "example.com/lib@v1.0.0", "extra"}, "usage: gofx get <path>@<version>"},
-		{[]string{"get", "-u@v1.0.0"}, "usage: gofx get <path>@<version>"},
+		{[]string{"get"}, getUsage},
+		{[]string{"get", "example.com/lib"}, getUsage},
+		{[]string{"get", "example.com/lib@"}, getUsage},
+		{[]string{"get", "example.com/lib@none"}, getUsage},
+		{[]string{"get", "example.com/lib@v1.0.0", "extra"}, getUsage},
+		{[]string{"get", "-u@v1.0.0"}, getUsage},
+		{[]string{"get", "--no-bind"}, getUsage},
+		{[]string{"get", "--no-bind", "--no-bind", "example.com/lib@v1.0.0"}, getUsage},
 	} {
 		if err := run(tt.args); err == nil || err.Error() != tt.want {
 			t.Fatalf("run(%q)=%v; want %q", tt.args, err, tt.want)
