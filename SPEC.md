@@ -1355,12 +1355,22 @@ emitted, sorted by Go name.
 - One positional constructor with payloads becomes a struct with `F0`, `F1`, ….
 - All-nullary constructors become an `int` enum. Constants are `<Type><Ctor>` in
   declaration order, starting at zero; `String()` returns the source constructor name.
+  This is independent of `Debug`, including any custom enum `Debug` instance.
 - Other sums become `interface { is<Type>() }` with one `<Type><Ctor>` struct per
   constructor. Marker methods use **value receivers**: type-switch on
   `StepCleanup`, not `*StepCleanup`. Nullary branches are empty structs.
 - A recursively embedded value struct with no slice, map or sum-interface
   indirection is a generation error (`recursive Go value type <name>`), because
   Go cannot represent its infinite size. Recursion through those indirections works.
+
+Record structs, single positional structs, and every constructor value type of a
+payload sum have `func (v <Mirror>) String() string` **only if** the gofx type has a
+`Debug` instance in the program. The method converts through `fromGo_<Mirror>`
+(the sum's converter for a constructor value) and calls that instance's `Debug`
+dictionary method, so the result is exactly gofx `debug(v)`, including custom
+instances. The sum interface itself has no `String` method. Without `Debug`, no
+`String` method is generated for these structs. A record field exported as
+`String` conflicts with this method and is a generation error.
 
 Names colliding with another generated declaration are generation errors rather
 than silently renamed API members. Programmatic `codegen.Generate` calls without
@@ -1370,11 +1380,37 @@ types use deterministic composite names). Lists and maps are copied recursively
 in both directions. Map/Set input keys are sorted before building the persistent
 collection; §10.7 specifies Float NaN-key boundaries.
 
+Conversions copy on every call, with O(size of arguments and result) copy cost.
+Exported functions SHOULD therefore accept a **projection** containing only what
+the decision needs, rather than whole observed objects.
+
 For example, `func fetch(id Int) IO[Observed]` is exported as
 `func Fetch(id int64) func(context.Context) (Observed, error)`.
 Call `Fetch(id)(ctx)` to run the effect. The context reaches the underlying
 `rt.IO`; success is converted to the mirror, and failure returns the zero result
 and a `*rt.Failure` error. The wrapper does not run the IO while constructing it.
+
+#### Integrating with go build
+
+Place this directive in a Go file of the consumer package, beside `core.gfx`,
+with the intended `gofx` version on `PATH`:
+
+```go
+//go:generate gofx build --emit-go core --package core core.gfx
+```
+
+Run `go generate ./...` and commit `core/gofx_export.go` **and all sibling
+generated files**. Ordinary `go build` then compiles the checked-in Go package;
+it does not invoke gofx or run generation automatically. In CI, use the same
+gofx version and run:
+
+```sh
+go generate ./... && git diff --exit-code
+```
+
+This catches generated-code drift. See the Go shell example's README for its
+temporary-module recipe; its `ignore`-tagged example file is selected explicitly
+with `go generate main.go`.
 
 ## 9. Known limitations
 

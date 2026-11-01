@@ -2,6 +2,8 @@
 
 package main
 
+//go:generate gofx build --emit-go core --package core core.gfx
+
 import (
 	"fmt"
 	"reflect"
@@ -25,7 +27,7 @@ func main() {
 	observed.Deleting = true
 	switch step := core.Decide(observed).(type) {
 	case core.StepCleanup:
-		fmt.Println("cleanup:", step.F0)
+		fmt.Printf("cleanup: %v\n", step)
 	default:
 		panic("expected cleanup")
 	}

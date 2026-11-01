@@ -139,6 +139,73 @@ func main() {
 	runMirrorConsumer(t, generated, consumer)
 }
 
+func TestGoMirrorString(t *testing.T) {
+	program := mirrorProgram(t, map[string]string{
+		"main.gfx": `package main
+import "model"
+type Step = Cleanup(Int) | Skip | Named { label: String } deriving Debug
+type Record = Record { names: List[String], step: Step } deriving Debug
+type Box = Box(Int) deriving Debug
+type Custom = Custom { secret: String }
+instance Debug[Custom] { debug(c) { "custom:" + c.secret } }
+type PlainRecord = PlainRecord { string: String }
+type PlainBox = PlainBox(Int) deriving Show
+type PlainSum = Detail(String) | NoDetails
+type Phase = Pending | Ready
+type CustomPhase = First | Last
+instance Debug[CustomPhase] { debug(_p) { "custom phase" } }
+func describeStep(s Step) String { debug(s) }
+func describeRecord(r Record) String { debug(r) }
+func describeBox(b Box) String { debug(b) }
+func describeCustom(c Custom) String { debug(c) }
+func describeRemote(r model.Remote) String { debug(r) }
+func echoPlainRecord(r PlainRecord) PlainRecord { r }
+func echoPlainBox(b PlainBox) PlainBox { b }
+func echoPlainSum(s PlainSum) PlainSum { s }
+func echoPhase(p Phase) Phase { p }
+func describeCustomPhase(p CustomPhase) String { debug(p) }
+func main() IO[Unit] { ioPure(unit()) }
+`,
+		"model/model.gfx": "package model\ntype Remote = Remote { value: Int } deriving Debug\n",
+	})
+	generated, err := Generate(program, "core")
+	if err != nil {
+		t.Fatal(err)
+	}
+	runMirrorConsumer(t, generated, `package main
+import (
+ "fmt"
+ "mirrorcheck/core"
+)
+func equal(got, want string) { if got != want { panic(fmt.Sprintf("String: %q != %q", got, want)) } }
+func main() {
+ equal(fmt.Sprint(core.StepCleanup{F0: 7}), "Cleanup(7)")
+ for _, step := range []core.Step{core.StepCleanup{F0: 7}, core.StepSkip{}, core.StepNamed{Label: "quoted\ntext"}} {
+  equal(fmt.Sprint(step), core.DescribeStep(step))
+ }
+ record := core.Record{Names: []string{"cache", "secrets"}, Step: core.StepCleanup{F0: 7}}
+ equal(fmt.Sprint(record), core.DescribeRecord(record))
+ equal(fmt.Sprint(record), "Record{names: [\"cache\", \"secrets\"], step: Cleanup(7)}")
+ box := core.Box{F0: 9}
+ equal(fmt.Sprint(box), core.DescribeBox(box))
+ equal(fmt.Sprint(box), "Box(9)")
+ custom := core.Custom{Secret: "hidden"}
+ equal(fmt.Sprint(custom), core.DescribeCustom(custom))
+ equal(fmt.Sprint(custom), "custom:hidden")
+ remote := core.ModelRemote{Value: 11}
+ equal(fmt.Sprint(remote), core.DescribeRemote(remote))
+ equal(fmt.Sprint(remote), "Remote{value: 11}")
+ for _, plain := range []any{core.PlainRecord{String: "value"}, core.PlainBox{F0: 1}, core.PlainSumDetail{F0: "value"}, core.PlainSumNoDetails{}} {
+  if _, ok := plain.(fmt.Stringer); ok { panic("String method without Debug") }
+ }
+ equal(fmt.Sprint(core.PhaseReady), "Ready")
+ equal(fmt.Sprint(core.CustomPhaseLast), "Last")
+ equal(core.DescribeCustomPhase(core.CustomPhaseLast), "custom phase")
+ fmt.Println("mirrors ok")
+}
+`)
+}
+
 func runMirrorConsumer(t *testing.T, generated map[string][]byte, consumer string) {
 	t.Helper()
 	dir := t.TempDir()
@@ -224,6 +291,8 @@ func main() IO[Unit] { ioPure(unit()) }
 func TestGoExportNameErrors(t *testing.T) {
 	for _, tt := range []struct{ name, source, want string }{
 		{"fields", "type Record = Record { s: Int, ſ: Int }\nfunc echo(r Record) Record { r }", "duplicate exported field S in Record"},
+		{"String field", "type Record = Record { string: Int } deriving Debug\nfunc echo(r Record) Record { r }", "exported field String conflicts with String method in Record"},
+		{"sum String field", "type Event = Message { string: Int } | Empty deriving Debug\nfunc echo(e Event) Event { e }", "exported field String conflicts with String method in Event"},
 		{"function type", "type Box = Box(Int)\nfunc box(b Box) Box { b }", "Go export name collision: Box"},
 		{"functions", "func s() Int { 1 }\nfunc ſ() Int { 2 }", "Go export name collision: S"},
 		{"recursive value", "type Chain = Chain(Option[Chain])\nfunc echo(c Chain) Chain { c }", "recursive Go value type Chain"},

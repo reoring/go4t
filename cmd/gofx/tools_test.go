@@ -330,8 +330,9 @@ func TestGoShellExample(t *testing.T) {
 	}
 	input := toolsWrite(t, filepath.Join(dir, "core.gfx"), string(source))
 	output := filepath.Join(dir, "core")
-	if err := run([]string{"build", "--emit-go", output, "--package", "core", input}); err != nil {
-		t.Fatal(err)
+	// Match the directive's relative paths, including the generated //line names.
+	if out, stderr, status := toolsCommand(t, dir, "", "build", "--emit-go", "core", "--package", "core", "core.gfx"); status != 0 {
+		t.Fatalf("build Go shell: status=%d\n%s%s", status, out, stderr)
 	}
 	exports, err := os.ReadFile(filepath.Join(output, "gofx_export.go"))
 	if err != nil {
@@ -341,6 +342,8 @@ func TestGoShellExample(t *testing.T) {
 		"func Decide(p0 Observed) Step",
 		"// not exported: identity (type parameters)",
 		"type StepDependenciesPending struct",
+		"func (v Observed) String() string",
+		"func (v StepCleanup) String() string",
 	} {
 		if !strings.Contains(string(exports), fragment) {
 			t.Errorf("exports missing %q:\n%s", fragment, exports)
@@ -362,9 +365,48 @@ func TestGoShellExample(t *testing.T) {
 	toolsWrite(t, filepath.Join(dir, "main.go"), code)
 	command := exec.Command("go", "run", ".")
 	command.Dir = dir
-	want := "pending: [cache secrets]\ncleanup: 7\nround trips: Ready record list option\n"
+	want := "pending: [cache secrets]\ncleanup: Cleanup(7)\nround trips: Ready record list option\n"
 	if out, err := command.CombinedOutput(); err != nil || string(out) != want {
 		t.Fatalf("Go shell output=%q error=%v; want %q", out, err, want)
+	}
+	// Exercise the checked-in directive through a real CLI on PATH, then compare
+	// every emitted file so go generate cannot silently become a no-op or drift.
+	generated := make(map[string][]byte)
+	entries, err := os.ReadDir(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		content, err := os.ReadFile(filepath.Join(output, entry.Name()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		generated[entry.Name()] = content
+	}
+	bin := filepath.Join(t.TempDir(), "gofx")
+	build := exec.Command("go", "build", "-o", bin, ".")
+	if out, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build generation CLI: %v\n%s", err, out)
+	}
+	generate := exec.Command("go", "generate", "-x", "./...")
+	generate.Dir = dir
+	generate.Env = append(os.Environ(), "PATH="+filepath.Dir(bin)+string(os.PathListSeparator)+os.Getenv("PATH"))
+	if out, err := generate.CombinedOutput(); err != nil || !strings.Contains(string(out), "gofx build --emit-go core --package core core.gfx") {
+		t.Fatalf("Go shell generate: %v\n%s", err, out)
+	}
+	entries, err = os.ReadDir(output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != len(generated) {
+		t.Fatalf("go generate changed file count: got %d, want %d", len(entries), len(generated))
+	}
+	for _, entry := range entries {
+		content, err := os.ReadFile(filepath.Join(output, entry.Name()))
+		before, exists := generated[entry.Name()]
+		if err != nil || !exists || !bytes.Equal(content, before) {
+			t.Errorf("go generate changed %s: %v", entry.Name(), err)
+		}
 	}
 	vet := exec.Command("go", "vet", "./core")
 	vet.Dir = dir

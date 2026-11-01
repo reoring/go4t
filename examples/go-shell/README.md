@@ -3,6 +3,7 @@
 `core.gfx` models a controller's pure decision: observed state becomes a `Step`.
 Go owns the mutable world and can switch on typed values rather than inspecting
 an erased runtime representation. See [SPEC §8.7](../../SPEC.md#87-exported-go-api).
+Each conversion copies on every call, so exported functions should take a projection containing only what the decision needs, not whole observed objects.
 
 Build and run from a temporary Go module (starting in the repository root):
 
@@ -12,17 +13,34 @@ work=$(mktemp -d)
 cd "$work"
 go mod init goshell
 go mod edit -require=gofx@v0.0.0 -replace="gofx=$repo"
-go run gofx/cmd/gofx build --emit-go ./core --package core "$repo/examples/go-shell/core.gfx"
+mkdir bin
+go build -o "$work/bin/gofx" gofx/cmd/gofx
+export PATH="$work/bin:$PATH"
+cp "$repo/examples/go-shell/core.gfx" ./core.gfx
 cp "$repo/examples/go-shell/main.go" ./main.go
+go generate main.go
 go run main.go
 go vet ./core
 ```
 
 The checked-in Go consumer has an `ignore` build tag so ordinary repository
-package discovery does not depend on generated code. `go run main.go` explicitly
-selects it. No generated package or extra `go.mod` is checked in.
-`TestGoShellExample` creates its own temporary module, emits the package, and
-compiles/runs this same consumer (adapting only its module import path).
+package discovery does not depend on generated code. `go generate main.go` and
+`go run main.go` explicitly select it. No generated package or extra `go.mod` is
+checked in for this example. `TestGoShellExample` creates its own temporary
+module, emits the package, and compiles/runs this same consumer (removing the
+example-only build tag and adapting its module import path). It also runs
+`go generate ./...` and checks that every generated file is byte-identical.
+
+In a real consumer package, keep the directive in a Go file without the example's
+`ignore` tag:
+
+```go
+//go:generate gofx build --emit-go core --package core core.gfx
+```
+
+Commit `core/gofx_export.go` and its sibling generated files so ordinary
+`go build` needs no generation step. Pin the gofx version and run
+`go generate ./... && git diff --exit-code` in CI to catch drift.
 
 The core Go consumer is:
 
@@ -49,7 +67,7 @@ func main() {
     observed.Deleting = true
     switch step := core.Decide(observed).(type) {
     case core.StepCleanup:
-        fmt.Println("cleanup:", step.F0)
+        fmt.Printf("cleanup: %v\n", step)
     default:
         panic("expected cleanup")
     }
@@ -61,9 +79,13 @@ trips, including independent copies of nested slices. Its output is:
 
 ```text
 pending: [cache secrets]
-cleanup: 7
+cleanup: Cleanup(7)
 round trips: Ready record list option
 ```
+
+`%v` on a record or constructor value uses the gofx type's `Debug` instance,
+including custom instances; these structs have no `String()` without `Debug`.
+Enums always print their constructor names, independently of `Debug`.
 
 `_helper` stays private. The generic `identity[A]` is not exported and is
 explained by `// not exported: identity (type parameters)` in `gofx_export.go`.

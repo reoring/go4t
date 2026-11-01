@@ -27,9 +27,10 @@ type mirrorGenerator struct {
 }
 
 type mirrorType struct {
-	typ    types.Type
-	goType string
-	id     string
+	typ       types.Type
+	goType    string
+	id        string
+	debugDict string
 }
 
 func addGoExports(prog *types.Program, pkg string, prefixes, renamed map[string]string, out map[string][]byte) error {
@@ -127,6 +128,7 @@ func addGoExports(prog *types.Program, pkg string, prefixes, renamed map[string]
 	}
 	for _, key := range sortedKeys(g.entries) {
 		g.emitConverters(&body, g.entries[key])
+		g.emitString(&body, g.entries[key])
 	}
 	for _, f := range functions {
 		g.emitWrapper(&body, f)
@@ -470,6 +472,13 @@ func (g *mirrorGenerator) emitData(out *strings.Builder, m *mirrorType, d *types
 		out.WriteString("default: panic(\"invalid constructor\")\n} }\n")
 		return nil
 	}
+	// Mirrors are monomorphic, so their Debug dictionaries have no type arguments.
+	for _, instance := range g.prog.Instances {
+		if instance.Class.Name == "Debug" && instance.TypeCon.Name == d.Name {
+			m.debugDict = g.internal(instanceName(instance))
+			break
+		}
+	}
 	if len(d.Ctors) > 1 {
 		fmt.Fprintf(out, "type %s interface { is%s() }\n", m.goType, m.goType)
 	}
@@ -488,6 +497,9 @@ func (g *mirrorGenerator) emitData(out *strings.Builder, m *mirrorType, d *types
 			if fields[field] {
 				return g.dataError(d, fmt.Errorf("duplicate exported field %s in %s", field, g.sourceName(d.Name)))
 			}
+			if field == "String" && m.debugDict != "" {
+				return g.dataError(d, fmt.Errorf("exported field String conflicts with String method in %s", g.sourceName(d.Name)))
+			}
 			fields[field] = true
 			fmt.Fprintf(out, "%s %s\n", field, g.goType(f))
 		}
@@ -497,6 +509,22 @@ func (g *mirrorGenerator) emitData(out *strings.Builder, m *mirrorType, d *types
 		}
 	}
 	return nil
+}
+
+func (g *mirrorGenerator) emitString(out *strings.Builder, m *mirrorType) {
+	if m.debugDict == "" {
+		return
+	}
+	d := g.data(m.typ)
+	// The module pass renames method identifiers as well as dictionary types.
+	method := g.internal("Debug")
+	for _, c := range d.Ctors {
+		name := m.goType
+		if len(d.Ctors) > 1 {
+			name += g.sourceName(c.Name)
+		}
+		fmt.Fprintf(out, "func (v %s) String() string { return (%s{}).%s(%s).(string) }\n", name, m.debugDict, method, g.from(m.typ, "v"))
+	}
 }
 
 func (g *mirrorGenerator) to(t types.Type, value string) string {
