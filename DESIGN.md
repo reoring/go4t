@@ -1166,3 +1166,77 @@ parameterised user data types. Fully applied applications are mirrorable by mono
   `Window`; the controller's Go adapter uses `decide.FetchedPlanFound{F0: …}` etc.; all tests
   there unchanged and passing; `go generate` idempotent.
 
+
+## Pass 17: interpreter loop for controllers that write mid-decision
+
+Input: the approval controller proved read-only decisions; the reviewer asked how thick the Go
+"shell" becomes when the decision requires a write (or a further read) in the middle. Target:
+`examples/attachment-repair-controller` (verbatim copy of platform
+`storage_attachment_repair_operation_controller.go`; its 973 lines include a compare-and-swap
+`Delete` at the decision's centre and a dependent-read observation chain).
+
+### Boundary
+
+- **Observation stays in Go.** `observeBase`/`classifyInitialAttachments`/`observeAttachmentNodes`/
+  `observeAuthorizedSafety` are dependent reads with I/O classification reasons
+  (`PersistentVolumeNotFound`, `PodTargetNotUnique`, …); they are kept verbatim and project to a
+  small result sum. Their reason strings cross as opaque `String` (I/O-layer facts, like error
+  messages), not as `Reason` constructors.
+- **The workflow state machine moves to gofx** (`decide/decide.gfx`): everything in
+  `reconcileOperation` and `reconcileAuthorized`, plus `readBoundApproval`'s pure part
+  (`validateAttachmentRepairApprovalBinding`, expiry, state derivation).
+
+### Interpreter protocol (the design under test)
+
+`decide(o Observed) Action` is pure and total. `Observed` carries every observation as an
+`Option`/sum that starts empty; `Action` is
+
+```
+type Action = ObserveInitial | ObserveAuthorized | DeleteStale | Publish(Status)
+```
+
+Go runs a loop: call `Decide`; on `ObserveInitial`/`ObserveAuthorized` perform that observation,
+fill the field, call again; on `DeleteStale` perform the compare-and-swap delete, fill
+`deleteResult: Option[DeleteResult]`, call again; on `Publish` build the status map and stop. The
+loop is generic (no controller-specific branching), bounded (each iteration fills one more field;
+`decide` never asks for a field already filled — a `panic("decide asked twice")` guard in Go makes
+that invariant observable), and reruns the pure function with strictly more information. No
+continuations are encoded in `Action`: the next decision is simply `decide` again.
+
+Projection types:
+
+```
+type Mode = DryRun | Live(ApprovalRead)
+type ApprovalRead = NoRef | ReadFailed | Missing | Read(Approval)      // Go reads the object
+type Approval = Approval{ deleting, refMatches, opIdentityMatches: Bool, generation: Option[Int],
+                          targetBindingMatches, digestValid, evidenceComplete: Bool,
+                          approvedAt, expiresAt: Timestamp, phase: String, digest: String }
+type Timestamp = NoTimestamp | InvalidTimestamp | AtNanos(Int)          // from Pass 16 example
+type Observation = ObsBlocked(String, String) | ObsOk(String)            // reason, message | digest
+type AuthorizedObservation = AuthBlocked(String, String)
+                           | AuthOk{ target: Target, digest: String, currentAttached: Bool }
+type Target = Present | Deleting | Absent
+type DeleteResult = Deleted | CasFailed | DeleteFailed
+type Observed = Observed{ mode: Mode, featureGateEnabled, authorized, committed, requested: Bool,
+                          approvedObservationDigest: String, nowNanos: Int,
+                          initial: Option[Observation], authorized: Option[AuthorizedObservation],
+                          deleteResult: Option[DeleteResult] }
+type Status = Blocked(String, ReasonCode, String) | Running(String, String, Bool)
+            | Succeeded(String, String, Bool) | AwaitingApproval | Authorized | Committed
+type ReasonCode = Decided(Reason) | Observed(String)
+```
+
+`Status` names the status-builder the Go side already has (`blockedStatus`, `runningStatus`, …);
+requeue is derived from the constructor (Blocked/Running/AwaitingApproval → interval, others → 0).
+Go passes whichever observation has been performed (initial or authorized) to the builder, and the
+approval object when it was read — this rule reproduces every `nil`/non-nil argument in the
+original call sites (verified by reading L100-205). `Authorized` implies
+`safety["approvalMatchesObservation"] = true` (the original sets it just before building).
+
+### Measure
+
+Report (a) Go lines of the interpreter loop and status mapping, (b) number of decision iterations
+per path (max 3: approval → observation → delete), (c) oracle tests unchanged and passing, (d)
+`go generate` idempotent. The interpreter is the cost; it must not grow with the number of
+decision branches.
+
