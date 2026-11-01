@@ -143,9 +143,9 @@ type ExprBase struct {
 	Ann any
 }
 
-func (e *ExprBase) GetPos() Pos    { return e.Pos }
-func (e *ExprBase) AnnSlot() *any  { return &e.Ann }
-func (e *ExprBase) exprNode()      {}
+func (e *ExprBase) GetPos() Pos   { return e.Pos }
+func (e *ExprBase) AnnSlot() *any { return &e.Ann }
+func (e *ExprBase) exprNode()     {}
 
 type Ident struct {
 	ExprBase
