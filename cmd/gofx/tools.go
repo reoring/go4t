@@ -178,6 +178,10 @@ func testHarness(files []*ast.File) (*ast.File, error) {
 				for _, method := range d.Methods {
 					names[method.Name] = true
 				}
+			case *ast.TypeDecl:
+				for _, ctor := range d.Ctors {
+					names[ctor.Name] = true
+				}
 			case *ast.FuncDecl:
 				names[d.Name] = true
 				if d.Extern != nil || len(d.Params) != 0 || len(d.TParams) != 0 ||
@@ -190,26 +194,69 @@ func testHarness(files []*ast.File) (*ast.File, error) {
 			}
 		}
 	}
-	runner := "gofxTestRun"
-	for names[runner] {
-		runner += "_"
+	fresh := func(name string) string {
+		for names[name] {
+			name += "_"
+		}
+		names[name] = true
+		return name
 	}
+	runner := fresh("gofxTestRun")
+	// Bound both do-bind scope depth and sum expression depth, including when
+	// there are more leaves than a single aggregation helper can call.
+	const batchSize = 64
+	var results [batchSize]string
+	for i := range results {
+		results[i] = fresh("gofxTestResult" + strconv.Itoa(i))
+	}
+	passed := fresh("gofxTestPassed")
 	var source strings.Builder
 	fmt.Fprintf(&source, "package main\nimport \"std/io\"\nextern func %s(name String, action func() IO[Bool]) IO[Bool] = %q.Run\n", runner, "gofx/rt/testrt")
-	source.WriteString("func main() IO[Unit] { do {\n")
-	for i, test := range tests {
-		action := test.Name + "()"
-		if !isIOBool(test.Ret) {
-			action = "ioPure(" + action + ")"
+	helpers := make([]string, 0, (len(tests)+batchSize-1)/batchSize)
+	for start := 0; start < len(tests); start += batchSize {
+		end := min(start+batchSize, len(tests))
+		helper := fresh("gofxTestBatch" + strconv.Itoa(len(helpers)))
+		helpers = append(helpers, helper)
+		fmt.Fprintf(&source, "func %s() IO[Int] { do {\n", helper)
+		for i, test := range tests[start:end] {
+			action := test.Name + "()"
+			if !isIOBool(test.Ret) {
+				action = "ioPure(" + action + ")"
+			}
+			fmt.Fprintf(&source, "%s <- %s(%s, func() => %s)\n", results[i], runner, strconv.Quote(test.Name), action)
 		}
-		fmt.Fprintf(&source, "gofxTestResult%d <- %s(%s, func() => %s)\n", i, runner, strconv.Quote(test.Name), action)
+		source.WriteString("ioPure(0")
+		for i := range end - start {
+			fmt.Fprintf(&source, " + (if %s { 1 } else { 0 })", results[i])
+		}
+		source.WriteString(")\n} }\n")
 	}
-	source.WriteString("let gofxTestPassed = 0")
-	for i := range tests {
-		fmt.Fprintf(&source, " + (if gofxTestResult%d { 1 } else { 0 })", i)
+	for level := 0; len(helpers) > 1; level++ {
+		parents := make([]string, 0, (len(helpers)+batchSize-1)/batchSize)
+		for start := 0; start < len(helpers); start += batchSize {
+			end := min(start+batchSize, len(helpers))
+			helper := fresh(fmt.Sprintf("gofxTestGroup%d_%d", level, len(parents)))
+			parents = append(parents, helper)
+			fmt.Fprintf(&source, "func %s() IO[Int] { do {\n", helper)
+			for i, child := range helpers[start:end] {
+				fmt.Fprintf(&source, "%s <- %s()\n", results[i], child)
+			}
+			source.WriteString("ioPure(0")
+			for i := range end - start {
+				fmt.Fprintf(&source, " + %s", results[i])
+			}
+			source.WriteString(")\n} }\n")
+		}
+		helpers = parents
 	}
-	fmt.Fprintf(&source, "\nprintln(show(gofxTestPassed) + \" passed, \" + show(%d - gofxTestPassed) + \" failed\")\n", len(tests))
-	fmt.Fprintf(&source, "if gofxTestPassed == %d { ioPure(unit()) } else { io.exit(1) }\n} }\n", len(tests))
+	source.WriteString("func main() IO[Unit] { do {\n")
+	action := "ioPure(0)"
+	if len(helpers) != 0 {
+		action = helpers[0] + "()"
+	}
+	fmt.Fprintf(&source, "%s <- %s\n", passed, action)
+	fmt.Fprintf(&source, "println(show(%s) + \" passed, \" + show(%d - %s) + \" failed\")\n", passed, len(tests), passed)
+	fmt.Fprintf(&source, "if %s == %d { ioPure(unit()) } else { io.exit(1) }\n} }\n", passed, len(tests))
 	file, err := parser.Parse(source.String())
 	if err != nil {
 		return nil, diagnostic("<test>", err)

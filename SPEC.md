@@ -1144,9 +1144,14 @@ gofx lsp
   suffix, no value parameters, and explicit `Bool` or `IO[Bool]` return syntax.
   Other functions are still checked. Tests run once in file/declaration order,
   print `PASS name` / `FAIL name` / `FAIL name: error`, then `N passed, M failed`.
+  Sequential helpers contain at most 64 tests each; bounded aggregation levels
+  preserve that order and count every result without a suite-sized expression
+  or scope. Large suites use the same parser limits and validation as small ones.
   False/IO errors do not stop later tests; failures exit 1; an empty suite is
   `0 passed, 0 failed`, exit 0. Panics use ordinary runtime policy, not a new
-  per-test recovery. Alias return syntax is not test discovery syntax.
+  per-test recovery; tests may catch them with `io.tryIO`. Alias return syntax
+  is not test discovery syntax. Generated helper and result names avoid names
+  declared by the input.
 - `eval` removes user main, checks `println(show(EXPR))`, then tries an IO bind
   wrapper if needed. If both fail it reports the **first** diagnostic. EXPR must
   be exactly one expression. Supporting imports are copied from the first entry

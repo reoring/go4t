@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"go/format"
 	"os"
 	"os/exec"
@@ -129,27 +130,70 @@ func testAfterError() IO[Bool] { ioPure(true) }
 	}
 }
 
-func TestTestHarnessExcludesExterns(t *testing.T) {
-	file, err := parser.Parse(`package main
-extern func testExternal() Bool = "example".Test
+func TestTestCommandExcludesExterns(t *testing.T) {
+	dir := toolsModule(t)
+	toolsWrite(t, filepath.Join(dir, "foreign.go"), "package clitoolstest\nfunc Excluded() bool { return false }\n")
+	file := toolsWrite(t, filepath.Join(dir, "tests.gfx"), `package main
+extern func testExternal() Bool = "clitoolstest".Excluded
 func testOrdinary() Bool { true }
 `)
-	if err != nil {
-		t.Fatal(err)
+	out, stderr, status := toolsCommand(t, dir, "", "test", file)
+	if out != "PASS testOrdinary\n1 passed, 0 failed\n" || stderr != "" || status != 0 {
+		t.Fatalf("stdout=%q stderr=%q status=%d", out, stderr, status)
 	}
-	harness, err := testHarness([]*ast.File{{}, file})
-	if err != nil {
-		t.Fatal(err)
-	}
-	body := harness.Decls[1].(*ast.FuncDecl).Body.Result.(*ast.Do)
-	var names []string
-	for _, stmt := range body.Stmts {
-		if bind, ok := stmt.(*ast.DoBind); ok {
-			names = append(names, bind.X.(*ast.Call).Args[0].(*ast.StringLit).Value)
+}
+
+func TestTestCommandLargeSuite(t *testing.T) {
+	dir := toolsModule(t)
+	toolsWrite(t, filepath.Join(dir, "foreign.go"), "package clitoolstest\nfunc PanicBool() bool { panic(\"boom\") }\n")
+	var source, want strings.Builder
+	source.WriteString(`package main
+import "std/io"
+extern func panicBool() Bool = "clitoolstest".PanicBool
+func main() Int { missing }
+func gofxTestRun() Bool { true }
+func gofxTestBatch0() Bool { true }
+func gofxTestGroup0_0() Bool { true }
+func gofxTestGroup1_0() Bool { true }
+func gofxTestResult0() Bool { true }
+func gofxTestPassed() Bool { true }
+`)
+	// More than 64 leaves exercises aggregation beyond one level, not merely
+	// the original 952-test scope-depth failure.
+	const count = 4097
+	passed := 0
+	for i := range count {
+		name := fmt.Sprintf("testCase%d", i)
+		body, result := "", "PASS"
+		switch i % 5 {
+		case 0:
+			body = "Bool { gofxTestRun() && gofxTestBatch0() && gofxTestGroup0_0() && gofxTestGroup1_0() && gofxTestResult0() && gofxTestPassed() }"
+		case 1:
+			body, result = "Bool { false }", "FAIL"
+		case 2:
+			body = fmt.Sprintf("IO[Bool] { do { println(\"STEP %d\"); ioPure(true) } }", i)
+			fmt.Fprintf(&want, "STEP %d\n", i)
+		case 3:
+			body, result = "IO[Bool] { ioFail(\"broken\") }", "FAIL"
+		case 4:
+			body = "IO[Bool] { do { caught <- io.tryIO(do { println(\"PANIC\"); ioPure(panicBool()) }); ioPure(caught == Err(io.Panic(\"boom\"))) } }"
+			want.WriteString("PANIC\n")
+		}
+		fmt.Fprintf(&source, "func %s() %s\n", name, body)
+		fmt.Fprintf(&want, "%s %s", result, name)
+		if i%5 == 3 {
+			want.WriteString(": broken")
+		}
+		want.WriteByte('\n')
+		if result == "PASS" {
+			passed++
 		}
 	}
-	if len(names) != 1 || names[0] != "testOrdinary" {
-		t.Fatalf("collected tests = %v", names)
+	fmt.Fprintf(&want, "%d passed, %d failed\n", passed, count-passed)
+	file := toolsWrite(t, filepath.Join(dir, "tests.gfx"), source.String())
+	out, stderr, status := toolsCommand(t, dir, "", "test", file)
+	if out != want.String() || stderr != "" || status != 1 {
+		t.Fatalf("stdout=%q stderr=%q status=%d; want stdout=%q status=1", out, stderr, status, want.String())
 	}
 }
 
