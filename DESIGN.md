@@ -401,9 +401,13 @@ func mapM[M[_] Monad, A, B](xs List[A], f func(A) M[B]) M[List[B]]
 via `forEach` + `modify`, output unchanged.
 
 ### Vet-clean generated code
-`match` lowering ends with the last arm's code reachable and the
-`panic("non-exhaustive match")` emitted only when the checker's exhaustiveness proof does
-not already make the last arm total: emit the final arm WITHOUT a guard (plain fallthrough
-after all other arms failed) when the match is exhaustive (always, after Check); the panic
-is therefore never emitted. `go vet ./...` must pass on a tree containing every example's
-`main_gen/` directory; `cmd/gofx` test runs `go vet` on a generated example.
+`match` lowering emits the final arm without a guard when its pattern is irrefutable at
+every position (var, wildcard, tuple of irrefutables, or the sole constructor of a
+single-constructor type): the checker's exhaustiveness proof makes it total once the earlier
+arms have failed. A final arm whose pattern still contains a refutable position (a literal,
+or a constructor of a multi-constructor type at a nested position) keeps its guard and the
+lowering keeps a trailing `panic("non-exhaustive match")`; that panic is unreachable at
+runtime but Go's compiler cannot see that, and `go vet` does not flag a `panic` tail. In
+both forms no statement follows the last `return`/`panic`, so `go vet ./...` passes on a
+tree containing every example's `main_gen/` directory; the `cmd/gofx` test vets a built
+program.
