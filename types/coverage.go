@@ -53,10 +53,26 @@ type coverageCase struct {
 	name    string
 	fields  []Type
 	tuple   bool
+	list    bool
 	literal bool
 }
 
 func (k coverageCase) render(fields []string) string {
+	if k.list {
+		if len(fields) == 0 {
+			return "[]"
+		}
+		switch fields[1] {
+		case "_":
+			return "[" + fields[0] + ", ..]"
+		case "[]":
+			return "[" + fields[0] + "]"
+		default:
+			// The tail is itself a canonical List witness; splice its
+			// elements without parsing the (possibly nested) head.
+			return "[" + fields[0] + ", " + fields[1][1:]
+		}
+	}
 	if k.tuple {
 		return "(" + strings.Join(fields, ", ") + ")"
 	}
@@ -165,7 +181,7 @@ func (c *checker) uncovered(rows [][]ast.Pattern, columns []Type, limit int) [][
 				for i, field := range ctor.Fields {
 					fields[i] = substitute(field, sub)
 				}
-				cases = append(cases, coverageCase{name: ctor.Name, fields: fields})
+				cases = append(cases, coverageCase{name: ctor.Name, fields: fields, list: con.Name == "List"})
 			}
 		} else if con == Bool && len(present) != 0 {
 			cases = []coverageCase{{name: "false", literal: true}, {name: "true", literal: true}}

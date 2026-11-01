@@ -34,6 +34,7 @@
 //	Pattern  := '_' | Lit | Ident [ '(' [ Pattern { ',' Pattern } ] ')' ]
 //	          | UpperIdent RecordPatternFields
 //	          | LowerIdent '@' Pattern | '(' Pattern ')' | '(' Pattern ',' Pattern { ',' Pattern } ')'
+//	          | '[' [ Pattern { ',' Pattern } [ ',' '..' [ LowerIdent | '_' ] ] [ ',' ] ] ']'
 //	RecordPatternFields := '{' ( '..' [ ',' ] | NamedPattern { ',' NamedPattern } [ ',' '..' ] [ ',' ] ) '}'
 //	NamedPattern := Ident ':' Pattern // names must be unique; '..' must be last; no field punning
 //	LowerIdent := Ident // starts with a lower-case letter; '@' only follows a bare variable name
@@ -803,6 +804,9 @@ func (p *Parser) pattern() (pat ast.Pattern) {
 			p.next()
 			return &ast.PWild{Pos: t.Pos}
 		}
+		if t.Text == "[" {
+			return p.listPattern()
+		}
 		if t.Text == "(" {
 			p.next()
 			first := p.pattern()
@@ -885,6 +889,53 @@ func (p *Parser) pattern() (pat ast.Pattern) {
 	}
 	p.fail(t.Pos, "expected pattern, found %s", t)
 	return nil
+}
+
+func (p *Parser) listPattern() ast.Pattern {
+	pos := p.expectP("[").Pos
+	var elems []ast.Pattern
+	var tail ast.Pattern
+	for !p.isP("]") {
+		if p.isP("..") {
+			restPos := p.next().Pos
+			if len(elems) == 0 {
+				p.fail(restPos, "list rest pattern needs a preceding element")
+			}
+			switch {
+			case p.isP("_"):
+				t := p.next()
+				tail = &ast.PWild{Pos: t.Pos, End: p.end()}
+			case p.tok().Kind == lexer.Ident && !isUpper(p.tok().Text):
+				t := p.next()
+				tail = &ast.PVar{Pos: t.Pos, End: p.end(), Name: t.Text}
+			case p.isP("]") || p.isP(","):
+				tail = &ast.PWild{Pos: restPos, End: p.end()}
+			default:
+				p.fail(p.pos(), "list rest must be a lower-case name or _")
+			}
+			p.acceptP(",")
+			if !p.isP("]") {
+				p.fail(restPos, ".. must be last in list pattern")
+			}
+			break
+		}
+		elems = append(elems, p.pattern())
+		if !p.acceptP(",") {
+			break
+		}
+	}
+	closePos := p.expectP("]").Pos
+	end := p.end()
+	if tail == nil {
+		tail = &ast.PCtor{Pos: closePos, End: end, Name: "Nil"}
+	}
+	for i := len(elems) - 1; i >= 0; i-- {
+		tail = &ast.PCtor{Pos: elems[i].GetPos(), End: end, Name: "Cons", Args: []ast.Pattern{elems[i], tail}}
+	}
+	root := tail.(*ast.PCtor)
+	root.Pos = pos
+	root.List = true
+	return root
 }
 
 func isUpper(s string) bool {
