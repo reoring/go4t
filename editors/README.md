@@ -76,5 +76,5 @@ bounds child termination.
 The protocol, command wiring and example are tested by Go tests; no interactive
 VS Code session was exercised in this slice. See
 [`examples/lsp/README.md`](../examples/lsp/README.md) for the observed scripted
-session and exact JSON responses, and [`docs/slices/lsp.md`](../docs/slices/lsp.md)
-for the source-level API and integration notes.
+session and exact JSON responses. Current protocol, module, and boundary contracts
+are in [`SPEC.md` §8.5 and §10.8](../SPEC.md#85-editor-protocol).

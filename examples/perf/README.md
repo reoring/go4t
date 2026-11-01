@@ -54,4 +54,6 @@ The copy binds the concrete dictionary statically and removes the hidden
 `Combine` parameter. Dictionary methods retain the erased `any` ABI, so that
 method call is an intentional boxing boundary. The generic entry remains for
 calls whose dictionaries are not concrete or whose specialization budget is
-exhausted. See `docs/slices/perf.md` for limits, semantics, and measured budgets.
+exhausted. See [SPEC §8.1](../../SPEC.md#81-go-generation-and-performance-informative)
+for limits and semantics, and [§8.6](../../SPEC.md#86-performance-evidence-historical-not-a-portability-guarantee)
+for historical host measurements and budgets.
