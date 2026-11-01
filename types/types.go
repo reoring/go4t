@@ -67,6 +67,43 @@ type TApp struct {
 	Args []Type
 }
 
+// App constructs a type application, flattening leading applications (including
+// resolved inference variables). With no arguments it returns the constructor.
+// Argument slices are shared when no flattening is needed and must not be mutated.
+func App(fun Type, args ...Type) Type {
+	fun = prune(fun)
+	base, total := fun, len(args)
+	for {
+		app, ok := base.(*TApp)
+		if !ok {
+			break
+		}
+		total += len(app.Args)
+		base = prune(app.Fun)
+	}
+	if base != fun {
+		if len(args) == 0 {
+			if app := fun.(*TApp); app.Fun == base {
+				return fun
+			}
+		}
+		flat := make([]Type, total)
+		offset := total - len(args)
+		copy(flat[offset:], args)
+		for head := fun; head != base; {
+			app := head.(*TApp)
+			offset -= len(app.Args)
+			copy(flat[offset:], app.Args)
+			head = prune(app.Fun)
+		}
+		return &TApp{Fun: base, Args: flat}
+	}
+	if len(args) == 0 {
+		return fun
+	}
+	return &TApp{Fun: fun, Args: args}
+}
+
 type TFunc struct {
 	Params []Type
 	Ret    Type
@@ -171,9 +208,9 @@ type Method struct {
 	Scheme *Scheme
 }
 
-// Instance is `instance C[T]` or `instance C[T[A..]] given D[A]..`. Params are
-// the head's rigid variables (kind *); Context are the constraints on them, in
-// declaration order. Codegen emits one dict field per Context entry.
+// Instance represents a bare, fully applied, or partially applied instance head.
+// Params (full heads) and Fixed (partial heads) are rigid variables of kind *.
+// Context preserves declaration order; codegen emits one dict field per entry.
 type Instance struct {
 	Class   *Class
 	TypeCon *TCon

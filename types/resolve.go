@@ -109,11 +109,11 @@ func (b *bodyChecker) resolveDictionary(constraint Constraint) (DictRef, string)
 		head, args = prune(app.Fun), app.Args
 	}
 	if con, ok := head.(*TCon); ok {
-		if inst := b.c.instances[instanceKey{constraint.Class, con.Name}]; inst != nil && len(inst.Params) == len(args) {
+		if inst := b.c.instances[instanceKey{constraint.Class, con.Name}]; inst != nil && len(inst.headParams()) == len(args) {
 			dict := DictRef{Kind: DictInstance, Class: constraint.Class, Instance: inst}
 			if len(inst.Context) != 0 {
-				sub := make(map[*TVar]Type, len(inst.Params))
-				for i, param := range inst.Params {
+				sub := make(map[*TVar]Type, len(inst.headParams()))
+				for i, param := range inst.headParams() {
 					sub[param] = args[i]
 				}
 				dict.Args = make([]DictRef, len(inst.Context))

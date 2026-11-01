@@ -38,7 +38,11 @@ func kindOf(t Type) Kind {
 	case *TMeta:
 		return t.Kind
 	case *TApp:
-		return kindOf(t.Fun).(KArrow).Ret
+		k := kindOf(t.Fun).(KArrow)
+		if len(t.Args) < len(k.Params) {
+			return KArrow{Params: k.Params[len(t.Args):], Ret: k.Ret}
+		}
+		return k.Ret
 	case *TFunc:
 		return KStar{}
 	default:
@@ -52,6 +56,18 @@ func prune(t Type) Type {
 	if m, ok := t.(*TMeta); ok && m.Ref != nil {
 		*m.Ref = prune(*m.Ref)
 		return *m.Ref
+	}
+	return t
+}
+
+// Inference may resolve an application's head to another application after its
+// construction. Flatten only that case; unchanged types remain shared.
+func normalize(t Type) Type {
+	t = prune(t)
+	if app, ok := t.(*TApp); ok {
+		if _, nested := prune(app.Fun).(*TApp); nested {
+			return App(app.Fun, app.Args...)
+		}
 	}
 	return t
 }
@@ -105,7 +121,7 @@ func bindMeta(pos ast.Pos, meta *TMeta, typ Type) {
 }
 
 func unifyTypes(pos ast.Pos, expected, actual Type) bool {
-	expected, actual = prune(expected), prune(actual)
+	expected, actual = normalize(expected), normalize(actual)
 	if expected == actual {
 		return true
 	}
@@ -123,12 +139,18 @@ func unifyTypes(pos ast.Pos, expected, actual Type) bool {
 		actual, ok := actual.(*TCon)
 		return ok && expected.Name == actual.Name
 	case *TApp:
-		if actual, ok := actual.(*TApp); ok && len(expected.Args) == len(actual.Args) {
-			if !unifyTypes(pos, expected.Fun, actual.Fun) {
+		if actual, ok := actual.(*TApp); ok {
+			ef, ea, af, aa := expected.Fun, expected.Args, actual.Fun, actual.Args
+			if extra := len(ea) - len(aa); extra > 0 {
+				ef, ea = App(ef, ea[:extra]...), ea[extra:]
+			} else if extra < 0 {
+				af, aa = App(af, aa[:-extra]...), aa[-extra:]
+			}
+			if !unifyTypes(pos, ef, af) {
 				return false
 			}
-			for i, arg := range expected.Args {
-				if !unifyTypes(pos, arg, actual.Args[i]) {
+			for i, arg := range ea {
+				if !unifyTypes(pos, arg, aa[i]) {
 					return false
 				}
 			}
@@ -160,7 +182,7 @@ func substitute(t Type, sub map[*TVar]Type) Type {
 			if args == nil {
 				args = t.Args
 			}
-			return &TApp{Fun: fun, Args: args}
+			return App(fun, args...)
 		}
 	case *TFunc:
 		params, ret := substituteList(t.Params, sub), substitute(t.Ret, sub)
@@ -254,7 +276,7 @@ func zonk(pos ast.Pos, t Type) Type {
 			if args == nil {
 				args = t.Args
 			}
-			return &TApp{Fun: fun, Args: args}
+			return App(fun, args...)
 		}
 	case *TFunc:
 		var params []Type

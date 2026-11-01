@@ -2,43 +2,37 @@ package main
 
 // ===== ドメイン =====
 
-type Sku = MkSku(String)
-type Stock = MkStock(Sku, Int)               // 在庫: sku, 数量
-type Line = MkLine(Sku, Int)                 // 注文明細: sku, 要求数
+type Sku = Sku(String)
+type Stock = Stock(Sku, Int)               // 在庫: sku, 数量
+type Line = Line(Sku, Int)                 // 注文明細: sku, 要求数
 
-type Result[A] = Err(String) | Ok(A)       // 自前の Either(エラーは String 固定: 部分適用が無いため)
-
-type Pair[A, B] = MkPair(A, B)
+type Result[E, A] = Err(E) | Ok(A)         // 自前の Either
 
 // ===== 型クラスのインスタンス =====
 
 instance Show[Sku] {
-  show(s) { match s { | MkSku(code) => code } }
+  show(s) { match s { | Sku(code) => code } }
 }
 
 instance Show[Stock] {
-  show(s) { match s { | MkStock(sku, qty) => show(sku) + "=" + show(qty) } }
+  show(s) { match s { | Stock(sku, qty) => show(sku) + "=" + show(qty) } }
 }
 
 instance Show[Line] {
-  show(l) { match l { | MkLine(sku, qty) => show(qty) + "x" + show(sku) } }
+  show(l) { match l { | Line(sku, qty) => show(qty) + "x" + show(sku) } }
 }
 
-instance Show[Pair[A, B]] given Show[A], Show[B] {
-  show(p) { match p { | MkPair(a, b) => "(" + show(a) + ", " + show(b) + ")" } }
-}
-
-instance Show[Result[A]] given Show[A] {
+instance Show[Result[E, A]] given Show[E], Show[A] {
   show(r) {
     match r {
-      | Err(e) => "Err(" + e + ")"
+      | Err(e) => "Err(" + show(e) + ")"
       | Ok(a) => "Ok(" + show(a) + ")"
     }
   }
 }
 
 // Result[E, _] は Functor / Monad。Monad は Functor のサブクラスなので両方書く
-instance Functor[Result] {
+instance Functor[Result[E]] {
   fmap(r, f) {
     match r {
       | Err(e) => Err(e)
@@ -47,7 +41,7 @@ instance Functor[Result] {
   }
 }
 
-instance Monad[Result] {
+instance Monad[Result[E]] {
   pure(a) { Ok(a) }
   bind(r, f) {
     match r {
@@ -60,7 +54,7 @@ instance Monad[Result] {
 // ===== 純粋ロジック =====
 
 func sameSku(a Sku, b Sku) Bool {
-  match MkPair(a, b) { | MkPair(MkSku(x), MkSku(y)) => x == y }
+  match (a, b) { | (Sku(x), Sku(y)) => x == y }
 }
 
 // 複数倉庫の在庫を sku ごとに合算
@@ -69,24 +63,24 @@ func merge(stocks List[Stock]) List[Stock] {
 }
 
 func addStock(acc List[Stock], s Stock) List[Stock] {
-  match MkPair(acc, s) {
-    | MkPair(Nil, _) => [s]
-    | MkPair(Cons(MkStock(sku, qty), rest), MkStock(sku2, qty2)) =>
-        if sameSku(sku, sku2) { Cons(MkStock(sku, qty + qty2), rest) }
-        else { Cons(MkStock(sku, qty), addStock(rest, s)) }
+  match (acc, s) {
+    | (Nil, _) => [s]
+    | (Cons(whole @ Stock(sku, qty), rest), Stock(sku2, qty2)) =>
+        if sameSku(sku, sku2) { Cons(Stock(sku, qty + qty2), rest) }
+        else { Cons(whole, addStock(rest, s)) }
   }
 }
 
 func available(stocks List[Stock], sku Sku) Int {
   fold(stocks, 0, func(acc, s) => match s {
-    | MkStock(sku2, qty) => if sameSku(sku, sku2) { acc + qty } else { acc }
+    | Stock(sku2, qty) => if sameSku(sku, sku2) { acc + qty } else { acc }
   })
 }
 
 // 1 明細の引当。失敗理由を Err に積む
-func allocate(stocks List[Stock], line Line) Result[Line] {
+func allocate(stocks List[Stock], line Line) Result[String, Line] {
   match line {
-    | MkLine(sku, want) =>
+    | Line(sku, want) =>
         if want <= 0 { Err("invalid quantity for " + show(sku)) }
         else if available(stocks, sku) < want { Err("short of " + show(sku) + ": need " + show(want) + ", have " + show(available(stocks, sku))) }
         else { Ok(line) }
@@ -94,7 +88,7 @@ func allocate(stocks List[Stock], line Line) Result[Line] {
 }
 
 // 注文全体の引当: Result モナドで最初の失敗で止まる
-func allocateAll(stocks List[Stock], lines List[Line]) Result[List[Line]] {
+func allocateAll(stocks List[Stock], lines List[Line]) Result[String, List[Line]] {
   match lines {
     | Nil => Ok([])
     | Cons(l, rest) => do {
@@ -108,8 +102,8 @@ func allocateAll(stocks List[Stock], lines List[Line]) Result[List[Line]] {
 // 引当後の在庫を減らす
 func consume(stocks List[Stock], lines List[Line]) List[Stock] {
   fold(lines, stocks, func(acc, l) => match l {
-    | MkLine(sku, want) => fmap(acc, func(s) => match s {
-        | MkStock(sku2, qty) => if sameSku(sku, sku2) { MkStock(sku2, qty - want) } else { s }
+    | Line(sku, want) => fmap(acc, func(s) => match s {
+        | Stock(sku2, qty) => if sameSku(sku, sku2) { Stock(sku2, qty - want) } else { s }
       })
   })
 }
@@ -123,7 +117,7 @@ func tag[F[_] Functor, A Show](fa F[A], prefix String) F[String] {
 
 extern func httpGet(url String) IO[Int] = "gofx/rt/stdhttp".GetStatus
 
-func report(title String, r Result[List[Line]]) IO[Unit] {
+func report(title String, r Result[String, List[Line]]) IO[Unit] {
   println(title + ": " + show(r))
 }
 
@@ -140,12 +134,12 @@ func notify(lines List[Line]) IO[Unit] {
 }
 
 func main() IO[Unit] {
-  let warehouseA = [MkStock(MkSku("apple"), 5), MkStock(MkSku("pear"), 2)]
-  let warehouseB = [MkStock(MkSku("apple"), 3), MkStock(MkSku("fig"), 9)]
+  let warehouseA = [Stock(Sku("apple"), 5), Stock(Sku("pear"), 2)]
+  let warehouseB = [Stock(Sku("apple"), 3), Stock(Sku("fig"), 9)]
   let stocks = merge(append(warehouseA, warehouseB))
-  let order1 = [MkLine(MkSku("apple"), 7), MkLine(MkSku("fig"), 1)]
-  let order2 = [MkLine(MkSku("apple"), 7), MkLine(MkSku("pear"), 3)]
-  let order3 = [MkLine(MkSku("apple"), 0)]
+  let order1 = [Line(Sku("apple"), 7), Line(Sku("fig"), 1)]
+  let order2 = [Line(Sku("apple"), 7), Line(Sku("pear"), 3)]
+  let order3 = [Line(Sku("apple"), 0)]
   do {
     println("stocks:   " + show(stocks))
     println("tagged:   " + show(tag(stocks, "stock:")))
@@ -160,7 +154,7 @@ func main() IO[Unit] {
         }
       | Err(e) => println("  skipped: " + e)
     }
-    x <- tag(ioPure(MkPair(1, true)), "io:")
+    x <- tag(ioPure((1, true)), "io:")
     println(x)
   }
 }

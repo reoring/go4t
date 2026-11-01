@@ -2,7 +2,10 @@ package types
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"gofx/ast"
 )
@@ -11,7 +14,6 @@ type instanceKey struct{ class, con string }
 
 type checker struct {
 	program   *Program
-	names     map[string]bool
 	cons      map[string]*TCon
 	ctors     map[string]*Ctor
 	methods   map[string]*Method
@@ -20,15 +22,18 @@ type checker struct {
 }
 
 // Check collects all declarations before checking bodies, so signatures and
-// instances may refer forward across files. Files share one namespace and must
-// be supplied in prelude-first order. On success every expression, including
-// literals in patterns, has a fully resolved Ann. No input annotation is used
+// instances may refer forward across files. Files share type, constructor and
+// value namespaces and must be supplied in prelude-first order. Every expression,
+// including literals in patterns, has a fully resolved Ann. No input annotation is used
 // as evidence: the same parsed files may safely be checked again.
 // Declared identifiers may not use the generated-code prefixes dict_ or ext_.
 //
 // List literals use the prelude List data type. Parameterized instance heads
 // bind rigid variables; their contexts supply dictionaries during body checking
 // and become recursive dictionary arguments at each concrete instance use.
+// Tuples are builtin product types, and as-patterns bind their whole sub-value.
+// Partial instance heads bind leading Fixed variables; applications and inferred
+// higher-kinded instantiations are normalized to a single constructor and args.
 //
 // Unresolved ordinary metas default to Unit only when no class constraint
 // depends on them. Unresolved higher-kinded metas are errors: Unit cannot be a
@@ -46,11 +51,11 @@ func Check(files []*ast.File) (program *Program, err error) {
 	}()
 	c := &checker{
 		program: &Program{Classes: make(map[string]*Class), DataTypes: make(map[string]*DataType), Funcs: make(map[string]*FuncInfo), Files: files},
-		names:   make(map[string]bool), cons: make(map[string]*TCon), ctors: make(map[string]*Ctor),
+		cons:    make(map[string]*TCon), ctors: make(map[string]*Ctor),
 		methods: make(map[string]*Method), instances: make(map[instanceKey]*Instance),
 	}
 	for _, con := range []*TCon{Int, String, Bool, Unit, IO} {
-		c.cons[con.Name], c.names[con.Name] = con, true
+		c.cons[con.Name] = con
 	}
 	c.collectNames(files)
 	c.checkSuperclasses(files)
@@ -72,7 +77,7 @@ func Check(files []*ast.File) (program *Program, err error) {
 				for _, method := range decl.Methods {
 					m := c.methods[method.Name]
 					sub := map[*TVar]Type{inst.Class.Param: head}
-					scope := paramScope(inst.Params)
+					scope := paramScope(inst.headParams())
 					if scope[inst.Class.Param.Name] == nil {
 						scope[inst.Class.Param.Name] = head
 					}
@@ -108,12 +113,43 @@ func checkName(pos ast.Pos, name string) {
 	}
 }
 
-func (c *checker) reserve(pos ast.Pos, name string) {
+func capitalised(name string) bool {
+	first, _ := utf8.DecodeRuneInString(name)
+	return unicode.IsUpper(first)
+}
+
+func checkValueName(pos ast.Pos, name string) {
 	checkName(pos, name)
-	if c.names[name] {
+	first, _ := utf8.DecodeRuneInString(name)
+	if !unicode.IsLower(first) {
+		fail(pos, "value name must start with a lower-case letter")
+	}
+}
+
+func (c *checker) typeCon(name string) *TCon {
+	if con := c.cons[name]; con != nil {
+		return con
+	}
+	if suffix, ok := strings.CutPrefix(name, "Tuple"); ok {
+		if n, err := strconv.Atoi(suffix); err == nil && n >= 2 && strconv.Itoa(n) == suffix {
+			return Tuple(n)
+		}
+	}
+	return nil
+}
+
+func (c *checker) reserveType(pos ast.Pos, name string) {
+	checkName(pos, name)
+	if c.typeCon(name) != nil || c.program.Classes[name] != nil {
 		fail(pos, "duplicate declaration %s", name)
 	}
-	c.names[name] = true
+}
+
+func (c *checker) reserveValue(pos ast.Pos, name string) {
+	checkValueName(pos, name)
+	if c.program.Funcs[name] != nil || c.methods[name] != nil {
+		fail(pos, "duplicate declaration %s", name)
+	}
 }
 
 func arityKind(arity int) Kind {
@@ -132,18 +168,18 @@ func (c *checker) collectNames(files []*ast.File) {
 		for _, decl := range file.Decls {
 			switch decl := decl.(type) {
 			case *ast.ClassDecl:
-				c.reserve(decl.Pos, decl.Name)
+				c.reserveType(decl.Pos, decl.Name)
 				checkName(decl.Pos, decl.Param.Name)
 				class := &Class{Name: decl.Name, Param: &TVar{Name: decl.Param.Name, Kind: arityKind(decl.Param.Arity)}, Super: decl.Super, Decl: decl}
 				c.program.Classes[decl.Name] = class
 				for _, method := range decl.Methods {
-					c.reserve(method.Pos, method.Name)
+					c.reserveValue(method.Pos, method.Name)
 					m := &Method{Name: method.Name, Class: class}
 					class.Methods = append(class.Methods, m)
 					c.methods[m.Name] = m
 				}
 			case *ast.TypeDecl:
-				c.reserve(decl.Pos, decl.Name)
+				c.reserveType(decl.Pos, decl.Name)
 				data := &DataType{Name: decl.Name}
 				seen := make(map[string]bool)
 				for _, name := range decl.TParams {
@@ -157,13 +193,19 @@ func (c *checker) collectNames(files []*ast.File) {
 				c.program.DataTypes[data.Name] = data
 				c.cons[data.Name] = &TCon{Name: data.Name, Kind: arityKind(len(data.TParams))}
 				for i, ctor := range decl.Ctors {
-					c.reserve(ctor.Pos, ctor.Name)
+					checkName(ctor.Pos, ctor.Name)
+					if !capitalised(ctor.Name) {
+						fail(ctor.Pos, "constructor name must be capitalised")
+					}
+					if c.ctors[ctor.Name] != nil {
+						fail(ctor.Pos, "duplicate declaration %s", ctor.Name)
+					}
 					ct := &Ctor{Name: ctor.Name, Data: data, Index: i}
 					data.Ctors = append(data.Ctors, ct)
 					c.ctors[ct.Name] = ct
 				}
 			case *ast.FuncDecl:
-				c.reserve(decl.Pos, decl.Name)
+				c.reserveValue(decl.Pos, decl.Name)
 				c.program.Funcs[decl.Name] = &FuncInfo{Name: decl.Name, Decl: decl}
 			}
 		}
@@ -236,7 +278,7 @@ func (c *checker) scheme(pos ast.Pos, tparams []ast.TypeParam, params []ast.Para
 	s.Type = &TFunc{Params: make([]Type, len(params))}
 	seen := make(map[string]bool)
 	for i, p := range params {
-		checkName(pos, p.Name)
+		checkValueName(pos, p.Name)
 		if seen[p.Name] {
 			fail(pos, "duplicate parameter %s", p.Name)
 		}
@@ -276,7 +318,7 @@ func (c *checker) resolveType(t ast.Type, scope map[string]Type) Type {
 	case *ast.TypeName:
 		base := scope[t.Name]
 		if base == nil {
-			if con := c.cons[t.Name]; con != nil {
+			if con := c.typeCon(t.Name); con != nil {
 				base = con
 			}
 		}
@@ -287,7 +329,7 @@ func (c *checker) resolveType(t ast.Type, scope map[string]Type) Type {
 			return base
 		}
 		k, ok := kindOf(base).(KArrow)
-		if !ok || len(k.Params) != len(t.Args) {
+		if !ok || len(t.Args) > len(k.Params) {
 			fail(t.Pos, "kind mismatch applying %s to %d arguments", t.Name, len(t.Args))
 		}
 		args := make([]Type, len(t.Args))
@@ -295,13 +337,19 @@ func (c *checker) resolveType(t ast.Type, scope map[string]Type) Type {
 			args[i] = c.resolveType(arg, scope)
 			requireKind(typePos(arg), kindOf(args[i]), k.Params[i])
 		}
-		return &TApp{Fun: base, Args: args}
+		return App(base, args...)
 	case *ast.FuncType:
 		f := &TFunc{Params: make([]Type, len(t.Params)), Ret: c.valueType(t.Ret, scope)}
 		for i, param := range t.Params {
 			f.Params[i] = c.valueType(param, scope)
 		}
 		return f
+	case *ast.TupleType:
+		args := make([]Type, len(t.Elems))
+		for i, elem := range t.Elems {
+			args[i] = c.valueType(elem, scope)
+		}
+		return App(Tuple(len(args)), args...)
 	default:
 		panic("missing syntactic type")
 	}
@@ -312,6 +360,8 @@ func typePos(t ast.Type) ast.Pos {
 	case *ast.TypeName:
 		return t.Pos
 	case *ast.FuncType:
+		return t.Pos
+	case *ast.TupleType:
 		return t.Pos
 	default:
 		panic("missing syntactic type")
@@ -331,36 +381,49 @@ func (c *checker) collectInstances(files []*ast.File) {
 			if !ok {
 				continue
 			}
-			class, con := c.program.Classes[d.Class], c.cons[d.TypeCon]
+			class, con := c.program.Classes[d.Class], c.typeCon(d.TypeCon)
 			if class == nil {
 				fail(d.Pos, "unknown class %s", d.Class)
 			}
 			if con == nil {
 				fail(d.Pos, "unknown type constructor %s", d.TypeCon)
 			}
-			if len(d.Params) == 0 {
-				requireKind(d.Pos, con.Kind, class.Param.Kind)
-			} else {
-				requireKind(d.Pos, class.Param.Kind, KStar{})
+			names := d.Params
+			if len(d.Fixed) != 0 {
+				names = d.Fixed
+			}
+			residual := con.Kind
+			if len(names) != 0 {
 				kind, ok := con.Kind.(KArrow)
-				if !ok || len(kind.Params) != len(d.Params) {
-					fail(d.Pos, "kind mismatch applying %s to %d arguments", con.Name, len(d.Params))
+				if !ok || len(names) > len(kind.Params) {
+					fail(d.Pos, "kind mismatch applying %s to %d arguments", con.Name, len(names))
 				}
+				residual = kind.Ret
+				if len(names) < len(kind.Params) {
+					residual = KArrow{Params: kind.Params[len(names):], Ret: kind.Ret}
+				}
+				requireKind(d.Pos, class.Param.Kind, residual)
+			} else {
+				requireKind(d.Pos, con.Kind, class.Param.Kind)
 			}
 			key := instanceKey{class.Name, con.Name}
 			if c.instances[key] != nil {
 				fail(d.Pos, "duplicate instance %s[%s]", class.Name, con.Name)
 			}
 			inst := &Instance{Class: class, TypeCon: con, Decl: d}
-			scope := make(map[string]*TVar, len(d.Params))
-			for _, name := range d.Params {
+			scope := make(map[string]*TVar, len(names))
+			for _, name := range names {
 				checkName(d.Pos, name)
 				if scope[name] != nil {
 					fail(d.Pos, "duplicate type parameter %s", name)
 				}
 				param := &TVar{Name: name, Kind: KStar{}}
 				scope[name] = param
-				inst.Params = append(inst.Params, param)
+				if _, partial := residual.(KArrow); partial {
+					inst.Fixed = append(inst.Fixed, param)
+				} else {
+					inst.Params = append(inst.Params, param)
+				}
 			}
 			constrained := make(map[string]bool, len(d.Context))
 			for _, constraint := range d.Context {
@@ -383,9 +446,9 @@ func (c *checker) collectInstances(files []*ast.File) {
 			c.program.Instances = append(c.program.Instances, inst)
 			seen := make(map[string]bool)
 			for _, m := range d.Methods {
-				checkName(m.Pos, m.Name)
+				checkValueName(m.Pos, m.Name)
 				for _, name := range m.Params {
-					checkName(m.Pos, name)
+					checkValueName(m.Pos, name)
 				}
 				method := c.methods[m.Name]
 				if method == nil || method.Class != class {
@@ -419,21 +482,26 @@ func (c *checker) collectInstances(files []*ast.File) {
 	}
 }
 
-func (inst *Instance) head() Type {
-	if len(inst.Params) == 0 {
-		return inst.TypeCon
+func (inst *Instance) headParams() []*TVar {
+	if len(inst.Fixed) != 0 {
+		return inst.Fixed
 	}
-	args := make([]Type, len(inst.Params))
-	for i, param := range inst.Params {
+	return inst.Params
+}
+
+func (inst *Instance) head() Type {
+	params := inst.headParams()
+	args := make([]Type, len(params))
+	for i, param := range params {
 		args[i] = param
 	}
-	return &TApp{Fun: inst.TypeCon, Args: args}
+	return App(inst.TypeCon, args...)
 }
 
 // Compare parameter positions, not names: contexts are alpha-equivalent, but
 // constraining a different head argument would pass the wrong superclass dict.
 func sameInstanceContext(inst, parent *Instance) bool {
-	if len(inst.Params) != len(parent.Params) || len(inst.Context) != len(parent.Context) {
+	if len(inst.Fixed) != len(parent.Fixed) || len(inst.Params) != len(parent.Params) || len(inst.Context) != len(parent.Context) {
 		return false
 	}
 	for i, constraint := range inst.Context {
@@ -441,8 +509,8 @@ func sameInstanceContext(inst, parent *Instance) bool {
 		if constraint.Class != other.Class {
 			return false
 		}
-		for j, param := range inst.Params {
-			if constraint.Arg == param && other.Arg != parent.Params[j] {
+		for j, param := range inst.headParams() {
+			if constraint.Arg == param && other.Arg != parent.headParams()[j] {
 				return false
 			}
 		}

@@ -191,9 +191,40 @@ func TestInstanceHeadsAndContexts(t *testing.T) {
 			if !reflect.DeepEqual(d.Params, tc.params) || !reflect.DeepEqual(d.Context, tc.context) {
 				t.Errorf("params/context = %#v / %#v, want %#v / %#v", d.Params, d.Context, tc.params, tc.context)
 			}
+			if len(d.Fixed) != 0 {
+				t.Errorf("Fixed = %v, want checker to split head arguments", d.Fixed)
+			}
 			if len(d.Methods) != 1 || d.Methods[0].Name != "value" ||
 				!reflect.DeepEqual(d.Methods[0].Params, []string{"x"}) || exprShape(d.Methods[0].Body.Result) != "x" {
 				t.Errorf("methods = %#v", d.Methods)
+			}
+		})
+	}
+}
+
+func TestTupleAndPartialInstanceHeads(t *testing.T) {
+	for _, tc := range []struct {
+		head, class, typeCon string
+		params               []string
+		context              []string
+	}{
+		{"Show[(A, B)] given Show[A], Show[B]", "Show", "Tuple2", []string{"A", "B"}, []string{"A", "B"}},
+		{"Show[(A, B, C)]", "Show", "Tuple3", []string{"A", "B", "C"}, nil},
+		{"Functor[Result[E]]", "Functor", "Result", []string{"E"}, nil},
+		{"Functor[Result[E]] given Show[E]", "Functor", "Result", []string{"E"}, []string{"E"}},
+	} {
+		t.Run(tc.head, func(t *testing.T) {
+			d := parse(t, "package main\ninstance "+tc.head+" {}").Decls[0].(*ast.InstanceDecl)
+			if d.Class != tc.class || d.TypeCon != tc.typeCon || !reflect.DeepEqual(d.Params, tc.params) || len(d.Fixed) != 0 {
+				t.Fatalf("instance = %#v, want %s[%s] with Params %v and no Fixed", d, tc.class, tc.typeCon, tc.params)
+			}
+			if len(d.Context) != len(tc.context) {
+				t.Fatalf("context = %#v, want Show constraints on %v", d.Context, tc.context)
+			}
+			for i, param := range tc.context {
+				if d.Context[i].Class != "Show" || d.Context[i].Param != param {
+					t.Errorf("constraint = %#v, want Show[%s]", d.Context[i], param)
+				}
 			}
 		})
 	}
@@ -217,6 +248,58 @@ func TestInstanceHeadErrorsWithPositions(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestTupleAndParenthesisedTypes(t *testing.T) {
+	f := parse(t, `package main
+func pairs[A, B](pair (A, B), pairs List[(A, B)], nested (A, (B, A)), triple (A, B, A), plain (A), apply func((A, B)) (B, A)) (A, B) { pair }
+func grouped[A, B](apply (func(A) B)) ((A)) { x }
+`)
+	d := f.Decls[0].(*ast.FuncDecl)
+	pair := tupleType(t, d.Params[0].Type, "A", "B")
+	if pair.Pos != (ast.Pos{Line: 2, Col: 23}) {
+		t.Errorf("tuple position = %s, want 2:23", pair.Pos)
+	}
+	list, ok := d.Params[1].Type.(*ast.TypeName)
+	if !ok || list.Name != "List" || len(list.Args) != 1 {
+		t.Fatalf("list type = %#v", d.Params[1].Type)
+	}
+	tupleType(t, list.Args[0], "A", "B")
+	nested, ok := d.Params[2].Type.(*ast.TupleType)
+	if !ok || len(nested.Elems) != 2 {
+		t.Fatalf("nested tuple = %#v", d.Params[2].Type)
+	}
+	typeName(t, nested.Elems[0], "A")
+	tupleType(t, nested.Elems[1], "B", "A")
+	tupleType(t, d.Params[3].Type, "A", "B", "A")
+	typeName(t, d.Params[4].Type, "A")
+	ft, ok := d.Params[5].Type.(*ast.FuncType)
+	if !ok || len(ft.Params) != 1 {
+		t.Fatalf("function type = %#v", d.Params[5].Type)
+	}
+	tupleType(t, ft.Params[0], "A", "B")
+	tupleType(t, ft.Ret, "B", "A")
+	tupleType(t, d.Ret, "A", "B")
+	grouped := f.Decls[1].(*ast.FuncDecl)
+	ft, ok = grouped.Params[0].Type.(*ast.FuncType)
+	if !ok || len(ft.Params) != 1 {
+		t.Fatalf("parenthesised function type = %#v", grouped.Params[0].Type)
+	}
+	typeName(t, ft.Params[0], "A")
+	typeName(t, ft.Ret, "B")
+	typeName(t, grouped.Ret, "A")
+}
+
+func tupleType(t *testing.T, typ ast.Type, names ...string) *ast.TupleType {
+	t.Helper()
+	tuple, ok := typ.(*ast.TupleType)
+	if !ok || len(tuple.Elems) != len(names) {
+		t.Fatalf("type = %#v, want tuple with elements %v", typ, names)
+	}
+	for i, name := range names {
+		typeName(t, tuple.Elems[i], name)
+	}
+	return tuple
 }
 
 func TestLambdas(t *testing.T) {
@@ -314,6 +397,77 @@ func TestMatchPatterns(t *testing.T) {
 	}
 	if _, ok := m.Arms[6].Pat.(*ast.PWild); !ok {
 		t.Errorf("wildcard = %T", m.Arms[6].Pat)
+	}
+}
+
+func TestTupleAndAsPatterns(t *testing.T) {
+	for _, tc := range []struct{ src, want string }{
+		{"(a, (b, c))", "(a, (b, c))"},
+		{"(a, b, c)", "(a, b, c)"},
+		{"(x)", "x"},
+		{"((Some(x)))", "Some(x)"},
+		{"Some(whole @ MkStock(sku, qty))", "Some(whole @ MkStock(sku, qty))"},
+		{"whole @ (left, right)", "whole @ (left, right)"},
+		{"(whole @ MkStock(sku, qty), rest)", "(whole @ MkStock(sku, qty), rest)"},
+		{"outer @ inner @ Some(x)", "outer @ inner @ Some(x)"},
+		{"whole @ _", "whole @ _"},
+		{"value @ 1", "value @ 1"},
+		{"α @ Some(x)", "α @ Some(x)"},
+	} {
+		t.Run(tc.src, func(t *testing.T) {
+			m := result(t, "match value { | "+tc.src+" => value | _ => fallback }").(*ast.Match)
+			if len(m.Arms) != 2 {
+				t.Fatalf("arms = %#v, want two arms", m.Arms)
+			}
+			if got := patternShape(m.Arms[0].Pat); got != tc.want {
+				t.Errorf("pattern = %s, want %s", got, tc.want)
+			}
+			if _, ok := m.Arms[1].Pat.(*ast.PWild); !ok {
+				t.Errorf("second pattern = %T, want wildcard", m.Arms[1].Pat)
+			}
+			if exprShape(m.Arms[0].Body) != "value" || exprShape(m.Arms[1].Body) != "fallback" {
+				t.Errorf("arm bodies = %#v", m.Arms)
+			}
+		})
+	}
+	m := result(t, "match value { (x, whole @ Some(y)) => x }").(*ast.Match)
+	tuple := m.Arms[0].Pat.(*ast.PTuple)
+	if tuple.Pos != (ast.Pos{Line: 2, Col: 33}) {
+		t.Errorf("tuple position = %s, want 2:33", tuple.Pos)
+	}
+	as := tuple.Elems[1].(*ast.PAs)
+	if as.Pos != (ast.Pos{Line: 2, Col: 37}) {
+		t.Errorf("as-pattern position = %s, want 2:37", as.Pos)
+	}
+	if pat := result(t, "match x { (x) => x }").(*ast.Match).Arms[0].Pat; patternShape(pat) != "x" {
+		t.Errorf("parenthesised variable = %T, want PVar", pat)
+	}
+}
+
+func patternShape(p ast.Pattern) string {
+	switch p := p.(type) {
+	case *ast.PVar:
+		return p.Name
+	case *ast.PWild:
+		return "_"
+	case *ast.PLit:
+		return exprShape(p.X)
+	case *ast.PCtor:
+		args := make([]string, len(p.Args))
+		for i, arg := range p.Args {
+			args[i] = patternShape(arg)
+		}
+		return p.Name + "(" + strings.Join(args, ", ") + ")"
+	case *ast.PTuple:
+		elems := make([]string, len(p.Elems))
+		for i, elem := range p.Elems {
+			elems[i] = patternShape(elem)
+		}
+		return "(" + strings.Join(elems, ", ") + ")"
+	case *ast.PAs:
+		return p.Name + " @ " + patternShape(p.Pat)
+	default:
+		return fmt.Sprintf("%T", p)
 	}
 }
 
@@ -444,6 +598,73 @@ func TestListLiterals(t *testing.T) {
 	}
 }
 
+func TestTupleLiteralsAndParentheses(t *testing.T) {
+	for _, tc := range []struct {
+		src, want string
+		size      int
+	}{
+		{"(a, b)", "(a, b)", 2},
+		{"(a, (b, c))", "(a, (b, c))", 2},
+		{"(a, b, c)", "(a, b, c)", 3},
+		{"(a + b, f(c))", "((a + b), f(c))", 2},
+		{"(\n a,\n b)", "(a, b)", 2},
+	} {
+		t.Run(tc.src, func(t *testing.T) {
+			e := result(t, tc.src)
+			tuple, ok := e.(*ast.TupleLit)
+			if !ok || len(tuple.Elems) != tc.size {
+				t.Fatalf("expression = %#v, want tuple with %d elements", e, tc.size)
+			}
+			if tuple.GetPos() != (ast.Pos{Line: 2, Col: 19}) || exprShape(tuple) != tc.want {
+				t.Errorf("tuple = %s at %s, want %s at 2:19", exprShape(tuple), tuple.GetPos(), tc.want)
+			}
+		})
+	}
+	for _, src := range []string{"(x)", "((x))"} {
+		if e, ok := result(t, src).(*ast.Ident); !ok || e.Name != "x" {
+			t.Errorf("%s is not a parenthesised identifier: %#v", src, e)
+		}
+	}
+	call := result(t, "f((a, b), [(c, d)])").(*ast.Call)
+	if len(call.Args) != 2 || exprShape(call) != "f((a, b), [(c, d)])" {
+		t.Errorf("tuple call/list = %#v", call)
+	}
+}
+
+func TestTupleAndAsPatternErrors(t *testing.T) {
+	for _, tc := range []struct{ name, decl, want string }{
+		{"empty expression", "func f() Int { () }", `expected expression, found ")"`},
+		{"singleton expression comma", "func f() Int { (a,) }", `expected expression, found ")"`},
+		{"expression trailing comma", "func f() Int { (a, b,) }", `expected expression, found ")"`},
+		{"empty type", "func f(x ()) Int { x }", `expected identifier, found ")"`},
+		{"singleton type comma", "func f(x (A,)) Int { x }", `expected identifier, found ")"`},
+		{"type trailing comma", "func f(x (A, B,)) Int { x }", `expected identifier, found ")"`},
+		{"empty pattern", "func f() Int { match x { () => 0 } }", `expected pattern, found ")"`},
+		{"singleton pattern comma", "func f() Int { match x { (a,) => 0 } }", `expected pattern, found ")"`},
+		{"pattern trailing comma", "func f() Int { match x { (a, b,) => 0 } }", `expected pattern, found ")"`},
+		{"uppercase binder", "func f() Int { match x { Whole @ Some(a) => 0 } }", "as-pattern name must be a lower-case identifier"},
+		{"underscore binder", "func f() Int { match x { _whole @ Some(a) => 0 } }", "as-pattern name must be a lower-case identifier"},
+		{"wildcard binder", "func f() Int { match x { _ @ Some(a) => 0 } }", `expected "=>", found "@"`},
+		{"literal binder", "func f() Int { match x { 1 @ Some(a) => 0 } }", `expected "=>", found "@"`},
+		{"parenthesised binder", "func f() Int { match x { (whole) @ Some(a) => 0 } }", `expected "=>", found "@"`},
+		{"constructor binder", "func f() Int { match x { Some(a) @ other => 0 } }", `expected "=>", found "@"`},
+		{"missing inner pattern", "func f() Int { match x { whole @ => 0 } }", `expected pattern, found "=>"`},
+		{"as in expression", "func f() Int { whole @ other }", `expected expression, found "@"`},
+		{"empty tuple head", "instance Show[()] {}", `expected identifier, found ")"`},
+		{"singleton tuple head", "instance Show[(A)] {}", "tuple instance head needs at least two elements"},
+		{"tuple head trailing comma", "instance Show[(A, B,)] {}", `expected identifier, found ")"`},
+		{"duplicate tuple head param", "instance Show[(A, A)] {}", "duplicate instance type parameter A"},
+		{"undeclared tuple context param", "instance Show[(A, B)] given Show[C] {}", "undeclared instance type parameter C"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := parser.Parse("package main\n" + tc.decl)
+			if err == nil || !strings.HasSuffix(err.Error(), ": "+tc.want) {
+				t.Fatalf("error = %v, want suffix %q", err, tc.want)
+			}
+		})
+	}
+}
+
 func TestListIsNotIndexing(t *testing.T) {
 	f := parse(t, "package main\nfunc f() List[Int] { xs[1] }")
 	b := f.Decls[0].(*ast.FuncDecl).Body
@@ -542,6 +763,12 @@ func exprShape(e ast.Expr) string {
 			elems[i] = exprShape(elem)
 		}
 		return "[" + strings.Join(elems, ", ") + "]"
+	case *ast.TupleLit:
+		elems := make([]string, len(e.Elems))
+		for i, elem := range e.Elems {
+			elems[i] = exprShape(elem)
+		}
+		return "(" + strings.Join(elems, ", ") + ")"
 	case *ast.Lambda:
 		return "lambda"
 	default:

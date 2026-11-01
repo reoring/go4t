@@ -32,7 +32,7 @@ func TestSemicolonInsertion(t *testing.T) {
 }
 
 func TestNoSemicolonInsertion(t *testing.T) {
-	for _, src := range []string{"=>", "<-", "{", "+", "-", "*", "/", "==", "!=", "<", "<=", ">", ">=", "&&", "||", "!", "=", "(", "[", ",", ":", "|", "func", "let"} {
+	for _, src := range []string{"=>", "<-", "{", "+", "-", "*", "/", "==", "!=", "<", "<=", ">", ">=", "&&", "||", "!", "=", "(", "[", ",", ":", "|", "@", "func", "let"} {
 		t.Run(src, func(t *testing.T) {
 			got := tokens(t, src+"\nnext")
 			if len(got) != 4 || got[1].Text != "next" {
@@ -145,8 +145,8 @@ func TestStringEscapes(t *testing.T) {
 }
 
 func TestMaximalMunchPunctuation(t *testing.T) {
-	got := tokens(t, "<-< == = => != ! <= >= && || + - * / ( ) [ ] { } , ; . : | _")
-	want := strings.Fields("<- < == = => != ! <= >= && || + - * / ( ) [ ] { } , ; . : | _ ;")
+	got := tokens(t, "<-< == = => != ! <= >= && || + - * / ( ) [ ] { } , ; . : | @ _")
+	want := strings.Fields("<- < == = => != ! <= >= && || + - * / ( ) [ ] { } , ; . : | @ _ ;")
 	if len(got) != len(want)+1 {
 		t.Fatalf("tokens = %#v", got)
 	}
@@ -154,6 +154,20 @@ func TestMaximalMunchPunctuation(t *testing.T) {
 		if got[i].Kind != lexer.Punct || got[i].Text != text {
 			t.Errorf("token %d = %#v, want punct %q", i, got[i], text)
 		}
+	}
+}
+
+func TestAsPatternPunctuation(t *testing.T) {
+	got := tokens(t, "whole@\nMkStock")
+	want := []lexer.Token{
+		{Kind: lexer.Ident, Text: "whole", Pos: ast.Pos{Line: 1, Col: 1}},
+		{Kind: lexer.Punct, Text: "@", Pos: ast.Pos{Line: 1, Col: 6}},
+		{Kind: lexer.Ident, Text: "MkStock", Pos: ast.Pos{Line: 2, Col: 1}},
+		{Kind: lexer.Punct, Text: ";", Pos: ast.Pos{Line: 2, Col: 8}},
+		{Kind: lexer.EOF, Pos: ast.Pos{Line: 2, Col: 8}},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("tokens = %#v, want %#v", got, want)
 	}
 }
 
@@ -177,7 +191,7 @@ func TestLexerErrorsWithPositions(t *testing.T) {
 		{"trailing escape", "\n  \"abc\\", "2:3: unterminated string"},
 		{"escaped newline", "\n  \"abc\\\n\"", "2:3: unterminated string"},
 		{"bad escape", `"\q"`, "1:1: bad string literal:"},
-		{"unexpected", "\n @", "2:2: unexpected character '@'"},
+		{"unexpected", "\n $", "2:2: unexpected character '$'"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := lexer.New(tc.src).All()

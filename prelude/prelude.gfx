@@ -73,6 +73,14 @@ instance Show[List[A]] given Show[A] {
   }
 }
 
+instance Show[(A, B)] given Show[A], Show[B] {
+  show(p) {
+    match p {
+      | (a, b) => "(" + show(a) + ", " + show(b) + ")"
+    }
+  }
+}
+
 extern func ioPure[A](a A) IO[A] = "gofx/rt".Pure
 extern func ioBind[A, B](io IO[A], f func(A) IO[B]) IO[B] = "gofx/rt".Bind
 extern func ioFail[A](msg String) IO[A] = "gofx/rt".Fail
@@ -138,4 +146,19 @@ func filter[A](xs List[A], p func(A) Bool) List[A] {
 
 func reverse[A](xs List[A]) List[A] {
   fold(xs, Nil, func(acc, x) => Cons(x, acc))
+}
+
+func fst[A, B](p (A, B)) A {
+  match p { | (a, _) => a }
+}
+
+func snd[A, B](p (A, B)) B {
+  match p { | (_, b) => b }
+}
+
+func zip[A, B](xs List[A], ys List[B]) List[(A, B)] {
+  match (xs, ys) {
+    | (Cons(x, restX), Cons(y, restY)) => Cons((x, y), zip(restX, restY))
+    | _ => Nil
+  }
 }

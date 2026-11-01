@@ -75,7 +75,7 @@ type MethodSig struct {
 // applied head `instance Functor[Result[E]]` where Fixed lists the leading
 // type arguments that are held abstract and the remaining arity is what the
 // class parameter's kind demands. Params and Fixed are both fresh rigid
-// variables of kind *; Context may constrain either.
+// variables of kind *; Context may constrain either. The parser records all head arguments in Params; the checker splits Fixed.
 type InstanceDecl struct {
 	Pos     Pos
 	Class   string

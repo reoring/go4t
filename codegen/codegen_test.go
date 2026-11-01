@@ -36,6 +36,263 @@ func TestDataEmission(t *testing.T) {
 		"func main() { rt.RunMain(main_()) }")
 }
 
+func TestSameNamedTypeAndConstructor(t *testing.T) {
+	p := fixture()
+	data := &types.DataType{Name: "Sku"}
+	data.Ctors = []*types.Ctor{{Name: "Sku", Data: data, Fields: []types.Type{types.String}}}
+	p.DataTypes[data.Name] = data
+	addFunc(p, "sku", nil, nil, call(ctor("Sku"), text("123")))
+	addFunc(p, "unwrap", []string{"sku"}, []types.Type{&types.TCon{Name: "Sku"}}, &ast.Match{
+		Scrut: local("sku", types.Unit),
+		Arms: []ast.Arm{{
+			Pat:  &ast.PCtor{Name: "Sku", Args: []ast.Pattern{&ast.PVar{Name: "value"}}},
+			Body: local("value", types.String),
+		}},
+	})
+	assertSource(t, p,
+		"type Sku interface{ isSku() }",
+		"type Sku_Sku struct {",
+		"func (*Sku_Sku) isSku()",
+		`return &Sku_Sku{F0: "123"}`,
+		"case *Sku_Sku:",
+		"return value_")
+}
+
+func TestTupleLiterals(t *testing.T) {
+	p := fixture()
+	addFunc(p, "element", []string{"x"}, []types.Type{types.Int}, local("x", types.Int))
+	addFunc(p, "pair", nil, nil, tupleLiteral(integer(1), text("two")))
+	addFunc(p, "nested", nil, nil, tupleLiteral(
+		tupleLiteral(integer(3), boolean(true)),
+		call(function("element", fnType(types.Int)), integer(4)),
+		call(function("element", fnType(types.Int)), integer(5))))
+	out := assertSource(t, p,
+		"type Tuple2 struct {\n\tF0 any\n\tF1 any\n}",
+		"type Tuple3 struct {\n\tF0 any\n\tF1 any\n\tF2 any\n}",
+		`return &Tuple2{F0: int64(1), F1: "two"}`,
+		"return &Tuple3{F0: &Tuple2{F0: int64(3), F1: true}, F1: element_(int64(4)), F2: element_(int64(5))}")
+	for _, arity := range []int{2, 3} {
+		if strings.Count(out, fmt.Sprintf("type Tuple%d struct", arity)) != 1 {
+			t.Errorf("Tuple%d declaration was not emitted exactly once:\n%s", arity, out)
+		}
+	}
+	for _, value := range []string{"4", "5"} {
+		if strings.Count(out, "element_(int64("+value+"))") != 1 {
+			t.Errorf("tuple element %s was not emitted exactly once:\n%s", value, out)
+		}
+	}
+}
+
+func TestTupleDeclarationSources(t *testing.T) {
+	tuple := &types.TApp{Fun: types.Tuple(3), Args: []types.Type{types.Int, types.String, types.Bool}}
+	tests := []struct {
+		name string
+		add  func(*types.Program)
+	}{
+		{"expression annotation", func(p *types.Program) {
+			p.Main.Decl.Body.Result = &ast.BlockExpr{
+				ExprBase: annotated(&types.Ann{Type: tuple}), Block: &ast.Block{Result: integer(0)},
+			}
+		}},
+		{"instantiation annotation", func(p *types.Program) {
+			expr := integer(0)
+			types.AnnOf(expr).Inst = []types.Type{tuple}
+			p.Main.Decl.Body.Result = expr
+		}},
+		{"direct call annotation", func(p *types.Program) {
+			addFunc(p, "value", nil, nil, integer(0))
+			ref := function("value", fnType())
+			types.AnnOf(ref).Inst = []types.Type{tuple}
+			p.Main.Decl.Body.Result = call(ref)
+		}},
+		{"constructor field", func(p *types.Program) {
+			data := &types.DataType{Name: "Box"}
+			data.Ctors = []*types.Ctor{{Name: "Box", Data: data, Fields: []types.Type{tuple}}}
+			p.DataTypes[data.Name] = data
+		}},
+		{"function parameter", func(p *types.Program) {
+			addFunc(p, "consume", []string{"x"}, []types.Type{fnType(tuple)}, integer(0))
+		}},
+		{"function result", func(p *types.Program) {
+			p.Main.Scheme.Type.Ret = tuple
+		}},
+		{"class method", func(p *types.Program) {
+			class := &types.Class{Name: "Consume"}
+			class.Methods = []*types.Method{{Name: "consume", Class: class, Scheme: &types.Scheme{Type: fnType(tuple)}}}
+			p.Classes[class.Name] = class
+		}},
+		{"instance head", func(p *types.Program) {
+			class := &types.Class{Name: "Marker"}
+			p.Classes[class.Name] = class
+			p.Instances = append(p.Instances, &types.Instance{
+				Class: class, TypeCon: types.Tuple(3), Decl: &ast.InstanceDecl{Class: "Marker", TypeCon: "Tuple3"},
+			})
+		}},
+		{"pattern", func(p *types.Program) {
+			addFunc(p, "matchTuple", []string{"x"}, []types.Type{types.Unit}, &ast.Match{
+				Scrut: local("x", types.Unit),
+				Arms: []ast.Arm{{
+					Pat:  &ast.PTuple{Elems: []ast.Pattern{&ast.PWild{}, &ast.PWild{}, &ast.PWild{}}},
+					Body: integer(0),
+				}},
+			})
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := fixture()
+			tt.add(p)
+			out := assertSource(t, p, "type Tuple3 struct {\n\tF0 any\n\tF1 any\n\tF2 any\n}")
+			if strings.Count(out, "type Tuple") != 1 {
+				t.Fatalf("unused or duplicate tuple declarations:\n%s", out)
+			}
+		})
+	}
+	if out := assertSource(t, fixture()); strings.Contains(out, "type Tuple") {
+		t.Fatalf("unused tuple declaration:\n%s", out)
+	}
+}
+
+func TestTuplePatterns(t *testing.T) {
+	p := fixture()
+	option(p)
+	nested := func(last ast.Pattern) ast.Pattern {
+		return &ast.PTuple{Elems: []ast.Pattern{
+			&ast.PCtor{Name: "Some", Args: []ast.Pattern{&ast.PTuple{Elems: []ast.Pattern{
+				&ast.PLit{X: integer(7)}, last,
+			}}}},
+			&ast.PWild{},
+		}}
+	}
+	addFunc(p, "nested", []string{"x"}, []types.Type{types.Unit}, &ast.Match{
+		Scrut: local("x", types.Unit),
+		Arms: []ast.Arm{
+			{Pat: nested(&ast.PLit{X: text("first")}), Body: text("first")},
+			{Pat: nested(&ast.PVar{Name: "value"}), Body: local("value", types.String)},
+			{Pat: &ast.PWild{}, Body: text("fallback")},
+		},
+	})
+	out := assertSource(t, p,
+		"case *Tuple2:", "case *Option_Some:", ".(int64) == int64(7)",
+		`.(string) == "first"`, "var value_ any =", "return value_", `return "fallback"`)
+	if strings.Count(out, "case *Tuple2:") != 4 || strings.Count(out, "case *Option_Some:") != 2 {
+		t.Fatalf("nested tuple patterns lost their arm-local failure continuation:\n%s", out)
+	}
+}
+
+func TestAsPatternsBindCurrentSubvalue(t *testing.T) {
+	p := fixture()
+	option(p)
+	addFunc(p, "nested", []string{"whole"}, []types.Type{types.Unit}, &ast.Match{
+		Scrut: local("whole", types.Unit),
+		Arms: []ast.Arm{
+			{
+				Pat: &ast.PAs{Name: "whole", Pat: &ast.PCtor{Name: "Some", Args: []ast.Pattern{
+					&ast.PAs{Name: "pair", Pat: &ast.PTuple{Elems: []ast.Pattern{
+						&ast.PAs{Name: "number", Pat: &ast.PLit{X: integer(7)}},
+						&ast.PVar{Name: "other"},
+					}}},
+				}}},
+				Body: tupleLiteral(local("whole", types.Unit), local("pair", types.Unit), local("number", types.Int), local("other", types.Unit)),
+			},
+			{Pat: &ast.PAs{Name: "whole", Pat: &ast.PWild{}}, Body: local("whole", types.Unit)},
+		},
+	})
+	assertSource(t, p,
+		"var whole_ any = _gofx0",
+		"var pair_ any = _gofx1.F0",
+		"var number_ any = _gofx2.F0",
+		"var other_ any = _gofx2.F1",
+		"return &Tuple4{F0: whole_, F1: pair_, F2: number_, F3: other_}",
+		"return whole_")
+}
+
+func TestTupleInstances(t *testing.T) {
+	p, showInt, _ := showFixture()
+	a, b := &types.TVar{Name: "A", Kind: types.KStar{}}, &types.TVar{Name: "B", Kind: types.KStar{}}
+	ft := showInt.Class.Methods[0].Scheme.Type
+	paramA := types.DictRef{Kind: types.DictParam, Class: "Show", Param: "A", ParamClass: "Show"}
+	paramB := types.DictRef{Kind: types.DictParam, Class: "Show", Param: "B", ParamClass: "Show"}
+	instance := &types.Instance{
+		Class: showInt.Class, TypeCon: types.Tuple(2), Params: []*types.TVar{a, b},
+		Context: []types.Constraint{{Class: "Show", Arg: a}, {Class: "Show", Arg: b}},
+		Decl: &ast.InstanceDecl{Class: "Show", TypeCon: "Tuple2", Params: []string{"A", "B"},
+			Methods: []ast.InstMethod{{Name: "show", Params: []string{"pair"}, Body: &ast.Block{
+				Result: &ast.Match{Scrut: local("pair", types.Unit), Arms: []ast.Arm{{
+					Pat: &ast.PTuple{Elems: []ast.Pattern{&ast.PVar{Name: "a"}, &ast.PVar{Name: "b"}}},
+					Body: &ast.Binary{
+						ExprBase: annotated(&types.Ann{Type: types.String}), Op: "+",
+						L: call(method("show", ft, paramA), local("a", types.Unit)),
+						R: call(method("show", ft, paramB), local("b", types.Unit)),
+					},
+				}}},
+			}}},
+		},
+	}
+	p.Instances = append(p.Instances, instance)
+	addFunc(p, "showPair", nil, nil, call(method("show", ft,
+		instanceDict(instance, instanceDict(showInt), instanceDict(showInt))), tupleLiteral(integer(1), integer(2))))
+	assertSource(t, p,
+		"type Show_Tuple2 struct {\n\tdict_A Show\n\tdict_B Show\n}",
+		"func (dictself Show_Tuple2) Show(pair_ any) any",
+		"rt.AddString((dictself.dict_A).Show(a_), (dictself.dict_B).Show(b_))",
+		"(Show_Tuple2{dict_A: Show_Int{}, dict_B: Show_Int{}}).Show(&Tuple2{F0: int64(1), F1: int64(2)})")
+}
+
+func TestPartiallyAppliedInstances(t *testing.T) {
+	for _, constrained := range []bool{false, true} {
+		t.Run(fmt.Sprintf("constrained=%t", constrained), func(t *testing.T) {
+			p, showInt, _ := showFixture()
+			e, a := &types.TVar{Name: "E", Kind: types.KStar{}}, &types.TVar{Name: "A", Kind: types.KStar{}}
+			data := &types.DataType{Name: "Result", TParams: []*types.TVar{e, a}}
+			data.Ctors = []*types.Ctor{
+				{Name: "Error", Data: data, Fields: []types.Type{e}},
+				{Name: "Success", Data: data, Fields: []types.Type{a}, Index: 1},
+			}
+			p.DataTypes[data.Name] = data
+			functor := &types.Class{Name: "Functor", Param: &types.TVar{Name: "F", Kind: types.KArrow{Params: []types.Kind{types.KStar{}}, Ret: types.KStar{}}}}
+			ft := fnType(types.Unit, fnType(types.Int))
+			functor.Methods = []*types.Method{{Name: "fmap", Class: functor, Scheme: &types.Scheme{Type: ft}}}
+			p.Classes[functor.Name] = functor
+			errorBody := &ast.BlockExpr{Block: &ast.Block{Result: call(ctor("Error"), local("err", e))}}
+			instance := &types.Instance{
+				Class: functor, TypeCon: &types.TCon{Name: "Result", Kind: types.KArrow{Params: []types.Kind{types.KStar{}, types.KStar{}}, Ret: types.KStar{}}},
+				Fixed: []*types.TVar{e},
+				Decl: &ast.InstanceDecl{Class: "Functor", TypeCon: "Result", Fixed: []string{"E"},
+					Methods: []ast.InstMethod{{Name: "fmap", Params: []string{"value", "f"}, Body: &ast.Block{
+						Result: &ast.Match{Scrut: local("value", types.Unit), Arms: []ast.Arm{
+							{Pat: &ast.PCtor{Name: "Error", Args: []ast.Pattern{&ast.PVar{Name: "err"}}}, Body: errorBody},
+							{Pat: &ast.PCtor{Name: "Success", Args: []ast.Pattern{&ast.PVar{Name: "a"}}},
+								Body: call(ctor("Success"), call(local("f", fnType(types.Int)), local("a", types.Int)))},
+						}},
+					}}},
+				},
+			}
+			var args []types.DictRef
+			fragments := []string{
+				"func (dictself Functor_Result) Fmap(value_ any, f_ any) any",
+				"return &Result_Error{F0: err_}",
+				"return &Result_Success{F0: any(f_).(func(any) any)(a_)}",
+			}
+			if constrained {
+				instance.Context = []types.Constraint{{Class: "Show", Arg: e}}
+				instance.Decl.Context = []ast.Constraint{{Class: "Show", Param: "E"}}
+				dict := types.DictRef{Kind: types.DictParam, Class: "Show", Param: "E", ParamClass: "Show"}
+				errorBody.Block.Stmts = []ast.Stmt{&ast.ExprStmt{X: call(method("show", showInt.Class.Methods[0].Scheme.Type, dict), local("err", e))}}
+				args = []types.DictRef{instanceDict(showInt)}
+				fragments = append(fragments, "type Functor_Result struct {\n\tdict_E Show\n}",
+					"(dictself.dict_E).Show(err_)", "(Functor_Result{dict_E: Show_Int{}}).Fmap(")
+			} else {
+				fragments = append(fragments, "type Functor_Result struct{}", "(Functor_Result{}).Fmap(")
+			}
+			p.Instances = append(p.Instances, instance)
+			addFunc(p, "mapped", nil, nil, call(method("fmap", ft, instanceDict(instance, args...)),
+				call(ctor("Success"), integer(3)), identity()))
+			assertSource(t, p, fragments...)
+		})
+	}
+}
+
 func TestListLiterals(t *testing.T) {
 	p := fixture()
 	list(p)
@@ -452,6 +709,16 @@ func list(p *types.Program) {
 func listLiteral(elems ...ast.Expr) *ast.ListLit {
 	return &ast.ListLit{ExprBase: annotated(&types.Ann{Type: &types.TApp{
 		Fun: &types.TCon{Name: "List"}, Args: []types.Type{types.Int},
+	}}), Elems: elems}
+}
+
+func tupleLiteral(elems ...ast.Expr) *ast.TupleLit {
+	args := make([]types.Type, len(elems))
+	for i, elem := range elems {
+		args[i] = types.AnnOf(elem).Type
+	}
+	return &ast.TupleLit{ExprBase: annotated(&types.Ann{Type: &types.TApp{
+		Fun: types.Tuple(len(elems)), Args: args,
 	}}), Elems: elems}
 }
 

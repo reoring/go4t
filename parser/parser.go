@@ -5,13 +5,17 @@
 //	File     := 'package' Ident ';' { Decl ';' }
 //	Decl     := Class | Instance | TypeDecl | Func | Extern
 //	Class    := 'class' Ident '[' TParam ']' [ ':' Ident '[' Ident ']' ] '{' { MethodSig ';' } '}'
-//	Instance := 'instance' Ident '[' Ident [ '[' Idents ']' ] ']' [ 'given' Context ] '{' { Ident '(' Idents ')' Block ';' } '}'
+//	Instance := 'instance' Ident '[' InstHead ']' [ 'given' Context ] '{' { Ident '(' Idents ')' Block ';' } '}'
+//	InstHead := Ident [ '[' Idents ']' ] | '(' Ident ',' Ident { ',' Ident } ')'
+//	          // head arguments remain in Params; the checker splits Fixed for partial applications
 //	Context  := Constraint { ',' Constraint }
 //	Constraint := Ident '[' Ident ']' // parameter declared in the instance head
 //	TypeDecl := 'type' Ident [ '[' Idents ']' ] '=' Ctor { '|' Ctor }
 //	Func     := 'func' Ident [ TParams ] '(' Params ')' Type Block
 //	Extern   := 'extern' 'func' Ident [ TParams ] '(' Params ')' Type '=' String '.' Ident
 //	TParam   := Ident [ '[' '_' { ',' '_' } ']' ] { Ident }
+//	Type     := Ident [ '[' Type { ',' Type } ']' ] | 'func' '(' [ Type { ',' Type } ] ')' Type
+//	          | '(' Type ')' | '(' Type ',' Type { ',' Type } ')'
 //	Block    := '{' { Stmt ';' } Expr [ ';' ] '}'
 //	Stmt     := 'let' Ident '=' Expr | Expr
 //	Expr     := 'func' '(' LParams ')' '=>' Expr | 'do' DoBlock | 'match' Expr '{' Arms '}'
@@ -19,9 +23,11 @@
 //	Arms     := { ';' } [ '|' ] { ';' } Arm { ArmSep Arm } [ ArmSep ]
 //	Arm      := Pattern '=>' Expr
 //	ArmSep   := ( ';' | '|' ) { ';' | '|' }
-//	Pattern  := '_' | Lit | Ident [ '(' Pattern { ',' Pattern } ')' ]
+//	Pattern  := '_' | Lit | Ident [ '(' [ Pattern { ',' Pattern } ] ')' ]
+//	          | LowerIdent '@' Pattern | '(' Pattern ')' | '(' Pattern ',' Pattern { ',' Pattern } ')'
+//	LowerIdent := Ident // starts with a lower-case letter; '@' only follows a bare variable name
 //	Postfix  := Primary { '(' [ Expr { ',' Expr } [ ',' ] ] ')' } // no indexing
-//	Primary  := Ident | Lit | '(' Expr ')' | Block | List
+//	Primary  := Ident | Lit | '(' Expr ')' | '(' Expr ',' Expr { ',' Expr } ')' | Block | List
 //	List     := '[' [ Expr { ',' Expr } [ ',' ] ] ']'
 package parser
 
@@ -29,6 +35,8 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
+	"unicode"
+	"unicode/utf8"
 
 	"gofx/ast"
 	"gofx/lexer"
@@ -234,8 +242,12 @@ func (p *Parser) instanceDecl() ast.Decl {
 	pos := p.next().Pos
 	d := &ast.InstanceDecl{Pos: pos, Class: p.ident()}
 	p.expectP("[")
-	d.TypeCon = p.ident()
-	if p.acceptP("[") {
+	headPos := p.pos()
+	tupleHead := p.acceptP("(")
+	if !tupleHead {
+		d.TypeCon = p.ident()
+	}
+	if tupleHead || p.acceptP("[") {
 		for {
 			paramPos := p.pos()
 			name := p.ident()
@@ -247,7 +259,15 @@ func (p *Parser) instanceDecl() ast.Decl {
 				break
 			}
 		}
-		p.expectP("]")
+		if tupleHead {
+			p.expectP(")")
+			if len(d.Params) < 2 {
+				p.fail(headPos, "tuple instance head needs at least two elements")
+			}
+			d.TypeCon = "Tuple" + strconv.Itoa(len(d.Params))
+		} else {
+			p.expectP("]")
+		}
 	}
 	p.expectP("]")
 	if p.isK("given") {
@@ -360,6 +380,19 @@ func (p *Parser) typ() ast.Type {
 		p.expectP(")")
 		ft.Ret = p.typ()
 		return ft
+	}
+	if p.acceptP("(") {
+		first := p.typ()
+		if !p.acceptP(",") {
+			p.expectP(")")
+			return first
+		}
+		tuple := &ast.TupleType{Pos: pos, Elems: []ast.Type{first, p.typ()}}
+		for p.acceptP(",") {
+			tuple.Elems = append(tuple.Elems, p.typ())
+		}
+		p.expectP(")")
+		return tuple
 	}
 	tn := &ast.TypeName{Pos: pos, Name: p.ident()}
 	if p.acceptP("[") {
@@ -524,6 +557,20 @@ func (p *Parser) pattern() ast.Pattern {
 			p.next()
 			return &ast.PWild{Pos: t.Pos}
 		}
+		if t.Text == "(" {
+			p.next()
+			first := p.pattern()
+			if !p.acceptP(",") {
+				p.expectP(")")
+				return first
+			}
+			tuple := &ast.PTuple{Pos: t.Pos, Elems: []ast.Pattern{first, p.pattern()}}
+			for p.acceptP(",") {
+				tuple.Elems = append(tuple.Elems, p.pattern())
+			}
+			p.expectP(")")
+			return tuple
+		}
 	case lexer.Int, lexer.String:
 		return &ast.PLit{Pos: t.Pos, X: p.primary()}
 	case lexer.Keyword:
@@ -532,6 +579,13 @@ func (p *Parser) pattern() ast.Pattern {
 		}
 	case lexer.Ident:
 		p.next()
+		if p.acceptP("@") {
+			first, _ := utf8.DecodeRuneInString(t.Text)
+			if !unicode.IsLower(first) {
+				p.fail(t.Pos, "as-pattern name must be a lower-case identifier")
+			}
+			return &ast.PAs{Pos: t.Pos, Name: t.Text, Pat: p.pattern()}
+		}
 		if p.isP("(") {
 			p.next()
 			c := &ast.PCtor{Pos: t.Pos, Name: t.Text}
@@ -626,9 +680,17 @@ func (p *Parser) primary() ast.Expr {
 	case lexer.Punct:
 		if t.Text == "(" {
 			p.next()
-			e := p.expr()
+			first := p.expr()
+			if !p.acceptP(",") {
+				p.expectP(")")
+				return first
+			}
+			tuple := &ast.TupleLit{ExprBase: base, Elems: []ast.Expr{first, p.expr()}}
+			for p.acceptP(",") {
+				tuple.Elems = append(tuple.Elems, p.expr())
+			}
 			p.expectP(")")
-			return e
+			return tuple
 		}
 		if t.Text == "{" {
 			return p.blockExpr()

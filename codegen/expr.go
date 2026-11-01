@@ -36,6 +36,7 @@ func (g *generator) statements(stmts []ast.Stmt, result ast.Expr) string {
 }
 
 func (g *generator) expr(expr ast.Expr) string {
+	g.collectAnnotation(expr)
 	switch e := expr.(type) {
 	case *ast.IntLit:
 		return "int64(" + strconv.FormatInt(e.Value, 10) + ")"
@@ -43,14 +44,20 @@ func (g *generator) expr(expr ast.Expr) string {
 		return strconv.Quote(e.Value)
 	case *ast.BoolLit:
 		return strconv.FormatBool(e.Value)
+	case *ast.TupleLit:
+		args := make([]string, len(e.Elems))
+		for i, elem := range e.Elems {
+			args[i] = g.expr(elem)
+		}
+		return construct(g.tupleName(len(e.Elems)), args)
 	case *ast.ListLit:
-		rest := g.construct(g.ctor("Nil", e.GetPos()), nil)
+		rest := construct(ctorName(g.ctor("Nil", e.GetPos())), nil)
 		if len(e.Elems) == 0 {
 			return rest
 		}
 		cons := g.ctor("Cons", e.GetPos())
 		for i := len(e.Elems) - 1; i >= 0; i-- {
-			rest = g.construct(cons, []string{g.expr(e.Elems[i]), rest})
+			rest = construct(ctorName(cons), []string{g.expr(e.Elems[i]), rest})
 		}
 		return rest
 	case *ast.Ident:
@@ -69,9 +76,9 @@ func (g *generator) expr(expr ast.Expr) string {
 		case types.RefCtor:
 			ctor := g.ctor(e.Name, e.GetPos())
 			if len(ctor.Fields) == 0 {
-				return g.construct(ctor, nil)
+				return construct(ctorName(ctor), nil)
 			}
-			return "func(" + strings.Join(anonymousParams(len(ctor.Fields)), ", ") + ") any { return " + g.construct(ctor, anonymousArgs(len(ctor.Fields))) + " }"
+			return "func(" + strings.Join(anonymousParams(len(ctor.Fields)), ", ") + ") any { return " + construct(ctorName(ctor), anonymousArgs(len(ctor.Fields))) + " }"
 		default:
 			g.fail(e.GetPos(), "invalid reference annotation")
 		}
@@ -159,12 +166,13 @@ func (g *generator) funcType(expr ast.Expr) *types.TFunc {
 }
 
 func (g *generator) identCall(ident *ast.Ident, args []string) string {
+	g.collectAnnotation(ident)
 	ann := g.ann(ident)
 	callee := mangle(ident.Name)
 	dicts := ann.Dicts
 	switch ann.Ref {
 	case types.RefCtor:
-		return g.construct(g.ctor(ident.Name, ident.GetPos()), args)
+		return construct(ctorName(g.ctor(ident.Name, ident.GetPos())), args)
 	case types.RefMethod:
 		if len(dicts) == 0 {
 			g.fail(ident.GetPos(), "method reference has no dictionary")
@@ -191,12 +199,12 @@ func (g *generator) ctor(name string, pos ast.Pos) *types.Ctor {
 	return ctor
 }
 
-func (g *generator) construct(ctor *types.Ctor, args []string) string {
+func construct(name string, args []string) string {
 	fields := make([]string, len(args))
 	for i, arg := range args {
 		fields[i] = fmt.Sprintf("F%d: %s", i, arg)
 	}
-	return "&" + ctorName(ctor) + "{" + strings.Join(fields, ", ") + "}"
+	return "&" + name + "{" + strings.Join(fields, ", ") + "}"
 }
 
 // Each arm has its own failure continuation: a failed nested pattern falls
@@ -207,13 +215,13 @@ func (g *generator) pattern(pattern ast.Pattern, value, success string) string {
 		return "{\n" + success + "}\n"
 	case *ast.PVar:
 		return "{\nvar " + mangle(p.Name) + " any = " + value + "\n_ = " + mangle(p.Name) + "\n" + success + "}\n"
+	case *ast.PAs:
+		return "{\nvar " + mangle(p.Name) + " any = " + value + "\n_ = " + mangle(p.Name) + "\n" + g.pattern(p.Pat, value, success) + "}\n"
+	case *ast.PTuple:
+		return g.structPattern(g.tupleName(len(p.Elems)), p.Elems, value, success)
 	case *ast.PCtor:
 		ctor := g.ctor(p.Name, p.Pos)
-		matched := g.fresh()
-		for i := len(p.Args) - 1; i >= 0; i-- {
-			success = g.pattern(p.Args[i], fmt.Sprintf("%s.F%d", matched, i), success)
-		}
-		return "switch " + matched + " := " + value + ".(type) {\ncase *" + ctorName(ctor) + ":\n_ = " + matched + "\n" + success + "}\n"
+		return g.structPattern(ctorName(ctor), p.Args, value, success)
 	case *ast.PLit:
 		var rep string
 		switch p.X.(type) {
@@ -230,6 +238,14 @@ func (g *generator) pattern(pattern ast.Pattern, value, success string) string {
 	}
 	g.fail(ast.Pos{}, "unsupported pattern %T", pattern)
 	return ""
+}
+
+func (g *generator) structPattern(name string, fields []ast.Pattern, value, success string) string {
+	matched := g.fresh()
+	for i := len(fields) - 1; i >= 0; i-- {
+		success = g.pattern(fields[i], fmt.Sprintf("%s.F%d", matched, i), success)
+	}
+	return "switch " + matched + " := " + value + ".(type) {\ncase *" + name + ":\n_ = " + matched + "\n" + success + "}\n"
 }
 
 func isCon(typ types.Type, name string) bool {

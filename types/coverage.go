@@ -2,8 +2,19 @@ package types
 
 import "gofx/ast"
 
+// As-bindings do not change the covered shape of their inner pattern.
+func patternShape(p ast.Pattern) ast.Pattern {
+	for {
+		as, ok := p.(*ast.PAs)
+		if !ok {
+			return p
+		}
+		p = as.Pat
+	}
+}
+
 func catchall(p ast.Pattern) bool {
-	switch p.(type) {
+	switch patternShape(p).(type) {
 	case nil, *ast.PWild, *ast.PVar:
 		return true
 	default:
@@ -20,7 +31,7 @@ func (b *bodyChecker) checkExhaustive(expr *ast.Match) {
 	}
 	rows := make([][]ast.Pattern, len(expr.Arms))
 	for i, arm := range expr.Arms {
-		if _, literal := arm.Pat.(*ast.PLit); literal {
+		if _, literal := patternShape(arm.Pat).(*ast.PLit); literal {
 			fail(expr.GetPos(), "non-exhaustive match: literal patterns require a trailing catch-all")
 		}
 		rows[i] = []ast.Pattern{arm.Pat}
@@ -63,6 +74,25 @@ func (c *checker) covers(rows [][]ast.Pattern, columns []Type) bool {
 	if con == nil {
 		return false
 	}
+	if n, tuple := IsTuple(con); tuple {
+		var specialized [][]ast.Pattern
+		for _, row := range rows {
+			var elems []ast.Pattern
+			if catchall(row[0]) {
+				elems = make([]ast.Pattern, n, n+len(row)-1)
+			} else if p, ok := patternShape(row[0]).(*ast.PTuple); ok {
+				elems = make([]ast.Pattern, n, n+len(row)-1)
+				copy(elems, p.Elems)
+			} else {
+				continue
+			}
+			specialized = append(specialized, append(elems, row[1:]...))
+		}
+		fields := make([]Type, 0, n+len(columns)-1)
+		fields = append(fields, args...)
+		fields = append(fields, columns[1:]...)
+		return c.covers(specialized, fields)
+	}
 	data := c.program.DataTypes[con.Name]
 	if data == nil {
 		return false
@@ -72,7 +102,7 @@ func (c *checker) covers(rows [][]ast.Pattern, columns []Type) bool {
 	// In particular, do not unfold a recursive wildcard column forever.
 	present := make(map[string]bool)
 	for _, row := range rows {
-		if p, ok := row[0].(*ast.PCtor); ok {
+		if p, ok := patternShape(row[0]).(*ast.PCtor); ok {
 			present[p.Name] = true
 		}
 	}
@@ -92,7 +122,7 @@ func (c *checker) covers(rows [][]ast.Pattern, columns []Type) bool {
 				next := make([]ast.Pattern, len(ctor.Fields), len(ctor.Fields)+len(row)-1)
 				next = append(next, row[1:]...)
 				specialized = append(specialized, next)
-			} else if p, ok := row[0].(*ast.PCtor); ok && p.Name == ctor.Name {
+			} else if p, ok := patternShape(row[0]).(*ast.PCtor); ok && p.Name == ctor.Name {
 				next := make([]ast.Pattern, 0, len(p.Args)+len(row)-1)
 				next = append(next, p.Args...)
 				next = append(next, row[1:]...)
