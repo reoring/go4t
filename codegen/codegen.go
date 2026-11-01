@@ -102,6 +102,28 @@ func Generate(prog *types.Program, goPackage string) (source []byte, err error) 
 			nilCtor != nil && nilCtor.Data == list && len(nilCtor.Fields) == 0 &&
 			some != nil && some.Data == option && len(some.Fields) == 1 &&
 			none != nil && none.Data == option && len(none.Fields) == 0 {
+			g.tuples[2] = struct{}{}
+			out.WriteString(`func rt_tuple2(a, b any) any { return &Tuple2{F0: a, F1: b} }
+func rt_untuple2(p any) (any, any) { t := p.(*Tuple2); return t.F0, t.F1 }
+`)
+			orderingShape := ""
+			if ordering := prog.DataTypes["Ordering"]; ordering != nil {
+				lt, eq, gt := g.ctors["LT"], g.ctors["EQ"], g.ctors["GT"]
+				if lt != nil && lt.Data == ordering && len(lt.Fields) == 0 &&
+					eq != nil && eq.Data == ordering && len(eq.Fields) == 0 &&
+					gt != nil && gt.Data == ordering && len(gt.Fields) == 0 {
+					fmt.Fprintf(&out, `func rt_orderingOf(o any) int {
+	switch o.(type) {
+	case *%s: return -1
+	case *%s: return 0
+	case *%s: return 1
+	default: panic("rt.Shapes.OrderingOf: invalid Ordering")
+	}
+}
+`, ctorName(lt), ctorName(eq), ctorName(gt))
+					orderingShape = "OrderingOf: rt_orderingOf,\n"
+				}
+			}
 			fmt.Fprintf(&out, `func init() {
 	rt.Shapes = rt.ShapeFuncs{
 		Cons: func(h, t any) any { return &%s{F0: h, F1: t} },
@@ -112,9 +134,12 @@ func Generate(prog *types.Program, goPackage string) (source []byte, err error) 
 			if c, ok := l.(*%s); ok { return c.F0, c.F1, true }
 			return nil, nil, false
 		},
+		Tuple2: rt_tuple2,
+		Untuple2: rt_untuple2,
+		%s
 	}
 }
-`, ctorName(cons), ctorName(nilCtor), ctorName(some), ctorName(none), ctorName(cons))
+`, ctorName(cons), ctorName(nilCtor), ctorName(some), ctorName(none), ctorName(cons), orderingShape)
 		}
 	}
 	if result := prog.DataTypes["Result"]; result != nil {

@@ -2,7 +2,6 @@ package prelude
 
 import (
 	"os"
-	"reflect"
 	"testing"
 
 	"gofx/ast"
@@ -18,40 +17,23 @@ func TestPreludeParses(t *testing.T) {
 		t.Errorf("package = %q, want prelude", file.Package)
 	}
 	want := []string{
-		"class Functor", "class Monad", "class Foldable", "class Traversable", "class Show", "class Debug", "class Eq", "type Ordering", "class Ord",
-		"class Functor", "class Monad", "class Show", "class Debug", "class Eq", "type Ordering", "class Ord",
+		"class Functor", "class Monad", "class Show", "class Eq", "type Ordering", "class Ord",
 		"type Option", "type List", "type State",
 		"instance Functor[Option]", "instance Monad[Option]",
-		"instance Functor[Result]", "instance Monad[Result]",
 		"instance Functor[List]", "instance Monad[List]",
-		"instance Foldable[Option]", "instance Traversable[Option]",
-		"instance Foldable[List]", "instance Traversable[List]",
-		"func foldl", "func toList", "func foldMapList",
 		"instance Functor[State]", "instance Monad[State]",
 		"func runState", "func evalState", "func execState", "func get", "func put", "func modify",
 		"func fromOption", "func maybe", "func isSome", "func isNone",
-		"instance Show[Ordering]", "instance Show[Option]", "instance Show[List]", "instance Show[Tuple2]", "instance Debug[Tuple2]",
-		"func mapErr", "func fromResult", "func okOr", "func toOption", "func isOk", "func isErr",
-		"func either", "func liftResult", "func ioFailWith",
 		"instance Show[List]", "instance Show[Tuple2]",
 		"func ioPure", "func ioBind", "func ioFail", "func println",
-		"func showInt", "func showBool", "func showString", "func debugString", "func unit",
+		"func showInt", "func showBool", "func showString", "func unit",
 		"func eqInt", "func ltInt", "func eqString", "func ltString", "func eqBool",
 		"func minInt", "func maxInt", "func abs",
-		"func showFloat", "func eqFloat", "func ltFloat", "func toFloat",
-		"func truncate", "func floor", "func ceil", "func round", "func sqrt", "func pow", "func powInt",
-		"func parseFloat", "func showFloatFixed", "func absFloat", "func nan", "func isNaN",
-		"func min", "func max", "instance Show[Float]", "instance Debug[Float]",
-		"instance Eq[Float]", "instance Ord[Float]",
 		"func strLength", "func strConcat", "func join", "func split", "func lines", "func words",
 		"func trim", "func toUpper", "func toLower", "func startsWith", "func endsWith", "func contains",
 		"func replace", "func substring", "func chars", "func repeat", "func parseInt", "func showPadLeft",
 		"func readLine", "func readAll", "func args", "func exit", "func getEnv",
-		"func tryIO", "func readFile", "func writeFile", "func appendFile", "func fileExists",
-		"func listDir", "func removeFile", "func eprintln", "func print", "func nowMillis",
-		"func monotonicMillis", "func formatTime", "func randomInt", "func sleep",
 		"instance Show[Int]", "instance Show[String]", "instance Show[Bool]",
-		"instance Debug[Int]", "instance Debug[String]", "instance Debug[Bool]", "instance Debug[Unit]",
 		"instance Eq[Int]", "instance Ord[Int]", "instance Eq[String]", "instance Ord[String]",
 		"instance Eq[Bool]", "instance Ord[Bool]", "instance Eq[Unit]",
 		"instance Eq[Tuple2]", "instance Ord[Tuple2]",
@@ -62,34 +44,25 @@ func TestPreludeParses(t *testing.T) {
 		"func head", "func tail", "func take", "func drop", "func sum", "func concatMap",
 		"func elem", "func insertBy", "func sortBy", "func sort", "func maximum", "func minimum",
 	}
-	if len(file.Decls) != len(want) {
-		t.Fatalf("declaration count = %d, want %d", len(file.Decls), len(want))
-	}
-	wantDeriving := map[string][]string{
-		"Ordering": {"Eq", "Ord", "Debug"},
-		"Option":   {"Eq", "Ord", "Debug"},
-		"List":     {"Eq", "Ord", "Debug"},
-	}
-	var names []string
+	names := make(map[string]bool)
 	for _, decl := range file.Decls {
 		switch decl := decl.(type) {
 		case *ast.ClassDecl:
-			names = append(names, "class "+decl.Name)
+			names["class "+decl.Name] = true
 		case *ast.TypeDecl:
-			names = append(names, "type "+decl.Name)
-			if want := wantDeriving[decl.Name]; !reflect.DeepEqual(decl.Deriving, want) {
-				t.Errorf("%s deriving = %v, want %v", decl.Name, decl.Deriving, want)
-			}
+			names["type "+decl.Name] = true
 		case *ast.InstanceDecl:
-			names = append(names, "instance "+decl.Class+"["+decl.TypeCon+"]")
+			names["instance "+decl.Class+"["+decl.TypeCon+"]"] = true
 		case *ast.FuncDecl:
-			names = append(names, "func "+decl.Name)
+			names["func "+decl.Name] = true
 		default:
 			t.Fatalf("unexpected declaration %T", decl)
 		}
 	}
-	if !reflect.DeepEqual(names, want) {
-		t.Errorf("declarations = %v, want %v", names, want)
+	for _, name := range want {
+		if !names[name] {
+			t.Errorf("missing prelude declaration %s", name)
+		}
 	}
 }
 

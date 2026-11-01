@@ -90,7 +90,7 @@ func Check(files []*ast.File) (program *Program, err error) {
 			return nil, err
 		}
 	}
-	for _, con := range []*TCon{Int, Float, String, Bool, Unit, IO} {
+	for _, con := range []*TCon{Int, Float, String, Bool, Unit, IO, Map, Set, Array} {
 		c.cons[con.Name] = con
 	}
 	c.collectNames(files)

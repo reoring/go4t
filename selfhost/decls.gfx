@@ -4,6 +4,10 @@ package main
 // validate superclass graphs, resolve signatures, then collect instances. No AST
 // is changed, so the same files can be checked repeatedly. Tables are ordered Maps;
 // bodies are checked in source order and only the finished Program is sorted.
+// Scheme/InstanceInfo constraints are (class, parameter); Core dictionary
+// parameters reverse that pair. Method schemes include their class parameter and
+// receiver constraint first. resolveDict has no source-position argument: callers
+// attach their expression/type-declaration position to any returned diagnostic.
 func buildEnv(files List[File]) Check[Unit] {
   let ds = concatMap(files, func(f) => f.decls)
   do {

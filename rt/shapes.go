@@ -1,19 +1,22 @@
 package rt
 
-// ShapeFuncs bridges the generated program's List, Option and Result representations.
-// Generated init functions register these operations before any runtime calls.
-// Uncons returns ok=false for Nil and the head and tail for Cons.
+// ShapeFuncs bridges the generated program's List, Option, Result, tuple and Ordering
+// representations across the any ABI. Generated init functions register these operations
+// before any runtime calls. Uncons returns ok=false for Nil and the head and tail for Cons.
 type ShapeFuncs struct {
-	Cons   func(h, t any) any
-	Nil    func() any
-	Some   func(a any) any
-	None   func() any
-	Ok     func(a any) any
-	Err    func(e any) any
-	Uncons func(l any) (h, t any, ok bool)
+	Cons       func(h, t any) any
+	Nil        func() any
+	Some       func(a any) any
+	None       func() any
+	Ok         func(a any) any
+	Err        func(e any) any
+	Uncons     func(l any) (h, t any, ok bool)
+	Tuple2     func(a, b any) any
+	Untuple2   func(p any) (a, b any)
+	OrderingOf func(o any) int // LT = -1, EQ = 0, GT = 1
 }
 
-// Shapes holds the generated program's value constructors and list destructor.
+// Shapes holds the generated program's value constructors and destructors.
 var Shapes ShapeFuncs
 
 // ListFromStrings constructs a generated List[String], preserving input order.
@@ -74,4 +77,12 @@ func ErrOf(value any) any {
 		panic("rt.Shapes is not initialized: Err is required")
 	}
 	return Shapes.Err(value)
+}
+
+// Tuple2Of constructs a generated two-element tuple.
+func Tuple2Of(a, b any) any {
+	if Shapes.Tuple2 == nil {
+		panic("rt.Shapes is not initialized: Tuple2 is required")
+	}
+	return Shapes.Tuple2(a, b)
 }

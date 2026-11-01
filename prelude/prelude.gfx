@@ -592,3 +592,147 @@ func minimum[A Ord](xs List[A]) Option[A] {
     }))
   }
 }
+
+// Persistent collections. Ordered operations pass an ordinary comparator closure
+// across the extern ABI; traversal and value mapping need no Ord dictionary.
+extern func emptyMap[K, V]() Map[K, V] = "gofx/rt".EmptyMap
+extern func mapInsertBy[K, V](m Map[K, V], k K, v V, cmp func(K, K) Ordering) Map[K, V] = "gofx/rt".MapInsert
+extern func mapLookupBy[K, V](m Map[K, V], k K, cmp func(K, K) Ordering) Option[V] = "gofx/rt".MapLookup
+extern func mapDeleteBy[K, V](m Map[K, V], k K, cmp func(K, K) Ordering) Map[K, V] = "gofx/rt".MapDelete
+extern func mapMemberBy[K, V](m Map[K, V], k K, cmp func(K, K) Ordering) Bool = "gofx/rt".MapMember
+extern func mapSize[K, V](m Map[K, V]) Int = "gofx/rt".MapSize
+extern func mapFromListBy[K, V](xs List[(K, V)], cmp func(K, K) Ordering) Map[K, V] = "gofx/rt".MapFromList
+extern func mapToList[K, V](m Map[K, V]) List[(K, V)] = "gofx/rt".MapToList
+extern func mapKeys[K, V](m Map[K, V]) List[K] = "gofx/rt".MapKeys
+extern func mapValues[K, V](m Map[K, V]) List[V] = "gofx/rt".MapValues
+extern func mapUnionBy[K, V](a Map[K, V], b Map[K, V], cmp func(K, K) Ordering) Map[K, V] = "gofx/rt".MapUnion
+extern func mapMap[K, V, W](m Map[K, V], f func(V) W) Map[K, W] = "gofx/rt".MapMap
+extern func mapFold[K, V, B](m Map[K, V], init B, f func(B, K, V) B) B = "gofx/rt".MapFold
+
+func mapInsert[K Ord, V](m Map[K, V], k K, v V) Map[K, V] {
+  mapInsertBy(m, k, v, func(a, b) => compare(a, b))
+}
+
+func mapLookup[K Ord, V](m Map[K, V], k K) Option[V] {
+  mapLookupBy(m, k, func(a, b) => compare(a, b))
+}
+
+func mapDelete[K Ord, V](m Map[K, V], k K) Map[K, V] {
+  mapDeleteBy(m, k, func(a, b) => compare(a, b))
+}
+
+func mapMember[K Ord, V](m Map[K, V], k K) Bool {
+  mapMemberBy(m, k, func(a, b) => compare(a, b))
+}
+
+func mapFromList[K Ord, V](xs List[(K, V)]) Map[K, V] {
+  mapFromListBy(xs, func(a, b) => compare(a, b))
+}
+
+func mapAdjust[K Ord, V](m Map[K, V], k K, f func(V) V) Map[K, V] {
+  match mapLookup(m, k) {
+    None => m
+    Some(v) => mapInsert(m, k, f(v))
+  }
+}
+
+func mapAlter[K Ord, V](m Map[K, V], k K, f func(Option[V]) Option[V]) Map[K, V] {
+  match f(mapLookup(m, k)) {
+    None => mapDelete(m, k)
+    Some(v) => mapInsert(m, k, v)
+  }
+}
+
+func mapUnion[K Ord, V](a Map[K, V], b Map[K, V]) Map[K, V] {
+  mapUnionBy(a, b, func(x, y) => compare(x, y))
+}
+
+func groupBy[K Ord, A](xs List[A], key func(A) K) Map[K, List[A]] {
+  let reversed = fold(xs, emptyMap(), func(groups, a) =>
+    mapAlter(groups, key(a), func(previous) => Some(Cons(a, fromOption(previous, Nil)))))
+  mapMap(reversed, func(group) => reverse(group))
+}
+
+extern func emptySet[A]() Set[A] = "gofx/rt".EmptySet
+extern func setInsertBy[A](s Set[A], a A, cmp func(A, A) Ordering) Set[A] = "gofx/rt".SetInsert
+extern func setDeleteBy[A](s Set[A], a A, cmp func(A, A) Ordering) Set[A] = "gofx/rt".SetDelete
+extern func setMemberBy[A](s Set[A], a A, cmp func(A, A) Ordering) Bool = "gofx/rt".SetMember
+extern func setSize[A](s Set[A]) Int = "gofx/rt".SetSize
+extern func setFromListBy[A](xs List[A], cmp func(A, A) Ordering) Set[A] = "gofx/rt".SetFromList
+extern func setToList[A](s Set[A]) List[A] = "gofx/rt".SetToList
+extern func setUnionBy[A](a Set[A], b Set[A], cmp func(A, A) Ordering) Set[A] = "gofx/rt".SetUnion
+extern func setIntersectionBy[A](a Set[A], b Set[A], cmp func(A, A) Ordering) Set[A] = "gofx/rt".SetIntersection
+extern func setDifferenceBy[A](a Set[A], b Set[A], cmp func(A, A) Ordering) Set[A] = "gofx/rt".SetDifference
+
+func setInsert[A Ord](s Set[A], a A) Set[A] {
+  setInsertBy(s, a, func(x, y) => compare(x, y))
+}
+
+func setDelete[A Ord](s Set[A], a A) Set[A] {
+  setDeleteBy(s, a, func(x, y) => compare(x, y))
+}
+
+func setMember[A Ord](s Set[A], a A) Bool {
+  setMemberBy(s, a, func(x, y) => compare(x, y))
+}
+
+func setFromList[A Ord](xs List[A]) Set[A] {
+  setFromListBy(xs, func(x, y) => compare(x, y))
+}
+
+func setUnion[A Ord](a Set[A], b Set[A]) Set[A] {
+  setUnionBy(a, b, func(x, y) => compare(x, y))
+}
+
+func setIntersection[A Ord](a Set[A], b Set[A]) Set[A] {
+  setIntersectionBy(a, b, func(x, y) => compare(x, y))
+}
+
+func setDifference[A Ord](a Set[A], b Set[A]) Set[A] {
+  setDifferenceBy(a, b, func(x, y) => compare(x, y))
+}
+
+extern func arrayFromList[A](xs List[A]) Array[A] = "gofx/rt".ArrayFromList
+extern func arrayToList[A](a Array[A]) List[A] = "gofx/rt".ArrayToList
+extern func arrayLength[A](a Array[A]) Int = "gofx/rt".ArrayLength
+extern func arrayGet[A](a Array[A], i Int) Option[A] = "gofx/rt".ArrayGet
+extern func arraySet[A](a Array[A], i Int, v A) Array[A] = "gofx/rt".ArraySet
+extern func arrayMap[A, B](a Array[A], f func(A) B) Array[B] = "gofx/rt".ArrayMap
+extern func arrayFold[A, B](a Array[A], init B, f func(B, A) B) B = "gofx/rt".ArrayFold
+extern func arrayPush[A](a Array[A], v A) Array[A] = "gofx/rt".ArrayPush
+extern func arraySlice[A](a Array[A], start Int, end Int) Array[A] = "gofx/rt".ArraySlice
+extern func arraySortBy[A](a Array[A], cmp func(A, A) Ordering) Array[A] = "gofx/rt".ArraySortBy
+
+instance Show[Map[K, V]] given Show[K], Show[V] {
+  show(m) {
+    "{" + join(", ", map(mapToList(m), func((k, v)) => show(k) + ": " + show(v))) + "}"
+  }
+}
+
+instance Show[Set[A]] given Show[A] {
+  show(s) { "#{" + join(", ", map(setToList(s), func(a) => show(a))) + "}" }
+}
+
+instance Show[Array[A]] given Show[A] {
+  show(a) { "#[" + join(", ", map(arrayToList(a), func(v) => show(v))) + "]" }
+}
+
+instance Eq[Map[K, V]] given Eq[K], Eq[V] {
+  eq(a, b) { eq(mapToList(a), mapToList(b)) }
+}
+
+instance Eq[Set[A]] given Eq[A] {
+  eq(a, b) { eq(setToList(a), setToList(b)) }
+}
+
+instance Eq[Array[A]] given Eq[A] {
+  eq(a, b) { eq(arrayToList(a), arrayToList(b)) }
+}
+
+instance Functor[Map[K]] {
+  fmap(m, f) { mapMap(m, f) }
+}
+
+instance Functor[Array] {
+  fmap(a, f) { arrayMap(a, f) }
+}
