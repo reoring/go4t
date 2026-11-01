@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"gofx/ast"
-	"gofx/format"
-	"gofx/parser"
+	"go4t/ast"
+	"go4t/format"
+	"go4t/parser"
 )
 
 func TestGolden(t *testing.T) {
@@ -98,7 +98,7 @@ func TestRepositoryProperties(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			if !d.IsDir() && filepath.Ext(path) == ".gfx" {
+			if !d.IsDir() && filepath.Ext(path) == ".gt" {
 				paths = append(paths, path)
 			}
 			return nil

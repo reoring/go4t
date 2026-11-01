@@ -1,0 +1,167 @@
+package main
+
+// ===== ast.gt — tokens and surface syntax tree (contract; owner: supervisor) =====
+// Mirrors Go ast/ast.go without the mutable Ann slot: the checker produces a
+// separate Core tree (core.gt) instead of annotating this one.
+
+type Pos = Pos{line: Int, col: Int} deriving Eq, Ord
+
+instance Show[Pos] {
+  show(p) { "${p.line}:${p.col}" }
+}
+
+func noPos() Pos { Pos{line: 0, col: 0} }
+
+// ----- tokens (lexer -> parser) -----
+// TkString carries the decoded text. TkInterp carries the raw source
+// (including quotes) in text and its parts in `parts`; expression parts hold
+// the expression source and the position of its first character (just after
+// `${`) so the parser can lex and parse it in place. TkSemi is an inserted or
+// explicit `;`. TkEOF ends every stream.
+type TokKind = TkIdent | TkInt | TkString | TkInterp | TkKeyword | TkPunct | TkSemi | TkEOF
+  deriving Eq, Ord, Show
+
+type InterpPart = IPText(String) | IPExpr(String, Pos) deriving Eq, Show
+
+type Token = Token{kind: TokKind, text: String, pos: Pos, parts: List[InterpPart]}
+
+instance Show[Token] {
+  show(t) {
+    match t.kind {
+      TkEOF => "end of file"
+      TkSemi => "newline"
+      _ => "\"${t.text}\""
+    }
+  }
+}
+
+// ----- syntactic types -----
+type SType = STName(Pos, String, List[SType])       // Name or Name[Args]; Name may be a type parameter
+           | STFunc(Pos, List[SType], SType)        // func(Params) Ret
+           | STTuple(Pos, List[SType])              // (A, B); arity >= 2
+
+func stypePos(t SType) Pos {
+  match t {
+    STName(p, _, _) => p
+    STFunc(p, _, _) => p
+    STTuple(p, _) => p
+  }
+}
+
+// TypeParam: name, arity (0 for ordinary, n for F[_, ...]), optional class constraint.
+type TypeParam = TypeParam{name: String, arity: Int, constraint: Option[String]}
+
+// Param: function or lambda parameter. Lambda parameters may be a pattern
+// instead of a name (PParam); function declarations always use PName.
+type Param = PName(String, Option[SType]) | PParam(Pattern)
+
+// ----- declarations -----
+type File = File{pkg: String, name: String, decls: List[Decl]}
+
+type Decl = DeclClass(ClassDecl) | DeclInstance(InstanceDecl) | DeclType(TypeDecl) | DeclFunc(FuncDecl)
+
+type ClassDecl = ClassDecl{pos: Pos, name: String, param: TypeParam, super: Option[String], methods: List[MethodSig]}
+
+type MethodSig = MethodSig{pos: Pos, name: String, tparams: List[TypeParam], params: List[Param], ret: SType}
+
+// InstanceDecl: `instance Class[TypeCon[P1, P2]] given C[P1]`. The parser puts
+// every head variable in params; the checker splits the leading fixed ones.
+// A tuple head `(A, B)` is recorded as typeCon "Tuple2" with params [A, B].
+type InstanceDecl = InstanceDecl{pos: Pos, className: String, typeCon: String, params: List[String], context: List[Constraint], methods: List[InstMethod]}
+
+type Constraint = Constraint{pos: Pos, className: String, param: String}
+
+type InstMethod = InstMethod{pos: Pos, name: String, params: List[String], body: Block}
+
+type TypeDecl = TypeDecl{pos: Pos, name: String, tparams: List[String], ctors: List[CtorDecl], derivings: List[String]}
+
+// CtorDecl: positional (fieldNames Nil) or record form (fieldNames same length as fields).
+type CtorDecl = CtorDecl{pos: Pos, name: String, fields: List[SType], fieldNames: List[String]}
+
+// FuncDecl: body is None iff externRef is Some.
+type FuncDecl = FuncDecl{pos: Pos, name: String, tparams: List[TypeParam], params: List[Param], ret: SType, body: Option[Block], externRef: Option[ExternRef]}
+
+type ExternRef = ExternRef{importPath: String, goName: String}
+
+// ----- statements / expressions -----
+type Block = Block{pos: Pos, stmts: List[Stmt], result: Expr}
+
+// SLet: `let name = e`, `let name: T = e`, or `let pat [: T] = e` (target LPat).
+type Stmt = SLet(Pos, LetTarget, Option[SType], Expr) | SExpr(Expr)
+
+type LetTarget = LName(String) | LPat(Pattern)
+
+type Expr = EIdent(Pos, String)
+          | EInt(Pos, Int)
+          | EString(Pos, String)
+          | EBool(Pos, Bool)
+          | EInterp(Pos, List[String], List[Expr])      // texts has one more entry than exprs
+          | EField(Pos, Expr, String)                   // x.name (record field)
+          | ETupleField(Pos, Expr, Int)                 // x.0, x.1 ...
+          | ERecordLit(Pos, String, List[(String, Expr)])
+          | ERecordUpdate(Pos, Expr, List[(String, Expr)])
+          | ECall(Pos, Expr, List[Expr])
+          | ELambda(Pos, List[Param], Expr)
+          | EBlock(Pos, Block)
+          | EMatch(Pos, Expr, List[Arm])
+          | EIf(Pos, Expr, Expr, Expr)
+          | EDo(Pos, List[DoStmt], Expr)
+          | EBinary(Pos, String, Expr, Expr)
+          | EUnary(Pos, String, Expr)                   // "-" or "!"
+          | EList(Pos, List[Expr])
+          | ETuple(Pos, List[Expr])                     // arity >= 2
+
+type Arm = Arm{pos: Pos, pat: Pattern, guard: Option[Expr], body: Expr}
+
+type DoStmt = DoBind(Pos, LetTarget, Expr)
+            | DoLet(Pos, LetTarget, Option[SType], Expr)
+            | DoExpr(Expr)
+
+// ----- patterns -----
+type Pattern = PCtor(Pos, String, List[Pattern])
+             | PVar(Pos, String)
+             | PWild(Pos)
+             | PInt(Pos, Int)
+             | PString(Pos, String)
+             | PBool(Pos, Bool)
+             | PTuple(Pos, List[Pattern])              // arity >= 2
+             | PRecord(Pos, String, List[(String, Pattern)], Bool)   // Bool: trailing `..`
+             | PAs(Pos, String, Pattern)
+
+func exprPos(e Expr) Pos {
+  match e {
+    EIdent(p, _) => p
+    EInt(p, _) => p
+    EString(p, _) => p
+    EBool(p, _) => p
+    EInterp(p, _, _) => p
+    EField(p, _, _) => p
+    ETupleField(p, _, _) => p
+    ERecordLit(p, _, _) => p
+    ERecordUpdate(p, _, _) => p
+    ECall(p, _, _) => p
+    ELambda(p, _, _) => p
+    EBlock(p, _) => p
+    EMatch(p, _, _) => p
+    EIf(p, _, _, _) => p
+    EDo(p, _, _) => p
+    EBinary(p, _, _, _) => p
+    EUnary(p, _, _) => p
+    EList(p, _) => p
+    ETuple(p, _) => p
+  }
+}
+
+func patPos(p Pattern) Pos {
+  match p {
+    PCtor(pos, _, _) => pos
+    PVar(pos, _) => pos
+    PWild(pos) => pos
+    PInt(pos, _) => pos
+    PString(pos, _) => pos
+    PBool(pos, _) => pos
+    PTuple(pos, _) => pos
+    PRecord(pos, _, _, _) => pos
+    PAs(pos, _, _) => pos
+  }
+}

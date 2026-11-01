@@ -1,4 +1,4 @@
-// Package testrt supplies the erased IO boundary for gofx test's generated
+// Package testrt supplies the erased IO boundary for go4t test's generated
 // harness. It is command support, not an addition to the language prelude.
 package testrt
 
@@ -6,7 +6,7 @@ import (
 	"context"
 	"fmt"
 
-	"gofx/rt"
+	"go4t/rt"
 )
 
 // Run executes a suspended test exactly once, reports its outcome, and returns

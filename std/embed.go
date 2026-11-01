@@ -2,5 +2,5 @@ package std
 
 import "embed"
 
-//go:embed */*.gfx
+//go:embed */*.gt
 var FS embed.FS

@@ -6,10 +6,10 @@ import (
 	"strings"
 	"testing"
 
-	"gofx/ast"
-	"gofx/modules"
-	"gofx/parser"
-	"gofx/types"
+	"go4t/ast"
+	"go4t/modules"
+	"go4t/parser"
+	"go4t/types"
 )
 
 func checkIOEffects(t *testing.T, source string) (*types.Program, error) {
@@ -79,7 +79,7 @@ func bad() IO[Int] { io.ioFailWith(Failure) }`, "no instance Show[Failure]"},
 func TestMigratedResultExamples(t *testing.T) {
 	for _, name := range []string{"bank", "calc", "inventory", "io-effects"} {
 		t.Run(name, func(t *testing.T) {
-			source, err := os.ReadFile("../examples/" + name + "/main.gfx")
+			source, err := os.ReadFile("../examples/" + name + "/main.gt")
 			if err != nil {
 				t.Fatal(err)
 			}

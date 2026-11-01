@@ -3,7 +3,7 @@ package types
 import (
 	"testing"
 
-	"gofx/ast"
+	"go4t/ast"
 )
 
 func TestAppNormalization(t *testing.T) {

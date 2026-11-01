@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	github.com/prometheus/client_golang v1.24.1
-	gofx v0.0.0
+	go4t v0.0.0
 	modernc.org/sqlite v1.59.0
 )
 
@@ -27,4 +27,4 @@ require (
 	modernc.org/memory v1.12.1 // indirect
 )
 
-replace gofx => ../..
+replace go4t => ../..

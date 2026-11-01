@@ -10,13 +10,13 @@ import (
 	"strings"
 )
 
-// Requirement names a Go module containing gofx sources.
+// Requirement names a Go module containing go4t sources.
 type Requirement struct {
 	Path, Version string
 	line          int
 }
 
-// Manifest is a gofx.mod file. Comments and unrelated requirements survive edits.
+// Manifest is a go4t.mod file. Comments and unrelated requirements survive edits.
 type Manifest struct {
 	Module   string
 	Requires []Requirement
@@ -43,7 +43,7 @@ func ValidModulePath(name string) bool {
 
 // ReadManifest reads the module declaration and single-line require directives.
 func ReadManifest(dir string) (*Manifest, error) {
-	data, err := os.ReadFile(filepath.Join(dir, "gofx.mod"))
+	data, err := os.ReadFile(filepath.Join(dir, "go4t.mod"))
 	if err != nil {
 		return nil, err
 	}
@@ -57,22 +57,22 @@ func ReadManifest(dir string) (*Manifest, error) {
 		}
 		if m.Module == "" {
 			if len(fields) != 2 || fields[0] != "module" || !ValidModulePath(fields[1]) {
-				return nil, fmt.Errorf("invalid gofx.mod in %s: expected module <name>", dir)
+				return nil, fmt.Errorf("invalid go4t.mod in %s: expected module <name>", dir)
 			}
 			m.Module = fields[1]
 			continue
 		}
 		if len(fields) != 3 || fields[0] != "require" || !ValidModulePath(fields[1]) || strings.ContainsAny(fields[2], "@\"`\\") {
-			return nil, fmt.Errorf("invalid gofx.mod in %s: line %d: expected require <path> <version>", dir, i+1)
+			return nil, fmt.Errorf("invalid go4t.mod in %s: line %d: expected require <path> <version>", dir, i+1)
 		}
 		if seen[fields[1]] {
-			return nil, fmt.Errorf("invalid gofx.mod in %s: duplicate require %s", dir, fields[1])
+			return nil, fmt.Errorf("invalid go4t.mod in %s: duplicate require %s", dir, fields[1])
 		}
 		seen[fields[1]] = true
 		m.Requires = append(m.Requires, Requirement{Path: fields[1], Version: fields[2], line: i})
 	}
 	if m.Module == "" {
-		return nil, fmt.Errorf("invalid gofx.mod in %s: expected module <name>", dir)
+		return nil, fmt.Errorf("invalid go4t.mod in %s: expected module <name>", dir)
 	}
 	return m, nil
 }
@@ -98,7 +98,7 @@ func (m *Manifest) SetRequire(modulePath, version string) {
 // Bytes returns the manifest with a terminating newline.
 func (m *Manifest) Bytes() []byte { return []byte(strings.Join(m.lines, "\n") + "\n") }
 
-// FindRoot finds the nearest gofx.mod, or returns an empty root and nil manifest.
+// FindRoot finds the nearest go4t.mod, or returns an empty root and nil manifest.
 func FindRoot(dir string) (string, *Manifest, error) {
 	dir, err := filepath.Abs(dir)
 	if err != nil {

@@ -1,0 +1,68 @@
+package string
+
+import "std/list"
+import "std/prelude"
+
+extern func strLength(s String) Int = "go4t/rt".StrLength
+
+extern func strConcat(xs List[String]) String = "go4t/rt".StrConcat
+
+extern func join(sep String, xs List[String]) String = "go4t/rt".Join
+
+extern func split(sep String, s String) List[String] = "go4t/rt".Split
+
+extern func lines(s String) List[String] = "go4t/rt".Lines
+
+extern func words(s String) List[String] = "go4t/rt".Words
+
+extern func trim(s String) String = "go4t/rt".Trim
+
+extern func toUpper(s String) String = "go4t/rt".ToUpper
+
+extern func toLower(s String) String = "go4t/rt".ToLower
+
+extern func startsWith(s String, prefix String) Bool = "go4t/rt".StartsWith
+
+extern func endsWith(s String, suffix String) Bool = "go4t/rt".EndsWith
+
+extern func contains(s String, sub String) Bool = "go4t/rt".Contains
+
+extern func replace(s String, old String, new String) String = "go4t/rt".Replace
+
+extern func substring(s String, start Int, end Int) String = "go4t/rt".Substring
+
+extern func chars(s String) List[String] = "go4t/rt".Chars
+
+extern func repeat(s String, n Int) String = "go4t/rt".Repeat
+
+extern func parseInt(s String) Option[Int] = "go4t/rt".ParseInt
+
+extern func showPadLeft(n Int, width Int) String = "go4t/rt".ShowPadLeft
+
+extern func codePoint(s String) Option[Int] = "go4t/rt".CodePoint
+
+extern func fromCodePoint(n Int) String = "go4t/rt".FromCodePoint
+
+extern func isDigit(s String) Bool = "go4t/rt".IsDigit
+
+extern func isAlpha(s String) Bool = "go4t/rt".IsAlpha
+
+extern func isSpace(s String) Bool = "go4t/rt".IsSpace
+
+extern func isUpper(s String) Bool = "go4t/rt".IsUpper
+
+extern func isLower(s String) Bool = "go4t/rt".IsLower
+
+extern func indexOf(s String, sub String) Option[Int] = "go4t/rt".IndexOf
+
+extern func padRight(s String, width Int) String = "go4t/rt".PadRight
+
+extern func padLeft(s String, width Int) String = "go4t/rt".PadLeft
+
+extern func reverseString(s String) String = "go4t/rt".ReverseString
+
+extern func splitOnce(sep String, s String) Option[(String, String)] = "go4t/rt".SplitOnce
+
+extern func charAt(s String, i Int) Option[String] = "go4t/rt".CharAt
+
+extern func showQuoted(s String) String = "go4t/rt".ShowQuoted

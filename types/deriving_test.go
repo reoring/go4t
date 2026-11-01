@@ -6,10 +6,10 @@ import (
 	"reflect"
 	"testing"
 
-	"gofx/ast"
-	"gofx/modules"
-	"gofx/parser"
-	"gofx/types"
+	"go4t/ast"
+	"go4t/modules"
+	"go4t/parser"
+	"go4t/types"
 )
 
 func derivingFiles(t *testing.T, source string) []*ast.Module {
@@ -18,7 +18,7 @@ func derivingFiles(t *testing.T, source string) []*ast.Module {
 	if err != nil {
 		t.Fatal(err)
 	}
-	file.Name = "deriving.gfx"
+	file.Name = "deriving.gt"
 	mods, err := modules.LoadFiles([]*ast.File{file}, ".")
 	if err != nil {
 		t.Fatal(err)
@@ -107,10 +107,10 @@ func value() String { let x: Phantom[Int] = First; show(x) }`, []string{"First",
 
 func TestDerivingEnumShowModuleNames(t *testing.T) {
 	root := moduleFixture(t, map[string]string{
-		"main.gfx": `package main
+		"main.gt": `package main
 import "money"
 func main() IO[Unit] { println("${money.JPY}|${money.USD}|${money.EUR}") }`,
-		"money/domain.gfx": `package money
+		"money/domain.gt": `package money
 type Currency = JPY | USD | EUR deriving Show`,
 	})
 	p, err := checkModuleFixture(t, root)
@@ -214,7 +214,7 @@ func TestDerivingDiagnostics(t *testing.T) {
 		t.Run(tt.source, func(t *testing.T) {
 			_, err := checkFixture(t, derivingFiles(t, tt.source))
 			var typed *types.Error
-			if !errors.As(err, &typed) || typed.Msg != tt.want || typed.File != "deriving.gfx" || typed.Pos.Line == 0 || typed.Pos.Col == 0 {
+			if !errors.As(err, &typed) || typed.Msg != tt.want || typed.File != "deriving.gt" || typed.Pos.Line == 0 || typed.Pos.Col == 0 {
 				t.Fatalf("Check = %v, want positioned %q", err, tt.want)
 			}
 		})

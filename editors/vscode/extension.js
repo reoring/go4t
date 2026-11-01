@@ -17,18 +17,18 @@ class Client {
     this.nextID = 0;
     this.buffer = Buffer.alloc(0);
     this.stopped = false;
-    this.process = spawn(vscode.workspace.getConfiguration('gofx').get('executablePath', 'gofx'), ['lsp'], {
+    this.process = spawn(vscode.workspace.getConfiguration('go4t').get('executablePath', 'go4t'), ['lsp'], {
       stdio: ['pipe', 'pipe', 'pipe']
     });
     this.process.stderr.on('data', data => output.append(data.toString()));
     this.process.stdout.on('data', data => this.receive(data));
     this.process.on('error', error => this.fail(error));
     this.process.stdin.on('error', error => this.fail(error));
-    this.process.on('exit', (code, signal) => this.fail(new Error(`gofx lsp exited (${signal || code})`)));
+    this.process.on('exit', (code, signal) => this.fail(new Error(`go4t lsp exited (${signal || code})`)));
   }
 
   send(message) {
-    if (this.stopped) throw new Error('gofx language server is stopped');
+    if (this.stopped) throw new Error('go4t language server is stopped');
     const body = Buffer.from(JSON.stringify({ jsonrpc: '2.0', ...message }));
     this.process.stdin.write(`Content-Length: ${body.length}\r\n\r\n`);
     this.process.stdin.write(body);
@@ -103,8 +103,8 @@ class Client {
 }
 
 async function activate(context) {
-  const output = vscode.window.createOutputChannel('gofx');
-  const diagnostics = vscode.languages.createDiagnosticCollection('gofx');
+  const output = vscode.window.createOutputChannel('go4t');
+  const diagnostics = vscode.languages.createDiagnosticCollection('go4t');
   context.subscriptions.push(output, diagnostics);
   const client = new Client(output, diagnostics);
   activeClient = client;
@@ -112,14 +112,14 @@ async function activate(context) {
     await client.request('initialize', { processId: process.pid, capabilities: {}, rootUri: null });
     client.notify('initialized', {});
   } catch (error) {
-    vscode.window.showErrorMessage(`Cannot start gofx: ${error.message}`);
+    vscode.window.showErrorMessage(`Cannot start go4t: ${error.message}`);
     return;
   }
-  const isSource = doc => doc.languageId === 'gofx' && doc.uri.scheme === 'file';
+  const isSource = doc => doc.languageId === 'go4t' && doc.uri.scheme === 'file';
   const documentID = doc => ({ uri: doc.uri.toString() });
   const open = doc => {
     if (isSource(doc)) client.notify('textDocument/didOpen', {
-      textDocument: { ...documentID(doc), languageId: 'gofx', version: doc.version, text: doc.getText() }
+      textDocument: { ...documentID(doc), languageId: 'go4t', version: doc.version, text: doc.getText() }
     });
   };
   context.subscriptions.push(
@@ -133,12 +133,12 @@ async function activate(context) {
     vscode.workspace.onDidCloseTextDocument(doc => {
       if (isSource(doc)) client.notify('textDocument/didClose', { textDocument: documentID(doc) });
     }),
-    vscode.workspace.registerTextDocumentContentProvider('gofx-std', {
-      provideTextDocumentContent: uri => client.request('gofx/stdlib', { uri: uri.toString() })
+    vscode.workspace.registerTextDocumentContentProvider('go4t-std', {
+      provideTextDocumentContent: uri => client.request('go4t/stdlib', { uri: uri.toString() })
     })
   );
   vscode.workspace.textDocuments.forEach(open);
-  const selector = { language: 'gofx', scheme: 'file' };
+  const selector = { language: 'go4t', scheme: 'file' };
   const at = (doc, position) => ({ textDocument: documentID(doc), position });
   context.subscriptions.push(
     vscode.languages.registerHoverProvider(selector, {

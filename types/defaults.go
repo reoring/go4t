@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"gofx/ast"
+	"go4t/ast"
 )
 
 type defaultOrigin struct {

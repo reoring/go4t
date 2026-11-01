@@ -1,4 +1,4 @@
-// Package format prints canonical gofx source from its surface AST.
+// Package format prints canonical go4t source from its surface AST.
 package format
 
 import (
@@ -7,8 +7,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"gofx/ast"
-	"gofx/parser"
+	"go4t/ast"
+	"go4t/parser"
 )
 
 // Source parses and formats a complete source file. Parse errors are unchanged.

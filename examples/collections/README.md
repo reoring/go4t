@@ -3,7 +3,7 @@
 From the repository root:
 
 ```sh
-go run ./cmd/gofx run examples/collections/main.gfx
+go run ./cmd/go4t run examples/collections/main.gt
 ```
 
 Observed output:

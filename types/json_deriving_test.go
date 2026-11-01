@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"gofx/ast"
-	"gofx/types"
+	"go4t/ast"
+	"go4t/types"
 )
 
 func TestJSONDerivingExpansions(t *testing.T) {
@@ -76,7 +76,7 @@ func TestJSONDerivingErrors(t *testing.T) {
 		t.Run(tc.source, func(t *testing.T) {
 			_, err := checkFixture(t, jsonDerivingFiles(t, tc.source))
 			var diagnostic *types.Error
-			if !errors.As(err, &diagnostic) || diagnostic.File != "deriving.gfx" || diagnostic.Pos.Line == 0 || !strings.Contains(diagnostic.Msg, tc.want) {
+			if !errors.As(err, &diagnostic) || diagnostic.File != "deriving.gt" || diagnostic.Pos.Line == 0 || !strings.Contains(diagnostic.Msg, tc.want) {
 				t.Fatalf("error = %v; want positioned %q", err, tc.want)
 			}
 		})

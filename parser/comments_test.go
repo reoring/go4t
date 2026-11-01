@@ -1,8 +1,8 @@
 package parser_test
 
 import (
-	"gofx/ast"
-	"gofx/parser"
+	"go4t/ast"
+	"go4t/parser"
 	"testing"
 )
 

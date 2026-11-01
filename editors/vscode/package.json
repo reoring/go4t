@@ -1,22 +1,22 @@
 {
-  "name": "gofx",
-  "displayName": "gofx",
-  "description": "gofx diagnostics, hover, definitions and document symbols",
+  "name": "go4t",
+  "displayName": "go4t",
+  "description": "go4t diagnostics, hover, definitions and document symbols",
   "version": "0.1.0",
-  "publisher": "gofx",
+  "publisher": "go4t",
   "engines": { "vscode": "^1.85.0" },
   "categories": ["Programming Languages"],
-  "activationEvents": ["onLanguage:gofx"],
+  "activationEvents": ["onLanguage:go4t"],
   "main": "./extension.js",
   "contributes": {
-    "languages": [{ "id": "gofx", "aliases": ["gofx"], "extensions": [".gfx"] }],
+    "languages": [{ "id": "go4t", "aliases": ["go4t"], "extensions": [".gt"] }],
     "configuration": {
-      "title": "gofx",
+      "title": "go4t",
       "properties": {
-        "gofx.executablePath": {
+        "go4t.executablePath": {
           "type": "string",
-          "default": "gofx",
-          "description": "Path to the gofx executable (started with the lsp argument)."
+          "default": "go4t",
+          "description": "Path to the go4t executable (started with the lsp argument)."
         }
       }
     }

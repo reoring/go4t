@@ -49,7 +49,7 @@ func TestExtractedRuntimeIsSelfContained(t *testing.T) {
 		t.Fatal(err)
 	}
 	mod, err := os.ReadFile(filepath.Join(dir, "go.mod"))
-	if err != nil || string(mod) != "module gofx\n\ngo "+GoVersion()+"\n" {
+	if err != nil || string(mod) != "module go4t\n\ngo "+GoVersion()+"\n" {
 		t.Fatalf("extracted module = %q, %v", mod, err)
 	}
 	command := exec.Command("go", "list", "-deps", "-f", "{{if not .Standard}}{{.ImportPath}}{{end}}", "./rt/...")
@@ -60,7 +60,7 @@ func TestExtractedRuntimeIsSelfContained(t *testing.T) {
 		t.Fatalf("list extracted runtime: %v\n%s", err, out)
 	}
 	for _, path := range strings.Fields(string(out)) {
-		if path != "gofx/rt" && !strings.HasPrefix(path, "gofx/rt/") {
+		if path != "go4t/rt" && !strings.HasPrefix(path, "go4t/rt/") {
 			t.Errorf("runtime depends on nonstandard package %q", path)
 		}
 	}

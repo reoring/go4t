@@ -1,4 +1,4 @@
-// Package ast defines the gofx surface syntax tree.
+// Package ast defines the go4t surface syntax tree.
 package ast
 
 import "fmt"

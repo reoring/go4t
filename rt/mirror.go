@@ -1,6 +1,6 @@
 package rt
 
-// Option is the natural Go representation of a gofx Option. Its zero value is None.
+// Option is the natural Go representation of a go4t Option. Its zero value is None.
 type Option[T any] struct {
 	Value   T
 	Present bool
@@ -16,7 +16,7 @@ type Result[E, A any] struct {
 	IsOk bool
 }
 
-// Tuple2 through Tuple8 are the natural Go representations of gofx tuples.
+// Tuple2 through Tuple8 are the natural Go representations of go4t tuples.
 type Tuple2[A, B any] struct {
 	F0 A
 	F1 B

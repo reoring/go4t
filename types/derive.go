@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"gofx/ast"
+	"go4t/ast"
 )
 
 // expandDeriving appends ordinary instances, so their fields and bodies use the

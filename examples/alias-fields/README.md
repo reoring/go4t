@@ -3,7 +3,7 @@
 From the repository root:
 
 ```sh
-go run ./cmd/gofx run examples/alias-fields/main.gfx
+go run ./cmd/go4t run examples/alias-fields/main.gt
 ```
 
 Observed output:

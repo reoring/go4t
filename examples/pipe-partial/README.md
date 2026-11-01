@@ -3,7 +3,7 @@
 Run from the repository root:
 
 ```sh
-go run ./cmd/gofx run examples/pipe-partial/main.gfx
+go run ./cmd/go4t run examples/pipe-partial/main.gt
 ```
 
 Observed output:

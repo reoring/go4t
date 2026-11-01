@@ -3,7 +3,7 @@ package codegen
 import "testing"
 
 func TestListPatternsRun(t *testing.T) {
-	source := qualityProgram(t, "list-pattern.gfx", `package main
+	source := qualityProgram(t, "list-pattern.gt", `package main
 func classify(xs List[Int]) Int {
   match xs {
     [] => 0

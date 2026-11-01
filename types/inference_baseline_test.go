@@ -13,15 +13,15 @@ import (
 	"strings"
 	"testing"
 
-	"gofx/ast"
-	"gofx/modules"
-	"gofx/parser"
-	"gofx/types"
+	"go4t/ast"
+	"go4t/modules"
+	"go4t/parser"
+	"go4t/types"
 )
 
 var updateInferenceBaseline = flag.Bool("update", false, "update the inference baseline before changing inference")
 
-const inferenceCaptureEnv = "GOFX_INFERENCE_CAPTURE"
+const inferenceCaptureEnv = "GO4T_INFERENCE_CAPTURE"
 
 type inferenceSnapshot map[string]map[string]string
 
@@ -263,7 +263,7 @@ func checkInferenceExamples(t *testing.T) {
 		if err != nil || !entry.IsDir() {
 			return err
 		}
-		files, err := filepath.Glob(filepath.Join(path, "*.gfx"))
+		files, err := filepath.Glob(filepath.Join(path, "*.gt"))
 		if err != nil || len(files) == 0 {
 			return err
 		}
@@ -298,7 +298,7 @@ func checkInferenceExamples(t *testing.T) {
 				_, err = checkFixture(t, loaded)
 				// These are intentionally invalid diagnostic programs and a
 				// pre-existing formatting-only fixture with an unbound pure.
-				negative := strings.HasPrefix(filepath.Base(main), "bad_") || filepath.ToSlash(main) == "../examples/fmt/before.gfx"
+				negative := strings.HasPrefix(filepath.Base(main), "bad_") || filepath.ToSlash(main) == "../examples/fmt/before.gt"
 				if err != nil && !negative {
 					t.Fatal(err)
 				}

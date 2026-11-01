@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"gofx/ast"
-	"gofx/types"
+	"go4t/ast"
+	"go4t/types"
 )
 
 func TestShortCircuitOperators(t *testing.T) {
@@ -182,8 +182,8 @@ func TestGuardedFinalMatchArm(t *testing.T) {
 
 func TestIntBoundExterns(t *testing.T) {
 	p := fixture()
-	extern(p, "minInt", nil, nil, "gofx/rt", "MinInt")
-	extern(p, "maxInt", nil, nil, "gofx/rt", "MaxInt")
+	extern(p, "minInt", nil, nil, "go4t/rt", "MinInt")
+	extern(p, "maxInt", nil, nil, "go4t/rt", "MaxInt")
 	p.Main.Decl.Body.Result = tupleLiteral(call(function("minInt", fnType())), call(function("maxInt", fnType())))
 	assertSource(t, p, "return ext_1.MinInt()", "return ext_1.MaxInt()", "return &Tuple2{F0: minInt_(), F1: maxInt_()}")
 }
@@ -205,8 +205,8 @@ func comparisonFixture() (*types.Program, *types.Instance, *types.Instance) {
 	eq.Methods = []*types.Method{{Name: "eq", Class: eq, Scheme: &types.Scheme{Type: &types.TFunc{Params: []types.Type{a, a}, Ret: types.Bool}}}}
 	ord.Methods = []*types.Method{{Name: "compare", Class: ord, Scheme: &types.Scheme{Type: &types.TFunc{Params: []types.Type{a, a}, Ret: &types.TCon{Name: "Ordering"}}}}}
 	p.Classes[eq.Name], p.Classes[ord.Name] = eq, ord
-	extern(p, "eqInt", []string{"a", "b"}, []types.Type{types.Int, types.Int}, "gofx/rt", "EqInt")
-	extern(p, "ltInt", []string{"a", "b"}, []types.Type{types.Int, types.Int}, "gofx/rt", "LtInt")
+	extern(p, "eqInt", []string{"a", "b"}, []types.Type{types.Int, types.Int}, "go4t/rt", "EqInt")
+	extern(p, "ltInt", []string{"a", "b"}, []types.Type{types.Int, types.Int}, "go4t/rt", "LtInt")
 	primitive := func(name string) ast.Expr {
 		return call(function(name, fnType(types.Int, types.Int)), local("a", types.Int), local("b", types.Int))
 	}

@@ -5,9 +5,9 @@ import (
 	"reflect"
 	"testing"
 
-	"gofx/ast"
-	"gofx/parser"
-	"gofx/types"
+	"go4t/ast"
+	"go4t/parser"
+	"go4t/types"
 )
 
 // Keep operator tests independent of the shipped prelude while exercising the
@@ -16,11 +16,11 @@ const pass9Prelude = `
 class Eq[A] { eq(a A, b A) Bool }
 type Ordering = LT | EQ | GT
 class Ord[A] : Eq[A] { compare(a A, b A) Ordering }
-extern func eqInt(a Int, b Int) Bool = "gofx/rt".EqInt
-extern func ltInt(a Int, b Int) Bool = "gofx/rt".LtInt
-extern func eqString(a String, b String) Bool = "gofx/rt".EqString
-extern func ltString(a String, b String) Bool = "gofx/rt".LtString
-extern func eqBool(a Bool, b Bool) Bool = "gofx/rt".EqBool
+extern func eqInt(a Int, b Int) Bool = "go4t/rt".EqInt
+extern func ltInt(a Int, b Int) Bool = "go4t/rt".LtInt
+extern func eqString(a String, b String) Bool = "go4t/rt".EqString
+extern func ltString(a String, b String) Bool = "go4t/rt".LtString
+extern func eqBool(a Bool, b Bool) Bool = "go4t/rt".EqBool
 instance Eq[Int] { eq(a, b) { eqInt(a, b) } }
 instance Ord[Int] { compare(a, b) { if eqInt(a, b) { EQ } else if ltInt(a, b) { LT } else { GT } } }
 instance Eq[String] { eq(a, b) { eqString(a, b) } }

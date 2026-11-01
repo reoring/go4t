@@ -12,14 +12,14 @@ import (
 	"sort"
 	"strings"
 
-	"gofx/ast"
-	"gofx/modules"
-	"gofx/parser"
-	"gofx/std"
-	"gofx/types"
+	"go4t/ast"
+	"go4t/modules"
+	"go4t/parser"
+	"go4t/std"
+	"go4t/types"
 )
 
-const stdScheme = "gofx-std"
+const stdScheme = "go4t-std"
 
 type document struct {
 	uri, text string
@@ -106,7 +106,7 @@ func (s *server) handle(m rpcMessage) error {
 			return fail(-32600, "Server already initialized")
 		}
 		s.initialized = true
-		return s.reply(m.ID, map[string]any{"capabilities": map[string]any{"positionEncoding": "utf-16", "textDocumentSync": 1, "hoverProvider": true, "definitionProvider": true, "documentSymbolProvider": true}, "serverInfo": map[string]string{"name": "gofx"}}, nil)
+		return s.reply(m.ID, map[string]any{"capabilities": map[string]any{"positionEncoding": "utf-16", "textDocumentSync": 1, "hoverProvider": true, "definitionProvider": true, "documentSymbolProvider": true}, "serverInfo": map[string]string{"name": "go4t"}}, nil)
 	}
 	if !s.initialized {
 		return fail(-32002, "Server not initialized")
@@ -121,7 +121,7 @@ func (s *server) handle(m rpcMessage) error {
 	if m.Method == "initialized" || m.Method == "$/cancelRequest" || m.Method == "$/setTrace" {
 		return nil
 	}
-	if m.Method == "gofx/stdlib" {
+	if m.Method == "go4t/stdlib" {
 		if request {
 			var params struct {
 				URI string `json:"uri"`
@@ -277,8 +277,8 @@ func uriPath(uri string) (string, error) {
 	if err != nil || u.Scheme != "file" || u.Host != "" && u.Host != "localhost" || u.RawQuery != "" || u.Fragment != "" || !filepath.IsAbs(filepath.FromSlash(u.Path)) {
 		return "", errors.New("expected an absolute file URI")
 	}
-	if filepath.Ext(u.Path) != ".gfx" {
-		return "", errors.New("expected a .gfx document")
+	if filepath.Ext(u.Path) != ".gt" {
+		return "", errors.New("expected a .gt document")
 	}
 	return filepath.Clean(filepath.FromSlash(u.Path)), nil
 }
@@ -319,7 +319,7 @@ func (s *server) check(dir, closed string) error {
 				msg = strings.TrimPrefix(msg, pos.String()+": ")
 			}
 		}
-		byFile[path] = append(byFile[path], Diagnostic{sourceRange(snap.sources[path], pos, end), 1, "gofx", msg})
+		byFile[path] = append(byFile[path], Diagnostic{sourceRange(snap.sources[path], pos, end), 1, "go4t", msg})
 	}
 	paths := map[string]bool{}
 	entries, err := os.ReadDir(dir)
@@ -331,7 +331,7 @@ func (s *server) check(dir, closed string) error {
 		}
 	}
 	for _, entry := range entries {
-		if !entry.IsDir() && filepath.Ext(entry.Name()) == ".gfx" {
+		if !entry.IsDir() && filepath.Ext(entry.Name()) == ".gt" {
 			paths[filepath.Join(dir, entry.Name())] = true
 		}
 	}
@@ -385,7 +385,7 @@ func (s *server) check(dir, closed string) error {
 			snap.index = program.PositionIndex()
 			for _, warning := range program.Warnings {
 				path := warning.File
-				byFile[path] = append(byFile[path], Diagnostic{sourceRange(snap.sources[path], warning.Pos, warning.End), 2, "gofx", warning.Msg})
+				byFile[path] = append(byFile[path], Diagnostic{sourceRange(snap.sources[path], warning.Pos, warning.End), 2, "go4t", warning.Msg})
 			}
 		}
 	}

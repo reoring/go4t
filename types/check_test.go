@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"gofx/ast"
-	"gofx/parser"
-	"gofx/types"
+	"go4t/ast"
+	"go4t/parser"
+	"go4t/types"
 )
 
 const testPrelude = `package main
@@ -20,7 +20,7 @@ class Monad[M[_]] : Functor[M] {
   bind[A, B](ma M[A], f func(A) M[B]) M[B]
 }
 class Show[A] { show(a A) String }
-extern func showInt(a Int) String = "gofx/rt".ShowInt
+extern func showInt(a Int) String = "go4t/rt".ShowInt
 instance Show[Int] { show(a) { showInt(a) } }
 type List[A] = Nil | Cons(A, List[A])
 type Option[A] = None | Some(A)
@@ -31,9 +31,9 @@ instance Monad[Option] {
   pure(a) { Some(a) }
   bind(ma, f) { match ma { None => None; Some(a) => f(a) } }
 }
-extern func ioPure[A](a A) IO[A] = "gofx/rt".Pure
-extern func ioBind[A, B](ma IO[A], f func(A) IO[B]) IO[B] = "gofx/rt".Bind
-extern func unit() Unit = "gofx/rt".UnitValue
+extern func ioPure[A](a A) IO[A] = "go4t/rt".Pure
+extern func ioBind[A, B](ma IO[A], f func(A) IO[B]) IO[B] = "go4t/rt".Bind
+extern func unit() Unit = "go4t/rt".UnitValue
 instance Functor[IO] {
   fmap(fa, f) { ioBind(fa, func(a) => ioPure(f(a))) }
 }
@@ -687,8 +687,8 @@ func TestListLiteralRequiresPrelude(t *testing.T) {
 	for _, declaration := range []string{"", "type List[A] = Empty | Full(A)"} {
 		t.Run(declaration, func(t *testing.T) {
 			file, err := parser.Parse("package main\n" + declaration + `
-extern func ioPure[A](a A) IO[A] = "gofx/rt".Pure
-extern func unit() Unit = "gofx/rt".UnitValue
+extern func ioPure[A](a A) IO[A] = "go4t/rt".Pure
+extern func unit() Unit = "go4t/rt".UnitValue
 func main() IO[Unit] { []; ioPure(unit()) }
 `)
 			if err != nil {

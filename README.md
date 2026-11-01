@@ -1,31 +1,145 @@
-# gofx
+# go4t — Go for types
 
-A small, statically typed functional language with Go-flavoured syntax that
-compiles to ordinary Go: algebraic data types and records, exhaustive pattern
-matching, higher-kinded type classes, explicit IO, persistent collections,
-concurrency, typed Go externs, modules, and derived JSON codecs.
+go4t is a small, statically typed functional language that compiles to ordinary
+Go. It exists for one job: **writing the decision core of a Go program** — the
+part that turns observed state into a next step — in a form where every state
+has a name, every case is checked, and nothing performs I/O.
+
+Go stays the shell. go4t is the core. You do not rewrite your service in go4t;
+you move the `if ok { … } else if … { return … }` ladders into it and call the
+result from Go as a typed function.
+
+```go4t
+package decide
+
+type Ttl       = NoTtl | InvalidTtl | TtlNanos(Int)                 deriving Eq, Debug
+type Timestamp = NoTimestamp | InvalidTimestamp | AtNanos(Int)      deriving Eq, Debug
+type Freshness = Fresh(Int) | TtlInvalid | TimestampMissing
+               | TimestampInvalid | Stale                            deriving Eq, Debug
+
+func freshness(ttl Ttl, observedAt Timestamp, nowNanos Int) Freshness {
+  match (ttl, observedAt) {
+    (NoTtl, _)                                          => Fresh(0)
+    (InvalidTtl, _)                                     => TtlInvalid
+    (TtlNanos(_), NoTimestamp)                          => TimestampMissing
+    (TtlNanos(_), InvalidTimestamp)                     => TimestampInvalid
+    (TtlNanos(t), AtNanos(at)) if nowNanos >= at + t    => Stale
+    (TtlNanos(t), AtNanos(at))                          => Fresh(at + t - nowNanos)
+  }
+}
+
+func main() IO[Unit] { println(debug(freshness(TtlNanos(10), AtNanos(5), 12))) }
+```
+
+`go4t build --emit-go decide --package decide decide/decide.gt` turns that into
+a Go package. The Go side fills the inputs and switches on the result:
+
+```go
+switch step := decide.Freshness(ttl, observedAt, now.UnixNano()).(type) {
+case decide.FreshnessStale:
+    return requeue(ctx, obj)
+case decide.FreshnessTtlInvalid:
+    return reject(ctx, obj, "evidence TTL invalid")
+// …
+}
+```
+
+Remove an arm from the `match` and `go4t check` fails with
+`missing: (TtlNanos(_), InvalidTimestamp)`. That is the whole value proposition.
+
+## Why not just Go?
+
+Go is a good shell language and a weak core language. In a reconciler, a
+workflow engine, a policy evaluator or a pricing rule, the hard part is a
+decision over many partially-known facts. Go expresses those facts as
+`(value, ok)` pairs, sentinel values, nullable pointers and boolean flags; the
+decision becomes a ladder of early returns whose coverage only tests can
+establish, and tests rarely enumerate every combination.
+
+go4t gives the core what Go lacks:
+
+| Need in a decision core | go4t | Go |
+| --- | --- | --- |
+| A state that is one of N named things | sum types (`A \| B(Int) \| C`) | consts + comments, or `*T` + `bool` |
+| "Did I handle every case?" | exhaustive `match`, compile error listing the missing patterns | `default:` and hope |
+| Errors as data | `Result[E, A]`, `Option[A]` with `do` sequencing | `(T, error)` and `if err != nil` |
+| Guarantee the core performs no I/O | effects are `IO[A]` values; a pure function cannot run one | discipline |
+| Equality, ordering, debug printing of nested data | `deriving Eq, Ord, Debug, Show` | hand-written or `reflect.DeepEqual` |
+| Generic operations over containers | type classes, higher-kinded (`Functor`, `Monad`, `Monoid`) | per-type copies |
+
+Everything compiles to readable Go, runs at Go speed, and uses `go.mod` for
+dependencies. Any Go package can be called through generated typed bindings.
+
+## Where it has been used, and what we learned
+
+The language was validated by porting real code, not by writing samples.
+
+**Two production Kubernetes controllers** (`examples/approval-controller`,
+`examples/attachment-repair-controller`) had their decision logic moved to
+go4t while the original Go test files stayed byte-identical as the oracle.
+All 6 + 22 original tests pass unchanged. The approval port surfaced a decision
+branch the original tests never exercised; the exhaustiveness checker refused
+to compile until it was handled. The attachment port moved a multi-step
+workflow (observe → authorize → compare-and-swap delete → publish) into a
+pure `Decide(Observed) Action` that Go calls up to three times per reconcile.
+
+Each readability fix in those ports was the same correction — a Go
+`(value, ok)`, flag or sentinel became a constructor:
+
+| Go habit in the input | Became | Effect |
+| --- | --- | --- |
+| `gatesValid: Bool` + `gates: List[Gate]` | `gates: List[GateEvidence]`, `GateEvidence = Gate \| InvalidGate` | first-failure order identical to the Go loop |
+| `Option[Int]` with "≤ 0 means invalid" | `Ttl = NoTtl \| InvalidTtl \| TtlNanos(Int)` | the invalid case cannot be forgotten |
+| `present: Bool` + `Option[Int]` | `Timestamp = NoTimestamp \| InvalidTimestamp \| AtNanos(Int)` | one match instead of nested if/match, 20 → 11 lines |
+| `fromOption(gen, -1)` | `gen != Some(plan.generation)` | no sentinel |
+
+**A 110 k-line port of `client-go`** was done as a scale experiment, not as a
+product. It compiled (after two compiler fixes for 950-arm matches and
+closure-heavy codegen that are now part of the language), but it showed the
+boundary clearly: an infrastructure layer is mostly state, caches and I/O, where
+pure functions and exhaustiveness buy little and the Go-binding layer grows
+larger than the code it serves. The conclusion is the design rule above —
+**keep go4t for the decision core; bind, do not port, the infrastructure.**
+
+## Language at a glance
+
+- Algebraic data types, records with immutable update, transparent aliases,
+  tuples, persistent `List`/`Map`/`Set`/`Array`.
+- Hindley–Milner inference with rank-1 polymorphism; type classes with
+  superclasses and higher kinds; `deriving Eq, Ord, Show, Debug, Functor,
+  Foldable, Traversable`, JSON `Encode`/`Decode`.
+- Exhaustive `match` with guards, tuple and list patterns, pattern `let`.
+- Explicit effects: `IO[A]`, `do`-style blocks, typed `IoError` recovery,
+  fibers (`fork`/`await`/race/timeout) with cancellation.
+- `std`: strings, numbers, collections, JSON, HTTP client/server, regex,
+  lazy values, `State`, concurrency, file/process I/O.
+- Go interop both ways: `go4t bind` generates typed externs for any Go package
+  (including methods on opaque handles); `go4t build --emit-go` exports go4t
+  functions, records and sums as natural Go types.
+- Tooling: `check`, `build`, `run`, `test`, `eval`, `fmt`, LSP server,
+  VS Code extension, source-located diagnostics with `^~~~` spans.
+- Go-flavoured syntax: `func`, `package`, `import`, braces, `|>` pipelines,
+  `_` call placeholders.
+
+Full reference: [SPEC.md](SPEC.md). Guided introduction for Go developers:
+[docs/tutorial.md](docs/tutorial.md). Every std declaration:
+[docs/stdlib.md](docs/stdlib.md).
 
 ## Install and quick start
 
-Requires **Go 1.22 or later** on PATH, including when gofx builds/runs generated
-programs. From this checkout:
+Requires **Go 1.22+** on PATH (go4t generates Go and runs `go build`).
 
 ```sh
-go install ./cmd/gofx
-# Add $(go env GOPATH)/bin to PATH if it is not there already.
-gofx eval '1 + 2'
+go install ./cmd/go4t
+go4t eval '1 + 2'        # 3
 ```
 
-The last command prints `3`. The installed binary embeds the runtime Go sources,
-so `gofx run hello.gfx`, `gofx test hello.gfx`, and `gofx eval '1 + 2'` work from
-any directory, even without a `go.mod` or a copy of this checkout. Only the Go
-toolchain must remain on PATH; no third-party Go dependencies are needed.
-Without installing, use `go run ./cmd/gofx` from the checkout root instead of
-`gofx` in the commands below.
+The binary embeds the runtime, so `run`, `test` and `eval` work from any
+directory without a `go.mod`. Without installing, use `go run ./cmd/go4t`.
 
-Create `hello/main.gfx` anywhere with this complete program:
+Create `hello/main.gt`:
 
-```gofx
+```go4t
 package main
 import "std/string"
 func main() IO[Unit] {
@@ -35,222 +149,164 @@ func main() IO[Unit] {
 ```
 
 ```sh
-gofx check hello/main.gfx
-gofx run hello/main.gfx
-# Hello, Ada and Bob!
-gofx build hello/main.gfx
-# Generated Go sources: hello/main_gen/main.go plus dependency module files.
+go4t check hello/main.gt
+go4t run hello/main.gt        # Hello, Ada and Bob!
+go4t build hello/main.gt      # emits Go source into hello/main_gen/
 ```
 
-`build` emits **Go source**, not a binary. `run` compiles and executes that
-package. If the surrounding Go module resolves `gofx` (`go list -m gofx` succeeds),
-it retains the generated sources there as before. Otherwise, `run`, `test`, and
-`eval` use an automatically cleaned temporary module containing the embedded
-runtime; they do not leave `_gen` directories beside your source.
+## Embedding in a Go program
 
-`build` still writes `<file>_gen` (or the directory selected by `-o`/`--emit-go`).
-Outside a usable Go module it prints a compilation note: to compile those sources
-yourself, configure a module with `require gofx v0.0.0` and
-`replace gofx => /absolute/path/to/gofx`, then run `go build` in the generated
-directory. Externs outside `gofx/rt` and its subpackages require a real application
-Go module providing those packages and `gofx`. Use `gofx init` to create a project;
-`gofx.mod` declares language imports while Go manages dependency versions.
+This is the intended workflow.
 
-## Dependencies
+1. Write the decision in `decide/decide.gt`: a projection record `Observed`,
+   an action sum, and `func decide(o Observed) Action`.
+2. Generate: `go4t build --emit-go decide --package decide decide/decide.gt`
+   (put it in a `//go:generate` line). The package exports `Decide`, Go mirror
+   types for every record and sum (`ObservedGo`, `ActionRollout{}`,
+   `TtlTtlNanos{F0: …}`), and `Main() rt.IO`.
+3. In Go: read the world, fill `Observed`, call `Decide`, switch on the result,
+   perform the effects. Nothing in `decide` can perform I/O; the compiler
+   enforces it.
 
-A gofx library is a Go module with `go.mod`, `gofx.mod` and `.gfx` files.
-In a new directory, run `gofx init example.com/myapp`. It creates both manifests:
-`go.mod` declares `go 1.22`, requires `gofx v0.0.0`, and replaces it with the
-`Dir` returned by `go list -m -json gofx` from the original directory, when
-available (typically a parent module's checkout replacement). Otherwise it
-extracts the embedded runtime to the user cache:
-`$XDG_CACHE_HOME/gofx/runtime/<sha256>` on Linux, or
-`$HOME/.cache/gofx/runtime/<sha256>` when XDG_CACHE_HOME is unset. The hash covers
-embedded paths and contents; repeated initialization reuses the same runtime.
-No `.gofx` runtime directory is added to the project. Existing manifests are
-never overwritten. The generated replacement is an absolute, machine-local
-path: keep that checkout/cache available and adjust it when moving the project.
+Rules that keep the boundary clean (SPEC §8.7, tutorial §12):
 
-Install a published library with `gofx get example.com/lib@v1.0.0`.
-This runs `go get` in the nearest `gofx.mod` project root (which must also have
-`go.mod`), then adds or updates `require example.com/lib v1.0.0` in `gofx.mod`.
-Go selects the version; queries such as `@latest` are saved as concrete selected
-versions. Checksums and replacements stay in `go.sum` and `go.mod`. Import the
-library's sources as `"example.com/lib/shapes"` for its `shapes/` directory.
+- Project only what the decision needs; every call copies the record.
+- Never cross a sentinel. `Option[Int]` crosses as a pointer-free mirror;
+  compare with `Some(x)`, do not unwrap with `-1`.
+- Cross durations and timestamps as `Int` nanoseconds — the representation of
+  `time.Duration` and `UnixNano` — so no rounding happens at the boundary.
+- A validity flag beside a list becomes a sum per element; "first failure in
+  order" then matches the original Go loop exactly.
 
-For an offline local library, first add
-`replace example.com/lib => ../lib` to the application's **go.mod**, then run
-`gofx get example.com/lib@v1.0.0`. A local replacement needs no published tag or
-network access. The checked-in [dependency example](examples/deps) is ready to run:
+Runnable template: [examples/go-shell](examples/go-shell). Real ports:
+[examples/approval-controller](examples/approval-controller),
+[examples/attachment-repair-controller](examples/attachment-repair-controller).
+
+## Calling Go from go4t
 
 ```sh
-gofx run examples/deps/app
-# area: 42
+go4t bind strings --prefix str          # prints extern declarations
+go4t bind modernc.org/sqlite -o bindings.gt
 ```
 
-Resolution tries the importing module's nearest source root, matching
-`gofx.mod` requires via `go list -m -json` in the entry project, `GOFX_PATH`,
-then embedded std. Dependency imports and transitive versions honor the
-application's Go replacements; longest module-path prefixes win. The first
-existing directory is authoritative, even when empty or invalid. `gofx.mod`
-accepts one `module` line, single-line `require` directives, blank lines and
-`//` comments; it does not accept `replace`.
+Generated externs cover functions, methods on opaque handles, slices, options
+and errors; signatures that cannot be mirrored get a skip comment instead of a
+wrong binding. [examples/sql-service](examples/sql-service) is an HTTP service
+over SQLite with Prometheus metrics built this way; [examples/typed-extern](examples/typed-extern)
+shows the ABI adapters. `std/http` needs no bindings.
 
-## CLI overview
+## Projects and dependencies
 
-| Command | Purpose and important flags |
+A go4t library is a Go module with `go.mod`, `go4t.mod` and `.gt` files.
+
+```sh
+go4t init example.com/myapp            # creates go.mod + go4t.mod
+go4t get example.com/lib@v1.0.0        # go get, then record in go4t.mod
+```
+
+Go selects versions and keeps checksums; `go4t.mod` lists language imports.
+Imports are file-local and qualified (`import "std/io"` → `io.readFile`); only
+the small core prelude is implicit. Resolution order: the importing module's
+source root, `go4t.mod` requires, `GO4T_PATH`, embedded std. See
+[examples/deps](examples/deps) for an offline local-replacement setup.
+
+## CLI
+
+| Command | Purpose |
 | --- | --- |
-| `gofx init <module-path>` | Create go.mod/gofx.mod, using a resolved gofx checkout or the cached embedded runtime. |
-| `gofx get <path>@<version>` | Run Go dependency installation and add/update the selected version in gofx.mod. |
-| `gofx check [--full-types] FILE.gfx\|DIR...` | Load modules and type-check; warnings do not fail; no foreign ABI check. |
-| `gofx build [--full-types] [-o DIR] FILE.gfx\|DIR...` | Emit one file per gofx module into one Go package. |
-| `gofx build [--full-types] --emit-go DIR --package NAME FILE.gfx\|DIR...` | Emit an embeddable non-main package with typed Go exports and `Main() rt.IO`; incompatible with -o. |
-| `gofx run [--full-types] FILE.gfx\|DIR... [-- args...]` | Build and execute; inherits stdin and preserves child status in the installed CLI. |
-| `gofx test FILE.gfx\|DIR...` | Run zero-arg monomorphic `testName` functions returning Bool/IO[Bool]; main optional and ignored. |
-| `gofx eval 'EXPR' [FILE.gfx\|DIR...]` | Evaluate and show a pure value or IO result; supporting imports come from the first file. |
-| `gofx bind IMPORT [FILE.gfx\|DIR...] [-o FILE.gfx\|DIR] [--prefix STR]` | Generate Go extern declarations; unsupported signatures get skip comments. |
-| `gofx fmt [-w\|-d\|-l] FILE...\|DIR` | Print/write/diff/list canonical formatting; -l exits 1 on differences; flags exclusive. |
-| `gofx lsp` | Start the stdio language server. |
+| `go4t check [--full-types] FILE.gt\|DIR...` | Load and type-check; warnings do not fail; foreign ABI is not checked here. |
+| `go4t build [--full-types] [-o DIR] FILE.gt\|DIR...` | Emit one Go file per go4t module into one Go package. |
+| `go4t build --emit-go DIR --package NAME FILE.gt\|DIR...` | Emit an importable Go package with typed exports (§8.7). |
+| `go4t run [--full-types] FILE.gt\|DIR... [-- args...]` | Build and execute; inherits stdin; preserves exit status. |
+| `go4t test FILE.gt\|DIR...` | Run zero-arg `testName` functions returning `Bool` or `IO[Bool]`. |
+| `go4t eval 'EXPR' [FILE.gt\|DIR...]` | Evaluate a pure value or IO result; imports come from the first file. |
+| `go4t bind IMPORT [-o FILE] [--prefix STR]` | Generate Go extern declarations. |
+| `go4t fmt [-w\|-d\|-l] FILE...\|DIR` | Canonical formatting; `-l` exits 1 on differences. |
+| `go4t init <module-path>` / `go4t get <path>@<version>` | Project and dependency management. |
+| `go4t lsp` | Stdio language server (diagnostics, hover, definition, symbols). |
 
-Call pure gofx logic from a typed Go shell: see [SPEC §8.7](SPEC.md#87-exported-go-api)
-and the [Go shell example](examples/go-shell).
-
-Diagnostics and hover retain source-written type aliases. Long types elide
-deeply nested parts with `…`; `--full-types` disables elision for check/build/run
-(without expanding alias names). See the [alias mismatch demo](examples/diagnostics).
-
-Directory compilation includes immediate `.gfx` files; formatting recurses.
-Explicit entry files must share a directory. Imports are file-local and qualified;
-only the small core prelude is implicit. For example import `"std/io"` before
-using `io.readFile`, and `"std/prelude"` before `prelude.pure`.
-
-Run source tests and expression probes:
-
-```sh
-gofx test examples/cli-tools/main.gfx
-gofx eval 'testArithmetic()' examples/cli-tools/main.gfx
-gofx bind strings --prefix str
-```
-
-Ordinary IO errors exit 1; an uncaught action panic exits 2. The outer
-`go run ./cmd/gofx ...` launcher adds `exit status N` and returns 1 for any
-nonzero child status. `gofx check` cannot validate a foreign Go signature;
-`build`/`run` perform that validation.
-
-Recover with `io.tryIO(action) : IO[Result[io.IoError, A]]`. Match typed
-constructors such as `io.NotFound(message)`; use `io.ioErrorMessage(e)` or
-`show(e)` for display and `io.ioRaise(e)` to rethrow without losing its kind.
-`ioFail("unavailable")` is captured as `Err(io.Failure("unavailable"))`, whose
-Show output remains `Err(unavailable)`; Debug includes the Failure constructor.
-
-`std/http` provides Request/Response records, `request`/`get`/`post`,
-`requestWithTimeout`, `response`/`jsonResponse`, header lookup and `serve`.
-Clients default to 30 s and honor fiber cancellation; non-2xx statuses remain
-Responses. Servers run handlers concurrently with request contexts and shut
-down with a 5 s grace when cancelled. No Go extern declaration is needed.
+Exit codes: ordinary IO errors 1, uncaught action panic 2. Recover inside the
+program with `io.tryIO(action) : IO[Result[io.IoError, A]]`.
 
 ## Examples
 
-Commands run from the checkout root with an installed `gofx` (or substitute
-`go run ./cmd/gofx`). This table covers **every examples subdirectory**. Use the
-explicit files below instead of blindly running directories containing negative
-fixtures or multiple main functions. The HTTP service example uses only loopback;
-bank/inventory/orders use external network access. Concurrency timings and
-filesystem timestamps vary. Example READMEs contain historical observed output;
-current imports/signatures are defined by SPEC/std.
+Commands run from the checkout root. Network-using examples are marked.
 
-| Example | Purpose | Run command |
+| Example | Shows | Run |
 | --- | --- | --- |
-| [alias-fields](examples/alias-fields) | Transparent aliases and immutable common-field updates. | `gofx run examples/alias-fields/main.gfx` |
-| [bank](examples/bank) | Stateful ledger, typed validation and HTTP audit (network). | `gofx run examples/bank/main.gfx` |
-| [calc](examples/calc) | Expression interpreter with Result errors and free-variable analysis. | `gofx run examples/calc/main.gfx` |
-| [cards](examples/cards) | Poker classification, derived ordering and seeded State shuffle. | `gofx run examples/cards/main.gfx` |
-| [cli-tools](examples/cli-tools) | Pure/IO tests, eval and embedding; also run `gofx test examples/cli-tools/main.gfx`. | `gofx run examples/cli-tools/main.gfx` |
-| [codegen-quality](examples/codegen-quality) | Million-step direct-self tail recursion and source locations. | `gofx run examples/codegen-quality/main.gfx` |
-| [collections](examples/collections) | Persistent Map/Set/Array, grouping and snapshot preservation. | `gofx run examples/collections/main.gfx` |
-| [concurrency](examples/concurrency) | Fork/await, ordered parallel work, race and timeout. | `gofx run examples/concurrency/main.gfx` |
-| [deps](examples/deps) | Offline Go-module dependency resolution with a local library replacement. | `gofx run examples/deps/app` |
-| [deriving](examples/deriving) | Structural Debug and derived Functor/Foldable/Traversable. | `gofx run examples/deriving/main.gfx` |
-| [diagnostics](examples/diagnostics) | Successful exhaustive Bool matching; sibling bad files demonstrate failures/warnings. | `gofx run examples/diagnostics/main.gfx` |
-| [eqord](examples/eqord) | Custom equality/ordering and stable list operations. | `gofx run examples/eqord/main.gfx` |
-| [float-num](examples/float-num) | Statistics, Float parsing/formatting, IEEE numeric edges. | `gofx run examples/float-num/main.gfx` |
-| [fmt](examples/fmt) | Canonical formatter input; also try `gofx fmt -d examples/fmt/before.gfx`. | `gofx run examples/fmt/before.gfx` |
-| [http](examples/http) | std/http server/client, JSON health/sum routes and fiber cancellation; loopback only. | `gofx run examples/http/main.gfx -- 8080` |
-| [inventory](examples/inventory) | Records, inventory validation and HTTP notification (network). | `gofx run examples/inventory/main.gfx` |
-| [io-effects](examples/io-effects) | Read configuration, validate, write a report and append a log (filesystem effects). | `out=$(mktemp -d); gofx run examples/io-effects/main.gfx -- examples/io-effects/config.txt "$out/report"` |
-| [json-deriving](examples/json-deriving) | JSON schema derivation, round trips and nested error paths. | `gofx run examples/json-deriving/main.gfx` |
-| [lists](examples/lists) | List Functor/Monad, list literals and cartesian do. | `gofx run examples/lists/main.gfx` |
-| [local-recursion](examples/local-recursion) | Recursive lambda lets and mutually recursive local functions. | `gofx run examples/local-recursion/main.gfx` |
-| [lsp](examples/lsp) | Cross-module hover/definition playground. | `gofx run examples/lsp/main.gfx` |
-| [modules](examples/modules) | Directory loading, aliases, qualified names and intentional prelude shadow warning. | `gofx run examples/modules` |
-| [monoid](examples/monoid) | User-defined Monoid instances with generic folds and State. | `gofx run examples/monoid/main.gfx` |
-| [multi-constraint](examples/multi-constraint) | Multiple classes per parameter and superclass dictionaries. | `gofx run examples/multi-constraint/main.gfx` |
-| [orders](examples/orders) | ADT transformations, Option validation and HTTP warehouse notice (network). | `gofx run examples/orders/main.gfx` |
-| [parser](examples/parser) | User-defined Parser Monad and token-based arithmetic parsing. | `gofx run examples/parser/main.gfx` |
-| [perf](examples/perf) | Native scalar signatures, bounded specialization and tail loops. | `gofx run examples/perf/main.gfx` |
-| [pipe-partial](examples/pipe-partial) | Multiline pipelines, call placeholders and operator sections. | `gofx run examples/pipe-partial/main.gfx` |
-| [records](examples/records) | Records, interpolation and let polymorphism; intentional Unit-default warning. | `gofx run examples/records/main.gfx` |
-| [routes](examples/routes) | Shortest paths, record updates and unreachable Option results. | `gofx run examples/routes/main.gfx` |
-| [sales-report](examples/sales-report) | Parallel rate fetches, typed IO recovery, fallback rates and JSON sales aggregation. | `gofx run examples/sales-report` |
-| [scheduler](examples/scheduler) | Custom task ordering, guards and a bounded scheduling plan. | `gofx run examples/scheduler/main.gfx` |
-| [state](examples/state) | Pure counter/stack transitions and generic monadic sequencing. | `gofx run examples/state/main.gfx` |
-| [stdlib-extras](examples/stdlib-extras) | Regex log parsing, stable grouping/sorting, table formatting and Lazy. | `gofx run examples/stdlib-extras/main.gfx` |
-| [strings](examples/strings) | Unicode strings, parsing, replacement and padding. | `gofx run examples/strings/main.gfx` |
-| [tree](examples/tree) | Recursive Tree Functor and constrained rendering. | `gofx run examples/tree/main.gfx` |
-| [typed-extern](examples/typed-extern) | Generated strings bindings, natural Go ABI adapters and opaque method handles. | `gofx run examples/typed-extern` |
-| [wc](examples/wc) | Stdin line/word frequencies with a top-N command argument. | `gofx run examples/wc/main.gfx -- 3 < examples/wc/input.txt` |
+| [go-shell](examples/go-shell) | Minimal Go shell + go4t core template. | `go4t run examples/go-shell/core.gt` |
+| [approval-controller](examples/approval-controller) | Real controller; 6 original tests unchanged. | `cd examples/approval-controller && go generate ./... && go test ./...` |
+| [attachment-repair-controller](examples/attachment-repair-controller) | Multi-step workflow decided in go4t; 22 original tests unchanged. | `cd examples/attachment-repair-controller && go generate ./... && go test ./...` |
+| [sql-service](examples/sql-service) | SQLite + Prometheus HTTP service via `bind`. | see its README |
+| [typed-extern](examples/typed-extern) | Generated bindings, ABI adapters, opaque method handles. | `go4t run examples/typed-extern` |
+| [deps](examples/deps) | Offline Go-module dependency with local replacement. | `go4t run examples/deps/app` |
+| [calc](examples/calc) | Expression interpreter with `Result` errors. | `go4t run examples/calc/main.gt` |
+| [cards](examples/cards) | Poker classification, derived ordering, seeded `State`. | `go4t run examples/cards/main.gt` |
+| [scheduler](examples/scheduler) | Custom ordering, guards, bounded plan. | `go4t run examples/scheduler/main.gt` |
+| [routes](examples/routes) | Shortest paths and record updates. | `go4t run examples/routes/main.gt` |
+| [parser](examples/parser) | User-defined parser monad. | `go4t run examples/parser/main.gt` |
+| [monoid](examples/monoid) | User `Monoid` instances with generic folds. | `go4t run examples/monoid/main.gt` |
+| [multi-constraint](examples/multi-constraint) | Multiple classes per parameter, superclasses. | `go4t run examples/multi-constraint/main.gt` |
+| [deriving](examples/deriving) | Derived `Functor`/`Foldable`/`Traversable`/`Debug`. | `go4t run examples/deriving/main.gt` |
+| [json-deriving](examples/json-deriving) | JSON schema derivation and nested error paths. | `go4t run examples/json-deriving/main.gt` |
+| [http](examples/http) | `std/http` server/client, JSON routes, cancellation (loopback). | `go4t run examples/http/main.gt -- 8080` |
+| [sales-report](examples/sales-report) | Parallel fetches, typed IO recovery, fallbacks. | `go4t run examples/sales-report` |
+| [concurrency](examples/concurrency) | Fork/await, ordered parallel work, race, timeout. | `go4t run examples/concurrency/main.gt` |
+| [state](examples/state) | Pure `State` transitions. | `go4t run examples/state/main.gt` |
+| [collections](examples/collections) | Persistent Map/Set/Array. | `go4t run examples/collections/main.gt` |
+| [lists](examples/lists) | List Functor/Monad, cartesian `do`. | `go4t run examples/lists/main.gt` |
+| [tree](examples/tree) | Recursive Functor and constrained rendering. | `go4t run examples/tree/main.gt` |
+| [records](examples/records) | Records, interpolation, let polymorphism. | `go4t run examples/records/main.gt` |
+| [alias-fields](examples/alias-fields) | Aliases and common-field updates. | `go4t run examples/alias-fields/main.gt` |
+| [eqord](examples/eqord) | Custom equality/ordering. | `go4t run examples/eqord/main.gt` |
+| [float-num](examples/float-num) | Float parsing/formatting, IEEE edges. | `go4t run examples/float-num/main.gt` |
+| [strings](examples/strings) | Unicode strings, parsing, padding. | `go4t run examples/strings/main.gt` |
+| [stdlib-extras](examples/stdlib-extras) | Regex, stable grouping, tables, `Lazy`. | `go4t run examples/stdlib-extras/main.gt` |
+| [pipe-partial](examples/pipe-partial) | Pipelines, `_` placeholders, sections. | `go4t run examples/pipe-partial/main.gt` |
+| [local-recursion](examples/local-recursion) | Recursive lambdas, mutual local recursion. | `go4t run examples/local-recursion/main.gt` |
+| [io-effects](examples/io-effects) | File read/validate/write/append. | `out=$(mktemp -d); go4t run examples/io-effects/main.gt -- examples/io-effects/config.txt "$out/report"` |
+| [wc](examples/wc) | Stdin word frequencies. | `go4t run examples/wc/main.gt -- 3 < examples/wc/input.txt` |
+| [cli-tools](examples/cli-tools) | Pure/IO tests and eval; also `go4t test examples/cli-tools/main.gt`. | `go4t run examples/cli-tools/main.gt` |
+| [modules](examples/modules) | Directory loading, aliases, shadow warning. | `go4t run examples/modules` |
+| [lsp](examples/lsp) | Cross-module hover/definition playground. | `go4t run examples/lsp/main.gt` |
+| [diagnostics](examples/diagnostics) | Exhaustiveness and alias-mismatch diagnostics (`bad_*.gt` fail on purpose). | `go4t run examples/diagnostics/main.gt` |
+| [fmt](examples/fmt) | Formatter input; `go4t fmt -d examples/fmt/before.gt`. | `go4t run examples/fmt/before.gt` |
+| [codegen-quality](examples/codegen-quality) | Million-step tail recursion, source locations. | `go4t run examples/codegen-quality/main.gt` |
+| [perf](examples/perf) | Native scalars, bounded specialization, tail loops. | `go4t run examples/perf/main.gt` |
+| [bank](examples/bank), [inventory](examples/inventory), [orders](examples/orders) | Domain validation with HTTP notification (**network**). | `go4t run examples/<name>/main.gt` |
 
-The IO example's command writes only inside its new `$out` directory. Inspect
-`$out/report.report.txt` and `$out/report.log`, then remove that directory when
-finished. Omitting its output-prefix argument instead writes root-level fixtures.
-The word-count command supplies both checked-in stdin and its `3` argument.
-Typed externs require the whole example directory; do not run main alone.
-`fmt/before.gfx` is already canonical, so `fmt -d` on it currently prints nothing.
-`sales-report` simulates rate requests locally. If its randomized EUR request
-fails, recovery extracts the IoError message and stderr remains
-`warn: rate service: EUR unavailable; using fallback`; report totals depend on
-whether the live or fallback EUR rate was selected.
+Negative fixtures: `go4t test examples/cli-tools/failing.gt` exits 1,
+`go4t check examples/diagnostics/bad_hint.gt` exits 1,
+`go4t check examples/diagnostics/bad_unused.gt` warns and exits 0.
 
-Intentional negative examples are not normal smoke programs:
+## What go4t is not
 
-```sh
-gofx test examples/cli-tools/failing.gfx                 # exit 1
-gofx check examples/diagnostics/bad_hint.gfx              # exit 1
-gofx check examples/diagnostics/bad_unused.gfx            # warnings, exit 0
-```
+- **Not a Go replacement.** Services, caches, clients and anything that is
+  mostly I/O stay in Go. Bind them; do not port them.
+- **Not an effect-system research language.** There is one effect type, `IO`,
+  and no mutable references in the language. If a design needs shared mutable
+  state, that state belongs on the Go side of the boundary.
+- **Not 1.0.** The grammar, std and ABI are stable enough for the ports above
+  and are documented in SPEC.md, but they can still change. Known limits are
+  listed in [SPEC §9](SPEC.md#9-known-limitations): rank-1 polymorphism only,
+  no multi-parameter classes, no character type, selective unboxing,
+  `check` cannot validate a foreign Go signature (`build`/`run` can).
 
 ## Documentation and editors
 
-- [Tutorial for Go developers](docs/tutorial.md): classes, IO/do, errors, modules,
-  tests, FFI, concurrency, HTTP and JSON, with checked complete examples.
-- [Language specification](SPEC.md): current grammar, type/effect rules, CLI,
-  deriving, implementation limits and consolidated boundary tables.
-- [Standard library reference](docs/stdlib.md): every std declaration's signature,
-  semantics, instances and boundaries, generated from the source inventory.
-- [Editor setup](editors/README.md): stdio LSP and a dependency-free VS Code client,
-  including `gofx.executablePath`. Supports diagnostics, hover, definition and
-  document symbols; not completion/rename.
-- [Design history](DESIGN.md): historical slice contracts; SPEC describes the
-  merged implementation where those earlier contracts differ.
+- [Tutorial for Go developers](docs/tutorial.md) — twelve short lessons ending
+  with the Go-shell/go4t-core pattern; every snippet is type-checked in CI.
+- [Language specification](SPEC.md) — grammar, type and effect rules, CLI,
+  deriving, exported Go API, boundary tables.
+- [Standard library reference](docs/stdlib.md) — generated from the source
+  inventory.
+- [Editor setup](editors/README.md) — stdio LSP and a VS Code client
+  (`go4t.executablePath`).
+- [Design history](DESIGN.md) — slice contracts; SPEC wins where they differ.
 
-## Documentation regression checks
+Documentation regression: `go test ./docs ./std` extracts every `go4t` fence
+from SPEC, tutorial, stdlib and this README and runs the same loader and type
+checker as `go4t check`; `go4t error` fences must be rejected.
 
-The documentation package extracts every gofx fence in SPEC, tutorial, stdlib and
-this README into temporary files. It calls the same module loader/type checker
-as `gofx check`; `gofx error` fences must be rejected. Named `// dir:` groups and
-`// file:` sections exercise real multi-file modules. These are **check tests**,
-not claims that every snippet's IO was executed. A separate inventory test parses
-all embedded std sources and requires module-local declaration/signature rows,
-constructors, methods and derived instances.
-
-```sh
-go test ./docs ./std
-```
-
-On the shared development VM, run that focused acceptance through the VM wrapper:
-
-```sh
-/home/vagrant/.codex/skills/serialize-vm-tests/scripts/serialize-vm-tests -- go test ./docs ./std
-```
-
-`selfhost/` is a separately owned in-progress project, not part of this acceptance.
+`selfhost/` is a separately owned in-progress self-hosting compiler and is not
+part of the release surface.

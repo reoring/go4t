@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"gofx/ast"
-	"gofx/codegen"
-	"gofx/modules"
-	"gofx/parser"
-	"gofx/types"
+	"go4t/ast"
+	"go4t/codegen"
+	"go4t/modules"
+	"go4t/parser"
+	"go4t/types"
 )
 
 func TestDerivingPreludeProgram(t *testing.T) {
@@ -102,7 +102,7 @@ func main() IO[Unit] {
 	if err != nil {
 		t.Fatal(err)
 	}
-	user.Name = "deriving.gfx"
+	user.Name = "deriving.gt"
 	mods, err := modules.LoadFiles([]*ast.File{user}, ".")
 	if err != nil {
 		t.Fatal(err)
@@ -120,7 +120,7 @@ func main() IO[Unit] {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mod := "module derivingtest\n\ngo 1.22\n\nrequire gofx v0.0.0\nreplace gofx => " + root + "\n"
+	mod := "module derivingtest\n\ngo 1.22\n\nrequire go4t v0.0.0\nreplace go4t => " + root + "\n"
 	generated["go.mod"] = []byte(mod)
 	for name, content := range generated {
 		if err := os.WriteFile(filepath.Join(dir, name), content, 0o644); err != nil {

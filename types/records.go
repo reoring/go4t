@@ -3,7 +3,7 @@ package types
 import (
 	"strings"
 
-	"gofx/ast"
+	"go4t/ast"
 )
 
 func (b *bodyChecker) recordLit(e *ast.RecordLit, env *locals, ann *Ann, expected Type) Type {

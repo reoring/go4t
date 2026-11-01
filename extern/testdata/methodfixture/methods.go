@@ -1,6 +1,6 @@
 package methodfixture
 
-import "gofx/rt"
+import "go4t/rt"
 
 type Widget struct{ Name string }
 

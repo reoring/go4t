@@ -13,7 +13,7 @@ are rejected rather than emitting invalid JSON `NaN` or `+Inf`.
 Run from the repository root (or this slice's worktree):
 
 ```sh
-go run ./cmd/gofx run examples/json-deriving/main.gfx
+go run ./cmd/go4t run examples/json-deriving/main.gt
 ```
 
 Observed stdout:
@@ -45,7 +45,7 @@ Focused package checks:
 
 ```sh
 go test ./rt ./types ./std ./codegen
-go run ./cmd/gofx check examples/wc/main.gfx
+go run ./cmd/go4t check examples/wc/main.gt
 ```
 
 Both passed. In the development environment, commands above were invoked through

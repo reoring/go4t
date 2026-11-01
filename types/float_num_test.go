@@ -5,10 +5,10 @@ import (
 	"reflect"
 	"testing"
 
-	"gofx/ast"
-	"gofx/modules"
-	"gofx/parser"
-	"gofx/types"
+	"go4t/ast"
+	"go4t/modules"
+	"go4t/parser"
+	"go4t/types"
 )
 
 func TestFloatArithmeticInference(t *testing.T) {
@@ -66,10 +66,10 @@ func TestFloatArithmeticDiagnostics(t *testing.T) {
 	} {
 		t.Run(tt.source, func(t *testing.T) {
 			files := parseFiles(t, tt.source+pass5Main)
-			files[1].Name = "float.gfx"
+			files[1].Name = "float.gt"
 			p, err := checkFixture(t, []*ast.Module{{Files: files}})
 			var typed *types.Error
-			if p != nil || !errors.As(err, &typed) || typed.Msg != tt.want || typed.File != "float.gfx" || typed.Pos.Line != 2 || typed.Pos.Col == 0 {
+			if p != nil || !errors.As(err, &typed) || typed.Msg != tt.want || typed.File != "float.gt" || typed.Pos.Line != 2 || typed.Pos.Col == 0 {
 				t.Fatalf("Check = (%v, %v), want positioned %q", p, err, tt.want)
 			}
 		})

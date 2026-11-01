@@ -322,7 +322,7 @@ func TestStdinCancellation(t *testing.T) {
 }
 
 func TestRunMainSignalCancellation(t *testing.T) {
-	if os.Getenv("GOFX_RT_SIGNAL_TEST") == "1" {
+	if os.Getenv("GO4T_RT_SIGNAL_TEST") == "1" {
 		RunMain(Bind(Println("ready"), func(any) any { return Sleep(int64(10000)) }))
 		os.Exit(0)
 	}
@@ -331,7 +331,7 @@ func TestRunMainSignalCancellation(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 			defer cancel()
 			command := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestRunMainSignalCancellation$")
-			command.Env = append(os.Environ(), "GOFX_RT_SIGNAL_TEST=1", "GORACE=atexit_sleep_ms=0")
+			command.Env = append(os.Environ(), "GO4T_RT_SIGNAL_TEST=1", "GORACE=atexit_sleep_ms=0")
 			stdout, err := command.StdoutPipe()
 			if err != nil {
 				t.Fatal(err)

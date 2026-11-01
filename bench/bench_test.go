@@ -13,12 +13,12 @@ import (
 	"time"
 )
 
-// GOFX_BENCH_ROOT selects the compiler/runtime checkout. A copied harness can
+// GO4T_BENCH_ROOT selects the compiler/runtime checkout. A copied harness can
 // benchmark an unchanged checkout without writing generated files into it.
-// GOFX_BENCH_RECORD skips budget enforcement, never workload/output validation.
+// GO4T_BENCH_RECORD skips budget enforcement, never workload/output validation.
 func root(tb testing.TB) string {
 	tb.Helper()
-	path := os.Getenv("GOFX_BENCH_ROOT")
+	path := os.Getenv("GO4T_BENCH_ROOT")
 	if path == "" {
 		path = ".."
 	}
@@ -59,7 +59,7 @@ func TestBudgets(t *testing.T) {
 		if limits[w.name] <= 0 {
 			t.Errorf("missing positive nanosecond budget for %s", w.name)
 		}
-		if _, err := os.Stat(w.name + ".gfx"); err != nil {
+		if _, err := os.Stat(w.name + ".gt"); err != nil {
 			t.Error(err)
 		}
 	}
@@ -76,16 +76,16 @@ func TestBudgets(t *testing.T) {
 func BenchmarkPrograms(b *testing.B) {
 	checkout := root(b)
 	temp := b.TempDir()
-	compiler := filepath.Join(temp, "gofx")
-	command(b, checkout, "go", "build", "-o", compiler, "./cmd/gofx")
+	compiler := filepath.Join(temp, "go4t")
+	command(b, checkout, "go", "build", "-o", compiler, "./cmd/go4t")
 	limits := map[string]int64{}
-	if os.Getenv("GOFX_BENCH_RECORD") == "" {
+	if os.Getenv("GO4T_BENCH_RECORD") == "" {
 		limits = budgets(b)
 	}
 	for _, w := range workloads {
 		b.Run(w.name, func(b *testing.B) {
 			b.StopTimer()
-			source, err := filepath.Abs(w.name + ".gfx")
+			source, err := filepath.Abs(w.name + ".gt")
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -128,7 +128,7 @@ func BenchmarkPrograms(b *testing.B) {
 			}
 			average := elapsed.Nanoseconds() / int64(b.N)
 			b.ReportMetric(float64(average), "ns/op")
-			if os.Getenv("GOFX_BENCH_RECORD") == "" && average > limits[w.name] {
+			if os.Getenv("GO4T_BENCH_RECORD") == "" && average > limits[w.name] {
 				b.Fatalf("%s exceeded budget: %d ns/op > %d ns/op", w.name, average, limits[w.name])
 			}
 		})

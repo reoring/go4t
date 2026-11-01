@@ -11,15 +11,15 @@ import (
 func TestModuleGraphNavigation(t *testing.T) {
 	root := t.TempDir()
 	for name, source := range map[string]string{
-		"gofx.mod": "module sample\n",
-		"lib/defs.gfx": `package lib
+		"go4t.mod": "module sample\n",
+		"lib/defs.gt": `package lib
 // Keeps the supplied value.
 func identity[A](value A) A { value }
 type Box = Box{value: Int}
 class Render[A] { render(value A) String }
 instance Render[Box] { render(value) { show(value.value) } }
 `,
-		"app/other.gfx": "package main\nfunc extra() Int { 2 }\n",
+		"app/other.gt": "package main\nfunc extra() Int { 2 }\n",
 	} {
 		path := filepath.Join(root, name)
 		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -38,7 +38,7 @@ func main() IO[Unit] {
   println(m.render(box) + show(value(box)) + show(list.sort([2, 1])))
 }
 `
-	uri := fileURI(filepath.Join(root, "app", "main.gfx"))
+	uri := fileURI(filepath.Join(root, "app", "main.gt"))
 	c := client(t)
 	if ds := diagnostics(t, c.notify("textDocument/didOpen", openParams(uri, source))); len(ds) != 0 {
 		t.Fatal(ds)
@@ -60,7 +60,7 @@ func main() IO[Unit] {
 		if err := json.Unmarshal(data, &response); err != nil {
 			t.Fatal(err)
 		}
-		if response.Result.URI != fileURI(filepath.Join(root, "lib", "defs.gfx")) || response.Result.Range.Start != (Position{tc.line, tc.col}) {
+		if response.Result.URI != fileURI(filepath.Join(root, "lib", "defs.gt")) || response.Result.Range.Start != (Position{tc.line, tc.col}) {
 			t.Fatalf("qualified definition %s: %s", tc.needle, data)
 		}
 	}
@@ -75,10 +75,10 @@ func main() IO[Unit] {
 	if err := json.Unmarshal(data, &response); err != nil {
 		t.Fatal(err)
 	}
-	if response.Result.URI != "gofx-std:///std/list/list.gfx" {
+	if response.Result.URI != "go4t-std:///std/list/list.gt" {
 		t.Fatalf("stdlib definition: %s", data)
 	}
-	data = c.request("gofx/stdlib", map[string]string{"uri": response.Result.URI})
+	data = c.request("go4t/stdlib", map[string]string{"uri": response.Result.URI})
 	if !strings.Contains(string(data), "func sort[") {
 		t.Fatalf("embedded source: %s", data)
 	}
@@ -86,7 +86,7 @@ func main() IO[Unit] {
 
 func TestImportedDiagnosticsClear(t *testing.T) {
 	dir := t.TempDir()
-	dep := filepath.Join(dir, "dep", "dep.gfx")
+	dep := filepath.Join(dir, "dep", "dep.gt")
 	if err := os.Mkdir(filepath.Dir(dep), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +94,7 @@ func TestImportedDiagnosticsClear(t *testing.T) {
 		t.Fatal(err)
 	}
 	source := "package main\nimport \"dep\"\nfunc main() IO[Unit] { println(\"ok\") }\n"
-	uri := fileURI(filepath.Join(dir, "main.gfx"))
+	uri := fileURI(filepath.Join(dir, "main.gt"))
 	c := client(t)
 	c.send(map[string]any{"jsonrpc": "2.0", "method": "textDocument/didOpen", "params": openParams(uri, source)})
 	first, second := c.receive(), c.receive()

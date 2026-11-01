@@ -6,7 +6,7 @@ import (
 
 	"attachrepairctl/decide"
 
-	"gofx/rt"
+	"go4t/rt"
 )
 
 func TestAttachmentRepairDecisionProtocol(t *testing.T) {

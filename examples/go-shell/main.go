@@ -2,13 +2,13 @@
 
 package main
 
-//go:generate gofx build --emit-go core --package core core.gfx
+//go:generate go4t build --emit-go core --package core core.gt
 
 import (
 	"fmt"
 	"reflect"
 
-	"gofx/rt"
+	"go4t/rt"
 	"goshell/core"
 )
 

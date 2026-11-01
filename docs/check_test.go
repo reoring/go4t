@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"gofx/modules"
-	"gofx/types"
+	"go4t/modules"
+	"go4t/types"
 )
 
 type docBlock struct {
@@ -26,7 +26,7 @@ type docExample struct {
 	files  map[string]string
 }
 
-// fencedBlocks tracks other fence languages too, so a gofx-looking line inside
+// fencedBlocks tracks other fence languages too, so a go4t-looking line inside
 // an unrelated code block is not accidentally treated as an executable example.
 func fencedBlocks(source string) ([]docBlock, error) {
 	var blocks []docBlock
@@ -37,14 +37,14 @@ func fencedBlocks(source string) ([]docBlock, error) {
 		if !open && strings.HasPrefix(trimmed, "```") {
 			open, language, start = true, strings.TrimSpace(strings.TrimPrefix(trimmed, "```")), i+1
 			body = nil
-			if strings.HasPrefix(language, "gofx") && language != "gofx" && language != "gofx error" {
-				return nil, fmt.Errorf("line %d: unsupported gofx fence %q", start, language)
+			if strings.HasPrefix(language, "go4t") && language != "go4t" && language != "go4t error" {
+				return nil, fmt.Errorf("line %d: unsupported go4t fence %q", start, language)
 			}
 			continue
 		}
 		if open && trimmed == "```" {
-			if language == "gofx" || language == "gofx error" {
-				blocks = append(blocks, docBlock{start, language == "gofx error", strings.Join(body, "\n") + "\n"})
+			if language == "go4t" || language == "go4t error" {
+				blocks = append(blocks, docBlock{start, language == "go4t error", strings.Join(body, "\n") + "\n"})
 			}
 			open = false
 			continue
@@ -65,13 +65,13 @@ func localDocPath(name string) bool {
 
 // A dir directive groups fences in one document into a complete example root.
 // File directives split a block into files relative to that root. Without dir,
-// every fence is independent; without file, it supplies main.gfx. No implicit
+// every fence is independent; without file, it supplies main.gt. No implicit
 // main, package, prelude copy, or import is added to make examples pass.
 func documentationExamples(blocks []docBlock) ([]*docExample, error) {
 	var examples []*docExample
 	groups := make(map[string]*docExample)
 	for i, block := range blocks {
-		group, filename := "", "main.gfx"
+		group, filename := "", "main.gt"
 		files := make(map[string]string)
 		var body []string
 		explicitFile, contentStarted := false, false
@@ -116,7 +116,7 @@ func documentationExamples(blocks []docBlock) ([]*docExample, error) {
 			return nil, err
 		}
 		if len(files) == 0 {
-			return nil, fmt.Errorf("line %d: empty gofx fence", block.line)
+			return nil, fmt.Errorf("line %d: empty go4t fence", block.line)
 		}
 		example := groups[group]
 		if group == "" || example == nil {
@@ -146,8 +146,8 @@ func documentationExamples(blocks []docBlock) ([]*docExample, error) {
 
 func TestDocumentationSnippets(t *testing.T) {
 	// Documentation must use the embedded standard library, never an ambient
-	// developer's GOFX_PATH override. Tests are intentionally sequential.
-	t.Setenv("GOFX_PATH", "")
+	// developer's GO4T_PATH override. Tests are intentionally sequential.
+	t.Setenv("GO4T_PATH", "")
 	passBlocks, failBlocks, passPrograms, failPrograms := 0, 0, 0, 0
 	for _, name := range []string{"../SPEC.md", "tutorial.md", "stdlib.md", "../README.md"} {
 		source, err := os.ReadFile(name)
@@ -159,7 +159,7 @@ func TestDocumentationSnippets(t *testing.T) {
 			t.Fatalf("%s: %v", name, err)
 		}
 		if len(blocks) == 0 {
-			t.Fatalf("%s: no checked gofx examples", name)
+			t.Fatalf("%s: no checked go4t examples", name)
 		}
 		examples, err := documentationExamples(blocks)
 		if err != nil {
@@ -190,7 +190,7 @@ func TestDocumentationSnippets(t *testing.T) {
 					}
 				}
 				// These are exactly the loading/typechecking packages used by
-				// gofx check. Like that command, this does not validate foreign
+				// go4t check. Like that command, this does not validate foreign
 				// signatures, generate Go, or run effects. Warnings are nonfatal.
 				loaded, err := modules.Load([]string{directory})
 				if err == nil {
@@ -212,11 +212,11 @@ func TestDocumentationSnippets(t *testing.T) {
 }
 
 func TestDocumentationExtraction(t *testing.T) {
-	source := "```go\n// not a gofx example\n```\n" +
-		"```gofx\n// dir: demo\n// file: main.gfx\npackage main\n```\n" +
-		"```gofx\n// dir: demo\n// file: helper/helper.gfx\npackage helper\n```\n" +
-		"```gofx error\npackage bad\n```\n" +
-		"```gofx\n// file: main.gfx\npackage main\n// file: lib/lib.gfx\npackage lib\n```\n"
+	source := "```go\n// not a go4t example\n```\n" +
+		"```go4t\n// dir: demo\n// file: main.gt\npackage main\n```\n" +
+		"```go4t\n// dir: demo\n// file: helper/helper.gt\npackage helper\n```\n" +
+		"```go4t error\npackage bad\n```\n" +
+		"```go4t\n// file: main.gt\npackage main\n// file: lib/lib.gt\npackage lib\n```\n"
 	blocks, err := fencedBlocks(source)
 	if err != nil {
 		t.Fatal(err)
@@ -228,16 +228,16 @@ func TestDocumentationExtraction(t *testing.T) {
 	if len(blocks) != 4 || len(examples) != 3 || examples[0].blocks != 2 || len(examples[0].files) != 2 || !examples[1].fail || len(examples[2].files) != 2 {
 		t.Fatalf("incorrect extraction: blocks=%v examples=%+v", blocks, examples)
 	}
-	for _, source := range []string{"```gofx\npackage main", "```gofx skip\npackage main\n```"} {
+	for _, source := range []string{"```go4t\npackage main", "```go4t skip\npackage main\n```"} {
 		if _, err := fencedBlocks(source); err == nil {
 			t.Errorf("accepted malformed fence %q", source)
 		}
 	}
 	for _, blocks := range [][]docBlock{
-		{{text: "// file: ../escape.gfx\npackage main"}},
+		{{text: "// file: ../escape.gt\npackage main"}},
 		{{text: "// dir: /absolute\npackage main"}},
 		{{text: "// dir: demo\npackage main"}, {text: "// dir: demo\npackage main"}},
-		{{text: "// dir: demo\npackage main"}, {fail: true, text: "// dir: demo\n// file: other.gfx\npackage main"}},
+		{{text: "// dir: demo\npackage main"}, {fail: true, text: "// dir: demo\n// file: other.gt\npackage main"}},
 	} {
 		if _, err := documentationExamples(blocks); err == nil {
 			t.Errorf("accepted invalid file directives: %+v", blocks)

@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"gofx/ast"
-	"gofx/lexer"
+	"go4t/ast"
+	"go4t/lexer"
 )
 
 func tokens(t *testing.T, src string) []lexer.Token {

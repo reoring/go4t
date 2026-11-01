@@ -24,8 +24,8 @@ func TestSalesReportSession(t *testing.T) {
 		}
 		return string(data)
 	}
-	main, domain := read("main.gfx"), read("domain.gfx")
-	mainURI, domainURI := fileURI(filepath.Join(dir, "main.gfx")), fileURI(filepath.Join(dir, "domain.gfx"))
+	main, domain := read("main.gt"), read("domain.gt")
+	mainURI, domainURI := fileURI(filepath.Join(dir, "main.gt")), fileURI(filepath.Join(dir, "domain.gt"))
 	c := client(t)
 	c.send(map[string]any{"jsonrpc": "2.0", "method": "initialized", "params": map[string]any{}})
 	if ds := diagnostics(t, c.notify("textDocument/didOpen", openParams(mainURI, main))); len(ds) != 0 {
@@ -104,10 +104,10 @@ func TestSalesReportSession(t *testing.T) {
 	}
 	unused := strings.Replace(main, "  do {\n    argv", "  let unused = 1\n  do {\n    argv", 1)
 	c.send(map[string]any{"jsonrpc": "2.0", "method": "textDocument/didChange", "params": changeParams(mainURI, unused, 2)})
-	published(2, []Diagnostic{{Range{Position{100, 6}, Position{100, 12}}, 2, "gofx", "unused is unused; prefix with _ to silence"}})
+	published(2, []Diagnostic{{Range{Position{100, 6}, Position{100, 12}}, 2, "go4t", "unused is unused; prefix with _ to silence"}})
 	broken := strings.Replace(main, "parseCsv(text)", "parseCsv(123)", 1)
 	c.send(map[string]any{"jsonrpc": "2.0", "method": "textDocument/didChange", "params": changeParams(mainURI, broken, 3)})
-	published(3, []Diagnostic{{Range{Position{104, 22}, Position{104, 25}}, 1, "gofx", "type mismatch: expected String, got Int"}})
+	published(3, []Diagnostic{{Range{Position{104, 22}, Position{104, 25}}, 1, "go4t", "type mismatch: expected String, got Int"}})
 	for _, method := range []string{"hover", "definition"} {
 		data := c.request("textDocument/"+method, positionParams(mainURI, broken, "summarize(rates, sales, _.product)", 0))
 		if !strings.Contains(string(data), `"result":null`) {

@@ -3,7 +3,7 @@ package types
 import (
 	"fmt"
 
-	"gofx/ast"
+	"go4t/ast"
 )
 
 // Local schemes retain the inferred metas until body finalization. Used schemes

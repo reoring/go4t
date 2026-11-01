@@ -23,7 +23,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for source in examples/*/main.gfx; do
+          for source in examples/*/main.gt; do
             directory="${source%/*}"
             input=/dev/null
             if [[ -f "$directory/input.txt" ]]; then
@@ -35,11 +35,11 @@ jobs:
               read -r -d '' -a args < "$directory/args.txt" || true
             fi
             sources=("$source")
-            if [[ -f "$directory/gostd.gfx" ]]; then
-              sources+=("$directory/gostd.gfx")
+            if [[ -f "$directory/gostd.gt" ]]; then
+              sources+=("$directory/gostd.gt")
             fi
             echo "Running $source"
-            go run ./cmd/gofx run "${sources[@]}" -- "${args[@]}" < "$input"
+            go run ./cmd/go4t run "${sources[@]}" -- "${args[@]}" < "$input"
           done
   bench:
     runs-on: ubuntu-latest

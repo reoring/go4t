@@ -114,7 +114,7 @@ func HTTPHeader(headers, name any) any {
 	}
 }
 
-// HTTPServe passes six Request fields to the gofx adapter and receives a
+// HTTPServe passes six Request fields to the go4t adapter and receives a
 // (status, headers, body) tuple. net/http supplies each request's goroutine.
 func HTTPServe(port, handler any) any {
 	return IO(func(ctx context.Context) (any, error) {

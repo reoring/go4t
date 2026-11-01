@@ -1,0 +1,181 @@
+package main
+
+// ===== base.gt — shared utilities (contract; owner: supervisor) =====
+// Result: failure-carrying computations (Err carries a diagnostic string
+// already formatted as "line:col: message").
+type Result[A] = Err(Diag) | Ok(A)
+
+type Diag = Diag{pos: Pos, msg: String}
+
+instance Show[Diag] {
+  show(d) { "${d.pos.line}:${d.pos.col}: ${d.msg}" }
+}
+
+instance Functor[Result] {
+  fmap(r, f) {
+    match r {
+      Err(e) => Err(e)
+      Ok(a) => Ok(f(a))
+    }
+  }
+}
+
+instance Monad[Result] {
+  pure(a) { Ok(a) }
+  bind(r, f) {
+    match r {
+      Err(e) => Err(e)
+      Ok(a) => f(a)
+    }
+  }
+}
+
+func isOk[A](r Result[A]) Bool {
+  match r {
+    Ok(_) => true
+    Err(_) => false
+  }
+}
+
+// mapMResult: sequence a Result-producing function over a list.
+func mapMResult[A, B](xs List[A], f func(A) Result[B]) Result[List[B]] {
+  mapM(xs, f)
+}
+
+// ===== Map: persistent AA tree keyed by an Ord type =====
+// MNode(level, left, key, value, right)
+type Map[K, V] = MEmpty | MNode(Int, Map[K, V], K, V, Map[K, V])
+
+func mapEmpty[K, V]() Map[K, V] { MEmpty }
+
+func mapLookup[K Ord, V](m Map[K, V], k K) Option[V] {
+  match m {
+    MEmpty => None
+    MNode(_, l, key, v, r) => match compare(k, key) {
+      LT => mapLookup(l, k)
+      GT => mapLookup(r, k)
+      EQ => Some(v)
+    }
+  }
+}
+
+func mapMember[K Ord, V](m Map[K, V], k K) Bool { isSome(mapLookup(m, k)) }
+
+func mapSkew[K, V](m Map[K, V]) Map[K, V] {
+  match m {
+    MNode(lv, MNode(llv, a, lk, lval, b), k, v, r) if llv == lv =>
+      MNode(lv, a, lk, lval, MNode(lv, b, k, v, r))
+    other => other
+  }
+}
+
+func mapSplit[K, V](m Map[K, V]) Map[K, V] {
+  match m {
+    MNode(lv, a, k, v, MNode(rlv, b, rk, rv, MNode(rrlv, c, rrk, rrv, d))) if rrlv == lv =>
+      MNode(lv + 1, MNode(lv, a, k, v, b), rk, rv, MNode(rrlv, c, rrk, rrv, d))
+    other => other
+  }
+}
+
+// mapInsert replaces the value when the key is present.
+func mapInsert[K Ord, V](m Map[K, V], k K, v V) Map[K, V] {
+  match m {
+    MEmpty => MNode(1, MEmpty, k, v, MEmpty)
+    MNode(lv, l, key, old, r) => match compare(k, key) {
+      LT => mapSplit(mapSkew(MNode(lv, mapInsert(l, k, v), key, old, r)))
+      GT => mapSplit(mapSkew(MNode(lv, l, key, old, mapInsert(r, k, v))))
+      EQ => MNode(lv, l, key, v, r)
+    }
+  }
+}
+
+// mapToList yields (key, value) pairs in ascending key order.
+func mapToList[K, V](m Map[K, V]) List[(K, V)] {
+  mapToListAcc(m, Nil)
+}
+
+func mapToListAcc[K, V](m Map[K, V], acc List[(K, V)]) List[(K, V)] {
+  match m {
+    MEmpty => acc
+    MNode(_, l, k, v, r) => mapToListAcc(l, Cons((k, v), mapToListAcc(r, acc)))
+  }
+}
+
+func mapFromList[K Ord, V](xs List[(K, V)]) Map[K, V] {
+  fold(xs, MEmpty, func(m, kv) => mapInsert(m, fst(kv), snd(kv)))
+}
+
+func mapKeys[K, V](m Map[K, V]) List[K] { fmap(mapToList(m), fst) }
+
+func mapValues[K, V](m Map[K, V]) List[V] { fmap(mapToList(m), snd) }
+
+func mapSize[K, V](m Map[K, V]) Int { length(mapToList(m)) }
+
+// mapUnion is right-biased: entries of b win.
+func mapUnion[K Ord, V](a Map[K, V], b Map[K, V]) Map[K, V] {
+  fold(mapToList(b), a, func(m, kv) => mapInsert(m, fst(kv), snd(kv)))
+}
+
+func mapMap[K, V, W](m Map[K, V], f func(V) W) Map[K, W] {
+  match m {
+    MEmpty => MEmpty
+    MNode(lv, l, k, v, r) => MNode(lv, mapMap(l, f), k, f(v), mapMap(r, f))
+  }
+}
+
+// ===== small list helpers absent from the prelude =====
+func lookupAssoc[K Eq, V](xs List[(K, V)], k K) Option[V] {
+  match xs {
+    Nil => None
+    Cons((key, v), rest) => if key == k { Some(v) } else { lookupAssoc(rest, k) }
+  }
+}
+
+func indexOf[A Eq](xs List[A], x A) Option[Int] { indexOfFrom(xs, x, 0) }
+
+func indexOfFrom[A Eq](xs List[A], x A, i Int) Option[Int] {
+  match xs {
+    Nil => None
+    Cons(y, rest) => if y == x { Some(i) } else { indexOfFrom(rest, x, i + 1) }
+  }
+}
+
+func nth[A](xs List[A], i Int) Option[A] {
+  match xs {
+    Nil => None
+    Cons(y, rest) => if i == 0 { Some(y) } else { nth(rest, i - 1) }
+  }
+}
+
+func zipWithIndex[A](xs List[A]) List[(Int, A)] { zip(range(0, length(xs)), xs) }
+
+func range(from Int, to Int) List[Int] {
+  if from >= to { Nil } else { Cons(from, range(from + 1, to)) }
+}
+
+func all[A](xs List[A], p func(A) Bool) Bool { fold(xs, true, func(acc, x) => acc && p(x)) }
+
+func any[A](xs List[A], p func(A) Bool) Bool { fold(xs, false, func(acc, x) => acc || p(x)) }
+
+func last[A](xs List[A]) Option[A] { head(reverse(xs)) }
+
+func unzip[A, B](xs List[(A, B)]) (List[A], List[B]) { (fmap(xs, fst), fmap(xs, snd)) }
+
+// foldM over Result: stop at the first Err.
+func foldResult[A, B](xs List[A], init B, f func(B, A) Result[B]) Result[B] {
+  match xs {
+    Nil => Ok(init)
+    Cons(x, rest) => match f(init, x) {
+      Err(e) => Err(e)
+      Ok(acc) => foldResult(rest, acc, f)
+    }
+  }
+}
+
+// duplicates returns the first element that appears twice, if any.
+func duplicates[A Eq](xs List[A]) Option[A] {
+  match xs {
+    Nil => None
+    Cons(x, rest) => if elem(x, rest) { Some(x) } else { duplicates(rest) }
+  }
+}

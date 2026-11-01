@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"testing"
 
-	"gofx/ast"
-	"gofx/parser"
-	"gofx/types"
+	"go4t/ast"
+	"go4t/parser"
+	"go4t/types"
 )
 
 const multiConstraintPrelude = `package main
@@ -21,7 +21,7 @@ instance Eq[Int] { eq(a, b) { true } }
 instance Eq[Bool] { eq(a, b) { true } }
 instance Ord[Int] { compare(a, b) { EQ } }
 instance Ord[Bool] { compare(a, b) { EQ } }
-extern func main() IO[Unit] = "gofx/rt".UnitValue
+extern func main() IO[Unit] = "go4t/rt".UnitValue
 `
 
 func multiConstraintProgram(t *testing.T, source string) *types.Program {

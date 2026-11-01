@@ -1,4 +1,4 @@
-// Package lsp implements gofx's dependency-free LSP 3.17 stdio server.
+// Package lsp implements go4t's dependency-free LSP 3.17 stdio server.
 package lsp
 
 import (

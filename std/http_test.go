@@ -14,11 +14,11 @@ import (
 	"testing"
 	"time"
 
-	"gofx/ast"
-	"gofx/codegen"
-	"gofx/modules"
-	"gofx/parser"
-	"gofx/types"
+	"go4t/ast"
+	"go4t/codegen"
+	"go4t/modules"
+	"go4t/parser"
+	"go4t/types"
 )
 
 func TestHTTPModule(t *testing.T) {
@@ -75,7 +75,7 @@ func main() IO[Unit] {
 	if err != nil {
 		t.Fatal(err)
 	}
-	file.Name = "http_test.gfx"
+	file.Name = "http_test.gt"
 	loaded, err := modules.LoadFiles([]*ast.File{file}, ".")
 	if err != nil {
 		t.Fatal(err)
@@ -89,7 +89,7 @@ func main() IO[Unit] {
 		t.Fatal(err)
 	}
 	generated["zz_shapes_test_support.go"] = []byte(`package main
-import "gofx/rt"
+import "go4t/rt"
 func init() {
   triple := rt.Shapes.Tuple3(int64(7), "two", true)
   a, b, c := rt.Shapes.Untuple3(triple)

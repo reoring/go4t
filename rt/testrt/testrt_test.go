@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"gofx/rt"
+	"go4t/rt"
 )
 
 func TestRunSuspendsAndCapturesFailures(t *testing.T) {

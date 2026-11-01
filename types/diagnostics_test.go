@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"gofx/ast"
-	"gofx/types"
+	"go4t/ast"
+	"go4t/types"
 )
 
 func TestMissingPatternWitnesses(t *testing.T) {
@@ -112,7 +112,7 @@ func TestUnusedLocalWarnings(t *testing.T) {
 	} {
 		t.Run(tt.source, func(t *testing.T) {
 			files := parseFiles(t, tt.source+pass5Main)
-			files[1].Name = "user.gfx"
+			files[1].Name = "user.gt"
 			for range 2 {
 				p, err := checkFixture(t, []*ast.Module{{Files: files}})
 				if err != nil {
@@ -126,7 +126,7 @@ func TestUnusedLocalWarnings(t *testing.T) {
 					if w.Msg != name+" is unused; prefix with _ to silence" {
 						t.Errorf("warning = %s", w.Msg)
 					}
-					if w.File != "user.gfx" || w.Pos.Line != 2 || w.End.Line != 2 ||
+					if w.File != "user.gt" || w.Pos.Line != 2 || w.End.Line != 2 ||
 						w.End.Col-w.Pos.Col != len(name) ||
 						tt.source[w.Pos.Col-1:w.End.Col-1] != name {
 						t.Errorf("warning span = %#v", w)

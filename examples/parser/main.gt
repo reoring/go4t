@@ -1,0 +1,119 @@
+package main
+
+import "std/list"
+import "std/prelude"
+
+// 自作 Parser の Functor / Monad インスタンスと、do による構文解析。
+// 字句解析は扱わず、入力は明示的なトークン列とする。
+// 例: 2 + 3 * 4 => Some(14)、(2 + 3) * 4 => Some(20)、2 + => None。
+// 実行: go run ./cmd/go4t run examples/parser/main.gt
+type Token = Number(Int) | Plus | Minus | Times | Open | Close deriving Eq
+
+// 成功時は値と未消費の入力、失敗時は None。入力の書き換えはない。
+type Parser[A] = Parser(func(List[Token]) Option[(A, List[Token])])
+
+func runParser[A](parser Parser[A], tokens List[Token]) Option[(A, List[Token])] {
+  match parser {
+    Parser(run) => run(tokens)
+  }
+}
+
+instance Functor[Parser] {
+  fmap(parser, f) {
+    Parser(func(tokens) => match runParser(parser, tokens) {
+      None => None
+      Some((value, rest)) => Some((f(value), rest))
+    })
+  }
+}
+
+instance Monad[Parser] {
+  pure(value) {
+    Parser(func(tokens) => Some((value, tokens)))
+  }
+
+  bind(parser, f) {
+    Parser(func(tokens) => match runParser(parser, tokens) {
+      None => None
+      Some((value, rest)) => runParser(f(value), rest)
+    })
+  }
+}
+
+// 左が失敗した場合、元の入力から右を試す（バックトラック）。
+func orElse[A](left Parser[A], right Parser[A]) Parser[A] {
+  Parser(func(tokens) => match runParser(left, tokens) {
+    None => runParser(right, tokens)
+    found @ Some(_) => found
+  })
+}
+
+func number() Parser[Int] {
+  Parser(func(tokens) => match tokens {
+    Cons(Number(n), rest) => Some((n, rest))
+    _ => None
+  })
+}
+
+func symbol(wanted Token) Parser[Unit] {
+  Parser(func(tokens) => match tokens {
+    Cons(actual, rest) if actual == wanted => Some((unit(), rest))
+    _ => None
+  })
+}
+
+// Prelude の高階型関数 map を、List や Option と同じように使える。
+func operator(token Token, apply func(Int, Int) Int) Parser[func(Int, Int) Int] {
+  map(symbol(token), func(_) => apply)
+}
+
+// 左結合の反復。op と operand の組は必ず1トークン以上消費すること。
+func chainRest[A](value A, operand Parser[A], op Parser[func(A, A) A]) Parser[A] {
+  orElse(do {
+    apply <- op
+    right <- operand
+    chainRest(apply(value, right), operand, op)
+  }, prelude.pure(value))
+}
+
+func chainLeft[A](operand Parser[A], op Parser[func(A, A) A]) Parser[A] {
+  do {
+    first <- operand
+    chainRest(first, operand, op)
+  }
+}
+
+// expression = term (("+" | "-") term)*
+// term       = factor ("*" factor)*
+// factor     = Number | "(" expression ")"
+func expression() Parser[Int] {
+  chainLeft(term(), orElse(operator(Plus, func(a, b) => a + b), operator(Minus, func(a, b) => a - b)))
+}
+
+func term() Parser[Int] {
+  chainLeft(factor(), operator(Times, func(a, b) => a * b))
+}
+
+func factor() Parser[Int] {
+  orElse(number(), do {
+    symbol(Open)
+    // do の継続内なので、再帰するのは Open を読み取った後。
+    value <- expression()
+    symbol(Close)
+    prelude.pure(value)
+  })
+}
+
+// 前半だけ解析できても成功にしない。余ったトークンがあれば失敗。
+func parseAll[A](parser Parser[A], tokens List[Token]) Option[A] {
+  match runParser(parser, tokens) {
+    Some((value, Nil)) => Some(value)
+    _ => None
+  }
+}
+
+func main() IO[Unit] {
+  let cases: List[(String, List[Token])] = [("2 + 3 * 4", [Number(2), Plus, Number(3), Times, Number(4)]), ("(2 + 3) * 4", [Open, Number(2), Plus, Number(3), Close, Times, Number(4)]), ("20 - 5 - 3", [Number(20), Minus, Number(5), Minus, Number(3)]), ("2 * (3 + (4 - 1))", [Number(2), Times, Open, Number(3), Plus, Open, Number(4), Minus, Number(1), Close, Close]), ("7", [Number(7)]), ("empty", []), ("2 +", [Number(2), Plus]), ("(2 + 3", [Open, Number(2), Plus, Number(3)]), ("2 3", [Number(2), Number(3)]), ("()", [Open, Close])]
+  let parser = expression()
+  list.forEach(cases, func((source, tokens)) => println("${source} => ${parseAll(parser, tokens)}"))
+}

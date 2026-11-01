@@ -6,8 +6,8 @@ import (
 	"os"
 	"strconv"
 
-	"gofx/ast"
-	"gofx/lexer"
+	"go4t/ast"
+	"go4t/lexer"
 )
 
 var kindNames = [...]string{
@@ -51,7 +51,7 @@ func main() {
 		printSource(string(src), base)
 		return
 	}
-	if len(paths) == 0 { paths = []string{"examples/parser/main.gfx"} }
+	if len(paths) == 0 { paths = []string{"examples/parser/main.gt"} }
 	for _, path := range paths {
 		src, err := os.ReadFile(path)
 		if err != nil { panic(err) }

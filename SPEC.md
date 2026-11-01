@@ -1,6 +1,6 @@
-# gofx Language Specification
+# go4t Language Specification
 
-gofx is a statically typed, strict, functional language with Go-flavoured syntax,
+go4t is a statically typed, strict, functional language with Go-flavoured syntax,
 higher-kinded types, type classes, immutable algebraic data, and explicit `IO`.
 It compiles to Go. This document describes the merged Pass 12 implementation;
 [the tutorial](docs/tutorial.md) teaches it and [the standard library](docs/stdlib.md)
@@ -15,14 +15,14 @@ separators are explicit in the grammar; a `Separator` may be written or inserted
 by layout. `Name` is optionally qualified by a file-local import alias.
 `File` is the grammar's only unreferenced root. `docs/grammar_test.go` checks
 all `ebnf` fences, reference/terminal coverage, and bounded parser-only generation.
-Complete `gofx` fences are checked by `docs/check_test.go`; `gofx error` fences
+Complete `go4t` fences are checked by `docs/check_test.go`; `go4t error` fences
 must fail.
 
 ## 1. Lexical structure
 
 ### 1.1 Source and comments
 
-Source is UTF-8. A module consists of `.gfx` files sharing a `package` spelling
+Source is UTF-8. A module consists of `.gt` files sharing a `package` spelling
 (§2). `//` comments run to end of line; there are no block comments. Adjacent
 non-trailing comment lines immediately above a declaration supply editor hover
 documentation; a blank line breaks attachment.
@@ -105,10 +105,10 @@ be redeclared.
 
 ### 2.2 Modules and resolution
 
-A directory input loads its immediate `.gfx` files in lexical filename order,
+A directory input loads its immediate `.gt` files in lexical filename order,
 not recursively. Explicit filenames select only those entry files, all in one
 directory and with one package spelling. Imported modules load every immediate
-`.gfx` file. Module identities are absolute directories (embedded std identities
+`.gt` file. Module identities are absolute directories (embedded std identities
 are `std/<module>`), independent of alias. Dependencies are deduplicated before
 traversal; recursive import graphs are supported.
 
@@ -122,41 +122,41 @@ deriving classes and constructor patterns are supported.
 Import paths are nonempty clean relative slash paths: no absolute paths,
 backslashes, `..` or leading `../`. Search in this order:
 
-1. The importing module's nearest ancestor `gofx.mod`; absent a file, the entry
+1. The importing module's nearest ancestor `go4t.mod`; absent a file, the entry
    program's directory is the root. An exact module name refers to the root;
    a `<name>/` prefix is stripped.
-2. Matching `require <path> <version>` declarations in that `gofx.mod`.
+2. Matching `require <path> <version>` declarations in that `go4t.mod`.
    Imports use `<path>` for the dependency root or `<path>/<subdir>` for a
    subdirectory. Matching requires use the longest slash-delimited prefix.
    `go list -m -json <path>` runs in the entry project's root, and its `Dir`
    supplies the dependency root, including local `go.mod` replacements.
-3. Nonempty `GOFX_PATH` entries in platform path-list order.
+3. Nonempty `GO4T_PATH` entries in platform path-list order.
 4. The compiler's embedded `std/` sources for `std/...` imports.
 
 The first existing directory wins, even if it is empty or invalid; errors do
 not fall through. A filesystem std override retains its logical std identity
 for intrinsic types and reexports, alongside its absolute-directory identity.
 
-`gofxbind/<Go import path>` is a generated directory under the project root,
+`go4tbind/<Go import path>` is a generated directory under the project root,
 not a special import namespace. It resolves by rule 1 exactly like any other
 local subdirectory; no resolver extension or additional search step is needed.
 
-A `gofx.mod` begins with `module <name>`, followed by zero or more single-line
+A `go4t.mod` begins with `module <name>`, followed by zero or more single-line
 `require <path> <version>` directives. Blank lines and `//` comments are allowed;
 duplicate requires, extra module directives and other directives are errors.
 Module paths are clean relative slash paths using ASCII letters, digits,
 `-`, `.`, `_`, `~`; `.`/`..` components and a leading `-` are not allowed.
 Go module path/version rules additionally apply when invoking Go tooling.
-`replace` directives belong in **go.mod**, not gofx.mod.
+`replace` directives belong in **go.mod**, not go4t.mod.
 
-A dependency is a Go module containing `go.mod`, `gofx.mod` and `.gfx` sources.
-Its own imports use its nearest gofx root and requires, but Go queries always
+A dependency is a Go module containing `go.mod`, `go4t.mod` and `.gt` sources.
+Its own imports use its nearest go4t root and requires, but Go queries always
 use the entry project's selected Go graph, so application replacements and Go's
-version selection apply transitively. `gofx.mod` declares language dependencies;
+version selection apply transitively. `go4t.mod` declares language dependencies;
 `go.mod`/`go.sum` remain authoritative for selected versions and checksums.
-`gofx get` synchronizes the requested requirement with Go's selected version.
+`go4t get` synchronizes the requested requirement with Go's selected version.
 A declared dependency that cannot be resolved by Go is an error, not a
-GOFX_PATH fallback. A resolved dependency lacking the requested subdirectory
+GO4T_PATH fallback. A resolved dependency lacking the requested subdirectory
 can fall through; an existing empty/invalid directory cannot. Unused requires
 are not resolved eagerly.
 
@@ -186,7 +186,7 @@ shadowing warns `shadows prelude name X`; it is legal. Explicitly import
 Other library operations require their owning module, e.g. `string.trim` or
 `list.sort`. §7 lists the distribution.
 
-```gofx
+```go4t
 package main
 import "std/string"
 import p "std/prelude"
@@ -277,7 +277,7 @@ Extern := 'extern' 'func' Ident [TParams] '(' [Param {',' Param} [',']] ')' Type
 
 Top-level functions have explicitly declared rank-1 type parameters and return
 types. Their final expression must match the return type. Extern declarations
-bind exported package-level Go functions; `check` validates only the gofx type.
+bind exported package-level Go functions; `check` validates only the go4t type.
 `build`/`run` inspect foreign signatures and generate adapters (§8.3).
 
 ### 3.5 Classes and instances
@@ -412,7 +412,7 @@ published/generalised together after checking. Duplicate names in a group fail.
 In `do`, lets and local functions are pure bindings and can capture earlier binds.
 Neither declaration replaces the required final expression.
 
-```gofx
+```go4t
 package main
 func main() IO[Unit] {
   func even(n Int) Bool { if n == 0 { true } else { odd(n - 1) } }
@@ -471,7 +471,7 @@ infer-only position, but does not supply a missing expected type.
 Invalid placeholder placement retains the diagnostic
 `_ is only valid as a placeholder in a call or operator section`.
 
-```gofx
+```go4t
 package main
 import "std/string"
 func main() IO[Unit] {
@@ -479,7 +479,7 @@ func main() IO[Unit] {
 }
 ```
 
-```gofx
+```go4t
 package main
 type Row = Row{qty: Int}
 type Box = Box{row: Row}
@@ -495,7 +495,7 @@ func main() IO[Unit] {
 }
 ```
 
-```gofx error
+```go4t error
 package main
 type Row = Row{qty: Int}
 func bad() Int { let qty = _.qty; qty(Row{qty: 3}) }
@@ -604,7 +604,7 @@ warning, e.g. `type of None defaulted to Unit; add an annotation or use the valu
 Unresolved higher-kinded or class-constrained variables fail. Arithmetic's Int
 default is separate; no numeric-literal polymorphism is introduced.
 
-```gofx error
+```go4t error
 package main
 func main() IO[Unit] { println(show(1 + 1.5)) }
 ```
@@ -717,11 +717,11 @@ constructor bridge and `rt.Shapes.IoErrorOf` destructor bridge alongside Result.
 a panic while running its action prints `error: panic: <message>` and exits 2.
 Success exits normally (0). A panic while constructing main's action is outside
 that recovery and follows Go's panic/stack-trace path. `io.exit(code)` terminates
-the process and is not recoverable. Installed `gofx run` preserves the child exit
-status; an outer `go run ./cmd/gofx ...` adds Go's `exit status N` and itself
+the process and is not recoverable. Installed `go4t run` preserves the child exit
+status; an outer `go run ./cmd/go4t ...` adds Go's `exit status N` and itself
 collapses nonzero exits to 1.
 
-```gofx
+```go4t
 package main
 import "std/io"
 func main() IO[Unit] {
@@ -818,7 +818,7 @@ shutdown window, then force-closes connections; serve ends with Cancelled
 The ABI does not depend on generated record layouts: rt returns
 `(status, headers, body)` through `rt.Shapes.Tuple3/Untuple3`, and `std/http`
 constructs Response. The server passes six individual Request fields to a
-gofx adapter which constructs Request and returns the handler's Response as a
+go4t adapter which constructs Request and returns the handler's Response as a
 triple. Codegen emits `rt_tuple3`/`rt_untuple3` with source directives like Tuple2.
 
 ## 7. Prelude, deriving and standard modules
@@ -912,7 +912,7 @@ Result derives Eq/Ord/Debug and has an explicit Show (`Err(e)` / `Ok(a)`);
 Option also retains its handwritten display instance. Ordering derives Show,
 preserving the display strings `"LT"`, `"EQ"` and `"GT"`.
 
-```gofx
+```go4t
 package main
 import p "std/prelude"
 type Tree[A] = Leaf(A) | Branch(Tree[A], Tree[A]) deriving Eq, Ord, Debug, Functor, Foldable, Traversable
@@ -922,19 +922,19 @@ func main() IO[Unit] {
 }
 ```
 
-```gofx
+```go4t
 package main
 type Currency = JPY | USD | EUR deriving Show
 func main() IO[Unit] { println("${JPY}|${USD}|${EUR}") }
 ```
 
-```gofx
+```go4t
 package main
 type AccountId = AccountId(String) deriving Show
 func main() IO[Unit] { println(show(AccountId("A-1"))) }
 ```
 
-```gofx error
+```go4t error
 package main
 type Hidden = Hidden(Int, String) deriving Show
 func main() IO[Unit] { ioPure(unit()) }
@@ -990,7 +990,7 @@ index order, Map values key order.
 
 ### 8.1 Go generation and performance (informative)
 
-The compiler emits **one Go file per gofx module in one Go package**, not separate
+The compiler emits **one Go file per go4t module in one Go package**, not separate
 Go packages. `main.go` is the entry; dependency basenames use sanitized path tails
 and deterministic collision suffixes. Names/dictionaries are module-prefixed.
 `codegen.Generate(*types.Program, string) (map[string][]byte, error)` is the public
@@ -1015,7 +1015,7 @@ The reported peak is the largest **observed** heap increase above a post-GC
 baseline, not an exact allocator high-water mark. Generated Go bytes include all
 dependency files. The separate `go build` wall time includes compilation/linking,
 uses the normal Go build cache, and removes the output binary before each
-iteration; it does not include gofx checking or code generation.
+iteration; it does not include go4t checking or code generation.
 
 Linux/amd64 Ryzen 9 7950X3D calibration (single iteration, Go 1.26.1,
 before Pass 13 type-print elision; decimal MB/KB, not a CI portability guarantee):
@@ -1078,56 +1078,56 @@ and linear conversion space; the old quadratic `insertBy` helper is removed.
 ### 8.2 Commands and flags
 
 ```text
-gofx init <module-path>
-gofx get [--no-bind] <path>@<version>
-gofx check [--full-types] FILE.gfx|DIR...
-gofx build [--full-types] [-o DIR | --emit-go DIR --package NAME] FILE.gfx|DIR...
-gofx run [--full-types] FILE.gfx|DIR... [-- args...]
-gofx test FILE.gfx|DIR...
-gofx eval 'EXPR' [FILE.gfx|DIR...]
-gofx bind IMPORT [FILE.gfx|DIR...] [-o FILE.gfx|DIR] [--prefix STR] [--shim DIR]
-gofx bind --module PATH
-gofx fmt [-w|-d|-l] FILE...|DIR
-gofx lsp
+go4t init <module-path>
+go4t get [--no-bind] <path>@<version>
+go4t check [--full-types] FILE.gt|DIR...
+go4t build [--full-types] [-o DIR | --emit-go DIR --package NAME] FILE.gt|DIR...
+go4t run [--full-types] FILE.gt|DIR... [-- args...]
+go4t test FILE.gt|DIR...
+go4t eval 'EXPR' [FILE.gt|DIR...]
+go4t bind IMPORT [FILE.gt|DIR...] [-o FILE.gt|DIR] [--prefix STR] [--shim DIR]
+go4t bind --module PATH
+go4t fmt [-w|-d|-l] FILE...|DIR
+go4t lsp
 ```
 
-- `init` creates `go.mod` and `gofx.mod` in the current directory; it refuses
+- `init` creates `go.mod` and `go4t.mod` in the current directory; it refuses
   to overwrite either existing file. `go.mod` contains `module <module-path>`,
-  `go 1.22`, `require gofx v0.0.0` and a local replacement for `gofx`.
-  Before writing, it runs `go list -m -json gofx` from the current directory:
+  `go 1.22`, `require go4t v0.0.0` and a local replacement for `go4t`.
+  Before writing, it runs `go list -m -json go4t` from the current directory:
   a resolved `Dir` (normally a checkout inherited from a parent Go module) is
   used directly. Otherwise it extracts the binary's embedded runtime to
-  `<user-cache>/gofx/runtime/<sha256>` and replaces `gofx` with that absolute
+  `<user-cache>/go4t/runtime/<sha256>` and replaces `go4t` with that absolute
   directory. On Linux `<user-cache>` is `$XDG_CACHE_HOME`, or `$HOME/.cache`
   when unset. The digest covers embedded file paths and contents; extraction
-  is published atomically and reused. No `.gofx` tree is created in the project.
-  `gofx.mod` initially contains only `module <module-path>`. Keep the referenced
+  is published atomically and reused. No `.go4t` tree is created in the project.
+  `go4t.mod` initially contains only `module <module-path>`. Keep the referenced
   checkout/cache directory available; local replacements are machine-specific.
 - `get` accepts exactly one `<path>@<version>` (not `@none`) and optionally
-  `--no-bind`, before or after it. From the nearest ancestor `gofx.mod` root,
+  `--no-bind`, before or after it. From the nearest ancestor `go4t.mod` root,
   which must also contain `go.mod`, it runs `go get <path>@<version>` with the
   caller's Go environment and streams. On success it queries Go's selected
-  module version and adds/updates one `require <path> <version>` in `gofx.mod`,
+  module version and adds/updates one `require <path> <version>` in `go4t.mod`,
   preserving comments and other requirements. Version queries such as `@latest`
   are recorded as the selected version, not the query. Unless `--no-bind` is
   present, it then generates declarations and Go shims as described below.
-  On Go failure `gofx.mod` is unchanged; any `go.mod` or `go.sum` changes made by
+  On Go failure `go4t.mod` is unchanged; any `go.mod` or `go.sum` changes made by
   Go are not rolled back. Binding errors do not roll back the successful get or
   requirement update. Ordinary Go `replace` directives support offline local
-  libraries; no separate download manager or gofx lockfile is used.
+  libraries; no separate download manager or go4t lockfile is used.
 - `bind --module PATH` generates the same bindings without `go get` or changing
-  `gofx.mod`. `PATH` is an already-required Go module (including a local
+  `go4t.mod`. `PATH` is an already-required Go module (including a local
   replacement), or one standard package such as `database/sql`, not `std`.
-  Both manifests must exist in the nearest `gofx.mod` root. For a module, Go's
+  Both manifests must exist in the nearest `go4t.mod` root. For a module, Go's
   `go list -m -json` supplies `Dir`; `go list -e -f '{{.ImportPath}} {{.Name}}'
   ./...` enumerates packages there with the caller's Go environment. Packages
   named `main`, `internal` path components, and `_test` packages are excluded.
   Export data is loaded in the project's selected Go graph; packages that fail
   to load are skipped with a diagnostic. A standard path binds only that
   package, not its subpackages. Each package writes
-  `gofxbind/<import path>/bindings.gfx` and `gofx_shim_<base>.go`; the `.gfx`
+  `go4tbind/<import path>/bindings.gt` and `go4t_shim_<base>.go`; the `.gt`
   package spelling is the last path component sanitized as a Go identifier.
-  A gofx-only keyword additionally gains a trailing `_`.
+  A go4t-only keyword additionally gains a trailing `_`.
   Re-running regenerates the same bytes when inputs are unchanged. Existing
   unrelated files are preserved; generated bindings should be committed.
 - `check` loads/checks only; no foreign-signature validation or execution.
@@ -1140,13 +1140,13 @@ gofx lsp
   instead of Go main, plus the typed entry-module API described in §8.7.
   NAME must be a valid non-keyword Go identifier other than `_` or `main`.
   Flags can precede/follow inputs. Rewrites remove obsolete compiler-generated
-  Go files (including `gofx_export.go`) but preserve unrelated output-directory files.
-  Outside a Go module resolving `gofx`, it still emits sources and prints a note
-  explaining how to compile them with `require gofx v0.0.0` and a local
-  `replace gofx => /absolute/path/to/gofx`.
+  Go files (including `go4t_export.go`) but preserve unrelated output-directory files.
+  Outside a Go module resolving `go4t`, it still emits sources and prints a note
+  explaining how to compile them with `require go4t v0.0.0` and a local
+  `replace go4t => /absolute/path/to/go4t`.
 - `run` emits, builds and executes the whole package, inheriting stdin/stdout/
   stderr and forwarding arguments only after `--`. In a Go module resolving
-  `gofx`, its generated sources remain and the executable is temporary. Outside
+  `go4t`, its generated sources remain and the executable is temporary. Outside
   such a module, all generated sources and the executable are temporary: it
   does not create `<file>_gen` or `<DIR>/_gen` beside the input.
 - `test` replaces user main **before checking**. It discovers non-extern,
@@ -1171,10 +1171,10 @@ gofx lsp
 
 For `run`, `test`, and `eval`, the nearest ancestor `go.mod` of the generated/input
 directory (the working directory for standalone eval) is used when
-`go list -m gofx` succeeds there. Otherwise the CLI creates a temporary `gofxrun`
-module with `require gofx v0.0.0` and `replace gofx => ./gofx`, extracts its embedded
-`rt/` Go source tree (including runtime subpackages) into `gofx/`, and writes a
-minimal `module gofx` file with the distribution's Go version. It inspects externs
+`go list -m go4t` succeeds there. Otherwise the CLI creates a temporary `go4trun`
+module with `require go4t v0.0.0` and `replace go4t => ./go4t`, extracts its embedded
+`rt/` Go source tree (including runtime subpackages) into `go4t/`, and writes a
+minimal `module go4t` file with the distribution's Go version. It inspects externs
 in this temporary module, emits sources into `prog/`, builds the whole package,
 and cleans the module and executable on success or failure. The installed binary
 needs only a Go toolchain on PATH, not a checkout, module cache entry, source-path
@@ -1184,9 +1184,9 @@ then the input's usable module if the output is outside one, then the embedded
 runtime as above; writing sources outside a module does not discard an input
 module's foreign dependencies.
 
-The standalone fallback supports externs only from `gofx/rt` and its subpackages.
+The standalone fallback supports externs only from `go4t/rt` and its subpackages.
 Other extern packages require an application Go module resolving both the package
-and `gofx`; otherwise the diagnostic is
+and `go4t`; otherwise the diagnostic is
 `extern "<pkg>" requires a Go module: run inside a directory with go.mod that provides it`.
 The temporary module never copies unrelated application dependencies or downloads
 third-party packages.
@@ -1201,7 +1201,7 @@ Each exported package-level function gets an adapter; methods are reached throug
 generated package-level shims (`bind --shim`), not directly. Generics and variadic
 functions are not extern targets.
 
-| gofx type | Natural Go ABI | Boundary |
+| go4t type | Natural Go ABI | Boundary |
 | --- | --- | --- |
 | Int | int64, also int | int64 is canonical; int narrowing follows Go on 32-bit targets |
 | Float | float64 | Binary64 |
@@ -1231,7 +1231,7 @@ as the HTTP runtime behind `std/http` does (§6.4). For a pure natural-ABI proof
 functions without a runtime-specific HTTP shim.
 
 `bind` emits a complete declaration file in lexical exported-function order,
-stdout by default. `-o` names a file or an existing directory (`bindings.gfx`).
+stdout by default. `-o` names a file or an existing directory (`bindings.gt`).
 Receiving source files/directory select their package spelling and Go load
 context; absent them it emits `package main`. Output path alone does not select
 context. Parameters are `p0`, `p1`, etc.; names lower-case the first Go letter,
@@ -1245,11 +1245,11 @@ unnamed channels/interfaces, callback results, and result tuples other than
 `(T, error)` or `(T, bool)` remain unsupported. Named unsupported values become
 handles, not invented record layouts. Reserved names suggest a prefix.
 
-| Foreign Go type | gofx mirror with `--shim` | Conversion |
+| Foreign Go type | go4t mirror with `--shim` | Conversion |
 | --- | --- | --- |
 | bool, string | Bool, String | Direct |
 | int, int8/16/32/64, uint, uint8/16/32/64, uintptr | Int | Go integer conversion; narrowing/wraparound follows Go |
-| float32/64 | Float | Binary64 on the gofx side |
+| float32/64 | Float | Binary64 on the go4t side |
 | []byte | String | Copy raw bytes, not a text decoding |
 | []T | List[T] | Recursive copy, nil/empty becomes Nil |
 | map[K]T with scalar K | Map[K, T] | Recursive copy; scalar key ordering |
@@ -1258,7 +1258,7 @@ handles, not invented record layouts. Reserved names suggest a prefix.
 | time.Time | Int | UnixNano; zero time becomes 0, and 0 reconstructs zero time |
 | error in a record field | Option[String] | nil becomes None; otherwise the message; reverse conversion uses a new error |
 | Exported struct with mirrorable exported fields | Record named after the struct | One declaration per binding file, first field letter lower-cased, `deriving Eq, Debug`; promoted embedded fields follow Go lookup, ambiguous fields omitted, unexported fields ignored |
-| Named non-struct with mirrorable underlying type | Underlying mirror | No distinct gofx type; shim performs the named Go conversion |
+| Named non-struct with mirrorable underlying type | Underlying mirror | No distinct go4t type; shim performs the named Go conversion |
 | Other exported named types | Opaque handle | Includes interfaces, cyclic structs and structs with nonmirrorable fields |
 | any | dyn.Value | Runtime tagged conversion; see §10.7 |
 
@@ -1286,8 +1286,8 @@ Variadic `...T` becomes a final `List[T]`; `...any` becomes `List[dyn.Value]`.
 `List` and `Map` constructors and derives Eq/Debug. List/Map contents convert
 recursively; Bytes preserves bytes and Time uses nanoseconds.
 
-Function-typed parameters, including named function types, become gofx
-`func(A, ...) R` or `func(A, ...) IO[R]`. The shim converts arguments into gofx
+Function-typed parameters, including named function types, become go4t
+`func(A, ...) R` or `func(A, ...) IO[R]`. The shim converts arguments into go4t
 values, calls the erased function, and converts its result back. A callback's
 leading context is omitted; its IO runs with that context, or with the enclosing
 call's context when it has none. Callback failures return through Go's error
@@ -1298,9 +1298,9 @@ The one shape-based special case is a method whose sole ordinary parameter is
 `dest ...any` and whose sole result is `error`: it becomes
 `(recv Handle, count Int) IO[List[dyn.Value]]`. The shim allocates `count`
 `*any` slots, calls the method, then decodes the values. Negative counts fail
-with `gofx scan: negative count N`. This supports `sql.Row.Scan` and `sql.Rows.Scan`.
+with `go4t scan: negative count N`. This supports `sql.Row.Scan` and `sql.Rows.Scan`.
 
-`bind IMPORT --shim DIR` additionally writes `DIR/gofx_shim_<pkgbase>.go` and
+`bind IMPORT --shim DIR` additionally writes `DIR/go4t_shim_<pkgbase>.go` and
 appends method bindings after the ordinary functions, sorted by receiver type
 and method name. `DIR` must be inside a Go module; otherwise the command reports
 `--shim requires DIR inside a Go module (with go.mod)`. Missing directories are
@@ -1323,20 +1323,20 @@ sql.ResultGo because Result is a prelude name`. Each receiver uses its record/va
 mirror or handle, and each method adds
 `extern func <type><Method>(recv <Type>, ...) ... = "<shim import path>".<Type>_<Method>`.
 Pointer receivers on records operate on a fresh copy, without mutating the
-original gofx record. Unsupported methods get `// skipped: Type.Method (reason)`.
+original go4t record. Unsupported methods get `// skipped: Type.Method (reason)`.
 
 Handles are **opaque**, not ordinary data constructors: matching, `deriving`,
 and `show` on a handle are undefined. Obtain them from bound Go constructors,
 not by constructing the nullary handle constructor. The shim accepts `recv any`,
 then checks and asserts the original Go receiver type before calling the method.
 A wrong dynamic type panics with
-`gofx shim: Type_Method: receiver is <dynamic Go type>`. A typed nil pointer
+`go4t shim: Type_Method: receiver is <dynamic Go type>`. A typed nil pointer
 retains the underlying method's nil behaviour. `examples/typed-extern` also
 demonstrates explicit erased Go helpers and generated methods.
 
 `get` and `bind --module` (§8.2) use the same declaration-and-shim pipeline per
-package, placing each in its own `gofxbind/<import path>` directory. Import the
-generated `.gfx` module using that project-relative path (§2.2). Go shims use
+package, placing each in its own `go4tbind/<import path>` directory. Import the
+generated `.gt` module using that project-relative path (§2.2). Go shims use
 the receiving project's Go module path; no global cache of bindings is involved.
 
 
@@ -1345,8 +1345,8 @@ the receiving project's Go module path; no global cache of bindings is involved.
 `fmt` prints canonical source; `-w` rewrites changed files preserving permissions;
 `-d` prints deterministic full-file unified diffs and exits 0;
 `-l` lists unformatted paths and exits 1 if any. Flags are mutually exclusive;
-`--` ends flag parsing. Directories recurse over regular `.gfx` files without
-following directory symlinks; explicit files need not have a `.gfx` extension.
+`--` ends flag parsing. Directories recurse over regular `.gt` files without
+following directory symlinks; explicit files need not have a `.gt` extension.
 Duplicate absolute paths are removed; output is path-sorted.
 
 Formatting parses only: it needs neither main, type checking nor Go package
@@ -1360,7 +1360,7 @@ Parentheses preserve semantics; integral Floats keep a Float spelling.
 
 ### 8.5 Editor protocol
 
-`gofx lsp` is a synchronous stdio JSON-RPC 2.0 / LSP 3.17 server, with
+`go4t lsp` is a synchronous stdio JSON-RPC 2.0 / LSP 3.17 server, with
 Content-Length framing, full-document sync, zero-based UTF-16 positions and
 exclusive spans. Supported: initialize/initialized/shutdown/exit;
 didOpen/didChange/didClose; diagnostics, hover, definition and documentSymbol.
@@ -1374,11 +1374,11 @@ definitions include qualified cross-module names, aliases, fields, parameters
 and methods (methods navigate to class signatures; common fields to the first
 constructor). Document symbols are hierarchical in declaration order; generated
 derivations are excluded. Builtins have no source target. Embedded std uses
-`gofx-std:///std/list/list.gfx`; `gofx/stdlib` returns that source for a `uri`.
+`go4t-std:///std/list/list.gt`; `go4t/stdlib` returns that source for a `uri`.
 
 The sales-report acceptance session exercises both open source files, the full
 `summarize` function signature and `rates` type on hover, `parseCsv` navigation
-from `main.gfx` into `domain.gfx`, document symbols, and separate full-buffer
+from `main.gt` into `domain.gt`, document symbols, and separate full-buffer
 changes producing an unused-let warning and a type error with exclusive ranges.
 The exact observed stdio exchange and editor-host availability are recorded in
 [`docs/lsp-verification.md`](docs/lsp-verification.md); the framed replay is
@@ -1395,8 +1395,8 @@ workload and output; compilation is excluded from `BenchmarkPrograms`. It
 validates output even during calibration. The separate `BenchmarkCompile`
 measurements and budgets are described in §8.1. `bench/budget.json` contains
 nanoseconds/iteration for runtime workloads and unit-suffixed `compile-*` limits;
-excess fails the test. `GOFX_BENCH_RECORD=1` disables budget enforcement only;
-`GOFX_BENCH_ROOT` selects the checkout for runtime benchmarks and the generated
+excess fails the test. `GO4T_BENCH_RECORD=1` disables budget enforcement only;
+`GO4T_BENCH_ROOT` selects the checkout for runtime benchmarks and the generated
 Go module's runtime dependency (in-process compile benchmarks use the checkout
 being tested). CI invokes
 `go test ./bench -run . -bench . -benchtime=1x -timeout=12m`.
@@ -1419,14 +1419,14 @@ eligible direct-self tail calls have bounded call-stack lowering.
 
 ### 8.7 Exported Go API
 
-`gofx build --emit-go DIR --package NAME FILE.gfx` produces an importable Go
-package. Its `gofx_export.go` contains natural Go mirrors, conversion functions,
+`go4t build --emit-go DIR --package NAME FILE.gt` produces an importable Go
+package. Its `go4t_export.go` contains natural Go mirrors, conversion functions,
 and wrappers for eligible functions of the **entry module**. `Main() rt.IO`
 remains available; ordinary executable builds do not generate this API.
 See [the Go shell example](examples/go-shell) for a Go controller shell calling
-pure gofx decision logic.
+pure go4t decision logic.
 
-| gofx type | Exported Go mirror |
+| go4t type | Exported Go mirror |
 | --- | --- |
 | `Int`, `Float`, `String`, `Bool` | `int64`, `float64`, `string`, `bool` |
 | `Unit` | `rt.Unit` |
@@ -1479,11 +1479,11 @@ unreachable.
   Go cannot represent its infinite size. Recursion through those indirections works.
 
 Record structs, single positional structs, and every constructor value type of a
-payload sum have `func (v <Mirror>) String() string` **only if** the gofx type has a
+payload sum have `func (v <Mirror>) String() string` **only if** the go4t type has a
 resolvable `Debug` instance in the program. For a parameterised type this resolves
 the instance with its concrete arguments. The method converts through
 `fromGo_<Mirror>` (the sum's converter for a constructor value) and calls that
-instance's `Debug` dictionary method, so the result is exactly gofx `debug(v)`,
+instance's `Debug` dictionary method, so the result is exactly go4t `debug(v)`,
 including custom instances. The sum interface itself has no `String` method. Without `Debug`, no
 `String` method is generated for these structs. A record field exported as
 `String` conflicts with this method and is a generation error.
@@ -1508,17 +1508,17 @@ and a `*rt.Failure` error. The wrapper does not run the IO while constructing it
 
 #### Integrating with go build
 
-Place this directive in a Go file of the consumer package, beside `core.gfx`,
-with the intended `gofx` version on `PATH`:
+Place this directive in a Go file of the consumer package, beside `core.gt`,
+with the intended `go4t` version on `PATH`:
 
 ```go
-//go:generate gofx build --emit-go core --package core core.gfx
+//go:generate go4t build --emit-go core --package core core.gt
 ```
 
-Run `go generate ./...` and commit `core/gofx_export.go` **and all sibling
+Run `go generate ./...` and commit `core/go4t_export.go` **and all sibling
 generated files**. Ordinary `go build` then compiles the checked-in Go package;
-it does not invoke gofx or run generation automatically. In CI, use the same
-gofx version and run:
+it does not invoke go4t or run generation automatically. In CI, use the same
+go4t version and run:
 
 ```sh
 go generate ./... && git diff --exit-code
@@ -1858,16 +1858,16 @@ share immutable storage, but empty slices do not retain the backing allocation.
 | Natural Go types | True aliases accepted, distinct named types require a shim; Go int narrowing follows target width; no-result functions need a shim for Unit |
 | Extern errors | `(T, error)` conversion/call occurs inside IO; creation is lazy; each run repeats Go call; check alone does not validate foreign ABI |
 | bind inference | Does not guess Option inputs; `--shim` adds the foreign mirror table in §8.3; unsupported signatures retain reason comments; declarations are toolchain-dependent |
-| bind method handles | `--shim DIR` requires a Go module; handles cross as any and must not be constructed, matched, derived or shown; a wrong receiver type panics with `gofx shim: Type_Method: receiver is <dynamic Go type>` |
-| Foreign struct copy | Exported fields and nested collections/pointers copy both ways; unexported state is zeroed on input; pointer-receiver changes do not mutate the gofx record; private-state and nonmirrorable structs remain handles |
+| bind method handles | `--shim DIR` requires a Go module; handles cross as any and must not be constructed, matched, derived or shown; a wrong receiver type panics with `go4t shim: Type_Method: receiver is <dynamic Go type>` |
+| Foreign struct copy | Exported fields and nested collections/pointers copy both ways; unexported state is zeroed on input; pointer-receiver changes do not mutate the go4t record; private-state and nonmirrorable structs remain handles |
 | Foreign time | Duration is nanoseconds; Time uses UnixNano, zero time → 0, 0 → zero time; Unix epoch and zero time are therefore indistinguishable at this boundary; locations/monotonic clock metadata are lost |
 | Foreign any decode | nil → Null; bool → Bool; signed/unsigned integer widths → Int (uint64 wraps by Go conversion); float32/64 → Float; string → Str; []byte → Bytes; time.Time → Time; []any → List; map[string]any → Map; all other values → Str(fmt.Sprint(value)) |
 | Foreign any encode | Null → nil; Bool/Int/Float/Str → bool/int64/float64/string; Bytes → copied []byte; Time → time.Time; List/Map → recursively copied []any/map[string]any |
-| Foreign callback error | A callback returning error executes gofx IO with its own Go context or the enclosing context, returning its error to Go; the outer fallible shim classifies that error without replacing its message/cause |
+| Foreign callback error | A callback returning error executes go4t IO with its own Go context or the enclosing context, returning its error to Go; the outer fallible shim classifies that error without replacing its message/cause |
 | Foreign Scan shape | Only methods with sole `...any` parameter and sole error result; count allocates slots; errors stop decoding; negative count is an IO failure |
 | Runtime shapes | Generated constructors registered once; unregistered Tuple2/Tuple3/Ordering/Ok/Err/List bridge use panics (programming/configuration error), not a source value |
-| Exported List/Map/Set | Copy recursively in both directions, with no mutable slice/map aliasing; nil/empty inputs become empty gofx collections; empty List returns a nil slice and empty Map/Set returns an allocated empty Go map |
-| Exported Float collection keys | Use gofx's NaN-low Ord; a single NaN key is retained. Multiple NaN keys in a Go map/set cannot remain distinct under that Ord and panic with `gofx: duplicate NaN map key` / `gofx: duplicate NaN set key`, avoiding an iteration-order-dependent survivor |
+| Exported List/Map/Set | Copy recursively in both directions, with no mutable slice/map aliasing; nil/empty inputs become empty go4t collections; empty List returns a nil slice and empty Map/Set returns an allocated empty Go map |
+| Exported Float collection keys | Use go4t's NaN-low Ord; a single NaN key is retained. Multiple NaN keys in a Go map/set cannot remain distinct under that Ord and panic with `go4t: duplicate NaN map key` / `go4t: duplicate NaN set key`, avoiding an iteration-order-dependent survivor |
 | Exported enum | Zero value is the first declared constructor; `String()` is the source constructor spelling |
 | Exported parametric mirror name | A clash with a user-declared type produces `Go export name collision: <name>` at that user declaration |
 | Exported invalid constructor | Unknown enum value, nil sum, or unsupported constructor representation panics with `invalid constructor`; sum constructors cross as values, not pointers |
@@ -1890,16 +1890,16 @@ share immutable storage, but empty slices do not retain the backing allocation.
 
 | Boundary | Behaviour |
 | --- | --- |
-| Directory inputs | check/build/run/test/eval load immediate .gfx only; fmt recursively loads regular .gfx; explicit entry files must share directory |
-| Import search | Nearest source root before matching gofx.mod requires (longest prefix, project Go graph) before GOFX_PATH before embedded std; first existing directory wins even invalid/empty |
+| Directory inputs | check/build/run/test/eval load immediate .gt only; fmt recursively loads regular .gt; explicit entry files must share directory |
+| Import search | Nearest source root before matching go4t.mod requires (longest prefix, project Go graph) before GO4T_PATH before embedded std; first existing directory wins even invalid/empty |
 | Privacy / identity | `_` private outside owning module; aliases file-scoped; cycles deduplicated; global duplicate instances name both modules |
 | Prelude shadow | Local wins, top-level shadow warns; no implicit JSON or non-listed methods/functions |
 | Diagnostic spans | One-based rune starts/exclusive ends; CLI caret clamps first line; missing end gives one caret; warnings exit 0 |
 | test | Empty suite succeeds; only explicit Bool/IO[Bool], monomorphic zero-arg `test` plus suffix; user main removed before checking; false/IO failure continues, panic uses ordinary runtime policy |
 | eval | One expression; imports from first entry file; Show needed; failed pure and IO wrappers report original error; no special Unit display |
 | build | Go sources not executable; -o vs --emit-go exclusive; --emit-go/--package paired; unrelated Go files preserved |
-| init | Refuses either existing manifest; resolved gofx Dir wins over content-addressed user-cache runtime; no project-local runtime extraction |
-| get | Exactly path@version; requires go.mod beside nearest gofx.mod; Go failure leaves gofx.mod unchanged; success updates without duplicate requires |
+| init | Refuses either existing manifest; resolved go4t Dir wins over content-addressed user-cache runtime; no project-local runtime extraction |
+| get | Exactly path@version; requires go.mod beside nearest go4t.mod; Go failure leaves go4t.mod unchanged; success updates without duplicate requires |
 | fmt | No typecheck/main required; -l differences exit 1, -d differences exit 0; invalid file not written; earlier writes survive later error |
 | LSP overlays | Full sync and increasing versions only; stale/incremental/unopened changes ignored; close restores disk; failed check drops index |
 | LSP framing | 16 MiB body / 8192-byte header limit; malformed/truncated framing errors; EOF ends cleanly |
@@ -1917,13 +1917,13 @@ LSP request error codes:
 | -32002 | `Server not initialized` — request before initialize |
 | -32600 | `Server already initialized` — duplicate initialize |
 | -32600 | `Server has shut down` — request after shutdown |
-| -32602 | `Invalid params`, `Invalid position`, `expected an absolute file URI`, or `expected a .gfx document` |
+| -32602 | `Invalid params`, `Invalid position`, `expected an absolute file URI`, or `expected a .gt document` |
 
 Module errors include `invalid import path "PATH"`, `module "PATH" not found`,
-`entry files must belong to one directory`, `no .gfx files in DIR`,
-`invalid gofx.mod in DIR: expected module <name>`,
-`invalid gofx.mod in DIR: line N: expected require <path> <version>`,
-`invalid gofx.mod in DIR: duplicate require PATH`,
+`entry files must belong to one directory`, `no .gt files in DIR`,
+`invalid go4t.mod in DIR: expected module <name>`,
+`invalid go4t.mod in DIR: line N: expected require <path> <version>`,
+`invalid go4t.mod in DIR: duplicate require PATH`,
 `resolve dependency PATH: go list -m -json PATH: ...`,
 `package NAME differs from NAME`,
 `duplicate or invalid import alias ALIAS`, `unknown import alias ALIAS`,

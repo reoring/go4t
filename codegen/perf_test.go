@@ -12,7 +12,7 @@ import (
 )
 
 func TestPerfScalarBoundaries(t *testing.T) {
-	source := qualityProgram(t, "scalar.gfx", `package main
+	source := qualityProgram(t, "scalar.gt", `package main
 func addInts(a Int, b Int) Int { let result = a + b; result }
 func scale(x Float, yes Bool) Float { if yes { x * 2.0 } else { -x } }
 func loopInts(n Int, total Int) Int { if n == 0 { total } else { loopInts(n - 1, total + n) } }
@@ -25,7 +25,7 @@ func main() IO[Unit] {
   println("${a} ${pair.1} ${loopInts(1000000, 0)} ${map([1, 2], func(n) => addInts(n, 1))}")
  }
 }`)
-	for _, fragment := range []string{"func addInts_(a_ int64, b_ int64) int64", "var result_ int64 = (a_ + b_)", "func scale_(x_ float64, yes_ bool) float64", "for {", "//line scalar.gfx:"} {
+	for _, fragment := range []string{"func addInts_(a_ int64, b_ int64) int64", "var result_ int64 = (a_ + b_)", "func scale_(x_ float64, yes_ bool) float64", "for {", "//line scalar.gt:"} {
 		if !bytes.Contains(source, []byte(fragment)) {
 			t.Errorf("missing %q", fragment)
 		}
@@ -37,7 +37,7 @@ func main() IO[Unit] {
 }
 
 func TestPerfSpecialization(t *testing.T) {
-	source := qualityProgram(t, "special.gfx", `package main
+	source := qualityProgram(t, "special.gt", `package main
 func pick[A Ord](a A, b A) A { if a < b { b } else { a } }
 func main() IO[Unit] { println("${pick(1, 2)} ${pick(2.0, 1.0)} ${pick(3, 4)}") }
 `)
@@ -54,7 +54,7 @@ func main() IO[Unit] { println("${pick(1, 2)} ${pick(2.0, 1.0)} ${pick(3, 4)}") 
 }
 
 func TestPerfNumericRuntimeSemantics(t *testing.T) {
-	source := qualityProgram(t, "numbers.gfx", `package main
+	source := qualityProgram(t, "numbers.gt", `package main
 import "std/float"
 func main() IO[Unit] {
  println("${9223372036854775807 + 1} ${1.0 / 0.0} ${float.isNaN(0.0 / 0.0)} ${show(-0.0)} ${float.nan() < 1.0} ${float.nan() == float.nan()}")
@@ -66,7 +66,7 @@ func main() IO[Unit] {
 }
 
 func TestPerfOperators(t *testing.T) {
-	source := qualityProgram(t, "operators.gfx", `package main
+	source := qualityProgram(t, "operators.gt", `package main
 import "std/float"
 func ints(a Int, b Int) (List[Int], List[Bool]) {
  ([a + b, a - b, a * b, a / b, a % b], [a == b, a != b, a < b, a <= b, a > b, a >= b])
@@ -87,11 +87,11 @@ func main() IO[Unit] { do {
 }
 
 func TestPerfGeneratedVet(t *testing.T) {
-	fixture, err := os.ReadFile("../examples/perf/main.gfx")
+	fixture, err := os.ReadFile("../examples/perf/main.gt")
 	if err != nil {
 		t.Fatal(err)
 	}
-	source := qualityProgram(t, "perf.gfx", string(fixture))
+	source := qualityProgram(t, "perf.gt", string(fixture))
 	vetQualityGo(t, source)
 }
 
@@ -109,7 +109,7 @@ func vetQualityGo(t *testing.T, source []byte) {
 }
 
 func TestPerfLocalAliasParameters(t *testing.T) {
-	source := qualityProgram(t, "local-alias.gfx", `package main
+	source := qualityProgram(t, "local-alias.gt", `package main
 alias Number = Int
 alias Identity[A] = A
 func main() IO[Unit] {

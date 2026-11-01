@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"gofx/ast"
-	"gofx/parser"
+	"go4t/ast"
+	"go4t/parser"
 )
 
 func parse(t *testing.T, src string) *ast.File {
@@ -56,7 +56,7 @@ func twice[F[_] Functor, A](fa F[A], f func(A) A) F[A] { fmap(fmap(fa, f), f) }
 extern func upper(s String) String = "strings".ToUpper
 func main() IO[Unit] {
  do {
-  code <- ioPure(upper("gofx"))
+  code <- ioPure(upper("go4t"))
   println(show(code))
  }
 }
@@ -124,7 +124,7 @@ type Color = Red | RGB(Int, Int, Int)
 type Pair[A, B] = Pair(A, B)
 class Bifunctor[F[_,_]] { map[A](f F[A, A]) F[A, A] }
 instance Bifunctor[Pair] { make() { Pair(1, 2) }; identity(x) { x } }
-extern func pure[A](x A) IO[A] = "gofx/rt".Pure
+extern func pure[A](x A) IO[A] = "go4t/rt".Pure
 func consume[F[_] Functor + Monad, A](x F[A]) func(A, A) A { func(a, b) => a }
 `)
 	if f.Package != "other" || len(f.Decls) != 6 {

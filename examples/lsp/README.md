@@ -1,11 +1,11 @@
 # Language server example
 
-Open `main.gfx`, hover `helpers.keep` or `helpers.greeting`, and go to their
-definitions in `helpers/helpers.gfx`. Both the server and CLI load the entry
+Open `main.gt`, hover `helpers.keep` or `helpers.greeting`, and go to their
+definitions in `helpers/helpers.gt`. Both the server and CLI load the entry
 module and its transitive imports through the shared module loader.
 
 ```sh
-go run ./cmd/gofx run examples/lsp/main.gfx
+go run ./cmd/go4t run examples/lsp/main.gt
 ```
 
 Observed output:
@@ -23,7 +23,7 @@ go test ./lsp -run '^TestScriptedSession$' -v -count=1
 ```
 
 This test starts `lsp.Serve` with two in-memory pipes and exchanges real
-Content-Length-framed JSON-RPC messages. It reads `examples/wc/main.gfx` from disk,
+Content-Length-framed JSON-RPC messages. It reads `examples/wc/main.gt` from disk,
 then sends:
 
 1. `initialize` (request ID 1).
@@ -45,25 +45,25 @@ removed by the test's framing reader, not part of these JSON payloads.
 ### Initialize
 
 ```json
-{"jsonrpc":"2.0","id":1,"result":{"capabilities":{"definitionProvider":true,"documentSymbolProvider":true,"hoverProvider":true,"positionEncoding":"utf-16","textDocumentSync":1},"serverInfo":{"name":"gofx"}}}
+{"jsonrpc":"2.0","id":1,"result":{"capabilities":{"definitionProvider":true,"documentSymbolProvider":true,"hoverProvider":true,"positionEncoding":"utf-16","textDocumentSync":1},"serverInfo":{"name":"go4t"}}}
 ```
 
 ### Open: no diagnostics
 
 ```json
-{"jsonrpc":"2.0","method":"textDocument/publishDiagnostics","params":{"uri":"file:///workspace/wip/gofx/.wt/lsp/examples/wc/main.gfx","version":1,"diagnostics":[]}}
+{"jsonrpc":"2.0","method":"textDocument/publishDiagnostics","params":{"uri":"file:///workspace/wip/go4t/.wt/lsp/examples/wc/main.gt","version":1,"diagnostics":[]}}
 ```
 
 ### Injected error, including its exclusive source span
 
 ```json
-{"jsonrpc":"2.0","method":"textDocument/publishDiagnostics","params":{"uri":"file:///workspace/wip/gofx/.wt/lsp/examples/wc/main.gfx","version":2,"diagnostics":[{"range":{"start":{"line":40,"character":17},"end":{"line":40,"character":28}},"severity":1,"source":"gofx","message":"unknown identifier missingFold"}]}}
+{"jsonrpc":"2.0","method":"textDocument/publishDiagnostics","params":{"uri":"file:///workspace/wip/go4t/.wt/lsp/examples/wc/main.gt","version":2,"diagnostics":[{"range":{"start":{"line":40,"character":17},"end":{"line":40,"character":28}},"severity":1,"source":"go4t","message":"unknown identifier missingFold"}]}}
 ```
 
 ### Restore: clear the diagnostic
 
 ```json
-{"jsonrpc":"2.0","method":"textDocument/publishDiagnostics","params":{"uri":"file:///workspace/wip/gofx/.wt/lsp/examples/wc/main.gfx","version":3,"diagnostics":[]}}
+{"jsonrpc":"2.0","method":"textDocument/publishDiagnostics","params":{"uri":"file:///workspace/wip/go4t/.wt/lsp/examples/wc/main.gt","version":3,"diagnostics":[]}}
 ```
 
 ### Hover on `fold`
@@ -81,16 +81,16 @@ only its type. The `keep` and `greeting` playground declarations demonstrate doc
 ### Definition of the user's `increment` function
 
 ```json
-{"jsonrpc":"2.0","id":2,"result":{"uri":"file:///workspace/wip/gofx/.wt/lsp/examples/wc/main.gfx","range":{"start":{"line":2,"character":5},"end":{"line":2,"character":14}}}}
+{"jsonrpc":"2.0","id":2,"result":{"uri":"file:///workspace/wip/go4t/.wt/lsp/examples/wc/main.gt","range":{"start":{"line":2,"character":5},"end":{"line":2,"character":14}}}}
 ```
 
-Observed test result: `PASS`, `ok gofx/lsp`. No edits were made to the word-count
-example. `go run ./cmd/gofx check examples/wc/main.gfx` also exited 0 without
+Observed test result: `PASS`, `ok go4t/lsp`. No edits were made to the word-count
+example. `go run ./cmd/go4t check examples/wc/main.gt` also exited 0 without
 diagnostics (run once).
 
 The protocol tests additionally cover open/change/close diagnostics, warning
 severity, UTF-16 spans, full-text overlays and stale versions, monomorphic and
 polymorphic hover text, declaration docs, cross-file definitions, document-symbol
 kinds, error responses, malformed framing, and shutdown. The command test
-`go test ./cmd/gofx -run '^TestLSPStdioCommand$'` starts the real `run(["lsp"])`
+`go test ./cmd/go4t -run '^TestLSPStdioCommand$'` starts the real `run(["lsp"])`
 dispatch in a subprocess and checks its framed stdout.

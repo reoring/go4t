@@ -1,0 +1,152 @@
+package main
+
+// Standalone declarations for sibling-owned externs; do not include lexer.gt.
+extern func quote(text String) String = "go4t/rt".Quote
+extern func cgDevWriteFile(path String, text String) IO[Unit] = "go4t/rt".WriteFile
+
+type CGDevCase = CGDevCase{name: String, expression: Core, expected: String, panics: Bool}
+func cgDevCase(name String, expression Core, expected String) CGDevCase {
+  CGDevCase{name: name, expression: expression, expected: expected, panics: false}
+}
+func cgDevInst(className String, typeCon String, context List[(String, String)], supers List[DictRef]) CoreInstance {
+  CoreInstance{className: className, typeCon: typeCon, context: context, superArgs: supers, methods: Nil}
+}
+func cgDevData(name String, ctors List[(String, Int)]) CoreData {
+  CoreData{name: name, ctors: fmap(ctors, func(pair) => CoreCtor{name: fst(pair), arity: snd(pair), fieldNames: Nil})}
+}
+func cgDevCtx() GenCtx {
+  let insts = [
+    cgDevInst("Show", "Int", Nil, Nil), cgDevInst("Show", "String", Nil, Nil),
+    cgDevInst("Show", "Box", [("A", "Show")], Nil),
+    cgDevInst("Show", "Pair", [("B", "Show")], Nil),
+    cgDevInst("Debug", "Int", Nil, Nil), cgDevInst("Inspect", "Int", Nil, Nil),
+    cgDevInst("Debug", "Pair", [("X", "Show"), ("Y", "Inspect")], [DSuper("Show", DSuper("Debug", DParam("Y", "Inspect")))]),
+    cgDevInst("Format", "Int", Nil, Nil)
+  ]
+  let classInfos = [
+    CoreClass{name: "Show", super: None, methods: Nil},
+    CoreClass{name: "Debug", super: Some("Show"), methods: Nil},
+    CoreClass{name: "Inspect", super: Some("Debug"), methods: Nil},
+    CoreClass{name: "Format", super: None, methods: Nil}
+  ]
+  let dataInfos = [cgDevData("Option", [("None", 0), ("Some", 1)]), cgDevData("Box", [("Box", 1)]), cgDevData("Pair", [("Pair", 2)]), cgDevData("Ordering", [("LT", 0), ("EQ", 0), ("GT", 0)])]
+  GenCtx{
+    instances: mapFromList(fmap(insts, func(inst) => (instanceKey(inst.className, inst.typeCon), inst))),
+    classes: mapFromList(fmap(classInfos, func(info) => (info.name, info))),
+    datas: mapFromList(fmap(dataInfos, func(info) => (info.name, info))),
+    externs: mapFromList([("externShow", "rt.ShowInt")]), receiver: None, receiverDicts: Nil
+  }
+}
+func cgDevShow() DictRef { DInstance("Show", "Int", Nil) }
+func cgDevSome(value Core) Core { CCtor("Option", "Some", [value]) }
+func cgDevBox(value Core) Core { CCtor("Box", "Box", [value]) }
+func cgDevApply(value Core, args List[Core]) Core {
+  CLet("function", value, CCall(CLocal("function"), args))
+}
+func cgDevNested() Core {
+  let pattern = CPCtor("Option", "Some", [CPTuple([
+    CPAs("whole", CPCtor("Box", "Box", [CPInt(7)])), CPString("hi"), CPBool(true), CPVar("number")
+  ])])
+  CMatch(cgDevSome(CTuple([cgDevBox(CInt(7)), CString("hi"), CBool(true), CInt(42)])), [
+    CArm{pat: pattern, guard: Some(CBool(false)), body: CInt(0)},
+    CArm{pat: pattern, guard: Some(CBool(true)), body: CPrim("addInt", [CField(CLocal("whole"), "Box", "Box", 0), CLocal("number")])},
+    CArm{pat: CPWild, guard: None, body: CInt(99)}
+  ])
+}
+func cgDevCases() List[CGDevCase] {
+  let showIntDict = cgDevShow()
+  let method = CMethod("show", showIntDict, Nil, 1)
+  let showParam = CMethod("show", DParam("A", "Show"), Nil, 1)
+  let format = CMethod("format", DInstance("Format", "Int", Nil), [showIntDict], 1)
+  let generalized = CLetDict("render", [("A", "Show")], CLambda(["value"], CCall(showParam, [CLocal("value")])), CCall(CLocalDict("render", [showIntDict]), [CInt(18)]))
+  [
+    cgDevCase("integer", CInt(42), "42"),
+    cgDevCase("string-escapes", CString("quote\" slash\\ newline\n nul\x00 é😀"), "quote\" slash\\ newline\n nul\x00 é😀"),
+    cgDevCase("boolean", CBool(true), "true"),
+    cgDevCase("unit", CUnit, "{}"),
+    cgDevCase("local", CLet("x", CInt(41), CPrim("addInt", [CLocal("x"), CInt(1)])), "42"),
+    cgDevCase("shadow-initializer", CLet("x", CInt(40), CLet("x", CPrim("addInt", [CLocal("x"), CInt(2)]), CLocal("x"))), "42"),
+    cgDevCase("global-call", CCall(CGlobal("identity", Nil, 1), [CInt(12)]), "12"),
+    cgDevCase("global-value", cgDevApply(CGlobal("identity", Nil, 1), [CInt(13)]), "13"),
+    cgDevCase("global-dict-call", CCall(CGlobal("render", [showIntDict], 1), [CInt(14)]), "14"),
+    cgDevCase("global-dict-value", cgDevApply(CGlobal("render", [showIntDict], 1), [CInt(15)]), "15"),
+    cgDevCase("global-zero-arity-value", cgDevApply(CGlobal("zero", [showIntDict], 0), Nil), "0"),
+    cgDevCase("extern-call", CCall(CGlobal("externShow", Nil, 1), [CInt(16)]), "16"),
+    cgDevCase("method-call", CCall(method, [CInt(17)]), "17"),
+    cgDevCase("method-value", cgDevApply(method, [CInt(19)]), "19"),
+    cgDevCase("method-own-dict-call", CCall(format, [CInt(20)]), "format:20"),
+    cgDevCase("method-own-dict-value", cgDevApply(format, [CInt(21)]), "format:21"),
+    cgDevCase("ctor-nullary-value", CCtorFn("Option", "None"), "&{}"),
+    cgDevCase("ctor-function-value", CField(cgDevApply(CCtorFn("Box", "Box"), [CInt(22)]), "Box", "Box", 0), "22"),
+    cgDevCase("ctor-direct-call", CField(CCall(CCtorFn("Box", "Box"), [CInt(23)]), "Box", "Box", 0), "23"),
+    cgDevCase("constructor-field", CField(cgDevBox(CInt(24)), "Box", "Box", 0), "24"),
+    cgDevCase("tuple-field", CTupleField(CTuple([CInt(25), CString("tuple")]), 2, 1), "tuple"),
+    cgDevCase("record-update", CField(CRecordUpdate(CCtor("Pair", "Pair", [CInt(1), CInt(2)]), "Pair", "Pair", 2, [(1, CInt(26))]), "Pair", "Pair", 1), "26"),
+    cgDevCase("record-update-order", CRecordUpdate(CCall(CGlobal("basePair", Nil, 0), Nil), "Pair", "Pair", 2, [(1, CCall(CGlobal("tick", Nil, 1), [CInt(1)])), (0, CCall(CGlobal("tick", Nil, 1), [CInt(2)]))]), "&{2 1}"),
+    cgDevCase("interpolation", CInterp(["value=", " and ", ""], [(showIntDict, CInt(27)), (DInstance("Show", "String", Nil), CString("ok"))]), "value=27 and ok"),
+    cgDevCase("empty-interpolation", CInterp([""], Nil), ""),
+    cgDevCase("lambda", CCall(CLambda(["n"], CPrim("addInt", [CLocal("n"), CInt(1)])), [CInt(27)]), "28"),
+    cgDevCase("let-dict", generalized, "18"),
+    cgDevCase("nested-guarded-match", cgDevNested(), "49"),
+    cgDevCase("match-variable", CMatch(CInt(30), [CArm{pat: CPVar("n"), guard: None, body: CLocal("n")}]), "30"),
+    cgDevCase("match-final-ctor", CMatch(cgDevSome(CInt(31)), [CArm{pat: CPCtor("Option", "None", Nil), guard: None, body: CInt(0)}, CArm{pat: CPCtor("Option", "Some", [CPVar("n")]), guard: None, body: CLocal("n")}]), "31"),
+    cgDevCase("match-final-tuple", CMatch(CTuple([CInt(32), CBool(true)]), [CArm{pat: CPTuple([CPVar("n"), CPWild]), guard: None, body: CLocal("n")}]), "32"),
+    cgDevCase("match-final-bool", CMatch(CBool(false), [CArm{pat: CPBool(true), guard: None, body: CInt(1)}, CArm{pat: CPBool(false), guard: None, body: CInt(33)}]), "33"),
+    cgDevCase("if-true", CIf(CBool(true), CInt(34), CCall(CGlobal("bomb", Nil, 0), Nil)), "34"),
+    cgDevCase("if-false", CIf(CBool(false), CCall(CGlobal("bomb", Nil, 0), Nil), CInt(35)), "35"),
+    cgDevCase("dict-param-outside", CCall(showParam, [CInt(36)]), "36"),
+    cgDevCase("super-dict-outside", CCall(CMethod("show", DSuper("Show", DParam("A", "Inspect")), Nil, 1), [CInt(37)]), "37"),
+    cgDevCase("super-substitution", CCall(CMethod("show", DSuper("Show", DInstance("Debug", "Pair", [showIntDict, DInstance("Inspect", "Int", Nil)])), Nil, 1), [CCtor("Pair", "Pair", [CInt(100), CInt(38)])]), "38"),
+    cgDevCase("nested-instance", CCall(CMethod("show", DInstance("Show", "Box", [DInstance("Show", "Box", [showIntDict])]), Nil, 1), [cgDevBox(cgDevBox(CInt(39)))]), "39"),
+    cgDevCase("addInt", CPrim("addInt", [CInt(3), CInt(4)]), "7"),
+    cgDevCase("subInt", CPrim("subInt", [CInt(3), CInt(4)]), "-1"),
+    cgDevCase("mulInt", CPrim("mulInt", [CInt(3), CInt(4)]), "12"),
+    cgDevCase("divInt", CPrim("divInt", [CInt(9), CInt(4)]), "2"),
+    cgDevCase("modInt", CPrim("modInt", [CInt(9), CInt(4)]), "1"),
+    cgDevCase("negInt", CPrim("negInt", [CInt(4)]), "-4"),
+    cgDevCase("addString", CPrim("addString", [CString("a"), CString("b")]), "ab"),
+    cgDevCase("not", CPrim("not", [CBool(false)]), "true"),
+    cgDevCase("and-short-circuit", CPrim("and", [CBool(false), CCall(CGlobal("bomb", Nil, 0), Nil)]), "false"),
+    cgDevCase("or-short-circuit", CPrim("or", [CBool(true), CCall(CGlobal("bomb", Nil, 0), Nil)]), "true"),
+    cgDevCase("ordLt", CPrim("ordLt", [CCtor("Ordering", "LT", Nil)]), "true"),
+    cgDevCase("ordLe", CPrim("ordLe", [CCtor("Ordering", "EQ", Nil)]), "true"),
+    cgDevCase("ordGt", CPrim("ordGt", [CCtor("Ordering", "GT", Nil)]), "true"),
+    cgDevCase("ordGe", CPrim("ordGe", [CCtor("Ordering", "EQ", Nil)]), "true"),
+    CGDevCase{name: "guard-fallthrough-panic", expression: CMatch(CInt(1), [CArm{pat: CPWild, guard: Some(CBool(false)), body: CInt(2)}]), expected: "non-exhaustive match", panics: true},
+    CGDevCase{name: "nested-final-panic", expression: CMatch(cgDevSome(cgDevBox(CInt(8))), [CArm{pat: CPCtor("Option", "Some", [CPCtor("Box", "Box", [CPInt(7)])]), guard: None, body: CInt(1)}]), expected: "non-exhaustive match", panics: true},
+    CGDevCase{name: "empty-match-panic", expression: CMatch(CUnit, Nil), expected: "non-exhaustive match", panics: true}
+  ]
+}
+func cgDevReceiverCases() List[CGDevCase] {
+  [
+    cgDevCase("receiver-field", CCall(CMethod("show", DParam("A", "Show"), Nil, 1), [CInt(50)]), "receiver:50"),
+    cgDevCase("receiver-super-field", CCall(CMethod("show", DSuper("Show", DParam("A", "Inspect")), Nil, 1), [CInt(51)]), "receiver:51"),
+    cgDevCase("receiver-method-param", CCall(CMethod("show", DParam("B", "Show"), Nil, 1), [CInt(52)]), "52"),
+    cgDevCase("receiver-let-dict-shadow", CLetDict("render", [("A", "Show")], CLambda(["x"], CCall(CMethod("show", DParam("A", "Show"), Nil, 1), [CLocal("x")])), CCall(CLocalDict("render", [cgDevShow()]), [CInt(53)])), "53")
+  ]
+}
+func cgDevEmit(ctx GenCtx, test CGDevCase) Gen[(String, String)] {
+  do {
+    code <- genExpr(ctx, test.expression)
+    let check = if test.panics { "checkPanic(" } else { "check(" }
+    let argument = if test.panics { "func() any { return " + code + " }" } else { code }
+    pure((test.name + ":\n" + code, check + quote(test.name) + ", " + quote(test.expected) + ", " + argument + ")\n"))
+  }
+}
+func main() IO[Unit] {
+  let ctx = cgDevCtx()
+  let tests = cgDevCases()
+  let generated = runGen(mapM(tests, func(test) => cgDevEmit(ctx, test)), 0)
+  let receiverCtx = ctx{receiver: Some("dictself"), receiverDicts: [("A", "Show")]}
+  let receivers = runGen(mapM(cgDevReceiverCases(), func(test) => cgDevEmit(receiverCtx, test)), snd(generated))
+  let tupleProbe = CLet("x", CTuple([CInt(1), CInt(2)]), CMatch(CTupleField(CLocal("outer"), 5, 0), [CArm{pat: CPTuple([CPWild, CPAs("x", CPTuple([CPWild, CPWild, CPWild])), CPWild]), guard: Some(CPrim("ordLe", [CCtor("Ordering", "EQ", Nil)])), body: CInt(0)}]))
+  let source = "package main\n\nimport \"go4t/rt\"\n\nfunc runExpressions() {\nvar dict_A Show = Show_Int{}\n_ = dict_A\n" + strConcat(fmap(fst(generated), snd)) + "}\n\nfunc runReceiverExpressions(dictself Receiver, dict_B Show) {\n" + strConcat(fmap(fst(receivers), snd)) + "}\n"
+  do {
+    forEach(append(fst(generated), fst(receivers)), func(pair) => println(fst(pair)))
+    if collectTupleArities(tupleProbe) == [2, 3, 5] && usesOrdering(tupleProbe) && !usesOrdering(CInt(0)) && exported("éclair") == "Éclair" {
+      println("facts: tuple arities=[2, 3, 5], ordering=true/false, exported=Éclair")
+    } else { ioFail("generator fact collection failed") }
+    cgDevWriteFile("selfhost/dev/out/cgexpr_gen/expressions.go", source)
+    println("generated ${length(tests) + length(cgDevReceiverCases())} expressions; fresh counter=${snd(receivers)}")
+  }
+}

@@ -4,8 +4,8 @@ import (
 	"reflect"
 	"testing"
 
-	"gofx/ast"
-	"gofx/lexer"
+	"go4t/ast"
+	"go4t/lexer"
 )
 
 func TestComments(t *testing.T) {

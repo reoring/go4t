@@ -7,7 +7,7 @@ import (
 
 func TestForeignMirrors(t *testing.T) {
 	var loader Loader
-	pkg, err := loader.Load("gofx/extern/testdata/mirrorfixture")
+	pkg, err := loader.Load("go4t/extern/testdata/mirrorfixture")
 	if err != nil {
 		t.Fatal(err)
 	}

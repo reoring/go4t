@@ -1,7 +1,7 @@
 # Standard library reference
 
 Signatures below are inventoried from every top-level declaration in
-`std/**/*.gfx`, in module/source order. `docs/stdlib_inventory_test.go` parses the
+`std/**/*.gt`, in module/source order. `docs/stdlib_inventory_test.go` parses the
 embedded sources and requires each declaration signature/name, each constructor,
 and every class method to appear in its owning module's table with semantics and
 a boundary column. Private helpers are deliberately included, **not** public APIs.
@@ -37,12 +37,12 @@ bounded. For the combined language boundary tables see
 
 ## Worked examples
 
-Save either block as a separate `main.gfx` anywhere and run `gofx run main.gfx`.
+Save either block as a separate `main.gt` anywhere and run `go4t run main.gt`.
 The installed CLI embeds the runtime and needs only Go on PATH; no application
 `go.mod` is needed for these examples. From the checkout root, you can also use
-`go run ./cmd/gofx run /path/to/main.gfx`.
+`go run ./cmd/go4t run /path/to/main.gt`.
 
-```gofx
+```go4t
 package main
 import "std/list"
 import "std/string"
@@ -51,7 +51,7 @@ func main() IO[Unit] {
 }
 ```
 
-```gofx
+```go4t
 package main
 import maps "std/map"
 import "std/array"
@@ -65,20 +65,20 @@ func main() IO[Unit] {
 
 ## `std/array`
 
-Source: [`array/array.gfx`](../std/array/array.gfx). 14 top-level declarations.
+Source: [`array/array.gt`](../std/array/array.gt). 14 top-level declarations.
 
 | Source signature | Semantics | Boundary behaviour |
 | --- | --- | --- |
-| `extern func arrayFromList[A](xs List[A]) Array[A] = "gofx/rt".ArrayFromList` | Preserve list order. | Preserve list order. |
-| `extern func arrayToList[A](a Array[A]) List[A] = "gofx/rt".ArrayToList` | Preserve array order. | Preserve array order. |
-| `extern func arrayLength[A](a Array[A]) Int = "gofx/rt".ArrayLength` | Element count; constant time. | Element count; constant time. |
-| `extern func arrayGet[A](a Array[A], i Int) Option[A] = "gofx/rt".ArrayGet` | Zero-based O(1) access; `None` for negative indexes or `i >= length`. | Zero-based O(1) access; `None` for negative indexes or `i >= length`. |
-| `extern func arraySet[A](a Array[A], i Int, v A) Array[A] = "gofx/rt".ArraySet` | Copy and replace at a valid index; return the original unchanged outside `[0, length)`. | Copy and replace at a valid index; return the original unchanged outside `[0, length)`. |
-| `extern func arrayMap[A, B](a Array[A], f func(A) B) Array[B] = "gofx/rt".ArrayMap` | Map in ascending index order into a new array. | Map in ascending index order into a new array. |
-| `extern func arrayFold[A, B](a Array[A], init B, f func(B, A) B) B = "gofx/rt".ArrayFold` | Left fold in ascending index order; empty arrays return `init`. | Left fold in ascending index order; empty arrays return `init`. |
-| `extern func arrayPush[A](a Array[A], v A) Array[A] = "gofx/rt".ArrayPush` | Copy and append one element. | Copy and append one element. |
-| `extern func arraySlice[A](a Array[A], start Int, end Int) Array[A] = "gofx/rt".ArraySlice` | Half-open `[start, end)`; clamp both bounds to `[0, length]`; reversed/empty intervals yield an empty array. | Half-open `[start, end)`; clamp both bounds to `[0, length]`; reversed/empty intervals yield an empty array. |
-| `extern func arraySortBy[A](a Array[A], cmp func(A, A) Ordering) Array[A] = "gofx/rt".ArraySortBy` | Stable sort of a copy using `Ordering`; never modify the input. | Stable sort of a copy using `Ordering`; never modify the input. |
+| `extern func arrayFromList[A](xs List[A]) Array[A] = "go4t/rt".ArrayFromList` | Preserve list order. | Preserve list order. |
+| `extern func arrayToList[A](a Array[A]) List[A] = "go4t/rt".ArrayToList` | Preserve array order. | Preserve array order. |
+| `extern func arrayLength[A](a Array[A]) Int = "go4t/rt".ArrayLength` | Element count; constant time. | Element count; constant time. |
+| `extern func arrayGet[A](a Array[A], i Int) Option[A] = "go4t/rt".ArrayGet` | Zero-based O(1) access; `None` for negative indexes or `i >= length`. | Zero-based O(1) access; `None` for negative indexes or `i >= length`. |
+| `extern func arraySet[A](a Array[A], i Int, v A) Array[A] = "go4t/rt".ArraySet` | Copy and replace at a valid index; return the original unchanged outside `[0, length)`. | Copy and replace at a valid index; return the original unchanged outside `[0, length)`. |
+| `extern func arrayMap[A, B](a Array[A], f func(A) B) Array[B] = "go4t/rt".ArrayMap` | Map in ascending index order into a new array. | Map in ascending index order into a new array. |
+| `extern func arrayFold[A, B](a Array[A], init B, f func(B, A) B) B = "go4t/rt".ArrayFold` | Left fold in ascending index order; empty arrays return `init`. | Left fold in ascending index order; empty arrays return `init`. |
+| `extern func arrayPush[A](a Array[A], v A) Array[A] = "go4t/rt".ArrayPush` | Copy and append one element. | Copy and append one element. |
+| `extern func arraySlice[A](a Array[A], start Int, end Int) Array[A] = "go4t/rt".ArraySlice` | Half-open `[start, end)`; clamp both bounds to `[0, length]`; reversed/empty intervals yield an empty array. | Half-open `[start, end)`; clamp both bounds to `[0, length]`; reversed/empty intervals yield an empty array. |
+| `extern func arraySortBy[A](a Array[A], cmp func(A, A) Ordering) Array[A] = "go4t/rt".ArraySortBy` | Stable sort of a copy using `Ordering`; never modify the input. | Stable sort of a copy using `Ordering`; never modify the input. |
 | `instance Show[Array[A]] given Show[A]` | Display as #[a, b], using field Show where applicable. | Empty #[]; index order. |
 | `instance Debug[Array[A]] given Debug[A]` | Structural rendering as #[a, b] using element Debug. | Empty #[]; index order; strings quoted; no Show required. |
 | `instance Eq[Array[A]] given Eq[A]` | Compare Array values for equality. | Index-order element equality; empty arrays equal. |
@@ -86,45 +86,45 @@ Source: [`array/array.gfx`](../std/array/array.gfx). 14 top-level declarations.
 
 ## `std/conc`
 
-Source: [`conc/conc.gfx`](../std/conc/conc.gfx). 8 top-level declarations.
+Source: [`conc/conc.gt`](../std/conc/conc.gt). 8 top-level declarations.
 
 | Source signature | Semantics | Boundary behaviour |
 | --- | --- | --- |
-| `extern func fork[A](io IO[A]) IO[Fiber[A]] = "gofx/rt".Fork` | Start one action in a goroutine with a child execution context. | Construction does not start; repeated execution creates distinct fibers; failures/panics cached; parent cancellation propagates. |
-| `extern func await[A](f Fiber[A]) IO[A] = "gofx/rt".Await` | Wait for and return a Fiber's cached outcome. | Repeat/concurrent awaits do not rerun the task; classified failure propagates; caller or unfinished-fiber cancellation ends the wait with Cancelled. |
-| `extern func cancel[A](f Fiber[A]) IO[Unit] = "gofx/rt".Cancel` | Request cancellation of a fiber. | Deferred and idempotent; returns immediately, without joining; cancelled unfinished-fiber awaits fail with Cancelled, completed outcomes stay cached. |
-| `extern func parMapIO[A, B](xs List[A], f func(A) IO[B]) IO[List[B]] = "gofx/rt".ParMapIO` | Run mapper/actions in parallel, cancel siblings on first failure, join, return input-ordered values. | Nil returns Nil without mapper calls; first observed error wins; an uncooperative sibling can delay the failure join; enclosing cancellation bounds cleanup to 100 ms. |
-| `extern func race[A](a IO[A], b IO[A]) IO[A] = "gofx/rt".Race` | Return the first completed action's outcome after cancelling and joining the loser. | Failure can win; completion ties unspecified; uncooperative loser abandoned after 100 ms, cooperative loser completes before return. |
-| `extern func parBoth[A, B](a IO[A], b IO[B]) IO[(A, B)] = "gofx/rt".ParBoth` | Run and join two actions, returning a pair in argument order. | Joins both even on failure, without sibling cancellation; first observed error wins; enclosing cancellation bounds cleanup to 100 ms. |
-| `extern func timeout[A](millis Int, io IO[A]) IO[Option[A]] = "gofx/rt".Timeout` | Option form of withTimeout: Some on timely success, None on own expiry. | Nonpositive returns None without start; overflow fails `timeout: duration out of range`; timely errors and enclosing deadlines propagate; expired action cancelled and joined until deadline + 100 ms. |
-| `extern func withTimeout[A](millis Int, io IO[A]) IO[A] = "gofx/rt".WithTimeout` | Run with a millisecond deadline, failing with Timeout on expiry. | Nonpositive fails without start; overflow fails `withTimeout: duration out of range`; typed Timeout preserves `errors.Is(err, context.DeadlineExceeded)`; cancels and joins expired action until deadline + 100 ms. |
+| `extern func fork[A](io IO[A]) IO[Fiber[A]] = "go4t/rt".Fork` | Start one action in a goroutine with a child execution context. | Construction does not start; repeated execution creates distinct fibers; failures/panics cached; parent cancellation propagates. |
+| `extern func await[A](f Fiber[A]) IO[A] = "go4t/rt".Await` | Wait for and return a Fiber's cached outcome. | Repeat/concurrent awaits do not rerun the task; classified failure propagates; caller or unfinished-fiber cancellation ends the wait with Cancelled. |
+| `extern func cancel[A](f Fiber[A]) IO[Unit] = "go4t/rt".Cancel` | Request cancellation of a fiber. | Deferred and idempotent; returns immediately, without joining; cancelled unfinished-fiber awaits fail with Cancelled, completed outcomes stay cached. |
+| `extern func parMapIO[A, B](xs List[A], f func(A) IO[B]) IO[List[B]] = "go4t/rt".ParMapIO` | Run mapper/actions in parallel, cancel siblings on first failure, join, return input-ordered values. | Nil returns Nil without mapper calls; first observed error wins; an uncooperative sibling can delay the failure join; enclosing cancellation bounds cleanup to 100 ms. |
+| `extern func race[A](a IO[A], b IO[A]) IO[A] = "go4t/rt".Race` | Return the first completed action's outcome after cancelling and joining the loser. | Failure can win; completion ties unspecified; uncooperative loser abandoned after 100 ms, cooperative loser completes before return. |
+| `extern func parBoth[A, B](a IO[A], b IO[B]) IO[(A, B)] = "go4t/rt".ParBoth` | Run and join two actions, returning a pair in argument order. | Joins both even on failure, without sibling cancellation; first observed error wins; enclosing cancellation bounds cleanup to 100 ms. |
+| `extern func timeout[A](millis Int, io IO[A]) IO[Option[A]] = "go4t/rt".Timeout` | Option form of withTimeout: Some on timely success, None on own expiry. | Nonpositive returns None without start; overflow fails `timeout: duration out of range`; timely errors and enclosing deadlines propagate; expired action cancelled and joined until deadline + 100 ms. |
+| `extern func withTimeout[A](millis Int, io IO[A]) IO[A] = "go4t/rt".WithTimeout` | Run with a millisecond deadline, failing with Timeout on expiry. | Nonpositive fails without start; overflow fails `withTimeout: duration out of range`; typed Timeout preserves `errors.Is(err, context.DeadlineExceeded)`; cancels and joins expired action until deadline + 100 ms. |
 
 ## `std/float`
 
-Source: [`float/float.gfx`](../std/float/float.gfx). 24 top-level declarations.
+Source: [`float/float.gt`](../std/float/float.gt). 24 top-level declarations.
 
 | Source signature | Semantics | Boundary behaviour |
 | --- | --- | --- |
-| `extern func minInt() Int = "gofx/rt".MinInt` | Return the minimum signed 64-bit Int. | Exactly -9223372036854775808. |
-| `extern func maxInt() Int = "gofx/rt".MaxInt` | Return the maximum signed 64-bit Int. | Exactly 9223372036854775807. |
-| `extern func abs(n Int) Int = "gofx/rt".AbsInt` | Return the wrapping integer absolute value. | abs(minInt()) = minInt(), not a saturating positive value. |
-| `extern func showFloat(f Float) String = "gofx/rt".ShowFloat` | Render Float with Go's shortest round-trippable g format. | NaN, +Inf, -Inf printed literally; integral Float need not have a decimal point. |
-| `extern func debugFloat(f Float) String = "gofx/rt".DebugFloat` | Structural Float rendering via `strconv.FormatFloat(f, 'g', -1, 64)`. | Append .0 only when the result contains none of `.`, `e`, `NaN`, `Inf`; exponents and nonfinite forms unchanged. |
-| `extern func eqFloat(a Float, b Float) Bool = "gofx/rt".EqFloat` | IEEE binary64 equality. | NaN unequal to itself; positive/negative zero equal. |
-| `extern func ltFloat(a Float, b Float) Bool = "gofx/rt".LtFloat` | Strict numeric order with NaN below every non-NaN. | Two NaNs not less than each other; NaN < negative infinity; signed zeros equivalent. |
-| `extern func toFloat(n Int) Float = "gofx/rt".ToFloat` | Convert signed int64 to float64; large integers may round. | Integers beyond binary64 precision may round. |
-| `extern func truncate(f Float) Int = "gofx/rt".Truncate` | Convert toward zero using Go's float64-to-int64 conversion. | Toward zero; nonfinite/out-of-range integer conversion is Go implementation-dependent. |
-| `extern func floor(f Float) Int = "gofx/rt".Floor` | Round toward negative infinity, then convert to Int. | Toward negative infinity, then Go integer conversion; nonfinite/out-of-range not saturated. |
-| `extern func ceil(f Float) Int = "gofx/rt".Ceil` | Round toward positive infinity, then convert to Int. | Toward positive infinity, then Go integer conversion; nonfinite/out-of-range not saturated. |
-| `extern func round(f Float) Int = "gofx/rt".Round` | Round to nearest integer, ties away from zero, then convert to Int. | Nearest, ties away from zero; nonfinite/out-of-range integer conversion is implementation-dependent. |
-| `extern func sqrt(f Float) Float = "gofx/rt".Sqrt` | Go `math.Sqrt`; negative finite inputs produce NaN. | Negative finite input gives NaN; follows math.Sqrt special-value behaviour. |
-| `extern func pow(x Float, y Float) Float = "gofx/rt".Pow` | Go `math.Pow`, including its IEEE special-value behavior. | Follows math.Pow, including zero and IEEE special values. |
-| `extern func powInt(x Int, y Int) Int = "gofx/rt".PowInt` | Integer exponentiation by squaring; overflow wraps like Int multiplication; `0^0 = 1`. Negative exponents truncate reciprocal powers toward zero: base 1 returns 1, base -1 returns ±1 by exponent parity, every other base (including 0) returns 0. No negative-exponent panic. | 0^0 = 1; overflow wraps; negative exponent gives ±1 for bases ±1, otherwise 0, including base 0. |
-| `extern func parseFloat(s String) Option[Float] = "gofx/rt".ParseFloat` | Go `strconv.ParseFloat(s, 64)`; syntax/range errors return None; valid NaN/infinities return Some. | No whitespace trimming; syntax/range errors None; valid NaN/infinity Some; Go text grammar broader than source literals. |
-| `extern func showFloatFixed(f Float, decimals Int) String = "gofx/rt".ShowFloatFixed` | Go `strconv.FormatFloat(f, 'f', decimals, 64)`; ties-to-even decimal formatting, trailing zeros preserved; negative precision selects the shortest fixed form. | Trailing zeros retained; ties-to-even decimal formatting; negative precision shortest fixed form. |
-| `extern func absFloat(f Float) Float = "gofx/rt".AbsFloat` | Go `math.Abs`, including converting negative zero to positive zero. | Negative zero becomes positive zero; NaN remains NaN. |
-| `extern func nan() Float = "gofx/rt".Nan` | Produce an IEEE NaN. | Always an IEEE NaN, unequal to itself under Eq. |
-| `extern func isNaN(f Float) Bool = "gofx/rt".IsNaN` | True exactly for IEEE NaN values. | False for infinities and ordinary numbers. |
+| `extern func minInt() Int = "go4t/rt".MinInt` | Return the minimum signed 64-bit Int. | Exactly -9223372036854775808. |
+| `extern func maxInt() Int = "go4t/rt".MaxInt` | Return the maximum signed 64-bit Int. | Exactly 9223372036854775807. |
+| `extern func abs(n Int) Int = "go4t/rt".AbsInt` | Return the wrapping integer absolute value. | abs(minInt()) = minInt(), not a saturating positive value. |
+| `extern func showFloat(f Float) String = "go4t/rt".ShowFloat` | Render Float with Go's shortest round-trippable g format. | NaN, +Inf, -Inf printed literally; integral Float need not have a decimal point. |
+| `extern func debugFloat(f Float) String = "go4t/rt".DebugFloat` | Structural Float rendering via `strconv.FormatFloat(f, 'g', -1, 64)`. | Append .0 only when the result contains none of `.`, `e`, `NaN`, `Inf`; exponents and nonfinite forms unchanged. |
+| `extern func eqFloat(a Float, b Float) Bool = "go4t/rt".EqFloat` | IEEE binary64 equality. | NaN unequal to itself; positive/negative zero equal. |
+| `extern func ltFloat(a Float, b Float) Bool = "go4t/rt".LtFloat` | Strict numeric order with NaN below every non-NaN. | Two NaNs not less than each other; NaN < negative infinity; signed zeros equivalent. |
+| `extern func toFloat(n Int) Float = "go4t/rt".ToFloat` | Convert signed int64 to float64; large integers may round. | Integers beyond binary64 precision may round. |
+| `extern func truncate(f Float) Int = "go4t/rt".Truncate` | Convert toward zero using Go's float64-to-int64 conversion. | Toward zero; nonfinite/out-of-range integer conversion is Go implementation-dependent. |
+| `extern func floor(f Float) Int = "go4t/rt".Floor` | Round toward negative infinity, then convert to Int. | Toward negative infinity, then Go integer conversion; nonfinite/out-of-range not saturated. |
+| `extern func ceil(f Float) Int = "go4t/rt".Ceil` | Round toward positive infinity, then convert to Int. | Toward positive infinity, then Go integer conversion; nonfinite/out-of-range not saturated. |
+| `extern func round(f Float) Int = "go4t/rt".Round` | Round to nearest integer, ties away from zero, then convert to Int. | Nearest, ties away from zero; nonfinite/out-of-range integer conversion is implementation-dependent. |
+| `extern func sqrt(f Float) Float = "go4t/rt".Sqrt` | Go `math.Sqrt`; negative finite inputs produce NaN. | Negative finite input gives NaN; follows math.Sqrt special-value behaviour. |
+| `extern func pow(x Float, y Float) Float = "go4t/rt".Pow` | Go `math.Pow`, including its IEEE special-value behavior. | Follows math.Pow, including zero and IEEE special values. |
+| `extern func powInt(x Int, y Int) Int = "go4t/rt".PowInt` | Integer exponentiation by squaring; overflow wraps like Int multiplication; `0^0 = 1`. Negative exponents truncate reciprocal powers toward zero: base 1 returns 1, base -1 returns ±1 by exponent parity, every other base (including 0) returns 0. No negative-exponent panic. | 0^0 = 1; overflow wraps; negative exponent gives ±1 for bases ±1, otherwise 0, including base 0. |
+| `extern func parseFloat(s String) Option[Float] = "go4t/rt".ParseFloat` | Go `strconv.ParseFloat(s, 64)`; syntax/range errors return None; valid NaN/infinities return Some. | No whitespace trimming; syntax/range errors None; valid NaN/infinity Some; Go text grammar broader than source literals. |
+| `extern func showFloatFixed(f Float, decimals Int) String = "go4t/rt".ShowFloatFixed` | Go `strconv.FormatFloat(f, 'f', decimals, 64)`; ties-to-even decimal formatting, trailing zeros preserved; negative precision selects the shortest fixed form. | Trailing zeros retained; ties-to-even decimal formatting; negative precision shortest fixed form. |
+| `extern func absFloat(f Float) Float = "go4t/rt".AbsFloat` | Go `math.Abs`, including converting negative zero to positive zero. | Negative zero becomes positive zero; NaN remains NaN. |
+| `extern func nan() Float = "go4t/rt".Nan` | Produce an IEEE NaN. | Always an IEEE NaN, unequal to itself under Eq. |
+| `extern func isNaN(f Float) Bool = "go4t/rt".IsNaN` | True exactly for IEEE NaN values. | False for infinities and ordinary numbers. |
 | `instance Show[Float]` | Display with the same shortest g formatter as Debug. | Finite forms without a decimal point or exponent gain .0; show(1.0) is 1.0; NaN, +Inf, -Inf unchanged. Prefer showFloatFixed for money. |
 | `instance Debug[Float]` | Structural rendering distinguishes Float from Int. | debug(1.0) is 1.0, debug(1.5) is 1.5; NaN, +Inf, -Inf and exponents unchanged. |
 | `instance Eq[Float]` | Compare Float values for equality. | NaN unequal to itself; positive/negative zero equal. |
@@ -132,13 +132,13 @@ Source: [`float/float.gfx`](../std/float/float.gfx). 24 top-level declarations.
 
 ## `std/http`
 
-Source: [`http/http.gfx`](../std/http/http.gfx). 14 top-level declarations.
+Source: [`http/http.gt`](../std/http/http.gt). 14 top-level declarations.
 
 All client/server effects honor their IO context. Headers are lists of pairs,
 not maps, so repeated values survive the ABI. Bodies are buffered Strings.
-Records are built in gofx: runtime client results and server handler results use
+Records are built in go4t: runtime client results and server handler results use
 `rt.Shapes.Tuple3/Untuple3` for `(status, headers, body)`; the server supplies the
-six Request fields individually to the gofx adapter. No generated record layout
+six Request fields individually to the go4t adapter. No generated record layout
 is assumed by rt. See SPEC §6.4 and the runnable [HTTP example](../examples/http).
 
 | Source signature | Semantics | Boundary behaviour |
@@ -147,9 +147,9 @@ is assumed by rt. See SPEC §6.4 and the runnable [HTTP example](../examples/htt
 | `type Response = Response{status: Int, headers: List[(String, String)], body: String} deriving Debug` | Complete HTTP response. | Non-2xx is a normal value, not an IO failure; headers preserve repeated values. |
 | `instance Debug[Request]` | Derived structural rendering of all request fields. | Field order follows the declaration; strings quoted, query/header pairs use list syntax. |
 | `instance Debug[Response]` | Derived structural rendering of all response fields. | `debug(response(200, "ok"))` is `Response{status: 200, headers: [], body: "ok"}`. |
-| `extern func _request(method String, url String, path String, query List[(String, String)], headers List[(String, String)], body String, millis Int) IO[(Int, List[(String, String)], String)] = "gofx/rt".HTTPRequest` | Private field-list client ABI returning a triple. | Deferred; uses context through connection, redirects and full body read; no record-layout dependency. |
-| `extern func _header(headers List[(String, String)], name String) Option[String] = "gofx/rt".HTTPHeader` | Private case-insensitive header lookup. | First matching value, including empty; None if absent. |
-| `extern func _serve(port Int, handler func(String, String, String, List[(String, String)], List[(String, String)], String) IO[(Int, List[(String, String)], String)]) IO[Unit] = "gofx/rt".HTTPServe` | Private server field-list/triple ABI. | Request fields are method, url, path, query, headers, body; handler results are status, headers, body. |
+| `extern func _request(method String, url String, path String, query List[(String, String)], headers List[(String, String)], body String, millis Int) IO[(Int, List[(String, String)], String)] = "go4t/rt".HTTPRequest` | Private field-list client ABI returning a triple. | Deferred; uses context through connection, redirects and full body read; no record-layout dependency. |
+| `extern func _header(headers List[(String, String)], name String) Option[String] = "go4t/rt".HTTPHeader` | Private case-insensitive header lookup. | First matching value, including empty; None if absent. |
+| `extern func _serve(port Int, handler func(String, String, String, List[(String, String)], List[(String, String)], String) IO[(Int, List[(String, String)], String)]) IO[Unit] = "go4t/rt".HTTPServe` | Private server field-list/triple ABI. | Request fields are method, url, path, query, headers, body; handler results are status, headers, body. |
 | `func request(r Request) IO[Response]` | Send a request with a 30 s overall timeout. | Replay sends again; Network/Timeout/Cancelled on transport failure; non-2xx succeeds. No retries. |
 | `func requestWithTimeout(r Request, millis Int) IO[Response]` | Send with an explicit millisecond budget. | Parent cancellation checked first; nonpositive fails Timeout without sending; overflow fails `requestWithTimeout: duration out of range`. |
 | `func get(url String) IO[Response]` | GET with no explicit body/headers/query override. | Uses request's 30 s budget and net/http redirect defaults. |
@@ -162,7 +162,7 @@ is assumed by rt. See SPEC §6.4 and the runnable [HTTP example](../examples/htt
 
 ## `std/io`
 
-Source: [`io/io.gfx`](../std/io/io.gfx). 32 top-level declarations.
+Source: [`io/io.gt`](../std/io/io.gt). 32 top-level declarations.
 
 All operations returning IO are deferred; `formatTime` and `ioErrorMessage` are pure.
 IO errors are classified as NotFound, PermissionDenied, AlreadyExists, Timeout,
@@ -176,39 +176,39 @@ Wrapped Go errors follow the same classification. See SPEC §6.2 for precedence.
 | `instance Show[IoError]` | show delegates to ioErrorMessage. | Panic text has no added prefix; empty message displays empty text. |
 | `instance Eq[IoError]` | Derived constructor and payload equality. | Different constructors are unequal even with equal messages; nullary values equal themselves. |
 | `instance Debug[IoError]` | Derived structural constructor rendering. | String payloads are quoted and escaped; Timeout/Cancelled have no parentheses. |
-| `extern func ioRaise[A](e IoError) IO[A] = "gofx/rt".Raise` | Construct a deferred failure preserving the supplied kind and message. | tryIO captures Err(e); no failure merely from constructing the action. |
+| `extern func ioRaise[A](e IoError) IO[A] = "go4t/rt".Raise` | Construct a deferred failure preserving the supplied kind and message. | tryIO captures Err(e); no failure merely from constructing the action. |
 | `func ioFailWith[E Show, A](e E) IO[A]` | Raise Failure with the error's Show rendering. | Show rendering is strict while constructing the deferred ioFail; use ioRaise to preserve an IoError constructor. |
-| `extern func ioPure[A](a A) IO[A] = "gofx/rt".Pure` | Construct a successful IO holding an already evaluated value. | Argument is already strict; re-running returns the same value without recomputing its construction. |
-| `extern func ioBind[A, B](io IO[A], f func(A) IO[B]) IO[B] = "gofx/rt".Bind` | Sequence IO, passing its result to the continuation. | Failure skips f; success invokes f when the action runs, not when constructed. |
+| `extern func ioPure[A](a A) IO[A] = "go4t/rt".Pure` | Construct a successful IO holding an already evaluated value. | Argument is already strict; re-running returns the same value without recomputing its construction. |
+| `extern func ioBind[A, B](io IO[A], f func(A) IO[B]) IO[B] = "go4t/rt".Bind` | Sequence IO, passing its result to the continuation. | Failure skips f; success invokes f when the action runs, not when constructed. |
 | `func void[A](io IO[A]) IO[Unit]` | Run the action and discard its result. | Failure propagates unchanged; the result is `unit()` only on success. |
-| `extern func ioFail[A](msg String) IO[A] = "gofx/rt".Fail` | Construct a deferred Failure with the supplied message. | Every message, including empty text, constructs a failing deferred IO; no output or failure occurs merely by constructing it. |
-| `extern func println(s String) IO[Unit] = "gofx/rt".Println` | Write text and a newline to stdout when run. | Empty text still prints a newline; output errors fail the IO. |
-| `extern func readLine() IO[Option[String]] = "gofx/rt".ReadLine` | Read one input line, stripping its LF or CRLF terminator. | Empty EOF gives `None`; a blank line gives `Some("")`; LF/CRLF terminators are stripped; a final unterminated nonempty line is `Some(line)`; other read errors fail the IO. |
-| `extern func readAll() IO[String] = "gofx/rt".ReadAll` | Read all remaining stdin, including buffered input. | Empty remaining input gives `""`; includes bytes already buffered by prior `readLine` calls; read errors fail the IO. |
-| `extern func args() IO[List[String]] = "gofx/rt".Args` | Read program arguments, excluding the executable name. | No program arguments gives `Nil`; executable name excluded; empty argument strings retained. |
-| `extern func exit[A](code Int) IO[A] = "gofx/rt".Exit` | Terminate the process with the supplied status when run. | Not catchable by tryIO; follows OS/Go process status semantics. |
-| `extern func getEnv(name String) IO[Option[String]] = "gofx/rt".GetEnv` | Read an optional environment value. | Absent name gives `None`; present empty value gives `Some("")`; values are not trimmed. |
-| `extern func tryIO[A](io IO[A]) IO[Result[IoError, A]] = "gofx/rt".TryIO` | Run lazily; success becomes Ok, typed failures and recovered panics become Err. | Error → Err(IoError); action panic → Err(Panic(payload text without prefix)); construction panics/exit not caught. |
-| `extern func readFile(path String) IO[String] = "gofx/rt".ReadFile` | Read the complete file; filesystem errors fail the IO. | Empty file → empty string; missing path → NotFound; other errors use the IO classification. |
-| `extern func writeFile(path String, content String) IO[Unit] = "gofx/rt".WriteFile` | Create or truncate, preserving existing runtime parent-directory creation. | Creates parent directories and truncates existing file; directories 0755/files 0644 subject to umask; write errors fail. |
-| `extern func appendFile(path String, content String) IO[Unit] = "gofx/rt".AppendFile` | Create or append, creating missing parent directories; write/close errors fail. | Creates parent directories/file if absent; appends without truncation; write/close errors fail. |
-| `extern func fileExists(path String) IO[Bool] = "gofx/rt".FileExists` | True for an existing file/directory, false for a missing path; other stat errors fail. | Missing false; existing directory true; other stat errors fail. |
-| `extern func listDir(path String) IO[List[String]] = "gofx/rt".ListDir` | Sorted entry names, not full paths, including directory entries. | Sorted names, not full paths; empty directory Nil; read errors fail. |
-| `extern func removeFile(path String) IO[Unit] = "gofx/rt".RemoveFile` | Remove a file or empty directory; a missing path fails. | Missing/nonempty directory fails; empty directory can be removed. |
-| `extern func eprintln(s String) IO[Unit] = "gofx/rt".Eprintln` | Write s and a newline to stderr. | Even empty text emits newline to stderr; stream error fails. |
-| `extern func print(s String) IO[Unit] = "gofx/rt".Print` | Write s to stdout without a newline. | Empty text emits no bytes; stream error fails; no added newline. |
-| `extern func nowMillis() IO[Int] = "gofx/rt".NowMillis` | Current Unix time in milliseconds, sampled when run. | Unix wall-clock milliseconds, sampled when run, not monotonic. |
-| `extern func monotonicMillis() IO[Int] = "gofx/rt".MonotonicMillis` | Elapsed monotonic milliseconds since runtime initialization. | Elapsed milliseconds since runtime initialization; sampled when run. |
-| `extern func formatTime(millis Int, layout String) String = "gofx/rt".FormatTime` | Pure UTC formatting of Unix milliseconds with a Go time layout. | UTC only; Go layout syntax; negative milliseconds supported. |
-| `extern func randomInt(lo Int, hi Int) IO[Int] = "gofx/rt".RandomInt` | Uniform inclusive interval, supporting the entire signed Int range; not cryptographic. | Inclusive full signed range; lo == hi fixed; lo > hi fails `randomInt: lo must be <= hi`; not cryptographic. |
-| `extern func randomFloat() IO[Float] = "gofx/rt".RandomFloat` | Uniform Float in [0,1), sampled when run using the same automatically seeded RNG as randomInt; not cryptographic. | Never fails; 0 inclusive, 1 exclusive: [0,1). |
-| `extern func sleep(millis Int) IO[Unit] = "gofx/rt".Sleep` | Sleep for positive milliseconds; nonpositive values return immediately. | Nonpositive immediate; duration overflow fails `sleep: duration out of range`. |
+| `extern func ioFail[A](msg String) IO[A] = "go4t/rt".Fail` | Construct a deferred Failure with the supplied message. | Every message, including empty text, constructs a failing deferred IO; no output or failure occurs merely by constructing it. |
+| `extern func println(s String) IO[Unit] = "go4t/rt".Println` | Write text and a newline to stdout when run. | Empty text still prints a newline; output errors fail the IO. |
+| `extern func readLine() IO[Option[String]] = "go4t/rt".ReadLine` | Read one input line, stripping its LF or CRLF terminator. | Empty EOF gives `None`; a blank line gives `Some("")`; LF/CRLF terminators are stripped; a final unterminated nonempty line is `Some(line)`; other read errors fail the IO. |
+| `extern func readAll() IO[String] = "go4t/rt".ReadAll` | Read all remaining stdin, including buffered input. | Empty remaining input gives `""`; includes bytes already buffered by prior `readLine` calls; read errors fail the IO. |
+| `extern func args() IO[List[String]] = "go4t/rt".Args` | Read program arguments, excluding the executable name. | No program arguments gives `Nil`; executable name excluded; empty argument strings retained. |
+| `extern func exit[A](code Int) IO[A] = "go4t/rt".Exit` | Terminate the process with the supplied status when run. | Not catchable by tryIO; follows OS/Go process status semantics. |
+| `extern func getEnv(name String) IO[Option[String]] = "go4t/rt".GetEnv` | Read an optional environment value. | Absent name gives `None`; present empty value gives `Some("")`; values are not trimmed. |
+| `extern func tryIO[A](io IO[A]) IO[Result[IoError, A]] = "go4t/rt".TryIO` | Run lazily; success becomes Ok, typed failures and recovered panics become Err. | Error → Err(IoError); action panic → Err(Panic(payload text without prefix)); construction panics/exit not caught. |
+| `extern func readFile(path String) IO[String] = "go4t/rt".ReadFile` | Read the complete file; filesystem errors fail the IO. | Empty file → empty string; missing path → NotFound; other errors use the IO classification. |
+| `extern func writeFile(path String, content String) IO[Unit] = "go4t/rt".WriteFile` | Create or truncate, preserving existing runtime parent-directory creation. | Creates parent directories and truncates existing file; directories 0755/files 0644 subject to umask; write errors fail. |
+| `extern func appendFile(path String, content String) IO[Unit] = "go4t/rt".AppendFile` | Create or append, creating missing parent directories; write/close errors fail. | Creates parent directories/file if absent; appends without truncation; write/close errors fail. |
+| `extern func fileExists(path String) IO[Bool] = "go4t/rt".FileExists` | True for an existing file/directory, false for a missing path; other stat errors fail. | Missing false; existing directory true; other stat errors fail. |
+| `extern func listDir(path String) IO[List[String]] = "go4t/rt".ListDir` | Sorted entry names, not full paths, including directory entries. | Sorted names, not full paths; empty directory Nil; read errors fail. |
+| `extern func removeFile(path String) IO[Unit] = "go4t/rt".RemoveFile` | Remove a file or empty directory; a missing path fails. | Missing/nonempty directory fails; empty directory can be removed. |
+| `extern func eprintln(s String) IO[Unit] = "go4t/rt".Eprintln` | Write s and a newline to stderr. | Even empty text emits newline to stderr; stream error fails. |
+| `extern func print(s String) IO[Unit] = "go4t/rt".Print` | Write s to stdout without a newline. | Empty text emits no bytes; stream error fails; no added newline. |
+| `extern func nowMillis() IO[Int] = "go4t/rt".NowMillis` | Current Unix time in milliseconds, sampled when run. | Unix wall-clock milliseconds, sampled when run, not monotonic. |
+| `extern func monotonicMillis() IO[Int] = "go4t/rt".MonotonicMillis` | Elapsed monotonic milliseconds since runtime initialization. | Elapsed milliseconds since runtime initialization; sampled when run. |
+| `extern func formatTime(millis Int, layout String) String = "go4t/rt".FormatTime` | Pure UTC formatting of Unix milliseconds with a Go time layout. | UTC only; Go layout syntax; negative milliseconds supported. |
+| `extern func randomInt(lo Int, hi Int) IO[Int] = "go4t/rt".RandomInt` | Uniform inclusive interval, supporting the entire signed Int range; not cryptographic. | Inclusive full signed range; lo == hi fixed; lo > hi fails `randomInt: lo must be <= hi`; not cryptographic. |
+| `extern func randomFloat() IO[Float] = "go4t/rt".RandomFloat` | Uniform Float in [0,1), sampled when run using the same automatically seeded RNG as randomInt; not cryptographic. | Never fails; 0 inclusive, 1 exclusive: [0,1). |
+| `extern func sleep(millis Int) IO[Unit] = "go4t/rt".Sleep` | Sleep for positive milliseconds; nonpositive values return immediately. | Nonpositive immediate; duration overflow fails `sleep: duration out of range`. |
 | `instance Functor[IO]` | Map IO's element/result while retaining shape. | Deferred mapper; failed IO skips it. |
 | `instance Monad[IO]` | Inject and sequence IO computations. | pure is ioPure; bind defers effects and skips continuation on failure. |
 
 ## `std/json`
 
-Source: [`json/json.gfx`](../std/json/json.gfx). 39 top-level declarations.
+Source: [`json/json.gt`](../std/json/json.gt). 39 top-level declarations.
 
 All `_json*` rows are private compiler/codec helpers; user modules cannot call them. JSON strings use JSON rather than Go escaping.
 
@@ -218,13 +218,13 @@ All `_json*` rows are private compiler/codec helpers; user modules cannot call t
 | `instance Debug[Json]` | Derived structural constructor rendering, not JSON encoding. | Recurses through list/map values; object keys sorted and strings quoted; nonfinite numbers are printable by Debug. |
 | `class Encode[A] { encode(a A) Json }` | Convert a typed value to Json. | Import/qualify std/json; nonfinite numbers fail when printed; nullable Option and large Int are lossy. |
 | `class Decode[A] { decode(j Json) Result[String, A] }` | Convert Json to a typed Result[String, A]. | First failure uses expected <what> at <path>; missing record fields are errors. |
-| `extern func toJson(j Json) String = "gofx/rt".ToJson` | Render a Json value as compact JSON text. | Nonfinite JNum panics `cannot encode non-finite JSON number`; preserves parsed/derived object metadata; ordinary Map keys sorted. |
-| `extern func toJsonPretty(j Json) String = "gofx/rt".ToJsonPretty` | Render Json with two-space indentation and no trailing newline. | Same nonfinite policy/order as toJson; two spaces, no trailing newline. |
-| `extern func parseJson(s String) Result[String, Json] = "gofx/rt".ParseJson` | Parse exactly one JSON value, preserving object member order. | Whitespace accepted; trailing values/malformed input/Float overflow return Err with `invalid JSON: ` prefix; duplicate keys first position/last value. |
-| `extern func _jsonObject(fields List[(String, Json)]) Json = "gofx/rt".JsonObject` | Private ordered-object constructor used by generated encoders. | Private generated-helper contract expects unique field names; empty fields produce empty object; order metadata retained. |
-| `extern func _jsonInt(n Float) Result[String, Int] = "gofx/rt".JsonInt` | Private checked Float-to-Int JSON conversion. | Only finite integral [-2^63, 2^63) accepted; otherwise Err("expected Int at $"). |
-| `extern func _jsonErrorAt(message String, segment String) String = "gofx/rt".JsonErrorAt` | Private insertion of a path segment after the error's root. | Existing ` at $` path extended at root; absent root appends ` at $` plus segment. |
-| `extern func _jsonFieldPath(name String) String = "gofx/rt".JsonFieldPath` | Private rendering of a JSON field path segment. | Identifier key → .name; otherwise JSON-quoted brackets, including empty key. |
+| `extern func toJson(j Json) String = "go4t/rt".ToJson` | Render a Json value as compact JSON text. | Nonfinite JNum panics `cannot encode non-finite JSON number`; preserves parsed/derived object metadata; ordinary Map keys sorted. |
+| `extern func toJsonPretty(j Json) String = "go4t/rt".ToJsonPretty` | Render Json with two-space indentation and no trailing newline. | Same nonfinite policy/order as toJson; two spaces, no trailing newline. |
+| `extern func parseJson(s String) Result[String, Json] = "go4t/rt".ParseJson` | Parse exactly one JSON value, preserving object member order. | Whitespace accepted; trailing values/malformed input/Float overflow return Err with `invalid JSON: ` prefix; duplicate keys first position/last value. |
+| `extern func _jsonObject(fields List[(String, Json)]) Json = "go4t/rt".JsonObject` | Private ordered-object constructor used by generated encoders. | Private generated-helper contract expects unique field names; empty fields produce empty object; order metadata retained. |
+| `extern func _jsonInt(n Float) Result[String, Int] = "go4t/rt".JsonInt` | Private checked Float-to-Int JSON conversion. | Only finite integral [-2^63, 2^63) accepted; otherwise Err("expected Int at $"). |
+| `extern func _jsonErrorAt(message String, segment String) String = "go4t/rt".JsonErrorAt` | Private insertion of a path segment after the error's root. | Existing ` at $` path extended at root; absent root appends ` at $` plus segment. |
+| `extern func _jsonFieldPath(name String) String = "go4t/rt".JsonFieldPath` | Private rendering of a JSON field path segment. | Identifier key → .name; otherwise JSON-quoted brackets, including empty key. |
 | `func _jsonAt[A](segment String, result Result[String, A]) Result[String, A]` | Private transformation of a Result error to add a path segment. | Ok unchanged; Err receives the prefix without dropping its nested suffix. |
 | `func _jsonDecodeAt[A Decode](segment String, j Json) Result[String, A]` | Private decode with a prefixed path segment. | Returns the decoder's first failure with added segment; success unchanged. |
 | `func _jsonField[A Decode](fields Map[String, Json], name String) Result[String, A]` | Private lookup and decode of a required object field. | Missing field → `expected field at <path>`; explicit null still decoded normally. |
@@ -257,7 +257,7 @@ All `_json*` rows are private compiler/codec helpers; user modules cannot call t
 
 ## `std/lazy`
 
-Source: [`lazy/lazy.gfx`](../std/lazy/lazy.gfx). 4 top-level declarations.
+Source: [`lazy/lazy.gt`](../std/lazy/lazy.gt). 4 top-level declarations.
 
 | Source signature | Semantics | Boundary behaviour |
 | --- | --- | --- |
@@ -268,7 +268,7 @@ Source: [`lazy/lazy.gfx`](../std/lazy/lazy.gfx). 4 top-level declarations.
 
 ## `std/list`
 
-Source: [`list/list.gfx`](../std/list/list.gfx). 68 top-level declarations.
+Source: [`list/list.gt`](../std/list/list.gt). 68 top-level declarations.
 
 Accumulator helpers are exported because their names do not begin `_`; prefer the ordinary entrypoints unless deliberately supplying a reversed prefix. `sortBy` is stable array-backed sorting; no `insertBy` remains.
 
@@ -359,25 +359,25 @@ Derived instances (expanded from the type declarations above):
 
 ## `std/map`
 
-Source: [`map/map.gfx`](../std/map/map.gfx). 26 top-level declarations.
+Source: [`map/map.gt`](../std/map/map.gt). 26 top-level declarations.
 
 `By` functions are exported low-level comparator APIs: use one consistent total order for every operation on a tree. Standard wrappers supply Ord.compare.
 
 | Source signature | Semantics | Boundary behaviour |
 | --- | --- | --- |
-| `extern func emptyMap[K, V]() Map[K, V] = "gofx/rt".EmptyMap` | Empty map, with no key constraint. | Empty map, with no key constraint. |
-| `extern func mapInsertBy[K, V](m Map[K, V], k K, v V, cmp func(K, K) Ordering) Map[K, V] = "gofx/rt".MapInsert` | Insert/replace the key and value; preserve the old map. Uses the explicit comparator instead of Ord. | Insert/replace the key and value; preserve the old map. The comparator must remain consistent for all operations on this tree. |
-| `extern func mapLookupBy[K, V](m Map[K, V], k K, cmp func(K, K) Ordering) Option[V] = "gofx/rt".MapLookup` | `Some(value)` if present, otherwise `None`. Uses the explicit comparator instead of Ord. | `Some(value)` if present, otherwise `None`. The comparator must remain consistent for all operations on this tree. |
-| `extern func mapDeleteBy[K, V](m Map[K, V], k K, cmp func(K, K) Ordering) Map[K, V] = "gofx/rt".MapDelete` | Remove a key; return the original tree when absent. Uses the explicit comparator instead of Ord. | Remove a key; return the original tree when absent. The comparator must remain consistent for all operations on this tree. |
-| `extern func mapMemberBy[K, V](m Map[K, V], k K, cmp func(K, K) Ordering) Bool = "gofx/rt".MapMember` | Whether the key is present. Uses the explicit comparator instead of Ord. | Whether the key is present. The comparator must remain consistent for all operations on this tree. |
-| `extern func mapSize[K, V](m Map[K, V]) Int = "gofx/rt".MapSize` | Number of distinct keys; constant time. | Number of distinct keys; constant time. |
-| `extern func mapFromListBy[K, V](xs List[(K, V)], cmp func(K, K) Ordering) Map[K, V] = "gofx/rt".MapFromList` | Build from pairs; the last pair wins for duplicate keys. Uses the explicit comparator instead of Ord. | Build from pairs; the last pair wins for duplicate keys. The comparator must remain consistent for all operations on this tree. |
-| `extern func mapToList[K, V](m Map[K, V]) List[(K, V)] = "gofx/rt".MapToList` | Pairs in ascending key order. | Pairs in ascending key order. |
-| `extern func mapKeys[K, V](m Map[K, V]) List[K] = "gofx/rt".MapKeys` | Keys in ascending order. | Keys in ascending order. |
-| `extern func mapValues[K, V](m Map[K, V]) List[V] = "gofx/rt".MapValues` | Values in ascending key order, not sorted by value. | Values in ascending key order, not sorted by value. |
-| `extern func mapUnionBy[K, V](a Map[K, V], b Map[K, V], cmp func(K, K) Ordering) Map[K, V] = "gofx/rt".MapUnion` | Left-biased union; a duplicate keeps the left key/value. Uses the explicit comparator instead of Ord. | Left-biased union; a duplicate keeps the left key/value. The comparator must remain consistent for all operations on this tree. |
-| `extern func mapMap[K, V, W](m Map[K, V], f func(V) W) Map[K, W] = "gofx/rt".MapMap` | Map values in ascending-key order without needing `Ord`; keep keys and tree shape. | Map values in ascending-key order without needing `Ord`; keep keys and tree shape. |
-| `extern func mapFold[K, V, B](m Map[K, V], init B, f func(B, K, V) B) B = "gofx/rt".MapFold` | Left fold in ascending-key order; an empty map returns `init`. | Left fold in ascending-key order; an empty map returns `init`. |
+| `extern func emptyMap[K, V]() Map[K, V] = "go4t/rt".EmptyMap` | Empty map, with no key constraint. | Empty map, with no key constraint. |
+| `extern func mapInsertBy[K, V](m Map[K, V], k K, v V, cmp func(K, K) Ordering) Map[K, V] = "go4t/rt".MapInsert` | Insert/replace the key and value; preserve the old map. Uses the explicit comparator instead of Ord. | Insert/replace the key and value; preserve the old map. The comparator must remain consistent for all operations on this tree. |
+| `extern func mapLookupBy[K, V](m Map[K, V], k K, cmp func(K, K) Ordering) Option[V] = "go4t/rt".MapLookup` | `Some(value)` if present, otherwise `None`. Uses the explicit comparator instead of Ord. | `Some(value)` if present, otherwise `None`. The comparator must remain consistent for all operations on this tree. |
+| `extern func mapDeleteBy[K, V](m Map[K, V], k K, cmp func(K, K) Ordering) Map[K, V] = "go4t/rt".MapDelete` | Remove a key; return the original tree when absent. Uses the explicit comparator instead of Ord. | Remove a key; return the original tree when absent. The comparator must remain consistent for all operations on this tree. |
+| `extern func mapMemberBy[K, V](m Map[K, V], k K, cmp func(K, K) Ordering) Bool = "go4t/rt".MapMember` | Whether the key is present. Uses the explicit comparator instead of Ord. | Whether the key is present. The comparator must remain consistent for all operations on this tree. |
+| `extern func mapSize[K, V](m Map[K, V]) Int = "go4t/rt".MapSize` | Number of distinct keys; constant time. | Number of distinct keys; constant time. |
+| `extern func mapFromListBy[K, V](xs List[(K, V)], cmp func(K, K) Ordering) Map[K, V] = "go4t/rt".MapFromList` | Build from pairs; the last pair wins for duplicate keys. Uses the explicit comparator instead of Ord. | Build from pairs; the last pair wins for duplicate keys. The comparator must remain consistent for all operations on this tree. |
+| `extern func mapToList[K, V](m Map[K, V]) List[(K, V)] = "go4t/rt".MapToList` | Pairs in ascending key order. | Pairs in ascending key order. |
+| `extern func mapKeys[K, V](m Map[K, V]) List[K] = "go4t/rt".MapKeys` | Keys in ascending order. | Keys in ascending order. |
+| `extern func mapValues[K, V](m Map[K, V]) List[V] = "go4t/rt".MapValues` | Values in ascending key order, not sorted by value. | Values in ascending key order, not sorted by value. |
+| `extern func mapUnionBy[K, V](a Map[K, V], b Map[K, V], cmp func(K, K) Ordering) Map[K, V] = "go4t/rt".MapUnion` | Left-biased union; a duplicate keeps the left key/value. Uses the explicit comparator instead of Ord. | Left-biased union; a duplicate keeps the left key/value. The comparator must remain consistent for all operations on this tree. |
+| `extern func mapMap[K, V, W](m Map[K, V], f func(V) W) Map[K, W] = "go4t/rt".MapMap` | Map values in ascending-key order without needing `Ord`; keep keys and tree shape. | Map values in ascending-key order without needing `Ord`; keep keys and tree shape. |
+| `extern func mapFold[K, V, B](m Map[K, V], init B, f func(B, K, V) B) B = "go4t/rt".MapFold` | Left fold in ascending-key order; an empty map returns `init`. | Left fold in ascending-key order; an empty map returns `init`. |
 | `func mapInsert[K Ord, V](m Map[K, V], k K, v V) Map[K, V]` | Insert/replace the key and value; preserve the old map. | Insert/replace the key and value; preserve the old map. |
 | `func mapLookup[K Ord, V](m Map[K, V], k K) Option[V]` | `Some(value)` if present, otherwise `None`. | `Some(value)` if present, otherwise `None`. |
 | `func mapDelete[K Ord, V](m Map[K, V], k K) Map[K, V]` | Remove a key; return the original tree when absent. | Remove a key; return the original tree when absent. |
@@ -394,7 +394,7 @@ Source: [`map/map.gfx`](../std/map/map.gfx). 26 top-level declarations.
 
 ## `std/prelude`
 
-Source: [`prelude/prelude.gfx`](../std/prelude/prelude.gfx). 49 top-level declarations.
+Source: [`prelude/prelude.gt`](../std/prelude/prelude.gt). 49 top-level declarations.
 
 | Source signature | Semantics | Boundary behaviour |
 | --- | --- | --- |
@@ -415,18 +415,18 @@ Source: [`prelude/prelude.gfx`](../std/prelude/prelude.gfx). 49 top-level declar
 | `instance Show[Option[A]] given Show[A]` | Display as None/Some(a), using field Show where applicable. | None has no payload; Some uses unquoted String display. |
 | `instance Show[Tuple2[A, B]] given Show[A], Show[B]` | Display as (a, b), using field Show where applicable. | Both components require Show; not a general tuple-arity instance. |
 | `instance Debug[Tuple2[A, B]] given Debug[A], Debug[B]` | Structural rendering of Tuple2. | Both fields require Debug; strings quoted; pair arity only. |
-| `extern func showInt(n Int) String = "gofx/rt".ShowInt` | Render Int as signed decimal text. | Int64 signed decimal (`0 → "0"`, minimum Int includes its minus sign); Bool renders `"true"` or `"false"`. |
-| `extern func showBool(b Bool) String = "gofx/rt".ShowBool` | Render Bool as true or false. | Int64 signed decimal (`0 → "0"`, minimum Int includes its minus sign); Bool renders `"true"` or `"false"`. |
-| `extern func showString(s String) String = "gofx/rt".ShowString` | Return text unchanged for user-facing display. | Identity, including empty strings; does not add quotes. |
-| `extern func debugString(s String) String = "gofx/rt".DebugString` | Render text in quotes with Go escapes. | Empty → quoted empty string; escapes use strconv.Quote, not JSON escaping. |
-| `extern func unit() Unit = "gofx/rt".UnitValue` | Return the sole Unit value. | One value, rendered by Debug as (); has Eq but no Show/Ord instance. |
-| `extern func eqInt(a Int, b Int) Bool = "gofx/rt".EqInt` | Compare Ints for equality. | Signed extrema compare normally; no overflow-producing subtraction. |
-| `extern func ltInt(a Int, b Int) Bool = "gofx/rt".LtInt` | Compare Ints with signed less-than. | Signed numeric order, including minimum and maximum Int. |
-| `extern func eqString(a String, b String) Bool = "gofx/rt".EqString` | Compare String bytes for equality. | Exact byte equality; empty equals empty. |
-| `extern func ltString(a String, b String) Bool = "gofx/rt".LtString` | Compare Strings in Go's lexicographic byte order. | Go lexicographic byte order; empty precedes every nonempty string; equal strings compare `EQ`. |
-| `extern func eqBool(a Bool, b Bool) Bool = "gofx/rt".EqBool` | Compare Boolean values for equality. | True only when both values are the same Boolean. |
-| `func min[A Ord](a A, b A) A` | Written in gofx: return a when `a <= b`, otherwise b; ties choose a. | Ord ties return first argument; Float uses NaN-low Ord. |
-| `func max[A Ord](a A, b A) A` | Written in gofx: return a when `a >= b`, otherwise b; ties choose a. | Ord ties return first argument; Float uses NaN-low Ord. |
+| `extern func showInt(n Int) String = "go4t/rt".ShowInt` | Render Int as signed decimal text. | Int64 signed decimal (`0 → "0"`, minimum Int includes its minus sign); Bool renders `"true"` or `"false"`. |
+| `extern func showBool(b Bool) String = "go4t/rt".ShowBool` | Render Bool as true or false. | Int64 signed decimal (`0 → "0"`, minimum Int includes its minus sign); Bool renders `"true"` or `"false"`. |
+| `extern func showString(s String) String = "go4t/rt".ShowString` | Return text unchanged for user-facing display. | Identity, including empty strings; does not add quotes. |
+| `extern func debugString(s String) String = "go4t/rt".DebugString` | Render text in quotes with Go escapes. | Empty → quoted empty string; escapes use strconv.Quote, not JSON escaping. |
+| `extern func unit() Unit = "go4t/rt".UnitValue` | Return the sole Unit value. | One value, rendered by Debug as (); has Eq but no Show/Ord instance. |
+| `extern func eqInt(a Int, b Int) Bool = "go4t/rt".EqInt` | Compare Ints for equality. | Signed extrema compare normally; no overflow-producing subtraction. |
+| `extern func ltInt(a Int, b Int) Bool = "go4t/rt".LtInt` | Compare Ints with signed less-than. | Signed numeric order, including minimum and maximum Int. |
+| `extern func eqString(a String, b String) Bool = "go4t/rt".EqString` | Compare String bytes for equality. | Exact byte equality; empty equals empty. |
+| `extern func ltString(a String, b String) Bool = "go4t/rt".LtString` | Compare Strings in Go's lexicographic byte order. | Go lexicographic byte order; empty precedes every nonempty string; equal strings compare `EQ`. |
+| `extern func eqBool(a Bool, b Bool) Bool = "go4t/rt".EqBool` | Compare Boolean values for equality. | True only when both values are the same Boolean. |
+| `func min[A Ord](a A, b A) A` | Written in go4t: return a when `a <= b`, otherwise b; ties choose a. | Ord ties return first argument; Float uses NaN-low Ord. |
+| `func max[A Ord](a A, b A) A` | Written in go4t: return a when `a >= b`, otherwise b; ties choose a. | Ord ties return first argument; Float uses NaN-low Ord. |
 | `instance Show[Int]` | Display as signed decimal, using field Show where applicable. | Int64 signed decimal (`0 → "0"`, minimum Int includes its minus sign); Bool renders `"true"` or `"false"`. |
 | `instance Show[String]` | Display as unchanged text, using field Show where applicable. | Identity, empty included; not quoting. |
 | `instance Show[Bool]` | Display as true/false, using field Show where applicable. | Int64 signed decimal (`0 → "0"`, minimum Int includes its minus sign); Bool renders `"true"` or `"false"`. |
@@ -462,20 +462,20 @@ Derived instances (expanded from the type declarations above):
 
 ## `std/regex`
 
-Source: [`regex/regex.gfx`](../std/regex/regex.gfx). 6 top-level declarations.
+Source: [`regex/regex.gt`](../std/regex/regex.gt). 6 top-level declarations.
 
 | Source signature | Semantics | Boundary behaviour |
 | --- | --- | --- |
-| `extern func regexMatch(pattern String, s String) Bool = "gofx/rt".RegexMatch` | whether any match exists; use anchors for whole-input matching. | Searches anywhere; empty pattern matches even empty input; no match or invalid pattern gives false. |
-| `extern func regexFind(pattern String, s String) Option[String] = "gofx/rt".RegexFind` | first complete match, including an empty match. | No match or invalid pattern gives `None`; an actual empty match gives `Some("")`, not `None`. |
-| `extern func regexFindAll(pattern String, s String) List[String] = "gofx/rt".RegexFindAll` | all non-overlapping complete matches. | No match or invalid pattern gives `Nil`; returns non-overlapping matches in input order. Empty pattern on `"日🙂"` gives `["", "", ""]`; on empty input gives `[""]`. Adjacent empty-match handling follows Go regexp. |
-| `extern func regexReplace(pattern String, s String, repl String) String = "gofx/rt".RegexReplace` | replace all matches with Go replacement expansion. | Invalid pattern/no match leaves input unchanged; replacement uses `$1`, `${name}`, `$$` expansion, with absent groups expanded to empty. Empty pattern inserts at rune boundaries, including both ends. |
-| `extern func regexSplit(pattern String, s String) List[String] = "gofx/rt".RegexSplit` | Go regexp.Split(s, -1). | Invalid pattern gives `Nil`; no delimiter match gives `[s]`; matched leading/trailing nonempty delimiters retain empty fields. Empty pattern splits nonempty input into runes. `regexSplit("", "") = Nil`, while a nonempty valid pattern on empty input gives `[""]` (Go regexp's explicit empty-input rule). |
-| `extern func regexCaptures(pattern String, s String) Option[List[String]] = "gofx/rt".RegexCaptures` | first match's groups, excluding the whole match. | Invalid pattern/no match gives `None`; first match's capture groups only, no whole-match element; groups ordered by opening parentheses. Unmatched optional group gives `""`; a matching pattern with no groups gives `Some(Nil)`, including empty pattern/input. |
+| `extern func regexMatch(pattern String, s String) Bool = "go4t/rt".RegexMatch` | whether any match exists; use anchors for whole-input matching. | Searches anywhere; empty pattern matches even empty input; no match or invalid pattern gives false. |
+| `extern func regexFind(pattern String, s String) Option[String] = "go4t/rt".RegexFind` | first complete match, including an empty match. | No match or invalid pattern gives `None`; an actual empty match gives `Some("")`, not `None`. |
+| `extern func regexFindAll(pattern String, s String) List[String] = "go4t/rt".RegexFindAll` | all non-overlapping complete matches. | No match or invalid pattern gives `Nil`; returns non-overlapping matches in input order. Empty pattern on `"日🙂"` gives `["", "", ""]`; on empty input gives `[""]`. Adjacent empty-match handling follows Go regexp. |
+| `extern func regexReplace(pattern String, s String, repl String) String = "go4t/rt".RegexReplace` | replace all matches with Go replacement expansion. | Invalid pattern/no match leaves input unchanged; replacement uses `$1`, `${name}`, `$$` expansion, with absent groups expanded to empty. Empty pattern inserts at rune boundaries, including both ends. |
+| `extern func regexSplit(pattern String, s String) List[String] = "go4t/rt".RegexSplit` | Go regexp.Split(s, -1). | Invalid pattern gives `Nil`; no delimiter match gives `[s]`; matched leading/trailing nonempty delimiters retain empty fields. Empty pattern splits nonempty input into runes. `regexSplit("", "") = Nil`, while a nonempty valid pattern on empty input gives `[""]` (Go regexp's explicit empty-input rule). |
+| `extern func regexCaptures(pattern String, s String) Option[List[String]] = "go4t/rt".RegexCaptures` | first match's groups, excluding the whole match. | Invalid pattern/no match gives `None`; first match's capture groups only, no whole-match element; groups ordered by opening parentheses. Unmatched optional group gives `""`; a matching pattern with no groups gives `Some(Nil)`, including empty pattern/input. |
 
 ## `std/result`
 
-Source: [`result/result.gfx`](../std/result/result.gfx). 16 top-level declarations.
+Source: [`result/result.gt`](../std/result/result.gt). 16 top-level declarations.
 
 | Source signature | Semantics | Boundary behaviour |
 | --- | --- | --- |
@@ -506,22 +506,22 @@ Derived instances (expanded from the type declarations above):
 
 ## `std/set`
 
-Source: [`set/set.gfx`](../std/set/set.gfx). 20 top-level declarations.
+Source: [`set/set.gt`](../std/set/set.gt). 20 top-level declarations.
 
 `By` functions are exported low-level comparator APIs: use one consistent total order for every operation on a tree. Standard wrappers supply Ord.compare.
 
 | Source signature | Semantics | Boundary behaviour |
 | --- | --- | --- |
-| `extern func emptySet[A]() Set[A] = "gofx/rt".EmptySet` | Empty set without an element constraint. | Empty set without an element constraint. |
-| `extern func setInsertBy[A](s Set[A], a A, cmp func(A, A) Ordering) Set[A] = "gofx/rt".SetInsert` | Add an element; an equivalent existing element is retained. Uses the explicit comparator instead of Ord. | Add an element; an equivalent existing element is retained. The comparator must remain consistent for all operations on this tree. |
-| `extern func setDeleteBy[A](s Set[A], a A, cmp func(A, A) Ordering) Set[A] = "gofx/rt".SetDelete` | Remove an element; absent elements leave the set unchanged. Uses the explicit comparator instead of Ord. | Remove an element; absent elements leave the set unchanged. The comparator must remain consistent for all operations on this tree. |
-| `extern func setMemberBy[A](s Set[A], a A, cmp func(A, A) Ordering) Bool = "gofx/rt".SetMember` | Whether an equivalent element exists. Uses the explicit comparator instead of Ord. | Whether an equivalent element exists. The comparator must remain consistent for all operations on this tree. |
-| `extern func setSize[A](s Set[A]) Int = "gofx/rt".SetSize` | Distinct element count; constant time. | Distinct element count; constant time. |
-| `extern func setFromListBy[A](xs List[A], cmp func(A, A) Ordering) Set[A] = "gofx/rt".SetFromList` | Deduplicate; retain the first representative of equivalent elements. Uses the explicit comparator instead of Ord. | Deduplicate; retain the first representative of equivalent elements. The comparator must remain consistent for all operations on this tree. |
-| `extern func setToList[A](s Set[A]) List[A] = "gofx/rt".SetToList` | Elements in ascending order. | Elements in ascending order. |
-| `extern func setUnionBy[A](a Set[A], b Set[A], cmp func(A, A) Ordering) Set[A] = "gofx/rt".SetUnion` | Elements in either set, retaining the left representative on overlap. Uses the explicit comparator instead of Ord. | Elements in either set, retaining the left representative on overlap. The comparator must remain consistent for all operations on this tree. |
-| `extern func setIntersectionBy[A](a Set[A], b Set[A], cmp func(A, A) Ordering) Set[A] = "gofx/rt".SetIntersection` | Left elements also present in the right set. Uses the explicit comparator instead of Ord. | Left elements also present in the right set. The comparator must remain consistent for all operations on this tree. |
-| `extern func setDifferenceBy[A](a Set[A], b Set[A], cmp func(A, A) Ordering) Set[A] = "gofx/rt".SetDifference` | Left elements absent from the right set. Uses the explicit comparator instead of Ord. | Left elements absent from the right set. The comparator must remain consistent for all operations on this tree. |
+| `extern func emptySet[A]() Set[A] = "go4t/rt".EmptySet` | Empty set without an element constraint. | Empty set without an element constraint. |
+| `extern func setInsertBy[A](s Set[A], a A, cmp func(A, A) Ordering) Set[A] = "go4t/rt".SetInsert` | Add an element; an equivalent existing element is retained. Uses the explicit comparator instead of Ord. | Add an element; an equivalent existing element is retained. The comparator must remain consistent for all operations on this tree. |
+| `extern func setDeleteBy[A](s Set[A], a A, cmp func(A, A) Ordering) Set[A] = "go4t/rt".SetDelete` | Remove an element; absent elements leave the set unchanged. Uses the explicit comparator instead of Ord. | Remove an element; absent elements leave the set unchanged. The comparator must remain consistent for all operations on this tree. |
+| `extern func setMemberBy[A](s Set[A], a A, cmp func(A, A) Ordering) Bool = "go4t/rt".SetMember` | Whether an equivalent element exists. Uses the explicit comparator instead of Ord. | Whether an equivalent element exists. The comparator must remain consistent for all operations on this tree. |
+| `extern func setSize[A](s Set[A]) Int = "go4t/rt".SetSize` | Distinct element count; constant time. | Distinct element count; constant time. |
+| `extern func setFromListBy[A](xs List[A], cmp func(A, A) Ordering) Set[A] = "go4t/rt".SetFromList` | Deduplicate; retain the first representative of equivalent elements. Uses the explicit comparator instead of Ord. | Deduplicate; retain the first representative of equivalent elements. The comparator must remain consistent for all operations on this tree. |
+| `extern func setToList[A](s Set[A]) List[A] = "go4t/rt".SetToList` | Elements in ascending order. | Elements in ascending order. |
+| `extern func setUnionBy[A](a Set[A], b Set[A], cmp func(A, A) Ordering) Set[A] = "go4t/rt".SetUnion` | Elements in either set, retaining the left representative on overlap. Uses the explicit comparator instead of Ord. | Elements in either set, retaining the left representative on overlap. The comparator must remain consistent for all operations on this tree. |
+| `extern func setIntersectionBy[A](a Set[A], b Set[A], cmp func(A, A) Ordering) Set[A] = "go4t/rt".SetIntersection` | Left elements also present in the right set. Uses the explicit comparator instead of Ord. | Left elements also present in the right set. The comparator must remain consistent for all operations on this tree. |
+| `extern func setDifferenceBy[A](a Set[A], b Set[A], cmp func(A, A) Ordering) Set[A] = "go4t/rt".SetDifference` | Left elements absent from the right set. Uses the explicit comparator instead of Ord. | Left elements absent from the right set. The comparator must remain consistent for all operations on this tree. |
 | `func setInsert[A Ord](s Set[A], a A) Set[A]` | Add an element; an equivalent existing element is retained. | Add an element; an equivalent existing element is retained. |
 | `func setDelete[A Ord](s Set[A], a A) Set[A]` | Remove an element; absent elements leave the set unchanged. | Remove an element; absent elements leave the set unchanged. |
 | `func setMember[A Ord](s Set[A], a A) Bool` | Whether an equivalent element exists. | Whether an equivalent element exists. |
@@ -535,7 +535,7 @@ Source: [`set/set.gfx`](../std/set/set.gfx). 20 top-level declarations.
 
 ## `std/state`
 
-Source: [`state/state.gfx`](../std/state/state.gfx). 10 top-level declarations.
+Source: [`state/state.gt`](../std/state/state.gt). 10 top-level declarations.
 
 | Source signature | Semantics | Boundary behaviour |
 | --- | --- | --- |
@@ -552,46 +552,46 @@ Source: [`state/state.gfx`](../std/state/state.gfx). 10 top-level declarations.
 
 ## `std/string`
 
-Source: [`string/string.gfx`](../std/string/string.gfx). 32 top-level declarations.
+Source: [`string/string.gt`](../std/string/string.gt). 32 top-level declarations.
 
 | Source signature | Semantics | Boundary behaviour |
 | --- | --- | --- |
-| `extern func strLength(s String) Int = "gofx/rt".StrLength` | Count Unicode code points in text. | Empty is 0; one astral rune is 1; `e` plus combining accent is 2. |
-| `extern func strConcat(xs List[String]) String = "gofx/rt".StrConcat` | Concatenate a list of strings with no separator. | Empty list is `""`; singleton is its element; empty elements contribute nothing. |
-| `extern func join(sep String, xs List[String]) String = "gofx/rt".Join` | Concatenate strings with a separator between adjacent elements. | Empty list is `""`; singleton is its element without separator; empty elements still delimit fields. |
-| `extern func split(sep String, s String) List[String] = "gofx/rt".Split` | Split text at literal separator occurrences. | Absent separator gives `[s]`; nonempty separator on empty input gives `[""]`; adjacent/trailing separators retain empty fields. `split("", s)` yields one-rune strings; `split("", "") = Nil`. |
-| `extern func lines(s String) List[String] = "gofx/rt".Lines` | Split at LF and drop exactly one trailing empty field. | Splits only on `\n` and drops exactly one trailing empty field. Empty input gives `Nil`; `"\n" → [""]`; `"a\n\n" → ["a", ""]`; CR is retained in CRLF input. |
-| `extern func words(s String) List[String] = "gofx/rt".Words` | Split into nonempty Unicode-whitespace-delimited words. | Empty/Unicode-whitespace-only input gives `Nil`; runs of Unicode whitespace delimit nonempty fields. |
-| `extern func trim(s String) String = "gofx/rt".Trim` | Remove Unicode whitespace from both ends. | Removes Unicode whitespace only at the ends; empty or all-whitespace becomes `""`. |
-| `extern func toUpper(s String) String = "gofx/rt".ToUpper` | Apply Unicode simple uppercase conversion. | Empty unchanged; Unicode simple case mapping, not locale-specific or full case folding. |
-| `extern func toLower(s String) String = "gofx/rt".ToLower` | Apply Unicode simple lowercase conversion. | Empty unchanged; Unicode simple case mapping, not locale-specific or full case folding. |
-| `extern func startsWith(s String, prefix String) Bool = "gofx/rt".StartsWith` | Test a literal string prefix. | Empty prefix/suffix/substring matches every string, including empty; a nonempty needle does not match empty input. |
-| `extern func endsWith(s String, suffix String) Bool = "gofx/rt".EndsWith` | Test a literal string suffix. | Empty prefix/suffix/substring matches every string, including empty; a nonempty needle does not match empty input. |
-| `extern func contains(s String, sub String) Bool = "gofx/rt".Contains` | Test whether a literal substring occurs. | Empty prefix/suffix/substring matches every string, including empty; a nonempty needle does not match empty input. |
-| `extern func replace(s String, old String, new String) String = "gofx/rt".Replace` | Replace all non-overlapping literal occurrences. | All non-overlapping literal occurrences; absent old value leaves s unchanged. Empty old inserts new at the start, between runes and at the end; `replace("", "", "-") = "-"`. |
-| `extern func substring(s String, start Int, end Int) String = "gofx/rt".Substring` | Return a clamped half-open rune interval. | Half-open rune interval with bounds clamped to `[0, length]`; reversed/equal ranges empty. `substring("a日本", -1, 2) = "a日"`; end past length clamps; start past length or negative end yields `""`; even Int extrema are safe. |
-| `extern func chars(s String) List[String] = "gofx/rt".Chars` | Split into one-rune strings. | Same as `split("", s)`; empty gives `Nil`. |
-| `extern func repeat(s String, n Int) String = "gofx/rt".Repeat` | Repeat a string n times. | `n <= 0` gives `""` (negative counts fixed to stop panicking); empty s gives `""`; positive n repeats exactly n times. |
-| `extern func parseInt(s String) Option[Int] = "gofx/rt".ParseInt` | Parse signed base-10 int64 text. | Signed base-10 Int64. `"+5" → Some(5)`; leading zeros allowed; both signed bounds accepted. Overflow, empty, surrounding whitespace, underscores, decimal fractions, non-ASCII digits and `0x` notation give `None`. |
-| `extern func showPadLeft(n Int, width Int) String = "gofx/rt".ShowPadLeft` | Right-align decimal Int text in a space-padded width. | Decimal number including sign, right-aligned with spaces; width <= decimal length (including any negative width) leaves the decimal unchanged, never truncates. |
-| `extern func codePoint(s String) Option[Int] = "gofx/rt".CodePoint` | first Unicode code point, if present. | Empty gives `None`; otherwise first rune only, e.g. `"日a" → Some(26085)`; malformed UTF-8 decodes as U+FFFD. |
-| `extern func fromCodePoint(n Int) String = "gofx/rt".FromCodePoint` | one Unicode scalar value, or U+FFFD if invalid. | Valid Unicode scalar gives its one-rune string, including NUL at 0. Negative, > U+10FFFF, or surrogate U+D800..U+DFFF gives U+FFFD; large Ints are checked before conversion, never wrap into another character. |
-| `extern func isDigit(s String) Bool = "gofx/rt".IsDigit` | non-empty, every rune satisfies unicode.IsDigit. | Empty false; every rune must be Unicode decimal digit, e.g. `"12٣９"` true, `"1a"` false. |
-| `extern func isAlpha(s String) Bool = "gofx/rt".IsAlpha` | non-empty, every rune satisfies unicode.IsLetter. | Empty false; every rune must be Unicode letter, e.g. `"é日本Z"` true, `"a1"` false. |
-| `extern func isSpace(s String) Bool = "gofx/rt".IsSpace` | non-empty, every rune satisfies unicode.IsSpace. | Empty false; every rune must be Unicode whitespace, e.g. ASCII whitespace and U+2003 true, `" a"` false. |
-| `extern func isUpper(s String) Bool = "gofx/rt".IsUpper` | non-empty, every rune satisfies unicode.IsUpper. | Empty false; every rune must have the respective Unicode case property; digits, uncased letters, punctuation or the opposite case make the result false. |
-| `extern func isLower(s String) Bool = "gofx/rt".IsLower` | non-empty, every rune satisfies unicode.IsLower. | Empty false; every rune must have the respective Unicode case property; digits, uncased letters, punctuation or the opposite case make the result false. |
-| `extern func indexOf(s String, sub String) Option[Int] = "gofx/rt".IndexOf` | rune index of the first substring occurrence. | First match in rune indices; no match gives `None`; empty sub gives `Some(0)` even on empty input; `indexOf("日🙂本", "🙂") = Some(1)`. |
-| `extern func padRight(s String, width Int) String = "gofx/rt".PadRight` | right-pad with ASCII spaces to a rune width. | Pad with spaces only when width exceeds rune count; nonpositive/minimum Int widths leave s unchanged; never truncate; empty string pads to positive width. |
-| `extern func padLeft(s String, width Int) String = "gofx/rt".PadLeft` | left-pad with ASCII spaces to a rune width. | Pad with spaces only when width exceeds rune count; nonpositive/minimum Int widths leave s unchanged; never truncate; empty string pads to positive width. |
-| `extern func reverseString(s String) String = "gofx/rt".ReverseString` | reverse Unicode code points, not grapheme clusters. | Empty/singleton unchanged; reverses code points, so combining accents move independently of their base characters. |
-| `extern func splitOnce(sep String, s String) Option[(String, String)] = "gofx/rt".SplitOnce` | split before/after the first separator. | First occurrence only; no match gives `None`; separators at an end produce an empty side. Empty separator gives `Some(("", s))`, even for empty s. |
-| `extern func charAt(s String, i Int) Option[String] = "gofx/rt".CharAt` | one-rune string at zero-based index i. | Empty, negative/minimum Int index, or index >= rune count gives `None`; valid index gives exactly one rune; malformed UTF-8 decodes as U+FFFD. |
-| `extern func showQuoted(s String) String = "gofx/rt".ShowQuoted` | strconv.Quote: surrounding quotes and Go escapes. | Empty gives `"\"\""`; escapes quotes, backslashes, control characters using Go string syntax; printable Unicode remains readable. |
+| `extern func strLength(s String) Int = "go4t/rt".StrLength` | Count Unicode code points in text. | Empty is 0; one astral rune is 1; `e` plus combining accent is 2. |
+| `extern func strConcat(xs List[String]) String = "go4t/rt".StrConcat` | Concatenate a list of strings with no separator. | Empty list is `""`; singleton is its element; empty elements contribute nothing. |
+| `extern func join(sep String, xs List[String]) String = "go4t/rt".Join` | Concatenate strings with a separator between adjacent elements. | Empty list is `""`; singleton is its element without separator; empty elements still delimit fields. |
+| `extern func split(sep String, s String) List[String] = "go4t/rt".Split` | Split text at literal separator occurrences. | Absent separator gives `[s]`; nonempty separator on empty input gives `[""]`; adjacent/trailing separators retain empty fields. `split("", s)` yields one-rune strings; `split("", "") = Nil`. |
+| `extern func lines(s String) List[String] = "go4t/rt".Lines` | Split at LF and drop exactly one trailing empty field. | Splits only on `\n` and drops exactly one trailing empty field. Empty input gives `Nil`; `"\n" → [""]`; `"a\n\n" → ["a", ""]`; CR is retained in CRLF input. |
+| `extern func words(s String) List[String] = "go4t/rt".Words` | Split into nonempty Unicode-whitespace-delimited words. | Empty/Unicode-whitespace-only input gives `Nil`; runs of Unicode whitespace delimit nonempty fields. |
+| `extern func trim(s String) String = "go4t/rt".Trim` | Remove Unicode whitespace from both ends. | Removes Unicode whitespace only at the ends; empty or all-whitespace becomes `""`. |
+| `extern func toUpper(s String) String = "go4t/rt".ToUpper` | Apply Unicode simple uppercase conversion. | Empty unchanged; Unicode simple case mapping, not locale-specific or full case folding. |
+| `extern func toLower(s String) String = "go4t/rt".ToLower` | Apply Unicode simple lowercase conversion. | Empty unchanged; Unicode simple case mapping, not locale-specific or full case folding. |
+| `extern func startsWith(s String, prefix String) Bool = "go4t/rt".StartsWith` | Test a literal string prefix. | Empty prefix/suffix/substring matches every string, including empty; a nonempty needle does not match empty input. |
+| `extern func endsWith(s String, suffix String) Bool = "go4t/rt".EndsWith` | Test a literal string suffix. | Empty prefix/suffix/substring matches every string, including empty; a nonempty needle does not match empty input. |
+| `extern func contains(s String, sub String) Bool = "go4t/rt".Contains` | Test whether a literal substring occurs. | Empty prefix/suffix/substring matches every string, including empty; a nonempty needle does not match empty input. |
+| `extern func replace(s String, old String, new String) String = "go4t/rt".Replace` | Replace all non-overlapping literal occurrences. | All non-overlapping literal occurrences; absent old value leaves s unchanged. Empty old inserts new at the start, between runes and at the end; `replace("", "", "-") = "-"`. |
+| `extern func substring(s String, start Int, end Int) String = "go4t/rt".Substring` | Return a clamped half-open rune interval. | Half-open rune interval with bounds clamped to `[0, length]`; reversed/equal ranges empty. `substring("a日本", -1, 2) = "a日"`; end past length clamps; start past length or negative end yields `""`; even Int extrema are safe. |
+| `extern func chars(s String) List[String] = "go4t/rt".Chars` | Split into one-rune strings. | Same as `split("", s)`; empty gives `Nil`. |
+| `extern func repeat(s String, n Int) String = "go4t/rt".Repeat` | Repeat a string n times. | `n <= 0` gives `""` (negative counts fixed to stop panicking); empty s gives `""`; positive n repeats exactly n times. |
+| `extern func parseInt(s String) Option[Int] = "go4t/rt".ParseInt` | Parse signed base-10 int64 text. | Signed base-10 Int64. `"+5" → Some(5)`; leading zeros allowed; both signed bounds accepted. Overflow, empty, surrounding whitespace, underscores, decimal fractions, non-ASCII digits and `0x` notation give `None`. |
+| `extern func showPadLeft(n Int, width Int) String = "go4t/rt".ShowPadLeft` | Right-align decimal Int text in a space-padded width. | Decimal number including sign, right-aligned with spaces; width <= decimal length (including any negative width) leaves the decimal unchanged, never truncates. |
+| `extern func codePoint(s String) Option[Int] = "go4t/rt".CodePoint` | first Unicode code point, if present. | Empty gives `None`; otherwise first rune only, e.g. `"日a" → Some(26085)`; malformed UTF-8 decodes as U+FFFD. |
+| `extern func fromCodePoint(n Int) String = "go4t/rt".FromCodePoint` | one Unicode scalar value, or U+FFFD if invalid. | Valid Unicode scalar gives its one-rune string, including NUL at 0. Negative, > U+10FFFF, or surrogate U+D800..U+DFFF gives U+FFFD; large Ints are checked before conversion, never wrap into another character. |
+| `extern func isDigit(s String) Bool = "go4t/rt".IsDigit` | non-empty, every rune satisfies unicode.IsDigit. | Empty false; every rune must be Unicode decimal digit, e.g. `"12٣９"` true, `"1a"` false. |
+| `extern func isAlpha(s String) Bool = "go4t/rt".IsAlpha` | non-empty, every rune satisfies unicode.IsLetter. | Empty false; every rune must be Unicode letter, e.g. `"é日本Z"` true, `"a1"` false. |
+| `extern func isSpace(s String) Bool = "go4t/rt".IsSpace` | non-empty, every rune satisfies unicode.IsSpace. | Empty false; every rune must be Unicode whitespace, e.g. ASCII whitespace and U+2003 true, `" a"` false. |
+| `extern func isUpper(s String) Bool = "go4t/rt".IsUpper` | non-empty, every rune satisfies unicode.IsUpper. | Empty false; every rune must have the respective Unicode case property; digits, uncased letters, punctuation or the opposite case make the result false. |
+| `extern func isLower(s String) Bool = "go4t/rt".IsLower` | non-empty, every rune satisfies unicode.IsLower. | Empty false; every rune must have the respective Unicode case property; digits, uncased letters, punctuation or the opposite case make the result false. |
+| `extern func indexOf(s String, sub String) Option[Int] = "go4t/rt".IndexOf` | rune index of the first substring occurrence. | First match in rune indices; no match gives `None`; empty sub gives `Some(0)` even on empty input; `indexOf("日🙂本", "🙂") = Some(1)`. |
+| `extern func padRight(s String, width Int) String = "go4t/rt".PadRight` | right-pad with ASCII spaces to a rune width. | Pad with spaces only when width exceeds rune count; nonpositive/minimum Int widths leave s unchanged; never truncate; empty string pads to positive width. |
+| `extern func padLeft(s String, width Int) String = "go4t/rt".PadLeft` | left-pad with ASCII spaces to a rune width. | Pad with spaces only when width exceeds rune count; nonpositive/minimum Int widths leave s unchanged; never truncate; empty string pads to positive width. |
+| `extern func reverseString(s String) String = "go4t/rt".ReverseString` | reverse Unicode code points, not grapheme clusters. | Empty/singleton unchanged; reverses code points, so combining accents move independently of their base characters. |
+| `extern func splitOnce(sep String, s String) Option[(String, String)] = "go4t/rt".SplitOnce` | split before/after the first separator. | First occurrence only; no match gives `None`; separators at an end produce an empty side. Empty separator gives `Some(("", s))`, even for empty s. |
+| `extern func charAt(s String, i Int) Option[String] = "go4t/rt".CharAt` | one-rune string at zero-based index i. | Empty, negative/minimum Int index, or index >= rune count gives `None`; valid index gives exactly one rune; malformed UTF-8 decodes as U+FFFD. |
+| `extern func showQuoted(s String) String = "go4t/rt".ShowQuoted` | strconv.Quote: surrounding quotes and Go escapes. | Empty gives `"\"\""`; escapes quotes, backslashes, control characters using Go string syntax; printable Unicode remains readable. |
 
 ## `std/dyn`
 
-Source: [`dyn/dyn.gfx`](../std/dyn/dyn.gfx). 1 top-level declaration.
+Source: [`dyn/dyn.gt`](../std/dyn/dyn.gt). 1 top-level declaration.
 Import explicitly for Go `any`/variadic bindings. Values are a closed sum, not
 unchecked opaque Go interfaces; unknown Go values decode to their printed text.
 

@@ -6,7 +6,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"gofx/ast"
+	"go4t/ast"
 )
 
 type instanceKey struct{ class, con string }

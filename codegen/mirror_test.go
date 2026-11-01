@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"gofx/modules"
-	"gofx/types"
+	"go4t/modules"
+	"go4t/types"
 )
 
 func mirrorProgram(t *testing.T, files map[string]string) *types.Program {
@@ -38,7 +38,7 @@ func mirrorProgram(t *testing.T, files map[string]string) *types.Program {
 
 func TestGoMirrorConversions(t *testing.T) {
 	program := mirrorProgram(t, map[string]string{
-		"main.gfx": `package main
+		"main.gt": `package main
 import "model"
 type Tree = Leaf(Int) | Branch(Tree, Tree)
 type Event = Message { text: String } | Empty
@@ -72,13 +72,13 @@ func later(t Tree) IO[Tree] { ioPure(t) }
 func failed() IO[Int] { ioFail("failed export") }
 func main() IO[Unit] { ioPure(unit()) }
 `,
-		"model/model.gfx": "package model\ntype Remote = Remote { value: Int }\nfunc secret() Int { 1 }\n",
+		"model/model.gt": "package model\ntype Remote = Remote { value: Int }\nfunc secret() Int { 1 }\n",
 	})
 	generated, err := Generate(program, "core")
 	if err != nil {
 		t.Fatal(err)
 	}
-	exports := string(generated["gofx_export.go"])
+	exports := string(generated["go4t_export.go"])
 	for _, absent := range []string{"type Unused ", "func Secret("} {
 		if strings.Contains(exports, absent) {
 			t.Errorf("unreachable/dependency export %q", absent)
@@ -92,7 +92,7 @@ import (
  "math"
  "reflect"
  "mirrorcheck/core"
- "gofx/rt"
+ "go4t/rt"
 )
 func equal(a, b any) { if !reflect.DeepEqual(a, b) { panic(fmt.Sprintf("round trip: %#v != %#v", a, b)) } }
 func main() {
@@ -118,7 +118,7 @@ func main() {
  equal(core.Bools(map[bool]int64{true: 1, false: 2}), map[bool]int64{true: 1, false: 2})
  equal(core.Floats(map[float64]string{-1.5: "a", 2.5: "b"}), map[float64]string{-1.5: "a", 2.5: "b"})
  nan := core.Floats(map[float64]string{math.NaN(): "nan"}); if len(nan) != 1 { panic("NaN lost") }; for key, value := range nan { if !math.IsNaN(key) || value != "nan" { panic("NaN entry") } }
- func() { defer func() { if recover() != "gofx: duplicate NaN map key" { panic("wrong NaN collision panic") } }(); core.Floats(map[float64]string{math.NaN(): "one", math.NaN(): "two"}) }()
+ func() { defer func() { if recover() != "go4t: duplicate NaN map key" { panic("wrong NaN collision panic") } }(); core.Floats(map[float64]string{math.NaN(): "one", math.NaN(): "two"}) }()
  set := map[string]struct{}{"b": {}, "a": {}}
  out := core.Set(set); equal(out, set); delete(out, "a"); if len(set) != 2 { panic("set aliasing") }
  equal(core.EchoTuple2(rt.Tuple2[int64, string]{F0: 7, F1: "x"}), rt.Tuple2[int64, string]{F0: 7, F1: "x"})
@@ -141,7 +141,7 @@ func main() {
 
 func TestGoMirrorString(t *testing.T) {
 	program := mirrorProgram(t, map[string]string{
-		"main.gfx": `package main
+		"main.gt": `package main
 import "model"
 type Step = Cleanup(Int) | Skip | Named { label: String } deriving Debug
 type Record = Record { names: List[String], step: Step } deriving Debug
@@ -166,7 +166,7 @@ func echoPhase(p Phase) Phase { p }
 func describeCustomPhase(p CustomPhase) String { debug(p) }
 func main() IO[Unit] { ioPure(unit()) }
 `,
-		"model/model.gfx": "package model\ntype Remote = Remote { value: Int } deriving Debug\n",
+		"model/model.gt": "package model\ntype Remote = Remote { value: Int } deriving Debug\n",
 	})
 	generated, err := Generate(program, "core")
 	if err != nil {
@@ -226,7 +226,7 @@ func runMirrorConsumer(t *testing.T, generated map[string][]byte, consumer strin
 		}
 	}
 	for name, source := range map[string]string{
-		"go.mod": "module mirrorcheck\n\ngo 1.22\n\nrequire gofx v0.0.0\nreplace gofx => " + root + "\n",
+		"go.mod": "module mirrorcheck\n\ngo 1.22\n\nrequire go4t v0.0.0\nreplace go4t => " + root + "\n",
 		"main.go": consumer,
 	} {
 		if err := os.WriteFile(filepath.Join(dir, name), []byte(source), 0o644); err != nil {
@@ -244,7 +244,7 @@ func runMirrorConsumer(t *testing.T, generated map[string][]byte, consumer strin
 }
 
 func TestGoExportEligibility(t *testing.T) {
-	program := mirrorProgram(t, map[string]string{"main.gfx": `package main
+	program := mirrorProgram(t, map[string]string{"main.gt": `package main
 type Generic[A] = Generic(A)
 func generic[A](a A) A { a }
 func constrained[A Eq](a A) Bool { eq(a, a) }
@@ -265,7 +265,7 @@ func main() IO[Unit] { ioPure(unit()) }
 	if err != nil {
 		t.Fatal(err)
 	}
-	source := string(generated["gofx_export.go"])
+	source := string(generated["go4t_export.go"])
 	for _, want := range []string{
 		"generic (type parameters)", "constrained (type parameters)",
 		"callback (parameter 1: function type)", "returned (result: function type)",
@@ -285,7 +285,7 @@ func main() IO[Unit] { ioPure(unit()) }
 		t.Fatalf("eligibility:\n%s", source)
 	}
 	ordinary, err := Generate(program, "main")
-	if err != nil || ordinary["gofx_export.go"] != nil {
+	if err != nil || ordinary["go4t_export.go"] != nil {
 		t.Fatalf("main package has export file: %v", err)
 	}
 }
@@ -300,14 +300,14 @@ func TestGoExportNameErrors(t *testing.T) {
 		{"recursive value", "type Chain = Chain(Option[Chain])\nfunc echo(c Chain) Chain { c }", "recursive Go value type Chain"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			program := mirrorProgram(t, map[string]string{"main.gfx": "package main\n" + tt.source + "\nfunc main() IO[Unit] { ioPure(unit()) }\n"})
+			program := mirrorProgram(t, map[string]string{"main.gt": "package main\n" + tt.source + "\nfunc main() IO[Unit] { ioPure(unit()) }\n"})
 			_, err := Generate(program, "core")
 			if err == nil || !strings.Contains(err.Error(), tt.want) {
 				t.Fatalf("error=%v, want %s", err, tt.want)
 			}
 		})
 	}
-	program := mirrorProgram(t, map[string]string{"main.gfx": "package main\ntype Box = Box(Int)\nfunc echo(b Box) Box { b }\nfunc main() IO[Unit] { ioPure(unit()) }\n"})
+	program := mirrorProgram(t, map[string]string{"main.gt": "package main\ntype Box = Box(Int)\nfunc echo(b Box) Box { b }\nfunc main() IO[Unit] { ioPure(unit()) }\n"})
 	program.Modules = nil
 	_, err := Generate(program, "core")
 	if err == nil || !strings.Contains(err.Error(), "Go export name collision: Box") {
@@ -316,7 +316,7 @@ func TestGoExportNameErrors(t *testing.T) {
 }
 
 func TestGoParametricMirrors(t *testing.T) {
-	program := mirrorProgram(t, map[string]string{"main.gfx": `package main
+	program := mirrorProgram(t, map[string]string{"main.gt": `package main
 type Plan = Plan { generation: Int } deriving Eq, Debug
 type Fetched[A] = NotReferenced | ReadError | Missing | Found(A) deriving Eq, Debug
 type Pair[A, B] = Pair { first: A, second: B } deriving Debug
@@ -350,7 +350,7 @@ func main() IO[Unit] { ioPure(unit()) }
 	if err != nil {
 		t.Fatal(err)
 	}
-	exports := string(generated["gofx_export.go"])
+	exports := string(generated["go4t_export.go"])
 	for _, want := range []string{
 		"type FetchedPlan interface", "type FetchedPlanFound struct",
 		"type FetchedListString interface", "type PairIntOptionBool struct",
@@ -366,7 +366,7 @@ import (
  "fmt"
  "reflect"
  "mirrorcheck/core"
- "gofx/rt"
+ "go4t/rt"
 )
 func equal(a, b any) { if !reflect.DeepEqual(a, b) { panic(fmt.Sprintf("round trip: %#v != %#v", a, b)) } }
 func main() {
@@ -419,18 +419,18 @@ func TestGoParametricMirrorErrors(t *testing.T) {
 		{"recursive instance", "type Chain[A] = Chain(A, Option[Chain[A]])\nfunc echo(v Chain[Int]) Chain[Int] { v }", "recursive Go value type ChainInt", 2},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			program := mirrorProgram(t, map[string]string{"main.gfx": "package main\n" + tt.source + "\nfunc main() IO[Unit] { ioPure(unit()) }\n"})
+			program := mirrorProgram(t, map[string]string{"main.gt": "package main\n" + tt.source + "\nfunc main() IO[Unit] { ioPure(unit()) }\n"})
 			_, err := Generate(program, "core")
 			diagnostic, ok := err.(*types.Error)
-			if !ok || diagnostic.Msg != tt.want || diagnostic.Pos.Line != tt.line || filepath.Base(diagnostic.File) != "main.gfx" {
-				t.Fatalf("error=%v, want main.gfx:%d: %s", err, tt.line, tt.want)
+			if !ok || diagnostic.Msg != tt.want || diagnostic.Pos.Line != tt.line || filepath.Base(diagnostic.File) != "main.gt" {
+				t.Fatalf("error=%v, want main.gt:%d: %s", err, tt.line, tt.want)
 			}
 		})
 	}
 }
 
 func TestGoParametricMirrorEligibility(t *testing.T) {
-	program := mirrorProgram(t, map[string]string{"main.gfx": `package main
+	program := mirrorProgram(t, map[string]string{"main.gt": `package main
 type Phantom[A] = Phantom
 type Handler[A] = Handler(func(A) A)
 func phantom(v Phantom[Array[Int]]) Phantom[Array[Int]] { v }
@@ -441,7 +441,7 @@ func main() IO[Unit] { ioPure(unit()) }
 	if err != nil {
 		t.Fatal(err)
 	}
-	exports := string(generated["gofx_export.go"])
+	exports := string(generated["go4t_export.go"])
 	for _, want := range []string{
 		"// not exported: phantom (parameter 1: unsupported type Array)",
 		"// not exported: handler (parameter 1: Handler: function type)",

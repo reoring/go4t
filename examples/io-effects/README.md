@@ -19,8 +19,8 @@ via an IO bind, with a UTC timestamp.
 ## Missing file
 
 ```sh
-out=$(mktemp -d /tmp/gofx-io-effects.XXXXXX)
-go run ./cmd/gofx run examples/io-effects/main.gfx -- examples/io-effects/missing.conf "$out/missing"
+out=$(mktemp -d /tmp/go4t-io-effects.XXXXXX)
+go run ./cmd/go4t run examples/io-effects/main.gt -- examples/io-effects/missing.conf "$out/missing"
 ```
 
 Observed stdout (exit 0):
@@ -49,7 +49,7 @@ Observed `missing.log` (the timestamp changes on each run):
 The checked-in `config.txt` contains `7 11`.
 
 ```sh
-go run ./cmd/gofx run examples/io-effects/main.gfx -- examples/io-effects/config.txt "$out/present"
+go run ./cmd/go4t run examples/io-effects/main.gt -- examples/io-effects/config.txt "$out/present"
 ```
 
 Observed stdout (exit 0):
@@ -73,7 +73,7 @@ Observed `present.log`:
 2026-11-01T06:27:20.817Z sum: Ok(18)
 ```
 
-The recorded runs used `/tmp/gofx-io-effects.i6winO` for `$out`, under the
+The recorded runs used `/tmp/go4t-io-effects.i6winO` for `$out`, under the
 VM-wide serialized test runner. Remove the temporary output directory when done:
 
 ```sh

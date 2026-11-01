@@ -1,6 +1,6 @@
-# gofx — a small Go-flavoured language with HKT, type classes and IO, transpiled to Go
+# go4t — a small Go-flavoured language with HKT, type classes and IO, transpiled to Go
 
-PoC goal: `gofx build examples/http/main.gfx` → `examples/http/main_gen.go` → `go run` calls
+PoC goal: `go4t build examples/http/main.gt` → `examples/http/main_gen.go` → `go run` calls
 `net/http` through `IO` and prints the status. Everything below is the contract between
 packages; each package has one owner.
 
@@ -12,11 +12,11 @@ packages; each package has one owner.
 | `lexer`, `parser` | primary (done) | source → AST |
 | `types`      | checker worker | kinds, type inference with HKT, class/instance resolution, annotation |
 | `codegen`    | codegen worker | annotated AST → Go source text |
-| `rt`         | runtime worker | Go runtime library imported by generated code (`gofx/rt`) |
-| `prelude`    | runtime worker | `prelude/prelude.gfx` (embedded via `prelude.Source`), parsed + checked before every user file |
-| `cmd/gofx`   | codegen worker | CLI: `gofx build <file.gfx>` writes `<name>_gen.go` next to it; `gofx run` builds then `go run` |
+| `rt`         | runtime worker | Go runtime library imported by generated code (`go4t/rt`) |
+| `prelude`    | runtime worker | `prelude/prelude.gt` (embedded via `prelude.Source`), parsed + checked before every user file |
+| `cmd/go4t`   | codegen worker | CLI: `go4t build <file.gt>` writes `<name>_gen.go` next to it; `go4t run` builds then `go run` |
 
-Module path: `gofx`. Go 1.22+. No third-party deps.
+Module path: `go4t`. Go 1.22+. No third-party deps.
 
 ## Surface language (see parser.go grammar header)
 
@@ -33,7 +33,7 @@ class Monad[M[_]] : Functor[M] {
 type Option[A] = None | Some(A)
 instance Functor[Option] { fmap(fa, f) { match fa { None => None | Some(a) => Some(f(a)) } } }   // arms separated by ';' or newline, not '|'
 func twice[F[_] Functor, A](fa F[A], f func(A) A) F[A] { fmap(fmap(fa, f), f) }
-extern func httpGet(url String) IO[Int] = "gofx/rt/stdhttp".GetStatus
+extern func httpGet(url String) IO[Int] = "go4t/rt/stdhttp".GetStatus
 func main() IO[Unit] {
   do {
     code <- httpGet("https://example.com")
@@ -153,9 +153,9 @@ Recursion between top-level functions is allowed (all signatures are declared).
 
 ## Runtime representation (generated Go)
 
-Uniform erased representation: every gofx value is `any` in generated Go.
+Uniform erased representation: every go4t value is `any` in generated Go.
 
-| gofx | Go |
+| go4t | Go |
 |------|----|
 | `Int` | `int64` |
 | `String` | `string` |
@@ -171,7 +171,7 @@ Uniform erased representation: every gofx value is `any` in generated Go.
 | `DictSuper` | the subclass interface embeds the superclass, so the value is passed as-is (Go interface upcast); no accessor call needed |
 | extern `= "pkg".Name` | import `pkg` as alias `ext_<n>`; the Go function uses the uniform ABI: every param `any`, result `any` (an `IO[...]` extern returns `rt.IO` boxed in `any`). Codegen emits a plain forwarding wrapper `func name_(a0 any, ...) any { return ext_n.Name(a0, ...) }`. |
 | binary ops | `+ - * /` → `rt.AddInt`/`rt.AddString`/`rt.SubInt`/…; `== != < <= > >=` → `Eq`/`Ord` dictionary calls (pass 9); `&&`/`\|\|` → native Go short-circuit; unary → `rt.NegInt`, `rt.Not` |
-| `main` | generated `func main() { rt.RunMain(main_()) }` — user functions are emitted with a trailing `_` to avoid clashing with Go `main` and keywords: every gofx identifier `x` becomes Go `x_`. |
+| `main` | generated `func main() { rt.RunMain(main_()) }` — user functions are emitted with a trailing `_` to avoid clashing with Go `main` and keywords: every go4t identifier `x` becomes Go `x_`. |
 
 `rt` package exports (runtime worker implements; codegen emits exactly these names):
 
@@ -193,7 +193,7 @@ func ShowString(s any) any          // identity
 `rt/stdhttp`: `func GetStatus(url any) any` returning an `IO` whose result is `int64` status code
 (uses `net/http`). This is the PoC's proof that real Go packages are reachable.
 
-Prelude (`prelude/prelude.gfx`) declares: `Functor`, `Monad`, `Show`, `Option`, `instance
+Prelude (`prelude/prelude.gt`) declares: `Functor`, `Monad`, `Show`, `Option`, `instance
 Functor[Option]`, `instance Monad[Option]`, `instance Functor[IO]`, `instance Monad[IO]` (via
 externs `ioPure`/`ioBind`), `instance Show[Int|String|Bool]`, `println`, `showInt`, `showBool`,
 `showString`, `unit`, `ioFail`, and `map`/`flatMap` helpers.
@@ -210,9 +210,9 @@ left side failed). `ioFail` constructs a failing IO. Panics inside IO are not re
 ## CLI
 
 ```
-gofx build DIR/NAME.gfx   # writes DIR/NAME_gen/main.go (package main); several programs may share DIR
-gofx run DIR/NAME.gfx [-- args]  # build to a temp binary, exec it with inherited stdio; its exit status is mirrored
-gofx check FILE.gfx   # type-check only
+go4t build DIR/NAME.gt   # writes DIR/NAME_gen/main.go (package main); several programs may share DIR
+go4t run DIR/NAME.gt [-- args]  # build to a temp binary, exec it with inherited stdio; its exit status is mirrored
+go4t check FILE.gt   # type-check only
 ```
 
 Errors are printed `file:line:col: message` and exit 1.
@@ -220,7 +220,7 @@ Errors are printed `file:line:col: message` and exit 1.
 ## Deviations
 
 The initial `unit : Unit` value is exposed as a zero-argument function because extern
-declarations are functions: `extern func unit() Unit = "gofx/rt".UnitValue`.
+declarations are functions: `extern func unit() Unit = "go4t/rt".UnitValue`.
 Programs write `unit()` to obtain `Unit`; this is reflected in the contract above.
 
 ## Pass 3: if/else layout, List, constrained instances
@@ -239,7 +239,7 @@ Prelude declares `type List[A] = Nil | Cons(A, List[A])`, `instance Functor[List
 Surface syntax `[e1, e2, ...]` (`ast.ListLit`) is typed as `List[A]` with all elements unified
 to `A`; `[]` is `List[A]` with `A` a fresh meta (defaults to `Unit` if unconstrained, as any
 other meta). Codegen desugars to nested `Cons`/`Nil` constructor values.
-`[` after an expression is never indexing (no indexing in gofx); `[` in expression position
+`[` after an expression is never indexing (no indexing in go4t); `[` in expression position
 always starts a list literal.
 
 ### Constrained instances
@@ -314,8 +314,8 @@ When an unconstrained `*` meta is defaulted to `Unit`, the checker appends
 `types.Error{Pos, "type of <what> defaulted to Unit; add an annotation or use the value"}` to
 `Program.Warnings` instead of staying silent (`<what>` = `[]`, `None`, `let x`, or the
 expression kind). Check still succeeds. CLI prints warnings to stderr as
-`file:line:col: warning: ...` and continues; `gofx check` exits 0 with warnings.
-Internal/prelude positions are reported with the prelude file name `prelude.gfx`.
+`file:line:col: warning: ...` and continues; `go4t check` exits 0 with warnings.
+Internal/prelude positions are reported with the prelude file name `prelude.gt`.
 
 ### let-polymorphism
 `let` (in blocks and `do`) generalises: after inferring the value, metas not free in the
@@ -411,7 +411,7 @@ or a constructor of a multi-constructor type at a nested position) keeps its gua
 lowering keeps a trailing `panic("non-exhaustive match")`; that panic is unreachable at
 runtime but Go's compiler cannot see that, and `go vet` does not flag a `panic` tail. In
 both forms no statement follows the last `return`/`panic`, so `go vet ./...` passes on a
-tree containing every example's `main_gen/` directory; the `cmd/gofx` test vets a built
+tree containing every example's `main_gen/` directory; the `cmd/go4t` test vets a built
 program.
 
 ## Pass 8: record patterns, tuple positional access
@@ -557,10 +557,10 @@ isSome[A](o Option[A]) Bool      isNone[A](o Option[A]) Bool
 
 ## Pass 11: strings, input, and program arguments
 
-Goal: a gofx program can read input and process text, so small CLI tools are writable.
+Goal: a go4t program can read input and process text, so small CLI tools are writable.
 No new syntax; everything is prelude externs backed by `rt/str.go` and `rt/io.go`.
 
-### String functions (prelude externs → `"gofx/rt"`)
+### String functions (prelude externs → `"go4t/rt"`)
 ```
 strLength(s String) Int                     // rune count
 strConcat(xs List[String]) String           // join without separator
@@ -601,20 +601,20 @@ getEnv(name String) IO[Option[String]]
 `rt.RunMain` is unchanged; `exit` calls `os.Exit` from inside the IO action after flushing
 stdout (stdout is unbuffered in rt today; keep it so).
 
-### CLI: `gofx run FILE.gfx [-- args...]`
+### CLI: `go4t run FILE.gt [-- args...]`
 Arguments after `--` are passed to the program; stdin is inherited (already).
 
 ### Example
-`examples/wc/main.gfx`: a word-count / frequency tool — reads stdin with `readAll`,
+`examples/wc/main.gt`: a word-count / frequency tool — reads stdin with `readAll`,
 `lines`/`words`, counts with a `List[(String, Int)]` fold, `sortBy` count desc then word
 asc, prints `showPadLeft(count, 5) + " " + word` for the top N where N comes from `args()`
 (`parseInt`, default 10), and `exit(2)` with a usage message when the argument is not a
 number. README records a run with a fixed input file `examples/wc/input.txt` via
-`go run ./cmd/gofx run examples/wc/main.gfx -- 3 < examples/wc/input.txt`.
+`go run ./cmd/go4t run examples/wc/main.gt -- 3 < examples/wc/input.txt`.
 
 ## Pass 12: towards practical programs (contract for parallel slices)
 
-Goal: everything a person needs to write a small CLI/service in gofx. The work is split
+Goal: everything a person needs to write a small CLI/service in go4t. The work is split
 into independent slices, each developed in its own git worktree/branch off `master`
 (`.wt/<slice>`, branch `slice/<slice>`). The primary merges slices in order and resolves
 conflicts. Rules for every slice:
@@ -622,10 +622,10 @@ conflicts. Rules for every slice:
 - Do **not** edit `SPEC.md` or `DESIGN.md` (the primary integrates). Write the SPEC delta
   (new grammar, types, prelude signatures, limitations removed) to `docs/slices/<slice>.md`.
 - Do not commit. Leave the worktree with the finished change; the primary commits it.
-- Run only the slice's own package tests and its example (`go run ./cmd/gofx run
-  examples/<slice>/main.gfx`), not the whole suite; the primary runs `go test ./...` after
+- Run only the slice's own package tests and its example (`go run ./cmd/go4t run
+  examples/<slice>/main.gt`), not the whole suite; the primary runs `go test ./...` after
   integration.
-- Every slice adds `examples/<slice>/main.gfx` (+ `README.md` with the observed output)
+- Every slice adds `examples/<slice>/main.gt` (+ `README.md` with the observed output)
   exercising the feature end to end, and unit tests in the owning package(s) for behaviour,
   boundaries and error messages.
 - Keep diagnostics in the `file:line:col: message` form. Keep the uniform `any` ABI unless
@@ -747,7 +747,7 @@ constructor lacking the field.
 
 **diagnostics** — `ast.Pos` gains `End Pos` tracking on declarations, expressions and
 patterns (parser sets it); `types.Error` carries `Pos` and `End`; the CLI prints the source
-line under the message with `^~~~` under the span (`gofx check`, `build`, `run`).
+line under the message with `^~~~` under the span (`go4t check`, `build`, `run`).
 Non-exhaustive match errors list missing patterns (`missing: Some(_), None` /
 `missing: (true, _)`), up to 5. `no instance Show[T]` for a user data type appends
 `hint: add 'deriving Debug' (or 'Show') or write 'instance Show[T]'`. Unused `let`/lambda
@@ -757,9 +757,9 @@ parameter/local warning `x is unused; prefix with _ to silence` (identifiers sta
 **codegen-quality** — self tail calls (a top-level or local function whose body's result
 position calls itself, through `if`/`match`/block tails) become a `for` loop with parameter
 reassignment (test: `fold` over 1,000,000 elements runs without stack growth). Generated Go
-carries `//line <file>.gfx:<n>` directives before each function and each `match` arm so Go
-panics report `.gfx` positions; output is `go/format`-ed. Add `.github/workflows/ci.yml`
-running `go vet ./...`, `go test ./...` and every `examples/*/main.gfx` via `gofx run`
+carries `//line <file>.gt:<n>` directives before each function and each `match` arm so Go
+panics report `.gt` positions; output is `go/format`-ed. Add `.github/workflows/ci.yml`
+running `go vet ./...`, `go test ./...` and every `examples/*/main.gt` via `go4t run`
 (inputs from `examples/*/input.txt` when present, args from `examples/*/args.txt`).
 
 **concurrency** — builtin `Fiber : (*) -> *` (`types.Fiber`). Prelude (`rt/conc.go`):
@@ -775,21 +775,21 @@ with the **natural** signature `func F(int64, string) bool` (`Int→int64`, `Flo
 `String→string`, `Bool→bool`, `Unit→rt.Unit`, `IO[T]→rt.IO`, `List[String]→[]string`,
 `List[Int]→[]int64`, `Option[T]→(T, bool)` for primitive `T`, everything else `any`).
 Codegen emits an adapter wrapper that converts; existing `any`-ABI externs keep working
-because the adapter is chosen by inspecting the Go package: new command `gofx bind
-<go-import-path> [-o FILE.gfx]` parses the package (`go list -json` + `go/parser`,
+because the adapter is chosen by inspecting the Go package: new command `go4t bind
+<go-import-path> [-o FILE.gt]` parses the package (`go list -json` + `go/parser`,
 `go/types` from the standard library, no third-party deps) and emits `extern func`
 declarations for every exported function whose signature is representable, with a
 `// skipped: Name (reason)` comment for the rest; the codegen adapter also uses that
 analysis (shared package `extern/`) at build time so the ABI (natural vs `any`) is chosen
 per Go function. `rt/stdhttp.GetStatus` is rewritten to the natural signature as the proof.
 
-**cli-tools** — `gofx test FILE.gfx...`: compiles the program with every top-level
+**cli-tools** — `go4t test FILE.gt...`: compiles the program with every top-level
 `func test<Name>() Bool` or `func test<Name>() IO[Bool]` collected into a generated harness
-`main` (user `main` is not required for `gofx test`); prints `PASS testName` / `FAIL testName`
-per test, a summary line, exit 1 on any failure. `gofx eval 'EXPR' [FILE.gfx...]` wraps the
+`main` (user `main` is not required for `go4t test`); prints `PASS testName` / `FAIL testName`
+per test, a summary line, exit 1 on any failure. `go4t eval 'EXPR' [FILE.gt...]` wraps the
 expression in `func main() IO[Unit] { println(show(EXPR)) }` (if EXPR has type `IO[A]` with
-`Show[A]`, it is run and its result shown; the checker's error decides). `gofx build -o
-PATH` chooses the output directory; `gofx build --emit-go DIR --package NAME` writes a
+`Show[A]`, it is run and its result shown; the checker's error decides). `go4t build -o
+PATH` chooses the output directory; `go4t build --emit-go DIR --package NAME` writes a
 non-main Go package exposing `func Main() rt.IO` for embedding in Go programs.
 
 **stdlib-extras** — prelude additions (pure, `rt/str.go` where native):
@@ -813,8 +813,8 @@ variant is not required (pure re-evaluation is acceptable; document it).
 list/string function (`tail(Nil)`, `take(-1, …)`, `substring` clamping, `/ 0`, …).
 
 ### Wave B (after wave A is merged)
-modules (`import`, qualified names, prelude shadowing, `std/*` split), lsp (`gofx lsp`),
-fmt (`gofx fmt`), perf (Int/Bool unboxing, specialisation, benchmarks in CI),
+modules (`import`, qualified names, prelude shadowing, `std/*` split), lsp (`go4t lsp`),
+fmt (`go4t fmt`), perf (Int/Bool unboxing, specialisation, benchmarks in CI),
 json-deriving (`deriving Encode, Decode`), docs (SPEC rewrite, tutorial). Contracts are
 written when wave A has landed.
 
@@ -824,12 +824,12 @@ Same rules as wave A (worktree `.wt/<slice>`, branch `slice/<slice>`, no SPEC/DE
 `docs/slices/<slice>.md`, `examples/<slice>/`). Base: master after wave A.
 
 **modules** — `import "path"` / `import alias "path"` after `package`. A module is a
-directory of `.gfx` files with the same `package` clause; the import path is resolved
+directory of `.gt` files with the same `package` clause; the import path is resolved
 relative to a root list: the importing file's module root (the directory containing the
-nearest `gofx.mod` file, a one-line `module <name>` file; absent → the program's directory),
-then `$GOFX_PATH` entries, then the compiler's embedded `std/`. Exported names are those
+nearest `go4t.mod` file, a one-line `module <name>` file; absent → the program's directory),
+then `$GO4T_PATH` entries, then the compiler's embedded `std/`. Exported names are those
 starting with an upper-case letter **for types/constructors/classes** and, for values, those
-listed in an `export` block? — No: keep Go's rule but values are lower-case in gofx, so
+listed in an `export` block? — No: keep Go's rule but values are lower-case in go4t, so
 visibility is: every top-level declaration is exported unless its name begins with `_`
 (`func _helper()`); `_`-prefixed names are private to the module. Qualified access
 `alias.name`, `alias.Type`, `alias.Ctor` (lexer: `Ident '.' Ident` in type position and
@@ -843,14 +843,14 @@ re-exporting only: `Functor Monad Show Debug Eq Ord Foldable Traversable Orderin
 Result List Unit`, `map flatMap fold filter length append reverse head tail show debug
 println print eprintln ioPure ioFail unit fst snd compare eq min max toFloat`, and the
 operators' instances. Everything else moves to its std module and is reached qualified
-(`import "std/string"` → `string.trim(s)`). Migrate all examples. `gofx run DIR` (a
-directory) compiles the module in DIR as a program. Codegen: one Go file per gofx module
+(`import "std/string"` → `string.trim(s)`). Migrate all examples. `go4t run DIR` (a
+directory) compiles the module in DIR as a program. Codegen: one Go file per go4t module
 under `<out>/`, Go package name = last path element with `_` separators, names mangled
 `pkg_name_`; dictionaries for cross-module instances resolve by (class, type) globally.
 `types.Check` takes `[]*ast.Module`. CLI `check/build/run/test/eval/bind/fmt/lsp` all
 accept files or a directory.
 
-**lsp** — `gofx lsp` (stdio, JSON-RPC 2.0, LSP 3.17; no third-party deps): `initialize`,
+**lsp** — `go4t lsp` (stdio, JSON-RPC 2.0, LSP 3.17; no third-party deps): `initialize`,
 `textDocument/didOpen|didChange|didClose` (full sync), `publishDiagnostics` (errors +
 warnings from `types.Check` with spans), `textDocument/hover` (type of the identifier at the
 position, rendered with the checker's `typeString`, plus the declaration's doc comment =
@@ -860,9 +860,9 @@ documentSymbol`. A `lsp/` package holds the server; `types` exposes a position i
 (`Program.Index(pos) *Binding` or equivalent built from annotations) — add to `types`
 without changing existing behaviour. Tests drive the server through an in-memory pipe.
 `editors/vscode/` contains a minimal client extension manifest (package.json + extension.js
-that spawns `gofx lsp`) and `editors/README.md`.
+that spawns `go4t lsp`) and `editors/README.md`.
 
-**fmt** — `gofx fmt [-w] FILE...|DIR` prints/rewrites canonical formatting; `gofx fmt -d`
+**fmt** — `go4t fmt [-w] FILE...|DIR` prints/rewrites canonical formatting; `go4t fmt -d`
 shows a diff; exit 1 when `-l` lists unformatted files. Canonical style: 2-space indent,
 one declaration per blank-line group, `match` arms one per line without leading `|` unless
 an arm spans lines, record fields one per line when the literal exceeds 80 columns,
@@ -871,7 +871,7 @@ following node; trailing comments stay trailing). Implementation: a `format/` pa
 printing from the AST (which must carry comments — extend the lexer/parser to collect
 comments into `ast.File.Comments` with positions; do not break existing parsing). Property
 tests: `fmt(fmt(x)) == fmt(x)` and `parse(fmt(x))` structurally equals `parse(x)` for every
-`examples/**/*.gfx` and `prelude`/`std` files. Run `gofx fmt -w` over the whole repository
+`examples/**/*.gt` and `prelude`/`std` files. Run `go4t fmt -w` over the whole repository
 at the end and include that in the slice (expect large but mechanical diffs; keep them in a
 separate commit message line "fmt: reformat repository" — the primary commits).
 
@@ -881,7 +881,7 @@ declarations; box only at `any` boundaries: polymorphic calls, data constructor 
 dictionaries, externs); (2) specialisation of constrained functions called with concrete
 dictionaries where the callee is in the same program and small (≤ 40 AST nodes) — emit a
 monomorphic copy per (function, dict tuple) up to 8 copies, otherwise fall back; (3)
-`bench/` directory with `go test -bench` harness compiling `bench/*.gfx` and timing
+`bench/` directory with `go test -bench` harness compiling `bench/*.gt` and timing
 `sort` of 1,000,000 Ints, `Map` insert/lookup of 100,000 keys, `fold` over 10,000,000, and
 the wc example on a 10 MB input; CI job runs benchmarks with `-benchtime=1x` and fails if
 any exceeds a budget stored in `bench/budget.json` (set budgets at 2× the measured value
@@ -907,14 +907,14 @@ worktree, put it in the prelude and note it; the primary moves it.
 (then delete `docs/slices/`, folding deviations/boundary tables into SPEC §7 and a new §10
 "Boundary behaviour"); fix §4 `Stmt` grammar and §7 deriving contradictions; add
 `docs/tutorial.md` (Go developer oriented: type classes vs interfaces, IO vs side effects,
-`do`, `Result`/`tryIO`, modules, `gofx test`, FFI via `bind`), `docs/stdlib.md` (every
+`do`, `Result`/`tryIO`, modules, `go4t test`, FFI via `bind`), `docs/stdlib.md` (every
 std/prelude function with signature + one-line semantics + boundary row), and update
 `README.md` with install/quick start and the examples table (each example's purpose and
 run command). The docs slice must verify every code snippet by extracting fenced
-` ```gofx ` blocks into `.gfx` files and running `gofx check` over them (`docs/check_test.go`).
+` ```go4t ` blocks into `.gt` files and running `go4t check` over them (`docs/check_test.go`).
 Starts after modules merged (it documents the module system).
 
-## Pass 13: service-grade gofx (contract for parallel slices)
+## Pass 13: service-grade go4t (contract for parallel slices)
 
 Input: user acceptance review after Pass 12 (P0–P3 list). Same mechanics as Pass 12: one
 worktree `.wt/<slice>` / branch `slice/<slice>` per slice, no commits by workers, the primary
@@ -958,20 +958,20 @@ named in their contract) — `docs/slices/` is not used any more; `docs/check_te
   its own fiber with the request's context; handler failure → 500 with the message in the body
   and a line on stderr; `servePath` is not needed (route by `r.path` in the handler). Records
   cross the ABI via **new shapes** `rt.Shapes.Tuple3/Untuple3` (codegen `rt_tuple3`/`rt_untuple3`,
-  same pattern as Tuple2) — rt returns `(status, headers, body)` tuples and the gofx side builds
+  same pattern as Tuple2) — rt returns `(status, headers, body)` tuples and the go4t side builds
   the records. Client has a default 30 s timeout; `requestWithTimeout(r, millis)`.
-- **Dependencies.** A gofx library is a Go module containing `.gfx` files and a `gofx.mod`.
-  `gofx init <module-path>` writes `go.mod` (module path, Go 1.22, `require gofx
-  v0.0.0`) and `gofx.mod`. Its runtime replacement uses the `Dir` resolved by
-  `go list -m -json gofx` from cwd, otherwise the embedded runtime extracted
-  atomically to the user cache `gofx/runtime/<sha256>` (XDG_CACHE_HOME on Linux,
+- **Dependencies.** A go4t library is a Go module containing `.gt` files and a `go4t.mod`.
+  `go4t init <module-path>` writes `go.mod` (module path, Go 1.22, `require go4t
+  v0.0.0`) and `go4t.mod`. Its runtime replacement uses the `Dir` resolved by
+  `go list -m -json go4t` from cwd, otherwise the embedded runtime extracted
+  atomically to the user cache `go4t/runtime/<sha256>` (XDG_CACHE_HOME on Linux,
   default HOME/.cache); never a project-local runtime copy.
-  `gofx get <path>@<version>` runs `go get` in the project root and adds/updates
-  `require <path> <selected-version>` in `gofx.mod`. Import resolution order:
-  nearest source module root → matching `gofx.mod` requires, longest prefix,
+  `go4t get <path>@<version>` runs `go get` in the project root and adds/updates
+  `require <path> <selected-version>` in `go4t.mod`. Import resolution order:
+  nearest source module root → matching `go4t.mod` requires, longest prefix,
   resolved via `go list -m -json <path>` in the entry project's Go graph →
-  `GOFX_PATH` → embedded `std`. Go owns replacements, version selection and
-  checksums; dependency modules carry their own gofx manifests. Tests use a
+  `GO4T_PATH` → embedded `std`. Go owns replacements, version selection and
+  checksums; dependency modules carry their own go4t manifests. Tests use a
   fixture library module wired with `replace` (no network).
 - **Show/Float.** `show(Float)` always contains a decimal point or exponent (`1.0`, `1.5`,
   `1e+21`, `NaN`, `+Inf`) — same formatter as `Debug[Float]`. `showFloatFixed` is the display
@@ -983,10 +983,10 @@ named in their contract) — `docs/slices/` is not used any more; `docs/check_te
 - **Type printing.** Types resolved through an `alias` keep the alias name for printing
   (`types.TAlias{Name, Args, Body}`: transparent to unification/instances, opaque to the
   printer); diagnostics print alias names when the source used them. Diagnostic types longer
-  than 160 characters are elided at depth ≥ 3 with `…`; `gofx check --full-types` disables elision.
+  than 160 characters are elided at depth ≥ 3 with `…`; `go4t check --full-types` disables elision.
 - **Debug[List]** is the literal form `[a, b]` (Pass 13 wave 0, already in flight).
-- **Run anywhere** (wave 0, in flight): the `gofx` binary embeds `rt/**` and synthesises a Go
-  module in a temp dir for `run/test/eval` outside any go.mod; only programs with non-`gofx/rt`
+- **Run anywhere** (wave 0, in flight): the `go4t` binary embeds `rt/**` and synthesises a Go
+  module in a temp dir for `run/test/eval` outside any go.mod; only programs with non-`go4t/rt`
   externs need a project go.mod.
 
 ### Slices
@@ -1034,15 +1034,15 @@ changes inference *direction* and polishes diagnostics/std.
   disconnect are not logged; other handler failures keep `http handler: <msg>`. `serve` logs
   nothing on normal shutdown.
 
-## Pass 15: Go shell, gofx core (contract for parallel slices)
+## Pass 15: Go shell, go4t core (contract for parallel slices)
 
 Input: a user review of a 3,000-line controller-runtime Reconcile. The decision logic
-("observed state → next step") would read better as a gofx `match` over a sum type with
-exhaustiveness and `deriving Eq`, but gofx cannot be embedded: `--emit-go` exposes only
+("observed state → next step") would read better as a go4t `match` over a sum type with
+exhaustiveness and `deriving Eq`, but go4t cannot be embedded: `--emit-go` exposes only
 `Main() rt.IO`, records cross the ABI erased, and externs cannot name methods. Porting
 client-go/controller-runtime is rejected: they are mutable-cache/reflection designs, several
 hundred thousand lines regenerated per Kubernetes release. The TypeScript analogy holds in
-one direction (`bind` ≈ d.ts generation) and fails in the other: Go and gofx do not share a
+one direction (`bind` ≈ d.ts generation) and fails in the other: Go and go4t do not share a
 value representation, so declarations need conversion code (closer to cgo than d.ts).
 
 Same mechanics as Pass 13: worktree `.wt/<slice>` / branch `slice/<slice>`, workers do not
@@ -1053,7 +1053,7 @@ no new keywords): the existing `_` private prefix (§1.2) is the export gate.
 ### Domain model
 
 - **Natural Go mirror** (`codegen/mirror.go`, new). A total function from a closed set of
-  gofx types to Go types used at *both* ABI directions. Mirrorable types, compositionally:
+  go4t types to Go types used at *both* ABI directions. Mirrorable types, compositionally:
   `Int`→`int64`, `Float`→`float64`, `String`→`string`, `Bool`→`bool`, `Unit`→`rt.Unit`,
   `List[T]`→`[]T`, `Option[T]`→`rt.Option[T]` (generic `struct{ Value T; Present bool }`,
   constructors `rt.Some(v)`, `rt.None[T]()`), `Result[E, A]`→`rt.Result[E, A]`
@@ -1095,22 +1095,22 @@ no new keywords): the existing `_` private prefix (§1.2) is the export gate.
   function with converters. A result `IO[T]` becomes `func(ctx context.Context) (T, error)`:
   the wrapper runs the `rt.IO` with `ctx` and converts the value; failures are returned as
   the `*rt.Failure` error. Functions that fail a rule are listed once in
-  `gofx_export.go` as `// not exported: <name> (<reason>)` (the `bind` skip convention,
+  `go4t_export.go` as `// not exported: <name> (<reason>)` (the `bind` skip convention,
   §8.3) so the user learns why; `main` and `_`-prefixed functions are silently omitted.
   `Main() rt.IO` stays as today. Nothing changes for `goPackage == "main"`.
 - **Files.** Mirrors, converters and wrappers go in a new generated file
-  `gofx_export.go` (same package); it is removed by the obsolete-file sweep like other
+  `go4t_export.go` (same package); it is removed by the obsolete-file sweep like other
   compiler-generated files (§8.2). Mirrors are emitted only for types reachable from an
   exported signature (transitively), in sorted name order.
-- **Method shims for `bind`.** `gofx bind IMPORT --shim DIR` writes, next to the `.gfx`
-  declarations, a Go file `DIR/gofx_shim_<pkgbase>.go` (`package` = the receiving
+- **Method shims for `bind`.** `go4t bind IMPORT --shim DIR` writes, next to the `.gt`
+  declarations, a Go file `DIR/go4t_shim_<pkgbase>.go` (`package` = the receiving
   directory's Go package, read from an existing `.go` file, else the last path element)
   containing one package-level function per exported method of each exported named type:
   `func <Type>_<Method>(recv <Type or *Type>, args…) results` that calls the method. The
-  `.gfx` output then declares `extern func <type><Method>(recv <Handle>, …) … =
+  `.gt` output then declares `extern func <type><Method>(recv <Handle>, …) … =
   "<module>/<dir>".<Type>_<Method>` where `<Handle>` is a nullary data type
-  `type <Type> = <Type>Handle` emitted once per receiver type in the same `.gfx` file.
-  A handle is an **opaque** value: gofx passes it through the erased ABI and never
+  `type <Type> = <Type>Handle` emitted once per receiver type in the same `.gt` file.
+  A handle is an **opaque** value: go4t passes it through the erased ABI and never
   inspects it (matching, `deriving`, `show` on a handle are undefined and documented so).
   Methods are skipped with the same reasons as functions (pointers other than the
   receiver, callbacks, variadics, generics, unsupported results). Without `--shim`,
@@ -1119,21 +1119,21 @@ no new keywords): the existing `_` private prefix (§1.2) is the export gate.
 
 ### Slices
 
-- `go-export` (deep): mirror, converters, exported wrappers, `gofx_export.go`,
+- `go-export` (deep): mirror, converters, exported wrappers, `go4t_export.go`,
   `rt.Option/Result/TupleN` generics in `rt/mirror.go`, SPEC §8.2 (`build` bullet),
   new §8.7 "Exported Go API", §10.7 rows, `examples/go-shell/` (a Go `main` that imports
   an emitted package and calls a controller-style `decide(observed) Step`, run by a
-  `cmd/gofx` tools test like `TestEmitGoPackageCanBeImported`), README pointer.
+  `cmd/go4t` tools test like `TestEmitGoPackageCanBeImported`), README pointer.
 - `bind-shim` (deep): `--shim`, handle types, Go shim file, SPEC §8.3 `bind` paragraph,
   §10.7 row, `examples/typed-extern` extended with one method binding
-  (`strings.Builder` or `net/url.URL` method) proven by `gofx run`.
+  (`strings.Builder` or `net/url.URL` method) proven by `go4t run`.
 
-Deviations: the extern (Go→gofx call) direction keeps the §8.3 natural ABI table; using the
+Deviations: the extern (Go→go4t call) direction keeps the §8.3 natural ABI table; using the
 full mirror there is deferred until an example needs it. `IO[T]` is mirrored only as a
 result. Enum mirrors are `int`-based, not `string`-based, so zero values are valid.
 - Value-recursive single-constructor mirrors without slice/map/sum-interface indirection are rejected at their type declaration (`recursive Go value type <name>`): Go value structs cannot represent infinite size.
-- Float Map/Set mirrors retain one NaN key but reject multiple Go NaN keys (`gofx: duplicate NaN map key` / `gofx: duplicate NaN set key`), since gofx Ord equates them and selecting a survivor would depend on Go map iteration order.
-Method-shim deviation (approved): receivers use `any` plus a checked assertion to the original value/pointer type, rather than a typed Go parameter, to preserve `extern/match.go`'s erased-handle ABI; wrong receiver types panic with `gofx shim: <Type>_<Method>: receiver is <%T>`.
+- Float Map/Set mirrors retain one NaN key but reject multiple Go NaN keys (`go4t: duplicate NaN map key` / `go4t: duplicate NaN set key`), since go4t Ord equates them and selecting a survivor would depend on Go map iteration order.
+Method-shim deviation (approved): receivers use `any` plus a checked assertion to the original value/pointer type, rather than a typed Go parameter, to preserve `extern/match.go`'s erased-handle ABI; wrong receiver types panic with `go4t shim: <Type>_<Method>: receiver is <%T>`.
 
 
 ## Pass 16: parametric mirrors
@@ -1161,7 +1161,7 @@ parameterised user data types. Fully applied applications are mirrorable by mono
 - **String()** follows Pass 15 rules using the `Debug` dictionary of the instantiated type
   (instance resolution with concrete arguments, same as specialised calls).
 - SPEC §8.7 mirror table gains the row and the naming rule; §10.7 gains the clash row.
-- Acceptance: `examples/approval-controller/decide/decide.gfx` rewritten to
+- Acceptance: `examples/approval-controller/decide/decide.gt` rewritten to
   `type Fetched[A] = NotReferenced | ReadError | Missing | Found(A)` used at `Plan`, `Policy`,
   `Window`; the controller's Go adapter uses `decide.FetchedPlanFound{F0: …}` etc.; all tests
   there unchanged and passing; `go generate` idempotent.
@@ -1183,7 +1183,7 @@ Input: the approval controller proved read-only decisions; the reviewer asked ho
   they produce `decide` values directly: the closed `ObsReason` enum (41 constructors, one per
   reason the chains can report, `Show` = name) and `Target`. No string reason or state crosses
   the boundary; the Go-side `default:` for an unknown target state disappears with it.
-- **The workflow state machine moves to gofx** (`decide/decide.gfx`): everything in
+- **The workflow state machine moves to go4t** (`decide/decide.gt`): everything in
   `reconcileOperation` and `reconcileAuthorized`, plus `readBoundApproval`'s pure part
   (`validateAttachmentRepairApprovalBinding`, expiry, state derivation).
 
@@ -1249,14 +1249,14 @@ decision branches.
 ## Pass 18: Go is the ecosystem (contract for parallel slices)
 
 Input: the reviewer's two remaining "do not use yet" items — no DB/auth/metrics std, and no
-third-party ecosystem. Decision: gofx does not grow its own; `bind` becomes a complete
-"declarations + shim" generator so a Go package is usable after one command, and `gofx get`
+third-party ecosystem. Decision: go4t does not grow its own; `bind` becomes a complete
+"declarations + shim" generator so a Go package is usable after one command, and `go4t get`
 produces those bindings for a whole Go module. TypeScript analogy: `bind` is `dts-gen` plus the
-JS-side shim, `gofx get` is `npm install` that also writes `@types`.
+JS-side shim, `go4t get` is `npm install` that also writes `@types`.
 
 Today `database/sql`, `client_golang` and friends are ~90% skipped by `bind` for four reasons:
 struct parameters/results, a leading `context.Context`, variadics, callbacks. Pass 15/16 built
-the value mirror in the gofx→Go direction; this pass reuses it Go→gofx. No language change.
+the value mirror in the go4t→Go direction; this pass reuses it Go→go4t. No language change.
 
 ### Domain model
 
@@ -1266,17 +1266,17 @@ the value mirror in the gofx→Go direction; this pass reuses it Go→gofx. No l
   `*T` with mirrorable `T` → `Option[T]`; `time.Duration` → `Int` (ns); `time.Time` → `Int`
   (UnixNano, zero time → 0); `error` in a *field* → `Option[String]` (message);
   an exported struct whose exported fields are all mirrorable (unexported fields ignored,
-  embedded structs flattened by Go's promotion rules) → gofx record `type <Name> = <Name>{…}`
+  embedded structs flattened by Go's promotion rules) → go4t record `type <Name> = <Name>{…}`
   declared once in the binding file, fields lower-cased, `deriving Eq, Debug`; a named
   non-struct type whose underlying is mirrorable → same mirror as its underlying (not a
-  distinct gofx type; the shim converts); `[]byte` → `String` (bytes copied). Anything else
+  distinct go4t type; the shim converts); `[]byte` → `String` (bytes copied). Anything else
   (interfaces, funcs in fields, channels, generics, cyclic structs) is a **handle**
   (`type <Name> = <Name>Handle`, opaque, Pass 15) when named, or unsupported.
 - **Context absorption.** A function/method whose first parameter is `context.Context` binds
   as returning `IO[R]` (`IO[Unit]` when it returns only `error`, `IO[Result…]` never: errors
   are `*rt.Failure`); the shim takes the context from the `rt.IO` execution environment
   (`func(ctx context.Context) (any, error)`). Non-ctx functions returning `error` or
-  `(T, error)` keep the existing `IO` inference. Cancellation therefore flows gofx
+  `(T, error)` keep the existing `IO` inference. Cancellation therefore flows go4t
   `withTimeout`/`cancel` → Go.
 - **Variadics.** `...T` with mirrorable `T` → trailing `List[T]`. `...any` → `List[dyn.Value]`
   where `std/dyn` is a new std module:
@@ -1287,30 +1287,30 @@ the value mirror in the gofx→Go direction; this pass reuses it Go→gofx. No l
   `[]byte`→Bytes, `bool`→Bool, `time.Time`→Time, `nil`→Null, other → `Str(fmt.Sprint)`).
   Registration of the Value constructors uses `rt.Shapes` like Json.
 - **Callbacks.** A parameter `func(A1..An) (R | (R, error) | error | nothing)` with mirrorable
-  `Ai`/`R` binds as `func(A1..An) R` / `func(A1..An) IO[R]`; the shim wraps the erased gofx
+  `Ai`/`R` binds as `func(A1..An) R` / `func(A1..An) IO[R]`; the shim wraps the erased go4t
   function value into the Go func type, converting arguments in and the result out. A `ctx`
-  first parameter on the callback is dropped on the gofx side. Callbacks returning error run
-  the gofx `IO` with the enclosing context. Methods on interface parameters (`http.Handler`)
+  first parameter on the callback is dropped on the go4t side. Callbacks returning error run
+  the go4t `IO` with the enclosing context. Methods on interface parameters (`http.Handler`)
   are not callbacks; use the func-typed variant (`http.HandlerFunc`) via a Go wrapper.
 - **Scan-style out-parameters.** `(dest ...any)` with no other use (`sql.Rows.Scan`,
   `sql.Row.Scan`) is recognized by shape (`...any` parameter, result `error`) and bound as
   `IO[List[dyn.Value]]` taking `count Int`: the shim allocates `count` `*any` slots, scans,
   converts. This is the one shape-based special case; it is documented as such.
-- **`gofx get` writes bindings.** After `go get`, `gofx get <module>@<v>` enumerates the
+- **`go4t get` writes bindings.** After `go get`, `go4t get <module>@<v>` enumerates the
   module's non-internal, non-test, non-main packages (`go list -m -json` → `Dir`,
   `go list ./...` inside it), runs `bind --shim` for each into
-  `gofxbind/<import path>/` under the project root (`bindings.gfx` + `gofx_shim_<base>.go`,
+  `go4tbind/<import path>/` under the project root (`bindings.gt` + `go4t_shim_<base>.go`,
   the Go files form a Go package per directory), and records `require` as today. The
-  `.gfx` files import as `gofxbind/<import path>` (search rule 1, a subdirectory of the
-  root). Re-running regenerates; `gofx get --no-bind` skips; `gofx bind --module <path>`
+  `.gt` files import as `go4tbind/<import path>` (search rule 1, a subdirectory of the
+  root). Re-running regenerates; `go4t get --no-bind` skips; `go4t bind --module <path>`
   does the enumeration alone for std packages such as `database/sql`.
-  Bindings are committed artifacts like `gofx_export.go` (§8.7 recipe).
-- **Shim package naming.** `gofx_shim_<base>.go` already exists; multiple Go packages with
+  Bindings are committed artifacts like `go4t_export.go` (§8.7 recipe).
+- **Shim package naming.** `go4t_shim_<base>.go` already exists; multiple Go packages with
   the same base under one module get the directory from the import path, so no clash.
 
 ### Not in scope (documented limits)
 
-Go generics (write a one-line concrete Go wrapper); satisfying Go interfaces with gofx values
+Go generics (write a one-line concrete Go wrapper); satisfying Go interfaces with go4t values
 (use constructor functions such as `strings.NewReader`); unsafe/cgo; performance of the copy
 boundary.
 
@@ -1319,13 +1319,13 @@ boundary.
 - `bind-mirror` (deep): foreign mirror (structs, pointers, time, bytes, named underlying),
   context absorption, variadics incl. `...any` via `std/dyn`, callbacks, Scan shape;
   `extern/mirror.go`, `extern/bind.go`, `extern/methods.go`, `extern/match.go` as needed,
-  `std/dyn/dyn.gfx` + `rt/dyn.go` + codegen shape registration; SPEC §8.3 rewrite of the
+  `std/dyn/dyn.gt` + `rt/dyn.go` + codegen shape registration; SPEC §8.3 rewrite of the
   table/skip list, §7 std list, §10.7 rows; tests in `extern/` with a fixture package.
-- `get-bind` (deep): `gofx get` binding generation, `--no-bind`, `bind --module`,
-  `gofxbind/` layout, SPEC §8.2/§2.2; `examples/sql-service`: `gofx get modernc.org/sqlite`
+- `get-bind` (deep): `go4t get` binding generation, `--no-bind`, `bind --module`,
+  `go4tbind/` layout, SPEC §8.2/§2.2; `examples/sql-service`: `go4t get modernc.org/sqlite`
   + `database/sql` + `github.com/prometheus/client_golang/prometheus` and `…/promhttp`,
   an HTTP service that inserts/counts rows and exposes `/metrics`, with **no hand-written
-  Go except generics wrappers**, smoke-tested by a `cmd/gofx` tools test (temp module,
+  Go except generics wrappers**, smoke-tested by a `cmd/go4t` tools test (temp module,
   offline from the local module cache: modernc.org/sqlite v1.59.0 and
   client_golang v1.24.1 are cached; use `GOFLAGS=-mod=mod GOPROXY=off` in tests).
   The example depends on `bind-mirror`; it starts from the design and integrates when

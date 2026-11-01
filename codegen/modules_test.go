@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"gofx/modules"
-	"gofx/std"
-	"gofx/types"
+	"go4t/modules"
+	"go4t/std"
+	"go4t/types"
 )
 
 func TestGenerateFilesAndRuntimeShapes(t *testing.T) {
@@ -56,7 +56,7 @@ func runGeneratedModules(t *testing.T, generated map[string][]byte) string {
 			t.Fatal(err)
 		}
 	}
-	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module moduletest\n\ngo 1.22\n\nrequire gofx v0.0.0\nreplace gofx => "+root+"\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module moduletest\n\ngo 1.22\n\nrequire go4t v0.0.0\nreplace go4t => "+root+"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	command := exec.Command("go", "run", ".")
@@ -69,17 +69,17 @@ func runGeneratedModules(t *testing.T, generated map[string][]byte) string {
 }
 
 func TestGenerateFilesystemStandardOverrides(t *testing.T) {
-	for _, location := range []string{"source-root", "GOFX_PATH"} {
+	for _, location := range []string{"source-root", "GO4T_PATH"} {
 		t.Run(location, func(t *testing.T) {
 			entry := t.TempDir()
 			standard := entry
-			t.Setenv("GOFX_PATH", "")
-			if location == "GOFX_PATH" {
+			t.Setenv("GO4T_PATH", "")
+			if location == "GO4T_PATH" {
 				standard = t.TempDir()
-				t.Setenv("GOFX_PATH", standard)
+				t.Setenv("GO4T_PATH", standard)
 			}
 			for _, name := range []string{"prelude", "list", "result", "io", "float"} {
-				source, err := std.FS.ReadFile(name + "/" + name + ".gfx")
+				source, err := std.FS.ReadFile(name + "/" + name + ".gt")
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -88,7 +88,7 @@ func TestGenerateFilesystemStandardOverrides(t *testing.T) {
 					t.Fatal(err)
 				}
 				source = append(source, []byte("\nfunc overrideMarker() String { \""+name+"\" }\n")...)
-				if err := os.WriteFile(filepath.Join(dir, name+".gfx"), source, 0o644); err != nil {
+				if err := os.WriteFile(filepath.Join(dir, name+".gt"), source, 0o644); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -108,7 +108,7 @@ func main() IO[Unit] {
   }
 }
 `
-			if err := os.WriteFile(filepath.Join(entry, "main.gfx"), []byte(source), 0o644); err != nil {
+			if err := os.WriteFile(filepath.Join(entry, "main.gt"), []byte(source), 0o644); err != nil {
 				t.Fatal(err)
 			}
 			loaded, err := modules.Load([]string{entry})
@@ -140,8 +140,8 @@ func TestGenerateModuleSpecializations(t *testing.T) {
 		t.Fatal(err)
 	}
 	for name, source := range map[string]string{
-		"main.gfx":        "package main\nimport \"helper\"\nfunc main() IO[Unit] { println(show(helper.pick(20, 42))) }\n",
-		"helper/pick.gfx": "package helper\nfunc pick[A Ord](a A, b A) A { if a < b { b } else { a } }\n",
+		"main.gt":        "package main\nimport \"helper\"\nfunc main() IO[Unit] { println(show(helper.pick(20, 42))) }\n",
+		"helper/pick.gt": "package helper\nfunc pick[A Ord](a A, b A) A { if a < b { b } else { a } }\n",
 	} {
 		if err := os.WriteFile(filepath.Join(dir, name), []byte(source), 0o644); err != nil {
 			t.Fatal(err)
@@ -176,7 +176,7 @@ func TestGenerateModuleJSONTags(t *testing.T) {
 		t.Fatal(err)
 	}
 	for name, source := range map[string]string{
-		"main.gfx": `package main
+		"main.gt": `package main
 import "model"
 import "std/json"
 func main() IO[Unit] {
@@ -187,7 +187,7 @@ func main() IO[Unit] {
   }
 }
 `,
-		"model/model.gfx": `package model
+		"model/model.gt": `package model
 import "std/json"
 import "std/map"
 type Status = Pending | Shipped(String) deriving json.Encode, json.Decode

@@ -1,4 +1,4 @@
-// Package parser builds the gofx AST.
+// Package parser builds the go4t AST.
 //
 // Grammar (';' is inserted at newlines, Go-style, except before 'else'):
 //
@@ -64,8 +64,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"gofx/ast"
-	"gofx/lexer"
+	"go4t/ast"
+	"go4t/lexer"
 )
 
 type Parser struct {

@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"gofx/ast"
-	"gofx/types"
+	"go4t/ast"
+	"go4t/types"
 )
 
 type sourceLocation struct {

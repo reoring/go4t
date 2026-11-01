@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"gofx/types"
+	"go4t/types"
 )
 
 // Like Result and JSON, IoError registers after the shared List/Option shapes.

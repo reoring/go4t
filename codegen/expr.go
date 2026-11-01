@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"strings"
 
-	"gofx/ast"
-	"gofx/types"
+	"go4t/ast"
+	"go4t/types"
 )
 
 func (g *generator) block(block *ast.Block) string {

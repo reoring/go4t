@@ -4,11 +4,11 @@ Two production files, one module (`package main`), and a third file containing
 language tests. No external packages, `extern` declarations, or module manifest
 are needed: all imports are `std/*`.
 
-- `service.gfx`: order/report schemas, pure per-customer `Map` aggregation,
+- `service.gt`: order/report schemas, pure per-customer `Map` aggregation,
   `GET /report`, and `GET /health`.
-- `main.gfx`: upstream mock, two server fibers, bounded readiness/closure probes,
+- `main.gt`: upstream mock, two server fibers, bounded readiness/closure probes,
   client demonstration, argument defaults, and cleanup.
-- `service_test.gfx`: `testAggregate() Bool` and `testMock() IO[Bool]`.
+- `service_test.gt`: `testAggregate() Bool` and `testMock() IO[Bool]`.
 
 ## Run
 
@@ -16,7 +16,7 @@ From the repository root, with ports **18081** (upstream) and **18082** (service
 free:
 
 ```sh
-go run ./cmd/gofx run examples/http-service
+go run ./cmd/go4t run examples/http-service
 ```
 
 Observed stdout on Linux, exit **0**, no stderr:
@@ -39,7 +39,7 @@ method/path combinations return 404 `not found`.
 Choose other ports with positional program arguments (also exercised, exit 0):
 
 ```sh
-go run ./cmd/gofx run examples/http-service -- 18181 18182
+go run ./cmd/go4t run examples/http-service -- 18181 18182
 ```
 
 The first argument is the upstream port; the second is the service port. Missing
@@ -54,14 +54,14 @@ exchange conversion, currency validation, or production-grade monetary rounding;
 
 ## Actual line count
 
-After `gofx fmt -w`:
+After `go4t fmt -w`:
 
 | Boundary | Physical lines, including blanks |
 | --- | ---: |
-| Pure aggregation and HTTP handler (`service.gfx:15–42`) | 28 |
-| Schemas, aggregation, handler (`service.gfx:9–42`) | 34 |
-| The above plus the actual `http.serve` fork (`main.gfx:93`) | **35** |
-| Entire `service.gfx`, including package/imports, plus that server-start line | 43 |
+| Pure aggregation and HTTP handler (`service.gt:15–42`) | 28 |
+| Schemas, aggregation, handler (`service.gt:9–42`) | 34 |
+| The above plus the actual `http.serve` fork (`main.gt:93`) | **35** |
+| Entire `service.gt`, including package/imports, plus that server-start line | 43 |
 | Both production files, including mock/client/lifecycle support | 146 |
 | Third file: language tests | 61 |
 | Complete checked module | 207 |
@@ -77,7 +77,7 @@ and test support are counted separately rather than hidden.
 With port **18083** free, run serially:
 
 ```sh
-go run ./cmd/gofx test examples/http-service
+go run ./cmd/go4t test examples/http-service
 ```
 
 Observed stdout, exit **0**:

@@ -1,0 +1,6 @@
+package main
+
+// Run separately: go4t test examples/cli-tools/failing.gt.
+func testDeliberateFailure() Bool {
+  false
+}

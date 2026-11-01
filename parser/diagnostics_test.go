@@ -5,8 +5,8 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	"gofx/ast"
-	"gofx/parser"
+	"go4t/ast"
+	"go4t/parser"
 )
 
 func TestEndPositions(t *testing.T) {

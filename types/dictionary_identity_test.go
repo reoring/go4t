@@ -3,8 +3,8 @@ package types_test
 import (
 	"testing"
 
-	"gofx/ast"
-	"gofx/types"
+	"go4t/ast"
+	"go4t/types"
 )
 
 func TestDictionaryRigidIdentityAnnotations(t *testing.T) {

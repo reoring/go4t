@@ -1,0 +1,14 @@
+package main
+
+extern func parseURL(raw String) IO[URL] = "go4t/examples/typed-extern/shim".ParseURL
+
+func main() IO[Unit] {
+  do {
+    println(strToUpper("go4t meets Go"))
+    println(strRepeat("na", 3))
+    println(show(strFields("typed externs   keep lists")))
+    url <- parseURL("https://go4t.example:8443/guide")
+    println(urlHostname(url))
+    println(urlString(url))
+  }
+}

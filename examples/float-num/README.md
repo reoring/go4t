@@ -5,7 +5,7 @@ Computes the mean and population standard deviation of a Float list, formats res
 From the repository root:
 
 ```sh
-go run ./cmd/gofx run examples/float-num/main.gfx
+go run ./cmd/go4t run examples/float-num/main.gt
 ```
 
 Observed output:
@@ -25,5 +25,5 @@ The sample is nonempty; its population variance divides by the sample count. Emp
 The verification invocation used the VM-wide serialization wrapper:
 
 ```sh
-SERIALIZE_VM_TESTS_MODE=shared /home/vagrant/.codex/skills/serialize-vm-tests/scripts/serialize-vm-tests -- go run ./cmd/gofx run examples/float-num/main.gfx
+SERIALIZE_VM_TESTS_MODE=shared /home/vagrant/.codex/skills/serialize-vm-tests/scripts/serialize-vm-tests -- go run ./cmd/go4t run examples/float-num/main.gt
 ```

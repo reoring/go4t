@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"gofx/ast"
-	"gofx/parser"
-	"gofx/types"
+	"go4t/ast"
+	"go4t/parser"
+	"go4t/types"
 )
 
 func TestAliasCommonFieldsCompile(t *testing.T) {

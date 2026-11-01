@@ -5,8 +5,8 @@ import (
 	"reflect"
 	"testing"
 
-	"gofx/ast"
-	"gofx/types"
+	"go4t/ast"
+	"go4t/types"
 )
 
 func TestAliasExpansion(t *testing.T) {
@@ -76,13 +76,13 @@ func TestAliasErrors(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			files := parseFiles(t, tt.source+pass5Main)
-			files[1].Name = "aliases.gfx"
+			files[1].Name = "aliases.gt"
 			p, err := checkFixture(t, []*ast.Module{{Files: files}})
 			var typed *types.Error
 			if p != nil || !errors.As(err, &typed) || typed.Msg != tt.want {
 				t.Fatalf("Check = (%v, %v), want %q", p, err, tt.want)
 			}
-			if typed.File != "aliases.gfx" || typed.Pos.Line == 0 || typed.Pos.Col == 0 {
+			if typed.File != "aliases.gt" || typed.Pos.Line == 0 || typed.Pos.Col == 0 {
 				t.Fatalf("unpositioned diagnostic: %#v", typed)
 			}
 		})

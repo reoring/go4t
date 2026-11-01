@@ -19,7 +19,7 @@ func main() IO[Unit] {
   println(project(sale) + key(sale) + show(qtyKey()(sale)))
 }
 `
-	uri := fileURI(filepath.Join(t.TempDir(), "main.gfx"))
+	uri := fileURI(filepath.Join(t.TempDir(), "main.gt"))
 	c := client(t)
 	if ds := diagnostics(t, c.notify("textDocument/didOpen", openParams(uri, source))); len(ds) != 0 {
 		t.Fatal(ds)

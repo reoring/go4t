@@ -3,7 +3,7 @@ package extern
 import (
 	"fmt"
 	"go/types"
-	gfxtypes "gofx/types"
+	gfxtypes "go4t/types"
 	"sort"
 	"strings"
 	"unicode"
@@ -13,7 +13,7 @@ import (
 // inside records: one opaque field makes the enclosing named struct opaque.
 type foreignMirror struct {
 	typ       types.Type
-	kind, gfx string
+	kind, gt  string
 	elem, key *foreignMirror
 	fields    []mirrorField
 	callback  *foreignCall
@@ -53,28 +53,28 @@ func (s *mirrorSet) valueMirror(t types.Type, visiting map[types.Type]bool) *for
 	defer delete(visiting, t)
 	m := &foreignMirror{typ: t}
 	if named(t, "time", "Time") {
-		m.kind, m.gfx = "time", "Int"
+		m.kind, m.gt = "time", "Int"
 		return m
 	}
-	if named(t, "gofx/rt", "Unit") {
-		m.kind, m.gfx = "unit", "Unit"
+	if named(t, "go4t/rt", "Unit") {
+		m.kind, m.gt = "unit", "Unit"
 		return m
 	}
 	if errorType(t) {
-		m.kind, m.gfx = "error", "Option[String]"
+		m.kind, m.gt = "error", "Option[String]"
 		return m
 	}
 	switch v := t.(type) {
 	case *types.Basic:
 		switch {
 		case v.Info()&types.IsInteger != 0:
-			m.kind, m.gfx = "int", "Int"
+			m.kind, m.gt = "int", "Int"
 		case v.Info()&types.IsFloat != 0 && s.floats:
-			m.kind, m.gfx = "float", "Float"
+			m.kind, m.gt = "float", "Float"
 		case v.Kind() == types.Bool:
-			m.kind, m.gfx = "bool", "Bool"
+			m.kind, m.gt = "bool", "Bool"
 		case v.Kind() == types.String:
-			m.kind, m.gfx = "string", "String"
+			m.kind, m.gt = "string", "String"
 		default:
 			return nil
 		}
@@ -89,7 +89,7 @@ func (s *mirrorSet) valueMirror(t types.Type, visiting map[types.Type]bool) *for
 			if len(fields) == 0 {
 				return nil
 			}
-			m.kind, m.gfx = "record", foreignTypeName(v.Obj().Name())
+			m.kind, m.gt = "record", foreignTypeName(v.Obj().Name())
 			names := map[string]bool{}
 			for _, f := range fields {
 				current := types.Type(v)
@@ -127,24 +127,24 @@ func (s *mirrorSet) valueMirror(t types.Type, visiting map[types.Type]bool) *for
 		if m.elem == nil {
 			return nil
 		}
-		m.kind, m.gfx = "pointer", "Option["+m.elem.gfx+"]"
+		m.kind, m.gt = "pointer", "Option["+m.elem.gt+"]"
 	case *types.Slice:
 		if types.Identical(v.Elem(), types.Typ[types.Byte]) {
-			m.kind, m.gfx = "bytes", "String"
+			m.kind, m.gt = "bytes", "String"
 			break
 		}
 		m.elem = s.valueMirror(v.Elem(), visiting)
 		if m.elem == nil {
 			return nil
 		}
-		m.kind, m.gfx = "slice", "List["+m.elem.gfx+"]"
+		m.kind, m.gt = "slice", "List["+m.elem.gt+"]"
 	case *types.Map:
 		m.key = s.valueMirror(v.Key(), visiting)
 		m.elem = s.valueMirror(v.Elem(), visiting)
 		if m.key == nil || m.elem == nil || !scalarMirror(m.key) {
 			return nil
 		}
-		m.kind, m.gfx = "map", "Map["+m.key.gfx+", "+m.elem.gfx+"]"
+		m.kind, m.gt = "map", "Map["+m.key.gt+", "+m.elem.gt+"]"
 	default:
 		return nil
 	}
@@ -201,7 +201,7 @@ func promotedFields(t types.Type) []promotedField {
 func (s *mirrorSet) resolve(t types.Type, callback bool) *foreignMirror {
 	if isAny(t) {
 		s.dyn = true
-		return &foreignMirror{typ: t, kind: "dyn", gfx: "dyn.Value"}
+		return &foreignMirror{typ: t, kind: "dyn", gt: "dyn.Value"}
 	}
 	if callback {
 		if sig, ok := t.Underlying().(*types.Signature); ok {
@@ -209,13 +209,13 @@ func (s *mirrorSet) resolve(t types.Type, callback bool) *foreignMirror {
 			if reason == "" && !c.optional {
 				var p []string
 				for _, m := range c.params {
-					p = append(p, m.gfx)
+					p = append(p, m.gt)
 				}
-				r := c.result.gfx
+				r := c.result.gt
 				if c.context || c.failure {
 					r = "IO[" + r + "]"
 				}
-				return &foreignMirror{typ: t, kind: "callback", gfx: "func(" + strings.Join(p, ", ") + ") " + r, callback: c}
+				return &foreignMirror{typ: t, kind: "callback", gt: "func(" + strings.Join(p, ", ") + ") " + r, callback: c}
 			}
 		}
 	}
@@ -233,27 +233,27 @@ func (s *mirrorSet) resolve(t types.Type, callback bool) *foreignMirror {
 			return nil
 		}
 		s.handles[foreignTypeName(n.Obj().Name())] = true
-		return &foreignMirror{typ: t, kind: "handle", gfx: foreignTypeName(n.Obj().Name())}
+		return &foreignMirror{typ: t, kind: "handle", gt: foreignTypeName(n.Obj().Name())}
 	}
 	// Containers of handles preserve the opaque elements, rather than exposing
 	// their fields (for example []prometheus.Collector).
 	switch v := t.(type) {
 	case *types.Slice:
 		if e := s.resolve(v.Elem(), false); e != nil {
-			return &foreignMirror{typ: t, kind: "slice", gfx: "List[" + e.gfx + "]", elem: e}
+			return &foreignMirror{typ: t, kind: "slice", gt: "List[" + e.gt + "]", elem: e}
 		}
 	case *types.Map:
 		k := s.valueMirror(v.Key(), map[types.Type]bool{})
 		e := s.resolve(v.Elem(), false)
 		if k != nil && scalarMirror(k) && e != nil {
-			return &foreignMirror{typ: t, kind: "map", gfx: "Map[" + k.gfx + ", " + e.gfx + "]", key: k, elem: e}
+			return &foreignMirror{typ: t, kind: "map", gt: "Map[" + k.gt + ", " + e.gt + "]", key: k, elem: e}
 		}
 	}
 	return nil
 }
 func (s *mirrorSet) register(m *foreignMirror) {
 	if m.kind == "record" {
-		s.records[m.gfx] = m
+		s.records[m.gt] = m
 	}
 	if m.elem != nil {
 		s.register(m.elem)
@@ -269,7 +269,7 @@ func (s *mirrorSet) call(sig *types.Signature, method bool) (*foreignCall, strin
 	if sig.TypeParams().Len() != 0 || sig.RecvTypeParams().Len() != 0 {
 		return nil, "generic function"
 	}
-	c := &foreignCall{variadic: sig.Variadic(), result: &foreignMirror{kind: "unit", gfx: "Unit"}}
+	c := &foreignCall{variadic: sig.Variadic(), result: &foreignMirror{kind: "unit", gt: "Unit"}}
 	start := 0
 	if sig.Params().Len() > 0 && contextType(sig.Params().At(0).Type()) {
 		c.context = true
@@ -278,8 +278,8 @@ func (s *mirrorSet) call(sig *types.Signature, method bool) (*foreignCall, strin
 	c.scan = method && sig.Params().Len()-start == 1 && sig.Variadic() && isAny(sig.Params().At(start).Type().(*types.Slice).Elem()) && sig.Results().Len() == 1 && errorType(sig.Results().At(0).Type())
 	if c.scan {
 		s.dyn = true
-		c.params = []*foreignMirror{{typ: types.Typ[types.Int64], kind: "int", gfx: "Int"}}
-		c.result = &foreignMirror{kind: "dynlist", gfx: "List[dyn.Value]"}
+		c.params = []*foreignMirror{{typ: types.Typ[types.Int64], kind: "int", gt: "Int"}}
+		c.result = &foreignMirror{kind: "dynlist", gt: "List[dyn.Value]"}
 		c.failure = true
 		return c, ""
 	}
@@ -288,7 +288,7 @@ func (s *mirrorSet) call(sig *types.Signature, method bool) (*foreignCall, strin
 		var m *foreignMirror
 		if sig.Variadic() && i == sig.Params().Len()-1 && isAny(t.(*types.Slice).Elem()) {
 			s.dyn = true
-			m = &foreignMirror{typ: t, kind: "dynlist", gfx: "List[dyn.Value]"}
+			m = &foreignMirror{typ: t, kind: "dynlist", gt: "List[dyn.Value]"}
 		} else {
 			m = s.resolve(t, true)
 		}
@@ -340,7 +340,7 @@ func (s *mirrorSet) declarations() string {
 				if i > 0 {
 					out.WriteString(", ")
 				}
-				fmt.Fprintf(&out, "%s: %s", f.name, f.mirror.gfx)
+				fmt.Fprintf(&out, "%s: %s", f.name, f.mirror.gt)
 			}
 			out.WriteString("} deriving Eq, Debug\n")
 		} else {

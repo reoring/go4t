@@ -3,9 +3,9 @@
 From the repository root:
 
 ```sh
-go run ./cmd/gofx run examples/http
+go run ./cmd/go4t run examples/http
 # Or choose a free port instead of the default 8080:
-go run ./cmd/gofx run examples/http -- 18080
+go run ./cmd/go4t run examples/http -- 18080
 ```
 
 Observed default-port run (exit 0):
@@ -47,5 +47,5 @@ do not keep main alive.
 
 No custom extern or HTTP shim is needed. Across the internal ABI, runtime client
 results and server handler results are `(status, headers, body)` tuples using
-`rt.Shapes.Tuple3/Untuple3`. The gofx module constructs Response records; for
-incoming requests the runtime passes all six fields to a gofx Request adapter.
+`rt.Shapes.Tuple3/Untuple3`. The go4t module constructs Response records; for
+incoming requests the runtime passes all six fields to a go4t Request adapter.

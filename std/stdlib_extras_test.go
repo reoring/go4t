@@ -10,11 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"gofx/ast"
-	"gofx/codegen"
-	"gofx/modules"
-	"gofx/parser"
-	"gofx/types"
+	"go4t/ast"
+	"go4t/codegen"
+	"go4t/modules"
+	"go4t/parser"
+	"go4t/types"
 )
 
 func TestListExtrasAndBoundaries(t *testing.T) {
@@ -193,7 +193,7 @@ func main() IO[Unit] {
 	if err != nil {
 		t.Fatal(err)
 	}
-	user.Name = "stdlib_extras_test.gfx"
+	user.Name = "stdlib_extras_test.gt"
 	mods, err := modules.LoadFiles([]*ast.File{user}, ".")
 	if err != nil {
 		t.Fatal(err)
@@ -255,7 +255,7 @@ func TestExtrasTypeErrors(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			user.Name = "stdlib_extras_error.gfx"
+			user.Name = "stdlib_extras_error.gt"
 			mods, err := modules.LoadFiles([]*ast.File{user}, ".")
 			if err != nil {
 				t.Fatal(err)

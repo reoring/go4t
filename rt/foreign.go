@@ -20,14 +20,14 @@ func RegisterForeignRecord(key string, makeRecord func([]any) any, field func(an
 func ForeignRecord(key string, fields []any) any {
 	shape, ok := foreignRecords[key]
 	if !ok {
-		panic("gofx foreign record not registered: " + key)
+		panic("go4t foreign record not registered: " + key)
 	}
 	return shape.make(fields)
 }
 func ForeignRecordField(key string, value any, index int) any {
 	shape, ok := foreignRecords[key]
 	if !ok {
-		panic("gofx foreign record not registered: " + key)
+		panic("go4t foreign record not registered: " + key)
 	}
 	return shape.field(value, index)
 }
@@ -64,7 +64,7 @@ func foreignCompare(a, b any) int {
 		}
 		return 1
 	default:
-		panic("gofx foreign map: non-scalar key")
+		panic("go4t foreign map: non-scalar key")
 	}
 }
 func ForeignMapEach(value any, visit func(any, any)) {

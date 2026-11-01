@@ -1,0 +1,76 @@
+package main
+
+extern func readFile(p String) IO[String] = "go4t/rt".ReadFile
+
+func lexerPrintPart(part InterpPart) IO[Unit] {
+  match part {
+    IPText(text) => println("  text " + quote(text))
+    IPExpr(src, pos) => println("  expr ${pos.line}:${pos.col} " + quote(src))
+  }
+}
+
+func lexerPrintSource(src String, base Pos) IO[Unit] {
+  match lex(src, base) {
+    Err(d) => println("ERROR ${d.pos.line}:${d.pos.col}: ${d.msg}")
+    Ok(tokens) => forEach(tokens, func(t) => do {
+      println("${t.pos.line}:${t.pos.col} ${show(t.kind)} " + quote(t.text))
+      forEach(t.parts, lexerPrintPart)
+    })
+  }
+}
+
+func lexerPrintFile(path String) IO[Unit] {
+  do {
+    println("== " + path)
+    src <- readFile(path)
+    lexerPrintSource(src, Pos{line: 1, col: 1})
+  }
+}
+
+func lexerInlineCases() List[(String, String)] {
+  [
+    ("else", "if a { x }\nelse { y }"),
+    ("leading-bar", "type T = A\n | B\n deriving Eq\nx"),
+    ("leading-operators", "x\n+ y\n- z\n* a\n/ b\n% c\n== d\n!= e\n< f\n<= g\n> h\n>= i\n&& j\n|| k"),
+    ("parens-brackets", "f(\n [1,\n 2]\n)\nx"),
+    ("blank-comment-continuation", "x // trailing\n\n// else is comment text\n\t// another\n + y"),
+    ("close-brace", "{\n x\n}\ny"),
+    ("brace-reset", "f({\n a\n b\n}\n c\n)\nx"),
+    ("records", "Point{\n x: 1\n y: 2\n}\nx"),
+    ("other-continuations", "x\n.field\n)\n]\ngiven Eq[A]\n=> x\n<- f()"),
+    ("interpolation", "\"a $${x} b $${f(y, \"}\")} c\""),
+    ("nested-interpolation", "\"$${show(\"$${Point{a: \"x\"}.a}\")}\""),
+    ("empty-text", "\"$${x}$${y}\""),
+    ("dollar-escapes", "\"\\x24$$\" \"$$$$$${x}\" \"$$$$$$$$\""),
+    ("unicode", "α٢\u00a0_名\nelseα\n٢٣\n_"),
+    ("string-escapes", "\"line\\n\\t\\r\\\"\\\\\\x41\\u03b1\\U0001F600\""),
+    ("unterminated-string", "\n  \"abc"),
+    ("unterminated-interpolation", "\n  \"α $${x"),
+    ("bad-escape", "\"\\q\""),
+    ("unexpected", "\n $$")
+  ]
+}
+
+func main() IO[Unit] {
+  do {
+    paths <- args()
+    match paths {
+      Cons("--stdin", Nil) => do {
+        src <- readAll()
+        lexerPrintSource(src, Pos{line: 1, col: 1})
+      }
+      Cons("--base", Cons(line, Cons(col, Nil))) => do {
+        src <- readAll()
+        lexerPrintSource(src, Pos{line: fromOption(parseInt(line), 1), col: fromOption(parseInt(col), 1)})
+      }
+      Nil => do {
+        lexerPrintFile("examples/parser/main.gt")
+        forEach(lexerInlineCases(), func(entry) => do {
+          println("== " + fst(entry))
+          lexerPrintSource(snd(entry), Pos{line: 1, col: 1})
+        })
+      }
+      _ => forEach(paths, lexerPrintFile)
+    }
+  }
+}

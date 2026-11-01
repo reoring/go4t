@@ -5,8 +5,8 @@ import (
 	"reflect"
 	"testing"
 
-	"gofx/ast"
-	"gofx/types"
+	"go4t/ast"
+	"go4t/types"
 )
 
 const pass5Main = "\nfunc main() IO[Unit] { ioPure(unit()) }\n"
@@ -294,7 +294,7 @@ func TestInterpolationMissingInstances(t *testing.T) {
 
 func TestDiagnosticFileNames(t *testing.T) {
 	files := parseFiles(t, `func value() Unit { None; []; unit() }`+pass5Main)
-	files[0].Name, files[1].Name = "prelude.gfx", "user.gfx"
+	files[0].Name, files[1].Name = "prelude.gt", "user.gt"
 	p, err := checkFixture(t, []*ast.Module{{Files: files}})
 	if err != nil {
 		t.Fatal(err)
@@ -303,7 +303,7 @@ func TestDiagnosticFileNames(t *testing.T) {
 		t.Fatalf("warnings = %v", p.Warnings)
 	}
 	for _, warning := range p.Warnings {
-		if warning.File != "user.gfx" {
+		if warning.File != "user.gt" {
 			t.Fatalf("warning file = %q", warning.File)
 		}
 	}
@@ -313,28 +313,28 @@ func TestDiagnosticFileNames(t *testing.T) {
 		t.Fatalf("warning positions = %v", p.Warnings)
 	}
 	files[0], files[1] = files[1], files[0]
-	files[0].Name, files[1].Name = "prelude.gfx", "user.gfx"
+	files[0].Name, files[1].Name = "prelude.gt", "user.gt"
 	p, err = checkFixture(t, []*ast.Module{{Files: files}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, warning := range p.Warnings {
-		if warning.File != "prelude.gfx" {
+		if warning.File != "prelude.gt" {
 			t.Fatalf("prelude warning file = %q", warning.File)
 		}
 	}
 	files = parseFiles(t, `func bad() String { 1 }`+pass5Main)
-	files[0].Name, files[1].Name = "prelude.gfx", "user.gfx"
+	files[0].Name, files[1].Name = "prelude.gt", "user.gt"
 	_, err = checkFixture(t, []*ast.Module{{Files: files}})
 	var typed *types.Error
-	if !errors.As(err, &typed) || typed.File != "user.gfx" {
+	if !errors.As(err, &typed) || typed.File != "user.gt" {
 		t.Fatalf("error file = %v", err)
 	}
 	// Place a source with the same diagnostic in the first, prelude-named file.
 	files[0], files[1] = files[1], files[0]
-	files[0].Name, files[1].Name = "prelude.gfx", "user.gfx"
+	files[0].Name, files[1].Name = "prelude.gt", "user.gt"
 	_, err = checkFixture(t, []*ast.Module{{Files: files}})
-	if !errors.As(err, &typed) || typed.File != "prelude.gfx" {
+	if !errors.As(err, &typed) || typed.File != "prelude.gt" {
 		t.Fatalf("prelude error file = %v", err)
 	}
 }

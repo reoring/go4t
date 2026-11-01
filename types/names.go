@@ -3,7 +3,7 @@ package types
 import (
 	"path"
 
-	"gofx/ast"
+	"go4t/ast"
 )
 
 // diagnosticName distinguishes resolved declarations from arbitrary source text.

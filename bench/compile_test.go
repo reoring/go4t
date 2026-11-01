@@ -12,12 +12,12 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"gofx/ast"
-	"gofx/codegen"
-	"gofx/modules"
-	"gofx/parser"
-	"gofx/std"
-	"gofx/types"
+	"go4t/ast"
+	"go4t/codegen"
+	"go4t/modules"
+	"go4t/parser"
+	"go4t/std"
+	"go4t/types"
 )
 
 const compileN = 400
@@ -30,7 +30,7 @@ func parseCheck(source, directory string) (*types.Program, error) {
 	if err != nil {
 		return nil, err
 	}
-	file.Name = "scale.gfx"
+	file.Name = "scale.gt"
 	loaded, err := modules.LoadFiles([]*ast.File{file}, directory)
 	if err != nil {
 		return nil, err
@@ -50,7 +50,7 @@ func stdSource(tb testing.TB) (string, int) {
 		if err != nil {
 			return err
 		}
-		if entry.IsDir() || !strings.HasSuffix(name, ".gfx") {
+		if entry.IsDir() || !strings.HasSuffix(name, ".gt") {
 			return nil
 		}
 		data, err := std.FS.ReadFile(name)
@@ -214,7 +214,7 @@ func BenchmarkCompile(b *testing.B) {
 					b.Fatal(err)
 				}
 			}
-			mod := "module compilebench\n\ngo 1.22\n\nrequire gofx v0.0.0\nreplace gofx => " + filepath.ToSlash(root(b)) + "\n"
+			mod := "module compilebench\n\ngo 1.22\n\nrequire go4t v0.0.0\nreplace go4t => " + filepath.ToSlash(root(b)) + "\n"
 			if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(mod), 0o644); err != nil {
 				b.Fatal(err)
 			}
@@ -254,7 +254,7 @@ func BenchmarkCompile(b *testing.B) {
 			for _, metric := range compileMetrics {
 				key := "compile-" + workload.name + "-" + metric
 				b.Logf("%s = %d", key, values[metric])
-				if os.Getenv("GOFX_BENCH_RECORD") == "" && values[metric] > limits[key] {
+				if os.Getenv("GO4T_BENCH_RECORD") == "" && values[metric] > limits[key] {
 					b.Errorf("%s exceeded budget: %d > %d", key, values[metric], limits[key])
 				}
 			}

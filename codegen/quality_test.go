@@ -15,10 +15,10 @@ import (
 	"testing"
 	"time"
 
-	"gofx/ast"
-	"gofx/modules"
-	"gofx/parser"
-	"gofx/types"
+	"go4t/ast"
+	"go4t/modules"
+	"go4t/parser"
+	"go4t/types"
 )
 
 func TestSelfTailCallLoop(t *testing.T) {
@@ -28,8 +28,8 @@ func TestSelfTailCallLoop(t *testing.T) {
 		Cond: boolean(false), Then: integer(0), Else: &ast.BlockExpr{Block: &ast.Block{Result: recur}},
 	})
 	f.Decl.Pos = ast.Pos{Line: 3, Col: 1}
-	p.Files = []*ast.File{{Name: "loop.gfx", Decls: []ast.Decl{f.Decl}}}
-	out := assertSource(t, p, "for {", "continue", "//line loop.gfx:3")
+	p.Files = []*ast.File{{Name: "loop.gt", Decls: []ast.Decl{f.Decl}}}
+	out := assertSource(t, p, "for {", "continue", "//line loop.gt:3")
 	if strings.Contains(out, "return swap_(") {
 		t.Fatalf("tail call still recurses:\n%s", out)
 	}
@@ -49,7 +49,7 @@ func TestSelfTailCallLoop(t *testing.T) {
 	}
 	for _, rhs := range reassignment.Rhs {
 		id, ok := rhs.(*goast.Ident)
-		if !ok || !strings.HasPrefix(id.Name, "_gofx") {
+		if !ok || !strings.HasPrefix(id.Name, "_go4t") {
 			t.Fatalf("argument was not evaluated into a temporary: %#v", rhs)
 		}
 	}
@@ -119,7 +119,7 @@ func TestNamedLambdaTailCall(t *testing.T) {
 }
 
 func TestMillionElementFoldWithoutStackGrowth(t *testing.T) {
-	source := qualityProgram(t, "million.gfx", `package main
+	source := qualityProgram(t, "million.gt", `package main
 import "std/result"
 func millionList(n Int, xs List[Int]) List[Int] {
   if n == 0 { xs } else { millionList(n - 1, Cons(n, xs)) }
@@ -138,7 +138,7 @@ func main() IO[Unit] {
 }
 
 func TestTailCallEvaluationAndClosureSnapshots(t *testing.T) {
-	source := qualityProgram(t, "snapshots.gfx", `package main
+	source := qualityProgram(t, "snapshots.gt", `package main
 func swapValues(n Int, a Int, b Int) Int {
   if n == 0 { a * 10 + b } else {
     let remaining = n - 1
@@ -201,7 +201,7 @@ func TestLargeResultMatchWithManyCallers(t *testing.T) {
 		source.WriteString(" }\n")
 	}
 	fmt.Fprintf(&source, "func main() IO[Unit] { println(show(%s)) }\n", strings.Join(batches, " + "))
-	generated := qualityProgram(t, "large-result-match.gfx", source.String())
+	generated := qualityProgram(t, "large-result-match.gt", source.String())
 	output, err := runQualityGo(t, generated, false)
 	want := fmt.Sprintf("%d\n", count*(count-1)/2)
 	if err != nil || output != want {
@@ -210,7 +210,7 @@ func TestLargeResultMatchWithManyCallers(t *testing.T) {
 }
 
 func TestResultMatchEvaluationScopesAndReturns(t *testing.T) {
-	source := qualityProgram(t, "result-match.gfx", `package main
+	source := qualityProgram(t, "result-match.gt", `package main
 type Value = Number(Int) | Text(String)
 func evaluated(next func() Value) Int {
   match next() { Number(n) if n < 0 => -1; Number(n) => n; Text(_) => -2 }
@@ -287,7 +287,7 @@ func TestNestedResultBranches(t *testing.T) {
 		values = append(values, fmt.Sprintf("value%d", i))
 	}
 	fmt.Fprintf(&source, "println(show(%s))\n} }\n", strings.Join(values, " + "))
-	generated := qualityProgram(t, "nested-result-branches.gfx", source.String())
+	generated := qualityProgram(t, "nested-result-branches.gt", source.String())
 	output, err := runQualityGo(t, generated, false)
 	want := fmt.Sprintf("%d\n", branches*(branches+1)/2)
 	if err != nil || output != want {
@@ -296,7 +296,7 @@ func TestNestedResultBranches(t *testing.T) {
 }
 
 func TestResultBranchScopesAndLaziness(t *testing.T) {
-	source := qualityProgram(t, "result-branches.gfx", `package main
+	source := qualityProgram(t, "result-branches.gt", `package main
 func observed(n Int, observe func(Int) Int) Int {
   let value = 100
   if observe(n) == 0 {
@@ -366,7 +366,7 @@ func init() {
 }
 
 func TestSourceDirectivesAndFormatting(t *testing.T) {
-	source := qualityProgram(t, "positions.gfx", `package main
+	source := qualityProgram(t, "positions.gt", `package main
 func choose(n Int) Int {
   match n {
     0 => 2
@@ -375,7 +375,7 @@ func choose(n Int) Int {
 }
 func main() IO[Unit] { println(show(choose(0))) }
 `)
-	for _, line := range []string{"//line positions.gfx:2", "//line positions.gfx:4", "//line positions.gfx:5", "//line positions.gfx:8", "//line std/prelude/prelude.gfx:"} {
+	for _, line := range []string{"//line positions.gt:2", "//line positions.gt:4", "//line positions.gt:5", "//line positions.gt:8", "//line std/prelude/prelude.gt:"} {
 		if !bytes.Contains(source, []byte(line)) {
 			t.Errorf("missing source directive %q", line)
 		}
@@ -396,8 +396,8 @@ func main() IO[Unit] { println(show(choose(0))) }
 			return true
 		}
 		position := fset.Position(pos)
-		if !strings.HasSuffix(position.Filename, ".gfx") {
-			t.Errorf("function missing .gfx position: %s", position)
+		if !strings.HasSuffix(position.Filename, ".gt") {
+			t.Errorf("function missing .gt position: %s", position)
 		}
 		physical := fset.PositionFor(pos, false)
 		lines := bytes.Split(source, []byte("\n"))
@@ -420,7 +420,7 @@ func TestFormattingFailureRetainsGeneratedSource(t *testing.T) {
 func TestSourceFilenameNewlineRejected(t *testing.T) {
 	p := fixture()
 	p.Main.Decl.Pos = ast.Pos{Line: 2, Col: 1}
-	p.Files = []*ast.File{{Name: "bad\nname.gfx", Decls: []ast.Decl{p.Main.Decl}}}
+	p.Files = []*ast.File{{Name: "bad\nname.gt", Decls: []ast.Decl{p.Main.Decl}}}
 	if _, err := generate(p, "main"); err == nil || err.Error() != "2:1: source filename contains a newline" {
 		t.Fatalf("filename diagnostic = %v", err)
 	}
@@ -449,13 +449,13 @@ func TestNamedLambdaShadowedMatchArm(t *testing.T) {
 }
 
 func TestRuntimePanicReportsGfxPosition(t *testing.T) {
-	fixture, err := os.ReadFile("../examples/codegen-quality/panic.gfx")
+	fixture, err := os.ReadFile("../examples/codegen-quality/panic.gt")
 	if err != nil {
 		t.Fatal(err)
 	}
-	source := qualityProgram(t, "examples/codegen-quality/panic.gfx", string(fixture))
+	source := qualityProgram(t, "examples/codegen-quality/panic.gt", string(fixture))
 	output, err := runQualityGo(t, source, false)
-	if err == nil || !strings.Contains(output, "integer divide by zero") || !strings.Contains(output, "examples/codegen-quality/panic.gfx:5") {
+	if err == nil || !strings.Contains(output, "integer divide by zero") || !strings.Contains(output, "examples/codegen-quality/panic.gt:5") {
 		t.Fatalf("panic did not retain the match-arm source position: %v\n%s", err, output)
 	}
 	t.Log(output)

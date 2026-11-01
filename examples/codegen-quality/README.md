@@ -3,7 +3,7 @@
 Run from the repository root:
 
 ```sh
-go run ./cmd/gofx run examples/codegen-quality/main.gfx
+go run ./cmd/go4t run examples/codegen-quality/main.gt
 ```
 
 Observed output:
@@ -22,10 +22,10 @@ The codegen regression `TestMillionElementFoldWithoutStackGrowth` separately con
 
 ## Panic source positions
 
-`panic.gfx` deliberately divides by zero in a match arm. It is not named `main.gfx`, so the successful-example CI loop does not execute this expected-failure fixture.
+`panic.gt` deliberately divides by zero in a match arm. It is not named `main.gt`, so the successful-example CI loop does not execute this expected-failure fixture.
 
 ```sh
-go run ./cmd/gofx run examples/codegen-quality/panic.gfx
+go run ./cmd/go4t run examples/codegen-quality/panic.gt
 ```
 
 Observed trace excerpt (the machine-specific runtime file path is omitted):
@@ -36,23 +36,23 @@ panic: runtime error: integer divide by zero
 goroutine 1 [running]:
 ...
 main.main_.divideBy_.func1(...)
-	examples/codegen-quality/panic.gfx:5
+	examples/codegen-quality/panic.gt:5
 main.divideBy_(...)
-	examples/codegen-quality/panic.gfx:8
+	examples/codegen-quality/panic.gt:8
 main.main_()
-	examples/codegen-quality/panic.gfx:11 +0xc
+	examples/codegen-quality/panic.gt:11 +0xc
 main.main()
-	examples/codegen-quality/panic.gfx:10 +0x13
+	examples/codegen-quality/panic.gt:10 +0x13
 exit status 2
 ```
 
-Line 5 is the division-by-zero match arm in the original `.gfx` file, not a generated Go line. The compiled program exits 2; the outer `go run` reports that exit and itself exits 1. This panic happens while constructing `main`'s IO value, before `rt.RunMain` executes the action.
+Line 5 is the division-by-zero match arm in the original `.gt` file, not a generated Go line. The compiled program exits 2; the outer `go run` reports that exit and itself exits 1. This panic happens while constructing `main`'s IO value, before `rt.RunMain` executes the action.
 
 ## Focused checks
 
 ```sh
 go test ./codegen -count=1
-go run ./cmd/gofx check examples/wc/main.gfx
+go run ./cmd/go4t check examples/wc/main.gt
 ```
 
 Both passed. The package tests also cover formatting, directives before generated functions and match arms, argument swapping, shadowing, closure captures, named recursive lambda lowering, and unchanged dictionaries.

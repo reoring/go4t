@@ -4,7 +4,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"gofx/ast"
+	"go4t/ast"
 )
 
 // Only the failing check traverses source spans. Successful inference continues

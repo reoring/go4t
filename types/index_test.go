@@ -1,9 +1,9 @@
 package types_test
 
 import (
-	"gofx/ast"
-	"gofx/parser"
-	"gofx/types"
+	"go4t/ast"
+	"go4t/parser"
+	"go4t/types"
 	"strings"
 	"testing"
 )
@@ -40,12 +40,12 @@ func main() IO[Unit] {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pre.Name = "prelude.gfx"
+	pre.Name = "prelude.gt"
 	file, err := parser.Parse(source)
 	if err != nil {
 		t.Fatal(err)
 	}
-	file.Name = "main.gfx"
+	file.Name = "main.gt"
 	program, err := checkFixture(t, []*ast.Module{{Files: []*ast.File{pre, file}}})
 	if err != nil {
 		t.Fatal(err)
@@ -85,7 +85,7 @@ func main() IO[Unit] {
 	if index.At(file.Name, indexPos(source, "identity[A]", 8)) != nil {
 		t.Error("exclusive identifier end included")
 	}
-	if index.At("unknown.gfx", ast.Pos{Line: 1, Col: 1}) != nil {
+	if index.At("unknown.gt", ast.Pos{Line: 1, Col: 1}) != nil {
 		t.Error("unknown file has binding")
 	}
 	// Index construction must not consume or modify checking state.
@@ -110,12 +110,12 @@ func main() IO[Unit] {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pre.Name = "prelude.gfx"
+	pre.Name = "prelude.gt"
 	file, err := parser.Parse(source)
 	if err != nil {
 		t.Fatal(err)
 	}
-	file.Name = "main.gfx"
+	file.Name = "main.gt"
 	program, err := checkFixture(t, []*ast.Module{{Files: []*ast.File{pre, file}}})
 	if err != nil {
 		t.Fatal(err)

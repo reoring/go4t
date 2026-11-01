@@ -11,7 +11,7 @@ import (
 // TestHTTPServiceSession replays the framed stdio exchange documented in
 // docs/service-walkthrough.md against the real three-file example module.
 func TestHTTPServiceSession(t *testing.T) {
-	t.Setenv("GOFX_PATH", "")
+	t.Setenv("GO4T_PATH", "")
 	dir, err := filepath.Abs("../examples/http-service")
 	if err != nil {
 		t.Fatal(err)
@@ -24,9 +24,9 @@ func TestHTTPServiceSession(t *testing.T) {
 		}
 		return string(data)
 	}
-	tests, service := read("service_test.gfx"), read("service.gfx")
-	testsURI := fileURI(filepath.Join(dir, "service_test.gfx"))
-	serviceURI := fileURI(filepath.Join(dir, "service.gfx"))
+	tests, service := read("service_test.gt"), read("service.gt")
+	testsURI := fileURI(filepath.Join(dir, "service_test.gt"))
+	serviceURI := fileURI(filepath.Join(dir, "service.gt"))
 	c := client(t)
 	c.send(map[string]any{"jsonrpc": "2.0", "method": "initialized", "params": map[string]any{}})
 	if ds := diagnostics(t, c.notify("textDocument/didOpen", openParams(testsURI, tests))); len(ds) != 0 {

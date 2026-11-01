@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"gofx/ast"
-	"gofx/modules"
-	"gofx/types"
+	"go4t/ast"
+	"go4t/modules"
+	"go4t/types"
 )
 
 var internalDiagnosticName = regexp.MustCompile(`placeholder\d|\b[A-Z][a-z]+_[A-Z]\w*\b`)
@@ -36,7 +36,7 @@ func assertDiagnosticNames(t *testing.T, p *types.Program, err error) {
 }
 
 func TestNegativeFixtureDiagnosticNames(t *testing.T) {
-	files, err := filepath.Glob("testdata/diagnostics/*.gfx")
+	files, err := filepath.Glob("testdata/diagnostics/*.gt")
 	if err != nil || len(files) == 0 {
 		t.Fatalf("negative fixtures: %v (%d files)", err, len(files))
 	}
@@ -72,9 +72,9 @@ func TestNegativeFixtureDiagnosticNames(t *testing.T) {
 
 func TestTypeNamesUseDiagnosingFile(t *testing.T) {
 	root := moduleFixture(t, map[string]string{
-		"main.gfx":        "package main\nimport first \"model\"\nfunc one(x first.Box) first.Label { first.label() }\nfunc main() IO[Unit] { ioPure(unit()) }",
-		"other.gfx":       "package main\nimport second \"model\"\nfunc two(x second.Box) second.Label { second.label() }",
-		"model/model.gfx": "package model\ntype Box = Box{value: Int}\nalias Label = String\nfunc label() Label { \"ok\" }\nfunc own(x Box) Label { label() }",
+		"main.gt":        "package main\nimport first \"model\"\nfunc one(x first.Box) first.Label { first.label() }\nfunc main() IO[Unit] { ioPure(unit()) }",
+		"other.gt":       "package main\nimport second \"model\"\nfunc two(x second.Box) second.Label { second.label() }",
+		"model/model.gt": "package model\ntype Box = Box{value: Int}\nalias Label = String\nfunc label() Label { \"ok\" }\nfunc own(x Box) Label { label() }",
 	})
 	p, err := checkModuleFixture(t, root)
 	if err != nil {
@@ -82,9 +82,9 @@ func TestTypeNamesUseDiagnosingFile(t *testing.T) {
 	}
 	typ := p.Funcs["one"].Scheme.Type
 	for file, want := range map[string]string{
-		"main.gfx":        "func(first.Box) first.Label",
-		"other.gfx":       "func(second.Box) second.Label",
-		"model/model.gfx": "func(Box) Label",
+		"main.gt":        "func(first.Box) first.Label",
+		"other.gt":       "func(second.Box) second.Label",
+		"model/model.gt": "func(Box) Label",
 	} {
 		for _, print := range []func(types.Type, string) string{p.TypeString, p.TypeStringFull} {
 			if got := print(typ, filepath.Join(root, file)); got != want {
@@ -109,8 +109,8 @@ func TestImportedDeclarationDiagnosticNames(t *testing.T) {
 	} {
 		t.Run(tt.want, func(t *testing.T) {
 			root := moduleFixture(t, map[string]string{
-				"main.gfx":        "package main\nimport m \"model\"\nfunc main() IO[Unit] { ioPure(unit()) }",
-				"model/model.gfx": "package model\n" + tt.source,
+				"main.gt":        "package main\nimport m \"model\"\nfunc main() IO[Unit] { ioPure(unit()) }",
+				"model/model.gt": "package model\n" + tt.source,
 			})
 			p, err := checkModuleFixture(t, root)
 			assertDiagnosticNames(t, p, err)
@@ -138,8 +138,8 @@ func TestSyntheticParametersNeverWarnUnused(t *testing.T) {
 
 func TestDefaultWarningUsesFileAlias(t *testing.T) {
 	root := moduleFixture(t, map[string]string{
-		"main.gfx":        "package main\nimport m \"model\"\nfunc main() IO[Unit] { m.Empty; ioPure(unit()) }",
-		"model/model.gfx": "package model\ntype Phantom[A] = Empty",
+		"main.gt":        "package main\nimport m \"model\"\nfunc main() IO[Unit] { m.Empty; ioPure(unit()) }",
+		"model/model.gt": "package model\ntype Phantom[A] = Empty",
 	})
 	p, err := checkModuleFixture(t, root)
 	assertDiagnosticNames(t, p, err)
@@ -152,7 +152,7 @@ func TestDefaultWarningUsesFileAlias(t *testing.T) {
 }
 
 func TestOccursCheckUsesFileAlias(t *testing.T) {
-	loaded, err := modules.Load([]string{"testdata/diagnostics/occurs.gfx"})
+	loaded, err := modules.Load([]string{"testdata/diagnostics/occurs.gt"})
 	if err != nil {
 		t.Fatal(err)
 	}

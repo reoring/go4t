@@ -1,7 +1,7 @@
-# selfhost — gofx compiler written in gofx
+# selfhost — go4t compiler written in go4t
 
-Goal: `selfhost/*.gfx` is a gofx→Go transpiler that compiles itself. Fixed point:
-stage1 (built by the Go compiler) compiles `selfhost/*.gfx` → stage2 Go source; stage2
+Goal: `selfhost/*.gt` is a go4t→Go transpiler that compiles itself. Fixed point:
+stage1 (built by the Go compiler) compiles `selfhost/*.gt` → stage2 Go source; stage2
 binary compiles the same source → stage3; `gofmt`-normalised stage2 == stage3.
 
 Authority: `SPEC.md` for behaviour; the Go implementation (`lexer/`, `parser/`, `types/`,
@@ -16,37 +16,37 @@ String ──lex──▶ List[Token] ──parse──▶ File ──check─�
 
 | Stage | Owner file | Entry | Notes |
 |---|---|---|---|
-| lex | `lexer.gfx` | `lex(src String, base Pos) Result[List[Token]]` | layout `;` insertion (§1.6), interpolation parts |
-| parse | `parser.gfx` | `parseFile(name String, src String) Result[File]` | `Parser[A]` monad over `List[Token]`; interpolation parts are lexed+parsed in place |
-| types | `types.gfx` | `unify`, `zonk`, `instantiate`, `generalize`, `resolveSType`, `defaultMetas`, `typeString` | substitution lives in `CheckState.subst`; `typeString` renders byte-for-byte like Go `TypeString` |
-| decls | `decls.gfx` | `checkProgram(files List[File]) Result[Program]`, `buildEnv`, `resolveDict`, deriving | builds `Env`, assembles `Program` |
-| infer | `infer.gfx` | `inferFuncBody(info FuncInfo) Check[Core]`, `inferInstanceMethod(inst InstanceInfo, method MethodInfo, im InstMethod) Check[Core]` | expressions, patterns, coverage, do, let-generalisation → Core |
-| codegen | `cg_decls.gfx` + `cg_expr.gfx` | `generate(prog Program, goPackage String) Result[String]` ; `genExpr(ctx GenCtx, e Core) Gen[String]` | prints Core as Go using `gofx/rt` |
-| driver | `main.gfx` | `main` | `prog FILE.gfx... [-o DIR]`; reads prelude from `GOFX_PRELUDE` or `prelude/prelude.gfx` |
+| lex | `lexer.gt` | `lex(src String, base Pos) Result[List[Token]]` | layout `;` insertion (§1.6), interpolation parts |
+| parse | `parser.gt` | `parseFile(name String, src String) Result[File]` | `Parser[A]` monad over `List[Token]`; interpolation parts are lexed+parsed in place |
+| types | `types.gt` | `unify`, `zonk`, `instantiate`, `generalize`, `resolveSType`, `defaultMetas`, `typeString` | substitution lives in `CheckState.subst`; `typeString` renders byte-for-byte like Go `TypeString` |
+| decls | `decls.gt` | `checkProgram(files List[File]) Result[Program]`, `buildEnv`, `resolveDict`, deriving | builds `Env`, assembles `Program` |
+| infer | `infer.gt` | `inferFuncBody(info FuncInfo) Check[Core]`, `inferInstanceMethod(inst InstanceInfo, method MethodInfo, im InstMethod) Check[Core]` | expressions, patterns, coverage, do, let-generalisation → Core |
+| codegen | `cg_decls.gt` + `cg_expr.gt` | `generate(prog Program, goPackage String) Result[String]` ; `genExpr(ctx GenCtx, e Core) Gen[String]` | prints Core as Go using `go4t/rt` |
+| driver | `main.gt` | `main` | `prog FILE.gt... [-o DIR]`; reads prelude from `GO4T_PRELUDE` or `prelude/prelude.gt` |
 
 Immutability forces one deviation from the Go design: the checker does **not** annotate
-the AST. It produces a separate dictionary-explicit IR (`core.gfx`). Codegen reads only
-Core, never the AST or types. All desugarings listed at the top of `core.gfx` are the
+the AST. It produces a separate dictionary-explicit IR (`core.gt`). Codegen reads only
+Core, never the AST or types. All desugarings listed at the top of `core.gt` are the
 checker's job.
 
 ## Contracts (supervisor-owned, frozen for workers)
 
-- `base.gfx`: `Result[A] = Err(Diag) | Ok(A)` (Monad), `Diag{pos, msg}`, `Map[K, V]`
+- `base.gt`: `Result[A] = Err(Diag) | Ok(A)` (Monad), `Diag{pos, msg}`, `Map[K, V]`
   (persistent AA tree: `mapEmpty/mapInsert/mapLookup/mapMember/mapToList/mapFromList/
   mapKeys/mapValues/mapUnion/mapMap/mapSize`), list helpers (`range`, `nth`, `indexOf`,
   `zipWithIndex`, `all`, `any`, `last`, `unzip`, `foldResult`, `duplicates`, `lookupAssoc`).
-- `ast.gfx`: `Pos`, `Token{kind, text, pos, parts}`, `TokKind`, `InterpPart`, `SType`,
+- `ast.gt`: `Pos`, `Token{kind, text, pos, parts}`, `TokKind`, `InterpPart`, `SType`,
   `TypeParam`, `Param`, `File`, `Decl`, `ClassDecl`, `MethodSig`, `InstanceDecl`,
   `Constraint`, `InstMethod`, `TypeDecl`, `CtorDecl`, `FuncDecl`, `ExternRef`, `Block`,
   `Stmt`, `LetTarget`, `Expr`, `Arm`, `DoStmt`, `Pattern`, `exprPos`, `patPos`, `stypePos`.
-- `ty.gfx`: `Kind`, `Type` (TCon/TVar/TMeta/TApp/TFunc, flat `tApp`), builtin
+- `ty.gt`: `Kind`, `Type` (TCon/TVar/TMeta/TApp/TFunc, flat `tApp`), builtin
   constructors (`tInt`…`tTuple`, `isTupleCon`), `Scheme{tparams, constraints, typ}`,
   `ClassInfo`, `MethodInfo`, `DataInfo`, `CtorInfo`, `InstanceInfo`, `FuncInfo`, `Env`,
   `emptyEnv`, `instanceKey`, `DictRef` (DInstance/DParam/DSuper).
-- `core.gfx`: `Core`, `CPat`, `CArm`, `primNames`, `CoreCtor`, `CoreData`, `CoreClass`,
+- `core.gt`: `Core`, `CPat`, `CArm`, `primNames`, `CoreCtor`, `CoreData`, `CoreClass`,
   `CoreMethodSig`, `CoreInstance`, `CoreMethod`, `CoreFunc` (CoreFunc/CoreExtern),
   `Program`.
-- `check.gfx`: `Check[A]` monad over `CheckState{nextMeta, subst, warnings, env}`:
+- `check.gt`: `Check[A]` monad over `CheckState{nextMeta, subst, warnings, env}`:
   `runCheck`, `initialState`, `checkFail`, `checkWarn`, `getState/putState/modifyState`,
   `askEnv/setEnv/modifyEnv`, `liftResult`, `freshMeta`, `freshName`, `bindMeta`,
   `lookupMeta`, `mapMCheck`, `forEachCheck`, `foldCheck`, `whenCheck`.
@@ -57,7 +57,7 @@ change messages the supervisor with the exact diff.
 ## Function-level interfaces between slices
 
 ```
-// types.gfx (W3)
+// types.gt (W3)
 zonk(t Type) Check[Type]                                   // apply subst deeply
 unify(pos Pos, expected Type, actual Type) Check[Unit]     // "type mismatch: expected T, got U"
 typeString(t Type) String                                  // same rendering as Go types.TypeString
@@ -77,18 +77,18 @@ defaultMetas(metas List[Type], origins Map[Int, (Pos, String)], constraints List
      // use the value"; warnings in pos order. Infer computes `origins` (priorities of
      // defaults.go prepareDefaults) and passes its leftover constraints.
 
-// decls.gfx (W4)
+// decls.gt (W4)
 checkProgram(files List[File]) Result[Program]
 buildEnv(files List[File]) Check[Unit]
 resolveDict(given List[(String, String)], className String, t Type) Check[DictRef]
      // given = (class, rigid tvar name) constraints in scope; t may be unzonked
 superclassChain(className String) Check[List[String]]       // [className, super, super's super …]
 
-// infer.gfx (W5)
+// infer.gt (W5)
 inferFuncBody(info FuncInfo) Check[Core]
 inferInstanceMethod(inst InstanceInfo, method MethodInfo, im InstMethod) Check[Core]
 
-// cg_expr.gfx (W7)
+// cg_expr.gt (W7)
 type Gen[A] = State[Int, A]                                 // fresh-name counter
 type GenCtx = GenCtx{instances: Map[String, CoreInstance], classes: Map[String, CoreClass],
                      datas: Map[String, CoreData], externs: Map[String, String],
@@ -104,13 +104,13 @@ exported(name String) String        // first rune upper-cased
 ctorGoName(data String, ctor String) String   // data + "_" + ctor
 instanceGoName(className String, typeCon String) String  // class + "_" + typeCon
 
-// cg_decls.gfx (W6)
+// cg_decls.gt (W6)
 generate(prog Program, goPackage String) Result[String]
 ```
 
 ## Go output conventions (from codegen/*.go; keep identical)
 
-- Header `// Code generated by gofx. DO NOT EDIT.`, `package P`, imports `"gofx/rt"` and
+- Header `// Code generated by go4t. DO NOT EDIT.`, `package P`, imports `"go4t/rt"` and
   extern aliases `ext_1`, `ext_2`, … in order of first appearance over funcs sorted by name.
 - Data type `T` → `type T interface { isT() }`; constructor `C` → `type T_C struct { F0 any; … }`
   with `func (*T_C) isT() {}`. `rt.Shapes` init when both `List` and `Option` exist.
@@ -125,17 +125,17 @@ generate(prog Program, goPackage String) Result[String]
   `codegen/expr.go` for every case.
 
 Byte-identical output with the Go compiler is a stretch goal, not a requirement.
-Required: generated Go builds, and each `examples/*/main.gfx` prints the same stdout as
+Required: generated Go builds, and each `examples/*/main.gt` prints the same stdout as
 under the Go compiler.
 
 ## Verification
 
-- Each slice: a throwaway `selfhost/dev/<slice>_main.gfx` driven by
-  `go run ./cmd/gofx run selfhost/base.gfx selfhost/ast.gfx selfhost/ty.gfx selfhost/core.gfx selfhost/check.gfx selfhost/<slice>.gfx selfhost/dev/<slice>_main.gfx`.
+- Each slice: a throwaway `selfhost/dev/<slice>_main.gt` driven by
+  `go run ./cmd/go4t run selfhost/base.gt selfhost/ast.gt selfhost/ty.gt selfhost/core.gt selfhost/check.gt selfhost/<slice>.gt selfhost/dev/<slice>_main.gt`.
 - Integration: `selfhost/bootstrap.sh` builds stage1 with the Go compiler, compiles every
   example and the compiler itself, diffs stage2/stage3.
 
-## Known gofx constraints that shape the port
+## Known go4t constraints that shape the port
 
 - Keywords cannot be record field names (`class`, `extern`, `deriving` → `className`,
   `externRef`, `derivings`).
@@ -144,7 +144,7 @@ under the Go compiler.
 - Prelude names cannot be shadowed (`getEnv`, `map`, `filter`, `get`, `put`, …).
 - No mutation: counters and substitutions live in `CheckState` / `Gen` state.
 - Single-file `package main` programs; the driver accepts several files
-  (`gofx run a.gfx b.gfx`) and merges them.
+  (`go4t run a.gt b.gt`) and merges them.
 - No type aliases: `Gen[A]` is `CGGen(State[Int, A])` with its own Functor/Monad and `runGen`.
 - `given` is a keyword: `resolveDict`'s first parameter is named `bounds`.
 - `TypeParam.constraint` is `Option[String]` (SPEC §3.3: one constraint); a second
@@ -156,15 +156,15 @@ under the Go compiler.
 
 `bash selfhost/bootstrap.sh` result on the baseline:
 
-- stage1 (Go compiler → selfhost, 13 files, 4.4k lines of gofx) builds;
-- all 17 `examples/*/main.gfx` compile under stage1, build with `go build`, and print the
-  same stdout as under `cmd/gofx`;
+- stage1 (Go compiler → selfhost, 13 files, 4.4k lines of go4t) builds;
+- all 17 `examples/*/main.gt` compile under stage1, build with `go build`, and print the
+  same stdout as under `cmd/go4t`;
 - stage2 (stage1 compiling itself) == stage3 (stage2 compiling itself) after `gofmt`:
   **fixed point reached**.
 
 Differences from the Go compiler that are accepted: instance emission order (Core sorts by
-`instanceKey`), extern parameter names (`a0…`), fresh-name scheme (`_gofxN`), stderr
-warning paths. Generated Go is therefore not byte-identical to `cmd/gofx build`.
+`instanceKey`), extern parameter names (`a0…`), fresh-name scheme (`_go4tN`), stderr
+warning paths. Generated Go is therefore not byte-identical to `cmd/go4t build`.
 
 ## Rebase list (master moved during implementation)
 
@@ -173,12 +173,12 @@ them yet and must be extended slice by slice (each is a bounded change to the na
 
 | master slice | surface change | selfhost files to touch |
 |---|---|---|
-| deriving | class `Debug`, `deriving Debug/Functor/Foldable/Traversable`, `deriving Show` rejected | `decls.gfx` (derive), `ty.gfx` (prelude classes) |
-| multi-constraint | `A Show + Ord` | `ast.gfx` (`TypeParam.constraints: List[String]`), `parser.gfx`, `decls.gfx`, `infer.gfx` |
-| pipe-partial | `x \|> f`, `_` placeholder sections | `lexer.gfx`, `parser.gfx`, `infer.gfx` (desugar) |
-| io-effects | prelude `Result[E, A]`, `tryIO`, files/time/random externs, panic policy | `base.gfx` (rename local `Result[A]`), `main.gfx` |
-| float-num | `Float` type, literals, numeric prelude | `lexer.gfx`, `ast.gfx` (`EFloat`, `PFloat`), `types.gfx`, `infer.gfx`, `cg_expr.gfx`, `core.gfx` (`CFloat`, prims) |
-| collections | prelude `Map`/`Set`/`Array` | `base.gfx` (rename local `Map`), codegen for new rt shapes |
+| deriving | class `Debug`, `deriving Debug/Functor/Foldable/Traversable`, `deriving Show` rejected | `decls.gt` (derive), `ty.gt` (prelude classes) |
+| multi-constraint | `A Show + Ord` | `ast.gt` (`TypeParam.constraints: List[String]`), `parser.gt`, `decls.gt`, `infer.gt` |
+| pipe-partial | `x \|> f`, `_` placeholder sections | `lexer.gt`, `parser.gt`, `infer.gt` (desugar) |
+| io-effects | prelude `Result[E, A]`, `tryIO`, files/time/random externs, panic policy | `base.gt` (rename local `Result[A]`), `main.gt` |
+| float-num | `Float` type, literals, numeric prelude | `lexer.gt`, `ast.gt` (`EFloat`, `PFloat`), `types.gt`, `infer.gt`, `cg_expr.gt`, `core.gt` (`CFloat`, prims) |
+| collections | prelude `Map`/`Set`/`Array` | `base.gt` (rename local `Map`), codegen for new rt shapes |
 
 Until then run the bootstrap from this branch (or any checkout whose prelude is the
-baseline one; `GOFX_PRELUDE` selects the prelude file).
+baseline one; `GO4T_PRELUDE` selects the prelude file).

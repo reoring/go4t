@@ -1,3 +1,3 @@
 package storage
 
-//go:generate go run ../../cmd/gofx build --emit-go decide --package decide decide/decide.gfx
+//go:generate go run ../../cmd/go4t build --emit-go decide --package decide decide/decide.gt

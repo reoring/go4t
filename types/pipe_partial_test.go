@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"testing"
 
-	"gofx/ast"
-	"gofx/parser"
-	"gofx/types"
+	"go4t/ast"
+	"go4t/parser"
+	"go4t/types"
 )
 
 func TestPipePartialTypes(t *testing.T) {
@@ -97,10 +97,10 @@ func TestPipePartialTypeErrors(t *testing.T) {
 		files := parseFiles(t, `func add(a Int, b Int) Int { a + b }
 func value() Int { `+tc.body+` }
 `+pass5Main)
-		files[1].Name = "pipe-partial.gfx"
+		files[1].Name = "pipe-partial.gt"
 		_, err := checkFixture(t, []*ast.Module{{Files: files}})
 		var typed *types.Error
-		if !errors.As(err, &typed) || typed.Msg != tc.want || typed.File != "pipe-partial.gfx" {
+		if !errors.As(err, &typed) || typed.Msg != tc.want || typed.File != "pipe-partial.gt" {
 			t.Fatalf("%s: error = %v, want %q", tc.body, err, tc.want)
 		}
 	}

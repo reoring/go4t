@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"strings"
 
-	"gofx/ast"
+	"go4t/ast"
 )
 
 // As-bindings do not change the covered shape of their inner pattern.

@@ -4,7 +4,7 @@ import (
 	"sort"
 	"strings"
 
-	"gofx/ast"
+	"go4t/ast"
 )
 
 func compare(a, b ast.Pos) int {

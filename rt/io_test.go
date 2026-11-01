@@ -190,7 +190,7 @@ func TestUnitValue(t *testing.T) {
 }
 
 func TestRunMain(t *testing.T) {
-	switch os.Getenv("GOFX_RT_RUN_MAIN_TEST") {
+	switch os.Getenv("GO4T_RT_RUN_MAIN_TEST") {
 	case "success":
 		RunMain(Println("ran main"))
 		os.Exit(0)
@@ -221,7 +221,7 @@ func TestRunMain(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			command := exec.Command(os.Args[0], "-test.run=^TestRunMain$")
-			command.Env = append(os.Environ(), "GOFX_RT_RUN_MAIN_TEST="+tt.name)
+			command.Env = append(os.Environ(), "GO4T_RT_RUN_MAIN_TEST="+tt.name)
 			var stdout, stderr bytes.Buffer
 			command.Stdout = &stdout
 			command.Stderr = &stderr
@@ -342,7 +342,7 @@ func TestArgs(t *testing.T) {
 
 func TestGetEnv(t *testing.T) {
 	installTestShapes(t)
-	const name = "GOFX_RT_GET_ENV_TEST"
+	const name = "GO4T_RT_GET_ENV_TEST"
 	t.Setenv(name, "before")
 	action := GetEnv(name).(IO)
 	t.Setenv(name, "日本 text")
@@ -362,7 +362,7 @@ func TestGetEnv(t *testing.T) {
 }
 
 func TestExit(t *testing.T) {
-	if code := os.Getenv("GOFX_RT_EXIT_TEST"); code != "" {
+	if code := os.Getenv("GO4T_RT_EXIT_TEST"); code != "" {
 		n := int64(0)
 		if code == "7" {
 			n = 7
@@ -382,7 +382,7 @@ func TestExit(t *testing.T) {
 	} {
 		t.Run(tt.value, func(t *testing.T) {
 			command := exec.Command(os.Args[0], "-test.run=^TestExit$")
-			command.Env = append(os.Environ(), "GOFX_RT_EXIT_TEST="+tt.value)
+			command.Env = append(os.Environ(), "GO4T_RT_EXIT_TEST="+tt.value)
 			output, err := command.CombinedOutput()
 			var exitErr *exec.ExitError
 			if err != nil && !errors.As(err, &exitErr) {

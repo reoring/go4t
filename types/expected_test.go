@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"gofx/ast"
-	"gofx/types"
+	"go4t/ast"
+	"go4t/types"
 )
 
 const expectedSale = `

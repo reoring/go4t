@@ -1,5 +1,5 @@
 // Package extern analyzes Go packages and shares their foreign-function contracts
-// between the binding generator and the gofx code generator.
+// between the binding generator and the go4t code generator.
 package extern
 
 import (

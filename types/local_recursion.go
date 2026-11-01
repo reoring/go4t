@@ -1,6 +1,6 @@
 package types
 
-import "gofx/ast"
+import "go4t/ast"
 
 // A maximal consecutive group sees all of its signatures but none of the
 // subsequent statements. Check every body before publishing generalized schemes.

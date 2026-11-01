@@ -1,17 +1,17 @@
-# gofx for Go developers
+# go4t for Go developers
 
-Start from the repository checkout with Go 1.22 or newer. `go install ./cmd/gofx`
+Start from the repository checkout with Go 1.22 or newer. `go install ./cmd/go4t`
 installs the CLI; add Go's bin directory to PATH. The installed binary embeds its
 runtime, so saved programs can live anywhere: `run`, `test`, and `eval` create a
 temporary Go module when needed and clean it afterward. Keep the Go toolchain on
-PATH. Alternatively use `go run ./cmd/gofx` from the checkout root. Externs outside
-`gofx/rt` and its subpackages need an application Go module providing those packages
-and `gofx`. `gofx init` creates that project; `gofx get` records language
-dependencies in `gofx.mod` while Go manages their versions and checksums.
+PATH. Alternatively use `go run ./cmd/go4t` from the checkout root. Externs outside
+`go4t/rt` and its subpackages need an application Go module providing those packages
+and `go4t`. `go4t init` creates that project; `go4t get` records language
+dependencies in `go4t.mod` while Go manages their versions and checksums.
 
-Every `gofx` block below is a complete checkable example, alone or with the files
-in its named group. For ordinary blocks, save as `lesson.gfx` and run
-`gofx check lesson.gfx` then `gofx run lesson.gfx`. Use separate directories or
+Every `go4t` block below is a complete checkable example, alone or with the files
+in its named group. For ordinary blocks, save as `lesson.gt` and run
+`go4t check lesson.gt` then `go4t run lesson.gt`. Use separate directories or
 explicit files for independent examples so their main functions do not collide.
 
 The `// file: ...` / `// dir: ...` comments are documentation-test directives and
@@ -30,7 +30,7 @@ When an annotation uses an alias, diagnostics and hover keep its name. Unrelated
 inferred types are not renamed: `Identifier` remains semantically `Int`, but a
 mismatch against an `Identifier` annotation says `expected Identifier`.
 
-```gofx
+```go4t
 package main
 alias Identifier = Int
 type Shape = Circle{id: Identifier, radius: Float} | Rectangle{width: Float, id: Int} deriving Debug
@@ -48,13 +48,13 @@ There is no `nil`; represent absence as `Option[A] = None | Some(A)`.
 
 ## 2. Type classes versus Go interfaces
 
-A Go interface is a type describing methods on a value. A gofx class describes
+A Go interface is a type describing methods on a value. A go4t class describes
 operations parameterised by a type; an **explicit instance** supplies its
 implementation. A constrained generic function receives that implementation as
 a compiler-managed dictionary. You can define instances for existing types;
 loaded modules must agree on one instance per class/type constructor.
 
-```gofx
+```go4t
 package main
 class Label[A] { label(a A) String }
 type User = User{name: String} deriving Eq, Debug
@@ -76,7 +76,7 @@ Higher-kinded classes operate on type constructors. `Functor[F[_]]` means that
 F takes a type argument (Option, List, Array, or a partially applied Result).
 Derivation maps the last parameter; Traversable needs Functor as its superclass.
 
-```gofx
+```go4t
 package main
 import p "std/prelude"
 type Tree[A] = Leaf(A) | Branch(Tree[A], Tree[A]) deriving Debug, Functor, Foldable, Traversable
@@ -94,11 +94,11 @@ implicit.
 
 ## 3. IO descriptions versus immediate side effects
 
-In Go, calling `fmt.Println` writes immediately. In gofx, `println` returns an
+In Go, calling `fmt.Println` writes immediately. In go4t, `println` returns an
 `IO[Unit]` description. Merely creating or discarding the description does not
 run it. Main returns the action the runtime executes.
 
-```gofx
+```go4t
 package main
 func greeting(name String) IO[Unit] { println("Hello, ${name}!") }
 func main() IO[Unit] {
@@ -118,7 +118,7 @@ A `<-` binding extracts the result of an action. A bare action runs and discards
 its result. A `let` computes a pure local value. The last expression must still
 be an action of the **same Monad**; a local function is a statement, not an action.
 
-```gofx
+```go4t
 package main
 import "std/io"
 func main() IO[Unit] {
@@ -143,7 +143,7 @@ an Option/Result explicitly or use its Monad rather than writing `Some(x) <- ...
 `(T, error)` convention, the constructor records which case exists; the Monad
 passes on the first Err without calling later continuations.
 
-```gofx
+```go4t
 package main
 import "std/string"
 import "std/result"
@@ -179,7 +179,7 @@ error strings. `io.ioErrorMessage(e)` or `show(e)` gives the message; `debug(e)`
 includes the constructor. It does not catch an error that happened before the
 action was constructed, nor explicit process exit.
 
-```gofx
+```go4t
 package main
 import "std/io"
 func divideLater() IO[Int] {
@@ -209,13 +209,13 @@ Unhandled ordinary IO failure prints `error: ...`, exit 1; a direct panic
 **during action execution** prints `error: panic: ...`, exit 2. Panics during
 action construction are outside RunMain recovery. A worker panic from concurrency
 is instead a typed Panic IO failure, with no added `panic:` message prefix.
-Installed `gofx run` preserves child exit status; the outer Go launcher does not
+Installed `go4t run` preserves child exit status; the outer Go launcher does not
 preserve arbitrary nonzero statuses.
 
 For example, missing-file recovery can distinguish a missing configuration from
 other failures:
 
-```gofx
+```go4t
 package main
 import "std/io"
 func main() IO[Unit] {
@@ -232,22 +232,22 @@ func main() IO[Unit] {
 
 ## 6. Modules are directories; imports are file-local
 
-Create `module-demo/main.gfx` and `module-demo/greeting/greeting.gfx` from the
-following two blocks, then run `gofx run module-demo`. Without `gofx.mod`, the
+Create `module-demo/main.gt` and `module-demo/greeting/greeting.gt` from the
+following two blocks, then run `go4t run module-demo`. Without `go4t.mod`, the
 entry directory is the import root. The greeting module loads every immediate
-`.gfx` file in its directory, with one shared package spelling.
+`.gt` file in its directory, with one shared package spelling.
 
-```gofx
+```go4t
 // dir: module-demo
-// file: main.gfx
+// file: main.gt
 package main
 import hello "greeting"
 func main() IO[Unit] { println(hello.message(hello.Person{name: "Ada"})) }
 ```
 
-```gofx
+```go4t
 // dir: module-demo
-// file: greeting/greeting.gfx
+// file: greeting/greeting.gt
 package greeting
 type Person = Person{name: String}
 func _prefix() String { "Hello, " }
@@ -260,44 +260,44 @@ ordinary lower-case function names **are public**. Imports are qualified and
 apply only to their file. Declarations across files in the same module are
 mutually visible, and cyclic module graphs are supported.
 
-For a stable project root, put the line `module demo` in `module-demo/gofx.mod`;
+For a stable project root, put the line `module demo` in `module-demo/go4t.mod`;
 then `"demo/greeting"` also resolves to the greeting directory. Resolution tries
-the nearest module root, matching `gofx.mod` requires, GOFX_PATH entries, then
+the nearest module root, matching `go4t.mod` requires, GO4T_PATH entries, then
 embedded std. Local declarations may shadow implicit prelude names with a
 warning; explicit module qualification removes ambiguity.
 
 ### Adding a library dependency
 
-In a new directory, `gofx init example.com/myapp` creates `go.mod` and
-`gofx.mod`, refusing to overwrite either. The Go module uses `go 1.22`,
-`require gofx v0.0.0` and a local runtime replacement. It first tries
-`go list -m -json gofx` from the current directory and uses its resolved `Dir`.
+In a new directory, `go4t init example.com/myapp` creates `go.mod` and
+`go4t.mod`, refusing to overwrite either. The Go module uses `go 1.22`,
+`require go4t v0.0.0` and a local runtime replacement. It first tries
+`go list -m -json go4t` from the current directory and uses its resolved `Dir`.
 If that fails, it extracts the embedded runtime to
-`$XDG_CACHE_HOME/gofx/runtime/<sha256>` on Linux (default
-`$HOME/.cache/gofx/runtime/<sha256>`). This content-addressed cache is reused;
-no project-local `.gofx` directory is created. The replacement is machine-local,
+`$XDG_CACHE_HOME/go4t/runtime/<sha256>` on Linux (default
+`$HOME/.cache/go4t/runtime/<sha256>`). This content-addressed cache is reused;
+no project-local `.go4t` directory is created. The replacement is machine-local,
 so keep the referenced checkout/cache or adjust the replacement when relocating.
 
-For a published library, run `gofx get example.com/lib@v1.0.0`.
+For a published library, run `go4t get example.com/lib@v1.0.0`.
 For a local library at `../lib`, first put
 `replace example.com/lib => ../lib` in **go.mod** and run the same command;
 Go accepts that replacement offline, without a published version.
-The command runs `go get` at the nearest gofx project root and adds or updates
-one `require example.com/lib v1.0.0` line in `gofx.mod`. `@latest` and other
+The command runs `go get` at the nearest go4t project root and adds or updates
+one `require example.com/lib v1.0.0` line in `go4t.mod`. `@latest` and other
 Go version queries are recorded as the selected version. Go owns `go.sum`
-checksums and all replacements; `gofx.mod` supports module/require lines,
+checksums and all replacements; `go4t.mod` supports module/require lines,
 blank lines and `//` comments, not `replace` directives.
 
 Import `"example.com/lib/shapes"` to load the dependency's `shapes/` sources.
 `go list -m -json example.com/lib` supplies its directory using the entry
 project's Go graph, so its replacements also apply to transitive dependencies.
-A dependency's own imports use its own gofx root and requires. Missing Go
-dependencies are errors, not silent fallbacks to GOFX_PATH.
+A dependency's own imports use its own go4t root and requires. Missing Go
+dependencies are errors, not silent fallbacks to GO4T_PATH.
 
 Try the complete offline [dependency example](../examples/deps):
 
 ```sh
-gofx run examples/deps/app
+go4t run examples/deps/app
 # area: 42
 ```
 
@@ -307,7 +307,7 @@ gofx run examples/deps/app
 argument positions, so a pipeline can select a non-first argument. Local function
 groups can recurse mutually; a bare-name lambda let can recurse into itself.
 
-```gofx
+```go4t
 package main
 import "std/list"
 import "std/string"
@@ -330,7 +330,7 @@ projection receivers. `Some(_.product)` can use a declared return type; a bare
 `if` branches, `match` arms, record fields and the final expression of `do`, not
 through arbitrary expressions or later uses.
 
-```gofx
+```go4t
 package main
 type Sale = Sale{product: String, qty: Int}
 func productKey() Option[func(Sale) String] { Some(_.product) }
@@ -345,15 +345,15 @@ func main() IO[Unit] {
 }
 ```
 
-## 8. Testing with gofx test
+## 8. Testing with go4t test
 
-Save this as `lesson-tests.gfx` and run `gofx test lesson-tests.gfx`. It also
-passes `gofx check` because it includes a normal main; **test does not require
+Save this as `lesson-tests.gt` and run `go4t test lesson-tests.gt`. It also
+passes `go4t check` because it includes a normal main; **test does not require
 main**, and replaces/removes it before checking. Test names must start `test`
 with a nonempty suffix, have no parameters/type parameters, and explicitly return
 Bool or IO[Bool]. There is no assertion DSL: return the Boolean contract.
 
-```gofx
+```go4t
 package main
 import "std/io"
 func testArithmetic() Bool { 2 + 3 == 5 }
@@ -364,7 +364,7 @@ func testRecovery() IO[Bool] {
     ioPure(typed == Err(io.Failure("expected")))
   }
 }
-func main() IO[Unit] { println("Run this file with gofx test.") }
+func main() IO[Unit] { println("Run this file with go4t test.") }
 ```
 
 The harness reports `PASS testArithmetic`, `PASS testRecovery`, then
@@ -372,39 +372,39 @@ The harness reports `PASS testArithmetic`, `PASS testRecovery`, then
 still run; any failed test gives exit 1. An empty suite succeeds. A panic is not
 a failed-assertion mechanism: it follows ordinary runtime panic policy.
 
-For one-off exploration, run `gofx eval '1 + 2'` or
-`gofx eval 'testArithmetic()' lesson-tests.gfx`. Eval uses Show on the result;
+For one-off exploration, run `go4t eval '1 + 2'` or
+`go4t eval 'testArithmetic()' lesson-tests.gt`. Eval uses Show on the result;
 Unit has no Show, so an `IO[Unit]` expression is not a displayable eval result.
 
-## 9. FFI via gofx bind
+## 9. FFI via go4t bind
 
-Create `ffi-demo/main.gfx` and `ffi-demo/gostd.gfx` using the two blocks below.
+Create `ffi-demo/main.gt` and `ffi-demo/gostd.gt` using the two blocks below.
 The second shows the minimal declarations needed here; replace it with the
 **complete generated output** by running:
 
 ```sh
-gofx bind strings --prefix str -o ffi-demo/gostd.gfx
-gofx check ffi-demo
-gofx run ffi-demo
+go4t bind strings --prefix str -o ffi-demo/gostd.gt
+go4t check ffi-demo
+go4t run ffi-demo
 ```
 
-```gofx
+```go4t
 // dir: ffi-demo
-// file: main.gfx
+// file: main.gt
 package main
 func main() IO[Unit] { println(strToUpper(strRepeat("go", 3))) }
 ```
 
-```gofx
+```go4t
 // dir: ffi-demo
-// file: gostd.gfx
+// file: gostd.gt
 package main
 extern func strRepeat(p0 String, p1 Int) String = "strings".Repeat
 extern func strToUpper(p0 String) String = "strings".ToUpper
 ```
 
 This prints `GOGOGO`. The generator adapts Go `string` directly and Go `int`
-to gofx's canonical int64. Other supported natural types include float64, bool,
+to go4t's canonical int64. Other supported natural types include float64, bool,
 rt.Unit, rt.IO, []string, []int64 and primitive `(T, bool)` Option results.
 A Go `(T, error)` return maps to `IO[T]`; the adapter defers the Go call and its
 conversions until execution. No Go wrapper is needed for these signatures.
@@ -422,7 +422,7 @@ Go goroutines are exposed as IO actions and Fiber values. `fork` starts one task
 when executed; `await` joins it. The result is cached, so later awaits do not
 repeat its effects. Parallel collection results preserve input order.
 
-```gofx
+```go4t
 package main
 import "std/conc"
 func square(n Int) IO[Int] { ioPure(n * n) }
@@ -460,7 +460,7 @@ finishes; use explicit awaits when effects must finish.
 `std/http` uses ordinary records and IO rather than application-specific externs.
 This complete server routes by method/path and encodes a record using `std/json`:
 
-```gofx
+```go4t
 package main
 import "std/http"
 import "std/json"
@@ -496,7 +496,7 @@ and cancels the server; it requires only loopback networking, not Internet acces
 JSON lives in `std/json`, not the implicit prelude. Derive qualified Encode and
 Decode on a record and use a typed Result to determine the decoded target.
 
-```gofx
+```go4t
 package main
 import codec "std/json"
 type Person = Person{name: String, age: Int, note: Option[String]} deriving Eq, Debug, codec.Encode, codec.Decode
@@ -529,12 +529,12 @@ maxInt cannot round-trip through its rounded encoding. NaN/infinity cannot be
 printed. None encodes as null, and Some of a null-like value is indistinguishable
 from None on decode. Use an explicit tagged ADT when that distinction matters.
 
-## 12. Go shell, gofx core: projecting observed state
+## 12. Go shell, go4t core: projecting observed state
 
-`gofx build --emit-go DIR --package NAME` exports every public, monomorphic,
+`go4t build --emit-go DIR --package NAME` exports every public, monomorphic,
 mirrorable top-level function as a typed Go function (SPEC §8.7). The intended
 shape is: Go reads the world, fills one **projection** record, calls a pure
-gofx `decide`, and acts on the returned sum. `examples/approval-controller`
+go4t `decide`, and acts on the returned sum. `examples/approval-controller`
 is a real Kubernetes controller written this way; its original tests pass
 unchanged.
 
@@ -551,7 +551,7 @@ becomes a constructor with a name.
 With both sums, a four-step chain of `if !ok { return … }` becomes one match
 whose arms read in the original order and are checked for exhaustiveness:
 
-```gofx
+```go4t
 package main
 type Ttl = NoTtl | InvalidTtl | TtlNanos(Int) deriving Eq, Debug
 type Timestamp = NoTimestamp | InvalidTimestamp | AtNanos(Int) deriving Eq, Debug
@@ -592,7 +592,7 @@ what the decision needs; every call copies it (SPEC §8.7).
 - [README examples](../README.md#examples) has a command for every example directory,
   including file IO, collections, State, parsing, HTTP, formatting and diagnostics.
 - [stdlib](stdlib.md) gives the exact signature and boundary of every declaration.
-- [Editor setup](../editors/README.md) configures `gofx lsp`; `gofx fmt -w FILE`
-  formats source without type checking, and `gofx fmt -l DIR` is a formatting gate.
-- `gofx build --emit-go DIR --package embedded FILE` emits a Go package with
+- [Editor setup](../editors/README.md) configures `go4t lsp`; `go4t fmt -w FILE`
+  formats source without type checking, and `go4t fmt -l DIR` is a formatting gate.
+- `go4t build --emit-go DIR --package embedded FILE` emits a Go package with
   `Main() rt.IO` for a Go caller to run; it emits sources, not an executable.

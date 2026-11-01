@@ -5,7 +5,7 @@ Standalone Go module `approvalctl`, package `storage`, extracted from
 `0a9a5de52b47d70f5ad8f5174d1f98efbedef3c3`.
 
 `storage_approval_controller.go` started as a verbatim copy. Its decision logic
-now lives in `decide/decide.gfx`, emitted as Go package `approvalctl/decide`.
+now lives in `decide/decide.gt`, emitted as Go package `approvalctl/decide`.
 The Go shell reads the referenced plan, policy, maintenance window, and
 operations into `decide.Observed`, calls `decide.Decide`, then publishes the
 verdict through the original status helper. Reads happen up front, even when
@@ -62,12 +62,12 @@ go vet ./...
 go test ./... -count=1
 ```
 
-`generate.go` runs `go run ../../cmd/gofx build --emit-go decide --package decide
-decide/decide.gfx`. The command regenerates `decide/*.go` from the gofx source;
+`generate.go` runs `go run ../../cmd/go4t build --emit-go decide --package decide
+decide/decide.gt`. The command regenerates `decide/*.go` from the go4t source;
 do not edit emitted Go files directly.
 
-The `require gofx v0.0.0` and `replace gofx => ../..` connect the controller and
-generated package to the local gofx runtime. This nested module is not added
+The `require go4t v0.0.0` and `replace go4t => ../..` connect the controller and
+generated package to the local go4t runtime. This nested module is not added
 to the root module or a workspace, keeping root package discovery unchanged
 (the same isolation pattern as `examples/deps/app`).
 
@@ -83,7 +83,7 @@ behavioural differences remain.
 
 ## Projection rules learned here
 
-Each readability fix in `decide/decide.gfx` was the same correction: a state
+Each readability fix in `decide/decide.gt` was the same correction: a state
 that Go carried as `(value, ok)`, a flag or a sentinel became a constructor.
 
 | First draft | Final | Effect |
@@ -94,4 +94,4 @@ that Go carried as `(value, ok)`, a flag or a sentinel became a constructor.
 | `fromOption(planGeneration, -1)` | `planGeneration != Some(plan.generation)` | no sentinel |
 | milliseconds | `Int` nanoseconds | same representation as `time.Duration`, no rounding |
 
-See [tutorial §12](../../docs/tutorial.md#12-go-shell-gofx-core-projecting-observed-state).
+See [tutorial §12](../../docs/tutorial.md#12-go-shell-go4t-core-projecting-observed-state).

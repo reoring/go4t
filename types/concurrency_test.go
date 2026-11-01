@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"gofx/ast"
-	"gofx/types"
+	"go4t/ast"
+	"go4t/types"
 )
 
 func TestFiberType(t *testing.T) {

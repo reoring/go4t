@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"gofx/ast"
-	"gofx/parser"
-	"gofx/std"
+	"go4t/ast"
+	"go4t/parser"
+	"go4t/std"
 )
 
 func TestStdInventoryParses(t *testing.T) {
@@ -17,7 +17,7 @@ func TestStdInventoryParses(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if !entry.IsDir() && strings.HasSuffix(name, ".gfx") {
+		if !entry.IsDir() && strings.HasSuffix(name, ".gt") {
 			files = append(files, name)
 		}
 		return nil
@@ -50,7 +50,7 @@ func TestStdInventoryParses(t *testing.T) {
 		}
 	}
 	if len(files) == 0 {
-		t.Fatal("std embedded filesystem contains no .gfx files")
+		t.Fatal("std embedded filesystem contains no .gt files")
 	}
 	want := []string{
 		"class Functor", "class Monad", "class Show", "class Eq", "type Ordering", "class Ord",
@@ -91,7 +91,7 @@ func TestStdInventoryParses(t *testing.T) {
 }
 
 func TestHTTPExampleParses(t *testing.T) {
-	source, err := os.ReadFile("../examples/http/main.gfx")
+	source, err := os.ReadFile("../examples/http/main.gt")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +125,7 @@ func TestHTTPExampleParses(t *testing.T) {
 func TestTextExamplesParse(t *testing.T) {
 	for _, name := range []string{"wc", "strings"} {
 		t.Run(name, func(t *testing.T) {
-			source, err := os.ReadFile("../examples/" + name + "/main.gfx")
+			source, err := os.ReadFile("../examples/" + name + "/main.gt")
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -7,8 +7,8 @@ import tempfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 SOURCES = [
-    "selfhost/dev/lexer_main.gfx", "selfhost/base.gfx", "selfhost/ast.gfx",
-    "selfhost/ty.gfx", "selfhost/core.gfx", "selfhost/check.gfx", "selfhost/lexer.gfx",
+    "selfhost/dev/lexer_main.gt", "selfhost/base.gt", "selfhost/ast.gt",
+    "selfhost/ty.gt", "selfhost/core.gt", "selfhost/check.gt", "selfhost/lexer.gt",
 ]
 
 
@@ -85,12 +85,12 @@ fragments = ["x", "α", "_", "١", "123", "\n", " ", "\t", "\r", "// }\n", "if",
 CASES += ["".join(rng.choices(fragments, k=rng.randrange(1, 45))) for _ in range(200)]
 CASES += ["a" * 20000, "x\n" + "// gap\n\n" * 5000 + "+ y", '"' + "α" * 20000 + '${x}"']
 
-with tempfile.TemporaryDirectory(prefix="gofx-lexer-") as directory:
+with tempfile.TemporaryDirectory(prefix="go4t-lexer-") as directory:
     directory = pathlib.Path(directory)
     selfhost = str(directory / "selfhost-lexer")
     reference = str(directory / "go-lexer")
     commands = [
-        ["go", "run", "./cmd/gofx", "build", *SOURCES],
+        ["go", "run", "./cmd/go4t", "build", *SOURCES],
         ["go", "build", "-o", selfhost, "./selfhost/dev/lexer_main_gen"],
         ["go", "build", "-o", reference, "./selfhost/dev/golex"],
     ]
@@ -101,8 +101,8 @@ with tempfile.TemporaryDirectory(prefix="gofx-lexer-") as directory:
         except subprocess.CalledProcessError as error:
             print(error.stderr.decode(), end="")
             raise
-    files = sorted(str(p.relative_to(ROOT)) for p in ROOT.glob("examples/*/main.gfx"))
-    files += ["prelude/prelude.gfx"]
+    files = sorted(str(p.relative_to(ROOT)) for p in ROOT.glob("examples/*/main.gt"))
+    files += ["prelude/prelude.gt"]
     actual = run([selfhost, *files])
     expected = run([reference, *files])
     compare("examples and prelude", actual, expected)
@@ -120,7 +120,7 @@ with tempfile.TemporaryDirectory(prefix="gofx-lexer-") as directory:
         compare(source, run([selfhost, source]), run([reference, source]))
     print(f"Compiler-input diff: EMPTY ({len(SOURCES)} files)", flush=True)
     default_output = run([selfhost])
-    assert b'== examples/parser/main.gfx\n' in default_output
+    assert b'== examples/parser/main.gt\n' in default_output
     assert b'== interpolation\n' in default_output
     assert b'== unexpected\nERROR 2:2: unexpected character' in default_output
     print("Default inline driver: PASS", flush=True)

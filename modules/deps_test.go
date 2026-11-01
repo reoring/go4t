@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"gofx/modules"
-	"gofx/types"
+	"go4t/modules"
+	"go4t/types"
 )
 
 func writeSources(t *testing.T, root string, sources map[string]string) {
@@ -29,7 +29,7 @@ func dependencyProject(t *testing.T) (string, string) {
 	t.Setenv("GOPROXY", "off")
 	t.Setenv("GOWORK", "off")
 	t.Setenv("GOFLAGS", "-mod=mod")
-	t.Setenv("GOFX_PATH", "")
+	t.Setenv("GO4T_PATH", "")
 	library, err := filepath.Abs("testdata/deplib")
 	if err != nil {
 		t.Fatal(err)
@@ -37,8 +37,8 @@ func dependencyProject(t *testing.T) (string, string) {
 	root := t.TempDir()
 	writeSources(t, root, map[string]string{
 		"go.mod": "module example.com/app\n\ngo 1.22\n\nrequire example.com/lib v1.0.0\nreplace example.com/lib => " + strconv.Quote(library) + "\n",
-		"gofx.mod": "module example.com/app\n\nrequire example.com/lib v1.0.0\n",
-		"app/main.gfx": `package main
+		"go4t.mod": "module example.com/app\n\nrequire example.com/lib v1.0.0\n",
+		"app/main.gt": `package main
 import "example.com/lib"
 import "example.com/lib/shapes"
 func main() IO[Unit] { println(lib.name() + ": " + show(shapes.area(6, 7))) }
@@ -73,14 +73,14 @@ func TestDependencyResolutionPrecedence(t *testing.T) {
 	for _, local := range []bool{false, true} {
 		t.Run(strconv.FormatBool(local), func(t *testing.T) {
 			root, library := dependencyProject(t)
-			writeSources(t, root, map[string]string{"app/main.gfx": "package main\nimport \"example.com/lib/shapes\"\nfunc main() IO[Unit] { println(show(shapes.area(6, 7))) }\n"})
+			writeSources(t, root, map[string]string{"app/main.gt": "package main\nimport \"example.com/lib/shapes\"\nfunc main() IO[Unit] { println(show(shapes.area(6, 7))) }\n"})
 			search := t.TempDir()
-			writeSources(t, search, map[string]string{"example.com/lib/shapes/broken.gfx": "invalid GOFX_PATH source"})
-			t.Setenv("GOFX_PATH", search)
+			writeSources(t, search, map[string]string{"example.com/lib/shapes/broken.gt": "invalid GO4T_PATH source"})
+			t.Setenv("GO4T_PATH", search)
 			want := filepath.Join(library, "shapes")
 			if local {
 				want = filepath.Join(root, "example.com/lib/shapes")
-				writeSources(t, root, map[string]string{"example.com/lib/shapes/local.gfx": "package shapes\nfunc area(x Int, y Int) Int { x + y }\n"})
+				writeSources(t, root, map[string]string{"example.com/lib/shapes/local.gt": "package shapes\nfunc area(x Int, y Int) Int { x + y }\n"})
 			}
 			loaded, err := modules.Load([]string{filepath.Join(root, "app")})
 			if err != nil {
@@ -97,9 +97,9 @@ func TestDependencyResolutionPrecedence(t *testing.T) {
 func TestDependencyMissingSubdirectoryFallsThrough(t *testing.T) {
 	root, _ := dependencyProject(t)
 	search := t.TempDir()
-	writeSources(t, search, map[string]string{"example.com/lib/extra/main.gfx": "package extra\nfunc value() Int { 42 }\n"})
-	t.Setenv("GOFX_PATH", search)
-	writeSources(t, root, map[string]string{"app/main.gfx": "package main\nimport \"example.com/lib/extra\"\nfunc main() IO[Unit] { println(show(extra.value())) }\n"})
+	writeSources(t, search, map[string]string{"example.com/lib/extra/main.gt": "package extra\nfunc value() Int { 42 }\n"})
+	t.Setenv("GO4T_PATH", search)
+	writeSources(t, root, map[string]string{"app/main.gt": "package main\nimport \"example.com/lib/extra\"\nfunc main() IO[Unit] { println(show(extra.value())) }\n"})
 	if _, err := modules.Load([]string{filepath.Join(root, "app")}); err != nil {
 		t.Fatal(err)
 	}
@@ -109,27 +109,27 @@ func TestDependencyFailuresDoNotFallThrough(t *testing.T) {
 	for _, failure := range []string{"empty", "invalid", "unresolved", "prefix boundary"} {
 		t.Run(failure, func(t *testing.T) {
 			root, _ := dependencyProject(t)
-			writeSources(t, root, map[string]string{"app/main.gfx": "package main\nimport \"example.com/lib/shapes\"\nfunc main() IO[Unit] { println(show(shapes.area(6, 7))) }\n"})
+			writeSources(t, root, map[string]string{"app/main.gt": "package main\nimport \"example.com/lib/shapes\"\nfunc main() IO[Unit] { println(show(shapes.area(6, 7))) }\n"})
 			search := t.TempDir()
-			writeSources(t, search, map[string]string{"example.com/lib/shapes/main.gfx": "package shapes\nfunc area(x Int, y Int) Int { x * y }\n"})
-			t.Setenv("GOFX_PATH", search)
+			writeSources(t, search, map[string]string{"example.com/lib/shapes/main.gt": "package shapes\nfunc area(x Int, y Int) Int { x * y }\n"})
+			t.Setenv("GO4T_PATH", search)
 			want := ""
 			switch failure {
 			case "empty":
 				if err := os.MkdirAll(filepath.Join(root, "example.com/lib/shapes"), 0o755); err != nil {
 					t.Fatal(err)
 				}
-				want = "no .gfx files in " + filepath.Join(root, "example.com/lib/shapes")
+				want = "no .gt files in " + filepath.Join(root, "example.com/lib/shapes")
 			case "invalid":
 				library := t.TempDir()
-				writeSources(t, library, map[string]string{"go.mod": "module example.com/lib\ngo 1.22\n", "lib.gfx": "package lib\n", "shapes/broken.gfx": "invalid dependency source"})
+				writeSources(t, library, map[string]string{"go.mod": "module example.com/lib\ngo 1.22\n", "lib.gt": "package lib\n", "shapes/broken.gt": "invalid dependency source"})
 				writeSources(t, root, map[string]string{"go.mod": "module example.com/app\ngo 1.22\nrequire example.com/lib v1.0.0\nreplace example.com/lib => " + strconv.Quote(library) + "\n"})
-				want = "broken.gfx"
+				want = "broken.gt"
 			case "unresolved":
 				writeSources(t, root, map[string]string{"go.mod": "module example.com/app\ngo 1.22\n"})
 				want = "resolve dependency example.com/lib: go list -m -json example.com/lib:"
 			case "prefix boundary":
-				writeSources(t, root, map[string]string{"app/main.gfx": "package main\nimport \"example.com/library/shapes\"\nfunc main() IO[Unit] { ioPure(unit()) }\n"})
+				writeSources(t, root, map[string]string{"app/main.gt": "package main\nimport \"example.com/library/shapes\"\nfunc main() IO[Unit] { ioPure(unit()) }\n"})
 				want = "module \"example.com/library/shapes\" not found"
 			}
 			_, err := modules.Load([]string{filepath.Join(root, "app")})
@@ -145,13 +145,13 @@ func TestTransitiveDependenciesUseProjectReplacements(t *testing.T) {
 	first := t.TempDir()
 	writeSources(t, first, map[string]string{
 		"go.mod": "module example.com/first\ngo 1.22\nrequire example.com/lib v1.0.0\n",
-		"gofx.mod": "module example.com/first\nrequire example.com/lib v1.0.0\n",
-		"first.gfx": "package first\nimport \"example.com/lib/shapes\"\nfunc answer() Int { shapes.area(6, 7) }\n",
+		"go4t.mod": "module example.com/first\nrequire example.com/lib v1.0.0\n",
+		"first.gt": "package first\nimport \"example.com/lib/shapes\"\nfunc answer() Int { shapes.area(6, 7) }\n",
 	})
 	writeSources(t, root, map[string]string{
 		"go.mod": "module example.com/app\ngo 1.22\nrequire example.com/first v1.0.0\nrequire example.com/lib v1.1.0\nreplace example.com/first => " + strconv.Quote(first) + "\nreplace example.com/lib => " + strconv.Quote(library) + "\n",
-		"gofx.mod": "module example.com/app\nrequire example.com/first v1.0.0\n",
-		"app/main.gfx": "package main\nimport \"example.com/first\"\nfunc main() IO[Unit] { println(show(first.answer())) }\n",
+		"go4t.mod": "module example.com/app\nrequire example.com/first v1.0.0\n",
+		"app/main.gt": "package main\nimport \"example.com/first\"\nfunc main() IO[Unit] { println(show(first.answer())) }\n",
 	})
 	loaded, err := modules.Load([]string{filepath.Join(root, "app")})
 	if err != nil {
@@ -165,7 +165,7 @@ func TestTransitiveDependenciesUseProjectReplacements(t *testing.T) {
 func TestNestedRequirementUsesLongestPrefix(t *testing.T) {
 	root, _ := dependencyProject(t)
 	nested := t.TempDir()
-	writeSources(t, nested, map[string]string{"go.mod": "module example.com/lib/shapes\ngo 1.22\n", "gofx.mod": "module example.com/lib/shapes\n", "shapes.gfx": "package shapes\nfunc area(x Int, y Int) Int { x * y }\n"})
+	writeSources(t, nested, map[string]string{"go.mod": "module example.com/lib/shapes\ngo 1.22\n", "go4t.mod": "module example.com/lib/shapes\n", "shapes.gt": "package shapes\nfunc area(x Int, y Int) Int { x * y }\n"})
 	file := filepath.Join(root, "go.mod")
 	data, err := os.ReadFile(file)
 	if err != nil {
@@ -173,7 +173,7 @@ func TestNestedRequirementUsesLongestPrefix(t *testing.T) {
 	}
 	writeSources(t, root, map[string]string{
 		"go.mod": string(data) + "require example.com/lib/shapes v1.0.0\nreplace example.com/lib/shapes => " + strconv.Quote(nested) + "\n",
-		"gofx.mod": "module example.com/app\nrequire example.com/lib v1.0.0\nrequire example.com/lib/shapes v1.0.0\n",
+		"go4t.mod": "module example.com/app\nrequire example.com/lib v1.0.0\nrequire example.com/lib/shapes v1.0.0\n",
 	})
 	loaded, err := modules.Load([]string{filepath.Join(root, "app")})
 	if err != nil {
@@ -186,7 +186,7 @@ func TestNestedRequirementUsesLongestPrefix(t *testing.T) {
 
 func TestManifestParsingAndUpdates(t *testing.T) {
 	root := t.TempDir()
-	writeSources(t, root, map[string]string{"gofx.mod": "// library dependencies\nmodule example.com/app\n\nrequire example.com/lib v1.0.0 // local\nrequire example.com/other v2.0.0\n"})
+	writeSources(t, root, map[string]string{"go4t.mod": "// library dependencies\nmodule example.com/app\n\nrequire example.com/lib v1.0.0 // local\nrequire example.com/other v2.0.0\n"})
 	manifest, err := modules.ReadManifest(root)
 	if err != nil {
 		t.Fatal(err)
@@ -210,9 +210,9 @@ func TestInvalidManifestErrors(t *testing.T) {
 		{"module example.com/app\nrequire example.com/lib v1.0.0\nrequire example.com/lib v1.1.0\n", "duplicate require example.com/lib"},
 	} {
 		root := t.TempDir()
-		writeSources(t, root, map[string]string{"gofx.mod": tt.source})
+		writeSources(t, root, map[string]string{"go4t.mod": tt.source})
 		_, err := modules.ReadManifest(root)
-		if want := "invalid gofx.mod in " + root + ": " + tt.want; err == nil || err.Error() != want {
+		if want := "invalid go4t.mod in " + root + ": " + tt.want; err == nil || err.Error() != want {
 			t.Fatalf("ReadManifest(%q)=%v; want %q", tt.source, err, want)
 		}
 	}

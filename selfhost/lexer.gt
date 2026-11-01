@@ -1,0 +1,282 @@
+package main
+
+// Rune-list port of lexer/lexer.go. Each trivia gap is consumed once, with its
+// first newline retained for layout; lookahead only inspects a bounded prefix.
+// Every brace resets layout, including record braces. The parser, not the lexer,
+// ignores inserted semicolons between record fields (SPEC section 1.6).
+extern func isLetter(c String) Bool = "go4t/rt".IsLetter
+extern func isDigit(c String) Bool = "go4t/rt".StartsDigit
+extern func isSpace(c String) Bool = "go4t/rt".StartsSpace
+extern func unquote(s String) Option[String] = "go4t/rt".Unquote
+extern func quote(s String) String = "go4t/rt".Quote
+
+type LexCursor = LxCursor{rest: List[String], pos: Pos}
+type LexGap = LxGap{cursor: LexCursor, newline: Option[Pos]}
+type LexCapture = LxCapture{cursor: LexCursor, rev: List[String]}
+
+func lex(src String, base Pos) Result[List[Token]] {
+  lexTokens(LxCursor{rest: chars(src), pos: base}, false, Nil, Nil)
+}
+
+func lexAdvance(c LexCursor) LexCursor {
+  match c.rest {
+    Nil => c
+    Cons(r, rest) => LxCursor{rest: rest, pos: if r == "\n" {
+      Pos{line: c.pos.line + 1, col: 1}
+    } else { Pos{line: c.pos.line, col: c.pos.col + 1} }}
+  }
+}
+
+func lexIsIdentRune(c String) Bool { c == "_" || isLetter(c) || isDigit(c) }
+
+func lexSkipComment(c LexCursor) LexCursor {
+  match c.rest {
+    Nil => c
+    Cons("\n", _) => c
+    _ => lexSkipComment(lexAdvance(c))
+  }
+}
+
+func lexSkipGap(c LexCursor, newline Option[Pos]) LexGap {
+  match c.rest {
+    Cons("/", Cons("/", _)) => lexSkipGap(lexSkipComment(c), newline)
+    Cons("\n", _) => lexSkipGap(lexAdvance(c), match newline {
+      None => Some(c.pos)
+      _ => newline
+    })
+    Cons(r, _) if isSpace(r) => lexSkipGap(lexAdvance(c), newline)
+    _ => LxGap{cursor: c, newline: newline}
+  }
+}
+
+func lexWordEnd(input List[String]) Bool {
+  match input { Nil => true | Cons(r, _) => !lexIsIdentRune(r) }
+}
+
+func lexContinuation(input List[String]) Bool {
+  match input {
+    Cons(r, _) if contains(".)]|+-*/%<>", r) => true
+    Cons("=", Cons(r, _)) => r == "=" || r == ">"
+    Cons("!", Cons("=", _)) => true
+    Cons("&", Cons("&", _)) => true
+    Cons("e", Cons("l", Cons("s", Cons("e", rest)))) => lexWordEnd(rest)
+    Cons("g", Cons("i", Cons("v", Cons("e", Cons("n", rest))))) => lexWordEnd(rest)
+    Cons("d", Cons("e", Cons("r", Cons("i", Cons("v", Cons("i", Cons("n", Cons("g", rest)))))))) => lexWordEnd(rest)
+    _ => false
+  }
+}
+
+func lexStatementContext(nest List[String]) Bool {
+  match nest { Nil => true | Cons(r, _) => r == "{" }
+}
+
+func lexCanEnd(t Token) Bool {
+  match t.kind {
+    TkIdent => true
+    TkInt => true
+    TkString => true
+    TkInterp => true
+    TkKeyword => t.text == "true" || t.text == "false"
+    TkPunct => contains(")]}_", t.text)
+    _ => false
+  }
+}
+
+func lexNest(nest List[String], t Token) List[String] {
+  if t.kind == TkPunct {
+    if contains("([{", t.text) { Cons(t.text, nest) }
+    else if contains(")]}", t.text) { tail(nest) }
+    else { nest }
+  } else { nest }
+}
+
+func lexToken(kind TokKind, text String, pos Pos) Token {
+  Token{kind: kind, text: text, pos: pos, parts: Nil}
+}
+
+func lexTokens(c LexCursor, canEnd Bool, nest List[String], rev List[Token]) Result[List[Token]] {
+  let gap = lexSkipGap(c, None)
+  let cursor = gap.cursor
+  let atEnd = match cursor.rest { Nil => true | _ => false }
+  let insertSemi = (isSome(gap.newline) || atEnd) && canEnd
+    && lexStatementContext(nest) && !lexContinuation(cursor.rest)
+  let out = if insertSemi {
+    Cons(lexToken(TkSemi, ";", fromOption(gap.newline, cursor.pos)), rev)
+  } else { rev }
+  if atEnd { Ok(reverse(Cons(lexToken(TkEOF, "", cursor.pos), out))) }
+  else {
+    match lexNext(cursor) {
+      Err(d) => Err(d)
+      Ok((t, after)) => lexTokens(after, lexCanEnd(t), lexNest(nest, t), Cons(t, out))
+    }
+  }
+}
+
+func lexTakeWhile(c LexCursor, predicate func(String) Bool, rev List[String]) LexCapture {
+  match c.rest {
+    Cons(r, _) if predicate(r) => lexTakeWhile(lexAdvance(c), predicate, Cons(r, rev))
+    _ => LxCapture{cursor: c, rev: rev}
+  }
+}
+
+func lexKeyword(s String) Bool {
+  match s {
+    "package" => true
+    "class" => true
+    "instance" => true
+    "type" => true
+    "func" => true
+    "extern" => true
+    "let" => true
+    "do" => true
+    "match" => true
+    "if" => true
+    "else" => true
+    "true" => true
+    "false" => true
+    "given" => true
+    "deriving" => true
+    _ => false
+  }
+}
+
+func lexStartsIdent(input List[String]) Bool {
+  match input {
+    Cons("_", Cons(next, _)) => lexIsIdentRune(next)
+    Cons(r, _) => isLetter(r)
+    Nil => false
+  }
+}
+
+func lexDoublePunct(a String, b String) Bool {
+  match a {
+    "=" => b == ">" || b == "="
+    "<" => b == "-" || b == "="
+    "!" => b == "="
+    ">" => b == "="
+    "&" => b == "&"
+    "|" => b == "|"
+    "." => b == "."
+    _ => false
+  }
+}
+
+func lexNext(c LexCursor) Result[(Token, LexCursor)] {
+  match c.rest {
+    Cons(r, _) if lexStartsIdent(c.rest) => {
+      let captured = lexTakeWhile(c, lexIsIdentRune, Nil)
+      let text = strConcat(reverse(captured.rev))
+      Ok((lexToken(if lexKeyword(text) { TkKeyword } else { TkIdent }, text, c.pos), captured.cursor))
+    }
+    Cons(r, _) if isDigit(r) => {
+      let captured = lexTakeWhile(c, isDigit, Nil)
+      Ok((lexToken(TkInt, strConcat(reverse(captured.rev)), c.pos), captured.cursor))
+    }
+    Cons("\"", _) => lexString(lexAdvance(c), c.pos, ["\""], Nil, Nil)
+    Cons(a, Cons(b, _)) if lexDoublePunct(a, b) =>
+      Ok((lexToken(TkPunct, a + b, c.pos), lexAdvance(lexAdvance(c))))
+    Cons(r, _) if contains("()[]{},;.=:|_@+-*/%<>!", r) =>
+      Ok((lexToken(if r == ";" { TkSemi } else { TkPunct }, r, c.pos), lexAdvance(c)))
+    Cons(r, _) => Err(Diag{pos: c.pos, msg: "unexpected character " + lexQuoteRune(r)})
+    Nil => Ok((lexToken(TkEOF, "", c.pos), c))
+  }
+}
+
+func lexQuoteRune(c String) String {
+  let quoted = quote(c)
+  let inner = substring(quoted, 1, strLength(quoted) - 1)
+  "'" + replace(replace(inner, "\\\"", "\""), "'", "\\'") + "'"
+}
+
+// Decode only top-level literal segments. Dollar collapse must precede Go
+// escape decoding, so a decoded dollar cannot consume an adjacent source '$'.
+func lexStringText(rev List[String], pos Pos) Result[String] {
+  let raw = replace(strConcat(reverse(rev)), "$$$$", "$$")
+  match unquote("\"" + raw + "\"") {
+    Some(text) => Ok(text)
+    None => Err(Diag{pos: pos, msg: "bad string literal: invalid syntax"})
+  }
+}
+
+func lexString(c LexCursor, start Pos, rawRev List[String], textRev List[String], partsRev List[InterpPart]) Result[(Token, LexCursor)] {
+  match c.rest {
+    Cons("\\", Cons(r, _)) if r != "\n" =>
+      lexString(lexAdvance(lexAdvance(c)), start, Cons(r, Cons("\\", rawRev)), Cons(r, Cons("\\", textRev)), partsRev)
+    Cons("\"", _) => match lexStringText(textRev, start) {
+      Err(d) => Err(d)
+      Ok(text) => {
+        let token = match partsRev {
+          Nil => lexToken(TkString, text, start)
+          _ => Token{kind: TkInterp, text: strConcat(reverse(Cons("\"", rawRev))), pos: start,
+            parts: reverse(Cons(IPText(text), partsRev))}
+        }
+        Ok((token, lexAdvance(c)))
+      }
+    }
+    Cons("$$", Cons("$$", _)) =>
+      lexString(lexAdvance(lexAdvance(c)), start, Cons("$$", Cons("$$", rawRev)), Cons("$$", Cons("$$", textRev)), partsRev)
+    Cons("$$", Cons("{", _)) => match lexStringText(textRev, start) {
+      Err(d) => Err(d)
+      Ok(text) => {
+        let exprStart = lexAdvance(lexAdvance(c))
+        match lexInterpolation(exprStart, c.pos, 1, Nil) {
+          Err(d) => Err(d)
+          Ok(captured) => lexString(captured.cursor, start,
+            append(captured.rev, Cons("{", Cons("$$", rawRev))), Nil,
+            Cons(IPExpr(strConcat(reverse(tail(captured.rev))), exprStart.pos), Cons(IPText(text), partsRev)))
+        }
+      }
+    }
+    Nil => Err(Diag{pos: start, msg: "unterminated string"})
+    Cons("\n", _) => Err(Diag{pos: start, msg: "unterminated string"})
+    Cons("\\", _) => Err(Diag{pos: start, msg: "unterminated string"})
+    Cons(r, _) => lexString(lexAdvance(c), start, Cons(r, rawRev), Cons(r, textRev), partsRev)
+  }
+}
+
+// Nested strings only balance delimiters; their escapes are deliberately not
+// decoded or validated until the expression's own lexer sees them. Passing one
+// reverse accumulator through nested scans avoids quadratic source copying.
+func lexSkipString(c LexCursor, start Pos, rev List[String]) Result[LexCapture] {
+  match c.rest {
+    Cons("\\", Cons(r, _)) if r != "\n" =>
+      lexSkipString(lexAdvance(lexAdvance(c)), start, Cons(r, Cons("\\", rev)))
+    Cons("\"", _) => Ok(LxCapture{cursor: lexAdvance(c), rev: Cons("\"", rev)})
+    Cons("$$", Cons("$$", _)) => lexSkipString(lexAdvance(lexAdvance(c)), start, Cons("$$", Cons("$$", rev)))
+    Cons("$$", Cons("{", _)) => match lexInterpolation(lexAdvance(lexAdvance(c)), c.pos, 1, Cons("{", Cons("$$", rev))) {
+      Err(d) => Err(d)
+      Ok(captured) => lexSkipString(captured.cursor, start, captured.rev)
+    }
+    Nil => Err(Diag{pos: start, msg: "unterminated string"})
+    Cons("\n", _) => Err(Diag{pos: start, msg: "unterminated string"})
+    Cons("\\", _) => Err(Diag{pos: start, msg: "unterminated string"})
+    Cons(r, _) => lexSkipString(lexAdvance(c), start, Cons(r, rev))
+  }
+}
+
+func lexCaptureComment(c LexCursor, rev List[String]) LexCapture {
+  match c.rest {
+    Nil => LxCapture{cursor: c, rev: rev}
+    Cons("\n", _) => LxCapture{cursor: c, rev: rev}
+    Cons(r, _) => lexCaptureComment(lexAdvance(c), Cons(r, rev))
+  }
+}
+
+func lexInterpolation(c LexCursor, start Pos, depth Int, rev List[String]) Result[LexCapture] {
+  match c.rest {
+    Nil => Err(Diag{pos: start, msg: "unterminated interpolation"})
+    Cons("\"", _) => match lexSkipString(lexAdvance(c), c.pos, Cons("\"", rev)) {
+      Err(_) => Err(Diag{pos: start, msg: "unterminated interpolation"})
+      Ok(captured) => lexInterpolation(captured.cursor, start, depth, captured.rev)
+    }
+    Cons("{", _) => lexInterpolation(lexAdvance(c), start, depth + 1, Cons("{", rev))
+    Cons("}", _) => if depth == 1 {
+      Ok(LxCapture{cursor: lexAdvance(c), rev: Cons("}", rev)})
+    } else { lexInterpolation(lexAdvance(c), start, depth - 1, Cons("}", rev)) }
+    Cons("/", Cons("/", _)) => {
+      let captured = lexCaptureComment(c, rev)
+      lexInterpolation(captured.cursor, start, depth, captured.rev)
+    }
+    Cons(r, _) => lexInterpolation(lexAdvance(c), start, depth, Cons(r, rev))
+  }
+}

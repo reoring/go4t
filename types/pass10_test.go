@@ -5,14 +5,14 @@ import (
 	"reflect"
 	"testing"
 
-	"gofx/ast"
-	"gofx/parser"
-	"gofx/types"
+	"go4t/ast"
+	"go4t/parser"
+	"go4t/types"
 )
 
 const pass10Debug = pass5Show + `
 class Debug[A] { debug(a A) String }
-extern func debugString(s String) String = "gofx/rt".DebugString
+extern func debugString(s String) String = "go4t/rt".DebugString
 instance Debug[Int] { debug(a) { showInt(a) } }
 instance Debug[String] { debug(a) { debugString(a) } }
 `
@@ -108,10 +108,10 @@ func TestPass10Diagnostics(t *testing.T) {
 	} {
 		t.Run(tt.source, func(t *testing.T) {
 			files := parseFiles(t, tt.source+pass5Main)
-			files[1].Name = "pass10.gfx"
+			files[1].Name = "pass10.gt"
 			p, err := checkFixture(t, []*ast.Module{{Files: files}})
 			var typed *types.Error
-			if p != nil || !errors.As(err, &typed) || typed.Msg != tt.want || typed.File != "pass10.gfx" || typed.Pos.Line == 0 || typed.Pos.Col == 0 {
+			if p != nil || !errors.As(err, &typed) || typed.Msg != tt.want || typed.File != "pass10.gt" || typed.Pos.Line == 0 || typed.Pos.Col == 0 {
 				t.Fatalf("Check = (%v, %v), want positioned %q", p, err, tt.want)
 			}
 		})

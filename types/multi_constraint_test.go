@@ -5,8 +5,8 @@ import (
 	"reflect"
 	"testing"
 
-	"gofx/ast"
-	"gofx/types"
+	"go4t/ast"
+	"go4t/types"
 )
 
 func TestMultiConstraintSchemeOrder(t *testing.T) {
@@ -46,7 +46,7 @@ func TestMultiConstraintDiagnostics(t *testing.T) {
 	} {
 		t.Run(tc.source, func(t *testing.T) {
 			files := parseFiles(t, tc.source+pass5Main)
-			files[1].Name = "multi.gfx"
+			files[1].Name = "multi.gt"
 			_, err := checkFixture(t, []*ast.Module{{Files: files}})
 			var typed *types.Error
 			if !errors.As(err, &typed) || typed.Msg != tc.want || typed.Pos.Line == 0 || typed.Pos.Col == 0 {

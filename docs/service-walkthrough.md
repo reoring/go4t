@@ -15,13 +15,13 @@ claim that an entire robust demonstration fits in 30 lines.
 
 ## 1. Files, imports, and records
 
-`main.gfx` and `service.gfx` both say `package main`. Like Go files in one
+`main.gt` and `service.gt` both say `package main`. Like Go files in one
 package, their top-level declarations are mutually visible. Unlike Go module
-resolution, a directory argument loads its immediate `.gfx` files in lexical
-filename order; it does not recursively traverse subdirectories. A `gofx.mod`
+resolution, a directory argument loads its immediate `.gt` files in lexical
+filename order; it does not recursively traverse subdirectories. A `go4t.mod`
 is unnecessary for this std-only directory. Imports are file-scoped, so each
 file imports the standard modules whose qualified names it uses. The third file,
-`service_test.gfx`, is loaded too: `_test` is a naming convention here, not a
+`service_test.gt`, is loaded too: `_test` is a naming convention here, not a
 Go-style build exclusion.
 
 The service's data declarations are:
@@ -209,7 +209,7 @@ of an already occupied port: reserve free ports for the demonstration.
 
 ## 7. The two language tests
 
-`gofx test` discovers zero-argument, nongeneric `test*` functions returning `Bool`
+`go4t test` discovers zero-argument, nongeneric `test*` functions returning `Bool`
 or `IO[Bool]` and replaces the normal main entry point. It does not run this
 example's demonstration as test setup.
 
@@ -239,11 +239,11 @@ diagnostic to suppress or compiler/library bug to patch.
 
 | Point and exact code | What had to be looked up or was missing | Diagnostic |
 | --- | --- | --- |
-| `package main` in all three files; `import "std/json"` repeated where used | SPEC §2: directory loading, file-scoped imports, shared declarations, no required manifest for std-only use. `_test.gfx` is not excluded from ordinary loads. | None; lookup only. |
-| `http.requestWithTimeout(http.Request("GET", upstream + "/orders", "", [], [], ""), 1000)` | `docs/stdlib.md`, `std/http/http.gfx`, and `examples/http/main.gfx`: constructor field order, millisecond budget, URL/path semantics. Wanted a GET-with-timeout convenience helper; the API requires a six-field Request. | None; existing API works. |
+| `package main` in all three files; `import "std/json"` repeated where used | SPEC §2: directory loading, file-scoped imports, shared declarations, no required manifest for std-only use. `_test.gt` is not excluded from ordinary loads. | None; lookup only. |
+| `http.requestWithTimeout(http.Request("GET", upstream + "/orders", "", [], [], ""), 1000)` | `docs/stdlib.md`, `std/http/http.gt`, and `examples/http/main.gt`: constructor field order, millisecond budget, URL/path semantics. Wanted a GET-with-timeout convenience helper; the API requires a six-field Request. | None; existing API works. |
 | `fetched <- io.tryIO(...)` and `io.ioErrorMessage(e)` | SPEC §6.2/§6.4: typed failures versus ordinary non-2xx responses, message-preserving 502 body, `ioRaise` versus raising a generic failure. | None; lookup only. |
 | `let decoded: Result[String, List[Order]] = do { value <- json.parseJson(response.body); json.decode(value) }` | `std/json` docs and HTTP example: parsing text is separate from derived decoding, and the result annotation selects the schema. Wanted a text-to-derived-value helper; used the existing two-step idiom instead. | None; existing API works. |
-| `map.mapAlter(totals, order.customer, func(previous) => Some(result.fromOption(previous, 0.0) + order.amount))` | `std/map/map.gfx` and sales-report example: persistent-map update signature, absent-value handling, fold argument order, deterministic key ordering. The package-qualified names are more verbose than Go's map indexing. | None; lookup only. |
+| `map.mapAlter(totals, order.customer, func(previous) => Some(result.fromOption(previous, 0.0) + order.amount))` | `std/map/map.gt` and sales-report example: persistent-map update signature, absent-value handling, fold argument order, deterministic key ordering. The package-qualified names are more verbose than Go's map indexing. | None; lookup only. |
 | `show(report.totals)` and `Report(aggregate(orders))` | Float/Map/JSON docs: integral Floats display with `.0`, but JSON numeric text need not retain it. | None; lookup only. |
 | `portArg(tail(argv), 18082)` and `head(args) \|> flatMap(string.parseInt) \|> result.fromOption(_, fallback)` | Existing HTTP/sales examples and IO docs: program arguments exclude the executable; missing or noninteger values can fall back through Option. | None; lookup only. |
 | `conc.fork(http.serve(...))`, `conc.cancel(upstream)`, `conc.withTimeout(2000, waitDown(...))` | SPEC §6.3/§6.4, stdlib docs, `rt/conc.go`: fork is not ready, cancel is not joined, cancelled await is not listener closure. Wanted a ready/closed server handle; bounded endpoint probes are necessary with this API. | None; lifecycle friction, not a bug. |
@@ -262,12 +262,12 @@ compiler/runtime changes were made, and `selfhost/` was untouched.
 ### Formatting and normal execution
 
 ```sh
-go run ./cmd/gofx check examples/http-service
-go run ./cmd/gofx fmt -w examples/http-service
-go run ./cmd/gofx fmt -l examples/http-service
-go run ./cmd/gofx run examples/http-service
-go run ./cmd/gofx run examples/http-service -- 18181 18182
-go run ./cmd/gofx test examples/http-service
+go run ./cmd/go4t check examples/http-service
+go run ./cmd/go4t fmt -w examples/http-service
+go run ./cmd/go4t fmt -l examples/http-service
+go run ./cmd/go4t run examples/http-service
+go run ./cmd/go4t run examples/http-service -- 18181 18182
+go run ./cmd/go4t test examples/http-service
 ```
 
 Every command exited **0**. The initial check and both format commands produced
@@ -283,30 +283,30 @@ PASS testMock
 
 ### Injected type error: default versus `--full-types`
 
-The temporary edit at `service.gfx:34` replaced `aggregate(orders)` with
+The temporary edit at `service.gt:34` replaced `aggregate(orders)` with
 `aggregate(200)`. No other part of the program changed for this probe.
 
 ```sh
-go run ./cmd/gofx check examples/http-service
+go run ./cmd/go4t check examples/http-service
 ```
 
 Observed stderr, exit **1**:
 
 ```text
-examples/http-service/service.gfx:34:67: type mismatch: expected List[Order], got Int
+examples/http-service/service.gt:34:67: type mismatch: expected List[Order], got Int
             Ok(orders) => http.jsonResponse(200, Report(aggregate(200)))
                                                                   ^~~
 exit status 1
 ```
 
 ```sh
-go run ./cmd/gofx check --full-types examples/http-service
+go run ./cmd/go4t check --full-types examples/http-service
 ```
 
 Observed stderr, exit **1**:
 
 ```text
-examples/http-service/service.gfx:34:67: type mismatch: expected List[Order], got Int
+examples/http-service/service.gt:34:67: type mismatch: expected List[Order], got Int
             Ok(orders) => http.jsonResponse(200, Report(aggregate(200)))
                                                                   ^~~
 exit status 1
@@ -325,32 +325,32 @@ case, and this comparison is not evidence for that separate behavior. The final
 Built a temporary CLI executable to avoid repeatedly including Go compilation:
 
 ```sh
-go build -o examples/http-service/.tooling-gofx ./cmd/gofx
-examples/http-service/.tooling-gofx lsp
+go build -o examples/http-service/.tooling-go4t ./cmd/go4t
+examples/http-service/.tooling-go4t lsp
 ```
 
 A Python subprocess client sent UTF-8 JSON bodies with
 `Content-Length: <byte count>\r\n\r\n` framing, exactly as in the
 [sales-report session](lsp-verification.md). The CLI exited **0** after
 shutdown/exit, and stderr was empty. `$SERVICE` below replaces the absolute
-`file:///workspace/wip/gofx/.wt/http-service/examples/http-service` URI prefix.
-`<service_test.gfx>` and `<service.gfx>` mean the exact complete on-disk source
+`file:///workspace/wip/go4t/.wt/http-service/examples/http-service` URI prefix.
+`<service_test.gt>` and `<service.gt>` mean the exact complete on-disk source
 texts, not literal placeholder text sent to the server. Positions and ranges
 are zero-based UTF-16 positions.
 
 ```text
 → {"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}
-← {"jsonrpc":"2.0","id":1,"result":{"capabilities":{"definitionProvider":true,"documentSymbolProvider":true,"hoverProvider":true,"positionEncoding":"utf-16","textDocumentSync":1},"serverInfo":{"name":"gofx"}}}
+← {"jsonrpc":"2.0","id":1,"result":{"capabilities":{"definitionProvider":true,"documentSymbolProvider":true,"hoverProvider":true,"positionEncoding":"utf-16","textDocumentSync":1},"serverInfo":{"name":"go4t"}}}
 → {"jsonrpc":"2.0","method":"initialized","params":{}}
-→ {"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"$SERVICE/service_test.gfx","languageId":"gofx","version":1,"text":"<service_test.gfx>"}}}
-← {"jsonrpc":"2.0","method":"textDocument/publishDiagnostics","params":{"uri":"$SERVICE/service_test.gfx","version":1,"diagnostics":[]}}
-→ {"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"$SERVICE/service.gfx","languageId":"gofx","version":1,"text":"<service.gfx>"}}}
-← {"jsonrpc":"2.0","method":"textDocument/publishDiagnostics","params":{"uri":"$SERVICE/service.gfx","version":1,"diagnostics":[]}}
-← {"jsonrpc":"2.0","method":"textDocument/publishDiagnostics","params":{"uri":"$SERVICE/service_test.gfx","version":1,"diagnostics":[]}}
-→ {"jsonrpc":"2.0","id":2,"method":"textDocument/hover","params":{"textDocument":{"uri":"$SERVICE/service_test.gfx"},"position":{"line":9,"character":2}}}
+→ {"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"$SERVICE/service_test.gt","languageId":"go4t","version":1,"text":"<service_test.gt>"}}}
+← {"jsonrpc":"2.0","method":"textDocument/publishDiagnostics","params":{"uri":"$SERVICE/service_test.gt","version":1,"diagnostics":[]}}
+→ {"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"$SERVICE/service.gt","languageId":"go4t","version":1,"text":"<service.gt>"}}}
+← {"jsonrpc":"2.0","method":"textDocument/publishDiagnostics","params":{"uri":"$SERVICE/service.gt","version":1,"diagnostics":[]}}
+← {"jsonrpc":"2.0","method":"textDocument/publishDiagnostics","params":{"uri":"$SERVICE/service_test.gt","version":1,"diagnostics":[]}}
+→ {"jsonrpc":"2.0","id":2,"method":"textDocument/hover","params":{"textDocument":{"uri":"$SERVICE/service_test.gt"},"position":{"line":9,"character":2}}}
 ← {"jsonrpc":"2.0","id":2,"result":{"contents":{"kind":"plaintext","value":"aggregate : func(List[Order]) Map[String, Float]"},"range":{"start":{"line":9,"character":2},"end":{"line":9,"character":11}}}}
-→ {"jsonrpc":"2.0","id":3,"method":"textDocument/definition","params":{"textDocument":{"uri":"$SERVICE/service_test.gfx"},"position":{"line":9,"character":2}}}
-← {"jsonrpc":"2.0","id":3,"result":{"uri":"$SERVICE/service.gfx","range":{"start":{"line":14,"character":5},"end":{"line":14,"character":14}}}}
+→ {"jsonrpc":"2.0","id":3,"method":"textDocument/definition","params":{"textDocument":{"uri":"$SERVICE/service_test.gt"},"position":{"line":9,"character":2}}}
+← {"jsonrpc":"2.0","id":3,"result":{"uri":"$SERVICE/service.gt","range":{"start":{"line":14,"character":5},"end":{"line":14,"character":14}}}}
 → {"jsonrpc":"2.0","id":4,"method":"shutdown","params":{}}
 ← {"jsonrpc":"2.0","id":4,"result":null}
 → {"jsonrpc":"2.0","method":"exit"}
@@ -359,7 +359,7 @@ are zero-based UTF-16 positions.
 `lsp/http_service_test.go` replays this through the existing Content-Length-framed
 `Serve` test client. It reads the real example files, checks empty diagnostics,
 URI/version publication order, the exact aggregate hover signature/range, its
-cross-file definition into `service.gfx`, and shutdown. It does not simulate an
+cross-file definition into `service.gt`, and shutdown. It does not simulate an
 editor or claim VS Code attachment.
 
 ### Compile-scale timing for this actual program
@@ -371,7 +371,7 @@ Used Bash's `time` keyword on the restored program and the prebuilt CLI, not on
 TIMEFORMAT='wall_seconds=%3R user_seconds=%3U sys_seconds=%3S'
 for run in 1 2 3 4 5; do
   printf 'sample %s: ' "$run"
-  time examples/http-service/.tooling-gofx check examples/http-service
+  time examples/http-service/.tooling-go4t check examples/http-service
 done
 ```
 
@@ -403,8 +403,8 @@ loading includes that file.
 Observed test output, exit **0**:
 
 ```text
-ok  	gofx/lsp	0.317s
-ok  	gofx/docs	0.250s
+ok  	go4t/lsp	0.317s
+ok  	go4t/docs	0.250s
 ```
 
 The wrapper acquired shared slot 1 and released it after the command. This
@@ -413,8 +413,8 @@ checks. The documentation package's existing executable-snippet inventory does
 not automatically include this new walkthrough; its excerpts are explanatory,
 and the real example was exercised by the separate CLI checks above.
 
-The temporary `.tooling-gofx` binary was removed with
-`rm -- examples/http-service/.tooling-gofx` (exit 0). The injected type error was
+The temporary `.tooling-go4t` binary was removed with
+`rm -- examples/http-service/.tooling-go4t` (exit 0). The injected type error was
 restored, the stdio subprocess exited normally, and both demonstration runs and
 the IO test cancelled their server fibers. No helper scripts or generated
 binaries were retained. No commit, push, live-cluster access, compiler/runtime

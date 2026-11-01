@@ -10,9 +10,9 @@ import (
 	"sort"
 	"strings"
 
-	"gofx/ast"
-	"gofx/parser"
-	"gofx/std"
+	"go4t/ast"
+	"go4t/parser"
+	"go4t/std"
 )
 
 // Error preserves the importing source and span for CLI and editor diagnostics.
@@ -26,7 +26,7 @@ func (e *Error) Error() string   { return fmt.Sprintf("%s:%s: %s", e.File, e.Pos
 func (e *Error) GetPos() ast.Pos { return e.Pos }
 func (e *Error) GetEnd() ast.Pos { return e.End }
 
-// Load accepts explicit entry files or a directory (all its .gfx files).
+// Load accepts explicit entry files or a directory (all its .gt files).
 // Imported directories are always loaded in lexical filename order.
 func Load(inputs []string) ([]*ast.Module, error) {
 	var files []*ast.File
@@ -135,12 +135,12 @@ func sourceFiles(dir string) ([]string, error) {
 	}
 	var files []string
 	for _, e := range entries {
-		if !e.IsDir() && strings.HasSuffix(e.Name(), ".gfx") {
+		if !e.IsDir() && strings.HasSuffix(e.Name(), ".gt") {
 			files = append(files, filepath.Join(dir, e.Name()))
 		}
 	}
 	if len(files) == 0 {
-		return nil, fmt.Errorf("no .gfx files in %s", dir)
+		return nil, fmt.Errorf("no .gt files in %s", dir)
 	}
 	return files, nil
 }
@@ -211,7 +211,7 @@ func (l *loader) importModule(importPath, from string) (*ast.Module, error) {
 		if m := l.seen[importPath]; m != nil {
 			return m, nil
 		}
-		names, err := fs.Glob(std.FS, strings.TrimPrefix(importPath, "std/")+"/*.gfx")
+		names, err := fs.Glob(std.FS, strings.TrimPrefix(importPath, "std/")+"/*.gt")
 		if err != nil {
 			return nil, err
 		}
@@ -282,7 +282,7 @@ func (l *loader) resolveDirectory(importPath, from string) (string, error) {
 			}
 		}
 	}
-	for _, root := range filepath.SplitList(os.Getenv("GOFX_PATH")) {
+	for _, root := range filepath.SplitList(os.Getenv("GO4T_PATH")) {
 		if root == "" {
 			continue
 		}

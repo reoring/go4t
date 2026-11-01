@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"gofx/ast"
-	"gofx/parser"
+	"go4t/ast"
+	"go4t/parser"
 )
 
 func TestListPatterns(t *testing.T) {

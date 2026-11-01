@@ -3,7 +3,7 @@ package types
 import (
 	"strings"
 
-	"gofx/ast"
+	"go4t/ast"
 )
 
 // Alias bodies are resolved once in their own parameter scope. Keeping the

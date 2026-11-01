@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"gofx/ast"
+	"go4t/ast"
 )
 
 func TestSpecializationNodeBudget(t *testing.T) {
@@ -49,7 +49,7 @@ func TestSpecializationCopyBudget(t *testing.T) {
 		fmt.Fprintf(&expected, "Box%d(%d)\n", i, i)
 	}
 	source.WriteString("} }\n")
-	generated := qualityProgram(t, "copies.gfx", source.String())
+	generated := qualityProgram(t, "copies.gt", source.String())
 	if n := strings.Count(string(generated), "func render__special"); n != 8 {
 		t.Fatalf("got %d copies, want 8", n)
 	}
@@ -63,7 +63,7 @@ func TestSpecializationCopyBudget(t *testing.T) {
 }
 
 func TestSpecializationTailCallsAndUnconstrainedTypes(t *testing.T) {
-	generated := qualityProgram(t, "special-tail.gfx", `package main
+	generated := qualityProgram(t, "special-tail.gt", `package main
 func repeatValue[A Show](n Int, x A) String { if n == 0 { show(x) } else { repeatValue(n - 1, x) } }
 func keepOther[A Show, B](x A, y B) B { let text = show(x); y }
 func forward[A Show](x A) String { repeatValue(1000000, x) }

@@ -1,8 +1,8 @@
 # Diagnostics
 
-Run commands from the repository root. `main.gfx` is a valid executable; the
-`bad_*.gfx` files deliberately exercise checker diagnostics. Missing-pattern and
-missing-instance examples exit 1. `bad_unused.gfx` contains only warnings and
+Run commands from the repository root. `main.gt` is a valid executable; the
+`bad_*.gt` files deliberately exercise checker diagnostics. Missing-pattern and
+missing-instance examples exit 1. `bad_unused.gt` contains only warnings and
 exits 0. Warnings do not prevent `build` or `run`.
 
 The source excerpt is clamped to the first line of a multiline expression. A
@@ -10,13 +10,13 @@ caret is followed by tildes for the remaining span. Missing patterns are concret
 uncovered shapes, with `_` for unconstrained fields; at most five are listed.
 
 `go run` adds its own `exit status 1` line for failing checks; it is included in the
-captured output below. The installed `gofx check` command prints the same
+captured output below. The installed `go4t check` command prints the same
 compiler diagnostics without that Go-launcher line.
 
 ## Valid program
 
 ```console
-$ go run ./cmd/gofx run examples/diagnostics/main.gfx
+$ go run ./cmd/go4t run examples/diagnostics/main.gt
 count: 3
 ```
 
@@ -26,8 +26,8 @@ deliberately ignores the second field of the disabled alternative.
 ## Missing constructors
 
 ```console
-$ go run ./cmd/gofx check examples/diagnostics/bad_missing_ctor.gfx
-examples/diagnostics/bad_missing_ctor.gfx:4:3: non-exhaustive match; missing: None, Some(_)
+$ go run ./cmd/go4t check examples/diagnostics/bad_missing_ctor.gt
+examples/diagnostics/bad_missing_ctor.gt:4:3: non-exhaustive match; missing: None, Some(_)
   match item {
   ^~~~~~~~~~~~
 exit status 1
@@ -38,8 +38,8 @@ The guarded wildcard does not cover either constructor.
 ## Nested constructors
 
 ```console
-$ go run ./cmd/gofx check examples/diagnostics/bad_missing_nested.gfx
-examples/diagnostics/bad_missing_nested.gfx:4:3: non-exhaustive match; missing: Some(Some(_))
+$ go run ./cmd/go4t check examples/diagnostics/bad_missing_nested.gt
+examples/diagnostics/bad_missing_nested.gt:4:3: non-exhaustive match; missing: Some(Some(_))
   match item {
   ^~~~~~~~~~~~
 exit status 1
@@ -48,8 +48,8 @@ exit status 1
 ## Tuple and Bool
 
 ```console
-$ go run ./cmd/gofx check examples/diagnostics/bad_missing_tuple.gfx
-examples/diagnostics/bad_missing_tuple.gfx:4:3: non-exhaustive match; missing: (true, _)
+$ go run ./cmd/go4t check examples/diagnostics/bad_missing_tuple.gt
+examples/diagnostics/bad_missing_tuple.gt:4:3: non-exhaustive match; missing: (true, _)
   match pair {
   ^~~~~~~~~~~~
 exit status 1
@@ -58,8 +58,8 @@ exit status 1
 ## Literal hole
 
 ```console
-$ go run ./cmd/gofx check examples/diagnostics/bad_missing_literal.gfx
-examples/diagnostics/bad_missing_literal.gfx:4:3: non-exhaustive match; missing: Some(1)
+$ go run ./cmd/go4t check examples/diagnostics/bad_missing_literal.gt
+examples/diagnostics/bad_missing_literal.gt:4:3: non-exhaustive match; missing: Some(1)
   match item {
   ^~~~~~~~~~~~
 exit status 1
@@ -70,8 +70,8 @@ exit status 1
 ## Missing instance hint
 
 ```console
-$ go run ./cmd/gofx check examples/diagnostics/bad_hint.gfx
-examples/diagnostics/bad_hint.gfx:6:11: no instance Show[Hidden]; hint: write 'instance Show[Hidden]' (or 'deriving Debug' for a structural form)
+$ go run ./cmd/go4t check examples/diagnostics/bad_hint.gt
+examples/diagnostics/bad_hint.gt:6:11: no instance Show[Hidden]; hint: write 'instance Show[Hidden]' (or 'deriving Debug' for a structural form)
   println(show(Hidden))
           ^~~~
 exit status 1
@@ -80,14 +80,14 @@ exit status 1
 ## Unused locals
 
 ```console
-$ go run ./cmd/gofx check examples/diagnostics/bad_unused.gfx
-examples/diagnostics/bad_unused.gfx:4:7: warning: forgotten is unused; prefix with _ to silence
+$ go run ./cmd/go4t check examples/diagnostics/bad_unused.gt
+examples/diagnostics/bad_unused.gt:4:7: warning: forgotten is unused; prefix with _ to silence
   let forgotten = 1
       ^~~~~~~~~
-examples/diagnostics/bad_unused.gfx:5:23: warning: argument is unused; prefix with _ to silence
+examples/diagnostics/bad_unused.gt:5:23: warning: argument is unused; prefix with _ to silence
   let constant = func(argument Int) => "ok"
                       ^~~~~~~~
-examples/diagnostics/bad_unused.gfx:7:10: warning: value is unused; prefix with _ to silence
+examples/diagnostics/bad_unused.gt:7:10: warning: value is unused; prefix with _ to silence
     Some(value) => println(constant(2))
          ^~~~~
 ```
@@ -98,8 +98,8 @@ variable. Prefixing each name with `_` silences its warning.
 ## Alias mismatch
 
 ```console
-$ go run ./cmd/gofx check examples/diagnostics/bad_alias_mismatch.gfx
-examples/diagnostics/bad_alias_mismatch.gfx:8:3: type mismatch: expected Rates, got Int
+$ go run ./cmd/go4t check examples/diagnostics/bad_alias_mismatch.gt
+examples/diagnostics/bad_alias_mismatch.gt:8:3: type mismatch: expected Rates, got Int
   1
   ^
 exit status 1
@@ -115,7 +115,7 @@ all depths; alias names remain intact.
 ## Existing-program compatibility
 
 ```sh
-go run ./cmd/gofx check examples/wc/main.gfx
+go run ./cmd/go4t check examples/wc/main.gt
 ```
 
 Observed exit 0, with no stdout, stderr, or warnings; no wc source change needed.

@@ -4,7 +4,7 @@ import "sort"
 
 // Map and Set share immutable AVL nodes. Updates copy only the search path;
 // cached heights and sizes keep lookup/update logarithmic and size constant-time.
-// The distinct wrappers remain opaque to generated gofx programs.
+// The distinct wrappers remain opaque to generated go4t programs.
 type mapValue struct {
 	root *collNode
 	// Only parsed/derived JSON objects carry source order. Ordinary Map

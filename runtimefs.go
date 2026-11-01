@@ -1,4 +1,4 @@
-// Package runtimefs carries the runtime sources needed by standalone gofx programs.
+// Package runtimefs carries the runtime sources needed by standalone go4t programs.
 package runtimefs
 
 import (
@@ -49,13 +49,13 @@ func Digest() (string, error) {
 	return fmt.Sprintf("%x", hash.Sum(nil)), nil
 }
 
-// Write extracts a minimal gofx module into dir. The runtime depends only on
+// Write extracts a minimal go4t module into dir. The runtime depends only on
 // Go's standard library and its own subpackages, so no dependency download is needed.
 func Write(dir string) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	mod := fmt.Sprintf("module gofx\n\ngo %s\n", GoVersion())
+	mod := fmt.Sprintf("module go4t\n\ngo %s\n", GoVersion())
 	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(mod), 0o644); err != nil {
 		return err
 	}

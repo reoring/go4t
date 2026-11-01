@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"gofx/ast"
-	"gofx/types"
+	"go4t/ast"
+	"go4t/types"
 )
 
 const projectionTypes = `
@@ -60,10 +60,10 @@ func TestProjectionTypeErrors(t *testing.T) {
 			files := parseFiles(t, projectionTypes+tc.extra+`
 func value() Option[Int] { `+tc.body+` }
 `+pass5Main)
-			files[1].Name = "section-field.gfx"
+			files[1].Name = "section-field.gt"
 			_, err := checkFixture(t, []*ast.Module{{Files: files}})
 			var typed *types.Error
-			if !errors.As(err, &typed) || typed.Msg != tc.want || typed.File != "section-field.gfx" {
+			if !errors.As(err, &typed) || typed.Msg != tc.want || typed.File != "section-field.gt" {
 				t.Fatalf("error = %v, want %q", err, tc.want)
 			}
 		})

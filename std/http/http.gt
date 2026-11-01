@@ -1,0 +1,69 @@
+package http
+
+import "std/prelude"
+import "std/json"
+
+type Request = Request{
+  method: String,
+  url: String,
+  path: String,
+  query: List[(String, String)],
+  headers: List[(String, String)],
+  body: String
+} deriving Debug
+
+type Response = Response{
+  status: Int,
+  headers: List[(String, String)],
+  body: String
+} deriving Debug
+
+extern func _request(method String, url String, path String, query List[(String, String)], headers List[(String, String)], body String, millis Int) IO[(Int, List[(String, String)], String)] = "go4t/rt".HTTPRequest
+
+extern func _header(headers List[(String, String)], name String) Option[String] = "go4t/rt".HTTPHeader
+
+extern func _serve(port Int, handler func(String, String, String, List[(String, String)], List[(String, String)], String) IO[(Int, List[(String, String)], String)]) IO[Unit] = "go4t/rt".HTTPServe
+
+func request(r Request) IO[Response] {
+  requestWithTimeout(r, 30000)
+}
+
+func requestWithTimeout(r Request, millis Int) IO[Response] {
+  do {
+    result <- _request(r.method, r.url, r.path, r.query, r.headers, r.body, millis)
+    match result {
+      (status, headers, body) => ioPure(Response(status, headers, body))
+    }
+  }
+}
+
+func get(url String) IO[Response] {
+  request(Request("GET", url, "", [], [], ""))
+}
+
+func post(url String, contentType String, body String) IO[Response] {
+  request(Request("POST", url, "", [], [("Content-Type", contentType)], body))
+}
+
+func response(status Int, body String) Response {
+  Response(status, [], body)
+}
+
+func jsonResponse[A json.Encode](status Int, a A) Response {
+  Response(status, [("Content-Type", "application/json")], json.toJson(json.encode(a)))
+}
+
+func requestHeader(r Request, name String) Option[String] {
+  _header(r.headers, name)
+}
+
+func responseHeader(r Response, name String) Option[String] {
+  _header(r.headers, name)
+}
+
+func serve(port Int, handler func(Request) IO[Response]) IO[Unit] {
+  _serve(port, func(method, url, path, query, headers, body) => do {
+    r <- handler(Request(method, url, path, query, headers, body))
+    ioPure((r.status, r.headers, r.body))
+  })
+}

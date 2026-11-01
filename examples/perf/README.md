@@ -3,7 +3,7 @@
 Run from the repository root:
 
 ```sh
-go run ./cmd/gofx run examples/perf/main.gfx
+go run ./cmd/go4t run examples/perf/main.gt
 ```
 
 Observed output:
@@ -18,7 +18,7 @@ Inspect the generated Go without leaving build output in the repository:
 
 ```sh
 output=$(mktemp -d)
-go run ./cmd/gofx build --emit-go "$output" --package perf examples/perf/main.gfx
+go run ./cmd/go4t build --emit-go "$output" --package perf examples/perf/main.gt
 # Read "$output/main.go".
 rm -rf "$output"
 ```
@@ -28,9 +28,9 @@ module's native functions, named `perf_addInts_` and `perf_sumPair__special1`.
 The excerpts below are the pre-module slice's original execution receipt.
 
 ```go
-//line examples/perf/main.gfx:6
+//line examples/perf/main.gt:6
 func addInts_(a_ int64, b_ int64) int64 {
-//line examples/perf/main.gfx:6
+//line examples/perf/main.gt:6
 	return (a_ + b_)
 }
 ```
@@ -43,9 +43,9 @@ existing tail-call loop with simultaneous parameter reassignment.
 uses this separately generated copy:
 
 ```go
-//line examples/perf/main.gfx:7
+//line examples/perf/main.gt:7
 func sumPair__special1(a_ int64, b_ int64) int64 {
-//line examples/perf/main.gfx:7
+//line examples/perf/main.gt:7
 	return any((Combine_Int{}).Combine(a_, b_)).(int64)
 }
 ```

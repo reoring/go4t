@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"gofx/types"
+	"go4t/types"
 )
 
 // The generated program owns all erased record constructors. Register them in
@@ -60,7 +60,7 @@ func (g *generator) foreignShapes(out *strings.Builder, prog *types.Program) {
 			for i := range c.Fields {
 				fmt.Fprintf(out, "case %d: return v.F%d;", i, i)
 			}
-			out.WriteString("default: panic(\"gofx foreign record: invalid field index\") } }) }\n")
+			out.WriteString("default: panic(\"go4t foreign record: invalid field index\") } }) }\n")
 		}
 	}
 	for _, name := range sortedKeys(prog.Funcs) {

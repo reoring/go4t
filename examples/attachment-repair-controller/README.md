@@ -10,11 +10,11 @@ The initial extraction copied
 `storage_attachment_repair_operation_controller.go` and
 `storage_attachment_repair_operation_controller_test.go` verbatim; `cmp`
 against each original exited 0. The operation workflow now delegates decisions
-to gofx. The 22 original tests remain byte-unchanged as its oracle.
+to go4t. The 22 original tests remain byte-unchanged as its oracle.
 
-## Decision in gofx
+## Decision in go4t
 
-`decide/decide.gfx` owns the operation workflow: approval binding decisions,
+`decide/decide.gt` owns the operation workflow: approval binding decisions,
 expiry and phase interpretation, authorization, durable deletion commitment,
 compare-and-swap outcomes, and convergence. Its generated boundary is
 `decide.Decide(decide.Observed) decide.Action`.
@@ -36,7 +36,7 @@ when the stale attachment is absent.
 Observation chains produce the closed `decide.ObsReason` enum directly; their
 optional `*obsBlock` carries that reason and the unchanged message (`nil` means
 success). Authorized observations also produce `decide.Target` directly, without
-a string-state conversion. No string reasons cross the gofx boundary:
+a string-state conversion. No string reasons cross the go4t boundary:
 `ObsBlocked`/`AuthBlocked` carry `ObsReason`, and `ReasonCode` is
 `Decided(Reason)` or `FromObservation(ObsReason)`. Both reason variants are rendered
 with `.String()` only when building Go status.
@@ -182,6 +182,6 @@ The oracle's SHA-256 before and after the rewrite is
 
 The module uses the same Go line (`1.26.9`) and direct Kubernetes,
 controller-runtime, and logr versions as `../approval-controller/go.mod`.
-`require gofx v0.0.0` and `replace gofx => ../..` resolve the generated boundary's
+`require go4t v0.0.0` and `replace go4t => ../..` resolve the generated boundary's
 runtime and the local generator. This is a nested module, not added to the root
 module or a workspace.

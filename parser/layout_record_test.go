@@ -3,8 +3,8 @@ package parser_test
 import (
 	"testing"
 
-	"gofx/ast"
-	"gofx/parser"
+	"go4t/ast"
+	"go4t/parser"
 )
 
 // Record braces are not blocks: newlines inside them must not break parsing

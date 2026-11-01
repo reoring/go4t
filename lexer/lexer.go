@@ -1,4 +1,4 @@
-// Package lexer tokenizes gofx source. Semicolon insertion follows the single
+// Package lexer tokenizes go4t source. Semicolon insertion follows the single
 // Layout rule in DESIGN.md, Pass 7.
 package lexer
 
@@ -8,7 +8,7 @@ import (
 	"strings"
 	"unicode"
 
-	"gofx/ast"
+	"go4t/ast"
 )
 
 type Kind int
@@ -83,7 +83,7 @@ type Lexer struct {
 	lastEnd   ast.Pos // preceding real token, excluding inserted semicolons
 	Comments  []ast.Comment
 	// nest tracks unclosed delimiters. Newlines inside `(` or `[` never
-	// insert `;` (gofx has no trailing commas); `{` resets to statement
+	// insert `;` (go4t has no trailing commas); `{` resets to statement
 	// context so blocks nested in calls still get their statements separated.
 	nest []rune
 }

@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"gofx/ast"
-	"gofx/parser"
-	"gofx/std"
+	"go4t/ast"
+	"go4t/parser"
+	"go4t/std"
 )
 
 func moduleDocumentation(document, module string) (string, bool) {
@@ -40,7 +40,7 @@ func TestStdlibInventory(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if entry.IsDir() || !strings.HasSuffix(filename, ".gfx") {
+		if entry.IsDir() || !strings.HasSuffix(filename, ".gt") {
 			return nil
 		}
 		source, err := std.FS.ReadFile(filename)

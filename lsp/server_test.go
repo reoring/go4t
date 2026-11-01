@@ -81,7 +81,7 @@ func (c *testClient) request(method string, params any) json.RawMessage {
 	return c.receive()
 }
 func openParams(uri, text string) any {
-	return map[string]any{"textDocument": map[string]any{"uri": uri, "languageId": "gofx", "version": 1, "text": text}}
+	return map[string]any{"textDocument": map[string]any{"uri": uri, "languageId": "go4t", "version": 1, "text": text}}
 }
 func changeParams(uri, text string, version int) any {
 	return map[string]any{"textDocument": map[string]any{"uri": uri, "version": version}, "contentChanges": []any{map[string]any{"text": text}}}
@@ -110,7 +110,7 @@ func diagnostics(t *testing.T, data []byte) []Diagnostic {
 }
 func TestDiagnosticsOpenChangeClose(t *testing.T) {
 	c := client(t)
-	uri := fileURI(filepath.Join(t.TempDir(), "main.gfx"))
+	uri := fileURI(filepath.Join(t.TempDir(), "main.gt"))
 	bad := "package main\nfunc main() IO[Unit] { println(123) }\n"
 	ds := diagnostics(t, c.notify("textDocument/didOpen", openParams(uri, bad)))
 	if len(ds) != 1 || ds[0].Severity != 1 || ds[0].Message != "type mismatch: expected String, got Int" || ds[0].Range.Start != (Position{1, 31}) || ds[0].Range.End != (Position{1, 34}) {
@@ -134,11 +134,11 @@ func TestDiagnosticsOpenChangeClose(t *testing.T) {
 func TestHoverDefinitionAndSymbols(t *testing.T) {
 	dir := t.TempDir()
 	defs := "package main\n// Keeps its argument.\nfunc identity[A](value A) A { value }\n// A record.\ntype Box = Box{value: Int}\nclass Render[A] { render(value A) String }\ninstance Render[Box] { render(value) { show(value.value) } }\nalias Count = Int\nfunc one() Count { 1 }\n"
-	if err := os.WriteFile(filepath.Join(dir, "defs.gfx"), []byte(defs), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "defs.gt"), []byte(defs), 0600); err != nil {
 		t.Fatal(err)
 	}
 	src := "package main\nfunc main() IO[Unit] { let box = Box{value: identity(one())}; println(render(box)); println(show(box.value)) }\n"
-	uri := fileURI(filepath.Join(dir, "main.gfx"))
+	uri := fileURI(filepath.Join(dir, "main.gt"))
 	c := client(t)
 	if ds := diagnostics(t, c.notify("textDocument/didOpen", openParams(uri, src))); len(ds) != 0 {
 		t.Fatal(ds)
@@ -161,11 +161,11 @@ func TestHoverDefinitionAndSymbols(t *testing.T) {
 			Result Location `json:"result"`
 		}
 		json.Unmarshal(data, &message)
-		if message.Result.URI != fileURI(filepath.Join(dir, "defs.gfx")) || message.Result.Range.Start != (Position{tt.line, tt.col}) {
+		if message.Result.URI != fileURI(filepath.Join(dir, "defs.gt")) || message.Result.Range.Start != (Position{tt.line, tt.col}) {
 			t.Fatalf("definition %s: %s", tt.needle, data)
 		}
 	}
-	defsURI := fileURI(filepath.Join(dir, "defs.gfx"))
+	defsURI := fileURI(filepath.Join(dir, "defs.gt"))
 	data := c.request("textDocument/definition", positionParams(defsURI, defs, "Count {", 0))
 	if !strings.Contains(string(data), `"line":7`) {
 		t.Fatalf("alias definition: %s", data)
@@ -215,7 +215,7 @@ func TestHoverDefinitionAndSymbols(t *testing.T) {
 }
 
 func TestScriptedSession(t *testing.T) {
-	path, err := filepath.Abs("../examples/wc/main.gfx")
+	path, err := filepath.Abs("../examples/wc/main.gt")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -265,7 +265,7 @@ func TestProtocolLifecycleAndErrors(t *testing.T) {
 	}{
 		{"unknown", nil, -32601},
 		{"initialize", nil, -32600},
-		{"textDocument/hover", map[string]any{"textDocument": map[string]any{"uri": "https://example.com/main.gfx"}}, -32602},
+		{"textDocument/hover", map[string]any{"textDocument": map[string]any{"uri": "https://example.com/main.gt"}}, -32602},
 	} {
 		data := c.request(tt.method, tt.params)
 		if !strings.Contains(string(data), fmt.Sprintf(`"code":%d`, tt.code)) {
@@ -286,7 +286,7 @@ func TestProtocolLifecycleAndErrors(t *testing.T) {
 func TestUTF16Positions(t *testing.T) {
 	c := client(t)
 	source := "package main\r\nfunc main() IO[Unit] { println(\"😀\"); println(missing) }\r\n"
-	uri := fileURI(filepath.Join(t.TempDir(), "unicode.gfx"))
+	uri := fileURI(filepath.Join(t.TempDir(), "unicode.gt"))
 	ds := diagnostics(t, c.notify("textDocument/didOpen", openParams(uri, source)))
 	if len(ds) != 1 || ds[0].Range.Start != (Position{1, 46}) || ds[0].Range.End != (Position{1, 53}) {
 		t.Fatalf("UTF-16 range: %+v", ds)
@@ -315,12 +315,12 @@ func TestFramingBoundaries(t *testing.T) {
 func TestOverlaysVersionsAndCloseReadDisk(t *testing.T) {
 	dir := t.TempDir()
 	defs := "package main\nfunc one() Int { 1 }\n"
-	defsPath := filepath.Join(dir, "defs.gfx")
+	defsPath := filepath.Join(dir, "defs.gt")
 	if err := os.WriteFile(defsPath, []byte(defs), 0600); err != nil {
 		t.Fatal(err)
 	}
 	source := "package main\nfunc main() IO[Unit] { println(show(one())) }\n"
-	uri, defsURI := fileURI(filepath.Join(dir, "main.gfx")), fileURI(defsPath)
+	uri, defsURI := fileURI(filepath.Join(dir, "main.gt")), fileURI(defsPath)
 	c := client(t)
 	if ds := diagnostics(t, c.notify("textDocument/didOpen", openParams(uri, source))); len(ds) != 0 {
 		t.Fatal(ds)
@@ -355,7 +355,7 @@ func TestOverlaysVersionsAndCloseReadDisk(t *testing.T) {
 
 func TestFailedCheckDiscardsIndexAndLexerSpan(t *testing.T) {
 	c := client(t)
-	uri := fileURI(filepath.Join(t.TempDir(), "main.gfx"))
+	uri := fileURI(filepath.Join(t.TempDir(), "main.gt"))
 	source := "package main\nfunc main() IO[Unit] { println(\"ok\") }\n"
 	c.notify("textDocument/didOpen", openParams(uri, source))
 	ds := diagnostics(t, c.notify("textDocument/didChange", changeParams(uri, strings.Replace(source, "println", "missing", 1), 2)))

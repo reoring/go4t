@@ -5,10 +5,10 @@ import (
 	"strings"
 	"testing"
 
-	"gofx/ast"
-	"gofx/modules"
-	"gofx/parser"
-	"gofx/types"
+	"go4t/ast"
+	"go4t/modules"
+	"go4t/parser"
+	"go4t/types"
 )
 
 func TestCollectionBuiltinKinds(t *testing.T) {
@@ -49,7 +49,7 @@ func items() Set[Key] { set.emptySet() }`, ""},
 			if err != nil {
 				t.Fatal(err)
 			}
-			u.Name = "collections.gfx"
+			u.Name = "collections.gt"
 			modules, err := modules.LoadFiles([]*ast.File{u}, ".")
 			if err != nil {
 				t.Fatal(err)
@@ -65,7 +65,7 @@ func items() Set[Key] { set.emptySet() }`, ""},
 				t.Fatalf("error = %v, want %q", err, tt.want)
 			}
 			var diagnostic *types.Error
-			if !errors.As(err, &diagnostic) || diagnostic.File != "collections.gfx" || diagnostic.Pos.Line < 2 || diagnostic.Pos.Col < 1 {
+			if !errors.As(err, &diagnostic) || diagnostic.File != "collections.gt" || diagnostic.Pos.Line < 2 || diagnostic.Pos.Col < 1 {
 				t.Fatalf("diagnostic lost file:line:col: %v", err)
 			}
 		})

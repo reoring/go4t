@@ -1,6 +1,6 @@
 package types
 
-import "gofx/ast"
+import "go4t/ast"
 
 type locals struct {
 	parent  *locals

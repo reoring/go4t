@@ -1,0 +1,106 @@
+package main
+
+extern func writeFile(path String, content String) IO[Unit] = "go4t/rt".WriteFile
+extern func quote(s String) String = "go4t/rt".Quote
+
+func cgDeclFixture() Program {
+  Program{
+    datas: [CoreData{name: "Shape", ctors: [CoreCtor{name: "Circle", arity: 1, fieldNames: Nil}, CoreCtor{name: "Rect", arity: 2, fieldNames: ["w", "h"]}]}],
+    classes: [CoreClass{name: "Area", super: None, methods: [CoreMethodSig{name: "area", dictParams: Nil, arity: 1}]}],
+    instances: [CoreInstance{className: "Area", typeCon: "Shape", context: Nil, superArgs: Nil, methods: [CoreMethod{name: "area", dictParams: Nil, params: ["shape"], body: CInt(7)}]}],
+    funcs: [
+      CoreFunc{name: "describe", dictParams: [("A", "Area")], params: ["x"], body: CString("shape")},
+      CoreFunc{name: "identity", dictParams: Nil, params: ["x"], body: CLocal("x")},
+      CoreFunc{name: "main", dictParams: Nil, params: Nil, body: CCall(CGlobal("printLine", Nil, 1), [CCall(CGlobal("identity", Nil, 1), [CString("cgdecls")])])},
+      CoreExtern{name: "printLine", importPath: "go4t/rt", goName: "Println", arity: 1}
+    ], warnings: Nil
+  }
+}
+
+func cgDeclFeatureFixture() Program {
+  let basic = cgDeclFixture()
+  basic{
+    datas: append([
+      CoreData{name: "List", ctors: [CoreCtor{name: "Nil", arity: 0, fieldNames: Nil}, CoreCtor{name: "Cons", arity: 2, fieldNames: Nil}]},
+      CoreData{name: "Option", ctors: [CoreCtor{name: "None", arity: 0, fieldNames: Nil}, CoreCtor{name: "Some", arity: 1, fieldNames: Nil}]},
+      CoreData{name: "Ordering", ctors: [CoreCtor{name: "LT", arity: 0, fieldNames: Nil}, CoreCtor{name: "EQ", arity: 0, fieldNames: Nil}, CoreCtor{name: "GT", arity: 0, fieldNames: Nil}]}
+    ], basic.datas),
+    classes: append(basic.classes, [
+      CoreClass{name: "Context", super: None, methods: [CoreMethodSig{name: "fromContext", dictParams: Nil, arity: 1}]},
+      CoreClass{name: "Measure", super: Some("Area"), methods: [CoreMethodSig{name: "measure", dictParams: [("A", "Area")], arity: 1}]},
+      CoreClass{name: "OrderProbe", super: None, methods: [CoreMethodSig{name: "orderProbe", dictParams: Nil, arity: 0}]},
+      CoreClass{name: "Tag", super: None, methods: Nil}
+    ]),
+    instances: append(basic.instances, [
+      CoreInstance{className: "Context", typeCon: "Shape", context: [("A", "Area")], superArgs: Nil, methods: [CoreMethod{name: "fromContext", dictParams: Nil, params: ["x"], body: CCall(CMethod("area", DParam("A", "Area"), Nil, 1), [CLocal("x")])}]},
+      CoreInstance{className: "Measure", typeCon: "Shape", context: [("A", "Area")], superArgs: Nil, methods: [CoreMethod{name: "measure", dictParams: [("A", "Area")], params: ["x"], body: CCall(CMethod("area", DParam("A", "Area"), Nil, 1), [CLocal("x")])}]},
+      CoreInstance{className: "OrderProbe", typeCon: "Shape", context: Nil, superArgs: Nil, methods: [CoreMethod{name: "orderProbe", dictParams: Nil, params: Nil, body: CPrim("ordLt", [CCtor("Ordering", "LT", Nil)])}]},
+      CoreInstance{className: "Tag", typeCon: "Tuple4", context: Nil, superArgs: Nil, methods: Nil}
+    ]),
+    funcs: append([CoreExtern{name: "aFetch", importPath: "go4t/rt/stdhttp", goName: "GetStatus", arity: 1}], append(basic.funcs, [
+      CoreFunc{name: "tuples", dictParams: Nil, params: Nil, body: CTuple([CTuple([CInt(1), CInt(2), CInt(3)]), CInt(4)])},
+      CoreExtern{name: "zPure", importPath: "go4t/rt", goName: "Pure", arity: 1}
+    ]))
+  }
+}
+
+func cgDeclFeatureChecks() IO[Unit] {
+  let prog = cgDeclFeatureFixture()
+  match generate(prog, "main") {
+    Err(d) => ioFail(show(d))
+    Ok(source) => do {
+      cgDeclAssert(contains(source, "ext_1 \"go4t/rt/stdhttp\"\next_2 \"go4t/rt\"\n") && !contains(source, "ext_3"), "import first-appearance order and deduplication")
+      cgDeclAssert(contains(source, "return ext_2.Println(a0)") && contains(source, "return ext_2.Pure(a0)"), "shared extern alias")
+      cgDeclAssert(contains(source, "type Measure interface {\nArea\nMeasure(dict_A Area, a0 any) any"), "superclass and method constraints")
+      cgDeclAssert(contains(source, "type Measure_Shape struct {\nArea_Shape\ndict_A Area\n}"), "instance embedding and context")
+      cgDeclAssert(contains(source, "func (dictself Measure_Shape) Measure(dict_A Area, x_ any) any {\nreturn (dict_A).Area(x_)"), "method dictionary shadowing")
+      cgDeclAssert(contains(source, "return (dictself.dict_A).Area(x_)"), "instance dictionary scope")
+      cgDeclAssert(contains(source, "rt.Shapes = rt.ShapeFuncs{") && contains(source, "if c, ok := l.(*List_Cons); ok { return c.F0, c.F1, true }"), "runtime shapes ABI")
+      cgDeclAssert(contains(source, "type Tuple2 struct {\nF0 any\nF1 any\n}\ntype Tuple3 struct {\nF0 any\nF1 any\nF2 any\n}\ntype Tuple4 struct"), "tuple sorting and instance-head collection")
+      cgDeclAssert(length(split("type Tuple2 struct", source)) == 2 && length(split("func ord_lt(", source)) == 2, "helper deduplication")
+      cgDeclAssert(contains(source, "func ord_ge(o any) bool") && contains(source, "return any(ord_lt(&Ordering_LT{}))"), "ordering in instance method")
+      cgDeclAssert(match generate(prog{datas: filter(prog.datas, func(d) => d.name != "Option")}, "main") { Ok(text) => !contains(text, "rt.Shapes") | Err(_) => false }, "shapes require both types")
+      cgDeclAssert(match generate(prog{datas: fmap(prog.datas, func(d) => if d.name == "List" { d{ctors: [CoreCtor{name: "Cons", arity: 1, fieldNames: Nil}]} } else { d })}, "main") { Ok(text) => !contains(text, "rt.Shapes") | Err(_) => false }, "shapes require exact constructors")
+      writeFile("selfhost/dev/out/cgdecls_features/main.go", source)
+      println("cg_decls: shapes, superclasses, method scopes, import order, tuples and ordering passed")
+    }
+  }
+}
+
+func cgDeclAssert(ok Bool, message String) IO[Unit] {
+  if ok { ioPure(unit()) } else { ioFail(message) }
+}
+
+func cgDeclExpectError(prog Program, pkg String, expected String) IO[Unit] {
+  match generate(prog, pkg) {
+    Err(d) => cgDeclAssert(d.msg == expected && d.pos == noPos(), "wrong error: " + show(d))
+    Ok(_) => ioFail("expected error: " + expected)
+  }
+}
+
+func main() IO[Unit] {
+  let prog = cgDeclFixture()
+  match generate(prog, "") {
+    Err(d) => ioFail(show(d))
+    Ok(source) => do {
+      cgDeclAssert(startsWith(source, "// Code generated by go4t. DO NOT EDIT.\npackage main\n"), "header")
+      cgDeclAssert(contains(source, "type Shape_Circle struct {\nF0 any\n}"), "positional constructor")
+      cgDeclAssert(contains(source, "type Shape_Rect struct {\nF0 any\nF1 any\n}"), "record constructor")
+      cgDeclAssert(contains(source, "Area(dict" ) == false, "unexpected class dictionary")
+      cgDeclAssert(contains(source, "Area(a0 any) any"), "class method")
+      cgDeclAssert(contains(source, "func (dictself Area_Shape) Area(shape_ any) any"), "instance method")
+      cgDeclAssert(contains(source, "func describe_(dict_A Area, x_ any) any"), "function dictionary")
+      cgDeclAssert(contains(source, "return ext_1.Println(a0)"), "extern wrapper")
+      cgDeclAssert(!contains(source, "rt.Shapes") && !contains(source, "type Tuple") && !contains(source, "func ord_"), "unused helpers")
+      cgDeclAssert(match generate(prog, "") { Ok(again) => source == again | Err(_) => false }, "determinism")
+      cgDeclExpectError(prog, "func", "invalid Go package name \"func\"")
+      cgDeclExpectError(prog, "_", "invalid Go package name \"_\"")
+      cgDeclExpectError(prog, "bad-name", "invalid Go package name \"bad-name\"")
+      cgDeclExpectError(prog{funcs: Nil}, "main", "program has no main function")
+      cgDeclAssert(isOk(generate(prog, "日本語")), "unicode package")
+      writeFile("selfhost/dev/out/cgdecls/main.go", source)
+      cgDeclFeatureChecks()
+      println("cg_decls: declarations, dictionaries, externs, errors and determinism passed")
+    }
+  }
+}

@@ -5,8 +5,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"gofx/ast"
-	"gofx/lexer"
+	"go4t/ast"
+	"go4t/lexer"
 )
 
 // SymbolKind describes a source declaration, independently of an editor protocol.

@@ -1,6 +1,6 @@
-# Go shell, gofx core
+# Go shell, go4t core
 
-`core.gfx` models a controller's pure decision: observed state becomes a `Step`.
+`core.gt` models a controller's pure decision: observed state becomes a `Step`.
 Go owns the mutable world and can switch on typed values rather than inspecting
 an erased runtime representation. See [SPEC §8.7](../../SPEC.md#87-exported-go-api).
 Each conversion copies on every call, so exported functions should take a projection containing only what the decision needs, not whole observed objects.
@@ -12,11 +12,11 @@ repo="$PWD"
 work=$(mktemp -d)
 cd "$work"
 go mod init goshell
-go mod edit -require=gofx@v0.0.0 -replace="gofx=$repo"
+go mod edit -require=go4t@v0.0.0 -replace="go4t=$repo"
 mkdir bin
-go build -o "$work/bin/gofx" gofx/cmd/gofx
+go build -o "$work/bin/go4t" go4t/cmd/go4t
 export PATH="$work/bin:$PATH"
-cp "$repo/examples/go-shell/core.gfx" ./core.gfx
+cp "$repo/examples/go-shell/core.gt" ./core.gt
 cp "$repo/examples/go-shell/main.go" ./main.go
 go generate main.go
 go run main.go
@@ -35,11 +35,11 @@ In a real consumer package, keep the directive in a Go file without the example'
 `ignore` tag:
 
 ```go
-//go:generate gofx build --emit-go core --package core core.gfx
+//go:generate go4t build --emit-go core --package core core.gt
 ```
 
-Commit `core/gofx_export.go` and its sibling generated files so ordinary
-`go build` needs no generation step. Pin the gofx version and run
+Commit `core/go4t_export.go` and its sibling generated files so ordinary
+`go build` needs no generation step. Pin the go4t version and run
 `go generate ./... && git diff --exit-code` in CI to catch drift.
 
 The core Go consumer is:
@@ -83,11 +83,11 @@ cleanup: Cleanup(7)
 round trips: Ready record list option
 ```
 
-`%v` on a record or constructor value uses the gofx type's `Debug` instance,
+`%v` on a record or constructor value uses the go4t type's `Debug` instance,
 including custom instances; these structs have no `String()` without `Debug`.
 Enums always print their constructor names, independently of `Debug`.
 
 `_helper` stays private. The generic `identity[A]` is not exported and is
-explained by `// not exported: identity (type parameters)` in `gofx_export.go`.
-The empty gofx `main` retains the existing `Main() rt.IO` embedding entry point;
+explained by `// not exported: identity (type parameters)` in `go4t_export.go`.
+The empty go4t `main` retains the existing `Main() rt.IO` embedding entry point;
 the decision call does not need it.

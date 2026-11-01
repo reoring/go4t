@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"gofx/ast"
-	"gofx/types"
+	"go4t/ast"
+	"go4t/types"
 )
 
 func TestSourceAliasDiagnostics(t *testing.T) {

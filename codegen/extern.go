@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"strings"
 
-	goextern "gofx/extern"
-	"gofx/types"
+	goextern "go4t/extern"
+	"go4t/types"
 )
 
 // emitExtern keeps the generated function's any ABI and adapts only its foreign
-// call. Dictionary parameters remain on the gofx wrapper, not the Go function.
+// call. Dictionary parameters remain on the go4t wrapper, not the Go function.
 func (g *generator) emitExtern(f *types.FuncInfo) string {
 	ref := f.Decl.Extern
 	pkg, err := g.externs.Load(ref.ImportPath)

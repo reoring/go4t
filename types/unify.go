@@ -1,6 +1,6 @@
 package types
 
-import "gofx/ast"
+import "go4t/ast"
 
 func sameKind(a, b Kind) bool {
 	switch a := a.(type) {

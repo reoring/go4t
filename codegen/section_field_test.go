@@ -3,10 +3,10 @@ package codegen
 import (
 	"testing"
 
-	"gofx/ast"
-	"gofx/modules"
-	"gofx/parser"
-	"gofx/types"
+	"go4t/ast"
+	"go4t/modules"
+	"go4t/parser"
+	"go4t/types"
 )
 
 func TestProjectionSectionsRuntime(t *testing.T) {

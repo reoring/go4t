@@ -10,11 +10,11 @@ import (
 	"testing"
 	"time"
 
-	"gofx/ast"
-	"gofx/codegen"
-	"gofx/modules"
-	"gofx/parser"
-	"gofx/types"
+	"go4t/ast"
+	"go4t/codegen"
+	"go4t/modules"
+	"go4t/parser"
+	"go4t/types"
 )
 
 func TestJSONInstancesAndDeriving(t *testing.T) {
@@ -105,7 +105,7 @@ func main() IO[Unit] {
 	if err != nil {
 		t.Fatal(err)
 	}
-	file.Name = "json_test.gfx"
+	file.Name = "json_test.gt"
 	loaded, err := modules.LoadFiles([]*ast.File{file}, ".")
 	if err != nil {
 		t.Fatal(err)

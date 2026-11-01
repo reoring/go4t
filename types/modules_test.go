@@ -6,10 +6,10 @@ import (
 	"strings"
 	"testing"
 
-	"gofx/ast"
-	"gofx/modules"
-	"gofx/std"
-	"gofx/types"
+	"go4t/ast"
+	"go4t/modules"
+	"go4t/std"
+	"go4t/types"
 )
 
 func moduleFixture(t *testing.T, sources map[string]string) string {
@@ -43,8 +43,8 @@ func TestModulePrivacyAndFileScopes(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			root := moduleFixture(t, map[string]string{
-				"main.gfx":             "package main\nimport \"geometry\"\nfunc main() IO[Unit] { let n = " + test.body + "; println(show(n)) }",
-				"geometry/private.gfx": "package geometry\ntype _Secret = _Hidden\nfunc _helper() Int { 1 }\nfunc secret() _Secret { _Hidden }",
+				"main.gt":             "package main\nimport \"geometry\"\nfunc main() IO[Unit] { let n = " + test.body + "; println(show(n)) }",
+				"geometry/private.gt": "package geometry\ntype _Secret = _Hidden\nfunc _helper() Int { 1 }\nfunc secret() _Secret { _Hidden }",
 			})
 			_, err := checkModuleFixture(t, root)
 			if err == nil || !strings.Contains(err.Error(), test.want) {
@@ -52,23 +52,23 @@ func TestModulePrivacyAndFileScopes(t *testing.T) {
 			}
 		})
 	}
-	root := moduleFixture(t, map[string]string{"main.gfx": "package main\nimport \"geometry\"\nfunc main() IO[Unit] { ioPure(unit()) }", "other.gfx": "package main\nfunc other() Int { geometry.value() }", "geometry/main.gfx": "package geometry\nfunc value() Int { 1 }"})
+	root := moduleFixture(t, map[string]string{"main.gt": "package main\nimport \"geometry\"\nfunc main() IO[Unit] { ioPure(unit()) }", "other.gt": "package main\nfunc other() Int { geometry.value() }", "geometry/main.gt": "package geometry\nfunc value() Int { 1 }"})
 	if _, err := checkModuleFixture(t, root); err == nil || !strings.Contains(err.Error(), "unknown identifier geometry") {
 		t.Fatalf("file-scoped imports: %v", err)
 	}
 }
 func TestModuleGlobalInstancesAndDuplicates(t *testing.T) {
 	sources := map[string]string{
-		"main.gfx":       "package main\nimport \"model\"\nimport \"first\"\nfunc main() IO[Unit] { println(show(model.Box(3))) }",
-		"model/type.gfx": "package model\ntype Box = Box(Int)",
-		"first/show.gfx": "package first\nimport \"model\"\ninstance Show[model.Box] { show(b) { match b { model.Box(n) => show(n) } } }",
+		"main.gt":       "package main\nimport \"model\"\nimport \"first\"\nfunc main() IO[Unit] { println(show(model.Box(3))) }",
+		"model/type.gt": "package model\ntype Box = Box(Int)",
+		"first/show.gt": "package first\nimport \"model\"\ninstance Show[model.Box] { show(b) { match b { model.Box(n) => show(n) } } }",
 	}
 	root := moduleFixture(t, sources)
 	if _, err := checkModuleFixture(t, root); err != nil {
 		t.Fatal(err)
 	}
-	sources["main.gfx"] = "package main\nimport \"first\"\nimport \"second\"\nfunc main() IO[Unit] { ioPure(unit()) }"
-	sources["second/show.gfx"] = "package second\nimport \"model\"\ninstance Show[model.Box] { show(b) { \"second\" } }"
+	sources["main.gt"] = "package main\nimport \"first\"\nimport \"second\"\nfunc main() IO[Unit] { ioPure(unit()) }"
+	sources["second/show.gt"] = "package second\nimport \"model\"\ninstance Show[model.Box] { show(b) { \"second\" } }"
 	root = moduleFixture(t, sources)
 	_, err := checkModuleFixture(t, root)
 	if err == nil || !strings.Contains(err.Error(), "duplicate instance Show[") || !strings.Contains(err.Error(), "first") || !strings.Contains(err.Error(), "second") {
@@ -77,7 +77,7 @@ func TestModuleGlobalInstancesAndDuplicates(t *testing.T) {
 }
 func TestModulePreludeShadowAndNarrowExports(t *testing.T) {
 	root := moduleFixture(t, map[string]string{
-		"main.gfx": "package main\nfunc map(n Int) Int { n + 1 }\nfunc main() IO[Unit] { println(show(map(3))) }",
+		"main.gt": "package main\nfunc map(n Int) Int { n + 1 }\nfunc main() IO[Unit] { println(show(map(3))) }",
 	})
 	loaded, err := modules.Load([]string{root})
 	if err != nil {
@@ -95,37 +95,37 @@ func TestModulePreludeShadowAndNarrowExports(t *testing.T) {
 			t.Fatal("checker mutated source names")
 		}
 	}
-	root = moduleFixture(t, map[string]string{"main.gfx": "package main\nfunc main() IO[Unit] { println(trim(\" x \")) }"})
+	root = moduleFixture(t, map[string]string{"main.gt": "package main\nfunc main() IO[Unit] { println(trim(\" x \")) }"})
 	if _, err := checkModuleFixture(t, root); err == nil || !strings.Contains(err.Error(), "unknown identifier trim") {
 		t.Fatalf("prelude leaked trim: %v", err)
 	}
 }
 func TestModuleResolutionRootThenPathThenEmbedded(t *testing.T) {
-	stringSource, err := std.FS.ReadFile("string/string.gfx")
+	stringSource, err := std.FS.ReadFile("string/string.gt")
 	if err != nil {
 		t.Fatal(err)
 	}
-	pathRoot := moduleFixture(t, map[string]string{"geometry/value.gfx": "package geometry\nfunc value() Bool { true }", "std/string/string.gfx": string(stringSource) + "\nfunc marker() Int { 7 }\n"})
-	t.Setenv("GOFX_PATH", pathRoot)
-	root := moduleFixture(t, map[string]string{"gofx.mod": "module example\n", "app/main.gfx": "package main\nimport \"example/geometry\"\nfunc main() IO[Unit] { println(show(geometry.value() + 1)) }", "geometry/value.gfx": "package geometry\nfunc value() Int { 2 }"})
+	pathRoot := moduleFixture(t, map[string]string{"geometry/value.gt": "package geometry\nfunc value() Bool { true }", "std/string/string.gt": string(stringSource) + "\nfunc marker() Int { 7 }\n"})
+	t.Setenv("GO4T_PATH", pathRoot)
+	root := moduleFixture(t, map[string]string{"go4t.mod": "module example\n", "app/main.gt": "package main\nimport \"example/geometry\"\nfunc main() IO[Unit] { println(show(geometry.value() + 1)) }", "geometry/value.gt": "package geometry\nfunc value() Int { 2 }"})
 	if _, err := checkModuleFixture(t, filepath.Join(root, "app")); err != nil {
-		t.Fatalf("nearest gofx.mod root precedence: %v", err)
+		t.Fatalf("nearest go4t.mod root precedence: %v", err)
 	}
-	root = moduleFixture(t, map[string]string{"main.gfx": "package main\nimport \"geometry\"\nimport \"std/string\"\nfunc main() IO[Unit] { println(show(geometry.value() && string.marker() == 7)) }"})
+	root = moduleFixture(t, map[string]string{"main.gt": "package main\nimport \"geometry\"\nimport \"std/string\"\nfunc main() IO[Unit] { println(show(geometry.value() && string.marker() == 7)) }"})
 	if _, err := checkModuleFixture(t, root); err != nil {
-		t.Fatalf("GOFX_PATH fallback and embedded prelude: %v", err)
+		t.Fatalf("GO4T_PATH fallback and embedded prelude: %v", err)
 	}
-	t.Setenv("GOFX_PATH", "")
-	root = moduleFixture(t, map[string]string{"main.gfx": "package main\nimport \"std/string\"\nfunc main() IO[Unit] { println(string.trim(\" works \")) }"})
+	t.Setenv("GO4T_PATH", "")
+	root = moduleFixture(t, map[string]string{"main.gt": "package main\nimport \"std/string\"\nfunc main() IO[Unit] { println(string.trim(\" works \")) }"})
 	if _, err := checkModuleFixture(t, root); err != nil {
 		t.Fatalf("embedded fallback: %v", err)
 	}
 }
 func TestModuleQualifiedRecordsAndAlias(t *testing.T) {
 	root := moduleFixture(t, map[string]string{
-		"main.gfx":            "package main\nimport g \"geometry\"\nimport \"geometry\"\nfunc area(p g.Point) Int { match p { geometry.Point{x: x, y: y} => x * y } }\nfunc main() IO[Unit] { println(show(area(g.Point{x: 3, y: 4}))) }",
-		"geometry/type.gfx":   "package geometry\ntype Point = Point{x: Int, y: Int}",
-		"geometry/helper.gfx": "package geometry\nfunc width(p Point) Int { p.x }",
+		"main.gt":            "package main\nimport g \"geometry\"\nimport \"geometry\"\nfunc area(p g.Point) Int { match p { geometry.Point{x: x, y: y} => x * y } }\nfunc main() IO[Unit] { println(show(area(g.Point{x: 3, y: 4}))) }",
+		"geometry/type.gt":   "package geometry\ntype Point = Point{x: Int, y: Int}",
+		"geometry/helper.gt": "package geometry\nfunc width(p Point) Int { p.x }",
 	})
 	if _, err := checkModuleFixture(t, root); err != nil {
 		t.Fatal(err)
@@ -133,17 +133,17 @@ func TestModuleQualifiedRecordsAndAlias(t *testing.T) {
 }
 
 func TestStandardOverridesKeepPreludeIdentity(t *testing.T) {
-	for _, location := range []string{"source-root", "GOFX_PATH"} {
+	for _, location := range []string{"source-root", "GO4T_PATH"} {
 		for _, name := range []string{"prelude", "list", "result", "io", "float"} {
 			t.Run(location+"/"+name, func(t *testing.T) {
-				source, err := std.FS.ReadFile(name + "/" + name + ".gfx")
+				source, err := std.FS.ReadFile(name + "/" + name + ".gt")
 				if err != nil {
 					t.Fatal(err)
 				}
 				importPath := "std/" + name
 				sources := map[string]string{
-					"gofx.mod": "module example\n",
-					"app/main.gfx": "package main\nimport selected \"" + importPath + "\"\n" + `
+					"go4t.mod": "module example\n",
+					"app/main.gt": "package main\nimport selected \"" + importPath + "\"\n" + `
 func main() IO[Unit] {
   let xs: List[Int] = [1, 2]
   let result: Result[String, Int] = Ok(length(map(xs, func(n) => n + 1)))
@@ -154,18 +154,18 @@ func main() IO[Unit] {
 }
 `,
 				}
-				override := map[string]string{importPath + "/" + name + ".gfx": string(source) + "\nfunc overrideMarker() Int { 42 }\n"}
+				override := map[string]string{importPath + "/" + name + ".gt": string(source) + "\nfunc overrideMarker() Int { 42 }\n"}
 				var overrideRoot string
 				if location == "source-root" {
 					for path, contents := range override {
 						sources[path] = contents
 					}
-					sources["app/main.gfx"] = strings.Replace(sources["app/main.gfx"], "func main()", "import same \"example/"+importPath+"\"\nfunc duplicatePath() Int { same.overrideMarker() }\nfunc main()", 1)
-					t.Setenv("GOFX_PATH", moduleFixture(t, map[string]string{importPath + "/broken.gfx": "invalid source must lose to source root"}))
+					sources["app/main.gt"] = strings.Replace(sources["app/main.gt"], "func main()", "import same \"example/"+importPath+"\"\nfunc duplicatePath() Int { same.overrideMarker() }\nfunc main()", 1)
+					t.Setenv("GO4T_PATH", moduleFixture(t, map[string]string{importPath + "/broken.gt": "invalid source must lose to source root"}))
 				} else {
 					overrideRoot = moduleFixture(t, override)
-					losingRoot := moduleFixture(t, map[string]string{importPath + "/broken.gfx": "invalid source must lose to earlier GOFX_PATH entry"})
-					t.Setenv("GOFX_PATH", overrideRoot+string(os.PathListSeparator)+losingRoot)
+					losingRoot := moduleFixture(t, map[string]string{importPath + "/broken.gt": "invalid source must lose to earlier GO4T_PATH entry"})
+					t.Setenv("GO4T_PATH", overrideRoot+string(os.PathListSeparator)+losingRoot)
 				}
 				root := moduleFixture(t, sources)
 				if overrideRoot == "" {

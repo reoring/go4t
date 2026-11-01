@@ -2,7 +2,7 @@ package natural
 
 import (
 	"errors"
-	"gofx/rt"
+	"go4t/rt"
 )
 
 func Echo(value any) any                                 { return value }

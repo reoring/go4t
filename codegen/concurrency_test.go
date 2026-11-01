@@ -52,7 +52,7 @@ func TestConcurrencyTupleShapes(t *testing.T) {
 }
 
 func TestCancellationSourceExecution(t *testing.T) {
-	source := qualityProgram(t, "cancel.gfx", `package main
+	source := qualityProgram(t, "cancel.gt", `package main
 import "std/conc"
 import "std/io"
 func slow() IO[String] {

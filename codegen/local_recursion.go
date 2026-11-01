@@ -3,7 +3,7 @@ package codegen
 import (
 	"strings"
 
-	"gofx/ast"
+	"go4t/ast"
 )
 
 func erasedFuncType(arity int) string {

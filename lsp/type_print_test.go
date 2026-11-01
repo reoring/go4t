@@ -20,7 +20,7 @@ func main() IO[Unit] {
  println(show(inferred))
 }
 `
-	uri := fileURI(filepath.Join(t.TempDir(), "main.gfx"))
+	uri := fileURI(filepath.Join(t.TempDir(), "main.gt"))
 	c := client(t)
 	if ds := diagnostics(t, c.notify("textDocument/didOpen", openParams(uri, source))); len(ds) != 0 {
 		t.Fatal(ds)
@@ -51,7 +51,7 @@ func main() IO[Unit] {
 func TestHoverElidesLongTypes(t *testing.T) {
 	nested := strings.Repeat("Option[", 24) + "Int" + strings.Repeat("]", 24)
 	source := "package main\nfunc nested(x " + nested + ") " + nested + " { x }\nfunc main() IO[Unit] { ioPure(unit()) }\n"
-	uri := fileURI(filepath.Join(t.TempDir(), "main.gfx"))
+	uri := fileURI(filepath.Join(t.TempDir(), "main.gt"))
 	c := client(t)
 	if ds := diagnostics(t, c.notify("textDocument/didOpen", openParams(uri, source))); len(ds) != 0 {
 		t.Fatal(ds)
@@ -64,7 +64,7 @@ func TestHoverElidesLongTypes(t *testing.T) {
 
 func TestAliasMismatchDiagnostics(t *testing.T) {
 	source := "package main\nalias Count = Int\nfunc bad() Count { true }\nfunc main() IO[Unit] { ioPure(unit()) }\n"
-	uri := fileURI(filepath.Join(t.TempDir(), "main.gfx"))
+	uri := fileURI(filepath.Join(t.TempDir(), "main.gt"))
 	c := client(t)
 	ds := diagnostics(t, c.notify("textDocument/didOpen", openParams(uri, source)))
 	if len(ds) != 1 || ds[0].Message != "type mismatch: expected Count, got Bool" {
@@ -77,7 +77,7 @@ func TestHoverUsesFileImportAliases(t *testing.T) {
 		source := "package main\nimport " + alias + " \"std/http\"\n" +
 			"func identity(x " + alias + ".Response) " + alias + ".Response { x }\n" +
 			"func main() IO[Unit] { ioPure(unit()) }\n"
-		uri := fileURI(filepath.Join(t.TempDir(), "main.gfx"))
+		uri := fileURI(filepath.Join(t.TempDir(), "main.gt"))
 		c := client(t)
 		if ds := diagnostics(t, c.notify("textDocument/didOpen", openParams(uri, source))); len(ds) != 0 {
 			t.Fatal(ds)

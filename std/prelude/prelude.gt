@@ -1,0 +1,285 @@
+package prelude
+
+import "std/list"
+import "std/result"
+import "std/io"
+import "std/float"
+
+class Functor[F[_]] {
+  fmap[A, B](fa F[A], f func(A) B) F[B]
+}
+
+class Monad[M[_]] : Functor[M] {
+  pure[A](a A) M[A]
+  bind[A, B](ma M[A], f func(A) M[B]) M[B]
+}
+
+class Foldable[F[_]] {
+  foldr[A, B](fa F[A], init B, f func(A, B) B) B
+}
+
+class Traversable[F[_]] : Functor[F] {
+  traverse[M[_] Monad, A, B](fa F[A], f func(A) M[B]) M[F[B]]
+}
+
+class Show[A] {
+  show(a A) String
+}
+
+class Debug[A] {
+  debug(a A) String
+}
+
+class Eq[A] {
+  eq(a A, b A) Bool
+}
+
+type Ordering = LT | EQ | GT deriving Eq, Ord, Debug, Show
+
+class Ord[A] : Eq[A] {
+  compare(a A, b A) Ordering
+}
+
+type Option[A] = None | Some(A) deriving Eq, Ord, Debug
+
+instance Functor[Option] {
+  fmap(fa, f) {
+    match fa {
+      None => None
+      Some(a) => Some(f(a))
+    }
+  }
+}
+
+instance Monad[Option] {
+  pure(a) {
+    Some(a)
+  }
+
+  bind(ma, f) {
+    match ma {
+      None => None
+      Some(a) => f(a)
+    }
+  }
+}
+
+instance Foldable[Option] {
+  foldr(fa, init, f) {
+    match fa {
+      None => init
+      Some(a) => f(a, init)
+    }
+  }
+}
+
+instance Traversable[Option] {
+  traverse(fa, f) {
+    match fa {
+      None => pure(None)
+      Some(a) => fmap(f(a), func(b) => Some(b))
+    }
+  }
+}
+
+instance Show[Option[A]] given Show[A] {
+  show(a) {
+    match a {
+      None => "None"
+      Some(x) => "Some(" + show(x) + ")"
+    }
+  }
+}
+
+instance Show[Tuple2[A, B]] given Show[A], Show[B] {
+  show(p) {
+    match p {
+      (a, b) => "(" + show(a) + ", " + show(b) + ")"
+    }
+  }
+}
+
+instance Debug[Tuple2[A, B]] given Debug[A], Debug[B] {
+  debug(p) {
+    match p {
+      (a, b) => "(" + debug(a) + ", " + debug(b) + ")"
+    }
+  }
+}
+
+extern func showInt(n Int) String = "go4t/rt".ShowInt
+
+extern func showBool(b Bool) String = "go4t/rt".ShowBool
+
+extern func showString(s String) String = "go4t/rt".ShowString
+
+extern func debugString(s String) String = "go4t/rt".DebugString
+
+extern func unit() Unit = "go4t/rt".UnitValue
+
+extern func eqInt(a Int, b Int) Bool = "go4t/rt".EqInt
+
+extern func ltInt(a Int, b Int) Bool = "go4t/rt".LtInt
+
+extern func eqString(a String, b String) Bool = "go4t/rt".EqString
+
+extern func ltString(a String, b String) Bool = "go4t/rt".LtString
+
+extern func eqBool(a Bool, b Bool) Bool = "go4t/rt".EqBool
+
+func min[A Ord](a A, b A) A {
+  if a <= b {
+    a
+  } else {
+    b
+  }
+}
+
+func max[A Ord](a A, b A) A {
+  if a >= b {
+    a
+  } else {
+    b
+  }
+}
+
+instance Show[Int] {
+  show(a) {
+    showInt(a)
+  }
+}
+
+instance Show[String] {
+  show(a) {
+    showString(a)
+  }
+}
+
+instance Show[Bool] {
+  show(a) {
+    showBool(a)
+  }
+}
+
+instance Debug[Int] {
+  debug(a) {
+    showInt(a)
+  }
+}
+
+instance Debug[String] {
+  debug(a) {
+    debugString(a)
+  }
+}
+
+instance Debug[Bool] {
+  debug(a) {
+    showBool(a)
+  }
+}
+
+instance Debug[Unit] {
+  debug(a) {
+    "()"
+  }
+}
+
+instance Eq[Int] {
+  eq(a, b) {
+    eqInt(a, b)
+  }
+}
+
+instance Ord[Int] {
+  compare(a, b) {
+    if ltInt(a, b) {
+      LT
+    } else if eqInt(a, b) {
+      EQ
+    } else {
+      GT
+    }
+  }
+}
+
+instance Eq[String] {
+  eq(a, b) {
+    eqString(a, b)
+  }
+}
+
+instance Ord[String] {
+  compare(a, b) {
+    if ltString(a, b) {
+      LT
+    } else if eqString(a, b) {
+      EQ
+    } else {
+      GT
+    }
+  }
+}
+
+instance Eq[Bool] {
+  eq(a, b) {
+    eqBool(a, b)
+  }
+}
+
+instance Ord[Bool] {
+  compare(a, b) {
+    if eqBool(a, b) {
+      EQ
+    } else if a {
+      GT
+    } else {
+      LT
+    }
+  }
+}
+
+instance Eq[Unit] {
+  eq(a, b) {
+    true
+  }
+}
+
+instance Eq[Tuple2[A, B]] given Eq[A], Eq[B] {
+  eq(a, b) {
+    match (a, b) {
+      ((a1, a2), (b1, b2)) => eq(a1, b1) && eq(a2, b2)
+    }
+  }
+}
+
+instance Ord[Tuple2[A, B]] given Ord[A], Ord[B] {
+  compare(a, b) {
+    match (a, b) {
+      | ((a1, a2), (b1, b2)) => match compare(a1, b1) {
+        EQ => compare(a2, b2)
+        order => order
+      }
+    }
+  }
+}
+
+func map[F[_] Functor, A, B](fa F[A], f func(A) B) F[B] {
+  fmap(fa, f)
+}
+
+func flatMap[M[_] Monad, A, B](ma M[A], f func(A) M[B]) M[B] {
+  bind(ma, f)
+}
+
+func fst[A, B](p (A, B)) A {
+  match p {
+    (a, _) => a
+  }
+}
+
+func snd[A, B](p (A, B)) B {
+  match p {
+    (_, b) => b
+  }
+}

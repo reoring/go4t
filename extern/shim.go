@@ -37,7 +37,7 @@ func (g *shimGenerator) conversion(m *foreignMirror) string {
 	if n := g.converters[key]; n != "" {
 		return n
 	}
-	n := fmt.Sprintf("gofxMirror%d", g.next)
+	n := fmt.Sprintf("go4tMirror%d", g.next)
 	g.next++
 	g.converters[key] = n
 	var to, from strings.Builder
@@ -115,7 +115,7 @@ func (g *shimGenerator) conversion(m *foreignMirror) string {
 			// Use the promoted selector for the leaf; naming an unexported embedded
 			// value itself would be illegal outside its package.
 			target, source = "result."+leafName, "v."+leafName
-			fmt.Fprintf(&to, "%s = %sTo(rt.ForeignRecordField(%q,v,%d),ctx)\n", target, inner, g.path+"."+m.gfx, i)
+			fmt.Fprintf(&to, "%s = %sTo(rt.ForeignRecordField(%q,v,%d),ctx)\n", target, inner, g.path+"."+m.gt, i)
 			if len(guards) > 0 {
 				fmt.Fprintf(&from, "var field%d %s; if %s { field%d = %s }; fields[%d] = %sFrom(field%d)\n", i, g.goType(f.mirror.typ), strings.Join(guards, " && "), i, source, i, inner, i)
 			} else {
@@ -123,7 +123,7 @@ func (g *shimGenerator) conversion(m *foreignMirror) string {
 			}
 		}
 		to.WriteString("return result\n")
-		fmt.Fprintf(&from, "return rt.ForeignRecord(%q,fields)\n", g.path+"."+m.gfx)
+		fmt.Fprintf(&from, "return rt.ForeignRecord(%q,fields)\n", g.path+"."+m.gt)
 	case "callback":
 		c := m.callback
 		sig := m.typ.Underlying().(*types.Signature)
@@ -223,7 +223,7 @@ func (g *shimGenerator) emit(name, callee string, sig *types.Signature, c *forei
 	}
 	if recv != nil {
 		if recv.kind == "handle" {
-			fmt.Fprintf(&out, "receiver, ok := recv.(%s); if !ok { panic(fmt.Sprintf(%q,recv)) }\n", g.goType(recv.typ), "gofx shim: "+name+": receiver is <%T>")
+			fmt.Fprintf(&out, "receiver, ok := recv.(%s); if !ok { panic(fmt.Sprintf(%q,recv)) }\n", g.goType(recv.typ), "go4t shim: "+name+": receiver is <%T>")
 			g.imports["fmt"] = "fmt"
 		} else {
 			fmt.Fprintf(&out, "receiver := %sTo(recv,ctx)\n", g.conversion(recv))
@@ -234,7 +234,7 @@ func (g *shimGenerator) emit(name, callee string, sig *types.Signature, c *forei
 		args = append(args, "ctx")
 	}
 	if c.scan {
-		out.WriteString("count := p0.(int64); if count < 0 { return nil,rt.ClassifyError(fmt.Errorf(\"gofx scan: negative count %d\",count)) }; values := make([]any,count); dest := make([]any,count); for i := range dest { dest[i] = &values[i] }\n")
+		out.WriteString("count := p0.(int64); if count < 0 { return nil,rt.ClassifyError(fmt.Errorf(\"go4t scan: negative count %d\",count)) }; values := make([]any,count); dest := make([]any,count); for i := range dest { dest[i] = &values[i] }\n")
 		g.imports["fmt"] = "fmt"
 		args = append(args, "dest...")
 	} else {
@@ -294,7 +294,7 @@ func (g *shimGenerator) emit(name, callee string, sig *types.Signature, c *forei
 // use copy-boundary converters, with context captured only at IO execution.
 func BindWithShim(pkg *Package, options BindOptions, shimPath, shimPackage string) (string, []byte, error) {
 	set := newMirrorSet(options.Float)
-	g := &shimGenerator{path: shimPath, imports: map[string]string{"context": "context", "gofx/rt": "rt"}, converters: map[string]string{}}
+	g := &shimGenerator{path: shimPath, imports: map[string]string{"context": "context", "go4t/rt": "rt"}, converters: map[string]string{}}
 	var decl strings.Builder
 	emit := func(goName, display, shimName, callee string, sig *types.Signature, recvType types.Type) {
 		c, reason := set.call(sig, recvType != nil)
@@ -319,7 +319,7 @@ func BindWithShim(pkg *Package, options BindOptions, shimPath, shimPackage strin
 					copy.typ = recvType
 					recv = &copy
 					if p, ok := recvType.(*types.Pointer); ok && recv.kind != "handle" {
-						recv = &foreignMirror{typ: p, kind: "receiver", gfx: copy.gfx, elem: set.resolve(base, false)}
+						recv = &foreignMirror{typ: p, kind: "receiver", gt: copy.gt, elem: set.resolve(base, false)}
 					}
 				}
 			}
@@ -337,16 +337,16 @@ func BindWithShim(pkg *Package, options BindOptions, shimPath, shimPackage strin
 		}
 		params := []string{}
 		if recv != nil {
-			params = append(params, "recv "+recv.gfx)
+			params = append(params, "recv "+recv.gt)
 		}
 		for i, m := range c.params {
 			p := fmt.Sprintf("p%d", i)
 			if c.scan {
 				p = "count"
 			}
-			params = append(params, p+" "+m.gfx)
+			params = append(params, p+" "+m.gt)
 		}
-		result := c.result.gfx
+		result := c.result.gt
 		if c.optional {
 			result = "Option[" + result + "]"
 		}
@@ -371,10 +371,10 @@ func BindWithShim(pkg *Package, options BindOptions, shimPath, shimPackage strin
 	for _, f := range pkg.Functions {
 		callee, shimName := g.qualifier(types.NewPackage(pkg.Path, pkg.Name))+"."+f.Name, f.Name
 		if samePackage {
-			if strings.HasPrefix(f.Name, "Gofx_") {
+			if strings.HasPrefix(f.Name, "Go4t_") {
 				continue // output of a previous run of this command
 			}
-			callee, shimName = f.Name, "Gofx_"+f.Name
+			callee, shimName = f.Name, "Go4t_"+f.Name
 		}
 		emit(f.Name, f.Name, shimName, callee, f.Signature, nil)
 	}
@@ -389,9 +389,9 @@ func BindWithShim(pkg *Package, options BindOptions, shimPath, shimPackage strin
 	if options.Prefix != "" {
 		command += " --prefix " + options.Prefix
 	}
-	source := fmt.Sprintf("// Code generated by gofx bind %s --shim. DO NOT EDIT.\npackage %s\n\n", command, name) + set.declarations() + decl.String()
+	source := fmt.Sprintf("// Code generated by go4t bind %s --shim. DO NOT EDIT.\npackage %s\n\n", command, name) + set.declarations() + decl.String()
 	var goSource strings.Builder
-	fmt.Fprintf(&goSource, "// Code generated by gofx bind %s --shim. DO NOT EDIT.\npackage %s\n", pkg.Path, shimPackage)
+	fmt.Fprintf(&goSource, "// Code generated by go4t bind %s --shim. DO NOT EDIT.\npackage %s\n", pkg.Path, shimPackage)
 	// Qualification may inspect a natural function without emitting any code.
 	if g.body.Len() > 0 {
 		goSource.WriteString("import (\n")

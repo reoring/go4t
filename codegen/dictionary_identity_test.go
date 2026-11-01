@@ -3,12 +3,12 @@ package codegen
 import (
 	"testing"
 
-	"gofx/ast"
-	"gofx/types"
+	"go4t/ast"
+	"go4t/types"
 )
 
 func TestDictionaryRigidIdentity(t *testing.T) {
-	source := qualityProgram(t, "dictionary-identity.gfx", `package main
+	source := qualityProgram(t, "dictionary-identity.gt", `package main
 type Pair[A] = Pair(A, A)
 class Render[X] { render[A Show + Ord](pair X, other A) String }
 instance Show[Pair[A]] given Show[A] {

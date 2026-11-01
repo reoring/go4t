@@ -8,7 +8,7 @@ import (
 	"strings"
 	"unicode"
 
-	"gofx/ast"
+	"go4t/ast"
 )
 
 // PreludeExports is the deliberately small implicit namespace. A reexported

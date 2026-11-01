@@ -3,7 +3,7 @@ package format_test
 import (
 	"testing"
 
-	"gofx/format"
+	"go4t/format"
 )
 
 func TestListPatternGolden(t *testing.T) {
