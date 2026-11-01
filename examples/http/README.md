@@ -219,6 +219,39 @@ IO: second
 IO: third
 ```
 
+## Calc
+
+`examples/calc/main.gfx` is a small expression-language interpreter: an `Expr` ADT with
+record constructors, a `Result`-monad evaluator (partially applied `Monad[Result[E]]`),
+free-variable analysis with `State`, record patterns (`Bin{op: op, lhs: l, rhs: r}`), tuple
+projections (`p.0`, `p.1`), `forEach` over `IO` and `mapM` over `Result`.
+
+```text
+arith: (1 + (2 * 3))
+  => Ok(7)
+  free: []
+let: let x = 10 in (x * (x + 1))
+  => Ok(110)
+  free: []
+if: if (1 < 2) then 100 else 0
+  => Ok(100)
+  free: []
+free: (y + 1)
+  => Err(unbound variable y)
+  free: [y]
+div0: (1 / 0)
+  => Err(division by zero)
+  free: []
+type: ((1 < 2) + 1)
+  => Err(expected Int, got true)
+  free: []
+nested: let a = 2 in let b = (a * a) in if (a < b) then b else a
+  => Ok(4)
+  free: []
+all: Err(unbound variable y)
+ok:  Ok([7, 110, 100, 4])
+```
+
 ## Generated Go
 
 `go run ./cmd/gofx build examples/http/main.gfx` writes
