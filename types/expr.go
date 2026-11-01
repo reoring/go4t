@@ -30,6 +30,13 @@ type obligation struct {
 	defaultable bool
 }
 
+type patternCheck struct {
+	pos     ast.Pos
+	pat     ast.Pattern
+	typ     Type
+	context string
+}
+
 type bodyChecker struct {
 	c           *checker
 	constraints []Constraint
@@ -37,7 +44,7 @@ type bodyChecker struct {
 	exprs       []ast.Expr
 	obligations []obligation
 	additions   []*ast.Binary
-	lambdas     []*ast.Lambda
+	patterns    []patternCheck
 	matches     []*ast.Match
 	lets        []*localScheme
 	bindings    map[ast.Expr]defaultOrigin
@@ -67,7 +74,7 @@ func (b *bodyChecker) block(block *ast.Block, outer *locals) Type {
 	for _, stmt := range block.Stmts {
 		switch stmt := stmt.(type) {
 		case *ast.LetStmt:
-			b.let(stmt.Pos, stmt.Name, stmt.Type, stmt.Value, env)
+			b.let(stmt.Pos, stmt.Name, stmt.Pat, stmt.Type, stmt.Value, env)
 		case *ast.ExprStmt:
 			b.infer(stmt.X, env)
 		}
@@ -224,11 +231,9 @@ func (b *bodyChecker) inferExpected(e ast.Expr, env *locals, expected Type) Type
 			ft.Ret = b.c.fresh(KStar{})
 			unify(pos, expected, ft)
 		}
-		hasPattern := false
 		for i, param := range e.Params {
 			if param.Pat != nil {
-				b.pattern(param.Pat, ft.Params[i], local)
-				hasPattern = true
+				b.irrefutablePattern(pos, param.Pat, ft.Params[i], local, "lambda parameter")
 			} else {
 				checkValueName(pos, param.Name)
 				if local.values[param.Name] != nil {
@@ -236,9 +241,6 @@ func (b *bodyChecker) inferExpected(e ast.Expr, env *locals, expected Type) Type
 				}
 				local.values[param.Name] = ft.Params[i]
 			}
-		}
-		if hasPattern {
-			b.lambdas = append(b.lambdas, e)
 		}
 		ret := b.infer(e.Body, local)
 		if contextual && !unifyTypes(pos, ft.Ret, ret) {
@@ -274,11 +276,15 @@ func (b *bodyChecker) inferExpected(e ast.Expr, env *locals, expected Type) Type
 		for _, stmt := range e.Stmts {
 			switch stmt := stmt.(type) {
 			case *ast.DoBind:
-				checkValueName(stmt.Pos, stmt.Name)
-				local.values[stmt.Name] = b.monadic(stmt.X, head, local)
-				delete(local.schemes, stmt.Name)
+				if stmt.Pat != nil {
+					b.localPattern(stmt.Pos, stmt.Pat, b.monadic(stmt.X, head, local), local, "bind")
+				} else {
+					checkValueName(stmt.Pos, stmt.Name)
+					local.values[stmt.Name] = b.monadic(stmt.X, head, local)
+					delete(local.schemes, stmt.Name)
+				}
 			case *ast.DoLet:
-				b.let(stmt.Pos, stmt.Name, stmt.Type, stmt.Value, local)
+				b.let(stmt.Pos, stmt.Name, stmt.Pat, stmt.Type, stmt.Value, local)
 			case *ast.DoExpr:
 				b.monadic(stmt.X, head, local)
 			}
@@ -339,6 +345,23 @@ func (b *bodyChecker) monadic(e ast.Expr, head Type, env *locals) Type {
 	item := b.c.fresh(KStar{})
 	unify(e.GetPos(), App(head, item), b.infer(e, env))
 	return item
+}
+
+func (b *bodyChecker) irrefutablePattern(pos ast.Pos, pat ast.Pattern, typ Type, env *locals, context string) {
+	b.pattern(pat, typ, env)
+	b.patterns = append(b.patterns, patternCheck{pos: pos, pat: pat, typ: typ, context: context})
+}
+
+// A binding shadows earlier locals, but names within its own pattern must be
+// unique. Reuse parameter pattern inference in a fresh scope, then publish the
+// monomorphic variables and discard any schemes from shadowed bindings.
+func (b *bodyChecker) localPattern(pos ast.Pos, pat ast.Pattern, typ Type, env *locals, context string) {
+	local := newLocals(nil)
+	b.irrefutablePattern(pos, pat, typ, local, context)
+	for name, typ := range local.values {
+		env.values[name] = typ
+		delete(env.schemes, name)
+	}
 }
 
 func bindPattern(pos ast.Pos, name string, expected Type, env *locals) {

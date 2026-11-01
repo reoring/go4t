@@ -49,7 +49,7 @@ func (t Token) String() string {
 var keywords = map[string]bool{
 	"package": true, "class": true, "instance": true, "type": true, "func": true,
 	"extern": true, "let": true, "do": true, "match": true, "if": true, "else": true,
-	"true": true, "false": true, "given": true,
+	"true": true, "false": true, "given": true, "deriving": true,
 }
 
 // puncts ordered longest-first for maximal munch.
@@ -157,8 +157,8 @@ func (l *Lexer) continuationAhead() bool {
 		return i+1 < len(l.src) && l.src[i+1] == '='
 	case '&':
 		return i+1 < len(l.src) && l.src[i+1] == '&'
-	case 'e', 'g':
-		for _, word := range [...]string{"else", "given"} {
+	case 'e', 'g', 'd':
+		for _, word := range [...]string{"else", "given", "deriving"} {
 			j := 0
 			for j < len(word) && i+j < len(l.src) && l.src[i+j] == rune(word[j]) {
 				j++

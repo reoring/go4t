@@ -42,7 +42,7 @@ func TestLayoutMatrix(t *testing.T) {
 		{"underscore", "_", "_", true},
 		{"empty", "", "", false},
 	}
-	for _, text := range strings.Fields("package class instance type func extern let do match if else given => <- == != <= >= && || ( [ { , ; . = : | @ + - * / < > !") {
+	for _, text := range strings.Fields("package class instance type func extern let do match if else given deriving => <- == != <= >= && || ( [ { , ; . = : | @ + - * / < > !") {
 		previous = append(previous, struct {
 			name, src, text string
 			insert          bool
@@ -94,6 +94,7 @@ func TestLayoutMatrix(t *testing.T) {
 		layoutCase{"explicit-semicolon", "x;\nelse", "x ; else"},
 		layoutCase{"if-else", "if a { x }\nelse { y }", "if a { x } else { y } ;"},
 		layoutCase{"leading-bar", "type T =\n A(Int)\n | B\nx", "type T = A ( Int ) | B ; x ;"},
+		layoutCase{"deriving", "type T = A\n | B\n deriving Eq, Ord, Show\nx", "type T = A | B deriving Eq , Ord , Show ; x ;"},
 		layoutCase{"let-annotation", "let xs:\n List[Int] =\n []\nxs", "let xs : List [ Int ] = [ ] ; xs ;"},
 		layoutCase{"do-let-annotation", "do {\n let p: (Int,\n String) = (1,\n name)\n pure(p)\n}", "do { let p : ( Int , String ) = ( 1 , name ) ; pure ( p ) ; } ;"},
 		layoutCase{"match-guard", "match xs {\n Some(x) if valid(x)\n && ready()\n => x\n | _ => 0\n}", "match xs { Some ( x ) if valid ( x ) && ready ( ) => x | _ => 0 ; } ;"},
@@ -111,6 +112,7 @@ func TestLayoutMatrix(t *testing.T) {
 	}{
 		{"else", "else", true}, {"|", "|", true}, {".", ".", true},
 		{")", ")", true}, {"]", "]", true}, {"given", "given", true},
+		{"deriving", "deriving", true},
 		{"=>", "=>", true}, {"<-", "<-", true},
 		{"+", "+", true}, {"-", "-", true}, {"*", "*", true}, {"/", "/", true},
 		{"==", "==", true}, {"!=", "!=", true}, {"<", "<", true}, {"<=", "<=", true},
@@ -120,6 +122,8 @@ func TestLayoutMatrix(t *testing.T) {
 		{"else2", "else2", false}, {"elseα", "elseα", false}, {"else٢", "else٢", false},
 		{"given2", "given2", false}, {"given_", "given_", false},
 		{"givenα", "givenα", false}, {"given٢", "given٢", false},
+		{"deriving2", "deriving2", false}, {"deriving_", "deriving_", false},
+		{"derivingα", "derivingα", false}, {"deriving٢", "deriving٢", false},
 		{`"else"`, "else", false}, {`"given"`, "given", false},
 		{"other else", "other else", false},
 		{"=", "=", false}, {"!", "!", false}, {";", ";", false},
@@ -280,8 +284,8 @@ func TestTupleAccessTokens(t *testing.T) {
 }
 
 func TestIdentifierAndKeywordKinds(t *testing.T) {
-	got := tokens(t, "_ _name name_2 true false if iffy 42")
-	kinds := []lexer.Kind{lexer.Punct, lexer.Ident, lexer.Ident, lexer.Keyword, lexer.Keyword, lexer.Keyword, lexer.Ident, lexer.Int, lexer.Punct, lexer.EOF}
+	got := tokens(t, "_ _name name_2 true false if iffy deriving deriving_ 42")
+	kinds := []lexer.Kind{lexer.Punct, lexer.Ident, lexer.Ident, lexer.Keyword, lexer.Keyword, lexer.Keyword, lexer.Ident, lexer.Keyword, lexer.Ident, lexer.Int, lexer.Punct, lexer.EOF}
 	if len(got) != len(kinds) {
 		t.Fatalf("tokens = %#v", got)
 	}

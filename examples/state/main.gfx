@@ -36,7 +36,8 @@ func stack() State[List[Int], Option[Int]] {
 
 func main() IO[Unit] {
   do {
-    println("counter: ${runState(counter(), 10)}")
+    let (v, s) = runState(counter(), 10)
+    println("counter: ${(v, s)}")
     println("value:   ${evalState(counter(), 10)}")
     println("state:   ${execState(counter(), 10)}")
     println("mapped:  ${runState(fmap(counter(), func(n) => n * 10), 10)}")

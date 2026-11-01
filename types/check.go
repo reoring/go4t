@@ -13,14 +13,15 @@ import (
 type instanceKey struct{ class, con string }
 
 type checker struct {
-	program   *Program
-	cons      map[string]*TCon
-	ctors     map[string]*Ctor
-	methods   map[string]*Method
-	instances map[instanceKey]*Instance
-	nextMeta  int
-	file      string
-	sources   map[ast.Decl]string
+	program    *Program
+	cons       map[string]*TCon
+	ctors      map[string]*Ctor
+	methods    map[string]*Method
+	instances  map[instanceKey]*Instance
+	nextMeta   int
+	file       string
+	sources    map[ast.Decl]string
+	derivedOrd []*ast.TypeDecl
 }
 
 // Check collects all declarations before checking bodies, so signatures and
@@ -37,13 +38,15 @@ type checker struct {
 // Partial instance heads bind leading Fixed variables; applications and inferred
 // higher-kinded instantiations are normalized to a single constructor and args.
 //
-// Unannotated let-bound values generalize non-environment metas subject to the
-// value restriction; constrained values expose LetScheme for dictionary codegen.
+// Unannotated name-bound let values generalize non-environment metas subject to
+// the value restriction; constrained values expose LetScheme for dictionary codegen.
 // Let annotations resolve in the enclosing type-parameter scope and stay rigid.
 // Record patterns resolve constructors and named field indexes in RecordPats.
-// Lambda parameter patterns must cover their whole type; match guards are Bool
-// and do not contribute to coverage. Fields and tuple positions resolve indexes
-// statically; interpolation resolves Show and comparisons resolve Eq/Ord.
+// Lambda, let and bind patterns must cover their whole type and bind monomorphic
+// variables; match guards are Bool and do not contribute to coverage. Fields and
+// tuple positions resolve indexes statically; interpolation resolves Show and
+// comparisons resolve Eq/Ord. Deriving clauses expand once into ordinary instance
+// declarations in each input file and are consumed before collection.
 // Unconstrained ordinary metas (including comparison operands) default to Unit
 // with source-ordered warnings. Higher-kinded or explicit class ambiguities
 // remain errors. Failures return a positioned *Error and a nil program; partial
@@ -71,6 +74,21 @@ func Check(files []*ast.File) (program *Program, err error) {
 		cons: make(map[string]*TCon), ctors: make(map[string]*Ctor),
 		methods: make(map[string]*Method), instances: make(map[instanceKey]*Instance),
 		sources: make(map[ast.Decl]string),
+	}
+	for _, file := range files {
+		c.file = file.Name
+		for _, decl := range file.Decls {
+			if d, ok := decl.(*ast.TypeDecl); ok {
+				for _, class := range d.Deriving {
+					if class == "Ord" {
+						c.derivedOrd = append(c.derivedOrd, d)
+					}
+				}
+			}
+		}
+		if err := expandDeriving(file); err != nil {
+			return nil, err
+		}
 	}
 	for _, con := range []*TCon{Int, String, Bool, Unit, IO} {
 		c.cons[con.Name] = con
@@ -500,6 +518,12 @@ func (c *checker) collectInstances(files []*ast.File) {
 					fail(d.Pos, "missing method %s in instance %s", m.Name, class.Name)
 				}
 			}
+		}
+	}
+	for _, decl := range c.derivedOrd {
+		c.file = c.sources[decl]
+		if c.instances[instanceKey{"Eq", decl.Name}] == nil {
+			fail(decl.Pos, "deriving Ord for %s requires an Eq instance", decl.Name)
 		}
 	}
 	for _, inst := range c.program.Instances {

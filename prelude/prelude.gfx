@@ -17,15 +17,15 @@ class Eq[A] {
   eq(a A, b A) Bool
 }
 
-type Ordering = LT | EQ | GT
+type Ordering = LT | EQ | GT deriving Eq, Ord, Show
 
 class Ord[A] : Eq[A] {
   compare(a A, b A) Ordering
 }
 
-type Option[A] = None | Some(A)
+type Option[A] = None | Some(A) deriving Eq, Ord, Show
 
-type List[A] = Nil | Cons(A, List[A])
+type List[A] = Nil | Cons(A, List[A]) deriving Eq, Ord
 
 type State[S, A] = State(func(S) (A, S))
 
@@ -104,13 +104,20 @@ func modify[S](f func(S) S) State[S, Unit] {
   State(func(s) => (unit(), f(s)))
 }
 
-instance Show[Option[A]] given Show[A] {
-  show(o) {
-    match o {
-      None => "None"
-      Some(a) => "Some(" + show(a) + ")"
-    }
-  }
+func fromOption[A](o Option[A], d A) A {
+  match o { None => d | Some(a) => a }
+}
+
+func maybe[A, B](o Option[A], d B, f func(A) B) B {
+  match o { None => d | Some(a) => f(a) }
+}
+
+func isSome[A](o Option[A]) Bool {
+  match o { None => false | Some(_) => true }
+}
+
+func isNone[A](o Option[A]) Bool {
+  match o { None => true | Some(_) => false }
 }
 
 instance Show[List[A]] given Show[A] {
@@ -184,72 +191,6 @@ instance Ord[Bool] {
 
 instance Eq[Unit] {
   eq(a, b) { true }
-}
-
-instance Eq[Ordering] {
-  eq(a, b) {
-    match (a, b) {
-      (LT, LT) => true
-      (EQ, EQ) => true
-      (GT, GT) => true
-      _ => false
-    }
-  }
-}
-
-instance Ord[Ordering] {
-  compare(a, b) {
-    match a {
-      LT => match b { LT => EQ | _ => LT }
-      EQ => match b { LT => GT | EQ => EQ | GT => LT }
-      GT => match b { GT => EQ | _ => GT }
-    }
-  }
-}
-
-instance Eq[Option[A]] given Eq[A] {
-  eq(a, b) {
-    match (a, b) {
-      (None, None) => true
-      (Some(x), Some(y)) => eq(x, y)
-      _ => false
-    }
-  }
-}
-
-instance Ord[Option[A]] given Ord[A] {
-  compare(a, b) {
-    match (a, b) {
-      (None, None) => EQ
-      (None, Some(_)) => LT
-      (Some(_), None) => GT
-      (Some(x), Some(y)) => compare(x, y)
-    }
-  }
-}
-
-instance Eq[List[A]] given Eq[A] {
-  eq(a, b) {
-    match (a, b) {
-      (Nil, Nil) => true
-      (Cons(x, xs), Cons(y, ys)) => eq(x, y) && eq(xs, ys)
-      _ => false
-    }
-  }
-}
-
-instance Ord[List[A]] given Ord[A] {
-  compare(a, b) {
-    match (a, b) {
-      (Nil, Nil) => EQ
-      (Nil, Cons(_, _)) => LT
-      (Cons(_, _), Nil) => GT
-      (Cons(x, xs), Cons(y, ys)) => match compare(x, y) {
-        EQ => compare(xs, ys)
-        order => order
-      }
-    }
-  }
 }
 
 instance Eq[(A, B)] given Eq[A], Eq[B] {

@@ -314,6 +314,48 @@ short-circuit: false / true
 bounds: -9223372036854775808 / 9223372036854775807
 ```
 
+## Scheduler
+
+```sh
+go run ./cmd/gofx run examples/scheduler/main.gfx
+```
+
+The scheduler combines task-specific ordering and display, guarded buckets, and
+a six-hour plan. Expected output:
+
+`Priority` derives `Eq` and `Ord` in declaration order while keeping its custom
+display; `Status` derives `Eq`. The plan is unpacked with
+`let (today, later) = plan(tasks, 6)`. The `top:` statistic uses
+`maybe(head(sort(tasks)), "none", func(t) => t.title)` to display a title or its
+fallback. Other Option helpers are `fromOption(o, defaultValue)`, which returns
+the contained value or the default, and the predicates `isSome(o)` / `isNone(o)`.
+
+```text
+== all (sorted) ==
+  [ ] #1 fix login bug (URGENT, 2h)
+  [x] #5 update deps (HIGH, 1h)
+  [ ] #6 add metrics (HIGH, 3h)
+  [ ] #3 migrate database (HIGH, 12h)
+  [~] #4 refactor parser (normal, 5h)
+  [ ] #2 write release notes (low, 1h)
+== buckets ==
+  quick-win: [1]
+  big-rock: [3, 6]
+  backlog: []
+  normal: [2, 4]
+  done: [5]
+== today (6h) ==
+  [~] #1 fix login bug (URGENT, 2h)
+  [~] #6 add metrics (HIGH, 3h)
+  [~] #2 write release notes (low, 1h)
+  total 6h, 2 left
+== stats ==
+  top: fix login bug
+  longest: Some(12)
+  Low < Urgent = true, minInt = -9223372036854775808
+  next after today: Some([~] #4 refactor parser (normal, 5h))
+```
+
 ## Generated Go
 
 `go run ./cmd/gofx build examples/http/main.gfx` writes

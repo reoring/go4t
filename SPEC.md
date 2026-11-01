@@ -26,7 +26,7 @@ This distinction is enforced by the checker (`constructor name must be capitalis
 `value name must start with a lower-case letter`). Identifiers starting with `dict_` or
 `ext_` are reserved (error).
 
-Keywords: `package class instance type func extern let do match if else true false given`.
+Keywords: `package class instance type func extern let do match if else true false given deriving`.
 
 ### 1.4 Literals
 - Int: decimal digits, 64-bit signed.
@@ -45,7 +45,7 @@ A newline is converted to `;` iff all of:
 2. the innermost unclosed bracket is `{` or there is none (newlines inside `(…)` and `[…]`
    never produce `;`);
 3. the next token (after blank lines and comments) is not a *continuation token*:
-   `else`, `|`, `||`, `.`, `)`, `]`, `given`, `=>`, `<-`, or a binary operator
+   `else`, `|`, `||`, `.`, `)`, `]`, `given`, `deriving`, `=>`, `<-`, or a binary operator
    (`+ - * / == != < <= > >= &&`).
 
 Consequences: `else` may start a line; match arms may be written one per line with or
@@ -99,7 +99,7 @@ constrains the parameter (`F[_] Functor`, `A Show`). At most one constraint per 
 
 ### 3.4 Data types
 ```
-TypeDecl := 'type' Ident [ '[' Ident {',' Ident} ']' ] '=' Ctor { '|' Ctor }
+TypeDecl := 'type' Ident [ '[' Ident {',' Ident} ']' ] '=' Ctor { '|' Ctor } [ 'deriving' Ident {',' Ident} ]
 Ctor     := Ident                                  // nullary
           | Ident '(' Type {',' Type} ')'          // positional fields
           | Ident '{' Ident ':' Type {',' Ident ':' Type} '}'   // record fields
@@ -107,6 +107,13 @@ Ctor     := Ident                                  // nullary
 A constructor is either positional or record-form, never both. Record constructors are
 positional constructors with field names: they may be constructed and matched positionally
 as well as by name. Types may be recursive and parameterised.
+
+`deriving Eq, Ord, Show` (any subset) generates instances: `Eq` compares constructor and
+fields; `Ord` orders by constructor declaration order, then fields lexicographically (and
+requires an `Eq` instance); `Show` renders `C`, `C(f1, f2)` or `C{a: f1, b: f2}` with fields
+shown by their own `Show`. For a parameterised type each parameter receives the same
+constraint (`instance Eq[Pair[A, B]] given Eq[A], Eq[B]`). Fields of function type cannot
+derive `Eq`/`Ord`. A derived instance conflicts with a hand-written one for the same class.
 
 ### 3.5 Functions
 ```
@@ -200,13 +207,15 @@ they work on any user type with an instance; the operand types must unify. `Bool
 ### 4.2 Blocks and `let`
 A block's value is its final expression. `let x = e` or `let x: T = e` binds `x` for the
 rest of the block; with an annotation `e` must have type `T` (type parameters of the
-enclosing function may appear in `T`). Bindings are not recursive and shadow outer names.
+enclosing function may appear in `T`). The left side may be an irrefutable pattern:
+`let (today, later) = plan(tasks, 6)`, `let Point{x: x, ..} = p`. Bindings are not
+recursive and shadow outer names.
 
 `let` generalises (let-polymorphism) when the bound expression is a lambda, a literal, or a
 constructor application; type variables not free in the environment become scheme
 parameters and class constraints on them become scheme constraints. Other expressions
-(calls, `do`, `match`, …) and annotated lets are bound monomorphically. Function parameters
-are never generalised.
+(calls, `do`, `match`, …), annotated lets and pattern lets are bound monomorphically.
+Function parameters are never generalised.
 
 ### 4.3 Lambdas
 `func(x, y) => e`. Parameters are monomorphic; their types are inferred, or declared
@@ -263,12 +272,13 @@ instance; its `show` result is spliced in.
 ### 4.10 `do`
 ```
 DoStmts := { DoStmt ';' } Expr
-DoStmt  := Ident '<-' Expr | 'let' Ident '=' Expr | Expr
+DoStmt  := ( Ident | Pattern ) '<-' Expr | 'let' ( Ident | Pattern ) [ ':' Type ] '=' Expr | Expr
 ```
 `do` sequences a monad. Every `x <- e`, bare `e`, and the final expression must have type
 `M[…]` for one and the same `M`, which must have a `Monad` instance (or be a type parameter
-constrained by `Monad`). `x <- e` binds the result; a bare statement discards it; `let` is an
-ordinary binding. The block's type is the final expression's type. Desugaring is
+constrained by `Monad`). `x <- e` binds the result (an irrefutable pattern is allowed:
+`(value, final) <- runState(m, 0)`); a bare statement discards it; `let` is an ordinary
+binding. The block's type is the final expression's type. Desugaring is
 right-nested `bind`.
 
 ## 5. Type system
@@ -335,6 +345,8 @@ elem[A Eq](x A, xs List[A]) Bool    sort[A Ord](xs List[A]) List[A]
 sortBy[A](xs List[A], cmp func(A, A) Ordering) List[A]
 maximum[A Ord](xs List[A]) Option[A]   minimum[A Ord](xs List[A]) Option[A]
 minInt() Int   maxInt() Int
+fromOption[A](o Option[A], d A) A   maybe[A, B](o Option[A], d B, f func(A) B) B
+isSome[A](o Option[A]) Bool         isNone[A](o Option[A]) Bool
 fst[A, B](p (A, B)) A               snd[A, B](p (A, B)) B
 zip[A, B](xs List[A], ys List[B]) List[(A, B)]
 runState[S, A](st State[S, A], s S) (A, S)   evalState …  A   execState … S
@@ -357,7 +369,7 @@ tuples become `TupleN` structs. Generated code imports `gofx/rt` and the extern 
 - Field access on a lambda parameter requires the type to be known (annotation or call
   context).
 - Prelude names cannot be shadowed by user declarations.
-- No `deriving`: `Eq`/`Ord`/`Show` instances for user types are written by hand.
+- `deriving` covers only `Eq`, `Ord`, `Show`; `Functor` and friends are hand-written.
 - `if` always requires `else` (it is an expression); use `match` guards for case analysis.
 - Performance: uniform `any` representation, interface-dispatched dictionaries, linked
   lists.

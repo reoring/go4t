@@ -23,7 +23,7 @@ func (g *generator) statements(stmts []ast.Stmt, result ast.Expr) string {
 		case *ast.LetStmt:
 			// A nested scope preserves lexical shadowing, including the case where
 			// the initializer refers to the previous binding of the same name.
-			fmt.Fprintf(&out, "{\n%s%s}\n", g.letBinding(stmt.Name, stmt.Value), g.statements(stmts[i+1:], result))
+			out.WriteString(g.letStatement(stmt.Name, stmt.Pat, stmt.Value, g.statements(stmts[i+1:], result)))
 			return out.String()
 		case *ast.ExprStmt:
 			fmt.Fprintf(&out, "_ = %s\n", g.expr(stmt.X))
@@ -33,6 +33,16 @@ func (g *generator) statements(stmts []ast.Stmt, result ast.Expr) string {
 	}
 	fmt.Fprintf(&out, "return %s\n", g.expr(result))
 	return out.String()
+}
+
+func (g *generator) letStatement(name string, pattern ast.Pattern, value ast.Expr, body string) string {
+	if pattern == nil {
+		return "{\n" + g.letBinding(name, value) + body + "}\n"
+	}
+	temp := g.fresh()
+	binding := "var " + temp + " any = " + g.expr(value) + "\n_ = " + temp + "\n"
+	body, _ = g.pattern(pattern, temp, body, true)
+	return "{\n" + binding + body + "}\n"
 }
 
 func (g *generator) letBinding(name string, value ast.Expr) string {
@@ -211,10 +221,14 @@ func (g *generator) expr(expr ast.Expr) string {
 			switch stmt := e.Stmts[i].(type) {
 			case *ast.DoBind:
 				value, name = stmt.X, mangle(stmt.Name)
+				if stmt.Pat != nil {
+					name = "p"
+					body, _ = g.pattern(stmt.Pat, name, body, true)
+				}
 			case *ast.DoExpr:
 				value, name = stmt.X, "_"
 			case *ast.DoLet:
-				body = "{\n" + g.letBinding(stmt.Name, stmt.Value) + body + "}\n"
+				body = g.letStatement(stmt.Name, stmt.Pat, stmt.Value, body)
 				continue
 			default:
 				g.fail(e.GetPos(), "unsupported do statement %T", stmt)
@@ -293,8 +307,8 @@ func construct(name string, args []string) string {
 // Each arm has its own failure continuation: a failed nested pattern falls
 // through to the next complete arm, including arms with the same outer ctor.
 // The final unguarded arm's head is guaranteed by exhaustiveness; nested heads
-// are only unguarded when they are irrefutable on their own. Lambda parameters
-// reuse this path. The result reports whether a pattern can still fall through.
+// are only unguarded when they are irrefutable on their own. Lambda parameters,
+// lets and do binds reuse this path. The result reports whether a pattern can still fall through.
 func (g *generator) pattern(pattern ast.Pattern, value, success string, unguarded bool) (string, bool) {
 	switch p := pattern.(type) {
 	case *ast.PWild:

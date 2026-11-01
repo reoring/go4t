@@ -6,7 +6,7 @@ package main
 
 // ===== 構文 =====
 
-type Op = Add | Sub | Mul | Div | Lt
+type Op = Add | Sub | Mul | Div | Lt deriving Eq
 
 type Expr =
     Num(Int)
@@ -15,12 +15,12 @@ type Expr =
   | Let{name: String, value: Expr, body: Expr}
   | If{cond: Expr, thenE: Expr, elseE: Expr}
 
-type Value = IntV(Int) | BoolV(Bool)
+type Value = IntV(Int) | BoolV(Bool) deriving Eq
 
 type EvalError =
     Unbound(String)
   | DivByZero
-  | TypeError{expected: String, got: Value}
+  | TypeError{expected: String, got: Value} deriving Eq
 
 type Result[E, A] = Err(E) | Ok(A)
 

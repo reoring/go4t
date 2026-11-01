@@ -24,7 +24,8 @@ func TestPreludeParses(t *testing.T) {
 		"instance Functor[List]", "instance Monad[List]",
 		"instance Functor[State]", "instance Monad[State]",
 		"func runState", "func evalState", "func execState", "func get", "func put", "func modify",
-		"instance Show[Option]", "instance Show[List]", "instance Show[Tuple2]",
+		"func fromOption", "func maybe", "func isSome", "func isNone",
+		"instance Show[List]", "instance Show[Tuple2]",
 		"func ioPure", "func ioBind", "func ioFail", "func println",
 		"func showInt", "func showBool", "func showString", "func unit",
 		"func eqInt", "func ltInt", "func eqString", "func ltString", "func eqBool",
@@ -32,8 +33,6 @@ func TestPreludeParses(t *testing.T) {
 		"instance Show[Int]", "instance Show[String]", "instance Show[Bool]",
 		"instance Eq[Int]", "instance Ord[Int]", "instance Eq[String]", "instance Ord[String]",
 		"instance Eq[Bool]", "instance Ord[Bool]", "instance Eq[Unit]",
-		"instance Eq[Ordering]", "instance Ord[Ordering]",
-		"instance Eq[Option]", "instance Ord[Option]", "instance Eq[List]", "instance Ord[List]",
 		"instance Eq[Tuple2]", "instance Ord[Tuple2]",
 		"instance Functor[IO]", "instance Monad[IO]",
 		"func map", "func flatMap", "func forEach", "func mapM",
@@ -45,6 +44,11 @@ func TestPreludeParses(t *testing.T) {
 	if len(file.Decls) != len(want) {
 		t.Fatalf("declaration count = %d, want %d", len(file.Decls), len(want))
 	}
+	wantDeriving := map[string][]string{
+		"Ordering": {"Eq", "Ord", "Show"},
+		"Option":   {"Eq", "Ord", "Show"},
+		"List":     {"Eq", "Ord"},
+	}
 	var names []string
 	for _, decl := range file.Decls {
 		switch decl := decl.(type) {
@@ -52,6 +56,9 @@ func TestPreludeParses(t *testing.T) {
 			names = append(names, "class "+decl.Name)
 		case *ast.TypeDecl:
 			names = append(names, "type "+decl.Name)
+			if want := wantDeriving[decl.Name]; !reflect.DeepEqual(decl.Deriving, want) {
+				t.Errorf("%s deriving = %v, want %v", decl.Name, decl.Deriving, want)
+			}
 		case *ast.InstanceDecl:
 			names = append(names, "instance "+decl.Class+"["+decl.TypeCon+"]")
 		case *ast.FuncDecl:

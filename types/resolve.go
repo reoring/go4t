@@ -65,12 +65,10 @@ func (b *bodyChecker) finish() {
 			}
 		}
 	}
-	for _, expr := range b.lambdas {
-		params := AnnOf(expr).Type.(*TFunc).Params
-		for i, param := range expr.Params {
-			if param.Pat != nil && !b.c.covers([][]ast.Pattern{{param.Pat}}, []Type{params[i]}) {
-				fail(expr.GetPos(), "lambda parameter pattern must be irrefutable")
-			}
+	for _, check := range b.patterns {
+		typ := zonk(check.pos, check.typ, b.defaultMeta)
+		if !b.c.covers([][]ast.Pattern{{check.pat}}, []Type{typ}) {
+			fail(check.pos, "%s pattern must be irrefutable", check.context)
 		}
 	}
 	for _, expr := range b.matches {

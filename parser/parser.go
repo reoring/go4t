@@ -10,7 +10,7 @@
 //	          // head arguments remain in Params; the checker splits Fixed for partial applications
 //	Context  := Constraint { ',' Constraint }
 //	Constraint := Ident '[' Ident ']' // parameter declared in the instance head
-//	TypeDecl := 'type' Ident [ '[' Idents ']' ] '=' Ctor { '|' Ctor }
+//	TypeDecl := 'type' Ident [ '[' Idents ']' ] '=' Ctor { '|' Ctor } [ 'deriving' Idents ]
 //	Ctor     := Ident [ '(' [ Type { ',' Type } ] ')' | '{' NamedType { ',' NamedType } [ ',' ] '}' ]
 //	NamedType := Ident ':' Type // records need at least one field; no positional/named mixing
 //	Func     := 'func' Ident [ TParams ] '(' Params ')' Type Block
@@ -19,13 +19,13 @@
 //	Type     := Ident [ '[' Type { ',' Type } ']' ] | 'func' '(' [ Type { ',' Type } ] ')' Type
 //	          | '(' Type ')' | '(' Type ',' Type { ',' Type } ')'
 //	Block    := '{' { Stmt ';' } Expr [ ';' ] '}'
-//	Stmt     := 'let' Ident [ ':' Type ] '=' Expr | Expr
+//	Stmt     := 'let' Pattern [ ':' Type ] '=' Expr | Expr
 //	Expr     := 'func' '(' LParams ')' '=>' Expr | 'do' DoBlock | 'match' Expr '{' Arms '}'
 //	          | 'if' Expr Block 'else' ( Block | IfExpr ) | Binary
 //	LParams  := [ LParam { ',' LParam } [ ',' ] ]
 //	LParam   := LowerIdent [ Type ] | Pattern // only bare non-constructor names may be annotated
 //	DoBlock  := '{' { DoStmt ';' } Expr [ ';' ] '}'
-//	DoStmt   := Ident '<-' Expr | 'let' Ident [ ':' Type ] '=' Expr | Expr
+//	DoStmt   := Pattern '<-' Expr | 'let' Pattern [ ':' Type ] '=' Expr | Expr
 //	Arms     := { ';' } [ '|' ] { ';' } Arm { ArmSep Arm } [ ArmSep ]
 //	Arm      := Pattern [ 'if' Expr ] '=>' Expr
 //	ArmSep   := ( ';' | '|' ) { ';' | '|' }
@@ -387,6 +387,15 @@ func (p *Parser) typeDecl() ast.Decl {
 			break
 		}
 	}
+	if p.isK("deriving") {
+		p.next()
+		for {
+			d.Deriving = append(d.Deriving, p.ident())
+			if !p.acceptP(",") {
+				break
+			}
+		}
+	}
 	return d
 }
 
@@ -466,13 +475,13 @@ func (p *Parser) block() *ast.Block {
 		}
 		if p.isK("let") {
 			pos := p.next().Pos
-			name := p.ident()
+			name, pat := p.bindingPattern()
 			var typ ast.Type
 			if p.acceptP(":") {
 				typ = p.typ()
 			}
 			p.expectP("=")
-			b.Stmts = append(b.Stmts, &ast.LetStmt{Pos: pos, Name: name, Type: typ, Value: p.expr()})
+			b.Stmts = append(b.Stmts, &ast.LetStmt{Pos: pos, Name: name, Pat: pat, Type: typ, Value: p.expr()})
 			p.skipSemis()
 			continue
 		}
@@ -486,6 +495,39 @@ func (p *Parser) block() *ast.Block {
 	}
 	p.expectP("}")
 	return b
+}
+
+// bindingPattern preserves the compact Name representation for a bare local.
+func (p *Parser) bindingPattern() (string, ast.Pattern) {
+	t := p.tok()
+	if t.Kind == lexer.Ident {
+		first, _ := utf8.DecodeRuneInString(t.Text)
+		next := p.toks[p.i+1]
+		if unicode.IsLower(first) && next.Kind == lexer.Punct && (next.Text == "=" || next.Text == ":" || next.Text == "<-") {
+			return p.ident(), nil
+		}
+	}
+	return "", p.pattern()
+}
+
+// tryBind backtracks both failed patterns and patterns not followed by <-.
+// Only the left side is speculative; errors in a bind's expression propagate.
+func (p *Parser) tryBind() (name string, pat ast.Pattern, ok bool) {
+	start := p.i
+	defer func() {
+		if r := recover(); r != nil {
+			if _, parseFailure := r.(parseError); !parseFailure {
+				panic(r)
+			}
+		}
+		if !ok {
+			p.i = start
+			name, pat = "", nil
+		}
+	}()
+	name, pat = p.bindingPattern()
+	ok = p.acceptP("<-")
+	return
 }
 
 // ---- expressions ----
@@ -561,20 +603,18 @@ func (p *Parser) doExpr(pos ast.Pos) ast.Expr {
 		spos := p.pos()
 		if p.isK("let") {
 			p.next()
-			name := p.ident()
+			name, pat := p.bindingPattern()
 			var typ ast.Type
 			if p.acceptP(":") {
 				typ = p.typ()
 			}
 			p.expectP("=")
-			d.Stmts = append(d.Stmts, &ast.DoLet{Pos: spos, Name: name, Type: typ, Value: p.expr()})
+			d.Stmts = append(d.Stmts, &ast.DoLet{Pos: spos, Name: name, Pat: pat, Type: typ, Value: p.expr()})
 			p.skipSemis()
 			continue
 		}
-		if p.tok().Kind == lexer.Ident && p.toks[p.i+1].Kind == lexer.Punct && p.toks[p.i+1].Text == "<-" {
-			name := p.ident()
-			p.next()
-			d.Stmts = append(d.Stmts, &ast.DoBind{Pos: spos, Name: name, X: p.expr()})
+		if name, pat, ok := p.tryBind(); ok {
+			d.Stmts = append(d.Stmts, &ast.DoBind{Pos: spos, Name: name, Pat: pat, X: p.expr()})
 			p.skipSemis()
 			continue
 		}

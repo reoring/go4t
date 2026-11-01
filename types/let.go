@@ -108,8 +108,10 @@ func (b *bodyChecker) generalizableValues(es []ast.Expr) bool {
 	return true
 }
 
-func (b *bodyChecker) let(pos ast.Pos, name string, annotation ast.Type, value ast.Expr, env *locals) {
-	checkValueName(pos, name)
+func (b *bodyChecker) let(pos ast.Pos, name string, pat ast.Pattern, annotation ast.Type, value ast.Expr, env *locals) {
+	if pat == nil {
+		checkValueName(pos, name)
+	}
 	start := len(b.obligations)
 	var expected Type
 	if annotation != nil {
@@ -118,6 +120,10 @@ func (b *bodyChecker) let(pos ast.Pos, name string, annotation ast.Type, value a
 	typ := b.inferExpected(value, env, expected)
 	if expected != nil {
 		unify(value.GetPos(), expected, typ)
+	}
+	if pat != nil {
+		b.localPattern(pos, pat, typ, env, "let")
+		return
 	}
 	if b.bindings == nil {
 		b.bindings = make(map[ast.Expr]defaultOrigin)

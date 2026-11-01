@@ -10,8 +10,10 @@
 // evaluated base, and interpolation sends each expression through its Show dictionary.
 // Final match arms without source guards omit their proven head guard; refutable
 // nested patterns and guarded final arms retain a defensive match panic. Lambda
-// parameter patterns use the same irrefutable bindings. Boolean operators short
-// circuit in Go; comparisons dispatch through Eq/Ord dictionaries.
+// parameters, lets and do binds use the same irrefutable pattern bindings; pattern
+// lets evaluate their initializer once and remain monomorphic. Boolean operators
+// short circuit in Go; comparisons dispatch through Eq/Ord dictionaries. Derived
+// instances use the ordinary checked instance representation and dictionary ABI.
 package codegen
 
 import (

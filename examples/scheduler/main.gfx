@@ -2,29 +2,9 @@ package main
 
 // ===== ドメイン =====
 
-type Priority = Low | Normal | High | Urgent
-type Status   = Todo | Doing | Done
+type Priority = Low | Normal | High | Urgent deriving Eq, Ord
+type Status   = Todo | Doing | Done deriving Eq
 type Task = Task{id: Int, title: String, prio: Priority, est: Int, status: Status}
-
-// ===== Eq / Ord を手書き(deriving はない) =====
-
-func rank(p Priority) Int {
-  match p { Low => 0 | Normal => 1 | High => 2 | Urgent => 3 }
-}
-
-instance Eq[Priority]  { eq(a, b) { rank(a) == rank(b) } }
-instance Ord[Priority] { compare(a, b) { compare(rank(a), rank(b)) } }
-
-instance Eq[Status] {
-  eq(a, b) {
-    match (a, b) {
-      (Todo, Todo) => true
-      (Doing, Doing) => true
-      (Done, Done) => true
-      _ => false
-    }
-  }
-}
 
 // Task の同一性は id だけで決める
 instance Eq[Task]  { eq(a, b) { a.id == b.id } }
@@ -87,9 +67,7 @@ func main() IO[Unit] {
     Task{id: 5, title: "update deps",         prio: High,   est: 1,  status: Done},
     Task{id: 6, title: "add metrics",         prio: High,   est: 3,  status: Todo}
   ]
-  let planned = plan(tasks, 6)
-  let today = fst(planned)
-  let later = snd(planned)
+  let (today, later) = plan(tasks, 6)
   let groups: List[(String, List[Int])] =
     map(["quick-win", "big-rock", "backlog", "normal", "done"],
         func(b) => (b, map(filter(tasks, func(t) => bucket(t) == b), func(t) => t.id)))
@@ -102,7 +80,7 @@ func main() IO[Unit] {
     forEach(map(today, start), func(t) => println("  ${t}"))
     println("  total ${totalHours(today)}h, ${length(later)} left")
     println("== stats ==")
-    println("  top: ${head(sort(tasks))}")
+    println("  top: ${maybe(head(sort(tasks)), "none", func(t) => t.title)}")
     println("  longest: ${maximum(map(tasks, func(t) => t.est))}")
     println("  Low < Urgent = ${Low < Urgent}, minInt = ${minInt()}")
     println("  next after today: ${head(sortBy(later, func(a, b) => compare(a.est, b.est)))}")
