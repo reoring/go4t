@@ -14,6 +14,13 @@ type ShapeFuncs struct {
 	Tuple2     func(a, b any) any
 	Untuple2   func(p any) (a, b any)
 	OrderingOf func(o any) int // LT = -1, EQ = 0, GT = 1
+	JNull      func() any
+	JBool      func(any) any
+	JNum       func(any) any
+	JStr       func(any) any
+	JArr       func(any) any
+	JObj       func(any) any
+	JsonView   func(any) (kind string, value any)
 }
 
 // Shapes holds the generated program's value constructors and destructors.
@@ -106,6 +113,7 @@ func ErrOf(value any) any {
 	}
 	return Shapes.Err(value)
 }
+
 // Tuple2Of constructs a generated two-element tuple.
 func Tuple2Of(a, b any) any {
 	if Shapes.Tuple2 == nil {

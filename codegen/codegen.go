@@ -165,6 +165,7 @@ func Generate(prog *types.Program, goPackage string) (source []byte, err error) 
 `, resultLine, ctorName(ok), resultLine, ctorName(err), resultLine)
 		}
 	}
+	g.jsonShapes(&out)
 	for _, name := range sortedKeys(prog.Classes) {
 		class := prog.Classes[name]
 		fmt.Fprintf(&out, "type %s interface {\n", class.Name)

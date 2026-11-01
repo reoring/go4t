@@ -222,9 +222,12 @@ type Instance struct {
 	// Fixed are the leading type arguments held abstract by a partially
 	// applied head (`instance Functor[Result[E]]`): the instance covers
 	// TApp{TypeCon, Fixed ++ <class-kind args>}. Empty for full heads.
-	Fixed   []*TVar
-	Params  []*TVar
-	Context []Constraint
+	Fixed  []*TVar
+	Params []*TVar
+	// HeadArgs preserves concrete nullary arguments and variable positions.
+	// Coherence remains one instance per (class, type constructor).
+	HeadArgs []Type
+	Context  []Constraint
 	// SuperArgs, for an instance of a class with a superclass, gives one
 	// DictRef per Context entry of the superclass instance for the same
 	// head, expressed in terms of this instance's Context (DictParam,
