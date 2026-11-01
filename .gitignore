@@ -1,3 +1,6 @@
 .tmp/
 *_gen/
 .wt/
+
+selfhost/base_gen/
+selfhost/dev/**/*_gen/

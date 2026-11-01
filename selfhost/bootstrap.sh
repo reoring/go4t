@@ -24,7 +24,7 @@ echo "== examples via stage1"
 status=0
 for dir in examples/*/; do
   name=$(basename "$dir")
-  src="$dir/main.gfx"
+  src="${dir}main.gfx"
   [ -f "$src" ] || continue
   gen="$OUT/examples/${name}_gen"
   mkdir -p "$gen"
@@ -34,10 +34,10 @@ for dir in examples/*/; do
   if ! go build -o "$gen/prog" "./$gen" 2>"$OUT/examples/$name.goerr"; then
     echo "FAIL go build $name: $(head -3 "$OUT/examples/$name.goerr")"; status=1; continue
   fi
-  expected=$(go run ./cmd/gofx run "$src" </dev/null 2>&1 || true)
-  actual=$("$gen/prog" </dev/null 2>&1 || true)
+  expected=$(go run ./cmd/gofx run "$src" </dev/null 2>/dev/null || true)
+  actual=$("$gen/prog" </dev/null 2>/dev/null || true)
   if [ "$expected" == "$actual" ]; then echo "ok   $name"; else
-    echo "FAIL output $name"; diff <(echo "$expected") <(echo "$actual") | head -10; status=1
+    echo "FAIL output $name"; { diff <(echo "$expected") <(echo "$actual") || true; } | head -10; status=1
   fi
 done
 

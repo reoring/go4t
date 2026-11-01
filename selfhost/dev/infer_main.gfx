@@ -1,0 +1,143 @@
+package main
+
+// Slice-only runtime declarations; integration gets these from Lexer/Parser.
+extern func quote(s String) String = "gofx/rt".Quote
+extern func isLower(s String) Bool = "gofx/rt".IsLower
+extern func isUpper(s String) Bool = "gofx/rt".IsUpper
+
+func infDevPos() Pos { Pos{line: 1, col: 1} }
+func infDevId(n String) Expr { EIdent(infDevPos(), n) }
+func infDevInt(n Int) Expr { EInt(infDevPos(), n) }
+func infDevStr(s String) Expr { EString(infDevPos(), s) }
+func infDevCall(n String, args List[Expr]) Expr { ECall(infDevPos(), infDevId(n), args) }
+func infDevBlock(stmts List[Stmt], result Expr) Expr { EBlock(infDevPos(), Block{pos: infDevPos(), stmts: stmts, result: result}) }
+func infDevCtor(data String, name String, params List[String], fields List[Type], labels List[String], index Int) CtorInfo {
+  CtorInfo{name: name, data: data, tparams: params, fields: fields, fieldNames: labels, index: index, pos: infDevPos()}
+}
+func infDevInst(cls String, con String, params List[String], context List[(String, String)]) InstanceInfo {
+  InstanceInfo{className: cls, typeCon: con, fixed: Nil, params: params, context: context, superArgs: Nil, methods: Nil, derived: false, pos: infDevPos()}
+}
+func infDevFunc(name String, sch Scheme, params List[String], body Expr) FuncInfo {
+  FuncInfo{name: name, scheme: sch, decl: FuncDecl{pos: infDevPos(), name: name, tparams: Nil, params: fmap(params, func(n) => PName(n, None)), ret: STName(infDevPos(), "Unit", Nil), body: Some(Block{pos: infDevPos(), stmts: Nil, result: body}), externRef: None}}
+}
+func infDevMethod(cls String, name String, kind Kind, own List[(String, Kind)], constraints List[(String, String)], typ Type, arity Int) MethodInfo {
+  MethodInfo{name: name, className: cls, scheme: Scheme{tparams: Cons(("A", kind), own), constraints: Cons((cls, "A"), constraints), typ: typ}, arity: arity}
+}
+func infDevEnv() Env {
+  let a = TVar("A", KStar)
+  let b = TVar("B", KStar)
+  let c = TVar("C", KStar)
+  let m = TVar("A", KArrow(1))
+  let none = infDevCtor("Option", "None", ["A"], Nil, Nil, 0)
+  let some = infDevCtor("Option", "Some", ["A"], [a], Nil, 1)
+  let nilCtor = infDevCtor("List", "Nil", ["A"], Nil, Nil, 0)
+  let cons = infDevCtor("List", "Cons", ["A"], [a, tList(a)], Nil, 1)
+  let point = infDevCtor("Point", "Point", Nil, [tInt(), tString()], ["x", "label"], 0)
+  let datas = [DataInfo{name: "Option", tparams: ["A"], ctors: [none, some], pos: infDevPos()}, DataInfo{name: "List", tparams: ["A"], ctors: [nilCtor, cons], pos: infDevPos()}, DataInfo{name: "Point", tparams: Nil, ctors: [point], pos: infDevPos()}]
+  let showMethod = infDevMethod("Show", "show", KStar, Nil, Nil, TFunc([a], tString()), 1)
+  let eqMethod = infDevMethod("Eq", "eq", KStar, Nil, Nil, TFunc([a, a], tBool()), 2)
+  let compareMethod = infDevMethod("Ord", "compare", KStar, Nil, Nil, TFunc([a, a], TCon("Ordering", KStar)), 2)
+  let pureMethod = infDevMethod("Monad", "pure", KArrow(1), [("B", KStar)], Nil, TFunc([b], tApp(m, [b])), 1)
+  let bindMethod = infDevMethod("Monad", "bind", KArrow(1), [("B", KStar), ("C", KStar)], Nil, TFunc([tApp(m, [b]), TFunc([b], tApp(m, [c]))], tApp(m, [c])), 2)
+  let classes = [ClassInfo{name: "Show", param: "A", paramKind: KStar, super: None, methods: [showMethod], pos: infDevPos()}, ClassInfo{name: "Eq", param: "A", paramKind: KStar, super: None, methods: [eqMethod], pos: infDevPos()}, ClassInfo{name: "Ord", param: "A", paramKind: KStar, super: Some("Eq"), methods: [compareMethod], pos: infDevPos()}, ClassInfo{name: "Monad", param: "A", paramKind: KArrow(1), super: None, methods: [pureMethod, bindMethod], pos: infDevPos()}]
+  let instances = append(concatMap(["Show", "Eq", "Ord"], func(cls) => fmap(["Int", "String", "Bool", "Unit"], func(con) => infDevInst(cls, con, Nil, Nil))), [infDevInst("Show", "List", ["A"], [("Show", "A")]), infDevInst("Monad", "Option", Nil, Nil)])
+  let funcs = [infDevFunc("applyPoint", monoScheme(TFunc([TFunc([TCon("Point", KStar)], tInt())], tInt())), ["f"], infDevInt(0)), infDevFunc("unit", monoScheme(TFunc(Nil, tUnit())), Nil, infDevInt(0))]
+  let env = emptyEnv()
+  env{datas: mapFromList(fmap(datas, func(d) => (d.name, d))), ctors: mapFromList(fmap([none, some, nilCtor, cons, point], func(ctor) => (ctor.name, ctor))), classes: mapFromList(fmap(classes, func(cls) => (cls.name, cls))), methods: mapFromList(fmap([showMethod, eqMethod, compareMethod, pureMethod, bindMethod], func(method) => (method.name, method))), instances: mapFromList(fmap(instances, func(inst) => (instanceKey(inst.className, inst.typeCon), inst))), funcs: mapFromList(fmap(funcs, func(f) => (f.name, f))), typeKinds: mapUnion(env.typeKinds, mapFromList([("Option", KArrow(1)), ("List", KArrow(1)), ("Point", KStar), ("Ordering", KStar)]))}
+}
+func infDevCases() List[(String, Type, Expr)] {
+  let p = infDevPos()
+  let point = ERecordLit(p, "Point", [("label", infDevStr("p")), ("x", infDevInt(7))])
+  let someSome = infDevCall("Some", [infDevCall("Some", [infDevInt(5)])])
+  let arms = [Arm{pos: p, pat: PCtor(p, "Some", [PCtor(p, "Some", [PVar(p, "n")])]), guard: Some(EBinary(p, ">", infDevId("n"), infDevInt(0))), body: infDevId("n")}, Arm{pos: p, pat: PCtor(p, "Some", [PCtor(p, "Some", [PWild(p)])]), guard: None, body: infDevInt(1)}, Arm{pos: p, pat: PCtor(p, "Some", [PCtor(p, "None", Nil)]), guard: None, body: infDevInt(2)}, Arm{pos: p, pat: PCtor(p, "None", Nil), guard: None, body: infDevInt(3)}]
+  let identity = ELambda(p, [PName("x", None)], infDevId("x"))
+  let poly = infDevBlock([SLet(p, LName("identity"), None, identity), SExpr(infDevCall("identity", [infDevInt(1)]))], infDevCall("identity", [infDevStr("two")]))
+  let showList = ELambda(p, [PName("x", None)], infDevCall("show", [EList(p, [infDevId("x")])]))
+  [
+    ("arithmetic", tInt(), EBinary(p, "+", infDevInt(2), EBinary(p, "*", infDevInt(3), infDevInt(4)))),
+    ("string-addition", tString(), EBinary(p, "+", infDevStr("a"), infDevStr("b"))),
+    ("comparison", tBool(), EBinary(p, "<", infDevInt(1), infDevInt(2))),
+    ("if", tInt(), EIf(p, EBool(p, true), infDevInt(1), infDevInt(2))),
+    ("nested-guarded-match", tInt(), EMatch(p, someSome, arms)),
+    ("nonexhaustive", tInt(), EMatch(p, infDevCall("Some", [infDevInt(1)]), [Arm{pos: p, pat: PCtor(p, "Some", [PVar(p, "n")]), guard: None, body: infDevId("n")} ])),
+    ("record-literal", TCon("Point", KStar), point),
+    ("record-field", tInt(), EField(p, point, "x")),
+    ("record-update", TCon("Point", KStar), ERecordUpdate(p, point, [("x", infDevInt(9))])),
+    ("tuple-field", tString(), ETupleField(p, ETuple(p, [infDevInt(1), infDevStr("two")]), 1)),
+    ("list", tList(tInt()), EList(p, [infDevInt(1), infDevInt(2)])),
+    ("contextual-lambda", tInt(), infDevCall("applyPoint", [ELambda(p, [PName("r", None)], EField(p, infDevId("r"), "x"))])),
+    ("do-pattern", tOption(tInt()), EDo(p, [DoBind(p, LPat(PTuple(p, [PVar(p, "x"), PWild(p)])), infDevCall("Some", [ETuple(p, [infDevInt(4), infDevStr("ignored")])])), DoLet(p, LName("y"), None, EBinary(p, "+", infDevId("x"), infDevInt(1)))], infDevCall("pure", [infDevId("y")]))),
+    ("polymorphic-let", tString(), poly),
+    ("interpolation", tString(), EInterp(p, ["number=", "!"], [infDevInt(42)])),
+    ("unknown-name", tInt(), infDevId("missing")),
+    ("arity", tOption(tInt()), infDevCall("Some", [infDevInt(1), infDevInt(2)])),
+    ("constrained-let", tString(), infDevBlock([SLet(p, LName("render"), None, showList), SExpr(infDevCall("render", [infDevInt(1)]))], infDevCall("render", [infDevStr("two")]))),
+    ("unused-default", tUnit(), infDevBlock([SLet(p, LName("unused"), None, infDevId("None"))], infDevCall("unit", Nil))),
+    ("literal-catchall", tInt(), EMatch(p, infDevInt(1), [Arm{pos: p, pat: PInt(p, 1), guard: None, body: infDevInt(1)}])),
+    ("refutable-bind", tOption(tInt()), EDo(p, [DoBind(p, LPat(PCtor(p, "Some", [PVar(p, "x")])), infDevCall("Some", [infDevCall("Some", [infDevInt(1)])]))], infDevCall("Some", [infDevId("x")]))),
+    ("duplicate-pattern", tInt(), EMatch(p, ETuple(p, [infDevInt(1), infDevInt(2)]), [Arm{pos: p, pat: PTuple(p, [PVar(p, "x"), PVar(p, "x")]), guard: None, body: infDevId("x")}]))
+  ]
+}
+func infDevRun(env Env, item (String, Type, Expr)) IO[Unit] {
+  let (name, typ, expr) = item
+  let info = infDevFunc("value", monoScheme(TFunc(Nil, typ)), Nil, expr)
+  let errors = mapFromList([("nonexhaustive", "non-exhaustive match"), ("unknown-name", "unknown identifier missing"), ("arity", "arity mismatch: want 1 arguments, got 2"), ("literal-catchall", "non-exhaustive match: literal patterns require a trailing catch-all"), ("refutable-bind", "bind pattern must be irrefutable"), ("duplicate-pattern", "duplicate pattern variable x")])
+  infDevAction(env, name, inferFuncBody(info), mapLookup(errors, name))
+}
+func infDevAction(env Env, name String, action Check[Core], expectedError Option[String]) IO[Unit] {
+  let (result, state) = runCheck(action, initialState(env))
+  let valid = match (result, expectedError) {
+    (Ok(_), None) => true
+    (Err(d), Some(message)) => d.msg == message
+    _ => false
+  }
+  do {
+    println(name + ": " + (match result { Ok(core) => dumpCore(core) | Err(d) => "ERROR " + d.msg }))
+    forEach(reverse(state.warnings), func(d) => println("  WARNING " + d.msg))
+    if valid { ioPure(unit()) } else { ioFail("unexpected result: " + name) }
+  }
+}
+func infDevAdvanced(env Env) IO[Unit] {
+  let p = infDevPos()
+  let a = TVar("A", KStar)
+  let render = ELambda(p, [PName("y", None)], infDevCall("show", [infDevId("x")]))
+  let outer = ELambda(p, [PName("x", None)], infDevBlock([SLet(p, LName("inner"), None, render)], infDevCall("inner", [infDevInt(0)])))
+  let nested = infDevBlock([SLet(p, LName("outer"), None, outer), SExpr(infDevCall("outer", [infDevInt(1)]))], infDevCall("outer", [infDevStr("s")]))
+  let same = ELambda(p, [PName("x", None)], EBinary(p, "&&", EBinary(p, "==", infDevId("x"), infDevId("x")), EBinary(p, "<", infDevId("x"), infDevId("x"))))
+  let stronger = infDevBlock([SLet(p, LName("same"), None, same)], infDevCall("same", [infDevInt(1)]))
+  let staticPlus = infDevBlock([SLet(p, LName("twice"), None, ELambda(p, [PName("x", None)], EBinary(p, "+", infDevId("x"), infDevId("x"))))], infDevCall("twice", [infDevStr("s")]))
+  let point = ERecordLit(p, "Point", [("x", infDevInt(1)), ("label", infDevStr("s"))])
+  let recordPat = infDevBlock([SLet(p, LPat(PRecord(p, "Point", [("x", PVar(p, "n"))], true)), None, point)], infDevId("n"))
+  let lambdaPat = ECall(p, ELambda(p, [PParam(PAs(p, "whole", PTuple(p, [PVar(p, "x"), PWild(p)])))], EBinary(p, "+", infDevId("x"), ETupleField(p, infDevId("whole"), 1))), [ETuple(p, [infDevInt(1), infDevInt(2)])])
+  let mono = infDevBlock([SLet(p, LName("identity"), Some(STFunc(p, [STName(p, "Int", Nil)], STName(p, "Int", Nil))), ELambda(p, [PName("x", None)], infDevId("x")))], infDevCall("identity", [infDevStr("bad")]))
+  let rigid = infDevFunc("rigid", Scheme{tparams: [("A", KStar)], constraints: [("Ord", "A")], typ: TFunc([a], tBool())}, ["x"], EBinary(p, "==", infDevId("x"), infDevId("x")))
+  let showMethod = fromOption(mapLookup(env.methods, "show"), infDevMethod("Show", "show", KStar, Nil, Nil, TFunc([a], tString()), 1))
+  let im = InstMethod{pos: p, name: "show", params: ["xs"], body: Block{pos: p, stmts: Nil, result: EMatch(p, infDevId("xs"), [Arm{pos: p, pat: PCtor(p, "Nil", Nil), guard: None, body: infDevStr("[]")}, Arm{pos: p, pat: PCtor(p, "Cons", [PVar(p, "x"), PWild(p)]), guard: None, body: infDevCall("show", [infDevId("x")])}])}}
+  let phantom = infDevFunc("phantom", Scheme{tparams: [("A", KStar)], constraints: Nil, typ: TFunc(Nil, tInt())}, Nil, infDevInt(1))
+  let phantomEnv = env{funcs: mapInsert(env.funcs, "phantom", phantom)}
+  let inspectMethod = infDevMethod("Inspect", "inspect", KStar, [("B", KStar)], [("Show", "B")], TFunc([a, TVar("B", KStar)], tString()), 2)
+  let inspectClass = ClassInfo{name: "Inspect", param: "A", paramKind: KStar, super: None, methods: [inspectMethod], pos: p}
+  let inspectInst = infDevInst("Inspect", "Int", Nil, Nil)
+  let inspectEnv = env{classes: mapInsert(env.classes, "Inspect", inspectClass), methods: mapInsert(env.methods, "inspect", inspectMethod), instances: mapInsert(env.instances, instanceKey("Inspect", "Int"), inspectInst)}
+  let inspectBody = InstMethod{pos: p, name: "inspect", params: ["x", "b"], body: Block{pos: p, stmts: Nil, result: infDevCall("show", [infDevId("b")])}}
+  let tupleBody = InstMethod{pos: p, name: "show", params: ["pair"], body: Block{pos: p, stmts: Nil, result: EMatch(p, infDevId("pair"), [Arm{pos: p, pat: PTuple(p, [PVar(p, "x"), PVar(p, "y")]), guard: None, body: EBinary(p, "+", infDevCall("show", [infDevId("x")]), infDevCall("show", [infDevId("y")]))}])}}
+  do {
+    forEach([("nested-constrained-let", tString(), nested), ("strongest-superclass", tBool(), stronger), ("deferred-string-addition", tString(), staticPlus), ("record-pattern", tInt(), recordPat), ("lambda-pattern", tInt(), lambdaPat)], func(item) => infDevRun(env, item))
+    infDevAction(env, "annotated-monomorphic-let", inferFuncBody(infDevFunc("value", monoScheme(TFunc(Nil, tInt())), Nil, mono)), Some("type mismatch: expected Int, got String"))
+    infDevAction(env, "rigid-superclass", inferFuncBody(rigid), None)
+    infDevAction(env, "instance-body", inferInstanceMethod(infDevInst("Show", "List", ["A"], [("Show", "A")]), showMethod, im), None)
+    infDevRun(phantomEnv, ("phantom-default", tInt(), infDevCall("phantom", Nil)))
+    infDevAction(env, "unannotated-field", inferFuncBody(infDevFunc("value", monoScheme(TFunc(Nil, tInt())), Nil, ECall(p, ELambda(p, [PName("x", None)], EField(p, infDevId("x"), "x")), [point]))), Some("cannot infer record type of x.x; annotate"))
+    infDevRun(inspectEnv, ("method-own-dictionary", tString(), infDevCall("inspect", [infDevInt(1), infDevStr("own")])))
+    infDevAction(inspectEnv, "instance-own-dictionary", inferInstanceMethod(inspectInst, inspectMethod, inspectBody), None)
+    infDevAction(env, "tuple-instance-kind", inferInstanceMethod(infDevInst("Show", "Tuple2", ["A", "B"], [("Show", "A"), ("Show", "B")]), showMethod, tupleBody), None)
+  }
+}
+func main() IO[Unit] {
+  let env = infDevEnv()
+  do {
+    forEach(infDevCases(), func(item) => infDevRun(env, item))
+    infDevAdvanced(env)
+    println("PASS: 35 inference cases")
+  }
+}

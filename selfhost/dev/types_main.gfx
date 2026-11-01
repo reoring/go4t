@@ -1,0 +1,249 @@
+package main
+
+// Focused acceptance checks. Diagnostic expectations come from:
+// types/unify.go:26-29,106-171; types/types.go:156-180;
+// types/check.go:366-425; types/defaults.go:52-57.
+type TypesTestCase = TypesTestCase{name: String, action: Check[String], expected: String, warnings: List[String]}
+
+func emptyEnvWithPreludeKinds() Env {
+  let env = emptyEnv()
+  env{typeKinds: mapUnion(env.typeKinds, mapFromList([
+    ("List", KArrow(1)), ("Option", KArrow(1)), ("Result", KArrow(2))
+  ]))}
+}
+
+func typesTestUnify(e Type, a Type) Check[String] { do {
+  unify(noPos(), e, a)
+  resolved <- zonk(e)
+  pure(typeString(resolved))
+} }
+
+func typesTestMeta(reverseArgs Bool) Check[String] { do {
+  m <- freshMeta(KStar)
+  if reverseArgs { unify(noPos(), tInt(), m) } else { unify(noPos(), m, tInt()) }
+  resolved <- zonk(m)
+  pure(typeString(resolved))
+} }
+
+func typesTestOccurs() Check[String] { do {
+  m <- freshMeta(KStar)
+  typesTestUnify(m, TFunc([m], tInt()))
+} }
+
+func typesTestPartial(result Bool, reverseArgs Bool) Check[String] { do {
+  f <- freshMeta(KArrow(1))
+  a <- freshMeta(KStar)
+  let short = tApp(f, [a])
+  let long = if result { tApp(TCon("Result", KArrow(2)), [TVar("E", KStar), TVar("A", KStar)]) } else { tList(tInt()) }
+  if reverseArgs { unify(noPos(), long, short) } else { unify(noPos(), short, long) }
+  resolved <- zonk(short)
+  headType <- zonk(f)
+  argType <- zonk(a)
+  pure("${typeString(resolved)}; F = ${typeString(headType)}; a = ${typeString(argType)}")
+} }
+
+func typesTestOuterMismatch() Check[String] { do {
+  m <- freshMeta(KStar)
+  typesTestUnify(TFunc([m], tString()), TFunc([tInt()], tBool()))
+} }
+
+func typesTestPathCompression() Check[String] { do {
+  a <- freshMeta(KStar)
+  b <- freshMeta(KStar)
+  c <- freshMeta(KStar)
+  unify(noPos(), a, b)
+  unify(noPos(), b, c)
+  unify(noPos(), c, tInt())
+  resolved <- zonk(a)
+  first <- lookupMeta(0)
+  second <- lookupMeta(1)
+  if first == Some(tInt()) && second == Some(tInt()) { pure(typeString(resolved) + "; links compressed") }
+  else { checkFail(noPos(), "path compression failed") }
+} }
+
+func typesTestScheme(sch Scheme) String {
+  let params = join(", ", fmap(sch.tparams, func(p) => "${fst(p)}:${typesKindString(snd(p))}"))
+  let constraints = join(", ", fmap(sch.constraints, func(c) => "${fst(c)}[${snd(c)}]"))
+  "forall ${params}. ${constraints} => ${typeString(sch.typ)}"
+}
+
+func typesTestRoundTrip() Check[String] { do {
+  let sch = Scheme{tparams: [("A", KStar)], constraints: [("Show", "A")], typ: TFunc([TVar("A", KStar)], tString())}
+  inst <- instantiate(sch)
+  generic <- generalize(Nil, snd(inst), fst(inst))
+  let constraintText = join(", ", fmap(snd(inst), func(c) => "${fst(c)}[${typeString(snd(c))}]"))
+  if length(snd(generic)) == 0 {
+    pure("${typeString(fst(inst))}; ${constraintText}; ${typesTestScheme(fst(generic))}")
+  } else { checkFail(noPos(), "generalized constraint was retained") }
+} }
+
+func typesTestGeneralizeOrder() Check[String] { do {
+  fixed <- freshMeta(KStar)
+  later <- freshMeta(KStar)
+  first <- freshMeta(KArrow(1))
+  let typ = TFunc([tApp(first, [later]), fixed, later], later)
+  result <- generalize([0], [("Show", later), ("Eq", fixed), ("Show", tList(later))], typ)
+  metas <- freeMetas(typ)
+  if metas == [0, 1, 2] && snd(result) == [("Eq", fixed), ("Show", tList(later))] {
+    pure(typesTestScheme(fst(result)) + "; fixed/structured constraints retained; free = " + show(metas))
+  } else { checkFail(noPos(), "generalization changed fixed constraints or source metas") }
+} }
+
+func typesTestInstantiateKinds() Check[String] { do {
+  let sch = Scheme{
+    tparams: [("F", KArrow(1)), ("A", KStar)], constraints: [("Functor", "F")],
+    typ: TFunc([tApp(TVar("F", KArrow(1)), [TVar("A", KStar)])], TVar("A", KStar))
+  }
+  first <- instantiate(sch)
+  second <- instantiate(sch)
+  let firstConstraints = snd(first)
+  match firstConstraints {
+    Cons(("Functor", TMeta(0, KArrow(1))), Nil) =>
+      pure("${typeString(fst(first))}; ${typeString(fst(second))}; Functor[?0]:(*) -> *")
+    _ => checkFail(noPos(), "instantiation lost parameter kinds")
+  }
+} }
+
+func typesTestResolve(t SType) Check[String] { do {
+  resolved <- resolveSType(MEmpty, t)
+  pure(typeString(resolved) + " : " + typesKindString(kindOf(resolved)))
+} }
+
+func typesTestDefaultNone() Check[String] { do {
+  m <- freshMeta(KStar)
+  let origins = mapFromList([(0, (Pos{line: 1, col: 7}, "None"))])
+  defaultMetas([m, m], origins, Nil)
+  defaultMetas([m], origins, Nil)
+  resolved <- zonk(tOption(m))
+  pure(typeString(resolved))
+} }
+
+func typesTestDefaultFailure(k Kind, constrained Bool, structured Bool) Check[String] { do {
+  m <- freshMeta(k)
+  let origins = mapFromList([(0, (noPos(), "None"))])
+  let arg = if structured { tList(m) } else { m }
+  let constraints = if constrained { [("Show", arg)] } else { Nil }
+  defaultMetas([m], origins, constraints)
+  resolved <- zonk(m)
+  pure(typeString(resolved))
+} }
+
+func typesTestDefaultOrder() Check[String] { do {
+  a <- freshMeta(KStar)
+  b <- freshMeta(KStar)
+  c <- freshMeta(KStar)
+  let origins = mapFromList([
+    (0, (Pos{line: 10, col: 1}, "let id")),
+    (1, (Pos{line: 2, col: 7}, "None")),
+    (2, (Pos{line: 2, col: 3}, "[]"))
+  ])
+  defaultMetas([a, b, c, a], origins, Nil)
+  resolved <- zonk(tTuple([a, b, c]))
+  pure(typeString(resolved))
+} }
+
+func typesTestDefaultResolved() Check[String] { do {
+  m <- freshMeta(KStar)
+  unify(noPos(), m, tInt())
+  defaultMetas([m], MEmpty, [("Show", m)])
+  resolved <- zonk(m)
+  pure(typeString(resolved))
+} }
+
+func typesTestOccursIndirect() Check[String] { do {
+  a <- freshMeta(KStar)
+  b <- freshMeta(KStar)
+  unify(noPos(), a, b)
+  typesTestUnify(b, tList(a))
+} }
+
+func typesTestResolveScope() Check[String] { do {
+  let p = noPos()
+  resolved <- resolveSType(mapFromList([("List", TVar("F", KArrow(1))), ("A", TVar("A", KStar))]),
+    STName(p, "List", [STName(p, "A", Nil)]))
+  pure(typeString(resolved))
+} }
+
+func typesTestCase(name String, action Check[String], expected String) TypesTestCase {
+  TypesTestCase{name: name, action: action, expected: expected, warnings: Nil}
+}
+
+func typesTestCases() List[TypesTestCase] {
+  let p = noPos()
+  let intSyntax = STName(p, "Int", Nil)
+  let resultCon = TCon("Result", KArrow(2))
+  [
+    typesTestCase("Int ~ Int", typesTestUnify(tInt(), tInt()), "Int"),
+    typesTestCase("meta ~ Int", typesTestMeta(false), "Int"),
+    typesTestCase("Int ~ meta", typesTestMeta(true), "Int"),
+    typesTestCase("same meta", typesTestUnify(TMeta(0, KStar), TMeta(0, KStar)), "?0"),
+    typesTestCase("occurs", typesTestOccurs(), "occurs check: ?0 occurs in func(?0) Int"),
+    typesTestCase("function arity", typesTestUnify(TFunc([tInt()], tBool()), TFunc([tInt(), tInt()], tBool())), "type mismatch: expected func(Int) Bool, got func(Int, Int) Bool"),
+    typesTestCase("rigid ~ concrete", typesTestUnify(TVar("A", KStar), tInt()), "type mismatch: expected A, got Int"),
+    typesTestCase("same rigid", typesTestUnify(TVar("A", KStar), TVar("A", KStar)), "A"),
+    typesTestCase("different rigid", typesTestUnify(TVar("A", KStar), TVar("B", KStar)), "type mismatch: expected A, got B"),
+    typesTestCase("F[a] ~ List[Int]", typesTestPartial(false, false), "List[Int]; F = List; a = Int"),
+    typesTestCase("F[a] ~ Result[E, A]", typesTestPartial(true, false), "Result[E, A]; F = Result[E]; a = A"),
+    typesTestCase("Result[E, A] ~ F[a]", typesTestPartial(true, true), "Result[E, A]; F = Result[E]; a = A"),
+    typesTestCase("tuple ~ tuple", typesTestUnify(tTuple([tInt(), tString()]), tTuple([tInt(), tString()])), "Tuple2[Int, String]"),
+    typesTestCase("tuple mismatch", typesTestUnify(tTuple([tInt(), tString()]), tTuple([tInt(), tBool()])), "type mismatch: expected Tuple2[Int, String], got Tuple2[Int, Bool]"),
+    typesTestCase("kind mismatch", typesTestUnify(TMeta(0, KStar), tApp(resultCon, [tString()])), "kind mismatch: got (*) -> *, want *"),
+    typesTestCase("rigid constructor", typesTestUnify(TVar("F", KArrow(1)), tApp(resultCon, [tString()])), "type mismatch: expected F, got Result[String]"),
+    typesTestCase("outer diagnostic", typesTestOuterMismatch(), "type mismatch: expected func(Int) String, got func(Int) Bool"),
+    typesTestCase("path compression", typesTestPathCompression(), "Int; links compressed"),
+    typesTestCase("instantiate/generalize", typesTestRoundTrip(), "func(?0) String; Show[?0]; forall t0:*. Show[t0] => func(t0) String"),
+    typesTestCase("generalize order/fixed", typesTestGeneralizeOrder(), "forall t0:(*) -> *, t1:*. Show[t1] => func(t0[t1], ?0, t1) t1; fixed/structured constraints retained; free = [0, 1, 2]"),
+    typesTestCase("instantiate kinds/freshness", typesTestInstantiateKinds(), "func(?0[?1]) ?1; func(?2[?3]) ?3; Functor[?0]:(*) -> *"),
+    typesTestCase("substitute flatten", pure(typeString(substTVars(mapFromList([("F", tApp(resultCon, [tString()]))]), tApp(TVar("F", KArrow(1)), [tInt()])))), "Result[String, Int]"),
+    typesTestCase("deep flatten", fmap(zonk(TApp(TApp(TApp(TCon("Three", KArrow(3)), [tString()]), [tBool()]), [tInt()])), typeString), "Three[String, Bool, Int]"),
+    typesTestCase("resolve partial", typesTestResolve(STName(p, "Result", [intSyntax])), "Result[Int] : (*) -> *"),
+    typesTestCase("resolve tuple", typesTestResolve(STTuple(p, [intSyntax, STName(p, "String", Nil)])), "Tuple2[Int, String] : *"),
+    typesTestCase("unknown type", typesTestResolve(STName(p, "Missing", Nil)), "unknown type Missing"),
+    typesTestCase("wrong arity", typesTestResolve(STName(p, "List", [intSyntax, intSyntax])), "kind mismatch applying List to 2 arguments"),
+    typesTestCase("applying value type", typesTestResolve(STName(p, "Int", [intSyntax])), "kind mismatch applying Int to 1 arguments"),
+    typesTestCase("argument kind", typesTestResolve(STName(p, "List", [STName(p, "List", Nil)])), "kind mismatch: got (*) -> *, want *"),
+    typesTestCase("function value kind", typesTestResolve(STFunc(p, [STName(p, "List", Nil)], intSyntax)), "kind mismatch: got (*) -> *, want *"),
+    typesTestCase("tuple arity", typesTestResolve(STTuple(p, [intSyntax])), "tuple arity must be >= 2"),
+    typesTestCase("scope precedence", typesTestResolveScope(), "F[A]"),
+    typesTestCase("indirect occurs", typesTestOccursIndirect(), "occurs check: ?1 occurs in List[?1]"),
+    TypesTestCase{
+      name: "None default (once)", action: typesTestDefaultNone(), expected: "Option[Unit]",
+      warnings: ["1:7: type of None defaulted to Unit; add an annotation or use the value"]
+    },
+    typesTestCase("arrow default", typesTestDefaultFailure(KArrow(2), false, false), "cannot infer type constructor of kind (*, *) -> *"),
+    typesTestCase("constrained default", typesTestDefaultFailure(KStar, true, false), "unresolved class constraint Show[?0]"),
+    typesTestCase("structured constrained default", typesTestDefaultFailure(KStar, true, true), "unresolved class constraint Show[List[?0]]"),
+    typesTestCase("resolved default", typesTestDefaultResolved(), "Int"),
+    TypesTestCase{
+      name: "default warning order", action: typesTestDefaultOrder(), expected: "Tuple3[Unit, Unit, Unit]",
+      warnings: [
+        "2:3: type of [] defaulted to Unit; add an annotation or use the value",
+        "2:7: type of None defaulted to Unit; add an annotation or use the value",
+        "10:1: type of let id defaulted to Unit; add an annotation or use the value"
+      ]
+    }
+  ]
+}
+
+func typesRunTest(test TypesTestCase) IO[Bool] {
+  let checked = runCheck(test.action, initialState(emptyEnvWithPreludeKinds()))
+  let actual = match fst(checked) { Ok(text) => text | Err(diag) => diag.msg }
+  let warnings = fmap(reverse(snd(checked).warnings), func(diag) => show(diag))
+  let passed = actual == test.expected && warnings == test.warnings
+  do {
+    println("${test.name}: ${actual}")
+    forEach(warnings, func(warning) => println("  warning: ${warning}"))
+    if passed { ioPure(unit()) } else { do {
+      println("  FAIL expected: ${test.expected}")
+      println("  expected warnings: ${show(test.warnings)}")
+      ioPure(unit())
+    } }
+    ioPure(passed)
+  }
+}
+
+func main() IO[Unit] { do {
+  results <- mapM(typesTestCases(), typesRunTest)
+  if all(results, func(passed) => passed) { println("PASS ${length(results)} type cases") }
+  else { exit(1) }
+} }

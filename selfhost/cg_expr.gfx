@@ -1,0 +1,376 @@
+package main
+
+// State[Int, A] wrapped because gofx has algebraic data types, not type aliases.
+// The counter and traversal order follow codegen/expr.go's generator.fresh.
+type Gen[A] = CGGen(State[Int, A])
+
+type GenCtx = GenCtx{instances: Map[String, CoreInstance], classes: Map[String, CoreClass], datas: Map[String, CoreData], externs: Map[String, String], receiver: Option[String], receiverDicts: List[(String, String)]}
+
+func runGen[A](action Gen[A], counter Int) (A, Int) {
+  match action { CGGen(st) => runState(st, counter) }
+}
+
+instance Functor[Gen] {
+  fmap(action, f) { CGGen(State(func(n) => match runGen(action, n) { (value, next) => (f(value), next) })) }
+}
+
+instance Monad[Gen] {
+  pure(value) { CGGen(State(func(n) => (value, n))) }
+  bind(action, f) { CGGen(State(func(n) => match runGen(action, n) { (value, next) => runGen(f(value), next) })) }
+}
+
+func cgFresh() Gen[String] { CGGen(State(func(n) => ("_gofx${n}", n + 1))) }
+func mangle(name String) String { name + "_" }
+func exported(name String) String { toUpper(substring(name, 0, 1)) + substring(name, 1, strLength(name)) }
+func ctorGoName(data String, ctor String) String { data + "_" + ctor }
+func instanceGoName(className String, typeCon String) String { className + "_" + typeCon }
+
+// Lexer owns quote's erased runtime declaration; keep one quoting convention.
+func genQuote(text String) String { quote(text) }
+
+func cgPanic(message String) String { "func() any { panic(" + genQuote(message) + ") }()" }
+func cgDictField(param String) String { "dict_" + param }
+func cgDictParams(params List[(String, String)]) List[String] {
+  fmap(params, func(pair) => cgDictField(fst(pair)) + " " + snd(pair))
+}
+func cgAnonymousArgs(arity Int) List[String] { fmap(range(0, arity), func(i) => "a${i}") }
+func cgAnonymousParams(arity Int) List[String] { fmap(cgAnonymousArgs(arity), func(arg) => arg + " any") }
+func cgConstruct(name String, values List[String]) String {
+  "&" + name + "{" + join(", ", fmap(zipWithIndex(values), func(pair) => "F${fst(pair)}: " + snd(pair))) + "}"
+}
+
+func genDict(ctx GenCtx, dict DictRef) Gen[String] {
+  match dict {
+    DParam(param, _) => pure(match ctx.receiver {
+      Some(receiver) if any(ctx.receiverDicts, func(pair) => fst(pair) == param) => receiver + "." + cgDictField(param)
+      _ => cgDictField(param)
+    })
+    DSuper(_, inner) => genDict(ctx, inner)
+    DInstance(className, typeCon, args) => match mapLookup(ctx.instances, instanceKey(className, typeCon)) {
+      Some(inst) => cgInstanceDict(ctx, inst, args)
+      None => pure(cgPanic("missing instance " + className + "[" + typeCon + "]"))
+    }
+  }
+}
+
+// SuperArgs refer to this instance's context, not to the superclass's names.
+// Strip interface upcasts before substituting by both parameter and class.
+func cgSuperArg(context List[(String, String)], args List[DictRef], ref DictRef) Option[DictRef] {
+  match ref {
+    DSuper(_, inner) => cgSuperArg(context, args, inner)
+    DParam(param, className) => lookupAssoc(zip(context, args), (param, className))
+    _ => None
+  }
+}
+func cgSuperArgs(context List[(String, String)], args List[DictRef], refs List[DictRef]) Option[List[DictRef]] {
+  mapM(refs, func(ref) => cgSuperArg(context, args, ref))
+}
+func cgInstanceDict(ctx GenCtx, inst CoreInstance, args List[DictRef]) Gen[String] {
+  let name = instanceGoName(inst.className, inst.typeCon)
+  if length(args) != length(inst.context) { pure(cgPanic("invalid dictionary annotation")) }
+  else if length(args) == 0 { pure(name + "{}") }
+  else { do {
+    supers <- match mapLookup(ctx.classes, inst.className) {
+      Some(info) => match info.super {
+        None => pure(Nil)
+        Some(parent) => match (mapLookup(ctx.instances, instanceKey(parent, inst.typeCon)), cgSuperArgs(inst.context, args, inst.superArgs)) {
+          (Some(superInst), Some(superArgs)) => do {
+            value <- cgInstanceDict(ctx, superInst, superArgs)
+            pure([instanceGoName(parent, inst.typeCon) + ": " + value])
+          }
+          _ => pure(["invalid: " + cgPanic("invalid superclass dictionary annotation")])
+        }
+      }
+      None => pure(["invalid: " + cgPanic("missing class " + inst.className)])
+    }
+    fields <- mapM(zip(inst.context, args), func(pair) => do {
+      value <- genDict(ctx, snd(pair))
+      pure(cgDictField(fst(fst(pair))) + ": " + value)
+    })
+    pure(name + "{" + join(", ", append(supers, fields)) + "}")
+  } }
+}
+
+func cgCtorArity(ctx GenCtx, data String, ctor String) Option[Int] {
+  match mapLookup(ctx.datas, data) {
+    None => None
+    Some(info) => fmap(head(filter(info.ctors, func(c) => c.name == ctor)), func(c) => c.arity)
+  }
+}
+
+func genExpr(ctx GenCtx, expression Core) Gen[String] {
+  match expression {
+    CLocal(name) => pure(mangle(name))
+    CLocalDict(name, dicts) => do {
+      values <- mapM(dicts, func(dict) => genDict(ctx, dict))
+      pure(mangle(name) + "(" + join(", ", values) + ")")
+    }
+    CGlobal(name, dicts, arity) => if length(dicts) == 0 { pure(mangle(name)) } else { do {
+      call <- cgCall(ctx, expression, cgAnonymousArgs(arity))
+      pure("func(" + join(", ", cgAnonymousParams(arity)) + ") any { return " + call + " }")
+    } }
+    CMethod(name, dict, ownDicts, arity) => if length(ownDicts) == 0 { do {
+      value <- genDict(ctx, dict)
+      pure("(" + value + ")." + exported(name))
+    } } else { do {
+      call <- cgCall(ctx, expression, cgAnonymousArgs(arity))
+      pure("func(" + join(", ", cgAnonymousParams(arity)) + ") any { return " + call + " }")
+    } }
+    CCtorFn(data, ctor) => pure(match cgCtorArity(ctx, data, ctor) {
+      Some(0) => cgConstruct(ctorGoName(data, ctor), Nil)
+      Some(arity) => "func(" + join(", ", cgAnonymousParams(arity)) + ") any { return " + cgConstruct(ctorGoName(data, ctor), cgAnonymousArgs(arity)) + " }"
+      None => cgPanic("unknown constructor " + ctor)
+    })
+    CCtor(data, ctor, fields) => do {
+      values <- mapM(fields, func(field) => genExpr(ctx, field))
+      pure(cgConstruct(ctorGoName(data, ctor), values))
+    }
+    CInt(value) => pure("int64(${value})")
+    CString(value) => pure(genQuote(value))
+    CBool(value) => pure(show(value))
+    CUnit => pure("rt.Unit{}")
+    CInterp(texts, parts) => do {
+      values <- cgInterp(ctx, texts, parts)
+      pure("rt.Concat(" + join(", ", values) + ")")
+    }
+    CField(value, data, ctor, index) => do {
+      code <- genExpr(ctx, value)
+      pure("any(" + code + ").(*" + ctorGoName(data, ctor) + ").F${index}")
+    }
+    CTupleField(value, arity, index) => do {
+      code <- genExpr(ctx, value)
+      pure("any(" + code + ").(*Tuple${arity}).F${index}")
+    }
+    CRecordUpdate(value, data, ctor, fieldCount, replaced) => do {
+      base <- cgFresh()
+      code <- genExpr(ctx, value)
+      let unchanged = fmap(filter(range(0, fieldCount), func(i) => !isSome(lookupAssoc(replaced, i))), func(i) => "F${i}: ${base}.F${i}")
+      fields <- mapM(replaced, func(pair) => do {
+        replacement <- genExpr(ctx, snd(pair))
+        pure("F${fst(pair)}: " + replacement)
+      })
+      pure("func() any {\n" + base + " := any(" + code + ").(*" + ctorGoName(data, ctor) + ")\n_ = " + base + "\nreturn &" + ctorGoName(data, ctor) + "{" + join(", ", append(unchanged, fields)) + "}\n}()")
+    }
+    CCall(callee, args) => do {
+      values <- mapM(args, func(arg) => genExpr(ctx, arg))
+      cgCall(ctx, callee, values)
+    }
+    CLambda(params, body) => do {
+      code <- genExpr(ctx, body)
+      pure("func(" + join(", ", fmap(params, func(param) => mangle(param) + " any")) + ") any {\nreturn " + code + "\n}")
+    }
+    CLet(name, value, body) => do {
+      valueCode <- genExpr(ctx, value)
+      bodyCode <- genExpr(ctx, body)
+      pure("func() any {\nvar " + mangle(name) + " any = " + valueCode + "\n_ = " + mangle(name) + "\nreturn " + bodyCode + "\n}()")
+    }
+    CLetDict(name, params, value, body) => do {
+      let valueCtx = ctx{receiverDicts: filter(ctx.receiverDicts, func(pair) => !any(params, func(param) => fst(param) == fst(pair)))}
+      valueCode <- genExpr(valueCtx, value)
+      bodyCode <- genExpr(ctx, body)
+      pure("func() any {\n" + mangle(name) + " := func(" + join(", ", cgDictParams(params)) + ") any {\nreturn " + valueCode + "\n}\n_ = " + mangle(name) + "\nreturn " + bodyCode + "\n}()")
+    }
+    CMatch(value, arms) => do {
+      temp <- cgFresh()
+      code <- genExpr(ctx, value)
+      armCode <- genArms(ctx, temp, arms)
+      pure("func() any {\nvar " + temp + " any = " + code + "\n_ = " + temp + "\n" + armCode + "}()")
+    }
+    CIf(cond, yes, no) => do {
+      condition <- genExpr(ctx, cond)
+      yesCode <- genExpr(ctx, yes)
+      noCode <- genExpr(ctx, no)
+      pure("func() any {\nif any(" + condition + ").(bool) {\nreturn " + yesCode + "\n}\nreturn " + noCode + "\n}()")
+    }
+    CPrim(name, args) => do {
+      values <- mapM(args, func(arg) => genExpr(ctx, arg))
+      pure(cgPrim(name, values))
+    }
+    CTuple(fields) => do {
+      values <- mapM(fields, func(field) => genExpr(ctx, field))
+      pure(cgConstruct(tupleConName(length(fields)), values))
+    }
+  }
+}
+
+func cgInterp(ctx GenCtx, texts List[String], parts List[(DictRef, Core)]) Gen[List[String]] {
+  match texts {
+    Nil => pure(Nil)
+    Cons(text, rest) => do {
+      let prefix = if text == "" { Nil } else { [genQuote(text)] }
+      match parts {
+        Nil => pure(prefix)
+        Cons((dict, expression), remaining) => do {
+          dictionary <- genDict(ctx, dict)
+          code <- genExpr(ctx, expression)
+          suffix <- cgInterp(ctx, rest, remaining)
+          pure(append(prefix, Cons("(" + dictionary + ").Show(" + code + ")", suffix)))
+        }
+      }
+    }
+  }
+}
+
+func cgCall(ctx GenCtx, callee Core, args List[String]) Gen[String] {
+  match callee {
+    CGlobal(name, dicts, _) => do {
+      dictionaries <- mapM(dicts, func(dict) => genDict(ctx, dict))
+      pure(mangle(name) + "(" + join(", ", append(dictionaries, args)) + ")")
+    }
+    CMethod(name, dict, ownDicts, _) => do {
+      dictionary <- genDict(ctx, dict)
+      dictionaries <- mapM(ownDicts, func(ownDict) => genDict(ctx, ownDict))
+      pure("(" + dictionary + ")." + exported(name) + "(" + join(", ", append(dictionaries, args)) + ")")
+    }
+    CCtorFn(data, ctor) => pure(cgConstruct(ctorGoName(data, ctor), args))
+    _ => do {
+      code <- genExpr(ctx, callee)
+      pure("any(" + code + ").(func(" + join(", ", fmap(args, func(arg) => "any")) + ") any)(" + join(", ", args) + ")")
+    }
+  }
+}
+
+func cgPrim(name String, args List[String]) String {
+  match (name, args) {
+    ("and", Cons(left, Cons(right, Nil))) => "any(any(" + left + ").(bool) && any(" + right + ").(bool))"
+    ("or", Cons(left, Cons(right, Nil))) => "any(any(" + left + ").(bool) || any(" + right + ").(bool))"
+    ("ordLt", Cons(value, Nil)) => "any(ord_lt(" + value + "))"
+    ("ordLe", Cons(value, Nil)) => "any(ord_le(" + value + "))"
+    ("ordGt", Cons(value, Nil)) => "any(ord_gt(" + value + "))"
+    ("ordGe", Cons(value, Nil)) => "any(ord_ge(" + value + "))"
+    _ => "rt." + exported(name) + "(" + join(", ", args) + ")"
+  }
+}
+
+// Each arm has its own failure continuation. Only the final unguarded arm's
+// outer head is implied by exhaustiveness; refutable nested heads still test.
+func genArms(ctx GenCtx, scrutinee String, arms List[CArm]) Gen[String] {
+  match arms {
+    Nil => pure("panic(\"non-exhaustive match\")\n")
+    Cons(arm, rest) => do {
+      body <- genExpr(ctx, arm.body)
+      success <- match arm.guard {
+        None => pure("return " + body + "\n")
+        Some(guard) => do {
+          guardCode <- genExpr(ctx, guard)
+          pure("if any(" + guardCode + ").(bool) {\nreturn " + body + "\n}\n")
+        }
+      }
+      let finalArm = length(rest) == 0
+      pattern <- cgPattern(ctx, arm.pat, scrutinee, success, finalArm && isNone(arm.guard))
+      suffix <- if finalArm {
+        pure(if snd(pattern) || isSome(arm.guard) { "panic(\"non-exhaustive match\")\n" } else { "" })
+      } else { genArms(ctx, scrutinee, rest) }
+      pure(fst(pattern) + suffix)
+    }
+  }
+}
+
+func cgPattern(ctx GenCtx, pattern CPat, value String, success String, unguarded Bool) Gen[(String, Bool)] {
+  match pattern {
+    CPWild => pure(("{\n" + success + "}\n", false))
+    CPVar(name) => pure(("{\nvar " + mangle(name) + " any = " + value + "\n_ = " + mangle(name) + "\n" + success + "}\n", false))
+    CPAs(name, inner) => do {
+      code <- cgPattern(ctx, inner, value, success, unguarded)
+      pure(("{\nvar " + mangle(name) + " any = " + value + "\n_ = " + mangle(name) + "\n" + fst(code) + "}\n", snd(code)))
+    }
+    CPCtor(data, ctor, fields) => cgStructPattern(ctx, ctorGoName(data, ctor), fields, value, success, unguarded)
+    CPTuple(fields) => cgStructPattern(ctx, tupleConName(length(fields)), fields, value, success, unguarded)
+    CPInt(n) => pure(cgLiteralPattern(value, "int64", "int64(${n})", success, unguarded))
+    CPString(text) => pure(cgLiteralPattern(value, "string", genQuote(text), success, unguarded))
+    CPBool(boolean) => pure(cgLiteralPattern(value, "bool", show(boolean), success, unguarded))
+  }
+}
+func cgLiteralPattern(value String, representation String, literal String, success String, unguarded Bool) (String, Bool) {
+  if unguarded { ("{\n" + success + "}\n", false) }
+  else { ("if " + value + ".(" + representation + ") == " + literal + " {\n" + success + "}\n", true) }
+}
+func cgIrrefutableHead(ctx GenCtx, pattern CPat) Bool {
+  match pattern {
+    CPWild => true
+    CPVar(_) => true
+    CPTuple(_) => true
+    CPAs(_, inner) => cgIrrefutableHead(ctx, inner)
+    CPCtor(data, _, _) => maybe(mapLookup(ctx.datas, data), false, func(info) => length(info.ctors) == 1)
+    _ => false
+  }
+}
+func cgPatternFields(ctx GenCtx, fields List[(Int, CPat)], matched String, success String, unguarded Bool, guarded Bool) Gen[(String, Bool)] {
+  match fields {
+    Nil => pure((success, guarded))
+    Cons((index, pattern), rest) => do {
+      code <- cgPattern(ctx, pattern, matched + ".F${index}", success, unguarded && cgIrrefutableHead(ctx, pattern))
+      cgPatternFields(ctx, rest, matched, fst(code), unguarded, guarded || snd(code))
+    }
+  }
+}
+func cgStructPattern(ctx GenCtx, name String, fields List[CPat], value String, success String, unguarded Bool) Gen[(String, Bool)] {
+  do {
+    matched <- cgFresh()
+    code <- cgPatternFields(ctx, reverse(zipWithIndex(fields)), matched, success, unguarded, !unguarded)
+    pure(if unguarded {
+      ("{\n" + matched + " := " + value + ".(*" + name + ")\n_ = " + matched + "\n" + fst(code) + "}\n", snd(code))
+    } else {
+      ("switch " + matched + " := " + value + ".(type) {\ncase *" + name + ":\n_ = " + matched + "\n" + fst(code) + "}\n", true)
+    })
+  }
+}
+
+// Structural facts are collected from Core, including guards and patterns;
+// unlike the AST generator there are no mutable type annotations to inspect.
+func cgChildren(expression Core) List[Core] {
+  match expression {
+    CCtor(_, _, fields) => fields
+    CInterp(_, parts) => fmap(parts, snd)
+    CField(value, _, _, _) => [value]
+    CTupleField(value, _, _) => [value]
+    CRecordUpdate(value, _, _, _, replacements) => Cons(value, fmap(replacements, snd))
+    CCall(callee, args) => Cons(callee, args)
+    CLambda(_, body) => [body]
+    CLet(_, value, body) => [value, body]
+    CLetDict(_, _, value, body) => [value, body]
+    CMatch(value, arms) => Cons(value, concatMap(arms, func(arm) => match arm.guard { None => [arm.body] | Some(guard) => [guard, arm.body] }))
+    CIf(condition, yes, no) => [condition, yes, no]
+    CPrim(_, args) => args
+    CTuple(fields) => fields
+    _ => Nil
+  }
+}
+func cgDictTuples(dict DictRef) List[Int] {
+  match dict {
+    DInstance(_, typeCon, args) => append(maybe(isTupleCon(typeCon), Nil, func(n) => [n]), concatMap(args, cgDictTuples))
+    DParam(_, _) => Nil
+    DSuper(_, inner) => cgDictTuples(inner)
+  }
+}
+func cgPatternTuples(pattern CPat) List[Int] {
+  match pattern {
+    CPTuple(fields) => Cons(length(fields), concatMap(fields, cgPatternTuples))
+    CPCtor(_, _, fields) => concatMap(fields, cgPatternTuples)
+    CPAs(_, inner) => cgPatternTuples(inner)
+    _ => Nil
+  }
+}
+func cgExprTuples(expression Core) List[Int] {
+  let own = match expression {
+    CTuple(fields) => [length(fields)]
+    CTupleField(_, arity, _) => [arity]
+    CLocalDict(_, dicts) => concatMap(dicts, cgDictTuples)
+    CGlobal(_, dicts, _) => concatMap(dicts, cgDictTuples)
+    CMethod(_, dict, ownDicts, _) => append(cgDictTuples(dict), concatMap(ownDicts, cgDictTuples))
+    CInterp(_, parts) => concatMap(parts, func(pair) => cgDictTuples(fst(pair)))
+    CMatch(_, arms) => concatMap(arms, func(arm) => cgPatternTuples(arm.pat))
+    _ => Nil
+  }
+  append(own, concatMap(cgChildren(expression), cgExprTuples))
+}
+func collectTupleArities(expression Core) List[Int] {
+  mapKeys(fold(cgExprTuples(expression), mapEmpty(), func(seen, arity) => mapInsert(seen, arity, unit())))
+}
+func usesOrdering(expression Core) Bool {
+  let own = match expression {
+    CPrim(name, _) => elem(name, ["ordLt", "ordLe", "ordGt", "ordGe"])
+    _ => false
+  }
+  own || any(cgChildren(expression), usesOrdering)
+}

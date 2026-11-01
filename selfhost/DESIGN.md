@@ -145,3 +145,40 @@ under the Go compiler.
 - No mutation: counters and substitutions live in `CheckState` / `Gen` state.
 - Single-file `package main` programs; the driver accepts several files
   (`gofx run a.gfx b.gfx`) and merges them.
+- No type aliases: `Gen[A]` is `CGGen(State[Int, A])` with its own Functor/Monad and `runGen`.
+- `given` is a keyword: `resolveDict`'s first parameter is named `bounds`.
+- `TypeParam.constraint` is `Option[String]` (SPEC §3.3: one constraint); a second
+  constraint is diagnosed `type parameter may have at most one constraint`.
+- The lexer treats every `{` as a layout reset, like the Go lexer; record-brace newline
+  tolerance is the parser's job.
+
+## Status (baseline commit 6b189c0, branch `slice/selfhost`)
+
+`bash selfhost/bootstrap.sh` result on the baseline:
+
+- stage1 (Go compiler → selfhost, 13 files, 4.4k lines of gofx) builds;
+- all 17 `examples/*/main.gfx` compile under stage1, build with `go build`, and print the
+  same stdout as under `cmd/gofx`;
+- stage2 (stage1 compiling itself) == stage3 (stage2 compiling itself) after `gofmt`:
+  **fixed point reached**.
+
+Differences from the Go compiler that are accepted: instance emission order (Core sorts by
+`instanceKey`), extern parameter names (`a0…`), fresh-name scheme (`_gofxN`), stderr
+warning paths. Generated Go is therefore not byte-identical to `cmd/gofx build`.
+
+## Rebase list (master moved during implementation)
+
+`master` merged these slices after the baseline; the self-hosted compiler does not accept
+them yet and must be extended slice by slice (each is a bounded change to the named files):
+
+| master slice | surface change | selfhost files to touch |
+|---|---|---|
+| deriving | class `Debug`, `deriving Debug/Functor/Foldable/Traversable`, `deriving Show` rejected | `decls.gfx` (derive), `ty.gfx` (prelude classes) |
+| multi-constraint | `A Show + Ord` | `ast.gfx` (`TypeParam.constraints: List[String]`), `parser.gfx`, `decls.gfx`, `infer.gfx` |
+| pipe-partial | `x \|> f`, `_` placeholder sections | `lexer.gfx`, `parser.gfx`, `infer.gfx` (desugar) |
+| io-effects | prelude `Result[E, A]`, `tryIO`, files/time/random externs, panic policy | `base.gfx` (rename local `Result[A]`), `main.gfx` |
+| float-num | `Float` type, literals, numeric prelude | `lexer.gfx`, `ast.gfx` (`EFloat`, `PFloat`), `types.gfx`, `infer.gfx`, `cg_expr.gfx`, `core.gfx` (`CFloat`, prims) |
+| collections | prelude `Map`/`Set`/`Array` | `base.gfx` (rename local `Map`), codegen for new rt shapes |
+
+Until then run the bootstrap from this branch (or any checkout whose prelude is the
+baseline one; `GOFX_PRELUDE` selects the prelude file).
