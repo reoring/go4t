@@ -1,0 +1,197 @@
+package main
+
+// 小さな式言語のインタプリタ。
+//   式:   数値 / 変数 / 二項演算 / let 束縛 / if
+//   評価: 環境を State で持ち回り、失敗は Result で表す
+
+// ===== 構文 =====
+
+type Op = Add | Sub | Mul | Div | Lt
+
+type Expr =
+    Num(Int)
+  | Var(String)
+  | Bin{op: Op, lhs: Expr, rhs: Expr}
+  | Let{name: String, value: Expr, body: Expr}
+  | If{cond: Expr, thenE: Expr, elseE: Expr}
+
+type Value = IntV(Int) | BoolV(Bool)
+
+type EvalError =
+    Unbound(String)
+  | DivByZero
+  | TypeError{expected: String, got: Value}
+
+type Result[E, A] = Err(E) | Ok(A)
+
+// ===== Show =====
+
+instance Show[Op] {
+  show(o) {
+    match o {
+      Add => "+"
+      Sub => "-"
+      Mul => "*"
+      Div => "/"
+      Lt => "<"
+    }
+  }
+}
+
+instance Show[Expr] {
+  show(e) {
+    match e {
+      Num(n) => show(n)
+      Var(x) => x
+      Bin(op, l, r) => "(${l} ${op} ${r})"
+      Let(x, v, b) => "let ${x} = ${v} in ${b}"
+      If(c, t, f) => "if ${c} then ${t} else ${f}"
+    }
+  }
+}
+
+instance Show[Value] {
+  show(v) { match v { IntV(n) => show(n) | BoolV(b) => show(b) } }
+}
+
+instance Show[EvalError] {
+  show(e) {
+    match e {
+      Unbound(x) => "unbound variable ${x}"
+      DivByZero => "division by zero"
+      TypeError(want, got) => "expected ${want}, got ${got}"
+    }
+  }
+}
+
+instance Show[Result[E, A]] given Show[E], Show[A] {
+  show(r) { match r { Err(e) => "Err(${e})" | Ok(a) => "Ok(${a})" } }
+}
+
+instance Functor[Result[E]] {
+  fmap(r, f) { match r { Err(e) => Err(e) | Ok(a) => Ok(f(a)) } }
+}
+instance Monad[Result[E]] {
+  pure(a) { Ok(a) }
+  bind(r, f) { match r { Err(e) => Err(e) | Ok(a) => f(a) } }
+}
+
+// ===== 環境 =====
+
+type Env = Env{vars: List[(String, Value)], depth: Int}
+
+func lookup(env Env, x String) Result[EvalError, Value] {
+  match filter(env.vars, func(p) => fst(p) == x) {
+    Cons(p, _) => Ok(snd(p))
+    Nil => Err(Unbound(x))
+  }
+}
+
+func extend(env Env, x String, v Value) Env {
+  env{vars: Cons((x, v), env.vars), depth: env.depth + 1}
+}
+
+// ===== 評価 =====
+
+func asInt(v Value) Result[EvalError, Int] {
+  match v {
+    IntV(n) => Ok(n)
+    other => Err(TypeError{expected: "Int", got: other})
+  }
+}
+
+func asBool(v Value) Result[EvalError, Bool] {
+  match v {
+    BoolV(b) => Ok(b)
+    other => Err(TypeError{expected: "Bool", got: other})
+  }
+}
+
+func arith(op Op, a Int, b Int) Result[EvalError, Value] {
+  match op {
+    Add => Ok(IntV(a + b))
+    Sub => Ok(IntV(a - b))
+    Mul => Ok(IntV(a * b))
+    Div => if b == 0 { Err(DivByZero) } else { Ok(IntV(a / b)) }
+    Lt => Ok(BoolV(a < b))
+  }
+}
+
+func eval(env Env, e Expr) Result[EvalError, Value] {
+  match e {
+    Num(n) => Ok(IntV(n))
+    Var(x) => lookup(env, x)
+    Bin(op, l, r) => do {
+      lv <- eval(env, l)
+      rv <- eval(env, r)
+      a <- asInt(lv)
+      b <- asInt(rv)
+      arith(op, a, b)
+    }
+    Let(x, v, body) => do {
+      value <- eval(env, v)
+      eval(extend(env, x, value), body)
+    }
+    If(c, t, f) => do {
+      cv <- eval(env, c)
+      b <- asBool(cv)
+      if b { eval(env, t) } else { eval(env, f) }
+    }
+  }
+}
+
+// ===== 静的解析: 自由変数を State で収集 =====
+
+func freeVars(bound List[String], e Expr) State[List[String], Unit] {
+  match e {
+    Num(_) => pure(unit())
+    Var(x) =>
+      if length(filter(bound, func(b) => b == x)) > 0
+        || length(filter(bound, func(b) => b == "*")) > 0 { pure(unit()) }
+      else { modify(func(acc) => append(acc, [x])) }
+    Bin(_, l, r) => forEach([l, r], func(sub) => freeVars(bound, sub))
+    Let(x, v, body) => do {
+      freeVars(bound, v)
+      freeVars(Cons(x, bound), body)
+    }
+    If(c, t, f) => forEach([c, t, f], func(sub) => freeVars(bound, sub))
+  }
+}
+
+// ===== 便利な構築子 =====
+
+func num(n Int) Expr { Num(n) }
+func v(x String) Expr { Var(x) }
+func add(l Expr, r Expr) Expr { Bin{op: Add, lhs: l, rhs: r} }
+func mul(l Expr, r Expr) Expr { Bin{op: Mul, lhs: l, rhs: r} }
+func div(l Expr, r Expr) Expr { Bin{op: Div, lhs: l, rhs: r} }
+func lt(l Expr, r Expr) Expr { Bin{op: Lt, lhs: l, rhs: r} }
+
+// ===== main =====
+
+func main() IO[Unit] {
+  let empty = Env{vars: [], depth: 0}
+  let programs = [
+    ("arith", add(num(1), mul(num(2), num(3)))),
+    ("let",   Let{name: "x", value: num(10), body: mul(v("x"), add(v("x"), num(1)))}),
+    ("if",    If{cond: lt(num(1), num(2)), thenE: num(100), elseE: num(0)}),
+    ("free",  add(v("y"), num(1))),
+    ("div0",  div(num(1), num(0))),
+    ("type",  add(lt(num(1), num(2)), num(1))),
+    ("nested",
+      Let{name: "a", value: num(2),
+          body: Let{name: "b", value: mul(v("a"), v("a")),
+                    body: If{cond: lt(v("a"), v("b")), thenE: v("b"), elseE: v("a")}}})
+  ]
+  let run = func(p) => match p {
+    (name, e) => "${name}: ${e}\n  => ${eval(empty, e)}\n  free: ${execState(freeVars([], e), [])}"
+  }
+  do {
+    forEach(programs, func(p) => println(run(p)))
+    let results = mapM(programs, func(p) => eval(empty, snd(p)))
+    println("all: ${results}")
+    let okOnly = mapM(filter(programs, func(p) => fst(p) != "free" && fst(p) != "div0" && fst(p) != "type"),
+                      func(p) => eval(empty, snd(p)))
+    println("ok:  ${okOnly}")
+  }
+}
