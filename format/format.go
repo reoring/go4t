@@ -696,6 +696,10 @@ func (p *printer) pattern(pat ast.Pattern) {
 	case *ast.PLit:
 		p.expr(a.X, 0)
 	case *ast.PCtor:
+		if a.List {
+			p.listPattern(a)
+			break
+		}
 		p.text(a.Name)
 		if len(a.Args) > 0 {
 			p.text("(")
@@ -732,4 +736,26 @@ func (p *printer) pattern(pat ast.Pattern) {
 	default:
 		panic(fmt.Sprintf("format: unsupported pattern %T", a))
 	}
+}
+
+func (p *printer) listPattern(root *ast.PCtor) {
+	p.text("[")
+	var tail ast.Pattern = root
+	for i := 0; ; i++ {
+		if ctor, ok := tail.(*ast.PCtor); ok {
+			if ctor.Name == "Nil" {
+				break
+			}
+			p.comma(i)
+			p.pattern(ctor.Args[0])
+			tail = ctor.Args[1]
+			continue
+		}
+		p.text(", ..")
+		if _, wild := tail.(*ast.PWild); !wild {
+			p.pattern(tail)
+		}
+		break
+	}
+	p.text("]")
 }

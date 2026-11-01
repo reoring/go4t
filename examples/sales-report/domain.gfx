@@ -47,7 +47,7 @@ func parseCurrency(line Int, raw String) Result[ParseError, Currency] {
 func parseSale(line Int, text String) Result[ParseError, Sale] {
   let cols = string.split(",", text) |> map(string.trim)
   match cols {
-    | Cons(day, Cons(region, Cons(product, Cons(qtyRaw, Cons(unitRaw, Cons(curRaw, Nil)))))) => do {
+    | [day, region, product, qtyRaw, unitRaw, curRaw] => do {
       qty <- string.parseInt(qtyRaw)
         |> result.okOr(BadNumber{line: line, field: "qty", raw: qtyRaw})
       unit <- float.parseFloat(unitRaw)

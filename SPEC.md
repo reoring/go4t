@@ -405,12 +405,28 @@ Pattern := '_' | Int | Float | String | 'true' | 'false'
          | ConstructorName ['(' Pattern {',' Pattern} ')']
          | ConstructorName '{' [Ident ':' Pattern {',' Ident ':' Pattern}] [',' '..'] '}'
          | '(' Pattern ',' Pattern {',' Pattern} ')' | '(' Pattern ')'
+         | '[' [Pattern {',' Pattern} [',' ListRest] [',']] ']'
+ListRest := '..' [LowerIdent | '_']
 ```
 
 Constructors may be qualified/private within their owning module. Arms run in
 order: the first matching pattern whose guard is true yields the value. All arms
 have one type. Variables bind once per pattern; guards see them. Record patterns
 must name all fields or use `..`; positional patterns also work for records.
+
+List patterns desugar in the parser: `[]` is `Nil`, `[p1, p2, p3]` is
+`Cons(p1, Cons(p2, Cons(p3, Nil)))`, and `[p1, p2, ..rest]` is
+`Cons(p1, Cons(p2, rest))`. Fixed-length patterns match exactly that many
+elements; a rest binds the remaining list, including an empty tail, without
+copying it. `..` or `.._` ignores the tail. Rest requires at least one preceding
+element and must be last; a trailing comma is allowed. Elements may themselves
+be any patterns. Formatting retains list syntax (canonicalizing `.._` to `..`)
+and leaves explicit `Nil`/`Cons` patterns in constructor syntax.
+
+List patterns follow the existing binding rules: `let [a, b] = xs`,
+`func([a, b]) => a + b`, and `[a, ..rest] <- action` parse but fail the
+irrefutability requirement, even if the supplied list literal has the right
+length. Use `match` to handle both matching and nonmatching lengths.
 
 Matches must be exhaustive, including nested constructors/tuples. Guarded arms
 contribute no coverage. Bool's `true` and `false` cover the finite domain;
@@ -455,6 +471,14 @@ ends are exclusive. CLI diagnostics print the source line and a `^~~~` underline
 multiline spans clamp to the first line, missing spans use one caret, and unreadable
 sources retain the positioned message without an excerpt. Tabs, CRLF and EOF are
 handled. Expected types are contextual: `type mismatch: expected T, got U`.
+
+Missing-pattern witnesses for `List[_]` always use list syntax, regardless of
+whether the source wrote list or `Nil`/`Cons` patterns, including lists nested
+inside other types. `[]` denotes an empty list, `[_]` exactly one element, and
+`[_, _, ..]` at least two elements. A trailing `..` denotes an unconstrained
+tail; constrained elements retain their own witness, e.g. `[true, ..]`.
+An entirely unconstrained column remains `_`. This representation does not
+change coverage or the five-witness limit.
 
 Examples of stable message forms:
 
@@ -922,7 +946,10 @@ including exported low-level helpers and private JSON helpers.
 | Local recursion | Only bare-name lambda lets recurse; consecutive local funcs share one scope group; local own type parameters → `local functions cannot have type parameters`; duplicate name → `duplicate local function <name>` |
 | Placeholder placement | Whole arguments/section operands only; nested holes have independent scopes; fixed expressions run per application |
 | Constraints | Duplicate class on one parameter fails; Eq + Ord is legal and reuses Ord; absent rigid class diagnostics list constraints in order |
-| Match coverage | Guards add no coverage; true/false are exhaustive; other literal domains need default; maximum five missing witnesses |
+| Match coverage | Guards add no coverage; true/false are exhaustive; other literal domains need default; maximum five missing witnesses; List witnesses always use `[]`, `[_]`, `[_, _, ..]`-style syntax (§5.2) |
+| List patterns | `[]` and `[p1, p2, ...]` match exact lengths; `[p1, p2, ..rest]` binds the remaining list without copying, including an empty tail; final `..` / `.._` ignores it; trailing comma allowed |
+| List rest placement/name | Rest needs a preceding element (`list rest pattern needs a preceding element`); it must be last (`.. must be last in list pattern`); only a lower-case name or `_` may follow `..` (`list rest must be a lower-case name or _`) |
+| List binding patterns | Refutable: let / lambda parameter / do bind report `let pattern must be irrefutable` / `lambda parameter pattern must be irrefutable` / `bind pattern must be irrefutable`; use `match` |
 | Deriving | Show rejected; Ord needs Eq, Traversable needs Functor; unmapped functions allowed only where the generated class never examines them |
 | Pure Lazy | Construction stores thunk; each force reruns it, no memoization |
 | Huge counts/widths | Empty/negative ordinary inputs follow tables below; huge positive allocations can panic/exhaust resources, never silently truncate |

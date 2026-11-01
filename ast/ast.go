@@ -437,6 +437,9 @@ type PCtor struct {
 	End  Pos
 	Name string
 	Args []Pattern
+	// List marks the root of a parser-desugared list pattern for formatting.
+	// The semantic pattern remains Nil/Cons; user-written constructors leave it false.
+	List bool
 }
 type PVar struct {
 	Pos  Pos

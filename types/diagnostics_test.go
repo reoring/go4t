@@ -21,7 +21,7 @@ func TestMissingPatternWitnesses(t *testing.T) {
 		{`type Many = A | B | C | D | E | F | G; func value(x Many) Int { match x { A => 0 } }`, "B, C, D, E, F"},
 		{`func value(x (Int, Bool)) Int { match x { (_, false) => 0; (0, true) => 1 } }`, "(1, true)"},
 		{`func value(x (String, Bool)) Int { match x { (_, false) => 0; ("", true) => 1 } }`, `("_", true)`},
-		{`func value(x List[Int]) Int { match x { Nil => 0; Cons(0, _) => 1 } }`, "Cons(1, _)"},
+		{`func value(x List[Int]) Int { match x { Nil => 0; Cons(0, _) => 1 } }`, "[1, ..]"},
 		{`type Rec = Rec{left: Option[Int], right: Bool}; func value(x Rec) Int { match x { Rec{right: false, ..} => 0; Rec{left: None, right: true} => 1 } }`, "Rec(Some(_), true)"},
 		{`func value(x Float) Int { match x { 0.0 => 0; 1.0 => 1 } }`, "2"},
 		{`func value(x (Float, Bool)) Int { match x { (_, false) => 0; (0.0, true) => 1 } }`, "(1, true)"},
