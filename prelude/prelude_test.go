@@ -18,16 +18,19 @@ func TestPreludeParses(t *testing.T) {
 		t.Errorf("package = %q, want prelude", file.Package)
 	}
 	want := []string{
-		"class Functor", "class Monad", "class Show", "class Eq", "type Ordering", "class Ord",
+		"class Functor", "class Monad", "class Foldable", "class Traversable", "class Show", "class Debug", "class Eq", "type Ordering", "class Ord",
 		"type Option", "type List", "type State",
 		"instance Functor[Option]", "instance Monad[Option]",
 		"instance Functor[List]", "instance Monad[List]",
+		"instance Foldable[Option]", "instance Traversable[Option]",
+		"instance Foldable[List]", "instance Traversable[List]",
+		"func foldl", "func toList", "func foldMapList",
 		"instance Functor[State]", "instance Monad[State]",
 		"func runState", "func evalState", "func execState", "func get", "func put", "func modify",
 		"func fromOption", "func maybe", "func isSome", "func isNone",
-		"instance Show[List]", "instance Show[Tuple2]",
+		"instance Show[Ordering]", "instance Show[Option]", "instance Show[List]", "instance Show[Tuple2]", "instance Debug[Tuple2]",
 		"func ioPure", "func ioBind", "func ioFail", "func println",
-		"func showInt", "func showBool", "func showString", "func unit",
+		"func showInt", "func showBool", "func showString", "func debugString", "func unit",
 		"func eqInt", "func ltInt", "func eqString", "func ltString", "func eqBool",
 		"func minInt", "func maxInt", "func abs",
 		"func strLength", "func strConcat", "func join", "func split", "func lines", "func words",
@@ -35,6 +38,7 @@ func TestPreludeParses(t *testing.T) {
 		"func replace", "func substring", "func chars", "func repeat", "func parseInt", "func showPadLeft",
 		"func readLine", "func readAll", "func args", "func exit", "func getEnv",
 		"instance Show[Int]", "instance Show[String]", "instance Show[Bool]",
+		"instance Debug[Int]", "instance Debug[String]", "instance Debug[Bool]", "instance Debug[Unit]",
 		"instance Eq[Int]", "instance Ord[Int]", "instance Eq[String]", "instance Ord[String]",
 		"instance Eq[Bool]", "instance Ord[Bool]", "instance Eq[Unit]",
 		"instance Eq[Tuple2]", "instance Ord[Tuple2]",
@@ -49,9 +53,9 @@ func TestPreludeParses(t *testing.T) {
 		t.Fatalf("declaration count = %d, want %d", len(file.Decls), len(want))
 	}
 	wantDeriving := map[string][]string{
-		"Ordering": {"Eq", "Ord", "Show"},
-		"Option":   {"Eq", "Ord", "Show"},
-		"List":     {"Eq", "Ord"},
+		"Ordering": {"Eq", "Ord", "Debug"},
+		"Option":   {"Eq", "Ord", "Debug"},
+		"List":     {"Eq", "Ord", "Debug"},
 	}
 	var names []string
 	for _, decl := range file.Decls {

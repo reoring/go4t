@@ -9,23 +9,35 @@ class Monad[M[_]] : Functor[M] {
   bind[A, B](ma M[A], f func(A) M[B]) M[B]
 }
 
+class Foldable[F[_]] {
+  foldr[A, B](fa F[A], init B, f func(A, B) B) B
+}
+
+class Traversable[F[_]] : Functor[F] {
+  traverse[M[_] Monad, A, B](fa F[A], f func(A) M[B]) M[F[B]]
+}
+
 class Show[A] {
   show(a A) String
+}
+
+class Debug[A] {
+  debug(a A) String
 }
 
 class Eq[A] {
   eq(a A, b A) Bool
 }
 
-type Ordering = LT | EQ | GT deriving Eq, Ord, Show
+type Ordering = LT | EQ | GT deriving Eq, Ord, Debug
 
 class Ord[A] : Eq[A] {
   compare(a A, b A) Ordering
 }
 
-type Option[A] = None | Some(A) deriving Eq, Ord, Show
+type Option[A] = None | Some(A) deriving Eq, Ord, Debug
 
-type List[A] = Nil | Cons(A, List[A]) deriving Eq, Ord
+type List[A] = Nil | Cons(A, List[A]) deriving Eq, Ord, Debug
 
 type State[S, A] = State(func(S) (A, S))
 
@@ -65,6 +77,51 @@ instance Monad[List] {
       Cons(x, rest) => append(f(x), bind(rest, f))
     }
   }
+}
+
+instance Foldable[Option] {
+  foldr(fa, init, f) {
+    match fa { None => init; Some(a) => f(a, init) }
+  }
+}
+
+instance Traversable[Option] {
+  traverse(fa, f) {
+    match fa {
+      None => pure(None)
+      Some(a) => fmap(f(a), func(b) => Some(b))
+    }
+  }
+}
+
+instance Foldable[List] {
+  foldr(fa, init, f) {
+    match fa {
+      Nil => init
+      Cons(a, rest) => f(a, foldr(rest, init, f))
+    }
+  }
+}
+
+instance Traversable[List] {
+  traverse(fa, f) {
+    match fa {
+      Nil => pure(Nil)
+      Cons(a, rest) => bind(f(a), func(b) => fmap(traverse(rest, f), func(bs) => Cons(b, bs)))
+    }
+  }
+}
+
+func foldl[F[_] Foldable, A, B](fa F[A], init B, f func(B, A) B) B {
+  foldr(fa, func(b B) => b, func(a, next) => func(b) => next(f(b, a)))(init)
+}
+
+func toList[F[_] Foldable, A](fa F[A]) List[A] {
+  foldr(fa, Nil, func(a, rest) => Cons(a, rest))
+}
+
+func foldMapList[F[_] Foldable, A, B](fa F[A], f func(A) List[B]) List[B] {
+  foldr(fa, Nil, func(a, rest) => append(f(a), rest))
 }
 
 instance Functor[State[S]] {
@@ -120,6 +177,14 @@ func isNone[A](o Option[A]) Bool {
   match o { None => true | Some(_) => false }
 }
 
+instance Show[Ordering] {
+  show(a) { match a { LT => "LT"; EQ => "EQ"; GT => "GT" } }
+}
+
+instance Show[Option[A]] given Show[A] {
+  show(a) { match a { None => "None"; Some(x) => "Some(" + show(x) + ")" } }
+}
+
 instance Show[List[A]] given Show[A] {
   show(xs) {
     match xs {
@@ -137,6 +202,10 @@ instance Show[(A, B)] given Show[A], Show[B] {
   }
 }
 
+instance Debug[(A, B)] given Debug[A], Debug[B] {
+  debug(p) { match p { (a, b) => "(" + debug(a) + ", " + debug(b) + ")" } }
+}
+
 extern func ioPure[A](a A) IO[A] = "gofx/rt".Pure
 extern func ioBind[A, B](io IO[A], f func(A) IO[B]) IO[B] = "gofx/rt".Bind
 extern func ioFail[A](msg String) IO[A] = "gofx/rt".Fail
@@ -144,6 +213,7 @@ extern func println(s String) IO[Unit] = "gofx/rt".Println
 extern func showInt(n Int) String = "gofx/rt".ShowInt
 extern func showBool(b Bool) String = "gofx/rt".ShowBool
 extern func showString(s String) String = "gofx/rt".ShowString
+extern func debugString(s String) String = "gofx/rt".DebugString
 extern func unit() Unit = "gofx/rt".UnitValue
 extern func eqInt(a Int, b Int) Bool = "gofx/rt".EqInt
 extern func ltInt(a Int, b Int) Bool = "gofx/rt".LtInt
@@ -189,6 +259,22 @@ instance Show[String] {
 
 instance Show[Bool] {
   show(a) { showBool(a) }
+}
+
+instance Debug[Int] {
+  debug(a) { showInt(a) }
+}
+
+instance Debug[String] {
+  debug(a) { debugString(a) }
+}
+
+instance Debug[Bool] {
+  debug(a) { showBool(a) }
+}
+
+instance Debug[Unit] {
+  debug(a) { "()" }
 }
 
 instance Eq[Int] {

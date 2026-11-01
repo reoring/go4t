@@ -1,0 +1,34 @@
+package main
+
+type Tree[A] = Leaf(A) | Branch(Tree[A], Tree[A])
+  deriving Functor, Foldable, Traversable, Debug
+
+// The display form belongs to the application, independently of Debug.
+instance Show[Tree[A]] given Show[A] {
+  show(tree) {
+    match tree {
+      Leaf(a) => show(a)
+      Branch(left, right) => "(" + show(left) + " | " + show(right) + ")"
+    }
+  }
+}
+
+func positive(n Int) Option[Int] {
+  if n > 0 { Some(n * 10) } else { None }
+}
+
+func main() IO[Unit] {
+  let tree = Branch(Leaf(1), Branch(Leaf(2), Leaf(3)))
+  do {
+    println("display: ${tree}")
+    println("debug: ${debug(tree)}")
+    println("mapped: ${fmap(tree, func(n) => n + 1)}")
+    println("foldr: ${foldr(tree, 0, func(n, total) => n + total)}")
+    println("traverse: ${traverse(tree, positive)}")
+    println("failure: ${traverse(Branch(Leaf(1), Leaf(0)), positive)}")
+    println("toList: ${toList(tree)}")
+    println("foldl: ${foldl(tree, 0, func(acc, n) => acc * 10 + n)}")
+    println("foldMapList: ${foldMapList(tree, func(n) => [n, n])}")
+    println("strings: ${debug(Leaf("hello\nworld"))}")
+  }
+}

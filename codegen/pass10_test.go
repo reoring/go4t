@@ -94,9 +94,8 @@ func TestLetWildcardAndNestedPatterns(t *testing.T) {
 	}
 }
 
-func TestSynthesizedShowInstanceInterpolation(t *testing.T) {
-	// Deriving appends ordinary InstanceDecls before checking. Build its checked
-	// representation directly, just like the other independent codegen fixtures.
+func TestHandwrittenShowInstanceInterpolation(t *testing.T) {
+	// A handwritten Show may interpolate its fields using their Show dictionaries.
 	p, showInt, _ := showFixture()
 	a := &types.TVar{Name: "A", Kind: types.KStar{}}
 	box := &types.DataType{Name: "Box", TParams: []*types.TVar{a}}

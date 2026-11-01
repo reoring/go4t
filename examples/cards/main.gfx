@@ -1,11 +1,11 @@
 package main
 
-// ===== ドメイン(deriving で Eq/Ord/Show を自動生成) =====
+// ===== ドメイン(deriving で Eq/Ord/Debug を自動生成) =====
 
-type Suit = Clubs | Diamonds | Hearts | Spades deriving Eq, Ord, Show
+type Suit = Clubs | Diamonds | Hearts | Spades deriving Eq, Ord, Debug
 type Rank = Two | Three | Four | Five | Six | Seven | Eight | Nine | Ten | Jack | Queen | King | Ace
-  deriving Eq, Ord, Show
-type Card = Card{rank: Rank, suit: Suit} deriving Eq, Ord, Show
+  deriving Eq, Ord, Debug
+type Card = Card{rank: Rank, suit: Suit} deriving Eq, Ord, Debug
 
 type Hand =
     HighCard(Rank)
@@ -17,7 +17,7 @@ type Hand =
   | FullHouse(Rank, Rank)
   | Quads(Rank)
   | StraightFlush(Rank)
-  deriving Eq, Ord, Show
+  deriving Eq, Ord, Debug
 
 // ===== 決定的な擬似乱数: State[Int] 上の LCG =====
 
@@ -89,7 +89,7 @@ func classify(cards List[Card]) Hand {
 // ===== main =====
 
 func showCards(cs List[Card]) String {
-  fold(cs, "", func(acc, Card{rank: r, suit: s}) => "${acc}${r}/${s} ")
+  fold(cs, "", func(acc, Card{rank: r, suit: s}) => "${acc}${debug(r)}/${debug(s)} ")
 }
 
 func deal(n Int, players Int) State[Int, List[List[Card]]] {
@@ -112,12 +112,12 @@ func main() IO[Unit] {
   let (best, bestHand) = fromOption(maximum(results), (HighCard(Two), []))
   do {
     println("== fixed hands ==")
-    forEach(fixed, func((name, cs)) => println("  ${name}: ${classify(cs)}"))
+    forEach(fixed, func((name, cs)) => println("  ${name}: ${debug(classify(cs))}"))
     println("== deck ==")
-    println("  ${length(fullDeck())} cards, min ${head(sort(fullDeck()))}")
+    println("  ${length(fullDeck())} cards, min ${debug(head(sort(fullDeck())))}")
     println("== dealt (seed -> ${seed}) ==")
-    forEach(results, func((hand, cs)) => println("  ${showCards(cs)}=> ${hand}"))
-    println("  winner: ${best} with ${showCards(bestHand)}")
+    forEach(results, func((hand, cs)) => println("  ${showCards(cs)}=> ${debug(hand)}"))
+    println("  winner: ${debug(best)} with ${showCards(bestHand)}")
     println("  Pair(Ace) < Trips(Two) = ${Pair(Ace) < Trips(Two)}, isSome(head(hands)) = ${isSome(head(hands))}")
   }
 }
