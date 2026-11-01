@@ -192,13 +192,16 @@ func (l *loader) importModule(importPath, from string) (*ast.Module, error) {
 			continue
 		}
 		if m := l.seen[dir]; m != nil {
+			if strings.HasPrefix(importPath, "std/") {
+				m.ImportPath = importPath
+			}
 			return m, nil
 		}
 		names, err := sourceFiles(dir)
 		if err != nil {
 			return nil, err
 		}
-		m := &ast.Module{Path: dir}
+		m := &ast.Module{Path: dir, ImportPath: importPath}
 		l.seen[dir] = m
 		for _, name := range names {
 			source, err := os.ReadFile(name)
@@ -231,7 +234,7 @@ func (l *loader) importModule(importPath, from string) (*ast.Module, error) {
 		}
 		if len(names) > 0 {
 			sort.Strings(names)
-			m := &ast.Module{Path: importPath}
+			m := &ast.Module{Path: importPath, ImportPath: importPath}
 			l.seen[importPath] = m
 			for _, name := range names {
 				source, err := std.FS.ReadFile(name)

@@ -234,4 +234,3 @@ func goIdentifier(name string) string {
 	}
 	return name
 }
-

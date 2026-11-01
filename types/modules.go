@@ -51,6 +51,7 @@ func qualifyModules(input []*ast.Module) (*moduleResolver, []*ast.File) {
 		return r, input[0].Files
 	}
 	prefixes := make(map[string]bool)
+	standard := make(map[string]*moduleScope)
 	for index, original := range input {
 		m := cloneSyntax(reflect.ValueOf(original)).Interface().(*ast.Module)
 		if r.scopes[m.Path] != nil {
@@ -64,6 +65,9 @@ func qualifyModules(input []*ast.Module) (*moduleResolver, []*ast.File) {
 		prefixes[prefix] = true
 		s := &moduleScope{module: m, values: make(map[string]string), types: make(map[string]string), prefix: prefix, entry: index == len(input)-1}
 		r.scopes[m.Path] = s
+		if strings.HasPrefix(m.ImportPath, "std/") {
+			standard[m.ImportPath] = s
+		}
 		r.modules = append(r.modules, m)
 		for _, f := range m.Files {
 			r.file = f
@@ -97,15 +101,15 @@ func qualifyModules(input []*ast.Module) (*moduleResolver, []*ast.File) {
 		"std/array": "Array", "std/conc": "Fiber", "std/io": "IO",
 		"std/string": "String", "std/float": "Float",
 	} {
-		if scope := r.scopes[module]; scope != nil && scope.types[name] == "" {
+		if scope := standard[module]; scope != nil && scope.types[name] == "" {
 			scope.types[name] = name
 		}
 	}
-	prelude := r.scopes["std/prelude"]
+	prelude := standard["std/prelude"]
 	if prelude != nil {
 		// Link reexports by declaration identity rather than copying declarations.
 		for name, owner := range preludeOwners {
-			if s := r.scopes[owner]; s != nil {
+			if s := standard[owner]; s != nil {
 				if n := s.values[name]; n != "" {
 					prelude.values[name] = n
 				}
@@ -198,7 +202,7 @@ func (r *moduleResolver) declare(s *moduleScope, table map[string]string, name s
 	}
 	// Fixed compiler primitives (desugaring and deriving) retain semantic names;
 	// codegen gives them the same module-prefixed Go ABI as other declarations.
-	if s.module.Path == owner && (contains(PreludeExports, name) || contains(strings.Fields("fmap pure bind foldr traverse"), name)) {
+	if s.module.ImportPath == owner && (contains(PreludeExports, name) || contains(strings.Fields("fmap pure bind foldr traverse"), name)) {
 		canonical = name
 	}
 	for r.owners[canonical] != "" && r.owners[canonical] != s.module.Path {
@@ -303,7 +307,7 @@ func (r *moduleResolver) typ(t ast.Type, scope map[string]bool) {
 	}
 }
 func (r *moduleResolver) shadow(name string, pos ast.Pos) {
-	if strings.HasPrefix(r.scope.module.Path, "std/") {
+	if strings.HasPrefix(r.scope.module.ImportPath, "std/") {
 		return
 	}
 	if r.implicitValues[name] != "" || r.implicitTypes[name] != "" {
@@ -448,7 +452,9 @@ func (r *moduleResolver) block(b *ast.Block, ts, outer map[string]bool) {
 		case *ast.FuncDecl:
 			for _, statement := range b.Stmts[index:] {
 				function, ok := statement.(*ast.FuncDecl)
-				if !ok { break }
+				if !ok {
+					break
+				}
 				vs[function.Name] = true
 			}
 			r.function(s, ts, vs)
@@ -534,7 +540,9 @@ func (r *moduleResolver) expr(e ast.Expr, ts, vs map[string]bool) ast.Expr {
 			case *ast.FuncDecl:
 				for _, statement := range e.Stmts[index:] {
 					function, ok := statement.(*ast.FuncDecl)
-					if !ok { break }
+					if !ok {
+						break
+					}
 					scope[function.Name] = true
 				}
 				r.function(s, ts, scope)

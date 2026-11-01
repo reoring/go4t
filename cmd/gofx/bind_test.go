@@ -88,6 +88,43 @@ func main() IO[Unit] { println(fixtureGreeting("world")) }
 	}
 }
 
+func TestBindReceivingModuleAndDirectoryOutput(t *testing.T) {
+	for _, context := range []string{"directory", "file"} {
+		t.Run(context, func(t *testing.T) {
+			dir := toolsModule(t)
+			source := toolsWrite(t, filepath.Join(dir, "main.gfx"), "package utilities\nfunc main() IO[Unit] { println(greeting(\"world\")) }\n")
+			helper := filepath.Join(dir, "helper")
+			if err := os.Mkdir(helper, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			toolsWrite(t, filepath.Join(helper, "helper.go"), "package helper\nfunc Greeting(name string) string { return \"hello \" + name }\n")
+			input := dir
+			if context == "file" {
+				input = source
+			}
+			if err := run([]string{"bind", "clitoolstest/helper", input, "-o", dir}); err != nil {
+				t.Fatal(err)
+			}
+			bindings, err := os.ReadFile(filepath.Join(dir, "bindings.gfx"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, want := range []string{"package utilities\n", `extern func greeting(p0 String) String = "clitoolstest/helper".Greeting`} {
+				if !strings.Contains(string(bindings), want) {
+					t.Errorf("bindings missing %q:\n%s", want, bindings)
+				}
+			}
+			loaded, err := modules.Load([]string{dir})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := types.Check(loaded); err != nil {
+				t.Fatalf("receiving module cannot use its bindings: %v", err)
+			}
+		})
+	}
+}
+
 func TestBindErrors(t *testing.T) {
 	for _, args := range [][]string{
 		{"bind"}, {"bind", "-o", "a.gfx"}, {"bind", "strings", "-o"},

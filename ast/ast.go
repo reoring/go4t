@@ -60,11 +60,12 @@ type Param struct {
 // ---- declarations ----
 
 // Module is one directory of same-package source files. Path is its resolved
-// import identity; the entry module is last in a compilation's module list.
+// identity; the entry module is last in a compilation's module list.
 type Module struct {
-	Path  string
-	Name  string
-	Files []*File
+	Path       string
+	ImportPath string // logical import path; std/... identifies standard declarations
+	Name       string
+	Files      []*File
 }
 
 type Import struct {
