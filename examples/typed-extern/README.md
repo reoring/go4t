@@ -8,8 +8,8 @@ go run ./cmd/gofx bind strings --prefix str -o examples/typed-extern/gostd.gfx
 
 This command succeeds without stdout; it writes `gostd.gfx`. Omit `-o` to print
 those same declarations to stdout. The `str` prefix is important: the prelude
-already defines names such as `toUpper` and `repeat`. No hand-written aliases or
-Go bridge package are needed.
+already defines names such as `toUpper` and `repeat`. These string functions need
+no hand-written aliases or Go bridge package.
 
 Observed generated file (the available exported functions and skip comments can
 vary with the Go toolchain version):
@@ -77,10 +77,25 @@ extern func strTrimSpace(p0 String) String = "strings".TrimSpace
 extern func strTrimSuffix(p0 String, p1 String) String = "strings".TrimSuffix
 ```
 
-Compile and run both files as one program:
+Generate the method bindings and Go shim (the repository's `go.mod` supplies the
+receiving module):
 
 ```sh
-go run ./cmd/gofx run examples/typed-extern/main.gfx examples/typed-extern/gostd.gfx
+go run ./cmd/gofx bind net/url --shim examples/typed-extern/shim -o examples/typed-extern/methods.gfx
+```
+
+This writes `methods.gfx` and `shim/gofx_shim_url.go`. The small hand-written
+`shim/url.go` helper returns `(any, error)` from `url.Parse`, so the explicit
+`parseURL` extern produces `IO[URL]`. The generated `type URL = URLHandle` is
+opaque: do not construct, match, derive instances for, or `show` it. The method
+shims accept `any`, check that it contains `*url.URL`, and call the Go method.
+`uRLHostname` and `uRLString` use the normal bind naming rule: only the first
+letter is lower-cased. A `--prefix native` binding would use `nativeURLHostname`.
+
+Compile and run all the gofx files as one program:
+
+```sh
+go run ./cmd/gofx run examples/typed-extern
 ```
 
 Observed stdout:
@@ -89,9 +104,16 @@ Observed stdout:
 GOFX MEETS GO
 nanana
 [typed, externs, keep, lists]
+gofx.example
+https://gofx.example:8443/guide
 ```
 
-The three calls exercise native string arguments/results (`strings.ToUpper`),
+The first three calls exercise native string arguments/results (`strings.ToUpper`),
 Go `int` conversion (`strings.Repeat`), and `[]string` to generated `List[String]`
-conversion (`strings.Fields`). gofx values and generated function interfaces
-remain `any`; only the automatically generated foreign wrappers convert them.
+conversion (`strings.Fields`). The final two call generated shims for
+`(*url.URL).Hostname` and `(*url.URL).String`. gofx values and generated function
+interfaces remain `any`; only the foreign wrappers and method shims adapt them.
+When copying this example into another application, run `bind --shim` inside its
+Go module, ensure the module resolves `gofx`, and update the explicit `parseURL`
+extern to that module's shim import path. A standalone run without a Go module
+cannot resolve the application shim package.

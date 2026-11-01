@@ -22,11 +22,12 @@ type Function struct {
 	Signature *types.Signature
 }
 
-// Package contains exported functions in lexical name order.
+// Package contains exported functions and methods in lexical name order.
 type Package struct {
 	Path      string
 	Name      string
 	Functions []Function
+	Methods   []Method
 }
 
 // Lookup finds an exported function by its Go name.
@@ -112,6 +113,7 @@ func (l *Loader) Load(path string) (*Package, error) {
 			p.Functions = append(p.Functions, Function{Name: name, Signature: f.Type().(*types.Signature)})
 		}
 	}
+	p.Methods = exportedMethods(pkg)
 	l.packages[path] = p
 	return p, nil
 }

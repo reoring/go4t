@@ -40,19 +40,12 @@ func Bind(pkg *Package, options BindOptions) string {
 			fmt.Fprintf(&out, "// skipped: %s (%s)\n", f.Name, reason)
 			continue
 		}
-		name := options.Prefix + f.Name
-		if options.Prefix == "" {
-			r, size := utf8.DecodeRuneInString(f.Name)
-			name = string(unicode.ToLower(r)) + f.Name[size:]
-			if options.Prelude[name] {
-				fmt.Fprintf(&out, "// collides with prelude: %s\n", name)
-			}
+		name, reason := bindingName(f.Name, options.Prefix)
+		if options.Prefix == "" && options.Prelude[name] {
+			fmt.Fprintf(&out, "// collides with prelude: %s\n", name)
 		}
-		tokens, err := lexer.New(name).All()
-		first, _ := utf8.DecodeRuneInString(name)
-		if err != nil || tokens[0].Kind != lexer.Ident || tokens[0].Text != name ||
-			!unicode.IsLower(first) || strings.HasPrefix(name, "ext_") || strings.HasPrefix(name, "dict_") {
-			fmt.Fprintf(&out, "// skipped: %s (reserved gofx name %s; use --prefix)\n", f.Name, name)
+		if reason != "" {
+			fmt.Fprintf(&out, "// skipped: %s (%s)\n", f.Name, reason)
 			continue
 		}
 		for i, typ := range params {
@@ -63,8 +56,23 @@ func Bind(pkg *Package, options BindOptions) string {
 	return out.String()
 }
 
+func bindingName(goName, prefix string) (string, string) {
+	name := prefix + goName
+	if prefix == "" {
+		r, size := utf8.DecodeRuneInString(goName)
+		name = string(unicode.ToLower(r)) + goName[size:]
+	}
+	tokens, err := lexer.New(name).All()
+	first, _ := utf8.DecodeRuneInString(name)
+	if err != nil || tokens[0].Kind != lexer.Ident || tokens[0].Text != name ||
+		!unicode.IsLower(first) || strings.HasPrefix(name, "ext_") || strings.HasPrefix(name, "dict_") {
+		return name, fmt.Sprintf("reserved gofx name %s; use --prefix", name)
+	}
+	return name, ""
+}
+
 func bindingTypes(sig *types.Signature, floats bool) ([]string, string, string) {
-	if sig.TypeParams().Len() != 0 {
+	if sig.TypeParams().Len() != 0 || sig.RecvTypeParams().Len() != 0 {
 		return nil, "", "generic function"
 	}
 	if sig.Variadic() {

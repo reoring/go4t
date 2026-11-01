@@ -12,14 +12,14 @@ import (
 	"gofx/types"
 )
 
-const bindUsage = "gofx:1:1: usage: gofx bind IMPORT [FILE.gfx|DIR...] [-o FILE.gfx|DIR] [--prefix STR]"
+const bindUsage = "gofx:1:1: usage: gofx bind IMPORT [FILE.gfx|DIR...] [-o FILE.gfx|DIR] [--prefix STR] [--shim DIR]"
 
 func runBind(args []string) error {
 	if len(args) == 0 || strings.HasPrefix(args[0], "-") {
 		return fmt.Errorf("%s", bindUsage)
 	}
 	path := args[0]
-	var output, prefix string
+	var output, prefix, shimDir string
 	var inputs []string
 	seen := make(map[string]bool)
 	for i := 1; i < len(args); i++ {
@@ -28,17 +28,20 @@ func runBind(args []string) error {
 			inputs = append(inputs, flag)
 			continue
 		}
-		if (flag != "-o" && flag != "--prefix") || i+1 == len(args) || seen[flag] {
+		if (flag != "-o" && flag != "--prefix" && flag != "--shim") || i+1 == len(args) || seen[flag] {
 			return fmt.Errorf("%s", bindUsage)
 		}
 		seen[flag] = true
-		if flag == "-o" {
+		switch flag {
+		case "-o":
 			output = args[i+1]
-			if output == "" {
-				return fmt.Errorf("%s", bindUsage)
-			}
-		} else {
+		case "--prefix":
 			prefix = args[i+1]
+		case "--shim":
+			shimDir = args[i+1]
+		}
+		if flag != "--prefix" && args[i+1] == "" {
+			return fmt.Errorf("%s", bindUsage)
 		}
 		i++
 	}
@@ -62,6 +65,17 @@ func runBind(args []string) error {
 		packageName = entry.Name
 		loader.Dir = entry.Path
 	}
+	var shimPath, shimPackage string
+	if shimDir != "" {
+		var err error
+		shimPath, shimPackage, err = prepareShimDir(shimDir)
+		if err != nil {
+			return diagnostic(shimDir, err)
+		}
+		if loader.Dir == "" {
+			loader.Dir = shimDir
+		}
+	}
 	pkg, err := loader.Load(path)
 	if err != nil {
 		return diagnostic("gofx", err)
@@ -71,6 +85,17 @@ func runBind(args []string) error {
 		options.Prelude[name] = true
 	}
 	source := extern.Bind(pkg, options)
+	if shimDir != "" {
+		methods, shim, shimErr := extern.BindMethods(pkg, options, shimPath, shimPackage)
+		if shimErr != nil {
+			return diagnostic(shimDir, shimErr)
+		}
+		shimFile := filepath.Join(shimDir, "gofx_shim_"+goIdentifier(filepath.Base(pkg.Path))+".go")
+		if err := os.WriteFile(shimFile, shim, 0o644); err != nil {
+			return diagnostic(shimFile, err)
+		}
+		source += methods
+	}
 	if output == "" {
 		_, err = fmt.Fprint(os.Stdout, source)
 	} else {

@@ -1159,8 +1159,9 @@ Foreign packages are inspected once per compilation using `go list` export data
 and Go's parser/type importer in the module/build-constraint/toolchain context
 selected by `GenerateInDir` (§8.1); standalone CLI execution uses its extracted
 runtime module (§8.2).
-Each exported package-level function gets an adapter; methods, generics and
-variadic functions are not extern targets.
+Each exported package-level function gets an adapter; methods are reached through
+generated package-level shims (`bind --shim`), not directly. Generics and variadic
+functions are not extern targets.
 
 | gofx type | Natural Go ABI | Boundary |
 | --- | --- | --- |
@@ -1203,6 +1204,37 @@ Unsupported functions receive `// skipped: Name (reason)`: pointers, callbacks,
 unsupported integer widths/named types/multiple or absent results, generics,
 variadics, and uninferable any/rt.IO. Explicit externs can still describe erased
 or rt.IO functions that bind cannot infer. Reserved names suggest a prefix.
+
+`bind IMPORT --shim DIR` additionally writes `DIR/gofx_shim_<pkgbase>.go` and
+appends method bindings after the ordinary functions, sorted by receiver type
+and method name. `DIR` must be inside a Go module; otherwise the command reports
+`--shim requires DIR inside a Go module (with go.mod)`. Missing directories are
+created. The Go package name comes from existing non-test `.go` files, or from
+the last directory component sanitized into a Go identifier. The shim import
+path is resolved with `go list` in that module. Without receiving source inputs,
+`--shim DIR` also selects that Go module for loading `IMPORT`; without `--shim`,
+binding output and load-context selection are unchanged.
+
+Exported methods of exported named types include value and pointer receivers
+(and promoted methods), once each; aliases do not introduce additional receiver
+types. The first letter of `<Type><Method>` is lower-cased, or `--prefix` is
+prepended without changing the Go spelling. Each supported receiver type adds
+`type <Type> = <Type>Handle`, and each method adds
+`extern func <type><Method>(recv <Type>, ...) ... = "<shim import path>".<Type>_<Method>`.
+The same signature rules and skip reasons apply as for functions, excluding the
+receiver; unsupported methods get `// skipped: Type.Method (reason)`.
+
+Handles are **opaque**, not ordinary data constructors: matching, `deriving`,
+and `show` on a handle are undefined. Obtain them through an explicit Go helper
+returning `any` (or `(any, error)` for `IO[Handle]`), not by constructing the
+nullary handle constructor. The shim accepts `recv any` to preserve the erased
+extern ABI, then checks and asserts the original Go receiver type before calling
+the method. A wrong dynamic type panics with
+`gofx shim: Type_Method: receiver is <dynamic Go type>`. A value-receiver shim
+expects a Go value, and a pointer-receiver shim expects a pointer; a typed nil
+pointer passes the assertion and retains the underlying method's nil behaviour.
+`examples/typed-extern` demonstrates `*url.URL` handles and generated methods.
+
 
 ### 8.4 Formatting
 
@@ -1674,6 +1706,7 @@ share immutable storage, but empty slices do not retain the backing allocation.
 | Go types | True aliases accepted, distinct named types not coerced; Go int narrowing follows target width; no-result function is not Unit |
 | Extern errors | `(T, error)` conversion/call occurs inside IO; creation is lazy; each run repeats Go call; check alone does not validate foreign ABI |
 | bind inference | Does not guess Option inputs; skips uninferable any/rt.IO and unsupported functions with reason comments; declarations are toolchain-dependent |
+| bind method handles | `--shim DIR` requires a Go module; exported methods use the same inference rules except the receiver. Handles cross as any and must not be constructed, matched, derived or shown; a wrong receiver type panics with `gofx shim: Type_Method: receiver is <dynamic Go type>` before calling the method. |
 | Runtime shapes | Generated constructors registered once; unregistered Tuple2/Tuple3/Ordering/Ok/Err/List bridge use panics (programming/configuration error), not a source value |
 | Exported List/Map/Set | Copy recursively in both directions, with no mutable slice/map aliasing; nil/empty inputs become empty gofx collections; empty List returns a nil slice and empty Map/Set returns an allocated empty Go map |
 | Exported Float collection keys | Use gofx's NaN-low Ord; a single NaN key is retained. Multiple NaN keys in a Go map/set cannot remain distinct under that Ord and panic with `gofx: duplicate NaN map key` / `gofx: duplicate NaN set key`, avoiding an iteration-order-dependent survivor |
