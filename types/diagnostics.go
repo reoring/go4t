@@ -44,7 +44,7 @@ func (c *checker) instanceHint(class string, arg Type) string {
 	switch class {
 	case "Show":
 		for _, ctor := range c.program.DataTypes[con.Name].Ctors {
-			if len(ctor.Fields) != 0 {
+			if len(ctor.Fields) != 0 && !(len(c.program.DataTypes[con.Name].Ctors) == 1 && len(ctor.Fields) == 1) {
 				return fmt.Sprintf("; hint: write 'instance Show[%s]' (or 'deriving Debug' for a structural form)", TypeString(arg))
 			}
 		}

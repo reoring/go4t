@@ -32,6 +32,10 @@ type Record = Record{number: Int, text: String} deriving Debug
 type Row = Row{items: List[Int]} deriving Debug
 type Empty[A] = Empty deriving Functor, Foldable, Traversable
 type Currency = JPY | USD | EUR deriving Show
+type AccountId = AccountId(String) deriving Show
+type Display[A] = Display{value: A} deriving Show
+type DisplayOnly = DisplayOnly
+instance Show[DisplayOnly] { show(a) { "display only" } }
 instance Show[Record] { show(a) { "display" } }
 type DebugOnly = DebugOnly(Int) deriving Debug
 func emptyOption() Option[Int] { None }
@@ -47,6 +51,7 @@ func main() IO[Unit] {
   do {
     println("${1}|${"raw"}|${true}|${Some("raw")}|${emptyOption()}|${["a", "b"]}|${("raw", false)}|${LT}|${EQ}|${GT}")
     println("${JPY}|${USD}|${EUR}")
+    println("${AccountId("A-1")}|${Display("raw")}|${Display(42)}|${Display(DisplayOnly)}")
     println("${debug(1)}|${debug("a\n\"\\\t")}|${debug(false)}|${debug(unit())}|${debug(GT)}")
     println("${debug(Some("x"))}|${debug(emptyOption())}|${debug(["a", "b"])}|${debug(emptyList())}|${debug(("x", true))}")
     println(debug([Some(1.5), None]))
@@ -123,6 +128,7 @@ func main() IO[Unit] {
 	want := strings.Join([]string{
 		`1|raw|true|Some(raw)|None|[a, b]|(raw, false)|LT|EQ|GT`,
 		`JPY|USD|EUR`,
+		`A-1|raw|42|display only`,
 		`1|"a\n\"\\\t"|false|()|GT`,
 		`Some("x")|None|["a", "b"]|[]|("x", true)`,
 		`[Some(1.5), None]`,
@@ -146,7 +152,7 @@ func main() IO[Unit] {
 		`{"a": 1.0, "b": 2.0}|#{"a", "b"}|#["b", "a"]`,
 		`{}|#{}|#[]`,
 		`{1: DebugOnly(2)}|#{DebugOnly(3)}|#[DebugOnly(4)]`,
-		`1|1.0|1.5|1e+21|1e-07|NaN`,
+		`1.0|1.0|1.5|1e+21|1e-07|NaN`,
 		`[]|true|[1]|[3, 1, 3]`,
 		`[]|true|[1]|[2, 4]`,
 	}, "\n") + "\n"

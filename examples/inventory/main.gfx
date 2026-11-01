@@ -4,21 +4,13 @@ import "std/prelude"
 import "std/string"
 
 // ===== ドメイン =====
-type Sku = Sku(String)
+type Sku = Sku(String) deriving Show
 
 type Stock = Stock{sku: Sku, qty: Int} // 在庫: sku, 数量
 
 type Line = Line{sku: Sku, qty: Int} // 注文明細: sku, 要求数
 
 // ===== 型クラスのインスタンス =====
-instance Show[Sku] {
-  show(s) {
-    match s {
-      Sku(code) => code
-    }
-  }
-}
-
 instance Eq[Sku] {
   eq(a, b) {
     match (a, b) {

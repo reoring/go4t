@@ -5,7 +5,7 @@ import "std/prelude"
 import "std/state"
 
 // ===== ドメイン =====
-type AccountId = AccountId(String)
+type AccountId = AccountId(String) deriving Show
 
 type Account = Account{id: AccountId, owner: String, balance: Int}
 
@@ -21,14 +21,6 @@ type Failure = NoSuchAccount(AccountId) | Insufficient{
 } | BadAmount(Int)
 
 // ===== インスタンス =====
-instance Show[AccountId] {
-  show(a) {
-    match a {
-      AccountId(s) => s
-    }
-  }
-}
-
 instance Show[Account] {
   show(a) {
     "${a.owner}<${a.id}>:${a.balance}"

@@ -121,8 +121,8 @@ Source: [`float/float.gfx`](../std/float/float.gfx). 24 top-level declarations.
 | `extern func absFloat(f Float) Float = "gofx/rt".AbsFloat` | Go `math.Abs`, including converting negative zero to positive zero. | Negative zero becomes positive zero; NaN remains NaN. |
 | `extern func nan() Float = "gofx/rt".Nan` | Produce an IEEE NaN. | Always an IEEE NaN, unequal to itself under Eq. |
 | `extern func isNaN(f Float) Bool = "gofx/rt".IsNaN` | True exactly for IEEE NaN values. | False for infinities and ordinary numbers. |
-| `instance Show[Float]` | Display as shortest g format, following Go's fmt.Println. | NaN, +Inf, -Inf printed literally; show(1.0) is 1. |
-| `instance Debug[Float]` | Structural rendering distinguishes Float from Int, unlike user-facing Show. | debug(1.0) is 1.0, debug(1.5) is 1.5; NaN, +Inf, -Inf and exponents unchanged. |
+| `instance Show[Float]` | Display with the same shortest g formatter as Debug. | Finite forms without a decimal point or exponent gain .0; show(1.0) is 1.0; NaN, +Inf, -Inf unchanged. Prefer showFloatFixed for money. |
+| `instance Debug[Float]` | Structural rendering distinguishes Float from Int. | debug(1.0) is 1.0, debug(1.5) is 1.5; NaN, +Inf, -Inf and exponents unchanged. |
 | `instance Eq[Float]` | Compare Float values for equality. | NaN unequal to itself; positive/negative zero equal. |
 | `instance Ord[Float]` | Compare Float values with Ordering. | NaN lowest; two NaNs compare EQ; signed zeros EQ. |
 
@@ -349,7 +349,7 @@ Source: [`prelude/prelude.gfx`](../std/prelude/prelude.gfx). 49 top-level declar
 | `class Monad[M[_]] : Functor[M] { pure[A](a A) M[A] bind[A, B](ma M[A], f func(A) M[B]) M[B] }` | Inject values and sequence dependent computations. | Requires Functor; pure/bind are qualified prelude methods, not implicit exports. |
 | `class Foldable[F[_]] { foldr[A, B](fa F[A], init B, f func(A, B) B) B }` | Right fold occurrences of the element type. | Empty fold returns init; fold association is right, independent of callback evaluation strictness. |
 | `class Traversable[F[_]] : Functor[F] { traverse[M[_] Monad, A, B](fa F[A], f func(A) M[B]) M[F[B]] }` | Shape-preserving traversal with a supplied Monad. | Requires Functor; sequences left-to-right by source fields/elements; Monad determines short-circuiting. |
-| `class Show[A] { show(a A) String }` | User-facing display, used by interpolation. | Derivable only for enums (all constructors nullary), as source constructor names; String is identity; Unit has no standard Show. |
+| `class Show[A] { show(a A) String }` | User-facing display, used by interpolation. | Derivable for enums (source constructor names) and single-field newtypes (field Show), without Debug; String is identity; Unit has no standard Show. |
 | `class Debug[A] { debug(a A) String }` | Structural diagnostic rendering. | Derivable; strings quoted with Go escapes, Unit (), lists [a, b] or [] using element Debug. |
 | `class Eq[A] { eq(a A, b A) Bool }` | Type-directed equality used by == and !=. | Function values unsupported; Float NaN is unequal to itself. |
 | `type Ordering = LT \| EQ \| GT deriving Eq, Ord, Debug, Show` | Three-way ordering result: LT, EQ, GT. | Derived Eq/Ord/Debug/Show; declaration order LT < EQ < GT; display is LT/EQ/GT. |

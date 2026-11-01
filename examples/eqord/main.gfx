@@ -4,15 +4,7 @@ import "std/float"
 import "std/list"
 import "std/string"
 
-type AccountId = AccountId(String)
-
-instance Show[AccountId] {
-  show(id) {
-    match id {
-      AccountId(value) => value
-    }
-  }
-}
+type AccountId = AccountId(String) deriving Show
 
 instance Eq[AccountId] {
   eq(a, b) {

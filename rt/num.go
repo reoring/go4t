@@ -19,7 +19,7 @@ func LtFloat(a, b any) any {
 	return x < y || math.IsNaN(x) && !math.IsNaN(y)
 }
 
-func ShowFloat(f any) any { return strconv.FormatFloat(f.(float64), 'g', -1, 64) }
+func ShowFloat(f any) any { return DebugFloat(f) }
 
 // A negative precision requests the shortest fixed-point representation, as in Go.
 func ShowFloatFixed(f, decimals any) any {

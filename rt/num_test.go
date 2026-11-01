@@ -84,8 +84,8 @@ func TestFloatFormatting(t *testing.T) {
 		value float64
 		want  string
 	}{
-		{1.5, "1.5"}, {2000, "2000"}, {0.001, "0.001"}, {1e20, "1e+20"},
-		{math.Copysign(0, -1), "-0"}, {math.NaN(), "NaN"}, {math.Inf(1), "+Inf"}, {math.Inf(-1), "-Inf"},
+		{1, "1.0"}, {1.5, "1.5"}, {2000, "2000.0"}, {0.001, "0.001"}, {1e21, "1e+21"},
+		{math.Copysign(0, -1), "-0.0"}, {math.NaN(), "NaN"}, {math.Inf(1), "+Inf"}, {math.Inf(-1), "-Inf"},
 	} {
 		if got := ShowFloat(tt.value); got != tt.want {
 			t.Errorf("ShowFloat(%v) = %v, want %q", tt.value, got, tt.want)

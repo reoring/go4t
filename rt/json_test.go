@@ -83,6 +83,9 @@ func TestJSONMapOrdering(t *testing.T) {
 
 func TestJSONNumberAndPathBoundaries(t *testing.T) {
 	jsonShapes(t)
+	if got := ToJson(Shapes.JNum(float64(38495))); got != "38495" {
+		t.Fatalf("whole Float JSON encoding = %v, want 38495", got)
+	}
 	for _, n := range []float64{1.25, math.Inf(1), math.NaN(), 9223372036854775808.0} {
 		if got := JsonInt(n); got != (testErr{"expected Int at $"}) {
 			t.Fatalf("int(%g) = %#v", n, got)

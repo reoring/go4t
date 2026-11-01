@@ -26,8 +26,8 @@ func expandDeriving(f *ast.File, sourceNames map[string]string) error {
 			case "Eq", "Ord", "Debug", "Functor", "Foldable", "Traversable", "Encode", "Decode":
 			case "Show":
 				for _, ctor := range d.Ctors {
-					if len(ctor.Fields) != 0 {
-						return &Error{File: f.Name, Pos: d.Pos, Msg: "deriving Show is only supported for enums (all constructors nullary); derive Debug and write instance Show[T] for a display form"}
+					if len(ctor.Fields) != 0 && !(len(d.Ctors) == 1 && len(ctor.Fields) == 1) {
+						return &Error{File: f.Name, Pos: d.Pos, Msg: "deriving Show is only supported for enums and single-field newtypes; derive Debug and write instance Show[T] for a display form"}
 					}
 				}
 			default:
@@ -78,8 +78,16 @@ func expandDeriving(f *ast.File, sourceNames map[string]string) error {
 			case "Debug":
 				method.Name, method.Params, method.Body.Result = "debug", []string{"a"}, deriveDebug(d, sourceNames)
 			case "Show":
-				// Nullary constructor display is identical to its Debug form.
-				method.Name, method.Params, method.Body.Result = "show", []string{"a"}, deriveDebug(d, sourceNames)
+				if len(d.Ctors) == 1 && len(d.Ctors[0].Fields) == 1 {
+					method.Body.Result = &ast.Match{
+						ExprBase: ast.ExprBase{Pos: d.Pos}, Scrut: deriveIdent(d.Pos, "a"),
+						Arms: []ast.Arm{{Pos: d.Pos, Pat: deriveCtorPattern(d.Pos, d.Ctors[0], "x"), Body: deriveCall(d.Pos, "show", deriveIdent(d.Pos, "x0"))}},
+					}
+				} else {
+					// Nullary constructor display needs no Debug dictionary.
+					method.Body.Result = deriveDebug(d, sourceNames)
+				}
+				method.Name, method.Params = "show", []string{"a"}
 			case "Encode":
 				method.Name, method.Params, method.Body.Result = "encode", []string{"a"}, deriveEncode(d, sourceNames)
 			case "Decode":

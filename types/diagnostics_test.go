@@ -60,7 +60,7 @@ func TestInstanceDerivingHints(t *testing.T) {
 		}
 	}
 	for _, source := range []string{
-		`type Hidden = Hidden(Int); func value() String { show(Hidden(1)) }`,
+		`type Hidden = Hidden(Int, Int); func value() String { show(Hidden(1, 2)) }`,
 		`type Hidden = Empty | Hidden{value: Int}; func value() String { show(Empty) }`,
 	} {
 		_, err := types.Check([]*ast.Module{{Files: parseFiles(t, source+pass5Main)}})

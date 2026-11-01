@@ -476,7 +476,9 @@ constructor of a sum or a literal.
 ### 4.8 Interpolation and do
 
 Interpolation requires `Show`, not `Debug`; write `${debug(x)}` for structural
-output. A `do` block uses one Monad constructor throughout. `<-` extracts a value,
+output. For money, prefer `float.showFloatFixed(value, decimals)` from `std/float`
+to the shortest Float `show` form; whole floats display with `.0` (for example `1.0`).
+A `do` block uses one Monad constructor throughout. `<-` extracts a value,
 a bare action sequences and discards it, and the final expression is an action.
 Irrefutable binds, lets and local functions are supported. Desugaring is nested
 `bind`; it is not restricted to IO. Option stops on None; Result stops on Err;
@@ -526,15 +528,15 @@ non-exhaustive match; missing: None, Some(_)
 no instance Ord[A] (type parameter A is constrained only by Eq + Show)
 no instance Show[Currency]; hint: add 'deriving Show' or write 'instance Show[Currency]'
 no instance Show[Hidden]; hint: write 'instance Show[Hidden]' (or 'deriving Debug' for a structural form)
-deriving Show is only supported for enums (all constructors nullary); derive Debug and write instance Show[T] for a display form
+deriving Show is only supported for enums and single-field newtypes; derive Debug and write instance Show[T] for a display form
 x is unused; prefix with _ to silence
 shadows prelude name map
 ```
 
 User-data missing Debug/Eq/Ord hints suggest that deriving class or a handwritten
-instance. Show hints suggest `deriving Show` only for enums (all constructors
-nullary); other data types suggest a handwritten Show instance or `deriving Debug`
-for structural output. Builtins, functions, rigid parameters and other classes do
+instance. Show hints suggest `deriving Show` for enums (all constructors
+nullary) and single-field newtypes; other data types suggest a handwritten Show
+instance or `deriving Debug` for structural output. Builtins, functions, rigid parameters and other classes do
 not receive deriving hints. Recursive instance errors preserve the underlying
 hint and requiring context.
 
@@ -649,30 +651,32 @@ Int/Float/String/Bool/Unit, Ordering/Option/List/Result and pairs. Map/Set/Array
 have Show/Eq/Debug, not automatic Ord/Foldable; Fiber has no standard class
 instances. The complete explicit and derived inventory is in `docs/stdlib.md`.
 
-Float Show follows Go's `fmt.Println`: shortest `g` formatting, so `show(1.0)`
-is `"1"`. Debug is structural: it appends `.0` to finite integral forms without
-a decimal point or exponent, so `debug(1.0)` is `"1.0"` and remains distinct
-from Int. Exponents and NaN/infinities are retained unchanged.
+Float Show and Debug share the shortest `g` formatter: `show(1.0)` and
+`debug(1.0)` are both `"1.0"`. Finite forms without a decimal point or exponent
+gain `.0`, preserving the distinction from Int. Exponents and NaN/infinities
+are retained unchanged (`1e+21`, `NaN`, `+Inf`, `-Inf`).
 
 ### 7.2 Deriving rules
 
 Supported classes: **Eq, Ord, Debug, Show, Functor, Foldable, Traversable, Encode,
-Decode** (Show only for enums; the last two qualified through a `std/json` import). Derivation
+Decode** (Show only for enums and single-field newtypes; the last two qualified through a `std/json` import). Derivation
 expands to ordinary checked instances; duplicate deriving names and explicit
 instance conflicts are errors.
 
-**Show is derivable only for enums (all constructors nullary).** It renders each
-constructor as its unqualified source name: `show(C)` is `"C"`. Payload-bearing
-data types require an explicit user-facing display instance; Debug remains
-structural output. The exact rejection for any non-nullary constructor is:
-`deriving Show is only supported for enums (all constructors nullary); derive Debug and write instance Show[T] for a display form`.
+**Show is derivable for enums and single-field newtypes.** An enum (all
+constructors nullary) renders each constructor as its unqualified source name:
+`show(C)` is `"C"`. A newtype (exactly one constructor with exactly one field,
+positional or named) delegates to the field's Show: `show(C(x)) = show(x)`.
+Other data types require an explicit user-facing display instance; Debug remains
+structural output. The exact rejection for other shapes is:
+`deriving Show is only supported for enums and single-field newtypes; derive Debug and write instance Show[T] for a display form`.
 
 | Class | Generated contract |
 | --- | --- |
 | Eq | Equal constructor and corresponding equal fields; function fields unsupported |
 | Ord | Constructor declaration order, then lexicographic fields; requires Eq instance; function fields unsupported |
 | Debug | `C`, `C(f1, f2)`, `C{a: f1, b: f2}` via each field's Debug; strings quoted with Go escapes |
-| Show | Enums only: every constructor must be nullary; `C` renders as `"C"` without quotes or module qualification in the output |
+| Show | No Debug requirement. Enums render source constructor names without module qualification; single-field newtypes delegate to the field's Show |
 | Functor | Map the last type parameter; preserve unmapped fields and shape |
 | Foldable | Right-associated fold over last-parameter occurrences in declaration/tuple order; ignore unmapped fields |
 | Traversable | Map with Monad effects in that order, preserving shape; requires Functor, does not derive it automatically |
@@ -712,9 +716,15 @@ type Currency = JPY | USD | EUR deriving Show
 func main() IO[Unit] { println("${JPY}|${USD}|${EUR}") }
 ```
 
+```gofx
+package main
+type AccountId = AccountId(String) deriving Show
+func main() IO[Unit] { println(show(AccountId("A-1"))) }
+```
+
 ```gofx error
 package main
-type Hidden = Hidden(Int) deriving Show
+type Hidden = Hidden(Int, String) deriving Show
 func main() IO[Unit] { ioPure(unit()) }
 ```
 
@@ -991,6 +1001,9 @@ including exported low-level helpers and private JSON helpers.
 
 ### 10.1 Syntax, types and numbers
 
+For money, use `float.showFloatFixed(value, decimals)` from `std/float` rather
+than the shortest Float `show` form.
+
 | Boundary | Behaviour |
 | --- | --- |
 | Float exponent without digits / source overflow | `bad float literal: exponent requires digits` / `bad float literal <text>`; `.5` and `1.` are not Float literals |
@@ -1001,7 +1014,7 @@ including exported low-level helpers and private JSON helpers.
 | Float equality/order | NaN never equals itself but compares EQ to another NaN, below every non-NaN; signed zeros equal and compare EQ |
 | Float to Int | truncate/floor/ceil/round use Go conversion after rounding; NaN/infinite/out-of-range results are implementation-dependent, not saturated |
 | Float parsing | Go ParseFloat string grammar (broader than source literals, including hex and `.5`); whitespace not trimmed; syntax/range error → None; valid NaN/infinity → Some |
-| Float display | Shortest `g` form, including NaN/+Inf/-Inf; fixed decimal formatting is ties-to-even, preserves zeros; negative precision means shortest fixed form |
+| Float display | Same shortest `g` form as Debug, with `.0` for finite forms lacking a decimal point or exponent; NaN/+Inf/-Inf unchanged; fixed decimal formatting is ties-to-even, preserves zeros; negative precision means shortest fixed form |
 | Float Debug | `strconv.FormatFloat(f, 'g', -1, 64)` plus `.0` when the result contains none of `.`, `e`, `NaN`, `Inf`; `0.0`, `-2.0`, `NaN`, `+Inf`, `-Inf`, `1e+21`, `1e-07` retain their structural forms |
 | powInt | 0^0 = 1; multiplication wraps; negative exponent gives 1 for base 1, parity-dependent ±1 for -1, otherwise 0 (including base 0) |
 | sqrt / absFloat / min / max | Negative finite sqrt → NaN; absFloat(-0) → +0; min/max ties retain first argument |
@@ -1015,11 +1028,13 @@ including exported low-level helpers and private JSON helpers.
 | List patterns | `[]` and `[p1, p2, ...]` match exact lengths; `[p1, p2, ..rest]` binds the remaining list without copying, including an empty tail; final `..` / `.._` ignores it; trailing comma allowed |
 | List rest placement/name | Rest needs a preceding element (`list rest pattern needs a preceding element`); it must be last (`.. must be last in list pattern`); only a lower-case name or `_` may follow `..` (`list rest must be a lower-case name or _`) |
 | List binding patterns | Refutable: let / lambda parameter / do bind report `let pattern must be irrefutable` / `lambda parameter pattern must be irrefutable` / `bind pattern must be irrefutable`; use `match` |
-| Deriving | Show only for enums (all constructors nullary), rendering source constructor names; Ord needs Eq, Traversable needs Functor; unmapped functions allowed only where the generated class never examines them |
+| Deriving | Show supports enums (source constructor names) and single-field newtypes (field Show), without requiring Debug; Ord needs Eq, Traversable needs Functor; unmapped functions allowed only where the generated class never examines them |
 | Pure Lazy | Construction stores thunk; each force reruns it, no memoization |
 | Huge counts/widths | Empty/negative ordinary inputs follow tables below; huge positive allocations can panic/exhaust resources, never silently truncate |
 
 ### 10.2 Lists and folds
+
+`head` returns `Option[A]` (`None` on `Nil`), whereas `tail` returns `List[A]` directly (`tail(Nil) = Nil`, and a nonempty list returns its remaining elements).
 
 List function names below belong to `std/list`, except implicit core combinators
 and the explicitly imported class methods in `std/prelude`.

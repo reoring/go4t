@@ -12,9 +12,9 @@ Observed output:
 
 ```text
 mean=5.00 stddev=2.00
-literals=1.5, 2000, 0.001
+literals=1.5, 2000.0, 0.001
 parse=Some(12.5) invalid=None
-pow=8 powInt=243
+pow=8.0 powInt=243
 ints min=3 max=8; floats min=1.5 max=2.5
 truncate=-2 floor=-3 ceil=-2 round=-3 abs=2.75
 division=+Inf, -Inf; NaN=true ordered=true equal=false

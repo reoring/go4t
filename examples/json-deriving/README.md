@@ -5,6 +5,11 @@ an optional note. `Status` demonstrates nullary and positional tagged constructo
 The example serializes and parses an order before decoding it, prints two-space
 JSON, round-trips a shipped status, and reports a malformed nested field's path.
 
+JSON numbers use the runtime's `encoding/json` formatter, not `Show[Float]`.
+Whole floats therefore remain JSON integers such as `38495` in encoded output,
+even though user-facing `show(38495.0)` now returns `38495.0`; non-finite numbers
+are rejected rather than emitting invalid JSON `NaN` or `+Inf`.
+
 Run from the repository root (or this slice's worktree):
 
 ```sh

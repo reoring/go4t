@@ -149,11 +149,48 @@ func assertEnumShowNames(t *testing.T, inst *types.Instance, names []string) {
 	walkExprs(reflect.ValueOf(inst.Decl), func(e ast.Expr) { assertZonked(t, e) })
 }
 
+func TestDerivingNewtypeShow(t *testing.T) {
+	for _, source := range []string{
+		`type AccountId = AccountId(String) deriving Show
+func value() String { show(AccountId("A-1")) }`,
+		`type Box[A] = Box(A) deriving Show
+func value() String { show(Box(1)) }`,
+		`type Box[A] = Box{value: A} deriving Show
+func value() String { show(Box("raw")) }`,
+		`type Display = Display; instance Show[Display] { show(a) { "display" } }
+type Wrapped = Wrapped(Display) deriving Show
+func value() String { show(Wrapped(Display)) }`,
+	} {
+		t.Run(source, func(t *testing.T) {
+			files := derivingFiles(t, source)
+			for range 2 {
+				p, err := types.Check(files)
+				if err != nil {
+					t.Fatal(err)
+				}
+				for _, inst := range p.Instances {
+					if inst.Class.Name != "Show" {
+						continue
+					}
+					for _, constraint := range inst.Context {
+						if constraint.Class != "Show" {
+							t.Fatalf("unexpected constraint: %#v", constraint)
+						}
+					}
+				}
+			}
+		})
+	}
+}
+
 func TestDerivingDiagnostics(t *testing.T) {
 	cases := []struct{ source, want string }{
-		{`type T = T(Int) deriving Show`, "deriving Show is only supported for enums (all constructors nullary); derive Debug and write instance Show[T] for a display form"},
-		{`type T = Empty | T{value: Int} deriving Show`, "deriving Show is only supported for enums (all constructors nullary); derive Debug and write instance Show[T] for a display form"},
-		{`type T[A] = Empty | T(A) deriving Show`, "deriving Show is only supported for enums (all constructors nullary); derive Debug and write instance Show[T] for a display form"},
+		{`type T = T(Int, String) deriving Show`, "deriving Show is only supported for enums and single-field newtypes; derive Debug and write instance Show[T] for a display form"},
+		{`type T = Empty | T{value: Int} deriving Show`, "deriving Show is only supported for enums and single-field newtypes; derive Debug and write instance Show[T] for a display form"},
+		{`type T[A] = Empty | T(A) deriving Show`, "deriving Show is only supported for enums and single-field newtypes; derive Debug and write instance Show[T] for a display form"},
+		{`type Hidden = Hidden; type T = T(Hidden) deriving Show`, "no instance Show[Hidden]; hint: add 'deriving Show' or write 'instance Show[Hidden]'"},
+		{`type T[A] = T(A) deriving Show; func value(x T[Unit]) String { show(x) }`, "no instance Show[Unit] (required by instance Show[T[A]])"},
+		{`type T = T(func(Int) Int) deriving Show`, "no instance Show[func(Int) Int]"},
 		{`type T = T deriving Show, Show`, "duplicate deriving class Show for T"},
 		{`type T = T deriving Show; instance Show[T] { show(a) { "T" } }`, "duplicate instance Show[T]"},
 		{`type Phantom[A] = Phantom deriving Show; func value(x Phantom[Unit]) String { show(x) }`, "no instance Show[Unit] (required by instance Show[Phantom[A]])"},

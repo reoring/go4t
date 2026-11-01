@@ -61,9 +61,10 @@ func main() IO[Unit] { println(describe(User{name: "Ada"})) }
 Unlike Go's implicit method-set satisfaction, a record does not acquire Label by
 having a `name` field. `A Label + Show` requires both classes. Ord inherits Eq,
 so `A Ord` is enough for equality and ordering. Show is intentional display;
-Debug is structural. **`deriving Show` supports only enums** (all constructors
-nullary), rendering their source constructor names. Write an explicit Show
-instance for data types with payloads or a different display form.
+Debug is structural. **`deriving Show` supports enums and single-field newtypes**:
+enums render their source constructor names, and newtypes delegate to the field's
+Show without requiring Debug. Write an explicit Show instance for other data
+types or a different display form.
 
 Higher-kinded classes operate on type constructors. `Functor[F[_]]` means that
 F takes a type argument (Option, List, Array, or a partially applied Result).
