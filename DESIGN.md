@@ -552,3 +552,60 @@ fromOption[A](o Option[A], d A) A
 maybe[A, B](o Option[A], d B, f func(A) B) B
 isSome[A](o Option[A]) Bool      isNone[A](o Option[A]) Bool
 ```
+
+## Pass 11: strings, input, and program arguments
+
+Goal: a gofx program can read input and process text, so small CLI tools are writable.
+No new syntax; everything is prelude externs backed by `rt/str.go` and `rt/io.go`.
+
+### String functions (prelude externs → `"gofx/rt"`)
+```
+strLength(s String) Int                     // rune count
+strConcat(xs List[String]) String           // join without separator
+join(sep String, xs List[String]) String
+split(sep String, s String) List[String]    // Go strings.Split; sep "" splits into runes
+lines(s String) List[String]                // split on "\n", drop a single trailing empty element
+words(s String) List[String]                // strings.Fields
+trim(s String) String                       // strings.TrimSpace
+toUpper(s String) String    toLower(s String) String
+startsWith(s String, prefix String) Bool    endsWith(s String, suffix String) Bool
+contains(s String, sub String) Bool
+replace(s String, old String, new String) String   // all occurrences
+substring(s String, start Int, end Int) String     // rune indexes, clamped
+chars(s String) List[String]                // one-rune strings
+repeat(s String, n Int) String
+parseInt(s String) Option[Int]              // strconv.ParseInt base 10; None on failure
+showPadLeft(n Int, width Int) String        // right-aligned decimal
+```
+`List[String]`/`Option[Int]` cross the extern ABI as the generated Go representations
+(`*List_Cons`/`*List_Nil`, `*Option_Some`/`*Option_None`). Those types are declared by the
+generated program, not by `rt`; `rt` therefore cannot name them. Resolution: `rt` builds and
+reads lists/options through a small **value-shape protocol** that codegen already emits for
+prelude types: codegen emits, once per program, `func rt_cons(h, t any) any`,
+`rt_nil() any`, `rt_some(a any) any`, `rt_none() any`, `rt_uncons(l any) (h, t any, ok bool)`
+and registers them in `rt.Shapes` (a struct of func fields) at `init()` time. `rt` string
+functions use `rt.Shapes` to construct/destructure. Codegen emits these helpers whenever the
+program declares `List`/`Option` (always true with the prelude). Test with a fake `rt` that
+has the same `Shapes` struct.
+
+### Input and arguments (prelude externs)
+```
+readLine() IO[Option[String]]        // None at EOF; strips the trailing newline
+readAll() IO[String]                 // rest of stdin
+args() IO[List[String]]              // os.Args[1:]
+exit(code Int) IO[A]                 // terminates; A unconstrained (defaults to Unit if unused)
+getEnv(name String) IO[Option[String]]
+```
+`rt.RunMain` is unchanged; `exit` calls `os.Exit` from inside the IO action after flushing
+stdout (stdout is unbuffered in rt today; keep it so).
+
+### CLI: `gofx run FILE.gfx [-- args...]`
+Arguments after `--` are passed to the program; stdin is inherited (already).
+
+### Example
+`examples/wc/main.gfx`: a word-count / frequency tool — reads stdin with `readAll`,
+`lines`/`words`, counts with a `List[(String, Int)]` fold, `sortBy` count desc then word
+asc, prints `showPadLeft(count, 5) + " " + word` for the top N where N comes from `args()`
+(`parseInt`, default 10), and `exit(2)` with a usage message when the argument is not a
+number. README records a run with a fixed input file `examples/wc/input.txt` via
+`go run ./cmd/gofx run examples/wc/main.gfx -- 3 < examples/wc/input.txt`.
