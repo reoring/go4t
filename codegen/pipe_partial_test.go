@@ -11,7 +11,7 @@ import (
 
 func TestPipePartialSourceSmoke(t *testing.T) {
 	file, err := parser.Parse(`package main
-extern func finish(n Int) IO[Unit] = "example/foreign".Echo
+extern func finish(n Int) IO[Unit] = "gofx/extern/testdata/natural".Echo
 func add(a Int, b Int) Int { a + b }
 func main() IO[Unit] {
  let inc = add(1, _)

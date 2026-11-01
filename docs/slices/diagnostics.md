@@ -40,6 +40,8 @@ No production declarations were duplicated. The diagnostics unit test declares a
 Integrated with the other Pass 12 slices: `ast.Walk` includes alias RHS types and local function statements in blocks and `do`; parser-created placeholder lambdas and pipe calls, and codegen-created local lambdas, retain source spans. Local function parameters are tracked only when `functionBody` has an outer scope. Recursive let prebindings use `locals.uses` and preserve their self-use when publishing the binding. Float literals use canonical `FormatFloat` keys and concrete absent-value witnesses. All five CLI commands share `checkFiles`, `printWarning` and the caret renderer. Prelude ignored parameters are prefixed with `_`; `wc` needs no edit.
 
 The records example's intentionally unused `None` binding is now `_x`; its existing Unit-defaulting warning remains intentional.
+Publishing a local function also clears the previous binding's usage entry, so a
+function shadowing a let does not falsely mark the old let as used.
 
 ## Observed verification
 

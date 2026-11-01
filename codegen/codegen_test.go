@@ -707,19 +707,19 @@ func TestFinalMatchArm(t *testing.T) {
 
 func TestExternWrappersAndImportDeduplication(t *testing.T) {
 	p := fixture()
-	extern(p, "foreign", []string{"input"}, []types.Type{types.String}, "example/foreign", "Echo")
-	extern(p, "foreignAgain", []string{"value"}, []types.Type{types.Int}, "example/foreign", "Echo")
+	extern(p, "foreign", []string{"input"}, []types.Type{types.String}, "gofx/extern/testdata/natural", "Echo")
+	extern(p, "foreignAgain", []string{"value"}, []types.Type{types.Int}, "gofx/extern/testdata/natural", "Echo")
 	extern(p, "unit", nil, nil, "gofx/rt", "UnitValue")
 	extern(p, "showInt", []string{"number"}, []types.Type{types.Int}, "gofx/rt", "ShowInt")
 	p.Main.Decl.Body.Result = call(function("unit", fnType()))
 	out := assertSource(t, p,
-		`ext_1 "example/foreign"`,
+		`ext_1 "gofx/extern/testdata/natural"`,
 		`ext_2 "gofx/rt"`,
 		"func foreign_(input_ any) any {\n\treturn ext_1.Echo(input_)",
 		"return ext_2.UnitValue()",
 		"return ext_2.ShowInt(number_)",
 		"return unit_()")
-	if strings.Count(out, `"example/foreign"`) != 1 {
+	if strings.Count(out, `"gofx/extern/testdata/natural"`) != 1 {
 		t.Fatalf("extern imports were not deduplicated:\n%s", out)
 	}
 }
@@ -1256,7 +1256,7 @@ func (fakeImporter) Import(path string) (*gotypes.Package, error) {
 		}
 		funcs["NegInt"], funcs["Not"] = 1, 1
 		funcs["NegFloat"], funcs["ShowFloat"] = 1, 1
-	case "example/foreign":
+	case "gofx/extern/testdata/natural":
 		funcs = map[string]int{"Echo": 1}
 	default:
 		return nil, fmt.Errorf("unexpected import %q", path)

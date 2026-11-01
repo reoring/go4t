@@ -1,0 +1,9 @@
+package main
+
+func main() IO[Unit] {
+  do {
+    println(strToUpper("gofx meets Go"))
+    println(strRepeat("na", 3))
+    println(show(strFields("typed externs   keep lists")))
+  }
+}

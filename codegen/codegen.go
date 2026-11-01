@@ -29,13 +29,14 @@ import (
 	"unicode/utf8"
 
 	"gofx/ast"
+	goextern "gofx/extern"
 	"gofx/types"
 )
 
 // Generate emits the prelude and user declarations together. An empty goPackage
 // selects main; other package names expose Main() rt.IO for embedding instead of
 // a Go main function. The input must carry the fully zonked annotations from Check.
-// Extern functions forward any arguments and results without representation casts.
+// Extern functions adapt checked natural Go signatures or forward the any ABI.
 func Generate(prog *types.Program, goPackage string) (source []byte, err error) {
 	if prog == nil {
 		return nil, fmt.Errorf("nil program")
@@ -234,12 +235,8 @@ func Generate(prog *types.Program, goPackage string) (source []byte, err error) 
 		}
 		out.WriteString(g.line(f.Decl.Pos))
 		fmt.Fprintf(&out, "func %s(%s) any {\n", mangle(f.Name), strings.Join(params, ", "))
-		if extern := f.Decl.Extern; extern != nil {
-			args := make([]string, len(f.Decl.Params))
-			for i, param := range f.Decl.Params {
-				args[i] = mangle(param.Name)
-			}
-			fmt.Fprintf(&out, "return %s.%s(%s)\n", g.imports[extern.ImportPath], extern.Name, strings.Join(args, ", "))
+		if f.Decl.Extern != nil {
+			out.WriteString(g.emitExtern(f))
 		} else if plan != nil {
 			out.WriteString(g.loopBody(plan, f.Decl.Params, body))
 		} else {
@@ -290,6 +287,7 @@ type generator struct {
 	ctors       map[string]*types.Ctor
 	recordPats  map[*ast.PRecord]types.RecordPat
 	imports     map[string]string
+	externs     goextern.Loader
 	instances   map[string]*types.Instance
 	tuples      map[int]struct{}
 	dictScope   dictionaryScope

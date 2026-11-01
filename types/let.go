@@ -160,6 +160,7 @@ func (b *bodyChecker) let(pos, namePos, end ast.Pos, name string, pat ast.Patter
 func (b *bodyChecker) bindLocal(name string, typ Type, local *localScheme, env *locals) {
 	env.values[name] = typ
 	delete(env.schemes, name)
+	delete(env.uses, name)
 	if local != nil {
 		if env.schemes == nil {
 			env.schemes = make(map[string]*localScheme)

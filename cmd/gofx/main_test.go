@@ -150,8 +150,8 @@ func TestRunUsage(t *testing.T) {
 		{"build", "main.gfx", "--", "argument"},
 	} {
 		err := run(args)
-		if err == nil || !strings.Contains(err.Error(), "usage") {
-			t.Errorf("run(%q) = %v, want an error mentioning usage", args, err)
+		if err == nil || err.Error() != usage {
+			t.Errorf("run(%q) = %v, want %q", args, err, usage)
 		}
 	}
 }

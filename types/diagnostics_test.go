@@ -99,6 +99,8 @@ func TestUnusedLocalWarnings(t *testing.T) {
 		{`func value() IO[Int] { do { func local(arg Int) Int { 1 }; ioPure(local(2)) } }`, []string{"arg"}},
 		{`func value(top Int) Int { func local(_arg Int) Int { top }; local(2) }`, nil},
 		{`func value() Int { let f = (_ + 1); 2 |> f }`, nil},
+		{`func value() Int { let shadow = 1; func shadow() Int { 2 }; shadow() }`, []string{"shadow"}},
+		{`func value() IO[Int] { do { let shadow = 1; func shadow() Int { 2 }; ioPure(shadow()) } }`, []string{"shadow"}},
 	} {
 		t.Run(tt.source, func(t *testing.T) {
 			files := parseFiles(t, tt.source+pass5Main)

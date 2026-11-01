@@ -1,4 +1,4 @@
-// Command gofx checks, builds, runs, tests, or evaluates gofx source.
+// Command gofx checks, builds, runs, tests, evaluates sources, and binds Go packages.
 // Several files form one program (same package, mutually visible declarations);
 // the first file names the default build directory.
 // Successful checks report non-fatal warnings to stderr before continuing.
@@ -30,9 +30,12 @@ func main() {
 	}
 }
 
-const usage = "gofx:1:1: usage: gofx check FILE.gfx... | gofx build [-o DIR | --emit-go DIR --package NAME] FILE.gfx... | gofx run FILE.gfx... [-- args...] | gofx test FILE.gfx... | gofx eval 'EXPR' [FILE.gfx...]"
+const usage = "gofx:1:1: usage: gofx check FILE.gfx... | gofx build [-o DIR | --emit-go DIR --package NAME] FILE.gfx... | gofx run FILE.gfx... [-- args...] | gofx test FILE.gfx... | gofx eval 'EXPR' [FILE.gfx...] | gofx bind IMPORT [-o FILE.gfx] [--prefix STR]"
 
 func run(args []string) error {
+	if len(args) > 0 && args[0] == "bind" {
+		return runBind(args[1:])
+	}
 	if len(args) < 2 {
 		return errors.New(usage)
 	}
