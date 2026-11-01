@@ -1,0 +1,104 @@
+package main
+
+import "std/conc"
+import "std/http"
+import "std/io"
+import "std/json"
+import "std/result"
+import "std/string"
+
+func sampleOrders() List[Order] {
+  [Order(1, "Ada", 12.5, "USD"), Order(2, "Ben", 7.25, "USD"), Order(3, "Ada", 3.5, "USD")]
+}
+
+func mock(r http.Request) IO[http.Response] {
+  ioPure(if r.method == "GET" && r.path == "/orders" {
+    http.jsonResponse(200, sampleOrders())
+  } else {
+    http.response(404, "not found")
+  })
+}
+
+// Fork/cancel are not listener readiness/closure acknowledgements.
+func waitUp(url String) IO[Unit] {
+  do {
+    response <- io.tryIO(http.get(url))
+    match response {
+      | Ok(r) => if r.status == 200 {
+        ioPure(unit())
+      } else {
+        ioFail("readiness: HTTP ${r.status}")
+      }
+      | Err(io.Network(_)) => do {
+        io.sleep(10)
+        waitUp(url)
+      }
+      Err(e) => io.ioRaise(e)
+    }
+  }
+}
+
+func waitDown(url String) IO[Unit] {
+  do {
+    response <- io.tryIO(http.get(url))
+    match response {
+      Err(io.Network(_)) => ioPure(unit())
+      Err(e) => io.ioRaise(e)
+      | Ok(_) => do {
+        io.sleep(10)
+        waitDown(url)
+      }
+    }
+  }
+}
+
+func baseURL(port Int) String {
+  "http://127.0.0.1:" + show(port)
+}
+
+func portArg(args List[String], fallback Int) Int {
+  head(args) |> flatMap(string.parseInt) |> result.fromOption(_, fallback)
+}
+
+func demonstrate(upstream Fiber[Unit], upstreamURL String, serviceURL String) IO[Unit] {
+  do {
+    conc.withTimeout(2000, waitUp(upstreamURL + "/orders"))
+    conc.withTimeout(2000, waitUp(serviceURL + "/health"))
+    response <- http.get(serviceURL + "/report")
+    let decoded: Result[String, Report] = do {
+      value <- json.parseJson(response.body)
+      json.decode(value)
+    }
+    report <- result.liftResult(decoded)
+    println("report ${response.status}: ${show(report.totals)}")
+    conc.cancel(upstream)
+    conc.withTimeout(2000, waitDown(upstreamURL + "/orders"))
+    failed <- http.get(serviceURL + "/report")
+    if failed.status == 502 {
+      println("upstream down ${failed.status}: ${failed.body}")
+    } else {
+      ioFail("expected 502 after upstream cancellation, got ${failed.status}")
+    }
+  }
+}
+
+func main() IO[Unit] {
+  do {
+    argv <- io.args()
+    let upstreamPort = portArg(argv, 18081)
+    let servicePort = portArg(tail(argv), 18082)
+    let upstreamURL = baseURL(upstreamPort)
+    let serviceURL = baseURL(servicePort)
+    upstream <- conc.fork(http.serve(upstreamPort, mock))
+    service <- conc.fork(http.serve(servicePort, handle(upstreamURL, _)))
+    outcome <- io.tryIO(demonstrate(upstream, upstreamURL, serviceURL))
+    conc.cancel(upstream)
+    conc.cancel(service)
+    conc.withTimeout(2000, waitDown(upstreamURL + "/orders"))
+    conc.withTimeout(2000, waitDown(serviceURL + "/health"))
+    match outcome {
+      Ok(_) => ioPure(unit())
+      Err(e) => io.ioRaise(e)
+    }
+  }
+}

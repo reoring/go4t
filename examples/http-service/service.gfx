@@ -1,0 +1,42 @@
+package main
+
+import "std/http"
+import "std/json"
+import "std/io"
+import "std/map"
+import "std/result"
+
+type Order = Order{id: Int, customer: String, amount: Float, currency: String} deriving json.Decode, json.Encode
+
+type Report = Report{totals: Map[String, Float]} deriving json.Encode, json.Decode
+
+type Health = Health{ok: Bool} deriving json.Encode
+
+func aggregate(orders List[Order]) Map[String, Float] {
+  fold(orders, map.emptyMap(), func(totals, order) => map.mapAlter(totals, order.customer, func(previous) => Some(result.fromOption(previous, 0.0) + order.amount)))
+}
+
+func handle(upstream String, r http.Request) IO[http.Response] {
+  if r.method == "GET" && r.path == "/health" {
+    ioPure(http.jsonResponse(200, Health(true)))
+  } else if r.method == "GET" && r.path == "/report" {
+    do {
+      fetched <- io.tryIO(http.requestWithTimeout(http.Request("GET", upstream + "/orders", "", [], [], ""), 1000))
+      ioPure(match fetched {
+        Err(e) => http.response(502, io.ioErrorMessage(e))
+        | Ok(response) => {
+          let decoded: Result[String, List[Order]] = do {
+            value <- json.parseJson(response.body)
+            json.decode(value)
+          }
+          match decoded {
+            Err(message) => http.response(500, message)
+            Ok(orders) => http.jsonResponse(200, Report(aggregate(orders)))
+          }
+        }
+      })
+    }
+  } else {
+    ioPure(http.response(404, "not found"))
+  }
+}

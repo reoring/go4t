@@ -1,0 +1,61 @@
+package main
+
+import "std/conc"
+import "std/http"
+import "std/io"
+import "std/json"
+import "std/map"
+
+func testAggregate() Bool {
+  aggregate(sampleOrders()) == map.mapFromList([("Ada", 16.0), ("Ben", 7.25)]) && aggregate([]) == map.emptyMap()
+}
+
+func exerciseMock(upstream Fiber[Unit], url String) IO[Bool] {
+  let request = http.Request("GET", "", "/report", [], [], "")
+  do {
+    conc.withTimeout(2000, waitUp(url + "/orders"))
+    orders <- http.get(url + "/orders")
+    response <- handle(url, request)
+    health <- handle(url, http.Request("GET", "", "/health", [], [], ""))
+    missing <- handle(url, http.Request("POST", "", "/report", [], [], ""))
+    let decoded: Result[String, Report] = do {
+      value <- json.parseJson(response.body)
+      json.decode(value)
+    }
+    let correct = match decoded {
+      Ok(report) => report.totals == map.mapFromList([("Ada", 16.0), ("Ben", 7.25)])
+      Err(_) => false
+    }
+    conc.cancel(upstream)
+    conc.withTimeout(2000, waitDown(url + "/orders"))
+    unavailable <- handle(url, request)
+    ioPure(orders.status == 200 && response.status == 200 && correct && http.responseHeader(response, "content-type") == Some("application/json") && health.status == 200 && health.body == "{\"ok\":true}" && missing.status == 404 && unavailable.status == 502 && unavailable.body != "")
+  }
+}
+
+func testMock() IO[Bool] {
+  let port = 18083
+  let url = baseURL(port)
+  do {
+    upstream <- conc.fork(http.serve(port, mock))
+    outcome <- io.tryIO(exerciseMock(upstream, url))
+    conc.cancel(upstream)
+    conc.withTimeout(2000, waitDown(url + "/orders"))
+    good <- match outcome {
+      Ok(value) => ioPure(value)
+      Err(e) => io.ioRaise(e)
+    }
+    malformed <- conc.fork(http.serve(port, func(_) => ioPure(http.response(200, "[{}]"))))
+    decodeOutcome <- io.tryIO(do {
+      conc.withTimeout(2000, waitUp(url + "/orders"))
+      response <- handle(url, http.Request("GET", "", "/report", [], [], ""))
+      ioPure(response.status == 500 && response.body == "expected field at $$[0].id")
+    })
+    conc.cancel(malformed)
+    conc.withTimeout(2000, waitDown(url + "/orders"))
+    match decodeOutcome {
+      Ok(value) => ioPure(good && value)
+      Err(e) => io.ioRaise(e)
+    }
+  }
+}
