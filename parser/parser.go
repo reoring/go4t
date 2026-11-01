@@ -37,10 +37,13 @@
 //	RecordPatternFields := '{' ( '..' [ ',' ] | NamedPattern { ',' NamedPattern } [ ',' '..' ] [ ',' ] ) '}'
 //	NamedPattern := Ident ':' Pattern // names must be unique; '..' must be last; no field punning
 //	LowerIdent := Ident // starts with a lower-case letter; '@' only follows a bare variable name
-//	Postfix  := Primary { '(' [ ( Expr | '_' ) { ',' ( Expr | '_' ) } [ ',' ] ] ')' | '.' ( Ident | Int ) | RecordFields }
+//	Postfix  := Primary { '(' [ CallArg { ',' CallArg } [ ',' ] ] ')' | '.' ( Ident | Int ) | RecordFields }
+//	CallArg  := Expr | '_' | Projection
 //	Primary  := Ident | Lit | Interp | UpperIdent RecordFields | '(' Expr ')' | '(' Expr ',' Expr { ',' Expr } ')' | Section | Block | List
-//	Section  := '(' ( '_' BinOp Expr | Expr BinOp '_' | '_' BinOp '_' ) ')'
-//	          // placeholders must occupy a whole argument or operator operand;
+//	Section  := '(' ( '_' BinOp Expr | Expr BinOp '_' | '_' BinOp '_' | Projection ) ')'
+//	Projection := '_' '.' ( Ident | Int ) { '.' ( Ident | Int ) }
+//	          // bare placeholders occupy a whole argument or operator operand;
+//	          // projections form independent unary lambdas, including in call arguments;
 //	          // calls/sections lower to lambdas, and lowest-precedence |> lowers to calls
 //	RecordFields := '{' Ident ':' Expr { ',' Ident ':' Expr } [ ',' ] '}'
 //	          // record literals/updates require same-line '{' and lookahead '{' Ident ':';
@@ -903,7 +906,7 @@ func (p *Parser) binary(minPrec int, holes *[]*ast.Ident) ast.Expr {
 	}
 	var left ast.Expr
 	if holes != nil && p.isP("_") {
-		left = p.placeholder(holes)
+		left = p.projection(p.placeholder(holes))
 	} else {
 		left = p.unary()
 	}
@@ -948,7 +951,7 @@ func (p *Parser) placeholder(holes *[]*ast.Ident) *ast.Ident {
 	return hole
 }
 
-func partialLambda(pos ast.Pos, body ast.Expr, holes []*ast.Ident) ast.Expr {
+func partialLambda(pos ast.Pos, body ast.Expr, holes []*ast.Ident, section bool) ast.Expr {
 	if len(holes) == 0 {
 		return body
 	}
@@ -956,8 +959,7 @@ func partialLambda(pos ast.Pos, body ast.Expr, holes []*ast.Ident) ast.Expr {
 	for i, hole := range holes {
 		params[i] = ast.Param{Pos: hole.Pos, End: hole.End, Name: hole.Name}
 	}
-	_, call := body.(*ast.Call)
-	return &ast.Lambda{ExprBase: ast.ExprBase{Pos: pos, End: body.GetEnd()}, Params: params, Body: body, Partial: true, Section: !call || body.(*ast.Call).Pipe != nil}
+	return &ast.Lambda{ExprBase: ast.ExprBase{Pos: pos, End: body.GetEnd()}, Params: params, Body: body, Partial: true, Section: section}
 }
 
 func pipeCall(pos ast.Pos, left, right ast.Expr) ast.Expr {
@@ -991,11 +993,19 @@ func (p *Parser) postfix() ast.Expr {
 			var holes []*ast.Ident
 			for !p.isP(")") {
 				if p.isP("_") {
-					hole := p.placeholder(&holes)
-					if !p.isP(",") && !p.isP(")") {
-						p.fail(hole.Pos, placeholderError)
+					pos := p.pos()
+					var arg ast.Expr
+					if p.toks[p.i+1].Text == "." {
+						var projectionHoles []*ast.Ident
+						body := p.projection(p.placeholder(&projectionHoles))
+						arg = partialLambda(pos, body, projectionHoles, false)
+					} else {
+						arg = p.placeholder(&holes)
 					}
-					c.Args = append(c.Args, hole)
+					if !p.isP(",") && !p.isP(")") {
+						p.fail(pos, placeholderError)
+					}
+					c.Args = append(c.Args, arg)
 				} else {
 					c.Args = append(c.Args, p.expr())
 				}
@@ -1005,22 +1015,9 @@ func (p *Parser) postfix() ast.Expr {
 			}
 			p.expectP(")")
 			c.End = p.end()
-			e = partialLambda(pos, c, holes)
+			e = partialLambda(pos, c, holes, false)
 		case p.isP("."):
-			pos := p.next().Pos
-			field := &ast.Field{ExprBase: ast.ExprBase{Pos: pos}, X: e, Index: -1}
-			if t := p.tok(); t.Kind == lexer.Int {
-				p.next()
-				index, err := strconv.Atoi(t.Text)
-				if err != nil {
-					p.fail(t.Pos, "bad tuple index %s", t.Text)
-				}
-				field.Name, field.Index = t.Text, index
-			} else {
-				field.Name = p.ident()
-			}
-			field.End = p.end()
-			e = field
+			e = p.projection(e)
 		case p.recordAhead():
 			update := &ast.RecordUpdate{ExprBase: ast.ExprBase{Pos: p.pos()}, X: e}
 			update.Names, update.Values = p.recordFields()
@@ -1030,6 +1027,28 @@ func (p *Parser) postfix() ast.Expr {
 			return e
 		}
 	}
+}
+
+// projection consumes only selectors, so a projection placeholder cannot
+// silently grow into a method call, record update or another expression.
+func (p *Parser) projection(e ast.Expr) ast.Expr {
+	for p.isP(".") {
+		pos := p.next().Pos
+		field := &ast.Field{ExprBase: ast.ExprBase{Pos: pos}, X: e, Index: -1}
+		if t := p.tok(); t.Kind == lexer.Int {
+			p.next()
+			index, err := strconv.Atoi(t.Text)
+			if err != nil {
+				p.fail(t.Pos, "bad tuple index %s", t.Text)
+			}
+			field.Name, field.Index = t.Text, index
+		} else {
+			field.Name = p.ident()
+		}
+		field.End = p.end()
+		e = field
+	}
+	return e
 }
 
 // recordAhead reports `{ Ident :` on the same line as the preceding token;
@@ -1137,7 +1156,7 @@ func (p *Parser) primary() (expr ast.Expr) {
 					p.fail(holes[0].Pos, placeholderError)
 				}
 				p.next()
-				return partialLambda(t.Pos, first, holes)
+				return partialLambda(t.Pos, first, holes, true)
 			}
 			if !p.acceptP(",") {
 				p.expectP(")")

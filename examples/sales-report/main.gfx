@@ -61,7 +61,7 @@ func summarize(rates Map[Currency, Float], sales List[Sale], key func(Sale) Stri
     |> map.mapToList
     |> map(func((k, group)) => Row{
       key: k,
-      qty: group |> map(func(r) => r.qty) |> list.sum,
+      qty: group |> map(_.qty) |> list.sum,
       jpy: group |> map(amountJpy(rates, _)) |> fold(0.0, (_ + _))
     })
     |> list.sortOn(func(r) => 0.0 - r.jpy)
@@ -69,7 +69,7 @@ func summarize(rates Map[Currency, Float], sales List[Sale], key func(Sale) Stri
 
 func table(title String, rows List[Row]) String {
   let line = func(r Row) => "  " + string.padRight(r.key, 12) + string.padLeft(show(r.qty), 6) + string.padLeft(float.showFloatFixed(r.jpy, 0), 12)
-  let total = rows |> map(func(r) => r.jpy) |> fold(0.0, (_ + _))
+  let total = rows |> map(_.jpy) |> fold(0.0, (_ + _))
   func bar(v Float) String {
     string.repeat("#", float.round(v / total * 30.0))
   }
@@ -110,10 +110,10 @@ func main() IO[Unit] {
     t1 <- io.monotonicMillis()
     println("rates (${t1 - t0}ms): ${debug(rates)}")
     println("${length(sales)} sales loaded from ${path}")
-    println(table("by product", summarize(rates, sales, func(s) => s.product)))
-    println(table("by region", summarize(rates, sales, func(s) => s.region)))
-    println(table("by day", summarize(rates, sales, func(s) => s.day)))
-    let out = summarize(rates, sales, func(s) => s.product)
+    println(table("by product", summarize(rates, sales, _.product)))
+    println(table("by region", summarize(rates, sales, _.region)))
+    println(table("by day", summarize(rates, sales, _.day)))
+    let out = summarize(rates, sales, _.product)
       |> codec.encode
       |> codec.toJsonPretty
     io.writeFile("report.json", out)
