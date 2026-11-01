@@ -25,6 +25,9 @@ import "std/map"
 import "std/set"
 import "std/array"
 import "std/float"
+import "std/http"
+import "std/json"
+import "std/lazy"
 
 type Tree[A] = Tip | Leaf(A) | Fork(Tree[A], Tree[A]) deriving Functor, Foldable, Traversable, Debug
 type Nested[E, A] = Nested{tag: E, values: (A, List[Option[A]], (String, A)), children: List[Nested[E, A]]} deriving Functor, Foldable, Traversable
@@ -38,6 +41,7 @@ type DisplayOnly = DisplayOnly
 instance Show[DisplayOnly] { show(a) { "display only" } }
 instance Show[Record] { show(a) { "display" } }
 type DebugOnly = DebugOnly(Int) deriving Debug
+type Opaque = Opaque
 func emptyOption() Option[Int] { None }
 func emptyList() List[Int] { Nil }
 func safe(n Int) Option[Int] { if n == 0 { None } else { Some(10 / (n - 1)) } }
@@ -80,6 +84,12 @@ func main() IO[Unit] {
     println("${debug(emptyMap)}|${debug(emptySet)}|${debug(emptyArray)}")
     println("${debug(map.mapFromList([(1, DebugOnly(2))]))}|${debug(set.setFromListBy([DebugOnly(3)], func(_a, _b) => EQ))}|${debug(array.arrayFromList([DebugOnly(4)]))}")
     println("${show(1.0)}|${debug(1.0)}|${debug(1.5)}|${debug(1e21)}|${debug(1e-7)}|${debug(float.nan())}")
+    println(debug(http.response(200, "ok")))
+    println(debug(http.Request("GET", "/", "/", [], [], "")))
+    println(debug(json.JObj(map.mapFromList([("items", json.JArr([json.JNull, json.JBool(true), json.JNum(1.0), json.JStr("x")]))]))))
+    println(debug(lazy.delay(func(_u) => if 1 / 0 == 0 { Opaque } else { Opaque })))
+    let opaqueState: state.State[Opaque, Opaque] = state.State(func(_s) => if 1 / 0 == 0 { (Opaque, Opaque) } else { (Opaque, Opaque) })
+    println(debug(opaqueState))
     let options: List[Option[Int]] = []
     println("${list.catOptions(options)}|${list.catOptions([None, None]) == list.catOptions(options)}|${list.catOptions([Some(1)])}|${list.catOptions([None, Some(3), None, Some(1), Some(3), None])}")
     println("${list.mapMaybe([], func(n Int) => Some(1 / n))}|${list.mapMaybe([1], func(n) => if n == 1 { None } else { Some(n) }) == []}|${list.mapMaybe([1], func(n) => Some(show(n)))}|${list.mapMaybe([1, 2, 3, 4], func(n) => if n % 2 == 0 { Some(show(n)) } else { None })}")
@@ -153,6 +163,11 @@ func main() IO[Unit] {
 		`{}|#{}|#[]`,
 		`{1: DebugOnly(2)}|#{DebugOnly(3)}|#[DebugOnly(4)]`,
 		`1.0|1.0|1.5|1e+21|1e-07|NaN`,
+		`Response{status: 200, headers: [], body: "ok"}`,
+		`Request{method: "GET", url: "/", path: "/", query: [], headers: [], body: ""}`,
+		`JObj({"items": JArr([JNull, JBool(true), JNum(1.0), JStr("x")])})`,
+		`Lazy(<function>)`,
+		`State(<function>)`,
 		`[]|true|[1]|[3, 1, 3]`,
 		`[]|true|[1]|[2, 4]`,
 	}, "\n") + "\n"

@@ -5,7 +5,7 @@ import r "std/result"
 import "std/map"
 import "std/array"
 
-type Json = JNull | JBool(Bool) | JNum(Float) | JStr(String) | JArr(List[Json]) | JObj(Map[String, Json])
+type Json = JNull | JBool(Bool) | JNum(Float) | JStr(String) | JArr(List[Json]) | JObj(Map[String, Json]) deriving Debug
 
 class Encode[A] {
   encode(a A) Json

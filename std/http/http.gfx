@@ -10,13 +10,13 @@ type Request = Request{
   query: List[(String, String)],
   headers: List[(String, String)],
   body: String
-}
+} deriving Debug
 
 type Response = Response{
   status: Int,
   headers: List[(String, String)],
   body: String
-}
+} deriving Debug
 
 extern func _request(method String, url String, path String, query List[(String, String)], headers List[(String, String)], body String, millis Int) IO[(Int, List[(String, String)], String)] = "gofx/rt".HTTPRequest
 

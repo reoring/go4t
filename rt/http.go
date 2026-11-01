@@ -2,6 +2,7 @@ package rt
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -14,6 +15,8 @@ import (
 	"strings"
 	"time"
 )
+
+var handlerLog io.Writer = os.Stderr
 
 // HTTPRequest returns (status, headers, body); std/http constructs the Response.
 // A nonempty path replaces the URL path; explicit query pairs append to its query.
@@ -126,33 +129,40 @@ func HTTPServe(port, handler any) any {
 	})
 }
 
+func httpHandler(handler any) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		value, err := runConcurrentIO(r.Context(), IO(func(ctx context.Context) (any, error) {
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				return nil, ClassifyError(err)
+			}
+			headers := httpPairs(r.Header)
+			if r.Host != "" {
+				headers = Shapes.Cons(Tuple2Of("Host", r.Host), headers)
+			}
+			return handler.(func(any, any, any, any, any, any) any)(r.Method, r.URL.String(), r.URL.Path, httpPairs(r.URL.Query()), headers, string(body)).(IO)(ctx)
+		}))
+		if err != nil {
+			var failure *Failure
+			if r.Context().Err() == nil || !errors.As(err, &failure) || failure.Kind != Cancelled {
+				fmt.Fprintln(handlerLog, "http handler:", err)
+			}
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = io.WriteString(w, err.Error())
+			return
+		}
+		status, headers, body := Shapes.Untuple3(value)
+		forEachHTTPPair(headers, func(key, value string) { w.Header().Add(key, value) })
+		w.WriteHeader(int(status.(int64)))
+		_, _ = io.WriteString(w, body.(string))
+	}
+}
+
 func serveHTTP(ctx context.Context, listener net.Listener, handler any) (any, error) {
 	server := &http.Server{
 		BaseContext: func(net.Listener) context.Context { return ctx },
-		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			value, err := runConcurrentIO(r.Context(), IO(func(ctx context.Context) (any, error) {
-				body, err := io.ReadAll(r.Body)
-				if err != nil {
-					return nil, ClassifyError(err)
-				}
-				headers := httpPairs(r.Header)
-				if r.Host != "" {
-					headers = Shapes.Cons(Tuple2Of("Host", r.Host), headers)
-				}
-				return handler.(func(any, any, any, any, any, any) any)(r.Method, r.URL.String(), r.URL.Path, httpPairs(r.URL.Query()), headers, string(body)).(IO)(ctx)
-			}))
-			if err != nil {
-				fmt.Fprintln(os.Stderr, "http handler:", err)
-				w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-				w.WriteHeader(http.StatusInternalServerError)
-				_, _ = io.WriteString(w, err.Error())
-				return
-			}
-			status, headers, body := Shapes.Untuple3(value)
-			forEachHTTPPair(headers, func(key, value string) { w.Header().Add(key, value) })
-			w.WriteHeader(int(status.(int64)))
-			_, _ = io.WriteString(w, body.(string))
-		}),
+		Handler:     httpHandler(handler),
 	}
 	done := make(chan error, 1)
 	go func() { done <- server.Serve(listener) }()

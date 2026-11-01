@@ -143,8 +143,10 @@ is assumed by rt. See SPEC §6.4 and the runnable [HTTP example](../examples/htt
 
 | Source signature | Semantics | Boundary behaviour |
 | --- | --- | --- |
-| `type Request = Request{method: String, url: String, path: String, query: List[(String, String)], headers: List[(String, String)], body: String}` | Client request or incoming server request fields. | Client url must be absolute; nonempty path overrides the URL path, query pairs append. Incoming url is normally relative; path/query are decoded. |
-| `type Response = Response{status: Int, headers: List[(String, String)], body: String}` | Complete HTTP response. | Non-2xx is a normal value, not an IO failure; headers preserve repeated values. |
+| `type Request = Request{method: String, url: String, path: String, query: List[(String, String)], headers: List[(String, String)], body: String} deriving Debug` | Client request or incoming server request fields. | Client url must be absolute; nonempty path overrides the URL path, query pairs append. Incoming url is normally relative; path/query are decoded. |
+| `type Response = Response{status: Int, headers: List[(String, String)], body: String} deriving Debug` | Complete HTTP response. | Non-2xx is a normal value, not an IO failure; headers preserve repeated values. |
+| `instance Debug[Request]` | Derived structural rendering of all request fields. | Field order follows the declaration; strings quoted, query/header pairs use list syntax. |
+| `instance Debug[Response]` | Derived structural rendering of all response fields. | `debug(response(200, "ok"))` is `Response{status: 200, headers: [], body: "ok"}`. |
 | `extern func _request(method String, url String, path String, query List[(String, String)], headers List[(String, String)], body String, millis Int) IO[(Int, List[(String, String)], String)] = "gofx/rt".HTTPRequest` | Private field-list client ABI returning a triple. | Deferred; uses context through connection, redirects and full body read; no record-layout dependency. |
 | `extern func _header(headers List[(String, String)], name String) Option[String] = "gofx/rt".HTTPHeader` | Private case-insensitive header lookup. | First matching value, including empty; None if absent. |
 | `extern func _serve(port Int, handler func(String, String, String, List[(String, String)], List[(String, String)], String) IO[(Int, List[(String, String)], String)]) IO[Unit] = "gofx/rt".HTTPServe` | Private server field-list/triple ABI. | Request fields are method, url, path, query, headers, body; handler results are status, headers, body. |
@@ -156,7 +158,7 @@ is assumed by rt. See SPEC §6.4 and the runnable [HTTP example](../examples/htt
 | `func jsonResponse[A json.Encode](status Int, a A) Response` | Encode through std/json and set Content-Type to application/json. | Requires Encode; strict encoding may panic before IO construction (e.g. non-finite numbers). |
 | `func requestHeader(r Request, name String) Option[String]` | Read first case-insensitive request header. | Absent → None; present empty → Some(""); Host is exposed on incoming requests. |
 | `func responseHeader(r Response, name String) Option[String]` | Read first case-insensitive response header. | Repeated headers are not joined; first wins. |
-| `func serve(port Int, handler func(Request) IO[Response]) IO[Unit]` | Listen on all interfaces; run each request concurrently with its request context. | Deferred bind; Network on bind error; cancellation shuts down with 5 s grace and fails Cancelled/Timeout; handler failure/panic → 500 with exact message body and `http handler: <message>` stderr line. Fork is not a readiness signal. |
+| `func serve(port Int, handler func(Request) IO[Response]) IO[Unit]` | Listen on all interfaces; run each request concurrently with its request context. | Deferred bind; Network on bind error; cancellation shuts down with 5 s grace and fails Cancelled/Timeout without logging; handler failure/panic → 500 with exact message body and `http handler: <message>` stderr line, except Cancelled with an already-done request context is silent. Fork is not a readiness signal. |
 
 ## `std/io`
 
@@ -211,7 +213,8 @@ All `_json*` rows are private compiler/codec helpers; user modules cannot call t
 
 | Source signature | Semantics | Boundary behaviour |
 | --- | --- | --- |
-| `type Json = JNull \| JBool(Bool) \| JNum(Float) \| JStr(String) \| JArr(List[Json]) \| JObj(Map[String, Json])` | JSON null, Boolean, Float number, string, array, or String-keyed object. | JNum can be constructed nonfinite but printing then panics; object metadata can preserve source order. |
+| `type Json = JNull \| JBool(Bool) \| JNum(Float) \| JStr(String) \| JArr(List[Json]) \| JObj(Map[String, Json]) deriving Debug` | JSON null, Boolean, Float number, string, array, or String-keyed object. | JNum can be constructed nonfinite but JSON printing then panics; object metadata can preserve source order. |
+| `instance Debug[Json]` | Derived structural constructor rendering, not JSON encoding. | Recurses through list/map values; object keys sorted and strings quoted; nonfinite numbers are printable by Debug. |
 | `class Encode[A] { encode(a A) Json }` | Convert a typed value to Json. | Import/qualify std/json; nonfinite numbers fail when printed; nullable Option and large Int are lossy. |
 | `class Decode[A] { decode(j Json) Result[String, A] }` | Convert Json to a typed Result[String, A]. | First failure uses expected <what> at <path>; missing record fields are errors. |
 | `extern func toJson(j Json) String = "gofx/rt".ToJson` | Render a Json value as compact JSON text. | Nonfinite JNum panics `cannot encode non-finite JSON number`; preserves parsed/derived object metadata; ordinary Map keys sorted. |
@@ -253,11 +256,12 @@ All `_json*` rows are private compiler/codec helpers; user modules cannot call t
 
 ## `std/lazy`
 
-Source: [`lazy/lazy.gfx`](../std/lazy/lazy.gfx). 3 top-level declarations.
+Source: [`lazy/lazy.gfx`](../std/lazy/lazy.gfx). 4 top-level declarations.
 
 | Source signature | Semantics | Boundary behaviour |
 | --- | --- | --- |
 | `type Lazy[A] = Lazy(func(Unit) A)` | A stored pure function from Unit to A. | No memoization: every force calls the thunk again. |
+| `instance Debug[Lazy[A]]` | Render an opaque stored function as `Lazy(<function>)`. | No Debug constraint on A; never forces the thunk. |
 | `func delay[A](f func(Unit) A) Lazy[A]` | Store a pure thunk in Lazy without evaluating its body. | No memoization or thunk execution during construction; ordinary function-argument evaluation is strict. |
 | `func force[A](l Lazy[A]) A` | Call the stored Lazy thunk with unit(). | Every call reevaluates the thunk; no caching, mutation or IO runner. |
 
@@ -523,11 +527,12 @@ Source: [`set/set.gfx`](../std/set/set.gfx). 20 top-level declarations.
 
 ## `std/state`
 
-Source: [`state/state.gfx`](../std/state/state.gfx). 9 top-level declarations.
+Source: [`state/state.gfx`](../std/state/state.gfx). 10 top-level declarations.
 
 | Source signature | Semantics | Boundary behaviour |
 | --- | --- | --- |
 | `type State[S, A] = State(func(S) (A, S))` | A pure state transition S → (A, S). | State is ordinary data, not mutable storage; partial State[S] supports Monad. |
+| `instance Debug[State[S, A]]` | Render an opaque transition as `State(<function>)`. | No Debug constraints on S/A; never runs the transition. |
 | `instance Functor[State[S]]` | Map State's element/result while retaining shape. | Changes result only, preserves final state. |
 | `instance Monad[State[S]]` | Inject and sequence State computations. | pure preserves state; bind threads the first final state into the next transition. |
 | `func runState[S, A](st State[S, A], s S) (A, S)` | Run a pure state transition, returning result and final state. | Each call reruns the pure transition with the supplied state; no mutable global state. |
@@ -578,10 +583,11 @@ Source: [`string/string.gfx`](../std/string/string.gfx). 32 top-level declaratio
 
 ## Inventory totals and maintenance
 
-The source inventory contains **14 modules, 333 top-level declarations**:
-**246 functions/externs, 10 classes, 7 data types, and 70 explicit instances**.
-Class rows include all 11 method signatures; type rows include their constructors.
-The four deriving clauses additionally expand to **12 Eq/Ord/Debug instances**.
+The inventory test enumerates every standard module and its functions/externs,
+classes, data types, explicit instances, and derived instances directly from source.
+Class rows include method signatures; type rows include their constructors.
+Every standard data type has a derived or explicit Debug instance; Lazy and State
+render their stored functions opaquely without executing them.
 Non-pair JSON tuple instances are synthesized for arities used by a program,
 not additional source declarations. Compiler builtins are listed separately.
 

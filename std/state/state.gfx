@@ -4,6 +4,10 @@ import "std/prelude"
 
 type State[S, A] = State(func(S) (A, S))
 
+instance Debug[State[S, A]] {
+  debug(_st) { "State(<function>)" }
+}
+
 instance Functor[State[S]] {
   fmap(st, f) {
     State(func(s) => match runState(st, s) {

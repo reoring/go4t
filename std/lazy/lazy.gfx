@@ -5,6 +5,10 @@ import "std/prelude"
 // Lazy delays a pure computation; each force re-evaluates it (no memoisation).
 type Lazy[A] = Lazy(func(Unit) A)
 
+instance Debug[Lazy[A]] {
+  debug(_l) { "Lazy(<function>)" }
+}
+
 func delay[A](f func(Unit) A) Lazy[A] {
   Lazy(f)
 }

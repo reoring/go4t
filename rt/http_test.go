@@ -1,6 +1,7 @@
 package rt
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -8,7 +9,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"reflect"
 	"strings"
 	"sync/atomic"
@@ -169,16 +169,12 @@ func TestHTTPServe(t *testing.T) {
 
 func TestHTTPServeHandlerFailures(t *testing.T) {
 	installTestShapes(t)
-	for _, mode := range []string{"failure", "construction panic", "IO panic"} {
+	for _, mode := range []string{"failure", "construction panic", "IO panic", "cancelled", "timeout", "cancellation message"} {
 		t.Run(mode, func(t *testing.T) {
-			stderr, err := os.CreateTemp(t.TempDir(), "stderr")
-			if err != nil {
-				t.Fatal(err)
-			}
-			defer stderr.Close()
-			previous := os.Stderr
-			os.Stderr = stderr
-			defer func() { os.Stderr = previous }()
+			var stderr bytes.Buffer
+			previous := handlerLog
+			handlerLog = &stderr
+			defer func() { handlerLog = previous }()
 			handler := func(_, _, _, _, _, _ any) any {
 				if mode == "construction panic" {
 					panic("broken handler")
@@ -186,9 +182,17 @@ func TestHTTPServeHandlerFailures(t *testing.T) {
 				if mode == "IO panic" {
 					return IO(func(context.Context) (any, error) { panic("broken handler") })
 				}
+				switch mode {
+				case "cancelled":
+					return IO(func(context.Context) (any, error) { return nil, ClassifyError(context.Canceled) })
+				case "timeout":
+					return IO(func(context.Context) (any, error) { return nil, ClassifyError(context.DeadlineExceeded) })
+				case "cancellation message":
+					return Fail("context canceled")
+				}
 				return Fail("broken handler")
 			}
-			url, _, _ := startHTTPTestServer(t, handler)
+			url, stopServer, done := startHTTPTestServer(t, handler)
 			client := &http.Client{Timeout: time.Second}
 			response, err := client.Get(url)
 			if err != nil {
@@ -196,14 +200,76 @@ func TestHTTPServeHandlerFailures(t *testing.T) {
 			}
 			body, _ := io.ReadAll(response.Body)
 			response.Body.Close()
-			if response.StatusCode != 500 || string(body) != "broken handler" {
+			stopServer()
+			select {
+			case <-done:
+			case <-time.After(time.Second):
+				t.Fatal("serve did not stop")
+			}
+			message := "broken handler"
+			switch mode {
+			case "cancelled", "cancellation message":
+				message = "context canceled"
+			case "timeout":
+				message = "context deadline exceeded"
+			}
+			if response.StatusCode != 500 || string(body) != message {
 				t.Fatalf("failure response = %d %q", response.StatusCode, body)
 			}
-			logged, err := os.ReadFile(stderr.Name())
-			if err != nil || string(logged) != "http handler: broken handler\n" {
-				t.Fatalf("stderr = %q, %v", logged, err)
+			if logged := stderr.String(); logged != "http handler: "+message+"\n" {
+				t.Fatalf("stderr = %q", logged)
 			}
 		})
+	}
+}
+
+func TestHTTPHandlerClientCancellationIsSilent(t *testing.T) {
+	installTestShapes(t)
+	var stderr bytes.Buffer
+	previous := handlerLog
+	handlerLog = &stderr
+	defer func() { handlerLog = previous }()
+	started := make(chan struct{})
+	handler := func(_, _, _, _, _, _ any) any {
+		return IO(func(ctx context.Context) (any, error) {
+			close(started)
+			<-ctx.Done()
+			return nil, ClassifyError(ctx.Err())
+		})
+	}
+	server := httptest.NewServer(httpHandler(handler))
+	defer server.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	request, err := http.NewRequestWithContext(ctx, "GET", server.URL, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() {
+		response, err := server.Client().Do(request)
+		if response != nil {
+			response.Body.Close()
+		}
+		done <- err
+	}()
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("handler did not start")
+	}
+	cancel()
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("client cancellation = %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("client did not stop")
+	}
+	server.Close() // Wait for the server handler before inspecting its writer.
+	if stderr.Len() != 0 {
+		t.Fatalf("stderr = %q", stderr.String())
 	}
 }
 
@@ -223,6 +289,10 @@ func TestHTTPRequestBodyDeadline(t *testing.T) {
 
 func TestHTTPServeRequestContexts(t *testing.T) {
 	installTestShapes(t)
+	var stderr bytes.Buffer
+	previous := handlerLog
+	handlerLog = &stderr
+	defer func() { handlerLog = previous }()
 	started := make(chan struct{}, 1)
 	stopped := make(chan error, 1)
 	handler := func(_, _, path, _, _, _ any) any {
@@ -293,6 +363,9 @@ func TestHTTPServeRequestContexts(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("active serve did not stop within 1 s")
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("shutdown stderr = %q", stderr.String())
 	}
 }
 

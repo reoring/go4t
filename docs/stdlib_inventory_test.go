@@ -34,6 +34,8 @@ func TestStdlibInventory(t *testing.T) {
 	counts := make(map[string]int)
 	modulesSeen := make(map[string]bool)
 	constructors, methods, derived := 0, 0, 0
+	typeNames := make(map[string]bool)
+	debugInstances := make(map[string]bool)
 	err = fs.WalkDir(std.FS, ".", func(filename string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -64,12 +66,16 @@ func TestStdlibInventory(t *testing.T) {
 				fields := []string{}
 				for i := declaration.GetPos().Line; i < len(lines); i++ {
 					line := strings.TrimSpace(lines[i])
-					if line == "}" {
+					if strings.HasPrefix(line, "}") {
+						header += strings.Join(fields, ", ") + line
+						fields = nil
 						break
 					}
 					fields = append(fields, strings.TrimSuffix(line, ","))
 				}
-				header += strings.Join(fields, ", ") + "}"
+				if fields != nil {
+					header += strings.Join(fields, ", ") + "}"
+				}
 			}
 			header = strings.TrimSuffix(header, " {")
 			// Markdown escapes sum-constructor pipes, but signatures must
@@ -114,6 +120,13 @@ func TestStdlibInventory(t *testing.T) {
 				}
 			case *ast.TypeDecl:
 				counts["types"]++
+				key := module + "." + decl.Name
+				typeNames[key] = true
+				for _, class := range decl.Deriving {
+					if class == "Debug" {
+						debugInstances[key] = true
+					}
+				}
 				containsName(decl.Name)
 				for _, constructor := range decl.Ctors {
 					constructors++
@@ -139,6 +152,9 @@ func TestStdlibInventory(t *testing.T) {
 				}
 			case *ast.InstanceDecl:
 				counts["instances"]++
+				if decl.Class == "Debug" {
+					debugInstances[module+"."+decl.TypeCon] = true
+				}
 				containsName(decl.Class)
 				containsName(decl.TypeCon)
 			case *ast.AliasDecl:
@@ -152,6 +168,11 @@ func TestStdlibInventory(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+	for name := range typeNames {
+		if !debugInstances[name] {
+			t.Errorf("%s: missing derived or explicit Debug instance", name)
+		}
 	}
 	if len(modulesSeen) == 0 || len(counts) == 0 {
 		t.Fatal("empty standard library inventory")

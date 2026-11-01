@@ -773,6 +773,7 @@ key/value pairs. Header/query keys from Go maps are sorted, repeated values keep
 their order. Handler construction/action panics use the existing worker
 panic-to-Panic failure boundary. Handler failure returns 500 with the exact
 message body and writes `http handler: <message>` plus a newline to stderr.
+Cancelled handler failures are silent when the request context is already done (client disconnect or server shutdown), and normal server shutdown logs nothing.
 Cancellation closes the listener and gives active handlers a 5 s graceful
 shutdown window, then force-closes connections; serve ends with Cancelled
 (or Timeout for a deadline). Noncooperative foreign handlers can outlive it.
@@ -1589,7 +1590,7 @@ share immutable storage, but empty slices do not retain the backing allocation.
 | `response`, `jsonResponse` | Pure constructors; first has no headers, second encodes via Encode and sets application/json; strict JSON encoding can panic before an IO is constructed |
 | `serve` | Binding is deferred; bind failure is Network; fork is not a readiness signal; cancellation stops accepting and allows up to 5 s for shutdown before force-close |
 | Handler contexts | One goroutine per request; client disconnect or server cancellation reaches its IO context; handlers are concurrent, not sequential |
-| Handler failure/panic | HTTP 500, exact failure message body (no added newline), stderr `http handler: <message>` plus newline; construction and action panics use Panic failure |
+| Handler failure/panic | HTTP 500, exact failure message body (no added newline), stderr `http handler: <message>` plus newline; only Cancelled with an already-done request context suppresses logging, and normal shutdown is silent; construction and action panics use Panic failure |
 
 ### 10.8 Modules, diagnostics and tools
 
