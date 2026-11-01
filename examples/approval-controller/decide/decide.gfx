@@ -14,10 +14,13 @@ type Plan = Plan{
   baseGitCommit: String,
   planType: String,
   gates: List[GateEvidence],
-  evidenceTtlNanos: Option[Int],   // None: no TTL configured; Some(n <= 0): invalid or unparsable
-  observedAtPresent: Bool,
-  observedAtNanos: Option[Int]     // None while present: unparsable
+  evidenceTtl: Ttl,
+  observedAt: Timestamp
 } deriving Eq, Debug
+
+// Go parses the strings; the decision sees only the three states each can be in.
+type Ttl = NoTtl | InvalidTtl | TtlNanos(Int) deriving Eq, Debug
+type Timestamp = NoTimestamp | InvalidTimestamp | AtNanos(Int) deriving Eq, Debug
 
 type GateEvidence = Gate{name: String, state: String} | InvalidGate deriving Eq, Debug
 
@@ -188,23 +191,14 @@ func _noConflictingOperation(o Observed) Option[Verdict] {
 }
 
 func _evidenceFresh(plan Plan, nowNanos Int) Verdict {
-  match plan.evidenceTtlNanos {
-    None => Accepted(0)
-    Some(ttl) if ttl <= 0 => Expired(EvidenceTTLInvalid, "Resize plan evidence TTL is invalid")
-    Some(ttl) =>
-      if !plan.observedAtPresent {
-        Expired(EvidenceTimestampMissing, "Resize plan evidence timestamp is missing")
-      } else {
-        match plan.observedAtNanos {
-          None => Expired(EvidenceTimestampInvalid, "Resize plan evidence timestamp is invalid")
-          Some(observedAt) =>
-            if nowNanos >= observedAt + ttl {
-              Expired(EvidenceExpired, "Resize plan evidence expired before approval acceptance")
-            } else {
-              Accepted(observedAt + ttl - nowNanos)
-            }
-        }
-      }
+  match (plan.evidenceTtl, plan.observedAt) {
+    (NoTtl, _) => Accepted(0)
+    (InvalidTtl, _) => Expired(EvidenceTTLInvalid, "Resize plan evidence TTL is invalid")
+    (TtlNanos(_), NoTimestamp) => Expired(EvidenceTimestampMissing, "Resize plan evidence timestamp is missing")
+    (TtlNanos(_), InvalidTimestamp) => Expired(EvidenceTimestampInvalid, "Resize plan evidence timestamp is invalid")
+    (TtlNanos(ttl), AtNanos(observedAt)) if nowNanos >= observedAt + ttl =>
+      Expired(EvidenceExpired, "Resize plan evidence expired before approval acceptance")
+    (TtlNanos(ttl), AtNanos(observedAt)) => Accepted(observedAt + ttl - nowNanos)
   }
 }
 

@@ -134,16 +134,18 @@ func (r *ApprovalReconciler) observeInputs(ctx context.Context, approval *unstru
 					State: strings.TrimSpace(mapStringDefault(gate, "state")),
 				}
 			}
+			observedPlan.EvidenceTtl = decide.TtlNoTtl{}
 			if ttlValue := firstNonEmptyNestedString(plan.Object, []string{"spec", "evidenceTTL"}); ttlValue != "" {
-				observedPlan.EvidenceTtlNanos.Present = true
+				observedPlan.EvidenceTtl = decide.TtlInvalidTtl{}
 				if ttl, err := time.ParseDuration(ttlValue); err == nil && ttl > 0 {
-					observedPlan.EvidenceTtlNanos.Value = ttl.Nanoseconds()
+					observedPlan.EvidenceTtl = decide.TtlTtlNanos{F0: int64(ttl)}
 				}
 			}
+			observedPlan.ObservedAt = decide.TimestampNoTimestamp{}
 			if observedAtValue := firstStatusString(plan, "status", "observedAt"); observedAtValue != "" {
-				observedPlan.ObservedAtPresent = true
+				observedPlan.ObservedAt = decide.TimestampInvalidTimestamp{}
 				if observedAt, err := time.Parse(time.RFC3339, observedAtValue); err == nil {
-					observedPlan.ObservedAtNanos = rt.Option[int64]{Value: observedAt.UnixNano(), Present: true}
+					observedPlan.ObservedAt = decide.TimestampAtNanos{F0: observedAt.UnixNano()}
 				}
 			}
 			inputs.Plan = decide.FetchedPlanFound{F0: observedPlan}

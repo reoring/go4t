@@ -106,9 +106,8 @@ type Plan struct {
 	BaseGitCommit        string
 	PlanType             string
 	Gates                []GateEvidence
-	EvidenceTtlNanos     rt.Option[int64]
-	ObservedAtPresent    bool
-	ObservedAtNanos      rt.Option[int64]
+	EvidenceTtl          Ttl
+	ObservedAt           Timestamp
 }
 type Policy struct {
 	Generation int64
@@ -205,6 +204,40 @@ func (v Reason) String() string {
 		panic("invalid constructor")
 	}
 }
+
+type Timestamp interface{ isTimestamp() }
+type TimestampNoTimestamp struct {
+}
+
+func (TimestampNoTimestamp) isTimestamp() {}
+
+type TimestampInvalidTimestamp struct {
+}
+
+func (TimestampInvalidTimestamp) isTimestamp() {}
+
+type TimestampAtNanos struct {
+	F0 int64
+}
+
+func (TimestampAtNanos) isTimestamp() {}
+
+type Ttl interface{ isTtl() }
+type TtlNoTtl struct {
+}
+
+func (TtlNoTtl) isTtl() {}
+
+type TtlInvalidTtl struct {
+}
+
+func (TtlInvalidTtl) isTtl() {}
+
+type TtlTtlNanos struct {
+	F0 int64
+}
+
+func (TtlTtlNanos) isTtl() {}
 
 type Verdict interface{ isVerdict() }
 type VerdictRejected struct {
@@ -428,14 +461,14 @@ func (v Observed) String() string {
 func toGo_Plan(v any) Plan {
 	switch x := v.(type) {
 	case *decide_Plan_Plan:
-		return Plan{Generation: toGo_Int(x.F0), Phase: toGo_String(x.F1), EvidenceHash: toGo_String(x.F2), ChangeSetFingerprint: toGo_String(x.F3), BaseGitCommit: toGo_String(x.F4), PlanType: toGo_String(x.F5), Gates: toGo_List_GateEvidence(x.F6), EvidenceTtlNanos: toGo_Option_Int(x.F7), ObservedAtPresent: toGo_Bool(x.F8), ObservedAtNanos: toGo_Option_Int(x.F9)}
+		return Plan{Generation: toGo_Int(x.F0), Phase: toGo_String(x.F1), EvidenceHash: toGo_String(x.F2), ChangeSetFingerprint: toGo_String(x.F3), BaseGitCommit: toGo_String(x.F4), PlanType: toGo_String(x.F5), Gates: toGo_List_GateEvidence(x.F6), EvidenceTtl: toGo_Ttl(x.F7), ObservedAt: toGo_Timestamp(x.F8)}
 	default:
 		panic("invalid constructor")
 	}
 }
 func fromGo_Plan(v Plan) any {
 	x := v
-	return &decide_Plan_Plan{F0: fromGo_Int(x.Generation), F1: fromGo_String(x.Phase), F2: fromGo_String(x.EvidenceHash), F3: fromGo_String(x.ChangeSetFingerprint), F4: fromGo_String(x.BaseGitCommit), F5: fromGo_String(x.PlanType), F6: fromGo_List_GateEvidence(x.Gates), F7: fromGo_Option_Int(x.EvidenceTtlNanos), F8: fromGo_Bool(x.ObservedAtPresent), F9: fromGo_Option_Int(x.ObservedAtNanos)}
+	return &decide_Plan_Plan{F0: fromGo_Int(x.Generation), F1: fromGo_String(x.Phase), F2: fromGo_String(x.EvidenceHash), F3: fromGo_String(x.ChangeSetFingerprint), F4: fromGo_String(x.BaseGitCommit), F5: fromGo_String(x.PlanType), F6: fromGo_List_GateEvidence(x.Gates), F7: fromGo_Ttl(x.EvidenceTtl), F8: fromGo_Timestamp(x.ObservedAt)}
 }
 func (v Plan) String() string {
 	return (dict_decide_Debug_Plan{}).prelude_Debug(fromGo_Plan(v)).(string)
@@ -574,6 +607,72 @@ func fromGo_Reason(v Reason) any {
 	default:
 		panic("invalid constructor")
 	}
+}
+func toGo_Timestamp(v any) Timestamp {
+	switch x := v.(type) {
+	case *decide_Timestamp_NoTimestamp:
+		return TimestampNoTimestamp{}
+	case *decide_Timestamp_InvalidTimestamp:
+		return TimestampInvalidTimestamp{}
+	case *decide_Timestamp_AtNanos:
+		return TimestampAtNanos{F0: toGo_Int(x.F0)}
+	default:
+		panic("invalid constructor")
+	}
+}
+func fromGo_Timestamp(v Timestamp) any {
+	switch x := v.(type) {
+	case TimestampNoTimestamp:
+		return &decide_Timestamp_NoTimestamp{}
+	case TimestampInvalidTimestamp:
+		return &decide_Timestamp_InvalidTimestamp{}
+	case TimestampAtNanos:
+		return &decide_Timestamp_AtNanos{F0: fromGo_Int(x.F0)}
+	default:
+		panic("invalid constructor")
+	}
+}
+func (v TimestampNoTimestamp) String() string {
+	return (dict_decide_Debug_Timestamp{}).prelude_Debug(fromGo_Timestamp(v)).(string)
+}
+func (v TimestampInvalidTimestamp) String() string {
+	return (dict_decide_Debug_Timestamp{}).prelude_Debug(fromGo_Timestamp(v)).(string)
+}
+func (v TimestampAtNanos) String() string {
+	return (dict_decide_Debug_Timestamp{}).prelude_Debug(fromGo_Timestamp(v)).(string)
+}
+func toGo_Ttl(v any) Ttl {
+	switch x := v.(type) {
+	case *decide_Ttl_NoTtl:
+		return TtlNoTtl{}
+	case *decide_Ttl_InvalidTtl:
+		return TtlInvalidTtl{}
+	case *decide_Ttl_TtlNanos:
+		return TtlTtlNanos{F0: toGo_Int(x.F0)}
+	default:
+		panic("invalid constructor")
+	}
+}
+func fromGo_Ttl(v Ttl) any {
+	switch x := v.(type) {
+	case TtlNoTtl:
+		return &decide_Ttl_NoTtl{}
+	case TtlInvalidTtl:
+		return &decide_Ttl_InvalidTtl{}
+	case TtlTtlNanos:
+		return &decide_Ttl_TtlNanos{F0: fromGo_Int(x.F0)}
+	default:
+		panic("invalid constructor")
+	}
+}
+func (v TtlNoTtl) String() string {
+	return (dict_decide_Debug_Ttl{}).prelude_Debug(fromGo_Ttl(v)).(string)
+}
+func (v TtlInvalidTtl) String() string {
+	return (dict_decide_Debug_Ttl{}).prelude_Debug(fromGo_Ttl(v)).(string)
+}
+func (v TtlTtlNanos) String() string {
+	return (dict_decide_Debug_Ttl{}).prelude_Debug(fromGo_Ttl(v)).(string)
 }
 func toGo_Verdict(v any) Verdict {
 	switch x := v.(type) {
