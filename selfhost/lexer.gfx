@@ -5,8 +5,8 @@ package main
 // Every brace resets layout, including record braces. The parser, not the lexer,
 // ignores inserted semicolons between record fields (SPEC section 1.6).
 extern func isLetter(c String) Bool = "gofx/rt".IsLetter
-extern func isDigit(c String) Bool = "gofx/rt".IsDigit
-extern func isSpace(c String) Bool = "gofx/rt".IsSpace
+extern func isDigit(c String) Bool = "gofx/rt".StartsDigit
+extern func isSpace(c String) Bool = "gofx/rt".StartsSpace
 extern func unquote(s String) Option[String] = "gofx/rt".Unquote
 extern func quote(s String) String = "gofx/rt".Quote
 

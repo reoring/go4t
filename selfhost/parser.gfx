@@ -1,7 +1,7 @@
 package main
 
-extern func isLower(s String) Bool = "gofx/rt".IsLower
-extern func isUpper(s String) Bool = "gofx/rt".IsUpper
+extern func isLower(s String) Bool = "gofx/rt".StartsLower
+extern func isUpper(s String) Bool = "gofx/rt".StartsUpper
 
 // Recursive-descent port of parser/parser.go. Parser state keeps the previous
 // token position for the same-line record lookahead; failures carry original

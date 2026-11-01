@@ -46,7 +46,7 @@ instance Show[Failure] {
 
 // ===== 純粋ロジック =====
 
-func find(book List[Account], id AccountId) Result[Failure, Account] {
+func findAccount(book List[Account], id AccountId) Result[Failure, Account] {
   match filter(book, func(a) => a.id == id) {
     Cons(a, _) => Ok(a)
     Nil => Err(NoSuchAccount(id))
@@ -63,7 +63,7 @@ func positive(n Int) Result[Failure, Int] {
 
 func debit(book List[Account], id AccountId, amt Int) Result[Failure, List[Account]] {
   do {
-    a <- find(book, id)
+    a <- findAccount(book, id)
     if a.balance < amt { Err(Insufficient{id: id, need: amt, have: a.balance}) }
     else { pure(updateAccount(book, a{balance: a.balance - amt})) }
   }
@@ -71,7 +71,7 @@ func debit(book List[Account], id AccountId, amt Int) Result[Failure, List[Accou
 
 func credit(book List[Account], id AccountId, amt Int) Result[Failure, List[Account]] {
   do {
-    a <- find(book, id)
+    a <- findAccount(book, id)
     pure(updateAccount(book, a{balance: a.balance + amt}))
   }
 }
@@ -155,6 +155,6 @@ func main() IO[Unit] {
     x <- fmap(ioPure(zip(["a", "b"], [1, 2])), func(ps) => fmap(ps, fst))
     println("zip:   ${x}")
     let ids = [alice, bob]
-    println("mapM:  ${mapM(ids, func(id) => find(book, id))}")
+    println("mapM:  ${mapM(ids, func(id) => findAccount(book, id))}")
   }
 }

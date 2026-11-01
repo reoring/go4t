@@ -68,10 +68,10 @@ func insert(t Tree[Int], x Int) Tree[Int] {
   }
 }
 
-func toList[A](t Tree[A]) List[A] {
+func treeToList[A](t Tree[A]) List[A] {
   match t {
     Leaf => Nil
-    Node(l, v, r) => append(toList(l), Cons(v, toList(r)))
+    Node(l, v, r) => append(treeToList(l), Cons(v, treeToList(r)))
   }
 }
 
@@ -106,7 +106,7 @@ func label[A](t Tree[A]) State[Int, Tree[(Int, A)]] {
 func main() IO[Unit] {
   let xs = [5, 3, 8, 1, 4, 7, 9, 2]
   let tree = fold(xs, Leaf, insert)
-  let sorted = toList(tree)
+  let sorted = treeToList(tree)
   do {
     println("input : ${xs}")
     println("sorted: ${sorted}")
@@ -116,6 +116,6 @@ func main() IO[Unit] {
     println("joined: ${foldMap(sorted, func(n) => "${n};")}")
     println("evens : ${mconcat([filter(sorted, func(n) => n / 2 * 2 == n), [100]])}")
     let labelled = evalState(label(fmap(tree, func(n) => n * 10)), 0)
-    forEach(toList(labelled), func(p) => println("  #${p.0} -> ${p.1}"))
+    forEach(treeToList(labelled), func(p) => println("  #${p.0} -> ${p.1}"))
   }
 }

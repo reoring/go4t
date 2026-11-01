@@ -66,7 +66,7 @@ instance Show[EvalError] {
 
 type Env = Env{vars: List[(String, Value)], depth: Int}
 
-func lookup(env Env, x String) Result[EvalError, Value] {
+func lookupVar(env Env, x String) Result[EvalError, Value] {
   match filter(env.vars, func(p) => p.0 == x) {
     Cons(p, _) => Ok(p.1)
     Nil => Err(Unbound(x))
@@ -106,7 +106,7 @@ func arith(op Op, a Int, b Int) Result[EvalError, Value] {
 func eval(env Env, e Expr) Result[EvalError, Value] {
   match e {
     Num(n) => Ok(IntV(n))
-    Var(x) => lookup(env, x)
+    Var(x) => lookupVar(env, x)
     Bin{op: op, lhs: l, rhs: r} => do {
       lv <- eval(env, l)
       rv <- eval(env, r)

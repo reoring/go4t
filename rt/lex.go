@@ -16,26 +16,26 @@ func IsLetter(s any) any {
 	return unicode.IsLetter(r)
 }
 
-// IsDigit reports unicode.IsDigit on the first rune of s.
-func IsDigit(s any) any {
+// StartsDigit reports unicode.IsDigit on the first rune of s.
+func StartsDigit(s any) any {
 	r, _ := utf8.DecodeRuneInString(s.(string))
 	return unicode.IsDigit(r)
 }
 
-// IsSpace reports unicode.IsSpace on the first rune of s.
-func IsSpace(s any) any {
+// StartsSpace reports unicode.IsSpace on the first rune of s.
+func StartsSpace(s any) any {
 	r, _ := utf8.DecodeRuneInString(s.(string))
 	return unicode.IsSpace(r)
 }
 
-// IsLower reports unicode.IsLower on the first rune of s.
-func IsLower(s any) any {
+// StartsLower reports unicode.IsLower on the first rune of s.
+func StartsLower(s any) any {
 	r, _ := utf8.DecodeRuneInString(s.(string))
 	return unicode.IsLower(r)
 }
 
-// IsUpper reports unicode.IsUpper on the first rune of s.
-func IsUpper(s any) any {
+// StartsUpper reports unicode.IsUpper on the first rune of s.
+func StartsUpper(s any) any {
 	r, _ := utf8.DecodeRuneInString(s.(string))
 	return unicode.IsUpper(r)
 }

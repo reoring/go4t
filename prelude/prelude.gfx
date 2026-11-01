@@ -762,6 +762,8 @@ instance Functor[Map[K]] {
 
 instance Functor[Array] {
   fmap(a, f) { arrayMap(a, f) }
+}
+
 func zipWith[A, B, C](xs List[A], ys List[B], f func(A, B) C) List[C] {
   zipWithAcc(xs, ys, f, Nil)
 }

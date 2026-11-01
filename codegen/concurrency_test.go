@@ -16,8 +16,8 @@ func TestConcurrencyTupleShapes(t *testing.T) {
 		"func rt_tuple2(a, b any) any",
 		"return &Tuple2{F0: a, F1: b}",
 		"func rt_untuple2(p any) (any, any)",
-		"pair := p.(*Tuple2)",
-		"return pair.F0, pair.F1",
+		"t := p.(*Tuple2)",
+		"return t.F0, t.F1",
 	)
 	if count := strings.Count(source, "type Tuple2 struct"); count != 1 {
 		t.Fatalf("Tuple2 declarations = %d, want one", count)
