@@ -96,12 +96,18 @@ Each readability fix in those ports was the same correction — a Go
 | `fromOption(gen, -1)` | `gen != Some(plan.generation)` | no sentinel |
 
 **A 110 k-line port of `client-go`** was done as a scale experiment, not as a
-product. It compiled (after two compiler fixes for 950-arm matches and
-closure-heavy codegen that are now part of the language), but it showed the
+product. It compiled (after three compiler fixes — a bounded test harness, and
+direct lowering of result-position `match` and `if`/blocks that otherwise became
+closure-heavy codegen — that are now part of the language), but it showed the
 boundary clearly: an infrastructure layer is mostly state, caches and I/O, where
 pure functions and exhaustiveness buy little and the Go-binding layer grows
 larger than the code it serves. The conclusion is the design rule above —
 **keep go4t for the decision core; bind, do not port, the infrastructure.**
+The port lives on the `experiment/client-go-gofx` branch (`ports/client-go`) and
+as the standalone repository
+[reoring/client-go-go4t](https://github.com/reoring/client-go-go4t), whose
+`RESULTS.md` and `CODE_STATS.md` record what was verified and the before/after
+code statistics.
 
 ## Language at a glance
 
