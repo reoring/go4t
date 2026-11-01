@@ -1,10 +1,10 @@
 // Copyright 2026 The Kubernetes Authors. Licensed under Apache-2.0.
-// Typed external API conversion only; request/wait decisions are native gofx.
+// Typed external API conversion only; request/wait decisions are native go4t.
 package host
 import (
  "context"
  "reflect"
- "gofx/rt"
+ "go4t/rt"
  "github.com/reoring/gofx/ports/client-go/host/deps"
  v1 "k8s.io/api/certificates/v1"
  beta "k8s.io/api/certificates/v1beta1"

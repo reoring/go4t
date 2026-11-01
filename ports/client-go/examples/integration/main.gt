@@ -1,0 +1,35 @@
+package main
+
+// Copyright 2026 The go4t Authors. SPDX-License-Identifier: Apache-2.0
+import examples "examples"
+import integration "kubernetes_test"
+import streams "tools/remotecommand/loopback"
+import forwarding "tools/portforward/loopback"
+import sync "support/sync"
+
+func run() IO[Unit] {
+ do {
+  _ <- examples.configurationExample(true)
+  _ <- examples.configurationExample(false)
+  _ <- examples.deploymentExample()
+  _ <- examples.dynamicDeploymentExample()
+  _ <- examples.serverSideApplyExample()
+  examples.fakeInformerExample()
+  examples.controllerExample()
+  examples.electionExample()
+  agent <- integration.testClientUserAgent(); examples.check(agent,"user-agent integration failed")
+  timeout <- integration.testListAndWatchTimeout(); examples.check(timeout,"timeout integration failed")
+  canceled <- integration.testCancellationReachesHTTP(); examples.check(canceled,"cancellation integration failed")
+  gvk <- integration.testFakeAndRealGVK(); examples.check(gvk,"GVK integration failed")
+  streaming <- streams.run(); examples.check(streaming,"loopback stream integration failed")
+  forwarded <- forwarding.run(); examples.check(forwarded,"loopback port-forward integration failed")
+  println("controlled HTTP, config, typed/dynamic CRUD, SSA, fake, cache, queue, election, cancellation and streaming assertions passed")
+ }
+}
+func main() IO[Unit] {
+ do {
+  parent <- sync.captureContext()
+  lifetime <- sync.newContext(parent,Some(120000000000))
+  sync.ensuring(sync.withContext(lifetime.0,run()),sync.cancelContext(lifetime.1))
+ }
+}

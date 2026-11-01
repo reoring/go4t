@@ -1,4 +1,4 @@
-// Copyright 2026 The gofx Authors. Licensed under Apache-2.0.
+// Copyright 2026 The go4t Authors. Licensed under Apache-2.0.
 package host
 import (
  "context"
@@ -6,7 +6,7 @@ import (
  "net/http"
  "net/http/httptest"
  "time"
- "gofx/rt"
+ "go4t/rt"
  ws "github.com/gorilla/websocket"
 )
 type tunnelFixture struct{server *httptest.Server;done chan error}

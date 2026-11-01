@@ -7,7 +7,7 @@ import (
  "net/http/httptrace"
  "reflect"
  "strings"
- "gofx/rt"
+ "go4t/rt"
  deps "github.com/reoring/gofx/ports/client-go/host/deps"
 )
 func RequestSizeInfo(request any) any {return rt.IO(func(ctx context.Context)(any,error){r:=deps.To(reflect.TypeFor[*http.Request](),rt.SomeOf(request),ctx).Interface().(*http.Request);return rt.Tuple2Of(r.ContentLength,r.Body!=nil),nil})}

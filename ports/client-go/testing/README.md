@@ -2,7 +2,7 @@
 
 This directory implements the testing package from Kubernetes client-go **v0.37.2**, revision `72c52dd0cc3b9099b36af11290b0304045dd1ada`. Kubernetes-derived code is copyright The Kubernetes Authors and licensed under [Apache-2.0](https://www.apache.org/licenses/LICENSE-2.0).
 
-`upstream-symbols.json` maps every one of the 176 exported production declarations in `actions.go`, `fake.go`, `fixture.go` and `interface.go` to its native equivalent. Repeated methods and Go action interfaces map to native tagged action records and their explicit accessors; they are not duplicate alias types. Internal list/watch regression behavior is covered in `tracker_test.gfx`.
+`upstream-symbols.json` maps every one of the 176 exported production declarations in `actions.go`, `fake.go`, `fixture.go` and `interface.go` to its native equivalent. Repeated methods and Go action interfaces map to native tagged action records and their explicit accessors; they are not duplicate alias types. Internal list/watch regression behavior is covered in `tracker_test.gt`.
 
 ## Actions
 
@@ -54,18 +54,18 @@ JSON patch, merge patch and strategic merge patch dispatch live in native source
 
 ## Boundaries and verification
 
-- `actions.gfx`, `constructors.gfx`, `fake.gfx`, `tracker.gfx`, `managed.gfx`, `reaction.gfx` and `interface.gfx` contain client-go policy and state transitions.
-- `internal/operations.gfx` contains typed external effect adapters.
+- `actions.gt`, `constructors.gt`, `fake.gt`, `tracker.gt`, `managed.gt`, `reaction.gt` and `interface.gt` contain client-go policy and state transitions.
+- `internal/operations.gt` contains typed external effect adapters.
 - `host/operations.go` contains metadata/type conversion, dependency codec/patch calls and external managedfields invocation, never an original client-go import or tracker.
 - `host/fixtures.go` constructs external dependency values and HTTP test responses only.
-- `payload.gfx` and `host/payload.go` provide only typed witness allocation, opaque boxing and identity-checked retrieval through the generic effect ABI; no canonical dependency changes are needed.
+- `payload.gt` and `host/payload.go` provide only typed witness allocation, opaque boxing and identity-checked retrieval through the generic effect ABI; no canonical dependency changes are needed.
 
-`tracker_test.gfx` contains consumer-visible regressions for exact records, original-vs-reactor copy isolation, reactor order and partial results, options and root-list quirks, mutable generic payload aliasing and wrong-key rejection, CRUD errors, watch replay and stop, all three patch families, managed conflicts/force and scheme reload. `examples/generic-payload/main.gfx` is intentionally retained as an executable public-API regression, not a new application example: it passes a scalar, a native record, and a record holding a mutable reference and captured function through object, watch and proxy reactor chains and recorded-copy lookup, and asserts ordinary action namespace isolation.
+`tracker_test.gt` contains consumer-visible regressions for exact records, original-vs-reactor copy isolation, reactor order and partial results, options and root-list quirks, mutable generic payload aliasing and wrong-key rejection, CRUD errors, watch replay and stop, all three patch families, managed conflicts/force and scheme reload. `examples/generic-payload/main.gt` is intentionally retained as an executable public-API regression, not a new application example: it passes a scalar, a native record, and a record holding a mutable reference and captured function through object, watch and proxy reactor chains and recorded-copy lookup, and asserts ordinary action namespace isolation.
 
 Focused validation on 2026-11-02 used the current compiler with serialized `--class short` admission and a 180-second ceiling, from `ports/client-go`:
 
 - `go test ./testing/host -run TestPayloadWitnessIdentityAndShallowValue`: passed.
-- `go run ../../cmd/gofx test testing`: 12 passed, 0 failed, including original-object snapshot isolation and generic payload aliasing/wrong-key rejection.
-- `go run ../../cmd/gofx run examples/generic-payload/main.gfx`: exit 0; all three payload scenarios completed. Each exercises six reactor callbacks and three recorded-copy lookups. The initial run exposed an invalid unit literal in this new consumer; replacing it with `unit()` resolved the parser error before the successful rerun.
+- `go run ../../cmd/go4t test testing`: 12 passed, 0 failed, including original-object snapshot isolation and generic payload aliasing/wrong-key rejection.
+- `go run ../../cmd/go4t run examples/generic-payload/main.gt`: exit 0; all three payload scenarios completed. Each exercises six reactor callbacks and three recorded-copy lookups. The initial run exposed an invalid unit literal in this new consumer; replacing it with `unit()` resolved the parser error before the successful rerun.
 
 These checks do not claim repo-wide or generated-client acceptance. No shared-runtime or manifest files were modified by this owner.

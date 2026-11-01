@@ -1,7 +1,7 @@
 // Copyright 2014 The Kubernetes Authors. Licensed under Apache-2.0.
 // OS/path effects only. Loading, merge, migration and mutation policy are native.
 package host
-import("context";"os";"path/filepath";"runtime";"strings";"gofx/rt";"github.com/reoring/gofx/ports/client-go/host/deps")
+import("context";"os";"path/filepath";"runtime";"strings";"go4t/rt";"github.com/reoring/gofx/ports/client-go/host/deps")
 func NewError(message string) any {return hostdeps.ErrorNew(message)}
 func ReadFile(path string) rt.IO{return func(ctx context.Context)(any,error){if err:=ctx.Err();err!=nil{return nil,err};b,e:=os.ReadFile(path);return rt.Tuple2Of(string(b),hostdeps.ErrorOptionFromGo(e)),nil}}
 func WriteFile(path,content string,mode int64) rt.IO{return func(ctx context.Context)(any,error){if err:=ctx.Err();err!=nil{return nil,err};return hostdeps.ErrorOptionFromGo(os.WriteFile(path,[]byte(content),os.FileMode(mode))),nil}}

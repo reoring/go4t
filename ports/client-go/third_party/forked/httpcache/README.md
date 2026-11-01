@@ -37,7 +37,7 @@ stale. No-store deletes entries. GET storage occurs only when body EOF is
 observed, never on early Close; HEAD is dumped immediately. Existing stale
 entries are replaced/deleted according to the same fork's status rules.
 
-All policies are in `cache.gfx`. `host` owns only HTTP codecs, original-error
+All policies are in `cache.gt`. `host` owns only HTTP codecs, original-error
 conversion, headers, time parsing, EOF IO callbacks and test fixture effects.
-`cache_test.gfx` supplies focused behavior regressions. No tests, builds,
+`cache_test.gt` supplies focused behavior regressions. No tests, builds,
 linters or formatters have been run for this implementation.

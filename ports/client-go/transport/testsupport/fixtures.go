@@ -1,8 +1,8 @@
-// Copyright 2026 The gofx authors. Licensed under Apache-2.0.
+// Copyright 2026 The go4t authors. Licensed under Apache-2.0.
 // Generic local fixtures only; no client-go implementation or network service.
 package testsupport
-import("context";"io";"net";"os";"reflect";"runtime";"strings";"gofx/rt";"github.com/reoring/gofx/ports/client-go/host/deps")
-func NewFile(data any)any{return rt.IO(func(context.Context)(any,error){f,e:=os.CreateTemp("","gofx-transport-*");if e!=nil{return nil,e};name:=f.Name();if _,e=f.WriteString(data.(string));e!=nil{f.Close();os.Remove(name);return nil,e};if e=f.Close();e!=nil{os.Remove(name);return nil,e};return name,nil})}
+import("context";"io";"net";"os";"reflect";"runtime";"strings";"go4t/rt";"github.com/reoring/gofx/ports/client-go/host/deps")
+func NewFile(data any)any{return rt.IO(func(context.Context)(any,error){f,e:=os.CreateTemp("","go4t-transport-*");if e!=nil{return nil,e};name:=f.Name();if _,e=f.WriteString(data.(string));e!=nil{f.Close();os.Remove(name);return nil,e};if e=f.Close();e!=nil{os.Remove(name);return nil,e};return name,nil})}
 func WriteFile(path,data any)any{return rt.IO(func(context.Context)(any,error){e:=os.WriteFile(path.(string),[]byte(data.(string)),0600);return rt.Unit{},e})}
 func RemoveFile(path any)any{return rt.IO(func(context.Context)(any,error){e:=os.Remove(path.(string));if os.IsNotExist(e){e=nil};return rt.Unit{},e})}
 func Pipe()any{return rt.IO(func(context.Context)(any,error){a,b:=net.Pipe();av,_:=rt.OptionValue(hostdeps.From(reflect.ValueOf(&a).Elem()));bv,_:=rt.OptionValue(hostdeps.From(reflect.ValueOf(&b).Elem()));return rt.Tuple2Of(av,bv),nil})}

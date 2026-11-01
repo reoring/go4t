@@ -8,4 +8,4 @@ All ten upstream feature constants are typed lowerCamel zero-argument functions 
 
 `testing.newOverrides` and `setFeatureDuringTest` use a Test capability (name, cleanup registration, error reporting); callers must run cleanup actions in LIFO order. Sibling tests cannot concurrently override the same feature; same test and descendants may. Cleanup restores the captured value using the captured registry setter.
 
-Prepared behavioral program: `features/regression`. It has not been built or run by this worker. Primary should run the gofx checker and program after canonical dependencies stabilize, plus `testing` nested/sibling cleanup and concurrent Enabled/Set coverage.
+Prepared behavioral program: `features/regression`. It has not been built or run by this worker. Primary should run the go4t checker and program after canonical dependencies stabilize, plus `testing` nested/sibling cleanup and concurrent Enabled/Set coverage.

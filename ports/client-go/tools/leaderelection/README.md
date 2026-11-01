@@ -1,9 +1,9 @@
 # Native leader election
 
-Native gofx implementation of `k8s.io/client-go/tools/leaderelection` and
+Native go4t implementation of `k8s.io/client-go/tools/leaderelection` and
 `resourcelock`, pinned to v0.37.2 / revision
 `72c52dd0cc3b9099b36af11290b0304045dd1ada`. Kubernetes-derived source is
-Apache-2.0. This is a gofx API, not a Go-interface compatibility wrapper.
+Apache-2.0. This is a go4t API, not a Go-interface compatibility wrapper.
 There is no production dependency on the original client-go implementation.
 
 ## Construction and boundaries

@@ -5,7 +5,7 @@ fake_openapi_handler,tmpdir,remove_file}.go` and `fake_handler_test.go`, commit
 `72c52dd0cc3b9099b36af11290b0304045dd1ada`. Sources retain Apache-2.0 attribution.
 
 These are implementation sources, **not yet executed or accepted**. Prepared
-focused command, from `ports/client-go`: `gofx test util/testing`.
+focused command, from `ports/client-go`: `go4t test util/testing`.
 
 ## Public capability mapping
 
@@ -44,7 +44,7 @@ API. Streaming acceptance uses the separate socket-backed Streaming fixtures.
 
 ## Retained behavior tests
 
-`testing_test.gfx` covers real HTTP path/method/body/query validation, independent
+`testing_test.gt` covers real HTTP path/method/body/query validation, independent
 mismatch reporting, skipped requests, response replacement, checked-state panic,
 temporary-directory cleanup, and actual OpenAPI V3 discovery/404 counters.
 `fixtures/apps/v1.json` is the controlled OpenAPI schema input. No expected oracle

@@ -4,7 +4,7 @@ Port target: client-go v0.37.2, upstream revision `72c52dd0cc3b9099b36af11290b03
 
 ## Native contract
 
-Requests are immutable and retain the first construction error. File/object/parameter codec builders are explicit IO and retain their errors until execution. HTTP identities, API objects, serializers, and errors are canonical `deps` values; transport, authentication, feature gates, clocks and limiter capabilities are injected. `support/outcome` retains partial values with independent optional errors. HTTP request policy, retries, backoff, warning dispatch, and configuration policy live in gofx. Host packages contain standard HTTP/URL/stream effects and external Kubernetes codecs, never client-go imports.
+Requests are immutable and retain the first construction error. File/object/parameter codec builders are explicit IO and retain their errors until execution. HTTP identities, API objects, serializers, and errors are canonical `deps` values; transport, authentication, feature gates, clocks and limiter capabilities are injected. `support/outcome` retains partial values with independent optional errors. HTTP request policy, retries, backoff, warning dispatch, and configuration policy live in go4t. Host packages contain standard HTTP/URL/stream effects and external Kubernetes codecs, never client-go imports.
 
 A `Stream` owns its response until `close`. A watch returns the shared `support/watch.Watch`: EOF closes its channel; stop closes its decoder once and joins its worker. No alternate watch type is exported. `copyConfig` is IO because an exec plugin extension object needs external DeepCopyObject.
 
@@ -32,10 +32,10 @@ context-cancellable. `disable` replaces the aggregate with an empty, zero-delay
 native backoff on that clock; existing `Backoff` capabilities observe replacement,
 while a caller's original supplied aggregate is not cleared or modified.
 
-`urlbackoff_test.gfx` proves supplied state sharing, deterministic jitter, custom
+`urlbackoff_test.gt` proves supplied state sharing, deterministic jitter, custom
 expiry, default growth/cap/expiry boundaries, host/port keys, reset, disable and
 cancellable sleep. After the shared `FormatBytes` extern ABI correction,
-`gofx test rest` passed all 21 tests, including all three URL backoff cases.
+`go4t test rest` passed all 21 tests, including all three URL backoff cases.
 A temporary public-import consumer also passed the customized aggregate path;
 its source was archived outside the shipped examples and removed after execution.
 Both checks used the current compiler with default optimization.
@@ -229,7 +229,7 @@ Every exported declaration in the owned production source inventory is listed be
 
 ## Retained regressions and verification boundary
 
-`request_test.gfx` retains stored-error, path/namespace, ordered query, request-URI replacement, 429 retry-ceiling, opaque-reader nonreplayability, malformed JSON, partial body read errors, creation status, warning deduplication, cancellation with an explicit start handshake, in-cluster sentinel identity, anonymous credential removal, CBOR Accept scrubbing, Config equality, and partial Outcome regressions. `util/apply/apply_test.gfx` covers all four feature combinations. The upstream source tests and `oracle/expected.json` remain the parity authority, including request bytes and ordered query expectations.
+`request_test.gt` retains stored-error, path/namespace, ordered query, request-URI replacement, 429 retry-ceiling, opaque-reader nonreplayability, malformed JSON, partial body read errors, creation status, warning deduplication, cancellation with an explicit start handshake, in-cluster sentinel identity, anonymous credential removal, CBOR Accept scrubbing, Config equality, and partial Outcome regressions. `util/apply/apply_test.gt` covers all four feature combinations. The upstream source tests and `oracle/expected.json` remain the parity authority, including request bytes and ordered query expectations.
 
 No build, formatter, linter, parser check, behavioral test, or suite was run by this implementation worker. Main must exercise the owned modules and integration paths before acceptance. A symbol mapping and retained test are not evidence that the code passed.
 
@@ -250,4 +250,4 @@ The pinned observation sites are implemented as follows:
 
 Watch and Stream retain result/retry/DNS observations, and Stream retains limiter observations. Neither emits ordinary request latency/request size/response size. URL templates redact namespace/name and query parameter values with the pinned core/named-group path rules; raw object paths are never substituted as metric labels.
 
-`metrics_test.gfx` registers a recording canonical provider after attachment and drives the real HTTP client against a scripted loopback server through a 429 retry and success. It asserts counters, byte sizes, DNS, limiter events, registration-once and redacted URL labels. Additional real request-path cases cover preflight failure, streaming exclusions, and bounded transport-error labels. These tests are written, not executed; no metric parity acceptance is claimed without Main's focused run.
+`metrics_test.gt` registers a recording canonical provider after attachment and drives the real HTTP client against a scripted loopback server through a 429 retry and success. It asserts counters, byte sizes, DNS, limiter events, registration-once and redacted URL labels. Additional real request-path cases cover preflight failure, streaming exclusions, and bounded transport-error labels. These tests are written, not executed; no metric parity acceptance is claimed without Main's focused run.

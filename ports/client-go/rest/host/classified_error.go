@@ -1,7 +1,7 @@
 // Copyright 2026 The Kubernetes Authors. Licensed under Apache-2.0.
 package host
 
-import "gofx/rt"
+import "go4t/rt"
 
 // A classified error retains an inspectable payload without automatically
 // making that payload part of errors.Is/Unwrap semantics.

@@ -45,6 +45,6 @@ Validation strings preserve the upstream distinction:
 
 ## Regression sources and status
 
-`gentype_test.gfx` exercises actual native client/fake operations: exact CRUD/options/subresource records, nil and partial results, label-only filtering, metadata preservation, apply validation order, real REST request paths/bodies, empty-name rejection and explicit pointer cells.
+`gentype_test.gt` exercises actual native client/fake operations: exact CRUD/options/subresource records, nil and partial results, label-only filtering, metadata preservation, apply validation order, real REST request paths/bodies, empty-name rejection and explicit pointer cells.
 
 **No parser check, typecheck, build, formatter, linter or test was run by this owner.** Integrated verification belongs to the supervisor. Tests written here are not evidence of passing tests.

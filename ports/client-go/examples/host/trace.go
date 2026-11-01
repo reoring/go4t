@@ -1,4 +1,4 @@
-// Copyright 2026 The gofx Authors. SPDX-License-Identifier: Apache-2.0
+// Copyright 2026 The go4t Authors. SPDX-License-Identifier: Apache-2.0
 // External value codecs and URL decoding only. No client-go dependency.
 package host
 
@@ -10,7 +10,7 @@ import (
  "net/url"
  "reflect"
 
- "gofx/rt"
+ "go4t/rt"
  "github.com/reoring/gofx/ports/client-go/host/deps"
  metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
  u "k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"

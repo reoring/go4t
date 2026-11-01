@@ -31,4 +31,4 @@ Patch NotFound falls back to creation with an empty resourceVersion. AlreadyExis
 
 ## Prepared evidence (not executed)
 
-`events_test.gfx` prepares patch→404→create→409 traces, terminal request-construction failure, count 1→2→3 plus heartbeat/final write, namespace rejection and reference-key distinctions. `retry_test.gfx` prepares the twelve-attempt transport-failure bound. Shared internal queue tests prepare FIFO/drain, stopped admission, and slow-listener overflow. These are unexecuted acceptance inputs, not a claim of passing validation.
+`events_test.gt` prepares patch→404→create→409 traces, terminal request-construction failure, count 1→2→3 plus heartbeat/final write, namespace rejection and reference-key distinctions. `retry_test.gt` prepares the twelve-attempt transport-failure bound. Shared internal queue tests prepare FIFO/drain, stopped admission, and slow-listener overflow. These are unexecuted acceptance inputs, not a claim of passing validation.

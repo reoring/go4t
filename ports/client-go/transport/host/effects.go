@@ -1,7 +1,7 @@
 // Copyright 2015 The Kubernetes Authors.
 // Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0).
 // Generic HTTP/TLS/file/crypto effects only. Authentication, cache and refresh
-// policy are implemented by the calling native gofx module.
+// policy are implemented by the calling native go4t module.
 package host
 
 import (
@@ -22,7 +22,7 @@ import (
  "sync"
  "time"
  "weak"
- "gofx/rt"
+ "go4t/rt"
  "github.com/reoring/gofx/ports/client-go/host/deps"
  utilnet "k8s.io/apimachinery/pkg/util/net"
 )

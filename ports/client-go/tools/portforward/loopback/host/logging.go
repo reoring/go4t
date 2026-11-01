@@ -1,4 +1,4 @@
-// Copyright 2026 The gofx Authors. Licensed under Apache-2.0.
+// Copyright 2026 The go4t Authors. Licensed under Apache-2.0.
 package host
 
 import (
@@ -8,7 +8,7 @@ import (
  "reflect"
  "strings"
  "sync"
- "gofx/rt"
+ "go4t/rt"
  "github.com/go-logr/logr"
  "github.com/reoring/gofx/ports/client-go/host/deps"
  "k8s.io/klog/v2"

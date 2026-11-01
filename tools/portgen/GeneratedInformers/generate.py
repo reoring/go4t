@@ -18,7 +18,7 @@ def clientset_getters(upstream):
         ['go', 'run', str(pathlib.Path(__file__).with_name('clientset_getters.go')), str(upstream)],
         text=True, capture_output=True, check=True)
     getters = json.loads(result.stdout)
-    native = (ROOT/'ports/client-go/kubernetes/clientset.gfx').read_text()
+    native = (ROOT/'ports/client-go/kubernetes/clientset.gt').read_text()
     imports = dict(re.findall(r'^import (\w+) "(?:github.com/reoring/gofx/ports/client-go/)?(kubernetes/typed/[^"]+)"$', native, re.M))
     interface = re.search(r'^type Interface = Interface \{([^\n]+)\}', native, re.M)
     if not interface:
@@ -128,18 +128,18 @@ func {field}(factory internalinterfaces.SharedInformerFactory, namespace String,
  Typed{kind}Informer(get,func() => do {{ raw <- get(); ioPure(to{kind}IndexInformer(raw)) }},func() => do {{ raw <- get(); ioPure(listers.new{kind}Lister(cache.getIndexer(raw))) }})
 }}
 '''
-        emit(output/group/version/(source.stem+'.gfx'),imports+body)
+        emit(output/group/version/(source.stem+'.gt'),imports+body)
         groups.setdefault(group,{}).setdefault(version,[]).append((field,kind))
         routes.append((resource,group,version,field))
     for group,versions in sorted(groups.items()):
         for version,entries in sorted(versions.items()):
             fields = ', '.join(f'{field}:func() Typed{kind}Informer' for field,kind in entries)
             values = ','.join(f'func() => {field}(factory,namespace,tweak)' for field,kind in entries)
-            emit(output/group/version/'interface.gfx',f'package {version}\nimport "{BASE}informers/internalinterfaces"\ntype Interface = Interface {{ {fields} }}\nfunc new(factory internalinterfaces.SharedInformerFactory, namespace String, tweak Option[internalinterfaces.TweakListOptionsFunc]) Interface {{ Interface({values}) }}\n')
+            emit(output/group/version/'interface.gt',f'package {version}\nimport "{BASE}informers/internalinterfaces"\ntype Interface = Interface {{ {fields} }}\nfunc new(factory internalinterfaces.SharedInformerFactory, namespace String, tweak Option[internalinterfaces.TweakListOptionsFunc]) Interface {{ Interface({values}) }}\n')
         imports = ''.join(f'import {v} "{BASE}informers/{group}/{v}"\n' for v in sorted(versions))
         fields = ', '.join(f'{v}:func() {v}.Interface' for v in sorted(versions))
         values = ','.join(f'func() => {v}.new(factory,namespace,tweak)' for v in sorted(versions))
-        emit(output/group/'interface.gfx',f'package {group}\nimport "{BASE}informers/internalinterfaces"\n'+imports+f'type Interface = Interface {{ {fields} }}\nfunc new(factory internalinterfaces.SharedInformerFactory, namespace String, tweak Option[internalinterfaces.TweakListOptionsFunc]) Interface {{ Interface({values}) }}\n')
+        emit(output/group/'interface.gt',f'package {group}\nimport "{BASE}informers/internalinterfaces"\n'+imports+f'type Interface = Interface {{ {fields} }}\nfunc new(factory internalinterfaces.SharedInformerFactory, namespace String, tweak Option[internalinterfaces.TweakListOptionsFunc]) Interface {{ Interface({values}) }}\n')
     imports = ''.join(f'import {g} "{BASE}informers/{g}"\n' for g in sorted(groups))
     root = f'''package informers
 import "{BASE}informers/internalinterfaces"
@@ -156,7 +156,7 @@ alias SharedInformerOption = internalinterfaces.SharedInformerOption
 alias TweakListOptionsFunc = internalinterfaces.TweakListOptionsFunc
 alias NewInformerFunc = internalinterfaces.NewInformerFunc
 '''
-    leaf = (ROOT/'ports/client-go/informers/internalinterfaces/factory.gfx').read_text()
+    leaf = (ROOT/'ports/client-go/informers/internalinterfaces/factory.gt').read_text()
     for name in ['withNamespace','withCustomResyncConfig','withTweakListOptions','withTransform','withInformerName','informerName','newSharedInformerFactory','newFilteredSharedInformerFactory','newSharedInformerFactoryWithOptions','informerFor','start','startWithContext','shutdown','waitForCacheSync','waitForCacheSyncWithContext']:
         # Explicit forwarding functions are generated from the authoritative leaf signatures.
         signature = re.search(r'^func '+name+r'(\([^\n]+?) \{',leaf,re.M).group(1)
@@ -173,7 +173,7 @@ func forResource(factory SharedInformerFactory, gvr schema.GroupVersionResource)
     for resource,group,version,field in routes:
         root += f''' if group == "{resource['group']}" && version == "{version}" && name == "{resource['resource']}" {{ do {{ typed <- {group}(factory).{version}().{field}().informer(); ioPure(outcome.success(Some(GenericInformer(typed,cache.newResourceLister(cache.getIndexer(typed),cache.rawObjectAccess(),schema.groupResourceWithResource(schema.groupResourceWithGroup(schema.newGroupResource(),group),name)))))) }} }} else'''
     root += ' { ioPure(outcome.failure(None,errors.errorNew("no informer found for " + group + "/" + version + ", Resource=" + name))) }\n}\n'
-    emit(output/'factory.gfx',root)
+    emit(output/'factory.gt',root)
     upstream_routes = set()
     route_group = route_version = None
     for line in (args.upstream/'informers/generic.go').read_text().splitlines():
@@ -192,10 +192,10 @@ func forResource(factory SharedInformerFactory, gvr schema.GroupVersionResource)
                 native = name if decl['kind'] == 'type' else lower(name)
                 if name == 'New': native = 'new'
                 target = entry['path'].rsplit('/',1)[0]
-                if target == 'informers/internalinterfaces': file = target+'/factory.gfx'
-                elif target == 'informers': file = 'informers/factory.gfx'
-                elif entry['path'].endswith('/interface.go'): file = target+'/interface.gfx'
-                else: file = entry['path'][:-3]+'.gfx'
+                if target == 'informers/internalinterfaces': file = target+'/factory.gt'
+                elif target == 'informers': file = 'informers/factory.gt'
+                elif entry['path'].endswith('/interface.go'): file = target+'/interface.gt'
+                else: file = entry['path'][:-3]+'.gt'
                 coverage.append({'source':entry['path'],'symbol':name,'line':decl['line'],'receiver':decl.get('receiver'),'native_file':file,'native_symbol':native,'representation':'type or alias' if decl['kind']=='type' else 'callback field' if name in ('Informer','TypedInformer','Lister') else 'function'})
     (output/'coverage.json').write_text(json.dumps({'version':descriptor['source']['version'],'revision':descriptor['source']['revision'],'resources':[r[0]['object_type'] for r in routes],'symbols':coverage},indent=2)+'\n')
     print(f'Generated {len(routes)} resource informers, {len(groups)} groups, {len(coverage)} exported source mappings')

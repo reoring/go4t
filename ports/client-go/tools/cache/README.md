@@ -1,6 +1,6 @@
 # Native client-go cache
 
-Source authority: client-go v0.37.2, revision `72c52dd0cc3b9099b36af11290b0304045dd1ada`, `tools/cache/**`. Implementation policy, queues, indexing, reflector decisions, batching, listeners, and test sources are gofx. The directory contains no Go implementation or call to original client-go.
+Source authority: client-go v0.37.2, revision `72c52dd0cc3b9099b36af11290b0304045dd1ada`, `tools/cache/**`. Implementation policy, queues, indexing, reflector decisions, batching, listeners, and test sources are go4t. The directory contains no Go implementation or call to original client-go.
 
 ## API and ownership
 
@@ -28,7 +28,7 @@ The names below account for the exported source surfaces, including exported met
 
 | Upstream source and symbols | Native implementation/equivalent |
 |---|---|
-| `store.go`: Store; Add, Update, Delete, List, ListKeys, Get, GetByKey, Replace, Resync, Bookmark, LastStoreSyncResourceVersion | `store.gfx`: Store callback fields and `newStore`; indexed state shared with Indexer |
+| `store.go`: Store; Add, Update, Delete, List, ListKeys, Get, GetByKey, Replace, Resync, Bookmark, LastStoreSyncResourceVersion | `store.gt`: Store callback fields and `newStore`; indexed state shared with Indexer |
 | TransactionType, TransactionTypeAdd/Update/Delete, Transaction, TransactionStore, TransactionError, Error, Transaction | `TransactionType`, `Transaction`, `Store.transaction`, `storeTransaction`, `transactionErrorMessage`; `KeyedOperation`/`DeleteKeyTransaction` retain tombstone keys |
 | KeyFunc, KeyError, Error, Unwrap, ExplicitKey, MetaNamespaceKeyFunc, ObjectToName, MetaObjectToName, SplitMetaNamespaceKey | `KeyFunc`, `KeyError`, `keyErrorMessage`, `keyErrorCause`, `Store.getByKey`, `metaNamespaceKeyFunc`, `objectToName`, `metaObjectToName`, `splitMetaNamespaceKey` |
 | StoreOption, WithTransformer, WithStoreMetrics, NewStore, NewIndexer | `newStoreWithOptions`, `newIndexerWithOptions`, `newIndexerWithTransformer`, `ThreadSafeStoreOptions.metrics`, `newStore`, `newIndexer` |
@@ -69,7 +69,7 @@ The names below account for the exported source surfaces, including exported met
 
 Native tests cover store CRUD/RV, partial transaction indices, transformer key ordering, replacement failure, late indices, FIFO close/write distinctions, FIFO/DeltaFIFO sync boundaries, adjacent deletion deduplication, queue ordering and missing-key resync, heap updates, expiration boundary/refresh, mutation UID/RV/LRU behavior, uint64 precision, RealFIFO atomic/batch boundaries, filters, identity release, raw reflector events/pagination/watch-list cancellation, independent sequential listeners, replay sync barriers, pending-discard/join, legacy list cancellation, sync trackers, lazy evaluation and source history/reset.
 
-The released reconciliation gate ran the current compiler from source through the VM serializer (`--class short`) and a 180-second bound per command. `go run ./cmd/gofx test ports/client-go/tools/cache` passed 44 tests; the separate `synctrack` and `testing` directories passed 5 and 3 tests respectively. Imported package tests are not included in the root directory's count. No formatter, linter, live cluster, or repository-wide suite was run.
+The released reconciliation gate ran the current compiler from source through the VM serializer (`--class short`) and a 180-second bound per command. `go run ./cmd/go4t test ports/client-go/tools/cache` passed 44 tests; the separate `synctrack` and `testing` directories passed 5 and 3 tests respectively. Imported package tests are not included in the root directory's count. No formatter, linter, live cluster, or repository-wide suite was run.
 
 ## Explicit application feature registry
 
@@ -134,14 +134,14 @@ Informer resource reservations keep `(group, version, resource)` as their key. A
   constructor; the native constructor makes the declared capability usable
   rather than retaining an inaccessible private field.
 
-`capability_test.gfx` adds nine focused proofs for these contracts, including
+`capability_test.gt` adds nine focused proofs for these contracts, including
 run-loop, watch-store and controller error callbacks, disabled/enabled projection
 and registry replacement, direct metrics, metadata-free tombstones, noninteger
 comparators and custom-store transform discovery. Existing cancellation/lifecycle
 regressions remain unchanged.
 
-`consumer/main.gfx` is a permanent separate public-import regression consumer.
-`go run ./cmd/gofx run ports/client-go/tools/cache/consumer` passed and observed
+`consumer/main.gt` is a permanent separate public-import regression consumer.
+`go run ./cmd/go4t run ports/client-go/tools/cache/consumer` passed and observed
 direct metrics `[12.0]` while RV projection was empty, Store projection changing
 from empty to `13`, discovered-transform sequence `11`, custom-comparator sequence
 `50`, and a callback modifying the actual reflector RV to `from-handler`.

@@ -1,4 +1,4 @@
-// Copyright 2026 The gofx Authors. Licensed under Apache-2.0.
+// Copyright 2026 The go4t Authors. Licensed under Apache-2.0.
 // Real TCP/SPDY peer and an explicitly closable blocking stdin for lifecycle proof.
 package host
 
@@ -10,7 +10,7 @@ import (
  "sync"
  "sync/atomic"
  "time"
- "gofx/rt"
+ "go4t/rt"
  stream "k8s.io/streaming/pkg/httpstream"
  spdy "k8s.io/streaming/pkg/httpstream/spdy"
 )

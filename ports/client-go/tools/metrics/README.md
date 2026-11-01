@@ -30,4 +30,4 @@ All callbacks return IO and receive the implicit cancellation/context environmen
 
 `RegisterOpts` wraps metric fields in Option; `Provider` exposes resolved non-optional capabilities. There is no silent replacement of a supplied metric. Registry sharing and consumer overrides are explicit.
 
-`metrics_test.gfx` prepares first-registration/deferred-once, ensure-before-register, explicit override, and concurrent completion-wait traces. Tests are intentionally not executed in this worker assignment. Wiring into other owners' consumers must use the shared contract published at `local://clientgo-contract-Events.md`.
+`metrics_test.gt` prepares first-registration/deferred-once, ensure-before-register, explicit override, and concurrent completion-wait traces. Tests are intentionally not executed in this worker assignment. Wiring into other owners' consumers must use the shared contract published at `local://clientgo-contract-Events.md`.

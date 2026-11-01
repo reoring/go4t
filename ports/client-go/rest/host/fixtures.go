@@ -6,7 +6,7 @@ import (
  "io"
  "net/http"
  "strings"
- "gofx/rt"
+ "go4t/rt"
 )
 // Response constructs a standard HTTP response for injected transports.
 func Response(status int64,media,body,retry string) rt.IO {return func(ctx context.Context)(any,error){r:=&http.Response{StatusCode:int(status),Header:make(http.Header),Body:io.NopCloser(strings.NewReader(body))};r.Header.Set("Content-Type",media);if retry!="" {r.Header.Set("Retry-After",retry)};return boxed(r),nil}}

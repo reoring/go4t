@@ -2,12 +2,12 @@
 // Source: client-go v0.37.2 and exact external dependency declarations.
 // Kubernetes-derived declarations are licensed under Apache-2.0.
 // https://www.apache.org/licenses/LICENSE-2.0
-// Source graph SHA-256: 99a062162cbc99a38896123a3e81ce3ef2f70f2e505fbd058751d52a0a40f167
+// Source graph SHA-256: 5c6171f6a640b89a0cf33cb485946a04e7d2eb3c4fdc22540f13d52201b0f59b
 package hostdeps
 import (
 "context"
 "reflect"
-"gofx/rt"
+"go4t/rt"
 d1 "bufio"
 d2 "bytes"
 d4 "container/heap"

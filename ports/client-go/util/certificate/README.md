@@ -10,7 +10,7 @@ The Kubernetes Authors' Apache-2.0 notices are retained in the source.
 
 ## API and representation
 
-All policy is native `.gfx`. Go helpers perform cryptography, typed external
+All policy is native `.gt`. Go helpers perform cryptography, typed external
 object conversion, filesystem/socket effects, and fixture setup only. There
 is no production `k8s.io/client-go` import. Keys, certificates, certificate
 requests, TLS identities, IP addresses, file identities, and CSR API objects
@@ -108,7 +108,7 @@ integrated verification:
 | `util/certificate/csr` | condition outcomes, UID/deletion, duration casts, compatibility, APIStatus identity, v1 fallback/reuse, listed issuance, cancellation/watch cleanup |
 | `util/connrotation` | real pipe close-all, reuse, shared tracking and individual-close cleanup |
 
-Run `gofx test` for each directory above after the shared dependency/clientset
+Run `go4t test` for each directory above after the shared dependency/clientset
 integration has landed. Those commands are recommendations, not observed
 passing results. Test private keys are public, pinned upstream fixtures and
 must never be used as credentials.

@@ -99,7 +99,7 @@ The fake's legacy capability is the same configured fake.
 
 ## Regression source and verification
 
-`regression/*_test.gfx` contains consumer-behavior cases for partial groups,
+`regression/*_test.gt` contains consumer-behavior cases for partial groups,
 error wrapping/identity, stale aggregate versions, parent/subresource GVKs,
 resource preference, permanent misses, retryable failures, invalidation,
 deferred mapper reset, missing/ambiguous mappings, shortcuts/categories,

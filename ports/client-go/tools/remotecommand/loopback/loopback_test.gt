@@ -1,0 +1,3 @@
+// Copyright 2026 The go4t Authors. Licensed under Apache-2.0.
+package loopback
+func testAllSPDYVersionsAndWebsocket() IO[Bool] {run()}

@@ -69,7 +69,7 @@ def main():
     code += [' result'+str(i)+' <- '+c['function']+'(harness)' for i,c in enumerate(cases)]
     code += [' if '+ ' && '.join('result'+str(i) for i in range(len(cases)))+' { ioPure(unit()) } else { ioFail("native typed family driver observed request, decode, or cast failures; inspect emitted rows") }','} }']
     module.code.append('\n'.join(code))
-    save('kubernetes/regression/family/main.gfx',module.render())
+    save('kubernetes/regression/family/main.gt',module.render())
     manifest={'schema_version':1,'source':data['source'],'case_count':len(cases),'group_count':len({(r['group_package'],r['version']) for _,r in resources}),'selection':'Get then List then Create, otherwise source-defined Evict','config':{'host':'http://family.invalid','content_type':'application/json','accept_content_types':'application/json','qps':-1},'cases':cases}
     save('kubernetes/regression/family-cases.json',json.dumps(manifest,indent=2,sort_keys=True)+'\n')
     print('Generated',len(cases),'executable native cases across',manifest['group_count'],'groups:',dict(Counter(c['operation'] for c in cases)))

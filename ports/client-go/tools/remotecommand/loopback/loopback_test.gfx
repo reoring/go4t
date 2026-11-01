@@ -1,3 +1,0 @@
-// Copyright 2026 The gofx Authors. Licensed under Apache-2.0.
-package loopback
-func testAllSPDYVersionsAndWebsocket() IO[Bool] {run()}

@@ -1,6 +1,6 @@
-// Copyright 2026 The gofx Authors.
+// Copyright 2026 The go4t Authors.
 // SPDX-License-Identifier: Apache-2.0
-// Generic loopback HTTP and filesystem effects. Fixture policies live in .gfx.
+// Generic loopback HTTP and filesystem effects. Fixture policies live in .gt.
 package host
 
 import (
@@ -18,7 +18,7 @@ import (
  "reflect"
  "sync"
 
- "gofx/rt"
+ "go4t/rt"
  "github.com/reoring/gofx/ports/client-go/host/deps"
  "k8s.io/kube-openapi/pkg/handler3"
  "k8s.io/kube-openapi/pkg/spec3"

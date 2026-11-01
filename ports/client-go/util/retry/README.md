@@ -1,6 +1,6 @@
 # Native retry
 
-Authority: client-go v0.37.2 `util/retry/util.go` and `util_test.go`, revision `72c52dd0cc3b9099b36af11290b0304045dd1ada`, plus apimachinery's `wait.ExponentialBackoff`/`Backoff.Step` semantics. All retry, stepping, cap and error decisions execute in gofx.
+Authority: client-go v0.37.2 `util/retry/util.go` and `util_test.go`, revision `72c52dd0cc3b9099b36af11290b0304045dd1ada`, plus apimachinery's `wait.ExponentialBackoff`/`Backoff.Step` semantics. All retry, stepping, cap and error decisions execute in go4t.
 
 ## Public-symbol mapping
 
@@ -19,6 +19,6 @@ Each attempt calls the action once. Success and non-retriable failures return im
 
 ## Written tests and integration
 
-`util_test.gfx` covers immediate success/non-retriable exit, multi-attempt success, exhaustion with original identity, zero steps, cap stepping, positive conflict detection and preservation of the original context-cancelled error without a prior retriable error. These map both upstream tests, `TestRetryOnConflict` and `TestRetryOnConflictPreservesContextErrorWithoutLastError`, and add explicit no-attempt/cap checks.
+`util_test.gt` covers immediate success/non-retriable exit, multi-attempt success, exhaustion with original identity, zero steps, cap stepping, positive conflict detection and preservation of the original context-cancelled error without a prior retriable error. These map both upstream tests, `TestRetryOnConflict` and `TestRetryOnConflictPreservesContextErrorWithoutLastError`, and add explicit no-attempt/cap checks.
 
-Focused verification: the supervisor-assigned serialized `go run ./cmd/gofx test ports/client-go/util/retry` passed **4 tests**, including preservation of the caller's Backoff steps and original structured errors. The first attempt exposed a canonical-binding regression: the value-model Backoff had been classified as identity, removing the snapshot accessors. The dependency owner restored canonical snapshot mode; this package keeps pure constructors/defaults and never mutates the caller's configuration. A temporary identity adaptation was discarded. No formatter, linter or broader suite was run. Nonfatal unused-callback warnings remain. The only external-policy use is the canonical structured error predicate; retry scheduling remains native.
+Focused verification: the supervisor-assigned serialized `go run ./cmd/go4t test ports/client-go/util/retry` passed **4 tests**, including preservation of the caller's Backoff steps and original structured errors. The first attempt exposed a canonical-binding regression: the value-model Backoff had been classified as identity, removing the snapshot accessors. The dependency owner restored canonical snapshot mode; this package keeps pure constructors/defaults and never mutates the caller's configuration. A temporary identity adaptation was discarded. No formatter, linter or broader suite was run. Nonfatal unused-callback warnings remain. The only external-policy use is the canonical structured error predicate; retry scheduling remains native.

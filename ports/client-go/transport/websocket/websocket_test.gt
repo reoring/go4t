@@ -1,0 +1,36 @@
+// Copyright 2026 The go4t Authors. Licensed under Apache-2.0.
+// Pinned transport/websocket/roundtripper_test.go behaviors through actual HTTP.
+package websocket
+import spdy "github.com/reoring/gofx/ports/client-go/transport/spdy"
+import transport "github.com/reoring/gofx/ports/client-go/transport"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import errors "github.com/reoring/gofx/ports/client-go/deps/support"
+
+type TestServer = TestServerHandle
+extern func _server(protocol String,status Int) IO[TestServer] = "github.com/reoring/gofx/ports/client-go/transport/websocket/testsupport".New
+extern func _url(server TestServer) IO[String] = "github.com/reoring/gofx/ports/client-go/transport/websocket/testsupport".URL
+extern func _stopServer(server TestServer) IO[Unit] = "github.com/reoring/gofx/ports/client-go/transport/websocket/testsupport".Close
+func _holder() IO[ConnectionHolder] {do {conn<-sync.newRef(None);protocols<-sync.newRef(["v5.channel.k8s.io"]);ioPure(ConnectionHolder {connection:conn,protocols:protocols})}}
+func testWebsocketProtocolNegotiation() IO[Bool] {sync.bracket(_server("v5.channel.k8s.io",101),func(server)=>do {
+ address<-_url(server)
+ req<-spdy.newRequest("GET",address)
+ holder<-_holder()
+ match req.0 {None=>ioPure(false);Some(req)=>do {
+  result<-roundTrip(holder,None,None,req)
+  original<-transport.requestURL(req)
+  conn<-connection(holder)
+  match conn {None=>ioPure(false);Some(conn)=>do {selected<-subprotocol(conn);close(conn);match result.value {None=>ioPure(false);Some(response)=>do {_ <- spdy.closeResponse(response);ioPure(selected=="v5.channel.k8s.io" && original==address)}}}}
+ }}
+},_stopServer)}
+func testFailedUpgradeIsFallbackEligible() IO[Bool] {sync.bracket(_server("v5.channel.k8s.io",403),func(server)=>do {
+ address<-_url(server)
+ req<-spdy.newRequest("GET",address)
+ holder<-_holder()
+ match req.0 {None=>ioPure(false);Some(req)=>do {result<-roundTrip(holder,None,None,req);ioPure(match result.error {None=>false;Some(e)=>isUpgradeFailure(e) && (match upgradeFailureCause(e) {None=>false;Some(cause)=>errors.errorIsForbidden(cause)})})}}
+},_stopServer)}
+func testUnrequestedSubprotocolIsRejected() IO[Bool] {sync.bracket(_server("unrequested",101),func(server)=>do {
+ address<-_url(server)
+ req<-spdy.newRequest("GET",address)
+ holder<-_holder()
+ match req.0 {None=>ioPure(false);Some(req)=>do {result<-roundTrip(holder,None,None,req);ioPure(match result.error {None=>false;Some(e)=>isUpgradeFailure(e)})}}
+},_stopServer)}

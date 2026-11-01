@@ -8,7 +8,7 @@
       "line": 35,
       "kind": "type",
       "symbol": "FakeClient",
-      "native_file": "fake.gfx",
+      "native_file": "fake.gt",
       "native": "FakeClient"
     },
     {
@@ -16,7 +16,7 @@
       "line": 44,
       "kind": "type",
       "symbol": "FakeClientWithList",
-      "native_file": "fake.gfx",
+      "native_file": "fake.gt",
       "native": "FakeClientWithList"
     },
     {
@@ -24,7 +24,7 @@
       "line": 50,
       "kind": "type",
       "symbol": "FakeClientWithApply",
-      "native_file": "fake.gfx",
+      "native_file": "fake.gt",
       "native": "FakeClientWithApply"
     },
     {
@@ -32,7 +32,7 @@
       "line": 56,
       "kind": "type",
       "symbol": "FakeClientWithListAndApply",
-      "native_file": "fake.gfx",
+      "native_file": "fake.gt",
       "native": "FakeClientWithListAndApply"
     },
     {
@@ -40,7 +40,7 @@
       "line": 77,
       "kind": "func",
       "symbol": "NewFakeClient",
-      "native_file": "fake.gfx",
+      "native_file": "fake.gt",
       "native": "newFakeClient"
     },
     {
@@ -48,7 +48,7 @@
       "line": 84,
       "kind": "func",
       "symbol": "NewFakeClientWithList",
-      "native_file": "fake.gfx",
+      "native_file": "fake.gt",
       "native": "newFakeClientWithList"
     },
     {
@@ -56,7 +56,7 @@
       "line": 96,
       "kind": "func",
       "symbol": "NewFakeClientWithApply",
-      "native_file": "fake.gfx",
+      "native_file": "fake.gt",
       "native": "newFakeClientWithApply"
     },
     {
@@ -64,7 +64,7 @@
       "line": 107,
       "kind": "func",
       "symbol": "NewFakeClientWithListAndApply",
-      "native_file": "fake.gfx",
+      "native_file": "fake.gt",
       "native": "newFakeClientWithListAndApply"
     },
     {
@@ -72,7 +72,7 @@
       "line": 120,
       "kind": "method",
       "symbol": "Get",
-      "native_file": "fake.gfx",
+      "native_file": "fake.gt",
       "native": "fakeGet"
     },
     {
@@ -80,7 +80,7 @@
       "line": 131,
       "kind": "func",
       "symbol": "ToPointerSlice",
-      "native_file": "fake.gfx",
+      "native_file": "fake.gt",
       "native": "toPointerSlice"
     },
     {
@@ -88,7 +88,7 @@
       "line": 142,
       "kind": "func",
       "symbol": "FromPointerSlice",
-      "native_file": "fake.gfx",
+      "native_file": "fake.gt",
       "native": "fromPointerSlice"
     },
     {
@@ -96,7 +96,7 @@
       "line": 154,
       "kind": "method",
       "symbol": "List",
-      "native_file": "fake.gfx",
+      "native_file": "fake.gt",
       "native": "fakeList"
     },
     {
@@ -104,7 +104,7 @@
       "line": 185,
       "kind": "method",
       "symbol": "Watch",
-      "native_file": "fake.gfx",
+      "native_file": "fake.gt",
       "native": "fakeWatch"
     },
     {
@@ -112,7 +112,7 @@
       "line": 192,
       "kind": "method",
       "symbol": "Create",
-      "native_file": "fake.gfx",
+      "native_file": "fake.gt",
       "native": "fakeCreate"
     },
     {
@@ -120,7 +120,7 @@
       "line": 203,
       "kind": "method",
       "symbol": "Update",
-      "native_file": "fake.gfx",
+      "native_file": "fake.gt",
       "native": "fakeUpdate"
     },
     {
@@ -128,7 +128,7 @@
       "line": 214,
       "kind": "method",
       "symbol": "UpdateStatus",
-      "native_file": "fake.gfx",
+      "native_file": "fake.gt",
       "native": "fakeUpdateStatus"
     },
     {
@@ -136,7 +136,7 @@
       "line": 226,
       "kind": "method",
       "symbol": "Delete",
-      "native_file": "fake.gfx",
+      "native_file": "fake.gt",
       "native": "fakeDelete"
     },
     {
@@ -144,7 +144,7 @@
       "line": 233,
       "kind": "method",
       "symbol": "DeleteCollection",
-      "native_file": "fake.gfx",
+      "native_file": "fake.gt",
       "native": "fakeDeleteCollection"
     },
     {
@@ -152,7 +152,7 @@
       "line": 240,
       "kind": "method",
       "symbol": "Patch",
-      "native_file": "fake.gfx",
+      "native_file": "fake.gt",
       "native": "fakePatch"
     },
     {
@@ -160,7 +160,7 @@
       "line": 251,
       "kind": "method",
       "symbol": "Apply",
-      "native_file": "fake.gfx",
+      "native_file": "fake.gt",
       "native": "fakeApply"
     },
     {
@@ -168,7 +168,7 @@
       "line": 273,
       "kind": "method",
       "symbol": "ApplyStatus",
-      "native_file": "fake.gfx",
+      "native_file": "fake.gt",
       "native": "fakeApplyStatus"
     },
     {
@@ -176,7 +176,7 @@
       "line": 295,
       "kind": "method",
       "symbol": "Namespace",
-      "native_file": "fake.gfx",
+      "native_file": "fake.gt",
       "native": "fakeNamespace"
     },
     {
@@ -184,7 +184,7 @@
       "line": 299,
       "kind": "method",
       "symbol": "Kind",
-      "native_file": "fake.gfx",
+      "native_file": "fake.gt",
       "native": "fakeKind"
     },
     {
@@ -192,7 +192,7 @@
       "line": 303,
       "kind": "method",
       "symbol": "Resource",
-      "native_file": "fake.gfx",
+      "native_file": "fake.gt",
       "native": "fakeResource"
     },
     {
@@ -200,7 +200,7 @@
       "line": 45,
       "kind": "type",
       "symbol": "Client",
-      "native_file": "type.gfx",
+      "native_file": "type.gt",
       "native": "Client"
     },
     {
@@ -208,7 +208,7 @@
       "line": 56,
       "kind": "type",
       "symbol": "ClientWithList",
-      "native_file": "type.gfx",
+      "native_file": "type.gt",
       "native": "ClientWithList"
     },
     {
@@ -216,7 +216,7 @@
       "line": 62,
       "kind": "type",
       "symbol": "ClientWithApply",
-      "native_file": "type.gfx",
+      "native_file": "type.gt",
       "native": "ClientWithApply"
     },
     {
@@ -224,7 +224,7 @@
       "line": 68,
       "kind": "type",
       "symbol": "ClientWithListAndApply",
-      "native_file": "type.gfx",
+      "native_file": "type.gt",
       "native": "ClientWithListAndApply"
     },
     {
@@ -232,7 +232,7 @@
       "line": 84,
       "kind": "type",
       "symbol": "Option",
-      "native_file": "type.gfx",
+      "native_file": "type.gt",
       "native": "ClientOption"
     },
     {
@@ -240,7 +240,7 @@
       "line": 86,
       "kind": "func",
       "symbol": "PrefersProtobuf",
-      "native_file": "type.gfx",
+      "native_file": "type.gt",
       "native": "prefersProtobuf"
     },
     {
@@ -248,7 +248,7 @@
       "line": 92,
       "kind": "func",
       "symbol": "NewClient",
-      "native_file": "type.gfx",
+      "native_file": "type.gt",
       "native": "newClient"
     },
     {
@@ -256,7 +256,7 @@
       "line": 110,
       "kind": "func",
       "symbol": "NewClientWithList",
-      "native_file": "type.gfx",
+      "native_file": "type.gt",
       "native": "newClientWithList"
     },
     {
@@ -264,7 +264,7 @@
       "line": 122,
       "kind": "func",
       "symbol": "NewClientWithApply",
-      "native_file": "type.gfx",
+      "native_file": "type.gt",
       "native": "newClientWithApply"
     },
     {
@@ -272,7 +272,7 @@
       "line": 134,
       "kind": "func",
       "symbol": "NewClientWithListAndApply",
-      "native_file": "type.gfx",
+      "native_file": "type.gt",
       "native": "newClientWithListAndApply"
     },
     {
@@ -280,7 +280,7 @@
       "line": 147,
       "kind": "method",
       "symbol": "GetClient",
-      "native_file": "type.gfx",
+      "native_file": "type.gt",
       "native": "getClient"
     },
     {
@@ -288,7 +288,7 @@
       "line": 152,
       "kind": "method",
       "symbol": "GetNamespace",
-      "native_file": "type.gfx",
+      "native_file": "type.gt",
       "native": "getNamespace"
     },
     {
@@ -296,7 +296,7 @@
       "line": 157,
       "kind": "method",
       "symbol": "Get",
-      "native_file": "type.gfx",
+      "native_file": "type.gt",
       "native": "get"
     },
     {
@@ -304,7 +304,7 @@
       "line": 171,
       "kind": "method",
       "symbol": "List",
-      "native_file": "type.gfx",
+      "native_file": "type.gt",
       "native": "list"
     },
     {
@@ -312,7 +312,7 @@
       "line": 189,
       "kind": "method",
       "symbol": "Watch",
-      "native_file": "type.gfx",
+      "native_file": "type.gt",
       "native": "watch"
     },
     {
@@ -320,7 +320,7 @@
       "line": 205,
       "kind": "method",
       "symbol": "Create",
-      "native_file": "type.gfx",
+      "native_file": "type.gt",
       "native": "create"
     },
     {
@@ -328,7 +328,7 @@
       "line": 219,
       "kind": "method",
       "symbol": "Update",
-      "native_file": "type.gfx",
+      "native_file": "type.gt",
       "native": "update"
     },
     {
@@ -336,7 +336,7 @@
       "line": 234,
       "kind": "method",
       "symbol": "UpdateStatus",
-      "native_file": "type.gfx",
+      "native_file": "type.gt",
       "native": "updateStatus"
     },
     {
@@ -344,7 +344,7 @@
       "line": 250,
       "kind": "method",
       "symbol": "Delete",
-      "native_file": "type.gfx",
+      "native_file": "type.gt",
       "native": "delete"
     },
     {
@@ -352,7 +352,7 @@
       "line": 262,
       "kind": "method",
       "symbol": "DeleteCollection",
-      "native_file": "type.gfx",
+      "native_file": "type.gt",
       "native": "deleteCollection"
     },
     {
@@ -360,7 +360,7 @@
       "line": 279,
       "kind": "method",
       "symbol": "Patch",
-      "native_file": "type.gfx",
+      "native_file": "type.gt",
       "native": "patch"
     },
     {
@@ -368,7 +368,7 @@
       "line": 295,
       "kind": "method",
       "symbol": "Apply",
-      "native_file": "type.gfx",
+      "native_file": "type.gt",
       "native": "apply"
     },
     {
@@ -376,7 +376,7 @@
       "line": 322,
       "kind": "method",
       "symbol": "ApplyStatus",
-      "native_file": "type.gfx",
+      "native_file": "type.gt",
       "native": "applyStatus"
     }
   ]

@@ -42,7 +42,7 @@ def generate():
  result <- newForConfig(environment,config)
  match result.value { Some(client) => ioPure(client); None => ioFail(match result.error { Some(error) => errors.errorMessage(error); None => "client construction returned no client" }) }
 } }''')
- save('kubernetes/clientset.gfx',m.render())
+ save('kubernetes/clientset.gt',m.render())
  f=Module('fake')
  for a,p in [('kubernetes','kubernetes'),('rest','rest'),('scheme','kubernetes/scheme'),('discoveryfake','discovery/fake'),('testing','testing'),('runtime','deps/k8s.io/apimachinery/pkg/runtime'),('apply','applyconfigurations'),('sync','support/sync'),('errors','deps/support')]:f.imp(p,a)
  f.code.append('type Clientset = Clientset { client:kubernetes.Interface,fake:testing.Fake,tracker:Option[testing.ObjectTracker] }')
@@ -78,5 +78,5 @@ func newClientset(environment rest.Environment,objects List[runtime.Object]) IO[
 } }
 func isWatchListSemanticsUnSupported(client Clientset) Bool { true }
 ''')
- save('kubernetes/fake/clientset.gfx',f.render());print('Generated real and fake clientsets with',len(groupinfo),'group accessors')
+ save('kubernetes/fake/clientset.gt',f.render());print('Generated real and fake clientsets with',len(groupinfo),'group accessors')
 if __name__=='__main__':generate()

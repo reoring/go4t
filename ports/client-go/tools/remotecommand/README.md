@@ -2,7 +2,7 @@
 
 Source: every implementation file in client-go v0.37.2
 `tools/remotecommand`, revision `72c52dd0cc3b9099b36af11290b0304045dd1ada`,
-Apache-2.0. Protocol orchestration is native `.gfx`; Go is restricted to immutable
+Apache-2.0. Protocol orchestration is native `.gt`; Go is restricted to immutable
 Status JSON decoding, structured exit-error conversion, byte operations, and
 isolated loopback servers.
 
@@ -63,7 +63,7 @@ There are no exported declarations in upstream `errorstream.go`, `v1.go` through
 
 ## Regression and integration entrypoints
 
-`remotecommand_test.gfx` covers version policy, structured exits, fallback
+`remotecommand_test.gt` covers version policy, structured exits, fallback
 predicates, TTY/resize and actual task completion on cancellation.
 `loopback.run() IO[Bool]` exercises v1-v5 over real TCP/SPDY sockets and v5 over
 real websocket sockets; payloads include Japanese/accented UTF-8, NUL and
@@ -84,7 +84,7 @@ server completion. It is also included in the combined `run()` entrypoint.
 ## Focused verification
 
 The independent `ClientGoStreamingVerify` worker ran
-`go run ./cmd/gofx test ports/client-go/tools/remotecommand` under the serialized
+`go run ./cmd/go4t test ports/client-go/tools/remotecommand` under the serialized
 VM test wrapper: **6 passed, 0 failed**, exit 0, including the permanent
 idempotent-read-close regression. It invoked the published
 `tools/remotecommand/loopback.run()` after adding the real cancellation fixture

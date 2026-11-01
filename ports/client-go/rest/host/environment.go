@@ -8,7 +8,7 @@ import (
  "net/url"
  "reflect"
  "time"
- "gofx/rt"
+ "go4t/rt"
  deps "github.com/reoring/gofx/ports/client-go/host/deps"
 )
 func RawQuery(value any) any {return rt.IO(func(ctx context.Context)(any,error){return deps.To(reflect.TypeFor[*url.URL](),rt.SomeOf(value),ctx).Interface().(*url.URL).RawQuery,nil})}

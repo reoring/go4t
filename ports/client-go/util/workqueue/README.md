@@ -1,6 +1,6 @@
 # Native workqueue
 
-Port source: client-go v0.37.2, revision `72c52dd0cc3b9099b36af11290b0304045dd1ada`. Policy, heap, deduplication, metrics and worker loops are gofx. The only host effects used are the shared `support/sync` primitives. No production client-go import or locally defined synchronization runtime is used.
+Port source: client-go v0.37.2, revision `72c52dd0cc3b9099b36af11290b0304045dd1ada`. Policy, heap, deduplication, metrics and worker loops are go4t. The only host effects used are the shared `support/sync` primitives. No production client-go import or locally defined synchronization runtime is used.
 
 ## Native API contract
 
@@ -20,7 +20,7 @@ Delayed input has capacity 1000 and uses atomic send-versus-stop selection. Its 
 
 ### Metrics registry decision
 
-Gofx has no mutable top-level binding. The supervisor-approved equivalent of upstream's process-global provider is an explicit `MetricsRegistry`: create one per application, share it in every `QueueConfig`/`DelayingQueueConfig`/`RateLimitingQueueConfig`, then call `setProvider(registry,provider)`. Only the first assignment wins within that shared registry. A per-queue provider overrides it. Unnamed queues, and constructors without an application registry/provider, remain no-op and start no metric task. There is no hidden global registry or unsafe string-keyed host storage.
+Go4t has no mutable top-level binding. The supervisor-approved equivalent of upstream's process-global provider is an explicit `MetricsRegistry`: create one per application, share it in every `QueueConfig`/`DelayingQueueConfig`/`RateLimitingQueueConfig`, then call `setProvider(registry,provider)`. Only the first assignment wins within that shared registry. A per-queue provider overrides it. Unnamed queues, and constructors without an application registry/provider, remain no-op and start no metric task. There is no hidden global registry or unsafe string-keyed host storage.
 
 Metric capabilities remain typed records: GaugeMetric, CounterMetric, SettableGaugeMetric, HistogramMetric and SummaryMetric. Providers create all seven upstream metric families. Depth tracks dirty transitions, not merely ready length. Timing retains nanosecond clock precision before conversion to seconds. Metrics execute under the queue lock and shutdown joins the periodic worker.
 
@@ -60,7 +60,7 @@ Go methods map to lower-camel free functions with explicit receiver, except inte
 | SetProvider | setProvider(registry,provider) |
 | DoWorkPieceFunc, Options, WithChunkSize, ParallelizeUntil | DoWorkPieceFunc, Options, withChunkSize, parallelizeUntil |
 
-`doc.go` is represented by this contract. `queue.go`, `delaying_queue.go`, `rate_limiting_queue.go`, `default_rate_limiters.go`, `metrics.go` and `parallelizer.go` have native implementation here (the rate-limiting aggregate shares `delaying_queue.gfx`).
+`doc.go` is represented by this contract. `queue.go`, `delaying_queue.go`, `rate_limiting_queue.go`, `default_rate_limiters.go`, `metrics.go` and `parallelizer.go` have native implementation here (the rate-limiting aggregate shares `delaying_queue.gt`).
 
 ## Retained behavior coverage
 
@@ -68,11 +68,11 @@ The native tests below were executed in the supervisor-assigned focused acceptan
 
 - `queue_test.go`: Basic/AddWhileProcessing/Len/Reinsert/Collapse/CollapseWhileProcessing map to duplicate/reinsert, injectable-touch and length tests; drainage/no-drain/forced-drain/dirty-after-shutdown map to explicit lifecycle tests. GarbageCollection's removed-item ownership is implemented by FIFO removal rather than Go finalizer assertions. Queue benchmark is an upstream performance oracle, not a native pass claim.
 - `delaying_queue_test.go`: SimpleQueue/Deduping/AddTwoFireEarly/CopyShifting map to zero-delay/shutdown, heap ordering/replacement, and real worker earlier-wins tests with fake-clock/input barriers. Its benchmark remains a performance oracle.
-- `default_rate_limiters_test.go`: exponential overflow/counts/reset, fast/slow threshold, every-child max-of and max-wait map to `default_rate_limiters_test.gfx`. Test-only StepRateLimiter/NewStepRateLimiter is represented by injected capability callbacks, not a production API.
-- `rate_limiting_queue_test.go`: all delay forwarding, per-item counts and Forget semantics map to `rate_limiting_queue_test.gfx`.
+- `default_rate_limiters_test.go`: exponential overflow/counts/reset, fast/slow threshold, every-child max-of and max-wait map to `default_rate_limiters_test.gt`. Test-only StepRateLimiter/NewStepRateLimiter is represented by injected capability callbacks, not a production API.
+- `rate_limiting_queue_test.go`: all delay forwarding, per-item counts and Forget semantics map to `rate_limiting_queue_test.gt`.
 - `metrics_test.go`: dirty depth, 50µs latency, 25µs processing, unfinished/oldest seconds, first-provider/override and shutdown behavior map to native metric tests and joined shutdown.
 - `parallelizer_test.go`: all four original visitation configurations are retained; added three-worker cancellation barrier verifies bounded callback entry and joined exit. Benchmark remains an upstream performance oracle.
 
-Focused verification: serialized `go run ./cmd/gofx test ports/client-go/util/workqueue` passed **18 tests**, including the retained cancellation-cleanup test asserting all three callback finalizers completed before return. The initial run exposed an unparenthesized `&& match` expression in a test; that syntax was corrected. `unit` values were corrected to calls to `unit()` throughout the owned source/tests, as required by SPEC. The implicit prelude exports `reverse`, `min`, and `max` (SPEC §2.3); their unqualified calls are valid. Constructor publication is masked across task startup and task-handle registration; blocking Get/drain waits remain interruptible.
+Focused verification: serialized `go run ./cmd/go4t test ports/client-go/util/workqueue` passed **18 tests**, including the retained cancellation-cleanup test asserting all three callback finalizers completed before return. The initial run exposed an unparenthesized `&& match` expression in a test; that syntax was corrected. `unit` values were corrected to calls to `unit()` throughout the owned source/tests, as required by SPEC. The implicit prelude exports `reverse`, `min`, and `max` (SPEC §2.3); their unqualified calls are valid. Constructor publication is masked across task startup and task-handle registration; blocking Get/drain waits remain interruptible.
 
 The supervisor-assigned temporary native consumer also passed duplicate/Get/readd/Done single-requeue, force-released drain, fake-clock delayed earlier-wins, rate count/reset and joined worker cancellation. The smoke source and its generated Go directory were removed. No formatter, linter or broader suite was run. Unused-callback/defaulted-Unit and the intentional prelude `length` shadow warnings remain nonfatal. Upstream performance and GC-specific host observations are not claimed as exercised.

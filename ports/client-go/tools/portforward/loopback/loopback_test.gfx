@@ -1,4 +1,0 @@
-// Copyright 2026 The gofx Authors. Licensed under Apache-2.0.
-package loopback
-func testForwardingStopAndRemoteError() IO[Bool] {do {success<-runCase(false);failure<-runCase(true);ioPure(success && failure)}}
-func testTunnelBoundariesAndClosure() IO[Bool] {runTunnel()}

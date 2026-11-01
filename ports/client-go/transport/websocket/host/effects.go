@@ -1,5 +1,5 @@
 // Copyright 2023 The Kubernetes Authors. Licensed under Apache-2.0.
-// Gorilla/socket and codec effects only; negotiation policy is native gofx.
+// Gorilla/socket and codec effects only; negotiation policy is native go4t.
 package host
 import (
  "context"
@@ -11,7 +11,7 @@ import (
  "net/url"
  "reflect"
  "time"
- "gofx/rt"
+ "go4t/rt"
  "github.com/reoring/gofx/ports/client-go/host/deps"
  ws "github.com/gorilla/websocket"
  apierrors "k8s.io/apimachinery/pkg/api/errors"

@@ -1,0 +1,74 @@
+package testing
+
+// Copyright 2014 The Kubernetes Authors. Licensed under Apache-2.0.
+import http "std/http"
+import io "std/io"
+import sync "support/sync"
+import m "std/map"
+import os "deps/os"
+extern func tempFile(prefix String) IO[os.File] = "github.com/reoring/gofx/ports/client-go/util/testing/host".TempFile
+
+func helperCase(expectedPath String,expectedMethod String,expectedBody Option[String]) IO[Int] {
+ do {
+  let initial: List[String] = []
+  errors <- sync.newRef(initial)
+  let test = TestInterface(func(message) => do { previous <- sync.readRef(errors); sync.writeRef(errors,append(previous,[message])) },func(_) => ioPure(unit()))
+  handler <- newFakeHandler(200,"{}",None,None)
+  sync.bracket(newServer(func(request) => serveHTTP(handler,request)),func(server) => do {
+   url <- serverURL(server)
+   _ <- http.request(http.Request("GET",url+"/foo/bar?b=2&a=1","",[],[],"somebody"))
+   validateRequest(handler,test,expectedPath,expectedMethod,expectedBody)
+   checkServer(server)
+  },closeServer)
+  messages <- sync.readRef(errors)
+  ioPure(length(messages))
+ }
+}
+func testFakeHandlerValidation() IO[Bool] {
+ do {
+  correct <- helperCase("/foo/bar?a=1&b=2","GET",Some("somebody"))
+  optional <- helperCase("/foo/bar?b=2&a=1","GET",None)
+  wrongPath <- helperCase("/foo/baz?a=1&b=2","GET",Some("somebody"))
+  wrongMethod <- helperCase("/foo/bar?a=1&b=2","PUT",Some("somebody"))
+  wrongBody <- helperCase("/foo/bar?a=1&b=2","GET",Some("otherbody"))
+  ioPure(correct==0 && optional==0 && wrongPath==1 && wrongMethod==1 && wrongBody==1)
+ }
+}
+func testFakeHandlerLifecycleAndSkip() IO[Bool] {
+ do {
+  handler <- newFakeHandler(200,"before",None,Some(func(request) => request.path=="/skip"))
+  let request = Request("GET","/real","",[],"")
+  _ <- serveHTTP(handler,request{path: "/skip"})
+  setResponseBody(handler,"after")
+  response <- serveHTTP(handler,request)
+  checked <- validateRequestCount(handler,TestInterface(func(_) => ioFail("wrong count"),func(_) => ioPure(unit())),1)
+  skipped <- serveHTTP(handler,request{path: "/skip"})
+  failure <- io.tryIO(serveHTTP(handler,request))
+  state <- snapshot(handler)
+  ioPure(checked && response.body=="after" && skipped.body=="after" && state.requestCount==1 && (match failure { Err(io.Panic(message)) => message=="got request after having been validated"; _ => false }))
+ }
+}
+func testTemporaryDirectoryCleanup() IO[Bool] {
+ do {
+  path <- sync.bracket(mkTmpdirOrDie("go4t-clientgo-"),func(path) => ioPure(path),removeAll)
+  present <- io.fileExists(path)
+  file <- tempFile("go4t-clientgo-")
+  name <- os.fileCallNameIdentity(file)
+  closeAndRemove([None,Some(file)])
+  filePresent <- io.fileExists(name)
+  ioPure(!present && !filePresent)
+ }
+}
+func testOpenAPIV3RoutesAndCounters() IO[Bool] {
+ do {
+  server <- newFakeOpenAPIV3Server("util/testing/fixtures")
+  sync.ensuring(do {
+   url <- serverURL(server.httpServer)
+   discovery <- http.get(url+"/openapi/v3")
+   missing <- http.get(url+"/missing")
+   counts <- requestCounters(server)
+   checkServer(server.httpServer)
+   ioPure(discovery.status==200 && missing.status==404 && m.mapLookup(counts,"/openapi/v3")==Some(1) && m.mapLookup(counts,"/missing")==Some(1) && m.mapSize(server.servedDocuments)==1)
+  },closeServer(server.httpServer))
+ }
+}

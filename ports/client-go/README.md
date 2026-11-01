@@ -1,6 +1,6 @@
-# Native client-go for gofx
+# Native client-go for go4t
 
-This is an experimental native gofx rewrite of client-go **v0.37.2**, pinned to
+This is an experimental native go4t rewrite of client-go **v0.37.2**, pinned to
 `72c52dd0cc3b9099b36af11290b0304045dd1ada`. Native APIs use explicit environments,
 immutable request builders, typed external Kubernetes objects, `IO` effects, and
 `support/outcome.Outcome` for results that can contain both a value and an error.
@@ -33,7 +33,7 @@ evidence contributing to experimental acceptance, not production approval.
 
 ## Native composition
 
-`examples/environment.gfx` shows the actual composition:
+`examples/environment.gt` shows the actual composition:
 
 - one explicit feature registry with an isolated feature environment;
 - `transport.newEnvironment`, a real clock, authentication provider registry,
@@ -52,16 +52,16 @@ loopback endpoint and inline token for the HTTP exercise.
 ## Shipped workflows
 
 From the **worktree root**, invoke the current compiler source rather than an
-unrelated installed `gofx`:
+unrelated installed `go4t`:
 
 ```sh
-timeout 180s go run ./cmd/gofx run ports/client-go/examples/in-cluster-client-configuration/main.gfx
-timeout 180s go run ./cmd/gofx run ports/client-go/examples/out-of-cluster-client-configuration/main.gfx
-timeout 180s go run ./cmd/gofx run ports/client-go/examples/create-update-delete-deployment/main.gfx
-timeout 180s go run ./cmd/gofx run ports/client-go/examples/dynamic-create-update-delete-deployment/main.gfx
-timeout 180s go run ./cmd/gofx run ports/client-go/examples/fake-client/main.gfx
-timeout 180s go run ./cmd/gofx run ports/client-go/examples/workqueue/main.gfx
-timeout 180s go run ./cmd/gofx run ports/client-go/examples/leader-election/main.gfx
+timeout 180s go run ./cmd/go4t run ports/client-go/examples/in-cluster-client-configuration/main.gt
+timeout 180s go run ./cmd/go4t run ports/client-go/examples/out-of-cluster-client-configuration/main.gt
+timeout 180s go run ./cmd/go4t run ports/client-go/examples/create-update-delete-deployment/main.gt
+timeout 180s go run ./cmd/go4t run ports/client-go/examples/dynamic-create-update-delete-deployment/main.gt
+timeout 180s go run ./cmd/go4t run ports/client-go/examples/fake-client/main.gt
+timeout 180s go run ./cmd/go4t run ports/client-go/examples/workqueue/main.gt
+timeout 180s go run ./cmd/go4t run ports/client-go/examples/leader-election/main.gt
 ```
 
 The primary-supervised terminal run observed exit 0 for all seven actual shipped
@@ -82,7 +82,7 @@ workqueue, and cancellation/joins. Leader election writes and releases a Lease
 through the native typed client against a local protocol fixture.
 
 The seven upstream root documentation examples map to functions in
-`example_test.gfx`: `exampleInClusterConfiguration`,
+`example_test.gt`: `exampleInClusterConfiguration`,
 `exampleOutOfClusterConfiguration`, `exampleHandlingAPIErrors`,
 `exampleUsingDynamicClient`, `exampleUsingInformers`, `exampleServerSideApply`,
 and `exampleLeaderElection`. They run controlled scenarios instead of inspecting
@@ -96,10 +96,10 @@ Reproduction commands follow; use the worktree root and the same hard-exclusive,
 serialized 180-second bounds:
 
 ```sh
-timeout 180s go run ./cmd/gofx test ports/client-go/util/testing
-timeout 180s go run ./cmd/gofx test ports/client-go/kubernetes_test
-timeout 180s go run ./cmd/gofx test ports/client-go/example_test.gfx
-timeout 180s go run ./cmd/gofx run ports/client-go/examples/integration/main.gfx
+timeout 180s go run ./cmd/go4t test ports/client-go/util/testing
+timeout 180s go run ./cmd/go4t test ports/client-go/kubernetes_test
+timeout 180s go run ./cmd/go4t test ports/client-go/example_test.gt
+timeout 180s go run ./cmd/go4t run ports/client-go/examples/integration/main.gt
 ```
 
 The integration entrypoint performs actual config/clientset HTTP calls, typed
@@ -130,7 +130,7 @@ To reproduce the observed trace from the worktree root, using the same exclusive
 execution rule:
 
 ```sh
-timeout 180s go run ./cmd/gofx run ports/client-go/examples/parity/main.gfx > /tmp/clientgo-native-trace.json
+timeout 180s go run ./cmd/go4t run ports/client-go/examples/parity/main.gt > /tmp/clientgo-native-trace.json
 timeout 180s go run ./tools/portgen/ParityExamples/compare.go \
   ports/client-go/oracle/expected.json /tmp/clientgo-native-trace.json
 ```
@@ -171,7 +171,7 @@ The primary reports these final gates passed:
 - From the worktree root,
   `GOWORK=off serialize --exclusive -- go test -p2 -timeout150s ./...` exited 0
   in 82.61 seconds: all 21 packages reached terminal results (15 test packages
-  passed, 6 with no tests). `cmd/gofx` took 81.474 seconds and `codegen` 24.793
+  passed, 6 with no tests). `cmd/go4t` took 81.474 seconds and `codegen` 24.793
   seconds; these package timings are not additive.
 
 Before the final port Go check, nine archived, owned duplicate CLI emission

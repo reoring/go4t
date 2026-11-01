@@ -7,7 +7,7 @@
     {
       "source": "listers/admissionregistration/v1/mutatingadmissionpolicy.go",
       "sha256": "a9c2b697ee546f7b0a613b5fa1fed09d7d80ea309395615e05bc91cb42ef72f5",
-      "output": "ports/client-go/listers/admissionregistration/v1/mutatingadmissionpolicy.gfx",
+      "output": "ports/client-go/listers/admissionregistration/v1/mutatingadmissionpolicy.gt",
       "object_type": "k8s.io/api/admissionregistration/v1.MutatingAdmissionPolicy",
       "resource": "mutatingadmissionpolicy",
       "scope": "Cluster",
@@ -16,7 +16,7 @@
     {
       "source": "listers/admissionregistration/v1/mutatingadmissionpolicybinding.go",
       "sha256": "dc0d085f0b2e1b93035b34ec291fe35bfd2ab4388560b581a2a77f2fead2d670",
-      "output": "ports/client-go/listers/admissionregistration/v1/mutatingadmissionpolicybinding.gfx",
+      "output": "ports/client-go/listers/admissionregistration/v1/mutatingadmissionpolicybinding.gt",
       "object_type": "k8s.io/api/admissionregistration/v1.MutatingAdmissionPolicyBinding",
       "resource": "mutatingadmissionpolicybinding",
       "scope": "Cluster",
@@ -25,7 +25,7 @@
     {
       "source": "listers/admissionregistration/v1/mutatingwebhookconfiguration.go",
       "sha256": "1fb4d78f26a48651b69d3cf72050fb268c47eaacb6b005e015d2263193993ea8",
-      "output": "ports/client-go/listers/admissionregistration/v1/mutatingwebhookconfiguration.gfx",
+      "output": "ports/client-go/listers/admissionregistration/v1/mutatingwebhookconfiguration.gt",
       "object_type": "k8s.io/api/admissionregistration/v1.MutatingWebhookConfiguration",
       "resource": "mutatingwebhookconfiguration",
       "scope": "Cluster",
@@ -34,7 +34,7 @@
     {
       "source": "listers/admissionregistration/v1/validatingadmissionpolicy.go",
       "sha256": "0cd30f5bf97d23195373d22127a10091182471295deda51f73a4d4f0a08e42e6",
-      "output": "ports/client-go/listers/admissionregistration/v1/validatingadmissionpolicy.gfx",
+      "output": "ports/client-go/listers/admissionregistration/v1/validatingadmissionpolicy.gt",
       "object_type": "k8s.io/api/admissionregistration/v1.ValidatingAdmissionPolicy",
       "resource": "validatingadmissionpolicy",
       "scope": "Cluster",
@@ -43,7 +43,7 @@
     {
       "source": "listers/admissionregistration/v1/validatingadmissionpolicybinding.go",
       "sha256": "5f60a64b7a6594f496d367cfa122885bc4f72b2f46e789ec0e8bdb0b371f7544",
-      "output": "ports/client-go/listers/admissionregistration/v1/validatingadmissionpolicybinding.gfx",
+      "output": "ports/client-go/listers/admissionregistration/v1/validatingadmissionpolicybinding.gt",
       "object_type": "k8s.io/api/admissionregistration/v1.ValidatingAdmissionPolicyBinding",
       "resource": "validatingadmissionpolicybinding",
       "scope": "Cluster",
@@ -52,7 +52,7 @@
     {
       "source": "listers/admissionregistration/v1/validatingwebhookconfiguration.go",
       "sha256": "952e9aef73aadf97e4635c2ad1a41a5044da8c91e5bb5317715dfef64683e5f7",
-      "output": "ports/client-go/listers/admissionregistration/v1/validatingwebhookconfiguration.gfx",
+      "output": "ports/client-go/listers/admissionregistration/v1/validatingwebhookconfiguration.gt",
       "object_type": "k8s.io/api/admissionregistration/v1.ValidatingWebhookConfiguration",
       "resource": "validatingwebhookconfiguration",
       "scope": "Cluster",
@@ -61,7 +61,7 @@
     {
       "source": "listers/admissionregistration/v1alpha1/mutatingadmissionpolicy.go",
       "sha256": "f9cb01ce954c771b6b5967286d4b35b9996249bf93390533132f8b4c36e47086",
-      "output": "ports/client-go/listers/admissionregistration/v1alpha1/mutatingadmissionpolicy.gfx",
+      "output": "ports/client-go/listers/admissionregistration/v1alpha1/mutatingadmissionpolicy.gt",
       "object_type": "k8s.io/api/admissionregistration/v1alpha1.MutatingAdmissionPolicy",
       "resource": "mutatingadmissionpolicy",
       "scope": "Cluster",
@@ -70,7 +70,7 @@
     {
       "source": "listers/admissionregistration/v1alpha1/mutatingadmissionpolicybinding.go",
       "sha256": "39e78911c073fa8df9c840b54daaa9f3b592d88bd9aabec02abd6753b43f0d41",
-      "output": "ports/client-go/listers/admissionregistration/v1alpha1/mutatingadmissionpolicybinding.gfx",
+      "output": "ports/client-go/listers/admissionregistration/v1alpha1/mutatingadmissionpolicybinding.gt",
       "object_type": "k8s.io/api/admissionregistration/v1alpha1.MutatingAdmissionPolicyBinding",
       "resource": "mutatingadmissionpolicybinding",
       "scope": "Cluster",
@@ -79,7 +79,7 @@
     {
       "source": "listers/admissionregistration/v1alpha1/validatingadmissionpolicy.go",
       "sha256": "70ee238bc5d23fddbe1f20cb359b0389f30ebb7077f8c5d09484b1cf6c2bf689",
-      "output": "ports/client-go/listers/admissionregistration/v1alpha1/validatingadmissionpolicy.gfx",
+      "output": "ports/client-go/listers/admissionregistration/v1alpha1/validatingadmissionpolicy.gt",
       "object_type": "k8s.io/api/admissionregistration/v1alpha1.ValidatingAdmissionPolicy",
       "resource": "validatingadmissionpolicy",
       "scope": "Cluster",
@@ -88,7 +88,7 @@
     {
       "source": "listers/admissionregistration/v1alpha1/validatingadmissionpolicybinding.go",
       "sha256": "2170ae51d5e4de1dea79ae89fb39ba8a26d72367eeab56fae5fcbf218935f7a6",
-      "output": "ports/client-go/listers/admissionregistration/v1alpha1/validatingadmissionpolicybinding.gfx",
+      "output": "ports/client-go/listers/admissionregistration/v1alpha1/validatingadmissionpolicybinding.gt",
       "object_type": "k8s.io/api/admissionregistration/v1alpha1.ValidatingAdmissionPolicyBinding",
       "resource": "validatingadmissionpolicybinding",
       "scope": "Cluster",
@@ -97,7 +97,7 @@
     {
       "source": "listers/admissionregistration/v1beta1/mutatingadmissionpolicy.go",
       "sha256": "6f843622b396c7fa50e0f406b112a1a67c1a51c0313f3c47d8666f53036f28a2",
-      "output": "ports/client-go/listers/admissionregistration/v1beta1/mutatingadmissionpolicy.gfx",
+      "output": "ports/client-go/listers/admissionregistration/v1beta1/mutatingadmissionpolicy.gt",
       "object_type": "k8s.io/api/admissionregistration/v1beta1.MutatingAdmissionPolicy",
       "resource": "mutatingadmissionpolicy",
       "scope": "Cluster",
@@ -106,7 +106,7 @@
     {
       "source": "listers/admissionregistration/v1beta1/mutatingadmissionpolicybinding.go",
       "sha256": "0bba83c1458f930ab805b4dc4a7fdb7e6f94357676e816a8444e7c8b2849ddb2",
-      "output": "ports/client-go/listers/admissionregistration/v1beta1/mutatingadmissionpolicybinding.gfx",
+      "output": "ports/client-go/listers/admissionregistration/v1beta1/mutatingadmissionpolicybinding.gt",
       "object_type": "k8s.io/api/admissionregistration/v1beta1.MutatingAdmissionPolicyBinding",
       "resource": "mutatingadmissionpolicybinding",
       "scope": "Cluster",
@@ -115,7 +115,7 @@
     {
       "source": "listers/admissionregistration/v1beta1/mutatingwebhookconfiguration.go",
       "sha256": "eb95514cebe5d182028adcd9826ee4fecb10d67f2bbbc8b359cf43b911b8cf4b",
-      "output": "ports/client-go/listers/admissionregistration/v1beta1/mutatingwebhookconfiguration.gfx",
+      "output": "ports/client-go/listers/admissionregistration/v1beta1/mutatingwebhookconfiguration.gt",
       "object_type": "k8s.io/api/admissionregistration/v1beta1.MutatingWebhookConfiguration",
       "resource": "mutatingwebhookconfiguration",
       "scope": "Cluster",
@@ -124,7 +124,7 @@
     {
       "source": "listers/admissionregistration/v1beta1/validatingadmissionpolicy.go",
       "sha256": "940ec8bc483ca181ee942a67551d43be8a389350810ac3caa8d53fc13b3ebb13",
-      "output": "ports/client-go/listers/admissionregistration/v1beta1/validatingadmissionpolicy.gfx",
+      "output": "ports/client-go/listers/admissionregistration/v1beta1/validatingadmissionpolicy.gt",
       "object_type": "k8s.io/api/admissionregistration/v1beta1.ValidatingAdmissionPolicy",
       "resource": "validatingadmissionpolicy",
       "scope": "Cluster",
@@ -133,7 +133,7 @@
     {
       "source": "listers/admissionregistration/v1beta1/validatingadmissionpolicybinding.go",
       "sha256": "d9c3f89e7583ef0dc69f1bea43b8dbd4fe9e3f87a82b72324ae89c93ff78bd20",
-      "output": "ports/client-go/listers/admissionregistration/v1beta1/validatingadmissionpolicybinding.gfx",
+      "output": "ports/client-go/listers/admissionregistration/v1beta1/validatingadmissionpolicybinding.gt",
       "object_type": "k8s.io/api/admissionregistration/v1beta1.ValidatingAdmissionPolicyBinding",
       "resource": "validatingadmissionpolicybinding",
       "scope": "Cluster",
@@ -142,7 +142,7 @@
     {
       "source": "listers/admissionregistration/v1beta1/validatingwebhookconfiguration.go",
       "sha256": "49ee4765df813adcf96d8950dd08fa9a004882f1c3c4361177e6096a026db218",
-      "output": "ports/client-go/listers/admissionregistration/v1beta1/validatingwebhookconfiguration.gfx",
+      "output": "ports/client-go/listers/admissionregistration/v1beta1/validatingwebhookconfiguration.gt",
       "object_type": "k8s.io/api/admissionregistration/v1beta1.ValidatingWebhookConfiguration",
       "resource": "validatingwebhookconfiguration",
       "scope": "Cluster",
@@ -151,7 +151,7 @@
     {
       "source": "listers/apiserverinternal/v1alpha1/storageversion.go",
       "sha256": "b39fca1545f19959311198937ad5686ee952cf19962b6434f01fc69c8aa001a1",
-      "output": "ports/client-go/listers/apiserverinternal/v1alpha1/storageversion.gfx",
+      "output": "ports/client-go/listers/apiserverinternal/v1alpha1/storageversion.gt",
       "object_type": "k8s.io/api/apiserverinternal/v1alpha1.StorageVersion",
       "resource": "storageversion",
       "scope": "Cluster",
@@ -160,7 +160,7 @@
     {
       "source": "listers/apps/v1/controllerrevision.go",
       "sha256": "fed5813cc265d283d9cd63e04eb6423fc29dc43e5b25fec603e6124af96c4594",
-      "output": "ports/client-go/listers/apps/v1/controllerrevision.gfx",
+      "output": "ports/client-go/listers/apps/v1/controllerrevision.gt",
       "object_type": "k8s.io/api/apps/v1.ControllerRevision",
       "resource": "controllerrevision",
       "scope": "Namespaced",
@@ -169,7 +169,7 @@
     {
       "source": "listers/apps/v1/daemonset.go",
       "sha256": "1b78c5f67a9f9f3887c8c4d487ae9670d03c22dd1df1a95f8613c06aaf4f4115",
-      "output": "ports/client-go/listers/apps/v1/daemonset.gfx",
+      "output": "ports/client-go/listers/apps/v1/daemonset.gt",
       "object_type": "k8s.io/api/apps/v1.DaemonSet",
       "resource": "daemonset",
       "scope": "Namespaced",
@@ -181,7 +181,7 @@
     {
       "source": "listers/apps/v1/deployment.go",
       "sha256": "6233598f8097e09ed05cbef17a2480aec5124f23b4c5d51f71fd9a732f896c08",
-      "output": "ports/client-go/listers/apps/v1/deployment.gfx",
+      "output": "ports/client-go/listers/apps/v1/deployment.gt",
       "object_type": "k8s.io/api/apps/v1.Deployment",
       "resource": "deployment",
       "scope": "Namespaced",
@@ -190,7 +190,7 @@
     {
       "source": "listers/apps/v1/replicaset.go",
       "sha256": "d4bc85dbd1b30fbc9e7b9127ea4c5076c13c72a82bcb32cba217466409a60b75",
-      "output": "ports/client-go/listers/apps/v1/replicaset.gfx",
+      "output": "ports/client-go/listers/apps/v1/replicaset.gt",
       "object_type": "k8s.io/api/apps/v1.ReplicaSet",
       "resource": "replicaset",
       "scope": "Namespaced",
@@ -201,7 +201,7 @@
     {
       "source": "listers/apps/v1/statefulset.go",
       "sha256": "03e28885a9c78d9c6ba062d37d88f73c19044f64d6fcc04a77669d2a76df6d32",
-      "output": "ports/client-go/listers/apps/v1/statefulset.gfx",
+      "output": "ports/client-go/listers/apps/v1/statefulset.gt",
       "object_type": "k8s.io/api/apps/v1.StatefulSet",
       "resource": "statefulset",
       "scope": "Namespaced",
@@ -212,7 +212,7 @@
     {
       "source": "listers/apps/v1beta1/controllerrevision.go",
       "sha256": "77b7e6d12887e618c3c7143a68e9ae66b0f646c98a3884e6c862501c95ac8c54",
-      "output": "ports/client-go/listers/apps/v1beta1/controllerrevision.gfx",
+      "output": "ports/client-go/listers/apps/v1beta1/controllerrevision.gt",
       "object_type": "k8s.io/api/apps/v1beta1.ControllerRevision",
       "resource": "controllerrevision",
       "scope": "Namespaced",
@@ -221,7 +221,7 @@
     {
       "source": "listers/apps/v1beta1/deployment.go",
       "sha256": "85cc332ed122a1b9376b3ec6f2f5b1754fdb6b933e5c3ab850a1f8199a75f686",
-      "output": "ports/client-go/listers/apps/v1beta1/deployment.gfx",
+      "output": "ports/client-go/listers/apps/v1beta1/deployment.gt",
       "object_type": "k8s.io/api/apps/v1beta1.Deployment",
       "resource": "deployment",
       "scope": "Namespaced",
@@ -230,7 +230,7 @@
     {
       "source": "listers/apps/v1beta1/statefulset.go",
       "sha256": "6b57cd33046dc92eeef4a36289aacbeb0d47253e6bea38ea6c9ff130594cdf1c",
-      "output": "ports/client-go/listers/apps/v1beta1/statefulset.gfx",
+      "output": "ports/client-go/listers/apps/v1beta1/statefulset.gt",
       "object_type": "k8s.io/api/apps/v1beta1.StatefulSet",
       "resource": "statefulset",
       "scope": "Namespaced",
@@ -241,7 +241,7 @@
     {
       "source": "listers/apps/v1beta2/controllerrevision.go",
       "sha256": "12a8f3e4119253696b0dd9c75dc763be95f6a8aca4ee45c764e5eb8528580526",
-      "output": "ports/client-go/listers/apps/v1beta2/controllerrevision.gfx",
+      "output": "ports/client-go/listers/apps/v1beta2/controllerrevision.gt",
       "object_type": "k8s.io/api/apps/v1beta2.ControllerRevision",
       "resource": "controllerrevision",
       "scope": "Namespaced",
@@ -250,7 +250,7 @@
     {
       "source": "listers/apps/v1beta2/daemonset.go",
       "sha256": "593ee37f0e0bf4d60798f858a4a610925eb1a2897496c0254ea49f1f961876c2",
-      "output": "ports/client-go/listers/apps/v1beta2/daemonset.gfx",
+      "output": "ports/client-go/listers/apps/v1beta2/daemonset.gt",
       "object_type": "k8s.io/api/apps/v1beta2.DaemonSet",
       "resource": "daemonset",
       "scope": "Namespaced",
@@ -262,7 +262,7 @@
     {
       "source": "listers/apps/v1beta2/deployment.go",
       "sha256": "3a876f693c360acc0da5191933cc607ed2475027318c5ad925c13a212164219e",
-      "output": "ports/client-go/listers/apps/v1beta2/deployment.gfx",
+      "output": "ports/client-go/listers/apps/v1beta2/deployment.gt",
       "object_type": "k8s.io/api/apps/v1beta2.Deployment",
       "resource": "deployment",
       "scope": "Namespaced",
@@ -271,7 +271,7 @@
     {
       "source": "listers/apps/v1beta2/replicaset.go",
       "sha256": "e30e688eaf31044ce5451a2849a4f2186e87e31177b63ff188bbdd4acce365be",
-      "output": "ports/client-go/listers/apps/v1beta2/replicaset.gfx",
+      "output": "ports/client-go/listers/apps/v1beta2/replicaset.gt",
       "object_type": "k8s.io/api/apps/v1beta2.ReplicaSet",
       "resource": "replicaset",
       "scope": "Namespaced",
@@ -282,7 +282,7 @@
     {
       "source": "listers/apps/v1beta2/statefulset.go",
       "sha256": "66d71265eba955035702479db59b3310fa4d8985faae4b80c0b97e16c42120cd",
-      "output": "ports/client-go/listers/apps/v1beta2/statefulset.gfx",
+      "output": "ports/client-go/listers/apps/v1beta2/statefulset.gt",
       "object_type": "k8s.io/api/apps/v1beta2.StatefulSet",
       "resource": "statefulset",
       "scope": "Namespaced",
@@ -293,7 +293,7 @@
     {
       "source": "listers/autoscaling/v1/horizontalpodautoscaler.go",
       "sha256": "a22f92361f973adc21a9bbca8e554f3e5990ae9213c2136cd08545300132e5ab",
-      "output": "ports/client-go/listers/autoscaling/v1/horizontalpodautoscaler.gfx",
+      "output": "ports/client-go/listers/autoscaling/v1/horizontalpodautoscaler.gt",
       "object_type": "k8s.io/api/autoscaling/v1.HorizontalPodAutoscaler",
       "resource": "horizontalpodautoscaler",
       "scope": "Namespaced",
@@ -302,7 +302,7 @@
     {
       "source": "listers/autoscaling/v2/horizontalpodautoscaler.go",
       "sha256": "9a4c8720244b326b74c0135a39f78f8791eb3bea7b09fe1b302ee454d5406c9e",
-      "output": "ports/client-go/listers/autoscaling/v2/horizontalpodautoscaler.gfx",
+      "output": "ports/client-go/listers/autoscaling/v2/horizontalpodautoscaler.gt",
       "object_type": "k8s.io/api/autoscaling/v2.HorizontalPodAutoscaler",
       "resource": "horizontalpodautoscaler",
       "scope": "Namespaced",
@@ -311,7 +311,7 @@
     {
       "source": "listers/batch/v1/cronjob.go",
       "sha256": "e4968b4c0814438a1567502c54032b9de6d45f132453c3435c04254cd050e514",
-      "output": "ports/client-go/listers/batch/v1/cronjob.gfx",
+      "output": "ports/client-go/listers/batch/v1/cronjob.gt",
       "object_type": "k8s.io/api/batch/v1.CronJob",
       "resource": "cronjob",
       "scope": "Namespaced",
@@ -320,7 +320,7 @@
     {
       "source": "listers/batch/v1/job.go",
       "sha256": "a4027e06c6fd2268c38da7ab8fad586382f338d163817afb315c8116aab12433",
-      "output": "ports/client-go/listers/batch/v1/job.gfx",
+      "output": "ports/client-go/listers/batch/v1/job.gt",
       "object_type": "k8s.io/api/batch/v1.Job",
       "resource": "job",
       "scope": "Namespaced",
@@ -331,7 +331,7 @@
     {
       "source": "listers/batch/v1beta1/cronjob.go",
       "sha256": "9618b425c0b8989f4b09dc8cb6da0ba544433c0525f48db2212c854da32d6be3",
-      "output": "ports/client-go/listers/batch/v1beta1/cronjob.gfx",
+      "output": "ports/client-go/listers/batch/v1beta1/cronjob.gt",
       "object_type": "k8s.io/api/batch/v1beta1.CronJob",
       "resource": "cronjob",
       "scope": "Namespaced",
@@ -340,7 +340,7 @@
     {
       "source": "listers/certificates/v1/certificatesigningrequest.go",
       "sha256": "abe54ed0fdf543f64207f4af7ace588b59a1c97214937dbeb25e964732a778db",
-      "output": "ports/client-go/listers/certificates/v1/certificatesigningrequest.gfx",
+      "output": "ports/client-go/listers/certificates/v1/certificatesigningrequest.gt",
       "object_type": "k8s.io/api/certificates/v1.CertificateSigningRequest",
       "resource": "certificatesigningrequest",
       "scope": "Cluster",
@@ -349,7 +349,7 @@
     {
       "source": "listers/certificates/v1/clustertrustbundle.go",
       "sha256": "5423f654f5072baac87925eac2661bcffb59713b062c97fa86d9d8827cad9f56",
-      "output": "ports/client-go/listers/certificates/v1/clustertrustbundle.gfx",
+      "output": "ports/client-go/listers/certificates/v1/clustertrustbundle.gt",
       "object_type": "k8s.io/api/certificates/v1.ClusterTrustBundle",
       "resource": "clustertrustbundle",
       "scope": "Cluster",
@@ -358,7 +358,7 @@
     {
       "source": "listers/certificates/v1/podcertificaterequest.go",
       "sha256": "fa91bc27693aaac6d00cf866499fa68776049dadf1edd28f7beebf5530753a57",
-      "output": "ports/client-go/listers/certificates/v1/podcertificaterequest.gfx",
+      "output": "ports/client-go/listers/certificates/v1/podcertificaterequest.gt",
       "object_type": "k8s.io/api/certificates/v1.PodCertificateRequest",
       "resource": "podcertificaterequest",
       "scope": "Namespaced",
@@ -367,7 +367,7 @@
     {
       "source": "listers/certificates/v1alpha1/clustertrustbundle.go",
       "sha256": "28b6d78c267a9d09750c3c197543fb864d70a0469985669f51cea6218a27cc37",
-      "output": "ports/client-go/listers/certificates/v1alpha1/clustertrustbundle.gfx",
+      "output": "ports/client-go/listers/certificates/v1alpha1/clustertrustbundle.gt",
       "object_type": "k8s.io/api/certificates/v1alpha1.ClusterTrustBundle",
       "resource": "clustertrustbundle",
       "scope": "Cluster",
@@ -376,7 +376,7 @@
     {
       "source": "listers/certificates/v1beta1/certificatesigningrequest.go",
       "sha256": "17f7e058d8eb66fed2e04d6a3b6650b336c65119c6e1ea9d551373cba80ddfed",
-      "output": "ports/client-go/listers/certificates/v1beta1/certificatesigningrequest.gfx",
+      "output": "ports/client-go/listers/certificates/v1beta1/certificatesigningrequest.gt",
       "object_type": "k8s.io/api/certificates/v1beta1.CertificateSigningRequest",
       "resource": "certificatesigningrequest",
       "scope": "Cluster",
@@ -385,7 +385,7 @@
     {
       "source": "listers/certificates/v1beta1/clustertrustbundle.go",
       "sha256": "ebcdae24d85d6eb26564b59fd421da6b4bfcc6c02b73b04b72e31979a9e95378",
-      "output": "ports/client-go/listers/certificates/v1beta1/clustertrustbundle.gfx",
+      "output": "ports/client-go/listers/certificates/v1beta1/clustertrustbundle.gt",
       "object_type": "k8s.io/api/certificates/v1beta1.ClusterTrustBundle",
       "resource": "clustertrustbundle",
       "scope": "Cluster",
@@ -394,7 +394,7 @@
     {
       "source": "listers/certificates/v1beta1/podcertificaterequest.go",
       "sha256": "c2effd37999902667ed6f8a217901503530422e1c461a677cc9985288b096aad",
-      "output": "ports/client-go/listers/certificates/v1beta1/podcertificaterequest.gfx",
+      "output": "ports/client-go/listers/certificates/v1beta1/podcertificaterequest.gt",
       "object_type": "k8s.io/api/certificates/v1beta1.PodCertificateRequest",
       "resource": "podcertificaterequest",
       "scope": "Namespaced",
@@ -403,7 +403,7 @@
     {
       "source": "listers/coordination/v1/lease.go",
       "sha256": "c9270e4304c7d6c7490916f22eac919675845e1724ff2de4687e4aef86af6e34",
-      "output": "ports/client-go/listers/coordination/v1/lease.gfx",
+      "output": "ports/client-go/listers/coordination/v1/lease.gt",
       "object_type": "k8s.io/api/coordination/v1.Lease",
       "resource": "lease",
       "scope": "Namespaced",
@@ -412,7 +412,7 @@
     {
       "source": "listers/coordination/v1alpha2/leasecandidate.go",
       "sha256": "96fb524ca47b2c5bde02d4e0311d2cf22e95dc13b6a96eff247be7e82acf523f",
-      "output": "ports/client-go/listers/coordination/v1alpha2/leasecandidate.gfx",
+      "output": "ports/client-go/listers/coordination/v1alpha2/leasecandidate.gt",
       "object_type": "k8s.io/api/coordination/v1alpha2.LeaseCandidate",
       "resource": "leasecandidate",
       "scope": "Namespaced",
@@ -421,7 +421,7 @@
     {
       "source": "listers/coordination/v1beta1/lease.go",
       "sha256": "95db033c323468d26f076c9deed5ae6bfacc6e81beb307c75ff7266b7dcc75bf",
-      "output": "ports/client-go/listers/coordination/v1beta1/lease.gfx",
+      "output": "ports/client-go/listers/coordination/v1beta1/lease.gt",
       "object_type": "k8s.io/api/coordination/v1beta1.Lease",
       "resource": "lease",
       "scope": "Namespaced",
@@ -430,7 +430,7 @@
     {
       "source": "listers/coordination/v1beta1/leasecandidate.go",
       "sha256": "f2957ec19ad34a1bfe3cb6ed3cfb7a6f4ba98afac47fc3cc1936e1175cfcd38d",
-      "output": "ports/client-go/listers/coordination/v1beta1/leasecandidate.gfx",
+      "output": "ports/client-go/listers/coordination/v1beta1/leasecandidate.gt",
       "object_type": "k8s.io/api/coordination/v1beta1.LeaseCandidate",
       "resource": "leasecandidate",
       "scope": "Namespaced",
@@ -439,7 +439,7 @@
     {
       "source": "listers/core/v1/componentstatus.go",
       "sha256": "9ee70bc8fb01d89393a3d04563813c9d19e871505f60983a5c18efb6733e00f0",
-      "output": "ports/client-go/listers/core/v1/componentstatus.gfx",
+      "output": "ports/client-go/listers/core/v1/componentstatus.gt",
       "object_type": "k8s.io/api/core/v1.ComponentStatus",
       "resource": "componentstatus",
       "scope": "Cluster",
@@ -448,7 +448,7 @@
     {
       "source": "listers/core/v1/configmap.go",
       "sha256": "2fbd4c5ee86ccbadb33db66d06f7471f9898838c21fa1a4fea458dc9504e56d3",
-      "output": "ports/client-go/listers/core/v1/configmap.gfx",
+      "output": "ports/client-go/listers/core/v1/configmap.gt",
       "object_type": "k8s.io/api/core/v1.ConfigMap",
       "resource": "configmap",
       "scope": "Namespaced",
@@ -457,7 +457,7 @@
     {
       "source": "listers/core/v1/endpoints.go",
       "sha256": "61ede3129543ffe63c2631ba570f0526441d37e0983e6e1427cc8270673d7bc2",
-      "output": "ports/client-go/listers/core/v1/endpoints.gfx",
+      "output": "ports/client-go/listers/core/v1/endpoints.gt",
       "object_type": "k8s.io/api/core/v1.Endpoints",
       "resource": "endpoints",
       "scope": "Namespaced",
@@ -466,7 +466,7 @@
     {
       "source": "listers/core/v1/event.go",
       "sha256": "b01f384a8bc8e6784b1d4042de02b9597f980a0ef7bd9fbe003185e39e04d5d4",
-      "output": "ports/client-go/listers/core/v1/event.gfx",
+      "output": "ports/client-go/listers/core/v1/event.gt",
       "object_type": "k8s.io/api/core/v1.Event",
       "resource": "event",
       "scope": "Namespaced",
@@ -475,7 +475,7 @@
     {
       "source": "listers/core/v1/limitrange.go",
       "sha256": "204cfd9411803022faa3f4be8c7cd7c7ad6712005447b9ef38bd82960a2c2446",
-      "output": "ports/client-go/listers/core/v1/limitrange.gfx",
+      "output": "ports/client-go/listers/core/v1/limitrange.gt",
       "object_type": "k8s.io/api/core/v1.LimitRange",
       "resource": "limitrange",
       "scope": "Namespaced",
@@ -484,7 +484,7 @@
     {
       "source": "listers/core/v1/namespace.go",
       "sha256": "7868af55e440363dacd4f5dffbcf16942c0cc3be391f8a8aa1a4f11588f5cb6b",
-      "output": "ports/client-go/listers/core/v1/namespace.gfx",
+      "output": "ports/client-go/listers/core/v1/namespace.gt",
       "object_type": "k8s.io/api/core/v1.Namespace",
       "resource": "namespace",
       "scope": "Cluster",
@@ -493,7 +493,7 @@
     {
       "source": "listers/core/v1/node.go",
       "sha256": "64f04b24f7b85f23b5b9c1d032ed7f4523c32e6628c9641c54a92243930b4c6a",
-      "output": "ports/client-go/listers/core/v1/node.gfx",
+      "output": "ports/client-go/listers/core/v1/node.gt",
       "object_type": "k8s.io/api/core/v1.Node",
       "resource": "node",
       "scope": "Cluster",
@@ -502,7 +502,7 @@
     {
       "source": "listers/core/v1/persistentvolume.go",
       "sha256": "6939406396ced664021c2e6ae996bbdc0fc58431409358d2bcf7d0641b341a8b",
-      "output": "ports/client-go/listers/core/v1/persistentvolume.gfx",
+      "output": "ports/client-go/listers/core/v1/persistentvolume.gt",
       "object_type": "k8s.io/api/core/v1.PersistentVolume",
       "resource": "persistentvolume",
       "scope": "Cluster",
@@ -511,7 +511,7 @@
     {
       "source": "listers/core/v1/persistentvolumeclaim.go",
       "sha256": "64a23dcfab3c884a11d498e25694779cbbc2bf8cb718b087bfd7d9fa4d9f2ed9",
-      "output": "ports/client-go/listers/core/v1/persistentvolumeclaim.gfx",
+      "output": "ports/client-go/listers/core/v1/persistentvolumeclaim.gt",
       "object_type": "k8s.io/api/core/v1.PersistentVolumeClaim",
       "resource": "persistentvolumeclaim",
       "scope": "Namespaced",
@@ -520,7 +520,7 @@
     {
       "source": "listers/core/v1/pod.go",
       "sha256": "9038a2a3032c4f2ff398a373bc2cfb826df299f7c7d994f6d10d534e3e6d238f",
-      "output": "ports/client-go/listers/core/v1/pod.gfx",
+      "output": "ports/client-go/listers/core/v1/pod.gt",
       "object_type": "k8s.io/api/core/v1.Pod",
       "resource": "pod",
       "scope": "Namespaced",
@@ -529,7 +529,7 @@
     {
       "source": "listers/core/v1/podtemplate.go",
       "sha256": "aa4bd619cac07e148a55f814d5e007e139dd3d15b417dd9bf17ff6b3fdd30359",
-      "output": "ports/client-go/listers/core/v1/podtemplate.gfx",
+      "output": "ports/client-go/listers/core/v1/podtemplate.gt",
       "object_type": "k8s.io/api/core/v1.PodTemplate",
       "resource": "podtemplate",
       "scope": "Namespaced",
@@ -538,7 +538,7 @@
     {
       "source": "listers/core/v1/replicationcontroller.go",
       "sha256": "3d34e6a67636ef73bc74ca616e6b7393812171e6109f843937b758785465879d",
-      "output": "ports/client-go/listers/core/v1/replicationcontroller.gfx",
+      "output": "ports/client-go/listers/core/v1/replicationcontroller.gt",
       "object_type": "k8s.io/api/core/v1.ReplicationController",
       "resource": "replicationcontroller",
       "scope": "Namespaced",
@@ -549,7 +549,7 @@
     {
       "source": "listers/core/v1/resourcequota.go",
       "sha256": "2c2fa200d74962f3d3f43e9b782a2f40a6b6cfd6ebf2b40550e0f92e52f26180",
-      "output": "ports/client-go/listers/core/v1/resourcequota.gfx",
+      "output": "ports/client-go/listers/core/v1/resourcequota.gt",
       "object_type": "k8s.io/api/core/v1.ResourceQuota",
       "resource": "resourcequota",
       "scope": "Namespaced",
@@ -558,7 +558,7 @@
     {
       "source": "listers/core/v1/secret.go",
       "sha256": "7408afa65698dcfa016ca2c2eaeb61698f275a348d6f0f8b2ca2253bebd4a3c6",
-      "output": "ports/client-go/listers/core/v1/secret.gfx",
+      "output": "ports/client-go/listers/core/v1/secret.gt",
       "object_type": "k8s.io/api/core/v1.Secret",
       "resource": "secret",
       "scope": "Namespaced",
@@ -567,7 +567,7 @@
     {
       "source": "listers/core/v1/service.go",
       "sha256": "61a5348587df9f23d8a1125f8074cae0e5934affb559c9423e5a369bf6f55a19",
-      "output": "ports/client-go/listers/core/v1/service.gfx",
+      "output": "ports/client-go/listers/core/v1/service.gt",
       "object_type": "k8s.io/api/core/v1.Service",
       "resource": "service",
       "scope": "Namespaced",
@@ -576,7 +576,7 @@
     {
       "source": "listers/core/v1/serviceaccount.go",
       "sha256": "7f456a7242e00761d9fc65aec09f42b2d0df26ea23ad84a4c25673b16f1d6d27",
-      "output": "ports/client-go/listers/core/v1/serviceaccount.gfx",
+      "output": "ports/client-go/listers/core/v1/serviceaccount.gt",
       "object_type": "k8s.io/api/core/v1.ServiceAccount",
       "resource": "serviceaccount",
       "scope": "Namespaced",
@@ -585,7 +585,7 @@
     {
       "source": "listers/discovery/v1/endpointslice.go",
       "sha256": "39feb12b7caee1cf751b1617c241d00772935093f5dfb9bb9552e9143e0ef315",
-      "output": "ports/client-go/listers/discovery/v1/endpointslice.gfx",
+      "output": "ports/client-go/listers/discovery/v1/endpointslice.gt",
       "object_type": "k8s.io/api/discovery/v1.EndpointSlice",
       "resource": "endpointslice",
       "scope": "Namespaced",
@@ -594,7 +594,7 @@
     {
       "source": "listers/discovery/v1beta1/endpointslice.go",
       "sha256": "011f2a0e0b47c9601a7a1b6c0b38974ff54848b8dc6bda3abe213707f84fd356",
-      "output": "ports/client-go/listers/discovery/v1beta1/endpointslice.gfx",
+      "output": "ports/client-go/listers/discovery/v1beta1/endpointslice.gt",
       "object_type": "k8s.io/api/discovery/v1beta1.EndpointSlice",
       "resource": "endpointslice",
       "scope": "Namespaced",
@@ -603,7 +603,7 @@
     {
       "source": "listers/events/v1/event.go",
       "sha256": "a7dc94057c84079006c90b2bce736a8bf59ba94f0284df410e98d8d86842ab1e",
-      "output": "ports/client-go/listers/events/v1/event.gfx",
+      "output": "ports/client-go/listers/events/v1/event.gt",
       "object_type": "k8s.io/api/events/v1.Event",
       "resource": "event",
       "scope": "Namespaced",
@@ -612,7 +612,7 @@
     {
       "source": "listers/events/v1beta1/event.go",
       "sha256": "c97334d60d3ce1c77a0ff02d39c5906de7d828ee6be4f1448aaa8da6ec9f79bb",
-      "output": "ports/client-go/listers/events/v1beta1/event.gfx",
+      "output": "ports/client-go/listers/events/v1beta1/event.gt",
       "object_type": "k8s.io/api/events/v1beta1.Event",
       "resource": "event",
       "scope": "Namespaced",
@@ -621,7 +621,7 @@
     {
       "source": "listers/extensions/v1beta1/daemonset.go",
       "sha256": "8546f7b482114d24826c20f3afae1b820a26aee32768317cd2a5a9a0a4f8b74d",
-      "output": "ports/client-go/listers/extensions/v1beta1/daemonset.gfx",
+      "output": "ports/client-go/listers/extensions/v1beta1/daemonset.gt",
       "object_type": "k8s.io/api/extensions/v1beta1.DaemonSet",
       "resource": "daemonset",
       "scope": "Namespaced",
@@ -633,7 +633,7 @@
     {
       "source": "listers/extensions/v1beta1/deployment.go",
       "sha256": "9ab455e2e5219666d569ec203b5b1af00926c1f52dde75cf0fc229efff83a002",
-      "output": "ports/client-go/listers/extensions/v1beta1/deployment.gfx",
+      "output": "ports/client-go/listers/extensions/v1beta1/deployment.gt",
       "object_type": "k8s.io/api/extensions/v1beta1.Deployment",
       "resource": "deployment",
       "scope": "Namespaced",
@@ -642,7 +642,7 @@
     {
       "source": "listers/extensions/v1beta1/ingress.go",
       "sha256": "72eddaad62048cf7df5e557c459fb3c3bb447c1742f284c28caa0dd1ebfacd38",
-      "output": "ports/client-go/listers/extensions/v1beta1/ingress.gfx",
+      "output": "ports/client-go/listers/extensions/v1beta1/ingress.gt",
       "object_type": "k8s.io/api/extensions/v1beta1.Ingress",
       "resource": "ingress",
       "scope": "Namespaced",
@@ -651,7 +651,7 @@
     {
       "source": "listers/extensions/v1beta1/networkpolicy.go",
       "sha256": "aa61dfa95537b9427c4b360176163a09f83f11a7a3394f946fe959d94e7d1fc2",
-      "output": "ports/client-go/listers/extensions/v1beta1/networkpolicy.gfx",
+      "output": "ports/client-go/listers/extensions/v1beta1/networkpolicy.gt",
       "object_type": "k8s.io/api/extensions/v1beta1.NetworkPolicy",
       "resource": "networkpolicy",
       "scope": "Namespaced",
@@ -660,7 +660,7 @@
     {
       "source": "listers/extensions/v1beta1/replicaset.go",
       "sha256": "533fa7b194891db8777a70d847699587ddfbc9a8eb3ef65fdb4a4f9cf8dffdfa",
-      "output": "ports/client-go/listers/extensions/v1beta1/replicaset.gfx",
+      "output": "ports/client-go/listers/extensions/v1beta1/replicaset.gt",
       "object_type": "k8s.io/api/extensions/v1beta1.ReplicaSet",
       "resource": "replicaset",
       "scope": "Namespaced",
@@ -671,7 +671,7 @@
     {
       "source": "listers/flowcontrol/v1/flowschema.go",
       "sha256": "86a223b7247ff34a51440133427095c41a1a730dcfe395216f8198935048019f",
-      "output": "ports/client-go/listers/flowcontrol/v1/flowschema.gfx",
+      "output": "ports/client-go/listers/flowcontrol/v1/flowschema.gt",
       "object_type": "k8s.io/api/flowcontrol/v1.FlowSchema",
       "resource": "flowschema",
       "scope": "Cluster",
@@ -680,7 +680,7 @@
     {
       "source": "listers/flowcontrol/v1/prioritylevelconfiguration.go",
       "sha256": "ae1d0d2598dfa540b534a765914411d962bbe8a13c682a949d196b4129f5fb31",
-      "output": "ports/client-go/listers/flowcontrol/v1/prioritylevelconfiguration.gfx",
+      "output": "ports/client-go/listers/flowcontrol/v1/prioritylevelconfiguration.gt",
       "object_type": "k8s.io/api/flowcontrol/v1.PriorityLevelConfiguration",
       "resource": "prioritylevelconfiguration",
       "scope": "Cluster",
@@ -689,7 +689,7 @@
     {
       "source": "listers/flowcontrol/v1beta1/flowschema.go",
       "sha256": "2184e4cd431ca5d308f60a6d271c94e9b420041a24f78b6b849fdb6dd787e110",
-      "output": "ports/client-go/listers/flowcontrol/v1beta1/flowschema.gfx",
+      "output": "ports/client-go/listers/flowcontrol/v1beta1/flowschema.gt",
       "object_type": "k8s.io/api/flowcontrol/v1beta1.FlowSchema",
       "resource": "flowschema",
       "scope": "Cluster",
@@ -698,7 +698,7 @@
     {
       "source": "listers/flowcontrol/v1beta1/prioritylevelconfiguration.go",
       "sha256": "7c9e17948134cd65d745ba4483d082b043863e59b2c058b3c490f532d5c8c2f4",
-      "output": "ports/client-go/listers/flowcontrol/v1beta1/prioritylevelconfiguration.gfx",
+      "output": "ports/client-go/listers/flowcontrol/v1beta1/prioritylevelconfiguration.gt",
       "object_type": "k8s.io/api/flowcontrol/v1beta1.PriorityLevelConfiguration",
       "resource": "prioritylevelconfiguration",
       "scope": "Cluster",
@@ -707,7 +707,7 @@
     {
       "source": "listers/flowcontrol/v1beta2/flowschema.go",
       "sha256": "b4c047c30150e788725ba32bbed31e5823b1f7939bebb2c2e0deb59f55777479",
-      "output": "ports/client-go/listers/flowcontrol/v1beta2/flowschema.gfx",
+      "output": "ports/client-go/listers/flowcontrol/v1beta2/flowschema.gt",
       "object_type": "k8s.io/api/flowcontrol/v1beta2.FlowSchema",
       "resource": "flowschema",
       "scope": "Cluster",
@@ -716,7 +716,7 @@
     {
       "source": "listers/flowcontrol/v1beta2/prioritylevelconfiguration.go",
       "sha256": "708d7ab770654d99f10e6b6074b755171978f8f04b4df3d0e1c03595d67acdc7",
-      "output": "ports/client-go/listers/flowcontrol/v1beta2/prioritylevelconfiguration.gfx",
+      "output": "ports/client-go/listers/flowcontrol/v1beta2/prioritylevelconfiguration.gt",
       "object_type": "k8s.io/api/flowcontrol/v1beta2.PriorityLevelConfiguration",
       "resource": "prioritylevelconfiguration",
       "scope": "Cluster",
@@ -725,7 +725,7 @@
     {
       "source": "listers/flowcontrol/v1beta3/flowschema.go",
       "sha256": "d4457dca62f2c4fe37d315457e14abbd8a805096d146eb9e7ad74a2234997680",
-      "output": "ports/client-go/listers/flowcontrol/v1beta3/flowschema.gfx",
+      "output": "ports/client-go/listers/flowcontrol/v1beta3/flowschema.gt",
       "object_type": "k8s.io/api/flowcontrol/v1beta3.FlowSchema",
       "resource": "flowschema",
       "scope": "Cluster",
@@ -734,7 +734,7 @@
     {
       "source": "listers/flowcontrol/v1beta3/prioritylevelconfiguration.go",
       "sha256": "48d26e7a14a256a3014aa9a80e979f89bfcae8357f108f73390b1ceecb197d47",
-      "output": "ports/client-go/listers/flowcontrol/v1beta3/prioritylevelconfiguration.gfx",
+      "output": "ports/client-go/listers/flowcontrol/v1beta3/prioritylevelconfiguration.gt",
       "object_type": "k8s.io/api/flowcontrol/v1beta3.PriorityLevelConfiguration",
       "resource": "prioritylevelconfiguration",
       "scope": "Cluster",
@@ -743,7 +743,7 @@
     {
       "source": "listers/imagepolicy/v1alpha1/imagereview.go",
       "sha256": "c38a6395422626d758150c02ee1edaa5d01d98c75c37d03b0faf8984045926e5",
-      "output": "ports/client-go/listers/imagepolicy/v1alpha1/imagereview.gfx",
+      "output": "ports/client-go/listers/imagepolicy/v1alpha1/imagereview.gt",
       "object_type": "k8s.io/api/imagepolicy/v1alpha1.ImageReview",
       "resource": "imagereview",
       "scope": "Cluster",
@@ -752,7 +752,7 @@
     {
       "source": "listers/lifecycle/v1alpha1/eviction.go",
       "sha256": "580c24697f7a1322881d3102ece31b105de521a49f357bc3383046fcbeca6b18",
-      "output": "ports/client-go/listers/lifecycle/v1alpha1/eviction.gfx",
+      "output": "ports/client-go/listers/lifecycle/v1alpha1/eviction.gt",
       "object_type": "k8s.io/api/lifecycle/v1alpha1.Eviction",
       "resource": "eviction",
       "scope": "Namespaced",
@@ -761,7 +761,7 @@
     {
       "source": "listers/lifecycle/v1alpha1/evictionrequest.go",
       "sha256": "4c3f696d21cc7d13114eec77eb5fb741777a94dc80ff5fdf0b4318f283a9588c",
-      "output": "ports/client-go/listers/lifecycle/v1alpha1/evictionrequest.gfx",
+      "output": "ports/client-go/listers/lifecycle/v1alpha1/evictionrequest.gt",
       "object_type": "k8s.io/api/lifecycle/v1alpha1.EvictionRequest",
       "resource": "evictionrequest",
       "scope": "Namespaced",
@@ -770,7 +770,7 @@
     {
       "source": "listers/networking/v1/ingress.go",
       "sha256": "44c85cf0880082a54807ef1cb65d06eff06c05bee5dd46172d11a09ce0aab24f",
-      "output": "ports/client-go/listers/networking/v1/ingress.gfx",
+      "output": "ports/client-go/listers/networking/v1/ingress.gt",
       "object_type": "k8s.io/api/networking/v1.Ingress",
       "resource": "ingress",
       "scope": "Namespaced",
@@ -779,7 +779,7 @@
     {
       "source": "listers/networking/v1/ingressclass.go",
       "sha256": "c1bbdd05c8e6bd6565f26e349eb0008130448b20e777036756a80b0cdc000837",
-      "output": "ports/client-go/listers/networking/v1/ingressclass.gfx",
+      "output": "ports/client-go/listers/networking/v1/ingressclass.gt",
       "object_type": "k8s.io/api/networking/v1.IngressClass",
       "resource": "ingressclass",
       "scope": "Cluster",
@@ -788,7 +788,7 @@
     {
       "source": "listers/networking/v1/ipaddress.go",
       "sha256": "28e098f26c0e2d01652d13a2ddb98d79d268bb202d3a61a8d6b39c7ad75fe7b3",
-      "output": "ports/client-go/listers/networking/v1/ipaddress.gfx",
+      "output": "ports/client-go/listers/networking/v1/ipaddress.gt",
       "object_type": "k8s.io/api/networking/v1.IPAddress",
       "resource": "ipaddress",
       "scope": "Cluster",
@@ -797,7 +797,7 @@
     {
       "source": "listers/networking/v1/networkpolicy.go",
       "sha256": "87943f88380c3a9fc944b77cd59a3e69a6296ab3d751001711367bb0e6af5011",
-      "output": "ports/client-go/listers/networking/v1/networkpolicy.gfx",
+      "output": "ports/client-go/listers/networking/v1/networkpolicy.gt",
       "object_type": "k8s.io/api/networking/v1.NetworkPolicy",
       "resource": "networkpolicy",
       "scope": "Namespaced",
@@ -806,7 +806,7 @@
     {
       "source": "listers/networking/v1/servicecidr.go",
       "sha256": "10e1f00d151d4128b2a6e555e3722aef3894c4f12fb0b3a21570f82e8e982781",
-      "output": "ports/client-go/listers/networking/v1/servicecidr.gfx",
+      "output": "ports/client-go/listers/networking/v1/servicecidr.gt",
       "object_type": "k8s.io/api/networking/v1.ServiceCIDR",
       "resource": "servicecidr",
       "scope": "Cluster",
@@ -815,7 +815,7 @@
     {
       "source": "listers/networking/v1beta1/ingress.go",
       "sha256": "9c8d69260e680230d7c82c68aca02716f2f50e30aa69c93ef0512abaeb13a7c8",
-      "output": "ports/client-go/listers/networking/v1beta1/ingress.gfx",
+      "output": "ports/client-go/listers/networking/v1beta1/ingress.gt",
       "object_type": "k8s.io/api/networking/v1beta1.Ingress",
       "resource": "ingress",
       "scope": "Namespaced",
@@ -824,7 +824,7 @@
     {
       "source": "listers/networking/v1beta1/ingressclass.go",
       "sha256": "1bbab396cdd45fd28ca54b866775885e0ff777253a3bc043b892b8bf6ce59d3a",
-      "output": "ports/client-go/listers/networking/v1beta1/ingressclass.gfx",
+      "output": "ports/client-go/listers/networking/v1beta1/ingressclass.gt",
       "object_type": "k8s.io/api/networking/v1beta1.IngressClass",
       "resource": "ingressclass",
       "scope": "Cluster",
@@ -833,7 +833,7 @@
     {
       "source": "listers/networking/v1beta1/ipaddress.go",
       "sha256": "e1f007740ca08ee679e4f590872108b5346cee3f874f5b32fe9c1eaa3465fa40",
-      "output": "ports/client-go/listers/networking/v1beta1/ipaddress.gfx",
+      "output": "ports/client-go/listers/networking/v1beta1/ipaddress.gt",
       "object_type": "k8s.io/api/networking/v1beta1.IPAddress",
       "resource": "ipaddress",
       "scope": "Cluster",
@@ -842,7 +842,7 @@
     {
       "source": "listers/networking/v1beta1/servicecidr.go",
       "sha256": "42df3476b4e3500bc515268ed78413ae8244db5269a185017a89c3b90af98914",
-      "output": "ports/client-go/listers/networking/v1beta1/servicecidr.gfx",
+      "output": "ports/client-go/listers/networking/v1beta1/servicecidr.gt",
       "object_type": "k8s.io/api/networking/v1beta1.ServiceCIDR",
       "resource": "servicecidr",
       "scope": "Cluster",
@@ -851,7 +851,7 @@
     {
       "source": "listers/node/v1/runtimeclass.go",
       "sha256": "7f8871ea1b2363ce0badc519d64308065010c4ffdf4f3ed2b296f3db1de98f7b",
-      "output": "ports/client-go/listers/node/v1/runtimeclass.gfx",
+      "output": "ports/client-go/listers/node/v1/runtimeclass.gt",
       "object_type": "k8s.io/api/node/v1.RuntimeClass",
       "resource": "runtimeclass",
       "scope": "Cluster",
@@ -860,7 +860,7 @@
     {
       "source": "listers/node/v1alpha1/runtimeclass.go",
       "sha256": "82e36ec0fcde8a7312dcbd77568c3ada2e31e4b8978d9d025b5b6d07cd556cd3",
-      "output": "ports/client-go/listers/node/v1alpha1/runtimeclass.gfx",
+      "output": "ports/client-go/listers/node/v1alpha1/runtimeclass.gt",
       "object_type": "k8s.io/api/node/v1alpha1.RuntimeClass",
       "resource": "runtimeclass",
       "scope": "Cluster",
@@ -869,7 +869,7 @@
     {
       "source": "listers/node/v1beta1/runtimeclass.go",
       "sha256": "c04fb2cd966976ffb8195fd3059f97e5070a6af859bae6aa7f931e15a3931094",
-      "output": "ports/client-go/listers/node/v1beta1/runtimeclass.gfx",
+      "output": "ports/client-go/listers/node/v1beta1/runtimeclass.gt",
       "object_type": "k8s.io/api/node/v1beta1.RuntimeClass",
       "resource": "runtimeclass",
       "scope": "Cluster",
@@ -878,7 +878,7 @@
     {
       "source": "listers/policy/v1/eviction.go",
       "sha256": "4d513b7c0a5b6288dc7390a1960721c95bcbfc4635b9216cb2ed6dde3b2ca806",
-      "output": "ports/client-go/listers/policy/v1/eviction.gfx",
+      "output": "ports/client-go/listers/policy/v1/eviction.gt",
       "object_type": "k8s.io/api/policy/v1.Eviction",
       "resource": "eviction",
       "scope": "Namespaced",
@@ -887,7 +887,7 @@
     {
       "source": "listers/policy/v1/poddisruptionbudget.go",
       "sha256": "9daa8c9529c61f2d27eb5333eb809b2b9c660c4f00e14e4ce9bd0c9100a5afda",
-      "output": "ports/client-go/listers/policy/v1/poddisruptionbudget.gfx",
+      "output": "ports/client-go/listers/policy/v1/poddisruptionbudget.gt",
       "object_type": "k8s.io/api/policy/v1.PodDisruptionBudget",
       "resource": "poddisruptionbudget",
       "scope": "Namespaced",
@@ -898,7 +898,7 @@
     {
       "source": "listers/policy/v1beta1/eviction.go",
       "sha256": "4e5cdcab5dffdccedca2fa0ae9350cccabf87e289145ebf4c67e132ca7afd463",
-      "output": "ports/client-go/listers/policy/v1beta1/eviction.gfx",
+      "output": "ports/client-go/listers/policy/v1beta1/eviction.gt",
       "object_type": "k8s.io/api/policy/v1beta1.Eviction",
       "resource": "eviction",
       "scope": "Namespaced",
@@ -907,7 +907,7 @@
     {
       "source": "listers/policy/v1beta1/poddisruptionbudget.go",
       "sha256": "aa2d862d3d2ff2fd8ef3b1515bd32961cb6b577a7e2927f37afe9a09480ba40d",
-      "output": "ports/client-go/listers/policy/v1beta1/poddisruptionbudget.gfx",
+      "output": "ports/client-go/listers/policy/v1beta1/poddisruptionbudget.gt",
       "object_type": "k8s.io/api/policy/v1beta1.PodDisruptionBudget",
       "resource": "poddisruptionbudget",
       "scope": "Namespaced",
@@ -918,7 +918,7 @@
     {
       "source": "listers/rbac/v1/clusterrole.go",
       "sha256": "1688e3fef5c30b494f98f34433155dd97f51ee259d0fcf8505c352862d25303c",
-      "output": "ports/client-go/listers/rbac/v1/clusterrole.gfx",
+      "output": "ports/client-go/listers/rbac/v1/clusterrole.gt",
       "object_type": "k8s.io/api/rbac/v1.ClusterRole",
       "resource": "clusterrole",
       "scope": "Cluster",
@@ -927,7 +927,7 @@
     {
       "source": "listers/rbac/v1/clusterrolebinding.go",
       "sha256": "add6c5747bbb1cd903107cc500ed18c2788f90754dc190d0a36b6544761cafdf",
-      "output": "ports/client-go/listers/rbac/v1/clusterrolebinding.gfx",
+      "output": "ports/client-go/listers/rbac/v1/clusterrolebinding.gt",
       "object_type": "k8s.io/api/rbac/v1.ClusterRoleBinding",
       "resource": "clusterrolebinding",
       "scope": "Cluster",
@@ -936,7 +936,7 @@
     {
       "source": "listers/rbac/v1/role.go",
       "sha256": "d5ac65190a3e725e5334a14139ccaf3f7bc1ec7ad12e7ccebc5c33194c9ac2e0",
-      "output": "ports/client-go/listers/rbac/v1/role.gfx",
+      "output": "ports/client-go/listers/rbac/v1/role.gt",
       "object_type": "k8s.io/api/rbac/v1.Role",
       "resource": "role",
       "scope": "Namespaced",
@@ -945,7 +945,7 @@
     {
       "source": "listers/rbac/v1/rolebinding.go",
       "sha256": "89ddfd187dd5cdecfedb5fae1ab4272a1e96f90aeec3de8797783cb16804e556",
-      "output": "ports/client-go/listers/rbac/v1/rolebinding.gfx",
+      "output": "ports/client-go/listers/rbac/v1/rolebinding.gt",
       "object_type": "k8s.io/api/rbac/v1.RoleBinding",
       "resource": "rolebinding",
       "scope": "Namespaced",
@@ -954,7 +954,7 @@
     {
       "source": "listers/rbac/v1alpha1/clusterrole.go",
       "sha256": "b42e17c62296b33cf23af19b4abaa544a5187e1b427aa86da346e52b0c22112c",
-      "output": "ports/client-go/listers/rbac/v1alpha1/clusterrole.gfx",
+      "output": "ports/client-go/listers/rbac/v1alpha1/clusterrole.gt",
       "object_type": "k8s.io/api/rbac/v1alpha1.ClusterRole",
       "resource": "clusterrole",
       "scope": "Cluster",
@@ -963,7 +963,7 @@
     {
       "source": "listers/rbac/v1alpha1/clusterrolebinding.go",
       "sha256": "ca93f92c6317f906de30bb85355503d099371c7c7b569333c1c3958bdd5e3c7b",
-      "output": "ports/client-go/listers/rbac/v1alpha1/clusterrolebinding.gfx",
+      "output": "ports/client-go/listers/rbac/v1alpha1/clusterrolebinding.gt",
       "object_type": "k8s.io/api/rbac/v1alpha1.ClusterRoleBinding",
       "resource": "clusterrolebinding",
       "scope": "Cluster",
@@ -972,7 +972,7 @@
     {
       "source": "listers/rbac/v1alpha1/role.go",
       "sha256": "3f50c8e965cb116d8325193eead76bbbd895c4dd9bdeb36cf050cb8ac1ae274e",
-      "output": "ports/client-go/listers/rbac/v1alpha1/role.gfx",
+      "output": "ports/client-go/listers/rbac/v1alpha1/role.gt",
       "object_type": "k8s.io/api/rbac/v1alpha1.Role",
       "resource": "role",
       "scope": "Namespaced",
@@ -981,7 +981,7 @@
     {
       "source": "listers/rbac/v1alpha1/rolebinding.go",
       "sha256": "e98a31f81bc54450a6a94b0d7e855bab720b5f7297cf95d70fd6217751d32910",
-      "output": "ports/client-go/listers/rbac/v1alpha1/rolebinding.gfx",
+      "output": "ports/client-go/listers/rbac/v1alpha1/rolebinding.gt",
       "object_type": "k8s.io/api/rbac/v1alpha1.RoleBinding",
       "resource": "rolebinding",
       "scope": "Namespaced",
@@ -990,7 +990,7 @@
     {
       "source": "listers/rbac/v1beta1/clusterrole.go",
       "sha256": "bc497f2bac2c01ac3fee3cbaa22244dfedde49dfef79cb3f00bf2b5818c2e4a7",
-      "output": "ports/client-go/listers/rbac/v1beta1/clusterrole.gfx",
+      "output": "ports/client-go/listers/rbac/v1beta1/clusterrole.gt",
       "object_type": "k8s.io/api/rbac/v1beta1.ClusterRole",
       "resource": "clusterrole",
       "scope": "Cluster",
@@ -999,7 +999,7 @@
     {
       "source": "listers/rbac/v1beta1/clusterrolebinding.go",
       "sha256": "1b9ab398fb448f7450bcdc74b528fb58095b5df6511a032cb570dadffe119673",
-      "output": "ports/client-go/listers/rbac/v1beta1/clusterrolebinding.gfx",
+      "output": "ports/client-go/listers/rbac/v1beta1/clusterrolebinding.gt",
       "object_type": "k8s.io/api/rbac/v1beta1.ClusterRoleBinding",
       "resource": "clusterrolebinding",
       "scope": "Cluster",
@@ -1008,7 +1008,7 @@
     {
       "source": "listers/rbac/v1beta1/role.go",
       "sha256": "b1a2760ad2b8ae1e3c023a3053561d6fa39103c802dc517eb83b8774b5217785",
-      "output": "ports/client-go/listers/rbac/v1beta1/role.gfx",
+      "output": "ports/client-go/listers/rbac/v1beta1/role.gt",
       "object_type": "k8s.io/api/rbac/v1beta1.Role",
       "resource": "role",
       "scope": "Namespaced",
@@ -1017,7 +1017,7 @@
     {
       "source": "listers/rbac/v1beta1/rolebinding.go",
       "sha256": "fd57a4ba7669bcfab0c0d54249177e9cde33acb7b71a8a92fc710cb1070b7ac4",
-      "output": "ports/client-go/listers/rbac/v1beta1/rolebinding.gfx",
+      "output": "ports/client-go/listers/rbac/v1beta1/rolebinding.gt",
       "object_type": "k8s.io/api/rbac/v1beta1.RoleBinding",
       "resource": "rolebinding",
       "scope": "Namespaced",
@@ -1026,7 +1026,7 @@
     {
       "source": "listers/resource/v1/deviceclass.go",
       "sha256": "989c5fdaed3477b345c3320c7781dc743603ae4809e5d7c39b04f09d244f4295",
-      "output": "ports/client-go/listers/resource/v1/deviceclass.gfx",
+      "output": "ports/client-go/listers/resource/v1/deviceclass.gt",
       "object_type": "k8s.io/api/resource/v1.DeviceClass",
       "resource": "deviceclass",
       "scope": "Cluster",
@@ -1035,7 +1035,7 @@
     {
       "source": "listers/resource/v1/devicetaintrule.go",
       "sha256": "c54d13ceb928841d6c5ddd2febe65e7997621fba960fb7ad338794922022c2fa",
-      "output": "ports/client-go/listers/resource/v1/devicetaintrule.gfx",
+      "output": "ports/client-go/listers/resource/v1/devicetaintrule.gt",
       "object_type": "k8s.io/api/resource/v1.DeviceTaintRule",
       "resource": "devicetaintrule",
       "scope": "Cluster",
@@ -1044,7 +1044,7 @@
     {
       "source": "listers/resource/v1/resourceclaim.go",
       "sha256": "786b303dc378c70c07b1f491dc357aca5ecf191866925490413ddafc73d315e0",
-      "output": "ports/client-go/listers/resource/v1/resourceclaim.gfx",
+      "output": "ports/client-go/listers/resource/v1/resourceclaim.gt",
       "object_type": "k8s.io/api/resource/v1.ResourceClaim",
       "resource": "resourceclaim",
       "scope": "Namespaced",
@@ -1053,7 +1053,7 @@
     {
       "source": "listers/resource/v1/resourceclaimtemplate.go",
       "sha256": "f835703d07c11202f066646a84bc8c84a594793a322c3006a396ef7c7216c609",
-      "output": "ports/client-go/listers/resource/v1/resourceclaimtemplate.gfx",
+      "output": "ports/client-go/listers/resource/v1/resourceclaimtemplate.gt",
       "object_type": "k8s.io/api/resource/v1.ResourceClaimTemplate",
       "resource": "resourceclaimtemplate",
       "scope": "Namespaced",
@@ -1062,7 +1062,7 @@
     {
       "source": "listers/resource/v1/resourceslice.go",
       "sha256": "57fbdea83f01be8ff6d80d7d8cb54163b31fde890a00afc71b58306fec28258f",
-      "output": "ports/client-go/listers/resource/v1/resourceslice.gfx",
+      "output": "ports/client-go/listers/resource/v1/resourceslice.gt",
       "object_type": "k8s.io/api/resource/v1.ResourceSlice",
       "resource": "resourceslice",
       "scope": "Cluster",
@@ -1071,7 +1071,7 @@
     {
       "source": "listers/resource/v1alpha3/devicetaintrule.go",
       "sha256": "b383a4f45db43a5bb92e2890a3ed34a529c7b1c868dff648b29dafc4fb6fcbdf",
-      "output": "ports/client-go/listers/resource/v1alpha3/devicetaintrule.gfx",
+      "output": "ports/client-go/listers/resource/v1alpha3/devicetaintrule.gt",
       "object_type": "k8s.io/api/resource/v1alpha3.DeviceTaintRule",
       "resource": "devicetaintrule",
       "scope": "Cluster",
@@ -1080,7 +1080,7 @@
     {
       "source": "listers/resource/v1alpha3/resourcepoolstatusrequest.go",
       "sha256": "b910096f4afea8c4536b5cc886237c58d336a60b169f6ba960b7e119cdaa961c",
-      "output": "ports/client-go/listers/resource/v1alpha3/resourcepoolstatusrequest.gfx",
+      "output": "ports/client-go/listers/resource/v1alpha3/resourcepoolstatusrequest.gt",
       "object_type": "k8s.io/api/resource/v1alpha3.ResourcePoolStatusRequest",
       "resource": "resourcepoolstatusrequest",
       "scope": "Cluster",
@@ -1089,7 +1089,7 @@
     {
       "source": "listers/resource/v1beta1/deviceclass.go",
       "sha256": "60da3f966ba8782b1d693ced4d00bc3b65a9b49ca5c1291b0aa50ab142be0d18",
-      "output": "ports/client-go/listers/resource/v1beta1/deviceclass.gfx",
+      "output": "ports/client-go/listers/resource/v1beta1/deviceclass.gt",
       "object_type": "k8s.io/api/resource/v1beta1.DeviceClass",
       "resource": "deviceclass",
       "scope": "Cluster",
@@ -1098,7 +1098,7 @@
     {
       "source": "listers/resource/v1beta1/resourceclaim.go",
       "sha256": "9a257f02eafd7324b7486c7ad4f5b0e2b4416d22d8b57d2a9cbbb7c57b96b93b",
-      "output": "ports/client-go/listers/resource/v1beta1/resourceclaim.gfx",
+      "output": "ports/client-go/listers/resource/v1beta1/resourceclaim.gt",
       "object_type": "k8s.io/api/resource/v1beta1.ResourceClaim",
       "resource": "resourceclaim",
       "scope": "Namespaced",
@@ -1107,7 +1107,7 @@
     {
       "source": "listers/resource/v1beta1/resourceclaimtemplate.go",
       "sha256": "dd982192d9588bb0cd4bfc9cea5afc959d519a871768c7f6141521a969aa0c6c",
-      "output": "ports/client-go/listers/resource/v1beta1/resourceclaimtemplate.gfx",
+      "output": "ports/client-go/listers/resource/v1beta1/resourceclaimtemplate.gt",
       "object_type": "k8s.io/api/resource/v1beta1.ResourceClaimTemplate",
       "resource": "resourceclaimtemplate",
       "scope": "Namespaced",
@@ -1116,7 +1116,7 @@
     {
       "source": "listers/resource/v1beta1/resourceslice.go",
       "sha256": "04b51554abe04f82c2042bf1dc7187d2b484e47e466d8d6c63079868298d7599",
-      "output": "ports/client-go/listers/resource/v1beta1/resourceslice.gfx",
+      "output": "ports/client-go/listers/resource/v1beta1/resourceslice.gt",
       "object_type": "k8s.io/api/resource/v1beta1.ResourceSlice",
       "resource": "resourceslice",
       "scope": "Cluster",
@@ -1125,7 +1125,7 @@
     {
       "source": "listers/resource/v1beta2/deviceclass.go",
       "sha256": "49775c2f3a4d16065f9511221a4106f0afad3cffb3fc4870d2c1017a0272a6b1",
-      "output": "ports/client-go/listers/resource/v1beta2/deviceclass.gfx",
+      "output": "ports/client-go/listers/resource/v1beta2/deviceclass.gt",
       "object_type": "k8s.io/api/resource/v1beta2.DeviceClass",
       "resource": "deviceclass",
       "scope": "Cluster",
@@ -1134,7 +1134,7 @@
     {
       "source": "listers/resource/v1beta2/devicetaintrule.go",
       "sha256": "ae3cfd38cb5b8ec5fea46974eddf812ac74f6fd4ff29309255188818018e39f7",
-      "output": "ports/client-go/listers/resource/v1beta2/devicetaintrule.gfx",
+      "output": "ports/client-go/listers/resource/v1beta2/devicetaintrule.gt",
       "object_type": "k8s.io/api/resource/v1beta2.DeviceTaintRule",
       "resource": "devicetaintrule",
       "scope": "Cluster",
@@ -1143,7 +1143,7 @@
     {
       "source": "listers/resource/v1beta2/resourceclaim.go",
       "sha256": "de4d113b78725c6c9ddc994f0fe026e114cc83703c7f9c97ecda8ca156995bdd",
-      "output": "ports/client-go/listers/resource/v1beta2/resourceclaim.gfx",
+      "output": "ports/client-go/listers/resource/v1beta2/resourceclaim.gt",
       "object_type": "k8s.io/api/resource/v1beta2.ResourceClaim",
       "resource": "resourceclaim",
       "scope": "Namespaced",
@@ -1152,7 +1152,7 @@
     {
       "source": "listers/resource/v1beta2/resourceclaimtemplate.go",
       "sha256": "8e29bb3685613cdca6ddee8ccbd6846b651feaa43aba4fec2e980682a22f6251",
-      "output": "ports/client-go/listers/resource/v1beta2/resourceclaimtemplate.gfx",
+      "output": "ports/client-go/listers/resource/v1beta2/resourceclaimtemplate.gt",
       "object_type": "k8s.io/api/resource/v1beta2.ResourceClaimTemplate",
       "resource": "resourceclaimtemplate",
       "scope": "Namespaced",
@@ -1161,7 +1161,7 @@
     {
       "source": "listers/resource/v1beta2/resourceslice.go",
       "sha256": "ae78fe51331de8e36054c69fec0a79a91c0dcf47cc991b144feaca73f5163be2",
-      "output": "ports/client-go/listers/resource/v1beta2/resourceslice.gfx",
+      "output": "ports/client-go/listers/resource/v1beta2/resourceslice.gt",
       "object_type": "k8s.io/api/resource/v1beta2.ResourceSlice",
       "resource": "resourceslice",
       "scope": "Cluster",
@@ -1170,7 +1170,7 @@
     {
       "source": "listers/scheduling/v1/priorityclass.go",
       "sha256": "fef6f46762c0c6dd5e7c8b69dc41b6b28be5dfa950b88fed31abc4222e716024",
-      "output": "ports/client-go/listers/scheduling/v1/priorityclass.gfx",
+      "output": "ports/client-go/listers/scheduling/v1/priorityclass.gt",
       "object_type": "k8s.io/api/scheduling/v1.PriorityClass",
       "resource": "priorityclass",
       "scope": "Cluster",
@@ -1179,7 +1179,7 @@
     {
       "source": "listers/scheduling/v1alpha3/compositepodgroup.go",
       "sha256": "b304d5624eeea16469e350e94b7e1f93144bd837eaecd6b5e390add0dbd212ed",
-      "output": "ports/client-go/listers/scheduling/v1alpha3/compositepodgroup.gfx",
+      "output": "ports/client-go/listers/scheduling/v1alpha3/compositepodgroup.gt",
       "object_type": "k8s.io/api/scheduling/v1alpha3.CompositePodGroup",
       "resource": "compositepodgroup",
       "scope": "Namespaced",
@@ -1188,7 +1188,7 @@
     {
       "source": "listers/scheduling/v1alpha3/podgroup.go",
       "sha256": "d95041b6c92951b783af7eaf427431903a1f6f421b7a70e3a99d94300b1a37f2",
-      "output": "ports/client-go/listers/scheduling/v1alpha3/podgroup.gfx",
+      "output": "ports/client-go/listers/scheduling/v1alpha3/podgroup.gt",
       "object_type": "k8s.io/api/scheduling/v1alpha3.PodGroup",
       "resource": "podgroup",
       "scope": "Namespaced",
@@ -1197,7 +1197,7 @@
     {
       "source": "listers/scheduling/v1alpha3/workload.go",
       "sha256": "e2eac93e319617c2aab2c212462624825fffbb6271231869e8b6509c274cd037",
-      "output": "ports/client-go/listers/scheduling/v1alpha3/workload.gfx",
+      "output": "ports/client-go/listers/scheduling/v1alpha3/workload.gt",
       "object_type": "k8s.io/api/scheduling/v1alpha3.Workload",
       "resource": "workload",
       "scope": "Namespaced",
@@ -1206,7 +1206,7 @@
     {
       "source": "listers/scheduling/v1beta1/podgroup.go",
       "sha256": "b5d63f731c964bd56305fe5968d84ea4799afb76e817c4a0207b22fb82032944",
-      "output": "ports/client-go/listers/scheduling/v1beta1/podgroup.gfx",
+      "output": "ports/client-go/listers/scheduling/v1beta1/podgroup.gt",
       "object_type": "k8s.io/api/scheduling/v1beta1.PodGroup",
       "resource": "podgroup",
       "scope": "Namespaced",
@@ -1215,7 +1215,7 @@
     {
       "source": "listers/scheduling/v1beta1/priorityclass.go",
       "sha256": "82a50fdc666f3640ba566e000eb71cfc4718ca139f6de99ea2ec8166ac868802",
-      "output": "ports/client-go/listers/scheduling/v1beta1/priorityclass.gfx",
+      "output": "ports/client-go/listers/scheduling/v1beta1/priorityclass.gt",
       "object_type": "k8s.io/api/scheduling/v1beta1.PriorityClass",
       "resource": "priorityclass",
       "scope": "Cluster",
@@ -1224,7 +1224,7 @@
     {
       "source": "listers/scheduling/v1beta1/workload.go",
       "sha256": "f81cf0cfb741a89d5eb08ca76c953569ec3ab18b7fcba33d5bb2c910a94cbb53",
-      "output": "ports/client-go/listers/scheduling/v1beta1/workload.gfx",
+      "output": "ports/client-go/listers/scheduling/v1beta1/workload.gt",
       "object_type": "k8s.io/api/scheduling/v1beta1.Workload",
       "resource": "workload",
       "scope": "Namespaced",
@@ -1233,7 +1233,7 @@
     {
       "source": "listers/storage/v1/csidriver.go",
       "sha256": "501a9437b55d6b10f134125384fbd52112cc7e8fd75bcd09c1500373ce9b9af8",
-      "output": "ports/client-go/listers/storage/v1/csidriver.gfx",
+      "output": "ports/client-go/listers/storage/v1/csidriver.gt",
       "object_type": "k8s.io/api/storage/v1.CSIDriver",
       "resource": "csidriver",
       "scope": "Cluster",
@@ -1242,7 +1242,7 @@
     {
       "source": "listers/storage/v1/csinode.go",
       "sha256": "88c5b80823fbcf9f58b5f2758ddb560a8bf145b76ec880dbce8de2af1fb328e9",
-      "output": "ports/client-go/listers/storage/v1/csinode.gfx",
+      "output": "ports/client-go/listers/storage/v1/csinode.gt",
       "object_type": "k8s.io/api/storage/v1.CSINode",
       "resource": "csinode",
       "scope": "Cluster",
@@ -1251,7 +1251,7 @@
     {
       "source": "listers/storage/v1/csistoragecapacity.go",
       "sha256": "e4e23699cdac82a007ccdcd809a059c945db2d909b89fb5af85b76bc6fb12ee5",
-      "output": "ports/client-go/listers/storage/v1/csistoragecapacity.gfx",
+      "output": "ports/client-go/listers/storage/v1/csistoragecapacity.gt",
       "object_type": "k8s.io/api/storage/v1.CSIStorageCapacity",
       "resource": "csistoragecapacity",
       "scope": "Namespaced",
@@ -1260,7 +1260,7 @@
     {
       "source": "listers/storage/v1/storageclass.go",
       "sha256": "ed57618beaccaf1b5b5f046560e3c78ebd3098709dd41ad21192482482e12e6f",
-      "output": "ports/client-go/listers/storage/v1/storageclass.gfx",
+      "output": "ports/client-go/listers/storage/v1/storageclass.gt",
       "object_type": "k8s.io/api/storage/v1.StorageClass",
       "resource": "storageclass",
       "scope": "Cluster",
@@ -1269,7 +1269,7 @@
     {
       "source": "listers/storage/v1/volumeattachment.go",
       "sha256": "205c684060ff21cbf5b37c5da8e3ad5ce8ffa70e81e6fe9a10a2e3509a82808b",
-      "output": "ports/client-go/listers/storage/v1/volumeattachment.gfx",
+      "output": "ports/client-go/listers/storage/v1/volumeattachment.gt",
       "object_type": "k8s.io/api/storage/v1.VolumeAttachment",
       "resource": "volumeattachment",
       "scope": "Cluster",
@@ -1278,7 +1278,7 @@
     {
       "source": "listers/storage/v1/volumeattributesclass.go",
       "sha256": "0bc75b3471f68cc62a46d6e453a6bba621d0a749f020c0430c2471403602f8ac",
-      "output": "ports/client-go/listers/storage/v1/volumeattributesclass.gfx",
+      "output": "ports/client-go/listers/storage/v1/volumeattributesclass.gt",
       "object_type": "k8s.io/api/storage/v1.VolumeAttributesClass",
       "resource": "volumeattributesclass",
       "scope": "Cluster",
@@ -1287,7 +1287,7 @@
     {
       "source": "listers/storage/v1alpha1/csistoragecapacity.go",
       "sha256": "bbc6750e26a4c7a8e4cb84cca363015c954de26dd9b9123a89ba3dafb1b69575",
-      "output": "ports/client-go/listers/storage/v1alpha1/csistoragecapacity.gfx",
+      "output": "ports/client-go/listers/storage/v1alpha1/csistoragecapacity.gt",
       "object_type": "k8s.io/api/storage/v1alpha1.CSIStorageCapacity",
       "resource": "csistoragecapacity",
       "scope": "Namespaced",
@@ -1296,7 +1296,7 @@
     {
       "source": "listers/storage/v1alpha1/volumeattachment.go",
       "sha256": "1040e71c6bf6e671c6fdf3d6260c2f96ce0f6b6a5daa94d745fa06d36ee6dc17",
-      "output": "ports/client-go/listers/storage/v1alpha1/volumeattachment.gfx",
+      "output": "ports/client-go/listers/storage/v1alpha1/volumeattachment.gt",
       "object_type": "k8s.io/api/storage/v1alpha1.VolumeAttachment",
       "resource": "volumeattachment",
       "scope": "Cluster",
@@ -1305,7 +1305,7 @@
     {
       "source": "listers/storage/v1alpha1/volumeattributesclass.go",
       "sha256": "ed11a6a1ae2b4f57d7efb2ebd31439d262c4990c1034b07821ce239fd28149b9",
-      "output": "ports/client-go/listers/storage/v1alpha1/volumeattributesclass.gfx",
+      "output": "ports/client-go/listers/storage/v1alpha1/volumeattributesclass.gt",
       "object_type": "k8s.io/api/storage/v1alpha1.VolumeAttributesClass",
       "resource": "volumeattributesclass",
       "scope": "Cluster",
@@ -1314,7 +1314,7 @@
     {
       "source": "listers/storage/v1beta1/csidriver.go",
       "sha256": "65ed46155afa3c860cb806c22722ee924245517951462376b829ccede41bb981",
-      "output": "ports/client-go/listers/storage/v1beta1/csidriver.gfx",
+      "output": "ports/client-go/listers/storage/v1beta1/csidriver.gt",
       "object_type": "k8s.io/api/storage/v1beta1.CSIDriver",
       "resource": "csidriver",
       "scope": "Cluster",
@@ -1323,7 +1323,7 @@
     {
       "source": "listers/storage/v1beta1/csinode.go",
       "sha256": "89c09b9c6b7fa3254b23e8f1d9aca97320fe708c1db0a2ef08e75121c729cd81",
-      "output": "ports/client-go/listers/storage/v1beta1/csinode.gfx",
+      "output": "ports/client-go/listers/storage/v1beta1/csinode.gt",
       "object_type": "k8s.io/api/storage/v1beta1.CSINode",
       "resource": "csinode",
       "scope": "Cluster",
@@ -1332,7 +1332,7 @@
     {
       "source": "listers/storage/v1beta1/csistoragecapacity.go",
       "sha256": "33518f34eee64d8b61f22b70afdd83e3caccbdf5460325dc7c631fa3ceb95ff6",
-      "output": "ports/client-go/listers/storage/v1beta1/csistoragecapacity.gfx",
+      "output": "ports/client-go/listers/storage/v1beta1/csistoragecapacity.gt",
       "object_type": "k8s.io/api/storage/v1beta1.CSIStorageCapacity",
       "resource": "csistoragecapacity",
       "scope": "Namespaced",
@@ -1341,7 +1341,7 @@
     {
       "source": "listers/storage/v1beta1/storageclass.go",
       "sha256": "2b796861a61827e28093034ed8d16fed4b606c293c22c77a151c61d2146a24d8",
-      "output": "ports/client-go/listers/storage/v1beta1/storageclass.gfx",
+      "output": "ports/client-go/listers/storage/v1beta1/storageclass.gt",
       "object_type": "k8s.io/api/storage/v1beta1.StorageClass",
       "resource": "storageclass",
       "scope": "Cluster",
@@ -1350,7 +1350,7 @@
     {
       "source": "listers/storage/v1beta1/volumeattachment.go",
       "sha256": "3e73da8861bea60fb4c3e826f9cd9055aed415de920955fd0d0f66027d3cbeec",
-      "output": "ports/client-go/listers/storage/v1beta1/volumeattachment.gfx",
+      "output": "ports/client-go/listers/storage/v1beta1/volumeattachment.gt",
       "object_type": "k8s.io/api/storage/v1beta1.VolumeAttachment",
       "resource": "volumeattachment",
       "scope": "Cluster",
@@ -1359,7 +1359,7 @@
     {
       "source": "listers/storage/v1beta1/volumeattributesclass.go",
       "sha256": "449dca873a56bd6798852f75ac988038ceb69da9e87fb74565f134cbbc0bdd2c",
-      "output": "ports/client-go/listers/storage/v1beta1/volumeattributesclass.gfx",
+      "output": "ports/client-go/listers/storage/v1beta1/volumeattributesclass.gt",
       "object_type": "k8s.io/api/storage/v1beta1.VolumeAttributesClass",
       "resource": "volumeattributesclass",
       "scope": "Cluster",
@@ -1368,7 +1368,7 @@
     {
       "source": "listers/storagemigration/v1/storageversionmigration.go",
       "sha256": "044e0fde86f4a57bc2fe1c20fa4d16dc98c019d13c6b0db31ec5e356f6d16ab2",
-      "output": "ports/client-go/listers/storagemigration/v1/storageversionmigration.gfx",
+      "output": "ports/client-go/listers/storagemigration/v1/storageversionmigration.gt",
       "object_type": "k8s.io/api/storagemigration/v1.StorageVersionMigration",
       "resource": "storageversionmigration",
       "scope": "Cluster",
@@ -1377,7 +1377,7 @@
     {
       "source": "listers/storagemigration/v1beta1/storageversionmigration.go",
       "sha256": "c13e24ce615f83641a1a86eff258e36572d9b01283bff17cfe730eedad24ceb1",
-      "output": "ports/client-go/listers/storagemigration/v1beta1/storageversionmigration.gfx",
+      "output": "ports/client-go/listers/storagemigration/v1beta1/storageversionmigration.gt",
       "object_type": "k8s.io/api/storagemigration/v1beta1.StorageVersionMigration",
       "resource": "storageversionmigration",
       "scope": "Cluster",
@@ -2964,7 +2964,7 @@
         "TestDaemonSetLister"
       ],
       "native_exports": {
-        "TestDaemonSetLister": "generated behavioral fixtures plus generic_helpers_test.gfx and selectors_test.gfx"
+        "TestDaemonSetLister": "generated behavioral fixtures plus generic_helpers_test.gt and selectors_test.gt"
       },
       "role": "test"
     },

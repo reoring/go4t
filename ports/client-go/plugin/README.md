@@ -117,7 +117,7 @@ responses. Records containing credentials have no derived Show/Debug instances.
 Process stdout is never included in exec-failure diagnostics. Provider-returned
 HTTP error bodies remain part of upstream-compatible returned errors, not logs;
 callers must not indiscriminately log such errors. The fixed RSA key in
-`certificate_test.gfx` is the publicly distributed upstream test fixture.
+`certificate_test.gt` is the publicly distributed upstream test fixture.
 
 ## Exhaustive production exported-symbol map
 
@@ -127,14 +127,14 @@ their exported methods disappear from this map.
 
 | Pinned source symbol | Native implementation |
 |---|---|
-| exec/exec.go:136 `(*sometimes).Do` | exec/limiter.gfx `Sometimes`, `newSometimes`, `doSometimes` |
-| exec/exec.go:161 `GetAuthenticator` | exec/exec.gfx `getAuthenticator` with explicit cache/environment |
-| exec/exec.go:263 `Authenticator` | exec/exec.gfx `Authenticator` / `Core` |
+| exec/exec.go:136 `(*sometimes).Do` | exec/limiter.gt `Sometimes`, `newSometimes`, `doSometimes` |
+| exec/exec.go:161 `GetAuthenticator` | exec/exec.gt `getAuthenticator` with explicit cache/environment |
+| exec/exec.go:263 `Authenticator` | exec/exec.gt `Authenticator` / `Core` |
 | exec/exec.go:313 `(*Authenticator).UpdateTransportConfig` | `updateTransportConfig` |
 | exec/exec.go:356 `(*roundTripper).WrappedRoundTripper` | `wrapTransport` uses Transport layer introspection; `wrappedRoundTripper` returns supplied base |
 | exec/exec.go:360 `(*roundTripper).RoundTrip` | `roundTrip` |
 | exec/exec.go:661 `ValidatePluginPolicy` | `validatePluginPolicy` |
-| oidc/oidc.go:178 `(*oidcAuthProvider).WrapTransport` | oidc/oidc.gfx `wrapTransport` |
+| oidc/oidc.go:178 `(*oidcAuthProvider).WrapTransport` | oidc/oidc.gt `wrapTransport` |
 | oidc/oidc.go:185 `(*oidcAuthProvider).Login` | `login` (same intentional error) |
 | oidc/oidc.go:196 `(*roundTripper).RoundTrip` | `roundTrip` |
 | oidc/oidc.go:219 `(*roundTripper).WrappedRoundTripper` | Transport layer introspection and `wrappedRoundTripper` |
@@ -147,8 +147,8 @@ points; `azure_stub.go` / `gcp_stub.go` map to their respective factory/register
 functions with the exact removal errors; `exec/metrics.go` maps to native
 `Metrics`, `_callsMetric`, `_policyMetric`, `_rotationMetric`, `_expirationMetric`.
 Exec cache, expiration, allowlist, command-error and credential lifecycle helpers
-are native in exec.gfx. OIDC cache, JSON time, discovery and refresh/persistence
-helpers are native in oidc.gfx.
+are native in exec.gt. OIDC cache, JSON time, discovery and refresh/persistence
+helpers are native in oidc.gt.
 
 ## Staged regression evidence
 

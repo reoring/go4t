@@ -6,7 +6,7 @@ import (
  "sync/atomic"
  "testing"
  "time"
- "gofx/rt"
+ "go4t/rt"
 )
 
 type testOption struct { value any; some bool }

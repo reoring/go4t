@@ -1,0 +1,61 @@
+// Copyright 2026 The go4t Authors. Licensed under Apache-2.0.
+package loopback
+import forward "github.com/reoring/gofx/ports/client-go/tools/portforward"
+import spdy "github.com/reoring/gofx/ports/client-go/transport/spdy"
+import ws "github.com/reoring/gofx/ports/client-go/transport/websocket"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import logr "github.com/reoring/gofx/ports/client-go/deps/github.com/go-logr/logr"
+import klog "github.com/reoring/gofx/ports/client-go/deps/k8s.io/klog/v2"
+import http "github.com/reoring/gofx/ports/client-go/deps/net/http"
+import transport "github.com/reoring/gofx/ports/client-go/transport"
+
+type LogCapture = LogCaptureHandle
+extern func _openLogCapture(level Int) IO[LogCapture] = "github.com/reoring/gofx/ports/client-go/tools/portforward/loopback/host".OpenLogCapture
+extern func _captureLogger(capture LogCapture) IO[logr.Logger] = "github.com/reoring/gofx/ports/client-go/tools/portforward/loopback/host".CaptureLogger
+extern func _logCount(capture LogCapture,level Int,name String,message String) IO[Int] = "github.com/reoring/gofx/ports/client-go/tools/portforward/loopback/host".LogCount
+extern func _logField(capture LogCapture,message String,key String) IO[String] = "github.com/reoring/gofx/ports/client-go/tools/portforward/loopback/host".LogField
+extern func _logNames(capture LogCapture,prefix String) IO[Bool] = "github.com/reoring/gofx/ports/client-go/tools/portforward/loopback/host".LogNames
+extern func _requestContextLogger(request http.Request) IO[logr.Logger] = "github.com/reoring/gofx/ports/client-go/tools/portforward/loopback/host".RequestContextLogger
+
+type TunnelFixture = TunnelFixtureHandle
+extern func _openTunnel() IO[TunnelFixture] = "github.com/reoring/gofx/ports/client-go/tools/portforward/loopback/host".OpenTunnel
+extern func _tunnelAddress(value TunnelFixture) IO[String] = "github.com/reoring/gofx/ports/client-go/tools/portforward/loopback/host".TunnelAddress
+extern func _tunnelResult(value TunnelFixture) IO[Bool] = "github.com/reoring/gofx/ports/client-go/tools/portforward/loopback/host".TunnelResult
+extern func _closeTunnel(value TunnelFixture) IO[Unit] = "github.com/reoring/gofx/ports/client-go/tools/portforward/loopback/host".CloseTunnel
+func runTunnel() IO[Bool] {do {verbose<-runLoggedTunnel(8);normal<-runLoggedTunnel(7);ioPure(verbose && normal)}}
+func runLoggedTunnel(level Int) IO[Bool] {sync.bracket(_openTunnel(),func(fixture)=>do {
+ address<-_tunnelAddress(fixture)
+ capture<-_openLogCapture(level)
+ logger<-_captureLogger(capture)
+ named<-klog.callLoggerWithName(logger,"loopback")
+ websocket<-ws.newRoundTripper(None,None)
+ let base=ws.asTransport(websocket)
+ let wrapped=transport.roundTripper(func(request)=>do {contextLogger<-_requestContextLogger(request);_ <- logr.loggerCallInfoIdentity(contextLogger,"loopback transport request",Nil);base.roundTrip(request)},base.cancelRequest,base.closeIdleConnections)
+ negotiated<-forward.negotiateSPDYOverWebsocket(named,wrapped,websocket.holder,address,[forward.portForwardProtocolV1Name()])
+ match negotiated.value.0 {None=>ioPure(false);Some(tunnel)=>sync.ensuring(do {
+ a<-forward.read(tunnel,2)
+ b<-forward.read(tunnel,2)
+ c<-forward.read(tunnel,4)
+ written<-forward.write(tunnel,"echo")
+ echoed<-forward.read(tunnel,4)
+ eof<-forward.read(tunnel,4)
+ _ <- forward.closeTunnelingConnection(tunnel)
+ _ <- forward.closeTunnelingConnection(tunnel)
+ server<-_tunnelResult(fixture)
+ started<-_logCount(capture,7,"loopback.client","Tunneling connection read...")
+ finished<-_logCount(capture,if level==8 {8} else {7},"loopback.client","Tunneling connection read...complete")
+ next<-_logCount(capture,8,"loopback.client","Tunneling connection read before NextReader()...")
+ closed<-_logCount(capture,7,"loopback.client","Tunneling connection Close()...")
+ writes<-_logCount(capture,7,"loopback.client","Tunneling connection write")
+ writeDone<-_logCount(capture,7,"loopback.client","Tunneling connection write...complete")
+ upgrading<-_logCount(capture,4,"loopback","Before WebSocket Upgrade Connection...")
+ upgraded<-_logCount(capture,4,"loopback","Negotiation complete")
+ protocol<-_logField(capture,"Negotiation complete","protocol")
+ contextual<-_logCount(capture,0,"loopback","loopback transport request")
+ data<-_logField(capture,"Tunneling connection write","data")
+ length<-_logField(capture,"Tunneling connection write","length")
+ readData<-_logField(capture,"Tunneling connection read...complete","data")
+ names<-_logNames(capture,"loopback")
+ ioPure(server && contextual==1 && upgrading==1 && upgraded==1 && protocol==forward.portForwardProtocolV1Name() && negotiated.value.1==protocol && names && started==5 && finished==5 && closed==1 && writes==1 && writeDone==1 && data=="echo" && length=="4" && (if level==8 {next>0 && readData=="ab"} else {next==0 && readData==""}) && a.value=="ab" && b.value=="c" && c.value=="defg" && written.value==4 && echoed.value=="echo" && (match eof.error {None=>false;Some(e)=>spdy.isEOF(e)}))
+ },do {_ <- forward.closeTunnelingConnection(tunnel);ioPure(unit())})}
+},_closeTunnel)}

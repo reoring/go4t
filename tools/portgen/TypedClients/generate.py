@@ -206,7 +206,7 @@ def generate_group(rs):
  result <- newForConfig(environment,config)
  match result.value {{ Some(client) => ioPure(client); None => ioFail(match result.error {{ Some(error) => errors.errorMessage(error); None => "client construction returned no client" }}) }}
 }} }}''')
- save(pathlib.Path('kubernetes/typed')/group/version/'clients.gfx',m.render())
+ save(pathlib.Path('kubernetes/typed')/group/version/'clients.gt',m.render())
  return group,version,groupname
 
 def main():

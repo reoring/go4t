@@ -1,7 +1,7 @@
 // Copyright 2014 The Kubernetes Authors. Licensed under Apache-2.0.
 // Standard-library parsing adapters only; no kubeconfig policy.
 package host
-import("context";"net/url";"reflect";"strconv";"time";"unicode";"fmt";"gofx/rt";"github.com/reoring/gofx/ports/client-go/host/deps")
+import("context";"net/url";"reflect";"strconv";"time";"unicode";"fmt";"go4t/rt";"github.com/reoring/gofx/ports/client-go/host/deps")
 func ParseURL(text string)rt.IO{return func(context.Context)(any,error){v,e:=url.Parse(text);return rt.Tuple2Of(hostdeps.From(reflect.ValueOf(v)),hostdeps.ErrorOptionFromGo(e)),nil}}
 func ParseRequestURI(text string)rt.IO{return func(context.Context)(any,error){v,e:=url.ParseRequestURI(text);return rt.Tuple2Of(hostdeps.From(reflect.ValueOf(v)),hostdeps.ErrorOptionFromGo(e)),nil}}
 func ParseInteger(text string)(int64,bool){v,e:=strconv.ParseInt(text,10,64);if e!=nil{return 0,false};return v,true}

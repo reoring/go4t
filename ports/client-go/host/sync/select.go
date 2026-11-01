@@ -3,7 +3,7 @@ package hostsync
 import (
  "context"
  "reflect"
- "gofx/rt"
+ "go4t/rt"
 )
 
 type selectCase struct { channel *channel; send bool; value any; result any; mapper func(any) any }

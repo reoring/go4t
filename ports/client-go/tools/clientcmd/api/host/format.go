@@ -11,7 +11,7 @@ import (
 )
 
 // These adapters format only Go primitive/dependency values. Native records,
-// collection traversal, error selection and diagnostics belong to .gfx.
+// collection traversal, error selection and diagnostics belong to .gt.
 func FormatBytes(value any) any {
  return fmt.Sprint(hostdeps.To(reflect.TypeFor[[]byte](), value, context.Background()).Interface())
 }

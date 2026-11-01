@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Emit explicit ordered external API registrations in native gofx."""
+"""Emit explicit ordered external API registrations in native go4t."""
 import re
 from generate import Module,HEAD,save
 from resources import DEFAULT_SOURCE
@@ -11,7 +11,7 @@ def generate():
  m=Module('scheme')
  for a,p in [('runtime','deps/k8s.io/apimachinery/pkg/runtime'),('serializer','deps/k8s.io/apimachinery/pkg/runtime/serializer'),('features','features'),('rest','rest'),('errors','deps/support')]:m.imp(p,a)
  m.code.append('type Registry = Registry { scheme:runtime.Scheme,codecs:serializer.CodecFactory,parameterCodec:runtime.ParameterCodec,negotiatedSerializer:runtime.NegotiatedSerializer,decoder:runtime.Decoder }')
- host=HEAD+'package host\nimport ("context";"reflect";"gofx/rt";deps "github.com/reoring/gofx/ports/client-go/host/deps";"k8s.io/apimachinery/pkg/runtime";"k8s.io/apimachinery/pkg/runtime/serializer";meta "k8s.io/apimachinery/pkg/apis/meta/v1";"k8s.io/apimachinery/pkg/runtime/schema";"k8s.io/apimachinery/pkg/fields"\n'+''.join(a+' "'+aliases[a]+'"\n' for a in order)+')\n'
+ host=HEAD+'package host\nimport ("context";"reflect";"go4t/rt";deps "github.com/reoring/gofx/ports/client-go/host/deps";"k8s.io/apimachinery/pkg/runtime";"k8s.io/apimachinery/pkg/runtime/serializer";meta "k8s.io/apimachinery/pkg/apis/meta/v1";"k8s.io/apimachinery/pkg/runtime/schema";"k8s.io/apimachinery/pkg/fields"\n'+''.join(a+' "'+aliases[a]+'"\n' for a in order)+')\n'
  host+='''func box[T any](v T) any { value:=deps.From(reflect.ValueOf(&v).Elem()); if raw,ok:=rt.OptionValue(value);ok{return raw};return value }
 func schemeOf(value any,ctx context.Context)*runtime.Scheme{return deps.To(reflect.TypeFor[*runtime.Scheme](),rt.SomeOf(value),ctx).Interface().(*runtime.Scheme)}
 func NewScheme() any{return rt.IO(func(ctx context.Context)(any,error){return box(runtime.NewScheme()),nil})}
@@ -32,6 +32,6 @@ func FieldSelector(values any) any{return rt.IO(func(ctx context.Context)(any,er
  m.code.append('func newRegistry() IO[Registry] { do {\n value <- allocateScheme()\n addMeta(value)\n addToScheme(value)\n codec <- codecs(value)\n parameter <- parameters(value)\n serializer <- withoutConversion(codec)\n decoder <- decoder(codec)\n ioPure(Registry(value,codec,parameter,serializer,decoder))\n} }')
  m.code.append('func generatedSerializer(registry Registry,features features.FeatureRegistry) IO[runtime.NegotiatedSerializer] { do {\n factory <- rest.codecFactoryForGeneratedClient(registry.scheme,registry.codecs,features)\n withoutConversion(factory)\n} }')
  m.code.append('func newClientRegistry(features features.FeatureRegistry) IO[Registry] { do {\n registry <- newRegistry()\n serializer <- generatedSerializer(registry,features)\n ioPure(registry{negotiatedSerializer:serializer})\n} }')
- save('kubernetes/scheme/register.gfx',m.render());save('kubernetes/scheme/host/registration.go',host)
+ save('kubernetes/scheme/register.gt',m.render());save('kubernetes/scheme/host/registration.go',host)
  print('Generated',len(order),'ordered external API scheme registrations')
 if __name__=='__main__':generate()

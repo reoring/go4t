@@ -7,7 +7,7 @@ import (
  "net/http/httptrace"
  "sync"
  "time"
- "gofx/rt"
+ "go4t/rt"
  "k8s.io/klog/v2"
 )
 func LogVerbosity()any{return effect(func(ctx context.Context)(any,error){logger:=klog.FromContext(ctx);for n:=9;n>=6;n--{if logger.V(n).Enabled(){return int64(n),nil}};return int64(0),nil})}

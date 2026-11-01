@@ -15,7 +15,7 @@ Source authority: client-go v0.37.2
 | `RoundTripperFor` | `roundTripperFor(rest.Environment,rest.Config)` |
 | `Negotiate` | `negotiate(transport,holder,request,protocols)` |
 
-`websocket.gfx` owns scheme validation/conversion, offered and selected
+`websocket.gt` owns scheme validation/conversion, offered and selected
 subprotocols, handshake failure classification, bounded error response reading,
 status-error interpretation, and request/response body lifetimes. The request is
 cloned before removing the protocol header or changing the socket scheme.
@@ -43,13 +43,13 @@ configured socket write deadline untouched.
 
 ## Focused verification
 
-`websocket_test.gfx` uses real HTTP upgrade servers to cover successful protocol
+`websocket_test.gt` uses real HTTP upgrade servers to cover successful protocol
 selection, rejected/non-offered protocols, HTTP 403 upgrade classification and
 structured Status causes. Additional real websocket channel streaming is in
 `tools/remotecommand/loopback.runWebsocket`.
 
 The independent `ClientGoStreamingVerify` worker ran
-`go run ./cmd/gofx test ports/client-go/transport/websocket` under the serialized
+`go run ./cmd/go4t test ports/client-go/transport/websocket` under the serialized
 VM test wrapper: **3 passed, 0 failed**, exit 0. It also observed successful
 real websocket negotiation for each v1-v5 protocol, a successful real HTTP 403
 websocket-to-SPDY fallback, and the published remotecommand loopback returning

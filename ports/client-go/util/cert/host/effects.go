@@ -1,6 +1,6 @@
 // Copyright 2026 The Kubernetes Authors.
 // Licensed under the Apache License, Version 2.0.
-// External crypto, filesystem and TLS primitives. Port policy lives in .gfx.
+// External crypto, filesystem and TLS primitives. Port policy lives in .gt.
 package host
 
 import (
@@ -23,7 +23,7 @@ import (
  "path/filepath"
  "reflect"
  "time"
- "gofx/rt"
+ "go4t/rt"
  "github.com/reoring/gofx/ports/client-go/host/deps"
  netutils "k8s.io/utils/net"
  apierrors "k8s.io/apimachinery/pkg/api/errors"

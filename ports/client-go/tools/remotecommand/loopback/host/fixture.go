@@ -1,4 +1,4 @@
-// Copyright 2026 The gofx Authors. Licensed under Apache-2.0.
+// Copyright 2026 The go4t Authors. Licensed under Apache-2.0.
 // Test-only real TCP/SPDY server; no original client-go imports.
 package host
 import (
@@ -13,7 +13,7 @@ import (
  "reflect"
  "sync"
  "time"
- "gofx/rt"
+ "go4t/rt"
  "github.com/reoring/gofx/ports/client-go/host/deps"
  ws "github.com/gorilla/websocket"
  stream "k8s.io/streaming/pkg/httpstream"
@@ -21,7 +21,7 @@ import (
 )
 type fixture struct{client stream.Connection;server stream.Connection;listener net.Listener;wsclient *ws.Conn;httpserver *httptest.Server;input *bytes.Reader;output bytes.Buffer;stderr bytes.Buffer;done chan error;close sync.Once}
 func iface[T any](v T)any{o:=hostdeps.From(reflect.ValueOf(&v).Elem());if x,ok:=rt.OptionValue(o);ok{return x};return o}
-func payload()string{return "native gofx streaming / 日本語 / café / \x00partial\xff"}
+func payload()string{return "native go4t streaming / 日本語 / café / \x00partial\xff"}
 type chunkReader struct{source io.Reader}
 func(r *chunkReader)Read(p []byte)(int,error){if len(p)>2{p=p[:2]};return r.source.Read(p)}
 func Open(version,exit,tty any)any{return rt.IO(func(ctx context.Context)(any,error){

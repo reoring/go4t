@@ -1,6 +1,6 @@
 # Authentication configuration helpers
 
-Native gofx implementation of pinned client-go v0.37.2 `tools/auth` and
+Native go4t implementation of pinned client-go v0.37.2 `tools/auth` and
 `tools/auth/exec`. Copyright 2014–2020 The Kubernetes Authors; Apache-2.0.
 
 `Info` is the legacy file-format record. `loadFromFile(Source, path)` retains

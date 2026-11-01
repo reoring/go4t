@@ -15,7 +15,7 @@ Port of client-go **v0.37.2**, revision `72c52dd0cc3b9099b36af11290b0304045dd1ad
 
 Arbitrary caller-supplied GVRs select `/api/<version>` or `/apis/<group>/<version>`; there is no resource inventory lookup or CRD allowlist. Namespace/name validation occurs before request construction. An empty required name reports `name is required`; namespace validation wins over a nonempty invalid resource name. Create requires an object name only for subresources. Options are encoded specifically as metav1 v1. Apply rejects nonempty managed fields with the upstream message, including its original `UnstructructuredExtractor` spelling. Watch forces the watch query option.
 
-`scheme.gfx` owns unstructured creation/typing and permissive write typing. The external host only constructs apimachinery serializers and converts external values. Unknown resource GVKs are created as Unstructured; normal decode requires the upstream GVK constraints, while write encoding accepts missing kind/apiVersion. Stream serialization uses the basic metav1 scheme. There is no production import of original client-go.
+`scheme.gt` owns unstructured creation/typing and permissive write typing. The external host only constructs apimachinery serializers and converts external values. Unknown resource GVKs are created as Unstructured; normal decode requires the upstream GVK constraints, while write encoding accepts missing kind/apiVersion. Stream serialization uses the basic metav1 scheme. There is no production import of original client-go.
 
 ## Fakes, caches and listers
 
@@ -41,7 +41,7 @@ Native regression sources cover arbitrary CRD paths, scope immutability, status/
 The pinned original-Go Status/Into probe established that an HTTP 200 response
 with either `Status: Success` or `Status: Failure` populates the supplied
 Unstructured and returns no error through the dynamic client. This differs from
-an alternate decoder returning a typed metav1 Status. `status_test.gfx` asserts
+an alternate decoder returning a typed metav1 Status. `status_test.gt` asserts
 the exact returned fields for both Status cases and an ordinary Widget control;
 it does not assume an empty destination. Probe source and observed output are
 preserved in the session's `clientgo-rest-status-into-evidence.md` and
@@ -59,7 +59,7 @@ registry, controlled environment and injected HTTP client. It does not duplicate
 the unversioned REST defaults; the same constructor path as upstream selects the
 canonical `meta.k8s.io/v1` negotiation target. Complete request comparisons expose
 regressions that would inject unwanted TypeMeta into permissive write bodies.
-Run this package through the normal `gofx test` harness; fixture lookup is
+Run this package through the normal `go4t test` harness; fixture lookup is
 relative to the host source rather than the process working directory.
 
 `host/codecs_test.go` fixes the erased serializer constructor ABI and conversion

@@ -7,8 +7,8 @@
       "case": "TestSplitGroupsAndResources",
       "line": 28,
       "native_policy_and_regression_sources": [
-        "discovery/aggregated.gfx",
-        "discovery/regression/discovery_test.gfx"
+        "discovery/aggregated.gt",
+        "discovery/regression/discovery_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     },
@@ -17,9 +17,9 @@
       "case": "TestCachedDiscoveryClient_Fresh",
       "line": 47,
       "native_policy_and_regression_sources": [
-        "discovery/cached/disk/disk.gfx",
-        "discovery/regression/wire_test.gfx",
-        "discovery/regression/openapi_test.gfx"
+        "discovery/cached/disk/disk.gt",
+        "discovery/regression/wire_test.gt",
+        "discovery/regression/openapi_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     },
@@ -28,9 +28,9 @@
       "case": "TestNewCachedDiscoveryClient_TTL",
       "line": 91,
       "native_policy_and_regression_sources": [
-        "discovery/cached/disk/disk.gfx",
-        "discovery/regression/wire_test.gfx",
-        "discovery/regression/openapi_test.gfx"
+        "discovery/cached/disk/disk.gt",
+        "discovery/regression/wire_test.gt",
+        "discovery/regression/openapi_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     },
@@ -39,9 +39,9 @@
       "case": "TestNewCachedDiscoveryClient_PathPerm",
       "line": 109,
       "native_policy_and_regression_sources": [
-        "discovery/cached/disk/disk.gfx",
-        "discovery/regression/wire_test.gfx",
-        "discovery/regression/openapi_test.gfx"
+        "discovery/cached/disk/disk.gt",
+        "discovery/regression/wire_test.gt",
+        "discovery/regression/openapi_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     },
@@ -50,9 +50,9 @@
       "case": "TestOpenAPIDiskCache",
       "line": 137,
       "native_policy_and_regression_sources": [
-        "discovery/cached/disk/disk.gfx",
-        "discovery/regression/wire_test.gfx",
-        "discovery/regression/openapi_test.gfx"
+        "discovery/cached/disk/disk.gt",
+        "discovery/regression/wire_test.gt",
+        "discovery/regression/openapi_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     },
@@ -61,9 +61,9 @@
       "case": "TestCachedDiscoveryClientUnaggregatedServerGroups",
       "line": 226,
       "native_policy_and_regression_sources": [
-        "discovery/cached/disk/disk.gfx",
-        "discovery/regression/wire_test.gfx",
-        "discovery/regression/openapi_test.gfx"
+        "discovery/cached/disk/disk.gt",
+        "discovery/regression/wire_test.gt",
+        "discovery/regression/openapi_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     },
@@ -72,9 +72,9 @@
       "case": "TestCachedDiscoveryClientAggregatedServerGroups",
       "line": 391,
       "native_policy_and_regression_sources": [
-        "discovery/cached/disk/disk.gfx",
-        "discovery/regression/wire_test.gfx",
-        "discovery/regression/openapi_test.gfx"
+        "discovery/cached/disk/disk.gt",
+        "discovery/regression/wire_test.gt",
+        "discovery/regression/openapi_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     },
@@ -83,9 +83,9 @@
       "case": "BenchmarkDiskCache",
       "line": 45,
       "native_policy_and_regression_sources": [
-        "discovery/cached/disk/http.gfx",
-        "third_party/forked/httpcache/cache.gfx",
-        "discovery/regression/wire_test.gfx"
+        "discovery/cached/disk/http.gt",
+        "third_party/forked/httpcache/cache.gt",
+        "discovery/regression/wire_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     },
@@ -94,9 +94,9 @@
       "case": "TestCacheRoundTripper",
       "line": 74,
       "native_policy_and_regression_sources": [
-        "discovery/cached/disk/http.gfx",
-        "third_party/forked/httpcache/cache.gfx",
-        "discovery/regression/wire_test.gfx"
+        "discovery/cached/disk/http.gt",
+        "third_party/forked/httpcache/cache.gt",
+        "discovery/regression/wire_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     },
@@ -105,9 +105,9 @@
       "case": "TestCacheRoundTripperPathPerm",
       "line": 131,
       "native_policy_and_regression_sources": [
-        "discovery/cached/disk/http.gfx",
-        "third_party/forked/httpcache/cache.gfx",
-        "discovery/regression/wire_test.gfx"
+        "discovery/cached/disk/http.gt",
+        "third_party/forked/httpcache/cache.gt",
+        "discovery/regression/wire_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     },
@@ -116,9 +116,9 @@
       "case": "TestSumDiskCache",
       "line": 180,
       "native_policy_and_regression_sources": [
-        "discovery/cached/disk/http.gfx",
-        "third_party/forked/httpcache/cache.gfx",
-        "discovery/regression/wire_test.gfx"
+        "discovery/cached/disk/http.gt",
+        "third_party/forked/httpcache/cache.gt",
+        "discovery/regression/wire_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     },
@@ -127,9 +127,9 @@
       "case": "TestClient",
       "line": 114,
       "native_policy_and_regression_sources": [
-        "discovery/cached/memory/memory.gfx",
-        "discovery/regression/discovery_test.gfx",
-        "discovery/regression/openapi_test.gfx"
+        "discovery/cached/memory/memory.gt",
+        "discovery/regression/discovery_test.gt",
+        "discovery/regression/openapi_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     },
@@ -138,9 +138,9 @@
       "case": "TestRetryAfterCancellation",
       "line": 214,
       "native_policy_and_regression_sources": [
-        "discovery/cached/memory/memory.gfx",
-        "discovery/regression/discovery_test.gfx",
-        "discovery/regression/openapi_test.gfx"
+        "discovery/cached/memory/memory.gt",
+        "discovery/regression/discovery_test.gt",
+        "discovery/regression/openapi_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     },
@@ -149,9 +149,9 @@
       "case": "TestServerGroupsFails",
       "line": 270,
       "native_policy_and_regression_sources": [
-        "discovery/cached/memory/memory.gfx",
-        "discovery/regression/discovery_test.gfx",
-        "discovery/regression/openapi_test.gfx"
+        "discovery/cached/memory/memory.gt",
+        "discovery/regression/discovery_test.gt",
+        "discovery/regression/openapi_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     },
@@ -160,9 +160,9 @@
       "case": "TestPartialPermanentFailure",
       "line": 324,
       "native_policy_and_regression_sources": [
-        "discovery/cached/memory/memory.gfx",
-        "discovery/regression/discovery_test.gfx",
-        "discovery/regression/openapi_test.gfx"
+        "discovery/cached/memory/memory.gt",
+        "discovery/regression/discovery_test.gt",
+        "discovery/regression/openapi_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     },
@@ -171,9 +171,9 @@
       "case": "TestPartialRetryableFailure",
       "line": 411,
       "native_policy_and_regression_sources": [
-        "discovery/cached/memory/memory.gfx",
-        "discovery/regression/discovery_test.gfx",
-        "discovery/regression/openapi_test.gfx"
+        "discovery/cached/memory/memory.gt",
+        "discovery/regression/discovery_test.gt",
+        "discovery/regression/openapi_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     },
@@ -182,9 +182,9 @@
       "case": "TestOpenAPIMemCache",
       "line": 512,
       "native_policy_and_regression_sources": [
-        "discovery/cached/memory/memory.gfx",
-        "discovery/regression/discovery_test.gfx",
-        "discovery/regression/openapi_test.gfx"
+        "discovery/cached/memory/memory.gt",
+        "discovery/regression/discovery_test.gt",
+        "discovery/regression/openapi_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     },
@@ -193,9 +193,9 @@
       "case": "TestOpenAPIMemCacheWithContext",
       "line": 580,
       "native_policy_and_regression_sources": [
-        "discovery/cached/memory/memory.gfx",
-        "discovery/regression/discovery_test.gfx",
-        "discovery/regression/openapi_test.gfx"
+        "discovery/cached/memory/memory.gt",
+        "discovery/regression/discovery_test.gt",
+        "discovery/regression/openapi_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     },
@@ -204,9 +204,9 @@
       "case": "TestMemCacheGroupsAndMaybeResources",
       "line": 649,
       "native_policy_and_regression_sources": [
-        "discovery/cached/memory/memory.gfx",
-        "discovery/regression/discovery_test.gfx",
-        "discovery/regression/openapi_test.gfx"
+        "discovery/cached/memory/memory.gt",
+        "discovery/regression/discovery_test.gt",
+        "discovery/regression/openapi_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     },
@@ -215,9 +215,9 @@
       "case": "TestAggregatedMemCacheGroupsAndMaybeResources",
       "line": 814,
       "native_policy_and_regression_sources": [
-        "discovery/cached/memory/memory.gfx",
-        "discovery/regression/discovery_test.gfx",
-        "discovery/regression/openapi_test.gfx"
+        "discovery/cached/memory/memory.gt",
+        "discovery/regression/discovery_test.gt",
+        "discovery/regression/openapi_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     },
@@ -226,9 +226,9 @@
       "case": "TestMemCacheAggregatedServerGroups",
       "line": 1356,
       "native_policy_and_regression_sources": [
-        "discovery/cached/memory/memory.gfx",
-        "discovery/regression/discovery_test.gfx",
-        "discovery/regression/openapi_test.gfx"
+        "discovery/cached/memory/memory.gt",
+        "discovery/regression/discovery_test.gt",
+        "discovery/regression/openapi_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     },
@@ -237,10 +237,10 @@
       "case": "TestGetServerVersion",
       "line": 47,
       "native_policy_and_regression_sources": [
-        "discovery/client.gfx",
-        "discovery/discovery.gfx",
-        "discovery/regression/wire_test.gfx",
-        "discovery/regression/discovery_test.gfx"
+        "discovery/client.gt",
+        "discovery/discovery.gt",
+        "discovery/regression/wire_test.gt",
+        "discovery/regression/discovery_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     },
@@ -249,10 +249,10 @@
       "case": "TestGetServerGroupsWithV1Server",
       "line": 78,
       "native_policy_and_regression_sources": [
-        "discovery/client.gfx",
-        "discovery/discovery.gfx",
-        "discovery/regression/wire_test.gfx",
-        "discovery/regression/discovery_test.gfx"
+        "discovery/client.gt",
+        "discovery/discovery.gt",
+        "discovery/regression/wire_test.gt",
+        "discovery/regression/discovery_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     },
@@ -261,10 +261,10 @@
       "case": "TestDiscoveryToleratesMissingCoreGroup",
       "line": 127,
       "native_policy_and_regression_sources": [
-        "discovery/client.gfx",
-        "discovery/discovery.gfx",
-        "discovery/regression/wire_test.gfx",
-        "discovery/regression/discovery_test.gfx"
+        "discovery/client.gt",
+        "discovery/discovery.gt",
+        "discovery/regression/wire_test.gt",
+        "discovery/regression/discovery_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     },
@@ -273,10 +273,10 @@
       "case": "TestDiscoveryFailsWhenNonCoreGroupsMissing",
       "line": 171,
       "native_policy_and_regression_sources": [
-        "discovery/client.gfx",
-        "discovery/discovery.gfx",
-        "discovery/regression/wire_test.gfx",
-        "discovery/regression/discovery_test.gfx"
+        "discovery/client.gt",
+        "discovery/discovery.gt",
+        "discovery/regression/wire_test.gt",
+        "discovery/regression/discovery_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     },
@@ -285,10 +285,10 @@
       "case": "TestGetServerGroupsWithBrokenServer",
       "line": 205,
       "native_policy_and_regression_sources": [
-        "discovery/client.gfx",
-        "discovery/discovery.gfx",
-        "discovery/regression/wire_test.gfx",
-        "discovery/regression/discovery_test.gfx"
+        "discovery/client.gt",
+        "discovery/discovery.gt",
+        "discovery/regression/wire_test.gt",
+        "discovery/regression/discovery_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     },
@@ -297,10 +297,10 @@
       "case": "TestTimeoutIsSet",
       "line": 221,
       "native_policy_and_regression_sources": [
-        "discovery/client.gfx",
-        "discovery/discovery.gfx",
-        "discovery/regression/wire_test.gfx",
-        "discovery/regression/discovery_test.gfx"
+        "discovery/client.gt",
+        "discovery/discovery.gt",
+        "discovery/regression/wire_test.gt",
+        "discovery/regression/discovery_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     },
@@ -309,10 +309,10 @@
       "case": "TestGetServerResourcesForGroupVersion",
       "line": 227,
       "native_policy_and_regression_sources": [
-        "discovery/client.gfx",
-        "discovery/discovery.gfx",
-        "discovery/regression/wire_test.gfx",
-        "discovery/regression/discovery_test.gfx"
+        "discovery/client.gt",
+        "discovery/discovery.gt",
+        "discovery/regression/wire_test.gt",
+        "discovery/regression/discovery_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     },
@@ -321,10 +321,10 @@
       "case": "TestGetOpenAPISchema",
       "line": 558,
       "native_policy_and_regression_sources": [
-        "discovery/client.gfx",
-        "discovery/discovery.gfx",
-        "discovery/regression/wire_test.gfx",
-        "discovery/regression/discovery_test.gfx"
+        "discovery/client.gt",
+        "discovery/discovery.gt",
+        "discovery/regression/wire_test.gt",
+        "discovery/regression/discovery_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     },
@@ -333,10 +333,10 @@
       "case": "TestGetOpenAPISchemaV3",
       "line": 575,
       "native_policy_and_regression_sources": [
-        "discovery/client.gfx",
-        "discovery/discovery.gfx",
-        "discovery/regression/wire_test.gfx",
-        "discovery/regression/discovery_test.gfx"
+        "discovery/client.gt",
+        "discovery/discovery.gt",
+        "discovery/regression/wire_test.gt",
+        "discovery/regression/discovery_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     },
@@ -345,10 +345,10 @@
       "case": "TestServerPreferredResources",
       "line": 654,
       "native_policy_and_regression_sources": [
-        "discovery/client.gfx",
-        "discovery/discovery.gfx",
-        "discovery/regression/wire_test.gfx",
-        "discovery/regression/discovery_test.gfx"
+        "discovery/client.gt",
+        "discovery/discovery.gt",
+        "discovery/regression/wire_test.gt",
+        "discovery/regression/discovery_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     },
@@ -357,10 +357,10 @@
       "case": "TestServerPreferredResourcesRetries",
       "line": 783,
       "native_policy_and_regression_sources": [
-        "discovery/client.gfx",
-        "discovery/discovery.gfx",
-        "discovery/regression/wire_test.gfx",
-        "discovery/regression/discovery_test.gfx"
+        "discovery/client.gt",
+        "discovery/discovery.gt",
+        "discovery/regression/wire_test.gt",
+        "discovery/regression/discovery_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     },
@@ -369,10 +369,10 @@
       "case": "TestServerPreferredNamespacedResources",
       "line": 886,
       "native_policy_and_regression_sources": [
-        "discovery/client.gfx",
-        "discovery/discovery.gfx",
-        "discovery/regression/wire_test.gfx",
-        "discovery/regression/discovery_test.gfx"
+        "discovery/client.gt",
+        "discovery/discovery.gt",
+        "discovery/regression/wire_test.gt",
+        "discovery/regression/discovery_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     },
@@ -381,10 +381,10 @@
       "case": "TestAggregatedServerGroups",
       "line": 1080,
       "native_policy_and_regression_sources": [
-        "discovery/client.gfx",
-        "discovery/discovery.gfx",
-        "discovery/regression/wire_test.gfx",
-        "discovery/regression/discovery_test.gfx"
+        "discovery/client.gt",
+        "discovery/discovery.gt",
+        "discovery/regression/wire_test.gt",
+        "discovery/regression/discovery_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     },
@@ -393,10 +393,10 @@
       "case": "TestAggregatedServerGroupsAndResources",
       "line": 1361,
       "native_policy_and_regression_sources": [
-        "discovery/client.gfx",
-        "discovery/discovery.gfx",
-        "discovery/regression/wire_test.gfx",
-        "discovery/regression/discovery_test.gfx"
+        "discovery/client.gt",
+        "discovery/discovery.gt",
+        "discovery/regression/wire_test.gt",
+        "discovery/regression/discovery_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     },
@@ -405,10 +405,10 @@
       "case": "TestAggregatedServerGroupsAndResourcesWithErrors",
       "line": 1975,
       "native_policy_and_regression_sources": [
-        "discovery/client.gfx",
-        "discovery/discovery.gfx",
-        "discovery/regression/wire_test.gfx",
-        "discovery/regression/discovery_test.gfx"
+        "discovery/client.gt",
+        "discovery/discovery.gt",
+        "discovery/regression/wire_test.gt",
+        "discovery/regression/discovery_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     },
@@ -417,10 +417,10 @@
       "case": "TestAggregatedServerPreferredResources",
       "line": 2110,
       "native_policy_and_regression_sources": [
-        "discovery/client.gfx",
-        "discovery/discovery.gfx",
-        "discovery/regression/wire_test.gfx",
-        "discovery/regression/discovery_test.gfx"
+        "discovery/client.gt",
+        "discovery/discovery.gt",
+        "discovery/regression/wire_test.gt",
+        "discovery/regression/discovery_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     },
@@ -429,10 +429,10 @@
       "case": "TestDiscoveryContentTypeVersion",
       "line": 2724,
       "native_policy_and_regression_sources": [
-        "discovery/client.gfx",
-        "discovery/discovery.gfx",
-        "discovery/regression/wire_test.gfx",
-        "discovery/regression/discovery_test.gfx"
+        "discovery/client.gt",
+        "discovery/discovery.gt",
+        "discovery/regression/wire_test.gt",
+        "discovery/regression/discovery_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     },
@@ -441,10 +441,10 @@
       "case": "TestUseLegacyDiscovery",
       "line": 2798,
       "native_policy_and_regression_sources": [
-        "discovery/client.gfx",
-        "discovery/discovery.gfx",
-        "discovery/regression/wire_test.gfx",
-        "discovery/regression/discovery_test.gfx"
+        "discovery/client.gt",
+        "discovery/discovery.gt",
+        "discovery/regression/wire_test.gt",
+        "discovery/regression/discovery_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     },
@@ -453,8 +453,8 @@
       "case": "TestFakingServerVersion",
       "line": 30,
       "native_policy_and_regression_sources": [
-        "discovery/fake/fake.gfx",
-        "discovery/regression/helper_test.gfx"
+        "discovery/fake/fake.gt",
+        "discovery/regression/helper_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     },
@@ -463,8 +463,8 @@
       "case": "TestFakingServerVersionWithError",
       "line": 51,
       "native_policy_and_regression_sources": [
-        "discovery/fake/fake.gfx",
-        "discovery/regression/helper_test.gfx"
+        "discovery/fake/fake.gt",
+        "discovery/regression/helper_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     },
@@ -473,8 +473,8 @@
       "case": "TestFakingServerResourcesForGroupVersionWithError",
       "line": 67,
       "native_policy_and_regression_sources": [
-        "discovery/fake/fake.gfx",
-        "discovery/regression/helper_test.gfx"
+        "discovery/fake/fake.gt",
+        "discovery/regression/helper_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     },
@@ -483,8 +483,8 @@
       "case": "TestFakingServerGroupsWithError",
       "line": 83,
       "native_policy_and_regression_sources": [
-        "discovery/fake/fake.gfx",
-        "discovery/regression/helper_test.gfx"
+        "discovery/fake/fake.gt",
+        "discovery/regression/helper_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     },
@@ -493,8 +493,8 @@
       "case": "TestFakingServerGroupsAndResourcesWithError",
       "line": 99,
       "native_policy_and_regression_sources": [
-        "discovery/fake/fake.gfx",
-        "discovery/regression/helper_test.gfx"
+        "discovery/fake/fake.gt",
+        "discovery/regression/helper_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     },
@@ -503,8 +503,8 @@
       "case": "TestServerSupportsVersion",
       "line": 46,
       "native_policy_and_regression_sources": [
-        "discovery/helper.gfx",
-        "discovery/regression/helper_test.gfx"
+        "discovery/helper.gt",
+        "discovery/regression/helper_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     },
@@ -513,8 +513,8 @@
       "case": "TestFilteredBy",
       "line": 117,
       "native_policy_and_regression_sources": [
-        "discovery/helper.gfx",
-        "discovery/regression/helper_test.gfx"
+        "discovery/helper.gt",
+        "discovery/regression/helper_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     },
@@ -523,8 +523,8 @@
       "case": "TestCategoryExpansion",
       "line": 27,
       "native_policy_and_regression_sources": [
-        "restmapper/expansion.gfx",
-        "discovery/regression/discovery_test.gfx"
+        "restmapper/expansion.gt",
+        "discovery/regression/discovery_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     },
@@ -533,8 +533,8 @@
       "case": "TestDiscoveryCategoryExpander",
       "line": 75,
       "native_policy_and_regression_sources": [
-        "restmapper/expansion.gfx",
-        "discovery/regression/discovery_test.gfx"
+        "restmapper/expansion.gt",
+        "discovery/regression/discovery_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     },
@@ -543,10 +543,10 @@
       "case": "TestRESTMapper",
       "line": 38,
       "native_policy_and_regression_sources": [
-        "restmapper/discovery.gfx",
-        "restmapper/deferred.gfx",
-        "discovery/regression/discovery_test.gfx",
-        "discovery/regression/helper_test.gfx"
+        "restmapper/discovery.gt",
+        "restmapper/deferred.gt",
+        "discovery/regression/discovery_test.gt",
+        "discovery/regression/helper_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     },
@@ -555,10 +555,10 @@
       "case": "TestDeferredDiscoveryRESTMapper_CacheMiss",
       "line": 245,
       "native_policy_and_regression_sources": [
-        "restmapper/discovery.gfx",
-        "restmapper/deferred.gfx",
-        "discovery/regression/discovery_test.gfx",
-        "discovery/regression/helper_test.gfx"
+        "restmapper/discovery.gt",
+        "restmapper/deferred.gt",
+        "discovery/regression/discovery_test.gt",
+        "discovery/regression/helper_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     },
@@ -567,10 +567,10 @@
       "case": "TestGetAPIGroupResources",
       "line": 289,
       "native_policy_and_regression_sources": [
-        "restmapper/discovery.gfx",
-        "restmapper/deferred.gfx",
-        "discovery/regression/discovery_test.gfx",
-        "discovery/regression/helper_test.gfx"
+        "restmapper/discovery.gt",
+        "restmapper/deferred.gt",
+        "discovery/regression/discovery_test.gt",
+        "discovery/regression/helper_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     },
@@ -579,8 +579,8 @@
       "case": "TestReplaceAliases",
       "line": 37,
       "native_policy_and_regression_sources": [
-        "restmapper/expansion.gfx",
-        "discovery/regression/discovery_test.gfx"
+        "restmapper/expansion.gt",
+        "discovery/regression/discovery_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     },
@@ -589,8 +589,8 @@
       "case": "TestKindFor",
       "line": 148,
       "native_policy_and_regression_sources": [
-        "restmapper/expansion.gfx",
-        "discovery/regression/discovery_test.gfx"
+        "restmapper/expansion.gt",
+        "discovery/regression/discovery_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     },
@@ -599,8 +599,8 @@
       "case": "TestKindForWithNewCRDs",
       "line": 204,
       "native_policy_and_regression_sources": [
-        "restmapper/expansion.gfx",
-        "discovery/regression/discovery_test.gfx"
+        "restmapper/expansion.gt",
+        "discovery/regression/discovery_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     },
@@ -609,8 +609,8 @@
       "case": "TestWarnAmbigious",
       "line": 265,
       "native_policy_and_regression_sources": [
-        "restmapper/expansion.gfx",
-        "discovery/regression/discovery_test.gfx"
+        "restmapper/expansion.gt",
+        "discovery/regression/discovery_test.gt"
       ],
       "status": "source-mapped; not executed; native regressions are representative, not a claim of one-for-one table-row execution"
     }

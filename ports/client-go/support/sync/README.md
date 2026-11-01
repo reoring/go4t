@@ -1,6 +1,6 @@
 # Native synchronization effects
 
-`sync.gfx` is the typed API. `host/sync` supplies generic Go effects through
+`sync.gt` is the typed API. `host/sync` supplies generic Go effects through
 opaque erased handles and `rt.Shapes`; no client-go policy lives in the host.
 The authoritative signature list is the Shared prerequisite contracts in
 `../../DESIGN.md`.
@@ -11,7 +11,7 @@ aliases remain equal after writes, and separate equal-valued cells stay unequal.
 Use `withLock` for transitions. Locks are non-reentrant. Condition operations
 belong inside the associated `withLock` action; `wait` registers before releasing
 ownership and always reacquires before returning, including cancellation. Use
-predicate loops in gofx. Condition calls are valid only in the sequential
+predicate loops in go4t. Condition calls are valid only in the sequential
 `withLock` action that owns the mutex. `start`/`startDetached` assign fresh task
 identities: a child cannot inherit the parent's lock ownership, but can acquire
 its own lock. Arbitrary `std/conc` or foreign goroutine forks do not transfer
@@ -97,7 +97,7 @@ ordering guarantee. `advance` rejects real clocks (`advance: requires fake clock
 and negative durations (`advance: negative duration`). Condition misuse fails
 with `condition: associated mutex is not held`.
 
-A throwaway end-to-end gofx smoke exercised atomic competing increments,
+A throwaway end-to-end go4t smoke exercised atomic competing increments,
 condition wakeup, lossless selection, closed-channel draining, rendezvous and
 cancelled empty receives, detached cleanup and strict join beyond 100ms,
 failure/panic propagation, real timers and fake 25/50 microsecond timers with

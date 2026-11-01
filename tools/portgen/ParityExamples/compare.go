@@ -1,4 +1,4 @@
-// Copyright 2026 The gofx Authors.
+// Copyright 2026 The go4t Authors.
 // SPDX-License-Identifier: Apache-2.0
 // Compare complete observed traces; never projects away headers, errors, or fields.
 package main

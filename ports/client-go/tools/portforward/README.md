@@ -3,7 +3,7 @@
 Source: all implementation files under client-go v0.37.2
 `tools/portforward`, revision `72c52dd0cc3b9099b36af11290b0304045dd1ada`,
 Apache-2.0. Listening, address grouping, stream creation, copy coordination,
-request IDs, stop behavior and tunneling policy are native `.gfx`.
+request IDs, stop behavior and tunneling policy are native `.gt`.
 
 ## Public symbol mapping
 
@@ -66,7 +66,7 @@ Read/write data fields retain byte-array representation.
 
 ## Regression and integration coverage
 
-`portforward_test.gfx` covers parsing, address-family groups, fallback and
+`portforward_test.gt` covers parsing, address-family groups, fallback and
 readiness errors. `loopback.run() IO[Bool]` runs actual local TCP listening plus
 SPDY error/data streams, verifies stream headers and binary data including
 split UTF-8, NUL and 0xff, and checks explicit stop and remote error/connection
@@ -82,7 +82,7 @@ production socket/logger conversion effects are under `host`.
 ## Focused verification
 
 The independent `ClientGoStreamingVerify` worker ran
-`go run ./cmd/gofx test ports/client-go/tools/portforward` under the serialized
+`go run ./cmd/go4t test ports/client-go/tools/portforward` under the serialized
 VM test wrapper: **4 passed, 0 failed**, exit 0. It invoked the published
 `tools/portforward/loopback.run()` after the stop-channel ownership correction
 and strengthened UTF-8/two-byte socket-write fixtures: **true**, exit 0.
@@ -95,9 +95,9 @@ evidence without running checks. Whole-repository and live Kubernetes
 acceptance remain separate gates.
 
 After capability reconciliation, the current worktree compiler ran
-`go run ./cmd/gofx test ports/client-go/tools/portforward`: **4 passed,
+`go run ./cmd/go4t test ports/client-go/tools/portforward`: **4 passed,
 0 failed**, exit 0. A temporary entry point invoking `loopback.runTunnel()`
-ran with `go run ../../cmd/gofx run tunnel_logging_proof.gfx` from the port
+ran with `go run ../../cmd/go4t run tunnel_logging_proof.gt` from the port
 root and returned **true**, exit 0. Both commands used
 `serialize-vm-tests --class short` with a 180-second execution bound and default
 optimization. The consumer exercised custom logger levels/names, request

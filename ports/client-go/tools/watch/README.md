@@ -39,8 +39,8 @@ The optional-timeout policy logs the negative-timeout warning, maps negative/zer
 
 ## Regression mapping (not executed in this assignment)
 
-- `until_test.go` sequential/repeated conditions, EOF, callback error and cancellation → `watch_test.gfx` conditions/last-event/stop cases.
-- `retrywatcher_test.go` constructor validation, restarts, bookmark RV, missing RV, unknown event/status, Gone and unread stop → `watch_test.gfx:testOrderedRetryAndBookmarks`, `retrywatcher_test.gfx` cases. Canonical-object cases take real external object/access fixtures rather than nominal fake runtime types.
-- `informerwatcher_test.go` processor order/blocked exit and initial synchronization → `watch_test.gfx:testEventProcessorBlockedStopAndOrdering`, `testInitialSyncBarrier`; real cache wiring is `cache_adapter.gfx`.
+- `until_test.go` sequential/repeated conditions, EOF, callback error and cancellation → `watch_test.gt` conditions/last-event/stop cases.
+- `retrywatcher_test.go` constructor validation, restarts, bookmark RV, missing RV, unknown event/status, Gone and unread stop → `watch_test.gt:testOrderedRetryAndBookmarks`, `retrywatcher_test.gt` cases. Canonical-object cases take real external object/access fixtures rather than nominal fake runtime types.
+- `informerwatcher_test.go` processor order/blocked exit and initial synchronization → `watch_test.gt:testEventProcessorBlockedStopAndOrdering`, `testInitialSyncBarrier`; real cache wiring is `cache_adapter.gt`.
 
 The raw support leaf also backs native `newFake`, `newFakeWithChanSize`, `newEmptyWatch` and `newProxyWatcher`. Fake sends retain channel backpressure and closed-send failures; stop is idempotent. Proxy stop signals its producer and does not close a caller-owned events channel.

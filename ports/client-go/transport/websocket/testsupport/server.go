@@ -1,11 +1,11 @@
-// Copyright 2026 The gofx Authors. Licensed under Apache-2.0.
+// Copyright 2026 The go4t Authors. Licensed under Apache-2.0.
 package testsupport
 import (
  "context"
  "net/http"
  "net/http/httptest"
  "sync"
- "gofx/rt"
+ "go4t/rt"
  ws "github.com/gorilla/websocket"
 )
 type server struct{http *httptest.Server;mu sync.Mutex;connections []*ws.Conn}

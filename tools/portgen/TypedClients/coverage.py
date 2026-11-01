@@ -15,9 +15,9 @@ def generate():
   files.append({'source':path,'sha256':f['sha256'],'role':f.get('role','metadata'),'generated':f.get('generated',False)})
   if f.get('role')!='source':continue
   directory=str(pathlib.PurePosixPath(path).parent);parts=directory.split('/');fake=parts[-1]=='fake';module=directory
-  if module=='kubernetes/scheme':output='kubernetes/scheme/register.gfx'
-  elif module in ('kubernetes','kubernetes/fake'):output=module+'/clientset.gfx'
-  else:output=module+'/clients.gfx'
+  if module=='kubernetes/scheme':output='kubernetes/scheme/register.gt'
+  elif module in ('kubernetes','kubernetes/fake'):output=module+'/clientset.gt'
+  else:output=module+'/clients.gt'
   candidates=[r for r in rs if str(pathlib.PurePosixPath(r['source']).parent)==directory.removesuffix('/fake')]
   for d in f.get('declarations',[]):
    if not d['exported']:continue
@@ -29,9 +29,9 @@ def generate():
     if equivalent is None:equivalent='Interface.'+low(name)
    else:
     group,version=parts[2:4];gt=groupnames[group,version]+'Interface'
-    if name=='EventSinkImpl':output='kubernetes/typed/core/v1/event_expansion.gfx';equivalent='EventSinkImpl'
-    elif name=='GetInvolvedObjectNameFieldLabel':output='kubernetes/typed/core/v1/event_expansion.gfx';equivalent=low(name)
-    elif d.get('receiver')=='*EventSinkImpl':output='kubernetes/typed/core/v1/event_expansion.gfx';equivalent='eventSink'+name
+    if name=='EventSinkImpl':output='kubernetes/typed/core/v1/event_expansion.gt';equivalent='EventSinkImpl'
+    elif name=='GetInvolvedObjectNameFieldLabel':output='kubernetes/typed/core/v1/event_expansion.gt';equivalent=low(name)
+    elif d.get('receiver')=='*EventSinkImpl':output='kubernetes/typed/core/v1/event_expansion.gt';equivalent='eventSink'+name
     elif name=='RESTClient':equivalent=gt+'.restClient';note='Option preserves nil on fake clients'
     elif name in ('New','NewForConfig','NewForConfigAndClient','NewForConfigOrDie'):
      equivalent={'New':'newClient','NewForConfig':'newForConfig','NewForConfigAndClient':'newForConfigAndClient','NewForConfigOrDie':'newForConfigOrDie'}[name]

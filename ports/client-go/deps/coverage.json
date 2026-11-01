@@ -264937,7 +264937,7 @@
     "syscall.Waitmsg.Signaled"
   ],
   "manual_adapters": {
-    "deps/codec/codec.gfx": {
+    "deps/codec/codec.gt": {
       "operations": [
         {
           "declaration": "extern func newJSONDecoder() IO[runtime.Decoder]",
@@ -264982,7 +264982,7 @@
       ],
       "scope": "Generic external dependency conversion/access/effect only; no client-go policy"
     },
-    "deps/objects/objects.gfx": {
+    "deps/objects/objects.gt": {
       "operations": [
         {
           "declaration": "extern func toObject[A](descriptor ObjectType[A], value A) runtime.Object",
@@ -265112,7 +265112,7 @@
       ],
       "scope": "Generic external dependency conversion/access/effect only; no client-go policy"
     },
-    "deps/support/values.gfx": {
+    "deps/support/values.gt": {
       "operations": [
         {
           "declaration": "extern func uint64(high Int, low Int) UInt64",

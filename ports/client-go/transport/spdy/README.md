@@ -5,7 +5,7 @@ Port of `transport/spdy/spdy.go` from client-go v0.37.2, revision
 Apache-2.0 licensed. HTTP upgrade framing is the external
 `k8s.io/streaming/pkg/httpstream/spdy` v0.37.2 implementation, not client-go.
 Request construction, protocol offer ordering, response lifetime, REST wrapper
-composition, and error policy are in `spdy.gfx`.
+composition, and error policy are in `spdy.gt`.
 
 ## Public capability mapping
 
@@ -42,11 +42,11 @@ SPDY keepalive is configured at five seconds.
 
 ## Focused verification
 
-`spdy_test.gfx` contains real HTTP/SPDY upgrade negotiation and partial-I/O/short
+`spdy_test.gt` contains real HTTP/SPDY upgrade negotiation and partial-I/O/short
 writer regressions. `testsupport/server.go` is a loopback server only.
 
 The independent `ClientGoStreamingVerify` worker ran
-`go run ./cmd/gofx test ports/client-go/transport/spdy` under the serialized VM
+`go run ./cmd/go4t test ports/client-go/transport/spdy` under the serialized VM
 test wrapper: **3 passed, 0 failed**, exit 0. Its additional real-handshake probe
 negotiated every protocol from v1 through v5 over SPDY successfully. Independent
 byte probes also passed for UTF-8/NUL one-byte `writeAll` calls, partial-read

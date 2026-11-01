@@ -66,19 +66,19 @@ The native fake preserves the pinned `fakeclient.go:81-84` behavior:
 construction and JSON schema access succeed, but `serverRelativeURL()` raises
 `io.Panic("unimplemented")` at access time. It never returns an empty fallback.
 
-`client_test.gfx` covers outbound prefix/query/media behavior through a real
-REST request executor with a callback HTTP transport. `openapitest/client_test.gfx`
+`client_test.gt` covers outbound prefix/query/media behavior through a real
+REST request executor with a callback HTTP transport. `openapitest/client_test.gt`
 proves delayed fake URL panic and exact file/embedded filenames; run file tests
 from `ports/client-go` so `openapi/openapitest/testdata` resolves directly.
 Cached tests cover once-only discovery, per-media error caching, lazy URL
-forwarding on every access, and fake/file consumers. `openapi3/root_test.gfx`
+forwarding on every access, and fake/file consumers. `openapi3/root_test.gt`
 covers path parsing, root refresh, ordering, canonical schema parsing,
 conversion using shipped schemas, and typed not-found errors. HTTP cache
 regressions cover stale/fresh precedence, validators, 304 replacement, EOF
 commit, only-if-cached, Vary, no-store, and hash-separated cache keys.
 
 Verification is supervisor-owned. The syntax verifier reported a passing
-parse of `httpcache/cache.gfx` after its alias and missing-brace corrections.
+parse of `httpcache/cache.gt` after its alias and missing-brace corrections.
 The behavioral verifier subsequently reported extern ABI failures before
 tests executed. Owned host bridges now use the fully erased all-`any` ABI
 for compound returns, per SPEC §8.3; mixed primitive/erased signatures are
@@ -94,9 +94,9 @@ corrected failed-only test awaits independent verification.
 
 Final capability reconciliation validation used the current-worktree compiler,
 with each command serialized in the short class from `ports/client-go`:
-`go run ../../cmd/gofx test openapi` passed 2 tests;
-`go run ../../cmd/gofx test openapi/openapitest` passed 2 tests;
-`go run ../../cmd/gofx test openapi/cached` passed 4 tests.
+`go run ../../cmd/go4t test openapi` passed 2 tests;
+`go run ../../cmd/go4t test openapi/openapitest` passed 2 tests;
+`go run ../../cmd/go4t test openapi/cached` passed 4 tests.
 An independent public consumer passed four additional proofs: fake schema
 before/after the exact `io.Panic("unimplemented")`, cached embedded-file schema,
 cached disk-file schema, and matching real/cached URL access. It called public

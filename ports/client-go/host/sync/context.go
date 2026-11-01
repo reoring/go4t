@@ -3,7 +3,7 @@ package hostsync
 import (
  "context"
  "time"
- "gofx/rt"
+ "go4t/rt"
 )
 
 type capturedContext struct { context context.Context }

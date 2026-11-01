@@ -1,6 +1,6 @@
 // Copyright 2016 The Kubernetes Authors. Licensed under Apache-2.0.
 package host
-import("context";"os";"path/filepath";"runtime";"gofx/rt")
+import("context";"os";"path/filepath";"runtime";"go4t/rt")
 func Platform() string{return runtime.GOOS}
 func Getenv(name string) rt.IO{return func(context.Context)(any,error){return os.Getenv(name),nil}}
 func Join(a,b,c string) string{return filepath.Join(a,b,c)}

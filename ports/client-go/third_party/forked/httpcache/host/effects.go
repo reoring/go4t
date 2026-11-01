@@ -1,5 +1,5 @@
 // Generic HTTP serialization, header conversion, and EOF callback effects.
-// Cache policy lives exclusively in ../cache.gfx.
+// Cache policy lives exclusively in ../cache.gt.
 package host
 import (
  "bufio"
@@ -12,7 +12,7 @@ import (
  "reflect"
  "strings"
  "time"
- "gofx/rt"
+ "go4t/rt"
  deps "github.com/reoring/gofx/ports/client-go/host/deps"
 )
 func value[T any](ctx context.Context,v any) T {return deps.To(reflect.TypeFor[T](),rt.SomeOf(v),ctx).Interface().(T)}

@@ -1,0 +1,41 @@
+// Copyright 2026 The go4t Authors. Licensed under Apache-2.0.
+package spdy
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import errors "github.com/reoring/gofx/ports/client-go/deps/support"
+import string "std/string"
+
+type TestServer = TestServerHandle
+extern func _server(protocol String,status Int) IO[TestServer] = "github.com/reoring/gofx/ports/client-go/transport/spdy/testsupport".New
+extern func _url(server TestServer) IO[String] = "github.com/reoring/gofx/ports/client-go/transport/spdy/testsupport".URL
+extern func _offered(server TestServer) IO[List[String]] = "github.com/reoring/gofx/ports/client-go/transport/spdy/testsupport".Offered
+extern func _stopServer(server TestServer) IO[Unit] = "github.com/reoring/gofx/ports/client-go/transport/spdy/testsupport".Close
+func testRealSPDYUpgradeNegotiation() IO[Bool] {sync.bracket(_server("v2.channel.k8s.io",101),func(server)=>do {
+ address<-_url(server)
+ upgrade<-_newUpgrade(None,None,0)
+ match upgrade.0 {None=>ioPure(false);Some(u)=>do {
+  raw<-_upgradeTransport(u)
+  client<-newHTTPClient(raw,false)
+  let upgrader=Upgrader {newConnection:func(response)=>do {result<-_upgradeConnection(u,response);ioPure(outcome.from(match result.0 {None=>None;Some(c)=>Some(fromConnection(c))},result.1))}}
+  result<-newDialer(upgrader,client,"POST",address).dial(["v5.channel.k8s.io","v2.channel.k8s.io"])
+  offered<-_offered(server)
+  match result.value.connection {None=>ioPure(false);Some(c)=>do {c.close();ioPure(result.value.protocol=="v2.channel.k8s.io" && offered==["v5.channel.k8s.io","v2.channel.k8s.io"] && (match result.error {None=>true;Some(_)=>false}))}}
+ }}
+},_stopServer)}
+func testPartialReadWriteRetainsBytes() IO[Bool] {do {
+ reads<-sync.newRef(0)
+ output<-sync.newRef("")
+ let reader=Reader {read:func(_)=>do {n<-sync.readRef(reads);sync.writeRef(reads,n+1);ioPure(if n==0 {outcome.success("a\x00b")} else {outcome.failure("c",errors.errorNew("read failed"))})},close:func()=>ioPure(unit())}
+ let writer=Writer {write:func(data)=>do {old<-sync.readRef(output);sync.writeRef(output,old+data);ioPure(outcome.success(byteLength(data)))},close:func()=>ioPure(unit())}
+ result<-copy(reader,writer)
+ bytes<-sync.readRef(output)
+ ioPure(result.value==4 && bytes=="a\x00bc" && (match result.error {None=>false;Some(e)=>errors.errorMessage(e)=="read failed"}))
+}}
+func testShortWriterRetainsPartialCount() IO[Bool] {do {
+ output<-sync.newRef("")
+ let writer=Writer {write:func(data)=>do {sync.writeRef(output,string.substring(data,0,1));ioPure(outcome.success(1))},close:func()=>ioPure(unit())}
+ let reader=Reader {read:func(_)=>ioPure(outcome.success("abc")),close:func()=>ioPure(unit())}
+ result<-copy(reader,writer)
+ bytes<-sync.readRef(output)
+ ioPure(result.value==1 && bytes=="a" && (match result.error {None=>false;Some(e)=>errors.errorMessage(e)=="short write"}))
+}}

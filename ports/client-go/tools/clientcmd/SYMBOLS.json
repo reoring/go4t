@@ -1,6 +1,6 @@
 {
   "upstream_revision": "72c52dd0cc3b9099b36af11290b0304045dd1ada",
-  "api_style": "native immutable gofx; explicit IO and receiver arguments",
+  "api_style": "native immutable go4t; explicit IO and receiver arguments",
   "mapping_note": "Expression targets identify callback fields or canonical error operations; method receiver nil is represented by Option at native callers. This is source mapping, not runtime verification.",
   "production_exports": [
     {
@@ -1855,67 +1855,67 @@
   "reviewed_test_sources": [
     {
       "upstream": "tools/auth/clientauth_test.go",
-      "focused_regression": "tools/clientcmd/regression/main.gfx",
+      "focused_regression": "tools/clientcmd/regression/main.gt",
       "note": "Named assignment regressions; not a claim that every upstream test case was replayed."
     },
     {
       "upstream": "tools/auth/exec/exec_test.go",
-      "focused_regression": "tools/clientcmd/regression/main.gfx",
+      "focused_regression": "tools/clientcmd/regression/main.gt",
       "note": "Named assignment regressions; not a claim that every upstream test case was replayed."
     },
     {
       "upstream": "tools/auth/exec/types_test.go",
-      "focused_regression": "tools/clientcmd/regression/main.gfx",
+      "focused_regression": "tools/clientcmd/regression/main.gt",
       "note": "Named assignment regressions; not a claim that every upstream test case was replayed."
     },
     {
       "upstream": "tools/clientcmd/api/helpers_test.go",
-      "focused_regression": "tools/clientcmd/regression/main.gfx",
+      "focused_regression": "tools/clientcmd/regression/main.gt",
       "note": "Named assignment regressions; not a claim that every upstream test case was replayed."
     },
     {
       "upstream": "tools/clientcmd/api/types_test.go",
-      "focused_regression": "tools/clientcmd/regression/main.gfx",
+      "focused_regression": "tools/clientcmd/regression/main.gt",
       "note": "Named assignment regressions; not a claim that every upstream test case was replayed."
     },
     {
       "upstream": "tools/clientcmd/api/v1/defaults_test.go",
-      "focused_regression": "tools/clientcmd/regression/main.gfx",
+      "focused_regression": "tools/clientcmd/regression/main.gt",
       "note": "Named assignment regressions; not a claim that every upstream test case was replayed."
     },
     {
       "upstream": "tools/clientcmd/client_config_test.go",
-      "focused_regression": "tools/clientcmd/regression/main.gfx",
+      "focused_regression": "tools/clientcmd/regression/main.gt",
       "note": "Named assignment regressions; not a claim that every upstream test case was replayed."
     },
     {
       "upstream": "tools/clientcmd/config_test.go",
-      "focused_regression": "tools/clientcmd/regression/main.gfx",
+      "focused_regression": "tools/clientcmd/regression/main.gt",
       "note": "Named assignment regressions; not a claim that every upstream test case was replayed."
     },
     {
       "upstream": "tools/clientcmd/loader_test.go",
-      "focused_regression": "tools/clientcmd/regression/main.gfx",
+      "focused_regression": "tools/clientcmd/regression/main.gt",
       "note": "Named assignment regressions; not a claim that every upstream test case was replayed."
     },
     {
       "upstream": "tools/clientcmd/main_test.go",
-      "focused_regression": "tools/clientcmd/regression/main.gfx",
+      "focused_regression": "tools/clientcmd/regression/main.gt",
       "note": "Named assignment regressions; not a claim that every upstream test case was replayed."
     },
     {
       "upstream": "tools/clientcmd/merged_client_builder_test.go",
-      "focused_regression": "tools/clientcmd/regression/main.gfx",
+      "focused_regression": "tools/clientcmd/regression/main.gt",
       "note": "Named assignment regressions; not a claim that every upstream test case was replayed."
     },
     {
       "upstream": "tools/clientcmd/overrides_test.go",
-      "focused_regression": "tools/clientcmd/regression/main.gfx",
+      "focused_regression": "tools/clientcmd/regression/main.gt",
       "note": "Named assignment regressions; not a claim that every upstream test case was replayed."
     },
     {
       "upstream": "tools/clientcmd/validation_test.go",
-      "focused_regression": "tools/clientcmd/regression/main.gfx",
+      "focused_regression": "tools/clientcmd/regression/main.gt",
       "note": "Named assignment regressions; not a claim that every upstream test case was replayed."
     }
   ]

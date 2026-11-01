@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Extract client-gen resources from pinned source, never from discovery.
-Copyright 2026 The gofx Authors. SPDX-License-Identifier: Apache-2.0
+Copyright 2026 The go4t Authors. SPDX-License-Identifier: Apache-2.0
 """
 import argparse, hashlib, json, pathlib, re
 

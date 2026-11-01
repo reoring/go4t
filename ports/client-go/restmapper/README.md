@@ -53,7 +53,7 @@ not string approximations; `isNoMatchError` uses the canonical predicate.
 
 Legacy and `WithContext` overloads intentionally collapse into the same explicit
 IO capability. No compatibility aliases or original client-go calls remain.
-All mapping, priority, invalidation, shortcut and category policies are `.gfx`;
+All mapping, priority, invalidation, shortcut and category policies are `.gt`;
 Go only converts external canonical error types.
 
 Regression source is in `../discovery/regression`. No product checks were run

@@ -110,7 +110,7 @@ def generate_group(rs):
    core=m.imp('deps/k8s.io/api/core/v1','core')
    m.code.append(('func getBinding(fake testing.Fake,namespace String,name String) IO[outcome.Outcome[core.Binding]] { nativefake.invoke(fake,testing.newGetSubresourceActionWithOptions('+gvr(r)+',namespace,"binding",name,meta.newGetOptions()),core.bindingObjectType(),core.newBinding()) }').replace('core.',core+'.'))
  m.code.append('func newClient(environment rest.Environment,fake testing.Fake) real.'+GT+' { real.'+GT+' { restClient:None,'+','.join(getters)+' } }')
- save(pathlib.Path('kubernetes/typed')/group/version/'fake/clients.gfx',m.render())
+ save(pathlib.Path('kubernetes/typed')/group/version/'fake/clients.gt',m.render())
 
 def main():
  groups={}

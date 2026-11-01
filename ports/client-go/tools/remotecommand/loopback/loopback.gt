@@ -1,0 +1,51 @@
+// Copyright 2026 The go4t Authors. Licensed under Apache-2.0.
+package loopback
+import remote "github.com/reoring/gofx/ports/client-go/tools/remotecommand"
+import spdy "github.com/reoring/gofx/ports/client-go/transport/spdy"
+import raw "github.com/reoring/gofx/ports/client-go/deps/k8s.io/streaming/pkg/httpstream"
+import io "github.com/reoring/gofx/ports/client-go/deps/io"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import ws "github.com/reoring/gofx/ports/client-go/transport/websocket"
+
+type Fixture = FixtureHandle
+extern func _open(version Int,exitCode Int,tty Bool) IO[Fixture] = "github.com/reoring/gofx/ports/client-go/tools/remotecommand/loopback/host".Open
+extern func _connection(fixture Fixture) IO[raw.Connection] = "github.com/reoring/gofx/ports/client-go/tools/remotecommand/loopback/host".Connection
+extern func _input(fixture Fixture) IO[io.Reader] = "github.com/reoring/gofx/ports/client-go/tools/remotecommand/loopback/host".Input
+extern func _output(fixture Fixture) IO[io.Writer] = "github.com/reoring/gofx/ports/client-go/tools/remotecommand/loopback/host".Output
+extern func _stderr(fixture Fixture) IO[io.Writer] = "github.com/reoring/gofx/ports/client-go/tools/remotecommand/loopback/host".Stderr
+extern func _result(fixture Fixture) IO[Bool] = "github.com/reoring/gofx/ports/client-go/tools/remotecommand/loopback/host".Result
+extern func _close(fixture Fixture) IO[Unit] = "github.com/reoring/gofx/ports/client-go/tools/remotecommand/loopback/host".Close
+extern func _openWebsocket(code Int) IO[Fixture] = "github.com/reoring/gofx/ports/client-go/tools/remotecommand/loopback/host".OpenWebsocket
+extern func _websocket(fixture Fixture) IO[ws.Conn] = "github.com/reoring/gofx/ports/client-go/tools/remotecommand/loopback/host".Websocket
+func runVersion(version Int,code Int,tty Bool) IO[Bool] {sync.bracket(_open(version,code,tty),func(fixture)=>do {
+ connection<-_connection(fixture)
+ stdin<-_input(fixture)
+ stdout<-_output(fixture)
+ stderr<-_stderr(fixture)
+ resizeSent<-sync.newRef(false)
+ let queue=remote.TerminalSizeQueue {next:func()=>do {sent<-sync.readRef(resizeSent);sync.writeRef(resizeSent,true);ioPure(if sent {None} else {Some(remote.TerminalSize {width:123,height:45})})},close:func()=>sync.writeRef(resizeSent,true)}
+ let options=remote.StreamOptions {stdin:Some(spdy.fromReader(stdin)),stdout:Some(spdy.fromWriter(stdout)),stderr:Some(spdy.fromWriter(stderr)),tty:tty,terminalSizeQueue:if tty && version>=3 {Some(queue)} else {None}}
+ result<-remote.streamProtocol(version,spdy.fromConnection(connection),options)
+ bytesCorrect<-_result(fixture)
+ ioPure(bytesCorrect && (if version<4 {match result.error {None=>true;Some(_)=>false}} else {match result.error {None=>false;Some(e)=>match remote.exitCode(e) {None=>false;Some(n)=>n==code}}}))
+},_close)}
+func run() IO[Bool] {do {
+ v1<-runVersion(1,0,false)
+ v2<-runVersion(2,0,false)
+ v3<-runVersion(3,0,true)
+ v4<-runVersion(4,37,false)
+ v5<-runVersion(5,42,true)
+ websocket<-runWebsocket(29)
+ cancellation<-runCancellation()
+ ioPure(v1 && v2 && v3 && v4 && v5 && websocket && cancellation)
+}}
+func runWebsocket(code Int) IO[Bool] {sync.bracket(_openWebsocket(code),func(fixture)=>do {
+ connection<-_websocket(fixture)
+ stdin<-_input(fixture)
+ stdout<-_output(fixture)
+ stderr<-_stderr(fixture)
+ let options=remote.StreamOptions {stdin:Some(spdy.fromReader(stdin)),stdout:Some(spdy.fromWriter(stdout)),stderr:Some(spdy.fromWriter(stderr)),tty:true,terminalSizeQueue:None}
+ result<-remote.streamWebSocket(connection,options)
+ bytesCorrect<-_result(fixture)
+ ioPure(bytesCorrect && (match result.error {None=>false;Some(e)=>remote.exitCode(e)==Some(code)}))
+},_close)}

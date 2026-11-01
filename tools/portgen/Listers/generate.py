@@ -83,7 +83,7 @@ def generate(upstream, output_root):
         for method, arg, arg_type, hv in methods:
             lines += expansion(kind, rel, expansions.read_text(), method, arg, arg_type, returns)
             lines += [f'func {lower(method)}(lister {kind}Lister, {arg} {arg_type}) {returns} {{ lister.{lower(method)}({arg}) }}']
-        target = output / rel.with_suffix('.gfx')
+        target = output / rel.with_suffix('.gt')
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text('\n'.join(lines) + '\n')
         generate_fixture(target, kind, resource, namespaced, plural, methods, expansions)
@@ -94,7 +94,7 @@ def generate(upstream, output_root):
         exported = [symbol for declaration, symbol in declarations]
         native = {symbol: symbol if declaration == 'type' else lower(symbol) for declaration, symbol in declarations}
         if p.name.endswith('_test.go'):
-            native = {symbol: 'generated behavioral fixtures plus generic_helpers_test.gfx and selectors_test.gfx' for symbol in exported}
+            native = {symbol: 'generated behavioral fixtures plus generic_helpers_test.gt and selectors_test.gt' for symbol in exported}
         all_sources.append({'source': str(p.relative_to(upstream)), 'sha256': hashlib.sha256(p.read_bytes()).hexdigest(), 'exports': exported, 'native_exports': native, 'role': 'test' if p.name.endswith('_test.go') else ('expansion' if 'expansion' in p.name else 'lister')})
     (output / 'coverage.json').write_text(json.dumps({'source': descriptor['source'], 'resources': coverage, 'sources': all_sources}, indent=2) + '\n')
     print(f'Generated {len(coverage)} typed listers; recorded {len(all_sources)} upstream source files')
@@ -187,11 +187,11 @@ def generate_fixture(target, kind, resource, namespaced, plural, methods, expans
                   f' result <- new{kind}Lister(indexer).{lower(method)}({subject_empty})',
                   f' ioPure(length(result.value) == {1 if kind == "PodDisruptionBudget" and target.parent.name == "v1" else 0})',
                   '} }']
-    target.with_name(target.stem + '_test.gfx').write_text('\n'.join(lines) + '\n')
+    target.with_name(target.stem + '_test.gt').write_text('\n'.join(lines) + '\n')
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--upstream', type=Path, default=Path('/workspace/wip/gofx/.tmp/client-go-v0.37.2'))
+    parser.add_argument('--upstream', type=Path, default=Path('/workspace/wip/go4t/.tmp/client-go-v0.37.2'))
     parser.add_argument('--output-root', type=Path, default=ROOT, help='Destination repository root; use an isolated directory for reproduction proof')
     args = parser.parse_args()
     generate(args.upstream, args.output_root.resolve())

@@ -2,12 +2,12 @@
 
 This directory and `../auth` port the client configuration surface from client-go
 v0.37.2, revision `72c52dd0cc3b9099b36af11290b0304045dd1ada`. The implementation
-is native gofx, not Go-source-compatible client-go bindings. Upstream copyright
+is native go4t, not Go-source-compatible client-go bindings. Upstream copyright
 notices are retained; the implementation is licensed under Apache-2.0.
 
 ## API and ownership
 
-`api/types.gfx` owns the immutable internal kubeconfig records. `api/wire.gfx`
+`api/types.gt` owns the immutable internal kubeconfig records. `api/wire.gt`
 owns the v1 wire records, exposed as aliases by `api/v1`. Native record updates
 are the getters/setters: `cluster.server` and `cluster{server: value}`. Source
 pointer and collection presence is represented with `Option`; in particular,
@@ -150,7 +150,7 @@ source diagnostics remain distinct:
 
 ## Deterministic regression program
 
-`regression/main.gfx` executes the native loading, overriding, validation,
+`regression/main.gt` executes the native loading, overriding, validation,
 conversion, persistence and exec-input paths against an immutable in-memory
 filesystem behind the same Source capability. It covers the assignment's
 multi-file precedence, relative origins, missing/malformed configuration,
@@ -162,13 +162,13 @@ It makes no network or live-cluster calls.
 The supervisor should run, from the worktree root:
 
 ```sh
-go run ./cmd/gofx run ports/client-go/tools/clientcmd/regression
+go run ./cmd/go4t run ports/client-go/tools/clientcmd/regression
 ```
 
 The isolated public conversion consumer is prepared separately:
 
 ```sh
-go run ./cmd/gofx run ports/client-go/tools/clientcmd/conversion_regression
+go run ./cmd/go4t run ports/client-go/tools/clientcmd/conversion_regression
 ```
 
 It exercises all eight `api/v1` collection operations with existing
@@ -177,7 +177,7 @@ replacement, middle duplicates, nested conversion failure precedence, complete
 diagnostics, partial full-Config results, and nil typed-entry panics.
 
 The supervisor-released focused validation ran both programs sequentially with
-the current `go run ./cmd/gofx` compiler through `serialize-vm-tests --class short`
+the current `go run ./cmd/go4t` compiler through `serialize-vm-tests --class short`
 and a 180-second bound. Both exited successfully. This observed acceptance is
 limited to these two programs; no formatter, linter, full core suite, or full
 upstream differential suite ran. The primary retains integration acceptance for

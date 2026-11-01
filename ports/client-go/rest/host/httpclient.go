@@ -6,7 +6,7 @@ import (
  "net/http"
  "reflect"
  "time"
- "gofx/rt"
+ "go4t/rt"
  deps "github.com/reoring/gofx/ports/client-go/host/deps"
 )
 func NewHTTPClient(value any,nanos int64) rt.IO {return rt.IO(func(ctx context.Context)(any,error){transport:=deps.To(reflect.TypeFor[http.RoundTripper](),rt.SomeOf(value),ctx).Interface().(http.RoundTripper);return boxed(&http.Client{Transport:transport,Timeout:time.Duration(nanos)}),nil})}

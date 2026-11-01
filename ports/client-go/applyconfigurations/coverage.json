@@ -42752,7 +42752,7 @@
         "Parser",
         "func"
       ],
-      "native_source": "applyconfigurations/internal/parser.gfx",
+      "native_source": "applyconfigurations/internal/parser.gt",
       "native_symbol": "parser"
     },
     {
@@ -42766,7 +42766,7 @@
         "ForKind",
         "func"
       ],
-      "native_source": "applyconfigurations/utils.gfx",
+      "native_source": "applyconfigurations/utils.gt",
       "native_symbol": "forKind"
     },
     {
@@ -42780,7 +42780,7 @@
         "NewTypeConverter",
         "func"
       ],
-      "native_source": "applyconfigurations/utils.gfx",
+      "native_source": "applyconfigurations/utils.gt",
       "native_symbol": "newTypeConverter"
     },
     {
@@ -42794,7 +42794,7 @@
         "UnstructuredExtractor",
         "type"
       ],
-      "native_source": "applyconfigurations/meta/v1/unstructured.gfx",
+      "native_source": "applyconfigurations/meta/v1/unstructured.gt",
       "native_symbol": "UnstructuredExtractor"
     },
     {
@@ -42808,7 +42808,7 @@
         "NewUnstructuredExtractor",
         "func"
       ],
-      "native_source": "applyconfigurations/meta/v1/unstructured.gfx",
+      "native_source": "applyconfigurations/meta/v1/unstructured.gt",
       "native_symbol": "newUnstructuredExtractor"
     },
     {
@@ -42822,7 +42822,7 @@
         "Extract",
         "method"
       ],
-      "native_source": "applyconfigurations/meta/v1/unstructured.gfx",
+      "native_source": "applyconfigurations/meta/v1/unstructured.gt",
       "native_symbol": "UnstructuredExtractor.extract"
     },
     {
@@ -42836,7 +42836,7 @@
         "ExtractStatus",
         "method"
       ],
-      "native_source": "applyconfigurations/meta/v1/unstructured.gfx",
+      "native_source": "applyconfigurations/meta/v1/unstructured.gt",
       "native_symbol": "UnstructuredExtractor.extractStatus"
     },
     {
@@ -42850,7 +42850,7 @@
         "Option",
         "type"
       ],
-      "native_source": "util/csaupgrade/upgrade.gfx",
+      "native_source": "util/csaupgrade/upgrade.gt",
       "native_symbol": "Option"
     },
     {
@@ -42864,7 +42864,7 @@
         "Subresource",
         "func"
       ],
-      "native_source": "util/csaupgrade/upgrade.gfx",
+      "native_source": "util/csaupgrade/upgrade.gt",
       "native_symbol": "subresource"
     },
     {
@@ -42878,7 +42878,7 @@
         "FindFieldsOwners",
         "func"
       ],
-      "native_source": "util/csaupgrade/upgrade.gfx",
+      "native_source": "util/csaupgrade/upgrade.gt",
       "native_symbol": "findFieldsOwners"
     },
     {
@@ -42892,7 +42892,7 @@
         "UpgradeManagedFields",
         "func"
       ],
-      "native_source": "util/csaupgrade/upgrade.gfx",
+      "native_source": "util/csaupgrade/upgrade.gt",
       "native_symbol": "upgradeManagedFields"
     },
     {
@@ -42906,7 +42906,7 @@
         "UpgradeManagedFieldsPatch",
         "func"
       ],
-      "native_source": "util/csaupgrade/upgrade.gfx",
+      "native_source": "util/csaupgrade/upgrade.gt",
       "native_symbol": "upgradeManagedFieldsPatch"
     }
   ],

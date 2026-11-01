@@ -1,5 +1,5 @@
 // Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
-// External data conversion and entropy only. Event policy lives in gofx.
+// External data conversion and entropy only. Event policy lives in go4t.
 package host
 
 import (
@@ -10,7 +10,7 @@ import (
  "os"
  "time"
  "github.com/google/uuid"
- "gofx/rt"
+ "go4t/rt"
  "github.com/reoring/gofx/ports/client-go/host/deps"
  "k8s.io/apimachinery/pkg/api/meta"
  apierrors "k8s.io/apimachinery/pkg/api/errors"

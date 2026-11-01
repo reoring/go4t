@@ -1,4 +1,4 @@
-// Copyright 2026 The gofx Authors. Licensed under Apache-2.0.
+// Copyright 2026 The go4t Authors. Licensed under Apache-2.0.
 package host
 
 // An immutable tagged sentinel retains errors.Is semantics without a mutable

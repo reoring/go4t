@@ -11,7 +11,7 @@ production Go source files and five immediate upstream test files. `spdy/` and
 ## API and ownership
 
 `Config`, `TLSConfig`, `ImpersonationConfig`, `RoundTripper`, `TokenSource`, and
-`ResettableTokenSource` are gofx-facing APIs. HTTP requests/responses, TLS configs,
+`ResettableTokenSource` are go4t-facing APIs. HTTP requests/responses, TLS configs,
 certificates, connections, OAuth tokens, URLs, and errors use canonical `deps/`
 identities. TLS bytes use `Option[String]`: strings carry exact bytes; None and
 Some("") retain distinct source presence. No credentials have Debug/Show instances.
@@ -37,32 +37,32 @@ reload flags, CA/cert/key filenames and data, and optional protocol order.
 
 ## Policy locations
 
-- `config.gfx`: schema, predicates, wrapper composition and holder identity.
-- `middleware.gfx`: custom -> debug -> auth -> user-agent -> impersonation
+- `config.gt`: schema, predicates, wrapper composition and holder identity.
+- `middleware.gt`: custom -> debug -> auth -> user-agent -> impersonation
   construction order; request traversal occurs in reverse. Request headers are
   cloned before mutation. Explicit Authorization wins over every token source.
   Auth-proxy headers are overwritten on a clone; impersonation uses the user
   header as the all-fields override marker. Extra keys percent-encode bytes,
   including percent itself.
-- `tls.gfx`: inline-data/file precedence, reload provenance, root policy,
+- `tls.gt`: inline-data/file precedence, reload provenance, root policy,
   TLS 1.2 minimum, static/file/callback certificate precedence, and one-second
   certificate/error caching with the upstream strict `age > 1 second` boundary.
-- `cache.gfx`: native ordered keys/maps, serialized cacheable construction,
+- `cache.gt`: native ordered keys/maps, serialized cacheable construction,
   uncacheable proxy functions, weak/strong feature-controlled storage,
   replacement-generation eviction, and explicit lifetime attachment. Keys use
   source filenames for reloadable material and bytes otherwise. Credentials,
   user-agent and wrappers are not key inputs. NextProtos retains upstream
   comma-joined key semantics. DefaultTransport is not entered in the cache.
-- `rotation.gfx`: native connection registry and certificate-change decisions,
+- `rotation.gt`: native connection registry and certificate-change decisions,
   first-certificate exemption, atomic CA transport replacement and five-minute
   reload throttle. Failed/empty/unchanged CA reloads retain the previous transport;
   successful replacement closes only the old transport's idle connections.
-- `rotation_controller.gfx`: immediate + periodic certificate work, deduplication,
+- `rotation_controller.gt`: immediate + periodic certificate work, deduplication,
   5ms..1000s exponential retry combined with a 10 QPS/100 burst limiter, using the
   existing native workqueue/flowcontrol implementations. Shutdown cancels and
   joins the poller and shuts down/joins the delaying queue. Cache-GC disabled mode
   intentionally retains upstream non-cancellation semantics.
-- `token_source.gfx`: canonical OAuth-token cache, strict expiration/leeway and
+- `token_source.gt`: canonical OAuth-token cache, strict expiration/leeway and
   reset-age comparisons, stale-success fallback on refresh errors, token-file
   precedence, and post-401 reset without replay. Newly acquired tokens are not
   invalidated by the same request. A pre-dispatch OAuth failure closes the request
@@ -72,7 +72,7 @@ reload flags, CA/cert/key filenames and data, and optional protocol order.
   their comparison semantics. Legacy OAuth CancelRequest follows the pinned
   dependency's one-time deprecation notice/no-op; explicit Authorization still
   dispatches cancellation to the base. Context cancellation remains functional.
-- `debug.gfx`: native context-level selection, redaction, header/curl formatting,
+- `debug.gt`: native context-level selection, redaction, header/curl formatting,
   and timing presentation. Generic trace callbacks only collect network timings.
 - `host/`: generic HTTP/TLS/file/crypto/trace/weak-reference effects and canonical
   conversions. It does not import client-go, choose credentials, own transport
@@ -89,7 +89,7 @@ weak entry into an accidental strong cache entry.
 `cache:miss`, `cache:miss-gc`, `cache:uncacheable`, `cache_entries` (decimal count),
 `cache_gc:deleted`, `cache_gc:skipped`, `certificate_rotation_gc`, and
 `ca_reload:{success|failure}:{unchanged|updated|read_error|empty|ca_parse_error}`.
-It also receives certificate reload errors. `metrics.gfx` connects these events
+It also receives certificate reload errors. `metrics.gt` connects these events
 to the canonical `tools/metrics.Provider`: call `withMetrics(env,registry,override)`
 or `newEnvironmentWithMetrics(featureRegistry,registry,override)` after registering
 the application metrics. Provider resolution invokes deferred registration;
@@ -190,8 +190,8 @@ source-drop-in API promise.
 
 ## Parity probes and verification status
 
-`transport_test.gfx`, `lifecycle_test.gfx`, `http_test.gfx`,
-`cancellation_test.gfx`, `cache_test.gfx`, and `metrics_test.gfx` contain executable native probes for
+`transport_test.gt`, `lifecycle_test.gt`, `http_test.gt`,
+`cancellation_test.gt`, `cache_test.gt`, and `metrics_test.gt` contain executable native probes for
 cloning/auth precedence, wrapper order, proxy/impersonation sanitation, cache keys,
 cache reuse/uncacheable proxies, token-file and stale-token fallback, strict
 refresh/reset boundaries, 401 no-replay, TLS validation/callback precedence,

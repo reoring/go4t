@@ -1,4 +1,4 @@
-// Copyright 2026 The gofx Authors. Licensed under Apache-2.0.
+// Copyright 2026 The go4t Authors. Licensed under Apache-2.0.
 // Test server implements the wire endpoint, never client-go orchestration.
 package host
 import (
@@ -9,7 +9,7 @@ import (
  "reflect"
  "strconv"
  "time"
- "gofx/rt"
+ "go4t/rt"
  "github.com/reoring/gofx/ports/client-go/host/deps"
  stream "k8s.io/streaming/pkg/httpstream"
  spdy "k8s.io/streaming/pkg/httpstream/spdy"

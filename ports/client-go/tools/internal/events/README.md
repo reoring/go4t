@@ -8,4 +8,4 @@ Native counterpart of the recorder capability interfaces in client-go v0.37.2 `t
 
 The host boundary in `ports/client-go/host/events/effects.go` contains external codec/conversion primitives only: time.Time/nanoseconds, hexadecimal formatting, UUID entropy, external DNS-name validation, CommonAccessor, strategic merge patch encoding, hostname, default stderr logging, and exact external StatusError extraction. Its public Go import path permits emitted consumers outside the tools tree and external consumer modules. It does not implement event correlation, scheduling, retry, throttling or registry policy, and imports no client-go implementation.
 
-`broadcast_test.gfx` prepares deterministic FIFO/shutdown and slow-listener overflow traces. No checks were run.
+`broadcast_test.gt` prepares deterministic FIFO/shutdown and slow-listener overflow traces. No checks were run.

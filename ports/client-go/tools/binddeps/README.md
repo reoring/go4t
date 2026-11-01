@@ -1,6 +1,6 @@
 # Canonical external dependency bindings
 
-This tooling binds **external** Go dependencies for the native client-go port. It never imports or implements `k8s.io/client-go`. Client-go policy remains in gofx. Go code here performs dependency conversion, typed field access, external calls, callbacks, and generic effects only.
+This tooling binds **external** Go dependencies for the native client-go port. It never imports or implements `k8s.io/client-go`. Client-go policy remains in go4t. Go code here performs dependency conversion, typed field access, external calls, callbacks, and generic effects only.
 
 ## Inputs and regeneration
 
@@ -72,7 +72,7 @@ the older signature-only extractor output:
 
 ```sh
 go run tools/binddeps/extract.go tools/binddeps/bodyroots.go \
-  /workspace/wip/gofx/.tmp/client-go-v0.37.2 \
+  /workspace/wip/go4t/.tmp/client-go-v0.37.2 \
   tools/binddeps/modules.json tools/binddeps/contract.json
 go run tools/binddeps/select.go tools/binddeps/contract.json
 ```
@@ -114,9 +114,9 @@ and preserves nanosecond normalization.
 
 ## One owner for each type
 
-`deps/types/types.gfx` is the **only nominal declaration owner**. Its deterministic names contain the actual Go name and a qualified-identity hash. `deps/<Go import path>/values.gfx` exports readable aliases and operations, for example:
+`deps/types/types.gt` is the **only nominal declaration owner**. Its deterministic names contain the actual Go name and a qualified-identity hash. `deps/<Go import path>/values.gt` exports readable aliases and operations, for example:
 
-```gofx
+```go4t
 import core "github.com/reoring/gofx/ports/client-go/deps/k8s.io/api/core/v1"
 import meta "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -134,7 +134,7 @@ No client-go object is replaced by universal JSON, strings or dyn. The `support.
 
 `deps/types` owns `ObjectType[A]`; `deps/objects` re-exports it and provides:
 
-```gofx
+```go4t
 toObject[A](descriptor ObjectType[A], value A) runtime.Object
 fromObject[A](descriptor ObjectType[A], value Option[runtime.Object]) Option[A]
 ```
@@ -178,7 +178,7 @@ by-value copies, unchanged source fields, retained nested pointer identity,
 unchanged direct interface/pointer conversion, and rejection of nil pointers,
 distinct named structs, unrelated structs, nonstruct targets and Option wrapping.
 The native callback proof
-`go run ./cmd/gofx run ports/client-go/tools/binddeps/serializervalueproof`
+`go run ./cmd/go4t run ports/client-go/tools/binddeps/serializervalueproof`
 also passed under the wrapper:
 `serializer-value-proof: exact struct by-value callback; source isolation; nested identity PASS`.
 It constructs the canonical identity-backed SerializerInfo, returns it through
@@ -213,7 +213,7 @@ The focused Go regression
 `go test ./host/deps -run '^TestIdentityField' -count=1` passed, covering
 pointer slots, parsed addressable views, intermediate pointers and private-field
 rejection. The native
-`go run ./cmd/gofx run ports/client-go/tools/binddeps/identityproof` also passed:
+`go run ./cmd/go4t run ports/client-go/tools/binddeps/identityproof` also passed:
 `identity-field-proof: nullable URL set/replace/clear; shared aliases; parsed pointer ingress PASS`.
 Both ran under the serialization wrapper. The native proof uses the public
 HTTP/URL bindings, including `url.callParse` and `http.callNewRequest`; no network
@@ -332,7 +332,7 @@ nil is `<nil>`, while a typed-nil Pod pointer is `*v1.Pod`.
 `runtime.IsNotRegisteredError`; unlike the API-status predicates, that upstream
 predicate does **not** unwrap a wrapped registration error.
 
-The too-large-resource-version retry predicate is **not** implemented in Go. Consumers compose the external timeout and status-cause primitives in gofx. Likewise, random-bound selection is native policy; `support.randomInt` is only the generic bounded random effect.
+The too-large-resource-version retry predicate is **not** implemented in Go. Consumers compose the external timeout and status-cause primitives in go4t. Likewise, random-bound selection is native policy; `support.randomInt` is only the generic bounded random effect.
 
 ## Coverage and exclusions
 
@@ -351,12 +351,12 @@ Private/internal constructors and sealed/protobuf interface proxy shapes remain 
 
 ## Assigned proof and observed result
 
-From the gofx worktree root, the only executed acceptance command was the assigned narrow proof:
+From the go4t worktree root, the only executed acceptance command was the assigned narrow proof:
 
 ```sh
 SERIALIZE_VM_TESTS_TARGET=local \
   /home/vagrant/.codex/skills/serialize-vm-tests/scripts/serialize-vm-tests \
-  --class short -- go run ./cmd/gofx run ports/client-go/tools/binddeps/proof
+  --class short -- go run ./cmd/go4t run ports/client-go/tools/binddeps/proof
 ```
 
 It exited 0 with:
@@ -384,11 +384,11 @@ including `cached.Value[T]`. Their existing instances retain generic typed metho
 bindings; the generator does not emit an invalid uninstantiated Go proxy.
 
 The approved Info correction was separately verified with the same wrapper using
-`go run ./cmd/gofx run ports/client-go/tools/binddeps/versionproof`. It exited 0:
+`go run ./cmd/go4t run ports/client-go/tools/binddeps/versionproof`. It exited 0:
 `version-binding-proof: pure getWith; thirteen fields; immutable snapshots; value methods PASS`.
 The existing dependency proof was then rerun and also exited 0. The narrow version
 proof imports the real `pkg/version.getWith`, observes all thirteen fields,
 checks original-snapshot preservation and both value methods. No clientcmd
 regression or broader core checks were rerun by the dependency owner.
 
-No repository-wide suite, formatter, linter, live-cluster command, commit or push was run. The proof is not a claim that all optional transitive operations were exercised. Domain owners and the primary retain their own integration acceptance. Proof-generated `_gen` output is disposable; the gofx proof and its small external fixtures are retained under this directory.
+No repository-wide suite, formatter, linter, live-cluster command, commit or push was run. The proof is not a claim that all optional transitive operations were exercised. Domain owners and the primary retain their own integration acceptance. Proof-generated `_gen` output is disposable; the go4t proof and its small external fixtures are retained under this directory.

@@ -8,7 +8,7 @@ owner.**
 Prepared command, from `ports/client-go`:
 
 ```sh
-gofx test kubernetes_test
+go4t test kubernetes_test
 ```
 
 | Original behavior | Native scenario |
@@ -27,7 +27,7 @@ controlled integration entrypoint calls the protocol checks together with the
 native workflows and Streaming's socket-backed fixtures:
 
 ```sh
-gofx run examples/integration/main.gfx
+go4t run examples/integration/main.gt
 ```
 
 No cluster or credential is contacted. The capability-only client uses loopback

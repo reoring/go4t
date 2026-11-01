@@ -6,7 +6,7 @@ import (
  "runtime"
  "testing"
  "time"
- "gofx/rt"
+ "go4t/rt"
 )
 
 func poll(t *testing.T,c any)(bool,testOption){t.Helper();value:=mustExecute(t,TryReceiveRaw(c)).([2]any);return value[0].(bool),value[1].(testOption)}

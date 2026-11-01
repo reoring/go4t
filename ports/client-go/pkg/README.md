@@ -1,6 +1,6 @@
 # Native version and client authentication APIs
 
-Source oracle: client-go v0.37.2, revision 72c52dd0cc3b9099b36af11290b0304045dd1ada. Policy lives in gofx. `version.get()` returns canonical apimachinery version.Info; `getWith(BuildInfo)` is the native build-injection equivalent of upstream ldflags, preserving all fallback strings and runtime compiler/platform/version fields.
+Source oracle: client-go v0.37.2, revision 72c52dd0cc3b9099b36af11290b0304045dd1ada. Policy lives in go4t. `version.get()` returns canonical apimachinery version.Info; `getWith(BuildInfo)` is the native build-injection equivalent of upstream ldflags, preserving all fallback strings and runtime compiler/platform/version fields.
 
 ## Client authentication
 
@@ -12,9 +12,9 @@ Every generated Convert_* capability maps to the corresponding `convert{Cluster,
 
 This is a native credential scheme, not a Go runtime.Scheme populated with Go client-go record types. Consumers must use CredentialObject and native conversion entry points. Generic external runtime.Object cannot contain a native credential without a separate explicitly agreed interoperability adapter; do not substitute JSON/dyn for the typed surface. The versioned aliases require callers to retain their enclosing API version when passing through the generic native scheme.
 
-`encode(scheme, object, targetVersion)` and `decode(scheme, text)` implement the native JSON wire path; `decodeToVersion` additionally converts to an explicitly requested version. Required `interactive` and `server` fields are emitted, optional empty scalars omitted, pointer fields retain presence, CA bytes use base64, and timestamps use canonical metav1.Time JSON semantics. Arbitrary plugin config stays raw JSON through canonical RawExtension, including integers beyond 2^53; it never passes through Float or dyn. JSON tokenization and external value codecs are narrow host effects; credential field selection and assembly are native gofx.
+`encode(scheme, object, targetVersion)` and `decode(scheme, text)` implement the native JSON wire path; `decodeToVersion` additionally converts to an explicitly requested version. Required `interactive` and `server` fields are emitted, optional empty scalars omitted, pointer fields retain presence, CA bytes use base64, and timestamps use canonical metav1.Time JSON semantics. Arbitrary plugin config stays raw JSON through canonical RawExtension, including integers beyond 2^53; it never passes through Float or dyn. JSON tokenization and external value codecs are narrow host effects; credential field selection and assembly are native go4t.
 
-Behavioral program: `pkg/apis/clientauthentication/regression`, including wire/version/base64/timestamp/large-config-integer cases. The assigned isolated invocation passed after correcting a mismatched closing parenthesis in the DecodeRaw host adapter. Evidence and exact controlled-environment command: `local://clientgo-featuresversion-auth-regression.txt`. The prior parser-only check covered all 17 owned `.gfx` files; no broad suite was run. Integrated plugin/clientcmd verification remains under the primary's matrix.
+Behavioral program: `pkg/apis/clientauthentication/regression`, including wire/version/base64/timestamp/large-config-integer cases. The assigned isolated invocation passed after correcting a mismatched closing parenthesis in the DecodeRaw host adapter. Evidence and exact controlled-environment command: `local://clientgo-featuresversion-auth-regression.txt`. The prior parser-only check covered all 17 owned `.gt` files; no broad suite was run. Integrated plugin/clientcmd verification remains under the primary's matrix.
 
 External object and RawExtension copies use the shared canonical
 `deps/objects.objectDeepCopy` and `rawExtensionDeepCopy` adapters.

@@ -1,10 +1,10 @@
-// Copyright 2026 The gofx Authors. Licensed under Apache-2.0.
-// Generic logger field and HTTP context conversion; log policy lives in .gfx.
+// Copyright 2026 The go4t Authors. Licensed under Apache-2.0.
+// Generic logger field and HTTP context conversion; log policy lives in .gt.
 package host
 
 import (
  "context"
- "gofx/rt"
+ "go4t/rt"
  "net/http"
  "github.com/go-logr/logr"
  "k8s.io/klog/v2"

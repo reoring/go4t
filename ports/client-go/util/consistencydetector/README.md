@@ -19,4 +19,4 @@ Retrieval, external metadata access, optional transformation, stable UID sorting
 
 List errors log and retry every integer one-second interval until original context cancellation. Cancellation logs the stop outcome and returns normally. Metadata/extraction/transform failures panic, and a mismatch logs the difference then raises `data inconsistency detected for IDENTITY, panicking!`. No mismatch is downgraded to a warning or a fallback.
 
-`data_consistency_detector_test.gfx` has unexecuted regressions for UID order, Exact request options, legacy Limit, mismatch panic, skipped invalid request and retry cancellation. Upstream `TestDataConsistencyChecker` and `TestDataConsistencyCheckerRetry` are the parity authority, including canonical typed and unstructured objects.
+`data_consistency_detector_test.gt` has unexecuted regressions for UID order, Exact request options, legacy Limit, mismatch panic, skipped invalid request and retry cancellation. Upstream `TestDataConsistencyChecker` and `TestDataConsistencyCheckerRetry` are the parity authority, including canonical typed and unstructured objects.

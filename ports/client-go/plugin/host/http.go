@@ -1,7 +1,7 @@
 // Copyright 2026 The Kubernetes Authors. Licensed under Apache-2.0.
-// Generic HTTP/JSON effects only; authentication policy is implemented in gofx.
+// Generic HTTP/JSON effects only; authentication policy is implemented in go4t.
 package host
-import("context";"encoding/base64";"encoding/json";"io";"mime";"net/http";"net/url";"strings";"gofx/rt")
+import("context";"encoding/base64";"encoding/json";"io";"mime";"net/http";"net/url";"strings";"go4t/rt")
 func NewHTTPClient(transport any) rt.IO {return func(ctx context.Context)(any,error){return identity(&http.Client{Transport:value[http.RoundTripper](ctx,rt.SomeOf(transport))}),nil}}
 func HTTPRequest(client any,method,address string,headers any,body string,limit int64) rt.IO {return func(ctx context.Context)(any,error){
  request,e:=http.NewRequestWithContext(ctx,method,address,strings.NewReader(body));if e!=nil{return nil,e}

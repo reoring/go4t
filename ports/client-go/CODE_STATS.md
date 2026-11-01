@@ -1,4 +1,4 @@
-# Code statistics: client-go v0.37.2 versus the native gofx port
+# Code statistics: client-go v0.37.2 versus the native go4t port
 
 Measured from committed blobs, not working trees. Raw numbers and the
 classification rules are in `code-stats.json`.
@@ -6,17 +6,20 @@ classification rules are in `code-stats.json`.
 - Before: `kubernetes/client-go` v0.37.2, revision
   `72c52dd0cc3b9099b36af11290b0304045dd1ada`, all 2,453 `.go` files. Every blob's
   SHA-256 and physical line count matched `upstream-inventory.json`.
-- After: this port at gofx commit `d1fc0b5` on `experiment/client-go-gofx`.
+- After: this port at commit `d1fc0b5` on `experiment/client-go-gofx`, measured
+  before the project rename (gofx → go4t, `.gfx` → `.gt`). `code-stats.json`
+  keeps the pre-rename paths and `"lang": "gfx"` labels; the rename moved files
+  and changed names only, so the counts are unchanged.
 - Lines are physical lines, including comments and blank lines. `nonblank` and
   `bytes` are also recorded in the JSON.
-- Tests are files named `*_test.go` / `*_test.gfx`. Native verification programs
-  such as `regression/main.gfx`, `loopback/*.gfx` and `consumer/main.gfx` stay in
+- Tests are files named `*_test.go` / `*_test.gt`. Native verification programs
+  such as `regression/main.gt`, `loopback/*.gt` and `consumer/main.gt` stay in
   the non-test rows.
 - Generated means a `Generated`/`Code generated` marker in the leading comment
   block; upstream uses the pinned inventory category.
 - Excluded on both sides: documentation, JSON inventories, fixtures, `go.mod`,
-  `go.sum`, emitted Go under `.gofx-source-*`/`*_gen`, build caches.
-- Changes to the gofx compiler itself (`cmd/gofx`, `codegen`) are not counted.
+  `go.sum`, emitted Go under `.go4t-source-*`/`*_gen`, build caches.
+- Changes to the go4t compiler itself (`cmd/go4t`, `codegen`) are not counted.
 
 ## Native port only
 
@@ -40,13 +43,13 @@ After, by language:
 
 | Port | Files | Lines |
 |---|---:|---:|
-| gofx `.gfx` | 1,119 | 97,784 |
+| go4t `.gt` | 1,119 | 97,784 |
 | Go host code and Go tests `.go` | 98 | 12,909 |
 | Relocated type schema `.yaml` | 1 | 17,663 |
 
 Go host code covers generic I/O, synchronization, networking, cryptography,
 external type conversion, generated type registration and verification helpers.
-Client-go policy lives in `.gfx`.
+Client-go policy lives in `.gt`.
 
 Test file count went from 157 to 310 while test lines fell; this is a file-size
 difference, not a test-count or coverage comparison.
@@ -55,7 +58,7 @@ difference, not a test-count or coverage comparison.
 
 | Part | Files | Lines | Bytes |
 |---|---:|---:|---:|
-| External Go dependency bindings, gofx side (`deps/**`) | 233 | 44,114 | 7,895,950 |
+| External Go dependency bindings, go4t side (`deps/**`) | 233 | 44,114 | 7,895,950 |
 | External Go dependency bindings, Go side (`host/deps/**`) | 10 | 43,825 | 5,661,666 |
 | Generators and inventory tools (`tools/binddeps`, `tools/inventory`, `tools/portgen`, root `tools/portgen`) | 26 | 3,171 | 225,999 |
 | Original-Go oracle (`oracle/**`) | 3 | 833 | 42,958 |
@@ -68,7 +71,7 @@ Port plus bindings: 1,461 files, 216,295 lines, 25,405,833 bytes (−37.2% lines
 
 - The port body is smaller in lines and bytes.
 - Bytes fell much less than lines: average non-blank line length rose from about
-  47 bytes to about 128 bytes, because generated gofx files aggregate per group
+  47 bytes to about 128 bytes, because generated go4t files aggregate per group
   and some expressions are written on one line. The line reduction does not
   measure complexity or maintenance effort.
 - The interoperability layer is large. With bindings, total bytes exceed
