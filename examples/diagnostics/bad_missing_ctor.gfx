@@ -1,0 +1,9 @@
+package main
+
+func value(item Option[Int]) Int {
+  match item {
+    _ if false => 0
+  }
+}
+
+func main() IO[Unit] { println("unreachable") }

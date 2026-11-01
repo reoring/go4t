@@ -361,8 +361,12 @@ func AnnOf(e ast.Expr) *Ann {
 // Error is a positioned checker error.
 type Error struct {
 	Pos  ast.Pos
+	End  ast.Pos // exclusive; zero when the source span is unavailable
 	Msg  string
 	File string // ast.File.Name of the file containing Pos ("" if unknown)
 }
 
 func (e *Error) Error() string { return fmt.Sprintf("%s: %s", e.Pos, e.Msg) }
+
+func (e *Error) GetPos() ast.Pos { return e.Pos }
+func (e *Error) GetEnd() ast.Pos { return e.End }

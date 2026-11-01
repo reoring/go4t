@@ -1,0 +1,9 @@
+package main
+
+func value(pair (Bool, Int)) Int {
+  match pair {
+    (false, _) => 0
+  }
+}
+
+func main() IO[Unit] { println("unreachable") }

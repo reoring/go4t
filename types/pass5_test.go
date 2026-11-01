@@ -104,10 +104,10 @@ func TestLetValueRestriction(t *testing.T) {
 
 func TestDefaultingWarnings(t *testing.T) {
 	for _, tt := range []struct{ source, what string }{
-		{`func value() Unit { let x = None; unit() }`, "None"},
+		{`func value() Unit { let _x = None; unit() }`, "None"},
 		{`func value() Unit { []; unit() }`, "[]"},
-		{`func value() Unit { let id = func(x) => x; unit() }`, "let id"},
-		{`func value() Unit { let x = (func(x) => x)(None); unit() }`, "None"},
+		{`func value() Unit { let _id = func(x) => x; unit() }`, "let _id"},
+		{`func value() Unit { let _x = (func(x) => x)(None); unit() }`, "None"},
 	} {
 		t.Run(tt.what, func(t *testing.T) {
 			files := parseFiles(t, tt.source+pass5Main)
@@ -271,7 +271,7 @@ func local() String { let render = func(x) => "${x}"; render(1) + render(true) }
 
 func TestInterpolationMissingInstances(t *testing.T) {
 	for _, tt := range []struct{ source, want string }{
-		{`type Hidden = Hidden; func f() String { "${Hidden}" }`, "no instance Show[Hidden]"},
+		{`type Hidden = Hidden; func f() String { "${Hidden}" }`, "no instance Show[Hidden]; hint: write 'instance Show[Hidden]' (or 'deriving Debug' for a structural form)"},
 		{`func f[A](x A) String { "${x}" }`, "no instance Show[A] (type parameter A has no class constraints)"},
 		{`func f() String { "${unit()}" }`, "no instance Show[Unit]"},
 	} {
@@ -341,7 +341,7 @@ func TestDiagnosticFileNames(t *testing.T) {
 func TestNestedConstrainedLets(t *testing.T) {
 	for _, source := range []string{
 		`func value() String { let outer = func(x) => { let inner = func(y) => show(y); inner(x) }; outer(1) + outer(true) }`,
-		`func value() String { let outer = func(x) => { let inner = func(y) => show(x); inner(1) }; outer(1) + outer(true) }`,
+		`func value() String { let outer = func(x) => { let inner = func(_y) => show(x); inner(1) }; outer(1) + outer(true) }`,
 		`func value() IO[String] { do { let render = func(x) => show(x); ioPure(render(1)); ioPure(render(true)) } }`,
 		`func value() String { let render = Some(func(x) => show(x)); match render { Some(f) => f(1); None => "" } }`,
 		`func value() String { let render = func(x) => show(Some(x)); render(1) + render(true) }`,

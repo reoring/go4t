@@ -20,7 +20,7 @@ instance Debug[String] { debug(a) { debugString(a) } }
 func TestPass10LetPatterns(t *testing.T) {
 	for _, source := range []string{
 		`func value() Int { let (a, b) = (1, 2); a + b }`,
-		`func value() String { let (a, b): (Int, String) = (1, "two"); b }`,
+		`func value() String { let (_a, b): (Int, String) = (1, "two"); b }`,
 		`func value[A](x A) A { let (a, _): (A, Int) = (x, 1); a }`,
 		`type Point = Point{x: Int, y: Int}; func value() Int { let Point{y: y, x: x} = Point(1, 2); x + y }`,
 		`type Point = Point{x: Int, y: Int}; func value() Int { let Point{x: x, ..} = Point(1, 2); x }`,
@@ -29,7 +29,7 @@ func TestPass10LetPatterns(t *testing.T) {
 		`func value() Int { let whole @ (x, _) = (1, 2); x + whole.1 }`,
 		`func value() Int { let x = func(a) => a; x(1); let (x, y) = (1, 2); x + y }`,
 		`func value() IO[Int] { do { let (a, b) = (1, 2); ioPure(a + b) } }`,
-		`func value() IO[String] { do { let (a, b): (Int, String) = (1, "two"); ioPure(b) } }`,
+		`func value() IO[String] { do { let (_a, b): (Int, String) = (1, "two"); ioPure(b) } }`,
 		`type Box = Box{value: Int}; func value() IO[Int] { do { let Box{value: x} = Box(3); let _ = x; ioPure(x) } }`,
 		`func value() IO[Int] { do { let whole @ (x, _) = (1, 2); ioPure(x + whole.1) } }`,
 		`func value() IO[Int] { do { (a, b) <- ioPure((1, 2)); _ <- ioPure("ignored"); ioPure(a + b) } }`,
@@ -103,8 +103,8 @@ func TestPass10Diagnostics(t *testing.T) {
 		{`type Token = Token(func(Int) Int) deriving Eq`, "cannot derive Eq for Token: field of function type"},
 		{`type Token = Token{f: func(Int) Int} deriving Ord; instance Eq[Token] { eq(a, b) { true } }`, "cannot derive Ord for Token: field of function type"},
 		{`type Token = Token deriving Eq, Eq`, "duplicate deriving class Eq for Token"},
-		{`type Hidden = Hidden; type Token = Token(Hidden) deriving Eq`, "no instance Eq[Hidden]"},
-		{`type Hidden = Hidden deriving Eq; type Token = Token(Hidden) deriving Eq, Ord`, "no instance Ord[Hidden]"},
+		{`type Hidden = Hidden; type Token = Token(Hidden) deriving Eq`, "no instance Eq[Hidden]; hint: add 'deriving Eq' or write 'instance Eq[Hidden]'"},
+		{`type Hidden = Hidden deriving Eq; type Token = Token(Hidden) deriving Eq, Ord`, "no instance Ord[Hidden]; hint: add 'deriving Ord' or write 'instance Ord[Hidden]'"},
 	} {
 		t.Run(tt.source, func(t *testing.T) {
 			files := parseFiles(t, tt.source+pass5Main)

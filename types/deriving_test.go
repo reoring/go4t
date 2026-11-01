@@ -66,7 +66,7 @@ func TestDerivingDiagnostics(t *testing.T) {
 		{`type T[A] = T(A) deriving Debug, Debug`, "duplicate deriving class Debug for T"},
 		{`type T[A] = T(A) deriving Functor, Functor`, "duplicate deriving class Functor for T"},
 		{`type T = T deriving Debug; instance Debug[T] { debug(a) { "T" } }`, "duplicate instance Debug[T]"},
-		{`type Hidden = Hidden; type T = T(Hidden) deriving Debug`, "no instance Debug[Hidden]"},
+		{`type Hidden = Hidden; type T = T(Hidden) deriving Debug`, "no instance Debug[Hidden]; hint: add 'deriving Debug' or write 'instance Debug[Hidden]'"},
 		{`type T = T(func(Int) Int) deriving Debug`, "no instance Debug[func(Int) Int]"},
 		{`type T[A] = T(A) deriving Traversable`, "no instance Functor[T] (required superclass)"},
 	}

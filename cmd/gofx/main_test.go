@@ -4,7 +4,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"testing"
 
@@ -111,9 +110,10 @@ func TestWarningsContinueForEveryCommand(t *testing.T) {
 			if runErr != nil {
 				t.Fatalf("%s with warnings failed: %v\n%s", command, runErr, output)
 			}
-			pattern := "^" + regexp.QuoteMeta(file) + `:3:[1-9][0-9]*: warning: type of (let x|None) defaulted to Unit; add an annotation or use the value` + "\n$"
-			if !regexp.MustCompile(pattern).Match(output) {
-				t.Errorf("stderr = %q, want a positioned defaulting warning matching %q", output, pattern)
+			want := file + ":3:6: warning: x is unused; prefix with _ to silence\n let x = None\n     ^\n" +
+				file + ":3:10: warning: type of None defaulted to Unit; add an annotation or use the value\n let x = None\n         ^~~~\n"
+			if string(output) != want {
+				t.Errorf("stderr = %q, want %q", output, want)
 			}
 			if command != "check" {
 				if _, err := os.Stat(filepath.Join(dir, "warning_gen", "main.go")); err != nil {
@@ -131,8 +131,12 @@ func TestDiagnosticUsesCheckerFilename(t *testing.T) {
 		if wantFile == "" {
 			wantFile = "user.gfx"
 		}
-		if got := diagnostic("user.gfx", err).Error(); got != wantFile+":2:3: invalid type" {
-			t.Errorf("diagnostic = %q, want checker file %q", got, wantFile)
+		want := wantFile + ":2:3: invalid type"
+		if file == "prelude.gfx" {
+			want += "\n\n^"
+		}
+		if got := diagnostic("user.gfx", err).Error(); got != want {
+			t.Errorf("diagnostic = %q, want %q", got, want)
 		}
 	}
 }

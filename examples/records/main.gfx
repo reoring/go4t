@@ -20,7 +20,7 @@ func main() IO[Unit] {
     User{name: "Cara", age: 41, email: Some("cara@example.com")}
   ]
   let older = func(u User) => u{age: u.age + 1}
-  let x = None
+  let _x = None
   let pair = func(x) => (x, x)
   do {
     println("users:    ${users}")

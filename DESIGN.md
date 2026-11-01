@@ -817,3 +817,99 @@ modules (`import`, qualified names, prelude shadowing, `std/*` split), lsp (`gof
 fmt (`gofx fmt`), perf (Int/Bool unboxing, specialisation, benchmarks in CI),
 json-deriving (`deriving Encode, Decode`), docs (SPEC rewrite, tutorial). Contracts are
 written when wave A has landed.
+
+### Wave B contracts
+
+Same rules as wave A (worktree `.wt/<slice>`, branch `slice/<slice>`, no SPEC/DESIGN edits,
+`docs/slices/<slice>.md`, `examples/<slice>/`). Base: master after wave A.
+
+**modules** — `import "path"` / `import alias "path"` after `package`. A module is a
+directory of `.gfx` files with the same `package` clause; the import path is resolved
+relative to a root list: the importing file's module root (the directory containing the
+nearest `gofx.mod` file, a one-line `module <name>` file; absent → the program's directory),
+then `$GOFX_PATH` entries, then the compiler's embedded `std/`. Exported names are those
+starting with an upper-case letter **for types/constructors/classes** and, for values, those
+listed in an `export` block? — No: keep Go's rule but values are lower-case in gofx, so
+visibility is: every top-level declaration is exported unless its name begins with `_`
+(`func _helper()`); `_`-prefixed names are private to the module. Qualified access
+`alias.name`, `alias.Type`, `alias.Ctor` (lexer: `Ident '.' Ident` in type position and
+pattern position too). Unqualified import `import . "std/list"` is not provided. Instances
+are global (no orphan rule; duplicate instance across modules is an error naming both
+modules). The prelude becomes module `std/prelude`, implicitly imported unqualified into
+every file; **user declarations may shadow prelude names** (local wins, warning
+`shadows prelude name X`); std split: `std/list`, `std/string`, `std/regex`, `std/map`,
+`std/set`, `std/array`, `std/io`, `std/conc`, `std/result`, `std/float`, with `std/prelude`
+re-exporting only: `Functor Monad Show Debug Eq Ord Foldable Traversable Ordering Option
+Result List Unit`, `map flatMap fold filter length append reverse head tail show debug
+println print eprintln ioPure ioFail unit fst snd compare eq min max toFloat`, and the
+operators' instances. Everything else moves to its std module and is reached qualified
+(`import "std/string"` → `string.trim(s)`). Migrate all examples. `gofx run DIR` (a
+directory) compiles the module in DIR as a program. Codegen: one Go file per gofx module
+under `<out>/`, Go package name = last path element with `_` separators, names mangled
+`pkg_name_`; dictionaries for cross-module instances resolve by (class, type) globally.
+`types.Check` takes `[]*ast.Module`. CLI `check/build/run/test/eval/bind/fmt/lsp` all
+accept files or a directory.
+
+**lsp** — `gofx lsp` (stdio, JSON-RPC 2.0, LSP 3.17; no third-party deps): `initialize`,
+`textDocument/didOpen|didChange|didClose` (full sync), `publishDiagnostics` (errors +
+warnings from `types.Check` with spans), `textDocument/hover` (type of the identifier at the
+position, rendered with the checker's `typeString`, plus the declaration's doc comment =
+the `//` lines directly above it), `textDocument/definition` (identifiers, constructors,
+types, fields, class methods; cross-file within the program/module), `textDocument/
+documentSymbol`. A `lsp/` package holds the server; `types` exposes a position index
+(`Program.Index(pos) *Binding` or equivalent built from annotations) — add to `types`
+without changing existing behaviour. Tests drive the server through an in-memory pipe.
+`editors/vscode/` contains a minimal client extension manifest (package.json + extension.js
+that spawns `gofx lsp`) and `editors/README.md`.
+
+**fmt** — `gofx fmt [-w] FILE...|DIR` prints/rewrites canonical formatting; `gofx fmt -d`
+shows a diff; exit 1 when `-l` lists unformatted files. Canonical style: 2-space indent,
+one declaration per blank-line group, `match` arms one per line without leading `|` unless
+an arm spans lines, record fields one per line when the literal exceeds 80 columns,
+trailing commas absent, operators spaced, comments preserved at their line (attach to the
+following node; trailing comments stay trailing). Implementation: a `format/` package
+printing from the AST (which must carry comments — extend the lexer/parser to collect
+comments into `ast.File.Comments` with positions; do not break existing parsing). Property
+tests: `fmt(fmt(x)) == fmt(x)` and `parse(fmt(x))` structurally equals `parse(x)` for every
+`examples/**/*.gfx` and `prelude`/`std` files. Run `gofx fmt -w` over the whole repository
+at the end and include that in the slice (expect large but mechanical diffs; keep them in a
+separate commit message line "fmt: reformat repository" — the primary commits).
+
+**perf** — in `codegen/`: (1) unboxed `Int`/`Bool`/`Float` for monomorphic locals and
+parameters whose type is fully known after checking (emit `int64`/`bool`/`float64`
+declarations; box only at `any` boundaries: polymorphic calls, data constructor fields,
+dictionaries, externs); (2) specialisation of constrained functions called with concrete
+dictionaries where the callee is in the same program and small (≤ 40 AST nodes) — emit a
+monomorphic copy per (function, dict tuple) up to 8 copies, otherwise fall back; (3)
+`bench/` directory with `go test -bench` harness compiling `bench/*.gfx` and timing
+`sort` of 1,000,000 Ints, `Map` insert/lookup of 100,000 keys, `fold` over 10,000,000, and
+the wc example on a 10 MB input; CI job runs benchmarks with `-benchtime=1x` and fails if
+any exceeds a budget stored in `bench/budget.json` (set budgets at 2× the measured value
+on the CI runner after the change; record before/after numbers in docs/slices/perf.md).
+All existing tests and examples must keep passing; generated code must still be
+`go vet`-clean.
+
+**json-deriving** — prelude classes `class Encode[A] { encode(a A) Json }` and `class
+Decode[A] { decode(j Json) Result[String, A] }` with `type Json = JNull | JBool(Bool) |
+JNum(Float) | JStr(String) | JArr(List[Json]) | JObj(Map[String, Json])`, `toJson(j Json)
+String` (compact), `toJsonPretty`, `parseJson(s String) Result[String, Json]` (rt, Go
+`encoding/json` into an ordered representation; numbers → Float; object key order = source
+order for encode, sorted for `Map`). `deriving Encode, Decode`: records → objects keyed by
+field name; positional constructors → `{"$tag": "Ctor", "$values": [...]}`; nullary →
+`{"$tag": "Ctor"}`; single-constructor records omit `$tag`; parameterised types get the
+instances `given Encode[A]`…; `Option[A]` encodes `None` as `null`; `List`, `Map[String,
+V]`, `Array`, tuples (as arrays), `Int`, `Float`, `String`, `Bool`, `Unit` (`null`) have
+prelude instances; decode errors read `expected <what> at <path>` (`$.items[2].name`).
+Lives in `std/json` once modules land — coordinate: if `modules` is not merged in your
+worktree, put it in the prelude and note it; the primary moves it.
+
+**docs** — rewrite `SPEC.md` from the merged implementation + every `docs/slices/*.md`
+(then delete `docs/slices/`, folding deviations/boundary tables into SPEC §7 and a new §10
+"Boundary behaviour"); fix §4 `Stmt` grammar and §7 deriving contradictions; add
+`docs/tutorial.md` (Go developer oriented: type classes vs interfaces, IO vs side effects,
+`do`, `Result`/`tryIO`, modules, `gofx test`, FFI via `bind`), `docs/stdlib.md` (every
+std/prelude function with signature + one-line semantics + boundary row), and update
+`README.md` with install/quick start and the examples table (each example's purpose and
+run command). The docs slice must verify every code snippet by extracting fenced
+` ```gofx ` blocks into `.gfx` files and running `gofx check` over them (`docs/check_test.go`).
+Starts after modules merged (it documents the module system).

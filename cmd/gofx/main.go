@@ -10,7 +10,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"gofx/ast"
@@ -179,26 +178,9 @@ func checkFiles(files []*ast.File) (*types.Program, error) {
 		return nil, diagnostic(files[1].Name, err)
 	}
 	for _, warning := range program.Warnings {
-		warningFile := warning.File
-		if warningFile == "" {
-			warningFile = files[1].Name
-		}
-		fmt.Fprintf(os.Stderr, "%s:%s: warning: %s\n", warningFile, warning.Pos, warning.Msg)
+		printWarning(files[1].Name, warning)
 	}
 	return program, nil
-}
-
-var positionedError = regexp.MustCompile(`^\d+:\d+:`)
-
-func diagnostic(file string, err error) error {
-	var checked *types.Error
-	if errors.As(err, &checked) && checked.File != "" {
-		file = checked.File
-	}
-	if positionedError.MatchString(err.Error()) {
-		return fmt.Errorf("%s:%w", file, err)
-	}
-	return fmt.Errorf("%s:1:1: %w", file, err)
 }
 
 func moduleRoot(dir string) (string, error) {

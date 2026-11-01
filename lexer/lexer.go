@@ -37,6 +37,7 @@ type Token struct {
 	Kind  Kind
 	Text  string // decoded for String; original source, including quotes, for InterpTok
 	Pos   ast.Pos
+	End   ast.Pos      // exclusive source position, before following whitespace
 	Parts []InterpPart // non-nil only for InterpTok
 }
 
@@ -188,6 +189,7 @@ func (l *Lexer) All() ([]Token, error) {
 }
 
 func (l *Lexer) emit(t Token) Token {
+	t.End = ast.Pos{Line: l.line, Col: l.col}
 	l.lastKind, l.lastText = t.Kind, t.Text
 	if t.Kind == Punct {
 		switch t.Text {

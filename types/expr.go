@@ -6,8 +6,7 @@ type locals struct {
 	parent  *locals
 	values  map[string]Type
 	schemes map[string]*localScheme
-	// Only the singleton scope prebinding a recursive let sets recursiveUse.
-	recursiveUse *bool
+	uses    map[string]*localUse
 }
 
 func newLocals(parent *locals) *locals {
@@ -17,8 +16,8 @@ func newLocals(parent *locals) *locals {
 func (l *locals) lookup(name string) (Type, *localScheme) {
 	for ; l != nil; l = l.parent {
 		if t := l.values[name]; t != nil {
-			if l.recursiveUse != nil {
-				*l.recursiveUse = true
+			if use := l.uses[name]; use != nil {
+				use.used = true
 			}
 			return t, l.schemes[name]
 		}
@@ -54,6 +53,7 @@ type bodyChecker struct {
 	lets        []*localScheme
 	bindings    map[ast.Expr]defaultOrigin
 	defaults    map[*TMeta]defaultOrigin
+	localUses   []*localUse
 }
 
 func (c *checker) body(constraints []Constraint, scope map[string]Type) *bodyChecker {
@@ -73,6 +73,9 @@ func (b *bodyChecker) functionBody(params []ast.Param, signature *TFunc, block *
 			fail(block.Pos, "duplicate parameter %s", param.Name)
 		}
 		env.values[param.Name] = signature.Params[i]
+		if outer != nil {
+			b.trackLocal(env, param.Name, param.Pos, param.End)
+		}
 	}
 	result := b.block(block, env)
 	unify(block.Result.GetPos(), signature.Ret, result)
@@ -94,7 +97,7 @@ func (b *bodyChecker) block(block *ast.Block, outer *locals) Type {
 			}
 			b.localFunctions(group, env)
 		case *ast.LetStmt:
-			b.let(stmt.Pos, stmt.Name, stmt.Pat, stmt.Type, stmt.Value, env)
+			b.let(stmt.Pos, stmt.NamePos, stmt.End, stmt.Name, stmt.Pat, stmt.Type, stmt.Value, env)
 		case *ast.ExprStmt:
 			b.infer(stmt.X, env)
 		}
@@ -262,6 +265,7 @@ func (b *bodyChecker) inferExpected(e ast.Expr, env *locals, expected Type) Type
 					fail(pos, "duplicate parameter %s", param.Name)
 				}
 				local.values[param.Name] = ft.Params[i]
+				b.trackLocal(local, param.Name, param.Pos, param.End)
 			}
 		}
 		ret := b.infer(e.Body, local)
@@ -315,9 +319,10 @@ func (b *bodyChecker) inferExpected(e ast.Expr, env *locals, expected Type) Type
 					checkValueName(stmt.Pos, stmt.Name)
 					local.values[stmt.Name] = b.monadic(stmt.X, head, local)
 					delete(local.schemes, stmt.Name)
+					b.trackLocal(local, stmt.Name, stmt.Pos, stmt.End)
 				}
 			case *ast.DoLet:
-				b.let(stmt.Pos, stmt.Name, stmt.Pat, stmt.Type, stmt.Value, local)
+				b.let(stmt.Pos, stmt.NamePos, stmt.End, stmt.Name, stmt.Pat, stmt.Type, stmt.Value, local)
 			case *ast.DoExpr:
 				b.monadic(stmt.X, head, local)
 			}
@@ -395,6 +400,13 @@ func (b *bodyChecker) localPattern(pos ast.Pos, pat ast.Pattern, typ Type, env *
 	for name, typ := range local.values {
 		env.values[name] = typ
 		delete(env.schemes, name)
+		delete(env.uses, name)
+		if use := local.uses[name]; use != nil {
+			if env.uses == nil {
+				env.uses = make(map[string]*localUse)
+			}
+			env.uses[name] = use
+		}
 	}
 }
 
@@ -411,8 +423,10 @@ func (b *bodyChecker) pattern(p ast.Pattern, expected Type, env *locals) {
 	case *ast.PWild:
 	case *ast.PVar:
 		bindPattern(p.Pos, p.Name, expected, env)
+		b.trackLocal(env, p.Name, p.Pos, p.End)
 	case *ast.PAs:
 		bindPattern(p.Pos, p.Name, expected, env)
+		b.trackLocal(env, p.Name, p.Pos, p.End)
 		b.pattern(p.Pat, expected, env)
 	case *ast.PTuple:
 		elems := make([]Type, len(p.Elems))

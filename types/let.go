@@ -108,7 +108,7 @@ func (b *bodyChecker) generalizableValues(es []ast.Expr) bool {
 	return true
 }
 
-func (b *bodyChecker) let(pos ast.Pos, name string, pat ast.Pattern, annotation ast.Type, value ast.Expr, env *locals) {
+func (b *bodyChecker) let(pos, namePos, end ast.Pos, name string, pat ast.Pattern, annotation ast.Type, value ast.Expr, env *locals) {
 	if pat == nil {
 		checkValueName(pos, name)
 	}
@@ -119,17 +119,17 @@ func (b *bodyChecker) let(pos ast.Pos, name string, pat ast.Pattern, annotation 
 	}
 	valueEnv := env
 	var self Type
-	var recursive bool
+	var recursive localUse
 	if _, lambda := value.(*ast.Lambda); lambda && pat == nil {
 		self = b.c.fresh(KStar{})
 		valueEnv = newLocals(env)
 		valueEnv.values[name] = self
-		valueEnv.recursiveUse = &recursive
+		valueEnv.uses = map[string]*localUse{name: &recursive}
 	}
 	typ := b.inferExpected(value, valueEnv, expected)
 	if self != nil {
 		unify(value.GetPos(), self, typ)
-		AnnOf(value).Recursive = recursive
+		AnnOf(value).Recursive = recursive.used
 	}
 	if expected != nil {
 		unify(value.GetPos(), expected, typ)
@@ -148,6 +148,10 @@ func (b *bodyChecker) let(pos ast.Pos, name string, pat ast.Pattern, annotation 
 		local = b.generalize(typ, env, start, pos)
 	}
 	b.bindLocal(name, typ, local, env)
+	b.trackLocal(env, name, namePos, end)
+	if use := env.uses[name]; use != nil {
+		use.used = recursive.used
+	}
 	if local != nil && len(local.scheme.Constraints) != 0 {
 		AnnOf(value).LetScheme = local.scheme
 	}

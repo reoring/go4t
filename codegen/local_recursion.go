@@ -30,9 +30,9 @@ func (g *generator) localFunctions(group []*ast.FuncDecl, body string) string {
 	}
 	for _, decl := range group {
 		lambda := &ast.Lambda{
-			ExprBase: ast.ExprBase{Pos: decl.Pos},
+			ExprBase: ast.ExprBase{Pos: decl.Pos, End: decl.End},
 			Params:   decl.Params,
-			Body:     &ast.BlockExpr{ExprBase: ast.ExprBase{Pos: decl.Body.Pos}, Block: decl.Body},
+			Body:     &ast.BlockExpr{ExprBase: ast.ExprBase{Pos: decl.Body.Pos, End: decl.Body.End}, Block: decl.Body},
 		}
 		name := mangle(decl.Name)
 		out.WriteString(name + " = " + g.namedLambda(decl.Name, lambda) + "\n_ = " + name + "\n")

@@ -89,7 +89,7 @@ func bad() Box[Int] { fmap(Boxed(1), func(x) => x) }` + main, "no instance Funct
 		{"bool ordering", `func okay() Bool { false < true }` + main, ""},
 		{"operators", `func okay(x Int, y String, z Bool) Bool { let n = -(x + 2) * 3 / 2 - 1; if !z && n >= 0 { y < "z" || n != 2 } else { z == false } }` + main, ""},
 		{"literal catchall", `func okay(x Int) Bool { match x { 1 => true; _ => false } }` + main, ""},
-		{"literal incomplete", `func bad(x Bool) Int { match x { true => 1; false => 0 } }` + main, "non-exhaustive match"},
+		{"boolean literals exhaustive", `func okay(x Bool) Int { match x { true => 1; false => 0 } }` + main, ""},
 		{"nested incomplete", `func bad(x Option[Option[Int]]) Int { match x { None => 0; Some(Some(a)) => a } }` + main, "non-exhaustive match"},
 		{"nested complete", `func okay(x Option[Option[Int]]) Int { match x { None => 0; Some(None) => 1; Some(Some(a)) => a } }` + main, ""},
 		{"duplicate pattern binding", `type Pair[A] = PairOf(A, A)

@@ -226,8 +226,9 @@ func TestToolDiagnostics(t *testing.T) {
 	bad := toolsWrite(t, filepath.Join(dir, "bad.gfx"), "package main\nfunc testBad() Bool { 1 }\n")
 	for _, args := range [][]string{{"test", bad}, {"eval", "1", bad}} {
 		err := run(args)
-		if err == nil || !strings.Contains(err.Error(), bad+":2:") || !strings.Contains(err.Error(), "type mismatch") {
-			t.Errorf("%q error=%v, want original file and type mismatch", args, err)
+		if err == nil || !strings.Contains(err.Error(), bad+":2:") || !strings.Contains(err.Error(), "type mismatch") ||
+			!strings.Contains(err.Error(), "\nfunc testBad() Bool { 1 }\n                      ^") {
+			t.Errorf("%q error=%v, want original file, type mismatch and caret", args, err)
 		}
 	}
 	if err := run([]string{"eval", "1; func injected() Int { 2 }"}); err == nil || !strings.Contains(err.Error(), "expected end of expression") {
@@ -239,6 +240,19 @@ func TestToolDiagnostics(t *testing.T) {
 	other := toolsWrite(t, filepath.Join(dir, "other.gfx"), "package other\n")
 	if err := run([]string{"test", bad, other}); err == nil || !strings.Contains(err.Error(), "package other differs from main") {
 		t.Errorf("package mismatch error=%v", err)
+	}
+}
+
+func TestToolWarningsRenderSource(t *testing.T) {
+	dir := toolsModule(t)
+	file := toolsWrite(t, filepath.Join(dir, "warning.gfx"), "package main\nfunc testUnused() Bool { let forgotten = 1; true }\n")
+	for _, args := range [][]string{{"test", file}, {"eval", "testUnused()", file}} {
+		_, stderr, status := toolsCommand(t, dir, "", args...)
+		want := file + ":2:30: warning: forgotten is unused; prefix with _ to silence\n" +
+			"func testUnused() Bool { let forgotten = 1; true }\n                             ^~~~~~~~~\n"
+		if status != 0 || stderr != want {
+			t.Errorf("%q stderr=%q status=%d, want %q and success", args, stderr, status, want)
+		}
 	}
 }
 

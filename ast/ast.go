@@ -9,17 +9,22 @@ func (p Pos) String() string { return fmt.Sprintf("%d:%d", p.Line, p.Col) }
 
 // ---- syntactic types ----
 
-type Type interface{ typeNode() }
+type Type interface {
+	Node
+	typeNode()
+}
 
 // TypeName is `Name` or `Name[Args]`; Name may be a type parameter.
 type TypeName struct {
 	Pos  Pos
+	End  Pos
 	Name string
 	Args []Type
 }
 
 type FuncType struct {
 	Pos    Pos
+	End    Pos
 	Params []Type
 	Ret    Type
 }
@@ -27,6 +32,7 @@ type FuncType struct {
 // TupleType is `(A, B)`; arity >= 2. Resolves to the builtin TCon `Tuple<n>`.
 type TupleType struct {
 	Pos   Pos
+	End   Pos
 	Elems []Type
 }
 
@@ -44,6 +50,8 @@ type TypeParam struct {
 // pattern instead of a name (`func((a, b), _) => ...`); then Pat is set and
 // Name is "" . Function declarations always use Name.
 type Param struct {
+	Pos  Pos
+	End  Pos
 	Name string
 	Type Type    // nil for untyped lambda params
 	Pat  Pattern // lambda only; nil when the parameter is a plain name
@@ -57,10 +65,21 @@ type File struct {
 	Decls   []Decl
 }
 
-type Decl interface{ declNode() }
+// Node spans use one-based rune columns and an exclusive End position.
+type Node interface {
+	GetPos() Pos
+	GetEnd() Pos
+	SetEnd(Pos)
+}
+
+type Decl interface {
+	Node
+	declNode()
+}
 
 type ClassDecl struct {
 	Pos     Pos
+	End     Pos
 	Name    string
 	Param   TypeParam
 	Super   string // "" if none
@@ -69,6 +88,7 @@ type ClassDecl struct {
 
 type MethodSig struct {
 	Pos     Pos
+	End     Pos
 	Name    string
 	TParams []TypeParam
 	Params  []Param
@@ -83,6 +103,7 @@ type MethodSig struct {
 // variables of kind *; Context may constrain either. The parser records all head arguments in Params; the checker splits Fixed.
 type InstanceDecl struct {
 	Pos     Pos
+	End     Pos
 	Class   string
 	TypeCon string // bare type constructor name
 	Params  []string
@@ -93,12 +114,14 @@ type InstanceDecl struct {
 
 type Constraint struct {
 	Pos   Pos
+	End   Pos
 	Class string
 	Param string // one of InstanceDecl.Params
 }
 
 type InstMethod struct {
 	Pos    Pos
+	End    Pos
 	Name   string
 	Params []string
 	Body   *Block
@@ -107,6 +130,7 @@ type InstMethod struct {
 // TypeDecl is `type Name[Params] = Ctors [deriving Class, ...]`.
 type TypeDecl struct {
 	Pos      Pos
+	End      Pos
 	Name     string
 	TParams  []string
 	Ctors    []Ctor
@@ -131,6 +155,7 @@ func (d *AliasDecl) SetEnd(end Pos) { d.End = end }
 // constructor is still a positional constructor in every other respect.
 type Ctor struct {
 	Pos        Pos
+	End        Pos
 	Name       string
 	Fields     []Type
 	FieldNames []string
@@ -140,6 +165,7 @@ type Ctor struct {
 // Local functions have no type parameters or extern binding.
 type FuncDecl struct {
 	Pos     Pos
+	End     Pos
 	Name    string
 	TParams []TypeParam
 	Params  []Param
@@ -163,6 +189,7 @@ func (*FuncDecl) declNode()     {}
 
 type Block struct {
 	Pos    Pos
+	End    Pos
 	Stmts  []Stmt
 	Result Expr
 }
@@ -172,11 +199,13 @@ type Stmt interface{ stmtNode() }
 // LetStmt is `let name = e`, `let name: T = e`, or `let pat = e` /
 // `let pat: T = e` with an irrefutable pattern (Pat set, Name "").
 type LetStmt struct {
-	Pos   Pos
-	Name  string
-	Pat   Pattern
-	Type  Type
-	Value Expr
+	Pos     Pos
+	End     Pos
+	NamePos Pos // start of the bare binding name, when Pat is nil
+	Name    string
+	Pat     Pattern
+	Type    Type
+	Value   Expr
 }
 
 type ExprStmt struct{ X Expr }
@@ -188,16 +217,19 @@ func (*FuncDecl) stmtNode() {}
 // Expr nodes carry an Ann slot the checker fills with *types.Ann.
 type Expr interface {
 	exprNode()
-	GetPos() Pos
+	Node
 	AnnSlot() *any
 }
 
 type ExprBase struct {
 	Pos Pos
+	End Pos
 	Ann any
 }
 
 func (e *ExprBase) GetPos() Pos   { return e.Pos }
+func (e *ExprBase) GetEnd() Pos   { return e.End }
+func (e *ExprBase) SetEnd(p Pos)  { e.End = p }
 func (e *ExprBase) AnnSlot() *any { return &e.Ann }
 func (e *ExprBase) exprNode()     {}
 
@@ -287,6 +319,7 @@ type Match struct {
 // Arm is `pat => body` or `pat if guard => body`.
 type Arm struct {
 	Pos   Pos
+	End   Pos
 	Pat   Pattern
 	Guard Expr // nil when absent
 	Body  Expr
@@ -310,16 +343,19 @@ type DoStmt interface{ doStmtNode() }
 // DoBind is `name <- e` or `pat <- e` (irrefutable pattern; Pat set, Name "").
 type DoBind struct {
 	Pos  Pos
+	End  Pos
 	Name string
 	Pat  Pattern
 	X    Expr
 }
 type DoLet struct {
-	Pos   Pos
-	Name  string
-	Pat   Pattern // irrefutable pattern when not a plain name
-	Type  Type    // nil when absent
-	Value Expr
+	Pos     Pos
+	End     Pos
+	NamePos Pos // start of the bare binding name, when Pat is nil
+	Name    string
+	Pat     Pattern // irrefutable pattern when not a plain name
+	Type    Type    // nil when absent
+	Value   Expr
 }
 type DoExpr struct{ X Expr }
 
@@ -354,26 +390,33 @@ type Unary struct {
 
 // ---- patterns ----
 
-type Pattern interface{ patNode() }
+type Pattern interface {
+	Node
+	patNode()
+}
 
 type PCtor struct {
 	Pos  Pos
+	End  Pos
 	Name string
 	Args []Pattern
 }
 type PVar struct {
 	Pos  Pos
+	End  Pos
 	Name string
 }
-type PWild struct{ Pos Pos }
+type PWild struct{ Pos, End Pos }
 type PLit struct {
 	Pos Pos
+	End Pos
 	X   Expr // IntLit, StringLit, BoolLit
 }
 
 // PTuple is `(p1, p2, ...)`, arity >= 2.
 type PTuple struct {
 	Pos   Pos
+	End   Pos
 	Elems []Pattern
 }
 
@@ -382,6 +425,7 @@ type PTuple struct {
 // ignores the unlisted fields. Without `..` every field must be listed.
 type PRecord struct {
 	Pos   Pos
+	End   Pos
 	Ctor  string
 	Names []string
 	Pats  []Pattern
@@ -391,6 +435,7 @@ type PRecord struct {
 // PAs is `name @ pattern`.
 type PAs struct {
 	Pos  Pos
+	End  Pos
 	Name string
 	Pat  Pattern
 }

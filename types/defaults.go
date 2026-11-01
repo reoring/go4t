@@ -10,6 +10,7 @@ import (
 
 type defaultOrigin struct {
 	pos      ast.Pos
+	end      ast.Pos
 	what     string
 	priority int
 }
@@ -36,6 +37,7 @@ func (b *bodyChecker) prepareDefaults() {
 				origin = defaultOrigin{pos: e.GetPos(), what: e.Name, priority: 3}
 			}
 		}
+		origin.end = expr.GetEnd()
 		record := func(m *TMeta) {
 			old, ok := b.defaults[m]
 			if !ok || origin.priority > old.priority || origin.priority == old.priority && before(origin.pos, old.pos) {
@@ -52,7 +54,7 @@ func (b *bodyChecker) prepareDefaults() {
 func (b *bodyChecker) defaultMeta(meta *TMeta) {
 	origin := b.defaults[meta]
 	b.c.program.Warnings = append(b.c.program.Warnings, &Error{
-		Pos: origin.pos, File: b.c.file,
+		Pos: origin.pos, End: origin.end, File: b.c.file,
 		Msg: "type of " + origin.what + " defaulted to Unit; add an annotation or use the value",
 	})
 }
