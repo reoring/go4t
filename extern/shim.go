@@ -370,6 +370,9 @@ func BindWithShim(pkg *Package, options BindOptions, shimPath, shimPackage strin
 	for _, f := range pkg.Functions {
 		callee, shimName := g.qualifier(types.NewPackage(pkg.Path, pkg.Name))+"."+f.Name, f.Name
 		if samePackage {
+			if strings.HasPrefix(f.Name, "Gofx_") {
+				continue // output of a previous run of this command
+			}
 			callee, shimName = f.Name, "Gofx_"+f.Name
 		}
 		emit(f.Name, f.Name, shimName, callee, f.Signature, nil)
