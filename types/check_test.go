@@ -94,7 +94,6 @@ func bad() Box[Int] { fmap(Boxed(1), func(x) => x) }` + main, "no instance Funct
 		{"nested complete", `func okay(x Option[Option[Int]]) Int { match x { None => 0; Some(None) => 1; Some(Some(a)) => a } }` + main, ""},
 		{"duplicate pattern binding", `type Pair[A] = PairOf(A, A)
 func bad(x Pair[Int]) Int { match x { PairOf(a, a) => a } }` + main, "duplicate pattern variable a"},
-		{"multiple constraints", `func bad[F[_] Functor Monad, A](x F[A]) F[A] { x }` + main, "at most one constraint"},
 		{"unknown superclass", `class Bad[F[_]] : Missing[F] { bad[A](x F[A]) F[A] }` + main, "unknown superclass Missing"},
 		{"superclass cycle", `class C[A] : D[A] {}; class D[A] : C[A] {}` + main, "superclass cycle"},
 		{"superclass kind", `class Bad[A] : Functor[A] {}` + main, "kind mismatch"},
@@ -563,7 +562,6 @@ func TestConstrainedInstanceDiagnostics(t *testing.T) {
 		{"head kind", `instance Functor[Option[A]] { fmap(fa, f) { fa } }`, "kind mismatch: got (*) -> *, want *"},
 		{"head arity", `instance Show[Option[A, B]] { show(o) { "x" } }`, "kind mismatch applying Option to 2 arguments"},
 		{"unknown context class", `instance Show[Option[A]] given Missing[A] { show(o) { "x" } }`, "unknown class Missing"},
-		{"multiple context constraints", `instance Show[Option[A]] given Show[A], Show[A] { show(o) { "x" } }`, "at most one constraint per type parameter A"},
 		{"duplicate constrained instance", showOptionInstance + `instance Show[Option[B]] given Show[B] { show(o) { "x" } }`, "duplicate instance Show[Option]"},
 		{"rigid instance parameter", `instance Show[Option[A]] given Show[A] { show(o) { match o { None => "None"; Some(a) => showInt(a) } } }`, "type mismatch: expected Int, got A"},
 	}

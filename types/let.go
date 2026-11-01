@@ -227,7 +227,6 @@ func (b *bodyChecker) generalizeConstraint(pos ast.Pos, constraint Constraint, s
 				scheme.Constraints[i].Class = constraint.Class
 				return
 			}
-			fail(pos, "at most one constraint per type parameter %s", TypeString(param))
 		}
 		scheme.Constraints = append(scheme.Constraints, Constraint{Class: constraint.Class, Arg: param})
 		return

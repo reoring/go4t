@@ -322,7 +322,8 @@ type Ann struct {
 	// LetScheme is set on the value expression of a generalised `let` whose
 	// scheme has class constraints; nil otherwise. Codegen emits such a value
 	// as a Go function taking one dictionary parameter per Constraint
-	// (named dict_<TParam>) and returning the erased value; each use site (an
+	// (dict_<TParam>, or dict_<TParam>_<Class> for multiple constraints on
+	// that parameter) and returning the erased value; each use site (an
 	// *ast.Ident with Ref == RefLocal and non-empty Ann.Dicts) calls it with
 	// the resolved dictionaries. A let without constraints is a plain local
 	// regardless of its TParams (erasure makes type generalisation free).

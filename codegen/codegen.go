@@ -160,13 +160,13 @@ func Generate(prog *types.Program, goPackage string) (source []byte, err error) 
 			for _, param := range method.Params {
 				params = append(params, mangle(param)+" any")
 			}
-			g.dictScope = dictionaryScope{receiver: "dictself", params: scheme.Constraints}
+			g.dictScope = dictionaryScope{receiver: "dictself", params: scheme.Constraints, context: instance.Context}
 			fmt.Fprintf(&out, "func (dictself %s) %s(%s) any {\n%s}\n", name, exported(method.Name), strings.Join(params, ", "), g.block(method.Body))
 		}
 	}
-	g.dictScope = dictionaryScope{}
 	for _, name := range funcNames {
 		f := prog.Funcs[name]
+		g.dictScope = dictionaryScope{params: f.Scheme.Constraints}
 		g.collectType(f.Scheme.Type)
 		params := g.dictParams(f.Scheme.Constraints)
 		for _, param := range f.Decl.Params {
@@ -229,6 +229,7 @@ type generator struct {
 type dictionaryScope struct {
 	receiver string
 	params   []types.Constraint // Explicit method/let params shadow instance context.
+	context  []types.Constraint // Receiver fields have their own naming scope.
 }
 
 type generationError struct {
@@ -292,17 +293,31 @@ func (g *generator) fresh() string {
 func (g *generator) dictParams(constraints []types.Constraint) []string {
 	params := make([]string, len(constraints))
 	for i, constraint := range constraints {
-		params[i] = g.dictField(constraint) + " " + constraint.Class
+		params[i] = g.dictField(constraint, constraints) + " " + constraint.Class
 	}
 	return params
 }
 
-func (g *generator) dictField(constraint types.Constraint) string {
+func (g *generator) dictField(constraint types.Constraint, constraints []types.Constraint) string {
 	param, ok := constraint.Arg.(*types.TVar)
 	if !ok {
 		g.fail(ast.Pos{}, "dictionary constraint does not name a type parameter")
 	}
-	return "dict_" + param.Name
+	return g.dictName(param.Name, constraint.Class, constraints)
+}
+
+func (g *generator) dictName(param, class string, constraints []types.Constraint) string {
+	count := 0
+	for _, constraint := range constraints {
+		if variable, ok := constraint.Arg.(*types.TVar); ok && variable.Name == param {
+			count++
+		}
+	}
+	name := "dict_" + param
+	if count > 1 {
+		name += "_" + class
+	}
+	return name
 }
 
 func (g *generator) dict(dict *types.DictRef) string {
@@ -315,16 +330,16 @@ func (g *generator) dict(dict *types.DictRef) string {
 			return g.instanceDict(dict.Instance, dict.Args)
 		}
 	case types.DictParam:
-		name := "dict_" + dict.Param
-		if g.dictScope.receiver != "" {
-			for _, constraint := range g.dictScope.params {
-				if g.dictField(constraint) == name {
-					return name
-				}
+		for _, constraint := range g.dictScope.params {
+			param, ok := constraint.Arg.(*types.TVar)
+			if ok && param.Name == dict.Param && constraint.Class == dict.ParamClass {
+				return g.dictField(constraint, g.dictScope.params)
 			}
-			return g.dictScope.receiver + "." + name
 		}
-		return name
+		if g.dictScope.receiver != "" {
+			return g.dictScope.receiver + "." + g.dictName(dict.Param, dict.ParamClass, g.dictScope.context)
+		}
+		return g.dictName(dict.Param, dict.ParamClass, g.dictScope.params)
 	case types.DictSuper:
 		return g.dict(dict.Super)
 	}
@@ -365,7 +380,8 @@ func (g *generator) instanceDict(instance *types.Instance, args []types.DictRef)
 			}
 			found := false
 			for j, constraint := range instance.Context {
-				if g.dictField(constraint) == "dict_"+ref.Param && constraint.Class == ref.ParamClass {
+				param, ok := constraint.Arg.(*types.TVar)
+				if ok && param.Name == ref.Param && constraint.Class == ref.ParamClass {
 					superArgs[i] = args[j]
 					found = true
 					break
@@ -384,7 +400,7 @@ func (g *generator) instanceDict(instance *types.Instance, args []types.DictRef)
 		if i > 0 {
 			out.WriteString(", ")
 		}
-		out.WriteString(g.dictField(constraint))
+		out.WriteString(g.dictField(constraint, instance.Context))
 		out.WriteString(": ")
 		out.WriteString(g.dict(&args[i]))
 	}

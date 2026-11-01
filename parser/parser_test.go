@@ -125,7 +125,7 @@ type Pair[A, B] = Pair(A, B)
 class Bifunctor[F[_,_]] { map[A](f F[A, A]) F[A, A] }
 instance Bifunctor[Pair] { make() { Pair(1, 2) }; identity(x) { x } }
 extern func pure[A](x A) IO[A] = "gofx/rt".Pure
-func consume[F[_] Functor Monad, A](x F[A]) func(A, A) A { func(a, b) => a }
+func consume[F[_] Functor + Monad, A](x F[A]) func(A, A) A { func(a, b) => a }
 `)
 	if f.Package != "other" || len(f.Decls) != 6 {
 		t.Fatalf("file = %#v", f)
