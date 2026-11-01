@@ -1273,6 +1273,8 @@ func (fakeImporter) Import(path string) (*gotypes.Package, error) {
 			{"Some", 1, 1},
 			{"None", 0, 1},
 			{"Uncons", 1, 3},
+			{"Tuple2", 2, 1},
+			{"Untuple2", 1, 2},
 		} {
 			params := make([]*gotypes.Var, shape.params)
 			for i := range params {

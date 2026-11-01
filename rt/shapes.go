@@ -1,14 +1,16 @@
 package rt
 
-// ShapeFuncs bridges the generated program's List and Option representations.
+// ShapeFuncs bridges the generated program's List, Option and tuple representations.
 // Generated init functions register these operations before any runtime calls.
 // Uncons returns ok=false for Nil and the head and tail for Cons.
 type ShapeFuncs struct {
-	Cons   func(h, t any) any
-	Nil    func() any
-	Some   func(a any) any
-	None   func() any
-	Uncons func(l any) (h, t any, ok bool)
+	Cons     func(h, t any) any
+	Nil      func() any
+	Some     func(a any) any
+	None     func() any
+	Uncons   func(l any) (h, t any, ok bool)
+	Tuple2   func(a, b any) any
+	Untuple2 func(p any) (a, b any)
 }
 
 // Shapes holds the generated program's value constructors and list destructor.
@@ -56,4 +58,12 @@ func NoneOf() any {
 		panic("rt.Shapes is not initialized: None is required")
 	}
 	return Shapes.None()
+}
+
+// Tuple2Of constructs a generated two-element tuple.
+func Tuple2Of(a, b any) any {
+	if Shapes.Tuple2 == nil {
+		panic("rt.Shapes is not initialized: Tuple2 is required")
+	}
+	return Shapes.Tuple2(a, b)
 }

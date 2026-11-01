@@ -179,6 +179,15 @@ extern func args() IO[List[String]] = "gofx/rt".Args
 extern func exit[A](code Int) IO[A] = "gofx/rt".Exit
 extern func getEnv(name String) IO[Option[String]] = "gofx/rt".GetEnv
 
+extern func fork[A](io IO[A]) IO[Fiber[A]] = "gofx/rt".Fork
+extern func await[A](f Fiber[A]) IO[A] = "gofx/rt".Await
+extern func parMapIO[A, B](xs List[A], f func(A) IO[B]) IO[List[B]] = "gofx/rt".ParMapIO
+extern func race[A](a IO[A], b IO[A]) IO[A] = "gofx/rt".Race
+extern func parBoth[A, B](a IO[A], b IO[B]) IO[(A, B)] = "gofx/rt".ParBoth
+extern func timeout[A](millis Int, io IO[A]) IO[Option[A]] = "gofx/rt".Timeout
+extern func sleep(millis Int) IO[Unit] = "gofx/rt".Sleep
+extern func monotonicMillis() IO[Int] = "gofx/rt".MonotonicMillis
+
 instance Show[Int] {
   show(a) { showInt(a) }
 }
