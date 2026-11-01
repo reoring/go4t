@@ -998,3 +998,38 @@ Wave 1 (independent, parallel): `show-rules` (P2-8/9/11/15), `ebnf-sync` (P2-10)
 Wave 2 (after wave 1 merge): `http` (P1-4, on cancel + io-error), `deps` (P1-6, on run-anywhere).
 Wave 3: an `examples/http-service` program (JSON GET → decode → aggregate → serve) written as the
 acceptance program for P1, and a re-run of compile-scale/type-print/lsp-verify against it.
+
+## Pass 14: inference direction and polish
+
+Input: the user's 6-program retrospective after Pass 13. Language shape is frozen; this pass
+changes inference *direction* and polishes diagnostics/std.
+
+- **Expected types (bidirectional, bounded).** The checker gains an *expected type* parameter
+  on expression inference (`inferExpr(e, expected *Type)`; `nil` = unknown). Propagation sites,
+  and only these: function body tail ← declared return type; `let x: T = e` ← `T`; `if`
+  branches ← the expected type of the `if`; `match` arms ← expected type of the `match`
+  (first arm's inferred type when none); constructor and call arguments ← the parameter types
+  after instantiating the callee's scheme (unify callee first, then check args with their
+  parameter type as expected); record field values ← field types; lambda body ← result type of
+  an expected function type, lambda parameters ← parameter types of an expected function type
+  when unannotated; `do` final expression ← the block's expected type. Consumers of the
+  expectation: placeholder/projection sections (`_.f` resolves the record from the expected
+  `func(R) _`), unannotated lambda parameters used with field access, numeric literals are
+  **not** affected (Int stays Int). Unification order is the only change: expected type is
+  unified *before* inferring sub-expressions, so inference results are identical whenever the
+  old algorithm succeeded (property test: every example/test program infers the same
+  `TypeString` for every binding before and after). Acceptance: `Some(_.product)` with
+  expected `Option[func(Sale) String]`, `map(xs, _.qty)` unchanged, `let f: func(Sale) String = _.product`,
+  `match … { … => _.qty }` under a return type.
+- **Diagnostics never show internal names.** Synthesized identifiers (`placeholderN_M`, dict
+  params, generated lambdas) carry `ast.Ident.Display` (source spelling: `_`, `_.product`);
+  the printer uses it. Data types print as `module.Name` (`http.Response`) using the import
+  alias in the *diagnosing* file, or the bare name for same-module/prelude types, never the
+  mangled `Http_Response`. Test: grep-style assertion over all diagnostics in the test suite
+  that no message matches `placeholder\d|_[A-Z]\w*_[A-Z]`.
+- **std Debug coverage.** Every std record/sum type derives `Debug` (`http.Request/Response`,
+  `json.Json`, `io.IoError` already); `docs/stdlib_inventory_test.go` asserts that every std
+  `type` has a `Debug` instance (derived or explicit).
+- **HTTP server logging.** Handler outcomes classified `Cancelled` caused by client
+  disconnect are not logged; other handler failures keep `http handler: <msg>`. `serve` logs
+  nothing on normal shutdown.
