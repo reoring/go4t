@@ -365,8 +365,14 @@ func BindWithShim(pkg *Package, options BindOptions, shimPath, shimPackage strin
 			g.emit(shimName, callee, sig, c, recv)
 		}
 	}
+	// A shim living in the bound package itself cannot reuse the function's name.
+	samePackage := g.qualifier(types.NewPackage(pkg.Path, pkg.Name)) == ""
 	for _, f := range pkg.Functions {
-		emit(f.Name, f.Name, f.Name, g.qualifier(types.NewPackage(pkg.Path, pkg.Name))+"."+f.Name, f.Signature, nil)
+		callee, shimName := g.qualifier(types.NewPackage(pkg.Path, pkg.Name))+"."+f.Name, f.Name
+		if samePackage {
+			callee, shimName = f.Name, "Gofx_"+f.Name
+		}
+		emit(f.Name, f.Name, shimName, callee, f.Signature, nil)
 	}
 	for _, m := range pkg.Methods {
 		emit(m.TypeName+m.Name, m.TypeName+"."+m.Name, m.TypeName+"_"+m.Name, "receiver."+m.Name, m.Signature, m.Receiver)
