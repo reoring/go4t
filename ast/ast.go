@@ -113,6 +113,19 @@ type TypeDecl struct {
 	Deriving []string
 }
 
+// AliasDecl is `alias Name[Params] = Type`; aliases have no runtime representation.
+type AliasDecl struct {
+	Pos     Pos
+	End     Pos
+	Name    string
+	TParams []string
+	Type    Type
+}
+
+func (d *AliasDecl) GetPos() Pos    { return d.Pos }
+func (d *AliasDecl) GetEnd() Pos    { return d.End }
+func (d *AliasDecl) SetEnd(end Pos) { d.End = end }
+
 // Ctor is `Name(T1, T2)` (positional, FieldNames nil) or the record form
 // `Name{a: T1, b: T2}` (FieldNames set, same length as Fields). A record
 // constructor is still a positional constructor in every other respect.
@@ -143,6 +156,7 @@ type ExternRef struct {
 func (*ClassDecl) declNode()    {}
 func (*InstanceDecl) declNode() {}
 func (*TypeDecl) declNode()     {}
+func (*AliasDecl) declNode()    {}
 func (*FuncDecl) declNode()     {}
 
 // ---- statements / expressions ----
@@ -216,7 +230,7 @@ type Interp struct {
 	Exprs []Expr
 }
 
-// Field is `x.name` (record field on a single-constructor record type) or
+// Field is `x.name` (a field common to every constructor of a data type) or
 // `x.0`, `x.1`, ... (tuple position; Name is the decimal index text and
 // Index >= 0). For record fields Index is -1.
 type Field struct {

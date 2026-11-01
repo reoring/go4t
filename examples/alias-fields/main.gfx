@@ -1,0 +1,46 @@
+package main
+
+alias Name = String
+alias Pair[A] = (A, A)
+alias Handler = func(Request) Response
+
+type Request = Request{name: Name}
+type Response = Response{message: String}
+type Shape = Circle{id: Int, r: Int} | Rect{id: Int, w: Int, h: Int}
+
+func greet(request Request) Response {
+  Response{message: "hello " + request.name}
+}
+
+func reset(s Shape) Shape { s{id: 0} }
+
+func describe(s Shape) String {
+  match s {
+    Circle{id: id, r: r} => "circle id=${id} r=${r}"
+    Rect{id: id, w: w, h: h} => "rect id=${id} w=${w} h=${h}"
+  }
+}
+
+// The same generic field can occupy different positions in each constructor.
+type Tagged[A] = TextTag{value: A, label: String} | NumberTag{label: String, value: A, count: Int}
+func replaceValue[A](x Tagged[A], value A) Tagged[A] { x{value: value, label: "updated"} }
+
+func main() IO[Unit] {
+  do {
+    let name: Name = "Ada"
+    let pair: Pair[Name] = (name, name)
+    let handler: Handler = greet
+    println(handler(Request{name: pair.0}).message)
+    println("pair: ${pair.0} / ${pair.1}")
+    let circle = Circle{id: 7, r: 3}
+    let rect = Rect{id: 9, w: 4, h: 5}
+    println("${describe(circle)} -> ${describe(reset(circle))}; original=${circle.id}")
+    println("${describe(rect)} -> ${describe(reset(rect))}; original=${rect.id}")
+    let left = TextTag{value: "left", label: "original"}
+    let right = NumberTag{label: "original", value: "right", count: 2}
+    let changedLeft = replaceValue(left, "L")
+    let changedRight = replaceValue(right, "R")
+    let count = match changedRight { TextTag{..} => 0; NumberTag{count: n, ..} => n }
+    println("generic: ${changedLeft.value}/${changedRight.value} ${changedLeft.label}/${changedRight.label} count=${count}; originals=${left.value}/${right.value}")
+  }
+}

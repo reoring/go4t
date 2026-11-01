@@ -275,6 +275,12 @@ type RecordPat struct {
 	Indexes []int
 }
 
+// RecordCase maps a common field operation to one constructor's field positions.
+type RecordCase struct {
+	Ctor    *Ctor
+	Indexes []int
+}
+
 // ---- annotations ----
 
 type RefKind int
@@ -313,8 +319,8 @@ type Ann struct {
 	Inst  []Type
 	Dicts []DictRef
 	Monad *DictRef // *ast.Do only
-	// Ctor is the resolved constructor for record *ast.Field, *ast.RecordLit,
-	// *ast.RecordUpdate (and for RefCtor idents); nil for tuple *ast.Field.
+	// Ctor is the resolved constructor for record literals and RefCtor idents,
+	// or the first constructor for field access/update; nil for tuple fields.
 	Ctor *Ctor
 	// FieldIndex is the positional index for *ast.Field. For tuple access,
 	// Type of X is Tuple<n>[...].
@@ -322,6 +328,11 @@ type Ann struct {
 	// FieldIndexes are the positional indexes of Names for *ast.RecordLit /
 	// *ast.RecordUpdate, in Names order.
 	FieldIndexes []int
+	// RecordCases is set only for multi-constructor field access/updates, in
+	// constructor declaration order. Indexes follows the source field order
+	// (one entry for field access). Single-constructor operations use Ctor and
+	// FieldIndex/FieldIndexes directly.
+	RecordCases []RecordCase
 	// ShowDicts holds, for *ast.Interp, one Show dictionary per Exprs entry.
 	ShowDicts []DictRef
 	// LetScheme is set on the value expression of a generalised `let` whose
