@@ -21,6 +21,8 @@ func buildOptions(args []string) (inputs []string, outputDir, goPackage string, 
 	for i := 1; i < len(args); i++ {
 		arg := args[i]
 		switch arg {
+		case "--full-types":
+			inputs = append(inputs, arg)
 		case "-o", "--emit-go", "--package":
 			if i+1 == len(args) || args[i+1] == "" || strings.HasPrefix(args[i+1], "-") {
 				return nil, "", "", errors.New(usage)
@@ -71,7 +73,7 @@ func testFiles(inputs []string) error {
 	}
 	harness.Package = entry.Name
 	entry.Files = append(entry.Files, harness)
-	program, err := checkFiles(files)
+	program, err := checkFiles(files, false)
 	if err != nil {
 		return err
 	}
@@ -101,7 +103,7 @@ func evalExpression(source string, inputs []string) error {
 		wrapper.Imports = entry.Files[0].Imports
 	}
 	entry.Files = append(entry.Files, wrapper)
-	program, originalErr := checkFiles(files)
+	program, originalErr := checkFiles(files, false)
 	if originalErr != nil {
 		// Checking the IO wrapper supplies the IO context without relying on
 		// diagnostic wording or on the failed check's partial annotations.
@@ -114,7 +116,7 @@ func evalExpression(source string, inputs []string) error {
 			wrapper.Imports = entry.Files[0].Imports
 		}
 		entry.Files[len(entry.Files)-1] = wrapper
-		program, err = checkFiles(files)
+		program, err = checkFiles(files, false)
 		if err != nil {
 			return originalErr
 		}

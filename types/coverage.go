@@ -160,11 +160,11 @@ func (c *checker) uncovered(rows [][]ast.Pattern, columns []Type, limit int) [][
 	}
 	var con *TCon
 	var args []Type
-	switch typ := columns[0].(type) {
+	switch typ := prune(columns[0]).(type) {
 	case *TCon:
 		con = typ
 	case *TApp:
-		con, _ = typ.Fun.(*TCon)
+		con, _ = prune(typ.Fun).(*TCon)
 		args = typ.Args
 	}
 	var cases []coverageCase

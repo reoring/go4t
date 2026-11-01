@@ -341,7 +341,7 @@ func (b *indexBuilder) lookup(name string, pos ast.Pos, typeName bool) *Symbol {
 	return nil
 }
 func (b *indexBuilder) params(f *ast.File, ps []ast.Param, t Type, start, end ast.Pos) {
-	ft, _ := t.(*TFunc)
+	ft, _ := Unalias(t).(*TFunc)
 	for i, p := range ps {
 		var typ Type
 		if ft != nil && i < len(ft.Params) {
@@ -365,7 +365,7 @@ func (b *indexBuilder) pattern(f *ast.File, p ast.Pattern, t Type, start, end as
 		b.local(f, p.Name, p.Pos, start, end, t, false)
 		b.pattern(f, p.Pat, t, start, end)
 	case *ast.PTuple:
-		app, _ := t.(*TApp)
+		app, _ := Unalias(t).(*TApp)
 		for i, p := range p.Elems {
 			var sub Type
 			if app != nil && i < len(app.Args) {
@@ -409,7 +409,7 @@ func instFields(c *Ctor, t Type) []Type {
 	if c == nil {
 		return nil
 	}
-	app, _ := t.(*TApp)
+	app, _ := Unalias(t).(*TApp)
 	if app == nil {
 		return c.Fields
 	}
@@ -438,8 +438,8 @@ func (b *indexBuilder) functions(f *ast.File, group []*ast.FuncDecl, end ast.Pos
 	}
 	start := group[0].Pos
 	for _, fn := range group {
-		// Local functions have resolved result expressions and explicitly typed parameters.
-		ft := &TFunc{Ret: exprType(fn.Body.Result), Params: make([]Type, len(fn.Params))}
+		// Local functions have explicit parameter and return annotations.
+		ft := &TFunc{Ret: b.syntaxType(fn.Ret, fn.Pos), Params: make([]Type, len(fn.Params))}
 		for i, p := range fn.Params {
 			ft.Params[i] = b.syntaxType(p.Type, fn.Pos)
 		}
@@ -566,7 +566,7 @@ func (b *indexBuilder) collectLocals(f *ast.File, d ast.Decl) {
 					b.let(f, s.Name, s.NamePos, s.Pat, s.Value, n.End)
 				case *ast.DoBind:
 					var typ Type
-					if app, ok := exprType(s.X).(*TApp); ok && len(app.Args) > 0 {
+					if app, ok := Unalias(exprType(s.X)).(*TApp); ok && len(app.Args) > 0 {
 						typ = app.Args[len(app.Args)-1]
 					}
 					if s.Pat != nil {

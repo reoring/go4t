@@ -20,7 +20,7 @@ func (g *generator) lambdaBody(lambda *ast.Lambda, plan *tailPlan) string {
 	reps := make([]string, len(lambda.Params))
 	var ft *types.TFunc
 	if a, ok := (*lambda.AnnSlot()).(*types.Ann); ok {
-		ft, _ = a.Type.(*types.TFunc)
+		ft, _ = types.Unalias(a.Type).(*types.TFunc)
 	}
 	ret := g.exprRep(lambda.Body)
 	if block, ok := lambda.Body.(*ast.BlockExpr); ok {
@@ -139,7 +139,7 @@ func (g *generator) doStatements(e *ast.Do, index int) string {
 			pattern = &ast.PVar{Name: s.Name}
 		}
 		var typ types.Type
-		if app, ok := g.ann(value).Type.(*types.TApp); ok && len(app.Args) > 0 {
+		if app, ok := types.Unalias(g.ann(value).Type).(*types.TApp); ok && len(app.Args) > 0 {
 			typ = app.Args[len(app.Args)-1]
 		}
 		g.bindPattern(pattern, typ)

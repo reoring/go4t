@@ -34,6 +34,16 @@ func visitMetas(t Type, visit func(*TMeta)) {
 }
 
 func replaceMetas(t Type, sub map[*TMeta]Type) Type {
+	if a, ok := t.(*TAlias); ok {
+		args, body := replaceMetaList(a.Args, sub), replaceMetas(a.Body, sub)
+		if args == nil && body == a.Body {
+			return a
+		}
+		if args == nil {
+			args = a.Args
+		}
+		return &TAlias{Name: a.Name, Args: args, Body: body}
+	}
 	t = prune(t)
 	switch t := t.(type) {
 	case *TMeta:
@@ -133,6 +143,8 @@ func (b *bodyChecker) let(pos, namePos, end ast.Pos, name string, pat ast.Patter
 	}
 	if expected != nil {
 		unify(value.GetPos(), expected, typ)
+		typ = expected
+		AnnOf(value).Type = expected
 	}
 	if pat != nil {
 		b.localPattern(pos, pat, typ, env, "let")

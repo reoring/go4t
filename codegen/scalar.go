@@ -11,7 +11,7 @@ import (
 // Only checked scalar types change representation. Data, functions and type
 // variables keep the erased ABI, including dictionary and foreign boundaries.
 func scalar(t types.Type) string {
-	if c, ok := t.(*types.TCon); ok {
+	if c, ok := types.Unalias(t).(*types.TCon); ok {
 		switch c.Name {
 		case "Int":
 			return "int64"
@@ -44,6 +44,7 @@ func (g *generator) substitute(t types.Type) types.Type {
 }
 
 func substitute(t types.Type, args map[string]types.Type) types.Type {
+	t = types.Unalias(t)
 	switch t := t.(type) {
 	case *types.TVar:
 		if actual := args[t.Name]; actual != nil {
@@ -113,7 +114,7 @@ func (g *generator) fieldTypes(c *types.Ctor, t types.Type) []types.Type {
 		return nil
 	}
 	args := make(map[string]types.Type)
-	if app, ok := t.(*types.TApp); ok {
+	if app, ok := types.Unalias(t).(*types.TApp); ok {
 		for i, p := range c.Data.TParams {
 			if i < len(app.Args) {
 				args[p.Name] = app.Args[i]

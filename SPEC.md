@@ -232,7 +232,11 @@ Go-style distinct named types. Forward references/chains work; all aliases,
 including unused ones, are validated, and cycles are errors. Every alias use must
 supply exactly its parameters: aliases cannot themselves be partially applied,
 although a fully applied alias may expand to a higher-kinded constructor. Expansion
-uses declaration-scope parameter identity; diagnostics display expanded types.
+uses declaration-scope parameter identity. Diagnostics and LSP hover preserve
+source-written alias names and their arguments, including aliases nested in other
+types: `alias Rates = Map[Currency, Float]` prints as `Rates` where used. This is
+presentation provenance, not a new type identity. Type variables and independently
+inferred types are never renamed merely because they equal an alias's body.
 
 ### 3.4 Functions and extern declarations
 
@@ -562,6 +566,14 @@ ends are exclusive. CLI diagnostics print the source line and a `^~~~` underline
 multiline spans clamp to the first line, missing spans use one caret, and unreadable
 sources retain the positioned message without an excerpt. Tabs, CRLF and EOF are
 handled. Expected types are contextual: `type mismatch: expected T, got U`.
+
+Type printing preserves source-written aliases (§3.3). If the complete printed
+type exceeds 160 Unicode characters, subtrees at depth 3 or greater are replaced
+by `…` (the root is depth 0; application arguments and function parameters/results
+increase depth). Exactly 160 characters are not elided. Shallow names and lists
+are not cut mid-token, so 160 is an elision trigger, not a hard output cap.
+`check`, `build` and `run` accept `--full-types` to disable this elision without
+expanding aliases. LSP hover uses the same default printer.
 
 Missing-pattern witnesses for `List[_]` always use list syntax, regardless of
 whether the source wrote list or `Nil`/`Cons` patterns, including lists nested
@@ -950,9 +962,9 @@ and linear conversion space; the old quadratic `insertBy` helper is removed.
 ### 8.2 Commands and flags
 
 ```text
-gofx check FILE.gfx|DIR...
-gofx build [-o DIR | --emit-go DIR --package NAME] FILE.gfx|DIR...
-gofx run FILE.gfx|DIR... [-- args...]
+gofx check [--full-types] FILE.gfx|DIR...
+gofx build [--full-types] [-o DIR | --emit-go DIR --package NAME] FILE.gfx|DIR...
+gofx run [--full-types] FILE.gfx|DIR... [-- args...]
 gofx test FILE.gfx|DIR...
 gofx eval 'EXPR' [FILE.gfx|DIR...]
 gofx bind IMPORT [FILE.gfx|DIR...] [-o FILE.gfx|DIR] [--prefix STR]
@@ -961,6 +973,9 @@ gofx lsp
 ```
 
 - `check` loads/checks only; no foreign-signature validation or execution.
+- `--full-types` on `check`, `build` or `run` prints diagnostic types without
+  depth elision (§5.2), retaining alias names. It may precede or follow inputs;
+  after `run`'s `--` it is a program argument, not a compiler option.
 - `build` emits Go **source, not a binary**. Default: `<first-file-stem>_gen/`,
   or `<DIR>/_gen/` for a directory. `-o` changes it. `--emit-go` and `--package`
   must occur together, are incompatible with `-o`, and expose `func Main() rt.IO`

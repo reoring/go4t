@@ -25,6 +25,9 @@ imports. Full details are in [SPEC](../SPEC.md) and [stdlib](stdlib.md).
 constructors, not mutable structs. Updates produce a new value. `alias` is a
 transparent synonym, not a distinct type. Both constructors below expose the
 same `id` field with the same type, so access/update works without a match.
+When an annotation uses an alias, diagnostics and hover keep its name. Unrelated
+inferred types are not renamed: `Identifier` remains semantically `Int`, but a
+mismatch against an `Identifier` annotation says `expected Identifier`.
 
 ```gofx
 package main

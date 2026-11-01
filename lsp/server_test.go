@@ -143,7 +143,7 @@ func TestHoverDefinitionAndSymbols(t *testing.T) {
 	if ds := diagnostics(t, c.notify("textDocument/didOpen", openParams(uri, src))); len(ds) != 0 {
 		t.Fatal(ds)
 	}
-	for _, tt := range []struct{ needle, want string }{{"identity(one", "func(Int) Int"}, {"one())", "func() Int"}, {"box.value", "Box"}} {
+	for _, tt := range []struct{ needle, want string }{{"identity(one", "func(Int) Int"}, {"one())", "func() Count"}, {"box.value", "Box"}} {
 		data := c.request("textDocument/hover", positionParams(uri, src, tt.needle, 0))
 		if !strings.Contains(string(data), tt.want) {
 			t.Fatalf("hover %s: %s", tt.needle, data)

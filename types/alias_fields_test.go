@@ -35,12 +35,12 @@ func scoped[Name](x Name) Name { x }
 			t.Fatal(err)
 		}
 		for name, want := range map[string]string{
-			"name":           "func(String) String",
-			"pair":           "func(A) Tuple2[A, A]",
-			"nested":         "func() Tuple2[Tuple2[Int, Int], Tuple2[Int, Int]]",
-			"handle":         "func(func(Request) Response, Request) Response",
-			"annotated":      "func() String",
-			"nestedIdentity": "func(Int) Int",
+			"name":           "func(Name) String",
+			"pair":           "func(A) Pair[A]",
+			"nested":         "func() Nested[Int]",
+			"handle":         "func(Handler, Request) Response",
+			"annotated":      "func() Name",
+			"nestedIdentity": "func(Identity[Identity[Int]]) Int",
 			"scoped":         "func(Name) Name",
 		} {
 			if got := types.TypeString(p.Funcs[name].Scheme.Type); got != want {
@@ -71,7 +71,7 @@ func TestAliasErrors(t *testing.T) {
 		{"reverse class collision", `alias Name = String; class Name[A] {}`, "duplicate declaration Name"},
 		{"builtin collision", `alias Int = String`, "duplicate declaration Int"},
 		{"tuple collision", `alias Tuple2 = String`, "duplicate declaration Tuple2"},
-		{"expanded diagnostic", `alias Name = String; func f() Name { 1 }`, "type mismatch: expected String, got Int"},
+		{"alias diagnostic", `alias Name = String; func f() Name { 1 }`, "type mismatch: expected Name, got Int"},
 		{"argument kind", `alias Pair[A] = (A, A); func f(x Pair[List]) Int { 1 }`, "kind mismatch: got (*) -> *, want *"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

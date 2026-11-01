@@ -67,6 +67,15 @@ type TApp struct {
 	Args []Type
 }
 
+// TAlias records a source-written alias application. Body is its expanded
+// semantic type; Name and Args are presentation provenance, never type identity.
+// Unification and representation inspection must go through Unalias/prune.
+type TAlias struct {
+	Name string
+	Args []Type
+	Body Type
+}
+
 // App constructs a type application, flattening leading applications (including
 // resolved inference variables). With no arguments it returns the constructor.
 // Argument slices are shared when no flattening is needed and must not be mutated.
@@ -109,11 +118,12 @@ type TFunc struct {
 	Ret    Type
 }
 
-func (*TCon) isType()  {}
-func (*TVar) isType()  {}
-func (*TMeta) isType() {}
-func (*TApp) isType()  {}
-func (*TFunc) isType() {}
+func (*TCon) isType()   {}
+func (*TVar) isType()   {}
+func (*TMeta) isType()  {}
+func (*TApp) isType()   {}
+func (*TFunc) isType()  {}
+func (*TAlias) isType() {}
 
 // Builtin type constructors.
 var (
@@ -156,33 +166,6 @@ func IsTuple(t *TCon) (int, bool) {
 		return n, true
 	}
 	return 0, false
-}
-
-func TypeString(t Type) string {
-	switch t := t.(type) {
-	case *TCon:
-		return t.Name
-	case *TVar:
-		return t.Name
-	case *TMeta:
-		if t.Ref != nil {
-			return TypeString(*t.Ref)
-		}
-		return fmt.Sprintf("?%d", t.ID)
-	case *TApp:
-		as := make([]string, len(t.Args))
-		for i, a := range t.Args {
-			as[i] = TypeString(a)
-		}
-		return TypeString(t.Fun) + "[" + strings.Join(as, ", ") + "]"
-	case *TFunc:
-		ps := make([]string, len(t.Params))
-		for i, p := range t.Params {
-			ps[i] = TypeString(p)
-		}
-		return "func(" + strings.Join(ps, ", ") + ") " + TypeString(t.Ret)
-	}
-	return "?"
 }
 
 // ---- schemes, classes, instances, data ----
@@ -366,15 +349,32 @@ func AnnOf(e ast.Expr) *Ann {
 	return a
 }
 
-// Error is a positioned checker error.
+// Error is a positioned compiler diagnostic.
 type Error struct {
 	Pos  ast.Pos
 	End  ast.Pos // exclusive; zero when the source span is unavailable
 	Msg  string
 	File string // ast.File.Name of the file containing Pos ("" if unknown)
+	// detail defers potentially large full-type rendering until requested.
+	detail *diagnosticMessage
+}
+
+// NewError formats a diagnostic while retaining type arguments for full-detail
+// rendering. Nested errors may implement Message(bool) to retain their detail.
+func NewError(pos ast.Pos, format string, args ...any) *Error {
+	message := messagef(format, args...)
+	return &Error{Pos: pos, Msg: message.render(false), detail: message}
 }
 
 func (e *Error) Error() string { return fmt.Sprintf("%s: %s", e.Pos, e.Msg) }
 
 func (e *Error) GetPos() ast.Pos { return e.Pos }
 func (e *Error) GetEnd() ast.Pos { return e.End }
+
+// Message selects the diagnostic's type detail without changing checker state.
+func (e *Error) Message(fullTypes bool) string {
+	if fullTypes && e.detail != nil {
+		return e.detail.render(true)
+	}
+	return e.Msg
+}

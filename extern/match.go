@@ -40,7 +40,7 @@ type Adapter struct {
 func Match(f Function, declared *gfx.TFunc) (Adapter, error) {
 	sig := f.Signature
 	mismatch := func() (Adapter, error) {
-		return Adapter{}, fmt.Errorf("extern %s: Go signature %s does not match declared type %s", f.Name, SignatureString(sig), gfx.TypeString(declared))
+		return Adapter{}, mismatchError{function: f, declared: declared}
 	}
 	if sig.Variadic() || sig.TypeParams().Len() != 0 {
 		return mismatch()
@@ -83,9 +83,28 @@ func Match(f Function, declared *gfx.TFunc) (Adapter, error) {
 	return adapter, nil
 }
 
+// Keep the declared type available until the CLI selects full-type rendering.
+type mismatchError struct {
+	function Function
+	declared *gfx.TFunc
+}
+
+func (e mismatchError) Error() string { return e.Message(false) }
+
+func (e mismatchError) Message(fullTypes bool) string {
+	var declared string
+	if fullTypes {
+		declared = gfx.TypeStringFull(e.declared)
+	} else {
+		declared = gfx.TypeString(e.declared)
+	}
+	return fmt.Sprintf("extern %s: Go signature %s does not match declared type %s",
+		e.function.Name, SignatureString(e.function.Signature), declared)
+}
+
 func application(t gfx.Type, name string) gfx.Type {
-	if app, ok := t.(*gfx.TApp); ok && len(app.Args) == 1 {
-		if con, ok := app.Fun.(*gfx.TCon); ok && con.Name == name {
+	if app, ok := gfx.Unalias(t).(*gfx.TApp); ok && len(app.Args) == 1 {
+		if con, ok := gfx.Unalias(app.Fun).(*gfx.TCon); ok && con.Name == name {
 			return app.Args[0]
 		}
 	}
@@ -106,17 +125,19 @@ func matchValue(t gfx.Type, tuple *types.Tuple, offset int) (Value, int, bool) {
 		return value, 2, ok
 	}
 	if inner := application(t, "List"); inner != nil {
-		switch gfx.TypeString(inner) {
-		case "String":
-			return Value{Kind: Strings}, 1, types.Identical(goType, types.NewSlice(types.Typ[types.String]))
-		case "Int":
-			return Value{Kind: Ints}, 1, types.Identical(goType, types.NewSlice(types.Typ[types.Int64]))
+		if con, ok := gfx.Unalias(inner).(*gfx.TCon); ok {
+			switch con.Name {
+			case "String":
+				return Value{Kind: Strings}, 1, types.Identical(goType, types.NewSlice(types.Typ[types.String]))
+			case "Int":
+				return Value{Kind: Ints}, 1, types.Identical(goType, types.NewSlice(types.Typ[types.Int64]))
+			}
 		}
 	}
 	if application(t, "IO") != nil {
 		return Value{Kind: Scalar, Go: "rt.IO"}, 1, named(goType, "gofx/rt", "IO")
 	}
-	if con, ok := t.(*gfx.TCon); ok {
+	if con, ok := gfx.Unalias(t).(*gfx.TCon); ok {
 		var basic types.BasicKind
 		switch con.Name {
 		case "Int":
@@ -141,7 +162,7 @@ func matchValue(t gfx.Type, tuple *types.Tuple, offset int) (Value, int, bool) {
 }
 
 func primitive(t gfx.Type) bool {
-	con, ok := t.(*gfx.TCon)
+	con, ok := gfx.Unalias(t).(*gfx.TCon)
 	if !ok {
 		return false
 	}

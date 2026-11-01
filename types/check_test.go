@@ -796,6 +796,11 @@ func assertZonked(t *testing.T, e ast.Expr) {
 		switch typ := typ.(type) {
 		case *types.TMeta:
 			t.Fatalf("%T at %s contains meta %s", e, e.GetPos(), types.TypeString(typ))
+		case *types.TAlias:
+			check(typ.Body)
+			for _, arg := range typ.Args {
+				check(arg)
+			}
 		case *types.TApp:
 			check(typ.Fun)
 			for _, arg := range typ.Args {

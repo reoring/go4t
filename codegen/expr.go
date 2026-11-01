@@ -124,7 +124,7 @@ func (g *generator) expr(expr ast.Expr) (code string) {
 		return "rt.Concat(" + strings.Join(parts, ", ") + ")"
 	case *ast.Field:
 		if e.Index >= 0 {
-			tuple := g.ann(e.X).Type.(*types.TApp)
+			tuple := types.Unalias(g.ann(e.X).Type).(*types.TApp)
 			return fmt.Sprintf("any(%s).(*%s).F%d", g.expr(e.X), g.tupleName(len(tuple.Args)), e.Index)
 		}
 		ann := g.ann(e)
@@ -255,7 +255,7 @@ func (g *generator) expr(expr ast.Expr) (code string) {
 }
 
 func (g *generator) funcType(expr ast.Expr) *types.TFunc {
-	ft, ok := g.ann(expr).Type.(*types.TFunc)
+	ft, ok := types.Unalias(g.ann(expr).Type).(*types.TFunc)
 	if !ok {
 		g.fail(expr.GetPos(), "function reference has no function type")
 	}
@@ -397,7 +397,7 @@ func (g *generator) structPattern(name string, fields []ast.Pattern, value, succ
 }
 
 func isCon(typ types.Type, name string) bool {
-	con, ok := typ.(*types.TCon)
+	con, ok := types.Unalias(typ).(*types.TCon)
 	return ok && con.Name == name
 }
 
@@ -446,6 +446,6 @@ func (g *generator) binary(expr *ast.Binary) string {
 	if expr.Op == "+" && isCon(g.ann(expr).Type, "String") {
 		return "rt.AddString(" + left + ", " + right + ")"
 	}
-	g.fail(expr.GetPos(), "unsupported binary operator %s on %s", expr.Op, types.TypeString(g.ann(expr.L).Type))
+	g.fail(expr.GetPos(), "unsupported binary operator %s on %s", expr.Op, g.ann(expr.L).Type)
 	return ""
 }

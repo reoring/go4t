@@ -1,7 +1,6 @@
 package types
 
 import (
-	"fmt"
 	"strings"
 
 	"gofx/ast"
@@ -63,14 +62,17 @@ func (c *checker) applyAlias(t *ast.TypeName, alias *typeAlias, scope map[string
 		fail(t.Pos, "arity mismatch for alias %s: want %d arguments, got %d", t.Name, len(alias.params), len(t.Args))
 	}
 	template := c.resolveAlias(alias, t.Pos)
-	if len(t.Args) == 0 {
-		return template
-	}
+	args := make([]Type, len(t.Args))
 	sub := make(map[*TVar]Type, len(t.Args))
 	for i, arg := range t.Args {
-		sub[alias.params[i]] = c.valueType(arg, scope)
+		args[i] = c.valueType(arg, scope)
+		sub[alias.params[i]] = args[i]
 	}
-	return substitute(template, sub)
+	name := t.Name
+	if source := c.program.ModuleNames[name]; source != "" {
+		name = source
+	}
+	return &TAlias{Name: name, Args: args, Body: substitute(template, sub)}
 }
 
 func (c *checker) resolveType(t ast.Type, scope map[string]Type) Type {
@@ -159,10 +161,10 @@ func (c *checker) instanceHead(d *ast.InstanceDecl, names []string) (*TCon, []st
 		scope[name] = &TVar{Name: name, Kind: KStar{}}
 		head.Args = append(head.Args, &ast.TypeName{Pos: d.Pos, Name: name})
 	}
-	expanded := c.resolveType(head, scope)
+	expanded := prune(c.resolveType(head, scope))
 	var args []Type
 	if app, ok := expanded.(*TApp); ok {
-		expanded, args = app.Fun, app.Args
+		expanded, args = prune(app.Fun), app.Args
 	}
 	con, ok := expanded.(*TCon)
 	if !ok || len(args) != len(names) {
@@ -171,7 +173,7 @@ func (c *checker) instanceHead(d *ast.InstanceDecl, names []string) (*TCon, []st
 	ordered := make([]string, len(args))
 	seen := make(map[*TVar]bool, len(args))
 	for i, arg := range args {
-		param, ok := arg.(*TVar)
+		param, ok := prune(arg).(*TVar)
 		if !ok || seen[param] || scope[param.Name] != param {
 			fail(d.Pos, "instance head must be a type constructor")
 		}
@@ -199,9 +201,9 @@ func (b *bodyChecker) finish() {
 			if typ == String {
 				continue
 			}
-			fail(expr.GetPos(), "addition requires Int, Float or String, got %s", TypeString(typ))
+			fail(expr.GetPos(), "addition requires Int, Float or String, got %s", AnnOf(expr).Type)
 		}
-		fail(expr.GetPos(), "arithmetic requires Int or Float, got %s", TypeString(typ))
+		fail(expr.GetPos(), "arithmetic requires Int or Float, got %s", AnnOf(expr).Type)
 	}
 	// Explicit class uses must resolve before defaulting. Operator obligations
 	// alone retain ordinary Unit defaulting, then resolve Eq/Ord for that type.
@@ -211,7 +213,7 @@ func (b *bodyChecker) finish() {
 		}
 		for _, constraint := range o.constraints {
 			if unresolved(constraint.Arg) {
-				fail(o.expr.GetPos(), "unresolved class constraint %s[%s]", constraint.Class, TypeString(constraint.Arg))
+				fail(o.expr.GetPos(), "unresolved class constraint %s[%s]", constraint.Class, constraint.Arg)
 			}
 		}
 	}
@@ -266,7 +268,7 @@ func (b *bodyChecker) finish() {
 func (b *bodyChecker) dictionary(pos ast.Pos, constraint Constraint) DictRef {
 	constraint.Arg = zonk(pos, constraint.Arg, b.defaultMeta)
 	dict, message := b.resolveDictionary(constraint)
-	if message != "" {
+	if message != nil {
 		fail(pos, "%s", message)
 	}
 	return dict
@@ -294,14 +296,14 @@ func (b *bodyChecker) upcastDictionary(dict DictRef, class string) DictRef {
 // Context arguments are resolved recursively on smaller head arguments. Rigid
 // arguments terminate at the in-scope dictionary, including recursive uses of
 // the current instance inside its own methods.
-func (b *bodyChecker) resolveDictionary(constraint Constraint) (DictRef, string) {
+func (b *bodyChecker) resolveDictionary(constraint Constraint) (DictRef, *diagnosticMessage) {
 	arg := prune(constraint.Arg)
 	if param, ok := arg.(*TVar); ok {
 		required := b.strongestConstraint(constraint, b.constraints)
 		for _, bound := range b.constraints {
 			if bound.Arg == param && bound.Class == required.Class {
 				dict := DictRef{Kind: DictParam, Class: bound.Class, Param: param, ParamClass: bound.Class}
-				return b.upcastDictionary(dict, constraint.Class), ""
+				return b.upcastDictionary(dict, constraint.Class), nil
 			}
 		}
 		if b.types[param.Name] == param {
@@ -312,9 +314,9 @@ func (b *bodyChecker) resolveDictionary(constraint Constraint) (DictRef, string)
 				}
 			}
 			if len(classes) == 0 {
-				return DictRef{}, fmt.Sprintf("no instance %s[%s] (type parameter %s has no class constraints)", constraint.Class, param.Name, param.Name)
+				return DictRef{}, messagef("no instance %s[%s] (type parameter %s has no class constraints)", constraint.Class, constraint.Arg, param.Name)
 			}
-			return DictRef{}, fmt.Sprintf("no instance %s[%s] (type parameter %s is constrained only by %s)", constraint.Class, param.Name, param.Name, strings.Join(classes, " + "))
+			return DictRef{}, messagef("no instance %s[%s] (type parameter %s is constrained only by %s)", constraint.Class, constraint.Arg, param.Name, strings.Join(classes, " + "))
 		}
 	}
 	head := arg
@@ -326,7 +328,7 @@ func (b *bodyChecker) resolveDictionary(constraint Constraint) (DictRef, string)
 		if inst := b.c.instances[instanceKey{constraint.Class, con.Name}]; inst != nil {
 			sub, matches := inst.matchHead(args)
 			if !matches {
-				return DictRef{}, fmt.Sprintf("no instance %s[%s]%s", constraint.Class, TypeString(arg), b.c.instanceHint(constraint.Class, arg))
+				return DictRef{}, messagef("no instance %s[%s]%s", constraint.Class, constraint.Arg, b.c.instanceHint(constraint.Class, constraint.Arg))
 			}
 			dict := DictRef{Kind: DictInstance, Class: constraint.Class, Instance: inst}
 			if len(inst.Context) != 0 {
@@ -335,14 +337,14 @@ func (b *bodyChecker) resolveDictionary(constraint Constraint) (DictRef, string)
 					required := b.strongestConstraint(context, inst.Context)
 					required.Arg = substitute(required.Arg, sub)
 					nested, message := b.resolveDictionary(required)
-					if message != "" {
-						return DictRef{}, fmt.Sprintf("%s (required by instance %s[%s])", message, inst.Class.Name, TypeString(inst.head()))
+					if message != nil {
+						return DictRef{}, messagef("%s (required by instance %s[%s])", message, inst.Class.Name, inst.head())
 					}
 					dict.Args[i] = b.upcastDictionary(nested, context.Class)
 				}
 			}
-			return dict, ""
+			return dict, nil
 		}
 	}
-	return DictRef{}, fmt.Sprintf("no instance %s[%s]%s", constraint.Class, TypeString(arg), b.c.instanceHint(constraint.Class, arg))
+	return DictRef{}, messagef("no instance %s[%s]%s", constraint.Class, constraint.Arg, b.c.instanceHint(constraint.Class, constraint.Arg))
 }

@@ -30,7 +30,7 @@ func main() {
 	}
 }
 
-const usage = "gofx:1:1: usage: gofx check FILE.gfx|DIR... | gofx build [-o DIR | --emit-go DIR --package NAME] FILE.gfx|DIR... | gofx run FILE.gfx|DIR... [-- args...] | gofx test FILE.gfx|DIR... | gofx eval 'EXPR' [FILE.gfx|DIR...] | gofx bind IMPORT [FILE.gfx|DIR...] [-o FILE.gfx|DIR] [--prefix STR] | gofx lsp | gofx fmt [-w|-d|-l] FILE...|DIR"
+const usage = "gofx:1:1: usage: gofx check [--full-types] FILE.gfx|DIR... | gofx build [--full-types] [-o DIR | --emit-go DIR --package NAME] FILE.gfx|DIR... | gofx run [--full-types] FILE.gfx|DIR... [-- args...] | gofx test FILE.gfx|DIR... | gofx eval 'EXPR' [FILE.gfx|DIR...] | gofx bind IMPORT [FILE.gfx|DIR...] [-o FILE.gfx|DIR] [--prefix STR] | gofx lsp | gofx fmt [-w|-d|-l] FILE...|DIR"
 
 func run(args []string) error {
 	if len(args) > 0 && args[0] == "lsp" {
@@ -67,6 +67,7 @@ func run(args []string) error {
 		}
 	}
 	var inputs, progArgs []string
+	fullTypes := false
 	rest := args[1:]
 	for i, arg := range rest {
 		if arg == "--" {
@@ -75,6 +76,10 @@ func run(args []string) error {
 			}
 			progArgs = rest[i+1:]
 			break
+		}
+		if arg == "--full-types" {
+			fullTypes = true
+			continue
 		}
 		if strings.HasPrefix(arg, "-") {
 			return errors.New(usage)
@@ -89,13 +94,14 @@ func run(args []string) error {
 	if err != nil {
 		return err
 	}
-	program, err := checkFiles(files)
+	program, err := checkFiles(files, fullTypes)
 	if err != nil {
 		return err
 	}
 	if command == "check" {
 		return nil
 	}
+
 	if outputDir == "" {
 		outputDir = strings.TrimSuffix(file, filepath.Ext(file)) + "_gen"
 		if info, statErr := os.Stat(file); statErr == nil && info.IsDir() {
@@ -122,6 +128,10 @@ func run(args []string) error {
 	defer module.close()
 	sources, err := codegen.GenerateInDir(program, goPackage, module.dir)
 	if err != nil {
+		var generated *types.Error
+		if errors.As(err, &generated) {
+			generated.Msg = generated.Message(fullTypes)
+		}
 		return diagnostic(file, err)
 	}
 	if command == "run" && module.temporary {
@@ -190,9 +200,13 @@ func parseFiles(inputs []string) ([]*ast.Module, error) {
 	return modules, nil
 }
 
-func checkFiles(modules []*ast.Module) (*types.Program, error) {
+func checkFiles(modules []*ast.Module, fullTypes bool) (*types.Program, error) {
 	program, err := types.Check(modules)
 	if err != nil {
+		var checked *types.Error
+		if errors.As(err, &checked) {
+			checked.Msg = checked.Message(fullTypes)
+		}
 		return nil, diagnostic("gofx", err)
 	}
 	for _, warning := range program.Warnings {
