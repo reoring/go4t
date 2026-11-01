@@ -1,0 +1,210 @@
+{
+  "before_revision": "72c52dd0cc3b9099b36af11290b0304045dd1ada",
+  "after_revision": "d1fc0b5",
+  "before": {
+    "files": 2453,
+    "lines": 344145,
+    "nonblank": 302189,
+    "bytes": 14220375
+  },
+  "after_native_port": {
+    "files": 1217,
+    "lines": 110693,
+    "nonblank": 89328,
+    "bytes": 11417483
+  },
+  "after_with_bindings": {
+    "files": 1460,
+    "lines": 198632,
+    "nonblank": 176733,
+    "bytes": 24975099
+  },
+  "tools": {
+    "files": 26,
+    "lines": 3171,
+    "nonblank": 3053,
+    "bytes": 225999
+  },
+  "oracle": {
+    "files": 3,
+    "lines": 833,
+    "nonblank": 778,
+    "bytes": 42958
+  },
+  "all_migration_source": {
+    "files": 1489,
+    "lines": 202636,
+    "nonblank": 180564,
+    "bytes": 25244056
+  },
+  "by_area_language_class": [
+    {
+      "area": "external_bindings",
+      "lang": "gfx",
+      "class": "generated",
+      "files": 230,
+      "lines": 43997,
+      "bytes": 7883433,
+      "nonblank": 43537
+    },
+    {
+      "area": "external_bindings",
+      "lang": "gfx",
+      "class": "non_generated",
+      "files": 3,
+      "lines": 117,
+      "bytes": 12517,
+      "nonblank": 109
+    },
+    {
+      "area": "external_bindings",
+      "lang": "go",
+      "class": "generated",
+      "files": 1,
+      "lines": 42975,
+      "bytes": 5603904,
+      "nonblank": 42975
+    },
+    {
+      "area": "external_bindings",
+      "lang": "go",
+      "class": "non_generated",
+      "files": 6,
+      "lines": 651,
+      "bytes": 47644,
+      "nonblank": 600
+    },
+    {
+      "area": "external_bindings",
+      "lang": "go",
+      "class": "test",
+      "files": 3,
+      "lines": 199,
+      "bytes": 10118,
+      "nonblank": 184
+    },
+    {
+      "area": "generation_tools",
+      "lang": "gfx",
+      "class": "non_generated",
+      "files": 6,
+      "lines": 390,
+      "bytes": 27776,
+      "nonblank": 378
+    },
+    {
+      "area": "generation_tools",
+      "lang": "go",
+      "class": "non_generated",
+      "files": 8,
+      "lines": 762,
+      "bytes": 42661,
+      "nonblank": 728
+    },
+    {
+      "area": "native_port",
+      "lang": "gfx",
+      "class": "generated",
+      "files": 536,
+      "lines": 61076,
+      "bytes": 7091693,
+      "nonblank": 41381
+    },
+    {
+      "area": "native_port",
+      "lang": "gfx",
+      "class": "non_generated",
+      "files": 280,
+      "lines": 18547,
+      "bytes": 1447623,
+      "nonblank": 18207
+    },
+    {
+      "area": "native_port",
+      "lang": "gfx",
+      "class": "test",
+      "files": 303,
+      "lines": 18161,
+      "bytes": 1645388,
+      "nonblank": 16945
+    },
+    {
+      "area": "native_port",
+      "lang": "go",
+      "class": "generated",
+      "files": 3,
+      "lines": 9713,
+      "bytes": 983689,
+      "nonblank": 9713
+    },
+    {
+      "area": "native_port",
+      "lang": "go",
+      "class": "non_generated",
+      "files": 88,
+      "lines": 2706,
+      "bytes": 223153,
+      "nonblank": 2618
+    },
+    {
+      "area": "native_port",
+      "lang": "go",
+      "class": "test",
+      "files": 7,
+      "lines": 490,
+      "bytes": 25937,
+      "nonblank": 464
+    },
+    {
+      "area": "original_oracle",
+      "lang": "go",
+      "class": "non_generated",
+      "files": 3,
+      "lines": 833,
+      "bytes": 42958,
+      "nonblank": 778
+    }
+  ],
+  "before_inventory_match": "2453 Go blobs: SHA256 + physical LOC all match pinned inventory",
+  "schema": {
+    "path": "ports/client-go/applyconfigurations/host/schema.yaml",
+    "lines": 17663,
+    "bytes": 430734,
+    "sha256": "1c7f94866be173d8b96ed83cdf076a3de3a52c285349c251c2117d320c9f4f69",
+    "verified_exact_bytes_embedded_in_upstream": true
+  },
+  "after_schema_normalized": {
+    "files": 1218,
+    "lines": 128356,
+    "nonblank": 106991,
+    "bytes": 11848217
+  },
+  "after_with_bindings_schema_normalized": {
+    "files": 1461,
+    "lines": 216295,
+    "nonblank": 194396,
+    "bytes": 25405833
+  },
+  "all_migration_source_schema_normalized": {
+    "files": 1490,
+    "lines": 220299,
+    "nonblank": 198227,
+    "bytes": 25674790
+  },
+  "method": {
+    "lines": "physical newline count + unterminated final line; includes comments/blanks",
+    "tests": "filename suffix _test.go or _test.gfx; other verification programs remain in non-test rows",
+    "generated": "generated marker in leading comments, tests classified first; upstream pinned inventory categories",
+    "native_port_excludes": [
+      "deps/**",
+      "host/deps/**",
+      "oracle/**",
+      "tools/binddeps/**",
+      "tools/inventory/**",
+      "tools/portgen/**",
+      "worktree-root tools/portgen/**"
+    ],
+    "data": "JSON inventories, schemas other than retained apply schema, docs, fixtures, go.mod/go.sum, emitted Go and build caches excluded",
+    "snapshot": "committed blobs, not working tree; compiler/runtime source changes outside port not included"
+  }
+}
