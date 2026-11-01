@@ -1,5 +1,7 @@
 # go4t — Go for types
 
+[日本語](README.ja.md)
+
 go4t is a small, statically typed functional language that compiles to ordinary
 Go. It exists for one job: **writing the decision core of a Go program** — the
 part that turns observed state into a next step — in a form where every state
@@ -310,3 +312,7 @@ checker as `go4t check`; `go4t error` fences must be rejected.
 
 `selfhost/` is a separately owned in-progress self-hosting compiler and is not
 part of the release surface.
+
+## License
+
+Apache License 2.0. See [LICENSE](LICENSE).
