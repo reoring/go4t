@@ -78,7 +78,6 @@ func ErrOf(value any) any {
 	}
 	return Shapes.Err(value)
 }
-
 // Tuple2Of constructs a generated two-element tuple.
 func Tuple2Of(a, b any) any {
 	if Shapes.Tuple2 == nil {
