@@ -118,8 +118,11 @@ func (l *Lexer) needSemi() bool {
 	return false
 }
 
-// elseAhead peeks past whitespace and line comments without changing positions.
-func (l *Lexer) elseAhead() bool {
+// continuationAhead peeks past whitespace and line comments without changing
+// positions and reports whether the next token is `else` or a `|` that is not
+// `||`: both continue the previous line (if/else layout; leading-bar match
+// arms and constructor alternatives).
+func (l *Lexer) continuationAhead() bool {
 	i := l.i
 	for i < len(l.src) {
 		if unicode.IsSpace(l.src[i]) {
@@ -134,6 +137,9 @@ func (l *Lexer) elseAhead() bool {
 			continue
 		}
 		break
+	}
+	if i < len(l.src) && l.src[i] == '|' {
+		return i+1 == len(l.src) || l.src[i+1] != '|'
 	}
 	for _, r := range "else" {
 		if i >= len(l.src) || l.src[i] != r {
@@ -188,7 +194,7 @@ func (l *Lexer) next() (Token, error) {
 			pos := ast.Pos{Line: l.line, Col: l.col}
 			l.advance()
 			if insertSemi {
-				if !l.elseAhead() {
+				if !l.continuationAhead() {
 					return l.emit(Token{Kind: Punct, Text: ";", Pos: pos}), nil
 				}
 				// The next token is else; do not repeat lookahead at blank lines.

@@ -341,3 +341,32 @@ func TestNoSemicolonInsideOpenBrackets(t *testing.T) {
 		t.Fatalf("got %q, want %q", got, want)
 	}
 }
+
+func TestLeadingBarContinuesLine(t *testing.T) {
+	src := "type T =\n    A(Int)\n  | B\nx"
+	var got []string
+	for _, tk := range tokens(t, src) {
+		if tk.Kind == lexer.EOF {
+			break
+		}
+		got = append(got, tk.Text)
+	}
+	want := "type T = A ( Int ) | B ; x ;"
+	if strings.Join(got, " ") != want {
+		t.Fatalf("got %q, want %q", strings.Join(got, " "), want)
+	}
+	// `||` on the next line is an operator, not a continuation marker: still
+	// no semicolon because a binary operator cannot start a statement anyway?
+	// No: Go-style insertion only looks at the previous token, so `a\n|| b`
+	// gets a `;`. Preserve that.
+	got = got[:0]
+	for _, tk := range tokens(t, "a\n|| b") {
+		if tk.Kind == lexer.EOF {
+			break
+		}
+		got = append(got, tk.Text)
+	}
+	if strings.Join(got, " ") != "a ; || b ;" {
+		t.Fatalf("got %q", strings.Join(got, " "))
+	}
+}

@@ -1,0 +1,170 @@
+package main
+
+// ===== ドメイン =====
+
+type AccountId = AccountId(String)
+type Account = Account{id: AccountId, owner: String, balance: Int}
+
+type Tx =
+    Deposit{to: AccountId, amount: Int}
+  | Withdraw{from: AccountId, amount: Int}
+  | Transfer{from: AccountId, to: AccountId, amount: Int}
+
+type Failure =
+    NoSuchAccount(AccountId)
+  | Insufficient{id: AccountId, need: Int, have: Int}
+  | BadAmount(Int)
+
+type Result[E, A] = Err(E) | Ok(A)
+
+// ===== インスタンス =====
+
+instance Show[AccountId] { show(a) { match a { | AccountId(s) => s } } }
+instance Show[Account]   { show(a) { "{a.owner}<{a.id}>:{a.balance}" } }
+
+instance Show[Tx] {
+  show(t) {
+    match t {
+      | Deposit(to, amt) => "deposit {amt} -> {to}"
+      | Withdraw(from, amt) => "withdraw {amt} <- {from}"
+      | Transfer(from, to, amt) => "transfer {amt} {from} -> {to}"
+    }
+  }
+}
+
+instance Show[Failure] {
+  show(f) {
+    match f {
+      | NoSuchAccount(id) => "no such account {id}"
+      | Insufficient(id, need, have) => "{id}: need {need}, have {have}"
+      | BadAmount(n) => "bad amount {n}"
+    }
+  }
+}
+
+instance Show[Result[E, A]] given Show[E], Show[A] {
+  show(r) { match r { | Err(e) => "Err({e})" | Ok(a) => "Ok({a})" } }
+}
+
+instance Functor[Result[E]] {
+  fmap(r, f) { match r { | Err(e) => Err(e) | Ok(a) => Ok(f(a)) } }
+}
+instance Monad[Result[E]] {
+  pure(a) { Ok(a) }
+  bind(r, f) { match r { | Err(e) => Err(e) | Ok(a) => f(a) } }
+}
+
+// ===== 純粋ロジック =====
+
+func sameId(a AccountId, b AccountId) Bool {
+  match (a, b) { | (AccountId(x), AccountId(y)) => x == y }
+}
+
+func find(book List[Account], id AccountId) Result[Failure, Account] {
+  match filter(book, func(a) => sameId(a.id, id)) {
+    | Cons(a, _) => Ok(a)
+    | Nil => Err(NoSuchAccount(id))
+  }
+}
+
+func put(book List[Account], acct Account) List[Account] {
+  fmap(book, func(a) => if sameId(a.id, acct.id) { acct } else { a })
+}
+
+func positive(n Int) Result[Failure, Int] {
+  if n > 0 { Ok(n) } else { Err(BadAmount(n)) }
+}
+
+func debit(book List[Account], id AccountId, amt Int) Result[Failure, List[Account]] {
+  do {
+    a <- find(book, id)
+    if a.balance < amt { Err(Insufficient{id: id, need: amt, have: a.balance}) }
+    else { pure(put(book, a{balance: a.balance - amt})) }
+  }
+}
+
+func credit(book List[Account], id AccountId, amt Int) Result[Failure, List[Account]] {
+  do {
+    a <- find(book, id)
+    pure(put(book, a{balance: a.balance + amt}))
+  }
+}
+
+// 1 取引を台帳に適用
+func apply(book List[Account], tx Tx) Result[Failure, List[Account]] {
+  match tx {
+    | Deposit(to, amt) => do {
+        n <- positive(amt)
+        credit(book, to, n)
+      }
+    | Withdraw(from, amt) => do {
+        n <- positive(amt)
+        debit(book, from, n)
+      }
+    | Transfer(from, to, amt) => do {
+        n <- positive(amt)
+        b1 <- debit(book, from, n)
+        credit(b1, to, n)
+      }
+  }
+}
+
+// 全取引を順に適用。失敗したら (失敗, その時点までの成功数) を返す
+func applyAll(book List[Account], txs List[Tx]) (List[Account], Option[(Failure, Int)]) {
+  fold(txs, (book, None), func(state, tx) =>
+    match state {
+      | (b, None) => match apply(b, tx) {
+          | Ok(b2) => (b2, None)
+          | Err(f) => (b, Some((f, 0)))
+        }
+      | (b, Some((f, n))) => (b, Some((f, n + 1)))
+    }
+  )
+}
+
+func total(book List[Account]) Int {
+  fold(book, 0, func(acc, a) => acc + a.balance)
+}
+
+// ===== 効果 =====
+
+extern func httpGet(url String) IO[Int] = "gofx/rt/stdhttp".GetStatus
+
+func audit(label String, book List[Account]) IO[Unit] {
+  do {
+    status <- httpGet("https://example.com")
+    let ok = status == 200
+    println("  audit {label}: sent={ok} total={total(book)}")
+  }
+}
+
+func main() IO[Unit] {
+  let alice = AccountId("A-1")
+  let bob = AccountId("B-2")
+  let book = [
+    Account{id: alice, owner: "alice", balance: 100},
+    Account{id: bob, owner: "bob", balance: 20}
+  ]
+  let good = [Deposit{to: bob, amount: 30}, Transfer{from: alice, to: bob, amount: 50}]
+  let bad = [Withdraw{from: bob, amount: 10}, Transfer{from: bob, to: alice, amount: 500}, Deposit{to: alice, amount: 1}]
+  let ugly = [Deposit{to: AccountId("Z-9"), amount: 5}]
+
+  // let 多相: 1 つの describe を List[Tx] と List[Account] の両方に使う
+  let describe = func(xs) => fold(xs, "", func(acc, x) => if acc == "" { show(x) } else { "{acc}; {x}" })
+
+  do {
+    println("book:  {describe(book)}")
+    println("txs:   {describe(good)}")
+    let r1 = applyAll(book, good)
+    println("good:  {fst(r1)} / {snd(r1)}")
+    audit("good", fst(r1))
+    let r2 = applyAll(fst(r1), bad)
+    println("bad:   {fst(r2)} / {snd(r2)}")
+    let r3 = applyAll(book, ugly)
+    println("ugly:  {snd(r3)}")
+    println("check: {apply(book, Withdraw{from: alice, amount: 0})}")
+    println("sum:   {total(book)} -> {total(fst(r2))}")
+    x <- fmap(ioPure(zip(["a", "b"], [1, 2])), func(ps) => fmap(ps, fst))
+    println("zip:   {x}")
+  }
+}
