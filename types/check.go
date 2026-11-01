@@ -312,10 +312,12 @@ func (c *checker) scheme(pos ast.Pos, tparams []ast.TypeParam, params []ast.Para
 		v := &TVar{Name: p.Name, Kind: arityKind(p.Arity)}
 		scope[p.Name] = v
 		s.TParams = append(s.TParams, v)
-		if len(p.Constraints) > 1 {
-			fail(pos, "at most one constraint per type parameter %s", p.Name)
-		}
+		seen := make(map[string]bool, len(p.Constraints))
 		for _, name := range p.Constraints {
+			if seen[name] {
+				fail(pos, "duplicate constraint %s for type parameter %s", name, p.Name)
+			}
+			seen[name] = true
 			class := c.program.Classes[name]
 			if class == nil {
 				fail(pos, "unknown class %s", name)
@@ -476,7 +478,7 @@ func (c *checker) collectInstances(files []*ast.File) {
 					inst.Params = append(inst.Params, param)
 				}
 			}
-			constrained := make(map[string]bool, len(d.Context))
+			constrained := make(map[Constraint]bool, len(d.Context))
 			for _, constraint := range d.Context {
 				required := c.program.Classes[constraint.Class]
 				if required == nil {
@@ -486,12 +488,13 @@ func (c *checker) collectInstances(files []*ast.File) {
 				if param == nil {
 					fail(constraint.Pos, "unknown instance type parameter %s", constraint.Param)
 				}
-				if constrained[param.Name] {
-					fail(constraint.Pos, "at most one constraint per type parameter %s", param.Name)
+				key := Constraint{Class: constraint.Class, Arg: param}
+				if constrained[key] {
+					fail(constraint.Pos, "duplicate constraint %s for type parameter %s", constraint.Class, param.Name)
 				}
-				constrained[param.Name] = true
+				constrained[key] = true
 				requireKind(constraint.Pos, param.Kind, required.Param.Kind)
-				inst.Context = append(inst.Context, Constraint{Class: constraint.Class, Arg: param})
+				inst.Context = append(inst.Context, key)
 			}
 			c.instances[key] = inst
 			c.program.Instances = append(c.program.Instances, inst)

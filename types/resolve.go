@@ -2,6 +2,7 @@ package types
 
 import (
 	"fmt"
+	"strings"
 
 	"gofx/ast"
 )
@@ -61,7 +62,8 @@ func (b *bodyChecker) finish() {
 				if o.show {
 					pos = o.expr.(*ast.Interp).Exprs[i].GetPos()
 				}
-				dicts[i] = b.dictionary(pos, constraint)
+				required := b.strongestConstraint(constraint, o.constraints)
+				dicts[i] = b.upcastDictionary(b.dictionary(pos, required), constraint.Class)
 			}
 		}
 	}
@@ -86,37 +88,49 @@ func (b *bodyChecker) dictionary(pos ast.Pos, constraint Constraint) DictRef {
 	return dict
 }
 
+// Keep the declared slots and their order, but use the strongest available
+// dictionary for redundant superclass requirements on the same parameter.
+func (b *bodyChecker) strongestConstraint(required Constraint, available []Constraint) Constraint {
+	for _, candidate := range available {
+		if prune(candidate.Arg) == prune(required.Arg) && b.subclass(candidate.Class, required.Class) {
+			required = candidate
+		}
+	}
+	return required
+}
+
+func (b *bodyChecker) upcastDictionary(dict DictRef, class string) DictRef {
+	for dict.Class != class {
+		parent := dict
+		dict = DictRef{Kind: DictSuper, Class: b.c.program.Classes[dict.Class].Super, Super: &parent}
+	}
+	return dict
+}
+
 // Context arguments are resolved recursively on smaller head arguments. Rigid
 // arguments terminate at the in-scope dictionary, including recursive uses of
 // the current instance inside its own methods.
 func (b *bodyChecker) resolveDictionary(constraint Constraint) (DictRef, string) {
 	arg := prune(constraint.Arg)
 	if param, ok := arg.(*TVar); ok {
-		boundClass := ""
+		required := b.strongestConstraint(constraint, b.constraints)
 		for _, bound := range b.constraints {
-			if bound.Arg != param {
-				continue
-			}
-			boundClass = bound.Class
-			class := b.c.program.Classes[bound.Class]
-			dict := DictRef{Kind: DictParam, Class: bound.Class, Param: param.Name, ParamClass: bound.Class}
-			for class != nil {
-				if class.Name == constraint.Class {
-					return dict, ""
-				}
-				if class.Super == "" {
-					break
-				}
-				parent := dict
-				dict = DictRef{Kind: DictSuper, Class: class.Super, Super: &parent}
-				class = b.c.program.Classes[class.Super]
+			if bound.Arg == param && bound.Class == required.Class {
+				dict := DictRef{Kind: DictParam, Class: bound.Class, Param: param.Name, ParamClass: bound.Class}
+				return b.upcastDictionary(dict, constraint.Class), ""
 			}
 		}
 		if b.types[param.Name] == param {
-			if boundClass == "" {
+			var classes []string
+			for _, bound := range b.constraints {
+				if bound.Arg == param {
+					classes = append(classes, bound.Class)
+				}
+			}
+			if len(classes) == 0 {
 				return DictRef{}, fmt.Sprintf("no instance %s[%s] (type parameter %s has no class constraints)", constraint.Class, param.Name, param.Name)
 			}
-			return DictRef{}, fmt.Sprintf("no instance %s[%s] (type parameter %s is constrained only by %s)", constraint.Class, param.Name, param.Name, boundClass)
+			return DictRef{}, fmt.Sprintf("no instance %s[%s] (type parameter %s is constrained only by %s)", constraint.Class, param.Name, param.Name, strings.Join(classes, " + "))
 		}
 	}
 	head := arg
@@ -134,12 +148,13 @@ func (b *bodyChecker) resolveDictionary(constraint Constraint) (DictRef, string)
 				}
 				dict.Args = make([]DictRef, len(inst.Context))
 				for i, context := range inst.Context {
-					required := Constraint{Class: context.Class, Arg: substitute(context.Arg, sub)}
+					required := b.strongestConstraint(context, inst.Context)
+					required.Arg = substitute(required.Arg, sub)
 					nested, message := b.resolveDictionary(required)
 					if message != "" {
 						return DictRef{}, fmt.Sprintf("%s (required by instance %s[%s])", message, inst.Class.Name, TypeString(inst.head()))
 					}
-					dict.Args[i] = nested
+					dict.Args[i] = b.upcastDictionary(nested, context.Class)
 				}
 			}
 			return dict, ""

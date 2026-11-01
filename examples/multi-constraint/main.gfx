@@ -1,0 +1,38 @@
+package main
+
+func showSorted[A Show + Ord](xs List[A]) String {
+  show(sort(xs))
+}
+
+func showMatching[F[_] Monad, A Eq + Show](fa F[A], expected A) F[String] {
+  do {
+    a <- fa
+    pure(if eq(a, expected) { "match: " + show(a) } else { "different: " + show(a) })
+  }
+}
+
+func same[A Eq + Ord](a A, b A) Bool {
+  eq(a, b)
+}
+
+class Describe[X] {
+  describe[A Show + Ord](tag X, value A) String
+}
+
+instance Describe[String] {
+  describe(tag, value) { tag + ": " + show(value) + " / " + show(compare(value, value)) }
+}
+
+func main() IO[Unit] {
+  let f = func(x) => show(x) + show(compare(x, x))
+  do {
+    println(showSorted([3, 1, 2]))
+    println(showSorted(["pear", "apple", "banana"]))
+    matched <- showMatching(ioPure(7), 7)
+    println(matched)
+    println(show(showMatching(Some("pear"), "apple")))
+    println("same: " + show(same(4, 4)))
+    println(describe("method", 9))
+    println("let: " + f(4) + " / " + f(true))
+  }
+}

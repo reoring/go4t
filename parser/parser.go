@@ -210,8 +210,11 @@ func (p *Parser) tparam() ast.TypeParam {
 		}
 		p.expectP("]")
 	}
-	for p.tok().Kind == lexer.Ident {
+	if p.tok().Kind == lexer.Ident {
 		tp.Constraints = append(tp.Constraints, p.ident())
+		for p.acceptP("+") {
+			tp.Constraints = append(tp.Constraints, p.ident())
+		}
 	}
 	return tp
 }
