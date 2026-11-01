@@ -10,6 +10,7 @@ type testCons struct{ head, tail any }
 type testNil struct{}
 type testSome struct{ value any }
 type testNone struct{}
+type testTuple2 struct{ a, b any }
 
 func installTestShapes(t *testing.T) {
 	t.Helper()
@@ -29,6 +30,11 @@ func installTestShapes(t *testing.T) {
 			default:
 				panic("test shape: not a list")
 			}
+		},
+		Tuple2: func(a, b any) any { return testTuple2{a, b} },
+		Untuple2: func(p any) (any, any) {
+			pair := p.(testTuple2)
+			return pair.a, pair.b
 		},
 	}
 }
@@ -76,6 +82,7 @@ func TestUnsetShapesPanicClearly(t *testing.T) {
 		{"Uncons unset", ShapeFuncs{}, func() { ListToStrings(testNil{}) }, "rt.Shapes is not initialized: Uncons is required"},
 		{"Some unset", ShapeFuncs{}, func() { SomeOf(int64(1)) }, "rt.Shapes is not initialized: Some is required"},
 		{"None unset", ShapeFuncs{}, func() { NoneOf() }, "rt.Shapes is not initialized: None is required"},
+		{"Tuple2 unset", ShapeFuncs{}, func() { Tuple2Of(int64(1), "two") }, "rt.Shapes is not initialized: Tuple2 is required"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			Shapes = tt.shapes

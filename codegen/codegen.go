@@ -102,7 +102,10 @@ func Generate(prog *types.Program, goPackage string) (source []byte, err error) 
 			nilCtor != nil && nilCtor.Data == list && len(nilCtor.Fields) == 0 &&
 			some != nil && some.Data == option && len(some.Fields) == 1 &&
 			none != nil && none.Data == option && len(none.Fields) == 0 {
-			fmt.Fprintf(&out, `func init() {
+			g.tuples[2] = struct{}{}
+			fmt.Fprintf(&out, `func rt_tuple2(a, b any) any { return &Tuple2{F0: a, F1: b} }
+func rt_untuple2(p any) (a, b any) { pair := p.(*Tuple2); return pair.F0, pair.F1 }
+func init() {
 	rt.Shapes = rt.ShapeFuncs{
 		Cons: func(h, t any) any { return &%s{F0: h, F1: t} },
 		Nil: func() any { return &%s{} },
@@ -112,6 +115,8 @@ func Generate(prog *types.Program, goPackage string) (source []byte, err error) 
 			if c, ok := l.(*%s); ok { return c.F0, c.F1, true }
 			return nil, nil, false
 		},
+		Tuple2: rt_tuple2,
+		Untuple2: rt_untuple2,
 	}
 }
 `, ctorName(cons), ctorName(nilCtor), ctorName(some), ctorName(none), ctorName(cons))

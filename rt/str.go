@@ -3,6 +3,7 @@ package rt
 import (
 	"strconv"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -92,7 +93,14 @@ func Substring(s, start, end any) any {
 // Chars returns a generated list of one-rune strings.
 func Chars(s any) any { return Split("", s) }
 
-func Repeat(s, n any) any { return strings.Repeat(s.(string), int(n.(int64))) }
+// Repeat treats non-positive counts as empty.
+func Repeat(s, n any) any {
+	count := n.(int64)
+	if count <= 0 {
+		return ""
+	}
+	return strings.Repeat(s.(string), int(count))
+}
 
 // ParseInt parses a signed base-10 Int, returning None for syntax or range errors.
 func ParseInt(s any) any {
@@ -113,3 +121,111 @@ func ShowPadLeft(n, width any) any {
 	padding := fieldWidth - int64(len(text))
 	return strings.Repeat(" ", int(padding)) + text
 }
+
+// CodePoint returns the first Unicode code point, or None for an empty string.
+func CodePoint(s any) any {
+	text := s.(string)
+	if text == "" {
+		return NoneOf()
+	}
+	r, _ := utf8.DecodeRuneInString(text)
+	return SomeOf(int64(r))
+}
+
+// FromCodePoint replaces invalid Unicode scalar values with U+FFFD.
+func FromCodePoint(n any) any {
+	value := n.(int64)
+	if value < 0 || value > utf8.MaxRune || value >= 0xD800 && value <= 0xDFFF {
+		return string(utf8.RuneError)
+	}
+	return string(rune(value))
+}
+
+func allRunes(s any, predicate func(rune) bool) bool {
+	text := s.(string)
+	if text == "" {
+		return false
+	}
+	for _, r := range text {
+		if !predicate(r) {
+			return false
+		}
+	}
+	return true
+}
+
+func IsDigit(s any) any { return allRunes(s, unicode.IsDigit) }
+func IsAlpha(s any) any { return allRunes(s, unicode.IsLetter) }
+func IsSpace(s any) any { return allRunes(s, unicode.IsSpace) }
+func IsUpper(s any) any { return allRunes(s, unicode.IsUpper) }
+func IsLower(s any) any { return allRunes(s, unicode.IsLower) }
+
+// IndexOf returns the rune index of the first occurrence, including zero for "".
+func IndexOf(s, sub any) any {
+	text := s.(string)
+	index := strings.Index(text, sub.(string))
+	if index < 0 {
+		return NoneOf()
+	}
+	return SomeOf(int64(utf8.RuneCountInString(text[:index])))
+}
+
+// PadRight and PadLeft measure widths in runes and never truncate.
+func PadRight(s, width any) any {
+	text := s.(string)
+	fieldWidth := width.(int64)
+	if fieldWidth <= 0 {
+		return text
+	}
+	padding := fieldWidth - int64(utf8.RuneCountInString(text))
+	if padding <= 0 {
+		return text
+	}
+	return text + strings.Repeat(" ", int(padding))
+}
+
+func PadLeft(s, width any) any {
+	text := s.(string)
+	fieldWidth := width.(int64)
+	if fieldWidth <= 0 {
+		return text
+	}
+	padding := fieldWidth - int64(utf8.RuneCountInString(text))
+	if padding <= 0 {
+		return text
+	}
+	return strings.Repeat(" ", int(padding)) + text
+}
+
+func ReverseString(s any) any {
+	runes := []rune(s.(string))
+	for left, right := 0, len(runes)-1; left < right; left, right = left+1, right-1 {
+		runes[left], runes[right] = runes[right], runes[left]
+	}
+	return string(runes)
+}
+
+// SplitOnce splits at the first separator; an empty separator matches at zero.
+func SplitOnce(sep, s any) any {
+	before, after, found := strings.Cut(s.(string), sep.(string))
+	if !found {
+		return NoneOf()
+	}
+	return SomeOf(Tuple2Of(before, after))
+}
+
+func CharAt(s, i any) any {
+	index := i.(int64)
+	if index < 0 {
+		return NoneOf()
+	}
+	for _, r := range s.(string) {
+		if index == 0 {
+			return SomeOf(string(r))
+		}
+		index--
+	}
+	return NoneOf()
+}
+
+func ShowQuoted(s any) any { return strconv.Quote(s.(string)) }
