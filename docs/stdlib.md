@@ -588,6 +588,18 @@ Source: [`string/string.gfx`](../std/string/string.gfx). 32 top-level declaratio
 | `extern func charAt(s String, i Int) Option[String] = "gofx/rt".CharAt` | one-rune string at zero-based index i. | Empty, negative/minimum Int index, or index >= rune count gives `None`; valid index gives exactly one rune; malformed UTF-8 decodes as U+FFFD. |
 | `extern func showQuoted(s String) String = "gofx/rt".ShowQuoted` | strconv.Quote: surrounding quotes and Go escapes. | Empty gives `"\"\""`; escapes quotes, backslashes, control characters using Go string syntax; printable Unicode remains readable. |
 
+## `std/dyn`
+
+Source: [`dyn/dyn.gfx`](../std/dyn/dyn.gfx). 1 top-level declaration.
+Import explicitly for Go `any`/variadic bindings. Values are a closed sum, not
+unchecked opaque Go interfaces; unknown Go values decode to their printed text.
+
+| Source signature | Semantics | Boundary behaviour |
+| --- | --- | --- |
+| `type Value = Null \| Bool(Bool) \| Int(Int) \| Float(Float) \| Str(String) \| Bytes(String) \| Time(Int) \| List(List[Value]) \| Map(Map[String, Value]) deriving Eq, Debug` | Tagged foreign values: Null, Bool, Int, Float, Str, Bytes, Time, List and Map. | Bytes copies raw bytes; Time is UnixNano with zero time encoded as 0; List/Map recurse; unknown Go values become Str(fmt.Sprint(value)). |
+| `instance Eq[Value]` | Derived constructor/payload equality. | Different constructors are unequal; Float follows IEEE equality; lists/maps compare their contents. |
+| `instance Debug[Value]` | Derived structural display with constructor names. | Str/Bytes payload strings are quoted; containers recurse; never executes foreign code. |
+
 ## Inventory totals and maintenance
 
 The inventory test enumerates every standard module and its functions/externs,

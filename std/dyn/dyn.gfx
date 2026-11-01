@@ -1,0 +1,5 @@
+package dyn
+
+import "std/map"
+
+type Value = Null | Bool(Bool) | Int(Int) | Float(Float) | Str(String) | Bytes(String) | Time(Int) | List(List[Value]) | Map(Map[String, Value]) deriving Eq, Debug

@@ -1,0 +1,106 @@
+package codegen
+
+import (
+	"fmt"
+	"strings"
+
+	"gofx/types"
+)
+
+// The generated program owns all erased record constructors. Register them in
+// its companion init (never in the Go shim, which cannot import the program).
+// Each extern target gets a namespace, and source names survive module mangling.
+func (g *generator) foreignShapes(out *strings.Builder, prog *types.Program) {
+	seen := map[string]bool{}
+	var visit func(string, types.Type)
+	visit = func(path string, t types.Type) {
+		t = types.Unalias(t)
+		switch t := t.(type) {
+		case *types.TFunc:
+			for _, p := range t.Params {
+				visit(path, p)
+			}
+			visit(path, t.Ret)
+		case *types.TApp:
+			visit(path, t.Fun)
+			for _, a := range t.Args {
+				visit(path, a)
+			}
+		case *types.TCon:
+			d := prog.DataTypes[t.Name]
+			if d == nil {
+				return
+			}
+			key := path + ":" + d.Name
+			if seen[key] {
+				return
+			}
+			seen[key] = true
+			for _, c := range d.Ctors {
+				for _, f := range c.Fields {
+					visit(path, f)
+				}
+			}
+			if len(d.Ctors) != 1 || len(d.TParams) != 0 {
+				return
+			}
+			c := d.Ctors[0]
+			if c.FieldNames == nil {
+				return
+			}
+			name := prog.ModuleNames[d.Name]
+			if name == "" {
+				name = d.Name
+			}
+			fmt.Fprintf(out, "%sfunc init() { rt.RegisterForeignRecord(%q,func(fields []any) any { return &%s{", g.typeLine(d.Name), path+"."+name, ctorName(c))
+			for i := range c.Fields {
+				fmt.Fprintf(out, "F%d:fields[%d],", i, i)
+			}
+			fmt.Fprintf(out, "} },func(value any,index int) any { v := value.(*%s); _ = v; switch index {", ctorName(c))
+			for i := range c.Fields {
+				fmt.Fprintf(out, "case %d: return v.F%d;", i, i)
+			}
+			out.WriteString("default: panic(\"gofx foreign record: invalid field index\") } }) }\n")
+		}
+	}
+	for _, name := range sortedKeys(prog.Funcs) {
+		f := prog.Funcs[name]
+		if f.Decl.Extern != nil {
+			visit(f.Decl.Extern.ImportPath, f.Scheme.Type)
+		}
+	}
+}
+func (g *generator) dynShapes(out *strings.Builder, prog *types.Program) {
+	for _, name := range sortedKeys(prog.DataTypes) {
+		d := prog.DataTypes[name]
+		if prog.Owners[name] != "std/dyn" {
+			continue
+		}
+		source := prog.ModuleNames[name]
+		if source != "Value" {
+			continue
+		}
+		kinds := []string{"null", "bool", "int", "float", "str", "bytes", "time", "list", "map"}
+		fields := []string{"DynNull", "DynBool", "DynInt", "DynFloat", "DynStr", "DynBytes", "DynTime", "DynList", "DynMap"}
+		if len(d.Ctors) != len(kinds) {
+			continue
+		}
+		fmt.Fprintf(out, "%sfunc init() {\n", g.typeLine(d.Name))
+		for i, c := range d.Ctors {
+			if i == 0 {
+				fmt.Fprintf(out, "rt.Shapes.%s = func() any { return &%s{} }\n", fields[i], ctorName(c))
+			} else {
+				fmt.Fprintf(out, "rt.Shapes.%s = func(v any) any { return &%s{F0:v} }\n", fields[i], ctorName(c))
+			}
+		}
+		out.WriteString("rt.Shapes.DynView = func(value any) (string,any) { switch v := value.(type) {\n")
+		for i, c := range d.Ctors {
+			v := "v.F0"
+			if i == 0 {
+				v = "nil"
+			}
+			fmt.Fprintf(out, "case *%s: return %q,%s\n", ctorName(c), kinds[i], v)
+		}
+		out.WriteString("default: panic(\"rt.Shapes.DynView: invalid Value\") } }\n}\n")
+	}
+}

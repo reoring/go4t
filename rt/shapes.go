@@ -4,27 +4,38 @@ package rt
 // representations across the any ABI. Generated init functions register these operations
 // before any runtime calls. Uncons returns ok=false for Nil and the head and tail for Cons.
 type ShapeFuncs struct {
-	Cons       func(h, t any) any
-	Nil        func() any
-	Some       func(a any) any
-	None       func() any
-	Ok         func(a any) any
-	Err        func(e any) any
-	IoError    func(kind string, msg string) any
-	IoErrorOf  func(v any) (kind, msg string)
-	Uncons     func(l any) (h, t any, ok bool)
-	Tuple2     func(a, b any) any
-	Untuple2   func(p any) (a, b any)
-	Tuple3     func(a, b, c any) any
-	Untuple3   func(p any) (a, b, c any)
-	OrderingOf func(o any) int // LT = -1, EQ = 0, GT = 1
-	JNull      func() any
-	JBool      func(any) any
-	JNum       func(any) any
-	JStr       func(any) any
-	JArr       func(any) any
-	JObj       func(any) any
-	JsonView   func(any) (kind string, value any)
+	Cons        func(h, t any) any
+	Nil         func() any
+	Some        func(a any) any
+	None        func() any
+	OptionValue func(any) (any, bool)
+	Ok          func(a any) any
+	Err         func(e any) any
+	IoError     func(kind string, msg string) any
+	IoErrorOf   func(v any) (kind, msg string)
+	Uncons      func(l any) (h, t any, ok bool)
+	Tuple2      func(a, b any) any
+	Untuple2    func(p any) (a, b any)
+	Tuple3      func(a, b, c any) any
+	Untuple3    func(p any) (a, b, c any)
+	OrderingOf  func(o any) int // LT = -1, EQ = 0, GT = 1
+	JNull       func() any
+	JBool       func(any) any
+	JNum        func(any) any
+	JStr        func(any) any
+	JArr        func(any) any
+	JObj        func(any) any
+	JsonView    func(any) (kind string, value any)
+	DynNull     func() any
+	DynBool     func(any) any
+	DynInt      func(any) any
+	DynFloat    func(any) any
+	DynStr      func(any) any
+	DynBytes    func(any) any
+	DynTime     func(any) any
+	DynList     func(any) any
+	DynMap      func(any) any
+	DynView     func(any) (kind string, value any)
 }
 
 // Shapes holds the generated program's value constructors and destructors.

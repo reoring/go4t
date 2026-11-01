@@ -1244,6 +1244,7 @@ func (fakeImporter) Import(path string) (*gotypes.Package, error) {
 			{"Nil", 0, 1},
 			{"Some", 1, 1},
 			{"None", 0, 1},
+			{"OptionValue", 1, 2},
 			{"Ok", 1, 1},
 			{"Err", 1, 1},
 			{"Uncons", 1, 3},
@@ -1260,7 +1261,7 @@ func (fakeImporter) Import(path string) (*gotypes.Package, error) {
 			results := make([]*gotypes.Var, shape.results)
 			for i := range results {
 				typ := anyType
-				if shape.name == "Uncons" && i == 2 {
+				if (shape.name == "Uncons" && i == 2) || (shape.name == "OptionValue" && i == 1) {
 					typ = gotypes.Typ[gotypes.Bool]
 				}
 				if shape.name == "OrderingOf" {

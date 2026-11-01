@@ -110,6 +110,39 @@ func GenerateInDir(prog *types.Program, goPackage, dir string) (map[string][]byt
 		register(instanceName(inst), "dict_"+prefixes[owner]+"_"+instanceName(inst), owner)
 	}
 	// Rename Go identifiers, not strings, comments, or //line source locations.
+	// Foreign selectors are not declarations in the gofx namespace. In
+	// particular a record Error and its Error method both spell Error_Error,
+	// but only the local constructor may be module-mangled.
+	foreignSet := token.NewFileSet()
+	foreignFile, err := parser.ParseFile(foreignSet, "generated.go", source, 0)
+	if err != nil {
+		return nil, err
+	}
+	foreignAliases := make(map[string]bool)
+	for _, spec := range foreignFile.Imports {
+		name := path.Base(strings.Trim(spec.Path.Value, "\""))
+		if spec.Name != nil {
+			name = spec.Name.Name
+		}
+		foreignAliases[name] = true
+	}
+	var isForeign func(goast.Expr) bool
+	isForeign = func(e goast.Expr) bool {
+		switch e := e.(type) {
+		case *goast.Ident:
+			return foreignAliases[e.Name]
+		case *goast.SelectorExpr:
+			return isForeign(e.X)
+		}
+		return false
+	}
+	foreignOffsets := make(map[int]bool)
+	goast.Inspect(foreignFile, func(n goast.Node) bool {
+		if selector, ok := n.(*goast.SelectorExpr); ok && isForeign(selector.X) {
+			foreignOffsets[foreignSet.PositionFor(selector.Sel.Pos(), false).Offset] = true
+		}
+		return true
+	})
 	set := token.NewFileSet()
 	file := set.AddFile("generated.go", set.Base(), len(source))
 	var scan scanner.Scanner
@@ -121,7 +154,7 @@ func GenerateInDir(prog *types.Program, goPackage, dir string) (map[string][]byt
 		if tok == token.EOF {
 			break
 		}
-		if tok != token.IDENT {
+		if tok != token.IDENT || foreignOffsets[file.Offset(pos)] {
 			continue
 		}
 		name := renamed[literal]

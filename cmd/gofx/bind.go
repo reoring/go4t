@@ -86,7 +86,7 @@ func runBind(args []string) error {
 	}
 	source := extern.Bind(pkg, options)
 	if shimDir != "" {
-		methods, shim, shimErr := extern.BindMethods(pkg, options, shimPath, shimPackage)
+		bindings, shim, shimErr := extern.BindWithShim(pkg, options, shimPath, shimPackage)
 		if shimErr != nil {
 			return diagnostic(shimDir, shimErr)
 		}
@@ -94,7 +94,7 @@ func runBind(args []string) error {
 		if err := os.WriteFile(shimFile, shim, 0o644); err != nil {
 			return diagnostic(shimFile, err)
 		}
-		source += methods
+		source = bindings
 	}
 	if output == "" {
 		_, err = fmt.Fprint(os.Stdout, source)

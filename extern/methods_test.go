@@ -39,12 +39,12 @@ func TestMethodBindingBoundaries(t *testing.T) {
 			t.Errorf("missing method %s", name)
 		}
 	}
-	decls, source, err := BindMethods(pkg, BindOptions{Float: true}, "example/shim", "shim")
+	decls, source, err := BindWithShim(pkg, BindOptions{Float: true}, "example/shim", "shim")
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, want := range []string{
-		"type Widget = WidgetHandle", "type Outer = OuterHandle",
+		"type Widget = Widget{name: String} deriving Eq, Debug", "type Outer = OuterHandle",
 		`extern func widgetCount(recv Widget) Int = "example/shim".Widget_Count`,
 		"extern func widgetEcho(recv Widget, p0 String) String",
 		"extern func widgetLookup(recv Widget, p0 Bool) Option[String]",
@@ -57,12 +57,12 @@ func TestMethodBindingBoundaries(t *testing.T) {
 		"extern func widgetFloat(recv Widget, p0 Float) Float",
 		"// skipped: Generic.Name (generic function)",
 		"// skipped: Constraint.Text (generic function)",
-		"// skipped: Widget.Callback (unsupported parameter type func() string)",
-		"// skipped: Widget.Pointer (unsupported parameter type *string)",
-		"// skipped: Widget.Variadic (variadic function)",
-		"// skipped: Widget.Void (no result; Unit requires rt.Unit)",
+		"extern func widgetCallback(recv Widget, p0 func() String) String",
+		"extern func widgetPointer(recv Widget, p0 Option[String]) String",
+		"extern func widgetVariadic(recv Widget, p0 List[String]) String",
+		"extern func widgetVoid(recv Widget) Unit",
 		"// skipped: Widget.Multiple (unsupported multiple results)",
-		"// skipped: Widget.ResultPointer (unsupported result type *gofx/extern/testdata/methodfixture.Widget)",
+		"extern func widgetResultPointer(recv Widget) Option[Widget]",
 	} {
 		if !strings.Contains(decls, want) {
 			t.Errorf("missing %q:\n%s", want, decls)
@@ -71,12 +71,12 @@ func TestMethodBindingBoundaries(t *testing.T) {
 	if strings.Count(decls, "type Widget =") != 1 {
 		t.Errorf("handle declared multiple times:\n%s", decls)
 	}
-	for _, forbidden := range []string{"func Constraint_Text", "func Generic_Name", "func Widget_Callback", "func Widget_Pointer", "func Widget_Void", "func Widget_ResultPointer"} {
+	for _, forbidden := range []string{"func Constraint_Text", "func Generic_Name"} {
 		if strings.Contains(string(source), forbidden) {
 			t.Errorf("unsupported shim %s:\n%s", forbidden, source)
 		}
 	}
-	prefixed, _, err := BindMethods(pkg, BindOptions{Prefix: "native"}, "example/shim", "shim")
+	prefixed, _, err := BindWithShim(pkg, BindOptions{Prefix: "native"}, "example/shim", "shim")
 	if err != nil {
 		t.Fatal(err)
 	}

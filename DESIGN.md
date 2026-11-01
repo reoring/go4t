@@ -1335,3 +1335,9 @@ Acceptance: `examples/sql-service` runs end to end; count of `// skipped:` lines
 `database/sql` and `prometheus` drops to generics/interface-satisfaction cases only (report the
 before/after numbers); all existing bind snapshots unchanged where no new rule applies.
 
+Deviations: structs with no exported fields (including empty structs) are handles,
+and pointers to handles remain handles rather than Option, preserving private
+object identity. Handles remain nominal per binding module. Channels and
+nonstandard result tuples remain unsupported under the domain rules above;
+coverage counts therefore also retain these skip categories.
+

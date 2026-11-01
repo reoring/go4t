@@ -848,6 +848,7 @@ class Ord[A] : Eq[A] { compare(a A, b A) Ordering }
 | `std/state` | State and Functor/Monad instances, state operations |
 | `std/lazy` | Lazy, delay/force; explicitly **nonmemoising** |
 | `std/json` | Json, Encode/Decode and codecs; not implicitly exported |
+| `std/dyn` | Value, an Eq/Debug sum for foreign `any` and variadic arguments; not implicitly exported |
 | `std/http` | Request/Response, request/get/post/requestWithTimeout, response/jsonResponse, requestHeader/responseHeader, serve |
 
 Functor/Monad are provided for Option, List, Result[E], IO and State[S];
@@ -1200,10 +1201,67 @@ context. Parameters are `p0`, `p1`, etc.; names lower-case the first Go letter,
 or prefix it (`--prefix str` produces `strToUpper`). Collision comments do not
 rename names. Primitive `(T, bool)` results infer Option and `(T, error)` infer
 IO; adjacent inputs are emitted independently, never guessed to be Option.
-Unsupported functions receive `// skipped: Name (reason)`: pointers, callbacks,
-unsupported integer widths/named types/multiple or absent results, generics,
-variadics, and uninferable any/rt.IO. Explicit externs can still describe erased
-or rt.IO functions that bind cannot infer. Reserved names suggest a prefix.
+Without `--shim`, only the natural-ABI table above is inferred. With `--shim`,
+the foreign mirrors below are inferred too. Unsupported functions receive
+`// skipped: Name (reason)`; unsupported methods use `Type.Method`. Generics,
+unnamed channels/interfaces, callback results, and result tuples other than
+`(T, error)` or `(T, bool)` remain unsupported. Named unsupported values become
+handles, not invented record layouts. Reserved names suggest a prefix.
+
+| Foreign Go type | gofx mirror with `--shim` | Conversion |
+| --- | --- | --- |
+| bool, string | Bool, String | Direct |
+| int, int8/16/32/64, uint, uint8/16/32/64, uintptr | Int | Go integer conversion; narrowing/wraparound follows Go |
+| float32/64 | Float | Binary64 on the gofx side |
+| []byte | String | Copy raw bytes, not a text decoding |
+| []T | List[T] | Recursive copy, nil/empty becomes Nil |
+| map[K]T with scalar K | Map[K, T] | Recursive copy; scalar key ordering |
+| *T with a value mirror | Option[T] | nil becomes None; non-nil becomes Some(copy) |
+| time.Duration | Int | Nanoseconds |
+| time.Time | Int | UnixNano; zero time becomes 0, and 0 reconstructs zero time |
+| error in a record field | Option[String] | nil becomes None; otherwise the message; reverse conversion uses a new error |
+| Exported struct with mirrorable exported fields | Record named after the struct | One declaration per binding file, first field letter lower-cased, `deriving Eq, Debug`; promoted embedded fields follow Go lookup, ambiguous fields omitted, unexported fields ignored |
+| Named non-struct with mirrorable underlying type | Underlying mirror | No distinct gofx type; shim performs the named Go conversion |
+| Other exported named types | Opaque handle | Includes interfaces, cyclic structs and structs with nonmirrorable fields |
+| any | dyn.Value | Runtime tagged conversion; see §10.7 |
+
+A struct without exported fields is a handle, including an empty struct:
+turning a private-state object such as `sql.DB` into an empty record would lose
+its identity. `*Handle` stays the same handle, not Option. Handles are nominal
+per binding module; the same Go type bound in two modules is not interchangeable.
+
+The companion shims preserve the erased extern ABI (`any` parameters/result).
+Record constructors cannot live in the shim package, because it cannot import
+the generated program. Instead, codegen emits companion `init` registrations
+beside the program's ordinary record ADTs, keyed by shim import path and record
+source name. `rt.RegisterForeignRecord` supplies constructor/field operations,
+just as `rt.Shapes` supplies List/Option/Json operations. Nested records in extern
+signatures are registered recursively. No reflection or second record ABI is
+used. Structs, slices, maps and pointers cross by copy; private state is not copied.
+
+A leading `context.Context` parameter is omitted and forces an `IO[R]` result.
+The shim receives the executing IO's context, so cancellation and deadlines
+reach Go. An error-only result becomes `IO[Unit]`; no result becomes `Unit`.
+Errors are classified `*rt.Failure`, not nested `Result` values.
+
+Variadic `...T` becomes a final `List[T]`; `...any` becomes `List[dyn.Value]`.
+`std/dyn.Value` has `Null`, `Bool`, `Int`, `Float`, `Str`, `Bytes`, `Time`,
+`List` and `Map` constructors and derives Eq/Debug. List/Map contents convert
+recursively; Bytes preserves bytes and Time uses nanoseconds.
+
+Function-typed parameters, including named function types, become gofx
+`func(A, ...) R` or `func(A, ...) IO[R]`. The shim converts arguments into gofx
+values, calls the erased function, and converts its result back. A callback's
+leading context is omitted; its IO runs with that context, or with the enclosing
+call's context when it has none. Callback failures return through Go's error
+result unchanged; a context-taking callback without an error result panics on
+IO failure because Go provides no error channel.
+
+The one shape-based special case is a method whose sole ordinary parameter is
+`dest ...any` and whose sole result is `error`: it becomes
+`(recv Handle, count Int) IO[List[dyn.Value]]`. The shim allocates `count`
+`*any` slots, calls the method, then decodes the values. Negative counts fail
+with `gofx scan: negative count N`. This supports `sql.Row.Scan` and `sql.Rows.Scan`.
 
 `bind IMPORT --shim DIR` additionally writes `DIR/gofx_shim_<pkgbase>.go` and
 appends method bindings after the ordinary functions, sorted by receiver type
@@ -1218,22 +1276,20 @@ binding output and load-context selection are unchanged.
 Exported methods of exported named types include value and pointer receivers
 (and promoted methods), once each; aliases do not introduce additional receiver
 types. The first letter of `<Type><Method>` is lower-cased, or `--prefix` is
-prepended without changing the Go spelling. Each supported receiver type adds
-`type <Type> = <Type>Handle`, and each method adds
+prepended without changing the Go spelling. Each receiver uses its record/value
+mirror or handle, and each method adds
 `extern func <type><Method>(recv <Type>, ...) ... = "<shim import path>".<Type>_<Method>`.
-The same signature rules and skip reasons apply as for functions, excluding the
-receiver; unsupported methods get `// skipped: Type.Method (reason)`.
+Pointer receivers on records operate on a fresh copy, without mutating the
+original gofx record. Unsupported methods get `// skipped: Type.Method (reason)`.
 
 Handles are **opaque**, not ordinary data constructors: matching, `deriving`,
-and `show` on a handle are undefined. Obtain them through an explicit Go helper
-returning `any` (or `(any, error)` for `IO[Handle]`), not by constructing the
-nullary handle constructor. The shim accepts `recv any` to preserve the erased
-extern ABI, then checks and asserts the original Go receiver type before calling
-the method. A wrong dynamic type panics with
-`gofx shim: Type_Method: receiver is <dynamic Go type>`. A value-receiver shim
-expects a Go value, and a pointer-receiver shim expects a pointer; a typed nil
-pointer passes the assertion and retains the underlying method's nil behaviour.
-`examples/typed-extern` demonstrates `*url.URL` handles and generated methods.
+and `show` on a handle are undefined. Obtain them from bound Go constructors,
+not by constructing the nullary handle constructor. The shim accepts `recv any`,
+then checks and asserts the original Go receiver type before calling the method.
+A wrong dynamic type panics with
+`gofx shim: Type_Method: receiver is <dynamic Go type>`. A typed nil pointer
+retains the underlying method's nil behaviour. `examples/typed-extern` also
+demonstrates explicit erased Go helpers and generated methods.
 
 
 ### 8.4 Formatting
@@ -1751,10 +1807,16 @@ share immutable storage, but empty slices do not retain the backing allocation.
 | Decode paths | `$` root, identifier `.field`, quoted key brackets, zero-based indexes; nested first failure preserved |
 | Natural extern Option | None → zero/false; present zero not mistaken for absence; only primitive Option payloads expand |
 | Natural extern lists | Nil/empty Go slices → Nil; conversions copy and preserve order, no mutable slice aliasing |
-| Go types | True aliases accepted, distinct named types not coerced; Go int narrowing follows target width; no-result function is not Unit |
+| Natural Go types | True aliases accepted, distinct named types require a shim; Go int narrowing follows target width; no-result functions need a shim for Unit |
 | Extern errors | `(T, error)` conversion/call occurs inside IO; creation is lazy; each run repeats Go call; check alone does not validate foreign ABI |
-| bind inference | Does not guess Option inputs; skips uninferable any/rt.IO and unsupported functions with reason comments; declarations are toolchain-dependent |
-| bind method handles | `--shim DIR` requires a Go module; exported methods use the same inference rules except the receiver. Handles cross as any and must not be constructed, matched, derived or shown; a wrong receiver type panics with `gofx shim: Type_Method: receiver is <dynamic Go type>` before calling the method. |
+| bind inference | Does not guess Option inputs; `--shim` adds the foreign mirror table in §8.3; unsupported signatures retain reason comments; declarations are toolchain-dependent |
+| bind method handles | `--shim DIR` requires a Go module; handles cross as any and must not be constructed, matched, derived or shown; a wrong receiver type panics with `gofx shim: Type_Method: receiver is <dynamic Go type>` |
+| Foreign struct copy | Exported fields and nested collections/pointers copy both ways; unexported state is zeroed on input; pointer-receiver changes do not mutate the gofx record; private-state and nonmirrorable structs remain handles |
+| Foreign time | Duration is nanoseconds; Time uses UnixNano, zero time → 0, 0 → zero time; Unix epoch and zero time are therefore indistinguishable at this boundary; locations/monotonic clock metadata are lost |
+| Foreign any decode | nil → Null; bool → Bool; signed/unsigned integer widths → Int (uint64 wraps by Go conversion); float32/64 → Float; string → Str; []byte → Bytes; time.Time → Time; []any → List; map[string]any → Map; all other values → Str(fmt.Sprint(value)) |
+| Foreign any encode | Null → nil; Bool/Int/Float/Str → bool/int64/float64/string; Bytes → copied []byte; Time → time.Time; List/Map → recursively copied []any/map[string]any |
+| Foreign callback error | A callback returning error executes gofx IO with its own Go context or the enclosing context, returning its error to Go; the outer fallible shim classifies that error without replacing its message/cause |
+| Foreign Scan shape | Only methods with sole `...any` parameter and sole error result; count allocates slots; errors stop decoding; negative count is an IO failure |
 | Runtime shapes | Generated constructors registered once; unregistered Tuple2/Tuple3/Ordering/Ok/Err/List bridge use panics (programming/configuration error), not a source value |
 | Exported List/Map/Set | Copy recursively in both directions, with no mutable slice/map aliasing; nil/empty inputs become empty gofx collections; empty List returns a nil slice and empty Map/Set returns an allocated empty Go map |
 | Exported Float collection keys | Use gofx's NaN-low Ord; a single NaN key is retained. Multiple NaN keys in a Go map/set cannot remain distinct under that Ord and panic with `gofx: duplicate NaN map key` / `gofx: duplicate NaN set key`, avoiding an iteration-order-dependent survivor |

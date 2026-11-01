@@ -15,14 +15,12 @@ func TestBindShimRun(t *testing.T) {
 	}
 	toolsWrite(t, filepath.Join(shim, "package.go"), "package bridge\n")
 	toolsWrite(t, filepath.Join(dir, "main.gfx"), `package main
-extern func newWidget(name String) Widget = "gofx/extern/testdata/methodfixture".NewWidget
-extern func newPointer(name String) Widget = "gofx/extern/testdata/methodfixture".NewPointer
 func main() IO[Unit] {
   do {
-    println(widgetEcho(newWidget("hello"), "!"))
-    println(show(widgetCount(newPointer("hello"))))
-    println(show(widgetLookup(newWidget("hello"), true)))
-    text <- widgetRead(newWidget("read"))
+    println(widgetEcho(Widget{name: "hello"}, "!"))
+    println(show(widgetCount(Widget{name: "hello"})))
+    println(show(widgetLookup(Widget{name: "hello"}, true)))
+    text <- widgetRead(Widget{name: "read"})
     println(text)
   }
 }
@@ -37,10 +35,10 @@ func main() IO[Unit] {
 		t.Fatal(err)
 	}
 	for _, want := range []string{
-		"type Widget = WidgetHandle",
+		"type Widget = Widget{name: String} deriving Eq, Debug",
 		`extern func widgetEcho(recv Widget, p0 String) String = "clitoolstest/go-shim".Widget_Echo`,
 		`extern func widgetCount(recv Widget) Int = "clitoolstest/go-shim".Widget_Count`,
-		"// skipped: Widget.Pointer (unsupported parameter type *string)",
+		"extern func widgetPointer(recv Widget, p0 Option[String]) String",
 	} {
 		if !strings.Contains(string(declarations), want) {
 			t.Errorf("missing %q in declarations:\n%s", want, declarations)
@@ -50,7 +48,7 @@ func main() IO[Unit] {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{"package bridge", "func Widget_Echo(recv any, p0 string) string", "func Widget_Count(recv any) int"} {
+	for _, want := range []string{"package bridge", "func Widget_Echo(recv any, p0 any) any", "func Widget_Count(recv any) any"} {
 		if !strings.Contains(string(generated), want) {
 			t.Errorf("missing %q in Go shim:\n%s", want, generated)
 		}
@@ -67,14 +65,6 @@ func main() IO[Unit] {
 	again, err := os.ReadFile(filepath.Join(shim, "gofx_shim_methodfixture.go"))
 	if err != nil || string(again) != string(generated) {
 		t.Fatalf("shim changed on regeneration: %v\n%s", err, again)
-	}
-	toolsWrite(t, filepath.Join(dir, "main.gfx"), `package main
-extern func newWidget(name String) Widget = "gofx/extern/testdata/methodfixture".NewWidget
-func main() IO[Unit] { println(show(widgetCount(newWidget("wrong receiver")))) }
-`)
-	out, stderr, status = toolsCommand(t, dir, "", "run", ".")
-	if status == 0 || !strings.Contains(stderr, "gofx shim: Widget_Count: receiver is <methodfixture.Widget>") {
-		t.Fatalf("wrong receiver: stdout=%q stderr=%q status=%d", out, stderr, status)
 	}
 }
 

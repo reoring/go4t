@@ -63,8 +63,8 @@ func generateInDir(prog *types.Program, goPackage, dir string) (source []byte, e
 		}
 	}()
 	g := &generator{
-		externs:    goextern.Loader{Dir: dir},
-		ctors: make(map[string]*types.Ctor), imports: make(map[string]string),
+		externs: goextern.Loader{Dir: dir},
+		ctors:   make(map[string]*types.Ctor), imports: make(map[string]string),
 		instances:  make(map[string]*types.Instance, len(prog.Instances)),
 		tuples:     make(map[int]struct{}),
 		recordPats: prog.RecordPats,
@@ -152,6 +152,9 @@ func generateInDir(prog *types.Program, goPackage, dir string) (source []byte, e
 			if c, ok := l.(*%s); ok { return c.F0, c.F1, true }
 			return nil, nil, false
 		},
+		OptionValue: %sfunc(v any) (any, bool) {
+			if s, ok := v.(*%s); ok { return s.F0, true }; return nil, false
+		},
 		Tuple2: rt_tuple2,
 		Untuple2: rt_untuple2,
 		Tuple3: rt_tuple3,
@@ -164,7 +167,8 @@ func generateInDir(prog *types.Program, goPackage, dir string) (source []byte, e
 				g.typeExprLine(ctorName(nilCtor)), ctorName(nilCtor),
 				g.typeExprLine(ctorName(some)), ctorName(some),
 				g.typeExprLine(ctorName(none)), ctorName(none),
-				g.typeExprLine(ctorName(cons)), ctorName(cons), orderingShape)
+				g.typeExprLine(ctorName(cons)), ctorName(cons),
+				g.typeExprLine(ctorName(some)), ctorName(some), orderingShape)
 		}
 	}
 	if result := prog.DataTypes["Result"]; result != nil {
@@ -183,6 +187,8 @@ func generateInDir(prog *types.Program, goPackage, dir string) (source []byte, e
 	}
 	g.ioErrorShapes(&out, prog)
 	g.jsonShapes(&out)
+	g.dynShapes(&out, prog)
+	g.foreignShapes(&out, prog)
 	for _, name := range sortedKeys(prog.Classes) {
 		class := prog.Classes[name]
 		fmt.Fprintf(&out, "type %s interface {\n", class.Name)
