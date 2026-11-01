@@ -96,38 +96,54 @@ func run(args []string) error {
 	if command == "check" {
 		return nil
 	}
-	sources, err := codegen.Generate(program, goPackage)
-	if err != nil {
-		return diagnostic(file, err)
-	}
 	if outputDir == "" {
 		outputDir = strings.TrimSuffix(file, filepath.Ext(file)) + "_gen"
 		if info, statErr := os.Stat(file); statErr == nil && info.IsDir() {
 			outputDir = filepath.Join(file, "_gen")
 		}
 	}
-	if err := os.MkdirAll(outputDir, 0o755); err != nil {
-		return diagnostic(file, err)
-	}
-	if err := emitModules(outputDir, sources); err != nil {
-		return diagnostic(file, err)
-	}
-	if command == "build" {
-		return nil
-	}
 	dir, err := filepath.Abs(outputDir)
 	if err != nil {
 		return diagnostic(file, err)
 	}
-	root, err := moduleRoot(dir)
+	outputRoot := buildModuleRoot(dir)
+	root := outputRoot
+	if command == "build" && root == "" {
+		base, err := inputDirectory(inputs)
+		if err != nil {
+			return diagnostic(file, err)
+		}
+		root = buildModuleRoot(base)
+	}
+	module, err := prepareBuildModule(root, program)
+	if err != nil {
+		return err
+	}
+	defer module.close()
+	sources, err := codegen.GenerateInDir(program, goPackage, module.dir)
 	if err != nil {
 		return diagnostic(file, err)
 	}
-	relative, err := filepath.Rel(root, dir)
+	if command == "run" && module.temporary {
+		dir = filepath.Join(module.dir, "prog")
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return diagnostic(file, err)
+	}
+	if err := emitModules(dir, sources); err != nil {
+		return diagnostic(file, err)
+	}
+	if command == "build" {
+		if outputRoot == "" {
+			printBuildModuleNote(dir)
+		}
+		return nil
+	}
+	relative, err := filepath.Rel(module.dir, dir)
 	if err != nil {
 		return diagnostic(file, err)
 	}
-	return execute(root, "./"+filepath.ToSlash(relative), file, progArgs)
+	return execute(module.dir, "./"+filepath.ToSlash(relative), file, progArgs)
 }
 
 func execute(root, source, file string, progArgs []string) error {

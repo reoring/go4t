@@ -37,8 +37,10 @@ bounded. For the combined language boundary tables see
 
 ## Worked examples
 
-Save either block as a separate `main.gfx` beneath the checkout and run
-`gofx run main.gfx` (or `go run ./cmd/gofx run main.gfx` from the root).
+Save either block as a separate `main.gfx` anywhere and run `gofx run main.gfx`.
+The installed CLI embeds the runtime and needs only Go on PATH; no application
+`go.mod` is needed for these examples. From the checkout root, you can also use
+`go run ./cmd/gofx run /path/to/main.gfx`.
 
 ```gofx
 package main

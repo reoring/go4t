@@ -193,7 +193,7 @@ func testHarness(files []*ast.File) (*ast.File, error) {
 		runner += "_"
 	}
 	var source strings.Builder
-	fmt.Fprintf(&source, "package main\nimport \"std/io\"\nextern func %s(name String, action func() IO[Bool]) IO[Bool] = %q.Run\n", runner, "gofx/cmd/gofx/testrt")
+	fmt.Fprintf(&source, "package main\nimport \"std/io\"\nextern func %s(name String, action func() IO[Bool]) IO[Bool] = %q.Run\n", runner, "gofx/rt/testrt")
 	source.WriteString("func main() IO[Unit] { do {\n")
 	for i, test := range tests {
 		action := test.Name + "()"
@@ -226,29 +226,28 @@ func isIOBool(typ ast.Type) bool {
 	return ok && t.Name == "IO" && len(t.Args) == 1 && isType(t.Args[0], "Bool")
 }
 
-// Test/eval artifacts never replace a program's ordinary build output. The
-// input's module (or the current module for standalone eval) resolves externs.
+// Test/eval artifacts never replace a program's ordinary build output. A usable
+// input module resolves externs; otherwise the compiler supplies its own runtime.
 func runTemporary(program *types.Program, inputs []string, file string) error {
-	sources, err := codegen.Generate(program, "main")
+	base, err := inputDirectory(inputs)
 	if err != nil {
 		return diagnostic(file, err)
 	}
-	base := "."
-	if len(inputs) != 0 {
-		base = inputs[0]
-		if info, statErr := os.Stat(base); statErr != nil || !info.IsDir() {
-			base = filepath.Dir(base)
-		}
+	module, err := prepareBuildModule(buildModuleRoot(base), program)
+	if err != nil {
+		return err
 	}
-	base, err = filepath.Abs(base)
+	defer module.close()
+	sources, err := codegen.GenerateInDir(program, "main", module.dir)
 	if err != nil {
 		return diagnostic(file, err)
 	}
-	root, err := moduleRoot(base)
-	if err != nil {
-		return diagnostic(file, err)
+	dir := filepath.Join(module.dir, "prog")
+	if module.temporary {
+		err = os.Mkdir(dir, 0o755)
+	} else {
+		dir, err = os.MkdirTemp(module.dir, ".gofx-source-")
 	}
-	dir, err := os.MkdirTemp(root, ".gofx-source-")
 	if err != nil {
 		return diagnostic(file, err)
 	}
@@ -256,5 +255,5 @@ func runTemporary(program *types.Program, inputs []string, file string) error {
 	if err := emitModules(dir, sources); err != nil {
 		return diagnostic(file, err)
 	}
-	return execute(root, "./"+filepath.Base(dir), file, nil)
+	return execute(module.dir, "./"+filepath.Base(dir), file, nil)
 }

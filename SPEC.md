@@ -863,6 +863,11 @@ are rejected. Runtime shapes bridge the single generated List/Option/Result,
 Ordering, tuple and loaded Json representations; missing shape registration is a
 runtime programming error, not a source-language fallback.
 
+`codegen.Generate(program, package)` resolves externs in the current working
+directory. `codegen.GenerateInDir(program, package, dir)` uses `dir` as the Go
+module context for extern inspection; an empty `dir` preserves the current-directory
+behavior. Both emit the same per-module Go source map.
+
 Stable `list.sortBy` uses array-backed stable sorting, O(n log n) comparisons
 and linear conversion space; the old quadratic `insertBy` helper is removed.
 `sortOn` computes each key once; `nub` remains worst-case quadratic.
@@ -887,12 +892,14 @@ gofx lsp
   instead of Go main. NAME must be a valid non-keyword Go identifier other than
   `_` or `main`. Flags can precede/follow inputs. Rewrites remove obsolete
   compiler-generated Go files but preserve unrelated output-directory files.
+  Outside a Go module resolving `gofx`, it still emits sources and prints a note
+  explaining how to compile them with `require gofx v0.0.0` and a local
+  `replace gofx => /absolute/path/to/gofx`.
 - `run` emits, builds and executes the whole package, inheriting stdin/stdout/
-  stderr and forwarding arguments only after `--`. Its generated sources remain;
-  the executable is temporary. A Go module above generated/input paths must
-  resolve `gofx/rt` and extern imports; installation alone does not configure
-  arbitrary application directories. Use the checkout or a Go module with a
-  `require`/`replace` for the checkout.
+  stderr and forwarding arguments only after `--`. In a Go module resolving
+  `gofx`, its generated sources remain and the executable is temporary. Outside
+  such a module, all generated sources and the executable are temporary: it
+  does not create `<file>_gen` or `<DIR>/_gen` beside the input.
 - `test` replaces user main **before checking**. It discovers non-extern,
   monomorphic top-level functions whose names start `test` with a nonempty
   suffix, no value parameters, and explicit `Bool` or `IO[Bool]` return syntax.
@@ -908,10 +915,34 @@ gofx lsp
   results: Unit has no Show. Test/eval use temporary generated directories and
   do not replace ordinary build output. Source labels are `<test>` / `<eval>`.
 
+For `run`, `test`, and `eval`, the nearest ancestor `go.mod` of the generated/input
+directory (the working directory for standalone eval) is used when
+`go list -m gofx` succeeds there. Otherwise the CLI creates a temporary `gofxrun`
+module with `require gofx v0.0.0` and `replace gofx => ./gofx`, extracts its embedded
+`rt/` Go source tree (including runtime subpackages) into `gofx/`, and writes a
+minimal `module gofx` file with the distribution's Go version. It inspects externs
+in this temporary module, emits sources into `prog/`, builds the whole package,
+and cleans the module and executable on success or failure. The installed binary
+needs only a Go toolchain on PATH, not a checkout, module cache entry, source-path
+hint, or environment override. `build` preserves its requested source output
+directory. For extern inspection it uses that directory's usable Go module,
+then the input's usable module if the output is outside one, then the embedded
+runtime as above; writing sources outside a module does not discard an input
+module's foreign dependencies.
+
+The standalone fallback supports externs only from `gofx/rt` and its subpackages.
+Other extern packages require an application Go module resolving both the package
+and `gofx`; otherwise the diagnostic is
+`extern "<pkg>" requires a Go module: run inside a directory with go.mod that provides it`.
+The temporary module never copies unrelated application dependencies or downloads
+third-party packages.
+
 ### 8.3 Externs and bind
 
 Foreign packages are inspected once per compilation using `go list` export data
-and Go's parser/type importer in the module/build-constraint/toolchain context.
+and Go's parser/type importer in the module/build-constraint/toolchain context
+selected by `GenerateInDir` (§8.1); standalone CLI execution uses its extracted
+runtime module (§8.2).
 Each exported package-level function gets an adapter; methods, generics and
 variadic functions are not extern targets.
 

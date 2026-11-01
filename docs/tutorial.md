@@ -1,10 +1,12 @@
 # gofx for Go developers
 
 Start from the repository checkout with Go 1.22 or newer. `go install ./cmd/gofx`
-installs the CLI; add Go's bin directory to PATH. Alternatively replace `gofx` in
-commands below with `go run ./cmd/gofx`. Keep saved programs **beneath this checkout**
-so generated Go can resolve `gofx/rt`; an independent app needs its own Go module
-requiring/replacing this checkout. `gofx.mod` controls gofx imports, not Go dependencies.
+installs the CLI; add Go's bin directory to PATH. The installed binary embeds its
+runtime, so saved programs can live anywhere: `run`, `test`, and `eval` create a
+temporary Go module when needed and clean it afterward. Keep the Go toolchain on
+PATH. Alternatively use `go run ./cmd/gofx` from the checkout root. Externs outside
+`gofx/rt` and its subpackages need an application Go module providing those packages
+and `gofx`. `gofx.mod` controls gofx imports, not Go dependencies.
 
 Every `gofx` block below is a complete checkable example, alone or with the files
 in its named group. For ordinary blocks, save as `lesson.gfx` and run

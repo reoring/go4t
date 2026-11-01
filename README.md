@@ -16,10 +16,14 @@ go install ./cmd/gofx
 gofx eval '1 + 2'
 ```
 
-The last command prints `3`. No third-party Go dependencies are needed. Without
-installing, use `go run ./cmd/gofx` instead of `gofx` in every command here.
+The last command prints `3`. The installed binary embeds the runtime Go sources,
+so `gofx run hello.gfx`, `gofx test hello.gfx`, and `gofx eval '1 + 2'` work from
+any directory, even without a `go.mod` or a copy of this checkout. Only the Go
+toolchain must remain on PATH; no third-party Go dependencies are needed.
+Without installing, use `go run ./cmd/gofx` from the checkout root instead of
+`gofx` in the commands below.
 
-Create `hello/main.gfx` beneath the checkout with this complete program:
+Create `hello/main.gfx` anywhere with this complete program:
 
 ```gofx
 package main
@@ -39,10 +43,18 @@ gofx build hello/main.gfx
 ```
 
 `build` emits **Go source**, not a binary. `run` compiles and executes that
-package, leaving generated sources but cleaning its temporary executable.
-Generated programs import `gofx/rt`: use this checkout or configure your own Go
-module with `require gofx` and a local `replace gofx => /absolute/path/to/gofx`.
-A `gofx.mod` file controls language import roots, not Go dependencies.
+package. If the surrounding Go module resolves `gofx` (`go list -m gofx` succeeds),
+it retains the generated sources there as before. Otherwise, `run`, `test`, and
+`eval` use an automatically cleaned temporary module containing the embedded
+runtime; they do not leave `_gen` directories beside your source.
+
+`build` still writes `<file>_gen` (or the directory selected by `-o`/`--emit-go`).
+Outside a usable Go module it prints a compilation note: to compile those sources
+yourself, configure a module with `require gofx v0.0.0` and
+`replace gofx => /absolute/path/to/gofx`, then run `go build` in the generated
+directory. Externs outside `gofx/rt` and its subpackages require a real application
+Go module providing those packages and `gofx`. A `gofx.mod` file controls language
+import roots, not Go dependencies.
 
 ## CLI overview
 
