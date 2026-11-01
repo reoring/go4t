@@ -194,6 +194,11 @@ type IntLit struct {
 	Value int64
 }
 
+type FloatLit struct {
+	ExprBase
+	Value float64
+}
+
 type StringLit struct {
 	ExprBase
 	Value string

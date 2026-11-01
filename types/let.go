@@ -79,7 +79,7 @@ func replaceMetaList(ts []Type, sub map[*TMeta]Type) []Type {
 // effect. Constructor arguments and literal elements obey the same restriction.
 func (b *bodyChecker) generalizable(e ast.Expr) bool {
 	switch e := e.(type) {
-	case *ast.Lambda, *ast.IntLit, *ast.StringLit, *ast.BoolLit:
+	case *ast.Lambda, *ast.IntLit, *ast.FloatLit, *ast.StringLit, *ast.BoolLit:
 		return true
 	case *ast.Ident:
 		return AnnOf(e).Ref == RefCtor
@@ -167,9 +167,9 @@ func (b *bodyChecker) generalize(typ Type, env *locals, start int, pos ast.Pos) 
 			visitMetas(t, mark)
 		}
 	}
-	// Addition dispatches statically, not via a type-class dictionary. Keep
-	// its operand metas monomorphic so later context can select Int/String.
-	for _, expr := range b.additions {
+	// Arithmetic dispatches statically, not via a type-class dictionary. Keep
+	// its operand metas monomorphic so later context can select Int/Float/String.
+	for _, expr := range b.arithmetic {
 		visitMetas(AnnOf(expr).Type, mark)
 	}
 	var metas []*TMeta

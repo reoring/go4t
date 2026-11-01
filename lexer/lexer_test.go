@@ -32,6 +32,7 @@ func TestLayoutMatrix(t *testing.T) {
 	}{
 		{"identifier", "name", "name", true},
 		{"int", "123", "123", true},
+		{"float", "1.5", "1.5", true},
 		{"string", `"text"`, "text", true},
 		{"interpolation", `"${x}"`, `"${x}"`, true},
 		{"true", "true", "true", true},
@@ -261,7 +262,6 @@ func TestTupleAccessTokens(t *testing.T) {
 		{"p.0", []string{"p", ".", "0"}, []lexer.Kind{lexer.Ident, lexer.Punct, lexer.Int}},
 		{"p.0.1", []string{"p", ".", "0", ".", "1"}, []lexer.Kind{lexer.Ident, lexer.Punct, lexer.Int, lexer.Punct, lexer.Int}},
 		{"p.0.name", []string{"p", ".", "0", ".", "name"}, []lexer.Kind{lexer.Ident, lexer.Punct, lexer.Int, lexer.Punct, lexer.Ident}},
-		{"0.1", []string{"0", ".", "1"}, []lexer.Kind{lexer.Int, lexer.Punct, lexer.Int}},
 	} {
 		t.Run(tc.src, func(t *testing.T) {
 			got := tokens(t, tc.src)

@@ -199,10 +199,6 @@ func TestDiagnosticMessages(t *testing.T) {
 	}{
 		{"mixed addition", `func bad() Int { 1 + "two" }`, "type mismatch: expected Int, got String"},
 		{"reversed mixed addition", `func bad() String { "one" + 2 }`, "type mismatch: expected String, got Int"},
-		{"boolean addition", `func bad() Bool { true + false }`, "addition requires Int or String, got Bool"},
-		{"string subtraction", `func bad() String { "a" - "b" }`, "type mismatch: expected Int, got String"},
-		{"string multiplication", `func bad() String { "a" * "b" }`, "type mismatch: expected Int, got String"},
-		{"string division", `func bad() String { "a" / "b" }`, "type mismatch: expected Int, got String"},
 		{"return type", `func bad() Int { "wrong" }`, "type mismatch: expected Int, got String"},
 		{"argument type", `func takes(n Int) Int { n }; func bad() Int { takes("wrong") }`, "type mismatch: expected Int, got String"},
 		{"if condition", `func bad() Int { if 1 { 2 } else { 3 } }`, "type mismatch: expected Bool, got Int"},

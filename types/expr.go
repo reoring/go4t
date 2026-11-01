@@ -43,7 +43,7 @@ type bodyChecker struct {
 	types       map[string]Type
 	exprs       []ast.Expr
 	obligations []obligation
-	additions   []*ast.Binary
+	arithmetic  []ast.Expr
 	patterns    []patternCheck
 	matches     []*ast.Match
 	lets        []*localScheme
@@ -160,6 +160,8 @@ func (b *bodyChecker) inferExpected(e ast.Expr, env *locals, expected Type) Type
 	switch e := e.(type) {
 	case *ast.IntLit:
 		result = Int
+	case *ast.FloatLit:
+		result = Float
 	case *ast.StringLit:
 		result = String
 	case *ast.Interp:
@@ -295,7 +297,8 @@ func (b *bodyChecker) inferExpected(e ast.Expr, env *locals, expected Type) Type
 		arg := b.infer(e.X, env)
 		switch e.Op {
 		case "-":
-			result = Int
+			b.arithmetic = append(b.arithmetic, e)
+			result = arg
 		case "!":
 			result = Bool
 		default:
@@ -305,11 +308,11 @@ func (b *bodyChecker) inferExpected(e ast.Expr, env *locals, expected Type) Type
 	case *ast.Binary:
 		left, right := b.infer(e.L, env), b.infer(e.R, env)
 		switch e.Op {
-		case "+":
+		case "+", "-", "*", "/":
 			unify(e.R.GetPos(), left, right)
-			b.additions = append(b.additions, e)
+			b.arithmetic = append(b.arithmetic, e)
 			result = left
-		case "-", "*", "/", "%":
+		case "%":
 			unify(e.L.GetPos(), Int, left)
 			unify(e.R.GetPos(), Int, right)
 			result = Int

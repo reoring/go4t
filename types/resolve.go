@@ -10,15 +10,24 @@ import (
 func (b *bodyChecker) finish() {
 	warningsStart := len(b.c.program.Warnings)
 	b.finishLets()
-	// Defer + validation so arguments and return context can resolve its type.
-	// Otherwise unconstrained addition keeps the original Int default.
-	for _, expr := range b.additions {
+	// Defer arithmetic validation so arguments and return context select its
+	// concrete type. Unconstrained arithmetic keeps the original Int default.
+	for _, expr := range b.arithmetic {
 		typ := prune(AnnOf(expr).Type)
 		if _, ok := typ.(*TMeta); ok {
 			unify(expr.GetPos(), Int, typ)
-		} else if typ != Int && typ != String {
-			fail(expr.GetPos(), "addition requires Int or String, got %s", TypeString(typ))
+			continue
 		}
+		if typ == Int || typ == Float {
+			continue
+		}
+		if binary, ok := expr.(*ast.Binary); ok && binary.Op == "+" {
+			if typ == String {
+				continue
+			}
+			fail(expr.GetPos(), "addition requires Int, Float or String, got %s", TypeString(typ))
+		}
+		fail(expr.GetPos(), "arithmetic requires Int or Float, got %s", TypeString(typ))
 	}
 	// Explicit class uses must resolve before defaulting. Operator obligations
 	// alone retain ordinary Unit defaulting, then resolve Eq/Ord for that type.

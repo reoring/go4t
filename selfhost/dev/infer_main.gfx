@@ -120,6 +120,7 @@ func infDevAdvanced(env Env) IO[Unit] {
   let inspectInst = infDevInst("Inspect", "Int", Nil, Nil)
   let inspectEnv = env{classes: mapInsert(env.classes, "Inspect", inspectClass), methods: mapInsert(env.methods, "inspect", inspectMethod), instances: mapInsert(env.instances, instanceKey("Inspect", "Int"), inspectInst)}
   let inspectBody = InstMethod{pos: p, name: "inspect", params: ["x", "b"], body: Block{pos: p, stmts: Nil, result: infDevCall("show", [infDevId("b")])}}
+  let tupleBody = InstMethod{pos: p, name: "show", params: ["pair"], body: Block{pos: p, stmts: Nil, result: EMatch(p, infDevId("pair"), [Arm{pos: p, pat: PTuple(p, [PVar(p, "x"), PVar(p, "y")]), guard: None, body: EBinary(p, "+", infDevCall("show", [infDevId("x")]), infDevCall("show", [infDevId("y")]))}])}}
   do {
     forEach([("nested-constrained-let", tString(), nested), ("strongest-superclass", tBool(), stronger), ("deferred-string-addition", tString(), staticPlus), ("record-pattern", tInt(), recordPat), ("lambda-pattern", tInt(), lambdaPat)], func(item) => infDevRun(env, item))
     infDevAction(env, "annotated-monomorphic-let", inferFuncBody(infDevFunc("value", monoScheme(TFunc(Nil, tInt())), Nil, mono)), Some("type mismatch: expected Int, got String"))
@@ -129,6 +130,7 @@ func infDevAdvanced(env Env) IO[Unit] {
     infDevAction(env, "unannotated-field", inferFuncBody(infDevFunc("value", monoScheme(TFunc(Nil, tInt())), Nil, ECall(p, ELambda(p, [PName("x", None)], EField(p, infDevId("x"), "x")), [point]))), Some("cannot infer record type of x.x; annotate"))
     infDevRun(inspectEnv, ("method-own-dictionary", tString(), infDevCall("inspect", [infDevInt(1), infDevStr("own")])))
     infDevAction(inspectEnv, "instance-own-dictionary", inferInstanceMethod(inspectInst, inspectMethod, inspectBody), None)
+    infDevAction(env, "tuple-instance-kind", inferInstanceMethod(infDevInst("Show", "Tuple2", ["A", "B"], [("Show", "A"), ("Show", "B")]), showMethod, tupleBody), None)
   }
 }
 func main() IO[Unit] {
@@ -136,6 +138,6 @@ func main() IO[Unit] {
   do {
     forEach(infDevCases(), func(item) => infDevRun(env, item))
     infDevAdvanced(env)
-    println("PASS: 34 inference cases")
+    println("PASS: 35 inference cases")
   }
 }

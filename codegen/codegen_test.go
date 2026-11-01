@@ -1251,10 +1251,11 @@ func (fakeImporter) Import(path string) (*gotypes.Package, error) {
 	switch path {
 	case "gofx/rt":
 		funcs = map[string]int{"RunMain": 1, "UnitValue": 0, "ShowInt": 1, "Concat": 1, "MinInt": 0, "MaxInt": 0}
-		for _, name := range strings.Fields("AddInt AddString SubInt MulInt DivInt EqInt LtInt EqString LtString EqBool") {
+		for _, name := range strings.Fields("AddInt AddString SubInt MulInt DivInt EqInt LtInt EqString LtString EqBool AddFloat SubFloat MulFloat DivFloat EqFloat LtFloat ShowFloatFixed") {
 			funcs[name] = 2
 		}
 		funcs["NegInt"], funcs["Not"] = 1, 1
+		funcs["NegFloat"], funcs["ShowFloat"] = 1, 1
 	case "example/foreign":
 		funcs = map[string]int{"Echo": 1}
 	default:
