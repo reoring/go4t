@@ -10,6 +10,8 @@ extern func abs(n Int) Int = "gofx/rt".AbsInt
 
 extern func showFloat(f Float) String = "gofx/rt".ShowFloat
 
+extern func debugFloat(f Float) String = "gofx/rt".DebugFloat
+
 extern func eqFloat(a Float, b Float) Bool = "gofx/rt".EqFloat
 
 extern func ltFloat(a Float, b Float) Bool = "gofx/rt".LtFloat
@@ -48,7 +50,7 @@ instance Show[Float] {
 
 instance Debug[Float] {
   debug(a) {
-    show(a)
+    debugFloat(a)
   }
 }
 

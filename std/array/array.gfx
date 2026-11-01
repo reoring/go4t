@@ -30,6 +30,12 @@ instance Show[Array[A]] given Show[A] {
   }
 }
 
+instance Debug[Array[A]] given Debug[A] {
+  debug(a) {
+    "#[" + string.join(", ", map(arrayToList(a), func(v) => debug(v))) + "]"
+  }
+}
+
 instance Eq[Array[A]] given Eq[A] {
   eq(a, b) {
     eq(arrayToList(a), arrayToList(b))

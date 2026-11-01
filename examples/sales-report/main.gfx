@@ -42,7 +42,7 @@ func fetchRates() IO[Map[Currency, Float]] {
       }
     })
     let live = fetched
-      |> list.concatMap(func(o) => result.maybe(o, [], func(p) => [p]))
+      |> list.catOptions
       |> map.mapFromList
     ioPure(map.mapUnion(live, fallback))
   }
@@ -108,7 +108,7 @@ func main() IO[Unit] {
     t0 <- io.monotonicMillis()
     rates <- fetchRates()
     t1 <- io.monotonicMillis()
-    println("rates (${t1 - t0}ms): ${debug(map.mapToList(rates))}")
+    println("rates (${t1 - t0}ms): ${debug(rates)}")
     println("${length(sales)} sales loaded from ${path}")
     println(table("by product", summarize(rates, sales, func(s) => s.product)))
     println(table("by region", summarize(rates, sales, func(s) => s.region)))

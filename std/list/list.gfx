@@ -164,6 +164,20 @@ func concatMap[A, B](xs List[A], f func(A) List[B]) List[B] {
   prelude.bind(xs, f)
 }
 
+func catOptions[A](xs List[Option[A]]) List[A] {
+  mapMaybe(xs, func(o) => o)
+}
+
+func mapMaybe[A, B](xs List[A], f func(A) Option[B]) List[B] {
+  match xs {
+    Nil => Nil
+    | Cons(x, rest) => match f(x) {
+      None => mapMaybe(rest, f)
+      Some(y) => Cons(y, mapMaybe(rest, f))
+    }
+  }
+}
+
 func elem[A Eq](x A, xs List[A]) Bool {
   match xs {
     Nil => false

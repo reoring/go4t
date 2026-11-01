@@ -562,7 +562,7 @@ class Ord[A] : Eq[A] { compare(a A, b A) Ordering }
 | Module | Contents (only §2.3's fixed names are implicit) |
 | --- | --- |
 | `std/prelude` | Classes above; Ordering/Option and primitive/pair/Option instances; core combinators |
-| `std/list` | List/instances; folds, traversal, searching, slicing, sorting, accumulator helpers |
+| `std/list` | List/instances; folds, traversal, searching, slicing, sorting, `catOptions`, `mapMaybe`, accumulator helpers |
 | `std/result` | Result/instances; Result and Option helpers; liftResult |
 | `std/io` | IO instances, console, arguments/environment, files, clocks, randomInt, randomFloat, sleep, tryIO |
 | `std/float` | Float instances, conversions/math/formatting; minInt/maxInt/abs |
@@ -579,8 +579,13 @@ Array and Map[K] have Functor. Option/List have Foldable/Traversable. Show/Eq/Or
 cover Int, Float, String, Bool, Ordering, Option, List, Result and pairs with
 component constraints. Unit has Eq and Debug, **not Show or Ord**. Debug covers
 Int/Float/String/Bool/Unit, Ordering/Option/List/Result and pairs. Map/Set/Array
-have Show/Eq, not automatic Ord/Debug/Foldable; Fiber has no standard class
+have Show/Eq/Debug, not automatic Ord/Foldable; Fiber has no standard class
 instances. The complete explicit and derived inventory is in `docs/stdlib.md`.
+
+Float Show follows Go's `fmt.Println`: shortest `g` formatting, so `show(1.0)`
+is `"1"`. Debug is structural: it appends `.0` to finite integral forms without
+a decimal point or exponent, so `debug(1.0)` is `"1.0"` and remains distinct
+from Int. Exponents and NaN/infinities are retained unchanged.
 
 ### 7.2 Deriving rules
 
@@ -914,6 +919,7 @@ including exported low-level helpers and private JSON helpers.
 | Float to Int | truncate/floor/ceil/round use Go conversion after rounding; NaN/infinite/out-of-range results are implementation-dependent, not saturated |
 | Float parsing | Go ParseFloat string grammar (broader than source literals, including hex and `.5`); whitespace not trimmed; syntax/range error → None; valid NaN/infinity → Some |
 | Float display | Shortest `g` form, including NaN/+Inf/-Inf; fixed decimal formatting is ties-to-even, preserves zeros; negative precision means shortest fixed form |
+| Float Debug | `strconv.FormatFloat(f, 'g', -1, 64)` plus `.0` when the result contains none of `.`, `e`, `NaN`, `Inf`; `0.0`, `-2.0`, `NaN`, `+Inf`, `-Inf`, `1e+21`, `1e-07` retain their structural forms |
 | powInt | 0^0 = 1; multiplication wraps; negative exponent gives 1 for base 1, parity-dependent ±1 for -1, otherwise 0 (including base 0) |
 | sqrt / absFloat / min / max | Negative finite sqrt → NaN; absFloat(-0) → +0; min/max ties retain first argument |
 | Alias arity/cycle | Exact application required; `arity mismatch for alias Pair: want 1 arguments, got 0`; `type alias cycle involving Loop` |
@@ -939,6 +945,8 @@ and the explicitly imported class methods in `std/prelude`.
 | `Ord[List[A]].compare` | Empty precedes nonempty; lexicographic element comparison; equal shared prefixes compare by length. |
 | `map` / `fmap` on List | `Nil → Nil`, callback not called; `[x] → [f(x)]`. |
 | `flatMap` / `bind` / `concatMap` on List | `Nil → Nil`, callback not called; singleton returns `f(x)`; empty produced lists contribute no elements. `pure(x)` for List is `[x]`. |
+| `catOptions` | Keep Some payloads in input order, discard None; empty/all-None → Nil; singleton Some(x) → [x]. |
+| `mapMaybe` | Apply the callback exactly once per element, left-to-right; keep Some payloads in order, discard None; Nil → Nil without calling the callback. |
 | `forEach` | `Nil → pure(unit())`, callback not called; singleton sequences one action; short-circuits according to the chosen Monad. |
 | `mapM` | `Nil → pure(Nil)`, callback not called; singleton maps one action and wraps its value in a singleton list; preserves order. |
 | `fold` | `fold(Nil, init, f) = init`; singleton is `f(init, x)`; left-to-right fold. |
@@ -1061,7 +1069,8 @@ and path-copying space, sizes are cached O(1), traversals O(n). The Ord comparat
 must define one consistent total ordering: EQ identifies a single key/element.
 `By` helpers have an explicit comparator and must use the same ordering throughout
 a tree's lifetime. Building ordered collections requires Ord, not Go hashing;
-Show/Eq of existing collections require only their component Show/Eq dictionaries.
+Show/Eq/Debug of existing collections require only their component dictionaries,
+not Ord.
 
 | Operation | Semantics |
 | --- | --- |
@@ -1081,6 +1090,7 @@ Show/Eq of existing collections require only their component Show/Eq dictionarie
 | `mapMap` | Map values in ascending-key order without needing `Ord`; keep keys and tree shape. |
 | `mapFold` | Left fold in ascending-key order; an empty map returns `init`. |
 | `groupBy` | Group under ascending keys, preserving input order within every group. |
+| `Debug[Map[K, V]]` | `{k: v, k2: v2}` using Debug[K]/Debug[V] in ascending key order; empty `{}`; no Show/Ord required. |
 
 | Operation | Semantics |
 | --- | --- |
@@ -1094,6 +1104,7 @@ Show/Eq of existing collections require only their component Show/Eq dictionarie
 | `setUnion` | Elements in either set, retaining the left representative on overlap. |
 | `setIntersection` | Left elements also present in the right set. |
 | `setDifference` | Left elements absent from the right set. |
+| `Debug[Set[A]]` | `#{a, b}` using Debug[A] in ascending element order; empty `#{}`; no Show/Ord required. |
 
 | Operation | Semantics |
 | --- | --- |
@@ -1107,6 +1118,7 @@ Show/Eq of existing collections require only their component Show/Eq dictionarie
 | `arrayPush` | Copy and append one element. |
 | `arraySlice` | Half-open `[start, end)`; clamp both bounds to `[0, length]`; reversed/empty intervals yield an empty array. |
 | `arraySortBy` | Stable sort of a copy using `Ordering`; never modify the input. |
+| `Debug[Array[A]]` | `#[a, b]` using Debug[A] in index order; empty `#[]`; no Show required. |
 
 Map Show is `{k: v}`, Set Show `#{a, b}`, Array Show `#[a, b]` (empty `{}`, `#{}`,
 `#[]`). Eq compares ordered lists/pairs or index-order elements; Functor maps Array

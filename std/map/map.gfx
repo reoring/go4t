@@ -80,6 +80,12 @@ instance Show[Map[K, V]] given Show[K], Show[V] {
   }
 }
 
+instance Debug[Map[K, V]] given Debug[K], Debug[V] {
+  debug(m) {
+    "{" + string.join(", ", map(mapToList(m), func((k, v)) => debug(k) + ": " + debug(v))) + "}"
+  }
+}
+
 instance Eq[Map[K, V]] given Eq[K], Eq[V] {
   eq(a, b) {
     eq(mapToList(a), mapToList(b))

@@ -63,7 +63,7 @@ func main() IO[Unit] {
 
 ## `std/array`
 
-Source: [`array/array.gfx`](../std/array/array.gfx). 13 top-level declarations.
+Source: [`array/array.gfx`](../std/array/array.gfx). 14 top-level declarations.
 
 | Source signature | Semantics | Boundary behaviour |
 | --- | --- | --- |
@@ -78,6 +78,7 @@ Source: [`array/array.gfx`](../std/array/array.gfx). 13 top-level declarations.
 | `extern func arraySlice[A](a Array[A], start Int, end Int) Array[A] = "gofx/rt".ArraySlice` | Half-open `[start, end)`; clamp both bounds to `[0, length]`; reversed/empty intervals yield an empty array. | Half-open `[start, end)`; clamp both bounds to `[0, length]`; reversed/empty intervals yield an empty array. |
 | `extern func arraySortBy[A](a Array[A], cmp func(A, A) Ordering) Array[A] = "gofx/rt".ArraySortBy` | Stable sort of a copy using `Ordering`; never modify the input. | Stable sort of a copy using `Ordering`; never modify the input. |
 | `instance Show[Array[A]] given Show[A]` | Display as #[a, b], using field Show where applicable. | Empty #[]; index order. |
+| `instance Debug[Array[A]] given Debug[A]` | Structural rendering as #[a, b] using element Debug. | Empty #[]; index order; strings quoted; no Show required. |
 | `instance Eq[Array[A]] given Eq[A]` | Compare Array values for equality. | Index-order element equality; empty arrays equal. |
 | `instance Functor[Array]` | Map Array's element/result while retaining shape. | Empty unchanged, callback in index order. |
 
@@ -96,7 +97,7 @@ Source: [`conc/conc.gfx`](../std/conc/conc.gfx). 6 top-level declarations.
 
 ## `std/float`
 
-Source: [`float/float.gfx`](../std/float/float.gfx). 23 top-level declarations.
+Source: [`float/float.gfx`](../std/float/float.gfx). 24 top-level declarations.
 
 | Source signature | Semantics | Boundary behaviour |
 | --- | --- | --- |
@@ -104,6 +105,7 @@ Source: [`float/float.gfx`](../std/float/float.gfx). 23 top-level declarations.
 | `extern func maxInt() Int = "gofx/rt".MaxInt` | Return the maximum signed 64-bit Int. | Exactly 9223372036854775807. |
 | `extern func abs(n Int) Int = "gofx/rt".AbsInt` | Return the wrapping integer absolute value. | abs(minInt()) = minInt(), not a saturating positive value. |
 | `extern func showFloat(f Float) String = "gofx/rt".ShowFloat` | Render Float with Go's shortest round-trippable g format. | NaN, +Inf, -Inf printed literally; integral Float need not have a decimal point. |
+| `extern func debugFloat(f Float) String = "gofx/rt".DebugFloat` | Structural Float rendering via `strconv.FormatFloat(f, 'g', -1, 64)`. | Append .0 only when the result contains none of `.`, `e`, `NaN`, `Inf`; exponents and nonfinite forms unchanged. |
 | `extern func eqFloat(a Float, b Float) Bool = "gofx/rt".EqFloat` | IEEE binary64 equality. | NaN unequal to itself; positive/negative zero equal. |
 | `extern func ltFloat(a Float, b Float) Bool = "gofx/rt".LtFloat` | Strict numeric order with NaN below every non-NaN. | Two NaNs not less than each other; NaN < negative infinity; signed zeros equivalent. |
 | `extern func toFloat(n Int) Float = "gofx/rt".ToFloat` | Convert signed int64 to float64; large integers may round. | Integers beyond binary64 precision may round. |
@@ -119,8 +121,8 @@ Source: [`float/float.gfx`](../std/float/float.gfx). 23 top-level declarations.
 | `extern func absFloat(f Float) Float = "gofx/rt".AbsFloat` | Go `math.Abs`, including converting negative zero to positive zero. | Negative zero becomes positive zero; NaN remains NaN. |
 | `extern func nan() Float = "gofx/rt".Nan` | Produce an IEEE NaN. | Always an IEEE NaN, unequal to itself under Eq. |
 | `extern func isNaN(f Float) Bool = "gofx/rt".IsNaN` | True exactly for IEEE NaN values. | False for infinities and ordinary numbers. |
-| `instance Show[Float]` | Display as shortest g format, using field Show where applicable. | NaN, +Inf, -Inf printed literally; integral Float need not have a decimal point. |
-| `instance Debug[Float]` | Structural rendering of Float. | NaN, +Inf, -Inf printed literally; integral Float need not have a decimal point. |
+| `instance Show[Float]` | Display as shortest g format, following Go's fmt.Println. | NaN, +Inf, -Inf printed literally; show(1.0) is 1. |
+| `instance Debug[Float]` | Structural rendering distinguishes Float from Int, unlike user-facing Show. | debug(1.0) is 1.0, debug(1.5) is 1.5; NaN, +Inf, -Inf and exponents unchanged. |
 | `instance Eq[Float]` | Compare Float values for equality. | NaN unequal to itself; positive/negative zero equal. |
 | `instance Ord[Float]` | Compare Float values with Ordering. | NaN lowest; two NaNs compare EQ; signed zeros EQ. |
 
@@ -220,7 +222,7 @@ Source: [`lazy/lazy.gfx`](../std/lazy/lazy.gfx). 3 top-level declarations.
 
 ## `std/list`
 
-Source: [`list/list.gfx`](../std/list/list.gfx). 65 top-level declarations.
+Source: [`list/list.gfx`](../std/list/list.gfx). 67 top-level declarations.
 
 Accumulator helpers are exported because their names do not begin `_`; prefer the ordinary entrypoints unless deliberately supplying a reversed prefix. `sortBy` is stable array-backed sorting; no `insertBy` remains.
 
@@ -249,6 +251,8 @@ Accumulator helpers are exported because their names do not begin `_`; prefer th
 | `func drop[A](n Int, xs List[A]) List[A]` | Return the suffix after at most n leading elements. | `drop(n <= 0, xs) = xs`; empty input stays empty; `drop(n >= length(xs), xs) = Nil`. |
 | `func sum(xs List[Int]) Int` | Sum Int elements with wrapping addition. | `sum(Nil) = 0`; singleton is its element; signed Int overflow wraps. |
 | `func concatMap[A, B](xs List[A], f func(A) List[B]) List[B]` | Map each element to a list and concatenate in order. | `Nil → Nil`, callback not called; singleton returns `f(x)`; empty produced lists contribute no elements. `pure(x)` for List is `[x]`. |
+| `func catOptions[A](xs List[Option[A]]) List[A]` | Keep Some payloads in input order, discarding None. | Empty/all-None → Nil; singleton Some(x) → [x]; duplicates retained. |
+| `func mapMaybe[A, B](xs List[A], f func(A) Option[B]) List[B]` | Apply f once per element left-to-right, keeping Some payloads and discarding None. | Empty → Nil without callback; all-None → Nil; retained values preserve input order. |
 | `func elem[A Eq](x A, xs List[A]) Bool` | Test membership with the element's Eq instance. | Empty gives false; singleton compares with `Eq`; stops at the first match. |
 | `func sortBy[A](xs List[A], cmp func(A, A) Ordering) List[A]` | Stable sort using a supplied Ordering comparator and an array-backed sort. | Empty/singleton unchanged; comparator not called for these inputs; equal elements retain input order. |
 | `func sort[A Ord](xs List[A]) List[A]` | Stable ascending sort using Ord. | Same boundaries as `sortBy`; uses the element's `Ord.compare`. |
@@ -302,7 +306,7 @@ Derived instances (expanded from the type declarations above):
 
 ## `std/map`
 
-Source: [`map/map.gfx`](../std/map/map.gfx). 25 top-level declarations.
+Source: [`map/map.gfx`](../std/map/map.gfx). 26 top-level declarations.
 
 `By` functions are exported low-level comparator APIs: use one consistent total order for every operation on a tree. Standard wrappers supply Ord.compare.
 
@@ -331,6 +335,7 @@ Source: [`map/map.gfx`](../std/map/map.gfx). 25 top-level declarations.
 | `func mapUnion[K Ord, V](a Map[K, V], b Map[K, V]) Map[K, V]` | Left-biased union; a duplicate keeps the left key/value. | Left-biased union; a duplicate keeps the left key/value. |
 | `func groupBy[K Ord, A](xs List[A], key func(A) K) Map[K, List[A]]` | Group under ascending keys, preserving input order within every group. | Group under ascending keys, preserving input order within every group. |
 | `instance Show[Map[K, V]] given Show[K], Show[V]` | Display as {k: v}, using field Show where applicable. | Empty {}; ascending keys, no Ord constraint to display. |
+| `instance Debug[Map[K, V]] given Debug[K], Debug[V]` | Structural rendering as {k: v, k2: v2} using key/value Debug. | Empty {}; ascending keys; strings quoted; no Show/Ord required. |
 | `instance Eq[Map[K, V]] given Eq[K], Eq[V]` | Compare Map values for equality. | Ascending pair-list equality; Eq[K]/Eq[V] only, no Ord required. |
 | `instance Functor[Map[K]]` | Map Map's element/result while retaining shape. | Keys unchanged, values mapped in ascending key order without Ord. |
 
@@ -448,7 +453,7 @@ Derived instances (expanded from the type declarations above):
 
 ## `std/set`
 
-Source: [`set/set.gfx`](../std/set/set.gfx). 19 top-level declarations.
+Source: [`set/set.gfx`](../std/set/set.gfx). 20 top-level declarations.
 
 `By` functions are exported low-level comparator APIs: use one consistent total order for every operation on a tree. Standard wrappers supply Ord.compare.
 
@@ -472,6 +477,7 @@ Source: [`set/set.gfx`](../std/set/set.gfx). 19 top-level declarations.
 | `func setIntersection[A Ord](a Set[A], b Set[A]) Set[A]` | Left elements also present in the right set. | Left elements also present in the right set. |
 | `func setDifference[A Ord](a Set[A], b Set[A]) Set[A]` | Left elements absent from the right set. | Left elements absent from the right set. |
 | `instance Show[Set[A]] given Show[A]` | Display as #{a, b}, using field Show where applicable. | Empty #{}; ascending elements. |
+| `instance Debug[Set[A]] given Debug[A]` | Structural rendering as #{a, b} using element Debug. | Empty #{}; ascending elements; strings quoted; no Show/Ord required. |
 | `instance Eq[Set[A]] given Eq[A]` | Compare Set values for equality. | Ascending element-list equality; Eq[A] only. |
 
 ## `std/state`
