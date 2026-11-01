@@ -1,6 +1,6 @@
 package main
-import "std/list"
 
+import "std/list"
 
 func describe(value (Bool, Int)) String {
   match value {

@@ -7,4 +7,6 @@ func value(item Option[Int]) Int {
   }
 }
 
-func main() IO[Unit] { println("unreachable") }
+func main() IO[Unit] {
+  println("unreachable")
+}

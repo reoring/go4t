@@ -1,9 +1,15 @@
 package regex
+
 import "std/list"
 
 extern func regexMatch(pattern String, s String) Bool = "gofx/rt".RegexMatch
+
 extern func regexFind(pattern String, s String) Option[String] = "gofx/rt".RegexFind
+
 extern func regexFindAll(pattern String, s String) List[String] = "gofx/rt".RegexFindAll
+
 extern func regexReplace(pattern String, s String, repl String) String = "gofx/rt".RegexReplace
+
 extern func regexSplit(pattern String, s String) List[String] = "gofx/rt".RegexSplit
+
 extern func regexCaptures(pattern String, s String) Option[List[String]] = "gofx/rt".RegexCaptures

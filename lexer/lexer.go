@@ -238,15 +238,7 @@ func (l *Lexer) next() (Token, error) {
 			continue
 		}
 		if r == '/' && l.peek(1) == '/' {
-			start := l.i
-			pos := ast.Pos{Line: l.line, Col: l.col}
-			for l.i < len(l.src) && l.peek(0) != '\n' {
-				l.advance()
-			}
-			l.Comments = append(l.Comments, ast.Comment{
-				Pos: pos, End: ast.Pos{Line: l.line, Col: l.col},
-				Text: string(l.src[start:l.i]), Trailing: l.lastEnd.Line == pos.Line,
-			})
+			l.scanComment(l.lastEnd.Line == l.line)
 			continue
 		}
 		pos := ast.Pos{Line: l.line, Col: l.col}
@@ -406,9 +398,14 @@ func (l *Lexer) scanInterpolation(pos ast.Pos) error {
 			}
 		case '/':
 			if l.peek(1) == '/' {
-				for l.i < len(l.src) && l.peek(0) != '\n' {
-					l.advance()
+				trailing := false
+				for i := l.i - 1; i >= 0 && l.src[i] != '\n'; i-- {
+					if !unicode.IsSpace(l.src[i]) {
+						trailing = true
+						break
+					}
 				}
+				l.scanComment(trailing)
 			} else {
 				l.advance()
 			}
@@ -417,6 +414,18 @@ func (l *Lexer) scanInterpolation(pos ast.Pos) error {
 		}
 	}
 	return fmt.Errorf("%s: unterminated interpolation", pos)
+}
+
+func (l *Lexer) scanComment(trailing bool) {
+	start := l.i
+	pos := ast.Pos{Line: l.line, Col: l.col}
+	for l.i < len(l.src) && l.peek(0) != '\n' {
+		l.advance()
+	}
+	l.Comments = append(l.Comments, ast.Comment{
+		Pos: pos, End: ast.Pos{Line: l.line, Col: l.col},
+		Text: string(l.src[start:l.i]), Trailing: trailing,
+	})
 }
 
 func (l *Lexer) hasPrefix(p string) bool {

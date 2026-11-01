@@ -1,0 +1,13 @@
+// Formatting keeps this comment.
+package main
+
+func twice(x Int) Int {
+  x * 2
+}
+
+func main() IO[Unit] {
+  do {
+    println(show(21 |> twice))
+    pure(unit())
+  }
+}

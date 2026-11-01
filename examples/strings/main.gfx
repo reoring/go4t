@@ -1,6 +1,6 @@
 package main
-import "std/string"
 
+import "std/string"
 
 func main() IO[Unit] {
   let pieces = string.split(",", "  red, green ,blue  ")

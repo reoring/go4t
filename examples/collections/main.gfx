@@ -1,4 +1,5 @@
 package main
+
 import "std/array"
 import "std/list"
 import collections "std/map"
@@ -6,25 +7,25 @@ import "std/result"
 import "std/set"
 import "std/string"
 
-
 type Order = Order{customer: String, item: String, quantity: Int}
 
 instance Show[Order] {
-  show(o) { o.item + " x" + show(o.quantity) }
+  show(o) {
+    o.item + " x" + show(o.quantity)
+  }
 }
 
 func wordFrequency(text String) Map[String, Int] {
-  fold(string.words(text), collections.emptyMap(), func(counts, word) =>
-    collections.mapAlter(counts, word, func(previous) => Some(result.fromOption(previous, 0) + 1)))
+  fold(string.words(text), collections.emptyMap(), func(counts, word) => collections.mapAlter(counts, word, func(previous) => Some(result.fromOption(previous, 0) + 1)))
 }
 
 func main() IO[Unit] {
   let counts = wordFrequency("red blue red green blue red")
-  let orders = [
-    Order{customer: "Bob", item: "tea", quantity: 2},
-    Order{customer: "Ada", item: "coffee", quantity: 1},
-    Order{customer: "Bob", item: "cake", quantity: 3}
-  ]
+  let orders = [Order{customer: "Bob", item: "tea", quantity: 2}, Order{
+    customer: "Ada",
+    item: "coffee",
+    quantity: 1
+  }, Order{customer: "Bob", item: "cake", quantity: 3}]
   let grouped = collections.groupBy(orders, func(order) => order.customer)
   let colors = set.setFromList(["red", "blue", "red", "green"])
   let shared = set.setIntersection(colors, set.setFromList(["blue", "yellow", "red"]))

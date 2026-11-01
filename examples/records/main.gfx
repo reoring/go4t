@@ -1,11 +1,15 @@
 package main
-import "std/prelude"
 
+import "std/prelude"
 
 type User = User{name: String, age: Int, email: Option[String]}
 
 instance Show[User] {
-  show(u) { match u { User{name: n, ..} => "${n} (${u.age}, ${u.email})" } }
+  show(u) {
+    match u {
+      User{name: n, ..} => "${n} (${u.age}, ${u.email})"
+    }
+  }
 }
 
 func contact(u User) Option[String] {
@@ -16,11 +20,11 @@ func contact(u User) Option[String] {
 }
 
 func main() IO[Unit] {
-  let users = [
-    User{name: "Ada", age: 36, email: Some("ada@example.com")},
-    User{name: "Bob", age: 28, email: None},
-    User{name: "Cara", age: 41, email: Some("cara@example.com")}
-  ]
+  let users = [User{name: "Ada", age: 36, email: Some("ada@example.com")}, User{
+    name: "Bob",
+    age: 28,
+    email: None
+  }, User{name: "Cara", age: 41, email: Some("cara@example.com")}]
   let older = func(u User) => u{age: u.age + 1}
   let _x = None
   let pair = func(x) => (x, x)

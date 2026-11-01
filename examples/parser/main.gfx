@@ -1,20 +1,21 @@
 package main
+
 import "std/list"
 import "std/prelude"
-
 
 // 自作 Parser の Functor / Monad インスタンスと、do による構文解析。
 // 字句解析は扱わず、入力は明示的なトークン列とする。
 // 例: 2 + 3 * 4 => Some(14)、(2 + 3) * 4 => Some(20)、2 + => None。
 // 実行: go run ./cmd/gofx run examples/parser/main.gfx
-
 type Token = Number(Int) | Plus | Minus | Times | Open | Close deriving Eq
 
 // 成功時は値と未消費の入力、失敗時は None。入力の書き換えはない。
 type Parser[A] = Parser(func(List[Token]) Option[(A, List[Token])])
 
 func runParser[A](parser Parser[A], tokens List[Token]) Option[(A, List[Token])] {
-  match parser { Parser(run) => run(tokens) }
+  match parser {
+    Parser(run) => run(tokens)
+  }
 }
 
 instance Functor[Parser] {
@@ -27,7 +28,10 @@ instance Functor[Parser] {
 }
 
 instance Monad[Parser] {
-  pure(value) { Parser(func(tokens) => Some((value, tokens))) }
+  pure(value) {
+    Parser(func(tokens) => Some((value, tokens)))
+  }
+
   bind(parser, f) {
     Parser(func(tokens) => match runParser(parser, tokens) {
       None => None
@@ -83,9 +87,7 @@ func chainLeft[A](operand Parser[A], op Parser[func(A, A) A]) Parser[A] {
 // term       = factor ("*" factor)*
 // factor     = Number | "(" expression ")"
 func expression() Parser[Int] {
-  chainLeft(term(), orElse(
-    operator(Plus, func(a, b) => a + b),
-    operator(Minus, func(a, b) => a - b)))
+  chainLeft(term(), orElse(operator(Plus, func(a, b) => a + b), operator(Minus, func(a, b) => a - b)))
 }
 
 func term() Parser[Int] {
@@ -111,19 +113,7 @@ func parseAll[A](parser Parser[A], tokens List[Token]) Option[A] {
 }
 
 func main() IO[Unit] {
-  let cases: List[(String, List[Token])] = [
-    ("2 + 3 * 4", [Number(2), Plus, Number(3), Times, Number(4)]),
-    ("(2 + 3) * 4", [Open, Number(2), Plus, Number(3), Close, Times, Number(4)]),
-    ("20 - 5 - 3", [Number(20), Minus, Number(5), Minus, Number(3)]),
-    ("2 * (3 + (4 - 1))", [Number(2), Times, Open, Number(3), Plus, Open, Number(4), Minus, Number(1), Close, Close]),
-    ("7", [Number(7)]),
-    ("empty", []),
-    ("2 +", [Number(2), Plus]),
-    ("(2 + 3", [Open, Number(2), Plus, Number(3)]),
-    ("2 3", [Number(2), Number(3)]),
-    ("()", [Open, Close])
-  ]
+  let cases: List[(String, List[Token])] = [("2 + 3 * 4", [Number(2), Plus, Number(3), Times, Number(4)]), ("(2 + 3) * 4", [Open, Number(2), Plus, Number(3), Close, Times, Number(4)]), ("20 - 5 - 3", [Number(20), Minus, Number(5), Minus, Number(3)]), ("2 * (3 + (4 - 1))", [Number(2), Times, Open, Number(3), Plus, Open, Number(4), Minus, Number(1), Close, Close]), ("7", [Number(7)]), ("empty", []), ("2 +", [Number(2), Plus]), ("(2 + 3", [Open, Number(2), Plus, Number(3)]), ("2 3", [Number(2), Number(3)]), ("()", [Open, Close])]
   let parser = expression()
-  list.forEach(cases, func((source, tokens)) =>
-    println("${source} => ${parseAll(parser, tokens)}"))
+  list.forEach(cases, func((source, tokens)) => println("${source} => ${parseAll(parser, tokens)}"))
 }

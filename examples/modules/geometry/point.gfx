@@ -2,6 +2,10 @@ package geometry
 
 type Point = Point{x: Int, y: Int} deriving Debug
 
-func _helper(n Int) Int { n * n }
+func _helper(n Int) Int {
+  n * n
+}
 
-func squaredDistance(p Point) Int { _helper(p.x) + _helper(p.y) }
+func squaredDistance(p Point) Int {
+  _helper(p.x) + _helper(p.y)
+}

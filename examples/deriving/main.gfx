@@ -1,10 +1,9 @@
 package main
+
 import "std/list"
 import "std/prelude"
 
-
-type Tree[A] = Leaf(A) | Branch(Tree[A], Tree[A])
-  deriving Functor, Foldable, Traversable, Debug
+type Tree[A] = Leaf(A) | Branch(Tree[A], Tree[A]) deriving Functor, Foldable, Traversable, Debug
 
 // The display form belongs to the application, independently of Debug.
 instance Show[Tree[A]] given Show[A] {
@@ -17,7 +16,11 @@ instance Show[Tree[A]] given Show[A] {
 }
 
 func positive(n Int) Option[Int] {
-  if n > 0 { Some(n * 10) } else { None }
+  if n > 0 {
+    Some(n * 10)
+  } else {
+    None
+  }
 }
 
 func main() IO[Unit] {

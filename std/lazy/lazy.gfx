@@ -1,4 +1,5 @@
 package lazy
+
 import "std/prelude"
 
 // Lazy delays a pure computation; each force re-evaluates it (no memoisation).
@@ -9,5 +10,7 @@ func delay[A](f func(Unit) A) Lazy[A] {
 }
 
 func force[A](l Lazy[A]) A {
-  match l { Lazy(f) => f(unit()) }
+  match l {
+    Lazy(f) => f(unit())
+  }
 }

@@ -1,38 +1,69 @@
 package io
+
 import "std/prelude"
 
 func ioFailWith[E Show, A](e E) IO[A] {
   ioFail(show(e))
 }
+
 extern func ioPure[A](a A) IO[A] = "gofx/rt".Pure
+
 extern func ioBind[A, B](io IO[A], f func(A) IO[B]) IO[B] = "gofx/rt".Bind
+
 extern func ioFail[A](msg String) IO[A] = "gofx/rt".Fail
+
 extern func println(s String) IO[Unit] = "gofx/rt".Println
+
 extern func readLine() IO[Option[String]] = "gofx/rt".ReadLine
+
 extern func readAll() IO[String] = "gofx/rt".ReadAll
+
 extern func args() IO[List[String]] = "gofx/rt".Args
+
 extern func exit[A](code Int) IO[A] = "gofx/rt".Exit
+
 extern func getEnv(name String) IO[Option[String]] = "gofx/rt".GetEnv
 
 extern func tryIO[A](io IO[A]) IO[Result[String, A]] = "gofx/rt".TryIO
+
 extern func readFile(path String) IO[String] = "gofx/rt".ReadFile
+
 extern func writeFile(path String, content String) IO[Unit] = "gofx/rt".WriteFile
+
 extern func appendFile(path String, content String) IO[Unit] = "gofx/rt".AppendFile
+
 extern func fileExists(path String) IO[Bool] = "gofx/rt".FileExists
+
 extern func listDir(path String) IO[List[String]] = "gofx/rt".ListDir
+
 extern func removeFile(path String) IO[Unit] = "gofx/rt".RemoveFile
+
 extern func eprintln(s String) IO[Unit] = "gofx/rt".Eprintln
+
 extern func print(s String) IO[Unit] = "gofx/rt".Print
+
 extern func nowMillis() IO[Int] = "gofx/rt".NowMillis
+
 extern func monotonicMillis() IO[Int] = "gofx/rt".MonotonicMillis
+
 extern func formatTime(millis Int, layout String) String = "gofx/rt".FormatTime
+
 extern func randomInt(lo Int, hi Int) IO[Int] = "gofx/rt".RandomInt
+
 extern func sleep(millis Int) IO[Unit] = "gofx/rt".Sleep
+
 instance Functor[IO] {
-  fmap(fa, f) { ioBind(fa, func(a) => ioPure(f(a))) }
+  fmap(fa, f) {
+    ioBind(fa, func(a) => ioPure(f(a)))
+  }
 }
 
 instance Monad[IO] {
-  pure(a) { ioPure(a) }
-  bind(ma, f) { ioBind(ma, f) }
+  pure(a) {
+    ioPure(a)
+  }
+
+  bind(ma, f) {
+    ioBind(ma, f)
+  }
 }

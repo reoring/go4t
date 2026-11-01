@@ -1,8 +1,8 @@
 package main
+
 import "std/list"
 import "std/prelude"
 import "std/state"
-
 
 func counter() state.State[Int, Int] {
   do {
@@ -22,11 +22,11 @@ func pop() state.State[List[Int], Option[Int]] {
   do {
     xs <- state.get()
     match xs {
-      | Nil => prelude.pure(None)
+      Nil => prelude.pure(None)
       | Cons(x, rest) => do {
-          state.put(rest)
-          prelude.pure(Some(x))
-        }
+        state.put(rest)
+        prelude.pure(Some(x))
+      }
     }
   }
 }

@@ -80,12 +80,13 @@ func (i *Import) GetEnd() Pos    { return i.End }
 func (i *Import) SetEnd(end Pos) { i.End = end }
 
 type File struct {
-	Package  string
-	Name     string // display name used in diagnostics; set by the caller
-	Imports  []Import
-	Decls    []Decl
-	Source   string // original source for position-based tooling; empty for synthesized files
-	Comments []Comment
+	Package                string
+	Name                   string // display name used in diagnostics; set by the caller
+	Imports                []Import
+	Decls                  []Decl
+	Source                 string // original source for position-based tooling; empty for synthesized files
+	PackagePos, PackageEnd Pos
+	Comments               []Comment
 }
 
 // Comment retains a line comment, including // but excluding its newline.
@@ -266,7 +267,8 @@ func (e *ExprBase) exprNode()     {}
 
 type Ident struct {
 	ExprBase
-	Name string
+	Name        string
+	Placeholder bool // synthesized section/call parameter reference
 }
 
 type IntLit struct {
@@ -289,8 +291,9 @@ type StringLit struct {
 // len(Texts) == len(Exprs)+1). Every expression must have a Show instance.
 type Interp struct {
 	ExprBase
-	Texts []string
-	Exprs []Expr
+	Texts  []string
+	Exprs  []Expr
+	Starts []Pos // expression starts immediately after each ${
 }
 
 // Field is `x.name` (a field common to every constructor of a data type) or
@@ -328,12 +331,15 @@ type Call struct {
 	ExprBase
 	Fn   Expr
 	Args []Expr
+	Pipe *Binary // original |> surface tree; checking uses Fn and Args
 }
 
 type Lambda struct {
 	ExprBase
-	Params []Param
-	Body   Expr
+	Params  []Param
+	Body    Expr
+	Partial bool // synthesized placeholder lambda
+	Section bool // operator section rather than a partial call
 }
 
 type BlockExpr struct {

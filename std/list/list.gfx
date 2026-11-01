@@ -1,8 +1,10 @@
 package list
+
 import "std/prelude"
 import "std/array"
 
 type List[A] = Nil | Cons(A, List[A]) deriving Eq, Ord, Debug
+
 instance Functor[List] {
   fmap(xs, f) {
     match xs {
@@ -13,7 +15,10 @@ instance Functor[List] {
 }
 
 instance Monad[List] {
-  pure(a) { Cons(a, Nil) }
+  pure(a) {
+    Cons(a, Nil)
+  }
+
   bind(xs, f) {
     match xs {
       Nil => Nil
@@ -21,6 +26,7 @@ instance Monad[List] {
     }
   }
 }
+
 instance Foldable[List] {
   foldr(fa, init, f) {
     match fa {
@@ -38,6 +44,7 @@ instance Traversable[List] {
     }
   }
 }
+
 func foldl[F[_] Foldable, A, B](fa F[A], init B, f func(B, A) B) B {
   prelude.foldr(fa, func(b B) => b, func(a, next) => func(b) => next(f(b, a)))(init)
 }
@@ -49,6 +56,7 @@ func toList[F[_] Foldable, A](fa F[A]) List[A] {
 func foldMapList[F[_] Foldable, A, B](fa F[A], f func(A) List[B]) List[B] {
   prelude.foldr(fa, Nil, func(a, rest) => append(f(a), rest))
 }
+
 instance Show[List[A]] given Show[A] {
   show(xs) {
     match xs {
@@ -57,6 +65,7 @@ instance Show[List[A]] given Show[A] {
     }
   }
 }
+
 func forEach[M[_] Monad, A](xs List[A], f func(A) M[Unit]) M[Unit] {
   match xs {
     Nil => prelude.pure(unit())
@@ -70,6 +79,7 @@ func mapM[M[_] Monad, A, B](xs List[A], f func(A) M[B]) M[List[B]] {
     Cons(x, rest) => prelude.bind(f(x), func(y) => prelude.bind(mapM(rest, f), func(ys) => prelude.pure(Cons(y, ys))))
   }
 }
+
 func fold[A, B](xs List[A], init B, f func(B, A) B) B {
   match xs {
     Nil => init
@@ -91,13 +101,18 @@ func append[A](xs List[A], ys List[A]) List[A] {
 func filter[A](xs List[A], p func(A) Bool) List[A] {
   match xs {
     Nil => Nil
-    Cons(x, rest) => if p(x) { Cons(x, filter(rest, p)) } else { filter(rest, p) }
+    | Cons(x, rest) => if p(x) {
+      Cons(x, filter(rest, p))
+    } else {
+      filter(rest, p)
+    }
   }
 }
 
 func reverse[A](xs List[A]) List[A] {
   fold(xs, Nil, func(acc, x) => Cons(x, acc))
 }
+
 func zip[A, B](xs List[A], ys List[B]) List[(A, B)] {
   match (xs, ys) {
     (Cons(x, restX), Cons(y, restY)) => Cons((x, y), zip(restX, restY))
@@ -120,8 +135,9 @@ func tail[A](xs List[A]) List[A] {
 }
 
 func take[A](n Int, xs List[A]) List[A] {
-  if n <= 0 { Nil }
-  else {
+  if n <= 0 {
+    Nil
+  } else {
     match xs {
       Nil => Nil
       Cons(x, rest) => Cons(x, take(n - 1, rest))
@@ -130,8 +146,9 @@ func take[A](n Int, xs List[A]) List[A] {
 }
 
 func drop[A](n Int, xs List[A]) List[A] {
-  if n <= 0 { xs }
-  else {
+  if n <= 0 {
+    xs
+  } else {
     match xs {
       Nil => Nil
       Cons(_, rest) => drop(n - 1, rest)
@@ -165,7 +182,7 @@ func sort[A Ord](xs List[A]) List[A] {
 func maximum[A Ord](xs List[A]) Option[A] {
   match xs {
     Nil => None
-    Cons(x, rest) => Some(fold(rest, x, func(best, a) => match compare(a, best) {
+    | Cons(x, rest) => Some(fold(rest, x, func(best, a) => match compare(a, best) {
       GT => a
       _ => best
     }))
@@ -175,12 +192,13 @@ func maximum[A Ord](xs List[A]) Option[A] {
 func minimum[A Ord](xs List[A]) Option[A] {
   match xs {
     Nil => None
-    Cons(x, rest) => Some(fold(rest, x, func(best, a) => match compare(a, best) {
+    | Cons(x, rest) => Some(fold(rest, x, func(best, a) => match compare(a, best) {
       LT => a
       _ => best
     }))
   }
 }
+
 func zipWith[A, B, C](xs List[A], ys List[B], f func(A, B) C) List[C] {
   zipWithAcc(xs, ys, f, Nil)
 }
@@ -200,21 +218,33 @@ func unzip[A, B](xs List[(A, B)]) (List[A], List[B]) {
 func any[A](xs List[A], p func(A) Bool) Bool {
   match xs {
     Nil => false
-    Cons(x, rest) => if p(x) { true } else { any(rest, p) }
+    | Cons(x, rest) => if p(x) {
+      true
+    } else {
+      any(rest, p)
+    }
   }
 }
 
 func all[A](xs List[A], p func(A) Bool) Bool {
   match xs {
     Nil => true
-    Cons(x, rest) => if p(x) { all(rest, p) } else { false }
+    | Cons(x, rest) => if p(x) {
+      all(rest, p)
+    } else {
+      false
+    }
   }
 }
 
 func find[A](xs List[A], p func(A) Bool) Option[A] {
   match xs {
     Nil => None
-    Cons(x, rest) => if p(x) { Some(x) } else { find(rest, p) }
+    | Cons(x, rest) => if p(x) {
+      Some(x)
+    } else {
+      find(rest, p)
+    }
   }
 }
 
@@ -225,18 +255,29 @@ func findIndex[A](xs List[A], p func(A) Bool) Option[Int] {
 func findIndexFrom[A](xs List[A], p func(A) Bool, i Int) Option[Int] {
   match xs {
     Nil => None
-    Cons(x, rest) => if p(x) { Some(i) } else { findIndexFrom(rest, p, i + 1) }
+    | Cons(x, rest) => if p(x) {
+      Some(i)
+    } else {
+      findIndexFrom(rest, p, i + 1)
+    }
   }
 }
 
 func partition[A](xs List[A], p func(A) Bool) (List[A], List[A]) {
-  let (yes, no) = fold(xs, (Nil, Nil), func((yes, no), x) =>
-    if p(x) { (Cons(x, yes), no) } else { (yes, Cons(x, no)) })
+  let (yes, no) = fold(xs, (Nil, Nil), func((yes, no), x) => if p(x) {
+    (Cons(x, yes), no)
+  } else {
+    (yes, Cons(x, no))
+  })
   (reverse(yes), reverse(no))
 }
 
 func nub[A Eq](xs List[A]) List[A] {
-  reverse(fold(xs, Nil, func(seen, x) => if elem(x, seen) { seen } else { Cons(x, seen) }))
+  reverse(fold(xs, Nil, func(seen, x) => if elem(x, seen) {
+    seen
+  } else {
+    Cons(x, seen)
+  }))
 }
 
 func range(lo Int, hi Int) List[Int] {
@@ -244,7 +285,11 @@ func range(lo Int, hi Int) List[Int] {
 }
 
 func rangeAcc(lo Int, hi Int, acc List[Int]) List[Int] {
-  if lo >= hi { acc } else { rangeAcc(lo, hi - 1, Cons(hi - 1, acc)) }
+  if lo >= hi {
+    acc
+  } else {
+    rangeAcc(lo, hi - 1, Cons(hi - 1, acc))
+  }
 }
 
 func replicate[A](n Int, x A) List[A] {
@@ -252,14 +297,17 @@ func replicate[A](n Int, x A) List[A] {
 }
 
 func replicateAcc[A](n Int, x A, acc List[A]) List[A] {
-  if n <= 0 { acc } else { replicateAcc(n - 1, x, Cons(x, acc)) }
+  if n <= 0 {
+    acc
+  } else {
+    replicateAcc(n - 1, x, Cons(x, acc))
+  }
 }
 
 func intercalate[A](sep List[A], xss List[List[A]]) List[A] {
   match xss {
     Nil => Nil
-    Cons(xs, rest) => reverse(fold(rest, reverse(xs), func(acc, ys) =>
-      fold(ys, fold(sep, acc, func(zs, x) => Cons(x, zs)), func(zs, y) => Cons(y, zs))))
+    Cons(xs, rest) => reverse(fold(rest, reverse(xs), func(acc, ys) => fold(ys, fold(sep, acc, func(zs, x) => Cons(x, zs)), func(zs, y) => Cons(y, zs))))
   }
 }
 
@@ -292,8 +340,9 @@ func splitAt[A](n Int, xs List[A]) (List[A], List[A]) {
 }
 
 func splitAtAcc[A](n Int, xs List[A], acc List[A]) (List[A], List[A]) {
-  if n <= 0 { (reverse(acc), xs) }
-  else {
+  if n <= 0 {
+    (reverse(acc), xs)
+  } else {
     match xs {
       Nil => (reverse(acc), Nil)
       Cons(x, rest) => splitAtAcc(n - 1, rest, Cons(x, acc))
@@ -308,7 +357,11 @@ func span[A](xs List[A], p func(A) Bool) (List[A], List[A]) {
 func spanAcc[A](xs List[A], p func(A) Bool, acc List[A]) (List[A], List[A]) {
   match xs {
     Nil => (reverse(acc), Nil)
-    Cons(x, rest) => if p(x) { spanAcc(rest, p, Cons(x, acc)) } else { (reverse(acc), xs) }
+    | Cons(x, rest) => if p(x) {
+      spanAcc(rest, p, Cons(x, acc))
+    } else {
+      (reverse(acc), xs)
+    }
   }
 }
 
@@ -319,14 +372,22 @@ func takeWhile[A](xs List[A], p func(A) Bool) List[A] {
 func dropWhile[A](xs List[A], p func(A) Bool) List[A] {
   match xs {
     Nil => Nil
-    Cons(x, rest) => if p(x) { dropWhile(rest, p) } else { xs }
+    | Cons(x, rest) => if p(x) {
+      dropWhile(rest, p)
+    } else {
+      xs
+    }
   }
 }
 
 func lookup[K Eq, V](k K, xs List[(K, V)]) Option[V] {
   match xs {
     Nil => None
-    Cons((key, value), rest) => if eq(k, key) { Some(value) } else { lookup(k, rest) }
+    | Cons((key, value), rest) => if eq(k, key) {
+      Some(value)
+    } else {
+      lookup(k, rest)
+    }
   }
 }
 
@@ -346,9 +407,13 @@ func iterate[A](n Int, x A, f func(A) A) List[A] {
 }
 
 func iterateAcc[A](n Int, x A, f func(A) A, acc List[A]) List[A] {
-  if n <= 0 { reverse(acc) }
-  else if n == 1 { reverse(Cons(x, acc)) }
-  else { iterateAcc(n - 1, f(x), f, Cons(x, acc)) }
+  if n <= 0 {
+    reverse(acc)
+  } else if n == 1 {
+    reverse(Cons(x, acc))
+  } else {
+    iterateAcc(n - 1, f(x), f, Cons(x, acc))
+  }
 }
 
 func product(xs List[Int]) Int {
@@ -356,7 +421,11 @@ func product(xs List[Int]) Int {
 }
 
 func count[A](xs List[A], p func(A) Bool) Int {
-  fold(xs, 0, func(n, x) => if p(x) { n + 1 } else { n })
+  fold(xs, 0, func(n, x) => if p(x) {
+    n + 1
+  } else {
+    n
+  })
 }
 
 func unfold[S, A](seed S, step func(S) Option[(A, S)]) List[A] {
@@ -375,11 +444,12 @@ func chunksOf[A](n Int, xs List[A]) List[List[A]] {
 }
 
 func chunksOfAcc[A](n Int, xs List[A], acc List[List[A]]) List[List[A]] {
-  if n <= 0 { reverse(acc) }
-  else {
+  if n <= 0 {
+    reverse(acc)
+  } else {
     match xs {
       Nil => reverse(acc)
-      Cons(_, _) => {
+      | Cons(_, _) => {
         let (chunk, rest) = splitAt(n, xs)
         chunksOfAcc(n, rest, Cons(chunk, acc))
       }

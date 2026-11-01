@@ -1,6 +1,6 @@
 package main
-import "std/float"
 
+import "std/float"
 
 func mean(xs List[Float]) Float {
   fold(xs, 0.0, func(total, x) => total + x) / toFloat(length(xs))
@@ -15,7 +15,7 @@ func main() IO[Unit] {
   let samples = [2.0, 4.0, 4.0, 4.0, 5.0, 5.0, 7.0, 9.0]
   do {
     println("mean=${float.showFloatFixed(mean(samples), 2)} stddev=${float.showFloatFixed(stddev(samples), 2)}")
-    println("literals=${1.5}, ${2e3}, ${1.0e-3}")
+    println("literals=${1.5}, ${2000.0}, ${0.001}")
     println("parse=${show(float.parseFloat("12.5"))} invalid=${show(float.parseFloat("oops"))}")
     println("pow=${float.pow(2.0, 3.0)} powInt=${float.powInt(3, 5)}")
     println("ints min=${min(8, 3)} max=${max(8, 3)}; floats min=${min(1.5, 2.5)} max=${max(1.5, 2.5)}")

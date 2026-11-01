@@ -1,6 +1,6 @@
 package main
-import "std/prelude"
 
+import "std/prelude"
 
 type Tree[A] = Leaf | Node(Tree[A], A, Tree[A])
 

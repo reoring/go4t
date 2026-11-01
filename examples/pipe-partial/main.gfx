@@ -1,13 +1,15 @@
 package main
+
 import "std/list"
 import "std/string"
-
 
 func nonEmpty(s String) Bool {
   string.trim(s) |> (_ != "")
 }
 
-func add(a Int, b Int) Int { a + b }
+func add(a Int, b Int) Int {
+  a + b
+}
 
 func main() IO[Unit] {
   let input = " pear \n\n apple\n banana \n   \n"

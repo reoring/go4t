@@ -1,24 +1,43 @@
 package array
+
 import "std/list"
 import "std/string"
 import "std/prelude"
 
 extern func arrayFromList[A](xs List[A]) Array[A] = "gofx/rt".ArrayFromList
+
 extern func arrayToList[A](a Array[A]) List[A] = "gofx/rt".ArrayToList
+
 extern func arrayLength[A](a Array[A]) Int = "gofx/rt".ArrayLength
+
 extern func arrayGet[A](a Array[A], i Int) Option[A] = "gofx/rt".ArrayGet
+
 extern func arraySet[A](a Array[A], i Int, v A) Array[A] = "gofx/rt".ArraySet
+
 extern func arrayMap[A, B](a Array[A], f func(A) B) Array[B] = "gofx/rt".ArrayMap
+
 extern func arrayFold[A, B](a Array[A], init B, f func(B, A) B) B = "gofx/rt".ArrayFold
+
 extern func arrayPush[A](a Array[A], v A) Array[A] = "gofx/rt".ArrayPush
+
 extern func arraySlice[A](a Array[A], start Int, end Int) Array[A] = "gofx/rt".ArraySlice
+
 extern func arraySortBy[A](a Array[A], cmp func(A, A) Ordering) Array[A] = "gofx/rt".ArraySortBy
+
 instance Show[Array[A]] given Show[A] {
-  show(a) { "#[" + string.join(", ", map(arrayToList(a), func(v) => show(v))) + "]" }
+  show(a) {
+    "#[" + string.join(", ", map(arrayToList(a), func(v) => show(v))) + "]"
+  }
 }
+
 instance Eq[Array[A]] given Eq[A] {
-  eq(a, b) { eq(arrayToList(a), arrayToList(b)) }
+  eq(a, b) {
+    eq(arrayToList(a), arrayToList(b))
+  }
 }
+
 instance Functor[Array] {
-  fmap(a, f) { arrayMap(a, f) }
+  fmap(a, f) {
+    arrayMap(a, f)
+  }
 }

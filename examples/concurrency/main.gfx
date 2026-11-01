@@ -1,8 +1,8 @@
 package main
+
 import "std/conc"
 import "std/io"
 import "std/list"
-
 
 func delayed[A](millis Int, value A) IO[A] {
   do {
@@ -21,7 +21,6 @@ func main() IO[Unit] {
     c <- conc.await(third)
     again <- conc.await(first)
     println("await: ${a}, ${b}, ${c}; again: ${again}")
-
     let sleeps = [300, 200, 100]
     start <- io.monotonicMillis()
     values <- conc.parMapIO(sleeps, func(millis) => delayed(millis, millis))
@@ -31,7 +30,6 @@ func main() IO[Unit] {
     println("parMapIO: ${values}")
     println("wall time: ${elapsed} ms; sum of sleeps: ${sequential} ms")
     println("parallel faster than sequential: ${elapsed < sequential}")
-
     both <- conc.parBoth(delayed(30, 7), delayed(10, "ready"))
     println("parBoth: ${both}")
     winner <- conc.race(delayed(1000, "slow"), delayed(10, "fast"))

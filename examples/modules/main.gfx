@@ -3,10 +3,14 @@ package main
 import "geometry"
 import g "geometry"
 
-func map(n Int) Int { n * 2 }
+func map(n Int) Int {
+  n * 2
+}
 
 func coordinates(p g.Point) String {
-  match p { geometry.Point{x: x, y: y} => "(${x}, ${y})" }
+  match p {
+    geometry.Point{x: x, y: y} => "(${x}, ${y})"
+  }
 }
 
 func main() IO[Unit] {

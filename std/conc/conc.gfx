@@ -1,9 +1,15 @@
 package conc
+
 import "std/list"
 
 extern func fork[A](io IO[A]) IO[Fiber[A]] = "gofx/rt".Fork
+
 extern func await[A](f Fiber[A]) IO[A] = "gofx/rt".Await
+
 extern func parMapIO[A, B](xs List[A], f func(A) IO[B]) IO[List[B]] = "gofx/rt".ParMapIO
+
 extern func race[A](a IO[A], b IO[A]) IO[A] = "gofx/rt".Race
+
 extern func parBoth[A, B](a IO[A], b IO[B]) IO[(A, B)] = "gofx/rt".ParBoth
+
 extern func timeout[A](millis Int, io IO[A]) IO[Option[A]] = "gofx/rt".Timeout
