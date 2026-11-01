@@ -252,9 +252,9 @@ func TestInterpolationDictionaries(t *testing.T) {
 	files := parseFiles(t, pass5Show+`
 type Label = Label(String)
 instance Show[Label] { show(x) { match x { Label(s) => s } } }
-func value() String { "int {1}, string {"text"}, user {Label("name")}" }
-func generic[A Show](a A) String { "{a}" }
-func local() String { let render = func(x) => "{x}"; render(1) + render(true) }
+func value() String { "int ${1}, string ${"text"}, user ${Label("name")}" }
+func generic[A Show](a A) String { "${a}" }
+func local() String { let render = func(x) => "${x}"; render(1) + render(true) }
 `+pass5Main)
 	p, err := types.Check(files)
 	if err != nil {
@@ -277,9 +277,9 @@ func local() String { let render = func(x) => "{x}"; render(1) + render(true) }
 
 func TestInterpolationMissingInstances(t *testing.T) {
 	for _, tt := range []struct{ source, want string }{
-		{`type Hidden = Hidden; func f() String { "{Hidden}" }`, "no instance Show[Hidden]"},
-		{`func f[A](x A) String { "{x}" }`, "no instance Show[A] (type parameter A has no class constraints)"},
-		{`func f() String { "{unit()}" }`, "no instance Show[Unit]"},
+		{`type Hidden = Hidden; func f() String { "${Hidden}" }`, "no instance Show[Hidden]"},
+		{`func f[A](x A) String { "${x}" }`, "no instance Show[A] (type parameter A has no class constraints)"},
+		{`func f() String { "${unit()}" }`, "no instance Show[Unit]"},
 	} {
 		t.Run(tt.source, func(t *testing.T) {
 			files := parseFiles(t, tt.source+pass5Main)

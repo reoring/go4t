@@ -19,15 +19,15 @@ type Result[E, A] = Err(E) | Ok(A)
 
 // ===== インスタンス =====
 
-instance Show[AccountId] { show(a) { match a { | AccountId(s) => s } } }
-instance Show[Account]   { show(a) { "{a.owner}<{a.id}>:{a.balance}" } }
+instance Show[AccountId] { show(a) { match a { AccountId(s) => s } } }
+instance Show[Account]   { show(a) { "${a.owner}<${a.id}>:${a.balance}" } }
 
 instance Show[Tx] {
   show(t) {
     match t {
-      | Deposit(to, amt) => "deposit {amt} -> {to}"
-      | Withdraw(from, amt) => "withdraw {amt} <- {from}"
-      | Transfer(from, to, amt) => "transfer {amt} {from} -> {to}"
+      Deposit(to, amt) => "deposit ${amt} -> ${to}"
+      Withdraw(from, amt) => "withdraw ${amt} <- ${from}"
+      Transfer(from, to, amt) => "transfer ${amt} ${from} -> ${to}"
     }
   }
 }
@@ -35,35 +35,35 @@ instance Show[Tx] {
 instance Show[Failure] {
   show(f) {
     match f {
-      | NoSuchAccount(id) => "no such account {id}"
-      | Insufficient(id, need, have) => "{id}: need {need}, have {have}"
-      | BadAmount(n) => "bad amount {n}"
+      NoSuchAccount(id) => "no such account ${id}"
+      Insufficient(id, need, have) => "${id}: need ${need}, have ${have}"
+      BadAmount(n) => "bad amount ${n}"
     }
   }
 }
 
 instance Show[Result[E, A]] given Show[E], Show[A] {
-  show(r) { match r { | Err(e) => "Err({e})" | Ok(a) => "Ok({a})" } }
+  show(r) { match r { Err(e) => "Err(${e})" | Ok(a) => "Ok(${a})" } }
 }
 
 instance Functor[Result[E]] {
-  fmap(r, f) { match r { | Err(e) => Err(e) | Ok(a) => Ok(f(a)) } }
+  fmap(r, f) { match r { Err(e) => Err(e) | Ok(a) => Ok(f(a)) } }
 }
 instance Monad[Result[E]] {
   pure(a) { Ok(a) }
-  bind(r, f) { match r { | Err(e) => Err(e) | Ok(a) => f(a) } }
+  bind(r, f) { match r { Err(e) => Err(e) | Ok(a) => f(a) } }
 }
 
 // ===== 純粋ロジック =====
 
 func sameId(a AccountId, b AccountId) Bool {
-  match (a, b) { | (AccountId(x), AccountId(y)) => x == y }
+  match (a, b) { (AccountId(x), AccountId(y)) => x == y }
 }
 
 func find(book List[Account], id AccountId) Result[Failure, Account] {
   match filter(book, func(a) => sameId(a.id, id)) {
-    | Cons(a, _) => Ok(a)
-    | Nil => Err(NoSuchAccount(id))
+    Cons(a, _) => Ok(a)
+    Nil => Err(NoSuchAccount(id))
   }
 }
 
@@ -114,8 +114,8 @@ func applyAll(book List[Account], txs List[Tx]) (List[Account], Option[(Failure,
   fold(txs, (book, None), func(state, tx) =>
     match state {
       | (b, None) => match apply(b, tx) {
-          | Ok(b2) => (b2, None)
-          | Err(f) => (b, Some((f, 0)))
+          Ok(b2) => (b2, None)
+          Err(f) => (b, Some((f, 0)))
         }
       | (b, Some((f, n))) => (b, Some((f, n + 1)))
     }
@@ -134,7 +134,7 @@ func audit(label String, book List[Account]) IO[Unit] {
   do {
     status <- httpGet("https://example.com")
     let ok = status == 200
-    println("  audit {label}: sent={ok} total={total(book)}")
+    println("  audit ${label}: sent=${ok} total=${total(book)}")
   }
 }
 
@@ -150,21 +150,21 @@ func main() IO[Unit] {
   let ugly = [Deposit{to: AccountId("Z-9"), amount: 5}]
 
   // let 多相: 1 つの describe を List[Tx] と List[Account] の両方に使う
-  let describe = func(xs) => fold(xs, "", func(acc, x) => if acc == "" { show(x) } else { "{acc}; {x}" })
+  let describe = func(xs) => fold(xs, "", func(acc, x) => if acc == "" { show(x) } else { "${acc}; ${x}" })
 
   do {
-    println("book:  {describe(book)}")
-    println("txs:   {describe(good)}")
+    println("book:  ${describe(book)}")
+    println("txs:   ${describe(good)}")
     let r1 = applyAll(book, good)
-    println("good:  {fst(r1)} / {snd(r1)}")
+    println("good:  ${fst(r1)} / ${snd(r1)}")
     audit("good", fst(r1))
     let r2 = applyAll(fst(r1), bad)
-    println("bad:   {fst(r2)} / {snd(r2)}")
+    println("bad:   ${fst(r2)} / ${snd(r2)}")
     let r3 = applyAll(book, ugly)
-    println("ugly:  {snd(r3)}")
-    println("check: {apply(book, Withdraw{from: alice, amount: 0})}")
-    println("sum:   {total(book)} -> {total(fst(r2))}")
+    println("ugly:  ${snd(r3)}")
+    println("check: ${apply(book, Withdraw{from: alice, amount: 0})}")
+    println("sum:   ${total(book)} -> ${total(fst(r2))}")
     x <- fmap(ioPure(zip(["a", "b"], [1, 2])), func(ps) => fmap(ps, fst))
-    println("zip:   {x}")
+    println("zip:   ${x}")
   }
 }

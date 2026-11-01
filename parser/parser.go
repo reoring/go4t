@@ -33,8 +33,9 @@
 //	RecordFields := '{' Ident ':' Expr { ',' Ident ':' Expr } [ ',' ] '}'
 //	          // record literals/updates require same-line '{' and lookahead '{' Ident ':';
 //	          // other braces begin blocks, including if bodies and match arms
-//	Interp   := '"' Text '{' Expr '}' { Text '{' Expr '}' } Text '"'
-//	          // '{{' / '}}' in Text are literal braces; nested strings are allowed in Expr
+//	Interp   := '"' Text '${' Expr '}' { Text '${' Expr '}' } Text '"'
+//	          // '$$' in Text is '$'; lone '$' and braces are literal
+//	          // nested strings are allowed in Expr
 //	List     := '[' [ Expr { ',' Expr } [ ',' ] ] ']'
 package parser
 

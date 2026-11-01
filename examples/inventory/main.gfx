@@ -11,22 +11,22 @@ type Result[E, A] = Err(E) | Ok(A)         // 自前の Either
 // ===== 型クラスのインスタンス =====
 
 instance Show[Sku] {
-  show(s) { match s { | Sku(code) => code } }
+  show(s) { match s { Sku(code) => code } }
 }
 
 instance Show[Stock] {
-  show(s) { "{s.sku}={s.qty}" }
+  show(s) { "${s.sku}=${s.qty}" }
 }
 
 instance Show[Line] {
-  show(l) { "{l.qty}x{l.sku}" }
+  show(l) { "${l.qty}x${l.sku}" }
 }
 
 instance Show[Result[E, A]] given Show[E], Show[A] {
   show(r) {
     match r {
-      | Err(e) => "Err({e})"
-      | Ok(a) => "Ok({a})"
+      Err(e) => "Err(${e})"
+      Ok(a) => "Ok(${a})"
     }
   }
 }
@@ -35,8 +35,8 @@ instance Show[Result[E, A]] given Show[E], Show[A] {
 instance Functor[Result[E]] {
   fmap(r, f) {
     match r {
-      | Err(e) => Err(e)
-      | Ok(a) => Ok(f(a))
+      Err(e) => Err(e)
+      Ok(a) => Ok(f(a))
     }
   }
 }
@@ -45,8 +45,8 @@ instance Monad[Result[E]] {
   pure(a) { Ok(a) }
   bind(r, f) {
     match r {
-      | Err(e) => Err(e)
-      | Ok(a) => f(a)
+      Err(e) => Err(e)
+      Ok(a) => f(a)
     }
   }
 }
@@ -54,7 +54,7 @@ instance Monad[Result[E]] {
 // ===== 純粋ロジック =====
 
 func sameSku(a Sku, b Sku) Bool {
-  match (a, b) { | (Sku(x), Sku(y)) => x == y }
+  match (a, b) { (Sku(x), Sku(y)) => x == y }
 }
 
 // 複数倉庫の在庫を sku ごとに合算
@@ -77,9 +77,9 @@ func available(stocks List[Stock], sku Sku) Int {
 
 // 1 明細の引当。失敗理由を Err に積む
 func allocate(stocks List[Stock], line Line) Result[String, Line] {
-  if line.qty <= 0 { Err("invalid quantity for {line.sku}") }
+  if line.qty <= 0 { Err("invalid quantity for ${line.sku}") }
   else if available(stocks, line.sku) < line.qty {
-    Err("short of {line.sku}: need {line.qty}, have {available(stocks, line.sku)}")
+    Err("short of ${line.sku}: need ${line.qty}, have ${available(stocks, line.sku)}")
   }
   else { Ok(line) }
 }
@@ -105,7 +105,7 @@ func consume(stocks List[Stock], lines List[Line]) List[Stock] {
 
 // HKT: Functor であれば何にでも適用できる汎用ヘルパ
 func tag[F[_] Functor, A Show](fa F[A], prefix String) F[String] {
-  fmap(fa, func(a) => "{prefix}{a}")
+  fmap(fa, func(a) => "${prefix}${a}")
 }
 
 // ===== 効果 =====
@@ -113,17 +113,17 @@ func tag[F[_] Functor, A Show](fa F[A], prefix String) F[String] {
 extern func httpGet(url String) IO[Int] = "gofx/rt/stdhttp".GetStatus
 
 func report(title String, r Result[String, List[Line]]) IO[Unit] {
-  println("{title}: {r}")
+  println("${title}: ${r}")
 }
 
 func notify(lines List[Line]) IO[Unit] {
   do {
     status <- httpGet("https://example.com")
     if status == 200 {
-      println("  notified {length(lines)} lines")
+      println("  notified ${length(lines)} lines")
     }
     else {
-      ioFail("notify failed: {status}")
+      ioFail("notify failed: ${status}")
     }
   }
 }
@@ -136,18 +136,18 @@ func main() IO[Unit] {
   let order2 = [Line{sku: Sku("apple"), qty: 7}, Line{sku: Sku("pear"), qty: 3}]
   let order3 = [Line{sku: Sku("apple"), qty: 0}]
   do {
-    println("stocks:   {stocks}")
-    println("tagged:   {tag(stocks, "stock:")}")
-    println("tagged?:  {tag(Some(42), "n=")}")
+    println("stocks:   ${stocks}")
+    println("tagged:   ${tag(stocks, "stock:")}")
+    println("tagged?:  ${tag(Some(42), "n=")}")
     report("order1", allocateAll(stocks, order1))
     report("order2", allocateAll(stocks, order2))
     report("order3", allocateAll(stocks, order3))
     match allocateAll(stocks, order1) {
       | Ok(lines) => do {
           notify(lines)
-          println("  remaining {consume(stocks, lines)}")
+          println("  remaining ${consume(stocks, lines)}")
         }
-      | Err(e) => println("  skipped: {e}")
+      | Err(e) => println("  skipped: ${e}")
     }
     x <- tag(ioPure((1, true)), "io:")
     println(x)

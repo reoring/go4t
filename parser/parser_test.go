@@ -787,7 +787,7 @@ func exprShape(e ast.Expr) string {
 }
 
 func TestInterpolation(t *testing.T) {
-	e := result(t, `"hello {name}: {1 + 2}!"`)
+	e := result(t, `"hello ${name}: ${1 + 2}!"`)
 	interp, ok := e.(*ast.Interp)
 	if !ok {
 		t.Fatalf("expression = %T, want Interp", e)
@@ -829,11 +829,14 @@ func recordShape(names []string, values []ast.Expr) string {
 
 func TestInterpolationNestedExpressions(t *testing.T) {
 	for _, tc := range []struct{ src, want string }{
-		{`"{show(Point{a: 1}.a)}"`, "show(Point{a: 1}.a)"},
-		{`"{show(Point{a: "quoted \"text\"", b: Inner{n: 1}}.a)}"`, `show(Point{a: "quoted \"text\"", b: Inner{n: 1}}.a)`},
-		{`"{show("{{braces}}")}"`, `show("{braces}")`},
-		{`"{show(r{a: 1}.a)}"`, "show(r{a: 1}.a)"},
-		{"\"{x + // } and \" are comment text\n 1}\"", "(x + 1)"},
+		{`"${show(Point{a: 1}.a)}"`, "show(Point{a: 1}.a)"},
+		{`"${show(Point{a: "quoted \"text\"", b: Inner{n: 1}}.a)}"`, `show(Point{a: "quoted \"text\"", b: Inner{n: 1}}.a)`},
+		{`"${"nested"}"`, `"nested"`},
+		{`"${show("{braces}")}"`, `show("{braces}")`},
+		{`"${show("{{braces}}")}"`, `show("{{braces}}")`},
+		{`"${show("$${not interp}")}"`, `show("${not interp}")`},
+		{`"${show(r{a: 1}.a)}"`, "show(r{a: 1}.a)"},
+		{"\"${x + // } and \" are comment text\n 1}\"", "(x + 1)"},
 	} {
 		t.Run(tc.src, func(t *testing.T) {
 			interp := result(t, tc.src).(*ast.Interp)
@@ -845,14 +848,14 @@ func TestInterpolationNestedExpressions(t *testing.T) {
 			}
 		})
 	}
-	outer := result(t, `"{show("{Point{a: "x"}.a}")}"`).(*ast.Interp)
+	outer := result(t, `"${show("${Point{a: "x"}.a}")}"`).(*ast.Interp)
 	call := outer.Exprs[0].(*ast.Call)
 	inner := call.Args[0].(*ast.Interp)
 	if !reflect.DeepEqual(inner.Texts, []string{"", ""}) || len(inner.Exprs) != 1 ||
 		exprShape(inner.Exprs[0]) != `Point{a: "x"}.a` {
 		t.Errorf("nested interpolation = %#v", inner)
 	}
-	conditional := result(t, `"{if r.ok { 1 } else { 2 }}"`).(*ast.Interp).Exprs[0].(*ast.If)
+	conditional := result(t, `"${if r.ok { 1 } else { 2 }}"`).(*ast.Interp).Exprs[0].(*ast.If)
 	if exprShape(conditional.Cond) != "r.ok" {
 		t.Errorf("interpolated condition = %#v", conditional.Cond)
 	}
@@ -861,7 +864,18 @@ func TestInterpolationNestedExpressions(t *testing.T) {
 func TestInterpolationLiteralTextAndPositions(t *testing.T) {
 	for _, tc := range []struct{ src, want string }{
 		{`"plain"`, "plain"},
-		{`"{{x}}"`, "{x}"},
+		{`"{not interp}"`, "{not interp}"},
+		{`"{x}"`, "{x}"},
+		{`"{{x}}"`, "{{x}}"},
+		{`"{"`, "{"},
+		{`"}}"`, "}}"},
+		{`"$"`, "$"},
+		{`"$value"`, "$value"},
+		{`"$$"`, "$"},
+		{`"$$$"`, "$$"},
+		{`"$$$$"`, "$$"},
+		{`"$${x}"`, "${x}"},
+		{`"$${"`, "${"},
 		{`"\x7bx\u007d"`, "{x}"},
 	} {
 		e, ok := result(t, tc.src).(*ast.StringLit)
@@ -869,7 +883,7 @@ func TestInterpolationLiteralTextAndPositions(t *testing.T) {
 			t.Errorf("%s = %#v, want StringLit %q", tc.src, e, tc.want)
 		}
 	}
-	interp := result(t, `"α\n{{{x}}}{y}\t"`).(*ast.Interp)
+	interp := result(t, `"α\n{${x}}${y}\t"`).(*ast.Interp)
 	if !reflect.DeepEqual(interp.Texts, []string{"α\n{", "}", "\t"}) || len(interp.Exprs) != 2 {
 		t.Fatalf("interpolation = %#v", interp)
 	}
@@ -878,18 +892,23 @@ func TestInterpolationLiteralTextAndPositions(t *testing.T) {
 		interp.Exprs[1].GetPos() != (ast.Pos{Line: 2, Col: 31}) {
 		t.Errorf("positions = %s, %s, %s", interp.GetPos(), interp.Exprs[0].GetPos(), interp.Exprs[1].GetPos())
 	}
+	interp = result(t, `"$$${x} $$ $"`).(*ast.Interp)
+	if !reflect.DeepEqual(interp.Texts, []string{"$", " $ $"}) || len(interp.Exprs) != 1 ||
+		exprShape(interp.Exprs[0]) != "x" || interp.Exprs[0].GetPos() != (ast.Pos{Line: 2, Col: 24}) {
+		t.Errorf("interpolation with literal dollars = %#v", interp)
+	}
 }
 
 func TestInterpolationParseErrorsInOriginalFile(t *testing.T) {
 	for _, tc := range []struct{ src, want string }{
-		{`  "prefix {1 + )}"`, `3:16: expected expression, found ")"`},
-		{`  "α {x + )}"`, `3:11: expected expression, found ")"`},
-		{`  "outer {show("inner {1 + )}")}"`, `3:28: expected expression, found ")"`},
-		{`  "{show("\q")}"`, "3:10: bad string literal:"},
-		{`  "{}"`, "3:5: expected expression, found end of file"},
-		{`  "{x y}"`, `3:7: expected end of expression, found "y"`},
-		{`  "{x; y}"`, `3:8: expected end of expression, found "y"`},
-		{`  "bad {x"`, "3:8: unterminated interpolation"},
+		{`  "prefix ${1 + )}"`, `3:17: expected expression, found ")"`},
+		{`  "α ${x + )}"`, `3:12: expected expression, found ")"`},
+		{`  "outer ${show("inner ${1 + )}")}"`, `3:30: expected expression, found ")"`},
+		{`  "${show("\q")}"`, "3:11: bad string literal:"},
+		{`  "${}"`, "3:6: expected expression, found end of file"},
+		{`  "${x y}"`, `3:8: expected end of expression, found "y"`},
+		{`  "${x; y}"`, `3:9: expected end of expression, found "y"`},
+		{`  "bad ${x"`, "3:8: unterminated interpolation"},
 	} {
 		t.Run(tc.src, func(t *testing.T) {
 			_, err := parser.Parse("package main\nfunc f() String {\n" + tc.src + "\n}")

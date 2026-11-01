@@ -20,8 +20,8 @@ type List[A] = Nil | Cons(A, List[A])
 instance Functor[Option] {
   fmap(fa, f) {
     match fa {
-      | None => None
-      | Some(a) => Some(f(a))
+      None => None
+      Some(a) => Some(f(a))
     }
   }
 }
@@ -30,8 +30,8 @@ instance Monad[Option] {
   pure(a) { Some(a) }
   bind(ma, f) {
     match ma {
-      | None => None
-      | Some(a) => f(a)
+      None => None
+      Some(a) => f(a)
     }
   }
 }
@@ -39,8 +39,8 @@ instance Monad[Option] {
 instance Functor[List] {
   fmap(xs, f) {
     match xs {
-      | Nil => Nil
-      | Cons(x, rest) => Cons(f(x), fmap(rest, f))
+      Nil => Nil
+      Cons(x, rest) => Cons(f(x), fmap(rest, f))
     }
   }
 }
@@ -49,8 +49,8 @@ instance Monad[List] {
   pure(a) { Cons(a, Nil) }
   bind(xs, f) {
     match xs {
-      | Nil => Nil
-      | Cons(x, rest) => append(f(x), bind(rest, f))
+      Nil => Nil
+      Cons(x, rest) => append(f(x), bind(rest, f))
     }
   }
 }
@@ -58,8 +58,8 @@ instance Monad[List] {
 instance Show[Option[A]] given Show[A] {
   show(o) {
     match o {
-      | None => "None"
-      | Some(a) => "Some(" + show(a) + ")"
+      None => "None"
+      Some(a) => "Some(" + show(a) + ")"
     }
   }
 }
@@ -67,8 +67,8 @@ instance Show[Option[A]] given Show[A] {
 instance Show[List[A]] given Show[A] {
   show(xs) {
     match xs {
-      | Nil => "[]"
-      | Cons(x, rest) => "[" + fold(rest, show(x), func(acc, a) => acc + ", " + show(a)) + "]"
+      Nil => "[]"
+      Cons(x, rest) => "[" + fold(rest, show(x), func(acc, a) => acc + ", " + show(a)) + "]"
     }
   }
 }
@@ -76,7 +76,7 @@ instance Show[List[A]] given Show[A] {
 instance Show[(A, B)] given Show[A], Show[B] {
   show(p) {
     match p {
-      | (a, b) => "(" + show(a) + ", " + show(b) + ")"
+      (a, b) => "(" + show(a) + ", " + show(b) + ")"
     }
   }
 }
@@ -121,8 +121,8 @@ func flatMap[M[_] Monad, A, B](ma M[A], f func(A) M[B]) M[B] {
 
 func fold[A, B](xs List[A], init B, f func(B, A) B) B {
   match xs {
-    | Nil => init
-    | Cons(x, rest) => fold(rest, f(init, x), f)
+    Nil => init
+    Cons(x, rest) => fold(rest, f(init, x), f)
   }
 }
 
@@ -132,15 +132,15 @@ func length[A](xs List[A]) Int {
 
 func append[A](xs List[A], ys List[A]) List[A] {
   match xs {
-    | Nil => ys
-    | Cons(x, rest) => Cons(x, append(rest, ys))
+    Nil => ys
+    Cons(x, rest) => Cons(x, append(rest, ys))
   }
 }
 
 func filter[A](xs List[A], p func(A) Bool) List[A] {
   match xs {
-    | Nil => Nil
-    | Cons(x, rest) => if p(x) { Cons(x, filter(rest, p)) } else { filter(rest, p) }
+    Nil => Nil
+    Cons(x, rest) => if p(x) { Cons(x, filter(rest, p)) } else { filter(rest, p) }
   }
 }
 
@@ -149,16 +149,16 @@ func reverse[A](xs List[A]) List[A] {
 }
 
 func fst[A, B](p (A, B)) A {
-  match p { | (a, _) => a }
+  match p { (a, _) => a }
 }
 
 func snd[A, B](p (A, B)) B {
-  match p { | (_, b) => b }
+  match p { (_, b) => b }
 }
 
 func zip[A, B](xs List[A], ys List[B]) List[(A, B)] {
   match (xs, ys) {
-    | (Cons(x, restX), Cons(y, restY)) => Cons((x, y), zip(restX, restY))
-    | _ => Nil
+    (Cons(x, restX), Cons(y, restY)) => Cons((x, y), zip(restX, restY))
+    _ => Nil
   }
 }

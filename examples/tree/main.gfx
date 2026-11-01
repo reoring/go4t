@@ -5,16 +5,16 @@ type Tree[A] = Leaf | Node(Tree[A], A, Tree[A])
 instance Functor[Tree] {
   fmap(t, f) {
     match t {
-      | Leaf => Leaf
-      | Node(left, a, right) => Node(fmap(left, f), f(a), fmap(right, f))
+      Leaf => Leaf
+      Node(left, a, right) => Node(fmap(left, f), f(a), fmap(right, f))
     }
   }
 }
 
 func render[A Show](t Tree[A]) String {
   match t {
-    | Leaf => "."
-    | Node(left, a, right) => "(" + render(left) + " " + show(a) + " " + render(right) + ")"
+    Leaf => "."
+    Node(left, a, right) => "(" + render(left) + " " + show(a) + " " + render(right) + ")"
   }
 }
 

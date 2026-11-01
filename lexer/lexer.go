@@ -24,7 +24,7 @@ const (
 )
 
 // InterpPart is decoded literal Text, or expression source Expr with Pos set to
-// its first character (immediately after '{'). Literal parts have a zero Pos.
+// its first character (immediately after '${'). Literal parts have a zero Pos.
 // Parts alternate text and expressions, including empty leading/trailing text.
 type InterpPart struct {
 	Text string
@@ -279,9 +279,13 @@ func (l *Lexer) scanString(pos ast.Pos, collect bool) (Token, error) {
 			}
 			parts = append(parts, InterpPart{Text: text})
 			return Token{Kind: InterpTok, Text: string(l.src[start:l.i]), Pos: pos, Parts: parts}, nil
-		case '{':
-			if l.peek(1) == '{' {
+		case '$':
+			if l.peek(1) == '$' {
 				l.advance()
+				l.advance()
+				continue
+			}
+			if l.peek(1) != '{' {
 				l.advance()
 				continue
 			}
@@ -294,6 +298,7 @@ func (l *Lexer) scanString(pos ast.Pos, collect bool) (Token, error) {
 			}
 			open := ast.Pos{Line: l.line, Col: l.col}
 			l.advance()
+			l.advance()
 			exprStart := l.i
 			exprPos := ast.Pos{Line: l.line, Col: l.col}
 			if err := l.scanInterpolation(open); err != nil {
@@ -303,11 +308,6 @@ func (l *Lexer) scanString(pos ast.Pos, collect bool) (Token, error) {
 				parts = append(parts, InterpPart{Expr: string(l.src[exprStart : l.i-1]), Pos: exprPos})
 			}
 			textStart = l.i
-		case '}':
-			l.advance()
-			if l.peek(0) == '}' {
-				l.advance()
-			}
 		default:
 			l.advance()
 		}
@@ -316,10 +316,9 @@ func (l *Lexer) scanString(pos ast.Pos, collect bool) (Token, error) {
 }
 
 func (l *Lexer) stringText(start, end int, pos ast.Pos) (string, error) {
-	// Collapse source braces before decoding escapes: "\x7bx}}" is not an
-	// interpolation, and escaped braces must not consume adjacent source braces.
-	raw := strings.ReplaceAll(string(l.src[start:end]), "{{", "{")
-	raw = strings.ReplaceAll(raw, "}}", "}")
+	// Collapse source dollars before decoding escapes so an escaped dollar
+	// cannot consume an adjacent source dollar (for example, "\x24$").
+	raw := strings.ReplaceAll(string(l.src[start:end]), "$$", "$")
 	text, err := strconv.Unquote(`"` + raw + `"`)
 	if err != nil {
 		return "", fmt.Errorf("%s: bad string literal: %v", pos, err)

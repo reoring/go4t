@@ -19,7 +19,7 @@ func tokens(t *testing.T, src string) []lexer.Token {
 }
 
 func TestSemicolonInsertion(t *testing.T) {
-	for _, src := range []string{"name", "123", `"text"`, `"{x}"`, ")", "]", "}", "_", "true", "false"} {
+	for _, src := range []string{"name", "123", `"text"`, `"${x}"`, ")", "]", "}", "_", "true", "false"} {
 		t.Run(src, func(t *testing.T) {
 			for _, ending := range []string{"", "\n", "\n\n", " // comment\n"} {
 				got := tokens(t, src+ending)
@@ -207,40 +207,55 @@ func TestInterpolationParts(t *testing.T) {
 		src  string
 		want []lexer.InterpPart
 	}{
-		{`"hello {name}: {1 + 2}!"`, []lexer.InterpPart{
+		{`"hello ${name}: ${1 + 2}!"`, []lexer.InterpPart{
 			{Text: "hello "},
-			{Expr: "name", Pos: ast.Pos{Line: 1, Col: 9}},
+			{Expr: "name", Pos: ast.Pos{Line: 1, Col: 10}},
 			{Text: ": "},
-			{Expr: "1 + 2", Pos: ast.Pos{Line: 1, Col: 17}},
+			{Expr: "1 + 2", Pos: ast.Pos{Line: 1, Col: 19}},
 			{Text: "!"},
 		}},
-		{`"{x}{y}"`, []lexer.InterpPart{
-			{}, {Expr: "x", Pos: ast.Pos{Line: 1, Col: 3}},
-			{}, {Expr: "y", Pos: ast.Pos{Line: 1, Col: 6}}, {},
+		{`"${x}${y}"`, []lexer.InterpPart{
+			{}, {Expr: "x", Pos: ast.Pos{Line: 1, Col: 4}},
+			{}, {Expr: "y", Pos: ast.Pos{Line: 1, Col: 8}}, {},
 		}},
-		{`"{{{x}}}"`, []lexer.InterpPart{
+		{`"{${x}}"`, []lexer.InterpPart{
 			{Text: "{"}, {Expr: "x", Pos: ast.Pos{Line: 1, Col: 5}}, {Text: "}"},
 		}},
-		{`"a\n{x}\t"`, []lexer.InterpPart{
-			{Text: "a\n"}, {Expr: "x", Pos: ast.Pos{Line: 1, Col: 6}}, {Text: "\t"},
+		{`"{{${x}}}"`, []lexer.InterpPart{
+			{Text: "{{"}, {Expr: "x", Pos: ast.Pos{Line: 1, Col: 6}}, {Text: "}}"},
 		}},
-		{`"{show({a: 1}.a)}"`, []lexer.InterpPart{
-			{}, {Expr: "show({a: 1}.a)", Pos: ast.Pos{Line: 1, Col: 3}}, {},
+		{`"$$${x} $$ $"`, []lexer.InterpPart{
+			{Text: "$"}, {Expr: "x", Pos: ast.Pos{Line: 1, Col: 6}}, {Text: " $ $"},
 		}},
-		{`"{show(Point{a: "quoted \"text\""}.a)}"`, []lexer.InterpPart{
-			{}, {Expr: `show(Point{a: "quoted \"text\""}.a)`, Pos: ast.Pos{Line: 1, Col: 3}}, {},
+		{`"\x24${x}"`, []lexer.InterpPart{
+			{Text: "$"}, {Expr: "x", Pos: ast.Pos{Line: 1, Col: 8}}, {},
 		}},
-		{`"{show("{{braces}}")}"`, []lexer.InterpPart{
-			{}, {Expr: `show("{{braces}}")`, Pos: ast.Pos{Line: 1, Col: 3}}, {},
+		{`"a\n${x}\t"`, []lexer.InterpPart{
+			{Text: "a\n"}, {Expr: "x", Pos: ast.Pos{Line: 1, Col: 7}}, {Text: "\t"},
 		}},
-		{`"{show("{Point{a: "x"}.a}")}"`, []lexer.InterpPart{
-			{}, {Expr: `show("{Point{a: "x"}.a}")`, Pos: ast.Pos{Line: 1, Col: 3}}, {},
+		{`"${show({a: 1}.a)}"`, []lexer.InterpPart{
+			{}, {Expr: "show({a: 1}.a)", Pos: ast.Pos{Line: 1, Col: 4}}, {},
 		}},
-		{`"{}"`, []lexer.InterpPart{
-			{}, {Expr: "", Pos: ast.Pos{Line: 1, Col: 3}}, {},
+		{`"${show(Point{a: "quoted \"text\""}.a)}"`, []lexer.InterpPart{
+			{}, {Expr: `show(Point{a: "quoted \"text\""}.a)`, Pos: ast.Pos{Line: 1, Col: 4}}, {},
 		}},
-		{"\"{x + // } and \" are comment text\n 1}\"", []lexer.InterpPart{
-			{}, {Expr: "x + // } and \" are comment text\n 1", Pos: ast.Pos{Line: 1, Col: 3}}, {},
+		{`"${"nested"}"`, []lexer.InterpPart{
+			{}, {Expr: `"nested"`, Pos: ast.Pos{Line: 1, Col: 4}}, {},
+		}},
+		{`"${show("{braces}")}"`, []lexer.InterpPart{
+			{}, {Expr: `show("{braces}")`, Pos: ast.Pos{Line: 1, Col: 4}}, {},
+		}},
+		{`"${show("{{braces}}")}"`, []lexer.InterpPart{
+			{}, {Expr: `show("{{braces}}")`, Pos: ast.Pos{Line: 1, Col: 4}}, {},
+		}},
+		{`"${show("${Point{a: "x"}.a}")}"`, []lexer.InterpPart{
+			{}, {Expr: `show("${Point{a: "x"}.a}")`, Pos: ast.Pos{Line: 1, Col: 4}}, {},
+		}},
+		{`"${}"`, []lexer.InterpPart{
+			{}, {Expr: "", Pos: ast.Pos{Line: 1, Col: 4}}, {},
+		}},
+		{"\"${x + // } and \" are comment text\n 1}\"", []lexer.InterpPart{
+			{}, {Expr: "x + // } and \" are comment text\n 1", Pos: ast.Pos{Line: 1, Col: 4}}, {},
 		}},
 	} {
 		t.Run(tc.src, func(t *testing.T) {
@@ -260,13 +275,28 @@ func TestInterpolationParts(t *testing.T) {
 	}
 }
 
-func TestLiteralBraces(t *testing.T) {
+func TestLiteralBracesAndDollars(t *testing.T) {
 	for _, tc := range []struct{ src, want string }{
-		{`"{{x}}"`, "{x}"},
-		{`"{{{{x}}}}"`, "{{x}}"},
+		{`"{not interp}"`, "{not interp}"},
+		{`"{x}"`, "{x}"},
+		{`"{{x}}"`, "{{x}}"},
+		{`"{{{{x}}}}"`, "{{{{x}}}}"},
 		{`"\x7bx\u007d"`, "{x}"},
-		{`"\x7b{{x}}\x7d"`, "{{x}}"},
-		{`"}}"`, "}"},
+		{`"\x7b{{x}}\x7d"`, "{{{x}}}"},
+		{`"{"`, "{"},
+		{`"}"`, "}"},
+		{`"}}"`, "}}"},
+		{`"$"`, "$"},
+		{`"$value"`, "$value"},
+		{`"end$"`, "end$"},
+		{`"$$"`, "$"},
+		{`"$$$"`, "$$"},
+		{`"$$$$"`, "$$"},
+		{`"$${x}"`, "${x}"},
+		{`"$${"`, "${"},
+		{`"\x24$"`, "$$"},
+		{`"$\u0024{x}"`, "$${x}"},
+		{`"\x24$${x}"`, "$${x}"},
 		{`"plain"`, "plain"},
 	} {
 		t.Run(tc.src, func(t *testing.T) {
@@ -279,26 +309,29 @@ func TestLiteralBraces(t *testing.T) {
 }
 
 func TestStartingPosition(t *testing.T) {
-	got, err := lexer.NewAt("α +\n  \"value {x}\"", ast.Pos{Line: 7, Col: 11}).All()
+	got, err := lexer.NewAt("α +\n  \"value ${x}\"", ast.Pos{Line: 7, Col: 11}).All()
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(got) != 5 || got[0].Pos != (ast.Pos{Line: 7, Col: 11}) ||
 		got[1].Pos != (ast.Pos{Line: 7, Col: 13}) || got[2].Pos != (ast.Pos{Line: 8, Col: 3}) ||
-		got[2].Parts[1].Pos != (ast.Pos{Line: 8, Col: 11}) || got[4].Pos != (ast.Pos{Line: 8, Col: 14}) {
+		got[2].Parts[1].Pos != (ast.Pos{Line: 8, Col: 12}) || got[4].Pos != (ast.Pos{Line: 8, Col: 15}) {
 		t.Errorf("offset tokens = %#v", got)
 	}
 }
 
 func TestInterpolationErrorsWithPositions(t *testing.T) {
 	for _, tc := range []struct{ src, want string }{
-		{"\n  \"bad {x", "2:8: unterminated interpolation"},
-		{"\n  \"bad {x\"", "2:8: unterminated interpolation"},
-		{`"{Point{a: 1}"`, "1:2: unterminated interpolation"},
-		{`"{show("x")"`, "1:2: unterminated interpolation"},
-		{`"{x}`, "1:1: unterminated string"},
-		{`"\q{x}"`, "1:1: bad string literal:"},
-		{`"{x}\q"`, "1:1: bad string literal:"},
+		{"\n  \"bad ${", "2:8: unterminated interpolation"},
+		{"\n  \"bad ${x", "2:8: unterminated interpolation"},
+		{"\n  \"bad ${x\"", "2:8: unterminated interpolation"},
+		{"\n  \"α ${x", "2:6: unterminated interpolation"},
+		{"\n  \"bad $$ ${x", "2:11: unterminated interpolation"},
+		{`"${Point{a: 1}"`, "1:2: unterminated interpolation"},
+		{`"${show("x")"`, "1:2: unterminated interpolation"},
+		{`"${x}`, "1:1: unterminated string"},
+		{`"\q${x}"`, "1:1: bad string literal:"},
+		{`"${x}\q"`, "1:1: bad string literal:"},
 	} {
 		t.Run(tc.src, func(t *testing.T) {
 			_, err := lexer.New(tc.src).All()

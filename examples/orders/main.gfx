@@ -7,17 +7,17 @@ type Order = Pending(Int, Int) | Shipped(Int, Int) | Cancelled(Int)
 
 func cancel(o Order) Order {
   match o {
-    | Pending(id, _) => Cancelled(id)
-    | Shipped(id, amount) => Shipped(id, amount)
-    | Cancelled(id) => Cancelled(id)
+    Pending(id, _) => Cancelled(id)
+    Shipped(id, amount) => Shipped(id, amount)
+    Cancelled(id) => Cancelled(id)
   }
 }
 
 func ship(o Order) Option[Order] {
   match o {
-    | Pending(id, amount) => if amount > 0 { Some(Shipped(id, amount)) } else { None }
-    | Shipped(id, amount) => Some(Shipped(id, amount))
-    | Cancelled(_) => None
+    Pending(id, amount) => if amount > 0 { Some(Shipped(id, amount)) } else { None }
+    Shipped(id, amount) => Some(Shipped(id, amount))
+    Cancelled(_) => None
   }
 }
 
@@ -26,9 +26,9 @@ func ship(o Order) Option[Order] {
 instance Show[Order] {
   show(o) {
     match o {
-      | Pending(id, amount) => "Pending#" + show(id) + "(" + show(amount) + ")"
-      | Shipped(id, amount) => "Shipped#" + show(id) + "(" + show(amount) + ")"
-      | Cancelled(id) => "Cancelled#" + show(id)
+      Pending(id, amount) => "Pending#" + show(id) + "(" + show(amount) + ")"
+      Shipped(id, amount) => "Shipped#" + show(id) + "(" + show(amount) + ")"
+      Cancelled(id) => "Cancelled#" + show(id)
     }
   }
 }
@@ -52,9 +52,9 @@ func shipTwo(a Order, b Order) Option[Int] {
 
 func amountOf(o Order) Int {
   match o {
-    | Pending(_, amount) => amount
-    | Shipped(_, amount) => amount
-    | Cancelled(_) => 0
+    Pending(_, amount) => amount
+    Shipped(_, amount) => amount
+    Cancelled(_) => 0
   }
 }
 
@@ -83,12 +83,12 @@ func main() IO[Unit] {
     let shipped = fmap(orders, ship)
     println("shipped:   " + show(shipped))
     match shipTwo(Pending(1, 300), Pending(4, 500)) {
-      | Some(total) => notify(total)
-      | None => println("cannot ship both")
+      Some(total) => notify(total)
+      None => println("cannot ship both")
     }
     match shipTwo(Pending(1, 300), Pending(2, 0)) {
-      | Some(total) => notify(total)
-      | None => println("cannot ship both (second has zero amount)")
+      Some(total) => notify(total)
+      None => println("cannot ship both (second has zero amount)")
     }
     x <- twice(ioPure(20), func(n) => n + 1)
     println("IO twice:  " + show(x))

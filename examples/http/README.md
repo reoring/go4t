@@ -2,6 +2,11 @@
 
 Run these commands from the repository root.
 
+Match arms written one per line omit the leading `|`. One-line matches also
+omit it before the first arm, keeping `|` only between arms, as in
+`match r { Err(e) => "Err(${e})" | Ok(a) => "Ok(${a})" }`.
+Matches whose arms span several lines retain leading `|` separators.
+
 ## HTTP
 
 `go run ./cmd/gofx run examples/http/main.gfx` requires network access. It prints
@@ -17,8 +22,8 @@ twice: 23
 
 `go run ./cmd/gofx run examples/tree/main.gfx` needs no network access. It defines
 a recursive `Tree`, a `Functor[Tree]` instance, and a polymorphic
-`render[A Show]` function with `|`-separated match arms. Mapping over the tree
-multiplies each value by ten:
+`render[A Show]` function with one match arm per line and no leading `|`.
+Mapping over the tree multiplies each value by ten:
 
 ```text
 ((. 10 .) 20 .)
@@ -72,7 +77,7 @@ as-pattern (`whole @ Stock(sku, qty)`) retains an unchanged stock without
 rebuilding it. Record constructors still support positional calls and patterns.
 Partially applied instance heads `Functor[Result[E]]` and `Monad[Result[E]]`
 sequence validation with a generic error type, while `Show[Result[E, A]]` uses
-both constrained dictionaries. String interpolation (`"stocks:   {stocks}"`)
+both constrained dictionaries. String interpolation (`"stocks:   ${stocks}"`)
 uses each expression's `Show` instance, including the prelude's tuple `Show`
 instance through the generic `tag` helper.
 With a successful HTTP 200 response, its stdout is unchanged:
@@ -99,11 +104,13 @@ order. Field access and copy updates require a single-constructor record type;
 The example maps this update over three users with `fmap`, and sequences an
 `Option`-based `do` that reads `u.email`. Missing email short-circuits to `None`.
 
-String interpolation writes `{expression}` inside a string and resolves its
+String interpolation writes `${expression}` inside a string and resolves its
 `Show` instance. Here, `Show[User]` interpolates the name, age, and optional
 email, and interpolating lists and tuples uses their constrained instances.
 Nested string literals are allowed inside interpolation expressions, as in
-`"strings:  {pair("hi")}"`; `{{` and `}}` produce literal braces.
+`"strings:  ${pair("hi")}"`. `$$` produces a literal `$`; a `$` not followed by
+`{` is also literal. Braces outside `${...}` are ordinary characters, so `{`
+and `}` need no escaping, and `{{` is two literal braces rather than an escape.
 
 Local `let` bindings generalise lambdas and literals/constructor applications:
 `let pair = func(x) => (x, x)` can be called at both `Int` and `String`.
@@ -134,11 +141,36 @@ continues to execute. Unconstrained empty lists and other unused values can
 also trigger defaulting warnings. Add a type annotation or use the value in a
 typed context to determine the type instead.
 
+## Bank
+
+`go run ./cmd/gofx run examples/bank/main.gfx` requires network access for
+the audit notification. It combines named record construction and copy updates,
+`Result` validation, tuple patterns, list operations, and a polymorphic local
+`describe` helper. Interpolation uses `${expression}` without changing record
+syntax such as `Account{id: ..., owner: ..., balance: ...}` or
+`a{balance: a.balance - amt}`. Matches use one-line separators or one arm per
+line without a leading `|`, retaining leading separators when arms span
+several lines.
+
+With a successful HTTP 200 response, expected stdout is:
+
+```text
+book:  alice<A-1>:100; bob<B-2>:20
+txs:   deposit 30 -> B-2; transfer 50 A-1 -> B-2
+good:  [alice<A-1>:50, bob<B-2>:100] / None
+  audit good: sent=true total=150
+bad:   [alice<A-1>:50, bob<B-2>:90] / Some((B-2: need 500, have 90, 1))
+ugly:  Some((no such account Z-9, 0))
+check: Err(bad amount 0)
+sum:   120 -> 140
+zip:   [a, b]
+```
+
 ## Generated Go
 
 `go run ./cmd/gofx build examples/http/main.gfx` writes
 `examples/http/main_gen/main.go` with `package main`; the tree, orders, lists,
-inventory, and records examples similarly use their own `main_gen/main.go`.
+inventory, records, and bank examples similarly use their own `main_gen/main.go`.
 Each source file gets its own `<base>_gen/` directory, so multiple `.gfx`
 programs can share a source directory.
 `run` builds this directory and executes it with `go run` from the module root.
