@@ -146,8 +146,7 @@ func freeVars(bound List[String], e Expr) State[List[String], Unit] {
   match e {
     Num(_) => pure(unit())
     Var(x) =>
-      if length(filter(bound, func(b) => b == x)) > 0
-        || length(filter(bound, func(b) => b == "*")) > 0 { pure(unit()) }
+      if elem(x, bound) || elem("*", bound) { pure(unit()) }
       else { modify(func(acc) => append(acc, [x])) }
     Bin(_, l, r) => forEach([l, r], func(sub) => freeVars(bound, sub))
     Let(x, v, body) => do {

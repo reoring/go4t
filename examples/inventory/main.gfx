@@ -14,6 +14,10 @@ instance Show[Sku] {
   show(s) { match s { Sku(code) => code } }
 }
 
+instance Eq[Sku] {
+  eq(a, b) { match (a, b) { (Sku(x), Sku(y)) => x == y } }
+}
+
 instance Show[Stock] {
   show(s) { "${s.sku}=${s.qty}" }
 }
@@ -53,10 +57,6 @@ instance Monad[Result[E]] {
 
 // ===== 純粋ロジック =====
 
-func sameSku(a Sku, b Sku) Bool {
-  match (a, b) { (Sku(x), Sku(y)) => x == y }
-}
-
 // 複数倉庫の在庫を sku ごとに合算
 func merge(stocks List[Stock]) List[Stock] {
   fold(stocks, [], func(acc, s) => addStock(acc, s))
@@ -66,14 +66,14 @@ func addStock(acc List[Stock], s Stock) List[Stock] {
   match (acc, s) {
     | (Nil, _) => [s]
     | (Cons(whole @ Stock(sku, qty), rest), Stock(sku2, qty2)) =>
-        if sameSku(sku, sku2) { Cons(Stock(sku, qty + qty2), rest) }
+        if sku == sku2 { Cons(Stock(sku, qty + qty2), rest) }
         else { Cons(whole, addStock(rest, s)) }
   }
 }
 
 func available(stocks List[Stock], sku Sku) Int {
   fold(stocks, 0, func(acc, stock) => match stock {
-    Stock{sku: s, ..} => if sameSku(sku, s) { acc + stock.qty } else { acc }
+    Stock{sku: s, ..} => if sku == s { acc + stock.qty } else { acc }
   })
 }
 
@@ -101,7 +101,7 @@ func allocateAll(stocks List[Stock], lines List[Line]) Result[String, List[Line]
 // 引当後の在庫を減らす
 func consume(stocks List[Stock], lines List[Line]) List[Stock] {
   fold(lines, stocks, func(acc, l) => fmap(acc, func(s) =>
-    if sameSku(l.sku, s.sku) { s{qty: s.qty - l.qty} } else { s }
+    if l.sku == s.sku { s{qty: s.qty - l.qty} } else { s }
   ))
 }
 

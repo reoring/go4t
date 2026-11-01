@@ -23,18 +23,24 @@ func catchall(p ast.Pattern) bool {
 }
 
 func (b *bodyChecker) checkExhaustive(expr *ast.Match) {
-	if len(expr.Arms) == 0 {
-		fail(expr.GetPos(), "non-exhaustive match")
+	for i := len(expr.Arms) - 1; i >= 0; i-- {
+		if expr.Arms[i].Guard == nil {
+			if catchall(expr.Arms[i].Pat) {
+				return
+			}
+			break
+		}
 	}
-	if catchall(expr.Arms[len(expr.Arms)-1].Pat) {
-		return
+	rows := make([][]ast.Pattern, 0, len(expr.Arms))
+	for _, arm := range expr.Arms {
+		if arm.Guard == nil {
+			rows = append(rows, []ast.Pattern{arm.Pat})
+		}
 	}
-	rows := make([][]ast.Pattern, len(expr.Arms))
-	for i, arm := range expr.Arms {
-		if _, literal := patternShape(arm.Pat).(*ast.PLit); literal {
+	for _, row := range rows {
+		if _, literal := patternShape(row[0]).(*ast.PLit); literal {
 			fail(expr.GetPos(), "non-exhaustive match: literal patterns require a trailing catch-all")
 		}
-		rows[i] = []ast.Pattern{arm.Pat}
 	}
 	if !b.c.covers(rows, []Type{AnnOf(expr.Scrut).Type}) {
 		fail(expr.GetPos(), "non-exhaustive match")

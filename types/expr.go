@@ -26,6 +26,8 @@ type obligation struct {
 	constraints []Constraint
 	monad       bool
 	show        bool
+	// Operators retain ordinary Unit defaulting before dictionary resolution.
+	defaultable bool
 }
 
 type bodyChecker struct {
@@ -35,7 +37,7 @@ type bodyChecker struct {
 	exprs       []ast.Expr
 	obligations []obligation
 	additions   []*ast.Binary
-	comparisons []*ast.Binary
+	lambdas     []*ast.Lambda
 	matches     []*ast.Match
 	lets        []*localScheme
 	bindings    map[ast.Expr]defaultOrigin
@@ -65,7 +67,7 @@ func (b *bodyChecker) block(block *ast.Block, outer *locals) Type {
 	for _, stmt := range block.Stmts {
 		switch stmt := stmt.(type) {
 		case *ast.LetStmt:
-			b.let(stmt.Pos, stmt.Name, stmt.Value, env)
+			b.let(stmt.Pos, stmt.Name, stmt.Type, stmt.Value, env)
 		case *ast.ExprStmt:
 			b.infer(stmt.X, env)
 		}
@@ -209,10 +211,6 @@ func (b *bodyChecker) inferExpected(e ast.Expr, env *locals, expected Type) Type
 		ft := &TFunc{Params: make([]Type, len(e.Params))}
 		contextual := expected != nil
 		for i, param := range e.Params {
-			checkValueName(pos, param.Name)
-			if local.values[param.Name] != nil {
-				fail(pos, "duplicate parameter %s", param.Name)
-			}
 			var typ Type
 			if param.Type == nil {
 				typ = b.c.fresh(KStar{})
@@ -220,11 +218,27 @@ func (b *bodyChecker) inferExpected(e ast.Expr, env *locals, expected Type) Type
 				typ = b.c.valueType(param.Type, b.types)
 				contextual = false
 			}
-			ft.Params[i], local.values[param.Name] = typ, typ
+			ft.Params[i] = typ
 		}
 		if contextual {
 			ft.Ret = b.c.fresh(KStar{})
 			unify(pos, expected, ft)
+		}
+		hasPattern := false
+		for i, param := range e.Params {
+			if param.Pat != nil {
+				b.pattern(param.Pat, ft.Params[i], local)
+				hasPattern = true
+			} else {
+				checkValueName(pos, param.Name)
+				if local.values[param.Name] != nil {
+					fail(pos, "duplicate parameter %s", param.Name)
+				}
+				local.values[param.Name] = ft.Params[i]
+			}
+		}
+		if hasPattern {
+			b.lambdas = append(b.lambdas, e)
 		}
 		ret := b.infer(e.Body, local)
 		if contextual && !unifyTypes(pos, ft.Ret, ret) {
@@ -247,6 +261,9 @@ func (b *bodyChecker) inferExpected(e ast.Expr, env *locals, expected Type) Type
 		for _, arm := range e.Arms {
 			local := newLocals(env)
 			b.pattern(arm.Pat, scrut, local)
+			if arm.Guard != nil {
+				unify(arm.Guard.GetPos(), Bool, b.infer(arm.Guard, local))
+			}
 			unify(arm.Body.GetPos(), result, b.infer(arm.Body, local))
 		}
 		b.matches = append(b.matches, e)
@@ -261,7 +278,7 @@ func (b *bodyChecker) inferExpected(e ast.Expr, env *locals, expected Type) Type
 				local.values[stmt.Name] = b.monadic(stmt.X, head, local)
 				delete(local.schemes, stmt.Name)
 			case *ast.DoLet:
-				b.let(stmt.Pos, stmt.Name, stmt.Value, local)
+				b.let(stmt.Pos, stmt.Name, stmt.Type, stmt.Value, local)
 			case *ast.DoExpr:
 				b.monadic(stmt.X, head, local)
 			}
@@ -296,7 +313,17 @@ func (b *bodyChecker) inferExpected(e ast.Expr, env *locals, expected Type) Type
 			result = Bool
 		case "==", "!=", "<", "<=", ">", ">=":
 			unify(e.R.GetPos(), left, right)
-			b.comparisons = append(b.comparisons, e)
+			class := "Ord"
+			if e.Op == "==" || e.Op == "!=" {
+				class = "Eq"
+			}
+			if b.c.program.Classes[class] == nil {
+				fail(pos, "operator %s requires prelude %s", e.Op, class)
+			}
+			ann.Inst = []Type{left}
+			b.obligations = append(b.obligations, obligation{
+				expr: e, constraints: []Constraint{{Class: class, Arg: left}}, defaultable: true,
+			})
 			result = Bool
 		default:
 			fail(pos, "unknown binary operator %s", e.Op)

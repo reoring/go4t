@@ -19,11 +19,15 @@
 //	Type     := Ident [ '[' Type { ',' Type } ']' ] | 'func' '(' [ Type { ',' Type } ] ')' Type
 //	          | '(' Type ')' | '(' Type ',' Type { ',' Type } ')'
 //	Block    := '{' { Stmt ';' } Expr [ ';' ] '}'
-//	Stmt     := 'let' Ident '=' Expr | Expr
+//	Stmt     := 'let' Ident [ ':' Type ] '=' Expr | Expr
 //	Expr     := 'func' '(' LParams ')' '=>' Expr | 'do' DoBlock | 'match' Expr '{' Arms '}'
 //	          | 'if' Expr Block 'else' ( Block | IfExpr ) | Binary
+//	LParams  := [ LParam { ',' LParam } [ ',' ] ]
+//	LParam   := LowerIdent [ Type ] | Pattern // only bare non-constructor names may be annotated
+//	DoBlock  := '{' { DoStmt ';' } Expr [ ';' ] '}'
+//	DoStmt   := Ident '<-' Expr | 'let' Ident [ ':' Type ] '=' Expr | Expr
 //	Arms     := { ';' } [ '|' ] { ';' } Arm { ArmSep Arm } [ ArmSep ]
-//	Arm      := Pattern '=>' Expr
+//	Arm      := Pattern [ 'if' Expr ] '=>' Expr
 //	ArmSep   := ( ';' | '|' ) { ';' | '|' }
 //	Pattern  := '_' | Lit | Ident [ '(' [ Pattern { ',' Pattern } ] ')' ]
 //	          | UpperIdent RecordPatternFields
@@ -463,8 +467,12 @@ func (p *Parser) block() *ast.Block {
 		if p.isK("let") {
 			pos := p.next().Pos
 			name := p.ident()
+			var typ ast.Type
+			if p.acceptP(":") {
+				typ = p.typ()
+			}
 			p.expectP("=")
-			b.Stmts = append(b.Stmts, &ast.LetStmt{Pos: pos, Name: name, Value: p.expr()})
+			b.Stmts = append(b.Stmts, &ast.LetStmt{Pos: pos, Name: name, Type: typ, Value: p.expr()})
 			p.skipSemis()
 			continue
 		}
@@ -490,9 +498,17 @@ func (p *Parser) expr() ast.Expr {
 		l := &ast.Lambda{ExprBase: ast.ExprBase{Pos: pos}}
 		p.expectP("(")
 		for !p.isP(")") {
-			prm := ast.Param{Name: p.ident()}
-			if !p.isP(",") && !p.isP(")") {
-				prm.Type = p.typ()
+			var prm ast.Param
+			if p.tok().Kind == lexer.Ident && !isUpper(p.tok().Text) && p.toks[p.i+1].Text != "@" {
+				prm.Name = p.ident()
+				if !p.isP(",") && !p.isP(")") {
+					prm.Type = p.typ()
+				}
+			} else {
+				prm.Pat = p.pattern()
+				if !p.isP(",") && !p.isP(")") {
+					p.fail(p.pos(), "pattern parameters cannot be annotated")
+				}
 			}
 			l.Params = append(l.Params, prm)
 			if !p.acceptP(",") {
@@ -546,8 +562,12 @@ func (p *Parser) doExpr(pos ast.Pos) ast.Expr {
 		if p.isK("let") {
 			p.next()
 			name := p.ident()
+			var typ ast.Type
+			if p.acceptP(":") {
+				typ = p.typ()
+			}
 			p.expectP("=")
-			d.Stmts = append(d.Stmts, &ast.DoLet{Pos: spos, Name: name, Value: p.expr()})
+			d.Stmts = append(d.Stmts, &ast.DoLet{Pos: spos, Name: name, Type: typ, Value: p.expr()})
 			p.skipSemis()
 			continue
 		}
@@ -579,6 +599,10 @@ func (p *Parser) matchExpr(pos ast.Pos) ast.Expr {
 	p.skipSemis()
 	for !p.isP("}") {
 		arm := ast.Arm{Pos: p.pos(), Pat: p.pattern()}
+		if p.isK("if") {
+			p.next()
+			arm.Guard = p.expr()
+		}
 		p.expectP("=>")
 		arm.Body = p.expr()
 		m.Arms = append(m.Arms, arm)

@@ -41,7 +41,7 @@ instance Monad[IO] {
   pure(a) { ioPure(a) }
   bind(ma, f) { ioBind(ma, f) }
 }
-`
+` + pass9Prelude
 
 func parseFiles(t *testing.T, source string) []*ast.File {
 	t.Helper()
@@ -84,9 +84,9 @@ func bad() Box[Int] { fmap(Boxed(1), func(x) => x) }` + main, "no instance Funct
 		{"ambiguous class", `func bad() Unit { pure(1); unit() }` + main, "unresolved class constraint"},
 		{"default unconstrained", `func okay() Unit { None; let f = func(x) => x; unit() }` + main, ""},
 		{"primitive comparison", `func okay() Bool { let same = func(x) => x == x; same(1) }` + main, ""},
-		{"polymorphic comparison", `func bad[A](x A) Bool { x == x }` + main, "comparison requires Int, String or Bool"},
-		{"data comparison", `func bad() Bool { Some(1) == Some(1) }` + main, "comparison requires Int, String or Bool"},
-		{"bool ordering", `func bad() Bool { false < true }` + main, "ordering comparison requires Int or String"},
+		{"polymorphic comparison", `func bad[A](x A) Bool { x == x }` + main, "no instance Eq[A] (type parameter A has no class constraints)"},
+		{"data comparison missing instance", `func bad() Bool { Some(1) == Some(1) }` + main, "no instance Eq[Option[Int]]"},
+		{"bool ordering", `func okay() Bool { false < true }` + main, ""},
 		{"operators", `func okay(x Int, y String, z Bool) Bool { let n = -(x + 2) * 3 / 2 - 1; if !z && n >= 0 { y < "z" || n != 2 } else { z == false } }` + main, ""},
 		{"literal catchall", `func okay(x Int) Bool { match x { 1 => true; _ => false } }` + main, ""},
 		{"literal incomplete", `func bad(x Bool) Int { match x { true => 1; false => 0 } }` + main, "non-exhaustive match"},
@@ -711,9 +711,10 @@ func TestSuperclassInstanceContext(t *testing.T) {
 		wantError           bool
 	}{
 		{"matching", "Functor[Pair[A, B]] given Show[A], Other[B]", "Monad[Pair[X, Y]] given Show[X], Other[Y]", false},
-		{"different length", "Functor[Pair[A, B]]", "Monad[Pair[A, B]] given Show[A]", true},
+		{"extra child constraint", "Functor[Pair[A, B]]", "Monad[Pair[A, B]] given Show[A]", false},
+		{"missing child constraint", "Functor[Pair[A, B]] given Show[A]", "Monad[Pair[A, B]]", true},
 		{"different classes", "Functor[Pair[A, B]] given Show[A]", "Monad[Pair[A, B]] given Other[A]", true},
-		{"different order", "Functor[Pair[A, B]] given Show[A], Other[B]", "Monad[Pair[A, B]] given Other[B], Show[A]", true},
+		{"different order", "Functor[Pair[A, B]] given Show[A], Other[B]", "Monad[Pair[A, B]] given Other[B], Show[A]", false},
 		{"different parameters", "Functor[Pair[A, B]] given Show[A]", "Monad[Pair[A, B]] given Show[B]", true},
 	}
 	for _, tt := range tests {
@@ -737,7 +738,7 @@ instance ` + tt.parent + " {}\ninstance " + tt.child + " {}\n")
 				return
 			}
 			var typed *types.Error
-			if p != nil || !errors.As(err, &typed) || typed.Msg != "superclass instance Functor[Pair] must declare the same context" {
+			if p != nil || !errors.As(err, &typed) || typed.Msg != "superclass instance Functor[Pair] context is not implied" {
 				t.Fatalf("Check = (%v, %v), want superclass context mismatch", p, err)
 			}
 		})

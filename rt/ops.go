@@ -8,12 +8,12 @@ func MulInt(a, b any) any { return a.(int64) * b.(int64) }
 func DivInt(a, b any) any { return a.(int64) / b.(int64) }
 func NegInt(a any) any    { return -a.(int64) }
 
+// MinInt and MaxInt expose the signed 64-bit bounds through the erased ABI.
+func MinInt() any { return int64(-1 << 63) }
+func MaxInt() any { return int64(1<<63 - 1) }
+
 func EqInt(a, b any) any { return a.(int64) == b.(int64) }
-func NeInt(a, b any) any { return a.(int64) != b.(int64) }
 func LtInt(a, b any) any { return a.(int64) < b.(int64) }
-func LeInt(a, b any) any { return a.(int64) <= b.(int64) }
-func GtInt(a, b any) any { return a.(int64) > b.(int64) }
-func GeInt(a, b any) any { return a.(int64) >= b.(int64) }
 
 func AddString(a, b any) any { return a.(string) + b.(string) }
 
@@ -36,14 +36,7 @@ func Concat(parts ...any) any {
 }
 
 func EqString(a, b any) any { return a.(string) == b.(string) }
-func NeString(a, b any) any { return a.(string) != b.(string) }
 func LtString(a, b any) any { return a.(string) < b.(string) }
-func LeString(a, b any) any { return a.(string) <= b.(string) }
-func GtString(a, b any) any { return a.(string) > b.(string) }
-func GeString(a, b any) any { return a.(string) >= b.(string) }
 
 func EqBool(a, b any) any { return a.(bool) == b.(bool) }
-func NeBool(a, b any) any { return a.(bool) != b.(bool) }
-func And(a, b any) any    { return a.(bool) && b.(bool) }
-func Or(a, b any) any     { return a.(bool) || b.(bool) }
 func Not(a any) any       { return !a.(bool) }

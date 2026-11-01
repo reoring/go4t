@@ -108,17 +108,24 @@ func (b *bodyChecker) generalizableValues(es []ast.Expr) bool {
 	return true
 }
 
-func (b *bodyChecker) let(pos ast.Pos, name string, value ast.Expr, env *locals) {
+func (b *bodyChecker) let(pos ast.Pos, name string, annotation ast.Type, value ast.Expr, env *locals) {
 	checkValueName(pos, name)
 	start := len(b.obligations)
-	typ := b.infer(value, env)
+	var expected Type
+	if annotation != nil {
+		expected = b.c.valueType(annotation, b.types)
+	}
+	typ := b.inferExpected(value, env, expected)
+	if expected != nil {
+		unify(value.GetPos(), expected, typ)
+	}
 	if b.bindings == nil {
 		b.bindings = make(map[ast.Expr]defaultOrigin)
 	}
 	b.bindings[value] = defaultOrigin{pos: pos, what: "let " + name, priority: 2}
 	// Capture the old environment before replacing a shadowed binding.
 	var local *localScheme
-	if b.generalizable(value) {
+	if annotation == nil && b.generalizable(value) {
 		local = b.generalize(typ, env, start, pos)
 	}
 	env.values[name] = typ
@@ -154,14 +161,10 @@ func (b *bodyChecker) generalize(typ Type, env *locals, start int, pos ast.Pos) 
 			visitMetas(t, mark)
 		}
 	}
-	// Primitive operators dispatch statically, not via type-class dictionaries.
-	// Keep their operand metas monomorphic so later context can select Int/String
-	// (or Bool for equality), exactly as it does outside a let.
+	// Addition dispatches statically, not via a type-class dictionary. Keep
+	// its operand metas monomorphic so later context can select Int/String.
 	for _, expr := range b.additions {
 		visitMetas(AnnOf(expr).Type, mark)
-	}
-	for _, expr := range b.comparisons {
-		visitMetas(AnnOf(expr.L).Type, mark)
 	}
 	var metas []*TMeta
 	seen := make(map[*TMeta]bool)

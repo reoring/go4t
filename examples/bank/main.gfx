@@ -22,6 +22,10 @@ type Result[E, A] = Err(E) | Ok(A)
 instance Show[AccountId] { show(a) { match a { AccountId(s) => s } } }
 instance Show[Account]   { show(a) { "${a.owner}<${a.id}>:${a.balance}" } }
 
+instance Eq[AccountId] {
+  eq(a, b) { match (a, b) { (AccountId(x), AccountId(y)) => x == y } }
+}
+
 instance Show[Tx] {
   show(t) {
     match t {
@@ -56,19 +60,15 @@ instance Monad[Result[E]] {
 
 // ===== 純粋ロジック =====
 
-func sameId(a AccountId, b AccountId) Bool {
-  match (a, b) { (AccountId(x), AccountId(y)) => x == y }
-}
-
 func find(book List[Account], id AccountId) Result[Failure, Account] {
-  match filter(book, func(a) => sameId(a.id, id)) {
+  match filter(book, func(a) => a.id == id) {
     Cons(a, _) => Ok(a)
     Nil => Err(NoSuchAccount(id))
   }
 }
 
 func updateAccount(book List[Account], acct Account) List[Account] {
-  fmap(book, func(a) => if sameId(a.id, acct.id) { acct } else { a })
+  fmap(book, func(a) => if a.id == acct.id { acct } else { a })
 }
 
 func positive(n Int) Result[Failure, Int] {

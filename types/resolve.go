@@ -19,9 +19,12 @@ func (b *bodyChecker) finish() {
 			fail(expr.GetPos(), "addition requires Int or String, got %s", TypeString(typ))
 		}
 	}
-	// Inspect all obligations before defaulting unconstrained metas to Unit:
-	// a meta shared by an ordinary expression and a class use must not default.
+	// Explicit class uses must resolve before defaulting. Operator obligations
+	// alone retain ordinary Unit defaulting, then resolve Eq/Ord for that type.
 	for _, o := range b.obligations {
+		if o.defaultable {
+			continue
+		}
 		for _, constraint := range o.constraints {
 			if unresolved(constraint.Arg) {
 				fail(o.expr.GetPos(), "unresolved class constraint %s[%s]", constraint.Class, TypeString(constraint.Arg))
@@ -62,13 +65,12 @@ func (b *bodyChecker) finish() {
 			}
 		}
 	}
-	for _, expr := range b.comparisons {
-		typ := AnnOf(expr.L).Type
-		if typ != Int && typ != String && typ != Bool {
-			fail(expr.GetPos(), "comparison requires Int, String or Bool, got %s", TypeString(typ))
-		}
-		if typ == Bool && expr.Op != "==" && expr.Op != "!=" {
-			fail(expr.GetPos(), "ordering comparison requires Int or String, got Bool")
+	for _, expr := range b.lambdas {
+		params := AnnOf(expr).Type.(*TFunc).Params
+		for i, param := range expr.Params {
+			if param.Pat != nil && !b.c.covers([][]ast.Pattern{{param.Pat}}, []Type{params[i]}) {
+				fail(expr.GetPos(), "lambda parameter pattern must be irrefutable")
+			}
 		}
 	}
 	for _, expr := range b.matches {

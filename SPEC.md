@@ -187,27 +187,33 @@ postfix. All binary operators are left-associative.
 |---|---|---|
 | `+` | `Int`/`Int` or `String`/`String` | same |
 | `- * /` | `Int` | `Int` (`/` truncates; division by zero panics at runtime) |
-| `== !=` | both `Int`, both `String`, or both `Bool` | `Bool` |
-| `< <= > >=` | both `Int` or both `String` | `Bool` |
-| `&& \|\|` | `Bool` | `Bool` (not short-circuit: both operands are evaluated) |
+| `== !=` | any `T` with an `Eq[T]` instance | `Bool` (`a != b` ≡ `!eq(a, b)`) |
+| `< <= > >=` | any `T` with an `Ord[T]` instance | `Bool` (via `compare(a, b)`) |
+| `&& \|\|` | `Bool` | `Bool`, short-circuit |
 | unary `-` | `Int` | `Int` |
 | unary `!` | `Bool` | `Bool` |
 
-There is no user-defined operator overloading. `Bool` has no ordering.
+`==`/`!=` and the ordering operators are sugar for the `Eq`/`Ord` class methods (§7), so
+they work on any user type with an instance; the operand types must unify. `Bool` orders
+`false < true`. Arithmetic is not class-based: `+ - * /` are `Int` only (`+` also `String`).
 
 ### 4.2 Blocks and `let`
-A block's value is its final expression. `let x = e` binds `x` for the rest of the block.
-Bindings are not recursive and shadow outer names.
+A block's value is its final expression. `let x = e` or `let x: T = e` binds `x` for the
+rest of the block; with an annotation `e` must have type `T` (type parameters of the
+enclosing function may appear in `T`). Bindings are not recursive and shadow outer names.
 
 `let` generalises (let-polymorphism) when the bound expression is a lambda, a literal, or a
 constructor application; type variables not free in the environment become scheme
 parameters and class constraints on them become scheme constraints. Other expressions
-(calls, `do`, `match`, …) are bound monomorphically. Function parameters are never
-generalised.
+(calls, `do`, `match`, …) and annotated lets are bound monomorphically. Function parameters
+are never generalised.
 
 ### 4.3 Lambdas
 `func(x, y) => e`. Parameters are monomorphic; their types are inferred, or declared
-(`func(u User) => …`). When a lambda is passed directly as a call argument its parameter
+(`func(u User) => …`). A parameter may be an irrefutable pattern instead of a name:
+`func((name, score), _) => …`, `func(Point{x: x, ..}) => …`, `func(whole @ (a, b)) => …`.
+Refutable patterns (literals, constructors of multi-constructor types) are an error. Pattern
+parameters cannot carry a type annotation. When a lambda is passed directly as a call argument its parameter
 types are taken from the callee's parameter type before the body is checked, so record and
 tuple field access on the parameters needs no annotation in that position.
 
@@ -234,7 +240,7 @@ field `f` (error otherwise); if `x`'s type is not yet known the checker reports
 ### 4.8 `match`
 ```
 Arms   := [ '|' ] Arm { ( ';' | '|' ) Arm }
-Arm    := Pattern '=>' Expr
+Arm    := Pattern [ 'if' Expr ] '=>' Expr
 Pattern := '_' | Int | String | 'true' | 'false'
          | LowerIdent                              // binds
          | LowerIdent '@' Pattern                  // as-pattern
@@ -243,8 +249,9 @@ Pattern := '_' | Int | String | 'true' | 'false'
          | '(' Pattern ',' Pattern {',' Pattern} ')'          // tuple
          | '(' Pattern ')'
 ```
-Arms are tried in order; the first matching arm's expression is the value. All arms have one
-type. The arms **must be exhaustive** over the scrutinee's constructors (nested patterns are
+Arms are tried in order; the first arm whose pattern matches **and** whose guard (if any)
+is `true` yields the value. Guards see the pattern's variables. All arms have one type.
+Guarded arms do not contribute to exhaustiveness. The arms **must be exhaustive** over the scrutinee's constructors (nested patterns are
 analysed; literal patterns need a trailing catch-all); non-exhaustive matches are an error.
 A record pattern must list every field or end with `..`. A variable may be bound once per
 pattern.
@@ -298,13 +305,17 @@ Always in scope. Types and classes:
 class Functor[F[_]] { fmap[A, B](fa F[A], f func(A) B) F[B] }
 class Monad[M[_]] : Functor[M] { pure[A](a A) M[A]; bind[A, B](ma M[A], f func(A) M[B]) M[B] }
 class Show[A] { show(a A) String }
+class Eq[A]   { eq(a A, b A) Bool }
+class Ord[A] : Eq[A] { compare(a A, b A) Ordering }
+type Ordering = LT | EQ | GT
 type Option[A] = None | Some(A)
 type List[A]   = Nil | Cons(A, List[A])
 type State[S, A] = State(func(S) (A, S))
 ```
-Instances: `Functor`/`Monad` for `Option`, `List`, `IO`, `State[S]`; `Show` for `Int`,
-`String`, `Bool`, `Option[A] given Show[A]`, `List[A] given Show[A]`,
-`(A, B) given Show[A], Show[B]`.
+Instances: `Functor`/`Monad` for `Option`, `List`, `IO`, `State[S]`; `Show`, `Eq` and
+`Ord` for `Int`, `String`, `Bool`, `Ordering`, `Option[A]`, `List[A]` and `(A, B)` (the
+compound ones `given` the same class on the components); `Eq[Unit]`. User types get `Eq`/`Ord`
+by writing an instance; there is no deriving.
 
 Functions:
 ```
@@ -317,6 +328,13 @@ mapM[M[_] Monad, A, B](xs List[A], f func(A) M[B]) M[List[B]]
 fold[A, B](xs List[A], init B, f func(B, A) B) B
 length[A](xs List[A]) Int           append[A](xs List[A], ys List[A]) List[A]
 filter[A](xs List[A], p func(A) Bool) List[A]      reverse[A](xs List[A]) List[A]
+head[A](xs List[A]) Option[A]       tail[A](xs List[A]) List[A]
+take[A](n Int, xs List[A]) List[A]  drop[A](n Int, xs List[A]) List[A]
+sum(xs List[Int]) Int               concatMap[A, B](xs List[A], f func(A) List[B]) List[B]
+elem[A Eq](x A, xs List[A]) Bool    sort[A Ord](xs List[A]) List[A]
+sortBy[A](xs List[A], cmp func(A, A) Ordering) List[A]
+maximum[A Ord](xs List[A]) Option[A]   minimum[A Ord](xs List[A]) Option[A]
+minInt() Int   maxInt() Int
 fst[A, B](p (A, B)) A               snd[A, B](p (A, B)) B
 zip[A, B](xs List[A], ys List[B]) List[(A, B)]
 runState[S, A](st State[S, A], s S) (A, S)   evalState …  A   execState … S
@@ -335,11 +353,11 @@ tuples become `TupleN` structs. Generated code imports `gofx/rt` and the extern 
 ## 9. Known limitations
 
 - No floats, chars, arrays, maps, or mutable references.
-- No type annotations on `let`; no type ascription on expressions.
+- No type ascription on expressions (only on `let` and parameters).
 - Field access on a lambda parameter requires the type to be known (annotation or call
   context).
 - Prelude names cannot be shadowed by user declarations.
-- Lambda parameters are identifiers only (no `_`, no destructuring).
-- Non-short-circuit `&&`/`||`.
+- No `deriving`: `Eq`/`Ord`/`Show` instances for user types are written by hand.
+- `if` always requires `else` (it is an expression); use `match` guards for case analysis.
 - Performance: uniform `any` representation, interface-dispatched dictionaries, linked
   lists.

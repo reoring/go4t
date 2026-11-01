@@ -1,0 +1,68 @@
+package main
+
+type AccountId = AccountId(String)
+
+instance Show[AccountId] {
+  show(id) { match id { AccountId(value) => value } }
+}
+
+instance Eq[AccountId] {
+  eq(a, b) { match (a, b) { (AccountId(x), AccountId(y)) => x == y } }
+}
+
+// Declaration order is not the ordering: Low < Normal < High.
+type Priority = High | Normal | Low
+
+func priorityRank(p Priority) Int {
+  match p { Low => 0 | Normal => 1 | High => 2 }
+}
+
+instance Show[Priority] {
+  show(p) { match p { Low => "Low" | Normal => "Normal" | High => "High" } }
+}
+
+instance Eq[Priority] {
+  eq(a, b) { priorityRank(a) == priorityRank(b) }
+}
+
+instance Ord[Priority] {
+  compare(a, b) { compare(priorityRank(a), priorityRank(b)) }
+}
+
+func describe(o Option[Int]) String {
+  match o {
+    Some(x) if x > 10 => "large ${x}"
+    Some(x) => "small ${x}"
+    None => "none"
+  }
+}
+
+func main() IO[Unit] {
+  let alice = AccountId("A-1")
+  let ids = [alice, AccountId("B-2"), AccountId("A-1")]
+  let priorities = [High, Low, Normal, Low]
+  let xs: List[Int] = []
+  let names = ["Ada", "Bob", "Cara"]
+  let scores = [42, 7, 99]
+  do {
+    println("accounts: ${filter(ids, func(id) => id == alice)}")
+    println("priorities: ${sort(priorities)}")
+    println("contains: ${elem(Normal, priorities)} / ${elem(AccountId("Z-9"), ids)}")
+    println("maximum: ${maximum(priorities)}")
+    println("minimum: ${minimum(priorities)}")
+    println("empty: ${xs} / ${head(xs)} / ${tail(xs)} / ${maximum(xs)}")
+    let numbers: List[Int] = [1, 2, 3]
+    println("head/tail: ${head(numbers)} / ${tail(numbers)}")
+    println("take/drop: ${take(2, numbers)} / ${drop(2, numbers)}")
+    println("sum: ${sum(numbers)}")
+    println("concatMap: ${concatMap(numbers, func(n) => [n, n * 10])}")
+    println("descending: ${sortBy(numbers, func(a, b) => compare(b, a))}")
+    println("tuples: ${filter(zip(names, scores), func(p) => p == ("Ada", 42))}")
+    forEach(zip(names, scores), func((n, s)) => println("${n}: ${s}"))
+    println("guard: ${describe(Some(42))} / ${describe(Some(7))} / ${describe(None)}")
+    println("starts with 1: ${xs != Nil && head(xs) == Some(1)} / ${numbers != Nil && head(numbers) == Some(1)}")
+    // Neither division by zero is evaluated.
+    println("short-circuit: ${false && 1 / 0 == 0} / ${true || 1 / 0 == 0}")
+    println("bounds: ${minInt()} / ${maxInt()}")
+  }
+}

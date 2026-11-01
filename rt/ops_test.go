@@ -89,17 +89,9 @@ func TestComparisons(t *testing.T) {
 		low, high            any
 	}{
 		{"EqInt", EqInt, false, true, false, int64(-1 << 63), int64(1<<63 - 1)},
-		{"NeInt", NeInt, true, false, true, int64(-1 << 63), int64(1<<63 - 1)},
 		{"LtInt", LtInt, true, false, false, int64(-1 << 63), int64(1<<63 - 1)},
-		{"LeInt", LeInt, true, true, false, int64(-1 << 63), int64(1<<63 - 1)},
-		{"GtInt", GtInt, false, false, true, int64(-1 << 63), int64(1<<63 - 1)},
-		{"GeInt", GeInt, false, true, true, int64(-1 << 63), int64(1<<63 - 1)},
 		{"EqString", EqString, false, true, false, "", "a"},
-		{"NeString", NeString, true, false, true, "", "a"},
 		{"LtString", LtString, true, false, false, "a", "aa"},
-		{"LeString", LeString, true, true, false, "a", "b"},
-		{"GtString", GtString, false, false, true, "a", "b"},
-		{"GeString", GeString, false, true, true, "a", "aa"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			for _, pair := range []struct {
@@ -120,33 +112,29 @@ func TestComparisons(t *testing.T) {
 }
 
 func TestBoolOperators(t *testing.T) {
-	for _, tt := range []struct {
-		a, b                     bool
-		equal, notEqual, and, or bool
-	}{
-		{false, false, true, false, false, false},
-		{false, true, false, true, false, true},
-		{true, false, false, true, false, true},
-		{true, true, true, false, true, true},
-	} {
-		for _, op := range []struct {
-			name string
-			call func(any, any) any
-			want bool
-		}{
-			{"EqBool", EqBool, tt.equal},
-			{"NeBool", NeBool, tt.notEqual},
-			{"And", And, tt.and},
-			{"Or", Or, tt.or},
-		} {
-			if got := op.call(tt.a, tt.b); got != op.want {
-				t.Errorf("%s(%t, %t) = %v (%T), want %t (bool)", op.name, tt.a, tt.b, got, got, op.want)
+	for _, a := range []bool{false, true} {
+		for _, b := range []bool{false, true} {
+			if got := EqBool(a, b); got != (a == b) {
+				t.Errorf("EqBool(%t, %t) = %v (%T), want %t (bool)", a, b, got, got, a == b)
 			}
 		}
+		if got := Not(a); got != !a {
+			t.Errorf("Not(%t) = %v (%T), want %t (bool)", a, got, got, !a)
+		}
 	}
-	for _, value := range []bool{false, true} {
-		if got := Not(value); got != !value {
-			t.Errorf("Not(%t) = %v (%T), want %t (bool)", value, got, got, !value)
+}
+
+func TestIntBounds(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		call func() any
+		want int64
+	}{
+		{"MinInt", MinInt, -1 << 63},
+		{"MaxInt", MaxInt, 1<<63 - 1},
+	} {
+		if got := tt.call(); got != tt.want {
+			t.Errorf("%s() = %v (%T), want %d (int64)", tt.name, got, got, tt.want)
 		}
 	}
 }

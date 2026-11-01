@@ -247,7 +247,7 @@ instance Monad[Result[E, X]] given Show[X] {
   pure(a) { Ok(a) }
   bind(r, f) { match r { Err(e) => Err(e); Extra(x) => Extra(x); Ok(a) => f(a) } }
 }
-`, "superclass instance Functor[Result] must declare the same context"},
+`, "superclass instance Functor[Result] context is not implied"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			files := parseFiles(t, tt.source+"\nfunc main() IO[Unit] { ioPure(unit()) }\n")

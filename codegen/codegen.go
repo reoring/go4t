@@ -8,8 +8,10 @@
 // Records reuse positional constructor fields, including reordered partial
 // patterns; tuple access uses the annotated base arity. Updates copy a single
 // evaluated base, and interpolation sends each expression through its Show dictionary.
-// Final match arms omit their proven head guard; only refutable nested patterns
-// retain guards and a defensive non-exhaustive-match panic.
+// Final match arms without source guards omit their proven head guard; refutable
+// nested patterns and guarded final arms retain a defensive match panic. Lambda
+// parameter patterns use the same irrefutable bindings. Boolean operators short
+// circuit in Go; comparisons dispatch through Eq/Ord dictionaries.
 package codegen
 
 import (
@@ -172,6 +174,13 @@ func Generate(prog *types.Program, goPackage string) (source []byte, err error) 
 		}
 		header.WriteString("}\n")
 	}
+	if g.ordering {
+		header.WriteString(`func ord_lt(o any) bool { _, ok := o.(*Ordering_LT); return ok }
+func ord_le(o any) bool { _, ok := o.(*Ordering_GT); return !ok }
+func ord_gt(o any) bool { _, ok := o.(*Ordering_GT); return ok }
+func ord_ge(o any) bool { _, ok := o.(*Ordering_LT); return !ok }
+`)
+	}
 	header.WriteString(out.String())
 	source, err = format.Source([]byte(header.String()))
 	if err != nil {
@@ -188,6 +197,7 @@ type generator struct {
 	tuples     map[int]struct{}
 	dictScope  dictionaryScope
 	next       int
+	ordering   bool
 }
 
 type dictionaryScope struct {
@@ -313,9 +323,35 @@ func (g *generator) instanceDict(instance *types.Instance, args []types.DictRef)
 		if super == nil {
 			g.fail(ast.Pos{}, "missing superclass instance %s[%s]", instance.Class.Super, instance.TypeCon.Name)
 		}
+		if len(instance.SuperArgs) != len(super.Context) {
+			g.fail(ast.Pos{}, "invalid superclass dictionary annotation")
+		}
+		superArgs := make([]types.DictRef, len(instance.SuperArgs))
+		for i := range instance.SuperArgs {
+			ref := &instance.SuperArgs[i]
+			// Superclass interfaces are embedded, so upcasts do not change the
+			// emitted value. Substitute the leaf parameter with this use's arg.
+			for ref != nil && ref.Kind == types.DictSuper {
+				ref = ref.Super
+			}
+			if ref == nil || ref.Kind != types.DictParam {
+				g.fail(ast.Pos{}, "invalid superclass dictionary annotation")
+			}
+			found := false
+			for j, constraint := range instance.Context {
+				if g.dictField(constraint) == "dict_"+ref.Param && constraint.Class == ref.ParamClass {
+					superArgs[i] = args[j]
+					found = true
+					break
+				}
+			}
+			if !found {
+				g.fail(ast.Pos{}, "invalid superclass dictionary annotation")
+			}
+		}
 		out.WriteString(superName)
 		out.WriteString(": ")
-		out.WriteString(g.instanceDict(super, args))
+		out.WriteString(g.instanceDict(super, superArgs))
 		out.WriteString(", ")
 	}
 	for i, constraint := range instance.Context {

@@ -37,13 +37,17 @@ type checker struct {
 // Partial instance heads bind leading Fixed variables; applications and inferred
 // higher-kinded instantiations are normalized to a single constructor and args.
 //
-// Let-bound values generalize non-environment metas subject to the value
-// restriction; constrained values expose LetScheme for dictionary codegen.
+// Unannotated let-bound values generalize non-environment metas subject to the
+// value restriction; constrained values expose LetScheme for dictionary codegen.
+// Let annotations resolve in the enclosing type-parameter scope and stay rigid.
 // Record patterns resolve constructors and named field indexes in RecordPats.
-// Record fields and tuple positions resolve indexes statically; interpolation resolves Show.
-// Unconstrained ordinary metas default to Unit with source-ordered warnings.
-// Higher-kinded or class-constrained ambiguities remain errors. Failures return
-// a positioned *Error and a nil program; partial annotations are not usable.
+// Lambda parameter patterns must cover their whole type; match guards are Bool
+// and do not contribute to coverage. Fields and tuple positions resolve indexes
+// statically; interpolation resolves Show and comparisons resolve Eq/Ord.
+// Unconstrained ordinary metas (including comparison operands) default to Unit
+// with source-ordered warnings. Higher-kinded or explicit class ambiguities
+// remain errors. Failures return a positioned *Error and a nil program; partial
+// annotations are not usable.
 func Check(files []*ast.File) (program *Program, err error) {
 	var c *checker
 	defer func() {
@@ -505,9 +509,11 @@ func (c *checker) collectInstances(files []*ast.File) {
 			if parent == nil {
 				fail(inst.Decl.Pos, "no instance %s[%s] (required superclass)", super, inst.TypeCon.Name)
 			}
-			if !sameInstanceContext(inst, parent) {
-				fail(inst.Decl.Pos, "superclass instance %s[%s] must declare the same context", super, inst.TypeCon.Name)
+			args, ok := c.superclassArgs(inst, parent)
+			if !ok {
+				fail(inst.Decl.Pos, "superclass instance %s[%s] context is not implied", super, inst.TypeCon.Name)
 			}
+			inst.SuperArgs = args
 		}
 	}
 }
@@ -528,24 +534,32 @@ func (inst *Instance) head() Type {
 	return App(inst.TypeCon, args...)
 }
 
-// Compare parameter positions, not names: contexts are alpha-equivalent, but
-// constraining a different head argument would pass the wrong superclass dict.
-func sameInstanceContext(inst, parent *Instance) bool {
-	if len(inst.Fixed) != len(parent.Fixed) || len(inst.Params) != len(parent.Params) || len(inst.Context) != len(parent.Context) {
-		return false
+// Superclass contexts are expressed using the subclass instance's variables.
+// Resolving each required dictionary reuses the same superclass projection as
+// method calls and permits stronger, reordered, or additional child constraints.
+func (c *checker) superclassArgs(inst, parent *Instance) ([]DictRef, bool) {
+	if len(inst.Fixed) != len(parent.Fixed) || len(inst.Params) != len(parent.Params) {
+		return nil, false
 	}
-	for i, constraint := range inst.Context {
-		other := parent.Context[i]
-		if constraint.Class != other.Class {
-			return false
-		}
-		for j, param := range inst.headParams() {
-			if constraint.Arg == param && other.Arg != parent.headParams()[j] {
-				return false
+	if len(parent.Context) == 0 {
+		return nil, true
+	}
+	b := c.body(inst.Context, nil)
+	args := make([]DictRef, len(parent.Context))
+	for i, constraint := range parent.Context {
+		for j, param := range parent.headParams() {
+			if constraint.Arg == param {
+				constraint.Arg = inst.headParams()[j]
+				break
 			}
 		}
+		dict, message := b.resolveDictionary(constraint)
+		if message != "" {
+			return nil, false
+		}
+		args[i] = dict
 	}
-	return true
+	return args, true
 }
 
 func (c *checker) checkMain() {

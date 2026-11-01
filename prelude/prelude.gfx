@@ -13,6 +13,16 @@ class Show[A] {
   show(a A) String
 }
 
+class Eq[A] {
+  eq(a A, b A) Bool
+}
+
+type Ordering = LT | EQ | GT
+
+class Ord[A] : Eq[A] {
+  compare(a A, b A) Ordering
+}
+
 type Option[A] = None | Some(A)
 
 type List[A] = Nil | Cons(A, List[A])
@@ -128,6 +138,13 @@ extern func showInt(n Int) String = "gofx/rt".ShowInt
 extern func showBool(b Bool) String = "gofx/rt".ShowBool
 extern func showString(s String) String = "gofx/rt".ShowString
 extern func unit() Unit = "gofx/rt".UnitValue
+extern func eqInt(a Int, b Int) Bool = "gofx/rt".EqInt
+extern func ltInt(a Int, b Int) Bool = "gofx/rt".LtInt
+extern func eqString(a String, b String) Bool = "gofx/rt".EqString
+extern func ltString(a String, b String) Bool = "gofx/rt".LtString
+extern func eqBool(a Bool, b Bool) Bool = "gofx/rt".EqBool
+extern func minInt() Int = "gofx/rt".MinInt
+extern func maxInt() Int = "gofx/rt".MaxInt
 
 instance Show[Int] {
   show(a) { showInt(a) }
@@ -139,6 +156,117 @@ instance Show[String] {
 
 instance Show[Bool] {
   show(a) { showBool(a) }
+}
+
+instance Eq[Int] {
+  eq(a, b) { eqInt(a, b) }
+}
+
+instance Ord[Int] {
+  compare(a, b) { if ltInt(a, b) { LT } else if eqInt(a, b) { EQ } else { GT } }
+}
+
+instance Eq[String] {
+  eq(a, b) { eqString(a, b) }
+}
+
+instance Ord[String] {
+  compare(a, b) { if ltString(a, b) { LT } else if eqString(a, b) { EQ } else { GT } }
+}
+
+instance Eq[Bool] {
+  eq(a, b) { eqBool(a, b) }
+}
+
+instance Ord[Bool] {
+  compare(a, b) { if eqBool(a, b) { EQ } else if a { GT } else { LT } }
+}
+
+instance Eq[Unit] {
+  eq(a, b) { true }
+}
+
+instance Eq[Ordering] {
+  eq(a, b) {
+    match (a, b) {
+      (LT, LT) => true
+      (EQ, EQ) => true
+      (GT, GT) => true
+      _ => false
+    }
+  }
+}
+
+instance Ord[Ordering] {
+  compare(a, b) {
+    match a {
+      LT => match b { LT => EQ | _ => LT }
+      EQ => match b { LT => GT | EQ => EQ | GT => LT }
+      GT => match b { GT => EQ | _ => GT }
+    }
+  }
+}
+
+instance Eq[Option[A]] given Eq[A] {
+  eq(a, b) {
+    match (a, b) {
+      (None, None) => true
+      (Some(x), Some(y)) => eq(x, y)
+      _ => false
+    }
+  }
+}
+
+instance Ord[Option[A]] given Ord[A] {
+  compare(a, b) {
+    match (a, b) {
+      (None, None) => EQ
+      (None, Some(_)) => LT
+      (Some(_), None) => GT
+      (Some(x), Some(y)) => compare(x, y)
+    }
+  }
+}
+
+instance Eq[List[A]] given Eq[A] {
+  eq(a, b) {
+    match (a, b) {
+      (Nil, Nil) => true
+      (Cons(x, xs), Cons(y, ys)) => eq(x, y) && eq(xs, ys)
+      _ => false
+    }
+  }
+}
+
+instance Ord[List[A]] given Ord[A] {
+  compare(a, b) {
+    match (a, b) {
+      (Nil, Nil) => EQ
+      (Nil, Cons(_, _)) => LT
+      (Cons(_, _), Nil) => GT
+      (Cons(x, xs), Cons(y, ys)) => match compare(x, y) {
+        EQ => compare(xs, ys)
+        order => order
+      }
+    }
+  }
+}
+
+instance Eq[(A, B)] given Eq[A], Eq[B] {
+  eq(a, b) {
+    match (a, b) { ((a1, a2), (b1, b2)) => eq(a1, b1) && eq(a2, b2) }
+  }
+}
+
+instance Ord[(A, B)] given Ord[A], Ord[B] {
+  compare(a, b) {
+    match (a, b) {
+      ((a1, a2), (b1, b2)) => match compare(a1, b1) {
+        EQ => compare(a2, b2)
+        order => order
+      }
+    }
+  }
 }
 
 instance Functor[IO] {
@@ -213,5 +341,95 @@ func zip[A, B](xs List[A], ys List[B]) List[(A, B)] {
   match (xs, ys) {
     (Cons(x, restX), Cons(y, restY)) => Cons((x, y), zip(restX, restY))
     _ => Nil
+  }
+}
+
+func head[A](xs List[A]) Option[A] {
+  match xs {
+    Nil => None
+    Cons(x, _) => Some(x)
+  }
+}
+
+func tail[A](xs List[A]) List[A] {
+  match xs {
+    Nil => Nil
+    Cons(_, rest) => rest
+  }
+}
+
+func take[A](n Int, xs List[A]) List[A] {
+  if n <= 0 { Nil }
+  else {
+    match xs {
+      Nil => Nil
+      Cons(x, rest) => Cons(x, take(n - 1, rest))
+    }
+  }
+}
+
+func drop[A](n Int, xs List[A]) List[A] {
+  if n <= 0 { xs }
+  else {
+    match xs {
+      Nil => Nil
+      Cons(_, rest) => drop(n - 1, rest)
+    }
+  }
+}
+
+func sum(xs List[Int]) Int {
+  fold(xs, 0, func(acc, x) => acc + x)
+}
+
+func concatMap[A, B](xs List[A], f func(A) List[B]) List[B] {
+  bind(xs, f)
+}
+
+func elem[A Eq](x A, xs List[A]) Bool {
+  match xs {
+    Nil => false
+    Cons(y, rest) => eq(x, y) || elem(x, rest)
+  }
+}
+
+func insertBy[A](x A, xs List[A], cmp func(A, A) Ordering) List[A] {
+  match xs {
+    Nil => Cons(x, Nil)
+    Cons(y, rest) => match cmp(x, y) {
+      GT => Cons(y, insertBy(x, rest, cmp))
+      _ => Cons(x, xs)
+    }
+  }
+}
+
+func sortBy[A](xs List[A], cmp func(A, A) Ordering) List[A] {
+  match xs {
+    Nil => Nil
+    Cons(x, rest) => insertBy(x, sortBy(rest, cmp), cmp)
+  }
+}
+
+func sort[A Ord](xs List[A]) List[A] {
+  sortBy(xs, compare)
+}
+
+func maximum[A Ord](xs List[A]) Option[A] {
+  match xs {
+    Nil => None
+    Cons(x, rest) => Some(fold(rest, x, func(best, a) => match compare(a, best) {
+      GT => a
+      _ => best
+    }))
+  }
+}
+
+func minimum[A Ord](xs List[A]) Option[A] {
+  match xs {
+    Nil => None
+    Cons(x, rest) => Some(fold(rest, x, func(best, a) => match compare(a, best) {
+      LT => a
+      _ => best
+    }))
   }
 }

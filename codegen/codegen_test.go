@@ -413,7 +413,8 @@ func TestConstrainedSuperclassInstances(t *testing.T) {
 	param := types.DictRef{Kind: types.DictParam, Class: "Show", Param: "B", ParamClass: "Show"}
 	instance := &types.Instance{
 		Class: debug, TypeCon: showOption.TypeCon, Params: []*types.TVar{b},
-		Context: []types.Constraint{{Class: "Show", Arg: b}},
+		Context:   []types.Constraint{{Class: "Show", Arg: b}},
+		SuperArgs: []types.DictRef{param},
 		Decl: &ast.InstanceDecl{Class: "Debug", TypeCon: "Option", Params: []string{"B"},
 			Context: []ast.Constraint{{Class: "Show", Param: "B"}},
 			Methods: []ast.InstMethod{{Name: "debug", Params: []string{"value"}, Body: &ast.Block{
@@ -692,7 +693,7 @@ func TestLocalsLambdasBlocksAndIdentifierMangling(t *testing.T) {
 		"var ext_1_ any = int64(2)",
 		`_ = "discarded\n\"quoted\""`,
 		"if any(true).(bool)",
-		"any(func(x_ any) any",
+		"any(func(p0 any) any",
 		").(func(any) any)(int64(6))")
 }
 
@@ -703,9 +704,6 @@ func TestOperatorSelection(t *testing.T) {
 	}{
 		{"+", "AddInt", integer(1)}, {"-", "SubInt", integer(1)}, {"*", "MulInt", integer(1)}, {"/", "DivInt", integer(1)},
 		{"+", "AddString", text("a")},
-		{"==", "EqInt", integer(1)}, {"!=", "NeInt", integer(1)}, {"<", "LtInt", integer(1)}, {"<=", "LeInt", integer(1)}, {">", "GtInt", integer(1)}, {">=", "GeInt", integer(1)},
-		{"==", "EqString", text("a")}, {"!=", "NeString", text("a")}, {"<", "LtString", text("a")}, {"<=", "LeString", text("a")}, {">", "GtString", text("a")}, {">=", "GeString", text("a")},
-		{"==", "EqBool", boolean(true)}, {"!=", "NeBool", boolean(true)}, {"&&", "And", boolean(true)}, {"||", "Or", boolean(true)},
 	}
 	for _, tt := range binary {
 		t.Run(tt.name, func(t *testing.T) {
@@ -924,9 +922,9 @@ func TestLetInstantiationAndErasedValues(t *testing.T) {
 		"any(render_(Show_Option{dict_A: Show_Int{}}, Show_Int{})).(func(any, any) any)(int64(1), &Option_Some{F0: int64(2)})",
 		"any(render_(Show_Int{}, Show_Option{dict_A: Show_Int{}})).(func(any, any) any)(&Option_Some{F0: int64(3)}, int64(4))",
 		"boxed_ := func(dict_A Show) any",
-		"return &Option_Some{F0: func(x_ any) any",
+		"return &Option_Some{F0: func(p0 any) any",
 		"return boxed_(Show_Int{})",
-		"var id_ any = func(x_ any) any",
+		"var id_ any = func(p0 any) any",
 		"any(id_).(func(any) any)(int64(5))",
 		"any(id_).(func(any) any)(true)")
 }
@@ -1200,8 +1198,8 @@ func (fakeImporter) Import(path string) (*gotypes.Package, error) {
 	var funcs map[string]int
 	switch path {
 	case "gofx/rt":
-		funcs = map[string]int{"RunMain": 1, "UnitValue": 0, "ShowInt": 1, "Concat": 1}
-		for _, name := range strings.Fields("AddInt AddString SubInt MulInt DivInt EqInt NeInt LtInt LeInt GtInt GeInt EqString NeString LtString LeString GtString GeString EqBool NeBool And Or") {
+		funcs = map[string]int{"RunMain": 1, "UnitValue": 0, "ShowInt": 1, "Concat": 1, "MinInt": 0, "MaxInt": 0}
+		for _, name := range strings.Fields("AddInt AddString SubInt MulInt DivInt EqInt LtInt EqString LtString EqBool") {
 			funcs[name] = 2
 		}
 		funcs["NegInt"], funcs["Not"] = 1, 1

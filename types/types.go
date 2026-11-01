@@ -300,6 +300,8 @@ type DictRef struct {
 }
 
 // Ann is stored in ast.Expr.AnnSlot() for every expression.
+// For comparison *ast.Binary nodes, Inst contains the unified operand type
+// and Dicts contains its Eq (==, !=) or Ord (<, <=, >, >=) dictionary.
 type Ann struct {
 	Type  Type
 	Ref   RefKind

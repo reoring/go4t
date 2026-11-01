@@ -18,7 +18,8 @@ func TestPreludeParses(t *testing.T) {
 		t.Errorf("package = %q, want prelude", file.Package)
 	}
 	want := []string{
-		"class Functor", "class Monad", "class Show", "type Option", "type List", "type State",
+		"class Functor", "class Monad", "class Show", "class Eq", "type Ordering", "class Ord",
+		"type Option", "type List", "type State",
 		"instance Functor[Option]", "instance Monad[Option]",
 		"instance Functor[List]", "instance Monad[List]",
 		"instance Functor[State]", "instance Monad[State]",
@@ -26,11 +27,20 @@ func TestPreludeParses(t *testing.T) {
 		"instance Show[Option]", "instance Show[List]", "instance Show[Tuple2]",
 		"func ioPure", "func ioBind", "func ioFail", "func println",
 		"func showInt", "func showBool", "func showString", "func unit",
+		"func eqInt", "func ltInt", "func eqString", "func ltString", "func eqBool",
+		"func minInt", "func maxInt",
 		"instance Show[Int]", "instance Show[String]", "instance Show[Bool]",
+		"instance Eq[Int]", "instance Ord[Int]", "instance Eq[String]", "instance Ord[String]",
+		"instance Eq[Bool]", "instance Ord[Bool]", "instance Eq[Unit]",
+		"instance Eq[Ordering]", "instance Ord[Ordering]",
+		"instance Eq[Option]", "instance Ord[Option]", "instance Eq[List]", "instance Ord[List]",
+		"instance Eq[Tuple2]", "instance Ord[Tuple2]",
 		"instance Functor[IO]", "instance Monad[IO]",
 		"func map", "func flatMap", "func forEach", "func mapM",
 		"func fold", "func length", "func append", "func filter", "func reverse",
 		"func fst", "func snd", "func zip",
+		"func head", "func tail", "func take", "func drop", "func sum", "func concatMap",
+		"func elem", "func insertBy", "func sortBy", "func sort", "func maximum", "func minimum",
 	}
 	if len(file.Decls) != len(want) {
 		t.Fatalf("declaration count = %d, want %d", len(file.Decls), len(want))

@@ -170,10 +170,17 @@ func (g *generator) expr(expr ast.Expr) string {
 		return "any(" + g.expr(e.Fn) + ").(func(" + strings.Join(params, ", ") + ") any)(" + strings.Join(args, ", ") + ")"
 	case *ast.Lambda:
 		params := make([]string, len(e.Params))
-		for i, param := range e.Params {
-			params[i] = mangle(param.Name) + " any"
+		body := "return " + g.expr(e.Body) + "\n"
+		for i := len(e.Params) - 1; i >= 0; i-- {
+			param := e.Params[i]
+			params[i] = fmt.Sprintf("p%d any", i)
+			pattern := param.Pat
+			if pattern == nil {
+				pattern = &ast.PVar{Name: param.Name}
+			}
+			body, _ = g.pattern(pattern, fmt.Sprintf("p%d", i), body, true)
 		}
-		return "func(" + strings.Join(params, ", ") + ") any {\nreturn " + g.expr(e.Body) + "\n}"
+		return "func(" + strings.Join(params, ", ") + ") any {\n" + body + "}"
 	case *ast.BlockExpr:
 		return "func() any {\n" + g.block(e.Block) + "}()"
 	case *ast.If:
@@ -183,9 +190,13 @@ func (g *generator) expr(expr ast.Expr) string {
 		value := g.fresh()
 		fmt.Fprintf(&out, "func() any {\nvar %s any = %s\n_ = %s\n", value, g.expr(e.Scrut), value)
 		for i, arm := range e.Arms {
-			code, guarded := g.pattern(arm.Pat, value, "return "+g.expr(arm.Body)+"\n", i == len(e.Arms)-1)
+			body := "return " + g.expr(arm.Body) + "\n"
+			if arm.Guard != nil {
+				body = "if any(" + g.expr(arm.Guard) + ").(bool) {\n" + body + "}\n"
+			}
+			code, guarded := g.pattern(arm.Pat, value, body, i == len(e.Arms)-1 && arm.Guard == nil)
 			out.WriteString(code)
-			if i == len(e.Arms)-1 && guarded {
+			if i == len(e.Arms)-1 && (guarded || arm.Guard != nil) {
 				out.WriteString("panic(\"non-exhaustive match\")\n")
 			}
 		}
@@ -212,7 +223,7 @@ func (g *generator) expr(expr ast.Expr) string {
 		}
 		return "func() any {\n" + body + "}()"
 	case *ast.Binary:
-		return "rt." + g.binaryOp(e) + "(" + g.expr(e.L) + ", " + g.expr(e.R) + ")"
+		return g.binary(e)
 	case *ast.Unary:
 		var op string
 		typ := g.ann(e.X).Type
@@ -281,9 +292,9 @@ func construct(name string, args []string) string {
 
 // Each arm has its own failure continuation: a failed nested pattern falls
 // through to the next complete arm, including arms with the same outer ctor.
-// The final arm's head is guaranteed by exhaustiveness; nested heads are only
-// unguarded when they are irrefutable on their own. The result reports whether
-// a guard can still fall through and needs a continuation.
+// The final unguarded arm's head is guaranteed by exhaustiveness; nested heads
+// are only unguarded when they are irrefutable on their own. Lambda parameters
+// reuse this path. The result reports whether a pattern can still fall through.
 func (g *generator) pattern(pattern ast.Pattern, value, success string, unguarded bool) (string, bool) {
 	switch p := pattern.(type) {
 	case *ast.PWild:
@@ -362,65 +373,66 @@ func isCon(typ types.Type, name string) bool {
 	return ok && con.Name == name
 }
 
-func (g *generator) binaryOp(expr *ast.Binary) string {
+func (g *generator) binary(expr *ast.Binary) string {
+	left, right := g.expr(expr.L), g.expr(expr.R)
+	switch expr.Op {
+	case "&&", "||":
+		return "any(any(" + left + ").(bool) " + expr.Op + " any(" + right + ").(bool))"
+	case "==", "!=", "<", "<=", ">", ">=":
+		ann := g.ann(expr)
+		if len(ann.Dicts) != 1 {
+			g.fail(expr.GetPos(), "comparison requires one dictionary annotation")
+		}
+		dict := "(" + g.dict(&ann.Dicts[0]) + ")"
+		if expr.Op == "==" || expr.Op == "!=" {
+			equal := dict + ".Eq(" + left + ", " + right + ")"
+			if expr.Op == "!=" {
+				return "rt.Not(" + equal + ")"
+			}
+			return equal
+		}
+		g.ordering = true
+		var helper string
+		switch expr.Op {
+		case "<":
+			helper = "ord_lt"
+		case "<=":
+			helper = "ord_le"
+		case ">":
+			helper = "ord_gt"
+		case ">=":
+			helper = "ord_ge"
+		}
+		return "any(" + helper + "(" + dict + ".Compare(" + left + ", " + right + ")))"
+	}
 	var typ types.Type
 	if expr.Op == "+" {
 		typ = g.ann(expr).Type
 	} else {
 		typ = g.ann(expr.L).Type
 	}
-	var prefix string
+	var op string
 	switch expr.Op {
 	case "+":
 		if isCon(typ, "Int") {
-			return "AddInt"
-		}
-		if isCon(typ, "String") {
-			return "AddString"
+			op = "AddInt"
+		} else if isCon(typ, "String") {
+			op = "AddString"
 		}
 	case "-", "*", "/":
 		if isCon(typ, "Int") {
 			switch expr.Op {
 			case "-":
-				return "SubInt"
+				op = "SubInt"
 			case "*":
-				return "MulInt"
+				op = "MulInt"
 			case "/":
-				return "DivInt"
+				op = "DivInt"
 			}
 		}
-	case "&&":
-		if isCon(typ, "Bool") {
-			return "And"
-		}
-	case "||":
-		if isCon(typ, "Bool") {
-			return "Or"
-		}
-	case "==":
-		prefix = "Eq"
-	case "!=":
-		prefix = "Ne"
-	case "<":
-		prefix = "Lt"
-	case "<=":
-		prefix = "Le"
-	case ">":
-		prefix = "Gt"
-	case ">=":
-		prefix = "Ge"
 	}
-	if prefix != "" {
-		if isCon(typ, "Int") {
-			return prefix + "Int"
-		}
-		if isCon(typ, "String") {
-			return prefix + "String"
-		}
-		if isCon(typ, "Bool") && (expr.Op == "==" || expr.Op == "!=") {
-			return prefix + "Bool"
-		}
+	if op == "" {
+		g.fail(expr.GetPos(), "unsupported binary operator %s on %s", expr.Op, types.TypeString(typ))
 	}
-	g.fail(expr.GetPos(), "unsupported binary operator %s on %s", expr.Op, types.TypeString(typ))
-	return ""
+	return "rt." + op + "(" + left + ", " + right + ")"
 }

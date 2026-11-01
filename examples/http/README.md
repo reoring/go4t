@@ -79,10 +79,12 @@ product:  [11, 21, 12, 22]
 the order notification. Constructors share their natural names with the `Sku`,
 `Stock`, and `Line` types. `Stock` and `Line` are records: named construction
 uses `Stock{sku: ..., qty: ...}`, field reads use `s.sku` / `l.qty`, and
-`s{qty: s.qty - l.qty}` copies a stock with an updated quantity. Tuple
-expressions and nested tuple patterns compare SKUs and combine stocks; an
-as-pattern (`whole @ Stock(sku, qty)`) retains an unchanged stock without
-rebuilding it. Record constructors still support positional calls and patterns.
+`s{qty: s.qty - l.qty}` copies a stock with an updated quantity. `Eq[Sku]`
+defines equality once; stock merging, lookup, and consumption use `==` on
+SKUs instead of a separate equality helper. Nested tuple patterns combine
+stocks, while an as-pattern (`whole @ Stock(sku, qty)`) retains an unchanged
+stock without rebuilding it. Record constructors still support positional
+calls and patterns.
 The `available` fold uses `Stock{sku: s, ..}` to match only the SKU, reading
 the quantity from the original stock.
 Partially applied instance heads `Functor[Result[E]]` and `Monad[Result[E]]`
@@ -167,6 +169,8 @@ several lines.
 `Deposit` and `Withdraw` patterns, and `Show[Failure]` names the fields of
 `Insufficient`. The first `applyAll` result is read with `r1.0` and `r1.1`;
 the `step` transition keeps its nested tuple patterns.
+`Eq[AccountId]` supplies `==` for account lookup and replacement, so equality
+is shared with generic helpers such as `elem` rather than a `sameId` function.
 
 `applyAll` sequences each transaction with `forEach` and `modify` over
 `State[(List[Account], Option[(Failure, Int)]), Unit]`, then uses `execState`
@@ -225,6 +229,8 @@ IO: third
 record constructors, a `Result`-monad evaluator (partially applied `Monad[Result[E]]`),
 free-variable analysis with `State`, record patterns (`Bin{op: op, lhs: l, rhs: r}`), tuple
 projections (`p.0`, `p.1`), `forEach` over `IO` and `mapM` over `Result`.
+Free-variable analysis uses `elem` for membership in the bound-name list;
+environment lookup still compares the name alone, not the whole binding tuple.
 
 ```text
 arith: (1 + (2 * 3))
@@ -252,11 +258,68 @@ all: Err(unbound variable y)
 ok:  Ok([7, 110, 100, 4])
 ```
 
+## Equality, ordering, and list helpers
+
+`go run ./cmd/gofx run examples/eqord/main.gfx` needs no network access.
+`Eq[AccountId]` makes `==` usable inside `filter` and supplies the dictionary
+for `elem`. `Priority` declares its constructors in a different order from
+its semantic order: its `Eq` and `Ord` instances use `Low < Normal < High`.
+`sort`, `maximum`, and `minimum` use that instance rather than declaration
+order. `sortBy` accepts a comparator and uses stable insertion sort.
+
+The prelude derives equality and lexicographic ordering for pairs and lists
+from their elements. For `Option`, `None` precedes `Some`, and `Some` values
+compare their contents. `Bool` orders `false < true`; `Ordering` orders
+`LT < EQ < GT`. `Unit` has equality but no ordering instance.
+The zipped-name filter compares whole `(String, Int)` tuples, so both fields
+must match. `forEach` then destructures each pair directly in
+`func((n, s)) => println("${n}: ${s}")`.
+
+`let xs: List[Int] = []` fixes the empty list's element type without a
+defaulting warning; a typed `let` inside `do` works the same way.
+`Some(x) if x > 10 =>` is a guarded arm: when the guard is false, the next
+`Some(x)` arm handles the value. Guarded arms alone do not make a match
+exhaustive.
+
+`head` returns `None` for an empty list, while `tail` returns an empty list.
+`take` with a nonpositive count returns an empty list; `drop` with that count
+returns the original list. `maximum` and `minimum` return `None` for an empty
+list. `sum` totals integers and `concatMap` concatenates mapped lists.
+The list-prefix checks exercise equality on both `List[Int]` and
+`Option[Int]`. The separate `false && ...` / `true || ...` expressions prove
+short-circuiting by leaving a division by zero unevaluated on each right
+side. `minInt()` and `maxInt()` provide the signed 64-bit bounds.
+
+Expected stdout (no stderr warnings):
+
+```text
+accounts: [A-1, A-1]
+priorities: [Low, Low, Normal, High]
+contains: true / false
+maximum: Some(High)
+minimum: Some(Low)
+empty: [] / None / [] / None
+head/tail: Some(1) / [2, 3]
+take/drop: [1, 2] / [3]
+sum: 6
+concatMap: [1, 10, 2, 20, 3, 30]
+descending: [3, 2, 1]
+tuples: [(Ada, 42)]
+Ada: 42
+Bob: 7
+Cara: 99
+guard: large 42 / small 7 / none
+starts with 1: false / true
+short-circuit: false / true
+bounds: -9223372036854775808 / 9223372036854775807
+```
+
 ## Generated Go
 
 `go run ./cmd/gofx build examples/http/main.gfx` writes
 `examples/http/main_gen/main.go` with `package main`; the tree, orders, lists,
-inventory, records, bank, and state examples similarly use their own `main_gen/main.go`.
+inventory, records, bank, state, calc, and eqord examples similarly use their
+own `main_gen/main.go`.
 Each source file gets its own `<base>_gen/` directory, so multiple `.gfx`
 programs can share a source directory.
 `run` builds this directory and executes it with `go run` from the module root.

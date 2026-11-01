@@ -316,6 +316,9 @@ func TestLambdas(t *testing.T) {
 				t.Fatalf("lambda = %#v", l)
 			}
 			for _, p := range l.Params {
+				if p.Pat != nil {
+					t.Errorf("plain parameter has pattern %T", p.Pat)
+				}
 				if tc.typed {
 					typeName(t, p.Type, "Int")
 				} else if p.Type != nil {
@@ -329,6 +332,91 @@ func TestLambdas(t *testing.T) {
 	}
 	if l := result(t, "func() => 1").(*ast.Lambda); len(l.Params) != 0 {
 		t.Errorf("params = %v", l.Params)
+	}
+}
+
+func TestLambdaParameterPatterns(t *testing.T) {
+	for _, tc := range []struct {
+		src, body string
+		patterns  []string
+		names     []string
+	}{
+		{"func((a, b), _, c) => a + c", "(a + c)", []string{"(a, b)", "_", ""}, []string{"", "", "c"}},
+		{"func(whole @ (a, b)) => whole", "whole", []string{"whole @ (a, b)"}, []string{""}},
+		{"func(Point{x: x, ..}) => x", "x", []string{"Point{x: x, ..}"}, []string{""}},
+		{"func(Pair(a, b)) => a", "a", []string{"Pair(a, b)"}, []string{""}},
+		{"func(None) => 0", "0", []string{"None()"}, []string{""}},
+		{"func((x)) => x", "x", []string{"x"}, []string{""}},
+		{`func(1, "a", true, false) => 0`, "0", []string{"1", `"a"`, "true", "false"}, []string{"", "", "", ""}},
+		{"func(α @ (a, b), _name) => _name", "_name", []string{"α @ (a, b)", ""}, []string{"", "_name"}},
+	} {
+		t.Run(tc.src, func(t *testing.T) {
+			l := result(t, tc.src).(*ast.Lambda)
+			if len(l.Params) != len(tc.patterns) {
+				t.Fatalf("params = %#v, want %d", l.Params, len(tc.patterns))
+			}
+			for i, prm := range l.Params {
+				if prm.Name != tc.names[i] || prm.Type != nil {
+					t.Errorf("param %d = %#v, want name %q and no annotation", i, prm, tc.names[i])
+				}
+				if tc.patterns[i] == "" {
+					if prm.Pat != nil {
+						t.Errorf("param %d has unexpected pattern %T", i, prm.Pat)
+					}
+				} else if got := patternShape(prm.Pat); got != tc.patterns[i] {
+					t.Errorf("param %d pattern = %s, want %s", i, got, tc.patterns[i])
+				}
+			}
+			if got := exprShape(l.Body); got != tc.body {
+				t.Errorf("body = %s, want %s", got, tc.body)
+			}
+		})
+	}
+}
+
+func TestLambdaPatternsAndTypedNames(t *testing.T) {
+	l := result(t, "func((a, b), c (Int, Int), f func(Int) Int, _, xs List[Int]) => f(a)").(*ast.Lambda)
+	if len(l.Params) != 5 {
+		t.Fatalf("params = %#v, want five", l.Params)
+	}
+	if patternShape(l.Params[0].Pat) != "(a, b)" || patternShape(l.Params[3].Pat) != "_" {
+		t.Fatalf("pattern params = %#v", l.Params)
+	}
+	for _, i := range []int{1, 2, 4} {
+		if l.Params[i].Pat != nil {
+			t.Errorf("typed param %d has pattern %T", i, l.Params[i].Pat)
+		}
+	}
+	if l.Params[1].Name != "c" || l.Params[2].Name != "f" || l.Params[4].Name != "xs" {
+		t.Fatalf("typed params = %#v", l.Params)
+	}
+	tupleType(t, l.Params[1].Type, "Int", "Int")
+	ft, ok := l.Params[2].Type.(*ast.FuncType)
+	if !ok || len(ft.Params) != 1 {
+		t.Fatalf("function parameter type = %#v", l.Params[2].Type)
+	}
+	typeName(t, ft.Params[0], "Int")
+	typeName(t, ft.Ret, "Int")
+	typeName(t, l.Params[4].Type, "List", "Int")
+}
+
+func TestLambdaPatternAnnotationErrors(t *testing.T) {
+	for _, tc := range []struct{ src, want string }{
+		{"func((a, b) (Int, Int)) => a", "1:13: pattern parameters cannot be annotated"},
+		{"func(_ Int) => 0", "1:8: pattern parameters cannot be annotated"},
+		{"func((x) Int) => x", "1:10: pattern parameters cannot be annotated"},
+		{"func(whole @ (a, b) (Int, Int)) => a", "1:21: pattern parameters cannot be annotated"},
+		{"func(Point{x: x, ..} Point) => x", "1:22: pattern parameters cannot be annotated"},
+		{"func(Pair(a, b) Pair[Int, Int]) => a", "1:17: pattern parameters cannot be annotated"},
+		{"func(None Option[Int]) => 0", "1:11: pattern parameters cannot be annotated"},
+		{"func(1 Int) => 0", "1:8: pattern parameters cannot be annotated"},
+	} {
+		t.Run(tc.src, func(t *testing.T) {
+			_, err := parser.ParseExpr(tc.src, ast.Pos{Line: 1, Col: 1})
+			if err == nil || err.Error() != tc.want {
+				t.Fatalf("error = %v, want %q", err, tc.want)
+			}
+		})
 	}
 }
 
@@ -348,7 +436,7 @@ func TestDoStatementsAndResult(t *testing.T) {
 		t.Fatalf("bind = %#v", bind)
 	}
 	let := d.Stmts[1].(*ast.DoLet)
-	if let.Name != "y" || exprShape(let.Value) != "(x + 1)" {
+	if let.Name != "y" || let.Type != nil || exprShape(let.Value) != "(x + 1)" {
 		t.Fatalf("let = %#v", let)
 	}
 	if got := exprShape(d.Stmts[2].(*ast.DoExpr).X); got != "print(y)" {
@@ -397,6 +485,58 @@ func TestMatchPatterns(t *testing.T) {
 	}
 	if _, ok := m.Arms[6].Pat.(*ast.PWild); !ok {
 		t.Errorf("wildcard = %T", m.Arms[6].Pat)
+	}
+}
+
+func TestMatchGuards(t *testing.T) {
+	for _, tc := range []struct{ guard, want string }{
+		{"x > 0 && x < 10", "((x > 0) && (x < 10))"},
+		{"valid(x)", "valid(x)"},
+		{"valid(x) && ready(x) || fallback(x)", "((valid(x) && ready(x)) || fallback(x))"},
+		{"valid(x)\n && ready(x)\n", "(valid(x) && ready(x))"},
+	} {
+		for _, sep := range []string{" | ", "; ", "\n"} {
+			t.Run(tc.guard+"/"+sep, func(t *testing.T) {
+				m := result(t, "match value { Some(x) if "+tc.guard+" => x"+sep+"None if ready() => 0"+sep+"_ => -1 }").(*ast.Match)
+				if len(m.Arms) != 3 {
+					t.Fatalf("arms = %#v, want three", m.Arms)
+				}
+				if got := patternShape(m.Arms[0].Pat); got != "Some(x)" {
+					t.Errorf("first pattern = %s", got)
+				}
+				if got := exprShape(m.Arms[0].Guard); got != tc.want {
+					t.Errorf("first guard = %s, want %s", got, tc.want)
+				}
+				if got := exprShape(m.Arms[0].Body); got != "x" {
+					t.Errorf("first body = %s", got)
+				}
+				if patternShape(m.Arms[1].Pat) != "None()" || exprShape(m.Arms[1].Guard) != "ready()" || exprShape(m.Arms[1].Body) != "0" {
+					t.Errorf("second arm = %#v", m.Arms[1])
+				}
+				if patternShape(m.Arms[2].Pat) != "_" || m.Arms[2].Guard != nil || exprShape(m.Arms[2].Body) != "(-1)" {
+					t.Errorf("unguarded final arm = %#v", m.Arms[2])
+				}
+			})
+		}
+	}
+}
+
+func TestMatchIfExpressionGuard(t *testing.T) {
+	m := result(t, "match value { x if if enabled { valid(x) } else { false } => x | _ => 0 }").(*ast.Match)
+	if len(m.Arms) != 2 {
+		t.Fatalf("arms = %#v, want two", m.Arms)
+	}
+	guard, ok := m.Arms[0].Guard.(*ast.If)
+	if !ok {
+		t.Fatalf("guard = %T, want If", m.Arms[0].Guard)
+	}
+	if exprShape(guard.Cond) != "enabled" ||
+		exprShape(guard.Then.(*ast.BlockExpr).Block.Result) != "valid(x)" ||
+		exprShape(guard.Else.(*ast.BlockExpr).Block.Result) != "false" {
+		t.Errorf("guard = %#v", guard)
+	}
+	if exprShape(m.Arms[0].Body) != "x" || m.Arms[1].Guard != nil || exprShape(m.Arms[1].Body) != "0" {
+		t.Errorf("arm bodies = %#v", m.Arms)
 	}
 }
 
@@ -719,7 +859,7 @@ func TestBlockExpressions(t *testing.T) {
 		t.Fatalf("statements = %#v", b.Stmts)
 	}
 	let := b.Stmts[0].(*ast.LetStmt)
-	if let.Name != "x" || exprShape(let.Value) != "1" {
+	if let.Name != "x" || let.Type != nil || exprShape(let.Value) != "1" {
 		t.Fatalf("let = %#v", let)
 	}
 	if got := exprShape(b.Stmts[1].(*ast.ExprStmt).X); got != "print(x)" {
@@ -727,6 +867,62 @@ func TestBlockExpressions(t *testing.T) {
 	}
 	if got := exprShape(b.Result); got != "(x + 2)" {
 		t.Errorf("result = %s", got)
+	}
+}
+
+func TestLetAnnotations(t *testing.T) {
+	for _, tc := range []struct{ name, typ, value string }{
+		{"x", "Int", "1"},
+		{"xs", "List[Int]", "[]"},
+		{"p", "(Int, String)", `(1, "a")`},
+		{"f", "func(Int) Int", "func(x) => x"},
+	} {
+		for _, kind := range []string{"block", "do"} {
+			t.Run(kind+"/"+tc.name, func(t *testing.T) {
+				src := "{ let " + tc.name + ": " + tc.typ + " = " + tc.value + "\n" + tc.name + " }"
+				var name string
+				var typ ast.Type
+				var value, final ast.Expr
+				if kind == "do" {
+					d := result(t, "do "+src).(*ast.Do)
+					if len(d.Stmts) != 1 {
+						t.Fatalf("statements = %#v, want one", d.Stmts)
+					}
+					let := d.Stmts[0].(*ast.DoLet)
+					name, typ, value, final = let.Name, let.Type, let.Value, d.Result
+				} else {
+					b := result(t, src).(*ast.BlockExpr).Block
+					if len(b.Stmts) != 1 {
+						t.Fatalf("statements = %#v, want one", b.Stmts)
+					}
+					let := b.Stmts[0].(*ast.LetStmt)
+					name, typ, value, final = let.Name, let.Type, let.Value, b.Result
+				}
+				if name != tc.name || exprShape(final) != tc.name {
+					t.Errorf("name = %q, result = %s, want %s", name, exprShape(final), tc.name)
+				}
+				wantValue := tc.value
+				switch tc.typ {
+				case "Int":
+					typeName(t, typ, "Int")
+				case "List[Int]":
+					typeName(t, typ, "List", "Int")
+				case "(Int, String)":
+					tupleType(t, typ, "Int", "String")
+				case "func(Int) Int":
+					ft, ok := typ.(*ast.FuncType)
+					if !ok || len(ft.Params) != 1 {
+						t.Fatalf("type = %#v, want function type", typ)
+					}
+					typeName(t, ft.Params[0], "Int")
+					typeName(t, ft.Ret, "Int")
+					wantValue = "lambda"
+				}
+				if got := exprShape(value); got != wantValue {
+					t.Errorf("value = %s, want %s", got, wantValue)
+				}
+			})
+		}
 	}
 }
 
