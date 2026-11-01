@@ -1,0 +1,117 @@
+package main
+
+// ---- ドメイン: 純粋な代数的データ型と状態遷移 ----
+
+type Order = Pending(Int, Int) | Shipped(Int, Int) | Cancelled(Int)
+//           Pending(id, amount)  Shipped(id, amount)  Cancelled(id)
+
+type List[A] = Nil | Cons(A, List[A])
+
+func cancel(o Order) Order {
+  match o {
+    | Pending(id, _) => Cancelled(id)
+    | Shipped(id, amount) => Shipped(id, amount)
+    | Cancelled(id) => Cancelled(id)
+  }
+}
+
+func ship(o Order) Option[Order] {
+  match o {
+    | Pending(id, amount) => if amount > 0 { Some(Shipped(id, amount)) } else { None }
+    | Shipped(id, amount) => Some(Shipped(id, amount))
+    | Cancelled(_) => None
+  }
+}
+
+// ---- 型クラス: Show を自前の型へ、Functor を自前のコンテナへ ----
+
+instance Show[Order] {
+  show(o) {
+    match o {
+      | Pending(id, amount) => "Pending#" + show(id) + "(" + show(amount) + ")"
+      | Shipped(id, amount) => "Shipped#" + show(id) + "(" + show(amount) + ")"
+      | Cancelled(id) => "Cancelled#" + show(id)
+    }
+  }
+}
+
+instance Functor[List] {
+  fmap(xs, f) {
+    match xs {
+      | Nil => Nil
+      | Cons(x, rest) => Cons(f(x), fmap(rest, f))
+    }
+  }
+}
+
+func fold[A, B](xs List[A], init B, f func(B, A) B) B {
+  match xs {
+    | Nil => init
+    | Cons(x, rest) => fold(rest, f(init, x), f)
+  }
+}
+
+func joinShown[A Show](xs List[A]) String {
+  fold(xs, "", func(acc, x) => if acc == "" { show(x) } else { acc + ", " + show(x) })
+}
+
+// ---- HKT: Functor なら何でも受ける ----
+
+func twice[F[_] Functor, A](fa F[A], f func(A) A) F[A] {
+  fmap(fmap(fa, f), f)
+}
+
+// ---- Option モナドで検証を連鎖 ----
+
+func shipTwo(a Order, b Order) Option[Int] {
+  do {
+    sa <- ship(a)
+    sb <- ship(b)
+    let total = amountOf(sa) + amountOf(sb)
+    if total > 1000 { None } else { pure(total) }
+  }
+}
+
+func amountOf(o Order) Int {
+  match o {
+    | Pending(_, amount) => amount
+    | Shipped(_, amount) => amount
+    | Cancelled(_) => 0
+  }
+}
+
+// ---- 効果は IO に隔離。Go の net/http は extern ----
+
+extern func httpGet(url String) IO[Int] = "gofx/rt/stdhttp".GetStatus
+
+func notify(total Int) IO[Unit] {
+  do {
+    status <- httpGet("https://example.com")
+    if status == 200 {
+      println("notified warehouse: total=" + show(total))
+    } else {
+      ioFail("warehouse returned " + show(status))
+    }
+  }
+}
+
+func main() IO[Unit] {
+  let orders = Cons(Pending(1, 300), Cons(Pending(2, 0), Cons(Cancelled(3), Nil)))
+  do {
+    println("orders:    " + joinShown(orders))
+    println("cancelled: " + joinShown(fmap(orders, cancel)))
+    println("twice:     " + joinShown(twice(orders, cancel)))
+    let shipped = fmap(orders, ship)
+    println("shipped:   " + joinShown(fmap(shipped, func(o) => match o { | Some(s) => show(s) | None => "-" })))
+    match shipTwo(Pending(1, 300), Pending(4, 500)) {
+      | Some(total) => notify(total)
+      | None => println("cannot ship both")
+    }
+    match shipTwo(Pending(1, 300), Pending(2, 0)) {
+      | Some(total) => notify(total)
+      | None => println("cannot ship both (second has zero amount)")
+    }
+    x <- twice(ioPure(20), func(n) => n + 1)
+    println("IO twice:  " + show(x))
+  }
+}
