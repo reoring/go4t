@@ -23,7 +23,7 @@ func five() codec.Json { codec.encode((1, true, "x", 2.5, unit())) }
 func mapped(j codec.Json) Result[String, Map[String, Box[Int]]] { codec.decode(j) }
 `)
 	for range 2 {
-		program, err := types.Check(files)
+		program, err := checkFixture(t, files)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -74,7 +74,7 @@ func TestJSONDerivingErrors(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.source, func(t *testing.T) {
-			_, err := types.Check(jsonDerivingFiles(t, tc.source))
+			_, err := checkFixture(t, jsonDerivingFiles(t, tc.source))
 			var diagnostic *types.Error
 			if !errors.As(err, &diagnostic) || diagnostic.File != "deriving.gfx" || diagnostic.Pos.Line == 0 || !strings.Contains(diagnostic.Msg, tc.want) {
 				t.Fatalf("error = %v; want positioned %q", err, tc.want)
@@ -92,7 +92,7 @@ instance Pick[Pair[String, V]] { pick(_a) { 1 } }
 instance PickMore[Pair[String, V]] { pickMore(a) { pick(a) } }
 func value() Int { pickMore(Pair("key", true)) }
 `)
-	program, err := types.Check(files)
+	program, err := checkFixture(t, files)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +108,7 @@ type JsonT0 = JsonT0
 type Box[A] = Box(A) deriving codec.Encode, codec.Decode
 func value() codec.Json { codec.encode((Box(1), map.mapFromList([("x", true)]), ["a"])) }
 `)
-	if _, err := types.Check(files); err != nil {
+	if _, err := checkFixture(t, files); err != nil {
 		t.Fatal(err)
 	}
 }

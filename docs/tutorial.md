@@ -323,6 +323,28 @@ be whole arguments or parenthesised whole operator operands. Use `map((_ + 1))`
 in a pipe, not `map(_ + 1)`. Direct self-tail recursion is loop-lowered, but mutual
 recursion, non-tail calls and do-continuation calls do not get that guarantee.
 
+An expected function type also supplies unannotated lambda parameters and
+projection receivers. `Some(_.product)` can use a declared return type; a bare
+`let key = Some(_.product)` cannot infer the record and reports
+`cannot infer record type of _.product; annotate`. The expectation passes through
+`if` branches, `match` arms, record fields and the final expression of `do`, not
+through arbitrary expressions or later uses.
+
+```gofx
+package main
+type Sale = Sale{product: String, qty: Int}
+func productKey() Option[func(Sale) String] { Some(_.product) }
+func quantityKey() func(Sale) Int {
+  match true { true => _.qty; false => func(s) => s.qty }
+}
+func main() IO[Unit] {
+  let sale = Sale{product: "tea", qty: 2}
+  let key: func(Sale) String = func(s) => s.product
+  let project: func(Sale) String = _.product
+  println(key(sale) + ": " + project(sale) + " x " + show(quantityKey()(sale)))
+}
+```
+
 ## 8. Testing with gofx test
 
 Save this as `lesson-tests.gfx` and run `gofx test lesson-tests.gfx`. It also

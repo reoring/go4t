@@ -268,7 +268,16 @@ func (e *ExprBase) exprNode()     {}
 type Ident struct {
 	ExprBase
 	Name        string
+	Display     string // source spelling when Name is synthesized or qualified
 	Placeholder bool // synthesized section/call parameter reference
+}
+
+// DisplayName returns the source spelling without exposing compiler identities.
+func (e *Ident) DisplayName() string {
+	if e.Display != "" {
+		return e.Display
+	}
+	return e.Name
 }
 
 type IntLit struct {

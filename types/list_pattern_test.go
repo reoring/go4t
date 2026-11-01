@@ -32,7 +32,7 @@ func TestListPatternCoverage(t *testing.T) {
 		{`type Chain = End | Link(Int, Chain); func value(xs Chain) Int { match xs { End => 0 } }`, "Link(_, _)"},
 	} {
 		t.Run(tt.source, func(t *testing.T) {
-			_, err := types.Check([]*ast.Module{{Files: parseFiles(t, tt.source+pass5Main)}})
+			_, err := checkFixture(t, []*ast.Module{{Files: parseFiles(t, tt.source+pass5Main)}})
 			if tt.missing == "" {
 				if err != nil {
 					t.Fatal(err)
@@ -60,11 +60,11 @@ func TestListPatternBindingErrors(t *testing.T) {
 		{`func value() IO[Int] { do { [a, ..rest] <- ioPure([1, 2]); ioPure(a) } }`, "bind pattern must be irrefutable"},
 		{`func value(xs List[Int]) Int { match xs { [a, a] => a; _ => 0 } }`, "duplicate pattern variable a"},
 		{`func value(xs List[Int]) Int { match xs { [a, ..a] => a; _ => 0 } }`, "duplicate pattern variable a"},
-		{`func value(xs List[Int]) Int { match xs { [a, ..rest] => rest; _ => 0 } }`, "type mismatch: expected List[Int], got Int"},
+		{`func value(xs List[Int]) Int { match xs { [a, ..rest] => rest; _ => 0 } }`, "type mismatch: expected Int, got List[Int]"},
 		{`func value(xs Int) Int { match xs { [] => 1; _ => 0 } }`, "type mismatch: expected Int, got List["},
 	} {
 		t.Run(tt.source, func(t *testing.T) {
-			_, err := types.Check([]*ast.Module{{Files: parseFiles(t, tt.source+pass5Main)}})
+			_, err := checkFixture(t, []*ast.Module{{Files: parseFiles(t, tt.source+pass5Main)}})
 			var typed *types.Error
 			if !errors.As(err, &typed) || !strings.HasPrefix(typed.Msg, tt.want) {
 				t.Fatalf("error = %v, want %q", err, tt.want)

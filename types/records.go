@@ -6,7 +6,7 @@ import (
 	"gofx/ast"
 )
 
-func (b *bodyChecker) recordLit(e *ast.RecordLit, env *locals, ann *Ann) Type {
+func (b *bodyChecker) recordLit(e *ast.RecordLit, env *locals, ann *Ann, expected Type) Type {
 	ctor := b.c.ctors[e.Ctor]
 	if ctor == nil {
 		fail(e.GetPos(), "unknown constructor %s", e.Ctor)
@@ -17,6 +17,9 @@ func (b *bodyChecker) recordLit(e *ast.RecordLit, env *locals, ann *Ann) Type {
 	fields, result, inst := b.c.instantiateCtor(ctor)
 	ann.Ctor, ann.Inst = ctor, inst
 	ann.FieldIndexes = recordIndexes(e.GetPos(), ctor, e.Names, true)
+	if expected != nil {
+		unify(e.GetPos(), expected, result)
+	}
 	b.recordValues(e.Values, ann.FieldIndexes, fields, env)
 	return result
 }
@@ -57,7 +60,7 @@ func fieldIndex(ctor *Ctor, name string) int {
 func recordReceiverName(e ast.Expr) string {
 	switch e := e.(type) {
 	case *ast.Ident:
-		return e.Name
+		return e.DisplayName()
 	case *ast.Field:
 		return recordReceiverName(e.X) + "." + e.Name
 	default:
@@ -167,6 +170,6 @@ func (b *bodyChecker) recordUpdate(e *ast.RecordUpdate, env *locals, ann *Ann) T
 
 func (b *bodyChecker) recordValues(values []ast.Expr, indexes []int, fields []Type, env *locals) {
 	for i, value := range values {
-		unify(value.GetPos(), fields[indexes[i]], b.infer(value, env))
+		unify(value.GetPos(), fields[indexes[i]], b.inferExpected(value, env, fields[indexes[i]]))
 	}
 }

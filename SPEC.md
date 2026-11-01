@@ -324,7 +324,8 @@ import alias.
 ### 4.1 Grammar and precedence
 
 ```ebnf
-Expr       := 'func' '(' [LParam {',' LParam} [',']] ')' '=>' Expr
+Expr       := InferExpr | Projection
+InferExpr  := 'func' '(' [LParam {',' LParam} [',']] ')' '=>' Expr
             | 'do' '{' {Separator} {DoStmt Separator} Expr {Separator} '}'
             | 'match' Expr '{' Arms '}'
             | IfExpr | Binary
@@ -335,10 +336,10 @@ BinOp      := '|>' | '||' | '&&' | '==' | '!=' | '<' | '<=' | '>' | '>='
             | '+' | '-' | '*' | '/' | '%'
 Unary      := {'-' | '!'} Postfix
 Postfix    := Primary {'(' [CallArg {',' CallArg} [',']] ')' | '.' Ident | '.' Int | RecordFields}
-CallArg    := Expr | '_' | Projection
+CallArg    := Expr | '_'
 Primary    := Name | Int | Float | String | Interp | 'true' | 'false'
-            | ConstructorName RecordFields | '(' Expr ')' | '(' Expr ',' Expr {',' Expr} ')'
-            | '[' [Expr {',' Expr} [',']] ']' | Block | Section
+            | ConstructorName RecordFields | '(' InferExpr ')' | '(' InferExpr ',' InferExpr {',' InferExpr} ')'
+            | '[' [InferExpr {',' InferExpr} [',']] ']' | Block | Section
 Block      := '{' {Separator} {Stmt Separator} Expr {Separator} '}'
 Stmt       := LetStmt | LocalFunc | Expr
 LetStmt    := 'let' Pattern [':' Type] '=' Expr
@@ -442,18 +443,28 @@ synthesized lambda body, on each application, not when constructing the section.
 
 Projection sections `(_.field)` and `(_.0)` desugar to `func(x) => x.field`
 and `func(x) => x.0`. Selectors may chain: `(_.a.b)` is one unary lambda,
-not nested lambdas. A projection may also occupy a whole call argument without
+not nested lambdas. A projection may occupy a whole call argument without
 parentheses: `map(xs, _.qty)` is `map(xs, func(x) => x.qty)`, so
 `xs |> map(_.qty)` works too. Each projection has its own parameter scope:
 `map(_, _.qty)` has one outer hole and an independent projection lambda.
-Record types and tuple arity must be known from the call argument context or an
-explicit function type annotation; projection sections use ordinary field-access
-rules, including common fields across constructors (§4.6).
+Bare projections also work as function return tails, annotated-let initializers,
+`if` branches, `match` arms, lambda bodies, record field values and `do` tails
+when the expected function type reaches them (§5.1). For example,
+`func key() Option[func(Sale) String] { Some(_.product) }` uses its declared
+return type to determine the projection's record type. An annotation such as
+`let key: func(Sale) String = _.product` does the same.
+Record types and tuple arity must be known from an expected function type or an
+explicit lambda parameter annotation; projection sections use ordinary field-access
+rules, including common fields across constructors (§4.6). Without that context,
+`let key = Some(_.product)` fails with
+`cannot infer record type of _.product; annotate`.
 
 `f(_ + 1)`, `(_ + 1 + 2)`, `[_]`, `(_, 1)` and `(_)` are invalid; write
-`f((_ + 1))`. Unparenthesised `_.f` outside a whole call argument is also invalid,
-as are `f(_.f + 1)` and `(_.f + 1)`; use an explicit lambda for computations
-beyond a selector chain. Invalid placeholder placement retains the diagnostic
+`f((_ + 1))`. Bare projections in list/tuple elements or operator operands remain
+invalid, as are `f(_.f + 1)` and `(_.f + 1)`; use an explicit lambda for computations
+beyond a selector chain. Parenthesising a projection permits its syntax in an
+infer-only position, but does not supply a missing expected type.
+Invalid placeholder placement retains the diagnostic
 `_ is only valid as a placeholder in a call or operator section`.
 
 ```gofx
@@ -571,6 +582,18 @@ Inference is Hindley–Milner with rank-1 top-level/eligible-let polymorphism,
 higher kinds, flat partial constructor unification, rigid declared parameters,
 and post-inference type-class dictionaries. Parameters are never generalised.
 For example `F[a] ~ Result[E, A]` can solve `F := Result[E]`, `a := A`.
+
+Expected types flow into function body tails from declared return types and
+into `let x: T = e` from `T`; through `if` branches and `match` arms (a match
+without an expectation uses its first arm's inferred type); into constructor/call
+arguments from instantiated parameter types after unifying the callee result;
+into record field values from field types; into lambda bodies and unannotated
+parameters from expected function results/parameters; and into a `do` block's
+final expression from the block's expectation. This bounded bidirectional checking
+resolves projections and unannotated lambda field access without searching for
+record types or looking ahead to later statements. Other positions, including
+list/tuple elements and operator operands, remain infer-only. Numeric literals
+are unaffected: an integer literal is always Int, never contextually Float.
 
 Unresolved kind-`*` variables with no class constraint default to Unit with a
 warning, e.g. `type of None defaulted to Unit; add an annotation or use the value`.
@@ -1304,7 +1327,7 @@ than the shortest Float `show` form.
 | Alias instance specialization | Repeated/erased/nested variables or function head → `instance head must be a type constructor`; permutations of distinct direct variables allowed |
 | Common fields | Missing constructor field wins over type mismatch; rigid declaration types must agree even if a particular instantiation could make them equal; update preserves constructor |
 | Local recursion | Only bare-name lambda lets recurse; consecutive local funcs share one scope group; local own type parameters → `local functions cannot have type parameters`; duplicate name → `duplicate local function <name>` |
-| Placeholder placement | Bare holes are whole arguments/operator-section operands; projection sections `(_.f)` / `(_.0)` allow selector chains and omit parentheses only as whole call arguments; each projection has one independent parameter; fixed expressions run per application |
+| Placeholder placement | Bare holes are whole arguments/operator-section operands; projection sections `(_.f)` / `(_.0)` allow selector chains and omit parentheses in the expected-type contexts of §4.5; each projection has one independent parameter; fixed expressions run per application |
 | Constraints | Duplicate class on one parameter fails; Eq + Ord is legal and reuses Ord; absent rigid class diagnostics list constraints in order |
 | Match coverage | Guards add no coverage; true/false are exhaustive; other literal domains need default; maximum five missing witnesses; List witnesses always use `[]`, `[_]`, `[_, _, ..]`-style syntax (§5.2) |
 | List patterns | `[]` and `[p1, p2, ...]` match exact lengths; `[p1, p2, ..rest]` binds the remaining list without copying, including an empty tail; final `..` / `.._` ignores it; trailing comma allowed |

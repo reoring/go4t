@@ -78,8 +78,7 @@ func TestProjectionPlaceholderScopes(t *testing.T) {
 
 func TestProjectionPlacementErrors(t *testing.T) {
 	for _, source := range []string{
-		"_.qty", "_.0", "_.a.b", "[_.qty]", "(1, _.qty)", "(_.qty, 1)",
-		"Row{qty: _.qty}", "func(x) => _.qty", "xs |> _.qty", "{ _.qty }",
+		"[_.qty]", "(1, _.qty)", "(_.qty, 1)", "xs |> _.qty",
 		"f(_.qty + 1)", "(_.qty + 1)", "(1 + _.qty)", "f(_.qty())", "(_.qty())",
 	} {
 		t.Run(source, func(t *testing.T) {
@@ -87,6 +86,20 @@ func TestProjectionPlacementErrors(t *testing.T) {
 			want := fmt.Sprintf("4:%d: _ is only valid as a placeholder in a call or operator section", 7+strings.Index(source, "_"))
 			if err == nil || err.Error() != want {
 				t.Fatalf("error = %v, want %q", err, want)
+			}
+		})
+	}
+}
+
+func TestBareProjectionCheckingContexts(t *testing.T) {
+	for _, source := range []string{
+		"_.qty", "_.0", "_.a.b", "Row{qty: _.qty}", "func(x) => _.qty", "{ _.qty }",
+		"if true { _.qty } else { _.other }", "match true { true => _.qty; false => _.other }",
+		"{ let key: func(Row) Int = _.qty; key }",
+	} {
+		t.Run(source, func(t *testing.T) {
+			if _, err := parser.ParseExpr(source, ast.Pos{Line: 4, Col: 7}); err != nil {
+				t.Fatal(err)
 			}
 		})
 	}

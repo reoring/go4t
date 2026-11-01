@@ -36,7 +36,7 @@ func TestLocalRecursion(t *testing.T) {
 		{"do bind separates groups", `func f() Option[Int] { do { func first() Int { second() }; x <- Some(1); func second() Int { x }; Some(first()) } }`, "unknown identifier second"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := types.Check([]*ast.Module{{Files: parseFiles(t, tc.source+pass5Main)}})
+			_, err := checkFixture(t, []*ast.Module{{Files: parseFiles(t, tc.source+pass5Main)}})
 			if tc.wantError == "" {
 				if err != nil {
 					t.Fatal(err)
@@ -63,7 +63,7 @@ func TestRecursiveLetFreeOccurrences(t *testing.T) {
 	} {
 		t.Run(tc.value, func(t *testing.T) {
 			files := parseFiles(t, "func test() Unit { let loop = "+tc.value+"; unit() }"+pass5Main)
-			if _, err := types.Check([]*ast.Module{{Files: files}}); err != nil {
+			if _, err := checkFixture(t, []*ast.Module{{Files: files}}); err != nil {
 				t.Fatal(err)
 			}
 			value := files[1].Decls[0].(*ast.FuncDecl).Body.Stmts[0].(*ast.LetStmt).Value

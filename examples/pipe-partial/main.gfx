@@ -30,6 +30,32 @@ func main() IO[Unit] {
     println(cleaned)
     println("scores: " + scores)
     println("steps: ${3 |> increment |> add(4) |> (func(n) => n * 2)}")
+    expectedKeys()
     println("sections: ${less(1, 2)}, ${equalApple("apple")}")
   }
+}
+
+type Sale = Sale{product: String, qty: Int, jpy: Int}
+
+func productKey() Option[func(Sale) String] {
+  Some(_.product)
+}
+
+func quantityKey(useQuantity Bool) func(Sale) Int {
+  match useQuantity {
+    true => _.qty
+    false => _.jpy
+  }
+}
+
+func expectedKeys() IO[Unit] {
+  let sale = Sale{product: "tea", qty: 2, jpy: 300}
+  let f: func(Sale) String = _.product
+  let key: func(Sale) String = func(s) => s.product
+  let sorted = list.sortOn([sale, Sale{product: "coffee", qty: 1, jpy: 200}], func(s) => s.jpy)
+  let wrapped = match productKey() {
+    Some(project) => project(sale)
+    None => ""
+  }
+  println("keys: ${f(sale)}, ${key(sale)}, ${wrapped}; qty: ${quantityKey(true)(sale)}; sorted: ${map(sorted, _.product)}")
 }

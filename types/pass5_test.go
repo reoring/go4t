@@ -25,7 +25,7 @@ func TestLetPolymorphism(t *testing.T) {
 	} {
 		t.Run(source, func(t *testing.T) {
 			files := parseFiles(t, source+pass5Main)
-			p, err := types.Check([]*ast.Module{{Files: files}})
+			p, err := checkFixture(t, []*ast.Module{{Files: files}})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -58,7 +58,7 @@ func value() String {
 }
 `+pass5Main)
 	for range 2 {
-		p, err := types.Check([]*ast.Module{{Files: files}})
+		p, err := checkFixture(t, []*ast.Module{{Files: files}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -93,7 +93,7 @@ func TestLetValueRestriction(t *testing.T) {
 		`func bad() Unit { (func(x) => { let f = func(y) => x(y); f(1); f("text"); unit() })(func(x) => x) }`,
 	} {
 		t.Run(source, func(t *testing.T) {
-			p, err := types.Check([]*ast.Module{{Files: parseFiles(t, source+pass5Main)}})
+			p, err := checkFixture(t, []*ast.Module{{Files: parseFiles(t, source+pass5Main)}})
 			var typed *types.Error
 			if p != nil || !errors.As(err, &typed) || typed.Msg != "type mismatch: expected Int, got String" {
 				t.Fatalf("Check = (%v, %v)", p, err)
@@ -112,7 +112,7 @@ func TestDefaultingWarnings(t *testing.T) {
 		t.Run(tt.what, func(t *testing.T) {
 			files := parseFiles(t, tt.source+pass5Main)
 			for range 2 {
-				p, err := types.Check([]*ast.Module{{Files: files}})
+				p, err := checkFixture(t, []*ast.Module{{Files: files}})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -128,7 +128,7 @@ func TestDefaultingWarnings(t *testing.T) {
 		})
 	}
 	files := parseFiles(t, `func takes(xs List[Int]) Unit { unit() }; func value() Unit { takes([]) }`+pass5Main)
-	p, err := types.Check([]*ast.Module{{Files: files}})
+	p, err := checkFixture(t, []*ast.Module{{Files: files}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -147,7 +147,7 @@ func positional() String { match User("alice", 1) { User(name, _) => name } }
 func inferred() String { let u = User{name: "alice", value: 1}; u.name }
 func generic[A](u User[A]) A { u.value }
 `+pass5Main)
-	p, err := types.Check([]*ast.Module{{Files: files}})
+	p, err := checkFixture(t, []*ast.Module{{Files: files}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -194,7 +194,7 @@ func decrement(acc List[Stock]) List[Stock] {
  fmap(acc, func(s) => s{qty: s.qty - 1})
 }
 `+pass5Main)
-	p, err := types.Check([]*ast.Module{{Files: files}})
+	p, err := checkFixture(t, []*ast.Module{{Files: files}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -233,7 +233,7 @@ func TestRecordErrors(t *testing.T) {
 		{`type R = R{a: Int}; func f(x R) R { x{a: true} }`, "type mismatch: expected Int, got Bool"},
 	} {
 		t.Run(tt.source, func(t *testing.T) {
-			p, err := types.Check([]*ast.Module{{Files: parseFiles(t, tt.source+pass5Main)}})
+			p, err := checkFixture(t, []*ast.Module{{Files: parseFiles(t, tt.source+pass5Main)}})
 			var typed *types.Error
 			if p != nil || !errors.As(err, &typed) || typed.Msg != tt.want {
 				t.Fatalf("Check = (%v, %v), want %q", p, err, tt.want)
@@ -250,7 +250,7 @@ func value() String { "int ${1}, string ${"text"}, user ${Label("name")}" }
 func generic[A Show](a A) String { "${a}" }
 func local() String { let render = func(x) => "${x}"; render(1) + render(true) }
 `+pass5Main)
-	p, err := types.Check([]*ast.Module{{Files: files}})
+	p, err := checkFixture(t, []*ast.Module{{Files: files}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -278,7 +278,7 @@ func TestInterpolationMissingInstances(t *testing.T) {
 	} {
 		t.Run(tt.source, func(t *testing.T) {
 			files := parseFiles(t, tt.source+pass5Main)
-			p, err := types.Check([]*ast.Module{{Files: files}})
+			p, err := checkFixture(t, []*ast.Module{{Files: files}})
 			var typed *types.Error
 			if p != nil || !errors.As(err, &typed) || typed.Msg != tt.want {
 				t.Fatalf("Check = (%v, %v), want %q", p, err, tt.want)
@@ -295,7 +295,7 @@ func TestInterpolationMissingInstances(t *testing.T) {
 func TestDiagnosticFileNames(t *testing.T) {
 	files := parseFiles(t, `func value() Unit { None; []; unit() }`+pass5Main)
 	files[0].Name, files[1].Name = "prelude.gfx", "user.gfx"
-	p, err := types.Check([]*ast.Module{{Files: files}})
+	p, err := checkFixture(t, []*ast.Module{{Files: files}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -314,7 +314,7 @@ func TestDiagnosticFileNames(t *testing.T) {
 	}
 	files[0], files[1] = files[1], files[0]
 	files[0].Name, files[1].Name = "prelude.gfx", "user.gfx"
-	p, err = types.Check([]*ast.Module{{Files: files}})
+	p, err = checkFixture(t, []*ast.Module{{Files: files}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -325,7 +325,7 @@ func TestDiagnosticFileNames(t *testing.T) {
 	}
 	files = parseFiles(t, `func bad() String { 1 }`+pass5Main)
 	files[0].Name, files[1].Name = "prelude.gfx", "user.gfx"
-	_, err = types.Check([]*ast.Module{{Files: files}})
+	_, err = checkFixture(t, []*ast.Module{{Files: files}})
 	var typed *types.Error
 	if !errors.As(err, &typed) || typed.File != "user.gfx" {
 		t.Fatalf("error file = %v", err)
@@ -333,7 +333,7 @@ func TestDiagnosticFileNames(t *testing.T) {
 	// Place a source with the same diagnostic in the first, prelude-named file.
 	files[0], files[1] = files[1], files[0]
 	files[0].Name, files[1].Name = "prelude.gfx", "user.gfx"
-	_, err = types.Check([]*ast.Module{{Files: files}})
+	_, err = checkFixture(t, []*ast.Module{{Files: files}})
 	if !errors.As(err, &typed) || typed.File != "prelude.gfx" {
 		t.Fatalf("prelude error file = %v", err)
 	}
@@ -349,7 +349,7 @@ func TestNestedConstrainedLets(t *testing.T) {
 	} {
 		t.Run(source, func(t *testing.T) {
 			files := parseFiles(t, pass5Show+showOptionInstance+source+pass5Main)
-			p, err := types.Check([]*ast.Module{{Files: files}})
+			p, err := checkFixture(t, []*ast.Module{{Files: files}})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -364,7 +364,7 @@ func TestNestedConstrainedLets(t *testing.T) {
 func TestMonomorphicLetAnnotations(t *testing.T) {
 	files := parseFiles(t, `func identity[A](x A) A { x }
 func value() Int { let f = identity(func(x) => x); f(1) }`+pass5Main)
-	p, err := types.Check([]*ast.Module{{Files: files}})
+	p, err := checkFixture(t, []*ast.Module{{Files: files}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -383,7 +383,7 @@ func TestGeneralizedConstraintCapturesEnvironment(t *testing.T) {
   (func(s String) => s)(render(1))
  })("text")
  }`+pass5Main)
-	p, err := types.Check([]*ast.Module{{Files: files}})
+	p, err := checkFixture(t, []*ast.Module{{Files: files}})
 	if err != nil {
 		t.Fatal(err)
 	}

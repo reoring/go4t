@@ -46,7 +46,7 @@ func main() IO[Unit] {
 		t.Fatal(err)
 	}
 	file.Name = "main.gfx"
-	program, err := types.Check([]*ast.Module{{Files: []*ast.File{pre, file}}})
+	program, err := checkFixture(t, []*ast.Module{{Files: []*ast.File{pre, file}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +89,7 @@ func main() IO[Unit] {
 		t.Error("unknown file has binding")
 	}
 	// Index construction must not consume or modify checking state.
-	if _, err := types.Check([]*ast.Module{{Files: []*ast.File{pre, file}}}); err != nil {
+	if _, err := checkFixture(t, []*ast.Module{{Files: []*ast.File{pre, file}}}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -116,7 +116,7 @@ func main() IO[Unit] {
 		t.Fatal(err)
 	}
 	file.Name = "main.gfx"
-	program, err := types.Check([]*ast.Module{{Files: []*ast.File{pre, file}}})
+	program, err := checkFixture(t, []*ast.Module{{Files: []*ast.File{pre, file}}})
 	if err != nil {
 		t.Fatal(err)
 	}

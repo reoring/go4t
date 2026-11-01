@@ -74,7 +74,7 @@ func TestPlaceholderDesugaring(t *testing.T) {
 func TestPlaceholderMisusePositions(t *testing.T) {
 	for _, src := range []string{
 		"_", "(_)", "_ + 1", "1 + _", "f(_ + 1)", "f(1 + _)",
-		"[_]", "(_, 1)", "Point{x: _}", "x{value: _}", "_.x", "_(1)",
+		"[_]", "(_, 1)", "Point{x: _}", "x{value: _}", "_(1)",
 		"func(x) => _", "{ _ }", "do { _ }", "if _ { 1 } else { 2 }",
 		"(_ + 1 + 2)", "(1 + _ * 2)", "(-_)", "(f(_) + _ + 1)",
 	} {

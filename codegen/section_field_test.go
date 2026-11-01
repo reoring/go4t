@@ -51,3 +51,22 @@ func main() IO[Unit] {
 		t.Fatalf("output = %q, want %q", got, want)
 	}
 }
+
+func TestExpectedTypeSectionsRuntime(t *testing.T) {
+	loaded, err := modules.Load([]string{"../examples/pipe-partial"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	program, err := types.Check(loaded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	generated, err := Generate(program, "main")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "apple\nbanana\npear\nscores: 4, 6, 8\nsteps: 16\nkeys: tea, tea, tea; qty: 2; sorted: [coffee, tea]\nsections: true, true\n"
+	if got := runGeneratedModules(t, generated); got != want {
+		t.Fatalf("output = %q, want %q", got, want)
+	}
+}

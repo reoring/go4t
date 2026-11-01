@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"gofx/ast"
-	"gofx/parser"
 	"gofx/types"
 )
 
@@ -34,7 +33,7 @@ func TestProjectionTypes(t *testing.T) {
 		{`let values: func(List[Row]) List[Int] = map(_, _.qty); values([Row{qty: 3}])`, "List[Int]"},
 	} {
 		t.Run(tc.body, func(t *testing.T) {
-			program, err := types.Check([]*ast.Module{{Files: parseFiles(t, projectionTypes+`
+			program, err := checkFixture(t, []*ast.Module{{Files: parseFiles(t, projectionTypes+`
 func value() `+tc.want+` { `+tc.body+` }
 `+pass5Main)}})
 			if err != nil {
@@ -62,7 +61,7 @@ func TestProjectionTypeErrors(t *testing.T) {
 func value() Option[Int] { `+tc.body+` }
 `+pass5Main)
 			files[1].Name = "section-field.gfx"
-			_, err := types.Check([]*ast.Module{{Files: files}})
+			_, err := checkFixture(t, []*ast.Module{{Files: files}})
 			var typed *types.Error
 			if !errors.As(err, &typed) || typed.Msg != tc.want || typed.File != "section-field.gfx" {
 				t.Fatalf("error = %v, want %q", err, tc.want)
@@ -71,11 +70,15 @@ func value() Option[Int] { `+tc.body+` }
 	}
 }
 
-func TestProjectionOutsideSectionRejectedBeforeChecking(t *testing.T) {
-	for _, expr := range []string{"_.qty", "_.0", "_.row.qty"} {
-		_, err := parser.Parse("package main\nfunc value() Int {\n  " + expr + "\n}")
-		want := "3:3: _ is only valid as a placeholder in a call or operator section"
-		if err == nil || err.Error() != want {
+func TestProjectionWithoutExpectedRecordRejected(t *testing.T) {
+	for _, expr := range []string{"_.qty", "_.row.qty"} {
+		_, err := checkFixture(t, []*ast.Module{{Files: parseFiles(t, "func value() Unit { let key = "+expr+"; unit() }"+pass5Main)}})
+		var diagnostic *types.Error
+		want := "cannot infer record type of _.qty; annotate"
+		if expr == "_.row.qty" {
+			want = "cannot infer record type of _.row; annotate"
+		}
+		if !errors.As(err, &diagnostic) || diagnostic.Msg != want {
 			t.Fatalf("%s: error = %v, want %q", expr, err, want)
 		}
 	}

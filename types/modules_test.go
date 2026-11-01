@@ -32,7 +32,7 @@ func checkModuleFixture(t *testing.T, root string) (*types.Program, error) {
 	if err != nil {
 		return nil, err
 	}
-	return types.Check(loaded)
+	return checkFixture(t, loaded)
 }
 func TestModulePrivacyAndFileScopes(t *testing.T) {
 	for _, test := range []struct{ name, body, want string }{
@@ -84,7 +84,7 @@ func TestModulePreludeShadowAndNarrowExports(t *testing.T) {
 		t.Fatal(err)
 	}
 	for range 2 {
-		p, err := types.Check(loaded)
+		p, err := checkFixture(t, loaded)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -185,7 +185,7 @@ func main() IO[Unit] {
 				if count != 1 {
 					t.Fatalf("filesystem override identity %s loaded %d times", wantOwner, count)
 				}
-				program, err := types.Check(loaded)
+				program, err := checkFixture(t, loaded)
 				if err != nil {
 					t.Fatal(err)
 				}
