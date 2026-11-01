@@ -1,0 +1,93 @@
+package extern
+
+import (
+	"go/types"
+	"strings"
+	"testing"
+)
+
+func TestMethodBindingBoundaries(t *testing.T) {
+	var loader Loader
+	pkg, err := loader.Load("gofx/extern/testdata/methodfixture")
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := make(map[string]bool)
+	previous := ""
+	for _, method := range pkg.Methods {
+		name := method.TypeName + "." + method.Name
+		if seen[name] || name < previous {
+			t.Errorf("duplicate or unsorted method %s after %s", name, previous)
+		}
+		seen[name], previous = true, name
+		if strings.HasPrefix(name, "Alias.") || strings.HasPrefix(name, "hidden.") || method.Name == "hidden" {
+			t.Errorf("enumerated non-exported/nonnamed type or private method %s", name)
+		}
+		switch name {
+		case "Widget.Count":
+			if _, ok := method.Receiver.(*types.Pointer); !ok {
+				t.Errorf("pointer method receiver is %s", method.Receiver)
+			}
+		case "Widget.Echo", "Outer.Visible":
+			if _, ok := method.Receiver.(*types.Named); !ok {
+				t.Errorf("value method receiver is %s", method.Receiver)
+			}
+		}
+	}
+	for _, name := range []string{"Widget.Count", "Widget.Echo", "Outer.Visible", "Generic.Name"} {
+		if !seen[name] {
+			t.Errorf("missing method %s", name)
+		}
+	}
+	decls, source, err := BindMethods(pkg, BindOptions{Float: true}, "example/shim", "shim")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"type Widget = WidgetHandle", "type Outer = OuterHandle",
+		`extern func widgetCount(recv Widget) Int = "example/shim".Widget_Count`,
+		"extern func widgetEcho(recv Widget, p0 String) String",
+		"extern func widgetLookup(recv Widget, p0 Bool) Option[String]",
+		"extern func widgetRead(recv Widget) IO[String]",
+		"extern func widgetWords(recv Widget, p0 List[String]) List[String]",
+		"extern func widgetNumbers(recv Widget, p0 List[Int]) List[Int]",
+		"extern func widgetAliasWords(recv Widget, p0 List[String]) List[String]",
+		"extern func widgetAliasNumbers(recv Widget, p0 List[Int]) List[Int]",
+		"extern func widgetUnit(recv Widget, p0 Unit) Unit",
+		"extern func widgetFloat(recv Widget, p0 Float) Float",
+		"// skipped: Generic.Name (generic function)",
+		"// skipped: Constraint.Text (generic function)",
+		"// skipped: Widget.Callback (unsupported parameter type func() string)",
+		"// skipped: Widget.Pointer (unsupported parameter type *string)",
+		"// skipped: Widget.Variadic (variadic function)",
+		"// skipped: Widget.Void (no result; Unit requires rt.Unit)",
+		"// skipped: Widget.Multiple (unsupported multiple results)",
+		"// skipped: Widget.ResultPointer (unsupported result type *gofx/extern/testdata/methodfixture.Widget)",
+	} {
+		if !strings.Contains(decls, want) {
+			t.Errorf("missing %q:\n%s", want, decls)
+		}
+	}
+	if strings.Count(decls, "type Widget =") != 1 {
+		t.Errorf("handle declared multiple times:\n%s", decls)
+	}
+	for _, forbidden := range []string{"func Constraint_Text", "func Generic_Name", "func Widget_Callback", "func Widget_Pointer", "func Widget_Void", "func Widget_ResultPointer"} {
+		if strings.Contains(string(source), forbidden) {
+			t.Errorf("unsupported shim %s:\n%s", forbidden, source)
+		}
+	}
+	prefixed, _, err := BindMethods(pkg, BindOptions{Prefix: "native"}, "example/shim", "shim")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(prefixed, "extern func nativeWidgetEcho(recv Widget, p0 String) String") ||
+		!strings.Contains(prefixed, "// skipped: Widget.Float (unsupported parameter type float64)") {
+		t.Errorf("prefix/Float options ignored:\n%s", prefixed)
+	}
+	// Loading methods must never change the existing function-only output.
+	withMethods := Bind(pkg, BindOptions{})
+	pkg.Methods = nil
+	if withoutMethods := Bind(pkg, BindOptions{}); withMethods != withoutMethods {
+		t.Errorf("Bind output depends on methods:\n%s", withMethods)
+	}
+}

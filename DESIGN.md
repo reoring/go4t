@@ -1131,4 +1131,5 @@ no new keywords): the existing `_` private prefix (§1.2) is the export gate.
 Deviations: the extern (Go→gofx call) direction keeps the §8.3 natural ABI table; using the
 full mirror there is deferred until an example needs it. `IO[T]` is mirrored only as a
 result. Enum mirrors are `int`-based, not `string`-based, so zero values are valid.
+Method-shim deviation (approved): receivers use `any` plus a checked assertion to the original value/pointer type, rather than a typed Go parameter, to preserve `extern/match.go`'s erased-handle ABI; wrong receiver types panic with `gofx shim: <Type>_<Method>: receiver is <%T>`.
 
