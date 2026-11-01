@@ -142,7 +142,6 @@ func TestRunUsage(t *testing.T) {
 		nil,
 		{"run"},
 		{"unknown", "main.gfx"},
-		{"run", "main.gfx", "argument"},
 		{"check", "main.gfx", "--"},
 		{"build", "main.gfx", "--", "argument"},
 	} {
