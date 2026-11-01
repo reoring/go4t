@@ -1,3 +1,5 @@
 .tmp/
 *_gen/
 .wt/
+report.json
+sales.csv
