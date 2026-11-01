@@ -135,3 +135,20 @@ continued execution after failures, summary counts, exit status and name hygiene
 The full original registry command must run afterward; splitting away cases or
 claiming a smaller test run is not acceptance. `ClientGoHarness` owns only the
 CLI harness implementation/tests and its existing specification documentation.
+
+## Observed Go inlining amplification
+
+After the harness fix, the unchanged full registry emitted successfully but Go
+compilation exceeded the supervised 600-second ceiling. Diagnostic counterfactuals
+isolated a return-IIFE around the 952-arm `forKind` match: Go's inliner duplicated
+the cheap-looking closure wrapper into callers, growing beyond 18 GB. Disabling
+inlining compiled the exact full emission in 16.73 seconds; flattening only the
+isolated result-position match compiled all 952 unchanged callers in 4.49 seconds.
+Those diagnostic stand-ins are not semantic acceptance.
+
+The source fix is generic direct lowering of result-position `ast.Match` through
+the existing `matchResult`, including when no tail-recursion plan exists.
+Expression-position matches retain their required expression form. Preserve
+single scrutinee evaluation, arm order, guards, binding scope, result conversion,
+tail-call behavior and non-exhaustive fallback. No `forKind` special case,
+optimization-disable flag, case deletion or test batching is the final remedy.
