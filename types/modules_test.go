@@ -101,7 +101,11 @@ func TestModulePreludeShadowAndNarrowExports(t *testing.T) {
 	}
 }
 func TestModuleResolutionRootThenPathThenEmbedded(t *testing.T) {
-	pathRoot := moduleFixture(t, map[string]string{"geometry/value.gfx": "package geometry\nfunc value() Bool { true }", "std/string/string.gfx": "package string\nfunc marker() Int { 7 }"})
+	stringSource, err := std.FS.ReadFile("string/string.gfx")
+	if err != nil {
+		t.Fatal(err)
+	}
+	pathRoot := moduleFixture(t, map[string]string{"geometry/value.gfx": "package geometry\nfunc value() Bool { true }", "std/string/string.gfx": string(stringSource) + "\nfunc marker() Int { 7 }\n"})
 	t.Setenv("GOFX_PATH", pathRoot)
 	root := moduleFixture(t, map[string]string{"gofx.mod": "module example\n", "app/main.gfx": "package main\nimport \"example/geometry\"\nfunc main() IO[Unit] { println(show(geometry.value() + 1)) }", "geometry/value.gfx": "package geometry\nfunc value() Int { 2 }"})
 	if _, err := checkModuleFixture(t, filepath.Join(root, "app")); err != nil {

@@ -89,6 +89,7 @@ for example, `regex.regexMatch`, `map.mapInsert`, and `array.arrayGet`.
 | `std/conc` | `fork`, `await`, `parMapIO`, `race`, `parBoth`, `timeout` | None |
 | `std/state` | `State`, its `Functor`/`Monad` instances, `runState`, `evalState`, `execState`, `get`, `put`, `modify` | None |
 | `std/lazy` | `Lazy`, `delay`, `force` (nonmemoizing) | None |
+| `std/json` | `Json`, `Encode`, `Decode`, primitive/container instances, `toJson`, `toJsonPretty`, `parseJson`; private deriving helpers | None |
 
 The exact implicit list is:
 
@@ -149,10 +150,13 @@ Top-level Go values use module-prefixed `pkg_name_` spelling; data/class names,
 constructors, and instance dictionaries also carry their owning module prefix.
 Cross-module references and dictionaries use those same identities. Runtime
 `rt.Shapes` registration continues to refer to List, Option, Result, Ordering,
-and Tuple2 correctly. Generated imports are per-file and source `//line`
-directives survive splitting. The uniform `any` ABI and typed-extern adapters
-are unchanged. Internal structural tests may use private `generate`; there is
-no public single-file generator or `GenerateModules` compatibility alias.
+Tuple2, and (when loaded) Json correctly. Generated imports are per-file and source
+`//line` directives survive splitting. After perf integration, checked scalar
+locals and direct signatures use native Go types; polymorphic/data/dictionary/
+runtime boundaries and typed-extern adapters retain the erased ABI. Specialized
+copies stay in the callee's module with its module-prefixed spelling.
+Internal structural tests may use private `generate`; there is no public
+single-file generator or `GenerateModules` compatibility alias.
 
 ## CLI
 
@@ -297,3 +301,32 @@ root `io-effects.log` and `io-effects.report.txt`. The temporary
 `modules-std-split.md` authority is folded into this delta and removed.
 No commits, pushes, or selfhost modifications were performed.
 
+
+## Wave B integration acceptance
+
+The integration order was perf → json-deriving → lsp → fmt. The fixed prelude
+exports remain unchanged; JSON lives only in `std/json`. Imports and qualified
+source positions are shared by CLI, checker, LSP, and formatter rather than
+represented by compatibility loaders. Fmt's interpolation-aware comment capture
+and LSP's retained source coexist. Canonical formatting covers all std and examples.
+
+Observed integration checks (2026-11-01):
+
+- VM-lock-wrapped `go vet` and `go test` over every package from `go list ./...`
+  except selfhost: exit 0. The first complete test run exposed a diagnostic fixture
+  pinned to the pre-format import line and a partial std/string override fixture
+  missing the `join` now reached through list → array. Both fixtures were updated
+  without weakening assertions or dropping coverage; the final complete suite passed.
+- The requested fixture-aware example loop, plus directory `examples/modules`:
+  no `FAIL` lines. Only the intentional prelude-shadow/defaulting warnings remain.
+  `io-effects.log` and `io-effects.report.txt` were restored byte-for-byte.
+- `go run ./cmd/gofx fmt -l std examples`: exit 0 with no output; formatter corpus
+  tests also prove idempotence, structural parse equality, and comment preservation.
+- Lock-wrapped `go test ./lsp -run '^TestScriptedSession$' -v -count=1`: PASS.
+  Module-navigation tests cover gofx.mod roots, aliases, qualified types/constructors/
+  methods, embedded std definitions/source retrieval, and clearing dependency errors.
+- JSON example: exit 0, no stderr, stdout exactly equals its README text block.
+- All four benchmarks pass the unchanged budgets; see `perf.md` for numbers.
+
+Generated `examples/*/main_gen/` and `examples/modules/_gen/` outputs were removed.
+No selfhost, SPEC, DESIGN, live infrastructure, or push operation was involved.

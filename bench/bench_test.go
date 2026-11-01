@@ -83,7 +83,11 @@ func BenchmarkPrograms(b *testing.B) {
 			dir := filepath.Join(temp, w.name)
 			command(b, checkout, compiler, "build", "-o", dir, source)
 			binary := filepath.Join(dir, "program")
-			command(b, checkout, "go", "build", "-o", binary, dir)
+			files, err := filepath.Glob(filepath.Join(dir, "*.go"))
+			if err != nil || len(files) == 0 {
+				b.Fatalf("generated module files: %v (%d files)", err, len(files))
+			}
+			command(b, checkout, "go", append([]string{"build", "-o", binary}, files...)...)
 			var input []byte
 			if w.name == "wc" {
 				input = bytes.Repeat([]byte("redxx blue\n"), 1000000)

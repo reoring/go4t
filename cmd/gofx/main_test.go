@@ -126,12 +126,12 @@ func TestWarningsContinueForEveryCommand(t *testing.T) {
 
 func TestDiagnosticUsesCheckerFilename(t *testing.T) {
 	for _, file := range []string{"", "std/prelude/prelude.gfx"} {
-		err := &types.Error{Pos: ast.Pos{Line: 2, Col: 3}, Msg: "invalid type", File: file}
+		err := &types.Error{Pos: ast.Pos{Line: 3, Col: 3}, Msg: "invalid type", File: file}
 		wantFile := file
 		if wantFile == "" {
 			wantFile = "user.gfx"
 		}
-		want := wantFile + ":2:3: invalid type"
+		want := wantFile + ":3:3: invalid type"
 		if file == "std/prelude/prelude.gfx" {
 			want += "\nimport \"std/list\"\n  ^"
 		}

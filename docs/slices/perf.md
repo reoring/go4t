@@ -33,7 +33,7 @@ module in a single Go package, for executable and embedding entry points.
 
 Module integration preserves native signatures and assigns specialized copies to
 the callee's module, with `<module>_<function>__special<N>` names. The benchmark
-harness builds the entire emitted directory, not only `main.go`; its workloads
+harness builds every emitted `.go` file, not only `main.go`; its workloads
 explicitly import the split standard modules. The sorting cutover below now lives
 in `std/list`, calling qualified `std/array` operations. Its large/stability tests
 live in `std/stdlib_extras_test.go`; the obsolete monolithic prelude is not restored.
@@ -217,3 +217,22 @@ harness uses `testing.TempDir` for compiler binaries and generated programs.
 - The master sort baseline did not complete within its bounded deadline; the table
   explicitly records the lower bound. There are no unfinished code paths or
   compatibility shims in this slice.
+
+## Integrated module benchmark receipt
+
+After merging perf, JSON, LSP, and fmt into master, the lock-wrapped command
+`go test ./bench -run . -bench . -benchtime=1x` passed on Linux/amd64,
+AMD Ryzen 9 7950X3D (benchmark suffix `-7`):
+
+| Workload | Integrated ns/op | Unchanged budget ns/op |
+| --- | ---: | ---: |
+| sort | 1,577,251,407 | 3,184,539,436 |
+| map | 117,439,934 | 254,533,822 |
+| fold | 688,849,817 | 1,318,928,408 |
+| wc | 711,582,734 | 1,429,359,620 |
+
+An initial integration attempt passed an absolute temporary directory to
+`go build`, which Go rejected as outside the current module. The harness now
+passes the complete, sorted emitted file list while retaining the checkout as
+its working directory. Workload/output validation, timing boundaries, budgets,
+and the CI benchmark job are unchanged. This remains host evidence, not a CI run.
