@@ -529,6 +529,64 @@ maxInt cannot round-trip through its rounded encoding. NaN/infinity cannot be
 printed. None encodes as null, and Some of a null-like value is indistinguishable
 from None on decode. Use an explicit tagged ADT when that distinction matters.
 
+## 12. Go shell, gofx core: projecting observed state
+
+`gofx build --emit-go DIR --package NAME` exports every public, monomorphic,
+mirrorable top-level function as a typed Go function (SPEC §8.7). The intended
+shape is: Go reads the world, fills one **projection** record, calls a pure
+gofx `decide`, and acts on the returned sum. `examples/approval-controller`
+is a real Kubernetes controller written this way; its original tests pass
+unchanged.
+
+Three rules decide whether the projection is readable. Each one is the same
+correction: a state Go expresses with `(value, ok)`, a sentinel or a flag
+becomes a constructor with a name.
+
+| Go habit in the projection | Replace with | Why |
+| --- | --- | --- |
+| `valid: Bool` beside a list | a sum per element: `GateEvidence = Gate{…} \| InvalidGate` | keeps the position of the invalid element, so "first failure in order" matches a Go loop |
+| `Option[Int]` plus "≤ 0 means invalid" | three constructors: `Ttl = NoTtl \| InvalidTtl \| TtlNanos(Int)` | the invalid case cannot be forgotten by a match |
+| `present: Bool` plus `Option[Int]` | three constructors: `Timestamp = NoTimestamp \| InvalidTimestamp \| AtNanos(Int)` | one match instead of nested if/match |
+
+With both sums, a four-step chain of `if !ok { return … }` becomes one match
+whose arms read in the original order and are checked for exhaustiveness:
+
+```gofx
+package main
+type Ttl = NoTtl | InvalidTtl | TtlNanos(Int) deriving Eq, Debug
+type Timestamp = NoTimestamp | InvalidTimestamp | AtNanos(Int) deriving Eq, Debug
+type Freshness = Fresh(Int) | TtlInvalid | TimestampMissing | TimestampInvalid | Stale deriving Eq, Debug
+func freshness(ttl Ttl, observedAt Timestamp, nowNanos Int) Freshness {
+  match (ttl, observedAt) {
+    (NoTtl, _) => Fresh(0)
+    (InvalidTtl, _) => TtlInvalid
+    (TtlNanos(_), NoTimestamp) => TimestampMissing
+    (TtlNanos(_), InvalidTimestamp) => TimestampInvalid
+    (TtlNanos(t), AtNanos(at)) if nowNanos >= at + t => Stale
+    (TtlNanos(t), AtNanos(at)) => Fresh(at + t - nowNanos)
+  }
+}
+func main() IO[Unit] { println(debug(freshness(TtlNanos(10), AtNanos(5), 12))) }
+```
+
+The Go side then reads as successive narrowing rather than flag bookkeeping:
+
+```go
+plan.EvidenceTtl = decide.TtlNoTtl{}
+if text := ttlField(obj); text != "" {
+    plan.EvidenceTtl = decide.TtlInvalidTtl{}
+    if ttl, err := time.ParseDuration(text); err == nil && ttl > 0 {
+        plan.EvidenceTtl = decide.TtlTtlNanos{F0: int64(ttl)}
+    }
+}
+```
+
+Two further conventions from the same example: compare `Option[Int]` with
+`Some(x)` rather than unwrapping with a sentinel, and cross durations and
+timestamps as `Int` nanoseconds (the representation of `time.Duration` and
+`UnixNano`) so no rounding happens at the boundary. Keep the projection to
+what the decision needs; every call copies it (SPEC §8.7).
+
 ## Next steps
 
 - [README examples](../README.md#examples) has a command for every example directory,

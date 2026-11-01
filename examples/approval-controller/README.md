@@ -80,3 +80,18 @@ and this version. Generations cross as `Option[Int]` and are compared as
 options (no sentinel); durations and timestamps cross as `Int` nanoseconds,
 the same representation as `time.Duration` / `UnixNano`. No known
 behavioural differences remain.
+
+## Projection rules learned here
+
+Each readability fix in `decide/decide.gfx` was the same correction: a state
+that Go carried as `(value, ok)`, a flag or a sentinel became a constructor.
+
+| First draft | Final | Effect |
+| --- | --- | --- |
+| `gatesValid: Bool` + `gates: List[Gate]` | `gates: List[GateEvidence]`, `GateEvidence = Gate \| InvalidGate` | first-failure order identical to the Go loop (`gate_order_test.go`) |
+| `evidenceTtlMillis: Option[Int]` with "≤ 0 is invalid" | `Ttl = NoTtl \| InvalidTtl \| TtlNanos(Int)` | invalid case is a named arm |
+| `observedAtPresent: Bool` + `observedAtMillis: Option[Int]` | `Timestamp = NoTimestamp \| InvalidTimestamp \| AtNanos(Int)` | `_evidenceFresh` is one tuple match, 20 → 11 lines |
+| `fromOption(planGeneration, -1)` | `planGeneration != Some(plan.generation)` | no sentinel |
+| milliseconds | `Int` nanoseconds | same representation as `time.Duration`, no rounding |
+
+See [tutorial §12](../../docs/tutorial.md#12-go-shell-gofx-core-projecting-observed-state).
