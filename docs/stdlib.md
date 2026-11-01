@@ -162,7 +162,7 @@ is assumed by rt. See SPEC §6.4 and the runnable [HTTP example](../examples/htt
 
 ## `std/io`
 
-Source: [`io/io.gfx`](../std/io/io.gfx). 31 top-level declarations.
+Source: [`io/io.gfx`](../std/io/io.gfx). 32 top-level declarations.
 
 All operations returning IO are deferred; `formatTime` and `ioErrorMessage` are pure.
 IO errors are classified as NotFound, PermissionDenied, AlreadyExists, Timeout,

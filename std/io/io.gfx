@@ -33,6 +33,11 @@ extern func ioPure[A](a A) IO[A] = "gofx/rt".Pure
 
 extern func ioBind[A, B](io IO[A], f func(A) IO[B]) IO[B] = "gofx/rt".Bind
 
+// void discards a result so an action fits forEach and other IO[Unit] slots.
+func void[A](io IO[A]) IO[Unit] {
+  ioBind(io, func(_ignored) => ioPure(unit()))
+}
+
 extern func ioFail[A](msg String) IO[A] = "gofx/rt".Fail
 
 extern func println(s String) IO[Unit] = "gofx/rt".Println

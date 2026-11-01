@@ -3,6 +3,7 @@ package extern
 import (
 	"fmt"
 	"go/types"
+	gfxtypes "gofx/types"
 	"sort"
 	"strings"
 	"unicode"
@@ -88,7 +89,7 @@ func (s *mirrorSet) valueMirror(t types.Type, visiting map[types.Type]bool) *for
 			if len(fields) == 0 {
 				return nil
 			}
-			m.kind, m.gfx = "record", v.Obj().Name()
+			m.kind, m.gfx = "record", foreignTypeName(v.Obj().Name())
 			names := map[string]bool{}
 			for _, f := range fields {
 				current := types.Type(v)
@@ -231,8 +232,8 @@ func (s *mirrorSet) resolve(t types.Type, callback bool) *foreignMirror {
 		if i, ok := n.Underlying().(*types.Interface); ok && !i.IsMethodSet() {
 			return nil
 		}
-		s.handles[n.Obj().Name()] = true
-		return &foreignMirror{typ: t, kind: "handle", gfx: n.Obj().Name()}
+		s.handles[foreignTypeName(n.Obj().Name())] = true
+		return &foreignMirror{typ: t, kind: "handle", gfx: foreignTypeName(n.Obj().Name())}
 	}
 	// Containers of handles preserve the opaque elements, rather than exposing
 	// their fields (for example []prometheus.Collector).
@@ -350,4 +351,16 @@ func (s *mirrorSet) declarations() string {
 		out.WriteByte('\n')
 	}
 	return out.String()
+}
+
+// foreignTypeName keeps Go type names, except that a name owned by the implicit
+// prelude (Result, Option, List, ...) gets a Go suffix so generated bindings never
+// shadow it; users write the qualified binding name either way.
+func foreignTypeName(name string) string {
+	for _, reserved := range gfxtypes.PreludeExports {
+		if reserved == name {
+			return name + "Go"
+		}
+	}
+	return name
 }

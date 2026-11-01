@@ -19,7 +19,7 @@ type Module = ModuleHandle
 type NamedValue = NamedValueHandle
 type Page = PageHandle
 type PageCache = PageCacheHandle
-type Result = ResultHandle
+type ResultGo = ResultGoHandle
 type Rows = RowsHandle
 type SQLitePreUpdateData = SQLitePreUpdateData{op: Int, databaseName: String, tableName: String, oldRowID: Int, newRowID: Int} deriving Eq, Debug
 type Value = ValueHandle
@@ -70,7 +70,7 @@ extern func driverRegisterModule(recv Driver, p0 String, p1 Module) IO[Unit] = "
 extern func driverRegisterScalarFunction(recv Driver, p0 String, p1 Int, p2 func(FunctionContext, List[Value]) IO[Value]) IO[Unit] = "example.com/sql-service/gofxbind/modernc.org/sqlite".Driver_RegisterScalarFunction
 extern func errorCode(recv Error) Int = "example.com/sql-service/gofxbind/modernc.org/sqlite".Error_Code
 extern func errorError(recv Error) String = "example.com/sql-service/gofxbind/modernc.org/sqlite".Error_Error
-extern func execQuerierContextExecContext(recv ExecQuerierContext, p0 String, p1 List[NamedValue]) IO[Result] = "example.com/sql-service/gofxbind/modernc.org/sqlite".ExecQuerierContext_ExecContext
+extern func execQuerierContextExecContext(recv ExecQuerierContext, p0 String, p1 List[NamedValue]) IO[ResultGo] = "example.com/sql-service/gofxbind/modernc.org/sqlite".ExecQuerierContext_ExecContext
 extern func execQuerierContextQueryContext(recv ExecQuerierContext, p0 String, p1 List[NamedValue]) IO[Rows] = "example.com/sql-service/gofxbind/modernc.org/sqlite".ExecQuerierContext_QueryContext
 extern func fileControlFileControlDataVersion(recv FileControl, p0 String) IO[Int] = "example.com/sql-service/gofxbind/modernc.org/sqlite".FileControl_FileControlDataVersion
 extern func fileControlFileControlPersistWAL(recv FileControl, p0 String, p1 Int) IO[Int] = "example.com/sql-service/gofxbind/modernc.org/sqlite".FileControl_FileControlPersistWAL
@@ -80,7 +80,7 @@ extern func hookRegistererRegisterRollbackHook(recv HookRegisterer, p0 func() Un
 // skipped: Page.Buf (unsupported result type unsafe.Pointer)
 // skipped: Page.Extra (unsupported result type unsafe.Pointer)
 extern func pageCacheCreate(recv PageCache, p0 Int, p1 Int, p2 Bool) IO[Cache] = "example.com/sql-service/gofxbind/modernc.org/sqlite".PageCache_Create
-extern func sQLitePreUpdateDataCount(recv SQLitePreUpdateData) Int = "example.com/sql-service/gofxbind/modernc.org/sqlite".SQLitePreUpdateData_Count
-extern func sQLitePreUpdateDataDepth(recv SQLitePreUpdateData) Int = "example.com/sql-service/gofxbind/modernc.org/sqlite".SQLitePreUpdateData_Depth
-extern func sQLitePreUpdateDataNew(recv SQLitePreUpdateData, count Int) IO[List[dyn.Value]] = "example.com/sql-service/gofxbind/modernc.org/sqlite".SQLitePreUpdateData_New
-extern func sQLitePreUpdateDataOld(recv SQLitePreUpdateData, count Int) IO[List[dyn.Value]] = "example.com/sql-service/gofxbind/modernc.org/sqlite".SQLitePreUpdateData_Old
+extern func sqLitePreUpdateDataCount(recv SQLitePreUpdateData) Int = "example.com/sql-service/gofxbind/modernc.org/sqlite".SQLitePreUpdateData_Count
+extern func sqLitePreUpdateDataDepth(recv SQLitePreUpdateData) Int = "example.com/sql-service/gofxbind/modernc.org/sqlite".SQLitePreUpdateData_Depth
+extern func sqLitePreUpdateDataNew(recv SQLitePreUpdateData, count Int) IO[List[dyn.Value]] = "example.com/sql-service/gofxbind/modernc.org/sqlite".SQLitePreUpdateData_New
+extern func sqLitePreUpdateDataOld(recv SQLitePreUpdateData, count Int) IO[List[dyn.Value]] = "example.com/sql-service/gofxbind/modernc.org/sqlite".SQLitePreUpdateData_Old

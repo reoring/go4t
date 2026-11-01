@@ -6,4 +6,4 @@ type TLS = TLS{iD: Int} deriving Eq, Debug
 
 // skipped: New (unsupported multiple results)
 extern func xsqlite3_fsFS(p0 Option[TLS], p1 Int, p2 Int) Int = "example.com/sql-service/gofxbind/modernc.org/sqlite/vfs".Xsqlite3_fsFS
-extern func fSClose(recv FS) IO[Unit] = "example.com/sql-service/gofxbind/modernc.org/sqlite/vfs".FS_Close
+extern func fsClose(recv FS) IO[Unit] = "example.com/sql-service/gofxbind/modernc.org/sqlite/vfs".FS_Close

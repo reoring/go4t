@@ -9,7 +9,7 @@ type Request = RequestHandle
 type Response = ResponseHandle
 
 extern func new(p0 String, p1 String) Pusher = "example.com/sql-service/gofxbind/github.com/prometheus/client_golang/prometheus/push".New
-extern func hTTPDoerDo(recv HTTPDoer, p0 Request) IO[Response] = "example.com/sql-service/gofxbind/github.com/prometheus/client_golang/prometheus/push".HTTPDoer_Do
+extern func httpDoerDo(recv HTTPDoer, p0 Request) IO[Response] = "example.com/sql-service/gofxbind/github.com/prometheus/client_golang/prometheus/push".HTTPDoer_Do
 extern func pusherAdd(recv Pusher) IO[Unit] = "example.com/sql-service/gofxbind/github.com/prometheus/client_golang/prometheus/push".Pusher_Add
 extern func pusherAddContext(recv Pusher) IO[Unit] = "example.com/sql-service/gofxbind/github.com/prometheus/client_golang/prometheus/push".Pusher_AddContext
 extern func pusherBasicAuth(recv Pusher, p0 String, p1 String) Pusher = "example.com/sql-service/gofxbind/github.com/prometheus/client_golang/prometheus/push".Pusher_BasicAuth

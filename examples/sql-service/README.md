@@ -22,6 +22,16 @@ gofx bind example.com/sql-service/glue --shim glue -o glue
 gofx run main.gfx -- 8080
 ```
 
+The first `gofx run` compiles modernc sqlite and client_golang from source and
+can take several minutes; later runs hit Go's build cache. Binding names:
+receiver types are lower-cased (`sql.dbExecContext`, `sql.rowScan`), and a Go
+type whose name is owned by the gofx prelude gets a `Go` suffix
+(`sql.ResultGo`) so nothing shadows `Result`. Metrics *definitions*
+(`Collector` implementations, channel-based `Describe`/`Collect`) stay in Go;
+the 37 remaining prometheus skips are those channel signatures.
+```
+```
+
 In another terminal:
 
 ```sh

@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode"
 )
 
 type shimGenerator struct {
@@ -378,7 +379,7 @@ func BindWithShim(pkg *Package, options BindOptions, shimPath, shimPackage strin
 		emit(f.Name, f.Name, shimName, callee, f.Signature, nil)
 	}
 	for _, m := range pkg.Methods {
-		emit(m.TypeName+m.Name, m.TypeName+"."+m.Name, m.TypeName+"_"+m.Name, "receiver."+m.Name, m.Signature, m.Receiver)
+		emit(receiverPrefix(m.TypeName)+m.Name, m.TypeName+"."+m.Name, m.TypeName+"_"+m.Name, "receiver."+m.Name, m.Signature, m.Receiver)
 	}
 	name := options.Package
 	if name == "" {
@@ -412,4 +413,18 @@ func BindWithShim(pkg *Package, options BindOptions, shimPath, shimPackage strin
 		return "", nil, fmt.Errorf("format binding shim: %w", err)
 	}
 	return source, formatted, nil
+}
+
+// receiverPrefix lower-cases a receiver type name for binding names: DB.ExecContext
+// becomes dbExecContext, URL.Hostname urlHostname, Rows.Scan rowsScan.
+func receiverPrefix(typeName string) string {
+	runes := []rune(typeName)
+	i := 0
+	for i < len(runes) && unicode.IsUpper(runes[i]) {
+		i++
+	}
+	if i > 1 && i < len(runes) {
+		i-- // keep the last capital for the next word: HTTPClient -> httpClient
+	}
+	return strings.ToLower(string(runes[:i])) + string(runes[i:])
 }

@@ -2,7 +2,7 @@
 package version
 
 type Collector = CollectorHandle
-type Option = OptionHandle
+type OptionGo = OptionGoHandle
 
-extern func newCollector(p0 String, p1 List[Option]) Collector = "example.com/sql-service/gofxbind/github.com/prometheus/client_golang/prometheus/collectors/version".NewCollector
-extern func withExtraConstLabels(p0 Map[String, String]) Option = "example.com/sql-service/gofxbind/github.com/prometheus/client_golang/prometheus/collectors/version".WithExtraConstLabels
+extern func newCollector(p0 String, p1 List[OptionGo]) Collector = "example.com/sql-service/gofxbind/github.com/prometheus/client_golang/prometheus/collectors/version".NewCollector
+extern func withExtraConstLabels(p0 Map[String, String]) OptionGo = "example.com/sql-service/gofxbind/github.com/prometheus/client_golang/prometheus/collectors/version".WithExtraConstLabels
