@@ -7,6 +7,8 @@ import (
 )
 
 func (b *bodyChecker) finish() {
+	warningsStart := len(b.c.program.Warnings)
+	b.finishLets()
 	// Defer + validation so arguments and return context can resolve its type.
 	// Otherwise unconstrained addition keeps the original Int default.
 	for _, expr := range b.additions {
@@ -26,11 +28,15 @@ func (b *bodyChecker) finish() {
 			}
 		}
 	}
+	b.prepareDefaults()
 	for _, expr := range b.exprs {
 		ann := AnnOf(expr)
-		ann.Type = zonk(expr.GetPos(), ann.Type)
+		ann.Type = zonk(expr.GetPos(), ann.Type, b.defaultMeta)
 		for i, inst := range ann.Inst {
-			ann.Inst[i] = zonk(expr.GetPos(), inst)
+			ann.Inst[i] = zonk(expr.GetPos(), inst, b.defaultMeta)
+		}
+		if ann.LetScheme != nil {
+			ann.LetScheme.Type = zonk(expr.GetPos(), ann.LetScheme.Type, b.defaultMeta).(*TFunc)
 		}
 	}
 	for _, o := range b.obligations {
@@ -41,9 +47,18 @@ func (b *bodyChecker) finish() {
 			continue
 		}
 		if len(o.constraints) != 0 {
-			ann.Dicts = make([]DictRef, len(o.constraints))
+			dicts := make([]DictRef, len(o.constraints))
+			if o.show {
+				ann.ShowDicts = dicts
+			} else {
+				ann.Dicts = dicts
+			}
 			for i, constraint := range o.constraints {
-				ann.Dicts[i] = b.dictionary(o.expr.GetPos(), constraint)
+				pos := o.expr.GetPos()
+				if o.show {
+					pos = o.expr.(*ast.Interp).Exprs[i].GetPos()
+				}
+				dicts[i] = b.dictionary(pos, constraint)
 			}
 		}
 	}
@@ -59,10 +74,11 @@ func (b *bodyChecker) finish() {
 	for _, expr := range b.matches {
 		b.checkExhaustive(expr)
 	}
+	b.sortWarnings(warningsStart)
 }
 
 func (b *bodyChecker) dictionary(pos ast.Pos, constraint Constraint) DictRef {
-	constraint.Arg = zonk(pos, constraint.Arg)
+	constraint.Arg = zonk(pos, constraint.Arg, b.defaultMeta)
 	dict, message := b.resolveDictionary(constraint)
 	if message != "" {
 		fail(pos, "%s", message)

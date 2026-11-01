@@ -41,6 +41,27 @@ func TestAddString(t *testing.T) {
 	}
 }
 
+func TestConcat(t *testing.T) {
+	for _, tt := range []struct {
+		name  string
+		parts []any
+		want  string
+	}{
+		{"empty", nil, ""},
+		{"single", []any{"hello"}, "hello"},
+		{"empty parts", []any{"", "", ""}, ""},
+		{"mixed", []any{"hello", "", " ", "world"}, "hello world"},
+		{"unicode", []any{"こんにちは", "・", "世界"}, "こんにちは・世界"},
+		{"shown values", []any{ShowInt(int64(42)), " ", ShowBool(true)}, "42 true"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := Concat(tt.parts...); got != tt.want {
+				t.Errorf("Concat(%v) = %v (%T), want %q (string)", tt.parts, got, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestDivIntByZeroPanics(t *testing.T) {
 	defer func() {
 		if recover() == nil {

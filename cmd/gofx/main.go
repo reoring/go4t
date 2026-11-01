@@ -1,4 +1,5 @@
 // Command gofx checks, builds, or runs a gofx source file and its prelude.
+// Successful checks report non-fatal warnings to stderr before continuing.
 package main
 
 import (
@@ -35,17 +36,24 @@ func run(args []string) error {
 	}
 	preludeFile, err := parser.Parse(prelude.Source)
 	if err != nil {
-		return diagnostic("prelude/prelude.gfx", err)
+		return diagnostic("prelude.gfx", err)
 	}
+	preludeFile.Name = "prelude.gfx"
 	userFile, err := parser.Parse(string(user))
 	if err != nil {
 		return diagnostic(file, err)
 	}
+	userFile.Name = file
 	program, err := types.Check([]*ast.File{preludeFile, userFile})
 	if err != nil {
-		// The checker contract carries positions, not filenames. The prelude is
-		// shipped with the compiler; checker diagnostics belong to the input.
 		return diagnostic(file, err)
+	}
+	for _, warning := range program.Warnings {
+		warningFile := warning.File
+		if warningFile == "" {
+			warningFile = file
+		}
+		fmt.Fprintf(os.Stderr, "%s:%s: warning: %s\n", warningFile, warning.Pos, warning.Msg)
 	}
 	if command == "check" {
 		return nil
@@ -95,6 +103,10 @@ func run(args []string) error {
 var positionedError = regexp.MustCompile(`^\d+:\d+:`)
 
 func diagnostic(file string, err error) error {
+	var checked *types.Error
+	if errors.As(err, &checked) && checked.File != "" {
+		file = checked.File
+	}
 	if positionedError.MatchString(err.Error()) {
 		return fmt.Errorf("%s:%w", file, err)
 	}

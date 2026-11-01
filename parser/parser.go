@@ -11,6 +11,8 @@
 //	Context  := Constraint { ',' Constraint }
 //	Constraint := Ident '[' Ident ']' // parameter declared in the instance head
 //	TypeDecl := 'type' Ident [ '[' Idents ']' ] '=' Ctor { '|' Ctor }
+//	Ctor     := Ident [ '(' [ Type { ',' Type } ] ')' | '{' NamedType { ',' NamedType } [ ',' ] '}' ]
+//	NamedType := Ident ':' Type // records need at least one field; no positional/named mixing
 //	Func     := 'func' Ident [ TParams ] '(' Params ')' Type Block
 //	Extern   := 'extern' 'func' Ident [ TParams ] '(' Params ')' Type '=' String '.' Ident
 //	TParam   := Ident [ '[' '_' { ',' '_' } ']' ] { Ident }
@@ -26,8 +28,13 @@
 //	Pattern  := '_' | Lit | Ident [ '(' [ Pattern { ',' Pattern } ] ')' ]
 //	          | LowerIdent '@' Pattern | '(' Pattern ')' | '(' Pattern ',' Pattern { ',' Pattern } ')'
 //	LowerIdent := Ident // starts with a lower-case letter; '@' only follows a bare variable name
-//	Postfix  := Primary { '(' [ Expr { ',' Expr } [ ',' ] ] ')' } // no indexing
-//	Primary  := Ident | Lit | '(' Expr ')' | '(' Expr ',' Expr { ',' Expr } ')' | Block | List
+//	Postfix  := Primary { '(' [ Expr { ',' Expr } [ ',' ] ] ')' | '.' Ident | RecordFields } // no indexing
+//	Primary  := Ident | Lit | Interp | UpperIdent RecordFields | '(' Expr ')' | '(' Expr ',' Expr { ',' Expr } ')' | Block | List
+//	RecordFields := '{' Ident ':' Expr { ',' Ident ':' Expr } [ ',' ] '}'
+//	          // record literals/updates require same-line '{' and lookahead '{' Ident ':';
+//	          // other braces begin blocks, including if bodies and match arms
+//	Interp   := '"' Text '{' Expr '}' { Text '{' Expr '}' } Text '"'
+//	          // '{{' / '}}' in Text are literal braces; nested strings are allowed in Expr
 //	List     := '[' [ Expr { ',' Expr } [ ',' ] ] ']'
 package parser
 
@@ -53,16 +60,36 @@ func Parse(src string) (f *ast.File, err error) {
 		return nil, err
 	}
 	p := &Parser{toks: toks}
-	defer func() {
-		if r := recover(); r != nil {
-			pe, ok := r.(parseError)
-			if !ok {
-				panic(r)
-			}
-			err = pe
-		}
-	}()
+	defer recoverParseError(&err)
 	return p.file(), nil
+}
+
+// ParseExpr parses exactly one expression, starting at the one-based position
+// base in the original source. Trailing semicolons (including inserted ones) are
+// accepted; other trailing tokens are errors.
+func ParseExpr(src string, base ast.Pos) (expr ast.Expr, err error) {
+	toks, err := lexer.NewAt(src, base).All()
+	if err != nil {
+		return nil, err
+	}
+	p := &Parser{toks: toks}
+	defer recoverParseError(&err)
+	parsed := p.expr()
+	p.skipSemis()
+	if p.tok().Kind != lexer.EOF {
+		p.fail(p.pos(), "expected end of expression, found %s", p.tok())
+	}
+	return parsed, nil
+}
+
+func recoverParseError(err *error) {
+	if r := recover(); r != nil {
+		pe, ok := r.(parseError)
+		if !ok {
+			panic(r)
+		}
+		*err = pe
+	}
 }
 
 type parseError struct{ msg string }
@@ -333,6 +360,19 @@ func (p *Parser) typeDecl() ast.Decl {
 				}
 			}
 			p.expectP(")")
+		} else if p.acceptP("{") {
+			if p.isP("}") {
+				p.fail(c.Pos, "record constructor needs at least one field")
+			}
+			for {
+				c.FieldNames = append(c.FieldNames, p.ident())
+				p.expectP(":")
+				c.Fields = append(c.Fields, p.typ())
+				if !p.acceptP(",") || p.isP("}") {
+					break
+				}
+			}
+			p.expectP("}")
 		}
 		d.Ctors = append(d.Ctors, c)
 		if !p.acceptP("|") {
@@ -640,19 +680,51 @@ func (p *Parser) unary() ast.Expr {
 
 func (p *Parser) postfix() ast.Expr {
 	e := p.primary()
-	for p.isP("(") {
-		pos := p.next().Pos
-		c := &ast.Call{ExprBase: ast.ExprBase{Pos: pos}, Fn: e}
-		for !p.isP(")") {
-			c.Args = append(c.Args, p.expr())
-			if !p.acceptP(",") {
-				break
+	for {
+		switch {
+		case p.isP("("):
+			pos := p.next().Pos
+			c := &ast.Call{ExprBase: ast.ExprBase{Pos: pos}, Fn: e}
+			for !p.isP(")") {
+				c.Args = append(c.Args, p.expr())
+				if !p.acceptP(",") {
+					break
+				}
 			}
+			p.expectP(")")
+			e = c
+		case p.isP("."):
+			pos := p.next().Pos
+			e = &ast.Field{ExprBase: ast.ExprBase{Pos: pos}, X: e, Name: p.ident()}
+		case p.recordAhead():
+			update := &ast.RecordUpdate{ExprBase: ast.ExprBase{Pos: p.pos()}, X: e}
+			update.Names, update.Values = p.recordFields()
+			e = update
+		default:
+			return e
 		}
-		p.expectP(")")
-		e = c
 	}
-	return e
+}
+
+func (p *Parser) recordAhead() bool {
+	return p.isP("{") && p.i > 0 && p.i+2 < len(p.toks) &&
+		p.toks[p.i-1].Pos.Line == p.pos().Line &&
+		p.toks[p.i+1].Kind == lexer.Ident &&
+		p.toks[p.i+2].Kind == lexer.Punct && p.toks[p.i+2].Text == ":"
+}
+
+func (p *Parser) recordFields() (names []string, values []ast.Expr) {
+	p.expectP("{")
+	for {
+		names = append(names, p.ident())
+		p.expectP(":")
+		values = append(values, p.expr())
+		if !p.acceptP(",") || p.isP("}") {
+			break
+		}
+	}
+	p.expectP("}")
+	return names, values
 }
 
 func (p *Parser) primary() ast.Expr {
@@ -661,6 +733,11 @@ func (p *Parser) primary() ast.Expr {
 	switch t.Kind {
 	case lexer.Ident:
 		p.next()
+		if isUpper(t.Text) && p.recordAhead() {
+			record := &ast.RecordLit{ExprBase: base, Ctor: t.Text}
+			record.Names, record.Values = p.recordFields()
+			return record
+		}
 		return &ast.Ident{ExprBase: base, Name: t.Text}
 	case lexer.Int:
 		p.next()
@@ -672,6 +749,25 @@ func (p *Parser) primary() ast.Expr {
 	case lexer.String:
 		p.next()
 		return &ast.StringLit{ExprBase: base, Value: t.Text}
+	case lexer.InterpTok:
+		p.next()
+		interp := &ast.Interp{
+			ExprBase: base,
+			Texts:    make([]string, 0, len(t.Parts)/2+1),
+			Exprs:    make([]ast.Expr, 0, len(t.Parts)/2),
+		}
+		for _, part := range t.Parts {
+			if part.Pos == (ast.Pos{}) {
+				interp.Texts = append(interp.Texts, part.Text)
+				continue
+			}
+			expr, err := ParseExpr(part.Expr, part.Pos)
+			if err != nil {
+				panic(parseError{err.Error()})
+			}
+			interp.Exprs = append(interp.Exprs, expr)
+		}
+		return interp
 	case lexer.Keyword:
 		if t.Text == "true" || t.Text == "false" {
 			p.next()

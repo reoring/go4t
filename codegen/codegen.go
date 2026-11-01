@@ -1,10 +1,12 @@
 // Package codegen lowers a checked gofx program to a single, formatted Go file.
 // Values use the erased any ABI; type-class constraints become Go dictionaries.
 // Constrained instances store their context dictionaries on the method receiver;
-// functions and method-local constraints retain explicit dictionary parameters.
+// functions, method-local constraints, and generalised lets use explicit params.
 // Tuple arities used in annotations, declarations, literals, or patterns receive
 // one erased struct each. Partially applied instance heads remain erased: only
 // their context constraints contribute dictionary fields.
+// Records reuse positional constructor fields, updates copy a single evaluated
+// base, and interpolation sends each expression through its Show dictionary.
 package codegen
 
 import (
@@ -185,7 +187,7 @@ type generator struct {
 
 type dictionaryScope struct {
 	receiver string
-	params   []types.Constraint // Method-local constraints shadow instance context.
+	params   []types.Constraint // Explicit method/let params shadow instance context.
 }
 
 type generationError struct {

@@ -747,6 +747,16 @@ func exprShape(e ast.Expr) string {
 		return e.Name
 	case *ast.IntLit:
 		return fmt.Sprint(e.Value)
+	case *ast.StringLit:
+		return fmt.Sprintf("%q", e.Value)
+	case *ast.BoolLit:
+		return fmt.Sprint(e.Value)
+	case *ast.Field:
+		return exprShape(e.X) + "." + e.Name
+	case *ast.RecordLit:
+		return e.Ctor + recordShape(e.Names, e.Values)
+	case *ast.RecordUpdate:
+		return exprShape(e.X) + recordShape(e.Names, e.Values)
 	case *ast.Binary:
 		return "(" + exprShape(e.L) + " " + e.Op + " " + exprShape(e.R) + ")"
 	case *ast.Unary:
@@ -773,5 +783,253 @@ func exprShape(e ast.Expr) string {
 		return "lambda"
 	default:
 		return fmt.Sprintf("%T", e)
+	}
+}
+
+func TestInterpolation(t *testing.T) {
+	e := result(t, `"hello {name}: {1 + 2}!"`)
+	interp, ok := e.(*ast.Interp)
+	if !ok {
+		t.Fatalf("expression = %T, want Interp", e)
+	}
+	if !reflect.DeepEqual(interp.Texts, []string{"hello ", ": ", "!"}) || len(interp.Exprs) != 2 {
+		t.Fatalf("interpolation = %#v", interp)
+	}
+	if exprShape(interp.Exprs[0]) != "name" || exprShape(interp.Exprs[1]) != "(1 + 2)" {
+		t.Errorf("interpolated expressions = %#v", interp.Exprs)
+	}
+}
+
+func TestRecordDeclarations(t *testing.T) {
+	f := parse(t, "package main\ntype Pair[A, B] = Pair{first: A, second: B} | Empty | Positional(A, B)")
+	d := f.Decls[0].(*ast.TypeDecl)
+	if len(d.Ctors) != 3 {
+		t.Fatalf("constructors = %#v", d.Ctors)
+	}
+	record := d.Ctors[0]
+	if record.Name != "Pair" || !reflect.DeepEqual(record.FieldNames, []string{"first", "second"}) || len(record.Fields) != 2 {
+		t.Fatalf("record = %#v", record)
+	}
+	typeName(t, record.Fields[0], "A")
+	typeName(t, record.Fields[1], "B")
+	for _, ctor := range d.Ctors[1:] {
+		if ctor.FieldNames != nil {
+			t.Errorf("positional constructor has field names: %#v", ctor)
+		}
+	}
+}
+
+func recordShape(names []string, values []ast.Expr) string {
+	fields := make([]string, len(names))
+	for i, name := range names {
+		fields[i] = name + ": " + exprShape(values[i])
+	}
+	return "{" + strings.Join(fields, ", ") + "}"
+}
+
+func TestInterpolationNestedExpressions(t *testing.T) {
+	for _, tc := range []struct{ src, want string }{
+		{`"{show(Point{a: 1}.a)}"`, "show(Point{a: 1}.a)"},
+		{`"{show(Point{a: "quoted \"text\"", b: Inner{n: 1}}.a)}"`, `show(Point{a: "quoted \"text\"", b: Inner{n: 1}}.a)`},
+		{`"{show("{{braces}}")}"`, `show("{braces}")`},
+		{`"{show(r{a: 1}.a)}"`, "show(r{a: 1}.a)"},
+		{"\"{x + // } and \" are comment text\n 1}\"", "(x + 1)"},
+	} {
+		t.Run(tc.src, func(t *testing.T) {
+			interp := result(t, tc.src).(*ast.Interp)
+			if !reflect.DeepEqual(interp.Texts, []string{"", ""}) || len(interp.Exprs) != 1 {
+				t.Fatalf("interpolation = %#v", interp)
+			}
+			if got := exprShape(interp.Exprs[0]); got != tc.want {
+				t.Errorf("expression = %s, want %s", got, tc.want)
+			}
+		})
+	}
+	outer := result(t, `"{show("{Point{a: "x"}.a}")}"`).(*ast.Interp)
+	call := outer.Exprs[0].(*ast.Call)
+	inner := call.Args[0].(*ast.Interp)
+	if !reflect.DeepEqual(inner.Texts, []string{"", ""}) || len(inner.Exprs) != 1 ||
+		exprShape(inner.Exprs[0]) != `Point{a: "x"}.a` {
+		t.Errorf("nested interpolation = %#v", inner)
+	}
+	conditional := result(t, `"{if r.ok { 1 } else { 2 }}"`).(*ast.Interp).Exprs[0].(*ast.If)
+	if exprShape(conditional.Cond) != "r.ok" {
+		t.Errorf("interpolated condition = %#v", conditional.Cond)
+	}
+}
+
+func TestInterpolationLiteralTextAndPositions(t *testing.T) {
+	for _, tc := range []struct{ src, want string }{
+		{`"plain"`, "plain"},
+		{`"{{x}}"`, "{x}"},
+		{`"\x7bx\u007d"`, "{x}"},
+	} {
+		e, ok := result(t, tc.src).(*ast.StringLit)
+		if !ok || e.Value != tc.want {
+			t.Errorf("%s = %#v, want StringLit %q", tc.src, e, tc.want)
+		}
+	}
+	interp := result(t, `"α\n{{{x}}}{y}\t"`).(*ast.Interp)
+	if !reflect.DeepEqual(interp.Texts, []string{"α\n{", "}", "\t"}) || len(interp.Exprs) != 2 {
+		t.Fatalf("interpolation = %#v", interp)
+	}
+	if interp.GetPos() != (ast.Pos{Line: 2, Col: 19}) ||
+		interp.Exprs[0].GetPos() != (ast.Pos{Line: 2, Col: 26}) ||
+		interp.Exprs[1].GetPos() != (ast.Pos{Line: 2, Col: 31}) {
+		t.Errorf("positions = %s, %s, %s", interp.GetPos(), interp.Exprs[0].GetPos(), interp.Exprs[1].GetPos())
+	}
+}
+
+func TestInterpolationParseErrorsInOriginalFile(t *testing.T) {
+	for _, tc := range []struct{ src, want string }{
+		{`  "prefix {1 + )}"`, `3:16: expected expression, found ")"`},
+		{`  "α {x + )}"`, `3:11: expected expression, found ")"`},
+		{`  "outer {show("inner {1 + )}")}"`, `3:28: expected expression, found ")"`},
+		{`  "{show("\q")}"`, "3:10: bad string literal:"},
+		{`  "{}"`, "3:5: expected expression, found end of file"},
+		{`  "{x y}"`, `3:7: expected end of expression, found "y"`},
+		{`  "{x; y}"`, `3:8: expected end of expression, found "y"`},
+		{`  "bad {x"`, "3:8: unterminated interpolation"},
+	} {
+		t.Run(tc.src, func(t *testing.T) {
+			_, err := parser.Parse("package main\nfunc f() String {\n" + tc.src + "\n}")
+			if err == nil || !strings.HasPrefix(err.Error(), tc.want) {
+				t.Fatalf("error = %v, want prefix %q", err, tc.want)
+			}
+		})
+	}
+}
+
+func TestParseExprStartingPosition(t *testing.T) {
+	e, err := parser.ParseExpr("α +\n  x", ast.Pos{Line: 7, Col: 11})
+	if err != nil {
+		t.Fatal(err)
+	}
+	binary := e.(*ast.Binary)
+	if binary.GetPos() != (ast.Pos{Line: 7, Col: 13}) ||
+		binary.L.GetPos() != (ast.Pos{Line: 7, Col: 11}) || binary.R.GetPos() != (ast.Pos{Line: 8, Col: 3}) {
+		t.Errorf("offset positions = %s, %s, %s", binary.GetPos(), binary.L.GetPos(), binary.R.GetPos())
+	}
+	for _, tc := range []struct{ src, want string }{
+		{"x y", `7:13: expected end of expression, found "y"`},
+		{"x +\n )", `8:2: expected expression, found ")"`},
+		{"x + $", "7:15: unexpected character '$'"},
+		{"", "7:11: expected expression, found end of file"},
+	} {
+		t.Run(tc.src, func(t *testing.T) {
+			_, err := parser.ParseExpr(tc.src, ast.Pos{Line: 7, Col: 11})
+			if err == nil || err.Error() != tc.want {
+				t.Fatalf("error = %v, want %q", err, tc.want)
+			}
+		})
+	}
+}
+
+func TestRecordExpressions(t *testing.T) {
+	for _, tc := range []struct{ src, want string }{
+		{"Point{y: 2, x: 1}", "Point{y: 2, x: 1}"},
+		{"Point{\n x: 1,\n y: 2,\n}", "Point{x: 1, y: 2}"},
+		{"x.a.b", "x.a.b"},
+		{"x{a: 1}", "x{a: 1}"},
+		{"x{a: 1}.a", "x{a: 1}.a"},
+		{"f().a(1){b: 2}.c", "f().a(1){b: 2}.c"},
+		{"Point{x: 1, y: 2}{x: 3}.x + 4", "(Point{x: 1, y: 2}{x: 3}.x + 4)"},
+		{"r{a: Inner{b: 1}, c: f(2),}", "r{a: Inner{b: 1}, c: f(2)}"},
+		{"-x.a * r{b: 2}.b", "((-x.a) * r{b: 2}.b)"},
+		{"Point(1, 2)", "Point(1, 2)"},
+	} {
+		t.Run(tc.src, func(t *testing.T) {
+			if got := exprShape(result(t, tc.src)); got != tc.want {
+				t.Errorf("expression = %s, want %s", got, tc.want)
+			}
+		})
+	}
+	field := result(t, "x.a.b").(*ast.Field)
+	if field.Name != "b" || field.GetPos() != (ast.Pos{Line: 2, Col: 22}) {
+		t.Fatalf("outer field = %#v", field)
+	}
+	inner := field.X.(*ast.Field)
+	if inner.Name != "a" || inner.GetPos() != (ast.Pos{Line: 2, Col: 20}) || exprShape(inner.X) != "x" {
+		t.Errorf("inner field = %#v", inner)
+	}
+	record := result(t, "Point{y: 2, x: 1}").(*ast.RecordLit)
+	if record.GetPos() != (ast.Pos{Line: 2, Col: 19}) ||
+		!reflect.DeepEqual(record.Names, []string{"y", "x"}) || len(record.Values) != 2 {
+		t.Errorf("record = %#v", record)
+	}
+	update := result(t, "r{a: 1}").(*ast.RecordUpdate)
+	if update.GetPos() != (ast.Pos{Line: 2, Col: 20}) || exprShape(update.X) != "r" ||
+		!reflect.DeepEqual(update.Names, []string{"a"}) || len(update.Values) != 1 {
+		t.Errorf("update = %#v", update)
+	}
+}
+
+func TestRecordsDoNotConsumeControlFlowBlocks(t *testing.T) {
+	for _, src := range []string{
+		"if r.ok { yes } else { no }",
+		"if r.ok { f(1) } else { f(2) }",
+		"if r.ok { Point{x: 1} } else { Point{x: 2} }",
+	} {
+		e := result(t, src).(*ast.If)
+		if exprShape(e.Cond) != "r.ok" {
+			t.Errorf("condition = %#v", e.Cond)
+		}
+	}
+	for _, src := range []string{
+		"match p { | Point(x, y) => x + y }",
+		"match p { Point(x, y) => x + y }",
+	} {
+		m := result(t, src).(*ast.Match)
+		if exprShape(m.Scrut) != "p" || len(m.Arms) != 1 ||
+			patternShape(m.Arms[0].Pat) != "Point(x, y)" || exprShape(m.Arms[0].Body) != "(x + y)" {
+			t.Errorf("match = %#v", m)
+		}
+	}
+	b := parse(t, "package main\nfunc f() Int { x\n{ y } }").Decls[0].(*ast.FuncDecl).Body
+	if len(b.Stmts) != 1 || exprShape(b.Stmts[0].(*ast.ExprStmt).X) != "x" {
+		t.Fatalf("statements = %#v, want separate x expression", b.Stmts)
+	}
+	if block, ok := b.Result.(*ast.BlockExpr); !ok || exprShape(block.Block.Result) != "y" {
+		t.Errorf("result = %#v, want separate block", b.Result)
+	}
+}
+
+func TestRecordDeclarationLayout(t *testing.T) {
+	d := parse(t, "package main\ntype R[A] = R{\n value: A,\n apply: func(A) A,\n}").Decls[0].(*ast.TypeDecl)
+	c := d.Ctors[0]
+	if !reflect.DeepEqual(c.FieldNames, []string{"value", "apply"}) || len(c.Fields) != 2 {
+		t.Fatalf("record = %#v", c)
+	}
+	typeName(t, c.Fields[0], "A")
+	fn := c.Fields[1].(*ast.FuncType)
+	if len(fn.Params) != 1 {
+		t.Fatalf("function field = %#v", fn)
+	}
+	typeName(t, fn.Params[0], "A")
+	typeName(t, fn.Ret, "A")
+}
+
+func TestRecordSyntaxErrors(t *testing.T) {
+	for _, tc := range []struct{ src, want string }{
+		{"type Empty = Empty{}", "2:14: record constructor needs at least one field"},
+		{"type R = R{a: Int, String}", `expected ":", found "}"`},
+		{"type R = R(Int, b: String)", `expected ")", found ":"`},
+		{"type R = R{a: Int}(String)", `expected declaration, found "("`},
+		{"func f() R { R{a: } }", `expected expression, found "}"`},
+		{"func f() R { r{a: 1, 2} }", `expected identifier, found "2"`},
+		{"func f() R { r.1 }", `expected identifier, found "1"`},
+	} {
+		t.Run(tc.src, func(t *testing.T) {
+			_, err := parser.Parse("package main\n" + tc.src)
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("error = %v, want %q", err, tc.want)
+			}
+		})
+	}
+	for _, src := range []string{"r\n{a: 1}", "Point\n{a: 1}"} {
+		_, err := parser.ParseExpr(src, ast.Pos{Line: 1, Col: 1})
+		if err == nil || err.Error() != `2:1: expected end of expression, found "{"` {
+			t.Errorf("error for %q = %v, want separate brace after newline", src, err)
+		}
 	}
 }

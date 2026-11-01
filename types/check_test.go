@@ -78,7 +78,7 @@ func bad() Box[Int] { fmap(Boxed(1), func(x) => x) }` + main, "no instance Funct
 		{"duplicate instance", `instance Functor[Option] { fmap(fa, f) { fa } }` + main, "duplicate instance Functor[Option]"},
 		{"rigid type", `func bad[A](x A) A { 1 }` + main, "type mismatch: expected A, got Int"},
 		{"occurs check", `func bad() Unit { let f = func(x) => x(x); unit() }` + main, "occurs check"},
-		{"monomorphic let", `func bad() Unit { let id = func(x) => x; id(1); id(true); unit() }` + main, "type mismatch: expected Int, got Bool"},
+		{"polymorphic let", `func okay() Unit { let id = func(x) => x; id(1); id(true); unit() }` + main, ""},
 		{"call arity", `func bad() Unit { ioPure(); unit() }` + main, "arity mismatch"},
 		{"mixed monads", `func bad() Option[Int] { do { a <- Some(1); ioPure(a) } }` + main, "type mismatch: expected Option["},
 		{"ambiguous class", `func bad() Unit { pure(1); unit() }` + main, "unresolved class constraint"},
@@ -421,7 +421,7 @@ func TestListLiteralAnnotations(t *testing.T) {
 		{"empty context", `func value() List[Int] { [] }`, "List[Int]"},
 		{"empty default", `func value() Unit { []; unit() }`, "List[Unit]"},
 		{"parameter", `func value[A](a A) List[A] { [a] }`, "List[A]"},
-		{"later context", `func value() List[Int] { let xs = []; xs }`, "List[Int]"},
+		{"later context", `func value() List[Int] { let xs = []; xs }`, "generalized"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -435,6 +435,19 @@ func TestListLiteralAnnotations(t *testing.T) {
 				assertZonked(t, e)
 				if _, ok := e.(*ast.ListLit); ok {
 					count++
+					if tt.want == "generalized" {
+						app, ok := types.AnnOf(e).Type.(*types.TApp)
+						if !ok || len(app.Args) != 1 {
+							t.Fatalf("generalized list type = %#v", types.AnnOf(e).Type)
+						}
+						if _, ok := app.Args[0].(*types.TVar); !ok {
+							t.Fatalf("list element = %T, want generalized variable", app.Args[0])
+						}
+						if got := types.TypeString(types.AnnOf(p.Funcs["value"].Decl.Body.Result).Type); got != "List[Int]" {
+							t.Fatalf("list use type = %s, want List[Int]", got)
+						}
+						return
+					}
 					if got := types.TypeString(types.AnnOf(e).Type); got != tt.want {
 						t.Errorf("list type = %s, want %s", got, tt.want)
 					}
@@ -806,5 +819,11 @@ func assertZonked(t *testing.T, e ast.Expr) {
 	check(a.Type)
 	for _, inst := range a.Inst {
 		check(inst)
+	}
+	if a.LetScheme != nil {
+		check(a.LetScheme.Type)
+		for _, constraint := range a.LetScheme.Constraints {
+			check(constraint.Arg)
+		}
 	}
 }

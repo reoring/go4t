@@ -19,6 +19,8 @@ type checker struct {
 	methods   map[string]*Method
 	instances map[instanceKey]*Instance
 	nextMeta  int
+	file      string
+	sources   map[ast.Decl]string
 }
 
 // Check collects all declarations before checking bodies, so signatures and
@@ -35,24 +37,31 @@ type checker struct {
 // Partial instance heads bind leading Fixed variables; applications and inferred
 // higher-kinded instantiations are normalized to a single constructor and args.
 //
-// Unresolved ordinary metas default to Unit only when no class constraint
-// depends on them. Unresolved higher-kinded metas are errors: Unit cannot be a
-// kind-correct default for a type constructor. Failures return a positioned
-// *Error and a nil program; partially checked input annotations are not usable.
+// Let-bound values generalize non-environment metas subject to the value
+// restriction; constrained values expose LetScheme for dictionary codegen.
+// Records resolve field indexes statically, and interpolation resolves Show.
+// Unconstrained ordinary metas default to Unit with source-ordered warnings.
+// Higher-kinded or class-constrained ambiguities remain errors. Failures return
+// a positioned *Error and a nil program; partial annotations are not usable.
 func Check(files []*ast.File) (program *Program, err error) {
+	var c *checker
 	defer func() {
 		if r := recover(); r != nil {
 			if e, ok := r.(*Error); ok {
+				if c != nil {
+					e.File = c.file
+				}
 				program, err = nil, e
 			} else {
 				panic(r)
 			}
 		}
 	}()
-	c := &checker{
+	c = &checker{
 		program: &Program{Classes: make(map[string]*Class), DataTypes: make(map[string]*DataType), Funcs: make(map[string]*FuncInfo), Files: files},
 		cons:    make(map[string]*TCon), ctors: make(map[string]*Ctor),
 		methods: make(map[string]*Method), instances: make(map[instanceKey]*Instance),
+		sources: make(map[ast.Decl]string),
 	}
 	for _, con := range []*TCon{Int, String, Bool, Unit, IO} {
 		c.cons[con.Name] = con
@@ -63,6 +72,7 @@ func Check(files []*ast.File) (program *Program, err error) {
 	c.collectInstances(files)
 	c.checkMain()
 	for _, file := range files {
+		c.file = file.Name
 		for _, decl := range file.Decls {
 			switch decl := decl.(type) {
 			case *ast.FuncDecl:
@@ -165,7 +175,9 @@ func arityKind(arity int) Kind {
 
 func (c *checker) collectNames(files []*ast.File) {
 	for _, file := range files {
+		c.file = file.Name
 		for _, decl := range file.Decls {
+			c.sources[decl] = file.Name
 			switch decl := decl.(type) {
 			case *ast.ClassDecl:
 				c.reserveType(decl.Pos, decl.Name)
@@ -200,7 +212,15 @@ func (c *checker) collectNames(files []*ast.File) {
 					if c.ctors[ctor.Name] != nil {
 						fail(ctor.Pos, "duplicate declaration %s", ctor.Name)
 					}
-					ct := &Ctor{Name: ctor.Name, Data: data, Index: i}
+					seenFields := make(map[string]bool, len(ctor.FieldNames))
+					for _, name := range ctor.FieldNames {
+						checkValueName(ctor.Pos, name)
+						if seenFields[name] {
+							fail(ctor.Pos, "duplicate field %s in constructor %s", name, ctor.Name)
+						}
+						seenFields[name] = true
+					}
+					ct := &Ctor{Name: ctor.Name, Data: data, Index: i, FieldNames: ctor.FieldNames}
 					data.Ctors = append(data.Ctors, ct)
 					c.ctors[ct.Name] = ct
 				}
@@ -216,6 +236,7 @@ func (c *checker) checkSuperclasses(files []*ast.File) {
 	state := make(map[string]uint8)
 	var visit func(*Class)
 	visit = func(class *Class) {
+		c.file = c.sources[class.Decl]
 		if state[class.Name] == 2 {
 			return
 		}
@@ -237,6 +258,7 @@ func (c *checker) checkSuperclasses(files []*ast.File) {
 		state[class.Name] = 2
 	}
 	for _, file := range files {
+		c.file = file.Name
 		for _, decl := range file.Decls {
 			if decl, ok := decl.(*ast.ClassDecl); ok {
 				visit(c.program.Classes[decl.Name])
@@ -291,6 +313,7 @@ func (c *checker) scheme(pos ast.Pos, tparams []ast.TypeParam, params []ast.Para
 
 func (c *checker) collectSignatures(files []*ast.File) {
 	for _, file := range files {
+		c.file = file.Name
 		for _, decl := range file.Decls {
 			switch decl := decl.(type) {
 			case *ast.ClassDecl:
@@ -376,6 +399,7 @@ func (c *checker) valueType(t ast.Type, scope map[string]Type) Type {
 
 func (c *checker) collectInstances(files []*ast.File) {
 	for _, file := range files {
+		c.file = file.Name
 		for _, decl := range file.Decls {
 			d, ok := decl.(*ast.InstanceDecl)
 			if !ok {
@@ -470,6 +494,7 @@ func (c *checker) collectInstances(files []*ast.File) {
 		}
 	}
 	for _, inst := range c.program.Instances {
+		c.file = c.sources[inst.Decl]
 		if super := inst.Class.Super; super != "" {
 			parent := c.instances[instanceKey{super, inst.TypeCon.Name}]
 			if parent == nil {
@@ -522,6 +547,7 @@ func (c *checker) checkMain() {
 	f := c.program.Funcs["main"]
 	pos := ast.Pos{Line: 1, Col: 1}
 	if f != nil {
+		c.file = c.sources[f.Decl]
 		pos = f.Decl.Pos
 		if len(f.Scheme.TParams) == 0 && len(f.Scheme.Type.Params) == 0 {
 			if app, ok := f.Scheme.Type.Ret.(*TApp); ok && app.Fun == IO && len(app.Args) == 1 && app.Args[0] == Unit {

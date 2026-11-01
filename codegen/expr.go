@@ -23,7 +23,7 @@ func (g *generator) statements(stmts []ast.Stmt, result ast.Expr) string {
 		case *ast.LetStmt:
 			// A nested scope preserves lexical shadowing, including the case where
 			// the initializer refers to the previous binding of the same name.
-			fmt.Fprintf(&out, "{\nvar %s any = %s\n_ = %s\n%s}\n", mangle(stmt.Name), g.expr(stmt.Value), mangle(stmt.Name), g.statements(stmts[i+1:], result))
+			fmt.Fprintf(&out, "{\n%s%s}\n", g.letBinding(stmt.Name, stmt.Value), g.statements(stmts[i+1:], result))
 			return out.String()
 		case *ast.ExprStmt:
 			fmt.Fprintf(&out, "_ = %s\n", g.expr(stmt.X))
@@ -35,6 +35,19 @@ func (g *generator) statements(stmts []ast.Stmt, result ast.Expr) string {
 	return out.String()
 }
 
+func (g *generator) letBinding(name string, value ast.Expr) string {
+	name = mangle(name)
+	if ann, ok := (*value.AnnSlot()).(*types.Ann); ok && ann != nil && ann.LetScheme != nil {
+		scheme := ann.LetScheme
+		previous := g.dictScope
+		g.dictScope.params = append(g.dictScope.params, scheme.Constraints...)
+		body := g.expr(value)
+		g.dictScope = previous
+		return name + " := func(" + strings.Join(g.dictParams(scheme.Constraints), ", ") + ") any {\nreturn " + body + "\n}\n_ = " + name + "\n"
+	}
+	return "var " + name + " any = " + g.expr(value) + "\n_ = " + name + "\n"
+}
+
 func (g *generator) expr(expr ast.Expr) string {
 	g.collectAnnotation(expr)
 	switch e := expr.(type) {
@@ -42,6 +55,50 @@ func (g *generator) expr(expr ast.Expr) string {
 		return "int64(" + strconv.FormatInt(e.Value, 10) + ")"
 	case *ast.StringLit:
 		return strconv.Quote(e.Value)
+	case *ast.Interp:
+		ann := g.ann(e)
+		parts := make([]string, 0, len(e.Texts)+len(e.Exprs))
+		for i, text := range e.Texts {
+			if text != "" {
+				parts = append(parts, strconv.Quote(text))
+			}
+			if i < len(e.Exprs) {
+				parts = append(parts, "("+g.dict(&ann.ShowDicts[i])+").Show("+g.expr(e.Exprs[i])+")")
+			}
+		}
+		return "rt.Concat(" + strings.Join(parts, ", ") + ")"
+	case *ast.Field:
+		ann := g.ann(e)
+		return fmt.Sprintf("any(%s).(*%s).F%d", g.expr(e.X), ctorName(ann.Ctor), ann.FieldIndex)
+	case *ast.RecordLit:
+		ann := g.ann(e)
+		fields := make([]string, len(e.Values))
+		for i, value := range e.Values {
+			fields[i] = fmt.Sprintf("F%d: %s", ann.FieldIndexes[i], g.expr(value))
+		}
+		return "&" + ctorName(ann.Ctor) + "{" + strings.Join(fields, ", ") + "}"
+	case *ast.RecordUpdate:
+		ann := g.ann(e)
+		base := g.fresh()
+		var out strings.Builder
+		fmt.Fprintf(&out, "func() any {\n%s := any(%s).(*%s)\n_ = %s\n", base, g.expr(e.X), ctorName(ann.Ctor), base)
+		replaced := make([]bool, len(ann.Ctor.Fields))
+		for _, index := range ann.FieldIndexes {
+			replaced[index] = true
+		}
+		fields := make([]string, 0, len(ann.Ctor.Fields))
+		for index, changed := range replaced {
+			if !changed {
+				fields = append(fields, fmt.Sprintf("F%d: %s.F%d", index, base, index))
+			}
+		}
+		// Emit replacements in source order, not declaration order: their
+		// expressions may call functions or fail.
+		for i, value := range e.Values {
+			fields = append(fields, fmt.Sprintf("F%d: %s", ann.FieldIndexes[i], g.expr(value)))
+		}
+		fmt.Fprintf(&out, "return &%s{%s}\n}()", ctorName(ann.Ctor), strings.Join(fields, ", "))
+		return out.String()
 	case *ast.BoolLit:
 		return strconv.FormatBool(e.Value)
 	case *ast.TupleLit:
@@ -64,7 +121,14 @@ func (g *generator) expr(expr ast.Expr) string {
 		ann := g.ann(e)
 		switch ann.Ref {
 		case types.RefLocal:
-			return mangle(e.Name)
+			if len(ann.Dicts) == 0 {
+				return mangle(e.Name)
+			}
+			dicts := make([]string, len(ann.Dicts))
+			for i := range ann.Dicts {
+				dicts[i] = g.dict(&ann.Dicts[i])
+			}
+			return mangle(e.Name) + "(" + strings.Join(dicts, ", ") + ")"
 		case types.RefFunc:
 			if len(ann.Dicts) == 0 {
 				return mangle(e.Name)
@@ -131,7 +195,7 @@ func (g *generator) expr(expr ast.Expr) string {
 			case *ast.DoExpr:
 				value, name = stmt.X, "_"
 			case *ast.DoLet:
-				body = "{\nvar " + mangle(stmt.Name) + " any = " + g.expr(stmt.Value) + "\n_ = " + mangle(stmt.Name) + "\n" + body + "}\n"
+				body = "{\n" + g.letBinding(stmt.Name, stmt.Value) + body + "}\n"
 				continue
 			default:
 				g.fail(e.GetPos(), "unsupported do statement %T", stmt)

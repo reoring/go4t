@@ -64,7 +64,7 @@ func TestUnifyPartialApplications(t *testing.T) {
 					t.Fatalf("argument %d = %s", i, TypeString(arg))
 				}
 			}
-			resolved := zonk(ast.Pos{}, short).(*TApp)
+			resolved := zonk(ast.Pos{}, short, func(*TMeta) { t.Fatal("resolved application defaulted") }).(*TApp)
 			if resolved.Fun != con || len(resolved.Args) != len(longArgs) {
 				t.Fatalf("zonked application not flattened: %s", TypeString(resolved))
 			}

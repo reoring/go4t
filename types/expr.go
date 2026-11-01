@@ -3,25 +3,29 @@ package types
 import "gofx/ast"
 
 type locals struct {
-	parent *locals
-	values map[string]Type
+	parent  *locals
+	values  map[string]Type
+	schemes map[string]*localScheme
 }
 
-func newLocals(parent *locals) *locals { return &locals{parent: parent, values: make(map[string]Type)} }
+func newLocals(parent *locals) *locals {
+	return &locals{parent: parent, values: make(map[string]Type)}
+}
 
-func (l *locals) lookup(name string) Type {
+func (l *locals) lookup(name string) (Type, *localScheme) {
 	for ; l != nil; l = l.parent {
 		if t := l.values[name]; t != nil {
-			return t
+			return t, l.schemes[name]
 		}
 	}
-	return nil
+	return nil, nil
 }
 
 type obligation struct {
 	expr        ast.Expr
 	constraints []Constraint
 	monad       bool
+	show        bool
 }
 
 type bodyChecker struct {
@@ -33,6 +37,9 @@ type bodyChecker struct {
 	additions   []*ast.Binary
 	comparisons []*ast.Binary
 	matches     []*ast.Match
+	lets        []*localScheme
+	bindings    map[ast.Expr]defaultOrigin
+	defaults    map[*TMeta]defaultOrigin
 }
 
 func (c *checker) body(constraints []Constraint, scope map[string]Type) *bodyChecker {
@@ -58,8 +65,7 @@ func (b *bodyChecker) block(block *ast.Block, outer *locals) Type {
 	for _, stmt := range block.Stmts {
 		switch stmt := stmt.(type) {
 		case *ast.LetStmt:
-			checkValueName(stmt.Pos, stmt.Name)
-			env.values[stmt.Name] = b.infer(stmt.Value, env)
+			b.let(stmt.Pos, stmt.Name, stmt.Value, env)
 		case *ast.ExprStmt:
 			b.infer(stmt.X, env)
 		}
@@ -81,7 +87,7 @@ func (b *bodyChecker) ident(e *ast.Ident, env *locals, ann *Ann) Type {
 	if capitalised(e.Name) {
 		if ctor := b.c.ctors[e.Name]; ctor != nil {
 			fields, ret, inst := b.c.instantiateCtor(ctor)
-			ann.Ref, ann.Inst = RefCtor, inst
+			ann.Ref, ann.Inst, ann.Ctor = RefCtor, inst, ctor
 			if len(fields) == 0 {
 				return ret
 			}
@@ -89,8 +95,15 @@ func (b *bodyChecker) ident(e *ast.Ident, env *locals, ann *Ann) Type {
 		}
 		fail(e.GetPos(), "unknown identifier %s", e.Name)
 	}
-	if t := env.lookup(e.Name); t != nil {
-		return t
+	if t, scheme := env.lookup(e.Name); t != nil {
+		if scheme == nil {
+			return t
+		}
+		scheme.used = true
+		sub, inst := b.c.instantiate(scheme.scheme.TParams)
+		ann.Inst = inst
+		b.obligations = append(b.obligations, obligation{expr: e, constraints: subConstraints(scheme.scheme.Constraints, sub)})
+		return substitute(scheme.typ, sub)
 	}
 	if f := b.c.program.Funcs[e.Name]; f != nil {
 		sub, inst := b.c.instantiate(f.Scheme.TParams)
@@ -123,6 +136,13 @@ func (c *checker) instantiateCtor(ctor *Ctor) ([]Type, Type, []Type) {
 }
 
 func (b *bodyChecker) infer(e ast.Expr, env *locals) Type {
+	return b.inferExpected(e, env, nil)
+}
+
+// Call arguments carry their callee's instantiated type into an untyped
+// lambda before its body is inferred. Standalone lambdas remain infer-only:
+// record receivers still need a type known at the point of field access.
+func (b *bodyChecker) inferExpected(e ast.Expr, env *locals, expected Type) Type {
 	ann := &Ann{}
 	*e.AnnSlot() = ann
 	b.exprs = append(b.exprs, e)
@@ -133,6 +153,19 @@ func (b *bodyChecker) infer(e ast.Expr, env *locals) Type {
 		result = Int
 	case *ast.StringLit:
 		result = String
+	case *ast.Interp:
+		constraints := make([]Constraint, len(e.Exprs))
+		for i, expr := range e.Exprs {
+			constraints[i] = Constraint{Class: "Show", Arg: b.infer(expr, env)}
+		}
+		b.obligations = append(b.obligations, obligation{expr: e, constraints: constraints, show: true})
+		result = String
+	case *ast.RecordLit:
+		result = b.recordLit(e, env, ann)
+	case *ast.Field:
+		result = b.field(e, env, ann)
+	case *ast.RecordUpdate:
+		result = b.recordUpdate(e, env, ann)
 	case *ast.BoolLit:
 		result = Bool
 	case *ast.Ident:
@@ -168,12 +201,13 @@ func (b *bodyChecker) infer(e ast.Expr, env *locals) Type {
 			fail(pos, "arity mismatch: want %d arguments, got %d", len(ft.Params), len(e.Args))
 		}
 		for i, arg := range e.Args {
-			unify(arg.GetPos(), ft.Params[i], b.infer(arg, env))
+			unify(arg.GetPos(), ft.Params[i], b.inferExpected(arg, env, ft.Params[i]))
 		}
 		result = ft.Ret
 	case *ast.Lambda:
 		local := newLocals(env)
 		ft := &TFunc{Params: make([]Type, len(e.Params))}
+		contextual := expected != nil
 		for i, param := range e.Params {
 			checkValueName(pos, param.Name)
 			if local.values[param.Name] != nil {
@@ -184,10 +218,22 @@ func (b *bodyChecker) infer(e ast.Expr, env *locals) Type {
 				typ = b.c.fresh(KStar{})
 			} else {
 				typ = b.c.valueType(param.Type, b.types)
+				contextual = false
 			}
 			ft.Params[i], local.values[param.Name] = typ, typ
 		}
-		ft.Ret = b.infer(e.Body, local)
+		if contextual {
+			ft.Ret = b.c.fresh(KStar{})
+			unify(pos, expected, ft)
+		}
+		ret := b.infer(e.Body, local)
+		if contextual && !unifyTypes(pos, ft.Ret, ret) {
+			// Keep the existing outer-function diagnostic, rather than
+			// reporting only the return types after contextual inference.
+			actual := &TFunc{Params: ft.Params, Ret: ret}
+			fail(pos, "type mismatch: expected %s, got %s", TypeString(expected), TypeString(actual))
+		}
+		ft.Ret = ret
 		result = ft
 	case *ast.BlockExpr:
 		result = b.block(e.Block, env)
@@ -213,9 +259,9 @@ func (b *bodyChecker) infer(e ast.Expr, env *locals) Type {
 			case *ast.DoBind:
 				checkValueName(stmt.Pos, stmt.Name)
 				local.values[stmt.Name] = b.monadic(stmt.X, head, local)
+				delete(local.schemes, stmt.Name)
 			case *ast.DoLet:
-				checkValueName(stmt.Pos, stmt.Name)
-				local.values[stmt.Name] = b.infer(stmt.Value, local)
+				b.let(stmt.Pos, stmt.Name, stmt.Value, local)
 			case *ast.DoExpr:
 				b.monadic(stmt.X, head, local)
 			}

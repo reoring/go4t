@@ -19,7 +19,7 @@ func tokens(t *testing.T, src string) []lexer.Token {
 }
 
 func TestSemicolonInsertion(t *testing.T) {
-	for _, src := range []string{"name", "123", `"text"`, ")", "]", "}", "_", "true", "false"} {
+	for _, src := range []string{"name", "123", `"text"`, `"{x}"`, ")", "]", "}", "_", "true", "false"} {
 		t.Run(src, func(t *testing.T) {
 			for _, ending := range []string{"", "\n", "\n\n", " // comment\n"} {
 				got := tokens(t, src+ending)
@@ -35,7 +35,7 @@ func TestNoSemicolonInsertion(t *testing.T) {
 	for _, src := range []string{"=>", "<-", "{", "+", "-", "*", "/", "==", "!=", "<", "<=", ">", ">=", "&&", "||", "!", "=", "(", "[", ",", ":", "|", "@", "func", "let"} {
 		t.Run(src, func(t *testing.T) {
 			got := tokens(t, src+"\nnext")
-			if len(got) != 4 || got[1].Text != "next" {
+			if len(got) < 3 || got[1].Text != "next" {
 				t.Errorf("tokens = %#v, want no semicolon before next", got)
 			}
 		})
@@ -199,5 +199,145 @@ func TestLexerErrorsWithPositions(t *testing.T) {
 				t.Fatalf("error = %v, want prefix %q", err, tc.want)
 			}
 		})
+	}
+}
+
+func TestInterpolationParts(t *testing.T) {
+	for _, tc := range []struct {
+		src  string
+		want []lexer.InterpPart
+	}{
+		{`"hello {name}: {1 + 2}!"`, []lexer.InterpPart{
+			{Text: "hello "},
+			{Expr: "name", Pos: ast.Pos{Line: 1, Col: 9}},
+			{Text: ": "},
+			{Expr: "1 + 2", Pos: ast.Pos{Line: 1, Col: 17}},
+			{Text: "!"},
+		}},
+		{`"{x}{y}"`, []lexer.InterpPart{
+			{}, {Expr: "x", Pos: ast.Pos{Line: 1, Col: 3}},
+			{}, {Expr: "y", Pos: ast.Pos{Line: 1, Col: 6}}, {},
+		}},
+		{`"{{{x}}}"`, []lexer.InterpPart{
+			{Text: "{"}, {Expr: "x", Pos: ast.Pos{Line: 1, Col: 5}}, {Text: "}"},
+		}},
+		{`"a\n{x}\t"`, []lexer.InterpPart{
+			{Text: "a\n"}, {Expr: "x", Pos: ast.Pos{Line: 1, Col: 6}}, {Text: "\t"},
+		}},
+		{`"{show({a: 1}.a)}"`, []lexer.InterpPart{
+			{}, {Expr: "show({a: 1}.a)", Pos: ast.Pos{Line: 1, Col: 3}}, {},
+		}},
+		{`"{show(Point{a: "quoted \"text\""}.a)}"`, []lexer.InterpPart{
+			{}, {Expr: `show(Point{a: "quoted \"text\""}.a)`, Pos: ast.Pos{Line: 1, Col: 3}}, {},
+		}},
+		{`"{show("{{braces}}")}"`, []lexer.InterpPart{
+			{}, {Expr: `show("{{braces}}")`, Pos: ast.Pos{Line: 1, Col: 3}}, {},
+		}},
+		{`"{show("{Point{a: "x"}.a}")}"`, []lexer.InterpPart{
+			{}, {Expr: `show("{Point{a: "x"}.a}")`, Pos: ast.Pos{Line: 1, Col: 3}}, {},
+		}},
+		{`"{}"`, []lexer.InterpPart{
+			{}, {Expr: "", Pos: ast.Pos{Line: 1, Col: 3}}, {},
+		}},
+		{"\"{x + // } and \" are comment text\n 1}\"", []lexer.InterpPart{
+			{}, {Expr: "x + // } and \" are comment text\n 1", Pos: ast.Pos{Line: 1, Col: 3}}, {},
+		}},
+	} {
+		t.Run(tc.src, func(t *testing.T) {
+			got := tokens(t, tc.src)
+			if got[0].Kind != lexer.InterpTok || got[0].Text != tc.src || got[0].Pos != (ast.Pos{Line: 1, Col: 1}) {
+				t.Fatalf("token = %#v, want interpolation at 1:1", got[0])
+			}
+			if !reflect.DeepEqual(got[0].Parts, tc.want) {
+				t.Errorf("parts = %#v, want %#v", got[0].Parts, tc.want)
+			}
+			for _, tok := range got[1:] {
+				if tok.Parts != nil {
+					t.Errorf("non-interpolation token has parts: %#v", tok)
+				}
+			}
+		})
+	}
+}
+
+func TestLiteralBraces(t *testing.T) {
+	for _, tc := range []struct{ src, want string }{
+		{`"{{x}}"`, "{x}"},
+		{`"{{{{x}}}}"`, "{{x}}"},
+		{`"\x7bx\u007d"`, "{x}"},
+		{`"\x7b{{x}}\x7d"`, "{{x}}"},
+		{`"}}"`, "}"},
+		{`"plain"`, "plain"},
+	} {
+		t.Run(tc.src, func(t *testing.T) {
+			got := tokens(t, tc.src)[0]
+			if got.Kind != lexer.String || got.Text != tc.want || got.Parts != nil {
+				t.Errorf("token = %#v, want plain string %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestStartingPosition(t *testing.T) {
+	got, err := lexer.NewAt("α +\n  \"value {x}\"", ast.Pos{Line: 7, Col: 11}).All()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 5 || got[0].Pos != (ast.Pos{Line: 7, Col: 11}) ||
+		got[1].Pos != (ast.Pos{Line: 7, Col: 13}) || got[2].Pos != (ast.Pos{Line: 8, Col: 3}) ||
+		got[2].Parts[1].Pos != (ast.Pos{Line: 8, Col: 11}) || got[4].Pos != (ast.Pos{Line: 8, Col: 14}) {
+		t.Errorf("offset tokens = %#v", got)
+	}
+}
+
+func TestInterpolationErrorsWithPositions(t *testing.T) {
+	for _, tc := range []struct{ src, want string }{
+		{"\n  \"bad {x", "2:8: unterminated interpolation"},
+		{"\n  \"bad {x\"", "2:8: unterminated interpolation"},
+		{`"{Point{a: 1}"`, "1:2: unterminated interpolation"},
+		{`"{show("x")"`, "1:2: unterminated interpolation"},
+		{`"{x}`, "1:1: unterminated string"},
+		{`"\q{x}"`, "1:1: bad string literal:"},
+		{`"{x}\q"`, "1:1: bad string literal:"},
+	} {
+		t.Run(tc.src, func(t *testing.T) {
+			_, err := lexer.New(tc.src).All()
+			if err == nil || !strings.HasPrefix(err.Error(), tc.want) {
+				t.Fatalf("error = %v, want prefix %q", err, tc.want)
+			}
+		})
+	}
+}
+
+func TestNoSemicolonInsideOpenBrackets(t *testing.T) {
+	src := "f(\n  [1,\n   2]\n)\nx"
+	toks, err := lexer.New(src).All()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, tk := range toks {
+		if tk.Kind == lexer.EOF {
+			break
+		}
+		got = append(got, tk.Text)
+	}
+	want := []string{"f", "(", "[", "1", ",", "2", "]", ")", ";", "x", ";"}
+	if strings.Join(got, " ") != strings.Join(want, " ") {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+	// A block nested inside a call still separates its statements.
+	src = "f(func() => {\n  a\n  b\n})"
+	toks, _ = lexer.New(src).All()
+	got = got[:0]
+	for _, tk := range toks {
+		if tk.Kind == lexer.EOF {
+			break
+		}
+		got = append(got, tk.Text)
+	}
+	want = []string{"f", "(", "func", "(", ")", "=>", "{", "a", ";", "b", ";", "}", ")", ";"}
+	if strings.Join(got, " ") != strings.Join(want, " ") {
+		t.Fatalf("got %q, want %q", got, want)
 	}
 }

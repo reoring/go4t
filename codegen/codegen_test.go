@@ -649,6 +649,256 @@ func TestOperatorSelection(t *testing.T) {
 	}
 }
 
+func TestStringInterpolation(t *testing.T) {
+	p, showInt, showOption := showFixture()
+	concrete := instanceDict(showInt)
+	nested := instanceDict(showOption, concrete)
+	addFunc(p, "interpolate", nil, nil, &ast.Interp{
+		ExprBase: annotated(&types.Ann{Type: types.String, ShowDicts: []types.DictRef{concrete, nested}}),
+		Texts:    []string{"value \"", "\nnext ", "\""},
+		Exprs:    []ast.Expr{integer(7), call(ctor("Some"), integer(8))},
+	})
+	addFunc(p, "adjacent", nil, nil, &ast.Interp{
+		ExprBase: annotated(&types.Ann{Type: types.String, ShowDicts: []types.DictRef{concrete, concrete}}),
+		Texts:    []string{"", "", ""},
+		Exprs:    []ast.Expr{integer(1), integer(2)},
+	})
+	addFunc(p, "empty", nil, nil, &ast.Interp{
+		ExprBase: annotated(&types.Ann{Type: types.String}), Texts: []string{""},
+	})
+	param := types.DictRef{Kind: types.DictParam, Class: "Show", Param: "A", ParamClass: "Show"}
+	generic := addFunc(p, "genericInterpolation", []string{"x"}, []types.Type{types.Unit}, &ast.Interp{
+		ExprBase: annotated(&types.Ann{Type: types.String, ShowDicts: []types.DictRef{param}}),
+		Texts:    []string{"", ""}, Exprs: []ast.Expr{local("x", types.Unit)},
+	})
+	generic.Scheme.Constraints = showOption.Context
+	showOption.Decl.Methods[0].Body.Result = &ast.Interp{
+		ExprBase: annotated(&types.Ann{Type: types.String, ShowDicts: []types.DictRef{param}}),
+		Texts:    []string{"", ""}, Exprs: []ast.Expr{local("dictself", types.Unit)},
+	}
+	assertSource(t, p,
+		`rt.Concat("value \"", (Show_Int{}).Show(int64(7)), "\nnext ", (Show_Option{dict_A: Show_Int{}}).Show(&Option_Some{F0: int64(8)}), "\"")`,
+		"rt.Concat((Show_Int{}).Show(int64(1)), (Show_Int{}).Show(int64(2)))",
+		"return rt.Concat()",
+		"rt.Concat((dict_A).Show(x_))",
+		"rt.Concat((dictself.dict_A).Show(dictself_))")
+}
+
+func TestRecordLiteralsAndFields(t *testing.T) {
+	p := fixture()
+	data := &types.DataType{Name: "Person"}
+	record := &types.Ctor{Name: "Person", Data: data, Fields: []types.Type{types.String, types.Int}, FieldNames: []string{"name", "age"}}
+	data.Ctors = []*types.Ctor{record}
+	p.DataTypes[data.Name] = data
+	person := &types.TCon{Name: data.Name}
+	literal := &ast.RecordLit{
+		ExprBase: annotated(&types.Ann{Type: person, Ctor: record, FieldIndexes: []int{1, 0}}),
+		Ctor:     "Person", Names: []string{"age", "name"}, Values: []ast.Expr{integer(42), text("Ada")},
+	}
+	addFunc(p, "person", nil, nil, literal)
+	addFunc(p, "age", []string{"p"}, []types.Type{person}, &ast.Field{
+		ExprBase: annotated(&types.Ann{Type: types.Int, Ctor: record, FieldIndex: 1}),
+		X:        local("p", person), Name: "age",
+	})
+	addFunc(p, "literalName", nil, nil, &ast.Field{
+		ExprBase: annotated(&types.Ann{Type: types.String, Ctor: record, FieldIndex: 0}),
+		X:        literal, Name: "name",
+	})
+	assertSource(t, p,
+		`return &Person_Person{F1: int64(42), F0: "Ada"}`,
+		"return any(p_).(*Person_Person).F1",
+		`return any(&Person_Person{F1: int64(42), F0: "Ada"}).(*Person_Person).F0`)
+}
+
+func TestRecordUpdates(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		indexes []int
+	}{
+		{"partial", []int{2, 0}},
+		{"all", []int{2, 0, 1}},
+		{"none", nil},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			p := fixture()
+			data := &types.DataType{Name: "Point"}
+			record := &types.Ctor{Name: "Point", Data: data,
+				Fields: []types.Type{types.Int, types.Int, types.Int}, FieldNames: []string{"x", "y", "z"}}
+			data.Ctors = []*types.Ctor{record}
+			p.DataTypes[data.Name] = data
+			point := &types.TCon{Name: data.Name}
+			addFunc(p, "base", nil, nil, call(ctor("Point"), integer(1), integer(2), integer(3)))
+			addFunc(p, "replace", []string{"n"}, []types.Type{types.Int}, local("n", types.Int))
+			update := &ast.RecordUpdate{
+				ExprBase: annotated(&types.Ann{Type: point, Ctor: record, FieldIndexes: tt.indexes}),
+				X:        call(function("base", fnType())),
+			}
+			var fields []string
+			for index := range record.Fields {
+				replaced := false
+				for _, replacement := range tt.indexes {
+					if replacement == index {
+						replaced = true
+					}
+				}
+				if !replaced {
+					fields = append(fields, fmt.Sprintf("F%d: _gofx0.F%d", index, index))
+				}
+			}
+			for _, index := range tt.indexes {
+				update.Names = append(update.Names, record.FieldNames[index])
+				update.Values = append(update.Values, call(function("replace", fnType(types.Int)), integer(int64(index+10))))
+				fields = append(fields, fmt.Sprintf("F%d: replace_(int64(%d))", index, index+10))
+			}
+			addFunc(p, "update", nil, nil, update)
+			out := assertSource(t, p,
+				"_gofx0 := any(base_()).(*Point_Point)",
+				"_ = _gofx0",
+				"return &Point_Point{"+strings.Join(fields, ", ")+"}")
+			if strings.Count(out, "any(base_())") != 1 {
+				t.Errorf("update base was not evaluated exactly once:\n%s", out)
+			}
+		})
+	}
+}
+
+func TestPolymorphicLetDictionaries(t *testing.T) {
+	for _, inDo := range []bool{false, true} {
+		t.Run(fmt.Sprintf("do=%t", inDo), func(t *testing.T) {
+			p, _, monad := classFixture()
+			param := types.DictRef{Kind: types.DictParam, Class: "Monad", Param: "M", ParamClass: "Monad"}
+			ft := fnType(types.Int)
+			value := &ast.Lambda{
+				ExprBase: annotated(&types.Ann{Type: ft, LetScheme: &types.Scheme{
+					TParams: []*types.TVar{{Name: "M"}}, Constraints: []types.Constraint{{Class: "Monad", Arg: &types.TVar{Name: "M"}}},
+				}}),
+				Params: []ast.Param{{Name: "x"}}, Body: call(method("pure", ft, param), local("x", types.Int)),
+			}
+			ref := local("wrap", ft)
+			types.AnnOf(ref).Dicts = []types.DictRef{instanceDict(monad)}
+			result := call(ref, integer(4))
+			if inDo {
+				dict := instanceDict(monad)
+				addFunc(p, "letDo", nil, nil, &ast.Do{
+					ExprBase: annotated(&types.Ann{Type: types.Unit, Monad: &dict}),
+					Stmts:    []ast.DoStmt{&ast.DoLet{Name: "wrap", Value: value}, &ast.DoLet{Name: "bound", Value: ref}},
+					Result:   result,
+				})
+			} else {
+				f := addFunc(p, "letBlock", nil, nil, result)
+				f.Decl.Body.Stmts = []ast.Stmt{&ast.LetStmt{Name: "wrap", Value: value}, &ast.LetStmt{Name: "bound", Value: ref}}
+			}
+			assertSource(t, p,
+				"wrap_ := func(dict_M Monad) any",
+				"return (dict_M).Pure(x_)",
+				"var bound_ any = wrap_(Monad_Option{})",
+				"any(wrap_(Monad_Option{})).(func(any) any)(int64(4))")
+		})
+	}
+}
+
+func TestLetInstantiationAndErasedValues(t *testing.T) {
+	p, showInt, showOption := showFixture()
+	a, b := &types.TVar{Name: "A"}, &types.TVar{Name: "B"}
+	ft := &types.TFunc{Params: []types.Type{a, b}, Ret: types.String}
+	paramA := types.DictRef{Kind: types.DictParam, Class: "Show", Param: "A", ParamClass: "Show"}
+	paramB := types.DictRef{Kind: types.DictParam, Class: "Show", Param: "B", ParamClass: "Show"}
+	render := &ast.Lambda{
+		ExprBase: annotated(&types.Ann{Type: ft, LetScheme: &types.Scheme{
+			TParams: []*types.TVar{a, b}, Type: ft,
+			Constraints: []types.Constraint{{Class: "Show", Arg: b}, {Class: "Show", Arg: a}},
+		}}),
+		Params: []ast.Param{{Name: "x"}, {Name: "y"}},
+		Body: &ast.Interp{
+			ExprBase: annotated(&types.Ann{Type: types.String, ShowDicts: []types.DictRef{paramA, paramB}}),
+			Texts:    []string{"", " ", ""}, Exprs: []ast.Expr{local("x", a), local("y", b)},
+		},
+	}
+	concrete := instanceDict(showInt)
+	nested := instanceDict(showOption, concrete)
+	first, second := local("render", ft), local("render", ft)
+	types.AnnOf(first).Dicts = []types.DictRef{nested, concrete}
+	types.AnnOf(second).Dicts = []types.DictRef{concrete, nested}
+	boxed := call(ctor("Some"), &ast.Lambda{
+		ExprBase: annotated(&types.Ann{Type: fnType(a)}),
+		Params:   []ast.Param{{Name: "x"}},
+		Body:     call(method("show", showInt.Class.Methods[0].Scheme.Type, paramA), local("x", a)),
+	})
+	types.AnnOf(boxed).LetScheme = &types.Scheme{TParams: []*types.TVar{a}, Constraints: showOption.Context}
+	boxedRef := local("boxed", types.Unit)
+	types.AnnOf(boxedRef).Dicts = []types.DictRef{concrete}
+	f := addFunc(p, "uses", nil, nil, boxedRef)
+	f.Decl.Body.Stmts = []ast.Stmt{
+		&ast.LetStmt{Name: "render", Value: render},
+		&ast.ExprStmt{X: call(first, integer(1), call(ctor("Some"), integer(2)))},
+		&ast.ExprStmt{X: call(second, call(ctor("Some"), integer(3)), integer(4))},
+		&ast.LetStmt{Name: "boxed", Value: boxed},
+		&ast.LetStmt{Name: "id", Value: identity()},
+		&ast.ExprStmt{X: call(local("id", fnType(types.Int)), integer(5))},
+		&ast.ExprStmt{X: call(local("id", fnType(types.Bool)), boolean(true))},
+	}
+	assertSource(t, p,
+		"render_ := func(dict_B Show, dict_A Show) any",
+		`rt.Concat((dict_A).Show(x_), " ", (dict_B).Show(y_))`,
+		"any(render_(Show_Option{dict_A: Show_Int{}}, Show_Int{})).(func(any, any) any)(int64(1), &Option_Some{F0: int64(2)})",
+		"any(render_(Show_Int{}, Show_Option{dict_A: Show_Int{}})).(func(any, any) any)(&Option_Some{F0: int64(3)}, int64(4))",
+		"boxed_ := func(dict_A Show) any",
+		"return &Option_Some{F0: func(x_ any) any",
+		"return boxed_(Show_Int{})",
+		"var id_ any = func(x_ any) any",
+		"any(id_).(func(any) any)(int64(5))",
+		"any(id_).(func(any) any)(true)")
+}
+
+func TestPolymorphicLetDictionaryScopes(t *testing.T) {
+	p, showInt, showOption := showFixture()
+	ft := showInt.Class.Methods[0].Scheme.Type
+	a := types.DictRef{Kind: types.DictParam, Class: "Show", Param: "A", ParamClass: "Show"}
+	b := types.DictRef{Kind: types.DictParam, Class: "Show", Param: "B", ParamClass: "Show"}
+	c := types.DictRef{Kind: types.DictParam, Class: "Show", Param: "C", ParamClass: "Show"}
+	scheme := func(param string) *types.Scheme {
+		tv := &types.TVar{Name: param, Kind: types.KStar{}}
+		return &types.Scheme{TParams: []*types.TVar{tv}, Constraints: []types.Constraint{{Class: "Show", Arg: tv}}, Type: ft}
+	}
+	interp := func(dicts ...types.DictRef) ast.Expr {
+		e := &ast.Interp{ExprBase: annotated(&types.Ann{Type: types.String, ShowDicts: dicts})}
+		e.Texts = make([]string, len(dicts)+1)
+		for range dicts {
+			e.Exprs = append(e.Exprs, local("x", types.Unit))
+		}
+		return e
+	}
+	inner := &ast.Lambda{
+		ExprBase: annotated(&types.Ann{Type: ft, LetScheme: scheme("C")}),
+		Params:   []ast.Param{{Name: "x"}}, Body: interp(c, b, a),
+	}
+	outer := &ast.Lambda{
+		ExprBase: annotated(&types.Ann{Type: ft, LetScheme: scheme("B")}),
+		Params:   []ast.Param{{Name: "x"}}, Body: &ast.BlockExpr{Block: &ast.Block{
+			Stmts: []ast.Stmt{&ast.LetStmt{Name: "inner", Value: inner}}, Result: interp(b, a),
+		}},
+	}
+	shadow := &ast.Lambda{
+		ExprBase: annotated(&types.Ann{Type: ft, LetScheme: scheme("A")}),
+		Params:   []ast.Param{{Name: "x"}}, Body: interp(a),
+	}
+	showOption.Decl.Methods[0].Body = &ast.Block{
+		Stmts: []ast.Stmt{
+			&ast.LetStmt{Name: "outer", Value: outer},
+			&ast.LetStmt{Name: "shadow", Value: shadow},
+		},
+		Result: call(method("show", ft, a), local("dictself", types.Unit)),
+	}
+	assertSource(t, p,
+		"outer_ := func(dict_B Show) any",
+		"inner_ := func(dict_C Show) any",
+		"shadow_ := func(dict_A Show) any",
+		"rt.Concat((dict_C).Show(x_), (dict_B).Show(x_), (dictself.dict_A).Show(x_))",
+		"rt.Concat((dict_B).Show(x_), (dictself.dict_A).Show(x_))",
+		"rt.Concat((dict_A).Show(x_))",
+		"return (dictself.dict_A).Show(dictself_)")
+}
+
 func TestGenerationErrors(t *testing.T) {
 	p := fixture()
 	p.Main.Decl.Body.Result = &ast.Ident{ExprBase: ast.ExprBase{Pos: ast.Pos{Line: 3, Col: 7}}, Name: "missing"}
@@ -869,7 +1119,7 @@ func (fakeImporter) Import(path string) (*gotypes.Package, error) {
 	var funcs map[string]int
 	switch path {
 	case "gofx/rt":
-		funcs = map[string]int{"RunMain": 1, "UnitValue": 0, "ShowInt": 1}
+		funcs = map[string]int{"RunMain": 1, "UnitValue": 0, "ShowInt": 1, "Concat": 1}
 		for _, name := range strings.Fields("AddInt AddString SubInt MulInt DivInt EqInt NeInt LtInt LeInt GtInt GeInt EqString NeString LtString LeString GtString GeString EqBool NeBool And Or") {
 			funcs[name] = 2
 		}
@@ -883,13 +1133,17 @@ func (fakeImporter) Import(path string) (*gotypes.Package, error) {
 	for name, arity := range funcs {
 		params := make([]*gotypes.Var, arity)
 		for i := range params {
-			params[i] = gotypes.NewVar(token.NoPos, pkg, fmt.Sprintf("a%d", i), anyType)
+			typ := anyType
+			if name == "Concat" {
+				typ = gotypes.NewSlice(anyType)
+			}
+			params[i] = gotypes.NewVar(token.NoPos, pkg, fmt.Sprintf("a%d", i), typ)
 		}
 		var results *gotypes.Tuple
 		if name != "RunMain" {
 			results = gotypes.NewTuple(gotypes.NewVar(token.NoPos, pkg, "", anyType))
 		}
-		sig := gotypes.NewSignatureType(nil, nil, nil, gotypes.NewTuple(params...), results, false)
+		sig := gotypes.NewSignatureType(nil, nil, nil, gotypes.NewTuple(params...), results, name == "Concat")
 		pkg.Scope().Insert(gotypes.NewFunc(token.NoPos, pkg, name, sig))
 	}
 	pkg.MarkComplete()

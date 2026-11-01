@@ -3,8 +3,8 @@ package main
 // ===== ドメイン =====
 
 type Sku = Sku(String)
-type Stock = Stock(Sku, Int)               // 在庫: sku, 数量
-type Line = Line(Sku, Int)                 // 注文明細: sku, 要求数
+type Stock = Stock{sku: Sku, qty: Int}      // 在庫: sku, 数量
+type Line = Line{sku: Sku, qty: Int}        // 注文明細: sku, 要求数
 
 type Result[E, A] = Err(E) | Ok(A)         // 自前の Either
 
@@ -15,18 +15,18 @@ instance Show[Sku] {
 }
 
 instance Show[Stock] {
-  show(s) { match s { | Stock(sku, qty) => show(sku) + "=" + show(qty) } }
+  show(s) { "{s.sku}={s.qty}" }
 }
 
 instance Show[Line] {
-  show(l) { match l { | Line(sku, qty) => show(qty) + "x" + show(sku) } }
+  show(l) { "{l.qty}x{l.sku}" }
 }
 
 instance Show[Result[E, A]] given Show[E], Show[A] {
   show(r) {
     match r {
-      | Err(e) => "Err(" + show(e) + ")"
-      | Ok(a) => "Ok(" + show(a) + ")"
+      | Err(e) => "Err({e})"
+      | Ok(a) => "Ok({a})"
     }
   }
 }
@@ -72,19 +72,16 @@ func addStock(acc List[Stock], s Stock) List[Stock] {
 }
 
 func available(stocks List[Stock], sku Sku) Int {
-  fold(stocks, 0, func(acc, s) => match s {
-    | Stock(sku2, qty) => if sameSku(sku, sku2) { acc + qty } else { acc }
-  })
+  fold(stocks, 0, func(acc, s) => if sameSku(sku, s.sku) { acc + s.qty } else { acc })
 }
 
 // 1 明細の引当。失敗理由を Err に積む
 func allocate(stocks List[Stock], line Line) Result[String, Line] {
-  match line {
-    | Line(sku, want) =>
-        if want <= 0 { Err("invalid quantity for " + show(sku)) }
-        else if available(stocks, sku) < want { Err("short of " + show(sku) + ": need " + show(want) + ", have " + show(available(stocks, sku))) }
-        else { Ok(line) }
+  if line.qty <= 0 { Err("invalid quantity for {line.sku}") }
+  else if available(stocks, line.sku) < line.qty {
+    Err("short of {line.sku}: need {line.qty}, have {available(stocks, line.sku)}")
   }
+  else { Ok(line) }
 }
 
 // 注文全体の引当: Result モナドで最初の失敗で止まる
@@ -101,16 +98,14 @@ func allocateAll(stocks List[Stock], lines List[Line]) Result[String, List[Line]
 
 // 引当後の在庫を減らす
 func consume(stocks List[Stock], lines List[Line]) List[Stock] {
-  fold(lines, stocks, func(acc, l) => match l {
-    | Line(sku, want) => fmap(acc, func(s) => match s {
-        | Stock(sku2, qty) => if sameSku(sku, sku2) { Stock(sku2, qty - want) } else { s }
-      })
-  })
+  fold(lines, stocks, func(acc, l) => fmap(acc, func(s) =>
+    if sameSku(l.sku, s.sku) { s{qty: s.qty - l.qty} } else { s }
+  ))
 }
 
 // HKT: Functor であれば何にでも適用できる汎用ヘルパ
 func tag[F[_] Functor, A Show](fa F[A], prefix String) F[String] {
-  fmap(fa, func(a) => prefix + show(a))
+  fmap(fa, func(a) => "{prefix}{a}")
 }
 
 // ===== 効果 =====
@@ -118,41 +113,41 @@ func tag[F[_] Functor, A Show](fa F[A], prefix String) F[String] {
 extern func httpGet(url String) IO[Int] = "gofx/rt/stdhttp".GetStatus
 
 func report(title String, r Result[String, List[Line]]) IO[Unit] {
-  println(title + ": " + show(r))
+  println("{title}: {r}")
 }
 
 func notify(lines List[Line]) IO[Unit] {
   do {
     status <- httpGet("https://example.com")
     if status == 200 {
-      println("  notified " + show(length(lines)) + " lines")
+      println("  notified {length(lines)} lines")
     }
     else {
-      ioFail("notify failed: " + show(status))
+      ioFail("notify failed: {status}")
     }
   }
 }
 
 func main() IO[Unit] {
-  let warehouseA = [Stock(Sku("apple"), 5), Stock(Sku("pear"), 2)]
-  let warehouseB = [Stock(Sku("apple"), 3), Stock(Sku("fig"), 9)]
+  let warehouseA = [Stock{sku: Sku("apple"), qty: 5}, Stock{sku: Sku("pear"), qty: 2}]
+  let warehouseB = [Stock{sku: Sku("apple"), qty: 3}, Stock{sku: Sku("fig"), qty: 9}]
   let stocks = merge(append(warehouseA, warehouseB))
-  let order1 = [Line(Sku("apple"), 7), Line(Sku("fig"), 1)]
-  let order2 = [Line(Sku("apple"), 7), Line(Sku("pear"), 3)]
-  let order3 = [Line(Sku("apple"), 0)]
+  let order1 = [Line{sku: Sku("apple"), qty: 7}, Line{sku: Sku("fig"), qty: 1}]
+  let order2 = [Line{sku: Sku("apple"), qty: 7}, Line{sku: Sku("pear"), qty: 3}]
+  let order3 = [Line{sku: Sku("apple"), qty: 0}]
   do {
-    println("stocks:   " + show(stocks))
-    println("tagged:   " + show(tag(stocks, "stock:")))
-    println("tagged?:  " + show(tag(Some(42), "n=")))
+    println("stocks:   {stocks}")
+    println("tagged:   {tag(stocks, "stock:")}")
+    println("tagged?:  {tag(Some(42), "n=")}")
     report("order1", allocateAll(stocks, order1))
     report("order2", allocateAll(stocks, order2))
     report("order3", allocateAll(stocks, order3))
     match allocateAll(stocks, order1) {
       | Ok(lines) => do {
           notify(lines)
-          println("  remaining " + show(consume(stocks, lines)))
+          println("  remaining {consume(stocks, lines)}")
         }
-      | Err(e) => println("  skipped: " + e)
+      | Err(e) => println("  skipped: {e}")
     }
     x <- tag(ioPure((1, true)), "io:")
     println(x)

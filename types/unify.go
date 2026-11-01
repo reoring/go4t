@@ -171,6 +171,7 @@ func unifyTypes(pos ast.Pos, expected, actual Type) bool {
 }
 
 func substitute(t Type, sub map[*TVar]Type) Type {
+	t = prune(t)
 	switch t := t.(type) {
 	case *TVar:
 		if replacement := sub[t]; replacement != nil {
@@ -246,25 +247,26 @@ func unresolved(t Type) bool {
 	return false
 }
 
-// zonk is called only after checking every class obligation for unresolved
-// metas. Unconstrained ordinary metas then have the canonical default Unit.
-func zonk(pos ast.Pos, t Type) Type {
+// zonk runs after class ambiguity checks. Each ordinary meta is defaulted once,
+// notifying the body checker before following the new Unit link.
+func zonk(pos ast.Pos, t Type, onDefault func(*TMeta)) Type {
 	t = prune(t)
 	switch t := t.(type) {
 	case *TMeta:
 		if !sameKind(t.Kind, KStar{}) {
 			fail(pos, "cannot infer type constructor of kind %s", KindString(t.Kind))
 		}
+		onDefault(t)
 		var unit Type = Unit
 		t.Ref = &unit
 		return Unit
 	case *TApp:
 		// Instances of generic types are private to this body; rigid types in
 		// declaration schemes contain no metas and can be shared unchanged.
-		fun := zonk(pos, t.Fun)
+		fun := zonk(pos, t.Fun, onDefault)
 		var args []Type
 		for i, arg := range t.Args {
-			z := zonk(pos, arg)
+			z := zonk(pos, arg, onDefault)
 			if z != arg && args == nil {
 				args = append([]Type(nil), t.Args...)
 			}
@@ -281,7 +283,7 @@ func zonk(pos ast.Pos, t Type) Type {
 	case *TFunc:
 		var params []Type
 		for i, param := range t.Params {
-			z := zonk(pos, param)
+			z := zonk(pos, param, onDefault)
 			if z != param && params == nil {
 				params = append([]Type(nil), t.Params...)
 			}
@@ -289,7 +291,7 @@ func zonk(pos ast.Pos, t Type) Type {
 				params[i] = z
 			}
 		}
-		ret := zonk(pos, t.Ret)
+		ret := zonk(pos, t.Ret, onDefault)
 		if params != nil || ret != t.Ret {
 			if params == nil {
 				params = t.Params
