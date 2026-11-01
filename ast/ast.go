@@ -339,7 +339,7 @@ type Lambda struct {
 	Params  []Param
 	Body    Expr
 	Partial bool // synthesized placeholder lambda
-	Section bool // operator section rather than a partial call
+	Section bool // parenthesised operator/projection section, not a partial call or bare projection argument
 }
 
 type BlockExpr struct {

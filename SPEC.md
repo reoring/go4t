@@ -273,7 +273,7 @@ LParam     := Ident [Type] | IrrefutablePattern
 Binary     := Unary {BinOp Unary}                    // precedence below
 Unary      := ['-' | '!'] Postfix
 Postfix    := Primary {'(' [CallArg {',' CallArg}] ')' | '.' Ident | '.' Int | RecordFields}
-CallArg    := Expr | '_'
+CallArg    := Expr | '_' | Projection
 Primary    := Name | Int | Float | String | Interp | 'true' | 'false'
             | Name RecordFields | '(' Expr ')' | '(' Expr ',' Expr {',' Expr} ')'
             | '[' [Expr {',' Expr}] ']' | Block | Section
@@ -283,6 +283,8 @@ LetStmt    := 'let' (Ident | IrrefutablePattern) [':' Type] '=' Expr
 LocalFunc  := 'func' Ident '(' [Param {',' Param}] ')' Type Block
 DoStmt     := (Ident | IrrefutablePattern) '<-' Expr | LetStmt | LocalFunc | Expr
 Section    := '(' '_' BinOp Expr ')' | '(' Expr BinOp '_' ')' | '(' '_' BinOp '_' ')'
+            | '(' Projection ')'
+Projection := '_' '.' (Ident | Int) {'.' (Ident | Int)}
 RecordFields := '{' Ident ':' Expr {',' Ident ':' Expr} '}'
 ```
 
@@ -367,8 +369,22 @@ Parenthesised operator sections permit whole operands `_`: `(_ + 1)`, `(2 * _)`,
 `(_ < _)`, `(_ |> f)`. Two holes mean two parameters, not currying. Nested calls
 have independent placeholder scopes. Fixed arguments are evaluated inside the
 synthesized lambda body, on each application, not when constructing the section.
+
+Projection sections `(_.field)` and `(_.0)` desugar to `func(x) => x.field`
+and `func(x) => x.0`. Selectors may chain: `(_.a.b)` is one unary lambda,
+not nested lambdas. A projection may also occupy a whole call argument without
+parentheses: `map(xs, _.qty)` is `map(xs, func(x) => x.qty)`, so
+`xs |> map(_.qty)` works too. Each projection has its own parameter scope:
+`map(_, _.qty)` has one outer hole and an independent projection lambda.
+Record types and tuple arity must be known from the call argument context or an
+explicit function type annotation; projection sections use ordinary field-access
+rules, including common fields across constructors (§4.6).
+
 `f(_ + 1)`, `(_ + 1 + 2)`, `[_]`, `(_, 1)` and `(_)` are invalid; write
-`f((_ + 1))`. The diagnostic is `_ is only valid as a placeholder in a call or operator section`.
+`f((_ + 1))`. Unparenthesised `_.f` outside a whole call argument is also invalid,
+as are `f(_.f + 1)` and `(_.f + 1)`; use an explicit lambda for computations
+beyond a selector chain. Invalid placeholder placement retains the diagnostic
+`_ is only valid as a placeholder in a call or operator section`.
 
 ```gofx
 package main
@@ -376,6 +392,29 @@ import "std/string"
 func main() IO[Unit] {
   [1, 2, 3] |> map((_ + 1)) |> map(show) |> string.join(", ", _) |> println
 }
+```
+
+```gofx
+package main
+type Row = Row{qty: Int}
+type Box = Box{row: Row}
+func main() IO[Unit] {
+  let rows = [Row{qty: 3}, Row{qty: 7}]
+  let qty: func(Row) Int = (_.qty)
+  do {
+    println(show(rows |> map(_.qty)))
+    println(show(map([(3, "a"), (7, "b")], (_.0))))
+    println(show(map([Box{row: Row{qty: 11}}], _.row.qty)))
+    println(show(qty(Row{qty: 9})))
+  }
+}
+```
+
+```gofx error
+package main
+type Row = Row{qty: Int}
+func bad() Int { let qty = _.qty; qty(Row{qty: 3}) }
+func main() IO[Unit] { ioPure(unit()) }
 ```
 
 ### 4.6 Conditionals, tuples, lists and records
@@ -920,7 +959,7 @@ including exported low-level helpers and private JSON helpers.
 | Alias instance specialization | Repeated/erased/nested variables or function head → `instance head must be a type constructor`; permutations of distinct direct variables allowed |
 | Common fields | Missing constructor field wins over type mismatch; rigid declaration types must agree even if a particular instantiation could make them equal; update preserves constructor |
 | Local recursion | Only bare-name lambda lets recurse; consecutive local funcs share one scope group; local own type parameters → `local functions cannot have type parameters`; duplicate name → `duplicate local function <name>` |
-| Placeholder placement | Whole arguments/section operands only; nested holes have independent scopes; fixed expressions run per application |
+| Placeholder placement | Bare holes are whole arguments/operator-section operands; projection sections `(_.f)` / `(_.0)` allow selector chains and omit parentheses only as whole call arguments; each projection has one independent parameter; fixed expressions run per application |
 | Constraints | Duplicate class on one parameter fails; Eq + Ord is legal and reuses Ord; absent rigid class diagnostics list constraints in order |
 | Match coverage | Guards add no coverage; true/false are exhaustive; other literal domains need default; maximum five missing witnesses |
 | Deriving | Show rejected; Ord needs Eq, Traversable needs Functor; unmapped functions allowed only where the generated class never examines them |
