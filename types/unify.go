@@ -197,7 +197,7 @@ func substitute(t Type, sub map[*TVar]Type) Type {
 		if args == nil {
 			args = a.Args
 		}
-		return &TAlias{Name: a.Name, Args: args, Body: body}
+		return &TAlias{Name: a.Name, Display: a.Display, Args: args, Body: body}
 	}
 	t = prune(t)
 	switch t := t.(type) {
@@ -296,7 +296,7 @@ func zonk(pos ast.Pos, t Type, onDefault func(*TMeta)) Type {
 		if args == nil {
 			args = a.Args
 		}
-		return &TAlias{Name: a.Name, Args: args, Body: body}
+		return &TAlias{Name: a.Name, Display: a.Display, Args: args, Body: body}
 	}
 	t = prune(t)
 	switch t := t.(type) {

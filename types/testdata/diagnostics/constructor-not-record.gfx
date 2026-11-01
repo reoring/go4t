@@ -1,0 +1,5 @@
+// want: constructor m.Left is not a record
+package main
+import m "model"
+func bad() m.Choice { m.Left{value: 1} }
+func main() IO[Unit] { ioPure(unit()) }

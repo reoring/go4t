@@ -1,0 +1,5 @@
+// want: no instance Show[http.Response]
+package main
+import "std/http"
+func bad(x http.Response) String { show(x) }
+func main() IO[Unit] { ioPure(unit()) }

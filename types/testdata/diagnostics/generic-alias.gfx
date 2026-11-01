@@ -1,0 +1,5 @@
+// want: type mismatch: expected m.Pair[Int], got Tuple2[Bool, Bool]
+package main
+import m "model"
+func bad() m.Pair[Int] { (true, false) }
+func main() IO[Unit] { ioPure(unit()) }

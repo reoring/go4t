@@ -59,17 +59,17 @@ func mapped(j codec.Json) Result[String, Map[String, Box[Int]]] { codec.decode(j
 
 func TestJSONDerivingErrors(t *testing.T) {
 	cases := []struct{ source, want string }{
-		{`type T = T deriving codec.Encode, codec.Encode`, "duplicate deriving class Encode for T"},
-		{`type T = T deriving codec.Decode; instance codec.Decode[T] { decode(_j) { Ok(T) } }`, "duplicate instance Decode[T]"},
-		{`func value() codec.Json { codec.encode(map.mapFromList([(1, "x")])) }`, "no instance Encode[Map[Int, String]]"},
-		{`func value(j codec.Json) Result[String, Map[Int, String]] { codec.decode(j) }`, "no instance Decode[Map[Int, String]]"},
-		{`type Hidden = Hidden; type T = T(Hidden) deriving codec.Encode`, "no instance Encode[Hidden]"},
-		{`type Hidden = Hidden; type T = T(Hidden) deriving codec.Decode`, "no instance Decode[Hidden]"},
-		{`instance codec.Encode[Map[Int, V]] given codec.Encode[V] { encode(_m) { codec.JNull } }`, "duplicate instance Encode[Map]"},
+		{`type T = T deriving codec.Encode, codec.Encode`, "duplicate deriving class codec.Encode for T"},
+		{`type T = T deriving codec.Decode; instance codec.Decode[T] { decode(_j) { Ok(T) } }`, "duplicate instance codec.Decode[T]"},
+		{`func value() codec.Json { codec.encode(map.mapFromList([(1, "x")])) }`, "no instance codec.Encode[Map[Int, String]]"},
+		{`func value(j codec.Json) Result[String, Map[Int, String]] { codec.decode(j) }`, "no instance codec.Decode[Map[Int, String]]"},
+		{`type Hidden = Hidden; type T = T(Hidden) deriving codec.Encode`, "no instance codec.Encode[Hidden]"},
+		{`type Hidden = Hidden; type T = T(Hidden) deriving codec.Decode`, "no instance codec.Decode[Hidden]"},
+		{`instance codec.Encode[Map[Int, V]] given codec.Encode[V] { encode(_m) { codec.JNull } }`, "duplicate instance codec.Encode[Map]"},
 	}
 	for _, class := range []string{"Encode", "Decode"} {
 		for _, field := range []string{"func(Int) Int", "List[func(Int) Int]", "(String, func(Int) Int)"} {
-			cases = append(cases, struct{ source, want string }{fmt.Sprintf("type T = T{value: %s} deriving codec.%s", field, class), fmt.Sprintf("cannot derive %s for T: field of function type", class)})
+			cases = append(cases, struct{ source, want string }{fmt.Sprintf("type T = T{value: %s} deriving codec.%s", field, class), fmt.Sprintf("cannot derive codec.%s for T: field of function type", class)})
 		}
 	}
 	for _, tc := range cases {

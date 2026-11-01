@@ -1,0 +1,5 @@
+// want: duplicate field value in constructor m.Box
+package main
+import m "model"
+func bad() m.Box { m.Box{value: 1, value: 2} }
+func main() IO[Unit] { ioPure(unit()) }

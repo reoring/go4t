@@ -71,3 +71,29 @@ func TestAliasMismatchDiagnostics(t *testing.T) {
 		t.Fatal(ds)
 	}
 }
+
+func TestHoverUsesFileImportAliases(t *testing.T) {
+	for _, alias := range []string{"http", "web"} {
+		source := "package main\nimport " + alias + " \"std/http\"\n" +
+			"func identity(x " + alias + ".Response) " + alias + ".Response { x }\n" +
+			"func main() IO[Unit] { ioPure(unit()) }\n"
+		uri := fileURI(filepath.Join(t.TempDir(), "main.gfx"))
+		c := client(t)
+		if ds := diagnostics(t, c.notify("textDocument/didOpen", openParams(uri, source))); len(ds) != 0 {
+			t.Fatal(ds)
+		}
+		for _, tt := range []struct{ needle, want string }{
+			{"identity(x", "identity : func(" + alias + ".Response) " + alias + ".Response"},
+			{"x }", "x : " + alias + ".Response"},
+		} {
+			data := c.request("textDocument/hover", positionParams(uri, source, tt.needle, 0))
+			if !strings.Contains(string(data), tt.want) {
+				t.Errorf("hover %s: %s, want %q", tt.needle, data, tt.want)
+			}
+		}
+		data := c.request("textDocument/documentSymbol", map[string]any{"textDocument": map[string]string{"uri": uri}})
+		if !strings.Contains(string(data), "func("+alias+".Response) "+alias+".Response") {
+			t.Errorf("document symbols: %s", data)
+		}
+	}
+}

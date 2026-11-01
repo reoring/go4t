@@ -1,0 +1,14 @@
+package model
+type Box = Box{value: Int}
+type PairRecord = PairRecord{value: Int, other: Int}
+type Shape = First{value: Int} | Second{value: String}
+type Choice = Left | Right
+alias Label = String
+alias Pair[A] = (A, A)
+class Render[A] { render(x A) String }
+class Base[A] {}
+class Derived[A] : Base[A] {}
+class Extra[A] {}
+func label() Label { "label" }
+func choice() Choice { Left }
+func identity(x Box) Box { x }

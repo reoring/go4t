@@ -1,0 +1,5 @@
+// want: no instance m.Render[A] (type parameter A is constrained only by m.Extra)
+package main
+import m "model"
+func bad[A m.Extra](x A) String { m.render(x) }
+func main() IO[Unit] { ioPure(unit()) }

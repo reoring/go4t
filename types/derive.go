@@ -1,7 +1,6 @@
 package types
 
 import (
-	"fmt"
 	"sort"
 	"strconv"
 	"strings"
@@ -31,17 +30,17 @@ func expandDeriving(f *ast.File, sourceNames map[string]string) error {
 					}
 				}
 			default:
-				return &Error{File: f.Name, Pos: d.Pos, Msg: fmt.Sprintf("cannot derive %s for %s: unknown class", class, d.Name)}
+				return derivingError(f.Name, d.Pos, "cannot derive %s for %s: unknown class", diagnosticName(class), diagnosticName(d.Name))
 			}
 			if seen[class] {
-				return &Error{File: f.Name, Pos: d.Pos, Msg: fmt.Sprintf("duplicate deriving class %s for %s", class, d.Name)}
+				return derivingError(f.Name, d.Pos, "duplicate deriving class %s for %s", diagnosticName(class), diagnosticName(d.Name))
 			}
 			seen[class] = true
 			if class == "Eq" || class == "Ord" {
 				for _, ctor := range d.Ctors {
 					for _, field := range ctor.Fields {
 						if _, function := field.(*ast.FuncType); function {
-							return &Error{File: f.Name, Pos: d.Pos, Msg: fmt.Sprintf("cannot derive %s for %s: field of function type", class, d.Name)}
+							return derivingError(f.Name, d.Pos, "cannot derive %s for %s: field of function type", diagnosticName(class), diagnosticName(d.Name))
 						}
 					}
 				}
@@ -50,7 +49,7 @@ func expandDeriving(f *ast.File, sourceNames map[string]string) error {
 				for _, ctor := range d.Ctors {
 					for _, field := range ctor.Fields {
 						if deriveJSONFunction(field) {
-							return &Error{File: f.Name, Pos: d.Pos, Msg: fmt.Sprintf("cannot derive %s for %s: field of function type", class, d.Name)}
+							return derivingError(f.Name, d.Pos, "cannot derive %s for %s: field of function type", diagnosticName(class), diagnosticName(d.Name))
 						}
 					}
 				}
@@ -115,8 +114,14 @@ func expandDeriving(f *ast.File, sourceNames map[string]string) error {
 	return nil
 }
 
+func derivingError(file string, pos ast.Pos, format string, args ...any) *Error {
+	err := NewError(pos, format, args...)
+	err.File = file
+	return err
+}
+
 func deriveIdent(pos ast.Pos, name string) *ast.Ident {
-	return &ast.Ident{ExprBase: ast.ExprBase{Pos: pos}, Name: name}
+	return &ast.Ident{ExprBase: ast.ExprBase{Pos: pos}, Name: name, Display: name}
 }
 
 // Empty prefix ignores fields in constructor-tag ordering arms. Record
@@ -241,7 +246,7 @@ func deriveDebug(d *ast.TypeDecl, sourceNames map[string]string) ast.Expr {
 // Leading parameters and fields not mentioning the last parameter are preserved.
 func validateDeriveLast(file string, d *ast.TypeDecl, class string) error {
 	if len(d.TParams) == 0 {
-		return &Error{File: file, Pos: d.Pos, Msg: fmt.Sprintf("cannot derive %s for %s: requires a last type parameter", class, d.Name)}
+		return derivingError(file, d.Pos, "cannot derive %s for %s: requires a last type parameter", diagnosticName(class), diagnosticName(d.Name))
 	}
 	last := d.TParams[len(d.TParams)-1]
 	for _, ctor := range d.Ctors {
@@ -251,7 +256,7 @@ func validateDeriveLast(file string, d *ast.TypeDecl, class string) error {
 				if ctor.FieldNames != nil {
 					name = ctor.FieldNames[i]
 				}
-				return &Error{File: file, Pos: d.Pos, Msg: fmt.Sprintf("cannot derive %s for %s: constructor %s field %s: %s", class, d.Name, ctor.Name, name, reason)}
+				return derivingError(file, d.Pos, "cannot derive %s for %s: constructor %s field %s: %s", diagnosticName(class), diagnosticName(d.Name), diagnosticName(ctor.Name), name, reason)
 			}
 		}
 	}

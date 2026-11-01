@@ -23,21 +23,27 @@ func Unalias(t Type) Type {
 // replace subtrees at depth 3 with an ellipsis; the root has depth 0. Shallow
 // types are never clipped in the middle of a name or a parameter list.
 func TypeString(t Type) string {
-	p := typePrinter{remaining: 160}
+	return printType(t, false, nameContext{})
+}
+
+func printType(t Type, full bool, names nameContext) string {
+	budget := 160
+	if full {
+		budget = -1
+	}
+	p := typePrinter{remaining: budget, names: names}
 	p.typ(t, 0)
 	if !p.overflow {
 		return p.out.String()
 	}
-	p = typePrinter{remaining: -1, elide: true}
+	p = typePrinter{remaining: -1, elide: true, names: names}
 	p.typ(t, 0)
 	return p.out.String()
 }
 
 // TypeStringFull uses the same alias spelling without depth elision.
 func TypeStringFull(t Type) string {
-	p := typePrinter{remaining: -1}
-	p.typ(t, 0)
-	return p.out.String()
+	return printType(t, true, nameContext{})
 }
 
 type typePrinter struct {
@@ -45,6 +51,7 @@ type typePrinter struct {
 	remaining int // -1 means unbounded
 	elide     bool
 	overflow  bool
+	names     nameContext
 }
 
 func (p *typePrinter) text(s string) {
@@ -84,7 +91,7 @@ func (p *typePrinter) typ(t Type, depth int) {
 	}
 	switch t := t.(type) {
 	case *TCon:
-		p.text(t.Name)
+		p.text(p.names.name(t.Name, t.Display))
 	case *TVar:
 		p.text(t.Name)
 	case *TMeta:
@@ -95,7 +102,7 @@ func (p *typePrinter) typ(t Type, depth int) {
 			p.text(strconv.Itoa(t.ID))
 		}
 	case *TAlias:
-		p.text(t.Name)
+		p.text(p.names.name(t.Name, t.Display))
 		if len(t.Args) != 0 {
 			p.text("[")
 			p.list(t.Args, depth+1)
@@ -129,7 +136,7 @@ func messagef(format string, args ...any) *diagnosticMessage {
 	return &diagnosticMessage{format: format, args: args}
 }
 
-func (m *diagnosticMessage) render(full bool) string {
+func (m *diagnosticMessage) render(full bool, names nameContext) string {
 	if m == nil {
 		return ""
 	}
@@ -137,13 +144,17 @@ func (m *diagnosticMessage) render(full bool) string {
 	for i, arg := range m.args {
 		switch arg := arg.(type) {
 		case Type:
-			if full {
-				args[i] = TypeStringFull(arg)
-			} else {
-				args[i] = TypeString(arg)
-			}
+			args[i] = printType(arg, full, names)
+		case diagnosticName:
+			args[i] = names.name(string(arg), "")
 		case *diagnosticMessage:
-			args[i] = arg.render(full)
+			args[i] = arg.render(full, names)
+		case *Error:
+			if arg.detail != nil {
+				args[i] = arg.detail.render(full, names)
+			} else {
+				args[i] = arg.Msg
+			}
 		case interface{ Message(bool) string }:
 			args[i] = arg.Message(full)
 		default:

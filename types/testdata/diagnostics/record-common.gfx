@@ -1,0 +1,5 @@
+// want: field value has type String in constructor m.Second; expected Int from constructor m.First
+package main
+import m "model"
+func bad(x m.Shape) Int { x.value }
+func main() IO[Unit] { ioPure(unit()) }

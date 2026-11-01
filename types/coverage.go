@@ -57,7 +57,7 @@ type coverageCase struct {
 	literal bool
 }
 
-func (k coverageCase) render(fields []string) string {
+func (k coverageCase) render(fields []string, names nameContext) string {
 	if k.list {
 		if len(fields) == 0 {
 			return "[]"
@@ -77,9 +77,9 @@ func (k coverageCase) render(fields []string) string {
 		return "(" + strings.Join(fields, ", ") + ")"
 	}
 	if len(fields) == 0 {
-		return k.name
+		return names.name(k.name, "")
 	}
-	return k.name + "(" + strings.Join(fields, ", ") + ")"
+	return names.name(k.name, "") + "(" + strings.Join(fields, ", ") + ")"
 }
 
 func literalPattern(p ast.Pattern) string {
@@ -239,7 +239,7 @@ func (c *checker) uncovered(rows [][]ast.Pattern, columns []Type, limit int) [][
 				fields[i] = "_"
 			}
 			for _, suffix := range suffixes {
-				out = append(out, append([]string{k.render(fields)}, suffix...))
+				out = append(out, append([]string{k.render(fields, c.program.namesFor(c.file))}, suffix...))
 				if len(out) == limit {
 					break
 				}
@@ -290,7 +290,7 @@ func (c *checker) uncovered(rows [][]ast.Pattern, columns []Type, limit int) [][
 		nextColumns = append(nextColumns, k.fields...)
 		nextColumns = append(nextColumns, columns[1:]...)
 		for _, witness := range c.uncovered(specialized, nextColumns, limit-len(out)) {
-			out = append(out, append([]string{k.render(witness[:len(k.fields)])}, witness[len(k.fields):]...))
+			out = append(out, append([]string{k.render(witness[:len(k.fields)], c.program.namesFor(c.file))}, witness[len(k.fields):]...))
 		}
 	}
 	return out

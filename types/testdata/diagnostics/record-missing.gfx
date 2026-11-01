@@ -1,0 +1,5 @@
+// want: missing field other in constructor m.PairRecord
+package main
+import m "model"
+func bad() m.PairRecord { m.PairRecord{value: 1} }
+func main() IO[Unit] { ioPure(unit()) }

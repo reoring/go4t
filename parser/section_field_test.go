@@ -51,6 +51,9 @@ func TestProjectionSections(t *testing.T) {
 				if !ok || !hole.Placeholder || hole.Name != lambda.Params[0].Name {
 					t.Fatalf("projection receiver = %#v, want bound placeholder", receiver)
 				}
+				if hole.Display != "_" || hole.DisplayName() != "_" || lambda.Params[0].Display != "_" {
+					t.Fatalf("projection lost source spelling: ident=%#v param=%#v", hole, lambda.Params[0])
+				}
 			})
 		}
 	}
@@ -87,6 +90,26 @@ func TestProjectionPlacementErrors(t *testing.T) {
 			want := fmt.Sprintf("4:%d: _ is only valid as a placeholder in a call or operator section", 7+strings.Index(source, "_"))
 			if err == nil || err.Error() != want {
 				t.Fatalf("error = %v, want %q", err, want)
+			}
+		})
+	}
+}
+
+func TestPlaceholderDisplayNames(t *testing.T) {
+	for _, source := range []string{"f(_, _)", "(_ + _)", "(_.product)", "(_.0)"} {
+		t.Run(source, func(t *testing.T) {
+			expr := result(t, source)
+			holes := 0
+			ast.Walk(expr, func(node ast.Node) {
+				if ident, ok := node.(*ast.Ident); ok && ident.Placeholder {
+					holes++
+					if ident.Display != "_" || ident.DisplayName() != "_" {
+						t.Fatalf("placeholder lost source spelling: %#v", ident)
+					}
+				}
+			})
+			if holes == 0 {
+				t.Fatal("no placeholder checked")
 			}
 		})
 	}

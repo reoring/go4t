@@ -44,8 +44,9 @@ type Type interface{ isType() }
 
 // TCon is a declared type constructor: builtin, user data type, or IO.
 type TCon struct {
-	Name string
-	Kind Kind
+	Name    string
+	Display string // unmangled declaration spelling for context-free printing
+	Kind    Kind
 }
 
 // TVar is a rigid type parameter. Its pointer, not Name, is its unique identity.
@@ -71,9 +72,10 @@ type TApp struct {
 // semantic type; Name and Args are presentation provenance, never type identity.
 // Unification and representation inspection must go through Unalias/prune.
 type TAlias struct {
-	Name string
-	Args []Type
-	Body Type
+	Name    string // canonical declaration identity
+	Display string // source spelling for context-free printing
+	Args    []Type
+	Body    Type
 }
 
 // App constructs a type application, flattening leading applications (including
@@ -357,13 +359,14 @@ type Error struct {
 	File string // ast.File.Name of the file containing Pos ("" if unknown)
 	// detail defers potentially large full-type rendering until requested.
 	detail *diagnosticMessage
+	names  nameContext
 }
 
 // NewError formats a diagnostic while retaining type arguments for full-detail
 // rendering. Nested errors may implement Message(bool) to retain their detail.
 func NewError(pos ast.Pos, format string, args ...any) *Error {
 	message := messagef(format, args...)
-	return &Error{Pos: pos, Msg: message.render(false), detail: message}
+	return &Error{Pos: pos, Msg: message.render(false, nameContext{}), detail: message}
 }
 
 func (e *Error) Error() string { return fmt.Sprintf("%s: %s", e.Pos, e.Msg) }
@@ -374,7 +377,7 @@ func (e *Error) GetEnd() ast.Pos { return e.End }
 // Message selects the diagnostic's type detail without changing checker state.
 func (e *Error) Message(fullTypes bool) string {
 	if fullTypes && e.detail != nil {
-		return e.detail.render(true)
+		return e.detail.render(true, e.names)
 	}
 	return e.Msg
 }

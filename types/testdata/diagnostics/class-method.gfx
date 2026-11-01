@@ -1,0 +1,5 @@
+// want: missing method m.render in instance m.Render
+package main
+import m "model"
+instance m.Render[Int] {}
+func main() IO[Unit] { ioPure(unit()) }

@@ -997,7 +997,7 @@ func (p *Parser) placeholder(holes *[]*ast.Ident) *ast.Ident {
 	for strings.Contains(p.source, name) {
 		name += "_"
 	}
-	hole := &ast.Ident{ExprBase: ast.ExprBase{Pos: pos, End: p.end()}, Name: name, Placeholder: true}
+	hole := &ast.Ident{ExprBase: ast.ExprBase{Pos: pos, End: p.end()}, Name: name, Display: "_", Placeholder: true}
 	*holes = append(*holes, hole)
 	return hole
 }
@@ -1008,7 +1008,7 @@ func partialLambda(pos ast.Pos, body ast.Expr, holes []*ast.Ident, section bool)
 	}
 	params := make([]ast.Param, len(holes))
 	for i, hole := range holes {
-		params[i] = ast.Param{Pos: hole.Pos, End: hole.End, Name: hole.Name}
+		params[i] = ast.Param{Pos: hole.Pos, End: hole.End, Name: hole.Name, Display: hole.Display}
 	}
 	return &ast.Lambda{ExprBase: ast.ExprBase{Pos: pos, End: body.GetEnd()}, Params: params, Body: body, Partial: true, Section: section}
 }

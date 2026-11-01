@@ -1,0 +1,5 @@
+// want: addition requires Int, Float or String, got http.Response
+package main
+import "std/http"
+func bad(x http.Response) http.Response { (_ + _)(x, x) }
+func main() IO[Unit] { ioPure(unit()) }

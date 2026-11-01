@@ -9,10 +9,10 @@ import (
 func (b *bodyChecker) recordLit(e *ast.RecordLit, env *locals, ann *Ann) Type {
 	ctor := b.c.ctors[e.Ctor]
 	if ctor == nil {
-		fail(e.GetPos(), "unknown constructor %s", e.Ctor)
+		fail(e.GetPos(), "unknown constructor %s", diagnosticName(e.Ctor))
 	}
 	if ctor.FieldNames == nil {
-		fail(e.GetPos(), "constructor %s is not a record", e.Ctor)
+		fail(e.GetPos(), "constructor %s is not a record", diagnosticName(e.Ctor))
 	}
 	fields, result, inst := b.c.instantiateCtor(ctor)
 	ann.Ctor, ann.Inst = ctor, inst
@@ -28,17 +28,17 @@ func recordIndexes(pos ast.Pos, ctor *Ctor, names []string, complete bool) []int
 		checkValueName(pos, name)
 		index := fieldIndex(ctor, name)
 		if index < 0 {
-			fail(pos, "unknown field %s in constructor %s", name, ctor.Name)
+			fail(pos, "unknown field %s in constructor %s", name, diagnosticName(ctor.Name))
 		}
 		if seen[index] {
-			fail(pos, "duplicate field %s in constructor %s", name, ctor.Name)
+			fail(pos, "duplicate field %s in constructor %s", name, diagnosticName(ctor.Name))
 		}
 		seen[index], indexes[i] = true, index
 	}
 	if complete {
 		for i, name := range ctor.FieldNames {
 			if !seen[i] {
-				fail(pos, "missing field %s in constructor %s", name, ctor.Name)
+				fail(pos, "missing field %s in constructor %s", name, diagnosticName(ctor.Name))
 			}
 		}
 	}
@@ -57,7 +57,7 @@ func fieldIndex(ctor *Ctor, name string) int {
 func recordReceiverName(e ast.Expr) string {
 	switch e := e.(type) {
 	case *ast.Ident:
-		return e.Name
+		return e.DisplayName()
 	case *ast.Field:
 		return recordReceiverName(e.X) + "." + e.Name
 	default:
@@ -113,7 +113,7 @@ func commonRecordFields(pos ast.Pos, ctor *Ctor, names []string, ann *Ann) {
 			// cannot specialize the receiver to make incompatible fields agree.
 			if !unifyTypes(pos, expected, actual) {
 				fail(pos, "field %s has type %s in constructor %s; expected %s from constructor %s",
-					names[i], actual, record.Ctor.Name, expected, ctor.Name)
+					names[i], actual, diagnosticName(record.Ctor.Name), expected, diagnosticName(ctor.Name))
 			}
 		}
 	}

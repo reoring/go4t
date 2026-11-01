@@ -1,0 +1,5 @@
+// want: arity mismatch for alias m.Label: want 0 arguments, got 1
+package main
+import m "model"
+func bad(x m.Label[Int]) Int { 0 }
+func main() IO[Unit] { ioPure(unit()) }
