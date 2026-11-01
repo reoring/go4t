@@ -35,8 +35,11 @@
 //	RecordPatternFields := '{' ( '..' [ ',' ] | NamedPattern { ',' NamedPattern } [ ',' '..' ] [ ',' ] ) '}'
 //	NamedPattern := Ident ':' Pattern // names must be unique; '..' must be last; no field punning
 //	LowerIdent := Ident // starts with a lower-case letter; '@' only follows a bare variable name
-//	Postfix  := Primary { '(' [ Expr { ',' Expr } [ ',' ] ] ')' | '.' ( Ident | Int ) | RecordFields } // no bracket indexing
-//	Primary  := Ident | Lit | Interp | UpperIdent RecordFields | '(' Expr ')' | '(' Expr ',' Expr { ',' Expr } ')' | Block | List
+//	Postfix  := Primary { '(' [ ( Expr | '_' ) { ',' ( Expr | '_' ) } [ ',' ] ] ')' | '.' ( Ident | Int ) | RecordFields }
+//	Primary  := Ident | Lit | Interp | UpperIdent RecordFields | '(' Expr ')' | '(' Expr ',' Expr { ',' Expr } ')' | Section | Block | List
+//	Section  := '(' ( '_' BinOp Expr | Expr BinOp '_' | '_' BinOp '_' ) ')'
+//	          // placeholders must occupy a whole argument or operator operand;
+//	          // calls/sections lower to lambdas, and lowest-precedence |> lowers to calls
 //	RecordFields := '{' Ident ':' Expr { ',' Ident ':' Expr } [ ',' ] '}'
 //	          // record literals/updates require same-line '{' and lookahead '{' Ident ':';
 //	          // other braces begin blocks, including if bodies and match arms
@@ -50,6 +53,7 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
+	"strings"
 	"unicode"
 	"unicode/utf8"
 
@@ -58,8 +62,9 @@ import (
 )
 
 type Parser struct {
-	toks []lexer.Token
-	i    int
+	toks   []lexer.Token
+	i      int
+	source string // retained for capture-free placeholder names, including interpolation source
 }
 
 func Parse(src string) (f *ast.File, err error) {
@@ -67,7 +72,7 @@ func Parse(src string) (f *ast.File, err error) {
 	if err != nil {
 		return nil, err
 	}
-	p := &Parser{toks: toks}
+	p := &Parser{toks: toks, source: src}
 	defer recoverParseError(&err)
 	return p.file(), nil
 }
@@ -80,7 +85,7 @@ func ParseExpr(src string, base ast.Pos) (expr ast.Expr, err error) {
 	if err != nil {
 		return nil, err
 	}
-	p := &Parser{toks: toks}
+	p := &Parser{toks: toks, source: src}
 	defer recoverParseError(&err)
 	parsed := p.expr()
 	p.skipSemis()
@@ -540,6 +545,12 @@ func (p *Parser) tryBind() (name string, pat ast.Pattern, ok bool) {
 // ---- expressions ----
 
 func (p *Parser) expr() ast.Expr {
+	return p.sectionExpr(nil)
+}
+
+// sectionExpr permits bare placeholders only at this expression's binary
+// level. Calls, nested parentheses and lambda bodies establish their own scope.
+func (p *Parser) sectionExpr(holes *[]*ast.Ident) ast.Expr {
 	pos := p.pos()
 	switch {
 	case p.isK("func"):
@@ -577,7 +588,7 @@ func (p *Parser) expr() ast.Expr {
 	case p.isK("if"):
 		return p.ifExpr()
 	}
-	return p.binary(0)
+	return p.binary(0, holes)
 }
 
 func (p *Parser) ifExpr() ast.Expr {
@@ -759,13 +770,22 @@ func (p *Parser) pattern() ast.Pattern {
 func isUpper(s string) bool { return s != "" && s[0] >= 'A' && s[0] <= 'Z' }
 
 var binPrec = map[string]int{
-	"||": 1, "&&": 2,
-	"==": 3, "!=": 3, "<": 3, "<=": 3, ">": 3, ">=": 3,
-	"+": 4, "-": 4, "*": 5, "/": 5, "%": 5,
+	"|>": 1, "||": 2, "&&": 3,
+	"==": 4, "!=": 4, "<": 4, "<=": 4, ">": 4, ">=": 4,
+	"+": 5, "-": 5, "*": 6, "/": 6, "%": 6,
 }
 
-func (p *Parser) binary(minPrec int) ast.Expr {
-	left := p.unary()
+func (p *Parser) binary(minPrec int, holes *[]*ast.Ident) ast.Expr {
+	start := 0
+	if holes != nil {
+		start = len(*holes)
+	}
+	var left ast.Expr
+	if holes != nil && p.isP("_") {
+		left = p.placeholder(holes)
+	} else {
+		left = p.unary()
+	}
 	for {
 		t := p.tok()
 		prec, ok := binPrec[t.Text]
@@ -773,9 +793,60 @@ func (p *Parser) binary(minPrec int) ast.Expr {
 			return left
 		}
 		p.next()
-		right := p.binary(prec)
-		left = &ast.Binary{ExprBase: ast.ExprBase{Pos: t.Pos}, Op: t.Text, L: left, R: right}
+		right := p.binary(prec, holes)
+		if holes != nil {
+			// A section's holes are whole operands, not subexpressions of
+			// either side. Nested sections have already become lambdas.
+			for _, hole := range (*holes)[start:] {
+				if hole != left && hole != right {
+					p.fail(hole.Pos, placeholderError)
+				}
+			}
+		}
+		if t.Text == "|>" {
+			left = pipeCall(t.Pos, left, right)
+		} else {
+			left = &ast.Binary{ExprBase: ast.ExprBase{Pos: t.Pos}, Op: t.Text, L: left, R: right}
+		}
 	}
+}
+
+const placeholderError = "_ is only valid as a placeholder in a call or operator section"
+
+func (p *Parser) placeholder(holes *[]*ast.Ident) *ast.Ident {
+	pos := p.expectP("_").Pos
+	// Positions distinguish synthesized bindings even inside interpolations,
+	// whose parsers start at the original source position. Rejecting names
+	// appearing anywhere in the source also protects free interpolated names.
+	name := fmt.Sprintf("placeholder%d_%d", pos.Line, pos.Col)
+	for strings.Contains(p.source, name) {
+		name += "_"
+	}
+	hole := &ast.Ident{ExprBase: ast.ExprBase{Pos: pos}, Name: name}
+	*holes = append(*holes, hole)
+	return hole
+}
+
+func partialLambda(pos ast.Pos, body ast.Expr, holes []*ast.Ident) ast.Expr {
+	if len(holes) == 0 {
+		return body
+	}
+	params := make([]ast.Param, len(holes))
+	for i, hole := range holes {
+		params[i] = ast.Param{Name: hole.Name}
+	}
+	return &ast.Lambda{ExprBase: ast.ExprBase{Pos: pos}, Params: params, Body: body}
+}
+
+func pipeCall(pos ast.Pos, left, right ast.Expr) ast.Expr {
+	if call, ok := right.(*ast.Call); ok {
+		args := make([]ast.Expr, len(call.Args)+1)
+		args[0] = left
+		copy(args[1:], call.Args)
+		call.Args = args
+		return call
+	}
+	return &ast.Call{ExprBase: ast.ExprBase{Pos: pos}, Fn: right, Args: []ast.Expr{left}}
 }
 
 func (p *Parser) unary() ast.Expr {
@@ -794,14 +865,23 @@ func (p *Parser) postfix() ast.Expr {
 		case p.isP("("):
 			pos := p.next().Pos
 			c := &ast.Call{ExprBase: ast.ExprBase{Pos: pos}, Fn: e}
+			var holes []*ast.Ident
 			for !p.isP(")") {
-				c.Args = append(c.Args, p.expr())
+				if p.isP("_") {
+					hole := p.placeholder(&holes)
+					if !p.isP(",") && !p.isP(")") {
+						p.fail(hole.Pos, placeholderError)
+					}
+					c.Args = append(c.Args, hole)
+				} else {
+					c.Args = append(c.Args, p.expr())
+				}
 				if !p.acceptP(",") {
 					break
 				}
 			}
 			p.expectP(")")
-			e = c
+			e = partialLambda(pos, c, holes)
 		case p.isP("."):
 			pos := p.next().Pos
 			field := &ast.Field{ExprBase: ast.ExprBase{Pos: pos}, X: e, Index: -1}
@@ -907,9 +987,20 @@ func (p *Parser) primary() ast.Expr {
 			return &ast.BoolLit{ExprBase: base, Value: t.Text == "true"}
 		}
 	case lexer.Punct:
+		if t.Text == "_" {
+			p.fail(t.Pos, placeholderError)
+		}
 		if t.Text == "(" {
 			p.next()
-			first := p.expr()
+			var holes []*ast.Ident
+			first := p.sectionExpr(&holes)
+			if len(holes) > 0 {
+				if first == holes[0] || !p.isP(")") {
+					p.fail(holes[0].Pos, placeholderError)
+				}
+				p.next()
+				return partialLambda(t.Pos, first, holes)
+			}
 			if !p.acceptP(",") {
 				p.expectP(")")
 				return first

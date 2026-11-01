@@ -1,0 +1,30 @@
+package main
+
+func nonEmpty(s String) Bool {
+  trim(s) |> (_ != "")
+}
+
+func add(a Int, b Int) Int { a + b }
+
+func main() IO[Unit] {
+  let input = " pear \n\n apple\n banana \n   \n"
+  let cleaned = lines(input)
+    |> filter(_, nonEmpty)
+    |> map(_, trim)
+    |> sortBy(_, compare)
+    |> join("\n", _)
+  let increment = add(1, _)
+  let less = (_ < _)
+  let equalApple = (_ == "apple")
+  let scores = [1, 2, 3]
+    |> map(_, (_ + 1))
+    |> map(_, (2 * _))
+    |> map(_, show)
+    |> join(", ", _)
+  do {
+    println(cleaned)
+    println("scores: " + scores)
+    println("steps: ${3 |> increment |> add(4) |> (func(n) => n * 2)}")
+    println("sections: ${less(1, 2)}, ${equalApple("apple")}")
+  }
+}
