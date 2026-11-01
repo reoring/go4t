@@ -1,0 +1,93 @@
+// Copyright 2009 The Go Authors. All rights reserved.
+// Use of this source code is governed by the BSD-style license in ../LICENSE.
+// Native implementation of the functions shipped in client-go's template fork.
+package template
+
+import "std/prelude"
+import "std/list"
+import "std/result"
+
+type Scalar = Invalid | Boolean(Bool) | Signed(Int) | Unsigned(Int, Int) | Floating(Float) | Complex(Float, Float) | Text(String) deriving Eq, Debug
+
+// Unsigned limbs are high/low uint32 values, not a lossy Float or signed uint64.
+func valid(v Scalar) Bool {
+  match v { Invalid => false Unsigned(h,l) => h >= 0 && h <= 4294967295 && l >= 0 && l <= 4294967295 _ => true }
+}
+func signedUnsigned(n Int, hi Int, lo Int) Ordering {
+  if n < 0 { LT } else {
+    let h = n / 4294967296
+    let l = n % 4294967296
+    if h < hi { LT } else if h > hi { GT } else { compare(l,lo) }
+  }
+}
+func equalOne(a Scalar, b Scalar) Result[String,Bool] {
+  if !valid(a) || !valid(b) { Err("invalid type for comparison") } else {
+    match (a,b) {
+      (Boolean(x),Boolean(y)) => Ok(x == y)
+      (Signed(x),Signed(y)) => Ok(x == y)
+      (Unsigned(h,l),Unsigned(j,k)) => Ok(h == j && l == k)
+      (Signed(n),Unsigned(h,l)) => Ok(signedUnsigned(n,h,l) == EQ)
+      (Unsigned(h,l),Signed(n)) => Ok(signedUnsigned(n,h,l) == EQ)
+      (Floating(x),Floating(y)) => Ok(x == y)
+      (Complex(x,y),Complex(z,w)) => Ok(x == z && y == w)
+      (Text(x),Text(y)) => Ok(x == y)
+      _ => Err("incompatible types for comparison")
+    }
+  }
+}
+func equal(a Scalar, bs List[Scalar]) Result[String,Bool] {
+  if !valid(a) { Err("invalid type for comparison") } else {
+    match bs {
+      Nil => Err("missing argument for comparison")
+      Cons(b,rest) => match equalOne(a,b) {
+        Err(e) => Err(e)
+        Ok(true) => Ok(true)
+        Ok(false) => match rest { Nil => Ok(false) _ => equal(a,rest) }
+      }
+    }
+  }
+}
+func less(a Scalar, b Scalar) Result[String,Bool] {
+  if !valid(a) || !valid(b) { Err("invalid type for comparison") } else {
+    match (a,b) {
+      (Signed(x),Signed(y)) => Ok(x < y)
+      (Unsigned(h,l),Unsigned(j,k)) => Ok(h < j || (h == j && l < k))
+      (Signed(n),Unsigned(h,l)) => Ok(signedUnsigned(n,h,l) == LT)
+      (Unsigned(h,l),Signed(n)) => Ok(signedUnsigned(n,h,l) == GT)
+      (Floating(x),Floating(y)) => Ok(x < y)
+      (Text(x),Text(y)) => Ok(x < y)
+      (Boolean(_),Boolean(_)) => Err("invalid type for comparison")
+      (Complex(_,_),Complex(_,_)) => Err("invalid type for comparison")
+      _ => Err("incompatible types for comparison")
+    }
+  }
+}
+func notEqual(a Scalar,b Scalar) Result[String,Bool] { prelude.fmap(equalOne(a,b),func(v) => !v) }
+func lessEqual(a Scalar,b Scalar) Result[String,Bool] {
+  match less(a,b) { Err(e) => Err(e) Ok(true) => Ok(true) Ok(false) => equalOne(a,b) }
+}
+func greater(a Scalar,b Scalar) Result[String,Bool] { prelude.fmap(lessEqual(a,b),func(v) => !v) }
+func greaterEqual(a Scalar,b Scalar) Result[String,Bool] { prelude.fmap(less(a,b),func(v) => !v) }
+
+// Adapters expose indirection explicitly. Method-bearing interfaces stop traversal.
+type Link[A] = Direct | Pointer(Option[A]) | Interface(Bool, Option[A])
+type Reflection[A] = Reflection { link: func(A) Link[A], printable: func(A) Option[String] }
+func indirect[A](r Reflection[A],v A) (A,Bool) {
+  match r.link(v) {
+    Direct => (v,false)
+    Pointer(None) => (v,true)
+    Pointer(Some(next)) => indirect(r,next)
+    Interface(_,None) => (v,true)
+    Interface(true,Some(_)) => (v,false)
+    Interface(false,Some(next)) => indirect(r,next)
+  }
+}
+// The adapter must implement error/Stringer and addressable-pointer precedence,
+// invalid => "<no value>", and reject functions/channels without a print method.
+func printableValue[A](r Reflection[A],v A) Option[String] { r.printable(v) }
+
+func testExactSignedUnsigned() Bool {
+  equalOne(Signed(9007199254740993),Unsigned(2097152,1)) == Ok(true) &&
+  less(Signed(-1),Unsigned(4294967295,4294967295)) == Ok(true) &&
+  equalOne(Signed(1),Floating(1.0)) == Err("incompatible types for comparison")
+}

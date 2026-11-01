@@ -1,0 +1,95 @@
+// Copyright 2015 The Kubernetes Authors.
+// Licensed under the Apache License, Version 2.0; http://www.apache.org/licenses/LICENSE-2.0
+package jsonpath
+
+import "std/prelude"
+import "std/list"
+import "std/result"
+import "std/dyn"
+import "std/map"
+import "std/string"
+import "github.com/reoring/gofx/ports/client-go/third_party/forked/golang/template"
+
+func collectNodeStrings(n Node) List[String] {
+  Cons(nodeString(n),match n {
+    ListNode(ns) => list.concatMap(ns,collectNodeStrings)
+    FilterNode(left,right,_) => list.append(collectNodeStrings(ListNode(left)),collectNodeStrings(ListNode(right)))
+    UnionNode(ns) => list.concatMap(ns,func(xs) => collectNodeStrings(ListNode(xs)))
+    _ => Nil
+  })
+}
+func testPinnedParserAST() Bool {
+  (match parse("plain","hello jsonpath") { Err(_) => false Ok(p) => list.concatMap(p.root,collectNodeStrings) == prelude.fmap([TextNode("hello jsonpath")],nodeString) }) &&
+  (match parse("variable","hello {.jsonpath}") { Err(_) => false Ok(p) => list.concatMap(p.root,collectNodeStrings) == prelude.fmap([TextNode("hello "),ListNode(Nil),FieldNode("jsonpath")],nodeString) }) &&
+  (match parse("arrayfiled","hello {['jsonpath']}") { Err(_) => false Ok(p) => list.concatMap(p.root,collectNodeStrings) == prelude.fmap([TextNode("hello "),ListNode(Nil),FieldNode("jsonpath")],nodeString) }) &&
+  (match parse("quote","{\"{\"}") { Err(_) => false Ok(p) => list.concatMap(p.root,collectNodeStrings) == prelude.fmap([ListNode(Nil),TextNode("{")],nodeString) }) &&
+  (match parse("array","{[1:3]}") { Err(_) => false Ok(p) => list.concatMap(p.root,collectNodeStrings) == prelude.fmap([ListNode(Nil),ArrayNode(ParamsEntry(1,true,false),ParamsEntry(3,true,false),ParamsEntry(0,false,false))],nodeString) }) &&
+  (match parse("allarray","{.book[*].author}") { Err(_) => false Ok(p) => list.concatMap(p.root,collectNodeStrings) == prelude.fmap([ListNode(Nil),FieldNode("book"),ArrayNode(ParamsEntry(0,false,false),ParamsEntry(0,false,false),ParamsEntry(0,false,false)),FieldNode("author")],nodeString) }) &&
+  (match parse("wildcard","{.bicycle.*}") { Err(_) => false Ok(p) => list.concatMap(p.root,collectNodeStrings) == prelude.fmap([ListNode(Nil),FieldNode("bicycle"),WildcardNode],nodeString) }) &&
+  (match parse("filter","{[?(@.price<3)]}") { Err(_) => false Ok(p) => list.concatMap(p.root,collectNodeStrings) == prelude.fmap([ListNode(Nil),FilterNode(Nil,Nil,"<"),ListNode(Nil),FieldNode("price"),ListNode(Nil),IntNode(3)],nodeString) }) &&
+  (match parse("recursive","{..}") { Err(_) => false Ok(p) => list.concatMap(p.root,collectNodeStrings) == prelude.fmap([ListNode(Nil),RecursiveNode],nodeString) }) &&
+  (match parse("recurField","{..price}") { Err(_) => false Ok(p) => list.concatMap(p.root,collectNodeStrings) == prelude.fmap([ListNode(Nil),RecursiveNode,FieldNode("price")],nodeString) }) &&
+  (match parse("arraydict","{['book.price']}") { Err(_) => false Ok(p) => list.concatMap(p.root,collectNodeStrings) == prelude.fmap([ListNode(Nil),FieldNode("book"),FieldNode("price")],nodeString) }) &&
+  (match parse("union","{['bicycle.price', 3, 'book.price']}") { Err(_) => false Ok(p) => list.concatMap(p.root,collectNodeStrings) == prelude.fmap([ListNode(Nil),UnionNode(Nil),ListNode(Nil),FieldNode("bicycle"),FieldNode("price"),ListNode(Nil),ArrayNode(ParamsEntry(3,true,false),ParamsEntry(4,true,true),ParamsEntry(0,false,false)),ListNode(Nil),FieldNode("book"),FieldNode("price")],nodeString) }) &&
+  (match parse("range","{range .items}{.name},{end}") { Err(_) => false Ok(p) => list.concatMap(p.root,collectNodeStrings) == prelude.fmap([ListNode(Nil),IdentifierNode("range"),FieldNode("items"),ListNode(Nil),FieldNode("name"),TextNode(","),ListNode(Nil),IdentifierNode("end")],nodeString) }) &&
+  (match parse("paired parentheses in quotes","{[?(@.status.nodeInfo.osImage == \"()\")]}") { Err(_) => false Ok(p) => list.concatMap(p.root,collectNodeStrings) == prelude.fmap([ListNode(Nil),FilterNode(Nil,Nil,"=="),ListNode(Nil),FieldNode("status"),FieldNode("nodeInfo"),FieldNode("osImage"),ListNode(Nil),TextNode("()")],nodeString) }) &&
+  (match parse("paired parentheses in double quotes and with double quotes escape","{[?(@.status.nodeInfo.osImage == \"(\\\"\\\")\")]}") { Err(_) => false Ok(p) => list.concatMap(p.root,collectNodeStrings) == prelude.fmap([ListNode(Nil),FilterNode(Nil,Nil,"=="),ListNode(Nil),FieldNode("status"),FieldNode("nodeInfo"),FieldNode("osImage"),ListNode(Nil),TextNode("(\"\")")],nodeString) }) &&
+  (match parse("unregular parentheses in double quotes","{[?(@.test == \"())(\")]}") { Err(_) => false Ok(p) => list.concatMap(p.root,collectNodeStrings) == prelude.fmap([ListNode(Nil),FilterNode(Nil,Nil,"=="),ListNode(Nil),FieldNode("test"),ListNode(Nil),TextNode("())(")],nodeString) }) &&
+  (match parse("plain text in single quotes","{[?(@.status.nodeInfo.osImage == 'Linux')]}") { Err(_) => false Ok(p) => list.concatMap(p.root,collectNodeStrings) == prelude.fmap([ListNode(Nil),FilterNode(Nil,Nil,"=="),ListNode(Nil),FieldNode("status"),FieldNode("nodeInfo"),FieldNode("osImage"),ListNode(Nil),TextNode("Linux")],nodeString) }) &&
+  (match parse("test filter suffix","{[?(@.status.nodeInfo.osImage == \"{[()]}\")]}") { Err(_) => false Ok(p) => list.concatMap(p.root,collectNodeStrings) == prelude.fmap([ListNode(Nil),FilterNode(Nil,Nil,"=="),ListNode(Nil),FieldNode("status"),FieldNode("nodeInfo"),FieldNode("osImage"),ListNode(Nil),TextNode("{[()]}")],nodeString) }) &&
+  (match parse("double inside single","{[?(@.status.nodeInfo.osImage == \"''\")]}") { Err(_) => false Ok(p) => list.concatMap(p.root,collectNodeStrings) == prelude.fmap([ListNode(Nil),FilterNode(Nil,Nil,"=="),ListNode(Nil),FieldNode("status"),FieldNode("nodeInfo"),FieldNode("osImage"),ListNode(Nil),TextNode("''")],nodeString) }) &&
+  (match parse("single inside double","{[?(@.status.nodeInfo.osImage == '\"\"')]}") { Err(_) => false Ok(p) => list.concatMap(p.root,collectNodeStrings) == prelude.fmap([ListNode(Nil),FilterNode(Nil,Nil,"=="),ListNode(Nil),FieldNode("status"),FieldNode("nodeInfo"),FieldNode("osImage"),ListNode(Nil),TextNode("\"\"")],nodeString) }) &&
+  (match parse("single containing escaped single","{[?(@.status.nodeInfo.osImage == '\\\\\\'')]}") { Err(_) => false Ok(p) => list.concatMap(p.root,collectNodeStrings) == prelude.fmap([ListNode(Nil),FilterNode(Nil,Nil,"=="),ListNode(Nil),FieldNode("status"),FieldNode("nodeInfo"),FieldNode("osImage"),ListNode(Nil),TextNode("\\'")],nodeString) }) &&
+  (match parse("negative index slice, equals a[len-5] to a[len-1]","{[-5:]}") { Err(_) => false Ok(p) => list.concatMap(p.root,collectNodeStrings) == prelude.fmap([ListNode(Nil),ArrayNode(ParamsEntry(-5,true,false),ParamsEntry(0,false,false),ParamsEntry(0,false,false))],nodeString) }) &&
+  (match parse("negative index slice, equals a[len-1]","{[-1]}") { Err(_) => false Ok(p) => list.concatMap(p.root,collectNodeStrings) == prelude.fmap([ListNode(Nil),ArrayNode(ParamsEntry(-1,true,false),ParamsEntry(0,true,true),ParamsEntry(0,false,false))],nodeString) }) &&
+  (match parse("negative index slice, equals a[1] to a[len-1]","{[1:-1]}") { Err(_) => false Ok(p) => list.concatMap(p.root,collectNodeStrings) == prelude.fmap([ListNode(Nil),ArrayNode(ParamsEntry(1,true,false),ParamsEntry(-1,true,false),ParamsEntry(0,false,false))],nodeString) })
+}
+
+func testExactIntAndNativeExtensions() Bool {
+  let numbers = Dynamic(dyn.List([dyn.Int(9007199254740993),dyn.Int(9007199254740992)]))
+  fixtureCase("exact integer","{[?(@==9007199254740993)]}",numbers,"9007199254740993",false,false,false) &&
+  fixtureCase("recursive exact union","{[0,1]}",numbers,"9007199254740993 9007199254740992",false,false,false) &&
+  fixtureCase("last exact integer","{[-1]}",numbers,"9007199254740992",false,false,false) &&
+  fixtureCase("missing strict","{.missing}",Dynamic(dyn.Map(map.emptyMap())),"missing is not found",false,false,true) &&
+  fixtureCase("invalid op","{[?(@<>1)]}",numbers,"unrecognized filter operator <>",false,false,true)
+}
+func testNativeRecordLookup() Bool {
+  let embedded = Host(FixtureRecord([Field("Inner","inner",false,Dynamic(dyn.Int(7)))]))
+  let value = Host(FixtureRecord([
+    Field("Raw","renamed",false,Dynamic(dyn.Int(9007199254740993))),
+    Field("Embedded","",true,embedded),
+    Field("Fallback","",false,Dynamic(dyn.Str("fallback")))
+  ]))
+  fixtureCase("tag name","{.renamed}",value,"9007199254740993",false,false,false) &&
+  fixtureCase("source name fallback","{.Raw}",value,"9007199254740993",false,false,false) &&
+  fixtureCase("anonymous field","{.inner}",value,"7",false,false,false) &&
+  fixtureCase("source field","{.Fallback}",value,"fallback",false,false,false)
+}
+func testOutputAndEscaping() Bool {
+  let cap = fixtureInspection()
+  let values = [Dynamic(dyn.Int(9007199254740993)),Dynamic(dyn.Str("x"))]
+  let pretty = printResults(cap,enableJSONOutput(new("json"),true),values)
+  pretty == Ok("[\n    9007199254740993,\n    \"x\"\n]\n") &&
+  printResults(cap,new("normal"),values) == Ok("9007199254740993 x") &&
+  printResults(cap,enableJSONOutput(new("empty"),true),Nil) == Ok("[]\n") &&
+  unquoteExtend("'\\u65e5\\t\\x41'") == Ok("日\tA") &&
+  unquoteExtend("'\\377'") == Ok(byteString(255)) &&
+  unquoteExtend("'\\uD800'") == Err("invalid syntax") &&
+  fixtureCase("escaped dot","{.a\\.b}",Dynamic(dyn.Map(map.mapFromList([("a.b",dyn.Int(9))]))),"9",false,false,false) &&
+  printResults(cap,new("bytes"),[Dynamic(dyn.Bytes("ab"))]) == Ok("\"YWI=\"")
+}
+func testParserErrorsBeyondUpstream() Bool {
+  (match parse("array","{[abc]}") { Err(e) => e == "invalid array index abc" _ => false }) &&
+  (match parse("quote","{\"bad}") { Err(e) => e == "unterminated quoted string" _ => false }) &&
+  (match parse("bracket","{[?(@==1)x}") { Err(e) => e == "unclosed array expect ]" _ => false }) &&
+  (match findResults(fixtureInspection(),new("unparsed"),Dynamic(dyn.Null)) { Err(e) => e == "unparsed is an incomplete jsonpath template" _ => false })
+}
+
+func testEmptySliceStopsInputTraversal() Bool {
+  let input = Dynamic(dyn.List([
+    dyn.List([dyn.Int(1),dyn.Int(2),dyn.Int(3)]),
+    dyn.List([dyn.Int(4),dyn.Int(5)]),
+    dyn.List([dyn.Int(6),dyn.Int(7),dyn.Int(8),dyn.Int(9)])
+  ]))
+  fixtureCase("empty slice early return","{[*][1:-1]}",input,"2",false,false,false)
+}

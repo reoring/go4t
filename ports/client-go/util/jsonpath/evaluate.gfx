@@ -1,0 +1,164 @@
+// Copyright 2015 The Kubernetes Authors.
+// Licensed under the Apache License, Version 2.0; http://www.apache.org/licenses/LICENSE-2.0
+// Distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND.
+package jsonpath
+
+import "std/prelude"
+import "std/list"
+import "std/result"
+import "std/string"
+import "std/dyn"
+import "github.com/reoring/gofx/ports/client-go/third_party/forked/golang/template"
+
+type JSONPath = JSONPath { name: String, parser: Option[Parser], allowMissing: Bool, outputJSON: Bool }
+func new(name String) JSONPath { JSONPath(name,None,false,false) }
+func allowMissingKeys(j JSONPath,allow Bool) JSONPath { JSONPath(j.name,j.parser,allow,j.outputJSON) }
+func enableJSONOutput(j JSONPath,enable Bool) JSONPath { JSONPath(j.name,j.parser,j.allowMissing,enable) }
+func jsonPathParse(j JSONPath,text String) Result[String,JSONPath] { prelude.fmap(parse(j.name,text),func(p) => JSONPath(j.name,Some(p),j.allowMissing,j.outputJSON)) }
+
+func traverseConcat[A,B](xs List[A],f func(A) Result[String,List[B]]) Result[String,List[B]] {
+  match xs { Nil => Ok(Nil) Cons(x,rest) => prelude.bind(f(x),func(ys) => prelude.fmap(traverseConcat(rest,f),func(zs) => list.append(ys,zs))) }
+}
+func everyStep[A](xs List[A],step Int) List[A] {
+  match xs { Nil => Nil Cons(x,_) => Cons(x,everyStep(list.drop(step,xs),step)) }
+}
+func slice[A](xs List[A],a ParamsEntry,b ParamsEntry,c ParamsEntry) Result[String,List[A]] {
+  let n = list.length(xs)
+  let rawStart = if a.known { a.value } else { 0 }
+  let start = if rawStart < 0 { rawStart+n } else { rawStart }
+  let rawEnd = if b.known { b.value } else { n }
+  let end = if rawEnd < 0 || (rawEnd == 0 && b.derived) { rawEnd+n } else { rawEnd }
+  if start == end { Ok(Nil) }
+  else if start >= n || start < 0 { Err("array index out of bounds: index " + show(start) + ", length " + show(n)) }
+  else if end > n || end < 0 { Err("array index out of bounds: index " + show(end-1) + ", length " + show(n)) }
+  else if start > end { Err("starting index " + show(start) + " is greater than ending index " + show(end)) }
+  else if c.known && c.value <= 0 { Err("step must be > 0") }
+  else { Ok(everyStep(list.take(end-start,list.drop(start,xs)),if c.known { c.value } else { 1 })) }
+}
+func evalArray[A](cap Inspection[A],input List[Value[A]],a ParamsEntry,b ParamsEntry,c ParamsEntry) Result[String,List[Value[A]]] {
+  match input {
+    Nil => Ok(Nil)
+    Cons(v,rest) => match indirect(cap,v) {
+      (_,true) => evalArray(cap,rest,a,b,c)
+      (value,false) => match view(cap,value) {
+        SequenceShape(_,xs) => prelude.bind(slice(xs,a,b,c),func(selected) => match selected {
+          // Upstream returns accumulated results immediately for an empty slice.
+          Nil => Ok(Nil)
+          _ => prelude.fmap(evalArray(cap,rest,a,b,c),func(tail) => list.append(selected,tail))
+        })
+        shape => Err(shapeName(shape)+" is not array or slice")
+      }
+    }
+  }
+}
+func recursive[A](cap Inspection[A],xs List[Value[A]]) List[Value[A]] {
+  list.concatMap(xs,func(v) => {
+    let nested = children(cap,v)
+    if list.length(nested) == 0 { Nil } else {
+      let (value,_) = indirect(cap,v)
+      Cons(value,recursive(cap,nested))
+    }
+  })
+}
+func evalList[A](cap Inspection[A],j JSONPath,input List[Value[A]],nodes List[Node]) Result[String,List[Value[A]]] {
+  match nodes { Nil => Ok(input) Cons(n,rest) => prelude.bind(walk(cap,j,input,n),func(values) => evalList(cap,j,values,rest)) }
+}
+func walk[A](cap Inspection[A],j JSONPath,input List[Value[A]],node Node) Result[String,List[Value[A]]] {
+  match node {
+    ListNode(ns) => evalList(cap,j,input,ns)
+    TextNode(s) => Ok([Dynamic(dyn.Str(s))])
+    IntNode(n) => Ok(prelude.fmap(input,func(_) => Dynamic(dyn.Int(n))))
+    FloatNode(f) => Ok(prelude.fmap(input,func(_) => Dynamic(dyn.Float(f))))
+    BoolNode(b) => Ok(prelude.fmap(input,func(_) => Dynamic(dyn.Bool(b))))
+    IdentifierNode(id) => if id == "range" { Ok(input) } else if id == "end" { Ok(Nil) } else { Err("unrecognized identifier " + id) }
+    FieldNode(key) => {
+      prelude.bind(list.mapM(input,func(v) => lookupField(cap,v,key)),func(found) => {
+        let results = list.catOptions(found)
+        if list.length(input) > 0 && list.length(results) == 0 && !j.allowMissing { Err(key+" is not found") } else { Ok(results) }
+      })
+    }
+    WildcardNode => Ok(list.concatMap(input,func(v) => children(cap,v)))
+    RecursiveNode => Ok(recursive(cap,input))
+    UnionNode(ns) => traverseConcat(ns,func(nodes) => evalList(cap,j,input,nodes))
+    ArrayNode(a,b,c) => evalArray(cap,input,a,b,c)
+    FilterNode(left,right,op) => traverseConcat(input,func(v) => {
+      let (value,_) = indirect(cap,v)
+      match view(cap,value) {
+        SequenceShape(_,xs) => traverseConcat(xs,func(item) => filterItem(cap,j,item,left,right,op))
+        _ => Err(shapeName(view(cap,value))+" is not array or slice and cannot be filtered")
+      }
+    })
+  }
+}
+func compareFilter(a template.Scalar,b template.Scalar,op String) Result[String,Bool] {
+  match op {
+    "<" => template.less(a,b) ">" => template.greater(a,b)
+    "==" => template.equal(a,[b]) "!=" => template.notEqual(a,b)
+    "<=" => template.lessEqual(a,b) ">=" => template.greaterEqual(a,b)
+    _ => Err("unrecognized filter operator " + op)
+  }
+}
+func filterItem[A](cap Inspection[A],j JSONPath,item Value[A],left List[Node],right List[Node],op String) Result[String,List[Value[A]]] {
+  let ls = evalList(cap,j,[item],left)
+  if op == "exists" {
+    match ls { Ok(Cons(_,_)) => Ok([item]) _ => Ok(Nil) }
+  } else {
+    prelude.bind(ls,func(lv) => match lv {
+      Nil => Ok(Nil)
+      Cons(l,Nil) => prelude.bind(evalList(cap,j,[item],right),func(rv) => match rv {
+        Nil => Ok(Nil)
+        Cons(r,Nil) => prelude.fmap(compareFilter(scalar(cap,l),scalar(cap,r),op),func(pass) => if pass { [item] } else { Nil })
+        _ => Err("can only compare one element at a time")
+      })
+      _ => Err("can only compare one element at a time")
+    })
+  }
+}
+func marker(node Node,name String) Bool {
+  match node { ListNode(ns) => list.any(ns,func(n) => match n { IdentifierNode(s) => s == name _ => false }) _ => false }
+}
+// Splitting uses lexical nesting rather than mutating the parser during execution.
+func rangeBody(ns List[Node],depth Int,rev List[Node]) (List[Node],List[Node]) {
+  match ns {
+    Nil => (list.reverse(rev),Nil)
+    Cons(n,rest) => if marker(n,"end") && depth == 0 { (list.reverse(Cons(n,rev)),rest) }
+      else { rangeBody(rest,depth+(if marker(n,"range") { 1 } else if marker(n,"end") { -1 } else { 0 }),Cons(n,rev)) }
+  }
+}
+func runNodes[A](cap Inspection[A],j JSONPath,input List[Value[A]],nodes List[Node],active Bool) Result[String,List[List[Value[A]]]] {
+  match nodes {
+    Nil => Ok(Nil)
+    Cons(n,rest) => if marker(n,"end") {
+      if active { prelude.fmap(walk(cap,j,input,n),func(_) => Nil) } else { Err("not in range, nothing to end") }
+    }
+    else if marker(n,"range") {
+      let (body,after) = rangeBody(rest,0,Nil)
+      prelude.bind(walk(cap,j,input,n),func(values) => {
+        let iteration = match values {
+          Nil => prelude.fmap(runNodes(cap,j,[Dynamic(dyn.Null)],body,true),func(_) => Nil)
+          _ => traverseConcat(values,func(v) => runNodes(cap,j,[v],body,true))
+        }
+        prelude.bind(iteration,func(outputs) => prelude.fmap(runNodes(cap,j,input,after,active),func(tail) => list.append(outputs,tail)))
+      })
+    } else {
+      prelude.bind(walk(cap,j,input,n),func(values) => prelude.fmap(runNodes(cap,j,input,rest,active),func(outputs) => Cons(values,outputs)))
+    }
+  }
+}
+func findResults[A](cap Inspection[A],j JSONPath,input Value[A]) Result[String,List[List[Value[A]]]] {
+  match j.parser {
+    None => Err(j.name+" is an incomplete jsonpath template")
+    Some(p) => runNodes(cap,j,[input],p.root,false)
+  }
+}
+func printResults[A](cap Inspection[A],j JSONPath,values List[Value[A]]) Result[String,String] {
+  if j.outputJSON { prelude.fmap(renderSequence(cap,values,IndentedJSON,0),func(s) => s+"\n") }
+  else { prelude.fmap(list.mapM(values,func(v) => {
+    let shape = match view(cap,v) { InterfaceShape(_,Some(inner)) => view(cap,inner) other => other }
+    let mode = match shape { SequenceShape(_,_) => CompactJSON MappingShape(_,_,_,_) => CompactJSON RecordShape(_,_) => CompactJSON _ => PlainText }
+    render(cap,v,mode,0)
+  }),func(parts) => string.join(" ",parts)) }
+}
+func execute[A](cap Inspection[A],j JSONPath,input Value[A]) Result[String,String] {
+  prelude.bind(findResults(cap,j,input),func(groups) => prelude.fmap(list.mapM(groups,func(values) => printResults(cap,j,values)),string.strConcat))
+}

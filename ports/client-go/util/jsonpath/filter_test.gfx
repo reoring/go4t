@@ -1,0 +1,17 @@
+// Copyright 2015 The Kubernetes Authors.
+// Licensed under the Apache License, Version 2.0; http://www.apache.org/licenses/LICENSE-2.0
+package jsonpath
+
+import "std/prelude"
+import "std/dyn"
+
+func testPinnedTestFilterPartialMatchesSometimesMissingAnnotations() Bool {
+  fixtureCase("filter, should only match a subset, some items don't have annotations, tolerate missing items","{.items[?(@.metadata.annotations.color==\"blue\")].metadata.name}",fixtureTestFilterPartialMatchesSometimesMissingAnnotations(),"pod1 pod4",false,true,false) &&
+  fixtureCase("filter, should only match a subset, some items don't have annotations, error on missing items","{.items[?(@.metadata.annotations.color==\"blue\")].metadata.name}",fixtureTestFilterPartialMatchesSometimesMissingAnnotations(),"",true,false,false)
+}
+func testPinnedNegativeIndexOutOfBounds() Bool {
+  fixtureCase("test containers[-5], expect a error cause it out of bounds","{.spec.containers[-5].name}",fixtureTestNegativeIndex(),"",true,false,false)
+}
+func testPinnedTestRunningPodsJSONPathOutput() Bool {
+  fixtureCase("range over pods without selecting the last one","{range .items[?(.status.phase==\"Running\")]}{.metadata.name}{\" is Running\\n\"}{end}",fixtureTestRunningPodsJSONPathOutput(),"pod1 is Running\npod2 is Running\npod3 is Running\n",false,true,false)
+}

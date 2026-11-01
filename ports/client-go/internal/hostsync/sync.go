@@ -81,6 +81,9 @@ func Broadcast(handle any) any { return notify(handle,true) }
 
 // closing wakes blocked senders before Close takes the exclusive send barrier.
 // The barrier orders every native send before the native close, including races.
+// Registration and native close are serialized so multi-channel selections
+// never wait for a writer while already holding another channel's read barrier.
+var sendRegistration sync.Mutex
 type channel struct { values chan any; mu sync.Mutex; sends sync.RWMutex; closing chan struct{}; closed bool }
 func makeChannel(capacity int64) *channel { return &channel{values:make(chan any,capacity),closing:make(chan struct{})} }
 func NewChannel(capacity any) any { return effect(func(context.Context) (any,error) {
@@ -99,10 +102,21 @@ func Send(handle,value any) any { return effect(func(ctx context.Context) (any,e
 func Receive(handle any) any { return effect(func(ctx context.Context) (any,error) {
  select { case v,ok:=<-handle.(*channel).values: if !ok { return rt.NoneOf(),nil }; return rt.SomeOf(v),nil; case <-ctx.Done(): return nil,ctx.Err() }
 }) }
+// TryReceiveRaw is the private source adapter's (ready, optional value) bridge.
+func TryReceiveRaw(handle any) any { return effect(func(context.Context)(any,error){
+ select {
+ case value,ok:=<-handle.(*channel).values:
+  if !ok {return rt.Tuple2Of(true,rt.NoneOf()),nil}
+  return rt.Tuple2Of(true,rt.SomeOf(value)),nil
+ default:
+  return rt.Tuple2Of(false,rt.NoneOf()),nil
+ }
+}) }
 func Close(handle any) any { return effect(func(context.Context) (any,error) {
  c:=handle.(*channel); c.mu.Lock(); defer c.mu.Unlock()
  if c.closed { return nil,&rt.Failure{Kind:rt.Panic,Message:"close of closed channel"} }
  close(c.closing)
+ sendRegistration.Lock(); defer sendRegistration.Unlock()
  c.sends.Lock(); defer c.sends.Unlock()
  close(c.values); c.closed=true
  return rt.Unit{},nil

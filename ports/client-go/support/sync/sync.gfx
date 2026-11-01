@@ -9,6 +9,9 @@ type Task[A] = TaskHandle
 type Clock = ClockHandle
 type Instant = InstantHandle
 type Timer = TimerHandle
+type Case[R] = CaseHandle
+type Context = ContextHandle
+type Poll[A] = Pending | Received(A) | Closed
 
 extern func newRef[A](value A) IO[Ref[A]] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".NewRef
 extern func readRef[A](ref Ref[A]) IO[A] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".ReadRef
@@ -22,13 +25,29 @@ extern func broadcast(condition Condition) IO[Unit] = "github.com/reoring/gofx/p
 extern func newChannel[A](capacity Int) IO[Channel[A]] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".NewChannel
 extern func send[A](channel Channel[A], value A) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".Send
 extern func receive[A](channel Channel[A]) IO[Option[A]] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".Receive
+extern func _tryReceiveRaw[A](channel Channel[A]) IO[(Bool, Option[A])] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".TryReceiveRaw
+func tryReceive[A](channel Channel[A]) IO[Poll[A]] {
+ do {
+  outcome <- _tryReceiveRaw(channel)
+  ioPure(match outcome { (false, _) => Pending; (true, None) => Closed; (true, Some(value)) => Received(value) })
+ }
+}
 extern func close[A](channel Channel[A]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".Close
 extern func selectReceive[A](channels List[Channel[A]]) IO[(Int, Option[A])] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".SelectReceive
+extern func receiveCase[A, R](channel Channel[A], mapper func(Option[A]) R) Case[R] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".ReceiveCase
+extern func sendCase[A, R](channel Channel[A], value A, result R) Case[R] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".SendCase
+extern func selectCase[R](cases List[Case[R]]) IO[R] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".SelectCase
 extern func start[A](action IO[A]) IO[Task[A]] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".Start
 extern func startDetached[A](action IO[A]) IO[Task[A]] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".StartDetached
 extern func cancelTask[A](task Task[A]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".CancelTask
 extern func join[A](task Task[A]) IO[A] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".Join
 extern func uninterruptible[A](action IO[A]) IO[A] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".Uninterruptible
+extern func captureContext() IO[Context] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".CaptureContext
+extern func contextCancelled(context Context) IO[Bool] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".ContextCancelled
+extern func contextRemaining(context Context) IO[Option[Int]] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".ContextRemaining
+extern func withContext[A](context Context, action IO[A]) IO[A] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".WithContext
+extern func ensuring[A](action IO[A], cleanup IO[Unit]) IO[A] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".Ensuring
+extern func bracket[A, B](acquire IO[A], use func(A) IO[B], release func(A) IO[Unit]) IO[B] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".Bracket
 extern func realClock() IO[Clock] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".RealClock
 extern func fakeClock(startNanos Int) IO[Clock] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".FakeClock
 extern func now(clock Clock) IO[Instant] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".Now

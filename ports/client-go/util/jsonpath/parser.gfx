@@ -1,0 +1,210 @@
+// Copyright 2015 The Kubernetes Authors.
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// http://www.apache.org/licenses/LICENSE-2.0
+// Distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND.
+package jsonpath
+
+import "std/prelude"
+import "std/list"
+import "std/string"
+import "std/result"
+import "std/float"
+
+type ParamsEntry = ParamsEntry { value: Int, known: Bool, derived: Bool } deriving Eq, Debug
+type Node = TextNode(String) | ArrayNode(ParamsEntry,ParamsEntry,ParamsEntry) | ListNode(List[Node]) | FieldNode(String) | IdentifierNode(String) | FilterNode(List[Node],List[Node],String) | IntNode(Int) | FloatNode(Float) | WildcardNode | RecursiveNode | UnionNode(List[List[Node]]) | BoolNode(Bool) deriving Eq, Debug
+type NodeType = NodeText | NodeArray | NodeList | NodeField | NodeIdentifier | NodeFilter | NodeInt | NodeFloat | NodeWildcard | NodeRecursive | NodeUnion | NodeBool deriving Eq, Ord, Debug, Show
+type Parser = Parser { name: String, root: List[Node] } deriving Eq, Debug
+func errSyntax() String { "invalid syntax" }
+func newParser(name String) Parser { Parser(name,Nil) }
+func parserParse(p Parser,text String) Result[String,Parser] { parse(p.name,text) }
+func nodeType(n Node) NodeType {
+  match n {
+    TextNode(_) => NodeText ArrayNode(_,_,_) => NodeArray ListNode(_) => NodeList
+    FieldNode(_) => NodeField IdentifierNode(_) => NodeIdentifier FilterNode(_,_,_) => NodeFilter
+    IntNode(_) => NodeInt FloatNode(_) => NodeFloat WildcardNode => NodeWildcard
+    RecursiveNode => NodeRecursive UnionNode(_) => NodeUnion BoolNode(_) => NodeBool
+  }
+}
+func nodeTypeType(t NodeType) NodeType { t }
+func nodeTypeName(t NodeType) String { show(t) }
+func paramString(p ParamsEntry) String { "{" + show(p.value) + " " + show(p.known) + " " + show(p.derived) + "}" }
+func nodeString(n Node) String {
+  let kind = nodeTypeName(nodeType(n))
+  match n {
+    TextNode(s) => kind + ": " + s FieldNode(s) => kind + ": " + s IdentifierNode(s) => kind + ": " + s
+    IntNode(i) => kind + ": " + show(i) FloatNode(f) => kind + ": " + float.showFloatFixed(f,6)
+    BoolNode(b) => kind + ": " + show(b)
+    ArrayNode(a,b,c) => kind + ": [" + paramString(a) + " " + paramString(b) + " " + paramString(c) + "]"
+    FilterNode(_,_,op) => kind + ": NodeList " + op + " NodeList"
+    _ => kind
+  }
+}
+func ch(s String,i Int) String { result.fromOption(string.charAt(s,i),"") }
+func sub(s String,a Int,b Int) String { string.substring(s,a,b) }
+func terminal(c String) Bool { c == "" || string.contains(" \t\r\n.,[]$@{}",c) }
+func alpha(c String) Bool { c == "_" || string.isAlpha(c) || string.isDigit(c) }
+func scanUntil(s String,i Int,stop func(String) Bool) Int {
+  if i >= string.strLength(s) || stop(ch(s,i)) { i } else { scanUntil(s,i+1,stop) }
+}
+func fieldEnd(s String,i Int) Int {
+  if ch(s,i) == "\\" { fieldEnd(s,prelude.min(i+2,string.strLength(s))) }
+  else if terminal(ch(s,i)) { i } else { fieldEnd(s,i+1) }
+}
+func quotedEnd(s String,i Int,q String) Result[String,Int] {
+  let c = ch(s,i)
+  if c == "" || c == "\n" { Err("unterminated quoted string") }
+  else if c == q && ch(s,i-1) != "\\" { Ok(i+1) }
+  else { quotedEnd(s,i+1,q) }
+}
+func hexDigit(c String) Int {
+  let chars = "0123456789abcdef"
+  result.fromOption(string.indexOf(chars,string.toLower(c)),-1)
+}
+func digits(s String,i Int,n Int,base Int,acc Int) Result[String,Int] {
+  if n == 0 { Ok(acc) } else {
+    let d = hexDigit(ch(s,i))
+    if ch(s,i) == "" || d < 0 || d >= base { Err(errSyntax()) }
+    else { digits(s,i+1,n-1,base,acc*base+d) }
+  }
+}
+func unescape(s String,i Int,q String,acc List[String]) Result[String,String] {
+  let c = ch(s,i)
+  if i >= string.strLength(s) { Ok(string.strConcat(list.reverse(acc))) }
+  else if c == q || c == "\n" { Err(errSyntax()) }
+  else if c != "\\" { unescape(s,i+1,q,Cons(c,acc)) }
+  else {
+    let e = ch(s,i+1)
+    let simple = match e { "a" => Some("\u0007") "b" => Some("\b") "f" => Some("\f") "n" => Some("\n") "r" => Some("\r") "t" => Some("\t") "v" => Some("\u000b") "\\" => Some("\\") _ => if e == q { Some(q) } else { None } }
+    match simple {
+      Some(v) => unescape(s,i+2,q,Cons(v,acc))
+      None => {
+        let n = if e == "x" { 2 } else if e == "u" { 4 } else if e == "U" { 8 } else { 3 }
+        let base = if e == "x" || e == "u" || e == "U" { 16 } else { 8 }
+        let start = if base == 16 { i+2 } else { i+1 }
+        match digits(s,start,n,base,0) {
+          Err(err) => Err(err)
+          Ok(v) => if (base == 8 || e == "x") && v > 255 || v > 1114111 || (v >= 55296 && v <= 57343) { Err(errSyntax()) }
+          else { unescape(s,start+n,q,Cons(if base == 8 || e == "x" { byteString(v) } else { string.fromCodePoint(v) },acc)) }
+        }
+      }
+    }
+  }
+}
+func unquoteExtend(s String) Result[String,String] {
+  let n = string.strLength(s)
+  let q = ch(s,0)
+  if n < 2 || (q != "\"" && q != "'") || ch(s,n-1) != q { Err(errSyntax()) }
+  else {
+    let inner = sub(s,1,n-1)
+    if !string.contains(inner,"\\") && !string.contains(inner,q) { Ok(inner) }
+    else { unescape(inner,0,q,Nil) }
+  }
+}
+func parse(name String,text String) Result[String,Parser] { prelude.fmap(parseText(text,0,Nil),func(ns) => Parser(name,ns)) }
+func parseText(s String,i Int,rev List[Node]) Result[String,List[Node]] {
+  let end = scanUntil(s,i,func(c) => c == "{")
+  let out = if end > i { Cons(TextNode(sub(s,i,end)),rev) } else { rev }
+  if end == string.strLength(s) { Ok(list.reverse(out)) }
+  else { prelude.bind(action(s,end+1,Nil),func(pair) => match pair { (ns,next) => parseText(s,next,Cons(ListNode(ns),out)) }) }
+}
+func parseAction(s String) Result[String,List[Node]] {
+  prelude.bind(action(s+"}",0,Nil),func(pair) => match pair { (ns,_) => Ok(ns) })
+}
+func action(s String,i Int,rev List[Node]) Result[String,(List[Node],Int)] {
+  let c = ch(s,i)
+  if c == "" || c == "\n" || c == "\r" { Err("unclosed action") }
+  else if c == "}" { Ok((list.reverse(rev),i+1)) }
+  else if c == " " || c == "@" || c == "$" { action(s,i+1,rev) }
+  else if sub(s,i,i+3) == "[?(" {
+    prelude.bind(filterEnd(s,i+3,"",false),func(end) => {
+      if ch(s,end+1) != "]" { Err("unclosed array expect ]") }
+      else { prelude.bind(parseFilter(sub(s,i+3,end)),func(n) => action(s,end+2,Cons(n,rev))) }
+    })
+  }
+  else if sub(s,i,i+2) == ".." {
+    match rev {
+      Cons(RecursiveNode,_) => Err("invalid multiple recursive descent")
+      _ => if alpha(ch(s,i+2)) { parseField(s,i+2,Cons(RecursiveNode,rev)) } else { action(s,i+2,Cons(RecursiveNode,rev)) }
+    }
+  }
+  else if c == "." { parseField(s,i+1,rev) }
+  else if c == "[" {
+    let end = scanUntil(s,i+1,func(x) => x == "]" || x == "\n")
+    if ch(s,end) != "]" { Err("unterminated array") }
+    else { prelude.bind(parseArray(sub(s,i+1,end)),func(ns) => action(s,end+1,list.append(list.reverse(ns),rev))) }
+  }
+  else if c == "\"" || c == "'" {
+    prelude.bind(quotedEnd(s,i+1,c),func(end) => match unquoteExtend(sub(s,i,end)) {
+      Err(e) => Err("unquote string " + sub(s,i,end) + " error " + e)
+      Ok(v) => action(s,end,Cons(TextNode(v),rev))
+    })
+  }
+  else if c == "+" || c == "-" || string.isDigit(c) {
+    let start = if c == "+" || c == "-" { i+1 } else { i }
+    let end = scanUntil(s,start,func(x) => x != "." && !string.isDigit(x))
+    let number = sub(s,i,end)
+    let parsed = match string.parseInt(number) {
+      Some(n) => Ok(IntNode(n))
+      None => match float.parseFloat(number) { Some(f) => Ok(FloatNode(f)) None => Err("cannot parse number " + number) }
+    }
+    prelude.bind(parsed,func(n) => action(s,end,Cons(n,rev)))
+  }
+  else if alpha(c) {
+    let end = scanUntil(s,i,terminal)
+    let name = sub(s,i,end)
+    let node = if name == "true" { BoolNode(true) } else if name == "false" { BoolNode(false) } else { IdentifierNode(name) }
+    action(s,end,Cons(node,rev))
+  }
+  else { Err("unrecognized character in action: " + runeDescription(c)) }
+}
+func parseField(s String,i Int,rev List[Node]) Result[String,(List[Node],Int)] {
+  let end = fieldEnd(s,i)
+  let value = sub(s,i,end)
+  action(s,end,Cons(if value == "*" { WildcardNode } else { FieldNode(string.replace(value,"\\","")) },rev))
+}
+func filterEnd(s String,i Int,q String,ended Bool) Result[String,Int] {
+  let c = ch(s,i)
+  if c == "" || c == "\n" { Err("unterminated filter") }
+  else if c == ")" && (q == "" || ended) { Ok(i) }
+  else if (c == "'" || c == "\"") && q == "" { filterEnd(s,i+1,c,false) }
+  else if c == q && ch(s,i-1) != "\\" { filterEnd(s,i+1,q,true) }
+  else { filterEnd(s,i+1,q,ended) }
+}
+func parseFilter(s String) Result[String,Node] {
+  let opStart = scanUntil(s,0,func(c) => string.contains("!<>=",c))
+  let opEnd = scanUntil(s,opStart,func(c) => !string.contains("!<>=",c))
+  if opStart == 0 || opEnd == string.strLength(s) || opStart == opEnd {
+    prelude.fmap(parseAction(s),func(ns) => FilterNode(ns,Nil,"exists"))
+  } else {
+    prelude.bind(parseAction(sub(s,0,opStart)),func(left) => prelude.fmap(parseAction(sub(s,opEnd,string.strLength(s))),func(right) => FilterNode(left,right,sub(s,opStart,opEnd))))
+  }
+}
+func parseParam(s String) Result[String,ParamsEntry] {
+  if s == "" { Ok(ParamsEntry(0,false,false)) }
+  else if ch(s,0) == "+" { Err("invalid array index " + s) }
+  else { match string.parseInt(s) { Some(n) => Ok(ParamsEntry(n,true,false)) None => Err("array index " + s + " is not a number") } }
+}
+func validIndex(s String) Bool {
+  let digits = if ch(s,0) == "-" { sub(s,1,string.strLength(s)) } else { s }
+  list.all(string.chars(digits),func(c) => c >= "0" && c <= "9")
+}
+func parseArray(s String) Result[String,List[Node]] {
+  let parts = string.split(",",s)
+  if list.length(parts) > 1 {
+    prelude.fmap(list.mapM(parts,func(p) => parseAction("["+string.trim(p)+"]")),func(ns) => [UnionNode(ns)])
+  } else if string.startsWith(s,"'") && string.endsWith(s,"'") && !string.contains(sub(s,1,string.strLength(s)-1),"'") {
+    parseAction("."+sub(s,1,string.strLength(s)-1))
+  } else {
+    let slices = string.split(":",if s == "*" { ":" } else { s })
+    if !list.all(slices,validIndex) { Err("invalid array index " + s) } else { match slices {
+      Cons(a,Nil) => prelude.bind(parseParam(a),func(x) => Ok([ArrayNode(x,ParamsEntry(x.value+1,true,true),ParamsEntry(0,false,false))]))
+      Cons(a,Cons(b,rest)) => {
+        let step = match rest { Nil => Ok(ParamsEntry(0,false,false)) Cons(c,Nil) => parseParam(c) _ => Err("invalid array index " + s) }
+        prelude.bind(parseParam(a),func(x) => prelude.bind(parseParam(b),func(y) => prelude.fmap(step,func(z) => [ArrayNode(x,y,z)])))
+      }
+      _ => Err("invalid array index " + s)
+    }
+    }
+  }
+}

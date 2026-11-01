@@ -1,0 +1,185 @@
+// Copyright 2015 The Kubernetes Authors.
+// Licensed under the Apache License, Version 2.0; http://www.apache.org/licenses/LICENSE-2.0
+// Distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND.
+package jsonpath
+
+import "std/prelude"
+import "std/list"
+import "std/result"
+import "std/string"
+import "std/dyn"
+import "std/map"
+import "github.com/reoring/gofx/ports/client-go/third_party/forked/golang/template"
+
+type Value[A] = Dynamic(dyn.Value) | Host(A)
+type Field[A] = Field { name: String, jsonName: String, anonymous: Bool, value: Value[A] }
+type Shape[A] = NilShape | ScalarShape(template.Scalar) | SequenceShape(String,List[Value[A]]) | MappingShape(String,String,Bool,List[(String,Value[A])]) | RecordShape(String,List[Field[A]]) | PointerShape(Option[Value[A]]) | InterfaceShape(Bool,Option[Value[A]]) | OtherShape(String)
+type RenderMode = PlainText | CompactJSON | IndentedJSON deriving Eq
+// Host rendering is an encoding capability; it cannot select fields or evaluate paths.
+type Inspection[A] = Inspection { inspect: func(A) Shape[A], render: func(A,RenderMode) Result[String,String] }
+extern func byteString(n Int) String = "github.com/reoring/gofx/ports/client-go/util/jsonpath/encoding".ByteString
+extern func byteValues(s String) List[Int] = "github.com/reoring/gofx/ports/client-go/util/jsonpath/encoding".ByteValues
+extern func runeDescription(s String) String = "github.com/reoring/gofx/ports/client-go/util/jsonpath/encoding".RuneDescription
+extern func jsonString(s String) String = "github.com/reoring/gofx/ports/client-go/util/jsonpath/encoding".JSONString
+extern func floatText(f Float) String = "github.com/reoring/gofx/ports/client-go/util/jsonpath/encoding".FloatText
+extern func floatFinite(f Float) Bool = "github.com/reoring/gofx/ports/client-go/util/jsonpath/encoding".FloatFinite
+extern func jsonFloat(f Float) String = "github.com/reoring/gofx/ports/client-go/util/jsonpath/encoding".JSONFloat
+extern func jsonBytes(s String) String = "github.com/reoring/gofx/ports/client-go/util/jsonpath/encoding".JSONBytes
+
+func view[A](cap Inspection[A],v Value[A]) Shape[A] {
+  match v {
+    Host(h) => cap.inspect(h)
+    Dynamic(d) => match d {
+      dyn.Null => NilShape
+      dyn.Bool(b) => ScalarShape(template.Boolean(b))
+      dyn.Int(n) => ScalarShape(template.Signed(n))
+      dyn.Float(f) => ScalarShape(template.Floating(f))
+      dyn.Str(s) => ScalarShape(template.Text(s))
+      dyn.Bytes(s) => SequenceShape("[]uint8",prelude.fmap(byteValues(s),func(n) => Dynamic(dyn.Int(n))))
+      dyn.Time(n) => ScalarShape(template.Signed(n))
+      dyn.List(xs) => SequenceShape("[]interface {}",prelude.fmap(xs,Dynamic))
+      dyn.Map(m) => MappingShape("map[string]interface {}","string",true,prelude.fmap(map.mapToList(m),func(kv) => match kv { (k,x) => (k,Dynamic(x)) }))
+    }
+  }
+}
+func indirect[A](cap Inspection[A],v Value[A]) (Value[A],Bool) {
+  match v {
+    Dynamic(dyn.Null) => (v,true)
+    Dynamic(_) => (v,false)
+    Host(_) => match view(cap,v) {
+    NilShape => (v,true)
+    PointerShape(None) => (v,true)
+    PointerShape(Some(next)) => indirect(cap,next)
+    InterfaceShape(_,None) => (v,true)
+    InterfaceShape(true,Some(_)) => (v,false)
+    InterfaceShape(false,Some(next)) => indirect(cap,next)
+    _ => (v,false)
+    }
+  }
+}
+func children[A](cap Inspection[A],v Value[A]) List[Value[A]] {
+  match indirect(cap,v) {
+    (_,true) => Nil
+    (x,false) => match view(cap,x) {
+      SequenceShape(_,xs) => xs
+      MappingShape(_,_,_,xs) => prelude.fmap(xs,func(kv) => match kv { (_,value) => value })
+      RecordShape(_,fs) => prelude.fmap(fs,func(f) => f.value)
+      ScalarShape(template.Text(s)) => prelude.fmap(byteValues(s),func(n) => Dynamic(dyn.Int(n)))
+      _ => Nil
+    }
+  }
+}
+func shapeName[A](s Shape[A]) String {
+  match s {
+    SequenceShape(n,_) => n MappingShape(n,_,_,_) => n RecordShape(n,_) => n OtherShape(n) => n
+    ScalarShape(template.Signed(_)) => "int"
+    ScalarShape(template.Unsigned(_,_)) => "uint64"
+    ScalarShape(template.Floating(_)) => "float64"
+    ScalarShape(template.Text(_)) => "string"
+    ScalarShape(template.Boolean(_)) => "bool"
+    ScalarShape(template.Complex(_,_)) => "complex128"
+    _ => "<nil>"
+  }
+}
+func entry[A](xs List[(String,Value[A])],key String) Option[Value[A]] {
+  match xs { Nil => None Cons((k,v),rest) => if k == key { Some(v) } else { entry(rest,key) } }
+}
+func sourceField[A](cap Inspection[A],level List[Field[A]],key String) Option[Value[A]] {
+  let matches = list.filter(level,func(f) => f.name == key)
+  match matches {
+    Cons(f,Nil) => Some(f.value)
+    Cons(_,_) => None
+    Nil => {
+      let next = list.concatMap(list.filter(level,func(f) => f.anonymous),func(f) => {
+        let (v,isNil) = indirect(cap,f.value)
+        if isNil { Nil } else { match view(cap,v) { RecordShape(_,fields) => fields _ => Nil } }
+      })
+      if list.length(next) == 0 { None } else { sourceField(cap,next,key) }
+    }
+  }
+}
+func recordField[A](cap Inspection[A],fs List[Field[A]],key String) Option[Value[A]] {
+  let tagged = list.find(fs,func(f) => f.jsonName == key)
+  match tagged {
+    Some(f) => Some(f.value)
+    None => {
+      let inline = list.last(list.filter(fs,func(f) => f.jsonName == "" && f.anonymous))
+      let nested = match inline {
+        Some(f) => match view(cap,f.value) { RecordShape(_,subfields) => recordField(cap,subfields,key) _ => None }
+        None => None
+      }
+      match nested { Some(v) => Some(v) None => sourceField(cap,fs,key) }
+    }
+  }
+}
+func lookupField[A](cap Inspection[A],v Value[A],key String) Result[String,Option[Value[A]]] {
+  match v {
+    Dynamic(dyn.Map(m)) => Ok(prelude.fmap(map.mapLookup(m,key),Dynamic))
+    Dynamic(_) => Ok(None)
+    Host(_) => match indirect(cap,v) {
+    (_,true) => Ok(None)
+    (x,false) => match view(cap,x) {
+      MappingShape(_,kt,false,_) => Err(key + " is not convertible to " + kt)
+      MappingShape(_,_,true,entries) => Ok(entry(entries,key))
+      RecordShape(_,fs) => Ok(recordField(cap,fs,key))
+      _ => Ok(None)
+    }
+  }
+    }
+}
+func scalar[A](cap Inspection[A],v Value[A]) template.Scalar {
+  match view(cap,v) { ScalarShape(s) => s _ => template.Invalid }
+}
+func unsignedText(hi Int,lo Int) String {
+  if hi == 0 { show(lo) } else {
+    let quotientHi = hi / 10
+    let merged = (hi % 10) * 4294967296 + lo
+    let quotientLo = merged / 10
+    let digit = merged % 10
+    unsignedText(quotientHi,quotientLo) + show(digit)
+  }
+}
+func scalarText(s template.Scalar,json Bool) Result[String,String] {
+  match s {
+    template.Invalid => Err("can't print invalid value")
+    template.Boolean(b) => Ok(show(b))
+    template.Signed(n) => Ok(show(n))
+    template.Unsigned(hi,lo) => if template.valid(s) { Ok(unsignedText(hi,lo)) } else { Err("invalid uint64 limbs") }
+    template.Floating(f) => if json && !floatFinite(f) { Err("json: unsupported value: " + floatText(f)) } else { Ok(if json { jsonFloat(f) } else { floatText(f) }) }
+    template.Complex(re,im) => if json { Err("json: unsupported type: complex128") } else { Ok("("+floatText(re)+(if im < 0.0 { "" } else { "+" })+floatText(im)+"i)") }
+    template.Text(s) => Ok(if json { jsonString(s) } else { s })
+  }
+}
+func render[A](cap Inspection[A],v Value[A],mode RenderMode,depth Int) Result[String,String] {
+  match v {
+    Host(h) => prelude.fmap(cap.render(h,mode),func(s) => if mode == IndentedJSON && depth > 0 { string.replace(s,"\n","\n"+string.repeat("    ",depth)) } else { s })
+    Dynamic(dyn.Bytes(s)) => Ok(jsonBytes(s))
+    Dynamic(_) => renderShape(cap,view(cap,v),mode,depth)
+  }
+}
+func renderSequence[A](cap Inspection[A],xs List[Value[A]],mode RenderMode,depth Int) Result[String,String] {
+  let pretty = mode == IndentedJSON
+  let indent = string.repeat("    ",depth+1)
+  prelude.fmap(list.mapM(xs,func(v) => render(cap,v,if pretty { IndentedJSON } else { CompactJSON },depth+1)),func(parts) => {
+    if list.length(parts) == 0 { "[]" }
+    else if pretty { "[\n"+indent+string.join(",\n"+indent,parts)+"\n"+string.repeat("    ",depth)+"]" }
+    else { "["+string.join(",",parts)+"]" }
+  })
+}
+func renderShape[A](cap Inspection[A],s Shape[A],mode RenderMode,depth Int) Result[String,String] {
+  match s {
+    NilShape => Ok("null")
+    ScalarShape(x) => scalarText(x,mode != PlainText)
+    SequenceShape(_,xs) => renderSequence(cap,xs,mode,depth)
+    MappingShape(_,_,_,xs) => {
+      let pretty = mode == IndentedJSON
+      let indent = string.repeat("    ",depth+1)
+      prelude.fmap(list.mapM(xs,func(kv) => match kv { (k,v) => prelude.fmap(render(cap,v,if pretty { IndentedJSON } else { CompactJSON },depth+1),func(text) => jsonString(k)+(if pretty { ": " } else { ":" })+text) }),func(parts) => {
+        if list.length(parts) == 0 { "{}" }
+        else if pretty { "{\n"+indent+string.join(",\n"+indent,parts)+"\n"+string.repeat("    ",depth)+"}" }
+        else { "{"+string.join(",",parts)+"}" }
+      })
+    }
+    _ => Err("can't print type " + shapeName(s))
+  }
+}

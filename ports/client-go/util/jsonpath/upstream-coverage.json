@@ -1,0 +1,2093 @@
+{
+  "revision": "72c52dd0cc3b9099b36af11290b0304045dd1ada",
+  "exports": [
+    {
+      "path": "third_party/forked/golang/LICENSE",
+      "symbols": []
+    },
+    {
+      "path": "third_party/forked/golang/PATENTS",
+      "symbols": []
+    },
+    {
+      "path": "third_party/forked/golang/template/exec.go",
+      "symbols": [
+        {
+          "kind": "func",
+          "name": "Indirect",
+          "line": 19,
+          "exported": true,
+          "signature": "func Indirect(v reflect.Value) (rv reflect.Value, isNil bool)"
+        },
+        {
+          "kind": "func",
+          "name": "PrintableValue",
+          "line": 33,
+          "exported": true,
+          "signature": "func PrintableValue(v reflect.Value) (interface{}, bool)"
+        }
+      ]
+    },
+    {
+      "path": "third_party/forked/golang/template/funcs.go",
+      "symbols": [
+        {
+          "kind": "func",
+          "name": "Equal",
+          "line": 49,
+          "exported": true,
+          "signature": "func Equal(arg1 interface{}, arg2 ...interface{}) (bool, error)"
+        },
+        {
+          "kind": "func",
+          "name": "NotEqual",
+          "line": 101,
+          "exported": true,
+          "signature": "func NotEqual(arg1, arg2 interface{}) (bool, error)"
+        },
+        {
+          "kind": "func",
+          "name": "Less",
+          "line": 108,
+          "exported": true,
+          "signature": "func Less(arg1, arg2 interface{}) (bool, error)"
+        },
+        {
+          "kind": "func",
+          "name": "LessEqual",
+          "line": 150,
+          "exported": true,
+          "signature": "func LessEqual(arg1, arg2 interface{}) (bool, error)"
+        },
+        {
+          "kind": "func",
+          "name": "Greater",
+          "line": 160,
+          "exported": true,
+          "signature": "func Greater(arg1, arg2 interface{}) (bool, error)"
+        },
+        {
+          "kind": "func",
+          "name": "GreaterEqual",
+          "line": 170,
+          "exported": true,
+          "signature": "func GreaterEqual(arg1, arg2 interface{}) (bool, error)"
+        }
+      ]
+    },
+    {
+      "path": "util/jsonpath/doc.go",
+      "symbols": []
+    },
+    {
+      "path": "util/jsonpath/jsonpath.go",
+      "symbols": [
+        {
+          "kind": "type",
+          "name": "JSONPath",
+          "line": 30,
+          "exported": true,
+          "signature": "type JSONPath struct {\n\tname\t\tstring\n\tparser\t\t*Parser\n\tbeginRange\tint\n\tinRange\t\tint\n\tendRange\tint\n\n\tlastEndNode\t*Node\n\n\tallowMissingKeys\tbool\n\toutputJSON\t\tbool\n}"
+        },
+        {
+          "kind": "func",
+          "name": "New",
+          "line": 44,
+          "exported": true,
+          "signature": "func New(name string) *JSONPath"
+        },
+        {
+          "kind": "method",
+          "name": "AllowMissingKeys",
+          "line": 55,
+          "exported": true,
+          "signature": "func (j *JSONPath) AllowMissingKeys(allow bool) *JSONPath",
+          "receiver": "*JSONPath"
+        },
+        {
+          "kind": "method",
+          "name": "Parse",
+          "line": 61,
+          "exported": true,
+          "signature": "func (j *JSONPath) Parse(text string) error",
+          "receiver": "*JSONPath"
+        },
+        {
+          "kind": "method",
+          "name": "Execute",
+          "line": 68,
+          "exported": true,
+          "signature": "func (j *JSONPath) Execute(wr io.Writer, data interface{}) error",
+          "receiver": "*JSONPath"
+        },
+        {
+          "kind": "method",
+          "name": "FindResults",
+          "line": 81,
+          "exported": true,
+          "signature": "func (j *JSONPath) FindResults(data interface{}) ([][]reflect.Value, error)",
+          "receiver": "*JSONPath"
+        },
+        {
+          "kind": "method",
+          "name": "EnableJSONOutput",
+          "line": 141,
+          "exported": true,
+          "signature": "func (j *JSONPath) EnableJSONOutput(v bool)",
+          "receiver": "*JSONPath"
+        },
+        {
+          "kind": "method",
+          "name": "PrintResults",
+          "line": 146,
+          "exported": true,
+          "signature": "func (j *JSONPath) PrintResults(wr io.Writer, results []reflect.Value) error",
+          "receiver": "*JSONPath"
+        }
+      ]
+    },
+    {
+      "path": "util/jsonpath/jsonpath_test.go",
+      "symbols": [
+        {
+          "kind": "func",
+          "name": "TestTypesInput",
+          "line": 111,
+          "exported": true,
+          "signature": "func TestTypesInput(t *testing.T)"
+        },
+        {
+          "kind": "method",
+          "name": "String",
+          "line": 206,
+          "exported": true,
+          "signature": "func (b book) String() string",
+          "receiver": "book"
+        },
+        {
+          "kind": "func",
+          "name": "TestStructInput",
+          "line": 226,
+          "exported": true,
+          "signature": "func TestStructInput(t *testing.T)"
+        },
+        {
+          "kind": "func",
+          "name": "TestJSONInput",
+          "line": 297,
+          "exported": true,
+          "signature": "func TestJSONInput(t *testing.T)"
+        },
+        {
+          "kind": "func",
+          "name": "TestKubernetes",
+          "line": 321,
+          "exported": true,
+          "signature": "func TestKubernetes(t *testing.T)"
+        },
+        {
+          "kind": "func",
+          "name": "TestEmptyRange",
+          "line": 399,
+          "exported": true,
+          "signature": "func TestEmptyRange(t *testing.T)"
+        },
+        {
+          "kind": "func",
+          "name": "TestNestedRanges",
+          "line": 414,
+          "exported": true,
+          "signature": "func TestNestedRanges(t *testing.T)"
+        },
+        {
+          "kind": "func",
+          "name": "TestFilterPartialMatchesSometimesMissingAnnotations",
+          "line": 541,
+          "exported": true,
+          "signature": "func TestFilterPartialMatchesSometimesMissingAnnotations(t *testing.T)"
+        },
+        {
+          "kind": "func",
+          "name": "TestNegativeIndex",
+          "line": 616,
+          "exported": true,
+          "signature": "func TestNegativeIndex(t *testing.T)"
+        },
+        {
+          "kind": "func",
+          "name": "TestRunningPodsJSONPathOutput",
+          "line": 766,
+          "exported": true,
+          "signature": "func TestRunningPodsJSONPathOutput(t *testing.T)"
+        },
+        {
+          "kind": "func",
+          "name": "TestStep",
+          "line": 823,
+          "exported": true,
+          "signature": "func TestStep(t *testing.T)"
+        }
+      ]
+    },
+    {
+      "path": "util/jsonpath/node.go",
+      "symbols": [
+        {
+          "kind": "type",
+          "name": "NodeType",
+          "line": 22,
+          "exported": true,
+          "signature": "type NodeType int"
+        },
+        {
+          "kind": "method",
+          "name": "Type",
+          "line": 25,
+          "exported": true,
+          "signature": "func (t NodeType) Type() NodeType",
+          "receiver": "NodeType"
+        },
+        {
+          "kind": "method",
+          "name": "String",
+          "line": 29,
+          "exported": true,
+          "signature": "func (t NodeType) String() string",
+          "receiver": "NodeType"
+        },
+        {
+          "kind": "const",
+          "name": "NodeText",
+          "line": 34,
+          "exported": true,
+          "signature": "const NodeText NodeType = iota",
+          "const_ordinal": 0
+        },
+        {
+          "kind": "const",
+          "name": "NodeArray",
+          "line": 35,
+          "exported": true,
+          "signature": "const NodeArray NodeType = iota",
+          "const_ordinal": 1,
+          "inherited": true
+        },
+        {
+          "kind": "const",
+          "name": "NodeList",
+          "line": 36,
+          "exported": true,
+          "signature": "const NodeList NodeType = iota",
+          "const_ordinal": 2,
+          "inherited": true
+        },
+        {
+          "kind": "const",
+          "name": "NodeField",
+          "line": 37,
+          "exported": true,
+          "signature": "const NodeField NodeType = iota",
+          "const_ordinal": 3,
+          "inherited": true
+        },
+        {
+          "kind": "const",
+          "name": "NodeIdentifier",
+          "line": 38,
+          "exported": true,
+          "signature": "const NodeIdentifier NodeType = iota",
+          "const_ordinal": 4,
+          "inherited": true
+        },
+        {
+          "kind": "const",
+          "name": "NodeFilter",
+          "line": 39,
+          "exported": true,
+          "signature": "const NodeFilter NodeType = iota",
+          "const_ordinal": 5,
+          "inherited": true
+        },
+        {
+          "kind": "const",
+          "name": "NodeInt",
+          "line": 40,
+          "exported": true,
+          "signature": "const NodeInt NodeType = iota",
+          "const_ordinal": 6,
+          "inherited": true
+        },
+        {
+          "kind": "const",
+          "name": "NodeFloat",
+          "line": 41,
+          "exported": true,
+          "signature": "const NodeFloat NodeType = iota",
+          "const_ordinal": 7,
+          "inherited": true
+        },
+        {
+          "kind": "const",
+          "name": "NodeWildcard",
+          "line": 42,
+          "exported": true,
+          "signature": "const NodeWildcard NodeType = iota",
+          "const_ordinal": 8,
+          "inherited": true
+        },
+        {
+          "kind": "const",
+          "name": "NodeRecursive",
+          "line": 43,
+          "exported": true,
+          "signature": "const NodeRecursive NodeType = iota",
+          "const_ordinal": 9,
+          "inherited": true
+        },
+        {
+          "kind": "const",
+          "name": "NodeUnion",
+          "line": 44,
+          "exported": true,
+          "signature": "const NodeUnion NodeType = iota",
+          "const_ordinal": 10,
+          "inherited": true
+        },
+        {
+          "kind": "const",
+          "name": "NodeBool",
+          "line": 45,
+          "exported": true,
+          "signature": "const NodeBool NodeType = iota",
+          "const_ordinal": 11,
+          "inherited": true
+        },
+        {
+          "kind": "var",
+          "name": "NodeTypeName",
+          "line": 48,
+          "exported": true,
+          "signature": "var NodeTypeName = map[NodeType]string{\n\tNodeText:\t\"NodeText\",\n\tNodeArray:\t\"NodeArray\",\n\tNodeList:\t\"NodeList\",\n\tNodeField:\t\"NodeField\",\n\tNodeIdentifier:\t\"NodeIdentifier\",\n\tNodeFilter:\t\"NodeFilter\",\n\tNodeInt:\t\"NodeInt\",\n\tNodeFloat:\t\"NodeFloat\",\n\tNodeWildcard:\t\"NodeWildcard\",\n\tNodeRecursive:\t\"NodeRecursive\",\n\tNodeUnion:\t\"NodeUnion\",\n\tNodeBool:\t\"NodeBool\",\n}"
+        },
+        {
+          "kind": "type",
+          "name": "Node",
+          "line": 63,
+          "exported": true,
+          "signature": "type Node interface {\n\tType() NodeType\n\tString() string\n}"
+        },
+        {
+          "kind": "type",
+          "name": "ListNode",
+          "line": 69,
+          "exported": true,
+          "signature": "type ListNode struct {\n\tNodeType\n\tNodes\t[]Node\t// The element nodes in lexical order.\n}"
+        },
+        {
+          "kind": "method",
+          "name": "String",
+          "line": 82,
+          "exported": true,
+          "signature": "func (l *ListNode) String() string",
+          "receiver": "*ListNode"
+        },
+        {
+          "kind": "type",
+          "name": "TextNode",
+          "line": 87,
+          "exported": true,
+          "signature": "type TextNode struct {\n\tNodeType\n\tText\tstring\t// The text; may span newlines.\n}"
+        },
+        {
+          "kind": "method",
+          "name": "String",
+          "line": 96,
+          "exported": true,
+          "signature": "func (t *TextNode) String() string",
+          "receiver": "*TextNode"
+        },
+        {
+          "kind": "type",
+          "name": "FieldNode",
+          "line": 101,
+          "exported": true,
+          "signature": "type FieldNode struct {\n\tNodeType\n\tValue\tstring\n}"
+        },
+        {
+          "kind": "method",
+          "name": "String",
+          "line": 110,
+          "exported": true,
+          "signature": "func (f *FieldNode) String() string",
+          "receiver": "*FieldNode"
+        },
+        {
+          "kind": "type",
+          "name": "IdentifierNode",
+          "line": 115,
+          "exported": true,
+          "signature": "type IdentifierNode struct {\n\tNodeType\n\tName\tstring\n}"
+        },
+        {
+          "kind": "method",
+          "name": "String",
+          "line": 127,
+          "exported": true,
+          "signature": "func (f *IdentifierNode) String() string",
+          "receiver": "*IdentifierNode"
+        },
+        {
+          "kind": "type",
+          "name": "ParamsEntry",
+          "line": 132,
+          "exported": true,
+          "signature": "type ParamsEntry struct {\n\tValue\tint\n\tKnown\tbool\t// whether the value is known when parse it\n\tDerived\tbool\n}"
+        },
+        {
+          "kind": "type",
+          "name": "ArrayNode",
+          "line": 139,
+          "exported": true,
+          "signature": "type ArrayNode struct {\n\tNodeType\n\tParams\t[3]ParamsEntry\t// start, end, step\n}"
+        },
+        {
+          "kind": "method",
+          "name": "String",
+          "line": 151,
+          "exported": true,
+          "signature": "func (a *ArrayNode) String() string",
+          "receiver": "*ArrayNode"
+        },
+        {
+          "kind": "type",
+          "name": "FilterNode",
+          "line": 156,
+          "exported": true,
+          "signature": "type FilterNode struct {\n\tNodeType\n\tLeft\t\t*ListNode\n\tRight\t\t*ListNode\n\tOperator\tstring\n}"
+        },
+        {
+          "kind": "method",
+          "name": "String",
+          "line": 172,
+          "exported": true,
+          "signature": "func (f *FilterNode) String() string",
+          "receiver": "*FilterNode"
+        },
+        {
+          "kind": "type",
+          "name": "IntNode",
+          "line": 177,
+          "exported": true,
+          "signature": "type IntNode struct {\n\tNodeType\n\tValue\tint\n}"
+        },
+        {
+          "kind": "method",
+          "name": "String",
+          "line": 186,
+          "exported": true,
+          "signature": "func (i *IntNode) String() string",
+          "receiver": "*IntNode"
+        },
+        {
+          "kind": "type",
+          "name": "FloatNode",
+          "line": 191,
+          "exported": true,
+          "signature": "type FloatNode struct {\n\tNodeType\n\tValue\tfloat64\n}"
+        },
+        {
+          "kind": "method",
+          "name": "String",
+          "line": 200,
+          "exported": true,
+          "signature": "func (i *FloatNode) String() string",
+          "receiver": "*FloatNode"
+        },
+        {
+          "kind": "type",
+          "name": "WildcardNode",
+          "line": 205,
+          "exported": true,
+          "signature": "type WildcardNode struct {\n\tNodeType\n}"
+        },
+        {
+          "kind": "method",
+          "name": "String",
+          "line": 213,
+          "exported": true,
+          "signature": "func (i *WildcardNode) String() string",
+          "receiver": "*WildcardNode"
+        },
+        {
+          "kind": "type",
+          "name": "RecursiveNode",
+          "line": 218,
+          "exported": true,
+          "signature": "type RecursiveNode struct {\n\tNodeType\n}"
+        },
+        {
+          "kind": "method",
+          "name": "String",
+          "line": 226,
+          "exported": true,
+          "signature": "func (r *RecursiveNode) String() string",
+          "receiver": "*RecursiveNode"
+        },
+        {
+          "kind": "type",
+          "name": "UnionNode",
+          "line": 231,
+          "exported": true,
+          "signature": "type UnionNode struct {\n\tNodeType\n\tNodes\t[]*ListNode\n}"
+        },
+        {
+          "kind": "method",
+          "name": "String",
+          "line": 240,
+          "exported": true,
+          "signature": "func (u *UnionNode) String() string",
+          "receiver": "*UnionNode"
+        },
+        {
+          "kind": "type",
+          "name": "BoolNode",
+          "line": 245,
+          "exported": true,
+          "signature": "type BoolNode struct {\n\tNodeType\n\tValue\tbool\n}"
+        },
+        {
+          "kind": "method",
+          "name": "String",
+          "line": 254,
+          "exported": true,
+          "signature": "func (b *BoolNode) String() string",
+          "receiver": "*BoolNode"
+        }
+      ]
+    },
+    {
+      "path": "util/jsonpath/parser.go",
+      "symbols": [
+        {
+          "kind": "type",
+          "name": "Parser",
+          "line": 36,
+          "exported": true,
+          "signature": "type Parser struct {\n\tName\tstring\n\tRoot\t*ListNode\n\tinput\tstring\n\tpos\tint\n\tstart\tint\n\twidth\tint\n}"
+        },
+        {
+          "kind": "var",
+          "name": "ErrSyntax",
+          "line": 46,
+          "exported": true,
+          "signature": "var ErrSyntax = errors.New(\"invalid syntax\")"
+        },
+        {
+          "kind": "func",
+          "name": "Parse",
+          "line": 54,
+          "exported": true,
+          "signature": "func Parse(name, text string) (*Parser, error)"
+        },
+        {
+          "kind": "func",
+          "name": "NewParser",
+          "line": 63,
+          "exported": true,
+          "signature": "func NewParser(name string) *Parser"
+        },
+        {
+          "kind": "method",
+          "name": "Parse",
+          "line": 80,
+          "exported": true,
+          "signature": "func (p *Parser) Parse(text string) error",
+          "receiver": "*Parser"
+        },
+        {
+          "kind": "func",
+          "name": "UnquoteExtend",
+          "line": 482,
+          "exported": true,
+          "signature": "func UnquoteExtend(s string) (string, error)"
+        }
+      ]
+    },
+    {
+      "path": "util/jsonpath/parser_test.go",
+      "symbols": [
+        {
+          "kind": "func",
+          "name": "TestParser",
+          "line": 106,
+          "exported": true,
+          "signature": "func TestParser(t *testing.T)"
+        },
+        {
+          "kind": "func",
+          "name": "TestFailParser",
+          "line": 137,
+          "exported": true,
+          "signature": "func TestFailParser(t *testing.T)"
+        }
+      ]
+    }
+  ],
+  "evaluation_cases": [
+    {
+      "file": "jsonpath_test.go",
+      "line": 138,
+      "name": "boolSlice",
+      "expression": "{ .bools }",
+      "input": "types",
+      "expected": "[true,false,true,false]",
+      "error": false,
+      "suite": "TestTypesInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 139,
+      "name": "boolSliceIndex",
+      "expression": "{ .bools[0] }",
+      "input": "types",
+      "expected": "true",
+      "error": false,
+      "suite": "TestTypesInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 140,
+      "name": "boolSliceIndex",
+      "expression": "{ .bools[-1] }",
+      "input": "types",
+      "expected": "false",
+      "error": false,
+      "suite": "TestTypesInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 141,
+      "name": "boolSubSlice",
+      "expression": "{ .bools[0:2] }",
+      "input": "types",
+      "expected": "true false",
+      "error": false,
+      "suite": "TestTypesInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 142,
+      "name": "boolSubSliceFirst2",
+      "expression": "{ .bools[:2] }",
+      "input": "types",
+      "expected": "true false",
+      "error": false,
+      "suite": "TestTypesInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 143,
+      "name": "boolSubSliceStep2",
+      "expression": "{ .bools[:4:2] }",
+      "input": "types",
+      "expected": "true true",
+      "error": false,
+      "suite": "TestTypesInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 145,
+      "name": "integerSlice",
+      "expression": "{ .integers }",
+      "input": "types",
+      "expected": "[1,2,3,4]",
+      "error": false,
+      "suite": "TestTypesInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 146,
+      "name": "integerSliceIndex",
+      "expression": "{ .integers[0] }",
+      "input": "types",
+      "expected": "1",
+      "error": false,
+      "suite": "TestTypesInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 147,
+      "name": "integerSliceIndexReverse",
+      "expression": "{ .integers[-2] }",
+      "input": "types",
+      "expected": "3",
+      "error": false,
+      "suite": "TestTypesInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 148,
+      "name": "integerSubSliceFirst2",
+      "expression": "{ .integers[0:2] }",
+      "input": "types",
+      "expected": "1 2",
+      "error": false,
+      "suite": "TestTypesInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 149,
+      "name": "integerSubSliceFirst2Alt",
+      "expression": "{ .integers[:2] }",
+      "input": "types",
+      "expected": "1 2",
+      "error": false,
+      "suite": "TestTypesInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 150,
+      "name": "integerSubSliceStep2",
+      "expression": "{ .integers[:4:2] }",
+      "input": "types",
+      "expected": "1 3",
+      "error": false,
+      "suite": "TestTypesInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 152,
+      "name": "floatSlice",
+      "expression": "{ .floats }",
+      "input": "types",
+      "expected": "[1,2.2,3.3,4]",
+      "error": false,
+      "suite": "TestTypesInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 153,
+      "name": "floatSliceIndex",
+      "expression": "{ .floats[0] }",
+      "input": "types",
+      "expected": "1",
+      "error": false,
+      "suite": "TestTypesInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 154,
+      "name": "floatSliceIndexReverse",
+      "expression": "{ .floats[-2] }",
+      "input": "types",
+      "expected": "3.3",
+      "error": false,
+      "suite": "TestTypesInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 155,
+      "name": "floatSubSliceFirst2",
+      "expression": "{ .floats[0:2] }",
+      "input": "types",
+      "expected": "1 2.2",
+      "error": false,
+      "suite": "TestTypesInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 156,
+      "name": "floatSubSliceFirst2Alt",
+      "expression": "{ .floats[:2] }",
+      "input": "types",
+      "expected": "1 2.2",
+      "error": false,
+      "suite": "TestTypesInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 157,
+      "name": "floatSubSliceStep2",
+      "expression": "{ .floats[:4:2] }",
+      "input": "types",
+      "expected": "1 3.3",
+      "error": false,
+      "suite": "TestTypesInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 159,
+      "name": "stringSlice",
+      "expression": "{ .strings }",
+      "input": "types",
+      "expected": "[\"one\",\"two\",\"three\",\"four\"]",
+      "error": false,
+      "suite": "TestTypesInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 160,
+      "name": "stringSliceIndex",
+      "expression": "{ .strings[0] }",
+      "input": "types",
+      "expected": "one",
+      "error": false,
+      "suite": "TestTypesInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 161,
+      "name": "stringSliceIndexReverse",
+      "expression": "{ .strings[-2] }",
+      "input": "types",
+      "expected": "three",
+      "error": false,
+      "suite": "TestTypesInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 162,
+      "name": "stringSubSliceFirst2",
+      "expression": "{ .strings[0:2] }",
+      "input": "types",
+      "expected": "one two",
+      "error": false,
+      "suite": "TestTypesInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 163,
+      "name": "stringSubSliceFirst2Alt",
+      "expression": "{ .strings[:2] }",
+      "input": "types",
+      "expected": "one two",
+      "error": false,
+      "suite": "TestTypesInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 164,
+      "name": "stringSubSliceStep2",
+      "expression": "{ .strings[:4:2] }",
+      "input": "types",
+      "expected": "one three",
+      "error": false,
+      "suite": "TestTypesInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 166,
+      "name": "interfaceSlice",
+      "expression": "{ .interfaces }",
+      "input": "types",
+      "expected": "[true,\"one\",1,1.1]",
+      "error": false,
+      "suite": "TestTypesInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 167,
+      "name": "interfaceSliceIndex",
+      "expression": "{ .interfaces[0] }",
+      "input": "types",
+      "expected": "true",
+      "error": false,
+      "suite": "TestTypesInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 168,
+      "name": "interfaceSliceIndexReverse",
+      "expression": "{ .interfaces[-2] }",
+      "input": "types",
+      "expected": "1",
+      "error": false,
+      "suite": "TestTypesInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 169,
+      "name": "interfaceSubSliceFirst2",
+      "expression": "{ .interfaces[0:2] }",
+      "input": "types",
+      "expected": "true one",
+      "error": false,
+      "suite": "TestTypesInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 170,
+      "name": "interfaceSubSliceFirst2Alt",
+      "expression": "{ .interfaces[:2] }",
+      "input": "types",
+      "expected": "true one",
+      "error": false,
+      "suite": "TestTypesInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 171,
+      "name": "interfaceSubSliceStep2",
+      "expression": "{ .interfaces[:4:2] }",
+      "input": "types",
+      "expected": "true 1",
+      "error": false,
+      "suite": "TestTypesInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 173,
+      "name": "mapSlice",
+      "expression": "{ .maps }",
+      "input": "types",
+      "expected": "[{\"name\":\"one\",\"value\":1},{\"name\":\"two\",\"value\":2.02},{\"name\":\"three\",\"value\":3.03},{\"name\":\"four\",\"value\":4.04}]",
+      "error": false,
+      "suite": "TestTypesInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 175,
+      "name": "mapSliceIndex",
+      "expression": "{ .maps[0] }",
+      "input": "types",
+      "expected": "{\"name\":\"one\",\"value\":1}",
+      "error": false,
+      "suite": "TestTypesInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 176,
+      "name": "mapSliceIndexReverse",
+      "expression": "{ .maps[-2] }",
+      "input": "types",
+      "expected": "{\"name\":\"three\",\"value\":3.03}",
+      "error": false,
+      "suite": "TestTypesInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 177,
+      "name": "mapSubSliceFirst2",
+      "expression": "{ .maps[0:2] }",
+      "input": "types",
+      "expected": "{\"name\":\"one\",\"value\":1} {\"name\":\"two\",\"value\":2.02}",
+      "error": false,
+      "suite": "TestTypesInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 178,
+      "name": "mapSubSliceFirst2Alt",
+      "expression": "{ .maps[:2] }",
+      "input": "types",
+      "expected": "{\"name\":\"one\",\"value\":1} {\"name\":\"two\",\"value\":2.02}",
+      "error": false,
+      "suite": "TestTypesInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 179,
+      "name": "mapSubSliceStepOdd",
+      "expression": "{ .maps[::2] }",
+      "input": "types",
+      "expected": "{\"name\":\"one\",\"value\":1} {\"name\":\"three\",\"value\":3.03}",
+      "error": false,
+      "suite": "TestTypesInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 180,
+      "name": "mapSubSliceStepEven",
+      "expression": "{ .maps[1::2] }",
+      "input": "types",
+      "expected": "{\"name\":\"two\",\"value\":2.02} {\"name\":\"four\",\"value\":4.04}",
+      "error": false,
+      "suite": "TestTypesInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 182,
+      "name": "structSlice",
+      "expression": "{ .structs }",
+      "input": "types",
+      "expected": "[{\"name\":\"one\",\"value\":1,\"type\":\"integer\"},{\"name\":\"two\",\"value\":2.002,\"type\":\"float\"},{\"name\":\"three\",\"value\":3,\"type\":\"integer\"},{\"name\":\"four\",\"value\":4.004,\"type\":\"float\"}]",
+      "error": false,
+      "suite": "TestTypesInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 184,
+      "name": "structSliceIndex",
+      "expression": "{ .structs[0] }",
+      "input": "types",
+      "expected": "{\"name\":\"one\",\"value\":1,\"type\":\"integer\"}",
+      "error": false,
+      "suite": "TestTypesInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 185,
+      "name": "structSliceIndexReverse",
+      "expression": "{ .structs[-2] }",
+      "input": "types",
+      "expected": "{\"name\":\"three\",\"value\":3,\"type\":\"integer\"}",
+      "error": false,
+      "suite": "TestTypesInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 186,
+      "name": "structSubSliceFirst2",
+      "expression": "{ .structs[0:2] }",
+      "input": "types",
+      "expected": "{\"name\":\"one\",\"value\":1,\"type\":\"integer\"} {\"name\":\"two\",\"value\":2.002,\"type\":\"float\"}",
+      "error": false,
+      "suite": "TestTypesInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 188,
+      "name": "structSubSliceFirst2Alt",
+      "expression": "{ .structs[:2] }",
+      "input": "types",
+      "expected": "{\"name\":\"one\",\"value\":1,\"type\":\"integer\"} {\"name\":\"two\",\"value\":2.002,\"type\":\"float\"}",
+      "error": false,
+      "suite": "TestTypesInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 190,
+      "name": "structSubSliceStepOdd",
+      "expression": "{ .structs[::2] }",
+      "input": "types",
+      "expected": "{\"name\":\"one\",\"value\":1,\"type\":\"integer\"} {\"name\":\"three\",\"value\":3,\"type\":\"integer\"}",
+      "error": false,
+      "suite": "TestTypesInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 192,
+      "name": "structSubSliceStepEven",
+      "expression": "{ .structs[1::2] }",
+      "input": "types",
+      "expected": "{\"name\":\"two\",\"value\":2.002,\"type\":\"float\"} {\"name\":\"four\",\"value\":4.004,\"type\":\"float\"}",
+      "error": false,
+      "suite": "TestTypesInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 251,
+      "name": "plain",
+      "expression": "hello jsonpath",
+      "input": "nil",
+      "expected": "hello jsonpath",
+      "error": false,
+      "suite": "TestStructInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 252,
+      "name": "recursive",
+      "expression": "{..}",
+      "input": "[]int{1, 2, 3}",
+      "expected": "[1,2,3]",
+      "error": false,
+      "suite": "TestStructInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 253,
+      "name": "filter",
+      "expression": "{[?(@<5)]}",
+      "input": "[]int{2, 6, 3, 7}",
+      "expected": "2 3",
+      "error": false,
+      "suite": "TestStructInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 254,
+      "name": "quote",
+      "expression": "{\"{\"}",
+      "input": "nil",
+      "expected": "{",
+      "error": false,
+      "suite": "TestStructInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 255,
+      "name": "union",
+      "expression": "{[1,3,4]}",
+      "input": "[]int{0, 1, 2, 3, 4}",
+      "expected": "1 3 4",
+      "error": false,
+      "suite": "TestStructInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 256,
+      "name": "array",
+      "expression": "{[0:2]}",
+      "input": "[]string{\"Monday\", \"Tudesday\"}",
+      "expected": "Monday Tudesday",
+      "error": false,
+      "suite": "TestStructInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 257,
+      "name": "variable",
+      "expression": "hello {.Name}",
+      "input": "storeData",
+      "expected": "hello jsonpath",
+      "error": false,
+      "suite": "TestStructInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 258,
+      "name": "dict/",
+      "expression": "{$.Labels.web/html}",
+      "input": "storeData",
+      "expected": "15",
+      "error": false,
+      "suite": "TestStructInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 259,
+      "name": "dict/",
+      "expression": "{$.Employees.jason}",
+      "input": "storeData",
+      "expected": "manager",
+      "error": false,
+      "suite": "TestStructInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 260,
+      "name": "dict/",
+      "expression": "{$.Employees.dan}",
+      "input": "storeData",
+      "expected": "clerk",
+      "error": false,
+      "suite": "TestStructInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 261,
+      "name": "dict-",
+      "expression": "{.Labels.k8s-app}",
+      "input": "storeData",
+      "expected": "20",
+      "error": false,
+      "suite": "TestStructInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 262,
+      "name": "nest",
+      "expression": "{.Bicycle[*].Color}",
+      "input": "storeData",
+      "expected": "red green",
+      "error": false,
+      "suite": "TestStructInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 263,
+      "name": "allarray",
+      "expression": "{.Book[*].Author}",
+      "input": "storeData",
+      "expected": "Nigel Rees Evelyn Waugh Herman Melville",
+      "error": false,
+      "suite": "TestStructInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 264,
+      "name": "allfields",
+      "expression": "{range .Bicycle[*]}{ \"{\" }{ @.* }{ \"} \" }{end}",
+      "input": "storeData",
+      "expected": "{red 19.95 true} {green 20.01 false} ",
+      "error": false,
+      "suite": "TestStructInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 265,
+      "name": "recurfields",
+      "expression": "{..Price}",
+      "input": "storeData",
+      "expected": "8.95 12.99 8.99 19.95 20.01",
+      "error": false,
+      "suite": "TestStructInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 266,
+      "name": "recurdotfields",
+      "expression": "{...Price}",
+      "input": "storeData",
+      "expected": "8.95 12.99 8.99 19.95 20.01",
+      "error": false,
+      "suite": "TestStructInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 267,
+      "name": "superrecurfields",
+      "expression": "{............................................................Price}",
+      "input": "storeData",
+      "expected": "",
+      "error": true,
+      "suite": "TestStructInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 268,
+      "name": "allstructsSlice",
+      "expression": "{.Bicycle}",
+      "input": "storeData",
+      "expected": "[{\"Color\":\"red\",\"Price\":19.95,\"IsNew\":true},{\"Color\":\"green\",\"Price\":20.01,\"IsNew\":false}]",
+      "error": false,
+      "suite": "TestStructInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 270,
+      "name": "allstructs",
+      "expression": "{range .Bicycle[*]}{ @ }{ \" \" }{end}",
+      "input": "storeData",
+      "expected": "{\"Color\":\"red\",\"Price\":19.95,\"IsNew\":true} {\"Color\":\"green\",\"Price\":20.01,\"IsNew\":false} ",
+      "error": false,
+      "suite": "TestStructInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 272,
+      "name": "lastarray",
+      "expression": "{.Book[-1:]}",
+      "input": "storeData",
+      "expected": "{\"Category\":\"fiction\",\"Author\":\"Herman Melville\",\"Title\":\"Moby Dick\",\"Price\":8.99}",
+      "error": false,
+      "suite": "TestStructInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 274,
+      "name": "recurarray",
+      "expression": "{..Book[2]}",
+      "input": "storeData",
+      "expected": "{\"Category\":\"fiction\",\"Author\":\"Herman Melville\",\"Title\":\"Moby Dick\",\"Price\":8.99}",
+      "error": false,
+      "suite": "TestStructInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 276,
+      "name": "bool",
+      "expression": "{.Bicycle[?(@.IsNew==true)]}",
+      "input": "storeData",
+      "expected": "{\"Color\":\"red\",\"Price\":19.95,\"IsNew\":true}",
+      "error": false,
+      "suite": "TestStructInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 282,
+      "name": "nonexistent field",
+      "expression": "{.hello}",
+      "input": "storeData",
+      "expected": "",
+      "error": false,
+      "suite": "TestStructInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 283,
+      "name": "nonexistent field 2",
+      "expression": "before-{.hello}after",
+      "input": "storeData",
+      "expected": "before-after",
+      "error": false,
+      "suite": "TestStructInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 288,
+      "name": "invalid identifier",
+      "expression": "{hello}",
+      "input": "storeData",
+      "expected": "unrecognized identifier hello",
+      "error": false,
+      "suite": "TestStructInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 289,
+      "name": "nonexistent field",
+      "expression": "{.hello}",
+      "input": "storeData",
+      "expected": "hello is not found",
+      "error": false,
+      "suite": "TestStructInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 290,
+      "name": "invalid array",
+      "expression": "{.Labels[0]}",
+      "input": "storeData",
+      "expected": "map[string]int is not array or slice",
+      "error": false,
+      "suite": "TestStructInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 291,
+      "name": "invalid filter operator",
+      "expression": "{.Book[?(@.Price<>10)]}",
+      "input": "storeData",
+      "expected": "unrecognized filter operator <>",
+      "error": false,
+      "suite": "TestStructInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 292,
+      "name": "redundant end",
+      "expression": "{range .Labels.*}{@}{end}{end}",
+      "input": "storeData",
+      "expected": "not in range, nothing to end",
+      "error": false,
+      "suite": "TestStructInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 313,
+      "name": "exists filter",
+      "expression": "{[?(@.z)].id}",
+      "input": "pointsData",
+      "expected": "i2 i5",
+      "error": false,
+      "suite": "TestJSONInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 314,
+      "name": "bracket key",
+      "expression": "{[0]['id']}",
+      "input": "pointsData",
+      "expected": "i1",
+      "error": false,
+      "suite": "TestJSONInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 315,
+      "name": "nil value",
+      "expression": "{[-1]['x']}",
+      "input": "pointsData",
+      "expected": "null",
+      "error": false,
+      "suite": "TestJSONInput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 375,
+      "name": "range item",
+      "expression": "{range .items[*]}{.metadata.name}, {end}{.kind}",
+      "input": "nodesData",
+      "expected": "127.0.0.1, 127.0.0.2, List",
+      "error": false,
+      "suite": "TestKubernetes"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 376,
+      "name": "range item with quote",
+      "expression": "{range .items[*]}{.metadata.name}{\"\\t\"}{end}",
+      "input": "nodesData",
+      "expected": "127.0.0.1\t127.0.0.2\t",
+      "error": false,
+      "suite": "TestKubernetes"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 377,
+      "name": "range addresss",
+      "expression": "{.items[*].status.addresses[*].address}",
+      "input": "nodesData",
+      "expected": "127.0.0.1 127.0.0.2 127.0.0.3",
+      "error": false,
+      "suite": "TestKubernetes"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 379,
+      "name": "double range",
+      "expression": "{range .items[*]}{range .status.addresses[*]}{.address}, {end}{end}",
+      "input": "nodesData",
+      "expected": "127.0.0.1, 127.0.0.2, 127.0.0.3, ",
+      "error": false,
+      "suite": "TestKubernetes"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 381,
+      "name": "item name",
+      "expression": "{.items[*].metadata.name}",
+      "input": "nodesData",
+      "expected": "127.0.0.1 127.0.0.2",
+      "error": false,
+      "suite": "TestKubernetes"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 382,
+      "name": "union nodes capacity",
+      "expression": "{.items[*]['metadata.name', 'status.capacity']}",
+      "input": "nodesData",
+      "expected": "127.0.0.1 127.0.0.2 {\"cpu\":\"4\"} {\"cpu\":\"8\"}",
+      "error": false,
+      "suite": "TestKubernetes"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 384,
+      "name": "range nodes capacity",
+      "expression": "{range .items[*]}[{.metadata.name}, {.status.capacity}] {end}",
+      "input": "nodesData",
+      "expected": "[127.0.0.1, {\"cpu\":\"4\"}] [127.0.0.2, {\"cpu\":\"8\"}] ",
+      "error": false,
+      "suite": "TestKubernetes"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 386,
+      "name": "user password",
+      "expression": "{.users[?(@.name==\"e2e\")].user.password}",
+      "input": "&nodesData",
+      "expected": "secret",
+      "error": false,
+      "suite": "TestKubernetes"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 387,
+      "name": "hostname",
+      "expression": "{.items[0].metadata.labels.kubernetes\\.io/hostname}",
+      "input": "&nodesData",
+      "expected": "127.0.0.1",
+      "error": false,
+      "suite": "TestKubernetes"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 388,
+      "name": "hostname filter",
+      "expression": "{.items[?(@.metadata.labels.kubernetes\\.io/hostname==\"127.0.0.1\")].kind}",
+      "input": "&nodesData",
+      "expected": "None",
+      "error": false,
+      "suite": "TestKubernetes"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 389,
+      "name": "bool item",
+      "expression": "{.items[?(@..ready==true)].metadata.name}",
+      "input": "&nodesData",
+      "expected": "127.0.0.1",
+      "error": false,
+      "suite": "TestKubernetes"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 394,
+      "name": "recursive name",
+      "expression": "{..name}",
+      "input": "nodesData",
+      "expected": "127.0.0.1 127.0.0.2 myself e2e",
+      "error": false,
+      "suite": "TestKubernetes"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 408,
+      "name": "empty range",
+      "expression": "{range .items[*]}{.metadata.name}{end}",
+      "input": "&emptyList",
+      "expected": "",
+      "error": false,
+      "suite": "TestEmptyRange"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 409,
+      "name": "empty nested range",
+      "expression": "{range .items[*]}{.metadata.name}{\":\"}{range @.spec.containers[*]}{.name}{\",\"}{end}{\"+\"}{end}",
+      "input": "&emptyList",
+      "expected": "",
+      "error": false,
+      "suite": "TestEmptyRange"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 466,
+      "name": "nested range with a trailing newline",
+      "expression": "{range .items[*]}{.metadata.name}{\":\"}{range @.spec.containers[*]}{.name}{\",\"}{end}{\"+\"}{end}",
+      "input": "data",
+      "expected": "pod1:foo,bar,+pod2:baz,+",
+      "error": false,
+      "suite": "TestNestedRanges"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 488,
+      "name": "nested range with a trailing character within another nested range with a trailing newline",
+      "expression": "{range .items[*]}{.metadata.name}{\"~\"}{range @.spec.containers[*]}{.name}{\":\"}{range @.another[*]}{.name}{\",\"}{end}{\"+\"}{end}{\"#\"}{end}",
+      "input": "data",
+      "expected": "pod1~foo:value1,value2,+bar:value1,value2,+#pod2~baz:value1,value2,+#",
+      "error": false,
+      "suite": "TestNestedRanges"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 515,
+      "name": "two nested ranges at the same level with a trailing newline",
+      "expression": "{range .items[*]}{.metadata.name}{\"\\t\"}{range @.spec.containers[*]}{.name}{\" \"}{end}{\"\\t\"}{range @.spec.containers[*]}{.name}{\" \"}{end}{\"\\n\"}{end}",
+      "input": "data",
+      "expected": "pod1\tfoo bar \tfoo bar \npod2\tbaz \tbaz \n",
+      "error": false,
+      "suite": "TestNestedRanges"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 589,
+      "name": "filter, should only match a subset, some items don't have annotations, tolerate missing items",
+      "expression": "{.items[?(@.metadata.annotations.color==\"blue\")].metadata.name}",
+      "input": "data",
+      "expected": "pod1 pod4",
+      "error": false,
+      "suite": "TestFilterPartialMatchesSometimesMissingAnnotations"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 603,
+      "name": "filter, should only match a subset, some items don't have annotations, error on missing items",
+      "expression": "{.items[?(@.metadata.annotations.color==\"blue\")].metadata.name}",
+      "input": "data",
+      "expected": "",
+      "error": true,
+      "suite": "TestFilterPartialMatchesSometimesMissingAnnotations"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 648,
+      "name": "test containers[0], it equals containers[0]",
+      "expression": "{.spec.containers[0].name}",
+      "input": "data",
+      "expected": "fake0",
+      "error": false,
+      "suite": "TestNegativeIndex"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 655,
+      "name": "test containers[0:0], it equals the empty set",
+      "expression": "{.spec.containers[0:0].name}",
+      "input": "data",
+      "expected": "",
+      "error": false,
+      "suite": "TestNegativeIndex"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 662,
+      "name": "test containers[0:-1], it equals containers[0:3]",
+      "expression": "{.spec.containers[0:-1].name}",
+      "input": "data",
+      "expected": "fake0 fake1 fake2",
+      "error": false,
+      "suite": "TestNegativeIndex"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 669,
+      "name": "test containers[-1:0], expect error",
+      "expression": "{.spec.containers[-1:0].name}",
+      "input": "data",
+      "expected": "",
+      "error": true,
+      "suite": "TestNegativeIndex"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 676,
+      "name": "test containers[-1], it equals containers[3]",
+      "expression": "{.spec.containers[-1].name}",
+      "input": "data",
+      "expected": "fake3",
+      "error": false,
+      "suite": "TestNegativeIndex"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 683,
+      "name": "test containers[-1:], it equals containers[3:]",
+      "expression": "{.spec.containers[-1:].name}",
+      "input": "data",
+      "expected": "fake3",
+      "error": false,
+      "suite": "TestNegativeIndex"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 690,
+      "name": "test containers[-2], it equals containers[2]",
+      "expression": "{.spec.containers[-2].name}",
+      "input": "data",
+      "expected": "fake2",
+      "error": false,
+      "suite": "TestNegativeIndex"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 697,
+      "name": "test containers[-2:], it equals containers[2:]",
+      "expression": "{.spec.containers[-2:].name}",
+      "input": "data",
+      "expected": "fake2 fake3",
+      "error": false,
+      "suite": "TestNegativeIndex"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 704,
+      "name": "test containers[-3], it equals containers[1]",
+      "expression": "{.spec.containers[-3].name}",
+      "input": "data",
+      "expected": "fake1",
+      "error": false,
+      "suite": "TestNegativeIndex"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 711,
+      "name": "test containers[-4], it equals containers[0]",
+      "expression": "{.spec.containers[-4].name}",
+      "input": "data",
+      "expected": "fake0",
+      "error": false,
+      "suite": "TestNegativeIndex"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 718,
+      "name": "test containers[-4:], it equals containers[0:]",
+      "expression": "{.spec.containers[-4:].name}",
+      "input": "data",
+      "expected": "fake0 fake1 fake2 fake3",
+      "error": false,
+      "suite": "TestNegativeIndex"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 725,
+      "name": "test containers[-5], expect a error cause it out of bounds",
+      "expression": "{.spec.containers[-5].name}",
+      "input": "data",
+      "expected": "",
+      "error": true,
+      "suite": "TestNegativeIndex"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 732,
+      "name": "test containers[5:5], expect empty set",
+      "expression": "{.spec.containers[5:5].name}",
+      "input": "data",
+      "expected": "",
+      "error": false,
+      "suite": "TestNegativeIndex"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 739,
+      "name": "test containers[-5:-5], expect empty set",
+      "expression": "{.spec.containers[-5:-5].name}",
+      "input": "data",
+      "expected": "",
+      "error": false,
+      "suite": "TestNegativeIndex"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 746,
+      "name": "test containers[3:1], expect a error cause start index is greater than end index",
+      "expression": "{.spec.containers[3:1].name}",
+      "input": "data",
+      "expected": "",
+      "error": true,
+      "suite": "TestNegativeIndex"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 753,
+      "name": "test containers[-1:-2], it equals containers[3:2], expect a error cause start index is greater than end index",
+      "expression": "{.spec.containers[-1:-2].name}",
+      "input": "data",
+      "expected": "",
+      "error": true,
+      "suite": "TestNegativeIndex"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 810,
+      "name": "range over pods without selecting the last one",
+      "expression": "{range .items[?(.status.phase==\"Running\")]}{.metadata.name}{\" is Running\\n\"}{end}",
+      "input": "data",
+      "expected": "pod1 is Running\npod2 is Running\npod3 is Running\n",
+      "error": false,
+      "suite": "TestRunningPodsJSONPathOutput"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 863,
+      "name": "test containers[0:], it equals containers[0:6:1]",
+      "expression": "{.spec.containers[0:].name}",
+      "input": "data",
+      "expected": "fake0 fake1 fake2 fake3 fake4 fake5",
+      "error": false,
+      "suite": "TestStep"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 870,
+      "name": "test containers[0:6:], it equals containers[0:6:1]",
+      "expression": "{.spec.containers[0:6:].name}",
+      "input": "data",
+      "expected": "fake0 fake1 fake2 fake3 fake4 fake5",
+      "error": false,
+      "suite": "TestStep"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 877,
+      "name": "test containers[0:6:1]",
+      "expression": "{.spec.containers[0:6:1].name}",
+      "input": "data",
+      "expected": "fake0 fake1 fake2 fake3 fake4 fake5",
+      "error": false,
+      "suite": "TestStep"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 884,
+      "name": "test containers[0:6:0], it errors",
+      "expression": "{.spec.containers[0:6:0].name}",
+      "input": "data",
+      "expected": "",
+      "error": true,
+      "suite": "TestStep"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 891,
+      "name": "test containers[0:6:-1], it errors",
+      "expression": "{.spec.containers[0:6:-1].name}",
+      "input": "data",
+      "expected": "",
+      "error": true,
+      "suite": "TestStep"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 898,
+      "name": "test containers[1:4:2]",
+      "expression": "{.spec.containers[1:4:2].name}",
+      "input": "data",
+      "expected": "fake1 fake3",
+      "error": false,
+      "suite": "TestStep"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 905,
+      "name": "test containers[1:4:3]",
+      "expression": "{.spec.containers[1:4:3].name}",
+      "input": "data",
+      "expected": "fake1",
+      "error": false,
+      "suite": "TestStep"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 912,
+      "name": "test containers[1:4:4]",
+      "expression": "{.spec.containers[1:4:4].name}",
+      "input": "data",
+      "expected": "fake1",
+      "error": false,
+      "suite": "TestStep"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 919,
+      "name": "test containers[0:6:2]",
+      "expression": "{.spec.containers[0:6:2].name}",
+      "input": "data",
+      "expected": "fake0 fake2 fake4",
+      "error": false,
+      "suite": "TestStep"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 926,
+      "name": "test containers[0:6:3]",
+      "expression": "{.spec.containers[0:6:3].name}",
+      "input": "data",
+      "expected": "fake0 fake3",
+      "error": false,
+      "suite": "TestStep"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 933,
+      "name": "test containers[0:6:5]",
+      "expression": "{.spec.containers[0:6:5].name}",
+      "input": "data",
+      "expected": "fake0 fake5",
+      "error": false,
+      "suite": "TestStep"
+    },
+    {
+      "file": "jsonpath_test.go",
+      "line": 940,
+      "name": "test containers[0:6:6]",
+      "expression": "{.spec.containers[0:6:6].name}",
+      "input": "data",
+      "expected": "fake0",
+      "error": false,
+      "suite": "TestStep"
+    }
+  ],
+  "parser_cases": [
+    {
+      "name": "plain",
+      "expression": "hello jsonpath",
+      "nodes": "[]Node{newText(\"hello jsonpath\")}",
+      "error": false,
+      "line": 31
+    },
+    {
+      "name": "variable",
+      "expression": "hello {.jsonpath}",
+      "nodes": "[]Node{newText(\"hello \"), newList(), newField(\"jsonpath\")}",
+      "error": false,
+      "line": 32
+    },
+    {
+      "name": "arrayfiled",
+      "expression": "hello {['jsonpath']}",
+      "nodes": "[]Node{newText(\"hello \"), newList(), newField(\"jsonpath\")}",
+      "error": false,
+      "line": 34
+    },
+    {
+      "name": "quote",
+      "expression": "{\"{\"}",
+      "nodes": "[]Node{newList(), newText(\"{\")}",
+      "error": false,
+      "line": 36
+    },
+    {
+      "name": "array",
+      "expression": "{[1:3]}",
+      "nodes": "[]Node{newList(),\n\t\tnewArray([3]ParamsEntry{{1, true, false}, {3, true, false}, {0, false, false}})}",
+      "error": false,
+      "line": 37
+    },
+    {
+      "name": "allarray",
+      "expression": "{.book[*].author}",
+      "nodes": "[]Node{newList(), newField(\"book\"),\n\t\t\tnewArray([3]ParamsEntry{{0, false, false}, {0, false, false}, {0, false, false}}), newField(\"author\")}",
+      "error": false,
+      "line": 39
+    },
+    {
+      "name": "wildcard",
+      "expression": "{.bicycle.*}",
+      "nodes": "[]Node{newList(), newField(\"bicycle\"), newWildcard()}",
+      "error": false,
+      "line": 42
+    },
+    {
+      "name": "filter",
+      "expression": "{[?(@.price<3)]}",
+      "nodes": "[]Node{newList(), newFilter(newList(), newList(), \"<\"),\n\t\t\tnewList(), newField(\"price\"), newList(), newInt(3)}",
+      "error": false,
+      "line": 44
+    },
+    {
+      "name": "recursive",
+      "expression": "{..}",
+      "nodes": "[]Node{newList(), newRecursive()}",
+      "error": false,
+      "line": 47
+    },
+    {
+      "name": "recurField",
+      "expression": "{..price}",
+      "nodes": "[]Node{newList(), newRecursive(), newField(\"price\")}",
+      "error": false,
+      "line": 48
+    },
+    {
+      "name": "arraydict",
+      "expression": "{['book.price']}",
+      "nodes": "[]Node{newList(),\n\t\tnewField(\"book\"), newField(\"price\"),\n\t}",
+      "error": false,
+      "line": 50
+    },
+    {
+      "name": "union",
+      "expression": "{['bicycle.price', 3, 'book.price']}",
+      "nodes": "[]Node{newList(), newUnion([]*ListNode{}),\n\t\tnewList(), newField(\"bicycle\"), newField(\"price\"),\n\t\tnewList(), newArray([3]ParamsEntry{{3, true, false}, {4, true, true}, {0, false, false}}),\n\t\tnewList(), newField(\"book\"), newField(\"price\"),\n\t}",
+      "error": false,
+      "line": 53
+    },
+    {
+      "name": "range",
+      "expression": "{range .items}{.name},{end}",
+      "nodes": "[]Node{\n\t\tnewList(), newIdentifier(\"range\"), newField(\"items\"),\n\t\tnewList(), newField(\"name\"), newText(\",\"),\n\t\tnewList(), newIdentifier(\"end\"),\n\t}",
+      "error": false,
+      "line": 58
+    },
+    {
+      "name": "malformat input",
+      "expression": "{\\\\\\}",
+      "nodes": "[]Node{}",
+      "error": true,
+      "line": 63
+    },
+    {
+      "name": "paired parentheses in quotes",
+      "expression": "{[?(@.status.nodeInfo.osImage == \"()\")]}",
+      "nodes": "[]Node{newList(), newFilter(newList(), newList(), \"==\"), newList(), newField(\"status\"), newField(\"nodeInfo\"), newField(\"osImage\"), newList(), newText(\"()\")}",
+      "error": false,
+      "line": 64
+    },
+    {
+      "name": "paired parentheses in double quotes and with double quotes escape",
+      "expression": "{[?(@.status.nodeInfo.osImage == \"(\\\"\\\")\")]}",
+      "nodes": "[]Node{newList(), newFilter(newList(), newList(), \"==\"), newList(), newField(\"status\"), newField(\"nodeInfo\"), newField(\"osImage\"), newList(), newText(\"(\\\"\\\")\")}",
+      "error": false,
+      "line": 66
+    },
+    {
+      "name": "unregular parentheses in double quotes",
+      "expression": "{[?(@.test == \"())(\")]}",
+      "nodes": "[]Node{newList(), newFilter(newList(), newList(), \"==\"), newList(), newField(\"test\"), newList(), newText(\"())(\")}",
+      "error": false,
+      "line": 68
+    },
+    {
+      "name": "plain text in single quotes",
+      "expression": "{[?(@.status.nodeInfo.osImage == 'Linux')]}",
+      "nodes": "[]Node{newList(), newFilter(newList(), newList(), \"==\"), newList(), newField(\"status\"), newField(\"nodeInfo\"), newField(\"osImage\"), newList(), newText(\"Linux\")}",
+      "error": false,
+      "line": 70
+    },
+    {
+      "name": "test filter suffix",
+      "expression": "{[?(@.status.nodeInfo.osImage == \"{[()]}\")]}",
+      "nodes": "[]Node{newList(), newFilter(newList(), newList(), \"==\"), newList(), newField(\"status\"), newField(\"nodeInfo\"), newField(\"osImage\"), newList(), newText(\"{[()]}\")}",
+      "error": false,
+      "line": 72
+    },
+    {
+      "name": "double inside single",
+      "expression": "{[?(@.status.nodeInfo.osImage == \"''\")]}",
+      "nodes": "[]Node{newList(), newFilter(newList(), newList(), \"==\"), newList(), newField(\"status\"), newField(\"nodeInfo\"), newField(\"osImage\"), newList(), newText(\"''\")}",
+      "error": false,
+      "line": 74
+    },
+    {
+      "name": "single inside double",
+      "expression": "{[?(@.status.nodeInfo.osImage == '\"\"')]}",
+      "nodes": "[]Node{newList(), newFilter(newList(), newList(), \"==\"), newList(), newField(\"status\"), newField(\"nodeInfo\"), newField(\"osImage\"), newList(), newText(\"\\\"\\\"\")}",
+      "error": false,
+      "line": 76
+    },
+    {
+      "name": "single containing escaped single",
+      "expression": "{[?(@.status.nodeInfo.osImage == '\\\\\\'')]}",
+      "nodes": "[]Node{newList(), newFilter(newList(), newList(), \"==\"), newList(), newField(\"status\"), newField(\"nodeInfo\"), newField(\"osImage\"), newList(), newText(\"\\\\'\")}",
+      "error": false,
+      "line": 78
+    },
+    {
+      "name": "negative index slice, equals a[len-5] to a[len-1]",
+      "expression": "{[-5:]}",
+      "nodes": "[]Node{newList(),\n\t\tnewArray([3]ParamsEntry{{-5, true, false}, {0, false, false}, {0, false, false}})}",
+      "error": false,
+      "line": 80
+    },
+    {
+      "name": "negative index slice, equals a[len-1]",
+      "expression": "{[-1]}",
+      "nodes": "[]Node{newList(),\n\t\tnewArray([3]ParamsEntry{{-1, true, false}, {0, true, true}, {0, false, false}})}",
+      "error": false,
+      "line": 82
+    },
+    {
+      "name": "negative index slice, equals a[1] to a[len-1]",
+      "expression": "{[1:-1]}",
+      "nodes": "[]Node{newList(),\n\t\tnewArray([3]ParamsEntry{{1, true, false}, {-1, true, false}, {0, false, false}})}",
+      "error": false,
+      "line": 84
+    }
+  ],
+  "parser_failure_cases": [
+    {
+      "name": "unclosed action",
+      "expression": "{.hello",
+      "expected": "unclosed action",
+      "line": 139
+    },
+    {
+      "name": "unrecognized character",
+      "expression": "{*}",
+      "expected": "unrecognized character in action: U+002A '*'",
+      "line": 140
+    },
+    {
+      "name": "invalid number",
+      "expression": "{+12.3.0}",
+      "expected": "cannot parse number +12.3.0",
+      "line": 141
+    },
+    {
+      "name": "unterminated array",
+      "expression": "{[1}",
+      "expected": "unterminated array",
+      "line": 142
+    },
+    {
+      "name": "unterminated filter",
+      "expression": "{[?(.price]}",
+      "expected": "unterminated filter",
+      "line": 143
+    },
+    {
+      "name": "invalid multiple recursive descent",
+      "expression": "{........}",
+      "expected": "invalid multiple recursive descent",
+      "line": 144
+    }
+  ]
+}

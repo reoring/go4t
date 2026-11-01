@@ -1,0 +1,56 @@
+// Copyright 2009 The Go Authors. All rights reserved.
+// Use of this source code is governed by the BSD-style license in ../LICENSE.
+package template
+
+import "std/prelude"
+import "std/list"
+import "std/result"
+import "std/float"
+
+type TestValue = Atom(String) | TestPointer(Option[TestValue]) | TestInterface(Bool,Option[TestValue]) | InvalidValue | FunctionValue | ChannelValue | StringerValue(String) deriving Eq
+func testReflectionLink(v TestValue) Link[TestValue] {
+  match v { TestPointer(p) => Pointer(p) TestInterface(methods,p) => Interface(methods,p) _ => Direct }
+}
+func testReflectionPrint(v TestValue) Option[String] {
+  match v {
+    TestPointer(None) => Some("<nil>")
+    TestPointer(Some(p)) => testReflectionPrint(p)
+    TestInterface(_,None) => Some("<nil>")
+    TestInterface(_,Some(p)) => testReflectionPrint(p)
+    InvalidValue => Some("<no value>")
+    FunctionValue => None
+    ChannelValue => None
+    Atom(s) => Some(s)
+    StringerValue(s) => Some(s)
+  }
+}
+func testComparisonKinds() Bool {
+  equal(Boolean(true),[Boolean(false),Boolean(true)]) == Ok(true) &&
+  equal(Signed(1),Nil) == Err("missing argument for comparison") &&
+  equal(Invalid,Nil) == Err("invalid type for comparison") &&
+  equal(Text("x"),[Signed(1)]) == Err("incompatible types for comparison") &&
+  equal(Complex(1.0,2.0),[Complex(1.0,2.0)]) == Ok(true) &&
+  less(Boolean(false),Boolean(true)) == Err("invalid type for comparison") &&
+  less(Complex(1.0,0.0),Complex(2.0,0.0)) == Err("invalid type for comparison") &&
+  less(Signed(1),Floating(1.0)) == Err("incompatible types for comparison") &&
+  less(Text("a"),Text("b")) == Ok(true) &&
+  less(Floating(1.0),Floating(2.0)) == Ok(true) &&
+  less(Unsigned(0,1),Signed(-1)) == Ok(false) &&
+  lessEqual(Unsigned(4294967295,4294967295),Unsigned(4294967295,4294967295)) == Ok(true) &&
+  greater(Signed(4),Signed(3)) == Ok(true) &&
+  greaterEqual(Signed(4),Signed(4)) == Ok(true) &&
+  notEqual(Text("a"),Text("b")) == Ok(true) &&
+  equal(Floating(float.nan()),[Floating(float.nan())]) == Ok(false)
+}
+func testExplicitReflection() Bool {
+  let r = Reflection(testReflectionLink,testReflectionPrint)
+  let value = Atom("exact")
+  let nonempty = TestInterface(true,Some(TestPointer(Some(value))))
+  indirect(r,TestPointer(Some(TestInterface(false,Some(value))))) == (value,false) &&
+  indirect(r,TestPointer(None)) == (TestPointer(None),true) &&
+  indirect(r,nonempty) == (nonempty,false) &&
+  printableValue(r,FunctionValue) == None &&
+  printableValue(r,ChannelValue) == None &&
+  printableValue(r,InvalidValue) == Some("<no value>") &&
+  printableValue(r,StringerValue("printed")) == Some("printed")
+}

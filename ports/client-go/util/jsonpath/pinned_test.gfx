@@ -1,0 +1,225 @@
+// Copyright 2015 The Kubernetes Authors.
+// Licensed under the Apache License, Version 2.0; http://www.apache.org/licenses/LICENSE-2.0
+// Native deterministic regressions translated from the pinned upstream test tables.
+package jsonpath
+
+import "std/prelude"
+import "std/list"
+import "std/result"
+import "std/dyn"
+import "std/map"
+import "std/string"
+import "github.com/reoring/gofx/ports/client-go/third_party/forked/golang/template"
+
+type FixtureHost = FixtureRecord(List[Field[FixtureHost]]) | FixtureMap(List[(String,Value[FixtureHost])]) | FixtureSequence(List[Value[FixtureHost]])
+func fixtureView(h FixtureHost) Shape[FixtureHost] {
+  match h { FixtureRecord(fs) => RecordShape("fixture",fs) FixtureMap(xs) => MappingShape("map[string]int","string",true,xs) FixtureSequence(xs) => SequenceShape("[]fixture",xs) }
+}
+func fixtureRender(h FixtureHost,mode RenderMode) Result[String,String] {
+  match h {
+    FixtureRecord(fs) => renderShape(fixtureInspection(),MappingShape("fixture","string",true,prelude.fmap(fs,func(f) => (if f.jsonName == "" { f.name } else { f.jsonName },f.value))),mode,0)
+    _ => renderShape(fixtureInspection(),fixtureView(h),mode,0)
+  }
+}
+func fixtureInspection() Inspection[FixtureHost] { Inspection(fixtureView,fixtureRender) }
+func fixtureCase(name String,expression String,input Value[FixtureHost],expected String,error Bool,missing Bool,exactError Bool) Bool {
+  let j = allowMissingKeys(new(name),missing)
+  match jsonPathParse(j,expression) {
+    Err(_) => error
+    Ok(path) => match execute(fixtureInspection(),path,input) {
+      Err(e) => if exactError { e == expected } else { error }
+      Ok(text) => !error && !exactError && (if name == "recursive name" { list.sort(string.words(text)) == list.sort(string.words(expected)) } else { text == expected })
+    }
+  }
+}
+func fixtureTypes() Value[FixtureHost] { Host(FixtureMap([("bools",Dynamic(dyn.List([dyn.Bool(true),dyn.Bool(false),dyn.Bool(true),dyn.Bool(false)]))),("integers",Dynamic(dyn.List([dyn.Int(1),dyn.Int(2),dyn.Int(3),dyn.Int(4)]))),("floats",Dynamic(dyn.List([dyn.Float(1.0),dyn.Float(2.2),dyn.Float(3.3),dyn.Float(4.0)]))),("strings",Dynamic(dyn.List([dyn.Str("one"),dyn.Str("two"),dyn.Str("three"),dyn.Str("four")]))),("interfaces",Dynamic(dyn.List([dyn.Bool(true),dyn.Str("one"),dyn.Int(1),dyn.Float(1.1)]))),("maps",Dynamic(dyn.List([dyn.Map(map.mapFromList([("name",dyn.Str("one")),("value",dyn.Int(1))])),dyn.Map(map.mapFromList([("name",dyn.Str("two")),("value",dyn.Float(2.02))])),dyn.Map(map.mapFromList([("name",dyn.Str("three")),("value",dyn.Float(3.03))])),dyn.Map(map.mapFromList([("name",dyn.Str("four")),("value",dyn.Float(4.04))]))]))),("structs",Host(FixtureSequence([Host(FixtureRecord([Field("name","",false,Dynamic(dyn.Str("one"))),Field("value","",false,Dynamic(dyn.Int(1))),Field("type","",false,Dynamic(dyn.Str("integer")))])),Host(FixtureRecord([Field("name","",false,Dynamic(dyn.Str("two"))),Field("value","",false,Dynamic(dyn.Float(2.002))),Field("type","",false,Dynamic(dyn.Str("float")))])),Host(FixtureRecord([Field("name","",false,Dynamic(dyn.Str("three"))),Field("value","",false,Dynamic(dyn.Int(3))),Field("type","",false,Dynamic(dyn.Str("integer")))])),Host(FixtureRecord([Field("name","",false,Dynamic(dyn.Str("four"))),Field("value","",false,Dynamic(dyn.Float(4.004))),Field("type","",false,Dynamic(dyn.Str("float")))]))])))])) }
+func fixtureStore() Value[FixtureHost] { Host(FixtureRecord([Field("Book","",false,Host(FixtureSequence([Host(FixtureRecord([Field("Category","",false,Dynamic(dyn.Str("reference"))),Field("Author","",false,Dynamic(dyn.Str("Nigel Rees"))),Field("Title","",false,Dynamic(dyn.Str("Sayings of the Centurey"))),Field("Price","",false,Dynamic(dyn.Float(8.95)))])),Host(FixtureRecord([Field("Category","",false,Dynamic(dyn.Str("fiction"))),Field("Author","",false,Dynamic(dyn.Str("Evelyn Waugh"))),Field("Title","",false,Dynamic(dyn.Str("Sword of Honour"))),Field("Price","",false,Dynamic(dyn.Float(12.99)))])),Host(FixtureRecord([Field("Category","",false,Dynamic(dyn.Str("fiction"))),Field("Author","",false,Dynamic(dyn.Str("Herman Melville"))),Field("Title","",false,Dynamic(dyn.Str("Moby Dick"))),Field("Price","",false,Dynamic(dyn.Float(8.99)))]))]))),Field("Bicycle","",false,Host(FixtureSequence([Host(FixtureRecord([Field("Color","",false,Dynamic(dyn.Str("red"))),Field("Price","",false,Dynamic(dyn.Float(19.95))),Field("IsNew","",false,Dynamic(dyn.Bool(true)))])),Host(FixtureRecord([Field("Color","",false,Dynamic(dyn.Str("green"))),Field("Price","",false,Dynamic(dyn.Float(20.01))),Field("IsNew","",false,Dynamic(dyn.Bool(false)))]))]))),Field("Name","",false,Dynamic(dyn.Str("jsonpath"))),Field("Labels","",false,Host(FixtureMap([("engieer",Dynamic(dyn.Int(10))),("web/html",Dynamic(dyn.Int(15))),("k8s-app",Dynamic(dyn.Int(20)))]))),Field("Employees","",false,Dynamic(dyn.Map(map.mapFromList([("jason",dyn.Str("manager")),("dan",dyn.Str("clerk"))]))))])) }
+func fixtureTestJSONInput() Value[FixtureHost] { Dynamic(dyn.List([dyn.Map(map.mapFromList([("id",dyn.Str("i1")),("x",dyn.Int(4)),("y",dyn.Int(-5))])),dyn.Map(map.mapFromList([("id",dyn.Str("i2")),("x",dyn.Int(-2)),("y",dyn.Int(-5)),("z",dyn.Int(1))])),dyn.Map(map.mapFromList([("id",dyn.Str("i3")),("x",dyn.Int(8)),("y",dyn.Int(3))])),dyn.Map(map.mapFromList([("id",dyn.Str("i4")),("x",dyn.Int(-6)),("y",dyn.Int(-1))])),dyn.Map(map.mapFromList([("id",dyn.Str("i5")),("x",dyn.Int(0)),("y",dyn.Int(2)),("z",dyn.Int(1))])),dyn.Map(map.mapFromList([("id",dyn.Str("i6")),("x",dyn.Int(1)),("y",dyn.Int(4))])),dyn.Map(map.mapFromList([("id",dyn.Str("i7")),("x",dyn.Null),("y",dyn.Int(4))]))])) }
+func fixtureTestKubernetes() Value[FixtureHost] { Dynamic(dyn.Map(map.mapFromList([("kind",dyn.Str("List")),("items",dyn.List([dyn.Map(map.mapFromList([("kind",dyn.Str("None")),("metadata",dyn.Map(map.mapFromList([("name",dyn.Str("127.0.0.1")),("labels",dyn.Map(map.mapFromList([("kubernetes.io/hostname",dyn.Str("127.0.0.1"))])))]))),("status",dyn.Map(map.mapFromList([("capacity",dyn.Map(map.mapFromList([("cpu",dyn.Str("4"))]))),("ready",dyn.Bool(true)),("addresses",dyn.List([dyn.Map(map.mapFromList([("type",dyn.Str("LegacyHostIP")),("address",dyn.Str("127.0.0.1"))]))]))])))])),dyn.Map(map.mapFromList([("kind",dyn.Str("None")),("metadata",dyn.Map(map.mapFromList([("name",dyn.Str("127.0.0.2")),("labels",dyn.Map(map.mapFromList([("kubernetes.io/hostname",dyn.Str("127.0.0.2"))])))]))),("status",dyn.Map(map.mapFromList([("capacity",dyn.Map(map.mapFromList([("cpu",dyn.Str("8"))]))),("ready",dyn.Bool(false)),("addresses",dyn.List([dyn.Map(map.mapFromList([("type",dyn.Str("LegacyHostIP")),("address",dyn.Str("127.0.0.2"))])),dyn.Map(map.mapFromList([("type",dyn.Str("another")),("address",dyn.Str("127.0.0.3"))]))]))])))]))])),("users",dyn.List([dyn.Map(map.mapFromList([("name",dyn.Str("myself")),("user",dyn.Map(map.mapFromList([])))])),dyn.Map(map.mapFromList([("name",dyn.Str("e2e")),("user",dyn.Map(map.mapFromList([("username",dyn.Str("admin")),("password",dyn.Str("secret"))])))]))]))]))) }
+func fixtureTestEmptyRange() Value[FixtureHost] { Dynamic(dyn.Map(map.mapFromList([("items",dyn.List([]))]))) }
+func fixtureTestNestedRanges() Value[FixtureHost] { Dynamic(dyn.Map(map.mapFromList([("items",dyn.List([dyn.Map(map.mapFromList([("metadata",dyn.Map(map.mapFromList([("name",dyn.Str("pod1"))]))),("spec",dyn.Map(map.mapFromList([("containers",dyn.List([dyn.Map(map.mapFromList([("name",dyn.Str("foo")),("another",dyn.List([dyn.Map(map.mapFromList([("name",dyn.Str("value1"))])),dyn.Map(map.mapFromList([("name",dyn.Str("value2"))]))]))])),dyn.Map(map.mapFromList([("name",dyn.Str("bar")),("another",dyn.List([dyn.Map(map.mapFromList([("name",dyn.Str("value1"))])),dyn.Map(map.mapFromList([("name",dyn.Str("value2"))]))]))]))]))])))])),dyn.Map(map.mapFromList([("metadata",dyn.Map(map.mapFromList([("name",dyn.Str("pod2"))]))),("spec",dyn.Map(map.mapFromList([("containers",dyn.List([dyn.Map(map.mapFromList([("name",dyn.Str("baz")),("another",dyn.List([dyn.Map(map.mapFromList([("name",dyn.Str("value1"))])),dyn.Map(map.mapFromList([("name",dyn.Str("value2"))]))]))]))]))])))]))]))]))) }
+func fixtureTestFilterPartialMatchesSometimesMissingAnnotations() Value[FixtureHost] { Dynamic(dyn.Map(map.mapFromList([("kind",dyn.Str("List")),("items",dyn.List([dyn.Map(map.mapFromList([("kind",dyn.Str("Pod")),("metadata",dyn.Map(map.mapFromList([("name",dyn.Str("pod1")),("annotations",dyn.Map(map.mapFromList([("color",dyn.Str("blue"))])))])))])),dyn.Map(map.mapFromList([("kind",dyn.Str("Pod")),("metadata",dyn.Map(map.mapFromList([("name",dyn.Str("pod2"))])))])),dyn.Map(map.mapFromList([("kind",dyn.Str("Pod")),("metadata",dyn.Map(map.mapFromList([("name",dyn.Str("pod3")),("annotations",dyn.Map(map.mapFromList([("color",dyn.Str("green"))])))])))])),dyn.Map(map.mapFromList([("kind",dyn.Str("Pod")),("metadata",dyn.Map(map.mapFromList([("name",dyn.Str("pod4")),("annotations",dyn.Map(map.mapFromList([("color",dyn.Str("blue"))])))])))]))]))]))) }
+func fixtureTestNegativeIndex() Value[FixtureHost] { Dynamic(dyn.Map(map.mapFromList([("apiVersion",dyn.Str("v1")),("kind",dyn.Str("Pod")),("spec",dyn.Map(map.mapFromList([("containers",dyn.List([dyn.Map(map.mapFromList([("image",dyn.Str("radial/busyboxplus:curl")),("name",dyn.Str("fake0"))])),dyn.Map(map.mapFromList([("image",dyn.Str("radial/busyboxplus:curl")),("name",dyn.Str("fake1"))])),dyn.Map(map.mapFromList([("image",dyn.Str("radial/busyboxplus:curl")),("name",dyn.Str("fake2"))])),dyn.Map(map.mapFromList([("image",dyn.Str("radial/busyboxplus:curl")),("name",dyn.Str("fake3"))]))]))])))]))) }
+func fixtureTestRunningPodsJSONPathOutput() Value[FixtureHost] { Dynamic(dyn.Map(map.mapFromList([("kind",dyn.Str("List")),("items",dyn.List([dyn.Map(map.mapFromList([("kind",dyn.Str("Pod")),("metadata",dyn.Map(map.mapFromList([("name",dyn.Str("pod1"))]))),("status",dyn.Map(map.mapFromList([("phase",dyn.Str("Running"))])))])),dyn.Map(map.mapFromList([("kind",dyn.Str("Pod")),("metadata",dyn.Map(map.mapFromList([("name",dyn.Str("pod2"))]))),("status",dyn.Map(map.mapFromList([("phase",dyn.Str("Running"))])))])),dyn.Map(map.mapFromList([("kind",dyn.Str("Pod")),("metadata",dyn.Map(map.mapFromList([("name",dyn.Str("pod3"))]))),("status",dyn.Map(map.mapFromList([("phase",dyn.Str("Running"))])))])),dyn.Map(map.mapFromList([("resourceVersion",dyn.Str(""))]))]))]))) }
+func fixtureTestStep() Value[FixtureHost] { Dynamic(dyn.Map(map.mapFromList([("apiVersion",dyn.Str("v1")),("kind",dyn.Str("Pod")),("spec",dyn.Map(map.mapFromList([("containers",dyn.List([dyn.Map(map.mapFromList([("image",dyn.Str("radial/busyboxplus:curl")),("name",dyn.Str("fake0"))])),dyn.Map(map.mapFromList([("image",dyn.Str("radial/busyboxplus:curl")),("name",dyn.Str("fake1"))])),dyn.Map(map.mapFromList([("image",dyn.Str("radial/busyboxplus:curl")),("name",dyn.Str("fake2"))])),dyn.Map(map.mapFromList([("image",dyn.Str("radial/busyboxplus:curl")),("name",dyn.Str("fake3"))])),dyn.Map(map.mapFromList([("image",dyn.Str("radial/busyboxplus:curl")),("name",dyn.Str("fake4"))])),dyn.Map(map.mapFromList([("image",dyn.Str("radial/busyboxplus:curl")),("name",dyn.Str("fake5"))]))]))])))]))) }
+
+func testPinnedTestEmptyRange() Bool {
+  fixtureCase("empty range","{range .items[*]}{.metadata.name}{end}",fixtureTestEmptyRange(),"",false,true,false) &&
+  fixtureCase("empty nested range","{range .items[*]}{.metadata.name}{\":\"}{range @.spec.containers[*]}{.name}{\",\"}{end}{\"+\"}{end}",fixtureTestEmptyRange(),"",false,true,false)
+}
+
+func testPinnedTestJSONInput() Bool {
+  fixtureCase("exists filter","{[?(@.z)].id}",fixtureTestJSONInput(),"i2 i5",false,false,false) &&
+  fixtureCase("bracket key","{[0]['id']}",fixtureTestJSONInput(),"i1",false,false,false) &&
+  fixtureCase("nil value","{[-1]['x']}",fixtureTestJSONInput(),"null",false,false,false)
+}
+
+func testPinnedTestKubernetes() Bool {
+  fixtureCase("range item","{range .items[*]}{.metadata.name}, {end}{.kind}",fixtureTestKubernetes(),"127.0.0.1, 127.0.0.2, List",false,false,false) &&
+  fixtureCase("range item with quote","{range .items[*]}{.metadata.name}{\"\\t\"}{end}",fixtureTestKubernetes(),"127.0.0.1\t127.0.0.2\t",false,false,false) &&
+  fixtureCase("range addresss","{.items[*].status.addresses[*].address}",fixtureTestKubernetes(),"127.0.0.1 127.0.0.2 127.0.0.3",false,false,false) &&
+  fixtureCase("double range","{range .items[*]}{range .status.addresses[*]}{.address}, {end}{end}",fixtureTestKubernetes(),"127.0.0.1, 127.0.0.2, 127.0.0.3, ",false,false,false) &&
+  fixtureCase("item name","{.items[*].metadata.name}",fixtureTestKubernetes(),"127.0.0.1 127.0.0.2",false,false,false) &&
+  fixtureCase("union nodes capacity","{.items[*]['metadata.name', 'status.capacity']}",fixtureTestKubernetes(),"127.0.0.1 127.0.0.2 {\"cpu\":\"4\"} {\"cpu\":\"8\"}",false,false,false) &&
+  fixtureCase("range nodes capacity","{range .items[*]}[{.metadata.name}, {.status.capacity}] {end}",fixtureTestKubernetes(),"[127.0.0.1, {\"cpu\":\"4\"}] [127.0.0.2, {\"cpu\":\"8\"}] ",false,false,false) &&
+  fixtureCase("user password","{.users[?(@.name==\"e2e\")].user.password}",fixtureTestKubernetes(),"secret",false,false,false) &&
+  fixtureCase("hostname","{.items[0].metadata.labels.kubernetes\\.io/hostname}",fixtureTestKubernetes(),"127.0.0.1",false,false,false) &&
+  fixtureCase("hostname filter","{.items[?(@.metadata.labels.kubernetes\\.io/hostname==\"127.0.0.1\")].kind}",fixtureTestKubernetes(),"None",false,false,false) &&
+  fixtureCase("bool item","{.items[?(@..ready==true)].metadata.name}",fixtureTestKubernetes(),"127.0.0.1",false,false,false) &&
+  fixtureCase("recursive name","{..name}",fixtureTestKubernetes(),"127.0.0.1 127.0.0.2 myself e2e",false,false,false)
+}
+
+func testPinnedTestNegativeIndex() Bool {
+  fixtureCase("test containers[0], it equals containers[0]","{.spec.containers[0].name}",fixtureTestNegativeIndex(),"fake0",false,false,false) &&
+  fixtureCase("test containers[0:0], it equals the empty set","{.spec.containers[0:0].name}",fixtureTestNegativeIndex(),"",false,false,false) &&
+  fixtureCase("test containers[0:-1], it equals containers[0:3]","{.spec.containers[0:-1].name}",fixtureTestNegativeIndex(),"fake0 fake1 fake2",false,false,false) &&
+  fixtureCase("test containers[-1:0], expect error","{.spec.containers[-1:0].name}",fixtureTestNegativeIndex(),"",true,false,false) &&
+  fixtureCase("test containers[-1], it equals containers[3]","{.spec.containers[-1].name}",fixtureTestNegativeIndex(),"fake3",false,false,false) &&
+  fixtureCase("test containers[-1:], it equals containers[3:]","{.spec.containers[-1:].name}",fixtureTestNegativeIndex(),"fake3",false,false,false) &&
+  fixtureCase("test containers[-2], it equals containers[2]","{.spec.containers[-2].name}",fixtureTestNegativeIndex(),"fake2",false,false,false) &&
+  fixtureCase("test containers[-2:], it equals containers[2:]","{.spec.containers[-2:].name}",fixtureTestNegativeIndex(),"fake2 fake3",false,false,false) &&
+  fixtureCase("test containers[-3], it equals containers[1]","{.spec.containers[-3].name}",fixtureTestNegativeIndex(),"fake1",false,false,false) &&
+  fixtureCase("test containers[-4], it equals containers[0]","{.spec.containers[-4].name}",fixtureTestNegativeIndex(),"fake0",false,false,false) &&
+  fixtureCase("test containers[-4:], it equals containers[0:]","{.spec.containers[-4:].name}",fixtureTestNegativeIndex(),"fake0 fake1 fake2 fake3",false,false,false) &&
+  fixtureCase("test containers[5:5], expect empty set","{.spec.containers[5:5].name}",fixtureTestNegativeIndex(),"",false,false,false) &&
+  fixtureCase("test containers[-5:-5], expect empty set","{.spec.containers[-5:-5].name}",fixtureTestNegativeIndex(),"",false,false,false) &&
+  fixtureCase("test containers[3:1], expect a error cause start index is greater than end index","{.spec.containers[3:1].name}",fixtureTestNegativeIndex(),"",true,false,false) &&
+  fixtureCase("test containers[-1:-2], it equals containers[3:2], expect a error cause start index is greater than end index","{.spec.containers[-1:-2].name}",fixtureTestNegativeIndex(),"",true,false,false)
+}
+
+func testPinnedTestNestedRanges() Bool {
+  fixtureCase("nested range with a trailing newline","{range .items[*]}{.metadata.name}{\":\"}{range @.spec.containers[*]}{.name}{\",\"}{end}{\"+\"}{end}",fixtureTestNestedRanges(),"pod1:foo,bar,+pod2:baz,+",false,false,false) &&
+  fixtureCase("nested range with a trailing character within another nested range with a trailing newline","{range .items[*]}{.metadata.name}{\"~\"}{range @.spec.containers[*]}{.name}{\":\"}{range @.another[*]}{.name}{\",\"}{end}{\"+\"}{end}{\"#\"}{end}",fixtureTestNestedRanges(),"pod1~foo:value1,value2,+bar:value1,value2,+#pod2~baz:value1,value2,+#",false,false,false) &&
+  fixtureCase("two nested ranges at the same level with a trailing newline","{range .items[*]}{.metadata.name}{\"\\t\"}{range @.spec.containers[*]}{.name}{\" \"}{end}{\"\\t\"}{range @.spec.containers[*]}{.name}{\" \"}{end}{\"\\n\"}{end}",fixtureTestNestedRanges(),"pod1\tfoo bar \tfoo bar \npod2\tbaz \tbaz \n",false,false,false)
+}
+
+func testPinnedTestStep() Bool {
+  fixtureCase("test containers[0:], it equals containers[0:6:1]","{.spec.containers[0:].name}",fixtureTestStep(),"fake0 fake1 fake2 fake3 fake4 fake5",false,false,false) &&
+  fixtureCase("test containers[0:6:], it equals containers[0:6:1]","{.spec.containers[0:6:].name}",fixtureTestStep(),"fake0 fake1 fake2 fake3 fake4 fake5",false,false,false) &&
+  fixtureCase("test containers[0:6:1]","{.spec.containers[0:6:1].name}",fixtureTestStep(),"fake0 fake1 fake2 fake3 fake4 fake5",false,false,false) &&
+  fixtureCase("test containers[0:6:0], it errors","{.spec.containers[0:6:0].name}",fixtureTestStep(),"",true,false,false) &&
+  fixtureCase("test containers[0:6:-1], it errors","{.spec.containers[0:6:-1].name}",fixtureTestStep(),"",true,false,false) &&
+  fixtureCase("test containers[1:4:2]","{.spec.containers[1:4:2].name}",fixtureTestStep(),"fake1 fake3",false,false,false) &&
+  fixtureCase("test containers[1:4:3]","{.spec.containers[1:4:3].name}",fixtureTestStep(),"fake1",false,false,false) &&
+  fixtureCase("test containers[1:4:4]","{.spec.containers[1:4:4].name}",fixtureTestStep(),"fake1",false,false,false) &&
+  fixtureCase("test containers[0:6:2]","{.spec.containers[0:6:2].name}",fixtureTestStep(),"fake0 fake2 fake4",false,false,false) &&
+  fixtureCase("test containers[0:6:3]","{.spec.containers[0:6:3].name}",fixtureTestStep(),"fake0 fake3",false,false,false) &&
+  fixtureCase("test containers[0:6:5]","{.spec.containers[0:6:5].name}",fixtureTestStep(),"fake0 fake5",false,false,false) &&
+  fixtureCase("test containers[0:6:6]","{.spec.containers[0:6:6].name}",fixtureTestStep(),"fake0",false,false,false)
+}
+
+func testPinnedTestStructInput() Bool {
+  fixtureCase("plain","hello jsonpath",Dynamic(dyn.Null),"hello jsonpath",false,false,false) &&
+  fixtureCase("recursive","{..}",Dynamic(dyn.List([dyn.Int(1),dyn.Int(2),dyn.Int(3)])),"[1,2,3]",false,false,false) &&
+  fixtureCase("filter","{[?(@<5)]}",Dynamic(dyn.List([dyn.Int(2),dyn.Int(6),dyn.Int(3),dyn.Int(7)])),"2 3",false,false,false) &&
+  fixtureCase("quote","{\"{\"}",Dynamic(dyn.Null),"{",false,false,false) &&
+  fixtureCase("union","{[1,3,4]}",Dynamic(dyn.List([dyn.Int(0),dyn.Int(1),dyn.Int(2),dyn.Int(3),dyn.Int(4)])),"1 3 4",false,false,false) &&
+  fixtureCase("array","{[0:2]}",Dynamic(dyn.List([dyn.Str("Monday"),dyn.Str("Tudesday")])),"Monday Tudesday",false,false,false) &&
+  fixtureCase("variable","hello {.Name}",fixtureStore(),"hello jsonpath",false,false,false) &&
+  fixtureCase("dict/","{$.Labels.web/html}",fixtureStore(),"15",false,false,false) &&
+  fixtureCase("dict/","{$.Employees.jason}",fixtureStore(),"manager",false,false,false) &&
+  fixtureCase("dict/","{$.Employees.dan}",fixtureStore(),"clerk",false,false,false) &&
+  fixtureCase("dict-","{.Labels.k8s-app}",fixtureStore(),"20",false,false,false) &&
+  fixtureCase("nest","{.Bicycle[*].Color}",fixtureStore(),"red green",false,false,false) &&
+  fixtureCase("allarray","{.Book[*].Author}",fixtureStore(),"Nigel Rees Evelyn Waugh Herman Melville",false,false,false) &&
+  fixtureCase("allfields","{range .Bicycle[*]}{ \"{\" }{ @.* }{ \"} \" }{end}",fixtureStore(),"{red 19.95 true} {green 20.01 false} ",false,false,false) &&
+  fixtureCase("recurfields","{..Price}",fixtureStore(),"8.95 12.99 8.99 19.95 20.01",false,false,false) &&
+  fixtureCase("recurdotfields","{...Price}",fixtureStore(),"8.95 12.99 8.99 19.95 20.01",false,false,false) &&
+  fixtureCase("superrecurfields","{............................................................Price}",fixtureStore(),"",true,false,false) &&
+  fixtureCase("allstructsSlice","{.Bicycle}",fixtureStore(),"[{\"Color\":\"red\",\"Price\":19.95,\"IsNew\":true},{\"Color\":\"green\",\"Price\":20.01,\"IsNew\":false}]",false,false,false) &&
+  fixtureCase("allstructs","{range .Bicycle[*]}{ @ }{ \" \" }{end}",fixtureStore(),"{\"Color\":\"red\",\"Price\":19.95,\"IsNew\":true} {\"Color\":\"green\",\"Price\":20.01,\"IsNew\":false} ",false,false,false) &&
+  fixtureCase("lastarray","{.Book[-1:]}",fixtureStore(),"{\"Category\":\"fiction\",\"Author\":\"Herman Melville\",\"Title\":\"Moby Dick\",\"Price\":8.99}",false,false,false) &&
+  fixtureCase("recurarray","{..Book[2]}",fixtureStore(),"{\"Category\":\"fiction\",\"Author\":\"Herman Melville\",\"Title\":\"Moby Dick\",\"Price\":8.99}",false,false,false) &&
+  fixtureCase("bool","{.Bicycle[?(@.IsNew==true)]}",fixtureStore(),"{\"Color\":\"red\",\"Price\":19.95,\"IsNew\":true}",false,false,false) &&
+  fixtureCase("nonexistent field","{.hello}",fixtureStore(),"",false,true,false) &&
+  fixtureCase("nonexistent field 2","before-{.hello}after",fixtureStore(),"before-after",false,true,false) &&
+  fixtureCase("invalid identifier","{hello}",fixtureStore(),"unrecognized identifier hello",false,false,true) &&
+  fixtureCase("nonexistent field","{.hello}",fixtureStore(),"hello is not found",false,false,true) &&
+  fixtureCase("invalid array","{.Labels[0]}",fixtureStore(),"map[string]int is not array or slice",false,false,true) &&
+  fixtureCase("invalid filter operator","{.Book[?(@.Price<>10)]}",fixtureStore(),"unrecognized filter operator <>",false,false,true) &&
+  fixtureCase("redundant end","{range .Labels.*}{@}{end}{end}",fixtureStore(),"not in range, nothing to end",false,false,true)
+}
+
+func testPinnedTestTypesInput() Bool {
+  fixtureCase("boolSlice","{ .bools }",fixtureTypes(),"[true,false,true,false]",false,false,false) &&
+  fixtureCase("boolSliceIndex","{ .bools[0] }",fixtureTypes(),"true",false,false,false) &&
+  fixtureCase("boolSliceIndex","{ .bools[-1] }",fixtureTypes(),"false",false,false,false) &&
+  fixtureCase("boolSubSlice","{ .bools[0:2] }",fixtureTypes(),"true false",false,false,false) &&
+  fixtureCase("boolSubSliceFirst2","{ .bools[:2] }",fixtureTypes(),"true false",false,false,false) &&
+  fixtureCase("boolSubSliceStep2","{ .bools[:4:2] }",fixtureTypes(),"true true",false,false,false) &&
+  fixtureCase("integerSlice","{ .integers }",fixtureTypes(),"[1,2,3,4]",false,false,false) &&
+  fixtureCase("integerSliceIndex","{ .integers[0] }",fixtureTypes(),"1",false,false,false) &&
+  fixtureCase("integerSliceIndexReverse","{ .integers[-2] }",fixtureTypes(),"3",false,false,false) &&
+  fixtureCase("integerSubSliceFirst2","{ .integers[0:2] }",fixtureTypes(),"1 2",false,false,false) &&
+  fixtureCase("integerSubSliceFirst2Alt","{ .integers[:2] }",fixtureTypes(),"1 2",false,false,false) &&
+  fixtureCase("integerSubSliceStep2","{ .integers[:4:2] }",fixtureTypes(),"1 3",false,false,false) &&
+  fixtureCase("floatSlice","{ .floats }",fixtureTypes(),"[1,2.2,3.3,4]",false,false,false) &&
+  fixtureCase("floatSliceIndex","{ .floats[0] }",fixtureTypes(),"1",false,false,false) &&
+  fixtureCase("floatSliceIndexReverse","{ .floats[-2] }",fixtureTypes(),"3.3",false,false,false) &&
+  fixtureCase("floatSubSliceFirst2","{ .floats[0:2] }",fixtureTypes(),"1 2.2",false,false,false) &&
+  fixtureCase("floatSubSliceFirst2Alt","{ .floats[:2] }",fixtureTypes(),"1 2.2",false,false,false) &&
+  fixtureCase("floatSubSliceStep2","{ .floats[:4:2] }",fixtureTypes(),"1 3.3",false,false,false) &&
+  fixtureCase("stringSlice","{ .strings }",fixtureTypes(),"[\"one\",\"two\",\"three\",\"four\"]",false,false,false) &&
+  fixtureCase("stringSliceIndex","{ .strings[0] }",fixtureTypes(),"one",false,false,false) &&
+  fixtureCase("stringSliceIndexReverse","{ .strings[-2] }",fixtureTypes(),"three",false,false,false) &&
+  fixtureCase("stringSubSliceFirst2","{ .strings[0:2] }",fixtureTypes(),"one two",false,false,false) &&
+  fixtureCase("stringSubSliceFirst2Alt","{ .strings[:2] }",fixtureTypes(),"one two",false,false,false) &&
+  fixtureCase("stringSubSliceStep2","{ .strings[:4:2] }",fixtureTypes(),"one three",false,false,false) &&
+  fixtureCase("interfaceSlice","{ .interfaces }",fixtureTypes(),"[true,\"one\",1,1.1]",false,false,false) &&
+  fixtureCase("interfaceSliceIndex","{ .interfaces[0] }",fixtureTypes(),"true",false,false,false) &&
+  fixtureCase("interfaceSliceIndexReverse","{ .interfaces[-2] }",fixtureTypes(),"1",false,false,false) &&
+  fixtureCase("interfaceSubSliceFirst2","{ .interfaces[0:2] }",fixtureTypes(),"true one",false,false,false) &&
+  fixtureCase("interfaceSubSliceFirst2Alt","{ .interfaces[:2] }",fixtureTypes(),"true one",false,false,false) &&
+  fixtureCase("interfaceSubSliceStep2","{ .interfaces[:4:2] }",fixtureTypes(),"true 1",false,false,false) &&
+  fixtureCase("mapSlice","{ .maps }",fixtureTypes(),"[{\"name\":\"one\",\"value\":1},{\"name\":\"two\",\"value\":2.02},{\"name\":\"three\",\"value\":3.03},{\"name\":\"four\",\"value\":4.04}]",false,false,false) &&
+  fixtureCase("mapSliceIndex","{ .maps[0] }",fixtureTypes(),"{\"name\":\"one\",\"value\":1}",false,false,false) &&
+  fixtureCase("mapSliceIndexReverse","{ .maps[-2] }",fixtureTypes(),"{\"name\":\"three\",\"value\":3.03}",false,false,false) &&
+  fixtureCase("mapSubSliceFirst2","{ .maps[0:2] }",fixtureTypes(),"{\"name\":\"one\",\"value\":1} {\"name\":\"two\",\"value\":2.02}",false,false,false) &&
+  fixtureCase("mapSubSliceFirst2Alt","{ .maps[:2] }",fixtureTypes(),"{\"name\":\"one\",\"value\":1} {\"name\":\"two\",\"value\":2.02}",false,false,false) &&
+  fixtureCase("mapSubSliceStepOdd","{ .maps[::2] }",fixtureTypes(),"{\"name\":\"one\",\"value\":1} {\"name\":\"three\",\"value\":3.03}",false,false,false) &&
+  fixtureCase("mapSubSliceStepEven","{ .maps[1::2] }",fixtureTypes(),"{\"name\":\"two\",\"value\":2.02} {\"name\":\"four\",\"value\":4.04}",false,false,false) &&
+  fixtureCase("structSlice","{ .structs }",fixtureTypes(),"[{\"name\":\"one\",\"value\":1,\"type\":\"integer\"},{\"name\":\"two\",\"value\":2.002,\"type\":\"float\"},{\"name\":\"three\",\"value\":3,\"type\":\"integer\"},{\"name\":\"four\",\"value\":4.004,\"type\":\"float\"}]",false,false,false) &&
+  fixtureCase("structSliceIndex","{ .structs[0] }",fixtureTypes(),"{\"name\":\"one\",\"value\":1,\"type\":\"integer\"}",false,false,false) &&
+  fixtureCase("structSliceIndexReverse","{ .structs[-2] }",fixtureTypes(),"{\"name\":\"three\",\"value\":3,\"type\":\"integer\"}",false,false,false) &&
+  fixtureCase("structSubSliceFirst2","{ .structs[0:2] }",fixtureTypes(),"{\"name\":\"one\",\"value\":1,\"type\":\"integer\"} {\"name\":\"two\",\"value\":2.002,\"type\":\"float\"}",false,false,false) &&
+  fixtureCase("structSubSliceFirst2Alt","{ .structs[:2] }",fixtureTypes(),"{\"name\":\"one\",\"value\":1,\"type\":\"integer\"} {\"name\":\"two\",\"value\":2.002,\"type\":\"float\"}",false,false,false) &&
+  fixtureCase("structSubSliceStepOdd","{ .structs[::2] }",fixtureTypes(),"{\"name\":\"one\",\"value\":1,\"type\":\"integer\"} {\"name\":\"three\",\"value\":3,\"type\":\"integer\"}",false,false,false) &&
+  fixtureCase("structSubSliceStepEven","{ .structs[1::2] }",fixtureTypes(),"{\"name\":\"two\",\"value\":2.002,\"type\":\"float\"} {\"name\":\"four\",\"value\":4.004,\"type\":\"float\"}",false,false,false)
+}
+
+func testPinnedParserCases() Bool {
+  (match parse("plain","hello jsonpath") { Ok(_) => true Err(_) => false }) &&
+  (match parse("variable","hello {.jsonpath}") { Ok(_) => true Err(_) => false }) &&
+  (match parse("arrayfiled","hello {['jsonpath']}") { Ok(_) => true Err(_) => false }) &&
+  (match parse("quote","{\"{\"}") { Ok(_) => true Err(_) => false }) &&
+  (match parse("array","{[1:3]}") { Ok(_) => true Err(_) => false }) &&
+  (match parse("allarray","{.book[*].author}") { Ok(_) => true Err(_) => false }) &&
+  (match parse("wildcard","{.bicycle.*}") { Ok(_) => true Err(_) => false }) &&
+  (match parse("filter","{[?(@.price<3)]}") { Ok(_) => true Err(_) => false }) &&
+  (match parse("recursive","{..}") { Ok(_) => true Err(_) => false }) &&
+  (match parse("recurField","{..price}") { Ok(_) => true Err(_) => false }) &&
+  (match parse("arraydict","{['book.price']}") { Ok(_) => true Err(_) => false }) &&
+  (match parse("union","{['bicycle.price', 3, 'book.price']}") { Ok(_) => true Err(_) => false }) &&
+  (match parse("range","{range .items}{.name},{end}") { Ok(_) => true Err(_) => false }) &&
+  (match parse("malformat input","{\\\\\\}") { Ok(_) => false Err(_) => true }) &&
+  (match parse("paired parentheses in quotes","{[?(@.status.nodeInfo.osImage == \"()\")]}") { Ok(_) => true Err(_) => false }) &&
+  (match parse("paired parentheses in double quotes and with double quotes escape","{[?(@.status.nodeInfo.osImage == \"(\\\"\\\")\")]}") { Ok(_) => true Err(_) => false }) &&
+  (match parse("unregular parentheses in double quotes","{[?(@.test == \"())(\")]}") { Ok(_) => true Err(_) => false }) &&
+  (match parse("plain text in single quotes","{[?(@.status.nodeInfo.osImage == 'Linux')]}") { Ok(_) => true Err(_) => false }) &&
+  (match parse("test filter suffix","{[?(@.status.nodeInfo.osImage == \"{[()]}\")]}") { Ok(_) => true Err(_) => false }) &&
+  (match parse("double inside single","{[?(@.status.nodeInfo.osImage == \"''\")]}") { Ok(_) => true Err(_) => false }) &&
+  (match parse("single inside double","{[?(@.status.nodeInfo.osImage == '\"\"')]}") { Ok(_) => true Err(_) => false }) &&
+  (match parse("single containing escaped single","{[?(@.status.nodeInfo.osImage == '\\\\\\'')]}") { Ok(_) => true Err(_) => false }) &&
+  (match parse("negative index slice, equals a[len-5] to a[len-1]","{[-5:]}") { Ok(_) => true Err(_) => false }) &&
+  (match parse("negative index slice, equals a[len-1]","{[-1]}") { Ok(_) => true Err(_) => false }) &&
+  (match parse("negative index slice, equals a[1] to a[len-1]","{[1:-1]}") { Ok(_) => true Err(_) => false })
+}
+
+func testPinnedParserErrors() Bool {
+  (match parse("unclosed action","{.hello") { Err(e) => e == "unclosed action" Ok(_) => false }) &&
+  (match parse("unrecognized character","{*}") { Err(e) => e == "unrecognized character in action: U+002A '*'" Ok(_) => false }) &&
+  (match parse("invalid number","{+12.3.0}") { Err(e) => e == "cannot parse number +12.3.0" Ok(_) => false }) &&
+  (match parse("unterminated array","{[1}") { Err(e) => e == "unterminated array" Ok(_) => false }) &&
+  (match parse("unterminated filter","{[?(.price]}") { Err(e) => e == "unterminated filter" Ok(_) => false }) &&
+  (match parse("invalid multiple recursive descent","{........}") { Err(e) => e == "invalid multiple recursive descent" Ok(_) => false })
+}
