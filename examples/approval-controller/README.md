@@ -12,6 +12,12 @@ verdict through the original status helper. Reads happen up front, even when
 an earlier decision gate will reject the approval. Operation creation and its
 immutable approval-binding helpers remain unchanged.
 
+The shared `Fetched[A]` sum represents `Fetched[Plan]`, `Fetched[Policy]`, and
+`Fetched[Window]` in `Observed`. Their Go mirrors are `FetchedPlan`,
+`FetchedPolicy`, and `FetchedWindow`, with constructors such as
+`FetchedPlanFound{F0: plan}`. Missing policies and windows retain the same
+read-error verdicts as before.
+
 `storage_approval_controller_test.go` is still a verbatim copy and its six
 tests remain the correctness oracle. Production helper declarations and test
 fixtures are copied from the same package, except for the fixture-client

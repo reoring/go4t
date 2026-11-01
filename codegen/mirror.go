@@ -6,6 +6,7 @@ import (
 	"go/format"
 	"go/parser"
 	"go/token"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -15,15 +16,17 @@ import (
 // Export generation runs after module renaming. Only references to the erased
 // implementation use renamed; the natural Go API never passes through that pass.
 type mirrorGenerator struct {
-	prog     *types.Program
-	prefixes map[string]string
-	renamed  map[string]string
-	root     string
-	entries  map[string]*mirrorType
-	imports  map[string]bool
-	names    map[string]bool
-	sources  *generator
-	err      error
+	prog      *types.Program
+	prefixes  map[string]string
+	renamed   map[string]string
+	root      string
+	entries   map[string]*mirrorType
+	dataTypes map[string]*types.DataType
+	declared  map[string]sourceLocation
+	imports   map[string]bool
+	names     map[string]bool
+	sources   *generator
+	err       error
 }
 
 type mirrorType struct {
@@ -38,7 +41,8 @@ func addGoExports(prog *types.Program, pkg string, prefixes, renamed map[string]
 		return nil
 	}
 	g := &mirrorGenerator{prog: prog, prefixes: make(map[string]string), renamed: renamed,
-		entries: make(map[string]*mirrorType), imports: make(map[string]bool), names: make(map[string]bool), sources: &generator{}}
+		entries: make(map[string]*mirrorType), dataTypes: make(map[string]*types.DataType),
+		declared: make(map[string]sourceLocation), imports: make(map[string]bool), names: make(map[string]bool), sources: &generator{}}
 	g.sources.indexSources(prog)
 	if len(prog.Modules) != 0 {
 		g.root = prog.Modules[len(prog.Modules)-1].Path
@@ -52,6 +56,17 @@ func addGoExports(prog *types.Program, pkg string, prefixes, renamed map[string]
 		}
 		usedPrefixes[prefix] = true
 		g.prefixes[module.Path] = prefix
+	}
+	for _, name := range sortedKeys(prog.DataTypes) {
+		g.declared[g.dataName(name)] = g.sources.typeSources[name]
+	}
+	for _, name := range sortedKeys(g.sources.aliases) {
+		alias := g.sources.aliases[name]
+		g.declared[g.dataName(name)] = sourceLocation{g.sources.sources[alias], alias.Pos}
+	}
+	g.sources.instances = make(map[string]*types.Instance)
+	for _, instance := range prog.Instances {
+		g.sources.instances[instanceName(instance)] = instance
 	}
 	// Include implementation declarations when checking the API namespace. This
 	// also diagnoses programmatic Generate calls without module renaming.
@@ -104,8 +119,12 @@ func addGoExports(prog *types.Program, pkg string, prefixes, renamed map[string]
 	}
 	// Sort by natural Go spelling, not traversal order. Allocate converter names
 	// only after the closure is known, avoiding ambiguous composite spellings.
-	for _, key := range sortedKeys(g.entries) {
-		m := g.entries[key]
+	entries := make([]*mirrorType, 0, len(g.entries))
+	for _, m := range g.entries {
+		entries = append(entries, m)
+	}
+	sort.Slice(entries, func(i, j int) bool { return entries[i].goType < entries[j].goType })
+	for _, m := range entries {
 		if d := g.data(m.typ); d != nil {
 			if err := g.emitData(&body, m, d); err != nil {
 				return err
@@ -117,8 +136,7 @@ func addGoExports(prog *types.Program, pkg string, prefixes, renamed map[string]
 			return g.functionError(f, err)
 		}
 	}
-	for _, key := range sortedKeys(g.entries) {
-		m := g.entries[key]
+	for _, m := range entries {
 		base := g.converterID(m.typ)
 		m.id = base
 		for n := 2; g.names["toGo_"+m.id] || g.names["fromGo_"+m.id]; n++ {
@@ -126,9 +144,9 @@ func addGoExports(prog *types.Program, pkg string, prefixes, renamed map[string]
 		}
 		g.names["toGo_"+m.id], g.names["fromGo_"+m.id] = true, true
 	}
-	for _, key := range sortedKeys(g.entries) {
-		g.emitConverters(&body, g.entries[key])
-		g.emitString(&body, g.entries[key])
+	for _, m := range entries {
+		g.emitConverters(&body, m)
+		g.emitString(&body, m)
 	}
 	for _, f := range functions {
 		g.emitWrapper(&body, f)
@@ -264,15 +282,21 @@ func (g *mirrorGenerator) mirrorReason(t types.Type, result bool, visiting map[s
 		if n, ok := types.IsTuple(head); ok && n <= 8 {
 			arity = n
 		} else if d := g.prog.DataTypes[head.Name]; d != nil {
-			if len(d.TParams) != 0 || len(args) != 0 {
+			if len(args) != len(d.TParams) {
 				return "parameterised data type " + g.sourceName(d.Name)
 			}
-			if visiting[d.Name] {
+			for _, arg := range args {
+				if why := g.mirrorReason(arg, false, visiting); why != "" {
+					return why
+				}
+			}
+			key := mirrorKey(t)
+			if visiting[key] {
 				return ""
 			}
-			visiting[d.Name] = true
-			defer delete(visiting, d.Name)
-			for _, c := range d.Ctors {
+			visiting[key] = true
+			defer delete(visiting, key)
+			for _, c := range g.data(t).Ctors {
 				for _, f := range c.Fields {
 					if why := g.mirrorReason(f, false, visiting); why != "" {
 						return g.sourceName(d.Name) + ": " + why
@@ -293,12 +317,68 @@ func (g *mirrorGenerator) mirrorReason(t types.Type, result bool, visiting map[s
 	return ""
 }
 
+// data returns a cached constructor view with the application's arguments
+// substituted. Ctor.Data still names the shared erased constructor definition.
 func (g *mirrorGenerator) data(t types.Type) *types.DataType {
 	head, args := mirrorHead(t)
-	if head != nil && len(args) == 0 && mirrorScalar(t) == "" && head.Name != "Unit" {
-		return g.prog.DataTypes[head.Name]
+	if head == nil || mirrorScalar(t) != "" {
+		return nil
 	}
-	return nil
+	switch head.Name {
+	case "Unit", "List", "Option", "Result", "IO", "Map", "Set":
+		return nil
+	}
+	if _, tuple := types.IsTuple(head); tuple {
+		return nil
+	}
+	d := g.prog.DataTypes[head.Name]
+	if d == nil || len(args) != len(d.TParams) {
+		return nil
+	}
+	if len(args) == 0 {
+		return d
+	}
+	key := mirrorKey(t)
+	if instance := g.dataTypes[key]; instance != nil {
+		return instance
+	}
+	sub := make(map[string]types.Type, len(args))
+	for i, param := range d.TParams {
+		sub[param.Name] = args[i]
+	}
+	instance := &types.DataType{Name: d.Name, Ctors: make([]*types.Ctor, len(d.Ctors))}
+	for i, ctor := range d.Ctors {
+		c := *ctor
+		c.Fields = make([]types.Type, len(ctor.Fields))
+		for j, field := range ctor.Fields {
+			c.Fields[j] = substitute(field, sub)
+		}
+		instance.Ctors[i] = &c
+	}
+	g.dataTypes[key] = instance
+	return instance
+}
+
+func (g *mirrorGenerator) dataName(name string) string {
+	source := g.sourceName(name)
+	if owner := g.prog.Owners[name]; len(g.prog.Modules) != 0 && owner != g.root {
+		source = g.prefixes[owner] + source
+	}
+	return source
+}
+
+// Mirror names use the language's nominal spellings, including List and Int,
+// rather than Go representation syntax such as [] and int64.
+func (g *mirrorGenerator) mirrorName(t types.Type) string {
+	head, args := mirrorHead(t)
+	name := head.Name
+	if g.data(t) != nil {
+		name = g.dataName(head.Name)
+	}
+	for _, arg := range args {
+		name += g.mirrorName(arg)
+	}
+	return name
 }
 
 func (g *mirrorGenerator) goType(t types.Type) string {
@@ -306,12 +386,8 @@ func (g *mirrorGenerator) goType(t types.Type) string {
 		return name
 	}
 	head, args := mirrorHead(t)
-	if d := g.data(t); d != nil {
-		name := g.sourceName(d.Name)
-		if owner := g.prog.Owners[d.Name]; len(g.prog.Modules) != 0 && owner != g.root {
-			name = g.prefixes[owner] + name
-		}
-		return name
+	if g.data(t) != nil {
+		return g.mirrorName(t)
 	}
 	parts := make([]string, len(args))
 	for i, a := range args {
@@ -351,14 +427,18 @@ func (g *mirrorGenerator) converterID(t types.Type) string {
 
 func (g *mirrorGenerator) collect(t types.Type) {
 	t = types.Unalias(t)
-	name := g.goType(t)
-	if previous := g.entries[name]; previous != nil {
-		if mirrorKey(previous.typ) != mirrorKey(t) {
-			g.err = fmt.Errorf("Go export name collision: %s", name)
-		}
+	key := mirrorKey(t)
+	if g.entries[key] != nil {
 		return
 	}
-	g.entries[name] = &mirrorType{typ: t, goType: name}
+	name := g.goType(t)
+	if d := g.data(t); d != nil && len(g.prog.DataTypes[d.Name].TParams) != 0 {
+		if loc, exists := g.declared[name]; exists {
+			g.err = &types.Error{File: loc.file, Pos: loc.pos, Msg: "Go export name collision: " + name}
+			return
+		}
+	}
+	g.entries[key] = &mirrorType{typ: t, goType: name}
 	_, args := mirrorHead(t)
 	for _, a := range args {
 		g.collect(a)
@@ -421,11 +501,12 @@ func (g *mirrorGenerator) recursiveValue(t types.Type, visiting map[string]bool)
 		if len(d.Ctors) != 1 {
 			return false
 		}
-		if visiting[d.Name] {
+		key := mirrorKey(t)
+		if visiting[key] {
 			return true
 		}
-		visiting[d.Name] = true
-		defer delete(visiting, d.Name)
+		visiting[key] = true
+		defer delete(visiting, key)
 		for _, f := range d.Ctors[0].Fields {
 			if g.recursiveValue(f, visiting) {
 				return true
@@ -472,12 +553,10 @@ func (g *mirrorGenerator) emitData(out *strings.Builder, m *mirrorType, d *types
 		out.WriteString("default: panic(\"invalid constructor\")\n} }\n")
 		return nil
 	}
-	// Mirrors are monomorphic, so their Debug dictionaries have no type arguments.
-	for _, instance := range g.prog.Instances {
-		if instance.Class.Name == "Debug" && instance.TypeCon.Name == d.Name {
-			m.debugDict = g.internal(instanceName(instance))
-			break
-		}
+	var err error
+	m.debugDict, err = g.debugDictionary(m.typ)
+	if err != nil {
+		return g.dataError(d, err)
 	}
 	if len(d.Ctors) > 1 {
 		fmt.Fprintf(out, "type %s interface { is%s() }\n", m.goType, m.goType)
@@ -511,6 +590,63 @@ func (g *mirrorGenerator) emitData(out *strings.Builder, m *mirrorType, d *types
 	return nil
 }
 
+// Resolve only concrete instance heads, following the checker's constructor-keyed
+// matching and declaration-ordered context. Missing context means no String method.
+func (g *mirrorGenerator) concreteDictionary(class string, t types.Type) (types.DictRef, bool) {
+	head, args := mirrorHead(t)
+	if head == nil {
+		return types.DictRef{}, false
+	}
+	instance := g.sources.instances[class+"_"+head.Name]
+	if instance == nil || len(instance.HeadArgs) != len(args) {
+		return types.DictRef{}, false
+	}
+	sub := make(map[string]types.Type, len(args))
+	for i, headArg := range instance.HeadArgs {
+		if param, ok := headArg.(*types.TVar); ok {
+			sub[param.Name] = args[i]
+		} else if mirrorKey(headArg) != mirrorKey(args[i]) {
+			return types.DictRef{}, false
+		}
+	}
+	ref := types.DictRef{Kind: types.DictInstance, Class: class, Instance: instance}
+	if len(instance.Context) != 0 {
+		ref.Args = make([]types.DictRef, len(instance.Context))
+		for i, constraint := range instance.Context {
+			arg, ok := g.concreteDictionary(constraint.Class, substitute(constraint.Arg, sub))
+			if !ok {
+				return types.DictRef{}, false
+			}
+			ref.Args[i] = arg
+		}
+	}
+	return ref, true
+}
+
+func (g *mirrorGenerator) debugDictionary(t types.Type) (string, error) {
+	ref, ok := g.concreteDictionary("Debug", t)
+	if !ok {
+		return "", nil
+	}
+	// Reuse the normal/specialised-call emitter for dictionary fields and embedded
+	// superclasses, then apply the same module identifier renaming as their callers.
+	expr, err := parser.ParseExpr(g.sources.dict(&ref))
+	if err != nil {
+		return "", err
+	}
+	goast.Inspect(expr, func(n goast.Node) bool {
+		if id, ok := n.(*goast.Ident); ok {
+			id.Name = g.internal(id.Name)
+		}
+		return true
+	})
+	var out strings.Builder
+	if err := format.Node(&out, token.NewFileSet(), expr); err != nil {
+		return "", err
+	}
+	return out.String(), nil
+}
+
 func (g *mirrorGenerator) emitString(out *strings.Builder, m *mirrorType) {
 	if m.debugDict == "" {
 		return
@@ -523,16 +659,16 @@ func (g *mirrorGenerator) emitString(out *strings.Builder, m *mirrorType) {
 		if len(d.Ctors) > 1 {
 			name += g.sourceName(c.Name)
 		}
-		fmt.Fprintf(out, "func (v %s) String() string { return (%s{}).%s(%s).(string) }\n", name, m.debugDict, method, g.from(m.typ, "v"))
+		fmt.Fprintf(out, "func (v %s) String() string { return (%s).%s(%s).(string) }\n", name, m.debugDict, method, g.from(m.typ, "v"))
 	}
 }
 
 func (g *mirrorGenerator) to(t types.Type, value string) string {
-	return "toGo_" + g.entries[g.goType(t)].id + "(" + value + ")"
+	return "toGo_" + g.entries[mirrorKey(t)].id + "(" + value + ")"
 }
 
 func (g *mirrorGenerator) from(t types.Type, value string) string {
-	return "fromGo_" + g.entries[g.goType(t)].id + "(" + value + ")"
+	return "fromGo_" + g.entries[mirrorKey(t)].id + "(" + value + ")"
 }
 
 func (g *mirrorGenerator) builtinCtor(data, ctor string) string {

@@ -268,7 +268,6 @@ func main() IO[Unit] { ioPure(unit()) }
 	source := string(generated["gofx_export.go"])
 	for _, want := range []string{
 		"generic (type parameters)", "constrained (type parameters)",
-		"parameterised (parameter 1: parameterised data type Generic)",
 		"callback (parameter 1: function type)", "returned (result: function type)",
 		"action (parameter 1: IO is only supported as the outer result)",
 		"nested (parameter 1: IO is only supported as the outer result)",
@@ -278,6 +277,9 @@ func main() IO[Unit] { ioPure(unit()) }
 		if strings.Count(source, "// not exported: "+want) != 1 {
 			t.Errorf("missing unique skip %q:\n%s", want, source)
 		}
+	}
+	if !strings.Contains(source, "func Parameterised(p0 GenericInt) GenericInt") {
+		t.Fatalf("fully applied data type not exported:\n%s", source)
 	}
 	if strings.Contains(source, "private") || !strings.Contains(source, "func Visible(") || strings.Contains(source, "type Generic ") {
 		t.Fatalf("eligibility:\n%s", source)
@@ -310,5 +312,142 @@ func TestGoExportNameErrors(t *testing.T) {
 	_, err := Generate(program, "core")
 	if err == nil || !strings.Contains(err.Error(), "Go export name collision: Box") {
 		t.Fatalf("no-module collision = %v", err)
+	}
+}
+
+func TestGoParametricMirrors(t *testing.T) {
+	program := mirrorProgram(t, map[string]string{"main.gfx": `package main
+type Plan = Plan { generation: Int } deriving Eq, Debug
+type Fetched[A] = NotReferenced | ReadError | Missing | Found(A) deriving Eq, Debug
+type Pair[A, B] = Pair { first: A, second: B } deriving Debug
+type Box[A] = Box(A) deriving Debug
+type Tree[A] = Leaf(A) | Branch(List[Tree[A]]) deriving Debug
+type Phase[A] = Pending | Ready
+type Plain = Plain(Int)
+type Fixed[A] = Fixed(A)
+instance Debug[Fixed[Int]] { debug(_v) { "fixed int" } }
+alias PlanAlias = Plan
+alias Plans = Fetched[PlanAlias]
+func echoFetched(v Fetched[Plan]) Fetched[Plan] { v }
+func echoAlias(v Plans) Plans { v }
+func describeFetched(v Fetched[Plan]) String { debug(v) }
+func echoPair(v Pair[Int, Option[Bool]]) Pair[Int, Option[Bool]] { v }
+func describePair(v Pair[Int, Option[Bool]]) String { debug(v) }
+func echoStrings(v Fetched[List[String]]) Fetched[List[String]] { v }
+func describeStrings(v Fetched[List[String]]) String { debug(v) }
+func echoBoxes(v Box[Box[Int]]) Box[Box[Int]] { v }
+func describeBoxes(v Box[Box[Int]]) String { debug(v) }
+func echoTree(v Tree[Int]) Tree[Int] { v }
+func describeTree(v Tree[Int]) String { debug(v) }
+func echoPhase(v Phase[Int]) Phase[Int] { v }
+func echoPlain(v Fetched[Plain]) Fetched[Plain] { v }
+func describeFixed(v Fixed[Int]) String { debug(v) }
+func echoUnmatched(v Fixed[Bool]) Fixed[Bool] { v }
+func identity[A](a A) A { a }
+func main() IO[Unit] { ioPure(unit()) }
+`})
+	generated, err := Generate(program, "core")
+	if err != nil {
+		t.Fatal(err)
+	}
+	exports := string(generated["gofx_export.go"])
+	for _, want := range []string{
+		"type FetchedPlan interface", "type FetchedPlanFound struct",
+		"type FetchedListString interface", "type PairIntOptionBool struct",
+		"func toGo_FetchedPlan(", "func fromGo_FetchedPlan(",
+		"// not exported: identity (type parameters)",
+	} {
+		if strings.Count(exports, want) != 1 {
+			t.Errorf("missing unique declaration %q:\n%s", want, exports)
+		}
+	}
+	runMirrorConsumer(t, generated, `package main
+import (
+ "fmt"
+ "reflect"
+ "mirrorcheck/core"
+ "gofx/rt"
+)
+func equal(a, b any) { if !reflect.DeepEqual(a, b) { panic(fmt.Sprintf("round trip: %#v != %#v", a, b)) } }
+func main() {
+ for _, value := range []core.FetchedPlan{core.FetchedPlanNotReferenced{}, core.FetchedPlanReadError{}, core.FetchedPlanMissing{}, core.FetchedPlanFound{F0: core.Plan{Generation: 7}}} {
+  equal(core.EchoFetched(value), value)
+  equal(core.EchoAlias(value), value)
+  equal(fmt.Sprint(value), core.DescribeFetched(value))
+ }
+ for _, option := range []rt.Option[bool]{rt.Some(true), rt.None[bool]()} {
+  pair := core.PairIntOptionBool{First: 7, Second: option}
+  equal(core.EchoPair(pair), pair)
+  equal(fmt.Sprint(pair), core.DescribePair(pair))
+ }
+ strings := core.FetchedListStringFound{F0: []string{"quoted\ntext", "next"}}
+ copied := core.EchoStrings(strings).(core.FetchedListStringFound)
+ equal(copied, strings)
+ equal(fmt.Sprint(strings), core.DescribeStrings(strings))
+ copied.F0[0] = "changed"
+ equal(strings.F0[0], "quoted\ntext")
+ boxes := core.BoxBoxInt{F0: core.BoxInt{F0: 9}}
+ equal(core.EchoBoxes(boxes), boxes)
+ equal(fmt.Sprint(boxes), core.DescribeBoxes(boxes))
+ tree := core.TreeIntBranch{F0: []core.TreeInt{core.TreeIntLeaf{F0: 3}, core.TreeIntBranch{}}}
+ equal(core.EchoTree(tree), tree)
+ equal(fmt.Sprint(tree), core.DescribeTree(tree))
+ equal(core.EchoPhase(core.PhaseIntReady), core.PhaseIntReady)
+ equal(fmt.Sprint(core.PhaseIntReady), "Ready")
+ plain := core.FetchedPlainFound{F0: core.Plain{F0: 5}}
+ equal(core.EchoPlain(plain), plain)
+ fixed := core.FixedInt{F0: 4}
+ equal(fmt.Sprint(fixed), core.DescribeFixed(fixed))
+ equal(fmt.Sprint(fixed), "fixed int")
+ unmatched := core.FixedBool{F0: true}
+ equal(core.EchoUnmatched(unmatched), unmatched)
+ for _, value := range []any{plain, unmatched} {
+  if _, ok := value.(fmt.Stringer); ok { panic("String without a resolvable Debug instance") }
+ }
+ fmt.Println("mirrors ok")
+}
+`)
+}
+
+func TestGoParametricMirrorErrors(t *testing.T) {
+	for _, tt := range []struct {
+		name, source, want string
+		line               int
+	}{
+		{"unreachable declaration clash", "type Fetched[A] = Missing | Found(A)\ntype FetchedInt = Declared\nfunc echo(v Fetched[Int]) Fetched[Int] { v }", "Go export name collision: FetchedInt", 3},
+		{"reachable declaration clash", "type FetchedInt = Declared\ntype Fetched[A] = Missing | Found(A)\nfunc echo(v Fetched[Int]) Fetched[Int] { v }\nfunc declared(v FetchedInt) FetchedInt { v }", "Go export name collision: FetchedInt", 2},
+		{"recursive instance", "type Chain[A] = Chain(A, Option[Chain[A]])\nfunc echo(v Chain[Int]) Chain[Int] { v }", "recursive Go value type ChainInt", 2},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			program := mirrorProgram(t, map[string]string{"main.gfx": "package main\n" + tt.source + "\nfunc main() IO[Unit] { ioPure(unit()) }\n"})
+			_, err := Generate(program, "core")
+			diagnostic, ok := err.(*types.Error)
+			if !ok || diagnostic.Msg != tt.want || diagnostic.Pos.Line != tt.line || filepath.Base(diagnostic.File) != "main.gfx" {
+				t.Fatalf("error=%v, want main.gfx:%d: %s", err, tt.line, tt.want)
+			}
+		})
+	}
+}
+
+func TestGoParametricMirrorEligibility(t *testing.T) {
+	program := mirrorProgram(t, map[string]string{"main.gfx": `package main
+type Phantom[A] = Phantom
+type Handler[A] = Handler(func(A) A)
+func phantom(v Phantom[Array[Int]]) Phantom[Array[Int]] { v }
+func handler(v Handler[Int]) Handler[Int] { v }
+func main() IO[Unit] { ioPure(unit()) }
+`})
+	generated, err := Generate(program, "core")
+	if err != nil {
+		t.Fatal(err)
+	}
+	exports := string(generated["gofx_export.go"])
+	for _, want := range []string{
+		"// not exported: phantom (parameter 1: unsupported type Array)",
+		"// not exported: handler (parameter 1: Handler: function type)",
+	} {
+		if !strings.Contains(exports, want) {
+			t.Errorf("missing skip %q:\n%s", want, exports)
+		}
 	}
 }

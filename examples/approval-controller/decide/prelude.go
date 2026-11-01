@@ -1131,14 +1131,14 @@ func prelude_fst_(p_ any) any {
 	return (
 //line std/prelude/prelude.gfx:276
 	func() any {
-		var _gofx503 any = p_
-		_ = _gofx503
+		var _gofx477 any = p_
+		_ = _gofx477
 //line std/prelude/prelude.gfx:277
 		{
-			_gofx504 := _gofx503.(*Tuple2)
-			_ = _gofx504
+			_gofx478 := _gofx477.(*Tuple2)
+			_ = _gofx478
 			{
-				var a_ any = _gofx504.F0
+				var a_ any = _gofx478.F0
 				_ = a_
 				{
 //line std/prelude/prelude.gfx:277
@@ -1257,15 +1257,15 @@ func prelude_snd_(p_ any) any {
 	return (
 //line std/prelude/prelude.gfx:282
 	func() any {
-		var _gofx750 any = p_
-		_ = _gofx750
+		var _gofx724 any = p_
+		_ = _gofx724
 //line std/prelude/prelude.gfx:283
 		{
-			_gofx751 := _gofx750.(*Tuple2)
-			_ = _gofx751
+			_gofx725 := _gofx724.(*Tuple2)
+			_ = _gofx725
 			{
 				{
-					var b_ any = _gofx751.F1
+					var b_ any = _gofx725.F1
 					_ = b_
 //line std/prelude/prelude.gfx:283
 //line std/prelude/prelude.gfx:283

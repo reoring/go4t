@@ -508,25 +508,25 @@ func list_append_(xs_ any, ys_ any) any {
 	return (
 //line std/list/list.gfx:104
 	func() any {
-		var _gofx479 any = xs_
-		_ = _gofx479
+		var _gofx453 any = xs_
+		_ = _gofx453
 //line std/list/list.gfx:105
-		switch _gofx480 := _gofx479.(type) {
+		switch _gofx454 := _gofx453.(type) {
 		case *list_List_Nil:
-			_ = _gofx480
+			_ = _gofx454
 //line std/list/list.gfx:105
 //line std/list/list.gfx:105
 			return ys_
 		}
 //line std/list/list.gfx:106
 		{
-			_gofx481 := _gofx479.(*list_List_Cons)
-			_ = _gofx481
+			_gofx455 := _gofx453.(*list_List_Cons)
+			_ = _gofx455
 			{
-				var x_ any = _gofx481.F0
+				var x_ any = _gofx455.F0
 				_ = x_
 				{
-					var rest_ any = _gofx481.F1
+					var rest_ any = _gofx455.F1
 					_ = rest_
 //line std/list/list.gfx:106
 //line std/list/list.gfx:106
@@ -538,33 +538,33 @@ func list_append_(xs_ any, ys_ any) any {
 }
 
 //line std/list/list.gfx:110
-func list_filter_(_gofx487 any, _gofx488 any) any {
+func list_filter_(_gofx461 any, _gofx462 any) any {
 	for {
 		{
-			var xs_ any = _gofx487
+			var xs_ any = _gofx461
 			_ = xs_
 			{
-				var p_ any = _gofx488
+				var p_ any = _gofx462
 				_ = p_
-				var _gofx489 any = xs_
-				_ = _gofx489
+				var _gofx463 any = xs_
+				_ = _gofx463
 //line std/list/list.gfx:112
-				switch _gofx490 := _gofx489.(type) {
+				switch _gofx464 := _gofx463.(type) {
 				case *list_List_Nil:
-					_ = _gofx490
+					_ = _gofx464
 //line std/list/list.gfx:112
 //line std/list/list.gfx:112
 					return &list_List_Nil{}
 				}
 //line std/list/list.gfx:113
 				{
-					_gofx493 := _gofx489.(*list_List_Cons)
-					_ = _gofx493
+					_gofx467 := _gofx463.(*list_List_Cons)
+					_ = _gofx467
 					{
-						var x_ any = _gofx493.F0
+						var x_ any = _gofx467.F0
 						_ = x_
 						{
-							var rest_ any = _gofx493.F1
+							var rest_ any = _gofx467.F1
 							_ = rest_
 //line std/list/list.gfx:113
 //line std/list/list.gfx:113
@@ -573,9 +573,9 @@ func list_filter_(_gofx487 any, _gofx488 any) any {
 								return &list_List_Cons{F0: x_, F1: list_filter_(rest_, p_)}
 							} else {
 //line std/list/list.gfx:116
-								var _gofx491 any = rest_
-								var _gofx492 any = p_
-								_gofx487, _gofx488 = _gofx491, _gofx492
+								var _gofx465 any = rest_
+								var _gofx466 any = p_
+								_gofx461, _gofx462 = _gofx465, _gofx466
 								continue
 							}
 						}
@@ -587,43 +587,43 @@ func list_filter_(_gofx487 any, _gofx488 any) any {
 }
 
 //line std/list/list.gfx:92
-func list_fold_(_gofx494 any, _gofx495 any, _gofx496 any) any {
+func list_fold_(_gofx468 any, _gofx469 any, _gofx470 any) any {
 	for {
 		{
-			var xs_ any = _gofx494
+			var xs_ any = _gofx468
 			_ = xs_
 			{
-				var init_ any = _gofx495
+				var init_ any = _gofx469
 				_ = init_
 				{
-					var f_ any = _gofx496
+					var f_ any = _gofx470
 					_ = f_
-					var _gofx497 any = xs_
-					_ = _gofx497
+					var _gofx471 any = xs_
+					_ = _gofx471
 //line std/list/list.gfx:94
-					switch _gofx498 := _gofx497.(type) {
+					switch _gofx472 := _gofx471.(type) {
 					case *list_List_Nil:
-						_ = _gofx498
+						_ = _gofx472
 //line std/list/list.gfx:94
 //line std/list/list.gfx:94
 						return init_
 					}
 //line std/list/list.gfx:95
 					{
-						_gofx502 := _gofx497.(*list_List_Cons)
-						_ = _gofx502
+						_gofx476 := _gofx471.(*list_List_Cons)
+						_ = _gofx476
 						{
-							var x_ any = _gofx502.F0
+							var x_ any = _gofx476.F0
 							_ = x_
 							{
-								var rest_ any = _gofx502.F1
+								var rest_ any = _gofx476.F1
 								_ = rest_
 //line std/list/list.gfx:95
 //line std/list/list.gfx:95
-								var _gofx499 any = rest_
-								var _gofx500 any = any(f_).(func(any, any) any)(init_, x_)
-								var _gofx501 any = f_
-								_gofx494, _gofx495, _gofx496 = _gofx499, _gofx500, _gofx501
+								var _gofx473 any = rest_
+								var _gofx474 any = any(f_).(func(any, any) any)(init_, x_)
+								var _gofx475 any = f_
+								_gofx468, _gofx469, _gofx470 = _gofx473, _gofx474, _gofx475
 								continue
 							}
 						}
@@ -640,22 +640,22 @@ func list_head_(xs_ any) any {
 	return (
 //line std/list/list.gfx:133
 	func() any {
-		var _gofx505 any = xs_
-		_ = _gofx505
+		var _gofx479 any = xs_
+		_ = _gofx479
 //line std/list/list.gfx:134
-		switch _gofx506 := _gofx505.(type) {
+		switch _gofx480 := _gofx479.(type) {
 		case *list_List_Nil:
-			_ = _gofx506
+			_ = _gofx480
 //line std/list/list.gfx:134
 //line std/list/list.gfx:134
 			return &prelude_Option_None{}
 		}
 //line std/list/list.gfx:135
 		{
-			_gofx507 := _gofx505.(*list_List_Cons)
-			_ = _gofx507
+			_gofx481 := _gofx479.(*list_List_Cons)
+			_ = _gofx481
 			{
-				var x_ any = _gofx507.F0
+				var x_ any = _gofx481.F0
 				_ = x_
 				{
 //line std/list/list.gfx:135
@@ -691,41 +691,41 @@ func list_length_(xs_ any) int64 {
 }
 
 //line std/list/list.gfx:252
-func list_all_(_gofx517 any, _gofx518 any) bool {
+func list_all_(_gofx491 any, _gofx492 any) bool {
 	for {
 		{
-			var xs_ any = _gofx517
+			var xs_ any = _gofx491
 			_ = xs_
 			{
-				var p_ any = _gofx518
+				var p_ any = _gofx492
 				_ = p_
-				var _gofx519 any = xs_
-				_ = _gofx519
+				var _gofx493 any = xs_
+				_ = _gofx493
 //line std/list/list.gfx:254
-				switch _gofx520 := _gofx519.(type) {
+				switch _gofx494 := _gofx493.(type) {
 				case *list_List_Nil:
-					_ = _gofx520
+					_ = _gofx494
 //line std/list/list.gfx:254
 //line std/list/list.gfx:254
 					return true
 				}
 //line std/list/list.gfx:255
 				{
-					_gofx523 := _gofx519.(*list_List_Cons)
-					_ = _gofx523
+					_gofx497 := _gofx493.(*list_List_Cons)
+					_ = _gofx497
 					{
-						var x_ any = _gofx523.F0
+						var x_ any = _gofx497.F0
 						_ = x_
 						{
-							var rest_ any = _gofx523.F1
+							var rest_ any = _gofx497.F1
 							_ = rest_
 //line std/list/list.gfx:255
 //line std/list/list.gfx:255
 							if any(any(p_).(func(any) any)(x_)).(bool) {
 //line std/list/list.gfx:256
-								var _gofx521 any = rest_
-								var _gofx522 any = p_
-								_gofx517, _gofx518 = _gofx521, _gofx522
+								var _gofx495 any = rest_
+								var _gofx496 any = p_
+								_gofx491, _gofx492 = _gofx495, _gofx496
 								continue
 							} else {
 //line std/list/list.gfx:258
@@ -740,33 +740,33 @@ func list_all_(_gofx517 any, _gofx518 any) bool {
 }
 
 //line std/list/list.gfx:241
-func list_any_(_gofx524 any, _gofx525 any) bool {
+func list_any_(_gofx498 any, _gofx499 any) bool {
 	for {
 		{
-			var xs_ any = _gofx524
+			var xs_ any = _gofx498
 			_ = xs_
 			{
-				var p_ any = _gofx525
+				var p_ any = _gofx499
 				_ = p_
-				var _gofx526 any = xs_
-				_ = _gofx526
+				var _gofx500 any = xs_
+				_ = _gofx500
 //line std/list/list.gfx:243
-				switch _gofx527 := _gofx526.(type) {
+				switch _gofx501 := _gofx500.(type) {
 				case *list_List_Nil:
-					_ = _gofx527
+					_ = _gofx501
 //line std/list/list.gfx:243
 //line std/list/list.gfx:243
 					return false
 				}
 //line std/list/list.gfx:244
 				{
-					_gofx530 := _gofx526.(*list_List_Cons)
-					_ = _gofx530
+					_gofx504 := _gofx500.(*list_List_Cons)
+					_ = _gofx504
 					{
-						var x_ any = _gofx530.F0
+						var x_ any = _gofx504.F0
 						_ = x_
 						{
-							var rest_ any = _gofx530.F1
+							var rest_ any = _gofx504.F1
 							_ = rest_
 //line std/list/list.gfx:244
 //line std/list/list.gfx:244
@@ -775,9 +775,9 @@ func list_any_(_gofx524 any, _gofx525 any) bool {
 								return true
 							} else {
 //line std/list/list.gfx:247
-								var _gofx528 any = rest_
-								var _gofx529 any = p_
-								_gofx524, _gofx525 = _gofx528, _gofx529
+								var _gofx502 any = rest_
+								var _gofx503 any = p_
+								_gofx498, _gofx499 = _gofx502, _gofx503
 								continue
 							}
 						}
@@ -810,56 +810,56 @@ func list_chunksOf_(n_ int64, xs_ any) any {
 }
 
 //line std/list/list.gfx:469
-func list_chunksOfAcc_(_gofx531 int64, _gofx532 any, _gofx533 any) any {
+func list_chunksOfAcc_(_gofx505 int64, _gofx506 any, _gofx507 any) any {
 	for {
 		{
-			var n_ int64 = _gofx531
+			var n_ int64 = _gofx505
 			_ = n_
 			{
-				var xs_ any = _gofx532
+				var xs_ any = _gofx506
 				_ = xs_
 				{
-					var acc_ any = _gofx533
+					var acc_ any = _gofx507
 					_ = acc_
 //line std/list/list.gfx:470
 					if n_ <= int64(0) {
 //line std/list/list.gfx:471
 						return list_reverse_(acc_)
 					} else {
-						var _gofx534 any = xs_
-						_ = _gofx534
+						var _gofx508 any = xs_
+						_ = _gofx508
 //line std/list/list.gfx:474
-						switch _gofx535 := _gofx534.(type) {
+						switch _gofx509 := _gofx508.(type) {
 						case *list_List_Nil:
-							_ = _gofx535
+							_ = _gofx509
 //line std/list/list.gfx:474
 //line std/list/list.gfx:474
 							return list_reverse_(acc_)
 						}
 //line std/list/list.gfx:475
 						{
-							_gofx541 := _gofx534.(*list_List_Cons)
-							_ = _gofx541
+							_gofx515 := _gofx508.(*list_List_Cons)
+							_ = _gofx515
 							{
 								{
 //line std/list/list.gfx:475
 									{
-										var _gofx539 any = list_splitAt_(n_, xs_)
-										_ = _gofx539
+										var _gofx513 any = list_splitAt_(n_, xs_)
+										_ = _gofx513
 										{
-											_gofx540 := _gofx539.(*Tuple2)
-											_ = _gofx540
+											_gofx514 := _gofx513.(*Tuple2)
+											_ = _gofx514
 											{
-												var chunk_ any = _gofx540.F0
+												var chunk_ any = _gofx514.F0
 												_ = chunk_
 												{
-													var rest_ any = _gofx540.F1
+													var rest_ any = _gofx514.F1
 													_ = rest_
 //line std/list/list.gfx:477
-													var _gofx536 int64 = n_
-													var _gofx537 any = rest_
-													var _gofx538 any = &list_List_Cons{F0: chunk_, F1: acc_}
-													_gofx531, _gofx532, _gofx533 = _gofx536, _gofx537, _gofx538
+													var _gofx510 int64 = n_
+													var _gofx511 any = rest_
+													var _gofx512 any = &list_List_Cons{F0: chunk_, F1: acc_}
+													_gofx505, _gofx506, _gofx507 = _gofx510, _gofx511, _gofx512
 													continue
 												}
 											}
@@ -924,42 +924,42 @@ func list_count_(xs_ any, p_ any) int64 {
 }
 
 //line std/list/list.gfx:157
-func list_drop_(_gofx542 int64, _gofx543 any) any {
+func list_drop_(_gofx516 int64, _gofx517 any) any {
 	for {
 		{
-			var n_ int64 = _gofx542
+			var n_ int64 = _gofx516
 			_ = n_
 			{
-				var xs_ any = _gofx543
+				var xs_ any = _gofx517
 				_ = xs_
 //line std/list/list.gfx:158
 				if n_ <= int64(0) {
 //line std/list/list.gfx:159
 					return xs_
 				} else {
-					var _gofx544 any = xs_
-					_ = _gofx544
+					var _gofx518 any = xs_
+					_ = _gofx518
 //line std/list/list.gfx:162
-					switch _gofx545 := _gofx544.(type) {
+					switch _gofx519 := _gofx518.(type) {
 					case *list_List_Nil:
-						_ = _gofx545
+						_ = _gofx519
 //line std/list/list.gfx:162
 //line std/list/list.gfx:162
 						return &list_List_Nil{}
 					}
 //line std/list/list.gfx:163
 					{
-						_gofx548 := _gofx544.(*list_List_Cons)
-						_ = _gofx548
+						_gofx522 := _gofx518.(*list_List_Cons)
+						_ = _gofx522
 						{
 							{
-								var rest_ any = _gofx548.F1
+								var rest_ any = _gofx522.F1
 								_ = rest_
 //line std/list/list.gfx:163
 //line std/list/list.gfx:163
-								var _gofx546 int64 = (n_ - int64(1))
-								var _gofx547 any = rest_
-								_gofx542, _gofx543 = _gofx546, _gofx547
+								var _gofx520 int64 = (n_ - int64(1))
+								var _gofx521 any = rest_
+								_gofx516, _gofx517 = _gofx520, _gofx521
 								continue
 							}
 						}
@@ -971,41 +971,41 @@ func list_drop_(_gofx542 int64, _gofx543 any) any {
 }
 
 //line std/list/list.gfx:395
-func list_dropWhile_(_gofx549 any, _gofx550 any) any {
+func list_dropWhile_(_gofx523 any, _gofx524 any) any {
 	for {
 		{
-			var xs_ any = _gofx549
+			var xs_ any = _gofx523
 			_ = xs_
 			{
-				var p_ any = _gofx550
+				var p_ any = _gofx524
 				_ = p_
-				var _gofx551 any = xs_
-				_ = _gofx551
+				var _gofx525 any = xs_
+				_ = _gofx525
 //line std/list/list.gfx:397
-				switch _gofx552 := _gofx551.(type) {
+				switch _gofx526 := _gofx525.(type) {
 				case *list_List_Nil:
-					_ = _gofx552
+					_ = _gofx526
 //line std/list/list.gfx:397
 //line std/list/list.gfx:397
 					return &list_List_Nil{}
 				}
 //line std/list/list.gfx:398
 				{
-					_gofx555 := _gofx551.(*list_List_Cons)
-					_ = _gofx555
+					_gofx529 := _gofx525.(*list_List_Cons)
+					_ = _gofx529
 					{
-						var x_ any = _gofx555.F0
+						var x_ any = _gofx529.F0
 						_ = x_
 						{
-							var rest_ any = _gofx555.F1
+							var rest_ any = _gofx529.F1
 							_ = rest_
 //line std/list/list.gfx:398
 //line std/list/list.gfx:398
 							if any(any(p_).(func(any) any)(x_)).(bool) {
 //line std/list/list.gfx:399
-								var _gofx553 any = rest_
-								var _gofx554 any = p_
-								_gofx549, _gofx550 = _gofx553, _gofx554
+								var _gofx527 any = rest_
+								var _gofx528 any = p_
+								_gofx523, _gofx524 = _gofx527, _gofx528
 								continue
 							} else {
 //line std/list/list.gfx:401
@@ -1025,25 +1025,25 @@ func list_elem_(dict_A prelude_Eq, x_ any, xs_ any) bool {
 	return (
 //line std/list/list.gfx:191
 	func() bool {
-		var _gofx556 any = xs_
-		_ = _gofx556
+		var _gofx530 any = xs_
+		_ = _gofx530
 //line std/list/list.gfx:192
-		switch _gofx557 := _gofx556.(type) {
+		switch _gofx531 := _gofx530.(type) {
 		case *list_List_Nil:
-			_ = _gofx557
+			_ = _gofx531
 //line std/list/list.gfx:192
 //line std/list/list.gfx:192
 			return false
 		}
 //line std/list/list.gfx:193
 		{
-			_gofx558 := _gofx556.(*list_List_Cons)
-			_ = _gofx558
+			_gofx532 := _gofx530.(*list_List_Cons)
+			_ = _gofx532
 			{
-				var y_ any = _gofx558.F0
+				var y_ any = _gofx532.F0
 				_ = y_
 				{
-					var rest_ any = _gofx558.F1
+					var rest_ any = _gofx532.F1
 					_ = rest_
 //line std/list/list.gfx:193
 //line std/list/list.gfx:193
@@ -1055,33 +1055,33 @@ func list_elem_(dict_A prelude_Eq, x_ any, xs_ any) bool {
 }
 
 //line std/list/list.gfx:263
-func list_find_(_gofx559 any, _gofx560 any) any {
+func list_find_(_gofx533 any, _gofx534 any) any {
 	for {
 		{
-			var xs_ any = _gofx559
+			var xs_ any = _gofx533
 			_ = xs_
 			{
-				var p_ any = _gofx560
+				var p_ any = _gofx534
 				_ = p_
-				var _gofx561 any = xs_
-				_ = _gofx561
+				var _gofx535 any = xs_
+				_ = _gofx535
 //line std/list/list.gfx:265
-				switch _gofx562 := _gofx561.(type) {
+				switch _gofx536 := _gofx535.(type) {
 				case *list_List_Nil:
-					_ = _gofx562
+					_ = _gofx536
 //line std/list/list.gfx:265
 //line std/list/list.gfx:265
 					return &prelude_Option_None{}
 				}
 //line std/list/list.gfx:266
 				{
-					_gofx565 := _gofx561.(*list_List_Cons)
-					_ = _gofx565
+					_gofx539 := _gofx535.(*list_List_Cons)
+					_ = _gofx539
 					{
-						var x_ any = _gofx565.F0
+						var x_ any = _gofx539.F0
 						_ = x_
 						{
-							var rest_ any = _gofx565.F1
+							var rest_ any = _gofx539.F1
 							_ = rest_
 //line std/list/list.gfx:266
 //line std/list/list.gfx:266
@@ -1090,9 +1090,9 @@ func list_find_(_gofx559 any, _gofx560 any) any {
 								return &prelude_Option_Some{F0: x_}
 							} else {
 //line std/list/list.gfx:269
-								var _gofx563 any = rest_
-								var _gofx564 any = p_
-								_gofx559, _gofx560 = _gofx563, _gofx564
+								var _gofx537 any = rest_
+								var _gofx538 any = p_
+								_gofx533, _gofx534 = _gofx537, _gofx538
 								continue
 							}
 						}
@@ -1110,36 +1110,36 @@ func list_findIndex_(xs_ any, p_ any) any {
 }
 
 //line std/list/list.gfx:278
-func list_findIndexFrom_(_gofx566 any, _gofx567 any, _gofx568 int64) any {
+func list_findIndexFrom_(_gofx540 any, _gofx541 any, _gofx542 int64) any {
 	for {
 		{
-			var xs_ any = _gofx566
+			var xs_ any = _gofx540
 			_ = xs_
 			{
-				var p_ any = _gofx567
+				var p_ any = _gofx541
 				_ = p_
 				{
-					var i_ int64 = _gofx568
+					var i_ int64 = _gofx542
 					_ = i_
-					var _gofx569 any = xs_
-					_ = _gofx569
+					var _gofx543 any = xs_
+					_ = _gofx543
 //line std/list/list.gfx:280
-					switch _gofx570 := _gofx569.(type) {
+					switch _gofx544 := _gofx543.(type) {
 					case *list_List_Nil:
-						_ = _gofx570
+						_ = _gofx544
 //line std/list/list.gfx:280
 //line std/list/list.gfx:280
 						return &prelude_Option_None{}
 					}
 //line std/list/list.gfx:281
 					{
-						_gofx574 := _gofx569.(*list_List_Cons)
-						_ = _gofx574
+						_gofx548 := _gofx543.(*list_List_Cons)
+						_ = _gofx548
 						{
-							var x_ any = _gofx574.F0
+							var x_ any = _gofx548.F0
 							_ = x_
 							{
-								var rest_ any = _gofx574.F1
+								var rest_ any = _gofx548.F1
 								_ = rest_
 //line std/list/list.gfx:281
 //line std/list/list.gfx:281
@@ -1148,10 +1148,10 @@ func list_findIndexFrom_(_gofx566 any, _gofx567 any, _gofx568 int64) any {
 									return &prelude_Option_Some{F0: i_}
 								} else {
 //line std/list/list.gfx:284
-									var _gofx571 any = rest_
-									var _gofx572 any = p_
-									var _gofx573 int64 = (i_ + int64(1))
-									_gofx566, _gofx567, _gofx568 = _gofx571, _gofx572, _gofx573
+									var _gofx545 any = rest_
+									var _gofx546 any = p_
+									var _gofx547 int64 = (i_ + int64(1))
+									_gofx540, _gofx541, _gofx542 = _gofx545, _gofx546, _gofx547
 									continue
 								}
 							}
@@ -1257,25 +1257,25 @@ func list_forEach_(dict_M prelude_Monad, xs_ any, f_ any) any {
 	return (
 //line std/list/list.gfx:79
 	func() any {
-		var _gofx575 any = xs_
-		_ = _gofx575
+		var _gofx549 any = xs_
+		_ = _gofx549
 //line std/list/list.gfx:80
-		switch _gofx576 := _gofx575.(type) {
+		switch _gofx550 := _gofx549.(type) {
 		case *list_List_Nil:
-			_ = _gofx576
+			_ = _gofx550
 //line std/list/list.gfx:80
 //line std/list/list.gfx:80
 			return (dict_M).Pure(prelude_unit_())
 		}
 //line std/list/list.gfx:81
 		{
-			_gofx577 := _gofx575.(*list_List_Cons)
-			_ = _gofx577
+			_gofx551 := _gofx549.(*list_List_Cons)
+			_ = _gofx551
 			{
-				var x_ any = _gofx577.F0
+				var x_ any = _gofx551.F0
 				_ = x_
 				{
-					var rest_ any = _gofx577.F1
+					var rest_ any = _gofx551.F1
 					_ = rest_
 //line std/list/list.gfx:81
 //line std/list/list.gfx:81
@@ -1302,43 +1302,43 @@ func list_indexed_(xs_ any) any {
 }
 
 //line std/list/list.gfx:421
-func list_indexedFrom_(_gofx578 any, _gofx579 int64, _gofx580 any) any {
+func list_indexedFrom_(_gofx552 any, _gofx553 int64, _gofx554 any) any {
 	for {
 		{
-			var xs_ any = _gofx578
+			var xs_ any = _gofx552
 			_ = xs_
 			{
-				var i_ int64 = _gofx579
+				var i_ int64 = _gofx553
 				_ = i_
 				{
-					var acc_ any = _gofx580
+					var acc_ any = _gofx554
 					_ = acc_
-					var _gofx581 any = xs_
-					_ = _gofx581
+					var _gofx555 any = xs_
+					_ = _gofx555
 //line std/list/list.gfx:423
-					switch _gofx582 := _gofx581.(type) {
+					switch _gofx556 := _gofx555.(type) {
 					case *list_List_Nil:
-						_ = _gofx582
+						_ = _gofx556
 //line std/list/list.gfx:423
 //line std/list/list.gfx:423
 						return list_reverse_(acc_)
 					}
 //line std/list/list.gfx:424
 					{
-						_gofx586 := _gofx581.(*list_List_Cons)
-						_ = _gofx586
+						_gofx560 := _gofx555.(*list_List_Cons)
+						_ = _gofx560
 						{
-							var x_ any = _gofx586.F0
+							var x_ any = _gofx560.F0
 							_ = x_
 							{
-								var rest_ any = _gofx586.F1
+								var rest_ any = _gofx560.F1
 								_ = rest_
 //line std/list/list.gfx:424
 //line std/list/list.gfx:424
-								var _gofx583 any = rest_
-								var _gofx584 int64 = (i_ + int64(1))
-								var _gofx585 any = &list_List_Cons{F0: &Tuple2{F0: i_, F1: x_}, F1: acc_}
-								_gofx578, _gofx579, _gofx580 = _gofx583, _gofx584, _gofx585
+								var _gofx557 any = rest_
+								var _gofx558 int64 = (i_ + int64(1))
+								var _gofx559 any = &list_List_Cons{F0: &Tuple2{F0: i_, F1: x_}, F1: acc_}
+								_gofx552, _gofx553, _gofx554 = _gofx557, _gofx558, _gofx559
 								continue
 							}
 						}
@@ -1356,32 +1356,32 @@ func list_init_(xs_ any) any {
 }
 
 //line std/list/list.gfx:353
-func list_initAcc_(_gofx587 any, _gofx588 any) any {
+func list_initAcc_(_gofx561 any, _gofx562 any) any {
 	for {
 		{
-			var xs_ any = _gofx587
+			var xs_ any = _gofx561
 			_ = xs_
 			{
-				var acc_ any = _gofx588
+				var acc_ any = _gofx562
 				_ = acc_
-				var _gofx589 any = xs_
-				_ = _gofx589
+				var _gofx563 any = xs_
+				_ = _gofx563
 //line std/list/list.gfx:355
-				switch _gofx590 := _gofx589.(type) {
+				switch _gofx564 := _gofx563.(type) {
 				case *list_List_Nil:
-					_ = _gofx590
+					_ = _gofx564
 //line std/list/list.gfx:355
 //line std/list/list.gfx:355
 					return list_reverse_(acc_)
 				}
 //line std/list/list.gfx:356
-				switch _gofx591 := _gofx589.(type) {
+				switch _gofx565 := _gofx563.(type) {
 				case *list_List_Cons:
-					_ = _gofx591
+					_ = _gofx565
 					{
-						switch _gofx592 := _gofx591.F1.(type) {
+						switch _gofx566 := _gofx565.F1.(type) {
 						case *list_List_Nil:
-							_ = _gofx592
+							_ = _gofx566
 //line std/list/list.gfx:356
 //line std/list/list.gfx:356
 							return list_reverse_(acc_)
@@ -1390,19 +1390,19 @@ func list_initAcc_(_gofx587 any, _gofx588 any) any {
 				}
 //line std/list/list.gfx:357
 				{
-					_gofx595 := _gofx589.(*list_List_Cons)
-					_ = _gofx595
+					_gofx569 := _gofx563.(*list_List_Cons)
+					_ = _gofx569
 					{
-						var x_ any = _gofx595.F0
+						var x_ any = _gofx569.F0
 						_ = x_
 						{
-							var rest_ any = _gofx595.F1
+							var rest_ any = _gofx569.F1
 							_ = rest_
 //line std/list/list.gfx:357
 //line std/list/list.gfx:357
-							var _gofx593 any = rest_
-							var _gofx594 any = &list_List_Cons{F0: x_, F1: acc_}
-							_gofx587, _gofx588 = _gofx593, _gofx594
+							var _gofx567 any = rest_
+							var _gofx568 any = &list_List_Cons{F0: x_, F1: acc_}
+							_gofx561, _gofx562 = _gofx567, _gofx568
 							continue
 						}
 					}
@@ -1418,25 +1418,25 @@ func list_intercalate_(sep_ any, xss_ any) any {
 	return (
 //line std/list/list.gfx:331
 	func() any {
-		var _gofx596 any = xss_
-		_ = _gofx596
+		var _gofx570 any = xss_
+		_ = _gofx570
 //line std/list/list.gfx:332
-		switch _gofx597 := _gofx596.(type) {
+		switch _gofx571 := _gofx570.(type) {
 		case *list_List_Nil:
-			_ = _gofx597
+			_ = _gofx571
 //line std/list/list.gfx:332
 //line std/list/list.gfx:332
 			return &list_List_Nil{}
 		}
 //line std/list/list.gfx:333
 		{
-			_gofx598 := _gofx596.(*list_List_Cons)
-			_ = _gofx598
+			_gofx572 := _gofx570.(*list_List_Cons)
+			_ = _gofx572
 			{
-				var xs_ any = _gofx598.F0
+				var xs_ any = _gofx572.F0
 				_ = xs_
 				{
-					var rest_ any = _gofx598.F1
+					var rest_ any = _gofx572.F1
 					_ = rest_
 //line std/list/list.gfx:333
 //line std/list/list.gfx:333
@@ -1493,19 +1493,19 @@ func list_iterate_(n_ int64, x_ any, f_ any) any {
 }
 
 //line std/list/list.gfx:432
-func list_iterateAcc_(_gofx599 int64, _gofx600 any, _gofx601 any, _gofx602 any) any {
+func list_iterateAcc_(_gofx573 int64, _gofx574 any, _gofx575 any, _gofx576 any) any {
 	for {
 		{
-			var n_ int64 = _gofx599
+			var n_ int64 = _gofx573
 			_ = n_
 			{
-				var x_ any = _gofx600
+				var x_ any = _gofx574
 				_ = x_
 				{
-					var f_ any = _gofx601
+					var f_ any = _gofx575
 					_ = f_
 					{
-						var acc_ any = _gofx602
+						var acc_ any = _gofx576
 						_ = acc_
 //line std/list/list.gfx:433
 						if n_ <= int64(0) {
@@ -1518,11 +1518,11 @@ func list_iterateAcc_(_gofx599 int64, _gofx600 any, _gofx601 any, _gofx602 any) 
 								return list_reverse_(&list_List_Cons{F0: x_, F1: acc_})
 							} else {
 //line std/list/list.gfx:438
-								var _gofx603 int64 = (n_ - int64(1))
-								var _gofx604 any = any(f_).(func(any) any)(x_)
-								var _gofx605 any = f_
-								var _gofx606 any = &list_List_Cons{F0: x_, F1: acc_}
-								_gofx599, _gofx600, _gofx601, _gofx602 = _gofx603, _gofx604, _gofx605, _gofx606
+								var _gofx577 int64 = (n_ - int64(1))
+								var _gofx578 any = any(f_).(func(any) any)(x_)
+								var _gofx579 any = f_
+								var _gofx580 any = &list_List_Cons{F0: x_, F1: acc_}
+								_gofx573, _gofx574, _gofx575, _gofx576 = _gofx577, _gofx578, _gofx579, _gofx580
 								continue
 							}
 						}
@@ -1534,31 +1534,31 @@ func list_iterateAcc_(_gofx599 int64, _gofx600 any, _gofx601 any, _gofx602 any) 
 }
 
 //line std/list/list.gfx:341
-func list_last_(_gofx607 any) any {
+func list_last_(_gofx581 any) any {
 	for {
 		{
-			var xs_ any = _gofx607
+			var xs_ any = _gofx581
 			_ = xs_
-			var _gofx608 any = xs_
-			_ = _gofx608
+			var _gofx582 any = xs_
+			_ = _gofx582
 //line std/list/list.gfx:343
-			switch _gofx609 := _gofx608.(type) {
+			switch _gofx583 := _gofx582.(type) {
 			case *list_List_Nil:
-				_ = _gofx609
+				_ = _gofx583
 //line std/list/list.gfx:343
 //line std/list/list.gfx:343
 				return &prelude_Option_None{}
 			}
 //line std/list/list.gfx:344
-			switch _gofx610 := _gofx608.(type) {
+			switch _gofx584 := _gofx582.(type) {
 			case *list_List_Cons:
-				_ = _gofx610
+				_ = _gofx584
 				{
-					var x_ any = _gofx610.F0
+					var x_ any = _gofx584.F0
 					_ = x_
-					switch _gofx611 := _gofx610.F1.(type) {
+					switch _gofx585 := _gofx584.F1.(type) {
 					case *list_List_Nil:
-						_ = _gofx611
+						_ = _gofx585
 //line std/list/list.gfx:344
 //line std/list/list.gfx:344
 						return &prelude_Option_Some{F0: x_}
@@ -1567,16 +1567,16 @@ func list_last_(_gofx607 any) any {
 			}
 //line std/list/list.gfx:345
 			{
-				_gofx613 := _gofx608.(*list_List_Cons)
-				_ = _gofx613
+				_gofx587 := _gofx582.(*list_List_Cons)
+				_ = _gofx587
 				{
 					{
-						var rest_ any = _gofx613.F1
+						var rest_ any = _gofx587.F1
 						_ = rest_
 //line std/list/list.gfx:345
 //line std/list/list.gfx:345
-						var _gofx612 any = rest_
-						_gofx607 = _gofx612
+						var _gofx586 any = rest_
+						_gofx581 = _gofx586
 						continue
 					}
 				}
@@ -1586,39 +1586,39 @@ func list_last_(_gofx607 any) any {
 }
 
 //line std/list/list.gfx:406
-func list_lookup_(dict_K prelude_Eq, _gofx614 any, _gofx615 any) any {
+func list_lookup_(dict_K prelude_Eq, _gofx588 any, _gofx589 any) any {
 	for {
 		{
-			var k_ any = _gofx614
+			var k_ any = _gofx588
 			_ = k_
 			{
-				var xs_ any = _gofx615
+				var xs_ any = _gofx589
 				_ = xs_
-				var _gofx616 any = xs_
-				_ = _gofx616
+				var _gofx590 any = xs_
+				_ = _gofx590
 //line std/list/list.gfx:408
-				switch _gofx617 := _gofx616.(type) {
+				switch _gofx591 := _gofx590.(type) {
 				case *list_List_Nil:
-					_ = _gofx617
+					_ = _gofx591
 //line std/list/list.gfx:408
 //line std/list/list.gfx:408
 					return &prelude_Option_None{}
 				}
 //line std/list/list.gfx:409
 				{
-					_gofx620 := _gofx616.(*list_List_Cons)
-					_ = _gofx620
+					_gofx594 := _gofx590.(*list_List_Cons)
+					_ = _gofx594
 					{
-						_gofx621 := _gofx620.F0.(*Tuple2)
-						_ = _gofx621
+						_gofx595 := _gofx594.F0.(*Tuple2)
+						_ = _gofx595
 						{
-							var key_ any = _gofx621.F0
+							var key_ any = _gofx595.F0
 							_ = key_
 							{
-								var value_ any = _gofx621.F1
+								var value_ any = _gofx595.F1
 								_ = value_
 								{
-									var rest_ any = _gofx620.F1
+									var rest_ any = _gofx594.F1
 									_ = rest_
 //line std/list/list.gfx:409
 //line std/list/list.gfx:409
@@ -1627,9 +1627,9 @@ func list_lookup_(dict_K prelude_Eq, _gofx614 any, _gofx615 any) any {
 										return &prelude_Option_Some{F0: value_}
 									} else {
 //line std/list/list.gfx:412
-										var _gofx618 any = k_
-										var _gofx619 any = rest_
-										_gofx614, _gofx615 = _gofx618, _gofx619
+										var _gofx592 any = k_
+										var _gofx593 any = rest_
+										_gofx588, _gofx589 = _gofx592, _gofx593
 										continue
 									}
 								}
@@ -1648,25 +1648,25 @@ func list_mapM_(dict_M prelude_Monad, xs_ any, f_ any) any {
 	return (
 //line std/list/list.gfx:86
 	func() any {
-		var _gofx622 any = xs_
-		_ = _gofx622
+		var _gofx596 any = xs_
+		_ = _gofx596
 //line std/list/list.gfx:87
-		switch _gofx623 := _gofx622.(type) {
+		switch _gofx597 := _gofx596.(type) {
 		case *list_List_Nil:
-			_ = _gofx623
+			_ = _gofx597
 //line std/list/list.gfx:87
 //line std/list/list.gfx:87
 			return (dict_M).Pure(&list_List_Nil{})
 		}
 //line std/list/list.gfx:88
 		{
-			_gofx624 := _gofx622.(*list_List_Cons)
-			_ = _gofx624
+			_gofx598 := _gofx596.(*list_List_Cons)
+			_ = _gofx598
 			{
-				var x_ any = _gofx624.F0
+				var x_ any = _gofx598.F0
 				_ = x_
 				{
-					var rest_ any = _gofx624.F1
+					var rest_ any = _gofx598.F1
 					_ = rest_
 //line std/list/list.gfx:88
 //line std/list/list.gfx:88
@@ -1696,54 +1696,54 @@ func list_mapM_(dict_M prelude_Monad, xs_ any, f_ any) any {
 }
 
 //line std/list/list.gfx:180
-func list_mapMaybe_(_gofx625 any, _gofx626 any) any {
+func list_mapMaybe_(_gofx599 any, _gofx600 any) any {
 	for {
 		{
-			var xs_ any = _gofx625
+			var xs_ any = _gofx599
 			_ = xs_
 			{
-				var f_ any = _gofx626
+				var f_ any = _gofx600
 				_ = f_
-				var _gofx627 any = xs_
-				_ = _gofx627
+				var _gofx601 any = xs_
+				_ = _gofx601
 //line std/list/list.gfx:182
-				switch _gofx628 := _gofx627.(type) {
+				switch _gofx602 := _gofx601.(type) {
 				case *list_List_Nil:
-					_ = _gofx628
+					_ = _gofx602
 //line std/list/list.gfx:182
 //line std/list/list.gfx:182
 					return &list_List_Nil{}
 				}
 //line std/list/list.gfx:183
 				{
-					_gofx634 := _gofx627.(*list_List_Cons)
-					_ = _gofx634
+					_gofx608 := _gofx601.(*list_List_Cons)
+					_ = _gofx608
 					{
-						var x_ any = _gofx634.F0
+						var x_ any = _gofx608.F0
 						_ = x_
 						{
-							var rest_ any = _gofx634.F1
+							var rest_ any = _gofx608.F1
 							_ = rest_
 //line std/list/list.gfx:183
-							var _gofx629 any = any(f_).(func(any) any)(x_)
-							_ = _gofx629
+							var _gofx603 any = any(f_).(func(any) any)(x_)
+							_ = _gofx603
 //line std/list/list.gfx:184
-							switch _gofx632 := _gofx629.(type) {
+							switch _gofx606 := _gofx603.(type) {
 							case *prelude_Option_None:
-								_ = _gofx632
+								_ = _gofx606
 //line std/list/list.gfx:184
 //line std/list/list.gfx:184
-								var _gofx630 any = rest_
-								var _gofx631 any = f_
-								_gofx625, _gofx626 = _gofx630, _gofx631
+								var _gofx604 any = rest_
+								var _gofx605 any = f_
+								_gofx599, _gofx600 = _gofx604, _gofx605
 								continue
 							}
 //line std/list/list.gfx:185
 							{
-								_gofx633 := _gofx629.(*prelude_Option_Some)
-								_ = _gofx633
+								_gofx607 := _gofx603.(*prelude_Option_Some)
+								_ = _gofx607
 								{
-									var y_ any = _gofx633.F0
+									var y_ any = _gofx607.F0
 									_ = y_
 //line std/list/list.gfx:185
 //line std/list/list.gfx:185
@@ -1764,25 +1764,25 @@ func list_maximum_(dict_A prelude_Ord, xs_ any) any {
 	return (
 //line std/list/list.gfx:206
 	func() any {
-		var _gofx635 any = xs_
-		_ = _gofx635
+		var _gofx609 any = xs_
+		_ = _gofx609
 //line std/list/list.gfx:207
-		switch _gofx636 := _gofx635.(type) {
+		switch _gofx610 := _gofx609.(type) {
 		case *list_List_Nil:
-			_ = _gofx636
+			_ = _gofx610
 //line std/list/list.gfx:207
 //line std/list/list.gfx:207
 			return &prelude_Option_None{}
 		}
 //line std/list/list.gfx:208
 		{
-			_gofx639 := _gofx635.(*list_List_Cons)
-			_ = _gofx639
+			_gofx613 := _gofx609.(*list_List_Cons)
+			_ = _gofx613
 			{
-				var x_ any = _gofx639.F0
+				var x_ any = _gofx613.F0
 				_ = x_
 				{
-					var rest_ any = _gofx639.F1
+					var rest_ any = _gofx613.F1
 					_ = rest_
 //line std/list/list.gfx:208
 //line std/list/list.gfx:208
@@ -1799,12 +1799,12 @@ func list_maximum_(dict_A prelude_Ord, xs_ any) any {
 								return (
 //line std/list/list.gfx:208
 								func() any {
-									var _gofx637 any = (dict_A).Compare(a_, best_)
-									_ = _gofx637
+									var _gofx611 any = (dict_A).Compare(a_, best_)
+									_ = _gofx611
 //line std/list/list.gfx:209
-									switch _gofx638 := _gofx637.(type) {
+									switch _gofx612 := _gofx611.(type) {
 									case *prelude_Ordering_GT:
-										_ = _gofx638
+										_ = _gofx612
 //line std/list/list.gfx:209
 //line std/list/list.gfx:209
 										return a_
@@ -1831,25 +1831,25 @@ func list_minimum_(dict_A prelude_Ord, xs_ any) any {
 	return (
 //line std/list/list.gfx:216
 	func() any {
-		var _gofx640 any = xs_
-		_ = _gofx640
+		var _gofx614 any = xs_
+		_ = _gofx614
 //line std/list/list.gfx:217
-		switch _gofx641 := _gofx640.(type) {
+		switch _gofx615 := _gofx614.(type) {
 		case *list_List_Nil:
-			_ = _gofx641
+			_ = _gofx615
 //line std/list/list.gfx:217
 //line std/list/list.gfx:217
 			return &prelude_Option_None{}
 		}
 //line std/list/list.gfx:218
 		{
-			_gofx644 := _gofx640.(*list_List_Cons)
-			_ = _gofx644
+			_gofx618 := _gofx614.(*list_List_Cons)
+			_ = _gofx618
 			{
-				var x_ any = _gofx644.F0
+				var x_ any = _gofx618.F0
 				_ = x_
 				{
-					var rest_ any = _gofx644.F1
+					var rest_ any = _gofx618.F1
 					_ = rest_
 //line std/list/list.gfx:218
 //line std/list/list.gfx:218
@@ -1866,12 +1866,12 @@ func list_minimum_(dict_A prelude_Ord, xs_ any) any {
 								return (
 //line std/list/list.gfx:218
 								func() any {
-									var _gofx642 any = (dict_A).Compare(a_, best_)
-									_ = _gofx642
+									var _gofx616 any = (dict_A).Compare(a_, best_)
+									_ = _gofx616
 //line std/list/list.gfx:219
-									switch _gofx643 := _gofx642.(type) {
+									switch _gofx617 := _gofx616.(type) {
 									case *prelude_Ordering_LT:
-										_ = _gofx643
+										_ = _gofx617
 //line std/list/list.gfx:219
 //line std/list/list.gfx:219
 										return a_
@@ -1933,17 +1933,17 @@ func list_nub_(dict_A prelude_Eq, xs_ any) any {
 //line std/list/list.gfx:289
 func list_partition_(xs_ any, p_ any) any {
 	{
-		var _gofx645 any = list_fold_(xs_, &Tuple2{F0: &list_List_Nil{}, F1: &list_List_Nil{}}, (
+		var _gofx619 any = list_fold_(xs_, &Tuple2{F0: &list_List_Nil{}, F1: &list_List_Nil{}}, (
 //line std/list/list.gfx:290
 		func(p0 any, p1 any) any {
 			{
-				_gofx646 := p0.(*Tuple2)
-				_ = _gofx646
+				_gofx620 := p0.(*Tuple2)
+				_ = _gofx620
 				{
-					var yes_ any = _gofx646.F0
+					var yes_ any = _gofx620.F0
 					_ = yes_
 					{
-						var no_ any = _gofx646.F1
+						var no_ any = _gofx620.F1
 						_ = no_
 						{
 							var x_ any = p1
@@ -1974,15 +1974,15 @@ func list_partition_(xs_ any, p_ any) any {
 				}
 			}
 		}))
-		_ = _gofx645
+		_ = _gofx619
 		{
-			_gofx647 := _gofx645.(*Tuple2)
-			_ = _gofx647
+			_gofx621 := _gofx619.(*Tuple2)
+			_ = _gofx621
 			{
-				var yes_ any = _gofx647.F0
+				var yes_ any = _gofx621.F0
 				_ = yes_
 				{
-					var no_ any = _gofx647.F1
+					var no_ any = _gofx621.F1
 					_ = no_
 //line std/list/list.gfx:295
 					return &Tuple2{F0: list_reverse_(yes_), F1: list_reverse_(no_)}
@@ -2022,16 +2022,16 @@ func list_range_(lo_ int64, hi_ int64) any {
 }
 
 //line std/list/list.gfx:310
-func list_rangeAcc_(_gofx648 int64, _gofx649 int64, _gofx650 any) any {
+func list_rangeAcc_(_gofx622 int64, _gofx623 int64, _gofx624 any) any {
 	for {
 		{
-			var lo_ int64 = _gofx648
+			var lo_ int64 = _gofx622
 			_ = lo_
 			{
-				var hi_ int64 = _gofx649
+				var hi_ int64 = _gofx623
 				_ = hi_
 				{
-					var acc_ any = _gofx650
+					var acc_ any = _gofx624
 					_ = acc_
 //line std/list/list.gfx:311
 					if lo_ >= hi_ {
@@ -2039,10 +2039,10 @@ func list_rangeAcc_(_gofx648 int64, _gofx649 int64, _gofx650 any) any {
 						return acc_
 					} else {
 //line std/list/list.gfx:314
-						var _gofx651 int64 = lo_
-						var _gofx652 int64 = (hi_ - int64(1))
-						var _gofx653 any = &list_List_Cons{F0: (hi_ - int64(1)), F1: acc_}
-						_gofx648, _gofx649, _gofx650 = _gofx651, _gofx652, _gofx653
+						var _gofx625 int64 = lo_
+						var _gofx626 int64 = (hi_ - int64(1))
+						var _gofx627 any = &list_List_Cons{F0: (hi_ - int64(1)), F1: acc_}
+						_gofx622, _gofx623, _gofx624 = _gofx625, _gofx626, _gofx627
 						continue
 					}
 				}
@@ -2058,16 +2058,16 @@ func list_replicate_(n_ int64, x_ any) any {
 }
 
 //line std/list/list.gfx:322
-func list_replicateAcc_(_gofx654 int64, _gofx655 any, _gofx656 any) any {
+func list_replicateAcc_(_gofx628 int64, _gofx629 any, _gofx630 any) any {
 	for {
 		{
-			var n_ int64 = _gofx654
+			var n_ int64 = _gofx628
 			_ = n_
 			{
-				var x_ any = _gofx655
+				var x_ any = _gofx629
 				_ = x_
 				{
-					var acc_ any = _gofx656
+					var acc_ any = _gofx630
 					_ = acc_
 //line std/list/list.gfx:323
 					if n_ <= int64(0) {
@@ -2075,10 +2075,10 @@ func list_replicateAcc_(_gofx654 int64, _gofx655 any, _gofx656 any) any {
 						return acc_
 					} else {
 //line std/list/list.gfx:326
-						var _gofx657 int64 = (n_ - int64(1))
-						var _gofx658 any = x_
-						var _gofx659 any = &list_List_Cons{F0: x_, F1: acc_}
-						_gofx654, _gofx655, _gofx656 = _gofx657, _gofx658, _gofx659
+						var _gofx631 int64 = (n_ - int64(1))
+						var _gofx632 any = x_
+						var _gofx633 any = &list_List_Cons{F0: x_, F1: acc_}
+						_gofx628, _gofx629, _gofx630 = _gofx631, _gofx632, _gofx633
 						continue
 					}
 				}
@@ -2118,17 +2118,17 @@ func list_sortOn_(dict_K prelude_Ord, xs_ any, key_ any) any {
 //line std/list/list.gfx:485
 		func(p0 any, p1 any) any {
 			{
-				_gofx661 := p0.(*Tuple2)
-				_ = _gofx661
+				_gofx635 := p0.(*Tuple2)
+				_ = _gofx635
 				{
-					var a_ any = _gofx661.F0
+					var a_ any = _gofx635.F0
 					_ = a_
 					{
 						{
-							_gofx660 := p1.(*Tuple2)
-							_ = _gofx660
+							_gofx634 := p1.(*Tuple2)
+							_ = _gofx634
 							{
-								var b_ any = _gofx660.F0
+								var b_ any = _gofx634.F0
 								_ = b_
 								{
 //line std/list/list.gfx:485
@@ -2143,11 +2143,11 @@ func list_sortOn_(dict_K prelude_Ord, xs_ any, key_ any) any {
 //line std/list/list.gfx:485
 		func(p0 any) any {
 			{
-				_gofx662 := p0.(*Tuple2)
-				_ = _gofx662
+				_gofx636 := p0.(*Tuple2)
+				_ = _gofx636
 				{
 					{
-						var x_ any = _gofx662.F1
+						var x_ any = _gofx636.F1
 						_ = x_
 //line std/list/list.gfx:485
 						return x_
@@ -2165,45 +2165,45 @@ func list_span_(xs_ any, p_ any) any {
 }
 
 //line std/list/list.gfx:380
-func list_spanAcc_(_gofx663 any, _gofx664 any, _gofx665 any) any {
+func list_spanAcc_(_gofx637 any, _gofx638 any, _gofx639 any) any {
 	for {
 		{
-			var xs_ any = _gofx663
+			var xs_ any = _gofx637
 			_ = xs_
 			{
-				var p_ any = _gofx664
+				var p_ any = _gofx638
 				_ = p_
 				{
-					var acc_ any = _gofx665
+					var acc_ any = _gofx639
 					_ = acc_
-					var _gofx666 any = xs_
-					_ = _gofx666
+					var _gofx640 any = xs_
+					_ = _gofx640
 //line std/list/list.gfx:382
-					switch _gofx667 := _gofx666.(type) {
+					switch _gofx641 := _gofx640.(type) {
 					case *list_List_Nil:
-						_ = _gofx667
+						_ = _gofx641
 //line std/list/list.gfx:382
 //line std/list/list.gfx:382
 						return &Tuple2{F0: list_reverse_(acc_), F1: &list_List_Nil{}}
 					}
 //line std/list/list.gfx:383
 					{
-						_gofx671 := _gofx666.(*list_List_Cons)
-						_ = _gofx671
+						_gofx645 := _gofx640.(*list_List_Cons)
+						_ = _gofx645
 						{
-							var x_ any = _gofx671.F0
+							var x_ any = _gofx645.F0
 							_ = x_
 							{
-								var rest_ any = _gofx671.F1
+								var rest_ any = _gofx645.F1
 								_ = rest_
 //line std/list/list.gfx:383
 //line std/list/list.gfx:383
 								if any(any(p_).(func(any) any)(x_)).(bool) {
 //line std/list/list.gfx:384
-									var _gofx668 any = rest_
-									var _gofx669 any = p_
-									var _gofx670 any = &list_List_Cons{F0: x_, F1: acc_}
-									_gofx663, _gofx664, _gofx665 = _gofx668, _gofx669, _gofx670
+									var _gofx642 any = rest_
+									var _gofx643 any = p_
+									var _gofx644 any = &list_List_Cons{F0: x_, F1: acc_}
+									_gofx637, _gofx638, _gofx639 = _gofx642, _gofx643, _gofx644
 									continue
 								} else {
 //line std/list/list.gfx:386
@@ -2225,48 +2225,48 @@ func list_splitAt_(n_ int64, xs_ any) any {
 }
 
 //line std/list/list.gfx:365
-func list_splitAtAcc_(_gofx672 int64, _gofx673 any, _gofx674 any) any {
+func list_splitAtAcc_(_gofx646 int64, _gofx647 any, _gofx648 any) any {
 	for {
 		{
-			var n_ int64 = _gofx672
+			var n_ int64 = _gofx646
 			_ = n_
 			{
-				var xs_ any = _gofx673
+				var xs_ any = _gofx647
 				_ = xs_
 				{
-					var acc_ any = _gofx674
+					var acc_ any = _gofx648
 					_ = acc_
 //line std/list/list.gfx:366
 					if n_ <= int64(0) {
 //line std/list/list.gfx:367
 						return &Tuple2{F0: list_reverse_(acc_), F1: xs_}
 					} else {
-						var _gofx675 any = xs_
-						_ = _gofx675
+						var _gofx649 any = xs_
+						_ = _gofx649
 //line std/list/list.gfx:370
-						switch _gofx676 := _gofx675.(type) {
+						switch _gofx650 := _gofx649.(type) {
 						case *list_List_Nil:
-							_ = _gofx676
+							_ = _gofx650
 //line std/list/list.gfx:370
 //line std/list/list.gfx:370
 							return &Tuple2{F0: list_reverse_(acc_), F1: &list_List_Nil{}}
 						}
 //line std/list/list.gfx:371
 						{
-							_gofx680 := _gofx675.(*list_List_Cons)
-							_ = _gofx680
+							_gofx654 := _gofx649.(*list_List_Cons)
+							_ = _gofx654
 							{
-								var x_ any = _gofx680.F0
+								var x_ any = _gofx654.F0
 								_ = x_
 								{
-									var rest_ any = _gofx680.F1
+									var rest_ any = _gofx654.F1
 									_ = rest_
 //line std/list/list.gfx:371
 //line std/list/list.gfx:371
-									var _gofx677 int64 = (n_ - int64(1))
-									var _gofx678 any = rest_
-									var _gofx679 any = &list_List_Cons{F0: x_, F1: acc_}
-									_gofx672, _gofx673, _gofx674 = _gofx677, _gofx678, _gofx679
+									var _gofx651 int64 = (n_ - int64(1))
+									var _gofx652 any = rest_
+									var _gofx653 any = &list_List_Cons{F0: x_, F1: acc_}
+									_gofx646, _gofx647, _gofx648 = _gofx651, _gofx652, _gofx653
 									continue
 								}
 							}
@@ -2324,25 +2324,25 @@ func list_take_(n_ int64, xs_ any) any {
 			return (
 //line std/list/list.gfx:150
 			func() any {
-				var _gofx681 any = xs_
-				_ = _gofx681
+				var _gofx655 any = xs_
+				_ = _gofx655
 //line std/list/list.gfx:151
-				switch _gofx682 := _gofx681.(type) {
+				switch _gofx656 := _gofx655.(type) {
 				case *list_List_Nil:
-					_ = _gofx682
+					_ = _gofx656
 //line std/list/list.gfx:151
 //line std/list/list.gfx:151
 					return &list_List_Nil{}
 				}
 //line std/list/list.gfx:152
 				{
-					_gofx683 := _gofx681.(*list_List_Cons)
-					_ = _gofx683
+					_gofx657 := _gofx655.(*list_List_Cons)
+					_ = _gofx657
 					{
-						var x_ any = _gofx683.F0
+						var x_ any = _gofx657.F0
 						_ = x_
 						{
-							var rest_ any = _gofx683.F1
+							var rest_ any = _gofx657.F1
 							_ = rest_
 //line std/list/list.gfx:152
 //line std/list/list.gfx:152
@@ -2387,46 +2387,46 @@ func list_unfold_(seed_ any, step_ any) any {
 }
 
 //line std/list/list.gfx:458
-func list_unfoldAcc_(_gofx684 any, _gofx685 any, _gofx686 any) any {
+func list_unfoldAcc_(_gofx658 any, _gofx659 any, _gofx660 any) any {
 	for {
 		{
-			var seed_ any = _gofx684
+			var seed_ any = _gofx658
 			_ = seed_
 			{
-				var step_ any = _gofx685
+				var step_ any = _gofx659
 				_ = step_
 				{
-					var acc_ any = _gofx686
+					var acc_ any = _gofx660
 					_ = acc_
-					var _gofx687 any = any(step_).(func(any) any)(seed_)
-					_ = _gofx687
+					var _gofx661 any = any(step_).(func(any) any)(seed_)
+					_ = _gofx661
 //line std/list/list.gfx:460
-					switch _gofx688 := _gofx687.(type) {
+					switch _gofx662 := _gofx661.(type) {
 					case *prelude_Option_None:
-						_ = _gofx688
+						_ = _gofx662
 //line std/list/list.gfx:460
 //line std/list/list.gfx:460
 						return list_reverse_(acc_)
 					}
 //line std/list/list.gfx:461
 					{
-						_gofx692 := _gofx687.(*prelude_Option_Some)
-						_ = _gofx692
+						_gofx666 := _gofx661.(*prelude_Option_Some)
+						_ = _gofx666
 						{
-							_gofx693 := _gofx692.F0.(*Tuple2)
-							_ = _gofx693
+							_gofx667 := _gofx666.F0.(*Tuple2)
+							_ = _gofx667
 							{
-								var x_ any = _gofx693.F0
+								var x_ any = _gofx667.F0
 								_ = x_
 								{
-									var next_ any = _gofx693.F1
+									var next_ any = _gofx667.F1
 									_ = next_
 //line std/list/list.gfx:461
 //line std/list/list.gfx:461
-									var _gofx689 any = next_
-									var _gofx690 any = step_
-									var _gofx691 any = &list_List_Cons{F0: x_, F1: acc_}
-									_gofx684, _gofx685, _gofx686 = _gofx689, _gofx690, _gofx691
+									var _gofx663 any = next_
+									var _gofx664 any = step_
+									var _gofx665 any = &list_List_Cons{F0: x_, F1: acc_}
+									_gofx658, _gofx659, _gofx660 = _gofx663, _gofx664, _gofx665
 									continue
 								}
 							}
@@ -2441,26 +2441,26 @@ func list_unfoldAcc_(_gofx684 any, _gofx685 any, _gofx686 any) any {
 //line std/list/list.gfx:236
 func list_unzip_(xs_ any) any {
 	{
-		var _gofx694 any = list_fold_(xs_, &Tuple2{F0: &list_List_Nil{}, F1: &list_List_Nil{}}, (
+		var _gofx668 any = list_fold_(xs_, &Tuple2{F0: &list_List_Nil{}, F1: &list_List_Nil{}}, (
 //line std/list/list.gfx:237
 		func(p0 any, p1 any) any {
 			{
-				_gofx696 := p0.(*Tuple2)
-				_ = _gofx696
+				_gofx670 := p0.(*Tuple2)
+				_ = _gofx670
 				{
-					var as_ any = _gofx696.F0
+					var as_ any = _gofx670.F0
 					_ = as_
 					{
-						var bs_ any = _gofx696.F1
+						var bs_ any = _gofx670.F1
 						_ = bs_
 						{
-							_gofx695 := p1.(*Tuple2)
-							_ = _gofx695
+							_gofx669 := p1.(*Tuple2)
+							_ = _gofx669
 							{
-								var a_ any = _gofx695.F0
+								var a_ any = _gofx669.F0
 								_ = a_
 								{
-									var b_ any = _gofx695.F1
+									var b_ any = _gofx669.F1
 									_ = b_
 //line std/list/list.gfx:237
 									return &Tuple2{F0: &list_List_Cons{F0: a_, F1: as_}, F1: &list_List_Cons{F0: b_, F1: bs_}}
@@ -2471,15 +2471,15 @@ func list_unzip_(xs_ any) any {
 				}
 			}
 		}))
-		_ = _gofx694
+		_ = _gofx668
 		{
-			_gofx697 := _gofx694.(*Tuple2)
-			_ = _gofx697
+			_gofx671 := _gofx668.(*Tuple2)
+			_ = _gofx671
 			{
-				var as_ any = _gofx697.F0
+				var as_ any = _gofx671.F0
 				_ = as_
 				{
-					var bs_ any = _gofx697.F1
+					var bs_ any = _gofx671.F1
 					_ = bs_
 //line std/list/list.gfx:238
 					return &Tuple2{F0: list_reverse_(as_), F1: list_reverse_(bs_)}
@@ -2495,29 +2495,29 @@ func list_zip_(xs_ any, ys_ any) any {
 	return (
 //line std/list/list.gfx:126
 	func() any {
-		var _gofx698 any = &Tuple2{F0: xs_, F1: ys_}
-		_ = _gofx698
+		var _gofx672 any = &Tuple2{F0: xs_, F1: ys_}
+		_ = _gofx672
 //line std/list/list.gfx:127
-		switch _gofx699 := _gofx698.(type) {
+		switch _gofx673 := _gofx672.(type) {
 		case *Tuple2:
-			_ = _gofx699
-			switch _gofx701 := _gofx699.F0.(type) {
+			_ = _gofx673
+			switch _gofx675 := _gofx673.F0.(type) {
 			case *list_List_Cons:
-				_ = _gofx701
+				_ = _gofx675
 				{
-					var x_ any = _gofx701.F0
+					var x_ any = _gofx675.F0
 					_ = x_
 					{
-						var restX_ any = _gofx701.F1
+						var restX_ any = _gofx675.F1
 						_ = restX_
-						switch _gofx700 := _gofx699.F1.(type) {
+						switch _gofx674 := _gofx673.F1.(type) {
 						case *list_List_Cons:
-							_ = _gofx700
+							_ = _gofx674
 							{
-								var y_ any = _gofx700.F0
+								var y_ any = _gofx674.F0
 								_ = y_
 								{
-									var restY_ any = _gofx700.F1
+									var restY_ any = _gofx674.F1
 									_ = restY_
 //line std/list/list.gfx:127
 //line std/list/list.gfx:127
@@ -2545,51 +2545,51 @@ func list_zipWith_(xs_ any, ys_ any, f_ any) any {
 }
 
 //line std/list/list.gfx:229
-func list_zipWithAcc_(_gofx702 any, _gofx703 any, _gofx704 any, _gofx705 any) any {
+func list_zipWithAcc_(_gofx676 any, _gofx677 any, _gofx678 any, _gofx679 any) any {
 	for {
 		{
-			var xs_ any = _gofx702
+			var xs_ any = _gofx676
 			_ = xs_
 			{
-				var ys_ any = _gofx703
+				var ys_ any = _gofx677
 				_ = ys_
 				{
-					var f_ any = _gofx704
+					var f_ any = _gofx678
 					_ = f_
 					{
-						var acc_ any = _gofx705
+						var acc_ any = _gofx679
 						_ = acc_
-						var _gofx706 any = &Tuple2{F0: xs_, F1: ys_}
-						_ = _gofx706
+						var _gofx680 any = &Tuple2{F0: xs_, F1: ys_}
+						_ = _gofx680
 //line std/list/list.gfx:231
-						switch _gofx711 := _gofx706.(type) {
+						switch _gofx685 := _gofx680.(type) {
 						case *Tuple2:
-							_ = _gofx711
-							switch _gofx713 := _gofx711.F0.(type) {
+							_ = _gofx685
+							switch _gofx687 := _gofx685.F0.(type) {
 							case *list_List_Cons:
-								_ = _gofx713
+								_ = _gofx687
 								{
-									var x_ any = _gofx713.F0
+									var x_ any = _gofx687.F0
 									_ = x_
 									{
-										var restX_ any = _gofx713.F1
+										var restX_ any = _gofx687.F1
 										_ = restX_
-										switch _gofx712 := _gofx711.F1.(type) {
+										switch _gofx686 := _gofx685.F1.(type) {
 										case *list_List_Cons:
-											_ = _gofx712
+											_ = _gofx686
 											{
-												var y_ any = _gofx712.F0
+												var y_ any = _gofx686.F0
 												_ = y_
 												{
-													var restY_ any = _gofx712.F1
+													var restY_ any = _gofx686.F1
 													_ = restY_
 //line std/list/list.gfx:231
 //line std/list/list.gfx:231
-													var _gofx707 any = restX_
-													var _gofx708 any = restY_
-													var _gofx709 any = f_
-													var _gofx710 any = &list_List_Cons{F0: any(f_).(func(any, any) any)(x_, y_), F1: acc_}
-													_gofx702, _gofx703, _gofx704, _gofx705 = _gofx707, _gofx708, _gofx709, _gofx710
+													var _gofx681 any = restX_
+													var _gofx682 any = restY_
+													var _gofx683 any = f_
+													var _gofx684 any = &list_List_Cons{F0: any(f_).(func(any, any) any)(x_, y_), F1: acc_}
+													_gofx676, _gofx677, _gofx678, _gofx679 = _gofx681, _gofx682, _gofx683, _gofx684
 													continue
 												}
 											}
@@ -2636,23 +2636,23 @@ func list_tail_(xs_ any) any {
 	return (
 //line std/list/list.gfx:140
 	func() any {
-		var _gofx752 any = xs_
-		_ = _gofx752
+		var _gofx726 any = xs_
+		_ = _gofx726
 //line std/list/list.gfx:141
-		switch _gofx753 := _gofx752.(type) {
+		switch _gofx727 := _gofx726.(type) {
 		case *list_List_Nil:
-			_ = _gofx753
+			_ = _gofx727
 //line std/list/list.gfx:141
 //line std/list/list.gfx:141
 			return &list_List_Nil{}
 		}
 //line std/list/list.gfx:142
 		{
-			_gofx754 := _gofx752.(*list_List_Cons)
-			_ = _gofx754
+			_gofx728 := _gofx726.(*list_List_Cons)
+			_ = _gofx728
 			{
 				{
-					var rest_ any = _gofx754.F1
+					var rest_ any = _gofx728.F1
 					_ = rest_
 //line std/list/list.gfx:142
 //line std/list/list.gfx:142
@@ -2669,25 +2669,25 @@ func list_elem__special1(x_ any, xs_ any) bool {
 	return (
 //line std/list/list.gfx:191
 	func() bool {
-		var _gofx755 any = xs_
-		_ = _gofx755
+		var _gofx729 any = xs_
+		_ = _gofx729
 //line std/list/list.gfx:192
-		switch _gofx756 := _gofx755.(type) {
+		switch _gofx730 := _gofx729.(type) {
 		case *list_List_Nil:
-			_ = _gofx756
+			_ = _gofx730
 //line std/list/list.gfx:192
 //line std/list/list.gfx:192
 			return false
 		}
 //line std/list/list.gfx:193
 		{
-			_gofx757 := _gofx755.(*list_List_Cons)
-			_ = _gofx757
+			_gofx731 := _gofx729.(*list_List_Cons)
+			_ = _gofx731
 			{
-				var y_ any = _gofx757.F0
+				var y_ any = _gofx731.F0
 				_ = y_
 				{
-					var rest_ any = _gofx757.F1
+					var rest_ any = _gofx731.F1
 					_ = rest_
 //line std/list/list.gfx:193
 //line std/list/list.gfx:193

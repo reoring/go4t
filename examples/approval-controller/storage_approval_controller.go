@@ -94,9 +94,9 @@ func (r *ApprovalReconciler) observeInputs(ctx context.Context, approval *unstru
 			BaseGitCommit:        strings.TrimSpace(firstNonEmptyNestedString(approval.Object, []string{"spec", "binding", "baseGitCommit"})),
 			PolicyGeneration:     rt.Option[int64]{Value: policyGeneration, Present: policyGenerationPresent},
 		},
-		Plan:   decide.FetchedPlanPlanNotReferenced{},
-		Policy: decide.FetchedPolicyPolicyNotReferenced{},
-		Window: decide.FetchedWindowWindowNotReferenced{},
+		Plan:   decide.FetchedPlanNotReferenced{},
+		Policy: decide.FetchedPolicyNotReferenced{},
+		Window: decide.FetchedWindowNotReferenced{},
 	}
 	windowName := firstNonEmptyNestedString(
 		approval.Object,
@@ -108,9 +108,9 @@ func (r *ApprovalReconciler) observeInputs(ctx context.Context, approval *unstru
 		plan := newStorageResizePlanObject()
 		if err := r.Client.Get(ctx, client.ObjectKey{Namespace: approval.GetNamespace(), Name: planName}, plan); err != nil {
 			if apierrors.IsNotFound(err) {
-				inputs.Plan = decide.FetchedPlanPlanMissing{}
+				inputs.Plan = decide.FetchedPlanMissing{}
 			} else {
-				inputs.Plan = decide.FetchedPlanPlanReadError{}
+				inputs.Plan = decide.FetchedPlanReadError{}
 			}
 		} else {
 			observedPlan := decide.Plan{
@@ -146,7 +146,7 @@ func (r *ApprovalReconciler) observeInputs(ctx context.Context, approval *unstru
 					observedPlan.ObservedAtMillis = rt.Option[int64]{Value: observedAt.UnixMilli(), Present: true}
 				}
 			}
-			inputs.Plan = decide.FetchedPlanPlanFound{F0: observedPlan}
+			inputs.Plan = decide.FetchedPlanFound{F0: observedPlan}
 			if windowName == "" {
 				windowName = firstNonEmptyNestedString(plan.Object, []string{"spec", "maintenanceWindowRef", "name"})
 			}
@@ -157,20 +157,20 @@ func (r *ApprovalReconciler) observeInputs(ctx context.Context, approval *unstru
 	if policyName := firstNonEmptyNestedString(approval.Object, []string{"spec", "policyRef", "name"}); policyName != "" {
 		policy := newStorageAutopilotPolicyObject()
 		if err := r.Client.Get(ctx, client.ObjectKey{Namespace: approval.GetNamespace(), Name: policyName}, policy); err != nil {
-			inputs.Policy = decide.FetchedPolicyPolicyReadError{}
+			inputs.Policy = decide.FetchedPolicyReadError{}
 		} else {
-			inputs.Policy = decide.FetchedPolicyPolicyFound{F0: decide.Policy{Generation: policy.GetGeneration()}}
+			inputs.Policy = decide.FetchedPolicyFound{F0: decide.Policy{Generation: policy.GetGeneration()}}
 		}
 	}
 	if windowName != "" {
 		window := newStorageMaintenanceWindowObject()
 		if err := r.Client.Get(ctx, client.ObjectKey{Namespace: approval.GetNamespace(), Name: windowName}, window); err != nil {
-			inputs.Window = decide.FetchedWindowWindowReadError{}
+			inputs.Window = decide.FetchedWindowReadError{}
 		} else {
 			required, requiredPresent, _ := unstructured.NestedBool(window.Object, "spec", "approvalPolicy", "required")
 			allowed, _ := firstNestedStringSlice(window.Object, []string{"spec", "allowedOperations"})
 			open, _, _ := unstructured.NestedBool(window.Object, "status", "currentWindow", "open")
-			inputs.Window = decide.FetchedWindowWindowFound{F0: decide.Window{
+			inputs.Window = decide.FetchedWindowFound{F0: decide.Window{
 				ApprovalRequired:  rt.Option[bool]{Value: required, Present: requiredPresent},
 				AllowedOperations: allowed,
 				Phase:             firstStatusString(window, "status", "phase"),

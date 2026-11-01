@@ -39,15 +39,13 @@ type Window = Window{
   currentWindowOpen: Bool
 } deriving Eq, Debug
 
-type FetchedPlan = PlanNotReferenced | PlanReadError | PlanMissing | PlanFound(Plan) deriving Eq, Debug
-type FetchedPolicy = PolicyNotReferenced | PolicyReadError | PolicyFound(Policy) deriving Eq, Debug
-type FetchedWindow = WindowNotReferenced | WindowReadError | WindowFound(Window) deriving Eq, Debug
+type Fetched[A] = NotReferenced | ReadError | Missing | Found(A) deriving Eq, Debug
 
 type Observed = Observed{
   binding: Binding,
-  plan: FetchedPlan,
-  policy: FetchedPolicy,
-  window: FetchedWindow,
+  plan: Fetched[Plan],
+  policy: Fetched[Policy],
+  window: Fetched[Window],
   operationsReadable: Bool,
   conflictingOperation: Bool,
   nowMillis: Int
@@ -77,10 +75,10 @@ type Verdict = Rejected(Reason, String)
 
 func decide(o Observed) Verdict {
   match o.plan {
-    PlanNotReferenced => Rejected(PlanReferenceMissing, "Storage approval has no referenced resize plan")
-    PlanMissing => Rejected(PlanNotFound, "Referenced storage resize plan was not found")
-    PlanReadError => Pending(PlanReadFailed, "Referenced storage resize plan could not be read", 60000)
-    PlanFound(plan) => _decidePlan(o, plan)
+    NotReferenced => Rejected(PlanReferenceMissing, "Storage approval has no referenced resize plan")
+    Missing => Rejected(PlanNotFound, "Referenced storage resize plan was not found")
+    ReadError => Pending(PlanReadFailed, "Referenced storage resize plan could not be read", 60000)
+    Found(plan) => _decidePlan(o, plan)
   }
 }
 
@@ -127,25 +125,27 @@ func _bindingMatchesPlan(b Binding, plan Plan) Option[Verdict] {
   }
 }
 
-func _policyGenerationMatches(b Binding, policy FetchedPolicy) Option[Verdict] {
+func _policyGenerationMatches(b Binding, policy Fetched[Policy]) Option[Verdict] {
   match b.policyGeneration {
     None => None
     Some(expected) if expected <= 0 => None
     Some(expected) => match policy {
-      PolicyNotReferenced => Some(Rejected(PolicyReferenceMissing, "Approval has no referenced storage policy"))
-      PolicyReadError => Some(Rejected(PolicyReadFailed, "Referenced storage policy could not be read"))
-      PolicyFound(p) if p.generation > 0 && p.generation != expected =>
+      NotReferenced => Some(Rejected(PolicyReferenceMissing, "Approval has no referenced storage policy"))
+      ReadError => Some(Rejected(PolicyReadFailed, "Referenced storage policy could not be read"))
+      Missing => Some(Rejected(PolicyReadFailed, "Referenced storage policy could not be read"))
+      Found(p) if p.generation > 0 && p.generation != expected =>
         Some(Rejected(PolicyGenerationMismatch, "Approval policy generation does not match the current storage policy"))
-      PolicyFound(_) => None
+      Found(_) => None
     }
   }
 }
 
-func _maintenanceWindowAllows(window FetchedWindow, plan Plan) Option[Verdict] {
+func _maintenanceWindowAllows(window Fetched[Window], plan Plan) Option[Verdict] {
   match window {
-    WindowNotReferenced => None
-    WindowReadError => Some(Rejected(MaintenanceWindowReadFailed, "Referenced maintenance window could not be read"))
-    WindowFound(w) =>
+    NotReferenced => None
+    ReadError => Some(Rejected(MaintenanceWindowReadFailed, "Referenced maintenance window could not be read"))
+    Missing => Some(Rejected(MaintenanceWindowReadFailed, "Referenced maintenance window could not be read"))
+    Found(w) =>
       if w.approvalRequired == Some(false) {
         Some(Rejected(MaintenanceWindowApprovalDisabled, "Maintenance window disables approvals for a data-risk storage workflow"))
       } else if list.length(w.allowedOperations) > 0 && !list.elem(plan.planType, w.allowedOperations) {

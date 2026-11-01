@@ -11,60 +11,70 @@ type Binding struct {
 	PolicyGeneration     rt.Option[int64]
 }
 type FetchedPlan interface{ isFetchedPlan() }
-type FetchedPlanPlanNotReferenced struct {
+type FetchedPlanNotReferenced struct {
 }
 
-func (FetchedPlanPlanNotReferenced) isFetchedPlan() {}
+func (FetchedPlanNotReferenced) isFetchedPlan() {}
 
-type FetchedPlanPlanReadError struct {
+type FetchedPlanReadError struct {
 }
 
-func (FetchedPlanPlanReadError) isFetchedPlan() {}
+func (FetchedPlanReadError) isFetchedPlan() {}
 
-type FetchedPlanPlanMissing struct {
+type FetchedPlanMissing struct {
 }
 
-func (FetchedPlanPlanMissing) isFetchedPlan() {}
+func (FetchedPlanMissing) isFetchedPlan() {}
 
-type FetchedPlanPlanFound struct {
+type FetchedPlanFound struct {
 	F0 Plan
 }
 
-func (FetchedPlanPlanFound) isFetchedPlan() {}
+func (FetchedPlanFound) isFetchedPlan() {}
 
 type FetchedPolicy interface{ isFetchedPolicy() }
-type FetchedPolicyPolicyNotReferenced struct {
+type FetchedPolicyNotReferenced struct {
 }
 
-func (FetchedPolicyPolicyNotReferenced) isFetchedPolicy() {}
+func (FetchedPolicyNotReferenced) isFetchedPolicy() {}
 
-type FetchedPolicyPolicyReadError struct {
+type FetchedPolicyReadError struct {
 }
 
-func (FetchedPolicyPolicyReadError) isFetchedPolicy() {}
+func (FetchedPolicyReadError) isFetchedPolicy() {}
 
-type FetchedPolicyPolicyFound struct {
+type FetchedPolicyMissing struct {
+}
+
+func (FetchedPolicyMissing) isFetchedPolicy() {}
+
+type FetchedPolicyFound struct {
 	F0 Policy
 }
 
-func (FetchedPolicyPolicyFound) isFetchedPolicy() {}
+func (FetchedPolicyFound) isFetchedPolicy() {}
 
 type FetchedWindow interface{ isFetchedWindow() }
-type FetchedWindowWindowNotReferenced struct {
+type FetchedWindowNotReferenced struct {
 }
 
-func (FetchedWindowWindowNotReferenced) isFetchedWindow() {}
+func (FetchedWindowNotReferenced) isFetchedWindow() {}
 
-type FetchedWindowWindowReadError struct {
+type FetchedWindowReadError struct {
 }
 
-func (FetchedWindowWindowReadError) isFetchedWindow() {}
+func (FetchedWindowReadError) isFetchedWindow() {}
 
-type FetchedWindowWindowFound struct {
+type FetchedWindowMissing struct {
+}
+
+func (FetchedWindowMissing) isFetchedWindow() {}
+
+type FetchedWindowFound struct {
 	F0 Window
 }
 
-func (FetchedWindowWindowFound) isFetchedWindow() {}
+func (FetchedWindowFound) isFetchedWindow() {}
 
 type GateEvidence interface{ isGateEvidence() }
 type GateEvidenceGate struct {
@@ -256,109 +266,123 @@ func (v Binding) String() string {
 }
 func toGo_FetchedPlan(v any) FetchedPlan {
 	switch x := v.(type) {
-	case *decide_FetchedPlan_PlanNotReferenced:
-		return FetchedPlanPlanNotReferenced{}
-	case *decide_FetchedPlan_PlanReadError:
-		return FetchedPlanPlanReadError{}
-	case *decide_FetchedPlan_PlanMissing:
-		return FetchedPlanPlanMissing{}
-	case *decide_FetchedPlan_PlanFound:
-		return FetchedPlanPlanFound{F0: toGo_Plan(x.F0)}
+	case *decide_Fetched_NotReferenced:
+		return FetchedPlanNotReferenced{}
+	case *decide_Fetched_ReadError:
+		return FetchedPlanReadError{}
+	case *decide_Fetched_Missing:
+		return FetchedPlanMissing{}
+	case *decide_Fetched_Found:
+		return FetchedPlanFound{F0: toGo_Plan(x.F0)}
 	default:
 		panic("invalid constructor")
 	}
 }
 func fromGo_FetchedPlan(v FetchedPlan) any {
 	switch x := v.(type) {
-	case FetchedPlanPlanNotReferenced:
-		return &decide_FetchedPlan_PlanNotReferenced{}
-	case FetchedPlanPlanReadError:
-		return &decide_FetchedPlan_PlanReadError{}
-	case FetchedPlanPlanMissing:
-		return &decide_FetchedPlan_PlanMissing{}
-	case FetchedPlanPlanFound:
-		return &decide_FetchedPlan_PlanFound{F0: fromGo_Plan(x.F0)}
+	case FetchedPlanNotReferenced:
+		return &decide_Fetched_NotReferenced{}
+	case FetchedPlanReadError:
+		return &decide_Fetched_ReadError{}
+	case FetchedPlanMissing:
+		return &decide_Fetched_Missing{}
+	case FetchedPlanFound:
+		return &decide_Fetched_Found{F0: fromGo_Plan(x.F0)}
 	default:
 		panic("invalid constructor")
 	}
 }
-func (v FetchedPlanPlanNotReferenced) String() string {
-	return (dict_decide_Debug_FetchedPlan{}).prelude_Debug(fromGo_FetchedPlan(v)).(string)
+func (v FetchedPlanNotReferenced) String() string {
+	return (dict_decide_Debug_Fetched{dict_A: dict_decide_Debug_Plan{}}).prelude_Debug(fromGo_FetchedPlan(v)).(string)
 }
-func (v FetchedPlanPlanReadError) String() string {
-	return (dict_decide_Debug_FetchedPlan{}).prelude_Debug(fromGo_FetchedPlan(v)).(string)
+func (v FetchedPlanReadError) String() string {
+	return (dict_decide_Debug_Fetched{dict_A: dict_decide_Debug_Plan{}}).prelude_Debug(fromGo_FetchedPlan(v)).(string)
 }
-func (v FetchedPlanPlanMissing) String() string {
-	return (dict_decide_Debug_FetchedPlan{}).prelude_Debug(fromGo_FetchedPlan(v)).(string)
+func (v FetchedPlanMissing) String() string {
+	return (dict_decide_Debug_Fetched{dict_A: dict_decide_Debug_Plan{}}).prelude_Debug(fromGo_FetchedPlan(v)).(string)
 }
-func (v FetchedPlanPlanFound) String() string {
-	return (dict_decide_Debug_FetchedPlan{}).prelude_Debug(fromGo_FetchedPlan(v)).(string)
+func (v FetchedPlanFound) String() string {
+	return (dict_decide_Debug_Fetched{dict_A: dict_decide_Debug_Plan{}}).prelude_Debug(fromGo_FetchedPlan(v)).(string)
 }
 func toGo_FetchedPolicy(v any) FetchedPolicy {
 	switch x := v.(type) {
-	case *decide_FetchedPolicy_PolicyNotReferenced:
-		return FetchedPolicyPolicyNotReferenced{}
-	case *decide_FetchedPolicy_PolicyReadError:
-		return FetchedPolicyPolicyReadError{}
-	case *decide_FetchedPolicy_PolicyFound:
-		return FetchedPolicyPolicyFound{F0: toGo_Policy(x.F0)}
+	case *decide_Fetched_NotReferenced:
+		return FetchedPolicyNotReferenced{}
+	case *decide_Fetched_ReadError:
+		return FetchedPolicyReadError{}
+	case *decide_Fetched_Missing:
+		return FetchedPolicyMissing{}
+	case *decide_Fetched_Found:
+		return FetchedPolicyFound{F0: toGo_Policy(x.F0)}
 	default:
 		panic("invalid constructor")
 	}
 }
 func fromGo_FetchedPolicy(v FetchedPolicy) any {
 	switch x := v.(type) {
-	case FetchedPolicyPolicyNotReferenced:
-		return &decide_FetchedPolicy_PolicyNotReferenced{}
-	case FetchedPolicyPolicyReadError:
-		return &decide_FetchedPolicy_PolicyReadError{}
-	case FetchedPolicyPolicyFound:
-		return &decide_FetchedPolicy_PolicyFound{F0: fromGo_Policy(x.F0)}
+	case FetchedPolicyNotReferenced:
+		return &decide_Fetched_NotReferenced{}
+	case FetchedPolicyReadError:
+		return &decide_Fetched_ReadError{}
+	case FetchedPolicyMissing:
+		return &decide_Fetched_Missing{}
+	case FetchedPolicyFound:
+		return &decide_Fetched_Found{F0: fromGo_Policy(x.F0)}
 	default:
 		panic("invalid constructor")
 	}
 }
-func (v FetchedPolicyPolicyNotReferenced) String() string {
-	return (dict_decide_Debug_FetchedPolicy{}).prelude_Debug(fromGo_FetchedPolicy(v)).(string)
+func (v FetchedPolicyNotReferenced) String() string {
+	return (dict_decide_Debug_Fetched{dict_A: dict_decide_Debug_Policy{}}).prelude_Debug(fromGo_FetchedPolicy(v)).(string)
 }
-func (v FetchedPolicyPolicyReadError) String() string {
-	return (dict_decide_Debug_FetchedPolicy{}).prelude_Debug(fromGo_FetchedPolicy(v)).(string)
+func (v FetchedPolicyReadError) String() string {
+	return (dict_decide_Debug_Fetched{dict_A: dict_decide_Debug_Policy{}}).prelude_Debug(fromGo_FetchedPolicy(v)).(string)
 }
-func (v FetchedPolicyPolicyFound) String() string {
-	return (dict_decide_Debug_FetchedPolicy{}).prelude_Debug(fromGo_FetchedPolicy(v)).(string)
+func (v FetchedPolicyMissing) String() string {
+	return (dict_decide_Debug_Fetched{dict_A: dict_decide_Debug_Policy{}}).prelude_Debug(fromGo_FetchedPolicy(v)).(string)
+}
+func (v FetchedPolicyFound) String() string {
+	return (dict_decide_Debug_Fetched{dict_A: dict_decide_Debug_Policy{}}).prelude_Debug(fromGo_FetchedPolicy(v)).(string)
 }
 func toGo_FetchedWindow(v any) FetchedWindow {
 	switch x := v.(type) {
-	case *decide_FetchedWindow_WindowNotReferenced:
-		return FetchedWindowWindowNotReferenced{}
-	case *decide_FetchedWindow_WindowReadError:
-		return FetchedWindowWindowReadError{}
-	case *decide_FetchedWindow_WindowFound:
-		return FetchedWindowWindowFound{F0: toGo_Window(x.F0)}
+	case *decide_Fetched_NotReferenced:
+		return FetchedWindowNotReferenced{}
+	case *decide_Fetched_ReadError:
+		return FetchedWindowReadError{}
+	case *decide_Fetched_Missing:
+		return FetchedWindowMissing{}
+	case *decide_Fetched_Found:
+		return FetchedWindowFound{F0: toGo_Window(x.F0)}
 	default:
 		panic("invalid constructor")
 	}
 }
 func fromGo_FetchedWindow(v FetchedWindow) any {
 	switch x := v.(type) {
-	case FetchedWindowWindowNotReferenced:
-		return &decide_FetchedWindow_WindowNotReferenced{}
-	case FetchedWindowWindowReadError:
-		return &decide_FetchedWindow_WindowReadError{}
-	case FetchedWindowWindowFound:
-		return &decide_FetchedWindow_WindowFound{F0: fromGo_Window(x.F0)}
+	case FetchedWindowNotReferenced:
+		return &decide_Fetched_NotReferenced{}
+	case FetchedWindowReadError:
+		return &decide_Fetched_ReadError{}
+	case FetchedWindowMissing:
+		return &decide_Fetched_Missing{}
+	case FetchedWindowFound:
+		return &decide_Fetched_Found{F0: fromGo_Window(x.F0)}
 	default:
 		panic("invalid constructor")
 	}
 }
-func (v FetchedWindowWindowNotReferenced) String() string {
-	return (dict_decide_Debug_FetchedWindow{}).prelude_Debug(fromGo_FetchedWindow(v)).(string)
+func (v FetchedWindowNotReferenced) String() string {
+	return (dict_decide_Debug_Fetched{dict_A: dict_decide_Debug_Window{}}).prelude_Debug(fromGo_FetchedWindow(v)).(string)
 }
-func (v FetchedWindowWindowReadError) String() string {
-	return (dict_decide_Debug_FetchedWindow{}).prelude_Debug(fromGo_FetchedWindow(v)).(string)
+func (v FetchedWindowReadError) String() string {
+	return (dict_decide_Debug_Fetched{dict_A: dict_decide_Debug_Window{}}).prelude_Debug(fromGo_FetchedWindow(v)).(string)
 }
-func (v FetchedWindowWindowFound) String() string {
-	return (dict_decide_Debug_FetchedWindow{}).prelude_Debug(fromGo_FetchedWindow(v)).(string)
+func (v FetchedWindowMissing) String() string {
+	return (dict_decide_Debug_Fetched{dict_A: dict_decide_Debug_Window{}}).prelude_Debug(fromGo_FetchedWindow(v)).(string)
+}
+func (v FetchedWindowFound) String() string {
+	return (dict_decide_Debug_Fetched{dict_A: dict_decide_Debug_Window{}}).prelude_Debug(fromGo_FetchedWindow(v)).(string)
 }
 func toGo_GateEvidence(v any) GateEvidence {
 	switch x := v.(type) {

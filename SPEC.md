@@ -1333,10 +1333,11 @@ pure gofx decision logic.
 | `Set[T]` | `map[T]struct{}`, only for scalar `T` |
 | Tuples of arity 2–8 | `rt.Tuple2[A, B]` … `rt.Tuple8[...]`, fields `F0`, `F1`, … |
 | Non-parameterised user data | Struct, enum or sealed interface as below |
+| Fully applied user data `T[A1, …, An]` | Monomorphic struct, enum or sealed interface; arguments and substituted constructor fields must be mirrorable |
 | `IO[T]` as the entire result | `func(context.Context) (T, error)` |
 
 Every component must itself be mirrorable; aliases are expanded before deciding.
-Functions, classes, type parameters, parameterised user data (even fully applied),
+Functions, classes, type parameters, bare or partially applied parameterised data,
 non-scalar Map/Set keys, and IO in a parameter or nested position are not mirrorable.
 Only non-extern top-level functions without type parameters or constraints are
 eligible. Their first name rune is upper-cased (`decide` → `Decide`).
@@ -1349,6 +1350,16 @@ types use the module file prefix with its first rune upper-cased, followed by th
 type name (`model.Remote` → `ModelRemote`); prefix collisions receive deterministic
 numeric suffixes. Only types transitively reachable from eligible signatures are
 emitted, sorted by Go name.
+
+A fully applied data type is named `<T><MirrorName(A1)>…<MirrorName(An)>`,
+using each argument's mirror spelling without non-identifier characters:
+`Fetched[Plan]` → `FetchedPlan`, `Fetched[List[String]]` → `FetchedListString`,
+and `Pair[Int, Option[Bool]]` → `PairIntOptionBool`. Constructor names use the
+instance prefix, such as `FetchedPlanFound`. Each distinct substituted type
+identity has one mirror and converter pair; aliases do not create additional
+instances. A mirror spelling that clashes with a user-declared type is a
+generation error at that user declaration, even if that declaration is otherwise
+unreachable.
 
 - One record constructor becomes a struct with each field's first rune upper-cased.
   Duplicate exported field spellings are a generation error at the type declaration.
@@ -1365,10 +1376,11 @@ emitted, sorted by Go name.
 
 Record structs, single positional structs, and every constructor value type of a
 payload sum have `func (v <Mirror>) String() string` **only if** the gofx type has a
-`Debug` instance in the program. The method converts through `fromGo_<Mirror>`
-(the sum's converter for a constructor value) and calls that instance's `Debug`
-dictionary method, so the result is exactly gofx `debug(v)`, including custom
-instances. The sum interface itself has no `String` method. Without `Debug`, no
+resolvable `Debug` instance in the program. For a parameterised type this resolves
+the instance with its concrete arguments. The method converts through
+`fromGo_<Mirror>` (the sum's converter for a constructor value) and calls that
+instance's `Debug` dictionary method, so the result is exactly gofx `debug(v)`,
+including custom instances. The sum interface itself has no `String` method. Without `Debug`, no
 `String` method is generated for these structs. A record field exported as
 `String` conflicts with this method and is a generation error.
 
@@ -1747,6 +1759,7 @@ share immutable storage, but empty slices do not retain the backing allocation.
 | Exported List/Map/Set | Copy recursively in both directions, with no mutable slice/map aliasing; nil/empty inputs become empty gofx collections; empty List returns a nil slice and empty Map/Set returns an allocated empty Go map |
 | Exported Float collection keys | Use gofx's NaN-low Ord; a single NaN key is retained. Multiple NaN keys in a Go map/set cannot remain distinct under that Ord and panic with `gofx: duplicate NaN map key` / `gofx: duplicate NaN set key`, avoiding an iteration-order-dependent survivor |
 | Exported enum | Zero value is the first declared constructor; `String()` is the source constructor spelling |
+| Exported parametric mirror name | A clash with a user-declared type produces `Go export name collision: <name>` at that user declaration |
 | Exported invalid constructor | Unknown enum value, nil sum, or unsupported constructor representation panics with `invalid constructor`; sum constructors cross as values, not pointers |
 | Exported IO | Result-only context-taking function; returns converted success or zero result and `*rt.Failure`; no nested/parameter IO or opaque `any` fallback |
 
