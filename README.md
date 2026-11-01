@@ -104,13 +104,16 @@ accepts one `module` line, single-line `require` directives, blank lines and
 | `gofx get <path>@<version>` | Run Go dependency installation and add/update the selected version in gofx.mod. |
 | `gofx check [--full-types] FILE.gfx\|DIR...` | Load modules and type-check; warnings do not fail; no foreign ABI check. |
 | `gofx build [--full-types] [-o DIR] FILE.gfx\|DIR...` | Emit one file per gofx module into one Go package. |
-| `gofx build [--full-types] --emit-go DIR --package NAME FILE.gfx\|DIR...` | Emit an embeddable non-main package exposing `Main() rt.IO`; incompatible with -o. |
+| `gofx build [--full-types] --emit-go DIR --package NAME FILE.gfx\|DIR...` | Emit an embeddable non-main package with typed Go exports and `Main() rt.IO`; incompatible with -o. |
 | `gofx run [--full-types] FILE.gfx\|DIR... [-- args...]` | Build and execute; inherits stdin and preserves child status in the installed CLI. |
 | `gofx test FILE.gfx\|DIR...` | Run zero-arg monomorphic `testName` functions returning Bool/IO[Bool]; main optional and ignored. |
 | `gofx eval 'EXPR' [FILE.gfx\|DIR...]` | Evaluate and show a pure value or IO result; supporting imports come from the first file. |
 | `gofx bind IMPORT [FILE.gfx\|DIR...] [-o FILE.gfx\|DIR] [--prefix STR]` | Generate Go extern declarations; unsupported signatures get skip comments. |
 | `gofx fmt [-w\|-d\|-l] FILE...\|DIR` | Print/write/diff/list canonical formatting; -l exits 1 on differences; flags exclusive. |
 | `gofx lsp` | Start the stdio language server. |
+
+Call pure gofx logic from a typed Go shell: see [SPEC §8.7](SPEC.md#87-exported-go-api)
+and the [Go shell example](examples/go-shell).
 
 Diagnostics and hover retain source-written type aliases. Long types elide
 deeply nested parts with `…`; `--full-types` disables elision for check/build/run
@@ -194,14 +197,14 @@ current imports/signatures are defined by SPEC/std.
 | [stdlib-extras](examples/stdlib-extras) | Regex log parsing, stable grouping/sorting, table formatting and Lazy. | `gofx run examples/stdlib-extras/main.gfx` |
 | [strings](examples/strings) | Unicode strings, parsing, replacement and padding. | `gofx run examples/strings/main.gfx` |
 | [tree](examples/tree) | Recursive Tree Functor and constrained rendering. | `gofx run examples/tree/main.gfx` |
-| [typed-extern](examples/typed-extern) | Generated strings-package bindings and natural Go ABI adapters. | `gofx run examples/typed-extern/main.gfx examples/typed-extern/gostd.gfx` |
+| [typed-extern](examples/typed-extern) | Generated strings bindings, natural Go ABI adapters and opaque method handles. | `gofx run examples/typed-extern` |
 | [wc](examples/wc) | Stdin line/word frequencies with a top-N command argument. | `gofx run examples/wc/main.gfx -- 3 < examples/wc/input.txt` |
 
 The IO example's command writes only inside its new `$out` directory. Inspect
 `$out/report.report.txt` and `$out/report.log`, then remove that directory when
 finished. Omitting its output-prefix argument instead writes root-level fixtures.
 The word-count command supplies both checked-in stdin and its `3` argument.
-Typed externs require both listed files (or their directory); do not run main alone.
+Typed externs require the whole example directory; do not run main alone.
 `fmt/before.gfx` is already canonical, so `fmt -d` on it currently prints nothing.
 `sales-report` simulates rate requests locally. If its randomized EUR request
 fails, recovery extracts the IoError message and stderr remains

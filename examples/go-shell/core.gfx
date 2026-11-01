@@ -1,0 +1,34 @@
+package core
+
+type Observed = Observed {
+  deleting: Bool,
+  classMatches: Bool,
+  depsReady: Bool,
+  pendingDeps: List[String],
+  valuesValid: Bool
+} deriving Eq, Debug
+
+type Step = Cleanup(Int) | Skip | DependenciesPending(List[String]) | Fail(String) | Rollout deriving Eq, Debug
+
+type Phase = Pending | Ready deriving Eq, Debug
+
+func decide(o Observed) Step {
+  if o.deleting {
+    Cleanup(_helper(7))
+  } else if !o.classMatches {
+    Skip
+  } else if !o.depsReady {
+    DependenciesPending(o.pendingDeps)
+  } else if !o.valuesValid {
+    Fail("invalid values")
+  } else {
+    Rollout
+  }
+}
+
+func _helper(n Int) Int { n }
+func echoObserved(o Observed) Observed { o }
+func echoPhase(p Phase) Phase { p }
+func echoOption(o Option[List[String]]) Option[List[String]] { o }
+func identity[A](value A) A { value }
+func main() IO[Unit] { ioPure(unit()) }

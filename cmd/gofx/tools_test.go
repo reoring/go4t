@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"errors"
+	"go/format"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -317,6 +318,70 @@ func main() {
 	command.Dir = dir
 	if out, err := command.CombinedOutput(); err != nil || string(out) != "[a, b]\n" {
 		t.Fatalf("imported package output=%q error=%v", out, err)
+	}
+}
+
+func TestGoShellExample(t *testing.T) {
+	dir := toolsModule(t)
+	example := filepath.Join("..", "..", "examples", "go-shell")
+	source, err := os.ReadFile(filepath.Join(example, "core.gfx"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	input := toolsWrite(t, filepath.Join(dir, "core.gfx"), string(source))
+	output := filepath.Join(dir, "core")
+	if err := run([]string{"build", "--emit-go", output, "--package", "core", input}); err != nil {
+		t.Fatal(err)
+	}
+	exports, err := os.ReadFile(filepath.Join(output, "gofx_export.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, fragment := range []string{
+		"func Decide(p0 Observed) Step",
+		"// not exported: identity (type parameters)",
+		"type StepDependenciesPending struct",
+	} {
+		if !strings.Contains(string(exports), fragment) {
+			t.Errorf("exports missing %q:\n%s", fragment, exports)
+		}
+	}
+	if strings.Contains(string(exports), "_helper") || strings.Contains(string(exports), "not exported: main") {
+		t.Errorf("private/main declaration leaked:\n%s", exports)
+	}
+	formatted, err := format.Source(exports)
+	if err != nil || !bytes.Equal(exports, formatted) {
+		t.Fatalf("exports not go/format-clean: %v", err)
+	}
+	consumer, err := os.ReadFile(filepath.Join(example, "main.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	code := strings.TrimPrefix(string(consumer), "//go:build ignore\n\n")
+	code = strings.ReplaceAll(code, `"goshell/core"`, `"clitoolstest/core"`)
+	toolsWrite(t, filepath.Join(dir, "main.go"), code)
+	command := exec.Command("go", "run", ".")
+	command.Dir = dir
+	want := "pending: [cache secrets]\ncleanup: 7\nround trips: Ready record list option\n"
+	if out, err := command.CombinedOutput(); err != nil || string(out) != want {
+		t.Fatalf("Go shell output=%q error=%v; want %q", out, err, want)
+	}
+	vet := exec.Command("go", "vet", "./core")
+	vet.Dir = dir
+	if out, err := vet.CombinedOutput(); err != nil {
+		t.Fatalf("Go shell vet: %v\n%s", err, out)
+	}
+	// The same marker-based sweep as ordinary modules removes obsolete exports
+	// when the output directory is subsequently used for an executable build.
+	owned := toolsWrite(t, filepath.Join(output, "user.go"), "package main\n")
+	if err := run([]string{"build", "-o", output, input}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(output, "gofx_export.go")); !os.IsNotExist(err) {
+		t.Fatalf("obsolete Go exports remain: %v", err)
+	}
+	if _, err := os.Stat(owned); err != nil {
+		t.Fatalf("user file removed: %v", err)
 	}
 }
 

@@ -33,7 +33,11 @@ func GenerateInDir(prog *types.Program, goPackage, dir string) (map[string][]byt
 		goPackage = "main"
 	}
 	if len(prog.Modules) == 0 {
-		return map[string][]byte{"main.go": source}, nil
+		out := map[string][]byte{"main.go": source}
+		if err := addGoExports(prog, goPackage, nil, nil, out); err != nil {
+			return nil, err
+		}
+		return out, nil
 	}
 	prefixes := make(map[string]string)
 	usedPrefixes := make(map[string]bool)
@@ -227,10 +231,13 @@ func GenerateInDir(prog *types.Program, goPackage, dir string) (map[string][]byt
 		} else if name == "main.go" {
 			name = "main_module.go"
 		}
-		for out[name] != nil {
+		for out[name] != nil || goPackage != "main" && name == "gofx_export.go" {
 			name = strings.TrimSuffix(name, ".go") + "_.go"
 		}
 		out[name] = formatted
+	}
+	if err := addGoExports(prog, goPackage, prefixes, renamed, out); err != nil {
+		return nil, err
 	}
 	return out, nil
 }

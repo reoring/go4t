@@ -1070,7 +1070,7 @@ gofx build [--full-types] [-o DIR | --emit-go DIR --package NAME] FILE.gfx|DIR..
 gofx run [--full-types] FILE.gfx|DIR... [-- args...]
 gofx test FILE.gfx|DIR...
 gofx eval 'EXPR' [FILE.gfx|DIR...]
-gofx bind IMPORT [FILE.gfx|DIR...] [-o FILE.gfx|DIR] [--prefix STR]
+gofx bind IMPORT [FILE.gfx|DIR...] [-o FILE.gfx|DIR] [--prefix STR] [--shim DIR]
 gofx fmt [-w|-d|-l] FILE...|DIR
 gofx lsp
 ```
@@ -1104,9 +1104,10 @@ gofx lsp
 - `build` emits Go **source, not a binary**. Default: `<first-file-stem>_gen/`,
   or `<DIR>/_gen/` for a directory. `-o` changes it. `--emit-go` and `--package`
   must occur together, are incompatible with `-o`, and expose `func Main() rt.IO`
-  instead of Go main. NAME must be a valid non-keyword Go identifier other than
-  `_` or `main`. Flags can precede/follow inputs. Rewrites remove obsolete
-  compiler-generated Go files but preserve unrelated output-directory files.
+  instead of Go main, plus the typed entry-module API described in §8.7.
+  NAME must be a valid non-keyword Go identifier other than `_` or `main`.
+  Flags can precede/follow inputs. Rewrites remove obsolete compiler-generated
+  Go files (including `gofx_export.go`) but preserve unrelated output-directory files.
   Outside a Go module resolving `gofx`, it still emits sources and prints a note
   explaining how to compile them with `require gofx v0.0.0` and a local
   `replace gofx => /absolute/path/to/gofx`.
@@ -1279,6 +1280,69 @@ lower bound, not a completed measurement. Its algorithm change explains much of
 the gain. Cross-host/CI headroom is not established by these numbers. Tests and
 examples are regression evidence, not universal stack/time guarantees; only
 eligible direct-self tail calls have bounded call-stack lowering.
+
+### 8.7 Exported Go API
+
+`gofx build --emit-go DIR --package NAME FILE.gfx` produces an importable Go
+package. Its `gofx_export.go` contains natural Go mirrors, conversion functions,
+and wrappers for eligible functions of the **entry module**. `Main() rt.IO`
+remains available; ordinary executable builds do not generate this API.
+See [the Go shell example](examples/go-shell) for a Go controller shell calling
+pure gofx decision logic.
+
+| gofx type | Exported Go mirror |
+| --- | --- |
+| `Int`, `Float`, `String`, `Bool` | `int64`, `float64`, `string`, `bool` |
+| `Unit` | `rt.Unit` |
+| `List[T]` | `[]T` |
+| `Option[T]` | `rt.Option[T]` with `Value T; Present bool`; `rt.Some(value)` / `rt.None[T]()` |
+| `Result[E, A]` | `rt.Result[E, A]` with `Err E; Ok A; IsOk bool` |
+| `Map[K, V]` | `map[K]V`, only for scalar `K` (`Int`, `Float`, `String`, `Bool`) |
+| `Set[T]` | `map[T]struct{}`, only for scalar `T` |
+| Tuples of arity 2–8 | `rt.Tuple2[A, B]` … `rt.Tuple8[...]`, fields `F0`, `F1`, … |
+| Non-parameterised user data | Struct, enum or sealed interface as below |
+| `IO[T]` as the entire result | `func(context.Context) (T, error)` |
+
+Every component must itself be mirrorable; aliases are expanded before deciding.
+Functions, classes, type parameters, parameterised user data (even fully applied),
+non-scalar Map/Set keys, and IO in a parameter or nested position are not mirrorable.
+Only non-extern top-level functions without type parameters or constraints are
+eligible. Their first name rune is upper-cased (`decide` → `Decide`).
+`main` and `_`-prefixed functions are silently omitted. Other ineligible entry
+functions appear once as `// not exported: <name> (<reason>)`, including externs.
+There is no opaque `any` fallback in this API; §8.3's erased extern ABI is unchanged.
+
+An entry-module data type keeps its source name, such as `Observed`. Dependency
+types use the module file prefix with its first rune upper-cased, followed by the
+type name (`model.Remote` → `ModelRemote`); prefix collisions receive deterministic
+numeric suffixes. Only types transitively reachable from eligible signatures are
+emitted, sorted by Go name.
+
+- One record constructor becomes a struct with each field's first rune upper-cased.
+  Duplicate exported field spellings are a generation error at the type declaration.
+- One positional constructor with payloads becomes a struct with `F0`, `F1`, ….
+- All-nullary constructors become an `int` enum. Constants are `<Type><Ctor>` in
+  declaration order, starting at zero; `String()` returns the source constructor name.
+- Other sums become `interface { is<Type>() }` with one `<Type><Ctor>` struct per
+  constructor. Marker methods use **value receivers**: type-switch on
+  `StepCleanup`, not `*StepCleanup`. Nullary branches are empty structs.
+- A recursively embedded value struct with no slice, map or sum-interface
+  indirection is a generation error (`recursive Go value type <name>`), because
+  Go cannot represent its infinite size. Recursion through those indirections works.
+
+Names colliding with another generated declaration are generation errors rather
+than silently renamed API members. Programmatic `codegen.Generate` calls without
+module metadata also reject a mirror/internal name collision.
+Private conversion helpers are named `toGo_<Mirror>` and `fromGo_<Mirror>` (composed
+types use deterministic composite names). Lists and maps are copied recursively
+in both directions. Map/Set input keys are sorted before building the persistent
+collection; §10.7 specifies Float NaN-key boundaries.
+
+For example, `func fetch(id Int) IO[Observed]` is exported as
+`func Fetch(id int64) func(context.Context) (Observed, error)`.
+Call `Fetch(id)(ctx)` to run the effect. The context reaches the underlying
+`rt.IO`; success is converted to the mirror, and failure returns the zero result
+and a `*rt.Failure` error. The wrapper does not run the IO while constructing it.
 
 ## 9. Known limitations
 
@@ -1611,6 +1675,11 @@ share immutable storage, but empty slices do not retain the backing allocation.
 | Extern errors | `(T, error)` conversion/call occurs inside IO; creation is lazy; each run repeats Go call; check alone does not validate foreign ABI |
 | bind inference | Does not guess Option inputs; skips uninferable any/rt.IO and unsupported functions with reason comments; declarations are toolchain-dependent |
 | Runtime shapes | Generated constructors registered once; unregistered Tuple2/Tuple3/Ordering/Ok/Err/List bridge use panics (programming/configuration error), not a source value |
+| Exported List/Map/Set | Copy recursively in both directions, with no mutable slice/map aliasing; nil/empty inputs become empty gofx collections; empty List returns a nil slice and empty Map/Set returns an allocated empty Go map |
+| Exported Float collection keys | Use gofx's NaN-low Ord; a single NaN key is retained. Multiple NaN keys in a Go map/set cannot remain distinct under that Ord and panic with `gofx: duplicate NaN map key` / `gofx: duplicate NaN set key`, avoiding an iteration-order-dependent survivor |
+| Exported enum | Zero value is the first declared constructor; `String()` is the source constructor spelling |
+| Exported invalid constructor | Unknown enum value, nil sum, or unsupported constructor representation panics with `invalid constructor`; sum constructors cross as values, not pointers |
+| Exported IO | Result-only context-taking function; returns converted success or zero result and `*rt.Failure`; no nested/parameter IO or opaque `any` fallback |
 
 ### HTTP boundaries
 

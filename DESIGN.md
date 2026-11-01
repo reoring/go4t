@@ -1131,4 +1131,6 @@ no new keywords): the existing `_` private prefix (§1.2) is the export gate.
 Deviations: the extern (Go→gofx call) direction keeps the §8.3 natural ABI table; using the
 full mirror there is deferred until an example needs it. `IO[T]` is mirrored only as a
 result. Enum mirrors are `int`-based, not `string`-based, so zero values are valid.
+- Value-recursive single-constructor mirrors without slice/map/sum-interface indirection are rejected at their type declaration (`recursive Go value type <name>`): Go value structs cannot represent infinite size.
+- Float Map/Set mirrors retain one NaN key but reject multiple Go NaN keys (`gofx: duplicate NaN map key` / `gofx: duplicate NaN set key`), since gofx Ord equates them and selecting a survivor would depend on Go map iteration order.
 
