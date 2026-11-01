@@ -168,6 +168,10 @@ func (l *Lexer) next() (Token, error) {
 				}
 				c := l.advance()
 				if c == '\\' {
+					// An escape still needs a character on the same line.
+					if l.i >= len(l.src) || l.peek(0) == '\n' {
+						return Token{}, fmt.Errorf("%s: unterminated string", pos)
+					}
 					l.advance()
 					continue
 				}

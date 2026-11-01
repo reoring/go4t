@@ -1,0 +1,55 @@
+package prelude
+
+class Functor[F[_]] {
+  fmap[A, B](fa F[A], f func(A) B) F[B]
+}
+
+class Monad[M[_]] : Functor[M] {
+  pure[A](a A) M[A]
+  bind[A, B](ma M[A], f func(A) M[B]) M[B]
+}
+
+type Option[A] = None | Some(A)
+
+instance Functor[Option] {
+  fmap(fa, f) {
+    match fa {
+      None => None
+      Some(a) => Some(f(a))
+    }
+  }
+}
+
+instance Monad[Option] {
+  pure(a) { Some(a) }
+  bind(ma, f) {
+    match ma {
+      None => None
+      Some(a) => f(a)
+    }
+  }
+}
+
+extern func ioPure[A](a A) IO[A] = "gofx/rt".Pure
+extern func ioBind[A, B](io IO[A], f func(A) IO[B]) IO[B] = "gofx/rt".Bind
+extern func ioFail[A](msg String) IO[A] = "gofx/rt".Fail
+extern func println(s String) IO[Unit] = "gofx/rt".Println
+extern func show(n Int) String = "gofx/rt".ShowInt
+extern func unit() Unit = "gofx/rt".UnitValue
+
+instance Functor[IO] {
+  fmap(fa, f) { ioBind(fa, func(a) => ioPure(f(a))) }
+}
+
+instance Monad[IO] {
+  pure(a) { ioPure(a) }
+  bind(ma, f) { ioBind(ma, f) }
+}
+
+func map[F[_] Functor, A, B](fa F[A], f func(A) B) F[B] {
+  fmap(fa, f)
+}
+
+func flatMap[M[_] Monad, A, B](ma M[A], f func(A) M[B]) M[B] {
+  bind(ma, f)
+}

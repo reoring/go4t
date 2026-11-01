@@ -1,0 +1,29 @@
+package main
+
+extern func httpGet(url String) IO[Int] = "gofx/rt/stdhttp".GetStatus
+
+func twice[F[_] Functor, A](fa F[A], f func(A) A) F[A] {
+  fmap(fmap(fa, f), f)
+}
+
+func optionIncrement(value Option[Int]) Option[Int] {
+  do {
+    n <- value
+    pure(n + 1)
+  }
+}
+
+func optionMessage() String {
+  match twice(optionIncrement(Some(20)), func(n) => n + 1) {
+    None => "no value"
+    Some(n) => show(n)
+  }
+}
+
+func main() IO[Unit] {
+  do {
+    code <- httpGet("https://example.com")
+    println(show(code))
+    println(optionMessage())
+  }
+}
