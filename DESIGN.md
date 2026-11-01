@@ -1135,3 +1135,34 @@ result. Enum mirrors are `int`-based, not `string`-based, so zero values are val
 - Float Map/Set mirrors retain one NaN key but reject multiple Go NaN keys (`gofx: duplicate NaN map key` / `gofx: duplicate NaN set key`), since gofx Ord equates them and selecting a survivor would depend on Go map iteration order.
 Method-shim deviation (approved): receivers use `any` plus a checked assertion to the original value/pointer type, rather than a typed Go parameter, to preserve `extern/match.go`'s erased-handle ABI; wrong receiver types panic with `gofx shim: <Type>_<Method>: receiver is <%T>`.
 
+
+## Pass 16: parametric mirrors
+
+Input: the approval-controller port (`examples/approval-controller`) had to write
+`FetchedPlan`/`FetchedPolicy`/`FetchedWindow` by hand because Pass 15 mirrors exclude
+parameterised user data types. Fully applied applications are mirrorable by monomorphisation.
+
+- **Rule.** A type application `T[A1, …, An]` of a user data type is mirrorable iff every `Ai`
+  is mirrorable and the resulting instantiated constructor fields are mirrorable (checked
+  after substitution; recursion through `List`/`Map`/sum interfaces stays allowed, value
+  recursion stays an error as in Pass 15). Bare `T` with parameters, or applications with
+  type variables, remain not mirrorable.
+- **Naming.** The Go mirror name is `<T><MirrorName(A1)>…<MirrorName(An)>` where
+  `MirrorName` is the existing mirror spelling of each argument with non-identifier
+  characters removed (`Fetched[Plan]` → `FetchedPlan`; `Fetched[List[String]]` →
+  `FetchedListString`; `Pair[Int, Option[Bool]]` → `PairIntOptionBool`). Constructor mirrors
+  are `<InstanceName><Ctor>` (`FetchedPlanFound`). Two distinct instantiations never share a
+  name because mirror spellings are injective on the mirrorable set; a clash with a
+  user-declared type of that spelling is a generation error at the user declaration.
+- **Converters** are emitted per instantiation (`toGo_FetchedPlan` / `fromGo_FetchedPlan`),
+  reachability-driven as today. The erased runtime representation of the instance is the
+  shared generic constructor struct (`main_Fetched_Found{F0 any}`); converters substitute
+  field types from the application's arguments.
+- **String()** follows Pass 15 rules using the `Debug` dictionary of the instantiated type
+  (instance resolution with concrete arguments, same as specialised calls).
+- SPEC §8.7 mirror table gains the row and the naming rule; §10.7 gains the clash row.
+- Acceptance: `examples/approval-controller/decide/decide.gfx` rewritten to
+  `type Fetched[A] = NotReferenced | ReadError | Missing | Found(A)` used at `Plan`, `Policy`,
+  `Window`; the controller's Go adapter uses `decide.FetchedPlanFound{F0: …}` etc.; all tests
+  there unchanged and passing; `go generate` idempotent.
+
