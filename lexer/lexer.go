@@ -17,6 +17,7 @@ const (
 	EOF Kind = iota
 	Ident
 	Int
+	Float
 	String
 	InterpTok
 	Keyword
@@ -104,7 +105,7 @@ func (l *Lexer) advance() rune {
 func (l *Lexer) needSemi() bool {
 	// Rule 1: only these token classes can end a statement.
 	switch l.lastKind {
-	case Ident, Int, String, InterpTok:
+	case Ident, Int, Float, String, InterpTok:
 	case Keyword:
 		if l.lastText != "true" && l.lastText != "false" {
 			return false
@@ -247,11 +248,35 @@ func (l *Lexer) next() (Token, error) {
 			}
 			return l.emit(Token{Kind: Ident, Text: s, Pos: pos}), nil
 		case unicode.IsDigit(r):
-			var sb strings.Builder
-			for l.i < len(l.src) && unicode.IsDigit(l.peek(0)) {
-				sb.WriteRune(l.advance())
+			start := l.i
+			for unicode.IsDigit(l.peek(0)) {
+				l.advance()
 			}
-			return l.emit(Token{Kind: Int, Text: sb.String(), Pos: pos}), nil
+			kind := Int
+			// A number after '.' is a tuple index, including chained t.0.1.
+			if l.lastKind != Punct || l.lastText != "." {
+				if l.peek(0) == '.' && unicode.IsDigit(l.peek(1)) {
+					kind = Float
+					l.advance()
+					for unicode.IsDigit(l.peek(0)) {
+						l.advance()
+					}
+				}
+				if l.peek(0) == 'e' || l.peek(0) == 'E' {
+					kind = Float
+					l.advance()
+					if l.peek(0) == '+' || l.peek(0) == '-' {
+						l.advance()
+					}
+					if !unicode.IsDigit(l.peek(0)) {
+						return Token{}, fmt.Errorf("%s: bad float literal: exponent requires digits", pos)
+					}
+					for unicode.IsDigit(l.peek(0)) {
+						l.advance()
+					}
+				}
+			}
+			return l.emit(Token{Kind: kind, Text: string(l.src[start:l.i]), Pos: pos}), nil
 		case r == '"':
 			t, err := l.scanString(pos, true)
 			if err != nil {

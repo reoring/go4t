@@ -18,7 +18,7 @@ func TestPreludeParses(t *testing.T) {
 		t.Errorf("package = %q, want prelude", file.Package)
 	}
 	want := []string{
-		"class Functor", "class Monad", "class Show", "class Eq", "type Ordering", "class Ord",
+		"class Functor", "class Monad", "class Show", "class Debug", "class Eq", "type Ordering", "class Ord",
 		"type Option", "type List", "type State",
 		"instance Functor[Option]", "instance Monad[Option]",
 		"instance Functor[List]", "instance Monad[List]",
@@ -30,6 +30,11 @@ func TestPreludeParses(t *testing.T) {
 		"func showInt", "func showBool", "func showString", "func unit",
 		"func eqInt", "func ltInt", "func eqString", "func ltString", "func eqBool",
 		"func minInt", "func maxInt", "func abs",
+		"func showFloat", "func eqFloat", "func ltFloat", "func toFloat",
+		"func truncate", "func floor", "func ceil", "func round", "func sqrt", "func pow", "func powInt",
+		"func parseFloat", "func showFloatFixed", "func absFloat", "func nan", "func isNaN",
+		"func min", "func max", "instance Show[Float]", "instance Debug[Float]",
+		"instance Eq[Float]", "instance Ord[Float]",
 		"func strLength", "func strConcat", "func join", "func split", "func lines", "func words",
 		"func trim", "func toUpper", "func toLower", "func startsWith", "func endsWith", "func contains",
 		"func replace", "func substring", "func chars", "func repeat", "func parseInt", "func showPadLeft",

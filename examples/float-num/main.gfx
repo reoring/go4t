@@ -1,0 +1,23 @@
+package main
+
+func mean(xs List[Float]) Float {
+  fold(xs, 0.0, func(total, x) => total + x) / toFloat(length(xs))
+}
+
+func stddev(xs List[Float]) Float {
+  let average = mean(xs)
+  sqrt(mean(map(xs, func(x) => (x - average) * (x - average))))
+}
+
+func main() IO[Unit] {
+  let samples = [2.0, 4.0, 4.0, 4.0, 5.0, 5.0, 7.0, 9.0]
+  do {
+    println("mean=${showFloatFixed(mean(samples), 2)} stddev=${showFloatFixed(stddev(samples), 2)}")
+    println("literals=${1.5}, ${2e3}, ${1.0e-3}")
+    println("parse=${show(parseFloat("12.5"))} invalid=${show(parseFloat("oops"))}")
+    println("pow=${pow(2.0, 3.0)} powInt=${powInt(3, 5)}")
+    println("ints min=${min(8, 3)} max=${max(8, 3)}; floats min=${min(1.5, 2.5)} max=${max(1.5, 2.5)}")
+    println("truncate=${truncate(-2.75)} floor=${floor(-2.75)} ceil=${ceil(-2.75)} round=${round(-2.5)} abs=${absFloat(-2.75)}")
+    println("division=${1.0 / 0.0}, ${-1.0 / 0.0}; NaN=${isNaN(0.0 / 0.0)} ordered=${nan() < 0.0} equal=${nan() == nan()}")
+  }
+}

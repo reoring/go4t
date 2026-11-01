@@ -118,6 +118,7 @@ func (*TFunc) isType() {}
 // Builtin type constructors.
 var (
 	Int    = &TCon{Name: "Int", Kind: KStar{}}
+	Float  = &TCon{Name: "Float", Kind: KStar{}}
 	String = &TCon{Name: "String", Kind: KStar{}}
 	Bool   = &TCon{Name: "Bool", Kind: KStar{}}
 	Unit   = &TCon{Name: "Unit", Kind: KStar{}}

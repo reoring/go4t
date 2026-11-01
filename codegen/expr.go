@@ -63,6 +63,8 @@ func (g *generator) expr(expr ast.Expr) string {
 	switch e := expr.(type) {
 	case *ast.IntLit:
 		return "int64(" + strconv.FormatInt(e.Value, 10) + ")"
+	case *ast.FloatLit:
+		return "float64(" + strconv.FormatFloat(e.Value, 'g', -1, 64) + ")"
 	case *ast.StringLit:
 		return strconv.Quote(e.Value)
 	case *ast.Interp:
@@ -243,6 +245,8 @@ func (g *generator) expr(expr ast.Expr) string {
 		typ := g.ann(e.X).Type
 		if e.Op == "-" && isCon(typ, "Int") {
 			op = "NegInt"
+		} else if e.Op == "-" && isCon(typ, "Float") {
+			op = "NegFloat"
 		} else if e.Op == "!" && isCon(typ, "Bool") {
 			op = "Not"
 		} else {
@@ -341,6 +345,8 @@ func (g *generator) pattern(pattern ast.Pattern, value, success string, unguarde
 		switch p.X.(type) {
 		case *ast.IntLit:
 			rep = "int64"
+		case *ast.FloatLit:
+			rep = "float64"
 		case *ast.StringLit:
 			rep = "string"
 		case *ast.BoolLit:
@@ -430,6 +436,8 @@ func (g *generator) binary(expr *ast.Binary) string {
 	case "+":
 		if isCon(typ, "Int") {
 			op = "AddInt"
+		} else if isCon(typ, "Float") {
+			op = "AddFloat"
 		} else if isCon(typ, "String") {
 			op = "AddString"
 		}
@@ -444,6 +452,15 @@ func (g *generator) binary(expr *ast.Binary) string {
 				op = "DivInt"
 			case "%":
 				op = "ModInt"
+			}
+		} else if isCon(typ, "Float") {
+			switch expr.Op {
+			case "-":
+				op = "SubFloat"
+			case "*":
+				op = "MulFloat"
+			case "/":
+				op = "DivFloat"
 			}
 		}
 	}

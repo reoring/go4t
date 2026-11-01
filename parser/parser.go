@@ -686,7 +686,7 @@ func (p *Parser) pattern() ast.Pattern {
 			p.expectP(")")
 			return tuple
 		}
-	case lexer.Int, lexer.String:
+	case lexer.Int, lexer.Float, lexer.String:
 		return &ast.PLit{Pos: t.Pos, X: p.primary()}
 	case lexer.Keyword:
 		if t.Text == "true" || t.Text == "false" {
@@ -879,6 +879,13 @@ func (p *Parser) primary() ast.Expr {
 			p.fail(t.Pos, "bad integer literal %s", t.Text)
 		}
 		return &ast.IntLit{ExprBase: base, Value: v}
+	case lexer.Float:
+		p.next()
+		v, err := strconv.ParseFloat(t.Text, 64)
+		if err != nil {
+			p.fail(t.Pos, "bad float literal %s", t.Text)
+		}
+		return &ast.FloatLit{ExprBase: base, Value: v}
 	case lexer.String:
 		p.next()
 		return &ast.StringLit{ExprBase: base, Value: t.Text}
