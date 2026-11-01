@@ -439,6 +439,44 @@ padded: [   42]
 length: 3
 ```
 
+## Parser combinators
+
+`examples/parser/main.gfx` (contributed by review): a user-defined `Parser[A]` with
+`Functor`/`Monad` instances, so the prelude's `map` and `do` drive a left-associative
+arithmetic parser over a token list. No language support for parsing exists; the HKT
+machinery alone makes this a 120-line library.
+
+```text
+2 + 3 * 4 => Some(14)
+(2 + 3) * 4 => Some(20)
+20 - 5 - 3 => Some(12)
+2 * (3 + (4 - 1)) => Some(12)
+7 => Some(7)
+empty => None
+2 + => None
+(2 + 3 => None
+2 3 => None
+() => None
+```
+
+## Routes
+
+`examples/routes/main.gfx` (contributed by review): shortest paths over a small station
+network with records (`Road{from, to, minutes}`), record update for delays, guards in the
+priority-queue insertion, and `Option` for unreachable destinations.
+
+```text
+fastest: 11 min, [Home, Park, Market, Museum, Harbor]
+return trip: 11 min, [Harbor, Museum, Market, Park, Home]
+Market closed: 15 min, [Home, Park, Museum, Harbor]
+Park delayed: 12 min, [Home, Market, Museum, Harbor]
+via Museum: 11 min, [Home, Park, Market, Museum, Harbor]
+already there: 0 min, [Home]
+isolated island: unreachable
+via island: unreachable
+empty network: unreachable
+```
+
 ## Generated Go
 
 `go run ./cmd/gofx build examples/http/main.gfx` writes
