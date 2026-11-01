@@ -306,3 +306,49 @@ the same type. Rule: a `TApp` whose Fun is a `TApp` is flattened on construction
 `a := A`. Kinds: `TApp{Result,[E]}` has kind `*->*`. `Fixed` vars may appear in `Context`
 (`instance Show[Result[E, A]] given Show[E], Show[A]` is the full-head form and is unchanged).
 Codegen: no change in dictionary shape; `Fixed` vars are erased.
+
+## Pass 5: defaulting warnings, let-polymorphism, records, string interpolation
+
+### Defaulting warnings
+When an unconstrained `*` meta is defaulted to `Unit`, the checker appends
+`types.Error{Pos, "type of <what> defaulted to Unit; add an annotation or use the value"}` to
+`Program.Warnings` instead of staying silent (`<what>` = `[]`, `None`, `let x`, or the
+expression kind). Check still succeeds. CLI prints warnings to stderr as
+`file:line:col: warning: ...` and continues; `gofx check` exits 0 with warnings.
+Internal/prelude positions are reported with the prelude file name `prelude.gfx`.
+
+### let-polymorphism
+`let` (in blocks and `do`) generalises: after inferring the value, metas not free in the
+environment become scheme TParams; class constraints on them become scheme Constraints.
+Lambdas bound by `let` thus become reusable at several types
+(`let twiceShow = func(x) => show(x) + show(x)` used at Int and Bool). Use sites instantiate
+with fresh metas and resolve dictionaries exactly like top-level functions (`Ann.Dicts`).
+Codegen contract is in `types.Ann.LetScheme`'s doc comment: constrained lets become local Go
+functions `func(dict_A Show) any { return <value> }` and use sites call them.
+Value restriction: only lambda values and literals/constructor applications are generalised;
+other expressions (calls, `do`, `match`) stay monomorphic. Function parameters are never
+generalised.
+
+### Records
+Constructor form `Name{a: T1, b: T2}` in a `type` declaration (`ast.Ctor.FieldNames`).
+A record constructor is positional in patterns and calls (`Name(e1, e2)`, `Name(p, q)`) and
+additionally supports: construction `Name{a: e1, b: e2}` (all fields, any order; missing or
+unknown field is an error); field read `x.a` when the static type of `x` is a data type with
+exactly one constructor and that constructor has field `a` (otherwise
+`field a requires a single-constructor record type`); update `x{a: e}` with the same
+single-constructor rule, producing a copy with the listed fields replaced.
+`.` after an expression is field access only (there is no method call syntax).
+Prelude: none. Codegen: records keep the `T_C{F0, F1}` Go struct; `x.a` → `x.(*T_C).F<i>`;
+update → composite literal copying unlisted fields from a temp.
+Field names share the value namespace rules (lower-case) but are scoped to their constructor;
+two constructors may reuse a field name.
+
+### String interpolation
+A string literal containing `{expr}` is an `ast.Interp`. Lexer: inside a `"..."` literal,
+`{` starts an interpolation; `}` ends it; `{{` / `}}` are literal braces; nested string
+literals inside `{}` are allowed (the lexer tracks brace depth and quote state); the
+expression text is re-lexed and parsed as an expression by the parser (positions offset to
+the original location). Each `expr` must have a `Show` instance (resolved into
+`Ann.ShowDicts[i]`); String values use `Show[String]` (identity). Codegen:
+`rt.Concat(parts ...any) any` taking strings; emit `rt.Concat("a ", <dict>.Show(x), " b")`.
+`rt` adds `Concat`.

@@ -106,10 +106,14 @@ type TypeDecl struct {
 	Ctors   []Ctor
 }
 
+// Ctor is `Name(T1, T2)` (positional, FieldNames nil) or the record form
+// `Name{a: T1, b: T2}` (FieldNames set, same length as Fields). A record
+// constructor is still a positional constructor in every other respect.
 type Ctor struct {
-	Pos    Pos
-	Name   string
-	Fields []Type
+	Pos        Pos
+	Name       string
+	Fields     []Type
+	FieldNames []string
 }
 
 type FuncDecl struct {
@@ -182,6 +186,39 @@ type IntLit struct {
 type StringLit struct {
 	ExprBase
 	Value string
+}
+
+// Interp is an interpolated string `"a {x} b {y + 1}"`: Parts alternate
+// literal text and expressions in source order (Texts[i] precedes Exprs[i];
+// len(Texts) == len(Exprs)+1). Every expression must have a Show instance.
+type Interp struct {
+	ExprBase
+	Texts []string
+	Exprs []Expr
+}
+
+// Field is `x.name`: read of record field name on a single-constructor
+// record type.
+type Field struct {
+	ExprBase
+	X    Expr
+	Name string
+}
+
+// RecordLit is `Name{a: e1, b: e2}` (all fields, any order).
+type RecordLit struct {
+	ExprBase
+	Ctor   string
+	Names  []string
+	Values []Expr
+}
+
+// RecordUpdate is `x{a: e1}`: copy of x with the named fields replaced.
+type RecordUpdate struct {
+	ExprBase
+	X      Expr
+	Names  []string
+	Values []Expr
 }
 
 type BoolLit struct {

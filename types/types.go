@@ -230,10 +230,11 @@ type DataType struct {
 }
 
 type Ctor struct {
-	Name   string
-	Data   *DataType
-	Fields []Type
-	Index  int
+	Name       string
+	Data       *DataType
+	Fields     []Type
+	FieldNames []string // nil for positional constructors
+	Index      int
 }
 
 type FuncInfo struct {
@@ -250,6 +251,9 @@ type Program struct {
 	Main      *FuncInfo
 	// Files in check order: prelude first, then user file(s).
 	Files []*ast.File
+	// Warnings are non-fatal diagnostics (e.g. defaulted type variables),
+	// in source order.
+	Warnings []*Error
 }
 
 // ---- annotations ----
@@ -288,6 +292,24 @@ type Ann struct {
 	Inst  []Type
 	Dicts []DictRef
 	Monad *DictRef // *ast.Do only
+	// Ctor is the resolved constructor for *ast.Field, *ast.RecordLit,
+	// *ast.RecordUpdate (and for RefCtor idents).
+	Ctor *Ctor
+	// FieldIndex is the positional index of the field for *ast.Field.
+	FieldIndex int
+	// FieldIndexes are the positional indexes of Names for *ast.RecordLit /
+	// *ast.RecordUpdate, in Names order.
+	FieldIndexes []int
+	// ShowDicts holds, for *ast.Interp, one Show dictionary per Exprs entry.
+	ShowDicts []DictRef
+	// LetScheme is set on the value expression of a generalised `let` whose
+	// scheme has class constraints; nil otherwise. Codegen emits such a value
+	// as a Go function taking one dictionary parameter per Constraint
+	// (named dict_<TParam>) and returning the erased value; each use site (an
+	// *ast.Ident with Ref == RefLocal and non-empty Ann.Dicts) calls it with
+	// the resolved dictionaries. A let without constraints is a plain local
+	// regardless of its TParams (erasure makes type generalisation free).
+	LetScheme *Scheme
 }
 
 // AnnOf returns the annotation of e, panicking if Check did not run.
