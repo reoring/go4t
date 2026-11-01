@@ -97,7 +97,7 @@ func get[S]() State[S, S] {
 }
 
 func put[S](s S) State[S, Unit] {
-  State(func(ignored) => (unit(), s))
+  State(func(_ignored) => (unit(), s))
 }
 
 func modify[S](f func(S) S) State[S, Unit] {
@@ -256,7 +256,7 @@ func flatMap[M[_] Monad, A, B](ma M[A], f func(A) M[B]) M[B] {
 func forEach[M[_] Monad, A](xs List[A], f func(A) M[Unit]) M[Unit] {
   match xs {
     Nil => pure(unit())
-    Cons(x, rest) => bind(f(x), func(ignored) => forEach(rest, f))
+    Cons(x, rest) => bind(f(x), func(_ignored) => forEach(rest, f))
   }
 }
 
@@ -275,7 +275,7 @@ func fold[A, B](xs List[A], init B, f func(B, A) B) B {
 }
 
 func length[A](xs List[A]) Int {
-  fold(xs, 0, func(n, x) => n + 1)
+  fold(xs, 0, func(n, _x) => n + 1)
 }
 
 func append[A](xs List[A], ys List[A]) List[A] {

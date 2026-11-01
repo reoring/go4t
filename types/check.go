@@ -22,6 +22,7 @@ type checker struct {
 	file       string
 	sources    map[ast.Decl]string
 	derivedOrd []*ast.TypeDecl
+	decl       ast.Decl // current source declaration for diagnostic spans
 }
 
 // Check collects all declarations before checking bodies, so signatures and
@@ -64,6 +65,9 @@ func Check(files []*ast.File) (program *Program, err error) {
 				panic(r)
 			}
 		}
+		if e, ok := err.(*Error); ok && c != nil {
+			c.completeSpan(e)
+		}
 	}()
 	c = &checker{
 		program: &Program{
@@ -78,6 +82,7 @@ func Check(files []*ast.File) (program *Program, err error) {
 	for _, file := range files {
 		c.file = file.Name
 		for _, decl := range file.Decls {
+			c.decl = decl
 			if d, ok := decl.(*ast.TypeDecl); ok {
 				for _, class := range d.Deriving {
 					if class == "Ord" {
@@ -101,6 +106,7 @@ func Check(files []*ast.File) (program *Program, err error) {
 	for _, file := range files {
 		c.file = file.Name
 		for _, decl := range file.Decls {
+			c.decl = decl
 			switch decl := decl.(type) {
 			case *ast.FuncDecl:
 				if decl.Extern == nil {
@@ -158,7 +164,7 @@ func capitalised(name string) bool {
 func checkValueName(pos ast.Pos, name string) {
 	checkName(pos, name)
 	first, _ := utf8.DecodeRuneInString(name)
-	if !unicode.IsLower(first) {
+	if !unicode.IsLower(first) && first != '_' {
 		fail(pos, "value name must start with a lower-case letter")
 	}
 }
@@ -204,6 +210,7 @@ func (c *checker) collectNames(files []*ast.File) {
 	for _, file := range files {
 		c.file = file.Name
 		for _, decl := range file.Decls {
+			c.decl = decl
 			c.sources[decl] = file.Name
 			switch decl := decl.(type) {
 			case *ast.ClassDecl:
@@ -264,6 +271,7 @@ func (c *checker) checkSuperclasses(files []*ast.File) {
 	var visit func(*Class)
 	visit = func(class *Class) {
 		c.file = c.sources[class.Decl]
+		c.decl = class.Decl
 		if state[class.Name] == 2 {
 			return
 		}
@@ -342,6 +350,7 @@ func (c *checker) collectSignatures(files []*ast.File) {
 	for _, file := range files {
 		c.file = file.Name
 		for _, decl := range file.Decls {
+			c.decl = decl
 			switch decl := decl.(type) {
 			case *ast.ClassDecl:
 				class := c.program.Classes[decl.Name]
@@ -428,6 +437,7 @@ func (c *checker) collectInstances(files []*ast.File) {
 	for _, file := range files {
 		c.file = file.Name
 		for _, decl := range file.Decls {
+			c.decl = decl
 			d, ok := decl.(*ast.InstanceDecl)
 			if !ok {
 				continue
@@ -522,16 +532,18 @@ func (c *checker) collectInstances(files []*ast.File) {
 	}
 	for _, decl := range c.derivedOrd {
 		c.file = c.sources[decl]
+		c.decl = decl
 		if c.instances[instanceKey{"Eq", decl.Name}] == nil {
 			fail(decl.Pos, "deriving Ord for %s requires an Eq instance", decl.Name)
 		}
 	}
 	for _, inst := range c.program.Instances {
 		c.file = c.sources[inst.Decl]
+		c.decl = inst.Decl
 		if super := inst.Class.Super; super != "" {
 			parent := c.instances[instanceKey{super, inst.TypeCon.Name}]
 			if parent == nil {
-				fail(inst.Decl.Pos, "no instance %s[%s] (required superclass)", super, inst.TypeCon.Name)
+				fail(inst.Decl.Pos, "no instance %s[%s] (required superclass)%s", super, inst.TypeCon.Name, c.instanceHint(super, inst.head()))
 			}
 			args, ok := c.superclassArgs(inst, parent)
 			if !ok {
@@ -591,6 +603,7 @@ func (c *checker) checkMain() {
 	pos := ast.Pos{Line: 1, Col: 1}
 	if f != nil {
 		c.file = c.sources[f.Decl]
+		c.decl = f.Decl
 		pos = f.Decl.Pos
 		if len(f.Scheme.TParams) == 0 && len(f.Scheme.Type.Params) == 0 {
 			if app, ok := f.Scheme.Type.Ret.(*TApp); ok && app.Fun == IO && len(app.Args) == 1 && app.Args[0] == Unit {

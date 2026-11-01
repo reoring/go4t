@@ -3,6 +3,7 @@ package types_test
 import (
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 
 	"gofx/ast"
@@ -84,7 +85,7 @@ func TestRecordPatternExhaustiveness(t *testing.T) {
 				return
 			}
 			var typed *types.Error
-			if p != nil || !errors.As(err, &typed) || typed.Msg != "non-exhaustive match" {
+			if p != nil || !errors.As(err, &typed) || !strings.HasPrefix(typed.Msg, "non-exhaustive match; missing: ") {
 				t.Fatalf("Check = (%v, %v), want non-exhaustive match", p, err)
 			}
 		})

@@ -1,0 +1,7 @@
+package main
+
+type Hidden = Hidden
+
+func main() IO[Unit] {
+  println(show(Hidden))
+}

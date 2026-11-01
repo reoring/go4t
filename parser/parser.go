@@ -100,16 +100,38 @@ func recoverParseError(err *error) {
 	}
 }
 
-type parseError struct{ msg string }
+type parseError struct {
+	Pos, End ast.Pos
+	msg      string
+}
 
-func (e parseError) Error() string { return e.msg }
+func (e parseError) Error() string {
+	if e.Pos == (ast.Pos{}) {
+		return e.msg
+	}
+	return fmt.Sprintf("%s: %s", e.Pos, e.msg)
+}
+func (e parseError) GetPos() ast.Pos { return e.Pos }
+func (e parseError) GetEnd() ast.Pos { return e.End }
 
 func (p *Parser) fail(pos ast.Pos, format string, args ...any) {
-	panic(parseError{fmt.Sprintf("%s: %s", pos, fmt.Sprintf(format, args...))})
+	end := ast.Pos{Line: pos.Line, Col: pos.Col + 1}
+	if p.tok().Pos == pos {
+		end = p.tok().End
+	}
+	panic(parseError{Pos: pos, End: end, msg: fmt.Sprintf(format, args...)})
 }
 
 func (p *Parser) tok() lexer.Token { return p.toks[p.i] }
 func (p *Parser) pos() ast.Pos     { return p.tok().Pos }
+
+func (p *Parser) end() ast.Pos { return p.toks[p.i-1].End }
+
+func (p *Parser) finish(n ast.Node) {
+	if n != nil {
+		n.SetEnd(p.end())
+	}
+}
 
 func (p *Parser) is(kind lexer.Kind, text string) bool {
 	t := p.tok()
@@ -177,7 +199,8 @@ func (p *Parser) file() *ast.File {
 	return f
 }
 
-func (p *Parser) decl() ast.Decl {
+func (p *Parser) decl() (decl ast.Decl) {
+	defer func() { p.finish(decl) }()
 	t := p.tok()
 	if t.Kind != lexer.Keyword {
 		p.fail(t.Pos, "expected declaration, found %s", t)
@@ -235,8 +258,10 @@ func (p *Parser) params() []ast.Param {
 	p.expectP("(")
 	var out []ast.Param
 	for !p.isP(")") {
+		pos := p.pos()
 		name := p.ident()
-		out = append(out, ast.Param{Name: name, Type: p.typ()})
+		typ := p.typ()
+		out = append(out, ast.Param{Pos: pos, End: p.end(), Name: name, Type: typ})
 		if !p.acceptP(",") {
 			break
 		}
@@ -266,6 +291,7 @@ func (p *Parser) classDecl() ast.Decl {
 		m.TParams = p.tparams()
 		m.Params = p.params()
 		m.Ret = p.typ()
+		m.End = p.end()
 		c.Methods = append(c.Methods, m)
 		p.skipSemis()
 	}
@@ -319,6 +345,7 @@ func (p *Parser) instanceDecl() ast.Decl {
 				p.fail(paramPos, "undeclared instance type parameter %s", c.Param)
 			}
 			p.expectP("]")
+			c.End = p.end()
 			d.Context = append(d.Context, c)
 			if !p.acceptP(",") {
 				break
@@ -338,6 +365,7 @@ func (p *Parser) instanceDecl() ast.Decl {
 		}
 		p.expectP(")")
 		m.Body = p.block()
+		m.End = p.end()
 		d.Methods = append(d.Methods, m)
 		p.skipSemis()
 	}
@@ -389,6 +417,7 @@ func (p *Parser) typeDecl() ast.Decl {
 			}
 			p.expectP("}")
 		}
+		c.End = p.end()
 		d.Ctors = append(d.Ctors, c)
 		if !p.acceptP("|") {
 			break
@@ -406,7 +435,8 @@ func (p *Parser) typeDecl() ast.Decl {
 	return d
 }
 
-func (p *Parser) funcDecl(extern bool) ast.Decl {
+func (p *Parser) funcDecl(extern bool) (decl ast.Decl) {
+	defer func() { p.finish(decl) }()
 	pos := p.expectK("func").Pos
 	d := &ast.FuncDecl{Pos: pos, Name: p.ident()}
 	d.TParams = p.tparams()
@@ -429,7 +459,8 @@ func (p *Parser) funcDecl(extern bool) ast.Decl {
 
 // ---- types ----
 
-func (p *Parser) typ() ast.Type {
+func (p *Parser) typ() (typ ast.Type) {
+	defer func() { p.finish(typ) }()
 	pos := p.pos()
 	if p.isK("func") {
 		p.next()
@@ -482,13 +513,15 @@ func (p *Parser) block() *ast.Block {
 		}
 		if p.isK("let") {
 			pos := p.next().Pos
+			namePos := p.pos()
 			name, pat := p.bindingPattern()
 			var typ ast.Type
 			if p.acceptP(":") {
 				typ = p.typ()
 			}
 			p.expectP("=")
-			b.Stmts = append(b.Stmts, &ast.LetStmt{Pos: pos, Name: name, Pat: pat, Type: typ, Value: p.expr()})
+			value := p.expr()
+			b.Stmts = append(b.Stmts, &ast.LetStmt{Pos: pos, End: p.end(), NamePos: namePos, Name: name, Pat: pat, Type: typ, Value: value})
 			p.skipSemis()
 			continue
 		}
@@ -501,6 +534,7 @@ func (p *Parser) block() *ast.Block {
 		b.Stmts = append(b.Stmts, &ast.ExprStmt{X: e})
 	}
 	p.expectP("}")
+	b.End = p.end()
 	return b
 }
 
@@ -510,7 +544,7 @@ func (p *Parser) bindingPattern() (string, ast.Pattern) {
 	if t.Kind == lexer.Ident {
 		first, _ := utf8.DecodeRuneInString(t.Text)
 		next := p.toks[p.i+1]
-		if unicode.IsLower(first) && next.Kind == lexer.Punct && (next.Text == "=" || next.Text == ":" || next.Text == "<-") {
+		if (unicode.IsLower(first) || first == '_') && next.Kind == lexer.Punct && (next.Text == "=" || next.Text == ":" || next.Text == "<-") {
 			return p.ident(), nil
 		}
 	}
@@ -539,7 +573,8 @@ func (p *Parser) tryBind() (name string, pat ast.Pattern, ok bool) {
 
 // ---- expressions ----
 
-func (p *Parser) expr() ast.Expr {
+func (p *Parser) expr() (expr ast.Expr) {
+	defer func() { p.finish(expr) }()
 	pos := p.pos()
 	switch {
 	case p.isK("func"):
@@ -547,7 +582,7 @@ func (p *Parser) expr() ast.Expr {
 		l := &ast.Lambda{ExprBase: ast.ExprBase{Pos: pos}}
 		p.expectP("(")
 		for !p.isP(")") {
-			var prm ast.Param
+			prm := ast.Param{Pos: p.pos()}
 			if p.tok().Kind == lexer.Ident && !isUpper(p.tok().Text) && p.toks[p.i+1].Text != "@" {
 				prm.Name = p.ident()
 				if !p.isP(",") && !p.isP(")") {
@@ -559,6 +594,7 @@ func (p *Parser) expr() ast.Expr {
 					p.fail(p.pos(), "pattern parameters cannot be annotated")
 				}
 			}
+			prm.End = p.end()
 			l.Params = append(l.Params, prm)
 			if !p.acceptP(",") {
 				break
@@ -580,7 +616,8 @@ func (p *Parser) expr() ast.Expr {
 	return p.binary(0)
 }
 
-func (p *Parser) ifExpr() ast.Expr {
+func (p *Parser) ifExpr() (expr ast.Expr) {
+	defer func() { p.finish(expr) }()
 	pos := p.expectK("if").Pos
 	e := &ast.If{ExprBase: ast.ExprBase{Pos: pos}}
 	e.Cond = p.expr()
@@ -594,12 +631,14 @@ func (p *Parser) ifExpr() ast.Expr {
 	return e
 }
 
-func (p *Parser) blockExpr() ast.Expr {
+func (p *Parser) blockExpr() (expr ast.Expr) {
+	defer func() { p.finish(expr) }()
 	pos := p.pos()
 	return &ast.BlockExpr{ExprBase: ast.ExprBase{Pos: pos}, Block: p.block()}
 }
 
-func (p *Parser) doExpr(pos ast.Pos) ast.Expr {
+func (p *Parser) doExpr(pos ast.Pos) (expr ast.Expr) {
+	defer func() { p.finish(expr) }()
 	d := &ast.Do{ExprBase: ast.ExprBase{Pos: pos}}
 	p.expectP("{")
 	p.skipSemis()
@@ -610,18 +649,21 @@ func (p *Parser) doExpr(pos ast.Pos) ast.Expr {
 		spos := p.pos()
 		if p.isK("let") {
 			p.next()
+			namePos := p.pos()
 			name, pat := p.bindingPattern()
 			var typ ast.Type
 			if p.acceptP(":") {
 				typ = p.typ()
 			}
 			p.expectP("=")
-			d.Stmts = append(d.Stmts, &ast.DoLet{Pos: spos, Name: name, Pat: pat, Type: typ, Value: p.expr()})
+			value := p.expr()
+			d.Stmts = append(d.Stmts, &ast.DoLet{Pos: spos, End: p.end(), NamePos: namePos, Name: name, Pat: pat, Type: typ, Value: value})
 			p.skipSemis()
 			continue
 		}
 		if name, pat, ok := p.tryBind(); ok {
-			d.Stmts = append(d.Stmts, &ast.DoBind{Pos: spos, Name: name, Pat: pat, X: p.expr()})
+			value := p.expr()
+			d.Stmts = append(d.Stmts, &ast.DoBind{Pos: spos, End: p.end(), Name: name, Pat: pat, X: value})
 			p.skipSemis()
 			continue
 		}
@@ -637,7 +679,8 @@ func (p *Parser) doExpr(pos ast.Pos) ast.Expr {
 	return d
 }
 
-func (p *Parser) matchExpr(pos ast.Pos) ast.Expr {
+func (p *Parser) matchExpr(pos ast.Pos) (expr ast.Expr) {
+	defer func() { p.finish(expr) }()
 	m := &ast.Match{ExprBase: ast.ExprBase{Pos: pos}}
 	m.Scrut = p.expr()
 	p.expectP("{")
@@ -652,6 +695,7 @@ func (p *Parser) matchExpr(pos ast.Pos) ast.Expr {
 		}
 		p.expectP("=>")
 		arm.Body = p.expr()
+		arm.End = p.end()
 		m.Arms = append(m.Arms, arm)
 		for p.isP(";") || p.isP("|") {
 			p.next()
@@ -664,7 +708,8 @@ func (p *Parser) matchExpr(pos ast.Pos) ast.Expr {
 	return m
 }
 
-func (p *Parser) pattern() ast.Pattern {
+func (p *Parser) pattern() (pat ast.Pattern) {
+	defer func() { p.finish(pat) }()
 	t := p.tok()
 	switch t.Kind {
 	case lexer.Punct:
@@ -696,7 +741,7 @@ func (p *Parser) pattern() ast.Pattern {
 		p.next()
 		if p.acceptP("@") {
 			first, _ := utf8.DecodeRuneInString(t.Text)
-			if !unicode.IsLower(first) {
+			if !unicode.IsLower(first) && first != '_' {
 				p.fail(t.Pos, "as-pattern name must be a lower-case identifier")
 			}
 			return &ast.PAs{Pos: t.Pos, Name: t.Text, Pat: p.pattern()}
@@ -774,11 +819,12 @@ func (p *Parser) binary(minPrec int) ast.Expr {
 		}
 		p.next()
 		right := p.binary(prec)
-		left = &ast.Binary{ExprBase: ast.ExprBase{Pos: t.Pos}, Op: t.Text, L: left, R: right}
+		left = &ast.Binary{ExprBase: ast.ExprBase{Pos: t.Pos, End: p.end()}, Op: t.Text, L: left, R: right}
 	}
 }
 
-func (p *Parser) unary() ast.Expr {
+func (p *Parser) unary() (expr ast.Expr) {
+	defer func() { p.finish(expr) }()
 	t := p.tok()
 	if t.Kind == lexer.Punct && (t.Text == "-" || t.Text == "!") {
 		p.next()
@@ -801,6 +847,7 @@ func (p *Parser) postfix() ast.Expr {
 				}
 			}
 			p.expectP(")")
+			c.End = p.end()
 			e = c
 		case p.isP("."):
 			pos := p.next().Pos
@@ -815,10 +862,12 @@ func (p *Parser) postfix() ast.Expr {
 			} else {
 				field.Name = p.ident()
 			}
+			field.End = p.end()
 			e = field
 		case p.recordAhead():
 			update := &ast.RecordUpdate{ExprBase: ast.ExprBase{Pos: p.pos()}, X: e}
 			update.Names, update.Values = p.recordFields()
+			update.End = p.end()
 			e = update
 		default:
 			return e
@@ -860,7 +909,8 @@ func (p *Parser) recordFields() (names []string, values []ast.Expr) {
 	return names, values
 }
 
-func (p *Parser) primary() ast.Expr {
+func (p *Parser) primary() (expr ast.Expr) {
+	defer func() { p.finish(expr) }()
 	t := p.tok()
 	base := ast.ExprBase{Pos: t.Pos}
 	switch t.Kind {
@@ -896,7 +946,10 @@ func (p *Parser) primary() ast.Expr {
 			}
 			expr, err := ParseExpr(part.Expr, part.Pos)
 			if err != nil {
-				panic(parseError{err.Error()})
+				if pe, ok := err.(parseError); ok {
+					panic(pe)
+				}
+				panic(parseError{msg: err.Error()})
 			}
 			interp.Exprs = append(interp.Exprs, expr)
 		}

@@ -1,0 +1,12 @@
+package main
+
+func describe(value (Bool, Int)) String {
+  match value {
+    (true, count) => "count: ${count}"
+    (false, _ignored) => "disabled"
+  }
+}
+
+func main() IO[Unit] {
+  println(describe((true, 3)))
+}

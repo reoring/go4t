@@ -170,16 +170,16 @@ func TestInstanceHeadsAndContexts(t *testing.T) {
 		{"bare", "C[T]", nil, nil},
 		{"parameterized", "C[T[A, B]]", []string{"A", "B"}, nil},
 		{"one constraint", "C[T[A]] given\n D[A]", []string{"A"},
-			[]ast.Constraint{{Pos: ast.Pos{Line: 3, Col: 2}, Class: "D", Param: "A"}}},
+			[]ast.Constraint{{Pos: ast.Pos{Line: 3, Col: 2}, End: ast.Pos{Line: 3, Col: 6}, Class: "D", Param: "A"}}},
 		{"two constraints", "C[T[A, B]] given\n D[A],\n E[B]", []string{"A", "B"},
 			[]ast.Constraint{
-				{Pos: ast.Pos{Line: 3, Col: 2}, Class: "D", Param: "A"},
-				{Pos: ast.Pos{Line: 4, Col: 2}, Class: "E", Param: "B"},
+				{Pos: ast.Pos{Line: 3, Col: 2}, End: ast.Pos{Line: 3, Col: 6}, Class: "D", Param: "A"},
+				{Pos: ast.Pos{Line: 4, Col: 2}, End: ast.Pos{Line: 4, Col: 6}, Class: "E", Param: "B"},
 			}},
 		{"inline constraints", "C[T[A, B]] given D[A], E[B]", []string{"A", "B"},
 			[]ast.Constraint{
-				{Pos: ast.Pos{Line: 2, Col: 27}, Class: "D", Param: "A"},
-				{Pos: ast.Pos{Line: 2, Col: 33}, Class: "E", Param: "B"},
+				{Pos: ast.Pos{Line: 2, Col: 27}, End: ast.Pos{Line: 2, Col: 31}, Class: "D", Param: "A"},
+				{Pos: ast.Pos{Line: 2, Col: 33}, End: ast.Pos{Line: 2, Col: 37}, Class: "E", Param: "B"},
 			}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -792,7 +792,6 @@ func TestTupleAndAsPatternErrors(t *testing.T) {
 		{"singleton pattern comma", "func f() Int { match x { (a,) => 0 } }", `expected pattern, found ")"`},
 		{"pattern trailing comma", "func f() Int { match x { (a, b,) => 0 } }", `expected pattern, found ")"`},
 		{"uppercase binder", "func f() Int { match x { Whole @ Some(a) => 0 } }", "as-pattern name must be a lower-case identifier"},
-		{"underscore binder", "func f() Int { match x { _whole @ Some(a) => 0 } }", "as-pattern name must be a lower-case identifier"},
 		{"wildcard binder", "func f() Int { match x { _ @ Some(a) => 0 } }", `expected "=>", found "@"`},
 		{"literal binder", "func f() Int { match x { 1 @ Some(a) => 0 } }", `expected "=>", found "@"`},
 		{"parenthesised binder", "func f() Int { match x { (whole) @ Some(a) => 0 } }", `expected "=>", found "@"`},

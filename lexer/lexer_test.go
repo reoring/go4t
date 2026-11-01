@@ -167,10 +167,10 @@ func TestLayoutMatrix(t *testing.T) {
 func TestGivenKeyword(t *testing.T) {
 	got := tokens(t, "given\ngiven_")
 	want := []lexer.Token{
-		{Kind: lexer.Keyword, Text: "given", Pos: ast.Pos{Line: 1, Col: 1}},
-		{Kind: lexer.Ident, Text: "given_", Pos: ast.Pos{Line: 2, Col: 1}},
-		{Kind: lexer.Punct, Text: ";", Pos: ast.Pos{Line: 2, Col: 7}},
-		{Kind: lexer.EOF, Pos: ast.Pos{Line: 2, Col: 7}},
+		{Kind: lexer.Keyword, Text: "given", Pos: ast.Pos{Line: 1, Col: 1}, End: ast.Pos{Line: 1, Col: 6}},
+		{Kind: lexer.Ident, Text: "given_", Pos: ast.Pos{Line: 2, Col: 1}, End: ast.Pos{Line: 2, Col: 7}},
+		{Kind: lexer.Punct, Text: ";", Pos: ast.Pos{Line: 2, Col: 7}, End: ast.Pos{Line: 2, Col: 7}},
+		{Kind: lexer.EOF, Pos: ast.Pos{Line: 2, Col: 7}, End: ast.Pos{Line: 2, Col: 7}},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("tokens = %#v, want %#v", got, want)
@@ -180,11 +180,11 @@ func TestGivenKeyword(t *testing.T) {
 func TestCommentsAndPositions(t *testing.T) {
 	got := tokens(t, "// heading\n  α // trailing\n// between\n  beta // end")
 	want := []lexer.Token{
-		{Kind: lexer.Ident, Text: "α", Pos: ast.Pos{Line: 2, Col: 3}},
-		{Kind: lexer.Punct, Text: ";", Pos: ast.Pos{Line: 2, Col: 16}},
-		{Kind: lexer.Ident, Text: "beta", Pos: ast.Pos{Line: 4, Col: 3}},
-		{Kind: lexer.Punct, Text: ";", Pos: ast.Pos{Line: 4, Col: 14}},
-		{Kind: lexer.EOF, Pos: ast.Pos{Line: 4, Col: 14}},
+		{Kind: lexer.Ident, Text: "α", Pos: ast.Pos{Line: 2, Col: 3}, End: ast.Pos{Line: 2, Col: 4}},
+		{Kind: lexer.Punct, Text: ";", Pos: ast.Pos{Line: 2, Col: 16}, End: ast.Pos{Line: 3, Col: 1}},
+		{Kind: lexer.Ident, Text: "beta", Pos: ast.Pos{Line: 4, Col: 3}, End: ast.Pos{Line: 4, Col: 7}},
+		{Kind: lexer.Punct, Text: ";", Pos: ast.Pos{Line: 4, Col: 14}, End: ast.Pos{Line: 4, Col: 14}},
+		{Kind: lexer.EOF, Pos: ast.Pos{Line: 4, Col: 14}, End: ast.Pos{Line: 4, Col: 14}},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("tokens = %#v, want %#v", got, want)
@@ -222,11 +222,11 @@ func TestMaximalMunchPunctuation(t *testing.T) {
 func TestAsPatternPunctuation(t *testing.T) {
 	got := tokens(t, "whole@\nMkStock")
 	want := []lexer.Token{
-		{Kind: lexer.Ident, Text: "whole", Pos: ast.Pos{Line: 1, Col: 1}},
-		{Kind: lexer.Punct, Text: "@", Pos: ast.Pos{Line: 1, Col: 6}},
-		{Kind: lexer.Ident, Text: "MkStock", Pos: ast.Pos{Line: 2, Col: 1}},
-		{Kind: lexer.Punct, Text: ";", Pos: ast.Pos{Line: 2, Col: 8}},
-		{Kind: lexer.EOF, Pos: ast.Pos{Line: 2, Col: 8}},
+		{Kind: lexer.Ident, Text: "whole", Pos: ast.Pos{Line: 1, Col: 1}, End: ast.Pos{Line: 1, Col: 6}},
+		{Kind: lexer.Punct, Text: "@", Pos: ast.Pos{Line: 1, Col: 6}, End: ast.Pos{Line: 1, Col: 7}},
+		{Kind: lexer.Ident, Text: "MkStock", Pos: ast.Pos{Line: 2, Col: 1}, End: ast.Pos{Line: 2, Col: 8}},
+		{Kind: lexer.Punct, Text: ";", Pos: ast.Pos{Line: 2, Col: 8}, End: ast.Pos{Line: 2, Col: 8}},
+		{Kind: lexer.EOF, Pos: ast.Pos{Line: 2, Col: 8}, End: ast.Pos{Line: 2, Col: 8}},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("tokens = %#v, want %#v", got, want)
@@ -236,16 +236,16 @@ func TestAsPatternPunctuation(t *testing.T) {
 func TestRecordPatternRestPunctuation(t *testing.T) {
 	got := tokens(t, "Point{x: 0, ..\n}")
 	want := []lexer.Token{
-		{Kind: lexer.Ident, Text: "Point", Pos: ast.Pos{Line: 1, Col: 1}},
-		{Kind: lexer.Punct, Text: "{", Pos: ast.Pos{Line: 1, Col: 6}},
-		{Kind: lexer.Ident, Text: "x", Pos: ast.Pos{Line: 1, Col: 7}},
-		{Kind: lexer.Punct, Text: ":", Pos: ast.Pos{Line: 1, Col: 8}},
-		{Kind: lexer.Int, Text: "0", Pos: ast.Pos{Line: 1, Col: 10}},
-		{Kind: lexer.Punct, Text: ",", Pos: ast.Pos{Line: 1, Col: 11}},
-		{Kind: lexer.Punct, Text: "..", Pos: ast.Pos{Line: 1, Col: 13}},
-		{Kind: lexer.Punct, Text: "}", Pos: ast.Pos{Line: 2, Col: 1}},
-		{Kind: lexer.Punct, Text: ";", Pos: ast.Pos{Line: 2, Col: 2}},
-		{Kind: lexer.EOF, Pos: ast.Pos{Line: 2, Col: 2}},
+		{Kind: lexer.Ident, Text: "Point", Pos: ast.Pos{Line: 1, Col: 1}, End: ast.Pos{Line: 1, Col: 6}},
+		{Kind: lexer.Punct, Text: "{", Pos: ast.Pos{Line: 1, Col: 6}, End: ast.Pos{Line: 1, Col: 7}},
+		{Kind: lexer.Ident, Text: "x", Pos: ast.Pos{Line: 1, Col: 7}, End: ast.Pos{Line: 1, Col: 8}},
+		{Kind: lexer.Punct, Text: ":", Pos: ast.Pos{Line: 1, Col: 8}, End: ast.Pos{Line: 1, Col: 9}},
+		{Kind: lexer.Int, Text: "0", Pos: ast.Pos{Line: 1, Col: 10}, End: ast.Pos{Line: 1, Col: 11}},
+		{Kind: lexer.Punct, Text: ",", Pos: ast.Pos{Line: 1, Col: 11}, End: ast.Pos{Line: 1, Col: 12}},
+		{Kind: lexer.Punct, Text: "..", Pos: ast.Pos{Line: 1, Col: 13}, End: ast.Pos{Line: 1, Col: 15}},
+		{Kind: lexer.Punct, Text: "}", Pos: ast.Pos{Line: 2, Col: 1}, End: ast.Pos{Line: 2, Col: 2}},
+		{Kind: lexer.Punct, Text: ";", Pos: ast.Pos{Line: 2, Col: 2}, End: ast.Pos{Line: 2, Col: 2}},
+		{Kind: lexer.EOF, Pos: ast.Pos{Line: 2, Col: 2}, End: ast.Pos{Line: 2, Col: 2}},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("tokens = %#v, want %#v", got, want)
@@ -270,7 +270,7 @@ func TestTupleAccessTokens(t *testing.T) {
 			}
 			col := 1
 			for i, text := range tc.texts {
-				want := lexer.Token{Kind: tc.kinds[i], Text: text, Pos: ast.Pos{Line: 1, Col: col}}
+				want := lexer.Token{Kind: tc.kinds[i], Text: text, Pos: ast.Pos{Line: 1, Col: col}, End: ast.Pos{Line: 1, Col: col + len(text)}}
 				if !reflect.DeepEqual(got[i], want) {
 					t.Errorf("token %d = %#v, want %#v", i, got[i], want)
 				}

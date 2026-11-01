@@ -41,8 +41,8 @@ instance Ord[Option[A]] given Ord[A] {
 
 func TestAnnotatedLets(t *testing.T) {
 	for _, source := range []string{
-		`func value() Unit { let xs: List[Int] = []; unit() }`,
-		`func value() IO[Unit] { do { let xs: List[Int] = []; ioPure(unit()) } }`,
+		`func value() Unit { let _xs: List[Int] = []; unit() }`,
+		`func value() IO[Unit] { do { let _xs: List[Int] = []; ioPure(unit()) } }`,
 		`func value[A](a A) List[A] { let xs: List[A] = []; xs }`,
 		`func value[A](a A) IO[A] { do { let x: A = a; ioPure(x) } }`,
 		`type Entry = Entry{n: Int}; func value() Int { let get: func(Entry) Int = func(e) => e.n; get(Entry(3)) }`,
@@ -96,9 +96,9 @@ func TestPass9Diagnostics(t *testing.T) {
 		{`func value() Int { (func((x, x)) => x)((1, 2)) }`, "duplicate pattern variable x"},
 		{`func value() Int { (func((x, y), x) => y)((1, 2), 3) }`, "duplicate parameter x"},
 		{`func value(x Option[Int]) Int { match x { Some(n) if n => n; _ => 0 } }`, "type mismatch: expected Bool, got Int"},
-		{`func value(x Int) Int { match x { n if true => n } }`, "non-exhaustive match"},
-		{`func value(x Option[Int]) Int { match x { None => 0; Some(n) if true => n } }`, "non-exhaustive match"},
-		{`func value(x Option[Int]) Int { match x { Some(n) => n; _ if true => 0 } }`, "non-exhaustive match"},
+		{`func value(x Int) Int { match x { n if true => n } }`, "non-exhaustive match; missing: _"},
+		{`func value(x Option[Int]) Int { match x { None => 0; Some(n) if true => n } }`, "non-exhaustive match; missing: Some(_)"},
+		{`func value(x Option[Int]) Int { match x { Some(n) => n; _ if true => 0 } }`, "non-exhaustive match; missing: None"},
 	} {
 		t.Run(tt.source, func(t *testing.T) {
 			p, err := types.Check(parseFiles(t, tt.source+pass5Main))
@@ -248,7 +248,7 @@ func TestLambdaParameterPatterns(t *testing.T) {
 		`func value() Int { (func(_) => 1)(true) }`,
 		`func value() Int { (func(_, _) => 1)(true, "ignored") }`,
 		`func value() Int { (func(Entry{n: n, ..}) => n)(Entry(2, "name")) }`,
-		`func value() String { (func(Entry(n, s)) => s)(Entry(2, "name")) }`,
+		`func value() String { (func(Entry(_n, s)) => s)(Entry(2, "name")) }`,
 		`func value() Entry { (func(e @ Entry{..}) => e)(Entry(2, "name")) }`,
 		`func value() (Int, String) { let first = func((a, _)) => a; (first((1, false)), first(("s", 2))) }`,
 		`func apply(f func((Entry, Int)) Int) Int { f((Entry(2, "name"), 3)) }; func value() Int { apply(func((e, n)) => e.n + n) }`,

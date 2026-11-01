@@ -74,6 +74,7 @@ func (b *bodyChecker) finish() {
 	for _, expr := range b.matches {
 		b.checkExhaustive(expr)
 	}
+	b.warnUnused()
 	b.sortWarnings(warningsStart)
 }
 
@@ -145,5 +146,5 @@ func (b *bodyChecker) resolveDictionary(constraint Constraint) (DictRef, string)
 			return dict, ""
 		}
 	}
-	return DictRef{}, fmt.Sprintf("no instance %s[%s]", constraint.Class, TypeString(arg))
+	return DictRef{}, fmt.Sprintf("no instance %s[%s]%s", constraint.Class, TypeString(arg), b.c.instanceHint(constraint.Class, arg))
 }

@@ -1,0 +1,10 @@
+package main
+
+func main() IO[Unit] {
+  let forgotten = 1
+  let constant = func(argument Int) => "ok"
+  match Some(1) {
+    Some(value) => println(constant(2))
+    None => println("none")
+  }
+}
