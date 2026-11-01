@@ -87,6 +87,35 @@ var (
 	IO     = &TCon{Name: "IO", Kind: KArrow{Params: []Kind{KStar{}}, Ret: KStar{}}}
 )
 
+// Tuple returns the builtin tuple constructor of arity n (>= 2), named
+// "Tuple<n>" with kind (*,..,*) -> *. Instances are interned per arity.
+func Tuple(n int) *TCon {
+	if n < 2 {
+		panic("tuple arity must be >= 2")
+	}
+	if c, ok := tuples[n]; ok {
+		return c
+	}
+	params := make([]Kind, n)
+	for i := range params {
+		params[i] = KStar{}
+	}
+	c := &TCon{Name: fmt.Sprintf("Tuple%d", n), Kind: KArrow{Params: params, Ret: KStar{}}}
+	tuples[n] = c
+	return c
+}
+
+var tuples = map[int]*TCon{}
+
+// IsTuple reports the arity when t is a tuple constructor.
+func IsTuple(t *TCon) (int, bool) {
+	var n int
+	if _, err := fmt.Sscanf(t.Name, "Tuple%d", &n); err == nil && tuples[n] == t {
+		return n, true
+	}
+	return 0, false
+}
+
 func TypeString(t Type) string {
 	switch t := t.(type) {
 	case *TCon:
@@ -148,6 +177,10 @@ type Method struct {
 type Instance struct {
 	Class   *Class
 	TypeCon *TCon
+	// Fixed are the leading type arguments held abstract by a partially
+	// applied head (`instance Functor[Result[E]]`): the instance covers
+	// TApp{TypeCon, Fixed ++ <class-kind args>}. Empty for full heads.
+	Fixed   []*TVar
 	Params  []*TVar
 	Context []Constraint
 	Decl    *ast.InstanceDecl

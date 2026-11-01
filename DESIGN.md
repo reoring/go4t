@@ -266,3 +266,43 @@ instance Show[Pair[A, B]] given Show[A], Show[B] { ... }
   (resolved by the checker as a `DictSuper`-free lookup; codegen asks the checker-produced
   `Instance.Context` of the superclass instance: for PoC superclass instances of constrained
   instances must have the same Params/Context shape, checker enforces this).
+
+## Pass 4: constructor namespace, tuples, as-patterns, partially applied instances
+
+### Separate namespaces
+Type names (data types, classes, builtins) live in one namespace; constructors live in a
+second; functions/methods/locals in a third. `type Sku = Sku(String)` is legal. Lookup rules:
+in type position only type names; in expression/pattern position a capitalised identifier is a
+constructor; a lower-case identifier is a value. Duplicate detection is per namespace.
+Reserved prefixes (`dict_`, `ext_`) still apply to all three.
+Codegen: data type `T` keeps Go name `T`; constructor `C` of type `T` keeps `T_C` (already
+unambiguous).
+
+### Tuples
+Builtin type constructors `Tuple2..TupleN` (`types.Tuple(n)`), surface type `(A, B)`,
+expression `(a, b)`, pattern `(p, q)`. `(a)` is parenthesisation. Arity >= 2.
+Prelude declares `instance Show[(A, B)] given Show[A], Show[B]` rendering `(a, b)` for arity 2
+only (the instance head syntax `Show[(A, B)]` is sugar for TypeCon `Tuple2` with Params A, B).
+Codegen: `rt.Tuple` = `[]any`-backed struct? No: a Go struct per arity is not needed; use
+`type TupleN struct{ F0, F1, .. any }` emitted by codegen on demand into the generated file
+(one per arity used), named `Tuple2` etc.; the Go interface for a class instance on tuples is
+`Show_Tuple2`.
+
+### As-patterns
+`name @ pattern` binds `name` to the whole matched value. `@` is a new punct. Binds in the same
+scope as the inner pattern's variables.
+
+### Partially applied instance heads
+`instance Functor[Result[E]]` where `Result : (*,*) -> *` and `Functor` expects `* -> *`:
+the head lists `k` leading arguments (fresh rigid `*` vars, `Instance.Fixed`), and
+`arity(TypeCon) - k` must equal the class parameter's kind arity. Dictionary resolution for
+`C[T]` where zonked `T` is `TApp{Result, [X]}` (a partial application of kind `*->*`) or the
+bare `Result` when `k == 0` selects the instance for (C, Result) and binds Fixed to the leading
+args. Unification already handles `TApp{F, [a]} ~ TApp{TApp{Result,[E]}, [A]}`? No — the
+checker must normalise applications: `TApp{TApp{Result,[E]},[A]}` and `TApp{Result,[E,A]}` are
+the same type. Rule: a `TApp` whose Fun is a `TApp` is flattened on construction
+(`types.App(fun, args...)` helper, exported), and unifying `TApp{F, [a]}` (F meta of kind
+`*->*`) against `TApp{Result, [E, A]}` splits the right side as `F := TApp{Result,[E]}`,
+`a := A`. Kinds: `TApp{Result,[E]}` has kind `*->*`. `Fixed` vars may appear in `Context`
+(`instance Show[Result[E, A]] given Show[E], Show[A]` is the full-head form and is unchanged).
+Codegen: no change in dictionary shape; `Fixed` vars are erased.

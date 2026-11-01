@@ -24,8 +24,15 @@ type FuncType struct {
 	Ret    Type
 }
 
-func (*TypeName) typeNode() {}
-func (*FuncType) typeNode() {}
+// TupleType is `(A, B)`; arity >= 2. Resolves to the builtin TCon `Tuple<n>`.
+type TupleType struct {
+	Pos   Pos
+	Elems []Type
+}
+
+func (*TypeName) typeNode()  {}
+func (*FuncType) typeNode()  {}
+func (*TupleType) typeNode() {}
 
 type TypeParam struct {
 	Name        string
@@ -63,14 +70,18 @@ type MethodSig struct {
 	Ret     Type
 }
 
-// InstanceDecl is `instance Class[TypeCon]` or
-// `instance Class[TypeCon[A, B]] given Show[A], Show[B]`. Head type parameters
-// are fresh variables of kind *; Context lists class constraints on them.
+// InstanceDecl is `instance Class[TypeCon]`,
+// `instance Class[TypeCon[A, B]] given Show[A], Show[B]`, or the partially
+// applied head `instance Functor[Result[E]]` where Fixed lists the leading
+// type arguments that are held abstract and the remaining arity is what the
+// class parameter's kind demands. Params and Fixed are both fresh rigid
+// variables of kind *; Context may constrain either.
 type InstanceDecl struct {
 	Pos     Pos
 	Class   string
 	TypeCon string // bare type constructor name
 	Params  []string
+	Fixed   []string
 	Context []Constraint
 	Methods []InstMethod
 }
@@ -250,6 +261,12 @@ type ListLit struct {
 	Elems []Expr
 }
 
+// TupleLit is `(a, b, ...)`, arity >= 2. `(a)` is a parenthesised expression.
+type TupleLit struct {
+	ExprBase
+	Elems []Expr
+}
+
 type Unary struct {
 	ExprBase
 	Op string
@@ -275,7 +292,22 @@ type PLit struct {
 	X   Expr // IntLit, StringLit, BoolLit
 }
 
-func (*PCtor) patNode() {}
-func (*PVar) patNode()  {}
-func (*PWild) patNode() {}
-func (*PLit) patNode()  {}
+// PTuple is `(p1, p2, ...)`, arity >= 2.
+type PTuple struct {
+	Pos   Pos
+	Elems []Pattern
+}
+
+// PAs is `name @ pattern`.
+type PAs struct {
+	Pos  Pos
+	Name string
+	Pat  Pattern
+}
+
+func (*PCtor) patNode()  {}
+func (*PVar) patNode()   {}
+func (*PWild) patNode()  {}
+func (*PLit) patNode()   {}
+func (*PTuple) patNode() {}
+func (*PAs) patNode()    {}
