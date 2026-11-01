@@ -102,17 +102,22 @@ func TestHTTPExampleParses(t *testing.T) {
 	if file.Package != "main" {
 		t.Errorf("package = %q, want main", file.Package)
 	}
-	want := []string{"httpGet", "twice", "optionIncrement", "optionMessage", "main"}
+	want := []string{"Health", "Sum", "number", "sum", "handle", "ready", "fetchSum", "main"}
 	if len(file.Decls) != len(want) {
 		t.Fatalf("declaration count = %d, want %d", len(file.Decls), len(want))
 	}
 	for i, decl := range file.Decls {
-		function, ok := decl.(*ast.FuncDecl)
-		if !ok {
-			t.Fatalf("declaration %d = %T, want function", i, decl)
+		var name string
+		switch declaration := decl.(type) {
+		case *ast.FuncDecl:
+			name = declaration.Name
+		case *ast.TypeDecl:
+			name = declaration.Name
+		default:
+			t.Fatalf("declaration %d = %T, want function or record", i, decl)
 		}
-		if function.Name != want[i] {
-			t.Errorf("declaration %d = %s, want %s", i, function.Name, want[i])
+		if name != want[i] {
+			t.Errorf("declaration %d = %s, want %s", i, name, want[i])
 		}
 	}
 }

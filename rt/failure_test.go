@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -26,6 +27,10 @@ func TestClassifyError(t *testing.T) {
 		{"timeout", context.DeadlineExceeded, TimeoutKind},
 		{"cancelled", context.Canceled, Cancelled},
 		{"network", &net.DNSError{Err: "no such host", Name: "invalid"}, Network},
+		{"network timeout", &net.DNSError{Err: "timed out", IsTimeout: true}, TimeoutKind},
+		{"URL timeout", &url.Error{Op: "Get", URL: "http://localhost", Err: &net.DNSError{IsTimeout: true}}, TimeoutKind},
+		{"URL cancellation", &url.Error{Op: "Get", URL: "http://localhost", Err: context.Canceled}, Cancelled},
+		{"URL failure", &url.Error{Op: "Get", URL: "bad", Err: errors.New("bad URL")}, Network},
 		{"failure", errors.New("foreign failure"), FailureKind},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -35,8 +40,10 @@ func TestClassifyError(t *testing.T) {
 					err = fmt.Errorf("outer: %w", err)
 				}
 				message := err.Error()
-				if tt.kind == TimeoutKind || tt.kind == Cancelled {
-					message = tt.err.Error()
+				if tt.kind == TimeoutKind {
+					message = context.DeadlineExceeded.Error()
+				} else if tt.kind == Cancelled {
+					message = context.Canceled.Error()
 				}
 				want := &Failure{Kind: tt.kind, Message: message}
 				got := ClassifyError(err)

@@ -15,6 +15,8 @@ type ShapeFuncs struct {
 	Uncons     func(l any) (h, t any, ok bool)
 	Tuple2     func(a, b any) any
 	Untuple2   func(p any) (a, b any)
+	Tuple3     func(a, b, c any) any
+	Untuple3   func(p any) (a, b, c any)
 	OrderingOf func(o any) int // LT = -1, EQ = 0, GT = 1
 	JNull      func() any
 	JBool      func(any) any
@@ -122,4 +124,12 @@ func Tuple2Of(a, b any) any {
 		panic("rt.Shapes is not initialized: Tuple2 is required")
 	}
 	return Shapes.Tuple2(a, b)
+}
+
+// Tuple3Of constructs a generated three-element tuple.
+func Tuple3Of(a, b, c any) any {
+	if Shapes.Tuple3 == nil {
+		panic("rt.Shapes is not initialized: Tuple3 is required")
+	}
+	return Shapes.Tuple3(a, b, c)
 }

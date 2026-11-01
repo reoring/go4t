@@ -1,31 +1,84 @@
 package main
 
-import "std/prelude"
+import "std/http"
+import "std/json"
+import "std/conc"
+import "std/io"
+import "std/list"
+import "std/string"
 
-extern func httpGet(url String) IO[Int] = "gofx/rt/stdhttp".GetStatus
+type Health = Health{ok: Bool} deriving json.Encode
+type Sum = Sum{sum: Int} deriving json.Encode, json.Decode
 
-func twice[F[_] Functor, A](fa F[A], f func(A) A) F[A] {
-  prelude.fmap(prelude.fmap(fa, f), f)
-}
-
-func optionIncrement(value Option[Int]) Option[Int] {
-  do {
-    n <- value
-    prelude.pure(n + 1)
+func number(query List[(String, String)], name String) Result[String, Int] {
+  match list.lookup(name, query) {
+    None => Err("missing query parameter: " + name)
+    Some(text) => match string.parseInt(text) {
+      None => Err("invalid integer: " + name)
+      Some(n) => Ok(n)
+    }
   }
 }
 
-func optionMessage() String {
-  match twice(optionIncrement(Some(20)), func(n) => n + 1) {
-    None => "no value"
-    Some(n) => show(n)
+func sum(query List[(String, String)]) Result[String, Sum] {
+  do {
+    a <- number(query, "a")
+    b <- number(query, "b")
+    Ok(Sum(a + b))
+  }
+}
+
+func handle(r http.Request) IO[http.Response] {
+  ioPure(if r.method == "GET" && r.path == "/health" {
+    http.jsonResponse(200, Health(true))
+  } else if r.method == "GET" && r.path == "/sum" {
+    match sum(r.query) {
+      Ok(value) => http.jsonResponse(200, value)
+      Err(message) => http.response(400, message)
+    }
+  } else {
+    http.response(404, "not found")
+  })
+}
+
+// A fork is asynchronous: probe readiness rather than assuming a bind delay.
+func ready(url String) IO[Unit] {
+  do {
+    result <- io.tryIO(http.get(url + "/health"))
+    match result {
+      Ok(_) => ioPure(unit())
+      Err(io.Network(_)) => do { io.sleep(10); ready(url) }
+      Err(e) => io.ioRaise(e)
+    }
+  }
+}
+
+func fetchSum(url String) IO[Unit] {
+  do {
+    conc.withTimeout(1000, ready(url))
+    r <- http.get(url + "/sum?a=1&b=2")
+    let decoded: Result[String, Sum] = do {
+      value <- json.parseJson(r.body)
+      json.decode(value)
+    }
+    match decoded {
+      Ok(value) => println("sum: " + show(value.sum))
+      Err(message) => ioFail(message)
+    }
   }
 }
 
 func main() IO[Unit] {
   do {
-    code <- httpGet("https://example.com")
-    println("status: " + show(code))
-    println("twice: " + optionMessage())
+    argv <- io.args()
+    let port = match argv {
+      [] => 8080
+      [text, .._] => match string.parseInt(text) { Some(n) => n; None => 8080 }
+    }
+    let url = "http://127.0.0.1:" + show(port)
+    server <- conc.fork(http.serve(port, handle))
+    result <- io.tryIO(fetchSum(url))
+    conc.cancel(server)
+    match result { Ok(_) => ioPure(unit()); Err(e) => io.ioRaise(e) }
   }
 }

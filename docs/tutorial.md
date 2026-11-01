@@ -397,6 +397,42 @@ reaches child fibers, and SIGINT/SIGTERM cancels main with exit status 1 and
 `error: cancelled`. Unawaited fibers do not keep the process alive after main
 finishes; use explicit awaits when effects must finish.
 
+### Serving and calling HTTP
+
+`std/http` uses ordinary records and IO rather than application-specific externs.
+This complete server routes by method/path and encodes a record using `std/json`:
+
+```gofx
+package main
+import "std/http"
+import "std/json"
+type Health = Health{ok: Bool} deriving json.Encode
+func handle(r http.Request) IO[http.Response] {
+  ioPure(if r.method == "GET" && r.path == "/health" {
+    http.jsonResponse(200, Health(true))
+  } else {
+    http.response(404, "not found")
+  })
+}
+func main() IO[Unit] { http.serve(8080, handle) }
+```
+
+Run it and request `http://127.0.0.1:8080/health`; stop it with SIGINT.
+`http.get(url)` and `http.post(url, contentType, body)` return `IO[http.Response]`,
+including non-2xx statuses. They have a 30 s overall timeout;
+`http.requestWithTimeout(request, millis)` sets another budget. `io.tryIO`
+distinguishes `io.Network(message)`, `io.Timeout`, and `io.Cancelled`.
+Headers are `List[(String, String)]`; `http.requestHeader`/`http.responseHeader`
+look up the first matching name case-insensitively.
+
+Each handler gets its request's cancellation context in its own goroutine.
+Failure or panic returns 500 with the message body and logs one stderr line.
+Cancellation stops the server with up to 5 s of graceful shutdown. When running
+`serve` on a fiber, `conc.cancel` requests that shutdown without waiting.
+The [self-contained HTTP example](../examples/http) probes readiness after
+forking, calls its own `/sum?a=1&b=2` endpoint, decodes the JSON, prints `sum: 3`,
+and cancels the server; it requires only loopback networking, not Internet access.
+
 ## 11. JSON: derive a schema, handle decoding explicitly
 
 JSON lives in `std/json`, not the implicit prelude. Derive qualified Encode and

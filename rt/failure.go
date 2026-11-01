@@ -75,6 +75,10 @@ func ClassifyError(err error) error {
 	case errors.Is(err, context.Canceled):
 		kind, message = Cancelled, context.Canceled.Error()
 	case errors.As(err, &network):
+		if network.Timeout() {
+			kind, message = TimeoutKind, context.DeadlineExceeded.Error()
+			break
+		}
 		kind = Network
 	}
 	return &Failure{Kind: kind, Message: message}

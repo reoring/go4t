@@ -117,10 +117,13 @@ func generateInDir(prog *types.Program, goPackage, dir string) (source []byte, e
 			some != nil && some.Data == option && len(some.Fields) == 1 &&
 			none != nil && none.Data == option && len(none.Fields) == 0 {
 			g.tuples[2] = struct{}{}
+			g.tuples[3] = struct{}{}
 			listLine := g.typeLine("List")
 			fmt.Fprintf(&out, `%sfunc rt_tuple2(a, b any) any { return &Tuple2{F0: a, F1: b} }
 %sfunc rt_untuple2(p any) (any, any) { t := p.(*Tuple2); return t.F0, t.F1 }
-`, listLine, listLine)
+%sfunc rt_tuple3(a, b, c any) any { return &Tuple3{F0: a, F1: b, F2: c} }
+%sfunc rt_untuple3(p any) (any, any, any) { t := p.(*Tuple3); return t.F0, t.F1, t.F2 }
+`, listLine, listLine, listLine, listLine)
 			orderingShape := ""
 			if ordering := prog.DataTypes["Ordering"]; ordering != nil {
 				lt, eq, gt := g.ctors["LT"], g.ctors["EQ"], g.ctors["GT"]
@@ -151,6 +154,8 @@ func generateInDir(prog *types.Program, goPackage, dir string) (source []byte, e
 		},
 		Tuple2: rt_tuple2,
 		Untuple2: rt_untuple2,
+		Tuple3: rt_tuple3,
+		Untuple3: rt_untuple3,
 		%s
 	}
 }

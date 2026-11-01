@@ -13,7 +13,7 @@ func TestLoadPackages(t *testing.T) {
 		{"strings", "ToUpper", "func(string) string"},
 		{"strings", "Repeat", "func(string, int) string"},
 		{"strings", "Fields", "func(string) []string"},
-		{"gofx/rt/stdhttp", "GetStatus", "func(string) gofx/rt.IO"},
+		{"gofx/rt", "ListFromStrings", "func([]string) any"},
 	} {
 		pkg, err := loader.Load(tc.path)
 		if err != nil {

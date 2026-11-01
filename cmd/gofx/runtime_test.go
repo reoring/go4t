@@ -76,7 +76,7 @@ func TestInstalledCLIOutsideModule(t *testing.T) {
 		t.Fatalf("build installed CLI: %v\n%s", err, out)
 	}
 	file := toolsWrite(t, filepath.Join(dir, "main.gfx"), `package main
-extern func status(url String) IO[Int] = "gofx/rt/stdhttp".GetStatus
+import "std/http"
 func main() IO[Unit] { println("hi") }
 func testInstalled() Bool { true }
 `)

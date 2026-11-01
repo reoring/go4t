@@ -79,6 +79,9 @@ func TestRuntimeShapeRegistration(t *testing.T) {
 				"Uncons: func(l any) (any, any, bool) {",
 				"if c, ok := l.(*List_Cons); ok {\n\t\t\t\treturn c.F0, c.F1, true\n\t\t\t}",
 				"return nil, nil, false",
+				"return &Tuple3{F0: a, F1: b, F2: c}",
+				"func rt_untuple3(p any) (any, any, any)",
+				"return t.F0, t.F1, t.F2",
 			} {
 				if !strings.Contains(out, fragment) {
 					t.Errorf("missing shape fragment %q:\n%s", fragment, out)
@@ -1246,6 +1249,8 @@ func (fakeImporter) Import(path string) (*gotypes.Package, error) {
 			{"Uncons", 1, 3},
 			{"Tuple2", 2, 1},
 			{"Untuple2", 1, 2},
+			{"Tuple3", 3, 1},
+			{"Untuple3", 1, 3},
 			{"OrderingOf", 1, 1},
 		} {
 			params := make([]*gotypes.Var, shape.params)
