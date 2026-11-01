@@ -29,7 +29,7 @@ func TestPreludeParses(t *testing.T) {
 		"func ioPure", "func ioBind", "func ioFail", "func println",
 		"func showInt", "func showBool", "func showString", "func unit",
 		"func eqInt", "func ltInt", "func eqString", "func ltString", "func eqBool",
-		"func minInt", "func maxInt",
+		"func minInt", "func maxInt", "func abs",
 		"instance Show[Int]", "instance Show[String]", "instance Show[Bool]",
 		"instance Eq[Int]", "instance Ord[Int]", "instance Eq[String]", "instance Ord[String]",
 		"instance Eq[Bool]", "instance Ord[Bool]", "instance Eq[Unit]",

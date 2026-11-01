@@ -36,7 +36,7 @@ Keywords: `package class instance type func extern let do match if else true fal
 - Bool: `true`, `false`.
 
 ### 1.5 Punctuation
-`( ) [ ] { } , ; . .. = : | @ => <- == != <= >= && || + - * / < > ! _`
+`( ) [ ] { } , ; . .. = : | @ => <- == != <= >= && || + - * / % < > ! _`
 
 ### 1.6 Layout (automatic semicolons)
 A newline is converted to `;` iff all of:
@@ -46,7 +46,7 @@ A newline is converted to `;` iff all of:
    never produce `;`);
 3. the next token (after blank lines and comments) is not a *continuation token*:
    `else`, `|`, `||`, `.`, `)`, `]`, `given`, `deriving`, `=>`, `<-`, or a binary operator
-   (`+ - * / == != < <= > >= &&`).
+   (`+ - * / % == != < <= > >= &&`).
 
 Consequences: `else` may start a line; match arms may be written one per line with or
 without a leading `|`; constructor alternatives in `type` may start lines with `|`;
@@ -182,18 +182,18 @@ Primary := Ident | Int | String | Interp | 'true' | 'false'
          | '[' [Expr {',' Expr}] ']'              // list literal
          | Block
 Block   := '{' { Stmt ';' } Expr '}'
-Stmt    := 'let' Ident '=' Expr | Expr
+Stmt    := 'let' ( Ident | Pattern ) [ ':' Type ] '=' Expr | Expr
 RecordFields := '{' Ident ':' Expr {',' Ident ':' Expr} '}'
 ```
 
-Precedence, lowest to highest: `||`; `&&`; `== != < <= > >=`; `+ -`; `* /`; unary `- !`;
+Precedence, lowest to highest: `||`; `&&`; `== != < <= > >=`; `+ -`; `* / %`; unary `- !`;
 postfix. All binary operators are left-associative.
 
 ### 4.1 Operators
 | operator | operand types | result |
 |---|---|---|
 | `+` | `Int`/`Int` or `String`/`String` | same |
-| `- * /` | `Int` | `Int` (`/` truncates; division by zero panics at runtime) |
+| `- * / %` | `Int` | `Int` (`/` truncates toward zero, `%` has the sign of the dividend, as in Go; division by zero panics at runtime) |
 | `== !=` | any `T` with an `Eq[T]` instance | `Bool` (`a != b` ≡ `!eq(a, b)`) |
 | `< <= > >=` | any `T` with an `Ord[T]` instance | `Bool` (via `compare(a, b)`) |
 | `&& \|\|` | `Bool` | `Bool`, short-circuit |
@@ -202,7 +202,7 @@ postfix. All binary operators are left-associative.
 
 `==`/`!=` and the ordering operators are sugar for the `Eq`/`Ord` class methods (§7), so
 they work on any user type with an instance; the operand types must unify. `Bool` orders
-`false < true`. Arithmetic is not class-based: `+ - * /` are `Int` only (`+` also `String`).
+`false < true`. Arithmetic is not class-based: `- * / %` are `Int` only, `+` is `Int` or `String`.
 
 ### 4.2 Blocks and `let`
 A block's value is its final expression. `let x = e` or `let x: T = e` binds `x` for the
@@ -324,8 +324,8 @@ type State[S, A] = State(func(S) (A, S))
 ```
 Instances: `Functor`/`Monad` for `Option`, `List`, `IO`, `State[S]`; `Show`, `Eq` and
 `Ord` for `Int`, `String`, `Bool`, `Ordering`, `Option[A]`, `List[A]` and `(A, B)` (the
-compound ones `given` the same class on the components); `Eq[Unit]`. User types get `Eq`/`Ord`
-by writing an instance; there is no deriving.
+compound ones `given` the same class on the components); `Eq[Unit]`. User types get
+`Eq`/`Ord`/`Show` by `deriving` (§3.4) or by writing an instance.
 
 Functions:
 ```
@@ -338,13 +338,13 @@ mapM[M[_] Monad, A, B](xs List[A], f func(A) M[B]) M[List[B]]
 fold[A, B](xs List[A], init B, f func(B, A) B) B
 length[A](xs List[A]) Int           append[A](xs List[A], ys List[A]) List[A]
 filter[A](xs List[A], p func(A) Bool) List[A]      reverse[A](xs List[A]) List[A]
-head[A](xs List[A]) Option[A]       tail[A](xs List[A]) List[A]
+head[A](xs List[A]) Option[A]       tail[A](xs List[A]) List[A]   // tail(Nil) = Nil, never fails
 take[A](n Int, xs List[A]) List[A]  drop[A](n Int, xs List[A]) List[A]
 sum(xs List[Int]) Int               concatMap[A, B](xs List[A], f func(A) List[B]) List[B]
 elem[A Eq](x A, xs List[A]) Bool    sort[A Ord](xs List[A]) List[A]
 sortBy[A](xs List[A], cmp func(A, A) Ordering) List[A]
 maximum[A Ord](xs List[A]) Option[A]   minimum[A Ord](xs List[A]) Option[A]
-minInt() Int   maxInt() Int
+minInt() Int   maxInt() Int   abs(n Int) Int
 fromOption[A](o Option[A], d A) A   maybe[A, B](o Option[A], d B, f func(A) B) B
 isSome[A](o Option[A]) Bool         isNone[A](o Option[A]) Bool
 fst[A, B](p (A, B)) A               snd[A, B](p (A, B)) B

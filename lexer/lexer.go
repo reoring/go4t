@@ -56,7 +56,7 @@ var keywords = map[string]bool{
 var puncts = []string{
 	"=>", "<-", "==", "!=", "<=", ">=", "&&", "||", "..",
 	"(", ")", "[", "]", "{", "}", ",", ";", ".", "=", ":", "|", "_", "@",
-	"+", "-", "*", "/", "<", ">", "!",
+	"+", "-", "*", "/", "%", "<", ">", "!",
 }
 
 type Lexer struct {
@@ -148,7 +148,7 @@ func (l *Lexer) continuationAhead() bool {
 		return false
 	}
 	switch l.src[i] {
-	case '.', ')', ']', '|', '+', '-', '*', '/', '<', '>':
+	case '.', ')', ']', '|', '+', '-', '*', '/', '%', '<', '>':
 		// Covers single | and binary ||, <=, >= and the <- bind arrow.
 		return true
 	case '=':

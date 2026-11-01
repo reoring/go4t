@@ -356,6 +356,29 @@ the contained value or the default, and the predicates `isSome(o)` / `isNone(o)`
   next after today: Some([~] #4 refactor parser (normal, 5h))
 ```
 
+## Cards
+
+`examples/cards/main.gfx` (contributed by review): poker hand classification with
+`deriving Eq, Ord, Show` on enums and the `Hand` ADT (declaration order = hand strength), an
+LCG shuffle in `State[Int]`, `let (hands, seed) = runState(...)`, record/tuple patterns in
+lambda parameters, guards mixed with structural patterns, and `fromOption`/`maybe`/`isSome`.
+
+```text
+== fixed hands ==
+  royal: StraightFlush(Ace)
+  fullhouse: FullHouse(Nine, Two)
+  twopair: TwoPair(King, Five)
+  straight: Straight(Ten)
+== deck ==
+  52 cards, min Some(Card{rank: Two, suit: Clubs})
+== dealt (seed -> 109007879884728) ==
+  Jack/Clubs Seven/Clubs Eight/Hearts Nine/Hearts King/Hearts => HighCard(King)
+  Four/Hearts Queen/Diamonds Six/Spades Three/Diamonds Five/Spades => HighCard(Queen)
+  Three/Hearts Ten/Diamonds Eight/Clubs Nine/Spades Ace/Spades => HighCard(Ace)
+  winner: HighCard(Ace) with Three/Hearts Ten/Diamonds Eight/Clubs Nine/Spades Ace/Spades 
+  Pair(Ace) < Trips(Two) = true, isSome(head(hands)) = true
+```
+
 ## Generated Go
 
 `go run ./cmd/gofx build examples/http/main.gfx` writes

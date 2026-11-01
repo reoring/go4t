@@ -152,6 +152,7 @@ extern func ltString(a String, b String) Bool = "gofx/rt".LtString
 extern func eqBool(a Bool, b Bool) Bool = "gofx/rt".EqBool
 extern func minInt() Int = "gofx/rt".MinInt
 extern func maxInt() Int = "gofx/rt".MaxInt
+extern func abs(n Int) Int = "gofx/rt".AbsInt
 
 instance Show[Int] {
   show(a) { showInt(a) }

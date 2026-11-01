@@ -6,6 +6,13 @@ func AddInt(a, b any) any { return a.(int64) + b.(int64) }
 func SubInt(a, b any) any { return a.(int64) - b.(int64) }
 func MulInt(a, b any) any { return a.(int64) * b.(int64) }
 func DivInt(a, b any) any { return a.(int64) / b.(int64) }
+func ModInt(a, b any) any { return a.(int64) % b.(int64) }
+func AbsInt(a any) any {
+	if n := a.(int64); n < 0 {
+		return -n
+	}
+	return a
+}
 func NegInt(a any) any    { return -a.(int64) }
 
 // MinInt and MaxInt expose the signed 64-bit bounds through the erased ABI.

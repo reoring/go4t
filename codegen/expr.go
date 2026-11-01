@@ -433,7 +433,7 @@ func (g *generator) binary(expr *ast.Binary) string {
 		} else if isCon(typ, "String") {
 			op = "AddString"
 		}
-	case "-", "*", "/":
+	case "-", "*", "/", "%":
 		if isCon(typ, "Int") {
 			switch expr.Op {
 			case "-":
@@ -442,6 +442,8 @@ func (g *generator) binary(expr *ast.Binary) string {
 				op = "MulInt"
 			case "/":
 				op = "DivInt"
+			case "%":
+				op = "ModInt"
 			}
 		}
 	}

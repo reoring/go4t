@@ -750,7 +750,7 @@ func isUpper(s string) bool { return s != "" && s[0] >= 'A' && s[0] <= 'Z' }
 var binPrec = map[string]int{
 	"||": 1, "&&": 2,
 	"==": 3, "!=": 3, "<": 3, "<=": 3, ">": 3, ">=": 3,
-	"+": 4, "-": 4, "*": 5, "/": 5,
+	"+": 4, "-": 4, "*": 5, "/": 5, "%": 5,
 }
 
 func (p *Parser) binary(minPrec int) ast.Expr {

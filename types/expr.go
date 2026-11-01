@@ -309,7 +309,7 @@ func (b *bodyChecker) inferExpected(e ast.Expr, env *locals, expected Type) Type
 			unify(e.R.GetPos(), left, right)
 			b.additions = append(b.additions, e)
 			result = left
-		case "-", "*", "/":
+		case "-", "*", "/", "%":
 			unify(e.L.GetPos(), Int, left)
 			unify(e.R.GetPos(), Int, right)
 			result = Int
