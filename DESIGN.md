@@ -433,3 +433,65 @@ must be `Tuple<n>[..]` with `Index < n` else `tuple index 2 out of range for (A,
 `tuple index requires a tuple type, got T`. As with record fields, `x`'s type must be known at
 that point (lambda params get it from the expected type as in pass 5). Codegen:
 `x.(*TupleN).F<i>`. `fst`/`snd` stay in the prelude.
+
+## Pass 9: let annotations, short-circuit, Eq/Ord, lambda patterns, match guards, Int bounds
+
+### `let` annotations
+`let x: T = e` (blocks and `do`). The checker unifies `T` (resolved in the enclosing
+function's type-parameter scope) with `e`'s type before generalisation; an annotated let is
+never generalised beyond the annotation (the annotation is the scheme; rigid tparams of the
+enclosing function stay rigid). `ast.LetStmt.Type` / `ast.DoLet.Type`.
+
+### Short-circuit `&&` / `||`
+Codegen emits Go `(a).(bool) && (b).(bool)` boxed as `any`; `rt.And`/`rt.Or` are deleted
+(callers: codegen only). Right operand is evaluated only when needed.
+
+### `Eq` and `Ord`
+Prelude:
+```
+class Eq[A]  { eq(a A, b A) Bool }
+type Ordering = LT | EQ | GT
+class Ord[A] : Eq[A] { compare(a A, b A) Ordering }
+```
+Instances: `Eq`/`Ord` for `Int`, `String`, `Bool` (Bool: false < true), `Ordering`,
+`Option[A] given …`, `List[A] given …`, `(A, B) given …`; `Eq[Unit]`.
+Builtin externs `eqInt/ltInt/eqString/ltString/eqBool` back the primitive instances
+(`rt.EqInt` etc. remain; `compare` for primitives is implemented in prelude via `eq`/`lt`
+externs).
+
+Operators become class-method sugar: `a == b` ≡ `eq(a, b)`, `a != b` ≡ `!eq(a, b)`,
+`a < b` ≡ `compare(a, b) == LT`, `a <= b` ≡ `compare(a, b) != GT`, `a > b` ≡ `… == GT`,
+`a >= b` ≡ `… != LT`. The checker types `==`/`!=` as requiring `Eq[T]` on the (unified)
+operand type and `< <= > >=` as requiring `Ord[T]`; the resolved dictionary is stored in
+`Ann.Dicts[0]` of the `ast.Binary` node (one entry; `Ann.Inst` = `[T]`). Codegen emits
+`dict.Eq(a, b)` / `rt.Not(dict.Eq(a, b))` and for ordering a comparison against the
+`Ordering_LT`/`Ordering_GT` constructor values via a type switch helper emitted once per
+program (`func ord_lt(o any) bool { _, ok := o.(*Ordering_LT); return ok }` etc.).
+Primitive operand types still resolve to prelude instances, so `1 < 2` works unchanged.
+`+ - * /` stay Int-only (`+` also String); numeric classes are out of scope.
+
+Prelude additions: `head[A](xs List[A]) Option[A]`, `tail`, `take[A](n Int, xs)`, `drop`,
+`sum(xs List[Int]) Int`, `concatMap[A, B](xs List[A], f func(A) List[B]) List[B]`,
+`elem[A Eq](x A, xs List[A]) Bool`, `sortBy[A](xs List[A], cmp func(A, A) Ordering) List[A]`
+(insertion sort), `sort[A Ord](xs List[A]) List[A]`, `maximum[A Ord](xs List[A]) Option[A]`,
+`minimum`, `minInt() Int` (= -2^63), `maxInt() Int` (= 2^63-1) as externs.
+
+### Lambda parameter patterns
+`func(p1, p2) => e` where each `pi` is a `Pattern` (identifier, `_`, tuple, record or
+single-constructor pattern, as-pattern). A refutable pattern (literal, constructor of a
+multi-constructor type, including `Some`) is an error
+`lambda parameter pattern must be irrefutable`. Parser: `ast.Param.Pat` set when the
+parameter is not a bare identifier (a bare identifier keeps `Name`, so `func(x) =>` is
+unchanged; `func(_) =>` yields `Pat = PWild`). Typed form: `func((a, b) (Int, String)) =>`
+is NOT supported; patterns are untyped (use a call context or a `let` annotation). Checker
+types the pattern against the fresh parameter meta and binds its variables in the body.
+Codegen: parameter named `p<i>` and the pattern lowered as an irrefutable binding at the top
+of the body (reuse the final-arm-unguarded match lowering).
+
+### Match guards
+`Arm := Pattern [ 'if' Expr ] '=>' Expr`. The guard is typed `Bool` with the pattern's
+variables in scope. A guarded arm does not count toward exhaustiveness. Codegen: after the
+pattern binds, `if !(guard) { fall through to the next arm }` — implement by making the
+arm's body conditional and continuing to the next arm's test on failure (the existing
+sequential-arm lowering supports this: arms are sequential `if`/type-switch blocks, so a
+failed guard simply falls out of the block).

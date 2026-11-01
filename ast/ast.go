@@ -40,9 +40,13 @@ type TypeParam struct {
 	Constraints []string // class names
 }
 
+// Param is a function or lambda parameter. Lambda parameters may be a
+// pattern instead of a name (`func((a, b), _) => ...`); then Pat is set and
+// Name is "" . Function declarations always use Name.
 type Param struct {
 	Name string
-	Type Type // nil for untyped lambda params
+	Type Type    // nil for untyped lambda params
+	Pat  Pattern // lambda only; nil when the parameter is a plain name
 }
 
 // ---- declarations ----
@@ -147,9 +151,11 @@ type Block struct {
 
 type Stmt interface{ stmtNode() }
 
+// LetStmt is `let name = e` or `let name: T = e` (Type nil when absent).
 type LetStmt struct {
 	Pos   Pos
 	Name  string
+	Type  Type
 	Value Expr
 }
 
@@ -252,10 +258,12 @@ type Match struct {
 	Arms  []Arm
 }
 
+// Arm is `pat => body` or `pat if guard => body`.
 type Arm struct {
-	Pos  Pos
-	Pat  Pattern
-	Body Expr
+	Pos   Pos
+	Pat   Pattern
+	Guard Expr // nil when absent
+	Body  Expr
 }
 
 type If struct {
@@ -281,6 +289,7 @@ type DoBind struct {
 type DoLet struct {
 	Pos   Pos
 	Name  string
+	Type  Type // nil when absent
 	Value Expr
 }
 type DoExpr struct{ X Expr }
