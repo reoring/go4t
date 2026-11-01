@@ -254,6 +254,14 @@ type Program struct {
 	// Warnings are non-fatal diagnostics (e.g. defaulted type variables),
 	// in source order.
 	Warnings []*Error
+	// RecordPats resolves every record pattern to its constructor and the
+	// positional index of each listed field name, in Names order.
+	RecordPats map[*ast.PRecord]RecordPat
+}
+
+type RecordPat struct {
+	Ctor    *Ctor
+	Indexes []int
 }
 
 // ---- annotations ----
@@ -298,7 +306,8 @@ type Ann struct {
 	// FieldIndex is the positional index of the field for *ast.Field.
 	FieldIndex int
 	// FieldIndexes are the positional indexes of Names for *ast.RecordLit /
-	// *ast.RecordUpdate, in Names order.
+	// *ast.RecordUpdate, in Names order. For a tuple *ast.Field, Ctor is nil
+	// and FieldIndex is the tuple position; Type of X is Tuple<n>[...].
 	FieldIndexes []int
 	// ShowDicts holds, for *ast.Interp, one Show dictionary per Exprs entry.
 	ShowDicts []DictRef

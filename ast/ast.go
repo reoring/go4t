@@ -198,12 +198,14 @@ type Interp struct {
 	Exprs []Expr
 }
 
-// Field is `x.name`: read of record field name on a single-constructor
-// record type.
+// Field is `x.name` (record field on a single-constructor record type) or
+// `x.0`, `x.1`, ... (tuple position; Name is the decimal index text and
+// Index >= 0). For record fields Index is -1.
 type Field struct {
 	ExprBase
-	X    Expr
-	Name string
+	X     Expr
+	Name  string
+	Index int
 }
 
 // RecordLit is `Name{a: e1, b: e2}` (all fields, any order).
@@ -336,6 +338,17 @@ type PTuple struct {
 	Elems []Pattern
 }
 
+// PRecord is `Ctor{f: p, g: q}` or `Ctor{f: p, ..}`. Names are matched by
+// field name on a record constructor; Rest reports a trailing `..` that
+// ignores the unlisted fields. Without `..` every field must be listed.
+type PRecord struct {
+	Pos   Pos
+	Ctor  string
+	Names []string
+	Pats  []Pattern
+	Rest  bool
+}
+
 // PAs is `name @ pattern`.
 type PAs struct {
 	Pos  Pos
@@ -343,9 +356,10 @@ type PAs struct {
 	Pat  Pattern
 }
 
-func (*PCtor) patNode()  {}
-func (*PVar) patNode()   {}
-func (*PWild) patNode()  {}
-func (*PLit) patNode()   {}
-func (*PTuple) patNode() {}
-func (*PAs) patNode()    {}
+func (*PCtor) patNode()   {}
+func (*PVar) patNode()    {}
+func (*PWild) patNode()   {}
+func (*PLit) patNode()    {}
+func (*PTuple) patNode()  {}
+func (*PAs) patNode()     {}
+func (*PRecord) patNode() {}

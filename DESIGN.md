@@ -411,3 +411,25 @@ runtime but Go's compiler cannot see that, and `go vet` does not flag a `panic` 
 both forms no statement follows the last `return`/`panic`, so `go vet ./...` passes on a
 tree containing every example's `main_gen/` directory; the `cmd/gofx` test vets a built
 program.
+
+## Pass 8: record patterns, tuple positional access
+
+### Record patterns
+`Ctor{f: p, g: q}` matches a record constructor by field name (any order); `Ctor{f: p, ..}`
+ignores unlisted fields; without `..` every field must appear exactly once. Unknown field or
+duplicate → error at the pattern. Positional `Ctor(p, q)` remains valid. Exhaustiveness
+treats a record pattern as the equivalent positional pattern (unlisted = wildcard). Codegen:
+same lowering as a positional ctor pattern after reordering by `Ctor.FieldNames`; the checker
+records the positional order in a new `Ann`-free way: the parser keeps names, the checker
+rewrites nothing but exposes `types.RecordPatternOrder(p *ast.PRecord, c *Ctor) []int`
+(index per listed name) that codegen calls; both use `Program.DataTypes` to find the ctor.
+Simplest: the checker stores the resolved `*Ctor` and index list in a side map
+`Program.RecordPats map[*ast.PRecord]RecordPat{Ctor *Ctor; Indexes []int}`.
+
+### Tuple positional access
+`x.0`, `x.1`, … read tuple positions (`ast.Field` with `Index >= 0`). The lexer emits `.`
+then an Int token; the parser builds `Field{Name: "0", Index: 0}`. The static type of `x`
+must be `Tuple<n>[..]` with `Index < n` else `tuple index 2 out of range for (A, B)` /
+`tuple index requires a tuple type, got T`. As with record fields, `x`'s type must be known at
+that point (lambda params get it from the expected type as in pass 5). Codegen:
+`x.(*TupleN).F<i>`. `fst`/`snd` stay in the prelude.
