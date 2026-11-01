@@ -1,0 +1,126 @@
+package main
+
+import "std/io"
+import "std/list"
+import "std/map"
+import "std/string"
+import "std/float"
+import "std/result"
+import "std/conc"
+import codec "std/json"
+
+// ===== 為替レート取得(擬似: sleep で I/O を模倣、EUR は確率的に失敗) =====
+func fetchRate(c Currency) IO[(Currency, Float)] {
+  do {
+    delay <- io.randomInt(5, 30)
+    io.sleep(delay)
+    match c {
+      JPY => ioPure((JPY, 1.0))
+      USD => ioPure((USD, 150.0))
+      | EUR => do {
+        roll <- io.randomInt(0, 2)
+        if roll == 0 {
+          ioFail("rate service: EUR unavailable")
+        } else {
+          ioPure((EUR, 162.5))
+        }
+      }
+    }
+  }
+}
+
+// 全通貨を並列取得。失敗は tryIO で回収し、取れなかった通貨は既定値で埋める
+func fetchRates() IO[Map[Currency, Float]] {
+  let fallback = map.mapFromList([(JPY, 1.0), (USD, 145.0), (EUR, 160.0)])
+  do {
+    results <- conc.parMapIO([JPY, USD, EUR], func(c) => io.tryIO(fetchRate(c)))
+    fetched <- list.mapM(results, func(r) => match r {
+      Ok(pair) => ioPure(Some(pair))
+      | Err(msg) => do {
+        io.eprintln("warn: ${msg}; using fallback")
+        ioPure(None)
+      }
+    })
+    let live = fetched
+      |> list.concatMap(func(o) => result.maybe(o, [], func(p) => [p]))
+      |> map.mapFromList
+    ioPure(map.mapUnion(live, fallback))
+  }
+}
+
+// ===== 集計(純粋) =====
+type Row = Row{key: String, qty: Int, jpy: Float} deriving Eq, Debug, codec.Encode
+
+func amountJpy(rates Map[Currency, Float], s Sale) Float {
+  let rate = map.mapLookup(rates, s.currency) |> result.fromOption(_, 1.0)
+  toFloat(s.qty) * s.unit * rate
+}
+
+func summarize(rates Map[Currency, Float], sales List[Sale], key func(Sale) String) List[Row] {
+  map.groupBy(sales, key)
+    |> map.mapToList
+    |> map(func((k, group)) => Row{
+      key: k,
+      qty: group |> map(func(r) => r.qty) |> list.sum,
+      jpy: group |> map(amountJpy(rates, _)) |> fold(0.0, (_ + _))
+    })
+    |> list.sortOn(func(r) => 0.0 - r.jpy)
+}
+
+func table(title String, rows List[Row]) String {
+  let line = func(r Row) => "  " + string.padRight(r.key, 12) + string.padLeft(show(r.qty), 6) + string.padLeft(float.showFloatFixed(r.jpy, 0), 12)
+  let total = rows |> map(func(r) => r.jpy) |> fold(0.0, (_ + _))
+  func bar(v Float) String {
+    string.repeat("#", float.round(v / total * 30.0))
+  }
+  let body = rows
+    |> map(func(r) => line(r) + "  " + bar(r.jpy))
+    |> string.join("\n", _)
+  "${title}\n${body}\n  ${string.padRight("total", 18)}${string.padLeft(float.showFloatFixed(total, 0), 12)}"
+}
+
+// ===== main =====
+func sampleCsv() String {
+  string.join("\n", ["day,region,product,qty,unit,currency", "# comment lines are skipped", "2026-11-01,tokyo,widget,12,1200,JPY", "2026-11-01,osaka,widget,3,1200,JPY", "2026-11-01,berlin,gadget,5,19.9,eur", "", "2026-11-02,nyc,gadget,7,21.5,USD", "2026-11-02,tokyo,gizmo,40,480,JPY", "2026-11-02,nyc,widget,2,9.5,usd"])
+}
+
+func loadCsv(path String) IO[String] {
+  do {
+    exists <- io.fileExists(path)
+    if exists {
+      io.readFile(path)
+    } else {
+      do {
+        io.eprintln("note: ${path} not found, writing sample data")
+        io.writeFile(path, sampleCsv())
+        ioPure(sampleCsv())
+      }
+    }
+  }
+}
+
+func main() IO[Unit] {
+  do {
+    argv <- io.args()
+    let path = head(argv) |> result.fromOption(_, "sales.csv")
+    text <- loadCsv(path)
+    sales <- parseCsv(text) |> result.liftResult
+    t0 <- io.monotonicMillis()
+    rates <- fetchRates()
+    t1 <- io.monotonicMillis()
+    println("rates (${t1 - t0}ms): ${debug(map.mapToList(rates))}")
+    println("${length(sales)} sales loaded from ${path}")
+    println(table("by product", summarize(rates, sales, func(s) => s.product)))
+    println(table("by region", summarize(rates, sales, func(s) => s.region)))
+    println(table("by day", summarize(rates, sales, func(s) => s.day)))
+    let out = summarize(rates, sales, func(s) => s.product)
+      |> codec.encode
+      |> codec.toJsonPretty
+    io.writeFile("report.json", out)
+    println("json:\n${out}")
+    // わざと壊れた行を食わせ、エラーが型付きで戻ることを確認
+    let broken = parseCsv(sampleCsv() + "\n2026-11-03,oslo,gizmo,many,1.0,NOK")
+    println("broken: ${result.either(broken, show, func(xs) => "ok ${length(xs)}")}")
+    println("broken (debug): ${debug(broken |> result.mapErr(_, show) |> result.toOption)}")
+  }
+}
