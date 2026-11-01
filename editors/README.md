@@ -49,19 +49,29 @@ The supplied VS Code client handles this automatically.
 only VS Code's extension API and Node's built-in child-process/Buffer APIs are
 used. No npm install or JavaScript build is necessary.
 
-For development, from the repository root with the `code` launcher installed:
+Build the CLI and launch the dependency-free extension from the repository root:
 
 ```sh
-code --extensionDevelopmentPath="$PWD/editors/vscode" examples/lsp/main.gfx
+go build -o /tmp/gofx ./cmd/gofx
+code --extensionDevelopmentPath="$PWD/editors/vscode" examples/sales-report/main.gfx
 ```
 
-Alternatively, copy this directory's `vscode` subdirectory to a local VS Code
-extension directory, then reload the editor. Set `gofx.executablePath` to an
-absolute executable path if `gofx` is not on the extension host's PATH:
+Alternatively, install it without a VSIX or npm tooling by copying `vscode/` to
+an isolated extension directory:
+
+```sh
+extensions=$(mktemp -d)
+mkdir -p "$extensions/local.gofx-0.0.1"
+cp -R editors/vscode/. "$extensions/local.gofx-0.0.1/"
+code --extensions-dir "$extensions" examples/sales-report/main.gfx
+```
+
+Remove that temporary directory after closing the editor. Set
+`gofx.executablePath` to an absolute path before opening a `.gfx` file:
 
 ```json
 {
-  "gofx.executablePath": "/absolute/path/to/gofx"
+  "gofx.executablePath": "/tmp/gofx"
 }
 ```
 
@@ -73,8 +83,21 @@ changing the executable path or after a server failure. Hover docs are treated a
 plain text, not trusted Markdown/commands. Deactivation sends shutdown/exit and
 bounds child termination.
 
-The protocol, command wiring and example are tested by Go tests; no interactive
-VS Code session was exercised in this slice. See
-[`examples/lsp/README.md`](../examples/lsp/README.md) for the observed scripted
-session and exact JSON responses. Current protocol, module, and boundary contracts
-are in [`SPEC.md` §8.5 and §10.8](../SPEC.md#85-editor-protocol).
+The real `gofx lsp` stdio session against both sales-report files is verified:
+full `summarize` signature, `rates` hover, `parseCsv` navigation into `domain.gfx`,
+document symbols, unused-let warning and type-error ranges, and clean restore.
+See [`docs/lsp-verification.md`](../docs/lsp-verification.md) for the exact trimmed
+requests/responses and `lsp/sales_report_test.go` for the regression replay.
+
+VS Code attachment was **not** verified in this environment: both
+`code --version` and `codium --version` failed with `command not found`.
+Thus no temporary extension installation, headless `--disable-gpu` launch, or
+language-client attachment log could be captured. The setup above follows the
+existing unpacked extension layout; it is not evidence of an editor-host run.
+On a machine with the launcher, add `--disable-gpu --verbose` to the isolated
+launch and inspect the **gofx** output channel and `~/.config/Code/logs`
+(`~/.config/VSCodium/logs` for VSCodium). A display server may still be required;
+`--disable-gpu` alone does not supply one.
+
+Current protocol, module, and boundary contracts are in
+[`SPEC.md` §8.5 and §10.8](../SPEC.md#85-editor-protocol).
