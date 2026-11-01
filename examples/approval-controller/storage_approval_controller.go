@@ -6,6 +6,10 @@ import (
 	"strings"
 	"time"
 
+	"approvalctl/decide"
+
+	"gofx/rt"
+
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -69,54 +73,153 @@ func (r *ApprovalReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 }
 
 func (r *ApprovalReconciler) observe(ctx context.Context, approval *unstructured.Unstructured) (map[string]any, time.Duration) {
+	inputs := r.observeInputs(ctx, approval)
+	verdict := decide.Decide(inputs)
+	phase, conditionStatus, reason, message, requeueAfter := publish(verdict)
 	conditions := existingConditions(approval)
 	status := map[string]any{
 		"observedGeneration": approval.GetGeneration(),
 	}
+	return r.approvalStatus(status, &conditions, approval, phase, conditionStatus, reason, message), requeueAfter
+}
 
-	planName := firstNonEmptyNestedString(approval.Object, []string{"spec", "planRef", "name"})
-	if planName == "" {
-		return r.approvalStatus(status, &conditions, approval, "Rejected", metav1.ConditionFalse, "PlanReferenceMissing", "Storage approval has no referenced resize plan"), 0
+func (r *ApprovalReconciler) observeInputs(ctx context.Context, approval *unstructured.Unstructured) decide.Observed {
+	planGeneration, planGenerationPresent := nestedInt64(approval.Object, "spec", "binding", "planGeneration")
+	policyGeneration, policyGenerationPresent := nestedInt64(approval.Object, "spec", "binding", "policyGeneration")
+	inputs := decide.Observed{
+		Binding: decide.Binding{
+			PlanGeneration:       rt.Option[int64]{Value: planGeneration, Present: planGenerationPresent},
+			EvidenceHash:         firstNonEmptyNestedString(approval.Object, []string{"spec", "binding", "evidenceHash"}),
+			ChangeSetFingerprint: firstNonEmptyNestedString(approval.Object, []string{"spec", "binding", "changeSetFingerprint"}),
+			BaseGitCommit:        strings.TrimSpace(firstNonEmptyNestedString(approval.Object, []string{"spec", "binding", "baseGitCommit"})),
+			PolicyGeneration:     rt.Option[int64]{Value: policyGeneration, Present: policyGenerationPresent},
+		},
+		Plan:   decide.FetchedPlanPlanNotReferenced{},
+		Policy: decide.FetchedPolicyPolicyNotReferenced{},
+		Window: decide.FetchedWindowWindowNotReferenced{},
 	}
-	plan := newStorageResizePlanObject()
-	if err := r.Client.Get(ctx, client.ObjectKey{Namespace: approval.GetNamespace(), Name: planName}, plan); err != nil {
-		if apierrors.IsNotFound(err) {
-			return r.approvalStatus(status, &conditions, approval, "Rejected", metav1.ConditionFalse, "PlanNotFound", "Referenced storage resize plan was not found"), 0
+	windowName := firstNonEmptyNestedString(
+		approval.Object,
+		[]string{"spec", "maintenanceWindowRef", "name"},
+		[]string{"spec", "maintenanceWindow", "name"},
+	)
+	capabilityName := ""
+	if planName := firstNonEmptyNestedString(approval.Object, []string{"spec", "planRef", "name"}); planName != "" {
+		plan := newStorageResizePlanObject()
+		if err := r.Client.Get(ctx, client.ObjectKey{Namespace: approval.GetNamespace(), Name: planName}, plan); err != nil {
+			if apierrors.IsNotFound(err) {
+				inputs.Plan = decide.FetchedPlanPlanMissing{}
+			} else {
+				inputs.Plan = decide.FetchedPlanPlanReadError{}
+			}
+		} else {
+			observedPlan := decide.Plan{
+				Generation:           plan.GetGeneration(),
+				Phase:                firstStatusString(plan, "status", "phase"),
+				EvidenceHash:         firstStatusString(plan, "status", "evidenceHash"),
+				ChangeSetFingerprint: firstStatusString(plan, "status", "changeSetFingerprint"),
+				BaseGitCommit:        firstNonEmptyNestedString(plan.Object, []string{"spec", "baseRevision", "gitCommit"}),
+				PlanType:             firstNonEmptyNestedString(plan.Object, []string{"spec", "type"}),
+				GatesValid:           true,
+			}
+			gates, _, _ := unstructured.NestedSlice(plan.Object, "status", "safetyGates")
+			observedPlan.Gates = make([]decide.Gate, len(gates))
+			for i, raw := range gates {
+				gate, ok := raw.(map[string]any)
+				if !ok {
+					observedPlan.GatesValid = false
+				}
+				observedPlan.Gates[i] = decide.Gate{
+					Name:  strings.TrimSpace(mapStringDefault(gate, "name")),
+					State: strings.TrimSpace(mapStringDefault(gate, "state")),
+				}
+			}
+			if ttlValue := firstNonEmptyNestedString(plan.Object, []string{"spec", "evidenceTTL"}); ttlValue != "" {
+				observedPlan.EvidenceTtlMillis.Present = true
+				if ttl, err := time.ParseDuration(ttlValue); err == nil && ttl > 0 {
+					observedPlan.EvidenceTtlMillis.Value = ttl.Milliseconds()
+				}
+			}
+			if observedAtValue := firstStatusString(plan, "status", "observedAt"); observedAtValue != "" {
+				observedPlan.ObservedAtPresent = true
+				if observedAt, err := time.Parse(time.RFC3339, observedAtValue); err == nil {
+					observedPlan.ObservedAtMillis = rt.Option[int64]{Value: observedAt.UnixMilli(), Present: true}
+				}
+			}
+			inputs.Plan = decide.FetchedPlanPlanFound{F0: observedPlan}
+			if windowName == "" {
+				windowName = firstNonEmptyNestedString(plan.Object, []string{"spec", "maintenanceWindowRef", "name"})
+			}
+			capabilityName = firstNonEmptyNestedString(plan.Object, []string{"spec", "storageCapabilityRef", "name"})
 		}
-		return r.approvalStatus(status, &conditions, approval, "Pending", metav1.ConditionUnknown, "PlanReadFailed", "Referenced storage resize plan could not be read"), time.Minute
 	}
 
-	if phase := firstStatusString(plan, "status", "phase"); phase == "Expired" {
-		return r.approvalStatus(status, &conditions, approval, "Expired", metav1.ConditionFalse, "PlanExpired", "Storage resize plan expired before approval acceptance"), 0
-	} else if phase == "Superseded" {
-		return r.approvalStatus(status, &conditions, approval, "Superseded", metav1.ConditionFalse, "PlanSuperseded", "Storage resize plan was superseded by newer evidence"), 0
-	} else if phase != "ReadyForApproval" {
-		return r.approvalStatus(status, &conditions, approval, "Rejected", metav1.ConditionFalse, "PlanNotReady", "Storage resize plan is not ready for approval"), 0
+	if policyName := firstNonEmptyNestedString(approval.Object, []string{"spec", "policyRef", "name"}); policyName != "" {
+		policy := newStorageAutopilotPolicyObject()
+		if err := r.Client.Get(ctx, client.ObjectKey{Namespace: approval.GetNamespace(), Name: policyName}, policy); err != nil {
+			inputs.Policy = decide.FetchedPolicyPolicyReadError{}
+		} else {
+			inputs.Policy = decide.FetchedPolicyPolicyFound{F0: decide.Policy{Generation: policy.GetGeneration()}}
+		}
+	}
+	if windowName != "" {
+		window := newStorageMaintenanceWindowObject()
+		if err := r.Client.Get(ctx, client.ObjectKey{Namespace: approval.GetNamespace(), Name: windowName}, window); err != nil {
+			inputs.Window = decide.FetchedWindowWindowReadError{}
+		} else {
+			required, requiredPresent, _ := unstructured.NestedBool(window.Object, "spec", "approvalPolicy", "required")
+			allowed, _ := firstNestedStringSlice(window.Object, []string{"spec", "allowedOperations"})
+			open, _, _ := unstructured.NestedBool(window.Object, "status", "currentWindow", "open")
+			inputs.Window = decide.FetchedWindowWindowFound{F0: decide.Window{
+				ApprovalRequired:  rt.Option[bool]{Value: required, Present: requiredPresent},
+				AllowedOperations: allowed,
+				Phase:             firstStatusString(window, "status", "phase"),
+				CurrentWindowOpen: open,
+			}}
+		}
 	}
 
-	if ok, reason, message := storageApprovalBindingMatchesPlan(approval, plan); !ok {
-		return r.approvalStatus(status, &conditions, approval, "Rejected", metav1.ConditionFalse, reason, message), 0
+	operations := &unstructured.UnstructuredList{}
+	operations.SetGroupVersionKind(storageResizeOperationListResourceGVK)
+	inputs.OperationsReadable = r.Client.List(ctx, operations, client.InNamespace(approval.GetNamespace())) == nil
+	if inputs.OperationsReadable {
+		for i := range operations.Items {
+			operation := &operations.Items[i]
+			if operation.GetName() == "" {
+				continue
+			}
+			if firstNonEmptyNestedString(operation.Object, []string{"spec", "approvalRef", "name"}) == approval.GetName() {
+				continue
+			}
+			if firstNonEmptyNestedString(operation.Object, []string{"spec", "storageCapabilityRef", "name"}) != capabilityName {
+				continue
+			}
+			if isTerminalStorageResizeOperationPhase(firstStatusString(operation, "status", "phase")) {
+				continue
+			}
+			inputs.ConflictingOperation = true
+			break
+		}
 	}
-	if ok, reason, message := storageApprovalPolicyGenerationMatches(ctx, r.Client, approval); !ok {
-		return r.approvalStatus(status, &conditions, approval, "Rejected", metav1.ConditionFalse, reason, message), 0
-	}
-	if ok, reason, message := storageApprovalMaintenanceWindowAllows(ctx, r.Client, approval, plan); !ok {
-		return r.approvalStatus(status, &conditions, approval, "Rejected", metav1.ConditionFalse, reason, message), 0
-	}
-	if ok, reason, message := storageApprovalPlanGatesPassing(plan); !ok {
-		return r.approvalStatus(status, &conditions, approval, "Rejected", metav1.ConditionFalse, reason, message), 0
-	}
-	if ok, reason, message := storageApprovalNoConflictingOperation(ctx, r.Client, approval, plan); !ok {
-		return r.approvalStatus(status, &conditions, approval, "Rejected", metav1.ConditionFalse, reason, message), 0
-	}
-	if ok, requeueAfter, reason, message := r.storageApprovalEvidenceFresh(plan); !ok {
-		return r.approvalStatus(status, &conditions, approval, "Expired", metav1.ConditionFalse, reason, message), 0
-	} else if requeueAfter > 0 {
-		status = r.approvalStatus(status, &conditions, approval, "Accepted", metav1.ConditionTrue, "ApprovalAccepted", "Storage approval matches current resize plan evidence")
-		return status, requeueAfter
-	}
+	inputs.NowMillis = r.now().UnixMilli()
+	return inputs
+}
 
-	return r.approvalStatus(status, &conditions, approval, "Accepted", metav1.ConditionTrue, "ApprovalAccepted", "Storage approval matches current resize plan evidence"), 0
+func publish(verdict decide.Verdict) (phase string, cond metav1.ConditionStatus, reason, message string, requeue time.Duration) {
+	switch verdict := verdict.(type) {
+	case decide.VerdictRejected:
+		return "Rejected", metav1.ConditionFalse, verdict.F0.String(), verdict.F1, 0
+	case decide.VerdictExpired:
+		return "Expired", metav1.ConditionFalse, verdict.F0.String(), verdict.F1, 0
+	case decide.VerdictSuperseded:
+		return "Superseded", metav1.ConditionFalse, verdict.F0.String(), verdict.F1, 0
+	case decide.VerdictPending:
+		return "Pending", metav1.ConditionUnknown, verdict.F0.String(), verdict.F1, time.Duration(verdict.F2) * time.Millisecond
+	case decide.VerdictAccepted:
+		return "Accepted", metav1.ConditionTrue, decide.ReasonApprovalAccepted.String(), "Storage approval matches current resize plan evidence", time.Duration(verdict.F0) * time.Millisecond
+	default:
+		panic("invalid approval verdict")
+	}
 }
 
 func (r *ApprovalReconciler) ensureOperationForAcceptedApproval(ctx context.Context, approval *unstructured.Unstructured) error {
@@ -183,24 +286,6 @@ func (r *ApprovalReconciler) approvalStatus(status map[string]any, conditions *[
 	setCondition(conditions, condition(approval, "Accepted", conditionStatus, reason, message))
 	status["conditions"] = conditionsToUnstructured(*conditions)
 	return status
-}
-
-func storageApprovalBindingMatchesPlan(approval, plan *unstructured.Unstructured) (bool, string, string) {
-	if generation, ok := nestedInt64(approval.Object, "spec", "binding", "planGeneration"); !ok || generation != plan.GetGeneration() {
-		return false, "PlanGenerationMismatch", "Approval plan generation does not match the current resize plan"
-	}
-	if expected := firstNonEmptyNestedString(approval.Object, []string{"spec", "binding", "evidenceHash"}); expected == "" || expected != firstStatusString(plan, "status", "evidenceHash") {
-		return false, "EvidenceHashMismatch", "Approval evidence hash does not match the current resize plan"
-	}
-	if expected := firstNonEmptyNestedString(approval.Object, []string{"spec", "binding", "changeSetFingerprint"}); expected == "" || expected != firstStatusString(plan, "status", "changeSetFingerprint") {
-		return false, "ChangeSetFingerprintMismatch", "Approval change-set fingerprint does not match the current resize plan"
-	}
-	if expected := strings.TrimSpace(firstNonEmptyNestedString(approval.Object, []string{"spec", "binding", "baseGitCommit"})); expected != "" {
-		if got := firstNonEmptyNestedString(plan.Object, []string{"spec", "baseRevision", "gitCommit"}); got != expected {
-			return false, "BaseRevisionMismatch", "Approval base revision does not match the current resize plan"
-		}
-	}
-	return true, "", ""
 }
 
 func storageOperationApprovalBindingSnapshot(approval, plan *unstructured.Unstructured) map[string]any {
@@ -276,142 +361,6 @@ func storageOperationApprovalBindingMatches(operation, approval, plan *unstructu
 		}
 	}
 	return true, "", ""
-}
-
-func storageApprovalPolicyGenerationMatches(ctx context.Context, cl client.Client, approval *unstructured.Unstructured) (bool, string, string) {
-	expected, ok := nestedInt64(approval.Object, "spec", "binding", "policyGeneration")
-	if !ok || expected <= 0 {
-		return true, "", ""
-	}
-	policyName := firstNonEmptyNestedString(approval.Object, []string{"spec", "policyRef", "name"})
-	if policyName == "" {
-		return false, "PolicyReferenceMissing", "Approval has no referenced storage policy"
-	}
-	policy := newStorageAutopilotPolicyObject()
-	if err := cl.Get(ctx, client.ObjectKey{Namespace: approval.GetNamespace(), Name: policyName}, policy); err != nil {
-		return false, "PolicyReadFailed", "Referenced storage policy could not be read"
-	}
-	if policy.GetGeneration() > 0 && policy.GetGeneration() != expected {
-		return false, "PolicyGenerationMismatch", "Approval policy generation does not match the current storage policy"
-	}
-	return true, "", ""
-}
-
-func storageApprovalMaintenanceWindowAllows(ctx context.Context, cl client.Client, approval, plan *unstructured.Unstructured) (bool, string, string) {
-	windowName := firstNonEmptyNestedString(
-		approval.Object,
-		[]string{"spec", "maintenanceWindowRef", "name"},
-		[]string{"spec", "maintenanceWindow", "name"},
-	)
-	if windowName == "" {
-		windowName = firstNonEmptyNestedString(plan.Object, []string{"spec", "maintenanceWindowRef", "name"})
-	}
-	if windowName == "" {
-		return true, "", ""
-	}
-	window := newStorageMaintenanceWindowObject()
-	if err := cl.Get(ctx, client.ObjectKey{Namespace: approval.GetNamespace(), Name: windowName}, window); err != nil {
-		return false, "MaintenanceWindowReadFailed", "Referenced maintenance window could not be read"
-	}
-	if required, ok, _ := unstructured.NestedBool(window.Object, "spec", "approvalPolicy", "required"); ok && !required {
-		return false, "MaintenanceWindowApprovalDisabled", "Maintenance window disables approvals for a data-risk storage workflow"
-	}
-	planType := firstNonEmptyNestedString(plan.Object, []string{"spec", "type"})
-	if allowed, ok := firstNestedStringSlice(window.Object, []string{"spec", "allowedOperations"}); ok && len(allowed) > 0 {
-		found := false
-		for _, value := range allowed {
-			if value == planType {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return false, "MaintenanceWindowOperationNotAllowed", "Maintenance window does not allow this storage workflow type"
-		}
-	}
-	if phase := firstStatusString(window, "status", "phase"); phase == "Open" {
-		return true, "", ""
-	}
-	if open, ok, _ := unstructured.NestedBool(window.Object, "status", "currentWindow", "open"); ok && open {
-		return true, "", ""
-	}
-	return false, "MaintenanceWindowClosed", "Maintenance window is not open for approval acceptance"
-}
-
-func storageApprovalPlanGatesPassing(plan *unstructured.Unstructured) (bool, string, string) {
-	gates, ok, _ := unstructured.NestedSlice(plan.Object, "status", "safetyGates")
-	if !ok || len(gates) == 0 {
-		return false, "SafetyGatesMissing", "Resize plan has no approval safety gate evidence"
-	}
-	for _, raw := range gates {
-		gate, ok := raw.(map[string]any)
-		if !ok {
-			return false, "SafetyGateInvalid", "Resize plan has invalid safety gate evidence"
-		}
-		state := strings.TrimSpace(mapStringDefault(gate, "state"))
-		switch state {
-		case "Pass", "Warn":
-			continue
-		default:
-			name := strings.TrimSpace(mapStringDefault(gate, "name"))
-			if name == "" {
-				name = "unknown"
-			}
-			return false, "SafetyGateBlocked", "Resize plan safety gate is not passing: " + name
-		}
-	}
-	return true, "", ""
-}
-
-func storageApprovalNoConflictingOperation(ctx context.Context, cl client.Client, approval, plan *unstructured.Unstructured) (bool, string, string) {
-	operations := &unstructured.UnstructuredList{}
-	operations.SetGroupVersionKind(storageResizeOperationListResourceGVK)
-	if err := cl.List(ctx, operations, client.InNamespace(approval.GetNamespace())); err != nil {
-		return false, "OperationReadFailed", "Storage resize operations could not be read"
-	}
-	capabilityName := firstNonEmptyNestedString(plan.Object, []string{"spec", "storageCapabilityRef", "name"})
-	for i := range operations.Items {
-		operation := &operations.Items[i]
-		if operation.GetName() == "" {
-			continue
-		}
-		if firstNonEmptyNestedString(operation.Object, []string{"spec", "approvalRef", "name"}) == approval.GetName() {
-			continue
-		}
-		if firstNonEmptyNestedString(operation.Object, []string{"spec", "storageCapabilityRef", "name"}) != capabilityName {
-			continue
-		}
-		if isTerminalStorageResizeOperationPhase(firstStatusString(operation, "status", "phase")) {
-			continue
-		}
-		return false, "ConflictingOperationActive", "Another storage resize operation is active for this capability"
-	}
-	return true, "", ""
-}
-
-func (r *ApprovalReconciler) storageApprovalEvidenceFresh(plan *unstructured.Unstructured) (bool, time.Duration, string, string) {
-	ttlValue := firstNonEmptyNestedString(plan.Object, []string{"spec", "evidenceTTL"})
-	if ttlValue == "" {
-		return true, 0, "", ""
-	}
-	ttl, err := time.ParseDuration(ttlValue)
-	if err != nil || ttl <= 0 {
-		return false, 0, "EvidenceTTLInvalid", "Resize plan evidence TTL is invalid"
-	}
-	observedAtValue := firstStatusString(plan, "status", "observedAt")
-	if observedAtValue == "" {
-		return false, 0, "EvidenceTimestampMissing", "Resize plan evidence timestamp is missing"
-	}
-	observedAt, err := time.Parse(time.RFC3339, observedAtValue)
-	if err != nil {
-		return false, 0, "EvidenceTimestampInvalid", "Resize plan evidence timestamp is invalid"
-	}
-	expiresAt := observedAt.UTC().Add(ttl)
-	now := r.now()
-	if !now.Before(expiresAt) {
-		return false, 0, "EvidenceExpired", "Resize plan evidence expired before approval acceptance"
-	}
-	return true, expiresAt.Sub(now), "", ""
 }
 
 func (r *ApprovalReconciler) now() time.Time {

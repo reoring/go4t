@@ -1,0 +1,206 @@
+package decide
+
+import "std/list"
+import "std/result"
+
+// Observed is the projection of everything the approval decision needs. Go
+// reads the objects (approval, plan, policy, window, operations) up front and
+// fills this record; decide never asks for more.
+
+type Plan = Plan{
+  generation: Int,
+  phase: String,
+  evidenceHash: String,
+  changeSetFingerprint: String,
+  baseGitCommit: String,
+  planType: String,
+  gatesValid: Bool,                 // false: an element was not an object
+  gates: List[Gate],
+  evidenceTtlMillis: Option[Int],   // None: no TTL configured; Some(n <= 0): invalid
+  observedAtPresent: Bool,
+  observedAtMillis: Option[Int]     // None while present: unparsable
+} deriving Eq, Debug
+
+type Gate = Gate{name: String, state: String} deriving Eq, Debug
+
+type Binding = Binding{
+  planGeneration: Option[Int],
+  evidenceHash: String,
+  changeSetFingerprint: String,
+  baseGitCommit: String,
+  policyGeneration: Option[Int]
+} deriving Eq, Debug
+
+type Policy = Policy{generation: Int} deriving Eq, Debug
+
+type Window = Window{
+  approvalRequired: Option[Bool],
+  allowedOperations: List[String],
+  phase: String,
+  currentWindowOpen: Bool
+} deriving Eq, Debug
+
+type FetchedPlan = PlanNotReferenced | PlanReadError | PlanMissing | PlanFound(Plan) deriving Eq, Debug
+type FetchedPolicy = PolicyNotReferenced | PolicyReadError | PolicyFound(Policy) deriving Eq, Debug
+type FetchedWindow = WindowNotReferenced | WindowReadError | WindowFound(Window) deriving Eq, Debug
+
+type Observed = Observed{
+  binding: Binding,
+  plan: FetchedPlan,
+  policy: FetchedPolicy,
+  window: FetchedWindow,
+  operationsReadable: Bool,
+  conflictingOperation: Bool,
+  nowMillis: Int
+} deriving Eq, Debug
+
+// Reason is the closed set of status reasons this controller may publish.
+type Reason = PlanReferenceMissing | PlanNotFound | PlanReadFailed
+  | PlanExpired | PlanSuperseded | PlanNotReady
+  | PlanGenerationMismatch | EvidenceHashMismatch | ChangeSetFingerprintMismatch | BaseRevisionMismatch
+  | PolicyReferenceMissing | PolicyReadFailed | PolicyGenerationMismatch
+  | MaintenanceWindowReadFailed | MaintenanceWindowApprovalDisabled
+  | MaintenanceWindowOperationNotAllowed | MaintenanceWindowClosed
+  | SafetyGatesMissing | SafetyGateInvalid | SafetyGateBlocked
+  | OperationReadFailed | ConflictingOperationActive
+  | EvidenceTTLInvalid | EvidenceTimestampMissing | EvidenceTimestampInvalid | EvidenceExpired
+  | ApprovalAccepted
+  deriving Eq, Debug, Show
+
+// Verdict fixes phase and condition status together; Go derives both from the
+// constructor. Pending and Accepted carry requeue milliseconds (0 = none).
+type Verdict = Rejected(Reason, String)
+  | Expired(Reason, String)
+  | Superseded(Reason, String)
+  | Pending(Reason, String, Int)
+  | Accepted(Int)
+  deriving Eq, Debug
+
+func decide(o Observed) Verdict {
+  match o.plan {
+    PlanNotReferenced => Rejected(PlanReferenceMissing, "Storage approval has no referenced resize plan")
+    PlanMissing => Rejected(PlanNotFound, "Referenced storage resize plan was not found")
+    PlanReadError => Pending(PlanReadFailed, "Referenced storage resize plan could not be read", 60000)
+    PlanFound(plan) => _decidePlan(o, plan)
+  }
+}
+
+func _decidePlan(o Observed, plan Plan) Verdict {
+  if plan.phase == "Expired" {
+    Expired(PlanExpired, "Storage resize plan expired before approval acceptance")
+  } else if plan.phase == "Superseded" {
+    Superseded(PlanSuperseded, "Storage resize plan was superseded by newer evidence")
+  } else if plan.phase != "ReadyForApproval" {
+    Rejected(PlanNotReady, "Storage resize plan is not ready for approval")
+  } else {
+    let gates = [
+      _bindingMatchesPlan(o.binding, plan),
+      _policyGenerationMatches(o.binding, o.policy),
+      _maintenanceWindowAllows(o.window, plan),
+      _planGatesPassing(plan.gatesValid, plan.gates),
+      _noConflictingOperation(o)
+    ]
+    match _firstFailure(gates) {
+      Some(v) => v
+      None => _evidenceFresh(plan, o.nowMillis)
+    }
+  }
+}
+
+func _firstFailure(checks List[Option[Verdict]]) Option[Verdict] {
+  match list.find(checks, func(c) => c != None) {
+    Some(found) => found
+    None => None
+  }
+}
+
+func _bindingMatchesPlan(b Binding, plan Plan) Option[Verdict] {
+  if result.fromOption(b.planGeneration, -1) != plan.generation {
+    Some(Rejected(PlanGenerationMismatch, "Approval plan generation does not match the current resize plan"))
+  } else if b.evidenceHash == "" || b.evidenceHash != plan.evidenceHash {
+    Some(Rejected(EvidenceHashMismatch, "Approval evidence hash does not match the current resize plan"))
+  } else if b.changeSetFingerprint == "" || b.changeSetFingerprint != plan.changeSetFingerprint {
+    Some(Rejected(ChangeSetFingerprintMismatch, "Approval change-set fingerprint does not match the current resize plan"))
+  } else if b.baseGitCommit != "" && b.baseGitCommit != plan.baseGitCommit {
+    Some(Rejected(BaseRevisionMismatch, "Approval base revision does not match the current resize plan"))
+  } else {
+    None
+  }
+}
+
+func _policyGenerationMatches(b Binding, policy FetchedPolicy) Option[Verdict] {
+  match b.policyGeneration {
+    None => None
+    Some(expected) if expected <= 0 => None
+    Some(expected) => match policy {
+      PolicyNotReferenced => Some(Rejected(PolicyReferenceMissing, "Approval has no referenced storage policy"))
+      PolicyReadError => Some(Rejected(PolicyReadFailed, "Referenced storage policy could not be read"))
+      PolicyFound(p) if p.generation > 0 && p.generation != expected =>
+        Some(Rejected(PolicyGenerationMismatch, "Approval policy generation does not match the current storage policy"))
+      PolicyFound(_) => None
+    }
+  }
+}
+
+func _maintenanceWindowAllows(window FetchedWindow, plan Plan) Option[Verdict] {
+  match window {
+    WindowNotReferenced => None
+    WindowReadError => Some(Rejected(MaintenanceWindowReadFailed, "Referenced maintenance window could not be read"))
+    WindowFound(w) =>
+      if w.approvalRequired == Some(false) {
+        Some(Rejected(MaintenanceWindowApprovalDisabled, "Maintenance window disables approvals for a data-risk storage workflow"))
+      } else if list.length(w.allowedOperations) > 0 && !list.elem(plan.planType, w.allowedOperations) {
+        Some(Rejected(MaintenanceWindowOperationNotAllowed, "Maintenance window does not allow this storage workflow type"))
+      } else if w.phase == "Open" || w.currentWindowOpen {
+        None
+      } else {
+        Some(Rejected(MaintenanceWindowClosed, "Maintenance window is not open for approval acceptance"))
+      }
+  }
+}
+
+func _planGatesPassing(valid Bool, gates List[Gate]) Option[Verdict] {
+  match gates {
+    Nil => Some(Rejected(SafetyGatesMissing, "Resize plan has no approval safety gate evidence"))
+    _ if !valid => Some(Rejected(SafetyGateInvalid, "Resize plan has invalid safety gate evidence"))
+    _ => match list.find(gates, func(g) => g.state != "Pass" && g.state != "Warn") {
+      None => None
+      Some(g) => Some(Rejected(SafetyGateBlocked, "Resize plan safety gate is not passing: " + _gateName(g)))
+    }
+  }
+}
+
+func _gateName(g Gate) String { if g.name == "" { "unknown" } else { g.name } }
+
+func _noConflictingOperation(o Observed) Option[Verdict] {
+  if !o.operationsReadable {
+    Some(Rejected(OperationReadFailed, "Storage resize operations could not be read"))
+  } else if o.conflictingOperation {
+    Some(Rejected(ConflictingOperationActive, "Another storage resize operation is active for this capability"))
+  } else {
+    None
+  }
+}
+
+func _evidenceFresh(plan Plan, nowMillis Int) Verdict {
+  match plan.evidenceTtlMillis {
+    None => Accepted(0)
+    Some(ttl) if ttl <= 0 => Expired(EvidenceTTLInvalid, "Resize plan evidence TTL is invalid")
+    Some(ttl) =>
+      if !plan.observedAtPresent {
+        Expired(EvidenceTimestampMissing, "Resize plan evidence timestamp is missing")
+      } else {
+        match plan.observedAtMillis {
+          None => Expired(EvidenceTimestampInvalid, "Resize plan evidence timestamp is invalid")
+          Some(observedAt) =>
+            if nowMillis >= observedAt + ttl {
+              Expired(EvidenceExpired, "Resize plan evidence expired before approval acceptance")
+            } else {
+              Accepted(observedAt + ttl - nowMillis)
+            }
+        }
+      }
+  }
+}
+
+func main() IO[Unit] { ioPure(unit()) }
