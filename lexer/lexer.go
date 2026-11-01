@@ -62,6 +62,18 @@ var puncts = []string{
 	"+", "-", "*", "/", "%", "<", ">", "!",
 }
 
+// VisitFixedTokens visits the keyword and punctuation spellings recognized by
+// the lexer. Order is unspecified. The tables remain private so callers cannot
+// change tokenization.
+func VisitFixedTokens(visit func(Kind, string)) {
+	for text := range keywords {
+		visit(Keyword, text)
+	}
+	for _, text := range puncts {
+		visit(Punct, text)
+	}
+}
+
 type Lexer struct {
 	src       []rune
 	i         int
