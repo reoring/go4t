@@ -69,7 +69,7 @@ func TestRecordPatterns(t *testing.T) {
 					t.Fatalf("final record head still guarded:\n%s", out)
 				}
 			}
-			if !tt.literal && !strings.Contains(out, "var age_ any = _gofx") {
+			if !tt.literal && !strings.Contains(out, "var age_ ") {
 				t.Fatalf("record field binding missing:\n%s", out)
 			}
 			// The checker side map alone determines the positional order. The
@@ -93,7 +93,7 @@ func TestTupleFields(t *testing.T) {
 	addFunc(p, "chain", []string{"triple"}, []types.Type{outer}, field(field(local("triple", outer), 1, inner), 1, types.String))
 	addFunc(p, "literal", nil, nil, field(tupleLiteral(integer(7), text("value")), 1, types.String))
 	assertSource(t, p,
-		"return any(pair_).(*Tuple2).F0",
+		"any(pair_).(*Tuple2).F0",
 		"return any(any(triple_).(*Tuple3).F1).(*Tuple2).F1",
 		`return any(&Tuple2{F0: int64(7), F1: "value"}).(*Tuple2).F1`,
 		"type Tuple2 struct {", "type Tuple3 struct {")

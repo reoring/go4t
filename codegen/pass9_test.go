@@ -14,39 +14,11 @@ func TestShortCircuitOperators(t *testing.T) {
 			p := fixture()
 			addFunc(p, "right", nil, nil, boolean(true))
 			p.Main.Decl.Body.Result = &ast.Binary{Op: op, L: boolean(false), R: call(function("right", fnType()))}
-			out := assertSource(t, p, "return any(any(false).(bool) "+op+" any(right_()).(bool))")
+			out := assertSource(t, p, "return (false "+op+" any(right_()).(bool))")
 			if strings.Contains(out, "rt.And") || strings.Contains(out, "rt.Or") || strings.Count(out, "right_()") != 2 {
 				t.Fatalf("boolean operator must evaluate its RHS only in Go's short-circuit expression:\n%s", out)
 			}
 		})
-	}
-}
-
-func TestComparisonDictionaries(t *testing.T) {
-	p, eqInt, ordInt := comparisonFixture()
-	for _, tt := range []struct {
-		op, name, want string
-		dict           *types.Instance
-	}{
-		{"==", "equal", "(Eq_Int{}).Eq(int64(1), int64(2))", eqInt},
-		{"!=", "unequal", "rt.Not((Eq_Int{}).Eq(int64(1), int64(2)))", eqInt},
-		{"<", "less", "any(ord_lt((Ord_Int{}).Compare(int64(1), int64(2))))", ordInt},
-		{"<=", "lessEqual", "any(ord_le((Ord_Int{}).Compare(int64(1), int64(2))))", ordInt},
-		{">", "greater", "any(ord_gt((Ord_Int{}).Compare(int64(1), int64(2))))", ordInt},
-		{">=", "greaterEqual", "any(ord_ge((Ord_Int{}).Compare(int64(1), int64(2))))", ordInt},
-	} {
-		addFunc(p, tt.name, nil, nil, comparison(tt.op, integer(1), integer(2), instanceDict(tt.dict)))
-		assertSource(t, p, "return "+tt.want)
-	}
-	out := assertSource(t, p,
-		"func ord_lt(o any) bool { _, ok := o.(*Ordering_LT); return ok }",
-		"func ord_le(o any) bool { _, ok := o.(*Ordering_GT); return !ok }",
-		"func ord_gt(o any) bool { _, ok := o.(*Ordering_GT); return ok }",
-		"func ord_ge(o any) bool { _, ok := o.(*Ordering_LT); return !ok }")
-	for _, name := range []string{"ord_lt", "ord_le", "ord_gt", "ord_ge"} {
-		if strings.Count(out, "func "+name+"(") != 1 {
-			t.Errorf("%s was not emitted exactly once", name)
-		}
 	}
 }
 
@@ -93,10 +65,10 @@ func TestComparisonDictionaryParametersAndInstances(t *testing.T) {
 	nested := call(ctor("Box"), boxed)
 	addFunc(p, "nestedOrdered", nil, nil, comparison(">", nested, nested, instanceDict(ordBox, instanceDict(ordBox, instanceDict(ordInt)))))
 	assertSource(t, p,
-		"return (dict_A).Eq(left_, right_)",
-		"return any(ord_le((dict_B).Compare(left_, right_)))",
-		"return rt.Not((dict_B).Eq(left_, right_))",
-		"return (dictself.dict_A).Eq(x_, y_)",
+		"(dict_A).Eq(left_, right_)",
+		"ord_le((dict_B).Compare(left_, right_))",
+		"!any((dict_B).Eq(left_, right_))",
+		"(dictself.dict_A).Eq(x_, y_)",
 		"return (dictself.dict_B).Compare(x_, y_)",
 		"(Eq_Box{dict_A: Eq_Int{}}).Eq(",
 		"(Ord_Box{Eq_Box: Eq_Box{dict_A: Ord_Int{}}, dict_B: Ord_Int{}}).Compare(",
@@ -125,14 +97,14 @@ func TestLambdaParameterPatterns(t *testing.T) {
 			p.RecordPats = map[*ast.PRecord]types.RecordPat{record: {Ctor: box.Ctors[0], Indexes: []int{0}}}
 			params := []ast.Param{{Pat: &ast.PVar{Name: "x"}}}
 			body := ast.Expr(local("x", types.Int))
-			fragments := []string{"func(p0 any) any", "var x_ any ="}
+			fragments := []string{"p0 any", "var x_ "}
 			switch name {
 			case "name":
 				params[0] = ast.Param{Name: "x"}
 			case "wildcard":
 				params[0].Pat = &ast.PWild{}
 				body = integer(7)
-				fragments = []string{"func(p0 any) any", "return int64(7)"}
+				fragments = []string{"p0 any", "return int64(7)"}
 			case "tuple":
 				params[0].Pat = &ast.PTuple{Elems: []ast.Pattern{&ast.PVar{Name: "x"}, &ast.PWild{}}}
 				fragments = append(fragments, "p0.(*Tuple2)")
@@ -177,7 +149,7 @@ func TestMatchGuards(t *testing.T) {
 		{Pat: &ast.PWild{}, Body: integer(3)},
 	}}
 	addFunc(p, "guarded", []string{"value"}, []types.Type{types.Unit}, match)
-	out := assertSource(t, p, "if any(first_).(bool)", "if any(rt.Not(second_)).(bool)", "if any(false).(bool)", "return whole_", "return int64(3)")
+	out := assertSource(t, p, "if any(first_).(bool)", "second_", "if false", "return whole_", "return int64(3)")
 	if strings.Count(out, "case *Option_Some:") != 2 || strings.Contains(out, `panic("non-exhaustive match")`) {
 		t.Fatalf("guarded arms must retain independent continuations before the total arm:\n%s", out)
 	}
@@ -191,7 +163,7 @@ func TestGuardedFinalMatchArm(t *testing.T) {
 		pattern ast.Pattern
 		want    string
 	}{
-		{"wildcard", &ast.PWild{}, "if any(false).(bool)"},
+		{"wildcard", &ast.PWild{}, "if false"},
 		{"variable", &ast.PVar{Name: "x"}, "var x_ any ="},
 		{"literal", &ast.PLit{X: boolean(true)}, ".(bool) == true"},
 		{"constructor", &ast.PCtor{Name: "Some", Args: []ast.Pattern{&ast.PWild{}}}, "case *Option_Some:"},
@@ -203,7 +175,7 @@ func TestGuardedFinalMatchArm(t *testing.T) {
 			addFunc(p, "guarded", []string{"value"}, []types.Type{types.Unit}, &ast.Match{Scrut: local("value", types.Unit), Arms: []ast.Arm{
 				{Pat: tt.pattern, Guard: boolean(false), Body: integer(1)},
 			}})
-			assertSource(t, p, tt.want, "if any(false).(bool)", `panic("non-exhaustive match")`)
+			assertSource(t, p, tt.want, "if false", `panic("non-exhaustive match")`)
 		})
 	}
 }

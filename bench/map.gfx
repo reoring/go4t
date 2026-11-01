@@ -1,0 +1,10 @@
+package main
+import "std/map"
+import "std/result"
+func fill(n Int, m Map[Int, Int]) Map[Int, Int] {
+  if n == 0 { m } else { fill(n - 1, map.mapInsert(m, n, n)) }
+}
+func lookupAll(n Int, m Map[Int, Int], total Int) Int {
+  if n == 0 { total } else { lookupAll(n - 1, m, total + result.fromOption(map.mapLookup(m, n), 0)) }
+}
+func main() IO[Unit] { println(show(lookupAll(100000, fill(100000, map.emptyMap()), 0))) }

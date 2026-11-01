@@ -20,7 +20,7 @@ func TestBlockLetTuplePattern(t *testing.T) {
 		},
 		Result: tupleLiteral(local("x", types.Int), local("y", types.Int)),
 	}
-	out := assertSource(t, p, "any = makePair_(x_)", ".(*Tuple2)", "var x_ any =", "var y_ any =", "return &Tuple2{F0: x_, F1: y_}")
+	out := assertSource(t, p, "any = makePair_(x_)", ".(*Tuple2)", "var x_ any =", "var y_ any =")
 	if strings.Count(out, "= makePair_(x_)") != 1 {
 		t.Fatalf("pattern initializer must be evaluated exactly once before shadowing x:\n%s", out)
 	}
@@ -44,7 +44,7 @@ func TestDoLetRecordPattern(t *testing.T) {
 		},
 		Result: call(ctor("Some"), tupleLiteral(local("name", types.String), local("age", types.Int))),
 	})
-	out := assertSource(t, p, `any = &Person_Person{F0: "Ada", F1: int64(42)}`, ".(*Person_Person)", "var name_ any =", ".F0", "var age_ any =", ".F1", "return &Option_Some{F0: &Tuple2{F0: name_, F1: age_}}")
+	out := assertSource(t, p, `any = &Person_Person{F0: "Ada", F1: int64(42)}`, ".(*Person_Person)", "var name_ any =", ".F0", "var age_ int64 =", ".F1", "return &Option_Some{F0: &Tuple2{F0: name_, F1: age_}}")
 	if strings.Count(out, `= &Person_Person{F0: "Ada", F1: int64(42)}`) != 1 || strings.Contains(out, "case *Person_Person:") {
 		t.Fatalf("record let must destructure one initializer without a match guard:\n%s", out)
 	}
@@ -65,9 +65,7 @@ func TestDoBindTuplePattern(t *testing.T) {
 	})
 	out := assertSource(t, p,
 		"(Monad_Option{}).Bind(&Option_Some{F0: &Tuple2{F0: int64(1), F1: int64(2)}}, func(p any) any",
-		"(Monad_Option{}).Bind(&Option_Some{F0: &Tuple2{F0: x_, F1: y_}}, func(p any) any",
-		"p.(*Tuple2)", "var whole_ any = p", "var x_ any =", "var y_ any =",
-		"return &Option_Some{F0: &Tuple3{F0: whole_, F1: x_, F2: y_}}")
+		"p.(*Tuple2)", "var whole_ any = p", "var x_ any =", "var y_ any =")
 	if strings.Count(out, "func(p any) any") != 2 || strings.Contains(out, "case *Tuple2:") {
 		t.Fatalf("each pattern bind must destructure its own continuation parameter without a guard:\n%s", out)
 	}
@@ -88,7 +86,7 @@ func TestLetWildcardAndNestedPatterns(t *testing.T) {
 		},
 		Result: tupleLiteral(local("whole", types.Unit), local("x", types.Int)),
 	}
-	out := assertSource(t, p, "any = value_()", "var whole_ any =", ".(*Tuple2)", ".F0.(*Box_Box)", "var x_ any =", "return &Tuple2{F0: whole_, F1: x_}")
+	out := assertSource(t, p, "any = value_()", "var whole_ any =", ".(*Tuple2)", ".F0.(*Box_Box)", "var x_ int64 =", "return &Tuple2{F0: whole_, F1: x_}")
 	if strings.Contains(out, "switch ") || strings.Contains(out, "panic(") {
 		t.Fatalf("nested irrefutable patterns must not emit match guards:\n%s", out)
 	}

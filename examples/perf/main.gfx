@@ -1,0 +1,17 @@
+package main
+import "std/prelude"
+
+class Combine[A] { combine(a A, b A) A }
+instance Combine[Int] { combine(a, b) { a + b } }
+
+func addInts(a Int, b Int) Int { a + b }
+func sumPair[A Combine](a A, b A) A { combine(a, b) }
+func countDown(n Int, total Int) Int {
+  if n == 0 { total } else { countDown(n - 1, addInts(total, n)) }
+}
+
+func main() IO[Unit] {
+  println("native: ${addInts(20, 22)}")
+  |> prelude.bind(func(_) => println("specialized: ${sumPair(20, 22)}"))
+  |> prelude.bind(func(_) => println("tail loop: ${countDown(1000000, 0)}"))
+}

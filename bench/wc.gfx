@@ -1,0 +1,49 @@
+package main
+import "std/string"
+import "std/list"
+import "std/io"
+
+func increment(counts List[(String, Int)], word String) List[(String, Int)] {
+  match counts {
+    Nil => [(word, 1)]
+    Cons((key, count), rest) => if key == word {
+      Cons((key, count + 1), rest)
+    } else {
+      Cons((key, count), increment(rest, word))
+    }
+  }
+}
+
+func frequencyOrder(a (String, Int), b (String, Int)) Ordering {
+  match compare(snd(b), snd(a)) {
+    EQ => compare(fst(a), fst(b))
+    order => order
+  }
+}
+
+func limit(arguments List[String]) IO[Int] {
+  match arguments {
+    Nil => ioPure(10)
+    Cons(value, _) => match string.parseInt(value) {
+      Some(n) => ioPure(n)
+      None => do {
+        println("usage: wc [N]")
+        io.exit(2)
+      }
+    }
+  }
+}
+
+func main() IO[Unit] {
+  do {
+    arguments <- io.args()
+    n <- limit(arguments)
+    text <- io.readAll()
+    let tokens = string.words(text)
+    let empty: List[(String, Int)] = []
+    let counts = fold(tokens, empty, func(acc, word) => increment(acc, word))
+    let ranked = list.sortBy(counts, frequencyOrder)
+    println("lines: ${length(string.lines(text))}, words: ${length(tokens)}")
+    list.forEach(list.take(n, ranked), func((word, count)) => println(string.showPadLeft(count, 5) + " " + word))
+  }
+}

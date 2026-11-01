@@ -8,6 +8,7 @@ import (
 	"go/scanner"
 	"go/token"
 	"path"
+	"strconv"
 	"strings"
 
 	"gofx/ast"
@@ -114,6 +115,17 @@ func Generate(prog *types.Program, goPackage string) (map[string][]byte, error) 
 			continue
 		}
 		name := renamed[literal]
+		// Copies retain their original function's module and public mangling.
+		if name == "" {
+			if split := strings.LastIndex(literal, "_special"); split >= 0 {
+				base := renamed[literal[:split]]
+				copy, err := strconv.Atoi(literal[split+len("_special"):])
+				if base != "" && err == nil && copy >= 1 && copy <= specializationCopies {
+					name = base + literal[split:]
+					register(literal, name, owners[base])
+				}
+			}
+		}
 		if name == "" {
 			continue
 		}

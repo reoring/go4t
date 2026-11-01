@@ -1,0 +1,5 @@
+package main
+import "std/list"
+func main() IO[Unit] {
+  println(show(fold(list.range(0, 10000000), 0, func(acc, n) => acc + n)))
+}

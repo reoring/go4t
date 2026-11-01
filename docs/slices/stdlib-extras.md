@@ -21,12 +21,12 @@ write `delay(func(_) => expensive())`, not a precomputed value. There is no muta
 cache or new effect boundary.
 
 List construction helpers use tail-recursive accumulators/folds where natural, with
-one reversal where needed to preserve order. This slice does not change codegen's
-recursion strategy. `sortOn` reuses stable `sortBy`, decorates each element with its key
-once, compares keys with their `Ord.compare` dictionary, then removes the keys. It does
-not require `Eq` or `Ord` on the elements and retains the existing insertion sort's
-quadratic worst-case comparison complexity. `nub` retains first occurrences using `Eq`
-and is also quadratic in the worst case.
+one reversal where needed to preserve order. `sortOn` reuses stable `sortBy`,
+decorates each element with its key once, compares keys with their `Ord.compare`
+dictionary, then removes the keys. It does not require `Eq` or `Ord` on the elements.
+Wave B perf replaced insertion sorting with stable array-backed sorting; see
+`perf.md` for the updated complexity and removal of the internal `insertBy` helper.
+`nub` retains first occurrences using `Eq` and is quadratic in the worst case.
 
 ## New list signatures
 
@@ -117,7 +117,6 @@ as the additions; Option/State-only helpers are not list operations.
 | `drop` | `drop(n <= 0, xs) = xs`; empty input stays empty; `drop(n >= length(xs), xs) = Nil`. |
 | `sum` | `sum(Nil) = 0`; singleton is its element; signed Int overflow wraps. |
 | `elem` | Empty gives false; singleton compares with `Eq`; stops at the first match. |
-| `insertBy` | Into `Nil` returns `[x]`; inserts before the first element for which `cmp(x, y)` is not `GT`, including ties. |
 | `sortBy` | Empty/singleton unchanged; comparator not called for these inputs; equal elements retain input order. |
 | `sort` | Same boundaries as `sortBy`; uses the element's `Ord.compare`. |
 | `maximum` / `minimum` | Empty gives `None`; singleton gives `Some(x)`; ties retain the earliest element. |

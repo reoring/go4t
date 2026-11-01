@@ -133,3 +133,39 @@ func main() IO[Unit] {
 		})
 	}
 }
+
+func TestGenerateModuleSpecializations(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(dir, "helper"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for name, source := range map[string]string{
+		"main.gfx":        "package main\nimport \"helper\"\nfunc main() IO[Unit] { println(show(helper.pick(20, 42))) }\n",
+		"helper/pick.gfx": "package helper\nfunc pick[A Ord](a A, b A) A { if a < b { b } else { a } }\n",
+	} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(source), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	loaded, err := modules.Load([]string{dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	program, err := types.Check(loaded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	generated, err := Generate(program, "main")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(generated["helper.go"]), "func helper_pick__special1(a_ int64, b_ int64) int64") {
+		t.Fatalf("specialized function lost module ownership or native signature:\n%s", generated["helper.go"])
+	}
+	if !strings.Contains(string(generated["main.go"]), "helper_pick__special1(") {
+		t.Fatal("cross-module call did not select specialization")
+	}
+	if output := runGeneratedModules(t, generated); output != "42\n" {
+		t.Fatalf("output = %q", output)
+	}
+}

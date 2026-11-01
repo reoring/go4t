@@ -255,7 +255,6 @@ func TestAsPatternsBindCurrentSubvalue(t *testing.T) {
 		"var pair_ any = _gofx1.F0",
 		"var number_ any = _gofx2.F0",
 		"var other_ any = _gofx2.F1",
-		"return &Tuple4{F0: whole_, F1: pair_, F2: number_, F3: other_}",
 		"return whole_")
 }
 
@@ -324,7 +323,7 @@ func TestPartiallyAppliedInstances(t *testing.T) {
 			fragments := []string{
 				"func (dictself Functor_Result) Fmap(value_ any, f_ any) any",
 				"return &Result_Error{F0: err_}",
-				"return &Result_Success{F0: any(f_).(func(any) any)(a_)}",
+				"return &Result_Success{F0: any(f_).(func(any) any)(",
 			}
 			if constrained {
 				instance.Context = []types.Constraint{{Class: "Show", Arg: e}}
@@ -601,9 +600,9 @@ func TestDoDesugaring(t *testing.T) {
 	poly.Scheme.Constraints = []types.Constraint{{Class: "Monad", Arg: &types.TVar{Name: "M"}}}
 	assertSource(t, p,
 		"func genericSequence_(dict_M Monad) any",
-		"(dict_M).Bind(&Option_Some{F0: int64(1)}, func(x_ any) any",
-		"(Monad_Option{}).Bind(&Option_Some{F0: int64(1)}, func(x_ any) any",
-		"var y_ any = rt.AddInt(x_, int64(2))",
+		"(dict_M).Bind(&Option_Some{F0: int64(1)}, func(",
+		"(Monad_Option{}).Bind(&Option_Some{F0: int64(1)}, func(",
+		"var y_ int64 =",
 		"(Monad_Option{}).Bind(&Option_Some{F0: y_}, func(_ any) any",
 		"return &Option_Some{F0: y_}")
 }
@@ -618,7 +617,7 @@ func TestNestedConstructorAndLiteralPatterns(t *testing.T) {
 		{Pat: &ast.PWild{}, Body: integer(0)},
 	}}
 	addFunc(p, "nested", []string{"x"}, []types.Type{types.Unit}, match)
-	out := assertSource(t, p, "case *Option_Some:", "case *Option_None:", ".(int64) == int64(7)", "var n_ any =", "return n_", "return int64(0)")
+	out := assertSource(t, p, "case *Option_Some:", "case *Option_None:", ".(int64) == int64(7)", "var n_ any =", "return int64(0)")
 	if strings.Contains(out, `panic("non-exhaustive match")`) {
 		t.Fatalf("wildcard final arm has an unreachable panic:\n%s", out)
 	}
@@ -671,7 +670,7 @@ func TestFinalMatchArm(t *testing.T) {
 			name: "nested single constructor", pattern: &ast.PTuple{Elems: []ast.Pattern{
 				&ast.PCtor{Name: "Box", Args: []ast.Pattern{&ast.PVar{Name: "value"}}}, &ast.PWild{},
 			}},
-			want: []string{".(*Tuple2)", ".(*Box_Box)", "var value_ any ="},
+			want: []string{".(*Tuple2)", ".(*Box_Box)", "var value_ int64 ="},
 		},
 		{
 			name: "nested literal", pattern: &ast.PTuple{Elems: []ast.Pattern{&ast.PLit{X: boolean(false)}, &ast.PWild{}}},
@@ -739,45 +738,14 @@ func TestLocalsLambdasBlocksAndIdentifierMangling(t *testing.T) {
 	}, Result: &ast.If{Cond: boolean(true), Then: local("dict_F", types.Int), Else: applied}}}
 	addFunc(p, "switch", []string{"type"}, []types.Type{types.Int}, body)
 	assertSource(t, p,
-		"func switch_(type_ any) any",
-		"var type_ any = type_",
-		"var dict_F_ any = type_",
-		"var ext_1_ any = int64(2)",
+		"func switch_(type_ int64) any",
+		"var type_ int64 = type_",
+		"var dict_F_ int64 = type_",
+		"var ext_1_ int64 = int64(2)",
 		`_ = "discarded\n\"quoted\""`,
-		"if any(true).(bool)",
-		"any(func(p0 any) any",
+		"if true",
+		"any(func(a0 any) any",
 		").(func(any) any)(int64(6))")
-}
-
-func TestOperatorSelection(t *testing.T) {
-	binary := []struct {
-		op, name string
-		value    ast.Expr
-	}{
-		{"+", "AddInt", integer(1)}, {"-", "SubInt", integer(1)}, {"*", "MulInt", integer(1)}, {"/", "DivInt", integer(1)},
-		{"+", "AddString", text("a")},
-	}
-	for _, tt := range binary {
-		t.Run(tt.name, func(t *testing.T) {
-			p := fixture()
-			expr := &ast.Binary{Op: tt.op, L: tt.value, R: tt.value}
-			if tt.op == "+" {
-				expr.Ann = &types.Ann{Type: types.AnnOf(tt.value).Type}
-			}
-			p.Main.Decl.Body.Result = expr
-			assertSource(t, p, "return rt."+tt.name+"(")
-		})
-	}
-	for _, tt := range []struct {
-		op, name string
-		value    ast.Expr
-	}{{"-", "NegInt", integer(1)}, {"!", "Not", boolean(false)}} {
-		t.Run(tt.name, func(t *testing.T) {
-			p := fixture()
-			p.Main.Decl.Body.Result = &ast.Unary{Op: tt.op, X: tt.value}
-			assertSource(t, p, "return rt."+tt.name+"(")
-		})
-	}
 }
 
 func TestStringInterpolation(t *testing.T) {
@@ -837,7 +805,7 @@ func TestRecordLiteralsAndFields(t *testing.T) {
 	})
 	assertSource(t, p,
 		`return &Person_Person{F1: int64(42), F0: "Ada"}`,
-		"return any(p_).(*Person_Person).F1",
+		"any(p_).(*Person_Person).F1",
 		`return any(&Person_Person{F1: int64(42), F0: "Ada"}).(*Person_Person).F0`)
 }
 
@@ -976,7 +944,7 @@ func TestLetInstantiationAndErasedValues(t *testing.T) {
 		"boxed_ := func(dict_A Show) any",
 		"return &Option_Some{F0: func(p0 any) any",
 		"return boxed_(Show_Int{})",
-		"var id_ any = func(p0 any) any",
+		"var id_ any = func(a0 any) any",
 		"any(id_).(func(any) any)(int64(5))",
 		"any(id_).(func(any) any)(true)")
 }

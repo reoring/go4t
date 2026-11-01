@@ -33,7 +33,7 @@ func main() IO[Unit] {
 	if err != nil {
 		t.Fatal(err)
 	}
-	out := assertSource(t, program, "func(p0 any) any", "func(p0 any, p1 any) any", "rt.MulInt", "add_(", "finish_(")
+	out := assertSource(t, program, "func(a0 any) any", "func(a0 any, a1 any) any", " * ", "add_(", "finish_(")
 	if strings.Contains(out, "|>") {
 		t.Fatal("pipe operator survived parser desugaring")
 	}

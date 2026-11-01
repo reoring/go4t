@@ -1,5 +1,6 @@
 package list
 import "std/prelude"
+import "std/array"
 
 type List[A] = Nil | Cons(A, List[A]) deriving Eq, Ord, Debug
 instance Functor[List] {
@@ -153,21 +154,8 @@ func elem[A Eq](x A, xs List[A]) Bool {
   }
 }
 
-func insertBy[A](x A, xs List[A], cmp func(A, A) Ordering) List[A] {
-  match xs {
-    Nil => Cons(x, Nil)
-    Cons(y, rest) => match cmp(x, y) {
-      GT => Cons(y, insertBy(x, rest, cmp))
-      _ => Cons(x, xs)
-    }
-  }
-}
-
 func sortBy[A](xs List[A], cmp func(A, A) Ordering) List[A] {
-  match xs {
-    Nil => Nil
-    Cons(x, rest) => insertBy(x, sortBy(rest, cmp), cmp)
-  }
+  array.arrayToList(array.arraySortBy(array.arrayFromList(xs), cmp))
 }
 
 func sort[A Ord](xs List[A]) List[A] {

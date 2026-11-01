@@ -34,6 +34,21 @@ jobs:
               # Argument fixtures are whitespace-separated, without shell evaluation.
               read -r -d '' -a args < "$directory/args.txt" || true
             fi
+            sources=("$source")
+            if [[ -f "$directory/gostd.gfx" ]]; then
+              sources+=("$directory/gostd.gfx")
+            fi
             echo "Running $source"
-            go run ./cmd/gofx run "$source" -- "${args[@]}" < "$input"
+            go run ./cmd/gofx run "${sources[@]}" -- "${args[@]}" < "$input"
           done
+  bench:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Enforce benchmark budgets
+        run: go test ./bench -run '^TestBudgets$' -bench . -benchtime=1x -timeout=12m
