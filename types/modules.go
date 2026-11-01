@@ -21,6 +21,10 @@ var preludeOwners = map[string]string{
 	"println": "std/io", "print": "std/io", "eprintln": "std/io", "ioPure": "std/io", "ioFail": "std/io", "toFloat": "std/float",
 }
 
+// JSON deriving and runtime shape registration use these canonical identities,
+// without adding any names to the implicit prelude namespace.
+var jsonIntrinsics = strings.Fields("Json JNull JBool JNum JStr JArr JObj Encode Decode encode decode _jsonObject _jsonInt _jsonErrorAt _jsonFieldPath _jsonAt _jsonDecodeAt _jsonField _jsonArray _jsonValues _jsonDecodeList _jsonDecodeFields")
+
 type moduleScope struct {
 	module        *ast.Module
 	values, types map[string]string
@@ -203,6 +207,9 @@ func (r *moduleResolver) declare(s *moduleScope, table map[string]string, name s
 	// Fixed compiler primitives (desugaring and deriving) retain semantic names;
 	// codegen gives them the same module-prefixed Go ABI as other declarations.
 	if s.module.ImportPath == owner && (contains(PreludeExports, name) || contains(strings.Fields("fmap pure bind foldr traverse"), name)) {
+		canonical = name
+	}
+	if s.module.ImportPath == "std/json" && contains(jsonIntrinsics, name) {
 		canonical = name
 	}
 	for r.owners[canonical] != "" && r.owners[canonical] != s.module.Path {

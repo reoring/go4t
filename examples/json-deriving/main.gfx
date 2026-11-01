@@ -1,0 +1,27 @@
+package main
+import codec "std/json"
+import "std/prelude"
+
+type Item = Item{sku: String, qty: Int, price: Float} deriving codec.Encode, codec.Decode
+type Order = Order{id: Int, customer: String, items: List[Item], note: Option[String]} deriving codec.Encode, codec.Decode
+type Status = Pending | Shipped(String) deriving codec.Encode, codec.Decode
+
+func main() IO[Unit] {
+  let order = Order{
+    id: 42,
+    customer: "Ada",
+    items: [Item{sku: "GO-1", qty: 2, price: 12.5}],
+    note: Some("Leave at reception")
+  }
+  let roundTrip: Result[String, Order] = prelude.bind(codec.parseJson(codec.toJson(codec.encode(order))), codec.decode)
+  let bad = "{\"id\":42,\"customer\":\"Ada\",\"items\":[{\"sku\":\"a\",\"qty\":1,\"price\":2},{\"sku\":\"b\",\"qty\":1,\"price\":2},{\"sku\":false,\"qty\":1,\"price\":2}],\"note\":null}"
+  let malformed: Result[String, Order] = prelude.bind(codec.parseJson(bad), codec.decode)
+  let status: Result[String, Status] = prelude.bind(codec.parseJson(codec.toJson(codec.encode(Shipped("TRACK-7")))), codec.decode)
+  do {
+    println(match roundTrip { Ok(value) => "round-trip: " + show(codec.toJson(codec.encode(value)) == codec.toJson(codec.encode(order))); Err(e) => e })
+    println(codec.toJsonPretty(codec.encode(order)))
+    println(codec.toJson(codec.encode(Pending)))
+    println(match status { Ok(value) => codec.toJson(codec.encode(value)); Err(e) => e })
+    println(match malformed { Err(e) => e; Ok(_) => "unexpected success" })
+  }
+}

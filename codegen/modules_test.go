@@ -169,3 +169,48 @@ func TestGenerateModuleSpecializations(t *testing.T) {
 		t.Fatalf("output = %q", output)
 	}
 }
+
+func TestGenerateModuleJSONTags(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(dir, "model"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for name, source := range map[string]string{
+		"main.gfx": `package main
+import "model"
+import "std/json"
+func main() IO[Unit] {
+  let bad: Result[String, model.Status] = json.decode(json.JObj(model.badTag()))
+  do {
+    println(json.toJson(json.encode(model.Shipped("track"))))
+    println(match bad { Err(e) => e; Ok(_) => "unexpected success" })
+  }
+}
+`,
+		"model/model.gfx": `package model
+import "std/json"
+import "std/map"
+type Status = Pending | Shipped(String) deriving json.Encode, json.Decode
+func badTag() Map[String, json.Json] { map.mapFromList([("$tag", json.JStr("Lost"))]) }
+`,
+	} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(source), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	loaded, err := modules.Load([]string{dir})
+	if err != nil {
+		t.Fatal(err)
+	}
+	program, err := types.Check(loaded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	generated, err := Generate(program, "main")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if output := runGeneratedModules(t, generated); output != "{\"$tag\":\"Shipped\",\"$values\":[\"track\"]}\nexpected Status constructor at $[\"$tag\"]\n" {
+		t.Fatalf("module-qualified names leaked into JSON: %q", output)
+	}
+}

@@ -91,6 +91,7 @@ func Check(modules []*ast.Module) (program *Program, err error) {
 			c.moduleFiles[file.Name] = module.Path
 		}
 	}
+	expandJSONTuples(files)
 	for _, file := range files {
 		c.file = file.Name
 		for _, decl := range file.Decls {
@@ -435,11 +436,18 @@ func (c *checker) collectInstances(files []*ast.File) {
 			scope := make(map[string]*TVar, len(names))
 			for _, name := range names {
 				checkName(d.Pos, name)
+				// User-defined names remain fresh variables: a user's type A
+				// must not specialize every generic prelude instance using A.
+				if concrete := c.typeCon(name); concrete == Int || concrete == Float || concrete == String || concrete == Bool || concrete == Unit {
+					inst.HeadArgs = append(inst.HeadArgs, concrete)
+					continue
+				}
 				if scope[name] != nil {
 					fail(d.Pos, "duplicate type parameter %s", name)
 				}
 				param := &TVar{Name: name, Kind: KStar{}}
 				scope[name] = param
+				inst.HeadArgs = append(inst.HeadArgs, param)
 				if _, partial := residual.(KArrow); partial {
 					inst.Fixed = append(inst.Fixed, param)
 				} else {
@@ -524,19 +532,35 @@ func (inst *Instance) headParams() []*TVar {
 }
 
 func (inst *Instance) head() Type {
-	params := inst.headParams()
-	args := make([]Type, len(params))
-	for i, param := range params {
-		args[i] = param
+	return App(inst.TypeCon, inst.HeadArgs...)
+}
+
+// Direct heads may fix nullary types (Map[String, V]); matching stays
+// constructor-keyed and never unifies or overlaps competing instances.
+func (inst *Instance) matchHead(args []Type) (map[*TVar]Type, bool) {
+	if len(args) != len(inst.HeadArgs) {
+		return nil, false
 	}
-	return App(inst.TypeCon, args...)
+	var sub map[*TVar]Type
+	for i, head := range inst.HeadArgs {
+		if param, ok := head.(*TVar); ok {
+			if sub == nil {
+				sub = make(map[*TVar]Type, len(inst.headParams()))
+			}
+			sub[param] = args[i]
+		} else if prune(args[i]) != head {
+			return nil, false
+		}
+	}
+	return sub, true
 }
 
 // Superclass contexts are expressed using the subclass instance's variables.
 // Resolving each required dictionary reuses the same superclass projection as
 // method calls and permits stronger, reordered, or additional child constraints.
 func (c *checker) superclassArgs(inst, parent *Instance) ([]DictRef, bool) {
-	if len(inst.Fixed) != len(parent.Fixed) || len(inst.Params) != len(parent.Params) {
+	sub, matches := parent.matchHead(inst.HeadArgs)
+	if !matches {
 		return nil, false
 	}
 	if len(parent.Context) == 0 {
@@ -545,12 +569,7 @@ func (c *checker) superclassArgs(inst, parent *Instance) ([]DictRef, bool) {
 	b := c.body(inst.Context, nil)
 	args := make([]DictRef, len(parent.Context))
 	for i, constraint := range parent.Context {
-		for j, param := range parent.headParams() {
-			if constraint.Arg == param {
-				constraint.Arg = inst.headParams()[j]
-				break
-			}
-		}
+		constraint.Arg = substitute(constraint.Arg, sub)
 		dict, message := b.resolveDictionary(constraint)
 		if message != "" {
 			return nil, false

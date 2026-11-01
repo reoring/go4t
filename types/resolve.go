@@ -323,13 +323,13 @@ func (b *bodyChecker) resolveDictionary(constraint Constraint) (DictRef, string)
 		head, args = prune(app.Fun), app.Args
 	}
 	if con, ok := head.(*TCon); ok {
-		if inst := b.c.instances[instanceKey{constraint.Class, con.Name}]; inst != nil && len(inst.headParams()) == len(args) {
+		if inst := b.c.instances[instanceKey{constraint.Class, con.Name}]; inst != nil {
+			sub, matches := inst.matchHead(args)
+			if !matches {
+				return DictRef{}, fmt.Sprintf("no instance %s[%s]%s", constraint.Class, TypeString(arg), b.c.instanceHint(constraint.Class, arg))
+			}
 			dict := DictRef{Kind: DictInstance, Class: constraint.Class, Instance: inst}
 			if len(inst.Context) != 0 {
-				sub := make(map[*TVar]Type, len(inst.headParams()))
-				for i, param := range inst.headParams() {
-					sub[param] = args[i]
-				}
 				dict.Args = make([]DictRef, len(inst.Context))
 				for i, context := range inst.Context {
 					required := b.strongestConstraint(context, inst.Context)

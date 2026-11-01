@@ -1,0 +1,135 @@
+package json
+import "std/prelude"
+import r "std/result"
+import "std/map"
+import "std/array"
+
+type Json = JNull | JBool(Bool) | JNum(Float) | JStr(String) | JArr(List[Json]) | JObj(Map[String, Json])
+
+class Encode[A] {
+  encode(a A) Json
+}
+
+class Decode[A] {
+  decode(j Json) Result[String, A]
+}
+
+extern func toJson(j Json) String = "gofx/rt".ToJson
+extern func toJsonPretty(j Json) String = "gofx/rt".ToJsonPretty
+extern func parseJson(s String) Result[String, Json] = "gofx/rt".ParseJson
+extern func _jsonObject(fields List[(String, Json)]) Json = "gofx/rt".JsonObject
+extern func _jsonInt(n Float) Result[String, Int] = "gofx/rt".JsonInt
+extern func _jsonErrorAt(message String, segment String) String = "gofx/rt".JsonErrorAt
+extern func _jsonFieldPath(name String) String = "gofx/rt".JsonFieldPath
+
+func _jsonAt[A](segment String, result Result[String, A]) Result[String, A] {
+  r.mapErr(result, func(message) => _jsonErrorAt(message, segment))
+}
+
+func _jsonDecodeAt[A Decode](segment String, j Json) Result[String, A] {
+  _jsonAt(segment, decode(j))
+}
+
+func _jsonField[A Decode](fields Map[String, Json], name String) Result[String, A] {
+  match map.mapLookup(fields, name) {
+    None => Err("expected field at $" + _jsonFieldPath(name))
+    Some(j) => _jsonDecodeAt(_jsonFieldPath(name), j)
+  }
+}
+
+func _jsonArray(j Json, size Int) Result[String, List[Json]] {
+  match j {
+    JArr(xs) => if length(xs) == size { Ok(xs) } else { Err("expected array of length " + show(size) + " at $") }
+    _ => Err("expected array at $")
+  }
+}
+
+func _jsonValues(fields Map[String, Json], size Int) Result[String, List[Json]] {
+  prelude.bind(_jsonField(fields, "$values"), func(j) => _jsonAt(_jsonFieldPath("$values"), _jsonArray(j, size)))
+}
+
+instance Encode[Json] { encode(j) { j } }
+instance Decode[Json] { decode(j) { Ok(j) } }
+instance Encode[Int] { encode(a) { JNum(toFloat(a)) } }
+instance Decode[Int] {
+  decode(j) { match j { JNum(n) => _jsonInt(n); _ => Err("expected Int at $") } }
+}
+instance Encode[Float] { encode(a) { JNum(a) } }
+instance Decode[Float] {
+  decode(j) { match j { JNum(n) => Ok(n); _ => Err("expected Float at $") } }
+}
+instance Encode[String] { encode(a) { JStr(a) } }
+instance Decode[String] {
+  decode(j) { match j { JStr(s) => Ok(s); _ => Err("expected String at $") } }
+}
+instance Encode[Bool] { encode(a) { JBool(a) } }
+instance Decode[Bool] {
+  decode(j) { match j { JBool(b) => Ok(b); _ => Err("expected Bool at $") } }
+}
+instance Encode[Unit] { encode(_a) { JNull } }
+instance Decode[Unit] {
+  decode(j) { match j { JNull => Ok(unit()); _ => Err("expected null at $") } }
+}
+instance Encode[Option[A]] given Encode[A] {
+  encode(a) { match a { None => JNull; Some(value) => encode(value) } }
+}
+instance Decode[Option[A]] given Decode[A] {
+  decode(j) { match j { JNull => Ok(None); _ => prelude.fmap(decode(j), func(value) => Some(value)) } }
+}
+instance Encode[List[A]] given Encode[A] {
+  encode(xs) { JArr(map(xs, func(a) => encode(a))) }
+}
+instance Decode[List[A]] given Decode[A] {
+  decode(j) {
+    match j {
+      JArr(xs) => _jsonDecodeList(xs, 0, [])
+      _ => Err("expected array at $")
+    }
+  }
+}
+func _jsonDecodeList[A Decode](xs List[Json], index Int, acc List[A]) Result[String, List[A]] {
+  match xs {
+    Nil => Ok(reverse(acc))
+    Cons(j, rest) => match _jsonDecodeAt("[" + show(index) + "]", j) {
+      Err(e) => Err(e)
+      Ok(a) => _jsonDecodeList(rest, index + 1, Cons(a, acc))
+    }
+  }
+}
+instance Encode[Array[A]] given Encode[A] {
+  encode(xs) { encode(array.arrayToList(xs)) }
+}
+instance Decode[Array[A]] given Decode[A] {
+  decode(j) { prelude.fmap(decode(j), func(xs) => array.arrayFromList(xs)) }
+}
+instance Encode[Map[String, V]] given Encode[V] {
+  encode(m) { JObj(map.mapMap(m, func(value) => encode(value))) }
+}
+instance Decode[Map[String, V]] given Decode[V] {
+  decode(j) {
+    match j {
+      JObj(fields) => prelude.fmap(_jsonDecodeFields(map.mapToList(fields), []), func(entries) => map.mapFromList(entries))
+      _ => Err("expected object at $")
+    }
+  }
+}
+func _jsonDecodeFields[A Decode](fields List[(String, Json)], acc List[(String, A)]) Result[String, List[(String, A)]] {
+  match fields {
+    Nil => Ok(reverse(acc))
+    Cons((key, j), rest) => match _jsonDecodeAt(_jsonFieldPath(key), j) {
+      Err(e) => Err(e)
+      Ok(a) => _jsonDecodeFields(rest, Cons((key, a), acc))
+    }
+  }
+}
+instance Encode[(A, B)] given Encode[A], Encode[B] {
+  encode(pair) { match pair { (a, b) => JArr([encode(a), encode(b)]) } }
+}
+instance Decode[(A, B)] given Decode[A], Decode[B] {
+  decode(j) {
+    prelude.bind(_jsonArray(j, 2), func(xs) => match xs {
+      Cons(a, Cons(b, Nil)) => prelude.bind(_jsonDecodeAt("[0]", a), func(x) => prelude.fmap(_jsonDecodeAt("[1]", b), func(y) => (x, y)))
+      _ => Err("expected array of length 2 at $")
+    })
+  }
+}

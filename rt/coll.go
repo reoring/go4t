@@ -5,7 +5,12 @@ import "sort"
 // Map and Set share immutable AVL nodes. Updates copy only the search path;
 // cached heights and sizes keep lookup/update logarithmic and size constant-time.
 // The distinct wrappers remain opaque to generated gofx programs.
-type mapValue struct{ root *collNode }
+type mapValue struct {
+	root *collNode
+	// Only parsed/derived JSON objects carry source order. Ordinary Map
+	// operations return a sorted map and never mutate this immutable metadata.
+	jsonOrder *[]string
+}
 type setValue struct{ root *collNode }
 type arrayValue []any
 
@@ -162,7 +167,7 @@ func collList(root *collNode, rest any, value func(*collNode) any) any {
 func EmptyMap() any { return mapValue{} }
 
 func MapInsert(m, key, value, compare any) any {
-	return mapValue{collInsert(m.(mapValue).root, key, value, compare.(func(any, any) any), true)}
+	return mapValue{root: collInsert(m.(mapValue).root, key, value, compare.(func(any, any) any), true)}
 }
 
 func MapLookup(m, key, compare any) any {
@@ -173,7 +178,7 @@ func MapLookup(m, key, compare any) any {
 }
 
 func MapDelete(m, key, compare any) any {
-	return mapValue{collDelete(m.(mapValue).root, key, compare.(func(any, any) any))}
+	return mapValue{root: collDelete(m.(mapValue).root, key, compare.(func(any, any) any))}
 }
 
 func MapMember(m, key, compare any) any {
@@ -189,7 +194,7 @@ func MapFromList(xs, compare any) any {
 	for {
 		pair, rest, ok := Shapes.Uncons(xs)
 		if !ok {
-			return mapValue{root}
+			return mapValue{root: root}
 		}
 		key, value := Shapes.Untuple2(pair)
 		root = collInsert(root, key, value, cmp, true)
@@ -213,7 +218,7 @@ func MapUnion(a, b, compare any) any {
 	root := a.(mapValue).root
 	cmp := compare.(func(any, any) any)
 	collWalk(b.(mapValue).root, func(n *collNode) { root = collInsert(root, n.key, n.value, cmp, false) })
-	return mapValue{root}
+	return mapValue{root: root}
 }
 
 func collMap(root *collNode, f func(any) any) *collNode {
@@ -227,7 +232,7 @@ func collMap(root *collNode, f func(any) any) *collNode {
 }
 
 func MapMap(m, f any) any {
-	return mapValue{collMap(m.(mapValue).root, f.(func(any) any))}
+	return mapValue{root: collMap(m.(mapValue).root, f.(func(any) any))}
 }
 
 func MapFold(m, init, f any) any {
