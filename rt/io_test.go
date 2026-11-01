@@ -53,7 +53,7 @@ func TestBindIsLazyAndOrdered(t *testing.T) {
 }
 
 func TestBindShortCircuits(t *testing.T) {
-	wantErr := errors.New("left failed")
+	wantErr := &Failure{Kind: FailureKind, Message: "left failed"}
 	called := false
 	left := IO(func() (any, error) { return nil, wantErr })
 	got, err := Bind(left, func(any) any {
@@ -69,7 +69,7 @@ func TestBindShortCircuits(t *testing.T) {
 }
 
 func TestBindPropagatesRightError(t *testing.T) {
-	wantErr := errors.New("right failed")
+	wantErr := &Failure{Kind: FailureKind, Message: "right failed"}
 	got, err := Bind(Pure(int64(1)), func(any) any {
 		return IO(func() (any, error) { return nil, wantErr })
 	}).(IO)()
@@ -104,7 +104,7 @@ func TestIOMonadLaws(t *testing.T) {
 
 func TestFail(t *testing.T) {
 	got, err := Fail("failure message").(IO)()
-	if got != nil || err == nil || err.Error() != "failure message" {
+	if got != nil || !reflect.DeepEqual(err, &Failure{Kind: FailureKind, Message: "failure message"}) {
 		t.Fatalf("Fail result = (%v, %v), want (nil, failure message)", got, err)
 	}
 }
@@ -314,7 +314,7 @@ func TestInputErrors(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			setTestInput(t, failingInput{wantErr})
-			if got, err := tt.action().(IO)(); got != nil || err != wantErr {
+			if got, err := tt.action().(IO)(); got != nil || !reflect.DeepEqual(err, &Failure{Kind: FailureKind, Message: wantErr.Error()}) {
 				t.Fatalf("%s = (%#v, %v), want (nil, %v)", tt.name, got, err, wantErr)
 			}
 		})

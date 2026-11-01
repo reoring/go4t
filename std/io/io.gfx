@@ -2,6 +2,27 @@ package io
 
 import "std/prelude"
 
+type IoError = NotFound(String) | PermissionDenied(String) | AlreadyExists(String) | Timeout | Cancelled | Panic(String) | Network(String) | Failure(String) deriving Eq, Debug
+
+func ioErrorMessage(e IoError) String {
+  match e {
+    NotFound(msg) => msg
+    | PermissionDenied(msg) => msg
+    | AlreadyExists(msg) => msg
+    | Timeout => "context deadline exceeded"
+    | Cancelled => "context canceled"
+    | Panic(msg) => msg
+    | Network(msg) => msg
+    | Failure(msg) => msg
+  }
+}
+
+instance Show[IoError] {
+  show(e) { ioErrorMessage(e) }
+}
+
+extern func ioRaise[A](e IoError) IO[A] = "gofx/rt".Raise
+
 func ioFailWith[E Show, A](e E) IO[A] {
   ioFail(show(e))
 }
@@ -24,7 +45,7 @@ extern func exit[A](code Int) IO[A] = "gofx/rt".Exit
 
 extern func getEnv(name String) IO[Option[String]] = "gofx/rt".GetEnv
 
-extern func tryIO[A](io IO[A]) IO[Result[String, A]] = "gofx/rt".TryIO
+extern func tryIO[A](io IO[A]) IO[Result[IoError, A]] = "gofx/rt".TryIO
 
 extern func readFile(path String) IO[String] = "gofx/rt".ReadFile
 

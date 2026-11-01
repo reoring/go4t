@@ -171,6 +171,7 @@ func generate(prog *types.Program, goPackage string) (source []byte, err error) 
 `, resultLine, ctorName(ok), resultLine, ctorName(err), resultLine)
 		}
 	}
+	g.ioErrorShapes(&out, prog)
 	g.jsonShapes(&out)
 	for _, name := range sortedKeys(prog.Classes) {
 		class := prog.Classes[name]

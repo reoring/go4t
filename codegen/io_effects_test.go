@@ -38,6 +38,7 @@ func TestResultHelpersExecute(t *testing.T) {
 import "std/result"
 import "std/io"
 import "std/string"
+import "std/list"
 import "std/prelude"
 func checkPositive(n Int) Result[String, Int] {
   if n > 0 { Ok(n) } else { Err("nonpositive") }
@@ -54,6 +55,13 @@ func shortCircuit(r Result[String, Int]) Result[String, Int] {
 }
 func panicAction() IO[Int] { do { n <- ioPure(0); ioPure(1 / n) } }
 func badIO() IO[Int] { io.ioFailWith(42) }
+func checkError(e io.IoError) IO[Unit] {
+  do {
+    captured <- io.tryIO(io.ioRaise(e))
+    let typed: Result[io.IoError, Int] = captured
+    println("${typed == Err(e)}|${io.ioErrorMessage(e)}|${show(e)}|${debug(e)}")
+  }
+}
 func main() IO[Unit] {
   do {
     let good: Result[String, Int] = Ok(4)
@@ -81,6 +89,12 @@ func main() IO[Unit] {
     println(show(failure))
     println(show(typedFailure))
     println(show(panicFailure))
+    list.forEach([io.NotFound("missing"), io.PermissionDenied("private"), io.AlreadyExists("exists"), io.Timeout, io.Cancelled, io.Panic("boom"), io.Network("offline"), io.Failure("")], checkError)
+    missing <- io.tryIO(io.readFile("/nonexistent"))
+    match missing {
+      Err(io.NotFound(message)) => println("not found: " + message)
+      | _ => ioFail("expected NotFound")
+    }
   }
 }
 `
@@ -113,9 +127,17 @@ func main() IO[Unit] {
 		"Ok(6)", "Err(not an int)", "Err(nonpositive)", "Err(bad)",
 		"Ok(5)", "Err(bad)", "Err(3)", "Ok(4)", "(4, 9)",
 		"(Some(4), None)", "(true, false)", "(false, true)", "4", "error bad", "(true, true)",
-		"Ok(4)", "Err(bad)", "Err(42)", "Err(runtime error: integer divide by zero)", "",
+		"Ok(4)", "Err(bad)", "Err(42)", "Err(runtime error: integer divide by zero)",
+		`true|missing|missing|NotFound("missing")`,
+		`true|private|private|PermissionDenied("private")`,
+		`true|exists|exists|AlreadyExists("exists")`,
+		`true|context deadline exceeded|context deadline exceeded|Timeout`,
+		`true|context canceled|context canceled|Cancelled`,
+		`true|boom|boom|Panic("boom")`,
+		`true|offline|offline|Network("offline")`,
+		`true|||Failure("")`, "",
 	}, "\n")
-	if string(output) != want {
+	if !strings.HasPrefix(string(output), want+"not found: ") || !strings.Contains(string(output)[len(want):], "/nonexistent") {
 		t.Fatalf("stdout = %q, want %q", output, want)
 	}
 }

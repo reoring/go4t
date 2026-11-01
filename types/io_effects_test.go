@@ -39,7 +39,7 @@ func validate(text String) Result[String, Int] {
   }
 }
 func generic[E, A](r Result[E, A]) Result[E, A] { do { a <- r; prelude.pure(a) } }
-func captured() IO[Result[String, Int]] { io.tryIO(result.liftResult(validate("5"))) }
+func captured() IO[Result[io.IoError, Int]] { io.tryIO(result.liftResult(validate("5"))) }
 func main() IO[Unit] { ioPure(unit()) }
 `)
 	if err != nil {
@@ -61,6 +61,8 @@ func TestPreludeResultTypingErrors(t *testing.T) {
 	for _, tt := range []struct{ name, source, want string }{
 		{"mixed monads", `func bad() Result[String, Int] { do { x <- Some(1); Ok(x) } }`, "type mismatch"},
 		{"mixed errors", `func bad(r Result[Int, Int]) Result[String, Int] { do { x <- r; Ok(x) } }`, "type mismatch"},
+		{"tryIO errors are typed", `func bad() IO[Result[String, Int]] { io.tryIO(ioPure(1)) }`, "type mismatch"},
+		{"ioRaise requires IoError", `func bad() IO[Int] { io.ioRaise("not typed") }`, "type mismatch"},
 		{"missing Show", `type Failure = Failure
 func bad() IO[Int] { io.ioFailWith(Failure) }`, "no instance Show[Failure]"},
 	} {

@@ -21,12 +21,12 @@ func TestTryIO(t *testing.T) {
 	}{
 		{"success", Pure(int64(42)), testOk{int64(42)}},
 		{"nil success", Pure(nil), testOk{nil}},
-		{"ioFail", Fail("failed"), testErr{"failed"}},
-		{"extern error", IO(func() (any, error) { return int64(9), errors.New("extern failed") }), testErr{"extern failed"}},
-		{"string panic", IO(func() (any, error) { panic("boom") }), testErr{"boom"}},
-		{"error panic", IO(func() (any, error) { panic(errors.New("panic error")) }), testErr{"panic error"}},
-		{"nil panic", IO(func() (any, error) { panic(nil) }), testErr{"panic called with nil argument"}},
-		{"bind continuation panic", Bind(Pure(Unit{}), func(any) any { panic("continuation") }), testErr{"continuation"}},
+		{"ioFail", Fail("failed"), testErr{testIoError{"Failure", "failed"}}},
+		{"extern error", IO(func() (any, error) { return int64(9), errors.New("extern failed") }), testErr{testIoError{"Failure", "extern failed"}}},
+		{"string panic", IO(func() (any, error) { panic("boom") }), testErr{testIoError{"Panic", "boom"}}},
+		{"error panic", IO(func() (any, error) { panic(errors.New("panic error")) }), testErr{testIoError{"Panic", "panic error"}}},
+		{"nil panic", IO(func() (any, error) { panic(nil) }), testErr{testIoError{"Panic", "panic called with nil argument"}}},
+		{"bind continuation panic", Bind(Pure(Unit{}), func(any) any { panic("continuation") }), testErr{testIoError{"Panic", "continuation"}}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := TryIO(tt.action).(IO)()
@@ -48,7 +48,7 @@ func TestTryIOIsLazyAndAllowsContinuation(t *testing.T) {
 		t.Fatal("TryIO executed eagerly")
 	}
 	continued := Bind(action, func(value any) any {
-		if value != (testErr{"caught"}) {
+		if value != (testErr{testIoError{"Panic", "caught"}}) {
 			t.Fatalf("continuation received %#v", value)
 		}
 		return Pure("continued")
@@ -115,7 +115,7 @@ func TestIOFiles(t *testing.T) {
 	}
 	captured, err := TryIO(read).(IO)()
 	failure, ok := captured.(testErr)
-	if err != nil || !ok || !strings.Contains(failure.value.(string), path) {
+	if err != nil || !ok || failure.value.(testIoError).kind != "NotFound" || !strings.Contains(failure.value.(testIoError).message, path) {
 		t.Fatalf("TryIO(ReadFile) = (%#v, %v)", captured, err)
 	}
 }
