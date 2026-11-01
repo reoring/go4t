@@ -41,9 +41,7 @@ func fetchRates() IO[Map[Currency, Float]] {
         ioPure(None)
       }
     })
-    let live = fetched
-      |> list.catOptions
-      |> map.mapFromList
+    let live = fetched |> list.catOptions |> map.mapFromList
     ioPure(map.mapUnion(live, fallback))
   }
 }
