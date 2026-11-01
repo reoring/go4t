@@ -41,7 +41,7 @@ func value() Option[Leading[Int, String]] { prelude.traverse(Leading(1, 2), func
 		t.Run(source, func(t *testing.T) {
 			files := derivingFiles(t, source)
 			for range 2 {
-				p, err := types.Check(files)
+				p, err := checkFixture(t, files)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -75,7 +75,7 @@ func value() String { let x: Phantom[Int] = First; show(x) }`, []string{"First",
 		t.Run(tt.name, func(t *testing.T) {
 			files := derivingFiles(t, tt.source)
 			for range 2 {
-				p, err := types.Check(files)
+				p, err := checkFixture(t, files)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -164,7 +164,7 @@ func value() String { show(Wrapped(Display)) }`,
 		t.Run(source, func(t *testing.T) {
 			files := derivingFiles(t, source)
 			for range 2 {
-				p, err := types.Check(files)
+				p, err := checkFixture(t, files)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -212,7 +212,7 @@ func TestDerivingDiagnostics(t *testing.T) {
 	}
 	for _, tt := range cases {
 		t.Run(tt.source, func(t *testing.T) {
-			_, err := types.Check(derivingFiles(t, tt.source))
+			_, err := checkFixture(t, derivingFiles(t, tt.source))
 			var typed *types.Error
 			if !errors.As(err, &typed) || typed.Msg != tt.want || typed.File != "deriving.gfx" || typed.Pos.Line == 0 || typed.Pos.Col == 0 {
 				t.Fatalf("Check = %v, want positioned %q", err, tt.want)
@@ -222,7 +222,7 @@ func TestDerivingDiagnostics(t *testing.T) {
 }
 
 func TestTraversableMethodMonadDictionary(t *testing.T) {
-	p, err := types.Check(derivingFiles(t, `type Tree[A] = Leaf(A) | Fork(Tree[A], Tree[A]) deriving Functor, Traversable
+	p, err := checkFixture(t, derivingFiles(t, `type Tree[A] = Leaf(A) | Fork(Tree[A], Tree[A]) deriving Functor, Traversable
 func value() Option[Tree[Int]] { prelude.traverse(Leaf(1), func(a) => Some(a)) }`))
 	if err != nil {
 		t.Fatal(err)

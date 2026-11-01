@@ -39,7 +39,7 @@ func TestPass10LetPatterns(t *testing.T) {
 		t.Run(source, func(t *testing.T) {
 			files := parseFiles(t, source+pass5Main)
 			for range 2 {
-				p, err := types.Check([]*ast.Module{{Files: files}})
+				p, err := checkFixture(t, []*ast.Module{{Files: files}})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -58,7 +58,7 @@ func TestPass10LetPatterns(t *testing.T) {
 }
 
 func TestPass10StateBindPattern(t *testing.T) {
-	p, err := types.Check([]*ast.Module{{Files: parseFiles(t, `
+	p, err := checkFixture(t, []*ast.Module{{Files: parseFiles(t, `
 type State[S, A] = State(func(S) (A, S))
 instance Functor[State[S]] {
  fmap(st, f) { State(func(s) => match runState(st, s) { (a, s2) => (f(a), s2) }) }
@@ -109,7 +109,7 @@ func TestPass10Diagnostics(t *testing.T) {
 		t.Run(tt.source, func(t *testing.T) {
 			files := parseFiles(t, tt.source+pass5Main)
 			files[1].Name = "pass10.gfx"
-			p, err := types.Check([]*ast.Module{{Files: files}})
+			p, err := checkFixture(t, []*ast.Module{{Files: files}})
 			var typed *types.Error
 			if p != nil || !errors.As(err, &typed) || typed.Msg != tt.want || typed.File != "pass10.gfx" || typed.Pos.Line == 0 || typed.Pos.Col == 0 {
 				t.Fatalf("Check = (%v, %v), want positioned %q", p, err, tt.want)
@@ -136,7 +136,7 @@ func debugPair() String { debug(Pair(1, "a")) }
 		}
 	}
 	for range 2 {
-		p, err := types.Check([]*ast.Module{{Files: files}})
+		p, err := checkFixture(t, []*ast.Module{{Files: files}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -285,7 +285,7 @@ type Later = Later deriving Ord, Debug, Eq
 	}
 	files = append(files, later)
 	for range 2 {
-		p, err := types.Check([]*ast.Module{{Files: files}})
+		p, err := checkFixture(t, []*ast.Module{{Files: files}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -302,7 +302,7 @@ type Later = Later deriving Ord, Debug, Eq
 }
 
 func TestPass10DerivingRecursiveAndPhantom(t *testing.T) {
-	p, err := types.Check([]*ast.Module{{Files: parseFiles(t, pass10Debug+`
+	p, err := checkFixture(t, []*ast.Module{{Files: parseFiles(t, pass10Debug+`
 type Tree[A] = Tip | Branch(A, Tree[A], Tree[A]) deriving Eq, Ord, Debug
 type Phantom[A] = Phantom deriving Eq, Ord, Debug
 func equalTree() Bool { Branch(1, Tip, Tip) == Branch(2, Tip, Tip) }

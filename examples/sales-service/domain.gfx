@@ -1,0 +1,79 @@
+package main
+
+import "std/string"
+import "std/float"
+import "std/result"
+import "std/list"
+import codec "std/json"
+
+// ===== ドメイン =====
+type Currency = JPY | USD | EUR deriving Eq, Ord, Debug, Show, codec.Encode, codec.Decode
+
+type Sale = Sale{
+  day: String,
+  region: String,
+  product: String,
+  qty: Int,
+  unit: Float,
+  currency: Currency
+} deriving Eq, Debug, codec.Encode, codec.Decode
+
+type ParseError = BadColumns{line: Int, got: Int} | BadNumber{
+  line: Int,
+  field: String,
+  raw: String
+} | BadCurrency{line: Int, raw: String} deriving Eq, Debug
+
+instance Show[ParseError] {
+  show(e) {
+    match e {
+      BadColumns{line: l, got: g} => "line ${l}: expected 6 columns, got ${g}"
+      BadNumber{line: l, field: f, raw: r} => "line ${l}: ${f} is not a number: ${string.showQuoted(r)}"
+      BadCurrency{line: l, raw: r} => "line ${l}: unknown currency ${string.showQuoted(r)}"
+    }
+  }
+}
+
+// ===== CSV パース: Result の do で早期脱出 =====
+func parseCurrency(line Int, raw String) Result[ParseError, Currency] {
+  match string.toUpper(string.trim(raw)) {
+    "JPY" => Ok(JPY)
+    "USD" => Ok(USD)
+    "EUR" => Ok(EUR)
+    _ => Err(BadCurrency{line: line, raw: raw})
+  }
+}
+
+func parseSale(line Int, text String) Result[ParseError, Sale] {
+  let cols = string.split(",", text) |> map(string.trim)
+  match cols {
+    | [day, region, product, qtyRaw, unitRaw, curRaw] => do {
+      qty <- string.parseInt(qtyRaw)
+        |> result.okOr(BadNumber{line: line, field: "qty", raw: qtyRaw})
+      unit <- float.parseFloat(unitRaw)
+        |> result.okOr(BadNumber{line: line, field: "unit", raw: unitRaw})
+      cur <- parseCurrency(line, curRaw)
+      Ok(Sale{
+        day: day,
+        region: region,
+        product: product,
+        qty: qty,
+        unit: unit,
+        currency: cur
+      })
+    }
+    _ => Err(BadColumns{line: line, got: length(cols)})
+  }
+}
+
+// ヘッダ行・空行・コメント行は読み飛ばし、最初のエラーで止める
+func parseCsv(text String) Result[ParseError, List[Sale]] {
+  string.lines(text)
+    |> list.indexed
+    |> filter(func((_, l)) => {
+      let t = string.trim(l)
+      t != "" && !string.startsWith(t, "#")
+    })
+    |> tail
+    |> list.mapM(func((i, l)) => parseSale(i + 1, l))
+}

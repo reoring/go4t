@@ -28,7 +28,7 @@ func TestRecordPatternAnnotations(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			files := parseFiles(t, "type Entry[A] = Entry{name: String, value: A}\n"+tt.source+pass5Main)
 			for range 2 {
-				p, err := types.Check([]*ast.Module{{Files: files}})
+				p, err := checkFixture(t, []*ast.Module{{Files: files}})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -76,7 +76,7 @@ func TestRecordPatternExhaustiveness(t *testing.T) {
 		{"recursive ignored field complete", `type Chain = End | Link{next: Chain, value: Option[Int]}; func value(p Chain) Int { match p { End => 0; Link{value: Some(x), ..} => x; Link{value: None, ..} => 0 } }`, true},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			p, err := types.Check([]*ast.Module{{Files: parseFiles(t, "type Point = Point{x: Int, y: Int}\n"+tt.source+pass5Main)}})
+			p, err := checkFixture(t, []*ast.Module{{Files: parseFiles(t, "type Point = Point{x: Int, y: Int}\n"+tt.source+pass5Main)}})
 			if tt.complete {
 				if err != nil {
 					t.Fatal(err)
@@ -106,7 +106,7 @@ func TestRecordPatternErrors(t *testing.T) {
 		{`type Entry[A] = Entry{value: A}; func value(p Entry[String]) Int { match p { Entry{value: 1} => 0; _ => 1 } }`, "type mismatch: expected String, got Int"},
 	} {
 		t.Run(tt.source, func(t *testing.T) {
-			p, err := types.Check([]*ast.Module{{Files: parseFiles(t, "type Point = Point{x: Int, y: Int}\n"+tt.source+pass5Main)}})
+			p, err := checkFixture(t, []*ast.Module{{Files: parseFiles(t, "type Point = Point{x: Int, y: Int}\n"+tt.source+pass5Main)}})
 			var typed *types.Error
 			if p != nil || !errors.As(err, &typed) || typed.Msg != tt.want || typed.Pos.Line == 0 || typed.Pos.Col == 0 {
 				t.Fatalf("Check = (%v, %v), want positioned %q", p, err, tt.want)
@@ -123,7 +123,7 @@ func value(p Point) Int { match p { Point{x: _, y: _, ..} => 0 } }
 	pat := files[1].Decls[1].(*ast.FuncDecl).Body.Result.(*ast.Match).Arms[0].Pat.(*ast.PRecord)
 	// The parser also rejects duplicates; check this invariant independently.
 	pat.Names[1] = pat.Names[0]
-	p, err := types.Check([]*ast.Module{{Files: files}})
+	p, err := checkFixture(t, []*ast.Module{{Files: files}})
 	var typed *types.Error
 	if p != nil || !errors.As(err, &typed) || typed.Msg != "duplicate field x in constructor Point" || typed.Pos != pat.Pos {
 		t.Fatalf("Check = (%v, %v), want duplicate field error at %s", p, err, pat.Pos)
@@ -142,7 +142,7 @@ func identity[A](a A) A { a }
 func inferred() Int { let p = identity((1, "value")); p.0 }
 `+pass5Main)
 	for range 2 {
-		p, err := types.Check([]*ast.Module{{Files: files}})
+		p, err := checkFixture(t, []*ast.Module{{Files: files}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -185,7 +185,7 @@ instance Functor[List] {
 }
 func firsts(ps List[(Int, String)]) List[Int] { fmap(ps, func(p) => p.0) }
 `+pass5Main)
-	p, err := types.Check([]*ast.Module{{Files: files}})
+	p, err := checkFixture(t, []*ast.Module{{Files: files}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -216,7 +216,7 @@ func TestTupleFieldErrors(t *testing.T) {
 		{`func value() Unit { let get = func(x) => { match x { (_, _) => unit() }; x.1.0 }; unit() }`, "cannot infer tuple type of x.1.0; annotate"},
 	} {
 		t.Run(tt.source, func(t *testing.T) {
-			p, err := types.Check([]*ast.Module{{Files: parseFiles(t, tt.source+pass5Main)}})
+			p, err := checkFixture(t, []*ast.Module{{Files: parseFiles(t, tt.source+pass5Main)}})
 			var typed *types.Error
 			if p != nil || !errors.As(err, &typed) || typed.Msg != tt.want || typed.Pos.Line == 0 || typed.Pos.Col == 0 {
 				t.Fatalf("Check = (%v, %v), want positioned %q", p, err, tt.want)

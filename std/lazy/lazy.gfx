@@ -6,7 +6,9 @@ import "std/prelude"
 type Lazy[A] = Lazy(func(Unit) A)
 
 instance Debug[Lazy[A]] {
-  debug(_l) { "Lazy(<function>)" }
+  debug(_l) {
+    "Lazy(<function>)"
+  }
 }
 
 func delay[A](f func(Unit) A) Lazy[A] {

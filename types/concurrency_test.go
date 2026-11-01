@@ -26,7 +26,7 @@ func use(f Fiber[Int]) Fiber[Int] { keep(f) }`, ""},
 		{"no show", `func bad(f Fiber[Int]) String { show(f) }`, "no instance Show[Fiber[Int]]"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := types.Check([]*ast.Module{{Files: parseFiles(t, tt.source+main)}})
+			_, err := checkFixture(t, []*ast.Module{{Files: parseFiles(t, tt.source+main)}})
 			if tt.wantError == "" {
 				if err != nil {
 					t.Fatal(err)

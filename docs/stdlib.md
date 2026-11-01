@@ -342,6 +342,13 @@ Accumulator helpers are exported because their names do not begin `_`; prefer th
 | `func chunksOfAcc[A](n Int, xs List[A], acc List[List[A]]) List[List[A]]` | Build consecutive chunks after a reversed prefix accumulator. | Empty or `n <= 0` returns `rev(acc)`; otherwise that prefix followed by the chunks. |
 | `func sortOn[A, K Ord](xs List[A], key func(A) K) List[A]` | stable ascending order by compare(key(a), key(b)). | Empty gives `Nil` without calling key; singleton returns its value and computes its key once; keys compare through `Ord` and equal keys preserve input order. |
 
+`sortOn` supplies its instantiated key-function type to the lambda:
+`list.sortOn(xs, func(s) => s.jpy)` and `list.sortOn(xs, _.jpy)` both infer the
+receiver from `xs`. A separately bound key needs its own expectation, for example
+`let key: func(Sale) String = func(s) => s.product`. Expected types also flow
+through constructor arguments, so a declared `Option[func(Sale) String]` return
+permits `Some(_.product)`; without that expectation the record cannot be inferred.
+
 Derived instances (expanded from the type declarations above):
 
 | Instance signature | Semantics | Boundary behaviour |

@@ -54,7 +54,7 @@ func items() Set[Key] { set.emptySet() }`, ""},
 			if err != nil {
 				t.Fatal(err)
 			}
-			_, err = types.Check(modules)
+			_, err = checkFixture(t, modules)
 			if tt.want == "" {
 				if err != nil {
 					t.Fatal(err)

@@ -1,0 +1,164 @@
+package main
+
+import "std/io"
+import "std/list"
+import "std/map"
+import "std/string"
+import "std/result"
+import "std/conc"
+import "std/http"
+import codec "std/json"
+
+// ===== 集計(sales-report と同じ純粋ロジック) =====
+type Row = Row{key: String, qty: Int, jpy: Float} deriving Eq, Debug, codec.Encode, codec.Decode
+
+type Report = Report{by: String, rows: List[Row], rateMs: Int} deriving Debug, codec.Encode, codec.Decode
+
+type ApiError = ApiError{error: String, detail: Option[String]} deriving Debug, codec.Encode, codec.Decode
+
+func amountJpy(rates Map[Currency, Float], s Sale) Float {
+  toFloat(s.qty) * s.unit * result.fromOption(map.mapLookup(rates, s.currency), 1.0)
+}
+
+func summarize(rates Map[Currency, Float], sales List[Sale], key func(Sale) String) List[Row] {
+  map.groupBy(sales, key)
+    |> map.mapToList
+    |> map(func((k, group)) => Row{
+      key: k,
+      qty: group |> map(_.qty) |> list.sum,
+      jpy: group |> map(amountJpy(rates, _)) |> fold(0.0, (_ + _))
+    })
+    |> list.sortOn(func(r) => 0.0 - r.jpy)
+}
+
+// ===== 為替(擬似外部サービス。slow なら応答が遅い) =====
+func fetchRate(slow Bool, c Currency) IO[(Currency, Float)] {
+  do {
+    io.sleep(if slow {
+      2000
+    } else {
+      5
+    })
+    ioPure(match c {
+      JPY => (JPY, 1.0)
+      USD => (USD, 150.0)
+      EUR => (EUR, 162.5)
+    })
+  }
+}
+
+func fetchRates(slow Bool) IO[Map[Currency, Float]] {
+  conc.parMapIO([JPY, USD, EUR], fetchRate(slow, _)) |> map(map.mapFromList)
+}
+
+// ===== ハンドラ =====
+func keyFor(by String) Option[func(Sale) String] {
+  match by {
+    "product" => Some(func(s Sale) => s.product)
+    "region" => Some(func(s Sale) => s.region)
+    "day" => Some(func(s Sale) => s.day)
+    _ => None
+  }
+}
+
+func bad(status Int, msg String, detail Option[String]) http.Response {
+  http.jsonResponse(status, ApiError{error: msg, detail: detail})
+}
+
+func report(r http.Request) IO[http.Response] {
+  let by = list.lookup("by", r.query) |> result.fromOption(_, "product")
+  let slow = list.lookup("slow", r.query) |> result.isSome
+  match (keyFor(by), parseCsv(r.body)) {
+    (None, _) => ioPure(bad(400, "unknown 'by'", Some("use product|region|day, got ${string.showQuoted(by)}")))
+    (_, Err(e)) => ioPure(bad(400, "invalid csv", Some(show(e))))
+    | (Some(key), Ok(sales)) => do {
+      t0 <- io.monotonicMillis()
+      rates <- conc.withTimeout(300, fetchRates(slow))
+      t1 <- io.monotonicMillis()
+      ioPure(http.jsonResponse(200, Report{
+        by: by,
+        rows: summarize(rates, sales, key),
+        rateMs: t1 - t0
+      }))
+    }
+  }
+}
+
+// IoError を HTTP ステータスへ。handler の失敗を 500 任せにしない
+func handle(r http.Request) IO[http.Response] {
+  match (r.method, r.path) {
+    ("GET", "/health") => ioPure(http.response(200, "ok"))
+    | ("POST", "/report") => do {
+      out <- io.tryIO(report(r))
+      ioPure(match out {
+        Ok(resp) => resp
+        Err(io.Timeout) => bad(504, "rate service timed out", None)
+        Err(io.Cancelled) => bad(499, "cancelled", None)
+        Err(e) => bad(500, "internal error", Some(io.ioErrorMessage(e)))
+      })
+    }
+    _ => ioPure(http.response(404, "not found"))
+  }
+}
+
+// ===== セルフテスト用クライアント =====
+func sampleCsv() String {
+  string.join("\n", ["day,region,product,qty,unit,currency", "2026-11-01,tokyo,widget,12,1200,JPY", "2026-11-01,berlin,gadget,5,19.9,eur", "2026-11-02,nyc,gadget,7,21.5,USD", "2026-11-02,tokyo,gizmo,40,480,JPY"])
+}
+
+func ready(url String) IO[Unit] {
+  do {
+    r <- io.tryIO(http.get(url + "/health"))
+    match r {
+      Ok(_) => ioPure(unit())
+      | Err(io.Network(_)) => do {
+        io.sleep(10)
+        ready(url)
+      }
+      Err(e) => io.ioRaise(e)
+    }
+  }
+}
+
+func call(url String, label String, path String, body String) IO[Unit] {
+  do {
+    r <- http.post(url + path, "text/csv", body)
+    let decoded: Result[String, Report] = codec.parseJson(r.body)
+      |> flatMap(codec.decode)
+    let summary = match decoded {
+      | Ok(rep) => "${rep.by}: " + (rep.rows
+        |> map(func(row) => "${row.key}=${row.jpy}")
+        |> string.join(" ", _)) + " (rates ${rep.rateMs}ms)"
+      Err(_) => r.body
+    }
+    println("${string.padRight(label, 10)} ${r.status} ${summary}")
+  }
+}
+
+func main() IO[Unit] {
+  do {
+    argv <- io.args()
+    let port = argv
+      |> head
+      |> result.maybe(8080, func(s) => string.parseInt(s)
+        |> result.fromOption(_, 8080))
+    let url = "http://127.0.0.1:${port}"
+    server <- conc.fork(http.serve(port, handle))
+    conc.withTimeout(2000, ready(url))
+    outcome <- io.tryIO(do {
+      call(url, "product", "/report", sampleCsv())
+      call(url, "region", "/report?by=region", sampleCsv())
+      call(url, "bad-by", "/report?by=week", sampleCsv())
+      call(url, "bad-csv", "/report", sampleCsv() + "\n2026-11-03,oslo,gizmo,many,1.0,NOK")
+      call(url, "timeout", "/report?slow=1", sampleCsv())
+      // クライアント側タイムアウトはサーバより短い。サーバは 504 を作る前に切られる
+      r <- io.tryIO(http.requestWithTimeout(http.Request("POST", url + "/report?slow=1", "", [], [], sampleCsv()), 100))
+      println("${string.padRight("client-to", 10)} ${result.either(r, debug, func(resp) => "status ${resp.status}")}")
+    })
+    conc.cancel(server)
+    match outcome {
+      Ok(_) => println("done")
+      Err(e) => io.ioRaise(e)
+    }
+  }
+}

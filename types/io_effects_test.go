@@ -22,7 +22,7 @@ func checkIOEffects(t *testing.T, source string) (*types.Program, error) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return types.Check(modules)
+	return checkFixture(t, modules)
 }
 
 func TestPreludeResultDoTyping(t *testing.T) {

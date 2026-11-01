@@ -20,12 +20,12 @@ func TestSourceAliasDiagnostics(t *testing.T) {
 		{"annotation", `alias Name = String; func bad() Int { let n: Name = "ok"; n }`, "type mismatch: expected Int, got Name"},
 		{"unrelated literal", `alias Count = Int; func bad() String { 1 }`, "type mismatch: expected String, got Int"},
 		{"rigid parameter", `alias Count = Int; func bad[Count](n Count) Int { n }`, "type mismatch: expected Int, got Count"},
-		{"inferred scalar", `alias Count = Int; func id[A](x A) A { x }; func bad(n Count) String { id(n) }`, "type mismatch: expected String, got Int"},
-		{"inferred nested", `alias Count = Int; func id[A](x A) A { x }; func bad(n List[Count]) String { id(n) }`, "type mismatch: expected String, got List[Int]"},
+		{"inferred scalar", `alias Count = Int; func id[A](x A) A { x }; func bad(n Count) String { id(n) }`, "type mismatch: expected String, got Count"},
+		{"inferred nested", `alias Count = Int; func id[A](x A) A { x }; func bad(n List[Count]) String { id(n) }`, "type mismatch: expected String, got List[Count]"},
 		{"alias function", `alias Handler = func(Int) Int; func use(f Handler) Int { f(1) }; func bad() Int { use(func(x) => true) }`, "type mismatch: expected Handler, got func(Int) Bool"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := types.Check([]*ast.Module{{Files: parseFiles(t, tt.source+pass5Main)}})
+			_, err := checkFixture(t, []*ast.Module{{Files: parseFiles(t, tt.source+pass5Main)}})
 			var checked *types.Error
 			if !errors.As(err, &checked) || checked.Msg != tt.want {
 				t.Fatalf("Check = %v, want %q", err, tt.want)
@@ -59,7 +59,7 @@ func TestTypePrintingElisionBoundary(t *testing.T) {
 }
 
 func TestAliasRepresentationIsTransparent(t *testing.T) {
-	p, err := types.Check([]*ast.Module{{Files: parseFiles(t, `
+	p, err := checkFixture(t, []*ast.Module{{Files: parseFiles(t, `
 alias Number = Int
 alias Pair[A] = (A, A)
 alias Handler = func(Number) Number

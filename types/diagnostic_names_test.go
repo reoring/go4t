@@ -72,8 +72,8 @@ func TestNegativeFixtureDiagnosticNames(t *testing.T) {
 
 func TestTypeNamesUseDiagnosingFile(t *testing.T) {
 	root := moduleFixture(t, map[string]string{
-		"main.gfx": "package main\nimport first \"model\"\nfunc one(x first.Box) first.Label { first.label() }\nfunc main() IO[Unit] { ioPure(unit()) }",
-		"other.gfx": "package main\nimport second \"model\"\nfunc two(x second.Box) second.Label { second.label() }",
+		"main.gfx":        "package main\nimport first \"model\"\nfunc one(x first.Box) first.Label { first.label() }\nfunc main() IO[Unit] { ioPure(unit()) }",
+		"other.gfx":       "package main\nimport second \"model\"\nfunc two(x second.Box) second.Label { second.label() }",
 		"model/model.gfx": "package model\ntype Box = Box{value: Int}\nalias Label = String\nfunc label() Label { \"ok\" }\nfunc own(x Box) Label { label() }",
 	})
 	p, err := checkModuleFixture(t, root)
@@ -82,8 +82,8 @@ func TestTypeNamesUseDiagnosingFile(t *testing.T) {
 	}
 	typ := p.Funcs["one"].Scheme.Type
 	for file, want := range map[string]string{
-		"main.gfx": "func(first.Box) first.Label",
-		"other.gfx": "func(second.Box) second.Label",
+		"main.gfx":        "func(first.Box) first.Label",
+		"other.gfx":       "func(second.Box) second.Label",
 		"model/model.gfx": "func(Box) Label",
 	} {
 		for _, print := range []func(types.Type, string) string{p.TypeString, p.TypeStringFull} {
@@ -109,7 +109,7 @@ func TestImportedDeclarationDiagnosticNames(t *testing.T) {
 	} {
 		t.Run(tt.want, func(t *testing.T) {
 			root := moduleFixture(t, map[string]string{
-				"main.gfx": "package main\nimport m \"model\"\nfunc main() IO[Unit] { ioPure(unit()) }",
+				"main.gfx":        "package main\nimport m \"model\"\nfunc main() IO[Unit] { ioPure(unit()) }",
 				"model/model.gfx": "package model\n" + tt.source,
 			})
 			p, err := checkModuleFixture(t, root)
@@ -138,7 +138,7 @@ func TestSyntheticParametersNeverWarnUnused(t *testing.T) {
 
 func TestDefaultWarningUsesFileAlias(t *testing.T) {
 	root := moduleFixture(t, map[string]string{
-		"main.gfx": "package main\nimport m \"model\"\nfunc main() IO[Unit] { m.Empty; ioPure(unit()) }",
+		"main.gfx":        "package main\nimport m \"model\"\nfunc main() IO[Unit] { m.Empty; ioPure(unit()) }",
 		"model/model.gfx": "package model\ntype Phantom[A] = Empty",
 	})
 	p, err := checkModuleFixture(t, root)

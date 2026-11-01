@@ -587,7 +587,7 @@ var grammarGenerationAllowlist = map[string]string{
 func grammarProgram(root, sentence string) (string, bool) {
 	expression := ""
 	switch root {
-	case "Expr", "IfExpr", "Binary", "Unary", "Postfix", "Primary", "Block", "Section", "Ident", "Int", "Float", "String", "Interp":
+	case "Expr", "InferExpr", "IfExpr", "Binary", "Unary", "Postfix", "Primary", "Block", "Section", "Ident", "Int", "Float", "String", "Interp":
 		expression = sentence
 	case "CallArg", "Projection":
 		expression = "f(" + sentence + ")"

@@ -29,7 +29,7 @@ func TestMissingPatternWitnesses(t *testing.T) {
 	} {
 		t.Run(tt.source, func(t *testing.T) {
 			files := parseFiles(t, tt.source+pass5Main)
-			_, err := types.Check([]*ast.Module{{Files: files}})
+			_, err := checkFixture(t, []*ast.Module{{Files: files}})
 			var e *types.Error
 			if !errors.As(err, &e) || !strings.HasSuffix(e.Msg, "missing: "+tt.missing) {
 				t.Fatalf("Check = %v, want missing: %s", err, tt.missing)
@@ -53,7 +53,7 @@ func TestInstanceDerivingHints(t *testing.T) {
 		if class == "Eq" || class == "Ord" {
 			ret = "Bool"
 		}
-		_, err := types.Check([]*ast.Module{{Files: parseFiles(t, extra+"type Hidden = Hidden; func value() "+ret+" { "+expr+" }"+pass5Main)}})
+		_, err := checkFixture(t, []*ast.Module{{Files: parseFiles(t, extra+"type Hidden = Hidden; func value() "+ret+" { "+expr+" }"+pass5Main)}})
 		want := "hint: add 'deriving " + class + "' or write 'instance " + class + "[Hidden]'"
 		if err == nil || !strings.Contains(err.Error(), want) {
 			t.Errorf("%s: %v, want %s", class, err, want)
@@ -63,18 +63,18 @@ func TestInstanceDerivingHints(t *testing.T) {
 		`type Hidden = Hidden(Int, Int); func value() String { show(Hidden(1, 2)) }`,
 		`type Hidden = Empty | Hidden{value: Int}; func value() String { show(Empty) }`,
 	} {
-		_, err := types.Check([]*ast.Module{{Files: parseFiles(t, source+pass5Main)}})
+		_, err := checkFixture(t, []*ast.Module{{Files: parseFiles(t, source+pass5Main)}})
 		var typed *types.Error
 		want := "no instance Show[Hidden]; hint: write 'instance Show[Hidden]' (or 'deriving Debug' for a structural form)"
 		if !errors.As(err, &typed) || typed.Msg != want {
 			t.Errorf("non-enum hint: %v, want %s", err, want)
 		}
 	}
-	_, err := types.Check([]*ast.Module{{Files: parseFiles(t, `func value() String { show(unit()) }`+pass5Main)}})
+	_, err := checkFixture(t, []*ast.Module{{Files: parseFiles(t, `func value() String { show(unit()) }`+pass5Main)}})
 	if err == nil || strings.Contains(err.Error(), "hint:") {
 		t.Fatalf("builtin hint: %v", err)
 	}
-	_, err = types.Check([]*ast.Module{{Files: parseFiles(t, `type Hidden = Hidden; instance Ord[Hidden] { compare(a, b) { EQ } }`+pass5Main)}})
+	_, err = checkFixture(t, []*ast.Module{{Files: parseFiles(t, `type Hidden = Hidden; instance Ord[Hidden] { compare(a, b) { EQ } }`+pass5Main)}})
 	if err == nil || !strings.Contains(err.Error(), "no instance Eq[Hidden] (required superclass); hint: add 'deriving Eq' or write 'instance Eq[Hidden]'") {
 		t.Fatalf("superclass hint: %v", err)
 	}
@@ -114,7 +114,7 @@ func TestUnusedLocalWarnings(t *testing.T) {
 			files := parseFiles(t, tt.source+pass5Main)
 			files[1].Name = "user.gfx"
 			for range 2 {
-				p, err := types.Check([]*ast.Module{{Files: files}})
+				p, err := checkFixture(t, []*ast.Module{{Files: files}})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -139,7 +139,7 @@ func TestUnusedLocalWarnings(t *testing.T) {
 
 func TestDiagnosticEndPositions(t *testing.T) {
 	files := parseFiles(t, "func value() Int { \"long text\" }"+pass5Main)
-	_, err := types.Check([]*ast.Module{{Files: files}})
+	_, err := checkFixture(t, []*ast.Module{{Files: files}})
 	var e *types.Error
 	if !errors.As(err, &e) {
 		t.Fatal(err)
@@ -157,7 +157,7 @@ func TestDeclarationDiagnosticEnd(t *testing.T) {
 		"func main() Int { 1234 }",
 	} {
 		files := parseFiles(t, source)
-		_, err := types.Check([]*ast.Module{{Files: files}})
+		_, err := checkFixture(t, []*ast.Module{{Files: files}})
 		var e *types.Error
 		if !errors.As(err, &e) || e.End != files[1].Decls[0].GetEnd() {
 			t.Fatalf("%s: diagnostic span = %#v", source, e)

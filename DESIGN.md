@@ -1033,3 +1033,102 @@ changes inference *direction* and polishes diagnostics/std.
 - **HTTP server logging.** Handler outcomes classified `Cancelled` caused by client
   disconnect are not logged; other handler failures keep `http handler: <msg>`. `serve` logs
   nothing on normal shutdown.
+
+## Pass 15: Go shell, gofx core (contract for parallel slices)
+
+Input: a user review of a 3,000-line controller-runtime Reconcile. The decision logic
+("observed state → next step") would read better as a gofx `match` over a sum type with
+exhaustiveness and `deriving Eq`, but gofx cannot be embedded: `--emit-go` exposes only
+`Main() rt.IO`, records cross the ABI erased, and externs cannot name methods. Porting
+client-go/controller-runtime is rejected: they are mutable-cache/reflection designs, several
+hundred thousand lines regenerated per Kubernetes release. The TypeScript analogy holds in
+one direction (`bind` ≈ d.ts generation) and fails in the other: Go and gofx do not share a
+value representation, so declarations need conversion code (closer to cgo than d.ts).
+
+Same mechanics as Pass 13: worktree `.wt/<slice>` / branch `slice/<slice>`, workers do not
+commit, slices edit `SPEC.md` sections named in their contract, `docs/check_test.go` and
+`docs/stdlib_inventory_test.go` keep docs honest. Language shape stays frozen (no new syntax,
+no new keywords): the existing `_` private prefix (§1.2) is the export gate.
+
+### Domain model
+
+- **Natural Go mirror** (`codegen/mirror.go`, new). A total function from a closed set of
+  gofx types to Go types used at *both* ABI directions. Mirrorable types, compositionally:
+  `Int`→`int64`, `Float`→`float64`, `String`→`string`, `Bool`→`bool`, `Unit`→`rt.Unit`,
+  `List[T]`→`[]T`, `Option[T]`→`rt.Option[T]` (generic `struct{ Value T; Present bool }`,
+  constructors `rt.Some(v)`, `rt.None[T]()`), `Result[E, A]`→`rt.Result[E, A]`
+  (`struct{ Err E; Ok A; IsOk bool }`), `Map[K, V]`→`map[K]V` and `Set[A]`→`map[A]struct{}`
+  only for scalar `K`/`A` (Int, Float, String, Bool), tuples →`rt.Tuple2[A, B]` …
+  `rt.Tuple8` (`F0`…), `IO[T]`→`func(context.Context) (T, error)` **in result position
+  only**, and non-parameterised user data types. Not mirrorable: functions, classes, type
+  parameters, parameterised user data types (even fully applied), `IO` in parameter or
+  nested position, `Map`/`Set` with non-scalar keys. The erased ABI of §8.3 ("Other
+  types → any") is unchanged for anything outside this set.
+- **Data type mirrors.** For a mirrorable user type `T` with constructors `C1..Cn`:
+  - single constructor with field names (record): `type T struct { <Exported field> … }`,
+    field names via `exported()` (first rune upper-cased); duplicate exported spellings
+    are a generation error at the type declaration.
+  - single positional constructor (newtype/tuple-like): `type T struct { F0 …; F1 … }`.
+  - all constructors nullary (enum): `type T int`, `const ( TC1 T = iota; TC2; … )` in
+    declaration order, plus `func (T) String() string` returning the constructor name.
+  - otherwise (sum with payloads): `type T interface { isT() }`; each constructor is a
+    **value** type `type TCi struct { … }` (record fields exported, positional `F0`…,
+    nullary `struct{}`) with a value-receiver marker method. Go code type-switches on
+    `TCi` values, never pointers.
+  Mirror names: entry-module types use their source spelling (`Service`), constructor
+  types/consts are `<Type><Ctor>` (`StepCleanup`); types from dependency modules get the
+  module prefix from `codegen/modules.go` (`HttpResponse`, `StdIoIoError` style via
+  `exported(prefix)+Name`), deterministic collision suffixes as for file prefixes. Internal
+  erased names are always module-prefixed and lower-case-joined (`main_Service`,
+  `main_Service_Service`), so they cannot collide with mirrors; a programmatic
+  `Generate` with no modules and a mirror/internal name clash is a generation error.
+- **Converters.** Per mirrorable type the generator emits unexported
+  `toGo_<Mirror>(v any) <Mirror>` and `fromGo_<Mirror>(v <Mirror>) any`, structurally
+  recursive, total on well-typed values (an unknown constructor panics with
+  `invalid constructor` like `commonField`). Lists copy; maps copy (no aliasing in either
+  direction); `Map` conversion from Go iterates sorted keys so the persistent tree is
+  built deterministically.
+- **Exported function.** With `--emit-go --package NAME`, every top-level function of the
+  **entry module** that is non-extern, not `main`, not `_`-prefixed, has no type parameters
+  or constraints, and whose parameter and result types are all mirrorable, is exported as
+  `func <Exported name>(<params mirrored>) <result mirrored>` wrapping the internal
+  function with converters. A result `IO[T]` becomes `func(ctx context.Context) (T, error)`:
+  the wrapper runs the `rt.IO` with `ctx` and converts the value; failures are returned as
+  the `*rt.Failure` error. Functions that fail a rule are listed once in
+  `gofx_export.go` as `// not exported: <name> (<reason>)` (the `bind` skip convention,
+  §8.3) so the user learns why; `main` and `_`-prefixed functions are silently omitted.
+  `Main() rt.IO` stays as today. Nothing changes for `goPackage == "main"`.
+- **Files.** Mirrors, converters and wrappers go in a new generated file
+  `gofx_export.go` (same package); it is removed by the obsolete-file sweep like other
+  compiler-generated files (§8.2). Mirrors are emitted only for types reachable from an
+  exported signature (transitively), in sorted name order.
+- **Method shims for `bind`.** `gofx bind IMPORT --shim DIR` writes, next to the `.gfx`
+  declarations, a Go file `DIR/gofx_shim_<pkgbase>.go` (`package` = the receiving
+  directory's Go package, read from an existing `.go` file, else the last path element)
+  containing one package-level function per exported method of each exported named type:
+  `func <Type>_<Method>(recv <Type or *Type>, args…) results` that calls the method. The
+  `.gfx` output then declares `extern func <type><Method>(recv <Handle>, …) … =
+  "<module>/<dir>".<Type>_<Method>` where `<Handle>` is a nullary data type
+  `type <Type> = <Type>Handle` emitted once per receiver type in the same `.gfx` file.
+  A handle is an **opaque** value: gofx passes it through the erased ABI and never
+  inspects it (matching, `deriving`, `show` on a handle are undefined and documented so).
+  Methods are skipped with the same reasons as functions (pointers other than the
+  receiver, callbacks, variadics, generics, unsupported results). Without `--shim`,
+  `bind` behaves as today. The shim is a convention over existing extern machinery: no
+  change to `extern/match.go` rules.
+
+### Slices
+
+- `go-export` (deep): mirror, converters, exported wrappers, `gofx_export.go`,
+  `rt.Option/Result/TupleN` generics in `rt/mirror.go`, SPEC §8.2 (`build` bullet),
+  new §8.7 "Exported Go API", §10.7 rows, `examples/go-shell/` (a Go `main` that imports
+  an emitted package and calls a controller-style `decide(observed) Step`, run by a
+  `cmd/gofx` tools test like `TestEmitGoPackageCanBeImported`), README pointer.
+- `bind-shim` (deep): `--shim`, handle types, Go shim file, SPEC §8.3 `bind` paragraph,
+  §10.7 row, `examples/typed-extern` extended with one method binding
+  (`strings.Builder` or `net/url.URL` method) proven by `gofx run`.
+
+Deviations: the extern (Go→gofx call) direction keeps the §8.3 natural ABI table; using the
+full mirror there is deferred until an example needs it. `IO[T]` is mirrored only as a
+result. Enum mirrors are `int`-based, not `string`-based, so zero values are valid.
+

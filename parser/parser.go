@@ -22,7 +22,8 @@
 //	Block    := '{' { Stmt ';' } Expr [ ';' ] '}'
 //	Stmt     := 'let' Pattern [ ':' Type ] '=' Expr | LocalFunc | Expr
 //	LocalFunc := 'func' Ident '(' Params ')' Type Block
-//	Expr     := 'func' '(' LParams ')' '=>' Expr | 'do' DoBlock | 'match' Expr '{' Arms '}'
+//	Expr     := InferExpr | Projection
+//	InferExpr := 'func' '(' LParams ')' '=>' Expr | 'do' DoBlock | 'match' Expr '{' Arms '}'
 //	          | 'if' Expr Block 'else' ( Block | IfExpr ) | Binary
 //	LParams  := [ LParam { ',' LParam } [ ',' ] ]
 //	LParam   := LowerIdent [ Type ] | Pattern // only bare non-constructor names may be annotated
@@ -39,12 +40,12 @@
 //	NamedPattern := Ident ':' Pattern // names must be unique; '..' must be last; no field punning
 //	LowerIdent := Ident // starts with a lower-case letter; '@' only follows a bare variable name
 //	Postfix  := Primary { '(' [ CallArg { ',' CallArg } [ ',' ] ] ')' | '.' ( Ident | Int ) | RecordFields }
-//	CallArg  := Expr | '_' | Projection
-//	Primary  := Ident | Lit | Interp | UpperIdent RecordFields | '(' Expr ')' | '(' Expr ',' Expr { ',' Expr } ')' | Section | Block | List
+//	CallArg  := Expr | '_'
+//	Primary  := Ident | Lit | Interp | UpperIdent RecordFields | '(' InferExpr ')' | '(' InferExpr ',' InferExpr { ',' InferExpr } ')' | Section | Block | List
 //	Section  := '(' ( '_' BinOp Expr | Expr BinOp '_' | '_' BinOp '_' | Projection ) ')'
 //	Projection := '_' '.' ( Ident | Int ) { '.' ( Ident | Int ) }
 //	          // bare placeholders occupy a whole argument or operator operand;
-//	          // projections form independent unary lambdas, including in call arguments;
+//	          // projections form independent unary lambdas in expected-type contexts;
 //	          // calls/sections lower to lambdas, and lowest-precedence |> lowers to calls
 //	RecordFields := '{' Ident ':' Expr { ',' Ident ':' Expr } [ ',' ] '}'
 //	          // record literals/updates require same-line '{' and lookahead '{' Ident ':';
@@ -52,7 +53,7 @@
 //	Interp   := '"' Text '${' Expr '}' { Text '${' Expr '}' } Text '"'
 //	          // '$$' in Text is '$'; lone '$' and braces are literal
 //	          // nested strings are allowed in Expr
-//	List     := '[' [ Expr { ',' Expr } [ ',' ] ] ']'
+//	List     := '[' [ InferExpr { ',' InferExpr } [ ',' ] ] ']'
 package parser
 
 import (
@@ -650,6 +651,12 @@ func (p *Parser) tryBind() (name string, pat ast.Pattern, ok bool) {
 // ---- expressions ----
 
 func (p *Parser) expr() ast.Expr {
+	if p.isP("_") && p.toks[p.i+1].Text == "." {
+		pos := p.pos()
+		var holes []*ast.Ident
+		body := p.projection(p.placeholder(&holes))
+		return partialLambda(pos, body, holes, false)
+	}
 	return p.sectionExpr(nil)
 }
 
@@ -1213,9 +1220,9 @@ func (p *Parser) primary() (expr ast.Expr) {
 				p.expectP(")")
 				return first
 			}
-			tuple := &ast.TupleLit{ExprBase: base, Elems: []ast.Expr{first, p.expr()}}
+			tuple := &ast.TupleLit{ExprBase: base, Elems: []ast.Expr{first, p.sectionExpr(nil)}}
 			for p.acceptP(",") {
-				tuple.Elems = append(tuple.Elems, p.expr())
+				tuple.Elems = append(tuple.Elems, p.sectionExpr(nil))
 			}
 			p.expectP(")")
 			return tuple
@@ -1227,7 +1234,7 @@ func (p *Parser) primary() (expr ast.Expr) {
 			p.next()
 			list := &ast.ListLit{ExprBase: base}
 			for !p.isP("]") {
-				list.Elems = append(list.Elems, p.expr())
+				list.Elems = append(list.Elems, p.sectionExpr(nil))
 				if !p.acceptP(",") {
 					break
 				}

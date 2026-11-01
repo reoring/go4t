@@ -20,7 +20,7 @@ func TestFloatArithmeticInference(t *testing.T) {
 			`func value() func(Float) Float { func(x) => x ` + op + ` x }`,
 		} {
 			t.Run(source, func(t *testing.T) {
-				p, err := types.Check([]*ast.Module{{Files: parseFiles(t, source+pass5Main)}})
+				p, err := checkFixture(t, []*ast.Module{{Files: parseFiles(t, source+pass5Main)}})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -44,7 +44,7 @@ func TestFloatArithmeticInference(t *testing.T) {
 		`func value() Float { let t = ((1.5, 2.0), 3.0); t.0.1 + t.1 }`,
 		`func value() Bool { match 1.5 { 1.5 => true; _ => false } }`,
 	} {
-		if _, err := types.Check([]*ast.Module{{Files: parseFiles(t, source+pass5Main)}}); err != nil {
+		if _, err := checkFixture(t, []*ast.Module{{Files: parseFiles(t, source+pass5Main)}}); err != nil {
 			t.Errorf("%s: %v", source, err)
 		}
 	}
@@ -62,12 +62,12 @@ func TestFloatArithmeticDiagnostics(t *testing.T) {
 		{`func value() String { "a" / "b" }`, "arithmetic requires Int or Float, got String"},
 		{`func value() Bool { -true }`, "arithmetic requires Int or Float, got Bool"},
 		{`func value[A](x A) A { x * x }`, "arithmetic requires Int or Float, got A"},
-		{`func value() Float { let f = func(x) => x * x; f(1); f(1.5) }`, "type mismatch: expected Int, got Float"},
+		{`func value() Float { let f = func(x) => x * x; f(1); f(1.5) }`, "type mismatch: expected Float, got Int"},
 	} {
 		t.Run(tt.source, func(t *testing.T) {
 			files := parseFiles(t, tt.source+pass5Main)
 			files[1].Name = "float.gfx"
-			p, err := types.Check([]*ast.Module{{Files: files}})
+			p, err := checkFixture(t, []*ast.Module{{Files: files}})
 			var typed *types.Error
 			if p != nil || !errors.As(err, &typed) || typed.Msg != tt.want || typed.File != "float.gfx" || typed.Pos.Line != 2 || typed.Pos.Col == 0 {
 				t.Fatalf("Check = (%v, %v), want positioned %q", p, err, tt.want)
@@ -87,7 +87,7 @@ func main() IO[Unit] { println(value()) }`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := types.Check(modules); err != nil {
+	if _, err := checkFixture(t, modules); err != nil {
 		t.Fatal(err)
 	}
 }

@@ -24,7 +24,7 @@ instance Render[Pair[A]] given Show[A], Ord[A] {
 }
 `+pass5Main)
 	for range 2 {
-		p, err := types.Check([]*ast.Module{{Files: files}})
+		p, err := checkFixture(t, []*ast.Module{{Files: files}})
 		if err != nil {
 			t.Fatal(err)
 		}
