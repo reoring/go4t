@@ -60,6 +60,7 @@ func Generate(prog *types.Program, goPackage string) (source []byte, err error) 
 		tuples:     make(map[int]struct{}),
 		recordPats: prog.RecordPats,
 	}
+	g.indexSources(prog)
 	for _, instance := range prog.Instances {
 		g.instances[instanceName(instance)] = instance
 	}
@@ -92,7 +93,7 @@ func Generate(prog *types.Program, goPackage string) (source []byte, err error) 
 				g.collectType(field)
 				fmt.Fprintf(&out, "F%d any\n", i)
 			}
-			fmt.Fprintf(&out, "}\nfunc (*%s) is%s() {}\n", ctorName(ctor), d.Name)
+			fmt.Fprintf(&out, "}\n%sfunc (*%s) is%s() {}\n", g.typeLine(ctorName(ctor)), ctorName(ctor), d.Name)
 		}
 	}
 	if list, option := prog.DataTypes["List"], prog.DataTypes["Option"]; list != nil && option != nil {
@@ -102,19 +103,24 @@ func Generate(prog *types.Program, goPackage string) (source []byte, err error) 
 			nilCtor != nil && nilCtor.Data == list && len(nilCtor.Fields) == 0 &&
 			some != nil && some.Data == option && len(some.Fields) == 1 &&
 			none != nil && none.Data == option && len(none.Fields) == 0 {
-			fmt.Fprintf(&out, `func init() {
+			fmt.Fprintf(&out, `%sfunc init() {
 	rt.Shapes = rt.ShapeFuncs{
-		Cons: func(h, t any) any { return &%s{F0: h, F1: t} },
-		Nil: func() any { return &%s{} },
-		Some: func(a any) any { return &%s{F0: a} },
-		None: func() any { return &%s{} },
-		Uncons: func(l any) (any, any, bool) {
+		Cons: %sfunc(h, t any) any { return &%s{F0: h, F1: t} },
+		Nil: %sfunc() any { return &%s{} },
+		Some: %sfunc(a any) any { return &%s{F0: a} },
+		None: %sfunc() any { return &%s{} },
+		Uncons: %sfunc(l any) (any, any, bool) {
 			if c, ok := l.(*%s); ok { return c.F0, c.F1, true }
 			return nil, nil, false
 		},
 	}
 }
-`, ctorName(cons), ctorName(nilCtor), ctorName(some), ctorName(none), ctorName(cons))
+`, g.typeLine("List"),
+				g.typeExprLine(ctorName(cons)), ctorName(cons),
+				g.typeExprLine(ctorName(nilCtor)), ctorName(nilCtor),
+				g.typeExprLine(ctorName(some)), ctorName(some),
+				g.typeExprLine(ctorName(none)), ctorName(none),
+				g.typeExprLine(ctorName(cons)), ctorName(cons))
 		}
 	}
 	for _, name := range sortedKeys(prog.Classes) {
@@ -132,6 +138,7 @@ func Generate(prog *types.Program, goPackage string) (source []byte, err error) 
 		out.WriteString("}\n")
 	}
 	for _, instance := range prog.Instances {
+		g.fileName = g.sources[instance.Decl]
 		g.collectType(instance.TypeCon)
 		name := instanceName(instance)
 		fmt.Fprintf(&out, "type %s struct {", name)
@@ -161,17 +168,31 @@ func Generate(prog *types.Program, goPackage string) (source []byte, err error) 
 				params = append(params, mangle(param)+" any")
 			}
 			g.dictScope = dictionaryScope{receiver: "dictself", params: scheme.Constraints}
+			out.WriteString(g.line(method.Pos))
 			fmt.Fprintf(&out, "func (dictself %s) %s(%s) any {\n%s}\n", name, exported(method.Name), strings.Join(params, ", "), g.block(method.Body))
 		}
 	}
 	g.dictScope = dictionaryScope{}
 	for _, name := range funcNames {
 		f := prog.Funcs[name]
+		g.fileName = g.sources[f.Decl]
+		g.dictScope = dictionaryScope{params: f.Scheme.Constraints}
 		g.collectType(f.Scheme.Type)
 		params := g.dictParams(f.Scheme.Constraints)
-		for _, param := range f.Decl.Params {
-			params = append(params, mangle(param.Name)+" any")
+		var plan *tailPlan
+		var body ast.Expr
+		if f.Decl.Body != nil {
+			body = &ast.BlockExpr{Block: f.Decl.Body}
+			plan = g.planTail(f.Name, types.RefFunc, f.Decl.Params, f.Scheme.Constraints, body)
 		}
+		for i, param := range f.Decl.Params {
+			name := mangle(param.Name)
+			if plan != nil {
+				name = plan.params[i]
+			}
+			params = append(params, name+" any")
+		}
+		out.WriteString(g.line(f.Decl.Pos))
 		fmt.Fprintf(&out, "func %s(%s) any {\n", mangle(f.Name), strings.Join(params, ", "))
 		if extern := f.Decl.Extern; extern != nil {
 			args := make([]string, len(f.Decl.Params))
@@ -179,6 +200,8 @@ func Generate(prog *types.Program, goPackage string) (source []byte, err error) 
 				args[i] = mangle(param.Name)
 			}
 			fmt.Fprintf(&out, "return %s.%s(%s)\n", g.imports[extern.ImportPath], extern.Name, strings.Join(args, ", "))
+		} else if plan != nil {
+			out.WriteString(g.loopBody(plan, f.Decl.Params, body))
 		} else {
 			out.WriteString(g.block(f.Decl.Body))
 		}
@@ -187,6 +210,8 @@ func Generate(prog *types.Program, goPackage string) (source []byte, err error) 
 	if prog.Main == nil {
 		return nil, fmt.Errorf("program has no main function")
 	}
+	g.fileName = g.sources[prog.Main.Decl]
+	out.WriteString(g.line(prog.Main.Decl.Pos))
 	fmt.Fprintf(&out, "func main() { rt.RunMain(%s()) }\n", mangle(prog.Main.Name))
 	arities := make([]int, 0, len(g.tuples))
 	for arity := range g.tuples {
@@ -201,29 +226,34 @@ func Generate(prog *types.Program, goPackage string) (source []byte, err error) 
 		header.WriteString("}\n")
 	}
 	if g.ordering {
-		header.WriteString(`func ord_lt(o any) bool { _, ok := o.(*Ordering_LT); return ok }
-func ord_le(o any) bool { _, ok := o.(*Ordering_GT); return !ok }
-func ord_gt(o any) bool { _, ok := o.(*Ordering_GT); return ok }
-func ord_ge(o any) bool { _, ok := o.(*Ordering_LT); return !ok }
-`)
+		line := g.typeLine("Ordering")
+		fmt.Fprintf(&header, `%sfunc ord_lt(o any) bool { _, ok := o.(*Ordering_LT); return ok }
+%sfunc ord_le(o any) bool { _, ok := o.(*Ordering_GT); return !ok }
+%sfunc ord_gt(o any) bool { _, ok := o.(*Ordering_GT); return ok }
+%sfunc ord_ge(o any) bool { _, ok := o.(*Ordering_LT); return !ok }
+`, line, line, line, line)
 	}
 	header.WriteString(out.String())
-	source, err = format.Source([]byte(header.String()))
+	unformatted := []byte(header.String())
+	source, err = format.Source(unformatted)
 	if err != nil {
-		return nil, fmt.Errorf("format generated Go: %w", err)
+		return unformatted, fmt.Errorf("format generated Go: %w", err)
 	}
 	return source, nil
 }
 
 type generator struct {
-	ctors      map[string]*types.Ctor
-	recordPats map[*ast.PRecord]types.RecordPat
-	imports    map[string]string
-	instances  map[string]*types.Instance
-	tuples     map[int]struct{}
-	dictScope  dictionaryScope
-	next       int
-	ordering   bool
+	ctors       map[string]*types.Ctor
+	recordPats  map[*ast.PRecord]types.RecordPat
+	imports     map[string]string
+	instances   map[string]*types.Instance
+	tuples      map[int]struct{}
+	dictScope   dictionaryScope
+	sources     map[ast.Decl]string
+	typeSources map[string]sourceLocation
+	fileName    string
+	next        int
+	ordering    bool
 }
 
 type dictionaryScope struct {
