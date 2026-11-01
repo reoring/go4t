@@ -686,7 +686,12 @@ argument of a type with the corresponding instance. Occurrence inside a function
 or a non-last argument is rejected, naming constructor and field (one-based for
 positional fields). An unmapped function field is legal for these higher-kinded
 classes. Nested instances are resolved normally; traversal's failure policy is
-that of its Monad. Structural List Debug is `Cons(..., Nil)`, not Show's `[a, b]`.
+that of its Monad. List derives Eq/Ord and has an explicit Debug instance:
+its structural form is the list literal, `[a, b]` or `[]`, with each element
+rendered via Debug and separated by `, `. Thus `debug([Some(1.5), None])`
+is `"[Some(1.5), None]"`; nested lists and list fields use the same form.
+Lists built with Cons/Nil render identically to equivalent list literals.
+Show also uses brackets but renders each element via Show instead of Debug.
 Result derives Eq/Ord/Debug and has an explicit Show (`Err(e)` / `Ok(a)`);
 Option also retains its handwritten display instance. Ordering derives Show,
 preserving the display strings `"LT"`, `"EQ"` and `"GT"`.
@@ -1022,6 +1027,7 @@ and the explicitly imported class methods in `std/prelude`.
 | Function(s) | Empty/singleton and other boundary behaviour |
 |---|---|
 | `Show[List[A]].show` | Empty renders `"[]"`; singleton renders `"[" + show(x) + "]"`; strings use their unquoted `Show` representation. |
+| `Debug[List[A]].debug` | Empty renders `"[]"`; nonempty renders elements via `debug`, separated by `, ` inside brackets. Strings stay quoted; nested lists and record fields retain literal form, e.g. `[[1], []]` and `Row{items: [1, 2]}`. Cons/Nil construction does not affect rendering. |
 | `Eq[List[A]].eq` | Two empty lists equal; empty/nonempty unequal; corresponding elements compared via `Eq`, with length mismatch unequal. |
 | `Ord[List[A]].compare` | Empty precedes nonempty; lexicographic element comparison; equal shared prefixes compare by length. |
 | `map` / `fmap` on List | `Nil → Nil`, callback not called; `[x] → [f(x)]`. |
@@ -1074,8 +1080,8 @@ and the explicitly imported class methods in `std/prelude`.
 
 Foldable `foldr` on an empty List/Option returns init; `foldl` is left-associated
 through continuations. `toList`/`foldMapList` preserve fold order. Traversal of an
-empty structure calls pure without invoking the callback. Debug[List] is
-structural `Cons(..., Nil)`, unlike display Show.
+empty structure calls pure without invoking the callback. List Debug and Show
+both use brackets, with Debug or Show respectively for each element.
 
 Accumulator helpers remain exported from `std/list` (their names do not begin
 `_`). They are not separate conventions; normal entrypoints supply the initial
