@@ -3,27 +3,23 @@ package main
 // 小さな式言語のインタプリタ。
 //   式:   数値 / 変数 / 二項演算 / let 束縛 / if
 //   評価: 環境を State で持ち回り、失敗は Result で表す
-
 // ===== 構文 =====
-
 type Op = Add | Sub | Mul | Div | Lt deriving Eq
 
-type Expr =
-    Num(Int)
-  | Var(String)
-  | Bin{op: Op, lhs: Expr, rhs: Expr}
-  | Let{name: String, value: Expr, body: Expr}
-  | If{cond: Expr, thenE: Expr, elseE: Expr}
+type Expr = Num(Int) | Var(String) | Bin{op: Op, lhs: Expr, rhs: Expr} | Let{
+  name: String,
+  value: Expr,
+  body: Expr
+} | If{cond: Expr, thenE: Expr, elseE: Expr}
 
 type Value = IntV(Int) | BoolV(Bool) deriving Eq
 
-type EvalError =
-    Unbound(String)
-  | DivByZero
-  | TypeError{expected: String, got: Value} deriving Eq
+type EvalError = Unbound(String) | DivByZero | TypeError{
+  expected: String,
+  got: Value
+} deriving Eq
 
 // ===== Show =====
-
 instance Show[Op] {
   show(o) {
     match o {
@@ -49,7 +45,12 @@ instance Show[Expr] {
 }
 
 instance Show[Value] {
-  show(v) { match v { IntV(n) => show(n) | BoolV(b) => show(b) } }
+  show(v) {
+    match v {
+      IntV(n) => show(n)
+      BoolV(b) => show(b)
+    }
+  }
 }
 
 instance Show[EvalError] {
@@ -63,7 +64,6 @@ instance Show[EvalError] {
 }
 
 // ===== 環境 =====
-
 type Env = Env{vars: List[(String, Value)], depth: Int}
 
 func lookupVar(env Env, x String) Result[EvalError, Value] {
@@ -78,7 +78,6 @@ func extend(env Env, x String, v Value) Env {
 }
 
 // ===== 評価 =====
-
 func asInt(v Value) Result[EvalError, Int] {
   match v {
     IntV(n) => Ok(n)
@@ -98,7 +97,11 @@ func arith(op Op, a Int, b Int) Result[EvalError, Value] {
     Add => Ok(IntV(a + b))
     Sub => Ok(IntV(a - b))
     Mul => Ok(IntV(a * b))
-    Div => if b == 0 { Err(DivByZero) } else { Ok(IntV(a / b)) }
+    | Div => if b == 0 {
+      Err(DivByZero)
+    } else {
+      Ok(IntV(a / b))
+    }
     Lt => Ok(BoolV(a < b))
   }
 }
@@ -107,35 +110,40 @@ func eval(env Env, e Expr) Result[EvalError, Value] {
   match e {
     Num(n) => Ok(IntV(n))
     Var(x) => lookupVar(env, x)
-    Bin{op: op, lhs: l, rhs: r} => do {
+    | Bin{op: op, lhs: l, rhs: r} => do {
       lv <- eval(env, l)
       rv <- eval(env, r)
       a <- asInt(lv)
       b <- asInt(rv)
       arith(op, a, b)
     }
-    Let(x, v, body) => do {
+    | Let(x, v, body) => do {
       value <- eval(env, v)
       eval(extend(env, x, value), body)
     }
-    If(c, t, f) => do {
+    | If(c, t, f) => do {
       cv <- eval(env, c)
       b <- asBool(cv)
-      if b { eval(env, t) } else { eval(env, f) }
+      if b {
+        eval(env, t)
+      } else {
+        eval(env, f)
+      }
     }
   }
 }
 
 // ===== 静的解析: 自由変数を State で収集 =====
-
 func freeVars(bound List[String], e Expr) State[List[String], Unit] {
   match e {
     Num(_) => pure(unit())
-    Var(x) =>
-      if elem(x, bound) || elem("*", bound) { pure(unit()) }
-      else { modify(func(acc) => append(acc, [x])) }
+    | Var(x) => if elem(x, bound) || elem("*", bound) {
+      pure(unit())
+    } else {
+      modify(func(acc) => append(acc, [x]))
+    }
     Bin(_, l, r) => forEach([l, r], func(sub) => freeVars(bound, sub))
-    Let(x, v, body) => do {
+    | Let(x, v, body) => do {
       freeVars(bound, v)
       freeVars(Cons(x, bound), body)
     }
@@ -144,37 +152,52 @@ func freeVars(bound List[String], e Expr) State[List[String], Unit] {
 }
 
 // ===== 便利な構築子 =====
+func num(n Int) Expr {
+  Num(n)
+}
 
-func num(n Int) Expr { Num(n) }
-func v(x String) Expr { Var(x) }
-func add(l Expr, r Expr) Expr { Bin{op: Add, lhs: l, rhs: r} }
-func mul(l Expr, r Expr) Expr { Bin{op: Mul, lhs: l, rhs: r} }
-func div(l Expr, r Expr) Expr { Bin{op: Div, lhs: l, rhs: r} }
-func lt(l Expr, r Expr) Expr { Bin{op: Lt, lhs: l, rhs: r} }
+func v(x String) Expr {
+  Var(x)
+}
+
+func add(l Expr, r Expr) Expr {
+  Bin{op: Add, lhs: l, rhs: r}
+}
+
+func mul(l Expr, r Expr) Expr {
+  Bin{op: Mul, lhs: l, rhs: r}
+}
+
+func div(l Expr, r Expr) Expr {
+  Bin{op: Div, lhs: l, rhs: r}
+}
+
+func lt(l Expr, r Expr) Expr {
+  Bin{op: Lt, lhs: l, rhs: r}
+}
 
 // ===== main =====
-
 func main() IO[Unit] {
   let empty = Env{vars: [], depth: 0}
-  let programs = [
-    ("arith", add(num(1), mul(num(2), num(3)))),
-    ("let",   Let{name: "x", value: num(10), body: mul(v("x"), add(v("x"), num(1)))}),
-    ("if",    If{cond: lt(num(1), num(2)), thenE: num(100), elseE: num(0)}),
-    ("free",  add(v("y"), num(1))),
-    ("div0",  div(num(1), num(0))),
-    ("type",  add(lt(num(1), num(2)), num(1))),
-    ("nested",
-      Let{name: "a", value: num(2),
-          body: Let{name: "b", value: mul(v("a"), v("a")),
-                    body: If{cond: lt(v("a"), v("b")), thenE: v("b"), elseE: v("a")}}})
-  ]
+  let programs = [("arith", add(num(1), mul(num(2), num(3)))), ("let", Let{
+    name: "x",
+    value: num(10),
+    body: mul(v("x"), add(v("x"), num(1)))
+  }), ("if", If{cond: lt(num(1), num(2)), thenE: num(100), elseE: num(0)}), ("free", add(v("y"), num(1))), ("div0", div(num(1), num(0))), ("type", add(lt(num(1), num(2)), num(1))), ("nested", Let{
+    name: "a",
+    value: num(2),
+    body: Let{
+      name: "b",
+      value: mul(v("a"), v("a")),
+      body: If{cond: lt(v("a"), v("b")), thenE: v("b"), elseE: v("a")}
+    }
+  })]
   let run = func(p (String, Expr)) => "${p.0}: ${p.1}\n  => ${eval(empty, p.1)}\n  free: ${execState(freeVars([], p.1), [])}"
   do {
     forEach(programs, func(p) => println(run(p)))
     let results = mapM(programs, func(p) => eval(empty, p.1))
     println("all: ${results}")
-    let okOnly = mapM(filter(programs, func(p) => p.0 != "free" && p.0 != "div0" && p.0 != "type"),
-                      func(p) => eval(empty, p.1))
+    let okOnly = mapM(filter(programs, func(p) => p.0 != "free" && p.0 != "div0" && p.0 != "type"), func(p) => eval(empty, p.1))
     println("ok:  ${okOnly}")
   }
 }

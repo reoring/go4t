@@ -3,30 +3,52 @@ package main
 type AccountId = AccountId(String)
 
 instance Show[AccountId] {
-  show(id) { match id { AccountId(value) => value } }
+  show(id) {
+    match id {
+      AccountId(value) => value
+    }
+  }
 }
 
 instance Eq[AccountId] {
-  eq(a, b) { match (a, b) { (AccountId(x), AccountId(y)) => x == y } }
+  eq(a, b) {
+    match (a, b) {
+      (AccountId(x), AccountId(y)) => x == y
+    }
+  }
 }
 
 // Declaration order is not the ordering: Low < Normal < High.
 type Priority = High | Normal | Low
 
 func priorityRank(p Priority) Int {
-  match p { Low => 0 | Normal => 1 | High => 2 }
+  match p {
+    Low => 0
+    Normal => 1
+    High => 2
+  }
 }
 
 instance Show[Priority] {
-  show(p) { match p { Low => "Low" | Normal => "Normal" | High => "High" } }
+  show(p) {
+    match p {
+      Low => "Low"
+      Normal => "Normal"
+      High => "High"
+    }
+  }
 }
 
 instance Eq[Priority] {
-  eq(a, b) { priorityRank(a) == priorityRank(b) }
+  eq(a, b) {
+    priorityRank(a) == priorityRank(b)
+  }
 }
 
 instance Ord[Priority] {
-  compare(a, b) { compare(priorityRank(a), priorityRank(b)) }
+  compare(a, b) {
+    compare(priorityRank(a), priorityRank(b))
+  }
 }
 
 func describe(o Option[Int]) String {

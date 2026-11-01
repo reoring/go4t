@@ -3,21 +3,22 @@ package main
 type Order = Order{customer: String, item: String, quantity: Int}
 
 instance Show[Order] {
-  show(o) { o.item + " x" + show(o.quantity) }
+  show(o) {
+    o.item + " x" + show(o.quantity)
+  }
 }
 
 func wordFrequency(text String) Map[String, Int] {
-  fold(words(text), emptyMap(), func(counts, word) =>
-    mapAlter(counts, word, func(previous) => Some(fromOption(previous, 0) + 1)))
+  fold(words(text), emptyMap(), func(counts, word) => mapAlter(counts, word, func(previous) => Some(fromOption(previous, 0) + 1)))
 }
 
 func main() IO[Unit] {
   let counts = wordFrequency("red blue red green blue red")
-  let orders = [
-    Order{customer: "Bob", item: "tea", quantity: 2},
-    Order{customer: "Ada", item: "coffee", quantity: 1},
-    Order{customer: "Bob", item: "cake", quantity: 3}
-  ]
+  let orders = [Order{customer: "Bob", item: "tea", quantity: 2}, Order{
+    customer: "Ada",
+    item: "coffee",
+    quantity: 1
+  }, Order{customer: "Bob", item: "cake", quantity: 3}]
   let grouped = groupBy(orders, func(order) => order.customer)
   let colors = setFromList(["red", "blue", "red", "green"])
   let shared = setIntersection(colors, setFromList(["blue", "yellow", "red"]))

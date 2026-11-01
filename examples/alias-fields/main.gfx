@@ -1,18 +1,24 @@
 package main
 
 alias Name = String
+
 alias Pair[A] = (A, A)
+
 alias Handler = func(Request) Response
 
 type Request = Request{name: Name}
+
 type Response = Response{message: String}
+
 type Shape = Circle{id: Int, r: Int} | Rect{id: Int, w: Int, h: Int}
 
 func greet(request Request) Response {
   Response{message: "hello " + request.name}
 }
 
-func reset(s Shape) Shape { s{id: 0} }
+func reset(s Shape) Shape {
+  s{id: 0}
+}
 
 func describe(s Shape) String {
   match s {
@@ -22,8 +28,15 @@ func describe(s Shape) String {
 }
 
 // The same generic field can occupy different positions in each constructor.
-type Tagged[A] = TextTag{value: A, label: String} | NumberTag{label: String, value: A, count: Int}
-func replaceValue[A](x Tagged[A], value A) Tagged[A] { x{value: value, label: "updated"} }
+type Tagged[A] = TextTag{value: A, label: String} | NumberTag{
+  label: String,
+  value: A,
+  count: Int
+}
+
+func replaceValue[A](x Tagged[A], value A) Tagged[A] {
+  x{value: value, label: "updated"}
+}
 
 func main() IO[Unit] {
   do {
@@ -40,7 +53,10 @@ func main() IO[Unit] {
     let right = NumberTag{label: "original", value: "right", count: 2}
     let changedLeft = replaceValue(left, "L")
     let changedRight = replaceValue(right, "R")
-    let count = match changedRight { TextTag{..} => 0; NumberTag{count: n, ..} => n }
+    let count = match changedRight {
+      TextTag{..} => 0
+      NumberTag{count: n, ..} => n
+    }
     println("generic: ${changedLeft.value}/${changedRight.value} ${changedLeft.label}/${changedRight.label} count=${count}; originals=${left.value}/${right.value}")
   }
 }

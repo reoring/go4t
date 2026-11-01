@@ -2,39 +2,78 @@ package main
 
 // ===== 型クラス: Monoid =====
 // 結合法則と単位元を持つ型。fold で畳み込むときの「足し方」を抽象化する。
-
 class Monoid[A] {
   empty() A
   combine(x A, y A) A
 }
 
 type Sum = Sum(Int)
+
 type Max = Max(Int)
 
 instance Monoid[Sum] {
-  empty() { Sum(0) }
-  combine(x, y) { match (x, y) { (Sum(a), Sum(b)) => Sum(a + b) } }
+  empty() {
+    Sum(0)
+  }
+
+  combine(x, y) {
+    match (x, y) {
+      (Sum(a), Sum(b)) => Sum(a + b)
+    }
+  }
 }
 
 instance Monoid[Max] {
-  empty() { Max(0) }
+  empty() {
+    Max(0)
+  }
+
   combine(x, y) {
-    match (x, y) { (Max(a), Max(b)) => if a > b { Max(a) } else { Max(b) } }
+    match (x, y) {
+      | (Max(a), Max(b)) => if a > b {
+        Max(a)
+      } else {
+        Max(b)
+      }
+    }
   }
 }
 
 instance Monoid[String] {
-  empty() { "" }
-  combine(x, y) { x + y }
+  empty() {
+    ""
+  }
+
+  combine(x, y) {
+    x + y
+  }
 }
 
 instance Monoid[List[A]] {
-  empty() { Nil }
-  combine(x, y) { append(x, y) }
+  empty() {
+    Nil
+  }
+
+  combine(x, y) {
+    append(x, y)
+  }
 }
 
-instance Show[Sum] { show(s) { match s { Sum(n) => "Sum(${n})" } } }
-instance Show[Max] { show(m) { match m { Max(n) => "Max(${n})" } } }
+instance Show[Sum] {
+  show(s) {
+    match s {
+      Sum(n) => "Sum(${n})"
+    }
+  }
+}
+
+instance Show[Max] {
+  show(m) {
+    match m {
+      Max(n) => "Max(${n})"
+    }
+  }
+}
 
 // Monoid があれば任意の List を一つにまとめられる
 func mconcat[A Monoid](xs List[A]) A {
@@ -46,7 +85,6 @@ func foldMap[A, M Monoid](xs List[A], f func(A) M) M {
 }
 
 // ===== 二分木 =====
-
 type Tree[A] = Leaf | Node(Tree[A], A, Tree[A])
 
 instance Functor[Tree] {
@@ -61,10 +99,13 @@ instance Functor[Tree] {
 func insert(t Tree[Int], x Int) Tree[Int] {
   match t {
     Leaf => Node(Leaf, x, Leaf)
-    Node(l, v, r) =>
-      if x < v { Node(insert(l, x), v, r) }
-      else if x > v { Node(l, v, insert(r, x)) }
-      else { t }
+    | Node(l, v, r) => if x < v {
+      Node(insert(l, x), v, r)
+    } else if x > v {
+      Node(l, v, insert(r, x))
+    } else {
+      t
+    }
   }
 }
 
@@ -78,20 +119,23 @@ func treeToList[A](t Tree[A]) List[A] {
 func depth[A](t Tree[A]) Int {
   match t {
     Leaf => 0
-    Node(l, _, r) => {
+    | Node(l, _, r) => {
       let dl = depth(l)
       let dr = depth(r)
-      1 + (if dl > dr { dl } else { dr })
+      1 + (if dl > dr {
+        dl
+      } else {
+        dr
+      })
     }
   }
 }
 
 // ===== State: 訪問順に番号を振る =====
-
 func label[A](t Tree[A]) State[Int, Tree[(Int, A)]] {
   match t {
     Leaf => pure(Leaf)
-    Node(l, v, r) => do {
+    | Node(l, v, r) => do {
       l2 <- label(l)
       n <- get()
       put(n + 1)
@@ -102,7 +146,6 @@ func label[A](t Tree[A]) State[Int, Tree[(Int, A)]] {
 }
 
 // ===== main =====
-
 func main() IO[Unit] {
   let xs = [5, 3, 8, 1, 4, 7, 9, 2]
   let tree = fold(xs, Leaf, insert)

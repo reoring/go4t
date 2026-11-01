@@ -3,9 +3,13 @@ package main
 type Log = Log{level: String, service: String, message: String}
 
 func parseLog(line String) Option[Log] {
-  match regexCaptures("^([A-Z]+) (.*)$", line) {
-    Some(Cons(level, Cons(payload, Nil))) => match splitOnce("=", payload) {
-      Some((service, message)) => Some(Log{level: level, service: service, message: message})
+  match regexCaptures("^([A-Z]+) (.*)$$", line) {
+    | Some(Cons(level, Cons(payload, Nil))) => match splitOnce("=", payload) {
+      | Some((service, message)) => Some(Log{
+        level: level,
+        service: service,
+        message: message
+      })
       None => None
     }
     _ => None
@@ -15,7 +19,10 @@ func parseLog(line String) Option[Log] {
 func main() IO[Unit] {
   let input = "INFO worker=started\nWARN api=slow request\nnot a log\nINFO cache=warm\nERROR api=timeout"
   let (accepted, rejected) = partition(map(lines(input), parseLog), isSome)
-  let logs = concatMap(accepted, func(entry) => match entry { Some(log) => [log] | None => Nil })
+  let logs = concatMap(accepted, func(entry) => match entry {
+    Some(log) => [log]
+    None => Nil
+  })
   let sorted = sortOn(logs, func(log) => log.service)
   let pages = chunksOf(2, indexed(sorted))
   let expensive = delay(func(_) => sum(range(1, 10001)))
@@ -24,8 +31,7 @@ func main() IO[Unit] {
     println(padRight("#", 3) + " | " + padRight("SERVICE", 8) + " | " + padRight("LEVEL", 5) + " | MESSAGE")
     forEach(indexed(pages), func((page, rows)) => do {
       println("-- page ${page + 1} --")
-      forEach(rows, func((i, log)) => println(
-        padRight(show(i + 1), 3) + " | " + padRight(log.service, 8) + " | " + padRight(log.level, 5) + " | " + log.message))
+      forEach(rows, func((i, log)) => println(padRight(show(i + 1), 3) + " | " + padRight(log.service, 8) + " | " + padRight(log.level, 5) + " | " + log.message))
     })
     println("deferred checksum: ${force(expensive)}")
   }

@@ -1,33 +1,26 @@
 package main
 
 // ===== ドメイン(deriving で Eq/Ord/Debug を自動生成) =====
-
 type Suit = Clubs | Diamonds | Hearts | Spades deriving Eq, Ord, Debug
-type Rank = Two | Three | Four | Five | Six | Seven | Eight | Nine | Ten | Jack | Queen | King | Ace
-  deriving Eq, Ord, Debug
+
+type Rank = Two | Three | Four | Five | Six | Seven | Eight | Nine | Ten | Jack | Queen | King | Ace deriving Eq, Ord, Debug
+
 type Card = Card{rank: Rank, suit: Suit} deriving Eq, Ord, Debug
 
-type Hand =
-    HighCard(Rank)
-  | Pair(Rank)
-  | TwoPair(Rank, Rank)
-  | Trips(Rank)
-  | Straight(Rank)
-  | Flush(Suit)
-  | FullHouse(Rank, Rank)
-  | Quads(Rank)
-  | StraightFlush(Rank)
-  deriving Eq, Ord, Debug
+type Hand = HighCard(Rank) | Pair(Rank) | TwoPair(Rank, Rank) | Trips(Rank) | Straight(Rank) | Flush(Suit) | FullHouse(Rank, Rank) | Quads(Rank) | StraightFlush(Rank) deriving Eq, Ord, Debug
 
 // ===== 決定的な擬似乱数: State[Int] 上の LCG =====
-
 func nextInt(bound Int) State[Int, Int] {
   do {
     seed <- get()
     let seed2 = (seed * 6364136223846793005 + 1442695040888963407) / 65536
     put(seed2)
-    let r = seed2 / 7 - (seed2 / 7 / bound) * bound
-    pure(if r < 0 { 0 - r } else { r })
+    let r = seed2 / 7 - seed2 / 7 / bound * bound
+    pure(if r < 0 {
+      0 - r
+    } else {
+      r
+    })
   }
 }
 
@@ -46,8 +39,10 @@ func fullDeck() List[Card] {
 }
 
 // ===== 役判定 =====
+func rankIndex(r Rank) Int {
+  length(filter(allRanks(), func(x) => x < r))
+}
 
-func rankIndex(r Rank) Int { length(filter(allRanks(), func(x) => x < r)) }
 func allRanks() List[Rank] {
   [Two, Three, Four, Five, Six, Seven, Eight, Nine, Ten, Jack, Queen, King, Ace]
 }
@@ -56,7 +51,11 @@ func allRanks() List[Rank] {
 func groups(cards List[Card]) List[(Int, Rank)] {
   let ranks = sort(map(cards, func(c) => c.rank))
   let counted = map(ranks, func(r) => (length(filter(ranks, func(x) => x == r)), r))
-  let uniq = fold(counted, [], func(acc, g) => if elem(g, acc) { acc } else { Cons(g, acc) })
+  let uniq = fold(counted, [], func(acc, g) => if elem(g, acc) {
+    acc
+  } else {
+    Cons(g, acc)
+  })
   sortBy(uniq, func(a, b) => compare(b, a))
 }
 
@@ -87,7 +86,6 @@ func classify(cards List[Card]) Hand {
 }
 
 // ===== main =====
-
 func showCards(cs List[Card]) String {
   fold(cs, "", func(acc, Card{rank: r, suit: s}) => "${acc}${debug(r)}/${debug(s)} ")
 }
@@ -101,12 +99,31 @@ func deal(n Int, players Int) State[Int, List[List[Card]]] {
 }
 
 func main() IO[Unit] {
-  let fixed = [
-    ("royal",     [Card{rank: Ten, suit: Hearts}, Card{rank: Jack, suit: Hearts}, Card{rank: Queen, suit: Hearts}, Card{rank: King, suit: Hearts}, Card{rank: Ace, suit: Hearts}]),
-    ("fullhouse", [Card{rank: Two, suit: Clubs}, Card{rank: Two, suit: Hearts}, Card{rank: Nine, suit: Clubs}, Card{rank: Nine, suit: Spades}, Card{rank: Nine, suit: Diamonds}]),
-    ("twopair",   [Card{rank: Five, suit: Clubs}, Card{rank: Five, suit: Hearts}, Card{rank: King, suit: Clubs}, Card{rank: King, suit: Spades}, Card{rank: Ace, suit: Diamonds}]),
-    ("straight",  [Card{rank: Six, suit: Clubs}, Card{rank: Seven, suit: Hearts}, Card{rank: Eight, suit: Clubs}, Card{rank: Nine, suit: Spades}, Card{rank: Ten, suit: Diamonds}])
-  ]
+  let fixed = [("royal", [Card{rank: Ten, suit: Hearts}, Card{
+    rank: Jack,
+    suit: Hearts
+  }, Card{rank: Queen, suit: Hearts}, Card{rank: King, suit: Hearts}, Card{
+    rank: Ace,
+    suit: Hearts
+  }]), ("fullhouse", [Card{rank: Two, suit: Clubs}, Card{
+    rank: Two,
+    suit: Hearts
+  }, Card{rank: Nine, suit: Clubs}, Card{rank: Nine, suit: Spades}, Card{
+    rank: Nine,
+    suit: Diamonds
+  }]), ("twopair", [Card{rank: Five, suit: Clubs}, Card{
+    rank: Five,
+    suit: Hearts
+  }, Card{rank: King, suit: Clubs}, Card{rank: King, suit: Spades}, Card{
+    rank: Ace,
+    suit: Diamonds
+  }]), ("straight", [Card{rank: Six, suit: Clubs}, Card{
+    rank: Seven,
+    suit: Hearts
+  }, Card{rank: Eight, suit: Clubs}, Card{rank: Nine, suit: Spades}, Card{
+    rank: Ten,
+    suit: Diamonds
+  }])]
   let (hands, seed) = runState(deal(5, 3), 20261101)
   let results = map(hands, func(h) => (classify(h), h))
   let (best, bestHand) = fromOption(maximum(results), (HighCard(Two), []))

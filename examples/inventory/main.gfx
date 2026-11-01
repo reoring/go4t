@@ -1,31 +1,42 @@
 package main
 
 // ===== ドメイン =====
-
 type Sku = Sku(String)
-type Stock = Stock{sku: Sku, qty: Int}      // 在庫: sku, 数量
-type Line = Line{sku: Sku, qty: Int}        // 注文明細: sku, 要求数
+
+type Stock = Stock{sku: Sku, qty: Int} // 在庫: sku, 数量
+
+type Line = Line{sku: Sku, qty: Int} // 注文明細: sku, 要求数
 
 // ===== 型クラスのインスタンス =====
-
 instance Show[Sku] {
-  show(s) { match s { Sku(code) => code } }
+  show(s) {
+    match s {
+      Sku(code) => code
+    }
+  }
 }
 
 instance Eq[Sku] {
-  eq(a, b) { match (a, b) { (Sku(x), Sku(y)) => x == y } }
+  eq(a, b) {
+    match (a, b) {
+      (Sku(x), Sku(y)) => x == y
+    }
+  }
 }
 
 instance Show[Stock] {
-  show(s) { "${s.sku}=${s.qty}" }
+  show(s) {
+    "${s.sku}=${s.qty}"
+  }
 }
 
 instance Show[Line] {
-  show(l) { "${l.qty}x${l.sku}" }
+  show(l) {
+    "${l.qty}x${l.sku}"
+  }
 }
 
 // ===== 純粋ロジック =====
-
 // 複数倉庫の在庫を sku ごとに合算
 func merge(stocks List[Stock]) List[Stock] {
   fold(stocks, [], func(acc, s) => addStock(acc, s))
@@ -33,45 +44,55 @@ func merge(stocks List[Stock]) List[Stock] {
 
 func addStock(acc List[Stock], s Stock) List[Stock] {
   match (acc, s) {
-    | (Nil, _) => [s]
-    | (Cons(whole @ Stock(sku, qty), rest), Stock(sku2, qty2)) =>
-        if sku == sku2 { Cons(Stock(sku, qty + qty2), rest) }
-        else { Cons(whole, addStock(rest, s)) }
+    (Nil, _) => [s]
+    | (Cons(whole @ Stock(sku, qty), rest), Stock(sku2, qty2)) => if sku == sku2 {
+      Cons(Stock(sku, qty + qty2), rest)
+    } else {
+      Cons(whole, addStock(rest, s))
+    }
   }
 }
 
 func available(stocks List[Stock], sku Sku) Int {
   fold(stocks, 0, func(acc, stock) => match stock {
-    Stock{sku: s, ..} => if sku == s { acc + stock.qty } else { acc }
+    | Stock{sku: s, ..} => if sku == s {
+      acc + stock.qty
+    } else {
+      acc
+    }
   })
 }
 
 // 1 明細の引当。失敗理由を Err に積む
 func allocate(stocks List[Stock], line Line) Result[String, Line] {
-  if line.qty <= 0 { Err("invalid quantity for ${line.sku}") }
-  else if available(stocks, line.sku) < line.qty {
+  if line.qty <= 0 {
+    Err("invalid quantity for ${line.sku}")
+  } else if available(stocks, line.sku) < line.qty {
     Err("short of ${line.sku}: need ${line.qty}, have ${available(stocks, line.sku)}")
+  } else {
+    Ok(line)
   }
-  else { Ok(line) }
 }
 
 // 注文全体の引当: Result モナドで最初の失敗で止まる
 func allocateAll(stocks List[Stock], lines List[Line]) Result[String, List[Line]] {
   match lines {
-    | Nil => Ok([])
+    Nil => Ok([])
     | Cons(l, rest) => do {
-        done <- allocate(stocks, l)
-        others <- allocateAll(stocks, rest)
-        pure(Cons(done, others))
-      }
+      done <- allocate(stocks, l)
+      others <- allocateAll(stocks, rest)
+      pure(Cons(done, others))
+    }
   }
 }
 
 // 引当後の在庫を減らす
 func consume(stocks List[Stock], lines List[Line]) List[Stock] {
-  fold(lines, stocks, func(acc, l) => fmap(acc, func(s) =>
-    if l.sku == s.sku { s{qty: s.qty - l.qty} } else { s }
-  ))
+  fold(lines, stocks, func(acc, l) => fmap(acc, func(s) => if l.sku == s.sku {
+    s{qty: s.qty - l.qty}
+  } else {
+    s
+  }))
 }
 
 // HKT: Functor であれば何にでも適用できる汎用ヘルパ
@@ -80,7 +101,6 @@ func tag[F[_] Functor, A Show](fa F[A], prefix String) F[String] {
 }
 
 // ===== 効果 =====
-
 extern func httpGet(url String) IO[Int] = "gofx/rt/stdhttp".GetStatus
 
 func report(title String, r Result[String, List[Line]]) IO[Unit] {
@@ -92,16 +112,21 @@ func notify(lines List[Line]) IO[Unit] {
     status <- httpGet("https://example.com")
     if status == 200 {
       println("  notified ${length(lines)} lines")
-    }
-    else {
+    } else {
       ioFail("notify failed: ${status}")
     }
   }
 }
 
 func main() IO[Unit] {
-  let warehouseA = [Stock{sku: Sku("apple"), qty: 5}, Stock{sku: Sku("pear"), qty: 2}]
-  let warehouseB = [Stock{sku: Sku("apple"), qty: 3}, Stock{sku: Sku("fig"), qty: 9}]
+  let warehouseA = [Stock{sku: Sku("apple"), qty: 5}, Stock{
+    sku: Sku("pear"),
+    qty: 2
+  }]
+  let warehouseB = [Stock{sku: Sku("apple"), qty: 3}, Stock{
+    sku: Sku("fig"),
+    qty: 9
+  }]
   let stocks = merge(append(warehouseA, warehouseB))
   let order1 = [Line{sku: Sku("apple"), qty: 7}, Line{sku: Sku("fig"), qty: 1}]
   let order2 = [Line{sku: Sku("apple"), qty: 7}, Line{sku: Sku("pear"), qty: 3}]
@@ -115,10 +140,10 @@ func main() IO[Unit] {
     report("order3", allocateAll(stocks, order3))
     match allocateAll(stocks, order1) {
       | Ok(lines) => do {
-          notify(lines)
-          println("  remaining ${consume(stocks, lines)}")
-        }
-      | Err(e) => println("  skipped: ${e}")
+        notify(lines)
+        println("  remaining ${consume(stocks, lines)}")
+      }
+      Err(e) => println("  skipped: ${e}")
     }
     x <- tag(ioPure((1, true)), "io:")
     println(x)

@@ -4,13 +4,17 @@ package main
 func positive(text String, label String) Result[String, Int] {
   do {
     n <- okOr(parseInt(text), label + ": expected an integer")
-    if n > 0 { Ok(n) } else { Err(label + ": must be positive") }
+    if n > 0 {
+      Ok(n)
+    } else {
+      Err(label + ": must be positive")
+    }
   }
 }
 
 func validate(config String) Result[String, Int] {
   match words(config) {
-    Cons(first, Cons(second, Nil)) => do {
+    | Cons(first, Cons(second, Nil)) => do {
       a <- positive(first, "first")
       b <- positive(second, "second")
       pure(a + b)
@@ -26,7 +30,10 @@ func main() IO[Unit] {
     let output = fromOption(head(tail(argv)), "io-effects")
     loaded <- tryIO(readFile(configPath))
     let config = fromResult(loaded, "3 4")
-    println(match loaded { Err(_) => "config: defaults (read failed)" | Ok(_) => "config: file" })
+    println(match loaded {
+      Err(_) => "config: defaults (read failed)"
+      Ok(_) => "config: file"
+    })
     let result = validate(config)
     println("validation: ${result}")
     println("early error: ${validate("bad also-bad")}")

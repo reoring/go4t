@@ -60,9 +60,19 @@ type Param struct {
 // ---- declarations ----
 
 type File struct {
-	Package string
-	Name    string // display name used in diagnostics (e.g. "prelude.gfx"); set by the caller
-	Decls   []Decl
+	Package                string
+	Name                   string // display name used in diagnostics (e.g. "prelude.gfx"); set by the caller
+	Decls                  []Decl
+	PackagePos, PackageEnd Pos
+	Comments               []Comment
+}
+
+// Comment retains a line comment, including // but excluding its newline.
+// Trailing reports whether a source token precedes it on the same line.
+type Comment struct {
+	Pos, End Pos
+	Text     string
+	Trailing bool
 }
 
 // Node spans use one-based rune columns and an exclusive End position.
@@ -235,7 +245,8 @@ func (e *ExprBase) exprNode()     {}
 
 type Ident struct {
 	ExprBase
-	Name string
+	Name        string
+	Placeholder bool // synthesized section/call parameter reference
 }
 
 type IntLit struct {
@@ -258,8 +269,9 @@ type StringLit struct {
 // len(Texts) == len(Exprs)+1). Every expression must have a Show instance.
 type Interp struct {
 	ExprBase
-	Texts []string
-	Exprs []Expr
+	Texts  []string
+	Exprs  []Expr
+	Starts []Pos // expression starts immediately after each ${
 }
 
 // Field is `x.name` (a field common to every constructor of a data type) or
@@ -297,12 +309,15 @@ type Call struct {
 	ExprBase
 	Fn   Expr
 	Args []Expr
+	Pipe *Binary // original |> surface tree; checking uses Fn and Args
 }
 
 type Lambda struct {
 	ExprBase
-	Params []Param
-	Body   Expr
+	Params  []Param
+	Body    Expr
+	Partial bool // synthesized placeholder lambda
+	Section bool // operator section rather than a partial call
 }
 
 type BlockExpr struct {

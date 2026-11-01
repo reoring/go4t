@@ -30,11 +30,14 @@ func main() {
 	}
 }
 
-const usage = "gofx:1:1: usage: gofx check FILE.gfx... | gofx build [-o DIR | --emit-go DIR --package NAME] FILE.gfx... | gofx run FILE.gfx... [-- args...] | gofx test FILE.gfx... | gofx eval 'EXPR' [FILE.gfx...] | gofx bind IMPORT [-o FILE.gfx] [--prefix STR]"
+const usage = "gofx:1:1: usage: gofx check FILE.gfx... | gofx build [-o DIR | --emit-go DIR --package NAME] FILE.gfx... | gofx run FILE.gfx... [-- args...] | gofx test FILE.gfx... | gofx eval 'EXPR' [FILE.gfx...] | gofx bind IMPORT [-o FILE.gfx] [--prefix STR] | gofx fmt [-w|-d|-l] FILE...|DIR"
 
 func run(args []string) error {
 	if len(args) > 0 && args[0] == "bind" {
 		return runBind(args[1:])
+	}
+	if len(args) > 0 && args[0] == "fmt" {
+		return runFmt(args[1:], os.Stdout)
 	}
 	if len(args) < 2 {
 		return errors.New(usage)

@@ -3,7 +3,7 @@ package main
 func increment(counts List[(String, Int)], word String) List[(String, Int)] {
   match counts {
     Nil => [(word, 1)]
-    Cons((key, count), rest) => if key == word {
+    | Cons((key, count), rest) => if key == word {
       Cons((key, count + 1), rest)
     } else {
       Cons((key, count), increment(rest, word))
@@ -21,9 +21,9 @@ func frequencyOrder(a (String, Int), b (String, Int)) Ordering {
 func limit(arguments List[String]) IO[Int] {
   match arguments {
     Nil => ioPure(10)
-    Cons(value, _) => match parseInt(value) {
+    | Cons(value, _) => match parseInt(value) {
       Some(n) => ioPure(n)
-      None => do {
+      | None => do {
         println("usage: wc [N]")
         exit(2)
       }

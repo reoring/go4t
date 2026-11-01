@@ -1,10 +1,9 @@
 package main
 
 // ---- ドメイン: 純粋な代数的データ型と状態遷移 ----
-
 type Order = Pending(Int, Int) | Shipped(Int, Int) | Cancelled(Int)
-//           Pending(id, amount)  Shipped(id, amount)  Cancelled(id)
 
+//           Pending(id, amount)  Shipped(id, amount)  Cancelled(id)
 func cancel(o Order) Order {
   match o {
     Pending(id, _) => Cancelled(id)
@@ -15,14 +14,17 @@ func cancel(o Order) Order {
 
 func ship(o Order) Option[Order] {
   match o {
-    Pending(id, amount) => if amount > 0 { Some(Shipped(id, amount)) } else { None }
+    | Pending(id, amount) => if amount > 0 {
+      Some(Shipped(id, amount))
+    } else {
+      None
+    }
     Shipped(id, amount) => Some(Shipped(id, amount))
     Cancelled(_) => None
   }
 }
 
 // ---- 型クラス: Show を自前の型へ ----
-
 instance Show[Order] {
   show(o) {
     match o {
@@ -34,19 +36,21 @@ instance Show[Order] {
 }
 
 // ---- HKT: Functor なら何でも受ける ----
-
 func twice[F[_] Functor, A](fa F[A], f func(A) A) F[A] {
   fmap(fmap(fa, f), f)
 }
 
 // ---- Option モナドで検証を連鎖 ----
-
 func shipTwo(a Order, b Order) Option[Int] {
   do {
     sa <- ship(a)
     sb <- ship(b)
     let total = amountOf(sa) + amountOf(sb)
-    if total > 1000 { None } else { pure(total) }
+    if total > 1000 {
+      None
+    } else {
+      pure(total)
+    }
   }
 }
 
@@ -59,7 +63,6 @@ func amountOf(o Order) Int {
 }
 
 // ---- 効果は IO に隔離。Go の net/http は extern ----
-
 extern func httpGet(url String) IO[Int] = "gofx/rt/stdhttp".GetStatus
 
 func notify(total Int) IO[Unit] {
@@ -67,8 +70,7 @@ func notify(total Int) IO[Unit] {
     status <- httpGet("https://example.com")
     if status == 200 {
       println("notified warehouse: total=" + show(total))
-    }
-    else {
+    } else {
       ioFail("warehouse returned " + show(status))
     }
   }

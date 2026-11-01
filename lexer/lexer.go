@@ -67,6 +67,8 @@ type Lexer struct {
 	line, col int
 	lastKind  Kind
 	lastText  string
+	lastEnd   ast.Pos // preceding real token, excluding inserted semicolons
+	Comments  []ast.Comment
 	// nest tracks unclosed delimiters. Newlines inside `(` or `[` never
 	// insert `;` (gofx has no trailing commas); `{` resets to statement
 	// context so blocks nested in calls still get their statements separated.
@@ -190,6 +192,9 @@ func (l *Lexer) All() ([]Token, error) {
 
 func (l *Lexer) emit(t Token) Token {
 	t.End = ast.Pos{Line: l.line, Col: l.col}
+	if t.Text != ";" && t.Kind != EOF {
+		l.lastEnd = t.End
+	}
 	l.lastKind, l.lastText = t.Kind, t.Text
 	if t.Kind == Punct {
 		switch t.Text {
@@ -232,9 +237,7 @@ func (l *Lexer) next() (Token, error) {
 			continue
 		}
 		if r == '/' && l.peek(1) == '/' {
-			for l.i < len(l.src) && l.peek(0) != '\n' {
-				l.advance()
-			}
+			l.scanComment(l.lastEnd.Line == l.line)
 			continue
 		}
 		pos := ast.Pos{Line: l.line, Col: l.col}
@@ -394,9 +397,14 @@ func (l *Lexer) scanInterpolation(pos ast.Pos) error {
 			}
 		case '/':
 			if l.peek(1) == '/' {
-				for l.i < len(l.src) && l.peek(0) != '\n' {
-					l.advance()
+				trailing := false
+				for i := l.i - 1; i >= 0 && l.src[i] != '\n'; i-- {
+					if !unicode.IsSpace(l.src[i]) {
+						trailing = true
+						break
+					}
 				}
+				l.scanComment(trailing)
 			} else {
 				l.advance()
 			}
@@ -405,6 +413,18 @@ func (l *Lexer) scanInterpolation(pos ast.Pos) error {
 		}
 	}
 	return fmt.Errorf("%s: unterminated interpolation", pos)
+}
+
+func (l *Lexer) scanComment(trailing bool) {
+	start := l.i
+	pos := ast.Pos{Line: l.line, Col: l.col}
+	for l.i < len(l.src) && l.peek(0) != '\n' {
+		l.advance()
+	}
+	l.Comments = append(l.Comments, ast.Comment{
+		Pos: pos, End: ast.Pos{Line: l.line, Col: l.col},
+		Text: string(l.src[start:l.i]), Trailing: trailing,
+	})
 }
 
 func (l *Lexer) hasPrefix(p string) bool {

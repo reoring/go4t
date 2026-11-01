@@ -4,7 +4,9 @@ func nonEmpty(s String) Bool {
   trim(s) |> (_ != "")
 }
 
-func add(a Int, b Int) Int { a + b }
+func add(a Int, b Int) Int {
+  a + b
+}
 
 func main() IO[Unit] {
   let input = " pear \n\n apple\n banana \n   \n"

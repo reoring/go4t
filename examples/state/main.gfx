@@ -18,11 +18,11 @@ func pop() State[List[Int], Option[Int]] {
   do {
     xs <- get()
     match xs {
-      | Nil => pure(None)
+      Nil => pure(None)
       | Cons(x, rest) => do {
-          put(rest)
-          pure(Some(x))
-        }
+        put(rest)
+        pure(Some(x))
+      }
     }
   }
 }

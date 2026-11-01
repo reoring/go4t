@@ -1,27 +1,42 @@
 package main
 
 // ===== ドメイン =====
-
 type AccountId = AccountId(String)
+
 type Account = Account{id: AccountId, owner: String, balance: Int}
 
-type Tx =
-    Deposit{to: AccountId, amount: Int}
-  | Withdraw{from: AccountId, amount: Int}
-  | Transfer{from: AccountId, to: AccountId, amount: Int}
+type Tx = Deposit{to: AccountId, amount: Int} | Withdraw{
+  from: AccountId,
+  amount: Int
+} | Transfer{from: AccountId, to: AccountId, amount: Int}
 
-type Failure =
-    NoSuchAccount(AccountId)
-  | Insufficient{id: AccountId, need: Int, have: Int}
-  | BadAmount(Int)
+type Failure = NoSuchAccount(AccountId) | Insufficient{
+  id: AccountId,
+  need: Int,
+  have: Int
+} | BadAmount(Int)
 
 // ===== インスタンス =====
+instance Show[AccountId] {
+  show(a) {
+    match a {
+      AccountId(s) => s
+    }
+  }
+}
 
-instance Show[AccountId] { show(a) { match a { AccountId(s) => s } } }
-instance Show[Account]   { show(a) { "${a.owner}<${a.id}>:${a.balance}" } }
+instance Show[Account] {
+  show(a) {
+    "${a.owner}<${a.id}>:${a.balance}"
+  }
+}
 
 instance Eq[AccountId] {
-  eq(a, b) { match (a, b) { (AccountId(x), AccountId(y)) => x == y } }
+  eq(a, b) {
+    match (a, b) {
+      (AccountId(x), AccountId(y)) => x == y
+    }
+  }
 }
 
 instance Show[Tx] {
@@ -45,7 +60,6 @@ instance Show[Failure] {
 }
 
 // ===== 純粋ロジック =====
-
 func findAccount(book List[Account], id AccountId) Result[Failure, Account] {
   match filter(book, func(a) => a.id == id) {
     Cons(a, _) => Ok(a)
@@ -54,18 +68,29 @@ func findAccount(book List[Account], id AccountId) Result[Failure, Account] {
 }
 
 func updateAccount(book List[Account], acct Account) List[Account] {
-  fmap(book, func(a) => if a.id == acct.id { acct } else { a })
+  fmap(book, func(a) => if a.id == acct.id {
+    acct
+  } else {
+    a
+  })
 }
 
 func positive(n Int) Result[Failure, Int] {
-  if n > 0 { Ok(n) } else { Err(BadAmount(n)) }
+  if n > 0 {
+    Ok(n)
+  } else {
+    Err(BadAmount(n))
+  }
 }
 
 func debit(book List[Account], id AccountId, amt Int) Result[Failure, List[Account]] {
   do {
     a <- findAccount(book, id)
-    if a.balance < amt { Err(Insufficient{id: id, need: amt, have: a.balance}) }
-    else { pure(updateAccount(book, a{balance: a.balance - amt})) }
+    if a.balance < amt {
+      Err(Insufficient{id: id, need: amt, have: a.balance})
+    } else {
+      pure(updateAccount(book, a{balance: a.balance - amt}))
+    }
   }
 }
 
@@ -80,18 +105,18 @@ func credit(book List[Account], id AccountId, amt Int) Result[Failure, List[Acco
 func apply(book List[Account], tx Tx) Result[Failure, List[Account]] {
   match tx {
     | Deposit(to, amt) => do {
-        n <- positive(amt)
-        credit(book, to, n)
-      }
+      n <- positive(amt)
+      credit(book, to, n)
+    }
     | Withdraw(from, amt) => do {
-        n <- positive(amt)
-        debit(book, from, n)
-      }
+      n <- positive(amt)
+      debit(book, from, n)
+    }
     | Transfer(from, to, amt) => do {
-        n <- positive(amt)
-        b1 <- debit(book, from, n)
-        credit(b1, to, n)
-      }
+      n <- positive(amt)
+      b1 <- debit(book, from, n)
+      credit(b1, to, n)
+    }
   }
 }
 
@@ -99,10 +124,10 @@ func apply(book List[Account], tx Tx) Result[Failure, List[Account]] {
 func step(st (List[Account], Option[(Failure, Int)]), tx Tx) (List[Account], Option[(Failure, Int)]) {
   match st {
     | (b, None) => match apply(b, tx) {
-        Ok(b2) => (b2, None)
-        Err(f) => (b, Some((f, 0)))
-      }
-    | (b, Some((f, n))) => (b, Some((f, n + 1)))
+      Ok(b2) => (b2, None)
+      Err(f) => (b, Some((f, 0)))
+    }
+    (b, Some((f, n))) => (b, Some((f, n + 1)))
   }
 }
 
@@ -115,7 +140,6 @@ func total(book List[Account]) Int {
 }
 
 // ===== 効果 =====
-
 extern func httpGet(url String) IO[Int] = "gofx/rt/stdhttp".GetStatus
 
 func audit(label String, book List[Account]) IO[Unit] {
@@ -129,17 +153,28 @@ func audit(label String, book List[Account]) IO[Unit] {
 func main() IO[Unit] {
   let alice = AccountId("A-1")
   let bob = AccountId("B-2")
-  let book = [
-    Account{id: alice, owner: "alice", balance: 100},
-    Account{id: bob, owner: "bob", balance: 20}
-  ]
-  let good = [Deposit{to: bob, amount: 30}, Transfer{from: alice, to: bob, amount: 50}]
-  let bad = [Withdraw{from: bob, amount: 10}, Transfer{from: bob, to: alice, amount: 500}, Deposit{to: alice, amount: 1}]
+  let book = [Account{id: alice, owner: "alice", balance: 100}, Account{
+    id: bob,
+    owner: "bob",
+    balance: 20
+  }]
+  let good = [Deposit{to: bob, amount: 30}, Transfer{
+    from: alice,
+    to: bob,
+    amount: 50
+  }]
+  let bad = [Withdraw{from: bob, amount: 10}, Transfer{
+    from: bob,
+    to: alice,
+    amount: 500
+  }, Deposit{to: alice, amount: 1}]
   let ugly = [Deposit{to: AccountId("Z-9"), amount: 5}]
-
   // let 多相: 1 つの describe を List[Tx] と List[Account] の両方に使う
-  let describe = func(xs) => fold(xs, "", func(acc, x) => if acc == "" { show(x) } else { "${acc}; ${x}" })
-
+  let describe = func(xs) => fold(xs, "", func(acc, x) => if acc == "" {
+    show(x)
+  } else {
+    "${acc}; ${x}"
+  })
   do {
     println("book:  ${describe(book)}")
     println("txs:   ${describe(good)}")

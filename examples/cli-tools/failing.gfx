@@ -1,4 +1,6 @@
 package main
 
 // Run separately: gofx test examples/cli-tools/failing.gfx.
-func testDeliberateFailure() Bool { false }
+func testDeliberateFailure() Bool {
+  false
+}

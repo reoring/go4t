@@ -70,13 +70,16 @@ type Parser struct {
 }
 
 func Parse(src string) (f *ast.File, err error) {
-	toks, err := lexer.New(src).All()
+	l := lexer.New(src)
+	toks, err := l.All()
 	if err != nil {
 		return nil, err
 	}
 	p := &Parser{toks: toks, source: src}
 	defer recoverParseError(&err)
-	return p.file(), nil
+	f = p.file()
+	f.Comments = l.Comments
+	return f, nil
 }
 
 // ParseExpr parses exactly one expression, starting at the one-based position
@@ -196,8 +199,8 @@ func (p *Parser) acceptP(text string) bool {
 
 func (p *Parser) file() *ast.File {
 	p.skipSemis()
-	p.expectK("package")
-	f := &ast.File{Package: p.ident()}
+	pos := p.expectK("package").Pos
+	f := &ast.File{Package: p.ident(), PackagePos: pos, PackageEnd: p.end()}
 	p.skipSemis()
 	for p.tok().Kind != lexer.EOF {
 		f.Decls = append(f.Decls, p.decl())
@@ -914,7 +917,7 @@ func (p *Parser) placeholder(holes *[]*ast.Ident) *ast.Ident {
 	for strings.Contains(p.source, name) {
 		name += "_"
 	}
-	hole := &ast.Ident{ExprBase: ast.ExprBase{Pos: pos, End: p.end()}, Name: name}
+	hole := &ast.Ident{ExprBase: ast.ExprBase{Pos: pos, End: p.end()}, Name: name, Placeholder: true}
 	*holes = append(*holes, hole)
 	return hole
 }
@@ -927,18 +930,19 @@ func partialLambda(pos ast.Pos, body ast.Expr, holes []*ast.Ident) ast.Expr {
 	for i, hole := range holes {
 		params[i] = ast.Param{Pos: hole.Pos, End: hole.End, Name: hole.Name}
 	}
-	return &ast.Lambda{ExprBase: ast.ExprBase{Pos: pos, End: body.GetEnd()}, Params: params, Body: body}
+	_, call := body.(*ast.Call)
+	return &ast.Lambda{ExprBase: ast.ExprBase{Pos: pos, End: body.GetEnd()}, Params: params, Body: body, Partial: true, Section: !call || body.(*ast.Call).Pipe != nil}
 }
 
 func pipeCall(pos ast.Pos, left, right ast.Expr) ast.Expr {
+	surface := &ast.Binary{ExprBase: ast.ExprBase{Pos: pos, End: right.GetEnd()}, Op: "|>", L: left, R: right}
 	if call, ok := right.(*ast.Call); ok {
 		args := make([]ast.Expr, len(call.Args)+1)
 		args[0] = left
 		copy(args[1:], call.Args)
-		call.Args = args
-		return call
+		return &ast.Call{ExprBase: call.ExprBase, Fn: call.Fn, Args: args, Pipe: surface}
 	}
-	return &ast.Call{ExprBase: ast.ExprBase{Pos: pos, End: right.GetEnd()}, Fn: right, Args: []ast.Expr{left}}
+	return &ast.Call{ExprBase: ast.ExprBase{Pos: pos, End: right.GetEnd()}, Fn: right, Args: []ast.Expr{left}, Pipe: surface}
 }
 
 func (p *Parser) unary() (expr ast.Expr) {
@@ -1086,6 +1090,7 @@ func (p *Parser) primary() (expr ast.Expr) {
 				panic(parseError{msg: err.Error()})
 			}
 			interp.Exprs = append(interp.Exprs, expr)
+			interp.Starts = append(interp.Starts, part.Pos)
 		}
 		return interp
 	case lexer.Keyword:

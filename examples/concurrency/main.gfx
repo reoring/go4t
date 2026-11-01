@@ -17,7 +17,6 @@ func main() IO[Unit] {
     c <- await(third)
     again <- await(first)
     println("await: ${a}, ${b}, ${c}; again: ${again}")
-
     let sleeps = [300, 200, 100]
     start <- monotonicMillis()
     values <- parMapIO(sleeps, func(millis) => delayed(millis, millis))
@@ -27,7 +26,6 @@ func main() IO[Unit] {
     println("parMapIO: ${values}")
     println("wall time: ${elapsed} ms; sum of sleeps: ${sequential} ms")
     println("parallel faster than sequential: ${elapsed < sequential}")
-
     both <- parBoth(delayed(30, 7), delayed(10, "ready"))
     println("parBoth: ${both}")
     winner <- race(delayed(1000, "slow"), delayed(10, "fast"))
