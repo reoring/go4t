@@ -40,6 +40,10 @@ import (
 // a Go main function. The input must carry the fully zonked annotations from Check.
 // Extern functions adapt checked natural Go signatures or forward the any ABI.
 func generate(prog *types.Program, goPackage string) (source []byte, err error) {
+	return generateInDir(prog, goPackage, "")
+}
+
+func generateInDir(prog *types.Program, goPackage, dir string) (source []byte, err error) {
 	if prog == nil {
 		return nil, fmt.Errorf("nil program")
 	}
@@ -59,6 +63,7 @@ func generate(prog *types.Program, goPackage string) (source []byte, err error) 
 		}
 	}()
 	g := &generator{
+		externs:    goextern.Loader{Dir: dir},
 		ctors: make(map[string]*types.Ctor), imports: make(map[string]string),
 		instances:  make(map[string]*types.Instance, len(prog.Instances)),
 		tuples:     make(map[int]struct{}),

@@ -19,7 +19,13 @@ import (
 // A single Go package permits global instance dictionaries and mutually recursive
 // module references without imposing Go's visibility or import-cycle semantics.
 func Generate(prog *types.Program, goPackage string) (map[string][]byte, error) {
-	source, err := generate(prog, goPackage)
+	return GenerateInDir(prog, goPackage, "")
+}
+
+// GenerateInDir resolves Go extern packages in dir's module context.
+// An empty dir uses the current working directory, as Generate does.
+func GenerateInDir(prog *types.Program, goPackage, dir string) (map[string][]byte, error) {
+	source, err := generateInDir(prog, goPackage, dir)
 	if err != nil {
 		return nil, err
 	}
