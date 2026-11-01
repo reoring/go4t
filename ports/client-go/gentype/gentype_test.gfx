@@ -1,0 +1,143 @@
+// Copyright 2026 The Kubernetes Authors. Licensed under Apache-2.0.
+// Consumer-facing generic/fake parity regressions. Not executed in this slice.
+package gentype
+import core "deps/k8s.io/api/core/v1"
+import runtime "deps/k8s.io/apimachinery/pkg/runtime"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import meta "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import codec "deps/codec"
+import objects "deps/objects"
+import http "deps/net/http"
+import outcome "support/outcome"
+import sync "support/sync"
+import errors "deps/support"
+import testing "testing"
+import native "testing/internal"
+import rest "rest"
+import transport "transport"
+import features "features"
+import applyutil "util/apply"
+import strings "std/string"
+import io "std/io"
+
+func _podAdapter() ObjectAdapter[core.Pod] { ObjectAdapter(core.podObjectType(),core.newPod,func(pod) => meta.objectMetaGetName(core.podGetObjectMeta(pod))) }
+func _listAdapter() ListAdapter[core.Pod,core.PodList] { ListAdapter(core.podListObjectType(),core.newPodList,func(destination,source) => core.podListWithListMeta(destination,core.podListGetListMeta(source)),func(list) => match core.podListGetItems(list) { None => []; Some(items) => items },func(list,items) => core.podListWithItems(list,match items { Nil => None; _ => Some(items) })) }
+func _resource() schema.GroupVersionResource { schema.groupVersionResourceWithResource(schema.groupVersionResourceWithVersion(schema.newGroupVersionResource(),"v1"),"pods") }
+func _kind() schema.GroupVersionKind { schema.groupVersionKindWithKind(schema.groupVersionKindWithVersion(schema.newGroupVersionKind(),"v1"),"Pod") }
+func _pod(name String) core.Pod { core.podWithObjectMeta(core.newPod(),meta.objectMetaWithName(meta.newObjectMeta(),name)) }
+func testFakeCRUDRecordsExactOptionsAndSubresources() IO[Bool] { do {
+ fake <- testing.newFake()
+ let client = newFakeClient(fake,"team",_resource(),_kind(),_podAdapter())
+ fakeGet(client,"one",meta.getOptionsWithResourceVersion(meta.newGetOptions(),"4"))
+ fakeCreate(client,_pod("one"),meta.createOptionsWithFieldManager(meta.newCreateOptions(),"creator"))
+ fakeUpdate(client,_pod("one"),meta.updateOptionsWithFieldManager(meta.newUpdateOptions(),"updater"))
+ fakeUpdateStatus(client,_pod("one"),meta.newUpdateOptions())
+ fakePatch(client,"one","application/merge-patch+json","{}",meta.newPatchOptions(),["status"])
+ fakeDelete(client,"one",meta.newDeleteOptions())
+ fakeDeleteCollection(client,_listAdapter(),meta.newDeleteOptions(),meta.listOptionsWithLimit(meta.newListOptions(),3))
+ recorded <- testing.actions(fake)
+ ioPure(match recorded {
+  Cons(get,Cons(create,Cons(update,Cons(status,Cons(patch,Cons(delete,Cons(collection,Nil))))))) => get.name=="one" && meta.getOptionsGetResourceVersion(get.getOptions)=="4" && meta.createOptionsGetFieldManager(create.createOptions)=="creator" && meta.updateOptionsGetFieldManager(update.updateOptions)=="updater" && status.subresource=="status" && patch.subresource=="status" && patch.patch=="{}" && delete.verb=="delete" && collection.verb=="delete-collection" && meta.listOptionsGetLimit(collection.listOptions)==3
+  _ => false
+ })
+} }
+func testFakeNilAndPartialResults() IO[Bool] { do {
+ fake <- testing.newFake()
+ let client = newFakeClient(fake,"",_resource(),_kind(),_podAdapter())
+ let error = errors.errorNew("partial")
+ testing.addReactor(fake,"get","pods",func(_) => ioPure(testing.Reaction(true,outcome.failure(None,error))))
+ empty <- fakeGet(client,"x",meta.newGetOptions())
+ testing.prependReactor(fake,"get","pods",func(_) => ioPure(testing.Reaction(true,outcome.failure(Some(core.podToRuntimeObject(_pod("partial"))),error))))
+ partial <- fakeGet(client,"x",meta.newGetOptions())
+ ioPure(meta.objectMetaGetName(core.podGetObjectMeta(empty.value))=="" && meta.objectMetaGetName(core.podGetObjectMeta(partial.value))=="partial" && (match partial.error { Some(value) => errors.errorIs(error,value); None => false }))
+} }
+func testFakeListFiltersOnlyLabelsAndCopiesMetadata() IO[Bool] { do {
+ fake <- testing.newFake()
+ let client = newFakeClient(fake,"",_resource(),_kind(),_podAdapter())
+ parsed <- native.unmarshalObject(core.podToRuntimeObject(_pod("matching")),"{\"metadata\":{\"name\":\"matching\",\"labels\":{\"app\":\"yes\"}}}")
+ let pod = match objects.fromObject(core.podObjectType(),parsed.0) { Some(pod) => pod; None => _pod("invalid") }
+ let list = core.podListWithListMeta(core.podListWithItems(core.newPodList(),Some([pod,_pod("other")])),meta.listMetaWithResourceVersion(meta.newListMeta(),"19"))
+ testing.addReactor(fake,"list","pods",func(_) => ioPure(testing.Reaction(true,outcome.success(Some(core.podListToRuntimeObject(list))))))
+ result <- fakeList(client,_listAdapter(),meta.listOptionsWithFieldSelector(meta.listOptionsWithLabelSelector(meta.newListOptions(),"app=yes"),"metadata.name=not-matching"))
+ ioPure(meta.listMetaGetResourceVersion(core.podListGetListMeta(result.value))=="19" && (match core.podListGetItems(result.value) { Some(Cons(item,Nil)) => meta.objectMetaGetName(core.podGetObjectMeta(item))=="matching"; _ => false }))
+} }
+type _ApplyInput = _ApplyInput { name: Option[String], encoded: String }
+func _applyAdapter(calls sync.Ref[Int]) ApplyAdapter[_ApplyInput] { ApplyAdapter(func(value) => value.name,applyutil.Marshal(func(value) => do { n <- sync.readRef(calls); sync.writeRef(calls,n+1); ioPure(outcome.success(value.encoded)) },func(value) => ioPure(outcome.success(value.encoded)))) }
+func testFakeApplyValidationOrderAndJSONPatchAction() IO[Bool] { do {
+ fake <- testing.newFake()
+ calls <- sync.newRef(0)
+ let client = newFakeClient(fake,"n",_resource(),_kind(),_podAdapter())
+ let adapter = _applyAdapter(calls)
+ nilResult <- fakeApply(client,adapter,None,meta.newApplyOptions())
+ missing <- fakeApply(client,adapter,Some(_ApplyInput(None,"{}")),meta.newApplyOptions())
+ applied <- fakeApplyStatus(client,adapter,Some(_ApplyInput(Some("one"),"{\"metadata\":{\"name\":\"one\"}}")),meta.applyOptionsWithFieldManager(meta.newApplyOptions(),"owner"))
+ count <- sync.readRef(calls)
+ actions <- testing.actions(fake)
+ ioPure((match nilResult.error { Some(e) => errors.errorMessage(e)=="configuration provided to Apply must not be nil"; None => false }) && (match missing.error { Some(e) => errors.errorMessage(e)=="configuration.Name must be provided to Apply"; None => false }) && count==2 && (match actions { Cons(action,Nil) => action.patchType=="application/apply-patch+yaml" && action.subresource=="status" && action.name=="one" && meta.patchOptionsGetFieldManager(action.patchOptions)=="owner"; _ => false }))
+} }
+extern func _response(status Int,body String) IO[http.Response] = "github.com/reoring/gofx/ports/client-go/testing/host".FixtureResponse
+extern func _describe(request http.Request) IO[(String,(String,String))] = "github.com/reoring/gofx/ports/client-go/testing/host".RequestDescription
+func _realClient(requests sync.Ref[List[(String,(String,String))]]) IO[Client[core.Pod]] { do {
+ clock <- sync.fakeClock(0)
+ decoder <- codec.newJSONDecoder()
+ parameters <- codec.standardParameterCodec()
+ let negotiator = rest.Negotiator(func(_,object) => do { encoded <- native.marshalObject(object); ioPure(outcome.from(encoded.0,encoded.1)) },func(_) => ioPure(outcome.success(Some(decoder))),func(_,_) => ioFail("test does not open watch streams"))
+ raw <- transport.toHTTP(transport.roundTripper(func(request) => do { description <- _describe(request); previous <- sync.readRef(requests); sync.writeRef(requests,append(previous,[description])); response <- _response(200,"{\"apiVersion\":\"v1\",\"kind\":\"Pod\",\"metadata\":{\"name\":\"server\"}}"); ioPure(outcome.success(Some(response))) },func(_) => ioPure(unit()),func() => ioPure(unit())))
+ http <- rest.newHTTPClient(raw,0)
+ let parsed = rest.parseURL("http://example.invalid")
+ match parsed.0 { None => ioFail("invalid fixture URL"); Some(base) => do {
+  client <- rest.newRESTClient(base,"/api/v1",rest.ClientContentConfig("","application/json",schema.groupVersionWithVersion(schema.newGroupVersion(),"v1"),negotiator),http,None,rest.noWarnings(),clock,false)
+  ioPure(newClient("pods",rest.clientInterface(client),parameters,"team",_podAdapter(),[]))
+ } }
+} }
+func testRealClientCRUDUsesRESTAndPreservesServerObject() IO[Bool] { do {
+ requests <- sync.newRef([])
+ client <- _realClient(requests)
+ fetched <- get(client,"one",meta.getOptionsWithResourceVersion(meta.newGetOptions(),"4"))
+ create(client,_pod("one"),meta.newCreateOptions())
+ updateStatus(client,_pod("one"),meta.newUpdateOptions())
+ patch(client,"one","application/merge-patch+json","{}",meta.newPatchOptions(),["status"])
+ delete(client,"one",meta.newDeleteOptions())
+ sent <- sync.readRef(requests)
+ ioPure(meta.objectMetaGetName(core.podGetObjectMeta(fetched.value))=="server" && (match sent {
+  Cons(get,Cons(create,Cons(status,Cons(patch,Cons(delete,Nil))))) => get.0=="GET" && strings.contains(get.1.0,"/api/v1/namespaces/team/pods/one?resourceVersion=4") && create.0=="POST" && strings.contains(create.1.1,"one") && status.0=="PUT" && strings.contains(status.1.0,"/status") && patch.0=="PATCH" && patch.1.1=="{}" && delete.0=="DELETE"
+  _ => false
+ }))
+} }
+func testRealEmptyNameIsDeferredRESTError() IO[Bool] { do {
+ requests <- sync.newRef([])
+ client <- _realClient(requests)
+ result <- get(client,"",meta.newGetOptions())
+ sent <- sync.readRef(requests)
+ ioPure(length(sent)==0 && (match result.error { Some(e) => errors.errorMessage(e)=="resource name may not be empty"; None => false }))
+} }
+func testRealApplyValidatesBeforeEncoding() IO[Bool] { do {
+ requests <- sync.newRef([])
+ calls <- sync.newRef(0)
+ client <- _realClient(requests)
+ registry <- features.newFeatureRegistry(features.Environment(func(_) => ioPure(None),func(_) => ioFail("unexpected feature warning")))
+ result <- apply(client,_applyAdapter(calls),registry,Some(_ApplyInput(None,"{}")),meta.newApplyOptions())
+ count <- sync.readRef(calls)
+ ioPure(count==0 && (match result.error { Some(e) => errors.errorMessage(e)=="obj.Name must be provided to Apply"; None => false }))
+} }
+func testPointerSliceNilAndMutableCells() IO[Bool] { do {
+ let absent: Option[List[Int]] = None
+ nil <- toPointerSlice(absent)
+ cells <- toPointerSlice(Some([1,2]))
+ match cells { None => ioPure(false); Some(Cons(first,rest)) => do {
+  sync.writeRef(first,3)
+  values <- fromPointerSlice(Some(Cons(first,rest)))
+  ioPure((match nil { None => true; Some(_) => false }) && values==Some([3,2]))
+ }; _ => ioPure(false) }
+} }
+func testWrongTypeReactorCannotBecomeEmptySuccess() IO[Bool] { do {
+ fake <- testing.newFake()
+ let client = newFakeClient(fake,"team",_resource(),_kind(),_podAdapter())
+ testing.addReactor(fake,"get","pods",func(_) => ioPure(testing.Reaction(true,outcome.success(Some(core.configMapToRuntimeObject(core.newConfigMap()))))))
+ result <- io.tryIO(fakeGet(client,"one",meta.newGetOptions()))
+ recorded <- testing.actions(fake)
+ ioPure((match result {
+  Err(error) => io.ioErrorMessage(error)=="fake reactor returned an object of the wrong type"
+  Ok(_) => false
+ }) && (match recorded { Cons(action,Nil) => action.verb=="get" && action.name=="one" && action.namespace=="team"; _ => false }))
+} }

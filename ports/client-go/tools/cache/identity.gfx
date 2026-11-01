@@ -1,0 +1,57 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package cache
+import "std/map"
+import lists "std/list"
+import "std/float"
+import strings "std/string"
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+import "github.com/reoring/gofx/ports/client-go/support/outcome"
+import schema "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime/schema"
+
+type InformerNameRegistry = InformerNameRegistry { mutex: sync.Mutex, names: sync.Ref[Map[String,sync.Ref[Bool]]] }
+type InformerName = InformerName { name: String, registry: InformerNameRegistry, reserved: sync.Ref[Bool], mutex: sync.Mutex, resources: sync.Ref[Map[(String,String,String),sync.Ref[Bool]]] }
+type InformerNameAndResource = InformerNameAndResource { name: String, resource: schema.GroupVersionResource, reserved: sync.Ref[Bool], parentReserved: sync.Ref[Bool] }
+func newInformerNameRegistry() IO[InformerNameRegistry] { do { mutex <- sync.newMutex(); names <- sync.newRef(map.emptyMap()); ioPure(InformerNameRegistry(mutex,names)) } }
+func newInformerName(registry InformerNameRegistry, name String) IO[outcome.Outcome[Option[InformerName]]] { if name == "" { ioPure(outcome.failure(None,cacheError("informer name cannot be empty"))) } else { sync.withLock(registry.mutex,sync.uninterruptible(do { names <- sync.readRef(registry.names); if map.mapMember(names,name) { ioPure(outcome.failure(None,cacheError("informer name " + strings.showQuoted(name) + " is already registered"))) } else { do { active <- sync.newRef(true); mutex <- sync.newMutex(); resources <- sync.newRef(map.emptyMap()); sync.writeRef(registry.names,map.mapInsert(names,name,active)); ioPure(outcome.success(Some(InformerName(name,registry,active,mutex,resources)))) } } })) } }
+func _compareResourceKey(left (String,String,String), right (String,String,String)) Ordering {
+ match (left,right) {
+  ((leftGroup,leftVersion,leftResource),(rightGroup,rightVersion,rightResource)) => {
+   let groupOrder = compare(leftGroup,rightGroup)
+   if groupOrder != EQ { groupOrder } else {
+    let versionOrder = compare(leftVersion,rightVersion)
+    if versionOrder != EQ { versionOrder } else { compare(leftResource,rightResource) }
+   }
+  }
+ }
+}
+func withResource(name InformerName, resource schema.GroupVersionResource) IO[InformerNameAndResource] {
+ sync.withLock(name.mutex,sync.uninterruptible(do {
+  resources <- sync.readRef(name.resources)
+  active <- sync.readRef(name.reserved)
+  let key = (schema.groupVersionResourceGetGroup(resource),schema.groupVersionResourceGetVersion(resource),schema.groupVersionResourceGetResource(resource))
+  let present = map.mapMemberBy(resources,key,_compareResourceKey)
+  flag <- sync.newRef(active && !present)
+  if active && !present { sync.writeRef(name.resources,map.mapInsertBy(resources,key,flag,_compareResourceKey)) } else { ioPure(unit()) }
+  ioPure(InformerNameAndResource(name.name,resource,flag,name.reserved))
+ }))
+}
+func releaseInformerName(name InformerName) IO[Unit] { sync.withLock(name.mutex,sync.uninterruptible(do { resources <- sync.readRef(name.resources); lists.forEach(map.mapValues(resources),func(flag) => sync.writeRef(flag,false)); sync.writeRef(name.resources,map.emptyMap()); sync.writeRef(name.reserved,false); sync.withLock(name.registry.mutex,do { names <- sync.readRef(name.registry.names); match map.mapLookup(names,name.name) { Some(flag) => if sync.sameRef(flag,name.reserved) { sync.writeRef(name.registry.names,map.mapDelete(names,name.name)) } else { ioPure(unit()) }; None => ioPure(unit()) } }) })) }
+func informerReserved(identity InformerNameAndResource) IO[Bool] { do { parent <- sync.readRef(identity.parentReserved); reserved <- sync.readRef(identity.reserved); ioPure(parent && reserved) } }
+func resetInformerNamesForTesting(registry InformerNameRegistry) IO[Unit] { sync.withLock(registry.mutex,sync.uninterruptible(do { names <- sync.readRef(registry.names); lists.forEach(map.mapValues(names),func(flag) => sync.writeRef(flag,false)); sync.writeRef(registry.names,map.emptyMap()) })) }
+type GaugeMetric = GaugeMetric { set: func(Float) IO[Unit] }
+type CounterMetric = CounterMetric { inc: func() IO[Unit] }
+type SummaryMetric = SummaryMetric { observe: func(Float) IO[Unit] }
+alias HistogramMetric = SummaryMetric
+type InformerMetricsProvider = InformerMetricsProvider { newQueuedItemMetric: func(InformerNameAndResource) IO[GaugeMetric], newProcessingLatencyMetric: func(InformerNameAndResource) IO[HistogramMetric], newStoreResourceVersionMetric: func(InformerNameAndResource) IO[GaugeMetric] }
+type MetricsProvider = MetricsProvider { newListsMetric: func(String) IO[CounterMetric], newListDurationMetric: func(String) IO[SummaryMetric], newItemsInListMetric: func(String) IO[SummaryMetric], newWatchesMetric: func(String) IO[CounterMetric], newShortWatchesMetric: func(String) IO[CounterMetric], newWatchDurationMetric: func(String) IO[SummaryMetric], newItemsInWatchMetric: func(String) IO[SummaryMetric], newLastResourceVersionMetric: func(String) IO[GaugeMetric] }
+type MetricsRegistry[A] = MetricsRegistry { mutex: sync.Mutex, provider: sync.Ref[Option[A]] }
+func newMetricsRegistry[A]() IO[MetricsRegistry[A]] { do { mutex <- sync.newMutex(); provider <- sync.newRef(None); ioPure(MetricsRegistry(mutex,provider)) } }
+func setMetricsProvider[A](registry MetricsRegistry[A], provider A) IO[Unit] { sync.withLock(registry.mutex,do { current <- sync.readRef(registry.provider); match current { Some(_) => ioPure(unit()); None => sync.writeRef(registry.provider,Some(provider)) } }) }
+func setInformerMetricsProvider(registry MetricsRegistry[InformerMetricsProvider], provider InformerMetricsProvider) IO[Unit] { setMetricsProvider(registry,provider) }
+func setReflectorMetricsProvider(registry MetricsRegistry[MetricsProvider], provider MetricsProvider) IO[Unit] { setMetricsProvider(registry,provider) }
+func metricResourceVersion(rv String) Option[Int] { if rv == "" { Some(0) } else { strings.parseInt(if strings.strLength(rv) > 15 { strings.substring(rv,strings.strLength(rv)-15,strings.strLength(rv)) } else { rv }) } }
+// Observe the committed storage RV, independently of the public AtomicFIFO projection.
+func newStoreVersionObserver(configuration Option[(InformerNameAndResource,InformerMetricsProvider)]) IO[func(String) IO[Unit]] { match configuration { None => ioPure(func(_) => ioPure(unit())); Some((identity,provider)) => do { reserved <- informerReserved(identity); if !reserved { ioPure(func(_) => ioPure(unit())) } else { do { metric <- provider.newStoreResourceVersionMetric(identity); ioPure(func(rv) => do { active <- informerReserved(identity); if active { match metricResourceVersion(rv) { None => ioPure(unit()); Some(value) => metric.set(toFloat(value)) } } else { ioPure(unit()) } }) } } } } }
+type QueueMetrics = QueueMetrics { clock: sync.Clock, depth: func(Int) IO[Unit], latency: func(Int) IO[Unit] }
+func configureQueueMetrics[A](queue KeyQueue[A], identity InformerNameAndResource, provider InformerMetricsProvider, clock sync.Clock) IO[Unit] { do { reserved <- informerReserved(identity); if !reserved { ioPure(unit()) } else { do { depth <- provider.newQueuedItemMetric(identity); latency <- provider.newProcessingLatencyMetric(identity); let metrics = QueueMetrics(clock,func(value) => do { active <- informerReserved(identity); if active { depth.set(toFloat(value)) } else { ioPure(unit()) } },func(nanos) => do { active <- informerReserved(identity); if active { latency.observe(toFloat(nanos)/1000000000.0) } else { ioPure(unit()) } }); sync.withLock(queue.mutex,sync.writeRef(queue.metrics,Some(metrics))) } } } }
+func measureQueueProcess[A,B](queue KeyQueue[A], action IO[B]) IO[B] { do { metrics <- sync.readRef(queue.metrics); match metrics { None => action; Some(m) => do { started <- sync.now(m.clock); sync.ensuring(action,do { ended <- sync.now(m.clock); m.latency(sync.elapsed(started,ended)) }) } } } }

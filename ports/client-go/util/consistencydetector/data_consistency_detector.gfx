@@ -1,0 +1,125 @@
+// Native port of client-go v0.37.2 consistency detector (Apache-2.0).
+package consistencydetector
+
+import meta "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import errors "github.com/reoring/gofx/ports/client-go/deps/support"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import io "std/io"
+import list "std/list"
+
+type Detector = Detector { enabled: sync.Ref[Bool] }
+alias RetrieveItemsFunc[A] = func() IO[List[A]]
+alias ListFunc[P] = func(meta.ListOptions) IO[outcome.Outcome[P]]
+alias TransformFunc[A] = func(A) IO[outcome.Outcome[A]]
+type Access[P, A] = Access {
+ extractWithAlloc: func(P) IO[outcome.Outcome[List[A]]],
+ uid: func(A) IO[outcome.Outcome[String]],
+ equal: func(A, A) IO[Bool],
+ difference: func(List[A], List[A]) IO[String],
+ log: func(String, Option[errors.Error]) IO[Unit]
+}
+type Keyed[A] = Keyed { uid: String, value: A }
+
+func newDetector() IO[Detector] {
+ do {
+  environment <- io.getEnv("KUBE_WATCHLIST_INCONSISTENCY_DETECTOR")
+  let enabled = match environment { None => false; Some(value) => value == "1" || value == "t" || value == "T" || value == "TRUE" || value == "true" || value == "True" }
+  state <- sync.newRef(enabled)
+  ioPure(Detector(state))
+ }
+}
+func isDataConsistencyDetectionForWatchListEnabled(detector Detector) IO[Bool] { sync.readRef(detector.enabled) }
+func setDataConsistencyDetectionForWatchListEnabledForTest(detector Detector, enabled Bool) IO[func() IO[Unit]] {
+ do {
+  original <- sync.readRef(detector.enabled)
+  sync.writeRef(detector.enabled, enabled)
+  ioPure(func() => sync.writeRef(detector.enabled, original))
+ }
+}
+func canFormAdditionalListCall(lastSyncedResourceVersion String, options meta.ListOptions) Bool {
+ meta.listOptionsGetContinue(options) == "" && lastSyncedResourceVersion != "0"
+}
+func prepareListCallOptions(rv String, options meta.ListOptions, count Int) meta.ListOptions {
+ let limited = if meta.listOptionsGetResourceVersion(options) == "0" && meta.listOptionsGetLimit(options) > 0 && count > meta.listOptionsGetLimit(options) { meta.listOptionsWithLimit(options, 0) } else { options }
+ meta.listOptionsWithResourceVersionMatch(meta.listOptionsWithResourceVersion(limited, rv), meta.resourceVersionMatchFromValue("Exact"))
+}
+func checkDataConsistency[P, A](identity String, rv String, listFn ListFunc[P], transform Option[TransformFunc[A]], options meta.ListOptions, retrieve RetrieveItemsFunc[A], access Access[P, A], clock sync.Clock) IO[Unit] {
+ if !canFormAdditionalListCall(rv, options) {
+  access.log("Data consistency check is enabled but the parameters (RV, ListOptions) doesn't allow for creating a valid LIST request. Skipping the data consistency check.", None)
+ } else {
+  do {
+   access.log("Warning: data consistency check is enabled, this will result in an additional call to the API server.", None)
+   items <- retrieve()
+   retrieved <- keyed(items, access)
+   context <- sync.captureContext()
+   sync.uninterruptible(do {
+    loaded <- io.tryIO(sync.withContext(context, retryList(listFn, prepareListCallOptions(rv, options, list.length(items)), access, clock)))
+    match loaded {
+     Err(io.Cancelled) => access.log("Failed to list data from the server, the data consistency check won't be performed, stopCh was closed", Some(errors.errorCancelled()))
+     Err(io.Timeout) => access.log("Failed to list data from the server, the data consistency check won't be performed, stopCh was closed", Some(errors.errorCancelled()))
+     Err(err) => io.ioRaise(err)
+     Ok(page) => sync.withContext(context, do {
+      extracted <- access.extractWithAlloc(page)
+      rawItems <- orPanic(extracted)
+      transformed <- transformItems(rawItems, transform)
+      listed <- keyed(transformed, access)
+      let orderedList = map(list.sortBy(listed, func(a, b) => compare(a.uid, b.uid)), func(value) => value.value)
+      let orderedRetrieved = map(list.sortBy(retrieved, func(a, b) => compare(a.uid, b.uid)), func(value) => value.value)
+      equal <- sameItems(orderedList, orderedRetrieved, access)
+      if equal { ioPure(unit()) } else {
+       do {
+        difference <- access.difference(orderedList, orderedRetrieved)
+        access.log("Previously received data is different than received by the standard list api call against etcd: " + difference, None)
+        io.ioRaise(io.Panic("data inconsistency detected for " + identity + ", panicking!"))
+       }
+      }
+     })
+    }
+   })
+  }
+ }
+}
+func retryList[P, A](fn ListFunc[P], options meta.ListOptions, access Access[P, A], clock sync.Clock) IO[P] {
+ do {
+  started <- sync.now(clock)
+  result <- fn(options)
+  match result.error {
+   None => ioPure(result.value)
+   Some(err) => do {
+    access.log("Failed to list data from the server, retrying until context is canceled", Some(err))
+    ended <- sync.now(clock)
+    let remaining = 1000000000 - sync.elapsed(started, ended)
+    if remaining <= 0 { ioPure(unit()) } else {
+     sync.bracket(sync.newTimer(clock, remaining), func(timer) => do { channel <- sync.timerChannel(timer); sync.receive(channel); ioPure(unit()) }, func(timer) => do { sync.stopTimer(timer); ioPure(unit()) })
+    }
+    retryList(fn, options, access, clock)
+   }
+  }
+ }
+}
+func orPanic[A](result outcome.Outcome[A]) IO[A] {
+ match result.error { None => ioPure(result.value); Some(err) => io.ioRaise(io.Panic(errors.errorMessage(err))) }
+}
+func keyed[P, A](items List[A], access Access[P, A]) IO[List[Keyed[A]]] {
+ match items {
+  [] => ioPure([])
+  Cons(value, rest) => do { result <- access.uid(value); key <- orPanic(result); tail <- keyed(rest, access); ioPure(Cons(Keyed(key, value), tail)) }
+ }
+}
+func transformItems[A](items List[A], transform Option[TransformFunc[A]]) IO[List[A]] {
+ match transform {
+  None => ioPure(items)
+  Some(fn) => match items {
+   [] => ioPure([])
+   Cons(value, rest) => do { result <- fn(value); transformed <- orPanic(result); tail <- transformItems(rest, transform); ioPure(Cons(transformed, tail)) }
+  }
+ }
+}
+func sameItems[P, A](a List[A], b List[A], access Access[P, A]) IO[Bool] {
+ match (a, b) {
+  ([], []) => ioPure(true)
+  (Cons(x, xs), Cons(y, ys)) => do { equal <- access.equal(x, y); if equal { sameItems(xs, ys, access) } else { ioPure(false) } }
+  _ => ioPure(false)
+ }
+}

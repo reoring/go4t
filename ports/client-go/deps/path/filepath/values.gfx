@@ -2,10 +2,19 @@
 // Source: client-go v0.37.2 and exact external dependency declarations.
 // Kubernetes-derived declarations are licensed under Apache-2.0.
 // https://www.apache.org/licenses/LICENSE-2.0
-// Source graph SHA-256: 2e4efd1c862cc7bde1036ba0dc37a4fe08175d4ead5d513b32689e674b91d866
+// Source graph SHA-256: 99a062162cbc99a38896123a3e81ce3ef2f70f2e505fbd058751d52a0a40f167
 package filepath
 
 import canonical "github.com/reoring/gofx/ports/client-go/deps/types"
 import support "github.com/reoring/gofx/ports/client-go/deps/support"
 
-extern func callJoin(p0 List[String]) IO[(List[String], String)] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_7ec8aa8a58224548
+extern func callAbs(p0 String) IO[(String, Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_606719a38fd1e218
+extern func callBase(p0 String) IO[String] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_2d5020500517dd82
+extern func callClean(p0 String) IO[String] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_6560a810bdbb6d40
+extern func callDir(p0 String) IO[String] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_c5f5f5bc4aac1eb3
+extern func callExt(p0 String) IO[String] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_4fb89b87300d6ae1
+extern func callIsAbs(p0 String) IO[Bool] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_a0c4d72862cf3c29
+extern func callJoin(p0 List[String]) IO[(List[String], String)] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_7ec8aa8a58224548
+extern func callRel(p0 String, p1 String) IO[(String, Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_ed4d335b86286031
+extern func callSplitList(p0 String) IO[Option[List[String]]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_07ee11fde36b9a6c
+extern func callWalkDir(p0 String, p1 canonical.WalkDirFunc_ccb11d3890b7) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_e32200cee7360dc1

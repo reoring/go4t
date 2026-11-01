@@ -1,0 +1,32 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package main
+import reference "github.com/reoring/gofx/ports/client-go/tools/reference"
+import "github.com/reoring/gofx/ports/client-go/deps/support"
+import "std/prelude"
+func check(condition Bool, message String) IO[Unit] { if condition { ioPure(unit()) } else { ioFail(message) } }
+func main() IO[Unit] { do {
+ let sentinel = reference.errNilObject()
+ let message = "can't reference a nil object"
+ check(support.errorMessage(sentinel)==message,"sentinel message changed")
+ check(support.errorIs(reference.errNilObject(),sentinel),"independent nil-object sentinels must match")
+ check(support.errorIs(support.errorWrap("wrapped",reference.errNilObject()),sentinel),"wrapped sentinel must match")
+ check(support.errorMessage(support.errorWrap("wrapped",sentinel))=="wrapped: " + message,"wrapped message changed")
+ let fresh = support.errorNew(message)
+ let otherDomain = support.errorTagged("other-domain","ErrNilObject",message)
+ let otherKey = support.errorTagged("k8s.io/client-go/tools/reference","other-key",message)
+ check(!support.errorIs(fresh,sentinel) && !support.errorIs(sentinel,fresh),"equal text must not create sentinel identity")
+ check(!support.errorIs(otherDomain,sentinel) && !support.errorIs(sentinel,otherDomain),"other domain must not match")
+ check(!support.errorIs(otherKey,sentinel) && !support.errorIs(sentinel,otherKey),"other key must not match")
+ check(!support.errorIs(support.errorWrap("wrapped",fresh),sentinel),"wrapping equal text must not create sentinel identity")
+ check(!support.errorIs(support.errorWrap("wrapped",otherDomain),sentinel),"wrapping other domain must not match")
+ result <- reference.getReference(None,None)
+ check(match result.value { None => true; Some(_) => false },"nil reference must not return an object")
+ error <- match result.error { None => ioFail("nil reference must return an error"); Some(error) => ioPure(error) }
+ check(support.errorIs(error,sentinel) && support.errorMessage(error)==message,"nil reference must return the canonical sentinel")
+ check(support.errorIs(support.errorWrap("reference",error),reference.errNilObject()),"wrapped nil-reference result must match a fresh sentinel")
+ partial <- reference.getPartialReference(None,None,"spec.containers[0]")
+ check(match partial.value { None => true; Some(_) => false },"nil partial reference must not return an object")
+ partialError <- match partial.error { None => ioFail("nil partial reference must return an error"); Some(error) => ioPure(error) }
+ check(support.errorIs(partialError,sentinel) && support.errorMessage(partialError)==message,"nil partial reference must preserve canonical sentinel")
+ check(support.errorIs(support.errorWrap("partial",partialError),reference.errNilObject()),"wrapped partial-reference result must match a fresh sentinel")
+} }

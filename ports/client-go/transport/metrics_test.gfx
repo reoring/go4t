@@ -1,0 +1,28 @@
+// Copyright 2015 The Kubernetes Authors. Licensed under Apache-2.0.
+package transport
+import metrics "github.com/reoring/gofx/ports/client-go/tools/metrics"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import list "std/list"
+
+func testCanonicalMetricsAdapter() IO[Bool] { do {
+ env <- fixtureEnvironment(true, true)
+ registry <- metrics.newRegistry()
+ events <- sync.newRef([])
+ let record = func(value) => do { old <- sync.readRef(events); sync.writeRef(events, list.append(old, [value])) }
+ let defaults = metrics.noopProvider()
+ let provider = defaults {
+  transportCreateCalls: metrics.TransportCreateCallsMetric(func(result) => record("create:" + result)),
+  transportCacheEntries: metrics.TransportCacheMetric(func(count) => record("entries:" + show(count))),
+  transportCAReloads: metrics.TransportCAReloadsMetric(func(result, reason) => record("ca:" + result + ":" + reason)),
+  transportCertRotationGCCalls: metrics.TransportCertRotationGCCallsMetric(func() => record("rotation-gc")),
+  transportCacheGCCalls: metrics.TransportCacheGCCallsMetric(func(result) => record("gc:" + result))
+ }
+ bound <- withMetrics(env, registry, Some(provider))
+ bound.diagnostics.event("cache:hit", "")
+ bound.diagnostics.event("cache_entries", "3")
+ bound.diagnostics.event("ca_reload:failure:read_error", "detail")
+ bound.diagnostics.event("certificate_rotation_gc", "")
+ bound.diagnostics.event("cache_gc:skipped", "")
+ seen <- sync.readRef(events)
+ ioPure(seen == ["create:hit", "entries:3", "ca:failure:read_error", "rotation-gc", "gc:skipped"])
+} }

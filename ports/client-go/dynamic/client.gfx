@@ -1,0 +1,141 @@
+package dynamic
+
+import rest "rest"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import runtime "deps/k8s.io/apimachinery/pkg/runtime"
+import v1 "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import u "deps/k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+import errors "deps/support"
+import outcome "support/outcome"
+import watch "support/watch"
+import applyutil "util/apply"
+import features "features"
+import s "std/string"
+
+// Copyright 2018 The Kubernetes Authors. Licensed under Apache-2.0.
+type Interface = Interface { resource: func(schema.GroupVersionResource) ResourceInterface, unsupportedWatchList: Bool }
+type ResourceInterface = ResourceInterface {
+ namespace: func(String) ResourceInterface,
+ create: func(u.Unstructured,v1.CreateOptions,List[String]) IO[outcome.Outcome[Option[u.Unstructured]]],
+ update: func(u.Unstructured,v1.UpdateOptions,List[String]) IO[outcome.Outcome[Option[u.Unstructured]]],
+ updateStatus: func(u.Unstructured,v1.UpdateOptions) IO[outcome.Outcome[Option[u.Unstructured]]],
+ delete: func(String,v1.DeleteOptions,List[String]) IO[outcome.Outcome[Unit]],
+ deleteCollection: func(v1.DeleteOptions,v1.ListOptions) IO[outcome.Outcome[Unit]],
+ get: func(String,v1.GetOptions,List[String]) IO[outcome.Outcome[Option[u.Unstructured]]],
+ list: func(v1.ListOptions) IO[outcome.Outcome[Option[u.UnstructuredList]]],
+ watch: func(v1.ListOptions) IO[outcome.Outcome[Option[watch.Watch]]],
+ patch: func(String,String,String,v1.PatchOptions,List[String]) IO[outcome.Outcome[Option[u.Unstructured]]],
+ apply: func(String,u.Unstructured,v1.ApplyOptions,List[String]) IO[outcome.Outcome[Option[u.Unstructured]]],
+ applyStatus: func(String,u.Unstructured,v1.ApplyOptions) IO[outcome.Outcome[Option[u.Unstructured]]]
+}
+type Client = Client { rest: rest.Interface, parameters: runtime.ParameterCodec, features: features.FeatureRegistry, marshal: applyutil.Marshal[u.Unstructured] }
+type ResourceClient = ResourceClient { client: Client, gvr: schema.GroupVersionResource, namespace: String }
+func newClient(base rest.Interface,parameters runtime.ParameterCodec,registry features.FeatureRegistry,marshal applyutil.Marshal[u.Unstructured]) Interface {
+ let client = Client(base,parameters,registry,marshal)
+ Interface(func(gvr) => resourceInterface(ResourceClient(client,gvr,"")),false)
+}
+func resourceInterface(c ResourceClient) ResourceInterface {
+ ResourceInterface(func(ns) => resourceInterface(c{namespace: ns}),func(o,p,sub) => create(c,o,p,sub),func(o,p,sub) => update(c,o,p,sub),func(o,p) => update(c,o,p,["status"]),func(n,p,sub) => delete(c,n,p,sub),func(p,l) => deleteCollection(c,p,l),func(n,p,sub) => get(c,n,p,sub),func(p) => list(c,p),func(p) => watch(c,p),func(n,t,b,p,sub) => patch(c,n,t,b,p,sub),func(n,o,p,sub) => apply(c,n,o,p,sub),func(n,o,p) => apply(c,n,o,p,["status"]))
+}
+func versionV1() schema.GroupVersion { schema.groupVersionWithVersion(schema.newGroupVersion(),"v1") }
+func makeURLSegments(gvr schema.GroupVersionResource,namespace String,name String) List[String] {
+ let group = schema.groupVersionResourceGetGroup(gvr)
+ let root = if group == "" { ["api"] } else { ["apis",group] }
+ let scoped = append(append(root,[schema.groupVersionResourceGetVersion(gvr)]),if namespace == "" { [] } else { ["namespaces",namespace] })
+ append(append(scoped,[schema.groupVersionResourceGetResource(gvr)]),if name == "" { [] } else { [name] })
+}
+func validateNamespaceWithOptionalName(namespace String,name Option[String]) Option[errors.Error] {
+ match rest.invalidSegment("namespace",namespace) { Some(e) => Some(e); None => match name { None => None; Some(n) => rest.invalidSegment("resource name",n) } }
+}
+func validateNamed(namespace String,name String) Option[errors.Error] {
+ if name == "" { Some(errors.errorNew("name is required")) } else { validateNamespaceWithOptionalName(namespace,Some(name)) }
+}
+func request(c ResourceClient,verb String,name String,sub List[String],options runtime.Object) IO[rest.Request] {
+ do {
+  base <- c.client.rest.verb(verb)
+  rest.specificallyVersionedParams(rest.absPath(base,append(makeURLSegments(c.gvr,c.namespace,name),sub)),options,c.client.parameters,versionV1())
+ }
+}
+func decodeObject(request rest.Request) IO[outcome.Outcome[Option[u.Unstructured]]] {
+ do {
+  result <- rest.doRequest(request)
+  decoded <- rest.resultInto(result,u.unstructuredToRuntimeObject(u.newUnstructured()))
+  ioPure(outcome.from(match decoded.error { Some(_) => None; None => u.unstructuredFromRuntimeObject(decoded.value) },decoded.error))
+ }
+}
+func get(c ResourceClient,name String,options v1.GetOptions,sub List[String]) IO[outcome.Outcome[Option[u.Unstructured]]] {
+ match validateNamed(c.namespace,name) { Some(e) => ioPure(outcome.failure(None,e)); None => do { r <- request(c,"GET",name,sub,v1.getOptionsToRuntimeObject(options)); decodeObject(r) } }
+}
+func list(c ResourceClient,options v1.ListOptions) IO[outcome.Outcome[Option[u.UnstructuredList]]] {
+ match validateNamespaceWithOptionalName(c.namespace,None) { Some(e) => ioPure(outcome.failure(None,e)); None => do {
+  r <- request(c,"GET","",[],v1.listOptionsToRuntimeObject(options))
+  result <- rest.doRequest(r)
+  decoded <- rest.resultInto(result,u.unstructuredListToRuntimeObject(u.newUnstructuredList()))
+  ioPure(outcome.from(match decoded.error { Some(_) => None; None => u.unstructuredListFromRuntimeObject(decoded.value) },decoded.error))
+ } }
+}
+func watch(c ResourceClient,options v1.ListOptions) IO[outcome.Outcome[Option[watch.Watch]]] {
+ match validateNamespaceWithOptionalName(c.namespace,None) { Some(e) => ioPure(outcome.failure(None,e)); None => do {
+  r <- request(c,"GET","",[],v1.listOptionsToRuntimeObject(v1.listOptionsWithWatch(options,true)))
+  rest.watch(r)
+ } }
+}
+func writeObject(c ResourceClient,verb String,name String,object u.Unstructured,options runtime.Object,sub List[String]) IO[outcome.Outcome[Option[u.Unstructured]]] {
+ match validateNamespaceWithOptionalName(c.namespace,Some(name)) { Some(e) => ioPure(outcome.failure(None,e)); None => do {
+  r <- request(c,verb,name,sub,options)
+  body <- rest.bodyObject(r,Some(u.unstructuredToRuntimeObject(object)))
+  decodeObject(body)
+ } }
+}
+func create(c ResourceClient,object u.Unstructured,options v1.CreateOptions,sub List[String]) IO[outcome.Outcome[Option[u.Unstructured]]] {
+ if length(sub) == 0 { writeObject(c,"POST","",object,v1.createOptionsToRuntimeObject(options),sub) } else { do {
+  name <- u.unstructuredCallGetName(object)
+  match validateNamed(c.namespace,name.1) { Some(e) => ioPure(outcome.failure(None,e)); None => writeObject(c,"POST",name.1,object,v1.createOptionsToRuntimeObject(options),sub) }
+ } }
+}
+func update(c ResourceClient,object u.Unstructured,options v1.UpdateOptions,sub List[String]) IO[outcome.Outcome[Option[u.Unstructured]]] {
+ do { name <- u.unstructuredCallGetName(object); match validateNamed(c.namespace,name.1) { Some(e) => ioPure(outcome.failure(None,e)); None => writeObject(c,"PUT",name.1,object,v1.updateOptionsToRuntimeObject(options),sub) } }
+}
+func delete(c ResourceClient,name String,options v1.DeleteOptions,sub List[String]) IO[outcome.Outcome[Unit]] {
+ match validateNamed(c.namespace,name) { Some(e) => ioPure(outcome.failure(unit(),e)); None => do {
+  base <- c.client.rest.verb("DELETE")
+  r <- rest.bodyObject(rest.absPath(base,append(makeURLSegments(c.gvr,c.namespace,name),sub)),Some(v1.deleteOptionsToRuntimeObject(options)))
+  result <- rest.doRequest(r)
+  error <- rest.resultError(result)
+  ioPure(outcome.from(unit(),error))
+ } }
+}
+func deleteCollection(c ResourceClient,options v1.DeleteOptions,listOptions v1.ListOptions) IO[outcome.Outcome[Unit]] {
+ match validateNamespaceWithOptionalName(c.namespace,None) { Some(e) => ioPure(outcome.failure(unit(),e)); None => do {
+  base <- request(c,"DELETE","",[],v1.listOptionsToRuntimeObject(listOptions))
+  r <- rest.bodyObject(base,Some(v1.deleteOptionsToRuntimeObject(options)))
+  result <- rest.doRequest(r)
+  error <- rest.resultError(result)
+  ioPure(outcome.from(unit(),error))
+ } }
+}
+func patch(c ResourceClient,name String,patchType String,data String,options v1.PatchOptions,sub List[String]) IO[outcome.Outcome[Option[u.Unstructured]]] {
+ match validateNamed(c.namespace,name) { Some(e) => ioPure(outcome.failure(None,e)); None => do {
+  base <- c.client.rest.patch(patchType)
+  r <- rest.specificallyVersionedParams(rest.bodyBytes(rest.absPath(base,append(makeURLSegments(c.gvr,c.namespace,name),sub)),data),v1.patchOptionsToRuntimeObject(options),c.client.parameters,versionV1())
+  decodeObject(r)
+ } }
+}
+func apply(c ResourceClient,name String,object u.Unstructured,options v1.ApplyOptions,sub List[String]) IO[outcome.Outcome[Option[u.Unstructured]]] {
+ match validateNamed(c.namespace,name) { Some(e) => ioPure(outcome.failure(None,e)); None => do {
+  managed <- u.unstructuredCallGetManagedFields(object)
+  if (match managed.1 { None => false; Some(fields) => length(fields)>0 }) {
+   ioPure(outcome.failure(None,errors.errorNew("cannot apply an object with managed fields already set.\n\t\tUse the client-go/applyconfigurations \"UnstructructuredExtractor\" to obtain the unstructured ApplyConfiguration for the given field manager that you can use/modify here to apply")))
+  } else { do {
+   built <- applyutil.newRequest(c.client.rest,object,c.client.marshal,c.client.features)
+   match built.error { Some(e) => ioPure(outcome.failure(None,e)); None => match built.value {
+    None => ioPure(outcome.failure(None,errors.errorNew("apply request is absent")))
+    Some(base) => do {
+     patchOptions <- v1.applyOptionsCallToPatchOptions(options)
+     r <- rest.specificallyVersionedParams(rest.absPath(base,append(makeURLSegments(c.gvr,c.namespace,name),sub)),v1.patchOptionsToRuntimeObject(patchOptions.1),c.client.parameters,versionV1())
+     decodeObject(r)
+    }
+   } }
+  } }
+ } }
+}

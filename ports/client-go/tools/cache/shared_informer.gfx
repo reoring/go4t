@@ -1,0 +1,112 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package cache
+import "std/map"
+import lists "std/list"
+import "std/io"
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+import "github.com/reoring/gofx/ports/client-go/support/outcome"
+import "github.com/reoring/gofx/ports/client-go/tools/cache/synctrack"
+import errors "github.com/reoring/gofx/ports/client-go/deps/support"
+import runtime "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime"
+
+type Notification[A] = AddNotification(A,Bool) | UpdateNotification(A,A) | DeleteNotification(Deleted[A])
+type ListenerInput[A] = IncomingNotification(Option[Notification[A]]) | NotificationSent
+type ProcessorListener[A] = ProcessorListener { handler: ResourceEventHandler[A], input: sync.Channel[Notification[A]], next: sync.Channel[Notification[A]], done: sync.Channel[Unit], finished: sync.Channel[Unit], tracker: synctrack.SingleFileTracker, tasks: sync.Ref[List[sync.Task[Unit]]] }
+type HandlerRegistration[A] = _HandlerRegistration(sync.Ref[Unit],Int,ProcessorListener[A])
+type RegisteredListener[A] = RegisteredListener { listener: ProcessorListener[A], requested: Int, period: Int, nextResync: sync.Instant, syncing: Bool }
+type InformerState[A] = InformerState { started: Bool, stopped: Bool, listeners: Map[Int,RegisteredListener[A]], nextID: Int, transform: Option[TransformFunc[A]], onError: func(Reflector[A],errors.Error) IO[Unit], checkPeriod: Int, reflector: Option[Reflector[A]], queue: Option[QueueSync], synced: Bool, configuration: SharedConfiguration, detector: Option[MutationDetector[A]], detectorTask: Option[sync.Task[Unit]] }
+type SharedInformer[A] = SharedInformer { indexer: Indexer[A], access: ObjectAccess[A], decode: func(runtime.Object) outcome.Outcome[A], listerWatcher: ListWatcher[A], mutex: sync.Mutex, state: sync.Ref[InformerState[A]], identity: sync.Ref[Unit], clock: sync.Clock, defaultResync: Int, done: sync.Channel[Unit] }
+alias TypedSharedInformer[A] = SharedInformer[A]
+alias SharedIndexInformer[A] = SharedInformer[A]
+func newSharedIndexInformer[A](lw ListWatcher[A], access ObjectAccess[A], decode func(runtime.Object) outcome.Outcome[A], resyncPeriod Int, indexers Map[String,IndexFunc[A]], clock sync.Clock) IO[SharedInformer[A]] { newSharedIndexInformerWithStoreOptions(lw,access,decode,resyncPeriod,indexers,clock,defaultThreadSafeStoreOptions()) }
+func newSharedIndexInformerWithStoreOptions[A](lw ListWatcher[A], access ObjectAccess[A], decode func(runtime.Object) outcome.Outcome[A], resyncPeriod Int, indexers Map[String,IndexFunc[A]], clock sync.Clock, options ThreadSafeStoreOptions) IO[SharedInformer[A]] { do { indexer <- newIndexerWithOptions(access,indexers,None,options); mutex <- sync.newMutex(); state <- sync.newRef(InformerState(false,false,map.emptyMap(),0,None,defaultWatchErrorHandler,resyncPeriod,None,None,false,defaultSharedConfiguration(),None,None)); identity <- sync.newRef(unit()); done <- sync.newChannel(0); ioPure(SharedInformer(indexer,access,decode,lw,mutex,state,identity,clock,resyncPeriod,done)) } }
+func newSharedInformer[A](lw ListWatcher[A], access ObjectAccess[A], decode func(runtime.Object) outcome.Outcome[A], resyncPeriod Int, clock sync.Clock) IO[SharedInformer[A]] { newSharedIndexInformer(lw,access,decode,resyncPeriod,map.emptyMap(),clock) }
+func getIndexer[A](informer SharedInformer[A]) Indexer[A] { informer.indexer }
+func getStore[A](informer SharedInformer[A]) Store[A] { informer.indexer.store }
+func hasStarted[A](informer SharedInformer[A]) IO[Bool] { sync.withLock(informer.mutex,do { s <- sync.readRef(informer.state); ioPure(s.started) }) }
+func isStopped[A](informer SharedInformer[A]) IO[Bool] { sync.withLock(informer.mutex,do { s <- sync.readRef(informer.state); ioPure(s.stopped) }) }
+func hasSynced[A](informer SharedInformer[A]) IO[Bool] { sync.withLock(informer.mutex,do { s <- sync.readRef(informer.state); ioPure(s.synced) }) }
+func lastSyncResourceVersion[A](informer SharedInformer[A]) IO[String] { do { reflector <- sync.withLock(informer.mutex,do { s <- sync.readRef(informer.state); ioPure(s.reflector) }); match reflector { None => ioPure(""); Some(r) => reflectorResourceVersion(r) } } }
+func setTransform[A](informer SharedInformer[A], transform TransformFunc[A]) IO[outcome.Outcome[Unit]] { sync.withLock(informer.mutex,do { s <- sync.readRef(informer.state); if s.started { ioPure(outcome.failure(unit(),cacheError("informer has already started"))) } else { do { sync.writeRef(informer.state,s { transform: Some(transform) }); ioPure(outcome.success(unit())) } } }) }
+func setWatchErrorHandler[A](informer SharedInformer[A], handler func(Reflector[A],errors.Error) IO[Unit]) IO[outcome.Outcome[Unit]] { sync.withLock(informer.mutex,do { s <- sync.readRef(informer.state); if s.started { ioPure(outcome.failure(unit(),cacheError("informer has already started"))) } else { do { sync.writeRef(informer.state,s { onError: handler }); ioPure(outcome.success(unit())) } } }) }
+func addIndexers[A](informer SharedInformer[A], indexers Map[String,IndexFunc[A]]) IO[outcome.Outcome[Unit]] { sync.withLock(informer.mutex,do { s <- sync.readRef(informer.state); if s.stopped { ioPure(outcome.failure(unit(),cacheError("indexer was not added because it has stopped already"))) } else { informer.indexer.addIndexers(indexers) } }) }
+func newProcessorListener[A](handler ResourceEventHandler[A]) IO[ProcessorListener[A]] { do { input <- sync.newChannel(0); next <- sync.newChannel(0); done <- sync.newChannel(0); finished <- sync.newChannel(0); tracker <- synctrack.newSingleFileTracker("event handler"); tasks <- sync.newRef(Nil); ioPure(ProcessorListener(handler,input,next,done,finished,tracker,tasks)) } }
+func listenerPump[A](listener ProcessorListener[A], front List[Notification[A]], back List[Notification[A]]) IO[Unit] {
+ match front {
+  Nil => match back { Nil => do { incoming <- sync.receive(listener.input); match incoming { None => ioPure(unit()); Some(notification) => listenerPump(listener,[notification],Nil) } }; _ => listenerPump(listener,reverse(back),Nil) }
+  Cons(notification,rest) => do { choice <- sync.selectCase([sync.receiveCase(listener.input,func(incoming) => IncomingNotification(incoming)),sync.sendCase(listener.next,notification,NotificationSent)]); match choice { IncomingNotification(None) => ioPure(unit()); IncomingNotification(Some(incoming)) => listenerPump(listener,front,Cons(incoming,back)); NotificationSent => listenerPump(listener,rest,back) } }
+ }
+}
+func listenerRun[A](listener ProcessorListener[A]) IO[Unit] { do { notification <- sync.receive(listener.next); match notification { None => ioPure(unit()); Some(item) => do { match item { AddNotification(obj,initial) => do { listener.handler.onAdd(obj,initial); if initial { synctrack.singleFinished(listener.tracker) } else { ioPure(unit()) } }; UpdateNotification(old,obj) => listener.handler.onUpdate(old,obj); DeleteNotification(obj) => listener.handler.onDelete(obj) }; listenerRun(listener) } } } }
+func listenerWatchSynced[A](listener ProcessorListener[A], upstream sync.Channel[Unit]) IO[Unit] { do { selected <- sync.selectReceive([upstream,listener.done]); if fst(selected) == 0 { synctrack.singleUpstreamHasSynced(listener.tracker) } else { ioPure(unit()) } } }
+func startListener[A](listener ProcessorListener[A]) IO[Unit] { sync.uninterruptible(do { pump <- sync.startDetached(sync.ensuring(listenerPump(listener,Nil,Nil),do { sync.close(listener.next); sync.close(listener.done) })); runner <- sync.startDetached(sync.ensuring(listenerRun(listener),sync.close(listener.finished))); sync.writeRef(listener.tasks,[pump,runner]) }) }
+func observeListener[A](listener ProcessorListener[A], upstream sync.Channel[Unit]) IO[Unit] { sync.uninterruptible(do { observer <- sync.startDetached(listenerWatchSynced(listener,upstream)); tasks <- sync.readRef(listener.tasks); sync.writeRef(listener.tasks,Cons(observer,tasks)) }) }
+func listenerAdd[A](listener ProcessorListener[A], notification Notification[A]) IO[Unit] { sync.uninterruptible(do { match notification { AddNotification(_,true) => synctrack.singleStart(listener.tracker); _ => ioPure(unit()) }; sync.send(listener.input,notification) }) }
+func listenerStop[A](listener ProcessorListener[A]) IO[Unit] { sync.uninterruptible(do { tasks <- sync.readRef(listener.tasks); sync.close(listener.input); match tasks { Nil => do { sync.close(listener.next); sync.close(listener.done); sync.close(listener.finished) }; _ => ioPure(unit()) } }) }
+func listenerJoin[A](listener ProcessorListener[A]) IO[Unit] { do { tasks <- sync.readRef(listener.tasks); lists.forEach(tasks,func(task) => do { _ <- sync.join(task); ioPure(unit()) }) } }
+func handlerHasSynced[A](registration HandlerRegistration[A]) IO[Bool] { match registration { _HandlerRegistration(_,_,listener) => synctrack.singleHasSynced(listener.tracker) } }
+func handlerDone[A](registration HandlerRegistration[A]) sync.Channel[Unit] { match registration { _HandlerRegistration(_,_,listener) => synctrack.singleDone(listener.tracker) } }
+func determineResyncPeriod(desired Int, check Int) Int { if desired == 0 || check == 0 { 0 } else { max(desired,check) } }
+func addEventHandler[A](informer SharedInformer[A], handler ResourceEventHandler[A]) IO[outcome.Outcome[HandlerRegistration[A]]] { addEventHandlerWithResyncPeriod(informer,handler,informer.defaultResync) }
+func addEventHandlerWithResyncPeriod[A](informer SharedInformer[A], handler ResourceEventHandler[A], period Int) IO[outcome.Outcome[HandlerRegistration[A]]] {
+ do { listener <- newProcessorListener(handler); sync.withLock(informer.mutex,sync.uninterruptible(do {
+  s <- sync.readRef(informer.state)
+  let registration = _HandlerRegistration(informer.identity,s.nextID,listener)
+  if s.stopped { do { listenerStop(listener); ioPure(outcome.failure(registration,cacheError("handler was not added to shared informer because it has stopped already"))) } } else { do {
+   let desired = if period > 0 { max(period,1000000000) } else { period }
+   let check = if desired > 0 && desired < s.checkPeriod && !s.started { desired } else { s.checkPeriod }
+   let requested = if s.started && desired > 0 && desired < check { check } else { desired }
+   now <- sync.now(informer.clock)
+   let existing = if check == s.checkPeriod { s.listeners } else { map.mapMap(s.listeners,func(entry) => entry { period: determineResyncPeriod(entry.requested,check) }) }
+   let entry = RegisteredListener(listener,requested,determineResyncPeriod(requested,check),sync.add(now,determineResyncPeriod(requested,check)),true)
+   sync.writeRef(informer.state,s { listeners: map.mapInsert(existing,s.nextID,entry), nextID: s.nextID+1, checkPeriod: check })
+   if s.started { do { startListener(listener); items <- informer.indexer.store.list(); lists.forEach(items,func(obj) => listenerAdd(listener,AddNotification(obj,true))); observeListener(listener,informer.done) } } else { ioPure(unit()) }
+   ioPure(outcome.success(registration))
+  } }
+ })) }
+}
+func removeEventHandler[A](informer SharedInformer[A], registration HandlerRegistration[A]) IO[outcome.Outcome[Unit]] { match registration { _HandlerRegistration(owner,id,listener) => if !sync.sameRef(owner,informer.identity) { ioPure(outcome.success(unit())) } else { sync.withLock(informer.mutex,sync.uninterruptible(do { s <- sync.readRef(informer.state); match map.mapLookup(s.listeners,id) { None => ioPure(outcome.success(unit())); Some(_) => do { sync.writeRef(informer.state,s { listeners: map.mapDelete(s.listeners,id) }); listenerStop(listener); ioPure(outcome.success(unit())) } } })) } } }
+func shutdownEventHandler[A](informer SharedInformer[A], registration HandlerRegistration[A]) IO[outcome.Outcome[Unit]] { do { removed <- removeEventHandler(informer,registration); match registration { _HandlerRegistration(_,_,listener) => do { _ <- sync.receive(listener.finished); ioPure(removed) } } } }
+func informerDistribute[A](informer SharedInformer[A], notification Notification[A], isSync Bool) IO[Unit] { do { s <- sync.readRef(informer.state); lists.forEach(map.mapValues(s.listeners),func(entry) => if !isSync || entry.syncing { listenerAdd(entry.listener,notification) } else { ioPure(unit()) }) } }
+func informerHandler[A](informer SharedInformer[A]) ResourceEventHandler[A] { ResourceEventHandler(func(obj,initial) => do { observeMutation(informer,obj); informerDistribute(informer,AddNotification(obj,initial),false) },func(old,obj) => do { oldVersion <- informer.access.resourceVersion(old); newVersion <- informer.access.resourceVersion(obj); observeMutation(informer,obj); informerDistribute(informer,UpdateNotification(old,obj),oldVersion == newVersion) },func(obj) => informerDistribute(informer,DeleteNotification(obj),false)) }
+func informerProcess[A](informer SharedInformer[A], deltas Deltas[A], initial Bool) IO[ProcessResult] { sync.withLock(informer.mutex,sync.uninterruptible(processDeltas(informerHandler(informer),informer.indexer.store,deltas,initial,informer.access))) }
+func informerShouldResync[A](informer SharedInformer[A]) IO[Bool] {
+ sync.withLock(informer.mutex,sync.uninterruptible(do {
+  s <- sync.readRef(informer.state)
+  now <- sync.now(informer.clock)
+  let listeners = map.mapMap(s.listeners,func(entry) => {
+   let due = entry.period != 0 && sync.compareInstant(now,entry.nextResync) != LT
+   entry { syncing: due, nextResync: if due { sync.add(now,entry.period) } else { entry.nextResync } }
+  })
+  sync.writeRef(informer.state,s { listeners: listeners })
+  ioPure(lists.any(map.mapValues(listeners),func(entry) => entry.syncing))
+ }))
+}
+func informerAfterProcess[A](informer SharedInformer[A]) IO[Unit] { do { queue <- sync.withLock(informer.mutex,do { s <- sync.readRef(informer.state); ioPure(s.queue) }); synced <- match queue { None => ioPure(false); Some(q) => q.hasSynced() }; if synced { sync.withLock(informer.mutex,sync.uninterruptible(do { s <- sync.readRef(informer.state); if s.synced { ioPure(unit()) } else { do { sync.writeRef(informer.state,s { synced: true }); sync.close(informer.done) } } })) } else { ioPure(unit()) } } }
+func run[A](informer SharedInformer[A]) IO[Unit] {
+ sync.bracket(sync.withLock(informer.mutex,sync.uninterruptible(do { s <- sync.readRef(informer.state); if s.started { ioPure(None) } else { do {
+  built <- buildSharedController(informer,s)
+  match built { (controller,queue,reflector) => do {
+   lists.forEach(map.mapValues(s.listeners),func(entry) => do { startListener(entry.listener); observeListener(entry.listener,informer.done) })
+   detectorTask <- match s.detector { None => ioPure(None); Some(detector) => do { task <- sync.startDetached(runMutationDetector(detector)); ioPure(Some(task)) } }
+   sync.writeRef(informer.state,s { started: true, queue: Some(queue), reflector: Some(reflector), detectorTask: detectorTask })
+   ioPure(Some(controller))
+  } }
+ } } })),func(controller) => match controller {
+  None => ioPure(unit())
+  Some(c) => sync.bracket(sync.start(do { _ <- sync.receive(c.done); informerAfterProcess(informer) }),func(_) => c.run(),cancelAndJoin)
+ },func(controller) => match controller { None => ioPure(unit()); Some(_) => stopInformer(informer) })
+}
+func stopInformer[A](informer SharedInformer[A]) IO[Unit] { sync.uninterruptible(do {
+ stopping <- sync.withLock(informer.mutex,do {
+  s <- sync.readRef(informer.state)
+  let listeners = map.mapValues(s.listeners)
+  sync.writeRef(informer.state,s { stopped: true, listeners: map.emptyMap(), detectorTask: None })
+  lists.forEach(listeners,func(entry) => listenerStop(entry.listener))
+  ioPure((listeners,s.detectorTask))
+ })
+ match stopping { (listeners,detector) => do {
+  match detector { None => ioPure(unit()); Some(task) => cancelAndJoin(task) }
+  lists.forEach(listeners,func(entry) => listenerJoin(entry.listener))
+ } }
+}) }

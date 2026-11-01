@@ -1,0 +1,59 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package main
+import "std/map"
+import "std/io"
+import cache "github.com/reoring/gofx/ports/client-go/tools/cache"
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+import "github.com/reoring/gofx/ports/client-go/support/outcome"
+import runtime "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime"
+import schema "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime/schema"
+
+type Entry = Entry { name: String, revision: String, sequence: Int } deriving Eq
+func access() cache.ObjectAccess[Entry] { cache.ObjectAccess(func(e) => ioPure(outcome.success(e.name)),func(e) => ioPure(Some(e.revision)),func(_) => ioPure(""),func(_) => ioPure(map.emptyMap()),func(e) => ioPure(e),func(a,b) => ioPure(a == b),func(e) => ioPure(e.name)) }
+func require(ok Bool, message String) IO[Unit] { if ok { ioPure(unit()) } else { ioFail(message) } }
+func main() IO[Unit] { do {
+ clock <- sync.fakeClock(0)
+ gate <- sync.newRef(false)
+ metrics <- sync.newRef([])
+ names <- cache.newInformerNameRegistry()
+ named <- cache.newInformerName(names,"public-consumer")
+ match named.value { None => ioFail("name reservation failed"); Some(name) => do {
+  identity <- cache.withResource(name,schema.groupVersionResourceWithResource(schema.groupVersionResourceWithVersion(schema.newGroupVersionResource(),"v1"),"entries"))
+  let gauge = cache.GaugeMetric(func(value) => do { values <- sync.readRef(metrics); sync.writeRef(metrics,append(values,[value])) })
+  let provider = cache.InformerMetricsProvider(func(_) => ioPure(gauge),func(_) => ioPure(cache.SummaryMetric(func(_) => ioPure(unit()))),func(_) => ioPure(gauge))
+  let options = cache.ThreadSafeStoreOptions(func() => sync.readRef(gate),Some((identity,provider)))
+  storage <- cache.newThreadSafeStoreWithOptions(access(),map.emptyMap(),options)
+  _ <- cache.threadSafeUpdate(storage,"direct",Entry("direct","12",1))
+  hidden <- cache.threadSafeResourceVersion(storage)
+  values <- sync.readRef(metrics)
+  require(hidden == "" && values == [12.0],"direct storage metrics must not use the gated RV projection")
+  io.println("direct metrics=" + show(values) + " disabledRV=" + show(hidden))
+  store <- cache.newStoreWithOptions(access(),Some(func(e) => ioPure(outcome.success(e { sequence: e.sequence+10 }))),options)
+  _ <- store.add(Entry("view","13",1))
+  hiddenView <- store.lastStoreSyncResourceVersion()
+  sync.writeRef(gate,true)
+  visible <- store.lastStoreSyncResourceVersion()
+  require(hiddenView == "" && visible == "13","Store projection must observe the supplied gate")
+  io.println("store disabledRV=" + show(hiddenView) + " enabledRV=" + show(visible))
+  let view = cache.storeAsReflector(store)
+  transformed <- cache.transformObject(view.transformer,Entry("probe","opaque",1))
+  require(transformed.value.sequence == 11,"ReflectorStore must expose the original store transformer")
+  io.println("discovered transform sequence=" + show(transformed.value.sequence))
+  mutation <- cache.newMutationCache(store,None,access(),clock,100,true,10,func(a,b) => ioPure(outcome.success(compare(a.sequence,b.sequence))))
+  cache.mutation(mutation,Entry("view","non-integer",50))
+  newer <- cache.mutationGetByKey(mutation,"view")
+  require(newer.value == Some(Entry("view","non-integer",50)),"custom comparator must be used by mutation lookup")
+  io.println("custom comparator sequence=" + show(match newer.value { None => -1; Some(value) => value.sequence }))
+  let lw = cache.ListWatcher(func(_) => ioPure(outcome.failure(cache.ListResult([],"",""),cache.cacheError("consumer list failure"))),func(_) => ioFail("not watching"),false,false)
+  callback <- sync.newRef(false)
+  let decode = func(_object runtime.Object) => outcome.failure(Entry("","",0),cache.cacheError("not decoding"))
+  reflector <- cache.newReflector(cache.defaultReflectorOptions(lw,view,access(),decode,clock) { name: "consumer-name", typeDescription: "entry-description", onError: func(receiver,error) => do { sync.writeRef(callback,cache.reflectorTypeDescription(receiver) == "entry-description"); cache.reflectorSetVersion(receiver,"from-handler"); ioFail("end consumer attempt") } })
+  _ <- io.tryIO(cache.reflectorRun(reflector))
+  called <- sync.readRef(callback)
+  version <- cache.reflectorResourceVersion(reflector)
+  require(called && version == "from-handler","watch-error callback must receive the live reflector")
+  io.println("reflector callback=" + show(called) + " actualRV=" + show(version))
+  cache.releaseInformerName(name)
+  io.println("cache capability consumer passed")
+ } }
+} }

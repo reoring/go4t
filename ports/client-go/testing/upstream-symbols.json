@@ -1,0 +1,1415 @@
+{
+  "source_version": "v0.37.2",
+  "source_revision": "72c52dd0cc3b9099b36af11290b0304045dd1ada",
+  "evidence": "source mapping only; no build, typecheck, or test was run",
+  "symbols": [
+    {
+      "source": "testing/actions.go",
+      "line": 36,
+      "kind": "func",
+      "symbol": "NewRootGetAction",
+      "native_file": "constructors.gfx / actions.gfx",
+      "native": "newRootGetAction"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 40,
+      "kind": "func",
+      "symbol": "NewRootGetActionWithOptions",
+      "native_file": "constructors.gfx / actions.gfx",
+      "native": "newRootGetActionWithOptions"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 50,
+      "kind": "func",
+      "symbol": "NewGetAction",
+      "native_file": "constructors.gfx / actions.gfx",
+      "native": "newGetAction"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 54,
+      "kind": "func",
+      "symbol": "NewGetActionWithOptions",
+      "native_file": "constructors.gfx / actions.gfx",
+      "native": "newGetActionWithOptions"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 65,
+      "kind": "func",
+      "symbol": "NewGetSubresourceAction",
+      "native_file": "constructors.gfx / actions.gfx",
+      "native": "newGetSubresourceAction"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 69,
+      "kind": "func",
+      "symbol": "NewGetSubresourceActionWithOptions",
+      "native_file": "constructors.gfx / actions.gfx",
+      "native": "newGetSubresourceActionWithOptions"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 81,
+      "kind": "func",
+      "symbol": "NewRootGetSubresourceAction",
+      "native_file": "constructors.gfx / actions.gfx",
+      "native": "newRootGetSubresourceAction"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 85,
+      "kind": "func",
+      "symbol": "NewRootGetSubresourceActionWithOptions",
+      "native_file": "constructors.gfx / actions.gfx",
+      "native": "newRootGetSubresourceActionWithOptions"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 96,
+      "kind": "func",
+      "symbol": "NewRootListAction",
+      "native_file": "constructors.gfx / actions.gfx",
+      "native": "newRootListAction"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 108,
+      "kind": "func",
+      "symbol": "NewRootListActionWithOptions",
+      "native_file": "constructors.gfx / actions.gfx",
+      "native": "newRootListActionWithOptions"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 122,
+      "kind": "func",
+      "symbol": "NewListAction",
+      "native_file": "constructors.gfx / actions.gfx",
+      "native": "newListAction"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 135,
+      "kind": "func",
+      "symbol": "NewListActionWithOptions",
+      "native_file": "constructors.gfx / actions.gfx",
+      "native": "newListActionWithOptions"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 149,
+      "kind": "func",
+      "symbol": "NewRootCreateAction",
+      "native_file": "constructors.gfx / actions.gfx",
+      "native": "newRootCreateAction"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 153,
+      "kind": "func",
+      "symbol": "NewRootCreateActionWithOptions",
+      "native_file": "constructors.gfx / actions.gfx",
+      "native": "newRootCreateActionWithOptions"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 163,
+      "kind": "func",
+      "symbol": "NewCreateAction",
+      "native_file": "constructors.gfx / actions.gfx",
+      "native": "newCreateAction"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 167,
+      "kind": "func",
+      "symbol": "NewCreateActionWithOptions",
+      "native_file": "constructors.gfx / actions.gfx",
+      "native": "newCreateActionWithOptions"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 178,
+      "kind": "func",
+      "symbol": "NewRootCreateSubresourceAction",
+      "native_file": "constructors.gfx / actions.gfx",
+      "native": "newRootCreateSubresourceAction"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 182,
+      "kind": "func",
+      "symbol": "NewRootCreateSubresourceActionWithOptions",
+      "native_file": "constructors.gfx / actions.gfx",
+      "native": "newRootCreateSubresourceActionWithOptions"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 194,
+      "kind": "func",
+      "symbol": "NewCreateSubresourceAction",
+      "native_file": "constructors.gfx / actions.gfx",
+      "native": "newCreateSubresourceAction"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 198,
+      "kind": "func",
+      "symbol": "NewCreateSubresourceActionWithOptions",
+      "native_file": "constructors.gfx / actions.gfx",
+      "native": "newCreateSubresourceActionWithOptions"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 211,
+      "kind": "func",
+      "symbol": "NewRootUpdateAction",
+      "native_file": "constructors.gfx / actions.gfx",
+      "native": "newRootUpdateAction"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 215,
+      "kind": "func",
+      "symbol": "NewRootUpdateActionWithOptions",
+      "native_file": "constructors.gfx / actions.gfx",
+      "native": "newRootUpdateActionWithOptions"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 225,
+      "kind": "func",
+      "symbol": "NewUpdateAction",
+      "native_file": "constructors.gfx / actions.gfx",
+      "native": "newUpdateAction"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 229,
+      "kind": "func",
+      "symbol": "NewUpdateActionWithOptions",
+      "native_file": "constructors.gfx / actions.gfx",
+      "native": "newUpdateActionWithOptions"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 240,
+      "kind": "func",
+      "symbol": "NewRootPatchAction",
+      "native_file": "constructors.gfx / actions.gfx",
+      "native": "newRootPatchAction"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 244,
+      "kind": "func",
+      "symbol": "NewRootPatchActionWithOptions",
+      "native_file": "constructors.gfx / actions.gfx",
+      "native": "newRootPatchActionWithOptions"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 256,
+      "kind": "func",
+      "symbol": "NewPatchAction",
+      "native_file": "constructors.gfx / actions.gfx",
+      "native": "newPatchAction"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 260,
+      "kind": "func",
+      "symbol": "NewPatchActionWithOptions",
+      "native_file": "constructors.gfx / actions.gfx",
+      "native": "newPatchActionWithOptions"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 273,
+      "kind": "func",
+      "symbol": "NewRootPatchSubresourceAction",
+      "native_file": "constructors.gfx / actions.gfx",
+      "native": "newRootPatchSubresourceAction"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 277,
+      "kind": "func",
+      "symbol": "NewRootPatchSubresourceActionWithOptions",
+      "native_file": "constructors.gfx / actions.gfx",
+      "native": "newRootPatchSubresourceActionWithOptions"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 290,
+      "kind": "func",
+      "symbol": "NewPatchSubresourceAction",
+      "native_file": "constructors.gfx / actions.gfx",
+      "native": "newPatchSubresourceAction"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 294,
+      "kind": "func",
+      "symbol": "NewPatchSubresourceActionWithOptions",
+      "native_file": "constructors.gfx / actions.gfx",
+      "native": "newPatchSubresourceActionWithOptions"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 308,
+      "kind": "func",
+      "symbol": "NewRootUpdateSubresourceAction",
+      "native_file": "constructors.gfx / actions.gfx",
+      "native": "newRootUpdateSubresourceAction"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 312,
+      "kind": "func",
+      "symbol": "NewRootUpdateSubresourceActionWithOptions",
+      "native_file": "constructors.gfx / actions.gfx",
+      "native": "newRootUpdateSubresourceActionWithOptions"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 323,
+      "kind": "func",
+      "symbol": "NewUpdateSubresourceAction",
+      "native_file": "constructors.gfx / actions.gfx",
+      "native": "newUpdateSubresourceAction"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 327,
+      "kind": "func",
+      "symbol": "NewUpdateSubresourceActionWithOptions",
+      "native_file": "constructors.gfx / actions.gfx",
+      "native": "newUpdateSubresourceActionWithOptions"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 339,
+      "kind": "func",
+      "symbol": "NewRootDeleteAction",
+      "native_file": "constructors.gfx / actions.gfx",
+      "native": "newRootDeleteAction"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 343,
+      "kind": "func",
+      "symbol": "NewRootDeleteActionWithOptions",
+      "native_file": "constructors.gfx / actions.gfx",
+      "native": "newRootDeleteActionWithOptions"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 353,
+      "kind": "func",
+      "symbol": "NewRootDeleteSubresourceAction",
+      "native_file": "constructors.gfx / actions.gfx",
+      "native": "newRootDeleteSubresourceAction"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 357,
+      "kind": "func",
+      "symbol": "NewRootDeleteSubresourceActionWithOptions",
+      "native_file": "constructors.gfx / actions.gfx",
+      "native": "newRootDeleteSubresourceActionWithOptions"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 368,
+      "kind": "func",
+      "symbol": "NewDeleteAction",
+      "native_file": "constructors.gfx / actions.gfx",
+      "native": "newDeleteAction"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 372,
+      "kind": "func",
+      "symbol": "NewDeleteActionWithOptions",
+      "native_file": "constructors.gfx / actions.gfx",
+      "native": "newDeleteActionWithOptions"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 383,
+      "kind": "func",
+      "symbol": "NewDeleteSubresourceAction",
+      "native_file": "constructors.gfx / actions.gfx",
+      "native": "newDeleteSubresourceAction"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 387,
+      "kind": "func",
+      "symbol": "NewDeleteSubresourceActionWithOptions",
+      "native_file": "constructors.gfx / actions.gfx",
+      "native": "newDeleteSubresourceActionWithOptions"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 399,
+      "kind": "func",
+      "symbol": "NewRootDeleteCollectionAction",
+      "native_file": "constructors.gfx / actions.gfx",
+      "native": "newRootDeleteCollectionAction"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 404,
+      "kind": "func",
+      "symbol": "NewRootDeleteCollectionActionWithOptions",
+      "native_file": "constructors.gfx / actions.gfx",
+      "native": "newRootDeleteCollectionActionWithOptions"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 417,
+      "kind": "func",
+      "symbol": "NewDeleteCollectionAction",
+      "native_file": "constructors.gfx / actions.gfx",
+      "native": "newDeleteCollectionAction"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 422,
+      "kind": "func",
+      "symbol": "NewDeleteCollectionActionWithOptions",
+      "native_file": "constructors.gfx / actions.gfx",
+      "native": "newDeleteCollectionActionWithOptions"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 436,
+      "kind": "func",
+      "symbol": "NewRootWatchAction",
+      "native_file": "constructors.gfx / actions.gfx",
+      "native": "newRootWatchAction"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 441,
+      "kind": "func",
+      "symbol": "NewRootWatchActionWithOptions",
+      "native_file": "constructors.gfx / actions.gfx",
+      "native": "newRootWatchActionWithOptions"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 453,
+      "kind": "func",
+      "symbol": "ExtractFromListOptions",
+      "native_file": "interface.gfx",
+      "native": "extractFromListOptions"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 478,
+      "kind": "func",
+      "symbol": "NewWatchAction",
+      "native_file": "constructors.gfx / actions.gfx",
+      "native": "newWatchAction"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 483,
+      "kind": "func",
+      "symbol": "NewWatchActionWithOptions",
+      "native_file": "constructors.gfx / actions.gfx",
+      "native": "newWatchActionWithOptions"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 496,
+      "kind": "func",
+      "symbol": "NewProxyGetAction",
+      "native_file": "constructors.gfx / actions.gfx",
+      "native": "newProxyGetAction"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 509,
+      "kind": "type",
+      "symbol": "ListRestrictions",
+      "native_file": "interface.gfx",
+      "native": "ListRestrictions"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 513,
+      "kind": "type",
+      "symbol": "WatchRestrictions",
+      "native_file": "interface.gfx",
+      "native": "WatchRestrictions"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 519,
+      "kind": "type",
+      "symbol": "Action",
+      "native_file": "actions.gfx",
+      "native": "Action"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 531,
+      "kind": "type",
+      "symbol": "GenericAction",
+      "native_file": "actions.gfx",
+      "native": "Action / Payload / PayloadKey[A]"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 536,
+      "kind": "type",
+      "symbol": "GetAction",
+      "native_file": "actions.gfx",
+      "native": "Action with Get kind"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 541,
+      "kind": "type",
+      "symbol": "ListAction",
+      "native_file": "actions.gfx",
+      "native": "Action with List kind"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 546,
+      "kind": "type",
+      "symbol": "CreateAction",
+      "native_file": "actions.gfx",
+      "native": "Action with Create kind"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 551,
+      "kind": "type",
+      "symbol": "UpdateAction",
+      "native_file": "actions.gfx",
+      "native": "Action with Update kind"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 556,
+      "kind": "type",
+      "symbol": "DeleteAction",
+      "native_file": "actions.gfx",
+      "native": "Action with Delete kind"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 562,
+      "kind": "type",
+      "symbol": "DeleteCollectionAction",
+      "native_file": "actions.gfx",
+      "native": "Action with DeleteCollection kind"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 567,
+      "kind": "type",
+      "symbol": "PatchAction",
+      "native_file": "actions.gfx",
+      "native": "Action with Patch kind"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 574,
+      "kind": "type",
+      "symbol": "WatchAction",
+      "native_file": "actions.gfx",
+      "native": "Action with Watch kind"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 579,
+      "kind": "type",
+      "symbol": "ProxyGetAction",
+      "native_file": "actions.gfx",
+      "native": "Action with ProxyGet kind"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 588,
+      "kind": "type",
+      "symbol": "ActionImpl",
+      "native_file": "actions.gfx",
+      "native": "Action"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 595,
+      "kind": "method",
+      "symbol": "GetNamespace",
+      "native_file": "actions.gfx",
+      "native": "getNamespace"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 598,
+      "kind": "method",
+      "symbol": "GetVerb",
+      "native_file": "actions.gfx",
+      "native": "getVerb"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 601,
+      "kind": "method",
+      "symbol": "GetResource",
+      "native_file": "actions.gfx",
+      "native": "getResource"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 604,
+      "kind": "method",
+      "symbol": "GetSubresource",
+      "native_file": "actions.gfx",
+      "native": "getSubresource"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 607,
+      "kind": "method",
+      "symbol": "Matches",
+      "native_file": "actions.gfx",
+      "native": "matches"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 621,
+      "kind": "method",
+      "symbol": "DeepCopy",
+      "native_file": "actions.gfx",
+      "native": "actionDeepCopy"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 626,
+      "kind": "type",
+      "symbol": "GenericActionImpl",
+      "native_file": "actions.gfx",
+      "native": "Action / newGenericAction / withValue"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 631,
+      "kind": "method",
+      "symbol": "GetValue",
+      "native_file": "actions.gfx",
+      "native": "getValue"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 635,
+      "kind": "method",
+      "symbol": "DeepCopy",
+      "native_file": "actions.gfx",
+      "native": "actionDeepCopy"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 643,
+      "kind": "type",
+      "symbol": "GetActionImpl",
+      "native_file": "actions.gfx",
+      "native": "Action with Get kind"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 649,
+      "kind": "method",
+      "symbol": "GetName",
+      "native_file": "actions.gfx",
+      "native": "getName"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 653,
+      "kind": "method",
+      "symbol": "GetGetOptions",
+      "native_file": "actions.gfx",
+      "native": "getGetOptions"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 657,
+      "kind": "method",
+      "symbol": "DeepCopy",
+      "native_file": "actions.gfx",
+      "native": "actionDeepCopy"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 665,
+      "kind": "type",
+      "symbol": "ListActionImpl",
+      "native_file": "actions.gfx",
+      "native": "Action with List kind"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 673,
+      "kind": "method",
+      "symbol": "GetKind",
+      "native_file": "actions.gfx",
+      "native": "getKind"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 677,
+      "kind": "method",
+      "symbol": "GetListRestrictions",
+      "native_file": "interface.gfx",
+      "native": "getListRestrictions"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 681,
+      "kind": "method",
+      "symbol": "GetListOptions",
+      "native_file": "actions.gfx",
+      "native": "getListOptions"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 685,
+      "kind": "method",
+      "symbol": "DeepCopy",
+      "native_file": "actions.gfx",
+      "native": "actionDeepCopy"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 698,
+      "kind": "type",
+      "symbol": "CreateActionImpl",
+      "native_file": "actions.gfx",
+      "native": "Action with Create kind"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 705,
+      "kind": "method",
+      "symbol": "GetObject",
+      "native_file": "actions.gfx",
+      "native": "getObject"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 709,
+      "kind": "method",
+      "symbol": "GetCreateOptions",
+      "native_file": "actions.gfx",
+      "native": "getCreateOptions"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 713,
+      "kind": "method",
+      "symbol": "DeepCopy",
+      "native_file": "actions.gfx",
+      "native": "actionDeepCopy"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 722,
+      "kind": "type",
+      "symbol": "UpdateActionImpl",
+      "native_file": "actions.gfx",
+      "native": "Action with Update kind"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 728,
+      "kind": "method",
+      "symbol": "GetObject",
+      "native_file": "actions.gfx",
+      "native": "getObject"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 732,
+      "kind": "method",
+      "symbol": "GetUpdateOptions",
+      "native_file": "actions.gfx",
+      "native": "getUpdateOptions"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 736,
+      "kind": "method",
+      "symbol": "DeepCopy",
+      "native_file": "actions.gfx",
+      "native": "actionDeepCopy"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 744,
+      "kind": "type",
+      "symbol": "PatchActionImpl",
+      "native_file": "actions.gfx",
+      "native": "Action with Patch kind"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 752,
+      "kind": "method",
+      "symbol": "GetName",
+      "native_file": "actions.gfx",
+      "native": "getName"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 756,
+      "kind": "method",
+      "symbol": "GetPatch",
+      "native_file": "actions.gfx",
+      "native": "getPatch"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 760,
+      "kind": "method",
+      "symbol": "GetPatchType",
+      "native_file": "actions.gfx",
+      "native": "getPatchType"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 764,
+      "kind": "method",
+      "symbol": "GetPatchOptions",
+      "native_file": "actions.gfx",
+      "native": "getPatchOptions"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 768,
+      "kind": "method",
+      "symbol": "DeepCopy",
+      "native_file": "actions.gfx",
+      "native": "actionDeepCopy"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 780,
+      "kind": "type",
+      "symbol": "DeleteActionImpl",
+      "native_file": "actions.gfx",
+      "native": "Action with Delete kind"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 786,
+      "kind": "method",
+      "symbol": "GetName",
+      "native_file": "actions.gfx",
+      "native": "getName"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 790,
+      "kind": "method",
+      "symbol": "GetDeleteOptions",
+      "native_file": "actions.gfx",
+      "native": "getDeleteOptions"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 794,
+      "kind": "method",
+      "symbol": "DeepCopy",
+      "native_file": "actions.gfx",
+      "native": "actionDeepCopy"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 802,
+      "kind": "type",
+      "symbol": "DeleteCollectionActionImpl",
+      "native_file": "actions.gfx",
+      "native": "Action with DeleteCollection kind"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 809,
+      "kind": "method",
+      "symbol": "GetListRestrictions",
+      "native_file": "interface.gfx",
+      "native": "getListRestrictions"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 813,
+      "kind": "method",
+      "symbol": "GetDeleteOptions",
+      "native_file": "actions.gfx",
+      "native": "getDeleteOptions"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 817,
+      "kind": "method",
+      "symbol": "GetListOptions",
+      "native_file": "actions.gfx",
+      "native": "getListOptions"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 821,
+      "kind": "method",
+      "symbol": "DeepCopy",
+      "native_file": "actions.gfx",
+      "native": "actionDeepCopy"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 833,
+      "kind": "type",
+      "symbol": "WatchActionImpl",
+      "native_file": "actions.gfx",
+      "native": "Action with Watch kind"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 839,
+      "kind": "method",
+      "symbol": "GetWatchRestrictions",
+      "native_file": "interface.gfx",
+      "native": "getWatchRestrictions"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 843,
+      "kind": "method",
+      "symbol": "GetListOptions",
+      "native_file": "actions.gfx",
+      "native": "getListOptions"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 847,
+      "kind": "method",
+      "symbol": "DeepCopy",
+      "native_file": "actions.gfx",
+      "native": "actionDeepCopy"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 859,
+      "kind": "type",
+      "symbol": "ProxyGetActionImpl",
+      "native_file": "actions.gfx",
+      "native": "Action with ProxyGet kind"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 868,
+      "kind": "method",
+      "symbol": "GetScheme",
+      "native_file": "actions.gfx",
+      "native": "getScheme"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 872,
+      "kind": "method",
+      "symbol": "GetName",
+      "native_file": "actions.gfx",
+      "native": "getName"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 876,
+      "kind": "method",
+      "symbol": "GetPort",
+      "native_file": "actions.gfx",
+      "native": "getPort"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 880,
+      "kind": "method",
+      "symbol": "GetPath",
+      "native_file": "actions.gfx",
+      "native": "getPath"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 884,
+      "kind": "method",
+      "symbol": "GetParams",
+      "native_file": "actions.gfx",
+      "native": "getParams"
+    },
+    {
+      "source": "testing/actions.go",
+      "line": 888,
+      "kind": "method",
+      "symbol": "DeepCopy",
+      "native_file": "actions.gfx",
+      "native": "actionDeepCopy"
+    },
+    {
+      "source": "testing/fake.go",
+      "line": 32,
+      "kind": "type",
+      "symbol": "Fake",
+      "native_file": "fake.gfx",
+      "native": "Fake"
+    },
+    {
+      "source": "testing/fake.go",
+      "line": 50,
+      "kind": "type",
+      "symbol": "Reactor",
+      "native_file": "fake.gfx",
+      "native": "Reactor"
+    },
+    {
+      "source": "testing/fake.go",
+      "line": 60,
+      "kind": "type",
+      "symbol": "WatchReactor",
+      "native_file": "fake.gfx",
+      "native": "WatchReactor"
+    },
+    {
+      "source": "testing/fake.go",
+      "line": 71,
+      "kind": "type",
+      "symbol": "ProxyReactor",
+      "native_file": "fake.gfx",
+      "native": "ProxyReactor"
+    },
+    {
+      "source": "testing/fake.go",
+      "line": 85,
+      "kind": "type",
+      "symbol": "ReactionFunc",
+      "native_file": "fake.gfx",
+      "native": "ReactionFunc"
+    },
+    {
+      "source": "testing/fake.go",
+      "line": 90,
+      "kind": "type",
+      "symbol": "WatchReactionFunc",
+      "native_file": "fake.gfx",
+      "native": "WatchReactionFunc"
+    },
+    {
+      "source": "testing/fake.go",
+      "line": 95,
+      "kind": "type",
+      "symbol": "ProxyReactionFunc",
+      "native_file": "fake.gfx",
+      "native": "ProxyReactionFunc"
+    },
+    {
+      "source": "testing/fake.go",
+      "line": 98,
+      "kind": "method",
+      "symbol": "AddReactor",
+      "native_file": "fake.gfx",
+      "native": "addReactor"
+    },
+    {
+      "source": "testing/fake.go",
+      "line": 103,
+      "kind": "method",
+      "symbol": "PrependReactor",
+      "native_file": "fake.gfx",
+      "native": "prependReactor"
+    },
+    {
+      "source": "testing/fake.go",
+      "line": 108,
+      "kind": "method",
+      "symbol": "AddWatchReactor",
+      "native_file": "fake.gfx",
+      "native": "addWatchReactor"
+    },
+    {
+      "source": "testing/fake.go",
+      "line": 115,
+      "kind": "method",
+      "symbol": "PrependWatchReactor",
+      "native_file": "fake.gfx",
+      "native": "prependWatchReactor"
+    },
+    {
+      "source": "testing/fake.go",
+      "line": 122,
+      "kind": "method",
+      "symbol": "AddProxyReactor",
+      "native_file": "fake.gfx",
+      "native": "addProxyReactor"
+    },
+    {
+      "source": "testing/fake.go",
+      "line": 127,
+      "kind": "method",
+      "symbol": "PrependProxyReactor",
+      "native_file": "fake.gfx",
+      "native": "prependProxyReactor"
+    },
+    {
+      "source": "testing/fake.go",
+      "line": 134,
+      "kind": "method",
+      "symbol": "Invokes",
+      "native_file": "fake.gfx",
+      "native": "invokes"
+    },
+    {
+      "source": "testing/fake.go",
+      "line": 158,
+      "kind": "method",
+      "symbol": "InvokesWatch",
+      "native_file": "fake.gfx",
+      "native": "invokesWatch"
+    },
+    {
+      "source": "testing/fake.go",
+      "line": 182,
+      "kind": "method",
+      "symbol": "InvokesProxy",
+      "native_file": "fake.gfx",
+      "native": "invokesProxy"
+    },
+    {
+      "source": "testing/fake.go",
+      "line": 205,
+      "kind": "method",
+      "symbol": "ClearActions",
+      "native_file": "fake.gfx",
+      "native": "clearActions"
+    },
+    {
+      "source": "testing/fake.go",
+      "line": 214,
+      "kind": "method",
+      "symbol": "Actions",
+      "native_file": "fake.gfx",
+      "native": "actions"
+    },
+    {
+      "source": "testing/fixture.go",
+      "line": 49,
+      "kind": "type",
+      "symbol": "ObjectTracker",
+      "native_file": "tracker.gfx",
+      "native": "ObjectTracker"
+    },
+    {
+      "source": "testing/fixture.go",
+      "line": 84,
+      "kind": "type",
+      "symbol": "ObjectScheme",
+      "native_file": "tracker.gfx",
+      "native": "ObjectScheme"
+    },
+    {
+      "source": "testing/fixture.go",
+      "line": 101,
+      "kind": "func",
+      "symbol": "ObjectReaction",
+      "native_file": "reaction.gfx",
+      "native": "objectReaction"
+    },
+    {
+      "source": "testing/fixture.go",
+      "line": 141,
+      "kind": "method",
+      "symbol": "List",
+      "native_file": "reaction.gfx",
+      "native": "objectReaction / ObjectTracker.list"
+    },
+    {
+      "source": "testing/fixture.go",
+      "line": 145,
+      "kind": "method",
+      "symbol": "Get",
+      "native_file": "reaction.gfx",
+      "native": "objectReaction / ObjectTracker.get"
+    },
+    {
+      "source": "testing/fixture.go",
+      "line": 149,
+      "kind": "method",
+      "symbol": "Create",
+      "native_file": "reaction.gfx",
+      "native": "_reactCreate"
+    },
+    {
+      "source": "testing/fixture.go",
+      "line": 188,
+      "kind": "method",
+      "symbol": "Update",
+      "native_file": "reaction.gfx",
+      "native": "_reactUpdate"
+    },
+    {
+      "source": "testing/fixture.go",
+      "line": 205,
+      "kind": "method",
+      "symbol": "Delete",
+      "native_file": "reaction.gfx",
+      "native": "objectReaction / ObjectTracker.delete"
+    },
+    {
+      "source": "testing/fixture.go",
+      "line": 210,
+      "kind": "method",
+      "symbol": "Apply",
+      "native_file": "reaction.gfx",
+      "native": "_reactApply"
+    },
+    {
+      "source": "testing/fixture.go",
+      "line": 227,
+      "kind": "method",
+      "symbol": "Patch",
+      "native_file": "reaction.gfx",
+      "native": "_reactPatch"
+    },
+    {
+      "source": "testing/fixture.go",
+      "line": 338,
+      "kind": "func",
+      "symbol": "NewObjectTracker",
+      "native_file": "tracker.gfx",
+      "native": "newObjectTracker / newObjectTrackerWithScheme"
+    },
+    {
+      "source": "testing/fixture.go",
+      "line": 348,
+      "kind": "method",
+      "symbol": "List",
+      "native_file": "tracker.gfx",
+      "native": "_list"
+    },
+    {
+      "source": "testing/fixture.go",
+      "line": 403,
+      "kind": "method",
+      "symbol": "Watch",
+      "native_file": "tracker.gfx",
+      "native": "_watch"
+    },
+    {
+      "source": "testing/fixture.go",
+      "line": 458,
+      "kind": "method",
+      "symbol": "Get",
+      "native_file": "tracker.gfx",
+      "native": "_get"
+    },
+    {
+      "source": "testing/fixture.go",
+      "line": 491,
+      "kind": "method",
+      "symbol": "Add",
+      "native_file": "tracker.gfx",
+      "native": "_add"
+    },
+    {
+      "source": "testing/fixture.go",
+      "line": 531,
+      "kind": "method",
+      "symbol": "Create",
+      "native_file": "tracker.gfx",
+      "native": "_store"
+    },
+    {
+      "source": "testing/fixture.go",
+      "line": 539,
+      "kind": "method",
+      "symbol": "Update",
+      "native_file": "tracker.gfx",
+      "native": "_store"
+    },
+    {
+      "source": "testing/fixture.go",
+      "line": 547,
+      "kind": "method",
+      "symbol": "Patch",
+      "native_file": "tracker.gfx",
+      "native": "_store"
+    },
+    {
+      "source": "testing/fixture.go",
+      "line": 555,
+      "kind": "method",
+      "symbol": "Apply",
+      "native_file": "tracker.gfx",
+      "native": "_legacyApply"
+    },
+    {
+      "source": "testing/fixture.go",
+      "line": 605,
+      "kind": "method",
+      "symbol": "IsWatchListSemanticsUnSupported",
+      "native_file": "tracker.gfx",
+      "native": "isWatchListSemanticsUnSupported"
+    },
+    {
+      "source": "testing/fixture.go",
+      "line": 710,
+      "kind": "method",
+      "symbol": "Delete",
+      "native_file": "tracker.gfx",
+      "native": "_delete"
+    },
+    {
+      "source": "testing/fixture.go",
+      "line": 748,
+      "kind": "func",
+      "symbol": "NewFieldManagedObjectTracker",
+      "native_file": "managed.gfx",
+      "native": "newFieldManagedObjectTracker"
+    },
+    {
+      "source": "testing/fixture.go",
+      "line": 760,
+      "kind": "method",
+      "symbol": "Create",
+      "native_file": "managed.gfx",
+      "native": "_managedChange / ObjectTracker.create"
+    },
+    {
+      "source": "testing/fixture.go",
+      "line": 804,
+      "kind": "method",
+      "symbol": "Update",
+      "native_file": "managed.gfx",
+      "native": "_managedChange / ObjectTracker.update"
+    },
+    {
+      "source": "testing/fixture.go",
+      "line": 834,
+      "kind": "method",
+      "symbol": "Patch",
+      "native_file": "managed.gfx",
+      "native": "_managedChange / ObjectTracker.patch"
+    },
+    {
+      "source": "testing/fixture.go",
+      "line": 863,
+      "kind": "method",
+      "symbol": "Apply",
+      "native_file": "managed.gfx",
+      "native": "_managedChange / ObjectTracker.apply"
+    },
+    {
+      "source": "testing/fixture.go",
+      "line": 933,
+      "kind": "method",
+      "symbol": "Default",
+      "native_file": "managed.gfx",
+      "native": "objectDefaulter"
+    },
+    {
+      "source": "testing/fixture.go",
+      "line": 964,
+      "kind": "func",
+      "symbol": "DefaultWatchReactor",
+      "native_file": "fake.gfx",
+      "native": "defaultWatchReactor"
+    },
+    {
+      "source": "testing/fixture.go",
+      "line": 972,
+      "kind": "type",
+      "symbol": "SimpleReactor",
+      "native_file": "fake.gfx",
+      "native": "Reactor / simpleReactor"
+    },
+    {
+      "source": "testing/fixture.go",
+      "line": 979,
+      "kind": "method",
+      "symbol": "Handles",
+      "native_file": "fake.gfx",
+      "native": "Reactor/WatchReactor/ProxyReactor.handles"
+    },
+    {
+      "source": "testing/fixture.go",
+      "line": 988,
+      "kind": "method",
+      "symbol": "React",
+      "native_file": "fake.gfx",
+      "native": "Reactor/WatchReactor/ProxyReactor.react"
+    },
+    {
+      "source": "testing/fixture.go",
+      "line": 994,
+      "kind": "type",
+      "symbol": "SimpleWatchReactor",
+      "native_file": "fake.gfx",
+      "native": "WatchReactor / simpleWatchReactor"
+    },
+    {
+      "source": "testing/fixture.go",
+      "line": 1000,
+      "kind": "method",
+      "symbol": "Handles",
+      "native_file": "fake.gfx",
+      "native": "Reactor/WatchReactor/ProxyReactor.handles"
+    },
+    {
+      "source": "testing/fixture.go",
+      "line": 1004,
+      "kind": "method",
+      "symbol": "React",
+      "native_file": "fake.gfx",
+      "native": "Reactor/WatchReactor/ProxyReactor.react"
+    },
+    {
+      "source": "testing/fixture.go",
+      "line": 1010,
+      "kind": "type",
+      "symbol": "SimpleProxyReactor",
+      "native_file": "fake.gfx",
+      "native": "ProxyReactor / simpleProxyReactor"
+    },
+    {
+      "source": "testing/fixture.go",
+      "line": 1016,
+      "kind": "method",
+      "symbol": "Handles",
+      "native_file": "fake.gfx",
+      "native": "Reactor/WatchReactor/ProxyReactor.handles"
+    },
+    {
+      "source": "testing/fixture.go",
+      "line": 1020,
+      "kind": "method",
+      "symbol": "React",
+      "native_file": "fake.gfx",
+      "native": "Reactor/WatchReactor/ProxyReactor.react"
+    },
+    {
+      "source": "testing/interface.go",
+      "line": 25,
+      "kind": "type",
+      "symbol": "FakeClient",
+      "native_file": "interface.gfx",
+      "native": "FakeClient"
+    }
+  ]
+}

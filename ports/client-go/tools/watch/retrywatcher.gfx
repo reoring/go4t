@@ -1,0 +1,139 @@
+// Native port of client-go v0.37.2 tools/watch/retrywatcher.go (Apache-2.0).
+package watch
+
+import raw "github.com/reoring/gofx/ports/client-go/support/watch"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import errors "github.com/reoring/gofx/ports/client-go/deps/support"
+import runtime "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime"
+import meta "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import io "std/io"
+
+alias Watcher = func(meta.ListOptions) IO[outcome.Outcome[Option[raw.Watch]]]
+type RetryAccess = RetryAccess {
+ resourceVersion: func(Option[runtime.Object]) IO[outcome.Outcome[String]],
+ status: func(Option[runtime.Object]) IO[Option[meta.Status]],
+ internalError: func(String) IO[runtime.Object],
+ errorStatus: func(errors.Error) IO[Option[runtime.Object]],
+ forbidden: func(errors.Error) Bool,
+ unauthorized: func(errors.Error) Bool,
+ log: func(String, Option[errors.Error]) IO[Unit],
+ describe: func(Option[runtime.Object]) IO[String]
+}
+type RetryWatcher = RetryWatcher { watcher: raw.Watch, task: sync.Task[Unit] }
+type RetryResult = RetryResult { done: Bool, delay: Int, resourceVersion: String }
+
+func newRetryWatcher(initialResourceVersion String, client Watcher, access RetryAccess, clock sync.Clock) IO[outcome.Outcome[Option[RetryWatcher]]] {
+ newRetryWatcherWithContext(initialResourceVersion, client, access, clock, 1000000000)
+}
+func newRetryWatcherWithContext(initialResourceVersion String, client Watcher, access RetryAccess, clock sync.Clock, minRestartDelay Int) IO[outcome.Outcome[Option[RetryWatcher]]] {
+ if initialResourceVersion == "" || initialResourceVersion == "0" {
+  ioPure(outcome.Outcome(None, Some(errors.errorNew("initial RV " + debug(initialResourceVersion) + " is not supported due to issues with underlying WATCH"))))
+ } else {
+  do {
+   context <- sync.captureContext()
+   sync.uninterruptible(do {
+    events <- sync.newChannel(0)
+    task <- sync.withContext(context, sync.start(sync.ensuring(retryLoop(client, access, clock, minRestartDelay, initialResourceVersion, events), sync.close(events))))
+    ioPure(outcome.Outcome(Some(RetryWatcher(raw.newWatch(events, func() => stopTask(task)), task)), None))
+   })
+  }
+ }
+}
+func done(retry RetryWatcher) IO[Unit] { sync.join(retry.task) }
+func until(initialResourceVersion String, client Watcher, access RetryAccess, clock sync.Clock, conditions List[ConditionFunc]) IO[outcome.Outcome[Option[raw.Event]]] {
+ sync.bracket(newRetryWatcher(initialResourceVersion, client, access, clock), func(created) => match created.value {
+  None => ioPure(outcome.Outcome(None, created.error))
+  Some(retry) => untilWithoutRetry(retry.watcher, conditions)
+ }, func(created) => match created.value {
+  None => ioPure(unit())
+  Some(retry) => raw.stop(retry.watcher)
+ })
+}
+func retryLoop(client Watcher, access RetryAccess, clock sync.Clock, minimum Int, rv String, events sync.Channel[raw.Event]) IO[Unit] {
+ do {
+  started <- sync.now(clock)
+  round <- retryRound(client, access, rv, events)
+  if round.done { ioPure(unit()) } else {
+   do {
+    // Non-sliding minimum period includes the receive and server-directed wait.
+    waitNanos(clock, round.delay)
+    ended <- sync.now(clock)
+    waitNanos(clock, minimum - sync.elapsed(started, ended))
+    retryLoop(client, access, clock, minimum, round.resourceVersion, events)
+   }
+  }
+ }
+}
+func waitNanos(clock sync.Clock, nanos Int) IO[Unit] {
+ if nanos <= 0 { ioPure(unit()) } else {
+  sync.bracket(sync.newTimer(clock, nanos), func(timer) => do {
+   channel <- sync.timerChannel(timer)
+   sync.receive(channel)
+   ioPure(unit())
+  }, func(timer) => do { sync.stopTimer(timer); ioPure(unit()) })
+ }
+}
+func retryRound(client Watcher, access RetryAccess, rv String, events sync.Channel[raw.Event]) IO[RetryResult] {
+ let options = meta.listOptionsWithAllowWatchBookmarks(meta.listOptionsWithResourceVersion(meta.newListOptions(), rv), true)
+ sync.bracket(client(options), func(opened) => match opened.error {
+  Some(err) => do {
+   access.log("Watch failed", Some(err))
+   if access.forbidden(err) || access.unauthorized(err) {
+    do {
+     status <- access.errorStatus(err)
+     match status { None => ioPure(unit()); Some(value) => sync.send(events, raw.Event("ERROR", Some(value))) }
+     ioPure(RetryResult(true, 0, rv))
+    }
+   } else { ioPure(RetryResult(false, 0, rv)) }
+  }
+  None => match opened.value {
+   None => do { access.log("Watch returned nil watcher", None); ioPure(RetryResult(false, 0, rv)) }
+   Some(watcher) => receiveRetry(watcher, access, rv, events)
+  }
+ }, func(opened) => match opened.value { None => ioPure(unit()); Some(watcher) => raw.stop(watcher) })
+}
+func fatalRetry(access RetryAccess, message String, rv String, events sync.Channel[raw.Event]) IO[RetryResult] {
+ do {
+  object <- access.internalError(message)
+  sync.send(events, raw.Event("ERROR", Some(object)))
+  ioPure(RetryResult(true, 0, rv))
+ }
+}
+func receiveRetry(watcher raw.Watch, access RetryAccess, rv String, events sync.Channel[raw.Event]) IO[RetryResult] {
+ do {
+  event <- raw.next(watcher)
+  match event {
+   None => ioPure(RetryResult(false, 0, rv))
+   Some(value) => if value.eventType == "ADDED" || value.eventType == "MODIFIED" || value.eventType == "DELETED" || value.eventType == "BOOKMARK" {
+    do {
+     version <- access.resourceVersion(value.object)
+     match version.error {
+      Some(_) => fatalRetry(access, "retryWatcher: doesn't support resourceVersion", rv, events)
+      None => if version.value == "" {
+       do { description <- access.describe(value.object); fatalRetry(access, "retryWatcher: object " + description + " doesn't support resourceVersion", rv, events) }
+      } else {
+       do {
+        if value.eventType == "BOOKMARK" { ioPure(unit()) } else { sync.send(events, value) }
+        receiveRetry(watcher, access, version.value, events)
+       }
+      }
+     }
+    }
+   } else { if value.eventType == "ERROR" {
+    do {
+     status <- access.status(value.object)
+     match status {
+      None => do { access.log("Received an error which is not *metav1.Status", None); ioPure(RetryResult(false, 0, rv)) }
+      Some(object) => if meta.statusGetCode(object) == 410 {
+       do { sync.send(events, value); ioPure(RetryResult(true, 0, rv)) }
+      } else {
+       let delay = match meta.statusGetDetails(object) { None => 0; Some(details) => meta.statusDetailsGetRetryAfterSeconds(details) * 1000000000 }
+       ioPure(RetryResult(false, delay, rv))
+      }
+     }
+    }
+   } else { fatalRetry(access, "retryWatcher failed to recognize Event type " + debug(value.eventType), rv, events) } }
+  }
+ }
+}

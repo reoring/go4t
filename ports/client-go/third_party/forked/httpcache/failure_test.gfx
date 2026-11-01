@@ -1,0 +1,28 @@
+package httpcache
+import sync "support/sync"
+import outcome "support/outcome"
+import errors "deps/support"
+import transport "transport"
+
+func testStaleOnTransportErrorAndNoStore() IO[Bool] {do {
+ clock <- sync.fakeClock(2000000000)
+ cache <- newMemoryCache()
+ request <- fixtureRequest("GET","http://example.test/stale")
+ cache.set("http://example.test/stale","HTTP/1.1 200 OK\r\nDate: Thu, 01 Jan 1970 00:00:00 GMT\r\nCache-Control: max-age=1, stale-if-error=10\r\nContent-Length: 4\r\n\r\nbody")
+ let failing=transport.roundTripper(func(_) => ioPure(outcome.failure(None,errors.errorNew("transport failure"))),func(_) => ioPure(unit()),func() => ioPure(unit()))
+ result <- roundTrip(newTransport(cache,failing,clock),request)
+ body <- match result.value {Some(response) => fixtureReadBody(response);None => ioPure("")}
+ transport.setRequestHeader(request,"Cache-Control","no-store")
+ let responding=transport.roundTripper(func(_) => do {response <- fixtureResponse("HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\nnew");ioPure(outcome.success(Some(response)))},func(_) => ioPure(unit()),func() => ioPure(unit()))
+ next <- roundTrip(newTransport(cache,responding,clock),request)
+ removed <- cache.get("http://example.test/stale")
+ ioPure(body=="body" && outcome.isSuccess(next) && removed==None)
+}}
+func testEarlyCloseDoesNotCommit() IO[Bool] {do {
+ clock <- sync.fakeClock(0)
+ cache <- newMemoryCache()
+ let responding=transport.roundTripper(func(_) => do {response <- fixtureResponse("HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\nbody");ioPure(outcome.success(Some(response)))},func(_) => ioPure(unit()),func() => ioPure(unit()))
+ request <- fixtureRequest("GET","http://example.test/early")
+ result <- roundTrip(newTransport(cache,responding,clock),request)
+ match result.value {None => ioPure(false);Some(response) => do {fixtureClose(response);stored <- cache.get("http://example.test/early");ioPure(stored==None)}}
+}}

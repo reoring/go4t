@@ -1,0 +1,31 @@
+// Copyright 2018 The Kubernetes Authors. Licensed under Apache-2.0.
+package connrotation
+import net "github.com/reoring/gofx/ports/client-go/deps/net"
+import transport "github.com/reoring/gofx/ports/client-go/transport"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+extern func _pipe() IO[(net.Conn, net.Conn)] = "github.com/reoring/gofx/ports/client-go/util/connrotation/testsupport".Pipe
+extern func _closed(conn net.Conn) IO[Bool] = "github.com/reoring/gofx/ports/client-go/util/connrotation/testsupport".Closed
+func testTrackCloseAllAndReuse() IO[Bool] {
+ sync.bracket(_pipe(), func(first) => sync.bracket(_pipe(), func(second) => do {
+  tracker <- newConnectionTracker()
+  track(tracker, first.0); closeAll(tracker)
+  firstClosed <- _closed(first.1)
+  track(tracker, second.0); closeAll(tracker)
+  secondClosed <- _closed(second.1)
+  ioPure(firstClosed && secondClosed)
+ }, func(pair) => do { transport.closeConnection(pair.0); transport.closeConnection(pair.1) }), func(pair) => do { transport.closeConnection(pair.0); transport.closeConnection(pair.1) })
+}
+func testIndividualCloseUntracksAndSharedDialerTracks() IO[Bool] {
+ sync.bracket(_pipe(), func(pair) => do {
+  tracker <- newConnectionTracker()
+  dialer <- newDialerWithTracker(Some(func(_, _) => ioPure(outcome.success(Some(pair.0)))), Some(tracker))
+  opened <- dial(dialer, "tcp", "fixture")
+  match opened.value { None => ioPure(false); Some(conn) => do {
+   transport.closeConnection(conn)
+   entries <- sync.withLock(tracker.mutex, sync.readRef(tracker.values))
+   closed <- _closed(pair.1)
+   ioPure(closed && (match entries { Nil => true; _ => false }))
+  } }
+ }, func(pair) => do { transport.closeConnection(pair.0); transport.closeConnection(pair.1) })
+}

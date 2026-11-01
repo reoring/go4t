@@ -1,0 +1,98 @@
+package examples
+
+// Copyright 2026 The gofx Authors. SPDX-License-Identifier: Apache-2.0
+import kube "kubernetes"
+import fake "kubernetes/fake"
+import applycore "applyconfigurations/core/v1"
+import applyscale "applyconfigurations/autoscaling/v1"
+import core "deps/k8s.io/api/core/v1"
+import scale "deps/k8s.io/api/autoscaling/v1"
+import meta "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import objects "deps/objects"
+import errors "deps/support"
+import json "std/json"
+import m "std/map"
+import io "std/io"
+import sync "support/sync"
+
+func applyScaleParity() IO[Trace] {
+ do {
+  trace <- newTrace("apply_scale_without_configuration_name")
+  env <- environment()
+  let configuration = applyscale.scaleWithSpec(applyscale.scale(),Some(applyscale.scaleSpecWithReplicas(applyscale.scaleSpec(),3)))
+  check(match configuration.objectMetaApplyConfiguration { None => true; Some(_) => false },"Scale fixture unexpectedly named")
+  withHTTP(trace,[Exchange("PATCH","/apis/apps/v1/namespaces/team-a/deployments/parent-name/scale",200,"{\"apiVersion\":\"autoscaling/v1\",\"kind\":\"Scale\",\"metadata\":{\"name\":\"parent-name\",\"namespace\":\"team-a\"},\"spec\":{\"replicas\":3}}")],func(url) => do {
+   made <- kube.newForConfig(env,config(url)); client <- present(made)
+   result <- client.appsV1().deployments("team-a").applyScale("parent-name",Some(configuration),meta.applyOptionsWithForce(meta.applyOptionsWithFieldManager(meta.newApplyOptions(),"scale-manager"),true))
+   result <- present(result)
+   check(scale.scaleSpecGetReplicas(scale.scaleGetSpec(result))==3,"Scale response not decoded")
+   object <- objectJSON(Some(objects.toObject(scale.scaleObjectType(),result)))
+   observe(trace,"typed_result",[("operation",quote("apply_scale")),("configuration_name_absent","true"),("object",object)])
+  })
+  ioPure(trace)
+ }
+}
+func builderEvent(trace Trace,stage String,configuration applycore.PodApplyConfiguration) IO[Unit] {
+ do { encoded <- applycore.podMarshalJSON(configuration); encoded <- require(encoded); observe(trace,"apply_configuration",[("stage",quote(stage)),("object",encoded)]) }
+}
+func buildersParity() IO[Trace] {
+ do {
+  trace <- newTrace("apply_builder_presence_merge_append")
+  let unset = applycore.emptyPodApplyConfiguration()
+  builderEvent(trace,"unset",unset)
+  let spec = applycore.podSpecWithNodeName(applycore.podSpecWithTerminationGracePeriodSeconds(applycore.podSpecWithHostNetwork(applycore.podSpec(),false),0),"")
+  let explicit = applycore.podWithSpec(applycore.pod("pod-a","team-a"),Some(spec))
+  builderEvent(trace,"explicit_zero_false_empty",explicit)
+  let labelled = applycore.podWithLabels(applycore.podWithLabels(explicit,Some(m.mapFromList([("first","one"),("shared","before")]))),Some(m.mapFromList([("second","two"),("shared","after")])))
+  let finalized = applycore.podWithFinalizers(applycore.podWithFinalizers(labelled,["first"]),["second","third"])
+  let containers = applycore.podSpecWithContainers(applycore.podSpecWithContainers(spec,[Some(applycore.containerWithName(applycore.container(),"first"))]),[Some(applycore.containerWithName(applycore.container(),"second"))])
+  let merged = applycore.podWithSpec(finalized,Some(containers))
+  builderEvent(trace,"merged_and_appended",merged)
+  failure <- io.tryIO(do { ioPure(unit()); let invalid = applycore.podWithOwnerReferences(merged,[None]); applycore.podMarshalJSON(invalid) })
+  match failure {
+   Err(io.Panic(message)) => observe(trace,"builder_panic",[("message",quote(message)),("go_type",quote("string"))])
+   Err(other) => ioFail("expected builder panic, got "+io.ioErrorMessage(other))
+   Ok(_) => ioFail("nil owner reference did not panic")
+  }
+  ioPure(trace)
+ }
+}
+func jsonField(value json.Json,name String) json.Json { match value { json.JObj(fields) => match m.mapLookup(fields,name) { Some(found) => found; None => json.JNull }; _ => json.JNull } }
+func ownershipEntry(value json.Json) String {
+ jsonObject([("manager",json.toJson(jsonField(value,"manager"))),("operation",json.toJson(jsonField(value,"operation"))),("api_version",json.toJson(jsonField(value,"apiVersion"))),("fields_type",json.toJson(jsonField(value,"fieldsType"))),("fields_v1",json.toJson(jsonField(value,"fieldsV1"))),("subresource",match jsonField(value,"subresource") { json.JNull => quote(""); field => json.toJson(field) })])
+}
+func managedEvent(trace Trace,stage String,value core.ConfigMap,expected Map[String,String]) IO[Unit] {
+ do {
+  raw <- objectJSON(Some(objects.toObject(core.configMapObjectType(),value)))
+  parsed <- match json.parseJson(raw) { Err(message) => ioFail(message); Ok(value) => ioPure(value) }
+  let data = jsonField(parsed,"data")
+  check(json.toJson(data)==json.toJson(json.JObj(m.mapMap(expected,func(value) => json.JStr(value)))),"managed data differs at "+stage)
+  let entries = match jsonField(jsonField(parsed,"metadata"),"managedFields") { json.JArr(values) => values; _ => [] }
+  observe(trace,"managed_object",[("stage",quote(stage)),("data",json.toJson(data)),("ownership","["+joinOwnership(entries)+"]")])
+ }
+}
+func joinOwnership(entries List[json.Json]) String { match entries { [] => ""; [entry] => ownershipEntry(entry); [entry,..rest] => ownershipEntry(entry)+","+joinOwnership(rest) } }
+func managedFieldsParity() IO[Trace] {
+ do {
+  trace <- newTrace("field_managed_clientset_conflicts")
+  env <- environment(); fakeClient <- fake.newClientset(env,[])
+  let maps = fakeClient.client.coreV1().configMaps("team-a")
+  body <- decode(core.configMapObjectType(),core.newConfigMap(),"{\"metadata\":{\"name\":\"config-a\",\"namespace\":\"team-a\"},\"data\":{\"k0\":\"v0\"}}")
+  created <- maps.create(body,meta.createOptionsWithFieldManager(meta.newCreateOptions(),"manager-0")); created <- require(created)
+  managedEvent(trace,"create",created,m.mapFromList([("k0","v0")]))
+  let apply = func(manager,data,force) => maps.apply(Some(applycore.configMapWithData(applycore.configMap("config-a","team-a"),Some(data))),meta.applyOptionsWithForce(meta.applyOptionsWithFieldManager(meta.newApplyOptions(),manager),force))
+  result <- apply("manager-1",m.mapFromList([("k1","v1")]),false); result <- present(result)
+  managedEvent(trace,"apply_manager_1",result,m.mapFromList([("k0","v0"),("k1","v1")]))
+  conflict <- apply("manager-2",m.mapFromList([("k1","conflict")]),false)
+  check(match conflict.error { None => false; Some(error) => errors.errorIsConflict(error) },"expected managed-field conflict")
+  fields <- errorJSON(conflict.error)
+  sync.withLock(trace.lock,do { old <- sync.readRef(trace.events); sync.writeRef(trace.events,append(old,["{\"kind\":\"api_error\",\"fields\":"+fields+"}"])) })
+  result <- apply("manager-2",m.mapFromList([("k2","v2")]),false); result <- present(result)
+  managedEvent(trace,"apply_manager_2",result,m.mapFromList([("k0","v0"),("k1","v1"),("k2","v2")]))
+  result <- apply("manager-1",m.mapFromList([("k1","updated")]),false); result <- present(result)
+  managedEvent(trace,"update_owned_field",result,m.mapFromList([("k0","v0"),("k1","updated"),("k2","v2")]))
+  result <- apply("manager-2",m.mapFromList([("k1","forced")]),true); result <- present(result)
+  managedEvent(trace,"force_and_omit_previous_field",result,m.mapFromList([("k0","v0"),("k1","forced")]))
+  ioPure(trace)
+ }
+}

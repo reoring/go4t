@@ -1,0 +1,104 @@
+// Copyright 2014 The Kubernetes Authors. Licensed under Apache-2.0.
+// Source: client-go v0.37.2 tools/remotecommand/{v1,v2,v3,v4,v5,errorstream,resize,fallback}.go.
+package remotecommand
+import spdy "github.com/reoring/gofx/ports/client-go/transport/spdy"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import errors "github.com/reoring/gofx/ports/client-go/deps/support"
+import io "std/io"
+import string "std/string"
+import list "std/list"
+
+type TerminalSize = TerminalSize { width:Int, height:Int }
+type TerminalSizeQueue = TerminalSizeQueue { next:func() IO[Option[TerminalSize]], close:func() IO[Unit] }
+type StreamOptions = StreamOptions { stdin:Option[spdy.Reader], stdout:Option[spdy.Writer], stderr:Option[spdy.Writer], tty:Bool, terminalSizeQueue:Option[TerminalSizeQueue] }
+type Executor = Executor { streamWithContext:func(StreamOptions) IO[outcome.Outcome[Unit]] }
+func emptyStreamOptions() StreamOptions { StreamOptions {stdin:None,stdout:None,stderr:None,tty:false,terminalSizeQueue:None} }
+func streamWithContext(executor Executor, options StreamOptions) IO[outcome.Outcome[Unit]] { executor.streamWithContext(options) }
+func stream(executor Executor, options StreamOptions) IO[outcome.Outcome[Unit]] { executor.streamWithContext(options) }
+func newFallbackExecutor(primary Executor, secondary Executor, shouldFallback func(errors.Error) Bool) Executor { Executor { streamWithContext:func(options) => do {
+ result <- primary.streamWithContext(options)
+ match result.error { Some(e) => if shouldFallback(e) { secondary.streamWithContext(options) } else { ioPure(result) }; None => ioPure(result) }
+} } }
+func protocolVersion(protocol String) Int { match protocol { "" => 1; "channel.k8s.io" => 1; "v2.channel.k8s.io" => 2; "v3.channel.k8s.io" => 3; "v4.channel.k8s.io" => 4; "v5.channel.k8s.io" => 5; _ => 0 } }
+func protocols() List[String] { ["v5.channel.k8s.io","v4.channel.k8s.io","v3.channel.k8s.io","v2.channel.k8s.io","channel.k8s.io"] }
+func _present[A](x Option[A]) Bool { match x {None=>false;Some(_)=>true} }
+func _kinds(version Int, options StreamOptions) List[String] {
+ list.append(["error"],list.append(if _present(options.stdin) { ["stdin"] } else { [] },list.append(if _present(options.stdout) { ["stdout"] } else { [] },list.append(if _present(options.stderr) && !options.tty { ["stderr"] } else { [] },if version>=3 && options.tty { ["resize"] } else { [] }))))
+}
+func _create(connection spdy.Connection, kinds List[String], streams List[(String,spdy.Stream)]) IO[outcome.Outcome[List[(String,spdy.Stream)]]] { match kinds {
+ Nil=>ioPure(outcome.success(streams)); Cons(kind,tail)=>do {
+  made<-connection.createStream([("streamType",kind)])
+  match made.error {Some(e)=>ioPure(outcome.failure(streams,e));None=>match made.value {None=>ioPure(outcome.failure(streams,errors.errorNew("stream creation returned no stream")));Some(s)=>_create(connection,tail,Cons((kind,s),streams))}}
+ }
+} }
+func _lookup(streams List[(String,spdy.Stream)], name String) Option[spdy.Stream] { match streams {Nil=>None;Cons(x,tail)=>if x.0==name {Some(x.1)} else {_lookup(tail,name)}} }
+func _closeStreams(streams List[(String,spdy.Stream)]) IO[Unit] { match streams {Nil=>ioPure(unit());Cons(x,tail)=>do {x.1.reset();_closeStreams(tail)}} }
+func _closeInputs(options StreamOptions) IO[Unit] { do {
+ match options.stdin {None=>ioPure(unit());Some(r)=>r.close()}
+ match options.terminalSizeQueue {None=>ioPure(unit());Some(q)=>q.close()}
+} }
+// Every producer has a lexical owner, cancellation and a completion join.
+func withProducers[A](actions List[IO[Unit]], use IO[A]) IO[A] { match actions {Nil=>use;Cons(action,tail)=>sync.bracket(sync.start(action),func(_) => withProducers(tail,use),func(task)=>sync.uninterruptible(do {sync.cancelTask(task);_ <- io.tryIO(sync.join(task));ioPure(unit())}))} }
+func _resize(queue TerminalSizeQueue, stream spdy.Stream) IO[Unit] { do {
+ size<-queue.next()
+ match size {None=>ioPure(unit());Some(s)=>do {
+  _ <- spdy.writeAll(stream.writer,"{\"Width\":${s.width},\"Height\":${s.height}}\n")
+  _resize(queue,stream)
+ }}
+} }
+func _input(reader spdy.Reader, remote spdy.Stream, version Int) IO[Unit] {
+ sync.ensuring(do {_ <- spdy.copy(reader,remote.writer);ioPure(unit())},if version==1 {ioPure(unit())} else {remote.writer.close()})
+}
+func _output(writer spdy.Writer, remote spdy.Stream, done sync.Channel[Unit]) IO[Unit] {
+ sync.ensuring(do {_ <- spdy.copy(remote.reader,writer);_ <- spdy.copy(remote.reader,spdy.discard());ioPure(unit())},sync.send(done,unit()))
+}
+func _waitOutputs(done sync.Channel[Unit], count Int) IO[Unit] { if count==0 {ioPure(unit())} else {do {_ <- sync.receive(done);_waitOutputs(done,count-1)}} }
+func _waitV1(done sync.Channel[Unit], errors sync.Channel[Option[errors.Error]], count Int) IO[outcome.Outcome[Unit]] {
+ if count==0 {ioPure(outcome.success(unit()))} else {do {
+  selected<-sync.selectCase([sync.receiveCase(done,func(_)=>None),sync.receiveCase(errors,func(value)=>Some(value))])
+  match selected {None=>_waitV1(done,errors,count-1);Some(value)=>ioPure(outcome.from(unit(),match value {None=>None;Some(e)=>e}))}
+ }}
+}
+func _run(version Int, connection spdy.Connection, streams List[(String,spdy.Stream)], options StreamOptions, ready IO[Unit]) IO[outcome.Outcome[Unit]] { do {
+ done<-sync.newChannel(2)
+ errorChannel<-sync.newChannel(1)
+ let outputActions=list.append(match (options.stdout,_lookup(streams,"stdout")) {(Some(w),Some(s))=>[_output(w,s,done)];_=>[]},match (options.stderr,_lookup(streams,"stderr")) {(Some(w),Some(s))=>[_output(w,s,done)];_=>[]})
+ let inputs=match (options.stdin,_lookup(streams,"stdin")) {(Some(r),Some(s))=>list.append([_input(r,s,version)],if version==1 {[]} else {[sync.ensuring(do {_ <- spdy.copy(s.reader,spdy.discard());ioPure(unit())},s.writer.close())]});_=>[]}
+ let resize=match (options.terminalSizeQueue,_lookup(streams,"resize")) {(Some(q),Some(s))=>[_resize(q,s)];_=>[]}
+ let errorAction=match _lookup(streams,"error") {None=>ioPure(unit());Some(s)=>do {
+  result<-spdy.readAll(s.reader)
+  let error=match result.error {Some(e)=>Some(errors.errorWrap("Error reading from error stream",e));None=>if result.value=="" {None} else {decodeError(version,result.value)}}
+  if version==1 && !_present(error) {ioPure(unit())} else {sync.send(errorChannel,error)}
+ }}
+ ready
+ withProducers(Cons(errorAction,list.append(inputs,list.append(outputActions,resize))),sync.ensuring(
+  if version==1 {_waitV1(done,errorChannel,list.length(outputActions))} else {do {_waitOutputs(done,list.length(outputActions));result<-sync.receive(errorChannel);ioPure(outcome.from(unit(),match result {None=>None;Some(e)=>e}))}},
+  do {connection.close();_closeInputs(options);_closeStreams(streams)}))
+} }
+func streamProtocolReady(version Int, connection spdy.Connection, options StreamOptions, ready IO[Unit]) IO[outcome.Outcome[Unit]] {
+ if version<1 || version>5 {ioPure(outcome.failure(unit(),errors.errorNew("unsupported streaming protocol version ${version}")))} else {do {
+  created<-_create(connection,_kinds(version,options),Nil)
+  match created.error {Some(e)=>do {connection.close();_closeStreams(created.value);ioPure(outcome.failure(unit(),e))};None=>_run(version,connection,created.value,options,ready)}
+ }}
+}
+func streamProtocol(version Int, connection spdy.Connection, options StreamOptions) IO[outcome.Outcome[Unit]] {streamProtocolReady(version,connection,options,ioPure(unit()))}
+
+// Status decoding is a codec effect, while all status/exit interpretation stays native.
+extern func _exitError(message String, code Int) errors.Error = "github.com/reoring/gofx/ports/client-go/tools/remotecommand/host".ExitError
+extern func exitCode(error errors.Error) Option[Int] = "github.com/reoring/gofx/ports/client-go/tools/remotecommand/host".ExitCode
+extern func _decodeStatusPure(message String) (String,(String,(String,(Option[List[(String,String)]],Option[errors.Error])))) = "github.com/reoring/gofx/ports/client-go/tools/remotecommand/host".DecodeStatusPure
+func _exitCause(causes List[(String,String)]) Option[errors.Error] {match causes {Nil=>Some(errors.errorNew("error stream protocol error: no ExitCode cause given"));Cons(c,tail)=>if c.0!="ExitCode" {_exitCause(tail)} else {match string.parseInt(c.1) {Some(code)=>if code>=0 && code<=255 && _digits(c.1) {_exitErrorOption(code)} else {Some(errors.errorNew("error stream protocol error: invalid exit code value ${string.showQuoted(c.1)}"))};None=>Some(errors.errorNew("error stream protocol error: invalid exit code value ${string.showQuoted(c.1)}"))}}}}
+func _digits(s String) Bool {s!="" && _allDigits(string.chars(s))}
+func _allDigits(xs List[String]) Bool {match xs {Nil=>true;Cons(c,tail)=>string.isDigit(c) && _allDigits(tail)}}
+func _exitErrorOption(code Int) Option[errors.Error] {Some(_exitError("command terminated with exit code ${code}",code))}
+func decodeError(version Int, message String) Option[errors.Error] {
+ if version<4 {Some(errors.errorNew(if version==1 {"Error executing remote command: "+message} else {"error executing remote command: "+message}))} else {
+  let status=_decodeStatusPure(message)
+  match status.1.1.1.1 {Some(e)=>Some(errors.errorWrap("error stream protocol error: ${errors.errorMessage(e)} in ${string.showQuoted(message)}",e));None=>match status.0 {
+   "Success"=>None;
+   "Failure"=>if status.1.0=="NonZeroExitCode" {match status.1.1.1.0 {None=>Some(errors.errorNew("error stream protocol error: details must be set"));Some(causes)=>_exitCause(causes)}} else {Some(errors.errorNew(status.1.1.0))};
+   _=>Some(errors.errorNew("error stream protocol error: unknown error"))
+  }}
+ }
+}

@@ -1,0 +1,22 @@
+package metadatalister
+
+import cache "tools/cache"
+import dynamic "dynamic"
+import u "deps/k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+import v1 "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import outcome "support/outcome"
+
+// Copyright 2018 The Kubernetes Authors. Licensed under Apache-2.0.
+// Native equivalents of interface.go, lister.go and shim.go.
+alias Lister = cache.GenericLister[v1.PartialObjectMetadata]
+alias NamespaceLister = cache.GenericNamespaceLister[v1.PartialObjectMetadata]
+func newLister(indexer cache.Indexer[v1.PartialObjectMetadata],resource schema.GroupVersionResource) Lister {
+ let gr = schema.groupResourceWithResource(schema.groupResourceWithGroup(schema.newGroupResource(),schema.groupVersionResourceGetGroup(resource)),schema.groupVersionResourceGetResource(resource))
+ cache.newResourceLister(indexer,dynamic.objectAccess(v1.partialObjectMetadataObjectType()),gr)
+}
+func list(lister Lister,selector cache.ListSelector) IO[outcome.Outcome[List[v1.PartialObjectMetadata]]] { cache.listerList(lister,selector) }
+func get(lister Lister,name String) IO[outcome.Outcome[Option[v1.PartialObjectMetadata]]] { cache.listerGet(lister,name) }
+func namespace(lister Lister,ns String) NamespaceLister { cache.byNamespace(lister,ns) }
+func namespaceList(lister NamespaceLister,selector cache.ListSelector) IO[outcome.Outcome[List[v1.PartialObjectMetadata]]] { cache.namespaceListerList(lister,selector) }
+func namespaceGet(lister NamespaceLister,name String) IO[outcome.Outcome[Option[v1.PartialObjectMetadata]]] { cache.namespaceListerGet(lister,name) }

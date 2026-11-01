@@ -1,0 +1,71 @@
+package fake
+
+import rest "rest"
+import transport "transport"
+import http "deps/net/http"
+import runtime "deps/k8s.io/apimachinery/pkg/runtime"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import errors "deps/support"
+import outcome "support/outcome"
+import sync "support/sync"
+
+// Copyright 2014 The Kubernetes Authors. Licensed under Apache-2.0.
+type State = State { error: Option[errors.Error], request: Option[http.Request], client: Option[rest.HTTPClient], response: Option[http.Response] }
+type RESTClient = RESTClient { negotiatedSerializer: runtime.NegotiatedSerializer, groupVersion: schema.GroupVersion, versionedAPIPath: String, state: sync.Ref[State], clock: sync.Clock }
+func newClient(serializer runtime.NegotiatedSerializer,groupVersion schema.GroupVersion,path String,clock sync.Clock) IO[RESTClient] {
+ do { state <- sync.newRef(State(None,None,None,None)); ioPure(RESTClient(serializer,groupVersion,path,state,clock)) }
+}
+func createHTTPClient(roundTrip func(http.Request) IO[outcome.Outcome[Option[http.Response]]]) IO[rest.HTTPClient] {
+ do { raw <- transport.toHTTP(transport.roundTripper(roundTrip,func(_) => ioPure(unit()),func() => ioPure(unit()))); rest.newHTTPClient(raw,0) }
+}
+func perform(client RESTClient,request http.Request) IO[outcome.Outcome[Option[http.Response]]] {
+ do {
+  state <- sync.readRef(client.state)
+  match state.error {
+   Some(error) => ioPure(outcome.failure(None,error))
+   None => do {
+    sync.writeRef(client.state,state{request: Some(request)})
+    match state.client { Some(client) => do { result <- rest.httpClientDo(client,request); ioPure(outcome.from(result.0,result.1)) }; None => ioPure(outcome.success(state.response)) }
+   }
+  }
+ }
+}
+func request(client RESTClient) IO[rest.Request] {
+ do {
+  let parsed = rest.parseURL("https://localhost")
+  match parsed.0 {
+   None => ioFail("invalid built-in fake REST base URL")
+   Some(base) => do {
+    let content = rest.ClientContentConfig("","application/json",client.groupVersion,rest.newNegotiator(client.negotiatedSerializer,client.groupVersion))
+    httpClient <- createHTTPClient(func(request) => perform(client,request))
+    native <- rest.newRESTClient(base,client.versionedAPIPath,content,httpClient,None,rest.noWarnings(),client.clock,false)
+    rest.newRequest(native)
+   }
+  }
+ }
+}
+func verb(client RESTClient,value String) IO[rest.Request] { do { request <- request(client); ioPure(rest.verb(request,value)) } }
+func get(client RESTClient) IO[rest.Request] { verb(client,"GET") }
+func put(client RESTClient) IO[rest.Request] { verb(client,"PUT") }
+func post(client RESTClient) IO[rest.Request] { verb(client,"POST") }
+func delete(client RESTClient) IO[rest.Request] { verb(client,"DELETE") }
+func patch(client RESTClient,media String) IO[rest.Request] { do { request <- verb(client,"PATCH"); ioPure(rest.setHeader(request,"Content-Type",[media])) } }
+func apiVersion(client RESTClient) schema.GroupVersion { client.groupVersion }
+func getRateLimiter(client RESTClient) Option[rest.RateLimiter] { None }
+func clientInterface(client RESTClient) rest.Interface { rest.Interface(func(value) => verb(client,value),func(media) => patch(client,media),func() => None,func() => client.groupVersion) }
+extern func responseBytes(status Int,contentType String,bytes String,retryAfter String) IO[http.Response] = "github.com/reoring/gofx/ports/client-go/rest/host".Response
+func requestWithResponseBytes(base rest.Request,bytes String,error Option[errors.Error]) IO[rest.Request] {
+ match base.error {
+  Some(_) => ioPure(base)
+  None => match error {
+   Some(error) => ioPure(base{error: Some(error)})
+   None => do {
+    client <- createHTTPClient(func(_) => do {
+     response <- responseBytes(200,"text/plain",bytes,"")
+     ioPure(outcome.success(Some(response)))
+    })
+    ioPure(base{client: base.client{httpClient: client}})
+   }
+  }
+ }
+}

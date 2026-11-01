@@ -1,0 +1,68 @@
+package pager
+
+import meta "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import errors "github.com/reoring/gofx/ports/client-go/deps/support"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import list "std/list"
+
+type TestPage = TestPage { info: PageInfo, items: List[Int] }
+func testAccess(allocations sync.Ref[Int]) PageAccess[TestPage, Int] {
+ PageAccess(func(page) => ioPure(outcome.Outcome(page.info, None)), func(page, allocate) => do { if allocate { do { n <- sync.readRef(allocations); sync.writeRef(allocations, n + 1) } } else { ioPure(unit()) }; ioPure(outcome.Outcome(page.items, None)) }, func(info, items) => ioPure(TestPage(info, items)), func(err) => errors.errorMessage(err) == "expired")
+}
+func testContinuationClearsRVAndExpiredRestoresOriginal() IO[Bool] {
+ do {
+  calls <- sync.newRef([])
+  allocations <- sync.newRef(0)
+  let fetch = func(options) => do {
+   seen <- sync.readRef(calls)
+   sync.writeRef(calls, Cons(options, seen))
+   let n = list.length(seen)
+   if n == 0 { ioPure(outcome.Outcome(Some(TestPage(PageInfo("snapshot", "self", "next"), [1, 2])), None)) } else {
+    if n == 1 { ioPure(outcome.Outcome(None, Some(errors.errorNew("expired")))) } else {
+     ioPure(outcome.Outcome(Some(TestPage(PageInfo("original", "self", ""), [1, 2, 3])), None))
+    }
+   }
+  }
+  let pager = new(fetch, testAccess(allocations))
+  let original = meta.listOptionsWithResourceVersionMatch(meta.listOptionsWithResourceVersion(meta.newListOptions(), "original"), meta.resourceVersionMatchFromValue("Exact"))
+  result <- listWithAlloc(pager, original)
+  seen <- sync.readRef(calls)
+  ioPure((match result.value { (Some(page), true) => page.items == [1, 2, 3]; _ => false }) && (match seen {
+   [fallback, continuation, first] => meta.listOptionsGetLimit(first) == 500 && meta.listOptionsGetResourceVersion(continuation) == "" && meta.resourceVersionMatchValue(meta.listOptionsGetResourceVersionMatch(continuation)) == "" && meta.listOptionsGetContinue(continuation) == "next" && meta.listOptionsGetLimit(fallback) == 0 && meta.listOptionsGetContinue(fallback) == "" && meta.listOptionsGetResourceVersion(fallback) == "original" && meta.resourceVersionMatchValue(meta.listOptionsGetResourceVersionMatch(fallback)) == "Exact"
+   _ => false
+  }))
+ }
+}
+func testFirstPageExpiryDoesNotFallback() IO[Bool] {
+ do {
+  calls <- sync.newRef(0)
+  allocations <- sync.newRef(0)
+  let fetch = func(options) => do { n <- sync.readRef(calls); sync.writeRef(calls, n + 1); ioPure(outcome.Outcome(None, Some(errors.errorNew("expired")))) }
+  result <- list(new(fetch, testAccess(allocations)), meta.newListOptions())
+  count <- sync.readRef(calls)
+  ioPure(count == 1 && (match result.error { Some(err) => errors.errorMessage(err) == "expired"; None => false }))
+ }
+}
+func testBufferedCallbackErrorStopsProducer() IO[Bool] {
+ do {
+  calls <- sync.newRef(0)
+  allocations <- sync.newRef(0)
+  let fetch = func(options) => do { n <- sync.readRef(calls); sync.writeRef(calls, n + 1); ioPure(outcome.Outcome(Some(TestPage(PageInfo("rv", "", "continue"), [n])), None)) }
+  let base = new(fetch, testAccess(allocations))
+  let pager = base { pageBufferSize: 0 }
+  result <- eachListItem(pager, meta.newListOptions(), func(_) => ioPure(Some(errors.errorNew("stop consumer"))))
+  count <- sync.readRef(calls)
+  ioPure(count <= 2 && (match result { Some(err) => errors.errorMessage(err) == "stop consumer"; None => false }))
+ }
+}
+func testNegativeBufferRejectedWithoutFetch() IO[Bool] {
+ do {
+  calls <- sync.newRef(0)
+  allocations <- sync.newRef(0)
+  let base = new(func(_) => do { sync.writeRef(calls, 1); ioPure(outcome.Outcome(None, None)) }, testAccess(allocations))
+  result <- eachListItem(base { pageBufferSize: -1 }, meta.newListOptions(), func(_) => ioPure(None))
+  count <- sync.readRef(calls)
+  ioPure(count == 0 && (match result { Some(err) => errors.errorMessage(err) == "ListPager.PageBufferSize must be >= 0, got -1"; None => false }))
+ }
+}

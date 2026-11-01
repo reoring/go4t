@@ -1,0 +1,216 @@
+// Copyright 2017 The Kubernetes Authors. Licensed under Apache-2.0.
+// Source: client-go v0.37.2 util/certificate/certificate_manager.go.
+package certificate
+import cert "github.com/reoring/gofx/ports/client-go/util/cert"
+import keyutil "github.com/reoring/gofx/ports/client-go/util/keyutil"
+import csr "github.com/reoring/gofx/ports/client-go/util/certificate/csr"
+import crypto "github.com/reoring/gofx/ports/client-go/deps/crypto"
+import x509 "github.com/reoring/gofx/ports/client-go/deps/crypto/x509"
+import tls "github.com/reoring/gofx/ports/client-go/deps/crypto/tls"
+import support "github.com/reoring/gofx/ports/client-go/deps/support"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import io "std/io"
+import list "std/list"
+type Gauge = Gauge {set: func(Float) IO[Unit]}
+type Histogram = Histogram {observe: func(Float) IO[Unit]}
+type Counter = Counter {inc: func() IO[Unit]}
+alias ClientsetFunc = func(Option[tls.Certificate]) IO[outcome.Outcome[Option[csr.Client]]]
+type Config = Config {clock: sync.Clock, clientsetFn: Option[ClientsetFunc], template: Option[x509.CertificateRequest], getTemplate: Option[func() IO[Option[x509.CertificateRequest]]], signerName: String, requestedCertificateLifetime: Option[Int], usages: Option[List[String]], getUsages: Option[func(crypto.PrivateKey) IO[List[String]]], certificateStore: Store, bootstrapCertificatePEM: Option[String], bootstrapKeyPEM: Option[String], certificateRotation: Option[Histogram], certificateRenewFailure: Option[Counter], generateKey: Option[func() IO[outcome.Outcome[Option[crypto.PrivateKey]]]], name: String, jitter: func() IO[Int]}
+type _State = _State {certificate: Option[tls.Certificate], healthy: Bool, force: Bool, lastTemplate: Option[x509.CertificateRequest], requestCancel: Option[sync.Cancel]}
+type Manager = Manager {config: Config, mutex: sync.Mutex, rotationMutex: sync.Mutex, lifecycleMutex: sync.Mutex, state: sync.Ref[_State], context: sync.Context, cancel: sync.Cancel, tasks: sync.Ref[List[sync.Task[Unit]]], started: sync.Ref[Bool]}
+func defaultKubeletClientGetUsages(key crypto.PrivateKey) IO[List[String]] { do { info <- cert.keyInfo(key); ioPure(if info.0 == "RSA" { ["digital signature", "key encipherment", "client auth"] } else { ["digital signature", "client auth"] }) } }
+func defaultKubeletServingGetUsages(key crypto.PrivateKey) IO[List[String]] { do { info <- cert.keyInfo(key); ioPure(if info.0 == "RSA" { ["digital signature", "key encipherment", "server auth"] } else { ["digital signature", "server auth"] }) } }
+func validateKeyStrength(key crypto.PrivateKey) IO[Option[support.Error]] { do {
+ info <- cert.keyInfo(key)
+ ioPure(if info.0 == "RSA" && info.1.0 < 2048 { Some(cert.newError("RSA key size ${info.1.0} bits is below the minimum of 2048")) } else { if info.0 == "ECDSA" && info.1.0 < 256 { Some(cert.newError("ECDSA key curve ${info.1.1} (${info.1.0} bits) is below the minimum of 256")) } else { None } })
+} }
+func _getTemplate(manager Manager) IO[Option[x509.CertificateRequest]] { match manager.config.getTemplate { None => ioPure(manager.config.template); Some(get) => get() } }
+func _valid(clock sync.Clock, value Option[tls.Certificate], strict Bool) IO[Bool] { match value { None => ioPure(false); Some(value) => do {
+ leaf <- cert.leaf(value)
+ match leaf { None => ioPure(!strict); Some(leaf) => do { times <- cert.times(leaf); now <- sync.now(clock); ioPure(if strict { sync.unixNanos(now) < times.1 } else { sync.unixNanos(now) <= times.1 }) } }
+} } }
+func getCurrentCertificateOrBootstrap(config Config) IO[outcome.Outcome[(Option[tls.Certificate], Bool)]] { do {
+ loaded <- config.certificateStore.current()
+ match loaded.error { Some(error) => if isNoCertKeyError(error) { _bootstrap(config) } else { ioPure(outcome.failure((None, false), error)) }; None => do {
+  valid <- _valid(config.clock, loaded.value, true)
+  if valid { ioPure(outcome.success((loaded.value, false))) } else { _bootstrap(config) }
+ } }
+} }
+func _bootstrap(config Config) IO[outcome.Outcome[(Option[tls.Certificate], Bool)]] {
+ match (config.bootstrapCertificatePEM, config.bootstrapKeyPEM) {
+  (Some(c), Some(k)) => do {
+   parsed <- cert.keyPair(c, k)
+   match parsed.1 { Some(error) => ioPure(outcome.failure((None, false), error)); None => do { config.certificateStore.update(c, k); ioPure(outcome.success((parsed.0, true))) } }
+  }
+  _ => ioPure(outcome.success((None, true)))
+ }
+}
+func newManager(config Config) IO[outcome.Outcome[Option[Manager]]] {
+ match (config.usages, config.getUsages) {
+  (Some(_), Some(_)) => ioPure(outcome.failure(None, cert.newError("cannot specify both GetUsages and Usages")))
+  (None, None) => ioPure(outcome.failure(None, cert.newError("either GetUsages or Usages should be specified")))
+  _ => do {
+   initial <- getCurrentCertificateOrBootstrap(config)
+   match initial.error { Some(error) => ioPure(outcome.failure(None, error)); None => do {
+    mutex <- sync.newMutex(); rotation <- sync.newMutex(); lifecycle <- sync.newMutex()
+    state <- sync.newRef(_State(initial.value.0, false, initial.value.1, None, None))
+    parent <- sync.captureContext(); context <- sync.newContext(parent, None)
+    tasks <- sync.newRef([]); started <- sync.newRef(false)
+    ioPure(outcome.success(Some(Manager(config, mutex, rotation, lifecycle, state, context.0, context.1, tasks, started))))
+   } }
+  }
+ }
+}
+func current(manager Manager) IO[Option[tls.Certificate]] { sync.withLock(manager.mutex, do { state <- sync.readRef(manager.state); valid <- _valid(manager.config.clock, state.certificate, false); ioPure(if valid { state.certificate } else { None }) }) }
+func serverHealthy(manager Manager) IO[Bool] { sync.withLock(manager.mutex, do { state <- sync.readRef(manager.state); ioPure(state.healthy) }) }
+func _containsAll(have List[String], wanted List[String]) Bool { list.all(wanted, func(item) => list.any(have, func(value) => value == item)) }
+func certSatisfiesTemplate(manager Manager) IO[Bool] { do {
+ template <- _getTemplate(manager)
+ state <- sync.withLock(manager.mutex, sync.readRef(manager.state))
+ match state.certificate { None => ioPure(false); Some(certificate) => do {
+  leaf <- cert.leaf(certificate)
+  match (leaf, template) { (Some(leaf), Some(template)) => do {
+   c <- cert.certificateNames(leaf, false); t <- cert.requestNames(template, true)
+   ioPure(c.0 == t.0 && _containsAll(c.1.0, t.1.0) && _containsAll(c.1.1.0, t.1.1.0) && _containsAll(c.1.1.1, t.1.1.1))
+  }; (Some(_), None) => ioPure(true); _ => ioPure(false) }
+ } }
+} }
+// Fraction is in [0,1000000), injectable for deterministic 70%-90% deadlines.
+func rotationDuration(lifetime Int, fraction Int) Int { lifetime / 10 * 7 + lifetime % 10 * 7 / 10 + lifetime / 5000000 * fraction + lifetime % 5000000 * fraction / 5000000 }
+func nextRotationDeadline(manager Manager) IO[Int] { do {
+ forced <- sync.withLock(manager.mutex, do { state <- sync.readRef(manager.state); sync.writeRef(manager.state, state {force: false}); ioPure(state.force) })
+ matches <- certSatisfiesTemplate(manager); now <- sync.now(manager.config.clock)
+ if forced || !matches { ioPure(sync.unixNanos(now)) } else { do {
+  value <- current(manager)
+  match value { None => ioPure(sync.unixNanos(now)); Some(value) => do {
+   leaf <- cert.leaf(value)
+   match leaf { None => ioPure(sync.unixNanos(now)); Some(leaf) => do { times <- cert.times(leaf); fraction <- manager.config.jitter(); ioPure(times.0 + rotationDuration(times.1 - times.0, fraction)) } }
+  } }
+ } }
+} }
+func updateServerError(manager Manager, error support.Error) IO[Unit] { sync.withLock(manager.mutex, do {
+ state <- sync.readRef(manager.state)
+ let kind = cert.apiErrorKind(error)
+ sync.writeRef(manager.state, state {healthy: kind == "Unauthorized" || kind == "NotFound" || kind == "Forbidden"})
+}) }
+func _failure(manager Manager) IO[Unit] { match manager.config.certificateRenewFailure { None => ioPure(unit()); Some(counter) => counter.inc() } }
+func _key(manager Manager) IO[outcome.Outcome[Option[crypto.PrivateKey]]] { match manager.config.generateKey { None => do { key <- cert.generateEC(); ioPure(outcome.from(key.0, key.1)) }; Some(generate) => generate() } }
+type GeneratedCSR = GeneratedCSR {template: x509.CertificateRequest, csrPEM: String, keyPEM: String, key: crypto.PrivateKey}
+func generateCSR(manager Manager) IO[outcome.Outcome[Option[GeneratedCSR]]] { do {
+ generated <- _key(manager)
+ match (generated.error, generated.value) {
+  (Some(error), _) => ioPure(outcome.failure(None, cert.wrapError("unable to generate a new private key", error)))
+  (None, Some(key)) => do {
+   weak <- validateKeyStrength(key)
+   match weak { Some(error) => ioPure(outcome.failure(None, cert.wrapError("the new key is insecure", error))); None => do {
+    pem <- keyutil.marshalPrivateKeyToPEM(key)
+    match pem.error { Some(error) => ioPure(outcome.failure(None, cert.wrapError("unable to marshal the new key to PEM", error))); None => do {
+     template <- _getTemplate(manager)
+     match template { None => ioPure(outcome.failure(None, cert.newError("unable to create a csr, no template available"))); Some(template) => do {
+      request <- cert.makeCSRFromTemplate(key, template)
+      ioPure(match request.error { Some(error) => outcome.failure(None, cert.wrapError("unable to create a csr from the private key", error)); None => outcome.success(Some(GeneratedCSR(template, request.value, pem.value, key))) })
+     } }
+    } }
+   } }
+  }
+  _ => ioPure(outcome.failure(None, cert.newError("unable to generate a new private key: no key returned")))
+ }
+} }
+func _usages(manager Manager, key crypto.PrivateKey) IO[List[String]] { match manager.config.getUsages { Some(get) => get(key); None => ioPure(match manager.config.usages { Some(usages) => usages; None => [] }) } }
+type _Wait = _Issued(Result[io.IoError, outcome.Outcome[String]]) | _TimedOut
+func _waitCertificate(manager Manager, client csr.Client, name String, uid String, template x509.CertificateRequest) IO[outcome.Outcome[String]] { do {
+ parent <- sync.captureContext(); child <- sync.newContext(parent, None)
+ sync.withLock(manager.mutex, do { state <- sync.readRef(manager.state); sync.writeRef(manager.state, state {lastTemplate: Some(template), requestCancel: Some(child.1)}) })
+ replies <- sync.newChannel(1)
+ sync.bracket(sync.start(do { result <- io.tryIO(sync.withContext(child.0, csr.waitForCertificate(manager.config.clock, client, name, uid))); sync.send(replies, result) }), func(task) =>
+  sync.bracket(sync.newTimer(manager.config.clock, 900000000000), func(timer) => do {
+   channel <- sync.timerChannel(timer)
+   result <- sync.selectCase([sync.receiveCase(replies, func(value) => match value { Some(value) => _Issued(value); None => _TimedOut }), sync.receiveCase(channel, func(_) => _TimedOut)])
+   ioPure(match result { _Issued(Ok(value)) => value; _Issued(Err(error)) => outcome.failure("", cert.newError(io.ioErrorMessage(error))); _TimedOut => outcome.failure("", cert.newError("timed out waiting for the condition")) })
+  }, func(timer) => do { sync.stopTimer(timer); ioPure(unit()) }),
+  func(task) => sync.uninterruptible(do {
+   sync.cancelContext(child.1); sync.cancelTask(task); io.tryIO(sync.join(task))
+   sync.withLock(manager.mutex, do { state <- sync.readRef(manager.state); sync.writeRef(manager.state, state {requestCancel: None}) })
+  }))
+} }
+func rotateCerts(manager Manager) IO[outcome.Outcome[Bool]] { sync.withContext(manager.context, sync.withLock(manager.rotationMutex, do {
+ generated <- generateCSR(manager)
+ match (generated.error, generated.value, manager.config.clientsetFn) {
+  (None, Some(generated), Some(clientFn)) => do {
+   certificate <- current(manager); client <- clientFn(certificate)
+   match (client.error, client.value) {
+    (None, Some(client)) => do {
+     usages <- _usages(manager, generated.key)
+     requested <- csr.requestCertificate(manager.config.clock, client, generated.csrPEM, "", manager.config.signerName, manager.config.requestedCertificateLifetime, usages, generated.key)
+     match requested.error { Some(error) => do { _failure(manager); updateServerError(manager, error); ioPure(outcome.success(false)) }; None => do {
+      issued <- _waitCertificate(manager, client, requested.value.0, requested.value.1, generated.template)
+      match issued.error { Some(_) => do { _failure(manager); ioPure(outcome.success(false)) }; None => do {
+       stored <- manager.config.certificateStore.update(issued.value, generated.keyPEM)
+       match stored.error { Some(_) => do { _failure(manager); ioPure(outcome.success(false)) }; None => do {
+        old <- sync.withLock(manager.mutex, do { state <- sync.readRef(manager.state); sync.writeRef(manager.state, state {certificate: stored.value, healthy: true}); ioPure(state.certificate) })
+        match (old, manager.config.certificateRotation) { (Some(old), Some(histogram)) => do { leaf <- cert.leaf(old); match leaf { Some(leaf) => do { times <- cert.times(leaf); now <- sync.now(manager.config.clock); histogram.observe(_seconds(sync.unixNanos(now) - times.0)) }; None => ioPure(unit()) } }; _ => ioPure(unit()) }
+        ioPure(outcome.success(true))
+       } }
+      } }
+     } }
+    }
+    _ => do { _failure(manager); ioPure(outcome.success(false)) }
+   }
+  }
+  _ => do { _failure(manager); ioPure(outcome.success(false)) }
+ }
+})) }
+extern func _seconds(nanos Int) Float = "github.com/reoring/gofx/ports/client-go/util/cert/host".Seconds
+func _awaitDeadline(manager Manager, deadline Int) IO[Unit] { do {
+ now <- sync.now(manager.config.clock); matches <- certSatisfiesTemplate(manager)
+ if sync.unixNanos(now) >= deadline || !matches { ioPure(unit()) } else { do { csr.pause(manager.config.clock, if deadline - sync.unixNanos(now) < 1000000000 { deadline - sync.unixNanos(now) } else { 1000000000 }); _awaitDeadline(manager, deadline) } }
+} }
+func _retry(manager Manager, attempt Int) IO[Unit] { do {
+ result <- rotateCerts(manager)
+ if result.value { ioPure(unit()) } else { do {
+  fraction <- manager.config.jitter()
+  csr.pause(manager.config.clock, retryDelay(attempt, fraction))
+  _retry(manager, if attempt < 4 { attempt + 1 } else { 4 })
+ } }
+} }
+func _run(manager Manager) IO[Unit] { do {
+ deadline <- nextRotationDeadline(manager); _awaitDeadline(manager, deadline)
+ template <- _getTemplate(manager)
+ match template { Some(_) => _retry(manager, 0); None => ioPure(unit()) }
+ csr.pause(manager.config.clock, 1000000000); _run(manager)
+} }
+func _checkTemplate(manager Manager) IO[Unit] { do {
+ matches <- certSatisfiesTemplate(manager); template <- _getTemplate(manager)
+ state <- sync.withLock(manager.mutex, sync.readRef(manager.state)); equal <- cert.templateEqual(template, state.lastTemplate)
+ if !matches && !equal { match state.requestCancel { Some(cancel) => sync.cancelContext(cancel); None => ioPure(unit()) } } else { ioPure(unit()) }
+} }
+func _watchTemplate(manager Manager) IO[Unit] { do {
+ csr.pause(manager.config.clock, 1000000000)
+ _checkTemplate(manager)
+ _watchTemplate(manager)
+} }
+func start(manager Manager) IO[Unit] { sync.withLock(manager.lifecycleMutex, do {
+ started <- sync.readRef(manager.started); cancelled <- sync.contextCancelled(manager.context)
+ if started || cancelled { ioPure(unit()) } else { do {
+  sync.writeRef(manager.started, true)
+  match manager.config.clientsetFn { None => ioPure(unit()); Some(_) => do {
+   runner <- sync.startDetached(do { io.tryIO(sync.withContext(manager.context, _run(manager))); ioPure(unit()) })
+   tasks <- match manager.config.getTemplate { None => ioPure([runner]); Some(_) => do { watcher <- sync.startDetached(do { io.tryIO(sync.withContext(manager.context, _watchTemplate(manager))); ioPure(unit()) }); ioPure([runner, watcher]) } }
+   sync.writeRef(manager.tasks, tasks)
+  } }
+ } }
+}) }
+func stop(manager Manager) IO[Unit] { sync.uninterruptible(sync.withLock(manager.lifecycleMutex, do {
+ sync.cancelContext(manager.cancel); tasks <- sync.readRef(manager.tasks)
+ list.forEach(tasks, func(task) => do { io.tryIO(sync.join(task)); ioPure(unit()) })
+ sync.writeRef(manager.tasks, [])
+})) }
+func newConfig(clock sync.Clock, store Store) Config {
+ Config(clock, None, None, None, "", None, None, Some(defaultKubeletClientGetUsages), store, None, None, None, None, None, "", cert.randomFraction)
+}
+func getClientCertificate(manager Manager) IO[outcome.Outcome[Option[tls.Certificate]]] { do { value <- current(manager); ioPure(outcome.success(value)) } }
+func retryDelay(attempt Int, fraction Int) Int {
+ let base = match attempt { 0 => 2000000000; 1 => 4000000000; 2 => 8000000000; 3 => 16000000000; _ => 32000000000 }
+ base + (if attempt < 4 { base / 10000000 * fraction } else { 0 })
+}

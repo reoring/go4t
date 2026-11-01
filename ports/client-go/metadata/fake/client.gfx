@@ -1,0 +1,104 @@
+package fake
+
+import metadata "metadata"
+import serializer "deps/k8s.io/apimachinery/pkg/runtime/serializer"
+import testing "testing"
+import selectors "testing/internal"
+import cache "tools/cache"
+import runtime "deps/k8s.io/apimachinery/pkg/runtime"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import v1 "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import objects "deps/objects"
+import errors "deps/support"
+import outcome "support/outcome"
+import watch "support/watch"
+import sync "support/sync"
+import s "std/string"
+import listlib "std/list"
+
+// Copyright 2018 The Kubernetes Authors. Licensed under Apache-2.0.
+type FakeMetadataClient = FakeMetadataClient { fake: testing.Fake, scheme: runtime.Scheme, tracker: testing.ObjectTracker }
+type ResourceClient = ResourceClient { client: FakeMetadataClient, resource: schema.GroupVersionResource, namespace: String }
+func newTestScheme() IO[runtime.Scheme] { do { value <- runtime.callNewScheme(); match value { Some(scheme) => ioPure(scheme); None => ioFail("apimachinery NewScheme returned nil") } } }
+func newSimpleMetadataClient(scheme runtime.Scheme,initial List[runtime.Object]) IO[FakeMetadataClient] {
+ do {
+  let kind = schema.groupVersionKindWithKind(schema.groupVersionKindWithVersion(schema.groupVersionKindWithGroup(schema.newGroupVersionKind(),"fake-metadata-client-group"),"v1"),"List")
+  known <- runtime.schemeCallRecognizesIdentity(scheme,kind)
+  if known { ioPure(unit()) } else { do { _ <- runtime.schemeCallAddKnownTypeWithNameIdentity(scheme,kind,Some(v1.listGoToRuntimeObject(v1.newListGo()))); ioPure(unit()) } }
+  codecs <- serializer.callNewCodecFactory(Some(scheme),[])
+  decoderOption <- serializer.codecFactoryCallUniversalDeserializerIdentity(codecs.1)
+  decoder <- match decoderOption { Some(value) => ioPure(value); None => ioFail("apimachinery codec factory returned no deserializer") }
+  tracker <- testing.newObjectTracker(scheme,decoder)
+  listlib.forEach(initial,func(object) => do { result <- tracker.add(object); match result.error { None => ioPure(unit()); Some(e) => errors.raiseError(e) } })
+  fake <- testing.newFake()
+  testing.addReactor(fake,"*","*",testing.objectReaction(tracker))
+  testing.addWatchReactor(fake,"*",func(shared) => do { action <- sync.readRef(shared); result <- tracker.watch(action.resource,action.namespace,[action.listOptions]); ioPure(testing.WatchReaction(outcome.isSuccess(result),result)) })
+  ioPure(FakeMetadataClient(fake,scheme,tracker))
+ }
+}
+func resource(client FakeMetadataClient,gvr schema.GroupVersionResource) ResourceClient { ResourceClient(client,gvr,"") }
+func namespace(c ResourceClient,value String) ResourceClient { c{namespace: value} }
+func interface(client FakeMetadataClient) metadata.Interface { metadata.Interface(func(gvr) => resourceInterface(resource(client,gvr)),true) }
+func resourceInterface(c ResourceClient) metadata.ResourceInterface {
+ metadata.ResourceInterface(func(ns) => resourceInterface(namespace(c,ns)),func(n,p,sub) => delete(c,n,p,sub),func(p,l) => deleteCollection(c,p,l),func(n,p,sub) => get(c,n,p,sub),func(p) => list(c,p),func(p) => watch(c,p),func(n,t,b,p,sub) => patch(c,n,t,b,p,sub))
+}
+func defaultObject(operation String) Option[runtime.Object] { Some(v1.statusToRuntimeObject(v1.statusWithStatus(v1.newStatus(),"metadata "+operation+" fail"))) }
+func invoke(c ResourceClient,action testing.Action,fallback Option[runtime.Object]) IO[outcome.Outcome[Option[v1.PartialObjectMetadata]]] {
+ do {
+  result <- testing.invokes(c.client.fake,action,fallback)
+  match result.error { Some(e) => ioPure(outcome.failure(None,e)); None => match result.value {
+   None => ioPure(outcome.success(None))
+   Some(object) => match v1.partialObjectMetadataFromRuntimeObject(object) {
+    Some(value) => ioPure(outcome.success(Some(value)))
+    None => do { kind <- objects.objectTypeName(result.value); ioPure(outcome.failure(None,errors.errorNew("unexpected return value type "+kind))) }
+   }
+  } }
+ }
+}
+func createFake(c ResourceClient,object v1.PartialObjectMetadata,_options v1.CreateOptions,sub List[String]) IO[outcome.Outcome[Option[v1.PartialObjectMetadata]]] {
+ let name = if length(sub)>0 { v1.objectMetaGetName(v1.partialObjectMetadataGetObjectMeta(object)) } else { "" }
+ let action = testing.newCreateSubresourceActionWithOptions(c.resource,name,s.join("/",sub),c.namespace,v1.partialObjectMetadataToRuntimeObject(object),v1.newCreateOptions())
+ invoke(c,action,Some(v1.partialObjectMetadataToRuntimeObject(object)))
+}
+func updateFake(c ResourceClient,object v1.PartialObjectMetadata,_options v1.UpdateOptions,sub List[String]) IO[outcome.Outcome[Option[v1.PartialObjectMetadata]]] {
+ invoke(c,testing.newUpdateSubresourceActionWithOptions(c.resource,s.join("/",sub),c.namespace,v1.partialObjectMetadataToRuntimeObject(object),v1.newUpdateOptions()),Some(v1.partialObjectMetadataToRuntimeObject(object)))
+}
+func updateStatus(c ResourceClient,object v1.PartialObjectMetadata,options v1.UpdateOptions) IO[outcome.Outcome[Option[v1.PartialObjectMetadata]]] { updateFake(c,object,options,["status"]) }
+func get(c ResourceClient,name String,_options v1.GetOptions,sub List[String]) IO[outcome.Outcome[Option[v1.PartialObjectMetadata]]] { invoke(c,testing.newGetSubresourceActionWithOptions(c.resource,c.namespace,s.join("/",sub),name,v1.newGetOptions()),defaultObject("get")) }
+func patch(c ResourceClient,name String,patchType String,data String,_options v1.PatchOptions,sub List[String]) IO[outcome.Outcome[Option[v1.PartialObjectMetadata]]] { invoke(c,testing.newPatchSubresourceActionWithOptions(c.resource,c.namespace,name,patchType,data,v1.newPatchOptions(),sub),defaultObject("patch")) }
+func delete(c ResourceClient,name String,options v1.DeleteOptions,sub List[String]) IO[outcome.Outcome[Unit]] { do { result <- testing.invokes(c.client.fake,testing.newDeleteSubresourceActionWithOptions(c.resource,s.join("/",sub),c.namespace,name,options),defaultObject("delete")); ioPure(outcome.from(unit(),result.error)) } }
+func deleteCollection(c ResourceClient,_options v1.DeleteOptions,listOptions v1.ListOptions) IO[outcome.Outcome[Unit]] {
+ do { canonical <- selectors.canonicalListOptions(listOptions); action <- testing.newDeleteCollectionActionWithOptions(c.resource,c.namespace,v1.newDeleteOptions(),canonical); result <- testing.invokes(c.client.fake,action,defaultObject("deletecollection")); ioPure(outcome.from(unit(),result.error)) }
+}
+func watch(c ResourceClient,options v1.ListOptions) IO[outcome.Outcome[Option[watch.Watch]]] { do { action <- testing.newWatchActionWithOptions(c.resource,c.namespace,v1.listOptionsWithWatch(options,true)); testing.invokesWatch(c.client.fake,action) } }
+func list(c ResourceClient,options v1.ListOptions) IO[outcome.Outcome[Option[v1.PartialObjectMetadataList]]] {
+ do {
+  canonical <- selectors.canonicalListOptions(options)
+  let kind = schema.groupVersionKindWithVersion(schema.groupVersionKindWithGroup(schema.newGroupVersionKind(),"fake-metadata-client-group"),"v1")
+  action <- testing.newListActionWithOptions(c.resource,kind,c.namespace,canonical)
+  result <- testing.invokes(c.client.fake,action,defaultObject("list"))
+  match result.value {
+   None => ioPure(outcome.from(None,result.error))
+   Some(object) => match v1.listGoFromRuntimeObject(object) {
+    None => do { name <- objects.objectTypeName(result.value); ioPure(outcome.failure(None,errors.errorNew("incoming object is incorrect type "+name))) }
+    Some(input) => do {
+     let rawItems = match v1.listGoGetItems(input) { None => []; Some(items) => items }
+     converted <- convertItems(rawItems,0,object)
+     match converted.error { Some(e) => ioPure(outcome.failure(None,e)); None => do {
+      selected <- cache.filterObjects(converted.value,func(item) => selectors.matchesLabels(v1.listOptionsGetLabelSelector(options),v1.partialObjectMetadataToRuntimeObject(item)))
+      ioPure(outcome.success(Some(v1.partialObjectMetadataListWithItems(v1.partialObjectMetadataListWithListMeta(v1.newPartialObjectMetadataList(),v1.listGoGetListMeta(input)),if length(selected)==0 { None } else { Some(selected) }))))
+     } }
+    }
+   }
+  }
+ }
+}
+func convertItems(items List[runtime.RawExtension],index Int,input runtime.Object) IO[outcome.Outcome[List[v1.PartialObjectMetadata]]] {
+ match items { Nil => ioPure(outcome.success([])); Cons(item,rest) => {
+  let object = runtime.rawExtensionGetObject(item)
+  match objects.fromObject(v1.partialObjectMetadataObjectType(),object) {
+   None => do { inputType <- objects.objectTypeName(Some(input)); itemType <- objects.objectTypeName(object); ioPure(outcome.failure([],errors.errorNew("item "+show(index)+" in list "+inputType+" is "+itemType))) }
+   Some(value) => do { remaining <- convertItems(rest,index+1,input); ioPure(outcome.mapValue(remaining,func(tail) => Cons(value,tail))) }
+  }
+ } }
+}

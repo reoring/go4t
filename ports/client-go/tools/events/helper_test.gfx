@@ -1,0 +1,75 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package events
+import "std/list"
+import m "std/map"
+import schema "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime/schema"
+import fields "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/fields"
+import types "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/types"
+import core "github.com/reoring/gofx/ports/client-go/deps/k8s.io/api/core/v1"
+import meta "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import "github.com/reoring/gofx/ports/client-go/deps/support"
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+func _selectorMatches(selector fields.Selector, values Map[String,String]) IO[Bool] { do {
+ actual <- fields.newFields(
+  func(key) => ioPure(match m.mapLookup(values,key) { None => ""; Some(value) => value }),
+  func(key) => ioPure(m.mapMember(values,key)))
+ fields.selectorCallMatchesIdentity(selector,Some(actual))
+} }
+func _checkSelectorTerms(selector fields.Selector, expected Map[String,String], remaining List[(String,String)]) IO[Bool] {
+ match remaining { Nil => ioPure(true); Cons(entry,rest) => do {
+  exact <- fields.selectorCallRequiresExactMatchIdentity(selector,entry.0)
+  missingMatches <- _selectorMatches(selector,m.mapDelete(expected,entry.0))
+  wrongMatches <- _selectorMatches(selector,m.mapInsert(expected,entry.0,entry.1+"-wrong"))
+  others <- _checkSelectorTerms(selector,expected,rest)
+  ioPure(exact.1 && exact.0==entry.1 && !missingMatches && !wrongMatches && others)
+ } }
+}
+func _checkSelectorVersion(version schema.GroupVersion, prefix String) IO[Bool] { do {
+ let regarding = schema.groupVersionKindWithKind(schema.groupVersionKindWithVersion(schema.groupVersionKindWithGroup(schema.newGroupVersionKind(),"apps"),"v1"),"Deployment")
+ let expected = m.mapFromList([(prefix+".apiVersion","apps/v1"),(prefix+".kind","Deployment"),(prefix+".name","name"),(prefix+".uid","uid")])
+ populated <- getFieldSelector(version,regarding,"name",types.uidFromValue("uid"))
+ populatedOK <- match populated.error { Some(_) => ioPure(false); None => match populated.value {
+  None => ioPure(false)
+  Some(selector) => do {
+   requirements <- fields.selectorCallRequirementsIdentity(selector)
+   let count = match fields.requirementsValue(requirements) { None => 0; Some(values) => list.length(values) }
+   positive <- _selectorMatches(selector,expected)
+   exactTerms <- _checkSelectorTerms(selector,expected,m.mapToList(expected))
+   ioPure(count==4 && positive && exactTerms)
+  }
+ } }
+ empty <- getFieldSelector(version,schema.newGroupVersionKind(),"",types.newUID())
+ emptyOK <- match empty.error { Some(_) => ioPure(false); None => match empty.value {
+  None => ioPure(false)
+  Some(selector) => do {
+   isEmpty <- fields.selectorCallEmptyIdentity(selector)
+   matchesEmpty <- _selectorMatches(selector,m.emptyMap())
+   matchesPopulated <- _selectorMatches(selector,expected)
+   ioPure(isEmpty && matchesEmpty && matchesPopulated)
+  }
+ } }
+ ioPure(populatedOK && emptyOK)
+} }
+// AsSelector iterates a Go map: compare exact semantics, never String order.
+func testModernAndLegacyFieldSelectorsTrace() IO[Bool] { do {
+ let modern = schema.groupVersionWithVersion(schema.groupVersionWithGroup(schema.newGroupVersion(),"events.k8s.io"),"v1")
+ let beta = schema.groupVersionWithVersion(modern,"v1beta1")
+ let legacy = schema.groupVersionWithVersion(schema.newGroupVersion(),"v1")
+ modernOK <- _checkSelectorVersion(modern,"regarding")
+ betaOK <- _checkSelectorVersion(beta,"regarding")
+ legacyOK <- _checkSelectorVersion(legacy,"involvedObject")
+ ioPure(modernOK && betaOK && legacyOK)
+} }
+func testUnknownVersionTrace() IO[Bool] { do {
+ result <- getFieldSelector(schema.groupVersionWithVersion(schema.newGroupVersion(),"v99"),schema.newGroupVersionKind(),"",types.newUID())
+ ioPure(match result.error { None => false; Some(error) => support.errorMessage(error)=="unknown version v99" })
+} }
+func testVerboseFakeRecorderTrace() IO[Bool] { do {
+ fake <- newFakeRecorder(1)
+ let recorder = fakeRecorder(fake { verbose: true })
+ let annotations = support.mapWith(meta.objectMetaGetAnnotations(meta.newObjectMeta()),"key","value")
+ let object = core.podWithTypeMeta(core.newPod(),meta.typeMetaWithAPIVersion(meta.typeMetaWithKind(meta.newTypeMeta(),"Pod"),"v1"))
+ recorder.annotatedEventf(Some(core.podToRuntimeObject(object)),None,annotations,"Normal","Reason","Action","note")
+ output <- match fake.events { None => ioPure(None); Some(channel) => sync.receive(channel) }
+ ioPure(output==Some("Normal Reason Action note {kind=Pod,apiVersion=v1} map[key:value]"))
+} }

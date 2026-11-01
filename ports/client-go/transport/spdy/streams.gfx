@@ -1,0 +1,84 @@
+// Copyright 2015 The Kubernetes Authors. Licensed under Apache-2.0.
+// Native orchestration; external framing is k8s.io/streaming v0.37.2.
+package spdy
+import io "github.com/reoring/gofx/ports/client-go/deps/io"
+import raw "github.com/reoring/gofx/ports/client-go/deps/k8s.io/streaming/pkg/httpstream"
+import errors "github.com/reoring/gofx/ports/client-go/deps/support"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import text "std/string"
+
+type Reader = Reader { read: func(Int) IO[outcome.Outcome[String]], close: func() IO[Unit] }
+type Writer = Writer { write: func(String) IO[outcome.Outcome[Int]], close: func() IO[Unit] }
+type Stream = Stream { reader: Reader, writer: Writer, reset: func() IO[Unit], identity: Option[raw.Stream], headers:List[(String,String)], identifier:Int }
+type Connection = Connection { createStream: func(List[(String,String)]) IO[outcome.Outcome[Option[Stream]]], close: func() IO[Unit], awaitClose: func() IO[Unit], removeStreams: func(List[Stream]) IO[Unit], setIdleTimeout:func(Int) IO[Unit] }
+type DialResult = DialResult { connection: Option[Connection], protocol: String }
+type Dialer = Dialer { dial: func(List[String]) IO[outcome.Outcome[DialResult]] }
+
+extern func _read(reader io.Reader, size Int) IO[(String, Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/transport/spdy/host".Read
+extern func _write(writer io.Writer, data String) IO[(Int, Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/transport/spdy/host".Write
+extern func _closeReader(reader io.Reader) IO[Unit] = "github.com/reoring/gofx/ports/client-go/transport/spdy/host".CloseReader
+extern func _closeWriter(writer io.Writer) IO[Unit] = "github.com/reoring/gofx/ports/client-go/transport/spdy/host".CloseWriter
+extern func _reader(stream raw.Stream) IO[io.Reader] = "github.com/reoring/gofx/ports/client-go/transport/spdy/host".StreamReader
+extern func _writer(stream raw.Stream) IO[io.Writer] = "github.com/reoring/gofx/ports/client-go/transport/spdy/host".StreamWriter
+extern func _create(connection raw.Connection, headers List[(String,String)]) IO[(Option[raw.Stream],Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/transport/spdy/host".CreateStream
+extern func _awaitClose(connection raw.Connection) IO[Unit] = "github.com/reoring/gofx/ports/client-go/transport/spdy/host".AwaitClose
+extern func _remove(connection raw.Connection, streams List[raw.Stream]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/transport/spdy/host".RemoveStreams
+extern func isEOF(error errors.Error) Bool = "github.com/reoring/gofx/ports/client-go/transport/spdy/host".IsEOF
+extern func byteLength(data String) Int = "github.com/reoring/gofx/ports/client-go/transport/spdy/host".ByteLength
+extern func byteSlice(data String, start Int) String = "github.com/reoring/gofx/ports/client-go/transport/spdy/host".ByteSlice
+extern func _headers(stream raw.Stream) IO[List[(String,String)]] = "github.com/reoring/gofx/ports/client-go/transport/spdy/host".Headers
+extern func _idle(connection raw.Connection, nanos Int) IO[Unit] = "github.com/reoring/gofx/ports/client-go/transport/spdy/host".Idle
+extern func _shortWrite() errors.Error = "github.com/reoring/gofx/ports/client-go/transport/spdy/host".ShortWrite
+
+func fromReader(reader io.Reader) Reader { Reader { read: func(size) => do { result <- _read(reader,size); ioPure(outcome.from(result.0,result.1)) }, close: func() => _closeReader(reader) } }
+func fromWriter(writer io.Writer) Writer { Writer { write: func(data) => do { result <- _write(writer,data); ioPure(outcome.from(result.0,result.1)) }, close: func() => _closeWriter(writer) } }
+func fromStream(stream raw.Stream) IO[Stream] { do {
+ reader <- _reader(stream)
+ writer <- _writer(stream)
+ headers <- _headers(stream)
+ id <- raw.streamCallIdentifierIdentity(stream)
+ ioPure(Stream { reader: fromReader(reader), writer: fromWriter(writer), reset: func() => do { _ <- raw.streamCallResetIdentity(stream); ioPure(unit()) }, identity: Some(stream), headers:headers,identifier:id })
+} }
+func _identities(streams List[Stream]) List[raw.Stream] { match streams { Nil => Nil; Cons(s,tail) => match s.identity { None => _identities(tail); Some(v) => Cons(v,_identities(tail)) } } }
+func fromConnection(connection raw.Connection) Connection { Connection {
+ createStream: func(headers) => do {
+  result <- _create(connection,headers)
+  match result.0 { None => ioPure(outcome.from(None,result.1)); Some(s) => do { stream <- fromStream(s); ioPure(outcome.from(Some(stream),result.1)) } }
+ },
+ close: func() => do { _ <- raw.connectionCallCloseIdentity(connection); ioPure(unit()) },
+ awaitClose: func() => _awaitClose(connection),
+ removeStreams: func(streams) => _remove(connection,_identities(streams)),
+ setIdleTimeout:func(nanos)=>_idle(connection,nanos)
+} }
+func writeAll(writer Writer, data String) IO[outcome.Outcome[Int]] { do {
+ result <- writer.write(data)
+ match result.error { Some(_) => ioPure(result); None =>
+  if result.value == byteLength(data) { ioPure(result) } else {
+   if result.value <= 0 || result.value > byteLength(data) { ioPure(outcome.from(result.value,Some(errors.errorNew("short write")))) }
+   else { do { rest <- writeAll(writer,byteSlice(data,result.value)); ioPure(outcome.from(result.value + rest.value,rest.error)) } }
+  }
+ }
+} }
+func copy(reader Reader, writer Writer) IO[outcome.Outcome[Int]] { _copy(reader,writer,0) }
+func _copyWrite(writer Writer,data String) IO[outcome.Outcome[Int]] {do {
+ result<-writer.write(data)
+ if result.value<0 || result.value>byteLength(data) {ioPure(outcome.failure(0,errors.errorNew("invalid write result")))} else {
+  ioPure(match result.error {Some(_)=>result;None=>if result.value!=byteLength(data) {outcome.failure(result.value,_shortWrite())} else {result}})
+ }
+}}
+func _copy(reader Reader, writer Writer, total Int) IO[outcome.Outcome[Int]] { do {
+ part <- reader.read(32768)
+ written <- if byteLength(part.value) == 0 { ioPure(outcome.success(0)) } else { _copyWrite(writer,part.value) }
+ match written.error { Some(e) => ioPure(outcome.from(total+written.value,Some(e))); None => match part.error {
+  Some(e) => ioPure(outcome.from(total+written.value,if isEOF(e) { None } else { Some(e) }));
+  None => _copy(reader,writer,total+written.value)
+ } }
+} }
+func readAll(reader Reader) IO[outcome.Outcome[String]] { _readAll(reader,Nil) }
+func _readAll(reader Reader, chunks List[String]) IO[outcome.Outcome[String]] { do {
+ part <- reader.read(32768)
+ let next = Cons(part.value,chunks)
+ match part.error { None => _readAll(reader,next); Some(e) => ioPure(outcome.from(text.join("",_reverse(next,Nil)),if isEOF(e) { None } else { Some(e) })) }
+} }
+func _reverse(xs List[String], acc List[String]) List[String] { match xs { Nil => acc; Cons(x,tail) => _reverse(tail,Cons(x,acc)) } }
+func discard() Writer { Writer { write: func(data) => ioPure(outcome.success(byteLength(data))), close: func() => ioPure(unit()) } }

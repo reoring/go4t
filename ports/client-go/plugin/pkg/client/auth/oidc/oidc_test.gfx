@@ -1,0 +1,92 @@
+// Copyright 2026 The Kubernetes Authors. Licensed under Apache-2.0.
+package oidc
+import "rest"
+import http "deps/net/http"
+import errors "deps/support"
+import "support/sync"
+import "support/outcome"
+import fx "plugin/pkg/client/auth/internal/effects"
+import "std/map"
+import "std/string"
+import "std/io"
+
+func _testConfig() Map[String,String] {map.mapFromList([("idp-issuer-url","https://issuer.invalid/"),("client-id","fixture-client"),("client-secret","fixture-secret"),("refresh-token","fixture-refresh"),("id-token","e30.eyJleHAiOjB9.sig")])}
+func _testValidToken() String {"e30.eyJleHAiOjM2MDB9.sig"}
+func _testProvider(result outcome.Outcome[Option[Provider]]) IO[Provider] {match result.value {None => ioFail("fixture provider creation failed");Some(provider) => ioPure(provider)}}
+func _testEnvironment(clock sync.Clock,requests sync.Ref[List[(String,String,String)]]) IO[Environment] {do {
+ client <- http.newClient()
+ ioPure(Environment(clock,func(file,data) => ioPure(outcome.success(Some(client))),func(client,method,address,headers,body,limit) => do {
+  previous <- sync.readRef(requests);sync.writeRef(requests,Cons((method,address,body),previous))
+  if method == "GET" {ioPure((200,"200 OK",("application/json","{\"token_endpoint\":\"https://issuer.invalid/token\"}")))} else {ioPure((200,"200 OK",("application/json","{\"access_token\":\"fixture-access\",\"id_token\":"+fx.quote(_testValidToken())+",\"refresh_token\":\"rotated-refresh\"}")))}
+ }))
+}}
+func testTokenValiditySkewAndScientificExpiry() IO[Bool] {do {
+ valid <- idTokenExpired(0,_testValidToken())
+ boundary <- idTokenExpired(3590000000000,_testValidToken())
+ expired <- idTokenExpired(0,"e30.eyJleHAiOjB9.sig")
+ malformed <- idTokenExpired(0,"not-a-jwt")
+ scientific <- fx.jsonSeconds("1.493851263e9")
+ ioPure(valid.value && !boundary.value && !expired.value && !outcome.isSuccess(malformed) && scientific == 1493851263)
+}}
+func testRefreshPersistsBeforeCommitAndReusesToken() IO[Bool] {do {
+ clock <- sync.fakeClock(0);requests <- sync.newRef(Nil);environment <- _testEnvironment(clock,requests);cache <- newClientCache();writes <- sync.newRef(Nil)
+ let persister = rest.AuthProviderConfigPersister(func(config) => do {before <- sync.readRef(writes);sync.writeRef(writes,Cons(config,before));ioPure(outcome.success(unit()))})
+ created <- newProvider(cache,environment,"cluster",_testConfig(),persister);provider <- _testProvider(created)
+ first <- sync.start(idToken(provider));second <- sync.start(idToken(provider))
+ one <- sync.join(first);two <- sync.join(second)
+ saved <- sync.readRef(writes);current <- sync.readRef(provider.config);calls <- sync.readRef(requests)
+ ioPure(one.value == _testValidToken() && two.value == _testValidToken() && length(calls) == 2 && length(saved) == 1 && fx.field(current,"refresh-token") == "rotated-refresh" && fx.field(current,"client-secret") == "fixture-secret" && (match saved {Cons(config,Nil) => fx.field(config,"id-token") == _testValidToken();_ => false}))
+}}
+func testPersistenceFailureLeavesConfigAndAllowsRetry() IO[Bool] {do {
+ clock <- sync.fakeClock(0);requests <- sync.newRef(Nil);environment <- _testEnvironment(clock,requests);cache <- newClientCache()
+ let persister = rest.AuthProviderConfigPersister(func(config) => ioPure(fx.failure(unit(),"fixture disk error")))
+ created <- newProvider(cache,environment,"cluster",_testConfig(),persister);provider <- _testProvider(created)
+ first <- idToken(provider);second <- idToken(provider);current <- sync.readRef(provider.config);calls <- sync.readRef(requests)
+ ioPure(current == _testConfig() && length(calls) == 4 && (match (first.error,second.error) {(Some(a),Some(b)) => errors.errorMessage(a) == "could not persist new tokens: fixture disk error" && errors.errorMessage(b) == "could not persist new tokens: fixture disk error";_ => false}))
+}}
+func testCacheKeyUsesClusterIssuerAndClientNotSecret() IO[Bool] {do {
+ clock <- sync.fakeClock(0);requests <- sync.newRef(Nil);environment <- _testEnvironment(clock,requests);cache <- newClientCache()
+ let persister = rest.AuthProviderConfigPersister(func(config) => ioPure(outcome.success(unit())))
+ first <- newProvider(cache,environment,"cluster",_testConfig(),persister);a <- _testProvider(first)
+ second <- newProvider(cache,environment,"cluster",map.mapInsert(_testConfig(),"client-secret","different"),persister);b <- _testProvider(second)
+ third <- newProvider(cache,environment,"other",_testConfig(),persister);c <- _testProvider(third)
+ sync.writeRef(a.config,map.mapInsert(_testConfig(),"id-token",_testValidToken()))
+ reused <- sync.readRef(b.config);independent <- sync.readRef(c.config)
+ ioPure(fx.field(reused,"id-token") == _testValidToken() && fx.field(reused,"client-secret") == "fixture-secret" && independent == _testConfig())
+}}
+func testMissingRefreshAndMalformedTokenDoNotDiscover() IO[Bool] {do {
+ clock <- sync.fakeClock(0);requests <- sync.newRef(Nil);environment <- _testEnvironment(clock,requests);cache <- newClientCache()
+ let persister = rest.AuthProviderConfigPersister(func(config) => ioPure(outcome.success(unit())))
+ first <- newProvider(cache,environment,"a",map.mapDelete(_testConfig(),"refresh-token"),persister);a <- _testProvider(first)
+ second <- newProvider(cache,environment,"b",map.mapInsert(_testConfig(),"id-token","broken"),persister);b <- _testProvider(second)
+ noRefresh <- idToken(a);malformed <- idToken(b);calls <- sync.readRef(requests)
+ ioPure(length(calls) == 0 && !outcome.isSuccess(malformed) && (match noRefresh.error {Some(e) => errors.errorMessage(e) == "No valid id-token, and cannot refresh without refresh-token";None => false}))
+}}
+func testDiscoveryMissingEndpointAndMissingIDToken() IO[Bool] {do {
+ clock <- sync.fakeClock(0);requests <- sync.newRef(Nil);base <- _testEnvironment(clock,requests);cache <- newClientCache()
+ let persister = rest.AuthProviderConfigPersister(func(config) => ioPure(outcome.success(unit())))
+ let empty = base{request:func(client,method,address,headers,body,limit) => ioPure((200,"200 OK",("application/json","{}")))}
+ one <- newProvider(cache,empty,"empty",_testConfig(),persister);a <- _testProvider(one);missingEndpoint <- idToken(a)
+ let missing = base{request:func(client,method,address,headers,body,limit) => if method == "GET" {ioPure((200,"200 OK",("application/json","{\"token_endpoint\":\"https://issuer.invalid/token\"}")))} else {ioPure((200,"200 OK",("application/json","{\"access_token\":\"fixture-access\"}")))}}
+ two <- newProvider(cache,missing,"missing",_testConfig(),persister);b <- _testProvider(two);missingToken <- idToken(b)
+ ioPure(match (missingEndpoint.error,missingToken.error) {(Some(e),Some(t)) => errors.errorMessage(e) == "oidc: discovery object doesn't contain a token_endpoint" && string.startsWith(errors.errorMessage(t),"token response did not contain an id_token");_ => false})
+}}
+func testOAuthFallbackOmitsScopes() IO[Bool] {do {
+ clock <- sync.fakeClock(0);requests <- sync.newRef(Nil);base <- _testEnvironment(clock,requests);cache <- newClientCache();posts <- sync.newRef(Nil)
+ let environment = base{request:func(client,method,address,headers,body,limit) => if method == "GET" {ioPure((200,"200 OK",("application/json","{\"token_endpoint\":\"https://issuer.invalid/token\"}")))} else {do {
+  previous <- sync.readRef(posts);sync.writeRef(posts,Cons(body,previous))
+  if length(previous) == 0 {ioPure((401,"401 Unauthorized",("application/json","{\"error\":\"invalid_client\"}")))} else {ioPure((200,"200 OK",("application/json","{\"access_token\":\"fixture-access\",\"id_token\":"+fx.quote(_testValidToken())+"}")))}
+ }}}
+ let persister = rest.AuthProviderConfigPersister(func(config) => ioPure(outcome.success(unit())))
+ created <- newProvider(cache,environment,"cluster",map.mapInsert(_testConfig(),"extra-scopes","openid profile"),persister);provider <- _testProvider(created);result <- idToken(provider);bodies <- sync.readRef(posts)
+ ioPure(outcome.isSuccess(result) && (match bodies {Cons(second,Cons(first,Nil)) => !string.contains(first,"client_secret") && string.contains(second,"client_secret=fixture-secret") && !string.contains(first,"scope") && !string.contains(second,"scope");_ => false}))
+}}
+func testCancellationDoesNotCommitOrPersist() IO[Bool] {do {
+ clock <- sync.fakeClock(0);requests <- sync.newRef(Nil);base <- _testEnvironment(clock,requests);cache <- newClientCache();writes <- sync.newRef(0)
+ let environment = base{request:func(client,method,address,headers,body,limit) => io.ioRaise(io.Cancelled)}
+ let persister = rest.AuthProviderConfigPersister(func(config) => do {sync.writeRef(writes,1);ioPure(outcome.success(unit()))})
+ created <- newProvider(cache,environment,"cluster",_testConfig(),persister);provider <- _testProvider(created)
+ result <- io.tryIO(idToken(provider));current <- sync.readRef(provider.config);count <- sync.readRef(writes)
+ ioPure(count == 0 && current == _testConfig() && (match result {Err(io.Cancelled) => true;_ => false}))
+}}
+func testLoginPreservesPinnedError() IO[Bool] {do {result <- login();ioPure(match result.error {Some(e) => errors.errorMessage(e) == "not yet implemented";None => false})}}

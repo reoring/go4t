@@ -1,0 +1,51 @@
+package examples
+
+// Copyright 2016 The Kubernetes Authors. Licensed under Apache-2.0.
+// No process environment, home directory or service-account files are consulted.
+import api "tools/clientcmd/api"
+import cmd "tools/clientcmd"
+import rest "rest"
+import kube "kubernetes"
+import meta "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import core "deps/k8s.io/api/core/v1"
+import errors "deps/support"
+import outcome "support/outcome"
+
+func isolatedSource() api.Source {
+ let denied = errors.errorNew("example fixture denies filesystem access")
+ api.Source(func(_) => ioPure(outcome.failure("",denied)),func(_,_,_) => ioPure(Some(denied)),func(_) => ioPure(outcome.failure(api.FileInfo(false,0),denied)),func(_,_) => ioPure(Some(denied)),func(_) => ioPure(Some(denied)),func(_) => ioPure(Some(denied)),func(_) => ioPure(""),func() => ioPure(outcome.success("/fixture")),func(_) => ioPure(Some(denied)))
+}
+func kubeconfigFor(url String) String {
+ "{\"apiVersion\":\"v1\",\"kind\":\"Config\",\"current-context\":\"fixture\",\"clusters\":[{\"name\":\"fixture\",\"cluster\":{\"server\":"+quote(url)+"}}],\"users\":[{\"name\":\"fixture\",\"user\":{}}],\"contexts\":[{\"name\":\"fixture\",\"context\":{\"cluster\":\"fixture\",\"user\":\"fixture\",\"namespace\":\"default\"}}]}"
+}
+func listDefaultPods(env rest.Environment,configuration rest.Config,trace Trace) IO[Unit] {
+ do {
+  made <- kube.newForConfig(env,configuration); client <- present(made)
+  result <- client.coreV1().pods("default").list(meta.newListOptions()); result <- require(result)
+  check(match core.podListGetItems(result) { Some(values) => length(values)==1; None => false },"fixture list did not return one pod")
+  resultEvent(trace,"list",core.podListObjectType(),result)
+ }
+}
+func configurationExample(inCluster Bool) IO[Trace] {
+ do {
+  trace <- newTrace(if inCluster { "in_cluster_configuration" } else { "out_of_cluster_configuration" })
+  env <- environment()
+  let response = "{\"apiVersion\":\"v1\",\"kind\":\"PodList\",\"items\":[{\"metadata\":{\"name\":\"example-pod\",\"namespace\":\"default\"}}]}"
+  withHTTP(trace,[Exchange("GET","/api/v1/namespaces/default/pods",200,response)],func(url) => do {
+   configuration <- if inCluster {
+    do {
+     let source = rest.ClusterEnvironment(func(key) => ioPure(if key=="KUBERNETES_SERVICE_HOST" { "127.0.0.1" } else if key=="KUBERNETES_SERVICE_PORT" { "443" } else { "" }),func(path) => ioPure(if path=="/var/run/secrets/kubernetes.io/serviceaccount/token" { ("fixture-token",None) } else { ("fixture-ca",None) }),func(_) => true,func(message) => ioFail(message))
+     loaded <- rest.inClusterConfigWith(source); loaded <- present(loaded)
+     check(loaded.host=="https://127.0.0.1:443" && loaded.bearerToken=="fixture-token" && loaded.bearerTokenFile=="/var/run/secrets/kubernetes.io/serviceaccount/token","in-cluster configuration contract")
+     // The protocol server is deliberately loopback HTTP. Disable file refresh and
+     // CA loading after testing resolution so no real mounted credentials are read.
+     ioPure(loaded{host: url,bearerTokenFile: "",tlsClientConfig: rest.emptyTLSClientConfig(),qps: -1.0})
+    }
+   } else {
+    do { loaded <- cmd.restConfigFromKubeConfig(isolatedSource(),kubeconfigFor(url)); loaded <- present(loaded); ioPure(loaded{qps: 50.0,burst: 100}) }
+   }
+   listDefaultPods(env,configuration,trace)
+  })
+  ioPure(trace)
+ }
+}

@@ -1,0 +1,33 @@
+// Copyright 2018 The Kubernetes Authors. Licensed under Apache-2.0.
+// Public test fixture copied from pinned exec_test.go:53-97; not a live credential.
+package exec
+import "support/sync"
+import "support/outcome"
+import "transport"
+import fx "plugin/pkg/client/auth/internal/effects"
+func _fixtureCertificate() String {"-----BEGIN CERTIFICATE-----\nMIIC6jCCAdSgAwIBAgIBCzALBgkqhkiG9w0BAQswIzEhMB8GA1UEAwwYMTAuMTMu\nMTI5LjEwNkAxNDIxMzU5MDU4MB4XDTE1MDExNTIyMDEzMVoXDTE2MDExNTIyMDEz\nMlowGzEZMBcGA1UEAxMQb3BlbnNoaWZ0LWNsaWVudDCCASIwDQYJKoZIhvcNAQEB\nBQADggEPADCCAQoCggEBAKtdhz0+uCLXw5cSYns9rU/XifFSpb/x24WDdrm72S/v\nb9BPYsAStiP148buylr1SOuNi8sTAZmlVDDIpIVwMLff+o2rKYDicn9fjbrTxTOj\nlI4pHJBH+JU3AJ0tbajupioh70jwFS0oYpwtneg2zcnE2Z4l6mhrj2okrc5Q1/X2\nI2HChtIU4JYTisObtin10QKJX01CLfYXJLa8upWzKZ4/GOcHG+eAV3jXWoXidtjb\n1Usw70amoTZ6mIVCkiu1QwCoa8+ycojGfZhvqMsAp1536ZcCul+Na+AbCv4zKS7F\nkQQaImVrXdUiFansIoofGlw/JNuoKK6ssVpS5Ic3pgcCAwEAAaM1MDMwDgYDVR0P\nAQH/BAQDAgCgMBMGA1UdJQQMMAoGCCsGAQUFBwMCMAwGA1UdEwEB/wQCMAAwCwYJ\nKoZIhvcNAQELA4IBAQCKLREH7bXtXtZ+8vI6cjD7W3QikiArGqbl36bAhhWsJLp/\np/ndKz39iFNaiZ3GlwIURWOOKx3y3GA0x9m8FR+Llthf0EQ8sUjnwaknWs0Y6DQ3\njjPFZOpV3KPCFrdMJ3++E3MgwFC/Ih/N2ebFX9EcV9Vcc6oVWMdwT0fsrhu683rq\n6GSR/3iVX1G/pmOiuaR0fNUaCyCfYrnI4zHBDgSfnlm3vIvN2lrsR/DQBakNL8DJ\nHBgKxMGeUPoneBv+c8DMXIL0EhaFXRlBv9QW45/GiAIOuyFJ0i6hCtGZpJjq4OpQ\nBRjCI+izPzFTjsxD4aORE+WOkyWFCGPWKfNejfw0\n-----END CERTIFICATE-----"}
+func _fixtureKey() String {"-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEAq12HPT64ItfDlxJiez2tT9eJ8VKlv/HbhYN2ubvZL+9v0E9i\nwBK2I/Xjxu7KWvVI642LyxMBmaVUMMikhXAwt9/6jaspgOJyf1+NutPFM6OUjikc\nkEf4lTcAnS1tqO6mKiHvSPAVLShinC2d6DbNycTZniXqaGuPaiStzlDX9fYjYcKG\n0hTglhOKw5u2KfXRAolfTUIt9hcktry6lbMpnj8Y5wcb54BXeNdaheJ22NvVSzDv\nRqahNnqYhUKSK7VDAKhrz7JyiMZ9mG+oywCnXnfplwK6X41r4BsK/jMpLsWRBBoi\nZWtd1SIVqewiih8aXD8k26gorqyxWlLkhzemBwIDAQABAoIBAD2XYRs3JrGHQUpU\nFkdbVKZkvrSY0vAZOqBTLuH0zUv4UATb8487anGkWBjRDLQCgxH+jucPTrztekQK\naW94clo0S3aNtV4YhbSYIHWs1a0It0UdK6ID7CmdWkAj6s0T8W8lQT7C46mWYVLm\n5mFnCTHi6aB42jZrqmEpC7sivWwuU0xqj3Ml8kkxQCGmyc9JjmCB4OrFFC8NNt6M\nObvQkUI6Z3nO4phTbpxkE1/9dT0MmPIF7GhHVzJMS+EyyRYUDllZ0wvVSOM3qZT0\nJMUaBerkNwm9foKJ1+dv2nMKZZbJajv7suUDCfU44mVeaEO+4kmTKSGCGjjTBGkr\n7L1ySDECgYEA5ElIMhpdBzIivCuBIH8LlUeuzd93pqssO1G2Xg0jHtfM4tz7fyeI\ncr90dc8gpli24dkSxzLeg3Tn3wIj/Bu64m2TpZPZEIlukYvgdgArmRIPQVxerYey\nOkrfTNkxU1HXsYjLCdGcGXs5lmb+K/kuTcFxaMOs7jZi7La+jEONwf8CgYEAwCs/\nrUOOA0klDsWWisbivOiNPII79c9McZCNBqncCBfMUoiGe8uWDEO4TFHN60vFuVk9\n8PkwpCfvaBUX+ajvbafIfHxsnfk1M04WLGCeqQ/ym5Q4sQoQOcC1b1y9qc/xEWfg\nnIUuia0ukYRpl7qQa3tNg+BNFyjypW8zukUAC/kCgYB1/Kojuxx5q5/oQVPrx73k\n2bevD+B3c+DYh9MJqSCNwFtUpYIWpggPxoQan4LwdsmO0PKzocb/ilyNFj4i/vII\nNToqSc/WjDFpaDIKyuu9oWfhECye45NqLWhb/6VOuu4QA/Nsj7luMhIBehnEAHW+\nGkzTKM8oD1PxpEG3nPKXYQKBgQC6AuMPRt3XBl1NkCrpSBy/uObFlFaP2Enpf39S\n3OZ0Gv0XQrnSaL1kP8TMcz68rMrGX8DaWYsgytstR4W+jyy7WvZwsUu+GjTJ5aMG\n77uEcEBpIi9CBzivfn7hPccE8ZgqPf+n4i6q66yxBJflW5xhvafJqDtW2LcPNbW/\nbvzdmQKBgExALRUXpq+5dbmkdXBHtvXdRDZ6rVmrnjy4nI5bPw+1GqQqk6uAR6B/\nF6NmLCQOO4PDG/cuatNHIr2FrwTmGdEL6ObLUGWn9Oer9gJhHVqqsY5I4sEPo4XX\nstR0Yiw0buV6DL/moUO0HIM9Bjh96HJp+LxiIS6UCdIhMPp5HoQa\n-----END RSA PRIVATE KEY-----"}
+func testCertificateAndTokenRotateIndependently() IO[Bool] {do {
+ clock <- sync.fakeClock(0);calls <- sync.newRef(0);cache <- newCache();rotations <- sync.newRef(0);expirations <- sync.newRef(None)
+ let reply = "{\"apiVersion\":\"client.authentication.k8s.io/v1\",\"kind\":\"ExecCredential\",\"status\":{\"token\":\"fixture-token\",\"clientCertificateData\":"+fx.quote(_fixtureCertificate())+",\"clientKeyData\":"+fx.quote(_fixtureKey())+"}}"
+ let base = _testEnvironment(clock,calls,reply)
+ let metrics = Metrics(func(code,category) => ioPure(unit()),func(policy) => ioPure(unit()),func(age) => do {n <- sync.readRef(rotations);sync.writeRef(rotations,n+1)},func(expiration) => sync.writeRef(expirations,expiration))
+ let environment = base{metrics:Some(metrics),run:func(command,env,interactive) => do {n <- sync.readRef(calls);sync.writeRef(calls,n+1);ioPure((if n < 2 {reply} else {_testWire("rotated-token","")},"",(0,None)))}}
+ created <- getAuthenticator(cache,environment,_testConfig(),None);a <- _testAuthenticator(created);first <- getCreds(a)
+ match first.value {None => ioPure(false);Some(c) => do {
+  same <- maybeRefreshCreds(a,c);second <- getCreds(a);before <- sync.readRef(rotations)
+  match second.value {None => ioPure(false);Some(d) => do {
+   changed <- maybeRefreshCreds(a,d);last <- getCreds(a);after <- sync.readRef(rotations);expiry <- sync.readRef(expirations)
+   ioPure(outcome.isSuccess(same) && outcome.isSuccess(changed) && before == 0 && after == 1 && (match (c.certificate,last.value,expiry) {(Some(_),Some(result),None) => result.token == "rotated-token" && (match result.certificate {None => true;Some(_) => false});_ => false}))
+  }}
+ }}
+}}
+func testExplicitTransportCredentialsBypassExec() IO[Bool] {do {
+ clock <- sync.fakeClock(0);calls <- sync.newRef(0);cache <- newCache();created <- getAuthenticator(cache,_testEnvironment(clock,calls,"invalid"),_testConfig(),None);a <- _testAuthenticator(created)
+ let base = transport.defaultConfig()
+ token <- updateTransportConfig(a,base{bearerToken:"explicit"})
+ basic <- updateTransportConfig(a,base{username:"user",password:"password"})
+ cert <- updateTransportConfig(a,base{tls:base.tls{certData:Some("cert"),keyData:Some("key")}})
+ count <- sync.readRef(calls)
+ ioPure(outcome.isSuccess(token) && outcome.isSuccess(basic) && outcome.isSuccess(cert) && count == 0)
+}}

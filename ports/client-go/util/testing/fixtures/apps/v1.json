@@ -1,0 +1,1 @@
+{"openapi":"3.0.0","info":{"title":"Controlled client-go example","version":"1"},"paths":{},"components":{"schemas":{"io.k8s.api.apps.v1.Deployment":{"type":"object","properties":{"metadata":{"type":"object"},"spec":{"type":"object"}}}}}}

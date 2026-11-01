@@ -71,13 +71,25 @@ The exhaustive inventory now records 2,531 files, including 2,453 Go files, 2,00
 
 - Go and gofx module name: `github.com/reoring/gofx/ports/client-go`. Local Go dependency `gofx v0.0.0` is replaced by `../..`; Go version is 1.26.0. The module's own source is imported using upstream-relative paths.
 - Native gofx callbacks are the public contract. Exact Go-interface drop-in compatibility is not required; existing `--emit-go` limitations do not justify dropping native generic/callback APIs.
-- `support/sync` is the only generic synchronization surface; `internal/hostsync` implements its host effects. Types: `Ref[A]`, `Mutex`, `Condition`, `Channel[A]`, `Task[A]`, `Clock`, `Instant`, `Timer`, all opaque nominal handles.
+- `support/sync` is the only generic synchronization surface; `host/sync` implements its host effects. Types: `Ref[A]`, `Mutex`, `Condition`, `Channel[A]`, `Task[A]`, `Clock`, `Instant`, `Timer`, all opaque nominal handles.
 - All allocation, reads of mutable state, mutation, blocking, notifications, task operations and clock operations return `IO`. `newRef[A](value A) IO[Ref[A]]`, `readRef[A](ref Ref[A]) IO[A]`, `writeRef[A](ref Ref[A], value A) IO[Unit]`. References alone do not make multi-step transitions atomic.
 - `newMutex() IO[Mutex]` and `withLock[A](mutex Mutex, action IO[A]) IO[A]` provide cancellation-aware acquisition and exception-safe release. `newCondition(mutex Mutex) IO[Condition]`, `wait(condition Condition) IO[Unit]`, `signal(condition Condition) IO[Unit]`, `broadcast(condition Condition) IO[Unit]`; wait atomically registers/releases/reacquires the associated mutex, including cancellation paths. Caller uses condition operations inside withLock. Algorithms and predicates remain gofx.
 - `newChannel[A](capacity Int) IO[Channel[A]]`, `send[A](channel Channel[A], value A) IO[Unit]`, `receive[A](channel Channel[A]) IO[Option[A]]`, `close[A](channel Channel[A]) IO[Unit]`. Zero capacity is rendezvous, negative capacity is an error; None is closed-and-drained, never a data value. Native select is `selectReceive[A](channels List[Channel[A]]) IO[(Int, Option[A])]`; it atomically consumes one winning source, never consumes a losing source, and handles cancellation without spinning. Heterogeneous callers explicitly map events to a common sum type.
 - Tasks are distinct from std/conc Fiber: `start[A](action IO[A]) IO[Task[A]]` is parent-linked; `startDetached[A](action IO[A]) IO[Task[A]]` preserves context values but not parent cancellation/deadline; `cancelTask[A](task Task[A]) IO[Unit]`; `join[A](task Task[A]) IO[A]` waits for actual completion or caller cancellation, not task-cancel acknowledgement. `uninterruptible[A](action IO[A]) IO[A]` supplies cleanup context without cancellation while preserving values. No arbitrary 100ms abandonment in strict joins.
 - `realClock() IO[Clock]`, `fakeClock(startNanos Int) IO[Clock]`, `now(clock Clock) IO[Instant]`, `unixNanos(instant Instant) Int`, `elapsed(start Instant, end Instant) Int`, `add(instant Instant, nanos Int) Instant`, `compareInstant(a Instant,b Instant) Ordering`; Instants preserve real monotonic readings. `newTimer(clock Clock, nanos Int) IO[Timer]`, `timerChannel(timer Timer) IO[Channel[Instant]]`, `stopTimer(timer Timer) IO[Bool]`, `resetTimer(timer Timer,nanos Int) IO[Bool]`, `advance(clock Clock,nanos Int) IO[Unit]` for fake clocks. Nanosecond durations, no Float conversion.
 - Handle construction and tuple/Option bridging use the existing erased extern ABI and rt.Shapes; no compiler changes or client-go policy are authorized in this prerequisite.
+
+The initial internal placement of shared helpers was corrected after isolated
+external-module consumers failed Go's internal-import check: emitted consumer
+packages must be able to import the host implementations. `host/sync` (Go package
+`hostsync`, runtime owner) and `host/deps` (Go package `hostdeps`, canonical
+dependency integration owner) are therefore public implementation boundaries.
+The move changes package paths only: native identities, symbols, signatures,
+ABI modes and semantics remain unchanged, with no forwarding packages.
+`tools/binddeps/generate.py` and its manual adapters emit the public dependency
+path; root `tools/portgen` templates must use it too. Historical diagnostics,
+logs and retained generated proof artifacts preserve the paths observed when
+they were captured; they are not current source or generator inputs.
 
 ### External typed dependencies
 
@@ -89,7 +101,7 @@ The exhaustive inventory now records 2,531 files, including 2,453 Go files, 2,00
 
 ### Prerequisite owners
 
-- `ClientGoRuntime`: module manifests, `support/sync/**`, `internal/hostsync/**`, and a throwaway primitive smoke. No networking, API-domain logic or compiler edits.
+- `ClientGoRuntime`: module manifests, `support/sync/**`, `host/sync/**`, and a throwaway primitive smoke. No networking, API-domain logic or compiler edits.
 - `ClientGoDependencyContract`: read-only extraction of the exact external API type/codec/selector graph into a machine-readable proposed binding manifest and bounded evidence. No shared manifest or product-binding edits until the supervisor accepts the canonical schema. This is independent of synchronization implementation.
 
 Before the main implementation fan-out, the supervisor will accept and commit these shared contracts and verified runtime primitives, then assign every implementation package from the inventory to one owner.
@@ -98,7 +110,7 @@ Before the main implementation fan-out, the supervisor will accept and commit th
 
 The user explicitly selected **gofx-facing APIs**, not unchanged Go-source compatibility. This does not remove any client-go functionality from scope.
 
-- `ownership.json` assigns all 401 package records / 388 source directories to 22 owners, using longest matching upstream path prefix; external test companions stay with the source directory. It is the exhaustive slice ledger. Pending means unimplemented, never inferred complete from inventory tooling.
+- `ownership.json` assigns all 401 package records / 388 source directories to 22 owners, using longest matching upstream path prefix; external test companions stay with the source directory. It is the exhaustive slice ledger. Its original pending/UNIMPLEMENTED markers described initial assignment, not permanent state. Current native-source-present status records source delivery separately from integration acceptance; neither inventory nor declaration mapping alone establishes behavioral completeness.
 - `deps/types` owns canonical nominal external types. `deps/<actual Go import path>` reuses them through aliases; deterministic fully-qualified identity hashes prevent name collisions. Only actual Go aliases share nominal identity.
 - External structured values may be host-backed typed snapshots, with complete usable typed constructor/field access/update functions. Operations are named `newPod`, `podGetObjectMeta`, `podWithObjectMeta`, consistently including receiver type and `Get` for getters. No untyped typed-client surface.
 - Pointer values preserve Option presence. Nil versus empty slices/maps and exact bytes/integers remain distinct. Native Map is used only with faithful Ord keys; otherwise a canonical `ForeignMap[K,V]` retains actual Go key equality. UInt64 uses checked high/low components in [0,2^32-1], not signed truncation.
@@ -152,3 +164,51 @@ Expression-position matches retain their required expression form. Preserve
 single scrutinee evaluation, arm order, guards, binding scope, result conversion,
 tail-call behavior and non-exhaustive fallback. No `forKind` special case,
 optimization-disable flag, case deletion or test batching is the final remedy.
+
+## Final capability reconciliation
+
+Package placement and passing scenarios do not prove preservation of every public
+capability. Reconciliation against the pinned production declarations identified
+the following remaining contract work; these are not exclusions from scope.
+
+- Named kubeconfig collections own both presence and accumulated destination
+  state. Their eight conversion operations take an explicit existing destination
+  and return `IO[Outcome[destination]]`, retaining partial output and canonical
+  errors. Conversion order, nil versus empty, sorted append order, replacement of
+  nil entries and complete duplicate-input diagnostics follow the pinned source.
+  ClientConfig owns the conversion boundary and migration of its callers.
+- URL backoff is an adapter over the existing native flow-control backoff
+  aggregate, not a second implementation of exponential growth and expiry.
+  Supplied jitter, clock and expiry policy remain customizable. Rest owns the
+  adapter; Flowcontrol remains the only owner of the backoff algorithm.
+- Cache stores own their metrics and resource-version projection. Direct
+  thread-safe-store use must accept metrics configuration, and AtomicFIFO gate
+  evaluation must be explicit rather than an implicit global. Reflectors retain
+  a distinct type description and expose their receiver to watch-error callbacks.
+  Transformation and resource-version comparison are declared typed capabilities,
+  not assumptions about one concrete store or integer comparator. Cache owns this
+  boundary and must publish constructor/callback changes before caller migration.
+- Generic fake actions preserve arbitrary caller payloads through dispatch and
+  the recorded action ledger, with shallow payload identity across action copies.
+  Kubernetes object fields remain typed. If runtime erasure needs a witness, use
+  an explicit typed payload key and opaque value in this genuinely generic slot;
+  closed JSON values or `runtime.Object` are not substitutes for arbitrary values.
+  FakeGeneric owns the action/dispatch boundary.
+- JSONPath node-name customization is an explicit registry/value supplied to
+  rendering, replacing the mutable Go name map without hidden process globals.
+  JsonPath owns the registry and rendering contract.
+- Reference nil-object errors retain stable sentinel matching, including through
+  wrapping; equal text alone is insufficient. Any required generic tagged-error
+  primitive belongs to canonical dependency support, while the reference owner
+  chooses the domain tag and message.
+- Tunneling retains caller-selected logger and connection-name capabilities.
+  Streaming owns their propagation and observable logging; Go remains a generic
+  socket/logging effect boundary.
+- OpenAPI group-version URL access remains a callable capability, so the fake's
+  pinned panic occurs on access rather than construction. Returning an empty
+  successful URL is not equivalent. OpenAPI owns this contract and its callers.
+
+Each correction requires a focused behavior proof and affected consumer
+verification. Existing passing evidence remains scoped to what ran; it does not
+waive these gaps. No source-key mismatch, missing callback, sentinel, or
+customization is resolved merely by relabeling a coverage record.

@@ -1,0 +1,36 @@
+// Native policy port of client-go v0.37.2 util/watchlist (Apache-2.0).
+package watchlist
+
+import meta "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+
+// Conversion/validation are external apimachinery operations, not client policy.
+// Conversion errors remain errors; validation rejection is unsupported, not error.
+type Validation = Validation { convertAndValidate: func(meta.ListOptions) IO[outcome.Outcome[Bool]] }
+
+func doesClientNotSupportWatchListSemantics(unsupported Option[func() Bool]) Bool {
+ match unsupported { None => false; Some(check) => check() }
+}
+
+func prepareWatchListOptionsFromListOptions(enabled Bool, validation Validation, options meta.ListOptions) IO[outcome.Outcome[(meta.ListOptions, Bool)]] {
+ if !enabled { ioPure(outcome.Outcome((meta.newListOptions(), false), None)) } else {
+  do {
+   valid <- validation.convertAndValidate(options)
+   match valid.error {
+    Some(err) => ioPure(outcome.Outcome((meta.newListOptions(), false), Some(err)))
+    None => if !valid.value || (meta.listOptionsGetLimit(options) > 0 && meta.listOptionsGetResourceVersion(options) != "0") || meta.resourceVersionMatchValue(meta.listOptionsGetResourceVersionMatch(options)) == "Exact" {
+     ioPure(outcome.Outcome((meta.newListOptions(), false), None))
+    } else {
+     let result = meta.listOptionsWithSendInitialEvents(meta.listOptionsWithAllowWatchBookmarks(meta.listOptionsWithWatch(meta.listOptionsWithResourceVersionMatch(meta.listOptionsWithLimit(options, 0), meta.resourceVersionMatchFromValue("NotOlderThan")), true), true), Some(true))
+     do {
+      accepted <- validation.convertAndValidate(result)
+      match accepted.error {
+       Some(err) => ioPure(outcome.Outcome((meta.newListOptions(), false), Some(err)))
+       None => ioPure(outcome.Outcome(if accepted.value { (result, true) } else { (meta.newListOptions(), false) }, None))
+      }
+     }
+    }
+   }
+  }
+ }
+}

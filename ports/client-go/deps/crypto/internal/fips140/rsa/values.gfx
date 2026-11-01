@@ -2,7 +2,7 @@
 // Source: client-go v0.37.2 and exact external dependency declarations.
 // Kubernetes-derived declarations are licensed under Apache-2.0.
 // https://www.apache.org/licenses/LICENSE-2.0
-// Source graph SHA-256: 2e4efd1c862cc7bde1036ba0dc37a4fe08175d4ead5d513b32689e674b91d866
+// Source graph SHA-256: 99a062162cbc99a38896123a3e81ce3ef2f70f2e505fbd058751d52a0a40f167
 package rsa
 
 import canonical "github.com/reoring/gofx/ports/client-go/deps/types"
@@ -10,10 +10,10 @@ import support "github.com/reoring/gofx/ports/client-go/deps/support"
 
 alias PrivateKey = canonical.PrivateKey_8221a5df8206
 alias PublicKey = canonical.PublicKey_30a34d062ede
-extern func publicKeyGetNIdentity(value PublicKey) IO[Option[canonical.Modulus_985c418cf565]] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Get_PublicKey_30a34d062ede_N
-extern func publicKeySetNIdentity(value PublicKey, field Option[canonical.Modulus_985c418cf565]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".With_PublicKey_30a34d062ede_N
-extern func publicKeyGetEIdentity(value PublicKey) IO[Int] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Get_PublicKey_30a34d062ede_E
-extern func publicKeySetEIdentity(value PublicKey, field Int) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".With_PublicKey_30a34d062ede_E
-extern func privateKeyCallExportIdentity(value PrivateKey) IO[(Option[String], (Int, (Option[String], (Option[String], (Option[String], (Option[String], (Option[String], Option[String])))))))] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_3e82923bd2912124
-extern func privateKeyCallPublicKeyIdentity(value PrivateKey) IO[Option[canonical.PublicKey_30a34d062ede]] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_49fb84a4b52790a4
-extern func publicKeyCallSizeIdentity(value PublicKey) IO[Int] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_849ecdae6d3353ba
+extern func publicKeyGetNIdentity(value PublicKey) IO[Option[canonical.Modulus_985c418cf565]] = "github.com/reoring/gofx/ports/client-go/host/deps".Get_PublicKey_30a34d062ede_N
+extern func publicKeySetNIdentity(value PublicKey, field Option[canonical.Modulus_985c418cf565]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".With_PublicKey_30a34d062ede_N
+extern func publicKeyGetEIdentity(value PublicKey) IO[Int] = "github.com/reoring/gofx/ports/client-go/host/deps".Get_PublicKey_30a34d062ede_E
+extern func publicKeySetEIdentity(value PublicKey, field Int) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".With_PublicKey_30a34d062ede_E
+extern func privateKeyCallExportIdentity(value PrivateKey) IO[(Option[String], (Int, (Option[String], (Option[String], (Option[String], (Option[String], (Option[String], Option[String])))))))] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_3e82923bd2912124
+extern func privateKeyCallPublicKeyIdentity(value PrivateKey) IO[Option[canonical.PublicKey_30a34d062ede]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_49fb84a4b52790a4
+extern func publicKeyCallSizeIdentity(value PublicKey) IO[Int] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_849ecdae6d3353ba

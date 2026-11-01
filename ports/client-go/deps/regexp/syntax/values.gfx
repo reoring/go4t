@@ -2,43 +2,43 @@
 // Source: client-go v0.37.2 and exact external dependency declarations.
 // Kubernetes-derived declarations are licensed under Apache-2.0.
 // https://www.apache.org/licenses/LICENSE-2.0
-// Source graph SHA-256: 2e4efd1c862cc7bde1036ba0dc37a4fe08175d4ead5d513b32689e674b91d866
+// Source graph SHA-256: 99a062162cbc99a38896123a3e81ce3ef2f70f2e505fbd058751d52a0a40f167
 package syntax
 
 import canonical "github.com/reoring/gofx/ports/client-go/deps/types"
 import support "github.com/reoring/gofx/ports/client-go/deps/support"
 
 alias EmptyOp = canonical.EmptyOp_282868a6eadc
-extern func newEmptyOp() EmptyOp = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".New_EmptyOp_282868a6eadc
-extern func emptyOpValue(value EmptyOp) Int = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Underlying_EmptyOp_282868a6eadc
-extern func emptyOpFromValue(value Int) EmptyOp = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".From_EmptyOp_282868a6eadc
+extern func newEmptyOp() EmptyOp = "github.com/reoring/gofx/ports/client-go/host/deps".New_EmptyOp_282868a6eadc
+extern func emptyOpValue(value EmptyOp) Int = "github.com/reoring/gofx/ports/client-go/host/deps".Underlying_EmptyOp_282868a6eadc
+extern func emptyOpFromValue(value Int) EmptyOp = "github.com/reoring/gofx/ports/client-go/host/deps".From_EmptyOp_282868a6eadc
 alias Inst = canonical.Inst_277534c0bc85
-extern func newInst() IO[Inst] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".New_Inst_277534c0bc85
-extern func instGetOpIdentity(value Inst) IO[canonical.InstOp_12d817ed27db] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Get_Inst_277534c0bc85_Op
-extern func instSetOpIdentity(value Inst, field canonical.InstOp_12d817ed27db) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".With_Inst_277534c0bc85_Op
-extern func instGetOutIdentity(value Inst) IO[Int] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Get_Inst_277534c0bc85_Out
-extern func instSetOutIdentity(value Inst, field Int) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".With_Inst_277534c0bc85_Out
-extern func instGetArgIdentity(value Inst) IO[Int] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Get_Inst_277534c0bc85_Arg
-extern func instSetArgIdentity(value Inst, field Int) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".With_Inst_277534c0bc85_Arg
-extern func instGetRuneIdentity(value Inst) IO[Option[List[Int]]] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Get_Inst_277534c0bc85_Rune
-extern func instSetRuneIdentity(value Inst, field Option[List[Int]]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".With_Inst_277534c0bc85_Rune
+extern func newInst() IO[Inst] = "github.com/reoring/gofx/ports/client-go/host/deps".New_Inst_277534c0bc85
+extern func instGetOpIdentity(value Inst) IO[canonical.InstOp_12d817ed27db] = "github.com/reoring/gofx/ports/client-go/host/deps".Get_Inst_277534c0bc85_Op
+extern func instSetOpIdentity(value Inst, field canonical.InstOp_12d817ed27db) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".With_Inst_277534c0bc85_Op
+extern func instGetOutIdentity(value Inst) IO[Int] = "github.com/reoring/gofx/ports/client-go/host/deps".Get_Inst_277534c0bc85_Out
+extern func instSetOutIdentity(value Inst, field Int) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".With_Inst_277534c0bc85_Out
+extern func instGetArgIdentity(value Inst) IO[Int] = "github.com/reoring/gofx/ports/client-go/host/deps".Get_Inst_277534c0bc85_Arg
+extern func instSetArgIdentity(value Inst, field Int) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".With_Inst_277534c0bc85_Arg
+extern func instGetRuneIdentity(value Inst) IO[Option[List[Int]]] = "github.com/reoring/gofx/ports/client-go/host/deps".Get_Inst_277534c0bc85_Rune
+extern func instSetRuneIdentity(value Inst, field Option[List[Int]]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".With_Inst_277534c0bc85_Rune
 alias InstOp = canonical.InstOp_12d817ed27db
-extern func newInstOp() InstOp = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".New_InstOp_12d817ed27db
-extern func instOpValue(value InstOp) Int = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Underlying_InstOp_12d817ed27db
-extern func instOpFromValue(value Int) InstOp = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".From_InstOp_12d817ed27db
+extern func newInstOp() InstOp = "github.com/reoring/gofx/ports/client-go/host/deps".New_InstOp_12d817ed27db
+extern func instOpValue(value InstOp) Int = "github.com/reoring/gofx/ports/client-go/host/deps".Underlying_InstOp_12d817ed27db
+extern func instOpFromValue(value Int) InstOp = "github.com/reoring/gofx/ports/client-go/host/deps".From_InstOp_12d817ed27db
 alias Prog = canonical.Prog_9944962fa04a
-extern func newProg() IO[Prog] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".New_Prog_9944962fa04a
-extern func progGetInstIdentity(value Prog) IO[Option[List[canonical.Inst_277534c0bc85]]] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Get_Prog_9944962fa04a_Inst
-extern func progSetInstIdentity(value Prog, field Option[List[canonical.Inst_277534c0bc85]]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".With_Prog_9944962fa04a_Inst
-extern func progGetStartIdentity(value Prog) IO[Int] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Get_Prog_9944962fa04a_Start
-extern func progSetStartIdentity(value Prog, field Int) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".With_Prog_9944962fa04a_Start
-extern func progGetNumCapIdentity(value Prog) IO[Int] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Get_Prog_9944962fa04a_NumCap
-extern func progSetNumCapIdentity(value Prog, field Int) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".With_Prog_9944962fa04a_NumCap
-extern func instCallMatchEmptyWidthIdentity(value Inst, p0 Int, p1 Int) IO[Bool] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_fafee2e9a19d36c0
-extern func instCallMatchRuneIdentity(value Inst, p0 Int) IO[Bool] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_ff5bd0ca1f4f549f
-extern func instCallMatchRunePosIdentity(value Inst, p0 Int) IO[Int] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_4a83a41a44d3d3f8
-extern func instCallStringIdentity(value Inst) IO[String] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_6712c1f558d27c31
-extern func instOpCallString(value InstOp) IO[(InstOp, String)] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_d659421727e0bfe9
-extern func progCallPrefixIdentity(value Prog) IO[(String, Bool)] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_14e130fcd2784bba
-extern func progCallStartCondIdentity(value Prog) IO[canonical.EmptyOp_282868a6eadc] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_efe17a172ab0cdf3
-extern func progCallStringIdentity(value Prog) IO[String] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_e181b0d5875f9624
+extern func newProg() IO[Prog] = "github.com/reoring/gofx/ports/client-go/host/deps".New_Prog_9944962fa04a
+extern func progGetInstIdentity(value Prog) IO[Option[List[canonical.Inst_277534c0bc85]]] = "github.com/reoring/gofx/ports/client-go/host/deps".Get_Prog_9944962fa04a_Inst
+extern func progSetInstIdentity(value Prog, field Option[List[canonical.Inst_277534c0bc85]]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".With_Prog_9944962fa04a_Inst
+extern func progGetStartIdentity(value Prog) IO[Int] = "github.com/reoring/gofx/ports/client-go/host/deps".Get_Prog_9944962fa04a_Start
+extern func progSetStartIdentity(value Prog, field Int) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".With_Prog_9944962fa04a_Start
+extern func progGetNumCapIdentity(value Prog) IO[Int] = "github.com/reoring/gofx/ports/client-go/host/deps".Get_Prog_9944962fa04a_NumCap
+extern func progSetNumCapIdentity(value Prog, field Int) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".With_Prog_9944962fa04a_NumCap
+extern func instCallMatchEmptyWidthIdentity(value Inst, p0 Int, p1 Int) IO[Bool] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_fafee2e9a19d36c0
+extern func instCallMatchRuneIdentity(value Inst, p0 Int) IO[Bool] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_ff5bd0ca1f4f549f
+extern func instCallMatchRunePosIdentity(value Inst, p0 Int) IO[Int] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_4a83a41a44d3d3f8
+extern func instCallStringIdentity(value Inst) IO[String] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_6712c1f558d27c31
+extern func instOpCallString(value InstOp) IO[(InstOp, String)] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_d659421727e0bfe9
+extern func progCallPrefixIdentity(value Prog) IO[(String, Bool)] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_14e130fcd2784bba
+extern func progCallStartCondIdentity(value Prog) IO[canonical.EmptyOp_282868a6eadc] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_efe17a172ab0cdf3
+extern func progCallStringIdentity(value Prog) IO[String] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_e181b0d5875f9624

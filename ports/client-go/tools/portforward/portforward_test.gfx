@@ -1,0 +1,37 @@
+// Copyright 2026 The gofx Authors. Licensed under Apache-2.0.
+// Port/address cases from pinned tools/portforward/portforward_test.go.
+package portforward
+import errors "github.com/reoring/gofx/ports/client-go/deps/support"
+import spdy "github.com/reoring/gofx/ports/client-go/transport/spdy"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+
+func testPortParsingAndRangeErrors() Bool {
+ let ports=parsePorts(["5000","8888:5000","0:5000",":5000"])
+ ports.value==[ForwardedPort {local:5000,remote:5000},ForwardedPort {local:8888,remote:5000},ForwardedPort {local:0,remote:5000},ForwardedPort {local:0,remote:5000}] &&
+ (match parsePorts(["0"]).error {None=>false;Some(e)=>errors.errorMessage(e)=="remote port must be > 0"}) &&
+ (match parsePorts(["65536:80"]).error {None=>false;Some(_)=>true}) &&
+ (match parsePorts(["1:2:3"]).error {None=>false;Some(e)=>errors.errorMessage(e)=="invalid port format '1:2:3'"}) &&
+ (match parsePorts(["-1:80"]).error {None=>false;Some(_)=>true})
+}
+func testAddressDeduplicationAndFamilies() Bool {
+ let result=parseAddresses(["localhost","127.0.0.1","::1","localhost"])
+ result.value==[ListenAddress {address:"127.0.0.1",protocol:"tcp4",failureMode:"any"},ListenAddress {address:"::1",protocol:"tcp6",failureMode:"any"}] &&
+ (match parseAddresses(["127.0.0.257"]).error {None=>false;Some(_)=>true}) &&
+ (match parseAddresses(["example.com"]).error {None=>false;Some(e)=>errors.errorMessage(e)=="example.com is not a valid IP"})
+}
+func testFallbackDialerPredicate() IO[Bool] {do {
+ called<-sync.newRef(0)
+ let primary=spdy.Dialer {dial:func(_)=>ioPure(outcome.failure(spdy.DialResult {connection:None,protocol:""},errors.errorNew("upgrade")))}
+ let secondary=spdy.Dialer {dial:func(protocols)=>do {n<-sync.readRef(called);sync.writeRef(called,n+1);ioPure(outcome.success(spdy.DialResult {connection:None,protocol:"portforward.k8s.io"}))}}
+ denied<-newFallbackDialer(primary,secondary,func(_)=>false).dial([portForwardProtocolV1Name()])
+ allowed<-newFallbackDialer(primary,secondary,func(_)=>true).dial([portForwardProtocolV1Name()])
+ n<-sync.readRef(called)
+ ioPure(n==1 && allowed.value.protocol==portForwardProtocolV1Name() && (match denied.error {None=>false;Some(_)=>true}))
+}}
+func testGetPortsRequiresReadiness() IO[Bool] {do {
+ stop<-sync.newChannel(0)
+ let dialer=spdy.Dialer {dial:func(_)=>ioPure(outcome.success(spdy.DialResult {connection:None,protocol:""}))}
+ created<-newPortForwarder(dialer,["0:80"],stop,None,None,None)
+ match created.value {None=>ioPure(false);Some(f)=>do {ports<-getPorts(f);ioPure(match ports.error {None=>false;Some(e)=>errors.errorMessage(e)=="no Ready channel provided"})}}
+}}

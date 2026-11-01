@@ -1,0 +1,34 @@
+// Copyright 2024 The Kubernetes Authors. Licensed under Apache-2.0.
+package features
+import version "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/util/version"
+import "std/map"
+func atomicFIFO() String { "AtomicFIFO" }
+func clientsAllowCARotation() String { "ClientsAllowCARotation" }
+func clientsAllowCBOR() String { "ClientsAllowCBOR" }
+func clientsAllowTLSCacheGC() String { "ClientsAllowTLSCacheGC" }
+func clientsPreferCBOR() String { "ClientsPreferCBOR" }
+func inOrderInformers() String { "InOrderInformers" }
+func inOrderInformersBatchProcess() String { "InOrderInformersBatchProcess" }
+func informerResourceVersion() String { "InformerResourceVersion" }
+func unlockWhileProcessingFIFO() String { "UnlockWhileProcessingFIFO" }
+func watchListClient() String { "WatchListClient" }
+extern func parseVersion(text String) IO[version.Version] = "github.com/reoring/gofx/ports/client-go/features/host".ParseVersion
+func defaultVersionedKubernetesFeatureGates() IO[Map[Feature, VersionedSpecs]] { do {
+ v30 <- parseVersion("1.30")
+ v32 <- parseVersion("1.32")
+ v33 <- parseVersion("1.33")
+ v35 <- parseVersion("1.35")
+ v36 <- parseVersion("1.36")
+ ioPure(map.mapFromList([
+ (atomicFIFO(), [FeatureSpec(true, false, beta(), Some(v36))]),
+ (clientsAllowCARotation(), [FeatureSpec(true, false, beta(), Some(v36))]),
+ (clientsAllowCBOR(), [FeatureSpec(false, false, alpha(), Some(v32))]),
+ (clientsAllowTLSCacheGC(), [FeatureSpec(true, false, beta(), Some(v36))]),
+ (clientsPreferCBOR(), [FeatureSpec(false, false, alpha(), Some(v32))]),
+ (inOrderInformers(), [FeatureSpec(true, false, beta(), Some(v33)), FeatureSpec(true, true, ga(), Some(v36))]),
+ (inOrderInformersBatchProcess(), [FeatureSpec(true, false, beta(), Some(v35))]),
+ (informerResourceVersion(), [FeatureSpec(false, false, alpha(), Some(v30)), FeatureSpec(true, false, ga(), Some(v35))]),
+ (unlockWhileProcessingFIFO(), [FeatureSpec(true, false, beta(), Some(v36))]),
+ (watchListClient(), [FeatureSpec(false, false, beta(), Some(v30)), FeatureSpec(true, false, beta(), Some(v35))])
+ ]))
+} }

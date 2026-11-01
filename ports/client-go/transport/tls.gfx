@@ -1,0 +1,127 @@
+// Copyright 2015 The Kubernetes Authors. Licensed under Apache-2.0.
+package transport
+import tls "github.com/reoring/gofx/ports/client-go/deps/crypto/tls"
+import x509 "github.com/reoring/gofx/ports/client-go/deps/crypto/x509"
+import errors "github.com/reoring/gofx/ports/client-go/deps/support"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import features "github.com/reoring/gofx/ports/client-go/features"
+
+func errorText(error errors.Error) String { errors.errorMessage(error) }
+func dataFromSliceOrFile(data Option[String], path String) IO[outcome.Outcome[Option[String]]] {
+ if bytesValue(data) != "" { ioPure(outcome.success(data)) } else {
+  if path == "" { ioPure(outcome.success(None)) } else { do { loaded <- readFile(path); ioPure(match loaded { (value, error) => outcome.from(value, error) }) } }
+ }
+}
+func featureEnabled(env Environment, feature String) IO[Bool] { do { gates <- features.featureGates(env.features); gates.enabled(feature) } }
+func loadTLSFiles(env Environment, config Config) IO[outcome.Outcome[Config]] {
+ do {
+  caRotation <- featureEnabled(env, features.clientsAllowCARotation())
+  if !caRotation && config.tls.reloadCAFiles { ioPure(outcome.failure(config, newError("ReloadCAFiles=true requires ClientsAllowCARotation to be enabled"))) } else { do {
+   let t = config.tls
+   let marked = t {reloadCAFiles: t.reloadCAFiles || (caRotation && t.caFile != "" && bytesValue(t.caData) == ""), reloadTLSFiles: t.reloadTLSFiles || (t.certFile != "" && bytesValue(t.certData) == "" && t.keyFile != "" && bytesValue(t.keyData) == "")}
+   ca <- dataFromSliceOrFile(marked.caData, marked.caFile)
+   let withCA = config {tls: marked {caData: ca.value}}
+   match ca.error {
+    Some(error) => ioPure(outcome.failure(withCA, error))
+    None => do {
+     cert <- dataFromSliceOrFile(marked.certData, marked.certFile)
+     let withCert = withCA {tls: withCA.tls {certData: cert.value}}
+     match cert.error {
+      Some(error) => ioPure(outcome.failure(withCert, error))
+      None => do { key <- dataFromSliceOrFile(marked.keyData, marked.keyFile); ioPure(outcome.from(withCert {tls: withCert.tls {keyData: key.value}}, key.error)) }
+     }
+    }
+   }
+  } }
+ }
+}
+func rootCertPool(env Environment, data Option[String]) IO[outcome.Outcome[Option[x509.CertPool]]] {
+ if bytesValue(data) != "" { do { parsed <- parseRoots(bytesValue(data)); ioPure(match parsed { (value, error) => outcome.from(value, error) }) } } else { do {
+  rotation <- featureEnabled(env, features.clientsAllowCARotation())
+  if rotation { do { pool <- emptyRoots(); ioPure(outcome.success(Some(pool))) } } else { ioPure(outcome.success(None)) }
+ } }
+}
+type CertificateEntry = CertificateEntry {result: outcome.Outcome[Option[tls.Certificate]], birth: sync.Instant}
+func loadCertificateFiles(certFile String, keyFile String) IO[outcome.Outcome[Option[tls.Certificate]]] {
+ do {
+  cert <- readFile(certFile)
+  match cert {
+   (_, Some(error)) => ioPure(outcome.failure(None, error))
+   (certData, None) => do {
+    key <- readFile(keyFile)
+    match key {
+     (_, Some(error)) => ioPure(outcome.failure(None, error))
+     (keyData, None) => do { parsed <- parseCertificate(bytesValue(certData), bytesValue(keyData)); ioPure(match parsed { (value, error) => outcome.from(value, error) }) }
+    }
+   }
+  }
+ }
+}
+func cachingCertificateLoader(clock sync.Clock, certFile String, keyFile String) IO[func() IO[outcome.Outcome[Option[tls.Certificate]]]] {
+ do {
+  initial <- loadCertificateFiles(certFile, keyFile)
+  birth <- sync.now(clock)
+  state <- sync.newRef(CertificateEntry(initial, birth))
+  mutex <- sync.newMutex()
+  ioPure(func() => sync.withLock(mutex, do {
+   current <- sync.readRef(state)
+   now <- sync.now(clock)
+   if sync.elapsed(current.birth, now) <= 1000000000 { ioPure(current.result) } else { do {
+    result <- loadCertificateFiles(certFile, keyFile)
+    loadedAt <- sync.now(clock)
+    sync.writeRef(state, CertificateEntry(result, loadedAt))
+    ioPure(result)
+   } }
+  }))
+ }
+}
+func certificateCallback(env Environment, c Config) IO[outcome.Outcome[Option[func() IO[outcome.Outcome[Option[tls.Certificate]]]]]] {
+ if hasCertAuth(c) && !c.tls.reloadTLSFiles { do {
+  parsed <- parseCertificate(bytesValue(c.tls.certData), bytesValue(c.tls.keyData))
+  match parsed {
+   (_, Some(error)) => ioPure(outcome.failure(None, error))
+   (certificate, None) => ioPure(outcome.success(Some(func() => ioPure(outcome.success(certificate)))))
+  }
+ } } else {
+  if c.tls.reloadTLSFiles && (hasCertAuth(c) || hasCertCallback(c)) { do { loader <- cachingCertificateLoader(env.clock, c.tls.certFile, c.tls.keyFile); ioPure(outcome.success(Some(loader))) } } else {
+   match c.tls.getCertHolder {
+    None => ioPure(outcome.success(None))
+    Some(holder) => ioPure(outcome.success(Some(func() => do {
+     result <- holder.getCert()
+     match (result.error, result.value) {
+      (None, None) => do { empty <- emptyCertificate(); ioPure(outcome.success(Some(empty))) }
+      _ => ioPure(result)
+     }
+    })))
+   }
+  }
+ }
+}
+func tlsConfigForLoaded(env Environment, config Config) IO[outcome.Outcome[Option[tls.Config]]] {
+ if !needsTLS(config) { ioPure(outcome.success(None)) } else {
+  if hasCA(config) && config.tls.insecure { ioPure(outcome.failure(None, newError("specifying a root certificates file with the insecure flag is not allowed"))) } else { do {
+   roots <- if hasCA(config) { rootCertPool(env, config.tls.caData) } else { ioPure(outcome.success(None)) }
+   match roots.error {
+    Some(error) => ioPure(outcome.failure(None, wrapError("unable to load root certificates", error)))
+    None => do {
+     callback <- certificateCallback(env, config)
+     match callback.error {
+      Some(error) => ioPure(outcome.failure(None, error))
+      None => do {
+       let adapted = match callback.value { None => None; Some(fn) => Some(func() => do { result <- fn(); ioPure((result.value, result.error)) }) }
+       value <- configureTLS(config.tls.insecure, config.tls.serverName, config.tls.nextProtos, roots.value, adapted)
+       ioPure(outcome.success(Some(value)))
+      }
+     }
+    }
+   }
+  } }
+ }
+}
+func tlsConfigFor(env Environment, config Config) IO[outcome.Outcome[Option[tls.Config]]] {
+ if hasCA(config) && config.tls.insecure { ioPure(outcome.failure(None, newError("specifying a root certificates file with the insecure flag is not allowed"))) } else { if !needsTLS(config) { ioPure(outcome.success(None)) } else { do {
+  loaded <- loadTLSFiles(env, config)
+  match loaded.error { Some(error) => ioPure(outcome.failure(None, error)); None => tlsConfigForLoaded(env, loaded.value) }
+ } } }
+}

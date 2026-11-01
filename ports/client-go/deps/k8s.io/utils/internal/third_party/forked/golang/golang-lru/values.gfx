@@ -2,21 +2,21 @@
 // Source: client-go v0.37.2 and exact external dependency declarations.
 // Kubernetes-derived declarations are licensed under Apache-2.0.
 // https://www.apache.org/licenses/LICENSE-2.0
-// Source graph SHA-256: 2e4efd1c862cc7bde1036ba0dc37a4fe08175d4ead5d513b32689e674b91d866
+// Source graph SHA-256: 99a062162cbc99a38896123a3e81ce3ef2f70f2e505fbd058751d52a0a40f167
 package golang_lru
 
 import canonical "github.com/reoring/gofx/ports/client-go/deps/types"
 import support "github.com/reoring/gofx/ports/client-go/deps/support"
 
 alias Cache = canonical.Cache_313151938ab5
-extern func cacheGetMaxEntriesIdentity(value Cache) IO[Int] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Get_Cache_313151938ab5_MaxEntries
-extern func cacheSetMaxEntriesIdentity(value Cache, field Int) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".With_Cache_313151938ab5_MaxEntries
-extern func cacheGetOnEvictedIdentity(value Cache) IO[func(Option[canonical.Key_035d72e4e3f1], Option[support.Any]) IO[(Option[support.Any], Unit)]] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Get_Cache_313151938ab5_OnEvicted
-extern func cacheSetOnEvictedIdentity(value Cache, field func(Option[canonical.Key_035d72e4e3f1], Option[support.Any]) IO[(Option[support.Any], Unit)]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".With_Cache_313151938ab5_OnEvicted
+extern func cacheGetMaxEntriesIdentity(value Cache) IO[Int] = "github.com/reoring/gofx/ports/client-go/host/deps".Get_Cache_313151938ab5_MaxEntries
+extern func cacheSetMaxEntriesIdentity(value Cache, field Int) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".With_Cache_313151938ab5_MaxEntries
+extern func cacheGetOnEvictedIdentity(value Cache) IO[func(Option[canonical.Key_035d72e4e3f1], Option[support.Any]) IO[(Option[support.Any], Unit)]] = "github.com/reoring/gofx/ports/client-go/host/deps".Get_Cache_313151938ab5_OnEvicted
+extern func cacheSetOnEvictedIdentity(value Cache, field func(Option[canonical.Key_035d72e4e3f1], Option[support.Any]) IO[(Option[support.Any], Unit)]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".With_Cache_313151938ab5_OnEvicted
 alias Key = canonical.Key_035d72e4e3f1
-extern func cacheCallAddIdentity(value Cache, p0 Option[canonical.Key_035d72e4e3f1], p1 Option[support.Any]) IO[(Option[support.Any], Unit)] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_fbfcac488ae3919a
-extern func cacheCallClearIdentity(value Cache) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_8cd79ff028e4c19f
-extern func cacheCallGetIdentity(value Cache, p0 Option[canonical.Key_035d72e4e3f1]) IO[(Option[support.Any], Bool)] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_685417d3f6f6ef6d
-extern func cacheCallLenIdentity(value Cache) IO[Int] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_af189771124c993e
-extern func cacheCallRemoveIdentity(value Cache, p0 Option[canonical.Key_035d72e4e3f1]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_372b0fcda2b449eb
-extern func cacheCallRemoveOldestIdentity(value Cache) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_093d37df5aacd89b
+extern func cacheCallAddIdentity(value Cache, p0 Option[canonical.Key_035d72e4e3f1], p1 Option[support.Any]) IO[(Option[support.Any], Unit)] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_fbfcac488ae3919a
+extern func cacheCallClearIdentity(value Cache) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_8cd79ff028e4c19f
+extern func cacheCallGetIdentity(value Cache, p0 Option[canonical.Key_035d72e4e3f1]) IO[(Option[support.Any], Bool)] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_685417d3f6f6ef6d
+extern func cacheCallLenIdentity(value Cache) IO[Int] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_af189771124c993e
+extern func cacheCallRemoveIdentity(value Cache, p0 Option[canonical.Key_035d72e4e3f1]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_372b0fcda2b449eb
+extern func cacheCallRemoveOldestIdentity(value Cache) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_093d37df5aacd89b

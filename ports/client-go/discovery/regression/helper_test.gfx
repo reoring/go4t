@@ -1,0 +1,64 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package regression
+import "discovery"
+import fake "discovery/fake"
+import "restmapper"
+import "testing"
+import meta "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import errors "deps/support"
+import "support/sync"
+import "support/outcome"
+import "std/list"
+import "std/prelude"
+import "std/map"
+func testHelpersEmptyVersionsAndVerbPredicates() IO[Bool] {
+ do {
+  client <- clientFixture([],[])
+  supported <- discovery.serverSupportsVersion(client,schema.groupVersionWithVersion(schema.newGroupVersion(),"v99"))
+  let enabled = meta.aPIResourceWithVerbs(resource("widgets","Widget"),meta.verbsFromValue(Some(["get","list"])))
+  let result = discovery.filteredBy(discovery.supportsAllVerbs(["get","list"]),[discovery.resourceList("a/v1",[enabled,resource("other","Other")])])
+  let absent = discovery.filteredBy(discovery.supportsAllVerbs(["watch"]),[discovery.resourceList("a/v1",[enabled])])
+  let invalid = discovery.groupVersionResources([discovery.resourceList("a/b/c",[enabled])])
+  ioPure((match supported { None => true; Some(e) => false }) && list.length(result)==1 && list.length(absent)==0 && !outcome.isSuccess(invalid))
+ }
+}
+func testDiscoveryRetriesOnlyGroupFailures() IO[Bool] {
+ do {
+  calls <- sync.newRef(0)
+  let groupFailure = discovery.groupDiscoveryFailed(map.mapFromList([("a/v1",errors.errorNew("unavailable"))]))
+  retried <- discovery.retryDiscovery(2,func() => do { n <- sync.readRef(calls); sync.writeRef(calls,n+1); ioPure(outcome.failure(n,groupFailure)) })
+  repeated <- sync.readRef(calls)
+  sync.writeRef(calls,0)
+  direct <- discovery.retryDiscovery(2,func() => do { n <- sync.readRef(calls); sync.writeRef(calls,n+1); ioPure(outcome.failure(n,errors.errorNew("authentication failed"))) })
+  once <- sync.readRef(calls)
+  ioPure(repeated==2 && once==1 && retried.value==1 && direct.value==0)
+ }
+}
+func testFakeDiscoveryRecordsActionsAndStatusIdentity() IO[Bool] {
+ do {
+  f <- testing.newFake()
+  testing.setResources(f,[discovery.resourceList("apps/v1",[resource("deployments","Deployment")])])
+  client <- fake.newFakeDiscovery(f)
+  groups <- client.serverGroups()
+  found <- client.serverResourcesForGroupVersion("apps/v1")
+  missing <- client.serverResourcesForGroupVersion("other/v1")
+  actions <- testing.actions(f)
+  ioPure(outcome.isSuccess(groups) && outcome.isSuccess(found) && (match missing.error { None => false; Some(e) => errors.errorIsNotFound(e) }) && prelude.map(actions,func(a) => schema.groupVersionResourceGetResource(a.resource))==["group","resource","resource"])
+ }
+}
+func testMappingScopeExplicitVersionAndFreshMiss() IO[Bool] {
+ do {
+  let namespaced = meta.aPIResourceWithNamespaced(resource("widgets","Widget"),true)
+  let mapper = restmapper.newDiscoveryRESTMapper([restmapper.APIGroupResources(group("a",["v1","v2"],"v2"),map.mapFromList([("v1",[namespaced]),("v2",[namespaced])]))])
+  let kind = schema.groupKindWithKind(schema.groupKindWithGroup(schema.newGroupKind(),"a"),"Widget")
+  mapping <- mapper.restMapping(kind,["v1"])
+  invalidations <- sync.newRef(0)
+  base <- clientFixture([],[])
+  let cache = discovery.CachedDiscoveryInterface(base,func() => ioPure(true),func() => do { n <- sync.readRef(invalidations); sync.writeRef(invalidations,n+1) })
+  deferred <- restmapper.newDeferredDiscoveryRESTMapper(cache)
+  missing <- deferred.resourceFor(restmapper.gvr("a","v1","missing"))
+  count <- sync.readRef(invalidations)
+  ioPure((match mapping.value { None => false; Some(m) => m.scope=="namespace" && schema.groupVersionKindGetVersion(m.groupVersionKind)=="v1" }) && !outcome.isSuccess(missing) && count==0)
+ }
+}

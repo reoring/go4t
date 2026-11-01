@@ -1,0 +1,94 @@
+package fake
+
+import dynamic "dynamic"
+import keys "dynamic/dynamicinformer"
+import runtime "deps/k8s.io/apimachinery/pkg/runtime"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import u "deps/k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+import support "deps/support"
+import testing "testing"
+import outcome "support/outcome"
+import sync "support/sync"
+import objects "deps/objects"
+import m "std/map"
+import s "std/string"
+import listlib "std/list"
+
+// Copyright 2018 The Kubernetes Authors. Licensed under Apache-2.0.
+func registerUnstructured(scheme runtime.Scheme,kind schema.GroupVersionKind,list Bool) IO[Unit] {
+ do {
+  known <- runtime.schemeCallRecognizesIdentity(scheme,kind)
+  if known { ioPure(unit()) } else { do {
+   _ <- runtime.schemeCallAddKnownTypeWithNameIdentity(scheme,kind,Some(if list { u.unstructuredListToRuntimeObject(u.newUnstructuredList()) } else { u.unstructuredToRuntimeObject(u.newUnstructured()) }))
+   ioPure(unit())
+  } }
+ }
+}
+func convertToUnstructured(scheme runtime.Scheme,object runtime.Object) IO[outcome.Outcome[Option[u.Unstructured]]] {
+ do {
+  converted <- toUnstructured(object)
+  match converted.1 { Some(e) => ioPure(outcome.failure(None,support.errorWrap("failed to convert to unstructured",e))); None => match converted.0 {
+   None => ioPure(outcome.success(None))
+   Some(value) => do {
+    kind <- objects.objectGroupVersionKind(u.unstructuredToRuntimeObject(value))
+    if schema.groupVersionKindGetGroup(kind) != "" && schema.groupVersionKindGetKind(kind) != "" { ioPure(outcome.success(Some(value))) }
+    else { do {
+     kinds <- runtime.schemeCallObjectKindsIdentity(scheme,Some(object))
+     match kinds.1.1.1 { Some(e) => ioPure(outcome.failure(None,support.errorWrap("failed to convert to unstructured - unable to get GVK",e))); None => match kinds.1.0 {
+      Some(Cons(first,_)) => do {
+       let group = schema.groupVersionKindGetGroup(first)
+       let version = schema.groupVersionKindGetVersion(first)
+       withVersion <- u.unstructuredCallSetAPIVersion(value,if group == "" { version } else { group+"/"+version })
+       withKind <- u.unstructuredCallSetKind(withVersion.0,schema.groupVersionKindGetKind(first))
+       ioPure(outcome.success(Some(withKind.0)))
+      }
+      _ => ioFail("scheme returned no kinds for registered object")
+     } }
+    } }
+   }
+  } }
+ }
+}
+func newSimpleDynamicClient(scheme runtime.Scheme,initial List[runtime.Object]) IO[FakeDynamicClient] {
+ do {
+  unstructuredScheme <- do { value <- runtime.callNewScheme(); match value { Some(scheme) => ioPure(scheme); None => ioFail("apimachinery NewScheme returned nil") } }
+  known <- runtime.schemeCallAllKnownTypesIdentity(scheme)
+  listlib.forEach(support.mapEntries(known),func(pair) => registerUnstructured(unstructuredScheme,pair.0,s.endsWith(schema.groupVersionKindGetKind(pair.0),"List")))
+  converted <- listlib.mapM(initial,func(object) => do {
+   value <- convertToUnstructured(scheme,object)
+   match value.error { Some(e) => support.raiseError(e); None => match value.value { None => ioFail("object conversion returned no object"); Some(value) => ioPure(u.unstructuredToRuntimeObject(value)) } }
+  })
+  listlib.forEach(converted,func(object) => do {
+   kind <- objects.objectGroupVersionKind(object)
+   registerUnstructured(unstructuredScheme,kind,false)
+   registerUnstructured(unstructuredScheme,schema.groupVersionKindWithKind(kind,schema.groupVersionKindGetKind(kind)+"List"),true)
+  })
+  newSimpleDynamicClientWithCustomListKinds(unstructuredScheme,[],converted)
+ }
+}
+func newSimpleDynamicClientWithCustomListKinds(scheme runtime.Scheme,custom List[(schema.GroupVersionResource,String)],initial List[runtime.Object]) IO[FakeDynamicClient] {
+ do {
+  known <- runtime.schemeCallAllKnownTypesIdentity(scheme)
+  guessed <- listlib.mapM(filter(support.mapEntries(known),func(pair) => s.endsWith(schema.groupVersionKindGetKind(pair.0),"List")),func(pair) => do {
+   let name = schema.groupVersionKindGetKind(pair.0)
+   guessed <- guessKindResource(schema.groupVersionKindWithKind(pair.0,s.substring(name,0,s.strLength(name)-4)))
+   ioPure((keys.resourceKey(guessed.0),name))
+  })
+  listlib.forEach(custom,func(pair) => {
+   if !s.endsWith(pair.1,"List") { ioFail("coding error, listGVK must end in List or this fake client doesn't work right") }
+   else { registerUnstructured(scheme,schema.groupVersionKindWithKind(schema.groupVersionKindWithVersion(schema.groupVersionKindWithGroup(schema.newGroupVersionKind(),schema.groupVersionResourceGetGroup(pair.0)),schema.groupVersionResourceGetVersion(pair.0)),pair.1),true) }
+  })
+  let kinds = fold(custom,m.mapFromList(guessed),func(acc,pair) => m.mapInsert(acc,keys.resourceKey(pair.0),pair.1))
+  decoder <- schemeDecoder(scheme)
+  tracker <- testing.newObjectTracker(scheme,decoder)
+  listlib.forEach(initial,func(object) => do { result <- tracker.add(object); match result.error { None => ioPure(unit()); Some(e) => support.raiseError(e) } })
+  fake <- testing.newFake()
+  testing.addReactor(fake,"*","*",testing.objectReaction(tracker))
+  testing.addWatchReactor(fake,"*",func(shared) => do {
+   action <- sync.readRef(shared)
+   result <- tracker.watch(action.resource,action.namespace,[action.listOptions])
+   ioPure(testing.WatchReaction(outcome.isSuccess(result),result))
+  })
+  ioPure(FakeDynamicClient(fake,scheme,tracker,kinds))
+ }
+}

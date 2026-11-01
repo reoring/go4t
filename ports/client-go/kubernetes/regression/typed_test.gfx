@@ -1,0 +1,123 @@
+// Copyright The Kubernetes Authors. Licensed under Apache-2.0.
+// Source oracles: kubernetes/typed/core/v1/fake/fake_pod_expansion_test.go,
+// kubernetes/typed/core/v1/event_expansion_test.go and oracle/scenarios.go.
+package regression
+import rest "rest"
+import restfake "rest/fake"
+import transport "transport"
+import features "features"
+import flow "util/flowcontrol"
+import sync "support/sync"
+import scheme "kubernetes/scheme"
+import core "deps/k8s.io/api/core/v1"
+import meta "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import http "deps/net/http"
+import url "deps/net/url"
+import errors "deps/support"
+import objects "deps/objects"
+import outcome "support/outcome"
+import testing "testing"
+import realcore "kubernetes/typed/core/v1"
+import fakecore "kubernetes/typed/core/v1/fake"
+import fakeapps "kubernetes/typed/apps/v1/fake"
+import scaleapply "applyconfigurations/autoscaling/v1"
+
+func environment() IO[rest.Environment] { do {
+ gates <- features.newFeatureRegistry(features.Environment(func(_) => ioPure(None),func(_) => ioPure(unit())))
+ network <- transport.newEnvironment(gates)
+ clock <- sync.fakeClock(0)
+ providers <- rest.newAuthProviderRegistry()
+ let authentication = rest.Authentication(providers,func(_,_,_) => ioFail("test unexpectedly invoked exec authentication"))
+ ioPure(rest.Environment(network,gates,authentication,clock,rest.noWarnings(),flow.newTokenBucketRateLimiter,None))
+} }
+func testFakeBindUsesBodyNamespaceAndIgnoresOptions() IO[Bool] { do {
+ env <- environment()
+ fake <- testing.newFake()
+ let client = fakecore.newPods(env,fake,"client-namespace")
+ let binding = core.bindingWithObjectMeta(core.newBinding(),meta.objectMetaWithNamespace(meta.objectMetaWithName(meta.newObjectMeta(),"pod-a"),"body-namespace"))
+ result <- client.bind(binding,meta.createOptionsWithFieldManager(meta.newCreateOptions(),"not-propagated"))
+ actions <- testing.actions(fake)
+ ioPure(outcome.isSuccess(result) && (match actions { [action] => action.namespace=="body-namespace" && action.subresource=="binding" && action.name=="" && meta.createOptionsGetFieldManager(action.createOptions)==""; _ => false }))
+} }
+func testFakeFinalizeRecordsCreateAndIgnoresOptions() IO[Bool] { do {
+ env <- environment()
+ fake <- testing.newFake()
+ let client = fakecore.newNamespaces(env,fake)
+ let namespace = core.namespaceWithObjectMeta(core.newNamespace(),meta.objectMetaWithName(meta.newObjectMeta(),"team-a"))
+ result <- client.finalize(namespace,meta.updateOptionsWithFieldManager(meta.newUpdateOptions(),"not-propagated"))
+ actions <- testing.actions(fake)
+ ioPure(outcome.isSuccess(result) && (match actions { [action] => action.verb=="create" && action.namespace=="" && action.subresource=="finalize" && meta.updateOptionsGetFieldManager(action.updateOptions)==""; _ => false }))
+} }
+func testFakeResizeUsesObjectNotExplicitParent() IO[Bool] { do {
+ env <- environment()
+ fake <- testing.newFake()
+ let client = fakecore.newPods(env,fake,"client-namespace")
+ let pod = core.podWithObjectMeta(core.newPod(),meta.objectMetaWithName(meta.newObjectMeta(),"body-name"))
+ client.updateResize("explicit-parent",pod,meta.newUpdateOptions())
+ actions <- testing.actions(fake)
+ ioPure(match actions { [action] => action.namespace=="client-namespace" && action.subresource=="resize" && (match objects.fromObject(core.podObjectType(),action.object) { Some(value) => meta.objectMetaGetName(core.podGetObjectMeta(value))=="body-name"; None => false }); _ => false })
+} }
+func testFakeApplyScaleDoesNotRequireConfigurationName() IO[Bool] { do {
+ env <- environment()
+ fake <- testing.newFake()
+ let client = fakeapps.newDeployments(env,fake,"team-a")
+ result <- client.applyScale("explicit-parent",Some(scaleapply.scale()),meta.applyOptionsWithFieldManager(meta.newApplyOptions(),"scale-manager"))
+ actions <- testing.actions(fake)
+ ioPure(outcome.isSuccess(result) && (match actions { [action] => action.verb=="patch" && action.name=="explicit-parent" && action.subresource=="scale" && action.patchType=="application/apply-patch+yaml"; _ => false }))
+} }
+func testFakeLogReactorErrorIsDeferred() IO[Bool] { do {
+ env <- environment()
+ fake <- testing.newFake()
+ testing.prependReactor(fake,"get","pods/log",func(_) => ioPure(testing.Reaction(true,outcome.failure(None,errors.errorNew("reactor log failure")))))
+ request <- fakecore.newPods(env,fake,"default").getLogs("pod-a",core.newPodLogOptions())
+ result <- rest.stream(request)
+ ioPure(match result.error { Some(error) => errors.errorMessage(error)=="reactor log failure"; None => false })
+} }
+func testFakeLogReactorRetrievesOptionsThroughPublicPayloadKey() IO[Bool] { do {
+ env <- environment()
+ fake <- testing.newFake()
+ observed <- sync.newRef(false)
+ testing.prependReactor(fake,"get","pods/log",func(shared) => do {
+  action <- sync.readRef(shared)
+  let options = objects.fromObject(core.podLogOptionsObjectType(),testing.getValue(action,testing.runtimeObjectPayloadKey()))
+  sync.writeRef(observed,match options { None => false; Some(value) => core.podLogOptionsGetContainer(value)=="requested-container" })
+  ioPure(testing.Reaction(false,outcome.success(None)))
+ })
+ let options = core.podLogOptionsWithContainer(core.newPodLogOptions(),"requested-container")
+ fakecore.newPods(env,fake,"default").getLogs("pod-a",options)
+ retrieved <- sync.readRef(observed)
+ actions <- testing.actions(fake)
+ let retained = match actions {
+  [action] => match objects.fromObject(core.podLogOptionsObjectType(),testing.getValue(action,testing.runtimeObjectPayloadKey())) {
+   None => false
+   Some(value) => core.podLogOptionsGetContainer(value)=="requested-container"
+  }
+  _ => false
+ }
+ ioPure(retrieved && retained)
+} }
+func testRealResizeUsesExplicitParentAndClientNamespace() IO[Bool] { do {
+ env <- environment()
+ registry <- scheme.newRegistry()
+ client <- restfake.newClient(registry.negotiatedSerializer,schema.groupVersionWithVersion(schema.newGroupVersion(),"v1"),"/api/v1",env.clock)
+ response <- restfake.responseBytes(200,"application/json","{\"apiVersion\":\"v1\",\"kind\":\"Pod\",\"metadata\":{\"name\":\"body-name\"}}","")
+ state <- sync.readRef(client.state)
+ sync.writeRef(client.state,state{response:Some(response)})
+ let pods = realcore.newPods(restfake.clientInterface(client),registry.parameterCodec,env.features,"client-namespace")
+ let pod = core.podWithObjectMeta(core.newPod(),meta.objectMetaWithNamespace(meta.objectMetaWithName(meta.newObjectMeta(),"body-name"),"body-namespace"))
+ result <- pods.updateResize("explicit-parent",pod,meta.newUpdateOptions())
+ observed <- sync.readRef(client.state)
+ path <- match observed.request { None => ioPure(""); Some(request) => do { value <- http.requestGetURLIdentity(request); match value { None => ioPure(""); Some(value) => url.urlGetPathIdentity(value) } } }
+ ioPure(outcome.isSuccess(result) && path=="/api/v1/namespaces/client-namespace/pods/explicit-parent/resize")
+} }
+func testRealEventNamespaceMismatchMakesNoRequest() IO[Bool] { do {
+ env <- environment()
+ registry <- scheme.newRegistry()
+ client <- restfake.newClient(registry.negotiatedSerializer,schema.groupVersionWithVersion(schema.newGroupVersion(),"v1"),"/api/v1",env.clock)
+ let events = realcore.newEvents(restfake.clientInterface(client),registry.parameterCodec,env.features,"client-namespace")
+ let event = core.eventWithObjectMeta(core.newEvent(),meta.objectMetaWithNamespace(meta.newObjectMeta(),"body-namespace"))
+ result <- events.createWithEventNamespace(event)
+ observed <- sync.readRef(client.state)
+ ioPure((match result.value { None => true; Some(_) => false }) && (match result.error { Some(error) => errors.errorMessage(error)=="can't create an event with namespace 'body-namespace' in namespace 'client-namespace'"; None => false }) && (match observed.request { None => true; Some(_) => false }))
+} }

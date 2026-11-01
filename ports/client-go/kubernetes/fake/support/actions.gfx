@@ -1,0 +1,38 @@
+// Copyright The Kubernetes Authors. Licensed under Apache-2.0.
+package support
+import testing "testing"
+import runtime "deps/k8s.io/apimachinery/pkg/runtime"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import meta "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import objects "deps/objects"
+import outcome "support/outcome"
+import errors "deps/support"
+import applyutil "util/apply"
+
+func invoke[A](fake testing.Fake,action testing.Action,descriptor objects.ObjectType[A],empty A) IO[outcome.Outcome[A]] { do {
+ result <- testing.invokes(fake,action,Some(objects.toObject(descriptor,empty)))
+ ioPure(outcome.from(match objects.fromObject(descriptor,result.value) { None => empty; Some(value) => value },result.error))
+} }
+func invokeOptional[A](fake testing.Fake,action testing.Action,descriptor objects.ObjectType[A],empty Option[A]) IO[outcome.Outcome[Option[A]]] { do {
+ result <- testing.invokes(fake,action,match empty { None => None; Some(value) => Some(objects.toObject(descriptor,value)) })
+ ioPure(outcome.from(objects.fromObject(descriptor,result.value),result.error))
+} }
+func execute(fake testing.Fake,action testing.Action,empty Option[runtime.Object]) IO[outcome.Outcome[Unit]] { do {
+ result <- testing.invokes(fake,action,empty)
+ ioPure(outcome.from(unit(),result.error))
+} }
+func applyNamed[A,C](fake testing.Fake,resource schema.GroupVersionResource,namespace String,name String,subresource String,configuration Option[C],marshal applyutil.Marshal[C],options meta.ApplyOptions,descriptor objects.ObjectType[A],empty A,nilError String) IO[outcome.Outcome[Option[A]]] { match configuration {
+ None => ioPure(outcome.failure(None,errors.errorNew(nilError)))
+ Some(value) => do {
+ encoded <- marshal.json(value)
+ match encoded.error {
+ Some(error) => ioPure(outcome.failure(None,error))
+ None => do {
+  patch <- meta.applyOptionsCallToPatchOptions(options)
+  result <- invoke(fake,testing.newPatchSubresourceActionWithOptions(resource,namespace,name,"application/apply-patch+yaml",encoded.value,patch.1,[subresource]),descriptor,empty)
+  ioPure(outcome.from(Some(result.value),result.error))
+ }
+ }
+ }
+} }
+extern func objectTypeName(value Option[runtime.Object]) String = "github.com/reoring/gofx/ports/client-go/kubernetes/fake/support/host".ObjectTypeName

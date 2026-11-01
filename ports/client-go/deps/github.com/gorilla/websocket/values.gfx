@@ -2,47 +2,83 @@
 // Source: client-go v0.37.2 and exact external dependency declarations.
 // Kubernetes-derived declarations are licensed under Apache-2.0.
 // https://www.apache.org/licenses/LICENSE-2.0
-// Source graph SHA-256: 2e4efd1c862cc7bde1036ba0dc37a4fe08175d4ead5d513b32689e674b91d866
+// Source graph SHA-256: 99a062162cbc99a38896123a3e81ce3ef2f70f2e505fbd058751d52a0a40f167
 package websocket
 
 import canonical "github.com/reoring/gofx/ports/client-go/deps/types"
 import support "github.com/reoring/gofx/ports/client-go/deps/support"
 
 alias BufferPool = canonical.BufferPool_31704bacfd53
+alias CloseError = canonical.CloseError_db3ee61f5e25
+extern func newCloseError() IO[CloseError] = "github.com/reoring/gofx/ports/client-go/host/deps".New_CloseError_db3ee61f5e25
+extern func closeErrorGetCodeIdentity(value CloseError) IO[Int] = "github.com/reoring/gofx/ports/client-go/host/deps".Get_CloseError_db3ee61f5e25_Code
+extern func closeErrorSetCodeIdentity(value CloseError, field Int) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".With_CloseError_db3ee61f5e25_Code
+extern func closeErrorGetTextIdentity(value CloseError) IO[String] = "github.com/reoring/gofx/ports/client-go/host/deps".Get_CloseError_db3ee61f5e25_Text
+extern func closeErrorSetTextIdentity(value CloseError, field String) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".With_CloseError_db3ee61f5e25_Text
 alias Conn = canonical.Conn_bd4861c37aed
-extern func newConn() IO[Conn] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".New_Conn_bd4861c37aed
+extern func newConn() IO[Conn] = "github.com/reoring/gofx/ports/client-go/host/deps".New_Conn_bd4861c37aed
+alias Dialer = canonical.Dialer_119a2c352f70
+extern func newDialer() IO[Dialer] = "github.com/reoring/gofx/ports/client-go/host/deps".New_Dialer_119a2c352f70
+extern func dialerGetNetDialIdentity(value Dialer) IO[func(String, String) IO[(Option[canonical.Conn_0b61c1df3323], Option[support.Error])]] = "github.com/reoring/gofx/ports/client-go/host/deps".Get_Dialer_119a2c352f70_NetDial
+extern func dialerSetNetDialIdentity(value Dialer, field func(String, String) IO[(Option[canonical.Conn_0b61c1df3323], Option[support.Error])]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".With_Dialer_119a2c352f70_NetDial
+extern func dialerGetNetDialContextIdentity(value Dialer) IO[func(String, String) IO[(Option[canonical.Conn_0b61c1df3323], Option[support.Error])]] = "github.com/reoring/gofx/ports/client-go/host/deps".Get_Dialer_119a2c352f70_NetDialContext
+extern func dialerSetNetDialContextIdentity(value Dialer, field func(String, String) IO[(Option[canonical.Conn_0b61c1df3323], Option[support.Error])]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".With_Dialer_119a2c352f70_NetDialContext
+extern func dialerGetNetDialTLSContextIdentity(value Dialer) IO[func(String, String) IO[(Option[canonical.Conn_0b61c1df3323], Option[support.Error])]] = "github.com/reoring/gofx/ports/client-go/host/deps".Get_Dialer_119a2c352f70_NetDialTLSContext
+extern func dialerSetNetDialTLSContextIdentity(value Dialer, field func(String, String) IO[(Option[canonical.Conn_0b61c1df3323], Option[support.Error])]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".With_Dialer_119a2c352f70_NetDialTLSContext
+extern func dialerGetProxyIdentity(value Dialer) IO[func(Option[canonical.Request_81009d7cb72f]) IO[(Option[canonical.URL_d19722eb3950], Option[support.Error])]] = "github.com/reoring/gofx/ports/client-go/host/deps".Get_Dialer_119a2c352f70_Proxy
+extern func dialerSetProxyIdentity(value Dialer, field func(Option[canonical.Request_81009d7cb72f]) IO[(Option[canonical.URL_d19722eb3950], Option[support.Error])]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".With_Dialer_119a2c352f70_Proxy
+extern func dialerGetTLSClientConfigIdentity(value Dialer) IO[Option[canonical.Config_fb5080dbb9eb]] = "github.com/reoring/gofx/ports/client-go/host/deps".Get_Dialer_119a2c352f70_TLSClientConfig
+extern func dialerSetTLSClientConfigIdentity(value Dialer, field Option[canonical.Config_fb5080dbb9eb]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".With_Dialer_119a2c352f70_TLSClientConfig
+extern func dialerGetHandshakeTimeoutIdentity(value Dialer) IO[canonical.Duration_147de15d0597] = "github.com/reoring/gofx/ports/client-go/host/deps".Get_Dialer_119a2c352f70_HandshakeTimeout
+extern func dialerSetHandshakeTimeoutIdentity(value Dialer, field canonical.Duration_147de15d0597) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".With_Dialer_119a2c352f70_HandshakeTimeout
+extern func dialerGetReadBufferSizeIdentity(value Dialer) IO[Int] = "github.com/reoring/gofx/ports/client-go/host/deps".Get_Dialer_119a2c352f70_ReadBufferSize
+extern func dialerSetReadBufferSizeIdentity(value Dialer, field Int) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".With_Dialer_119a2c352f70_ReadBufferSize
+extern func dialerGetWriteBufferSizeIdentity(value Dialer) IO[Int] = "github.com/reoring/gofx/ports/client-go/host/deps".Get_Dialer_119a2c352f70_WriteBufferSize
+extern func dialerSetWriteBufferSizeIdentity(value Dialer, field Int) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".With_Dialer_119a2c352f70_WriteBufferSize
+extern func dialerGetWriteBufferPoolIdentity(value Dialer) IO[Option[canonical.BufferPool_31704bacfd53]] = "github.com/reoring/gofx/ports/client-go/host/deps".Get_Dialer_119a2c352f70_WriteBufferPool
+extern func dialerSetWriteBufferPoolIdentity(value Dialer, field Option[canonical.BufferPool_31704bacfd53]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".With_Dialer_119a2c352f70_WriteBufferPool
+extern func dialerGetSubprotocolsIdentity(value Dialer) IO[Option[List[String]]] = "github.com/reoring/gofx/ports/client-go/host/deps".Get_Dialer_119a2c352f70_Subprotocols
+extern func dialerSetSubprotocolsIdentity(value Dialer, field Option[List[String]]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".With_Dialer_119a2c352f70_Subprotocols
+extern func dialerGetEnableCompressionIdentity(value Dialer) IO[Bool] = "github.com/reoring/gofx/ports/client-go/host/deps".Get_Dialer_119a2c352f70_EnableCompression
+extern func dialerSetEnableCompressionIdentity(value Dialer, field Bool) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".With_Dialer_119a2c352f70_EnableCompression
+extern func dialerGetJarIdentity(value Dialer) IO[Option[canonical.CookieJar_08c94c87749a]] = "github.com/reoring/gofx/ports/client-go/host/deps".Get_Dialer_119a2c352f70_Jar
+extern func dialerSetJarIdentity(value Dialer, field Option[canonical.CookieJar_08c94c87749a]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".With_Dialer_119a2c352f70_Jar
 alias PreparedMessage = canonical.PreparedMessage_3879eccc5d3c
-extern func newPreparedMessage() IO[PreparedMessage] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".New_PreparedMessage_3879eccc5d3c
+extern func newPreparedMessage() IO[PreparedMessage] = "github.com/reoring/gofx/ports/client-go/host/deps".New_PreparedMessage_3879eccc5d3c
 alias Internal_messageReader = canonical.Internal_messageReader_5213402c5fac
 alias Internal_prepareKey = canonical.Internal_prepareKey_c22b732303b4
 alias Internal_preparedFrame = canonical.Internal_preparedFrame_a014c915f0a6
-extern func connCallCloseIdentity(value Conn) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_44cf65d15fc7292e
-extern func connCallCloseHandlerIdentity(value Conn) IO[func(Int, String) IO[Option[support.Error]]] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_30887c268dd1dea5
-extern func connCallEnableWriteCompressionIdentity(value Conn, p0 Bool) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_f78d9fde28b1a6ba
-extern func connCallLocalAddrIdentity(value Conn) IO[Option[canonical.Addr_6a39324393f0]] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_ca496467fb24d3b9
-extern func connCallNetConnIdentity(value Conn) IO[Option[canonical.Conn_0b61c1df3323]] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_33208857cea56bf7
-extern func connCallNextReaderIdentity(value Conn) IO[(Int, (Option[canonical.Reader_4d25c51b00a6], Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_269e28b6eb3f2298
-extern func connCallNextWriterIdentity(value Conn, p0 Int) IO[(Option[canonical.WriteCloser_2b440fd1d51d], Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_24fe71e2fe32620a
-extern func connCallPingHandlerIdentity(value Conn) IO[func(String) IO[Option[support.Error]]] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_bfa2b4fa51df1e95
-extern func connCallPongHandlerIdentity(value Conn) IO[func(String) IO[Option[support.Error]]] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_e21b9b0586dd6c66
-extern func connCallReadJSONIdentity(value Conn, p0 Option[support.Any]) IO[(Option[support.Any], Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_234f6d397ac00fe6
-extern func connCallReadMessageIdentity(value Conn) IO[(Int, (Option[String], Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_121aaa93695116f7
-extern func connCallRemoteAddrIdentity(value Conn) IO[Option[canonical.Addr_6a39324393f0]] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_8e50a2f66e6f86d6
-extern func connCallSetCloseHandlerIdentity(value Conn, p0 func(Int, String) IO[Option[support.Error]]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_08ed6ab43b7a15f6
-extern func connCallSetCompressionLevelIdentity(value Conn, p0 Int) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_236097cfa5d82dc9
-extern func connCallSetPingHandlerIdentity(value Conn, p0 func(String) IO[Option[support.Error]]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_46c446476b4c555c
-extern func connCallSetPongHandlerIdentity(value Conn, p0 func(String) IO[Option[support.Error]]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_730ef3504433ab9e
-extern func connCallSetReadDeadlineIdentity(value Conn, p0 canonical.Time_16c25373c0e3) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_052c6808315d6789
-extern func connCallSetReadLimitIdentity(value Conn, p0 Int) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_81bc9d9e760448bb
-extern func connCallSetWriteDeadlineIdentity(value Conn, p0 canonical.Time_16c25373c0e3) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_b1478eae5081d6ee
-extern func connCallSubprotocolIdentity(value Conn) IO[String] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_2e91377b81f6b03c
-extern func connCallUnderlyingConnIdentity(value Conn) IO[Option[canonical.Conn_0b61c1df3323]] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_2e0ded76fb0b61ff
-extern func connCallWriteControlIdentity(value Conn, p0 Int, p1 Option[String], p2 canonical.Time_16c25373c0e3) IO[(Option[String], Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_6e89e92d2c2da3ad
-extern func connCallWriteJSONIdentity(value Conn, p0 Option[support.Any]) IO[(Option[support.Any], Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_8bfd33ba6f9b207d
-extern func connCallWriteMessageIdentity(value Conn, p0 Int, p1 Option[String]) IO[(Option[String], Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_88e7983889fdece4
-extern func connCallWritePreparedMessageIdentity(value Conn, p0 Option[canonical.PreparedMessage_3879eccc5d3c]) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_5c6d7a999490b980
-extern func internal_messageReaderCallCloseIdentity(value Internal_messageReader) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_0069bd340afbf467
-extern func internal_messageReaderCallReadIdentity(value Internal_messageReader, p0 Option[String]) IO[(Option[String], (Int, Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_0c0d89d9e275036e
-extern func bufferPoolCallGetIdentity(value BufferPool) IO[Option[support.Any]] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Interface_0d8357cf04adcb90
-extern func bufferPoolCallPutIdentity(value BufferPool, p0 Option[support.Any]) IO[(Option[support.Any], Unit)] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Interface_8756ee1f863d6914
-extern func newBufferPool(f0 func() IO[Option[support.Any]], f1 func(Option[support.Any]) IO[(Option[support.Any], Unit)]) IO[BufferPool] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".New_Proxy_BufferPool_31704bacfd53
+extern func closeErrorCallErrorIdentity(value CloseError) IO[String] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_ba26dc5ecf528e56
+extern func connCallCloseIdentity(value Conn) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_44cf65d15fc7292e
+extern func connCallCloseHandlerIdentity(value Conn) IO[func(Int, String) IO[Option[support.Error]]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_30887c268dd1dea5
+extern func connCallEnableWriteCompressionIdentity(value Conn, p0 Bool) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_f78d9fde28b1a6ba
+extern func connCallLocalAddrIdentity(value Conn) IO[Option[canonical.Addr_6a39324393f0]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_ca496467fb24d3b9
+extern func connCallNetConnIdentity(value Conn) IO[Option[canonical.Conn_0b61c1df3323]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_33208857cea56bf7
+extern func connCallNextReaderIdentity(value Conn) IO[(Int, (Option[canonical.Reader_4d25c51b00a6], Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_269e28b6eb3f2298
+extern func connCallNextWriterIdentity(value Conn, p0 Int) IO[(Option[canonical.WriteCloser_2b440fd1d51d], Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_24fe71e2fe32620a
+extern func connCallPingHandlerIdentity(value Conn) IO[func(String) IO[Option[support.Error]]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_bfa2b4fa51df1e95
+extern func connCallPongHandlerIdentity(value Conn) IO[func(String) IO[Option[support.Error]]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_e21b9b0586dd6c66
+extern func connCallReadJSONIdentity(value Conn, p0 Option[support.Any]) IO[(Option[support.Any], Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_234f6d397ac00fe6
+extern func connCallReadMessageIdentity(value Conn) IO[(Int, (Option[String], Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_121aaa93695116f7
+extern func connCallRemoteAddrIdentity(value Conn) IO[Option[canonical.Addr_6a39324393f0]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_8e50a2f66e6f86d6
+extern func connCallSetCloseHandlerIdentity(value Conn, p0 func(Int, String) IO[Option[support.Error]]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_08ed6ab43b7a15f6
+extern func connCallSetCompressionLevelIdentity(value Conn, p0 Int) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_236097cfa5d82dc9
+extern func connCallSetPingHandlerIdentity(value Conn, p0 func(String) IO[Option[support.Error]]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_46c446476b4c555c
+extern func connCallSetPongHandlerIdentity(value Conn, p0 func(String) IO[Option[support.Error]]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_730ef3504433ab9e
+extern func connCallSetReadDeadlineIdentity(value Conn, p0 canonical.Time_16c25373c0e3) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_052c6808315d6789
+extern func connCallSetReadLimitIdentity(value Conn, p0 Int) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_81bc9d9e760448bb
+extern func connCallSetWriteDeadlineIdentity(value Conn, p0 canonical.Time_16c25373c0e3) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_b1478eae5081d6ee
+extern func connCallSubprotocolIdentity(value Conn) IO[String] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_2e91377b81f6b03c
+extern func connCallUnderlyingConnIdentity(value Conn) IO[Option[canonical.Conn_0b61c1df3323]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_2e0ded76fb0b61ff
+extern func connCallWriteControlIdentity(value Conn, p0 Int, p1 Option[String], p2 canonical.Time_16c25373c0e3) IO[(Option[String], Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_6e89e92d2c2da3ad
+extern func connCallWriteJSONIdentity(value Conn, p0 Option[support.Any]) IO[(Option[support.Any], Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_8bfd33ba6f9b207d
+extern func connCallWriteMessageIdentity(value Conn, p0 Int, p1 Option[String]) IO[(Option[String], Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_88e7983889fdece4
+extern func connCallWritePreparedMessageIdentity(value Conn, p0 Option[canonical.PreparedMessage_3879eccc5d3c]) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_5c6d7a999490b980
+extern func dialerCallDialIdentity(value Dialer, p0 String, p1 canonical.Header_67fa3320e7af) IO[(canonical.Header_67fa3320e7af, (Option[canonical.Conn_bd4861c37aed], (Option[canonical.Response_e77e1956510c], Option[support.Error])))] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_2177993e68fc33ef
+extern func dialerCallDialContextIdentity(value Dialer, p0 String, p1 canonical.Header_67fa3320e7af) IO[(canonical.Header_67fa3320e7af, (Option[canonical.Conn_bd4861c37aed], (Option[canonical.Response_e77e1956510c], Option[support.Error])))] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_6dac31bf3b48471f
+extern func callFormatCloseMessage(p0 Int, p1 String) IO[Option[String]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_4fcec1351ac75774
+extern func internal_messageReaderCallCloseIdentity(value Internal_messageReader) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_0069bd340afbf467
+extern func internal_messageReaderCallReadIdentity(value Internal_messageReader, p0 Option[String]) IO[(Option[String], (Int, Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_0c0d89d9e275036e
+extern func bufferPoolCallGetIdentity(value BufferPool) IO[Option[support.Any]] = "github.com/reoring/gofx/ports/client-go/host/deps".Interface_0d8357cf04adcb90
+extern func bufferPoolCallPutIdentity(value BufferPool, p0 Option[support.Any]) IO[(Option[support.Any], Unit)] = "github.com/reoring/gofx/ports/client-go/host/deps".Interface_8756ee1f863d6914
+extern func newBufferPool(f0 func() IO[Option[support.Any]], f1 func(Option[support.Any]) IO[(Option[support.Any], Unit)]) IO[BufferPool] = "github.com/reoring/gofx/ports/client-go/host/deps".New_Proxy_BufferPool_31704bacfd53

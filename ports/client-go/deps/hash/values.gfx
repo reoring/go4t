@@ -2,16 +2,16 @@
 // Source: client-go v0.37.2 and exact external dependency declarations.
 // Kubernetes-derived declarations are licensed under Apache-2.0.
 // https://www.apache.org/licenses/LICENSE-2.0
-// Source graph SHA-256: 2e4efd1c862cc7bde1036ba0dc37a4fe08175d4ead5d513b32689e674b91d866
+// Source graph SHA-256: 99a062162cbc99a38896123a3e81ce3ef2f70f2e505fbd058751d52a0a40f167
 package hash
 
 import canonical "github.com/reoring/gofx/ports/client-go/deps/types"
 import support "github.com/reoring/gofx/ports/client-go/deps/support"
 
 alias Hash = canonical.Hash_307c535c1801
-extern func hashCallBlockSizeIdentity(value Hash) IO[Int] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Interface_3f965821b3714c3a
-extern func hashCallResetIdentity(value Hash) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Interface_5f5231ea31273f98
-extern func hashCallSizeIdentity(value Hash) IO[Int] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Interface_ae39851041fe1739
-extern func hashCallSumIdentity(value Hash, p0 Option[String]) IO[(Option[String], Option[String])] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Interface_d19e92cfd66266de
-extern func hashCallWriteIdentity(value Hash, p0 Option[String]) IO[(Option[String], (Int, Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Interface_49deb1cef4e085a7
-extern func newHash(f0 func() IO[Int], f1 func() IO[Unit], f2 func() IO[Int], f3 func(Option[String]) IO[(Option[String], Option[String])], f4 func(Option[String]) IO[(Option[String], (Int, Option[support.Error]))]) IO[Hash] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".New_Proxy_Hash_307c535c1801
+extern func hashCallBlockSizeIdentity(value Hash) IO[Int] = "github.com/reoring/gofx/ports/client-go/host/deps".Interface_3f965821b3714c3a
+extern func hashCallResetIdentity(value Hash) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".Interface_5f5231ea31273f98
+extern func hashCallSizeIdentity(value Hash) IO[Int] = "github.com/reoring/gofx/ports/client-go/host/deps".Interface_ae39851041fe1739
+extern func hashCallSumIdentity(value Hash, p0 Option[String]) IO[(Option[String], Option[String])] = "github.com/reoring/gofx/ports/client-go/host/deps".Interface_d19e92cfd66266de
+extern func hashCallWriteIdentity(value Hash, p0 Option[String]) IO[(Option[String], (Int, Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/host/deps".Interface_49deb1cef4e085a7
+extern func newHash(f0 func() IO[Int], f1 func() IO[Unit], f2 func() IO[Int], f3 func(Option[String]) IO[(Option[String], Option[String])], f4 func(Option[String]) IO[(Option[String], (Int, Option[support.Error]))]) IO[Hash] = "github.com/reoring/gofx/ports/client-go/host/deps".New_Proxy_Hash_307c535c1801

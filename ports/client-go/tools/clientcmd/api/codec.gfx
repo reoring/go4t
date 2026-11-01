@@ -1,0 +1,295 @@
+// Copyright 2014 The Kubernetes Authors. Licensed under Apache-2.0.
+package api
+import runtime "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime"
+import "std/map"
+import "std/list"
+import "std/string"
+import "std/prelude"
+extern func _splitObject(text String) IO[List[(String,String)]] = "github.com/reoring/gofx/ports/client-go/pkg/apis/clientauthentication/host".SplitObject
+extern func _splitArray(text String) IO[List[String]] = "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api/host".SplitArray
+extern func jsonStringValue(text String) IO[String] = "github.com/reoring/gofx/ports/client-go/pkg/apis/clientauthentication/host".StringValue
+extern func jsonBoolValue(text String) IO[Bool] = "github.com/reoring/gofx/ports/client-go/pkg/apis/clientauthentication/host".BoolValue
+extern func quoteJSON(text String) String = "github.com/reoring/gofx/ports/client-go/pkg/apis/clientauthentication/host".QuoteJSON
+extern func encodeBytes(text String) String = "github.com/reoring/gofx/ports/client-go/pkg/apis/clientauthentication/host".EncodeBytes
+extern func decodeBytes(text String) IO[String] = "github.com/reoring/gofx/ports/client-go/pkg/apis/clientauthentication/host".DecodeBytes
+extern func _encodeRaw(value runtime.RawExtension) IO[String] = "github.com/reoring/gofx/ports/client-go/pkg/apis/clientauthentication/host".EncodeRaw
+extern func _decodeRaw(text String) IO[runtime.RawExtension] = "github.com/reoring/gofx/ports/client-go/pkg/apis/clientauthentication/host".DecodeRaw
+extern func yamlToJSON(text String) IO[String] = "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api/host".YAMLToJSON
+extern func jsonToYAML(text String) IO[String] = "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api/host".JSONToYAML
+func jsonObjectFields(text String) IO[Map[String,String]] { do { fields <- _splitObject(text); ioPure(map.mapFromList(fields)) } }
+func jsonField(fields Map[String,String], name String) String { match map.mapLookup(fields,name) { None => "null"; Some(value) => value } }
+func jsonObject(fields List[(String,String)]) String { "{" + string.join(",",prelude.fmap(fields,func((key,value)) => quoteJSON(key)+":"+value))+"}" }
+func decodeOptional[A](text String, decode func(String) IO[A]) IO[Option[A]] { if text == "null" { ioPure(None) } else { do { value <- decode(text); ioPure(Some(value)) } } }
+func _encodeOption[A](value Option[A], encode func(A) IO[String]) IO[String] { match value { None => ioPure("null"); Some(value) => encode(value) } }
+func _decodeList[A](text String, decode func(String) IO[A]) IO[List[A]] { do { values <- _splitArray(text); prelude.traverse(values,decode) } }
+func _encodeList[A](values List[A], encode func(A) IO[String]) IO[String] { do { values <- prelude.traverse(values,encode); ioPure("["+string.join(",",values)+"]") } }
+func _decodeMap[A](text String, decode func(String) IO[A]) IO[Map[String,A]] { do { fields <- _splitObject(text); entries <- prelude.traverse(fields,func((key,value)) => do { v <- decode(value); ioPure((key,v)) }); ioPure(map.mapFromList(entries)) } }
+func _encodeMap[A](value Map[String,A], encode func(A) IO[String]) IO[String] { do { fields <- prelude.traverse(map.mapToList(value),func((key,value)) => do { encoded <- encode(value); ioPure((key,encoded)) }); ioPure(jsonObject(fields)) } }
+func _encodeString(value String) IO[String] { ioPure(quoteJSON(value)) }
+func _encodeBool(value Bool) IO[String] { ioPure(if value { "true" } else { "false" }) }
+func _encodeBytes(value String) IO[String] { ioPure(quoteJSON(encodeBytes(value))) }
+func _decodeBytes(text String) IO[String] { do { encoded <- jsonStringValue(text); decodeBytes(encoded) } }
+func decodeWireConfig(text String) IO[WireConfig] { do {
+ fields <- jsonObjectFields(text)
+ kind <- jsonStringValue(jsonField(fields,"kind"))
+ apiVersion <- jsonStringValue(jsonField(fields,"apiVersion"))
+ preferences <- decodeWirePreferences(jsonField(fields,"preferences"))
+ clusters <- decodeOptional(jsonField(fields,"clusters"),func(value) => _decodeList(value,func(value) => decodeNamedCluster(value)))
+ authInfos <- decodeOptional(jsonField(fields,"users"),func(value) => _decodeList(value,func(value) => decodeNamedAuthInfo(value)))
+ contexts <- decodeOptional(jsonField(fields,"contexts"),func(value) => _decodeList(value,func(value) => decodeNamedContext(value)))
+ currentContext <- jsonStringValue(jsonField(fields,"current-context"))
+ extensions <- decodeOptional(jsonField(fields,"extensions"),func(value) => _decodeList(value,func(value) => decodeNamedExtension(value)))
+ ioPure(WireConfig(kind,apiVersion,preferences,clusters,authInfos,contexts,currentContext,extensions))
+} }
+func encodeWireConfig(value WireConfig) IO[String] { do {
+ kind <- _encodeString(value.kind)
+ apiVersion <- _encodeString(value.apiVersion)
+ preferences <- encodeWirePreferences(value.preferences)
+ clusters <- _encodeOption(value.clusters,func(value) => _encodeList(value,func(value) => encodeNamedCluster(value)))
+ authInfos <- _encodeOption(value.authInfos,func(value) => _encodeList(value,func(value) => encodeNamedAuthInfo(value)))
+ contexts <- _encodeOption(value.contexts,func(value) => _encodeList(value,func(value) => encodeNamedContext(value)))
+ currentContext <- _encodeString(value.currentContext)
+ extensions <- _encodeOption(value.extensions,func(value) => _encodeList(value,func(value) => encodeNamedExtension(value)))
+ let fields: List[(String,String)] = Nil
+ let fields = if value.kind != "" { list.append(fields,[("kind",kind)]) } else { fields }
+ let fields = if value.apiVersion != "" { list.append(fields,[("apiVersion",apiVersion)]) } else { fields }
+ let fields = if !value.preferences.colors && (match value.preferences.extensions { None => true; Some(_) => false }) { fields } else { list.append(fields,[("preferences",preferences)]) }
+ let fields = list.append(fields,[("clusters",clusters)])
+ let fields = list.append(fields,[("users",authInfos)])
+ let fields = list.append(fields,[("contexts",contexts)])
+ let fields = list.append(fields,[("current-context",currentContext)])
+ let fields = if extensions != "null" && extensions != "[]" && extensions != "{}" && extensions != "\"\"" { list.append(fields,[("extensions",extensions)]) } else { fields }
+ ioPure(jsonObject(fields))
+} }
+func decodeWirePreferences(text String) IO[WirePreferences] { do {
+ fields <- jsonObjectFields(text)
+ colors <- jsonBoolValue(jsonField(fields,"colors"))
+ extensions <- decodeOptional(jsonField(fields,"extensions"),func(value) => _decodeList(value,func(value) => decodeNamedExtension(value)))
+ ioPure(WirePreferences(colors,extensions))
+} }
+func encodeWirePreferences(value WirePreferences) IO[String] { do {
+ colors <- _encodeBool(value.colors)
+ extensions <- _encodeOption(value.extensions,func(value) => _encodeList(value,func(value) => encodeNamedExtension(value)))
+ let fields: List[(String,String)] = Nil
+ let fields = if value.colors { list.append(fields,[("colors",colors)]) } else { fields }
+ let fields = if extensions != "null" && extensions != "[]" && extensions != "{}" && extensions != "\"\"" { list.append(fields,[("extensions",extensions)]) } else { fields }
+ ioPure(jsonObject(fields))
+} }
+func decodeWireCluster(text String) IO[WireCluster] { do {
+ fields <- jsonObjectFields(text)
+ server <- jsonStringValue(jsonField(fields,"server"))
+ tlsServerName <- jsonStringValue(jsonField(fields,"tls-server-name"))
+ insecureSkipTLSVerify <- jsonBoolValue(jsonField(fields,"insecure-skip-tls-verify"))
+ certificateAuthority <- jsonStringValue(jsonField(fields,"certificate-authority"))
+ certificateAuthorityData <- decodeOptional(jsonField(fields,"certificate-authority-data"),_decodeBytes)
+ proxyURL <- jsonStringValue(jsonField(fields,"proxy-url"))
+ disableCompression <- jsonBoolValue(jsonField(fields,"disable-compression"))
+ extensions <- decodeOptional(jsonField(fields,"extensions"),func(value) => _decodeList(value,func(value) => decodeNamedExtension(value)))
+ ioPure(WireCluster(server,tlsServerName,insecureSkipTLSVerify,certificateAuthority,certificateAuthorityData,proxyURL,disableCompression,extensions))
+} }
+func encodeWireCluster(value WireCluster) IO[String] { do {
+ server <- _encodeString(value.server)
+ tlsServerName <- _encodeString(value.tlsServerName)
+ insecureSkipTLSVerify <- _encodeBool(value.insecureSkipTLSVerify)
+ certificateAuthority <- _encodeString(value.certificateAuthority)
+ certificateAuthorityData <- _encodeOption(value.certificateAuthorityData,_encodeBytes)
+ proxyURL <- _encodeString(value.proxyURL)
+ disableCompression <- _encodeBool(value.disableCompression)
+ extensions <- _encodeOption(value.extensions,func(value) => _encodeList(value,func(value) => encodeNamedExtension(value)))
+ let fields: List[(String,String)] = Nil
+ let fields = list.append(fields,[("server",server)])
+ let fields = if value.tlsServerName != "" { list.append(fields,[("tls-server-name",tlsServerName)]) } else { fields }
+ let fields = if value.insecureSkipTLSVerify { list.append(fields,[("insecure-skip-tls-verify",insecureSkipTLSVerify)]) } else { fields }
+ let fields = if value.certificateAuthority != "" { list.append(fields,[("certificate-authority",certificateAuthority)]) } else { fields }
+ let fields = if certificateAuthorityData != "null" && certificateAuthorityData != "[]" && certificateAuthorityData != "{}" && certificateAuthorityData != "\"\"" { list.append(fields,[("certificate-authority-data",certificateAuthorityData)]) } else { fields }
+ let fields = if value.proxyURL != "" { list.append(fields,[("proxy-url",proxyURL)]) } else { fields }
+ let fields = if value.disableCompression { list.append(fields,[("disable-compression",disableCompression)]) } else { fields }
+ let fields = if extensions != "null" && extensions != "[]" && extensions != "{}" && extensions != "\"\"" { list.append(fields,[("extensions",extensions)]) } else { fields }
+ ioPure(jsonObject(fields))
+} }
+func decodeWireAuthInfo(text String) IO[WireAuthInfo] { do {
+ fields <- jsonObjectFields(text)
+ clientCertificate <- jsonStringValue(jsonField(fields,"client-certificate"))
+ clientCertificateData <- decodeOptional(jsonField(fields,"client-certificate-data"),_decodeBytes)
+ clientKey <- jsonStringValue(jsonField(fields,"client-key"))
+ clientKeyData <- decodeOptional(jsonField(fields,"client-key-data"),_decodeBytes)
+ token <- jsonStringValue(jsonField(fields,"token"))
+ tokenFile <- jsonStringValue(jsonField(fields,"tokenFile"))
+ impersonate <- jsonStringValue(jsonField(fields,"as"))
+ impersonateUID <- jsonStringValue(jsonField(fields,"as-uid"))
+ impersonateGroups <- decodeOptional(jsonField(fields,"as-groups"),func(value) => _decodeList(value,func(value) => jsonStringValue(value)))
+ impersonateUserExtra <- decodeOptional(jsonField(fields,"as-user-extra"),func(value) => _decodeMap(value,func(value) => decodeOptional(value,func(value) => _decodeList(value,func(value) => jsonStringValue(value)))))
+ username <- jsonStringValue(jsonField(fields,"username"))
+ password <- jsonStringValue(jsonField(fields,"password"))
+ authProvider <- decodeOptional(jsonField(fields,"auth-provider"),func(value) => decodeAuthProviderConfig(value))
+ exec <- decodeOptional(jsonField(fields,"exec"),func(value) => decodeWireExecConfig(value))
+ extensions <- decodeOptional(jsonField(fields,"extensions"),func(value) => _decodeList(value,func(value) => decodeNamedExtension(value)))
+ ioPure(WireAuthInfo(clientCertificate,clientCertificateData,clientKey,clientKeyData,token,tokenFile,impersonate,impersonateUID,impersonateGroups,impersonateUserExtra,username,password,authProvider,exec,extensions))
+} }
+func encodeWireAuthInfo(value WireAuthInfo) IO[String] { do {
+ clientCertificate <- _encodeString(value.clientCertificate)
+ clientCertificateData <- _encodeOption(value.clientCertificateData,_encodeBytes)
+ clientKey <- _encodeString(value.clientKey)
+ clientKeyData <- _encodeOption(value.clientKeyData,_encodeBytes)
+ token <- _encodeString(value.token)
+ tokenFile <- _encodeString(value.tokenFile)
+ impersonate <- _encodeString(value.impersonate)
+ impersonateUID <- _encodeString(value.impersonateUID)
+ impersonateGroups <- _encodeOption(value.impersonateGroups,func(value) => _encodeList(value,func(value) => _encodeString(value)))
+ impersonateUserExtra <- _encodeOption(value.impersonateUserExtra,func(value) => _encodeMap(value,func(value) => _encodeOption(value,func(value) => _encodeList(value,func(value) => _encodeString(value)))))
+ username <- _encodeString(value.username)
+ password <- _encodeString(value.password)
+ authProvider <- _encodeOption(value.authProvider,func(value) => encodeAuthProviderConfig(value))
+ exec <- _encodeOption(value.exec,func(value) => encodeWireExecConfig(value))
+ extensions <- _encodeOption(value.extensions,func(value) => _encodeList(value,func(value) => encodeNamedExtension(value)))
+ let fields: List[(String,String)] = Nil
+ let fields = if value.clientCertificate != "" { list.append(fields,[("client-certificate",clientCertificate)]) } else { fields }
+ let fields = if clientCertificateData != "null" && clientCertificateData != "[]" && clientCertificateData != "{}" && clientCertificateData != "\"\"" { list.append(fields,[("client-certificate-data",clientCertificateData)]) } else { fields }
+ let fields = if value.clientKey != "" { list.append(fields,[("client-key",clientKey)]) } else { fields }
+ let fields = if clientKeyData != "null" && clientKeyData != "[]" && clientKeyData != "{}" && clientKeyData != "\"\"" { list.append(fields,[("client-key-data",clientKeyData)]) } else { fields }
+ let fields = if value.token != "" { list.append(fields,[("token",token)]) } else { fields }
+ let fields = if value.tokenFile != "" { list.append(fields,[("tokenFile",tokenFile)]) } else { fields }
+ let fields = if value.impersonate != "" { list.append(fields,[("as",impersonate)]) } else { fields }
+ let fields = if value.impersonateUID != "" { list.append(fields,[("as-uid",impersonateUID)]) } else { fields }
+ let fields = if impersonateGroups != "null" && impersonateGroups != "[]" && impersonateGroups != "{}" && impersonateGroups != "\"\"" { list.append(fields,[("as-groups",impersonateGroups)]) } else { fields }
+ let fields = if impersonateUserExtra != "null" && impersonateUserExtra != "[]" && impersonateUserExtra != "{}" && impersonateUserExtra != "\"\"" { list.append(fields,[("as-user-extra",impersonateUserExtra)]) } else { fields }
+ let fields = if value.username != "" { list.append(fields,[("username",username)]) } else { fields }
+ let fields = if value.password != "" { list.append(fields,[("password",password)]) } else { fields }
+ let fields = if authProvider != "null" && authProvider != "[]" && authProvider != "{}" && authProvider != "\"\"" { list.append(fields,[("auth-provider",authProvider)]) } else { fields }
+ let fields = if exec != "null" && exec != "[]" && exec != "{}" && exec != "\"\"" { list.append(fields,[("exec",exec)]) } else { fields }
+ let fields = if extensions != "null" && extensions != "[]" && extensions != "{}" && extensions != "\"\"" { list.append(fields,[("extensions",extensions)]) } else { fields }
+ ioPure(jsonObject(fields))
+} }
+func decodeWireContext(text String) IO[WireContext] { do {
+ fields <- jsonObjectFields(text)
+ cluster <- jsonStringValue(jsonField(fields,"cluster"))
+ authInfo <- jsonStringValue(jsonField(fields,"user"))
+ namespace <- jsonStringValue(jsonField(fields,"namespace"))
+ extensions <- decodeOptional(jsonField(fields,"extensions"),func(value) => _decodeList(value,func(value) => decodeNamedExtension(value)))
+ ioPure(WireContext(cluster,authInfo,namespace,extensions))
+} }
+func encodeWireContext(value WireContext) IO[String] { do {
+ cluster <- _encodeString(value.cluster)
+ authInfo <- _encodeString(value.authInfo)
+ namespace <- _encodeString(value.namespace)
+ extensions <- _encodeOption(value.extensions,func(value) => _encodeList(value,func(value) => encodeNamedExtension(value)))
+ let fields: List[(String,String)] = Nil
+ let fields = list.append(fields,[("cluster",cluster)])
+ let fields = list.append(fields,[("user",authInfo)])
+ let fields = if value.namespace != "" { list.append(fields,[("namespace",namespace)]) } else { fields }
+ let fields = if extensions != "null" && extensions != "[]" && extensions != "{}" && extensions != "\"\"" { list.append(fields,[("extensions",extensions)]) } else { fields }
+ ioPure(jsonObject(fields))
+} }
+func decodeWireExecConfig(text String) IO[WireExecConfig] { do {
+ fields <- jsonObjectFields(text)
+ command <- jsonStringValue(jsonField(fields,"command"))
+ args <- decodeOptional(jsonField(fields,"args"),func(value) => _decodeList(value,func(value) => jsonStringValue(value)))
+ env <- decodeOptional(jsonField(fields,"env"),func(value) => _decodeList(value,func(value) => decodeExecEnvVar(value)))
+ apiVersion <- jsonStringValue(jsonField(fields,"apiVersion"))
+ installHint <- jsonStringValue(jsonField(fields,"installHint"))
+ provideClusterInfo <- jsonBoolValue(jsonField(fields,"provideClusterInfo"))
+ interactiveMode <- jsonStringValue(jsonField(fields,"interactiveMode"))
+ ioPure(WireExecConfig(command,args,env,apiVersion,installHint,provideClusterInfo,interactiveMode))
+} }
+func encodeWireExecConfig(value WireExecConfig) IO[String] { do {
+ command <- _encodeString(value.command)
+ args <- _encodeOption(value.args,func(value) => _encodeList(value,func(value) => _encodeString(value)))
+ env <- _encodeOption(value.env,func(value) => _encodeList(value,func(value) => encodeExecEnvVar(value)))
+ apiVersion <- _encodeString(value.apiVersion)
+ installHint <- _encodeString(value.installHint)
+ provideClusterInfo <- _encodeBool(value.provideClusterInfo)
+ interactiveMode <- _encodeString(value.interactiveMode)
+ let fields: List[(String,String)] = Nil
+ let fields = list.append(fields,[("command",command)])
+ let fields = list.append(fields,[("args",args)])
+ let fields = list.append(fields,[("env",env)])
+ let fields = if value.apiVersion != "" { list.append(fields,[("apiVersion",apiVersion)]) } else { fields }
+ let fields = if value.installHint != "" { list.append(fields,[("installHint",installHint)]) } else { fields }
+ let fields = list.append(fields,[("provideClusterInfo",provideClusterInfo)])
+ let fields = if value.interactiveMode != "" { list.append(fields,[("interactiveMode",interactiveMode)]) } else { fields }
+ ioPure(jsonObject(fields))
+} }
+func decodeNamedCluster(text String) IO[NamedCluster] { do {
+ fields <- jsonObjectFields(text)
+ name <- jsonStringValue(jsonField(fields,"name"))
+ cluster <- decodeWireCluster(jsonField(fields,"cluster"))
+ ioPure(NamedCluster(name,cluster))
+} }
+func encodeNamedCluster(value NamedCluster) IO[String] { do {
+ name <- _encodeString(value.name)
+ cluster <- encodeWireCluster(value.cluster)
+ let fields: List[(String,String)] = Nil
+ let fields = list.append(fields,[("name",name)])
+ let fields = list.append(fields,[("cluster",cluster)])
+ ioPure(jsonObject(fields))
+} }
+func decodeNamedAuthInfo(text String) IO[NamedAuthInfo] { do {
+ fields <- jsonObjectFields(text)
+ name <- jsonStringValue(jsonField(fields,"name"))
+ authInfo <- decodeWireAuthInfo(jsonField(fields,"user"))
+ ioPure(NamedAuthInfo(name,authInfo))
+} }
+func encodeNamedAuthInfo(value NamedAuthInfo) IO[String] { do {
+ name <- _encodeString(value.name)
+ authInfo <- encodeWireAuthInfo(value.authInfo)
+ let fields: List[(String,String)] = Nil
+ let fields = list.append(fields,[("name",name)])
+ let fields = list.append(fields,[("user",authInfo)])
+ ioPure(jsonObject(fields))
+} }
+func decodeNamedContext(text String) IO[NamedContext] { do {
+ fields <- jsonObjectFields(text)
+ name <- jsonStringValue(jsonField(fields,"name"))
+ context <- decodeWireContext(jsonField(fields,"context"))
+ ioPure(NamedContext(name,context))
+} }
+func encodeNamedContext(value NamedContext) IO[String] { do {
+ name <- _encodeString(value.name)
+ context <- encodeWireContext(value.context)
+ let fields: List[(String,String)] = Nil
+ let fields = list.append(fields,[("name",name)])
+ let fields = list.append(fields,[("context",context)])
+ ioPure(jsonObject(fields))
+} }
+func decodeNamedExtension(text String) IO[NamedExtension] { do {
+ fields <- jsonObjectFields(text)
+ name <- jsonStringValue(jsonField(fields,"name"))
+ extension <- _decodeRaw(jsonField(fields,"extension"))
+ ioPure(NamedExtension(name,extension))
+} }
+func encodeNamedExtension(value NamedExtension) IO[String] { do {
+ name <- _encodeString(value.name)
+ extension <- _encodeRaw(value.extension)
+ let fields: List[(String,String)] = Nil
+ let fields = list.append(fields,[("name",name)])
+ let fields = list.append(fields,[("extension",extension)])
+ ioPure(jsonObject(fields))
+} }
+func decodeAuthProviderConfig(text String) IO[AuthProviderConfig] { do {
+ fields <- jsonObjectFields(text)
+ name <- jsonStringValue(jsonField(fields,"name"))
+ config <- decodeOptional(jsonField(fields,"config"),func(value) => _decodeMap(value,func(value) => jsonStringValue(value)))
+ ioPure(AuthProviderConfig(name,config))
+} }
+func encodeAuthProviderConfig(value AuthProviderConfig) IO[String] { do {
+ name <- _encodeString(value.name)
+ config <- _encodeOption(value.config,func(value) => _encodeMap(value,func(value) => _encodeString(value)))
+ let fields: List[(String,String)] = Nil
+ let fields = list.append(fields,[("name",name)])
+ let fields = list.append(fields,[("config",config)])
+ ioPure(jsonObject(fields))
+} }
+func decodeExecEnvVar(text String) IO[ExecEnvVar] { do {
+ fields <- jsonObjectFields(text)
+ name <- jsonStringValue(jsonField(fields,"name"))
+ value <- jsonStringValue(jsonField(fields,"value"))
+ ioPure(ExecEnvVar(name,value))
+} }
+func encodeExecEnvVar(value ExecEnvVar) IO[String] { do {
+ name <- _encodeString(value.name)
+ value <- _encodeString(value.value)
+ let fields: List[(String,String)] = Nil
+ let fields = list.append(fields,[("name",name)])
+ let fields = list.append(fields,[("value",value)])
+ ioPure(jsonObject(fields))
+} }

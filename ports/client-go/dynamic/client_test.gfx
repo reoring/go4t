@@ -1,0 +1,70 @@
+package dynamic
+
+import fixture "dynamic/testing"
+import rest "rest"
+import codec "deps/codec"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import u "deps/k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+import v1 "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import errors "deps/support"
+import sync "support/sync"
+import outcome "support/outcome"
+
+// Copyright 2026 The Kubernetes Authors. Licensed under Apache-2.0.
+// Pinned client_test.go TestGet/TestList/TestInvalidSegments and golden_test.go.
+func testGVR() schema.GroupVersionResource { schema.groupVersionResourceWithResource(schema.groupVersionResourceWithVersion(schema.groupVersionResourceWithGroup(schema.newGroupVersionResource(),"cheese.testing.k8s.io"),"v27alpha15"),"cheddars") }
+func testArbitraryCRDPathAndImmutableNamespace() IO[Bool] {
+ do {
+  serializer <- newBasicNegotiatedSerializer(false)
+  f <- fixture.newFixture(serializer,"application/json","{\"apiVersion\":\"cheese.testing.k8s.io/v27alpha15\",\"kind\":\"Cheddar\",\"metadata\":{\"name\":\"aged\"}}")
+  registry <- fixture.featureRegistry()
+  client <- fromRESTClient(f.client,registry)
+  let root = client.resource(testGVR())
+  let scoped = root.namespace("dairy")
+  first <- scoped.get("aged",v1.getOptionsWithResourceVersion(v1.newGetOptions(),"17"),["status","details"])
+  second <- root.get("aged",v1.newGetOptions(),[])
+  calls <- sync.readRef(f.calls)
+  ioPure(outcome.isSuccess(first) && outcome.isSuccess(second) && (match calls {
+   Cons(a,Cons(b,Nil)) => a.path=="/apis/cheese.testing.k8s.io/v27alpha15/namespaces/dairy/cheddars/aged/status/details" && a.query=="resourceVersion=17" && b.path=="/apis/cheese.testing.k8s.io/v27alpha15/cheddars/aged"
+   _ => false
+  }))
+ }
+}
+func testValidationPrecedenceAndNoHTTP() IO[Bool] {
+ do {
+  serializer <- newBasicNegotiatedSerializer(false)
+  f <- fixture.newFixture(serializer,"application/json","{}")
+  registry <- fixture.featureRegistry()
+  client <- fromRESTClient(f.client,registry)
+  let c = client.resource(testGVR()).namespace("bad/namespace")
+  empty <- c.get("",v1.newGetOptions(),[])
+  invalid <- c.get("bad/name",v1.newGetOptions(),[])
+  calls <- sync.readRef(f.calls)
+  ioPure(length(calls)==0 && (match empty.error { None => false; Some(e) => errors.errorMessage(e)=="name is required" }) && (match invalid.error { None => false; Some(e) => errors.errorMessage(e)=="invalid namespace \"bad/namespace\": [may not contain '/']" }))
+ }
+}
+func testApplyRejectsManagedFieldsBeforeRequest() IO[Bool] {
+ do {
+  serializer <- newBasicNegotiatedSerializer(false)
+  f <- fixture.newFixture(serializer,"application/json","{}")
+  registry <- fixture.featureRegistry()
+  client <- fromRESTClient(f.client,registry)
+  object <- u.unstructuredCallSetManagedFields(u.newUnstructured(),Some([v1.newManagedFieldsEntry()]))
+  result <- client.resource(testGVR()).apply("aged",object.0,v1.newApplyOptions(),[])
+  calls <- sync.readRef(f.calls)
+  ioPure(!outcome.isSuccess(result) && length(calls)==0)
+ }
+}
+func testListPreservesCRDMetadataAndRejectsMalformedBody() IO[Bool] {
+ do {
+  serializer <- newBasicNegotiatedSerializer(false)
+  f <- fixture.newFixture(serializer,"application/json","{\"apiVersion\":\"cheese.testing.k8s.io/v27alpha15\",\"kind\":\"CheddarList\",\"metadata\":{\"resourceVersion\":\"81\",\"continue\":\"next\"},\"items\":[]}")
+  registry <- fixture.featureRegistry()
+  client <- fromRESTClient(f.client,registry)
+  result <- client.resource(testGVR()).list(v1.newListOptions())
+  bad <- fixture.newFixture(serializer,"application/json","{\"apiVersion\":\"x/v1\",\"kind\":\"BadList\",\"items\":42}")
+  badClient <- fromRESTClient(bad.client,registry)
+  rejected <- badClient.resource(testGVR()).list(v1.newListOptions())
+  match result.value { None => ioPure(false); Some(list) => do { rv <- u.unstructuredListCallGetResourceVersion(list); continuation <- u.unstructuredListCallGetContinue(list); ioPure(rv.1=="81" && continuation.1=="next" && !outcome.isSuccess(rejected)) } }
+ }
+}

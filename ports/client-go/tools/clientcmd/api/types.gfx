@@ -1,0 +1,45 @@
+// Copyright 2014 The Kubernetes Authors. Licensed under Apache-2.0.
+package api
+import runtime "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime"
+import "std/map"
+
+type Config = Config {kind:String, apiVersion:String, preferences:Preferences, clusters:Option[Map[String,Option[Cluster]]], authInfos:Option[Map[String,Option[AuthInfo]]], contexts:Option[Map[String,Option[Context]]], currentContext:String, extensions:Option[Map[String,Option[runtime.Object]]]}
+type Preferences = Preferences {colors:Bool, extensions:Option[Map[String,Option[runtime.Object]]]}
+type Cluster = Cluster {locationOfOrigin:String, server:String, tlsServerName:String, insecureSkipTLSVerify:Bool, certificateAuthority:String, certificateAuthorityData:Option[String], proxyURL:String, disableCompression:Bool, extensions:Option[Map[String,Option[runtime.Object]]]}
+type AuthInfo = AuthInfo {locationOfOrigin:String, clientCertificate:String, clientCertificateData:Option[String], clientKey:String, clientKeyData:Option[String], token:String, tokenFile:String, impersonate:String, impersonateUID:String, impersonateGroups:Option[List[String]], impersonateUserExtra:Option[Map[String,Option[List[String]]]], username:String, password:String, authProvider:Option[AuthProviderConfig], exec:Option[ExecConfig], extensions:Option[Map[String,Option[runtime.Object]]]}
+type Context = Context {locationOfOrigin:String, cluster:String, authInfo:String, namespace:String, extensions:Option[Map[String,Option[runtime.Object]]]}
+type AuthProviderConfig = AuthProviderConfig {name:String, config:Option[Map[String,String]]}
+type ExecConfig = ExecConfig {command:String, args:Option[List[String]], env:Option[List[ExecEnvVar]], apiVersion:String, installHint:String, provideClusterInfo:Bool, config:Option[runtime.Object], interactiveMode:ExecInteractiveMode, stdinUnavailable:Bool, stdinUnavailableMessage:String, pluginPolicy:PluginPolicy}
+type ExecEnvVar = ExecEnvVar {name:String, value:String} deriving Eq, Debug
+alias ExecInteractiveMode = String
+alias PolicyType = String
+type AllowlistEntry = AllowlistEntry {command:String} deriving Eq, Debug
+type PluginPolicy = PluginPolicy {policyType:PolicyType, allowlist:Option[List[AllowlistEntry]]} deriving Eq, Debug
+func neverExecInteractiveMode() ExecInteractiveMode { "Never" }
+func ifAvailableExecInteractiveMode() ExecInteractiveMode { "IfAvailable" }
+func alwaysExecInteractiveMode() ExecInteractiveMode { "Always" }
+func pluginPolicyAllowAll() PolicyType { "AllowAll" }
+func pluginPolicyDenyAll() PolicyType { "DenyAll" }
+func pluginPolicyAllowlist() PolicyType { "Allowlist" }
+func newPluginPolicy() PluginPolicy { PluginPolicy("",None) }
+func newExecConfig() ExecConfig { ExecConfig("",None,None,"","",false,None,"",false,"",newPluginPolicy()) }
+func newAuthProviderConfig() AuthProviderConfig { AuthProviderConfig("",None) }
+func emptyPreferences() Preferences { Preferences(false,None) }
+func emptyCluster() Cluster { Cluster("","","",false,"",None,"",false,None) }
+func newPreferences() Preferences { Preferences(false,Some(map.emptyMap())) }
+func emptyContext() Context { Context("","","","",None) }
+func newCluster() Cluster { emptyCluster(){extensions:Some(map.emptyMap())} }
+func emptyAuthInfo() AuthInfo { AuthInfo("","",None,"",None,"","","","",None,None,"","",None,None,None) }
+func newContext() Context { emptyContext(){extensions:Some(map.emptyMap())} }
+func emptyConfig() Config { Config("","",emptyPreferences(),None,None,None,"",None) }
+func newAuthInfo() AuthInfo { emptyAuthInfo(){extensions:Some(map.emptyMap()),impersonateUserExtra:Some(map.emptyMap())} }
+func listOrEmpty[A](value Option[List[A]]) List[A] { match value { None => Nil; Some(entries) => entries } }
+func newConfig() Config { emptyConfig(){clusters:Some(map.emptyMap()),authInfos:Some(map.emptyMap()),contexts:Some(map.emptyMap()),extensions:Some(map.emptyMap())} }
+func mapOrEmpty[A](value Option[Map[String,A]]) Map[String,A] { match value { None => map.emptyMap(); Some(entries) => entries } }
+func bytesOrEmpty(value Option[String]) String { match value { None => ""; Some(bytes) => bytes } }
+func getCluster(config Config, name String) Option[Cluster] { match map.mapLookup(mapOrEmpty(config.clusters),name) { Some(value) => value; None => None } }
+func getAuthInfo(config Config, name String) Option[AuthInfo] { match map.mapLookup(mapOrEmpty(config.authInfos),name) { Some(value) => value; None => None } }
+func getContext(config Config, name String) Option[Context] { match map.mapLookup(mapOrEmpty(config.contexts),name) { Some(value) => value; None => None } }
+func withCluster(config Config, name String, value Option[Cluster]) Config { config{clusters:Some(map.mapInsert(mapOrEmpty(config.clusters),name,value))} }
+func withAuthInfo(config Config, name String, value Option[AuthInfo]) Config { config{authInfos:Some(map.mapInsert(mapOrEmpty(config.authInfos),name,value))} }
+func withContext(config Config, name String, value Option[Context]) Config { config{contexts:Some(map.mapInsert(mapOrEmpty(config.contexts),name,value))} }

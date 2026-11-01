@@ -1,0 +1,47 @@
+package metadata
+
+import fixture "dynamic/testing"
+import dynamic "dynamic"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import v1 "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import errors "deps/support"
+import sync "support/sync"
+import outcome "support/outcome"
+import s "std/string"
+
+// Copyright 2026 The Kubernetes Authors. Licensed under Apache-2.0.
+// Pinned metadata_test.go TestClient: content preference, fallback and mismatches.
+func resourceForTest() schema.GroupVersionResource { schema.groupVersionResourceWithResource(schema.groupVersionResourceWithVersion(schema.groupVersionResourceWithGroup(schema.newGroupVersionResource(),"custom.example"),"v1"),"widgets") }
+func testAcceptPreferenceAndLegacyFallback() IO[Bool] {
+ do {
+  serializer <- dynamic.metadataSerializer()
+  f <- fixture.newFixture(serializer,"application/json","{\"apiVersion\":\"custom.example/v1\",\"kind\":\"Widget\",\"metadata\":{\"name\":\"one\",\"resourceVersion\":\"24\"},\"spec\":{\"large\":\"discarded\"}}")
+  client <- fromRESTClient(f.client)
+  result <- client.resource(resourceForTest()).namespace("team").get("one",v1.newGetOptions(),[])
+  calls <- sync.readRef(f.calls)
+  ioPure((match result.value { None => false; Some(value) => v1.objectMetaGetName(v1.partialObjectMetadataGetObjectMeta(value))=="one" && v1.typeMetaGetKind(v1.partialObjectMetadataGetTypeMeta(value))=="" }) && (match calls { Cons(call,Nil) => call.accept==accept(false) && call.path=="/apis/custom.example/v1/namespaces/team/widgets/one"; _ => false }))
+ }
+}
+func testFallbackRejectsEmptyMetadataAndUnexpectedRegisteredTypes() IO[Bool] {
+ do {
+  serializer <- dynamic.metadataSerializer()
+  blank <- fixture.newFixture(serializer,"application/json","{\"apiVersion\":\"custom.example/v1\",\"kind\":\"Widget\",\"spec\":{}}")
+  blankClient <- fromRESTClient(blank.client)
+  empty <- blankClient.resource(resourceForTest()).get("one",v1.newGetOptions(),[])
+  wrong <- fixture.newFixture(serializer,"application/json","{\"apiVersion\":\"v1\",\"kind\":\"Status\",\"status\":\"Success\"}")
+  wrongClient <- fromRESTClient(wrong.client)
+  mismatch <- wrongClient.resource(resourceForTest()).get("one",v1.newGetOptions(),[])
+  ioPure((match empty.error { None => false; Some(e) => s.startsWith(errors.errorMessage(e),"object does not appear to match the ObjectMeta schema") }) && (match mismatch.error { None => false; Some(e) => s.startsWith(errors.errorMessage(e),"unexpected object, expected PartialObjectMetadata but got ") }))
+ }
+}
+func testDeleteUsesJSONAndListUsesListAccept() IO[Bool] {
+ do {
+  serializer <- dynamic.metadataSerializer()
+  f <- fixture.newFixture(serializer,"application/json","{\"apiVersion\":\"meta.k8s.io/v1\",\"kind\":\"PartialObjectMetadataList\",\"items\":[]}")
+  client <- fromRESTClient(f.client)
+  _ <- client.resource(resourceForTest()).delete("one",v1.newDeleteOptions(),[])
+  _ <- client.resource(resourceForTest()).list(v1.newListOptions())
+  calls <- sync.readRef(f.calls)
+  ioPure(match calls { Cons(deleted,Cons(listed,Nil)) => deleted.contentType=="application/json" && listed.accept==accept(true); _ => false })
+ }
+}

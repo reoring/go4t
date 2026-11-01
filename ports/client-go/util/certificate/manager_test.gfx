@@ -1,0 +1,99 @@
+// Copyright 2017 The Kubernetes Authors. Licensed under Apache-2.0.
+package certificate
+import api "github.com/reoring/gofx/ports/client-go/deps/k8s.io/api/certificates/v1"
+import crypto "github.com/reoring/gofx/ports/client-go/deps/crypto"
+import tls "github.com/reoring/gofx/ports/client-go/deps/crypto/tls"
+import x509 "github.com/reoring/gofx/ports/client-go/deps/crypto/x509"
+import support "github.com/reoring/gofx/ports/client-go/deps/support"
+import cert "github.com/reoring/gofx/ports/client-go/util/cert"
+import keyutil "github.com/reoring/gofx/ports/client-go/util/keyutil"
+import csr "github.com/reoring/gofx/ports/client-go/util/certificate/csr"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+extern func fixtureTemplate(cn String) IO[x509.CertificateRequest] = "github.com/reoring/gofx/ports/client-go/util/cert/testsupport".Template
+extern func fixtureKey(name String) String = "github.com/reoring/gofx/ports/client-go/util/keyutil/testsupport".Fixture
+extern func fixtureStatus(obj api.CertificateSigningRequest, name String, uid String, condition String, bytes String) api.CertificateSigningRequest = "github.com/reoring/gofx/ports/client-go/util/certificate/csr/testsupport".WithStatus
+extern func fixtureAPIError(kind String) support.Error = "github.com/reoring/gofx/ports/client-go/util/certificate/csr/testsupport".APIError
+func _memoryStore(state sync.Ref[Option[tls.Certificate]]) Store {
+ Store(func() => do { value <- sync.readRef(state); ioPure(match value { None => outcome.failure(None, noCertKeyError("no cert")); Some(_) => outcome.success(value) }) }, func(c,k) => do {
+  parsed <- cert.keyPair(c,k)
+  match parsed.1 { Some(error) => ioPure(outcome.failure(None,error)); None => do { sync.writeRef(state,parsed.0); ioPure(outcome.success(parsed.0)) } }
+ })
+}
+func _testManager(config Config) IO[Manager] { do { created <- newManager(config); match created.value { Some(manager) => ioPure(manager); None => ioFail("manager fixture failed") } } }
+func testManagerBootstrapExpirationTemplateAndDeadline() IO[Bool] { do {
+ clock <- sync.fakeClock(10000000000); state <- sync.newRef(None)
+ pair <- fixturePair("node", 0, 100000000000)
+ template <- fixtureTemplate("node")
+ let config = newConfig(clock, _memoryStore(state))
+ manager <- _testManager(config {template: Some(template), bootstrapCertificatePEM: Some(pair.0), bootstrapKeyPEM: Some(pair.1), jitter: func() => ioPure(500000)})
+ first <- current(manager); deadline <- nextRotationDeadline(manager); next <- nextRotationDeadline(manager)
+ matches <- certSatisfiesTemplate(manager)
+ sync.advance(clock, 90000000001)
+ expired <- current(manager)
+ stop(manager)
+ ioPure((match first { Some(_) => true; None => false }) && deadline == 10000000000 && next == 80000000000 && matches && (match expired { None => true; Some(_) => false }))
+} }
+func testManagerRotationUsesActualKeyPairAndReloadsClient() IO[Bool] { do {
+ clock <- sync.fakeClock(10000000000); state <- sync.newRef(None)
+ pair <- fixturePair("node", 0, 100000000000)
+ template <- fixtureTemplate("node"); key <- keyutil.parsePrivateKeyPEM(fixtureKey("ec"))
+ calls <- sync.newRef(0)
+ let issued = fixtureStatus(csr.newRequest("request", "example/signer", "", None, []), "request", "uid", "Approved", pair.0)
+ let client = csr.Client(func(_, _) => ioPure(outcome.success(issued)), func(_, _) => ioPure(outcome.success(issued)), func(_, _) => ioPure(outcome.success(api.certificateSigningRequestListWithItems(api.newCertificateSigningRequestList(), Some([issued])))), func(_, _) => ioFail("already issued; no watch expected"))
+ let config = newConfig(clock, _memoryStore(state))
+ let clientFn = func(previous) => do { n <- sync.readRef(calls); sync.writeRef(calls,n+1); ioPure(outcome.success(Some(client))) }
+ manager <- _testManager(config {template: Some(template), signerName: "example/signer", clientsetFn: Some(clientFn), generateKey: Some(func() => ioPure(key))})
+ rotated <- rotateCerts(manager); first <- current(manager)
+ rotatedAgain <- rotateCerts(manager); healthy <- serverHealthy(manager); n <- sync.readRef(calls)
+ stop(manager)
+ ioPure(rotated.value && rotatedAgain.value && healthy && n == 2 && (match first { Some(_) => true; None => false }))
+} }
+func testManagerRetryClockAndJoinedShutdown() IO[Bool] { do {
+ clock <- sync.fakeClock(0); state <- sync.newRef(None)
+ template <- fixtureTemplate("node"); key <- keyutil.parsePrivateKeyPEM(fixtureKey("ec"))
+ attempts <- sync.newChannel(2)
+ let dummy = csr.newRequest("request", "example/signer", "", None, [])
+ let client = csr.Client(func(_, _) => do { sync.send(attempts,unit()); ioPure(outcome.failure(dummy,fixtureAPIError("Forbidden"))) }, func(_, _) => ioFail("unexpected get"), func(_, _) => ioFail("unexpected list"), func(_, _) => ioFail("unexpected watch"))
+ let config = newConfig(clock,_memoryStore(state))
+ manager <- _testManager(config {template: Some(template), signerName: "example/signer", clientsetFn: Some(func(_) => ioPure(outcome.success(Some(client)))), generateKey: Some(func() => ioPure(key)), jitter: func() => ioPure(0)})
+ failed <- rotateCerts(manager); sync.receive(attempts)
+ start(manager); sync.receive(attempts)
+ stop(manager)
+ healthy <- serverHealthy(manager); tasks <- sync.readRef(manager.tasks)
+ ioPure(!failed.value && healthy && retryDelay(0, 500000) == 2100000000 && retryDelay(3, 0) == 16000000000 && retryDelay(9, 999999) == 32000000000 && (match tasks { Nil => true; _ => false }))
+} }
+func testManagerRejectsConflictingUsagesAndReportsKeyFailure() IO[Bool] { do {
+ clock <- sync.fakeClock(0); state <- sync.newRef(None)
+ let config = newConfig(clock,_memoryStore(state))
+ invalid <- newManager(config {usages: Some(["client auth"])})
+ let sentinel = cert.newError("signer unavailable")
+ manager <- _testManager(config {generateKey: Some(func() => ioPure(outcome.failure(None,sentinel)))})
+ generated <- generateCSR(manager)
+ stop(manager)
+ ioPure((match invalid.error { Some(error) => cert.errorText(error) == "cannot specify both GetUsages and Usages"; None => false }) && (match generated.error { Some(error) => cert.errorText(error) == "unable to generate a new private key: signer unavailable"; None => false }))
+} }
+extern func _weakFixture(name String) String = "github.com/reoring/gofx/ports/client-go/util/keyutil/testsupport".WeakFixture
+func testWeakRSAAndECKeysAreRejectedBeforeCSR() IO[Bool] { do {
+ rsa <- keyutil.parsePrivateKeyPEM(_weakFixture("rsa")); ec <- keyutil.parsePrivateKeyPEM(_weakFixture("ec"))
+ match (rsa.value, ec.value) { (Some(rsa), Some(ec)) => do {
+  rejectedRSA <- validateKeyStrength(rsa); rejectedEC <- validateKeyStrength(ec)
+  ioPure((match rejectedRSA { Some(error) => cert.errorText(error) == "RSA key size 1024 bits is below the minimum of 2048"; None => false }) && (match rejectedEC { Some(_) => true; None => false }))
+ }; _ => ioPure(false) }
+} }
+func testDynamicTemplateCancelsSupersededRequest() IO[Bool] { do {
+ clock <- sync.fakeClock(10000000000); state <- sync.newRef(None)
+ pair <- fixturePair("node", 0, 100000000000)
+ first <- fixtureTemplate("node"); second <- fixtureTemplate("changed")
+ templates <- sync.newRef(Some(first))
+ let config = newConfig(clock, _memoryStore(state))
+ manager <- _testManager(config {getTemplate: Some(func() => sync.readRef(templates)), bootstrapCertificatePEM: Some(pair.0), bootstrapKeyPEM: Some(pair.1)})
+ parent <- sync.captureContext(); child <- sync.newContext(parent, None)
+ sync.withLock(manager.mutex, do { current <- sync.readRef(manager.state); sync.writeRef(manager.state, current {lastTemplate: Some(first), requestCancel: Some(child.1)}) })
+ _checkTemplate(manager); before <- sync.contextCancelled(child.0)
+ sync.writeRef(templates, Some(second))
+ _checkTemplate(manager); after <- sync.contextCancelled(child.0)
+ matches <- certSatisfiesTemplate(manager)
+ stop(manager)
+ ioPure(!before && after && !matches)
+} }

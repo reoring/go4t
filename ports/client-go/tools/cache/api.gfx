@@ -1,0 +1,38 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package cache
+import "std/map"
+import "std/list"
+import "std/io"
+import strings "std/string"
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+import "github.com/reoring/gofx/ports/client-go/support/outcome"
+import errors "github.com/reoring/gofx/ports/client-go/deps/support"
+import runtime "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime"
+import v1 "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+
+alias TypedSharedIndexInformer[A] = SharedInformer[A]
+alias TypedIndexFunc[A] = IndexFunc[A]
+alias ThreadSafeStoreWithTransaction[A] = ThreadSafeStore[A]
+alias ThreadSafeStoreTransaction[A] = KeyedOperation[A]
+alias LessFunc[A] = func(A,A) IO[Bool]
+alias InformerSynced = func() IO[Bool]
+alias AppendFunc[A] = func(A) IO[Unit]
+alias ShouldResyncFunc = func() IO[Bool]
+alias ProcessFunc[A] = PopProcessFunc[A]
+alias ProcessBatchFunc[A] = func(List[RealEvent[A]],Bool) IO[ProcessResult]
+func metaNamespaceKeyFunc(obj runtime.Object) IO[outcome.Outcome[String]] { rawObjectAccess().key(obj) }
+func objectToName[A](access ObjectAccess[A], obj A) IO[outcome.Outcome[ObjectName]] { do { key <- access.key(obj); ioPure(match key.error { Some(e) => outcome.failure(ObjectName("",""),e); None => parseObjectName(key.value) }) } }
+func metaObjectToName(meta v1.ObjectMeta) ObjectName { ObjectName(v1.objectMetaGetNamespace(meta),v1.objectMetaGetName(meta)) }
+func keyErrorMessage[A](error KeyError[A], describe func(A) IO[String]) IO[String] { do { object <- describe(error.object); ioPure("couldn't create key for object " + object + ": " + errors.errorMessage(error.error)) } }
+func keyErrorCause[A](error KeyError[A]) errors.Error { error.error }
+func isFIFOClosed(error errors.Error) Bool { errors.errorMessage(error) == "DeltaFIFO: manipulating with closed queue" }
+func isZeroLengthDeltasError(error errors.Error) Bool { strings.contains(errors.errorMessage(error),"0 length Deltas object; can't get key") }
+type VeryShortWatchError = VeryShortWatchError { name: String }
+func veryShortWatchErrorMessage(error VeryShortWatchError) String { "very short watch: " + error.name + ": Unexpected watch close - watch lasted less than a second and no items received" }
+func isVeryShortWatchError(error errors.Error) Bool { strings.startsWith(errors.errorMessage(error),"very short watch: ") }
+func defaultWatchErrorHandler[A](reflector Reflector[A], error errors.Error) IO[Unit] { io.eprintln(errors.errorMessage(error)) }
+func newExpirationStore[A](access ObjectAccess[A], policy ExpirationPolicy[A], clock sync.Clock) IO[Store[A]] { do { cache <- newExpirationCache(access,policy,clock,func(_) => ioPure(unit())); ioPure(expirationStore(cache)) } }
+func threadSafeTransaction[A](storage ThreadSafeStore[A], operations List[KeyedOperation[A]]) IO[Unit] { do { version <- finalOperationVersion(storage.access,operations); sync.withLock(storage.mutex,sync.uninterruptible(do { state <- sync.readRef(storage.state); next <- applyTransactions(storage.access,state,operations); _ <- publishStorageVersion(storage,outcome.mapValue(next,func(s) => applyTransactionVersion(s,version)),version); ioPure(unit()) })) } }
+func newNamespaceKeyedIndexerAndReflector[A](lw ListWatcher[A], access ObjectAccess[A], decode func(runtime.Object) outcome.Outcome[A], resyncPeriod Int, clock sync.Clock) IO[(Indexer[A],Reflector[A])] { do { indexer <- newIndexer(access,map.mapInsert(map.emptyMap(),"namespace",namespaceIndex(access))); reflector <- newReflector(defaultReflectorOptions(lw,storeAsReflector(indexer.store),access,decode,clock) { resyncPeriod: resyncPeriod }); ioPure((indexer,reflector)) } }
+type InformerStatus = InformerStatus { hasSynced: func() IO[Bool], checker: DoneChecker, resourceVersion: func() IO[String] }
+func getControllerStatus[A](informer SharedInformer[A]) InformerStatus { InformerStatus(func() => hasSynced(informer),informerDoneChecker(informer,"SharedIndexInformer"),func() => lastSyncResourceVersion(informer)) }

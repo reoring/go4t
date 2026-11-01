@@ -1,0 +1,121 @@
+// Copyright 2026 The Kubernetes Authors. Licensed under Apache-2.0.
+package regression
+
+import dynamic "dynamic"
+import fixture "dynamic/testing"
+import rest "rest"
+import transport "transport"
+import http "deps/net/http"
+import runtime "deps/k8s.io/apimachinery/pkg/runtime"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import u "deps/k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+import v1 "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import sync "support/sync"
+import watch "support/watch"
+import outcome "support/outcome"
+import auth "plugin/pkg/client/auth"
+import exec "plugin/pkg/client/auth/exec"
+import flow "util/flowcontrol"
+import errors "deps/support"
+
+extern func checkRequest(name String,request http.Request) IO[Bool] = "github.com/reoring/gofx/ports/client-go/dynamic/regression/host".CheckRequest
+extern func goldenResponse(name String,request http.Request) IO[http.Response] = "github.com/reoring/gofx/ports/client-go/dynamic/regression/host".Response
+extern func checkObject(name String,object runtime.Object) IO[Bool] = "github.com/reoring/gofx/ports/client-go/dynamic/regression/host".CheckObject
+extern func checkEvents(events List[(String,Option[runtime.Object])]) IO[Bool] = "github.com/reoring/gofx/ports/client-go/dynamic/regression/host".CheckEvents
+
+type GoldenClient = GoldenClient { resource: dynamic.ResourceInterface, calls: sync.Ref[Int] }
+func goldenClient(name String,requests Bool) IO[GoldenClient] {
+ do {
+  calls <- sync.newRef(0)
+  let reply = if name == "watch" { "events" } else { if name == "list" { "list" } else { "nonlist" } }
+  let baseTransport = transport.roundTripper(func(request) => do {
+   _ <- if requests { checkRequest(name,request) } else { ioPure(true) }
+   count <- sync.readRef(calls)
+   sync.writeRef(calls,count+1)
+   response <- goldenResponse(reply,request)
+   ioPure(outcome.success(Some(response)))
+  },func(_) => ioPure(unit()),func() => ioPure(unit()))
+  wire <- transport.toHTTP(transport.newUserAgentRoundTripper("TestGoldenRequest",baseTransport))
+  httpClient <- rest.newHTTPClient(wire,0)
+  clock <- sync.fakeClock(0)
+  registry <- fixture.featureRegistry()
+  transportEnv <- transport.newEnvironment(registry)
+  providers <- rest.newAuthProviderRegistry()
+  authCache <- exec.newCache()
+  authEnv <- exec.newEnvironment()
+  let environment = rest.newEnvironment(transportEnv,registry,auth.authentication(providers,authCache,authEnv),clock,rest.noWarnings(),func(qps,burst) => flow.newTokenBucketRateLimiterWithClock(qps,burst,clock))
+  let config = rest.emptyConfig(){host: "http://example.com",userAgent: "TestGoldenRequest",qps: -1.0}
+  made <- dynamic.newForConfigAndClient(environment,config,httpClient)
+  dynamicClient <- match made.error {
+   Some(error) => ioFail(errors.errorMessage(error))
+   None => match made.value { None => ioFail("dynamic golden constructor returned no client"); Some(client) => ioPure(client) }
+  }
+   let gvr = if requests { schema.groupVersionResourceWithResource(schema.groupVersionResourceWithVersion(schema.groupVersionResourceWithGroup(schema.newGroupVersionResource(),"flops"),"v1alpha1"),"flips") } else { schema.newGroupVersionResource() }
+   let resource = dynamicClient.resource(gvr)
+   ioPure(GoldenClient(if requests { resource.namespace("mops") } else { resource },calls))
+ }
+}
+func goldenRequest(name String) IO[Bool] {
+ do {
+  f <- goldenClient(name,true)
+  named <- u.unstructuredCallSetName(u.newUnstructured(),"mips")
+  let c = f.resource
+  let create = v1.createOptionsWithFieldValidation(v1.newCreateOptions(),"warn")
+  let update = v1.updateOptionsWithFieldValidation(v1.newUpdateOptions(),"warn")
+  let deletion = v1.deleteOptionsWithDryRun(v1.newDeleteOptions(),Some(["All"]))
+  let list = v1.listOptionsWithResourceVersion(v1.newListOptions(),"42")
+  let apply = v1.applyOptionsWithForce(v1.newApplyOptions(),true)
+  _ <- if name == "create" { do { _ <- c.create(named.0,create,["fin"]); ioPure(unit()) } }
+  else { if name == "update" { do { _ <- c.update(named.0,update,["fin"]); ioPure(unit()) } }
+  else { if name == "updatestatus" { do { _ <- c.updateStatus(named.0,update); ioPure(unit()) } }
+  else { if name == "delete" { do { _ <- c.delete("mips",deletion,["fin"]); ioPure(unit()) } }
+  else { if name == "deletecollection" { do { _ <- c.deleteCollection(deletion,list); ioPure(unit()) } }
+  else { if name == "get" { do { _ <- c.get("mips",v1.getOptionsWithResourceVersion(v1.newGetOptions(),"42"),["fin"]); ioPure(unit()) } }
+  else { if name == "list" { do { _ <- c.list(list); ioPure(unit()) } }
+  else { if name == "watch" { do { result <- c.watch(list); match result.value { None => ioPure(unit()); Some(stream) => watch.stop(stream) } } }
+  else { if name == "patch" { do { _ <- c.patch("mips","application/strategic-merge-patch+json","{\"foo\":\"bar\"}\n",v1.patchOptionsWithFieldManager(v1.newPatchOptions(),"baz"),["fin"]); ioPure(unit()) } }
+  else { if name == "apply" { do { _ <- c.apply("mips",named.0,apply,["fin"]); ioPure(unit()) } }
+  else { do { _ <- c.applyStatus("mips",named.0,apply); ioPure(unit()) } } } } } } } } } } }
+  count <- sync.readRef(f.calls)
+  ioPure(count==1)
+ }
+}
+func goldenObjectResponse(name String) IO[Bool] {
+ do {
+  f <- goldenClient(name,false)
+  named <- u.unstructuredCallSetName(u.newUnstructured(),"name")
+  result <- if name == "create" { f.resource.create(u.newUnstructured(),v1.newCreateOptions(),[]) }
+   else { if name == "update" { f.resource.update(named.0,v1.newUpdateOptions(),[]) }
+   else { if name == "updatestatus" { f.resource.updateStatus(named.0,v1.newUpdateOptions()) }
+   else { f.resource.get("name",v1.newGetOptions(),[]) } } }
+  match result.error { Some(_) => ioPure(false); None => match result.value { None => ioPure(false); Some(value) => checkObject(name,u.unstructuredToRuntimeObject(value)) } }
+ }
+}
+func collectEvents(stream watch.Watch) IO[List[(String,Option[runtime.Object])]] {
+ do { event <- watch.next(stream); match event { None => ioPure([]); Some(value) => do { rest <- collectEvents(stream); ioPure(Cons((value.eventType,value.object),rest)) } } }
+}
+func testGoldenRequestCreate() IO[Bool] { goldenRequest("create") }
+func testGoldenRequestUpdate() IO[Bool] { goldenRequest("update") }
+func testGoldenRequestUpdateStatus() IO[Bool] { goldenRequest("updatestatus") }
+func testGoldenRequestDelete() IO[Bool] { goldenRequest("delete") }
+func testGoldenRequestDeleteCollection() IO[Bool] { goldenRequest("deletecollection") }
+func testGoldenRequestGet() IO[Bool] { goldenRequest("get") }
+func testGoldenRequestList() IO[Bool] { goldenRequest("list") }
+func testGoldenRequestWatch() IO[Bool] { goldenRequest("watch") }
+func testGoldenRequestPatch() IO[Bool] { goldenRequest("patch") }
+func testGoldenRequestApply() IO[Bool] { goldenRequest("apply") }
+func testGoldenRequestApplyStatus() IO[Bool] { goldenRequest("applystatus") }
+func testGoldenResponseCreate() IO[Bool] { goldenObjectResponse("create") }
+func testGoldenResponseUpdate() IO[Bool] { goldenObjectResponse("update") }
+func testGoldenResponseUpdateStatus() IO[Bool] { goldenObjectResponse("updatestatus") }
+func testGoldenResponseGet() IO[Bool] { goldenObjectResponse("get") }
+func testGoldenResponseList() IO[Bool] { do {
+ f <- goldenClient("list",false)
+ result <- f.resource.list(v1.newListOptions())
+ match result.error { Some(_) => ioPure(false); None => match result.value { None => ioPure(false); Some(value) => checkObject("list",u.unstructuredListToRuntimeObject(value)) } }
+} }
+func testGoldenResponseWatch() IO[Bool] { do {
+ f <- goldenClient("watch",false)
+ result <- f.resource.watch(v1.newListOptions())
+ match result.error { Some(_) => ioPure(false); None => match result.value { None => ioPure(false); Some(stream) => do { events <- collectEvents(stream); watch.stop(stream); checkEvents(events) } } }
+} }

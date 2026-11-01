@@ -1,0 +1,13 @@
+// Copyright 2019 The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package events
+import runtime "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime"
+import "github.com/reoring/gofx/ports/client-go/deps/support"
+alias Logger = func(String,Option[support.Error]) IO[Unit]
+// Formatted strings replace Go's heterogeneous variadic formatting boundary.
+type EventRecorder = EventRecorder {
+ eventf: func(Option[runtime.Object],Option[runtime.Object],String,String,String,String) IO[Unit],
+ annotatedEventf: func(Option[runtime.Object],Option[runtime.Object],support.ForeignMap[String,String],String,String,String,String) IO[Unit],
+ withLogger: func(Logger) EventRecorder
+}
+alias EventRecorderLogger = EventRecorder
+alias AnnotatedEventRecorder = EventRecorder

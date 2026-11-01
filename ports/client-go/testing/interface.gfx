@@ -1,0 +1,23 @@
+// Copyright 2023 The Kubernetes Authors. Licensed under Apache-2.0.
+package testing
+import labels "deps/k8s.io/apimachinery/pkg/labels"
+import fields "deps/k8s.io/apimachinery/pkg/fields"
+import meta "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import native "testing/internal"
+
+// The shared fake and tracker are exposed independently; all chain operations
+// use the same Fake identity through this composition.
+type FakeClient = FakeClient { fake: Fake, tracker: ObjectTracker }
+func newFakeClient(fake Fake, tracker ObjectTracker) FakeClient { FakeClient(fake,tracker) }
+func getTracker(client FakeClient) ObjectTracker { client.tracker }
+// Restrictions expose canonical external selectors and their full matching API.
+type ListRestrictions = ListRestrictions { labels: labels.Selector, fields: fields.Selector }
+type WatchRestrictions = WatchRestrictions { labels: labels.Selector, fields: fields.Selector, resourceVersion: String }
+func extractFromListOptions(options meta.ListOptions) IO[WatchRestrictions] { do {
+ native.validateSelectors(options)
+ label <- native.labelSelector(meta.listOptionsGetLabelSelector(options))
+ field <- native.fieldSelector(meta.listOptionsGetFieldSelector(options))
+ ioPure(WatchRestrictions(label,field,meta.listOptionsGetResourceVersion(options)))
+} }
+func getListRestrictions(action Action) IO[ListRestrictions] { do { selectors <- extractFromListOptions(action.listOptions); ioPure(ListRestrictions(selectors.labels,selectors.fields)) } }
+func getWatchRestrictions(action Action) IO[WatchRestrictions] { extractFromListOptions(action.listOptions) }

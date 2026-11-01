@@ -1,0 +1,32 @@
+package dynamicinformer
+import cache "tools/cache"
+import dynamic "dynamic"
+import u "deps/k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import outcome "support/outcome"
+import sync "support/sync"
+import m "std/map"
+// Copyright 2026 The Kubernetes Authors. Licensed under Apache-2.0.
+// Pinned informer_test.go factory memoization and shutdown admission semantics.
+func testFactoryMemoizesGVRIdentityAndDoesNotStartAfterShutdown() IO[Bool] {
+ do {
+  clock <- sync.fakeClock(0)
+  builds <- sync.newRef(0)
+  factory <- newFactory(func(gvr) => do {
+   count <- sync.readRef(builds); sync.writeRef(builds,count+1)
+   let access = dynamic.objectAccess(u.unstructuredObjectType())
+   let lw = cache.ListWatcher(func(_) => ioPure(outcome.success(cache.ListResult([],"1",""))),func(_) => ioPure(outcome.success(None)),false,false)
+   informer <- cache.newSharedIndexInformer(lw,access,func(o) => dynamic.decodeTyped(u.unstructuredObjectType(),u.newUnstructured(),o),0,m.emptyMap(),clock)
+   ioPure(GenericInformer(informer,cache.newResourceLister(cache.getIndexer(informer),access,schema.newGroupResource())))
+  },clock)
+  let gvr = schema.groupVersionResourceWithResource(schema.newGroupVersionResource(),"custom")
+  one <- forResource(factory,gvr)
+  two <- forResource(factory,gvr)
+  shutdown(factory)
+  start(factory)
+  synced <- waitForCacheSync(factory)
+  count <- sync.readRef(builds)
+  started <- cache.hasStarted(one.informer)
+  ioPure(sync.sameRef(one.informer.identity,two.informer.identity) && count==1 && !started && length(synced)==0)
+ }
+}

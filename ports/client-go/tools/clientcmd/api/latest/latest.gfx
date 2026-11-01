@@ -1,0 +1,13 @@
+// Copyright 2014 The Kubernetes Authors. Licensed under Apache-2.0.
+package latest
+import api "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api"
+import v1 "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api/v1"
+import schema "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime/schema"
+func version() String { "v1" }
+func oldestVersion() String { "v1" }
+func externalVersion() schema.GroupVersion { v1.schemeGroupVersion() }
+func versions() List[String] { [version()] }
+func scheme() api.Scheme { api.applySchemeBuilder(v1.schemeBuilder(),api.addToScheme(api.newScheme())) }
+type Codec = Codec {encode:func(api.Config) IO[String],decode:func(String) IO[api.Config]}
+func newCodec(scheme api.Scheme) Codec { Codec(func(value) => api.encodeWithScheme(scheme,api.InternalConfig(value),version()),func(text) => do { value <- api.decodeWithScheme(scheme,text); converted <- api.convert(scheme,value,api.internalVersion()); match converted { api.InternalConfig(value) => ioPure(api.normalizeDecodedConfig(value)); api.VersionedConfig(_,_) => ioFail("conversion returned a versioned config for internal target") } }) }
+func codec() Codec { newCodec(scheme()) }

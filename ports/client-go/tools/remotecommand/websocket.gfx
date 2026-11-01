@@ -1,0 +1,152 @@
+// Copyright 2023 The Kubernetes Authors. Licensed under Apache-2.0.
+// Source: client-go v0.37.2 tools/remotecommand/websocket.go.
+package remotecommand
+import ws "github.com/reoring/gofx/ports/client-go/transport/websocket"
+import raw "github.com/reoring/gofx/ports/client-go/deps/github.com/gorilla/websocket"
+import spdy "github.com/reoring/gofx/ports/client-go/transport/spdy"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import errors "github.com/reoring/gofx/ports/client-go/deps/support"
+import transport "github.com/reoring/gofx/ports/client-go/transport"
+import rest "github.com/reoring/gofx/ports/client-go/rest"
+import map "std/map"
+import io "std/io"
+
+type WSStream = WSStream { chunks:sync.Channel[String], pending:sync.Ref[String], error:sync.Ref[Option[errors.Error]], closed:sync.Ref[Bool], readClosed:sync.Ref[Bool], readLock:sync.Mutex }
+type WSMux = WSMux { conn:ws.Conn, streams:sync.Ref[Map[Int,WSStream]], writeLock:sync.Mutex, stateLock:sync.Mutex, closed:sync.Ref[Bool], done:sync.Channel[Unit] }
+extern func _eof() errors.Error = "github.com/reoring/gofx/ports/client-go/tools/remotecommand/host".EOF
+extern func _byteCode(value String) Int = "github.com/reoring/gofx/ports/client-go/tools/remotecommand/host".ByteCode
+extern func _bytePrefix(value String, size Int) String = "github.com/reoring/gofx/ports/client-go/tools/remotecommand/host".BytePrefix
+func _streamID(kind String) Int {match kind {"stdin"=>0;"stdout"=>1;"stderr"=>2;"error"=>3;"resize"=>4;_=> -1}}
+func _kind(headers List[(String,String)]) String {match headers {Nil=>"";Cons(h,tail)=>if h.0=="streamType" {h.1} else {_kind(tail)}}}
+func _channelRead(s WSStream, size Int) IO[outcome.Outcome[String]] {do {
+ pending<-sync.readRef(s.pending)
+ if pending!="" {do {
+  let count=if spdy.byteLength(pending)>size {size} else {spdy.byteLength(pending)}
+  sync.writeRef(s.pending,spdy.byteSlice(pending,count))
+  ioPure(outcome.success(_bytePrefix(pending,count)))
+ }} else {do {
+  part<-sync.receive(s.chunks)
+  match part {Some(data)=>do {sync.writeRef(s.pending,data);_channelRead(s,size)};None=>do {error<-sync.readRef(s.error);ioPure(outcome.from("",Some(match error {None=>_eof();Some(e)=>e})))}}
+ }}
+}}
+func _closeChannel(s WSStream, error Option[errors.Error]) IO[Unit] {sync.uninterruptible(sync.withLock(s.readLock,do {
+ closed<-sync.readRef(s.readClosed)
+ if closed {ioPure(unit())} else {do {
+  sync.writeRef(s.readClosed,true)
+  sync.writeRef(s.error,error)
+  sync.close(s.chunks)
+ }}
+}))}
+func _allClose(mux WSMux, error Option[errors.Error]) IO[Unit] {sync.uninterruptible(sync.withLock(mux.stateLock,do {
+ closed<-sync.readRef(mux.closed)
+ if closed {ioPure(unit())} else {do {
+  sync.writeRef(mux.closed,true)
+  streams<-sync.readRef(mux.streams)
+  _closeEntries(map.mapToList(streams),error)
+  sync.close(mux.done)
+ }}
+}))}
+func _closeEntries(streams List[(Int,WSStream)], error Option[errors.Error]) IO[Unit] {match streams {Nil=>ioPure(unit());Cons(s,tail)=>do {_closeChannel(s.1,error);_closeEntries(tail,error)}}}
+func _writeWS(mux WSMux, s WSStream, id Int, data String) IO[outcome.Outcome[Int]] {sync.withLock(mux.writeLock,do {
+ closed<-sync.readRef(s.closed)
+ if closed {ioPure(outcome.failure(0,errors.errorNew("write on closed stream ${id}")))} else {do {
+  result<-ws.writeFrame(mux.conn,transport.byteString(id),data,60000000000)
+  ioPure(outcome.from(result.0,result.1))
+ }}
+})}
+func _closeWS(mux WSMux, s WSStream, id Int) IO[Unit] {sync.withLock(mux.writeLock,do {
+ closed<-sync.readRef(s.closed)
+ if closed {ioPure(unit())} else {do {
+  sync.writeRef(s.closed,true)
+  _ <- ws.writeMessage(mux.conn,2,transport.byteString(255)+transport.byteString(id),60000000000)
+  ioPure(unit())
+ }}
+})}
+func _newWSStream(mux WSMux, headers List[(String,String)]) IO[outcome.Outcome[Option[spdy.Stream]]] {sync.withLock(mux.stateLock,do {
+ let kind=_kind(headers)
+ let id=_streamID(kind)
+ streams<-sync.readRef(mux.streams)
+ closed<-sync.readRef(mux.closed)
+ if id<0 {ioPure(outcome.failure(None,errors.errorNew("unknown stream type: ${kind}")))} else {
+  if closed {ioPure(outcome.failure(None,errors.errorNew("closed all streams")))} else {match map.mapLookup(streams,id) {
+   Some(_)=>ioPure(outcome.failure(None,errors.errorNew("duplicate stream for type ${kind}")));
+   None=>do {
+    chunks<-sync.newChannel(0)
+    pending<-sync.newRef("")
+    error<-sync.newRef(None)
+    closed<-sync.newRef(false)
+    readClosed<-sync.newRef(false)
+    readLock<-sync.newMutex()
+    let s=WSStream {chunks:chunks,pending:pending,error:error,closed:closed,readClosed:readClosed,readLock:readLock}
+    sync.writeRef(mux.streams,map.mapInsert(streams,id,s))
+    ioPure(outcome.success(Some(spdy.Stream {
+     reader:spdy.Reader {read:func(size)=>_channelRead(s,size),close:func()=>_closeChannel(s,None)},
+     writer:spdy.Writer {write:func(data)=>_writeWS(mux,s,id,data),close:func()=>_closeWS(mux,s,id)},
+     reset:func()=>do {_closeWS(mux,s,id);_closeChannel(s,None)},identity:None,headers:headers,identifier:id
+    })))
+   }
+  }}
+ }
+})}
+func _pumpMessage(mux WSMux, reader spdy.Reader) IO[Unit] {do {
+ id<-reader.read(1)
+ if spdy.byteLength(id.value)!=1 { _allClose(mux,Some(errors.errorNew("read stream id: unexpected EOF"))) } else {do {
+  streams<-sync.readRef(mux.streams)
+  match map.mapLookup(streams,_byteCode(id.value)) {
+   None=>do {_ <- spdy.copy(reader,spdy.discard());ioPure(unit())};
+   Some(s)=>do {
+    _ <- spdy.copy(reader,spdy.Writer {write:func(data)=>do {sync.send(s.chunks,data);ioPure(outcome.success(spdy.byteLength(data)))},close:func()=>ioPure(unit())})
+    ioPure(unit())
+   }
+  }
+ }}
+}}
+func _demux(mux WSMux) IO[Unit] {do {
+ message<-raw.connCallNextReaderIdentity(mux.conn)
+ match message.1.1 {
+  Some(e)=>_allClose(mux,if spdy.isEOF(e) || ws.isNormalClose(e) {None} else {Some(e)});
+  None=>if message.0!=2 {_allClose(mux,Some(errors.errorNew("unexpected message type: ${message.0}")))} else {match message.1.0 {
+   None=>_allClose(mux,Some(errors.errorNew("next reader returned no reader")));
+   Some(reader)=>do {_ <- io.tryIO(_pumpMessage(mux,spdy.fromReader(reader)));closed<-sync.readRef(mux.closed);if closed {ioPure(unit())} else {_demux(mux)}}
+  }}
+ }
+}}
+func _heartbeatLoop(conn ws.Conn,timer sync.Timer) IO[Unit] {do {
+ channel <- sync.timerChannel(timer)
+ _ <- sync.receive(channel)
+ _ <- ws.control(conn,9,"",61000000000)
+ _ <- sync.resetTimer(timer,5000000000)
+ _heartbeatLoop(conn,timer)
+}}
+func _heartbeat(conn ws.Conn, clock sync.Clock) IO[Unit] {sync.bracket(sync.newTimer(clock,5000000000),func(timer)=>_heartbeatLoop(conn,timer),func(timer)=>do {_ <- sync.stopTimer(timer);ioPure(unit())})}
+func _removeWS(mux WSMux,streams List[spdy.Stream]) IO[Unit] {match streams {Nil=>ioPure(unit());Cons(s,tail)=>do {
+ sync.withLock(mux.stateLock,do {current<-sync.readRef(mux.streams);sync.writeRef(mux.streams,map.mapDelete(current,s.identifier))})
+ _removeWS(mux,tail)
+}}}
+func streamWebSocket(conn ws.Conn, options StreamOptions) IO[outcome.Outcome[Unit]] {do {
+ selected<-ws.subprotocol(conn)
+ let version=protocolVersion(selected)
+ streams<-sync.newRef(map.emptyMap())
+ writeLock<-sync.newMutex()
+ stateLock<-sync.newMutex()
+ closed<-sync.newRef(false)
+ ready<-sync.newChannel(0)
+ done<-sync.newChannel(0)
+ clock<-sync.realClock()
+ let mux=WSMux {conn:conn,streams:streams,writeLock:writeLock,stateLock:stateLock,closed:closed,done:done}
+ let connection=spdy.Connection {createStream:func(headers)=>_newWSStream(mux,headers),close:func()=>do {ws.close(conn);_allClose(mux,None)},awaitClose:func()=>do {_ <- sync.receive(done);ioPure(unit())},removeStreams:func(streams)=>_removeWS(mux,streams),setIdleTimeout:func(nanos)=>do {_ <- ws.readTimeout(conn,nanos);ioPure(unit())}}
+ _ <- ws.heartbeat(conn,61000000000)
+ withProducers([do {_ <- sync.receive(ready);_demux(mux)},_heartbeat(conn,clock)],sync.ensuring(streamProtocolReady(version,connection,options,sync.close(ready)),do {ws.close(conn);_allClose(mux,None)}))
+}}
+func newWebSocketExecutorForProtocols(environment rest.Environment, config rest.Config, method String, address String, requested List[String]) IO[outcome.Outcome[Option[Executor]]] {do {
+ transports<-ws.roundTripperFor(environment,config)
+ ioPure(outcome.from(match transports.value {None=>None;Some(t)=>Some(Executor {streamWithContext:func(options)=>do {
+  req<-spdy.newRequest(method,address)
+  match req.0 {None=>ioPure(outcome.from(unit(),req.1));Some(r)=>do {
+   connection<-ws.negotiate(t.transport,t.holder,r,requested)
+   match connection.value {None=>ioPure(outcome.from(unit(),connection.error));Some(conn)=>sync.ensuring(streamWebSocket(conn,options),ws.close(conn))}
+  }}
+ }})},transports.error))
+}}
+func newWebSocketExecutor(environment rest.Environment, config rest.Config, method String, address String) IO[outcome.Outcome[Option[Executor]]] {newWebSocketExecutorForProtocols(environment,config,method,address,["v5.channel.k8s.io"])}

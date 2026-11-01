@@ -1,0 +1,59 @@
+// Copyright 2017 The Kubernetes Authors. Licensed under Apache-2.0.
+package certificate
+import cert "github.com/reoring/gofx/ports/client-go/util/cert"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+extern func fixtureDirectory() IO[String] = "github.com/reoring/gofx/ports/client-go/util/cert/testsupport".TempDir
+extern func removeFixtureDirectory(path String) IO[Unit] = "github.com/reoring/gofx/ports/client-go/util/cert/testsupport".RemoveAll
+extern func fixturePair(cn String, before Int, after Int) IO[(String, String)] = "github.com/reoring/gofx/ports/client-go/util/cert/testsupport".Pair
+extern func fixtureOtherKey() IO[String] = "github.com/reoring/gofx/ports/client-go/util/cert/testsupport".OtherKey
+extern func fixtureMode(path String) IO[Int] = "github.com/reoring/gofx/ports/client-go/util/cert/testsupport".Mode
+extern func fixtureLink(path String) IO[String] = "github.com/reoring/gofx/ports/client-go/util/cert/testsupport".Readlink
+func testStoreRotationSymlinkModeAndKeyMismatch() IO[Bool] {
+ sync.bracket(fixtureDirectory(), func(dir) => do {
+  clock <- sync.fakeClock(1000000000000)
+  created <- newFileStore(clock, "node", dir, dir, "", "")
+  match created.value { None => ioPure(false); Some(store) => do {
+   missing <- store.store.current()
+   pair <- fixturePair("node", 0, 10000000000000)
+   first <- store.store.update(pair.0, pair.1)
+   target <- fixtureLink(store.currentPath); mode <- fixtureMode(target)
+   other <- fixtureOtherKey()
+   sync.advance(clock, 1000000000)
+   rejected <- store.store.update(pair.0, other)
+   unchanged <- fixtureLink(store.currentPath)
+   loaded <- store.store.current()
+   ioPure((match missing.error { Some(error) => isNoCertKeyError(error); None => false }) && outcome.isSuccess(first) && mode == 384 && !outcome.isSuccess(rejected) && target == unchanged && outcome.isSuccess(loaded))
+  } }
+ }, removeFixtureDirectory)
+}
+func testStoreRecoversInterruptedSymlinkAndRejectsRegularCurrent() IO[Bool] {
+ sync.bracket(fixtureDirectory(), func(dir) => do {
+  clock <- sync.fakeClock(0)
+  pair <- fixturePair("node", 0, 1000000000000)
+  let target = cert.joinPath(dir, "pair.pem")
+  cert.writeFile(target, pair.0 + pair.1, 384)
+  cert.symlink(target, cert.joinPath(dir, "node-updated.pem"))
+  recovered <- newFileStore(clock, "node", dir, dir, "", "")
+  match recovered.value { None => ioPure(false); Some(store) => do {
+   current <- store.store.current(); cert.remove(store.currentPath)
+   cert.writeFile(store.currentPath, pair.0 + pair.1, 384)
+   rejected <- store.store.update(pair.0, pair.1)
+   ioPure(outcome.isSuccess(current) && !outcome.isSuccess(rejected) && (match rejected.error { Some(error) => cert.errorText(error) == "expected " + cert.quote(store.currentPath) + " to be a symlink but it is a file"; None => false }))
+  } }
+ }, removeFixtureDirectory)
+}
+func testStoreReadOrderAndMultipleCertificates() IO[Bool] {
+ sync.bracket(fixtureDirectory(), func(dir) => do {
+  clock <- sync.fakeClock(0); pair <- fixturePair("node", 0, 1000000000000)
+  let cpath = cert.joinPath(dir, "explicit.crt"); let kpath = cert.joinPath(dir, "explicit.key")
+  cert.writeFile(cpath, pair.0 + pair.0, 420); cert.writeFile(kpath, pair.1, 384)
+  created <- newFileStore(clock, "node", dir, dir, cpath, kpath)
+  match created.value { None => ioPure(false); Some(store) => do {
+   loaded <- store.store.current()
+   cert.writeFile(store.currentPath, "invalid current wins over valid explicit pair", 384)
+   rejected <- store.store.current()
+   ioPure(outcome.isSuccess(loaded) && !outcome.isSuccess(rejected))
+  } }
+ }, removeFixtureDirectory)
+}

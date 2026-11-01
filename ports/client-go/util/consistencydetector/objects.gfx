@@ -1,0 +1,23 @@
+package consistencydetector
+
+import runtime "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime"
+import meta "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import types "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/types"
+import objects "github.com/reoring/gofx/ports/client-go/deps/objects"
+import errors "github.com/reoring/gofx/ports/client-go/deps/support"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+
+func canonicalAccess(difference func(List[Option[runtime.Object]], List[Option[runtime.Object]]) IO[String], log func(String, Option[errors.Error]) IO[Unit]) Access[runtime.Object, Option[runtime.Object]] {
+ Access(func(object) => do {
+  result <- objects.objectListItems(object, true)
+  let (items, error) = result
+  ioPure(outcome.Outcome(match items { None => []; Some(values) => values }, error))
+ }, func(object) => match object {
+  None => ioPure(outcome.Outcome("", Some(errors.errorNew("object does not implement the Object interfaces"))))
+  Some(value) => do {
+   result <- objects.objectMetadata(value)
+   let (metadata, error) = result
+   ioPure(outcome.Outcome(match metadata { None => ""; Some(fields) => types.uidValue(meta.objectMetaGetUID(fields)) }, error))
+  }
+ }, objects.objectEqual, difference, log)
+}

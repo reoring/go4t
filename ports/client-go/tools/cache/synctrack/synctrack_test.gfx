@@ -1,0 +1,12 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package synctrack
+import "std/io"
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+import "github.com/reoring/gofx/ports/client-go/support/outcome"
+import errors "github.com/reoring/gofx/ports/client-go/deps/support"
+
+func testSingleFileWaitsForFinished() IO[Bool] { do { tracker <- newSingleFileTracker("initial"); singleStart(tracker); singleUpstreamHasSynced(tracker); before <- singleHasSynced(tracker); singleFinished(tracker); after <- singleHasSynced(tracker); ready <- sync.tryReceive(singleDone(tracker)); ioPure(!before && after && (match ready { sync.Closed => true; _ => false })) } }
+func testAsyncDeduplicatesAndUnknownFinish() IO[Bool] { do { tracker <- newAsyncTracker("async"); start(tracker,"a"); start(tracker,"a"); start(tracker,"b"); upstreamHasSynced(tracker); finished(tracker,"missing"); finished(tracker,"a"); before <- hasSynced(tracker); finished(tracker,"b"); after <- hasSynced(tracker); ioPure(!before && after) } }
+func testLazyErrorsNotCachedAndNotifyInvalidates() IO[Bool] { do { attempts <- sync.newRef(0); lazy <- newLazy(func() => do { count <- sync.readRef(attempts); sync.writeRef(attempts,count+1); ioPure(if count == 0 { outcome.failure(0,errors.errorNew("retry")) } else { outcome.success(count) }) }); first <- get(lazy); second <- get(lazy); cached <- get(lazy); notify(lazy); refreshed <- get(lazy); count <- sync.readRef(attempts); ioPure(!outcome.isSuccess(first) && second.value == 1 && cached.value == 1 && refreshed.value == 2 && count == 3) } }
+func testLazyConcurrentCallsShareEvaluation() IO[Bool] { do { attempts <- sync.newRef(0); entered <- sync.newChannel(0); release <- sync.newChannel(0); lazy <- newLazy(func() => do { count <- sync.readRef(attempts); sync.writeRef(attempts,count+1); sync.send(entered,unit()); _ <- sync.receive(release); ioPure(outcome.success(42)) }); first <- sync.start(get(lazy)); _ <- sync.receive(entered); second <- sync.start(get(lazy)); sync.close(release); a <- sync.join(first); b <- sync.join(second); count <- sync.readRef(attempts); ioPure(a.value == 42 && b.value == 42 && count == 1) } }
+func testNegativeSingleCounterFails() IO[Bool] { do { tracker <- newSingleFileTracker("negative"); result <- io.tryIO(singleFinished(tracker)); ioPure(match result { Err(_) => true; Ok(_) => false }) } }

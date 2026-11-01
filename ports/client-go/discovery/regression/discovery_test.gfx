@@ -1,0 +1,141 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+// Cases pinned to discovery_client_test.go, aggregated_discovery_test.go,
+// memory/memcache_test.go and restmapper/discovery_test.go v0.37.2.
+package regression
+import "discovery"
+import fake "discovery/fake"
+import memory "discovery/cached/memory"
+import "restmapper"
+import meta "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import api "deps/k8s.io/api/apidiscovery/v2"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import errors "deps/support"
+import "testing"
+import "support/sync"
+import "support/outcome"
+import "std/map"
+import "std/list"
+import "std/prelude"
+func group(name String,versions List[String],preferred String) meta.APIGroup {
+ let vs = prelude.map(versions,func(v) => discovery.discoveryVersion(discovery.groupVersion(name,v),v))
+ meta.aPIGroupWithPreferredVersion(meta.aPIGroupWithVersions(meta.aPIGroupWithName(meta.newAPIGroup(),name),Some(vs)),discovery.discoveryVersion(discovery.groupVersion(name,preferred),preferred))
+}
+func resource(name String,kind String) meta.APIResource { meta.aPIResourceWithKind(meta.aPIResourceWithName(meta.newAPIResource(),name),kind) }
+func clientFixture(groups List[meta.APIGroup],resources List[meta.APIResourceList]) IO[discovery.DiscoveryInterface] {
+ do { f <- testing.newFake(); client <- fake.newFakeDiscovery(f); ioPure(client{
+  serverGroups:func() => ioPure(outcome.success(Some(discovery.groupList(groups)))),
+  serverResourcesForGroupVersion:func(gv) => ioPure(match list.filter(resources,func(r) => meta.aPIResourceListGetGroupVersion(r)==gv) { Cons(first,rest) => outcome.success(Some(first)); Nil => outcome.failure(None,errors.errorNew("missing "+gv)) }),
+  serverGroupsAndResources:func() => ioPure(outcome.success(discovery.GroupsAndResources(Some(groups),Some(resources))))
+ }) }
+}
+func testPartialGroupsRetainSuccessAndErrorIdentity() IO[Bool] {
+ do {
+  client <- clientFixture([group("a",["v1"],"v1"),group("b",["v1"],"v1")],[discovery.resourceList("a/v1",[resource("widgets","Widget")])])
+  let cause = errors.errorNew("failure in b")
+  let client = client{serverResourcesForGroupVersion:func(gv) => if gv=="b/v1" { ioPure(outcome.failure(None,cause)) } else { client.serverResourcesForGroupVersion(gv) }}
+  result <- discovery.serverGroupsAndResources(client)
+  ioPure(list.length(discovery.values(result.value.resources))==1 && list.length(discovery.values(result.value.groups))==2 && (match result.error { None => false; Some(e) => { let failures = discovery.groupDiscoveryFailedErrorGroups(e); failures.1 && (match map.mapLookup(failures.0,"b/v1") { None => false; Some(c) => errors.errorIs(c,cause) }) } }))
+ }
+}
+func testGroupFailureTypeAndWrappedExtraction() Bool {
+ let cause = errors.errorNew("down")
+ let failure = discovery.groupDiscoveryFailed(map.mapFromList([("b/v1",cause),("a/v1",cause)]))
+ let wrapped = errors.errorWrap("context",failure)
+ discovery.isGroupDiscoveryFailedError(failure) && !discovery.isGroupDiscoveryFailedError(wrapped) && discovery.groupDiscoveryFailedErrorGroups(wrapped).1 && errors.errorIs(failure,discovery.groupDiscoveryFailed(map.emptyMap())) && !errors.errorIs(failure,cause) && errors.errorMessage(failure)=="unable to retrieve the complete list of server APIs: a/v1: down, b/v1: down"
+}
+func testAggregatedStaleVersionAndSubresource() Bool {
+ let kind = meta.groupVersionKindWithKind(meta.groupVersionKindWithVersion(meta.groupVersionKindWithGroup(meta.newGroupVersionKind(),"apps"),"v1"),"Deployment")
+ let sub = api.aPISubresourceDiscoveryWithResponseKind(api.aPISubresourceDiscoveryWithSubresource(api.newAPISubresourceDiscovery(),"status"),Some(kind))
+ let parent = api.aPIResourceDiscoveryWithSubresources(api.aPIResourceDiscoveryWithResource(api.newAPIResourceDiscovery(),"deployments"),Some([sub]))
+ let stale = api.aPIVersionDiscoveryWithFreshness(api.aPIVersionDiscoveryWithVersion(api.newAPIVersionDiscovery(),"v2"),api.discoveryFreshnessFromValue("Stale"))
+ let current = api.aPIVersionDiscoveryWithResources(api.aPIVersionDiscoveryWithVersion(api.newAPIVersionDiscovery(),"v1"),Some([parent]))
+ let group = api.aPIGroupDiscoveryWithVersions(api.aPIGroupDiscoveryWithObjectMeta(api.newAPIGroupDiscovery(),meta.objectMetaWithName(meta.newObjectMeta(),"apps")),Some([stale,current]))
+ let result = discovery.splitGroupsAndResources(api.aPIGroupDiscoveryListWithItems(api.newAPIGroupDiscoveryList(),Some([group])))
+ map.mapMember(result.failures,"apps/v2") && (match result.resources { None => false; Some(rs) => match map.mapLookup(rs,"apps/v1") { None => false; Some(rl) => match discovery.values(meta.aPIResourceListGetAPIResources(rl)) { Cons(r,Nil) => meta.aPIResourceGetName(r)=="deployments/status"; _ => false } } }) && (match result.groups { None => false; Some(gs) => match discovery.values(meta.aPIGroupListGetGroups(gs)) { Cons(g,Nil) => meta.groupVersionForDiscoveryGetVersion(meta.aPIGroupGetPreferredVersion(g))=="v1"; _ => false } })
+}
+func testPreferredResourcesRetainUnpreferredUniqueResources() Bool {
+ let groups = [group("apps",["v1beta1","v1"],"v1")]
+ let result = discovery.preferredResources(groups,[discovery.resourceList("apps/v1beta1",[resource("deployments","Deployment"),resource("legacy","Legacy"),resource("deployments/status","Deployment")]),discovery.resourceList("apps/v1",[resource("deployments","Deployment")])])
+ match result { Cons(beta,Cons(stable,Nil)) => prelude.map(discovery.values(meta.aPIResourceListGetAPIResources(beta)),meta.aPIResourceGetName)==["legacy"] && prelude.map(discovery.values(meta.aPIResourceListGetAPIResources(stable)),meta.aPIResourceGetName)==["deployments"]; _ => false }
+}
+func testMemoryCachePermanentMissAndInvalidation() IO[Bool] {
+ do {
+  calls <- sync.newRef(0)
+  base <- clientFixture([group("apps",["v1"],"v1")],[discovery.resourceList("apps/v1",[resource("deployments","Deployment")])])
+  let delegate = base{serverResourcesForGroupVersion:func(gv) => do { n <- sync.readRef(calls); sync.writeRef(calls,n+1); base.serverResourcesForGroupVersion(gv) }}
+  cache <- memory.newMemCacheClient(delegate)
+  before <- cache.fresh()
+  first <- cache.discovery.serverResourcesForGroupVersion("apps/v1")
+  missing <- cache.discovery.serverResourcesForGroupVersion("other/v1")
+  count <- sync.readRef(calls)
+  fresh <- cache.fresh()
+  cache.invalidate()
+  after <- cache.fresh()
+  second <- cache.discovery.serverResourcesForGroupVersion("apps/v1")
+  count2 <- sync.readRef(calls)
+  ioPure(!before && fresh && !after && count==1 && count2==2 && outcome.isSuccess(first) && outcome.isSuccess(second) && (match missing.error { Some(e) => errors.errorIs(e,memory.errCacheNotFound()); None => false }))
+ }
+}
+func testMemoryTransientFailureRetriesEntry() IO[Bool] {
+ do {
+  calls <- sync.newRef(0)
+  base <- clientFixture([group("a",["v1"],"v1")],[])
+  let retryable = errors.errorInternal(errors.errorNew("unavailable"))
+  let delegate = base{serverResourcesForGroupVersion:func(gv) => do { n <- sync.readRef(calls); sync.writeRef(calls,n+1); ioPure(if n==0 { outcome.failure(None,retryable) } else { outcome.success(Some(discovery.resourceList(gv,[resource("widgets","Widget")]))) }) }}
+  cache <- memory.newMemCacheClient(delegate)
+  result <- cache.discovery.serverResourcesForGroupVersion("a/v1")
+  count <- sync.readRef(calls)
+  ioPure(count==2 && outcome.isSuccess(result))
+ }
+}
+func testMapperPreferenceMissingAmbiguityAndSubresources() IO[Bool] {
+ do {
+  let core = restmapper.APIGroupResources(group("",["v2","v1"],"v2"),map.mapFromList([("v1",[resource("pods","Pod")]),("v2",[resource("pods","Pod")])]))
+  let other = restmapper.APIGroupResources(group("apps",["v1","v2"],"v2"),map.mapFromList([("v1",[resource("widgets","Widget")]),("v2",[resource("widgets","Widget"),resource("widgets/status","Widget")])]))
+  let mapper = restmapper.newDiscoveryRESTMapper([other,core])
+  pod <- mapper.kindFor(restmapper.gvr("","","pod"))
+  widget <- mapper.resourceFor(restmapper.gvr("apps","","widget"))
+  missing <- mapper.resourceFor(restmapper.gvr("apps","","widgets/status"))
+  let ambiguous = restmapper.newDiscoveryRESTMapper([restmapper.APIGroupResources(group("x",["v1"],"v1"),map.mapFromList([("v1",[meta.aPIResourceWithSingularName(resource("alphas","Alpha"),"shared"),meta.aPIResourceWithSingularName(resource("betas","Beta"),"shared")])]))])
+  collision <- ambiguous.resourceFor(restmapper.gvr("x","v1","shared"))
+  ioPure(schema.groupVersionKindGetVersion(pod.value)=="v1" && schema.groupVersionResourceGetVersion(widget.value)=="v2" && (match missing.error { Some(e) => restmapper.isNoMatchError(e); None => false }) && !outcome.isSuccess(collision))
+ }
+}
+func testDeferredMapperRefreshesStaleCacheAndReset() IO[Bool] {
+ do {
+  invalidations <- sync.newRef(0)
+  populated <- sync.newRef(false)
+  base <- clientFixture([],[])
+  let discoveryClient = base{serverGroupsAndResources:func() => do { ready <- sync.readRef(populated); ioPure(outcome.success(if ready { discovery.GroupsAndResources(Some([group("a",["v1"],"v1")]),Some([discovery.resourceList("a/v1",[resource("widgets","Widget")])])) } else { discovery.GroupsAndResources(Some([]),Some([])) })) }}
+  let cache = discovery.CachedDiscoveryInterface(discoveryClient,func() => sync.readRef(populated),func() => do { n <- sync.readRef(invalidations); sync.writeRef(invalidations,n+1); sync.writeRef(populated,true) })
+  mapper <- restmapper.newDeferredDiscoveryRESTMapper(cache)
+  initial <- sync.readRef(invalidations)
+  result <- mapper.kindFor(restmapper.gvr("a","v1","widgets"))
+  count <- sync.readRef(invalidations)
+  mapper.reset()
+  resetCount <- sync.readRef(invalidations)
+  ioPure(initial==0 && count==1 && resetCount==2 && outcome.isSuccess(result) && schema.groupVersionKindGetKind(result.value)=="Widget")
+ }
+}
+func testShortcutExactWinsAndWarningsDeduplicateVersions() IO[Bool] {
+ do {
+  warnings <- sync.newRef([])
+  let short = meta.aPIResourceWithShortNames(resource("widgets","Widget"),Some(["wd"]))
+  let other = meta.aPIResourceWithShortNames(resource("others","Other"),Some(["wd"]))
+  client <- clientFixture([],[discovery.resourceList("a/v1",[short]),discovery.resourceList("b/v1",[other]),discovery.resourceList("b/v2",[other])])
+  expanded <- restmapper.expandResourceShortcut(client,func(w) => do { old <- sync.readRef(warnings); sync.writeRef(warnings,list.append(old,[w])) },restmapper.gvr("","v7","wd"))
+  ws <- sync.readRef(warnings)
+  let full = client{serverGroupsAndResources:func() => ioPure(outcome.success(discovery.GroupsAndResources(Some([]),Some([discovery.resourceList("a/v1",[short,resource("wd","WD")])]))))}
+  exact <- restmapper.expandResourceShortcut(full,func(w) => ioPure(unit()),restmapper.gvr("","v7","wd"))
+  ioPure(schema.groupVersionResourceGetGroup(expanded)=="a" && schema.groupVersionResourceGetVersion(expanded)=="" && list.length(ws)==1 && schema.groupVersionResourceGetResource(exact)=="wd" && schema.groupVersionResourceGetVersion(exact)=="v7")
+ }
+}
+func testCategoryUsesPartialDiscoveryAndDeduplicates() IO[Bool] {
+ do {
+  let r = meta.aPIResourceWithCategories(resource("widgets","Widget"),Some(["all"]))
+  base <- clientFixture([],[discovery.resourceList("a/v1",[r]),discovery.resourceList("a/v2",[r])])
+  let client = base{serverGroupsAndResources:func() => ioPure(outcome.failure(discovery.GroupsAndResources(Some([]),Some([discovery.resourceList("a/v1",[r]),discovery.resourceList("a/v2",[r])])),errors.errorNew("partial")))}
+  result <- (restmapper.newDiscoveryCategoryExpander(client)).expand("all")
+  ioPure(result.1 && list.length(result.0)==1)
+ }
+}

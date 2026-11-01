@@ -1,0 +1,55 @@
+// Copyright The Kubernetes Authors. Licensed under Apache-2.0.
+package support
+import rest "rest"
+import runtime "deps/k8s.io/apimachinery/pkg/runtime"
+import objects "deps/objects"
+import meta "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import errors "deps/support"
+import outcome "support/outcome"
+import applyutil "util/apply"
+import features "features"
+import m "std/map"
+import fields "deps/k8s.io/apimachinery/pkg/fields"
+import types "deps/k8s.io/apimachinery/pkg/types"
+
+func request(client rest.Interface,codec runtime.ParameterCodec,verb String,resource String,namespace String,scoped Bool,name String,subresources List[String],params Option[runtime.Object],protobuf Bool) IO[rest.Request] { do {
+ initial <- client.verb(verb)
+ let collection = rest.resource(rest.namespaceIfScoped(rest.useProtobufAsDefaultIfPreferred(initial,protobuf),namespace,scoped),resource)
+ let named = if name == "" { collection } else { rest.name(collection,name) }
+ let request = rest.subResource(named,subresources)
+ match params { None => ioPure(request); Some(options) => rest.versionedParams(request,options,codec) }
+} }
+func decode[A](request rest.Request,descriptor objects.ObjectType[A],empty A) IO[outcome.Outcome[A]] { do {
+ response <- rest.doRequest(request)
+ result <- rest.resultInto(response,objects.toObject(descriptor,empty))
+ ioPure(outcome.from(match objects.fromObject(descriptor,Some(result.value)) { Some(value) => value; None => empty },result.error))
+} }
+func execute(request rest.Request) IO[outcome.Outcome[Unit]] { do {
+ response <- rest.doRequest(request)
+ error <- rest.resultError(response)
+ ioPure(outcome.from(unit(),error))
+} }
+func applyNamed[A,C](client rest.Interface,codec runtime.ParameterCodec,registry features.FeatureRegistry,resource String,namespace String,scoped Bool,name String,subresource String,configuration Option[C],marshal applyutil.Marshal[C],options meta.ApplyOptions,descriptor objects.ObjectType[A],empty A,nilError String,protobuf Bool) IO[outcome.Outcome[Option[A]]] {
+ match configuration { None => ioPure(outcome.failure(None,errors.errorNew(nilError))); Some(value) => do {
+ built <- applyutil.newRequest(client,value,marshal,registry)
+ match built.value { None => ioPure(outcome.from(None,built.error)); Some(initial) => do {
+  patch <- meta.applyOptionsCallToPatchOptions(options)
+  let scopedRequest = rest.resource(rest.namespaceIfScoped(rest.useProtobufAsDefaultIfPreferred(initial,protobuf),namespace,scoped),resource)
+  request <- rest.versionedParams(rest.subResource(rest.name(scopedRequest,name),[subresource]),meta.patchOptionsToRuntimeObject(patch.1),codec)
+  result <- decode(request,descriptor,empty)
+  ioPure(outcome.from(Some(result.value),result.error))
+ } }
+ } }
+}
+func proxyGet(client rest.Interface,resource String,namespace String,scoped Bool,scheme String,name String,port String,path String,params Map[String,String]) IO[rest.Request] { do {
+ initial <- client.verb("GET")
+ let joined = if scheme == "" { if port == "" { name } else { name+":"+port } } else { scheme+":"+name+":"+port }
+ let request = rest.suffix(rest.name(rest.subResource(rest.resource(rest.namespaceIfScoped(initial,namespace,scoped),resource),["proxy"]),joined),[path])
+ ioPure(fold(m.mapToList(params),request,func(acc,pair) => rest.param(acc,pair.0,pair.1)))
+} }
+extern func fieldSelector(pairs List[(String,String)]) IO[fields.Selector] = "github.com/reoring/gofx/ports/client-go/kubernetes/scheme/host".FieldSelector
+func eventSelector(name String,namespace String,kind String,uid types.UID) IO[String] { do {
+ let values = append([("involvedObject.name",name),("involvedObject.namespace",namespace)],append(if kind == "" { [] } else { [("involvedObject.kind",kind)] },if types.uidValue(uid) == "" { [] } else { [("involvedObject.uid",types.uidValue(uid))] }))
+ selector <- fieldSelector(values)
+ fields.selectorCallStringIdentity(selector)
+} }

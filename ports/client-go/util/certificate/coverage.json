@@ -1,0 +1,602 @@
+{
+  "schema_version": 1,
+  "source": {
+    "version": "v0.37.2",
+    "revision": "72c52dd0cc3b9099b36af11290b0304045dd1ada"
+  },
+  "exports": [
+    {
+      "upstream_file": "util/cert/cert.go",
+      "upstream_symbol": "Config",
+      "kind": "type",
+      "line": 43,
+      "native_file": "util/cert/cert.gfx",
+      "native_symbol": "Config"
+    },
+    {
+      "upstream_file": "util/cert/cert.go",
+      "upstream_symbol": "AltNames",
+      "kind": "type",
+      "line": 54,
+      "native_file": "util/cert/cert.gfx",
+      "native_symbol": "AltNames"
+    },
+    {
+      "upstream_file": "util/cert/cert.go",
+      "upstream_symbol": "NewSelfSignedCACert",
+      "kind": "func",
+      "line": 60,
+      "native_file": "util/cert/cert.gfx",
+      "native_symbol": "newSelfSignedCACert"
+    },
+    {
+      "upstream_file": "util/cert/cert.go",
+      "upstream_symbol": "SelfSignedCertKeyOptions",
+      "kind": "type",
+      "line": 96,
+      "native_file": "util/cert/cert.gfx",
+      "native_symbol": "SelfSignedCertKeyOptions"
+    },
+    {
+      "upstream_file": "util/cert/cert.go",
+      "upstream_symbol": "GenerateSelfSignedCertKey",
+      "kind": "func",
+      "line": 120,
+      "native_file": "util/cert/cert.gfx",
+      "native_symbol": "generateSelfSignedCertKey"
+    },
+    {
+      "upstream_file": "util/cert/cert.go",
+      "upstream_symbol": "GenerateSelfSignedCertKeyWithFixtures",
+      "kind": "func",
+      "line": 136,
+      "native_file": "util/cert/cert.gfx",
+      "native_symbol": "generateSelfSignedCertKeyWithFixtures"
+    },
+    {
+      "upstream_file": "util/cert/cert.go",
+      "upstream_symbol": "GenerateSelfSignedCertKeyWithOptions",
+      "kind": "func",
+      "line": 146,
+      "native_file": "util/cert/cert.gfx",
+      "native_symbol": "generateSelfSignedCertKeyWithOptions"
+    },
+    {
+      "upstream_file": "util/cert/csr.go",
+      "upstream_symbol": "MakeCSR",
+      "kind": "func",
+      "line": 30,
+      "native_file": "util/cert/cert.gfx",
+      "native_symbol": "makeCSR"
+    },
+    {
+      "upstream_file": "util/cert/csr.go",
+      "upstream_symbol": "MakeCSRFromTemplate",
+      "kind": "func",
+      "line": 44,
+      "native_file": "util/cert/cert.gfx",
+      "native_symbol": "makeCSRFromTemplate"
+    },
+    {
+      "upstream_file": "util/cert/io.go",
+      "upstream_symbol": "CanReadCertAndKey",
+      "kind": "func",
+      "line": 28,
+      "native_file": "util/cert/cert.gfx",
+      "native_symbol": "canReadCertAndKey"
+    },
+    {
+      "upstream_file": "util/cert/io.go",
+      "upstream_symbol": "WriteCert",
+      "kind": "func",
+      "line": 64,
+      "native_file": "util/cert/cert.gfx",
+      "native_symbol": "writeCert"
+    },
+    {
+      "upstream_file": "util/cert/io.go",
+      "upstream_symbol": "NewPool",
+      "kind": "func",
+      "line": 73,
+      "native_file": "util/cert/cert.gfx",
+      "native_symbol": "newPool"
+    },
+    {
+      "upstream_file": "util/cert/io.go",
+      "upstream_symbol": "NewPoolFromBytes",
+      "kind": "func",
+      "line": 88,
+      "native_file": "util/cert/cert.gfx",
+      "native_symbol": "newPoolFromBytes"
+    },
+    {
+      "upstream_file": "util/cert/io.go",
+      "upstream_symbol": "CertsFromFile",
+      "kind": "func",
+      "line": 102,
+      "native_file": "util/cert/cert.gfx",
+      "native_symbol": "certsFromFile"
+    },
+    {
+      "upstream_file": "util/cert/pem.go",
+      "upstream_symbol": "CertificateBlockType",
+      "kind": "const",
+      "line": 28,
+      "native_file": "util/cert/cert.gfx",
+      "native_symbol": "certificateBlockType"
+    },
+    {
+      "upstream_file": "util/cert/pem.go",
+      "upstream_symbol": "CertificateRequestBlockType",
+      "kind": "const",
+      "line": 30,
+      "native_file": "util/cert/cert.gfx",
+      "native_symbol": "certificateRequestBlockType"
+    },
+    {
+      "upstream_file": "util/cert/pem.go",
+      "upstream_symbol": "ParseCertsPEM",
+      "kind": "func",
+      "line": 35,
+      "native_file": "util/cert/cert.gfx",
+      "native_symbol": "parseCertsPEM"
+    },
+    {
+      "upstream_file": "util/cert/pem.go",
+      "upstream_symbol": "EncodeCertificates",
+      "kind": "func",
+      "line": 65,
+      "native_file": "util/cert/cert.gfx",
+      "native_symbol": "encodeCertificates"
+    },
+    {
+      "upstream_file": "util/cert/server_inspection.go",
+      "upstream_symbol": "GetClientCANames",
+      "kind": "func",
+      "line": 29,
+      "native_file": "util/cert/cert.gfx",
+      "native_symbol": "getClientCANames"
+    },
+    {
+      "upstream_file": "util/cert/server_inspection.go",
+      "upstream_symbol": "GetClientCANamesForURL",
+      "kind": "func",
+      "line": 55,
+      "native_file": "util/cert/cert.gfx",
+      "native_symbol": "getClientCANamesForURL"
+    },
+    {
+      "upstream_file": "util/cert/server_inspection.go",
+      "upstream_symbol": "GetServingCertificates",
+      "kind": "func",
+      "line": 65,
+      "native_file": "util/cert/cert.gfx",
+      "native_symbol": "getServingCertificates"
+    },
+    {
+      "upstream_file": "util/cert/server_inspection.go",
+      "upstream_symbol": "GetServingCertificatesForURL",
+      "kind": "func",
+      "line": 96,
+      "native_file": "util/cert/cert.gfx",
+      "native_symbol": "getServingCertificatesForURL"
+    },
+    {
+      "upstream_file": "util/certificate/certificate_manager.go",
+      "upstream_symbol": "DefaultKubeletServingGetUsages",
+      "kind": "var",
+      "line": 76,
+      "native_file": "util/certificate/manager.gfx",
+      "native_symbol": "defaultKubeletServingGetUsages"
+    },
+    {
+      "upstream_file": "util/certificate/certificate_manager.go",
+      "upstream_symbol": "DefaultKubeletClientGetUsages",
+      "kind": "var",
+      "line": 108,
+      "native_file": "util/certificate/manager.gfx",
+      "native_symbol": "defaultKubeletClientGetUsages"
+    },
+    {
+      "upstream_file": "util/certificate/certificate_manager.go",
+      "upstream_symbol": "Manager",
+      "kind": "type",
+      "line": 121,
+      "native_file": "util/certificate/manager.gfx",
+      "native_symbol": "Manager"
+    },
+    {
+      "upstream_file": "util/certificate/certificate_manager.go",
+      "upstream_symbol": "Config",
+      "kind": "type",
+      "line": 139,
+      "native_file": "util/certificate/manager.gfx",
+      "native_symbol": "Config"
+    },
+    {
+      "upstream_file": "util/certificate/certificate_manager.go",
+      "upstream_symbol": "Store",
+      "kind": "type",
+      "line": 228,
+      "native_file": "util/certificate/store.gfx",
+      "native_symbol": "Store"
+    },
+    {
+      "upstream_file": "util/certificate/certificate_manager.go",
+      "upstream_symbol": "Gauge",
+      "kind": "type",
+      "line": 243,
+      "native_file": "util/certificate/manager.gfx",
+      "native_symbol": "Gauge"
+    },
+    {
+      "upstream_file": "util/certificate/certificate_manager.go",
+      "upstream_symbol": "Histogram",
+      "kind": "type",
+      "line": 249,
+      "native_file": "util/certificate/manager.gfx",
+      "native_symbol": "Histogram"
+    },
+    {
+      "upstream_file": "util/certificate/certificate_manager.go",
+      "upstream_symbol": "Counter",
+      "kind": "type",
+      "line": 254,
+      "native_file": "util/certificate/manager.gfx",
+      "native_symbol": "Counter"
+    },
+    {
+      "upstream_file": "util/certificate/certificate_manager.go",
+      "upstream_symbol": "NoCertKeyError",
+      "kind": "type",
+      "line": 259,
+      "native_file": "util/certificate/store.gfx",
+      "native_symbol": "noCertKeyError + isNoCertKeyError"
+    },
+    {
+      "upstream_file": "util/certificate/certificate_manager.go",
+      "upstream_symbol": "ClientsetFunc",
+      "kind": "type",
+      "line": 263,
+      "native_file": "util/certificate/manager.gfx",
+      "native_symbol": "ClientsetFunc"
+    },
+    {
+      "upstream_file": "util/certificate/certificate_manager.go",
+      "upstream_symbol": "Error",
+      "kind": "method",
+      "line": 265,
+      "native_file": "util/certificate/manager.gfx",
+      "native_symbol": "cert.errorText"
+    },
+    {
+      "upstream_file": "util/certificate/certificate_manager.go",
+      "upstream_symbol": "NewManager",
+      "kind": "func",
+      "line": 307,
+      "native_file": "util/certificate/manager.gfx",
+      "native_symbol": "newManager"
+    },
+    {
+      "upstream_file": "util/certificate/certificate_manager.go",
+      "upstream_symbol": "Current",
+      "kind": "method",
+      "line": 392,
+      "native_file": "util/certificate/manager.gfx",
+      "native_symbol": "current"
+    },
+    {
+      "upstream_file": "util/certificate/certificate_manager.go",
+      "upstream_symbol": "ServerHealthy",
+      "kind": "method",
+      "line": 404,
+      "native_file": "util/certificate/manager.gfx",
+      "native_symbol": "serverHealthy"
+    },
+    {
+      "upstream_file": "util/certificate/certificate_manager.go",
+      "upstream_symbol": "Stop",
+      "kind": "method",
+      "line": 411,
+      "native_file": "util/certificate/manager.gfx",
+      "native_symbol": "stop"
+    },
+    {
+      "upstream_file": "util/certificate/certificate_manager.go",
+      "upstream_symbol": "Start",
+      "kind": "method",
+      "line": 416,
+      "native_file": "util/certificate/manager.gfx",
+      "native_symbol": "start"
+    },
+    {
+      "upstream_file": "util/certificate/certificate_manager.go",
+      "upstream_symbol": "RotateCerts",
+      "kind": "method",
+      "line": 563,
+      "native_file": "util/certificate/manager.gfx",
+      "native_symbol": "rotateCerts"
+    },
+    {
+      "upstream_file": "util/certificate/certificate_store.go",
+      "upstream_symbol": "FileStore",
+      "kind": "type",
+      "line": 51,
+      "native_file": "util/certificate/store.gfx",
+      "native_symbol": "FileStore"
+    },
+    {
+      "upstream_file": "util/certificate/certificate_store.go",
+      "upstream_symbol": "NewFileStore",
+      "kind": "func",
+      "line": 73,
+      "native_file": "util/certificate/store.gfx",
+      "native_symbol": "newFileStore"
+    },
+    {
+      "upstream_file": "util/certificate/certificate_store.go",
+      "upstream_symbol": "NewFileStoreWithLogger",
+      "kind": "func",
+      "line": 85,
+      "native_file": "util/certificate/store.gfx",
+      "native_symbol": "newFileStoreWithLogger"
+    },
+    {
+      "upstream_file": "util/certificate/certificate_store.go",
+      "upstream_symbol": "CurrentPath",
+      "kind": "method",
+      "line": 108,
+      "native_file": "util/certificate/store.gfx",
+      "native_symbol": "currentPath"
+    },
+    {
+      "upstream_file": "util/certificate/certificate_store.go",
+      "upstream_symbol": "Current",
+      "kind": "method",
+      "line": 142,
+      "native_file": "util/certificate/store.gfx",
+      "native_symbol": "FileStore.store.current"
+    },
+    {
+      "upstream_file": "util/certificate/certificate_store.go",
+      "upstream_symbol": "Update",
+      "kind": "method",
+      "line": 204,
+      "native_file": "util/certificate/store.gfx",
+      "native_symbol": "FileStore.store.update"
+    },
+    {
+      "upstream_file": "util/certificate/csr/csr.go",
+      "upstream_symbol": "RequestCertificate",
+      "kind": "func",
+      "line": 52,
+      "native_file": "util/certificate/csr/csr.gfx",
+      "native_symbol": "requestCertificate"
+    },
+    {
+      "upstream_file": "util/certificate/csr/csr.go",
+      "upstream_symbol": "RequestCertificateWithContext",
+      "kind": "func",
+      "line": 61,
+      "native_file": "util/certificate/csr/csr.gfx",
+      "native_symbol": "requestCertificate"
+    },
+    {
+      "upstream_file": "util/certificate/csr/csr.go",
+      "upstream_symbol": "DurationToExpirationSeconds",
+      "kind": "func",
+      "line": 106,
+      "native_file": "util/certificate/csr/csr.gfx",
+      "native_symbol": "durationToExpirationSeconds"
+    },
+    {
+      "upstream_file": "util/certificate/csr/csr.go",
+      "upstream_symbol": "ExpirationSecondsToDuration",
+      "kind": "func",
+      "line": 110,
+      "native_file": "util/certificate/csr/csr.gfx",
+      "native_symbol": "expirationSecondsToDuration"
+    },
+    {
+      "upstream_file": "util/certificate/csr/csr.go",
+      "upstream_symbol": "WaitForCertificate",
+      "kind": "func",
+      "line": 179,
+      "native_file": "util/certificate/csr/csr.gfx",
+      "native_symbol": "waitForCertificate"
+    },
+    {
+      "upstream_file": "util/connrotation/connrotation.go",
+      "upstream_symbol": "DialFunc",
+      "kind": "type",
+      "line": 31,
+      "native_file": "util/connrotation/connrotation.gfx",
+      "native_symbol": "DialFunc"
+    },
+    {
+      "upstream_file": "util/connrotation/connrotation.go",
+      "upstream_symbol": "Dialer",
+      "kind": "type",
+      "line": 34,
+      "native_file": "util/connrotation/connrotation.gfx",
+      "native_symbol": "Dialer"
+    },
+    {
+      "upstream_file": "util/connrotation/connrotation.go",
+      "upstream_symbol": "NewDialer",
+      "kind": "func",
+      "line": 41,
+      "native_file": "util/connrotation/connrotation.gfx",
+      "native_symbol": "newDialer"
+    },
+    {
+      "upstream_file": "util/connrotation/connrotation.go",
+      "upstream_symbol": "NewDialerWithTracker",
+      "kind": "func",
+      "line": 51,
+      "native_file": "util/connrotation/connrotation.gfx",
+      "native_symbol": "newDialerWithTracker"
+    },
+    {
+      "upstream_file": "util/connrotation/connrotation.go",
+      "upstream_symbol": "ConnectionTracker",
+      "kind": "type",
+      "line": 62,
+      "native_file": "util/connrotation/connrotation.gfx",
+      "native_symbol": "ConnectionTracker"
+    },
+    {
+      "upstream_file": "util/connrotation/connrotation.go",
+      "upstream_symbol": "NewConnectionTracker",
+      "kind": "func",
+      "line": 68,
+      "native_file": "util/connrotation/connrotation.gfx",
+      "native_symbol": "newConnectionTracker"
+    },
+    {
+      "upstream_file": "util/connrotation/connrotation.go",
+      "upstream_symbol": "CloseAll",
+      "kind": "method",
+      "line": 77,
+      "native_file": "util/connrotation/connrotation.gfx",
+      "native_symbol": "closeAll"
+    },
+    {
+      "upstream_file": "util/connrotation/connrotation.go",
+      "upstream_symbol": "Track",
+      "kind": "method",
+      "line": 91,
+      "native_file": "util/connrotation/connrotation.gfx",
+      "native_symbol": "track"
+    },
+    {
+      "upstream_file": "util/connrotation/connrotation.go",
+      "upstream_symbol": "Dial",
+      "kind": "method",
+      "line": 112,
+      "native_file": "util/connrotation/connrotation.gfx",
+      "native_symbol": "dial"
+    },
+    {
+      "upstream_file": "util/connrotation/connrotation.go",
+      "upstream_symbol": "DialContext",
+      "kind": "method",
+      "line": 117,
+      "native_file": "util/connrotation/connrotation.gfx",
+      "native_symbol": "dial"
+    },
+    {
+      "upstream_file": "util/connrotation/connrotation.go",
+      "upstream_symbol": "Close",
+      "kind": "method",
+      "line": 130,
+      "native_file": "util/connrotation/connrotation.gfx",
+      "native_symbol": "transport.closeConnection"
+    },
+    {
+      "upstream_file": "util/keyutil/key.go",
+      "upstream_symbol": "ECPrivateKeyBlockType",
+      "kind": "const",
+      "line": 35,
+      "native_file": "util/keyutil/key.gfx",
+      "native_symbol": "ecPrivateKeyBlockType"
+    },
+    {
+      "upstream_file": "util/keyutil/key.go",
+      "upstream_symbol": "RSAPrivateKeyBlockType",
+      "kind": "const",
+      "line": 37,
+      "native_file": "util/keyutil/key.gfx",
+      "native_symbol": "rsaPrivateKeyBlockType"
+    },
+    {
+      "upstream_file": "util/keyutil/key.go",
+      "upstream_symbol": "PrivateKeyBlockType",
+      "kind": "const",
+      "line": 39,
+      "native_file": "util/keyutil/key.gfx",
+      "native_symbol": "privateKeyBlockType"
+    },
+    {
+      "upstream_file": "util/keyutil/key.go",
+      "upstream_symbol": "PublicKeyBlockType",
+      "kind": "const",
+      "line": 41,
+      "native_file": "util/keyutil/key.gfx",
+      "native_symbol": "publicKeyBlockType"
+    },
+    {
+      "upstream_file": "util/keyutil/key.go",
+      "upstream_symbol": "MakeEllipticPrivateKeyPEM",
+      "kind": "func",
+      "line": 45,
+      "native_file": "util/keyutil/key.gfx",
+      "native_symbol": "makeEllipticPrivateKeyPEM"
+    },
+    {
+      "upstream_file": "util/keyutil/key.go",
+      "upstream_symbol": "WriteKey",
+      "kind": "func",
+      "line": 67,
+      "native_file": "util/keyutil/key.gfx",
+      "native_symbol": "writeKey"
+    },
+    {
+      "upstream_file": "util/keyutil/key.go",
+      "upstream_symbol": "LoadOrGenerateKeyFile",
+      "kind": "func",
+      "line": 76,
+      "native_file": "util/keyutil/key.gfx",
+      "native_symbol": "loadOrGenerateKeyFile"
+    },
+    {
+      "upstream_file": "util/keyutil/key.go",
+      "upstream_symbol": "MarshalPrivateKeyToPEM",
+      "kind": "func",
+      "line": 98,
+      "native_file": "util/keyutil/key.gfx",
+      "native_symbol": "marshalPrivateKeyToPEM"
+    },
+    {
+      "upstream_file": "util/keyutil/key.go",
+      "upstream_symbol": "PrivateKeyFromFile",
+      "kind": "func",
+      "line": 123,
+      "native_file": "util/keyutil/key.gfx",
+      "native_symbol": "privateKeyFromFile"
+    },
+    {
+      "upstream_file": "util/keyutil/key.go",
+      "upstream_symbol": "PublicKeysFromFile",
+      "kind": "func",
+      "line": 137,
+      "native_file": "util/keyutil/key.gfx",
+      "native_symbol": "publicKeysFromFile"
+    },
+    {
+      "upstream_file": "util/keyutil/key.go",
+      "upstream_symbol": "ParsePrivateKeyPEM",
+      "kind": "func",
+      "line": 160,
+      "native_file": "util/keyutil/key.gfx",
+      "native_symbol": "parsePrivateKeyPEM"
+    },
+    {
+      "upstream_file": "util/keyutil/key.go",
+      "upstream_symbol": "ParsePublicKeysPEM",
+      "kind": "func",
+      "line": 196,
+      "native_file": "util/keyutil/key.gfx",
+      "native_symbol": "parsePublicKeysPEM"
+    }
+  ],
+  "verification": "not run; supervisor acceptance required",
+  "behavior_tests": [
+    "util/keyutil/key_test.gfx",
+    "util/cert/cert_test.gfx",
+    "util/certificate/store_test.gfx",
+    "util/certificate/manager_test.gfx",
+    "util/certificate/csr/csr_test.gfx",
+    "util/connrotation/connrotation_test.gfx"
+  ]
+}

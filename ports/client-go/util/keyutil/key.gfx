@@ -1,0 +1,72 @@
+// Copyright 2018 The Kubernetes Authors. Licensed under Apache-2.0.
+// Source: client-go v0.37.2 util/keyutil/key.go.
+package keyutil
+import crypto "github.com/reoring/gofx/ports/client-go/deps/crypto"
+import cert "github.com/reoring/gofx/ports/client-go/util/cert"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import list "std/list"
+func ecPrivateKeyBlockType() String { "EC PRIVATE KEY" }
+func rsaPrivateKeyBlockType() String { "RSA PRIVATE KEY" }
+func privateKeyBlockType() String { "PRIVATE KEY" }
+func publicKeyBlockType() String { "PUBLIC KEY" }
+func parsePrivateKeyPEM(data String) IO[outcome.Outcome[Option[crypto.PrivateKey]]] {
+ match cert.decodePEM(data) {
+  None => ioPure(outcome.failure(None, cert.newError("data does not contain a valid RSA or ECDSA private key")))
+  Some((kind, (_, (bytes, rest)))) => do {
+   parsed <- cert.parsePrivate(kind, bytes)
+   match parsed { (Some(key), None) => ioPure(outcome.success(Some(key))); _ => parsePrivateKeyPEM(rest) }
+  }
+ }
+}
+func _public(bytes String, formats List[String]) IO[Option[crypto.PublicKey]] {
+ match formats { Nil => ioPure(None); Cons(format, rest) => do {
+  result <- cert.parsePublic(format, bytes)
+  match result { (Some(key), None) => ioPure(Some(key)); _ => _public(bytes, rest) }
+ } }
+}
+func _publicBlocks(data String, keys List[crypto.PublicKey]) IO[outcome.Outcome[List[crypto.PublicKey]]] {
+ match cert.decodePEM(data) {
+  None => ioPure(match keys { Nil => outcome.failure([], cert.newError("data does not contain any valid RSA or ECDSA public keys")); _ => outcome.success(list.reverse(keys)) })
+  Some((_, (_, (bytes, rest)))) => do {
+   key <- _public(bytes, ["RSA PRIVATE KEY", "PRIVATE KEY", "PKIX", "CERTIFICATE", "EC PRIVATE KEY"])
+   _publicBlocks(rest, match key { None => keys; Some(value) => Cons(value, keys) })
+  }
+ }
+}
+func parsePublicKeysPEM(data String) IO[outcome.Outcome[List[crypto.PublicKey]]] { _publicBlocks(data, []) }
+func marshalPrivateKeyToPEM(key crypto.PrivateKey) IO[outcome.Outcome[String]] { do { result <- cert.marshalPrivate(key); ioPure(outcome.from(result.0, result.1)) } }
+func makeEllipticPrivateKeyPEM() IO[outcome.Outcome[String]] { do {
+ result <- cert.generateEC()
+ match result { (Some(key), None) => marshalPrivateKeyToPEM(key); (_, Some(error)) => ioPure(outcome.failure("", error)); _ => ioPure(outcome.failure("", cert.newError("key generation returned no key"))) }
+} }
+func writeKey(path String, data String) IO[outcome.Outcome[Unit]] { do {
+ error <- cert.mkdir(cert.parent(path))
+ match error { Some(value) => ioPure(outcome.failure(unit(), value)); None => do { written <- cert.writeFile(path, data, 384); ioPure(outcome.from(unit(), written)) } }
+} }
+func privateKeyFromFile(path String) IO[outcome.Outcome[Option[crypto.PrivateKey]]] { do {
+ loaded <- cert.readFile(path)
+ match loaded.1 { Some(error) => ioPure(outcome.failure(None, error)); None => do {
+  result <- parsePrivateKeyPEM(loaded.0)
+  ioPure(match result.error { None => result; Some(error) => outcome.failure(None, cert.newError("error reading private key file " + path + ": " + cert.errorText(error))) })
+ } }
+} }
+func publicKeysFromFile(path String) IO[outcome.Outcome[List[crypto.PublicKey]]] { do {
+ loaded <- cert.readFile(path)
+ match loaded.1 { Some(error) => ioPure(outcome.failure([], error)); None => do {
+  result <- parsePublicKeysPEM(loaded.0)
+  ioPure(match result.error { None => result; Some(error) => outcome.failure([], cert.newError("error reading public key file " + path + ": " + cert.errorText(error))) })
+ } }
+} }
+func loadOrGenerateKeyFile(path String) IO[outcome.Outcome[(String, Bool)]] { do {
+ loaded <- cert.readFile(path)
+ match loaded.1 {
+  None => do { parsed <- parsePrivateKeyPEM(loaded.0); ioPure(match parsed.error { None => outcome.success((loaded.0, false)); Some(_) => outcome.failure(("", false), cert.newError("error loading key from " + path + ": <nil>")) }) }
+  Some(error) => if !cert.isNotExist(error) { ioPure(outcome.failure(("", false), cert.newError("error loading key from " + path + ": " + cert.errorText(error)))) } else { do {
+   generated <- makeEllipticPrivateKeyPEM()
+   match generated.error {
+    Some(error) => ioPure(outcome.failure(("", false), cert.newError("error generating key: " + cert.errorText(error))))
+    None => do { written <- writeKey(path, generated.value); ioPure(match written.error { None => outcome.success((generated.value, true)); Some(error) => outcome.failure(("", false), cert.newError("error writing key to " + path + ": " + cert.errorText(error))) }) }
+   }
+  } }
+ }
+} }

@@ -1,0 +1,30 @@
+// Copyright 2015 The Kubernetes Authors. Licensed under Apache-2.0.
+package transport
+import metrics "github.com/reoring/gofx/ports/client-go/tools/metrics"
+import features "github.com/reoring/gofx/ports/client-go/features"
+import string "std/string"
+
+// Bind after registration. Resolving the canonical provider also runs its
+// deferred registration callback. No second registry lives in transport.
+func withMetrics(env Environment, registry metrics.Registry, override Option[metrics.Provider]) IO[Environment] { do {
+ provider <- metrics.provider(registry, override)
+ let diagnostics = env.diagnostics
+ ioPure(env {diagnostics: diagnostics {event: func(name, value) => do {
+  transportMetric(provider, name, value)
+  diagnostics.event(name, value)
+ }}})
+} }
+func newEnvironmentWithMetrics(featureRegistry features.FeatureRegistry, registry metrics.Registry, override Option[metrics.Provider]) IO[Environment] { do {
+ env <- newEnvironment(featureRegistry)
+ withMetrics(env, registry, override)
+} }
+func transportMetric(provider metrics.Provider, name String, value String) IO[Unit] {
+ match string.split(":", name) {
+  ["cache", result] => provider.transportCreateCalls.increment(result)
+  ["cache_gc", result] => provider.transportCacheGCCalls.increment(result)
+  ["ca_reload", result, reason] => provider.transportCAReloads.increment(result, reason)
+  ["certificate_rotation_gc"] => provider.transportCertRotationGCCalls.increment()
+  ["cache_entries"] => match string.parseInt(value) { Some(count) => provider.transportCacheEntries.observe(count); None => ioPure(unit()) }
+  _ => ioPure(unit())
+ }
+}

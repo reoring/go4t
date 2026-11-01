@@ -1,0 +1,33 @@
+package watchlist
+
+import meta "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import errors "github.com/reoring/gofx/ports/client-go/deps/support"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+
+func testWatchListCapabilityPresence() Bool {
+ !doesClientNotSupportWatchListSemantics(None) && !doesClientNotSupportWatchListSemantics(Some(func() => false)) && doesClientNotSupportWatchListSemantics(Some(func() => true))
+}
+func testWatchListNegotiationAndLegacyLimit() IO[Bool] {
+ do {
+  let validation = Validation(func(_) => ioPure(outcome.Outcome(true, None)))
+  let legacy = meta.listOptionsWithLimit(meta.listOptionsWithResourceVersion(meta.newListOptions(), "0"), 4)
+  supported <- prepareWatchListOptionsFromListOptions(true, validation, legacy)
+  limited <- prepareWatchListOptionsFromListOptions(true, validation, meta.listOptionsWithLimit(meta.newListOptions(), 4))
+  exact <- prepareWatchListOptionsFromListOptions(true, validation, meta.listOptionsWithResourceVersionMatch(meta.newListOptions(), meta.resourceVersionMatchFromValue("Exact")))
+  let (options, accepted) = supported.value
+  let (_, rejectedLimit) = limited.value
+  let (_, rejectedExact) = exact.value
+  ioPure(accepted && !rejectedLimit && !rejectedExact && meta.listOptionsGetLimit(options) == 0 && meta.listOptionsGetWatch(options) && meta.listOptionsGetAllowWatchBookmarks(options) && (match meta.listOptionsGetSendInitialEvents(options) { Some(true) => true; _ => false }) && meta.resourceVersionMatchValue(meta.listOptionsGetResourceVersionMatch(options)) == "NotOlderThan")
+ }
+}
+func testConversionErrorVersusInvalidOptions() IO[Bool] {
+ do {
+  failed <- prepareWatchListOptionsFromListOptions(true, Validation(func(_) => ioPure(outcome.Outcome(false, Some(errors.errorNew("conversion"))))), meta.newListOptions())
+  invalid <- prepareWatchListOptionsFromListOptions(true, Validation(func(_) => ioPure(outcome.Outcome(false, None))), meta.newListOptions())
+  calls <- sync.newRef(0)
+  disabled <- prepareWatchListOptionsFromListOptions(false, Validation(func(_) => do { sync.writeRef(calls, 1); ioPure(outcome.Outcome(true, None)) }), meta.newListOptions())
+  count <- sync.readRef(calls)
+  ioPure((match failed.error { Some(err) => errors.errorMessage(err) == "conversion"; None => false }) && (match invalid.error { None => true; Some(_) => false }) && (match disabled.value { (_, false) => true; _ => false }) && count == 0)
+ }
+}

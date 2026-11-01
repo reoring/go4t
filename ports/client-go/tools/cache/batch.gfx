@@ -1,0 +1,38 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package cache
+import lists "std/list"
+import "std/map"
+import "github.com/reoring/gofx/ports/client-go/support/outcome"
+import errors "github.com/reoring/gofx/ports/client-go/deps/support"
+
+type BatchItem[A] = BatchItem { transaction: Transaction[A], notification: Notification[A] }
+func prepareBatch[A](store Store[A], deltas Deltas[A], initial Bool) IO[outcome.Outcome[List[BatchItem[A]]]] { match deltas {
+ Nil => ioPure(outcome.success(Nil))
+ Cons(delta,rest) => do {
+  current <- match delta.deltaType {
+   Deleted => ioPure(outcome.success(Some(BatchItem(match delta.object { DeletedObject(obj) => Transaction(obj,TransactionTypeDelete); DeletedFinalStateUnknown(key,obj) => DeleteKeyTransaction(key,obj) },DeleteNotification(delta.object)))))
+   _ => match deletionObject(delta.object) { None => ioPure(outcome.failure(None,cacheError("upsert delta has no object"))); Some(obj) => do { old <- store.get(obj); ioPure(outcome.success(Some(match old.value { None => BatchItem(Transaction(obj,TransactionTypeAdd),AddNotification(obj,initial)); Some(previous) => BatchItem(Transaction(obj,TransactionTypeUpdate),UpdateNotification(previous,obj)) }))) } }
+  }
+  match current.error { Some(e) => ioPure(outcome.failure(Nil,e)); None => do { remaining <- prepareBatch(store,rest,initial); ioPure(outcome.from(match current.value { None => remaining.value; Some(item) => Cons(item,remaining.value) },remaining.error)) } }
+ }
+} }
+func emitNotification[A](handler ResourceEventHandler[A], notification Notification[A]) IO[Unit] { match notification { AddNotification(obj,initial) => handler.onAdd(obj,initial); UpdateNotification(old,obj) => handler.onUpdate(old,obj); DeleteNotification(obj) => handler.onDelete(obj) } }
+func processDeltasInBatch[A](handler ResourceEventHandler[A], store Store[A], deltas Deltas[A], initial Bool, access ObjectAccess[A]) IO[ProcessResult] { do {
+ plan <- prepareBatch(store,deltas,initial)
+ match plan.error { Some(e) => ioPure(ProcessResult(Some(e),false)); None => do {
+  result <- store.transaction(map(plan.value,func(item) => item.transaction))
+  match result {
+   None => do { lists.forEach(plan.value,func(item) => emitNotification(handler,item.notification)); ioPure(processSuccess()) }
+   Some(error) => if lists.any(error.errors,func(e) => errors.errorMessage(e) == "transaction not supported") { processDeltasSequentially(handler,store,deltas,initial,access,Nil) } else { do {
+    let successes = fold(error.successfulIndices,map.emptyMap(),func(acc,index) => map.mapInsert(acc,index,unit()))
+    lists.forEach(lists.zip(lists.range(0,length(plan.value)),plan.value),func(pair) => if map.mapMember(successes,fst(pair)) { emitNotification(handler,snd(pair).notification) } else { ioPure(unit()) })
+    ioPure(ProcessResult(Some(cacheError("not all items in the batch successfully processed: " + transactionErrorMessage(error))),false))
+   } }
+  }
+ } }
+} }
+func processDeltasSequentially[A](handler ResourceEventHandler[A], store Store[A], deltas Deltas[A], initial Bool, access ObjectAccess[A], failures List[String]) IO[ProcessResult] { match deltas {
+ Nil => ioPure(if length(failures) == 0 { processSuccess() } else { ProcessResult(Some(cacheError("unexpected error when handling deltas: " + show(reverse(failures)))),false) })
+ Cons(delta,rest) => do { result <- processDeltas(handler,store,[delta],initial,access); processDeltasSequentially(handler,store,rest,initial,access,match result.error { None => failures; Some(e) => Cons(errors.errorMessage(e),failures) }) }
+} }
+func processRealBatch[A](handler ResourceEventHandler[A], store Store[A], events List[RealEvent[A]], initial Bool, access ObjectAccess[A]) IO[ProcessResult] { let deltas = fold(events,outcome.success(Nil),func(acc,event) => match event { ObjectDelta(_,delta) => outcome.from(Cons(delta,acc.value),acc.error); _ => outcome.failure(acc.value,cacheError("Delta type is not supported in batch processing")) }); match deltas.error { Some(e) => ioPure(ProcessResult(Some(e),false)); None => processDeltasInBatch(handler,store,reverse(deltas.value),initial,access) } }

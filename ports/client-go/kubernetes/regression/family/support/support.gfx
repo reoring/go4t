@@ -1,0 +1,66 @@
+// Copyright The Kubernetes Authors. Licensed under Apache-2.0.
+// Verification driver only; all operations execute public native client APIs.
+package support
+import kubernetes "kubernetes"
+import rest "rest"
+import restfake "rest/fake"
+import http "deps/net/http"
+import runtime "deps/k8s.io/apimachinery/pkg/runtime"
+import objects "deps/objects"
+import errors "deps/support"
+import outcome "support/outcome"
+import sync "support/sync"
+import transport "transport"
+import features "features"
+import flow "util/flowcontrol"
+
+type Harness = Harness { client:kubernetes.Clientset, requests:sync.Ref[List[String]], response:sync.Ref[String] }
+extern func observeRequest(request http.Request) IO[String] = "github.com/reoring/gofx/ports/client-go/kubernetes/regression/family/support/host".ObserveRequest
+extern func describeResult(object runtime.Object) IO[String] = "github.com/reoring/gofx/ports/client-go/kubernetes/regression/family/support/host".DescribeResult
+extern func resultMatches(value String,goType String,kind String) Bool = "github.com/reoring/gofx/ports/client-go/kubernetes/regression/family/support/host".ResultMatches
+extern func emit(resource String,operation String,requests List[String],result Option[String],castOK Bool,error Option[String]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/kubernetes/regression/family/support/host".Emit
+
+func newHarness() IO[Harness] { do {
+ requests <- sync.newRef([])
+ response <- sync.newRef("")
+ gates <- features.newFeatureRegistry(features.Environment(func(_) => ioPure(None),func(_) => ioPure(unit())))
+ network <- transport.newEnvironment(gates)
+ clock <- sync.realClock()
+ providers <- rest.newAuthProviderRegistry()
+ let authentication = rest.Authentication(providers,func(_,_,_) => ioFail("family fixture unexpectedly invoked exec authentication"))
+ let environment = rest.Environment(network,gates,authentication,clock,rest.noWarnings(),flow.newTokenBucketRateLimiter,None)
+ httpClient <- restfake.createHTTPClient(func(request) => do {
+  observed <- observeRequest(request)
+  previous <- sync.readRef(requests)
+  sync.writeRef(requests,append(previous,[observed]))
+  body <- sync.readRef(response)
+  reply <- restfake.responseBytes(200,"application/json",body,"")
+  ioPure(outcome.success(Some(reply)))
+ })
+ let config = rest.emptyConfig()
+ let content = config.contentConfig{contentType:"application/json",acceptContentTypes:"application/json"}
+ built <- kubernetes.newForConfigAndClient(environment,config{host:"http://family.invalid",qps:-1.0,contentConfig:content},httpClient)
+ match built.value {
+  None => ioFail(match built.error { None => "family clientset constructor returned no client"; Some(error) => errors.errorMessage(error) })
+  Some(client) => ioPure(Harness(client,requests,response))
+ }
+} }
+func begin(harness Harness,body String) IO[Unit] { do {
+ sync.writeRef(harness.requests,[])
+ sync.writeRef(harness.response,body)
+} }
+func errorText(error Option[errors.Error]) Option[String] { match error { None => None; Some(value) => Some(errors.errorMessage(value)) } }
+func record[A](harness Harness,key String,operation String,resultType String,kind String,descriptor objects.ObjectType[A],result outcome.Outcome[A]) IO[Bool] { do {
+ let object = objects.toObject(descriptor,result.value)
+ let castOK = match objects.fromObject(descriptor,Some(object)) { None => false; Some(_) => true }
+ observed <- describeResult(object)
+ requests <- sync.readRef(harness.requests)
+ emit(key,operation,requests,Some(observed),castOK,errorText(result.error))
+ ioPure(length(requests)==1 && outcome.isSuccess(result) && castOK && resultMatches(observed,resultType,kind))
+} }
+func recordUnit(harness Harness,key String,operation String,result outcome.Outcome[Unit]) IO[Bool] { do {
+ requests <- sync.readRef(harness.requests)
+ let success = outcome.isSuccess(result)
+ emit(key,operation,requests,None,success,errorText(result.error))
+ ioPure(length(requests)==1 && success)
+} }

@@ -1,0 +1,42 @@
+// Copyright 2021 The Kubernetes Authors. Licensed under Apache-2.0.
+package v1
+import auth "github.com/reoring/gofx/ports/client-go/pkg/apis/clientauthentication"
+import schema "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime/schema"
+alias Cluster = auth.WireCluster
+alias ExecCredential = auth.WireCredential
+alias ExecCredentialSpec = auth.WireSpec
+alias ExecCredentialStatus = auth.ExecCredentialStatus
+func groupName() String { "client.authentication.k8s.io" }
+func apiVersion() String { "v1" }
+func schemeGroupVersion() schema.GroupVersion { auth.groupVersion(apiVersion()) }
+func resource(name String) schema.GroupResource { auth.resource(name) }
+func newCluster() Cluster { auth.newWireCluster() }
+func newExecCredential() ExecCredential { auth.newWireCredential() }
+func newExecCredentialSpec() ExecCredentialSpec { auth.WireSpec(false, None) }
+func newExecCredentialStatus() ExecCredentialStatus { auth.newExecCredentialStatus() }
+func convertClusterToInternal(value Cluster) IO[auth.Cluster] { auth.convertClusterToInternal(value) }
+func convertClusterFromInternal(value auth.Cluster) IO[Cluster] { auth.convertClusterFromInternal(value) }
+func convertExecCredentialToInternal(value ExecCredential) IO[auth.ExecCredential] { auth.convertToInternal(value) }
+func convertExecCredentialFromInternal(value auth.ExecCredential) IO[ExecCredential] { auth.convertFromInternal(value) }
+func convertExecCredentialSpecToInternal(value ExecCredentialSpec) IO[auth.ExecCredentialSpec] { auth.convertSpecToInternal(value) }
+func convertExecCredentialSpecFromInternal(value auth.ExecCredentialSpec) IO[ExecCredentialSpec] { auth.convertSpecFromInternal(value) }
+func convertExecCredentialStatusToInternal(value ExecCredentialStatus) auth.ExecCredentialStatus { value }
+func convertExecCredentialStatusFromInternal(value auth.ExecCredentialStatus) ExecCredentialStatus { value }
+func deepCopyCluster(value Cluster) IO[Cluster] { auth.deepCopyWireCluster(value) }
+func deepCopyExecCredential(value ExecCredential) IO[ExecCredential] { auth.deepCopyWireCredential(value) }
+func deepCopyExecCredentialSpec(value ExecCredentialSpec) IO[ExecCredentialSpec] { auth.deepCopyWireSpec(value) }
+func deepCopyExecCredentialStatus(value ExecCredentialStatus) ExecCredentialStatus { auth.deepCopyExecCredentialStatus(value) }
+func deepCopyObject(value ExecCredential) IO[ExecCredential] { deepCopyExecCredential(value) }
+func deepCopyClusterInto(value Cluster, destination Cluster) IO[Cluster] { deepCopyCluster(value) }
+func deepCopyExecCredentialInto(value ExecCredential, destination ExecCredential) IO[ExecCredential] { deepCopyExecCredential(value) }
+func deepCopyExecCredentialSpecInto(value ExecCredentialSpec, destination ExecCredentialSpec) IO[ExecCredentialSpec] { deepCopyExecCredentialSpec(value) }
+func deepCopyExecCredentialStatusInto(value ExecCredentialStatus, destination ExecCredentialStatus) ExecCredentialStatus { deepCopyExecCredentialStatus(value) }
+func clusterOpenAPIModelName(value Cluster) String { "io.k8s.client-go.pkg.apis.clientauthentication.v1.Cluster" }
+func execCredentialOpenAPIModelName(value ExecCredential) String { "io.k8s.client-go.pkg.apis.clientauthentication.v1.ExecCredential" }
+func execCredentialSpecOpenAPIModelName(value ExecCredentialSpec) String { "io.k8s.client-go.pkg.apis.clientauthentication.v1.ExecCredentialSpec" }
+func execCredentialStatusOpenAPIModelName(value ExecCredentialStatus) String { "io.k8s.client-go.pkg.apis.clientauthentication.v1.ExecCredentialStatus" }
+func registerConversions(scheme auth.Scheme) IO[Unit] { auth.registerVersion(scheme, apiVersion()) }
+// Upstream has zero field defaulters. Registration retains an explicit identity policy.
+func registerDefaults(scheme auth.Scheme) IO[Unit] { auth.registerDefaultsForVersion(scheme, apiVersion()) }
+func addToScheme(scheme auth.Scheme) IO[Unit] { auth.registerVersion(scheme, apiVersion()) }
+func schemeBuilder() auth.SchemeBuilder { [addToScheme] }

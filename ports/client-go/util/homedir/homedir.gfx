@@ -1,0 +1,43 @@
+// Copyright 2016 The Kubernetes Authors. Licensed under Apache-2.0.
+package homedir
+
+type FileInfo = FileInfo { isDirectory: Bool, ownerWritable: Bool }
+type Host = Host { os: String, getenv: func(String) IO[String], stat: func(String) IO[Option[FileInfo]], join: func(String, String, String) String }
+extern func platform() String = "github.com/reoring/gofx/ports/client-go/util/homedir/host".Platform
+extern func getenv(name String) IO[String] = "github.com/reoring/gofx/ports/client-go/util/homedir/host".Getenv
+extern func statInfo(path String) IO[Option[(Bool, Bool)]] = "github.com/reoring/gofx/ports/client-go/util/homedir/host".Stat
+func stat(path String) IO[Option[FileInfo]] { do { value <- statInfo(path); ioPure(match value { None => None; Some((directory, writable)) => Some(FileInfo(directory, writable)) }) } }
+extern func join(path String, directory String, file String) String = "github.com/reoring/gofx/ports/client-go/util/homedir/host".Join
+func _config(host Host, paths List[String]) IO[Option[String]] {
+ match paths { Nil => ioPure(None); Cons(path, rest) => if path == "" { _config(host, rest) } else { do {
+  info <- host.stat(host.join(path, ".kube", "config"))
+  match info { Some(_) => ioPure(Some(path)); None => _config(host, rest) }
+ } } }
+}
+func _fallback(host Host, paths List[String], firstSet String, firstExisting String) IO[String] {
+ match paths {
+ Nil => ioPure(if firstExisting != "" { firstExisting } else { firstSet })
+ Cons(path, rest) => if path == "" { _fallback(host, rest, firstSet, firstExisting) } else { do {
+  let set = if firstSet == "" { path } else { firstSet }
+  info <- host.stat(path)
+  match info {
+   None => _fallback(host, rest, set, firstExisting)
+   Some(value) => if value.isDirectory && value.ownerWritable { ioPure(path) } else {
+    _fallback(host, rest, set, if firstExisting == "" { path } else { firstExisting })
+   }
+  }
+ } }
+ }
+}
+func homeDirWith(host Host) IO[String] { do {
+ home <- host.getenv("HOME")
+ if host.os != "windows" { ioPure(home) } else { do {
+  drive <- host.getenv("HOMEDRIVE")
+  path <- host.getenv("HOMEPATH")
+  profile <- host.getenv("USERPROFILE")
+  let drivePath = if drive != "" && path != "" { drive + path } else { "" }
+  config <- _config(host, [home, drivePath, profile])
+  match config { Some(found) => ioPure(found); None => _fallback(host, [home, profile, drivePath], "", "") }
+ } }
+} }
+func homeDir() IO[String] { homeDirWith(Host(platform(), getenv, stat, join)) }

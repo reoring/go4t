@@ -1,0 +1,106 @@
+// Copyright 2014 The Kubernetes Authors. Licensed under Apache-2.0.
+package main
+import api "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api"
+import v1 "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api/v1"
+import runtime "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime"
+import errors "github.com/reoring/gofx/ports/client-go/deps/support"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import "std/map"
+import "std/prelude"
+import "std/string"
+import "std/io"
+func check(ok Bool,message String) IO[Unit] { if ok { ioPure(unit()) } else { ioFail(message) } }
+func message[A](result outcome.Outcome[A]) String { match result.error { None => ""; Some(error) => errors.errorMessage(error) } }
+func names[A](value Option[List[A]],name func(A) String) List[String] { prelude.fmap(api.listOrEmpty(value),name) }
+func main() IO[Unit] { do {
+ // Clusters: input emptiness never overwrites destination presence.
+ clustersNil <- v1.convertNamedClustersToInternal(None,None)
+ clustersEmpty <- v1.convertNamedClustersToInternal(Some(Nil),None)
+ clustersPresent <- v1.convertNamedClustersToInternal(None,Some(map.emptyMap()))
+ check((match clustersNil.value { None => true; _ => false }) && (match clustersEmpty.value { None => true; _ => false }) && (match clustersPresent.value { Some(values) => map.mapSize(values) == 0; _ => false }),"Clusters retain nil versus present-empty maps")
+ let clustersInput = [api.NamedCluster("z",api.emptyWireCluster()),api.NamedCluster("a",api.emptyWireCluster())]
+ clustersMerged <- v1.convertNamedClustersToInternal(Some(clustersInput),Some(map.mapFromList([("a",None),("keep",Some(api.emptyCluster()))])))
+ check(outcome.isSuccess(clustersMerged) && map.mapSize(api.mapOrEmpty(clustersMerged.value)) == 3,"Clusters replace nil entries and retain existing entries")
+ clustersReverse <- v1.convertNamedClustersFromInternal(clustersMerged.value,Some([api.NamedCluster("prefix",api.emptyWireCluster())]))
+ check(outcome.isSuccess(clustersReverse) && names(clustersReverse.value,func(entry) => entry.name) == ["prefix","a","keep","z"],"Clusters append in sorted input key order")
+ clustersReverseNil <- v1.convertNamedClustersFromInternal(Some(map.emptyMap()),None)
+ clustersReverseEmpty <- v1.convertNamedClustersFromInternal(None,Some(Nil))
+ check((match clustersReverseNil.value { None => true; _ => false }) && (match clustersReverseEmpty.value { Some(Nil) => true; _ => false }),"Clusters retain nil versus present-empty slices")
+ clustersDuplicate <- v1.convertNamedClustersToInternal(Some([api.NamedCluster("first",api.emptyWireCluster()),api.NamedCluster("keep",api.emptyWireCluster()),api.NamedCluster("after",api.emptyWireCluster())]),Some(map.mapFromList([("keep",Some(api.emptyCluster()))])))
+ check(!outcome.isSuccess(clustersDuplicate) && map.mapSize(api.mapOrEmpty(clustersDuplicate.value)) == 2 && !map.mapMember(api.mapOrEmpty(clustersDuplicate.value),"after"),"Clusters middle duplicate preserves only completed conversions")
+ check(string.contains(message(clustersDuplicate),"duplicate name \"keep\" in list: [") && string.contains(message(clustersDuplicate),"after"),"Clusters diagnostics contain the whole original input")
+ // AuthInfos: input emptiness never overwrites destination presence.
+ authInfosNil <- v1.convertNamedAuthInfosToInternal(None,None)
+ authInfosEmpty <- v1.convertNamedAuthInfosToInternal(Some(Nil),None)
+ authInfosPresent <- v1.convertNamedAuthInfosToInternal(None,Some(map.emptyMap()))
+ check((match authInfosNil.value { None => true; _ => false }) && (match authInfosEmpty.value { None => true; _ => false }) && (match authInfosPresent.value { Some(values) => map.mapSize(values) == 0; _ => false }),"AuthInfos retain nil versus present-empty maps")
+ let authInfosInput = [api.NamedAuthInfo("z",api.emptyWireAuthInfo()),api.NamedAuthInfo("a",api.emptyWireAuthInfo())]
+ authInfosMerged <- v1.convertNamedAuthInfosToInternal(Some(authInfosInput),Some(map.mapFromList([("a",None),("keep",Some(api.emptyAuthInfo()))])))
+ check(outcome.isSuccess(authInfosMerged) && map.mapSize(api.mapOrEmpty(authInfosMerged.value)) == 3,"AuthInfos replace nil entries and retain existing entries")
+ authInfosReverse <- v1.convertNamedAuthInfosFromInternal(authInfosMerged.value,Some([api.NamedAuthInfo("prefix",api.emptyWireAuthInfo())]))
+ check(outcome.isSuccess(authInfosReverse) && names(authInfosReverse.value,func(entry) => entry.name) == ["prefix","a","keep","z"],"AuthInfos append in sorted input key order")
+ authInfosReverseNil <- v1.convertNamedAuthInfosFromInternal(Some(map.emptyMap()),None)
+ authInfosReverseEmpty <- v1.convertNamedAuthInfosFromInternal(None,Some(Nil))
+ check((match authInfosReverseNil.value { None => true; _ => false }) && (match authInfosReverseEmpty.value { Some(Nil) => true; _ => false }),"AuthInfos retain nil versus present-empty slices")
+ authInfosDuplicate <- v1.convertNamedAuthInfosToInternal(Some([api.NamedAuthInfo("first",api.emptyWireAuthInfo()),api.NamedAuthInfo("keep",api.emptyWireAuthInfo()),api.NamedAuthInfo("after",api.emptyWireAuthInfo())]),Some(map.mapFromList([("keep",Some(api.emptyAuthInfo()))])))
+ check(!outcome.isSuccess(authInfosDuplicate) && map.mapSize(api.mapOrEmpty(authInfosDuplicate.value)) == 2 && !map.mapMember(api.mapOrEmpty(authInfosDuplicate.value),"after"),"AuthInfos middle duplicate preserves only completed conversions")
+ check(string.contains(message(authInfosDuplicate),"duplicate name \"keep\" in list: [") && string.contains(message(authInfosDuplicate),"after"),"AuthInfos diagnostics contain the whole original input")
+ // Contexts: input emptiness never overwrites destination presence.
+ contextsNil <- v1.convertNamedContextsToInternal(None,None)
+ contextsEmpty <- v1.convertNamedContextsToInternal(Some(Nil),None)
+ contextsPresent <- v1.convertNamedContextsToInternal(None,Some(map.emptyMap()))
+ check((match contextsNil.value { None => true; _ => false }) && (match contextsEmpty.value { None => true; _ => false }) && (match contextsPresent.value { Some(values) => map.mapSize(values) == 0; _ => false }),"Contexts retain nil versus present-empty maps")
+ let contextsInput = [api.NamedContext("z",api.emptyWireContext()),api.NamedContext("a",api.emptyWireContext())]
+ contextsMerged <- v1.convertNamedContextsToInternal(Some(contextsInput),Some(map.mapFromList([("a",None),("keep",Some(api.emptyContext()))])))
+ check(outcome.isSuccess(contextsMerged) && map.mapSize(api.mapOrEmpty(contextsMerged.value)) == 3,"Contexts replace nil entries and retain existing entries")
+ contextsReverse <- v1.convertNamedContextsFromInternal(contextsMerged.value,Some([api.NamedContext("prefix",api.emptyWireContext())]))
+ check(outcome.isSuccess(contextsReverse) && names(contextsReverse.value,func(entry) => entry.name) == ["prefix","a","keep","z"],"Contexts append in sorted input key order")
+ contextsReverseNil <- v1.convertNamedContextsFromInternal(Some(map.emptyMap()),None)
+ contextsReverseEmpty <- v1.convertNamedContextsFromInternal(None,Some(Nil))
+ check((match contextsReverseNil.value { None => true; _ => false }) && (match contextsReverseEmpty.value { Some(Nil) => true; _ => false }),"Contexts retain nil versus present-empty slices")
+ contextsDuplicate <- v1.convertNamedContextsToInternal(Some([api.NamedContext("first",api.emptyWireContext()),api.NamedContext("keep",api.emptyWireContext()),api.NamedContext("after",api.emptyWireContext())]),Some(map.mapFromList([("keep",Some(api.emptyContext()))])))
+ check(!outcome.isSuccess(contextsDuplicate) && map.mapSize(api.mapOrEmpty(contextsDuplicate.value)) == 2 && !map.mapMember(api.mapOrEmpty(contextsDuplicate.value),"after"),"Contexts middle duplicate preserves only completed conversions")
+ check(string.contains(message(contextsDuplicate),"duplicate name \"keep\" in list: [") && string.contains(message(contextsDuplicate),"after"),"Contexts diagnostics contain the whole original input")
+ // A duplicate nested conversion wins over an outer destination collision.
+ let raw = runtime.rawExtensionWithRaw(runtime.newRawExtension(),Some("{}"))
+ let nilRaw = runtime.newRawExtension()
+ let extensions = [api.NamedExtension("duplicate",raw),api.NamedExtension("duplicate",raw)]
+ nested <- v1.convertNamedClustersToInternal(Some([api.NamedCluster("first",api.emptyWireCluster()),api.NamedCluster("collision",api.emptyWireCluster(){extensions:Some(extensions)}),api.NamedCluster("after",api.emptyWireCluster())]),Some(map.mapFromList([("collision",Some(api.emptyCluster()))])))
+ check(!outcome.isSuccess(nested) && string.contains(message(nested),"*[]NamedExtension") && map.mapSize(api.mapOrEmpty(nested.value)) == 2 && !map.mapMember(api.mapOrEmpty(nested.value),"after"),"conversion happens before outer duplicate detection and retains accumulated output")
+ extensionNil <- v1.convertNamedExtensionsToInternal(Some(Nil),None)
+ extensionPresent <- v1.convertNamedExtensionsToInternal(None,Some(map.emptyMap()))
+ check((match extensionNil.value { None => true; _ => false }) && (match extensionPresent.value { Some(values) => map.mapSize(values) == 0; _ => false }),"extensions preserve nil and present-empty maps")
+ extensionReplacement <- v1.convertNamedExtensionsToInternal(Some([api.NamedExtension("nil",nilRaw),api.NamedExtension("nil",raw)]),Some(map.mapFromList([("nil",None)])))
+ check(outcome.isSuccess(extensionReplacement) && (match map.mapLookup(api.mapOrEmpty(extensionReplacement.value),"nil") { Some(Some(_)) => true; _ => false }),"nil extension values do not collide, even within the input")
+ extensionDuplicate <- v1.convertNamedExtensionsToInternal(Some([api.NamedExtension("a",nilRaw),api.NamedExtension("nil",raw),api.NamedExtension("after",nilRaw)]),extensionReplacement.value)
+ check(!outcome.isSuccess(extensionDuplicate) && map.mapSize(api.mapOrEmpty(extensionDuplicate.value)) == 2 && string.contains(message(extensionDuplicate),"after"),"extension duplicate retains prefix and complete input context")
+ extensionReverse <- v1.convertNamedExtensionsFromInternal(extensionDuplicate.value,Some([api.NamedExtension("prefix",nilRaw)]))
+ check(outcome.isSuccess(extensionReverse) && names(extensionReverse.value,func(entry) => entry.name) == ["prefix","a","nil"],"extensions append sorted keys to the existing slice")
+ extensionReverseNil <- v1.convertNamedExtensionsFromInternal(Some(map.emptyMap()),None)
+ extensionReversePresent <- v1.convertNamedExtensionsFromInternal(None,Some(Nil))
+ check((match extensionReverseNil.value { None => true; _ => false }) && (match extensionReversePresent.value { Some(Nil) => true; _ => false }),"extensions preserve nil and present-empty slices")
+ let duplicateContexts = [api.NamedContext("same",api.emptyWireContext(){cluster:"first"}),api.NamedContext("same",api.emptyWireContext(){cluster:"second"}),api.NamedContext("tail",api.emptyWireContext(){cluster:"tail"})]
+ contextDiagnostic <- v1.convertNamedContextsToInternal(Some(duplicateContexts),None)
+ check(message(contextDiagnostic) == "error converting *[]NamedContext into *map[string]*api.Context: duplicate name \"same\" in list: [{same {first   []}} {same {second   []}} {tail {tail   []}}]","canonical duplicate context diagnostic")
+ let destination = api.withContext(api.emptyConfig(){kind:"retained-kind",apiVersion:"retained-version",currentContext:"retained-current"},"old",Some(api.emptyContext()))
+ let config = api.emptyWireConfig(){preferences:api.emptyWirePreferences(){colors:true},clusters:Some([api.NamedCluster("ok",api.emptyWireCluster())]),contexts:Some(duplicateContexts),currentContext:"not-yet-assigned",extensions:Some([api.NamedExtension("after",raw)])}
+ configPartial <- v1.convertConfigToInternal(config,destination)
+ check(message(configPartial) == message(contextDiagnostic) && configPartial.value.preferences.colors && (match api.getCluster(configPartial.value,"ok") { Some(_) => true; _ => false }) && (match api.getContext(configPartial.value,"same") { Some(value) => value.cluster == "first"; _ => false }),"full Config returns partial successful fields and same conversion error")
+ check(configPartial.value.currentContext == "retained-current" && configPartial.value.kind == "retained-kind" && configPartial.value.apiVersion == "retained-version" && (match configPartial.value.extensions { None => true; _ => false }),"full Config stops before later assignments and preserves skipped metadata")
+ let extensionFailConfig = api.emptyWireConfig(){currentContext:"now-assigned",extensions:Some(extensions)}
+ configExtensionPartial <- v1.convertConfigToInternal(extensionFailConfig,api.emptyConfig())
+ check(!outcome.isSuccess(configExtensionPartial) && configExtensionPartial.value.currentContext == "now-assigned" && map.mapSize(api.mapOrEmpty(configExtensionPartial.value.extensions)) == 1,"current-context is assigned before a failing final extension conversion")
+ let reverseDestination = api.emptyWireConfig(){kind:"wire-kind",apiVersion:"wire-version",clusters:Some([api.NamedCluster("prefix",api.emptyWireCluster())])}
+ configReverse <- v1.convertConfigFromInternal(api.emptyConfig(){clusters:clustersMerged.value},reverseDestination)
+ check(outcome.isSuccess(configReverse) && configReverse.value.kind == "wire-kind" && configReverse.value.apiVersion == "wire-version" && names(configReverse.value.clusters,func(entry) => entry.name) == ["prefix","a","keep","z"],"full reverse Config retains metadata and appends existing collections")
+ let preferencesDestination = api.emptyConfig(){preferences:api.emptyPreferences(){extensions:Some(map.mapFromList([("keep",None)]))},currentContext:"unchanged"}
+ preferencesPartial <- v1.convertConfigToInternal(api.emptyWireConfig(){preferences:api.emptyWirePreferences(){colors:true,extensions:Some(extensions)},currentContext:"later"},preferencesDestination)
+ check(!outcome.isSuccess(preferencesPartial) && preferencesPartial.value.preferences.colors && map.mapSize(api.mapOrEmpty(preferencesPartial.value.preferences.extensions)) == 2 && preferencesPartial.value.currentContext == "unchanged","full Config retains destination and partial preference extension map on first-field failure")
+ nilCluster <- io.tryIO(v1.convertNamedClustersFromInternal(Some(map.mapFromList([("nil",None)])),None))
+ nilAuthInfo <- io.tryIO(v1.convertNamedAuthInfosFromInternal(Some(map.mapFromList([("nil",None)])),None))
+ nilContext <- io.tryIO(v1.convertNamedContextsFromInternal(Some(map.mapFromList([("nil",None)])),None))
+ check((match nilCluster { Err(io.Panic(_)) => true; _ => false }) && (match nilAuthInfo { Err(io.Panic(_)) => true; _ => false }) && (match nilContext { Err(io.Panic(_)) => true; _ => false }),"reverse nil typed entries preserve nil dereference panic rather than fabricated conversion errors")
+ let detailedUser = api.emptyWireAuthInfo(){token:"full-token",clientKeyData:Some("AB"),authProvider:Some(api.AuthProviderConfig("provider",Some(map.mapFromList([("config-key","config-value")])))),exec:Some(api.convertExecConfigFromInternal(api.newExecConfig(){command:"command",args:Some(["arg"]),env:Some([api.ExecEnvVar("ENV","value")])}))}
+ detailedDuplicate <- v1.convertNamedAuthInfosToInternal(Some([api.NamedAuthInfo("same",detailedUser),api.NamedAuthInfo("same",api.emptyWireAuthInfo()),api.NamedAuthInfo("unvisited",api.emptyWireAuthInfo(){username:"last-user"})]),None)
+ check(string.contains(message(detailedDuplicate),"duplicate name \"same\" in list: [") && string.contains(message(detailedDuplicate),"[65 66]") && string.contains(message(detailedDuplicate),"full-token") && string.contains(message(detailedDuplicate),"&{provider map[config-key:config-value]}") && string.contains(message(detailedDuplicate),"&{command [arg] [{ENV value}]") && string.contains(message(detailedDuplicate),"last-user"),"complete native pointer values and all input fields remain in duplicate diagnostics")
+} }

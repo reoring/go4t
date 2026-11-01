@@ -1,0 +1,88 @@
+// Copyright 2015 The Kubernetes Authors. Licensed under Apache-2.0.
+package transport
+import http "github.com/reoring/gofx/ports/client-go/deps/net/http"
+import errors "github.com/reoring/gofx/ports/client-go/deps/support"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import list "std/list"
+import map "std/map"
+import string "std/string"
+import prelude "std/prelude"
+
+func layer(base RoundTripper, run func(http.Request) IO[outcome.Outcome[Option[http.Response]]]) RoundTripper {
+ RoundTripper(run, base.cancelRequest, base.closeIdleConnections, base.lifetime, None, func() => ioPure(Some(base)))
+}
+func newHeaderRoundTripper(name String, value String, base RoundTripper) RoundTripper {
+ layer(base, func(req) => do {
+  previous <- requestHeader(req, name)
+  if previous != "" { base.roundTrip(req) } else { do { copy <- cloneRequest(req); setRequestHeader(copy, name, value); base.roundTrip(copy) } }
+ })
+}
+func newBasicAuthRoundTripper(user String, password String, base RoundTripper) RoundTripper {
+ newHeaderRoundTripper("Authorization", basicCredentials(user, password), base)
+}
+func newUserAgentRoundTripper(agent String, base RoundTripper) RoundTripper { newHeaderRoundTripper("User-Agent", agent, base) }
+func newBearerAuthRoundTripper(token String, base RoundTripper) RoundTripper { newHeaderRoundTripper("Authorization", "Bearer " + token, base) }
+func impersonateUserHeader() String { "Impersonate-User" }
+func impersonateUIDHeader() String { "Impersonate-Uid" }
+func impersonateGroupHeader() String { "Impersonate-Group" }
+func impersonateUserExtraHeaderPrefix() String { "Impersonate-Extra-" }
+func headerKeyEscape(key String) String {
+ string.strConcat(prelude.fmap(byteValues(key), func(b) =>
+  if (b >= 48 && b <= 57) || (b >= 65 && b <= 90) || (b >= 97 && b <= 122) || string.contains("!#$&'*+-.^_`|~", byteString(b)) { byteString(b) } else { "%" + hexByte(b) }))
+}
+func optionList[A](xs Option[List[A]]) List[A] { match xs { None => []; Some(values) => values } }
+func extraHeaders(req http.Request, prefix String, extra Option[Map[String, Option[List[String]]]]) IO[Unit] {
+ match extra { None => ioPure(unit()); Some(values) => list.forEach(map.mapToList(values), func((key, items)) => list.forEach(optionList(items), func(value) => addRequestHeader(req, prefix + headerKeyEscape(key), value))) }
+}
+func setImpersonationHeaders(req http.Request, config ImpersonationConfig) IO[Unit] {
+ do {
+  setRequestHeader(req, impersonateUserHeader(), config.userName)
+  if config.uid == "" { ioPure(unit()) } else { setRequestHeader(req, impersonateUIDHeader(), config.uid) }
+  list.forEach(optionList(config.groups), func(group) => addRequestHeader(req, impersonateGroupHeader(), group))
+  extraHeaders(req, impersonateUserExtraHeaderPrefix(), config.extra)
+ }
+}
+func newImpersonatingRoundTripper(config ImpersonationConfig, base RoundTripper) RoundTripper {
+ layer(base, func(req) => do {
+  user <- requestHeader(req, impersonateUserHeader())
+  if user != "" { base.roundTrip(req) } else { do { copy <- cloneRequest(req); setImpersonationHeaders(copy, config); base.roundTrip(copy) } }
+ })
+}
+func setAuthProxyHeaders(req http.Request, user String, uid String, groups Option[List[String]], extra Option[Map[String, Option[List[String]]]]) IO[Unit] {
+ do {
+  headers <- requestHeaders(req)
+  list.forEach(headers, func((key, _)) => if string.startsWith(string.toLower(key), "x-remote-extra-") { deleteRequestHeader(req, key) } else { ioPure(unit()) })
+  deleteRequestHeader(req, "X-Remote-User")
+  deleteRequestHeader(req, "X-Remote-Uid")
+  deleteRequestHeader(req, "X-Remote-Group")
+  setRequestHeader(req, "X-Remote-User", user)
+  if uid == "" { ioPure(unit()) } else { setRequestHeader(req, "X-Remote-Uid", uid) }
+  list.forEach(optionList(groups), func(group) => addRequestHeader(req, "X-Remote-Group", group))
+  extraHeaders(req, "X-Remote-Extra-", extra)
+ }
+}
+func newAuthProxyRoundTripper(user String, uid String, groups Option[List[String]], extra Option[Map[String, Option[List[String]]]], base RoundTripper) RoundTripper {
+ layer(base, func(req) => do { copy <- cloneRequest(req); setAuthProxyHeaders(copy, user, uid, groups, extra); base.roundTrip(copy) })
+}
+func contextCanceller(context sync.Context, error errors.Error) WrapperFunc {
+ func(base) => layer(base, func(req) => do { cancelled <- sync.contextCancelled(context); if cancelled { ioPure(outcome.failure(None, error)) } else { base.roundTrip(req) } })
+}
+func httpWrappersForConfig(env Environment, config Config, base RoundTripper) IO[outcome.Outcome[Option[RoundTripper]]] {
+ let wrapped = match config.wrapTransport { None => base; Some(fn) => fn(base) }
+ let debugged = debugWrappers(env, wrapped)
+ if hasBasicAuth(config) && hasTokenAuth(config) { ioPure(outcome.failure(None, newError("username/password or bearer token may be set, but not both"))) } else {
+  do {
+   auth <- if hasTokenAuth(config) { newBearerAuthWithRefreshRoundTripper(env, config.bearerToken, config.bearerTokenFile, debugged) } else { ioPure(outcome.success(Some(if hasBasicAuth(config) { newBasicAuthRoundTripper(config.username, config.password, debugged) } else { debugged }))) }
+   match auth.value {
+    None => ioPure(auth)
+    Some(authenticated) => {
+     let agent = if config.userAgent == "" { authenticated } else { newUserAgentRoundTripper(config.userAgent, authenticated) }
+     let imp = config.impersonate
+     let impersonating = imp.userName != "" || imp.uid != "" || list.length(optionList(imp.groups)) > 0 || (match imp.extra { None => false; Some(xs) => map.mapSize(xs) > 0 })
+     ioPure(outcome.success(Some(if impersonating { newImpersonatingRoundTripper(imp, agent) } else { agent })))
+    }
+   }
+  }
+ }
+}

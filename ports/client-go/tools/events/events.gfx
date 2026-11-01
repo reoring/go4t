@@ -1,0 +1,149 @@
+// Copyright 2019 The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+// Source: tools/events/event_broadcaster.go and event_recorder.go, client-go v0.37.2.
+package events
+import "std/map"
+import "std/list"
+import "std/io"
+import core "github.com/reoring/gofx/ports/client-go/deps/k8s.io/api/core/v1"
+import api "github.com/reoring/gofx/ports/client-go/deps/k8s.io/api/events/v1"
+import runtime "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime"
+import meta "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import types "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/types"
+import "github.com/reoring/gofx/ports/client-go/deps/support"
+import "github.com/reoring/gofx/ports/client-go/support/outcome"
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+import "github.com/reoring/gofx/ports/client-go/tools/reference"
+import "github.com/reoring/gofx/ports/client-go/tools/record/util"
+import internal "github.com/reoring/gofx/ports/client-go/tools/internal/events"
+import rest "github.com/reoring/gofx/ports/client-go/rest"
+
+alias EventRecorder = internal.EventRecorder
+alias EventRecorderLogger = internal.EventRecorderLogger
+alias AnnotatedEventRecorder = internal.AnnotatedEventRecorder
+type EventSink = EventSink { create: func(api.Event) IO[outcome.Outcome[Option[api.Event]]], update: func(api.Event) IO[outcome.Outcome[Option[api.Event]]], patch: func(api.Event,String) IO[outcome.Outcome[Option[api.Event]]] }
+type ReferenceKey = ReferenceKey { kind: String, namespace: String, name: String, uid: String, apiVersion: String, version: String, fieldPath: String } deriving Eq, Ord
+type EventKey = EventKey { eventType: String, action: String, reason: String, controller: String, reportingInstance: String, regarding: ReferenceKey, related: ReferenceKey } deriving Eq, Ord
+func referenceKey(ref core.ObjectReference) ReferenceKey { ReferenceKey(core.objectReferenceGetKind(ref),core.objectReferenceGetNamespace(ref),core.objectReferenceGetName(ref),types.uidValue(core.objectReferenceGetUID(ref)),core.objectReferenceGetAPIVersion(ref),core.objectReferenceGetResourceVersion(ref),core.objectReferenceGetFieldPath(ref)) }
+func getKey(event api.Event) EventKey { EventKey(api.eventGetType(event),api.eventGetAction(event),api.eventGetReason(event),api.eventGetReportingController(event),api.eventGetReportingInstance(event),referenceKey(api.eventGetRegarding(event)),referenceKey(match api.eventGetRelated(event) { None => core.newObjectReference(); Some(ref) => ref })) }
+type ActiveTask = ActiveTask { task: sync.Task[Unit], done: sync.Ref[Bool] }
+type EventBroadcaster = EventBroadcaster { hub: internal.Hub[api.Event], mutex: sync.Mutex, cache: sync.Ref[Map[EventKey,api.Event]], sink: EventSink, clock: sync.Clock, sleepDuration: Int, context: sync.Context, cancel: sync.Cancel, tasks: sync.Ref[List[ActiveTask]], logger: internal.Logger }
+func newBroadcasterWithClock(sink EventSink, clock sync.Clock, sleepDuration Int, logger internal.Logger) IO[EventBroadcaster] { do {
+ parent <- sync.captureContext(); context <- sync.newContext(parent,None); hub <- internal.newHub(1000); m <- sync.newMutex(); cache <- sync.newRef(map.emptyMap()); tasks <- sync.newRef([])
+ ioPure(EventBroadcaster(hub,m,cache,sink,clock,sleepDuration,context.0,context.1,tasks,logger))
+} }
+func newBroadcaster(sink EventSink) IO[EventBroadcaster] { do { clock <- sync.realClock(); newBroadcasterWithClock(sink,clock,10000000000,internal.defaultLogger) } }
+func startEventWatcher(b EventBroadcaster, callback func(api.Event) IO[Unit]) IO[internal.Listener[api.Event]] { sync.withContext(b.context,internal.addListener(b.hub,callback)) }
+func startLogging(b EventBroadcaster, logger internal.Logger) IO[internal.Listener[api.Event]] { startEventWatcher(b,func(e) => logger("Event occurred: "+api.eventGetType(e)+" "+api.eventGetReason(e)+" "+api.eventGetAction(e)+" "+api.eventGetNote(e),None)) }
+func startStructuredLogging(b EventBroadcaster, logger internal.Logger) IO[internal.Listener[api.Event]] { startLogging(b,logger) }
+func stopWatcher(watcher internal.Listener[api.Event]) IO[Unit] { internal.stopListener(watcher) }
+func createPatchBytesForSeries(event api.Event) IO[(String,Option[support.Error])] { internal.mergePatch(api.eventToRuntimeObject(api.eventWithSeries(event,None)),api.eventToRuntimeObject(event),api.eventToRuntimeObject(event)) }
+func _retry(error support.Error, series Bool) Bool {
+ if rest.isRequestConstructionError(error) { false } else { match internal.statusError(error) {
+  None => true
+  Some(status) => series && meta.statusReasonValue(meta.statusGetReason(status))=="AlreadyExists"
+ } }
+}
+// Retry is independent of the optional server object, preserving partial results.
+func recordEvent(sink EventSink, event api.Event) IO[(Option[api.Event],Bool)] { do {
+ let series = match api.eventGetSeries(event) { None => false; Some(_) => true }
+ patch <- if series { createPatchBytesForSeries(event) } else { ioPure(("",None)) }
+ match patch.1 { Some(_) => ioPure((None,false)); None => do {
+  patched <- if series { sink.patch(event,patch.0) } else { ioPure(outcome.Outcome(None,None)) }
+  response <- if !series || util.isKeyNotFoundError(patched.error) {
+   sink.create(api.eventWithObjectMeta(event,meta.objectMetaWithResourceVersion(api.eventGetObjectMeta(event),"")))
+  } else { ioPure(patched) }
+  ioPure((response.value,match response.error { None => false; Some(error) => _retry(error,series) }))
+ } }
+} }
+func _attempt(b EventBroadcaster, event api.Event, tries Int) IO[Unit] { do {
+ result <- recordEvent(b.sink,event)
+ if !result.1 { ioPure(unit()) } else { if tries >= 12 { b.logger("Unable to write event (retry limit exceeded!)",None) } else { do {
+  jitter <- if b.sleepDuration>0 { support.randomInt(max(1,b.sleepDuration/4)) } else { ioPure(0) }
+  internal.sleep(b.clock,b.sleepDuration+jitter); _attempt(b,event,tries+1)
+ } } }
+} }
+func _live(tasks List[ActiveTask]) IO[List[ActiveTask]] { match tasks { Nil => ioPure([]); Cons(task,rest) => do {
+ done <- sync.readRef(task.done); remaining <- _live(rest); ioPure(if done { remaining } else { Cons(task,remaining) })
+} } }
+func _start(b EventBroadcaster, action IO[Unit]) IO[Unit] { sync.withLock(b.mutex,do {
+ done <- sync.newRef(false)
+ task <- sync.withContext(b.context,sync.start(sync.ensuring(action,sync.writeRef(done,true))))
+ tasks <- sync.readRef(b.tasks); live <- _live(tasks); sync.writeRef(b.tasks,Cons(ActiveTask(task,done),live))
+}) }
+func recordToSink(b EventBroadcaster, event api.Event) IO[Unit] { do {
+ pending <- sync.withLock(b.mutex,do {
+  cache <- sync.readRef(b.cache); now <- sync.now(b.clock); let key = getKey(event)
+  match map.mapLookup(cache,key) {
+   None => do { sync.writeRef(b.cache,map.mapInsert(cache,key,event)); ioPure(Some(event)) }
+   Some(previous) => {
+    let existing = api.eventGetSeries(previous)
+    let series = match existing { None => api.eventSeriesWithCount(api.newEventSeries(),2); Some(s) => api.eventSeriesWithCount(s,api.eventSeriesGetCount(s)+1) }
+    let updated = api.eventWithSeries(previous,Some(api.eventSeriesWithLastObservedTime(series,internal.microTimestamp(sync.unixNanos(now)))))
+    do { sync.writeRef(b.cache,map.mapInsert(cache,key,updated)); ioPure(match existing { None => Some(updated); Some(_) => None }) }
+   }
+  }
+ })
+ match pending { None => ioPure(unit()); Some(event) => _start(b,_attempt(b,event,1)) }
+} }
+func _refreshEntries(b EventBroadcaster, entries List[(EventKey,api.Event)], cache Map[EventKey,api.Event]) IO[Map[EventKey,api.Event]] { match entries {
+ Nil => ioPure(cache)
+ Cons(entry,rest) => do {
+  updated <- match api.eventGetSeries(entry.1) { None => ioPure(cache); Some(_) => do {
+   result <- recordEvent(b.sink,entry.1)
+   ioPure(if result.1 { cache } else { match result.0 { None => cache; Some(event) => map.mapInsert(cache,entry.0,event) } })
+  } }
+  _refreshEntries(b,rest,updated)
+ }
+} }
+func refreshExistingEventSeries(b EventBroadcaster) IO[Unit] { sync.withLock(b.mutex,do {
+ cache <- sync.readRef(b.cache); updated <- _refreshEntries(b,map.mapToList(cache),cache); sync.writeRef(b.cache,updated)
+}) }
+func _finishEntries(b EventBroadcaster, entries List[(EventKey,api.Event)], cache Map[EventKey,api.Event], cutoff Int) IO[Map[EventKey,api.Event]] { match entries {
+ Nil => ioPure(cache)
+ Cons(entry,rest) => do {
+  remove <- match api.eventGetSeries(entry.1) {
+   None => ioPure(internal.microTimestampNanos(api.eventGetEventTime(entry.1)) < cutoff)
+   Some(series) => if internal.microTimestampNanos(api.eventSeriesGetLastObservedTime(series)) < cutoff { do { result <- recordEvent(b.sink,entry.1); ioPure(!result.1) } } else { ioPure(false) }
+  }
+  _finishEntries(b,rest,if remove { map.mapDelete(cache,entry.0) } else { cache },cutoff)
+ }
+} }
+func finishSeries(b EventBroadcaster) IO[Unit] { sync.withLock(b.mutex,do {
+ cache <- sync.readRef(b.cache); now <- sync.now(b.clock); updated <- _finishEntries(b,map.mapToList(cache),cache,sync.unixNanos(now)-360000000000); sync.writeRef(b.cache,updated)
+}) }
+func _periodic(b EventBroadcaster, interval Int, action func(EventBroadcaster) IO[Unit]) IO[Unit] { do { action(b); internal.sleep(b.clock,interval); _periodic(b,interval,action) } }
+func startRecordingEvents(b EventBroadcaster) IO[internal.Listener[api.Event]] { startEventWatcher(b,func(event) => recordToSink(b,event)) }
+func startRecordingToSinkWithContext(b EventBroadcaster, context sync.Context) IO[internal.Listener[api.Event]] { do {
+ let newSignal: IO[sync.Channel[Unit]] = sync.newChannel(0)
+ signal <- newSignal
+ _start(b,sync.ensuring(sync.withContext(context,do { sync.receive(signal); ioPure(unit()) }),sync.cancelContext(b.cancel)))
+ _start(b,_periodic(b,1800000000000,refreshExistingEventSeries))
+ _start(b,_periodic(b,360000000000,finishSeries))
+ startRecordingEvents(b)
+} }
+func startRecordingToSink(b EventBroadcaster) IO[internal.Listener[api.Event]] { startRecordingToSinkWithContext(b,b.context) }
+func _join(tasks List[ActiveTask]) IO[Unit] { match tasks { Nil => ioPure(unit()); Cons(task,rest) => do { io.tryIO(sync.join(task.task)); _join(rest) } } }
+func shutdown(b EventBroadcaster) IO[Unit] { sync.uninterruptible(do {
+ sync.cancelContext(b.cancel); io.tryIO(internal.shutdown(b.hub)); tasks <- sync.withLock(b.mutex,sync.readRef(b.tasks)); _join(tasks)
+}) }
+func _emit(b EventBroadcaster, scheme Option[runtime.Scheme], controller String, reportingInstance String, logger internal.Logger, regarding Option[runtime.Object], related Option[runtime.Object], annotations support.ForeignMap[String,String], eventType String, reason String, action String, note String) IO[Unit] { do {
+ ref <- reference.getReference(scheme,regarding)
+ match ref.value { None => logger("Could not construct reference, will not report event",ref.error); Some(regarding) => {
+  if !util.validateEventType(eventType) { logger("Unsupported event type",None) } else { do {
+   relatedRef <- match related { None => ioPure(None); Some(object) => do { result <- reference.getReference(scheme,Some(object)); match result.error { None => ioPure(unit()); Some(error) => logger("Could not construct reference",Some(error)) }; ioPure(result.value) } }
+   now <- sync.now(b.clock); let nanos = sync.unixNanos(now); name <- util.generateEventName(core.objectReferenceGetName(regarding),nanos)
+   let namespace = core.objectReferenceGetNamespace(regarding)
+   let metadata = meta.objectMetaWithAnnotations(meta.objectMetaWithNamespace(meta.objectMetaWithName(meta.newObjectMeta(),name),if namespace=="" { "default" } else { namespace }),annotations)
+   let base = api.eventWithEventTime(api.eventWithObjectMeta(api.newEvent(),metadata),internal.microTimestamp(nanos))
+   let refs = api.eventWithRelated(api.eventWithRegarding(base,regarding),relatedRef)
+   let reported = api.eventWithReportingInstance(api.eventWithReportingController(refs,controller),reportingInstance)
+   let event = api.eventWithNote(api.eventWithAction(api.eventWithReason(api.eventWithType(reported,eventType),reason),action),note)
+   internal.publish(b.hub,event); ioPure(unit())
+  } }
+ } }
+} }
+func _recorder(b EventBroadcaster, scheme Option[runtime.Scheme], controller String, reportingInstance String, logger internal.Logger) EventRecorder {
+ let annotations = meta.objectMetaGetAnnotations(meta.newObjectMeta())
+ internal.EventRecorder(func(regarding,related,eventType,reason,action,note) => _emit(b,scheme,controller,reportingInstance,logger,regarding,related,annotations,eventType,reason,action,note),func(regarding,related,annotations,eventType,reason,action,note) => _emit(b,scheme,controller,reportingInstance,logger,regarding,related,annotations,eventType,reason,action,note),func(logger) => _recorder(b,scheme,controller,reportingInstance,logger))
+}
+func newRecorder(b EventBroadcaster, scheme Option[runtime.Scheme], controller String) IO[EventRecorder] { do { hostname <- internal.hostname(); ioPure(_recorder(b,scheme,controller,controller+"-"+hostname.0,b.logger)) } }

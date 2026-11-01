@@ -1,0 +1,128 @@
+// Copyright 2014 The Kubernetes Authors. Licensed under Apache-2.0.
+package main
+import cmd "github.com/reoring/gofx/ports/client-go/tools/clientcmd"
+import api "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api"
+import v1 "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api/v1"
+import latest "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api/latest"
+import exec "github.com/reoring/gofx/ports/client-go/tools/auth/exec"
+import legacy "github.com/reoring/gofx/ports/client-go/tools/auth"
+import rest "github.com/reoring/gofx/ports/client-go/rest"
+import auth "github.com/reoring/gofx/ports/client-go/pkg/apis/clientauthentication"
+import meta "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import errors "github.com/reoring/gofx/ports/client-go/deps/support"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import "std/map"
+import "std/string"
+import "std/prelude"
+extern func missing(path String) errors.Error = "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api/host".NotFoundError
+extern func exists(path String) errors.Error = "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api/host".AlreadyExistsError
+type File = File {data:String,directory:Bool,mode:Int}
+type Fixture = Fixture {source:api.Source,files:sync.Ref[Map[String,File]]}
+func fixture(initial Map[String,File],environment Map[String,String]) IO[Fixture] { do {
+ files <- sync.newRef(initial)
+ let source = api.Source(
+  func(path) => do { values <- sync.readRef(files); ioPure(match map.mapLookup(values,path) { None => outcome.failure("",missing(path)); Some(value) => if value.directory { outcome.failure("",api.newError("is a directory")) } else { outcome.success(value.data) } }) },
+  func(path,data,mode) => do { values <- sync.readRef(files); let actualMode = match map.mapLookup(values,path) { None => mode; Some(file) => file.mode }; sync.writeRef(files,map.mapInsert(values,path,File(data,false,actualMode))); ioPure(None) },
+  func(path) => do { values <- sync.readRef(files); ioPure(match map.mapLookup(values,path) { None => outcome.failure(api.FileInfo(false,0),missing(path)); Some(value) => outcome.success(api.FileInfo(value.directory,value.mode)) }) },
+  func(path,mode) => do { values <- sync.readRef(files); sync.writeRef(files,map.mapInsert(values,path,File("",true,mode))); ioPure(None) },
+  func(path) => do { values <- sync.readRef(files); if map.mapMember(values,path) { do { sync.writeRef(files,map.mapDelete(values,path)); ioPure(None) } } else { ioPure(Some(missing(path))) } },
+  func(path) => do { values <- sync.readRef(files); if map.mapMember(values,path) { ioPure(Some(exists(path))) } else { do { sync.writeRef(files,map.mapInsert(values,path,File("",false,0))); ioPure(None) } } },
+  func(key) => ioPure(match map.mapLookup(environment,key) { None => ""; Some(value) => value }),
+  func() => ioPure(outcome.success("/work")),func(path) => do { values <- sync.readRef(files); ioPure(if map.mapMember(values,path) { None } else { Some(missing(path)) }) })
+ ioPure(Fixture(source,files))
+} }
+func check(condition Bool,message String) IO[Unit] { if condition { ioPure(unit()) } else { ioFail(message) } }
+func configOf(result outcome.Outcome[Option[api.Config]]) IO[api.Config] { match result.error { Some(error) => ioFail(errors.errorMessage(error)); None => match result.value { None => ioFail("missing config result"); Some(value) => ioPure(value) } } }
+func clusterOf(config api.Config,name String) api.Cluster { match api.getCluster(config,name) { None => api.emptyCluster(); Some(value) => value } }
+func userOf(config api.Config,name String) api.AuthInfo { match api.getAuthInfo(config,name) { None => api.emptyAuthInfo(); Some(value) => value } }
+func contextOf(config api.Config,name String) api.Context { match api.getContext(config,name) { None => api.emptyContext(); Some(value) => value } }
+func firstConfig() String { "{\"apiVersion\":\"v1\",\"kind\":\"Config\",\"current-context\":\"one\",\"clusters\":[{\"name\":\"cluster\",\"cluster\":{\"server\":\"https://first\",\"certificate-authority\":\"ca.pem\"}}],\"users\":[{\"name\":\"user\",\"user\":{\"token\":\"first-token\",\"exec\":{\"command\":\"bin/plugin\",\"apiVersion\":\"client.authentication.k8s.io/v1beta1\",\"args\":[\"secret\"],\"env\":[{\"name\":\"SECRET\",\"value\":\"secret\"}]}}}],\"contexts\":[{\"name\":\"one\",\"context\":{\"cluster\":\"cluster\",\"user\":\"user\",\"namespace\":\"ns1\"}}]}" }
+func secondConfig() String { "{\"apiVersion\":\"v1\",\"kind\":\"Config\",\"current-context\":\"two\",\"clusters\":[{\"name\":\"cluster\",\"cluster\":{\"server\":\"https://second\",\"tls-server-name\":\"must-not-merge\"}},{\"name\":\"other\",\"cluster\":{\"server\":\"https://other\"}}],\"users\":[{\"name\":\"user\",\"user\":{\"username\":\"must-not-merge\"}}],\"contexts\":[{\"name\":\"two\",\"context\":{\"cluster\":\"other\",\"user\":\"user\"}}]}" }
+func main() IO[Unit] { do {
+ fixture <- fixture(map.mapFromList([("/work/a/config",File(firstConfig(),false,384)),("/work/b/config",File(secondConfig(),false,384)),("/work/a/ca.pem",File("CA",false,384)),("/work",File("",true,493))]),map.emptyMap())
+ let source = fixture.source
+ let rules = cmd.emptyLoadingRules(){precedence:["/work/a/config","/work/b/config"]}
+ loaded <- cmd.loadRules(source,rules)
+ config <- configOf(loaded)
+ check(config.currentContext == "one","first current context wins")
+ check(clusterOf(config,"cluster").server == "https://first" && clusterOf(config,"cluster").tlsServerName == "","map entries are atomic first-file wins")
+ check(userOf(config,"user").username == "","do not merge fields from later user entry")
+ check(clusterOf(config,"other").server == "https://other","retain nonconflicting later map keys")
+ check(clusterOf(config,"cluster").certificateAuthority == "/work/a/ca.pem","resolve relative CA using stanza origin")
+ check(match userOf(config,"user").exec { None => false; Some(exec) => exec.command == "/work/a/bin/plugin" && exec.interactiveMode == "IfAvailable" },"exec path and beta stdin default")
+ missingResult <- cmd.loadRules(source,rules{explicitPath:"/missing"})
+ check(match missingResult.error { None => false; Some(error) => api.isNotExist(error) && !errors.errorIsNotFound(error) },"explicit missing path is an OS error, not an API NotFound")
+ let apiMissing = errors.errorNotFound("","pods","missing")
+ check(errors.errorIsNotFound(apiMissing) && !api.isNotExist(apiMissing),"API NotFound is not an OS missing-file error")
+ missingImplicit <- cmd.loadRules(source,rules{precedence:["/missing"]})
+ check(outcome.isSuccess(missingImplicit),"implicit missing path is ignored")
+ source.write("/bad","{",384)
+ malformed <- cmd.loadRules(source,rules{precedence:["/bad","/work/b/config"]})
+ check(!outcome.isSuccess(malformed) && (match malformed.value { None => false; Some(value) => clusterOf(value,"other").server == "https://other" }),"malformed config retains other loaded values and error")
+ let overrides = cmd.emptyOverrides(){currentContext:"two",context:api.emptyContext(){cluster:"cluster",authInfo:"user",namespace:"override"},clusterInfo:api.emptyCluster(){server:"https://override",insecureSkipTLSVerify:true},authInfo:api.emptyAuthInfo(){token:"override-token"}}
+ direct <- cmd.newNonInteractiveClientConfig(source,config,"",overrides,None)
+ check(cmd.getCluster(direct).value.server == "https://override" && cmd.getCluster(direct).value.certificateAuthority == "","server and insecure override clear original CA")
+ check(cmd.getAuthInfo(direct).value.token == "override-token","user credential override")
+ ns <- cmd.namespace(direct)
+ check(ns.value.0 == "override" && ns.value.1,"namespace override and presence")
+ restConfig <- cmd.clientConfig(direct)
+ check(outcome.isSuccess(restConfig) && (match restConfig.value { None => false; Some(value) => value.host == "https://override" && value.bearerToken == "override-token" }),"direct REST config construction")
+ let emptyLoader = cmd.clientConfigGetter(cmd.KubeconfigGetter(func() => ioPure(outcome.success(Some(api.newConfig())))))
+ let clusterClient = cmd.ClientConfig(func() => ioPure(outcome.success(api.newConfig())),func() => ioPure(outcome.success(Some(rest.emptyConfig(){host:"https://inside"}))),func() => ioPure(outcome.success(("pod-ns",false))),None)
+ deferred <- cmd.newDeferredLoadingClientConfig(source,emptyLoader,cmd.emptyOverrides(),None,cmd.InClusterConfig(clusterClient,func() => ioPure(true)))
+ fallback <- cmd.deferredClientConfig(deferred)
+ check(match fallback.value { None => false; Some(value) => value.host == "https://inside" },"empty config falls back in-cluster")
+ fallbackNS <- cmd.deferredNamespace(deferred)
+ check(fallbackNS.value.0 == "pod-ns","in-cluster namespace fallback")
+ let access = cmd.loadingRulesAccess(source,rules{doNotResolvePaths:true})
+ unresolved <- cmd.loadRules(source,rules{doNotResolvePaths:true})
+ unresolved <- configOf(unresolved)
+ let changed = api.withContext(unresolved,"one",Some(contextOf(unresolved,"one"){namespace:"persisted"}))
+ persisted <- cmd.modifyConfig(source,access,changed,true,true)
+ check(match persisted { None => true; Some(_) => false },"persist changed context")
+ readback <- cmd.loadFromFile(source,"/work/a/config")
+ readback <- configOf(readback)
+ check(contextOf(readback,"one").namespace == "persisted","persistence targets origin file")
+ files <- sync.readRef(fixture.files)
+ check(!map.mapMember(files,"/work/a/config.lock") && !map.mapMember(files,"/work/b/config.lock"),"lock files cleaned up")
+ let secret = api.withAuthInfo(api.newConfig(),"s",Some(api.emptyAuthInfo(){token:"token",password:"password",clientKeyData:Some("")}))
+ let redacted = userOf(api.redactSecrets(secret),"s")
+ check(redacted.token == "REDACTED" && redacted.password == "REDACTED" && redacted.clientKeyData == Some("REDACTED"),"redact tagged strings and nonnil empty bytes")
+ let execConfig = api.newExecConfig(){command:"plugin",args:Some(["secret"]),env:Some([api.ExecEnvVar("TOKEN","secret")])}
+ check(!string.contains(api.execConfigString(execConfig),"secret"),"formatted exec config hides args and environment")
+ wire <- api.convertConfigFromInternal(secret,api.emptyWireConfig())
+ check(outcome.isSuccess(wire),"version conversion to wire succeeds")
+ internal <- api.convertConfigToInternal(wire.value,api.emptyConfig())
+ check(outcome.isSuccess(internal) && userOf(internal.value,"s").token == "token","version conversion preserves secrets for serialization")
+ encoded <- latest.codec().encode(secret)
+ decoded <- latest.codec().decode(encoded)
+ check(userOf(decoded,"s").clientKeyData == None,"omitempty empty byte conversion")
+ let beta = api.convertExecConfigFromInternal(api.newExecConfig(){apiVersion:"client.authentication.k8s.io/v1beta1"})
+ check(v1.setDefaultsExecConfig(beta).interactiveMode == "IfAvailable","beta interactive default")
+ check(v1.setDefaultsExecConfig(beta{apiVersion:"client.authentication.k8s.io/v1"}).interactiveMode == "","v1 requires explicit interactive mode")
+ legacyInfo <- legacy.decode("{\"user\":\"name\",\"password\":\"password\",\"Insecure\":false}")
+ check(legacyInfo.user == "name" && legacyInfo.insecure == Some(false),"legacy auth case-insensitive keys and bool presence")
+ let cluster = auth.newWireCluster(){server:"https://exec-cluster"}
+ let metadata = meta.typeMetaWithAPIVersion(meta.typeMetaWithKind(meta.newTypeMeta(),"ExecCredential"),"client.authentication.k8s.io/v1")
+ credential <- auth.encodeWireCredential(auth.WireCredential(metadata,auth.WireSpec(false,Some(cluster)),None))
+ execInput <- exec.loadExecCredential(credential)
+ check(outcome.isSuccess(execInput) && (match execInput.value.config { None => false; Some(value) => value.host == "https://exec-cluster" && value.bearerToken == "" }),"exec input builds anonymous config")
+ noCluster <- auth.encodeWireCredential(auth.WireCredential(metadata,auth.WireSpec(false,None),None))
+ invalidExec <- exec.loadExecCredential(noCluster)
+ check(match invalidExec.error { None => false; Some(error) => errors.errorMessage(error) == "ExecCredential does not contain cluster information" },"exec input missing cluster diagnostic")
+ absentEnv <- exec.loadExecCredentialFromEnv(source)
+ check(match absentEnv.error { None => false; Some(error) => errors.errorMessage(error) == "KUBERNETES_EXEC_INFO env var is unset or empty" },"missing exec environment diagnostic")
+ flattened <- api.flattenConfig(source,config)
+ check(outcome.isSuccess(flattened) && clusterOf(flattened.value,"cluster").certificateAuthority == "" && clusterOf(flattened.value,"cluster").certificateAuthorityData == Some("CA"),"flatten reads originating CA file and clears path")
+ conflict <- api.flattenContent(source,"ca.pem",Some("already-set"),"/work/a")
+ check(!outcome.isSuccess(conflict) && conflict.value.0 == "ca.pem","flatten retains conflicting input on failure")
+ encodedFirst <- source.read("/work/a/config")
+ check(string.contains(encodedFirst.value,"first-token"),"persistence does not redact stored credentials")
+ duplicate <- api.capture(api.decodeConfig("{\"apiVersion\":\"v1\",\"kind\":\"Config\",\"clusters\":[{\"name\":\"same\",\"cluster\":{\"server\":\"a\"}},{\"name\":\"same\",\"cluster\":{\"server\":\"b\"}}]}"),api.newConfig())
+ check(!outcome.isSuccess(duplicate),"duplicate named cluster rejected")
+ let flags = cmd.bindOverrideFlags(cmd.recommendedConfigOverrideFlags(""))
+ parsedFlags <- ioPure(cmd.applyFlags(flags,cmd.initializeFlags(flags,cmd.emptyOverrides()),[cmd.FlagArgument("namespace","NAMESPACES/test"),cmd.FlagArgument("as-group","one"),cmd.FlagArgument("as-group","two")]))
+ check(parsedFlags.value.context.namespace == "test" && parsedFlags.value.authInfo.impersonateGroups == Some(["one","two"]),"native flags transform namespace and retain repeated groups")
+ println("clientcmd deterministic regression program passed")
+} }

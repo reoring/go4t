@@ -1,0 +1,23 @@
+package fake
+import testing "testing"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import v1 "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import outcome "support/outcome"
+// Copyright 2026 The Kubernetes Authors. Licensed under Apache-2.0.
+func testLegacyFakeOptionsAreIntentionallyIgnored() IO[Bool] {
+ do {
+  scheme <- newTestScheme()
+  client <- newSimpleMetadataClient(scheme,[])
+  let object = v1.partialObjectMetadataWithObjectMeta(v1.newPartialObjectMetadata(),v1.objectMetaWithName(v1.newObjectMeta(),"one"))
+  testing.prependReactor(client.fake,"*","*",func(_) => ioPure(testing.Reaction(true,outcome.success(Some(v1.partialObjectMetadataToRuntimeObject(object))))))
+  let c = resource(client,schema.groupVersionResourceWithResource(schema.newGroupVersionResource(),"widgets"))
+  _ <- get(c,"",v1.getOptionsWithResourceVersion(v1.newGetOptions(),"99"),[])
+  _ <- createFake(c,object,v1.createOptionsWithFieldManager(v1.newCreateOptions(),"ignored"),[])
+  _ <- patch(c,"one","application/merge-patch+json","{}",v1.patchOptionsWithFieldManager(v1.newPatchOptions(),"ignored"),[])
+  recorded <- testing.actions(client.fake)
+  ioPure(match recorded {
+   Cons(get,Cons(create,Cons(patch,Nil))) => get.name=="" && v1.getOptionsGetResourceVersion(get.getOptions)=="" && v1.createOptionsGetFieldManager(create.createOptions)=="" && v1.patchOptionsGetFieldManager(patch.patchOptions)==""
+   _ => false
+  })
+ }
+}

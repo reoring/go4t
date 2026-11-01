@@ -1,0 +1,63 @@
+// Copyright 2015 The Kubernetes Authors. Licensed under Apache-2.0.
+package transport
+import http "github.com/reoring/gofx/ports/client-go/deps/net/http"
+import net "github.com/reoring/gofx/ports/client-go/deps/net"
+import url "github.com/reoring/gofx/ports/client-go/deps/net/url"
+import tls "github.com/reoring/gofx/ports/client-go/deps/crypto/tls"
+import x509 "github.com/reoring/gofx/ports/client-go/deps/crypto/x509"
+import errors "github.com/reoring/gofx/ports/client-go/deps/support"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+
+extern func newError(message String) errors.Error = "github.com/reoring/gofx/ports/client-go/transport/host".NewError
+extern func wrapError(message String, error errors.Error) errors.Error = "github.com/reoring/gofx/ports/client-go/transport/host".WrapError
+extern func readFile(path String) IO[(Option[String], Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/transport/host".ReadFile
+extern func cloneRequest(request http.Request) IO[http.Request] = "github.com/reoring/gofx/ports/client-go/transport/host".CloneRequest
+extern func requestHeader(request http.Request, name String) IO[String] = "github.com/reoring/gofx/ports/client-go/transport/host".RequestHeader
+extern func requestHeaders(request http.Request) IO[List[(String, List[String])]] = "github.com/reoring/gofx/ports/client-go/transport/host".RequestHeaders
+extern func setRequestHeader(request http.Request, name String, value String) IO[Unit] = "github.com/reoring/gofx/ports/client-go/transport/host".SetRequestHeader
+extern func addRequestHeader(request http.Request, name String, value String) IO[Unit] = "github.com/reoring/gofx/ports/client-go/transport/host".AddRequestHeader
+extern func deleteRequestHeader(request http.Request, name String) IO[Unit] = "github.com/reoring/gofx/ports/client-go/transport/host".DeleteRequestHeader
+extern func basicCredentials(user String, password String) String = "github.com/reoring/gofx/ports/client-go/transport/host".BasicCredentials
+extern func byteValues(value String) List[Int] = "github.com/reoring/gofx/ports/client-go/transport/host".ByteValues
+extern func byteString(value Int) String = "github.com/reoring/gofx/ports/client-go/transport/host".ByteString
+extern func hexByte(value Int) String = "github.com/reoring/gofx/ports/client-go/transport/host".HexByte
+extern func responseStatus(response http.Response) IO[Int] = "github.com/reoring/gofx/ports/client-go/transport/host".ResponseStatus
+extern func requestURL(request http.Request) IO[String] = "github.com/reoring/gofx/ports/client-go/transport/host".RequestURL
+extern func requestMethod(request http.Request) IO[String] = "github.com/reoring/gofx/ports/client-go/transport/host".RequestMethod
+extern func defaultHTTPTransport() IO[http.RoundTripper] = "github.com/reoring/gofx/ports/client-go/transport/host".DefaultHTTPTransport
+extern func cancelHTTP(rt http.RoundTripper, request http.Request) IO[Unit] = "github.com/reoring/gofx/ports/client-go/transport/host".CancelHTTP
+extern func closeHTTP(rt http.RoundTripper) IO[Unit] = "github.com/reoring/gofx/ports/client-go/transport/host".CloseHTTP
+extern func bridgeHTTP(run func(http.Request) IO[(Option[http.Response], Option[errors.Error])], cancel func(http.Request) IO[Unit], close func() IO[Unit], unwrap func() IO[Option[http.RoundTripper]]) IO[http.RoundTripper] = "github.com/reoring/gofx/ports/client-go/transport/host".BridgeHTTP
+extern func defaultDial(network String, address String) IO[(Option[net.Conn], Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/transport/host".DefaultDial
+extern func constructHTTP(config Option[tls.Config], dial func(String, String) IO[(Option[net.Conn], Option[errors.Error])], proxy Option[func(http.Request) IO[(Option[url.URL], Option[errors.Error])]], compression Bool) IO[http.RoundTripper] = "github.com/reoring/gofx/ports/client-go/transport/host".ConstructHTTP
+extern func configureTLS(insecure Bool, serverName String, protocols Option[List[String]], roots Option[x509.CertPool], callback Option[func() IO[(Option[tls.Certificate], Option[errors.Error])]]) IO[tls.Config] = "github.com/reoring/gofx/ports/client-go/transport/host".ConfigureTLS
+extern func parseRoots(data String) IO[(Option[x509.CertPool], Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/transport/host".ParseRoots
+extern func emptyRoots() IO[x509.CertPool] = "github.com/reoring/gofx/ports/client-go/transport/host".EmptyRoots
+extern func parseCertificate(cert String, key String) IO[(Option[tls.Certificate], Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/transport/host".ParseCertificate
+extern func emptyCertificate() IO[tls.Certificate] = "github.com/reoring/gofx/ports/client-go/transport/host".EmptyCertificate
+extern func certificatesEqual(a Option[tls.Certificate], b Option[tls.Certificate]) IO[Bool] = "github.com/reoring/gofx/ports/client-go/transport/host".CertificatesEqual
+extern func cloneHTTPRoots(rt http.RoundTripper, roots x509.CertPool) IO[http.RoundTripper] = "github.com/reoring/gofx/ports/client-go/transport/host".CloneHTTPRoots
+extern func identityNumber[A](ref sync.Ref[A]) IO[Int] = "github.com/reoring/gofx/ports/client-go/transport/host".IdentityNumber
+extern func newLifetime[A](value A, cleanup IO[Unit]) IO[Lifetime] = "github.com/reoring/gofx/ports/client-go/transport/host".NewLifetime
+extern func weakLifetime(value Lifetime) IO[WeakLifetime] = "github.com/reoring/gofx/ports/client-go/transport/host".WeakLifetime
+extern func derefLifetime(value WeakLifetime) IO[Option[Lifetime]] = "github.com/reoring/gofx/ports/client-go/transport/host".DerefLifetime
+extern func lifetimeValue[A](value Lifetime) IO[A] = "github.com/reoring/gofx/ports/client-go/transport/host".LifetimeValue
+extern func keepLifetime(value Option[Lifetime]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/transport/host".KeepLifetime
+extern func closeConnection(conn net.Conn) IO[Unit] = "github.com/reoring/gofx/ports/client-go/transport/host".CloseConnection
+extern func closeRequestBody(request http.Request) IO[Option[errors.Error]] = "github.com/reoring/gofx/ports/client-go/transport/host".CloseRequestBody
+extern func wrappedHTTP(rt http.RoundTripper) IO[Option[http.RoundTripper]] = "github.com/reoring/gofx/ports/client-go/transport/host".WrappedHTTP
+
+func fromHTTP(rt http.RoundTripper) RoundTripper {
+ let base = roundTripper(func(req) => do { result <- http.roundTripperCallRoundTripIdentity(rt, Some(req)); ioPure(match result { (value, error) => outcome.from(value, error) }) }, func(req) => cancelHTTP(rt, req), func() => closeHTTP(rt))
+ base {httpIdentity: Some(rt), wrappedRoundTripper: func() => do { wrapped <- wrappedHTTP(rt); ioPure(match wrapped { None => None; Some(value) => Some(fromHTTP(value)) }) }}
+}
+func toHTTP(rt RoundTripper) IO[http.RoundTripper] {
+ match rt.httpIdentity {
+  Some(raw) => ioPure(raw)
+  None => bridgeHTTP(func(req) => do { result <- rt.roundTrip(req); keepLifetime(rt.lifetime); ioPure((result.value, result.error)) }, rt.cancelRequest, rt.closeIdleConnections, func() => do {
+   wrapped <- rt.wrappedRoundTripper()
+   match wrapped { None => ioPure(None); Some(base) => do { raw <- toHTTP(base); ioPure(Some(raw)) } }
+  })
+ }
+}

@@ -1,0 +1,60 @@
+// Copyright 2016 The Kubernetes Authors. Licensed under Apache-2.0.
+package testing
+import runtime "deps/k8s.io/apimachinery/pkg/runtime"
+import meta "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import errors "deps/support"
+import outcome "support/outcome"
+import watch "support/watch"
+import sync "support/sync"
+import rest "rest"
+
+type Reaction = Reaction { handled: Bool, result: outcome.Outcome[Option[runtime.Object]] }
+alias ReactionFunc = func(sync.Ref[Action]) IO[Reaction]
+type WatchReaction = WatchReaction { handled: Bool, result: outcome.Outcome[Option[watch.Watch]] }
+alias WatchReactionFunc = func(sync.Ref[Action]) IO[WatchReaction]
+type ProxyReaction = ProxyReaction { handled: Bool, result: outcome.Outcome[Option[rest.ResponseWrapper]] }
+alias ProxyReactionFunc = func(sync.Ref[Action]) IO[ProxyReaction]
+type Reactor = Reactor { handles: func(Action) Bool, react: ReactionFunc }
+type WatchReactor = WatchReactor { handles: func(Action) Bool, react: WatchReactionFunc }
+type ProxyReactor = ProxyReactor { handles: func(Action) Bool, react: ProxyReactionFunc }
+type FakeState = FakeState { actions: List[Action], reactionChain: List[Reactor], watchReactionChain: List[WatchReactor], proxyReactionChain: List[ProxyReactor], resources: List[meta.APIResourceList] }
+type Fake = Fake { mutex: sync.Mutex, state: sync.Ref[FakeState] }
+func newFake() IO[Fake] { do { mutex <- sync.newMutex(); state <- sync.newRef(FakeState([],[],[],[],[])); ioPure(Fake(mutex,state)) } }
+func simpleReactor(verb String, resource String, reaction ReactionFunc) Reactor { Reactor(func(action) => (verb == "*" || verb == action.verb) && resourceCovers(resource,action),reaction) }
+func simpleWatchReactor(resource String, reaction WatchReactionFunc) WatchReactor { WatchReactor(func(action) => resourceCovers(resource,action),reaction) }
+func simpleProxyReactor(resource String, reaction ProxyReactionFunc) ProxyReactor { ProxyReactor(func(action) => resourceCovers(resource,action),reaction) }
+func addReactor(fake Fake, verb String, resource String, reaction ReactionFunc) IO[Unit] { do { state <- sync.readRef(fake.state); sync.writeRef(fake.state,state{reactionChain: append(state.reactionChain,[simpleReactor(verb,resource,reaction)])}) } }
+func prependReactor(fake Fake, verb String, resource String, reaction ReactionFunc) IO[Unit] { do { state <- sync.readRef(fake.state); sync.writeRef(fake.state,state{reactionChain: Cons(simpleReactor(verb,resource,reaction),state.reactionChain)}) } }
+func addWatchReactor(fake Fake, resource String, reaction WatchReactionFunc) IO[Unit] { sync.withLock(fake.mutex,do { state <- sync.readRef(fake.state); sync.writeRef(fake.state,state{watchReactionChain: append(state.watchReactionChain,[simpleWatchReactor(resource,reaction)])}) }) }
+func prependWatchReactor(fake Fake, resource String, reaction WatchReactionFunc) IO[Unit] { sync.withLock(fake.mutex,do { state <- sync.readRef(fake.state); sync.writeRef(fake.state,state{watchReactionChain: Cons(simpleWatchReactor(resource,reaction),state.watchReactionChain)}) }) }
+func addProxyReactor(fake Fake, resource String, reaction ProxyReactionFunc) IO[Unit] { do { state <- sync.readRef(fake.state); sync.writeRef(fake.state,state{proxyReactionChain: append(state.proxyReactionChain,[simpleProxyReactor(resource,reaction)])}) } }
+func prependProxyReactor(fake Fake, resource String, reaction ProxyReactionFunc) IO[Unit] { do { state <- sync.readRef(fake.state); sync.writeRef(fake.state,state{proxyReactionChain: Cons(simpleProxyReactor(resource,reaction),state.proxyReactionChain)}) } }
+// Snapshot action/object fields independently. actionDeepCopy retains the same
+// opaque payload box, so payload aliases reach every chain and the ledger.
+func _record(fake Fake, action Action) IO[sync.Ref[Action]] { do {
+ copied <- actionDeepCopy(action)
+ recorded <- actionDeepCopy(action)
+ state <- sync.readRef(fake.state)
+ sync.writeRef(fake.state,state{actions: append(state.actions,[recorded])})
+ sync.newRef(copied)
+} }
+func invokes(fake Fake, action Action, defaultObject Option[runtime.Object]) IO[outcome.Outcome[Option[runtime.Object]]] { sync.withLock(fake.mutex,do { shared <- _record(fake,action); state <- sync.readRef(fake.state); _react(state.reactionChain,shared,defaultObject) }) }
+func _react(chain List[Reactor], shared sync.Ref[Action], defaultObject Option[runtime.Object]) IO[outcome.Outcome[Option[runtime.Object]]] { match chain {
+ Nil => ioPure(outcome.success(defaultObject))
+ Cons(reactor,rest) => do { action <- sync.readRef(shared); if reactor.handles(action) { do { result <- reactor.react(shared); if result.handled { ioPure(result.result) } else { _react(rest,shared,defaultObject) } } } else { _react(rest,shared,defaultObject) } }
+} }
+func invokesWatch(fake Fake, action Action) IO[outcome.Outcome[Option[watch.Watch]]] { sync.withLock(fake.mutex,do { shared <- _record(fake,action); state <- sync.readRef(fake.state); _reactWatch(state.watchReactionChain,shared,action) }) }
+func _reactWatch(chain List[WatchReactor], shared sync.Ref[Action], original Action) IO[outcome.Outcome[Option[watch.Watch]]] { match chain {
+ Nil => ioPure(outcome.failure(None,errors.errorNew("unhandled watch: "+original.verb+" "+original.name)))
+ Cons(reactor,rest) => do { action <- sync.readRef(shared); if reactor.handles(action) { do { result <- reactor.react(shared); if result.handled { ioPure(result.result) } else { _reactWatch(rest,shared,original) } } } else { _reactWatch(rest,shared,original) } }
+} }
+func invokesProxy(fake Fake, action Action) IO[Option[rest.ResponseWrapper]] { sync.withLock(fake.mutex,do { shared <- _record(fake,action); state <- sync.readRef(fake.state); _reactProxy(state.proxyReactionChain,shared) }) }
+func _reactProxy(chain List[ProxyReactor], shared sync.Ref[Action]) IO[Option[rest.ResponseWrapper]] { match chain {
+ Nil => ioPure(None)
+ Cons(reactor,rest) => do { action <- sync.readRef(shared); if reactor.handles(action) { do { result <- reactor.react(shared); if result.handled && (match result.result.error { None => true; Some(_) => false }) { ioPure(result.result.value) } else { _reactProxy(rest,shared) } } } else { _reactProxy(rest,shared) } }
+} }
+func actions(fake Fake) IO[List[Action]] { sync.withLock(fake.mutex,do { state <- sync.readRef(fake.state); ioPure(state.actions) }) }
+func clearActions(fake Fake) IO[Unit] { sync.withLock(fake.mutex,do { state <- sync.readRef(fake.state); sync.writeRef(fake.state,state{actions: []}) }) }
+func setResources(fake Fake, resources List[meta.APIResourceList]) IO[Unit] { sync.withLock(fake.mutex,do { state <- sync.readRef(fake.state); sync.writeRef(fake.state,state{resources: resources}) }) }
+func resources(fake Fake) IO[List[meta.APIResourceList]] { sync.withLock(fake.mutex,do { state <- sync.readRef(fake.state); ioPure(state.resources) }) }
+func defaultWatchReactor(value Option[watch.Watch], error Option[errors.Error]) WatchReactionFunc { func(_) => ioPure(WatchReaction(true,outcome.from(value,error))) }

@@ -1,0 +1,46 @@
+package openapi3
+import openapi "openapi"
+import files "openapi/openapitest"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import errors "deps/support"
+import outcome "support/outcome"
+import sync "support/sync"
+import m "std/map"
+import l "std/list"
+
+func testPathResolutionAndPermissiveSuffix() Bool {
+ let named=pathToGroupVersion("apis/apps/v1/trailing")
+ let core=pathToGroupVersion("api/v1")
+ let short=pathToGroupVersion("apis/apps")
+ let invalid=pathToGroupVersion("not/apps/v1")
+ outcome.isSuccess(named) && gvToAPIPath(named.value)=="apis/apps/v1" && gvToAPIPath(core.value)=="api/v1" && !outcome.isSuccess(short) && !outcome.isSuccess(invalid)
+}
+func testRootRefreshAndSortedVersions() IO[Bool] {do {
+ count <- sync.newRef(0)
+ let group=files.fakeGroupVersion(files.FakeGroupVersion{gvSpec:"",forcedErr:None})
+ let client=openapi.Client{paths:func() => do {n <- sync.readRef(count);sync.writeRef(count,n+1);ioPure(outcome.success(if n==0 {m.mapFromList([("api/v1",group),("apis/apps/v1",group),("bad",group)])} else {m.mapFromList([("apis/batch/v1",group)])}))}}
+ let root=newRoot(client)
+ first <- groupVersions(root)
+ second <- groupVersions(root)
+ ioPure(map(first.value,gvToAPIPath)==["apis/apps/v1","api/v1"] && map(second.value,gvToAPIPath)==["apis/batch/v1"])
+}}
+func testEmbeddedSchemaAndMissingGroup() IO[Bool] {do {
+ let root=newRoot(files.newEmbeddedFileClient())
+ groups <- groupVersions(root)
+ parsed <- gvSpec(root,pathToGroupVersion("apis/apps/v1").value)
+ raw <- gvSpecAsMap(root,pathToGroupVersion("api/v1").value)
+ missing <- gvSpec(root,pathToGroupVersion("apis/absent/v1").value)
+ ioPure(length(groups.value)==5 && outcome.isSuccess(parsed) && outcome.isSuccess(raw) && (match missing.error {Some(error) => isGroupVersionNotFoundError(error);None => false}))
+}}
+func testRealSchemaConversion() IO[Bool] {do {
+ result <- openapi.newTypeConverter(files.newEmbeddedFileClient(),false)
+ ioPure(outcome.isSuccess(result) && (match result.value {Some(_) => true;None => false}))
+}}
+func testConverterErrorsAndMediaTypes() IO[Bool] {do {
+ let error=errors.errorNew("forced")
+ let fake=files.FakeClient{pathsMap:m.emptyMap(),forcedErr:Some(error)}
+ result <- openapi.newTypeConverter(files.fakeClient(fake),true)
+ let group=files.fakeGroupVersion(files.FakeGroupVersion{gvSpec:"",forcedErr:None})
+ media <- group.schema(openapi.contentTypeOpenAPIV3PB())
+ ioPure(!outcome.isSuccess(result) && !outcome.isSuccess(media))
+}}

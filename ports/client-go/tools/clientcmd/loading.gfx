@@ -1,0 +1,110 @@
+// Copyright 2014 The Kubernetes Authors. Licensed under Apache-2.0.
+package clientcmd
+import api "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api"
+import err "github.com/reoring/gofx/ports/client-go/deps/support"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import rest "github.com/reoring/gofx/ports/client-go/rest"
+import latest "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api/latest"
+import homedir "github.com/reoring/gofx/ports/client-go/util/homedir"
+import "std/map"
+import "std/list"
+import "std/prelude"
+import "std/string"
+type WarningHandler = WarningHandler {warn:func(err.Error) IO[Unit]}
+type ClientConfigLoadingRules = ClientConfigLoadingRules {explicitPath:String,precedence:List[String],migrationRules:Map[String,String],doNotResolvePaths:Bool,defaultClientConfig:Option[ClientConfig],warnIfAllMissing:Bool,warner:WarningHandler}
+func recommendedConfigPathFlag() String { "kubeconfig" }
+func recommendedConfigPathEnvVar() String { "KUBECONFIG" }
+func recommendedHomeDir() String { ".kube" }
+func recommendedFileName() String { "config" }
+func recommendedSchemaName() String { "schema" }
+func recommendedConfigDir(source api.Source) IO[String] { do { home <- homedir.homeDirWith(homedir.Host(api.operatingSystem(),source.getenv,func(path) => do { info <- source.stat(path); ioPure(if outcome.isSuccess(info) { Some(homedir.FileInfo(info.value.isDir,info.value.mode / 128 % 2 == 1)) } else { None }) },func(path,directory,file) => api.joinPath(api.joinPath(path,directory),file))); ioPure(api.joinPath(home,recommendedHomeDir())) } }
+func recommendedHomeFile(source api.Source) IO[String] { do { dir <- recommendedConfigDir(source); ioPure(api.joinPath(dir,recommendedFileName())) } }
+func recommendedSchemaFile(source api.Source) IO[String] { do { dir <- recommendedConfigDir(source); ioPure(api.joinPath(dir,recommendedSchemaName())) } }
+func emptyLoadingRules() ClientConfigLoadingRules { ClientConfigLoadingRules("",Nil,map.emptyMap(),false,None,false,WarningHandler(func(error) => eprintln(err.errorMessage(error)))) }
+func deduplicate(values List[String]) List[String] { _dedup(values,map.emptyMap()) }
+func _dedup(values List[String],seen Map[String,Bool]) List[String] { match values { Nil => Nil; Cons(value,rest) => if map.mapMember(seen,value) { _dedup(rest,seen) } else { Cons(value,_dedup(rest,map.mapInsert(seen,value,true))) } } }
+func newDefaultClientConfigLoadingRules(source api.Source) IO[ClientConfigLoadingRules] { do {
+ env <- source.getenv(recommendedConfigPathEnvVar())
+ home <- recommendedHomeFile(source)
+ legacyHome <- source.getenv("HOME")
+ let legacy = api.joinPath(api.joinPath(legacyHome,recommendedHomeDir()),if api.operatingSystem() == "windows" { "config" } else { ".kubeconfig" })
+ ioPure(emptyLoadingRules(){precedence:if env == "" { [home] } else { deduplicate(api.splitPathList(env)) },migrationRules:map.mapFromList([(home,legacy)]),warnIfAllMissing:env != ""})
+} }
+func getLoadingPrecedence(rules ClientConfigLoadingRules) List[String] { if rules.explicitPath == "" { rules.precedence } else { [rules.explicitPath] } }
+func isExplicitFile(rules ClientConfigLoadingRules) Bool { rules.explicitPath != "" }
+func getExplicitFile(rules ClientConfigLoadingRules) String { rules.explicitPath }
+func resolvePathsEnabled(rules ClientConfigLoadingRules) Bool { !rules.doNotResolvePaths }
+func _then[A,B](result outcome.Outcome[A],fallback B,next func(A) IO[outcome.Outcome[B]]) IO[outcome.Outcome[B]] { match result.error { Some(error) => ioPure(outcome.failure(fallback,error)); None => next(result.value) } }
+func _errorThen(error Option[err.Error],next func() IO[Option[err.Error]]) IO[Option[err.Error]] { match error { Some(_) => ioPure(error); None => next() } }
+func load(data String) IO[outcome.Outcome[Option[api.Config]]] { if data == "" { ioPure(outcome.success(Some(api.newConfig()))) } else { do { decoded <- api.capture(latest.codec().decode(data),api.newConfig()); ioPure(outcome.Outcome(if outcome.isSuccess(decoded) { Some(decoded.value) } else { None },decoded.error)) } } }
+func write(config api.Config) IO[outcome.Outcome[String]] { api.capture(latest.codec().encode(config),"") }
+func loadFromFile(source api.Source,filename String) IO[outcome.Outcome[Option[api.Config]]] { do {
+ read <- source.read(filename)
+ _then(read,None,func(data) => do {
+ decoded <- load(data)
+ ioPure(outcome.mapValue(decoded,func(value) => prelude.fmap(value,func(config) => config{clusters:Some(map.mapMap(api.mapOrEmpty(config.clusters),func(value) => prelude.fmap(value,func(cluster) => cluster{locationOfOrigin:filename}))),authInfos:Some(map.mapMap(api.mapOrEmpty(config.authInfos),func(value) => prelude.fmap(value,func(user) => user{locationOfOrigin:filename}))),contexts:Some(map.mapMap(api.mapOrEmpty(config.contexts),func(value) => prelude.fmap(value,func(context) => context{locationOfOrigin:filename})))})))
+ })
+} }
+func writeToFile(source api.Source,config api.Config,filename String) IO[Option[err.Error]] { do {
+ encoded <- write(config)
+ match encoded.error { Some(error) => ioPure(Some(error)); None => do {
+ status <- source.stat(api.dir(filename))
+ made <- match status.error { Some(error) => if api.isNotExist(error) { source.mkdirAll(api.dir(filename),493) } else { ioPure(None) }; None => ioPure(None) }
+ _errorThen(made,func() => source.write(filename,encoded.value,384))
+ } }
+} }
+func _firstExisting(source api.Source,files List[String]) IO[Option[String]] { match files { Nil => ioPure(None); Cons(path,rest) => do { status <- source.stat(path); match status.error { None => ioPure(Some(path)); Some(_) => _firstExisting(source,rest) } } } }
+func getDefaultFilename(source api.Source,rules ClientConfigLoadingRules) IO[String] { if isExplicitFile(rules) { ioPure(rules.explicitPath) } else { do { found <- _firstExisting(source,rules.precedence); ioPure(match found { Some(path) => path; None => match rules.precedence { Nil => ""; Cons(path,_) => path } }) } } }
+func migrate(source api.Source,rules ClientConfigLoadingRules) IO[Option[err.Error]] { _migrate(source,map.mapToList(rules.migrationRules)) }
+func _migrate(source api.Source,entries List[(String,String)]) IO[Option[err.Error]] {
+ match entries {
+  Nil => ioPure(None)
+  Cons((destination,origin),rest) => do {
+   status <- source.stat(destination)
+   match status.error {
+    None => _migrate(source,rest)
+    Some(error) => if api.isPermission(error) { _migrate(source,rest) } else if !api.isNotExist(error) { ioPure(Some(error)) } else { do {
+     original <- source.stat(origin)
+     match original.error {
+      Some(error) => if api.isNotExist(error) || api.isPermission(error) { _migrate(source,rest) } else { ioPure(Some(error)) }
+      None => if original.value.isDir { ioPure(Some(api.newError("cannot migrate "+origin+" to "+destination+" because it is a directory"))) } else { do {
+       contents <- source.read(origin)
+       match contents.error {
+        Some(error) => ioPure(Some(error))
+        None => do {
+         error <- source.write(destination,contents.value,original.value.mode - (original.value.mode / 64 % 2) * 64 - (original.value.mode / 8 % 2) * 8 - original.value.mode % 2)
+         _errorThen(error,func() => _migrate(source,rest))
+        }
+       }
+      } }
+     }
+    } }
+   }
+  }
+ }
+}
+func loadRules(source api.Source,rules ClientConfigLoadingRules) IO[outcome.Outcome[Option[api.Config]]] { do {
+ error <- migrate(source,rules)
+ match error { Some(error) => ioPure(outcome.failure(None,error)); None => if isExplicitFile(rules) { do {
+ status <- source.stat(rules.explicitPath)
+ match status.error { Some(error) => if api.isNotExist(error) { ioPure(outcome.failure(None,error)) } else { _loadFiles(source,rules,[rules.explicitPath],Nil,Nil,Nil) }; None => _loadFiles(source,rules,[rules.explicitPath],Nil,Nil,Nil) }
+ } } else { _loadFiles(source,rules,rules.precedence,Nil,Nil,Nil) } }
+} }
+func _loadFiles(source api.Source,rules ClientConfigLoadingRules,files List[String],configs List[api.Config],missing List[String],errors List[err.Error]) IO[outcome.Outcome[Option[api.Config]]] { match files {
+ Nil => do {
+ if rules.warnIfAllMissing && length(missing) > 0 && length(configs) == 0 { rules.warner.warn(api.newError("Config not found: "+string.join(", ",reverse(missing)))) } else { ioPure(unit()) }
+ let merged = mergeConfigs(reverse(configs))
+ resolved <- if rules.doNotResolvePaths { ioPure(outcome.success(merged)) } else { resolveLocalPaths(source,merged) }
+ let errors = match resolved.error { None => errors; Some(error) => Cons(error,errors) }
+ ioPure(outcome.Outcome(Some(resolved.value),aggregateErrors(reverse(errors))))
+ }
+ Cons(file,rest) => if file == "" { _loadFiles(source,rules,rest,configs,missing,errors) } else { do {
+ loaded <- loadFromFile(source,file)
+ match loaded.error { Some(error) => if api.isNotExist(error) { _loadFiles(source,rules,rest,configs,Cons(file,missing),errors) } else { _loadFiles(source,rules,rest,configs,missing,Cons(api.newError("error loading config file "+api.quoteJSON(file)+": "+err.errorMessage(error)),errors)) }; None => match loaded.value { None => _loadFiles(source,rules,rest,configs,missing,errors); Some(config) => _loadFiles(source,rules,rest,Cons(config,configs),missing,errors) } }
+ } }
+} }
+func getStartingConfig(source api.Source,rules ClientConfigLoadingRules) IO[outcome.Outcome[Option[api.Config]]] { do { loaded <- loadRules(source,rules); ioPure(match loaded.error { Some(error) => if api.isNotExist(error) { outcome.success(Some(api.newConfig())) } else { loaded }; None => loaded }) } }
+func isDefaultConfig(rules ClientConfigLoadingRules,value rest.Config) IO[Bool] { match rules.defaultClientConfig { None => ioPure(false); Some(defaultConfig) => do {
+ result <- defaultConfig.clientConfig()
+ match result.error { Some(_) => ioPure(false); None => match result.value { None => ioPure(false); Some(defaultValue) => rest.configEqual(value,defaultValue) } }
+} } }

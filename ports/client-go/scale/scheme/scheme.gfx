@@ -1,0 +1,82 @@
+package scheme
+
+import v1 "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import runtime "deps/k8s.io/apimachinery/pkg/runtime"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import errors "deps/support"
+import outcome "support/outcome"
+import listlib "std/list"
+
+// Copyright 2017 The Kubernetes Authors. Licensed under Apache-2.0.
+type ScaleSpec = ScaleSpec { replicas: Int }
+type ScaleStatus = ScaleStatus { replicas: Int, selector: Option[v1.LabelSelector] }
+type Scale = Scale { typeMeta: v1.TypeMeta, objectMeta: v1.ObjectMeta, spec: ScaleSpec, status: ScaleStatus }
+type ScaleValue = InternalScale(Scale) | ExternalScale(runtime.Object)
+type Registration = Registration { group: String, version: String, fromObject: func(runtime.Object) IO[Option[outcome.Outcome[Scale]]], toObject: func(Scale) IO[outcome.Outcome[runtime.Object]] }
+type Scheme = Scheme { registrations: List[Registration], internalGroups: List[String] }
+func emptyScheme() Scheme { Scheme([],[]) }
+func newScale() Scale { Scale(v1.newTypeMeta(),v1.newObjectMeta(),ScaleSpec(0),ScaleStatus(0,None)) }
+func groupName() String { "autoscaling" }
+func groupVersion(group String,version String) schema.GroupVersion { schema.groupVersionWithVersion(schema.groupVersionWithGroup(schema.newGroupVersion(),group),version) }
+func schemeGroupVersion() schema.GroupVersion { groupVersion(groupName(),"__internal") }
+func kindFor(group String,name String) schema.GroupKind { schema.groupKindWithKind(schema.groupKindWithGroup(schema.newGroupKind(),group),name) }
+func resourceFor(group String,name String) schema.GroupResource { schema.groupResourceWithResource(schema.groupResourceWithGroup(schema.newGroupResource(),group),name) }
+func kind(name String) schema.GroupKind { kindFor(groupName(),name) }
+func resource(name String) schema.GroupResource { resourceFor(groupName(),name) }
+func addToScheme(scheme Scheme) Scheme { scheme{internalGroups: append(scheme.internalGroups,[groupName()])} }
+func register(scheme Scheme,registration Registration) Scheme {
+ scheme{registrations: append(filter(scheme.registrations,func(old) => old.group != registration.group || old.version != registration.version),[registration])}
+}
+func deepCopy(value Scale) IO[Scale] {
+ do {
+  metadata <- v1.objectMetaCallDeepCopy(value.objectMeta)
+  status <- deepCopyStatus(value.status)
+  ioPure(value{objectMeta: match metadata.1 { None => metadata.0; Some(copy) => copy },status: status})
+ }
+}
+func deepCopyStatus(value ScaleStatus) IO[ScaleStatus] {
+ do {
+  selector <- match value.selector { None => ioPure(None); Some(selector) => do { copy <- v1.labelSelectorCallDeepCopy(selector); ioPure(copy.1) } }
+  ioPure(value{selector: selector})
+ }
+}
+extern func parseSelector(value String) IO[(Option[v1.LabelSelector],Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/scale/host".ParseSelector
+extern func renderSelector(value v1.LabelSelector) IO[(String,Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/scale/host".RenderSelector
+func parseTargetSelector(value String) IO[outcome.Outcome[Option[v1.LabelSelector]]] {
+ if value == "" { ioPure(outcome.success(None)) } else { do {
+  parsed <- parseSelector(value)
+  ioPure(outcome.from(parsed.0,match parsed.1 { None => None; Some(e) => Some(errors.errorWrap("failed to parse target selector",e)) }))
+ } }
+}
+func selectorString(value Option[v1.LabelSelector]) IO[outcome.Outcome[String]] {
+ match value { None => ioPure(outcome.success("")); Some(value) => do {
+  result <- renderSelector(value)
+  ioPure(outcome.from(result.0,match result.1 { None => None; Some(e) => Some(errors.errorWrap("invalid label selector",e)) }))
+ } }
+}
+func toInternal(scheme Scheme,value ScaleValue) IO[outcome.Outcome[Scale]] {
+ match value { InternalScale(value) => ioPure(outcome.success(value)); ExternalScale(value) => findObject(scheme.registrations,value) }
+}
+func findObject(registrations List[Registration],value runtime.Object) IO[outcome.Outcome[Scale]] {
+ match registrations {
+  Nil => ioPure(outcome.failure(newScale(),errors.errorNew("no kind is registered for the supplied scale type")))
+  Cons(registration,rest) => do { result <- registration.fromObject(value); match result { Some(result) => ioPure(result); None => findObject(rest,value) } }
+ }
+}
+func convertToVersion(scheme Scheme,value ScaleValue,target schema.GroupVersion) IO[outcome.Outcome[ScaleValue]] {
+ do {
+  internal <- toInternal(scheme,value)
+  match internal.error {
+   Some(e) => ioPure(outcome.failure(InternalScale(internal.value),e))
+   None => {
+    let group = schema.groupVersionGetGroup(target)
+    let version = schema.groupVersionGetVersion(target)
+    if version == "__internal" && listlib.any(scheme.internalGroups,func(g) => g == group) { ioPure(outcome.success(InternalScale(internal.value{typeMeta: v1.typeMetaWithKind(v1.typeMetaWithAPIVersion(v1.newTypeMeta(),group+"/"+version),"Scale")}))) }
+    else { match listlib.find(scheme.registrations,func(r) => r.group == group && r.version == version) {
+     None => ioPure(outcome.failure(InternalScale(internal.value),errors.errorNew("no kind Scale is registered for version "+group+"/"+version)))
+     Some(registration) => do { converted <- registration.toObject(internal.value); ioPure(outcome.mapValue(converted,func(object) => ExternalScale(object))) }
+    } }
+   }
+  }
+ }
+}

@@ -1,0 +1,11 @@
+// Copyright 2014 The Kubernetes Authors. Licensed under Apache-2.0.
+package exec
+import support "github.com/reoring/gofx/ports/client-go/deps/support"
+type ExitError = ExitError { string: func() IO[String], error: func() IO[String], exited: func() IO[Bool], exitStatus: func() IO[Int] }
+type CodeExitError = CodeExitError { err: support.Error, code: Int }
+extern func errorMessage(error support.Error) IO[String] = "github.com/reoring/gofx/ports/client-go/util/exec/host".ErrorMessage
+func error(value CodeExitError) IO[String] { errorMessage(value.err) }
+func string(value CodeExitError) IO[String] { error(value) }
+func exited(value CodeExitError) Bool { true }
+func exitStatus(value CodeExitError) Int { value.code }
+func asExitError(value CodeExitError) ExitError { ExitError(func() => string(value), func() => error(value), func() => ioPure(exited(value)), func() => ioPure(exitStatus(value))) }

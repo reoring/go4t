@@ -2,18 +2,18 @@
 // Source: client-go v0.37.2 and exact external dependency declarations.
 // Kubernetes-derived declarations are licensed under Apache-2.0.
 // https://www.apache.org/licenses/LICENSE-2.0
-// Source graph SHA-256: 2e4efd1c862cc7bde1036ba0dc37a4fe08175d4ead5d513b32689e674b91d866
+// Source graph SHA-256: 99a062162cbc99a38896123a3e81ce3ef2f70f2e505fbd058751d52a0a40f167
 package pragma
 
 import canonical "github.com/reoring/gofx/ports/client-go/deps/types"
 import support "github.com/reoring/gofx/ports/client-go/deps/support"
 
 alias DoNotCompare = canonical.DoNotCompare_5d5ffc0a0ebb
-extern func doNotCompareValue(value DoNotCompare) List[func() IO[Unit]] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Underlying_DoNotCompare_5d5ffc0a0ebb
-extern func doNotCompareFromValue(value List[func() IO[Unit]]) DoNotCompare = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".From_DoNotCompare_5d5ffc0a0ebb
+extern func doNotCompareValue(value DoNotCompare) List[func() IO[Unit]] = "github.com/reoring/gofx/ports/client-go/host/deps".Underlying_DoNotCompare_5d5ffc0a0ebb
+extern func doNotCompareFromValue(value List[func() IO[Unit]]) DoNotCompare = "github.com/reoring/gofx/ports/client-go/host/deps".From_DoNotCompare_5d5ffc0a0ebb
 alias DoNotCopy = canonical.DoNotCopy_baf77b29c836
-extern func doNotCopyValue(value DoNotCopy) List[canonical.Mutex_efea4f723211] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Underlying_DoNotCopy_baf77b29c836
-extern func doNotCopyFromValue(value List[canonical.Mutex_efea4f723211]) DoNotCopy = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".From_DoNotCopy_baf77b29c836
+extern func doNotCopyValue(value DoNotCopy) List[canonical.Mutex_efea4f723211] = "github.com/reoring/gofx/ports/client-go/host/deps".Underlying_DoNotCopy_baf77b29c836
+extern func doNotCopyFromValue(value List[canonical.Mutex_efea4f723211]) DoNotCopy = "github.com/reoring/gofx/ports/client-go/host/deps".From_DoNotCopy_baf77b29c836
 alias DoNotImplement = canonical.DoNotImplement_dbe9043b36d4
 alias NoUnkeyedLiterals = canonical.NoUnkeyedLiterals_c5cb14a4d6bb
-extern func doNotImplementCallProtoInternalIdentity(value DoNotImplement, p0 Option[canonical.DoNotImplement_dbe9043b36d4]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Interface_98639a4d8850f1ec
+extern func doNotImplementCallProtoInternalIdentity(value DoNotImplement, p0 Option[canonical.DoNotImplement_dbe9043b36d4]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".Interface_98639a4d8850f1ec

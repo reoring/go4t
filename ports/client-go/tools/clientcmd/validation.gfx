@@ -1,0 +1,82 @@
+// Copyright 2014 The Kubernetes Authors. Licensed under Apache-2.0.
+package clientcmd
+import api "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api"
+import err "github.com/reoring/gofx/ports/client-go/deps/support"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import execPlugin "github.com/reoring/gofx/ports/client-go/plugin/pkg/client/auth/exec"
+import "std/map"
+import "std/list"
+import "std/prelude"
+import "std/string"
+import "std/regex"
+extern func _taggedError(tag String,message String,causes List[err.Error]) err.Error = "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api/host".TaggedError
+extern func _errorTag(error err.Error) String = "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api/host".ErrorTag
+extern func _errorCauses(error err.Error) List[err.Error] = "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api/host".ErrorCauses
+func errNoContext() err.Error { _taggedError("no-context","no context chosen",Nil) }
+func errEmptyConfig() err.Error { newEmptyConfigError("no configuration has been provided, try setting KUBERNETES_MASTER environment variable") }
+func errEmptyCluster() err.Error { _taggedError("empty-cluster","cluster has no server defined",Nil) }
+func newEmptyConfigError(message String) err.Error { _taggedError("empty-config",message,Nil) }
+func contextNotFound(name String) err.Error { _taggedError("context-not-found","context was not found for specified context: "+name,Nil) }
+func isContextNotFound(error err.Error) Bool { _errorTag(error) == "no-context" || _errorTag(error) == "context-not-found" || string.contains(err.errorMessage(error),"context was not found for specified context") }
+func isEmptyConfig(error err.Error) Bool { _errorTag(error) == "empty-config" || (_errorTag(error) == "configuration-invalid" && (match _errorCauses(error) { Cons(cause,Nil) => _errorTag(cause) == "empty-config"; _ => false })) }
+func isConfigurationInvalid(error err.Error) Bool { _errorTag(error) == "configuration-invalid" || isContextNotFound(error) }
+func aggregateErrors(errors List[err.Error]) Option[err.Error] { match errors { Nil => None; Cons(error,Nil) => Some(error); _ => Some(_taggedError("aggregate","["+string.join(", ",list.nub(prelude.fmap(errors,err.errorMessage)))+"]",errors)) } }
+func configurationInvalid(errors List[err.Error]) Option[err.Error] { match aggregateErrors(errors) { None => None; Some(error) => Some(_taggedError("configuration-invalid","invalid configuration: "+err.errorMessage(error),errors)) } }
+func _complaint(errors List[err.Error],when Bool,message String) List[err.Error] { if when { list.append(errors,[api.newError(message)]) } else { errors } }
+func _readable(source api.Source,path String,prefix String) IO[List[err.Error]] { if path == "" { ioPure(Nil) } else { do { error <- source.canRead(path); ioPure(match error { None => Nil; Some(error) => [api.newError(prefix+err.errorMessage(error))] }) } } }
+func validateClusterInfo(source api.Source,name String,value api.Cluster) IO[List[err.Error]] { do {
+ empty <- api.equalCluster(value,api.newCluster())
+ if empty { ioPure([errEmptyCluster()]) } else { do {
+ let errors = _complaint(Nil,value.server == "",if name == "" { "default cluster has no server defined" } else { "no server found for cluster "+api.quoteJSON(name) })
+ proxy <- if value.proxyURL == "" { ioPure(None) } else { do { parsed <- parseProxyURL(value.proxyURL); ioPure(prelude.fmap(parsed.error,func(error) => api.newError("invalid 'proxy-url' "+api.quoteJSON(value.proxyURL)+" for cluster "+api.quoteJSON(name)+": "+err.errorMessage(error)))) } }
+ let errors = list.append(errors,match proxy { None => Nil; Some(error) => [error] })
+ let errors = _complaint(errors,value.certificateAuthority != "" && api.bytesOrEmpty(value.certificateAuthorityData) != "","certificate-authority-data and certificate-authority are both specified for "+name+". certificate-authority-data will override.")
+ files <- _readable(source,value.certificateAuthority,"unable to read certificate-authority "+value.certificateAuthority+" for "+name+" due to ")
+ ioPure(list.append(errors,files))
+ } }
+} }
+func validateAuthInfo(source api.Source,name String,value api.AuthInfo) IO[List[err.Error]] { do {
+ let certificate = value.clientCertificate != "" || api.bytesOrEmpty(value.clientCertificateData) != ""
+ let errors = _complaint(Nil,certificate && value.clientCertificate != "" && api.bytesOrEmpty(value.clientCertificateData) != "","client-cert-data and client-cert are both specified for "+name+". client-cert-data will override.")
+ let errors = _complaint(errors,certificate && value.clientKey != "" && api.bytesOrEmpty(value.clientKeyData) != "","client-key-data and client-key are both specified for "+name+"; client-key-data will override")
+ let errors = _complaint(errors,certificate && value.clientKey == "" && api.bytesOrEmpty(value.clientKeyData) == "","client-key-data or client-key must be specified for "+name+" to use the clientCert authentication method.")
+ certErrors <- if certificate { _readable(source,value.clientCertificate,"unable to read client-cert "+value.clientCertificate+" for "+name+" due to ") } else { ioPure(Nil) }
+ keyErrors <- if certificate { _readable(source,value.clientKey,"unable to read client-key "+value.clientKey+" for "+name+" due to ") } else { ioPure(Nil) }
+ let errors = list.append(list.append(errors,certErrors),keyErrors)
+ let errors = match value.exec { None => errors; Some(exec) => {
+ let errors = _complaint(errors,match value.authProvider { None => false; Some(_) => true },"authProvider cannot be provided in combination with an exec plugin for "+name)
+ let errors = _complaint(errors,exec.command == "","command must be specified for "+name+" to use exec authentication plugin")
+ let errors = _complaint(errors,exec.apiVersion == "","apiVersion must be specified for "+name+" to use exec authentication plugin")
+ let errors = fold(api.listOrEmpty(exec.env),errors,func(errors,entry) => _complaint(errors,entry.name == "","env variable name must be specified for "+name+" to use exec authentication plugin"))
+ let errors = _complaint(errors,exec.interactiveMode == "","interactiveMode must be specified for "+name+" to use exec authentication plugin")
+ let errors = _complaint(errors,exec.interactiveMode != "" && !list.elem(exec.interactiveMode,["Never","IfAvailable","Always"]),"invalid interactiveMode for "+name+": "+api.quoteJSON(exec.interactiveMode))
+ match execPlugin.validatePluginPolicy(exec.pluginPolicy).error { None => errors; Some(error) => list.append(errors,[api.newError("allowlist misconfiguration: "+err.errorMessage(error))]) }
+ } }
+ let errors = _complaint(errors,value.token != "" && (value.username != "" || value.password != ""),"more than one authentication method found for "+name+"; found [token basicAuth], only one is allowed")
+ ioPure(_complaint(errors,(value.impersonateUID != "" || length(api.listOrEmpty(value.impersonateGroups)) > 0 || map.mapSize(api.mapOrEmpty(value.impersonateUserExtra)) > 0) && value.impersonate == "","requesting uid, groups or user-extra for "+name+" without impersonating a user"))
+} }
+func validateContext(name String,value api.Context,config api.Config) List[err.Error] {
+ let errors = _complaint(Nil,name == "","empty context name is not allowed")
+ let errors = _complaint(errors,value.authInfo == "","user was not specified for context "+api.quoteJSON(name))
+ let errors = _complaint(errors,value.authInfo != "" && !map.mapMember(api.mapOrEmpty(config.authInfos),value.authInfo),"user "+api.quoteJSON(value.authInfo)+" was not found for context "+api.quoteJSON(name))
+ let errors = _complaint(errors,value.cluster == "","cluster was not specified for context "+api.quoteJSON(name))
+ let errors = _complaint(errors,value.cluster != "" && !map.mapMember(api.mapOrEmpty(config.clusters),value.cluster),"cluster "+api.quoteJSON(value.cluster)+" was not found for context "+api.quoteJSON(name))
+ _complaint(errors,value.namespace != "" && (string.strLength(value.namespace) > 63 || !regex.regexMatch("^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",value.namespace)),"namespace "+api.quoteJSON(value.namespace)+" for context "+api.quoteJSON(name)+" does not conform to the kubernetes DNS_LABEL rules")
+}
+func _or[A](value Option[A],fallback A) A { match value { None => fallback; Some(value) => value } }
+func confirmUsable(source api.Source,config api.Config,passedContextName String) IO[Option[err.Error]] { if api.isConfigEmpty(config) { ioPure(configurationInvalid([errEmptyConfig()])) } else {
+ let name = if passedContextName == "" { config.currentContext } else { passedContextName }
+ if name == "" { ioPure(Some(errNoContext())) } else { match api.getContext(config,name) { None => ioPure(configurationInvalid([contextNotFound(name)])); Some(context) => do {
+ auth <- validateAuthInfo(source,context.authInfo,_or(api.getAuthInfo(config,context.authInfo),api.emptyAuthInfo()))
+ cluster <- validateClusterInfo(source,context.cluster,_or(api.getCluster(config,context.cluster),api.emptyCluster()))
+ ioPure(configurationInvalid(list.append(validateContext(name,context,config),list.append(auth,cluster))))
+ } } }
+} }
+func validate(source api.Source,config api.Config) IO[Option[err.Error]] { if api.isConfigEmpty(config) { ioPure(configurationInvalid([errEmptyConfig()])) } else { do {
+ let contexts = list.concatMap(map.mapToList(api.mapOrEmpty(config.contexts)),func((name,value)) => match value { None => [api.newError("nil context "+name)]; Some(value) => validateContext(name,value,config) })
+ auth <- prelude.traverse(map.mapToList(api.mapOrEmpty(config.authInfos)),func((name,value)) => validateAuthInfo(source,name,_or(value,api.emptyAuthInfo())))
+ clusters <- prelude.traverse(map.mapToList(api.mapOrEmpty(config.clusters)),func((name,value)) => validateClusterInfo(source,name,_or(value,api.emptyCluster())))
+ let errors = if config.currentContext != "" && !map.mapMember(api.mapOrEmpty(config.contexts),config.currentContext) { [contextNotFound(config.currentContext)] } else { Nil }
+ ioPure(configurationInvalid(list.append(errors,list.append(contexts,list.append(list.concatMap(auth,func(values) => values),list.concatMap(clusters,func(values) => values))))))
+} } }
+func configurationErrors(error err.Error) List[err.Error] { _errorCauses(error) }

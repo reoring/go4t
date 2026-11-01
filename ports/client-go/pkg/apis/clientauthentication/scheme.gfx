@@ -1,0 +1,48 @@
+// Copyright 2018 The Kubernetes Authors. Licensed under Apache-2.0.
+package clientauthentication
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import meta "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import "std/map"
+type CredentialObject = InternalCredential(ExecCredential) | VersionedCredential(String, WireCredential)
+type Registration = Registration { create: func() CredentialObject, toInternal: func(CredentialObject) IO[ExecCredential], fromInternal: func(ExecCredential) IO[CredentialObject] }
+type Scheme = Scheme { mutex: sync.Mutex, registrations: sync.Ref[Map[String, Registration]], defaults: sync.Ref[Map[String, func(CredentialObject) CredentialObject]] }
+alias SchemeBuilder = List[func(Scheme) IO[Unit]]
+func newScheme() IO[Scheme] { do { mutex <- sync.newMutex(); registrations <- sync.newRef(map.emptyMap()); defaults <- sync.newRef(map.emptyMap()); ioPure(Scheme(mutex, registrations, defaults)) } }
+func register(scheme Scheme, version String, registration Registration) IO[Unit] {
+ sync.withLock(scheme.mutex, do { registrations <- sync.readRef(scheme.registrations); sync.writeRef(scheme.registrations, map.mapInsert(registrations, version, registration)) })
+}
+func addToScheme(scheme Scheme) IO[Unit] {
+ register(scheme, internalVersion(), Registration(func() => InternalCredential(newExecCredential()), func(object) => match object { InternalCredential(value) => ioPure(value); VersionedCredential(_, value) => convertToInternal(value) }, func(value) => ioPure(InternalCredential(value))))
+}
+func registerVersion(scheme Scheme, version String) IO[Unit] {
+ register(scheme, version, Registration(func() => VersionedCredential(version, newWireCredential()), func(object) => match object { InternalCredential(value) => ioPure(value); VersionedCredential(_, value) => convertToInternal(value) }, func(value) => do { out <- convertFromInternal(value); ioPure(VersionedCredential(version, out)) }))
+}
+func _registration(scheme Scheme, version String) IO[Registration] { do {
+ registrations <- sync.readRef(scheme.registrations)
+ match map.mapLookup(registrations, version) { Some(value) => ioPure(value); None => ioFail("no kind \"ExecCredential\" is registered for version \"client.authentication.k8s.io/" + version + "\" in scheme") }
+} }
+func recognizes(scheme Scheme, version String, kind String) IO[Bool] { do { registrations <- sync.readRef(scheme.registrations); ioPure(kind == "ExecCredential" && map.mapMember(registrations, version)) } }
+func newObject(scheme Scheme, version String, kind String) IO[CredentialObject] {
+ if kind != "ExecCredential" { ioFail("unregistered clientauthentication kind: " + kind) } else { do { registration <- _registration(scheme, version); ioPure(registration.create()) } }
+}
+func objectVersion(value CredentialObject) String { match value { InternalCredential(_) => internalVersion(); VersionedCredential(version, _) => version } }
+func convert(scheme Scheme, object CredentialObject, targetVersion String) IO[CredentialObject] { do {
+ source <- _registration(scheme, objectVersion(object))
+ target <- _registration(scheme, targetVersion)
+ if objectVersion(object) == targetVersion { deepCopyCredentialObject(object) } else { do { internal <- source.toInternal(object); target.fromInternal(internal) } }
+} }
+// Both pinned zz_generated.defaults.go files contain no defaulter registrations.
+// Record the identity policy separately: this must never add types or replace conversions.
+func registerDefaultsForVersion(scheme Scheme, version String) IO[Unit] {
+ sync.withLock(scheme.mutex, do { defaults <- sync.readRef(scheme.defaults); sync.writeRef(scheme.defaults, map.mapInsert(defaults, version, func(value) => value)) })
+}
+func defaultObject(scheme Scheme, object CredentialObject) IO[CredentialObject] { do {
+ defaults <- sync.readRef(scheme.defaults)
+ ioPure(match map.mapLookup(defaults, objectVersion(object)) { None => object; Some(apply) => apply(object) })
+} }
+func deepCopyCredentialObject(object CredentialObject) IO[CredentialObject] { match object {
+ InternalCredential(value) => do { copied <- deepCopyExecCredential(value); ioPure(InternalCredential(copied)) }
+ VersionedCredential(version, value) => do { copied <- deepCopyWireCredential(value); ioPure(VersionedCredential(version, copied)) }
+} }
+func applySchemeBuilder(builder SchemeBuilder, scheme Scheme) IO[Unit] { match builder { Nil => ioPure(unit()); Cons(add, rest) => do { add(scheme); applySchemeBuilder(rest, scheme) } } }
+func schemeBuilder() SchemeBuilder { [addToScheme] }

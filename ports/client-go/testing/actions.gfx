@@ -1,0 +1,86 @@
+// Copyright 2015 The Kubernetes Authors. Licensed under Apache-2.0.
+package testing
+import runtime "deps/k8s.io/apimachinery/pkg/runtime"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import meta "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import objects "deps/objects"
+import strings "std/string"
+import native "testing/internal"
+import maps "std/map"
+
+type ActionKind = Generic | Get | ListAction | Create | Update | Delete | DeleteCollection | Patch | Watch | ProxyGet
+type Action = Action { kind: ActionKind, verb: String, resource: schema.GroupVersionResource, namespace: String, subresource: String, name: String, object: Option[runtime.Object], value: Option[Payload], listKind: schema.GroupVersionKind, getOptions: meta.GetOptions, listOptions: meta.ListOptions, createOptions: meta.CreateOptions, updateOptions: meta.UpdateOptions, deleteOptions: meta.DeleteOptions, patchOptions: meta.PatchOptions, patchType: String, patch: String, scheme: String, port: String, path: String, params: Map[String,String] }
+// Generic payload identity is deliberately shared through dispatch and copying.
+func newAction(kind ActionKind, verb String, resource schema.GroupVersionResource, namespace String) Action { Action(kind,verb,resource,namespace,"","",None,None,schema.newGroupVersionKind(),meta.newGetOptions(),meta.newListOptions(),meta.newCreateOptions(),meta.newUpdateOptions(),meta.newDeleteOptions(),meta.newPatchOptions(),"","","","","",maps.emptyMap()) }
+func getNamespace(action Action) String { action.namespace }
+func getVerb(action Action) String { action.verb }
+func getResource(action Action) schema.GroupVersionResource { action.resource }
+func getSubresource(action Action) String { action.subresource }
+func getName(action Action) String { action.name }
+func getObject(action Action) Option[runtime.Object] { action.object }
+func getKind(action Action) schema.GroupVersionKind { action.listKind }
+func getGetOptions(action Action) meta.GetOptions { action.getOptions }
+func getListOptions(action Action) meta.ListOptions { action.listOptions }
+func getCreateOptions(action Action) meta.CreateOptions { action.createOptions }
+func getUpdateOptions(action Action) meta.UpdateOptions { action.updateOptions }
+func getDeleteOptions(action Action) meta.DeleteOptions { action.deleteOptions }
+func getPatchOptions(action Action) meta.PatchOptions { action.patchOptions }
+func getPatchType(action Action) String { action.patchType }
+func getPatch(action Action) String { action.patch }
+func getScheme(action Action) String { action.scheme }
+func getPort(action Action) String { action.port }
+func getPath(action Action) String { action.path }
+func getParams(action Action) Map[String,String] { action.params }
+func getValue[A](action Action, key PayloadKey[A]) Option[A] { match action.value { None => None; Some(value) => payloadValue(key,value) } }
+func withValue[A](action Action, key PayloadKey[A], value A) Action { action{value: Some(packPayload(key,value))} }
+func newGenericAction[A](verb String, resource schema.GroupVersionResource, namespace String, key PayloadKey[A], value A) Action { withValue(newAction(Generic,verb,resource,namespace),key,value) }
+extern func _equalFold(left String, right String) Bool = "strings".EqualFold
+func matches(action Action, verb String, resource String) Bool {
+ let verbMatches = _equalFold(verb,action.verb)
+ verbMatches && (match strings.splitOnce("/",resource) {
+  None => _equalFold(resource,schema.groupVersionResourceGetResource(action.resource))
+  Some(parts) => _equalFold(parts.0,schema.groupVersionResourceGetResource(action.resource)) && _equalFold(parts.1,action.subresource)
+ })
+}
+func actionDeepCopy(action Action) IO[Action] { match action.kind {
+ Get => do { copied <- meta.getOptionsCallDeepCopy(action.getOptions); ioPure(action{getOptions: _copied(copied.1,copied.0)}) }
+ ListAction => _copyListAction(action)
+ Watch => _copyListAction(action)
+ Create => do {
+  object <- _copyActionObject(action.object)
+  options <- meta.createOptionsCallDeepCopy(action.createOptions)
+  ioPure(action{object: object,createOptions: _copied(options.1,options.0)})
+ }
+ Update => do {
+  object <- _copyActionObject(action.object)
+  options <- meta.updateOptionsCallDeepCopy(action.updateOptions)
+  ioPure(action{object: object,updateOptions: _copied(options.1,options.0)})
+ }
+ Delete => do { copied <- meta.deleteOptionsCallDeepCopy(action.deleteOptions); ioPure(action{deleteOptions: _copied(copied.1,copied.0)}) }
+ DeleteCollection => do {
+  list <- meta.listOptionsCallDeepCopy(action.listOptions)
+  delete <- meta.deleteOptionsCallDeepCopy(action.deleteOptions)
+  ioPure(action{listOptions: _copied(list.1,list.0),deleteOptions: _copied(delete.1,delete.0)})
+ }
+ Patch => do { copied <- meta.patchOptionsCallDeepCopy(action.patchOptions); ioPure(action{patchOptions: _copied(copied.1,copied.0)}) }
+ // Generic values retain their alias; proxy params and bytes are native immutable values.
+ _ => ioPure(action)
+} }
+func _copyActionObject(value Option[runtime.Object]) IO[Option[runtime.Object]] { match value { None => ioPure(None); Some(object) => objects.objectDeepCopy(object) } }
+func _copyListAction(action Action) IO[Action] { do { copied <- meta.listOptionsCallDeepCopy(action.listOptions); ioPure(action{listOptions: _copied(copied.1,copied.0)}) } }
+func _copied[A](value Option[A], fallback A) A { match value { Some(value) => value; None => fallback } }
+func resourceCovers(resource String, action Action) Bool { resource == "*" || resource == schema.groupVersionResourceGetResource(action.resource) || resource == schema.groupVersionResourceGetResource(action.resource)+"/"+action.subresource }
+func newGetActionWithOptions(resource schema.GroupVersionResource, namespace String, name String, options meta.GetOptions) Action { (newAction(Get,"get",resource,namespace)){name: name,getOptions: options} }
+func newGetSubresourceActionWithOptions(resource schema.GroupVersionResource, namespace String, subresource String, name String, options meta.GetOptions) Action { (newGetActionWithOptions(resource,namespace,name,options)){subresource: subresource} }
+func newListActionWithOptions(resource schema.GroupVersionResource, kind schema.GroupVersionKind, namespace String, options meta.ListOptions) IO[Action] { do { native.validateSelectors(options); ioPure((newAction(ListAction,"list",resource,namespace)){listKind: kind,listOptions: options}) } }
+func newCreateActionWithOptions(resource schema.GroupVersionResource, namespace String, object runtime.Object, options meta.CreateOptions) Action { (newAction(Create,"create",resource,namespace)){object: Some(object),createOptions: options} }
+func newCreateSubresourceActionWithOptions(resource schema.GroupVersionResource, name String, subresource String, namespace String, object runtime.Object, options meta.CreateOptions) Action { (newCreateActionWithOptions(resource,namespace,object,options)){name: name,subresource: subresource} }
+func newUpdateActionWithOptions(resource schema.GroupVersionResource, namespace String, object runtime.Object, options meta.UpdateOptions) Action { (newAction(Update,"update",resource,namespace)){object: Some(object),updateOptions: options} }
+func newUpdateSubresourceActionWithOptions(resource schema.GroupVersionResource, subresource String, namespace String, object runtime.Object, options meta.UpdateOptions) Action { (newUpdateActionWithOptions(resource,namespace,object,options)){subresource: subresource} }
+func newDeleteActionWithOptions(resource schema.GroupVersionResource, namespace String, name String, options meta.DeleteOptions) Action { (newAction(Delete,"delete",resource,namespace)){name: name,deleteOptions: options} }
+func newDeleteSubresourceActionWithOptions(resource schema.GroupVersionResource, subresource String, namespace String, name String, options meta.DeleteOptions) Action { (newDeleteActionWithOptions(resource,namespace,name,options)){subresource: subresource} }
+func newPatchActionWithOptions(resource schema.GroupVersionResource, namespace String, name String, patchType String, patch String, options meta.PatchOptions) Action { (newAction(Patch,"patch",resource,namespace)){name: name,patchType: patchType,patch: patch,patchOptions: options} }
+func newPatchSubresourceActionWithOptions(resource schema.GroupVersionResource, namespace String, name String, patchType String, patch String, options meta.PatchOptions, subresources List[String]) Action { (newPatchActionWithOptions(resource,namespace,name,patchType,patch,options)){subresource: native.joinPath(subresources)} }
+func newDeleteCollectionActionWithOptions(resource schema.GroupVersionResource, namespace String, options meta.DeleteOptions, listOptions meta.ListOptions) IO[Action] { do { native.validateSelectors(listOptions); ioPure((newAction(DeleteCollection,"delete-collection",resource,namespace)){deleteOptions: options,listOptions: listOptions}) } }
+func newWatchActionWithOptions(resource schema.GroupVersionResource, namespace String, options meta.ListOptions) IO[Action] { do { native.validateSelectors(options); ioPure((newAction(Watch,"watch",resource,namespace)){listOptions: options}) } }
+func newProxyGetAction(resource schema.GroupVersionResource, namespace String, scheme String, name String, port String, path String, params Map[String,String]) Action { (newAction(ProxyGet,"get",resource,namespace)){scheme: scheme,name: name,port: port,path: path,params: params} }

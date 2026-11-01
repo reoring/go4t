@@ -1,0 +1,34 @@
+package dynamic
+import fixture "dynamic/testing"
+import v1 "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import u "deps/k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+import codec "deps/codec"
+import outcome "support/outcome"
+// Copyright 2026 The Kubernetes Authors. Licensed under Apache-2.0.
+// Pinned original-Go probe: the dynamic decoder populates the supplied
+// Unstructured even for HTTP 200 Status objects; it does not return typed Status.
+func statusResponseEquals(body String,expected String) IO[Bool] {
+ do {
+  serializer <- newBasicNegotiatedSerializer(false)
+  f <- fixture.newFixture(serializer,"application/json",body)
+  registry <- fixture.featureRegistry()
+  client <- fromRESTClient(f.client,registry)
+  result <- client.resource(testGVR()).get("one",v1.newGetOptions(),[])
+  match result.value {
+   None => ioPure(false)
+   Some(value) => do {
+    encoded <- codec.encodeJSON(u.unstructuredToRuntimeObject(value))
+    ioPure(outcome.isSuccess(result) && (match encoded.1 { None => true; Some(_) => false }) && (match encoded.0 { None => false; Some(bytes) => bytes == expected }))
+   }
+  }
+ }
+}
+func testSuccessfulStatusRetainsExactUnstructuredFields() IO[Bool] {
+ statusResponseEquals("{\"apiVersion\":\"v1\",\"kind\":\"Status\",\"status\":\"Success\"}","{\"apiVersion\":\"v1\",\"kind\":\"Status\",\"status\":\"Success\"}")
+}
+func testHTTP200FailureStatusRetainsExactUnstructuredFields() IO[Bool] {
+ statusResponseEquals("{\"apiVersion\":\"v1\",\"kind\":\"Status\",\"status\":\"Failure\",\"message\":\"fixture failure\",\"reason\":\"Forbidden\",\"code\":403}","{\"apiVersion\":\"v1\",\"code\":403,\"kind\":\"Status\",\"message\":\"fixture failure\",\"reason\":\"Forbidden\",\"status\":\"Failure\"}")
+}
+func testOrdinaryWidgetRetainsExactUnstructuredFields() IO[Bool] {
+ statusResponseEquals("{\"apiVersion\":\"example.io/v1\",\"kind\":\"Widget\",\"metadata\":{\"name\":\"server-name\"}}","{\"apiVersion\":\"example.io/v1\",\"kind\":\"Widget\",\"metadata\":{\"name\":\"server-name\"}}")
+}

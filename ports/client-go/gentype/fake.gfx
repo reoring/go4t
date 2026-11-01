@@ -1,0 +1,89 @@
+// Copyright 2024 The Kubernetes Authors. Licensed under Apache-2.0.
+package gentype
+import testing "testing"
+import native "testing/internal"
+import meta "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import objects "deps/objects"
+import outcome "support/outcome"
+import errors "deps/support"
+import watchstream "support/watch"
+import sync "support/sync"
+
+type FakeClient[T] = FakeClient { fake: testing.Fake, namespace: String, resource: schema.GroupVersionResource, kind: schema.GroupVersionKind, object: ObjectAdapter[T] }
+type FakeClientWithList[T,L] = FakeClientWithList { client: FakeClient[T], list: ListAdapter[T,L] }
+type FakeClientWithApply[T,C] = FakeClientWithApply { client: FakeClient[T], apply: ApplyAdapter[C] }
+type FakeClientWithListAndApply[T,L,C] = FakeClientWithListAndApply { client: FakeClient[T], list: ListAdapter[T,L], apply: ApplyAdapter[C] }
+func newFakeClient[T](fake testing.Fake, namespace String, resource schema.GroupVersionResource, kind schema.GroupVersionKind, object ObjectAdapter[T]) FakeClient[T] { FakeClient(fake,namespace,resource,kind,object) }
+func newFakeClientWithList[T,L](fake testing.Fake, namespace String, resource schema.GroupVersionResource, kind schema.GroupVersionKind, object ObjectAdapter[T], list ListAdapter[T,L]) FakeClientWithList[T,L] { FakeClientWithList(newFakeClient(fake,namespace,resource,kind,object),list) }
+func newFakeClientWithApply[T,C](fake testing.Fake, namespace String, resource schema.GroupVersionResource, kind schema.GroupVersionKind, object ObjectAdapter[T], apply ApplyAdapter[C]) FakeClientWithApply[T,C] { FakeClientWithApply(newFakeClient(fake,namespace,resource,kind,object),apply) }
+func newFakeClientWithListAndApply[T,L,C](fake testing.Fake, namespace String, resource schema.GroupVersionResource, kind schema.GroupVersionKind, object ObjectAdapter[T], list ListAdapter[T,L], apply ApplyAdapter[C]) FakeClientWithListAndApply[T,L,C] { FakeClientWithListAndApply(newFakeClient(fake,namespace,resource,kind,object),list,apply) }
+func fakeNamespace[T](client FakeClient[T]) String { client.namespace }
+func fakeResource[T](client FakeClient[T]) schema.GroupVersionResource { client.resource }
+func fakeKind[T](client FakeClient[T]) schema.GroupVersionKind { client.kind }
+func _fakeInvoke[T](client FakeClient[T], action testing.Action) IO[outcome.Outcome[T]] { do {
+ let empty = client.object.newObject()
+ result <- testing.invokes(client.fake,action,Some(objects.toObject(client.object.objectType,empty)))
+ match result.value {
+  None => ioPure(outcome.from(empty,result.error))
+  Some(_) => match objects.fromObject(client.object.objectType,result.value) {
+   None => ioFail("fake reactor returned an object of the wrong type")
+   Some(value) => ioPure(outcome.from(value,result.error))
+  }
+ }
+} }
+func fakeGet[T](client FakeClient[T], name String, options meta.GetOptions) IO[outcome.Outcome[T]] { _fakeInvoke(client,testing.newGetActionWithOptions(client.resource,client.namespace,name,options)) }
+func fakeCreate[T](client FakeClient[T], object T, options meta.CreateOptions) IO[outcome.Outcome[T]] { _fakeInvoke(client,testing.newCreateActionWithOptions(client.resource,client.namespace,objects.toObject(client.object.objectType,object),options)) }
+func fakeUpdate[T](client FakeClient[T], object T, options meta.UpdateOptions) IO[outcome.Outcome[T]] { _fakeInvoke(client,testing.newUpdateActionWithOptions(client.resource,client.namespace,objects.toObject(client.object.objectType,object),options)) }
+func fakeUpdateStatus[T](client FakeClient[T], object T, options meta.UpdateOptions) IO[outcome.Outcome[T]] { _fakeInvoke(client,testing.newUpdateSubresourceActionWithOptions(client.resource,"status",client.namespace,objects.toObject(client.object.objectType,object),options)) }
+func fakeDelete[T](client FakeClient[T], name String, options meta.DeleteOptions) IO[outcome.Outcome[Unit]] { do {
+ result <- testing.invokes(client.fake,testing.newDeleteActionWithOptions(client.resource,client.namespace,name,options),Some(objects.toObject(client.object.objectType,client.object.newObject())))
+ ioPure(outcome.from(unit(),result.error))
+} }
+func fakePatch[T](client FakeClient[T], name String, patchType String, data String, options meta.PatchOptions, subresources List[String]) IO[outcome.Outcome[T]] { _fakeInvoke(client,testing.newPatchSubresourceActionWithOptions(client.resource,client.namespace,name,patchType,data,options,subresources)) }
+func fakeWatch[T](client FakeClient[T], options meta.ListOptions) IO[outcome.Outcome[Option[watchstream.Watch]]] { do { action <- testing.newWatchActionWithOptions(client.resource,client.namespace,meta.listOptionsWithWatch(options,true)); testing.invokesWatch(client.fake,action) } }
+func fakeDeleteCollection[T,L](client FakeClient[T], list ListAdapter[T,L], options meta.DeleteOptions, listOptions meta.ListOptions) IO[outcome.Outcome[Unit]] { do {
+ action <- testing.newDeleteCollectionActionWithOptions(client.resource,client.namespace,options,listOptions)
+ result <- testing.invokes(client.fake,action,Some(objects.toObject(list.objectType,list.newList())))
+ ioPure(outcome.from(unit(),result.error))
+} }
+func fakeList[T,L](client FakeClient[T], adapter ListAdapter[T,L], options meta.ListOptions) IO[outcome.Outcome[L]] { do {
+ let empty = adapter.newList()
+ action <- testing.newListActionWithOptions(client.resource,client.kind,client.namespace,options)
+ result <- testing.invokes(client.fake,action,Some(objects.toObject(adapter.objectType,empty)))
+ match objects.fromObject(adapter.objectType,result.value) {
+  None => match result.value { None => ioPure(outcome.from(empty,result.error)); Some(_) => ioFail("fake reactor returned a list of the wrong type") }
+  Some(list) => do {
+   items <- _filterFakeItems(client,options,adapter.getItems(list))
+   ioPure(outcome.from(adapter.setItems(adapter.copyListMeta(adapter.newList(),list),items),result.error))
+  }
+ }
+} }
+func _filterFakeItems[T](client FakeClient[T], options meta.ListOptions, items List[T]) IO[List[T]] { match items {
+ Nil => ioPure([])
+ Cons(item,rest) => do { matches <- native.matchesLabels(meta.listOptionsGetLabelSelector(options),objects.toObject(client.object.objectType,item)); remaining <- _filterFakeItems(client,options,rest); ioPure(if matches { Cons(item,remaining) } else { remaining }) }
+} }
+func _fakeApply[T,C](client FakeClient[T], adapter ApplyAdapter[C], configuration Option[C], options meta.ApplyOptions, subresources List[String]) IO[outcome.Outcome[Option[T]]] { match configuration {
+ None => ioPure(outcome.failure(None,errors.errorNew("configuration provided to Apply must not be nil")))
+ Some(value) => do {
+  encoded <- adapter.marshal.json(value)
+  match encoded.error {
+   Some(error) => ioPure(outcome.failure(None,error))
+   None => match adapter.name(value) {
+    None => ioPure(outcome.failure(None,errors.errorNew("configuration.Name must be provided to Apply")))
+    Some(name) => do {
+     patchOptions <- meta.applyOptionsCallToPatchOptions(options)
+     result <- fakePatch(client,name,"application/apply-patch+yaml",encoded.value,patchOptions.1,subresources)
+     ioPure(outcome.from(Some(result.value),result.error))
+    }
+   }
+  }
+ }
+} }
+func fakeApply[T,C](client FakeClient[T], adapter ApplyAdapter[C], configuration Option[C], options meta.ApplyOptions) IO[outcome.Outcome[Option[T]]] { _fakeApply(client,adapter,configuration,options,[]) }
+func fakeApplyStatus[T,C](client FakeClient[T], adapter ApplyAdapter[C], configuration Option[C], options meta.ApplyOptions) IO[outcome.Outcome[Option[T]]] { _fakeApply(client,adapter,configuration,options,["status"]) }
+// Native slices are immutable; mutable element cells are explicit references.
+func toPointerSlice[T](values Option[List[T]]) IO[Option[List[sync.Ref[T]]]] { match values { None => ioPure(None); Some(values) => do { cells <- _pointerCells(values); ioPure(Some(cells)) } } }
+func _pointerCells[T](values List[T]) IO[List[sync.Ref[T]]] { match values { Nil => ioPure([]); Cons(value,rest) => do { cell <- sync.newRef(value); cells <- _pointerCells(rest); ioPure(Cons(cell,cells)) } } }
+func fromPointerSlice[T](values Option[List[sync.Ref[T]]]) IO[Option[List[T]]] { match values { None => ioPure(None); Some(values) => do { copied <- _pointerValues(values); ioPure(Some(copied)) } } }
+func _pointerValues[T](values List[sync.Ref[T]]) IO[List[T]] { match values { Nil => ioPure([]); Cons(cell,rest) => do { value <- sync.readRef(cell); copied <- _pointerValues(rest); ioPure(Cons(value,copied)) } } }

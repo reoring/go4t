@@ -2,49 +2,50 @@
 // Source: client-go v0.37.2 and exact external dependency declarations.
 // Kubernetes-derived declarations are licensed under Apache-2.0.
 // https://www.apache.org/licenses/LICENSE-2.0
-// Source graph SHA-256: 2e4efd1c862cc7bde1036ba0dc37a4fe08175d4ead5d513b32689e674b91d866
+// Source graph SHA-256: 99a062162cbc99a38896123a3e81ce3ef2f70f2e505fbd058751d52a0a40f167
 package v1alpha1
 
 import canonical "github.com/reoring/gofx/ports/client-go/deps/types"
 import support "github.com/reoring/gofx/ports/client-go/deps/support"
 
 alias SelfSubjectReview = canonical.SelfSubjectReview_7c78883ee842
-extern func newSelfSubjectReview() SelfSubjectReview = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".New_SelfSubjectReview_7c78883ee842
-extern func selfSubjectReviewGetTypeMeta(value SelfSubjectReview) canonical.TypeMeta_75fb8294fb08 = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Get_SelfSubjectReview_7c78883ee842_TypeMeta
-extern func selfSubjectReviewWithTypeMeta(value SelfSubjectReview, field canonical.TypeMeta_75fb8294fb08) SelfSubjectReview = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".With_SelfSubjectReview_7c78883ee842_TypeMeta
-extern func selfSubjectReviewGetObjectMeta(value SelfSubjectReview) canonical.ObjectMeta_b32a8e04e29a = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Get_SelfSubjectReview_7c78883ee842_ObjectMeta
-extern func selfSubjectReviewWithObjectMeta(value SelfSubjectReview, field canonical.ObjectMeta_b32a8e04e29a) SelfSubjectReview = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".With_SelfSubjectReview_7c78883ee842_ObjectMeta
-extern func selfSubjectReviewGetStatus(value SelfSubjectReview) canonical.SelfSubjectReviewStatus_edb4dec8fe62 = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Get_SelfSubjectReview_7c78883ee842_Status
-extern func selfSubjectReviewWithStatus(value SelfSubjectReview, field canonical.SelfSubjectReviewStatus_edb4dec8fe62) SelfSubjectReview = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".With_SelfSubjectReview_7c78883ee842_Status
+extern func newSelfSubjectReview() SelfSubjectReview = "github.com/reoring/gofx/ports/client-go/host/deps".New_SelfSubjectReview_7c78883ee842
+extern func selfSubjectReviewGetTypeMeta(value SelfSubjectReview) canonical.TypeMeta_75fb8294fb08 = "github.com/reoring/gofx/ports/client-go/host/deps".Get_SelfSubjectReview_7c78883ee842_TypeMeta
+extern func selfSubjectReviewWithTypeMeta(value SelfSubjectReview, field canonical.TypeMeta_75fb8294fb08) SelfSubjectReview = "github.com/reoring/gofx/ports/client-go/host/deps".With_SelfSubjectReview_7c78883ee842_TypeMeta
+extern func selfSubjectReviewGetObjectMeta(value SelfSubjectReview) canonical.ObjectMeta_b32a8e04e29a = "github.com/reoring/gofx/ports/client-go/host/deps".Get_SelfSubjectReview_7c78883ee842_ObjectMeta
+extern func selfSubjectReviewWithObjectMeta(value SelfSubjectReview, field canonical.ObjectMeta_b32a8e04e29a) SelfSubjectReview = "github.com/reoring/gofx/ports/client-go/host/deps".With_SelfSubjectReview_7c78883ee842_ObjectMeta
+extern func selfSubjectReviewGetStatus(value SelfSubjectReview) canonical.SelfSubjectReviewStatus_edb4dec8fe62 = "github.com/reoring/gofx/ports/client-go/host/deps".Get_SelfSubjectReview_7c78883ee842_Status
+extern func selfSubjectReviewWithStatus(value SelfSubjectReview, field canonical.SelfSubjectReviewStatus_edb4dec8fe62) SelfSubjectReview = "github.com/reoring/gofx/ports/client-go/host/deps".With_SelfSubjectReview_7c78883ee842_Status
 alias SelfSubjectReviewStatus = canonical.SelfSubjectReviewStatus_edb4dec8fe62
-extern func newSelfSubjectReviewStatus() SelfSubjectReviewStatus = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".New_SelfSubjectReviewStatus_edb4dec8fe62
-extern func selfSubjectReviewStatusGetUserInfo(value SelfSubjectReviewStatus) canonical.UserInfo_c5ffcfb623b7 = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Get_SelfSubjectReviewStatus_edb4dec8fe62_UserInfo
-extern func selfSubjectReviewStatusWithUserInfo(value SelfSubjectReviewStatus, field canonical.UserInfo_c5ffcfb623b7) SelfSubjectReviewStatus = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".With_SelfSubjectReviewStatus_edb4dec8fe62_UserInfo
-extern func selfSubjectReviewCallAPILifecycleDeprecated(value SelfSubjectReview) IO[(SelfSubjectReview, (Int, Int))] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_b727e27c1640b5b1
-extern func selfSubjectReviewCallAPILifecycleIntroduced(value SelfSubjectReview) IO[(SelfSubjectReview, (Int, Int))] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_32f4e617c03709fd
-extern func selfSubjectReviewCallAPILifecycleRemoved(value SelfSubjectReview) IO[(SelfSubjectReview, (Int, Int))] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_4e59e7848bf3133a
-extern func selfSubjectReviewCallDeepCopy(value SelfSubjectReview) IO[(SelfSubjectReview, Option[canonical.SelfSubjectReview_7c78883ee842])] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_4404a552a5b809d2
-extern func selfSubjectReviewCallDeepCopyInto(value SelfSubjectReview, p0 Option[canonical.SelfSubjectReview_7c78883ee842]) IO[(SelfSubjectReview, (Option[canonical.SelfSubjectReview_7c78883ee842], Unit))] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_cdc8370b3bf840ba
-extern func selfSubjectReviewCallDeepCopyObject(value SelfSubjectReview) IO[(SelfSubjectReview, Option[canonical.Object_afe2f0b1d210])] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_fdeb70293167bbf0
-extern func selfSubjectReviewCallMarshal(value SelfSubjectReview) IO[(SelfSubjectReview, (Option[String], Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_ac28b25a1d18666b
-extern func selfSubjectReviewCallMarshalTo(value SelfSubjectReview, p0 Option[String]) IO[(SelfSubjectReview, (Option[String], (Int, Option[support.Error])))] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_7e9da0c4e8aa4df6
-extern func selfSubjectReviewCallMarshalToSizedBuffer(value SelfSubjectReview, p0 Option[String]) IO[(SelfSubjectReview, (Option[String], (Int, Option[support.Error])))] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_cd43f60a465eef21
-extern func selfSubjectReviewCallOpenAPIModelName(value SelfSubjectReview) IO[(SelfSubjectReview, String)] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_601c4c671c372be1
-extern func selfSubjectReviewCallReset(value SelfSubjectReview) IO[(SelfSubjectReview, Unit)] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_c39041ae17598960
-extern func selfSubjectReviewCallSize(value SelfSubjectReview) IO[(SelfSubjectReview, Int)] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_efb327e59ae04745
-extern func selfSubjectReviewCallString(value SelfSubjectReview) IO[(SelfSubjectReview, String)] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_4650e748f18776cf
-extern func selfSubjectReviewCallSwaggerDoc(value SelfSubjectReview) IO[(SelfSubjectReview, support.ForeignMap[String, String])] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_b93a6b99a019bb8e
-extern func selfSubjectReviewCallUnmarshal(value SelfSubjectReview, p0 Option[String]) IO[(SelfSubjectReview, (Option[String], Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_16b453e46ab8d7ca
-extern func selfSubjectReviewStatusCallDeepCopy(value SelfSubjectReviewStatus) IO[(SelfSubjectReviewStatus, Option[canonical.SelfSubjectReviewStatus_edb4dec8fe62])] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_3469119240f50ef9
-extern func selfSubjectReviewStatusCallDeepCopyInto(value SelfSubjectReviewStatus, p0 Option[canonical.SelfSubjectReviewStatus_edb4dec8fe62]) IO[(SelfSubjectReviewStatus, (Option[canonical.SelfSubjectReviewStatus_edb4dec8fe62], Unit))] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_2078f42a2064498a
-extern func selfSubjectReviewStatusCallMarshal(value SelfSubjectReviewStatus) IO[(SelfSubjectReviewStatus, (Option[String], Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_5f82d857510af6d0
-extern func selfSubjectReviewStatusCallMarshalTo(value SelfSubjectReviewStatus, p0 Option[String]) IO[(SelfSubjectReviewStatus, (Option[String], (Int, Option[support.Error])))] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_edb9e9c077b2a628
-extern func selfSubjectReviewStatusCallMarshalToSizedBuffer(value SelfSubjectReviewStatus, p0 Option[String]) IO[(SelfSubjectReviewStatus, (Option[String], (Int, Option[support.Error])))] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_3801cf76aa468ba4
-extern func selfSubjectReviewStatusCallOpenAPIModelName(value SelfSubjectReviewStatus) IO[(SelfSubjectReviewStatus, String)] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_a99fd417d90a4a57
-extern func selfSubjectReviewStatusCallReset(value SelfSubjectReviewStatus) IO[(SelfSubjectReviewStatus, Unit)] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_debb2649a2ff6799
-extern func selfSubjectReviewStatusCallSize(value SelfSubjectReviewStatus) IO[(SelfSubjectReviewStatus, Int)] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_bd32bc37bc92eb12
-extern func selfSubjectReviewStatusCallString(value SelfSubjectReviewStatus) IO[(SelfSubjectReviewStatus, String)] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_2ccb3174fbc090e3
-extern func selfSubjectReviewStatusCallSwaggerDoc(value SelfSubjectReviewStatus) IO[(SelfSubjectReviewStatus, support.ForeignMap[String, String])] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_55e2312bf4e701d7
-extern func selfSubjectReviewStatusCallUnmarshal(value SelfSubjectReviewStatus, p0 Option[String]) IO[(SelfSubjectReviewStatus, (Option[String], Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_cb935c5f7643bac0
-extern func selfSubjectReviewFromRuntimeObject(value canonical.Object_afe2f0b1d210) Option[SelfSubjectReview] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Cast_SelfSubjectReview_7c78883ee842
-extern func selfSubjectReviewToRuntimeObject(value SelfSubjectReview) canonical.Object_afe2f0b1d210 = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Project_SelfSubjectReview_7c78883ee842
+extern func newSelfSubjectReviewStatus() SelfSubjectReviewStatus = "github.com/reoring/gofx/ports/client-go/host/deps".New_SelfSubjectReviewStatus_edb4dec8fe62
+extern func selfSubjectReviewStatusGetUserInfo(value SelfSubjectReviewStatus) canonical.UserInfo_c5ffcfb623b7 = "github.com/reoring/gofx/ports/client-go/host/deps".Get_SelfSubjectReviewStatus_edb4dec8fe62_UserInfo
+extern func selfSubjectReviewStatusWithUserInfo(value SelfSubjectReviewStatus, field canonical.UserInfo_c5ffcfb623b7) SelfSubjectReviewStatus = "github.com/reoring/gofx/ports/client-go/host/deps".With_SelfSubjectReviewStatus_edb4dec8fe62_UserInfo
+extern func selfSubjectReviewCallAPILifecycleDeprecated(value SelfSubjectReview) IO[(SelfSubjectReview, (Int, Int))] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_b727e27c1640b5b1
+extern func selfSubjectReviewCallAPILifecycleIntroduced(value SelfSubjectReview) IO[(SelfSubjectReview, (Int, Int))] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_32f4e617c03709fd
+extern func selfSubjectReviewCallAPILifecycleRemoved(value SelfSubjectReview) IO[(SelfSubjectReview, (Int, Int))] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_4e59e7848bf3133a
+extern func selfSubjectReviewCallDeepCopy(value SelfSubjectReview) IO[(SelfSubjectReview, Option[canonical.SelfSubjectReview_7c78883ee842])] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_4404a552a5b809d2
+extern func selfSubjectReviewCallDeepCopyInto(value SelfSubjectReview, p0 Option[canonical.SelfSubjectReview_7c78883ee842]) IO[(SelfSubjectReview, (Option[canonical.SelfSubjectReview_7c78883ee842], Unit))] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_cdc8370b3bf840ba
+extern func selfSubjectReviewCallDeepCopyObject(value SelfSubjectReview) IO[(SelfSubjectReview, Option[canonical.Object_afe2f0b1d210])] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_fdeb70293167bbf0
+extern func selfSubjectReviewCallMarshal(value SelfSubjectReview) IO[(SelfSubjectReview, (Option[String], Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_ac28b25a1d18666b
+extern func selfSubjectReviewCallMarshalTo(value SelfSubjectReview, p0 Option[String]) IO[(SelfSubjectReview, (Option[String], (Int, Option[support.Error])))] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_7e9da0c4e8aa4df6
+extern func selfSubjectReviewCallMarshalToSizedBuffer(value SelfSubjectReview, p0 Option[String]) IO[(SelfSubjectReview, (Option[String], (Int, Option[support.Error])))] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_cd43f60a465eef21
+extern func selfSubjectReviewCallOpenAPIModelName(value SelfSubjectReview) IO[(SelfSubjectReview, String)] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_601c4c671c372be1
+extern func selfSubjectReviewCallReset(value SelfSubjectReview) IO[(SelfSubjectReview, Unit)] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_c39041ae17598960
+extern func selfSubjectReviewCallSize(value SelfSubjectReview) IO[(SelfSubjectReview, Int)] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_efb327e59ae04745
+extern func selfSubjectReviewCallString(value SelfSubjectReview) IO[(SelfSubjectReview, String)] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_4650e748f18776cf
+extern func selfSubjectReviewCallSwaggerDoc(value SelfSubjectReview) IO[(SelfSubjectReview, support.ForeignMap[String, String])] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_b93a6b99a019bb8e
+extern func selfSubjectReviewCallUnmarshal(value SelfSubjectReview, p0 Option[String]) IO[(SelfSubjectReview, (Option[String], Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_16b453e46ab8d7ca
+extern func selfSubjectReviewStatusCallDeepCopy(value SelfSubjectReviewStatus) IO[(SelfSubjectReviewStatus, Option[canonical.SelfSubjectReviewStatus_edb4dec8fe62])] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_3469119240f50ef9
+extern func selfSubjectReviewStatusCallDeepCopyInto(value SelfSubjectReviewStatus, p0 Option[canonical.SelfSubjectReviewStatus_edb4dec8fe62]) IO[(SelfSubjectReviewStatus, (Option[canonical.SelfSubjectReviewStatus_edb4dec8fe62], Unit))] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_2078f42a2064498a
+extern func selfSubjectReviewStatusCallMarshal(value SelfSubjectReviewStatus) IO[(SelfSubjectReviewStatus, (Option[String], Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_5f82d857510af6d0
+extern func selfSubjectReviewStatusCallMarshalTo(value SelfSubjectReviewStatus, p0 Option[String]) IO[(SelfSubjectReviewStatus, (Option[String], (Int, Option[support.Error])))] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_edb9e9c077b2a628
+extern func selfSubjectReviewStatusCallMarshalToSizedBuffer(value SelfSubjectReviewStatus, p0 Option[String]) IO[(SelfSubjectReviewStatus, (Option[String], (Int, Option[support.Error])))] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_3801cf76aa468ba4
+extern func selfSubjectReviewStatusCallOpenAPIModelName(value SelfSubjectReviewStatus) IO[(SelfSubjectReviewStatus, String)] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_a99fd417d90a4a57
+extern func selfSubjectReviewStatusCallReset(value SelfSubjectReviewStatus) IO[(SelfSubjectReviewStatus, Unit)] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_debb2649a2ff6799
+extern func selfSubjectReviewStatusCallSize(value SelfSubjectReviewStatus) IO[(SelfSubjectReviewStatus, Int)] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_bd32bc37bc92eb12
+extern func selfSubjectReviewStatusCallString(value SelfSubjectReviewStatus) IO[(SelfSubjectReviewStatus, String)] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_2ccb3174fbc090e3
+extern func selfSubjectReviewStatusCallSwaggerDoc(value SelfSubjectReviewStatus) IO[(SelfSubjectReviewStatus, support.ForeignMap[String, String])] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_55e2312bf4e701d7
+extern func selfSubjectReviewStatusCallUnmarshal(value SelfSubjectReviewStatus, p0 Option[String]) IO[(SelfSubjectReviewStatus, (Option[String], Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_cb935c5f7643bac0
+extern func selfSubjectReviewObjectType() canonical.ObjectType[SelfSubjectReview] = "github.com/reoring/gofx/ports/client-go/host/deps".Descriptor_SelfSubjectReview_7c78883ee842
+extern func selfSubjectReviewFromRuntimeObject(value canonical.Object_afe2f0b1d210) Option[SelfSubjectReview] = "github.com/reoring/gofx/ports/client-go/host/deps".Cast_SelfSubjectReview_7c78883ee842
+extern func selfSubjectReviewToRuntimeObject(value SelfSubjectReview) canonical.Object_afe2f0b1d210 = "github.com/reoring/gofx/ports/client-go/host/deps".Project_SelfSubjectReview_7c78883ee842

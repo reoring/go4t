@@ -1,0 +1,41 @@
+// Copyright 2014 The Kubernetes Authors. Licensed under Apache-2.0.
+package api
+import "std/list"
+import "std/map"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import errors "github.com/reoring/gofx/ports/client-go/deps/support"
+type ConfigObject = InternalConfig(Config) | VersionedConfig(String,WireConfig)
+type Conversion = Conversion {toInternal:func(WireConfig,Config) IO[outcome.Outcome[Config]],fromInternal:func(Config,WireConfig) IO[outcome.Outcome[WireConfig]]}
+type Scheme = Scheme {versions:List[String],conversions:Map[String,Conversion],defaults:Map[String,func(WireConfig) WireConfig]}
+type SchemeBuilder = SchemeBuilder {steps:List[func(Scheme) Scheme]}
+func groupName() String { "" }
+func internalVersion() String { "__internal" }
+func newScheme() Scheme { Scheme(Nil,map.emptyMap(),map.emptyMap()) }
+func addVersion(value Scheme,version String) Scheme { value{versions:if list.elem(version,value.versions) { value.versions } else { Cons(version,value.versions) }} }
+func addToScheme(value Scheme) Scheme { addVersion(value,internalVersion()) }
+func schemeBuilder() SchemeBuilder { SchemeBuilder([addToScheme]) }
+func applySchemeBuilder(builder SchemeBuilder,scheme Scheme) Scheme { fold(builder.steps,scheme,func(value,step) => step(value)) }
+func recognizes(scheme Scheme,version String,kind String) Bool { kind == "Config" && list.elem(version,scheme.versions) }
+func registerConversion(scheme Scheme,version String,conversion Conversion) Scheme { scheme{conversions:map.mapInsert(scheme.conversions,version,conversion)} }
+func registerDefault(scheme Scheme,version String,defaultConfig func(WireConfig) WireConfig) Scheme { scheme{defaults:map.mapInsert(scheme.defaults,version,defaultConfig)} }
+func registerVersionConversions(scheme Scheme,version String) Scheme { registerConversion(scheme,version,Conversion(convertConfigToInternal,convertConfigFromInternal)) }
+func registerVersionDefaults(scheme Scheme,version String) Scheme { registerDefault(scheme,version,defaultWireConfig) }
+func _convertedValue[A](converted outcome.Outcome[A]) IO[A] { match converted.error { None => ioPure(converted.value); Some(error) => errors.raiseError(error) } }
+func newObject(scheme Scheme,version String,kind String) IO[ConfigObject] { if !recognizes(scheme,version,kind) { ioFail("no kind "+quoteJSON(kind)+" is registered for version "+quoteJSON(version)) } else if version == internalVersion() { ioPure(InternalConfig(emptyConfig())) } else { do { converted <- convertConfigFromInternal(emptyConfig(),emptyWireConfig()); wire <- _convertedValue(converted); ioPure(VersionedConfig(version,wire{apiVersion:version,kind:kind})) } } }
+func convert(scheme Scheme,value ConfigObject,target String) IO[ConfigObject] { do {
+ internal <- match value { InternalConfig(value) => deepCopyConfig(value); VersionedConfig(version,wire) => match map.mapLookup(scheme.conversions,version) { None => ioFail("no conversion registered for "+version); Some(conversion) => do { converted <- conversion.toInternal(wire,emptyConfig()); _convertedValue(converted) } } }
+ if target == internalVersion() { ioPure(InternalConfig(internal)) } else { match map.mapLookup(scheme.conversions,target) { None => ioFail("no conversion registered for "+target); Some(conversion) => do { converted <- conversion.fromInternal(internal,emptyWireConfig()); wire <- _convertedValue(converted); ioPure(VersionedConfig(target,wire{apiVersion:target,kind:"Config"})) } } }
+} }
+func defaultObject(scheme Scheme,value ConfigObject) ConfigObject { match value { InternalConfig(_) => value; VersionedConfig(version,wire) => match map.mapLookup(scheme.defaults,version) { None => value; Some(apply) => VersionedConfig(version,apply(wire)) } } }
+func decodeWithScheme(scheme Scheme,text String) IO[ConfigObject] { do {
+ json <- yamlToJSON(text)
+ wire <- decodeWireConfig(json)
+ let version = if wire.apiVersion == "" { "v1" } else { wire.apiVersion }
+ let kind = if wire.kind == "" { "Config" } else { wire.kind }
+ if !recognizes(scheme,version,kind) { ioFail("no kind "+quoteJSON(kind)+" is registered for version "+quoteJSON(version)) } else { ioPure(defaultObject(scheme,VersionedConfig(version,wire))) }
+} }
+func encodeWithScheme(scheme Scheme,value ConfigObject,version String) IO[String] { do {
+ converted <- convert(scheme,value,version)
+ match converted { InternalConfig(_) => ioFail("cannot serialize internal kubeconfig version"); VersionedConfig(_,wire) => do { json <- encodeWireConfig(wire); jsonToYAML(json) } }
+} }
+func standardScheme() Scheme { registerVersionDefaults(registerVersionConversions(addVersion(addToScheme(newScheme()),"v1"),"v1"),"v1") }

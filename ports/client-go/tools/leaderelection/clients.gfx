@@ -1,0 +1,48 @@
+// Copyright 2024-2026 The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package leaderelection
+import "kubernetes"
+import typed "kubernetes/typed/coordination/v1beta1"
+import generated "informers/coordination/v1beta1"
+import factories "informers/internalinterfaces"
+import beta "deps/k8s.io/api/coordination/v1beta1"
+import meta "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import runtime "deps/k8s.io/apimachinery/pkg/runtime"
+import coord "deps/k8s.io/api/coordination/v1"
+import errors "deps/support"
+import "tools/cache"
+import "support/outcome"
+import "support/sync"
+import queue "util/workqueue"
+import "std/map"
+import "features"
+
+func candidateClient(client typed.LeaseCandidateInterface) CandidateClient {
+ CandidateClient(func(value) => do { result <- client.create(value,meta.newCreateOptions()); ioPure(outcome.mapValue(result,func(object) => Some(object))) },func(value) => do { result <- client.update(value,meta.newUpdateOptions()); ioPure(outcome.mapValue(result,func(object) => Some(object))) })
+}
+func candidateInformer(raw cache.SharedInformer[runtime.Object],namespace String) IO[CandidateInformer] {
+ do {
+  let view = generated.toLeaseCandidateIndexInformer(raw)
+  registration <- sync.newRef(None)
+  ioPure(CandidateInformer(
+   func(name) => do {
+    result <- view.indexer.store.getByKey(if namespace == "" { name } else { namespace + "/" + name })
+    ioPure(match result.value { Some(_) => result; None => match result.error { Some(_) => result; None => outcome.failure(None,errors.errorNotFound("coordination.k8s.io","leasecandidates",name)) } })
+   },
+   func() => cache.run(raw),
+   func() => do { handler <- sync.readRef(registration); match handler { None => ioPure(false); Some(value) => cache.waitFor([cache.handlerDoneChecker(value,"leasecandidate")]) } },
+   func(callback) => do {
+    result <- cache.addTypedEventHandler(view,cache.resourceEventHandlerFuncs(None,Some(func(_old,value) => callback(value)),None))
+    match result.error { Some(_) => ioPure(result.error); None => do { sync.writeRef(registration,Some(result.value)); ioPure(None) } }
+   }
+  ))
+ }
+}
+func newCandidateForClient(registry features.FeatureRegistry,client kubernetes.Interface,namespace String,name String,leaseName String,binaryVersion String,emulationVersion String,strategy coord.CoordinatedLeaseStrategy,clock sync.Clock,metrics queue.MetricsRegistry) IO[outcome.Outcome[Option[(LeaseCandidate,CacheSyncWaiter)]]] {
+ do {
+  let indexers = map.mapFromList([("namespace",cache.namespaceIndex(cache.rawObjectAccess()))])
+  let options = factories.InformerOptions(requeueInterval(),indexers,None,Some(func(options) => ioPure(meta.listOptionsWithFieldSelector(options,"metadata.name=" + name))))
+  raw <- generated.newLeaseCandidateInformerWithOptions(registry,client,namespace,options)
+  informer <- candidateInformer(raw,namespace)
+  newCandidate(candidateClient(client.coordinationV1beta1().leaseCandidates(namespace)),informer,namespace,name,leaseName,binaryVersion,emulationVersion,strategy,clock,metrics)
+ }
+}

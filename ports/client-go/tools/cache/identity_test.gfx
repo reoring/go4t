@@ -1,0 +1,37 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package cache
+import "std/map"
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+import schema "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime/schema"
+
+func _identityTestResource(group String, version String, resource String) schema.GroupVersionResource {
+ schema.groupVersionResourceWithResource(schema.groupVersionResourceWithVersion(schema.groupVersionResourceWithGroup(schema.newGroupVersionResource(),group),version),resource)
+}
+func testInformerResourceReservationsDistinguishEveryGVRComponent() IO[Bool] {
+ do {
+  registry <- newInformerNameRegistry()
+  created <- newInformerName(registry,"resource-identities")
+  match created.value {
+   None => ioPure(false)
+   Some(name) => do {
+    deployments <- withResource(name,_identityTestResource("apps","v1","deployments"))
+    duplicate <- withResource(name,_identityTestResource("apps","v1","deployments"))
+    statefulSets <- withResource(name,_identityTestResource("apps","v1","statefulsets"))
+    newerVersion <- withResource(name,_identityTestResource("apps","v2","deployments"))
+    otherGroup <- withResource(name,_identityTestResource("extensions","v1","deployments"))
+    firstReserved <- informerReserved(deployments)
+    duplicateReserved <- informerReserved(duplicate)
+    otherResourceReserved <- informerReserved(statefulSets)
+    otherVersionReserved <- informerReserved(newerVersion)
+    otherGroupReserved <- informerReserved(otherGroup)
+    resources <- sync.readRef(name.resources)
+    releaseInformerName(name)
+    releasedFirst <- informerReserved(deployments)
+    releasedResource <- informerReserved(statefulSets)
+    releasedVersion <- informerReserved(newerVersion)
+    releasedGroup <- informerReserved(otherGroup)
+    ioPure(firstReserved && !duplicateReserved && otherResourceReserved && otherVersionReserved && otherGroupReserved && map.mapSize(resources) == 4 && !releasedFirst && !releasedResource && !releasedVersion && !releasedGroup)
+   }
+  }
+ }
+}

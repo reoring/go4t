@@ -1,0 +1,46 @@
+package dynamic
+import runtime "deps/k8s.io/apimachinery/pkg/runtime"
+
+// Copyright 2018 The Kubernetes Authors. Licensed under Apache-2.0.
+extern func jsonSerializer(creater runtime.ObjectCreater,typer runtime.ObjectTyper,pretty Bool) IO[runtime.Serializer] = "github.com/reoring/gofx/ports/client-go/dynamic/host".JSONSerializer
+extern func cborSerializer(creater runtime.ObjectCreater,typer runtime.ObjectTyper,transcode Option[Bool]) IO[runtime.Serializer] = "github.com/reoring/gofx/ports/client-go/dynamic/host".CBORSerializer
+extern func jsonFramer() IO[runtime.Framer] = "github.com/reoring/gofx/ports/client-go/dynamic/host".JSONFramer
+extern func cborFramer() IO[runtime.Framer] = "github.com/reoring/gofx/ports/client-go/dynamic/host".CBORFramer
+func jsonInfo(creater runtime.ObjectCreater,typer runtime.ObjectTyper,streamCreater runtime.ObjectCreater,streamTyper runtime.ObjectTyper) IO[runtime.SerializerInfo] {
+ do {
+  serializer <- jsonSerializer(creater,typer,false)
+  pretty <- jsonSerializer(creater,typer,true)
+  stream <- jsonSerializer(streamCreater,streamTyper,false)
+  framer <- jsonFramer()
+  streamInfo <- runtime.newStreamSerializerInfo()
+  runtime.streamSerializerInfoSetEncodesAsTextIdentity(streamInfo,true)
+  runtime.streamSerializerInfoSetSerializerIdentity(streamInfo,Some(stream))
+  runtime.streamSerializerInfoSetFramerIdentity(streamInfo,Some(framer))
+  info <- runtime.newSerializerInfo()
+  runtime.serializerInfoSetMediaTypeIdentity(info,"application/json")
+  runtime.serializerInfoSetMediaTypeTypeIdentity(info,"application")
+  runtime.serializerInfoSetMediaTypeSubTypeIdentity(info,"json")
+  runtime.serializerInfoSetEncodesAsTextIdentity(info,true)
+  runtime.serializerInfoSetSerializerIdentity(info,Some(serializer))
+  runtime.serializerInfoSetPrettySerializerIdentity(info,Some(pretty))
+  runtime.serializerInfoSetStreamSerializerIdentity(info,Some(streamInfo))
+  ioPure(info)
+ }
+}
+func cborInfo(creater runtime.ObjectCreater,typer runtime.ObjectTyper,streamCreater runtime.ObjectCreater,streamTyper runtime.ObjectTyper,transcode Bool) IO[runtime.SerializerInfo] {
+ do {
+  serializer <- cborSerializer(creater,typer,None)
+  stream <- cborSerializer(streamCreater,streamTyper,Some(transcode))
+  framer <- cborFramer()
+  streamInfo <- runtime.newStreamSerializerInfo()
+  runtime.streamSerializerInfoSetSerializerIdentity(streamInfo,Some(stream))
+  runtime.streamSerializerInfoSetFramerIdentity(streamInfo,Some(framer))
+  info <- runtime.newSerializerInfo()
+  runtime.serializerInfoSetMediaTypeIdentity(info,"application/cbor")
+  runtime.serializerInfoSetMediaTypeTypeIdentity(info,"application")
+  runtime.serializerInfoSetMediaTypeSubTypeIdentity(info,"cbor")
+  runtime.serializerInfoSetSerializerIdentity(info,Some(serializer))
+  runtime.serializerInfoSetStreamSerializerIdentity(info,Some(streamInfo))
+  ioPure(info)
+ }
+}

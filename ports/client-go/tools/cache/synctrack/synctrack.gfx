@@ -1,0 +1,30 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package synctrack
+
+import "std/map"
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+import "github.com/reoring/gofx/ports/client-go/support/outcome"
+
+type TrackerState[K] = TrackerState { waiting: Map[K,Unit], count: Int, upstream: Bool, synced: Bool }
+type AsyncTracker[K] = AsyncTracker { name: String, mutex: sync.Mutex, state: sync.Ref[TrackerState[K]], done: sync.Channel[Unit], compareKey: func(K,K) Ordering }
+type SingleFileTracker = SingleFileTracker { tracker: AsyncTracker[Int] }
+func newAsyncTrackerBy[K](name String, cmp func(K,K) Ordering) IO[AsyncTracker[K]] { do { mutex <- sync.newMutex(); state <- sync.newRef(TrackerState(map.emptyMap(),0,false,false)); done <- sync.newChannel(0); ioPure(AsyncTracker(name,mutex,state,done,cmp)) } }
+func newAsyncTracker[K Ord](name String) IO[AsyncTracker[K]] { newAsyncTrackerBy(name,func(a,b) => compare(a,b)) }
+func newSingleFileTracker(name String) IO[SingleFileTracker] { do { t <- newAsyncTracker(name); ioPure(SingleFileTracker(t)) } }
+func publish[K](t AsyncTracker[K], s TrackerState[K]) IO[Unit] { do { let complete = s.upstream && s.count == 0 && map.mapSize(s.waiting) == 0; if complete && !s.synced { sync.close(t.done) } else { ioPure(unit()) }; sync.writeRef(t.state,s { synced: s.synced || complete }) } }
+func start[K](t AsyncTracker[K], key K) IO[Unit] { sync.withLock(t.mutex,sync.uninterruptible(do { s <- sync.readRef(t.state); sync.writeRef(t.state,s { waiting: map.mapInsertBy(s.waiting,key,unit(),t.compareKey) }) })) }
+func finished[K](t AsyncTracker[K], key K) IO[Unit] { sync.withLock(t.mutex,sync.uninterruptible(do { s <- sync.readRef(t.state); publish(t,s { waiting: map.mapDeleteBy(s.waiting,key,t.compareKey) }) })) }
+func upstreamHasSynced[K](t AsyncTracker[K]) IO[Unit] { sync.withLock(t.mutex,sync.uninterruptible(do { s <- sync.readRef(t.state); publish(t,s { upstream: true }) })) }
+func hasSynced[K](t AsyncTracker[K]) IO[Bool] { sync.withLock(t.mutex,do { s <- sync.readRef(t.state); ioPure(s.synced) }) }
+func singleStart(t SingleFileTracker) IO[Unit] { sync.withLock(t.tracker.mutex,sync.uninterruptible(do { s <- sync.readRef(t.tracker.state); sync.writeRef(t.tracker.state,s { count: s.count+1 }) })) }
+func singleFinished(t SingleFileTracker) IO[Unit] { sync.withLock(t.tracker.mutex,sync.uninterruptible(do { s <- sync.readRef(t.tracker.state); if s.count <= 0 { ioFail("synctrack: negative counter; this logic error means HasSynced may return incorrect value") } else { publish(t.tracker,s { count: s.count-1 }) } })) }
+func singleUpstreamHasSynced(t SingleFileTracker) IO[Unit] { upstreamHasSynced(t.tracker) }
+func singleHasSynced(t SingleFileTracker) IO[Bool] { hasSynced(t.tracker) }
+func singleDone(t SingleFileTracker) sync.Channel[Unit] { t.tracker.done }
+
+type LazyEntry[A] = LazyEntry { mutex: sync.Mutex, value: sync.Ref[Option[A]] }
+type Lazy[A] = Lazy { mutex: sync.Mutex, current: sync.Ref[LazyEntry[A]], evaluate: func() IO[outcome.Outcome[A]] }
+func newEntry[A]() IO[LazyEntry[A]] { do { mutex <- sync.newMutex(); value <- sync.newRef(None); ioPure(LazyEntry(mutex,value)) } }
+func newLazy[A](evaluate func() IO[outcome.Outcome[A]]) IO[Lazy[A]] { do { entry <- newEntry(); mutex <- sync.newMutex(); current <- sync.newRef(entry); ioPure(Lazy(mutex,current,evaluate)) } }
+func notify[A](lazy Lazy[A]) IO[Unit] { do { entry <- newEntry(); sync.withLock(lazy.mutex,sync.writeRef(lazy.current,entry)) } }
+func get[A](lazy Lazy[A]) IO[outcome.Outcome[A]] { do { entry <- sync.withLock(lazy.mutex,sync.readRef(lazy.current)); sync.withLock(entry.mutex,do { current <- sync.readRef(entry.value); match current { Some(value) => ioPure(outcome.success(value)); None => do { result <- lazy.evaluate(); if outcome.isSuccess(result) { sync.writeRef(entry.value,Some(result.value)) } else { ioPure(unit()) }; ioPure(result) } } }) } }

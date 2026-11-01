@@ -1,0 +1,12 @@
+package dynamiclister
+import cache "tools/cache"
+import runtime "deps/k8s.io/apimachinery/pkg/runtime"
+import u "deps/k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+import v1 "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import outcome "support/outcome"
+// Copyright 2018 The Kubernetes Authors. Licensed under Apache-2.0.
+type RuntimeObjectLister = RuntimeObjectLister { list: func(cache.ListSelector) IO[outcome.Outcome[List[runtime.Object]]], get: func(String) IO[outcome.Outcome[Option[runtime.Object]]], byNamespace: func(String) RuntimeObjectNamespaceLister }
+type RuntimeObjectNamespaceLister = RuntimeObjectNamespaceLister { list: func(cache.ListSelector) IO[outcome.Outcome[List[runtime.Object]]], get: func(String) IO[outcome.Outcome[Option[runtime.Object]]] }
+func projectList(result outcome.Outcome[List[u.Unstructured]]) outcome.Outcome[List[runtime.Object]] { match result.error { Some(e) => outcome.failure([],e); None => outcome.success(map(result.value,u.unstructuredToRuntimeObject)) } }
+func projectObject(result outcome.Outcome[Option[u.Unstructured]]) outcome.Outcome[Option[runtime.Object]] { outcome.mapValue(result,func(value) => match value { None => None; Some(value) => Some(u.unstructuredToRuntimeObject(value)) }) }
+func newRuntimeObjectShim(lister Lister) RuntimeObjectLister { RuntimeObjectLister(func(selector) => do { result <- list(lister,selector); ioPure(projectList(result)) },func(name) => do { result <- get(lister,name); ioPure(projectObject(result)) },func(ns) => { let scoped = namespace(lister,ns); RuntimeObjectNamespaceLister(func(selector) => do { result <- namespaceList(scoped,selector); ioPure(projectList(result)) },func(name) => do { result <- namespaceGet(scoped,name); ioPure(projectObject(result)) }) }) }

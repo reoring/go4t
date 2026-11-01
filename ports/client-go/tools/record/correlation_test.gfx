@@ -1,0 +1,43 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+// Deterministic consumer traces derived from upstream events_cache_test.go.
+package record
+import "std/list"
+import core "github.com/reoring/gofx/ports/client-go/deps/k8s.io/api/core/v1"
+import meta "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import "github.com/reoring/gofx/ports/client-go/deps/support"
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+import internal "github.com/reoring/gofx/ports/client-go/tools/internal/events"
+func _traceEvent(message String) core.Event {
+ let ref = core.objectReferenceWithNamespace(core.objectReferenceWithName(core.objectReferenceWithKind(core.newObjectReference(),"Pod"),"pod"),"ns")
+ let source = core.eventSourceWithHost(core.eventSourceWithComponent(core.newEventSource(),"test"),"host")
+ let base = core.eventWithSource(core.eventWithInvolvedObject(core.newEvent(),ref),source)
+ let metadata = meta.objectMetaWithNamespace(meta.objectMetaWithName(meta.newObjectMeta(),"pod.first"),"ns")
+ core.eventWithType(core.eventWithReason(core.eventWithMessage(core.eventWithCount(core.eventWithObjectMeta(base,metadata),1),message),"Reason"),"Normal")
+}
+func testDuplicateCountAndServerStateTrace() IO[Bool] { do {
+ clock <- sync.fakeClock(1000000000000); c <- newEventCorrelator(clock)
+ let event = core.eventWithFirstTimestamp(_traceEvent("same"),internal.timestamp(1000000000000))
+ first <- eventCorrelate(c,Some(event))
+ let server = core.eventWithObjectMeta(event,meta.objectMetaWithResourceVersion(meta.objectMetaWithName(core.eventGetObjectMeta(event),"server-name"),"7"))
+ updateState(c,server)
+ sync.advance(clock,1000000000)
+ second <- eventCorrelate(c,Some(core.eventWithLastTimestamp(event,internal.timestamp(1001000000000))))
+ ioPure(match (first.value,second.value) {
+  (Some(firstResult),Some(secondResult)) => match (firstResult.event,secondResult.event) { (Some(a),Some(b)) => core.eventGetCount(a)==1 && core.eventGetCount(b)==2 && meta.objectMetaGetName(core.eventGetObjectMeta(b))=="server-name" && meta.objectMetaGetResourceVersion(core.eventGetObjectMeta(b))=="7" && secondResult.patch!=""; _ => false }
+  _ => false
+ })
+} }
+func _feed(c EventCorrelator, n Int) IO[Unit] { if n==0 { ioPure(unit()) } else { do { eventCorrelate(c,Some(_traceEvent(show(n)))); _feed(c,n-1) } } }
+func testDistinctMessagesAggregateAtTenTrace() IO[Bool] { do {
+ clock <- sync.fakeClock(1000000000000); c <- newEventCorrelator(clock)
+ _feed(c,9); result <- eventCorrelate(c,Some(_traceEvent("ten")))
+ ioPure(match result.value { Some(r) => match r.event { Some(e) => core.eventGetMessage(e)=="(combined from similar events): ten" && core.eventGetCount(e)==1; _ => false }; _ => false })
+} }
+func _burst(f EventSourceObjectSpamFilter, n Int) IO[Bool] { if n==0 { ioPure(true) } else { do { skipped <- filterEvent(f,_traceEvent("same")); rest <- _burst(f,n-1); ioPure(!skipped && rest) } } }
+func testBurstAndFiveMinuteRefillTrace() IO[Bool] { do {
+ clock <- sync.fakeClock(1000000000000); f <- newEventSourceObjectSpamFilter(4096,25,1.0/300.0,clock,getSpamKey)
+ accepted <- _burst(f,25); exhausted <- filterEvent(f,_traceEvent("same"))
+ sync.advance(clock,300000000000); refilled <- filterEvent(f,_traceEvent("same")); exhaustedAgain <- filterEvent(f,_traceEvent("same"))
+ ioPure(accepted && exhausted && !refilled && exhaustedAgain)
+} }
+func testNilCorrelationTrace() IO[Bool] { do { clock <- sync.fakeClock(0); c <- newEventCorrelator(clock); result <- eventCorrelate(c,None); ioPure(match result.error { None => false; Some(e) => support.errorMessage(e)=="event is nil" }) } }

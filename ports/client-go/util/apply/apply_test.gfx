@@ -1,0 +1,10 @@
+package apply
+
+// Copyright 2026 The Kubernetes Authors. Licensed under Apache-2.0.
+// Pinned util/apply/apply.go: both gates, not either gate, choose CBOR.
+func testAllApplyFeatureCombinations() Bool {
+ mediaType(false,false)=="application/apply-patch+yaml" &&
+ mediaType(false,true)=="application/apply-patch+yaml" &&
+ mediaType(true,false)=="application/apply-patch+yaml" &&
+ mediaType(true,true)=="application/apply-patch+cbor"
+}

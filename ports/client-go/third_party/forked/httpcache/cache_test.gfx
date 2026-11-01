@@ -1,0 +1,87 @@
+package httpcache
+import http "deps/net/http"
+import errors "deps/support"
+import sync "support/sync"
+import outcome "support/outcome"
+import transport "transport"
+import m "std/map"
+import l "std/list"
+
+extern func fixtureRequest(method String,url String) IO[http.Request] = "github.com/reoring/gofx/ports/client-go/third_party/forked/httpcache/host".FixtureRequest
+extern func fixtureResponse(raw String) IO[http.Response] = "github.com/reoring/gofx/ports/client-go/third_party/forked/httpcache/host".FixtureResponse
+extern func fixtureReadBody(response http.Response) IO[String] = "github.com/reoring/gofx/ports/client-go/third_party/forked/httpcache/host".FixtureReadBody
+extern func fixtureClose(response http.Response) IO[Unit] = "github.com/reoring/gofx/ports/client-go/third_party/forked/httpcache/host".FixtureClose
+func _h(values List[(String,String)]) Headers {fold(values,m.emptyMap(),func(result,pair) => setHeader(result,pair.0,pair.1))}
+func testFreshnessPrecedence() Bool {
+ let date="Mon, 02 Jan 2006 15:04:05 GMT"
+ let now=match _date(date) {Some(value) => value;None => 0}
+ let response=_h([("Date",date),("Cache-Control","max-age=60")])
+ getFreshness(response,m.emptyMap(),now+59000000000)==Fresh &&
+ getFreshness(response,m.emptyMap(),now+60000000000)==Stale &&
+ getFreshness(response,_h([("Cache-Control","no-cache, only-if-cached")]),now)==Transparent &&
+ getFreshness(_h([("Cache-Control","no-cache")]),_h([("Cache-Control","only-if-cached")]),now)==Stale &&
+ getFreshness(response,_h([("Cache-Control","max-age=120")]),now+90000000000)==Fresh &&
+ getFreshness(response,_h([("Cache-Control","min-fresh=10")]),now+55000000000)==Stale &&
+ getFreshness(response,_h([("Cache-Control","max-stale")]),now+999000000000)==Fresh
+}
+func testCacheControlVaryAndHopHeaders() Bool {
+ let headers=_h([("Vary","Accept, Accept-Language"),("X-Varied-Accept","application/json"),("X-Varied-Accept-Language","ja"),("Connection","Extra"),("Extra","hidden"),("Content-Type","application/json")])
+ let request=_h([("Accept","application/json"),("Accept-Language","ja")])
+ varyMatches(headers,request) && !varyMatches(headers,setHeader(request,"Accept","text/plain")) &&
+ !l.elem("Connection",getEndToEndHeaders(headers)) && !l.elem("Extra",getEndToEndHeaders(headers)) &&
+ l.elem("Content-Type",getEndToEndHeaders(headers)) &&
+ !canStore(parseCacheControl(_h([("Cache-Control","no-store")])),m.emptyMap()) &&
+ m.mapLookup(parseCacheControl(_h([("Cache-Control"," max-age =10, max-age=20, private")])),"max-age")==Some("20")
+}
+func testStaleOnErrorPrecedence() Bool {
+ let date="Mon, 02 Jan 2006 15:04:05 GMT"
+ let now=match _date(date) {Some(value) => value+2000000000;None => 0}
+ let response=_h([("Date",date),("Cache-Control","stale-if-error=10")])
+ canStaleOnError(response,m.emptyMap(),now) &&
+ !canStaleOnError(response,_h([("Cache-Control","stale-if-error=1")]),now) &&
+ !canStaleOnError(response,_h([("Cache-Control","stale-if-error=invalid")]),now) &&
+ canStaleOnError(response,_h([("Cache-Control","stale-if-error")]),now)
+}
+func testOnlyIfCachedMissAndEOFCommit() IO[Bool] {do {
+ clock <- sync.fakeClock(0)
+ count <- sync.newRef(0)
+ let base=transport.roundTripper(func(_) => do {n <- sync.readRef(count);sync.writeRef(count,n+1);response <- fixtureResponse("HTTP/1.1 200 OK\r\nCache-Control: max-age=60\r\nDate: Thu, 01 Jan 1970 00:00:00 GMT\r\nContent-Length: 4\r\n\r\nbody");ioPure(outcome.success(Some(response)))},func(_) => ioPure(unit()),func() => ioPure(unit()))
+ cache <- newMemoryCache()
+ let wrapper=newTransport(cache,base,clock)
+ request <- fixtureRequest("GET","http://example.test/schema?hash=one")
+ first <- roundTrip(wrapper,request)
+ before <- cache.get("http://example.test/schema?hash=one")
+ body <- match first.value {Some(response) => fixtureReadBody(response);None => ioPure("")}
+ stored <- cache.get("http://example.test/schema?hash=one")
+ second <- roundTrip(wrapper,request)
+ secondBody <- match second.value {Some(response) => fixtureReadBody(response);None => ioPure("")}
+ calls <- sync.readRef(count)
+ missing <- fixtureRequest("GET","http://example.test/missing")
+ transport.setRequestHeader(missing,"Cache-Control","only-if-cached")
+ miss <- roundTrip(wrapper,missing)
+ status <- match miss.value {Some(response) => transport.responseStatus(response);None => ioPure(0)}
+ ioPure(before==None && (match stored {Some(_) => true;None => false}) && body=="body" && secondBody=="body" && calls==1 && status==504)
+}}
+func testConditional304AndHashInvalidation() IO[Bool] {do {
+ clock <- sync.fakeClock(2000000000)
+ cache <- newMemoryCache()
+ request <- fixtureRequest("GET","http://example.test/schema?hash=old")
+ cache.set("http://example.test/schema?hash=old","HTTP/1.1 200 OK\r\nDate: Thu, 01 Jan 1970 00:00:00 GMT\r\nCache-Control: max-age=1\r\nEtag: old\r\nContent-Length: 4\r\n\r\nbody")
+ conditional <- sync.newRef("")
+ calls <- sync.newRef(0)
+ let base=transport.roundTripper(func(req) => do {
+  tag <- transport.requestHeader(req,"If-None-Match");sync.writeRef(conditional,tag)
+  n <- sync.readRef(calls);sync.writeRef(calls,n+1)
+  response <- fixtureResponse(if tag=="old" {"HTTP/1.1 304 Not Modified\r\nCache-Control: max-age=100\r\n\r\n"} else {"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\nnew"})
+  ioPure(outcome.success(Some(response)))
+ },func(_) => ioPure(unit()),func() => ioPure(unit()))
+ let wrapper=newTransport(cache,base,clock)
+ result <- roundTrip(wrapper,request)
+ tag <- sync.readRef(conditional)
+ body <- match result.value {Some(response) => fixtureReadBody(response);None => ioPure("")}
+ next <- fixtureRequest("GET","http://example.test/schema?hash=new")
+ updated <- roundTrip(wrapper,next)
+ newBody <- match updated.value {Some(response) => fixtureReadBody(response);None => ioPure("")}
+ count <- sync.readRef(calls)
+ ioPure(tag=="old" && body=="body" && newBody=="new" && count==2)
+}}

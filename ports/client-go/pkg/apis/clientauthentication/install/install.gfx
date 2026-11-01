@@ -1,0 +1,6 @@
+// Copyright 2018 The Kubernetes Authors. Licensed under Apache-2.0.
+package install
+import auth "github.com/reoring/gofx/ports/client-go/pkg/apis/clientauthentication"
+import v1 "github.com/reoring/gofx/ports/client-go/pkg/apis/clientauthentication/v1"
+import v1beta1 "github.com/reoring/gofx/ports/client-go/pkg/apis/clientauthentication/v1beta1"
+func install(scheme auth.Scheme) IO[Unit] { do { auth.addToScheme(scheme); v1.addToScheme(scheme); v1beta1.addToScheme(scheme) } }

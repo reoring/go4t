@@ -1,0 +1,15 @@
+// Copyright 2026 The Kubernetes Authors. Licensed under Apache-2.0.
+package testing
+import runtime "deps/k8s.io/apimachinery/pkg/runtime"
+
+// These nominal handles cross only the generic erased effect ABI. A key is a
+// caller-owned typed witness; independently allocated keys never interchange.
+type PayloadKey[A] = PayloadKeyHandle
+type Payload = PayloadHandle
+extern func newPayloadKey[A]() IO[PayloadKey[A]] = "github.com/reoring/gofx/ports/client-go/testing/host".NewPayloadKey
+extern func packPayload[A](key PayloadKey[A], value A) Payload = "github.com/reoring/gofx/ports/client-go/testing/host".PackPayload
+extern func payloadValue[A](key PayloadKey[A], payload Payload) Option[A] = "github.com/reoring/gofx/ports/client-go/testing/host".PayloadValue
+
+// Stable witness for pre-existing runtime.Object generic-action producers.
+// Arbitrary native payloads use their own fresh typed key instead.
+extern func runtimeObjectPayloadKey() PayloadKey[runtime.Object] = "github.com/reoring/gofx/ports/client-go/testing/host".RuntimeObjectPayloadKey

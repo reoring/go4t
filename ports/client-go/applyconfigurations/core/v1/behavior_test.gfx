@@ -1,0 +1,76 @@
+// Copyright The Kubernetes Authors. Licensed under Apache-2.0.
+package v1
+import map "std/map"
+import string "std/string"
+import external "deps/k8s.io/api/core/v1"
+import errors "deps/support"
+
+extern func _podFixture(raw String) IO[(Option[external.Pod],Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/applyconfigurations/host".PodFromJSON
+extern func _catchPanic(action func() Unit) Option[String] = "github.com/reoring/gofx/ports/client-go/applyconfigurations/host".CatchPanic
+extern func _diagnoseCBOR(value String) IO[(String,Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/applyconfigurations/host".Diagnose
+
+func testUnsetZeroMapMergeAndListAppend() IO[Bool] {
+ do {
+  empty <- podSpecMarshalJSON(podSpec())
+  zero <- podSpecMarshalJSON(podSpecWithTerminationGracePeriodSeconds(podSpec(),0))
+  let first = containerWithName(container(),"first")
+  let second = containerWithName(container(),"second")
+  let spec = podSpecWithContainers(podSpecWithContainers(podSpec(),[Some(first)]),[Some(second)])
+  appended <- podSpecMarshalJSON(spec)
+  let a = map.mapInsert(map.emptyMap(),"a","one")
+  let b = map.mapInsert(map.mapInsert(map.emptyMap(),"a","two"),"b","three")
+  merged <- configMapMarshalJSON(configMapWithData(configMapWithData(configMap("x","n"),Some(a)),Some(b)))
+  let nilMap = configMapWithData(configMap("x","n"),None)
+  let emptyMap = configMapWithData(nilMap,Some(map.emptyMap()))
+  nilEncoded <- configMapMarshalJSON(nilMap)
+  emptyEncoded <- configMapMarshalJSON(emptyMap)
+  ioPure(empty.value=="{}" && zero.value=="{\"terminationGracePeriodSeconds\":0}" && appended.value=="{\"containers\":[{\"name\":\"first\"},{\"name\":\"second\"}]}" && string.contains(merged.value,"\"data\":{\"a\":\"two\",\"b\":\"three\"}") && nilEncoded.value==emptyEncoded.value)
+ }
+}
+func testNilPointerBuilderError() Bool {
+ _catchPanic(func() => { let ignored = podSpecWithContainers(podSpec(),[None]); unit() }) == Some("nil value passed to WithContainers")
+}
+func testLastWriteAndIntegerPrecision() IO[Bool] {
+ do {
+  value <- podSpecMarshalJSON(podSpecWithTerminationGracePeriodSeconds(podSpecWithTerminationGracePeriodSeconds(podSpec(),1),9007199254740993))
+  binary <- podSpecMarshalCBOR(podSpecWithTerminationGracePeriodSeconds(podSpec(),9007199254740993))
+  diagnostic <- _diagnoseCBOR(binary.value)
+  ioPure(value.value=="{\"terminationGracePeriodSeconds\":9007199254740993}" && string.contains(diagnostic.0,"9007199254740993") && (match (binary.error,diagnostic.1) {(None,None) => true; _ => false}))
+ }
+}
+func testExtractionManagerSubresourceAndIdentity() IO[Bool] {
+ do {
+  decoded <- _podFixture("{\"apiVersion\":\"v1\",\"kind\":\"Pod\",\"metadata\":{\"name\":\"p\",\"namespace\":\"n\",\"managedFields\":[{\"manager\":\"alpha\",\"operation\":\"Apply\",\"apiVersion\":\"v1\",\"fieldsType\":\"FieldsV1\",\"fieldsV1\":{\"f:spec\":{\"f:nodeName\":{}}}},{\"manager\":\"beta\",\"operation\":\"Apply\",\"apiVersion\":\"v1\",\"fieldsType\":\"FieldsV1\",\"fieldsV1\":{\"f:spec\":{\"f:priority\":{}}}},{\"manager\":\"alpha\",\"operation\":\"Apply\",\"apiVersion\":\"v1\",\"subresource\":\"status\",\"fieldsType\":\"FieldsV1\",\"fieldsV1\":{\"f:status\":{\"f:phase\":{}}}}]},\"spec\":{\"nodeName\":\"worker\",\"priority\":5},\"status\":{\"phase\":\"Running\"}}")
+  match decoded.0 {
+   None => ioPure(false)
+   Some(object) => do {
+    main <- extractPod(object,"alpha")
+    status <- extractPodStatus(object,"alpha")
+    missing <- extractPodFrom(object,"absent","scale")
+    match (main.value,status.value,missing.value) {
+     (Some(a),Some(b),Some(c)) => do {
+      av <- podMarshalJSON(a)
+      bv <- podMarshalJSON(b)
+      cv <- podMarshalJSON(c)
+      ioPure(string.contains(av.value,"\"nodeName\":\"worker\"") && !string.contains(av.value,"priority") && !string.contains(av.value,"phase") && string.contains(bv.value,"\"phase\":\"Running\"") && !string.contains(bv.value,"nodeName") && cv.value=="{\"kind\":\"Pod\",\"apiVersion\":\"v1\",\"metadata\":{\"name\":\"p\",\"namespace\":\"n\"}}")
+     }
+     _ => ioPure(false)
+    }
+   }
+  }
+ }
+}
+func testBinaryMapBytesPreserveNilAndNonUTF8() IO[Bool] {
+ do {
+  let data = map.mapInsert(map.mapInsert(map.emptyMap(),"nil",None),"bytes",Some("\x00\xff"))
+  encoded <- configMapMarshalJSON(configMapWithBinaryData(configMap("x","n"),Some(data)))
+  ioPure(string.contains(encoded.value,"\"bytes\":\"AP8=\"") && string.contains(encoded.value,"\"nil\":null"))
+ }
+}
+func testNilAndEmptyCollectionsSurviveDecoding() IO[Bool] {
+ do {
+  nilValue <- podSpecUnmarshalJSON("{}")
+  emptyValue <- podSpecUnmarshalJSON("{\"containers\":[]}")
+  ioPure((match nilValue.value { Some(value) => match value.containers {None => true; _ => false}; _ => false}) && (match emptyValue.value { Some(value) => match value.containers {Some(Nil) => true; _ => false}; _ => false}))
+ }
+}

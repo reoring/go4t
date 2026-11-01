@@ -1,0 +1,24 @@
+package rest
+
+import runtime "deps/k8s.io/apimachinery/pkg/runtime"
+import outcome "support/outcome"
+import unstructured "deps/k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+
+// Copyright 2026 The Kubernetes Authors. Licensed under Apache-2.0.
+extern func alternateDecoderFixture(status String) IO[(runtime.Decoder,runtime.Object)] = "github.com/reoring/gofx/ports/client-go/rest/host".AlternateDecoderFixture
+func testIntoAlternateStatusSuccessPreservesDestination() IO[Bool] {
+ do {
+  fixture <- alternateDecoderFixture("Success")
+  result <- resultInto(ResponseResult("{}",[],"application/json",None,200,Some(fixture.0)),fixture.1)
+  equal <- equalObject(result.value,fixture.1)
+  ioPure(equal && outcome.isSuccess(result) && (match unstructured.unstructuredFromRuntimeObject(result.value) { None => false; Some(_) => true }))
+ }
+}
+func testIntoAlternateStatusFailurePreservesDestination() IO[Bool] {
+ do {
+  fixture <- alternateDecoderFixture("Failure")
+  result <- resultInto(ResponseResult("{}",[],"application/json",None,200,Some(fixture.0)),fixture.1)
+  equal <- equalObject(result.value,fixture.1)
+  ioPure(equal && !outcome.isSuccess(result) && (match unstructured.unstructuredFromRuntimeObject(result.value) { None => false; Some(_) => true }))
+ }
+}

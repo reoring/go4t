@@ -1,0 +1,71 @@
+// Copyright 2026 The Kubernetes Authors. Licensed under Apache-2.0.
+package cert
+import crypto "github.com/reoring/gofx/ports/client-go/deps/crypto"
+import x509 "github.com/reoring/gofx/ports/client-go/deps/crypto/x509"
+import pkix "github.com/reoring/gofx/ports/client-go/deps/crypto/x509/pkix"
+import tls "github.com/reoring/gofx/ports/client-go/deps/crypto/tls"
+import net "github.com/reoring/gofx/ports/client-go/deps/net"
+import os "github.com/reoring/gofx/ports/client-go/deps/os"
+import support "github.com/reoring/gofx/ports/client-go/deps/support"
+extern func newError(message String) support.Error = "github.com/reoring/gofx/ports/client-go/util/cert/host".Error
+extern func wrapError(message String, error support.Error) support.Error = "github.com/reoring/gofx/ports/client-go/util/cert/host".Wrap
+extern func errorText(error support.Error) String = "github.com/reoring/gofx/ports/client-go/util/cert/host".ErrorText
+extern func quote(text String) String = "github.com/reoring/gofx/ports/client-go/util/cert/host".Quote
+extern func isNotExist(error support.Error) Bool = "github.com/reoring/gofx/ports/client-go/util/cert/host".IsNotExist
+extern func apiErrorKind(error support.Error) String = "github.com/reoring/gofx/ports/client-go/util/cert/host".APIErrorKind
+extern func formatAPIError(prefix String, error support.Error) support.Error = "github.com/reoring/gofx/ports/client-go/util/cert/host".FormatAPIError
+extern func readFile(path String) IO[(String, Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/util/cert/host".ReadFile
+extern func writeFile(path String, bytes String, mode Int) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/util/cert/host".WriteFile
+extern func mkdir(path String) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/util/cert/host".Mkdir
+extern func parent(path String) String = "github.com/reoring/gofx/ports/client-go/util/cert/host".Parent
+extern func joinPath(a String, b String) String = "github.com/reoring/gofx/ports/client-go/util/cert/host".Join
+extern func absolute(path String) IO[(String, Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/util/cert/host".Absolute
+extern func readable(path String) IO[Bool] = "github.com/reoring/gofx/ports/client-go/util/cert/host".Readable
+extern func stat(path String, follow Bool) IO[(Int, Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/util/cert/host".Stat
+extern func remove(path String) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/util/cert/host".Remove
+extern func rename(source String, target String) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/util/cert/host".Rename
+extern func symlink(source String, target String) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/util/cert/host".Symlink
+extern func decodePEM(bytes String) Option[(String, (Int, (String, String)))] = "github.com/reoring/gofx/ports/client-go/util/cert/host".DecodePEM
+extern func encodePEM(blockType String, bytes String) String = "github.com/reoring/gofx/ports/client-go/util/cert/host".EncodePEM
+extern func parsePrivate(format String, bytes String) IO[(Option[crypto.PrivateKey], Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/util/cert/host".ParsePrivate
+extern func parsePublic(format String, bytes String) IO[(Option[crypto.PublicKey], Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/util/cert/host".ParsePublic
+extern func marshalPrivate(key crypto.PrivateKey) IO[(String, Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/util/cert/host".MarshalPrivate
+extern func generateEC() IO[(Option[crypto.PrivateKey], Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/util/cert/host".GenerateEC
+extern func generateRSA(bits Int) IO[(Option[crypto.PrivateKey], Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/util/cert/host".GenerateRSA
+extern func keyInfo(key crypto.PrivateKey) IO[(String, (Int, String))] = "github.com/reoring/gofx/ports/client-go/util/cert/host".KeyInfo
+extern func parseCertificate(bytes String) IO[(Option[x509.Certificate], Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/util/cert/host".ParseCertificate
+extern func certificateDER(certificate x509.Certificate) IO[String] = "github.com/reoring/gofx/ports/client-go/util/cert/host".CertificateDER
+extern func emptyPool() IO[x509.CertPool] = "github.com/reoring/gofx/ports/client-go/util/cert/host".NewPool
+extern func addCert(pool x509.CertPool, certificate x509.Certificate) IO[Unit] = "github.com/reoring/gofx/ports/client-go/util/cert/host".AddCert
+extern func parseCSRDER(bytes String) IO[(Option[x509.CertificateRequest], Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/util/cert/host".ParseCSR
+extern func createCSR(key crypto.PrivateKey, template x509.CertificateRequest, algorithm Int) IO[(String, Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/util/cert/host".MakeCSR
+extern func csrTemplate(subject pkix.Name, dns List[String], ips List[net.IP]) IO[x509.CertificateRequest] = "github.com/reoring/gofx/ports/client-go/util/cert/host".CSRTemplate
+extern func subjectEqual(a x509.CertificateRequest, b x509.CertificateRequest) IO[Bool] = "github.com/reoring/gofx/ports/client-go/util/cert/host".SubjectEqual
+extern func templateEqual(a Option[x509.CertificateRequest], b Option[x509.CertificateRequest]) IO[Bool] = "github.com/reoring/gofx/ports/client-go/util/cert/host".TemplateEqual
+extern func verifyCSRKey(template x509.CertificateRequest, key crypto.PrivateKey) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/util/cert/host".VerifyCSRKey
+extern func keyPair(cert String, key String) IO[(Option[tls.Certificate], Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/util/cert/host".KeyPair
+extern func leaf(certificate tls.Certificate) IO[Option[x509.Certificate]] = "github.com/reoring/gofx/ports/client-go/util/cert/host".Leaf
+extern func times(certificate x509.Certificate) IO[(Int, Int)] = "github.com/reoring/gofx/ports/client-go/util/cert/host".Times
+extern func certificateNames(certificate x509.Certificate, request Bool) IO[(String, (List[String], (List[String], List[String])))] = "github.com/reoring/gofx/ports/client-go/util/cert/host".Names
+extern func requestNames(request x509.CertificateRequest, isRequest Bool) IO[(String, (List[String], (List[String], List[String])))] = "github.com/reoring/gofx/ports/client-go/util/cert/host".Names
+extern func timestamp(nanos Int) String = "github.com/reoring/gofx/ports/client-go/util/cert/host".Timestamp
+extern func timeText(nanos Int) String = "github.com/reoring/gofx/ports/client-go/util/cert/host".TimeText
+extern func randomFraction() IO[Int] = "github.com/reoring/gofx/ports/client-go/util/cert/host".RandomFraction
+extern func serial() IO[Int] = "github.com/reoring/gofx/ports/client-go/util/cert/host".Serial
+extern func _signCertificate(subject String, org List[String], dns List[String], ips List[net.IP], before Int, after Int, isCA Bool, serial Int, key crypto.PrivateKey, parent Option[x509.Certificate], parentKey crypto.PrivateKey, keyUsage x509.KeyUsage, extKeyUsage List[x509.ExtKeyUsage], basicConstraintsValid Bool) IO[(Option[x509.Certificate], Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/util/cert/host".SignCertificate
+// Pinned util/cert/cert.go: CA usages are 1|4|32; serving usages are 1|4
+// with ServerAuth (1). These choices belong to native policy, not the signer.
+func signCertificate(subject String, org List[String], dns List[String], ips List[net.IP], before Int, after Int, isCA Bool, serial Int, key crypto.PrivateKey, parent Option[x509.Certificate], parentKey crypto.PrivateKey) IO[(Option[x509.Certificate], Option[support.Error])] {
+ let usages = x509.keyUsageFromValue(if isCA { 37 } else { 5 })
+ let extended = if isCA { [] } else { [x509.extKeyUsageFromValue(1)] }
+ _signCertificate(subject, org, dns, ips, before, after, isCA, serial, key, parent, parentKey, usages, extended, true)
+}
+extern func parseIP(text String) Option[net.IP] = "github.com/reoring/gofx/ports/client-go/util/cert/host".ParseIP
+extern func ipStrings(ips List[net.IP]) List[String] = "github.com/reoring/gofx/ports/client-go/util/cert/host".IPStrings
+extern func urlHost(url String) (String, Option[support.Error]) = "github.com/reoring/gofx/ports/client-go/util/cert/host".URLHost
+extern func inspect(address String, config tls.Config) IO[((List[String], List[x509.Certificate]), Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/util/cert/host".Inspect
+extern func openWrite(path String, mode Int) IO[(Option[os.File], Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/util/cert/host".OpenWrite
+extern func writeOpened(file os.File, bytes String) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/util/cert/host".WriteOpened
+extern func syncOpened(file os.File) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/util/cert/host".SyncOpened
+extern func closeOpened(file os.File) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/util/cert/host".CloseOpened
+extern func fileSyncError(path String, error support.Error) support.Error = "github.com/reoring/gofx/ports/client-go/util/cert/host".FileSyncError

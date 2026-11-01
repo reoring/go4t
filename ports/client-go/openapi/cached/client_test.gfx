@@ -1,0 +1,71 @@
+package cached
+import openapi "openapi"
+import sync "support/sync"
+import errors "deps/support"
+import outcome "support/outcome"
+import m "std/map"
+import files "openapi/openapitest"
+import io "std/io"
+
+func testPathsAndSchemaCacheErrorsOncePerMedia() IO[Bool] {do {
+ pathCalls <- sync.newRef(0)
+ schemaCalls <- sync.newRef(0)
+ urlCalls <- sync.newRef(0)
+ let group=openapi.GroupVersion{serverRelativeURL:func() => do {n <- sync.readRef(urlCalls);sync.writeRef(urlCalls,n+1);ioPure("/openapi/v3/api/v1?hash=one")},schema:func(media) => do {n <- sync.readRef(schemaCalls);sync.writeRef(schemaCalls,n+1);ioPure(if media=="application/json" {outcome.success("bytes")} else {outcome.failure("",errors.errorNew("unsupported media"))})}}
+ let delegate=openapi.Client{paths:func() => do {n <- sync.readRef(pathCalls);sync.writeRef(pathCalls,n+1);ioPure(outcome.success(m.mapFromList([("api/v1",group)])))}}
+ cache <- newClient(delegate)
+ first <- cache.paths()
+ second <- cache.paths()
+ match m.mapLookup(first.value,"api/v1") {
+  None => ioPure(false)
+  Some(value) => do {
+   a <- value.schema("application/json")
+   b <- value.schema("application/json")
+   c <- value.schema("application/invalid")
+   d <- value.schema("application/invalid")
+   paths <- sync.readRef(pathCalls)
+   schemas <- sync.readRef(schemaCalls)
+   beforeURL <- sync.readRef(urlCalls)
+   firstURL <- value.serverRelativeURL()
+   secondURL <- value.serverRelativeURL()
+   urls <- sync.readRef(urlCalls)
+   ioPure(paths==1 && schemas==2 && a.value=="bytes" && b.value=="bytes" && !outcome.isSuccess(c) && !outcome.isSuccess(d) && m.mapSize(second.value)==1 && beforeURL==0 && urls==2 && firstURL=="/openapi/v3/api/v1?hash=one" && secondURL==firstURL)
+  }
+ }
+}}
+func testPathErrorIsMemoized() IO[Bool] {do {
+ count <- sync.newRef(0)
+ cache <- newClient(openapi.Client{paths:func() => do {n <- sync.readRef(count);sync.writeRef(count,n+1);ioPure(outcome.failure(m.emptyMap(),errors.errorNew("failed discovery")))}})
+ first <- cache.paths()
+ second <- cache.paths()
+ calls <- sync.readRef(count)
+ ioPure(calls==1 && !outcome.isSuccess(first) && !outcome.isSuccess(second))
+}}
+func testCachedFakePreservesLazyURLPanic() IO[Bool] {do {
+ let group=files.fakeGroupVersion(files.FakeGroupVersion{gvSpec:"schema-bytes",forcedErr:None})
+ cache <- newClient(files.fakeClient(files.FakeClient{pathsMap:m.mapFromList([("api/v1",group)]),forcedErr:None}))
+ paths <- cache.paths()
+ match m.mapLookup(paths.value,"api/v1") {
+  None => ioPure(false)
+  Some(value) => do {
+   first <- value.schema("application/json")
+   failure <- io.tryIO(value.serverRelativeURL())
+   second <- value.schema("application/json")
+   again <- io.tryIO(value.serverRelativeURL())
+   ioPure(outcome.isSuccess(paths) && outcome.isSuccess(first) && first.value=="schema-bytes" && outcome.isSuccess(second) && second.value==first.value && (match failure {Err(io.Panic(message)) => message=="unimplemented";_ => false}) && (match again {Err(io.Panic(message)) => message=="unimplemented";_ => false}))
+  }
+ }
+}}
+func testCachedFilePreservesURLAndSchema() IO[Bool] {do {
+ cache <- newClient(files.newEmbeddedFileClient())
+ paths <- cache.paths()
+ match m.mapLookup(paths.value,"apis/networking.k8s.io/v1alpha1") {
+  None => ioPure(false)
+  Some(value) => do {
+   url <- value.serverRelativeURL()
+   first <- value.schema("application/json")
+   second <- value.schema("application/json")
+   ioPure(outcome.isSuccess(paths) && url=="apis__networking.k8s.io__v1alpha1_openapi.json" && outcome.isSuccess(first) && first.value!="" && outcome.isSuccess(second) && second.value==first.value)
+  }
+ }
+}}

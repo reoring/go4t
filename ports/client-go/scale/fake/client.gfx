@@ -1,0 +1,28 @@
+package fake
+
+import scale "scale"
+import testing "testing"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import a "deps/k8s.io/api/autoscaling/v1"
+import v1 "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import outcome "support/outcome"
+
+// Copyright 2017 The Kubernetes Authors. Licensed under Apache-2.0.
+type FakeScaleClient = FakeScaleClient { fake: testing.Fake }
+func newFakeScaleClient() IO[FakeScaleClient] { do { fake <- testing.newFake(); ioPure(FakeScaleClient(fake)) } }
+func interface(client FakeScaleClient) scale.ScalesGetter {
+ scale.ScalesGetter(func(namespace) => scale.ScaleInterface(func(resource,name,options) => get(client,namespace,resource,name,options),func(resource,object,options) => update(client,namespace,resource,object,options),func(resource,name,kind,data,options) => patch(client,namespace,resource,name,kind,data,options)))
+}
+func gvr(resource schema.GroupResource) schema.GroupVersionResource { schema.groupVersionResourceWithResource(schema.groupVersionResourceWithGroup(schema.newGroupVersionResource(),schema.groupResourceGetGroup(resource)),schema.groupResourceGetResource(resource)) }
+func invoke(client FakeScaleClient,action testing.Action) IO[outcome.Outcome[Option[a.Scale]]] {
+ do {
+  result <- testing.invokes(client.fake,action,Some(a.scaleToRuntimeObject(a.newScale())))
+  match result.error { Some(e) => ioPure(outcome.failure(None,e)); None => match result.value {
+   None => ioFail("interface conversion: runtime.Object is nil, not *v1.Scale")
+   Some(object) => match a.scaleFromRuntimeObject(object) { Some(value) => ioPure(outcome.success(Some(value))); None => ioFail("interface conversion: runtime.Object is not *v1.Scale") }
+  } }
+ }
+}
+func get(client FakeScaleClient,namespace String,resource schema.GroupResource,name String,_options v1.GetOptions) IO[outcome.Outcome[Option[a.Scale]]] { invoke(client,testing.newGetSubresourceActionWithOptions(gvr(resource),namespace,"scale",name,v1.newGetOptions())) }
+func update(client FakeScaleClient,namespace String,resource schema.GroupResource,object a.Scale,_options v1.UpdateOptions) IO[outcome.Outcome[Option[a.Scale]]] { invoke(client,testing.newUpdateSubresourceActionWithOptions(gvr(resource),"scale",namespace,a.scaleToRuntimeObject(object),v1.newUpdateOptions())) }
+func patch(client FakeScaleClient,namespace String,resource schema.GroupVersionResource,name String,patchType String,data String,_options v1.PatchOptions) IO[outcome.Outcome[Option[a.Scale]]] { invoke(client,testing.newPatchSubresourceActionWithOptions(resource,namespace,name,patchType,data,v1.newPatchOptions(),["scale"])) }

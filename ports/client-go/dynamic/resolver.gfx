@@ -1,0 +1,5 @@
+package dynamic
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+// Copyright 2018 The Kubernetes Authors. Licensed under Apache-2.0.
+alias APIPathResolverFunc = func(schema.GroupVersionKind) String
+func legacyAPIPathResolverFunc(kind schema.GroupVersionKind) String { if schema.groupVersionKindGetGroup(kind) == "" { "/api" } else { "/apis" } }

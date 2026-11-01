@@ -1,0 +1,43 @@
+package dynamicinformer
+
+import client "dynamic"
+import dynamic "dynamic"
+import cache "tools/cache"
+import sync "support/sync"
+import v1 "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import u "deps/k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import errors "deps/support"
+import outcome "support/outcome"
+import m "std/map"
+import features "features"
+
+// Copyright 2018 The Kubernetes Authors. Licensed under Apache-2.0.
+alias TweakListOptionsFunc = func(v1.ListOptions) IO[v1.ListOptions]
+alias SharedInformerFactory = Factory[u.Unstructured]
+func newFilteredInformer(registry features.FeatureRegistry,client client.Interface,gvr schema.GroupVersionResource,namespace String,resync Int,indexers Map[String,cache.IndexFunc[u.Unstructured]],tweak TweakListOptionsFunc,clock sync.Clock) IO[GenericInformer[u.Unstructured]] {
+ let resource = client.resource(gvr).namespace(namespace)
+ let access = dynamic.objectAccess(u.unstructuredObjectType())
+ let lw = cache.ListWatcher(func(options) => do {
+  options <- tweak(options)
+  result <- resource.list(options)
+  match result.error { Some(e) => ioPure(outcome.failure(cache.ListResult([],"",""),e)); None => match result.value {
+   None => ioPure(outcome.failure(cache.ListResult([],"",""),errors.errorNew("list returned no object")))
+   Some(value) => do { listing <- do { rv <- u.unstructuredListCallGetResourceVersion(value); continuation <- u.unstructuredListCallGetContinue(value); ioPure(cache.ListResult(match u.unstructuredListGetItems(value) { None => []; Some(items) => items },rv.1,continuation.1)) }; ioPure(outcome.success(listing)) }
+  } }
+ },func(options) => do { options <- tweak(options); resource.watch(options) },client.unsupportedWatchList,false)
+ do {
+  description <- schema.groupVersionResourceCallString(gvr)
+  let configuration = cache.defaultSharedConfiguration()
+  let options = cache.SharedIndexInformerOptions(resync,indexers,configuration{description: description.1,atomicFIFOGate: cache.threadSafeStoreOptionsWithFeatures(registry,None).atomicFIFO},false)
+  informer <- cache.newSharedIndexInformerWithOptions(lw,access,func(object) => dynamic.decodeTyped(u.unstructuredObjectType(),u.newUnstructured(),object),options,clock)
+  installed <- cache.setWatchListGate(informer,func() => do { gates <- features.featureGates(registry); gates.enabled(features.watchListClient()) })
+  match installed.error { None => ioPure(unit()); Some(error) => errors.raiseError(error) }
+  let gr = schema.groupResourceWithResource(schema.groupResourceWithGroup(schema.newGroupResource(),schema.groupVersionResourceGetGroup(gvr)),schema.groupVersionResourceGetResource(gvr))
+  ioPure(GenericInformer(informer,cache.newResourceLister(cache.getIndexer(informer),access,gr)))
+ }
+}
+func newFilteredSharedInformerFactory(registry features.FeatureRegistry,client client.Interface,resync Int,namespace String,tweak TweakListOptionsFunc,clock sync.Clock) IO[SharedInformerFactory] {
+ newFactory(func(gvr) => newFilteredInformer(registry,client,gvr,namespace,resync,m.mapInsert(m.emptyMap(),"namespace",cache.namespaceIndex(dynamic.objectAccess(u.unstructuredObjectType()))),tweak,clock),clock)
+}
+func newSharedInformerFactory(registry features.FeatureRegistry,client client.Interface,resync Int,clock sync.Clock) IO[SharedInformerFactory] { newFilteredSharedInformerFactory(registry,client,resync,"",func(options) => ioPure(options),clock) }

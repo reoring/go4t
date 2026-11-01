@@ -1,0 +1,27 @@
+package metadatalister
+import cache "tools/cache"
+import dynamic "dynamic"
+import u "deps/k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+import v1 "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import errors "deps/support"
+import outcome "support/outcome"
+import m "std/map"
+// Copyright 2026 The Kubernetes Authors. Licensed under Apache-2.0.
+// Pinned lister_test.go: namespace, raw keys, missing objects, runtime projection.
+func testNamespaceIsolationAndRuntimeProjection() IO[Bool] {
+ do {
+  let access = dynamic.objectAccess(v1.partialObjectMetadataObjectType())
+  indexer <- cache.newIndexer(access,m.mapInsert(m.emptyMap(),"namespace",cache.namespaceIndex(access)))
+  object <- ioPure(v1.partialObjectMetadataWithObjectMeta(v1.newPartialObjectMetadata(),v1.objectMetaWithNamespace(v1.objectMetaWithName(v1.newObjectMeta(),"one"),"team")))
+  _ <- indexer.store.add(object)
+  let gvr = schema.groupVersionResourceWithResource(schema.newGroupVersionResource(),"widgets")
+  let lister = newLister(indexer,gvr)
+  all <- list(lister,cache.everythingSelector())
+  team <- namespaceList(namespace(lister,"team"),cache.everythingSelector())
+  other <- namespaceList(namespace(lister,"other"),cache.everythingSelector())
+  raw <- newRuntimeObjectShim(lister).get("team/one")
+  missing <- namespaceGet(namespace(lister,"other"),"one")
+  ioPure(length(all.value)==1 && length(team.value)==1 && length(other.value)==0 && outcome.isSuccess(raw) && (match missing.error { None => false; Some(error) => errors.errorIsNotFound(error) }))
+ }
+}

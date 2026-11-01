@@ -1,0 +1,131 @@
+// Copyright 2018 The Kubernetes Authors. Licensed under Apache-2.0.
+package transport
+import http "github.com/reoring/gofx/ports/client-go/deps/net/http"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import string "std/string"
+import oauth "github.com/reoring/gofx/ports/client-go/deps/golang.org/x/oauth2"
+import io "std/io"
+extern func legacyOAuthCancelRequest(request http.Request) IO[Unit] = "github.com/reoring/gofx/ports/client-go/transport/host".LegacyOAuthCancelRequest
+
+// Canonical tokens preserve identity and OAuth extension fields through refresh.
+alias Token = oauth.Token
+extern func tokenExpiry(token Token) IO[Option[sync.Instant]] = "github.com/reoring/gofx/ports/client-go/transport/host".TokenExpiry
+extern func makeToken(access String, kind String, refresh String, expiry Option[sync.Instant]) IO[Token] = "github.com/reoring/gofx/ports/client-go/transport/host".MakeToken
+func fromOAuthTokenSource(source oauth.TokenSource) TokenSource {
+ TokenSource(func() => do { result <- oauth.tokenSourceCallTokenIdentity(source); ioPure(outcome.from(result.0, result.1)) })
+}
+type TokenSource = TokenSource {token: func() IO[outcome.Outcome[Option[Token]]]}
+type ResettableTokenSource = ResettableTokenSource {token: func() IO[outcome.Outcome[Option[Token]]], resetTokenOlderThan: func(sync.Instant) IO[Unit]}
+type TokenCacheState = TokenCacheState {token: Option[Token], acquired: Option[sync.Instant]}
+func tokenFresh(token Token, now sync.Instant, leeway Int) IO[Bool] {
+ do { expiry <- tokenExpiry(token); ioPure(match expiry { None => false; Some(value) => sync.instantComparison(sync.add(value, 0 - leeway), now) > 0 }) }
+}
+func newCachedTokenSourceWithClock(clock sync.Clock, leeway Int, base TokenSource) IO[ResettableTokenSource] {
+ do {
+  mutex <- sync.newMutex()
+  state <- sync.newRef(TokenCacheState(None, None))
+  ioPure(ResettableTokenSource(func() => sync.withLock(mutex, do {
+   current <- sync.readRef(state)
+   now <- sync.now(clock)
+   fresh <- match current.token { None => ioPure(false); Some(token) => tokenFresh(token, now, leeway) }
+   if fresh { ioPure(outcome.success(current.token)) } else { do {
+    loaded <- base.token()
+    match loaded.error {
+     Some(error) => if match current.token { None => true; Some(_) => false } { ioPure(loaded) } else { do { logEvent("Unable to rotate token", errorText(error)); ioPure(outcome.success(current.token)) } }
+     None => do { acquired <- sync.now(clock); sync.writeRef(state, TokenCacheState(loaded.value, Some(acquired))); ioPure(loaded) }
+    }
+   } }
+  }), func(before) => sync.withLock(mutex, do {
+   current <- sync.readRef(state)
+   if match current.acquired { None => false; Some(acquired) => sync.instantComparison(acquired, before) < 0 } {
+    sync.writeRef(state, TokenCacheState(None, None))
+   } else { ioPure(unit()) }
+  })))
+ }
+}
+func newCachedTokenSource(base TokenSource) IO[ResettableTokenSource] {
+ do { clock <- sync.realClock(); newCachedTokenSourceWithClock(clock, 0, base) }
+}
+func fileTokenSource(clock sync.Clock, path String, period Int) TokenSource {
+ TokenSource(func() => do {
+  result <- readFile(path)
+  match result {
+   (_, Some(error)) => ioPure(outcome.failure(None, newError("failed to read token file " + string.showQuoted(path) + ": " + errorText(error))))
+   (bytes, None) => {
+    let token = string.trim(bytesValue(bytes))
+    if token == "" { ioPure(outcome.failure(None, newError("read empty token from file " + string.showQuoted(path)))) } else { do {
+     now <- sync.now(clock)
+     value <- makeToken(token, "", "", Some(sync.add(now, period)))
+     ioPure(outcome.success(Some(value)))
+    } }
+   }
+  }
+ })
+}
+func newCachedFileTokenSourceWithClock(clock sync.Clock, path String) IO[ResettableTokenSource] {
+ newCachedTokenSourceWithClock(clock, 10000000000, fileTokenSource(clock, path, 60000000000))
+}
+func newCachedFileTokenSource(path String) IO[ResettableTokenSource] {
+ do { clock <- sync.realClock(); newCachedFileTokenSourceWithClock(clock, path) }
+}
+func tokenType(token Token) IO[String] { oauth.tokenCallTypeIdentity(token) }
+func tokenSourceWrapper(clock sync.Clock, source TokenSource, reset Option[func(sync.Instant) IO[Unit]]) WrapperFunc {
+ func(base) => {
+ let wrapped = layer(base, func(req) => do {
+  authorization <- requestHeader(req, "Authorization")
+  if authorization != "" { base.roundTrip(req) } else { do {
+   start <- sync.now(clock)
+   token <- source.token()
+   match token.error {
+    Some(error) => do { closeRequestBody(req); ioPure(outcome.failure(None, error)) }
+    None => match token.value {
+     None => do { closeRequestBody(req); io.ioRaise(io.Panic("runtime error: invalid memory address or nil pointer dereference")) }
+     Some(value) => do {
+      access <- oauth.tokenGetAccessTokenIdentity(value)
+      kind <- tokenType(value)
+      copy <- cloneRequest(req)
+      setRequestHeader(copy, "Authorization", kind + " " + access)
+      result <- base.roundTrip(copy)
+      match (result.error, result.value, reset) {
+       (None, Some(response), Some(resetToken)) => do { status <- responseStatus(response); if status == 401 { resetToken(start) } else { ioPure(unit()) } }
+       _ => ioPure(unit())
+      }
+      ioPure(result)
+     }
+    }
+   }
+  } }
+ })
+ wrapped {cancelRequest: func(req) => do { authorization <- requestHeader(req, "Authorization"); if authorization != "" { base.cancelRequest(req) } else { legacyOAuthCancelRequest(req) } }}
+ }
+}
+func tokenSourceWrapTransport(clock sync.Clock, source TokenSource) WrapperFunc { tokenSourceWrapper(clock, source, None) }
+func resettableTokenSourceWrapTransport(clock sync.Clock, source ResettableTokenSource) WrapperFunc {
+ tokenSourceWrapper(clock, TokenSource(source.token), Some(source.resetTokenOlderThan))
+}
+func bearerWithSource(token String, source ResettableTokenSource, base RoundTripper) RoundTripper {
+ layer(base, func(req) => do {
+  authorization <- requestHeader(req, "Authorization")
+  if authorization != "" { base.roundTrip(req) } else { do {
+   refreshed <- source.token()
+   bearer <- match (refreshed.error, refreshed.value) { (None, Some(value)) => oauth.tokenGetAccessTokenIdentity(value); _ => ioPure(token) }
+   copy <- cloneRequest(req)
+   setRequestHeader(copy, "Authorization", "Bearer " + bearer)
+   base.roundTrip(copy)
+  } }
+ })
+}
+func newBearerAuthWithRefreshRoundTripper(env Environment, bearer String, path String, base RoundTripper) IO[outcome.Outcome[Option[RoundTripper]]] {
+ if path == "" { ioPure(outcome.success(Some(newBearerAuthRoundTripper(bearer, base)))) } else { do {
+  source <- newCachedFileTokenSourceWithClock(env.clock, path)
+  if bearer != "" { ioPure(outcome.success(Some(bearerWithSource(bearer, source, base)))) } else { do {
+   initial <- source.token()
+   match (initial.error, initial.value) {
+    (Some(error), _) => ioPure(outcome.failure(None, error))
+    (None, Some(value)) => do { access <- oauth.tokenGetAccessTokenIdentity(value); ioPure(outcome.success(Some(bearerWithSource(access, source, base)))) }
+    _ => ioPure(outcome.failure(None, newError("token source returned no token")))
+   }
+  } }
+ } }
+}

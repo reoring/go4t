@@ -1,0 +1,38 @@
+package apply
+
+import rest "rest"
+import features "features"
+import outcome "support/outcome"
+import errors "deps/support"
+
+// Copyright 2024 The Kubernetes Authors.
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy at http://www.apache.org/licenses/LICENSE-2.0
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+
+// A native apply record supplies its typed codec; no dyn.Value erasure.
+type Marshal[A] = Marshal {
+ json: func(A) IO[outcome.Outcome[String]],
+ cbor: func(A) IO[outcome.Outcome[String]]
+}
+func mediaType(allowCBOR Bool,preferCBOR Bool) String {
+ if allowCBOR && preferCBOR { "application/apply-patch+cbor" } else { "application/apply-patch+yaml" }
+}
+func newRequest[A](client rest.Interface,configuration A,marshal Marshal[A],registry features.FeatureRegistry) IO[outcome.Outcome[Option[rest.Request]]] {
+ do {
+  gates <- features.featureGates(registry)
+  allow <- gates.enabled(features.clientsAllowCBOR())
+  prefer <- gates.enabled(features.clientsPreferCBOR())
+  encoded <- if allow && prefer { marshal.cbor(configuration) } else { marshal.json(configuration) }
+  match encoded.error {
+   Some(error) => ioPure(outcome.failure(None,errors.errorWrap("failed to marshal apply configuration",error)))
+   None => do {
+    request <- client.patch(mediaType(allow,prefer))
+    ioPure(outcome.success(Some(rest.bodyBytes(request,encoded.value))))
+   }
+  }
+ }
+}

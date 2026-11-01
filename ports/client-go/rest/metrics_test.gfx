@@ -1,0 +1,94 @@
+package rest
+
+import metrics "tools/metrics"
+import sync "support/sync"
+import errors "deps/support"
+import outcome "support/outcome"
+import flow "util/flowcontrol"
+
+// Copyright 2026 The Kubernetes Authors. Licensed under Apache-2.0.
+type MetricServer = MetricServerHandle
+extern func startMetricServer(replies List[(Int,(String,List[(String,String)]))]) IO[(MetricServer,(String,HTTPClient))] = "github.com/reoring/gofx/ports/client-go/rest/host".StartMetricServer
+extern func stopMetricServer(server MetricServer) IO[Unit] = "github.com/reoring/gofx/ports/client-go/rest/host".StopMetricServer
+type RecordedMetric = RecordedMetric { kind: String, code: String, verb: String, label: String, value: Float }
+type MetricRecorder = MetricRecorder { events: sync.Ref[List[RecordedMetric]], mutex: sync.Mutex }
+func newMetricRecorder() IO[MetricRecorder] { do { events <- sync.newRef([]); mutex <- sync.newMutex(); ioPure(MetricRecorder(events,mutex)) } }
+func recordMetric(recorder MetricRecorder,event RecordedMetric) IO[Unit] { sync.withLock(recorder.mutex,do { events <- sync.readRef(recorder.events); sync.writeRef(recorder.events,append(events,[event])) }) }
+func recordingOptions(recorder MetricRecorder,registered sync.Ref[Int]) metrics.RegisterOpts {
+ metrics.emptyOptions(){
+  requestResult: Some(metrics.ResultMetric(func(code,verb,host) => recordMetric(recorder,RecordedMetric("result",code,verb,host,0.0)))),
+  requestRetry: Some(metrics.RetryMetric(func(code,verb,host) => recordMetric(recorder,RecordedMetric("retry",code,verb,host,0.0)))),
+  requestSize: Some(metrics.SizeMetric(func(verb,host,size) => recordMetric(recorder,RecordedMetric("requestSize","",verb,host,size)))),
+  responseSize: Some(metrics.SizeMetric(func(verb,host,size) => recordMetric(recorder,RecordedMetric("responseSize","",verb,host,size)))),
+  requestLatency: Some(metrics.LatencyMetric(func(verb,url,nanos) => do { parts <- urlParts(url); query <- rawQuery(url); recordMetric(recorder,RecordedMetric("latency","",verb,parts.1.1+"?"+query,toFloat(nanos))) })),
+  rateLimiterLatency: Some(metrics.LatencyMetric(func(verb,url,nanos) => do { parts <- urlParts(url); recordMetric(recorder,RecordedMetric("throttle","",verb,parts.1.1,toFloat(nanos))) })),
+  resolverLatency: Some(metrics.ResolverLatencyMetric(func(host,nanos) => recordMetric(recorder,RecordedMetric("dns","","",host,toFloat(nanos))))),
+  registerFn: Some(func() => do { count <- sync.readRef(registered); sync.writeRef(registered,count+1) })
+ }
+}
+func metricKind(events List[RecordedMetric],kind String) List[RecordedMetric] { filter(events,func(event) => event.kind==kind) }
+func testMetricsObserveRealRetryAndLateRegistration() IO[Bool] {
+ let script = [(429,("busy",[("Content-Type","text/plain"),("Retry-After","0")])),(200,("ok",[("Content-Type","text/plain")]))]
+ sync.bracket(startMetricServer(script),func(session) => do {
+  request <- fixtureRequest(unusedHTTP)
+  let parsed = parseURL(session.1.0)
+  match parsed.0 {
+   None => ioFail("invalid loopback URL")
+   Some(base) => do {
+    recorder <- newMetricRecorder()
+    registered <- sync.newRef(0)
+    registry <- metrics.newRegistry()
+    // Attach before registering: subsequent observations must see registration.
+    client <- clientWithMetrics(request.client{base: base,basePath: "/",httpClient: session.1.1},registry,None)
+    metrics.register(registry,recordingOptions(recorder,registered))
+    let request = param(name(resource(namespace(request{client: client,pathPrefix: "/api/v1",verb: "POST",rateLimiter: Some(flow.newFakeAlwaysRateLimiter())},"secret-ns"),"pods"),"secret-name"),"resourceVersion","17")
+    result <- doRaw(maxRetries(bodyBytes(request,"abc"),1))
+    events <- sync.readRef(recorder.events)
+    count <- sync.readRef(registered)
+    let results = metricKind(events,"result")
+    let retries = metricKind(events,"retry")
+    let requests = metricKind(events,"requestSize")
+    let responses = metricKind(events,"responseSize")
+    let latencies = metricKind(events,"latency")
+    ioPure(result.value=="ok" && outcome.isSuccess(result) && count==1 &&
+     map(results,func(event) => event.code)==["429","200"] && map(retries,func(event) => event.code)==["200"] &&
+     map(requests,func(event) => event.value)==[3.0,3.0] && map(responses,func(event) => event.value)==[2.0] &&
+     length(metricKind(events,"throttle"))==2 && length(metricKind(events,"dns"))>=1 &&
+     map(latencies,func(event) => event.label)==["/api/v1/namespaces/{namespace}/pods/{name}?resourceVersion=%7Bvalue%7D"])
+   }
+  }
+ },func(session) => stopMetricServer(session.0))
+}
+func testMetricsPreflightFailureAndStreamingBoundaries() IO[Bool] {
+ do {
+  recorder <- newMetricRecorder()
+  registered <- sync.newRef(0)
+  registry <- metrics.newRegistry()
+  metrics.register(registry,recordingOptions(recorder,registered))
+  request <- fixtureRequest(func(_) => do { response <- responseFixture(200,"text/plain","stream",""); ioPure(outcome.success(Some(response))) })
+  client <- clientWithMetrics(request.client,registry,None)
+  failed <- doRaw(namespace(verb(request{client: client},"POST"),""))
+  first <- sync.readRef(recorder.events)
+  sync.writeRef(recorder.events,[])
+  streamed <- stream(request{client: client,rateLimiter: Some(flow.newFakeAlwaysRateLimiter())})
+  match streamed.value { None => ioPure(unit()); Some(body) => body.close() }
+  second <- sync.readRef(recorder.events)
+  ioPure(!outcome.isSuccess(failed) && length(first)==1 && length(metricKind(first,"latency"))==1 &&
+   length(metricKind(second,"result"))==1 && length(metricKind(second,"throttle"))==1 &&
+   length(metricKind(second,"latency"))==0 && length(metricKind(second,"requestSize"))==0 && length(metricKind(second,"responseSize"))==0)
+ }
+}
+func testMetricsTransportFailureUsesBoundedCode() IO[Bool] {
+ do {
+  recorder <- newMetricRecorder()
+  registered <- sync.newRef(0)
+  registry <- metrics.newRegistry()
+  metrics.register(registry,recordingOptions(recorder,registered))
+  request <- fixtureRequest(func(_) => ioPure(outcome.failure(None,errors.errorNew("unbounded arbitrary transport detail"))))
+  client <- clientWithMetrics(request.client,registry,None)
+  result <- doRaw(maxRetries(request{client: client},0))
+  events <- sync.readRef(recorder.events)
+  ioPure(!outcome.isSuccess(result) && map(metricKind(events,"result"),func(event) => event.code)==["<error>"] &&
+   length(metricKind(events,"retry"))==0 && length(metricKind(events,"latency"))==1 && length(metricKind(events,"responseSize"))==0)
+ }
+}

@@ -1,0 +1,32 @@
+// Copyright 2018 The Kubernetes Authors. Licensed under Apache-2.0.
+package transport
+import http "github.com/reoring/gofx/ports/client-go/deps/net/http"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import io "std/io"
+
+func testOAuthLegacyCancellationAndExplicitAuthDispatch() IO[Bool] { do {
+ clock <- sync.fakeClock(0)
+ cancelled <- sync.newRef(0)
+ let base = roundTripper(func(_) => ioPure(outcome.success(None)), func(_) => do { n <- sync.readRef(cancelled); sync.writeRef(cancelled, n + 1) }, func() => ioPure(unit()))
+ let source = TokenSource(func() => ioPure(outcome.success(None)))
+ let wrapper = tokenSourceWrapTransport(clock, source)(base)
+ request <- http.newRequest()
+ wrapper.cancelRequest(request)
+ provider <- sync.readRef(cancelled)
+ setRequestHeader(request, "Authorization", "Bearer explicit")
+ wrapper.cancelRequest(request)
+ direct <- sync.readRef(cancelled)
+ ioPure(provider == 0 && direct == 1)
+} }
+func testNilOAuthTokenClosesBodyAndRetainsPanicClass() IO[Bool] { do {
+ clock <- sync.fakeClock(0)
+ closed <- sync.newRef(false)
+ body <- fixtureBody(func() => sync.writeRef(closed, true))
+ request <- http.newRequest()
+ http.requestSetBodyIdentity(request, Some(body))
+ let source = TokenSource(func() => ioPure(outcome.success(None)))
+ result <- io.tryIO(tokenSourceWrapTransport(clock, source)(fixtureBase()).roundTrip(request))
+ wasClosed <- sync.readRef(closed)
+ ioPure(wasClosed && (match result { Err(io.Panic(_)) => true; _ => false }))
+} }

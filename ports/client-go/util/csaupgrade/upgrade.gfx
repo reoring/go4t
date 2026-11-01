@@ -1,0 +1,156 @@
+// Copyright 2022 The Kubernetes Authors. Licensed under Apache-2.0.
+// Source: client-go v0.37.2 util/csaupgrade/{upgrade,options}.go.
+package csaupgrade
+
+import list "std/list"
+import map "std/map"
+import prelude "std/prelude"
+import meta "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import runtime "deps/k8s.io/apimachinery/pkg/runtime"
+import fieldpath "deps/sigs.k8s.io/structured-merge-diff/v6/fieldpath"
+import errors "deps/support"
+import outcome "support/outcome"
+
+type Option = Subresource(String)
+func subresource(value String) Option { Subresource(value) }
+func _subresource(options List[Option]) String {
+ list.fold(options,"",func(_previous,option) => match option { Subresource(value) => value })
+}
+
+extern func _decode(entry meta.ManagedFieldsEntry) IO[(prelude.Option[fieldpath.SetGo],prelude.Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/util/csaupgrade/host".Decode
+extern func _encode(entry meta.ManagedFieldsEntry,fields fieldpath.SetGo) IO[(meta.ManagedFieldsEntry,prelude.Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/util/csaupgrade/host".Encode
+extern func _union(a fieldpath.SetGo,b fieldpath.SetGo) IO[fieldpath.SetGo] = "github.com/reoring/gofx/ports/client-go/util/csaupgrade/host".Union
+extern func _contains(a fieldpath.SetGo,b fieldpath.SetGo) IO[Bool] = "github.com/reoring/gofx/ports/client-go/util/csaupgrade/host".Contains
+extern func _read(object runtime.Object) IO[(prelude.Option[List[meta.ManagedFieldsEntry]],(String,prelude.Option[errors.Error]))] = "github.com/reoring/gofx/ports/client-go/util/csaupgrade/host".Read
+extern func _write(object runtime.Object,entries prelude.Option[List[meta.ManagedFieldsEntry]]) IO[(prelude.Option[runtime.Object],prelude.Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/util/csaupgrade/host".Write
+extern func _equal(a prelude.Option[List[meta.ManagedFieldsEntry]],b prelude.Option[List[meta.ManagedFieldsEntry]]) Bool = "github.com/reoring/gofx/ports/client-go/util/csaupgrade/host".Equal
+extern func _marshal(entries prelude.Option[List[meta.ManagedFieldsEntry]]) IO[(String,prelude.Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/util/csaupgrade/host".Marshal
+extern func _quote(value String) String = "github.com/reoring/gofx/ports/client-go/util/csaupgrade/host".Quote
+
+func _operation(entry meta.ManagedFieldsEntry) String { meta.managedFieldsOperationTypeValue(meta.managedFieldsEntryGetOperation(entry)) }
+func _matches(entry meta.ManagedFieldsEntry,manager String,operation String,resource String) Bool {
+ meta.managedFieldsEntryGetManager(entry) == manager && _operation(entry) == operation && meta.managedFieldsEntryGetSubresource(entry) == resource
+}
+func _find(entries List[meta.ManagedFieldsEntry],predicate func(meta.ManagedFieldsEntry) Bool) prelude.Option[meta.ManagedFieldsEntry] {
+ match entries { Nil => None; Cons(entry,rest) => if predicate(entry) { Some(entry) } else { _find(rest,predicate) } }
+}
+func findFieldsOwners(entries List[meta.ManagedFieldsEntry],operation meta.ManagedFieldsOperationType,fields fieldpath.SetGo) IO[List[meta.ManagedFieldsEntry]] {
+ match entries {
+  Nil => ioPure(Nil)
+  Cons(entry,rest) => do {
+   remaining <- findFieldsOwners(rest,operation,fields)
+   if _operation(entry) != meta.managedFieldsOperationTypeValue(operation) { ioPure(remaining) } else { do {
+    decoded <- _decode(entry)
+    match (decoded.0,decoded.1) {
+     (Some(owned),None) => do { contains <- _contains(owned,fields); ioPure(if contains { Cons(entry,remaining) } else { remaining }) }
+     _ => ioPure(remaining)
+    }
+   } }
+  }
+ }
+}
+func _merged(entries List[meta.ManagedFieldsEntry],target meta.ManagedFieldsEntry,csa String,resource String) IO[outcome.Outcome[prelude.Option[meta.ManagedFieldsEntry]]] {
+ do {
+  decoded <- _decode(target)
+  match (decoded.0,decoded.1) {
+   (_,Some(error)) => ioPure(outcome.failure(None,errors.errorWrap("failed to convert fields to set",error)))
+   (Some(targetSet),None) => do {
+    let candidate = _find(entries,func(entry) => _matches(entry,csa,"Update",resource) && meta.managedFieldsEntryGetAPIVersion(entry) == meta.managedFieldsEntryGetAPIVersion(target))
+    combined <- match candidate {
+     None => ioPure(outcome.success(Some(targetSet)))
+     Some(entry) => do {
+      source <- _decode(entry)
+      match (source.0,source.1) {
+       (_,Some(error)) => ioPure(outcome.failure(None,errors.errorWrap("failed to convert fields to set",error)))
+       (Some(sourceSet),None) => do { merged <- _union(targetSet,sourceSet); ioPure(outcome.success(Some(merged))) }
+       _ => ioPure(outcome.failure(None,errors.errorNew("failed to convert fields to set")))
+      }
+     }
+    }
+    match (combined.value,combined.error) {
+     (_,Some(error)) => ioPure(outcome.failure(None,error))
+     (Some(fields),None) => do {
+      encoded <- _encode(target,fields)
+      ioPure(match encoded.1 { None => outcome.success(Some(encoded.0)); Some(error) => outcome.failure(None,errors.errorWrap("failed to encode field set",error)) })
+     }
+     _ => ioPure(outcome.failure(None,errors.errorNew("failed to encode field set")))
+    }
+   }
+   _ => ioPure(outcome.failure(None,errors.errorNew("failed to convert fields to set")))
+  }
+ }
+}
+func _replaceFirst(entries List[meta.ManagedFieldsEntry],predicate func(meta.ManagedFieldsEntry) Bool,value meta.ManagedFieldsEntry) List[meta.ManagedFieldsEntry] {
+ match entries { Nil => Nil; Cons(entry,rest) => if predicate(entry) { Cons(value,rest) } else { Cons(entry,_replaceFirst(rest,predicate,value)) } }
+}
+func upgradedManagedFields(entries prelude.Option[List[meta.ManagedFieldsEntry]],csa String,ssa String,resource String) IO[outcome.Outcome[prelude.Option[List[meta.ManagedFieldsEntry]]]] {
+ match entries {
+  None => ioPure(outcome.success(None))
+  Some(values) => {
+   let existing = _find(values,func(entry) => _matches(entry,ssa,"Apply",resource))
+   let selected = match existing { Some(entry) => Some(entry); None => _find(values,func(entry) => _matches(entry,csa,"Update",resource)) }
+   match selected {
+    None => ioPure(outcome.success(entries))
+    Some(original) => do {
+     let target = match existing {
+      Some(entry) => entry
+      None => meta.managedFieldsEntryWithManager(meta.managedFieldsEntryWithOperation(original,meta.managedFieldsOperationTypeFromValue("Apply")),ssa)
+     }
+     let changed = _replaceFirst(values,func(entry) => match existing { Some(_) => _matches(entry,ssa,"Apply",resource); None => _matches(entry,csa,"Update",resource) },target)
+     merged <- _merged(changed,target,csa,resource)
+     ioPure(match (merged.value,merged.error) {
+      (_,Some(error)) => outcome.failure(None,error)
+      (Some(value),None) => outcome.success(Some(list.filter(_replaceFirst(changed,func(entry) => _matches(entry,ssa,"Apply",resource),value),func(entry) => !_matches(entry,csa,"Update",resource))))
+      _ => outcome.failure(None,errors.errorNew("failed to encode field set"))
+     })
+    }
+   }
+  }
+ }
+}
+func _upgradeAll(entries prelude.Option[List[meta.ManagedFieldsEntry]],names List[String],ssa String,resource String) IO[outcome.Outcome[prelude.Option[List[meta.ManagedFieldsEntry]]]] {
+ match names {
+  Nil => ioPure(outcome.success(entries))
+  Cons(name,rest) => do {
+   changed <- upgradedManagedFields(entries,name,ssa,resource)
+   match changed.error { Some(_) => ioPure(changed); None => _upgradeAll(changed.value,rest,ssa,resource) }
+  }
+ }
+}
+func _names(values List[String]) List[String] { map.mapKeys(list.fold(values,map.emptyMap(),func(acc,name) => map.mapInsert(acc,name,true))) }
+func upgradeManagedFields(object runtime.Object,csaManagers List[String],ssaManager String,options List[Option]) IO[outcome.Outcome[prelude.Option[runtime.Object]]] {
+ do {
+  original <- _read(object)
+  match original.1.1 {
+   Some(error) => ioPure(outcome.failure(None,error))
+   None => do {
+    upgraded <- _upgradeAll(original.0,_names(csaManagers),ssaManager,_subresource(options))
+    match upgraded.error {
+     Some(error) => ioPure(outcome.failure(None,error))
+     None => do { updated <- _write(object,upgraded.value); ioPure(outcome.from(updated.0,updated.1)) }
+    }
+   }
+  }
+ }
+}
+func upgradeManagedFieldsPatch(object runtime.Object,csaManagers List[String],ssaManager String,options List[Option]) IO[outcome.Outcome[prelude.Option[String]]] {
+ do {
+  original <- _read(object)
+  match original.1.1 {
+   Some(error) => ioPure(outcome.failure(None,error))
+   None => do {
+    upgraded <- _upgradeAll(original.0,_names(csaManagers),ssaManager,_subresource(options))
+    match upgraded.error {
+     Some(error) => ioPure(outcome.failure(None,error))
+     None => if _equal(original.0,upgraded.value) { ioPure(outcome.success(None)) } else { do {
+      encoded <- _marshal(upgraded.value)
+      ioPure(match encoded.1 {
+       Some(error) => outcome.failure(None,error)
+       None => outcome.success(Some("[{\"op\":\"replace\",\"path\":\"/metadata/managedFields\",\"value\":" + encoded.0 + "},{\"op\":\"replace\",\"path\":\"/metadata/resourceVersion\",\"value\":" + _quote(original.1.0) + "}]"))
+      })
+     } }
+    }
+   }
+  }
+ }
+}

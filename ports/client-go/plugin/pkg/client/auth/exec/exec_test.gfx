@@ -1,0 +1,98 @@
+// Copyright 2026 The Kubernetes Authors. Licensed under Apache-2.0.
+package exec
+import api "tools/clientcmd/api"
+import auth "pkg/apis/clientauthentication"
+import errors "deps/support"
+import http "deps/net/http"
+import "transport"
+import "support/sync"
+import "support/outcome"
+import fx "plugin/pkg/client/auth/internal/effects"
+import "std/string"
+import "std/io"
+
+func _testConfig() api.ExecConfig {api.newExecConfig(){command:"/controlled-fixture",apiVersion:"client.authentication.k8s.io/v1",interactiveMode:"Never"}}
+func _testAuthenticator(result outcome.Outcome[Option[Authenticator]]) IO[Authenticator] {match result.value {Some(a) => ioPure(a);None => ioFail("fixture authenticator creation failed")}}
+func _testWire(token String,expiration String) String {"{\"apiVersion\":\"client.authentication.k8s.io/v1\",\"kind\":\"ExecCredential\",\"status\":{\"token\":"+fx.quote(token)+(if expiration == "" {""} else {",\"expirationTimestamp\":"+fx.quote(expiration)})+"}}"}
+func _testEnvironment(clock sync.Clock,calls sync.Ref[Int],reply String) Environment {Environment(clock,func() => ioPure(false),func() => ioPure(["PARENT=kept"]),fx.prepare,func(command,env,interactive) => do {n <- sync.readRef(calls);sync.writeRef(calls,n+1);ioPure((reply,"",(0,None)))},None)}
+func testCachedCredentialExpirationAndReuse() IO[Bool] {do {
+ clock <- sync.fakeClock(0);calls <- sync.newRef(0);cache <- newCache()
+ let environment = _testEnvironment(clock,calls,_testWire("fixture-token","1970-01-01T00:00:01Z"))
+ first <- getAuthenticator(cache,environment,_testConfig(),None);a <- _testAuthenticator(first)
+ second <- getAuthenticator(cache,environment,_testConfig(),None);b <- _testAuthenticator(second)
+ one <- getCreds(a);two <- getCreds(b);before <- sync.readRef(calls)
+ sync.advance(clock,1000000000);_ <- getCreds(a);equalBoundary <- sync.readRef(calls)
+ sync.advance(clock,1);three <- getCreds(b);after <- sync.readRef(calls)
+ ioPure(before == 1 && equalBoundary == 1 && after == 2 && (match (one.value,two.value,three.value) {(Some(x),Some(y),Some(z)) => x.generation == y.generation && z.generation == x.generation+1;_ => false}))
+}}
+func testUnauthorizedRefreshOnlyOnceForGeneration() IO[Bool] {do {
+ clock <- sync.fakeClock(0);calls <- sync.newRef(0);cache <- newCache()
+ result <- getAuthenticator(cache,_testEnvironment(clock,calls,_testWire("fixture-token","")),_testConfig(),None);a <- _testAuthenticator(result)
+ creds <- getCreds(a)
+ match creds.value {None => ioPure(false);Some(c) => do {one <- maybeRefreshCreds(a,c);two <- maybeRefreshCreds(a,c);count <- sync.readRef(calls);ioPure(outcome.isSuccess(one) && outcome.isSuccess(two) && count == 2)}}
+}}
+func testAllInteractiveModes() IO[Bool] {
+ let config = _testConfig()
+ let never = isInteractive(config{interactiveMode:"Never",stdinUnavailable:true},true)
+ let optional = isInteractive(config{interactiveMode:"IfAvailable"},true)
+ let unavailable = isInteractive(config{interactiveMode:"IfAvailable",stdinUnavailable:true},true)
+ let required = isInteractive(config{interactiveMode:"Always"},false)
+ let forbidden = isInteractive(config{interactiveMode:"Always",stdinUnavailable:true,stdinUnavailableMessage:"fixture busy"},true)
+ let unknown = isInteractive(config{interactiveMode:"unknown"},true)
+ ioPure(!never.value && optional.value && !unavailable.value && (match (required.error,forbidden.error,unknown.error) {(Some(a),Some(b),Some(c)) => errors.errorMessage(a) == "standard input is not a terminal" && errors.errorMessage(b) == "standard input is unavailable: fixture busy" && errors.errorMessage(c) == "unknown interactiveMode: \"unknown\"";_ => false}))
+}
+func testPolicyNilEmptyAndNormalizedPaths() IO[Bool] {
+ let unspecified = validatePluginPolicy(api.PluginPolicy("Allowlist",None))
+ let empty = validatePluginPolicy(api.PluginPolicy("Allowlist",Some(Nil)))
+ let nonNormalized = validatePluginPolicy(api.PluginPolicy("Allowlist",Some([api.AllowlistEntry("a/../b")])))
+ let valid = validatePluginPolicy(api.PluginPolicy("Allowlist",Some([api.AllowlistEntry("/fixture")])))
+ let invalidNil = validatePluginPolicy(api.PluginPolicy("DenyAll",Some(Nil)))
+ ioPure(!outcome.isSuccess(unspecified) && !outcome.isSuccess(empty) && !outcome.isSuccess(nonNormalized) && outcome.isSuccess(valid) && !outcome.isSuccess(invalidNil))
+}
+func testExecInfoAndEnvironmentOrdering() IO[Bool] {do {
+ clock <- sync.fakeClock(0);calls <- sync.newRef(0);captured <- sync.newRef(Nil);cache <- newCache()
+ let base = _testEnvironment(clock,calls,_testWire("fixture-token",""))
+ let environment = base{run:func(command,env,interactive) => do {sync.writeRef(captured,env);ioPure((_testWire("fixture-token",""),"",(0,None)))}}
+ let config = _testConfig(){env:Some([api.ExecEnvVar("PARENT","override"),api.ExecEnvVar("KUBERNETES_EXEC_INFO","ignored")]),provideClusterInfo:true}
+ result <- getAuthenticator(cache,environment,config,Some(auth.newCluster(){server:"https://fixture.invalid"}));a <- _testAuthenticator(result);_ <- getCreds(a)
+ env <- sync.readRef(captured)
+ ioPure(match env {Cons("PARENT=kept",Cons("PARENT=override",Cons("KUBERNETES_EXEC_INFO=ignored",Cons(info,Nil)))) => string.startsWith(info,"KUBERNETES_EXEC_INFO=") && string.contains(info,"https://fixture.invalid") && string.contains(info,"\"interactive\":false");_ => false})
+}}
+func _testBadOutput(reply String) IO[Bool] {do {clock <- sync.fakeClock(0);calls <- sync.newRef(0);cache <- newCache();result <- getAuthenticator(cache,_testEnvironment(clock,calls,reply),_testConfig(),None);a <- _testAuthenticator(result);one <- getCreds(a);two <- getCreds(a);count <- sync.readRef(calls);ioPure(!outcome.isSuccess(one) && !outcome.isSuccess(two) && count == 2)}}
+func testMalformedMissingStatusAndVersionMismatch() IO[Bool] {do {
+ malformed <- _testBadOutput("not-json")
+ missing <- _testBadOutput("{\"apiVersion\":\"client.authentication.k8s.io/v1\",\"kind\":\"ExecCredential\"}")
+ version <- _testBadOutput("{\"apiVersion\":\"client.authentication.k8s.io/v1beta1\",\"kind\":\"ExecCredential\",\"status\":{\"token\":\"fixture\"}}")
+ pair <- _testBadOutput("{\"apiVersion\":\"client.authentication.k8s.io/v1\",\"kind\":\"ExecCredential\",\"status\":{\"clientCertificateData\":\"fixture\"}}")
+ ioPure(malformed && missing && version && pair)
+}}
+func testFailedExecDoesNotExposeStdoutSecret() IO[Bool] {do {
+ clock <- sync.fakeClock(0);calls <- sync.newRef(0);cache <- newCache()
+ let base = _testEnvironment(clock,calls,"")
+ let env = base{run:func(command,environment,interactive) => ioPure(("TOP-SECRET-STDOUT","exit",(19,Some(fx.errorText("exit status 19")))))}
+ result <- getAuthenticator(cache,env,_testConfig(),None);a <- _testAuthenticator(result);creds <- getCreds(a)
+ ioPure(match creds.error {None => false;Some(error) => errors.errorMessage(error) == "exec: executable /controlled-fixture failed with exit code 19" && !string.contains(errors.errorMessage(error),"TOP-SECRET")})
+}}
+func testExplicitAuthorizationSkipsExecAndRequestRemainsUnchanged() IO[Bool] {do {
+ clock <- sync.fakeClock(0);calls <- sync.newRef(0);cache <- newCache()
+ result <- getAuthenticator(cache,_testEnvironment(clock,calls,_testWire("fixture-token","")),_testConfig(),None);a <- _testAuthenticator(result)
+ request <- http.newRequest();transport.setRequestHeader(request,"Authorization","Bearer explicit")
+ response <- http.newResponse();http.responseSetStatusCodeIdentity(response,200)
+ let base = transport.roundTripper(func(r) => ioPure(outcome.success(Some(response))),func(r) => ioPure(unit()),func() => ioPure(unit()))
+ _ <- roundTrip(a,base,request);count <- sync.readRef(calls);header <- transport.requestHeader(request,"Authorization")
+ ioPure(count == 0 && header == "Bearer explicit")
+}}
+func testControlledRealProcessFailure() IO[Bool] {do {
+ // This fixture executes only a fixed shell program, never user kubeconfig.
+ command <- fx.prepare("/bin/sh",["-c","exit 7"])
+ result <- fx.run(command,Nil,false)
+ ioPure(match result {(_,"exit",(7,Some(_))) => true;_ => false})
+}}
+func testExecCancellationPropagates() IO[Bool] {do {
+ clock <- sync.fakeClock(0);calls <- sync.newRef(0);cache <- newCache()
+ let base = _testEnvironment(clock,calls,"")
+ let env = base{run:func(command,environment,interactive) => io.ioRaise(io.Cancelled)}
+ result <- getAuthenticator(cache,env,_testConfig(),None);a <- _testAuthenticator(result)
+ canceled <- io.tryIO(getCreds(a))
+ ioPure(match canceled {Err(io.Cancelled) => true;_ => false})
+}}

@@ -1,0 +1,23 @@
+// Copyright 2021 The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package events
+import fields "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/fields"
+import schema "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime/schema"
+import types "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/types"
+import "github.com/reoring/gofx/ports/client-go/deps/support"
+import "github.com/reoring/gofx/ports/client-go/support/outcome"
+func _groupVersion(group String, version String) String { if group=="" { version } else { group+"/"+version } }
+func _field(fields support.ForeignMap[String,String], key String, value String) support.ForeignMap[String,String] { if value=="" { fields } else { support.mapWith(fields,key,value) } }
+func getFieldSelector(eventsVersion schema.GroupVersion, regarding schema.GroupVersionKind, name String, uid types.UID) IO[outcome.Outcome[Option[fields.Selector]]] {
+ let group = schema.groupVersionGetGroup(eventsVersion)
+ let version = schema.groupVersionGetVersion(eventsVersion)
+ let prefix = if group=="" && version=="v1" { Some("involvedObject") } else { if group=="events.k8s.io" && (version=="v1" || version=="v1beta1") { Some("regarding") } else { None } }
+ match prefix { None => ioPure(outcome.Outcome(None,Some(support.errorNew("unknown version "+_groupVersion(group,version))))); Some(prefix) => do {
+  let empty = support.mapEmpty(fields.setGoValue(fields.newSetGo()))
+  let named = _field(empty,prefix+".name",name)
+  let kinded = _field(named,prefix+".kind",schema.groupVersionKindGetKind(regarding))
+  let versioned = _field(kinded,prefix+".apiVersion",_groupVersion(schema.groupVersionKindGetGroup(regarding),schema.groupVersionKindGetVersion(regarding)))
+  let identified = _field(versioned,prefix+".uid",types.uidValue(uid))
+  result <- fields.setGoCallAsSelector(fields.setGoFromValue(identified))
+  ioPure(outcome.Outcome(result.1,None))
+ } }
+}

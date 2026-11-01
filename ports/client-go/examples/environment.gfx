@@ -1,0 +1,35 @@
+package examples
+
+// Copyright 2026 The gofx Authors. SPDX-License-Identifier: Apache-2.0
+// Explicit native composition; does not read kubeconfig or service-account files.
+import rest "rest"
+import transport "transport"
+import features "features"
+import auth "plugin/pkg/client/auth"
+import exec "plugin/pkg/client/auth/exec"
+import sync "support/sync"
+import flow "util/flowcontrol"
+import errors "deps/support"
+import outcome "support/outcome"
+
+func environment() IO[rest.Environment] {
+ do {
+  registry <- features.newFeatureRegistry(features.Environment(func(_) => ioPure(None),func(message) => ioFail(message)))
+  transportEnv <- transport.newEnvironment(registry)
+  clock <- sync.realClock()
+  providers <- rest.newAuthProviderRegistry()
+  cache <- exec.newCache()
+  execEnv <- exec.newEnvironment()
+  ioPure(rest.newEnvironment(transportEnv,registry,auth.authentication(providers,cache,execEnv),clock,rest.warningLogger(func(message) => eprintln(message)),func(qps,burst) => flow.newTokenBucketRateLimiterWithClock(qps,burst,clock)))
+ }
+}
+func require[A](result outcome.Outcome[A]) IO[A] {
+ match result.error { Some(error) => ioFail(errors.errorMessage(error)); None => ioPure(result.value) }
+}
+func present[A](result outcome.Outcome[Option[A]]) IO[A] {
+ do { value <- require(result); match value { Some(value) => ioPure(value); None => ioFail("successful operation returned no value") } }
+}
+func check(condition Bool,message String) IO[Unit] { if condition { ioPure(unit()) } else { ioFail(message) } }
+func config(host String) rest.Config {
+ rest.emptyConfig(){host: host,qps: -1.0,userAgent: "gofx-client-go-oracle/1",timeout: 10000000000,contentConfig: rest.emptyContentConfig(){contentType: "application/json",acceptContentTypes: "application/json"}}
+}

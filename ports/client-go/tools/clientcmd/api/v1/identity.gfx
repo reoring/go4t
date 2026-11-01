@@ -1,0 +1,7 @@
+// Copyright 2014 The Kubernetes Authors. Licensed under Apache-2.0.
+package v1
+import api "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api"
+func convertAuthProviderConfigToInternal(value AuthProviderConfig) api.AuthProviderConfig { value }
+func convertAuthProviderConfigFromInternal(value api.AuthProviderConfig) AuthProviderConfig { value }
+func convertExecEnvVarToInternal(value ExecEnvVar) api.ExecEnvVar { value }
+func convertExecEnvVarFromInternal(value api.ExecEnvVar) ExecEnvVar { value }

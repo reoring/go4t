@@ -14,57 +14,58 @@ type Context = ContextHandle
 type Cancel = CancelHandle
 type Poll[A] = Pending | Received(A) | Closed
 
-extern func newRef[A](value A) IO[Ref[A]] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".NewRef
-extern func readRef[A](ref Ref[A]) IO[A] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".ReadRef
-extern func writeRef[A](ref Ref[A], value A) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".WriteRef
-extern func sameRef[A](a Ref[A], b Ref[A]) Bool = "github.com/reoring/gofx/ports/client-go/internal/hostsync".SameRef
-extern func newMutex() IO[Mutex] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".NewMutex
-extern func withLock[A](mutex Mutex, action IO[A]) IO[A] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".WithLock
-extern func newCondition(mutex Mutex) IO[Condition] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".NewCondition
-extern func wait(condition Condition) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".Wait
-extern func signal(condition Condition) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".Signal
-extern func broadcast(condition Condition) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".Broadcast
-extern func newChannel[A](capacity Int) IO[Channel[A]] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".NewChannel
-extern func send[A](channel Channel[A], value A) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".Send
-extern func receive[A](channel Channel[A]) IO[Option[A]] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".Receive
-extern func _tryReceiveRaw[A](channel Channel[A]) IO[(Bool, Option[A])] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".TryReceiveRaw
+extern func newRef[A](value A) IO[Ref[A]] = "github.com/reoring/gofx/ports/client-go/host/sync".NewRef
+extern func readRef[A](ref Ref[A]) IO[A] = "github.com/reoring/gofx/ports/client-go/host/sync".ReadRef
+extern func writeRef[A](ref Ref[A], value A) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/sync".WriteRef
+extern func sameRef[A](a Ref[A], b Ref[A]) Bool = "github.com/reoring/gofx/ports/client-go/host/sync".SameRef
+extern func newMutex() IO[Mutex] = "github.com/reoring/gofx/ports/client-go/host/sync".NewMutex
+extern func withLock[A](mutex Mutex, action IO[A]) IO[A] = "github.com/reoring/gofx/ports/client-go/host/sync".WithLock
+extern func newCondition(mutex Mutex) IO[Condition] = "github.com/reoring/gofx/ports/client-go/host/sync".NewCondition
+extern func wait(condition Condition) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/sync".Wait
+extern func signal(condition Condition) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/sync".Signal
+extern func broadcast(condition Condition) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/sync".Broadcast
+extern func newChannel[A](capacity Int) IO[Channel[A]] = "github.com/reoring/gofx/ports/client-go/host/sync".NewChannel
+extern func send[A](channel Channel[A], value A) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/sync".Send
+extern func trySend[A](channel Channel[A], value A) IO[Bool] = "github.com/reoring/gofx/ports/client-go/host/sync".TrySend
+extern func receive[A](channel Channel[A]) IO[Option[A]] = "github.com/reoring/gofx/ports/client-go/host/sync".Receive
+extern func _tryReceiveRaw[A](channel Channel[A]) IO[(Bool, Option[A])] = "github.com/reoring/gofx/ports/client-go/host/sync".TryReceiveRaw
 func tryReceive[A](channel Channel[A]) IO[Poll[A]] {
  do {
   outcome <- _tryReceiveRaw(channel)
   ioPure(match outcome { (false, _) => Pending; (true, None) => Closed; (true, Some(value)) => Received(value) })
  }
 }
-extern func close[A](channel Channel[A]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".Close
-extern func selectReceive[A](channels List[Channel[A]]) IO[(Int, Option[A])] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".SelectReceive
-extern func receiveCase[A, R](channel Channel[A], mapper func(Option[A]) R) Case[R] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".ReceiveCase
-extern func sendCase[A, R](channel Channel[A], value A, result R) Case[R] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".SendCase
-extern func selectCase[R](cases List[Case[R]]) IO[R] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".SelectCase
-extern func start[A](action IO[A]) IO[Task[A]] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".Start
-extern func startDetached[A](action IO[A]) IO[Task[A]] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".StartDetached
-extern func cancelTask[A](task Task[A]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".CancelTask
-extern func join[A](task Task[A]) IO[A] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".Join
-extern func uninterruptible[A](action IO[A]) IO[A] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".Uninterruptible
-extern func captureContext() IO[Context] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".CaptureContext
-extern func contextCancelled(context Context) IO[Bool] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".ContextCancelled
-extern func contextRemaining(context Context) IO[Option[Int]] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".ContextRemaining
-extern func withContext[A](context Context, action IO[A]) IO[A] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".WithContext
-extern func newContext(parent Context, timeoutNanos Option[Int]) IO[(Context, Cancel)] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".NewContext
-extern func cancelContext(cancel Cancel) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".CancelContext
-extern func ensuring[A](action IO[A], cleanup IO[Unit]) IO[A] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".Ensuring
-extern func bracket[A, B](acquire IO[A], use func(A) IO[B], release func(A) IO[Unit]) IO[B] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".Bracket
-extern func realClock() IO[Clock] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".RealClock
-extern func fakeClock(startNanos Int) IO[Clock] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".FakeClock
-extern func now(clock Clock) IO[Instant] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".Now
-extern func unixNanos(instant Instant) Int = "github.com/reoring/gofx/ports/client-go/internal/hostsync".UnixNanos
-extern func elapsed(start Instant, end Instant) Int = "github.com/reoring/gofx/ports/client-go/internal/hostsync".Elapsed
-extern func add(instant Instant, nanos Int) Instant = "github.com/reoring/gofx/ports/client-go/internal/hostsync".Add
-extern func instantComparison(a Instant, b Instant) Int = "github.com/reoring/gofx/ports/client-go/internal/hostsync".CompareInstant
+extern func close[A](channel Channel[A]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/sync".Close
+extern func selectReceive[A](channels List[Channel[A]]) IO[(Int, Option[A])] = "github.com/reoring/gofx/ports/client-go/host/sync".SelectReceive
+extern func receiveCase[A, R](channel Channel[A], mapper func(Option[A]) R) Case[R] = "github.com/reoring/gofx/ports/client-go/host/sync".ReceiveCase
+extern func sendCase[A, R](channel Channel[A], value A, result R) Case[R] = "github.com/reoring/gofx/ports/client-go/host/sync".SendCase
+extern func selectCase[R](cases List[Case[R]]) IO[R] = "github.com/reoring/gofx/ports/client-go/host/sync".SelectCase
+extern func start[A](action IO[A]) IO[Task[A]] = "github.com/reoring/gofx/ports/client-go/host/sync".Start
+extern func startDetached[A](action IO[A]) IO[Task[A]] = "github.com/reoring/gofx/ports/client-go/host/sync".StartDetached
+extern func cancelTask[A](task Task[A]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/sync".CancelTask
+extern func join[A](task Task[A]) IO[A] = "github.com/reoring/gofx/ports/client-go/host/sync".Join
+extern func uninterruptible[A](action IO[A]) IO[A] = "github.com/reoring/gofx/ports/client-go/host/sync".Uninterruptible
+extern func captureContext() IO[Context] = "github.com/reoring/gofx/ports/client-go/host/sync".CaptureContext
+extern func contextCancelled(context Context) IO[Bool] = "github.com/reoring/gofx/ports/client-go/host/sync".ContextCancelled
+extern func contextRemaining(context Context) IO[Option[Int]] = "github.com/reoring/gofx/ports/client-go/host/sync".ContextRemaining
+extern func withContext[A](context Context, action IO[A]) IO[A] = "github.com/reoring/gofx/ports/client-go/host/sync".WithContext
+extern func newContext(parent Context, timeoutNanos Option[Int]) IO[(Context, Cancel)] = "github.com/reoring/gofx/ports/client-go/host/sync".NewContext
+extern func cancelContext(cancel Cancel) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/sync".CancelContext
+extern func ensuring[A](action IO[A], cleanup IO[Unit]) IO[A] = "github.com/reoring/gofx/ports/client-go/host/sync".Ensuring
+extern func bracket[A, B](acquire IO[A], use func(A) IO[B], release func(A) IO[Unit]) IO[B] = "github.com/reoring/gofx/ports/client-go/host/sync".Bracket
+extern func realClock() IO[Clock] = "github.com/reoring/gofx/ports/client-go/host/sync".RealClock
+extern func fakeClock(startNanos Int) IO[Clock] = "github.com/reoring/gofx/ports/client-go/host/sync".FakeClock
+extern func now(clock Clock) IO[Instant] = "github.com/reoring/gofx/ports/client-go/host/sync".Now
+extern func unixNanos(instant Instant) Int = "github.com/reoring/gofx/ports/client-go/host/sync".UnixNanos
+extern func elapsed(start Instant, end Instant) Int = "github.com/reoring/gofx/ports/client-go/host/sync".Elapsed
+extern func add(instant Instant, nanos Int) Instant = "github.com/reoring/gofx/ports/client-go/host/sync".Add
+extern func instantComparison(a Instant, b Instant) Int = "github.com/reoring/gofx/ports/client-go/host/sync".CompareInstant
 func compareInstant(a Instant, b Instant) Ordering {
  let order = instantComparison(a, b)
  if order < 0 { LT } else { if order > 0 { GT } else { EQ } }
 }
-extern func newTimer(clock Clock, nanos Int) IO[Timer] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".NewTimer
-extern func timerChannel(timer Timer) IO[Channel[Instant]] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".TimerChannel
-extern func stopTimer(timer Timer) IO[Bool] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".StopTimer
-extern func resetTimer(timer Timer, nanos Int) IO[Bool] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".ResetTimer
-extern func advance(clock Clock, nanos Int) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".Advance
+extern func newTimer(clock Clock, nanos Int) IO[Timer] = "github.com/reoring/gofx/ports/client-go/host/sync".NewTimer
+extern func timerChannel(timer Timer) IO[Channel[Instant]] = "github.com/reoring/gofx/ports/client-go/host/sync".TimerChannel
+extern func stopTimer(timer Timer) IO[Bool] = "github.com/reoring/gofx/ports/client-go/host/sync".StopTimer
+extern func resetTimer(timer Timer, nanos Int) IO[Bool] = "github.com/reoring/gofx/ports/client-go/host/sync".ResetTimer
+extern func advance(clock Clock, nanos Int) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/sync".Advance

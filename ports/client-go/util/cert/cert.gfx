@@ -1,0 +1,139 @@
+// Copyright 2014 The Kubernetes Authors. Licensed under Apache-2.0.
+// Source: client-go v0.37.2 util/cert/{cert,csr,pem,io,server_inspection}.go.
+package cert
+import crypto "github.com/reoring/gofx/ports/client-go/deps/crypto"
+import x509 "github.com/reoring/gofx/ports/client-go/deps/crypto/x509"
+import pkix "github.com/reoring/gofx/ports/client-go/deps/crypto/x509/pkix"
+import tls "github.com/reoring/gofx/ports/client-go/deps/crypto/tls"
+import net "github.com/reoring/gofx/ports/client-go/deps/net"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import list "std/list"
+import strings "std/string"
+func certificateBlockType() String { "CERTIFICATE" }
+func certificateRequestBlockType() String { "CERTIFICATE REQUEST" }
+type AltNames = AltNames {dnsNames: List[String], ips: List[net.IP]}
+type Config = Config {commonName: String, organization: List[String], altNames: AltNames, usages: List[x509.ExtKeyUsage], notBefore: Option[Int]}
+type SelfSignedCertKeyOptions = SelfSignedCertKeyOptions {host: String, alternateIPs: List[net.IP], alternateDNS: List[String], maxAge: Int, fixtureDirectory: String}
+func _parseCerts(data String, reversed List[x509.Certificate]) IO[outcome.Outcome[List[x509.Certificate]]] {
+ match decodePEM(data) {
+  None => ioPure(match reversed { Nil => outcome.failure([], newError("data does not contain any valid RSA or ECDSA certificates")); _ => outcome.success(list.reverse(reversed)) })
+  Some((kind, (headers, (bytes, rest)))) => if kind != certificateBlockType() || headers != 0 { _parseCerts(rest, reversed) } else { do {
+   parsed <- parseCertificate(bytes)
+   match parsed { (Some(value), None) => _parseCerts(rest, Cons(value, reversed)); (_, Some(error)) => ioPure(outcome.failure(list.reverse(reversed), error)); _ => ioPure(outcome.failure(list.reverse(reversed), newError("certificate parser returned no certificate"))) }
+  } }
+ }
+}
+func parseCertsPEM(data String) IO[outcome.Outcome[List[x509.Certificate]]] { _parseCerts(data, []) }
+func encodeCertificates(certs List[x509.Certificate]) IO[outcome.Outcome[String]] { do {
+ encoded <- list.mapM(certs, func(cert) => do { bytes <- certificateDER(cert); ioPure(encodePEM(certificateBlockType(), bytes)) })
+ ioPure(outcome.success(strings.strConcat(encoded)))
+} }
+func makeCSRFromTemplate(key crypto.PrivateKey, template x509.CertificateRequest) IO[outcome.Outcome[String]] { do {
+ info <- keyInfo(key)
+ let algorithm = if info.0 == "RSA" { if info.1.0 >= 4096 { 6 } else { if info.1.0 >= 3072 { 5 } else { 4 } } } else { 0 }
+ result <- createCSR(key, template, algorithm)
+ ioPure(outcome.from(match result.1 { None => encodePEM(certificateRequestBlockType(), result.0); Some(_) => "" }, result.1))
+} }
+func makeCSR(key crypto.PrivateKey, subject pkix.Name, dns List[String], ips List[net.IP]) IO[outcome.Outcome[String]] { do { template <- csrTemplate(subject, dns, ips); makeCSRFromTemplate(key, template) } }
+func parseCSR(data String) IO[outcome.Outcome[Option[x509.CertificateRequest]]] {
+ match decodePEM(data) {
+  Some(("CERTIFICATE REQUEST", (_, (bytes, _)))) => do { parsed <- parseCSRDER(bytes); ioPure(outcome.from(parsed.0, parsed.1)) }
+  _ => ioPure(outcome.failure(None, newError("PEM block type must be CERTIFICATE REQUEST")))
+ }
+}
+func canReadCertAndKey(certPath String, keyPath String) IO[outcome.Outcome[Bool]] { do {
+ c <- readable(certPath); k <- readable(keyPath)
+ ioPure(if !c && !k { outcome.success(false) } else { if !c { outcome.failure(false, newError("error reading " + certPath + ", certificate and key must be supplied as a pair")) } else { if !k { outcome.failure(false, newError("error reading " + keyPath + ", certificate and key must be supplied as a pair")) } else { outcome.success(true) } } })
+} }
+func writeCert(path String, bytes String) IO[outcome.Outcome[Unit]] { do {
+ created <- mkdir(parent(path))
+ match created { Some(error) => ioPure(outcome.failure(unit(), error)); None => do { result <- writeFile(path, bytes, 420); ioPure(outcome.from(unit(), result)) } }
+} }
+func certsFromFile(path String) IO[outcome.Outcome[List[x509.Certificate]]] { do {
+ result <- readFile(path)
+ match result.1 { Some(error) => ioPure(outcome.failure([], error)); None => do {
+  certs <- parseCertsPEM(result.0)
+  ioPure(match certs.error { None => certs; Some(error) => outcome.failure([], newError("error reading " + path + ": " + errorText(error))) })
+ } }
+} }
+func newPoolFromBytes(bytes String) IO[outcome.Outcome[Option[x509.CertPool]]] { do {
+ certs <- parseCertsPEM(bytes)
+ match certs.error { Some(error) => ioPure(outcome.failure(None, error)); None => do {
+  pool <- emptyPool(); list.forEach(certs.value, func(cert) => addCert(pool, cert)); ioPure(outcome.success(Some(pool)))
+ } }
+} }
+func newPool(path String) IO[outcome.Outcome[Option[x509.CertPool]]] { do {
+ bytes <- readFile(path)
+ match bytes.1 { Some(error) => ioPure(outcome.failure(None, error)); None => do {
+  result <- newPoolFromBytes(bytes.0)
+  ioPure(match result.error { None => result; Some(error) => outcome.failure(None, newError("error creating pool from " + path + ": " + errorText(error))) })
+ } }
+} }
+func newSelfSignedCACert(clock sync.Clock, cfg Config, key crypto.PrivateKey) IO[outcome.Outcome[Option[x509.Certificate]]] { do {
+ now <- sync.now(clock); number <- serial()
+ let before = match cfg.notBefore { None => sync.unixNanos(now); Some(value) => value }
+ result <- signCertificate(cfg.commonName, cfg.organization, if cfg.commonName == "" { [] } else { [cfg.commonName] }, [], before, sync.unixNanos(now) + 315360000000000000, true, number, key, None, key)
+ ioPure(outcome.from(result.0, result.1))
+} }
+func _generate(clock sync.Clock, opts SelfSignedCertKeyOptions, age Int) IO[outcome.Outcome[(String, String)]] { do {
+ now <- sync.now(clock); caKey <- generateRSA(2048)
+ match caKey { (Some(caKey), None) => do {
+  number <- serial()
+  let before = sync.unixNanos(now) - 3600000000000
+  ca <- signCertificate(opts.host + "-ca@${sync.unixNanos(now) / 1000000000}", [], [], [], before, before + age, true, number, caKey, None, caKey)
+  match ca { (Some(ca), None) => do {
+   key <- generateRSA(2048)
+   match key { (Some(key), None) => do {
+    number <- serial()
+    let hostIP = parseIP(opts.host)
+    let dns = match hostIP { Some(_) => opts.alternateDNS; None => Cons(opts.host, opts.alternateDNS) }
+    let ips = match hostIP { Some(ip) => Cons(ip, opts.alternateIPs); None => opts.alternateIPs }
+    signed <- signCertificate(opts.host + "@${sync.unixNanos(now) / 1000000000}", [], dns, ips, before, before + age, false, number, key, Some(ca), caKey)
+    match signed { (Some(cert), None) => do {
+     chain <- encodeCertificates([cert, ca]); pem <- marshalPrivate(key)
+     ioPure(outcome.from((chain.value, pem.0), pem.1))
+    }; (_, Some(error)) => ioPure(outcome.failure(("", ""), error)); _ => ioPure(outcome.failure(("", ""), newError("certificate signer returned no certificate"))) }
+   }; (_, Some(error)) => ioPure(outcome.failure(("", ""), error)); _ => ioPure(outcome.failure(("", ""), newError("key generator returned no key"))) }
+  }; (_, Some(error)) => ioPure(outcome.failure(("", ""), error)); _ => ioPure(outcome.failure(("", ""), newError("certificate signer returned no certificate"))) }
+ }; (_, Some(error)) => ioPure(outcome.failure(("", ""), error)); _ => ioPure(outcome.failure(("", ""), newError("key generator returned no key"))) }
+} }
+func generateSelfSignedCertKeyWithOptions(clock sync.Clock, opts SelfSignedCertKeyOptions) IO[outcome.Outcome[(String, String)]] {
+ let base = opts.host + "_" + strings.join("-", ipStrings(opts.alternateIPs)) + "_" + strings.join("-", opts.alternateDNS)
+ let cpath = joinPath(opts.fixtureDirectory, base + ".crt")
+ let kpath = joinPath(opts.fixtureDirectory, base + ".key")
+ if opts.fixtureDirectory == "" { _generate(clock, opts, if opts.maxAge == 0 { 31536000000000000 } else { opts.maxAge }) } else { do {
+  c <- readFile(cpath)
+  match c.1 { None => do { k <- readFile(kpath); ioPure(match k.1 { None => outcome.success((c.0, k.0)); Some(error) => outcome.failure(("", ""), newError("cert " + cpath + " can be read, but key " + kpath + " cannot: " + errorText(error))) }) }; Some(_) => do {
+   generated <- _generate(clock, opts, 3153600000000000000)
+   match generated.error { Some(_) => ioPure(generated); None => do {
+    c <- writeFile(cpath, generated.value.0, 420)
+    match c { Some(error) => ioPure(outcome.failure(("", ""), newError("failed to write cert fixture to " + cpath + ": " + errorText(error)))); None => do {
+     k <- writeFile(kpath, generated.value.1, 384)
+     ioPure(match k { None => generated; Some(error) => outcome.failure(("", ""), newError("failed to write key fixture to " + kpath + ": " + errorText(error))) })
+    } }
+   } }
+  } }
+ } }
+}
+func generateSelfSignedCertKey(clock sync.Clock, host String, ips List[net.IP], dns List[String]) IO[outcome.Outcome[(String, String)]] { generateSelfSignedCertKeyWithOptions(clock, SelfSignedCertKeyOptions(host, ips, dns, 0, "")) }
+func generateSelfSignedCertKeyWithFixtures(clock sync.Clock, host String, ips List[net.IP], dns List[String], directory String) IO[outcome.Outcome[(String, String)]] { generateSelfSignedCertKeyWithOptions(clock, SelfSignedCertKeyOptions(host, ips, dns, 0, directory)) }
+// These metadata-only inspection calls intentionally DO NOT verify the peer.
+// They never supply client credentials and must not be used for authentication.
+func _inspectionConfig(serverName String) IO[tls.Config] { do {
+ config <- tls.newConfig()
+ tls.configSetInsecureSkipVerifyIdentity(config, true)
+ tls.configSetServerNameIdentity(config, serverName)
+ ioPure(config)
+} }
+func getClientCANames(host String) IO[outcome.Outcome[List[String]]] { do { config <- _inspectionConfig(""); result <- inspect(host, config); ioPure(outcome.from(result.0.0, result.1)) } }
+func getClientCANamesForURL(url String) IO[outcome.Outcome[List[String]]] { let host = urlHost(url); match host.1 { Some(error) => ioPure(outcome.failure([], error)); None => getClientCANames(host.0) } }
+func getServingCertificates(host String, serverName String) IO[outcome.Outcome[(List[x509.Certificate], List[String])]] { do {
+ config <- _inspectionConfig(serverName)
+ result <- inspect(host, config)
+ match result.1 { Some(error) => ioPure(outcome.failure(([], []), error)); None => do {
+  encoded <- list.mapM(result.0.1, func(c) => do { pem <- encodeCertificates([c]); ioPure(strings.trim(pem.value)) })
+  ioPure(outcome.success((result.0.1, encoded)))
+ } }
+} }
+func getServingCertificatesForURL(url String, serverName String) IO[outcome.Outcome[(List[x509.Certificate], List[String])]] { let host = urlHost(url); match host.1 { Some(error) => ioPure(outcome.failure(([], []), error)); None => getServingCertificates(host.0, serverName) } }

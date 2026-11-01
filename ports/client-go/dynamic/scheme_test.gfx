@@ -1,0 +1,30 @@
+package dynamic
+import fixture "dynamic/testing"
+import features "features"
+import rest "rest"
+import runtime "deps/k8s.io/apimachinery/pkg/runtime"
+import u "deps/k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+import l "std/list"
+// Copyright 2026 The Kubernetes Authors. Licensed under Apache-2.0.
+func testPermissiveWritesDoNotRelaxReadTyping() IO[Bool] {
+ do {
+  scheme <- newMetaScheme()
+  strict <- newUnstructuredTyper(scheme,false)
+  permissive <- newUnstructuredTyper(scheme,true)
+  let object = Some(u.unstructuredToRuntimeObject(u.newUnstructured()))
+  read <- runtime.objectTyperCallObjectKindsIdentity(strict,object)
+  write <- runtime.objectTyperCallObjectKindsIdentity(permissive,object)
+  ioPure((match read.1.1.1 { None => false; Some(_) => true }) && (match write.1.1.1 { None => true; Some(_) => false }))
+ }
+}
+func testCBORPreferencesRequireAllowGate() IO[Bool] {
+ do {
+  cases <- l.mapM([(false,false),(false,true),(true,false),(true,true)],func(pair) => do {
+   registry <- fixture.featureRegistry()
+   _ <- features.replaceFeatureGates(registry,features.Gates(func(feature) => ioPure(if feature==features.clientsAllowCBOR() { pair.0 } else if feature==features.clientsPreferCBOR() { pair.1 } else { false }),None,None,"fixture"))
+   config <- configFor(rest.emptyConfig(),registry)
+   ioPure(config.contentConfig.contentType==(if pair.0 && pair.1 { "application/cbor" } else { "application/json" }) && config.contentConfig.acceptContentTypes==(if pair.0 { "application/json;q=0.9,application/cbor;q=1" } else { "application/json" }))
+  })
+  ioPure(l.all(cases,func(value) => value))
+ }
+}

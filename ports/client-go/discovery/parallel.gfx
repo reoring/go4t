@@ -1,0 +1,7 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package discovery
+import meta "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import "support/outcome"
+import "support/sync"
+func startResource(d DiscoveryInterface,gv String) IO[sync.Task[(String,outcome.Outcome[Option[meta.APIResourceList]])]] { sync.start(do { r <- d.serverResourcesForGroupVersion(gv); ioPure((gv,r)) }) }
+func joinResource(task sync.Task[(String,outcome.Outcome[Option[meta.APIResourceList]])]) IO[(String,outcome.Outcome[Option[meta.APIResourceList]])] { sync.join(task) }

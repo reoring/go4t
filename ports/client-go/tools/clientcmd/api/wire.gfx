@@ -1,0 +1,13 @@
+// Copyright 2014 The Kubernetes Authors. Licensed under Apache-2.0.
+package api
+import runtime "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime"
+type WireConfig = WireConfig {kind:String, apiVersion:String, preferences:WirePreferences, clusters:Option[List[NamedCluster]], authInfos:Option[List[NamedAuthInfo]], contexts:Option[List[NamedContext]], currentContext:String, extensions:Option[List[NamedExtension]]}
+type WirePreferences = WirePreferences {colors:Bool, extensions:Option[List[NamedExtension]]}
+type WireCluster = WireCluster {server:String, tlsServerName:String, insecureSkipTLSVerify:Bool, certificateAuthority:String, certificateAuthorityData:Option[String], proxyURL:String, disableCompression:Bool, extensions:Option[List[NamedExtension]]}
+type WireAuthInfo = WireAuthInfo {clientCertificate:String, clientCertificateData:Option[String], clientKey:String, clientKeyData:Option[String], token:String, tokenFile:String, impersonate:String, impersonateUID:String, impersonateGroups:Option[List[String]], impersonateUserExtra:Option[Map[String,Option[List[String]]]], username:String, password:String, authProvider:Option[AuthProviderConfig], exec:Option[WireExecConfig], extensions:Option[List[NamedExtension]]}
+type WireContext = WireContext {cluster:String, authInfo:String, namespace:String, extensions:Option[List[NamedExtension]]}
+type WireExecConfig = WireExecConfig {command:String, args:Option[List[String]], env:Option[List[ExecEnvVar]], apiVersion:String, installHint:String, provideClusterInfo:Bool, interactiveMode:String}
+type NamedCluster = NamedCluster {name:String, cluster:WireCluster}
+type NamedAuthInfo = NamedAuthInfo {name:String, authInfo:WireAuthInfo}
+type NamedContext = NamedContext {name:String, context:WireContext}
+type NamedExtension = NamedExtension {name:String, extension:runtime.RawExtension}

@@ -1,0 +1,105 @@
+package scale
+
+import rest "rest"
+import dynamic "dynamic"
+import internal "scale/scheme"
+import a "deps/k8s.io/api/autoscaling/v1"
+import v1 "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import runtime "deps/k8s.io/apimachinery/pkg/runtime"
+import codec "deps/codec"
+import outcome "support/outcome"
+import errors "deps/support"
+
+// Copyright 2017 The Kubernetes Authors. Licensed under Apache-2.0.
+alias APIPathResolverFunc = dynamic.APIPathResolverFunc
+type ScalesGetter = ScalesGetter { scales: func(String) ScaleInterface }
+type ScaleInterface = ScaleInterface {
+ get: func(schema.GroupResource,String,v1.GetOptions) IO[outcome.Outcome[Option[a.Scale]]],
+ update: func(schema.GroupResource,a.Scale,v1.UpdateOptions) IO[outcome.Outcome[Option[a.Scale]]],
+ patch: func(schema.GroupVersionResource,String,String,String,v1.PatchOptions) IO[outcome.Outcome[Option[a.Scale]]]
+}
+type Client = Client { base: rest.Interface, mapper: PreferredResourceMapper, apiPathResolver: APIPathResolverFunc, scaleKindResolver: ScaleKindResolver, converter: ScaleConverter, parameters: runtime.ParameterCodec }
+func newClient(base rest.Interface,mapper PreferredResourceMapper,resolver APIPathResolverFunc,kindResolver ScaleKindResolver) IO[ScalesGetter] {
+ do { converter <- newScaleConverter(); parameters <- codec.standardParameterCodec(); ioPure(clientInterface(Client(base,mapper,resolver,kindResolver,converter,parameters))) }
+}
+func clientInterface(client Client) ScalesGetter { ScalesGetter(func(namespace) => ScaleInterface(func(resource,name,options) => get(client,namespace,resource,name,options),func(resource,scale,options) => update(client,namespace,resource,scale,options),func(resource,name,kind,data,options) => patch(client,namespace,resource,name,kind,data,options))) }
+func apiPathFor(client Client,gvr schema.GroupVersionResource) String {
+ let group = schema.groupVersionResourceGetGroup(gvr)
+ let version = schema.groupVersionResourceGetVersion(gvr)
+ let kind = schema.groupVersionKindWithVersion(schema.groupVersionKindWithGroup(schema.newGroupVersionKind(),group),version)
+ let resolved = client.apiPathResolver(kind)
+ rest.defaultVersionedAPIPath(if resolved == "" { "/api" } else { resolved },internal.groupVersion(group,version))
+}
+func pathAndVersionFor(client Client,resource schema.GroupResource) IO[outcome.Outcome[schema.GroupVersionResource]] {
+ do {
+  let partial = schema.groupVersionResourceWithResource(schema.groupVersionResourceWithGroup(schema.newGroupVersionResource(),schema.groupResourceGetGroup(resource)),schema.groupResourceGetResource(resource))
+  result <- client.mapper.resourceFor(partial)
+  match result.error {
+   None => ioPure(result)
+   Some(e) => do {
+    description <- schema.groupResourceCallString(resource)
+    let inner = errors.errorWrap("unable to get full preferred group-version-resource for "+description.1,e)
+    ioPure(outcome.failure(result.value,errors.errorWrap("unable to get client for "+description.1,inner)))
+   }
+  }
+ }
+}
+func request(client Client,namespace String,gvr schema.GroupVersionResource,name String,verb String,options runtime.Object) IO[rest.Request] {
+ do {
+  base <- client.base.verb(verb)
+  let located = rest.subResource(rest.name(rest.resource(rest.namespaceIfScoped(rest.absPath(base,[apiPathFor(client,gvr)]),namespace,namespace != ""),schema.groupVersionResourceGetResource(gvr)),name),["scale"])
+  rest.specificallyVersionedParams(located,options,client.parameters,dynamic.versionV1())
+ }
+}
+func convertResponse(client Client,result rest.ResponseResult) IO[outcome.Outcome[Option[a.Scale]]] {
+ do { error <- rest.resultError(result); match error { Some(e) => ioPure(outcome.failure(None,e)); None => { let raw = rest.resultRaw(result); match raw.error { Some(e) => ioPure(outcome.failure(None,e)); None => decodeScale(client.converter,raw.value) } } } }
+}
+func get(client Client,namespace String,resource schema.GroupResource,name String,options v1.GetOptions) IO[outcome.Outcome[Option[a.Scale]]] {
+ do { mapped <- pathAndVersionFor(client,resource); match mapped.error { Some(e) => ioPure(outcome.failure(None,e)); None => do { r <- request(client,namespace,mapped.value,name,"GET",v1.getOptionsToRuntimeObject(options)); result <- rest.doRequest(r); convertResponse(client,result) } } }
+}
+func update(client Client,namespace String,resource schema.GroupResource,scale a.Scale,options v1.UpdateOptions) IO[outcome.Outcome[Option[a.Scale]]] {
+ do {
+  mapped <- pathAndVersionFor(client,resource)
+  match mapped.error { Some(e) => ioPure(outcome.failure(None,e)); None => do {
+   desired <- client.scaleKindResolver.scaleForResource(mapped.value)
+   match desired.error {
+    Some(e) => do { description <- schema.groupVersionResourceCallString(mapped.value); ioPure(outcome.failure(None,errors.errorWrap("could not find proper group-version for scale subresource of "+description.1,e))) }
+    None => do {
+     let version = internal.groupVersion(schema.groupVersionKindGetGroup(desired.value),schema.groupVersionKindGetVersion(desired.value))
+     converted <- convertToVersion(client.converter,internal.ExternalScale(a.scaleToRuntimeObject(scale)),version)
+     match converted.error { Some(e) => ioPure(outcome.failure(None,errors.errorWrap("could not convert scale update to external Scale",e))); None => match converted.value {
+      internal.InternalScale(_) => ioPure(outcome.failure(None,errors.errorNew("could not convert scale update to external Scale: target is internal")))
+      internal.ExternalScale(object) => do {
+       encoded <- codec.encodeJSON(object)
+       match encoded.1 { Some(e) => ioPure(outcome.failure(None,errors.errorWrap("could not encode scale update to external Scale",e))); None => do {
+        r <- request(client,namespace,mapped.value,v1.objectMetaGetName(a.scaleGetObjectMeta(scale)),"PUT",v1.updateOptionsToRuntimeObject(options))
+        result <- rest.doRequest(rest.bodyBytes(r,match encoded.0 { None => ""; Some(bytes) => bytes }))
+        convertResponse(client,result)
+       } }
+      }
+     } }
+    }
+   }
+  } }
+ }
+}
+func patch(client Client,namespace String,gvr schema.GroupVersionResource,name String,patchType String,data String,options v1.PatchOptions) IO[outcome.Outcome[Option[a.Scale]]] {
+ do {
+  base <- client.base.patch(patchType)
+  let located = rest.subResource(rest.name(rest.resource(rest.namespaceIfScoped(rest.absPath(base,[apiPathFor(client,gvr)]),namespace,namespace != ""),schema.groupVersionResourceGetResource(gvr)),name),["scale"])
+  r <- rest.specificallyVersionedParams(rest.bodyBytes(located,data),v1.patchOptionsToRuntimeObject(options),client.parameters,dynamic.versionV1())
+  result <- rest.doRequest(r)
+  convertResponse(client,result)
+ }
+}
+func newForConfig(environment rest.Environment,config rest.Config,mapper PreferredResourceMapper,resolver APIPathResolverFunc,kindResolver ScaleKindResolver) IO[outcome.Outcome[Option[ScalesGetter]]] {
+ do {
+  converter <- newScaleConverter()
+  result <- rest.restClientFor(environment,rest.setKubernetesDefaults(config{contentConfig: config.contentConfig{groupVersion: Some(schema.newGroupVersion()),negotiatedSerializer: Some(converter.negotiatedSerializer)}}))
+  match result.error { Some(e) => ioPure(outcome.failure(None,e)); None => match result.value { None => ioPure(outcome.success(None)); Some(base) => do {
+   parameters <- codec.standardParameterCodec()
+   ioPure(outcome.success(Some(clientInterface(Client(rest.clientInterface(base),mapper,resolver,kindResolver,converter,parameters)))))
+  } } }
+ }
+}

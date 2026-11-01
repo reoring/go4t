@@ -1,0 +1,223 @@
+// Copyright 2018 The Kubernetes Authors. Licensed under the Apache License, Version 2.0.
+package exec
+import api "tools/clientcmd/api"
+import auth "pkg/apis/clientauthentication"
+import install "pkg/apis/clientauthentication/install"
+import meta "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import errors "deps/support"
+import tls "deps/crypto/tls"
+import net "deps/net"
+import http "deps/net/http"
+import "transport"
+import "support/sync"
+import "support/outcome"
+import fx "plugin/pkg/client/auth/internal/effects"
+import "std/list"
+import "std/prelude"
+
+// Secrets deliberately have neither Show nor Debug instances.
+type Credentials = Credentials {generation:Int, token:String, certificate:Option[tls.Certificate]}
+type State = State {cached:Option[Credentials], expiration:Option[meta.Time], generation:Int, allowlist:List[String]}
+type Metrics = Metrics {calls:func(Int,String) IO[Unit], policy:func(String) IO[Unit], rotationAge:func(Int) IO[Unit], expiration:func(Option[meta.Time]) IO[Unit]}
+type Environment = Environment {clock:sync.Clock, terminal:func() IO[Bool], environ:func() IO[List[String]], prepare:func(String,List[String]) IO[fx.Command], run:func(fx.Command,List[String],Bool) IO[(String,String,(Int,Option[errors.Error]))], metrics:Option[Metrics]}
+type Core = Core {config:api.ExecConfig, cluster:Option[auth.Cluster], environment:Environment, scheme:auth.Scheme, mutex:sync.Mutex, state:sync.Ref[State], connections:transport.ConnectionSet, expirations:sync.Ref[List[(Int,Option[meta.Time])]], expirationMutex:sync.Mutex, identity:Int, limiter:Sometimes}
+type Authenticator = Authenticator {core:Core, getCert:transport.GetCertHolder, dial:transport.DialHolder}
+type Entry = Entry {config:api.ExecConfig, cluster:Option[auth.Cluster], authenticator:Authenticator}
+type Cache = Cache {mutex:sync.Mutex, entries:sync.Ref[List[Entry]], expirations:sync.Ref[List[(Int,Option[meta.Time])]], expirationMutex:sync.Mutex}
+func newCache() IO[Cache] { do {mutex <- sync.newMutex(); entries <- sync.newRef(Nil); expirations <- sync.newRef(Nil); em <- sync.newMutex(); ioPure(Cache(mutex,entries,expirations,em))} }
+func newEnvironment() IO[Environment] { do {clock <- sync.realClock(); ioPure(Environment(clock,fx.terminal,fx.environ,fx.prepare,fx.run,None))} }
+func execInfoEnv() String { "KUBERNETES_EXEC_INFO" }
+func installHintVerboseHelp() String { "\n\nIt looks like you are trying to use a client-go credential plugin that is not installed.\n\nTo learn more about this feature, consult the documentation available at:\n      https://kubernetes.io/docs/reference/access-authn-authz/authentication/#client-go-credential-plugins" }
+func supportedVersion(version String) Bool {version == "client.authentication.k8s.io/v1" || version == "client.authentication.k8s.io/v1beta1"}
+func _args[A](items Option[List[A]]) List[A] { match items {None => Nil; Some(xs) => xs} }
+func _envEqual(a api.ExecEnvVar,b api.ExecEnvVar) Bool {a.name == b.name && a.value == b.value}
+func _optionalListEqual[A](a Option[List[A]], b Option[List[A]], equal func(A,A) Bool) Bool {match (a,b) { (None,None) => true; (Some(x),Some(y)) => _listEqual(x,y,equal); _ => false} }
+func _listEqual[A](a List[A], b List[A], equal func(A,A) Bool) Bool {match (a,b) {(Nil,Nil) => true;(Cons(x,xs),Cons(y,ys)) => equal(x,y) && _listEqual(xs,ys,equal);_ => false} }
+func configEqual(a api.ExecConfig,b api.ExecConfig) Bool {
+ a.command == b.command && _optionalListEqual(a.args,b.args,func(x,y) => x == y) && _optionalListEqual(a.env,b.env,_envEqual) && a.apiVersion == b.apiVersion && a.installHint == b.installHint && a.provideClusterInfo == b.provideClusterInfo && fx.objectEqual(a.config,b.config) && a.interactiveMode == b.interactiveMode && a.stdinUnavailable == b.stdinUnavailable && a.stdinUnavailableMessage == b.stdinUnavailableMessage && a.pluginPolicy.policyType == b.pluginPolicy.policyType && _optionalListEqual(a.pluginPolicy.allowlist,b.pluginPolicy.allowlist,func(x,y) => x.command == y.command)
+}
+func clusterEqual(a Option[auth.Cluster],b Option[auth.Cluster]) Bool { match (a,b) {
+ (None,None) => true
+ (Some(x),Some(y)) => x.server == y.server && x.tlsServerName == y.tlsServerName && x.insecureSkipTLSVerify == y.insecureSkipTLSVerify && x.certificateAuthorityData == y.certificateAuthorityData && x.proxyURL == y.proxyURL && x.disableCompression == y.disableCompression && fx.objectEqual(x.config,y.config)
+ _ => false
+} }
+func _find(entries List[Entry],config api.ExecConfig,cluster Option[auth.Cluster]) Option[Authenticator] {match entries {Nil => None;Cons(e,rest) => if configEqual(e.config,config) && clusterEqual(e.cluster,cluster) {Some(e.authenticator)} else {_find(rest,config,cluster)}}}
+func getAuthenticator(cache Cache,env Environment,config api.ExecConfig,cluster Option[auth.Cluster]) IO[outcome.Outcome[Option[Authenticator]]] { sync.withLock(cache.mutex,do {
+ entries <- sync.readRef(cache.entries)
+ match _find(entries,config,cluster) {
+  Some(a) => ioPure(outcome.success(Some(a)))
+  None => if !supportedVersion(config.apiVersion) {ioPure(fx.failure(None,"exec plugin: invalid apiVersion " + fx.quote(config.apiVersion)))} else {
+   let policy = validatePluginPolicy(config.pluginPolicy)
+   match policy.error {Some(e) => ioPure(outcome.failure(None,fx.wrapError("invalid plugin policy",e))); None => do {
+    mutex <- sync.newMutex(); connections <- transport.newConnectionSet()
+    state <- sync.newRef(State(None,None,0,prelude.map(_args(config.pluginPolicy.allowlist),func(e) => e.command)))
+    scheme <- auth.newScheme(); install.install(scheme)
+    limiter <- newSometimes(10,3600000000000,env.clock)
+    let core = Core(config,cluster,env,scheme,mutex,state,connections,cache.expirations,cache.expirationMutex,length(entries),limiter)
+    cert <- transport.newGetCertHolder(func() => _cert(core))
+    dial <- transport.newDialHolder(transport.connectionDialer(connections,func(network,address) => fx.attempt(None,do {c <- fx.dial(network,address);ioPure(Some(c))})))
+    let a = Authenticator(core,cert,dial)
+    snapshot <- api.deepCopyExecConfig(config)
+    clusterSnapshot <- match cluster {None => ioPure(None);Some(c) => do {copy <- auth.deepCopyCluster(c);ioPure(Some(copy))}}
+    sync.writeRef(cache.entries,Cons(Entry(snapshot,clusterSnapshot,a),entries))
+    ioPure(outcome.success(Some(a)))
+   }}
+  }
+ }
+}) }
+func isInteractive(config api.ExecConfig, terminal Bool) outcome.Outcome[Bool] {
+ if config.interactiveMode == "Never" {outcome.success(false)} else {
+ if config.interactiveMode == "IfAvailable" {outcome.success(!config.stdinUnavailable && terminal)} else {
+ if config.interactiveMode == "Always" {
+  if !terminal {fx.failure(false,"standard input is not a terminal")} else {if config.stdinUnavailable {fx.failure(false,"standard input is unavailable" + (if config.stdinUnavailableMessage == "" {""} else {": " + config.stdinUnavailableMessage}))} else {outcome.success(true)}}
+ } else {fx.failure(false,"unknown interactiveMode: " + fx.quote(config.interactiveMode))}
+ }}
+}
+func validatePluginPolicy(policy api.PluginPolicy) outcome.Outcome[Unit] {
+ if policy.policyType == "" || policy.policyType == "AllowAll" || policy.policyType == "DenyAll" {
+  match policy.allowlist {None => outcome.success(unit());Some(_) => fx.failure(unit(),"misconfigured credential plugin allowlist: plugin policy is " + fx.quote(policy.policyType) + " but allowlist is non-nil")}
+ } else {if policy.policyType == "Allowlist" {match policy.allowlist {None => fx.failure(unit(),"credential plugin policy set to \"Allowlist\", but allowlist is unspecified");Some(Nil) => fx.failure(unit(),"credential plugin policy set to \"Allowlist\", but allowlist is empty; use \"DenyAll\" policy instead");Some(xs) => _validateEntries(xs,1)}} else {fx.failure(unit(),"unknown plugin policy: " + fx.quote(policy.policyType))}}
+}
+func _validateEntries(entries List[api.AllowlistEntry], index Int) outcome.Outcome[Unit] {match entries {
+ Nil => outcome.success(unit())
+ Cons(entry,rest) => if entry.command == "" {fx.failure(unit(),"misconfigured credential plugin allowlist: empty allowlist entry #" + show(index))} else {if fx.cleanPath(entry.command) != entry.command {fx.failure(unit(),"non-normalized file path: " + fx.quote(entry.command) + " vs " + fx.quote(fx.cleanPath(entry.command)))} else {_validateEntries(rest,index+1)}}
+} }
+func credsExpired(expiration Option[meta.Time], now Int) Bool {match expiration {None => false;Some(value) => !fx.timeIsZero(value) && fx.timeAfter(now,value)}}
+func getCreds(a Authenticator) IO[outcome.Outcome[Option[Credentials]]] {_getCreds(a.core)}
+func _getCreds(core Core) IO[outcome.Outcome[Option[Credentials]]] {sync.withLock(core.mutex,do {
+ state <- sync.readRef(core.state); now <- sync.now(core.environment.clock)
+ match state.cached {Some(c) => if !credsExpired(state.expiration,sync.unixNanos(now)) {ioPure(outcome.success(Some(c)))} else {_refresh(core)};None => _refresh(core)}
+})}
+func _cert(core Core) IO[outcome.Outcome[Option[tls.Certificate]]] {do {creds <- _getCreds(core);ioPure(outcome.mapValue(creds,func(value) => match value {None => None;Some(c) => c.certificate}))}}
+func maybeRefreshCreds(a Authenticator,credentials Credentials) IO[outcome.Outcome[Unit]] {sync.withLock(a.core.mutex,do {
+ state <- sync.readRef(a.core.state)
+ match state.cached {Some(current) => if current.generation != credentials.generation {ioPure(outcome.success(unit()))} else {do {result <- _refresh(a.core);ioPure(outcome.mapValue(result,func(_) => unit()))}};None => do {result <- _refresh(a.core);ioPure(outcome.mapValue(result,func(_) => unit()))}}
+})}
+func _refresh(core Core) IO[outcome.Outcome[Option[Credentials]]] {do {
+ terminal <- if core.config.interactiveMode == "Always" || (core.config.interactiveMode == "IfAvailable" && !core.config.stdinUnavailable) {core.environment.terminal()} else {ioPure(false)}
+ let interactive = isInteractive(core.config,terminal)
+ match interactive.error {Some(e) => ioPure(outcome.failure(None,fx.wrapError("exec plugin cannot support interactive mode",e)));None => do {
+  let input = auth.newExecCredential(){spec:auth.ExecCredentialSpec(interactive.value,if core.config.provideClusterInfo {core.cluster} else {None})}
+  encoded <- fx.attempt("",auth.encode(core.scheme,auth.InternalCredential(input),if core.config.apiVersion == "client.authentication.k8s.io/v1" {"v1"} else {"v1beta1"}))
+  match encoded.error {Some(e) => ioPure(outcome.failure(None,fx.wrapError("encode ExecCredentials",e)));None => do {
+   env <- core.environment.environ()
+   let env = list.append(list.append(env,prelude.map(_args(core.config.env),func(e) => e.name + "=" + e.value)),[execInfoEnv()+"="+encoded.value])
+   command <- core.environment.prepare(fx.cleanPath(core.config.command),_args(core.config.args))
+   permitted <- _checkPolicy(core,command)
+   _policyMetric(core,permitted.error)
+   match permitted.error {Some(e) => ioPure(outcome.failure(None,e));None => do {
+    result <- core.environment.run(command,env,interactive.value)
+    match result {(stdout,category,(code,error)) => do {
+     _callsMetric(core,category,code)
+     match error {Some(e) => do {wrapped <- _commandError(core,category,code,e);ioPure(outcome.failure(None,wrapped))};None => _decode(core,stdout)}
+    }}
+   }}
+  }}
+ }}
+}}
+func _decode(core Core,text String) IO[outcome.Outcome[Option[Credentials]]] {do {
+ decoded <- fx.attempt(None,do {wire <- auth.decode(core.scheme,text);ioPure(Some(wire))})
+ match decoded.error {Some(e) => ioPure(outcome.failure(None,fx.wrapError("decoding stdout",e)));None => match decoded.value {
+  None => ioPure(fx.failure(None,"decoding stdout: missing credential"))
+  Some(auth.InternalCredential(_)) => ioPure(fx.failure(None,"decoding stdout: unexpected internal credential"))
+  Some(auth.VersionedCredential(version,value)) => if auth.groupName()+"/"+version != core.config.apiVersion {ioPure(fx.failure(None,"exec plugin is configured to use API version " + core.config.apiVersion + ", plugin returned version " + auth.groupName()+"/"+version))} else {
+   match value.status {None => ioPure(fx.failure(None,"exec plugin didn't return a status field"));Some(status) => _acceptStatus(core,status)}
+  }
+ }}
+}}
+func _acceptStatus(core Core,status auth.ExecCredentialStatus) IO[outcome.Outcome[Option[Credentials]]] {
+ if status.token == "" && status.clientCertificateData == "" && status.clientKeyData == "" {ioPure(fx.failure(None,"exec plugin didn't return a token or cert/key pair"))} else {
+ if (status.clientCertificateData == "") != (status.clientKeyData == "") {ioPure(fx.failure(None,"exec plugin returned only certificate or key, not both"))} else {do {
+  previous <- sync.readRef(core.state)
+  let expiration = status.expirationTimestamp
+  // Upstream updates expiry before attempting certificate parse, even on parse failure.
+  sync.writeRef(core.state,previous{expiration:expiration})
+  certificate <- if status.clientCertificateData == "" {ioPure(outcome.success(None))} else {_parseCertificate(status.clientCertificateData,status.clientKeyData)}
+  match certificate.error {Some(e) => ioPure(outcome.failure(None,e));None => do {
+   let creds = Credentials(previous.generation+1,status.token,certificate.value)
+   sync.writeRef(core.state,previous{expiration:expiration,cached:Some(creds),generation:creds.generation})
+   match previous.cached {None => ioPure(unit());Some(old) => do {same <- transport.certificatesEqual(old.certificate,creds.certificate);if !same {do {_rotationMetric(core,old.certificate);transport.closeAllConnections(core.connections)}} else {ioPure(unit())}}}
+   _expirationMetric(core,creds.certificate)
+   ioPure(outcome.success(Some(creds)))
+  }}
+ }}}
+}
+func _checkPolicy(core Core,command fx.Command) IO[outcome.Outcome[Unit]] {
+ let policy = core.config.pluginPolicy.policyType
+ if policy == "" || policy == "AllowAll" {ioPure(outcome.success(unit()))} else {if policy == "DenyAll" {ioPure(fx.failure(unit(),"plugin " + fx.quote(fx.cleanPath(core.config.command)) + " not allowed: policy set to \"DenyAll\""))} else {if policy == "Allowlist" {_checkAllowlist(core,command)} else {ioPure(fx.failure(unit(),"unknown plugin policy " + fx.quote(policy)))}}}
+}
+func _contains(values List[String],value String) Bool {match values {Nil => false;Cons(x,xs) => x == value || _contains(xs,value)}}
+func _resolveEntries(core Core,entries List[api.AllowlistEntry],hint String,values List[String]) IO[List[String]] {match entries {
+ Nil => ioPure(values)
+ Cons(e,rest) => if fx.basePath(e.command) != hint {_resolveEntries(core,rest,hint,values)} else {do {result <- fx.lookPath(e.command);match result {(path,None) => _resolveEntries(core,rest,hint,if path == "" {values} else {Cons(path,values)});_ => _resolveEntries(core,rest,hint,values)}}}
+}}
+func _checkAllowlist(core Core,command fx.Command) IO[outcome.Outcome[Unit]] {do {
+ state <- sync.readRef(core.state);path <- fx.commandPath(command)
+ let original = fx.cleanPath(core.config.command)
+ if _contains(state.allowlist,original) || _contains(state.allowlist,path) {ioPure(outcome.success(unit()))} else {do {
+  resolved <- if path != original {do {error <- fx.commandError(command);ioPure((path,error))}} else {fx.lookPath(path)}
+  match resolved {(resolvedPath,error) => do {
+   if resolvedPath != "" && path == original {fx.setCommandPath(command,resolvedPath)} else {ioPure(unit())}
+   let effective = if resolvedPath != "" {resolvedPath} else {path}
+   match error {Some(e) => ioPure(outcome.failure(unit(),fx.wrapError("plugin path " + fx.quote(effective) + " cannot be resolved for credential plugin allowlist check",e)));None => if _contains(state.allowlist,resolvedPath) {ioPure(outcome.success(unit()))} else {do {
+    values <- _resolveEntries(core,_args(core.config.pluginPolicy.allowlist),fx.basePath(effective),state.allowlist)
+    sync.writeRef(core.state,state{allowlist:values})
+    ioPure(if _contains(values,resolvedPath) {outcome.success(unit())} else {fx.failure(unit(),"plugin path " + fx.quote(effective) + " is not permitted by the credential plugin allowlist")})
+   }}}
+  }}
+ }}
+}}
+func _commandError(core Core,category String,code Int,error errors.Error) IO[errors.Error] {
+ if category == "exit" {ioPure(fx.errorText("exec: executable " + fx.cleanPath(core.config.command) + " failed with exit code " + show(code)))} else {
+ if category == "executable" {do {
+  hint <- sync.newRef("")
+  doSometimes(core.limiter,sync.writeRef(hint,installHintVerboseHelp()+(if core.config.installHint == "" {""} else {"\n\n"+core.config.installHint})))
+  text <- sync.readRef(hint)
+  ioPure(fx.errorText("exec: executable " + fx.cleanPath(core.config.command) + " not found"+text))
+ }} else {ioPure(fx.wrapError("exec",error))}}
+}
+func _policyMetric(core Core,error Option[errors.Error]) IO[Unit] {match core.environment.metrics {None => ioPure(unit());Some(m) => m.policy(match error {None => "allowed";Some(_) => "denied"})}}
+func _callsMetric(core Core,category String,code Int) IO[Unit] {match core.environment.metrics {None => ioPure(unit());Some(m) => m.calls(if category == "" {0} else {if category == "exit" {code} else {1}},if category == "" {"no_error"} else {if category == "exit" {"plugin_execution_error"} else {if category == "executable" || category == "path" {"plugin_not_found_error"} else {"client_internal_error"}}})}}
+func _rotationMetric(core Core,certificate Option[tls.Certificate]) IO[Unit] {match (core.environment.metrics,certificate) {(Some(m),Some(c)) => do {dates <- fx.certificateDates(c);now <- sync.now(core.environment.clock);m.rotationAge(fx.timeSince(sync.unixNanos(now),fst(dates)))};_ => ioPure(unit())}}
+func _expirationMetric(core Core,certificate Option[tls.Certificate]) IO[Unit] {sync.withLock(core.expirationMutex,do {
+ expiration <- match certificate {None => ioPure(None);Some(c) => do {dates <- fx.certificateDates(c);ioPure(if fx.timeIsZero(snd(dates)) {None} else {Some(snd(dates))})}}
+ values <- sync.readRef(core.expirations)
+ let values = Cons((core.identity,expiration),filter(values,func(pair) => fst(pair) != core.identity))
+ sync.writeRef(core.expirations,values)
+ let earliest = fold(values,None,func(acc,pair) => match (acc,snd(pair)) {(None,t) => t;(t,None) => t;(Some(a),Some(b)) => Some(if fx.timeBefore(a,b) {a} else {b})})
+ match core.environment.metrics {None => ioPure(unit());Some(m) => m.expiration(earliest)}
+})}
+func updateTransportConfig(a Authenticator,config transport.Config) IO[outcome.Outcome[transport.Config]] {
+ if transport.hasTokenAuth(config) || transport.hasBasicAuth(config) || transport.hasCertAuth(config) {ioPure(outcome.success(config))} else {do {
+  let wrapped = transport.wrap(config,func(base) => wrapTransport(a,base))
+  if transport.hasCertCallback(config) {ioPure(fx.failure(wrapped,"can't add TLS certificate callback: transport.Config.TLS.GetCert already set"))} else {do {
+   dial <- match config.dialHolder {None => ioPure(a.dial);Some(custom) => transport.newDialHolder(transport.connectionDialer(a.core.connections,custom.dial))}
+   ioPure(outcome.success(wrapped{tls:config.tls{getCertHolder:Some(a.getCert)},dialHolder:Some(dial)}))
+  }}
+ }}
+}
+func wrapTransport(a Authenticator,base transport.RoundTripper) transport.RoundTripper {transport.layer(base,func(request) => roundTrip(a,base,request))}
+func wrappedRoundTripper(base transport.RoundTripper) transport.RoundTripper {base}
+func roundTrip(a Authenticator,base transport.RoundTripper,request http.Request) IO[outcome.Outcome[Option[http.Response]]] {do {
+ authorization <- transport.requestHeader(request,"Authorization")
+ if authorization != "" {base.roundTrip(request)} else {do {
+  creds <- getCreds(a)
+  match creds.error {Some(e) => ioPure(outcome.failure(None,fx.wrapError("getting credentials",e)));None => match creds.value {None => ioPure(fx.failure(None,"getting credentials: missing credentials"));Some(c) => do {
+   copy <- transport.cloneRequest(request)
+   if c.token == "" {ioPure(unit())} else {transport.setRequestHeader(copy,"Authorization","Bearer "+c.token)}
+   response <- base.roundTrip(copy)
+   match response.error {Some(_) => ioPure(unit());None => match response.value {None => ioPure(unit());Some(r) => do {status <- transport.responseStatus(r);if status == 401 {do {_ <- maybeRefreshCreds(a,c);ioPure(unit())}} else {ioPure(unit())}}}}
+   ioPure(response)
+  }}}
+ }}
+}}
+func _parseCertificate(cert String,key String) IO[outcome.Outcome[Option[tls.Certificate]]] {do {
+ pair <- fx.attempt(None,do {parsed <- fx.parseKeyPair(cert,key);ioPure(Some(parsed))})
+ match pair.error {Some(e) => ioPure(outcome.failure(None,fx.wrapError("failed parsing client key/certificate",e)));None => match pair.value {
+  None => ioFail("key pair parser invariant: absent successful certificate")
+  Some(value) => do {
+   leaf <- fx.attempt(None,do {parsed <- fx.parseLeaf(value);ioPure(Some(parsed))})
+   ioPure(match leaf.error {Some(e) => outcome.failure(None,fx.wrapError("failed parsing client leaf certificate",e));None => leaf})
+  }
+ }}
+}}

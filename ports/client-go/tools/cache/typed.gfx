@@ -1,0 +1,44 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package cache
+import "std/map"
+import lists "std/list"
+import "github.com/reoring/gofx/ports/client-go/support/outcome"
+import errors "github.com/reoring/gofx/ports/client-go/deps/support"
+import objects "github.com/reoring/gofx/ports/client-go/deps/objects"
+import runtime "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime"
+
+type TypedInformerView[A] = TypedInformerView { raw: SharedInformer[runtime.Object], indexer: Indexer[A], descriptor: objects.ObjectType[A] }
+func typedObject[A](descriptor objects.ObjectType[A], value runtime.Object) IO[A] { match objects.fromObject(descriptor,Some(value)) { Some(obj) => ioPure(obj); None => errors.raiseError(cacheError("cache object does not match typed descriptor")) } }
+func typedOptional[A](descriptor objects.ObjectType[A], value outcome.Outcome[Option[runtime.Object]]) outcome.Outcome[Option[A]] { match value.value { None => outcome.from(None,value.error); Some(raw) => match objects.fromObject(descriptor,Some(raw)) { Some(obj) => outcome.from(Some(obj),value.error); None => outcome.failure(None,cacheError("cache object does not match typed descriptor")) } } }
+func typedList[A](descriptor objects.ObjectType[A], value outcome.Outcome[List[runtime.Object]]) outcome.Outcome[List[A]] { let result = fold(value.value,outcome.success(Nil),func(acc,obj) => match acc.error { Some(_) => acc; None => match objects.fromObject(descriptor,Some(obj)) { Some(typed) => outcome.success(Cons(typed,acc.value)); None => outcome.failure(acc.value,cacheError("cache object does not match typed descriptor")) } }); outcome.from(reverse(result.value),match value.error { Some(e) => Some(e); None => result.error }) }
+func rawTransaction[A](descriptor objects.ObjectType[A], transaction Transaction[A]) Transaction[runtime.Object] { match transaction { Transaction(obj,kind) => Transaction(objects.toObject(descriptor,obj),kind); DeleteKeyTransaction(key,obj) => DeleteKeyTransaction(key,match obj { None => None; Some(value) => Some(objects.toObject(descriptor,value)) }) } }
+func typedStore[A](raw Store[runtime.Object], descriptor objects.ObjectType[A]) Store[A] { Store(
+ func(obj) => raw.add(objects.toObject(descriptor,obj)),
+ func(obj) => raw.update(objects.toObject(descriptor,obj)),
+ func(obj) => raw.delete(objects.toObject(descriptor,obj)),
+ func() => do { values <- raw.list(); lists.mapM(values,func(obj) => typedObject(descriptor,obj)) },
+ raw.listKeys,
+ func(obj) => do { value <- raw.get(objects.toObject(descriptor,obj)); ioPure(typedOptional(descriptor,value)) },
+ func(key) => do { value <- raw.getByKey(key); ioPure(typedOptional(descriptor,value)) },
+ func(values,rv) => raw.replace(map(values,func(obj) => objects.toObject(descriptor,obj)),rv),
+ raw.resync,raw.bookmark,raw.lastStoreSyncResourceVersion,
+ func(txns) => raw.transaction(map(txns,func(txn) => rawTransaction(descriptor,txn))),
+ match raw.transformer { None => None; Some(transform) => Some(func(obj) => do { result <- transform(objects.toObject(descriptor,obj)); ioPure(match objects.fromObject(descriptor,Some(result.value)) { None => outcome.failure(obj,cacheError("cache object does not match typed descriptor")); Some(value) => outcome.from(value,result.error) }) }) },
+ raw.deleteByKey
+) }
+func typedIndexer[A](raw Indexer[runtime.Object], descriptor objects.ObjectType[A]) Indexer[A] { Indexer(typedStore(raw.store,descriptor),
+ func(name,obj) => do { values <- raw.index(name,objects.toObject(descriptor,obj)); ioPure(typedList(descriptor,values)) },
+ raw.indexKeys,
+ func(name,value) => do { values <- raw.byIndex(name,value); ioPure(typedList(descriptor,values)) },
+ raw.listIndexFuncValues,
+ func() => do { indexers <- raw.getIndexers(); ioPure(map.mapMap(indexers,func(index) => func(obj) => index(objects.toObject(descriptor,obj)))) },
+ func(indexers) => raw.addIndexers(map.mapMap(indexers,func(index) => func(obj) => match objects.fromObject(descriptor,Some(obj)) { None => ioPure(outcome.failure(Nil,cacheError("cache object does not match typed descriptor"))); Some(typed) => index(typed) }))
+) }
+func typedSharedInformer[A](raw SharedInformer[runtime.Object], descriptor objects.ObjectType[A]) TypedInformerView[A] { TypedInformerView(raw,typedIndexer(raw.indexer,descriptor),descriptor) }
+func getTypedIndexer[A](view TypedInformerView[A]) Indexer[A] { view.indexer }
+func getTypedStore[A](view TypedInformerView[A]) Store[A] { view.indexer.store }
+func typedDeleted[A](descriptor objects.ObjectType[A], value Deleted[runtime.Object]) IO[Deleted[A]] { match value { DeletedObject(obj) => do { typed <- typedObject(descriptor,obj); ioPure(DeletedObject(typed)) }; DeletedFinalStateUnknown(key,None) => ioPure(DeletedFinalStateUnknown(key,None)); DeletedFinalStateUnknown(key,Some(obj)) => do { typed <- typedObject(descriptor,obj); ioPure(DeletedFinalStateUnknown(key,Some(typed))) } } }
+func rawHandler[A](descriptor objects.ObjectType[A], handler ResourceEventHandler[A]) ResourceEventHandler[runtime.Object] { ResourceEventHandler(func(obj,initial) => do { typed <- typedObject(descriptor,obj); handler.onAdd(typed,initial) },func(old,obj) => do { typedOld <- typedObject(descriptor,old); typedNew <- typedObject(descriptor,obj); handler.onUpdate(typedOld,typedNew) },func(obj) => do { typed <- typedDeleted(descriptor,obj); handler.onDelete(typed) }) }
+func addTypedEventHandler[A](view TypedInformerView[A], handler ResourceEventHandler[A]) IO[outcome.Outcome[HandlerRegistration[runtime.Object]]] { addEventHandler(view.raw,rawHandler(view.descriptor,handler)) }
+func addTypedEventHandlerWithResyncPeriod[A](view TypedInformerView[A], handler ResourceEventHandler[A], period Int) IO[outcome.Outcome[HandlerRegistration[runtime.Object]]] { addEventHandlerWithResyncPeriod(view.raw,rawHandler(view.descriptor,handler),period) }
+func addTypedIndexers[A](view TypedInformerView[A], indexers Indexers[A]) IO[outcome.Outcome[Unit]] { view.indexer.addIndexers(indexers) }

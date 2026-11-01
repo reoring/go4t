@@ -1,0 +1,203 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package cache
+import lists "std/list"
+import "std/io"
+import strings "std/string"
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+import "github.com/reoring/gofx/ports/client-go/support/outcome"
+import "github.com/reoring/gofx/ports/client-go/support/watch"
+import errors "github.com/reoring/gofx/ports/client-go/deps/support"
+import objects "github.com/reoring/gofx/ports/client-go/deps/objects"
+import runtime "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime"
+import v1 "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import schema "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime/schema"
+import codec "github.com/reoring/gofx/ports/client-go/deps/codec"
+
+type ReflectorStore[A] = ReflectorStore { add: func(A) IO[outcome.Outcome[Unit]], update: func(A) IO[outcome.Outcome[Unit]], delete: func(A) IO[outcome.Outcome[Unit]], replace: func(List[A],String) IO[outcome.Outcome[Unit]], resync: func() IO[outcome.Outcome[Unit]], bookmark: Option[func(String) IO[outcome.Outcome[Unit]]], updateResourceVersion: Option[func(String) IO[Unit]], transformer: Option[TransformFunc[A]] }
+type ReflectorState = ReflectorState { resourceVersion: String, unavailable: Bool, paginated: Bool, backoff: Int, lastAttempt: Option[sync.Instant] }
+type ReflectorOptions[A] = ReflectorOptions { name: String, listerWatcher: ListWatcher[A], store: ReflectorStore[A], access: ObjectAccess[A], decode: func(runtime.Object) outcome.Outcome[A], clock: sync.Clock, resyncPeriod: Int, shouldResync: func() IO[Bool], watchList: Bool, pageSize: Int, minWatchTimeout: Int, maxWatchTimeout: Int, maxInternalErrorRetryDuration: Int, expectedGVK: Option[schema.GroupVersionKind], onError: func(Reflector[A],errors.Error) IO[Unit], onWarning: func(String) IO[Unit], checkWatchListConsistency: Option[func(String,List[A]) IO[Unit]], typeDescription: String, expectedType: Option[runtime.Object] }
+type Reflector[A] = Reflector { options: ReflectorOptions[A], mutex: sync.Mutex, state: sync.Ref[ReflectorState] }
+type WatchResult = WatchResult { initialBookmark: Bool, error: Option[errors.Error] }
+type WatchInput = WatchInput(Option[watch.Event]) | ResyncFailure(Option[errors.Error]) | BookmarkWarning
+func storeAsReflector[A](store Store[A]) ReflectorStore[A] { ReflectorStore(store.add,store.update,store.delete,store.replace,store.resync,None,None,store.transformer) }
+func deltaAsReflector[A](fifo DeltaFIFO[A]) ReflectorStore[A] { ReflectorStore(func(obj) => deltaAdd(fifo,obj),func(obj) => deltaUpdate(fifo,obj),func(obj) => deltaDelete(fifo,DeletedObject(obj)),func(items,rv) => deltaReplace(fifo,items,rv),func() => deltaResync(fifo),None,None,fifo.transform) }
+func defaultReflectorOptions[A](lw ListWatcher[A], store ReflectorStore[A], access ObjectAccess[A], decode func(runtime.Object) outcome.Outcome[A], clock sync.Clock) ReflectorOptions[A] { ReflectorOptions("reflector",lw,store,access,decode,clock,0,func() => ioPure(true),false,0,300000000000,600000000000,0,None,defaultWatchErrorHandler,func(message) => io.eprintln(message),None,"",None) }
+func reflectorTypeDescription[A](r Reflector[A]) String { r.options.typeDescription }
+func reflectorExpectedGVK(expectedType Option[runtime.Object]) IO[Option[schema.GroupVersionKind]] { match expectedType { None => ioPure(None); Some(obj) => do { name <- objects.objectTypeName(Some(obj)); if name == "*unstructured.Unstructured" { do { gvk <- objects.objectGroupVersionKind(obj); ioPure(if schema.groupVersionKindGetGroup(gvk) == "" && schema.groupVersionKindGetVersion(gvk) == "" && schema.groupVersionKindGetKind(gvk) == "" { None } else { Some(gvk) }) } } else { ioPure(None) } } } }
+func defaultReflectorTypeDescription(expectedType Option[runtime.Object], gvk Option[schema.GroupVersionKind]) IO[String] { match expectedType { None => ioPure("<unspecified>"); Some(obj) => match gvk { None => objects.objectTypeName(Some(obj)); Some(value) => { let group = schema.groupVersionKindGetGroup(value); let version = schema.groupVersionKindGetVersion(value); ioPure((if group == "" { version } else { group + "/" + version }) + ", Kind=" + schema.groupVersionKindGetKind(value)) } } } }
+func newReflector[A](options ReflectorOptions[A]) IO[Reflector[A]] { do { derivedGVK <- reflectorExpectedGVK(options.expectedType); description <- if options.typeDescription == "" { defaultReflectorTypeDescription(options.expectedType,derivedGVK) } else { ioPure(options.typeDescription) }; mutex <- sync.newMutex(); state <- sync.newRef(ReflectorState("",false,false,800000000,None)); ioPure(Reflector(options { typeDescription: description, expectedGVK: match options.expectedGVK { None => derivedGVK; Some(value) => Some(value) } },mutex,state)) } }
+func reflectorResourceVersion[A](r Reflector[A]) IO[String] { sync.withLock(r.mutex,do { state <- sync.readRef(r.state); ioPure(state.resourceVersion) }) }
+func reflectorSetVersion[A](r Reflector[A], rv String) IO[Unit] { sync.withLock(r.mutex,sync.uninterruptible(do { s <- sync.readRef(r.state); sync.writeRef(r.state,s { resourceVersion: rv }) })) }
+func reflectorUnavailable[A](r Reflector[A], unavailable Bool) IO[Unit] { sync.withLock(r.mutex,sync.uninterruptible(do { s <- sync.readRef(r.state); sync.writeRef(r.state,s { unavailable: unavailable }) })) }
+func relistResourceVersion(state ReflectorState) String { if state.unavailable { "" } else { if state.resourceVersion == "" { "0" } else { state.resourceVersion } } }
+func rewatchResourceVersion(state ReflectorState) String { if state.unavailable { "" } else { state.resourceVersion } }
+func isExpiredError(error errors.Error) Bool { errors.errorIsResourceExpired(error) || (match codec.errorStatus(error) { None => false; Some(status) => v1.statusReasonValue(v1.statusGetReason(status)) == "Gone" }) }
+func tooLargeResourceVersion(error errors.Error) Bool {
+ if objects.errorHasStatusCause(error,v1.causeTypeFromValue("ResourceVersionTooLarge")) { true } else {
+  if !errors.errorIsTimeout(error) { false } else { match codec.errorStatus(error) {
+   None => false
+   Some(status) => match v1.statusGetDetails(status) {
+    None => false
+    Some(details) => strings.contains(v1.statusGetMessage(status),"Too large resource version") || (match v1.statusDetailsGetCauses(details) { None => false; Some(causes) => lists.any(causes,func(cause) => v1.statusCauseGetMessage(cause) == "Too large resource version") })
+   }
+  } }
+ }
+}
+func unavailableResourceVersion(error errors.Error) Bool { isExpiredError(error) || tooLargeResourceVersion(error) }
+func retriableWatchError(error errors.Error) Bool { errors.errorIsConnectionRefused(error) || errors.errorIsTooManyRequests(error) }
+func reflectorDelay[A](r Reflector[A]) IO[Unit] { do { delay <- sync.withLock(r.mutex,do { state <- sync.readRef(r.state); now <- sync.now(r.options.clock); let base = match state.lastAttempt { Some(last) => if sync.elapsed(last,now) > 120000000000 { 800000000 } else { state.backoff }; None => state.backoff }; sync.writeRef(r.state,state { backoff: min(base*2,30000000000), lastAttempt: Some(now) }); ioPure(base) }); jitter <- errors.randomInt(delay); sleepClock(r.options.clock,delay+jitter) } }
+func sleepClock(clock sync.Clock, delay Int) IO[Unit] { sync.bracket(sync.newTimer(clock,delay),func(timer) => do { channel <- sync.timerChannel(timer); _ <- sync.receive(channel); ioPure(unit()) },func(timer) => do { _ <- sync.stopTimer(timer); ioPure(unit()) }) }
+func reflectorRun[A](r Reflector[A]) IO[Unit] { do { result <- reflectorListAndWatch(r); match result.error { None => ioPure(unit()); Some(error) => r.options.onError(r,error) }; reflectorDelay(r); reflectorRun(r) } }
+func reflectorListAndWatch[A](r Reflector[A]) IO[outcome.Outcome[Unit]] {
+ let acquire = if r.options.watchList && !r.options.listerWatcher.unsupportedWatchList { reflectorWatchList(r) } else { ioPure(outcome.success(None)) }
+ sync.bracket(acquire,func(initial) => if !r.options.watchList || r.options.listerWatcher.unsupportedWatchList || !outcome.isSuccess(initial) {
+  do { listed <- reflectorList(r); match listed.error { Some(e) => ioPure(outcome.failure(unit(),e)); None => reflectorWatchWithResync(r,None) } }
+ } else { reflectorWatchWithResync(r,initial.value) },stopWatchOutcome)
+}
+func reflectorList[A](r Reflector[A]) IO[outcome.Outcome[Unit]] {
+ do { state <- sync.withLock(r.mutex,sync.readRef(r.state)); let rv = relistResourceVersion(state); let size = if r.options.listerWatcher.disableChunking { 0 } else { if r.options.pageSize != 0 { r.options.pageSize } else { if state.paginated || rv == "" || rv == "0" { 500 } else { 0 } } }; let options = v1.listOptionsWithLimit(v1.listOptionsWithResourceVersion(v1.newListOptions(),rv),size)
+  result <- listAttempt(r,options)
+  retried <- match result.error { Some(e) => if unavailableResourceVersion(e) { do { reflectorUnavailable(r,true); listAttempt(r,v1.listOptionsWithLimit(v1.listOptionsWithResourceVersion(v1.newListOptions(),""),size)) } } else { ioPure(result) }; None => ioPure(result) }
+  match retried.error { Some(e) => ioPure(outcome.failure(unit(),errors.errorWrap("failed to list " + r.options.typeDescription,e))); None => sync.uninterruptible(do {
+   replaced <- r.options.store.replace(retried.value.items,retried.value.resourceVersion)
+   match replaced.error { Some(e) => ioPure(outcome.failure(unit(),errors.errorWrap("unable to sync list result",e))); None => do { sync.withLock(r.mutex,do { current <- sync.readRef(r.state); sync.writeRef(r.state,current { resourceVersion: retried.value.resourceVersion, unavailable: false, paginated: current.paginated || (rv == "0" && retried.value.continuation == "paginated") }) }); ioPure(outcome.success(unit())) } }
+  }) }
+ }
+}
+// The upstream legacy List callback may ignore cancellation. Its attempt owns
+// only a one-result mailbox; it never receives the cache or publication state.
+// A canceled observer does not join the callback, and late results cannot publish.
+func listAttempt[A](r Reflector[A], options v1.ListOptions) IO[outcome.Outcome[ListResult[A]]] {
+ do {
+  context <- sync.captureContext()
+  completed <- sync.newChannel(1)
+  _ <- sync.startDetached(sync.uninterruptible(do {
+   result <- io.tryIO(sync.withContext(context,reflectorListPages(r,options,Nil,"",false)))
+   sync.send(completed,result)
+  }))
+  result <- sync.receive(completed)
+  match result { Some(Ok(value)) => ioPure(value); Some(Err(error)) => ioFail(show(error)); None => ioFail("list attempt mailbox closed without result") }
+ }
+}
+func reflectorListPages[A](r Reflector[A], options v1.ListOptions, reversed List[List[A]], rv String, paginated Bool) IO[outcome.Outcome[ListResult[A]]] {
+ do { result <- r.options.listerWatcher.list(options)
+  match result.error {
+   Some(e) => if paginated && isExpiredError(e) { r.options.listerWatcher.list(v1.listOptionsWithContinue(v1.listOptionsWithLimit(options,0),"")) } else { ioPure(outcome.failure(ListResult(Nil,"",""),e)) }
+   None => {
+    let page = result.value
+    let version = if rv == "" { page.resourceVersion } else { rv }
+    if page.continuation == "" { ioPure(outcome.success(ListResult(lists.concatMap(reverse(Cons(page.items,reversed)),func(chunk) => chunk),version,if paginated { "paginated" } else { "" }))) } else { reflectorListPages(r,v1.listOptionsWithResourceVersion(v1.listOptionsWithContinue(options,page.continuation),""),Cons(page.items,reversed),version,true) }
+   }
+  }
+ }
+}
+func watchOptions[A](r Reflector[A], rv String, initial Bool) IO[v1.ListOptions] { do { let minimum = max(r.options.minWatchTimeout,300000000000); let maximum = max(r.options.maxWatchTimeout,minimum); jitter <- if maximum > minimum { errors.randomInt(maximum-minimum) } else { ioPure(0) }; let options = v1.listOptionsWithTimeoutSeconds(v1.listOptionsWithAllowWatchBookmarks(v1.listOptionsWithWatch(v1.listOptionsWithResourceVersion(v1.newListOptions(),rv),true),true),Some((minimum+jitter)/1000000000)); ioPure(if initial { v1.listOptionsWithResourceVersionMatch(v1.listOptionsWithSendInitialEvents(options,Some(true)),v1.resourceVersionMatchFromValue("NotOlderThan")) } else { options }) } }
+func cancelAndJoin[A](task sync.Task[A]) IO[Unit] { sync.uninterruptible(do { sync.cancelTask(task); _ <- io.tryIO(sync.join(task)); ioPure(unit()) }) }
+func reflectorWatchWithResync[A](r Reflector[A], initial Option[watch.Watch]) IO[outcome.Outcome[Unit]] { do { errorsChannel <- sync.newChannel(1); sync.bracket(sync.start(reflectorResyncLoop(r,errorsChannel)),func(_) => reflectorWatchLoop(r,initial,errorsChannel,None,None),func(task) => cancelAndJoin(task)) } }
+func reflectorResyncLoop[A](r Reflector[A], channel sync.Channel[errors.Error]) IO[Unit] { if r.options.resyncPeriod <= 0 { ioPure(unit()) } else { do { sleepClock(r.options.clock,r.options.resyncPeriod); should <- r.options.shouldResync(); result <- if should { r.options.store.resync() } else { ioPure(outcome.success(unit())) }; match result.error { Some(error) => sync.send(channel,error); None => reflectorResyncLoop(r,channel) } } } }
+func stopWatchOutcome(request outcome.Outcome[Option[watch.Watch]]) IO[Unit] { if outcome.isSuccess(request) { match request.value { None => ioPure(unit()); Some(w) => watch.stop(w) } } else { ioPure(unit()) } }
+func reflectorWatchLoop[A](r Reflector[A], existing Option[watch.Watch], errorsChannel sync.Channel[errors.Error], firstError Option[sync.Instant], lastError Option[sync.Instant]) IO[outcome.Outcome[Unit]] {
+ do {
+  started <- sync.now(r.options.clock)
+  rv <- reflectorResourceVersion(r)
+  let acquire = match existing { Some(w) => ioPure(outcome.success(Some(w))); None => do { options <- watchOptions(r,rv,false); r.options.listerWatcher.watch(options) } }
+  attempt <- sync.bracket(acquire,func(request) => match request.error {
+   Some(e) => ioPure(outcome.failure(WatchResult(false,None),e))
+   None => match request.value { None => ioPure(outcome.failure(WatchResult(false,None),cacheError("watch returned no stream"))); Some(w) => do { result <- handleAnyWatch(r,w,r.options.store,started,errorsChannel,false,rv != "" && rv != "0"); ioPure(outcome.success(result)) } }
+  },stopWatchOutcome)
+  match attempt.error {
+   Some(error) => if retriableWatchError(error) { do { reflectorDelay(r); reflectorWatchLoop(r,None,errorsChannel,firstError,lastError) } } else { ioPure(outcome.failure(unit(),error)) }
+   None => match attempt.value.error {
+    None => reflectorWatchLoop(r,None,errorsChannel,firstError,lastError)
+    Some(error) => if errors.errorIsTooManyRequests(error) { do { reflectorDelay(r); reflectorWatchLoop(r,None,errorsChannel,firstError,lastError) } } else { if errors.errorIsInternal(error) { do {
+     now <- sync.now(r.options.clock)
+     let first = match lastError { Some(last) => if sync.elapsed(last,now) >= 60000000000 { now } else { match firstError { Some(first) => first; None => now } }; None => now }
+     if r.options.maxInternalErrorRetryDuration > 0 && sync.elapsed(first,now) <= r.options.maxInternalErrorRetryDuration { reflectorWatchLoop(r,None,errorsChannel,Some(first),Some(now)) } else { ioPure(outcome.success(unit())) }
+    } } else { ioPure(outcome.success(unit())) } }
+   }
+  }
+ }
+}
+func handleAnyWatch[A](r Reflector[A], w watch.Watch, store ReflectorStore[A], start sync.Instant, errorsChannel sync.Channel[errors.Error], initial Bool, propagate Bool) IO[WatchResult] { do {
+ context <- sync.captureContext()
+ sync.uninterruptible(do {
+  keep <- sync.newRef(false)
+  sync.ensuring(do {
+   observed <- io.tryIO(sync.withContext(context,sync.bracket(sync.newTimer(r.options.clock,60000000000),func(timer) => watchEventLoop(r,w,store,start,errorsChannel,initial,propagate,false,0,timer),func(timer) => do { _ <- sync.stopTimer(timer); ioPure(unit()) })))
+   match observed {
+    Ok(result) => do { if initial && result.initialBookmark { sync.writeRef(keep,true) } else { ioPure(unit()) }; ioPure(result) }
+    Err(io.Cancelled) => ioPure(WatchResult(false,Some(cacheError("stop requested"))))
+    Err(io.Timeout) => ioPure(WatchResult(false,Some(cacheError("stop requested"))))
+    Err(error) => ioFail(show(error))
+   }
+  },do { retained <- sync.readRef(keep); if retained { ioPure(unit()) } else { watch.stop(w) } })
+ })
+} }
+func watchEventLoop[A](r Reflector[A], w watch.Watch, store ReflectorStore[A], start sync.Instant, errorsChannel sync.Channel[errors.Error], initial Bool, propagate Bool, nonAdded Bool, count Int, timer sync.Timer) IO[WatchResult] {
+ do { warning <- sync.timerChannel(timer); input <- sync.selectCase([watch.receiveCase(w,func(event) => WatchInput(event)),sync.receiveCase(errorsChannel,func(error) => ResyncFailure(error)),sync.receiveCase(warning,func(_) => BookmarkWarning)])
+  match input {
+   ResyncFailure(error) => ioPure(WatchResult(false,error))
+   BookmarkWarning => do { if initial { r.options.onWarning("initial events end bookmark not received") } else { ioPure(unit()) }; _ <- sync.resetTimer(timer,60000000000); watchEventLoop(r,w,store,start,errorsChannel,initial,propagate,nonAdded,count,timer) }
+   WatchInput(None) => do { now <- sync.now(r.options.clock); ioPure(WatchResult(false,if count == 0 && sync.elapsed(start,now) < 1000000000 { Some(cacheError("very short watch: " + r.options.name + ": Unexpected watch close - watch lasted less than a second and no items received")) } else { None })) }
+   WatchInput(Some(event)) => match event.object {
+    None => if event.eventType == "ERROR" { ioPure(WatchResult(false,Some(cacheError("watch error event has nil object")))) } else { do { r.options.onWarning("watch event has nil object"); watchEventLoop(r,w,store,start,errorsChannel,initial,propagate,nonAdded,count,timer) } }
+    Some(object) => if event.eventType == "ERROR" { do { error <- objects.errorFromObject(object); ioPure(WatchResult(false,Some(error))) } } else { do {
+     metadata <- objects.objectMetadata(object)
+     gvk <- objects.objectGroupVersionKind(object)
+     let expected = match r.options.expectedGVK { None => true; Some(g) => schema.groupVersionKindGetGroup(g) == schema.groupVersionKindGetGroup(gvk) && schema.groupVersionKindGetVersion(g) == schema.groupVersionKindGetVersion(gvk) && schema.groupVersionKindGetKind(g) == schema.groupVersionKindGetKind(gvk) }
+     let table = schema.groupVersionKindGetGroup(gvk) == "meta.k8s.io" && schema.groupVersionKindGetKind(gvk) == "Table"
+     match fst(metadata) { None => do { r.options.onWarning("unable to understand watch event metadata"); watchEventLoop(r,w,store,start,errorsChannel,initial,propagate,nonAdded,count,timer) }; Some(meta) => if !expected || table { do { r.options.onWarning("unexpected watch event object type or gvk"); watchEventLoop(r,w,store,start,errorsChannel,initial,propagate,nonAdded,count,timer) } } else { do {
+      let rv = v1.objectMetaGetResourceVersion(meta)
+      let annotations = v1.objectMetaGetAnnotations(meta)
+      let ended = event.eventType == "BOOKMARK" && (match errors.mapLookup(annotations,"k8s.io/initial-events-end") { Some(value) => value == "true"; None => false })
+      let decoded = r.options.decode(object)
+      let needsObject = event.eventType == "ADDED" || event.eventType == "MODIFIED" || event.eventType == "DELETED"
+      if needsObject && !outcome.isSuccess(decoded) { do { r.options.onWarning("unexpected watch event object type"); watchEventLoop(r,w,store,start,errorsChannel,initial,propagate,nonAdded,count,timer) } } else { do {
+       changed <- if event.eventType == "ADDED" { store.add(decoded.value) } else { if event.eventType == "MODIFIED" { store.update(decoded.value) } else { if event.eventType == "DELETED" { store.delete(decoded.value) } else { if event.eventType == "BOOKMARK" { match store.bookmark { None => ioPure(outcome.success(unit())); Some(bookmark) => bookmark(rv) } } else { do { r.options.onWarning("unknown watch event: " + event.eventType); ioPure(outcome.success(unit())) } } } } }
+       match changed.error { None => ioPure(unit()); Some(e) => r.options.onError(r,e) }
+       let sawNonAdded = nonAdded || event.eventType == "MODIFIED" || event.eventType == "DELETED" || event.eventType == "BOOKMARK"
+       if !initial && (propagate || sawNonAdded) { do { reflectorSetVersion(r,rv); match store.updateResourceVersion { None => ioPure(unit()); Some(update) => update(rv) } } } else { ioPure(unit()) }
+       if initial && ended { ioPure(WatchResult(true,None)) } else { watchEventLoop(r,w,store,start,errorsChannel,initial,propagate,sawNonAdded,count+1,timer) }
+      } }
+     } } }
+    } }
+   }
+  }
+ }
+}
+func reflectorWatchList[A](r Reflector[A]) IO[outcome.Outcome[Option[watch.Watch]]] {
+ do {
+  state <- sync.withLock(r.mutex,sync.readRef(r.state))
+  options <- watchOptions(r,rewatchResourceVersion(state),true)
+  keep <- sync.newRef(false)
+  attempt <- sync.bracket(r.options.listerWatcher.watch(options),func(request) => match request.error {
+   Some(e) => ioPure(outcome.failure(None,e))
+   None => match request.value {
+    None => ioPure(outcome.failure(None,cacheError("watch returned no stream")))
+    Some(w) => do {
+     temporary <- newStoreWithOptions(r.options.access,r.options.store.transformer,defaultThreadSafeStoreOptions() { atomicFIFO: func() => ioPure(true) })
+     errorsChannel <- sync.newChannel(0)
+     started <- sync.now(r.options.clock)
+     let store = storeAsReflector(temporary)
+     result <- handleAnyWatch(r,w,store { bookmark: Some(func(rv) => do { temporary.bookmark(rv); ioPure(outcome.success(unit())) }) },started,errorsChannel,true,false)
+     match result.error {
+      Some(e) => ioPure(outcome.failure(None,e))
+      None => if !result.initialBookmark { ioPure(outcome.success(None)) } else { do {
+       items <- temporary.list()
+       rv <- temporary.lastStoreSyncResourceVersion()
+       match r.options.checkWatchListConsistency { None => ioPure(unit()); Some(check) => check(rv,items) }
+       sync.uninterruptible(do {
+        replaced <- r.options.store.replace(items,rv)
+        match replaced.error { Some(e) => ioPure(outcome.failure(None,errors.errorWrap("unable to sync watch-list result",e))); None => do { reflectorSetVersion(r,rv); reflectorUnavailable(r,false); sync.writeRef(keep,true); ioPure(outcome.success(Some(w))) } }
+       })
+      } }
+     }
+    }
+   }
+  },func(request) => do { retained <- sync.readRef(keep); if retained { ioPure(unit()) } else { stopWatchOutcome(request) } })
+  match attempt.error {
+   Some(error) => if unavailableResourceVersion(error) { do { reflectorUnavailable(r,true); reflectorWatchList(r) } } else { if retriableWatchError(error) { do { reflectorDelay(r); reflectorWatchList(r) } } else { ioPure(attempt) } }
+   None => match attempt.value { Some(_) => ioPure(attempt); None => reflectorWatchList(r) }
+  }
+ }
+}

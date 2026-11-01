@@ -1,0 +1,51 @@
+package dynamic
+import fixture "dynamic/testing"
+import u "deps/k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+import v1 "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import sync "support/sync"
+import watch "support/watch"
+import outcome "support/outcome"
+// Copyright 2026 The Kubernetes Authors. Licensed under Apache-2.0.
+func testWatchDecodesArbitraryCRDEventsAndStops() IO[Bool] {
+ do {
+  serializer <- newBasicNegotiatedSerializer(false)
+  f <- fixture.newFixture(serializer,"application/json","{\"type\":\"ADDED\",\"object\":{\"apiVersion\":\"custom/v1\",\"kind\":\"Widget\",\"metadata\":{\"name\":\"one\"}}}\n")
+  registry <- fixture.featureRegistry()
+  client <- fromRESTClient(f.client,registry)
+  result <- client.resource(testGVR()).watch(v1.newListOptions())
+  match result.value { None => ioPure(false); Some(stream) => do {
+   event <- watch.next(stream)
+   watch.stop(stream)
+   calls <- sync.readRef(f.calls)
+   ioPure((match event { None => false; Some(event) => event.eventType=="ADDED" && (match event.object { None => false; Some(object) => match u.unstructuredFromRuntimeObject(object) { None => false; Some(_) => true } }) }) && (match calls { Cons(call,Nil) => call.query=="watch=true"; _ => false }))
+  } }
+ }
+}
+func testAllMutationVerbsAndStatusSubresources() IO[Bool] {
+ do {
+  serializer <- newBasicNegotiatedSerializer(false)
+  f <- fixture.newFixture(serializer,"application/json","{\"apiVersion\":\"custom/v1\",\"kind\":\"Widget\",\"metadata\":{\"name\":\"one\"}}")
+  registry <- fixture.featureRegistry()
+  client <- fromRESTClient(f.client,registry)
+  object <- u.unstructuredCallSetName(u.newUnstructured(),"one")
+  let resource = client.resource(testGVR()).namespace("team")
+  _ <- resource.create(object.0,v1.newCreateOptions(),[])
+  _ <- resource.create(object.0,v1.newCreateOptions(),["nested"])
+  _ <- resource.update(object.0,v1.newUpdateOptions(),[])
+  _ <- resource.updateStatus(object.0,v1.newUpdateOptions())
+  _ <- resource.patch("one","application/merge-patch+json","{}",v1.newPatchOptions(),["scale"])
+  _ <- resource.applyStatus("one",object.0,v1.newApplyOptions())
+  _ <- resource.delete("one",v1.newDeleteOptions(),[])
+  _ <- resource.deleteCollection(v1.newDeleteOptions(),v1.newListOptions())
+  calls <- sync.readRef(f.calls)
+  ioPure(map(calls,func(call) => call.method)==["POST","POST","PUT","PUT","PATCH","PATCH","DELETE","DELETE"] && map(calls,func(call) => call.path)==[
+   "/apis/cheese.testing.k8s.io/v27alpha15/namespaces/team/cheddars",
+   "/apis/cheese.testing.k8s.io/v27alpha15/namespaces/team/cheddars/one/nested",
+   "/apis/cheese.testing.k8s.io/v27alpha15/namespaces/team/cheddars/one",
+   "/apis/cheese.testing.k8s.io/v27alpha15/namespaces/team/cheddars/one/status",
+   "/apis/cheese.testing.k8s.io/v27alpha15/namespaces/team/cheddars/one/scale",
+   "/apis/cheese.testing.k8s.io/v27alpha15/namespaces/team/cheddars/one/status",
+   "/apis/cheese.testing.k8s.io/v27alpha15/namespaces/team/cheddars/one",
+   "/apis/cheese.testing.k8s.io/v27alpha15/namespaces/team/cheddars"])
+ }
+}

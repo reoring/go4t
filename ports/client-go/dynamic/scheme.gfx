@@ -1,0 +1,65 @@
+package dynamic
+
+import runtime "deps/k8s.io/apimachinery/pkg/runtime"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import u "deps/k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+import objects "deps/objects"
+import errors "deps/support"
+
+// Copyright 2018 The Kubernetes Authors. Licensed under Apache-2.0.
+extern func _newMetaScheme(version schema.GroupVersion) IO[runtime.Scheme] = "github.com/reoring/gofx/ports/client-go/dynamic/host".MetaScheme
+func newMetaScheme() IO[runtime.Scheme] { _newMetaScheme(versionV1()) }
+extern func schemeCreater(value runtime.Scheme) IO[runtime.ObjectCreater] = "github.com/reoring/gofx/ports/client-go/dynamic/host".SchemeCreater
+extern func schemeTyper(value runtime.Scheme) IO[runtime.ObjectTyper] = "github.com/reoring/gofx/ports/client-go/dynamic/host".SchemeTyper
+extern func versionEncoder(encoder runtime.Encoder,version runtime.GroupVersioner,typer runtime.ObjectTyper) IO[runtime.Encoder] = "github.com/reoring/gofx/ports/client-go/dynamic/host".VersionEncoder
+extern func metadataSerializer() IO[runtime.NegotiatedSerializer] = "github.com/reoring/gofx/ports/client-go/dynamic/host".MetadataSerializer
+func newUnstructuredCreater(scheme runtime.Scheme) IO[runtime.ObjectCreater] {
+ runtime.newObjectCreater(func(kind) => do {
+  created <- runtime.schemeCallNewIdentity(scheme,kind)
+  match created.1 {
+   None => ioPure(created)
+   Some(_) => do {
+    let version = schema.groupVersionKindGetVersion(kind)
+    let group = schema.groupVersionKindGetGroup(kind)
+    withVersion <- u.unstructuredCallSetAPIVersion(u.newUnstructured(),if group == "" { version } else { group+"/"+version })
+    withKind <- u.unstructuredCallSetKind(withVersion.0,schema.groupVersionKindGetKind(kind))
+    ioPure((Some(u.unstructuredToRuntimeObject(withKind.0)),None))
+   }
+  }
+ })
+}
+func newUnstructuredTyper(scheme runtime.Scheme,permissive Bool) IO[runtime.ObjectTyper] {
+ runtime.newObjectTyper(func(object) => do {
+  original <- runtime.schemeCallObjectKindsIdentity(scheme,object)
+  match original.1.1.1 {
+   None => ioPure(original)
+   Some(_) => match object {
+    None => ioPure(original)
+    Some(value) => {
+     let unstructured = (match u.unstructuredFromRuntimeObject(value) { Some(_) => true; None => false }) || (match u.unstructuredListFromRuntimeObject(value) { Some(_) => true; None => false })
+     if !unstructured { ioPure(original) } else { do {
+      kind <- objects.objectGroupVersionKind(value)
+      let empty = schema.groupVersionKindGetGroup(kind) == "" && schema.groupVersionKindGetVersion(kind) == "" && schema.groupVersionKindGetKind(kind) == ""
+      ioPure(if permissive || !empty { (object,(Some([kind]),(false,None))) } else { original })
+     } }
+    }
+   }
+  }
+ },func(_) => ioPure(true))
+}
+func newBasicNegotiatedSerializer(allowCBOR Bool) IO[runtime.NegotiatedSerializer] {
+ do {
+  scheme <- newMetaScheme()
+  creater <- newUnstructuredCreater(scheme)
+  typer <- newUnstructuredTyper(scheme,false)
+  permissive <- newUnstructuredTyper(scheme,true)
+  streamCreater <- schemeCreater(scheme)
+  streamTyper <- schemeTyper(scheme)
+  json <- jsonInfo(creater,typer,streamCreater,streamTyper)
+  media <- if allowCBOR { do { cbor <- cborInfo(creater,typer,streamCreater,streamTyper,false); ioPure([json,cbor]) } } else { ioPure([json]) }
+  runtime.newNegotiatedSerializer(func(decoder,_) => ioPure(decoder),func(encoder,version) => match (encoder,version) {
+   (Some(e),Some(v)) => do { result <- versionEncoder(e,v,permissive); ioPure(Some(result)) }
+   _ => ioPure(encoder)
+  },func() => ioPure(Some(media)))
+ }
+}

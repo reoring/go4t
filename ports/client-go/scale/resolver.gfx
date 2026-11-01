@@ -1,0 +1,56 @@
+package scale
+
+import discovery "discovery"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import v1 "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import errors "deps/support"
+import outcome "support/outcome"
+import sync "support/sync"
+import keys "dynamic/dynamicinformer"
+import m "std/map"
+import listlib "std/list"
+
+// Copyright 2017 The Kubernetes Authors. Licensed under Apache-2.0.
+type PreferredResourceMapper = PreferredResourceMapper { resourceFor: func(schema.GroupVersionResource) IO[outcome.Outcome[schema.GroupVersionResource]] }
+type ScaleKindResolver = ScaleKindResolver { scaleForResource: func(schema.GroupVersionResource) IO[outcome.Outcome[schema.GroupVersionKind]] }
+func newDiscoveryScaleKindResolver(client discovery.DiscoveryInterface) IO[ScaleKindResolver] {
+ do {
+  mutex <- sync.newMutex()
+  cache <- sync.newRef(m.emptyMap())
+  ioPure(ScaleKindResolver(func(resource) => do {
+   let key = keys.resourceKey(resource)
+   found <- sync.withLock(mutex,do { state <- sync.readRef(cache); ioPure(m.mapLookup(state,key)) })
+   match found { Some(kind) => ioPure(outcome.success(kind)); None => do {
+    fetched <- discoverScaleKind(client,resource)
+    match fetched.error {
+     Some(_) => ioPure(fetched)
+     None => do { sync.withLock(mutex,sync.uninterruptible(do { state <- sync.readRef(cache); sync.writeRef(cache,m.mapInsert(state,key,fetched.value)) })); ioPure(fetched) }
+    }
+   } }
+  }))
+ }
+}
+func discoverScaleKind(client discovery.DiscoveryInterface,resource schema.GroupVersionResource) IO[outcome.Outcome[schema.GroupVersionKind]] {
+ let group = schema.groupVersionResourceGetGroup(resource)
+ let version = schema.groupVersionResourceGetVersion(resource)
+ let gv = if group == "" { version } else { group+"/"+version }
+ do {
+  description <- schema.groupVersionResourceCallString(resource)
+  discovered <- client.serverResourcesForGroupVersion(gv)
+  match discovered.error {
+   Some(e) => ioPure(outcome.failure(schema.newGroupVersionKind(),errors.errorWrap("unable to fetch discovery information for "+description.1,e)))
+   None => {
+    let resources = match discovered.value { None => []; Some(value) => match v1.aPIResourceListGetAPIResources(value) { None => []; Some(resources) => resources } }
+    let wanted = schema.groupVersionResourceGetResource(resource)+"/scale"
+    match listlib.find(resources,func(item) => v1.aPIResourceGetName(item) == wanted) {
+     None => ioPure(outcome.failure(schema.newGroupVersionKind(),errors.errorNew("could not find scale subresource for "+description.1+" in discovery information")))
+     Some(item) => {
+      let explicit = v1.aPIResourceGetGroup(item) != "" && v1.aPIResourceGetVersion(item) != ""
+      let kind = schema.groupVersionKindWithKind(schema.groupVersionKindWithVersion(schema.groupVersionKindWithGroup(schema.newGroupVersionKind(),if explicit { v1.aPIResourceGetGroup(item) } else { group }),if explicit { v1.aPIResourceGetVersion(item) } else { version }),v1.aPIResourceGetKind(item))
+      ioPure(outcome.success(kind))
+     }
+    }
+   }
+  }
+ }
+}

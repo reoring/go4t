@@ -1,0 +1,24 @@
+// Copyright 2015-2026 The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+// Source: client-go v0.37.2 metrics.go and healthzadaptor.go.
+package leaderelection
+import "support/sync"
+import errors "deps/support"
+
+type LeaderMetric = LeaderMetric { on:func(String) IO[Unit], off:func(String) IO[Unit], slowpathExercised:func(String) IO[Unit] }
+type MetricsProvider = MetricsProvider { newLeaderMetric:func() IO[LeaderMetric] }
+type MetricsRegistry = MetricsRegistry { mutex:sync.Mutex, provider:sync.Ref[Option[MetricsProvider]] }
+func noopMetric() LeaderMetric { LeaderMetric(func(_name) => ioPure(unit()),func(_name) => ioPure(unit()),func(_name) => ioPure(unit())) }
+func newMetricsRegistry() IO[MetricsRegistry] { do { mutex <- sync.newMutex(); provider <- sync.newRef(None); ioPure(MetricsRegistry(mutex,provider)) } }
+func setProvider(registry MetricsRegistry,provider MetricsProvider) IO[Unit] {
+ sync.withLock(registry.mutex,do { existing <- sync.readRef(registry.provider); match existing { Some(_) => ioPure(unit()); None => sync.writeRef(registry.provider,Some(provider)) } })
+}
+func newLeaderMetric(registry MetricsRegistry) IO[LeaderMetric] {
+ do { provider <- sync.withLock(registry.mutex,sync.readRef(registry.provider)); match provider { None => ioPure(noopMetric()); Some(p) => p.newLeaderMetric() } }
+}
+type HealthzAdaptor = HealthzAdaptor { mutex:sync.Mutex, elector:sync.Ref[Option[LeaderElector]], timeout:Int }
+func newLeaderHealthzAdaptor(timeout Int) IO[HealthzAdaptor] { do { mutex <- sync.newMutex(); elector <- sync.newRef(None); ioPure(HealthzAdaptor(mutex,elector,timeout)) } }
+func healthName(_adaptor HealthzAdaptor) String { "leaderElection" }
+func setLeaderElection(adaptor HealthzAdaptor,elector LeaderElector) IO[Unit] { sync.withLock(adaptor.mutex,sync.writeRef(adaptor.elector,Some(elector))) }
+func healthCheck(adaptor HealthzAdaptor) IO[Option[errors.Error]] {
+ sync.withLock(adaptor.mutex,do { elector <- sync.readRef(adaptor.elector); match elector { None => ioPure(None); Some(e) => check(e,adaptor.timeout) } })
+}

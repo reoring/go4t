@@ -1,0 +1,20 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package cache
+import "std/map"
+import features "github.com/reoring/gofx/ports/client-go/features"
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+import "github.com/reoring/gofx/ports/client-go/support/outcome"
+import errors "github.com/reoring/gofx/ports/client-go/deps/support"
+import runtime "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime"
+
+// Capture the application registry, not its current value. NewReflector is built
+// by run, which is the pinned lifecycle point for observing WatchListClient.
+func newSharedIndexInformerWithFeatures[A](registry features.FeatureRegistry, lw ListWatcher[A], access ObjectAccess[A], decode func(runtime.Object) outcome.Outcome[A], resyncPeriod Int, indexers Indexers[A], clock sync.Clock) IO[SharedInformer[A]] { do {
+ informer <- newSharedIndexInformerWithStoreOptions(lw,access,decode,resyncPeriod,indexers,clock,threadSafeStoreOptionsWithFeatures(registry,None))
+ installed <- setWatchListGate(informer,func() => do { gates <- features.featureGates(registry); gates.enabled(features.watchListClient()) })
+ match installed.error { None => ioPure(informer); Some(error) => errors.raiseError(error) }
+} }
+func newSharedInformerWithFeatures[A](registry features.FeatureRegistry, lw ListWatcher[A], access ObjectAccess[A], decode func(runtime.Object) outcome.Outcome[A], resyncPeriod Int, clock sync.Clock) IO[SharedInformer[A]] { newSharedIndexInformerWithFeatures(registry,lw,access,decode,resyncPeriod,map.emptyMap(),clock) }
+func newRawSharedIndexInformerWithFeatures(registry features.FeatureRegistry, lw ListWatcher[runtime.Object], resyncPeriod Int, indexers Indexers[runtime.Object], clock sync.Clock) IO[SharedInformer[runtime.Object]] { newSharedIndexInformerWithFeatures(registry,lw,rawObjectAccess(),func(obj) => outcome.success(obj),resyncPeriod,indexers,clock) }
+func newReflectorWithFeatures[A](registry features.FeatureRegistry, options ReflectorOptions[A]) IO[Reflector[A]] { do { gates <- features.featureGates(registry); enabled <- gates.enabled(features.watchListClient()); newReflector(options { watchList: enabled }) } }
+func threadSafeStoreOptionsWithFeatures(registry features.FeatureRegistry, metrics Option[(InformerNameAndResource,InformerMetricsProvider)]) ThreadSafeStoreOptions { ThreadSafeStoreOptions(func() => do { gates <- features.featureGates(registry); gates.enabled(features.atomicFIFO()) },metrics) }

@@ -1,0 +1,14 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package util
+import "github.com/reoring/gofx/ports/client-go/deps/codec"
+import schema "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime/schema"
+import "github.com/reoring/gofx/ports/client-go/deps/support"
+import internal "github.com/reoring/gofx/ports/client-go/tools/internal/events"
+func testValidAndInvalidEventNamesTrace() IO[Bool] { do {
+ valid <- generateEventName("pod",255); invalid <- generateEventName("2001:db8::123",255)
+ ioPure(valid=="pod.ff" && internal.validName(invalid) && invalid!="2001:db8::123.ff")
+} }
+func testEventTypeAndNotFoundTrace() IO[Bool] {
+ let notFound = codec.newNotFound(schema.groupResourceWithResource(schema.newGroupResource(),"events"),"event")
+ ioPure(validateEventType("Normal") && validateEventType("Warning") && !validateEventType("Error") && isKeyNotFoundError(Some(notFound)) && !isKeyNotFoundError(Some(support.errorNew("not found"))) && !isKeyNotFoundError(None))
+}

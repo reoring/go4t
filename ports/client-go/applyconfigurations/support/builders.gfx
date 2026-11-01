@@ -1,0 +1,52 @@
+// Copyright The Kubernetes Authors. Licensed under Apache-2.0.
+package support
+
+import list "std/list"
+import map "std/map"
+import foreign "deps/support"
+
+func ordering(a String,b String) Ordering { compare(a,b) }
+
+func appendValues[A](previous Option[List[A]],values List[A]) Option[List[A]] {
+ match values {
+  Nil => previous
+  _ => Some(list.append(match previous { None => Nil; Some(old) => old },values))
+ }
+}
+
+func mergeMaps[K Ord,V](previous Option[Map[K,V]],entries Option[Map[K,V]]) Option[Map[K,V]] {
+ match entries {
+  None => previous
+  Some(values) => if map.mapSize(values) == 0 { previous } else {
+   Some(map.mapFold(values,match previous { None => map.emptyMap(); Some(old) => old },func(acc,key,value) => map.mapInsert(acc,key,value)))
+  }
+ }
+}
+
+extern func _panic[A](message String) A = "github.com/reoring/gofx/ports/client-go/applyconfigurations/host".Panic
+
+func requireValues[A](values List[Option[A]],message String) List[A] {
+ match values {
+  Nil => Nil
+  Cons(value,rest) => match value {
+   None => _panic(message)
+   Some(item) => Cons(item,requireValues(rest,message))
+  }
+ }
+}
+extern func _bytes(values List[Int]) String = "github.com/reoring/gofx/ports/client-go/applyconfigurations/host".Bytes
+func appendBytes(previous Option[String],values List[Int]) Option[String] {
+ match values {
+  Nil => previous
+  _ => Some((match previous { None => ""; Some(value) => value }) + _bytes(values))
+ }
+}
+func mergeForeignMaps[K,V](previous Option[foreign.ForeignMap[K,V]],entries Option[foreign.ForeignMap[K,V]]) Option[foreign.ForeignMap[K,V]] {
+ match entries {
+  None => previous
+  Some(values) => match foreign.mapEntries(values) {
+   Nil => previous
+   pairs => match previous { None => Some(values); Some(old) => Some(list.fold(pairs,old,func(acc,pair) => foreign.mapWith(acc,pair.0,pair.1))) }
+  }
+ }
+}

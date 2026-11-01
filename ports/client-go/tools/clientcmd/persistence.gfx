@@ -1,0 +1,131 @@
+// Copyright 2014 The Kubernetes Authors. Licensed under Apache-2.0.
+package clientcmd
+import api "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api"
+import rest "github.com/reoring/gofx/ports/client-go/rest"
+import err "github.com/reoring/gofx/ports/client-go/deps/support"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import "std/map"
+import "std/list"
+import "std/prelude"
+import "std/io"
+func useModifyConfigLock() Bool { true }
+func lockName(filename String) String { filename+".lock" }
+func lockFile(source api.Source,filename String) IO[Option[err.Error]] { do {
+ dir <- source.stat(api.dir(filename))
+ error <- match dir.error { Some(error) => if api.isNotExist(error) { source.mkdirAll(api.dir(filename),493) } else { ioPure(None) }; None => ioPure(None) }
+ _errorThen(error,func() => source.createExclusive(lockName(filename)))
+} }
+func unlockFile(source api.Source,filename String) IO[Option[err.Error]] { source.remove(lockName(filename)) }
+func _withFileLocks(source api.Source,files List[String],action func() IO[Option[err.Error]]) IO[Option[err.Error]] { match files { Nil => action(); Cons(file,rest) => sync.bracket(lockFile(source,file),func(error) => match error { Some(_) => ioPure(error); None => _withFileLocks(source,rest,action) },func(error) => match error { Some(_) => ioPure(unit()); None => do { unlockFile(source,file); ioPure(unit()) } }) } }
+func getConfigFromFile(source api.Source,filename String) IO[outcome.Outcome[api.Config]] { do {
+ loaded <- loadFromFile(source,filename)
+ ioPure(match loaded.error { Some(error) => if api.isNotExist(error) { outcome.success(api.newConfig()) } else { outcome.failure(api.emptyConfig(),error) }; None => outcome.success(_or(loaded.value,api.newConfig())) })
+} }
+func getConfigFromFileOrDie(source api.Source,filename String) IO[api.Config] { do { result <- getConfigFromFile(source,filename); match result.error { None => ioPure(result.value); Some(error) => do { eprintln(err.errorMessage(error)); io.exit(255) } } } }
+func _updateFile(source api.Source,filename String,update func(api.Config) api.Config) IO[Option[err.Error]] { do { loaded <- getConfigFromFile(source,filename); match loaded.error { Some(error) => ioPure(Some(error)); None => writeToFile(source,update(loaded.value),filename) } } }
+func writeCurrentContext(source api.Source,access ConfigAccess,name String) IO[Option[err.Error]] { do {
+ starting <- access.getStartingConfig()
+ match starting.error { Some(error) => ioPure(Some(error)); None => if _or(starting.value,api.newConfig()).currentContext == name { ioPure(None) } else { do {
+ explicit <- access.isExplicitFile()
+ if explicit { do { file <- access.getExplicitFile(); _updateFile(source,file,func(value) => value{currentContext:name}) } } else if name != "" { do { file <- access.getDefaultFilename(); _updateFile(source,file,func(value) => value{currentContext:name}) } } else { do { files <- access.getLoadingPrecedence(); _clearCurrentContext(source,files) } }
+ } } }
+} }
+func _clearCurrentContext(source api.Source,files List[String]) IO[Option[err.Error]] { match files { Nil => ioPure(Some(api.newError("no config found to write context"))); Cons(file,rest) => do {
+ status <- source.stat(file)
+ match status.error { Some(_) => _clearCurrentContext(source,rest); None => do {
+ loaded <- getConfigFromFile(source,file)
+ match loaded.error { Some(error) => ioPure(Some(error)); None => if loaded.value.currentContext == "" { _clearCurrentContext(source,rest) } else { writeToFile(source,loaded.value{currentContext:""},file) } }
+ } }
+} } }
+func writePreferences(source api.Source,access ConfigAccess,preferences api.Preferences) IO[Option[err.Error]] { do {
+ starting <- access.getStartingConfig()
+ match starting.error { Some(error) => ioPure(Some(error)); None => do {
+ same <- api.equalPreferences(_or(starting.value,api.newConfig()).preferences,preferences)
+ if same { ioPure(None) } else { do { explicit <- access.isExplicitFile(); if explicit { do { file <- access.getExplicitFile(); _updateFile(source,file,func(value) => value{preferences:preferences}) } } else { do { files <- access.getLoadingPrecedence(); _writePreferences(source,files,preferences) } } } }
+ } }
+} }
+func _writePreferences(source api.Source,files List[String],preferences api.Preferences) IO[Option[err.Error]] { match files { Nil => ioPure(Some(api.newError("no config found to write preferences"))); Cons(file,rest) => do {
+ loaded <- getConfigFromFile(source,file)
+ match loaded.error { Some(error) => ioPure(Some(error)); None => do { same <- api.equalPreferences(loaded.value.preferences,preferences); if same { _writePreferences(source,rest,preferences) } else { writeToFile(source,loaded.value{preferences:preferences},file) } } }
+} } }
+func modifyConfig(source api.Source,access ConfigAccess,value api.Config,relativize Bool,lock Bool) IO[Option[err.Error]] { if lock { do { files <- access.getLoadingPrecedence(); _withFileLocks(source,list.sort(files),func() => _modifyConfig(source,access,value,relativize)) } } else { _modifyConfig(source,access,value,relativize) } }
+func _modifyConfig(source api.Source,access ConfigAccess,value api.Config,relativize Bool) IO[Option[err.Error]] { do {
+ starting <- access.getStartingConfig()
+ match starting.error { Some(error) => ioPure(Some(error)); None => do {
+ let old = _or(starting.value,api.newConfig())
+ same <- api.equalConfig(old,value)
+ if same { ioPure(None) } else { do {
+ contextError <- if old.currentContext == value.currentContext { ioPure(None) } else { writeCurrentContext(source,access,value.currentContext) }
+ _errorThen(contextError,func() => do {
+ samePreferences <- api.equalPreferences(old.preferences,value.preferences)
+ prefError <- if samePreferences { ioPure(None) } else { writePreferences(source,access,value.preferences) }
+ _errorThen(prefError,func() => do {
+ clusterError <- _writeClusters(source,access,map.mapToList(api.mapOrEmpty(value.clusters)),api.mapOrEmpty(old.clusters),relativize)
+ _errorThen(clusterError,func() => do {
+ contextError <- _writeContexts(source,access,map.mapToList(api.mapOrEmpty(value.contexts)),api.mapOrEmpty(old.contexts),map.emptyMap())
+ _errorThen(contextError,func() => do {
+ userError <- _writeUsers(source,access,map.mapToList(api.mapOrEmpty(value.authInfos)),api.mapOrEmpty(old.authInfos),relativize)
+ _errorThen(userError,func() => do {
+ clusters <- _deleteEntries(source,access,map.mapToList(api.mapOrEmpty(old.clusters)),api.mapOrEmpty(value.clusters),func(v) => v.locationOfOrigin,func(c,key) => c{clusters:Some(map.mapDelete(api.mapOrEmpty(c.clusters),key))})
+ _errorThen(clusters,func() => do {
+ contexts <- _deleteEntries(source,access,map.mapToList(api.mapOrEmpty(old.contexts)),api.mapOrEmpty(value.contexts),func(v) => v.locationOfOrigin,func(c,key) => c{contexts:Some(map.mapDelete(api.mapOrEmpty(c.contexts),key))})
+ _errorThen(contexts,func() => _deleteEntries(source,access,map.mapToList(api.mapOrEmpty(old.authInfos)),api.mapOrEmpty(value.authInfos),func(v) => v.locationOfOrigin,func(c,key) => c{authInfos:Some(map.mapDelete(api.mapOrEmpty(c.authInfos),key))}))
+ })
+ })
+ })
+ })
+ })
+ })
+ } }
+ } }
+} }
+func _destination(access ConfigAccess,origin String) IO[String] { if origin == "" { access.getDefaultFilename() } else { ioPure(origin) } }
+func _writeClusters(source api.Source,access ConfigAccess,entries List[(String,Option[api.Cluster])],old Map[String,Option[api.Cluster]],relativize Bool) IO[Option[err.Error]] { match entries { Nil => ioPure(None); Cons((key,value),rest) => do {
+ same <- api.equalOption(value,_or(map.mapLookup(old,key),None),api.equalCluster)
+ if same && map.mapMember(old,key) { _writeClusters(source,access,rest,old,relativize) } else { match value { None => ioPure(Some(api.newError("cannot persist nil cluster "+key))); Some(value) => do {
+ destination <- _destination(access,value.locationOfOrigin)
+ let value = value{locationOfOrigin:destination}
+ transformed <- if relativize { relativizeClusterLocalPaths(source,value) } else { ioPure(outcome.success(value)) }
+ match transformed.error { Some(error) => ioPure(Some(error)); None => do {
+ error <- _updateFile(source,destination,func(c) => api.withCluster(c,key,Some(transformed.value)))
+ _errorThen(error,func() => _writeClusters(source,access,rest,old,relativize))
+ } }
+ } } }
+} } }
+func _writeUsers(source api.Source,access ConfigAccess,entries List[(String,Option[api.AuthInfo])],old Map[String,Option[api.AuthInfo]],relativize Bool) IO[Option[err.Error]] { match entries { Nil => ioPure(None); Cons((key,value),rest) => do {
+ same <- api.equalOption(value,_or(map.mapLookup(old,key),None),api.equalAuthInfo)
+ if same && map.mapMember(old,key) { _writeUsers(source,access,rest,old,relativize) } else { match value { None => ioPure(Some(api.newError("cannot persist nil auth info "+key))); Some(value) => do {
+ destination <- _destination(access,value.locationOfOrigin)
+ let value = value{locationOfOrigin:destination}
+ transformed <- if relativize { relativizeAuthInfoLocalPaths(source,value) } else { ioPure(outcome.success(value)) }
+ match transformed.error { Some(error) => ioPure(Some(error)); None => do {
+ error <- _updateFile(source,destination,func(c) => api.withAuthInfo(c,key,Some(transformed.value)))
+ _errorThen(error,func() => _writeUsers(source,access,rest,old,relativize))
+ } }
+ } } }
+} } }
+func _writeContexts(source api.Source,access ConfigAccess,entries List[(String,Option[api.Context])],old Map[String,Option[api.Context]],pending Map[String,api.Config]) IO[Option[err.Error]] { match entries { Nil => _flushConfigs(source,map.mapToList(pending)); Cons((key,value),rest) => do {
+ same <- api.equalOption(value,_or(map.mapLookup(old,key),None),api.equalContext)
+ if same && map.mapMember(old,key) { _writeContexts(source,access,rest,old,pending) } else { match value { None => ioPure(Some(api.newError("cannot persist nil context "+key))); Some(value) => do {
+ destination <- _destination(access,value.locationOfOrigin)
+ loaded <- match map.mapLookup(pending,destination) { Some(value) => ioPure(outcome.success(value)); None => getConfigFromFile(source,destination) }
+ match loaded.error { Some(error) => ioPure(Some(error)); None => _writeContexts(source,access,rest,old,map.mapInsert(pending,destination,api.withContext(loaded.value,key,Some(value)))) }
+ } } }
+} } }
+func _flushConfigs(source api.Source,entries List[(String,api.Config)]) IO[Option[err.Error]] { match entries { Nil => ioPure(None); Cons((file,config),rest) => do { error <- writeToFile(source,config,file); _errorThen(error,func() => _flushConfigs(source,rest)) } } }
+func _deleteEntries[A](source api.Source,access ConfigAccess,entries List[(String,Option[A])],remaining Map[String,Option[A]],origin func(A) String,remove func(api.Config,String) api.Config) IO[Option[err.Error]] { match entries { Nil => ioPure(None); Cons((key,value),rest) => if map.mapMember(remaining,key) { _deleteEntries(source,access,rest,remaining,origin,remove) } else { match value { None => ioPure(Some(api.newError("cannot delete nil stanza "+key))); Some(value) => do {
+ file <- _destination(access,origin(value))
+ error <- _updateFile(source,file,func(config) => remove(config,key))
+ _errorThen(error,func() => _deleteEntries(source,access,rest,remaining,origin,remove))
+ } } } } }
+func persisterForUser(source api.Source,access ConfigAccess,user String) rest.AuthProviderConfigPersister { rest.AuthProviderConfigPersister(func(config) => do {
+ starting <- access.getStartingConfig()
+ match starting.error { Some(error) => ioPure(outcome.failure(unit(),error)); None => {
+ let value = _or(starting.value,api.newConfig())
+ match api.getAuthInfo(value,user) { None => ioPure(outcome.success(unit())); Some(auth) => match auth.authProvider { None => ioPure(outcome.success(unit())); Some(provider) => do {
+ error <- modifyConfig(source,access,api.withAuthInfo(value,user,Some(auth{authProvider:Some(provider{config:Some(config)})})),false,true)
+ ioPure(outcome.Outcome(unit(),error))
+ } } }
+ } }
+}) }

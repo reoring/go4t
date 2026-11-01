@@ -1,0 +1,185 @@
+// Native policy port of client-go v0.37.2 tools/pager (Apache-2.0).
+package pager
+
+import meta "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import errors "github.com/reoring/gofx/ports/client-go/deps/support"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import list "std/list"
+import io "std/io"
+
+alias ListPageFunc[P] = func(meta.ListOptions) IO[outcome.Outcome[Option[P]]]
+type PageInfo = PageInfo { resourceVersion: String, selfLink: String, continueToken: String }
+// These capabilities adapt external list representations. alloc=true must make
+// shallow copies of non-pointer items, never deep-copy pointer objects.
+type PageAccess[P, A] = PageAccess {
+ info: func(P) IO[outcome.Outcome[PageInfo]],
+ items: func(P, Bool) IO[outcome.Outcome[List[A]]],
+ assemble: func(PageInfo, List[A]) IO[P],
+ isExpired: func(errors.Error) Bool
+}
+type ListPager[P, A] = ListPager {
+ pageSize: Int, pageFn: ListPageFunc[P], fullListIfExpired: Bool,
+ pageBufferSize: Int, access: PageAccess[P, A]
+}
+func new[P, A](pageFn ListPageFunc[P], access PageAccess[P, A]) ListPager[P, A] {
+ ListPager(500, pageFn, true, 10, access)
+}
+func simplePageFunc[P](fn ListPageFunc[P]) ListPageFunc[P] { fn }
+func initialOptions[P, A](pager ListPager[P, A], options meta.ListOptions) meta.ListOptions {
+ if meta.listOptionsGetLimit(options) == 0 { meta.listOptionsWithLimit(options, pager.pageSize) } else { options }
+}
+func list[P, A](pager ListPager[P, A], options meta.ListOptions) IO[outcome.Outcome[(Option[P], Bool)]] {
+ listWithContext(pager, options, false)
+}
+func listWithAlloc[P, A](pager ListPager[P, A], options meta.ListOptions) IO[outcome.Outcome[(Option[P], Bool)]] {
+ listWithContext(pager, options, true)
+}
+func listWithContext[P, A](pager ListPager[P, A], options meta.ListOptions, allocate Bool) IO[outcome.Outcome[(Option[P], Bool)]] {
+ do {
+  context <- sync.captureContext()
+  sync.uninterruptible(do {
+   progress <- sync.newRef(false)
+   result <- io.tryIO(sync.withContext(context, collect(pager, initialOptions(pager, options), options, allocate, None, [], false, progress)))
+   match result {
+    Ok(value) => ioPure(value)
+    Err(err) => do {
+     paginated <- sync.readRef(progress)
+     match err {
+      io.Cancelled => ioPure(outcome.Outcome((None, paginated), Some(errors.errorCancelled())))
+      io.Timeout => ioPure(outcome.Outcome((None, paginated), Some(errors.errorNew("context deadline exceeded"))))
+      _ => io.ioRaise(err)
+     }
+    }
+   }
+  })
+ }
+}
+func collect[P, A](pager ListPager[P, A], options meta.ListOptions, original meta.ListOptions, allocate Bool, first Option[PageInfo], reversed List[List[A]], paginated Bool, progress sync.Ref[Bool]) IO[outcome.Outcome[(Option[P], Bool)]] {
+ do {
+  response <- pager.pageFn(options)
+  match response.error {
+   Some(err) => if pager.access.isExpired(err) && pager.fullListIfExpired && meta.listOptionsGetContinue(options) != "" {
+    let fallback = meta.listOptionsWithResourceVersionMatch(meta.listOptionsWithResourceVersion(meta.listOptionsWithContinue(meta.listOptionsWithLimit(options, 0), ""), meta.listOptionsGetResourceVersion(original)), meta.listOptionsGetResourceVersionMatch(original))
+    do { full <- pager.pageFn(fallback); ioPure(outcome.Outcome((full.value, paginated), full.error)) }
+   } else { ioPure(outcome.Outcome((None, paginated), Some(err))) }
+   None => match response.value {
+    None => ioPure(outcome.Outcome((None, paginated), Some(errors.errorNew("returned object must be a list: nil"))))
+    Some(page) => do {
+     info <- pager.access.info(page)
+     match info.error {
+      Some(err) => ioPure(outcome.Outcome((None, paginated), Some(errors.errorNew("returned object must be a list: " + errors.errorMessage(err)))))
+      None => if info.value.continueToken == "" && isEmptyFirst(first) { ioPure(outcome.Outcome((Some(page), paginated), None)) } else { do {
+       entries <- pager.access.items(page, allocate)
+       match entries.error {
+        Some(err) => ioPure(outcome.Outcome((None, paginated), Some(err)))
+        None => {
+         let beginning = match first { None => info.value; Some(value) => value }
+         let pages = Cons(entries.value, reversed)
+         if info.value.continueToken == "" {
+          do { assembled <- pager.access.assemble(PageInfo(beginning.resourceVersion, beginning.selfLink, ""), list.flatten(list.reverse(pages))); ioPure(outcome.Outcome((Some(assembled), paginated), None)) }
+         } else {
+          let next = meta.listOptionsWithResourceVersionMatch(meta.listOptionsWithResourceVersion(meta.listOptionsWithContinue(options, info.value.continueToken), ""), meta.resourceVersionMatchFromValue(""))
+          do { sync.uninterruptible(sync.writeRef(progress, true)); collect(pager, next, original, allocate, Some(beginning), pages, true, progress) }
+         }
+        }
+       }
+      } }
+     }
+    }
+   }
+  }
+ }
+}
+func isEmptyFirst(first Option[PageInfo]) Bool { match first { None => true; Some(_) => false } }
+func eachListItem[P, A](pager ListPager[P, A], options meta.ListOptions, fn func(A) IO[Option[errors.Error]]) IO[Option[errors.Error]] {
+ eachListItemMode(pager, options, fn, false)
+}
+func eachListItemWithAlloc[P, A](pager ListPager[P, A], options meta.ListOptions, fn func(A) IO[Option[errors.Error]]) IO[Option[errors.Error]] {
+ eachListItemMode(pager, options, fn, true)
+}
+func eachListItemMode[P, A](pager ListPager[P, A], options meta.ListOptions, fn func(A) IO[Option[errors.Error]], allocate Bool) IO[Option[errors.Error]] {
+ do {
+  context <- sync.captureContext()
+  sync.uninterruptible(do {
+   result <- io.tryIO(sync.withContext(context, eachListItemBuffered(pager, options, fn, allocate)))
+   match result {
+    Ok(value) => ioPure(value)
+    Err(io.Cancelled) => ioPure(Some(errors.errorCancelled()))
+    Err(io.Timeout) => ioPure(Some(errors.errorNew("context deadline exceeded")))
+    Err(err) => io.ioRaise(err)
+   }
+  })
+ }
+}
+func eachListItemBuffered[P, A](pager ListPager[P, A], options meta.ListOptions, fn func(A) IO[Option[errors.Error]], allocate Bool) IO[Option[errors.Error]] {
+ if pager.pageBufferSize < 0 { ioPure(Some(errors.errorNew("ListPager.PageBufferSize must be >= 0, got " + show(pager.pageBufferSize)))) } else {
+  do {
+   chunks <- sync.newChannel(pager.pageBufferSize)
+   sync.bracket(sync.start(sync.ensuring(produce(pager, initialOptions(pager, options), chunks), sync.close(chunks))), func(task) => do {
+    failure <- consume(pager, chunks, fn, allocate)
+    match failure { Some(err) => ioPure(Some(err)); None => sync.join(task) }
+   }, func(task) => stopProducer(task))
+  }
+ }
+}
+func produce[P, A](pager ListPager[P, A], options meta.ListOptions, chunks sync.Channel[P]) IO[Option[errors.Error]] {
+ do {
+  response <- pager.pageFn(options)
+  match response.error {
+   Some(err) => ioPure(Some(err))
+   None => match response.value {
+    None => ioPure(Some(errors.errorNew("returned object must be a list: nil")))
+    Some(page) => do {
+     info <- pager.access.info(page)
+     match info.error {
+      Some(err) => ioPure(Some(errors.errorNew("returned object must be a list: " + errors.errorMessage(err))))
+      None => do {
+       sync.send(chunks, page)
+       if info.value.continueToken == "" { ioPure(None) } else {
+        // Unlike List, upstream eachListChunk retains RV and RVM.
+        produce(pager, meta.listOptionsWithContinue(options, info.value.continueToken), chunks)
+       }
+      }
+     }
+    }
+   }
+  }
+ }
+}
+func consume[P, A](pager ListPager[P, A], chunks sync.Channel[P], fn func(A) IO[Option[errors.Error]], allocate Bool) IO[Option[errors.Error]] {
+ do {
+  next <- sync.receive(chunks)
+  match next {
+   None => ioPure(None)
+   Some(page) => do {
+    entries <- pager.access.items(page, allocate)
+    match entries.error {
+     Some(err) => ioPure(Some(err))
+     None => do {
+      failure <- sync.uninterruptible(visit(entries.value, fn))
+      match failure { Some(err) => ioPure(Some(err)); None => consume(pager, chunks, fn, allocate) }
+     }
+    }
+   }
+  }
+ }
+}
+func visit[A](items List[A], fn func(A) IO[Option[errors.Error]]) IO[Option[errors.Error]] {
+ match items {
+  [] => ioPure(None)
+  Cons(value, rest) => do { error <- fn(value); match error { Some(err) => ioPure(Some(err)); None => visit(rest, fn) } }
+ }
+}
+func stopProducer[A](task sync.Task[A]) IO[Unit] {
+ do {
+  sync.cancelTask(task)
+  result <- io.tryIO(sync.join(task))
+  match result {
+   Ok(_) => ioPure(unit())
+   Err(io.Cancelled) => ioPure(unit())
+   Err(io.Timeout) => ioPure(unit())
+   Err(err) => io.ioRaise(err)
+  }
+ }
+}

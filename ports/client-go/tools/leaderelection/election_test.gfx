@@ -1,0 +1,134 @@
+// Copyright 2026 The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+// Controlled-lock regression traces derived from pinned leaderelection_test.go.
+package leaderelection
+import rl "tools/leaderelection/resourcelock"
+import "support/sync"
+import "support/outcome"
+import errors "deps/support"
+import meta "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import coord "deps/k8s.io/api/coordination/v1"
+import time "deps/time"
+import "std/io"
+
+type ControlledLock = ControlledLock { lock:rl.Interface, value:sync.Ref[Option[rl.LeaderElectionRecord]], trace:sync.Ref[List[String]], conflicts:sync.Ref[Int] }
+func _recordTrace(trace sync.Ref[List[String]],value String) IO[Unit] { do { old <- sync.readRef(trace); sync.writeRef(trace,append(old,[value])) } }
+func _controlledLock(identity String,initial Option[rl.LeaderElectionRecord]) IO[ControlledLock] {
+ do {
+  value <- sync.newRef(initial); trace <- sync.newRef(Nil); conflicts <- sync.newRef(0)
+  let get = func() => do {
+   _recordTrace(trace,"get"); current <- sync.readRef(value)
+   match current { None => ioPure(outcome.failure(None,errors.errorNotFound("coordination.k8s.io","leases","test"))); Some(record) => do { raw <- rl.encodeRecord(record); ioPure(outcome.Outcome(Some((record,raw.value)),raw.error)) } }
+  }
+  let update = func(record) => do {
+   _recordTrace(trace,"update"); remaining <- sync.readRef(conflicts)
+   if remaining > 0 { do { sync.writeRef(conflicts,remaining-1); ioPure(Some(errors.errorConflict("coordination.k8s.io","leases","test",None))) } }
+   else { do { sync.writeRef(value,Some(record)); ioPure(None) } }
+  }
+  let create = func(record) => do { _recordTrace(trace,"create"); sync.writeRef(value,Some(record)); ioPure(None) }
+  let lock = rl.Interface(get,create,update,func(message) => _recordTrace(trace,message),identity,"default/test")
+  ioPure(ControlledLock(lock,value,trace,conflicts))
+ }
+}
+func _testConfig(lock rl.Interface,callbacks LeaderCallbacks) LeaderElectionConfig { LeaderElectionConfig(lock,15000000000,10000000000,2000000000,callbacks,None,false,"test",false) }
+func _silentCallbacks() LeaderCallbacks { LeaderCallbacks(func() => ioPure(unit()),func() => ioPure(unit()),None) }
+func _testElector(config LeaderElectionConfig,clock sync.Clock) IO[LeaderElector] {
+ do { registry <- newMetricsRegistry(); result <- newLeaderElector(config,clock,registry); match result.value { Some(e) => ioPure(e); None => ioFail("invalid test elector") } }
+}
+func testAcquireRenewAndOptimisticConflict() IO[Bool] {
+ do {
+  clock <- sync.fakeClock(1700000000000000000); lock <- _controlledLock("me",None); e <- _testElector(_testConfig(lock.lock,_silentCallbacks()),clock)
+  acquired <- tryAcquireOrRenew(e); first <- getObservation(e)
+  sync.advance(clock,1000000000); renewed <- tryAcquireOrRenew(e)
+  sync.writeRef(lock.conflicts,1); sync.advance(clock,1000000000); recovered <- tryAcquireOrRenew(e)
+  last <- getObservation(e); trace <- sync.readRef(lock.trace)
+  sameAcquire <- time.timeCallEqual(metaTime(first.record.acquireTime),metaTime(last.record.acquireTime))
+  ioPure(acquired && renewed && recovered && last.record.leaderTransitions == 0 && sameAcquire.1 && trace == ["get","create","update","update","get","update"])
+ }
+}
+func metaTime(value meta.Time) time.Time { meta.timeGetTime(value) }
+func testRemoteClockAndUnchangedObservation() IO[Bool] {
+ do {
+  clock <- sync.fakeClock(1700000000000000000); now <- sync.now(clock)
+  let old = rl.emptyRecord() { holderIdentity:"other",leaseDurationSeconds:10,renewTime:_wireTime(sync.add(now,9000000000000)),leaderTransitions:7 }
+  lock <- _controlledLock("me",Some(old)); e <- _testElector(_testConfig(lock.lock,_silentCallbacks()),clock)
+  first <- tryAcquireOrRenew(e); observed <- getObservation(e)
+  sync.advance(clock,9000000000); second <- tryAcquireOrRenew(e); unchanged <- getObservation(e)
+  sync.advance(clock,1000000000); third <- tryAcquireOrRenew(e); leader <- getLeader(e); final <- getObservation(e)
+  let elapsed = match (observed.at,unchanged.at) { (Some(a),Some(b)) => sync.elapsed(a,b); _ => -1 }
+  ioPure(!first && !second && third && elapsed == 0 && leader == "me" && final.record.leaderTransitions == 8)
+ }
+}
+func testReleaseRefetchesAndRetriesConflicts() IO[Bool] {
+ do {
+  clock <- sync.fakeClock(1700000000000000000); lock <- _controlledLock("me",None); e <- _testElector(_testConfig(lock.lock,_silentCallbacks()),clock)
+  _ <- tryAcquireOrRenew(e); sync.writeRef(lock.conflicts,1); released <- release(e)
+  trace <- sync.readRef(lock.trace); observed <- getObservation(e)
+  ioPure(released && trace == ["get","create","get","update","get","update"] && observed.record.holderIdentity == "" && observed.record.leaseDurationSeconds == 1 && observed.record.leaderTransitions == 0)
+ }
+}
+func testCoordinatedGrantPreferredHolderAndExpiry() IO[Bool] {
+ do {
+  clock <- sync.fakeClock(1700000000000000000); lock <- _controlledLock("me",None)
+  let config = _testConfig(lock.lock,_silentCallbacks()) { coordinated:true }
+  e <- _testElector(config,clock); absent <- tryCoordinatedRenew(e)
+  now <- sync.now(clock)
+  let grant = rl.emptyRecord() { holderIdentity:"me",leaseDurationSeconds:10,acquireTime:_wireTime(now),leaderTransitions:4,strategy:coord.coordinatedLeaseStrategyFromValue("OldestEmulationVersion") }
+  sync.writeRef(lock.value,Some(grant)); granted <- tryCoordinatedRenew(e); observed <- getObservation(e)
+  sync.writeRef(lock.value,Some(observed.record { preferredHolder:"next" })); yielding <- tryCoordinatedRenew(e)
+  ioPure(!absent && granted && !yielding && observed.record.leaderTransitions == 4 && coord.coordinatedLeaseStrategyValue(observed.record.strategy) == "OldestEmulationVersion")
+ }
+}
+func testHealthUsesObservationAndStrictTolerance() IO[Bool] {
+ do {
+  clock <- sync.fakeClock(1700000000000000000); lock <- _controlledLock("me",None); e <- _testElector(_testConfig(lock.lock,_silentCallbacks()),clock)
+  adaptor <- newLeaderHealthzAdaptor(2000000000); before <- healthCheck(adaptor); setLeaderElection(adaptor,e)
+  _ <- tryAcquireOrRenew(e); sync.advance(clock,17000000000); boundary <- healthCheck(adaptor)
+  sync.advance(clock,1); expired <- healthCheck(adaptor)
+  setObservedRecord(e,rl.emptyRecord() { holderIdentity:"other" }); standby <- healthCheck(adaptor)
+  ioPure(_noError(before) && _noError(boundary) && !_noError(expired) && _noError(standby) && healthName(adaptor) == "leaderElection")
+ }
+}
+func _noError(value Option[errors.Error]) Bool { match value { None => true; Some(_) => false } }
+func testCancelReleasesBeforeStoppedCallback() IO[Bool] {
+ do {
+  clock <- sync.fakeClock(1700000000000000000); lock <- _controlledLock("me",None)
+  started <- sync.newChannel(0); stopped <- sync.newRef(false); stoppedSawReleased <- sync.newRef(false)
+  let callbacks = LeaderCallbacks(func() => sync.send(started,unit()),func() => do {
+   value <- sync.readRef(lock.value)
+   sync.writeRef(stoppedSawReleased,match value { Some(record) => record.holderIdentity == ""; None => false }); sync.writeRef(stopped,true)
+  },None)
+  e <- _testElector(_testConfig(lock.lock,callbacks) { releaseOnCancel:true },clock)
+  worker <- sync.start(run(e)); _ <- sync.receive(started); sync.cancelTask(worker); _ <- io.tryIO(sync.join(worker))
+  ended <- sync.readRef(stopped); released <- sync.readRef(stoppedSawReleased); trace <- sync.readRef(lock.trace)
+  ioPure(ended && released && _contains(trace,"became leader") && _contains(trace,"stopped leading"))
+ }
+}
+func _contains(values List[String],value String) Bool { match values { Nil => false; Cons(x,xs) => x == value || _contains(xs,value) } }
+func testStopCallbackWithoutAcquisition() IO[Bool] {
+ do {
+  clock <- sync.fakeClock(1700000000000000000); reached <- sync.newChannel(0); blocked <- sync.newChannel(0); stopped <- sync.newRef(false)
+  lock <- _controlledLock("me",None)
+  let blocking = lock.lock { get:func() => do { sync.send(reached,unit()); _ <- sync.receive(blocked); ioPure(outcome.success(None)) } }
+  let callbacks = LeaderCallbacks(func() => ioFail("must not lead"),func() => sync.writeRef(stopped,true),None)
+  e <- _testElector(_testConfig(blocking,callbacks),clock); worker <- sync.start(run(e)); _ <- sync.receive(reached); sync.cancelTask(worker); _ <- io.tryIO(sync.join(worker)); sync.readRef(stopped)
+ }
+}
+func testRenewDeadlineInterruptsInflightRequest() IO[Bool] {
+ do {
+  clock <- sync.fakeClock(1700000000000000000); lock <- _controlledLock("me",None); e <- _testElector(_testConfig(lock.lock,_silentCallbacks()),clock)
+  _ <- tryAcquireOrRenew(e); reached <- sync.newChannel(0); blocked <- sync.newChannel(0)
+  let stalled = e { config:e.config { lock:e.config.lock { update:func(_record) => do { sync.send(reached,unit()); _ <- sync.receive(blocked); ioPure(None) } } } }
+  worker <- sync.start(renew(stalled)); _ <- sync.receive(reached); sync.advance(clock,10000000000); _ <- sync.join(worker)
+  trace <- sync.readRef(lock.trace); ioPure(_contains(trace,"stopped leading"))
+ }
+}
+func testNormalAndCoordinatedExpiryBoundary() IO[Bool] {
+ do {
+  clock <- sync.fakeClock(1700000000000000000); at <- sync.now(clock)
+  let observed = Observation(rl.emptyRecord() { holderIdentity:"me",leaseDurationSeconds:10 },"raw",Some(at),"me")
+  let boundary = sync.add(at,10000000000)
+  let before = sync.add(boundary,-1)
+  let after = sync.add(boundary,1)
+  ioPure(_valid(observed,before) && !_valid(observed,boundary) && !_expired(observed,boundary) && _expired(observed,after))
+ }
+}

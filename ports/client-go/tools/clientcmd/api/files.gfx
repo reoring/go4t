@@ -1,0 +1,38 @@
+// Copyright 2014 The Kubernetes Authors. Licensed under Apache-2.0.
+package api
+import err "github.com/reoring/gofx/ports/client-go/deps/support"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import "std/io"
+import "std/prelude"
+import "std/map"
+import "std/string"
+type FileInfo = FileInfo {isDir:Bool, mode:Int}
+type Source = Source {read:func(String) IO[outcome.Outcome[String]], write:func(String,String,Int) IO[Option[err.Error]], stat:func(String) IO[outcome.Outcome[FileInfo]], mkdirAll:func(String,Int) IO[Option[err.Error]], remove:func(String) IO[Option[err.Error]], createExclusive:func(String) IO[Option[err.Error]], getenv:func(String) IO[String], cwd:func() IO[outcome.Outcome[String]],canRead:func(String) IO[Option[err.Error]]}
+extern func newError(message String) err.Error = "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api/host".NewError
+extern func _readFile(path String) IO[(String,Option[err.Error])] = "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api/host".ReadFile
+extern func _writeFile(path String,content String,mode Int) IO[Option[err.Error]] = "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api/host".WriteFile
+extern func _stat(path String) IO[(Bool,Int,Option[err.Error])] = "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api/host".Stat
+extern func _mkdirAll(path String,mode Int) IO[Option[err.Error]] = "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api/host".MkdirAll
+extern func _remove(path String) IO[Option[err.Error]] = "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api/host".Remove
+extern func _createExclusive(path String) IO[Option[err.Error]] = "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api/host".CreateExclusive
+extern func _getenv(name String) IO[String] = "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api/host".Getenv
+extern func _cwd() IO[(String,Option[err.Error])] = "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api/host".WorkingDirectory
+extern func isAbs(path String) Bool = "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api/host".IsAbs
+extern func joinPath(base String,path String) String = "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api/host".Join
+extern func dir(path String) String = "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api/host".Dir
+extern func relative(base String,path String) IO[(String,Option[err.Error])] = "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api/host".Relative
+extern func separator() String = "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api/host".Separator
+extern func operatingSystem() String = "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api/host".OS
+extern func splitPathList(text String) List[String] = "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api/host".SplitList
+extern func isPermission(error err.Error) Bool = "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api/host".IsPermission
+extern func isNotExist(error err.Error) Bool = "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api/host".IsNotExist
+extern func hasSeparator(path String) Bool = "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api/host".HasSeparator
+extern func _readableFile(path String) IO[Option[err.Error]] = "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api/host".Readable
+func systemSource() Source { Source(func(path) => do { value <- _readFile(path); ioPure(outcome.Outcome(value.0,value.1)) },_writeFile,func(path) => do { value <- _stat(path); ioPure(outcome.Outcome(FileInfo(value.0,value.1),value.2)) },_mkdirAll,_remove,_createExclusive,_getenv,func() => do { value <- _cwd(); ioPure(outcome.Outcome(value.0,value.1)) },_readableFile) }
+func capture[A](action IO[A],fallback A) IO[outcome.Outcome[A]] { do {
+ result <- io.tryIO(action)
+ match result { Ok(value) => ioPure(outcome.success(value)); Err(error) => match error { io.Cancelled => io.ioRaise(error); io.Timeout => io.ioRaise(error); io.Panic(_) => io.ioRaise(error); _ => ioPure(outcome.failure(fallback,newError(io.ioErrorMessage(error)))) } }
+} }
+func resolvePath(path String,base String) String { if path == "" || isAbs(path) { path } else { joinPath(base,path) } }
+func makeAbs(source Source,path String,base String) IO[outcome.Outcome[String]] { if isAbs(path) { ioPure(outcome.success(path)) } else if base != "" { ioPure(outcome.success(joinPath(base,path))) } else { do { cwd <- source.cwd(); ioPure(outcome.Outcome(joinPath(cwd.value,path),cwd.error)) } } }
+func flattenContent(source Source,path String,contents Option[String],base String) IO[outcome.Outcome[(String,Option[String])]] { if path == "" { ioPure(outcome.success((path,contents))) } else if bytesOrEmpty(contents) != "" { ioPure(outcome.failure((path,contents),newError("cannot have values for both path and contents"))) } else { do { read <- source.read(resolvePath(path,base)); ioPure(match read.error { None => outcome.success(("",Some(read.value))); Some(error) => outcome.failure((path,contents),error) }) } } }

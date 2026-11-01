@@ -1,0 +1,119 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+// Native discovery mapping policy, client-go v0.37.2 restmapper/discovery.go.
+package restmapper
+import "discovery"
+import meta "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import errors "deps/support"
+import "support/outcome"
+import "std/list"
+import "std/prelude"
+import "std/map"
+import "std/string"
+type APIGroupResources = APIGroupResources { group: meta.APIGroup, versionedResources: Map[String,List[meta.APIResource]] }
+type RESTMapping = RESTMapping { resource: schema.GroupVersionResource, groupVersionKind: schema.GroupVersionKind, scope: String }
+type RESTMapper = RESTMapper {
+ kindFor: func(schema.GroupVersionResource) IO[outcome.Outcome[schema.GroupVersionKind]],
+ kindsFor: func(schema.GroupVersionResource) IO[outcome.Outcome[List[schema.GroupVersionKind]]],
+ resourceFor: func(schema.GroupVersionResource) IO[outcome.Outcome[schema.GroupVersionResource]],
+ resourcesFor: func(schema.GroupVersionResource) IO[outcome.Outcome[List[schema.GroupVersionResource]]],
+ restMapping: func(schema.GroupKind,List[String]) IO[outcome.Outcome[Option[RESTMapping]]],
+ restMappings: func(schema.GroupKind,List[String]) IO[outcome.Outcome[List[RESTMapping]]],
+ resourceSingularizer: func(String) IO[outcome.Outcome[String]],
+ reset: func() IO[Unit]
+}
+type Entry = Entry { mapping: RESTMapping, singular: String, priority: Int }
+func gvr(group String,version String,resource String) schema.GroupVersionResource { schema.groupVersionResourceWithResource(schema.groupVersionResourceWithVersion(schema.groupVersionResourceWithGroup(schema.newGroupVersionResource(),group),version),resource) }
+func gvk(group String,version String,kind String) schema.GroupVersionKind { schema.groupVersionKindWithKind(schema.groupVersionKindWithVersion(schema.groupVersionKindWithGroup(schema.newGroupVersionKind(),group),version),kind) }
+func groupResource(group String,resource String) schema.GroupResource { schema.groupResourceWithResource(schema.groupResourceWithGroup(schema.newGroupResource(),group),resource) }
+func unsafeGuessKindToResource(kind String) (String,String) {
+ let singular = string.toLower(kind)
+ let plural = if singular=="endpoints" { singular } else if string.endsWith(singular,"s") { singular+"es" } else if string.endsWith(singular,"y") { string.substring(singular,0,string.strLength(singular)-1)+"ies" } else { singular+"s" }
+ (plural,singular)
+}
+func entries(groups List[APIGroupResources]) List[Entry] {
+ let versions = list.concatMap(groups,func(g) => {
+  let preferred = meta.groupVersionForDiscoveryGetVersion(meta.aPIGroupGetPreferredVersion(g.group))
+  let vs = discovery.values(meta.aPIGroupGetVersions(g.group))
+  let ordered = list.append(list.filter(vs,func(v) => meta.groupVersionForDiscoveryGetVersion(v)==preferred),list.filter(vs,func(v) => meta.groupVersionForDiscoveryGetVersion(v)!=preferred))
+  list.concatMap(ordered,func(v) => match map.mapLookup(g.versionedResources,meta.groupVersionForDiscoveryGetVersion(v)) { None => []; Some(resources) => [(meta.aPIGroupGetName(g.group),meta.groupVersionForDiscoveryGetVersion(v),resources)] })
+ })
+ let coreFirst = list.append(list.filter(versions,func(v) => v.0=="" && v.1=="v1"),list.filter(versions,func(v) => !(v.0=="" && v.1=="v1")))
+ let numbered = list.fold(coreFirst,([],0),func(acc,v) => {
+  let explicit = list.concatMap(v.2,func(r) => {
+   if string.contains(meta.aPIResourceGetName(r),"/") { [] } else {
+    let kind = meta.aPIResourceGetKind(r)
+    let singular = if meta.aPIResourceGetSingularName(r)=="" { unsafeGuessKindToResource(kind).1 } else { meta.aPIResourceGetSingularName(r) }
+    let scope = if meta.aPIResourceGetNamespaced(r) { "namespace" } else { "root" }
+    let entry = Entry(RESTMapping(gvr(v.0,v.1,meta.aPIResourceGetName(r)),gvk(v.0,v.1,kind),scope),singular,acc.1)
+    let guessed = unsafeGuessKindToResource(kind+"List")
+    [entry,Entry(RESTMapping(gvr(v.0,v.1,guessed.0),gvk(v.0,v.1,kind+"List"),scope),guessed.1,acc.1)]
+   }
+  })
+  (list.append(acc.0,list.append(explicit,[Entry(RESTMapping(gvr(v.0,v.1,"lists"),gvk(v.0,v.1,"List"),"root"),"list",acc.1)])),acc.1+1)
+ })
+ numbered.0
+}
+func getAPIGroupResources(client discovery.DiscoveryInterface) IO[outcome.Outcome[List[APIGroupResources]]] {
+ do {
+  all <- client.serverGroupsAndResources()
+  match (all.value.groups,all.value.resources) {
+   (Some(groups),Some(resources)) => {
+    let lookup = list.fold(resources,map.emptyMap(),func(m,r) => map.mapInsert(m,meta.aPIResourceListGetGroupVersion(r),discovery.values(meta.aPIResourceListGetAPIResources(r))))
+    ioPure(outcome.success(prelude.map(groups,func(g) => APIGroupResources(g,list.fold(discovery.values(meta.aPIGroupGetVersions(g)),map.emptyMap(),func(m,v) => match map.mapLookup(lookup,meta.groupVersionForDiscoveryGetGroupVersion(v)) { None => m; Some(rs) => map.mapInsert(m,meta.groupVersionForDiscoveryGetVersion(v),rs) })))))
+   }
+   _ => ioPure(outcome.Outcome([],all.error))
+  }
+ }
+}
+func resourceCandidates(es List[Entry],input schema.GroupVersionResource) List[Entry] {
+ let group = schema.groupVersionResourceGetGroup(input)
+ let version = schema.groupVersionResourceGetVersion(input)
+ let resource = string.toLower(schema.groupVersionResourceGetResource(input))
+ let exact = list.filter(es,func(e) => (group=="" || schema.groupVersionResourceGetGroup(e.mapping.resource)==group) && (version=="" || schema.groupVersionResourceGetVersion(e.mapping.resource)==version) && (schema.groupVersionResourceGetResource(e.mapping.resource)==resource || e.singular==resource))
+ if list.length(exact)>0 || group=="" { exact }
+ else { list.filter(es,func(e) => string.startsWith(schema.groupVersionResourceGetGroup(e.mapping.resource),group) && (version=="" || schema.groupVersionResourceGetVersion(e.mapping.resource)==version) && (schema.groupVersionResourceGetResource(e.mapping.resource)==resource || e.singular==resource)) }
+}
+func distinctEntries(es List[Entry]) List[Entry] {
+ list.fold(es,[],func(acc,e) => if list.any(acc,func(a) => schema.groupVersionResourceGetGroup(a.mapping.resource)==schema.groupVersionResourceGetGroup(e.mapping.resource) && schema.groupVersionResourceGetVersion(a.mapping.resource)==schema.groupVersionResourceGetVersion(e.mapping.resource) && schema.groupVersionResourceGetResource(a.mapping.resource)==schema.groupVersionResourceGetResource(e.mapping.resource)) { acc } else { list.append(acc,[e]) })
+}
+func noResource(input schema.GroupVersionResource) errors.Error { noResourceError(input) }
+extern func noResourceError(input schema.GroupVersionResource) errors.Error = "github.com/reoring/gofx/ports/client-go/restmapper/host".NoResourceError
+extern func noKindError(input schema.GroupKind,versions List[String]) errors.Error = "github.com/reoring/gofx/ports/client-go/restmapper/host".NoKindError
+extern func ambiguousResourceError(input schema.GroupVersionResource,resources List[schema.GroupVersionResource],kinds List[schema.GroupVersionKind]) errors.Error = "github.com/reoring/gofx/ports/client-go/restmapper/host".AmbiguousResourceError
+extern func ambiguousKindError(input schema.GroupVersionKind,resources List[schema.GroupVersionResource],kinds List[schema.GroupVersionKind]) errors.Error = "github.com/reoring/gofx/ports/client-go/restmapper/host".AmbiguousKindError
+extern func isNoMatchError(error errors.Error) Bool = "github.com/reoring/gofx/ports/client-go/restmapper/host".IsNoMatchError
+func chooseResource(es List[Entry],input schema.GroupVersionResource) outcome.Outcome[schema.GroupVersionResource] {
+ match distinctEntries(resourceCandidates(es,input)) {
+  Nil => outcome.failure(schema.newGroupVersionResource(),noResource(input))
+  Cons(first,rest) => {
+   let best = list.filter(Cons(first,rest),func(e) => e.priority==first.priority)
+   if list.length(best)==1 { outcome.success(first.mapping.resource) }
+   else { outcome.failure(schema.newGroupVersionResource(),ambiguousResourceError(input,prelude.map(best,func(e) => e.mapping.resource),prelude.map(best,func(e) => e.mapping.groupVersionKind))) }
+  }
+ }
+}
+func chooseKind(es List[Entry],input schema.GroupVersionResource) outcome.Outcome[schema.GroupVersionKind] {
+ let selected = chooseResource(es,input)
+ match selected.error { Some(e) => outcome.failure(schema.newGroupVersionKind(),e); None => match resourceCandidates(es,selected.value) { Nil => outcome.failure(schema.newGroupVersionKind(),noResource(input)); Cons(e,rest) => outcome.success(e.mapping.groupVersionKind) } }
+}
+func mappingCandidates(es List[Entry],gk schema.GroupKind,versions List[String]) List[Entry] {
+ let matches = list.filter(es,func(e) => schema.groupVersionKindGetGroup(e.mapping.groupVersionKind)==schema.groupKindGetGroup(gk) && (schema.groupVersionKindGetKind(e.mapping.groupVersionKind)==schema.groupKindGetKind(gk) || string.toLower(schema.groupVersionKindGetKind(e.mapping.groupVersionKind))==schema.groupKindGetKind(gk)))
+ if list.length(versions)==0 { matches } else { list.concatMap(versions,func(v) => list.filter(matches,func(e) => schema.groupVersionKindGetVersion(e.mapping.groupVersionKind)==v)) }
+}
+func chooseMapping(es List[Entry],gk schema.GroupKind,versions List[String]) outcome.Outcome[Option[RESTMapping]] {
+ match mappingCandidates(es,gk,versions) {
+  Nil => outcome.failure(None,noKindError(gk,versions))
+  Cons(first,rest) => {
+   let best = list.filter(Cons(first,rest),func(e) => e.priority==first.priority)
+   if list.length(best)==1 { outcome.success(Some(first.mapping)) } else { outcome.failure(None,ambiguousKindError(first.mapping.groupVersionKind,prelude.map(best,func(e) => e.mapping.resource),prelude.map(best,func(e) => e.mapping.groupVersionKind))) }
+  }
+ }
+}
+func newDiscoveryRESTMapper(groups List[APIGroupResources]) RESTMapper {
+ let es = entries(groups)
+ RESTMapper(func(r) => ioPure(chooseKind(es,r)),func(r) => { let found = distinctEntries(resourceCandidates(es,r)); ioPure(if list.length(found)==0 { outcome.failure([],noResource(r)) } else { outcome.success(prelude.map(found,func(e) => e.mapping.groupVersionKind)) }) },
+ func(r) => ioPure(chooseResource(es,r)),func(r) => { let found = distinctEntries(resourceCandidates(es,r)); ioPure(if list.length(found)==0 { outcome.failure([],noResource(r)) } else { outcome.success(prelude.map(found,func(e) => e.mapping.resource)) }) },
+ func(gk,versions) => ioPure(chooseMapping(es,gk,versions)),func(gk,versions) => { let found = mappingCandidates(es,gk,versions); ioPure(if list.length(found)==0 { outcome.failure([],noKindError(gk,versions)) } else { outcome.success(prelude.map(found,func(e) => e.mapping)) }) },
+ func(resource) => { let selected = chooseResource(es,gvr("","",resource)); ioPure(match selected.error { Some(e) => outcome.failure(resource,e); None => match resourceCandidates(es,selected.value) { Nil => outcome.failure(resource,noResource(selected.value)); Cons(e,rest) => outcome.success(e.singular) } }) },func() => ioPure(unit()))
+}

@@ -1,0 +1,35 @@
+// Copyright 2015 The Kubernetes Authors. Licensed under Apache-2.0.
+package api
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import "std/map"
+func _flattenUser(source Source,value AuthInfo) IO[outcome.Outcome[AuthInfo]] { do {
+ base <- makeAbs(source,dir(value.locationOfOrigin),"")
+ match base.error { Some(error) => ioPure(outcome.failure(value,error)); None => do {
+ certificate <- flattenContent(source,value.clientCertificate,value.clientCertificateData,base.value)
+ let value = value{clientCertificate:certificate.value.0,clientCertificateData:certificate.value.1}
+ match certificate.error { Some(error) => ioPure(outcome.failure(value,error)); None => do {
+ key <- flattenContent(source,value.clientKey,value.clientKeyData,base.value)
+ ioPure(outcome.Outcome(value{clientKey:key.value.0,clientKeyData:key.value.1},key.error))
+ } }
+ } }
+} }
+func _flattenCluster(source Source,value Cluster) IO[outcome.Outcome[Cluster]] { do {
+ base <- makeAbs(source,dir(value.locationOfOrigin),"")
+ match base.error { Some(error) => ioPure(outcome.failure(value,error)); None => do {
+ ca <- flattenContent(source,value.certificateAuthority,value.certificateAuthorityData,base.value)
+ ioPure(outcome.Outcome(value{certificateAuthority:ca.value.0,certificateAuthorityData:ca.value.1},ca.error))
+ } }
+} }
+func _flattenEntries[A](entries List[(String,Option[A])],result Map[String,Option[A]],f func(A) IO[outcome.Outcome[A]]) IO[outcome.Outcome[Map[String,Option[A]]]] { match entries { Nil => ioPure(outcome.success(result)); Cons((key,value),rest) => match value { None => _flattenEntries(rest,result,f); Some(value) => do {
+ changed <- f(value)
+ let result = map.mapInsert(result,key,Some(changed.value))
+ match changed.error { Some(error) => ioPure(outcome.failure(result,error)); None => _flattenEntries(rest,result,f) }
+ } } } }
+func flattenConfig(source Source,value Config) IO[outcome.Outcome[Config]] { do {
+ users <- _flattenEntries(map.mapToList(mapOrEmpty(value.authInfos)),mapOrEmpty(value.authInfos),func(value) => _flattenUser(source,value))
+ let value = value{authInfos:Some(users.value)}
+ match users.error { Some(error) => ioPure(outcome.failure(value,error)); None => do {
+ clusters <- _flattenEntries(map.mapToList(mapOrEmpty(value.clusters)),mapOrEmpty(value.clusters),func(value) => _flattenCluster(source,value))
+ ioPure(outcome.Outcome(value{clusters:Some(clusters.value)},clusters.error))
+ } }
+} }

@@ -1,0 +1,39 @@
+package examples
+
+// Copyright 2025 The Kubernetes Authors. Licensed under Apache-2.0.
+import dynamic "dynamic"
+import kube "kubernetes"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import u "deps/k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+import meta "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import errors "deps/support"
+
+func apiErrorExample() IO[Unit] {
+ do {
+  trace <- newTrace("handling_api_errors")
+  env <- environment()
+  withHTTP(trace,[Exchange("GET","/api/v1/namespaces/default/pods/my-pod",404,"{\"apiVersion\":\"v1\",\"kind\":\"Status\",\"status\":\"Failure\",\"message\":\"pods \\\"my-pod\\\" not found\",\"reason\":\"NotFound\",\"code\":404}")],func(url) => do {
+   made <- kube.newForConfig(env,config(url)); client <- present(made)
+   result <- client.coreV1().pods("default").get("my-pod",meta.newGetOptions())
+   check(match result.error { Some(error) => errors.errorIsNotFound(error); None => false },"NotFound classification lost")
+   println("Pod not found")
+  })
+ }
+}
+func printPodNames(items List[u.Unstructured]) IO[Unit] {
+ match items { [] => ioPure(unit()); [item,..rest] => do { name <- u.unstructuredCallGetName(item); println("Pod Name: "+name.1); printPodNames(rest) } }
+}
+func dynamicPodListExample() IO[Trace] {
+ do {
+  trace <- newTrace("using_dynamic_client")
+  env <- environment()
+  withHTTP(trace,[Exchange("GET","/api/v1/namespaces/default/pods",200,"{\"apiVersion\":\"v1\",\"kind\":\"PodList\",\"items\":[{\"apiVersion\":\"v1\",\"kind\":\"Pod\",\"metadata\":{\"name\":\"my-pod\",\"namespace\":\"default\"}}]}")],func(url) => do {
+   made <- dynamic.newForConfig(env,config(url)); client <- present(made)
+   let resource = schema.groupVersionResourceWithResource(schema.groupVersionResourceWithVersion(schema.newGroupVersionResource(),"v1"),"pods")
+   result <- client.resource(resource).namespace("default").list(meta.newListOptions()); result <- present(result)
+   printPodNames(match u.unstructuredListGetItems(result) { None => []; Some(items) => items })
+   resultEvent(trace,"list",u.unstructuredListObjectType(),result)
+  })
+  ioPure(trace)
+ }
+}

@@ -1,0 +1,30 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package listers
+import "std/map"
+import cache "github.com/reoring/gofx/ports/client-go/tools/cache"
+import meta "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import support "github.com/reoring/gofx/ports/client-go/deps/support"
+import fixtures "github.com/reoring/gofx/ports/client-go/listers/fixtures"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+
+func testCanonicalNilEmptyInvalidAndMatchingSelectors() IO[Bool] { do {
+ nilSelector <- selectorFromLabelSelector(None)
+ emptySelector <- selectorFromLabelSelector(Some(meta.newLabelSelector()))
+ invalidSelector <- selectorFromLabelSelector(fixtures.selector(3))
+ matchingSelector <- selectorFromLabelSelector(fixtures.selector(1))
+ let values = map.mapInsert(map.emptyMap(),"app","fixture")
+ nilMatches <- match nilSelector { None => ioPure(false); Some(selector) => selector.matches(values) }
+ emptyMatches <- match emptySelector { None => ioPure(false); Some(selector) => selector.matches(map.emptyMap()) }
+ selected <- match matchingSelector { None => ioPure(false); Some(selector) => selector.matches(values) }
+ ioPure(!nilMatches && emptyMatches && selected && (match invalidSelector { None => true; Some(_) => false }))
+} }
+func testReplicationControllerEmptyMapSelector() IO[Bool] { do {
+ emptySelector <- selectorFromMap(meta.objectMetaGetLabels(meta.newObjectMeta()))
+ ioPure(match emptySelector { None => false; Some(selector) => selector.empty })
+} }
+func testOwnerErrorRetainsExactTemplateAndSortedLabels() IO[Bool] { do {
+ let labels = map.mapInsert(map.mapInsert(map.emptyMap(),"z","last"),"a","first")
+ let action: IO[outcome.Outcome[List[Unit]]] = ownerError("could not find jobs for pod %s in namespace %s with labels: %v","pod%v","ns",labels)
+ result <- action
+ ioPure(match result.error { None => false; Some(error) => support.errorMessage(error) == "could not find jobs for pod pod%v in namespace ns with labels: map[a:first z:last]" })
+} }

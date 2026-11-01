@@ -1,0 +1,27 @@
+package metadatainformer
+import metadata "metadata"
+import dynamic "dynamic"
+import fixture "dynamic/testing"
+import factory "dynamic/dynamicinformer"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import v1 "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import outcome "support/outcome"
+import sync "support/sync"
+// Copyright 2026 The Kubernetes Authors. Licensed under Apache-2.0.
+func testTransformOptionAndInformerIdentity() IO[Bool] {
+ do {
+  serializer <- dynamic.metadataSerializer()
+  http <- fixture.newFixture(serializer,"application/json","{}")
+  client <- metadata.fromRESTClient(http.client)
+  clock <- sync.fakeClock(0)
+  registry <- fixture.featureRegistry()
+  f <- newSharedInformerFactoryWithOptions(registry,client{unsupportedWatchList: true},0,[withTransform(func(object) => ioPure(outcome.success(v1.partialObjectMetadataWithObjectMeta(object,v1.objectMetaWithName(v1.partialObjectMetadataGetObjectMeta(object),"transformed")))))],clock)
+  let resource = schema.groupVersionResourceWithResource(schema.newGroupVersionResource(),"arbitrary")
+  first <- forResource(f,resource)
+  second <- forResource(f,resource)
+  state <- sync.readRef(first.informer.state)
+  transformed <- match state.transform { None => ioPure(outcome.success(v1.newPartialObjectMetadata())); Some(transform) => transform(v1.newPartialObjectMetadata()) }
+  shutdown(f)
+  ioPure(sync.sameRef(first.informer.identity,second.informer.identity) && first.informer.listerWatcher.unsupportedWatchList && v1.objectMetaGetName(v1.partialObjectMetadataGetObjectMeta(transformed.value))=="transformed")
+ }
+}

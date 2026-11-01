@@ -1,0 +1,29 @@
+package metadatainformer
+
+import factory "dynamic/dynamicinformer"
+import dynamic "dynamic"
+import metadata "metadata"
+import cache "tools/cache"
+import sync "support/sync"
+import v1 "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import errors "deps/support"
+import m "std/map"
+import features "features"
+
+// Copyright 2018 The Kubernetes Authors. Licensed under Apache-2.0.
+type Options = Options { transform: Option[cache.TransformFunc[v1.PartialObjectMetadata]] }
+alias SharedInformerOption = func(Options) Options
+func withTransform(transform cache.TransformFunc[v1.PartialObjectMetadata]) SharedInformerOption { func(options) => options{transform: Some(transform)} }
+func newSharedInformerFactoryWithOptions(registry features.FeatureRegistry,client metadata.Interface,resync Int,options List[SharedInformerOption],clock sync.Clock) IO[SharedInformerFactory] {
+ let configured = fold(options,Options(None),func(options,apply) => apply(options))
+ factory.newFactory(func(gvr) => do {
+  informer <- newFilteredInformer(registry,client,gvr,"",resync,m.mapInsert(m.emptyMap(),"namespace",cache.namespaceIndex(dynamic.objectAccess(v1.partialObjectMetadataObjectType()))),func(options) => ioPure(options),clock)
+  match configured.transform { None => ioPure(unit()); Some(transform) => do { result <- cache.setTransform(informer.informer,transform); match result.error { None => ioPure(unit()); Some(e) => errors.raiseError(e) } } }
+  ioPure(informer)
+ },clock)
+}
+func forResource(f SharedInformerFactory,resource schema.GroupVersionResource) IO[factory.GenericInformer[v1.PartialObjectMetadata]] { factory.forResource(f,resource) }
+func start(f SharedInformerFactory) IO[Unit] { factory.start(f) }
+func waitForCacheSync(f SharedInformerFactory) IO[List[(schema.GroupVersionResource,Bool)]] { factory.waitForCacheSync(f) }
+func shutdown(f SharedInformerFactory) IO[Unit] { factory.shutdown(f) }

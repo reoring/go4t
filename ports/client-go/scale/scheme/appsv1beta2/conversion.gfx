@@ -1,0 +1,53 @@
+package appsv1beta2
+
+import api "deps/k8s.io/api/apps/v1beta2"
+import v1 "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import runtime "deps/k8s.io/apimachinery/pkg/runtime"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import internal "scale/scheme"
+import support "deps/support"
+import outcome "support/outcome"
+
+// Copyright 2017 The Kubernetes Authors. Licensed under Apache-2.0.
+// Native equivalents of conversion.go and zz_generated.conversion.go.
+func groupName() String { "apps" }
+func schemeGroupVersion() schema.GroupVersion { internal.groupVersion(groupName(),"v1beta2") }
+func kind(name String) schema.GroupKind { internal.kindFor(groupName(),name) }
+func resource(name String) schema.GroupResource { internal.resourceFor(groupName(),name) }
+func fromScaleSpec(value api.ScaleSpec) internal.ScaleSpec { internal.ScaleSpec(api.scaleSpecGetReplicas(value)) }
+func toScaleSpec(value internal.ScaleSpec) api.ScaleSpec { api.scaleSpecWithReplicas(api.newScaleSpec(),value.replicas) }
+func fromScaleStatus(value api.ScaleStatus) IO[outcome.Outcome[internal.ScaleStatus]] {
+ let target = api.scaleStatusGetTargetSelector(value)
+ if target != "" { do { parsed <- internal.parseTargetSelector(target); ioPure(outcome.mapValue(parsed,func(selector) => internal.ScaleStatus(api.scaleStatusGetReplicas(value),selector))) } }
+ else {
+  let labels = api.scaleStatusGetSelector(value)
+  let copied = fold(support.mapEntries(labels),support.mapEmpty(labels),func(acc,pair) => support.mapWith(acc,pair.0,pair.1))
+  ioPure(outcome.success(internal.ScaleStatus(api.scaleStatusGetReplicas(value),if support.mapIsNil(labels) { None } else { Some(v1.labelSelectorWithMatchLabels(v1.newLabelSelector(),copied)) })))
+ }
+}
+func toScaleStatus(value internal.ScaleStatus) IO[outcome.Outcome[api.ScaleStatus]] {
+ do {
+  rendered <- internal.selectorString(value.selector)
+  let blank = api.newScaleStatus()
+  let labels = match value.selector {
+   None => api.scaleStatusGetSelector(blank)
+   Some(selector) => if (match v1.labelSelectorGetMatchExpressions(selector) { None => true; Some(expressions) => length(expressions) == 0 }) { v1.labelSelectorGetMatchLabels(selector) } else { api.scaleStatusGetSelector(blank) }
+  }
+  ioPure(outcome.from(api.scaleStatusWithTargetSelector(api.scaleStatusWithSelector(api.scaleStatusWithReplicas(blank,value.replicas),labels),rendered.value),rendered.error))
+ }
+}
+func fromScale(value api.Scale) IO[outcome.Outcome[internal.Scale]] {
+ do { status <- fromScaleStatus(api.scaleGetStatus(value)); ioPure(outcome.mapValue(status,func(status) => internal.Scale(v1.newTypeMeta(),api.scaleGetObjectMeta(value),fromScaleSpec(api.scaleGetSpec(value)),status))) }
+}
+func toScale(value internal.Scale) IO[outcome.Outcome[api.Scale]] {
+ do {
+  status <- toScaleStatus(value.status)
+  let metadata = v1.newTypeMeta()
+  ioPure(outcome.from(api.scaleWithTypeMeta(api.scaleWithStatus(api.scaleWithSpec(api.scaleWithObjectMeta(api.newScale(),value.objectMeta),toScaleSpec(value.spec)),status.value),metadata),status.error))
+ }
+}
+func registration() internal.Registration {
+ internal.Registration(groupName(),"v1beta2",func(object) => match api.scaleFromRuntimeObject(object) { None => ioPure(None); Some(value) => do { result <- fromScale(value); ioPure(Some(result)) } },func(value) => do { result <- toScale(value); ioPure(outcome.mapValue(result,func(value) => api.scaleToRuntimeObject(api.scaleWithTypeMeta(value,v1.typeMetaWithKind(v1.typeMetaWithAPIVersion(v1.newTypeMeta(),"apps/v1beta2"),"Scale"))))) })
+}
+func registerConversions(scheme internal.Scheme) internal.Scheme { internal.register(scheme,registration()) }
+func addToScheme(scheme internal.Scheme) internal.Scheme { registerConversions(scheme) }

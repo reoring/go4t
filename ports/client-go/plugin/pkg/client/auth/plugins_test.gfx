@@ -1,0 +1,27 @@
+// Copyright 2026 The Kubernetes Authors. Licensed under Apache-2.0.
+package auth
+import "rest"
+import api "tools/clientcmd/api"
+import "support/outcome"
+import "support/sync"
+import errors "deps/support"
+import "std/map"
+import azure "plugin/pkg/client/auth/azure"
+import gcp "plugin/pkg/client/auth/gcp"
+func testRemovedProvidersReturnPinnedErrors() IO[Bool] {do {
+ registry <- rest.newAuthProviderRegistry();_ <- registerCloudProviders(registry)
+ azureResult <- rest.getAuthProvider(registry,"fixture",api.AuthProviderConfig("azure",None),None)
+ gcpResult <- rest.getAuthProvider(registry,"fixture",api.AuthProviderConfig("gcp",None),None)
+ ioPure(match (azureResult.error,gcpResult.error) {
+  (Some(a),Some(g)) => errors.errorMessage(a) == "The azure auth plugin has been removed.\nPlease use the https://github.com/Azure/kubelogin kubectl/client-go credential plugin instead.\nSee https://kubernetes.io/docs/reference/access-authn-authz/authentication/#client-go-credential-plugins for further details" && errors.errorMessage(g) == "The gcp auth plugin has been removed.\nPlease use the \"gke-gcloud-auth-plugin\" kubectl/client-go credential plugin instead.\nSee https://cloud.google.com/blog/products/containers-kubernetes/kubectl-auth-changes-in-gke for further details"
+  _ => false
+ })
+}}
+func testRegistrySupportsExtensionAndRejectsDuplicate() IO[Bool] {do {
+ registry <- rest.newAuthProviderRegistry()
+ let factory = func(cluster,config,persister) => ioPure(outcome.success(Some(rest.AuthProvider(func(base) => base,func() => ioPure(outcome.success(unit()))))))
+ first <- rest.registerAuthProviderPlugin(registry,"fixture-extension",factory)
+ duplicate <- rest.registerAuthProviderPlugin(registry,"fixture-extension",factory)
+ loaded <- rest.getAuthProvider(registry,"fixture",api.AuthProviderConfig("fixture-extension",None),None)
+ ioPure(outcome.isSuccess(first) && !outcome.isSuccess(duplicate) && outcome.isSuccess(loaded) && (match loaded.value {Some(_) => true;None => false}))
+}}

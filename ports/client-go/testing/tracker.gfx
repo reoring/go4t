@@ -1,0 +1,192 @@
+// Copyright 2015 The Kubernetes Authors. Licensed under Apache-2.0.
+package testing
+import runtime "deps/k8s.io/apimachinery/pkg/runtime"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import meta "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import objects "deps/objects"
+import errors "deps/support"
+import outcome "support/outcome"
+import native "testing/internal"
+import sync "support/sync"
+import watch "support/watch"
+import maps "std/map"
+
+type ObjectTracker = ObjectTracker {
+ add: func(runtime.Object) IO[outcome.Outcome[Unit]],
+ get: func(schema.GroupVersionResource,String,String,List[meta.GetOptions]) IO[outcome.Outcome[Option[runtime.Object]]],
+ create: func(schema.GroupVersionResource,runtime.Object,String,List[meta.CreateOptions]) IO[outcome.Outcome[Unit]],
+ update: func(schema.GroupVersionResource,runtime.Object,String,List[meta.UpdateOptions]) IO[outcome.Outcome[Unit]],
+ patch: func(schema.GroupVersionResource,runtime.Object,String,List[meta.PatchOptions]) IO[outcome.Outcome[Unit]],
+ apply: func(schema.GroupVersionResource,runtime.Object,String,List[meta.PatchOptions]) IO[outcome.Outcome[Unit]],
+ list: func(schema.GroupVersionResource,schema.GroupVersionKind,String,List[meta.ListOptions]) IO[outcome.Outcome[Option[runtime.Object]]],
+ delete: func(schema.GroupVersionResource,String,String,List[meta.DeleteOptions]) IO[outcome.Outcome[Unit]],
+ watch: func(schema.GroupVersionResource,String,List[meta.ListOptions]) IO[outcome.Outcome[Option[watch.Watch]]]
+}
+type ObjectScheme = ObjectScheme { newObject: func(schema.GroupVersionKind) IO[(Option[runtime.Object],Option[errors.Error])], objectKinds: func(runtime.Object) IO[(List[schema.GroupVersionKind],Option[errors.Error])] }
+func objectScheme(scheme runtime.Scheme) ObjectScheme { ObjectScheme(func(kind) => native.newObject(scheme,kind),func(object) => native.objectKinds(scheme,object)) }
+type VersionedObject = VersionedObject { version: Int, object: runtime.Object }
+type TrackedWatch = TrackedWatch { namespace: String, events: sync.Channel[watch.Event], stopped: sync.Ref[Bool] }
+type ResourceState = ResourceState { version: Int, objects: Map[(String,String),VersionedObject], watchers: List[TrackedWatch] }
+type Tracker = Tracker { scheme: ObjectScheme, decoder: runtime.Decoder, mutex: sync.Mutex, state: sync.Ref[Map[String,ResourceState]] }
+func _resourceKey(resource schema.GroupVersionResource) String { schema.groupVersionResourceGetGroup(resource)+"\u0000"+schema.groupVersionResourceGetVersion(resource)+"\u0000"+schema.groupVersionResourceGetResource(resource) }
+func _resource(state Map[String,ResourceState], resource schema.GroupVersionResource) ResourceState { match maps.mapLookup(state,_resourceKey(resource)) { Some(value) => value; None => ResourceState(1,maps.emptyMap(),[]) } }
+func assertOptionalSingleArgument[A](arguments List[A], zero A) outcome.Outcome[A] { match arguments { Nil => outcome.success(zero); Cons(value,Nil) => outcome.success(value); _ => outcome.failure(zero,errors.errorNew("expected only one option argument but got "+show(length(arguments)))) } }
+func _optionError[A](arguments List[A]) Option[errors.Error] { if length(arguments)>1 { Some(errors.errorNew("expected only one option argument but got "+show(length(arguments)))) } else { None } }
+func newObjectTracker(scheme runtime.Scheme, decoder runtime.Decoder) IO[ObjectTracker] { newObjectTrackerWithScheme(objectScheme(scheme),decoder) }
+func newObjectTrackerWithScheme(scheme ObjectScheme, decoder runtime.Decoder) IO[ObjectTracker] { do {
+ mutex <- sync.newMutex()
+ state <- sync.newRef(maps.emptyMap())
+ let tracker = Tracker(scheme,decoder,mutex,state)
+ ioPure(ObjectTracker(
+  func(object) => _add(tracker,object),
+  func(resource,namespace,name,options) => match _optionError(options) { Some(e) => ioPure(outcome.failure(None,e)); None => _get(tracker,resource,namespace,name) },
+  func(resource,object,namespace,options) => match _optionError(options) { Some(e) => ioPure(outcome.failure(unit(),e)); None => _store(tracker,resource,object,namespace,false) },
+  func(resource,object,namespace,options) => match _optionError(options) { Some(e) => ioPure(outcome.failure(unit(),e)); None => _store(tracker,resource,object,namespace,true) },
+  func(resource,object,namespace,options) => match _optionError(options) { Some(e) => ioPure(outcome.failure(unit(),e)); None => _store(tracker,resource,object,namespace,true) },
+  func(resource,object,namespace,options) => match _optionError(options) { Some(e) => ioPure(outcome.failure(unit(),e)); None => _legacyApply(tracker,resource,object,namespace) },
+  func(resource,kind,namespace,options) => match _optionError(options) { Some(e) => ioPure(outcome.failure(None,e)); None => _list(tracker,resource,kind,namespace) },
+  func(resource,namespace,name,options) => match _optionError(options) { Some(e) => ioPure(outcome.failure(unit(),e)); None => _delete(tracker,resource,namespace,name) },
+  func(resource,namespace,options) => match _optionError(options) { Some(e) => ioPure(outcome.failure(None,e)); None => _watch(tracker,resource,namespace,options) }
+ ))
+} }
+func isWatchListSemanticsUnSupported(_tracker ObjectTracker) Bool { true }
+func _get(tracker Tracker, resource schema.GroupVersionResource, namespace String, name String) IO[outcome.Outcome[Option[runtime.Object]]] { sync.withLock(tracker.mutex,do {
+ state <- sync.readRef(tracker.state)
+ match maps.mapLookup(_resource(state,resource).objects,(namespace,name)) {
+  None => ioPure(outcome.failure(None,native.notFound(resource,name)))
+  Some(value) => do { copied <- objects.objectDeepCopy(value.object); match copied { None => ioPure(outcome.success(None)); Some(object) => do { error <- _statusError(object); ioPure(outcome.from(if _hasError(error) { None } else { Some(object) },error)) } } }
+ }
+}) }
+func _hasError(error Option[errors.Error]) Bool { match error { None => false; Some(_) => true } }
+func _statusError(object runtime.Object) IO[Option[errors.Error]] { match objects.objectAsStatus(object) {
+ None => ioPure(None)
+ Some(status) => if meta.statusGetStatus(status) == "Success" { ioPure(None) } else { do { error <- objects.errorFromObject(object); ioPure(Some(error)) } }
+} }
+func _notify(watchers List[TrackedWatch], namespace String, eventType String, object runtime.Object, copy Bool) IO[Unit] { match watchers {
+ Nil => ioPure(unit())
+ Cons(watcher,rest) => do {
+  stopped <- sync.readRef(watcher.stopped)
+  if !stopped && (watcher.namespace == "" || watcher.namespace == namespace) { do {
+   value <- if copy { objects.objectDeepCopy(object) } else { ioPure(Some(object)) }
+   sent <- sync.trySend(watcher.events,watch.Event(eventType,value))
+   if sent { ioPure(unit()) } else { ioFail("channel full") }
+  } } else { ioPure(unit()) }
+  _notify(rest,namespace,eventType,object,copy)
+ }
+} }
+func _store(tracker Tracker, resource schema.GroupVersionResource, object runtime.Object, namespace String, replace Bool) IO[outcome.Outcome[Unit]] { sync.withLock(tracker.mutex,do {
+ identity <- native.objectIdentity(object)
+ match identity.1 {
+  Some(e) => ioPure(outcome.failure(unit(),e))
+  None => if identity.0.0 != "" && identity.0.0 != namespace {
+   ioPure(outcome.failure(unit(),native.badRequest("request namespace does not match object namespace, request: "+show(namespace)+" object: "+show(identity.0.0))))
+  } else { do {
+   normalized <- if identity.0.0 == "" { native.setNamespace(object,namespace) } else { do { copy <- objects.objectDeepCopy(object); ioPure((copy,None)) } }
+   match normalized.1 {
+    Some(e) => ioPure(outcome.failure(unit(),e))
+    None => match normalized.0 {
+     None => ioPure(outcome.failure(unit(),errors.errorNew("object DeepCopyObject returned nil")))
+     Some(value) => do {
+      state <- sync.readRef(tracker.state)
+      let current = _resource(state,resource)
+      let key = (namespace,identity.0.1)
+      let exists = maps.mapMember(current.objects,key)
+      if exists && !replace { ioPure(outcome.failure(unit(),native.alreadyExists(resource,key.1))) }
+      else { if !exists && replace { ioPure(outcome.failure(unit(),native.notFound(resource,key.1))) }
+      else { do {
+       let updated = current{version: current.version+1,objects: maps.mapInsert(current.objects,key,VersionedObject(current.version+1,value))}
+       sync.writeRef(tracker.state,maps.mapInsert(state,_resourceKey(resource),updated))
+       _notify(current.watchers,namespace,if exists { "MODIFIED" } else { "ADDED" },value,true)
+       ioPure(outcome.success(unit()))
+      } } }
+     }
+    }
+   }
+  } }
+ }
+}) }
+func _delete(tracker Tracker, resource schema.GroupVersionResource, namespace String, name String) IO[outcome.Outcome[Unit]] { sync.withLock(tracker.mutex,do {
+ state <- sync.readRef(tracker.state)
+ let current = _resource(state,resource)
+ match maps.mapLookup(current.objects,(namespace,name)) {
+  None => ioPure(outcome.failure(unit(),native.notFound(resource,name)))
+  Some(value) => do {
+   sync.writeRef(tracker.state,maps.mapInsert(state,_resourceKey(resource),current{objects: maps.mapDelete(current.objects,(namespace,name))}))
+   _notify(current.watchers,namespace,"DELETED",value.object,true)
+   ioPure(outcome.success(unit()))
+  }
+ }
+}) }
+func _matching(current ResourceState, namespace String) List[VersionedObject] { map(filter(maps.mapToList(current.objects),func(entry) => namespace == "" || entry.0.0 == namespace),func(entry) => entry.1) }
+func _list(tracker Tracker, resource schema.GroupVersionResource, kind schema.GroupVersionKind, namespace String) IO[outcome.Outcome[Option[runtime.Object]]] { do {
+ let version = schema.groupVersionKindGetVersion(kind)
+ let listKind = schema.groupVersionKindWithVersion(schema.groupVersionKindWithKind(kind,schema.groupVersionKindGetKind(kind)+"List"),if version == "" { "__internal" } else { version })
+ created <- tracker.scheme.newObject(listKind)
+ if _hasError(created.1) { ioPure(outcome.from(None,created.1)) } else { match created.0 { None => ioPure(outcome.from(None,created.1)); Some(list) => do {
+  isList <- native.isList(list)
+  if !isList { ioPure(outcome.failure(None,errors.errorNew(show(schema.groupVersionKindGetKind(listKind))+" is not a list type"))) }
+  else { sync.withLock(tracker.mutex,do {
+   state <- sync.readRef(tracker.state)
+   let current = _resource(state,resource)
+   filled <- native.fillList(list,show(current.version),map(_matching(current,namespace),func(value) => value.object))
+   ioPure(outcome.from(filled.0,filled.1))
+  }) }
+ } } }
+} }
+func _watch(tracker Tracker, resource schema.GroupVersionResource, namespace String, options List[meta.ListOptions]) IO[outcome.Outcome[Option[watch.Watch]]] {
+ let specified = match options { Nil => false; _ => true }
+ let option = assertOptionalSingleArgument(options,meta.newListOptions()).value
+ let version = meta.listOptionsGetResourceVersion(option)
+ let parsed = if version == "" { (0,None) } else { native.parseInt(version) }
+ match parsed.1 {
+  Some(e) => ioPure(outcome.failure(None,errors.errorWrap("invalid ResourceVersion "+show(version)+" in ListOptions, must be int64",e)))
+  None => sync.withLock(tracker.mutex,do {
+   events <- sync.newChannel(100)
+   stopped <- sync.newRef(false)
+   let watcher = TrackedWatch(namespace,events,stopped)
+   state <- sync.readRef(tracker.state)
+   let current = _resource(state,resource)
+   sync.writeRef(tracker.state,maps.mapInsert(state,_resourceKey(resource),current{watchers: append(current.watchers,[watcher])}))
+   if specified { _replay(watcher,filter(_matching(current,namespace),func(value) => value.version>parsed.0)) } else { ioPure(unit()) }
+   let result = watch.newWatch(events,func() => sync.withLock(tracker.mutex,do { wasStopped <- sync.readRef(stopped); if wasStopped { ioPure(unit()) } else { do { sync.writeRef(stopped,true); sync.close(events) } } }))
+   ioPure(outcome.success(Some(result)))
+  })
+ }
+}
+func _replay(watcher TrackedWatch, values List[VersionedObject]) IO[Unit] { match values { Nil => ioPure(unit()); Cons(value,rest) => do { _notify([watcher],watcher.namespace,"ADDED",value.object,false); _replay(watcher,rest) } } }
+func _add(tracker Tracker, object runtime.Object) IO[outcome.Outcome[Unit]] { do {
+ isList <- native.isList(object)
+ if isList { do { extracted <- native.extractList(object,tracker.decoder); match extracted.1 { Some(e) => ioPure(outcome.failure(unit(),e)); None => _addItems(tracker,extracted.0) } } }
+ else { do {
+  identity <- native.objectIdentity(object)
+  match identity.1 { Some(e) => ioPure(outcome.failure(unit(),e)); None => do {
+   kinds <- tracker.scheme.objectKinds(object)
+   match kinds.1 { Some(e) => ioPure(outcome.failure(unit(),e)); None => do {
+    partial <- native.partialMetadataKind(object)
+    let actual = match partial { Some(value) => if value.0 != "" { [value.1] } else { kinds.0 }; None => kinds.0 }
+    match actual { Nil => ioPure(outcome.failure(unit(),errors.errorNew("no registered kinds for object"))); _ => _addKinds(tracker,object,identity.0.0,actual) }
+   } }
+  } }
+ } }
+} }
+func _addItems(tracker Tracker, items List[runtime.Object]) IO[outcome.Outcome[Unit]] { match items { Nil => ioPure(outcome.success(unit())); Cons(item,rest) => do { result <- _add(tracker,item); if _hasError(result.error) { ioPure(result) } else { _addItems(tracker,rest) } } } }
+func _addKinds(tracker Tracker, object runtime.Object, namespace String, kinds List[schema.GroupVersionKind]) IO[outcome.Outcome[Unit]] { match kinds { Nil => ioPure(outcome.success(unit())); Cons(kind,rest) => do { let guessed = native.guessResource(kind); let resource = if schema.groupVersionResourceGetVersion(guessed) == "__internal" { schema.groupVersionResourceWithVersion(guessed,"") } else { guessed }; result <- _store(tracker,resource,object,namespace,false); if _hasError(result.error) { ioPure(result) } else { _addKinds(tracker,object,namespace,rest) } } } }
+func _legacyApply(tracker Tracker, resource schema.GroupVersionResource, configuration runtime.Object, namespace String) IO[outcome.Outcome[Unit]] { do {
+ identity <- native.objectIdentity(configuration)
+ match identity.1 { Some(e) => ioPure(outcome.failure(unit(),e)); None => do {
+  old <- _get(tracker,resource,namespace,identity.0.1)
+  match old.value { None => ioPure(outcome.from(unit(),old.error)); Some(object) => do {
+   data <- native.marshalObject(object)
+   if _hasError(data.1) { ioPure(outcome.from(unit(),data.1)) } else { do {
+    patch <- native.marshalObject(configuration)
+    if _hasError(patch.1) { ioPure(outcome.from(unit(),patch.1)) } else { do {
+     merged <- native.strategicPatch(data.0,patch.0,object)
+     if _hasError(merged.1) { ioPure(outcome.from(unit(),merged.1)) } else { do {
+      decoded <- native.unmarshalObject(object,merged.0)
+      match decoded.0 { None => ioPure(outcome.from(unit(),decoded.1)); Some(value) => if _hasError(decoded.1) { ioPure(outcome.from(unit(),decoded.1)) } else { _store(tracker,resource,value,namespace,true) } }
+     } }
+    } }
+   } }
+  } }
+ } }
+} }

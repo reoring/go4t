@@ -1,0 +1,61 @@
+package main
+import testing "testing"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import outcome "support/outcome"
+import sync "support/sync"
+
+type RecordPayload = RecordPayload { label: String, count: Int }
+type CallablePayload = CallablePayload { state: sync.Ref[Int], run: func() IO[Int] }
+
+func _absent(value Option[String]) Bool { match value { None => true; Some(_) => false } }
+func _observe[A](action testing.Action, key testing.PayloadKey[A], wrong testing.PayloadKey[String], check func(A) IO[Bool]) IO[Bool] {
+ if !_absent(testing.getValue(action,wrong)) { ioPure(false) } else {
+  match testing.getValue(action,key) { None => ioPure(false); Some(value) => check(value) }
+ }
+}
+func _history[A](items List[testing.Action], key testing.PayloadKey[A], wrong testing.PayloadKey[String], check func(A) IO[Bool]) IO[Bool] { match items {
+ Nil => ioPure(true)
+ Cons(action,rest) => do { valid <- _observe(action,key,wrong,check); later <- _history(rest,key,wrong,check); ioPure(valid && later && action.namespace=="original") }
+} }
+func _roundTrip[A](key testing.PayloadKey[A], value A, check func(A) IO[Bool]) IO[Bool] { do {
+ fake <- testing.newFake()
+ wrong <- testing.newPayloadKey()
+ visits <- sync.newRef(0)
+ let inspect = func(shared) => do {
+  action <- sync.readRef(shared)
+  valid <- _observe(action,key,wrong,check)
+  if valid { do { count <- sync.readRef(visits); sync.writeRef(visits,count+1) } } else { ioFail("payload lost or wrong key accepted") }
+  sync.writeRef(shared,action{namespace:"reactor"})
+ }
+ testing.addReactor(fake,"*","*",func(shared) => do { inspect(shared); ioPure(testing.Reaction(false,outcome.success(None))) })
+ testing.addReactor(fake,"*","*",func(shared) => do { inspect(shared); ioPure(testing.Reaction(true,outcome.success(None))) })
+ testing.addWatchReactor(fake,"*",func(shared) => do { inspect(shared); ioPure(testing.WatchReaction(false,outcome.success(None))) })
+ testing.addWatchReactor(fake,"*",func(shared) => do { inspect(shared); ioPure(testing.WatchReaction(true,outcome.success(None))) })
+ testing.addProxyReactor(fake,"*",func(shared) => do { inspect(shared); ioPure(testing.ProxyReaction(false,outcome.success(None))) })
+ testing.addProxyReactor(fake,"*",func(shared) => do { inspect(shared); ioPure(testing.ProxyReaction(true,outcome.success(None))) })
+ let resource = schema.groupVersionResourceWithResource(schema.newGroupVersionResource(),"payloads")
+ let action = testing.newGenericAction("custom",resource,"original",key,value)
+ testing.invokes(fake,action,None)
+ testing.invokesWatch(fake,action)
+ testing.invokesProxy(fake,action)
+ recorded <- testing.actions(fake)
+ valid <- _history(recorded,key,wrong,check)
+ count <- sync.readRef(visits)
+ ioPure(valid && count==6 && length(recorded)==3 && action.namespace=="original")
+} }
+func testScalarPayloadDispatch() IO[Bool] { do { key <- testing.newPayloadKey(); _roundTrip(key,37,func(value) => ioPure(value==37)) } }
+func testRecordPayloadDispatch() IO[Bool] { do { key <- testing.newPayloadKey(); _roundTrip(key,RecordPayload("native",9),func(value) => ioPure(value.label=="native" && value.count==9)) } }
+func testCallableMutablePayloadDispatch() IO[Bool] { do {
+ state <- sync.newRef(0)
+ key <- testing.newPayloadKey()
+ let value = CallablePayload(state,func() => do { count <- sync.readRef(state); sync.writeRef(state,count+1); ioPure(count+1) })
+ valid <- _roundTrip(key,value,func(payload) => do { payload.run(); ioPure(sync.sameRef(payload.state,state)) })
+ count <- sync.readRef(state)
+ ioPure(valid && count==9)
+} }
+func main() IO[Unit] { do {
+ scalar <- testScalarPayloadDispatch()
+ record <- testRecordPayloadDispatch()
+ callable <- testCallableMutablePayloadDispatch()
+ if scalar && record && callable { ioPure(unit()) } else { ioFail("generic payload dispatch regression") }
+} }

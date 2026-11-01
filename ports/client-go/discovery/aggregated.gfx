@@ -1,0 +1,46 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package discovery
+import api "deps/k8s.io/api/apidiscovery/v2"
+import meta "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import errors "deps/support"
+import "support/outcome"
+import "std/list"
+import "std/map"
+func staleGroupVersionError(gv String) errors.Error { taggedError("StaleGroupVersion","stale GroupVersion discovery: "+gv,[],[]) }
+func withResponseKind(r meta.APIResource,kind Option[meta.GroupVersionKind]) outcome.Outcome[meta.APIResource] {
+ match kind {
+  Some(k) => if meta.groupVersionKindGetGroup(k)!="" || meta.groupVersionKindGetVersion(k)!="" || meta.groupVersionKindGetKind(k)!="" { outcome.success(meta.aPIResourceWithKind(meta.aPIResourceWithVersion(meta.aPIResourceWithGroup(r,meta.groupVersionKindGetGroup(k)),meta.groupVersionKindGetVersion(k)),meta.groupVersionKindGetKind(k))) } else { outcome.failure(r,errors.errorNew("discovery resource "+meta.aPIResourceGetName(r)+" missing GVK")) }
+  None => outcome.failure(r,errors.errorNew("discovery resource "+meta.aPIResourceGetName(r)+" missing GVK"))
+ }
+}
+func convertAPIResource(r api.APIResourceDiscovery) outcome.Outcome[meta.APIResource] {
+ let result = meta.aPIResourceWithCategories(meta.aPIResourceWithShortNames(meta.aPIResourceWithVerbs(meta.aPIResourceWithNamespaced(meta.aPIResourceWithSingularName(meta.aPIResourceWithName(meta.newAPIResource(),api.aPIResourceDiscoveryGetResource(r)),api.aPIResourceDiscoveryGetSingularResource(r)),api.resourceScopeValue(api.aPIResourceDiscoveryGetScope(r))=="Namespaced"),meta.verbsFromValue(api.aPIResourceDiscoveryGetVerbs(r))),api.aPIResourceDiscoveryGetShortNames(r)),api.aPIResourceDiscoveryGetCategories(r))
+ withResponseKind(result,api.aPIResourceDiscoveryGetResponseKind(r))
+}
+func convertSubresource(parent meta.APIResource,s api.APISubresourceDiscovery) outcome.Outcome[meta.APIResource] {
+ let result = meta.aPIResourceWithVerbs(meta.aPIResourceWithNamespaced(meta.aPIResourceWithSingularName(meta.aPIResourceWithName(meta.newAPIResource(),meta.aPIResourceGetName(parent)+"/"+api.aPISubresourceDiscoveryGetSubresource(s)),meta.aPIResourceGetSingularName(parent)),meta.aPIResourceGetNamespaced(parent)),meta.verbsFromValue(api.aPISubresourceDiscoveryGetVerbs(s)))
+ let converted = withResponseKind(result,api.aPISubresourceDiscoveryGetResponseKind(s))
+ match converted.error { None => converted; Some(e) => outcome.failure(result,errors.errorNew("subresource "+meta.aPIResourceGetName(result)+" missing GVK")) }
+}
+func convertResources(resources List[api.APIResourceDiscovery]) List[meta.APIResource] {
+ list.concatMap(resources,func(r) => {
+  let parent = convertAPIResource(r)
+  let own = match parent.error { None => [parent.value]; Some(e) => [] }
+  list.append(own,list.concatMap(values(api.aPIResourceDiscoveryGetSubresources(r)),func(s) => { let sub = convertSubresource(parent.value,s); match sub.error { None => [sub.value]; Some(e) => [] } }))
+ })
+}
+func splitGroupsAndResources(aggregated api.APIGroupDiscoveryList) Aggregated {
+ let result = list.fold(values(api.aPIGroupDiscoveryListGetItems(aggregated)),([],map.emptyMap(),map.emptyMap()),func(acc,g) => {
+  let name = meta.objectMetaGetName(api.aPIGroupDiscoveryGetObjectMeta(g))
+  let versionData = list.fold(values(api.aPIGroupDiscoveryGetVersions(g)),([],acc.1,acc.2),func(vacc,v) => {
+   let version = api.aPIVersionDiscoveryGetVersion(v)
+   let gv = groupVersion(name,version)
+   if api.discoveryFreshnessValue(api.aPIVersionDiscoveryGetFreshness(v))=="Stale" { (vacc.0,vacc.1,map.mapInsert(vacc.2,gv,staleGroupVersionError(gv))) }
+   else { (list.append(vacc.0,[discoveryVersion(gv,version)]),map.mapInsert(vacc.1,gv,resourceList(gv,convertResources(values(api.aPIVersionDiscoveryGetResources(v))))),vacc.2) }
+  })
+  let group = meta.aPIGroupWithVersions(meta.aPIGroupWithName(meta.newAPIGroup(),name),Some(versionData.0))
+  let group = match versionData.0 { Nil => group; Cons(first,rest) => meta.aPIGroupWithPreferredVersion(group,first) }
+  (list.append(acc.0,[group]),versionData.1,versionData.2)
+ })
+ Aggregated(Some(groupList(result.0)),Some(result.1),result.2)
+}

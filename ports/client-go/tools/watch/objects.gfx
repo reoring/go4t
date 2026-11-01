@@ -1,0 +1,28 @@
+package watch
+
+import objects "github.com/reoring/gofx/ports/client-go/deps/objects"
+import codec "github.com/reoring/gofx/ports/client-go/deps/codec"
+import errors "github.com/reoring/gofx/ports/client-go/deps/support"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+
+func canonicalRetryAccess(log func(String, Option[errors.Error]) IO[Unit]) RetryAccess {
+ RetryAccess(func(object) => match object {
+  None => ioPure(outcome.Outcome("", Some(errors.errorNew("retryWatcher: doesn't support resourceVersion"))))
+  Some(value) => do {
+   version <- objects.objectResourceVersionValue(value)
+   ioPure(match version {
+    None => outcome.Outcome("", Some(errors.errorNew("retryWatcher: doesn't support resourceVersion")))
+    Some(rv) => outcome.Outcome(rv, None)
+   })
+  }
+ }, func(object) => match object {
+  None => ioPure(None)
+  Some(value) => do { error <- objects.errorFromObject(value); ioPure(codec.errorStatus(error)) }
+ }, func(message) => {
+  let error = errors.errorInternal(errors.errorNew(message))
+  match codec.errorStatus(error) {
+   Some(status) => ioPure(objects.statusToObject(status))
+   None => errors.raiseError(error)
+  }
+ }, func(error) => ioPure(match codec.errorStatus(error) { None => None; Some(status) => Some(objects.statusToObject(status)) }), errors.errorIsForbidden, errors.errorIsUnauthorized, log, objects.objectGoString)
+}

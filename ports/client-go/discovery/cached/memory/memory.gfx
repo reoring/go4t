@@ -1,0 +1,93 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+// Native port of discovery/cached/memory/memcache.go, client-go v0.37.2.
+package memory
+import "discovery"
+import meta "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import errors "deps/support"
+import "support/outcome"
+import "support/sync"
+import "openapi"
+import cached "openapi/cached"
+import "std/list"
+import "std/prelude"
+import "std/map"
+type State = State { valid: Bool, groups: Option[meta.APIGroupList], entries: Map[String,outcome.Outcome[Option[meta.APIResourceList]]], aggregated: Bool, openapi: Option[openapi.Client] }
+type MemoryCache = MemoryCache { delegate: discovery.DiscoveryInterface, invalidateDelegate: func() IO[Unit], mutex: sync.Mutex, state: sync.Ref[State] }
+func emptyState() State { State(false,None,map.emptyMap(),false,None) }
+func errCacheNotFound() errors.Error { discovery.taggedError("CacheNotFound","not found",[],[]) }
+extern func errorFacts(error errors.Error) (Bool,(Bool,(Bool,Int))) = "github.com/reoring/gofx/ports/client-go/discovery/host".ErrorFacts
+func isTransientError(error errors.Error) Bool { let facts = errorFacts(error); facts.0 || facts.1.0 || facts.1.1.0 || facts.1.1.1>=500 || errors.errorIsTooManyRequests(error) }
+func loadResource(d discovery.DiscoveryInterface,gv String) IO[outcome.Outcome[Option[meta.APIResourceList]]] {
+ do { result <- d.serverResourcesForGroupVersion(gv); ioPure(match result.error { Some(e) => result; None => match result.value { Some(r) => if list.length(discovery.values(meta.aPIResourceListGetAPIResources(r)))>0 { result } else { outcome.failure(None,errors.errorNew("received empty response for: "+gv)) }; None => outcome.failure(None,errors.errorNew("received empty response for: "+gv)) } }) }
+}
+func refresh(cache MemoryCache) IO[Option[errors.Error]] {
+ do {
+  state <- sync.readRef(cache.state)
+  if state.valid { ioPure(None) } else { do {
+   result <- discovery.gather(cache.delegate)
+   match result.error {
+    Some(e) => ioPure(Some(e))
+    None => match result.value.resources {
+     Some(rs) => do {
+      let success = map.mapMap(rs,func(r) => outcome.success(Some(r)))
+      let entries = list.fold(map.mapToList(result.value.failures),success,func(m,e) => map.mapInsert(m,e.0,outcome.failure(None,e.1)))
+      sync.writeRef(cache.state,State(true,result.value.groups,entries,true,state.openapi))
+      ioPure(None)
+     }
+     None => match result.value.groups {
+      None => ioPure(None)
+      Some(groups) => if list.length(discovery.values(meta.aPIGroupListGetGroups(groups)))==0 { ioPure(None) } else { do {
+       let versions = list.concatMap(discovery.values(meta.aPIGroupListGetGroups(groups)),func(g) => prelude.map(discovery.values(meta.aPIGroupGetVersions(g)),func(v) => meta.groupVersionForDiscoveryGetGroupVersion(v)))
+       tasks <- list.mapM(versions,func(gv) => sync.start(do { r <- loadResource(cache.delegate,gv); ioPure((gv,r)) }))
+       results <- list.mapM(tasks,func(t) => sync.join(t))
+       sync.writeRef(cache.state,State(true,Some(groups),map.mapFromList(results),false,state.openapi))
+       ioPure(None)
+      } }
+     }
+    }
+   }
+  } }
+ }
+}
+func resources(cache MemoryCache,gv String) IO[outcome.Outcome[Option[meta.APIResourceList]]] {
+ sync.withLock(cache.mutex,do {
+  error <- refresh(cache)
+  match error { Some(e) => ioPure(outcome.failure(None,e)); None => do {
+   state <- sync.readRef(cache.state)
+   match map.mapLookup(state.entries,gv) {
+    None => ioPure(outcome.failure(None,errCacheNotFound()))
+    Some(result) => match result.error {
+     Some(e) => if isTransientError(e) { do { updated <- loadResource(cache.delegate,gv); sync.writeRef(cache.state,state{entries:map.mapInsert(state.entries,gv,updated)}); ioPure(updated) } } else { ioPure(result) }
+     None => ioPure(result)
+    }
+   }
+  } }
+ })
+}
+func groups(cache MemoryCache) IO[outcome.Outcome[discovery.Aggregated]] {
+ sync.withLock(cache.mutex,do {
+  error <- refresh(cache)
+  state <- sync.readRef(cache.state)
+  let failures = list.fold(map.mapToList(state.entries),map.emptyMap(),func(m,e) => match e.1.error { None => m; Some(error) => map.mapInsert(m,e.0,error) })
+  let resources = list.fold(map.mapToList(state.entries),map.emptyMap(),func(m,e) => match e.1.value { None => m; Some(r) => map.mapInsert(m,e.0,r) })
+  ioPure(outcome.Outcome(discovery.Aggregated(state.groups,if state.aggregated && map.mapSize(state.entries)>0 { Some(resources) } else { None },failures),error))
+ })
+}
+func invalidate(cache MemoryCache) IO[Unit] { sync.withLock(cache.mutex,do { sync.writeRef(cache.state,emptyState()); cache.invalidateDelegate() }) }
+func openAPI(cache MemoryCache) IO[openapi.Client] { sync.withLock(cache.mutex,do {
+ state <- sync.readRef(cache.state)
+ match state.openapi { Some(c) => ioPure(c); None => do { base <- cache.delegate.openAPIV3(); client <- cached.newClient(base); sync.writeRef(cache.state,state{openapi:Some(client)}); ioPure(client) } }
+}) }
+func asDiscovery(cache MemoryCache) discovery.DiscoveryInterface {
+ let base = cache.delegate
+ base{serverGroups:func() => do { r <- groups(cache); ioPure(outcome.Outcome(r.value.groups,r.error)) },
+ serverResourcesForGroupVersion:func(gv) => resources(cache,gv),
+ serverGroupsAndResources:func() => discovery.serverGroupsAndResources(asDiscovery(cache)),
+ serverPreferredResources:func() => discovery.serverPreferredResources(asDiscovery(cache)),
+ serverPreferredNamespacedResources:func() => discovery.serverPreferredNamespacedResources(asDiscovery(cache)),
+ openAPIV3:func() => openAPI(cache),withLegacy:func() => asDiscovery(cache),groupsAndMaybeResources:Some(func() => groups(cache))}
+}
+func newMemCacheClientWithInvalidation(delegate discovery.DiscoveryInterface,onInvalidate func() IO[Unit]) IO[discovery.CachedDiscoveryInterface] {
+ do { state <- sync.newRef(emptyState()); mutex <- sync.newMutex(); let cache = MemoryCache(delegate,onInvalidate,mutex,state); ioPure(discovery.CachedDiscoveryInterface(asDiscovery(cache),func() => sync.withLock(mutex,do { s <- sync.readRef(state); ioPure(s.valid) }),func() => invalidate(cache))) }
+}
+func newMemCacheClient(delegate discovery.DiscoveryInterface) IO[discovery.CachedDiscoveryInterface] { newMemCacheClientWithInvalidation(delegate,func() => ioPure(unit())) }

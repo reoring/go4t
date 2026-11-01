@@ -1,0 +1,25 @@
+package watch
+
+import cache "github.com/reoring/gofx/ports/client-go/tools/cache"
+import runtime "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import errors "github.com/reoring/gofx/ports/client-go/deps/support"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import map "std/map"
+import io "std/io"
+
+// One real cache controller, configured before run, no concrete REST coupling.
+func cacheInformerFactory(lw cache.ListWatcher[runtime.Object], access cache.ObjectAccess[runtime.Object], clock sync.Clock) InformerFactory[cache.Indexer[runtime.Object]] {
+ func(onAdd, onUpdate, onDelete) => do {
+  informer <- cache.newSharedIndexInformer(lw, access, func(object) => outcome.Outcome(object, None), 0, map.emptyMap(), clock)
+  registration <- cache.addEventHandler(informer, cache.ResourceEventHandler(func(object, _) => onAdd(object), onUpdate, func(deleted) => match deleted {
+   cache.DeletedObject(object) => onDelete(object)
+   cache.DeletedFinalStateUnknown(_, Some(object)) => onDelete(object)
+   cache.DeletedFinalStateUnknown(_, None) => io.ioRaise(io.Panic("watch informer deletion tombstone has no runtime.Object"))
+  }))
+  match registration.error {
+   Some(err) => errors.raiseError(err)
+   None => ioPure(InformerController(cache.getIndexer(informer), func() => cache.run(informer), func() => cache.hasSynced(informer)))
+  }
+ }
+}

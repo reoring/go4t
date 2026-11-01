@@ -1,0 +1,204 @@
+// Copyright 2026 The Kubernetes Authors. Licensed under Apache-2.0.
+// Regressions derived from pinned testing/{fake,fixture}_test.go and
+// testing/internal/listandwatch_test.go. These tests have not been executed.
+package testing
+import core "deps/k8s.io/api/core/v1"
+import runtime "deps/k8s.io/apimachinery/pkg/runtime"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import meta "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import managed "deps/k8s.io/apimachinery/pkg/util/managedfields"
+import native "testing/internal"
+import outcome "support/outcome"
+import objects "deps/objects"
+import errors "deps/support"
+import sync "support/sync"
+import watch "support/watch"
+import strings "std/string"
+import rest "rest"
+import maps "std/map"
+
+extern func _fixtureDependencies() IO[(runtime.Scheme,runtime.Decoder)] = "github.com/reoring/gofx/ports/client-go/testing/host".FixtureDependencies
+extern func _deducedTypeConverter() IO[managed.TypeConverter] = "github.com/reoring/gofx/ports/client-go/testing/host".DeducedTypeConverter
+extern func _registerKind(scheme runtime.Scheme, kind schema.GroupVersionKind, object runtime.Object) IO[Unit] = "github.com/reoring/gofx/ports/client-go/testing/host".RegisterKind
+func _testResource() schema.GroupVersionResource { schema.groupVersionResourceWithResource(schema.groupVersionResourceWithVersion(schema.newGroupVersionResource(),"v1"),"pods") }
+func _testKind() schema.GroupVersionKind { schema.groupVersionKindWithKind(schema.groupVersionKindWithVersion(schema.newGroupVersionKind(),"v1"),"Pod") }
+func _testPod(namespace String, name String) runtime.Object { core.podToRuntimeObject(core.podWithObjectMeta(core.newPod(),meta.objectMetaWithNamespace(meta.objectMetaWithName(meta.newObjectMeta(),name),namespace))) }
+func _requireObject(result outcome.Outcome[Option[runtime.Object]]) IO[runtime.Object] { match result.error { Some(error) => ioFail(errors.errorMessage(error)); None => match result.value { Some(object) => ioPure(object); None => ioFail("expected object") } } }
+func _jsonObject(data String) IO[runtime.Object] { do { parsed <- native.unmarshalObject(_testPod("",""),data); _requireObject(outcome.from(parsed.0,parsed.1)) } }
+func _successful(result outcome.Outcome[Unit]) Bool { !_hasError(result.error) }
+func testOriginalSnapshotAndSharedReactorMutation() IO[Bool] { do {
+ fake <- newFake()
+ let original = _testPod("original","sample")
+ addReactor(fake,"create","pods",func(shared) => do {
+  action <- sync.readRef(shared)
+  match action.object { None => ioFail("missing object"); Some(object) => do {
+   modified <- native.setNamespace(object,"reactor")
+   sync.writeRef(shared,action{object: modified.0})
+   ioPure(Reaction(false,outcome.failure(None,errors.errorNew("ignored"))))
+  } }
+ })
+ addReactor(fake,"*","*",func(shared) => do { action <- sync.readRef(shared); ioPure(Reaction(true,outcome.success(action.object))) })
+ let options = meta.createOptionsWithFieldManager(meta.newCreateOptions(),"owner")
+ result <- invokes(fake,newCreateActionWithOptions(_testResource(),"original",original,options),None)
+ recorded <- actions(fake)
+ final <- _requireObject(result)
+ finalIdentity <- native.objectIdentity(final)
+ originalIdentity <- native.objectIdentity(original)
+ recordedIdentity <- match recorded { Cons(action,Nil) => match action.object { Some(object) => native.objectIdentity(object); None => ioFail("missing recorded object") }; _ => ioFail("incorrect action count") }
+ ioPure(finalIdentity.0.0 == "reactor" && originalIdentity.0.0 == "original" && recordedIdentity.0.0 == "original" && (match recorded { Cons(action,Nil) => action.verb=="create" && action.namespace=="original" && meta.createOptionsGetFieldManager(action.createOptions)=="owner"; _ => false }))
+} }
+func testPrependOrderDefaultPartialAndClearActions() IO[Bool] { do {
+ fake <- newFake()
+ visits <- sync.newRef([])
+ let partialError = errors.errorNew("partial")
+ addReactor(fake,"*","*",func(_) => do { old <- sync.readRef(visits); sync.writeRef(visits,append(old,[2])); ioPure(Reaction(true,outcome.failure(Some(_testPod("n","partial")),partialError))) })
+ prependReactor(fake,"get","pods",func(_) => do { old <- sync.readRef(visits); sync.writeRef(visits,append(old,[1])); ioPure(Reaction(false,outcome.failure(None,errors.errorNew("ignored")))) })
+ result <- invokes(fake,newGetAction(_testResource(),"n","a"),Some(_testPod("n","default")))
+ seen <- sync.readRef(visits)
+ history <- actions(fake)
+ clearActions(fake)
+ cleared <- actions(fake)
+ ioPure(seen==[1,2] && length(history)==1 && length(cleared)==0 && (match result.error { Some(error) => errors.errorIs(error,partialError); None => false }) && (match result.value { Some(_) => true; None => false }))
+} }
+func testActionOptionsAndRootListQuirk() IO[Bool] { do {
+ let options = meta.listOptionsWithLimit(meta.listOptionsWithResourceVersion(meta.listOptionsWithLabelSelector(meta.newListOptions(),"a=1"),"37"),8)
+ root <- newRootListActionWithOptions(_testResource(),_testKind(),options)
+ namespaced <- newListActionWithOptions(_testResource(),_testKind(),"n",options)
+ let patch = newPatchSubresourceActionWithOptions(_testResource(),"n","a","custom","body",meta.patchOptionsWithFieldManager(meta.newPatchOptions(),"manager"),["status","detail"])
+ let deletion = newDeleteSubresourceAction(_testResource(),"status","n","a")
+ ioPure(root.namespace=="" && meta.listOptionsGetLimit(root.listOptions)==0 && meta.listOptionsGetResourceVersion(root.listOptions)=="" && meta.listOptionsGetLimit(namespaced.listOptions)==8 && patch.subresource=="status/detail" && patch.patch=="body" && meta.patchOptionsGetFieldManager(patch.patchOptions)=="manager" && deletion.subresource=="status" && matches(patch,"PATCH","PODS/STATUS/DETAIL") && resourceCovers("pods",patch))
+} }
+func _noStringPayload(value Option[String]) Bool { match value { None => true; Some(_) => false } }
+func _noRefPayload(value Option[sync.Ref[Int]]) Bool { match value { None => true; Some(_) => false } }
+func testGenericActionValueRetainsAliasing() IO[Bool] { do {
+ shared <- sync.newRef(1)
+ key <- newPayloadKey()
+ wrongKey <- newPayloadKey()
+ otherKey <- newPayloadKey()
+ let generic = newGenericAction("custom",_testResource(),"",key,shared)
+ copied <- actionDeepCopy(generic)
+ match getValue(copied,key) {
+  None => ioPure(false)
+  Some(value) => do {
+   sync.writeRef(value,2)
+   observed <- sync.readRef(shared)
+   let wrong = getValue(copied,wrongKey)
+   ioPure(observed==2 && sync.sameRef(shared,value) && _noStringPayload(wrong) && _noRefPayload(getValue(copied,otherKey)))
+  }
+ }
+} }
+func testTrackerCRUDAndOptionalArgumentErrors() IO[Bool] { do {
+ fixture <- _fixtureDependencies()
+ tracker <- newObjectTracker(fixture.0,fixture.1)
+ let object = _testPod("","a")
+ created <- tracker.create(_testResource(),object,"n",[])
+ duplicate <- tracker.create(_testResource(),object,"n",[])
+ found <- tracker.get(_testResource(),"n","a",[])
+ value <- _requireObject(found)
+ identity <- native.objectIdentity(value)
+ mismatch <- tracker.update(_testResource(),_testPod("other","a"),"n",[])
+ excessive <- tracker.get(_testResource(),"n","a",[meta.newGetOptions(),meta.newGetOptions()])
+ deleted <- tracker.delete(_testResource(),"n","a",[])
+ missing <- tracker.get(_testResource(),"n","a",[])
+ ioPure(_successful(created) && _hasError(duplicate.error) && identity.0==("n","a") && _hasError(mismatch.error) && (match excessive.error { Some(error) => errors.errorMessage(error)=="expected only one option argument but got 2"; None => false }) && _successful(deleted) && (match missing.error { Some(error) => native.isNotFound(error); None => false }))
+} }
+func testListWatchReplayAndStoppedWatcher() IO[Bool] { do {
+ fixture <- _fixtureDependencies()
+ tracker <- newObjectTracker(fixture.0,fixture.1)
+ tracker.create(_testResource(),_testPod("n","first"),"n",[])
+ listed <- tracker.list(_testResource(),_testKind(),"n",[])
+ list <- _requireObject(listed)
+ info <- objects.objectListInfo(list)
+ tracker.create(_testResource(),_testPod("n","second"),"n",[])
+ opened <- tracker.watch(_testResource(),"n",[meta.listOptionsWithResourceVersion(meta.newListOptions(),"2")])
+ match opened.value {
+  None => ioFail("missing watch")
+  Some(stream) => do {
+   replay <- watch.next(stream)
+   watch.stop(stream)
+   updated <- tracker.update(_testResource(),_testPod("n","second"),"n",[])
+   afterStop <- watch.next(stream)
+   ioPure(info.0.0=="2" && _successful(updated) && (match replay { Some(event) => event.eventType=="ADDED"; None => false }) && (match afterStop { None => true; Some(_) => false }))
+  }
+ }
+} }
+func testJSONMergeStrategicPatchAndUnsupportedAction() IO[Bool] { do {
+ fixture <- _fixtureDependencies()
+ tracker <- newObjectTracker(fixture.0,fixture.1)
+ initial <- _jsonObject("{\"apiVersion\":\"v1\",\"kind\":\"Pod\",\"metadata\":{\"name\":\"a\",\"namespace\":\"n\",\"labels\":{\"old\":\"yes\"}},\"spec\":{\"containers\":[{\"name\":\"c\",\"image\":\"old\"}]}}")
+ tracker.create(_testResource(),initial,"n",[])
+ fake <- newFake()
+ addReactor(fake,"*","*",objectReaction(tracker))
+ one <- invokes(fake,newPatchAction(_testResource(),"n","a","application/json-patch+json","[{\"op\":\"replace\",\"path\":\"/spec/containers/0/image\",\"value\":\"new\"}]"),None)
+ two <- invokes(fake,newPatchAction(_testResource(),"n","a","application/merge-patch+json","{\"metadata\":{\"labels\":{\"old\":null,\"new\":\"yes\"}}}"),None)
+ three <- invokes(fake,newPatchAction(_testResource(),"n","a","application/strategic-merge-patch+json","{\"spec\":{\"containers\":[{\"name\":\"c\",\"image\":\"final\"}]}}"),None)
+ unsupported <- invokes(fake,newPatchAction(_testResource(),"n","a","unknown","{}"),None)
+ final <- _requireObject(three)
+ bytes <- native.marshalObject(final)
+ label <- native.matchesLabels("new=yes,!old",final)
+ let unsupportedMatches = match unsupported.error { Some(error) => errors.errorMessage(error)=="PatchType unknown is not supported"; None => false }
+ ioPure(!_hasError(one.error) && !_hasError(two.error) && label && strings.contains(bytes.0,"final") && unsupportedMatches)
+} }
+func testFieldManagerConflictsForceAndSchemeReload() IO[Bool] { do {
+ fixture <- _fixtureDependencies()
+ converter <- _deducedTypeConverter()
+ tracker <- newFieldManagedObjectTracker(fixture.0,fixture.1,converter)
+ first <- _jsonObject("{\"apiVersion\":\"v1\",\"kind\":\"Pod\",\"metadata\":{\"name\":\"a\",\"namespace\":\"n\",\"labels\":{\"app\":\"one\"}}}")
+ second <- _jsonObject("{\"apiVersion\":\"v1\",\"kind\":\"Pod\",\"metadata\":{\"name\":\"a\",\"namespace\":\"n\",\"labels\":{\"app\":\"two\"}}}")
+ applied <- tracker.apply(_testResource(),first,"n",[meta.patchOptionsWithFieldManager(meta.newPatchOptions(),"first")])
+ conflict <- tracker.apply(_testResource(),second,"n",[meta.patchOptionsWithFieldManager(meta.newPatchOptions(),"second")])
+ forced <- tracker.apply(_testResource(),second,"n",[meta.patchOptionsWithForce(meta.patchOptionsWithFieldManager(meta.newPatchOptions(),"second"),Some(true))])
+ let addedKind = schema.groupVersionKindWithKind(schema.groupVersionKindWithGroup(_testKind(),"example.test"),"AddedPod")
+ let addedResource = schema.groupVersionResourceWithResource(schema.groupVersionResourceWithGroup(_testResource(),"example.test"),"addedpods")
+ missing <- tracker.create(addedResource,_testPod("n","late"),"n",[])
+ _registerKind(fixture.0,addedKind,_testPod("n","late"))
+ afterRegistration <- tracker.create(addedResource,_testPod("n","late"),"n",[])
+ ioPure(_successful(applied) && (match conflict.error { Some(error) => errors.errorIsConflict(error); None => false }) && _successful(forced) && _hasError(missing.error) && _successful(afterRegistration))
+} }
+func testProxyReactorErrorFallsThrough() IO[Bool] { do {
+ fake <- newFake()
+ visits <- sync.newRef([])
+ let selected = rest.ResponseWrapper(func() => ioPure(outcome.success("selected")),func() => ioPure(outcome.success(None)))
+ addProxyReactor(fake,"pods",func(_) => do { previous <- sync.readRef(visits); sync.writeRef(visits,append(previous,[1])); ioPure(ProxyReaction(true,outcome.failure(None,errors.errorNew("ignored proxy failure")))) })
+ addProxyReactor(fake,"pods",func(_) => do { previous <- sync.readRef(visits); sync.writeRef(visits,append(previous,[2])); ioPure(ProxyReaction(true,outcome.success(Some(selected)))) })
+ result <- invokesProxy(fake,newProxyGetAction(_testResource(),"n","http","pod","80","health",maps.emptyMap()))
+ order <- sync.readRef(visits)
+ match result { None => ioPure(false); Some(response) => do { raw <- response.doRaw(); ioPure(raw.value=="selected" && order==[1,2]) } }
+} }
+func testUnsupportedCollectionActionIsNotClaimed() IO[Bool] { do {
+ fixture <- _fixtureDependencies()
+ tracker <- newObjectTracker(fixture.0,fixture.1)
+ action <- newDeleteCollectionActionWithOptions(_testResource(),"n",meta.newDeleteOptions(),meta.newListOptions())
+ shared <- sync.newRef(action)
+ result <- objectReaction(tracker)(shared)
+ ioPure(!result.handled && (match result.result.error { Some(error) => strings.startsWith(errors.errorMessage(error),"no reaction implemented for "); None => false }))
+} }
+func testDifferentSubresourceTypeIsReturnedWithoutPersisting() IO[Bool] { do {
+ fixture <- _fixtureDependencies()
+ tracker <- newObjectTracker(fixture.0,fixture.1)
+ tracker.create(_testResource(),_testPod("n","a"),"n",[])
+ let other = core.configMapToRuntimeObject(core.configMapWithObjectMeta(core.newConfigMap(),meta.objectMetaWithNamespace(meta.objectMetaWithName(meta.newObjectMeta(),"a"),"n")))
+ action <- sync.newRef(newCreateSubresourceActionWithOptions(_testResource(),"not-used","scale","n",other,meta.newCreateOptions()))
+ reaction <- objectReaction(tracker)(action)
+ returned <- _requireObject(reaction.result)
+ stored <- tracker.get(_testResource(),"n","a",[])
+ object <- _requireObject(stored)
+ ioPure(native.sameObjectType(returned,other) && native.sameObjectType(object,_testPod("n","a")))
+} }
+func testWatchAbsenceDiffersFromEmptyOptions() IO[Bool] { do {
+ fixture <- _fixtureDependencies()
+ tracker <- newObjectTracker(fixture.0,fixture.1)
+ tracker.create(_testResource(),_testPod("n","a"),"n",[])
+ traditional <- tracker.watch(_testResource(),"n",[])
+ latest <- tracker.watch(_testResource(),"n",[meta.newListOptions()])
+ match (traditional.value,latest.value) {
+  (Some(noReplay),Some(replay)) => do {
+   watch.stop(noReplay)
+   none <- watch.next(noReplay)
+   added <- watch.next(replay)
+   watch.stop(replay)
+   ioPure((match none { None => true; Some(_) => false }) && (match added { Some(event) => event.eventType=="ADDED"; None => false }))
+  }
+  _ => ioPure(false)
+ }
+} }

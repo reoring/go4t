@@ -1,0 +1,22 @@
+// Copyright 2016 The Kubernetes Authors. Licensed under Apache-2.0.
+package clientcmd
+import api "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api"
+import url "github.com/reoring/gofx/ports/client-go/deps/net/url"
+import err "github.com/reoring/gofx/ports/client-go/deps/support"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import "std/string"
+import "std/list"
+import "std/prelude"
+extern func _parseURL(text String) IO[(Option[url.URL],Option[err.Error])] = "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api/host".ParseURL
+extern func _parseRequestURI(text String) IO[(Option[url.URL],Option[err.Error])] = "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api/host".ParseRequestURI
+extern func _parseInteger(text String) Option[Int] = "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api/host".ParseInteger
+extern func _parseDuration(text String) Option[Int] = "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api/host".ParseDuration
+extern func _category(text String) String = "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api/host".CharacterCategory
+extern func _codepoint(text String) Int = "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api/host".CharacterCode
+extern func _hex(text String) String = "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api/host".CharacterHex
+func parseTimeout(duration String) outcome.Outcome[Int] { match _parseInteger(duration) { Some(seconds) => if seconds >= 0 { outcome.success(seconds*1000000000) } else { _duration(duration) }; None => _duration(duration) } }
+func _duration(duration String) outcome.Outcome[Int] { match _parseDuration(duration) { Some(value) => outcome.success(value); None => outcome.failure(0,api.newError("Invalid timeout value. Timeout must be a single integer in seconds, or an integer followed by a corresponding time unit (e.g. 1s | 2m | 3h)")) } }
+func parseProxyURL(text String) IO[outcome.Outcome[Option[url.URL]]] { do { parsed <- _parseURL(text); match parsed.1 { Some(_) => ioPure(outcome.failure(None,api.newError("could not parse: "+text))); None => match parsed.0 { None => ioPure(outcome.failure(None,api.newError("could not parse: "+text))); Some(value) => do { scheme <- url.urlGetSchemeIdentity(value); ioPure(if list.elem(scheme,["http","https","socks5"]) { outcome.success(Some(value)) } else { outcome.failure(None,api.newError("unsupported scheme "+api.quoteJSON(scheme)+", must be http, https, or socks5")) }) } } } } }
+func removeNamespacesPrefix(value String) String { _stripPrefix(value,["namespaces/","namespace/","ns/"]) }
+func _stripPrefix(value String,prefixes List[String]) String { match prefixes { Nil => value; Cons(prefix,rest) => if string.strLength(value) > string.strLength(prefix) && string.startsWith(string.toLower(value),prefix) { string.substring(value,string.strLength(prefix),string.strLength(value)) } else { _stripPrefix(value,rest) } } }
+func cleanANSIEscapeCodes(value String) String { string.join("",prelude.fmap(string.chars(value),func(c) => if list.elem(_category(c),["L","M","N","P","S","Z"]) || (_codepoint(c) >= 9 && _codepoint(c) <= 13) { c } else { _hex(c) })) }

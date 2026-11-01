@@ -1,0 +1,30 @@
+package clientgo
+
+// Copyright 2025 The Kubernetes Authors. Licensed under Apache-2.0.
+// Native equivalents of the seven public documentation examples in example_test.go.
+// Each runner is isolated to loopback fixtures; no user credentials are loaded.
+import examples "examples"
+import sync "support/sync"
+
+func exampleInClusterConfiguration() IO[Unit] { do { _ <- examples.configurationExample(true); ioPure(unit()) } }
+func exampleOutOfClusterConfiguration() IO[Unit] { do { _ <- examples.configurationExample(false); ioPure(unit()) } }
+func exampleHandlingAPIErrors() IO[Unit] { examples.apiErrorExample() }
+func exampleUsingDynamicClient() IO[Unit] { do { _ <- examples.dynamicPodListExample(); ioPure(unit()) } }
+func exampleUsingInformers() IO[Unit] { examples.controllerExample() }
+func exampleServerSideApply() IO[Unit] { do { _ <- examples.serverSideApplyExample(); ioPure(unit()) } }
+func exampleLeaderElection() IO[Unit] { examples.electionExample() }
+func testRootDocumentationExamples() IO[Bool] {
+ do {
+  parent <- sync.captureContext(); context <- sync.newContext(parent,Some(120000000000))
+  sync.ensuring(sync.withContext(context.0,do {
+   exampleInClusterConfiguration()
+   exampleOutOfClusterConfiguration()
+   exampleHandlingAPIErrors()
+   exampleUsingDynamicClient()
+   exampleUsingInformers()
+   exampleServerSideApply()
+   exampleLeaderElection()
+   ioPure(true)
+  }),sync.cancelContext(context.1))
+ }
+}

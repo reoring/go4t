@@ -1,0 +1,72 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package restmapper
+import "discovery"
+import meta "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import "support/outcome"
+import "std/list"
+import "std/prelude"
+import "std/map"
+import "std/string"
+type CategoryExpander = CategoryExpander { expand: func(String) IO[(List[schema.GroupResource],Bool)] }
+func sameGroupResource(a schema.GroupResource,b schema.GroupResource) Bool { schema.groupResourceGetGroup(a)==schema.groupResourceGetGroup(b) && schema.groupResourceGetResource(a)==schema.groupResourceGetResource(b) }
+func unionResources(a List[schema.GroupResource],b List[schema.GroupResource]) List[schema.GroupResource] { list.fold(b,a,func(acc,r) => if list.any(acc,func(a) => sameGroupResource(a,r)) { acc } else { list.append(acc,[r]) }) }
+func simpleCategoryExpander(expansions Map[String,List[schema.GroupResource]]) CategoryExpander {
+ CategoryExpander(func(category) => ioPure(match map.mapLookup(expansions,category) { None => ([],false); Some(rs) => (rs,true) }))
+}
+func unionCategoryExpander(expanders List[CategoryExpander]) CategoryExpander {
+ CategoryExpander(func(category) => do { results <- list.mapM(expanders,func(e) => e.expand(category)); ioPure(list.fold(results,([],false),func(acc,r) => (unionResources(acc.0,r.0),acc.1 || r.1))) })
+}
+func parseGroupVersion(gv String) Option[(String,String)] {
+ match string.split("/",gv) { Cons(version,Nil) => Some(("",version)); Cons(group,Cons(version,Nil)) => Some((group,version)); _ => None }
+}
+func newDiscoveryCategoryExpander(client discovery.DiscoveryInterface) CategoryExpander {
+ CategoryExpander(func(category) => do {
+  all <- client.serverGroupsAndResources()
+  let resources = list.concatMap(discovery.values(all.value.resources),func(rl) => match parseGroupVersion(meta.aPIResourceListGetGroupVersion(rl)) {
+   None => []; Some(gv) => prelude.map(list.filter(discovery.values(meta.aPIResourceListGetAPIResources(rl)),func(r) => list.elem(category,discovery.values(meta.aPIResourceGetCategories(r)))),func(r) => groupResource(gv.0,meta.aPIResourceGetName(r)))
+  })
+  let distinct = unionResources([],resources)
+  ioPure((distinct,list.length(distinct)>0))
+ })
+}
+type Shortcut = Shortcut { group: String, short: String, resource: String }
+func expandResourceShortcut(client discovery.DiscoveryInterface,warn func(String) IO[Unit],input schema.GroupVersionResource) IO[schema.GroupVersionResource] {
+ do {
+  all <- client.serverGroupsAndResources()
+  let group = schema.groupVersionResourceGetGroup(input)
+  let resource = schema.groupVersionResourceGetResource(input)
+  let lists = discovery.values(all.value.resources)
+  let exact = list.any(lists,func(rl) => match parseGroupVersion(meta.aPIResourceListGetGroupVersion(rl)) { None => false; Some(gv) => (group=="" || group==gv.0) && list.any(discovery.values(meta.aPIResourceListGetAPIResources(rl)),func(r) => resource==meta.aPIResourceGetName(r) || resource==meta.aPIResourceGetSingularName(r)) })
+  if exact { ioPure(input) } else {
+   let shortcuts = list.concatMap(lists,func(rl) => match parseGroupVersion(meta.aPIResourceListGetGroupVersion(rl)) {
+    None => []; Some(gv) => list.concatMap(discovery.values(meta.aPIResourceListGetAPIResources(rl)),func(r) => prelude.map(discovery.values(meta.aPIResourceGetShortNames(r)),func(short) => Shortcut(gv.0,short,meta.aPIResourceGetName(r))))
+   })
+   let candidates = list.filter(shortcuts,func(s) => (group=="" || s.group==group) && s.short==resource)
+   match candidates {
+    Cons(first,rest) => do {
+     let warnings = list.fold(rest,[],func(acc,s) => if (s.group==first.group && s.resource==first.resource) || list.any(acc,func(a Shortcut) => a.group==s.group && a.resource==s.resource) { acc } else { list.append(acc,[s]) })
+     list.forEach(warnings,func(s) => warn("short name "+string.showQuoted(resource)+" could also match lower priority resource "+s.resource+(if s.group=="" { "" } else { "."+s.group })))
+     ioPure(gvr(first.group,"",first.resource))
+    }
+    Nil => if group=="" { ioPure(input) } else {
+     let prefix = list.filter(shortcuts,func(s) => string.startsWith(s.group,group) && s.short==resource)
+     ioPure(match prefix { Nil => input; Cons(first,rest) => gvr(first.group,schema.groupVersionResourceGetVersion(input),first.resource) })
+    }
+   }
+  }
+ }
+}
+func newShortcutExpander(delegate RESTMapper,client discovery.DiscoveryInterface,warn func(String) IO[Unit]) RESTMapper {
+ delegate{
+  kindFor:func(input) => do {
+   expanded <- expandResourceShortcut(client,warn,input)
+   result <- delegate.kindFor(expanded)
+   match result.error { Some(e) => if isNoMatchError(e) { do { expanded <- expandResourceShortcut(client,warn,input); delegate.kindFor(expanded) } } else { ioPure(result) }; None => ioPure(result) }
+  },
+  kindsFor:func(input) => do { expanded <- expandResourceShortcut(client,warn,input); delegate.kindsFor(expanded) },
+  resourceFor:func(input) => do { expanded <- expandResourceShortcut(client,warn,input); delegate.resourceFor(expanded) },
+  resourcesFor:func(input) => do { expanded <- expandResourceShortcut(client,warn,input); delegate.resourcesFor(expanded) },
+  resourceSingularizer:func(input) => do { expanded <- expandResourceShortcut(client,warn,gvr("","",input)); delegate.resourceSingularizer(schema.groupVersionResourceGetResource(expanded)) }
+ }
+}

@@ -1,0 +1,8 @@
+// Copyright 2014 The Kubernetes Authors. Licensed under Apache-2.0.
+package v1
+import api "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api"
+import schema "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime/schema"
+func schemeGroupVersion() schema.GroupVersion { schema.groupVersionWithVersion(schema.newGroupVersion(),"v1") }
+func getObjectKind(value Config) Config { value }
+func groupVersionKind(value Config) schema.GroupVersionKind { api.wireGroupVersionKind(value) }
+func setGroupVersionKind(value Config,gvk schema.GroupVersionKind) Config { api.wireSetGroupVersionKind(value,gvk) }

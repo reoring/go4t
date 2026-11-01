@@ -1,0 +1,112 @@
+package examples
+
+// Copyright 2016 The Kubernetes Authors. Licensed under Apache-2.0.
+import queue "util/workqueue"
+import cache "tools/cache"
+import sync "support/sync"
+import outcome "support/outcome"
+import errors "deps/support"
+import runtime "deps/k8s.io/apimachinery/pkg/runtime"
+import meta "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import objects "deps/objects"
+import kube "kubernetes"
+import informers "informers"
+import fixture "util/testing"
+import strings "std/string"
+import io "std/io"
+
+type Controller = Controller { indexer: cache.Indexer[runtime.Object], queue: queue.RateLimitingQueue[String], informer: cache.SharedInformer[runtime.Object], report: func(String) IO[Unit], error: func(errors.Error) IO[Unit] }
+func newController(q queue.RateLimitingQueue[String],indexer cache.Indexer[runtime.Object],informer cache.SharedInformer[runtime.Object],report func(String) IO[Unit],onError func(errors.Error) IO[Unit]) Controller { Controller(indexer,q,informer,report,onError) }
+func syncToStdout(controller Controller,key String) IO[Option[errors.Error]] {
+ do {
+  result <- controller.indexer.store.getByKey(key)
+  match result.error {
+   Some(error) => ioPure(Some(errors.errorWrap("fetching object with key "+key+" from store failed",error)))
+   None => do {
+    match result.value {
+     None => do { controller.report("Pod "+key+" does not exist anymore"); ioPure(None) }
+     Some(object) => do {
+      metadata <- objects.objectMetadata(object)
+      match metadata.1 { Some(error) => ioPure(Some(error)); None => match metadata.0 { None => ioPure(Some(errors.errorNew("cached object has no metadata"))); Some(value) => do { controller.report("Sync/Add/Update for Pod "+meta.objectMetaGetName(value)); ioPure(None) } } }
+     }
+    }
+   }
+  }
+ }
+}
+func handleErr(controller Controller,error Option[errors.Error],key String) IO[Unit] {
+ match error {
+  None => queue.forget(controller.queue,key)
+  Some(error) => do {
+   count <- queue.numRequeues(controller.queue,key)
+   if count<5 { queue.addRateLimited(controller.queue,key) } else { do { queue.forget(controller.queue,key); controller.error(error) } }
+  }
+ }
+}
+func processNextItem(controller Controller) IO[Bool] {
+ do {
+  next <- controller.queue.delaying.queue.get()
+  match next {
+   None => ioPure(false)
+   Some(key) => sync.ensuring(do { error <- syncToStdout(controller,key); handleErr(controller,error,key); ioPure(true) },controller.queue.delaying.queue.done(key))
+  }
+ }
+}
+func runWorker(controller Controller) IO[Unit] { do { more <- processNextItem(controller); if more { runWorker(controller) } else { ioPure(unit()) } } }
+func startWorkers(controller Controller,count Int) IO[List[sync.Task[Unit]]] {
+ if count<=0 { ioPure([]) } else { do { task <- sync.start(runWorker(controller)); tasks <- startWorkers(controller,count-1); ioPure(Cons(task,tasks)) } }
+}
+func joinWorkers(tasks List[sync.Task[Unit]]) IO[Unit] {
+ match tasks { [] => ioPure(unit()); [task,..rest] => do { result <- io.tryIO(sync.join(task)); match result { Err(io.Cancelled) => ioPure(unit()); Err(io.Timeout) => ioPure(unit()); Err(error) => ioFail(io.ioErrorMessage(error)); Ok(_) => ioPure(unit()) }; joinWorkers(rest) } }
+}
+func awaitCancellation() IO[Unit] {
+ do { let allocate: IO[sync.Channel[Unit]] = sync.newChannel(0); channel <- allocate; result <- io.tryIO(sync.receive(channel)); match result { Err(io.Cancelled) => ioPure(unit()); Err(io.Timeout) => ioPure(unit()); Err(error) => ioFail(io.ioErrorMessage(error)); Ok(_) => ioFail("cancellation channel unexpectedly completed") } }
+}
+func runController(controller Controller,workers Int) IO[Unit] {
+ sync.bracket(sync.start(cache.run(controller.informer)),func(_) => do {
+  clock <- sync.realClock()
+  synced <- cache.waitForCacheSync(clock,[func() => cache.hasSynced(controller.informer)])
+  if !synced { ioFail("Timed out waiting for caches to sync") } else {
+   sync.bracket(startWorkers(controller,workers),func(_) => awaitCancellation(),func(tasks) => do { controller.queue.delaying.queue.shutDown(); joinWorkers(tasks) })
+  }
+ },func(task) => do { sync.cancelTask(task); joinWorkers([task]) })
+}
+func controllerExample() IO[Unit] {
+ do {
+  env <- environment()
+  firstWatch <- sync.newRef(true)
+  let allocateHeld: IO[sync.Channel[Unit]] = sync.newChannel(0)
+  held <- allocateHeld
+  let allocateProcessed: IO[sync.Channel[String]] = sync.newChannel(16)
+  processed <- allocateProcessed
+  let podJSON = "{\"apiVersion\":\"v1\",\"kind\":\"Pod\",\"metadata\":{\"name\":\"my-pod\",\"namespace\":\"default\",\"resourceVersion\":\"17\"}}"
+  sync.bracket(fixture.newServer(func(request) => do {
+   check(request.path=="/api/v1/namespaces/default/pods","unexpected controller route: "+request.path)
+   if strings.contains(request.rawQuery,"watch=true") { do {
+    first <- sync.readRef(firstWatch); sync.writeRef(firstWatch,false)
+    if first { ioPure(fixture.Response(200,[("Content-Type",["application/json"])],"{\"type\":\"ADDED\",\"object\":"+podJSON+"}\n{\"type\":\"BOOKMARK\",\"object\":{\"apiVersion\":\"v1\",\"kind\":\"Pod\",\"metadata\":{\"resourceVersion\":\"17\",\"annotations\":{\"k8s.io/initial-events-end\":\"true\"}}}}\n")) }
+    else { do { _ <- sync.receive(held); ioFail("watch cancellation fixture was released unexpectedly") } }
+   } } else { ioPure(fixture.Response(200,[("Content-Type",["application/json"])],"{\"apiVersion\":\"v1\",\"kind\":\"PodList\",\"metadata\":{\"resourceVersion\":\"17\"},\"items\":["+podJSON+"]}")) }
+  }),func(server) => do {
+   url <- fixture.serverURL(server)
+   made <- kube.newForConfig(env,config(url)); client <- present(made)
+   factory <- informers.newSharedInformerFactoryWithOptions(env.features,client,0,[informers.withNamespace("default")])
+   informer <- informers.core(factory).v1().pods().informer()
+   let allocateLimiter: IO[queue.RateLimiter[String]] = queue.defaultControllerRateLimiter()
+   limiter <- allocateLimiter
+   registry <- queue.newMetricsRegistry()
+   q <- queue.newRateLimitingQueueWithConfig(limiter,queue.RateLimitingQueueConfig("",registry,None,env.clock,None))
+   let access = cache.rawObjectAccess()
+   let enqueue = func(object) => do { key <- access.key(object); key <- require(key); q.delaying.queue.add(key) }
+   handler <- cache.addEventHandler(informer,cache.ResourceEventHandler(func(object,_) => enqueue(object),func(_,object) => enqueue(object),func(deleted) => do { key <- cache.deletionHandlingMetaNamespaceKeyFunc(access,deleted); key <- require(key); q.delaying.queue.add(key) }))
+   require(handler)
+   let controller = newController(q,cache.getIndexer(informer),informer,func(line) => sync.send(processed,line),func(error) => ioFail(errors.errorMessage(error)))
+   parent <- sync.captureContext(); lifetime <- sync.newContext(parent,Some(10000000000))
+   sync.bracket(sync.start(sync.withContext(lifetime.0,runController(controller,2))),func(_) => do {
+    line <- sync.withContext(lifetime.0,sync.receive(processed))
+    check(line==Some("Sync/Add/Update for Pod my-pod"),"controller did not process real list/watch cache event")
+    println("HTTP -> watch/list -> informer cache -> workqueue -> Pod my-pod")
+   },func(task) => do { sync.cancelContext(lifetime.1); joinWorkers([task]) })
+  },fixture.closeServer)
+ }
+}

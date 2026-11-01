@@ -1,0 +1,93 @@
+package rest
+
+import auth "pkg/apis/clientauthentication"
+import transport "transport"
+import tls "deps/crypto/tls"
+import outcome "support/outcome"
+import errors "deps/support"
+import m "std/map"
+
+// Copyright 2014 The Kubernetes Authors. Licensed under Apache-2.0.
+func configToExecCluster(config Config) IO[outcome.Outcome[Option[auth.Cluster]]] {
+ do {
+  ca <- if hasBytes(config.tlsClientConfig.caData) || config.tlsClientConfig.caFile == "" { ioPure((config.tlsClientConfig.caData,None)) } else { do { bytes <- readFile(config.tlsClientConfig.caFile); ioPure((Some(bytes.0),bytes.1)) } }
+  match ca.1 {
+   Some(error) => ioPure(outcome.failure(None,errors.errorNew("failed to load CA bundle for execProvider: "+errors.errorMessage(error))))
+   None => {
+    let extension = match config.execProvider { None => None; Some(exec) => exec.config }
+    let finish = func(proxyURL) => ioPure(outcome.success(Some(auth.Cluster(config.host,config.tlsClientConfig.serverName,config.tlsClientConfig.insecure,ca.0,proxyURL,config.disableCompression,extension))))
+    match config.proxy {
+     None => finish("")
+     Some(proxy) => {
+      let parsed = parseURL(config.host)
+      match parsed.0 {
+       None => ioPure(outcome.failure(None,errors.errorWrap("failed to create proxy URL request for execProvider",match parsed.1 { Some(e) => e; None => errors.errorNew("invalid URL") })))
+       Some(location) => do {
+        made <- makeHTTPRequest("",location,None,None,[])
+        match made.0 {
+         None => ioPure(outcome.failure(None,errors.errorWrap("failed to create proxy URL request for execProvider",match made.1 { Some(e) => e; None => errors.errorNew("invalid request") })))
+         Some(request) => do {
+          result <- proxy(request)
+          match result.error {
+           Some(error) => ioPure(outcome.failure(None,errors.errorWrap("failed to get proxy URL for execProvider",error)))
+           None => match result.value { None => finish(""); Some(value) => do { text <- urlString(value); finish(text) } }
+          }
+         }
+        }
+       }
+      }
+     }
+    }
+   }
+  }
+ }
+}
+func execClusterToConfig(cluster auth.Cluster) outcome.Outcome[Option[Config]] {
+ let config = emptyConfig()
+ let updated = config{host: cluster.server,tlsClientConfig: config.tlsClientConfig{insecure: cluster.insecureSkipTLSVerify,serverName: cluster.tlsServerName,caData: cluster.certificateAuthorityData},disableCompression: cluster.disableCompression}
+ if cluster.proxyURL == "" { outcome.success(Some(updated)) } else {
+  let parsed = parseURL(cluster.proxyURL)
+  match parsed.0 { None => outcome.failure(None,errors.errorWrap("cannot parse proxy URL",match parsed.1 { Some(e) => e; None => errors.errorNew("invalid URL") })); Some(location) => outcome.success(Some(updated{proxy: Some(func(_) => ioPure(outcome.success(Some(location))))})) }
+ }
+}
+func resolveTransportConfig(authentication Authentication,config Config) IO[outcome.Outcome[transport.Config]] {
+ let base = transportConfig(config)
+ match config.execProvider {
+  Some(exec) => match config.authProvider {
+   Some(_) => ioPure(outcome.failure(base,errors.errorNew("execProvider and authProvider cannot be used in combination")))
+   None => do {
+    cluster <- if exec.provideClusterInfo { configToExecCluster(config) } else { ioPure(outcome.success(None)) }
+    match cluster.error { Some(error) => ioPure(outcome.failure(base,error)); None => authentication.exec(exec,cluster.value,base) }
+   }
+  }
+  None => match config.authProvider {
+   None => ioPure(outcome.success(base))
+   Some(provider) => do {
+    result <- getAuthProvider(authentication.providers,config.host,provider,config.authConfigPersister)
+    ioPure(match result.value { None => outcome.from(base,result.error); Some(provider) => outcome.success(transport.wrap(base,provider.wrapTransport)) })
+   }
+  }
+ }
+}
+func transportFor(environment Environment,config Config) IO[outcome.Outcome[Option[transport.RoundTripper]]] {
+ do { ensureMetrics(environment.metrics); resolved <- resolveTransportConfig(environment.authentication,config); match resolved.error { Some(error) => ioPure(outcome.failure(None,error)); None => transport.newTransport(environment.transport,resolved.value) } }
+}
+func httpClientFor(environment Environment,config Config) IO[outcome.Outcome[Option[HTTPClient]]] {
+ do {
+  value <- transportFor(environment,config)
+  match value.value {
+   None => ioPure(outcome.from(None,value.error))
+   Some(value) => do {
+    raw <- transport.toHTTP(value)
+    client <- newHTTPClient(raw,config.timeout)
+    ioPure(outcome.success(Some(client)))
+   }
+  }
+ }
+}
+func tlsConfigFor(environment Environment,config Config) IO[outcome.Outcome[Option[tls.Config]]] {
+ do { ensureMetrics(environment.metrics); resolved <- resolveTransportConfig(environment.authentication,config); match resolved.error { Some(error) => ioPure(outcome.failure(None,error)); None => transport.tlsConfigFor(environment.transport,resolved.value) } }
+}
+func httpWrappersForConfig(environment Environment,config Config,base transport.RoundTripper) IO[outcome.Outcome[Option[transport.RoundTripper]]] {
+ do { ensureMetrics(environment.metrics); resolved <- resolveTransportConfig(environment.authentication,config); match resolved.error { Some(error) => ioPure(outcome.failure(None,error)); None => transport.httpWrappersForConfig(environment.transport,resolved.value,base) } }
+}

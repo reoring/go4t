@@ -1,0 +1,44 @@
+// Copyright 2024 The Kubernetes Authors. Licensed under Apache-2.0.
+package testing
+import features "github.com/reoring/gofx/ports/client-go/features"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import "std/map"
+import "std/string"
+type Overrides = Overrides { mutex: sync.Mutex, owners: sync.Ref[Map[String, String]] }
+type Test = Test { name: String, cleanup: func(IO[Unit]) IO[Unit], error: func(String) IO[Unit] }
+func newOverrides() IO[Overrides] { do { mutex <- sync.newMutex(); owners <- sync.newRef(map.emptyMap()); ioPure(Overrides(mutex, owners)) } }
+func sameTestOrSubtest(name String, parent String) Bool { name == parent || string.startsWith(name, parent + "/") }
+func _setter(gates features.Gates) Option[func(String, Bool) IO[Result[String, Unit]]] { match gates.set { None => None; Some(set) => match gates.setForTesting { Some(testSet) => Some(testSet); None => Some(set) } } }
+func setFeatureDuringTest(overrides Overrides, registry features.FeatureRegistry, test Test, feature features.Feature, value Bool) IO[Result[String, Unit]] {
+ sync.withLock(overrides.mutex, do {
+ gates <- features.featureGates(registry)
+ match _setter(gates) {
+ None => ioFail("clientfeatures.FeatureGates(): " + gates.name + " does not implement featureGatesSetter interface")
+ Some(setter) => do {
+  original <- gates.enabled(feature)
+  owners <- sync.readRef(overrides.owners)
+  match map.mapLookup(owners, feature) {
+   Some(parent) => if sameTestOrSubtest(test.name, parent) { _override(overrides, test, gates, setter, feature, value, original, owners) }
+   else { ioPure(Err("client-go feature " + features.quote(feature) + " is currently overridden by " + features.quote(parent) + " test and cannot be also modified by " + features.quote(test.name))) }
+   None => _override(overrides, test, gates, setter, feature, value, original, owners)
+  }
+ }
+ }
+ })
+}
+func _override(overrides Overrides, test Test, gates features.Gates, setter func(String, Bool) IO[Result[String, Unit]], feature String, value Bool, original Bool, owners Map[String, String]) IO[Result[String, Unit]] { do {
+ result <- setter(feature, value)
+ match result {
+ Err(error) => ioPure(Err(error))
+ Ok(_) => do {
+ sync.writeRef(overrides.owners, map.mapInsert(owners, feature, test.name))
+ test.cleanup(sync.withLock(overrides.mutex, do {
+  current <- sync.readRef(overrides.owners)
+  sync.writeRef(overrides.owners, map.mapDelete(current, feature))
+  restored <- setter(feature, original)
+  match restored { Ok(_) => ioPure(unit()); Err(error) => test.error("failed restoring client-go feature: " + feature + " to its original value: " + show(original) + ", err: " + error) }
+ }))
+ ioPure(Ok(unit()))
+ }
+ }
+} }

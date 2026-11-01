@@ -1,0 +1,95 @@
+package rest
+
+import watchcodec "rest/watch"
+import streaming "deps/k8s.io/apimachinery/pkg/runtime/serializer/streaming"
+import runtime "deps/k8s.io/apimachinery/pkg/runtime"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import http "deps/net/http"
+import errors "deps/support"
+import outcome "support/outcome"
+import sync "support/sync"
+import watchapi "support/watch"
+import io "std/io"
+
+// Copyright 2014 The Kubernetes Authors. Licensed under Apache-2.0.
+extern func openStream(serializer runtime.NegotiatedSerializer,version schema.GroupVersion,media String,response http.Response) IO[(Option[(streaming.Decoder,runtime.Decoder)],Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/rest/host".OpenStream
+extern func isEOF(error errors.Error) Bool = "github.com/reoring/gofx/ports/client-go/rest/host".IsEOF
+extern func watchErrorObject(error errors.Error,status Int,verb String,reason String) runtime.Object = "github.com/reoring/gofx/ports/client-go/rest/host".WatchErrorObject
+func negotiateWatch(serializer runtime.NegotiatedSerializer,version schema.GroupVersion,media String,response http.Response) IO[outcome.Outcome[Option[watchcodec.Decoder]]] {
+ do { value <- openStream(serializer,version,media,response); ioPure(outcome.from(match value.0 { None => None; Some((outer,inner)) => Some(watchcodec.newDecoder(outer,inner)) },value.1)) }
+}
+func watchLoop(decoder watchcodec.Decoder,events sync.Channel[watchapi.Event],verb String) IO[Unit] {
+ do {
+  decoded <- watchcodec.decode(decoder)
+  match decoded.error {
+   Some(error) => if isEOF(error) { ioPure(unit()) } else { sync.send(events,watchapi.Event("ERROR",Some(watchErrorObject(error,500,verb,"ClientWatchDecoding")))) }
+   None => match decoded.value { None => ioPure(unit()); Some(event) => do { sync.send(events,event); watchLoop(decoder,events,verb) } }
+  }
+ }
+}
+func newStreamWatcher(decoder watchcodec.Decoder,verb String) IO[watchapi.Watch] {
+ do {
+  events <- sync.newChannel(0)
+  closed <- sync.newRef(false)
+  lock <- sync.newMutex()
+  let closeDecoder = func() => sync.withLock(lock,do {
+   done <- sync.readRef(closed)
+   if done { ioPure(unit()) } else { do {
+    sync.writeRef(closed,true)
+    watchcodec.close(decoder)
+    ioPure(unit())
+   } }
+  })
+  worker <- sync.start(sync.ensuring(watchLoop(decoder,events,verb),do { closeDecoder(); sync.close(events) }))
+  ioPure(watchapi.newWatch(events,func() => do {
+   closeDecoder()
+   sync.cancelTask(worker)
+   io.tryIO(sync.join(worker))
+   ioPure(unit())
+  }))
+ }
+}
+func emptyWatch() IO[watchapi.Watch] { do { events <- sync.newChannel(0); sync.close(events); ioPure(watchapi.newWatch(events,func() => ioPure(unit()))) } }
+func watch(request Request) IO[outcome.Outcome[Option[watchapi.Watch]]] {
+ // Watch bypasses rate limiting and ordinary namespace preflight as upstream.
+ match request.error {
+  Some(error) => ioPure(outcome.failure(None,error))
+  None => do {
+   response <- executeAttempts(request{rateLimiter: None,measureRequestSize: false,retryableError: func(_,error) => watchRetryable(error)})
+   match response.error {
+    Some(error) => do {
+     _closeOptionalResponse(response)
+     if watchRetryable(error) { do { empty <- emptyWatch(); ioPure(outcome.success(Some(empty))) } } else { ioPure(outcome.failure(None,error)) }
+    }
+    None => match response.value {
+    None => ioPure(outcome.success(None))
+    Some(response) => do {
+     info <- responseInfo(response)
+     if info.0 != 200 {
+      sync.ensuring(do {
+       result <- transformResponse(request,response)
+       error <- resultError(result)
+       location <- requestURL(request)
+       text <- urlString(location)
+       ioPure(outcome.failure(None,match error { Some(error) => error; None => errors.errorNew("for request " + text + ", got status: " + show(info.0)) }))
+      },closeResponse(response))
+     } else { do {
+      let media = parseMediaType(info.1.0)
+      decoder <- request.contentConfig.negotiator.streamDecoder(media.0,response)
+      match decoder.value {
+       None => do { closeResponse(response); ioPure(outcome.from(None,decoder.error)) }
+       Some(decoder) => do {
+        warnings <- warningHeaders(response)
+        handleWarnings(request.warningHandler,map(warnings,func(value) => Warning(value.0,value.1.0,value.1.1)))
+        result <- newStreamWatcher(decoder,request.verb)
+        ioPure(outcome.success(Some(result)))
+       }
+      }
+     } }
+    }
+   }
+   }
+  }
+ }
+}
+func watchRetryable(error errors.Error) Bool { probableEOF(error) || networkTimeout(error) }

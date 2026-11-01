@@ -1,0 +1,56 @@
+package rest
+
+import features "features"
+import runtime "deps/k8s.io/apimachinery/pkg/runtime"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import serializer "deps/k8s.io/apimachinery/pkg/runtime/serializer"
+import errors "deps/support"
+import outcome "support/outcome"
+import sync "support/sync"
+import strings "std/string"
+
+// Copyright 2024 The Kubernetes Authors. Licensed under Apache-2.0.
+extern func acceptClauses(value String) List[(String,(Float,List[(String,String)]))] = "github.com/reoring/gofx/ports/client-go/rest/host".AcceptClauses
+extern func formatMedia(media String,params List[(String,String)]) String = "github.com/reoring/gofx/ports/client-go/rest/host".FormatMedia
+extern func formatQuality(value Float) String = "github.com/reoring/gofx/ports/client-go/rest/host".FormatQuality
+extern func negotiateError(contentType String) errors.Error = "github.com/reoring/gofx/ports/client-go/rest/host".NegotiateError
+extern func newCBORCodecFactory(scheme runtime.Scheme) IO[serializer.CodecFactory] = "github.com/reoring/gofx/ports/client-go/rest/host".CBORCodecFactory
+func codecFactoryForGeneratedClient(scheme runtime.Scheme,codecs serializer.CodecFactory,registry features.FeatureRegistry) IO[serializer.CodecFactory] {
+ do { gates <- features.featureGates(registry); allow <- gates.enabled(features.clientsAllowCBOR()); if allow { newCBORCodecFactory(scheme) } else { ioPure(codecs) } }
+}
+func scrubCBORContentConfig(content ClientContentConfig,allow Bool) ClientContentConfig {
+ if allow { content } else {
+  let media = parseMediaType(content.contentType)
+  let clauses = acceptClauses(content.acceptContentTypes)
+  let changed = length(filter(clauses,func(clause) => clause.0=="application/cbor"))>0
+  let accept = if !changed { content.acceptContentTypes } else {
+   strings.join(",",map(clauses,func(clause) => {
+    let media = if clause.0=="application/cbor" { "application/json" } else { clause.0 }
+    let params = if clause.1.0<1.0 { append(clause.1.1,[("q",formatQuality(clause.1.0))]) } else { clause.1.1 }
+    formatMedia(media,params)
+   }))
+  }
+  content{contentType: if media.0 == "application/cbor" { "application/json" } else { content.contentType },acceptContentTypes: accept}
+ }
+}
+func getClientContentConfig(client RESTClient) IO[(ClientContentConfig,Bool)] {
+ do {
+  flags <- match client.featureRegistry {
+   None => ioPure((false,false))
+   Some(registry) => do { gates <- features.featureGates(registry); allow <- gates.enabled(features.clientsAllowCBOR()); prefer <- gates.enabled(features.clientsPreferCBOR()); ioPure((allow,prefer)) }
+  }
+  unsupported <- sync.readRef(client.unsupportedCBOR)
+  let content = scrubCBORContentConfig(client.content,flags.0)
+  let defaulted = client.contentTypeDefaulted
+  let media = if defaulted { if flags.0 && flags.1 { "application/cbor" } else { "application/json" } } else { content.contentType }
+  let media = if flags.0 && unsupported && parseMediaType(media).0 == "application/cbor" { "application/json" } else { media }
+  let negotiator = content.negotiator
+  let streaming = if flags.0 {
+   Negotiator(negotiator.encode,negotiator.decoder,func(media,response) => {
+    if media == "application/cbor" { ioPure(outcome.failure(None,negotiateError(media))) }
+    else { negotiator.streamDecoder(if media == "application/cbor-seq" { "application/cbor" } else { media },response) }
+   })
+  } else { negotiator }
+  ioPure((content{contentType: media,negotiator: streaming},defaulted))
+ }
+}

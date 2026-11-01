@@ -1,0 +1,100 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package cache
+import "std/map"
+import "std/list"
+import "std/io"
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+import "github.com/reoring/gofx/ports/client-go/support/outcome"
+import "github.com/reoring/gofx/ports/client-go/support/watch"
+import codec "github.com/reoring/gofx/ports/client-go/deps/codec"
+import errors "github.com/reoring/gofx/ports/client-go/deps/support"
+import objects "github.com/reoring/gofx/ports/client-go/deps/objects"
+import runtime "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime"
+import v1 "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import "github.com/reoring/gofx/ports/client-go/tools/cache/synctrack"
+
+func rawTestObject(name String, version String, annotation Bool) IO[runtime.Object] { do { decoder <- codec.newJSONDecoder(); let annotations = if annotation { ",\"annotations\":{\"k8s.io/initial-events-end\":\"true\"}" } else { "" }; decoded <- codec.decode(decoder,"{\"apiVersion\":\"v1\",\"kind\":\"Pod\",\"metadata\":{\"name\":\""+name+"\",\"resourceVersion\":\""+version+"\""+annotations+"}}",None,None); match decoded.object { None => ioFail("test object decode failed"); Some(obj) => ioPure(obj) } } }
+func emptyRawListWatcher() ListWatcher[runtime.Object] { ListWatcher(func(_) => ioPure(outcome.success(ListResult(Nil,"1",""))),func(_) => do { channel <- sync.newChannel(0); ioPure(outcome.success(Some(watch.newWatch(channel,func() => sync.close(channel))))) },false,false) }
+func testReflectorLastEventNotMaximum() IO[Bool] { do { clock <- sync.fakeClock(0); store <- newStore(rawObjectAccess()); reflector <- newReflector(defaultReflectorOptions(emptyRawListWatcher(),storeAsReflector(store),rawObjectAccess(),func(obj) => outcome.success(obj),clock)); channel <- sync.newChannel(4); high <- rawTestObject("a","55",false); low <- rawTestObject("b","32",false); unknown <- rawTestObject("c","17",false); sync.send(channel,watch.Event("ADDED",Some(high))); sync.send(channel,watch.Event("MODIFIED",Some(low))); sync.send(channel,watch.Event("UNKNOWN",Some(unknown))); sync.close(channel); let watcher = watch.newWatch(channel,func() => ioPure(unit())); errorsChannel <- sync.newChannel(0); started <- sync.now(clock); result <- handleAnyWatch(reflector,watcher,storeAsReflector(store),started,errorsChannel,false,true); rv <- reflectorResourceVersion(reflector); keys <- store.listKeys(); ioPure((match result.error { None => true; Some(_) => false }) && rv == "17" && keys == ["a","b"]) } }
+func testWatchListOnlyAnnotatedBookmarkPublishes() IO[Bool] { do { clock <- sync.fakeClock(0); store <- newStore(rawObjectAccess()); channel <- sync.newChannel(4); a <- rawTestObject("a","8",false); plain <- rawTestObject("bookmark","20",false); final <- rawTestObject("bookmark","21",true); sync.send(channel,watch.Event("ADDED",Some(a))); sync.send(channel,watch.Event("BOOKMARK",Some(plain))); sync.send(channel,watch.Event("BOOKMARK",Some(final))); let watcher = watch.newWatch(channel,func() => sync.close(channel)); let lw = ListWatcher(func(_) => ioFail("watch-list must not list"),func(_) => ioPure(outcome.success(Some(watcher))),false,false); reflector <- newReflector(defaultReflectorOptions(lw,storeAsReflector(store),rawObjectAccess(),func(obj) => outcome.success(obj),clock) { watchList: true }); result <- reflectorWatchList(reflector); rv <- reflectorResourceVersion(reflector); keys <- store.listKeys(); watch.stop(watcher); ioPure(outcome.isSuccess(result) && rv == "21" && keys == ["a"]) } }
+func testWatchListCancellationDoesNotPublish() IO[Bool] { do { clock <- sync.fakeClock(0); store <- newStore(rawObjectAccess()); channel <- sync.newChannel(1); acquired <- sync.newChannel(1); stopped <- sync.newRef(false); obj <- rawTestObject("a","8",false); sync.send(channel,watch.Event("ADDED",Some(obj))); let watcher = watch.newWatch(channel,func() => do { sync.writeRef(stopped,true); sync.close(channel) }); let lw = ListWatcher(func(_) => ioFail("watch-list must not list"),func(_) => do { sync.send(acquired,unit()); ioPure(outcome.success(Some(watcher))) },false,false); reflector <- newReflector(defaultReflectorOptions(lw,storeAsReflector(store),rawObjectAccess(),func(obj) => outcome.success(obj),clock) { watchList: true }); task <- sync.start(reflectorWatchList(reflector)); _ <- sync.receive(acquired); sync.cancelTask(task); _ <- io.tryIO(sync.join(task)); keys <- store.listKeys(); rv <- reflectorResourceVersion(reflector); stop <- sync.readRef(stopped); ioPure(keys == [] && rv == "" && stop) } }
+func testReflectorListPaginationAndVersion() IO[Bool] { do { clock <- sync.fakeClock(0); store <- newStore(cacheTestAccess()); calls <- sync.newRef([]); let lw = ListWatcher(func(options) => do { seen <- sync.readRef(calls); sync.writeRef(calls,Cons((v1.listOptionsGetResourceVersion(options),v1.listOptionsGetContinue(options)),seen)); ioPure(outcome.success(if v1.listOptionsGetContinue(options) == "" { ListResult([cacheTestObject("a",1)],"5","next") } else { ListResult([cacheTestObject("b",2)],"5","") })) },func(_) => ioFail("not watching"),false,false); let decode = func(_) => outcome.failure(cacheTestObject("",0),cacheError("unused")); reflector <- newReflector(defaultReflectorOptions(lw,storeAsReflector(store),cacheTestAccess(),decode,clock)); result <- reflectorList(reflector); rv <- reflectorResourceVersion(reflector); keys <- store.listKeys(); seen <- sync.readRef(calls); ioPure(outcome.isSuccess(result) && rv == "5" && keys == ["a","b"] && reverse(seen) == [("0",""),("","next")]) } }
+func testListenerInitialCallbackBarrier() IO[Bool] { do { entered <- sync.newChannel(0); release <- sync.newChannel(0); upstream <- sync.newChannel(0); listener <- newProcessorListener(ResourceEventHandler(func(_,_) => do { sync.send(entered,unit()); _ <- sync.receive(release); ioPure(unit()) },func(_,_) => ioPure(unit()),func(_) => ioPure(unit()))); startListener(listener); listenerAdd(listener,AddNotification(cacheTestObject("a",1),true)); observeListener(listener,upstream); sync.close(upstream); _ <- sync.receive(entered); during <- synctrack.singleHasSynced(listener.tracker); sync.close(release); _ <- sync.receive(synctrack.singleDone(listener.tracker)); after <- synctrack.singleHasSynced(listener.tracker); listenerStop(listener); listenerJoin(listener); ioPure(!during && after) } }
+func testListenersIndependentAndSequential() IO[Bool] { do { blocked <- sync.newChannel(0); release <- sync.newChannel(0); fastEvents <- sync.newChannel(3); slowEvents <- sync.newChannel(3); let slowHandler = ResourceEventHandler(func(obj CacheTestObject,_) => do { sync.send(slowEvents,obj.value); if obj.value == 1 { do { sync.send(blocked,unit()); _ <- sync.receive(release); ioPure(unit()) } } else { ioPure(unit()) } },func(_,_) => ioPure(unit()),func(_) => ioPure(unit())); slow <- newProcessorListener(slowHandler); fast <- newProcessorListener(ResourceEventHandler(func(obj CacheTestObject,_) => sync.send(fastEvents,obj.value),func(_,_) => ioPure(unit()),func(_) => ioPure(unit()))); startListener(slow); startListener(fast); listenerAdd(slow,AddNotification(cacheTestObject("a",1),false)); _ <- sync.receive(blocked); listenerAdd(slow,AddNotification(cacheTestObject("b",2),false)); listenerAdd(fast,AddNotification(cacheTestObject("a",1),false)); listenerAdd(fast,AddNotification(cacheTestObject("b",2),false)); first <- sync.receive(fastEvents); second <- sync.receive(fastEvents); sync.close(release); slowFirst <- sync.receive(slowEvents); slowSecond <- sync.receive(slowEvents); listenerStop(slow); listenerStop(fast); listenerJoin(slow); listenerJoin(fast); ioPure(first == Some(1) && second == Some(2) && slowFirst == Some(1) && slowSecond == Some(2)) } }
+func testListenerCloseDiscardsPendingButJoinsCurrent() IO[Bool] { do { entered <- sync.newChannel(0); release <- sync.newChannel(0); called <- sync.newRef(0); listener <- newProcessorListener(ResourceEventHandler(func(_,_) => do { n <- sync.readRef(called); sync.writeRef(called,n+1); sync.send(entered,unit()); _ <- sync.receive(release); ioPure(unit()) },func(_,_) => ioPure(unit()),func(_) => ioPure(unit()))); startListener(listener); listenerAdd(listener,AddNotification(cacheTestObject("a",1),false)); _ <- sync.receive(entered); listenerAdd(listener,AddNotification(cacheTestObject("b",2),false)); listenerStop(listener); during <- sync.tryReceive(listener.finished); sync.close(release); listenerJoin(listener); n <- sync.readRef(called); ioPure((match during { sync.Pending => true; _ => false }) && n == 1) } }
+func testLegacyListCancellationDiscardsLateResult() IO[Bool] {
+ do {
+  clock <- sync.fakeClock(0)
+  store <- newStore(cacheTestAccess())
+  entered <- sync.newChannel(0)
+  release <- sync.newChannel(0)
+  finished <- sync.newChannel(0)
+  let legacy = ListWatch(Some(func(_) => sync.uninterruptible(do {
+   sync.send(entered,unit())
+   _ <- sync.receive(release)
+   sync.send(finished,unit())
+   ioPure(outcome.success(ListResult([cacheTestObject("late",1)],"9","")))
+  })),None,None,None,false)
+  let decode = func(_) => outcome.failure(cacheTestObject("",0),cacheError("unused"))
+  reflector <- newReflector(defaultReflectorOptions(toListerWatcherWithContext(legacy),storeAsReflector(store),cacheTestAccess(),decode,clock))
+  task <- sync.start(reflectorList(reflector))
+  _ <- sync.receive(entered)
+  sync.cancelTask(task)
+  parent <- io.tryIO(sync.join(task))
+  before <- store.listKeys()
+  sync.close(release)
+  _ <- sync.receive(finished)
+  after <- store.listKeys()
+  rv <- reflectorResourceVersion(reflector)
+  ioPure((match parent { Err(_) => true; Ok(_) => false }) && before == [] && after == [] && rv == "")
+ }
+}
+func testForeignRegistrationRemovalIsNoop() IO[Bool] {
+ do {
+  clock <- sync.fakeClock(0)
+  first <- newRawSharedIndexInformer(emptyRawListWatcher(),0,map.emptyMap(),clock)
+  second <- newRawSharedIndexInformer(emptyRawListWatcher(),0,map.emptyMap(),clock)
+  let handler = resourceEventHandlerFuncs(None,None,None)
+  a <- addEventHandler(first,handler)
+  b <- addEventHandler(second,handler)
+  _ <- removeEventHandler(first,b.value)
+  remaining <- sync.readRef(first.state)
+  _ <- removeEventHandler(first,a.value)
+  _ <- removeEventHandler(second,b.value)
+  ioPure(map.mapSize(remaining.listeners) == 1)
+ }
+}
+func testLateReplaySyncBarrier() IO[Bool] {
+ do {
+  clock <- sync.fakeClock(0)
+  informer <- newRawSharedIndexInformer(emptyRawListWatcher(),0,map.emptyMap(),clock)
+  obj <- rawTestObject("cached","1",false)
+  _ <- informer.indexer.store.add(obj)
+  state <- sync.readRef(informer.state)
+  sync.writeRef(informer.state,state { started: true, synced: true })
+  sync.close(informer.done)
+  entered <- sync.newChannel(0)
+  release <- sync.newChannel(0)
+  registration <- addEventHandler(informer,ResourceEventHandler(func(_,initial) => do { sync.send(entered,unit()); _ <- sync.receive(release); if initial { ioPure(unit()) } else { ioFail("replay must be initial") } },func(_,_) => ioPure(unit()),func(_) => ioPure(unit())))
+  _ <- sync.receive(entered)
+  before <- handlerHasSynced(registration.value)
+  sync.close(release)
+  _ <- sync.receive(handlerDone(registration.value))
+  after <- handlerHasSynced(registration.value)
+  _ <- shutdownEventHandler(informer,registration.value)
+  ioPure(!before && after)
+ }
+}
+func testEmptyInitialListPublishesSync() IO[Bool] {
+ do {
+  clock <- sync.fakeClock(0)
+  informer <- newRawSharedIndexInformer(emptyRawListWatcher(),0,map.emptyMap(),clock)
+  running <- sync.start(run(informer))
+  _ <- sync.receive(informer.done)
+  synced <- hasSynced(informer)
+  sync.cancelTask(running)
+  _ <- io.tryIO(sync.join(running))
+  stopped <- isStopped(informer)
+  ioPure(synced && stopped)
+ }
+}

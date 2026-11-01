@@ -1,0 +1,23 @@
+// Copyright 2018 The Kubernetes Authors. Licensed under Apache-2.0.
+// Source: client-go v0.37.2 util/connrotation/connrotation.go.
+package connrotation
+import net "github.com/reoring/gofx/ports/client-go/deps/net"
+import transport "github.com/reoring/gofx/ports/client-go/transport"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+alias DialFunc = func(String, String) IO[outcome.Outcome[Option[net.Conn]]]
+alias ConnectionTracker = transport.ConnectionSet
+type Dialer = Dialer {connectionTracker: ConnectionTracker, dial: DialFunc}
+func newConnectionTracker() IO[ConnectionTracker] { transport.newConnectionSet() }
+func closeAll(tracker ConnectionTracker) IO[Unit] { transport.closeAllConnections(tracker) }
+func track(tracker ConnectionTracker, conn net.Conn) IO[net.Conn] { do {
+ result <- transport.connectionDialer(tracker, func(_, _) => ioPure(outcome.success(Some(conn))))("", "")
+ match result.value { Some(value) => ioPure(value); None => ioFail("connection tracker did not retain connection") }
+} }
+func newDialerWithTracker(dial Option[DialFunc], tracker Option[ConnectionTracker]) IO[Dialer] { do {
+ connections <- match tracker { Some(value) => ioPure(value); None => newConnectionTracker() }
+ let base = match dial { Some(value) => value; None => func(network, address) => do { result <- transport.defaultDial(network, address); ioPure(outcome.from(result.0, result.1)) } }
+ ioPure(Dialer(connections, transport.connectionDialer(connections, base)))
+} }
+func newDialer(dial Option[DialFunc]) IO[Dialer] { newDialerWithTracker(dial, None) }
+// IO carries cancellation context, replacing separate Dial and DialContext APIs.
+func dial(dialer Dialer, network String, address String) IO[outcome.Outcome[Option[net.Conn]]] { dialer.dial(network, address) }

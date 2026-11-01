@@ -1,0 +1,74 @@
+// Copyright 2014 The Kubernetes Authors. Licensed under Apache-2.0.
+package v1
+import api "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api"
+import "std/prelude"
+import runtime "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+alias Config = api.WireConfig
+alias Cluster = api.WireCluster
+alias Context = api.WireContext
+alias AuthInfo = api.WireAuthInfo
+alias Preferences = api.WirePreferences
+alias ExecConfig = api.WireExecConfig
+alias NamedCluster = api.NamedCluster
+alias NamedContext = api.NamedContext
+alias NamedAuthInfo = api.NamedAuthInfo
+alias NamedExtension = api.NamedExtension
+alias ExecEnvVar = api.ExecEnvVar
+alias AuthProviderConfig = api.AuthProviderConfig
+alias ExecInteractiveMode = api.ExecInteractiveMode
+func convertConfigToInternal(value Config,destination api.Config) IO[outcome.Outcome[api.Config]] { api.convertConfigToInternal(value,destination) }
+func convertConfigFromInternal(value api.Config,destination Config) IO[outcome.Outcome[Config]] { api.convertConfigFromInternal(value,destination) }
+func convertClusterToInternal(value Cluster,destination api.Cluster) IO[outcome.Outcome[api.Cluster]] { api.convertClusterToInternal(value,destination) }
+func convertClusterFromInternal(value api.Cluster,destination Cluster) IO[outcome.Outcome[Cluster]] { api.convertClusterFromInternal(value,destination) }
+func convertContextToInternal(value Context,destination api.Context) IO[outcome.Outcome[api.Context]] { api.convertContextToInternal(value,destination) }
+func convertContextFromInternal(value api.Context,destination Context) IO[outcome.Outcome[Context]] { api.convertContextFromInternal(value,destination) }
+func convertAuthInfoToInternal(value AuthInfo,destination api.AuthInfo) IO[outcome.Outcome[api.AuthInfo]] { api.convertAuthInfoToInternal(value,destination) }
+func convertAuthInfoFromInternal(value api.AuthInfo,destination AuthInfo) IO[outcome.Outcome[AuthInfo]] { api.convertAuthInfoFromInternal(value,destination) }
+func convertPreferencesToInternal(value Preferences,destination api.Preferences) IO[outcome.Outcome[api.Preferences]] { api.convertPreferencesToInternal(value,destination) }
+func convertPreferencesFromInternal(value api.Preferences,destination Preferences) IO[outcome.Outcome[Preferences]] { api.convertPreferencesFromInternal(value,destination) }
+func convertNamedClustersToInternal(value Option[List[NamedCluster]],destination Option[Map[String,Option[api.Cluster]]]) IO[outcome.Outcome[Option[Map[String,Option[api.Cluster]]]]] { api.convertNamedClustersToInternal(value,destination) }
+func convertNamedClustersFromInternal(value Option[Map[String,Option[api.Cluster]]],destination Option[List[NamedCluster]]) IO[outcome.Outcome[Option[List[NamedCluster]]]] { api.convertNamedClustersFromInternal(value,destination) }
+func convertNamedAuthInfosToInternal(value Option[List[NamedAuthInfo]],destination Option[Map[String,Option[api.AuthInfo]]]) IO[outcome.Outcome[Option[Map[String,Option[api.AuthInfo]]]]] { api.convertNamedAuthInfosToInternal(value,destination) }
+func convertNamedAuthInfosFromInternal(value Option[Map[String,Option[api.AuthInfo]]],destination Option[List[NamedAuthInfo]]) IO[outcome.Outcome[Option[List[NamedAuthInfo]]]] { api.convertNamedAuthInfosFromInternal(value,destination) }
+func convertNamedContextsToInternal(value Option[List[NamedContext]],destination Option[Map[String,Option[api.Context]]]) IO[outcome.Outcome[Option[Map[String,Option[api.Context]]]]] { api.convertNamedContextsToInternal(value,destination) }
+func convertNamedContextsFromInternal(value Option[Map[String,Option[api.Context]]],destination Option[List[NamedContext]]) IO[outcome.Outcome[Option[List[NamedContext]]]] { api.convertNamedContextsFromInternal(value,destination) }
+func convertNamedExtensionsToInternal(value Option[List[NamedExtension]],destination Option[Map[String,Option[runtime.Object]]]) IO[outcome.Outcome[Option[Map[String,Option[runtime.Object]]]]] { api.convertNamedExtensionsToInternal(value,destination) }
+func convertNamedExtensionsFromInternal(value Option[Map[String,Option[runtime.Object]]],destination Option[List[NamedExtension]]) IO[outcome.Outcome[Option[List[NamedExtension]]]] { api.convertNamedExtensionsFromInternal(value,destination) }
+func convertExecConfigToInternal(value ExecConfig) api.ExecConfig { api.convertExecConfigToInternal(value) }
+func convertExecConfigFromInternal(value api.ExecConfig) ExecConfig { api.convertExecConfigFromInternal(value) }
+func setDefaultsExecConfig(value ExecConfig) ExecConfig { api.setDefaultsExecConfig(value) }
+func setObjectDefaultsConfig(value Config) Config { api.defaultWireConfig(value) }
+func neverExecInteractiveMode() String { api.neverExecInteractiveMode() }
+func ifAvailableExecInteractiveMode() String { api.ifAvailableExecInteractiveMode() }
+func alwaysExecInteractiveMode() String { api.alwaysExecInteractiveMode() }
+func deepCopyConfig(value Config) IO[Config] { do { preferences <- deepCopyPreferences(value.preferences); clusters <- _copyOptional(value.clusters,func(entries) => prelude.traverse(entries,deepCopyNamedCluster)); authInfos <- _copyOptional(value.authInfos,func(entries) => prelude.traverse(entries,deepCopyNamedAuthInfo)); contexts <- _copyOptional(value.contexts,func(entries) => prelude.traverse(entries,deepCopyNamedContext)); extensions <- _copyOptional(value.extensions,func(entries) => prelude.traverse(entries,deepCopyNamedExtension)); ioPure(value{preferences:preferences,clusters:clusters,authInfos:authInfos,contexts:contexts,extensions:extensions}) } }
+func deepCopyConfigInto(value Config,destination Config) IO[Config] { deepCopyConfig(value) }
+func deepCopyPreferences(value Preferences) IO[Preferences] { do { extensions <- _copyOptional(value.extensions,func(entries) => prelude.traverse(entries,deepCopyNamedExtension)); ioPure(value{extensions:extensions}) } }
+func deepCopyPreferencesInto(value Preferences,destination Preferences) IO[Preferences] { deepCopyPreferences(value) }
+func deepCopyCluster(value Cluster) IO[Cluster] { do { extensions <- _copyOptional(value.extensions,func(entries) => prelude.traverse(entries,deepCopyNamedExtension)); ioPure(value{extensions:extensions}) } }
+func deepCopyClusterInto(value Cluster,destination Cluster) IO[Cluster] { deepCopyCluster(value) }
+func deepCopyAuthInfo(value AuthInfo) IO[AuthInfo] { do { extensions <- _copyOptional(value.extensions,func(entries) => prelude.traverse(entries,deepCopyNamedExtension)); ioPure(value{extensions:extensions}) } }
+func deepCopyAuthInfoInto(value AuthInfo,destination AuthInfo) IO[AuthInfo] { deepCopyAuthInfo(value) }
+func deepCopyContext(value Context) IO[Context] { do { extensions <- _copyOptional(value.extensions,func(entries) => prelude.traverse(entries,deepCopyNamedExtension)); ioPure(value{extensions:extensions}) } }
+func deepCopyContextInto(value Context,destination Context) IO[Context] { deepCopyContext(value) }
+func deepCopyExecConfig(value ExecConfig) IO[ExecConfig] { ioPure(value) }
+func deepCopyExecConfigInto(value ExecConfig,destination ExecConfig) IO[ExecConfig] { deepCopyExecConfig(value) }
+func deepCopyNamedCluster(value NamedCluster) IO[NamedCluster] { do { cluster <- deepCopyCluster(value.cluster); ioPure(value{cluster:cluster}) } }
+func deepCopyNamedClusterInto(value NamedCluster,destination NamedCluster) IO[NamedCluster] { deepCopyNamedCluster(value) }
+func deepCopyNamedAuthInfo(value NamedAuthInfo) IO[NamedAuthInfo] { do { authInfo <- deepCopyAuthInfo(value.authInfo); ioPure(value{authInfo:authInfo}) } }
+func deepCopyNamedAuthInfoInto(value NamedAuthInfo,destination NamedAuthInfo) IO[NamedAuthInfo] { deepCopyNamedAuthInfo(value) }
+func deepCopyNamedContext(value NamedContext) IO[NamedContext] { do { context <- deepCopyContext(value.context); ioPure(value{context:context}) } }
+func deepCopyNamedContextInto(value NamedContext,destination NamedContext) IO[NamedContext] { deepCopyNamedContext(value) }
+func deepCopyNamedExtension(value NamedExtension) IO[NamedExtension] { do { copied <- api.copyRaw(value.extension); ioPure(value{extension:copied}) } }
+func deepCopyAuthProviderConfig(value AuthProviderConfig) IO[AuthProviderConfig] { ioPure(value) }
+func deepCopyAuthProviderConfigInto(value AuthProviderConfig,destination AuthProviderConfig) IO[AuthProviderConfig] { deepCopyAuthProviderConfig(value) }
+func deepCopyExecEnvVar(value ExecEnvVar) IO[ExecEnvVar] { ioPure(value) }
+func deepCopyExecEnvVarInto(value ExecEnvVar,destination ExecEnvVar) IO[ExecEnvVar] { deepCopyExecEnvVar(value) }
+func _copyOptional[A](value Option[A],copy func(A) IO[A]) IO[Option[A]] { match value { None => ioPure(None); Some(value) => do { value <- copy(value); ioPure(Some(value)) } } }
+func deepCopyObject(value Config) IO[Config] { deepCopyConfig(value) }
+func addToScheme(scheme api.Scheme) api.Scheme { registerDefaults(registerConversions(api.addVersion(scheme,"v1"))) }
+func registerConversions(scheme api.Scheme) api.Scheme { api.registerVersionConversions(scheme,"v1") }
+func registerDefaults(scheme api.Scheme) api.Scheme { api.registerVersionDefaults(scheme,"v1") }
+func schemeBuilder() api.SchemeBuilder { api.SchemeBuilder([addToScheme]) }
+func deepCopyNamedExtensionInto(value NamedExtension,destination NamedExtension) IO[NamedExtension] { deepCopyNamedExtension(value) }

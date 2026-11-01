@@ -1,0 +1,46 @@
+package rest
+
+import api "tools/clientcmd/api"
+import runtime "deps/k8s.io/apimachinery/pkg/runtime"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import http "deps/net/http"
+
+// Copyright 2026 The Kubernetes Authors. Licensed under Apache-2.0.
+// Matches reflect.DeepEqual: non-nil function capabilities are unequal.
+extern func equalObject(a runtime.Object,b runtime.Object) IO[Bool] = "github.com/reoring/gofx/ports/client-go/rest/host".EqualObject
+extern func equalSerializer(a runtime.NegotiatedSerializer,b runtime.NegotiatedSerializer) IO[Bool] = "github.com/reoring/gofx/ports/client-go/rest/host".EqualSerializer
+extern func equalHTTPTransport(a http.RoundTripper,b http.RoundTripper) IO[Bool] = "github.com/reoring/gofx/ports/client-go/rest/host".EqualHTTPTransport
+func _nilPair[A](a Option[A],b Option[A]) Bool { match (a,b) { (None,None) => true; _ => false } }
+func _optionalEqual[A](a Option[A],b Option[A],equal func(A,A) IO[Bool]) IO[Bool] {
+ match (a,b) { (None,None) => ioPure(true); (Some(a),Some(b)) => equal(a,b); _ => ioPure(false) }
+}
+func _equalGroupVersion(a Option[schema.GroupVersion],b Option[schema.GroupVersion]) Bool {
+ match (a,b) { (None,None) => true; (Some(a),Some(b)) => schema.groupVersionGetGroup(a)==schema.groupVersionGetGroup(b) && schema.groupVersionGetVersion(a)==schema.groupVersionGetVersion(b); _ => false }
+}
+func _equalAuthProvider(a Option[api.AuthProviderConfig],b Option[api.AuthProviderConfig]) Bool {
+ match (a,b) { (None,None) => true; (Some(a),Some(b)) => a.name==b.name && a.config==b.config; _ => false }
+}
+func _equalExec(a api.ExecConfig,b api.ExecConfig) IO[Bool] {
+ if a.command!=b.command || a.args!=b.args || a.env!=b.env || a.apiVersion!=b.apiVersion || a.installHint!=b.installHint || a.provideClusterInfo!=b.provideClusterInfo || a.interactiveMode!=b.interactiveMode || a.stdinUnavailable!=b.stdinUnavailable || a.stdinUnavailableMessage!=b.stdinUnavailableMessage || a.pluginPolicy!=b.pluginPolicy { ioPure(false) }
+ else { _optionalEqual(a.config,b.config,equalObject) }
+}
+func configEqual(a Config,b Config) IO[Bool] {
+ let scalar = a.host==b.host && a.apiPath==b.apiPath && a.username==b.username && a.password==b.password && a.bearerToken==b.bearerToken && a.bearerTokenFile==b.bearerTokenFile && a.userAgent==b.userAgent && a.disableCompression==b.disableCompression && a.qps==b.qps && a.burst==b.burst && a.timeout==b.timeout
+ let at = a.tlsClientConfig
+ let bt = b.tlsClientConfig
+ let tls = at.insecure==bt.insecure && at.serverName==bt.serverName && at.certFile==bt.certFile && at.keyFile==bt.keyFile && at.caFile==bt.caFile && at.certData==bt.certData && at.keyData==bt.keyData && at.caData==bt.caData && at.nextProtos==bt.nextProtos
+ let impersonation = a.impersonate.userName==b.impersonate.userName && a.impersonate.uid==b.impersonate.uid && a.impersonate.groups==b.impersonate.groups && a.impersonate.extra==b.impersonate.extra
+ let content = a.contentConfig.acceptContentTypes==b.contentConfig.acceptContentTypes && a.contentConfig.contentType==b.contentConfig.contentType && _equalGroupVersion(a.contentConfig.groupVersion,b.contentConfig.groupVersion)
+ let functions = _nilPair(a.wrapTransport,b.wrapTransport) && _nilPair(a.dial,b.dial) && _nilPair(a.proxy,b.proxy) && _nilPair(a.authConfigPersister,b.authConfigPersister) && _nilPair(a.warningHandler,b.warningHandler) && _nilPair(a.warningHandlerWithContext,b.warningHandlerWithContext) && _nilPair(a.rateLimiter,b.rateLimiter)
+ if !scalar || !tls || !impersonation || !content || !functions || !_equalAuthProvider(a.authProvider,b.authProvider) { ioPure(false) }
+ else { do {
+  serializer <- _optionalEqual(a.contentConfig.negotiatedSerializer,b.contentConfig.negotiatedSerializer,equalSerializer)
+  exec <- _optionalEqual(a.execProvider,b.execProvider,_equalExec)
+  transport <- match (a.transport,b.transport) {
+   (None,None) => ioPure(true)
+   (Some(a),Some(b)) => match (a.httpIdentity,b.httpIdentity) { (Some(a),Some(b)) => equalHTTPTransport(a,b); _ => ioPure(false) }
+   _ => ioPure(false)
+  }
+  ioPure(serializer && exec && transport)
+ } }
+}

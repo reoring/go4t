@@ -1,0 +1,1922 @@
+{
+  "upstream_revision": "72c52dd0cc3b9099b36af11290b0304045dd1ada",
+  "api_style": "native immutable gofx; explicit IO and receiver arguments",
+  "mapping_note": "Expression targets identify callback fields or canonical error operations; method receiver nil is represented by Option at native callers. This is source mapping, not runtime verification.",
+  "production_exports": [
+    {
+      "upstream": "tools/auth/clientauth.go:75",
+      "symbol": "Info",
+      "native_module": "tools/auth",
+      "native": "Info"
+    },
+    {
+      "upstream": "tools/auth/clientauth.go:87",
+      "symbol": "LoadFromFile",
+      "native_module": "tools/auth",
+      "native": "loadFromFile"
+    },
+    {
+      "upstream": "tools/auth/clientauth.go:106",
+      "symbol": "Info.MergeWithConfig",
+      "native_module": "tools/auth",
+      "native": "mergeWithConfig"
+    },
+    {
+      "upstream": "tools/auth/clientauth.go:121",
+      "symbol": "Info.Complete",
+      "native_module": "tools/auth",
+      "native": "complete"
+    },
+    {
+      "upstream": "tools/auth/exec/exec.go:47",
+      "symbol": "LoadExecCredentialFromEnv",
+      "native_module": "tools/auth/exec",
+      "native": "loadExecCredentialFromEnv"
+    },
+    {
+      "upstream": "tools/auth/exec/exec.go:69",
+      "symbol": "LoadExecCredential",
+      "native_module": "tools/auth/exec",
+      "native": "loadExecCredential"
+    },
+    {
+      "upstream": "tools/clientcmd/api/helpers.go:37",
+      "symbol": "IsConfigEmpty",
+      "native_module": "tools/clientcmd/api",
+      "native": "isConfigEmpty"
+    },
+    {
+      "upstream": "tools/clientcmd/api/helpers.go:46",
+      "symbol": "MinifyConfig",
+      "native_module": "tools/clientcmd/api",
+      "native": "minifyConfig"
+    },
+    {
+      "upstream": "tools/clientcmd/api/helpers.go:90",
+      "symbol": "ShortenConfig",
+      "native_module": "tools/clientcmd/api",
+      "native": "shortenConfig"
+    },
+    {
+      "upstream": "tools/clientcmd/api/helpers.go:115",
+      "symbol": "FlattenConfig",
+      "native_module": "tools/clientcmd/api",
+      "native": "flattenConfig"
+    },
+    {
+      "upstream": "tools/clientcmd/api/helpers.go:147",
+      "symbol": "FlattenContent",
+      "native_module": "tools/clientcmd/api",
+      "native": "flattenContent"
+    },
+    {
+      "upstream": "tools/clientcmd/api/helpers.go:167",
+      "symbol": "ResolvePath",
+      "native_module": "tools/clientcmd/api",
+      "native": "resolvePath"
+    },
+    {
+      "upstream": "tools/clientcmd/api/helpers.go:179",
+      "symbol": "MakeAbs",
+      "native_module": "tools/clientcmd/api",
+      "native": "makeAbs"
+    },
+    {
+      "upstream": "tools/clientcmd/api/helpers.go:194",
+      "symbol": "RedactSecrets",
+      "native_module": "tools/clientcmd/api",
+      "native": "redactSecrets"
+    },
+    {
+      "upstream": "tools/clientcmd/api/latest/latest.go:30",
+      "symbol": "Version",
+      "native_module": "tools/clientcmd/api/latest",
+      "native": "version"
+    },
+    {
+      "upstream": "tools/clientcmd/api/latest/latest.go:32",
+      "symbol": "ExternalVersion",
+      "native_module": "tools/clientcmd/api/latest",
+      "native": "externalVersion"
+    },
+    {
+      "upstream": "tools/clientcmd/api/latest/latest.go:36",
+      "symbol": "OldestVersion",
+      "native_module": "tools/clientcmd/api/latest",
+      "native": "oldestVersion"
+    },
+    {
+      "upstream": "tools/clientcmd/api/latest/latest.go:42",
+      "symbol": "Versions",
+      "native_module": "tools/clientcmd/api/latest",
+      "native": "versions"
+    },
+    {
+      "upstream": "tools/clientcmd/api/latest/latest.go:45",
+      "symbol": "Codec",
+      "native_module": "tools/clientcmd/api/latest",
+      "native": "codec"
+    },
+    {
+      "upstream": "tools/clientcmd/api/latest/latest.go:46",
+      "symbol": "Scheme",
+      "native_module": "tools/clientcmd/api/latest",
+      "native": "scheme"
+    },
+    {
+      "upstream": "tools/clientcmd/api/register.go:26",
+      "symbol": "SchemeGroupVersion",
+      "native_module": "tools/clientcmd/api",
+      "native": "schemeGroupVersion"
+    },
+    {
+      "upstream": "tools/clientcmd/api/register.go:29",
+      "symbol": "SchemeBuilder",
+      "native_module": "tools/clientcmd/api",
+      "native": "schemeBuilder"
+    },
+    {
+      "upstream": "tools/clientcmd/api/register.go:30",
+      "symbol": "AddToScheme",
+      "native_module": "tools/clientcmd/api",
+      "native": "addToScheme"
+    },
+    {
+      "upstream": "tools/clientcmd/api/register.go:40",
+      "symbol": "Config.GetObjectKind",
+      "native_module": "tools/clientcmd/api",
+      "native": "getObjectKind"
+    },
+    {
+      "upstream": "tools/clientcmd/api/register.go:41",
+      "symbol": "Config.SetGroupVersionKind",
+      "native_module": "tools/clientcmd/api",
+      "native": "setGroupVersionKind"
+    },
+    {
+      "upstream": "tools/clientcmd/api/register.go:44",
+      "symbol": "Config.GroupVersionKind",
+      "native_module": "tools/clientcmd/api",
+      "native": "groupVersionKind"
+    },
+    {
+      "upstream": "tools/clientcmd/api/types.go:31",
+      "symbol": "Config",
+      "native_module": "tools/clientcmd/api",
+      "native": "Config"
+    },
+    {
+      "upstream": "tools/clientcmd/api/types.go:60",
+      "symbol": "Preferences",
+      "native_module": "tools/clientcmd/api",
+      "native": "Preferences"
+    },
+    {
+      "upstream": "tools/clientcmd/api/types.go:69",
+      "symbol": "Cluster",
+      "native_module": "tools/clientcmd/api",
+      "native": "Cluster"
+    },
+    {
+      "upstream": "tools/clientcmd/api/types.go:109",
+      "symbol": "AuthInfo",
+      "native_module": "tools/clientcmd/api",
+      "native": "AuthInfo"
+    },
+    {
+      "upstream": "tools/clientcmd/api/types.go:162",
+      "symbol": "Context",
+      "native_module": "tools/clientcmd/api",
+      "native": "Context"
+    },
+    {
+      "upstream": "tools/clientcmd/api/types.go:179",
+      "symbol": "AuthProviderConfig",
+      "native_module": "tools/clientcmd/api",
+      "native": "AuthProviderConfig"
+    },
+    {
+      "upstream": "tools/clientcmd/api/types.go:190",
+      "symbol": "AuthProviderConfig.GoString",
+      "native_module": "tools/clientcmd/api",
+      "native": "authProviderConfigGoString"
+    },
+    {
+      "upstream": "tools/clientcmd/api/types.go:196",
+      "symbol": "AuthProviderConfig.String",
+      "native_module": "tools/clientcmd/api",
+      "native": "authProviderConfigString"
+    },
+    {
+      "upstream": "tools/clientcmd/api/types.go:209",
+      "symbol": "ExecConfig",
+      "native_module": "tools/clientcmd/api",
+      "native": "ExecConfig"
+    },
+    {
+      "upstream": "tools/clientcmd/api/types.go:300",
+      "symbol": "AllowlistEntry",
+      "native_module": "tools/clientcmd/api",
+      "native": "AllowlistEntry"
+    },
+    {
+      "upstream": "tools/clientcmd/api/types.go:311",
+      "symbol": "PluginPolicy",
+      "native_module": "tools/clientcmd/api",
+      "native": "PluginPolicy"
+    },
+    {
+      "upstream": "tools/clientcmd/api/types.go:329",
+      "symbol": "PolicyType",
+      "native_module": "tools/clientcmd/api",
+      "native": "PolicyType"
+    },
+    {
+      "upstream": "tools/clientcmd/api/types.go:332",
+      "symbol": "PluginPolicyAllowAll",
+      "native_module": "tools/clientcmd/api",
+      "native": "pluginPolicyAllowAll"
+    },
+    {
+      "upstream": "tools/clientcmd/api/types.go:333",
+      "symbol": "PluginPolicyDenyAll",
+      "native_module": "tools/clientcmd/api",
+      "native": "pluginPolicyDenyAll"
+    },
+    {
+      "upstream": "tools/clientcmd/api/types.go:334",
+      "symbol": "PluginPolicyAllowlist",
+      "native_module": "tools/clientcmd/api",
+      "native": "pluginPolicyAllowlist"
+    },
+    {
+      "upstream": "tools/clientcmd/api/types.go:342",
+      "symbol": "ExecConfig.GoString",
+      "native_module": "tools/clientcmd/api",
+      "native": "execConfigGoString"
+    },
+    {
+      "upstream": "tools/clientcmd/api/types.go:348",
+      "symbol": "ExecConfig.String",
+      "native_module": "tools/clientcmd/api",
+      "native": "execConfigString"
+    },
+    {
+      "upstream": "tools/clientcmd/api/types.go:366",
+      "symbol": "ExecEnvVar",
+      "native_module": "tools/clientcmd/api",
+      "native": "ExecEnvVar"
+    },
+    {
+      "upstream": "tools/clientcmd/api/types.go:372",
+      "symbol": "ExecInteractiveMode",
+      "native_module": "tools/clientcmd/api",
+      "native": "ExecInteractiveMode"
+    },
+    {
+      "upstream": "tools/clientcmd/api/types.go:378",
+      "symbol": "NeverExecInteractiveMode",
+      "native_module": "tools/clientcmd/api",
+      "native": "neverExecInteractiveMode"
+    },
+    {
+      "upstream": "tools/clientcmd/api/types.go:383",
+      "symbol": "IfAvailableExecInteractiveMode",
+      "native_module": "tools/clientcmd/api",
+      "native": "ifAvailableExecInteractiveMode"
+    },
+    {
+      "upstream": "tools/clientcmd/api/types.go:388",
+      "symbol": "AlwaysExecInteractiveMode",
+      "native_module": "tools/clientcmd/api",
+      "native": "alwaysExecInteractiveMode"
+    },
+    {
+      "upstream": "tools/clientcmd/api/types.go:392",
+      "symbol": "NewConfig",
+      "native_module": "tools/clientcmd/api",
+      "native": "newConfig"
+    },
+    {
+      "upstream": "tools/clientcmd/api/types.go:403",
+      "symbol": "NewContext",
+      "native_module": "tools/clientcmd/api",
+      "native": "newContext"
+    },
+    {
+      "upstream": "tools/clientcmd/api/types.go:409",
+      "symbol": "NewCluster",
+      "native_module": "tools/clientcmd/api",
+      "native": "newCluster"
+    },
+    {
+      "upstream": "tools/clientcmd/api/types.go:415",
+      "symbol": "NewAuthInfo",
+      "native_module": "tools/clientcmd/api",
+      "native": "newAuthInfo"
+    },
+    {
+      "upstream": "tools/clientcmd/api/types.go:425",
+      "symbol": "NewPreferences",
+      "native_module": "tools/clientcmd/api",
+      "native": "newPreferences"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/conversion.go:28",
+      "symbol": "Convert_Slice_v1_NamedCluster_To_Map_string_To_Pointer_api_Cluster",
+      "native_module": "tools/clientcmd/api",
+      "native": "convertNamedClustersToInternal"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/conversion.go:46",
+      "symbol": "Convert_Map_string_To_Pointer_api_Cluster_To_Slice_v1_NamedCluster",
+      "native_module": "tools/clientcmd/api",
+      "native": "convertNamedClustersFromInternal"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/conversion.go:65",
+      "symbol": "Convert_Slice_v1_NamedAuthInfo_To_Map_string_To_Pointer_api_AuthInfo",
+      "native_module": "tools/clientcmd/api",
+      "native": "convertNamedAuthInfosToInternal"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/conversion.go:83",
+      "symbol": "Convert_Map_string_To_Pointer_api_AuthInfo_To_Slice_v1_NamedAuthInfo",
+      "native_module": "tools/clientcmd/api",
+      "native": "convertNamedAuthInfosFromInternal"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/conversion.go:102",
+      "symbol": "Convert_Slice_v1_NamedContext_To_Map_string_To_Pointer_api_Context",
+      "native_module": "tools/clientcmd/api",
+      "native": "convertNamedContextsToInternal"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/conversion.go:120",
+      "symbol": "Convert_Map_string_To_Pointer_api_Context_To_Slice_v1_NamedContext",
+      "native_module": "tools/clientcmd/api",
+      "native": "convertNamedContextsFromInternal"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/conversion.go:139",
+      "symbol": "Convert_Slice_v1_NamedExtension_To_Map_string_To_runtime_Object",
+      "native_module": "tools/clientcmd/api",
+      "native": "convertNamedExtensionsToInternal"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/conversion.go:157",
+      "symbol": "Convert_Map_string_To_runtime_Object_To_Slice_v1_NamedExtension",
+      "native_module": "tools/clientcmd/api",
+      "native": "convertNamedExtensionsFromInternal"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/defaults.go:27",
+      "symbol": "SetDefaults_ExecConfig",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "setDefaultsExecConfig"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/register.go:26",
+      "symbol": "SchemeGroupVersion",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "schemeGroupVersion"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/register.go:31",
+      "symbol": "SchemeBuilder",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "schemeBuilder"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/register.go:33",
+      "symbol": "AddToScheme",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "addToScheme"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/register.go:50",
+      "symbol": "Config.GetObjectKind",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "getObjectKind"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/register.go:51",
+      "symbol": "Config.SetGroupVersionKind",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "setGroupVersionKind"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/register.go:54",
+      "symbol": "Config.GroupVersionKind",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "groupVersionKind"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/types.go:28",
+      "symbol": "Config",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "Config"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/types.go:56",
+      "symbol": "Preferences",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "Preferences"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/types.go:65",
+      "symbol": "Cluster",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "Cluster"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/types.go:102",
+      "symbol": "AuthInfo",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "AuthInfo"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/types.go:152",
+      "symbol": "Context",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "Context"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/types.go:166",
+      "symbol": "NamedCluster",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "NamedCluster"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/types.go:174",
+      "symbol": "NamedContext",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "NamedContext"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/types.go:182",
+      "symbol": "NamedAuthInfo",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "NamedAuthInfo"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/types.go:190",
+      "symbol": "NamedExtension",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "NamedExtension"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/types.go:198",
+      "symbol": "AuthProviderConfig",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "AuthProviderConfig"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/types.go:208",
+      "symbol": "ExecConfig",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "ExecConfig"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/types.go:251",
+      "symbol": "ExecEnvVar",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "ExecEnvVar"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/types.go:257",
+      "symbol": "ExecInteractiveMode",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "ExecInteractiveMode"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/types.go:263",
+      "symbol": "NeverExecInteractiveMode",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "neverExecInteractiveMode"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/types.go:268",
+      "symbol": "IfAvailableExecInteractiveMode",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "ifAvailableExecInteractiveMode"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/types.go:273",
+      "symbol": "AlwaysExecInteractiveMode",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "alwaysExecInteractiveMode"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/zz_generated.conversion.go:38",
+      "symbol": "RegisterConversions",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "registerConversions"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/zz_generated.conversion.go:192",
+      "symbol": "Convert_v1_AuthInfo_To_api_AuthInfo",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "convertAuthInfoToInternal"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/zz_generated.conversion.go:227",
+      "symbol": "Convert_api_AuthInfo_To_v1_AuthInfo",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "convertAuthInfoFromInternal"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/zz_generated.conversion.go:237",
+      "symbol": "Convert_v1_AuthProviderConfig_To_api_AuthProviderConfig",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "convertAuthProviderConfigToInternal"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/zz_generated.conversion.go:247",
+      "symbol": "Convert_api_AuthProviderConfig_To_v1_AuthProviderConfig",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "convertAuthProviderConfigFromInternal"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/zz_generated.conversion.go:266",
+      "symbol": "Convert_v1_Cluster_To_api_Cluster",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "convertClusterToInternal"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/zz_generated.conversion.go:286",
+      "symbol": "Convert_api_Cluster_To_v1_Cluster",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "convertClusterFromInternal"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/zz_generated.conversion.go:313",
+      "symbol": "Convert_v1_Config_To_api_Config",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "convertConfigToInternal"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/zz_generated.conversion.go:340",
+      "symbol": "Convert_api_Config_To_v1_Config",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "convertConfigFromInternal"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/zz_generated.conversion.go:355",
+      "symbol": "Convert_v1_Context_To_api_Context",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "convertContextToInternal"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/zz_generated.conversion.go:371",
+      "symbol": "Convert_api_Context_To_v1_Context",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "convertContextFromInternal"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/zz_generated.conversion.go:387",
+      "symbol": "Convert_v1_ExecConfig_To_api_ExecConfig",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "convertExecConfigToInternal"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/zz_generated.conversion.go:407",
+      "symbol": "Convert_api_ExecConfig_To_v1_ExecConfig",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "convertExecConfigFromInternal"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/zz_generated.conversion.go:417",
+      "symbol": "Convert_v1_ExecEnvVar_To_api_ExecEnvVar",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "convertExecEnvVarToInternal"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/zz_generated.conversion.go:427",
+      "symbol": "Convert_api_ExecEnvVar_To_v1_ExecEnvVar",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "convertExecEnvVarFromInternal"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/zz_generated.conversion.go:440",
+      "symbol": "Convert_v1_Preferences_To_api_Preferences",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "convertPreferencesToInternal"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/zz_generated.conversion.go:453",
+      "symbol": "Convert_api_Preferences_To_v1_Preferences",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "convertPreferencesFromInternal"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/zz_generated.deepcopy.go:29",
+      "symbol": "AuthInfo.DeepCopyInto",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "deepCopyAuthInfoInto"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/zz_generated.deepcopy.go:82",
+      "symbol": "AuthInfo.DeepCopy",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "deepCopyAuthInfo"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/zz_generated.deepcopy.go:92",
+      "symbol": "AuthProviderConfig.DeepCopyInto",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "deepCopyAuthProviderConfigInto"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/zz_generated.deepcopy.go:105",
+      "symbol": "AuthProviderConfig.DeepCopy",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "deepCopyAuthProviderConfig"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/zz_generated.deepcopy.go:115",
+      "symbol": "Cluster.DeepCopyInto",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "deepCopyClusterInto"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/zz_generated.deepcopy.go:133",
+      "symbol": "Cluster.DeepCopy",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "deepCopyCluster"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/zz_generated.deepcopy.go:143",
+      "symbol": "Config.DeepCopyInto",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "deepCopyConfigInto"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/zz_generated.deepcopy.go:178",
+      "symbol": "Config.DeepCopy",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "deepCopyConfig"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/zz_generated.deepcopy.go:188",
+      "symbol": "Config.DeepCopyObject",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "deepCopyObject"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/zz_generated.deepcopy.go:196",
+      "symbol": "Context.DeepCopyInto",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "deepCopyContextInto"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/zz_generated.deepcopy.go:209",
+      "symbol": "Context.DeepCopy",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "deepCopyContext"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/zz_generated.deepcopy.go:219",
+      "symbol": "ExecConfig.DeepCopyInto",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "deepCopyExecConfigInto"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/zz_generated.deepcopy.go:235",
+      "symbol": "ExecConfig.DeepCopy",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "deepCopyExecConfig"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/zz_generated.deepcopy.go:245",
+      "symbol": "ExecEnvVar.DeepCopyInto",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "deepCopyExecEnvVarInto"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/zz_generated.deepcopy.go:251",
+      "symbol": "ExecEnvVar.DeepCopy",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "deepCopyExecEnvVar"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/zz_generated.deepcopy.go:261",
+      "symbol": "NamedAuthInfo.DeepCopyInto",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "deepCopyNamedAuthInfoInto"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/zz_generated.deepcopy.go:268",
+      "symbol": "NamedAuthInfo.DeepCopy",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "deepCopyNamedAuthInfo"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/zz_generated.deepcopy.go:278",
+      "symbol": "NamedCluster.DeepCopyInto",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "deepCopyNamedClusterInto"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/zz_generated.deepcopy.go:285",
+      "symbol": "NamedCluster.DeepCopy",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "deepCopyNamedCluster"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/zz_generated.deepcopy.go:295",
+      "symbol": "NamedContext.DeepCopyInto",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "deepCopyNamedContextInto"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/zz_generated.deepcopy.go:302",
+      "symbol": "NamedContext.DeepCopy",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "deepCopyNamedContext"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/zz_generated.deepcopy.go:312",
+      "symbol": "NamedExtension.DeepCopyInto",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "deepCopyNamedExtensionInto"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/zz_generated.deepcopy.go:319",
+      "symbol": "NamedExtension.DeepCopy",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "deepCopyNamedExtension"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/zz_generated.deepcopy.go:329",
+      "symbol": "Preferences.DeepCopyInto",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "deepCopyPreferencesInto"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/zz_generated.deepcopy.go:342",
+      "symbol": "Preferences.DeepCopy",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "deepCopyPreferences"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/zz_generated.defaults.go:31",
+      "symbol": "RegisterDefaults",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "registerDefaults"
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/zz_generated.defaults.go:36",
+      "symbol": "SetObjectDefaults_Config",
+      "native_module": "tools/clientcmd/api/v1",
+      "native": "setObjectDefaultsConfig"
+    },
+    {
+      "upstream": "tools/clientcmd/api/zz_generated.deepcopy.go:29",
+      "symbol": "AllowlistEntry.DeepCopyInto",
+      "native_module": "tools/clientcmd/api",
+      "native": "deepCopyAllowlistEntryInto"
+    },
+    {
+      "upstream": "tools/clientcmd/api/zz_generated.deepcopy.go:35",
+      "symbol": "AllowlistEntry.DeepCopy",
+      "native_module": "tools/clientcmd/api",
+      "native": "deepCopyAllowlistEntry"
+    },
+    {
+      "upstream": "tools/clientcmd/api/zz_generated.deepcopy.go:45",
+      "symbol": "AuthInfo.DeepCopyInto",
+      "native_module": "tools/clientcmd/api",
+      "native": "deepCopyAuthInfoInto"
+    },
+    {
+      "upstream": "tools/clientcmd/api/zz_generated.deepcopy.go:102",
+      "symbol": "AuthInfo.DeepCopy",
+      "native_module": "tools/clientcmd/api",
+      "native": "deepCopyAuthInfo"
+    },
+    {
+      "upstream": "tools/clientcmd/api/zz_generated.deepcopy.go:112",
+      "symbol": "AuthProviderConfig.DeepCopyInto",
+      "native_module": "tools/clientcmd/api",
+      "native": "deepCopyAuthProviderConfigInto"
+    },
+    {
+      "upstream": "tools/clientcmd/api/zz_generated.deepcopy.go:125",
+      "symbol": "AuthProviderConfig.DeepCopy",
+      "native_module": "tools/clientcmd/api",
+      "native": "deepCopyAuthProviderConfig"
+    },
+    {
+      "upstream": "tools/clientcmd/api/zz_generated.deepcopy.go:135",
+      "symbol": "Cluster.DeepCopyInto",
+      "native_module": "tools/clientcmd/api",
+      "native": "deepCopyClusterInto"
+    },
+    {
+      "upstream": "tools/clientcmd/api/zz_generated.deepcopy.go:157",
+      "symbol": "Cluster.DeepCopy",
+      "native_module": "tools/clientcmd/api",
+      "native": "deepCopyCluster"
+    },
+    {
+      "upstream": "tools/clientcmd/api/zz_generated.deepcopy.go:167",
+      "symbol": "Config.DeepCopyInto",
+      "native_module": "tools/clientcmd/api",
+      "native": "deepCopyConfigInto"
+    },
+    {
+      "upstream": "tools/clientcmd/api/zz_generated.deepcopy.go:230",
+      "symbol": "Config.DeepCopy",
+      "native_module": "tools/clientcmd/api",
+      "native": "deepCopyConfig"
+    },
+    {
+      "upstream": "tools/clientcmd/api/zz_generated.deepcopy.go:240",
+      "symbol": "Config.DeepCopyObject",
+      "native_module": "tools/clientcmd/api",
+      "native": "deepCopyObject"
+    },
+    {
+      "upstream": "tools/clientcmd/api/zz_generated.deepcopy.go:248",
+      "symbol": "Context.DeepCopyInto",
+      "native_module": "tools/clientcmd/api",
+      "native": "deepCopyContextInto"
+    },
+    {
+      "upstream": "tools/clientcmd/api/zz_generated.deepcopy.go:265",
+      "symbol": "Context.DeepCopy",
+      "native_module": "tools/clientcmd/api",
+      "native": "deepCopyContext"
+    },
+    {
+      "upstream": "tools/clientcmd/api/zz_generated.deepcopy.go:275",
+      "symbol": "ExecConfig.DeepCopyInto",
+      "native_module": "tools/clientcmd/api",
+      "native": "deepCopyExecConfigInto"
+    },
+    {
+      "upstream": "tools/clientcmd/api/zz_generated.deepcopy.go:295",
+      "symbol": "ExecConfig.DeepCopy",
+      "native_module": "tools/clientcmd/api",
+      "native": "deepCopyExecConfig"
+    },
+    {
+      "upstream": "tools/clientcmd/api/zz_generated.deepcopy.go:305",
+      "symbol": "ExecEnvVar.DeepCopyInto",
+      "native_module": "tools/clientcmd/api",
+      "native": "deepCopyExecEnvVarInto"
+    },
+    {
+      "upstream": "tools/clientcmd/api/zz_generated.deepcopy.go:311",
+      "symbol": "ExecEnvVar.DeepCopy",
+      "native_module": "tools/clientcmd/api",
+      "native": "deepCopyExecEnvVar"
+    },
+    {
+      "upstream": "tools/clientcmd/api/zz_generated.deepcopy.go:321",
+      "symbol": "PluginPolicy.DeepCopyInto",
+      "native_module": "tools/clientcmd/api",
+      "native": "deepCopyPluginPolicyInto"
+    },
+    {
+      "upstream": "tools/clientcmd/api/zz_generated.deepcopy.go:332",
+      "symbol": "PluginPolicy.DeepCopy",
+      "native_module": "tools/clientcmd/api",
+      "native": "deepCopyPluginPolicy"
+    },
+    {
+      "upstream": "tools/clientcmd/api/zz_generated.deepcopy.go:342",
+      "symbol": "Preferences.DeepCopyInto",
+      "native_module": "tools/clientcmd/api",
+      "native": "deepCopyPreferencesInto"
+    },
+    {
+      "upstream": "tools/clientcmd/api/zz_generated.deepcopy.go:359",
+      "symbol": "Preferences.DeepCopy",
+      "native_module": "tools/clientcmd/api",
+      "native": "deepCopyPreferences"
+    },
+    {
+      "upstream": "tools/clientcmd/auth_loaders.go:31",
+      "symbol": "AuthLoader",
+      "native_module": "tools/clientcmd",
+      "native": "AuthLoader"
+    },
+    {
+      "upstream": "tools/clientcmd/auth_loaders.go:40",
+      "symbol": "defaultAuthLoader.LoadAuth",
+      "native_module": "tools/clientcmd",
+      "native": "value.loadAuth"
+    },
+    {
+      "upstream": "tools/clientcmd/auth_loaders.go:44",
+      "symbol": "PromptingAuthLoader",
+      "native_module": "tools/clientcmd",
+      "native": "PromptingAuthLoader"
+    },
+    {
+      "upstream": "tools/clientcmd/auth_loaders.go:49",
+      "symbol": "PromptingAuthLoader.LoadAuth",
+      "native_module": "tools/clientcmd",
+      "native": "promptingLoadAuth"
+    },
+    {
+      "upstream": "tools/clientcmd/auth_loaders.go:72",
+      "symbol": "PromptingAuthLoader.Prompt",
+      "native_module": "tools/clientcmd",
+      "native": "prompt"
+    },
+    {
+      "upstream": "tools/clientcmd/auth_loaders.go:103",
+      "symbol": "NewPromptingAuthLoader",
+      "native_module": "tools/clientcmd",
+      "native": "newPromptingAuthLoader"
+    },
+    {
+      "upstream": "tools/clientcmd/auth_loaders.go:108",
+      "symbol": "NewDefaultAuthLoader",
+      "native_module": "tools/clientcmd",
+      "native": "newDefaultAuthLoader"
+    },
+    {
+      "upstream": "tools/clientcmd/client_config.go:42",
+      "symbol": "ClusterDefaults",
+      "native_module": "tools/clientcmd",
+      "native": "clusterDefaults"
+    },
+    {
+      "upstream": "tools/clientcmd/client_config.go:45",
+      "symbol": "DefaultClientConfig",
+      "native_module": "tools/clientcmd",
+      "native": "defaultClientConfig"
+    },
+    {
+      "upstream": "tools/clientcmd/client_config.go:60",
+      "symbol": "ClientConfig",
+      "native_module": "tools/clientcmd",
+      "native": "ClientConfig"
+    },
+    {
+      "upstream": "tools/clientcmd/client_config.go:74",
+      "symbol": "OverridingClientConfig",
+      "native_module": "tools/clientcmd",
+      "native": "OverridingClientConfig"
+    },
+    {
+      "upstream": "tools/clientcmd/client_config.go:80",
+      "symbol": "PersistAuthProviderConfigForUser",
+      "native_module": "tools/clientcmd",
+      "native": "PersistAuthProviderConfigForUser"
+    },
+    {
+      "upstream": "tools/clientcmd/client_config.go:88",
+      "symbol": "DirectClientConfig",
+      "native_module": "tools/clientcmd",
+      "native": "DirectClientConfig"
+    },
+    {
+      "upstream": "tools/clientcmd/client_config.go:99",
+      "symbol": "NewDefaultClientConfig",
+      "native_module": "tools/clientcmd",
+      "native": "newDefaultClientConfig"
+    },
+    {
+      "upstream": "tools/clientcmd/client_config.go:104",
+      "symbol": "NewNonInteractiveClientConfig",
+      "native_module": "tools/clientcmd",
+      "native": "newNonInteractiveClientConfig"
+    },
+    {
+      "upstream": "tools/clientcmd/client_config.go:109",
+      "symbol": "NewInteractiveClientConfig",
+      "native_module": "tools/clientcmd",
+      "native": "newInteractiveClientConfig"
+    },
+    {
+      "upstream": "tools/clientcmd/client_config.go:114",
+      "symbol": "NewClientConfigFromBytes",
+      "native_module": "tools/clientcmd",
+      "native": "newClientConfigFromBytes"
+    },
+    {
+      "upstream": "tools/clientcmd/client_config.go:125",
+      "symbol": "RESTConfigFromKubeConfig",
+      "native_module": "tools/clientcmd",
+      "native": "restConfigFromKubeConfig"
+    },
+    {
+      "upstream": "tools/clientcmd/client_config.go:133",
+      "symbol": "DirectClientConfig.RawConfig",
+      "native_module": "tools/clientcmd",
+      "native": "rawConfig"
+    },
+    {
+      "upstream": "tools/clientcmd/client_config.go:138",
+      "symbol": "DirectClientConfig.MergedRawConfig",
+      "native_module": "tools/clientcmd",
+      "native": "mergedRawConfig"
+    },
+    {
+      "upstream": "tools/clientcmd/client_config.go:172",
+      "symbol": "DirectClientConfig.ClientConfig",
+      "native_module": "tools/clientcmd",
+      "native": "clientConfig"
+    },
+    {
+      "upstream": "tools/clientcmd/client_config.go:399",
+      "symbol": "DirectClientConfig.Namespace",
+      "native_module": "tools/clientcmd",
+      "native": "namespace"
+    },
+    {
+      "upstream": "tools/clientcmd/client_config.go:425",
+      "symbol": "DirectClientConfig.ConfigAccess",
+      "native_module": "tools/clientcmd",
+      "native": "value.access"
+    },
+    {
+      "upstream": "tools/clientcmd/client_config.go:431",
+      "symbol": "DirectClientConfig.ConfirmUsable",
+      "native_module": "tools/clientcmd",
+      "native": "directConfirmUsable"
+    },
+    {
+      "upstream": "tools/clientcmd/client_config.go:613",
+      "symbol": "inClusterClientConfig.RawConfig",
+      "native_module": "tools/clientcmd",
+      "native": "systemInClusterConfig(...).client.rawConfig"
+    },
+    {
+      "upstream": "tools/clientcmd/client_config.go:617",
+      "symbol": "inClusterClientConfig.ClientConfig",
+      "native_module": "tools/clientcmd",
+      "native": "systemInClusterConfig(...).client.clientConfig"
+    },
+    {
+      "upstream": "tools/clientcmd/client_config.go:646",
+      "symbol": "inClusterClientConfig.Namespace",
+      "native_module": "tools/clientcmd",
+      "native": "inClusterNamespace"
+    },
+    {
+      "upstream": "tools/clientcmd/client_config.go:663",
+      "symbol": "inClusterClientConfig.ConfigAccess",
+      "native_module": "tools/clientcmd",
+      "native": "defaultConfigAccess"
+    },
+    {
+      "upstream": "tools/clientcmd/client_config.go:668",
+      "symbol": "inClusterClientConfig.Possible",
+      "native_module": "tools/clientcmd",
+      "native": "systemInClusterConfig(...).possible"
+    },
+    {
+      "upstream": "tools/clientcmd/client_config.go:680",
+      "symbol": "BuildConfigFromFlags",
+      "native_module": "tools/clientcmd",
+      "native": "buildConfigFromFlags"
+    },
+    {
+      "upstream": "tools/clientcmd/client_config.go:698",
+      "symbol": "BuildConfigFromKubeconfigGetter",
+      "native_module": "tools/clientcmd",
+      "native": "buildConfigFromKubeconfigGetter"
+    },
+    {
+      "upstream": "tools/clientcmd/config.go:33",
+      "symbol": "ConfigAccess",
+      "native_module": "tools/clientcmd",
+      "native": "ConfigAccess"
+    },
+    {
+      "upstream": "tools/clientcmd/config.go:46",
+      "symbol": "PathOptions",
+      "native_module": "tools/clientcmd",
+      "native": "PathOptions"
+    },
+    {
+      "upstream": "tools/clientcmd/config.go:66",
+      "symbol": "UseModifyConfigLock",
+      "native_module": "tools/clientcmd",
+      "native": "useModifyConfigLock"
+    },
+    {
+      "upstream": "tools/clientcmd/config.go:69",
+      "symbol": "PathOptions.GetEnvVarFiles",
+      "native_module": "tools/clientcmd",
+      "native": "getEnvVarFiles"
+    },
+    {
+      "upstream": "tools/clientcmd/config.go:84",
+      "symbol": "PathOptions.GetLoadingPrecedence",
+      "native_module": "tools/clientcmd",
+      "native": "pathOptionsLoadingPrecedence"
+    },
+    {
+      "upstream": "tools/clientcmd/config.go:95",
+      "symbol": "PathOptions.GetStartingConfig",
+      "native_module": "tools/clientcmd",
+      "native": "pathOptionsStartingConfig"
+    },
+    {
+      "upstream": "tools/clientcmd/config.go:112",
+      "symbol": "PathOptions.GetDefaultFilename",
+      "native_module": "tools/clientcmd",
+      "native": "pathOptionsDefaultFilename"
+    },
+    {
+      "upstream": "tools/clientcmd/config.go:136",
+      "symbol": "PathOptions.IsExplicitFile",
+      "native_module": "tools/clientcmd",
+      "native": "pathOptionsAccess(source,value).isExplicitFile"
+    },
+    {
+      "upstream": "tools/clientcmd/config.go:140",
+      "symbol": "PathOptions.GetExplicitFile",
+      "native_module": "tools/clientcmd",
+      "native": "pathOptionsAccess(source,value).getExplicitFile"
+    },
+    {
+      "upstream": "tools/clientcmd/config.go:144",
+      "symbol": "NewDefaultPathOptions",
+      "native_module": "tools/clientcmd",
+      "native": "newDefaultPathOptions"
+    },
+    {
+      "upstream": "tools/clientcmd/config.go:165",
+      "symbol": "ModifyConfig",
+      "native_module": "tools/clientcmd",
+      "native": "modifyConfig"
+    },
+    {
+      "upstream": "tools/clientcmd/config.go:355",
+      "symbol": "PersisterForUser",
+      "native_module": "tools/clientcmd",
+      "native": "persisterForUser"
+    },
+    {
+      "upstream": "tools/clientcmd/config.go:364",
+      "symbol": "persister.Persist",
+      "native_module": "tools/clientcmd",
+      "native": "value.persist"
+    },
+    {
+      "upstream": "tools/clientcmd/config.go:492",
+      "symbol": "GetConfigFromFileOrDie",
+      "native_module": "tools/clientcmd",
+      "native": "getConfigFromFileOrDie"
+    },
+    {
+      "upstream": "tools/clientcmd/flag.go:34",
+      "symbol": "transformingStringValue.Set",
+      "native_module": "tools/clientcmd",
+      "native": "transformingStringValueSet"
+    },
+    {
+      "upstream": "tools/clientcmd/flag.go:43",
+      "symbol": "transformingStringValue.Type",
+      "native_module": "tools/clientcmd",
+      "native": "transformingStringValueType"
+    },
+    {
+      "upstream": "tools/clientcmd/flag.go:47",
+      "symbol": "transformingStringValue.String",
+      "native_module": "tools/clientcmd",
+      "native": "transformingStringValueString"
+    },
+    {
+      "upstream": "tools/clientcmd/helpers.go:28",
+      "symbol": "ParseTimeout",
+      "native_module": "tools/clientcmd",
+      "native": "parseTimeout"
+    },
+    {
+      "upstream": "tools/clientcmd/loader.go:39",
+      "symbol": "RecommendedConfigPathFlag",
+      "native_module": "tools/clientcmd",
+      "native": "recommendedConfigPathFlag"
+    },
+    {
+      "upstream": "tools/clientcmd/loader.go:40",
+      "symbol": "RecommendedConfigPathEnvVar",
+      "native_module": "tools/clientcmd",
+      "native": "recommendedConfigPathEnvVar"
+    },
+    {
+      "upstream": "tools/clientcmd/loader.go:41",
+      "symbol": "RecommendedHomeDir",
+      "native_module": "tools/clientcmd",
+      "native": "recommendedHomeDir"
+    },
+    {
+      "upstream": "tools/clientcmd/loader.go:42",
+      "symbol": "RecommendedFileName",
+      "native_module": "tools/clientcmd",
+      "native": "recommendedFileName"
+    },
+    {
+      "upstream": "tools/clientcmd/loader.go:43",
+      "symbol": "RecommendedSchemaName",
+      "native_module": "tools/clientcmd",
+      "native": "recommendedSchemaName"
+    },
+    {
+      "upstream": "tools/clientcmd/loader.go:47",
+      "symbol": "RecommendedConfigDir",
+      "native_module": "tools/clientcmd",
+      "native": "recommendedConfigDir"
+    },
+    {
+      "upstream": "tools/clientcmd/loader.go:48",
+      "symbol": "RecommendedHomeFile",
+      "native_module": "tools/clientcmd",
+      "native": "recommendedHomeFile"
+    },
+    {
+      "upstream": "tools/clientcmd/loader.go:49",
+      "symbol": "RecommendedSchemaFile",
+      "native_module": "tools/clientcmd",
+      "native": "recommendedSchemaFile"
+    },
+    {
+      "upstream": "tools/clientcmd/loader.go:67",
+      "symbol": "ClientConfigLoader",
+      "native_module": "tools/clientcmd",
+      "native": "ClientConfigLoader"
+    },
+    {
+      "upstream": "tools/clientcmd/loader.go:75",
+      "symbol": "KubeconfigGetter",
+      "native_module": "tools/clientcmd",
+      "native": "KubeconfigGetter"
+    },
+    {
+      "upstream": "tools/clientcmd/loader.go:77",
+      "symbol": "ClientConfigGetter",
+      "native_module": "tools/clientcmd",
+      "native": "clientConfigGetter"
+    },
+    {
+      "upstream": "tools/clientcmd/loader.go:84",
+      "symbol": "ClientConfigGetter.Load",
+      "native_module": "tools/clientcmd",
+      "native": "value.load"
+    },
+    {
+      "upstream": "tools/clientcmd/loader.go:88",
+      "symbol": "ClientConfigGetter.GetLoadingPrecedence",
+      "native_module": "tools/clientcmd",
+      "native": "value.access.getLoadingPrecedence"
+    },
+    {
+      "upstream": "tools/clientcmd/loader.go:91",
+      "symbol": "ClientConfigGetter.GetStartingConfig",
+      "native_module": "tools/clientcmd",
+      "native": "value.access.getStartingConfig"
+    },
+    {
+      "upstream": "tools/clientcmd/loader.go:94",
+      "symbol": "ClientConfigGetter.GetDefaultFilename",
+      "native_module": "tools/clientcmd",
+      "native": "value.access.getDefaultFilename"
+    },
+    {
+      "upstream": "tools/clientcmd/loader.go:97",
+      "symbol": "ClientConfigGetter.IsExplicitFile",
+      "native_module": "tools/clientcmd",
+      "native": "value.access.isExplicitFile"
+    },
+    {
+      "upstream": "tools/clientcmd/loader.go:100",
+      "symbol": "ClientConfigGetter.GetExplicitFile",
+      "native_module": "tools/clientcmd",
+      "native": "value.access.getExplicitFile"
+    },
+    {
+      "upstream": "tools/clientcmd/loader.go:103",
+      "symbol": "ClientConfigGetter.IsDefaultConfig",
+      "native_module": "tools/clientcmd",
+      "native": "value.isDefaultConfig"
+    },
+    {
+      "upstream": "tools/clientcmd/loader.go:111",
+      "symbol": "ClientConfigLoadingRules",
+      "native_module": "tools/clientcmd",
+      "native": "ClientConfigLoadingRules"
+    },
+    {
+      "upstream": "tools/clientcmd/loader.go:136",
+      "symbol": "WarningHandler",
+      "native_module": "tools/clientcmd",
+      "native": "WarningHandler"
+    },
+    {
+      "upstream": "tools/clientcmd/loader.go:138",
+      "symbol": "WarningHandler.Warn",
+      "native_module": "tools/clientcmd",
+      "native": "value.warn"
+    },
+    {
+      "upstream": "tools/clientcmd/loader.go:147",
+      "symbol": "MissingConfigError",
+      "native_module": "tools/clientcmd",
+      "native": "MissingConfigError"
+    },
+    {
+      "upstream": "tools/clientcmd/loader.go:151",
+      "symbol": "MissingConfigError.Error",
+      "native_module": "tools/clientcmd",
+      "native": "missingConfigError then deps/support.errorMessage"
+    },
+    {
+      "upstream": "tools/clientcmd/loader.go:160",
+      "symbol": "NewDefaultClientConfigLoadingRules",
+      "native_module": "tools/clientcmd",
+      "native": "newDefaultClientConfigLoadingRules"
+    },
+    {
+      "upstream": "tools/clientcmd/loader.go:197",
+      "symbol": "ClientConfigLoadingRules.Load",
+      "native_module": "tools/clientcmd",
+      "native": "loadRules"
+    },
+    {
+      "upstream": "tools/clientcmd/loader.go:286",
+      "symbol": "ClientConfigLoadingRules.Migrate",
+      "native_module": "tools/clientcmd",
+      "native": "migrate"
+    },
+    {
+      "upstream": "tools/clientcmd/loader.go:331",
+      "symbol": "ClientConfigLoadingRules.GetLoadingPrecedence",
+      "native_module": "tools/clientcmd",
+      "native": "getLoadingPrecedence"
+    },
+    {
+      "upstream": "tools/clientcmd/loader.go:343",
+      "symbol": "ClientConfigLoadingRules.GetStartingConfig",
+      "native_module": "tools/clientcmd",
+      "native": "getStartingConfig"
+    },
+    {
+      "upstream": "tools/clientcmd/loader.go:357",
+      "symbol": "ClientConfigLoadingRules.GetDefaultFilename",
+      "native_module": "tools/clientcmd",
+      "native": "getDefaultFilename"
+    },
+    {
+      "upstream": "tools/clientcmd/loader.go:376",
+      "symbol": "ClientConfigLoadingRules.IsExplicitFile",
+      "native_module": "tools/clientcmd",
+      "native": "isExplicitFile"
+    },
+    {
+      "upstream": "tools/clientcmd/loader.go:381",
+      "symbol": "ClientConfigLoadingRules.GetExplicitFile",
+      "native_module": "tools/clientcmd",
+      "native": "getExplicitFile"
+    },
+    {
+      "upstream": "tools/clientcmd/loader.go:386",
+      "symbol": "ClientConfigLoadingRules.IsDefaultConfig",
+      "native_module": "tools/clientcmd",
+      "native": "isDefaultConfig"
+    },
+    {
+      "upstream": "tools/clientcmd/loader.go:398",
+      "symbol": "LoadFromFile",
+      "native_module": "tools/clientcmd",
+      "native": "loadFromFile"
+    },
+    {
+      "upstream": "tools/clientcmd/loader.go:439",
+      "symbol": "Load",
+      "native_module": "tools/clientcmd",
+      "native": "load"
+    },
+    {
+      "upstream": "tools/clientcmd/loader.go:454",
+      "symbol": "WriteToFile",
+      "native_module": "tools/clientcmd",
+      "native": "writeToFile"
+    },
+    {
+      "upstream": "tools/clientcmd/loader.go:501",
+      "symbol": "Write",
+      "native_module": "tools/clientcmd",
+      "native": "write"
+    },
+    {
+      "upstream": "tools/clientcmd/loader.go:505",
+      "symbol": "ClientConfigLoadingRules.ResolvePaths",
+      "native_module": "tools/clientcmd",
+      "native": "resolvePathsEnabled"
+    },
+    {
+      "upstream": "tools/clientcmd/loader.go:512",
+      "symbol": "ResolveLocalPaths",
+      "native_module": "tools/clientcmd",
+      "native": "resolveLocalPaths"
+    },
+    {
+      "upstream": "tools/clientcmd/loader.go:545",
+      "symbol": "RelativizeClusterLocalPaths",
+      "native_module": "tools/clientcmd",
+      "native": "relativizeClusterLocalPaths"
+    },
+    {
+      "upstream": "tools/clientcmd/loader.go:566",
+      "symbol": "RelativizeAuthInfoLocalPaths",
+      "native_module": "tools/clientcmd",
+      "native": "relativizeAuthInfoLocalPaths"
+    },
+    {
+      "upstream": "tools/clientcmd/loader.go:585",
+      "symbol": "RelativizeConfigPaths",
+      "native_module": "tools/clientcmd",
+      "native": "relativizeConfigPaths"
+    },
+    {
+      "upstream": "tools/clientcmd/loader.go:589",
+      "symbol": "ResolveConfigPaths",
+      "native_module": "tools/clientcmd",
+      "native": "resolveConfigPaths"
+    },
+    {
+      "upstream": "tools/clientcmd/loader.go:593",
+      "symbol": "GetConfigFileReferences",
+      "native_module": "tools/clientcmd",
+      "native": "getConfigFileReferences"
+    },
+    {
+      "upstream": "tools/clientcmd/loader.go:606",
+      "symbol": "GetClusterFileReferences",
+      "native_module": "tools/clientcmd",
+      "native": "getClusterFileReferences"
+    },
+    {
+      "upstream": "tools/clientcmd/loader.go:610",
+      "symbol": "GetAuthInfoFileReferences",
+      "native_module": "tools/clientcmd",
+      "native": "getAuthInfoFileReferences"
+    },
+    {
+      "upstream": "tools/clientcmd/loader.go:620",
+      "symbol": "ResolvePaths",
+      "native_module": "tools/clientcmd",
+      "native": "resolvePaths"
+    },
+    {
+      "upstream": "tools/clientcmd/loader.go:635",
+      "symbol": "RelativizePathWithNoBacksteps",
+      "native_module": "tools/clientcmd",
+      "native": "relativizePathWithNoBacksteps"
+    },
+    {
+      "upstream": "tools/clientcmd/loader.go:659",
+      "symbol": "MakeRelative",
+      "native_module": "tools/clientcmd",
+      "native": "makeRelative"
+    },
+    {
+      "upstream": "tools/clientcmd/merged_client_builder.go:34",
+      "symbol": "DeferredLoadingClientConfig",
+      "native_module": "tools/clientcmd",
+      "native": "DeferredLoadingClientConfig"
+    },
+    {
+      "upstream": "tools/clientcmd/merged_client_builder.go:47",
+      "symbol": "InClusterConfig",
+      "native_module": "tools/clientcmd",
+      "native": "InClusterConfig"
+    },
+    {
+      "upstream": "tools/clientcmd/merged_client_builder.go:53",
+      "symbol": "NewNonInteractiveDeferredLoadingClientConfig",
+      "native_module": "tools/clientcmd",
+      "native": "newNonInteractiveDeferredLoadingClientConfig"
+    },
+    {
+      "upstream": "tools/clientcmd/merged_client_builder.go:58",
+      "symbol": "NewInteractiveDeferredLoadingClientConfig",
+      "native_module": "tools/clientcmd",
+      "native": "newInteractiveDeferredLoadingClientConfig"
+    },
+    {
+      "upstream": "tools/clientcmd/merged_client_builder.go:86",
+      "symbol": "DeferredLoadingClientConfig.RawConfig",
+      "native_module": "tools/clientcmd",
+      "native": "deferredRawConfig"
+    },
+    {
+      "upstream": "tools/clientcmd/merged_client_builder.go:96",
+      "symbol": "DeferredLoadingClientConfig.ClientConfig",
+      "native_module": "tools/clientcmd",
+      "native": "deferredClientConfig"
+    },
+    {
+      "upstream": "tools/clientcmd/merged_client_builder.go:131",
+      "symbol": "DeferredLoadingClientConfig.Namespace",
+      "native_module": "tools/clientcmd",
+      "native": "deferredNamespace"
+    },
+    {
+      "upstream": "tools/clientcmd/merged_client_builder.go:172",
+      "symbol": "DeferredLoadingClientConfig.ConfigAccess",
+      "native_module": "tools/clientcmd",
+      "native": "deferredAsClientConfig(value).configAccess"
+    },
+    {
+      "upstream": "tools/clientcmd/overrides.go:30",
+      "symbol": "ConfigOverrides",
+      "native_module": "tools/clientcmd",
+      "native": "ConfigOverrides"
+    },
+    {
+      "upstream": "tools/clientcmd/overrides.go:42",
+      "symbol": "ConfigOverrideFlags",
+      "native_module": "tools/clientcmd",
+      "native": "ConfigOverrideFlags"
+    },
+    {
+      "upstream": "tools/clientcmd/overrides.go:51",
+      "symbol": "AuthOverrideFlags",
+      "native_module": "tools/clientcmd",
+      "native": "AuthOverrideFlags"
+    },
+    {
+      "upstream": "tools/clientcmd/overrides.go:63",
+      "symbol": "ContextOverrideFlags",
+      "native_module": "tools/clientcmd",
+      "native": "ContextOverrideFlags"
+    },
+    {
+      "upstream": "tools/clientcmd/overrides.go:70",
+      "symbol": "ClusterOverrideFlags",
+      "native_module": "tools/clientcmd",
+      "native": "ClusterOverrideFlags"
+    },
+    {
+      "upstream": "tools/clientcmd/overrides.go:83",
+      "symbol": "FlagInfo",
+      "native_module": "tools/clientcmd",
+      "native": "FlagInfo"
+    },
+    {
+      "upstream": "tools/clientcmd/overrides.go:95",
+      "symbol": "FlagInfo.AddSecretAnnotation",
+      "native_module": "tools/clientcmd",
+      "native": "addSecretAnnotation"
+    },
+    {
+      "upstream": "tools/clientcmd/overrides.go:101",
+      "symbol": "FlagInfo.BindStringFlag",
+      "native_module": "tools/clientcmd",
+      "native": "bindStringFlag"
+    },
+    {
+      "upstream": "tools/clientcmd/overrides.go:110",
+      "symbol": "FlagInfo.BindTransformingStringFlag",
+      "native_module": "tools/clientcmd",
+      "native": "bindTransformingStringFlag"
+    },
+    {
+      "upstream": "tools/clientcmd/overrides.go:119",
+      "symbol": "FlagInfo.BindStringArrayFlag",
+      "native_module": "tools/clientcmd",
+      "native": "bindStringArrayFlag"
+    },
+    {
+      "upstream": "tools/clientcmd/overrides.go:132",
+      "symbol": "FlagInfo.BindBoolFlag",
+      "native_module": "tools/clientcmd",
+      "native": "bindBoolFlag"
+    },
+    {
+      "upstream": "tools/clientcmd/overrides.go:147",
+      "symbol": "FlagClusterName",
+      "native_module": "tools/clientcmd",
+      "native": "flagClusterName"
+    },
+    {
+      "upstream": "tools/clientcmd/overrides.go:148",
+      "symbol": "FlagAuthInfoName",
+      "native_module": "tools/clientcmd",
+      "native": "flagAuthInfoName"
+    },
+    {
+      "upstream": "tools/clientcmd/overrides.go:149",
+      "symbol": "FlagContext",
+      "native_module": "tools/clientcmd",
+      "native": "flagContext"
+    },
+    {
+      "upstream": "tools/clientcmd/overrides.go:150",
+      "symbol": "FlagNamespace",
+      "native_module": "tools/clientcmd",
+      "native": "flagNamespace"
+    },
+    {
+      "upstream": "tools/clientcmd/overrides.go:151",
+      "symbol": "FlagAPIServer",
+      "native_module": "tools/clientcmd",
+      "native": "flagAPIServer"
+    },
+    {
+      "upstream": "tools/clientcmd/overrides.go:152",
+      "symbol": "FlagTLSServerName",
+      "native_module": "tools/clientcmd",
+      "native": "flagTLSServerName"
+    },
+    {
+      "upstream": "tools/clientcmd/overrides.go:153",
+      "symbol": "FlagInsecure",
+      "native_module": "tools/clientcmd",
+      "native": "flagInsecure"
+    },
+    {
+      "upstream": "tools/clientcmd/overrides.go:154",
+      "symbol": "FlagCertFile",
+      "native_module": "tools/clientcmd",
+      "native": "flagCertFile"
+    },
+    {
+      "upstream": "tools/clientcmd/overrides.go:155",
+      "symbol": "FlagKeyFile",
+      "native_module": "tools/clientcmd",
+      "native": "flagKeyFile"
+    },
+    {
+      "upstream": "tools/clientcmd/overrides.go:156",
+      "symbol": "FlagCAFile",
+      "native_module": "tools/clientcmd",
+      "native": "flagCAFile"
+    },
+    {
+      "upstream": "tools/clientcmd/overrides.go:157",
+      "symbol": "FlagEmbedCerts",
+      "native_module": "tools/clientcmd",
+      "native": "flagEmbedCerts"
+    },
+    {
+      "upstream": "tools/clientcmd/overrides.go:158",
+      "symbol": "FlagBearerToken",
+      "native_module": "tools/clientcmd",
+      "native": "flagBearerToken"
+    },
+    {
+      "upstream": "tools/clientcmd/overrides.go:159",
+      "symbol": "FlagImpersonate",
+      "native_module": "tools/clientcmd",
+      "native": "flagImpersonate"
+    },
+    {
+      "upstream": "tools/clientcmd/overrides.go:160",
+      "symbol": "FlagImpersonateUID",
+      "native_module": "tools/clientcmd",
+      "native": "flagImpersonateUID"
+    },
+    {
+      "upstream": "tools/clientcmd/overrides.go:161",
+      "symbol": "FlagImpersonateGroup",
+      "native_module": "tools/clientcmd",
+      "native": "flagImpersonateGroup"
+    },
+    {
+      "upstream": "tools/clientcmd/overrides.go:162",
+      "symbol": "FlagUsername",
+      "native_module": "tools/clientcmd",
+      "native": "flagUsername"
+    },
+    {
+      "upstream": "tools/clientcmd/overrides.go:163",
+      "symbol": "FlagPassword",
+      "native_module": "tools/clientcmd",
+      "native": "flagPassword"
+    },
+    {
+      "upstream": "tools/clientcmd/overrides.go:164",
+      "symbol": "FlagTimeout",
+      "native_module": "tools/clientcmd",
+      "native": "flagTimeout"
+    },
+    {
+      "upstream": "tools/clientcmd/overrides.go:165",
+      "symbol": "FlagProxyURL",
+      "native_module": "tools/clientcmd",
+      "native": "flagProxyURL"
+    },
+    {
+      "upstream": "tools/clientcmd/overrides.go:166",
+      "symbol": "FlagDisableCompression",
+      "native_module": "tools/clientcmd",
+      "native": "flagDisableCompression"
+    },
+    {
+      "upstream": "tools/clientcmd/overrides.go:170",
+      "symbol": "RecommendedConfigOverrideFlags",
+      "native_module": "tools/clientcmd",
+      "native": "recommendedConfigOverrideFlags"
+    },
+    {
+      "upstream": "tools/clientcmd/overrides.go:182",
+      "symbol": "RecommendedAuthOverrideFlags",
+      "native_module": "tools/clientcmd",
+      "native": "recommendedAuthOverrideFlags"
+    },
+    {
+      "upstream": "tools/clientcmd/overrides.go:196",
+      "symbol": "RecommendedClusterOverrideFlags",
+      "native_module": "tools/clientcmd",
+      "native": "recommendedClusterOverrideFlags"
+    },
+    {
+      "upstream": "tools/clientcmd/overrides.go:208",
+      "symbol": "RecommendedContextOverrideFlags",
+      "native_module": "tools/clientcmd",
+      "native": "recommendedContextOverrideFlags"
+    },
+    {
+      "upstream": "tools/clientcmd/overrides.go:217",
+      "symbol": "BindOverrideFlags",
+      "native_module": "tools/clientcmd",
+      "native": "bindOverrideFlags"
+    },
+    {
+      "upstream": "tools/clientcmd/overrides.go:226",
+      "symbol": "BindAuthInfoFlags",
+      "native_module": "tools/clientcmd",
+      "native": "bindAuthInfoFlags"
+    },
+    {
+      "upstream": "tools/clientcmd/overrides.go:238",
+      "symbol": "BindClusterFlags",
+      "native_module": "tools/clientcmd",
+      "native": "bindClusterFlags"
+    },
+    {
+      "upstream": "tools/clientcmd/overrides.go:248",
+      "symbol": "BindContextFlags",
+      "native_module": "tools/clientcmd",
+      "native": "bindContextFlags"
+    },
+    {
+      "upstream": "tools/clientcmd/overrides.go:255",
+      "symbol": "RemoveNamespacesPrefix",
+      "native_module": "tools/clientcmd",
+      "native": "removeNamespacesPrefix"
+    },
+    {
+      "upstream": "tools/clientcmd/validation.go:33",
+      "symbol": "ErrNoContext",
+      "native_module": "tools/clientcmd",
+      "native": "errNoContext"
+    },
+    {
+      "upstream": "tools/clientcmd/validation.go:34",
+      "symbol": "ErrEmptyConfig",
+      "native_module": "tools/clientcmd",
+      "native": "errEmptyConfig"
+    },
+    {
+      "upstream": "tools/clientcmd/validation.go:36",
+      "symbol": "ErrEmptyCluster",
+      "native_module": "tools/clientcmd",
+      "native": "errEmptyCluster"
+    },
+    {
+      "upstream": "tools/clientcmd/validation.go:40",
+      "symbol": "NewEmptyConfigError",
+      "native_module": "tools/clientcmd",
+      "native": "newEmptyConfigError"
+    },
+    {
+      "upstream": "tools/clientcmd/validation.go:48",
+      "symbol": "errEmptyConfig.Error",
+      "native_module": "tools/clientcmd",
+      "native": "deps/support.errorMessage"
+    },
+    {
+      "upstream": "tools/clientcmd/validation.go:56",
+      "symbol": "errContextNotFound.Error",
+      "native_module": "tools/clientcmd",
+      "native": "deps/support.errorMessage"
+    },
+    {
+      "upstream": "tools/clientcmd/validation.go:62",
+      "symbol": "IsContextNotFound",
+      "native_module": "tools/clientcmd",
+      "native": "isContextNotFound"
+    },
+    {
+      "upstream": "tools/clientcmd/validation.go:74",
+      "symbol": "IsEmptyConfig",
+      "native_module": "tools/clientcmd",
+      "native": "isEmptyConfig"
+    },
+    {
+      "upstream": "tools/clientcmd/validation.go:104",
+      "symbol": "errConfigurationInvalid.Error",
+      "native_module": "tools/clientcmd",
+      "native": "deps/support.errorMessage"
+    },
+    {
+      "upstream": "tools/clientcmd/validation.go:109",
+      "symbol": "errConfigurationInvalid.Errors",
+      "native_module": "tools/clientcmd",
+      "native": "configurationErrors"
+    },
+    {
+      "upstream": "tools/clientcmd/validation.go:114",
+      "symbol": "errConfigurationInvalid.Is",
+      "native_module": "tools/clientcmd",
+      "native": "deps/support.errorIs"
+    },
+    {
+      "upstream": "tools/clientcmd/validation.go:144",
+      "symbol": "IsConfigurationInvalid",
+      "native_module": "tools/clientcmd",
+      "native": "isConfigurationInvalid"
+    },
+    {
+      "upstream": "tools/clientcmd/validation.go:153",
+      "symbol": "Validate",
+      "native_module": "tools/clientcmd",
+      "native": "validate"
+    },
+    {
+      "upstream": "tools/clientcmd/validation.go:183",
+      "symbol": "ConfirmUsable",
+      "native_module": "tools/clientcmd",
+      "native": "confirmUsable"
+    }
+  ],
+  "reviewed_test_sources": [
+    {
+      "upstream": "tools/auth/clientauth_test.go",
+      "focused_regression": "tools/clientcmd/regression/main.gfx",
+      "note": "Named assignment regressions; not a claim that every upstream test case was replayed."
+    },
+    {
+      "upstream": "tools/auth/exec/exec_test.go",
+      "focused_regression": "tools/clientcmd/regression/main.gfx",
+      "note": "Named assignment regressions; not a claim that every upstream test case was replayed."
+    },
+    {
+      "upstream": "tools/auth/exec/types_test.go",
+      "focused_regression": "tools/clientcmd/regression/main.gfx",
+      "note": "Named assignment regressions; not a claim that every upstream test case was replayed."
+    },
+    {
+      "upstream": "tools/clientcmd/api/helpers_test.go",
+      "focused_regression": "tools/clientcmd/regression/main.gfx",
+      "note": "Named assignment regressions; not a claim that every upstream test case was replayed."
+    },
+    {
+      "upstream": "tools/clientcmd/api/types_test.go",
+      "focused_regression": "tools/clientcmd/regression/main.gfx",
+      "note": "Named assignment regressions; not a claim that every upstream test case was replayed."
+    },
+    {
+      "upstream": "tools/clientcmd/api/v1/defaults_test.go",
+      "focused_regression": "tools/clientcmd/regression/main.gfx",
+      "note": "Named assignment regressions; not a claim that every upstream test case was replayed."
+    },
+    {
+      "upstream": "tools/clientcmd/client_config_test.go",
+      "focused_regression": "tools/clientcmd/regression/main.gfx",
+      "note": "Named assignment regressions; not a claim that every upstream test case was replayed."
+    },
+    {
+      "upstream": "tools/clientcmd/config_test.go",
+      "focused_regression": "tools/clientcmd/regression/main.gfx",
+      "note": "Named assignment regressions; not a claim that every upstream test case was replayed."
+    },
+    {
+      "upstream": "tools/clientcmd/loader_test.go",
+      "focused_regression": "tools/clientcmd/regression/main.gfx",
+      "note": "Named assignment regressions; not a claim that every upstream test case was replayed."
+    },
+    {
+      "upstream": "tools/clientcmd/main_test.go",
+      "focused_regression": "tools/clientcmd/regression/main.gfx",
+      "note": "Named assignment regressions; not a claim that every upstream test case was replayed."
+    },
+    {
+      "upstream": "tools/clientcmd/merged_client_builder_test.go",
+      "focused_regression": "tools/clientcmd/regression/main.gfx",
+      "note": "Named assignment regressions; not a claim that every upstream test case was replayed."
+    },
+    {
+      "upstream": "tools/clientcmd/overrides_test.go",
+      "focused_regression": "tools/clientcmd/regression/main.gfx",
+      "note": "Named assignment regressions; not a claim that every upstream test case was replayed."
+    },
+    {
+      "upstream": "tools/clientcmd/validation_test.go",
+      "focused_regression": "tools/clientcmd/regression/main.gfx",
+      "note": "Named assignment regressions; not a claim that every upstream test case was replayed."
+    }
+  ]
+}

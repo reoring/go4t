@@ -1,0 +1,54 @@
+// Copyright 2018 The Kubernetes Authors. Licensed under Apache-2.0.
+package clientauthentication
+import meta "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import runtime "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime"
+import schema "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime/schema"
+import objects "github.com/reoring/gofx/ports/client-go/deps/objects"
+
+type ExecCredential = ExecCredential { typeMeta: meta.TypeMeta, spec: ExecCredentialSpec, status: Option[ExecCredentialStatus] }
+type ExecCredentialSpec = ExecCredentialSpec { interactive: Bool, cluster: Option[Cluster] }
+type ExecCredentialStatus = ExecCredentialStatus { expirationTimestamp: Option[meta.Time], token: String, clientCertificateData: String, clientKeyData: String }
+type Cluster = Cluster { server: String, tlsServerName: String, insecureSkipTLSVerify: Bool, certificateAuthorityData: Option[String], proxyURL: String, disableCompression: Bool, config: Option[runtime.Object] }
+// Versioned records share their immutable shape; their enclosing API version remains explicit.
+type WireCluster = WireCluster { server: String, tlsServerName: String, insecureSkipTLSVerify: Bool, certificateAuthorityData: Option[String], proxyURL: String, disableCompression: Bool, config: runtime.RawExtension }
+type WireSpec = WireSpec { interactive: Bool, cluster: Option[WireCluster] }
+type WireCredential = WireCredential { typeMeta: meta.TypeMeta, spec: WireSpec, status: Option[ExecCredentialStatus] }
+func groupName() String { "client.authentication.k8s.io" }
+func internalVersion() String { "__internal" }
+func groupVersion(version String) schema.GroupVersion { schema.groupVersionWithVersion(schema.groupVersionWithGroup(schema.newGroupVersion(), groupName()), version) }
+func schemeGroupVersion() schema.GroupVersion { groupVersion(internalVersion()) }
+func kind(name String) schema.GroupKind { schema.groupKindWithKind(schema.groupKindWithGroup(schema.newGroupKind(), groupName()), name) }
+func resource(name String) schema.GroupResource { schema.groupResourceWithResource(schema.groupResourceWithGroup(schema.newGroupResource(), groupName()), name) }
+func newCluster() Cluster { Cluster("", "", false, None, "", false, None) }
+func newExecCredentialSpec() ExecCredentialSpec { ExecCredentialSpec(false, None) }
+func newExecCredentialStatus() ExecCredentialStatus { ExecCredentialStatus(None, "", "", "") }
+func newExecCredential() ExecCredential { ExecCredential(meta.newTypeMeta(), newExecCredentialSpec(), None) }
+func newWireCluster() WireCluster { WireCluster("", "", false, None, "", false, runtime.newRawExtension()) }
+func newWireCredential() WireCredential { WireCredential(meta.newTypeMeta(), WireSpec(false, None), None) }
+extern func copyTime(value meta.Time) meta.Time = "github.com/reoring/gofx/ports/client-go/pkg/apis/clientauthentication/host".CopyTime
+extern func copyTypeMeta(value meta.TypeMeta) meta.TypeMeta = "github.com/reoring/gofx/ports/client-go/pkg/apis/clientauthentication/host".CopyTypeMeta
+func deepCopyCluster(value Cluster) IO[Cluster] { do { config <- match value.config { None => ioPure(None); Some(object) => objects.objectDeepCopy(object) }; ioPure(value{config: config}) } }
+func deepCopyWireCluster(value WireCluster) IO[WireCluster] { do { config <- objects.rawExtensionDeepCopy(value.config); ioPure(value{config: config}) } }
+func deepCopyExecCredentialStatus(value ExecCredentialStatus) ExecCredentialStatus { value{expirationTimestamp: match value.expirationTimestamp { None => None; Some(t) => Some(copyTime(t)) }} }
+func deepCopyExecCredentialSpec(value ExecCredentialSpec) IO[ExecCredentialSpec] { do {
+ cluster <- match value.cluster { None => ioPure(None); Some(c) => do { copied <- deepCopyCluster(c); ioPure(Some(copied)) } }
+ ioPure(value{cluster: cluster})
+} }
+func deepCopyExecCredential(value ExecCredential) IO[ExecCredential] { do {
+ spec <- deepCopyExecCredentialSpec(value.spec)
+ ioPure(value{typeMeta: copyTypeMeta(value.typeMeta), spec: spec, status: match value.status { None => None; Some(s) => Some(deepCopyExecCredentialStatus(s)) }})
+} }
+func deepCopyObject(value ExecCredential) IO[ExecCredential] { deepCopyExecCredential(value) }
+func deepCopyWireSpec(value WireSpec) IO[WireSpec] { do {
+ cluster <- match value.cluster { None => ioPure(None); Some(c) => do { copied <- deepCopyWireCluster(c); ioPure(Some(copied)) } }
+ ioPure(value{cluster: cluster})
+} }
+func deepCopyWireCredential(value WireCredential) IO[WireCredential] { do {
+ spec <- deepCopyWireSpec(value.spec)
+ ioPure(value{typeMeta: copyTypeMeta(value.typeMeta), spec: spec, status: match value.status { None => None; Some(s) => Some(deepCopyExecCredentialStatus(s)) }})
+} }
+// DeepCopyInto is immutable: the returned value replaces the caller's destination.
+func deepCopyClusterInto(value Cluster, destination Cluster) IO[Cluster] { deepCopyCluster(value) }
+func deepCopyExecCredentialInto(value ExecCredential, destination ExecCredential) IO[ExecCredential] { deepCopyExecCredential(value) }
+func deepCopyExecCredentialSpecInto(value ExecCredentialSpec, destination ExecCredentialSpec) IO[ExecCredentialSpec] { deepCopyExecCredentialSpec(value) }
+func deepCopyExecCredentialStatusInto(value ExecCredentialStatus, destination ExecCredentialStatus) ExecCredentialStatus { deepCopyExecCredentialStatus(value) }

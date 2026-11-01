@@ -2,61 +2,64 @@
 // Source: client-go v0.37.2 and exact external dependency declarations.
 // Kubernetes-derived declarations are licensed under Apache-2.0.
 // https://www.apache.org/licenses/LICENSE-2.0
-// Source graph SHA-256: 2e4efd1c862cc7bde1036ba0dc37a4fe08175d4ead5d513b32689e674b91d866
+// Source graph SHA-256: 99a062162cbc99a38896123a3e81ce3ef2f70f2e505fbd058751d52a0a40f167
 package v1
 
 import canonical "github.com/reoring/gofx/ports/client-go/deps/types"
 import support "github.com/reoring/gofx/ports/client-go/deps/support"
 
 alias PriorityClass = canonical.PriorityClass_b2c1697075e0
-extern func newPriorityClass() PriorityClass = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".New_PriorityClass_b2c1697075e0
-extern func priorityClassGetTypeMeta(value PriorityClass) canonical.TypeMeta_75fb8294fb08 = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Get_PriorityClass_b2c1697075e0_TypeMeta
-extern func priorityClassWithTypeMeta(value PriorityClass, field canonical.TypeMeta_75fb8294fb08) PriorityClass = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".With_PriorityClass_b2c1697075e0_TypeMeta
-extern func priorityClassGetObjectMeta(value PriorityClass) canonical.ObjectMeta_b32a8e04e29a = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Get_PriorityClass_b2c1697075e0_ObjectMeta
-extern func priorityClassWithObjectMeta(value PriorityClass, field canonical.ObjectMeta_b32a8e04e29a) PriorityClass = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".With_PriorityClass_b2c1697075e0_ObjectMeta
-extern func priorityClassGetValue(value PriorityClass) Int = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Get_PriorityClass_b2c1697075e0_Value
-extern func priorityClassWithValue(value PriorityClass, field Int) PriorityClass = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".With_PriorityClass_b2c1697075e0_Value
-extern func priorityClassGetGlobalDefault(value PriorityClass) Bool = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Get_PriorityClass_b2c1697075e0_GlobalDefault
-extern func priorityClassWithGlobalDefault(value PriorityClass, field Bool) PriorityClass = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".With_PriorityClass_b2c1697075e0_GlobalDefault
-extern func priorityClassGetDescription(value PriorityClass) String = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Get_PriorityClass_b2c1697075e0_Description
-extern func priorityClassWithDescription(value PriorityClass, field String) PriorityClass = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".With_PriorityClass_b2c1697075e0_Description
-extern func priorityClassGetPreemptionPolicy(value PriorityClass) Option[canonical.PreemptionPolicy_3dc7174e4800] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Get_PriorityClass_b2c1697075e0_PreemptionPolicy
-extern func priorityClassWithPreemptionPolicy(value PriorityClass, field Option[canonical.PreemptionPolicy_3dc7174e4800]) PriorityClass = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".With_PriorityClass_b2c1697075e0_PreemptionPolicy
+extern func newPriorityClass() PriorityClass = "github.com/reoring/gofx/ports/client-go/host/deps".New_PriorityClass_b2c1697075e0
+extern func priorityClassGetTypeMeta(value PriorityClass) canonical.TypeMeta_75fb8294fb08 = "github.com/reoring/gofx/ports/client-go/host/deps".Get_PriorityClass_b2c1697075e0_TypeMeta
+extern func priorityClassWithTypeMeta(value PriorityClass, field canonical.TypeMeta_75fb8294fb08) PriorityClass = "github.com/reoring/gofx/ports/client-go/host/deps".With_PriorityClass_b2c1697075e0_TypeMeta
+extern func priorityClassGetObjectMeta(value PriorityClass) canonical.ObjectMeta_b32a8e04e29a = "github.com/reoring/gofx/ports/client-go/host/deps".Get_PriorityClass_b2c1697075e0_ObjectMeta
+extern func priorityClassWithObjectMeta(value PriorityClass, field canonical.ObjectMeta_b32a8e04e29a) PriorityClass = "github.com/reoring/gofx/ports/client-go/host/deps".With_PriorityClass_b2c1697075e0_ObjectMeta
+extern func priorityClassGetValue(value PriorityClass) Int = "github.com/reoring/gofx/ports/client-go/host/deps".Get_PriorityClass_b2c1697075e0_Value
+extern func priorityClassWithValue(value PriorityClass, field Int) PriorityClass = "github.com/reoring/gofx/ports/client-go/host/deps".With_PriorityClass_b2c1697075e0_Value
+extern func priorityClassGetGlobalDefault(value PriorityClass) Bool = "github.com/reoring/gofx/ports/client-go/host/deps".Get_PriorityClass_b2c1697075e0_GlobalDefault
+extern func priorityClassWithGlobalDefault(value PriorityClass, field Bool) PriorityClass = "github.com/reoring/gofx/ports/client-go/host/deps".With_PriorityClass_b2c1697075e0_GlobalDefault
+extern func priorityClassGetDescription(value PriorityClass) String = "github.com/reoring/gofx/ports/client-go/host/deps".Get_PriorityClass_b2c1697075e0_Description
+extern func priorityClassWithDescription(value PriorityClass, field String) PriorityClass = "github.com/reoring/gofx/ports/client-go/host/deps".With_PriorityClass_b2c1697075e0_Description
+extern func priorityClassGetPreemptionPolicy(value PriorityClass) Option[canonical.PreemptionPolicy_3dc7174e4800] = "github.com/reoring/gofx/ports/client-go/host/deps".Get_PriorityClass_b2c1697075e0_PreemptionPolicy
+extern func priorityClassWithPreemptionPolicy(value PriorityClass, field Option[canonical.PreemptionPolicy_3dc7174e4800]) PriorityClass = "github.com/reoring/gofx/ports/client-go/host/deps".With_PriorityClass_b2c1697075e0_PreemptionPolicy
 alias PriorityClassList = canonical.PriorityClassList_ef3e81883217
-extern func newPriorityClassList() PriorityClassList = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".New_PriorityClassList_ef3e81883217
-extern func priorityClassListGetTypeMeta(value PriorityClassList) canonical.TypeMeta_75fb8294fb08 = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Get_PriorityClassList_ef3e81883217_TypeMeta
-extern func priorityClassListWithTypeMeta(value PriorityClassList, field canonical.TypeMeta_75fb8294fb08) PriorityClassList = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".With_PriorityClassList_ef3e81883217_TypeMeta
-extern func priorityClassListGetListMeta(value PriorityClassList) canonical.ListMeta_769793730dfe = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Get_PriorityClassList_ef3e81883217_ListMeta
-extern func priorityClassListWithListMeta(value PriorityClassList, field canonical.ListMeta_769793730dfe) PriorityClassList = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".With_PriorityClassList_ef3e81883217_ListMeta
-extern func priorityClassListGetItems(value PriorityClassList) Option[List[canonical.PriorityClass_b2c1697075e0]] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Get_PriorityClassList_ef3e81883217_Items
-extern func priorityClassListWithItems(value PriorityClassList, field Option[List[canonical.PriorityClass_b2c1697075e0]]) PriorityClassList = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".With_PriorityClassList_ef3e81883217_Items
-extern func priorityClassCallAPILifecycleIntroduced(value PriorityClass) IO[(PriorityClass, (Int, Int))] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_802086734a02c539
-extern func priorityClassCallDeepCopy(value PriorityClass) IO[(PriorityClass, Option[canonical.PriorityClass_b2c1697075e0])] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_b3f9032b9ee8ac65
-extern func priorityClassCallDeepCopyInto(value PriorityClass, p0 Option[canonical.PriorityClass_b2c1697075e0]) IO[(PriorityClass, (Option[canonical.PriorityClass_b2c1697075e0], Unit))] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_dcf9977c5041b5f2
-extern func priorityClassCallDeepCopyObject(value PriorityClass) IO[(PriorityClass, Option[canonical.Object_afe2f0b1d210])] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_89b3723d411d2373
-extern func priorityClassCallMarshal(value PriorityClass) IO[(PriorityClass, (Option[String], Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_6dcd75551518dfca
-extern func priorityClassCallMarshalTo(value PriorityClass, p0 Option[String]) IO[(PriorityClass, (Option[String], (Int, Option[support.Error])))] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_2a7763a4141d6fcc
-extern func priorityClassCallMarshalToSizedBuffer(value PriorityClass, p0 Option[String]) IO[(PriorityClass, (Option[String], (Int, Option[support.Error])))] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_00791ec09357d63e
-extern func priorityClassCallOpenAPIModelName(value PriorityClass) IO[(PriorityClass, String)] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_7b7a428d32fa6a87
-extern func priorityClassCallReset(value PriorityClass) IO[(PriorityClass, Unit)] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_499a0c0e06bee4fd
-extern func priorityClassCallSize(value PriorityClass) IO[(PriorityClass, Int)] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_5de4ae060ef713f3
-extern func priorityClassCallString(value PriorityClass) IO[(PriorityClass, String)] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_220c26371dc76dd6
-extern func priorityClassCallSwaggerDoc(value PriorityClass) IO[(PriorityClass, support.ForeignMap[String, String])] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_729c8cbb71ccc9ee
-extern func priorityClassCallUnmarshal(value PriorityClass, p0 Option[String]) IO[(PriorityClass, (Option[String], Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_3f3c79a5828b5488
-extern func priorityClassListCallAPILifecycleIntroduced(value PriorityClassList) IO[(PriorityClassList, (Int, Int))] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_446db3652f97efc6
-extern func priorityClassListCallDeepCopy(value PriorityClassList) IO[(PriorityClassList, Option[canonical.PriorityClassList_ef3e81883217])] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_184113d959b10754
-extern func priorityClassListCallDeepCopyInto(value PriorityClassList, p0 Option[canonical.PriorityClassList_ef3e81883217]) IO[(PriorityClassList, (Option[canonical.PriorityClassList_ef3e81883217], Unit))] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_20363bc11877191e
-extern func priorityClassListCallDeepCopyObject(value PriorityClassList) IO[(PriorityClassList, Option[canonical.Object_afe2f0b1d210])] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_d9042095c7b3eb65
-extern func priorityClassListCallMarshal(value PriorityClassList) IO[(PriorityClassList, (Option[String], Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_4c14ff8f64df5697
-extern func priorityClassListCallMarshalTo(value PriorityClassList, p0 Option[String]) IO[(PriorityClassList, (Option[String], (Int, Option[support.Error])))] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_e296cd538bec28e8
-extern func priorityClassListCallMarshalToSizedBuffer(value PriorityClassList, p0 Option[String]) IO[(PriorityClassList, (Option[String], (Int, Option[support.Error])))] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_0e28923fbdfef3bc
-extern func priorityClassListCallOpenAPIModelName(value PriorityClassList) IO[(PriorityClassList, String)] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_40ddaef366dc9d3e
-extern func priorityClassListCallReset(value PriorityClassList) IO[(PriorityClassList, Unit)] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_5284c115521f5a80
-extern func priorityClassListCallSize(value PriorityClassList) IO[(PriorityClassList, Int)] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_8b9214f0b07b3a16
-extern func priorityClassListCallString(value PriorityClassList) IO[(PriorityClassList, String)] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_4bda1aa5f784ce92
-extern func priorityClassListCallSwaggerDoc(value PriorityClassList) IO[(PriorityClassList, support.ForeignMap[String, String])] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_5ec72dee262f3cdd
-extern func priorityClassListCallUnmarshal(value PriorityClassList, p0 Option[String]) IO[(PriorityClassList, (Option[String], Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_786408f9ff602482
-extern func priorityClassFromRuntimeObject(value canonical.Object_afe2f0b1d210) Option[PriorityClass] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Cast_PriorityClass_b2c1697075e0
-extern func priorityClassToRuntimeObject(value PriorityClass) canonical.Object_afe2f0b1d210 = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Project_PriorityClass_b2c1697075e0
-extern func priorityClassListFromRuntimeObject(value canonical.Object_afe2f0b1d210) Option[PriorityClassList] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Cast_PriorityClassList_ef3e81883217
-extern func priorityClassListToRuntimeObject(value PriorityClassList) canonical.Object_afe2f0b1d210 = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Project_PriorityClassList_ef3e81883217
+extern func newPriorityClassList() PriorityClassList = "github.com/reoring/gofx/ports/client-go/host/deps".New_PriorityClassList_ef3e81883217
+extern func priorityClassListGetTypeMeta(value PriorityClassList) canonical.TypeMeta_75fb8294fb08 = "github.com/reoring/gofx/ports/client-go/host/deps".Get_PriorityClassList_ef3e81883217_TypeMeta
+extern func priorityClassListWithTypeMeta(value PriorityClassList, field canonical.TypeMeta_75fb8294fb08) PriorityClassList = "github.com/reoring/gofx/ports/client-go/host/deps".With_PriorityClassList_ef3e81883217_TypeMeta
+extern func priorityClassListGetListMeta(value PriorityClassList) canonical.ListMeta_769793730dfe = "github.com/reoring/gofx/ports/client-go/host/deps".Get_PriorityClassList_ef3e81883217_ListMeta
+extern func priorityClassListWithListMeta(value PriorityClassList, field canonical.ListMeta_769793730dfe) PriorityClassList = "github.com/reoring/gofx/ports/client-go/host/deps".With_PriorityClassList_ef3e81883217_ListMeta
+extern func priorityClassListGetItems(value PriorityClassList) Option[List[canonical.PriorityClass_b2c1697075e0]] = "github.com/reoring/gofx/ports/client-go/host/deps".Get_PriorityClassList_ef3e81883217_Items
+extern func priorityClassListWithItems(value PriorityClassList, field Option[List[canonical.PriorityClass_b2c1697075e0]]) PriorityClassList = "github.com/reoring/gofx/ports/client-go/host/deps".With_PriorityClassList_ef3e81883217_Items
+extern func priorityClassCallAPILifecycleIntroduced(value PriorityClass) IO[(PriorityClass, (Int, Int))] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_802086734a02c539
+extern func priorityClassCallDeepCopy(value PriorityClass) IO[(PriorityClass, Option[canonical.PriorityClass_b2c1697075e0])] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_b3f9032b9ee8ac65
+extern func priorityClassCallDeepCopyInto(value PriorityClass, p0 Option[canonical.PriorityClass_b2c1697075e0]) IO[(PriorityClass, (Option[canonical.PriorityClass_b2c1697075e0], Unit))] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_dcf9977c5041b5f2
+extern func priorityClassCallDeepCopyObject(value PriorityClass) IO[(PriorityClass, Option[canonical.Object_afe2f0b1d210])] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_89b3723d411d2373
+extern func priorityClassCallMarshal(value PriorityClass) IO[(PriorityClass, (Option[String], Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_6dcd75551518dfca
+extern func priorityClassCallMarshalTo(value PriorityClass, p0 Option[String]) IO[(PriorityClass, (Option[String], (Int, Option[support.Error])))] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_2a7763a4141d6fcc
+extern func priorityClassCallMarshalToSizedBuffer(value PriorityClass, p0 Option[String]) IO[(PriorityClass, (Option[String], (Int, Option[support.Error])))] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_00791ec09357d63e
+extern func priorityClassCallOpenAPIModelName(value PriorityClass) IO[(PriorityClass, String)] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_7b7a428d32fa6a87
+extern func priorityClassCallReset(value PriorityClass) IO[(PriorityClass, Unit)] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_499a0c0e06bee4fd
+extern func priorityClassCallSize(value PriorityClass) IO[(PriorityClass, Int)] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_5de4ae060ef713f3
+extern func priorityClassCallString(value PriorityClass) IO[(PriorityClass, String)] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_220c26371dc76dd6
+extern func priorityClassCallSwaggerDoc(value PriorityClass) IO[(PriorityClass, support.ForeignMap[String, String])] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_729c8cbb71ccc9ee
+extern func priorityClassCallUnmarshal(value PriorityClass, p0 Option[String]) IO[(PriorityClass, (Option[String], Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_3f3c79a5828b5488
+extern func priorityClassListCallAPILifecycleIntroduced(value PriorityClassList) IO[(PriorityClassList, (Int, Int))] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_446db3652f97efc6
+extern func priorityClassListCallDeepCopy(value PriorityClassList) IO[(PriorityClassList, Option[canonical.PriorityClassList_ef3e81883217])] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_184113d959b10754
+extern func priorityClassListCallDeepCopyInto(value PriorityClassList, p0 Option[canonical.PriorityClassList_ef3e81883217]) IO[(PriorityClassList, (Option[canonical.PriorityClassList_ef3e81883217], Unit))] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_20363bc11877191e
+extern func priorityClassListCallDeepCopyObject(value PriorityClassList) IO[(PriorityClassList, Option[canonical.Object_afe2f0b1d210])] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_d9042095c7b3eb65
+extern func priorityClassListCallMarshal(value PriorityClassList) IO[(PriorityClassList, (Option[String], Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_4c14ff8f64df5697
+extern func priorityClassListCallMarshalTo(value PriorityClassList, p0 Option[String]) IO[(PriorityClassList, (Option[String], (Int, Option[support.Error])))] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_e296cd538bec28e8
+extern func priorityClassListCallMarshalToSizedBuffer(value PriorityClassList, p0 Option[String]) IO[(PriorityClassList, (Option[String], (Int, Option[support.Error])))] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_0e28923fbdfef3bc
+extern func priorityClassListCallOpenAPIModelName(value PriorityClassList) IO[(PriorityClassList, String)] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_40ddaef366dc9d3e
+extern func priorityClassListCallReset(value PriorityClassList) IO[(PriorityClassList, Unit)] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_5284c115521f5a80
+extern func priorityClassListCallSize(value PriorityClassList) IO[(PriorityClassList, Int)] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_8b9214f0b07b3a16
+extern func priorityClassListCallString(value PriorityClassList) IO[(PriorityClassList, String)] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_4bda1aa5f784ce92
+extern func priorityClassListCallSwaggerDoc(value PriorityClassList) IO[(PriorityClassList, support.ForeignMap[String, String])] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_5ec72dee262f3cdd
+extern func priorityClassListCallUnmarshal(value PriorityClassList, p0 Option[String]) IO[(PriorityClassList, (Option[String], Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_786408f9ff602482
+extern func callResource(p0 String) IO[canonical.GroupResource_cc3368bdb324] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_acf212d4fc7bcc1c
+extern func priorityClassObjectType() canonical.ObjectType[PriorityClass] = "github.com/reoring/gofx/ports/client-go/host/deps".Descriptor_PriorityClass_b2c1697075e0
+extern func priorityClassFromRuntimeObject(value canonical.Object_afe2f0b1d210) Option[PriorityClass] = "github.com/reoring/gofx/ports/client-go/host/deps".Cast_PriorityClass_b2c1697075e0
+extern func priorityClassToRuntimeObject(value PriorityClass) canonical.Object_afe2f0b1d210 = "github.com/reoring/gofx/ports/client-go/host/deps".Project_PriorityClass_b2c1697075e0
+extern func priorityClassListObjectType() canonical.ObjectType[PriorityClassList] = "github.com/reoring/gofx/ports/client-go/host/deps".Descriptor_PriorityClassList_ef3e81883217
+extern func priorityClassListFromRuntimeObject(value canonical.Object_afe2f0b1d210) Option[PriorityClassList] = "github.com/reoring/gofx/ports/client-go/host/deps".Cast_PriorityClassList_ef3e81883217
+extern func priorityClassListToRuntimeObject(value PriorityClassList) canonical.Object_afe2f0b1d210 = "github.com/reoring/gofx/ports/client-go/host/deps".Project_PriorityClassList_ef3e81883217

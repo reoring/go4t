@@ -1,0 +1,101 @@
+package rest
+
+import http "deps/net/http"
+import errors "deps/support"
+import sync "support/sync"
+import outcome "support/outcome"
+import m "std/map"
+
+// Copyright 2021 The Kubernetes Authors. Licensed under Apache-2.0.
+alias IsRetryableErrorFunc = func(http.Request,errors.Error) Bool
+type WithRetry = WithRetry {
+ before: func(Request) IO[Option[errors.Error]],
+ after: func(Request,Option[http.Response],Option[errors.Error]) IO[Unit],
+ isNextRetry: func(Request,Option[http.Request],Option[http.Response],Option[errors.Error],IsRetryableErrorFunc) IO[Bool],
+ wrapPreviousError: func(Option[errors.Error]) IO[Option[errors.Error]]
+}
+type RetryState = RetryState { attempts: Int, retryAfter: Option[RetryAfter], previousError: Option[errors.Error], currentError: Option[errors.Error] }
+extern func errorWithSuffix(current errors.Error,suffix String) errors.Error = "github.com/reoring/gofx/ports/client-go/rest/host".ErrorWithSuffix
+extern func urlErrorCause(error errors.Error) Option[errors.Error] = "github.com/reoring/gofx/ports/client-go/rest/host".URLErrorCause
+func previousError(current errors.Error,previous errors.Error) errors.Error {
+ let cause = match urlErrorCause(previous) { None => previous; Some(cause) => cause }
+ errorWithSuffix(current," - error from a previous attempt: "+errors.errorMessage(cause))
+}
+func newRetry(maxRetries Int) IO[WithRetry] {
+ do {
+  state <- sync.newRef(RetryState(0,None,None,None))
+  ioPure(WithRetry(
+   func(request) => do {
+    current <- sync.readRef(state)
+    location <- requestURL(request)
+    backoff <- request.backoff.calculateBackoff(location)
+    request.backoff.sleep(match current.retryAfter { None => backoff; Some(retry) => max(backoff,retry.wait) })
+    match current.retryAfter { None => ioPure(None); Some(_) => tryThrottle(request) }
+   },
+   func(request,response,error) => do {
+    current <- sync.readRef(state)
+    sync.writeRef(state,current{retryAfter: None})
+    observeAttempt(request,response,match current.retryAfter { None => false; Some(_) => true })
+    location <- requestURL(request)
+    status <- match response { None => ioPure(0); Some(response) => do { info <- responseInfo(response); ioPure(info.0) } }
+    request.backoff.updateBackoff(location,error,status)
+   },
+   func(request,httpRequest,response,error,predicate) => do {
+    current <- sync.readRef(state)
+    let prior = match current.currentError { None => current.previousError; Some(e) => Some(e) }
+    let tracked = current{currentError: error,previousError: prior}
+    match httpRequest {
+     None => do { sync.writeRef(state,tracked); ioPure(false) }
+     Some(httpRequest) => {
+      let replayable = match request.body { Reader(_) => false; _ => true }
+      if !replayable { do { sync.writeRef(state,tracked); ioPure(false) } } else { do {
+       let attempt = current.attempts+1
+       delay <- if attempt>maxRetries { ioPure(None) } else { match error {
+        Some(e) => ioPure(if predicate(httpRequest,e) { Some(1000000000) } else { None })
+        None => match response { None => ioPure(None); Some(response) => do {
+         info <- responseInfo(response)
+         ioPure(if info.0==429 || info.0>=500 { match retryAfterSeconds(info.1.1) { None => None; Some(seconds) => Some(seconds*1000000000) } } else { None })
+        } }
+       } }
+       sync.writeRef(state,tracked{attempts: attempt,retryAfter: match delay { None => None; Some(wait) => Some(RetryAfter(wait,attempt,"")) }})
+       ioPure(match delay { None => false; Some(_) => true })
+      } }
+     }
+    }
+   },
+   func(error) => do {
+    current <- sync.readRef(state)
+    ioPure(match error { None => None; Some(error) => match current.previousError { None => Some(error); Some(previous) => if errors.errorMessage(error)==errors.errorMessage(previous) { Some(error) } else { Some(previousError(error,previous)) } } })
+   }
+  ))
+ }
+}
+func runAttempt(request Request,retry WithRetry) IO[outcome.Outcome[Option[http.Response]]] {
+ do {
+  before <- retry.before(request)
+  match before {
+   Some(error) => do { wrapped <- retry.wrapPreviousError(Some(error)); ioPure(outcome.from(None,wrapped)) }
+   None => do {
+    made <- newHTTPRequest(request)
+    match made.0 {
+     None => ioPure(outcome.from(None,made.1))
+     Some(httpRequest) => do {
+      result <- performMeasuredAttempt(request,retry,httpRequest)
+      match result.value {
+       None => ioPure(unit())
+       Some(response) => do {
+        info <- responseInfo(response)
+        let media = match m.mapLookup(request.headers,"Content-Type") { Some(Cons(value,_)) => value; _ => "" }
+        if info.0==415 { unsupportedMediaType(request.client,media) } else { ioPure(unit()) }
+       }
+      }
+      again <- retry.isNextRetry(request,Some(httpRequest),result.value,result.error,func(_,error) => request.retryableError(request.verb,error))
+      if again { do { match result.value { None => ioPure(unit()); Some(response) => drainResponse(response) }; runAttempt(request,retry) } }
+      else { do { wrapped <- retry.wrapPreviousError(result.error); ioPure(outcome.from(result.value,wrapped)) } }
+     }
+    }
+   }
+  }
+ }
+}
+func executeAttempts(request Request) IO[outcome.Outcome[Option[http.Response]]] { do { retry <- request.retryFactory(request.maxRetries); runAttempt(request,retry) } }

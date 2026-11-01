@@ -1,0 +1,58 @@
+// Copyright 2023 The Kubernetes Authors. Licensed under Apache-2.0.
+package openapi3
+import openapi "openapi"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import spec3 "deps/k8s.io/kube-openapi/pkg/spec3"
+import errors "deps/support"
+import outcome "support/outcome"
+import m "std/map"
+import s "std/string"
+import l "std/list"
+
+type Root = Root { client:openapi.Client }
+func newRoot(client openapi.Client) Root { Root{client:client} }
+func gvToAPIPath(gv schema.GroupVersion) String {
+ let group = schema.groupVersionGetGroup(gv)
+ let version = schema.groupVersionGetVersion(gv)
+ if group == "" { "api/"+version } else { "apis/"+group+"/"+version }
+}
+func _gv(group String,version String) schema.GroupVersion { schema.groupVersionWithVersion(schema.groupVersionWithGroup(schema.newGroupVersion(),group),version) }
+func pathToGroupVersion(path String) outcome.Outcome[schema.GroupVersion] {
+ match s.split("/",path) {
+  Cons("apis",Cons(group,Cons(version,_))) => outcome.success(_gv(group,version))
+  Cons("apis",Cons(_,Nil)) => outcome.failure(schema.newGroupVersion(),errors.errorNew("Group without Version not allowed"))
+  Cons("api",Cons(version,_)) => outcome.success(_gv("",version))
+  _ => outcome.failure(schema.newGroupVersion(),errors.errorNew("Unable to parse api relative path: "+path))
+ }
+}
+func _gvString(gv schema.GroupVersion) String { let group=schema.groupVersionGetGroup(gv); let version=schema.groupVersionGetVersion(gv); if group=="" {version} else {group+"/"+version} }
+extern func groupVersionNotFoundError(gv schema.GroupVersion) errors.Error = "github.com/reoring/gofx/ports/client-go/openapi3".NotFound
+extern func isGroupVersionNotFoundError(error errors.Error) Bool = "github.com/reoring/gofx/ports/client-go/openapi3".IsNotFound
+func groupVersions(root Root) IO[outcome.Outcome[List[schema.GroupVersion]]] {
+ do { result <- root.client.paths(); match result.error {
+  Some(error) => ioPure(outcome.failure([],error))
+  None => {
+   let versions=fold(m.mapKeys(result.value),[],func(versions,path) => {let parsed=pathToGroupVersion(path);match parsed.error {Some(_) => versions;None => Cons(parsed.value,versions)}})
+   ioPure(outcome.success(l.sortBy(versions,func(a,b) => compare(_gvString(a),_gvString(b)))))
+  }
+ } }
+}
+func retrieveGVBytes(root Root,gv schema.GroupVersion) IO[outcome.Outcome[String]] {
+ do { result <- root.client.paths(); match result.error {
+  Some(error) => ioPure(outcome.failure("",error))
+  None => match m.mapLookup(result.value,gvToAPIPath(gv)) { None => ioPure(outcome.failure("",groupVersionNotFoundError(gv))); Some(group) => group.schema("application/json") }
+ } }
+}
+func gvSpec(root Root,gv schema.GroupVersion) IO[outcome.Outcome[Option[spec3.OpenAPI]]] {
+ do { result <- retrieveGVBytes(root,gv); match result.error {
+  Some(error) => ioPure(outcome.failure(None,error))
+  None => do { decoded <- openapi.decodeV3(result.value); ioPure(outcome.Outcome{value:decoded.0,error:decoded.1}) }
+ } }
+}
+extern func _decodeMap(data String) IO[(errors.ForeignMap[String,Option[errors.Any]],Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/openapi/host".DecodeMap
+func gvSpecAsMap(root Root,gv schema.GroupVersion) IO[outcome.Outcome[Option[errors.ForeignMap[String,Option[errors.Any]]]]] {
+ do { result <- retrieveGVBytes(root,gv); match result.error {
+  Some(error) => ioPure(outcome.failure(None,error))
+  None => do { decoded <- _decodeMap(result.value); ioPure(outcome.Outcome{value:Some(decoded.0),error:decoded.1}) }
+ } }
+}

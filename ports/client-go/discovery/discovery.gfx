@@ -1,0 +1,107 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+// Native port of client-go v0.37.2 discovery/discovery_client.go.
+package discovery
+import meta "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import version "deps/k8s.io/apimachinery/pkg/version"
+import document "deps/github.com/google/gnostic-models/openapiv2"
+import errors "deps/support"
+import "rest"
+import "openapi"
+import "support/outcome"
+import "std/list"
+import "std/prelude"
+import "std/map"
+import "std/string"
+
+type GroupsAndResources = GroupsAndResources { groups: Option[List[meta.APIGroup]], resources: Option[List[meta.APIResourceList]] }
+type Aggregated = Aggregated { groups: Option[meta.APIGroupList], resources: Option[Map[String,meta.APIResourceList]], failures: Map[String,errors.Error] }
+type DiscoveryInterface = DiscoveryInterface {
+ restClient: Option[rest.Interface],
+ serverGroups: func() IO[outcome.Outcome[Option[meta.APIGroupList]]],
+ serverResourcesForGroupVersion: func(String) IO[outcome.Outcome[Option[meta.APIResourceList]]],
+ serverGroupsAndResources: func() IO[outcome.Outcome[GroupsAndResources]],
+ serverPreferredResources: func() IO[outcome.Outcome[List[meta.APIResourceList]]],
+ serverPreferredNamespacedResources: func() IO[outcome.Outcome[List[meta.APIResourceList]]],
+ serverVersion: func() IO[outcome.Outcome[Option[version.Info]]],
+ openAPISchema: func() IO[outcome.Outcome[Option[document.Document]]],
+ openAPIV3: func() IO[openapi.Client],
+ withLegacy: func() DiscoveryInterface,
+ groupsAndMaybeResources: Option[func() IO[outcome.Outcome[Aggregated]]]
+}
+type CachedDiscoveryInterface = CachedDiscoveryInterface { discovery: DiscoveryInterface, fresh: func() IO[Bool], invalidate: func() IO[Unit] }
+func values[A](xs Option[List[A]]) List[A] { match xs { None => []; Some(v) => v } }
+func groupList(groups List[meta.APIGroup]) meta.APIGroupList { meta.aPIGroupListWithGroups(meta.newAPIGroupList(),Some(groups)) }
+func resourceList(gv String, resources List[meta.APIResource]) meta.APIResourceList { meta.aPIResourceListWithAPIResources(meta.aPIResourceListWithGroupVersion(meta.newAPIResourceList(),gv),Some(resources)) }
+func discoveryVersion(gv String,v String) meta.GroupVersionForDiscovery { meta.groupVersionForDiscoveryWithVersion(meta.groupVersionForDiscoveryWithGroupVersion(meta.newGroupVersionForDiscovery(),gv),v) }
+func groupVersion(group String,version String) String { if group == "" { version } else { group+"/"+version } }
+func emptyAggregated() Aggregated { Aggregated(None,None,map.emptyMap()) }
+
+// A structural tagged error adapter preserves causes and supports wrapping/Is.
+extern func taggedError(kind String,message String,keys List[String],causes List[errors.Error]) errors.Error = "github.com/reoring/gofx/ports/client-go/discovery/host".TaggedError
+extern func errorTag(error errors.Error) String = "github.com/reoring/gofx/ports/client-go/discovery/host".ErrorTag
+extern func errorDirectTag(error errors.Error) String = "github.com/reoring/gofx/ports/client-go/discovery/host".ErrorDirectTag
+extern func errorEntries(error errors.Error) List[(String,errors.Error)] = "github.com/reoring/gofx/ports/client-go/discovery/host".ErrorEntries
+func groupDiscoveryFailed(failures Map[String,errors.Error]) errors.Error {
+ let entries = map.mapToList(failures)
+ taggedError("GroupDiscoveryFailed","unable to retrieve the complete list of server APIs: "+string.join(", ",prelude.map(entries,func(e) => e.0+": "+errors.errorMessage(e.1))),prelude.map(entries,func(e) => e.0),prelude.map(entries,func(e) => e.1))
+}
+func isGroupDiscoveryFailedError(error errors.Error) Bool { errorDirectTag(error)=="GroupDiscoveryFailed" }
+func groupDiscoveryFailedErrorGroups(error errors.Error) (Map[String,errors.Error],Bool) { (list.fold(errorEntries(error),map.emptyMap(),func(m,e) => map.mapInsert(m,e.0,e.1)),errorTag(error)=="GroupDiscoveryFailed") }
+func failureOption(failures Map[String,errors.Error]) Option[errors.Error] { if list.length(map.mapToList(failures))==0 { None } else { Some(groupDiscoveryFailed(failures)) } }
+func retryDiscovery[A](attempts Int,action func() IO[outcome.Outcome[A]]) IO[outcome.Outcome[A]] {
+ do { result <- action(); match result.error { Some(e) => if attempts>1 && isGroupDiscoveryFailedError(e) { retryDiscovery(attempts-1,action) } else { ioPure(result) }; None => ioPure(result) } }
+}
+func gather(d DiscoveryInterface) IO[outcome.Outcome[Aggregated]] {
+ match d.groupsAndMaybeResources {
+  Some(get) => get()
+  None => do { groups <- d.serverGroups(); ioPure(outcome.Outcome(Aggregated(groups.value,None,map.emptyMap()),groups.error)) }
+ }
+}
+func fetchResources(d DiscoveryInterface,groups List[meta.APIGroup]) IO[(Map[String,meta.APIResourceList],Map[String,errors.Error])] {
+ let versions = list.concatMap(groups,func(g) => prelude.map(values(meta.aPIGroupGetVersions(g)),func(v) => groupVersion(meta.aPIGroupGetName(g),meta.groupVersionForDiscoveryGetVersion(v))))
+ do {
+  tasks <- list.mapM(versions,func(gv) => startResource(d,gv))
+  results <- list.mapM(tasks,func(task) => joinResource(task))
+  ioPure(list.fold(results,(map.emptyMap(),map.emptyMap()),func(acc,r) => {
+   let resources = match r.1.value { None => acc.0; Some(v) => map.mapInsert(acc.0,r.0,v) }
+   let failures = match r.1.error { None => acc.1; Some(e) => map.mapInsert(acc.1,r.0,e) }
+   (resources,failures)
+  }))
+ }
+}
+func serverGroupsAndResources(d DiscoveryInterface) IO[outcome.Outcome[GroupsAndResources]] {
+ do {
+  result <- gather(d)
+  match result.value.groups {
+   None => ioPure(outcome.Outcome(GroupsAndResources(None,None),result.error))
+   Some(gl) => do {
+    let groups = values(meta.aPIGroupListGetGroups(gl))
+    fetched <- match result.value.resources { Some(rs) => ioPure((rs,result.value.failures)); None => fetchResources(d,groups) }
+    let ordered = list.concatMap(groups,func(g) => list.concatMap(values(meta.aPIGroupGetVersions(g)),func(v) => match map.mapLookup(fetched.0,groupVersion(meta.aPIGroupGetName(g),meta.groupVersionForDiscoveryGetVersion(v))) { None => []; Some(r) => [r] }))
+    ioPure(outcome.Outcome(GroupsAndResources(Some(groups),Some(ordered)),failureOption(fetched.1)))
+   }
+  }
+ }
+}
+func preferredResources(groups List[meta.APIGroup],resources List[meta.APIResourceList]) List[meta.APIResourceList] {
+ let byVersion = list.fold(resources,map.emptyMap(),func(m,r) => map.mapInsert(m,meta.aPIResourceListGetGroupVersion(r),r))
+ list.concatMap(groups,func(g) => {
+  let versions = values(meta.aPIGroupGetVersions(g))
+  let preferred = meta.groupVersionForDiscoveryGetVersion(meta.aPIGroupGetPreferredVersion(g))
+  let chosen = list.fold(versions,map.emptyMap(),func(m,v) => {
+   let gv = groupVersion(meta.aPIGroupGetName(g),meta.groupVersionForDiscoveryGetVersion(v))
+   match map.mapLookup(byVersion,gv) { None => m; Some(rl) => list.fold(values(meta.aPIResourceListGetAPIResources(rl)),m,func(m,r) => {
+    let name = meta.aPIResourceGetName(r)
+    if string.contains(name,"/") { m } else { match map.mapLookup(m,name) { Some(old) => if meta.groupVersionForDiscoveryGetVersion(v)!=preferred { m } else { map.mapInsert(m,name,(gv,r)) }; None => map.mapInsert(m,name,(gv,r)) } }
+   }) }
+  })
+  list.concatMap(versions,func(v) => { let gv = groupVersion(meta.aPIGroupGetName(g),meta.groupVersionForDiscoveryGetVersion(v)); match map.mapLookup(byVersion,gv) { None => []; Some(rl) => [resourceList(gv,prelude.map(list.filter(map.mapToList(chosen),func(e) => e.1.0==gv),func(e) => e.1.1))] } })
+ })
+}
+func serverPreferredResources(d DiscoveryInterface) IO[outcome.Outcome[List[meta.APIResourceList]]] { do { all <- serverGroupsAndResources(d); ioPure(outcome.Outcome(preferredResources(values(all.value.groups),values(all.value.resources)),all.error)) } }
+func serverPreferredNamespacedResources(d DiscoveryInterface) IO[outcome.Outcome[List[meta.APIResourceList]]] { do { all <- serverPreferredResources(d); ioPure(outcome.Outcome(filteredBy(func(gv,r) => meta.aPIResourceGetNamespaced(r),all.value),all.error)) } }
+func filteredBy(predicate func(String,meta.APIResource) Bool,resources List[meta.APIResourceList]) List[meta.APIResourceList] {
+ list.concatMap(resources,func(rl) => { let selected = list.filter(values(meta.aPIResourceListGetAPIResources(rl)),func(r) => predicate(meta.aPIResourceListGetGroupVersion(rl),r)); if list.length(selected)==0 { [] } else { [meta.aPIResourceListWithAPIResources(rl,Some(selected))] } })
+}
+func supportsAllVerbs(verbs List[String]) func(String,meta.APIResource) Bool { func(gv,r) => list.all(verbs,func(v) => list.elem(v,values(meta.verbsValue(meta.aPIResourceGetVerbs(r))))) }
+func resourceEnabled(d DiscoveryInterface,gv String,resource String) IO[outcome.Outcome[Bool]] { do { result <- d.serverResourcesForGroupVersion(gv); match result.error { Some(e) => if errors.errorIsNotFound(e) { ioPure(outcome.success(false)) } else { ioPure(outcome.failure(false,e)) }; None => ioPure(outcome.success(match result.value { None => false; Some(rl) => list.any(values(meta.aPIResourceListGetAPIResources(rl)),func(r) => meta.aPIResourceGetName(r)==resource) })) } } }

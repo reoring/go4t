@@ -1,0 +1,82 @@
+// Copyright 2026 The gofx Authors. Licensed under Apache-2.0.
+// Behavioral regressions derived from pinned v2_test.go, v4_test.go and fallback_test.go.
+package remotecommand
+import spdy "github.com/reoring/gofx/ports/client-go/transport/spdy"
+import errors "github.com/reoring/gofx/ports/client-go/deps/support"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import list "std/list"
+import io "std/io"
+
+func testProtocolVersionNegotiation() Bool {protocolVersion("")==1 && protocolVersion("channel.k8s.io")==1 && protocolVersion("v2.channel.k8s.io")==2 && protocolVersion("v3.channel.k8s.io")==3 && protocolVersion("v4.channel.k8s.io")==4 && protocolVersion("v5.channel.k8s.io")==5 && protocolVersion("unexpected")==0}
+func testStructuredExitErrors() Bool {
+ let e=decodeError(4,"{\"status\":\"Failure\",\"reason\":\"NonZeroExitCode\",\"details\":{\"causes\":[{\"reason\":\"ExitCode\",\"message\":\"42\"}]}}")
+ let missing=decodeError(5,"{\"status\":\"Failure\",\"reason\":\"NonZeroExitCode\"}")
+ let invalid=decodeError(5,"{\"status\":\"Failure\",\"reason\":\"NonZeroExitCode\",\"details\":{\"causes\":[{\"reason\":\"ExitCode\",\"message\":\"256\"}]}}")
+ (match e {Some(e)=>exitCode(e)==Some(42);None=>false}) &&
+ (match missing {Some(e)=>errors.errorMessage(e)=="error stream protocol error: details must be set";None=>false}) &&
+ (match invalid {Some(e)=>errors.errorMessage(e)=="error stream protocol error: invalid exit code value \"256\"";None=>false}) &&
+ (match decodeError(4,"{\"status\":\"Success\"}") {None=>true;Some(_)=>false})
+}
+func testFallbackPredicateAndSuccess() IO[Bool] {do {
+ count<-sync.newRef(0)
+ let primary=Executor {streamWithContext:func(_)=>ioPure(outcome.failure(unit(),errors.errorNew("handshake")))}
+ let secondary=Executor {streamWithContext:func(_)=>do {n<-sync.readRef(count);sync.writeRef(count,n+1);ioPure(outcome.success(unit()))}}
+ denied<-newFallbackExecutor(primary,secondary,func(_)=>false).streamWithContext(emptyStreamOptions())
+ allowed<-newFallbackExecutor(primary,secondary,func(e)=>errors.errorMessage(e)=="handshake").streamWithContext(emptyStreamOptions())
+ success<-newFallbackExecutor(secondary,secondary,func(_)=>true).streamWithContext(emptyStreamOptions())
+ n<-sync.readRef(count)
+ ioPure(n==2 && (match denied.error {Some(_)=>true;None=>false}) && (match allowed.error {None=>true;Some(_)=>false}) && (match success.error {None=>true;Some(_)=>false}))
+}}
+func testTTYStderrAndResizeLifecycle() IO[Bool] {do {
+ created<-sync.newRef(Nil)
+ resized<-sync.newChannel(1)
+ resizeText<-sync.newRef("")
+ sizes<-sync.newRef([TerminalSize {width:123,height:45}])
+ queueClosed<-sync.newRef(false)
+ let queue=TerminalSizeQueue {next:func()=>do {current<-sync.readRef(sizes);match current {Nil=>ioPure(None);Cons(s,tail)=>do {sync.writeRef(sizes,tail);ioPure(Some(s))}}},close:func()=>sync.writeRef(queueClosed,true)}
+ let connection=spdy.Connection {
+  createStream:func(headers)=>do {
+   let kind=_kind(headers)
+   old<-sync.readRef(created)
+   sync.writeRef(created,list.append(old,[kind]))
+   let reader=spdy.Reader {read:func(_)=>if kind=="error" {do {_ <- sync.receive(resized);ioPure(outcome.failure("",_eof()))}} else {ioPure(outcome.failure("",_eof()))},close:func()=>ioPure(unit())}
+   let writer=spdy.Writer {write:func(data)=>do {sync.writeRef(resizeText,data);sync.send(resized,unit());ioPure(outcome.success(spdy.byteLength(data)))},close:func()=>ioPure(unit())}
+   ioPure(outcome.success(Some(spdy.Stream {reader:reader,writer:writer,reset:func()=>ioPure(unit()),identity:None,headers:headers,identifier:_streamID(kind)})))
+  },close:func()=>ioPure(unit()),awaitClose:func()=>ioPure(unit()),removeStreams:func(_)=>ioPure(unit()),setIdleTimeout:func(_)=>ioPure(unit())
+ }
+ let options=emptyStreamOptions()
+ result<-streamProtocol(3,connection,options {tty:true,stderr:Some(spdy.discard()),terminalSizeQueue:Some(queue)})
+ kinds<-sync.readRef(created)
+ text<-sync.readRef(resizeText)
+ closed<-sync.readRef(queueClosed)
+ ioPure(kinds==["error","resize"] && text=="{\"Width\":123,\"Height\":45}\n" && closed && (match result.error {None=>true;Some(_)=>false}))
+}}
+func testProducersJoinOnCancellation() IO[Bool] {do {
+ parent<-sync.captureContext()
+ child<-sync.newContext(parent,None)
+ entered<-sync.newChannel(1)
+ blocked<-sync.newChannel(0)
+ exited<-sync.newRef(false)
+ task<-sync.start(sync.withContext(child.0,withProducers([sync.ensuring(do {sync.send(entered,unit());_ <- sync.receive(blocked);ioPure(unit())},sync.writeRef(exited,true))],do {_ <- sync.receive(blocked);ioPure(unit())})))
+ _ <- sync.receive(entered)
+ sync.cancelContext(child.1)
+ _ <- io.tryIO(sync.join(task))
+ joined<-sync.readRef(exited)
+ ioPure(joined)
+}}
+func testStreamReadCloseIsIdempotentAndPreservesError() IO[Bool] {do {
+ chunks<-sync.newChannel(0)
+ pending<-sync.newRef("")
+ error<-sync.newRef(None)
+ closed<-sync.newRef(false)
+ readClosed<-sync.newRef(false)
+ readLock<-sync.newMutex()
+ let stream=WSStream {chunks:chunks,pending:pending,error:error,closed:closed,readClosed:readClosed,readLock:readLock}
+ let cause=errors.errorNew("remote stream failed")
+ _closeChannel(stream,Some(cause))
+ _closeChannel(stream,None)
+ _closeChannel(stream,Some(errors.errorNew("later error")))
+ result<-_channelRead(stream,1)
+ ioPure(result.value=="" && (match result.error {None=>false;Some(e)=>errors.errorIs(e,cause)}))
+}}

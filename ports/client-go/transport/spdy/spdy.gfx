@@ -1,0 +1,60 @@
+// Copyright 2017 The Kubernetes Authors. Licensed under Apache-2.0.
+// Source: client-go v0.37.2 transport/spdy/spdy.go.
+package spdy
+import http "github.com/reoring/gofx/ports/client-go/deps/net/http"
+import url "github.com/reoring/gofx/ports/client-go/deps/net/url"
+import tls "github.com/reoring/gofx/ports/client-go/deps/crypto/tls"
+import raw "github.com/reoring/gofx/ports/client-go/deps/k8s.io/streaming/pkg/httpstream"
+import errors "github.com/reoring/gofx/ports/client-go/deps/support"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import transport "github.com/reoring/gofx/ports/client-go/transport"
+import rest "github.com/reoring/gofx/ports/client-go/rest"
+
+type Upgrader = Upgrader { newConnection: func(http.Response) IO[outcome.Outcome[Option[Connection]]] }
+alias Upgrade = raw.UpgradeRoundTripper
+type Transports = Transports { transport: transport.RoundTripper, upgrader: Upgrader }
+extern func _newUpgrade(tls Option[tls.Config], proxy Option[func(http.Request) IO[(Option[url.URL],Option[errors.Error])]], ping Int) IO[(Option[Upgrade],Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/transport/spdy/host".NewUpgrade
+extern func _upgradeTransport(upgrade Upgrade) IO[http.RoundTripper] = "github.com/reoring/gofx/ports/client-go/transport/spdy/host".UpgradeTransport
+extern func _upgradeConnection(upgrade Upgrade, response http.Response) IO[(Option[raw.Connection],Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/transport/spdy/host".UpgradeConnection
+extern func newRequest(method String, address String) IO[(Option[http.Request],Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/transport/spdy/host".NewRequest
+extern func clientDo(client http.Client, request http.Request) IO[(Option[http.Response],Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/transport/spdy/host".ClientDo
+extern func newHTTPClient(transport http.RoundTripper, rejectRedirects Bool) IO[http.Client] = "github.com/reoring/gofx/ports/client-go/transport/spdy/host".NewClient
+extern func closeResponse(response http.Response) IO[Option[errors.Error]] = "github.com/reoring/gofx/ports/client-go/transport/spdy/host".CloseResponse
+extern func responseHeader(response http.Response, key String) IO[String] = "github.com/reoring/gofx/ports/client-go/transport/spdy/host".ResponseHeader
+
+func newUpgraderForStreaming(value raw.UpgradeRoundTripper) Upgrader { Upgrader { newConnection: func(response) => do {
+ result <- raw.upgradeRoundTripperCallNewConnectionIdentity(value,Some(response))
+ ioPure(outcome.from(match result.0 { None => None; Some(c) => Some(fromConnection(c)) },result.1))
+} } }
+func roundTripperFor(environment rest.Environment, config rest.Config) IO[outcome.Outcome[Option[Transports]]] { do {
+ tls <- rest.tlsConfigFor(environment,config)
+ match tls.error { Some(e) => ioPure(outcome.from(None,Some(e))); None => do {
+  let proxy = match config.proxy { None => None; Some(p) => Some(func(req) => do { result <- p(req); ioPure((result.value,result.error)) }) }
+  raw <- _newUpgrade(tls.value,proxy,5000000000)
+  match raw.0 { None => ioPure(outcome.from(None,raw.1)); Some(u) => do {
+   http <- _upgradeTransport(u)
+   wrapped <- rest.httpWrappersForConfig(environment,config,transport.fromHTTP(http))
+   ioPure(outcome.from(match wrapped.value { None => None; Some(rt) => Some(Transports { transport: rt, upgrader: Upgrader { newConnection: func(response) => do {
+    result <- _upgradeConnection(u,response)
+    ioPure(outcome.from(match result.0 { None => None; Some(c) => Some(fromConnection(c)) },result.1))
+   } } }) },wrapped.error))
+  } }
+ } }
+} }
+func _addProtocols(request http.Request, protocols List[String]) IO[Unit] { match protocols { Nil => ioPure(unit()); Cons(p,tail) => do { transport.addRequestHeader(request,"X-Stream-Protocol-Version",p); _addProtocols(request,tail) } } }
+func negotiate(upgrader Upgrader, client http.Client, request http.Request, protocols List[String]) IO[outcome.Outcome[DialResult]] { do {
+ _addProtocols(request,protocols)
+ result <- clientDo(client,request)
+ match result.1 { Some(e) => ioPure(outcome.from(DialResult {connection:None,protocol:""},Some(errors.errorWrap("error sending request",e)))); None => match result.0 {
+  None => ioPure(outcome.from(DialResult {connection:None,protocol:""},Some(errors.errorNew("empty upgrade response")))); Some(response) => sync.ensuring(do {
+   connection <- upgrader.newConnection(response)
+   protocol <- responseHeader(response,"X-Stream-Protocol-Version")
+   ioPure(outcome.from(DialResult {connection:connection.value,protocol:protocol},connection.error))
+  },do { _ <- closeResponse(response); ioPure(unit()) })
+ } }
+} }
+func newDialer(upgrader Upgrader, client http.Client, method String, address String) Dialer { Dialer { dial: func(protocols) => do {
+ request <- newRequest(method,address)
+ match request.0 { None => ioPure(outcome.from(DialResult {connection:None,protocol:""},match request.1 { None => Some(errors.errorNew("error creating request")); Some(e) => Some(errors.errorWrap("error creating request",e)) })); Some(req) => negotiate(upgrader,client,req,protocols) }
+} } }

@@ -1,0 +1,125 @@
+// Copyright 2014 The Kubernetes Authors. Licensed under Apache-2.0.
+package clientcmd
+import api "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api"
+import auth "github.com/reoring/gofx/ports/client-go/tools/auth"
+import rest "github.com/reoring/gofx/ports/client-go/rest"
+import transport "github.com/reoring/gofx/ports/client-go/transport"
+import url "github.com/reoring/gofx/ports/client-go/deps/net/url"
+import err "github.com/reoring/gofx/ports/client-go/deps/support"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import "std/map"
+import "std/prelude"
+import "std/list"
+import "std/string"
+type ConfigOverrides = ConfigOverrides {authInfo:api.AuthInfo,clusterDefaults:api.Cluster,clusterInfo:api.Cluster,context:api.Context,currentContext:String,timeout:String}
+type ConfigAccess = ConfigAccess {getLoadingPrecedence:func() IO[List[String]],getStartingConfig:func() IO[outcome.Outcome[Option[api.Config]]],getDefaultFilename:func() IO[String],isExplicitFile:func() IO[Bool],getExplicitFile:func() IO[String]}
+type ClientConfig = ClientConfig {rawConfig:func() IO[outcome.Outcome[api.Config]],clientConfig:func() IO[outcome.Outcome[Option[rest.Config]]],namespace:func() IO[outcome.Outcome[(String,Bool)]],configAccess:Option[ConfigAccess]}
+type OverridingClientConfig = OverridingClientConfig {client:ClientConfig,mergedRawConfig:func() IO[outcome.Outcome[api.Config]]}
+type DirectClientConfig = DirectClientConfig {config:api.Config,contextName:String,overrides:ConfigOverrides,source:api.Source,access:Option[ConfigAccess],fallback:Option[PromptInput],promptedCredentials:sync.Ref[Option[auth.Info]]}
+func emptyOverrides() ConfigOverrides { ConfigOverrides(api.emptyAuthInfo(),api.emptyCluster(),api.emptyCluster(),api.emptyContext(),"","") }
+func loadingRulesAccess(source api.Source,rules ClientConfigLoadingRules) ConfigAccess { ConfigAccess(func() => ioPure(getLoadingPrecedence(rules)),func() => getStartingConfig(source,rules),func() => getDefaultFilename(source,rules),func() => ioPure(isExplicitFile(rules)),func() => ioPure(rules.explicitPath)) }
+func newNonInteractiveClientConfig(source api.Source,config api.Config,contextName String,overrides ConfigOverrides,access Option[ConfigAccess]) IO[DirectClientConfig] { do { cache <- sync.newRef(None); ioPure(DirectClientConfig(config,contextName,overrides,source,access,None,cache)) } }
+func newInteractiveClientConfig(source api.Source,config api.Config,contextName String,overrides ConfigOverrides,input PromptInput,access Option[ConfigAccess]) IO[DirectClientConfig] { do { cache <- sync.newRef(None); ioPure(DirectClientConfig(config,contextName,overrides,source,access,Some(input),cache)) } }
+func newDefaultClientConfig(source api.Source,config api.Config,overrides ConfigOverrides) IO[DirectClientConfig] { do { rules <- newDefaultClientConfigLoadingRules(source); newNonInteractiveClientConfig(source,config,config.currentContext,overrides,Some(loadingRulesAccess(source,rules))) } }
+func getContextName(config DirectClientConfig) (String,Bool) { if config.overrides.currentContext != "" { (config.overrides.currentContext,true) } else if config.contextName != "" { (config.contextName,false) } else { (config.config.currentContext,false) } }
+func getContext(config DirectClientConfig) outcome.Outcome[api.Context] {
+ let name = getContextName(config)
+ match api.getContext(config.config,name.0) { None => if name.1 { outcome.failure(api.emptyContext(),api.newError("context "+api.quoteJSON(name.0)+" does not exist")) } else { outcome.success(mergeContext(api.newContext(),config.overrides.context)) }; Some(value) => outcome.success(mergeContext(mergeContext(api.newContext(),value),config.overrides.context)) }
+}
+func getAuthInfoName(config DirectClientConfig) (String,Bool) { if config.overrides.context.authInfo != "" { (config.overrides.context.authInfo,true) } else { (getContext(config).value.authInfo,false) } }
+func getClusterName(config DirectClientConfig) (String,Bool) { if config.overrides.context.cluster != "" { (config.overrides.context.cluster,true) } else { (getContext(config).value.cluster,false) } }
+func getAuthInfo(config DirectClientConfig) outcome.Outcome[api.AuthInfo] {
+ let name = getAuthInfoName(config)
+ let found = api.getAuthInfo(config.config,name.0)
+ if name.1 && (match found { None => true; Some(_) => false }) { outcome.failure(api.emptyAuthInfo(),api.newError("auth info "+api.quoteJSON(name.0)+" does not exist")) } else {
+ let overrides = config.overrides.authInfo
+ let value = mergeAuthInfo(mergeAuthInfo(api.newAuthInfo(),_or(found,api.emptyAuthInfo())),overrides)
+ let value = if overrides.clientKey != "" || api.bytesOrEmpty(overrides.clientKeyData) != "" { value{clientKey:overrides.clientKey,clientKeyData:overrides.clientKeyData} } else { value }
+ let value = if overrides.clientCertificate != "" || api.bytesOrEmpty(overrides.clientCertificateData) != "" { value{clientCertificate:overrides.clientCertificate,clientCertificateData:overrides.clientCertificateData} } else { value }
+ outcome.success(value)
+ }
+}
+func getCluster(config DirectClientConfig) outcome.Outcome[api.Cluster] {
+ let name = getClusterName(config)
+ let found = api.getCluster(config.config,name.0)
+ if name.1 && (match found { None => true; Some(_) => false }) { outcome.failure(api.emptyCluster(),api.newError("cluster "+api.quoteJSON(name.0)+" does not exist")) } else {
+ let overrides = config.overrides.clusterInfo
+ let value = mergeCluster(mergeCluster(mergeCluster(api.newCluster(),config.overrides.clusterDefaults),_or(found,api.emptyCluster())),overrides)
+ let value = if overrides.insecureSkipTLSVerify || overrides.certificateAuthority != "" || api.bytesOrEmpty(overrides.certificateAuthorityData) != "" { value{insecureSkipTLSVerify:overrides.insecureSkipTLSVerify,certificateAuthority:overrides.certificateAuthority,certificateAuthorityData:overrides.certificateAuthorityData} } else { value }
+ let value = if overrides.tlsServerName != "" || overrides.server != "" { value{tlsServerName:overrides.tlsServerName} } else { value }
+ outcome.success(value)
+ }
+}
+func directConfirmUsable(config DirectClientConfig) IO[Option[err.Error]] { do {
+ let name = if config.contextName != "" { config.contextName } else { config.config.currentContext }
+ let errors = if name != "" && !map.mapMember(api.mapOrEmpty(config.config.contexts),name) { [contextNotFound(name)] } else { Nil }
+ auth <- validateAuthInfo(config.source,getAuthInfoName(config).0,getAuthInfo(config).value)
+ clusters <- validateClusterInfo(config.source,getClusterName(config).0,getCluster(config).value)
+ let errors = list.append(errors,list.append(auth,clusters))
+ ioPure(configurationInvalid(match errors { Cons(error,Nil) => if _errorTag(error) == "empty-cluster" { [errEmptyConfig()] } else { errors }; _ => errors }))
+} }
+func rawConfig(config DirectClientConfig) IO[outcome.Outcome[api.Config]] { ioPure(outcome.success(config.config)) }
+func mergedRawConfig(config DirectClientConfig) IO[outcome.Outcome[api.Config]] { do {
+ error <- directConfirmUsable(config)
+ match error { Some(error) => ioPure(outcome.failure(api.emptyConfig(),error)); None => do {
+ copied <- api.deepCopyConfig(config.config)
+ let auth = getAuthInfo(config)
+ let context = getContext(config)
+ let cluster = getCluster(config)
+ let error = match auth.error { Some(error) => Some(error); None => match context.error { Some(error) => Some(error); None => cluster.error } }
+ let merged = api.withCluster(api.withContext(api.withAuthInfo(copied,getAuthInfoName(config).0,Some(auth.value)),getContextName(config).0,Some(context.value)),getClusterName(config).0,Some(cluster.value))
+ ioPure(outcome.Outcome(match error { Some(_) => api.emptyConfig(); None => merged{currentContext:getContextName(config).0} },error))
+ } }
+} }
+func namespace(config DirectClientConfig) IO[outcome.Outcome[(String,Bool)]] { if config.overrides.context.namespace != "" { ioPure(outcome.success((config.overrides.context.namespace,true))) } else { do {
+ error <- directConfirmUsable(config)
+ match error { Some(error) => ioPure(outcome.failure(("",false),error)); None => { let context = getContext(config); ioPure(outcome.Outcome((if context.value.namespace == "" { "default" } else { context.value.namespace },false),context.error)) } }
+} } }
+func canIdentifyUser(config rest.Config) Bool { config.username != "" || config.tlsClientConfig.certFile != "" || api.bytesOrEmpty(config.tlsClientConfig.certData) != "" || config.bearerToken != "" || (match config.authProvider { None => false; Some(_) => true }) || (match config.execProvider { None => false; Some(_) => true }) }
+func _serverIdentity(config rest.Config,cluster api.Cluster) rest.Config { config{tlsClientConfig:config.tlsClientConfig{caFile:cluster.certificateAuthority,caData:cluster.certificateAuthorityData,insecure:cluster.insecureSkipTLSVerify,serverName:cluster.tlsServerName}} }
+func _userIdentity(config DirectClientConfig,user api.AuthInfo,cluster api.Cluster,base rest.Config) IO[outcome.Outcome[Option[rest.Config]]] { do {
+ token <- if user.token != "" || user.tokenFile == "" { ioPure(outcome.success(user.token)) } else { config.source.read(user.tokenFile) }
+ _then(token,None,func(token) => do {
+ let tls = if user.clientCertificate != "" || api.bytesOrEmpty(user.clientCertificateData) != "" { base.tlsClientConfig{certFile:user.clientCertificate,certData:user.clientCertificateData,keyFile:user.clientKey,keyData:user.clientKeyData} } else { base.tlsClientConfig }
+ let exec = prelude.fmap(user.exec,func(value) => value{installHint:cleanANSIEscapeCodes(value.installHint),config:_or(map.mapLookup(api.mapOrEmpty(cluster.extensions),"client.authentication.k8s.io/exec"),None)})
+ let persister = prelude.fmap(config.access,func(access) => persisterForUser(config.source,access,getAuthInfoName(config).0))
+ let result = base{username:user.username,password:user.password,bearerToken:token,bearerTokenFile:user.tokenFile,tlsClientConfig:tls,authProvider:user.authProvider,authConfigPersister:persister,execProvider:exec}
+ if canIdentifyUser(result) { ioPure(outcome.success(Some(result))) } else { match config.fallback { None => ioPure(outcome.success(Some(result))); Some(input) => do {
+ cached <- sync.readRef(config.promptedCredentials)
+ prompted <- match cached { Some(value) => if value.user != "" && value.password != "" { ioPure(outcome.success(Some(value))) } else { prompt(newPromptingAuthLoader(config.source,input)) }; None => prompt(newPromptingAuthLoader(config.source,input)) }
+ match prompted.error { Some(error) => ioPure(outcome.failure(None,error)); None => match prompted.value { None => ioPure(outcome.success(Some(result))); Some(credentials) => do {
+ sync.writeRef(config.promptedCredentials,Some(credentials))
+ ioPure(outcome.success(Some(result{username:_string(credentials.user,result.username),password:_string(credentials.password,result.password)})))
+ } } }
+ } } }
+ })
+} }
+func clientConfig(config DirectClientConfig) IO[outcome.Outcome[Option[rest.Config]]] {
+ let user = getAuthInfo(config)
+ let context = getContext(config)
+ let cluster = getCluster(config)
+ let error = match user.error { Some(error) => Some(error); None => match context.error { Some(error) => Some(error); None => cluster.error } }
+ match error { Some(error) => ioPure(outcome.failure(None,error)); None => do {
+ validation <- directConfirmUsable(config)
+ match validation { Some(error) => ioPure(outcome.failure(None,error)); None => do {
+ proxy <- if cluster.value.proxyURL == "" { ioPure(outcome.success(None)) } else { parseProxyURL(cluster.value.proxyURL) }
+ _then(proxy,None,func(proxy) => do {
+ let timeout = if config.overrides.timeout == "" { outcome.success(0) } else { parseTimeout(config.overrides.timeout) }
+ _then(timeout,None,func(timeout) => do {
+ let result = rest.emptyConfig(){host:cluster.value.server,disableCompression:cluster.value.disableCompression,timeout:timeout,proxy:prelude.fmap(proxy,func(proxy) => func(_) => ioPure(outcome.success(Some(proxy))))}
+ normalized <- _normalizeHost(result.host)
+ let result = result{host:normalized,impersonate:if user.value.impersonate == "" { result.impersonate } else { transport.ImpersonationConfig(user.value.impersonate,user.value.impersonateUID,user.value.impersonateGroups,user.value.impersonateUserExtra) }}
+ secure <- _usesTLS(result.host)
+ if secure { do { identified <- _userIdentity(config,user.value,cluster.value,result); ioPure(outcome.mapValue(identified,func(value) => prelude.fmap(value,func(value) => _serverIdentity(value,cluster.value)))) } } else { ioPure(outcome.success(Some(result))) }
+ })
+ })
+ } }
+ } }
+}
+func _normalizeHost(host String) IO[String] { do { parsed <- _parseRequestURI(host); match parsed.0 { None => ioPure(host); Some(value) => do { opaque <- url.urlGetOpaqueIdentity(value); path <- url.urlGetPathIdentity(value); if opaque == "" && string.strLength(path) > 1 { do { url.urlSetRawQueryIdentity(value,""); url.urlSetFragmentIdentity(value,""); url.urlCallStringIdentity(value) } } else { ioPure(host) } } } } }
+func _usesTLS(host String) IO[Bool] { do { parsed <- _parseURL(host); match parsed.0 { None => ioPure(false); Some(value) => do { scheme <- url.urlGetSchemeIdentity(value); ioPure(scheme == "https") } } } }
+func asClientConfig(config DirectClientConfig) ClientConfig { ClientConfig(func() => rawConfig(config),func() => clientConfig(config),func() => namespace(config),config.access) }
+func asOverridingClientConfig(config DirectClientConfig) OverridingClientConfig { OverridingClientConfig(asClientConfig(config),func() => mergedRawConfig(config)) }
+func newClientConfigFromBytes(source api.Source,bytes String) IO[outcome.Outcome[Option[DirectClientConfig]]] { do { decoded <- load(bytes); match decoded.error { Some(error) => ioPure(outcome.failure(None,error)); None => match decoded.value { None => ioPure(outcome.success(None)); Some(value) => do { config <- newNonInteractiveClientConfig(source,value,"",emptyOverrides(),None); ioPure(outcome.success(Some(config))) } } } } }
+func restConfigFromKubeConfig(source api.Source,bytes String) IO[outcome.Outcome[Option[rest.Config]]] { do { decoded <- newClientConfigFromBytes(source,bytes); match decoded.error { Some(error) => ioPure(outcome.failure(None,error)); None => match decoded.value { None => ioPure(outcome.success(None)); Some(config) => clientConfig(config) } } } }

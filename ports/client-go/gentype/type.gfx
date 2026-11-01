@@ -1,0 +1,113 @@
+// Copyright 2024 The Kubernetes Authors. Licensed under Apache-2.0.
+package gentype
+import rest "rest"
+import runtime "deps/k8s.io/apimachinery/pkg/runtime"
+import meta "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import objects "deps/objects"
+import outcome "support/outcome"
+import watchstream "support/watch"
+import applyutil "util/apply"
+import features "features"
+import errors "deps/support"
+
+type ObjectAdapter[T] = ObjectAdapter { objectType: objects.ObjectType[T], newObject: func() T, name: func(T) String }
+type ListAdapter[T,L] = ListAdapter { objectType: objects.ObjectType[L], newList: func() L, copyListMeta: func(L,L) L, getItems: func(L) List[T], setItems: func(L,List[T]) L }
+type ApplyAdapter[C] = ApplyAdapter { name: func(C) Option[String], marshal: applyutil.Marshal[C] }
+type Client[T] = Client { resource: String, client: rest.Interface, parameterCodec: runtime.ParameterCodec, namespace: String, object: ObjectAdapter[T], prefersProtobuf: Bool }
+type ClientWithList[T,L] = ClientWithList { client: Client[T], list: ListAdapter[T,L] }
+type ClientWithApply[T,C] = ClientWithApply { client: Client[T], apply: ApplyAdapter[C], features: features.FeatureRegistry }
+type ClientWithListAndApply[T,L,C] = ClientWithListAndApply { client: Client[T], list: ListAdapter[T,L], apply: ApplyAdapter[C], features: features.FeatureRegistry }
+alias ClientOption[T] = func(Client[T]) Client[T]
+func prefersProtobuf[T]() ClientOption[T] { func(client) => client{prefersProtobuf: true} }
+func newClient[T](resource String, client rest.Interface, parameterCodec runtime.ParameterCodec, namespace String, object ObjectAdapter[T], options List[ClientOption[T]]) Client[T] {
+ fold(options,Client(resource,client,parameterCodec,namespace,object,false),func(c,option) => option(c))
+}
+func newClientWithList[T,L](resource String, client rest.Interface, parameterCodec runtime.ParameterCodec, namespace String, object ObjectAdapter[T], list ListAdapter[T,L], options List[ClientOption[T]]) ClientWithList[T,L] { ClientWithList(newClient(resource,client,parameterCodec,namespace,object,options),list) }
+func newClientWithApply[T,C](resource String, client rest.Interface, parameterCodec runtime.ParameterCodec, namespace String, object ObjectAdapter[T], apply ApplyAdapter[C], registry features.FeatureRegistry, options List[ClientOption[T]]) ClientWithApply[T,C] { ClientWithApply(newClient(resource,client,parameterCodec,namespace,object,options),apply,registry) }
+func newClientWithListAndApply[T,L,C](resource String, client rest.Interface, parameterCodec runtime.ParameterCodec, namespace String, object ObjectAdapter[T], list ListAdapter[T,L], apply ApplyAdapter[C], registry features.FeatureRegistry, options List[ClientOption[T]]) ClientWithListAndApply[T,L,C] { ClientWithListAndApply(newClient(resource,client,parameterCodec,namespace,object,options),list,apply,registry) }
+func getClient[T](client Client[T]) rest.Interface { client.client }
+func getNamespace[T](client Client[T]) String { client.namespace }
+func _scope[T](client Client[T], request rest.Request) rest.Request { rest.resource(rest.namespaceIfScoped(rest.useProtobufAsDefaultIfPreferred(request,client.prefersProtobuf),client.namespace,client.namespace != ""),client.resource) }
+func _decode[A](request rest.Request, descriptor objects.ObjectType[A], empty A) IO[outcome.Outcome[A]] { do {
+ response <- rest.doRequest(request)
+ decoded <- rest.resultInto(response,objects.toObject(descriptor,empty))
+ ioPure(match objects.fromObject(descriptor,Some(decoded.value)) {
+  Some(value) => outcome.from(value,decoded.error)
+  None => outcome.from(empty,match decoded.error {
+   Some(error) => Some(error)
+   None => Some(errors.errorNew("decoded object does not match the client object type"))
+  })
+ })
+} }
+func _request[T](client Client[T], verb String, name Option[String], subresources List[String], options runtime.Object) IO[rest.Request] { do {
+ request <- client.client.verb(verb)
+ let scoped = _scope(client,request)
+ let named = match name { None => scoped; Some(value) => rest.name(scoped,value) }
+ rest.versionedParams(rest.subResource(named,subresources),options,client.parameterCodec)
+} }
+func get[T](client Client[T], name String, options meta.GetOptions) IO[outcome.Outcome[T]] { do {
+ request <- _request(client,"GET",Some(name),[],meta.getOptionsToRuntimeObject(options))
+ _decode(request,client.object.objectType,client.object.newObject())
+} }
+func create[T](client Client[T], object T, options meta.CreateOptions) IO[outcome.Outcome[T]] { do {
+ request <- _request(client,"POST",None,[],meta.createOptionsToRuntimeObject(options))
+ body <- rest.bodyObject(request,Some(objects.toObject(client.object.objectType,object)))
+ _decode(body,client.object.objectType,client.object.newObject())
+} }
+func _update[T](client Client[T], object T, options meta.UpdateOptions, subresources List[String]) IO[outcome.Outcome[T]] { do {
+ request <- _request(client,"PUT",Some(client.object.name(object)),subresources,meta.updateOptionsToRuntimeObject(options))
+ body <- rest.bodyObject(request,Some(objects.toObject(client.object.objectType,object)))
+ _decode(body,client.object.objectType,client.object.newObject())
+} }
+func update[T](client Client[T], object T, options meta.UpdateOptions) IO[outcome.Outcome[T]] { _update(client,object,options,[]) }
+func updateStatus[T](client Client[T], object T, options meta.UpdateOptions) IO[outcome.Outcome[T]] { _update(client,object,options,["status"]) }
+func _timeout(options meta.ListOptions) Int { match meta.listOptionsGetTimeoutSeconds(options) { None => 0; Some(seconds) => seconds * 1000000000 } }
+func list[T,L](client Client[T], adapter ListAdapter[T,L], options meta.ListOptions) IO[outcome.Outcome[L]] { do {
+ request <- _request(client,"GET",None,[],meta.listOptionsToRuntimeObject(options))
+ _decode(rest.timeout(request,_timeout(options)),adapter.objectType,adapter.newList())
+} }
+func watch[T](client Client[T], options meta.ListOptions) IO[outcome.Outcome[Option[watchstream.Watch]]] { do {
+ request <- _request(client,"GET",None,[],meta.listOptionsToRuntimeObject(meta.listOptionsWithWatch(options,true)))
+ rest.watch(rest.timeout(request,_timeout(options)))
+} }
+func delete[T](client Client[T], name String, options meta.DeleteOptions) IO[outcome.Outcome[Unit]] { do {
+ request <- client.client.verb("DELETE")
+ body <- rest.bodyObject(rest.name(_scope(client,request),name),Some(meta.deleteOptionsToRuntimeObject(options)))
+ response <- rest.doRequest(body)
+ error <- rest.resultError(response)
+ ioPure(outcome.from(unit(),error))
+} }
+func deleteCollection[T](client Client[T], options meta.DeleteOptions, listOptions meta.ListOptions) IO[outcome.Outcome[Unit]] { do {
+ request <- _request(client,"DELETE",None,[],meta.listOptionsToRuntimeObject(listOptions))
+ body <- rest.bodyObject(rest.timeout(request,_timeout(listOptions)),Some(meta.deleteOptionsToRuntimeObject(options)))
+ response <- rest.doRequest(body)
+ error <- rest.resultError(response)
+ ioPure(outcome.from(unit(),error))
+} }
+func patch[T](client Client[T], name String, patchType String, data String, options meta.PatchOptions, subresources List[String]) IO[outcome.Outcome[T]] { do {
+ initial <- client.client.patch(patchType)
+ request <- rest.versionedParams(rest.subResource(rest.name(_scope(client,initial),name),subresources),meta.patchOptionsToRuntimeObject(options),client.parameterCodec)
+ _decode(rest.bodyBytes(request,data),client.object.objectType,client.object.newObject())
+} }
+func _apply[T,C](client Client[T], adapter ApplyAdapter[C], registry features.FeatureRegistry, configuration Option[C], options meta.ApplyOptions, subresources List[String]) IO[outcome.Outcome[Option[T]]] {
+ match configuration {
+ None => ioPure(outcome.failure(None,errors.errorNew("object provided to Apply must not be nil")))
+ Some(value) => match adapter.name(value) {
+ None => ioPure(outcome.failure(None,errors.errorNew("obj.Name must be provided to Apply")))
+ Some(name) => do {
+  built <- applyutil.newRequest(client.client,value,adapter.marshal,registry)
+  match built.value {
+   None => ioPure(outcome.from(None,built.error))
+   Some(initial) => do {
+    patchOptions <- meta.applyOptionsCallToPatchOptions(options)
+    request <- rest.versionedParams(rest.subResource(rest.name(_scope(client,initial),name),subresources),meta.patchOptionsToRuntimeObject(patchOptions.1),client.parameterCodec)
+    decoded <- _decode(request,client.object.objectType,client.object.newObject())
+    ioPure(outcome.from(Some(decoded.value),decoded.error))
+   }
+  }
+ }
+ }
+ }
+}
+func apply[T,C](client Client[T], adapter ApplyAdapter[C], registry features.FeatureRegistry, configuration Option[C], options meta.ApplyOptions) IO[outcome.Outcome[Option[T]]] { _apply(client,adapter,registry,configuration,options,[]) }
+func applyStatus[T,C](client Client[T], adapter ApplyAdapter[C], registry features.FeatureRegistry, configuration Option[C], options meta.ApplyOptions) IO[outcome.Outcome[Option[T]]] { _apply(client,adapter,registry,configuration,options,["status"]) }

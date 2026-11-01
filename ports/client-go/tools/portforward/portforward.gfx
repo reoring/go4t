@@ -1,0 +1,154 @@
+// Copyright 2015 The Kubernetes Authors. Licensed under Apache-2.0.
+// Source: client-go v0.37.2 tools/portforward/portforward.go.
+package portforward
+import spdy "github.com/reoring/gofx/ports/client-go/transport/spdy"
+import remote "github.com/reoring/gofx/ports/client-go/tools/remotecommand"
+import net "github.com/reoring/gofx/ports/client-go/deps/net"
+import rawio "github.com/reoring/gofx/ports/client-go/deps/io"
+import errors "github.com/reoring/gofx/ports/client-go/deps/support"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import string "std/string"
+import map "std/map"
+import list "std/list"
+import prelude "std/prelude"
+
+type ForwardedPort = ForwardedPort {local:Int,remote:Int} deriving Eq,Debug
+type ListenAddress = ListenAddress {address:String,protocol:String,failureMode:String} deriving Eq,Debug
+instance prelude.Show[ForwardedPort] {show(value) {"{${value.local} ${value.remote}}" }}
+instance prelude.Show[ListenAddress] {show(value) {"{${value.address} ${value.protocol} ${value.failureMode}}" }}
+type PortForwarder = PortForwarder {dialer:spdy.Dialer,addresses:List[ListenAddress],ports:sync.Ref[List[ForwardedPort]],listeners:sync.Ref[List[net.Listener]],mutex:sync.Mutex,requestID:sync.Ref[Int],stop:sync.Channel[Unit],ready:Option[sync.Channel[Unit]],isReady:sync.Ref[Bool],out:Option[spdy.Writer],errOut:Option[spdy.Writer]}
+extern func _parsePort(value String) (Int,Option[errors.Error]) = "github.com/reoring/gofx/ports/client-go/tools/portforward/host".ParsePort
+extern func _ipFamily(value String) Int = "github.com/reoring/gofx/ports/client-go/tools/portforward/host".IPFamily
+extern func _listen(network String,address String,port Int) IO[(Option[net.Listener],Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/tools/portforward/host".Listen
+extern func _accept(listener net.Listener) IO[(Option[net.Conn],Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/tools/portforward/host".Accept
+extern func _listenerPort(listener net.Listener) IO[Int] = "github.com/reoring/gofx/ports/client-go/tools/portforward/host".ListenerPort
+extern func _closeListener(listener net.Listener) IO[Unit] = "github.com/reoring/gofx/ports/client-go/tools/portforward/host".CloseListener
+extern func _connReader(connection net.Conn) IO[rawio.Reader] = "github.com/reoring/gofx/ports/client-go/tools/portforward/host".ConnReader
+extern func _connWriter(connection net.Conn) IO[rawio.Writer] = "github.com/reoring/gofx/ports/client-go/tools/portforward/host".ConnWriter
+extern func _closeConn(connection net.Conn) IO[Unit] = "github.com/reoring/gofx/ports/client-go/tools/portforward/host".CloseConn
+extern func _joinHostPort(address String,port Int) String = "github.com/reoring/gofx/ports/client-go/tools/portforward/host".JoinHostPort
+extern func _taggedError(tag String,message String) errors.Error = "github.com/reoring/gofx/ports/client-go/tools/portforward/host".TaggedError
+func portForwardProtocolV1Name() String {"portforward.k8s.io"}
+func errLostConnectionToPod() errors.Error {_taggedError("lost-connection-to-pod","lost connection to pod")}
+func parsePorts(ports List[String]) outcome.Outcome[List[ForwardedPort]] {_parsePorts(ports,Nil)}
+func _parsePorts(ports List[String],acc List[ForwardedPort]) outcome.Outcome[List[ForwardedPort]] {match ports {Nil=>outcome.success(list.reverse(acc));Cons(s,tail)=>{
+ let parts=string.split(":",s)
+ let pair=match parts {Cons(p,Nil)=>Some((p,p));Cons(a,Cons(b,Nil))=>Some((if a=="" {"0"} else {a},b));_=>None}
+ match pair {None=>outcome.failure(Nil,errors.errorNew("invalid port format '${s}'"));Some(p)=>{
+  let local=_parsePort(p.0)
+  let remote=_parsePort(p.1)
+  match local.1 {Some(e)=>outcome.failure(Nil,errors.errorNew("error parsing local port '${p.0}': ${errors.errorMessage(e)}"));None=>match remote.1 {
+   Some(e)=>outcome.failure(Nil,errors.errorNew("error parsing remote port '${p.1}': ${errors.errorMessage(e)}"));None=>if remote.0==0 {outcome.failure(Nil,errors.errorNew("remote port must be > 0"))} else {_parsePorts(tail,Cons(ForwardedPort {local:local.0,remote:remote.0},acc))}
+  }}
+ }}
+}}}
+func parseAddresses(addresses List[String]) outcome.Outcome[List[ListenAddress]] {_parseAddresses(addresses,map.emptyMap())}
+func _parseAddresses(addresses List[String],acc Map[String,ListenAddress]) outcome.Outcome[List[ListenAddress]] {match addresses {Nil=>outcome.success(map.mapValues(acc));Cons(address,tail)=>{
+ if address=="localhost" {
+  let a=if map.mapMember(acc,"127.0.0.1") {acc} else {map.mapInsert(acc,"127.0.0.1",ListenAddress {address:"127.0.0.1",protocol:"tcp4",failureMode:"all"})}
+  let b=if map.mapMember(a,"::1") {a} else {map.mapInsert(a,"::1",ListenAddress {address:"::1",protocol:"tcp6",failureMode:"all"})}
+  _parseAddresses(tail,b)
+ } else {let family=_ipFamily(address)
+  if family==0 {outcome.failure(Nil,errors.errorNew("${address} is not a valid IP"))} else {_parseAddresses(tail,map.mapInsert(acc,address,ListenAddress {address:address,protocol:if family==4 {"tcp4"} else {"tcp6"},failureMode:"any"}))}
+ }
+}}}
+func newOnAddresses(dialer spdy.Dialer,addresses List[String],ports List[String],stop sync.Channel[Unit],ready Option[sync.Channel[Unit]],out Option[spdy.Writer],errOut Option[spdy.Writer]) IO[outcome.Outcome[Option[PortForwarder]]] {
+ let parsedAddresses=parseAddresses(addresses)
+ let parsedPorts=parsePorts(ports)
+ if list.length(addresses)==0 {ioPure(outcome.failure(None,errors.errorNew("you must specify at least 1 address")))} else {match parsedAddresses.error {
+  Some(e)=>ioPure(outcome.failure(None,e));None=>if list.length(ports)==0 {ioPure(outcome.failure(None,errors.errorNew("you must specify at least 1 port")))} else {match parsedPorts.error {
+   Some(e)=>ioPure(outcome.failure(None,e));None=>do {
+    ps<-sync.newRef(parsedPorts.value)
+    listeners<-sync.newRef(Nil)
+    mutex<-sync.newMutex()
+    requestID<-sync.newRef(0)
+    isReady<-sync.newRef(false)
+    ioPure(outcome.success(Some(PortForwarder {dialer:dialer,addresses:parsedAddresses.value,ports:ps,listeners:listeners,mutex:mutex,requestID:requestID,stop:stop,ready:ready,isReady:isReady,out:out,errOut:errOut})))
+   }
+  }}
+ }}
+}
+func newPortForwarder(dialer spdy.Dialer,ports List[String],stop sync.Channel[Unit],ready Option[sync.Channel[Unit]],out Option[spdy.Writer],errOut Option[spdy.Writer]) IO[outcome.Outcome[Option[PortForwarder]]] {newOnAddresses(dialer,["localhost"],ports,stop,ready,out,errOut)}
+func _print(writer Option[spdy.Writer],message String) IO[Unit] {match writer {None=>ioPure(unit());Some(w)=>do {_ <- spdy.writeAll(w,message);ioPure(unit())}}}
+func _closeListeners(listeners List[net.Listener]) IO[Unit] {match listeners {Nil=>ioPure(unit());Cons(l,tail)=>do {_closeListener(l);_closeListeners(tail)}}}
+func close(forwarder PortForwarder) IO[Unit] {sync.withLock(forwarder.mutex,do {listeners<-sync.readRef(forwarder.listeners);sync.writeRef(forwarder.listeners,Nil);_closeListeners(listeners)})}
+func getPorts(forwarder PortForwarder) IO[outcome.Outcome[List[ForwardedPort]]] {match forwarder.ready {None=>ioPure(outcome.failure(Nil,errors.errorNew("no Ready channel provided")));Some(_)=>do {
+ ready<-sync.readRef(forwarder.isReady)
+ if !ready {ioPure(outcome.failure(Nil,errors.errorNew("listeners not ready")))} else {do {ports<-sync.readRef(forwarder.ports);ioPure(outcome.success(ports))}}
+}}}
+func _nextID(forwarder PortForwarder) IO[Int] {sync.withLock(forwarder.mutex,do {id<-sync.readRef(forwarder.requestID);sync.writeRef(forwarder.requestID,id+1);ioPure(id)})}
+func handleConnection(forwarder PortForwarder,connection spdy.Connection,local net.Conn,port ForwardedPort) IO[Unit] {sync.ensuring(do {
+ _print(forwarder.out,"Handling connection for ${port.local}\n")
+ id<-_nextID(forwarder)
+ let headers=[("streamType","error"),("port","${port.remote}"),("requestID","${id}")]
+ errorStream<-connection.createStream(headers)
+ match errorStream.value {None=>_print(forwarder.errOut,"Error creating error stream\n");Some(errorStream)=>sync.ensuring(do {
+  errorStream.writer.close()
+  dataStream<-connection.createStream([("streamType","data"),("port","${port.remote}"),("requestID","${id}")])
+  match dataStream.value {None=>_print(forwarder.errOut,"Error creating forwarding stream\n");Some(dataStream)=>sync.ensuring(do {
+   reader<-_connReader(local)
+   writer<-_connWriter(local)
+   completed<-sync.newChannel(2)
+   errors<-sync.newChannel(1)
+   remote.withProducers([
+    do {result<-spdy.readAll(errorStream.reader);sync.send(errors,result)},
+    do {_ <- spdy.copy(dataStream.reader,spdy.fromWriter(writer));sync.send(completed,unit())},
+    sync.ensuring(do {result<-spdy.copy(spdy.fromReader(reader),dataStream.writer);match result.error {None=>ioPure(unit());Some(_)=>sync.send(completed,unit())}},dataStream.writer.close())
+   ],sync.ensuring(do {
+    _ <- sync.receive(completed)
+    dataStream.reset()
+    result<-sync.receive(errors)
+    match result {None=>ioPure(unit());Some(result)=>if result.value!="" || (match result.error {None=>false;Some(_)=>true}) {do {_print(forwarder.errOut,"An error occurred forwarding ${port.local} -> ${port.remote}: ${result.value}\n");connection.close()}} else {ioPure(unit())}}
+   },do {_closeConn(local);dataStream.reset();errorStream.reset()}))
+  },connection.removeStreams([dataStream]))}
+ },connection.removeStreams([errorStream]))}
+},_closeConn(local))}
+func _acceptLoop(forwarder PortForwarder,connection spdy.Connection,listener net.Listener,port ForwardedPort) IO[Unit] {do {
+ accepted<-_accept(listener)
+ match accepted.0 {None=>ioPure(unit());Some(local)=>remote.withProducers([handleConnection(forwarder,connection,local,port)],_acceptLoop(forwarder,connection,listener,port))}
+}}
+type Bound = Bound {port:ForwardedPort,actions:List[IO[Unit]],successAll:Int,failAll:Int,failAny:Int,errors:List[String]}
+func _bindAddresses(forwarder PortForwarder,connection spdy.Connection,addresses List[ListenAddress],bound Bound) IO[Bound] {match addresses {Nil=>ioPure(bound);Cons(address,tail)=>do {
+ result<-_listen(address.protocol,address.address,bound.port.local)
+ match result.0 {None=>_bindAddresses(forwarder,connection,tail,bound {failAll:bound.failAll+(if address.failureMode=="all" {1} else {0}),failAny:bound.failAny+(if address.failureMode=="any" {1} else {0}),errors:Cons(match result.1 {None=>"unable to create listener";Some(e)=>"unable to create listener: Error ${errors.errorMessage(e)}"},bound.errors)});Some(listener)=>do {
+  local<-_listenerPort(listener)
+  let port=bound.port {local:local}
+  sync.withLock(forwarder.mutex,do {listeners<-sync.readRef(forwarder.listeners);sync.writeRef(forwarder.listeners,Cons(listener,listeners))})
+  _print(forwarder.out,"Forwarding from ${_joinHostPort(address.address,local)} -> ${port.remote}\n")
+  _bindAddresses(forwarder,connection,tail,bound {port:port,actions:Cons(_acceptLoop(forwarder,connection,listener,port),bound.actions),successAll:bound.successAll+(if address.failureMode=="all" {1} else {0})})
+ }}
+}}}
+func _bindPorts(forwarder PortForwarder,connection spdy.Connection,ports List[ForwardedPort],boundPorts List[ForwardedPort],actions List[IO[Unit]],success Bool) IO[(List[ForwardedPort],(List[IO[Unit]],Bool))] {match ports {Nil=>ioPure((list.reverse(boundPorts),(actions,success)));Cons(port,tail)=>do {
+ bound<-_bindAddresses(forwarder,connection,forwarder.addresses,Bound {port:port,actions:Nil,successAll:0,failAll:0,failAny:0,errors:Nil})
+ let failed=(bound.successAll==0 && bound.failAll>0) || bound.failAny>0
+ if failed {_print(forwarder.errOut,"Unable to listen on port ${port.local}: Listeners failed to create with the following errors: ${string.join(", ",bound.errors)}\n")} else {ioPure(unit())}
+ _bindPorts(forwarder,connection,tail,Cons(bound.port,boundPorts),list.append(bound.actions,actions),success || !failed)
+}}}
+func forwardPorts(forwarder PortForwarder) IO[outcome.Outcome[Unit]] {do {
+ result<-forwarder.dialer.dial([portForwardProtocolV1Name()])
+ match result.error {Some(e)=>ioPure(outcome.failure(unit(),errors.errorWrap("error upgrading connection",e)));None=>match result.value.connection {
+  None=>ioPure(outcome.failure(unit(),errors.errorNew("upgrade returned no connection")));Some(connection)=>sync.ensuring(do {
+   if result.value.protocol!=portForwardProtocolV1Name() {ioPure(outcome.failure(unit(),errors.errorNew("unable to negotiate protocol: client supports ${portForwardProtocolV1Name()}, server returned ${result.value.protocol}")))} else {do {
+    ports<-sync.readRef(forwarder.ports)
+    bound<-_bindPorts(forwarder,connection,ports,Nil,Nil,false)
+    sync.writeRef(forwarder.ports,bound.0)
+    if !bound.1.1 {ioPure(outcome.failure(unit(),errors.errorNew("unable to listen on any of the requested ports: ${ports}")))} else {
+     remote.withProducers(bound.1.0,sync.ensuring(do {
+      sync.writeRef(forwarder.isReady,true)
+      match forwarder.ready {None=>ioPure(unit());Some(ch)=>sync.close(ch)}
+      ended<-sync.newChannel(1)
+      remote.withProducers([do {connection.awaitClose();sync.send(ended,unit())}],do {
+       lost<-sync.selectCase([sync.receiveCase(forwarder.stop,func(_)=>false),sync.receiveCase(ended,func(_)=>true)])
+       ioPure(if lost {outcome.failure(unit(),errLostConnectionToPod())} else {outcome.success(unit())})
+      })
+     },do {close(forwarder);connection.close()}))
+    }
+   }}
+  },do {close(forwarder);connection.close()})
+ }}
+}}
+func newFallbackDialer(primary spdy.Dialer,secondary spdy.Dialer,shouldFallback func(errors.Error) Bool) spdy.Dialer {spdy.Dialer {dial:func(protocols)=>do {
+ result<-primary.dial(protocols)
+ match result.error {Some(e)=>if shouldFallback(e) {secondary.dial(protocols)} else {ioPure(result)};None=>ioPure(result)}
+}}}

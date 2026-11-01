@@ -1,0 +1,85 @@
+// Copyright 2024-2026 The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+// Source: client-go v0.37.2 tools/leaderelection/leasecandidate.go.
+package leaderelection
+import coord "deps/k8s.io/api/coordination/v1"
+import beta "deps/k8s.io/api/coordination/v1beta1"
+import meta "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import time "deps/time"
+import errors "deps/support"
+import "support/sync"
+import "support/outcome"
+import queue "util/workqueue"
+import "std/io"
+
+type CandidateClient = CandidateClient { create:func(beta.LeaseCandidate) IO[outcome.Outcome[Option[beta.LeaseCandidate]]], update:func(beta.LeaseCandidate) IO[outcome.Outcome[Option[beta.LeaseCandidate]]] }
+type CandidateInformer = CandidateInformer { get:func(String) IO[outcome.Outcome[Option[beta.LeaseCandidate]]], start:func() IO[Unit], waitForCacheSync:func() IO[Bool], addUpdateHandler:func(func(beta.LeaseCandidate) IO[Unit]) IO[Option[errors.Error]] }
+type CacheSyncWaiter = CacheSyncWaiter { waitForCacheSync:func() IO[Bool] }
+type LeaseCandidate = LeaseCandidate { client:CandidateClient, informer:CandidateInformer, queue:queue.RateLimitingQueue[Int], name:String, namespace:String, leaseName:String, binaryVersion:String, emulationVersion:String, strategy:coord.CoordinatedLeaseStrategy, clock:sync.Clock }
+func requeueInterval() Int { 300000000000 }
+func candidateNeedsAck(value beta.LeaseCandidate) IO[Bool] {
+ let spec = beta.leaseCandidateGetSpec(value)
+ match beta.leaseCandidateSpecGetPingTime(spec) {
+  None => ioPure(false)
+  Some(ping) => do {
+   let renew = match beta.leaseCandidateSpecGetRenewTime(spec) { None => meta.newMicroTime(); Some(t) => t }
+   after <- time.timeCallAfter(meta.microTimeGetTime(ping),meta.microTimeGetTime(renew)); ioPure(after.1)
+  }
+ }
+}
+func newCandidate(client CandidateClient,informer CandidateInformer,namespace String,name String,leaseName String,binaryVersion String,emulationVersion String,strategy coord.CoordinatedLeaseStrategy,clock sync.Clock,metrics queue.MetricsRegistry) IO[outcome.Outcome[Option[(LeaseCandidate,CacheSyncWaiter)]]] {
+ do {
+  limiter <- queue.defaultControllerRateLimiter()
+  work <- queue.newRateLimitingQueueWithConfig(limiter,queue.RateLimitingQueueConfig("leasecandidate",metrics,None,clock,None))
+  let candidate = LeaseCandidate(client,informer,work,name,namespace,leaseName,binaryVersion,emulationVersion,strategy,clock)
+  error <- informer.addUpdateHandler(func(value) => do { ack <- candidateNeedsAck(value); if ack { enqueueLease(candidate) } else { ioPure(unit()) } })
+  match error {
+   Some(err) => do { work.delaying.queue.shutDown(); ioPure(outcome.failure(None,err)) }
+   None => ioPure(outcome.success(Some((candidate,CacheSyncWaiter(informer.waitForCacheSync)))))
+  }
+ }
+}
+func newLeaseCandidate(candidate LeaseCandidate) IO[beta.LeaseCandidate] {
+ do {
+  now <- sync.now(candidate.clock)
+  let metadata = meta.objectMetaWithNamespace(meta.objectMetaWithName(meta.newObjectMeta(),candidate.name),candidate.namespace)
+  let a = beta.leaseCandidateSpecWithLeaseName(beta.newLeaseCandidateSpec(),candidate.leaseName)
+  let b = beta.leaseCandidateSpecWithBinaryVersion(a,candidate.binaryVersion)
+  let c = beta.leaseCandidateSpecWithEmulationVersion(b,candidate.emulationVersion)
+  let d = beta.leaseCandidateSpecWithStrategy(c,candidate.strategy)
+  let spec = beta.leaseCandidateSpecWithRenewTime(d,Some(meta.microTimeWithTime(meta.newMicroTime(),meta.timeGetTime(_wireTime(now)))))
+  ioPure(beta.leaseCandidateWithSpec(beta.leaseCandidateWithObjectMeta(beta.newLeaseCandidate(),metadata),spec))
+ }
+}
+func ensureLease(candidate LeaseCandidate) IO[Option[errors.Error]] {
+ do { result <- candidate.informer.get(candidate.name)
+  match result.error {
+   Some(err) => if errors.errorIsNotFound(err) { do { value <- newLeaseCandidate(candidate); created <- candidate.client.create(value); ioPure(created.error) } } else { ioPure(Some(err)) }
+   None => match result.value {
+    None => ioPure(Some(errors.errorNew("candidate informer returned no object")))
+    Some(value) => do {
+     now <- sync.now(candidate.clock)
+     let spec = beta.leaseCandidateSpecWithRenewTime(beta.leaseCandidateGetSpec(value),Some(meta.microTimeWithTime(meta.newMicroTime(),meta.timeGetTime(_wireTime(now)))))
+     updated <- candidate.client.update(beta.leaseCandidateWithSpec(value,spec)); ioPure(updated.error)
+    }
+   }
+  }
+ }
+}
+func enqueueLease(candidate LeaseCandidate) IO[Unit] { candidate.queue.delaying.queue.add(0) }
+func processNextWorkItem(candidate LeaseCandidate) IO[Bool] {
+ do { item <- candidate.queue.delaying.queue.get(); match item {
+  None => ioPure(false)
+  Some(key) => sync.ensuring(do {
+   error <- ensureLease(candidate)
+   match error { None => candidate.queue.delaying.addAfter(key,requeueInterval()); Some(_) => queue.addRateLimited(candidate.queue,key) }
+   ioPure(true)
+  },candidate.queue.delaying.queue.done(key))
+ } }
+}
+func _candidateWorker(candidate LeaseCandidate) IO[Unit] { do { again <- processNextWorkItem(candidate); if again { _candidateWorker(candidate) } else { ioPure(unit()) } } }
+func runCandidate(candidate LeaseCandidate) IO[Unit] {
+ sync.bracket(sync.start(candidate.informer.start()),func(_factory) => do {
+  synced <- candidate.informer.waitForCacheSync()
+  if synced { do { enqueueLease(candidate); _candidateWorker(candidate) } } else { ioPure(unit()) }
+ },func(factory) => do { candidate.queue.delaying.queue.shutDown(); sync.cancelTask(factory); _ <- io.tryIO(sync.join(factory)); ioPure(unit()) })
+}

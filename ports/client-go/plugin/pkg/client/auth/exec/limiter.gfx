@@ -1,0 +1,14 @@
+// Copyright 2018 The Kubernetes Authors. Licensed under Apache-2.0.
+package exec
+import "support/sync"
+type SometimesState = SometimesState {window:Option[Int],count:Int}
+type Sometimes = Sometimes {threshold:Int,interval:Int,clock:sync.Clock,mutex:sync.Mutex,state:sync.Ref[SometimesState]}
+func newSometimes(threshold Int,interval Int,clock sync.Clock) IO[Sometimes] {do {mutex <- sync.newMutex();state <- sync.newRef(SometimesState(None,0));ioPure(Sometimes(threshold,interval,clock,mutex,state))}}
+func doSometimes(limiter Sometimes,action IO[Unit]) IO[Unit] {sync.withLock(limiter.mutex,do {
+ now <- sync.now(limiter.clock);state <- sync.readRef(limiter.state)
+ let time = sync.unixNanos(now)
+ let reset = match state.window {None => true;Some(start) => time-start >= limiter.interval}
+ let count = if reset {0} else {state.count}
+ let next = SometimesState(if reset {Some(time)} else {state.window},count)
+ if count < limiter.threshold {do {sync.writeRef(limiter.state,next{count:count+1});action}} else {sync.writeRef(limiter.state,next)}
+})}

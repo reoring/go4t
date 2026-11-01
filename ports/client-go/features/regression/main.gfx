@@ -1,0 +1,39 @@
+package main
+import features "github.com/reoring/gofx/ports/client-go/features"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import "std/map"
+func check(value Bool, message String) IO[Unit] { if value { ioPure(unit()) } else { ioFail(message) } }
+func main() IO[Unit] { do {
+ env <- sync.newRef(map.mapFromList([("KUBE_FEATURE_Alpha", "True"), ("KUBE_FEATURE_Locked", "false")]))
+ reads <- sync.newRef(0)
+ let environment = features.Environment(func(name) => do { count <- sync.readRef(reads); sync.writeRef(reads, count + 1); values <- sync.readRef(env); ioPure(map.mapLookup(values, name)) }, func(message) => ioPure(unit()))
+ let specs = map.mapFromList([("Alpha", features.FeatureSpec(false, false, features.alpha(), None)), ("Locked", features.FeatureSpec(true, true, features.ga(), None))])
+ gates <- features.newEnvVarFeatureGates("regression", specs, environment)
+ result <- features.set(gates, "Alpha", false)
+ check(match result { Ok(_) => true; Err(_) => false }, "set must succeed")
+ enabled <- features.enabled(gates, "Alpha")
+ check(!enabled, "explicit false must beat true environment")
+ count <- sync.readRef(reads)
+ check(count == 2, "first Enabled must read every feature even when overridden")
+ sync.writeRef(env, map.emptyMap())
+ locked <- features.enabled(gates, "Locked")
+ check(locked, "locked environment override must be ignored")
+ laterCount <- sync.readRef(reads)
+ check(laterCount == count, "environment must only be read once")
+ refused <- features.set(gates, "Locked", false)
+ check(match refused { Err(message) => message == "cannot set feature gate \"Locked\" to false, feature is locked to true"; Ok(_) => false }, "locked set error")
+ allowed <- features.setForTesting(gates, "Locked", false)
+ check(match allowed { Ok(_) => true; Err(_) => false }, "test override bypasses lock")
+ overridden <- features.enabled(gates, "Locked")
+ check(!overridden, "test override takes effect")
+ check(features.parseBool("TRUE") == Some(true), "Go true spellings")
+ check(features.parseBool("False") == Some(false), "Go false spellings")
+ check(features.parseBool(" true") == None, "whitespace is not accepted")
+ unknown <- features.set(gates, "Missing", true)
+ check(match unknown { Err(message) => message == "feature \"Missing\" is not registered in FeatureGates \"regression\""; Ok(_) => false }, "unknown set error")
+ defaults <- features.defaultVersionedKubernetesFeatureGates()
+ check(map.mapSize(defaults) == 10, "all ten pinned features")
+ let latest = features.unversionedFeatureGates(defaults)
+ check(match map.mapLookup(latest, features.inOrderInformers()) { Some(spec) => spec.default && spec.lockToDefault; None => false }, "latest GA spec is locked")
+ ioPure(unit())
+} }

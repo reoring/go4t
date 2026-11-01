@@ -1,0 +1,165 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package cache
+import "std/map"
+import "std/io"
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+import "github.com/reoring/gofx/ports/client-go/support/outcome"
+import "github.com/reoring/gofx/ports/client-go/support/watch"
+import objects "github.com/reoring/gofx/ports/client-go/deps/objects"
+import v1 "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import u "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+import features "github.com/reoring/gofx/ports/client-go/features"
+
+func testThreadSafeMetricsAndDisabledProjection() IO[Bool] { do {
+ names <- newInformerNameRegistry()
+ created <- newInformerName(names,"direct-storage")
+ match created.value { None => ioPure(false); Some(name) => do {
+  identity <- withResource(name,_identityTestResource("","v1","pods"))
+  observed <- sync.newRef([])
+  let gauge = GaugeMetric(func(value) => do { values <- sync.readRef(observed); sync.writeRef(observed,append(values,[value])) })
+  let provider = InformerMetricsProvider(func(_) => ioPure(gauge),func(_) => ioPure(SummaryMetric(func(_) => ioPure(unit()))),func(_) => ioPure(gauge))
+  enabled <- sync.newRef(false)
+  storage <- newThreadSafeStoreWithOptions(cacheTestAccess(),map.emptyMap(),ThreadSafeStoreOptions(func() => sync.readRef(enabled),Some((identity,provider))))
+  _ <- threadSafeUpdate(storage,"a",cacheTestObject("a",55))
+  _ <- threadSafeUpdate(storage,"b",cacheTestObject("b",32))
+  _ <- threadSafeDelete(storage,"a",Some(cacheTestObject("a",1)))
+  _ <- threadSafeReplace(storage,map.emptyMap(),"7")
+  threadSafeBookmark(storage,"12345678901234567890")
+  threadSafeTransaction(storage,[KeyedOperation("c",Some(cacheTestObject("c",9)),TransactionTypeAdd,true)])
+  threadSafeBookmark(storage,"invalid")
+  _ <- threadSafeDelete(storage,"c",None)
+  hidden <- threadSafeResourceVersion(storage)
+  sync.writeRef(enabled,true)
+  visible <- threadSafeResourceVersion(storage)
+  releaseInformerName(name)
+  threadSafeBookmark(storage,"10")
+  values <- sync.readRef(observed)
+  ioPure(hidden == "" && visible == "invalid" && values == [55.0,32.0,1.0,7.0,678901234567890.0,9.0])
+ } }
+} }
+
+func testStoreGateAndTombstonePreserveUnprojectedVersion() IO[Bool] { do {
+ enabled <- sync.newRef(false)
+ store <- newStoreWithOptions(cacheTestAccess(),None,ThreadSafeStoreOptions(func() => sync.readRef(enabled),None))
+ _ <- store.add(cacheTestObject("old",3))
+ store.bookmark("17")
+ hidden <- store.lastStoreSyncResourceVersion()
+ let handler = resourceEventHandlerFuncs(None,None,None)
+ removed <- processDelete(handler,store,DeletedFinalStateUnknown("old",None),cacheTestAccess())
+ keys <- store.listKeys()
+ sync.writeRef(enabled,true)
+ visible <- store.lastStoreSyncResourceVersion()
+ ioPure(hidden == "" && visible == "17" && keys == [] && outcome.isSuccess(removed))
+} }
+
+func testMutationCustomComparatorIsUsedEverywhere() IO[Bool] { do {
+ clock <- sync.fakeClock(0)
+ store <- newStore(cacheTestAccess())
+ let old = cacheTestObject("a",1) { version: "opaque-old" }
+ let newer = cacheTestObject("a",3) { version: "opaque-new" }
+ _ <- store.add(old)
+ calls <- sync.newRef(0)
+ cache <- newMutationCache(store,None,cacheTestAccess(),clock,100,true,10,func(a,b) => do { n <- sync.readRef(calls); sync.writeRef(calls,n+1); ioPure(outcome.success(compare(a.value,b.value))) })
+ mutation(cache,newer)
+ mutation(cache,old)
+ retained <- mutationGetByKey(cache,"a")
+ mutationOnAddOrUpdate(cache,old)
+ mutationOnDelete(cache,old { uid: "other" })
+ retainedAfterDelete <- mutationGetByKey(cache,"a")
+ mutationOnAddOrUpdate(cache,newer)
+ converged <- mutationGetByKey(cache,"a")
+ n <- sync.readRef(calls)
+ ioPure(retained.value == Some(newer) && retainedAfterDelete.value == Some(newer) && converged.value == Some(old) && n == 6)
+} }
+
+func testReflectorDescriptionDefaultsAndOverride() IO[Bool] { do {
+ clock <- sync.fakeClock(0)
+ store <- newStore(rawObjectAccess())
+ let options = defaultReflectorOptions(emptyRawListWatcher(),storeAsReflector(store),rawObjectAccess(),func(obj) => outcome.success(obj),clock)
+ unspecified <- newReflector(options { name: "separate-name" })
+ typed <- newReflector(options { expectedType: Some(objects.statusToObject(v1.newStatus())) })
+ empty <- newReflector(options { expectedType: Some(u.unstructuredToRuntimeObject(u.newUnstructured())) })
+ versioned <- u.unstructuredCallSetAPIVersion(u.newUnstructured(),"apps/v1")
+ kinded <- u.unstructuredCallSetKind(fst(versioned),"Deployment")
+ structured <- newReflector(options { expectedType: Some(u.unstructuredToRuntimeObject(fst(kinded))) })
+ coreVersioned <- u.unstructuredCallSetAPIVersion(u.newUnstructured(),"v1")
+ coreKinded <- u.unstructuredCallSetKind(fst(coreVersioned),"Pod")
+ core <- newReflector(options { expectedType: Some(u.unstructuredToRuntimeObject(fst(coreKinded))) })
+ overridden <- newReflector(options { expectedType: Some(u.unstructuredToRuntimeObject(fst(kinded))), typeDescription: "custom-kind" })
+ ioPure(reflectorTypeDescription(unspecified) == "<unspecified>" && reflectorTypeDescription(typed) == "*v1.Status" && reflectorTypeDescription(empty) == "*unstructured.Unstructured" && reflectorTypeDescription(structured) == "apps/v1, Kind=Deployment" && reflectorTypeDescription(core) == "v1, Kind=Pod" && reflectorTypeDescription(overridden) == "custom-kind" && unspecified.options.name == "separate-name")
+} }
+
+func testWatchErrorCallbackReceivesActualReflector() IO[Bool] { do {
+ clock <- sync.fakeClock(0)
+ store <- newStore(rawObjectAccess())
+ let lw = emptyRawListWatcher() { list: func(_) => ioPure(outcome.failure(ListResult([],"",""),cacheError("list failed"))) }
+ observed <- sync.newRef("")
+ reflector <- newReflector(defaultReflectorOptions(lw,storeAsReflector(store),rawObjectAccess(),func(obj) => outcome.success(obj),clock) { name: "actual", typeDescription: "pods", onError: func(receiver,error) => do { sync.writeRef(observed,receiver.options.name + ":" + reflectorTypeDescription(receiver)); reflectorSetVersion(receiver,"callback-version"); ioFail("stop after callback") } })
+ stopped <- io.tryIO(reflectorRun(reflector))
+ value <- sync.readRef(observed)
+ version <- reflectorResourceVersion(reflector)
+ ioPure((match stopped { Err(_) => true; Ok(_) => false }) && value == "actual:pods" && version == "callback-version")
+} }
+
+func testWatchListDiscoversCustomStoreTransformer() IO[Bool] { do {
+ clock <- sync.fakeClock(0)
+ destination <- newStore(cacheTestAccess())
+ let transform = func(obj CacheTestObject) => ioPure(outcome.success(obj { value: 99 }))
+ let custom = destination { transformer: Some(transform) }
+ channel <- sync.newChannel(2)
+ added <- rawTestObject("a","8",false)
+ bookmark <- rawTestObject("bookmark","21",true)
+ sync.send(channel,watch.Event("ADDED",Some(added)))
+ sync.send(channel,watch.Event("BOOKMARK",Some(bookmark)))
+ let watcher = watch.newWatch(channel,func() => sync.close(channel))
+ let lw = ListWatcher(func(_) => ioFail("watch-list must not list"),func(_) => ioPure(outcome.success(Some(watcher))),false,false)
+ checked <- sync.newRef(false)
+ reflector <- newReflector(defaultReflectorOptions(lw,storeAsReflector(custom),cacheTestAccess(),func(_) => outcome.success(cacheTestObject("a",1)),clock) { watchList: true, checkWatchListConsistency: Some(func(rv,items) => sync.writeRef(checked,rv == "21" && items == [cacheTestObject("a",1) { value: 99 }])) })
+ result <- reflectorWatchList(reflector)
+ found <- destination.getByKey("a")
+ consistent <- sync.readRef(checked)
+ watch.stop(watcher)
+ ioPure(outcome.isSuccess(result) && consistent && found.value == Some(cacheTestObject("a",1) { value: 99 }))
+} }
+
+func testAtomicFIFOUsesSuppliedRegistryAtReadTime() IO[Bool] { do {
+ registry <- features.newFeatureRegistry(features.Environment(func(_) => ioPure(None),func(_) => ioPure(unit())))
+ _ <- features.replaceFeatureGates(registry,features.Gates(func(_) => ioPure(false),None,None,"disabled"))
+ storage <- newThreadSafeStoreWithOptions(cacheTestAccess(),map.emptyMap(),threadSafeStoreOptionsWithFeatures(registry,None))
+ threadSafeBookmark(storage,"51")
+ hidden <- threadSafeResourceVersion(storage)
+ _ <- features.replaceFeatureGates(registry,features.Gates(func(feature) => ioPure(feature == features.atomicFIFO()),None,None,"enabled"))
+ visible <- threadSafeResourceVersion(storage)
+ ioPure(hidden == "" && visible == "51")
+} }
+
+func testWatchStoreErrorCallbackReceivesActualReflector() IO[Bool] { do {
+ clock <- sync.fakeClock(0)
+ destination <- newStore(rawObjectAccess())
+ let store = storeAsReflector(destination) { add: func(_) => ioPure(outcome.failure(unit(),cacheError("store write rejected"))) }
+ received <- sync.newRef(false)
+ reflector <- newReflector(defaultReflectorOptions(emptyRawListWatcher(),store,rawObjectAccess(),func(obj) => outcome.success(obj),clock) { onError: func(receiver,error) => do { sync.writeRef(received,true); reflectorSetVersion(receiver,"callback") } })
+ channel <- sync.newChannel(1)
+ obj <- rawTestObject("a","19",false)
+ sync.send(channel,watch.Event("ADDED",Some(obj)))
+ sync.close(channel)
+ errorsChannel <- sync.newChannel(0)
+ started <- sync.now(clock)
+ _ <- handleAnyWatch(reflector,watch.newWatch(channel,func() => ioPure(unit())),store,started,errorsChannel,false,false)
+ called <- sync.readRef(received)
+ version <- reflectorResourceVersion(reflector)
+ ioPure(called && version == "callback")
+} }
+
+func testControllerErrorCallbackReceivesActualReflector() IO[Bool] { do {
+ clock <- sync.fakeClock(0)
+ store <- newStore(rawObjectAccess())
+ reflector <- newReflector(defaultReflectorOptions(emptyRawListWatcher(),storeAsReflector(store),rawObjectAccess(),func(obj) => outcome.success(obj),clock) { onError: func(receiver,error) => do { reflectorSetVersion(receiver,"controller-callback"); ioFail("stop after controller callback") } })
+ fifo <- newFIFO(rawObjectAccess())
+ object <- rawTestObject("a","1",false)
+ _ <- fifoAdd(fifo,object)
+ let controller = newController(fifoQueue(fifo),reflector,func(_,_) => ioPure(ProcessResult(Some(cacheError("processing failed")),false)),func() => ioPure(unit()))
+ stopped <- io.tryIO(controllerProcessLoop(controller))
+ version <- reflectorResourceVersion(reflector)
+ ioPure((match stopped { Err(_) => true; Ok(_) => false }) && version == "controller-callback")
+} }

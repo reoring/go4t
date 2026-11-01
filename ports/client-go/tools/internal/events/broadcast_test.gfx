@@ -1,0 +1,20 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package events
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+func testFIFOAndShutdownDrainingTrace() IO[Bool] { do {
+ hub <- newHub(4); output <- sync.newChannel(4)
+ addListener(hub,func(value) => sync.send(output,value))
+ publish(hub,1); publish(hub,2); publish(hub,3); shutdown(hub)
+ a <- sync.receive(output); b <- sync.receive(output); c <- sync.receive(output); rejected <- publish(hub,4)
+ ioPure(a==Some(1) && b==Some(2) && c==Some(3) && !rejected)
+} }
+func testSlowWatcherDoesNotBlockPublisherTrace() IO[Bool] { do {
+ hub <- newHub(1); entered <- sync.newChannel(0)
+ let newSignal: IO[sync.Channel[Unit]] = sync.newChannel(0)
+ release <- newSignal
+ listener <- addListener(hub,func(value) => do { sync.send(entered,unit()); sync.receive(release); ioPure(unit()) })
+ publish(hub,1); sync.receive(entered)
+ accepted <- publish(hub,2); dropped <- publish(hub,3)
+ stopListener(listener); sync.send(release,unit()); shutdown(hub)
+ ioPure(accepted && !dropped)
+} }

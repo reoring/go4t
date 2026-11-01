@@ -1,0 +1,32 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package metrics
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+func testFirstRegistrationAndDeferredEnsureTrace() IO[Bool] { do {
+ registry <- newRegistry(); registrations <- sync.newRef(0); observations <- sync.newRef(0)
+ let first = emptyOptions() { registerFn: Some(func() => do { n <- sync.readRef(registrations); sync.writeRef(registrations,n+1) }), transportCacheEntries: Some(TransportCacheMetric(func(n) => sync.writeRef(observations,n))) }
+ register(registry,first)
+ register(registry,emptyOptions() { transportCacheEntries: Some(TransportCacheMetric(func(n) => sync.writeRef(observations,-n))) })
+ ensureRegistered(registry); ensureRegistered(registry)
+ resolved <- provider(registry,None); resolved.transportCacheEntries.observe(9)
+ calls <- sync.readRef(registrations); value <- sync.readRef(observations)
+ ioPure(calls==1 && value==9)
+} }
+func testEnsureBeforeRegisterDoesNotConsumeCallbackTrace() IO[Bool] { do {
+ registry <- newRegistry(); calls <- sync.newRef(0)
+ ensureRegistered(registry)
+ register(registry,emptyOptions() { registerFn: Some(func() => sync.writeRef(calls,1)) })
+ ensureRegistered(registry); count <- sync.readRef(calls); ioPure(count==1)
+} }
+func testExplicitProviderOverrideTrace() IO[Bool] { do {
+ registry <- newRegistry(); calls <- sync.newRef(0)
+ let override = noopProvider() { transportCreateCalls: TransportCreateCallsMetric(func(result) => sync.writeRef(calls,if result=="miss" { 1 } else { -1 })) }
+ resolved <- provider(registry,Some(override)); resolved.transportCreateCalls.increment("miss")
+ count <- sync.readRef(calls); ioPure(count==1)
+} }
+func testConcurrentEnsureWaitsForWinnerTrace() IO[Bool] { do {
+ registry <- newRegistry(); entered <- sync.newChannel(0); release <- sync.newChannel(0); completed <- sync.newRef(false)
+ register(registry,emptyOptions() { registerFn: Some(func() => do { sync.send(entered,unit()); sync.receive(release); sync.writeRef(completed,true) }) })
+ first <- sync.start(ensureRegistered(registry)); sync.receive(entered)
+ second <- sync.start(do { ensureRegistered(registry); sync.readRef(completed) })
+ sync.send(release,unit()); sync.join(first); after <- sync.join(second); ioPure(after)
+} }

@@ -1,0 +1,57 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package listers
+import "std/map"
+import cache "github.com/reoring/gofx/ports/client-go/tools/cache"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import schema "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime/schema"
+import meta "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import codec "github.com/reoring/gofx/ports/client-go/deps/codec"
+import support "github.com/reoring/gofx/ports/client-go/deps/support"
+
+type ListerFixture = ListerFixture { name: String, namespace: String, identity: sync.Ref[Int] }
+func fixtureAccess() cache.ObjectAccess[ListerFixture] { cache.ObjectAccess(func(value) => ioPure(outcome.success(if value.namespace == "" { value.name } else { value.namespace + "/" + value.name })),func(_) => ioPure(None),func(value) => ioPure(value.namespace),func(value) => ioPure(map.mapInsert(map.emptyMap(),"name",value.name)),func(value) => ioPure(value),func(left,right) => ioPure(sync.sameRef(left.identity,right.identity)),func(value) => ioPure(value.name)) }
+func fixtureResource() schema.GroupResource { schema.groupResourceWithResource(schema.groupResourceWithGroup(schema.newGroupResource(),"test.example"),"thing") }
+func testNamespacesKeysAndIdentity() IO[Bool] { do {
+ identity <- sync.newRef(3)
+ let access = fixtureAccess()
+ indexer <- cache.newIndexer(access,map.mapInsert(map.emptyMap(),"namespace",cache.namespaceIndex(access)))
+ _ <- indexer.store.add(ListerFixture("same","a",identity))
+ _ <- indexer.store.add(ListerFixture("same","b",identity))
+ _ <- indexer.store.add(ListerFixture("root","",identity))
+ let lister = new(indexer,access,fixtureResource())
+ all <- lister.list(cache.everythingSelector())
+ allNamespace <- lister.scoped("").list(cache.everythingSelector())
+ onlyA <- lister.scoped("a").list(cache.everythingSelector())
+ found <- lister.scoped("a").get("same")
+ root <- lister.scoped("").get("root")
+ missingBare <- lister.scoped("").get("same")
+ ioPure(length(all.value) == 3 && length(allNamespace.value) == 3 && length(onlyA.value) == 1 && (match found.value { Some(value) => sync.sameRef(value.identity,identity); None => false }) && (match root.value { Some(value) => value.namespace == ""; None => false }) && (match missingBare.error { Some(error) => support.errorIsNotFound(error); None => false }))
+} }
+func testStructuredNotFound() IO[Bool] { do {
+ indexer <- cache.newIndexer(fixtureAccess(),map.emptyMap())
+ missing <- new(indexer,fixtureAccess(),fixtureResource()).scoped("a").get("missing")
+ ioPure(match missing.error { None => false; Some(error) => support.errorIsNotFound(error) && (match codec.errorStatus(error) { None => false; Some(status) => meta.statusGetCode(status) == 404 && meta.statusReasonValue(meta.statusGetReason(status)) == "NotFound" && (match meta.statusGetDetails(status) { None => false; Some(details) => meta.statusDetailsGetName(details) == "missing" && meta.statusDetailsGetGroup(details) == "test.example" && meta.statusDetailsGetKind(details) == "thing" }) }) })
+} }
+func testNamespaceFallbackAndEffectfulSelector() IO[Bool] { do {
+ identity <- sync.newRef(0)
+ calls <- sync.newRef(0)
+ indexer <- cache.newIndexer(fixtureAccess(),map.emptyMap())
+ _ <- indexer.store.add(ListerFixture("one","a",identity))
+ _ <- indexer.store.add(ListerFixture("two","b",identity))
+ let selector = cache.ListSelector(false,false,func(values) => do { count <- sync.readRef(calls); sync.writeRef(calls,count+1); ioPure(map.mapLookup(values,"name") == Some("one")) })
+ selected <- new(indexer,fixtureAccess(),fixtureResource()).scoped("a").list(selector)
+ observed <- sync.readRef(calls)
+ ioPure(length(selected.value) == 1 && observed == 1)
+} }
+func testOwnerSelectionAmbiguityEmptyAndInvalid() IO[Bool] { do {
+ identity <- sync.newRef(0)
+ let candidates = [ListerFixture("first","a",identity),ListerFixture("second","a",identity),ListerFixture("wrong","b",identity)]
+ let values = map.mapInsert(map.emptyMap(),"app","sample")
+ let namespace: func(ListerFixture) IO[String] = func(value) => ioPure(value.namespace)
+ ambiguous <- selectOwners(candidates,"a",values,true,true,func(_) => ioPure(Some(cache.ListSelector(false,false,func(_) => ioPure(true)))),namespace,func(value) => ioPure(value))
+ rejected <- selectOwners(candidates,"a",values,true,true,func(_) => ioPure(Some(cache.everythingSelector())),namespace,func(value) => ioPure(value))
+ accepted <- selectOwners(candidates,"a",values,true,false,func(_) => ioPure(Some(cache.everythingSelector())),namespace,func(value) => ioPure(value))
+ invalid <- selectOwners(candidates,"a",values,true,false,func(_) => ioPure(None),namespace,func(value) => ioPure(value))
+ ioPure(length(ambiguous) == 2 && length(rejected) == 0 && length(accepted) == 2 && length(invalid) == 0)
+} }

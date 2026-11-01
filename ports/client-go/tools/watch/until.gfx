@@ -1,0 +1,61 @@
+// Native port of client-go v0.37.2 tools/watch/until.go (Apache-2.0).
+package watch
+
+import raw "github.com/reoring/gofx/ports/client-go/support/watch"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import errors "github.com/reoring/gofx/ports/client-go/deps/support"
+import io "std/io"
+
+alias ConditionFunc = func(raw.Event) IO[outcome.Outcome[Bool]]
+func errWatchClosed() errors.Error { errors.errorNew("watch closed before UntilWithoutRetry timeout") }
+
+func untilWithoutRetry(watcher raw.Watch, conditions List[ConditionFunc]) IO[outcome.Outcome[Option[raw.Event]]] {
+ do {
+  context <- sync.captureContext()
+  sync.uninterruptible(do {
+   last <- sync.newRef(None)
+   result <- io.tryIO(sync.ensuring(sync.withContext(context, satisfy(watcher, conditions, last)), raw.stop(watcher)))
+   match result {
+    Ok(value) => ioPure(value)
+    Err(io.Cancelled) => do { event <- sync.readRef(last); ioPure(outcome.Outcome(event, Some(errors.errorInterrupted(None)))) }
+    Err(io.Timeout) => do { event <- sync.readRef(last); ioPure(outcome.Outcome(event, Some(errors.errorInterrupted(None)))) }
+    Err(err) => io.ioRaise(err)
+   }
+  })
+ }
+}
+func satisfy(watcher raw.Watch, conditions List[ConditionFunc], last sync.Ref[Option[raw.Event]]) IO[outcome.Outcome[Option[raw.Event]]] {
+ match conditions {
+  [] => do { event <- sync.readRef(last); ioPure(outcome.Outcome(event, None)) }
+  Cons(condition, remaining) => do {
+   event <- sync.readRef(last)
+   match event {
+    None => awaitCondition(watcher, condition, remaining, last)
+    Some(value) => do {
+     checked <- condition(value)
+     match checked.error {
+      Some(err) => ioPure(outcome.Outcome(event, Some(err)))
+      None => if checked.value { satisfy(watcher, remaining, last) } else { awaitCondition(watcher, condition, remaining, last) }
+     }
+    }
+   }
+  }
+ }
+}
+func awaitCondition(watcher raw.Watch, condition ConditionFunc, remaining List[ConditionFunc], last sync.Ref[Option[raw.Event]]) IO[outcome.Outcome[Option[raw.Event]]] {
+ do {
+  event <- raw.next(watcher)
+  match event {
+   None => do { previous <- sync.readRef(last); ioPure(outcome.Outcome(previous, Some(errWatchClosed()))) }
+   Some(value) => do {
+    sync.writeRef(last, event)
+    checked <- condition(value)
+    match checked.error {
+     Some(err) => ioPure(outcome.Outcome(event, Some(err)))
+     None => if checked.value { satisfy(watcher, remaining, last) } else { awaitCondition(watcher, condition, remaining, last) }
+    }
+   }
+  }
+ }
+}

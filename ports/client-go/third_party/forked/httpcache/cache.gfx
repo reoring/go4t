@@ -1,0 +1,163 @@
+// Derived from github.com/gregjones/httpcache, client-go v0.37.2 fork.
+// Copyright and license: LICENSE in this directory.
+package httpcache
+import http "deps/net/http"
+import errors "deps/support"
+import outcome "support/outcome"
+import transport "transport"
+import sync "support/sync"
+import m "std/map"
+import s "std/string"
+import l "std/list"
+
+type Cache = Cache { get:func(String) IO[Option[String]], set:func(String,String) IO[Unit], delete:func(String) IO[Unit] }
+alias Headers = Map[String,List[String]]
+type Freshness = Stale | Fresh | Transparent deriving Eq
+type Transport = Transport { transport:transport.RoundTripper, cache:Cache, markCachedResponses:Bool, clock:sync.Clock }
+func xFromCache() String { "X-From-Cache" }
+func newMemoryCache() IO[Cache] {
+ do { lock <- sync.newMutex(); state <- sync.newRef(m.emptyMap()); ioPure(Cache{
+  get:func(key) => sync.withLock(lock,do {value <- sync.readRef(state);ioPure(m.mapLookup(value,key))}),
+  set:func(key,data) => sync.withLock(lock,do {value <- sync.readRef(state);sync.writeRef(state,m.mapInsert(value,key,data))}),
+  delete:func(key) => sync.withLock(lock,do {value <- sync.readRef(state);sync.writeRef(state,m.mapDelete(value,key))})
+ }) }
+}
+func newTransport(cache Cache,base transport.RoundTripper,clock sync.Clock) Transport { Transport{transport:base,cache:cache,markCachedResponses:true,clock:clock} }
+func newMemoryCacheTransport(base transport.RoundTripper,clock sync.Clock) IO[Transport] {do {cache <- newMemoryCache();ioPure(newTransport(cache,base,clock))}}
+func newDefaultTransport(cache Cache) IO[Transport] {do {base <- transport.defaultHTTPTransport();clock <- sync.realClock();ioPure(newTransport(cache,transport.fromHTTP(base),clock))}}
+func asRoundTripper(value Transport) transport.RoundTripper {transport.layer(value.transport,func(request) => roundTrip(value,request))}
+extern func _client(value http.RoundTripper) IO[http.Client] = "github.com/reoring/gofx/ports/client-go/third_party/forked/httpcache/host".Client
+func client(value Transport) IO[http.Client] {do {raw <- transport.toHTTP(asRoundTripper(value));_client(raw)}}
+extern func _requestParts(request http.Request) IO[(String,(String,List[(String,List[String])] ))] = "github.com/reoring/gofx/ports/client-go/third_party/forked/httpcache/host".Request
+extern func _responseParts(response http.Response) IO[(Int,List[(String,List[String])])] = "github.com/reoring/gofx/ports/client-go/third_party/forked/httpcache/host".Response
+func _request(request http.Request) IO[(String,(String,Headers))] {do {parts <- _requestParts(request);ioPure((parts.0,(parts.1.0,m.mapFromList(parts.1.1))))}}
+func _response(response http.Response) IO[(Int,Headers)] {do {parts <- _responseParts(response);ioPure((parts.0,m.mapFromList(parts.1)))}}
+extern func _headers(response http.Response,headers Headers) IO[Unit] = "github.com/reoring/gofx/ports/client-go/third_party/forked/httpcache/host".Headers
+extern func _decode(data String,request http.Request) IO[(Option[http.Response],Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/third_party/forked/httpcache/host".Decode
+extern func _dump(response http.Response) IO[(String,Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/third_party/forked/httpcache/host".Dump
+extern func _onEOF(response http.Response,callback func(String) IO[Unit]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/third_party/forked/httpcache/host".OnEOF
+extern func _timeout(request http.Request) IO[http.Response] = "github.com/reoring/gofx/ports/client-go/third_party/forked/httpcache/host".Timeout
+extern func _date(value String) Option[Int] = "github.com/reoring/gofx/ports/client-go/third_party/forked/httpcache/host".Date
+extern func _duration(value String) Option[Int] = "github.com/reoring/gofx/ports/client-go/third_party/forked/httpcache/host".Duration
+extern func _canonical(value String) String = "github.com/reoring/gofx/ports/client-go/third_party/forked/httpcache/host".Canonical
+extern func _trimSpaces(value String) String = "github.com/reoring/gofx/ports/client-go/third_party/forked/httpcache/host".TrimSpaces
+func header(headers Headers,key String) String {match m.mapLookup(headers,_canonical(key)) {Some(Cons(value,_)) => value;_ => ""}}
+func setHeader(headers Headers,key String,value String) Headers {m.mapInsert(headers,_canonical(key),[value])}
+func cacheKey(method String,url String) String {if method=="GET" {url} else {method+" "+url}}
+func parseCacheControl(headers Headers) Map[String,String] {
+ fold(s.split(",",header(headers,"Cache-Control")),m.emptyMap(),func(result,part) => {
+  let trimmed=_trimSpaces(part)
+  if trimmed=="" {result} else {match s.split("=",trimmed) {
+   Cons(key,Cons(value,_)) => m.mapInsert(result,_trimSpaces(key),_trimCommas(value))
+   _ => m.mapInsert(result,trimmed,"")
+  }}
+ })
+}
+func _trimCommas(value String) String {if s.startsWith(value,",") {_trimCommas(s.substring(value,1,s.strLength(value)))} else if s.endsWith(value,",") {_trimCommas(s.substring(value,0,s.strLength(value)-1))} else {value}}
+func headerAllCommaSepValues(headers Headers,key String) List[String] {
+ match m.mapLookup(headers,_canonical(key)) {None => [];Some(values) => fold(values,[],func(result,value) => l.append(result,map(s.split(",",value),s.trim)))}
+}
+extern func _parseDate(value String) (Int,Option[errors.Error]) = "github.com/reoring/gofx/ports/client-go/third_party/forked/httpcache/host".ParseDate
+extern func errNoDateHeader() errors.Error = "github.com/reoring/gofx/ports/client-go/third_party/forked/httpcache/host".NoDate
+func date(headers Headers) outcome.Outcome[Int] {let value=header(headers,"Date");if value=="" {outcome.failure(0,errNoDateHeader())} else {let parsed=_parseDate(value);outcome.Outcome{value:parsed.0,error:parsed.1}}}
+func _seconds(value String) Int {match _duration(value+"s") {Some(value) => value;None => 0}}
+func canStore(request Map[String,String],response Map[String,String]) Bool {!m.mapMember(request,"no-store") && !m.mapMember(response,"no-store")}
+func getFreshness(response Headers,request Headers,now Int) Freshness {
+ let r=parseCacheControl(response)
+ let q=parseCacheControl(request)
+ if m.mapMember(q,"no-cache") {Transparent} else if m.mapMember(r,"no-cache") {Stale} else if m.mapMember(q,"only-if-cached") {Fresh} else {
+  let d=date(response)
+  match d.error {Some(_) => Stale;None => {
+   let initial=match m.mapLookup(r,"max-age") {Some(value) => _seconds(value);None => match _date(header(response,"Expires")) {Some(value) => value-d.value;None => 0}}
+   let lifetime=match m.mapLookup(q,"max-age") {Some(value) => _seconds(value);None => initial}
+   let age=now-d.value+(match m.mapLookup(q,"min-fresh") {Some(value) => _seconds(value);None => 0})
+   match m.mapLookup(q,"max-stale") {Some("") => Fresh; value => {
+    let adjusted=age-(match value {Some(value) => _seconds(value);None => 0})
+    if lifetime>adjusted {Fresh} else {Stale}
+   }}
+  }}
+ }
+}
+func canStaleOnError(response Headers,request Headers,now Int) Bool {
+ let r=m.mapLookup(parseCacheControl(response),"stale-if-error")
+ let q=m.mapLookup(parseCacheControl(request),"stale-if-error")
+ if r==Some("") {true} else {
+  let validResponse=match r {Some(value) => _duration(value+"s");None => Some(-1)}
+  match validResponse {None => false;Some(responseLifetime) => {
+   if q==Some("") {true} else {
+    let lifetime=match q {Some(value) => _duration(value+"s");None => Some(responseLifetime)}
+    match lifetime {None => false;Some(value) => {let d=date(response);match d.error {Some(_) => false;None => value>=0 && value>now-d.value}}}
+   }
+  }}
+ }
+}
+func varyMatches(response Headers,request Headers) Bool {l.all(headerAllCommaSepValues(response,"Vary"),func(key) => key=="" || header(request,key)==header(response,"X-Varied-"+_canonical(key)))}
+func getEndToEndHeaders(response Headers) List[String] {
+ let fixed=["Connection","Keep-Alive","Proxy-Authenticate","Proxy-Authorization","Te","Trailers","Transfer-Encoding","Upgrade"]
+ let extra=map(filter(s.split(",",header(response,"Connection")),func(key) => _trimSpaces(key)!=""),_canonical)
+ filter(m.mapKeys(response),func(key) => !l.elem(key,l.append(fixed,extra)))
+}
+func cachedResponse(cache Cache,request http.Request) IO[outcome.Outcome[Option[http.Response]]] {
+ do {info <- _request(request);stored <- cache.get(cacheKey(info.0,info.1.0));match stored {None => ioPure(outcome.success(None));Some(data) => do {decoded <- _decode(data,request);ioPure(outcome.Outcome{value:decoded.0,error:decoded.1})}}}
+}
+func roundTrip(value Transport,request http.Request) IO[outcome.Outcome[Option[http.Response]]] {
+ do {
+  info <- _request(request)
+  let method=info.0
+  let requestHeaders=info.1.1
+  let key=cacheKey(method,info.1.0)
+  let cacheable=(method=="GET" || method=="HEAD") && header(requestHeaders,"Range")==""
+  cached <- if cacheable {cachedResponse(value.cache,request)} else {do {value.cache.delete(key);ioPure(outcome.success(None))}}
+  current <- sync.now(value.clock)
+  let now=sync.unixNanos(current)
+  match cached.value {
+   Some(response) => match cached.error {
+    None => do {
+     data <- _response(response)
+     let headers=if value.markCachedResponses {setHeader(data.1,xFromCache(),"1")} else {data.1}
+     _headers(response,headers)
+     let freshness=if varyMatches(headers,requestHeaders) {getFreshness(headers,requestHeaders,now)} else {Transparent}
+     if freshness==Fresh {ioPure(outcome.success(Some(response)))} else {do {
+      selected <- if freshness==Stale { _conditional(request,headers,requestHeaders) } else {ioPure(request)}
+      fetched <- value.transport.roundTrip(selected)
+      fetchedData <- match fetched.value {Some(fresh) => _response(fresh);None => ioPure((0,m.emptyMap()))}
+      if outcome.isSuccess(fetched) && method=="GET" && fetchedData.0==304 {do {
+       let merged=fold(getEndToEndHeaders(fetchedData.1),headers,func(result,key) => match m.mapLookup(fetchedData.1,key) {Some(values) => m.mapInsert(result,key,values);None => result})
+       _headers(response,merged)
+       _store(value,request,method,key,requestHeaders,cacheable,outcome.success(Some(response)))
+      }} else if (!outcome.isSuccess(fetched) || fetchedData.0>=500) && method=="GET" && canStaleOnError(headers,requestHeaders,now) {ioPure(outcome.success(Some(response)))} else {do {
+       if !outcome.isSuccess(fetched) || fetchedData.0!=200 {value.cache.delete(key)} else {ioPure(unit())}
+       _store(value,request,method,key,requestHeaders,cacheable,fetched)
+      }}
+     }}
+    }
+    Some(_) => _fetch(value,request,method,key,requestHeaders,cacheable)
+   }
+   None => _fetch(value,request,method,key,requestHeaders,cacheable)
+  }
+ }
+}
+func _conditional(request http.Request,response Headers,headers Headers) IO[http.Request] {
+ let etag=header(response,"Etag")
+ let modified=header(response,"Last-Modified")
+ if (etag!="" && header(headers,"Etag")=="") || (modified!="" && header(headers,"Last-Modified")=="") {do {
+  clone <- transport.cloneRequest(request)
+  if etag!="" && header(headers,"Etag")=="" {transport.setRequestHeader(clone,"If-None-Match",etag)} else {ioPure(unit())}
+  if modified!="" && header(headers,"Last-Modified")=="" {transport.setRequestHeader(clone,"If-Modified-Since",modified)} else {ioPure(unit())}
+  ioPure(clone)
+ }} else {ioPure(request)}
+}
+func _fetch(value Transport,request http.Request,method String,key String,headers Headers,cacheable Bool) IO[outcome.Outcome[Option[http.Response]]] {
+ do {result <- if m.mapMember(parseCacheControl(headers),"only-if-cached") {do {response <- _timeout(request);ioPure(outcome.success(Some(response)))}} else {value.transport.roundTrip(request)};_store(value,request,method,key,headers,cacheable,result)}
+}
+func _store(value Transport,request http.Request,method String,key String,headers Headers,cacheable Bool,result outcome.Outcome[Option[http.Response]]) IO[outcome.Outcome[Option[http.Response]]] {
+ match result.error {Some(_) => ioPure(result);None => match result.value {None => ioPure(result);Some(response) => do {
+  data <- _response(response)
+  if cacheable && canStore(parseCacheControl(headers),parseCacheControl(data.1)) {do {
+   let varied=fold(headerAllCommaSepValues(data.1,"Vary"),data.1,func(result,key) => {let v=header(headers,key);if v=="" {result} else {setHeader(result,"X-Varied-"+_canonical(key),v)}})
+   _headers(response,varied)
+   if method=="GET" {_onEOF(response,func(data) => value.cache.set(key,data))} else {do {dump <- _dump(response);match dump.1 {Some(_) => ioPure(unit());None => value.cache.set(key,dump.0)}}}
+  }} else {value.cache.delete(key)}
+  ioPure(result)
+ }}}
+}

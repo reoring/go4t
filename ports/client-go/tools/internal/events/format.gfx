@@ -1,0 +1,23 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package events
+import "std/list"
+import "std/string"
+import "github.com/reoring/gofx/ports/client-go/deps/support"
+import "github.com/reoring/gofx/ports/client-go/deps/objects"
+import runtime "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime"
+import schema "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime/schema"
+func annotationsString(annotations support.ForeignMap[String,String]) String {
+ let entries = list.sortBy(support.mapEntries(annotations),func(a,b) => compare(a.0,b.0))
+ if list.length(entries)==0 { "" } else { " map["+string.join(" ",map(entries,func(entry) => entry.0+":"+entry.1))+"]" }
+}
+func objectString(object Option[runtime.Object], legacy Bool) IO[String] { match object {
+ None => ioPure("")
+ Some(object) => do {
+  gvk <- objects.objectGroupVersionKind(object)
+  let group = schema.groupVersionKindGetGroup(gvk)
+  let version = schema.groupVersionKindGetVersion(gvk)
+  let kind = schema.groupVersionKindGetKind(gvk)
+  let apiVersion = if group=="" { version } else { group+"/"+version }
+  ioPure(if !legacy && group=="" && version=="" && kind=="" { "" } else { (if legacy { " involvedObject{kind=" } else { " {kind=" })+kind+",apiVersion="+apiVersion+"}" })
+ }
+} }

@@ -1,0 +1,42 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package cache
+import "std/map"
+import "std/list"
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+import "github.com/reoring/gofx/ports/client-go/support/outcome"
+import runtime "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime"
+
+type QueueSync = QueueSync { hasSynced: func() IO[Bool], done: sync.Channel[Unit] }
+func queueSync[A](queue KeyQueue[A]) QueueSync { QueueSync(func() => queueHasSynced(queue),queue.done) }
+type SharedConfiguration = SharedConfiguration { watchList: Bool, inOrder: Bool, atomicEvents: Bool, unlockWhileProcessing: Bool, emitBookmarks: Bool, metrics: Option[(InformerNameAndResource,InformerMetricsProvider)], description: String, batchProcessing: Bool, watchListGate: Option[func() IO[Bool]], atomicFIFOGate: func() IO[Bool] }
+func defaultSharedConfiguration() SharedConfiguration { SharedConfiguration(false,false,false,false,false,None,"",false,None,func() => ioPure(true)) }
+type SharedIndexInformerOptions[A] = SharedIndexInformerOptions { resyncPeriod: Int, indexers: Indexers[A], configuration: SharedConfiguration, mutationDetection: Bool }
+func newSharedIndexInformerWithOptions[A](lw ListWatcher[A], access ObjectAccess[A], decode func(runtime.Object) outcome.Outcome[A], options SharedIndexInformerOptions[A], clock sync.Clock) IO[SharedInformer[A]] { do {
+ informer <- newSharedIndexInformerWithStoreOptions(lw,access,decode,options.resyncPeriod,options.indexers,clock,ThreadSafeStoreOptions(options.configuration.atomicFIFOGate,options.configuration.metrics))
+ detector <- if options.mutationDetection { do { detector <- newCacheMutationDetector(options.configuration.description,true,access,clock,None); ioPure(Some(detector)) } } else { ioPure(None) }
+ state <- sync.readRef(informer.state)
+ sync.writeRef(informer.state,state { configuration: options.configuration, detector: detector })
+ ioPure(informer)
+} }
+func setWatchListGate[A](informer SharedInformer[A], gate func() IO[Bool]) IO[outcome.Outcome[Unit]] { sync.withLock(informer.mutex,do { state <- sync.readRef(informer.state); if state.started { ioPure(outcome.failure(unit(),cacheError("informer has already started"))) } else { do { sync.writeRef(informer.state,state { configuration: state.configuration { watchListGate: Some(gate) } }); ioPure(outcome.success(unit())) } } }) }
+func buildSharedController[A](informer SharedInformer[A], state InformerState[A]) IO[(InformerController,QueueSync,Reflector[A])] { do { enabled <- match state.configuration.watchListGate { None => ioPure(state.configuration.watchList); Some(gate) => gate() }; buildSharedControllerResolved(informer,state { configuration: state.configuration { watchList: enabled } }) } }
+func buildSharedControllerResolved[A](informer SharedInformer[A], state InformerState[A]) IO[(InformerController,QueueSync,Reflector[A])] {
+ if state.configuration.inOrder { do {
+  fifo <- newRealFIFOWithOptions(RealFIFOOptions(informer.access,if state.configuration.atomicEvents { None } else { Some(informer.indexer.store) },state.transform,state.configuration.atomicEvents,state.configuration.unlockWhileProcessing,state.configuration.emitBookmarks))
+  match state.configuration.metrics { None => ioPure(unit()); Some((identity,provider)) => configureQueueMetrics(fifo.queue,identity,provider,informer.clock) }
+  let store = ReflectorStore(func(obj) => realAdd(fifo,obj),func(obj) => realUpdate(fifo,obj),func(obj) => realDelete(fifo,DeletedObject(obj)),func(items,rv) => realReplace(fifo,items,rv),func() => realResync(fifo),Some(func(rv) => realBookmark(fifo,rv)),None,state.transform)
+  reflector <- newReflector(defaultReflectorOptions(informer.listerWatcher,store,informer.access,informer.decode,informer.clock) { name: state.configuration.description, resyncPeriod: state.checkPeriod, shouldResync: func() => informerShouldResync(informer), onError: state.onError, watchList: state.configuration.watchList })
+  let queue = Queue(func(process) => realPop(fifo,process),func() => queueClose(fifo.queue),func() => queueHasSynced(fifo.queue),fifo.queue.done)
+  let single = func(event,initial) => sync.withLock(informer.mutex,sync.uninterruptible(processRealEvent(informerHandler(informer),informer.indexer.store,event,initial,informer.access)))
+  let batch = func(events,initial) => sync.withLock(informer.mutex,sync.uninterruptible(processRealBatch(informerHandler(informer),informer.indexer.store,events,initial,informer.access)))
+  let controller = if state.configuration.batchProcessing { newRealBatchController(fifo,reflector,single,batch,func() => informerAfterProcess(informer)) } else { newController(queue,reflector,single,func() => informerAfterProcess(informer)) }
+  ioPure((InformerController(func() => controllerRun(controller),func() => queue.hasSynced(),func() => reflectorResourceVersion(reflector),fifo.queue.done),queueSync(fifo.queue),reflector))
+ } } else { do {
+  fifo <- newDeltaFIFOWithOptions(DeltaFIFOOptions(informer.access,Some(informer.indexer.store),state.transform,true))
+  match state.configuration.metrics { None => ioPure(unit()); Some((identity,provider)) => configureQueueMetrics(fifo.queue,identity,provider,informer.clock) }
+  reflector <- newReflector(defaultReflectorOptions(informer.listerWatcher,deltaAsReflector(fifo),informer.access,informer.decode,informer.clock) { name: state.configuration.description, resyncPeriod: state.checkPeriod, shouldResync: func() => informerShouldResync(informer), onError: state.onError, watchList: state.configuration.watchList })
+  let controller = newController(deltaQueue(fifo),reflector,func(deltas,initial) => informerProcess(informer,deltas,initial),func() => informerAfterProcess(informer))
+  ioPure((InformerController(func() => controllerRun(controller),func() => queueHasSynced(fifo.queue),func() => reflectorResourceVersion(reflector),fifo.queue.done),queueSync(fifo.queue),reflector))
+ } }
+}
+func observeMutation[A](informer SharedInformer[A], obj A) IO[Unit] { do { state <- sync.readRef(informer.state); match state.detector { None => ioPure(unit()); Some(detector) => mutationDetectorAdd(detector,DeletedObject(obj)) } } }

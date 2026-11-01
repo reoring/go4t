@@ -1,0 +1,115 @@
+package examples
+
+// Copyright 2026 The gofx Authors. SPDX-License-Identifier: Apache-2.0
+import kube "kubernetes"
+import fake "kubernetes/fake"
+import testing "testing"
+import core "deps/k8s.io/api/core/v1"
+import meta "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import objects "deps/objects"
+import errors "deps/support"
+import outcome "support/outcome"
+import sync "support/sync"
+
+func resourceJSON(resource schema.GroupVersionResource) String {
+ jsonObject([("Group",quote(schema.groupVersionResourceGetGroup(resource))),("Version",quote(schema.groupVersionResourceGetVersion(resource))),("Resource",quote(schema.groupVersionResourceGetResource(resource)))])
+}
+func kindJSON(kind schema.GroupVersionKind) String {
+ jsonObject([("Group",quote(schema.groupVersionKindGetGroup(kind))),("Version",quote(schema.groupVersionKindGetVersion(kind))),("Kind",quote(schema.groupVersionKindGetKind(kind)))])
+}
+func observeAction(trace Trace,phase String,action testing.Action) IO[Unit] {
+ do {
+  let goType = match action.kind { testing.Create => "testing.CreateActionImpl"; testing.Update => "testing.UpdateActionImpl"; testing.ListAction => "testing.ListActionImpl"; _ => "unexpected action" }
+  check(goType!="unexpected action","unexpected trace action kind")
+  let common = [("phase",quote(phase)),("go_type",quote(goType)),("verb",quote(action.verb)),("resource",resourceJSON(action.resource)),("namespace",quote(action.namespace)),("subresource",quote(action.subresource))]
+  fields <- match action.kind {
+   testing.Create => do { object <- objectJSON(action.object); options <- objectJSON(Some(objects.toObject(meta.createOptionsObjectType(),action.createOptions))); ioPure([("object",object),("options",options)]) }
+   testing.Update => do { object <- objectJSON(action.object); options <- objectJSON(Some(objects.toObject(meta.updateOptionsObjectType(),action.updateOptions))); ioPure([("object",object),("options",options)]) }
+   testing.ListAction => do { options <- objectJSON(Some(objects.toObject(meta.listOptionsObjectType(),action.listOptions))); ioPure([("options",options),("kind",kindJSON(action.listKind)),("labels",quote(meta.listOptionsGetLabelSelector(action.listOptions))),("fields",quote(meta.listOptionsGetFieldSelector(action.listOptions)))]) }
+   _ => ioFail("unexpected trace action kind")
+  }
+  observe(trace,"fake_action",append(common,fields))
+ }
+}
+func singleAction(client fake.Clientset) IO[testing.Action] { do { actions <- testing.actions(client.fake); match actions { [action] => ioPure(action); _ => ioFail("expected one recorded action, got "+show(length(actions))) } } }
+func bindParity() IO[Trace] {
+ do {
+  trace <- newTrace("real_and_fake_bind_namespace")
+  env <- environment()
+  binding <- decode(core.bindingObjectType(),core.newBinding(),"{\"apiVersion\":\"v1\",\"kind\":\"Binding\",\"metadata\":{\"name\":\"pod-a\",\"namespace\":\"body-namespace\"},\"target\":{\"kind\":\"Node\",\"name\":\"node-a\"}}")
+  withHTTP(trace,[Exchange("POST","/api/v1/namespaces/client-namespace/pods/pod-a/binding",201,"{\"apiVersion\":\"v1\",\"kind\":\"Status\",\"status\":\"Success\",\"code\":201}")],func(url) => do {
+   made <- kube.newForConfig(env,config(url)); client <- present(made)
+   result <- client.coreV1().pods("client-namespace").bind(binding,meta.createOptionsWithFieldManager(meta.newCreateOptions(),"binder")); require(result)
+   observe(trace,"operation_result",[("implementation",quote("real")),("error","null")])
+  })
+  client <- fake.newEmptyClientset(env)
+  result <- client.client.coreV1().pods("client-namespace").bind(binding,meta.createOptionsWithFieldManager(meta.newCreateOptions(),"binder")); require(result)
+  action <- singleAction(client)
+  check(action.namespace=="body-namespace","fake Bind must use body namespace")
+  observeAction(trace,"fake_bind",action)
+  ioPure(trace)
+ }
+}
+func finalizeParity() IO[Trace] {
+ do {
+  trace <- newTrace("fake_namespace_finalize")
+  env <- environment(); client <- fake.newEmptyClientset(env)
+  body <- decode(core.namespaceObjectType(),core.newNamespace(),"{\"metadata\":{\"name\":\"namespace-a\"},\"spec\":{\"finalizers\":[\"kubernetes\"]}}")
+  result <- client.client.coreV1().namespaces().finalize(body,meta.updateOptionsWithFieldManager(meta.newUpdateOptions(),"finalizer")); result <- require(result)
+  action <- singleAction(client)
+  check(action.verb=="create" && action.subresource=="finalize","Finalize must create finalize subresource")
+  observeAction(trace,"finalize",action)
+  body <- objectJSON(Some(objects.toObject(core.namespaceObjectType(),result)))
+  observe(trace,"typed_result",[("object",body)])
+  ioPure(trace)
+ }
+}
+func labelledPod(name String,namespace String,label String) core.Pod {
+ let body = pod(name,namespace)
+ let metadata = core.podGetObjectMeta(body)
+ core.podWithObjectMeta(body,meta.objectMetaWithLabels(metadata,errors.mapWith(meta.objectMetaGetLabels(meta.newObjectMeta()),"app",label)))
+}
+func fakeListParity() IO[Trace] {
+ do {
+  trace <- newTrace("fake_list_label_not_field_filter")
+  env <- environment()
+  client <- fake.newSimpleClientset(env,[objects.toObject(core.podObjectType(),labelledPod("label-match","team-a","selected")),objects.toObject(core.podObjectType(),labelledPod("field-match","team-a","other")),objects.toObject(core.podObjectType(),labelledPod("outside","team-b","selected"))])
+  result <- client.client.coreV1().pods("team-a").list(meta.listOptionsWithFieldSelector(meta.listOptionsWithLabelSelector(meta.newListOptions(),"app=selected"),"metadata.name=field-match")); result <- require(result)
+  check(match core.podListGetItems(result) { Some([item]) => meta.objectMetaGetName(core.podGetObjectMeta(item))=="label-match"; _ => false },"fake List must filter labels and ignore fields")
+  action <- singleAction(client); observeAction(trace,"list",action)
+  body <- objectJSON(Some(objects.toObject(core.podListObjectType(),result))); observe(trace,"typed_result",[("object",body)])
+  ioPure(trace)
+ }
+}
+func snapshotParity() IO[Trace] {
+ do {
+  trace <- newTrace("fake_action_snapshot_and_reactor_mutation")
+  env <- environment(); client <- fake.newEmptyClientset(env)
+  let body = pod("pod-a","team-a")
+  testing.addReactor(client.fake,"create","pods",func(shared) => do {
+   action <- sync.readRef(shared)
+   object <- match objects.fromObject(core.podObjectType(),action.object) { Some(value) => ioPure(value); None => ioFail("reactor expected Pod") }
+   let changed = core.podWithObjectMeta(object,meta.objectMetaWithSelfLink(core.podGetObjectMeta(object),"reactor-mutated"))
+   let changedAction = action{object: Some(objects.toObject(core.podObjectType(),changed))}
+   sync.writeRef(shared,changedAction)
+   observeAction(trace,"first_reactor_after_mutation",changedAction)
+   ioPure(testing.Reaction(false,outcome.success(changedAction.object)))
+  })
+  testing.addReactor(client.fake,"create","pods",func(shared) => do {
+   action <- sync.readRef(shared)
+   object <- match objects.fromObject(core.podObjectType(),action.object) { Some(value) => ioPure(value); None => ioFail("reactor expected Pod") }
+   check(meta.objectMetaGetSelfLink(core.podGetObjectMeta(object))=="reactor-mutated","reactor mutation was not shared")
+   observeAction(trace,"second_reactor",action)
+   ioPure(testing.Reaction(true,outcome.success(action.object)))
+  })
+  returned <- client.client.coreV1().pods("team-a").create(body,meta.createOptionsWithFieldManager(meta.newCreateOptions(),"creator")); returned <- require(returned)
+  recorded <- singleAction(client)
+  recordedPod <- match objects.fromObject(core.podObjectType(),recorded.object) { Some(value) => ioPure(value); None => ioFail("recorded action expected Pod") }
+  check(meta.objectMetaGetSelfLink(core.podGetObjectMeta(recordedPod))=="" && meta.objectMetaGetSelfLink(core.podGetObjectMeta(body))=="" && meta.objectMetaGetSelfLink(core.podGetObjectMeta(returned))=="reactor-mutated","snapshot isolation violated")
+  observeAction(trace,"recorded_action",recorded)
+  input <- objectJSON(Some(objects.toObject(core.podObjectType(),body))); output <- objectJSON(Some(objects.toObject(core.podObjectType(),returned)))
+  observe(trace,"typed_result",[("input",input),("returned",output)])
+  ioPure(trace)
+ }
+}

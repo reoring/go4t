@@ -1,0 +1,32 @@
+package dynamicinformer
+import dynamic "dynamic"
+import fixture "dynamic/testing"
+import features "features"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import sync "support/sync"
+import m "std/map"
+import cache "tools/cache"
+// Copyright 2026 The Kubernetes Authors. Licensed under Apache-2.0.
+func testWatchListGateReadsRegistryAfterAllocation() IO[Bool] {
+ do {
+  registry <- fixture.featureRegistry()
+  _ <- features.replaceFeatureGates(registry,features.Gates(func(_) => ioPure(false),None,None,"off"))
+  serializer <- dynamic.newBasicNegotiatedSerializer(false)
+  f <- fixture.newFixture(serializer,"application/json","{}")
+  client <- dynamic.fromRESTClient(f.client,registry)
+  clock <- sync.fakeClock(0)
+  let gvr = schema.groupVersionResourceWithResource(schema.groupVersionResourceWithVersion(schema.groupVersionResourceWithGroup(schema.newGroupVersionResource(),"custom.example"),"v1"),"arbitrary")
+  informer <- newFilteredInformer(registry,client,gvr,"",0,m.emptyMap(),func(options) => ioPure(options),clock)
+  let store = cache.getStore(informer.informer)
+  store.bookmark("51")
+  initiallyHidden <- store.lastStoreSyncResourceVersion()
+  _ <- features.replaceFeatureGates(registry,features.Gates(func(feature) => ioPure(feature==features.watchListClient()),None,None,"on"))
+  state <- sync.readRef(informer.informer.state)
+  enabled <- match state.configuration.watchListGate { None => ioPure(false); Some(gate) => gate() }
+  hiddenWithWatchList <- store.lastStoreSyncResourceVersion()
+  _ <- features.replaceFeatureGates(registry,features.Gates(func(feature) => ioPure(feature==features.atomicFIFO()),None,None,"atomic-only"))
+  visible <- store.lastStoreSyncResourceVersion()
+  watchListDisabled <- match state.configuration.watchListGate { None => ioPure(false); Some(gate) => do { enabled <- gate(); ioPure(!enabled) } }
+  ioPure(enabled && state.configuration.description!="" && initiallyHidden=="" && hiddenWithWatchList=="" && visible=="51" && watchListDisabled)
+ }
+}

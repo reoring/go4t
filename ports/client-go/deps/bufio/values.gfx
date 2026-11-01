@@ -2,45 +2,58 @@
 // Source: client-go v0.37.2 and exact external dependency declarations.
 // Kubernetes-derived declarations are licensed under Apache-2.0.
 // https://www.apache.org/licenses/LICENSE-2.0
-// Source graph SHA-256: 2e4efd1c862cc7bde1036ba0dc37a4fe08175d4ead5d513b32689e674b91d866
+// Source graph SHA-256: 99a062162cbc99a38896123a3e81ce3ef2f70f2e505fbd058751d52a0a40f167
 package bufio
 
 import canonical "github.com/reoring/gofx/ports/client-go/deps/types"
 import support "github.com/reoring/gofx/ports/client-go/deps/support"
 
 alias ReadWriter = canonical.ReadWriter_01b349175802
-extern func newReadWriter() IO[ReadWriter] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".New_ReadWriter_01b349175802
-extern func readWriterGetReaderIdentity(value ReadWriter) IO[Option[canonical.Reader_4553e825c15f]] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Get_ReadWriter_01b349175802_Reader
-extern func readWriterSetReaderIdentity(value ReadWriter, field Option[canonical.Reader_4553e825c15f]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".With_ReadWriter_01b349175802_Reader
-extern func readWriterGetWriterIdentity(value ReadWriter) IO[Option[canonical.Writer_aefb037a2194]] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Get_ReadWriter_01b349175802_Writer
-extern func readWriterSetWriterIdentity(value ReadWriter, field Option[canonical.Writer_aefb037a2194]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".With_ReadWriter_01b349175802_Writer
+extern func newReadWriter() IO[ReadWriter] = "github.com/reoring/gofx/ports/client-go/host/deps".New_ReadWriter_01b349175802
+extern func readWriterGetReaderIdentity(value ReadWriter) IO[Option[canonical.Reader_4553e825c15f]] = "github.com/reoring/gofx/ports/client-go/host/deps".Get_ReadWriter_01b349175802_Reader
+extern func readWriterSetReaderIdentity(value ReadWriter, field Option[canonical.Reader_4553e825c15f]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".With_ReadWriter_01b349175802_Reader
+extern func readWriterGetWriterIdentity(value ReadWriter) IO[Option[canonical.Writer_aefb037a2194]] = "github.com/reoring/gofx/ports/client-go/host/deps".Get_ReadWriter_01b349175802_Writer
+extern func readWriterSetWriterIdentity(value ReadWriter, field Option[canonical.Writer_aefb037a2194]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".With_ReadWriter_01b349175802_Writer
 alias Reader = canonical.Reader_4553e825c15f
-extern func newReader() IO[Reader] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".New_Reader_4553e825c15f
+extern func newReader() IO[Reader] = "github.com/reoring/gofx/ports/client-go/host/deps".New_Reader_4553e825c15f
+alias Scanner = canonical.Scanner_2896186631d6
+extern func newScanner() IO[Scanner] = "github.com/reoring/gofx/ports/client-go/host/deps".New_Scanner_2896186631d6
+alias SplitFunc = canonical.SplitFunc_3328b9bfdab6
+extern func newSplitFunc() IO[SplitFunc] = "github.com/reoring/gofx/ports/client-go/host/deps".New_SplitFunc_3328b9bfdab6
+extern func splitFuncInvoke(value SplitFunc, p0 Option[String], p1 Bool) IO[(Option[String], (Int, (Option[String], Option[support.Error])))] = "github.com/reoring/gofx/ports/client-go/host/deps".Invoke_SplitFunc_3328b9bfdab6
 alias Writer = canonical.Writer_aefb037a2194
-extern func newWriter() IO[Writer] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".New_Writer_aefb037a2194
-extern func readerCallBufferedIdentity(value Reader) IO[Int] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_8333c218c6ab7d36
-extern func readerCallDiscardIdentity(value Reader, p0 Int) IO[(Int, Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_862459d2247b3fc6
-extern func readerCallPeekIdentity(value Reader, p0 Int) IO[(Option[String], Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_1684baa50aada477
-extern func readerCallReadIdentity(value Reader, p0 Option[String]) IO[(Option[String], (Int, Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_ad809ff244e95282
-extern func readerCallReadByteIdentity(value Reader) IO[(Int, Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_634a4bcaf93eaf60
-extern func readerCallReadBytesIdentity(value Reader, p0 Int) IO[(Option[String], Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_e4bfea8e40a6f21c
-extern func readerCallReadLineIdentity(value Reader) IO[(Option[String], (Bool, Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_74ee0097755926fe
-extern func readerCallReadRuneIdentity(value Reader) IO[(Int, (Int, Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_a8701f361406ed72
-extern func readerCallReadSliceIdentity(value Reader, p0 Int) IO[(Option[String], Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_fcd016c6aeede4aa
-extern func readerCallReadStringIdentity(value Reader, p0 Int) IO[(String, Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_74faeef7a6ef153b
-extern func readerCallResetIdentity(value Reader, p0 Option[canonical.Reader_4d25c51b00a6]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_b3f749912d5d9dee
-extern func readerCallSizeIdentity(value Reader) IO[Int] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_ba6d0a1a8220c99d
-extern func readerCallUnreadByteIdentity(value Reader) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_c75ce7eec2292db7
-extern func readerCallUnreadRuneIdentity(value Reader) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_9346d9371a061e7b
-extern func readerCallWriteToIdentity(value Reader, p0 Option[canonical.Writer_38b5996d575b]) IO[(Int, Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_ef38550c636b4723
-extern func writerCallAvailableIdentity(value Writer) IO[Int] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_71d84ac970b115b4
-extern func writerCallAvailableBufferIdentity(value Writer) IO[Option[String]] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_2c32b79008fef801
-extern func writerCallBufferedIdentity(value Writer) IO[Int] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_888d7cf47c93a190
-extern func writerCallFlushIdentity(value Writer) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_b61ac17f9cba16db
-extern func writerCallReadFromIdentity(value Writer, p0 Option[canonical.Reader_4d25c51b00a6]) IO[(Int, Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_78c341546a63a201
-extern func writerCallResetIdentity(value Writer, p0 Option[canonical.Writer_38b5996d575b]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_e57b8091701f1423
-extern func writerCallSizeIdentity(value Writer) IO[Int] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_3c886948211b6039
-extern func writerCallWriteIdentity(value Writer, p0 Option[String]) IO[(Option[String], (Int, Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_0f24c75a5ec6f171
-extern func writerCallWriteByteIdentity(value Writer, p0 Int) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_cafdac8d68ba41ba
-extern func writerCallWriteRuneIdentity(value Writer, p0 Int) IO[(Int, Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_9fdb90d77056c845
-extern func writerCallWriteStringIdentity(value Writer, p0 String) IO[(Int, Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_94d3061e8532bbd5
+extern func newWriter() IO[Writer] = "github.com/reoring/gofx/ports/client-go/host/deps".New_Writer_aefb037a2194
+extern func callNewReader(p0 Option[canonical.Reader_4d25c51b00a6]) IO[Option[canonical.Reader_4553e825c15f]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_c1add7eb0140152d
+extern func callNewScanner(p0 Option[canonical.Reader_4d25c51b00a6]) IO[Option[canonical.Scanner_2896186631d6]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_577c7185e6026d19
+extern func readerCallBufferedIdentity(value Reader) IO[Int] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_8333c218c6ab7d36
+extern func readerCallDiscardIdentity(value Reader, p0 Int) IO[(Int, Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_862459d2247b3fc6
+extern func readerCallPeekIdentity(value Reader, p0 Int) IO[(Option[String], Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_1684baa50aada477
+extern func readerCallReadIdentity(value Reader, p0 Option[String]) IO[(Option[String], (Int, Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_ad809ff244e95282
+extern func readerCallReadByteIdentity(value Reader) IO[(Int, Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_634a4bcaf93eaf60
+extern func readerCallReadBytesIdentity(value Reader, p0 Int) IO[(Option[String], Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_e4bfea8e40a6f21c
+extern func readerCallReadLineIdentity(value Reader) IO[(Option[String], (Bool, Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_74ee0097755926fe
+extern func readerCallReadRuneIdentity(value Reader) IO[(Int, (Int, Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_a8701f361406ed72
+extern func readerCallReadSliceIdentity(value Reader, p0 Int) IO[(Option[String], Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_fcd016c6aeede4aa
+extern func readerCallReadStringIdentity(value Reader, p0 Int) IO[(String, Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_74faeef7a6ef153b
+extern func readerCallResetIdentity(value Reader, p0 Option[canonical.Reader_4d25c51b00a6]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_b3f749912d5d9dee
+extern func readerCallSizeIdentity(value Reader) IO[Int] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_ba6d0a1a8220c99d
+extern func readerCallUnreadByteIdentity(value Reader) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_c75ce7eec2292db7
+extern func readerCallUnreadRuneIdentity(value Reader) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_9346d9371a061e7b
+extern func readerCallWriteToIdentity(value Reader, p0 Option[canonical.Writer_38b5996d575b]) IO[(Int, Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_ef38550c636b4723
+extern func scannerCallBufferIdentity(value Scanner, p0 Option[String], p1 Int) IO[(Option[String], Unit)] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_50ff43ed36bf38a4
+extern func scannerCallBytesIdentity(value Scanner) IO[Option[String]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_941219ab27b8c153
+extern func scannerCallErrIdentity(value Scanner) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_6b8ff18ae9b6efae
+extern func scannerCallScanIdentity(value Scanner) IO[Bool] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_fd9a40c26f795022
+extern func scannerCallSplitIdentity(value Scanner, p0 canonical.SplitFunc_3328b9bfdab6) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_aa85f1fd6cd9d56b
+extern func scannerCallTextIdentity(value Scanner) IO[String] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_7cef3d1352f78395
+extern func writerCallAvailableIdentity(value Writer) IO[Int] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_71d84ac970b115b4
+extern func writerCallAvailableBufferIdentity(value Writer) IO[Option[String]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_2c32b79008fef801
+extern func writerCallBufferedIdentity(value Writer) IO[Int] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_888d7cf47c93a190
+extern func writerCallFlushIdentity(value Writer) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_b61ac17f9cba16db
+extern func writerCallReadFromIdentity(value Writer, p0 Option[canonical.Reader_4d25c51b00a6]) IO[(Int, Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_78c341546a63a201
+extern func writerCallResetIdentity(value Writer, p0 Option[canonical.Writer_38b5996d575b]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_e57b8091701f1423
+extern func writerCallSizeIdentity(value Writer) IO[Int] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_3c886948211b6039
+extern func writerCallWriteIdentity(value Writer, p0 Option[String]) IO[(Option[String], (Int, Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_0f24c75a5ec6f171
+extern func writerCallWriteByteIdentity(value Writer, p0 Int) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_cafdac8d68ba41ba
+extern func writerCallWriteRuneIdentity(value Writer, p0 Int) IO[(Int, Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_9fdb90d77056c845
+extern func writerCallWriteStringIdentity(value Writer, p0 String) IO[(Int, Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_94d3061e8532bbd5

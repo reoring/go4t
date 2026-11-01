@@ -1,0 +1,89 @@
+// Copyright 2014 The Kubernetes Authors. Licensed under Apache-2.0.
+package clientcmd
+import api "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import "std/map"
+import "std/list"
+import "std/prelude"
+import "std/string"
+type FlagInfo = FlagInfo {longName:String,shortName:String,defaultValue:String,description:String}
+type AuthOverrideFlags = AuthOverrideFlags {clientCertificate:FlagInfo,clientKey:FlagInfo,token:FlagInfo,impersonate:FlagInfo,impersonateUID:FlagInfo,impersonateGroups:FlagInfo,username:FlagInfo,password:FlagInfo}
+type ClusterOverrideFlags = ClusterOverrideFlags {apiServer:FlagInfo,apiVersion:FlagInfo,certificateAuthority:FlagInfo,insecureSkipTLSVerify:FlagInfo,tlsServerName:FlagInfo,proxyURL:FlagInfo,disableCompression:FlagInfo}
+type ContextOverrideFlags = ContextOverrideFlags {clusterName:FlagInfo,authInfoName:FlagInfo,namespace:FlagInfo}
+type ConfigOverrideFlags = ConfigOverrideFlags {authOverrideFlags:AuthOverrideFlags,clusterOverrideFlags:ClusterOverrideFlags,contextOverrideFlags:ContextOverrideFlags,currentContext:FlagInfo,timeout:FlagInfo}
+type FlagBinding[A] = FlagBinding {info:FlagInfo,kind:String,classified:Bool,initialize:func(A) A,apply:func(A,String,Bool) outcome.Outcome[A]}
+type FlagRegistry[A] = FlagRegistry {bindings:List[FlagBinding[A]]}
+type FlagArgument = FlagArgument {name:String,value:String}
+type TransformingStringValue = TransformingStringValue {value:String,transformer:func(String) outcome.Outcome[String]}
+func newTransformingStringValue(value String,transformer func(String) outcome.Outcome[String]) TransformingStringValue { TransformingStringValue(value,transformer) }
+func transformingStringValueSet(value TransformingStringValue,text String) outcome.Outcome[TransformingStringValue] { let result = value.transformer(text); match result.error { Some(error) => outcome.failure(value,error); None => outcome.success(value{value:result.value}) } }
+func transformingStringValueType(value TransformingStringValue) String { "string" }
+func transformingStringValueString(value TransformingStringValue) String { value.value }
+func emptyFlagInfo() FlagInfo { FlagInfo("","","","") }
+func addSecretAnnotation[A](binding FlagBinding[A]) FlagBinding[A] { binding{classified:true} }
+func bindStringFlag[A](info FlagInfo,put func(A,String) A) FlagBinding[A] { FlagBinding(info,"string",false,func(value) => put(value,info.defaultValue),func(value,text,_) => outcome.success(put(value,text))) }
+func bindTransformingStringFlag[A](info FlagInfo,put func(A,String) A,transformer func(String) outcome.Outcome[String]) FlagBinding[A] { FlagBinding(info,"string",false,func(value) => put(value,info.defaultValue),func(value,text,_) => { let result = transformer(text); match result.error { Some(error) => outcome.failure(value,error); None => outcome.success(put(value,result.value)) } }) }
+func _bool(text String) Option[Bool] { if list.elem(text,["1","t","T","TRUE","true","True"]) { Some(true) } else if list.elem(text,["0","f","F","FALSE","false","False"]) { Some(false) } else { None } }
+func bindBoolFlag[A](info FlagInfo,put func(A,Bool) A) FlagBinding[A] { FlagBinding(info,"bool",false,func(value) => put(value,_or(_bool(info.defaultValue),false)),func(value,text,_) => match _bool(text) { None => outcome.failure(value,api.newError("invalid boolean value "+api.quoteJSON(text))); Some(flag) => outcome.success(put(value,flag)) }) }
+func bindStringArrayFlag[A](info FlagInfo,get func(A) Option[List[String]],put func(A,Option[List[String]]) A) FlagBinding[A] { FlagBinding(info,"stringArray",false,func(value) => put(value,Some(if info.defaultValue == "" { Nil } else { [info.defaultValue] })),func(value,text,first) => outcome.success(put(value,Some(if first { [text] } else { list.append(api.listOrEmpty(get(value)),[text]) })))) }
+func newFlagRegistry[A](bindings List[FlagBinding[A]]) FlagRegistry[A] { FlagRegistry(filter(bindings,func(binding) => binding.info.longName != "")) }
+func initializeFlags[A](registry FlagRegistry[A],value A) A { fold(registry.bindings,value,func(value,binding) => binding.initialize(value)) }
+func applyFlags[A](registry FlagRegistry[A],value A,arguments List[FlagArgument]) outcome.Outcome[A] { _applyFlags(registry,value,arguments,map.emptyMap()) }
+func _applyFlags[A](registry FlagRegistry[A],value A,arguments List[FlagArgument],seen Map[String,Bool]) outcome.Outcome[A] { match arguments { Nil => outcome.success(value); Cons(argument,rest) => match list.find(registry.bindings,func(binding) => binding.info.longName == argument.name || (binding.info.shortName != "" && binding.info.shortName == argument.name)) { None => outcome.failure(value,api.newError("unknown flag: "+argument.name)); Some(binding) => {
+ let applied = binding.apply(value,argument.value,!map.mapMember(seen,binding.info.longName))
+ match applied.error { Some(_) => applied; None => _applyFlags(registry,applied.value,rest,map.mapInsert(seen,binding.info.longName,true)) }
+} } } }
+func flagClusterName() String { "cluster" }
+func flagAuthInfoName() String { "user" }
+func flagContext() String { "context" }
+func flagNamespace() String { "namespace" }
+func flagAPIServer() String { "server" }
+func flagTLSServerName() String { "tls-server-name" }
+func flagInsecure() String { "insecure-skip-tls-verify" }
+func flagCertFile() String { "client-certificate" }
+func flagKeyFile() String { "client-key" }
+func flagCAFile() String { "certificate-authority" }
+func flagEmbedCerts() String { "embed-certs" }
+func flagBearerToken() String { "token" }
+func flagImpersonate() String { "as" }
+func flagImpersonateUID() String { "as-uid" }
+func flagImpersonateGroup() String { "as-group" }
+func flagUsername() String { "username" }
+func flagPassword() String { "password" }
+func flagTimeout() String { "request-timeout" }
+func flagProxyURL() String { "proxy-url" }
+func flagDisableCompression() String { "disable-compression" }
+func recommendedAuthOverrideFlags(prefix String) AuthOverrideFlags { AuthOverrideFlags(FlagInfo(prefix+flagCertFile(),"","","Path to a client certificate file for TLS"),FlagInfo(prefix+flagKeyFile(),"","","Path to a client key file for TLS"),FlagInfo(prefix+flagBearerToken(),"","","Bearer token for authentication to the API server"),FlagInfo(prefix+flagImpersonate(),"","","Username to impersonate for the operation"),FlagInfo(prefix+flagImpersonateUID(),"","","UID to impersonate for the operation"),FlagInfo(prefix+flagImpersonateGroup(),"","","Group to impersonate for the operation, this flag can be repeated to specify multiple groups."),FlagInfo(prefix+flagUsername(),"","","Username for basic authentication to the API server"),FlagInfo(prefix+flagPassword(),"","","Password for basic authentication to the API server")) }
+func recommendedClusterOverrideFlags(prefix String) ClusterOverrideFlags { ClusterOverrideFlags(FlagInfo(prefix+flagAPIServer(),"","","The address and port of the Kubernetes API server"),emptyFlagInfo(),FlagInfo(prefix+flagCAFile(),"","","Path to a cert file for the certificate authority"),FlagInfo(prefix+flagInsecure(),"","false","If true, the server's certificate will not be checked for validity. This will make your HTTPS connections insecure"),FlagInfo(prefix+flagTLSServerName(),"","","If provided, this name will be used to validate server certificate. If this is not provided, hostname used to contact the server is used."),FlagInfo(prefix+flagProxyURL(),"","","If provided, this URL will be used to connect via proxy"),FlagInfo(prefix+flagDisableCompression(),"","","If true, opt-out of response compression for all requests to the server")) }
+func recommendedContextOverrideFlags(prefix String) ContextOverrideFlags { ContextOverrideFlags(FlagInfo(prefix+flagClusterName(),"","","The name of the kubeconfig cluster to use"),FlagInfo(prefix+flagAuthInfoName(),"","","The name of the kubeconfig user to use"),FlagInfo(prefix+flagNamespace(),"n","","If present, the namespace scope for this CLI request")) }
+func recommendedConfigOverrideFlags(prefix String) ConfigOverrideFlags { ConfigOverrideFlags(recommendedAuthOverrideFlags(prefix),recommendedClusterOverrideFlags(prefix),recommendedContextOverrideFlags(prefix),FlagInfo(prefix+flagContext(),"","","The name of the kubeconfig context to use"),FlagInfo(prefix+flagTimeout(),"","0","The length of time to wait before giving up on a single server request. Non-zero values should contain a corresponding time unit (e.g. 1s, 2m, 3h). A value of zero means don't timeout requests.")) }
+func bindAuthInfoFlags(names AuthOverrideFlags) List[FlagBinding[api.AuthInfo]] { [
+ addSecretAnnotation(bindStringFlag(names.clientCertificate,func(value api.AuthInfo,text String) => value{clientCertificate:text})),
+ addSecretAnnotation(bindStringFlag(names.clientKey,func(value api.AuthInfo,text String) => value{clientKey:text})),
+ addSecretAnnotation(bindStringFlag(names.token,func(value api.AuthInfo,text String) => value{token:text})),
+ addSecretAnnotation(bindStringFlag(names.impersonate,func(value api.AuthInfo,text String) => value{impersonate:text})),
+ addSecretAnnotation(bindStringFlag(names.impersonateUID,func(value api.AuthInfo,text String) => value{impersonateUID:text})),
+ addSecretAnnotation(bindStringArrayFlag(names.impersonateGroups,func(value api.AuthInfo) => value.impersonateGroups,func(value api.AuthInfo,text Option[List[String]]) => value{impersonateGroups:text})),
+ addSecretAnnotation(bindStringFlag(names.username,func(value api.AuthInfo,text String) => value{username:text})),
+ addSecretAnnotation(bindStringFlag(names.password,func(value api.AuthInfo,text String) => value{password:text}))
+] }
+func bindClusterFlags(names ClusterOverrideFlags) List[FlagBinding[api.Cluster]] { [
+ bindStringFlag(names.apiServer,func(value api.Cluster,text String) => value{server:text}),
+ bindStringFlag(names.certificateAuthority,func(value api.Cluster,text String) => value{certificateAuthority:text}),
+ bindBoolFlag(names.insecureSkipTLSVerify,func(value api.Cluster,flag Bool) => value{insecureSkipTLSVerify:flag}),
+ bindStringFlag(names.tlsServerName,func(value api.Cluster,text String) => value{tlsServerName:text}),
+ bindStringFlag(names.proxyURL,func(value api.Cluster,text String) => value{proxyURL:text}),
+ bindBoolFlag(names.disableCompression,func(value api.Cluster,flag Bool) => value{disableCompression:flag})
+] }
+func bindContextFlags(names ContextOverrideFlags) List[FlagBinding[api.Context]] { [
+ bindStringFlag(names.clusterName,func(value api.Context,text String) => value{cluster:text}),
+ bindStringFlag(names.authInfoName,func(value api.Context,text String) => value{authInfo:text}),
+ bindTransformingStringFlag(names.namespace,func(value api.Context,text String) => value{namespace:text},func(text String) => outcome.success(removeNamespacesPrefix(text)))
+] }
+func _liftBinding[A](binding FlagBinding[A],get func(ConfigOverrides) A,put func(ConfigOverrides,A) ConfigOverrides) FlagBinding[ConfigOverrides] { FlagBinding(binding.info,binding.kind,binding.classified,func(value) => put(value,binding.initialize(get(value))),func(value,text,first) => outcome.mapValue(binding.apply(get(value),text,first),func(part) => put(value,part))) }
+func bindOverrideFlags(names ConfigOverrideFlags) FlagRegistry[ConfigOverrides] {
+ let auth = prelude.fmap(bindAuthInfoFlags(names.authOverrideFlags),func(binding) => _liftBinding(binding,func(value ConfigOverrides) => value.authInfo,func(value ConfigOverrides,part api.AuthInfo) => value{authInfo:part}))
+ let cluster = prelude.fmap(bindClusterFlags(names.clusterOverrideFlags),func(binding) => _liftBinding(binding,func(value ConfigOverrides) => value.clusterInfo,func(value ConfigOverrides,part api.Cluster) => value{clusterInfo:part}))
+ let context = prelude.fmap(bindContextFlags(names.contextOverrideFlags),func(binding) => _liftBinding(binding,func(value ConfigOverrides) => value.context,func(value ConfigOverrides,part api.Context) => value{context:part}))
+ newFlagRegistry(list.append(auth,list.append(cluster,list.append(context,[bindStringFlag(names.currentContext,func(value ConfigOverrides,text String) => value{currentContext:text}),bindStringFlag(names.timeout,func(value ConfigOverrides,text String) => value{timeout:text})]))))
+}

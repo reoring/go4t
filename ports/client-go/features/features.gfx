@@ -1,0 +1,120 @@
+// Copyright 2024 The Kubernetes Authors. Licensed under Apache-2.0.
+package features
+
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import version "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/util/version"
+import "std/map"
+import "std/list"
+
+alias Feature = String
+alias Prerelease = String
+func alpha() String { "ALPHA" }
+func beta() String { "BETA" }
+func ga() String { "" }
+func deprecated() String { "DEPRECATED" }
+type FeatureSpec = FeatureSpec { default: Bool, lockToDefault: Bool, preRelease: Prerelease, version: Option[version.Version] }
+alias VersionedSpecs = List[FeatureSpec]
+type Gates = Gates { enabled: func(Feature) IO[Bool], set: Option[func(Feature, Bool) IO[Result[String, Unit]]], setForTesting: Option[func(Feature, Bool) IO[Result[String, Unit]]], name: String }
+type Registry = Registry { add: func(Map[Feature, FeatureSpec]) IO[Result[String, Unit]] }
+type VersionedRegistry = VersionedRegistry { addVersioned: func(Map[Feature, VersionedSpecs]) IO[Result[String, Unit]] }
+type Environment = Environment { lookup: func(String) IO[Option[String]], report: func(String) IO[Unit] }
+type GateState = GateState { loaded: Bool, environment: Map[Feature, Bool], overrides: Map[Feature, Bool] }
+type EnvVarFeatureGates = EnvVarFeatureGates { name: String, known: Map[Feature, FeatureSpec], environment: Environment, mutex: sync.Mutex, state: sync.Ref[GateState] }
+type ActiveGates = ActiveGates { gates: Gates, original: Option[EnvVarFeatureGates] }
+type FeatureRegistry = FeatureRegistry { mutex: sync.Mutex, active: sync.Ref[ActiveGates] }
+extern func lookupEnvironment(name String) IO[Option[String]] = "github.com/reoring/gofx/ports/client-go/features/host".LookupEnvironment
+extern func reportWarning(message String) IO[Unit] = "github.com/reoring/gofx/ports/client-go/features/host".ReportWarning
+extern func quote(value String) String = "strconv".Quote
+func processEnvironment() Environment { Environment(lookupEnvironment, reportWarning) }
+func parseBool(value String) Option[Bool] {
+ if value == "1" || value == "t" || value == "T" || value == "TRUE" || value == "true" || value == "True" { Some(true) }
+ else if value == "0" || value == "f" || value == "F" || value == "FALSE" || value == "false" || value == "False" { Some(false) } else { None }
+}
+func unknownFeature(name String, feature Feature) String { "feature " + quote(feature) + " is not registered in FeatureGates " + quote(name) }
+func newEnvVarFeatureGates(name String, known Map[Feature, FeatureSpec], environment Environment) IO[EnvVarFeatureGates] { do {
+ mutex <- sync.newMutex()
+ state <- sync.newRef(GateState(false, map.emptyMap(), map.emptyMap()))
+ ioPure(EnvVarFeatureGates(name, known, environment, mutex, state))
+} }
+func _loadEntries(gates EnvVarFeatureGates, entries List[(Feature, FeatureSpec)], values Map[Feature, Bool]) IO[Map[Feature, Bool]] {
+ match entries {
+ Nil => ioPure(values)
+ Cons((feature, spec), rest) => do {
+  raw <- gates.environment.lookup("KUBE_FEATURE_" + feature)
+  next <- match raw {
+   None => ioPure(values)
+   Some(text) => match parseBool(text) {
+    None => do { gates.environment.report("Could not set feature gate: " + feature + " desiredState=" + text); ioPure(values) }
+    Some(value) => if spec.lockToDefault && value != spec.default {
+     do { gates.environment.report("Could not set feature gate, feature is locked: " + feature + " desiredState=" + text); ioPure(values) }
+    } else { ioPure(map.mapInsert(values, feature, value)) }
+   }
+  }
+  _loadEntries(gates, rest, next)
+ }
+ }
+}
+func _load(gates EnvVarFeatureGates) IO[GateState] { do {
+ state <- sync.readRef(gates.state)
+ if state.loaded { ioPure(state) } else { do {
+  environment <- _loadEntries(gates, map.mapToList(gates.known), map.emptyMap())
+  let next = state{loaded: true, environment: environment}
+  sync.writeRef(gates.state, next)
+  ioPure(next)
+ } }
+} }
+func enabled(gates EnvVarFeatureGates, feature Feature) IO[Bool] {
+ sync.withLock(gates.mutex, do {
+  state <- _load(gates)
+  match map.mapLookup(state.overrides, feature) {
+   Some(value) => ioPure(value)
+   None => match map.mapLookup(state.environment, feature) {
+    Some(value) => ioPure(value)
+    None => match map.mapLookup(gates.known, feature) {
+     Some(spec) => ioPure(spec.default)
+     None => ioFail(unknownFeature(gates.name, feature))
+    }
+   }
+  }
+ })
+}
+func _set(gates EnvVarFeatureGates, feature Feature, value Bool, testing Bool) IO[Result[String, Unit]] {
+ match map.mapLookup(gates.known, feature) {
+ None => ioPure(Err(unknownFeature(gates.name, feature)))
+ Some(spec) => if !testing && spec.lockToDefault && value != spec.default {
+  ioPure(Err("cannot set feature gate " + quote(feature) + " to " + show(value) + ", feature is locked to " + show(spec.default)))
+ } else { sync.withLock(gates.mutex, do {
+  state <- sync.readRef(gates.state)
+  sync.writeRef(gates.state, state{overrides: map.mapInsert(state.overrides, feature, value)})
+  ioPure(Ok(unit()))
+ }) }
+ }
+}
+func set(gates EnvVarFeatureGates, feature Feature, value Bool) IO[Result[String, Unit]] { _set(gates, feature, value, false) }
+func setForTesting(gates EnvVarFeatureGates, feature Feature, value Bool) IO[Result[String, Unit]] { _set(gates, feature, value, true) }
+func asGates(gates EnvVarFeatureGates) Gates { Gates(func(feature) => enabled(gates, feature), Some(func(feature, value) => set(gates, feature, value)), Some(func(feature, value) => setForTesting(gates, feature, value)), gates.name) }
+func unversionedFeatureGates(specs Map[Feature, VersionedSpecs]) Map[Feature, FeatureSpec] {
+ map.mapFold(specs, map.emptyMap(), func(result, feature, versions) => match list.last(versions) {
+  None => result
+  Some(spec) => map.mapInsert(result, feature, spec{version: None})
+ })
+}
+func newFeatureRegistry(environment Environment) IO[FeatureRegistry] { do {
+ specs <- defaultVersionedKubernetesFeatureGates()
+ gates <- newEnvVarFeatureGates("client-go", unversionedFeatureGates(specs), environment)
+ mutex <- sync.newMutex()
+ active <- sync.newRef(ActiveGates(asGates(gates), Some(gates)))
+ ioPure(FeatureRegistry(mutex, active))
+} }
+func featureGates(registry FeatureRegistry) IO[Gates] { do { active <- sync.readRef(registry.active); ioPure(active.gates) } }
+func replaceFeatureGates(registry FeatureRegistry, gates Gates) IO[Bool] {
+ sync.withLock(registry.mutex, do {
+  previous <- sync.readRef(registry.active)
+  warning <- match previous.original { None => ioPure(false); Some(original) => do { state <- sync.readRef(original.state); ioPure(state.loaded) } }
+  sync.writeRef(registry.active, ActiveGates(gates, None))
+  if warning { reportWarning("The default feature gates implementation has already been used and now it's being overwritten. This might lead to unexpected behaviour. Check your initialization order.") } else { ioPure(unit()) }
+  ioPure(warning)
+ })
+}
+func addFeaturesToExistingFeatureGates(registry Registry) IO[Result[String, Unit]] { do { specs <- defaultVersionedKubernetesFeatureGates(); registry.add(unversionedFeatureGates(specs)) } }
+func addVersionedFeaturesToExistingFeatureGates(registry VersionedRegistry) IO[Result[String, Unit]] { do { specs <- defaultVersionedKubernetesFeatureGates(); registry.addVersioned(specs) } }

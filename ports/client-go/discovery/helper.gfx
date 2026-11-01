@@ -1,0 +1,49 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package discovery
+import meta "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import version "deps/k8s.io/apimachinery/pkg/version"
+import errors "deps/support"
+import "support/outcome"
+import "std/list"
+import "std/prelude"
+import "std/string"
+func parseGroupVersion(value String) outcome.Outcome[(String,String)] {
+ match string.split("/",value) {
+  Cons(version,Nil) => outcome.success(("",version))
+  Cons(group,Cons(version,Nil)) => outcome.success((group,version))
+  _ => outcome.failure(("",""),errors.errorNew("unexpected GroupVersion string: "+value))
+ }
+}
+func isResourceEnabled(client DiscoveryInterface,resource schema.GroupVersionResource) IO[outcome.Outcome[Bool]] {
+ resourceEnabled(client,groupVersion(schema.groupVersionResourceGetGroup(resource),schema.groupVersionResourceGetVersion(resource)),schema.groupVersionResourceGetResource(resource))
+}
+func matchesServerVersion(clientVersion version.Info,client DiscoveryInterface) IO[Option[errors.Error]] {
+ do { result <- client.serverVersion(); match result.error {
+  Some(e) => ioPure(Some(errors.errorNew("couldn't read version from server: "+errors.errorMessage(e))))
+  None => match result.value {
+   None => ioPure(Some(errors.errorNew("couldn't read version from server: empty response")))
+   Some(server) => ioPure(if version.infoGetGitVersion(server)==version.infoGetGitVersion(clientVersion) && version.infoGetGitCommit(server)==version.infoGetGitCommit(clientVersion) && version.infoGetGitTreeState(server)==version.infoGetGitTreeState(clientVersion) { None } else { Some(versionMismatch(server,clientVersion)) })
+  }
+ } }
+}
+extern func versionMismatch(server version.Info,client version.Info) errors.Error = "github.com/reoring/gofx/ports/client-go/discovery/host".VersionMismatch
+func serverSupportsVersion(client DiscoveryInterface,required schema.GroupVersion) IO[Option[errors.Error]] {
+ do { result <- client.serverGroups(); match result.error { Some(e) => ioPure(Some(e)); None => {
+  let versions = match result.value { None => []; Some(gs) => list.concatMap(values(meta.aPIGroupListGetGroups(gs)),func(g) => prelude.map(values(meta.aPIGroupGetVersions(g)),func(v) => meta.groupVersionForDiscoveryGetGroupVersion(v))) }
+  let required = groupVersion(schema.groupVersionGetGroup(required),schema.groupVersionGetVersion(required))
+  ioPure(if list.length(versions)==0 || list.elem(required,versions) { None } else { Some(errors.errorNew("server does not support API version "+string.showQuoted(required))) })
+ } } }
+}
+func groupVersionResources(resources List[meta.APIResourceList]) outcome.Outcome[List[schema.GroupVersionResource]] {
+ list.fold(resources,outcome.success([]),func(acc,rl) => match acc.error {
+  Some(e) => acc
+  None => {
+   let parsed = parseGroupVersion(meta.aPIResourceListGetGroupVersion(rl))
+   match parsed.error { Some(e) => outcome.failure([],e); None => {
+    let added = prelude.map(values(meta.aPIResourceListGetAPIResources(rl)),func(r) => schema.groupVersionResourceWithResource(schema.groupVersionResourceWithVersion(schema.groupVersionResourceWithGroup(schema.newGroupVersionResource(),parsed.value.0),parsed.value.1),meta.aPIResourceGetName(r)))
+    outcome.success(list.fold(added,acc.value,func(xs,r) => if list.any(xs,func(a) => schema.groupVersionResourceGetGroup(a)==schema.groupVersionResourceGetGroup(r) && schema.groupVersionResourceGetVersion(a)==schema.groupVersionResourceGetVersion(r) && schema.groupVersionResourceGetResource(a)==schema.groupVersionResourceGetResource(r)) { xs } else { list.append(xs,[r]) }))
+   } }
+  }
+ })
+}

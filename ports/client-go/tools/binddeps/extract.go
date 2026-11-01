@@ -14,6 +14,7 @@ import (
  "os"
  "path/filepath"
  "sort"
+ goruntime "runtime"
  "strconv"
  "strings"
 )
@@ -30,7 +31,7 @@ var fs=token.NewFileSet()
 var root string
 func text(n ast.Node) string { var b bytes.Buffer; if n!=nil { format.Node(&b,fs,n) }; return b.String() }
 func sorted(m map[string]bool) []string { a:=[]string{}; for k:= range m { a=append(a,k) };sort.Strings(a);return a }
-func directory(p string) string { if p=="k8s.io/client-go" {return root};if strings.HasPrefix(p,"k8s.io/client-go/"){return filepath.Join(root,strings.TrimPrefix(p,"k8s.io/client-go/"))}; for _,m:=range modules {if p==m.Path {return m.Dir};if strings.HasPrefix(p,m.Path+"/"){return filepath.Join(m.Dir,strings.TrimPrefix(p,m.Path+"/"))}};return filepath.Join(os.Getenv("GOROOT"),"src",p) }
+func directory(p string) string { if p=="k8s.io/client-go" {return root};if strings.HasPrefix(p,"k8s.io/client-go/"){return filepath.Join(root,strings.TrimPrefix(p,"k8s.io/client-go/"))}; for _,m:=range modules {if p==m.Path {return m.Dir};if strings.HasPrefix(p,m.Path+"/"){return filepath.Join(m.Dir,strings.TrimPrefix(p,m.Path+"/"))}};return filepath.Join(goruntime.GOROOT(),"src",p) }
 func packageName(p string) string { d,err:=os.ReadDir(directory(p));if err==nil {for _,f:=range d {if strings.HasSuffix(f.Name(),".go")&&!strings.HasSuffix(f.Name(),"_test.go"){a,e:=parser.ParseFile(token.NewFileSet(),filepath.Join(directory(p),f.Name()),nil,parser.PackageClauseOnly);if e==nil{return a.Name.Name}}}};return filepath.Base(p) }
 type Ctx struct { pkg string; imports map[string]string; params map[string]bool; refs map[string]bool }
 func (c Ctx) typ(e ast.Expr) any { if e==nil{return nil};switch v:=e.(type) {
@@ -64,6 +65,7 @@ case *ast.FuncDecl:recv:="";if v.Recv!=nil{recv=receiver(v.Recv.List[0].Type);as
 }}
 };return q}
 func main(){root=os.Args[1];f,e:=os.Open(os.Args[2]);if e!=nil{panic(e)};dec:=json.NewDecoder(f);for{var m Module;e=dec.Decode(&m);if e==io.EOF{break};if e!=nil{panic(e)};modules=append(modules,m)};sort.Slice(modules,func(i,j int)bool{return len(modules[i].Path)>len(modules[j].Path)})
+ if len(os.Args)>3 {completeBodyRoots(os.Args[3]);return}
  roots:=[]*Decl{};filepath.WalkDir(root,func(path string,d os.DirEntry,e error)error{if e!=nil{panic(e)};if d.IsDir(){if d.Name()==".git"||d.Name()=="testdata"{return filepath.SkipDir};return nil};if !strings.HasSuffix(path,".go")||strings.HasSuffix(path,"_test.go"){return nil};rel,_:=filepath.Rel(root,filepath.Dir(path));p:="k8s.io/client-go";if rel!="."{p+="/"+filepath.ToSlash(rel)};load(p);return nil});for p,q:=range packages{if !strings.HasPrefix(p,"k8s.io/client-go"){continue};for _,ds:=range q.decls{for _,d:=range ds{if d.Exported{roots=append(roots,d)}}};for _,ds:=range q.methods{for _,d:=range ds{if d.Exported{roots=append(roots,d)}}}}
  sort.Slice(roots,func(i,j int)bool{if roots[i].ID==roots[j].ID{return roots[i].Source<roots[j].Source};return roots[i].ID<roots[j].ID})
  queue:=[]string{"k8s.io/apimachinery/pkg/api/errors.APIStatus"};seeded:=map[string]bool{};rootRefs:=map[string][]string{};for _,d:=range roots{for _,r:=range d.Refs{queue=append(queue,r);rootRefs[r]=append(rootRefs[r],d.ID)}};seen:=map[string]bool{};out:=map[string][]*Decl{};unresolved:=[]string{};for len(queue)>0{id:=queue[0];queue=queue[1:];if seen[id]{continue};seen[id]=true;i:=strings.LastIndex(id,".");if i<0{panic(id)};p,name:=id[:i],id[i+1:];q:=load(p);if !seeded[p]&&(strings.HasPrefix(p,"k8s.io/api/")||strings.HasPrefix(p,"k8s.io/apimachinery/")){seeded[p]=true;for n,decls:=range q.decls{if ast.IsExported(n)&&len(decls)>0&&decls[0].Kind=="type"{queue=append(queue,p+"."+n)}}};ds:=q.decls[name];if len(ds)==0{unresolved=append(unresolved,id);continue};if !strings.HasPrefix(p,"k8s.io/client-go"){out[id]=ds};for _,d:=range ds{queue=append(queue,d.Refs...)};for _,d:=range q.methods[name]{if d.Exported{if !strings.HasPrefix(p,"k8s.io/client-go"){out[d.ID]=append(out[d.ID],d)};queue=append(queue,d.Refs...)}}}

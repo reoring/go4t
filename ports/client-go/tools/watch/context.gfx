@@ -1,0 +1,12 @@
+package watch
+
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+
+// Zero and negative timeout mean no deadline. The explicit warning callback
+// carries the caller's contextual logger without a global logging registry.
+func contextWithOptionalTimeout(parent sync.Context, timeoutNanos Int, warn func(String) IO[Unit]) IO[(sync.Context, sync.Cancel)] {
+ do {
+  if timeoutNanos < 0 { warn("Timeout for context shall not be negative") } else { ioPure(unit()) }
+  sync.newContext(parent, if timeoutNanos <= 0 { None } else { Some(timeoutNanos) })
+ }
+}

@@ -1,0 +1,134 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package cache
+
+import "std/map"
+import lists "std/list"
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+import "github.com/reoring/gofx/ports/client-go/support/outcome"
+import errors "github.com/reoring/gofx/ports/client-go/deps/support"
+
+type Deleted[A] = DeletedObject(A) | DeletedFinalStateUnknown(String,Option[A])
+type DeltaType = Added | Updated | Deleted | Replaced | Sync deriving Eq
+type Delta[A] = Delta { deltaType: DeltaType, object: Deleted[A] }
+alias Deltas[A] = List[Delta[A]]
+type ProcessResult = ProcessResult { error: Option[errors.Error], requeue: Bool }
+alias PopProcessFunc[A] = func(A,Bool) IO[ProcessResult]
+type KeyQueueState[A] = KeyQueueState { items: Map[String,A], front: List[String], back: List[String], populated: Bool, initial: Int, synced: Bool, closed: Bool }
+type KeyQueue[A] = KeyQueue { mutex: sync.Mutex, condition: sync.Condition, state: sync.Ref[KeyQueueState[A]], done: sync.Channel[Unit], syncBeforeCallback: Bool, metrics: sync.Ref[Option[QueueMetrics]] }
+type FIFO[A] = FIFO { queue: KeyQueue[A], access: ObjectAccess[A] }
+type DeltaFIFO[A] = DeltaFIFO { queue: KeyQueue[Deltas[A]], access: ObjectAccess[A], known: Option[Store[A]], transform: Option[TransformFunc[A]], emitReplaced: Bool }
+type DeltaFIFOOptions[A] = DeltaFIFOOptions { access: ObjectAccess[A], knownObjects: Option[Store[A]], transformer: Option[TransformFunc[A]], emitDeltaTypeReplaced: Bool }
+func processSuccess() ProcessResult { ProcessResult(None,false) }
+func errFIFOClosed() errors.Error { cacheError("DeltaFIFO: manipulating with closed queue") }
+func newKeyQueue[A](syncBefore Bool) IO[KeyQueue[A]] { do { mutex <- sync.newMutex(); condition <- sync.newCondition(mutex); state <- sync.newRef(KeyQueueState(map.emptyMap(),Nil,Nil,false,0,false,false)); done <- sync.newChannel(0); metrics <- sync.newRef(None); ioPure(KeyQueue(mutex,condition,state,done,syncBefore,metrics)) } }
+func newFIFO[A](access ObjectAccess[A]) IO[FIFO[A]] { do { q <- newKeyQueue(false); ioPure(FIFO(q,access)) } }
+func newDeltaFIFO[A](access ObjectAccess[A], known Option[Store[A]]) IO[DeltaFIFO[A]] { newDeltaFIFOWithOptions(DeltaFIFOOptions(access,known,None,false)) }
+func newDeltaFIFOWithOptions[A](options DeltaFIFOOptions[A]) IO[DeltaFIFO[A]] { do { q <- newKeyQueue(true); ioPure(DeltaFIFO(q,options.access,options.knownObjects,options.transformer,options.emitDeltaTypeReplaced)) } }
+func queuePublish[A](q KeyQueue[A], s KeyQueueState[A]) IO[Unit] { do { let complete = s.populated && s.initial == 0; if complete && !s.synced { sync.close(q.done) } else { ioPure(unit()) }; sync.writeRef(q.state,s { synced: s.synced || complete }); metrics <- sync.readRef(q.metrics); match metrics { None => ioPure(unit()); Some(m) => m.depth(map.mapSize(s.items)) } } }
+func queueInsert[A](s KeyQueueState[A], key String, value A) KeyQueueState[A] { s { items: map.mapInsert(s.items,key,value), back: if map.mapMember(s.items,key) { s.back } else { Cons(key,s.back) } } }
+func queueClose[A](q KeyQueue[A]) IO[Unit] { sync.withLock(q.mutex,sync.uninterruptible(do { s <- sync.readRef(q.state); sync.writeRef(q.state,s { closed: true }); sync.broadcast(q.condition) })) }
+func queueIsClosed[A](q KeyQueue[A]) IO[Bool] { sync.withLock(q.mutex,do { s <- sync.readRef(q.state); ioPure(s.closed) }) }
+func queueHasSynced[A](q KeyQueue[A]) IO[Bool] { sync.withLock(q.mutex,do { s <- sync.readRef(q.state); ioPure(s.synced) }) }
+func queueList[A](q KeyQueue[A]) IO[List[A]] { sync.withLock(q.mutex,do { s <- sync.readRef(q.state); ioPure(map.mapValues(s.items)) }) }
+func queueListKeys[A](q KeyQueue[A]) IO[List[String]] { sync.withLock(q.mutex,do { s <- sync.readRef(q.state); ioPure(map.mapKeys(s.items)) }) }
+func queueGet[A](q KeyQueue[A], key String) IO[outcome.Outcome[Option[A]]] { sync.withLock(q.mutex,do { s <- sync.readRef(q.state); ioPure(outcome.success(map.mapLookup(s.items,key))) }) }
+func queuePop[A](q KeyQueue[A], process PopProcessFunc[A]) IO[outcome.Outcome[Option[A]]] { do { context <- sync.captureContext(); sync.withLock(q.mutex,queuePopLocked(q,process,context)) } }
+func queuePopLocked[A](q KeyQueue[A], process PopProcessFunc[A], context sync.Context) IO[outcome.Outcome[Option[A]]] {
+ do { s <- sync.readRef(q.state)
+  match s.front {
+   Nil => match s.back {
+    Nil => if s.closed { ioPure(outcome.failure(None,errFIFOClosed())) } else { do { sync.wait(q.condition); queuePopLocked(q,process,context) } }
+    _ => do { sync.writeRef(q.state,s { front: reverse(s.back), back: Nil }); queuePopLocked(q,process,context) }
+   }
+   Cons(key,rest) => sync.uninterruptible(do {
+    let initial = !s.synced
+    let remaining = if s.initial > 0 { s.initial-1 } else { 0 }
+    let next = s { front: rest, items: map.mapDelete(s.items,key), initial: if q.syncBeforeCallback { remaining } else { s.initial } }
+    queuePublish(q,next)
+    match map.mapLookup(s.items,key) {
+     None => do { if q.syncBeforeCallback { ioPure(unit()) } else { queueFinishInitial(q,remaining) }; sync.withContext(context,queuePopLocked(q,process,context)) }
+     Some(value) => do {
+      result <- sync.ensuring(measureQueueProcess(q,sync.withContext(context,process(value,initial))),if q.syncBeforeCallback { ioPure(unit()) } else { queueFinishInitial(q,remaining) })
+      if result.requeue { do { current <- sync.readRef(q.state); if map.mapMember(current.items,key) { ioPure(unit()) } else { do { queuePublish(q,queueInsert(current,key,value)); sync.broadcast(q.condition) } } } } else { ioPure(unit()) }
+      ioPure(outcome.from(Some(value),result.error))
+     }
+    }
+   })
+  }
+ }
+}
+func queueFinishInitial[A](q KeyQueue[A], remaining Int) IO[Unit] { do { s <- sync.readRef(q.state); queuePublish(q,s { initial: remaining }) } }
+func fifoAdd[A](f FIFO[A], obj A) IO[outcome.Outcome[Unit]] { fifoInsert(f,obj,false) }
+func fifoUpdate[A](f FIFO[A], obj A) IO[outcome.Outcome[Unit]] { fifoAdd(f,obj) }
+func fifoAddIfNotPresent[A](f FIFO[A], obj A) IO[outcome.Outcome[Unit]] { fifoInsert(f,obj,true) }
+func fifoInsert[A](f FIFO[A], obj A, onlyAbsent Bool) IO[outcome.Outcome[Unit]] { do { key <- f.access.key(obj); match key.error { Some(_) => ioPure(outcome.from(unit(),keyFailure(key))); None => sync.withLock(f.queue.mutex,sync.uninterruptible(do { s <- sync.readRef(f.queue.state); let next = s { populated: true }; queuePublish(f.queue,if onlyAbsent && map.mapMember(s.items,key.value) { next } else { queueInsert(next,key.value,obj) }); sync.broadcast(f.queue.condition); ioPure(outcome.success(unit())) })) } } }
+func fifoDelete[A](f FIFO[A], obj A) IO[outcome.Outcome[Unit]] { do { key <- f.access.key(obj); match key.error { Some(_) => ioPure(outcome.from(unit(),keyFailure(key))); None => sync.withLock(f.queue.mutex,sync.uninterruptible(do { s <- sync.readRef(f.queue.state); queuePublish(f.queue,s { populated: true, items: map.mapDelete(s.items,key.value) }); ioPure(outcome.success(unit())) })) } } }
+func fifoReplace[A](f FIFO[A], items List[A], rv String) IO[outcome.Outcome[Unit]] { do { keyed <- keyedObjects(f.access,None,items,map.emptyMap()); match keyed.error { Some(e) => ioPure(outcome.failure(unit(),e)); None => sync.withLock(f.queue.mutex,sync.uninterruptible(do { s <- sync.readRef(f.queue.state); queuePublish(f.queue,s { items: keyed.value, front: map.mapKeys(keyed.value), back: Nil, populated: true, initial: if s.populated { s.initial } else { map.mapSize(keyed.value) } }); sync.broadcast(f.queue.condition); ioPure(outcome.success(unit())) })) } } }
+func fifoResync[A](f FIFO[A]) IO[outcome.Outcome[Unit]] { sync.withLock(f.queue.mutex,sync.uninterruptible(do { s <- sync.readRef(f.queue.state); let present = fold(append(s.front,s.back),map.emptyMap(),func(acc,k) => map.mapInsert(acc,k,unit())); let missing = filter(map.mapKeys(s.items),func(k) => !map.mapMember(present,k)); sync.writeRef(f.queue.state,s { back: append(reverse(missing),s.back) }); sync.broadcast(f.queue.condition); ioPure(outcome.success(unit())) })) }
+func deletionKey[A](access ObjectAccess[A], obj Deleted[A]) IO[outcome.Outcome[String]] { match obj { DeletedObject(value) => access.key(value); DeletedFinalStateUnknown(key,_) => ioPure(outcome.success(key)) } }
+func deletionObject[A](obj Deleted[A]) Option[A] { match obj { DeletedObject(value) => Some(value); DeletedFinalStateUnknown(_,value) => value } }
+func newest[A](deltas Deltas[A]) Option[Delta[A]] { fold(deltas,None,func(_,d) => Some(d)) }
+func oldest[A](deltas Deltas[A]) Option[Delta[A]] { match deltas { Nil => None; Cons(d,_) => Some(d) } }
+func deltaKeyOf[A](f DeltaFIFO[A], deltas Deltas[A]) IO[outcome.Outcome[String]] { match newest(deltas) { None => ioPure(outcome.failure("",cacheError("0 length Deltas object; can't get key"))); Some(d) => deletionKey(f.access,d.object) } }
+func dedupDeltas[A](deltas Deltas[A]) Deltas[A] { reverse(dedupReversed(reverse(deltas))) }
+func dedupReversed[A](deltas Deltas[A]) Deltas[A] { match deltas { Cons(a,Cons(b,rest)) => if a.deltaType == Deleted && b.deltaType == Deleted { match b.object { DeletedFinalStateUnknown(_,_) => Cons(a,rest); _ => Cons(b,rest) } } else { deltas }; _ => deltas } }
+func deltaEnqueue[A](f DeltaFIFO[A], s KeyQueueState[Deltas[A]], kind DeltaType, internalKind DeltaType, obj Deleted[A]) IO[outcome.Outcome[KeyQueueState[Deltas[A]]]] {
+ do { key <- deletionKey(f.access,obj); match key.error {
+  Some(_) => ioPure(outcome.from(s,keyFailure(key)))
+  None => do {
+   changed <- match obj { DeletedObject(value) => if internalKind == Sync { ioPure(outcome.success(obj)) } else { do { result <- transformObject(f.transform,value); ioPure(outcome.mapValue(result,func(v) => DeletedObject(v))) } }; _ => ioPure(outcome.success(obj)) }
+   ioPure(match changed.error {
+    Some(e) => outcome.failure(s,e)
+    None => {
+     let old = match map.mapLookup(s.items,key.value) { None => Nil; Some(ds) => ds }
+     outcome.success(queueInsert(s,key.value,dedupDeltas(append(old,[Delta(kind,changed.value)]))))
+    }
+   })
+  }
+ } }
+}
+func deltaAction[A](f DeltaFIFO[A], kind DeltaType, obj Deleted[A]) IO[outcome.Outcome[Unit]] {
+ sync.withLock(f.queue.mutex,sync.uninterruptible(do {
+  s <- sync.readRef(f.queue.state)
+  key <- deletionKey(f.access,obj)
+  match key.error { Some(e) => ioPure(outcome.failure(unit(),e)); None => do {
+   known <- if kind == Deleted { match f.known { None => ioPure(outcome.success(None)); Some(store) => store.getByKey(key.value) } } else { ioPure(outcome.success(None)) }
+   let absent = kind == Deleted && outcome.isSuccess(known) && !map.mapMember(s.items,key.value) && (match known.value { None => true; Some(_) => false })
+   next <- if absent { ioPure(outcome.success(s { populated: true })) } else { deltaEnqueue(f,s { populated: true },kind,kind,obj) }
+   queuePublish(f.queue,next.value)
+   sync.broadcast(f.queue.condition)
+   ioPure(outcome.from(unit(),next.error))
+  } }
+ }))
+}
+func deltaAdd[A](f DeltaFIFO[A], obj A) IO[outcome.Outcome[Unit]] { deltaAction(f,Added,DeletedObject(obj)) }
+func deltaUpdate[A](f DeltaFIFO[A], obj A) IO[outcome.Outcome[Unit]] { deltaAction(f,Updated,DeletedObject(obj)) }
+func deltaDelete[A](f DeltaFIFO[A], obj Deleted[A]) IO[outcome.Outcome[Unit]] { deltaAction(f,Deleted,obj) }
+func deltaAddIfNotPresent[A](f DeltaFIFO[A], deltas Deltas[A]) IO[outcome.Outcome[Unit]] { do { key <- deltaKeyOf(f,deltas); match key.error { Some(e) => ioPure(outcome.failure(unit(),e)); None => sync.withLock(f.queue.mutex,sync.uninterruptible(do { s <- sync.readRef(f.queue.state); queuePublish(f.queue,if map.mapMember(s.items,key.value) { s { populated: true } } else { queueInsert(s { populated: true },key.value,deltas) }); sync.broadcast(f.queue.condition); ioPure(outcome.success(unit())) })) } } }
+func knownSnapshot[A](known Option[Store[A]]) IO[Map[String,A]] { match known { None => ioPure(map.emptyMap()); Some(store) => do { keys <- store.listKeys(); pairs <- lists.mapM(keys,func(key) => do { found <- store.getByKey(key); ioPure((key,if outcome.isSuccess(found) { found.value } else { None })) }); ioPure(fold(pairs,map.emptyMap(),func(acc,pair) => match snd(pair) { None => acc; Some(value) => map.mapInsert(acc,fst(pair),value) })) } } }
+func knownKeys[A](known Option[Store[A]]) IO[List[String]] { match known { None => ioPure(Nil); Some(store) => store.listKeys() } }
+func deltaEnqueueObjects[A](f DeltaFIFO[A], s KeyQueueState[Deltas[A]], kind DeltaType, internalKind DeltaType, objects List[Deleted[A]]) IO[outcome.Outcome[KeyQueueState[Deltas[A]]]] { match objects { Nil => ioPure(outcome.success(s)); Cons(obj,rest) => do { next <- deltaEnqueue(f,s,kind,internalKind,obj); match next.error { Some(_) => ioPure(next); None => deltaEnqueueObjects(f,next.value,kind,internalKind,rest) } } } }
+func deltaReplace[A](f DeltaFIFO[A], objects List[A], rv String) IO[outcome.Outcome[Unit]] {
+ sync.withLock(f.queue.mutex,sync.uninterruptible(do {
+  s <- sync.readRef(f.queue.state)
+  known <- knownSnapshot(f.known)
+  knownNames <- knownKeys(f.known)
+  keys <- keyedObjects(f.access,None,objects,map.emptyMap())
+  match keys.error { Some(e) => ioPure(outcome.failure(unit(),e)); None => do {
+   let kind = if f.emitReplaced { Replaced } else { Sync }
+   replacements <- deltaEnqueueObjects(f,s,kind,Replaced,map(objects,func(obj) => DeletedObject(obj)))
+   let candidates = map.mapUnion(map.mapMap(s.items,func(_) => unit()),map.mapFromList(map(knownNames,func(key) => (key,unit()))))
+   let missing = filter(map.mapKeys(candidates),func(k) => !map.mapMember(keys.value,k))
+   let deletions = map(missing,func(key) => {
+    let previous = match map.mapLookup(s.items,key) { Some(ds) => match newest(ds) { None => None; Some(d) => deletionObject(d.object) }; None => map.mapLookup(known,key) }
+    DeletedFinalStateUnknown(key,previous)
+   })
+   next <- if outcome.isSuccess(replacements) { deltaEnqueueObjects(f,replacements.value,Deleted,Deleted,deletions) } else { ioPure(replacements) }
+   let final = if s.populated || !outcome.isSuccess(next) { next.value } else { next.value { populated: true, initial: map.mapSize(keys.value)+length(missing) } }
+   queuePublish(f.queue,final)
+   sync.broadcast(f.queue.condition)
+   ioPure(outcome.from(unit(),next.error))
+  } }
+ }))
+}
+func deltaResync[A](f DeltaFIFO[A]) IO[outcome.Outcome[Unit]] { sync.withLock(f.queue.mutex,sync.uninterruptible(do { s <- sync.readRef(f.queue.state); known <- knownSnapshot(f.known); let values = map(filter(map.mapToList(known),func(pair) => !map.mapMember(s.items,fst(pair))),func(pair) => DeletedObject(snd(pair))); next <- deltaEnqueueObjects(f,s,Sync,Sync,values); queuePublish(f.queue,next.value); sync.broadcast(f.queue.condition); ioPure(outcome.from(unit(),next.error)) })) }

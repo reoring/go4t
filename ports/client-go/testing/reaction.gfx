@@ -1,0 +1,93 @@
+// Copyright 2015 The Kubernetes Authors. Licensed under Apache-2.0.
+package testing
+import runtime "deps/k8s.io/apimachinery/pkg/runtime"
+import meta "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import outcome "support/outcome"
+import errors "deps/support"
+import native "testing/internal"
+import sync "support/sync"
+
+func objectReaction(tracker ObjectTracker) ReactionFunc { func(shared) => do {
+ action <- sync.readRef(shared)
+ match action.kind {
+  ListAction => do { result <- tracker.list(action.resource,action.listKind,action.namespace,[action.listOptions]); ioPure(Reaction(true,result)) }
+  Get => do { result <- tracker.get(action.resource,action.namespace,action.name,[action.getOptions]); ioPure(Reaction(true,result)) }
+  Create => do { result <- _reactCreate(tracker,action); ioPure(Reaction(true,result)) }
+  Update => do { result <- _reactUpdate(tracker,action); ioPure(Reaction(true,result)) }
+  Delete => do { result <- tracker.delete(action.resource,action.namespace,action.name,[action.deleteOptions]); ioPure(Reaction(true,outcome.from(None,result.error))) }
+  Patch => do { result <- if action.patchType == "application/apply-patch+yaml" { _reactApply(tracker,action) } else { _reactPatch(tracker,action) }; ioPure(Reaction(true,result)) }
+  _ => ioPure(Reaction(false,outcome.failure(None,errors.errorNew("no reaction implemented for "+action.verb))))
+ }
+} }
+func _reactCreate(tracker ObjectTracker, action Action) IO[outcome.Outcome[Option[runtime.Object]]] { match action.object {
+ None => ioPure(outcome.failure(None,errors.errorNew("object does not implement the Object interfaces")))
+ Some(object) => do {
+  identity <- native.objectIdentity(object)
+  match identity.1 { Some(e) => ioPure(outcome.failure(None,e)); None => do {
+   if action.subresource == "" { do {
+    created <- tracker.create(action.resource,object,action.namespace,[action.createOptions])
+    if _hasError(created.error) { ioPure(outcome.from(None,created.error)) } else { tracker.get(action.resource,action.namespace,identity.0.1,[meta.newGetOptions()]) }
+   } } else { do {
+    old <- tracker.get(action.resource,action.namespace,identity.0.1,[meta.newGetOptions()])
+    if _hasError(old.error) { ioPure(old) } else { match old.value {
+     None => ioPure(old)
+     Some(previous) => if !native.sameObjectType(previous,object) { ioPure(outcome.success(Some(object))) } else { do {
+      updated <- tracker.update(action.resource,object,action.namespace,[_createUpdateOptions(action.createOptions)])
+      if _hasError(updated.error) { ioPure(outcome.from(None,updated.error)) } else { tracker.get(action.resource,action.namespace,identity.0.1,[meta.newGetOptions()]) }
+     } }
+    } }
+   } }
+  } }
+ }
+} }
+func _reactUpdate(tracker ObjectTracker, action Action) IO[outcome.Outcome[Option[runtime.Object]]] { match action.object {
+ None => ioPure(outcome.failure(None,errors.errorNew("object does not implement the Object interfaces")))
+ Some(object) => do {
+  identity <- native.objectIdentity(object)
+  match identity.1 { Some(e) => ioPure(outcome.failure(None,e)); None => do {
+   updated <- tracker.update(action.resource,object,action.namespace,[action.updateOptions])
+   if _hasError(updated.error) { ioPure(outcome.from(None,updated.error)) } else { tracker.get(action.resource,action.namespace,identity.0.1,[meta.newGetOptions()]) }
+  } }
+ }
+} }
+func _reactApply(tracker ObjectTracker, action Action) IO[outcome.Outcome[Option[runtime.Object]]] { do {
+ decoded <- native.applyObject(action.patch)
+ if _hasError(decoded.1) { ioPure(outcome.from(None,decoded.1)) } else { match decoded.0 {
+  None => ioPure(outcome.from(None,decoded.1))
+  Some(configuration) => do {
+   named <- native.setName(configuration,action.name)
+   match named.0 {
+    None => ioPure(outcome.from(None,named.1))
+    Some(configuration) => do {
+     applied <- tracker.apply(action.resource,configuration,action.namespace,[action.patchOptions])
+     if _hasError(applied.error) { ioPure(outcome.from(None,applied.error)) } else { tracker.get(action.resource,action.namespace,action.name,[meta.newGetOptions()]) }
+    }
+   }
+  }
+ } }
+} }
+func _reactPatch(tracker ObjectTracker, action Action) IO[outcome.Outcome[Option[runtime.Object]]] { do {
+ previous <- tracker.get(action.resource,action.namespace,action.name,[meta.newGetOptions()])
+ if _hasError(previous.error) { ioPure(previous) } else { match previous.value {
+  None => ioPure(previous)
+  Some(object) => do {
+   bytes <- native.marshalObject(object)
+   if _hasError(bytes.1) { ioPure(outcome.from(None,bytes.1)) } else { do {
+    patched <- match action.patchType {
+     "application/json-patch+json" => native.jsonPatch(bytes.0,action.patch)
+     "application/merge-patch+json" => native.mergePatch(bytes.0,action.patch)
+     "application/strategic-merge-patch+json" => native.strategicPatch(bytes.0,action.patch,object)
+     _ => ioPure(("",Some(errors.errorNew("PatchType "+action.patchType+" is not supported"))))
+    }
+    if _hasError(patched.1) { ioPure(outcome.from(None,patched.1)) } else { do {
+     decoded <- native.unmarshalObject(object,patched.0)
+     if _hasError(decoded.1) { ioPure(outcome.from(None,decoded.1)) } else { match decoded.0 {
+      None => ioPure(outcome.from(None,decoded.1))
+      Some(value) => do { stored <- tracker.patch(action.resource,value,action.namespace,[action.patchOptions]); ioPure(outcome.from(if _hasError(stored.error) { None } else { Some(value) },stored.error)) }
+     } }
+    } }
+   } }
+  }
+ } }
+} }
+func trackerWatchReaction(tracker ObjectTracker) WatchReactionFunc { func(shared) => do { action <- sync.readRef(shared); result <- tracker.watch(action.resource,action.namespace,[action.listOptions]); ioPure(WatchReaction(true,result)) } }

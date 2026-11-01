@@ -1,0 +1,48 @@
+package examples
+
+// Copyright 2018 The Kubernetes Authors. Licensed under Apache-2.0.
+import fake "kubernetes/fake"
+import testing "testing"
+import informers "informers"
+import cache "tools/cache"
+import core "deps/k8s.io/api/core/v1"
+import meta "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import objects "deps/objects"
+import runtime "deps/k8s.io/apimachinery/pkg/runtime"
+import outcome "support/outcome"
+import sync "support/sync"
+
+func fakeInformerExample() IO[Unit] {
+ do {
+  env <- environment()
+  client <- fake.newSimpleClientset(env,[])
+  tracker <- match client.tracker { Some(value) => ioPure(value); None => ioFail("simple client has no tracker") }
+  watcherStarted <- sync.newChannel(1)
+  testing.prependWatchReactor(client.fake,"*",func(shared) => do {
+   action <- sync.readRef(shared)
+   watch <- tracker.watch(action.resource,action.namespace,[action.listOptions])
+   sync.send(watcherStarted,unit())
+   ioPure(testing.WatchReaction(true,watch))
+  })
+  added <- sync.newChannel(1)
+  factory <- informers.newSharedInformerFactoryWithOptions(env.features,client.client,0,[informers.withNamespace("test-ns")])
+  informer <- informers.core(factory).v1().pods().informer()
+  registration <- cache.addEventHandler(informer,cache.ResourceEventHandler(func(object,_) => sync.send(added,object),func(_,_) => ioPure(unit()),func(_) => ioPure(unit())))
+  require(registration)
+  parent <- sync.captureContext()
+  lifetime <- sync.newContext(parent,Some(10000000000))
+  sync.ensuring(do {
+   informers.startWithContext(factory,lifetime.0)
+   synced <- informers.waitForCacheSyncWithContext(factory,lifetime.0)
+   check(match synced.error { None => true; Some(_) => false },"fake informer did not sync")
+   _ <- sync.withContext(lifetime.0,sync.receive(watcherStarted))
+   let body = core.podWithObjectMeta(core.newPod(),meta.objectMetaWithName(meta.newObjectMeta(),"my-pod"))
+   created <- client.client.coreV1().pods("test-ns").create(body,meta.newCreateOptions()); require(created)
+   received <- sync.withContext(lifetime.0,sync.receive(added))
+   object <- match received { Some(value) => ioPure(value); None => ioFail("added channel closed") }
+   typed <- match objects.fromObject(core.podObjectType(),Some(object)) { Some(value) => ioPure(value); None => ioFail("informer returned non-Pod") }
+   check(meta.objectMetaGetName(core.podGetObjectMeta(typed))=="my-pod" && meta.objectMetaGetNamespace(core.podGetObjectMeta(typed))=="test-ns","wrong pod event")
+   println("fake informer observed test-ns/my-pod after watch establishment")
+  },do { sync.cancelContext(lifetime.1); informers.shutdown(factory) })
+ }
+}

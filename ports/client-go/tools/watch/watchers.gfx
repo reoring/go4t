@@ -1,0 +1,59 @@
+// Native watch factories; Apache-2.0 Kubernetes-derived semantics.
+package watch
+
+import raw "github.com/reoring/gofx/ports/client-go/support/watch"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import runtime "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime"
+import io "std/io"
+
+type ProxyWatcher = ProxyWatcher { watcher: raw.Watch, stopChannel: sync.Channel[Unit] }
+func newProxyWatcher(events sync.Channel[raw.Event]) IO[ProxyWatcher] {
+ do {
+  done <- sync.newChannel(0)
+  lock <- sync.newMutex()
+  stopped <- sync.newRef(false)
+  let stop = func() => sync.withLock(lock, do {
+   closed <- sync.readRef(stopped)
+   if closed { ioPure(unit()) } else { do { sync.writeRef(stopped, true); sync.close(done) } }
+  })
+  ioPure(ProxyWatcher(raw.newWatch(events, stop), done))
+ }
+}
+func proxyStop(proxy ProxyWatcher) IO[Unit] { raw.stop(proxy.watcher) }
+func stopChan(proxy ProxyWatcher) sync.Channel[Unit] { proxy.stopChannel }
+
+type FakeWatcher = FakeWatcher { watcher: raw.Watch, events: sync.Channel[raw.Event], stopped: sync.Ref[Bool], lock: sync.Mutex }
+func newFake() IO[FakeWatcher] { newFakeWithChanSize(0) }
+func newFakeWithChanSize(size Int) IO[FakeWatcher] {
+ do {
+  events <- sync.newChannel(size)
+  stopped <- sync.newRef(false)
+  lock <- sync.newMutex()
+  let stop = func() => sync.withLock(lock, do {
+   closed <- sync.readRef(stopped)
+   if closed { ioPure(unit()) } else { do { sync.writeRef(stopped, true); sync.close(events) } }
+  })
+  ioPure(FakeWatcher(raw.newWatch(events, stop), events, stopped, lock))
+ }
+}
+func fakeAction(fake FakeWatcher, eventType String, object Option[runtime.Object]) IO[Unit] { sync.send(fake.events, raw.Event(eventType, object)) }
+func add(fake FakeWatcher, object Option[runtime.Object]) IO[Unit] { fakeAction(fake, "ADDED", object) }
+func modify(fake FakeWatcher, object Option[runtime.Object]) IO[Unit] { fakeAction(fake, "MODIFIED", object) }
+func delete(fake FakeWatcher, object Option[runtime.Object]) IO[Unit] { fakeAction(fake, "DELETED", object) }
+func error(fake FakeWatcher, object Option[runtime.Object]) IO[Unit] { fakeAction(fake, "ERROR", object) }
+func isStopped(fake FakeWatcher) IO[Bool] { sync.readRef(fake.stopped) }
+func newEmptyWatch() IO[raw.Watch] {
+ do { fake <- newFake(); raw.stop(fake.watcher); ioPure(fake.watcher) }
+}
+func stopTask[A](task sync.Task[A]) IO[Unit] {
+ do {
+  sync.cancelTask(task)
+  result <- io.tryIO(sync.join(task))
+  match result {
+   Ok(_) => ioPure(unit())
+   Err(io.Cancelled) => ioPure(unit())
+   Err(io.Timeout) => ioPure(unit())
+   Err(err) => io.ioRaise(err)
+  }
+ }
+}

@@ -1,0 +1,9 @@
+package appsint
+import internal "scale/scheme"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+// Copyright 2017 The Kubernetes Authors. Licensed under Apache-2.0.
+func groupName() String { "apps" }
+func schemeGroupVersion() schema.GroupVersion { internal.groupVersion(groupName(),"__internal") }
+func kind(name String) schema.GroupKind { internal.kindFor(groupName(),name) }
+func resource(name String) schema.GroupResource { internal.resourceFor(groupName(),name) }
+func addToScheme(scheme internal.Scheme) internal.Scheme { scheme{internalGroups: append(scheme.internalGroups,[groupName()])} }

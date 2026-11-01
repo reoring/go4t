@@ -1,0 +1,130 @@
+// Copyright 2023 The Kubernetes Authors. Licensed under Apache-2.0.
+// SPDY framing remains the external streaming primitive; websocket byte-stream
+// framing, protocol prefixes, flush and close policy are native gofx.
+package portforward
+import ws "github.com/reoring/gofx/ports/client-go/transport/websocket"
+import rawws "github.com/reoring/gofx/ports/client-go/deps/github.com/gorilla/websocket"
+import spdy "github.com/reoring/gofx/ports/client-go/transport/spdy"
+import raw "github.com/reoring/gofx/ports/client-go/deps/k8s.io/streaming/pkg/httpstream"
+import net "github.com/reoring/gofx/ports/client-go/deps/net"
+import time "github.com/reoring/gofx/ports/client-go/deps/time"
+import errors "github.com/reoring/gofx/ports/client-go/deps/support"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import rest "github.com/reoring/gofx/ports/client-go/rest"
+import string "std/string"
+import prelude "std/prelude"
+import logr "github.com/reoring/gofx/ports/client-go/deps/github.com/go-logr/logr"
+import klog "github.com/reoring/gofx/ports/client-go/deps/k8s.io/klog/v2"
+import http "github.com/reoring/gofx/ports/client-go/deps/net/http"
+import transport "github.com/reoring/gofx/ports/client-go/transport"
+
+type TunnelingConnection = TunnelingConnection {logger:logr.Logger,conn:ws.Conn,inProgress:sync.Ref[Option[spdy.Reader]],readLock:sync.Mutex,writeLock:sync.Mutex,closed:sync.Ref[Bool],closeLock:sync.Mutex}
+extern func _clientConnection(conn net.Conn, ping Int) IO[(Option[raw.Connection],Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/tools/portforward/host".ClientConnection
+extern func _eof() errors.Error = "github.com/reoring/gofx/ports/client-go/tools/portforward/host".EOF
+extern func _joinErrors(a Option[errors.Error],b Option[errors.Error]) Option[errors.Error] = "github.com/reoring/gofx/ports/client-go/tools/portforward/host".JoinErrors
+func pingPeriod() Int {10000000000}
+extern func _logString(value String) errors.Any = "github.com/reoring/gofx/ports/client-go/tools/portforward/host".LogString
+extern func _logBytes(value String) errors.Any = "github.com/reoring/gofx/ports/client-go/tools/portforward/host".LogBytes
+extern func _logInt(value Int) errors.Any = "github.com/reoring/gofx/ports/client-go/tools/portforward/host".LogInt
+extern func _logError(value errors.Error) errors.Any = "github.com/reoring/gofx/ports/client-go/tools/portforward/host".LogError
+extern func _requestLogger(request http.Request,logger logr.Logger) IO[http.Request] = "github.com/reoring/gofx/ports/client-go/tools/portforward/host".RequestLogger
+func _log(logger logr.Logger,level Int,message String,fields List[Option[errors.Any]]) IO[Unit] {do {
+ verbose<-logr.loggerCallVIdentity(logger,level)
+ _ <- logr.loggerCallInfoIdentity(verbose,message,fields)
+ ioPure(unit())
+}}
+func newTunnelingConnection(name String,conn ws.Conn) IO[TunnelingConnection] {do {
+ logger<-klog.callBackground()
+ named<-klog.callLoggerWithName(logger,name)
+ newTunnelingConnectionWithLogger(named,conn)
+}}
+func newTunnelingConnectionWithLogger(logger logr.Logger,conn ws.Conn) IO[TunnelingConnection] {do {
+ progress<-sync.newRef(None)
+ readLock<-sync.newMutex()
+ writeLock<-sync.newMutex()
+ closeLock<-sync.newMutex()
+ closed<-sync.newRef(false)
+ ioPure(TunnelingConnection {logger:logger,conn:conn,inProgress:progress,readLock:readLock,writeLock:writeLock,closed:closed,closeLock:closeLock})
+}}
+func _readTunnel(connection TunnelingConnection,size Int) IO[outcome.Outcome[String]] {do {
+ progress<-sync.readRef(connection.inProgress)
+ match progress {Some(reader)=>do {
+  _log(connection.logger,8,"Tunneling connection read in progress...",Nil)
+  result<-reader.read(size)
+  match result.error {Some(e)=>if result.value=="" && spdy.isEOF(e) {do {sync.writeRef(connection.inProgress,None);_readTunnel(connection,size)}} else {ioPure(result)};None=>ioPure(result)}
+ };None=>do {
+  _log(connection.logger,8,"Tunneling connection read before NextReader()...",Nil)
+  message<-rawws.connCallNextReaderIdentity(connection.conn)
+  match message.1.1 {Some(e)=>if ws.isNormalClose(e) {ioPure(outcome.failure("",_eof()))} else {do {_log(connection.logger,4,"Tunneling connection NextReader() failed",[Some(_logString("err")),Some(_logError(e))]);ioPure(outcome.failure("",e))}};None=>if message.0!=2 {ioPure(outcome.failure("",errors.errorNew("invalid message type received")))} else {match message.1.0 {
+   None=>ioPure(outcome.failure("",_eof()));Some(reader)=>do {sync.writeRef(connection.inProgress,Some(spdy.fromReader(reader)));_readTunnel(connection,size)}
+  }}}
+ }}
+}}
+func read(connection TunnelingConnection,size Int) IO[outcome.Outcome[String]] {do {
+ _log(connection.logger,7,"Tunneling connection read...",Nil)
+ result<-if size==0 {ioPure(outcome.success(""))} else {sync.withLock(connection.readLock,_readTunnel(connection,size))}
+ verbose<-logr.loggerCallVIdentity(connection.logger,8)
+ enabled<-logr.loggerCallEnabledIdentity(verbose)
+ if enabled {_log(connection.logger,8,"Tunneling connection read...complete",[Some(_logString("length")),Some(_logInt(spdy.byteLength(result.value))),Some(_logString("data")),Some(_logBytes(result.value)),Some(_logString("err")),match result.error {None=>None;Some(e)=>Some(_logError(e))}])} else {_log(connection.logger,7,"Tunneling connection read...complete",Nil)}
+ ioPure(result)
+}}
+func write(connection TunnelingConnection,data String) IO[outcome.Outcome[Int]] {do {
+ verbose<-logr.loggerCallVIdentity(connection.logger,7)
+ enabled<-logr.loggerCallEnabledIdentity(verbose)
+ if enabled {do {_ <- logr.loggerCallInfoIdentity(verbose,"Tunneling connection write",[Some(_logString("length")),Some(_logInt(spdy.byteLength(data))),Some(_logString("data")),Some(_logBytes(data))]);ioPure(unit())}} else {ioPure(unit())}
+ sync.ensuring(sync.withLock(connection.writeLock,do {result<-ws.writeFrame(connection.conn,"",data,0);ioPure(outcome.from(result.0,result.1))}),_log(connection.logger,7,"Tunneling connection write...complete",Nil))
+}}
+func closeTunnelingConnection(connection TunnelingConnection) IO[Option[errors.Error]] {sync.withLock(connection.closeLock,do {
+ closed<-sync.readRef(connection.closed)
+ if closed {ioPure(None)} else {do {
+  sync.writeRef(connection.closed,true)
+  _log(connection.logger,7,"Tunneling connection Close()...",Nil)
+  control<-ws.control(connection.conn,8,"\x03\xe8",1000000000)
+  closed<-rawws.connCallCloseIdentity(connection.conn)
+  ioPure(match closed {Some(e)=>Some(e);None=>control})
+ }}
+})}
+func localAddr(connection TunnelingConnection) IO[Option[net.Addr]] {rawws.connCallLocalAddrIdentity(connection.conn)}
+func remoteAddr(connection TunnelingConnection) IO[Option[net.Addr]] {rawws.connCallRemoteAddrIdentity(connection.conn)}
+func setReadDeadline(connection TunnelingConnection,deadline time.Time) IO[Option[errors.Error]] {rawws.connCallSetReadDeadlineIdentity(connection.conn,deadline)}
+func setWriteDeadline(connection TunnelingConnection,deadline time.Time) IO[Option[errors.Error]] {rawws.connCallSetWriteDeadlineIdentity(connection.conn,deadline)}
+func setDeadline(connection TunnelingConnection,deadline time.Time) IO[Option[errors.Error]] {do {r<-setReadDeadline(connection,deadline);w<-setWriteDeadline(connection,deadline);ioPure(_joinErrors(r,w))}}
+func asNetConnection(connection TunnelingConnection) IO[net.Conn] {net.newConn(
+ func()=>closeTunnelingConnection(connection),func()=>localAddr(connection),
+ func(buffer)=>do {result<-read(connection,match buffer {None=>0;Some(b)=>spdy.byteLength(b)});ioPure((Some(result.value),(spdy.byteLength(result.value),result.error)))},
+ func()=>remoteAddr(connection),func(deadline)=>setDeadline(connection,deadline),func(deadline)=>setReadDeadline(connection,deadline),func(deadline)=>setWriteDeadline(connection,deadline),
+ func(data)=>do {result<-write(connection,match data {None=>"";Some(b)=>b});ioPure((data,(result.value,result.error)))})}
+func newSPDYOverWebsocketDialer(environment rest.Environment,config rest.Config,address String) IO[outcome.Outcome[Option[spdy.Dialer]]] {do {
+ logger<-klog.callBackground()
+ newSPDYOverWebsocketDialerWithLogger(logger,environment,config,address)
+}}
+func newSPDYOverWebsocketDialerWithLogger(logger logr.Logger,environment rest.Environment,config rest.Config,address String) IO[outcome.Outcome[Option[spdy.Dialer]]] {do {
+ transports<-ws.roundTripperFor(environment,config)
+ ioPure(outcome.from(match transports.value {None=>None;Some(t)=>Some(spdy.Dialer {dial:func(protocols)=>do {
+  negotiated<-negotiateSPDYOverWebsocket(logger,t.transport,t.holder,address,protocols)
+  match negotiated.value.0 {None=>ioPure(outcome.from(spdy.DialResult {connection:None,protocol:""},negotiated.error));Some(tunnel)=>do {
+   raw<-asNetConnection(tunnel)
+   connection<-_clientConnection(raw,pingPeriod())
+   match connection.0 {None=>do {_ <- closeTunnelingConnection(tunnel);ioPure(outcome.from(spdy.DialResult {connection:None,protocol:""},connection.1))};Some(c)=>ioPure(outcome.success(spdy.DialResult {connection:Some(spdy.fromConnection(c)),protocol:negotiated.value.1}))}
+  }}
+ }})},transports.error))
+}}
+func negotiateSPDYOverWebsocket(logger logr.Logger,transport transport.RoundTripper,holder ws.ConnectionHolder,address String,protocols List[String]) IO[outcome.Outcome[(Option[TunnelingConnection],String)]] {do {
+ request<-spdy.newRequest("GET",address)
+ match request.0 {None=>ioPure(outcome.from((None,""),request.1));Some(req)=>do {
+  req<-_requestLogger(req,logger)
+  _log(logger,4,"Before WebSocket Upgrade Connection...",Nil)
+  result<-ws.negotiate(transport,holder,req,prelude.fmap(protocols,func(p)=>"SPDY/3.1+"+p))
+  match result.error {Some(e)=>ioPure(outcome.failure((None,""),e));None=>match result.value {
+   None=>ioPure(outcome.failure((None,""),errors.errorNew("negotiated websocket connection is nil")));Some(conn)=>do {
+    selected<-ws.subprotocol(conn)
+    let protocol=if string.substring(selected,0,9)=="SPDY/3.1+" {string.substring(selected,9,string.strLength(selected))} else {selected}
+    _log(logger,4,"Negotiation complete",[Some(_logString("protocol")),Some(_logString(protocol))])
+    named<-klog.callLoggerWithName(logger,"client")
+    tunnel<-newTunnelingConnectionWithLogger(named,conn)
+    ioPure(outcome.success((Some(tunnel),protocol)))
+   }
+  }}
+ }}
+}}

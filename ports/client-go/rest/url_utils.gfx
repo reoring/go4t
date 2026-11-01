@@ -1,0 +1,90 @@
+package rest
+
+import url "deps/net/url"
+import runtime "deps/k8s.io/apimachinery/pkg/runtime"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import errors "deps/support"
+import outcome "support/outcome"
+import m "std/map"
+import s "std/string"
+
+// Copyright 2016 The Kubernetes Authors. Licensed under Apache-2.0.
+extern func parseURL(value String) (Option[url.URL],Option[errors.Error]) = "github.com/reoring/gofx/ports/client-go/rest/host".ParseURL
+extern func urlParts(value url.URL) IO[(String,(String,String))] = "github.com/reoring/gofx/ports/client-go/rest/host".URLParts
+extern func urlWith(value url.URL,path String,query String,fragment String) IO[url.URL] = "github.com/reoring/gofx/ports/client-go/rest/host".URLWith
+extern func urlString(value url.URL) IO[String] = "github.com/reoring/gofx/ports/client-go/rest/host".URLString
+extern func queryEscape(value String) String = "github.com/reoring/gofx/ports/client-go/rest/host".QueryEscape
+extern func queryPairs(value String) (List[(String,String)],Option[errors.Error]) = "github.com/reoring/gofx/ports/client-go/rest/host".QueryPairs
+extern func durationString(value Int) String = "github.com/reoring/gofx/ports/client-go/rest/host".Duration
+func defaultVersionedAPIPath(apiPath String,version schema.GroupVersion) String {
+ let base = pathJoin("/",apiPath)
+ let group = schema.groupVersionGetGroup(version)
+ let prefix = if group == "" { base } else { pathJoin(base,group) }
+ pathJoin(prefix,schema.groupVersionGetVersion(version))
+}
+func defaultServerURL(host String,apiPath String,version schema.GroupVersion,defaultTLS Bool) IO[outcome.Outcome[Option[(url.URL,String)]]] {
+ if host == "" { ioPure(outcome.failure(None,errors.errorNew("host must be a URL or a host:port pair"))) } else {
+  let parsed = parseURL(host)
+  let fallback = func() => {
+   let parsed = parseURL((if defaultTLS { "https://" } else { "http://" })+host)
+   match parsed.0 {
+    None => ioPure(outcome.from(None,parsed.1))
+    Some(base) => do {
+     parts <- urlParts(base)
+     if parts.1.1 != "" && parts.1.1 != "/" { ioPure(outcome.failure(None,errors.errorNew("host must be a URL or a host:port pair: " + quote(host)))) }
+     else { ioPure(outcome.success(Some((base,defaultVersionedAPIPath(apiPath,version))))) }
+    }
+   }
+  }
+  match parsed.0 {
+   None => fallback()
+   Some(base) => do {
+    parts <- urlParts(base)
+    if parts.0 == "" || parts.1.0 == "" { fallback() } else { ioPure(outcome.success(Some((base,defaultVersionedAPIPath(apiPath,version))))) }
+   }
+  }
+ }
+}
+func hasBytes(value Option[String]) Bool { match value { None => false; Some(bytes) => bytes != "" } }
+func defaultServerUrlFor(config Config) IO[outcome.Outcome[Option[(url.URL,String)]]] {
+ let tls = config.tlsClientConfig
+ let secure = tls.insecure || tls.caFile != "" || hasBytes(tls.caData) || tls.certFile != "" || hasBytes(tls.certData)
+ defaultServerURL(if config.host == "" { "localhost" } else { config.host },config.apiPath,match config.contentConfig.groupVersion { None => schema.newGroupVersion(); Some(gv) => gv },secure)
+}
+func isConfigTransportTLS(config Config) IO[Bool] {
+ do { base <- defaultServerUrlFor(config); match base.value { None => ioPure(false); Some((url,_)) => do { parts <- urlParts(url); ioPure(parts.0 == "https") } } }
+}
+func encodedQuery(params Map[String,List[String]]) String {
+ s.join("&",flatMap(m.mapToList(params),func(pair) => map(pair.1,func(value) => queryEscape(pair.0)+"="+queryEscape(value))))
+}
+func requestURL(request Request) IO[url.URL] {
+ let params = if request.timeout != 0 { m.mapInsert(request.params,"timeout",[durationString(request.timeout)]) } else { request.params }
+ urlWith(request.client.base,requestPath(request),encodedQuery(params),"")
+}
+func requestURI(request Request,value String) IO[Request] {
+ match request.error {
+  Some(_) => ioPure(request)
+  None => {
+   let parsed = parseURL(value)
+   match parsed.0 {
+    None => ioPure(request{error: parsed.1})
+    Some(locator) => do {
+     parts <- urlParts(locator)
+     query <- rawQuery(locator)
+     let pairs = queryPairs(query)
+     let updated = absPath(request,[parts.1.1])
+     ioPure(fold(pairs.0,updated{params: m.emptyMap(),error: pairs.1},func(r,pair) => param(r,pair.0,pair.1)))
+    }
+   }
+  }
+ }
+}
+extern func rawQuery(value url.URL) IO[String] = "github.com/reoring/gofx/ports/client-go/rest/host".RawQuery
+extern func encodeParameters(object runtime.Object,codec runtime.ParameterCodec,version schema.GroupVersion) IO[(List[(String,String)],Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/rest/host".EncodeParameters
+func specificallyVersionedParams(request Request,object runtime.Object,codec runtime.ParameterCodec,version schema.GroupVersion) IO[Request] {
+ match request.error { Some(_) => ioPure(request); None => do {
+  encoded <- encodeParameters(object,codec,version)
+  ioPure(match encoded.1 { Some(e) => request{error: Some(e)}; None => fold(encoded.0,request,func(r,pair) => param(r,pair.0,pair.1)) })
+ } }
+}
+func versionedParams(request Request,object runtime.Object,codec runtime.ParameterCodec) IO[Request] { specificallyVersionedParams(request,object,codec,request.contentConfig.groupVersion) }

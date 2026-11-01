@@ -1,0 +1,59 @@
+package examples
+
+// Copyright 2016 The Kubernetes Authors. Licensed under Apache-2.0.
+// Native create/update/delete workflow; retries refetch rather than overwriting stale data.
+import kube "kubernetes"
+import apps "deps/k8s.io/api/apps/v1"
+import core "deps/k8s.io/api/core/v1"
+import meta "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import retry "util/retry"
+import errors "deps/support"
+import objects "deps/objects"
+
+func updateDeployment(body apps.Deployment) IO[apps.Deployment] {
+ let spec = apps.deploymentGetSpec(body)
+ let template = apps.deploymentSpecGetTemplate(spec)
+ let podSpec = core.podTemplateSpecGetSpec(template)
+ match core.podSpecGetContainers(podSpec) {
+  Some(Cons(first,rest)) => {
+   let revised = core.podSpecWithContainers(podSpec,Some(Cons(core.containerWithImage(first,"nginx:1.13"),rest)))
+   ioPure(apps.deploymentWithSpec(body,apps.deploymentSpecWithReplicas(apps.deploymentSpecWithTemplate(spec,core.podTemplateSpecWithSpec(template,revised)),Some(1))))
+  }
+  _ => ioFail("deployment containers not found")
+ }
+}
+func deploymentWorkflow(client kube.Interface,initial apps.Deployment) IO[apps.DeploymentList] {
+ do {
+  let deployments = client.appsV1().deployments("default")
+  created <- deployments.create(initial,meta.newCreateOptions()); created <- require(created)
+  check(meta.objectMetaGetName(apps.deploymentGetObjectMeta(created))=="demo-deployment","create returned unexpected name")
+  failure <- retry.retryOnConflict(retry.defaultRetry(),func() => do {
+   latest <- deployments.get("demo-deployment",meta.newGetOptions()); latest <- require(latest)
+   updated <- updateDeployment(latest)
+   result <- deployments.update(updated,meta.newUpdateOptions())
+   ioPure(result.error)
+  })
+  match failure { None => ioPure(unit()); Some(error) => ioFail(errors.errorMessage(error)) }
+  listed <- deployments.list(meta.newListOptions()); listed <- require(listed)
+  removed <- deployments.delete("demo-deployment",meta.deleteOptionsWithPropagationPolicy(meta.newDeleteOptions(),Some(meta.deletionPropagationFromValue("Foreground"))))
+  require(removed)
+  ioPure(listed)
+ }
+}
+func deploymentExample() IO[Trace] {
+ do {
+  trace <- newTrace("typed_deployment_create_update_delete")
+  env <- environment()
+  let before = deploymentJSON(2,"nginx:1.12")
+  let after = deploymentJSON(1,"nginx:1.13")
+  initial <- decode(apps.deploymentObjectType(),apps.newDeployment(),before)
+  let path = "/apis/apps/v1/namespaces/default/deployments"
+  withValidatedHTTP(trace,[Exchange("POST",path,201,before),Exchange("GET",path+"/demo-deployment",200,before),Exchange("PUT",path+"/demo-deployment",200,after),Exchange("GET",path,200,"{\"apiVersion\":\"apps/v1\",\"kind\":\"DeploymentList\",\"items\":["+after+"]}"),Exchange("DELETE",path+"/demo-deployment",200,"{\"kind\":\"Status\",\"apiVersion\":\"v1\",\"status\":\"Success\",\"code\":200}")],validateDeploymentRequest,func(url) => do {
+   made <- kube.newForConfig(env,config(url)); client <- present(made)
+   listed <- deploymentWorkflow(client,initial)
+   check(match apps.deploymentListGetItems(listed) { Some([item]) => apps.deploymentSpecGetReplicas(apps.deploymentGetSpec(item))==Some(1); _ => false },"updated deployment was not listed")
+   resultEvent(trace,"list",apps.deploymentListObjectType(),listed)
+  })
+  ioPure(trace)
+ }
+}

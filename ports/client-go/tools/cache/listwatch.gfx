@@ -1,0 +1,21 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package cache
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+import "github.com/reoring/gofx/ports/client-go/support/outcome"
+import "github.com/reoring/gofx/ports/client-go/support/watch"
+import v1 "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+
+type ListResult[A] = ListResult { items: List[A], resourceVersion: String, continuation: String }
+alias ListFunc[A] = func(v1.ListOptions) IO[outcome.Outcome[ListResult[A]]]
+alias WatchFunc = func(v1.ListOptions) IO[outcome.Outcome[Option[watch.Watch]]]
+type ListWatcher[A] = ListWatcher { list: ListFunc[A], watch: WatchFunc, unsupportedWatchList: Bool, disableChunking: Bool }
+type ListWatch[A] = ListWatch { listFunc: Option[ListFunc[A]], watchFunc: Option[WatchFunc], listWithContextFunc: Option[ListFunc[A]], watchFuncWithContext: Option[WatchFunc], disableChunking: Bool }
+func listWithContext[A](lw ListWatch[A], options v1.ListOptions) IO[outcome.Outcome[ListResult[A]]] { match lw.listWithContextFunc { Some(f) => f(options); None => match lw.listFunc { Some(f) => sync.uninterruptible(f(options)); None => ioFail("ListWatch requires a list callback") } } }
+func watchWithContext[A](lw ListWatch[A], options v1.ListOptions) IO[outcome.Outcome[Option[watch.Watch]]] { match lw.watchFuncWithContext { Some(f) => f(options); None => match lw.watchFunc { Some(f) => sync.uninterruptible(f(options)); None => ioFail("ListWatch requires a watch callback") } } }
+func listWithoutContext[A](lw ListWatch[A], options v1.ListOptions) IO[outcome.Outcome[ListResult[A]]] { sync.uninterruptible(match lw.listFunc { Some(f) => f(options); None => match lw.listWithContextFunc { Some(f) => f(options); None => ioFail("ListWatch requires a list callback") } }) }
+func watchWithoutContext[A](lw ListWatch[A], options v1.ListOptions) IO[outcome.Outcome[Option[watch.Watch]]] { sync.uninterruptible(match lw.watchFunc { Some(f) => f(options); None => match lw.watchFuncWithContext { Some(f) => f(options); None => ioFail("ListWatch requires a watch callback") } }) }
+func toListerWatcherWithContext[A](lw ListWatch[A]) ListWatcher[A] { ListWatcher(func(options) => listWithContext(lw,options),func(options) => watchWithContext(lw,options),false,lw.disableChunking) }
+func toListWatcherWithWatchListSemantics[A](lw ListWatcher[A], unsupported Option[Bool]) ListWatcher[A] { lw { unsupportedWatchList: match unsupported { None => false; Some(value) => value } } }
+type ListWatchClient[A] = ListWatchClient { list: func(String,String,v1.ListOptions) IO[outcome.Outcome[ListResult[A]]], watch: func(String,String,v1.ListOptions) IO[outcome.Outcome[Option[watch.Watch]]] }
+func newFilteredListWatchFromClient[A](client ListWatchClient[A], resource String, namespace String, modifier func(v1.ListOptions) v1.ListOptions) ListWatch[A] { let list = func(options) => client.list(namespace,resource,modifier(options)); let watch = func(options) => client.watch(namespace,resource,modifier(v1.listOptionsWithWatch(options,true))); ListWatch(Some(func(options) => sync.uninterruptible(list(options))),Some(func(options) => sync.uninterruptible(watch(options))),Some(list),Some(watch),false) }
+func newListWatchFromClient[A](client ListWatchClient[A], resource String, namespace String, fieldSelector String) ListWatch[A] { newFilteredListWatchFromClient(client,resource,namespace,func(options) => v1.listOptionsWithFieldSelector(options,fieldSelector)) }

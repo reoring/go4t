@@ -1,0 +1,68 @@
+// Copyright 2015 The Kubernetes Authors.
+// Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0).
+package transport
+
+import http "github.com/reoring/gofx/ports/client-go/deps/net/http"
+import net "github.com/reoring/gofx/ports/client-go/deps/net"
+import url "github.com/reoring/gofx/ports/client-go/deps/net/url"
+import tls "github.com/reoring/gofx/ports/client-go/deps/crypto/tls"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import list "std/list"
+
+alias WrapperFunc = func(RoundTripper) RoundTripper
+// Lifetime is a generic GC reachability token, not a transport implementation.
+type Lifetime = LifetimeHandle
+type WeakLifetime = WeakLifetimeHandle
+type RoundTripper = RoundTripper {
+ roundTrip: func(http.Request) IO[outcome.Outcome[Option[http.Response]]],
+ cancelRequest: func(http.Request) IO[Unit],
+ closeIdleConnections: func() IO[Unit],
+ lifetime: Option[Lifetime],
+ httpIdentity: Option[http.RoundTripper],
+ wrappedRoundTripper: func() IO[Option[RoundTripper]]
+}
+type GetCertHolder = GetCertHolder {identity: sync.Ref[Unit], getCert: func() IO[outcome.Outcome[Option[tls.Certificate]]]}
+type DialHolder = DialHolder {identity: sync.Ref[Unit], dial: func(String, String) IO[outcome.Outcome[Option[net.Conn]]]}
+type TLSConfig = TLSConfig {
+ caFile: String, certFile: String, keyFile: String,
+ reloadTLSFiles: Bool, reloadCAFiles: Bool, insecure: Bool, serverName: String,
+ caData: Option[String], certData: Option[String], keyData: Option[String],
+ nextProtos: Option[List[String]], getCertHolder: Option[GetCertHolder]
+}
+type ImpersonationConfig = ImpersonationConfig {
+ userName: String, uid: String, groups: Option[List[String]], extra: Option[Map[String, Option[List[String]]]]
+}
+type Config = Config {
+ userAgent: String, tls: TLSConfig, username: String, password: String,
+ bearerToken: String, bearerTokenFile: String, impersonate: ImpersonationConfig,
+ disableCompression: Bool, transport: Option[RoundTripper], wrapTransport: Option[WrapperFunc],
+ dialHolder: Option[DialHolder], proxy: Option[func(http.Request) IO[outcome.Outcome[Option[url.URL]]]]
+}
+func roundTripper(run func(http.Request) IO[outcome.Outcome[Option[http.Response]]], cancel func(http.Request) IO[Unit], close func() IO[Unit]) RoundTripper {
+ RoundTripper(run, cancel, close, None, None, func() => ioPure(None))
+}
+func defaultTLSConfig() TLSConfig { TLSConfig("", "", "", false, false, false, "", None, None, None, None, None) }
+func defaultImpersonationConfig() ImpersonationConfig { ImpersonationConfig("", "", None, None) }
+func defaultConfig() Config { Config("", defaultTLSConfig(), "", "", "", "", defaultImpersonationConfig(), false, None, None, None, None) }
+func bytesValue(value Option[String]) String { match value { None => ""; Some(data) => data } }
+func hasCA(c Config) Bool { bytesValue(c.tls.caData) != "" || c.tls.caFile != "" }
+func hasBasicAuth(c Config) Bool { c.username != "" }
+func hasTokenAuth(c Config) Bool { c.bearerToken != "" || c.bearerTokenFile != "" }
+func hasCertAuth(c Config) Bool {
+ (bytesValue(c.tls.certData) != "" || c.tls.certFile != "") && (bytesValue(c.tls.keyData) != "" || c.tls.keyFile != "")
+}
+func hasCertCallback(c Config) Bool { match c.tls.getCertHolder { None => false; Some(_) => true } }
+func needsTLS(c Config) Bool {
+ hasCA(c) || hasCertAuth(c) || hasCertCallback(c) || c.tls.insecure || c.tls.serverName != "" || (match c.tls.nextProtos { None => false; Some(xs) => list.length(xs) > 0 })
+}
+func newGetCertHolder(callback func() IO[outcome.Outcome[Option[tls.Certificate]]]) IO[GetCertHolder] {
+ do { identity <- sync.newRef(unit()); ioPure(GetCertHolder(identity, callback)) }
+}
+func newDialHolder(callback func(String, String) IO[outcome.Outcome[Option[net.Conn]]]) IO[DialHolder] {
+ do { identity <- sync.newRef(unit()); ioPure(DialHolder(identity, callback)) }
+}
+func wrappers(fns List[Option[WrapperFunc]]) WrapperFunc {
+ func(base) => list.fold(fns, base, func(rt, fn) => match fn { None => rt; Some(f) => f(rt) })
+}
+func wrap(config Config, fn WrapperFunc) Config { config {wrapTransport: Some(wrappers([config.wrapTransport, Some(fn)]))} }

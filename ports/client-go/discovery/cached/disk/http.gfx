@@ -1,0 +1,45 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package disk
+import "third_party/forked/httpcache"
+import "transport"
+import "support/sync"
+import errors "deps/support"
+import "discovery"
+import "discovery/cached/memory"
+import "rest"
+import "support/outcome"
+extern func sha256(value String) String = "github.com/reoring/gofx/ports/client-go/discovery/cached/disk/host".SHA256
+extern func hex(value String) String = "github.com/reoring/gofx/ports/client-go/discovery/cached/disk/host".Hex
+extern func byteLength(value String) Int = "github.com/reoring/gofx/ports/client-go/discovery/cached/disk/host".ByteLength
+extern func byteSlice(value String,start Int,end Int) String = "github.com/reoring/gofx/ports/client-go/discovery/cached/disk/host".ByteSlice
+extern func removeFile(path String) IO[Option[errors.Error]] = "github.com/reoring/gofx/ports/client-go/discovery/cached/disk/host".RemoveFile
+func sanitize(key String) String { hex(sha256(key)) }
+func sumDiskCache(directory String) httpcache.Cache {
+ httpcache.Cache(
+  func(key) => do {
+   file <- readFile(joinPath(directory,sanitize(key)))
+   ioPure(match file.1.1 { Some(e) => None; None => if byteLength(file.0)<32 { None } else {
+    let response = byteSlice(file.0,32,byteLength(file.0))
+    if byteSlice(file.0,0,32)==sha256(response) { Some(response) } else { None }
+   } })
+  },
+  func(key,response) => do { ignored <- atomicWrite(joinPath(directory,sanitize(key)),sha256(response)+response,488,432); ioPure(unit()) },
+  func(key) => do { ignored <- removeFile(joinPath(directory,sanitize(key))); ioPure(unit()) })
+}
+func newCacheRoundTripper(directory String,base transport.RoundTripper,clock sync.Clock) transport.RoundTripper {
+ httpcache.asRoundTripper(httpcache.newTransport(sumDiskCache(directory),base,clock))
+}
+func newCachedDiscoveryClientForConfig(environment rest.Environment,config rest.Config,discoveryDirectory String,httpDirectory String,ttl Int) IO[outcome.Outcome[Option[discovery.CachedDiscoveryInterface]]] {
+ do {
+  let existing = config.wrapTransport
+  let configured = if httpDirectory=="" { config } else { config{wrapTransport:Some(func(base) => {
+   let wrapped = match existing { None => base; Some(wrap) => wrap(base) }
+   newCacheRoundTripper(httpDirectory,wrapped,environment.clock)
+  })} }
+  result <- discovery.newDiscoveryClientForConfig(environment,configured)
+  match result.value {
+   None => ioPure(outcome.Outcome(None,result.error))
+   Some(client) => do { mem <- memory.newMemCacheClient(client); disk <- newCachedDiscoveryClient(mem,discoveryDirectory,ttl,environment.clock); ioPure(outcome.Outcome(Some(disk),result.error)) }
+  }
+ }
+}

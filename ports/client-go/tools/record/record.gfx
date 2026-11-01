@@ -1,0 +1,111 @@
+// Copyright 2014 The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+// Native implementation of tools/record/event.go.
+package record
+import core "github.com/reoring/gofx/ports/client-go/deps/k8s.io/api/core/v1"
+import "std/list"
+import runtime "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime"
+import meta "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import "github.com/reoring/gofx/ports/client-go/deps/support"
+import "github.com/reoring/gofx/ports/client-go/support/outcome"
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+import "github.com/reoring/gofx/ports/client-go/tools/reference"
+import "github.com/reoring/gofx/ports/client-go/tools/record/util"
+import internal "github.com/reoring/gofx/ports/client-go/tools/internal/events"
+import rest "github.com/reoring/gofx/ports/client-go/rest"
+
+type EventSink = EventSink {
+ create: func(core.Event) IO[outcome.Outcome[Option[core.Event]]],
+ update: func(core.Event) IO[outcome.Outcome[Option[core.Event]]],
+ patch: func(core.Event,String) IO[outcome.Outcome[Option[core.Event]]]
+}
+type EventRecorder = EventRecorder {
+ event: func(Option[runtime.Object],String,String,String) IO[Unit],
+ eventf: func(Option[runtime.Object],String,String,String) IO[Unit],
+ annotatedEventf: func(Option[runtime.Object],support.ForeignMap[String,String],String,String,String) IO[Unit],
+ withLogger: func(internal.Logger) EventRecorder
+}
+alias EventRecorderLogger = EventRecorder
+type BroadcasterConfig = BroadcasterConfig { options: CorrelatorOptions, sleepDuration: Int, logger: internal.Logger, context: sync.Context }
+alias BroadcasterOption = func(BroadcasterConfig) BroadcasterConfig
+type EventBroadcaster = EventBroadcaster { hub: internal.Hub[core.Event], config: BroadcasterConfig, stopped: sync.Ref[Bool], cancel: sync.Cancel }
+func withSleepDuration(nanos Int) BroadcasterOption { func(config) => config { sleepDuration: nanos } }
+func withCorrelatorOptions(options CorrelatorOptions) BroadcasterOption { func(config) => config { options: options } }
+func withContext(context sync.Context) BroadcasterOption { func(config) => config { context: context } }
+func newBroadcaster(options List[BroadcasterOption]) IO[EventBroadcaster] { do {
+ clock <- sync.realClock(); context <- sync.captureContext()
+ let initial = BroadcasterConfig(defaultCorrelatorOptions(clock),10000000000,internal.defaultLogger,context)
+ let config = list.fold(options,initial,func(c,f) => f(c))
+ lifetime <- sync.newContext(config.context,None)
+ hub <- internal.newHub(1000); stopped <- sync.newRef(false)
+ let broadcaster = EventBroadcaster(hub,config { context: lifetime.0 },stopped,lifetime.1)
+ let newSignal: IO[sync.Channel[Unit]] = sync.newChannel(0)
+ signal <- newSignal
+ sync.withContext(lifetime.0,sync.start(sync.ensuring(do { sync.receive(signal); ioPure(unit()) },shutdown(broadcaster))))
+ ioPure(broadcaster)
+} }
+func newBroadcasterForTests(nanos Int) IO[EventBroadcaster] { newBroadcaster([withSleepDuration(nanos)]) }
+func newBroadcasterWithCorrelatorOptions(options CorrelatorOptions) IO[EventBroadcaster] { newBroadcaster([withCorrelatorOptions(options)]) }
+func shutdown(b EventBroadcaster) IO[Unit] { sync.uninterruptible(do { sync.writeRef(b.stopped,true); internal.shutdown(b.hub); sync.cancelContext(b.cancel) }) }
+func startEventWatcher(b EventBroadcaster, callback func(core.Event) IO[Unit]) IO[internal.Listener[core.Event]] { sync.withContext(b.config.context,internal.addListener(b.hub,callback)) }
+func startLogging(b EventBroadcaster, logger func(String) IO[Unit]) IO[internal.Listener[core.Event]] {
+ startEventWatcher(b,func(event) => logger("Event: type: '"+core.eventGetType(event)+"' reason: '"+core.eventGetReason(event)+"' "+core.eventGetMessage(event)))
+}
+func startStructuredLogging(b EventBroadcaster, logger internal.Logger) IO[internal.Listener[core.Event]] { startLogging(b,func(message) => logger(message,None)) }
+func stopWatcher(watcher internal.Listener[core.Event]) IO[Unit] { internal.stopListener(watcher) }
+func _terminal(error support.Error) Bool {
+ rest.isRequestConstructionError(error) || (match internal.statusError(error) { None => false; Some(_) => true })
+}
+func recordEvent(sink EventSink, event core.Event, patch String, updateExisting Bool, correlator EventCorrelator) IO[Bool] { do {
+ patched <- if updateExisting { sink.patch(event,patch) } else { ioPure(outcome.Outcome(None,None)) }
+ response <- if !updateExisting || util.isKeyNotFoundError(patched.error) {
+  sink.create(core.eventWithObjectMeta(event,meta.objectMetaWithResourceVersion(core.eventGetObjectMeta(event),"")))
+ } else { ioPure(patched) }
+ match response.error {
+  None => do { match response.value { None => ioPure(unit()); Some(event) => updateState(correlator,event) }; ioPure(true) }
+  Some(error) => ioPure(_terminal(error))
+ }
+} }
+func _attempt(b EventBroadcaster, sink EventSink, event core.Event, patch String, correlator EventCorrelator, tries Int) IO[Unit] { do {
+ done <- recordEvent(sink,event,patch,core.eventGetCount(event)>1,correlator)
+ stopped <- sync.readRef(b.stopped); cancelled <- sync.contextCancelled(b.config.context)
+ if done { ioPure(unit()) } else { if tries>=12 || stopped || cancelled {
+  b.config.logger(if tries>=12 { "Unable to write event (retry limit exceeded!)" } else { "Unable to write event (broadcaster is shut down)" },None)
+ } else { do {
+  delay <- if tries==1 && b.config.sleepDuration>0 { support.randomInt(b.config.sleepDuration) } else { ioPure(b.config.sleepDuration) }
+  internal.sleep(b.config.options.clock,delay); _attempt(b,sink,event,patch,correlator,tries+1)
+ } } }
+} }
+func startRecordingToSink(b EventBroadcaster, sink EventSink) IO[internal.Listener[core.Event]] { do {
+ correlator <- newEventCorrelatorWithOptions(b.config.options)
+ startEventWatcher(b,func(event) => do {
+  result <- eventCorrelate(correlator,Some(event))
+  match result.error { None => ioPure(unit()); Some(error) => b.config.logger("Event correlation failed",Some(error)) }
+  match result.value { None => ioPure(unit()); Some(result) => if result.skip { ioPure(unit()) } else { match result.event { None => ioPure(unit()); Some(event) => _attempt(b,sink,event,result.patch,correlator,1) } } }
+ })
+} }
+func _emit(b EventBroadcaster, scheme Option[runtime.Scheme], source core.EventSource, logger internal.Logger, object Option[runtime.Object], annotations support.ForeignMap[String,String], eventType String, reason String, message String) IO[Unit] { do {
+ refResult <- reference.getReference(scheme,object)
+ match refResult.value { None => logger("Could not construct reference, will not report event",refResult.error); Some(ref) => {
+  if !util.validateEventType(eventType) { logger("Unsupported event type",None) } else { do {
+   now <- sync.now(b.config.options.clock); name <- util.generateEventName(core.objectReferenceGetName(ref),sync.unixNanos(now))
+   let namespace = core.objectReferenceGetNamespace(ref)
+   let metadata = meta.objectMetaWithAnnotations(meta.objectMetaWithNamespace(meta.objectMetaWithName(meta.newObjectMeta(),name),if namespace=="" { "default" } else { namespace }),annotations)
+   let base = core.eventWithObjectMeta(core.newEvent(),metadata)
+   let timed = core.eventWithCount(core.eventWithLastTimestamp(core.eventWithFirstTimestamp(base,internal.timestamp(sync.unixNanos(now))),internal.timestamp(sync.unixNanos(now))),1)
+   let identified = core.eventWithSource(core.eventWithInvolvedObject(timed,ref),source)
+   let reported = core.eventWithReportingInstance(core.eventWithReportingController(identified,core.eventSourceGetComponent(source)),core.eventSourceGetHost(source))
+   let event = core.eventWithMessage(core.eventWithReason(core.eventWithType(reported,eventType),reason),message)
+   sent <- internal.publish(b.hub,event)
+   if sent { ioPure(unit()) } else { logger("Unable to record event: too many queued events, dropped event",None) }
+  } }
+ } }
+} }
+func _recorder(b EventBroadcaster, scheme Option[runtime.Scheme], source core.EventSource, logger internal.Logger) EventRecorder {
+ let annotations = meta.objectMetaGetAnnotations(meta.newObjectMeta())
+ let emit = func(object,eventType,reason,message) => _emit(b,scheme,source,logger,object,annotations,eventType,reason,message)
+ EventRecorder(emit,emit,func(object,annotations,eventType,reason,message) => _emit(b,scheme,source,logger,object,annotations,eventType,reason,message),func(logger) => _recorder(b,scheme,source,logger))
+}
+func newRecorder(b EventBroadcaster, scheme Option[runtime.Scheme], source core.EventSource) EventRecorder { _recorder(b,scheme,source,b.config.logger) }
+func newEventRecorderAdapter(recorder EventRecorder) internal.EventRecorder {
+ internal.EventRecorder(func(regarding,related,eventType,reason,action,note) => recorder.eventf(regarding,eventType,reason,note),func(regarding,related,annotations,eventType,reason,action,note) => recorder.annotatedEventf(regarding,annotations,eventType,reason,note),func(logger) => newEventRecorderAdapter(recorder.withLogger(logger)))
+}

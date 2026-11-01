@@ -1,0 +1,114 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package internalinterfaces
+import "std/map"
+import "std/list"
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+import "github.com/reoring/gofx/ports/client-go/support/watch"
+import "github.com/reoring/gofx/ports/client-go/support/outcome"
+import "github.com/reoring/gofx/ports/client-go/tools/cache"
+import "github.com/reoring/gofx/ports/client-go/kubernetes"
+import "github.com/reoring/gofx/ports/client-go/features"
+import runtime "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime"
+import meta "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import api "github.com/reoring/gofx/ports/client-go/deps/k8s.io/api/core/v1"
+
+func testFactoryOptionOrdering() IO[Bool] {
+ let options = fold([withNamespace("first"),withNamespace("last"),withCustomResyncConfig(map.mapFromList([("a",1),("b",2)])),withCustomResyncConfig(map.mapFromList([("a",3)]))],defaultFactoryOptions(),func(config,apply) => apply(config))
+ ioPure(options.namespace == "last" && map.mapLookup(options.customResync,"a") == Some(3) && map.mapLookup(options.customResync,"b") == Some(2))
+}
+func testTweakCallbacksAreEffectfulPerRequest() IO[Bool] { do {
+ calls <- sync.newRef(0)
+ let tweak = func(options) => do { n <- sync.readRef(calls); sync.writeRef(calls,n+1); ioPure(meta.listOptionsWithLabelSelector(options,"selected")) }
+ first <- tweakOptions(Some(tweak),meta.newListOptions())
+ second <- tweakOptions(Some(tweak),meta.newListOptions())
+ n <- sync.readRef(calls)
+ ioPure(n == 2 && meta.listOptionsGetLabelSelector(first) == "selected" && meta.listOptionsGetLabelSelector(second) == "selected")
+} }
+// Caller supplies a real or fake clientset; this fixture never invokes its REST surface.
+// Controlled channels exercise the actual cache aggregate and factory tasks, not a lifecycle model.
+func factoryLifecycleFixture(featureRegistry features.FeatureRegistry, client kubernetes.Interface) IO[Bool] { do {
+ clock <- sync.realClock()
+ entered <- fixtureUnitChannel(2)
+ release <- fixtureUnitChannel(2)
+ events <- fixtureEventChannel(0)
+ periods <- sync.newRef(Nil)
+ transformed <- sync.newRef(0)
+ let transform = func(obj) => do { n <- sync.readRef(transformed); sync.writeRef(transformed,n+1); ioPure(outcome.success(obj)) }
+ let pod = api.podToRuntimeObject(api.podWithObjectMeta(api.newPod(),meta.objectMetaWithName(meta.newObjectMeta(),"initial")))
+ let create = func(_client,period) => do {
+  old <- sync.readRef(periods)
+  sync.writeRef(periods,Cons(period,old))
+  let lw = cache.ListWatcher(func(_) => do { sync.send(entered,unit()); _ <- sync.receive(release); ioPure(outcome.success(cache.ListResult([pod],"1",""))) },func(_) => ioPure(outcome.success(Some(watch.newWatch(events,func() => ioPure(unit()))))),true,false)
+  cache.newSharedIndexInformerWithFeatures(featureRegistry,lw,cache.rawObjectAccess(),func(obj) => outcome.success(obj),period,map.mapFromList([("namespace",cache.namespaceIndex(cache.rawObjectAccess()))]),clock)
+ }
+ factory <- newSharedInformerFactoryWithOptions(featureRegistry,client,0,[withCustomResyncConfig(map.mapFromList([("first",7000000000)])),withTransform(transform)])
+ first <- informerFor(factory,"first",create)
+ reused <- informerFor(factory,"first",create)
+ parent <- sync.captureContext()
+ context <- sync.newContext(parent,None)
+ startWithContext(factory,fst(context))
+ _ <- sync.receive(entered)
+ before <- cache.hasSynced(first)
+ sync.send(release,unit())
+ synced <- waitForCacheSync(factory)
+ late <- informerFor(factory,"late",create)
+ notStarted <- cache.hasStarted(late)
+ startWithContext(factory,fst(context))
+ _ <- sync.receive(entered)
+ sync.send(release,unit())
+ _ <- waitForCacheSync(factory)
+ shutdownReturned <- fixtureUnitChannel(1)
+ shutting <- sync.startDetached(do { shutdown(factory); sync.send(shutdownReturned,unit()) })
+ pending <- sync.tryReceive(shutdownReturned)
+ sync.cancelContext(snd(context))
+ _ <- sync.join(shutting)
+ startWithContext(factory,parent)
+ state <- sync.readRef(factory.state)
+ usedPeriods <- sync.readRef(periods)
+ indexes <- first.indexer.getIndexers()
+ transformCount <- sync.readRef(transformed)
+ ioPure(sync.sameRef(first.identity,reused.identity) && !before && (match synced.error { None => true; Some(_) => false }) && !notStarted && state.shuttingDown && usedPeriods == [0,7000000000] && map.mapMember(indexes,"namespace") && factory.options.namespace == "" && transformCount == 2 && (match pending { sync.Pending => true; _ => false }))
+} }
+func testTypedProjectionSharesIdentity() IO[Bool] { do {
+ clock <- sync.realClock()
+ events <- fixtureEventChannel(0)
+ let lw = cache.ListWatcher(func(_) => ioPure(outcome.success(cache.ListResult(Nil,"",""))),func(_) => ioPure(outcome.success(Some(watch.newWatch(events,func() => ioPure(unit()))))),false,false)
+ raw <- cache.newSharedInformer(lw,cache.rawObjectAccess(),func(obj) => outcome.success(obj),0,clock)
+ let view = cache.typedSharedInformer(raw,api.podObjectType())
+ let pod = api.podWithObjectMeta(api.newPod(),meta.objectMetaWithName(meta.newObjectMeta(),"pod"))
+ added <- view.indexer.store.add(pod)
+ readback <- raw.indexer.store.getByKey("pod")
+ ioPure(sync.sameRef(raw.identity,view.raw.identity) && outcome.isSuccess(added) && (match readback.value { None => false; Some(_) => true }))
+} }
+// An explicit test-owned registry proves the gate is read at reflector creation,
+// not at factory/informer allocation and not again on repeated start.
+func watchListGateTimingFixture(client kubernetes.Interface) IO[Bool] { do {
+ registry <- features.newFeatureRegistry(features.Environment(func(_) => ioPure(None),func(_) => ioPure(unit())))
+ enabled <- sync.newRef(false)
+ observations <- sync.newRef(Nil)
+ _ <- features.replaceFeatureGates(registry,features.Gates(func(feature) => do {
+  value <- sync.readRef(enabled)
+  seen <- sync.readRef(observations)
+  if feature == features.watchListClient() { sync.writeRef(observations,Cons((feature,value),seen)) } else { ioPure(unit()) }
+  ioPure(value)
+ },None,None,"informer fixture"))
+ factory <- newSharedInformerFactory(registry,client,0)
+ clock <- sync.realClock()
+ events <- fixtureEventChannel(0)
+ let create = func(_client,period) => cache.newSharedIndexInformerWithFeatures(registry,cache.ListWatcher(func(_) => ioPure(outcome.success(cache.ListResult(Nil,"1",""))),func(_) => ioPure(outcome.success(Some(watch.newWatch(events,func() => ioPure(unit()))))),true,false),cache.rawObjectAccess(),func(obj) => outcome.success(obj),period,map.emptyMap(),clock)
+ _ <- informerFor(factory,"fixture",create)
+ before <- sync.readRef(observations)
+ sync.writeRef(enabled,true)
+ parent <- sync.captureContext()
+ context <- sync.newContext(parent,None)
+ startWithContext(factory,fst(context))
+ _ <- waitForCacheSync(factory)
+ sync.writeRef(enabled,false)
+ startWithContext(factory,fst(context))
+ sync.cancelContext(snd(context))
+ shutdown(factory)
+ after <- sync.readRef(observations)
+ ioPure(before == Nil && after == [(features.watchListClient(),true)])
+} }
+func fixtureUnitChannel(capacity Int) IO[sync.Channel[Unit]] { sync.newChannel(capacity) }
+func fixtureEventChannel(capacity Int) IO[sync.Channel[watch.Event]] { sync.newChannel(capacity) }

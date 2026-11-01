@@ -1,0 +1,107 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package cache
+import "std/map"
+import "std/list"
+import "std/string"
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+import "github.com/reoring/gofx/ports/client-go/support/outcome"
+import errors "github.com/reoring/gofx/ports/client-go/deps/support"
+import objects "github.com/reoring/gofx/ports/client-go/deps/objects"
+import runtime "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime"
+import v1 "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import types "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/types"
+
+alias KeyFunc[A] = func(A) IO[outcome.Outcome[String]]
+alias TransformFunc[A] = func(A) IO[outcome.Outcome[A]]
+alias IndexFunc[A] = func(A) IO[outcome.Outcome[List[String]]]
+type ObjectAccess[A] = ObjectAccess { key: KeyFunc[A], resourceVersion: func(A) IO[Option[String]], namespace: func(A) IO[String], labels: func(A) IO[Map[String,String]], deepCopy: func(A) IO[A], equal: func(A,A) IO[Bool], uid: func(A) IO[String] }
+type Store[A] = Store { add: func(A) IO[outcome.Outcome[Unit]], update: func(A) IO[outcome.Outcome[Unit]], delete: func(A) IO[outcome.Outcome[Unit]], list: func() IO[List[A]], listKeys: func() IO[List[String]], get: func(A) IO[outcome.Outcome[Option[A]]], getByKey: func(String) IO[outcome.Outcome[Option[A]]], replace: func(List[A],String) IO[outcome.Outcome[Unit]], resync: func() IO[outcome.Outcome[Unit]], bookmark: func(String) IO[Unit], lastStoreSyncResourceVersion: func() IO[String], transaction: func(List[Transaction[A]]) IO[Option[TransactionError]], transformer: Option[TransformFunc[A]], deleteByKey: func(String) IO[outcome.Outcome[Unit]] }
+type Indexer[A] = Indexer { store: Store[A], index: func(String,A) IO[outcome.Outcome[List[A]]], indexKeys: func(String,String) IO[outcome.Outcome[List[String]]], byIndex: func(String,String) IO[outcome.Outcome[List[A]]], listIndexFuncValues: func(String) IO[List[String]], getIndexers: func() IO[Map[String,IndexFunc[A]]], addIndexers: func(Map[String,IndexFunc[A]]) IO[outcome.Outcome[Unit]] }
+type TransactionType = TransactionTypeAdd | TransactionTypeUpdate | TransactionTypeDelete
+type Transaction[A] = Transaction { object: A, transactionType: TransactionType } | DeleteKeyTransaction(String,Option[A])
+type KeyedOperation[A] = KeyedOperation { key: String, object: Option[A], transactionType: TransactionType, observeResourceVersion: Bool }
+type TransactionError = TransactionError { successfulIndices: List[Int], totalTransactions: Int, errors: List[errors.Error] }
+type KeyError[A] = KeyError { object: A, error: errors.Error }
+type StorageState[A] = StorageState { items: Map[String,A], indexers: Map[String,IndexFunc[A]], indices: Map[String,Map[String,Map[String,Unit]]], resourceVersion: String }
+type ThreadSafeStoreOptions = ThreadSafeStoreOptions { atomicFIFO: func() IO[Bool], metrics: Option[(InformerNameAndResource,InformerMetricsProvider)] }
+type ThreadSafeStore[A] = ThreadSafeStore { mutex: sync.Mutex, state: sync.Ref[StorageState[A]], access: ObjectAccess[A], atomicFIFO: func() IO[Bool], observeVersion: func(String) IO[Unit] }
+func defaultThreadSafeStoreOptions() ThreadSafeStoreOptions { ThreadSafeStoreOptions(func() => ioPure(true),None) }
+func cacheError(message String) errors.Error { errors.errorNew(message) }
+func keyFailure[A](result outcome.Outcome[A]) Option[errors.Error] { match result.error { None => None; Some(e) => Some(errors.errorWrap("couldn't create key for object",e)) } }
+func transactionErrorMessage(e TransactionError) String { "failed to execute (" + show(e.totalTransactions-length(e.successfulIndices)) + "/" + show(e.totalTransactions) + ") transactions failed due to: " + show(map(e.errors,func(x) => errors.errorMessage(x))) }
+func newThreadSafeStore[A](access ObjectAccess[A], indexers Map[String,IndexFunc[A]]) IO[ThreadSafeStore[A]] { newThreadSafeStoreWithOptions(access,indexers,defaultThreadSafeStoreOptions()) }
+func newThreadSafeStoreWithOptions[A](access ObjectAccess[A], indexers Map[String,IndexFunc[A]], options ThreadSafeStoreOptions) IO[ThreadSafeStore[A]] { do { mutex <- sync.newMutex(); state <- sync.newRef(StorageState(map.emptyMap(),indexers,map.emptyMap(),"")); observe <- newStoreVersionObserver(options.metrics); ioPure(ThreadSafeStore(mutex,state,access,options.atomicFIFO,observe)) } }
+func newStoreWithOptions[A](access ObjectAccess[A], transform Option[TransformFunc[A]], options ThreadSafeStoreOptions) IO[Store[A]] { do { indexer <- newIndexerWithOptions(access,map.emptyMap(),transform,options); ioPure(indexer.store) } }
+func newStore[A](access ObjectAccess[A]) IO[Store[A]] { do { indexer <- newIndexer(access,map.emptyMap()); ioPure(indexer.store) } }
+func newIndexer[A](access ObjectAccess[A], indexers Map[String,IndexFunc[A]]) IO[Indexer[A]] { newIndexerWithTransformer(access,indexers,None) }
+func newIndexerWithTransformer[A](access ObjectAccess[A], indexers Map[String,IndexFunc[A]], transform Option[TransformFunc[A]]) IO[Indexer[A]] { newIndexerWithOptions(access,indexers,transform,defaultThreadSafeStoreOptions()) }
+func newIndexerWithOptions[A](access ObjectAccess[A], indexers Map[String,IndexFunc[A]], transform Option[TransformFunc[A]], options ThreadSafeStoreOptions) IO[Indexer[A]] { do {
+ storage <- newThreadSafeStoreWithOptions(access,indexers,options)
+ let write = func(obj) => storeWrite(storage,transform,obj)
+ let store = Store(write,write,func(obj) => storeDelete(storage,obj),func() => threadSafeList(storage),func() => threadSafeListKeys(storage),func(obj) => storeGet(storage,obj),func(key) => threadSafeGet(storage,key),func(items,rv) => storeReplace(storage,transform,items,rv),func() => ioPure(outcome.success(unit())),func(rv) => threadSafeBookmark(storage,rv),func() => threadSafeResourceVersion(storage),func(txns) => storeTransaction(storage,txns),transform,func(key) => threadSafeDelete(storage,key,None))
+ ioPure(Indexer(store,func(name,obj) => threadSafeIndex(storage,name,obj),func(name,value) => threadSafeIndexKeys(storage,name,value),func(name,value) => threadSafeByIndex(storage,name,value),func(name) => threadSafeIndexValues(storage,name),func() => sync.withLock(storage.mutex,do { s <- sync.readRef(storage.state); ioPure(s.indexers) }),func(indexers) => threadSafeAddIndexers(storage,indexers)))
+} }
+func transformObject[A](transform Option[TransformFunc[A]], obj A) IO[outcome.Outcome[A]] { match transform { None => ioPure(outcome.success(obj)); Some(f) => do { r <- f(obj); ioPure(outcome.from(r.value,match r.error { None => None; Some(e) => Some(errors.errorWrap("transforming",e)) })) } } }
+func storeWrite[A](storage ThreadSafeStore[A], transform Option[TransformFunc[A]], obj A) IO[outcome.Outcome[Unit]] { do { key <- storage.access.key(obj); match key.error { Some(_) => ioPure(outcome.from(unit(),keyFailure(key))); None => do { transformed <- transformObject(transform,obj); match transformed.error { Some(e) => ioPure(outcome.failure(unit(),e)); None => threadSafeUpdate(storage,key.value,transformed.value) } } } } }
+func storeDelete[A](storage ThreadSafeStore[A], obj A) IO[outcome.Outcome[Unit]] { do { key <- storage.access.key(obj); match key.error { Some(_) => ioPure(outcome.from(unit(),keyFailure(key))); None => threadSafeDelete(storage,key.value,Some(obj)) } } }
+func storeGet[A](storage ThreadSafeStore[A], obj A) IO[outcome.Outcome[Option[A]]] { do { key <- storage.access.key(obj); match key.error { Some(_) => ioPure(outcome.from(None,keyFailure(key))); None => threadSafeGet(storage,key.value) } } }
+func keyedObjects[A](access ObjectAccess[A], transform Option[TransformFunc[A]], input List[A], acc Map[String,A]) IO[outcome.Outcome[Map[String,A]]] { match input { Nil => ioPure(outcome.success(acc)); Cons(obj,rest) => do { key <- access.key(obj); match key.error { Some(_) => ioPure(outcome.from(acc,keyFailure(key))); None => do { changed <- transformObject(transform,obj); match changed.error { Some(e) => ioPure(outcome.failure(acc,e)); None => keyedObjects(access,transform,rest,map.mapInsert(acc,key.value,changed.value)) } } } } } }
+func storeReplace[A](storage ThreadSafeStore[A], transform Option[TransformFunc[A]], items List[A], rv String) IO[outcome.Outcome[Unit]] { do { keyed <- keyedObjects(storage.access,transform,items,map.emptyMap()); match keyed.error { Some(e) => ioPure(outcome.failure(unit(),e)); None => threadSafeReplace(storage,keyed.value,rv) } } }
+func indexObject[A](indexers Map[String,IndexFunc[A]], indices Map[String,Map[String,Map[String,Unit]]], key String, obj A, remove Bool) IO[outcome.Outcome[Map[String,Map[String,Map[String,Unit]]]]] { indexObjectEntries(map.mapToList(indexers),indices,key,obj,remove) }
+func indexObjectEntries[A](entries List[(String,IndexFunc[A])], indices Map[String,Map[String,Map[String,Unit]]], key String, obj A, remove Bool) IO[outcome.Outcome[Map[String,Map[String,Map[String,Unit]]]]] {
+ match entries {
+  Nil => ioPure(outcome.success(indices))
+  Cons((name,index),rest) => do {
+   values <- index(obj)
+   match values.error {
+    Some(e) => ioPure(outcome.failure(indices,errors.errorWrap("unable to calculate an index entry for key " + show(key) + " on index " + show(name),e)))
+    None => {
+     let idx = match map.mapLookup(indices,name) { None => map.emptyMap(); Some(i) => i }
+     let updated = fold(values.value,idx,func(i,value) => {
+      let keys = match map.mapLookup(i,value) { None => map.emptyMap(); Some(k) => k }
+      let next = if remove { map.mapDelete(keys,key) } else { map.mapInsert(keys,key,unit()) }
+      if map.mapSize(next) == 0 { map.mapDelete(i,value) } else { map.mapInsert(i,value,next) }
+     })
+     indexObjectEntries(rest,map.mapInsert(indices,name,updated),key,obj,remove)
+    }
+   }
+  }
+ }
+}
+func storageChange[A](s StorageState[A], key String, obj Option[A], rv Option[String]) IO[outcome.Outcome[StorageState[A]]] { do { removed <- match map.mapLookup(s.items,key) { None => ioPure(outcome.success(s.indices)); Some(old) => indexObject(s.indexers,s.indices,key,old,true) }; match removed.error { Some(e) => ioPure(outcome.failure(s,e)); None => do { added <- match obj { None => ioPure(removed); Some(value) => indexObject(s.indexers,removed.value,key,value,false) }; ioPure(match added.error { Some(e) => outcome.failure(s,e); None => outcome.success(s { items: match obj { None => map.mapDelete(s.items,key); Some(value) => map.mapInsert(s.items,key,value) }, indices: added.value, resourceVersion: match rv { None => s.resourceVersion; Some(value) => value } }) }) } } } }
+func publishStorage[A](storage ThreadSafeStore[A], next outcome.Outcome[StorageState[A]]) IO[outcome.Outcome[Unit]] { match next.error { Some(e) => errors.raiseError(e); None => do { sync.writeRef(storage.state,next.value); ioPure(outcome.success(unit())) } } }
+func publishStorageVersion[A](storage ThreadSafeStore[A], next outcome.Outcome[StorageState[A]], version Option[String]) IO[outcome.Outcome[Unit]] { do { result <- publishStorage(storage,next); match version { None => ioPure(unit()); Some(rv) => storage.observeVersion(rv) }; ioPure(result) } }
+func threadSafeUpdate[A](storage ThreadSafeStore[A], key String, obj A) IO[outcome.Outcome[Unit]] { do { rv <- storage.access.resourceVersion(obj); sync.withLock(storage.mutex,sync.uninterruptible(do { s <- sync.readRef(storage.state); next <- storageChange(s,key,Some(obj),rv); publishStorageVersion(storage,next,rv) })) } }
+func threadSafeDelete[A](storage ThreadSafeStore[A], key String, obj Option[A]) IO[outcome.Outcome[Unit]] { do { rv <- match obj { None => ioPure(None); Some(value) => storage.access.resourceVersion(value) }; sync.withLock(storage.mutex,sync.uninterruptible(do { s <- sync.readRef(storage.state); next <- storageChange(s,key,None,rv); publishStorageVersion(storage,next,rv) })) } }
+func threadSafeGet[A](storage ThreadSafeStore[A], key String) IO[outcome.Outcome[Option[A]]] { sync.withLock(storage.mutex,do { s <- sync.readRef(storage.state); ioPure(outcome.success(map.mapLookup(s.items,key))) }) }
+func threadSafeList[A](storage ThreadSafeStore[A]) IO[List[A]] { sync.withLock(storage.mutex,do { s <- sync.readRef(storage.state); ioPure(map.mapValues(s.items)) }) }
+func threadSafeListKeys[A](storage ThreadSafeStore[A]) IO[List[String]] { sync.withLock(storage.mutex,do { s <- sync.readRef(storage.state); ioPure(map.mapKeys(s.items)) }) }
+func threadSafeResourceVersion[A](storage ThreadSafeStore[A]) IO[String] { do { enabled <- storage.atomicFIFO(); if enabled { sync.withLock(storage.mutex,do { s <- sync.readRef(storage.state); ioPure(s.resourceVersion) }) } else { ioPure("") } } }
+func threadSafeBookmark[A](storage ThreadSafeStore[A], rv String) IO[Unit] { sync.withLock(storage.mutex,sync.uninterruptible(do { s <- sync.readRef(storage.state); sync.writeRef(storage.state,s { resourceVersion: rv }); storage.observeVersion(rv) })) }
+func indexAll[A](items List[(String,A)], indexers Map[String,IndexFunc[A]], indices Map[String,Map[String,Map[String,Unit]]]) IO[outcome.Outcome[Map[String,Map[String,Map[String,Unit]]]]] { match items { Nil => ioPure(outcome.success(indices)); Cons((key,obj),rest) => do { next <- indexObject(indexers,indices,key,obj,false); match next.error { Some(_) => ioPure(next); None => indexAll(rest,indexers,next.value) } } } }
+func threadSafeReplace[A](storage ThreadSafeStore[A], items Map[String,A], rv String) IO[outcome.Outcome[Unit]] { sync.withLock(storage.mutex,sync.uninterruptible(do { s <- sync.readRef(storage.state); indices <- indexAll(map.mapToList(items),s.indexers,map.emptyMap()); publishStorageVersion(storage,outcome.from(s { items: items, indices: indices.value, resourceVersion: rv },indices.error),Some(rv)) })) }
+func indexKeysState[A](s StorageState[A], name String, values List[String]) outcome.Outcome[List[String]] { if !map.mapMember(s.indexers,name) { outcome.failure(Nil,cacheError("Index with name " + name + " does not exist")) } else { let idx = match map.mapLookup(s.indices,name) { None => map.emptyMap(); Some(i) => i }; let keys = fold(values,map.emptyMap(),func(acc,value) => match map.mapLookup(idx,value) { None => acc; Some(keys) => map.mapUnion(keys,acc) }); outcome.success(map.mapKeys(keys)) } }
+func indexedItems[A](s StorageState[A], keys outcome.Outcome[List[String]]) outcome.Outcome[List[A]] { outcome.mapValue(keys,func(xs) => fold(xs,Nil,func(acc,k) => match map.mapLookup(s.items,k) { None => acc; Some(obj) => Cons(obj,acc) })) }
+func threadSafeIndexKeys[A](storage ThreadSafeStore[A], name String, value String) IO[outcome.Outcome[List[String]]] { sync.withLock(storage.mutex,do { s <- sync.readRef(storage.state); ioPure(indexKeysState(s,name,[value])) }) }
+func threadSafeByIndex[A](storage ThreadSafeStore[A], name String, value String) IO[outcome.Outcome[List[A]]] { sync.withLock(storage.mutex,do { s <- sync.readRef(storage.state); ioPure(indexedItems(s,indexKeysState(s,name,[value]))) }) }
+func threadSafeIndex[A](storage ThreadSafeStore[A], name String, obj A) IO[outcome.Outcome[List[A]]] { sync.withLock(storage.mutex,do { s <- sync.readRef(storage.state); match map.mapLookup(s.indexers,name) { None => ioPure(outcome.failure(Nil,cacheError("Index with name " + name + " does not exist"))); Some(f) => do { values <- f(obj); ioPure(match values.error { Some(e) => outcome.failure(Nil,e); None => indexedItems(s,indexKeysState(s,name,values.value)) }) } } }) }
+func threadSafeIndexValues[A](storage ThreadSafeStore[A], name String) IO[List[String]] { sync.withLock(storage.mutex,do { s <- sync.readRef(storage.state); ioPure(match map.mapLookup(s.indices,name) { None => Nil; Some(idx) => map.mapKeys(idx) }) }) }
+func threadSafeAddIndexers[A](storage ThreadSafeStore[A], additions Map[String,IndexFunc[A]]) IO[outcome.Outcome[Unit]] { sync.withLock(storage.mutex,sync.uninterruptible(do { s <- sync.readRef(storage.state); let conflicts = filter(map.mapKeys(additions),func(k) => map.mapMember(s.indexers,k)); if length(conflicts) != 0 { ioPure(outcome.failure(unit(),cacheError("indexer conflict: " + show(conflicts)))) } else { do { built <- indexAll(map.mapToList(s.items),additions,s.indices); publishStorage(storage,outcome.from(s { indexers: map.mapUnion(additions,s.indexers), indices: built.value },built.error)) } } })) }
+func collectTransactions[A](access ObjectAccess[A], txns List[Transaction[A]], offset Int) IO[(List[KeyedOperation[A]],List[Int],List[errors.Error])] { match txns {
+ Nil => ioPure((Nil,Nil,Nil))
+ Cons(txn,rest) => do {
+  captured <- match txn {
+   Transaction(obj,kind) => do { key <- access.key(obj); ioPure(outcome.from(KeyedOperation(key.value,Some(obj),kind,true),keyFailure(key))) }
+   DeleteKeyTransaction(key,obj) => ioPure(outcome.success(KeyedOperation(key,obj,TransactionTypeDelete,false)))
+  }
+  remaining <- collectTransactions(access,rest,offset+1)
+  match remaining { (operations,successes,failures) => ioPure(match captured.error { Some(e) => (operations,successes,Cons(e,failures)); None => (Cons(captured.value,operations),Cons(offset,successes),failures) }) }
+ }
+} }
+func finalOperationVersion[A](access ObjectAccess[A], operations List[KeyedOperation[A]]) IO[Option[String]] { match operations { Nil => ioPure(None); Cons(operation,Nil) => if operation.observeResourceVersion { match operation.object { None => ioPure(None); Some(obj) => access.resourceVersion(obj) } } else { ioPure(None) }; Cons(_,rest) => finalOperationVersion(access,rest) } }
+func applyTransactions[A](access ObjectAccess[A], state StorageState[A], operations List[KeyedOperation[A]]) IO[outcome.Outcome[StorageState[A]]] { match operations { Nil => ioPure(outcome.success(state)); Cons(operation,rest) => do { next <- storageChange(state,operation.key,match operation.transactionType { TransactionTypeDelete => None; _ => operation.object },None); match next.error { Some(_) => ioPure(next); None => applyTransactions(access,next.value,rest) } } } }
+func applyTransactionVersion[A](state StorageState[A], version Option[String]) StorageState[A] { match version { None => state; Some(rv) => state { resourceVersion: rv } } }
+func storeTransaction[A](storage ThreadSafeStore[A], txns List[Transaction[A]]) IO[Option[TransactionError]] { do { captured <- collectTransactions(storage.access,txns,0); match captured { (operations,successes,failures) => do { version <- finalOperationVersion(storage.access,operations); sync.withLock(storage.mutex,sync.uninterruptible(do { s <- sync.readRef(storage.state); next <- applyTransactions(storage.access,s,operations); _ <- publishStorageVersion(storage,outcome.mapValue(next,func(state) => applyTransactionVersion(state,version)),version); ioPure(if length(failures) == 0 { None } else { Some(TransactionError(successes,length(txns),failures)) }) })) } } } }
+func namespaceIndex[A](access ObjectAccess[A]) IndexFunc[A] { func(obj) => do { namespace <- access.namespace(obj); ioPure(outcome.success([namespace])) } }
+func rawObjectAccess() ObjectAccess[runtime.Object] { ObjectAccess(func(obj) => do { metadata <- objects.objectMetadata(obj); ioPure(match fst(metadata) { None => outcome.from("",snd(metadata)); Some(meta) => outcome.success(if v1.objectMetaGetNamespace(meta) == "" { v1.objectMetaGetName(meta) } else { v1.objectMetaGetNamespace(meta) + "/" + v1.objectMetaGetName(meta) }) }) },func(obj) => objects.objectResourceVersionValue(obj),func(obj) => do { meta <- requireObjectMetadata(obj); ioPure(v1.objectMetaGetNamespace(meta)) },func(obj) => do { meta <- requireObjectMetadata(obj); ioPure(map.mapFromList(errors.mapEntries(v1.objectMetaGetLabels(meta)))) },func(obj) => do { result <- objects.objectDeepCopy(obj); match result { None => ioFail("runtime.Object.DeepCopyObject returned nil"); Some(copy) => ioPure(copy) } },func(a,b) => objects.objectEqual(Some(a),Some(b)),func(obj) => do { meta <- requireObjectMetadata(obj); ioPure(types.uidValue(v1.objectMetaGetUID(meta))) }) }
+func requireObjectMetadata(obj runtime.Object) IO[v1.ObjectMeta] { do { result <- objects.objectMetadata(obj); match fst(result) { Some(meta) => ioPure(meta); None => match snd(result) { Some(e) => errors.raiseError(e); None => ioFail("object has no meta") } } } }

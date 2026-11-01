@@ -1,0 +1,53 @@
+// Copyright 2026 The Kubernetes Authors. Licensed under the Apache License, Version 2.0.
+package effects
+import errors "deps/support"
+import runtime "deps/k8s.io/apimachinery/pkg/runtime"
+import meta "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import tls "deps/crypto/tls"
+import net "deps/net"
+import "support/outcome"
+import "std/io"
+import "std/map"
+
+type Command = CommandHandle
+extern func errorText(text String) errors.Error = "github.com/reoring/gofx/ports/client-go/plugin/host".ErrorText
+extern func wrapError(text String, cause errors.Error) errors.Error = "github.com/reoring/gofx/ports/client-go/plugin/host".WrapError
+extern func quote(text String) String = "github.com/reoring/gofx/ports/client-go/plugin/host".Quote
+extern func cleanPath(text String) String = "github.com/reoring/gofx/ports/client-go/plugin/host".CleanPath
+extern func basePath(text String) String = "github.com/reoring/gofx/ports/client-go/plugin/host".BasePath
+extern func objectEqual(a Option[runtime.Object], b Option[runtime.Object]) Bool = "github.com/reoring/gofx/ports/client-go/plugin/host".ObjectEqual
+extern func timeIsZero(t meta.Time) Bool = "github.com/reoring/gofx/ports/client-go/plugin/host".TimeIsZero
+extern func timeAfter(nowNanos Int,t meta.Time) Bool = "github.com/reoring/gofx/ports/client-go/plugin/host".TimeAfter
+extern func timeBefore(a meta.Time,b meta.Time) Bool = "github.com/reoring/gofx/ports/client-go/plugin/host".TimeBefore
+extern func timeSince(nowNanos Int,t meta.Time) Int = "github.com/reoring/gofx/ports/client-go/plugin/host".TimeSince
+extern func prepare(command String, args List[String]) IO[Command] = "github.com/reoring/gofx/ports/client-go/plugin/host".Prepare
+extern func commandPath(command Command) IO[String] = "github.com/reoring/gofx/ports/client-go/plugin/host".CommandPath
+extern func commandError(command Command) IO[Option[errors.Error]] = "github.com/reoring/gofx/ports/client-go/plugin/host".CommandError
+extern func setCommandPath(command Command, path String) IO[Unit] = "github.com/reoring/gofx/ports/client-go/plugin/host".SetCommandPath
+extern func lookPath(command String) IO[(String, Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/plugin/host".LookPath
+// Result: stdout, error category, exit code and original error.
+extern func run(command Command, env List[String], interactive Bool) IO[(String, String, (Int, Option[errors.Error]))] = "github.com/reoring/gofx/ports/client-go/plugin/host".Run
+extern func environ() IO[List[String]] = "github.com/reoring/gofx/ports/client-go/plugin/host".Environ
+extern func terminal() IO[Bool] = "github.com/reoring/gofx/ports/client-go/plugin/host".Terminal
+extern func parseKeyPair(cert String, key String) IO[tls.Certificate] = "github.com/reoring/gofx/ports/client-go/plugin/host".ParseKeyPair
+extern func parseLeaf(cert tls.Certificate) IO[tls.Certificate] = "github.com/reoring/gofx/ports/client-go/plugin/host".ParseLeaf
+extern func certificateDates(cert tls.Certificate) IO[(meta.Time,meta.Time)] = "github.com/reoring/gofx/ports/client-go/plugin/host".CertificateDates
+extern func _dial(network String, address String, timeoutNanos Int, keepAliveNanos Int) IO[net.Conn] = "github.com/reoring/gofx/ports/client-go/plugin/host".Dial
+// Pinned exec.go:179 defaults are client policy, not host socket behavior.
+func dial(network String, address String) IO[net.Conn] { _dial(network,address,30000000000,30000000000) }
+extern func decodeBase64(text String, url Bool) IO[String] = "github.com/reoring/gofx/ports/client-go/plugin/host".DecodeBase64
+extern func splitObject(text String) IO[List[(String,String)]] = "github.com/reoring/gofx/ports/client-go/plugin/host".SplitObject
+extern func jsonString(text String) IO[String] = "github.com/reoring/gofx/ports/client-go/plugin/host".JSONString
+extern func jsonSeconds(text String) IO[Int] = "github.com/reoring/gofx/ports/client-go/plugin/host".JSONSeconds
+extern func formEncode(values List[(String,String)]) String = "github.com/reoring/gofx/ports/client-go/plugin/host".FormEncode
+func attempt[A](fallback A, action IO[A]) IO[outcome.Outcome[A]] { do {
+ result <- io.tryIO(action)
+ match result {
+  Ok(value) => ioPure(outcome.success(value))
+  Err(io.Cancelled) => io.ioRaise(io.Cancelled)
+  Err(io.Timeout) => io.ioRaise(io.Timeout)
+  Err(error) => ioPure(outcome.failure(fallback,errorText(io.ioErrorMessage(error))))
+ }
+} }
+func failure[A](value A, message String) outcome.Outcome[A] { outcome.failure(value,errorText(message)) }
+func field(fields Map[String,String], key String) String { match map.mapLookup(fields,key) { None => ""; Some(value) => value } }

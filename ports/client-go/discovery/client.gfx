@@ -1,0 +1,122 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package discovery
+import meta "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import api "deps/k8s.io/api/apidiscovery/v2"
+import version "deps/k8s.io/apimachinery/pkg/version"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import errors "deps/support"
+import "rest"
+import runtime "deps/k8s.io/apimachinery/pkg/runtime"
+import "openapi"
+import "support/outcome"
+import "std/list"
+import "std/prelude"
+import "std/map"
+extern func decodeGroups(data String) IO[(Option[meta.APIGroupList],Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/discovery/host".DecodeGroups
+extern func decodeVersions(data String) IO[(Option[meta.APIVersions],Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/discovery/host".DecodeVersions
+extern func decodeResources(data String) IO[(Option[meta.APIResourceList],Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/discovery/host".DecodeResources
+extern func decodeAggregated(data String) IO[(Option[api.APIGroupDiscoveryList],Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/discovery/host".DecodeAggregated
+extern func decodeVersion(data String) IO[(Option[version.Info],Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/discovery/host".DecodeVersion
+extern func parseMedia(data String) (String,(List[(String,String)],Option[errors.Error])) = "github.com/reoring/gofx/ports/client-go/discovery/host".ParseMedia
+func acceptV1() String { "application/json" }
+func acceptV2() String { "application/json;g=apidiscovery.k8s.io;v=v2;as=APIGroupDiscoveryList" }
+func acceptV2NoPeer() String { acceptV2()+";profile=nopeer" }
+func selectDiscoveryAcceptHeader(legacy Bool,noPeer Bool) String { if legacy { acceptV1() } else { (if noPeer { acceptV2NoPeer()+"," } else { "" })+acceptV2()+","+acceptV1() } }
+func contentTypeIsGVK(contentType String,gvk schema.GroupVersionKind) outcome.Outcome[Bool] {
+ let parsed = parseMedia(contentType)
+ let params = map.mapFromList(parsed.1.0)
+ outcome.Outcome(parsed.0=="application/json" && map.mapLookup(params,"g")==Some(schema.groupVersionKindGetGroup(gvk)) && map.mapLookup(params,"v")==Some(schema.groupVersionKindGetVersion(gvk)) && map.mapLookup(params,"as")==Some(schema.groupVersionKindGetKind(gvk)),parsed.1.1)
+}
+func isAggregated(contentType String) Bool {
+ let parsed = parseMedia(contentType)
+ let params = map.mapFromList(parsed.1.0)
+ parsed.0=="application/json" && map.mapLookup(params,"g")==Some("apidiscovery.k8s.io") && map.mapLookup(params,"v")==Some("v2") && map.mapLookup(params,"as")==Some("APIGroupDiscoveryList")
+}
+func apiVersionsToAPIGroup(versions meta.APIVersions) meta.APIGroup {
+ let vs = prelude.map(values(meta.aPIVersionsGetVersions(versions)),func(v) => discoveryVersion(v,v))
+ let group = meta.aPIGroupWithServerAddressByClientCIDRs(meta.aPIGroupWithVersions(meta.newAPIGroup(),Some(vs)),meta.aPIVersionsGetServerAddressByClientCIDRs(versions))
+ match vs { Nil => group; Cons(first,rest) => meta.aPIGroupWithPreferredVersion(group,first) }
+}
+func download(client rest.Interface,path String,legacy Bool,noPeer Bool) IO[outcome.Outcome[Aggregated]] {
+ do {
+  req <- client.verb("GET")
+  response <- discoveryResponse(rest.setHeader(rest.absPath(req,[path]),"Accept",[selectDiscoveryAcceptHeader(legacy,noPeer)]))
+  match response.error {
+   Some(e) => if path=="/api" && errors.errorIsNotFound(e) { ioPure(outcome.success(Aggregated(Some(groupList([])),Some(map.emptyMap()),map.emptyMap()))) } else { ioPure(outcome.failure(emptyAggregated(),e)) }
+   None => if isAggregated(response.contentType) { do {
+    decoded <- decodeAggregated(response.body)
+    ioPure(outcome.Outcome(match decoded.0 { None => emptyAggregated(); Some(a) => splitGroupsAndResources(a) },decoded.1))
+   } } else if path=="/api" { do {
+    decoded <- decodeVersions(response.body)
+    ioPure(outcome.Outcome(Aggregated(match decoded.0 { None => None; Some(v) => Some(groupList([apiVersionsToAPIGroup(v)])) },None,map.emptyMap()),decoded.1))
+   } } else { do {
+    decoded <- decodeGroups(response.body)
+    ioPure(outcome.Outcome(Aggregated(decoded.0,None,map.emptyMap()),decoded.1))
+   } }
+  }
+ }
+}
+func groupsAndMaybeResources(client rest.Interface,legacy Bool,noPeer Bool) IO[outcome.Outcome[Aggregated]] {
+ do {
+  core <- download(client,"/api",legacy,noPeer)
+  match core.error {
+   Some(e) => ioPure(core)
+   None => do {
+    other <- download(client,"/apis",legacy,noPeer)
+    match other.error {
+     Some(e) => ioPure(other)
+     None => {
+      let merged = list.append(match core.value.groups { None => []; Some(g) => values(meta.aPIGroupListGetGroups(g)) },match other.value.groups { None => []; Some(g) => values(meta.aPIGroupListGetGroups(g)) })
+      let resources = match (core.value.resources,other.value.resources) { (Some(a),Some(b)) => Some(map.mapUnion(b,a)); _ => None }
+      ioPure(outcome.success(Aggregated(Some(groupList(merged)),resources,map.mapUnion(other.value.failures,core.value.failures))))
+     }
+    }
+   }
+  }
+ }
+}
+func resourcesFor(client rest.Interface,prefix String,gv String) IO[outcome.Outcome[Option[meta.APIResourceList]]] {
+ if gv=="" { ioPure(outcome.failure(None,errors.errorNew("groupVersion shouldn't be empty"))) }
+ else { do {
+  req <- client.verb("GET")
+  response <- discoveryResponse(rest.absPath(req,[(if gv=="v1" && prefix!="" { prefix } else { "/apis" })+"/"+gv]))
+  match response.error {
+   Some(e) => if gv=="v1" && errors.errorIsNotFound(e) { ioPure(outcome.success(Some(resourceList(gv,[])))) } else { ioPure(outcome.failure(None,e)) }
+   None => do { decoded <- decodeResources(response.body); ioPure(outcome.Outcome(match decoded.0 { None => None; Some(r) => Some(if meta.aPIResourceListGetGroupVersion(r)=="" { meta.aPIResourceListWithGroupVersion(r,gv) } else { r }) },decoded.1)) }
+  }
+ } }
+}
+func newDiscoveryClient(client rest.Interface) DiscoveryInterface { newDiscoveryClientWithOptions(client,"/api",false,false) }
+func newDiscoveryClientWithOptions(client rest.Interface,prefix String,legacy Bool,noPeer Bool) DiscoveryInterface {
+ let gather = func() => groupsAndMaybeResources(client,legacy,noPeer)
+ let groups = func() => do { result <- gather(); ioPure(outcome.Outcome(result.value.groups,result.error)) }
+ let base = DiscoveryInterface(Some(client),groups,func(gv) => resourcesFor(client,prefix,gv),
+  func() => retryDiscovery(2,func() => serverGroupsAndResources(newDiscoveryClientWithOptions(client,prefix,legacy,noPeer))),
+  func() => retryDiscovery(2,func() => serverPreferredResources(newDiscoveryClientWithOptions(client,prefix,legacy,noPeer))),
+  func() => serverPreferredNamespacedResources(newDiscoveryClientWithOptions(client,prefix,legacy,noPeer)),
+  func() => do { req <- client.verb("GET"); response <- discoveryResponse(rest.absPath(req,["/version"])); match response.error { Some(e) => ioPure(outcome.failure(None,e)); None => do { decoded <- decodeVersion(response.body); ioPure(outcome.Outcome(decoded.0,match decoded.1 { None => None; Some(e) => Some(errors.errorNew("unable to parse the server version: "+errors.errorMessage(e))) })) } } },
+  func() => openapi.openAPISchema(client),func() => ioPure(openapi.newClient(client)),
+  func() => newDiscoveryClientWithOptions(client,prefix,true,noPeer),Some(gather))
+ base
+}
+func setDiscoveryDefaults(config rest.Config) rest.Config {
+ config{apiPath:"",userAgent:if config.userAgent=="" { rest.defaultKubernetesUserAgent() } else { config.userAgent },timeout:if config.timeout==0 { 32000000000 } else { config.timeout },burst:if config.burst==0 { 300 } else { config.burst },contentConfig:config.contentConfig{groupVersion:None}}
+}
+func newDiscoveryClientForConfig(environment rest.Environment,config rest.Config) IO[outcome.Outcome[Option[DiscoveryInterface]]] {
+ do { serializer <- discoverySerializer(); let defaults = setDiscoveryDefaults(config); result <- rest.unversionedRESTClientFor(environment,defaults{contentConfig:defaults.contentConfig{negotiatedSerializer:Some(serializer)}}); ioPure(outcome.Outcome(match result.value { None => None; Some(client) => Some(newDiscoveryClient(rest.clientInterface(client))) },result.error)) }
+}
+extern func discoverySerializer() IO[runtime.NegotiatedSerializer] = "github.com/reoring/gofx/ports/client-go/discovery/host".DiscoverySerializer
+func newDiscoveryClientForConfigAndClient(environment rest.Environment,config rest.Config,client rest.HTTPClient) IO[outcome.Outcome[Option[DiscoveryInterface]]] {
+ do {
+  serializer <- discoverySerializer()
+  let defaults = setDiscoveryDefaults(config)
+  result <- rest.unversionedRESTClientForConfigAndClient(environment,defaults{contentConfig:defaults.contentConfig{negotiatedSerializer:Some(serializer)}},client)
+  ioPure(outcome.Outcome(match result.value { None => None; Some(c) => Some(newDiscoveryClient(rest.clientInterface(c))) },result.error))
+ }
+}
+func newDiscoveryClientForConfigOrDie(environment rest.Environment,config rest.Config) IO[DiscoveryInterface] {
+ do { result <- newDiscoveryClientForConfig(environment,config); match result.error { Some(e) => errors.raiseError(e); None => match result.value { Some(c) => ioPure(c); None => errors.raiseError(errors.errorNew("discovery client was not constructed")) } } }
+}
+func discoveryResponse(request rest.Request) IO[rest.ResponseResult] {
+ do { result <- rest.doRequest(request); error <- rest.resultError(result); ioPure(result{error:error}) }
+}

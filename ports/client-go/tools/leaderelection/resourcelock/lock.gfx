@@ -1,0 +1,130 @@
+// Copyright 2016-2026 The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+// Native port of client-go v0.37.2 tools/leaderelection/resourcelock.
+package resourcelock
+
+import coord "deps/k8s.io/api/coordination/v1"
+import meta "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import runtime "deps/k8s.io/apimachinery/pkg/runtime"
+import errors "deps/support"
+import "support/outcome"
+import "support/sync"
+import "std/json"
+
+func leaderElectionRecordAnnotationKey() String { "control-plane.alpha.kubernetes.io/leader" }
+func leasesResourceLock() String { "leases" }
+func unknownLeader() String { "leaderelection.k8s.io/unknown" }
+type LeaderElectionRecord = LeaderElectionRecord { holderIdentity:String, leaseDurationSeconds:Int, acquireTime:meta.Time, renewTime:meta.Time, leaderTransitions:Int, strategy:coord.CoordinatedLeaseStrategy, preferredHolder:String }
+func emptyRecord() LeaderElectionRecord { LeaderElectionRecord("",0,meta.newTime(),meta.newTime(),0,coord.newCoordinatedLeaseStrategy(),"") }
+type Interface = Interface { get:func() IO[outcome.Outcome[Option[(LeaderElectionRecord,String)]]], create:func(LeaderElectionRecord) IO[Option[errors.Error]], update:func(LeaderElectionRecord) IO[Option[errors.Error]], recordEvent:func(String) IO[Unit], identity:String, describe:String }
+type EventRecorder = EventRecorder { event:func(runtime.Object,String,String,String) IO[Unit] }
+type ResourceLockConfig = ResourceLockConfig { identity:String, eventRecorder:Option[EventRecorder] }
+type LeaseClient = LeaseClient { get:func(String) IO[outcome.Outcome[Option[coord.Lease]]], create:func(coord.Lease) IO[outcome.Outcome[Option[coord.Lease]]], update:func(coord.Lease) IO[outcome.Outcome[Option[coord.Lease]]] }
+type LeaseLock = LeaseLock { leaseMeta:meta.ObjectMeta, client:LeaseClient, lockConfig:ResourceLockConfig, labels:errors.ForeignMap[String,String], lease:sync.Ref[Option[coord.Lease]] }
+func leaseSpecToLeaderElectionRecord(spec coord.LeaseSpec) LeaderElectionRecord {
+ LeaderElectionRecord(_or(coord.leaseSpecGetHolderIdentity(spec),""),_or(coord.leaseSpecGetLeaseDurationSeconds(spec),0),_time(coord.leaseSpecGetAcquireTime(spec)),_time(coord.leaseSpecGetRenewTime(spec)),_or(coord.leaseSpecGetLeaseTransitions(spec),0),_or(coord.leaseSpecGetStrategy(spec),coord.newCoordinatedLeaseStrategy()),_or(coord.leaseSpecGetPreferredHolder(spec),""))
+}
+func _or[A](value Option[A],fallback A) A { match value { Some(x) => x; None => fallback } }
+func _time(value Option[meta.MicroTime]) meta.Time { match value { None => meta.newTime(); Some(x) => meta.timeWithTime(meta.newTime(),meta.microTimeGetTime(x)) } }
+func _micro(value meta.Time) meta.MicroTime { meta.microTimeWithTime(meta.newMicroTime(),meta.timeGetTime(value)) }
+func _nonempty(value String) Option[String] { if value == "" { None } else { Some(value) } }
+func leaderElectionRecordToLeaseSpec(record LeaderElectionRecord) coord.LeaseSpec {
+ let a = coord.leaseSpecWithHolderIdentity(coord.newLeaseSpec(),Some(record.holderIdentity))
+ let b = coord.leaseSpecWithLeaseDurationSeconds(a,Some(_int32(record.leaseDurationSeconds)))
+ let c = coord.leaseSpecWithAcquireTime(b,Some(_micro(record.acquireTime)))
+ let d = coord.leaseSpecWithRenewTime(c,Some(_micro(record.renewTime)))
+ let e = coord.leaseSpecWithLeaseTransitions(d,Some(_int32(record.leaderTransitions)))
+ let f = coord.leaseSpecWithPreferredHolder(e,_nonempty(record.preferredHolder))
+ coord.leaseSpecWithStrategy(f,if coord.coordinatedLeaseStrategyValue(record.strategy) == "" { None } else { Some(record.strategy) })
+}
+func _int32(value Int) Int { let low = value % 4294967296; let positive = if low < 0 { low + 4294967296 } else { low }; if positive >= 2147483648 { positive - 4294967296 } else { positive } }
+// Marshal times through the canonical metav1 codec; integer fields never pass through Float.
+func encodeRecord(record LeaderElectionRecord) IO[outcome.Outcome[String]] {
+ do {
+  a <- meta.timeCallMarshalJSON(record.acquireTime); b <- meta.timeCallMarshalJSON(record.renewTime)
+  let err = match a.1.1 { Some(e) => Some(e); None => b.1.1 }
+  let raw = "{\"holderIdentity\":" + json.toJson(json.JStr(record.holderIdentity)) + ",\"leaseDurationSeconds\":" + show(record.leaseDurationSeconds) + ",\"acquireTime\":" + _or(a.1.0,"null") + ",\"renewTime\":" + _or(b.1.0,"null") + ",\"leaderTransitions\":" + show(record.leaderTransitions) + ",\"strategy\":" + json.toJson(json.JStr(coord.coordinatedLeaseStrategyValue(record.strategy))) + ",\"preferredHolder\":" + json.toJson(json.JStr(record.preferredHolder)) + "}"
+  ioPure(outcome.Outcome(raw,err))
+ }
+}
+func newLeaseLock(metadata meta.ObjectMeta,client LeaseClient,config ResourceLockConfig,labels errors.ForeignMap[String,String]) IO[LeaseLock] {
+ do { ref <- sync.newRef(None); ioPure(LeaseLock(metadata,client,config,labels,ref)) }
+}
+func get(lock LeaseLock) IO[outcome.Outcome[Option[(LeaderElectionRecord,String)]]] {
+ do { result <- lock.client.get(meta.objectMetaGetName(lock.leaseMeta));
+  match result.error {
+   Some(e) => ioPure(outcome.failure(None,e))
+   None => match result.value {
+    None => ioPure(outcome.failure(None,errors.errorNew("lease client returned no object")))
+    Some(value) => do { sync.writeRef(lock.lease,Some(value)); let record = leaseSpecToLeaderElectionRecord(coord.leaseGetSpec(value)); encoded <- encodeRecord(record); ioPure(outcome.Outcome(Some((record,encoded.value)),encoded.error)) }
+   }
+  }
+ }
+}
+func create(lock LeaseLock,record LeaderElectionRecord) IO[Option[errors.Error]] {
+ do {
+  let metadata = meta.objectMetaWithLabels(meta.objectMetaWithNamespace(meta.objectMetaWithName(meta.newObjectMeta(),meta.objectMetaGetName(lock.leaseMeta)),meta.objectMetaGetNamespace(lock.leaseMeta)),lock.labels)
+  let value = coord.leaseWithSpec(coord.leaseWithObjectMeta(coord.newLease(),metadata),leaderElectionRecordToLeaseSpec(record))
+  result <- lock.client.create(value); sync.writeRef(lock.lease,result.value); ioPure(result.error)
+ }
+}
+func _mergeLabels(base errors.ForeignMap[String,String],items List[(String,String)]) errors.ForeignMap[String,String] {
+ match items { Nil => base; Cons(entry,rest) => _mergeLabels(errors.mapWith(base,entry.0,entry.1),rest) }
+}
+func update(lock LeaseLock,record LeaderElectionRecord) IO[Option[errors.Error]] {
+ do { old <- sync.readRef(lock.lease); match old {
+  None => ioPure(Some(errors.errorNew("lease not initialized, call get or create first")))
+  Some(value) => do {
+   let metadata = coord.leaseGetObjectMeta(value)
+   let existing = meta.objectMetaGetLabels(metadata)
+   let base = if !errors.mapIsNil(lock.labels) && errors.mapIsNil(existing) { errors.mapEmpty(existing) } else { existing }
+   let labels = _mergeLabels(base,errors.mapEntries(lock.labels))
+   let next = coord.leaseWithSpec(coord.leaseWithObjectMeta(value,meta.objectMetaWithLabels(metadata,labels)),leaderElectionRecordToLeaseSpec(record))
+   // Keep the attempted spec even on conflict, but retain the last resourceVersion.
+   sync.writeRef(lock.lease,Some(next)); result <- lock.client.update(next)
+   match result.error { None => sync.writeRef(lock.lease,result.value); Some(_) => ioPure(unit()) }
+   ioPure(result.error)
+  }
+ } }
+}
+func recordEvent(lock LeaseLock,message String) IO[Unit] {
+ match lock.lockConfig.eventRecorder {
+  None => ioPure(unit())
+  Some(recorder) => do {
+   cached <- sync.readRef(lock.lease)
+   let metadata = match cached { Some(value) => coord.leaseGetObjectMeta(value); None => lock.leaseMeta }
+   let tm = meta.typeMetaWithAPIVersion(meta.typeMetaWithKind(meta.newTypeMeta(),"Lease"),"coordination.k8s.io/v1")
+   let subject = coord.leaseWithTypeMeta(coord.leaseWithObjectMeta(coord.newLease(),metadata),tm)
+   recorder.event(coord.leaseToRuntimeObject(subject),"Normal","LeaderElection",lock.lockConfig.identity + " " + message)
+  }
+ }
+}
+func asInterface(lock LeaseLock) Interface { Interface(func() => get(lock),func(r) => create(lock,r),func(r) => update(lock,r),func(s) => recordEvent(lock,s),lock.lockConfig.identity,meta.objectMetaGetNamespace(lock.leaseMeta)+"/"+meta.objectMetaGetName(lock.leaseMeta)) }
+func newWithLabels(kind String,namespace String,name String,client LeaseClient,config ResourceLockConfig,labels errors.ForeignMap[String,String]) IO[outcome.Outcome[Option[Interface]]] {
+ if kind == "leases" { do { lock <- newLeaseLock(meta.objectMetaWithNamespace(meta.objectMetaWithName(meta.newObjectMeta(),name),namespace),client,config,labels); ioPure(outcome.success(Some(asInterface(lock)))) } }
+ else { let message = match kind {
+  "endpoints" => "endpoints lock is removed, migrate to leases"
+  "configmaps" => "configmaps lock is removed, migrate to leases"
+  "endpointsleases" => "endpointsleases lock is removed, migrate to leases"
+  "configmapsleases" => "configmapsleases lock is removed, migrated to leases"
+  _ => "Invalid lock-type " + kind
+ }; ioPure(outcome.failure(None,errors.errorNew(message))) }
+}
+func new(kind String,namespace String,name String,client LeaseClient,config ResourceLockConfig) IO[outcome.Outcome[Option[Interface]]] { newWithLabels(kind,namespace,name,client,config,meta.objectMetaGetLabels(meta.newObjectMeta())) }
+func concatRawRecord(primary String,secondary String) String { primary + "," + secondary }
+func multiLock(primary Interface,secondary Interface) Interface {
+ Interface(func() => _multiGet(primary,secondary),func(r) => do { e <- primary.create(r); if _alreadyExistsOrNone(e) { secondary.create(r) } else { ioPure(e) } },func(r) => do { e <- primary.update(r); match e { Some(_) => ioPure(e); None => do { found <- secondary.get(); match found.error { Some(err) => if errors.errorIsNotFound(err) { secondary.create(r) } else { secondary.update(r) }; None => secondary.update(r) } } } },func(s) => do { primary.recordEvent(s); secondary.recordEvent(s) },primary.identity,primary.describe)
+}
+func _alreadyExistsOrNone(error Option[errors.Error]) Bool { match error { None => true; Some(e) => errors.errorIsAlreadyExists(e) } }
+func _multiGet(primary Interface,secondary Interface) IO[outcome.Outcome[Option[(LeaderElectionRecord,String)]]] {
+ do { a <- primary.get(); match a.error { Some(_) => ioPure(a); None => match a.value {
+  None => ioPure(a)
+  Some(first) => do { b <- secondary.get(); match b.error {
+   Some(e) => if errors.errorIsNotFound(e) && first.0.holderIdentity != primary.identity { ioPure(a) } else { ioPure(outcome.failure(None,e)) }
+   None => match b.value {
+    None => ioPure(b)
+    Some(second) => if first.0.holderIdentity == second.0.holderIdentity { ioPure(outcome.success(Some((first.0,concatRawRecord(first.1,second.1))))) }
+     else { do { let record = first.0 { holderIdentity:unknownLeader() }; encoded <- encodeRecord(record); ioPure(outcome.Outcome(Some((record,concatRawRecord(encoded.value,second.1))),encoded.error)) } }
+   }
+  } }
+ } } }
+}

@@ -1,0 +1,41 @@
+// Copyright 2014 The Kubernetes Authors. Licensed under Apache-2.0.
+package clientcmd
+import auth "github.com/reoring/gofx/ports/client-go/tools/auth"
+import api "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api"
+import err "github.com/reoring/gofx/ports/client-go/deps/support"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+type AuthLoader = AuthLoader {loadAuth:func(String) IO[outcome.Outcome[Option[auth.Info]]]}
+type PromptInput = PromptInput {readToken:func() IO[outcome.Outcome[String]],readPassword:func() IO[outcome.Outcome[String]],isTerminal:func() IO[Bool],write:func(String) IO[Option[err.Error]]}
+type PromptingAuthLoader = PromptingAuthLoader {source:api.Source,input:PromptInput}
+extern func _readToken() IO[(String,Option[err.Error])] = "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api/host".ReadToken
+extern func _readPassword() IO[(String,Option[err.Error])] = "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api/host".ReadPassword
+extern func _isTerminal() IO[Bool] = "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api/host".IsTerminal
+extern func _output(text String) IO[Option[err.Error]] = "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api/host".Output
+func terminalInput() PromptInput { PromptInput(func() => do { result <- _readToken(); ioPure(outcome.Outcome(result.0,result.1)) },func() => do { result <- _readPassword(); ioPure(outcome.Outcome(result.0,result.1)) },_isTerminal,_output) }
+func newDefaultAuthLoader(source api.Source) AuthLoader { AuthLoader(func(path) => auth.loadFromFile(source,path)) }
+func newPromptingAuthLoader(source api.Source,input PromptInput) PromptingAuthLoader { PromptingAuthLoader(source,input) }
+func promptForString(input PromptInput,field String,showInput Bool) IO[outcome.Outcome[String]] { do {
+ error <- input.write("Please enter "+field+": ")
+ match error {
+  Some(error) => ioPure(outcome.failure("",error))
+  None => if showInput { input.readToken() } else { do {
+   terminal <- input.isTerminal()
+   if terminal { input.readPassword() } else { ioPure(outcome.failure("",api.newError("error reading input for "+field))) }
+  } }
+ }
+} }
+func prompt(loader PromptingAuthLoader) IO[outcome.Outcome[Option[auth.Info]]] { do {
+ username <- promptForString(loader.input,"Username",true)
+ _then(username,None,func(username) => do {
+ password <- promptForString(loader.input,"Password",false)
+ ioPure(outcome.mapValue(password,func(password) => Some(auth.emptyInfo(){user:username,password:password})))
+ })
+} }
+func promptingLoadAuth(loader PromptingAuthLoader,path String) IO[outcome.Outcome[Option[auth.Info]]] { do {
+ status <- loader.source.stat(path)
+ match status.error { Some(error) => if api.isNotExist(error) { do {
+ credentials <- prompt(loader)
+ match credentials.error { Some(_) => ioPure(credentials); None => match credentials.value { None => ioPure(credentials); Some(info) => do { error <- loader.source.write(path,auth.encode(info),384); ioPure(outcome.Outcome(Some(info),error)) } } }
+ } } else { auth.loadFromFile(loader.source,path) }; None => auth.loadFromFile(loader.source,path) }
+} }
+func asAuthLoader(loader PromptingAuthLoader) AuthLoader { AuthLoader(func(path) => promptingLoadAuth(loader,path)) }

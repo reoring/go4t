@@ -1,0 +1,107 @@
+// Copyright 2015 The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+// Source: tools/record/events_cache.go, client-go v0.37.2.
+package record
+import "std/list"
+import "std/map"
+import core "github.com/reoring/gofx/ports/client-go/deps/k8s.io/api/core/v1"
+import meta "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import types "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/types"
+import "github.com/reoring/gofx/ports/client-go/deps/support"
+import "github.com/reoring/gofx/ports/client-go/support/outcome"
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+import flow "github.com/reoring/gofx/ports/client-go/util/flowcontrol"
+import effects "github.com/reoring/gofx/ports/client-go/tools/internal/events"
+
+alias EventSpamKeyFunc = func(core.Event) String
+alias EventFilterFunc = func(core.Event) IO[Bool]
+alias EventAggregatorKeyFunc = func(core.Event) (String,String)
+alias EventAggregatorMessageFunc = func(core.Event) String
+type LRU[A] = LRU { entries: Map[String,A], recent: List[String], capacity: Int }
+func emptyLRU[A](capacity Int) LRU[A] { LRU(map.emptyMap(),[],capacity) }
+func lruGet[A](cache LRU[A], key String) Option[A] { map.mapLookup(cache.entries,key) }
+func lruPut[A](cache LRU[A], key String, value A) LRU[A] {
+ let order = Cons(key,list.filter(cache.recent,func(k) => k != key))
+ let kept = list.take(cache.capacity,order)
+ let entries = list.fold(list.drop(cache.capacity,order),map.mapInsert(cache.entries,key,value),func(m,k) => map.mapDelete(m,k))
+ LRU(entries,kept,cache.capacity)
+}
+func _objectKey(ref core.ObjectReference) String { core.objectReferenceGetKind(ref)+core.objectReferenceGetNamespace(ref)+core.objectReferenceGetName(ref) }
+func _sourceKey(event core.Event) String { let source = core.eventGetSource(event); core.eventSourceGetComponent(source)+core.eventSourceGetHost(source) }
+func getEventKey(event core.Event) String {
+ let ref = core.eventGetInvolvedObject(event)
+ _sourceKey(event)+_objectKey(ref)+core.objectReferenceGetFieldPath(ref)+types.uidValue(core.objectReferenceGetUID(ref))+core.objectReferenceGetAPIVersion(ref)+core.eventGetType(event)+core.eventGetReason(event)+core.eventGetMessage(event)
+}
+func getSpamKey(event core.Event) String {
+ let ref = core.eventGetInvolvedObject(event)
+ _sourceKey(event)+_objectKey(ref)+types.uidValue(core.objectReferenceGetUID(ref))+core.objectReferenceGetAPIVersion(ref)+core.eventGetType(event)
+}
+func eventAggregatorByReasonFunc(event core.Event) (String,String) {
+ (getSpamKey(event)+core.eventGetReason(event)+core.eventGetReportingController(event)+core.eventGetReportingInstance(event),core.eventGetMessage(event))
+}
+func eventAggregatorByReasonMessageFunc(event core.Event) String { "(combined from similar events): "+core.eventGetMessage(event) }
+type EventSourceObjectSpamFilter = EventSourceObjectSpamFilter { mutex: sync.Mutex, cache: sync.Ref[LRU[flow.PassiveRateLimiter]], burst: Int, qps: Float, clock: sync.Clock, key: EventSpamKeyFunc }
+func newEventSourceObjectSpamFilter(size Int, burst Int, qps Float, clock sync.Clock, key EventSpamKeyFunc) IO[EventSourceObjectSpamFilter] { do {
+ m <- sync.newMutex(); c <- sync.newRef(emptyLRU(size)); ioPure(EventSourceObjectSpamFilter(m,c,burst,qps,clock,key))
+} }
+func filterEvent(f EventSourceObjectSpamFilter, event core.Event) IO[Bool] { sync.withLock(f.mutex,do {
+ c <- sync.readRef(f.cache); let key = f.key(event)
+ limiter <- match lruGet(c,key) { Some(l) => ioPure(l); None => flow.newTokenBucketPassiveRateLimiterWithClock(f.qps,f.burst,f.clock) }
+ accepted <- limiter.tryAccept(); sync.writeRef(f.cache,lruPut(c,key,limiter)); ioPure(!accepted)
+}) }
+type AggregateRecord = AggregateRecord { keys: List[String], last: Int }
+type EventAggregator = EventAggregator { mutex: sync.Mutex, cache: sync.Ref[LRU[AggregateRecord]], key: EventAggregatorKeyFunc, message: EventAggregatorMessageFunc, maxEvents: Int, interval: Int, clock: sync.Clock }
+func newEventAggregator(size Int, key EventAggregatorKeyFunc, message EventAggregatorMessageFunc, maxEvents Int, maxIntervalInSeconds Int, clock sync.Clock) IO[EventAggregator] { do {
+ m <- sync.newMutex(); c <- sync.newRef(emptyLRU(size)); ioPure(EventAggregator(m,c,key,message,maxEvents,maxIntervalInSeconds*1000000000,clock))
+} }
+func eventAggregate(a EventAggregator, event core.Event) IO[(core.Event,String)] { sync.withLock(a.mutex,do {
+ now <- sync.now(a.clock); let nanos = sync.unixNanos(now); let keys = a.key(event); c <- sync.readRef(a.cache)
+ let previous = match lruGet(c,keys.0) { None => AggregateRecord([],0); Some(r) => r }
+ let recent = if nanos-previous.last > a.interval { [] } else { previous.keys }
+ let locals = if list.any(recent,func(k) => k==keys.1) { recent } else { Cons(keys.1,recent) }
+ let aggregate = list.length(locals) >= a.maxEvents
+ let bounded = if aggregate { list.drop(1,locals) } else { locals }
+ sync.writeRef(a.cache,lruPut(c,keys.0,AggregateRecord(bounded,nanos)))
+ if !aggregate { ioPure((event,getEventKey(event))) } else { do {
+  let ref = core.eventGetInvolvedObject(event)
+  let metadata = meta.objectMetaWithNamespace(meta.objectMetaWithName(meta.newObjectMeta(),core.objectReferenceGetName(ref)+"."+effects.hex(nanos)),meta.objectMetaGetNamespace(core.eventGetObjectMeta(event)))
+  let base = core.eventWithObjectMeta(core.newEvent(),metadata)
+  let timed = core.eventWithCount(core.eventWithLastTimestamp(core.eventWithFirstTimestamp(base,effects.timestamp(nanos)),effects.timestamp(nanos)),1)
+  let identified = core.eventWithSource(core.eventWithInvolvedObject(timed,ref),core.eventGetSource(event))
+  let described = core.eventWithType(core.eventWithReason(core.eventWithMessage(identified,a.message(event)),core.eventGetReason(event)),core.eventGetType(event))
+  ioPure((described,keys.0))
+ } }
+}) }
+type Observation = Observation { count: Int, first: meta.Time, name: String, version: String }
+type EventCorrelator = EventCorrelator { filter: EventFilterFunc, aggregator: EventAggregator, mutex: sync.Mutex, observations: sync.Ref[LRU[Observation]] }
+type EventCorrelateResult = EventCorrelateResult { event: Option[core.Event], patch: String, skip: Bool }
+type CorrelatorOptions = CorrelatorOptions { lruCacheSize: Int, burstSize: Int, qps: Float, keyFunc: Option[EventAggregatorKeyFunc], messageFunc: Option[EventAggregatorMessageFunc], maxEvents: Int, maxIntervalInSeconds: Int, clock: sync.Clock, spamKeyFunc: Option[EventSpamKeyFunc] }
+func defaultCorrelatorOptions(clock sync.Clock) CorrelatorOptions { CorrelatorOptions(4096,25,1.0/300.0,None,None,10,600,clock,None) }
+func _defaultInt(value Int, fallback Int) Int { if value==0 { fallback } else { value } }
+func newEventCorrelatorWithOptions(options CorrelatorOptions) IO[EventCorrelator] { do {
+ let size = _defaultInt(options.lruCacheSize,4096)
+ spam <- newEventSourceObjectSpamFilter(size,_defaultInt(options.burstSize,25),if options.qps==0.0 { 1.0/300.0 } else { options.qps },options.clock,match options.spamKeyFunc { Some(f) => f; None => getSpamKey })
+ aggregate <- newEventAggregator(size,match options.keyFunc { Some(f) => f; None => eventAggregatorByReasonFunc },match options.messageFunc { Some(f) => f; None => eventAggregatorByReasonMessageFunc },_defaultInt(options.maxEvents,10),_defaultInt(options.maxIntervalInSeconds,600),options.clock)
+ m <- sync.newMutex(); observations <- sync.newRef(emptyLRU(size)); ioPure(EventCorrelator(func(e) => filterEvent(spam,e),aggregate,m,observations))
+} }
+func newEventCorrelator(clock sync.Clock) IO[EventCorrelator] { newEventCorrelatorWithOptions(defaultCorrelatorOptions(clock)) }
+func _observation(event core.Event) Observation { let m = core.eventGetObjectMeta(event); Observation(core.eventGetCount(event),core.eventGetFirstTimestamp(event),meta.objectMetaGetName(m),meta.objectMetaGetResourceVersion(m)) }
+func updateState(c EventCorrelator, event core.Event) IO[Unit] { sync.withLock(c.mutex,do { cache <- sync.readRef(c.observations); sync.writeRef(c.observations,lruPut(cache,getEventKey(event),_observation(event))) }) }
+func eventCorrelate(c EventCorrelator, input Option[core.Event]) IO[outcome.Outcome[Option[EventCorrelateResult]]] {
+ match input { None => ioPure(outcome.Outcome(None,Some(support.errorNew("event is nil")))); Some(event) => do {
+  aggregated <- eventAggregate(c.aggregator,event)
+  observed <- sync.withLock(c.mutex,do {
+   cache <- sync.readRef(c.observations)
+   let event = aggregated.0
+   let previous = lruGet(cache,aggregated.1)
+   let updated = match previous { None => event; Some(p) => core.eventWithCount(core.eventWithFirstTimestamp(core.eventWithObjectMeta(event,meta.objectMetaWithResourceVersion(meta.objectMetaWithName(core.eventGetObjectMeta(event),p.name),p.version)),p.first),p.count+1) }
+   patch <- match previous { None => ioPure(("",None)); Some(_) => {
+    let old = core.eventWithMessage(core.eventWithLastTimestamp(core.eventWithCount(updated,0),effects.timestamp(0)),"")
+    effects.mergePatch(core.eventToRuntimeObject(old),core.eventToRuntimeObject(updated),core.eventToRuntimeObject(updated))
+   } }
+   sync.writeRef(c.observations,lruPut(cache,aggregated.1,_observation(updated)))
+   ioPure((updated,patch))
+  })
+  skip <- c.filter(observed.0)
+  ioPure(outcome.Outcome(Some(EventCorrelateResult(if skip { None } else { Some(observed.0) },if skip { "" } else { observed.1.0 },skip)),if skip { None } else { observed.1.1 }))
+ } }
+}

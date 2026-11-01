@@ -1,0 +1,121 @@
+package watch
+
+import raw "github.com/reoring/gofx/ports/client-go/support/watch"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import errors "github.com/reoring/gofx/ports/client-go/deps/support"
+import meta "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import runtime "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime"
+import io "std/io"
+
+func testSequentialConditionsReuseLastEvent() IO[Bool] {
+ do {
+  fake <- newFakeWithChanSize(2)
+  add(fake, None)
+  modify(fake, None)
+  let added: ConditionFunc = func(event) => ioPure(outcome.Outcome(event.eventType == "ADDED", None))
+  let modified: ConditionFunc = func(event) => ioPure(outcome.Outcome(event.eventType == "MODIFIED", None))
+  result <- untilWithoutRetry(fake.watcher, [added, added, modified])
+  stopped <- isStopped(fake)
+  ioPure(stopped && (match (result.value, result.error) { (Some(event), None) => event.eventType == "MODIFIED"; _ => false }))
+ }
+}
+func testRawWatchPreservesUnknownNilAndEOF() IO[Bool] {
+ do {
+  fake <- newFakeWithChanSize(1)
+  fakeAction(fake, "FUTURE_EVENT", None)
+  raw.stop(fake.watcher)
+  raw.stop(fake.watcher)
+  event <- raw.next(fake.watcher)
+  end <- raw.next(fake.watcher)
+  ioPure((match event { Some(value) => value.eventType == "FUTURE_EVENT" && (match value.object { None => true; Some(_) => false }); None => false }) && (match end { None => true; Some(_) => false }))
+ }
+}
+func testWatchClosedReturnsLastEvent() IO[Bool] {
+ do {
+  fake <- newFakeWithChanSize(1)
+  add(fake, None)
+  raw.stop(fake.watcher)
+  result <- untilWithoutRetry(fake.watcher, [func(_) => ioPure(outcome.Outcome(false, None))])
+  ioPure((match result.value { Some(event) => event.eventType == "ADDED"; None => false }) && (match result.error { Some(err) => errors.errorMessage(err) == "watch closed before UntilWithoutRetry timeout"; None => false }))
+ }
+}
+func testConditionErrorStopsAndKeepsEvent() IO[Bool] {
+ do {
+  fake <- newFakeWithChanSize(1)
+  error(fake, None)
+  result <- untilWithoutRetry(fake.watcher, [func(_) => ioPure(outcome.Outcome(false, Some(errors.errorNew("condition failed"))))])
+  stopped <- isStopped(fake)
+  ioPure(stopped && (match result.value { Some(event) => event.eventType == "ERROR"; None => false }) && (match result.error { Some(err) => errors.errorMessage(err) == "condition failed"; None => false }))
+ }
+}
+func testEventProcessorBlockedStopAndOrdering() IO[Bool] {
+ do {
+  processor <- newEventProcessor()
+  push(processor, raw.Event("first", None))
+  push(processor, raw.Event("second", None))
+  push(processor, raw.Event("third", None))
+  sync.bracket(sync.startDetached(runProcessor(processor)), func(task) => do {
+   first <- sync.receive(processor.output)
+   second <- sync.receive(processor.output)
+   stopProcessor(processor)
+   sync.join(task)
+   ioPure((match first { Some(value) => value.eventType == "first"; None => false }) && (match second { Some(value) => value.eventType == "second"; None => false }))
+  }, func(task) => do { stopProcessor(processor); sync.join(task) })
+ }
+}
+func testUntilCancellationStopsProducer() IO[Bool] {
+ do {
+  fake <- newFakeWithChanSize(1)
+  add(fake, None)
+  entered <- sync.newChannel(1)
+  task <- sync.startDetached(untilWithoutRetry(fake.watcher, [func(_) => do { sync.send(entered, unit()); ioPure(outcome.Outcome(false, None)) }]))
+  sync.receive(entered)
+  sync.cancelTask(task)
+  result <- io.tryIO(sync.join(task))
+  stopped <- isStopped(fake)
+  ioPure(stopped && (match result { Ok(value) => match value.error { Some(err) => errors.errorIsInterrupted(err); None => false }; Err(_) => false }))
+ }
+}
+// External object construction stays in the fixture adapter. The trace checks
+// actual retry stream order and exact opaque RV passed to the second request.
+func testOrderedRetryAndBookmarks(first runtime.Object, bookmark runtime.Object, second runtime.Object, access RetryAccess) IO[Bool] {
+ do {
+  calls <- sync.newRef(0)
+  observed <- sync.newRef("")
+  clock <- sync.realClock()
+  let client = func(options) => do {
+   count <- sync.readRef(calls)
+   sync.writeRef(calls, count + 1)
+   fake <- newFakeWithChanSize(2)
+   if count == 0 { do { add(fake, Some(first)); fakeAction(fake, "BOOKMARK", Some(bookmark)); raw.stop(fake.watcher) } } else {
+    do { sync.writeRef(observed, meta.listOptionsGetResourceVersion(options)); add(fake, Some(second)); raw.stop(fake.watcher) }
+   }
+   ioPure(outcome.Outcome(Some(fake.watcher), None))
+  }
+  created <- newRetryWatcherWithContext("initial", client, access, clock, 0)
+  match created.value {
+   None => ioPure(false)
+   Some(retry) => sync.bracket(ioPure(retry), func(value) => do {
+    one <- raw.next(value.watcher)
+    two <- raw.next(value.watcher)
+    rv <- sync.readRef(observed)
+    expected <- access.resourceVersion(Some(bookmark))
+    ioPure(rv == expected.value && (match one { Some(event) => event.eventType == "ADDED"; None => false }) && (match two { Some(event) => event.eventType == "ADDED"; None => false }))
+   }, func(value) => raw.stop(value.watcher))
+  }
+ }
+}
+func testInitialSyncBarrier() IO[Bool] {
+ do {
+  synced <- sync.newRef(false)
+  running <- sync.newChannel(1)
+  blocked <- sync.newChannel(0)
+  checked <- sync.newRef(false)
+  clock <- sync.realClock()
+  let factory = func(onAdd, onUpdate, onDelete) => ioPure(InformerController(unit(), func() => do { sync.writeRef(synced, true); sync.send(running, unit()); sync.receive(blocked); ioPure(unit()) }, func() => sync.readRef(synced)))
+  result <- untilWithSync(factory, Some(func(_) => do { ready <- sync.readRef(synced); sync.writeRef(checked, ready); ioPure(outcome.Outcome(true, None)) }), [], clock)
+  barrier <- sync.readRef(checked)
+  ioPure(barrier && (match result.error { None => true; Some(_) => false }))
+ }
+}

@@ -1,0 +1,27 @@
+package dynamic
+
+import cache "tools/cache"
+import objects "deps/objects"
+import errors "deps/support"
+import outcome "support/outcome"
+import runtime "deps/k8s.io/apimachinery/pkg/runtime"
+
+// Copyright 2018 The Kubernetes Authors. Licensed under Apache-2.0.
+// Reuses the cache aggregate without erasing typed objects or copying their state.
+func objectAccess[A](descriptor objects.ObjectType[A]) cache.ObjectAccess[A] {
+ let raw = cache.rawObjectAccess()
+ cache.ObjectAccess(
+  func(value) => raw.key(objects.toObject(descriptor,value)),
+  func(value) => raw.resourceVersion(objects.toObject(descriptor,value)),
+  func(value) => raw.namespace(objects.toObject(descriptor,value)),
+  func(value) => raw.labels(objects.toObject(descriptor,value)),
+  func(value) => do {
+   copied <- raw.deepCopy(objects.toObject(descriptor,value))
+   match objects.fromObject(descriptor,Some(copied)) { Some(result) => ioPure(result); None => ioFail("deep copy changed object type") }
+  },
+  func(left,right) => raw.equal(objects.toObject(descriptor,left),objects.toObject(descriptor,right)),
+  func(value) => raw.uid(objects.toObject(descriptor,value)))
+}
+func decodeTyped[A](descriptor objects.ObjectType[A],zero A,value runtime.Object) outcome.Outcome[A] {
+ match objects.fromObject(descriptor,Some(value)) { Some(result) => outcome.success(result); None => outcome.failure(zero,errors.errorNew("unexpected watch object type")) }
+}

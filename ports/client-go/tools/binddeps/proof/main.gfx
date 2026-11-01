@@ -11,11 +11,27 @@ import right "github.com/reoring/gofx/ports/client-go/tools/binddeps/proof/right
 import runtimeApi "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime"
 import objects "github.com/reoring/gofx/ports/client-go/deps/objects"
 import "std/io"
+import autoscaling "github.com/reoring/gofx/ports/client-go/deps/k8s.io/api/autoscaling/v1"
+import appsBeta "github.com/reoring/gofx/ports/client-go/deps/k8s.io/api/apps/v1beta2"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import selectors "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/labels"
+import time "github.com/reoring/gofx/ports/client-go/deps/time"
+import unstructured "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 
 extern func aliasConvert(a Option[core.Pod], b Option[core.Pod]) IO[((Option[core.Pod], Option[core.Pod]), (Bool, Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/tools/binddeps/proofhost".AliasConvert
 extern func recursiveFixture() smd.TypeRef = "github.com/reoring/gofx/ports/client-go/tools/binddeps/proofhost".RecursiveFixture
 extern func sameMap(a Option[smd.MapGo], b Option[smd.MapGo]) IO[((Option[smd.MapGo], Option[smd.MapGo]), Bool)] = "github.com/reoring/gofx/ports/client-go/tools/binddeps/proofhost".SameMap
 extern func pointerMap() IO[support.ForeignMap[support.PointerKey[core.Pod],String]] = "github.com/reoring/gofx/ports/client-go/tools/binddeps/proofhost".PointerMap
+extern func metadataView(value runtimeApi.Object) IO[Option[meta.Object]] = "github.com/reoring/gofx/ports/client-go/tools/binddeps/proofhost".MetadataView
+extern func sameObjectStorage(left runtimeApi.Object, right runtimeApi.Object) Bool = "github.com/reoring/gofx/ports/client-go/tools/binddeps/proofhost".SameObjectStorage
+extern func sameDescriptor[A](left objects.ObjectType[A], right objects.ObjectType[A]) Bool = "github.com/reoring/gofx/ports/client-go/tools/binddeps/proofhost".SameDescriptor
+extern func typedNilObject() Option[runtimeApi.Object] = "github.com/reoring/gofx/ports/client-go/tools/binddeps/proofhost".TypedNilObject
+extern func alreadyExists() support.Error = "github.com/reoring/gofx/ports/client-go/tools/binddeps/proofhost".AlreadyExists
+extern func notRegistered() support.Error = "github.com/reoring/gofx/ports/client-go/tools/binddeps/proofhost".NotRegistered
+extern func largeIntegerObject() runtimeApi.Object = "github.com/reoring/gofx/ports/client-go/tools/binddeps/proofhost".LargeIntegerObject
+extern func hasLargeInteger(value runtimeApi.Object) Bool = "github.com/reoring/gofx/ports/client-go/tools/binddeps/proofhost".HasLargeInteger
+extern func cborHasLargeInteger(value String) IO[Bool] = "github.com/reoring/gofx/ports/client-go/tools/binddeps/proofhost".CBORHasLargeInteger
+extern func customJSON() runtimeApi.Object = "github.com/reoring/gofx/ports/client-go/tools/binddeps/proofhost".CustomJSON
 
 func require(ok Bool, message String) IO[Unit] {
  if ok { ioPure(unit()) } else { ioFail(message) }
@@ -39,6 +55,20 @@ func invalidUInt() IO[support.UInt64] {
   ioPure(support.uint64(4294967296, 0))
  }
 }
+func customKind(initial schema.GroupVersionKind) IO[schema.ObjectKind] {
+ do {
+  state <- sync.newRef(initial)
+  schema.newObjectKind(
+   func() => sync.readRef(state),
+   func(value) => sync.writeRef(state, value),
+   func() => do {
+    current <- sync.readRef(state)
+    copied <- customKind(current)
+    ioPure(Some(copied))
+   }
+  )
+ }
+}
 func main() IO[Unit] {
  do {
   let original = core.newPod()
@@ -48,6 +78,30 @@ func main() IO[Unit] {
   let pod = core.podWithObjectMeta(original, transported)
   require(meta.objectMetaGetName(core.podGetObjectMeta(pod)) == "typed-pod", "typed metadata did not survive canonical imports")
   require(meta.objectMetaGetName(core.podGetObjectMeta(original)) == "", "immutable Pod input was mutated")
+  let descriptor = core.podObjectType()
+  require(sameDescriptor(descriptor, core.podObjectType()), "object descriptor was not cached")
+  let objectView = objects.toObject(descriptor, pod)
+  require(sameObjectStorage(objectView, core.podToRuntimeObject(pod)), "upcast copied the Pod snapshot")
+  roundTrip <- expect(objects.fromObject(descriptor, Some(objectView)), "descriptor round trip failed")
+  require(sameObjectStorage(objectView, objects.toObject(descriptor, roundTrip)), "cast allocated a replacement Pod")
+  require(match objects.fromObject(core.podListObjectType(), Some(objectView)) {None => true Some(_) => false}, "descriptor accepted wrong concrete type")
+  require(match objects.fromObject(descriptor, None) {None => true Some(_) => false}, "descriptor lost absent object")
+  require(match objects.fromObject(descriptor, typedNilObject()) {None => true Some(_) => false}, "descriptor lost typed nil object")
+  let betaScale = objects.toObject(appsBeta.scaleObjectType(), appsBeta.newScale())
+  require(match objects.fromObject(autoscaling.scaleObjectType(), Some(betaScale)) {None => true Some(_) => false}, "descriptor conflated versioned Scale types")
+  kindView <- runtimeApi.objectCallGetObjectKind(objectView)
+  kindCapability <- expect(kindView.1, "object kind view missing")
+  let requestedKind = schema.groupVersionKindWithKind(schema.newGroupVersionKind(), "Changed")
+  changedKind <- schema.objectKindCallSetGroupVersionKind(kindCapability, requestedKind)
+  kindReadback <- schema.objectKindCallGroupVersionKind(changedKind.0)
+  require(schema.groupVersionKindGetKind(kindReadback.1) == "Changed", "kind mutation lost returned snapshot")
+  require(meta.typeMetaGetKind(core.podGetTypeMeta(pod)) == "", "kind interface mutated original Pod")
+  metadataCapability <- metadataView(objectView)
+  mutableMetadata <- expect(metadataCapability, "metadata interface view missing")
+  changedMetadata <- meta.objectCallSetName(mutableMetadata, "isolated-name")
+  metadataReadback <- meta.objectCallGetName(changedMetadata.0)
+  require(metadataReadback.1 == "isolated-name", "metadata mutation lost returned snapshot")
+  require(meta.objectMetaGetName(core.podGetObjectMeta(pod)) == "typed-pod", "metadata interface mutated original Pod")
   let absentLabels = meta.objectMetaGetLabels(originalMeta)
   require(support.mapIsNil(absentLabels), "zero labels must remain nil")
   let emptyLabels = support.mapEmpty(absentLabels)
@@ -144,6 +198,55 @@ func main() IO[Unit] {
   statusValue <- expect(statusObject.1, "Status DeepCopyObject returned nil")
   typedStatus <- expect(objects.objectAsStatus(statusValue), "typed Status projection failed")
   require(meta.statusGetCode(typedStatus) == 503, "typed Status code lost")
+  explicitKind <- customKind(schema.groupVersionKindWithKind(schema.newGroupVersionKind(), "original"))
+  explicitChange <- schema.objectKindCallSetGroupVersionKind(explicitKind, schema.groupVersionKindWithKind(schema.newGroupVersionKind(), "copied"))
+  explicitOld <- schema.objectKindCallGroupVersionKind(explicitKind)
+  explicitNew <- schema.objectKindCallGroupVersionKind(explicitChange.0)
+  require(schema.groupVersionKindGetKind(explicitOld.1) == "original", "custom copy adapter mutated old interface view")
+  require(schema.groupVersionKindGetKind(explicitNew.1) == "copied", "custom copy adapter lost new interface state")
+  copiedShallow <- objects.shallowCopy(core.podObjectType(), original)
+  require(!sameObjectStorage(objects.toObject(core.podObjectType(), original), objects.toObject(core.podObjectType(), copiedShallow)), "shallow copy retained outer object identity")
+  require(meta.objectMetaGetName(core.podGetObjectMeta(copiedShallow)) == meta.objectMetaGetName(core.podGetObjectMeta(original)), "shallow copy changed metadata")
+  let missingError = support.errorNotFound("apps", "deployments", "missing")
+  require(support.errorIsNotFound(missingError), "NotFound constructor lost status reason")
+  require(!support.errorIsAlreadyExists(missingError), "NotFound misclassified AlreadyExists")
+  require(support.errorIsAlreadyExists(support.errorWrap("wrapped", alreadyExists())), "AlreadyExists lost wrapped error reason")
+  constructedTime <- time.timeCallUnix(time.unix(12, 2000000000))
+  require(constructedTime.1 == 14, "Unix construction lost nanosecond normalization")
+  nilSelectorResult <- objects.labelSelectorAsSelector(None)
+  nilSelector <- expect(nilSelectorResult.0, "nil label selector lost Nothing")
+  nilMatches <- selectors.selectorCallMatchesIdentity(nilSelector, None)
+  require(!nilMatches, "nil label selector did not select Nothing")
+  let emptySelector = meta.newLabelSelector()
+  emptySelectorResult <- objects.labelSelectorAsSelector(Some(emptySelector))
+  emptyParsed <- expect(emptySelectorResult.0, "empty label selector lost Everything")
+  emptyMatches <- selectors.selectorCallMatchesIdentity(emptyParsed, None)
+  require(emptyMatches, "empty label selector did not select Everything")
+  let invalidRequirement = meta.labelSelectorRequirementWithOperator(meta.newLabelSelectorRequirement(), meta.labelSelectorOperatorFromValue("invalid"))
+  invalidSelectorResult <- objects.labelSelectorAsSelector(Some(meta.labelSelectorWithMatchExpressions(emptySelector, Some([invalidRequirement]))))
+  require(match invalidSelectorResult.0 {None => true Some(_) => false}, "invalid selector returned nonnil selector")
+  require(match invalidSelectorResult.1 {Some(_) => true None => false}, "invalid selector lost error")
+  require(support.mapIsNil(meta.labelSelectorGetMatchLabels(emptySelector)), "selector conversion mutated nil map")
+  require(support.errorIsNotRegistered(notRegistered()), "registration predicate lost original error type")
+  require(!support.errorIsNotRegistered(support.errorWrap("wrapped", notRegistered())), "registration predicate changed external wrapper semantics")
+  absentType <- objects.objectTypeName(None)
+  typedNilType <- objects.objectTypeName(typedNilObject())
+  require(absentType == "<nil>" && typedNilType == "*v1.Pod", "object type name collapsed nil and typed nil")
+  encodedInteger <- codec.encodeJSON(largeIntegerObject())
+  integerJSON <- expect(encodedInteger.0, "integer JSON output missing")
+  decodedInteger <- codec.decodeJSON(unstructured.unstructuredObjectType(), integerJSON)
+  integerValue <- expect(decodedInteger.0, "integer JSON object missing")
+  require(hasLargeInteger(unstructured.unstructuredToRuntimeObject(integerValue)), "JSON codec rounded int64 through float")
+  encodedCBOR <- codec.encodeCBOR(largeIntegerObject())
+  integerCBOR <- expect(encodedCBOR.0, "integer CBOR output missing")
+  exactCBOR <- cborHasLargeInteger(integerCBOR)
+  require(exactCBOR, "CBOR codec rounded int64 through float")
+  customEncoded <- codec.encodeJSON(customJSON())
+  require(match customEncoded.0 {Some(bytes) => bytes == "{\"custom\":9007199254740993}" None => false}, "JSON custom marshaler bypassed")
+  partialJSON <- codec.decodeJSON(core.podObjectType(), "{\"metadata\":{\"name\":\"partial\"},\"spec\":{\"terminationGracePeriodSeconds\":\"bad\"}}")
+  partialPod <- expect(partialJSON.0, "JSON error lost partial object")
+  require(meta.objectMetaGetName(core.podGetObjectMeta(partialPod)) == "partial", "JSON error lost decoded fields")
+  require(match partialJSON.1 {Some(_) => true None => false}, "JSON invalid int lost original error")
   println("dependency-proof: typed Pod/PodList/ListOptions; presence; int64/uint64; recursive schema; canonical identity; decode object+GVK+structured-error PASS")
  }
 }

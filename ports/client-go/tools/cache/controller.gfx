@@ -1,0 +1,58 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package cache
+import lists "std/list"
+import "std/io"
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+import "github.com/reoring/gofx/ports/client-go/support/outcome"
+import errors "github.com/reoring/gofx/ports/client-go/deps/support"
+
+type ResourceEventHandler[A] = ResourceEventHandler { onAdd: func(A,Bool) IO[Unit], onUpdate: func(A,A) IO[Unit], onDelete: func(Deleted[A]) IO[Unit] }
+alias TypedResourceEventHandler[A] = ResourceEventHandler[A]
+func resourceEventHandlerFuncs[A](add Option[func(A) IO[Unit]], update Option[func(A,A) IO[Unit]], delete Option[func(Deleted[A]) IO[Unit]]) ResourceEventHandler[A] { ResourceEventHandler(func(obj,_) => match add { None => ioPure(unit()); Some(f) => f(obj) },func(old,obj) => match update { None => ioPure(unit()); Some(f) => f(old,obj) },func(obj) => match delete { None => ioPure(unit()); Some(f) => f(obj) }) }
+func resourceEventHandlerDetailedFuncs[A](add Option[func(A,Bool) IO[Unit]], update Option[func(A,A) IO[Unit]], delete Option[func(Deleted[A]) IO[Unit]]) ResourceEventHandler[A] { ResourceEventHandler(func(obj,initial) => match add { None => ioPure(unit()); Some(f) => f(obj,initial) },func(old,obj) => match update { None => ioPure(unit()); Some(f) => f(old,obj) },func(obj) => match delete { None => ioPure(unit()); Some(f) => f(obj) }) }
+func filteringResourceEventHandler[A](accept func(Option[A]) IO[Bool], handler ResourceEventHandler[A]) ResourceEventHandler[A] { ResourceEventHandler(func(obj,initial) => do { accepted <- accept(Some(obj)); if accepted { handler.onAdd(obj,initial) } else { ioPure(unit()) } },func(old,obj) => do { older <- accept(Some(old)); newer <- accept(Some(obj)); if newer && older { handler.onUpdate(old,obj) } else { if newer { handler.onAdd(obj,false) } else { if older { handler.onDelete(DeletedObject(old)) } else { ioPure(unit()) } } } },func(deleted) => do { accepted <- accept(deletionObject(deleted)); if accepted { handler.onDelete(deleted) } else { ioPure(unit()) } }) }
+type Queue[A] = Queue { pop: func(PopProcessFunc[A]) IO[outcome.Outcome[Option[A]]], close: func() IO[Unit], hasSynced: func() IO[Bool], done: sync.Channel[Unit] }
+func deltaQueue[A](fifo DeltaFIFO[A]) Queue[Deltas[A]] { Queue(func(process) => queuePop(fifo.queue,process),func() => queueClose(fifo.queue),func() => queueHasSynced(fifo.queue),fifo.queue.done) }
+func fifoQueue[A](fifo FIFO[A]) Queue[A] { Queue(func(process) => queuePop(fifo.queue,process),func() => queueClose(fifo.queue),func() => queueHasSynced(fifo.queue),fifo.queue.done) }
+type Controller[A,B] = Controller { queue: Queue[B], reflector: Reflector[A], process: PopProcessFunc[B], afterProcess: func() IO[Unit], batchStep: Option[func() IO[outcome.Outcome[Unit]]] }
+func newController[A,B](queue Queue[B], reflector Reflector[A], process PopProcessFunc[B], afterProcess func() IO[Unit]) Controller[A,B] { Controller(queue,reflector,process,afterProcess,None) }
+func newRealBatchController[A](fifo RealFIFO[A], reflector Reflector[A], single func(RealEvent[A],Bool) IO[ProcessResult], batch func(List[RealEvent[A]],Bool) IO[ProcessResult], afterProcess func() IO[Unit]) Controller[A,RealEvent[A]] {
+ let queue = Queue(func(process) => realPop(fifo,process),func() => queueClose(fifo.queue),func() => queueHasSynced(fifo.queue),fifo.queue.done)
+ let controller = newController(queue,reflector,single,afterProcess)
+ controller { batchStep: Some(func() => do { result <- realPopBatch(fifo,batch,single,fifo.batchSize); ioPure(outcome.from(unit(),result.error)) }) }
+}
+func controllerRun[A,B](controller Controller[A,B]) IO[Unit] {
+ do { context <- sync.captureContext(); sync.uninterruptible(do {
+  result <- io.tryIO(sync.withContext(context,sync.bracket(sync.start(reflectorRun(controller.reflector)),func(_) => controllerProcessLoop(controller),func(task) => do { controller.queue.close(); cancelAndJoin(task) })))
+  match result { Ok(_) => ioPure(unit()); Err(io.Cancelled) => ioPure(unit()); Err(io.Timeout) => ioPure(unit()); Err(error) => ioFail(show(error)) }
+ }) }
+}
+func controllerProcessLoop[A,B](controller Controller[A,B]) IO[Unit] { do { result <- match controller.batchStep { Some(step) => step(); None => do { popped <- controller.queue.pop(controller.process); ioPure(outcome.from(unit(),popped.error)) } }; controller.afterProcess(); match result.error { Some(e) => if errors.errorMessage(e) == "DeltaFIFO: manipulating with closed queue" { ioPure(unit()) } else { do { controller.reflector.options.onError(controller.reflector,e); controllerProcessLoop(controller) } }; None => controllerProcessLoop(controller) } } }
+func controllerHasSynced[A,B](controller Controller[A,B]) IO[Bool] { controller.queue.hasSynced() }
+func controllerLastSyncResourceVersion[A,B](controller Controller[A,B]) IO[String] { reflectorResourceVersion(controller.reflector) }
+func processDeltas[A](handler ResourceEventHandler[A], store Store[A], deltas Deltas[A], initial Bool, access ObjectAccess[A]) IO[ProcessResult] {
+ match deltas { Nil => ioPure(processSuccess()); Cons(delta,rest) => do {
+  result <- match delta.deltaType {
+   Added => processUpsert(handler,store,delta.object,initial,access)
+   Updated => processUpsert(handler,store,delta.object,initial,access)
+   Replaced => processUpsert(handler,store,delta.object,initial,access)
+   Sync => processUpsert(handler,store,delta.object,initial,access)
+   Deleted => processDelete(handler,store,delta.object,access)
+  }
+  match result.error { Some(e) => ioPure(ProcessResult(Some(e),false)); None => processDeltas(handler,store,rest,initial,access) }
+ } }
+}
+func processUpsert[A](handler ResourceEventHandler[A], store Store[A], deleted Deleted[A], initial Bool, access ObjectAccess[A]) IO[outcome.Outcome[Unit]] { match deletionObject(deleted) { None => ioPure(outcome.failure(unit(),cacheError("upsert delta has no object"))); Some(obj) => do { old <- store.get(obj); match old.error { Some(e) => ioPure(outcome.failure(unit(),e)); None => match old.value { Some(previous) => do { changed <- store.update(obj); if outcome.isSuccess(changed) { handler.onUpdate(previous,obj) } else { ioPure(unit()) }; ioPure(changed) }; None => do { changed <- store.add(obj); if outcome.isSuccess(changed) { handler.onAdd(obj,initial) } else { ioPure(unit()) }; ioPure(changed) } } } } } }
+func processDelete[A](handler ResourceEventHandler[A], store Store[A], deleted Deleted[A], access ObjectAccess[A]) IO[outcome.Outcome[Unit]] {
+ match deleted {
+  DeletedObject(obj) => do { result <- store.delete(obj); if outcome.isSuccess(result) { handler.onDelete(deleted) } else { ioPure(unit()) }; ioPure(result) }
+  DeletedFinalStateUnknown(key,_) => do {
+   result <- store.deleteByKey(key)
+   if outcome.isSuccess(result) { handler.onDelete(deleted) } else { ioPure(unit()) }
+   ioPure(result)
+  }
+ }
+}
+type DoneChecker = DoneChecker { name: String, done: sync.Channel[Unit] }
+func waitForCacheSync(clock sync.Clock, checks List[func() IO[Bool]]) IO[Bool] { do { context <- sync.captureContext(); sync.uninterruptible(do { result <- io.tryIO(sync.withContext(context,waitForCacheSyncLoop(clock,checks))); ioPure(match result { Ok(value) => value; Err(_) => false }) }) } }
+func waitForCacheSyncLoop(clock sync.Clock, checks List[func() IO[Bool]]) IO[Bool] { do { states <- lists.mapM(checks,func(check) => check()); if lists.all(states,func(value) => value) { ioPure(true) } else { do { sleepClock(clock,100000000); waitForCacheSyncLoop(clock,checks) } } } }

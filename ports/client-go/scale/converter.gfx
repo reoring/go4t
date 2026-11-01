@@ -1,0 +1,58 @@
+package scale
+
+import internal "scale/scheme"
+import autoscaling "scale/scheme/autoscalingv1"
+import extensions "scale/scheme/extensionsv1beta1"
+import apps1 "scale/scheme/appsv1beta1"
+import apps2 "scale/scheme/appsv1beta2"
+import appsint "scale/scheme/appsint"
+import extensionsint "scale/scheme/extensionsint"
+import runtime "deps/k8s.io/apimachinery/pkg/runtime"
+import serializer "deps/k8s.io/apimachinery/pkg/runtime/serializer"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import a "deps/k8s.io/api/autoscaling/v1"
+import e "deps/k8s.io/api/extensions/v1beta1"
+import a1 "deps/k8s.io/api/apps/v1beta1"
+import a2 "deps/k8s.io/api/apps/v1beta2"
+import dynamic "dynamic"
+import codec "deps/codec"
+import errors "deps/support"
+import outcome "support/outcome"
+
+// Copyright 2017 The Kubernetes Authors. Licensed under Apache-2.0.
+type ScaleConverter = ScaleConverter { scheme: internal.Scheme, codecs: serializer.CodecFactory, decoder: runtime.Decoder, negotiatedSerializer: runtime.NegotiatedSerializer }
+func scaleVersions() List[schema.GroupVersion] { [autoscaling.schemeGroupVersion(),internal.schemeGroupVersion(),extensions.schemeGroupVersion(),extensionsint.schemeGroupVersion(),appsint.schemeGroupVersion(),apps1.schemeGroupVersion(),apps2.schemeGroupVersion()] }
+func newScaleConverter() IO[ScaleConverter] {
+ do {
+  let native = apps2.addToScheme(apps1.addToScheme(appsint.addToScheme(extensionsint.addToScheme(extensions.addToScheme(internal.addToScheme(autoscaling.addToScheme(internal.emptyScheme())))))))
+  external <- dynamic.newMetaScheme()
+  _ <- runtime.schemeCallAddKnownTypeWithNameIdentity(external,scaleKind("autoscaling","v1"),Some(a.scaleToRuntimeObject(a.newScale())))
+  _ <- runtime.schemeCallAddKnownTypeWithNameIdentity(external,scaleKind("extensions","v1beta1"),Some(e.scaleToRuntimeObject(e.newScale())))
+  _ <- runtime.schemeCallAddKnownTypeWithNameIdentity(external,scaleKind("apps","v1beta1"),Some(a1.scaleToRuntimeObject(a1.newScale())))
+  _ <- runtime.schemeCallAddKnownTypeWithNameIdentity(external,scaleKind("apps","v1beta2"),Some(a2.scaleToRuntimeObject(a2.newScale())))
+  factory <- serializer.callNewCodecFactory(Some(external),[])
+  decoder <- serializer.codecFactoryCallUniversalDeserializerIdentity(factory.1)
+  negotiated <- serializer.codecFactoryCallWithoutConversionIdentity(factory.1)
+  match (decoder,negotiated) {
+   (Some(decoder),Some(negotiated)) => ioPure(ScaleConverter(native,factory.1,decoder,negotiated))
+   _ => ioFail("apimachinery codec factory returned no serializer")
+  }
+ }
+}
+func scaleKind(group String,version String) schema.GroupVersionKind { schema.groupVersionKindWithKind(schema.groupVersionKindWithVersion(schema.groupVersionKindWithGroup(schema.newGroupVersionKind(),group),version),"Scale") }
+func convertToVersion(converter ScaleConverter,value internal.ScaleValue,version schema.GroupVersion) IO[outcome.Outcome[internal.ScaleValue]] { internal.convertToVersion(converter.scheme,value,version) }
+func decodeScale(converter ScaleConverter,bytes String) IO[outcome.Outcome[Option[a.Scale]]] {
+ do {
+  decoded <- codec.decode(converter.decoder,bytes,None,None)
+  match decoded.error { Some(e) => ioPure(outcome.failure(None,e)); None => match decoded.object {
+   None => ioPure(outcome.failure(None,errors.errorNew("scale decoder returned no object")))
+   Some(object) => do {
+    converted <- convertToVersion(converter,internal.ExternalScale(object),autoscaling.schemeGroupVersion())
+    ioPure(match converted.error {
+     Some(e) => outcome.failure(None,errors.errorWrap("received an object from a /scale endpoint which was not convertible to autoscaling Scale",e))
+     None => match converted.value { internal.ExternalScale(value) => outcome.success(a.scaleFromRuntimeObject(value)); internal.InternalScale(_) => outcome.failure(None,errors.errorNew("scale conversion returned internal version")) }
+    })
+   }
+  } }
+ }
+}

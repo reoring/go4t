@@ -1,0 +1,260 @@
+package rest
+
+import http "deps/net/http"
+import url "deps/net/url"
+import reader "deps/io"
+import runtime "deps/k8s.io/apimachinery/pkg/runtime"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import errors "deps/support"
+import codec "deps/codec"
+import outcome "support/outcome"
+import sync "support/sync"
+import m "std/map"
+import s "std/string"
+
+// Copyright 2014 The Kubernetes Authors. Licensed under Apache-2.0.
+type ResponseResult = ResponseResult { body: String, warnings: List[Warning], contentType: String, error: Option[errors.Error], statusCode: Int, decoder: Option[runtime.Decoder] }
+type Stream = Stream { reader: Option[reader.Reader], close: func() IO[Unit] }
+type RetryAfter = RetryAfter { wait: Int, attempt: Int, reason: String }
+extern func makeHTTPRequest(verb String,location url.URL,body Option[String],reader Option[reader.Reader],headers List[(String,List[String])]) IO[(Option[http.Request],Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/rest/host".NewRequest
+extern func responseInfo(response http.Response) IO[(Int,(String,String))] = "github.com/reoring/gofx/ports/client-go/rest/host".ResponseInfo
+extern func responseBody(response http.Response) IO[Option[reader.Reader]] = "github.com/reoring/gofx/ports/client-go/rest/host".ResponseBody
+extern func readResponseBody(response http.Response) IO[(String,Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/rest/host".ReadBody
+extern func closeResponse(response http.Response) IO[Unit] = "github.com/reoring/gofx/ports/client-go/rest/host".CloseResponse
+extern func drainResponse(response http.Response) IO[Unit] = "github.com/reoring/gofx/ports/client-go/rest/host".DrainResponse
+extern func warningHeaders(response http.Response) IO[List[(Int,(String,String))]] = "github.com/reoring/gofx/ports/client-go/rest/host".WarningHeaders
+extern func parseMediaType(value String) (String,Option[errors.Error]) = "github.com/reoring/gofx/ports/client-go/rest/host".MediaType
+extern func parseInteger(value String) Option[Int] = "github.com/reoring/gofx/ports/client-go/rest/host".ParseInt
+extern func connectionReset(error errors.Error) Bool = "github.com/reoring/gofx/ports/client-go/rest/host".ConnectionReset
+extern func probableEOF(error errors.Error) Bool = "github.com/reoring/gofx/ports/client-go/rest/host".ProbableEOF
+extern func http2ConnectionLost(error errors.Error) Bool = "github.com/reoring/gofx/ports/client-go/rest/host".HTTP2ConnectionLost
+extern func networkTimeout(error errors.Error) Bool = "github.com/reoring/gofx/ports/client-go/rest/host".NetworkTimeout
+func retryableConnection(error errors.Error) Bool { connectionReset(error) || probableEOF(error) || http2ConnectionLost(error) }
+extern func genericResponseError(status Int,method String,group String,resource String,name String,message String,retry Int) errors.Error = "github.com/reoring/gofx/ports/client-go/rest/host".GenericResponseError
+extern func statusError(value runtime.Object) IO[(String,Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/rest/host".StatusError
+extern func isUnexpected(error errors.Error) Bool = "github.com/reoring/gofx/ports/client-go/rest/host".IsUnexpected
+extern func prefixBytes(value String,size Int) String = "github.com/reoring/gofx/ports/client-go/rest/host".PrefixBytes
+extern func trim(value String) String = "github.com/reoring/gofx/ports/client-go/rest/host".Trim
+extern func internalError(error errors.Error) errors.Error = "github.com/reoring/gofx/ports/client-go/rest/host".InternalError
+extern func http2StreamError(error errors.Error) Bool = "github.com/reoring/gofx/ports/client-go/rest/host".HTTP2StreamError
+extern func withDeadline[A](nanos Int,action IO[A]) IO[A] = "github.com/reoring/gofx/ports/client-go/rest/host".WithDeadline
+func emptyResponseResult(error Option[errors.Error]) ResponseResult { ResponseResult("",[],"",error,0,None) }
+func tryThrottle(request Request) IO[Option[errors.Error]] {
+ match request.rateLimiter { None => ioPure(None); Some(limiter) => do { measuredThrottle(request,limiter.wait()); ioPure(None) } }
+}
+func newHTTPRequest(request Request) IO[(Option[http.Request],Option[errors.Error])] {
+ do {
+  location <- requestURL(request)
+  let raw = match request.body { Bytes(bytes) => Some(bytes); _ => None }
+  let body = match request.body { Reader(reader) => Some(reader); _ => None }
+  made <- makeHTTPRequest(request.verb,location,raw,body,m.mapToList(request.headers))
+  match made.0 { None => ioPure(made); Some(httpRequest) => do { traced <- traceRequest(request,httpRequest); ioPure((Some(traced),made.1)) } }
+ }
+}
+func retryAfterSeconds(value String) Option[Int] { if value == "" { None } else { parseInteger(value) } }
+func execute(request Request) IO[outcome.Outcome[Option[http.Response]]] {
+ match requestPreflightCheck(request) {
+  Some(e) => ioPure(outcome.failure(None,e))
+  None => do {
+   throttled <- tryThrottle(request)
+   match throttled { Some(e) => ioPure(outcome.failure(None,e)); None => executeAttempts(request) }
+  }
+ }
+}
+func unstructuredError(request Request,code Int,contentType String,body String,retryAfter String) errors.Error {
+ let parsed = parseMediaType(contentType)
+ let textual = contentType == "" || (match parsed.1 { Some(_) => false; None => s.startsWith(parsed.0,"text/") })
+ genericResponseError(code,request.verb,schema.groupVersionGetGroup(request.contentConfig.groupVersion),request.resource,request.resourceName,if textual { trim(prefixBytes(body,2048)) } else { "unknown" },match retryAfterSeconds(retryAfter) { None => 0; Some(n) => n })
+}
+func transformResponse(request Request,response http.Response) IO[ResponseResult] {
+ do {
+  raw <- readResponseBody(response)
+  match raw.1 {
+   Some(e) => {
+    let prefix = if http2StreamError(e) { "stream error when reading response body, may be caused by closed connection. Please retry. Original error" } else { "unexpected error when reading response body. Please retry. Original error" }
+    ioPure(emptyResponseResult(Some(errors.errorWrap(prefix,e))))
+   }
+   None => do {
+    info <- responseInfo(response)
+    let media = if info.1.0 == "" { request.contentConfig.contentType } else { info.1.0 }
+    let parsed = parseMediaType(media)
+    match parsed.1 {
+     Some(e) => ioPure(emptyResponseResult(Some(internalError(e))))
+     None => do {
+      negotiated <- request.contentConfig.negotiator.decoder(parsed.0)
+      let failed = info.0 != 101 && (info.0<200 || info.0>206)
+      let error = if failed { Some(unstructuredError(request,info.0,info.1.0,raw.0,info.1.1)) } else { None }
+      if failed && (match negotiated.error { None => false; Some(_) => true }) {
+       ioPure(emptyResponseResult(error))
+      } else { do {
+       rawWarnings <- warningHeaders(response)
+       let warnings = map(rawWarnings,func(value) => Warning(value.0,value.1.0,value.1.1))
+       handleWarnings(request.warningHandler,warnings)
+       ioPure(ResponseResult(raw.0,warnings,media,error,info.0,negotiated.value))
+      } }
+     }
+    }
+   }
+  }
+ }
+}
+func _closeOptionalResponse(result outcome.Outcome[Option[http.Response]]) IO[Unit] {
+ match result.value { None => ioPure(unit()); Some(response) => closeResponse(response) }
+}
+func _doRequest(request Request) IO[ResponseResult] {
+ sync.bracket(executeAttempts(request),func(result) => {
+  match result.error {
+   Some(error) => ioPure(emptyResponseResult(Some(error)))
+   None => match result.value { None => ioPure(emptyResponseResult(None)); Some(response) => transformResponse(request,response) }
+  }
+ },_closeOptionalResponse)
+}
+func _doRaw(request Request) IO[outcome.Outcome[String]] {
+ sync.bracket(executeAttempts(request),func(result) => {
+  match result.error {
+   Some(error) => ioPure(outcome.failure("",error))
+   None => match result.value {
+    None => ioPure(outcome.success(""))
+    Some(response) => do {
+     raw <- readResponseBody(response)
+     info <- responseInfo(response)
+     ioPure(outcome.from(raw.0,if info.0<200 || info.0>206 { Some(unstructuredError(request,info.0,info.1.0,raw.0,info.1.1)) } else { raw.1 }))
+    }
+   }
+  }
+ },_closeOptionalResponse)
+}
+func stream(request Request) IO[outcome.Outcome[Option[Stream]]] {
+ match request.error {
+  Some(error) => ioPure(outcome.failure(None,error))
+  None => do {
+   throttled <- tryThrottle(request)
+   match throttled {
+    Some(error) => ioPure(outcome.failure(None,error))
+    None => do {
+     result <- executeAttempts(request{retryableError: func(_,_) => false,measureRequestSize: false})
+     match result.error {
+      Some(error) => do { _closeOptionalResponse(result); ioPure(outcome.failure(None,error)) }
+      None => match result.value {
+       None => ioPure(outcome.success(None))
+       Some(response) => do {
+        info <- responseInfo(response)
+        if info.0>=200 && info.0<=299 { do {
+         warnings <- warningHeaders(response)
+         handleWarnings(request.warningHandler,map(warnings,func(value) => Warning(value.0,value.1.0,value.1.1)))
+         body <- responseBody(response)
+         ioPure(outcome.success(Some(Stream(body,func() => closeResponse(response)))))
+        } } else {
+         sync.ensuring(do {
+          transformed <- transformResponse(request,response)
+          error <- resultError(transformed)
+          location <- requestURL(request)
+          text <- urlString(location)
+          ioPure(outcome.failure(None,match error { Some(error) => error; None => errors.errorNew(show(info.0)+" while accessing "+text+": "+transformed.body) }))
+         },closeResponse(response))
+        }
+       }
+      }
+     }
+    }
+   }
+  }
+ }
+}
+func resultRaw(result ResponseResult) outcome.Outcome[String] { outcome.from(result.body,result.error) }
+func resultStatusCode(result ResponseResult) Int { result.statusCode }
+func resultContentType(result ResponseResult) String { result.contentType }
+func resultWasCreated(result ResponseResult) Bool { result.statusCode == 201 }
+func resultWarnings(result ResponseResult) List[Warning] { result.warnings }
+func resultError(result ResponseResult) IO[Option[errors.Error]] {
+ match result.error {
+  None => ioPure(None)
+  Some(original) => if !isUnexpected(original) || result.body == "" { ioPure(Some(original)) } else { match result.decoder {
+   None => ioPure(Some(original))
+   Some(decoder) => do {
+    let defaults = schema.groupVersionKindWithVersion(schema.newGroupVersionKind(),"v1")
+    decoded <- codec.decode(decoder,result.body,Some(defaults),None)
+    match decoded.error {
+     Some(_) => ioPure(Some(original))
+     None => match decoded.object { None => ioPure(Some(original)); Some(object) => do { status <- statusError(object); ioPure(if status.0 == "Failure" { status.1 } else { Some(original) }) } }
+    }
+   }
+  } }
+ }
+}
+func resultGet(result ResponseResult) IO[outcome.Outcome[Option[runtime.Object]]] {
+ do {
+  error <- resultError(result)
+  match error {
+   Some(e) => ioPure(outcome.failure(None,e))
+   None => match result.decoder {
+    None => ioPure(outcome.failure(None,errors.errorNew("serializer for " + result.contentType + " doesn't exist")))
+    Some(decoder) => do {
+     decoded <- codec.decode(decoder,result.body,None,None)
+     match decoded.error {
+      Some(e) => ioPure(outcome.failure(None,e))
+      None => match decoded.object {
+       None => ioPure(outcome.success(None))
+       Some(object) => do { status <- statusError(object); ioPure(if status.0 != "" && status.0 != "Success" { outcome.from(None,status.1) } else { outcome.success(Some(object)) }) }
+      }
+     }
+    }
+   }
+  }
+ }
+}
+extern func decodeIntoValues(decoder runtime.Decoder,data String,destination runtime.Object) IO[(runtime.Object,(Option[runtime.Object],(Bool,Option[errors.Error])))] = "github.com/reoring/gofx/ports/client-go/rest/host".DecodeInto
+func resultInto(result ResponseResult,object runtime.Object) IO[outcome.Outcome[runtime.Object]] {
+ do {
+  error <- resultError(result)
+  match error {
+   Some(e) => ioPure(outcome.failure(object,e))
+   None => match result.decoder {
+    None => ioPure(outcome.failure(object,errors.errorNew("serializer for " + result.contentType + " doesn't exist")))
+    Some(decoder) => if result.body == "" { ioPure(outcome.failure(object,errors.errorNew("0-length response with status code: " + show(result.statusCode) + " and content type: " + result.contentType))) }
+    else { do {
+     decoded <- decodeIntoValues(decoder,result.body,object)
+     let destination = decoded.0
+     match decoded.1.1.1 {
+      Some(e) => ioPure(outcome.failure(destination,e))
+      None => if decoded.1.1.0 { ioPure(outcome.success(destination)) } else {
+       match decoded.1.0 {
+        None => ioPure(outcome.success(destination))
+        Some(returned) => do {
+         status <- statusError(returned)
+         ioPure(if status.0 != "" && status.0 != "Success" { outcome.from(destination,status.1) } else { outcome.success(destination) })
+        }
+       }
+      }
+     }
+    } }
+   }
+  }
+ }
+}
+func _afterInitialThrottle[A](request Request,failed func(Option[errors.Error]) A,action IO[A]) IO[A] {
+ match requestPreflightCheck(request) {
+  Some(error) => ioPure(failed(Some(error)))
+  None => do {
+   error <- tryThrottle(request)
+   match error {
+    Some(error) => ioPure(failed(Some(error)))
+    None => if request.timeout>0 { withDeadline(request.timeout,action) } else { action }
+   }
+  }
+ }
+}
+func doRequest(request Request) IO[ResponseResult] {
+ do {
+  result <- withRequestLatency(request,_afterInitialThrottle(request,emptyResponseResult,_doRequest(request)))
+  observeResponseSize(request,result.body,result.error)
+  ioPure(result)
+ }
+}
+func doRaw(request Request) IO[outcome.Outcome[String]] {
+ do {
+  result <- withRequestLatency(request,_afterInitialThrottle(request,func(error) => outcome.from("",error),_doRaw(request)))
+  observeResponseSize(request,result.value,result.error)
+  ioPure(result)
+ }
+}

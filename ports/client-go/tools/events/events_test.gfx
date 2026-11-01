@@ -1,0 +1,74 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+// Deterministic traces from eventseries_test.go and event_broadcaster_test.go.
+package events
+import "std/list"
+import "std/map"
+import api "github.com/reoring/gofx/ports/client-go/deps/k8s.io/api/events/v1"
+import core "github.com/reoring/gofx/ports/client-go/deps/k8s.io/api/core/v1"
+import meta "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import schema "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime/schema"
+import "github.com/reoring/gofx/ports/client-go/deps/objects"
+import "github.com/reoring/gofx/ports/client-go/deps/support"
+import "github.com/reoring/gofx/ports/client-go/deps/codec"
+import "github.com/reoring/gofx/ports/client-go/support/outcome"
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+import internal "github.com/reoring/gofx/ports/client-go/tools/internal/events"
+import rest "github.com/reoring/gofx/ports/client-go/rest"
+func _sample() api.Event {
+ let metadata = meta.objectMetaWithNamespace(meta.objectMetaWithName(meta.newObjectMeta(),"event"),"ns")
+ let regarding = core.objectReferenceWithName(core.newObjectReference(),"pod")
+ api.eventWithNote(api.eventWithReason(api.eventWithType(api.eventWithRegarding(api.eventWithObjectMeta(api.newEvent(),metadata),regarding),"Normal"),"Reason"),"note")
+}
+func _series(event api.Event, count Int, nanos Int) api.Event { api.eventWithSeries(event,Some(api.eventSeriesWithLastObservedTime(api.eventSeriesWithCount(api.newEventSeries(),count),internal.microTimestamp(nanos)))) }
+func _status(reason String, code Int) IO[support.Error] {
+ objects.errorFromObject(objects.statusToObject(meta.statusWithCode(meta.statusWithReason(meta.newStatus(),meta.statusReasonFromValue(reason)),code)))
+}
+func testPatchNotFoundCreateAndConflictTrace() IO[Bool] { do {
+ calls <- sync.newRef([])
+ let missing = codec.newNotFound(schema.groupResourceWithResource(schema.newGroupResource(),"events"),"event")
+ conflict <- _status("AlreadyExists",409)
+ let sink = EventSink(
+  func(event) => do { previous <- sync.readRef(calls); sync.writeRef(calls,list.append(previous,["create:"+meta.objectMetaGetResourceVersion(api.eventGetObjectMeta(event))])); ioPure(outcome.Outcome(None,Some(conflict))) },
+  func(event) => ioPure(outcome.Outcome(Some(event),None)),
+  func(event,patch) => do { previous <- sync.readRef(calls); sync.writeRef(calls,list.append(previous,["patch"])); ioPure(outcome.Outcome(None,Some(missing))) }
+ )
+ result <- recordEvent(sink,_series(_sample(),2,1000)); trace <- sync.readRef(calls)
+ singleton <- recordEvent(sink,_sample())
+ ioPure(result.1 && !singleton.1 && trace==["patch","create:"])
+} }
+func testConstructionFailureNeverRetriesTrace() IO[Bool] { do {
+ let error = rest.requestConstructionError(Some(support.errorNew("bad request")))
+ let sink = EventSink(func(e) => ioPure(outcome.Outcome(None,Some(error))),func(e) => ioPure(outcome.Outcome(None,Some(error))),func(e,p) => ioPure(outcome.Outcome(None,Some(error))))
+ result <- recordEvent(sink,_sample()); ioPure(!result.1)
+} }
+func testSeriesCountHeartbeatAndFinishTrace() IO[Bool] { do {
+ clock <- sync.fakeClock(1000000000000); writes <- sync.newChannel(10)
+ let write = func(event) => do { sync.send(writes,event); ioPure(outcome.Outcome(Some(event),None)) }
+ let sink = EventSink(write,write,func(event,patch) => write(event))
+ b <- newBroadcasterWithClock(sink,clock,0,internal.defaultLogger)
+ recordToSink(b,_sample()); first <- sync.receive(writes)
+ sync.advance(clock,1000); recordToSink(b,_sample()); second <- sync.receive(writes)
+ sync.advance(clock,1000); recordToSink(b,_sample())
+ refreshExistingEventSeries(b); heartbeat <- sync.receive(writes)
+ sync.advance(clock,360000000001); finishSeries(b); final <- sync.receive(writes)
+ remaining <- sync.readRef(b.cache); shutdown(b)
+ ioPure(map.mapSize(remaining)==0 && (match (first,second,heartbeat,final) {
+  (Some(a),Some(b),Some(c),Some(d)) => (match api.eventGetSeries(a) { None => true; Some(_) => false }) && (match (api.eventGetSeries(b),api.eventGetSeries(c),api.eventGetSeries(d)) { (Some(b),Some(c),Some(d)) => api.eventSeriesGetCount(b)==2 && api.eventSeriesGetCount(c)==3 && api.eventSeriesGetCount(d)==3 && internal.microTimestampNanos(api.eventSeriesGetLastObservedTime(c))==1000000002000; _ => false })
+  _ => false
+ }))
+} }
+func testNamespaceValidationTrace() IO[Bool] { do {
+ calls <- sync.newRef(0)
+ let write = func(event) => do { sync.writeRef(calls,1); ioPure(outcome.Outcome(Some(event),None)) }
+ let sink = eventSinkImpl(func(namespace) => EventSink(write,write,func(event,patch) => write(event)))
+ let event = api.newEvent()
+ result <- sink.create(event); count <- sync.readRef(calls)
+ ioPure(count==0 && (match result.error { None => false; Some(error) => support.errorMessage(error)=="can't create an event with empty namespace" }))
+} }
+func testReferenceIdentityInSeriesKeyTrace() IO[Bool] {
+ let event = _sample()
+ let a = getKey(event)
+ let b = getKey(api.eventWithNote(event,"different note"))
+ let c = getKey(api.eventWithRegarding(event,core.objectReferenceWithFieldPath(api.eventGetRegarding(event),"spec.containers[0]")))
+ ioPure(a==b && a!=c)
+}

@@ -1,0 +1,118 @@
+// Copyright 2017 The Kubernetes Authors. Licensed under Apache-2.0.
+// Source: client-go v0.37.2 util/certificate/certificate_store.go.
+package certificate
+import cert "github.com/reoring/gofx/ports/client-go/util/cert"
+import tls "github.com/reoring/gofx/ports/client-go/deps/crypto/tls"
+import support "github.com/reoring/gofx/ports/client-go/deps/support"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+extern func noCertKeyError(message String) support.Error = "github.com/reoring/gofx/ports/client-go/util/cert/host".NoKeyError
+extern func isNoCertKeyError(error support.Error) Bool = "github.com/reoring/gofx/ports/client-go/util/cert/host".IsNoKeyError
+extern func _firstPEM(bytes String) Option[String] = "github.com/reoring/gofx/ports/client-go/util/cert/host".FirstPEM
+type Store = Store {current: func() IO[outcome.Outcome[Option[tls.Certificate]]], update: func(String, String) IO[outcome.Outcome[Option[tls.Certificate]]]}
+type FileStore = FileStore {store: Store, currentPath: String}
+type _Paths = _Paths {prefix: String, certDirectory: String, keyDirectory: String, certFile: String, keyFile: String}
+func _path(paths _Paths, suffix String) String { cert.joinPath(paths.certDirectory, paths.prefix + "-" + suffix + ".pem") }
+func _exists(path String) IO[outcome.Outcome[Bool]] { do { status <- cert.stat(path, true); ioPure(outcome.from(status.0 != 0, status.1)) } }
+func _recover(paths _Paths) IO[Option[support.Error]] { do {
+ current <- _exists(_path(paths, "current"))
+ match current.error { Some(error) => ioPure(Some(error)); None => if current.value { ioPure(None) } else { do {
+  updated <- cert.stat(_path(paths, "updated"), false)
+  match updated.1 { Some(error) => ioPure(Some(error)); None => if updated.0 == 0 { ioPure(None) } else { if updated.0 != 2 { ioPure(Some(cert.newError("expected " + cert.quote(_path(paths, "updated")) + " to be a symlink but it is a file"))) } else { _rename(_path(paths, "updated"), _path(paths, "current")) } } }
+ } } }
+} }
+func _load(certPath String, keyPath String) IO[outcome.Outcome[Option[tls.Certificate]]] { do {
+ c <- cert.readFile(certPath)
+ match c.1 { Some(error) => ioPure(outcome.failure(None, error)); None => do {
+  k <- cert.readFile(keyPath)
+  match k.1 { Some(error) => ioPure(outcome.failure(None, error)); None => do { pair <- cert.keyPair(c.0, k.0); ioPure(outcome.from(pair.0, pair.1)) } }
+ } }
+} }
+func _loadCombined(path String) IO[outcome.Outcome[Option[tls.Certificate]]] { do {
+ result <- _load(path, path)
+ ioPure(match result.error { None => result; Some(error) => outcome.failure(None, cert.newError("could not convert data from " + cert.quote(path) + " into cert/key pair: " + cert.errorText(error))) })
+} }
+func _current(paths _Paths) IO[outcome.Outcome[Option[tls.Certificate]]] { do {
+ pair <- _exists(_path(paths, "current"))
+ match pair.error { Some(error) => ioPure(outcome.failure(None, error)); None => if pair.value { _loadCombined(_path(paths, "current")) } else { _fallback(paths, paths.certFile, paths.keyFile, true) } }
+} }
+func _fallback(paths _Paths, c String, k String, explicit Bool) IO[outcome.Outcome[Option[tls.Certificate]]] { do {
+ ce <- _exists(c); ke <- _exists(k)
+ match (ce.error, ke.error) { (Some(error), _) => ioPure(outcome.failure(None, error)); (_, Some(error)) => ioPure(outcome.failure(None, error)); _ => if ce.value && ke.value { _load(c, k) } else { if explicit { _fallback(paths, cert.joinPath(paths.certDirectory, paths.prefix + ".crt"), cert.joinPath(paths.keyDirectory, paths.prefix + ".key"), false) } else {
+  ioPure(outcome.failure(None, noCertKeyError("no cert/key files read at " + cert.quote(_path(paths, "current")) + ", (" + cert.quote(paths.certFile) + ", " + cert.quote(paths.keyFile) + ") or (" + cert.quote(paths.certDirectory) + ", " + cert.quote(paths.keyDirectory) + ")")))
+ } } }
+} }
+func _checkLink(path String) IO[outcome.Outcome[Bool]] { do {
+ status <- cert.stat(path, false)
+ ioPure(match status.1 { Some(error) => outcome.failure(false, error); None => if status.0 == 1 { outcome.failure(false, cert.newError("expected " + cert.quote(path) + " to be a symlink but it is a file")) } else { outcome.success(status.0 == 2) } })
+} }
+func _updateSymlink(paths _Paths, filename String) IO[Option[support.Error]] { do {
+ current <- _checkLink(_path(paths, "current")); updated <- _checkLink(_path(paths, "updated"))
+ match (current.error, updated.error) { (Some(error), _) => ioPure(Some(error)); (_, Some(error)) => ioPure(Some(error)); _ => do {
+  removed <- if updated.value { _remove(_path(paths, "updated")) } else { ioPure(None) }
+  match removed { Some(error) => ioPure(Some(error)); None => do {
+   exists <- _exists(filename)
+   match exists.error { Some(error) => ioPure(Some(error)); None => if !exists.value { ioPure(Some(cert.newError("file " + cert.quote(filename) + " does not exist so it can not be used as the currently selected cert/key"))) } else { do {
+    absolute <- cert.absolute(filename)
+    match absolute.1 { Some(error) => ioPure(Some(error)); None => do {
+     linked <- _symlink(absolute.0, _path(paths, "updated"))
+     match linked { Some(error) => ioPure(Some(error)); None => do {
+      removed <- if current.value { _remove(_path(paths, "current")) } else { ioPure(None) }
+      match removed { Some(error) => ioPure(Some(error)); None => _rename(_path(paths, "updated"), _path(paths, "current")) }
+     } }
+    } }
+   } } }
+  } }
+ } }
+} }
+func _update(paths _Paths, clock sync.Clock, certificate String, key String) IO[outcome.Outcome[Option[tls.Certificate]]] { do {
+ now <- sync.now(clock)
+ let path = _path(paths, cert.timestamp(sync.unixNanos(now)))
+ created <- cert.mkdir(paths.certDirectory)
+ match created { Some(error) => ioPure(outcome.failure(None, cert.newError("could not create directory " + cert.quote(paths.certDirectory) + " to store certificates: " + cert.errorText(error)))); None => do {
+  sync.bracket(cert.openWrite(path, 384), func(opened) => match opened {
+   (_, Some(error)) => ioPure(outcome.failure(None, cert.newError("could not open " + cert.quote(path) + ": " + cert.errorText(error))))
+   (None, None) => ioPure(outcome.failure(None, cert.newError("could not open " + cert.quote(path))))
+   (Some(file), None) => do {
+    parsed <- cert.parseCertsPEM(certificate)
+    match parsed.error { Some(error) => ioPure(outcome.failure(None, cert.newError("invalid certificate data: " + cert.errorText(error)))); None => match _firstPEM(key) {
+     None => ioPure(outcome.failure(None, cert.newError("invalid key data")))
+     Some(keyPEM) => do {
+      encoded <- cert.encodeCertificates(parsed.value)
+      written <- cert.writeOpened(file, encoded.value + keyPEM)
+      match written { Some(error) => ioPure(outcome.failure(None, error)); None => do {
+       synced <- cert.syncOpened(file)
+       match synced { Some(error) => ioPure(outcome.failure(None, cert.fileSyncError(path, error))); None => do {
+        loaded <- _loadCombined(path)
+        match loaded.error { Some(_) => ioPure(loaded); None => do { linked <- _updateSymlink(paths, path); ioPure(match linked { None => loaded; Some(error) => outcome.failure(None, error) }) } }
+       } }
+      } }
+     }
+    } }
+   }
+  }, func(opened) => match opened.0 { None => ioPure(unit()); Some(file) => do { cert.closeOpened(file); ioPure(unit()) } })
+ } }
+} }
+func newFileStoreWithLogger(clock sync.Clock, log func(String) IO[Unit], prefix String, certDirectory String, keyDirectory String, certFile String, keyFile String) IO[outcome.Outcome[Option[FileStore]]] { do {
+ let paths = _Paths(prefix, certDirectory, keyDirectory, certFile, keyFile)
+ recovered <- _recover(paths)
+ match recovered { Some(error) => ioPure(outcome.failure(None, error)); None => do {
+  mutex <- sync.newMutex()
+  let store = Store(func() => sync.withLock(mutex, do { log("Loading cert/key pair"); _current(paths) }), func(c,k) => sync.withLock(mutex, _update(paths, clock, c, k)))
+  ioPure(outcome.success(Some(FileStore(store, _path(paths, "current")))))
+ } }
+} }
+func newFileStore(clock sync.Clock, prefix String, certDirectory String, keyDirectory String, certFile String, keyFile String) IO[outcome.Outcome[Option[FileStore]]] { newFileStoreWithLogger(clock, func(_) => ioPure(unit()), prefix, certDirectory, keyDirectory, certFile, keyFile) }
+func currentPath(store FileStore) String { store.currentPath }
+func _rename(source String, target String) IO[Option[support.Error]] { do {
+ error <- cert.rename(source, target)
+ ioPure(match error { None => None; Some(error) => Some(cert.newError("unable to rename " + cert.quote(source) + " to " + cert.quote(target) + ": " + cert.errorText(error))) })
+} }
+func _remove(path String) IO[Option[support.Error]] { do {
+ error <- cert.remove(path)
+ ioPure(match error { None => None; Some(error) => Some(cert.newError("unable to remove " + cert.quote(path) + ": " + cert.errorText(error))) })
+} }
+func _symlink(source String, target String) IO[Option[support.Error]] { do {
+ error <- cert.symlink(source, target)
+ ioPure(match error { None => None; Some(error) => Some(cert.newError("unable to create a symlink from " + cert.quote(target) + " to " + cert.quote(source) + ": " + cert.errorText(error))) })
+} }

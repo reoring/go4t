@@ -1,0 +1,38 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package reference
+import core "github.com/reoring/gofx/ports/client-go/deps/k8s.io/api/core/v1"
+import meta "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import "github.com/reoring/gofx/ports/client-go/deps/support"
+func testNilReferenceTrace() IO[Bool] { do {
+ result <- getReference(None,None)
+ ioPure(match result.error { None => false; Some(error) => support.errorMessage(error)=="can't reference a nil object" })
+} }
+func testNilReferenceSentinelIdentityTrace() IO[Bool] { do {
+ let sentinel = errNilObject()
+ reference <- getReference(None,None)
+ partial <- getPartialReference(None,None,"spec.containers[0]")
+ ioPure(support.errorIs(sentinel,errNilObject())
+  && !support.errorIs(sentinel,support.errorNew("can't reference a nil object"))
+  && !support.errorIs(sentinel,support.errorTagged("other-domain","ErrNilObject","can't reference a nil object"))
+  && !support.errorIs(sentinel,support.errorTagged("k8s.io/client-go/tools/reference","other-key","can't reference a nil object"))
+  && (match reference.value { None => true; Some(_) => false })
+  && (match partial.value { None => true; Some(_) => false })
+  && (match reference.error { None => false; Some(error) => support.errorIs(error,sentinel) && support.errorMessage(error)=="can't reference a nil object" && support.errorIs(support.errorWrap("reference",error),errNilObject()) })
+  && (match partial.error { None => false; Some(error) => support.errorIs(error,sentinel) && support.errorMessage(error)=="can't reference a nil object" && support.errorIs(support.errorWrap("partial",error),errNilObject()) }))
+} }
+func testPopulatedGVKAndPartialReferenceTrace() IO[Bool] { do {
+ let metadata = meta.objectMetaWithNamespace(meta.objectMetaWithName(meta.newObjectMeta(),"pod"),"workload")
+ let typeMeta = meta.typeMetaWithAPIVersion(meta.typeMetaWithKind(meta.newTypeMeta(),"Pod"),"v1")
+ let pod = core.podWithTypeMeta(core.podWithObjectMeta(core.newPod(),metadata),typeMeta)
+ result <- getPartialReference(None,Some(core.podToRuntimeObject(pod)),"spec.containers[1]")
+ ioPure(match result.value { None => false; Some(reference) => core.objectReferenceGetName(reference)=="pod" && core.objectReferenceGetNamespace(reference)=="workload" && core.objectReferenceGetAPIVersion(reference)=="v1" && core.objectReferenceGetKind(reference)=="Pod" && core.objectReferenceGetFieldPath(reference)=="spec.containers[1]" })
+} }
+func testReferencePassthroughTrace() IO[Bool] { do {
+ let reference = core.objectReferenceWithFieldPath(core.objectReferenceWithResourceVersion(core.objectReferenceWithName(core.newObjectReference(),"ref"),"17"),"field")
+ result <- getReference(None,Some(core.objectReferenceToRuntimeObject(reference)))
+ ioPure(match result.value { None => false; Some(reference) => core.objectReferenceGetResourceVersion(reference)=="17" && core.objectReferenceGetFieldPath(reference)=="field" })
+} }
+func testMissingSchemeTrace() IO[Bool] { do {
+ result <- getReference(None,Some(core.podToRuntimeObject(core.newPod())))
+ ioPure(match result.error { None => false; Some(error) => support.errorMessage(error)=="scheme is required to look up gvk" })
+} }

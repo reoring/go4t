@@ -1,0 +1,25 @@
+// Copyright 2023 The Kubernetes Authors. Licensed under Apache-2.0.
+// Source: client-go v0.37.2 tools/remotecommand/spdy.go.
+package remotecommand
+import spdy "github.com/reoring/gofx/ports/client-go/transport/spdy"
+import transport "github.com/reoring/gofx/ports/client-go/transport"
+import rest "github.com/reoring/gofx/ports/client-go/rest"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import errors "github.com/reoring/gofx/ports/client-go/deps/support"
+
+func newSPDYExecutorForProtocols(rt transport.RoundTripper, upgrader spdy.Upgrader, method String, address String, requested List[String], rejectRedirects Bool) Executor { Executor {streamWithContext:func(options)=>do {
+ raw<-transport.toHTTP(rt)
+ client<-spdy.newHTTPClient(raw,rejectRedirects)
+ result<-spdy.newDialer(upgrader,client,method,address).dial(requested)
+ match result.error {Some(e)=>ioPure(outcome.failure(unit(),e));None=>match result.value.connection {
+  None=>ioPure(outcome.failure(unit(),errors.errorNew("upgrade returned no connection")));
+  Some(connection)=>sync.ensuring(streamProtocol(protocolVersion(result.value.protocol),connection,options),connection.close())
+ }}
+}} }
+func newSPDYExecutorForTransports(rt transport.RoundTripper, upgrader spdy.Upgrader, method String, address String) Executor {newSPDYExecutorForProtocols(rt,upgrader,method,address,protocols(),false)}
+func newSPDYExecutorRejectRedirects(rt transport.RoundTripper, upgrader spdy.Upgrader, method String, address String) Executor {newSPDYExecutorForProtocols(rt,upgrader,method,address,protocols(),true)}
+func newSPDYExecutor(environment rest.Environment, config rest.Config, method String, address String) IO[outcome.Outcome[Option[Executor]]] {do {
+ result<-spdy.roundTripperFor(environment,config)
+ ioPure(outcome.from(match result.value {None=>None;Some(t)=>Some(newSPDYExecutorForTransports(t.transport,t.upgrader,method,address))},result.error))
+}}

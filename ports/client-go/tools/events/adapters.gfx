@@ -1,0 +1,59 @@
+// Copyright 2019 The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package events
+import core "github.com/reoring/gofx/ports/client-go/deps/k8s.io/api/core/v1"
+import api "github.com/reoring/gofx/ports/client-go/deps/k8s.io/api/events/v1"
+import meta "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import runtime "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime"
+import "github.com/reoring/gofx/ports/client-go/deps/support"
+import "github.com/reoring/gofx/ports/client-go/support/outcome"
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+import typed "github.com/reoring/gofx/ports/client-go/kubernetes/typed/events/v1"
+import kubernetes "github.com/reoring/gofx/ports/client-go/kubernetes"
+import legacy "github.com/reoring/gofx/ports/client-go/tools/record"
+// Typed client capabilities select the namespace from the actual event on every operation.
+func eventSinkImpl(events func(String) EventSink) EventSink {
+ EventSink(
+  func(event) => { let ns = meta.objectMetaGetNamespace(api.eventGetObjectMeta(event)); if ns=="" { ioPure(outcome.Outcome(None,Some(support.errorNew("can't create an event with empty namespace")))) } else { let sink = events(ns); sink.create(event) } },
+  func(event) => { let ns = meta.objectMetaGetNamespace(api.eventGetObjectMeta(event)); if ns=="" { ioPure(outcome.Outcome(None,Some(support.errorNew("can't update an event with empty namespace")))) } else { let sink = events(ns); sink.update(event) } },
+  func(event,data) => { let ns = meta.objectMetaGetNamespace(api.eventGetObjectMeta(event)); if ns=="" { ioPure(outcome.Outcome(None,Some(support.errorNew("can't patch an event with empty namespace")))) } else { let sink = events(ns); sink.patch(event,data) } }
+ )
+}
+type AdapterClients = AdapterClients { supportsEventsV1: func() IO[Bool], eventsV1: EventSink, coreV1: legacy.EventSink, scheme: Option[runtime.Scheme] }
+type EventBroadcasterAdapter = EventBroadcasterAdapter { modern: Option[EventBroadcaster], legacy: legacy.EventBroadcaster, clients: AdapterClients }
+func newEventBroadcasterAdapterWithContext(context sync.Context, clients AdapterClients) IO[EventBroadcasterAdapter] { sync.withContext(context,do {
+ supports <- clients.supportsEventsV1()
+ modern <- if supports { do { broadcaster <- newBroadcaster(clients.eventsV1); ioPure(Some(broadcaster)) } } else { ioPure(None) }
+ old <- legacy.newBroadcaster([legacy.withContext(context)])
+ ioPure(EventBroadcasterAdapter(modern,old,clients))
+}) }
+func newEventBroadcasterAdapter(clients AdapterClients) IO[EventBroadcasterAdapter] { do { context <- sync.captureContext(); newEventBroadcasterAdapterWithContext(context,clients) } }
+func adapterStartRecordingToSink(adapter EventBroadcasterAdapter) IO[Unit] { do {
+ match adapter.modern { None => ioPure(unit()); Some(b) => do { startRecordingToSink(b); ioPure(unit()) } }
+ legacy.startRecordingToSink(adapter.legacy,adapter.clients.coreV1); ioPure(unit())
+} }
+func deprecatedNewLegacyRecorder(adapter EventBroadcasterAdapter, name String) legacy.EventRecorder {
+ legacy.newRecorder(adapter.legacy,adapter.clients.scheme,core.eventSourceWithComponent(core.newEventSource(),name))
+}
+func adapterNewRecorder(adapter EventBroadcasterAdapter, name String) IO[EventRecorder] { match adapter.modern {
+ None => ioPure(legacy.newEventRecorderAdapter(deprecatedNewLegacyRecorder(adapter,name)))
+ Some(b) => newRecorder(b,adapter.clients.scheme,name)
+} }
+func adapterShutdown(adapter EventBroadcasterAdapter) IO[Unit] { do { legacy.shutdown(adapter.legacy); match adapter.modern { None => ioPure(unit()); Some(b) => shutdown(b) } } }
+func newEventSink(client typed.EventsV1Interface) EventSink {
+ eventSinkImpl(func(namespace) => {
+  let events = client.events(namespace)
+  EventSink(
+   func(event) => do { result <- events.create(event,meta.newCreateOptions()); ioPure(outcome.Outcome(Some(result.value),result.error)) },
+   func(event) => do { result <- events.update(event,meta.newUpdateOptions()); ioPure(outcome.Outcome(Some(result.value),result.error)) },
+   func(event,patch) => do { result <- events.patch(meta.objectMetaGetName(api.eventGetObjectMeta(event)),"application/strategic-merge-patch+json",patch,meta.newPatchOptions(),[]); ioPure(outcome.Outcome(Some(result.value),result.error)) }
+  )
+ })
+}
+func adapterClients(client kubernetes.Interface, scheme Option[runtime.Scheme]) AdapterClients {
+ let coreClient = client.coreV1()
+ AdapterClients(func() => do {
+  let discovery = client.discovery()
+  result <- discovery.serverResourcesForGroupVersion("events.k8s.io/v1")
+  ioPure(match result.error { None => true; Some(_) => false })
+ },newEventSink(client.eventsV1()),legacy.eventSinkImpl(coreClient.events("")),scheme)
+}

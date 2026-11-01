@@ -1,0 +1,37 @@
+// Copyright 2023 The Kubernetes Authors. Licensed under Apache-2.0.
+package openapitest
+import openapi "openapi"
+import errors "deps/support"
+import outcome "support/outcome"
+import m "std/map"
+import s "std/string"
+import io "std/io"
+
+type FakeClient = FakeClient { pathsMap:Map[String,openapi.GroupVersion], forcedErr:Option[errors.Error] }
+type FakeGroupVersion = FakeGroupVersion { gvSpec:String, forcedErr:Option[errors.Error] }
+func newFakeClient() FakeClient {FakeClient{pathsMap:m.emptyMap(),forcedErr:None}}
+func fakeClient(value FakeClient) openapi.Client {openapi.Client{paths:func() => ioPure(match value.forcedErr {Some(error) => outcome.failure(m.emptyMap(),error);None => outcome.success(value.pathsMap)})}}
+func fakeGroupVersion(value FakeGroupVersion) openapi.GroupVersion {openapi.GroupVersion{serverRelativeURL:func() => io.ioRaise(io.Panic("unimplemented")),schema:func(contentType) => ioPure(
+ if contentType!="application/json" {outcome.failure("",errors.errorNew("application/json is only content type supported: "+contentType))}
+ else {match value.forcedErr {Some(error) => outcome.failure("",error);None => outcome.success(value.gvSpec)}}
+)}}
+extern func _entries(path String,embedded Bool) IO[(List[String],Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/openapi/openapitest".Entries
+extern func _read(path String,name String,embedded Bool) IO[(String,Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/openapi/openapitest".Read
+func newFileClient(path String) openapi.Client {_fileClient(path,false)}
+func newEmbeddedFileClient() openapi.Client {_fileClient("",true)}
+func _trimSuffix(value String,suffix String) String {if s.endsWith(value,suffix) {s.substring(value,0,s.strLength(value)-s.strLength(suffix))} else {value}}
+func _fileClient(path String,embedded Bool) openapi.Client {
+ openapi.Client{paths:func() => do {
+  entries <- _entries(path,embedded)
+  match entries.1 {
+   Some(error) => ioPure(outcome.failure(m.emptyMap(),error))
+   None => ioPure(outcome.success(fold(entries.0,m.emptyMap(),func(result,name) => {
+    let group=openapi.GroupVersion{serverRelativeURL:func() => ioPure(name),schema:func(contentType) => {
+     if contentType!="application/json" {ioPure(outcome.failure("",errors.errorNew("openapitest only supports 'application/json' contentType")))}
+     else {do {result <- _read(path,name,embedded);ioPure(outcome.Outcome{value:result.0,error:result.1})}}
+    }}
+    m.mapInsert(result,s.replace(_trimSuffix(name,"_openapi.json"),"__","/"),group)
+   })))
+  }
+ }}
+}

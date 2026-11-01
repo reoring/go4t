@@ -1,0 +1,20 @@
+// Copyright 2015 The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package record
+import internal "github.com/reoring/gofx/ports/client-go/tools/internal/events"
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+import "github.com/reoring/gofx/ports/client-go/deps/support"
+import runtime "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime"
+import meta "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+type FakeRecorder = FakeRecorder { events: Option[sync.Channel[String]], includeObject: Bool }
+func newFakeRecorder(bufferSize Int) IO[FakeRecorder] { do { events <- sync.newChannel(bufferSize); ioPure(FakeRecorder(Some(events),false)) } }
+func _fakeWrite(f FakeRecorder, object Option[runtime.Object], annotations support.ForeignMap[String,String], eventType String, reason String, message String) IO[Unit] {
+ match f.events { None => ioPure(unit()); Some(events) => do {
+  ref <- if f.includeObject { internal.objectString(object,true) } else { ioPure("") }
+  sync.send(events,eventType+" "+reason+" "+message+ref+internal.annotationsString(annotations))
+ } }
+}
+func fakeRecorder(f FakeRecorder) EventRecorder {
+ let annotations = meta.objectMetaGetAnnotations(meta.newObjectMeta())
+ let emit = func(object,eventType,reason,message) => _fakeWrite(f,object,annotations,eventType,reason,message)
+ EventRecorder(emit,emit,func(object,annotations,eventType,reason,message) => _fakeWrite(f,object,annotations,eventType,reason,message),func(logger) => fakeRecorder(f))
+}

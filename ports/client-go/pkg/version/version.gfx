@@ -1,0 +1,19 @@
+// Copyright 2014 The Kubernetes Authors. Licensed under Apache-2.0.
+package version
+import external "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/version"
+type BuildInfo = BuildInfo { major: String, minor: String, gitVersion: String, gitCommit: String, gitTreeState: String, buildDate: String }
+func defaultBuildInfo() BuildInfo { BuildInfo("", "", "v0.0.0-master+$Format:%H$", "$Format:%H$", "", "1970-01-01T00:00:00Z") }
+extern func runtimeVersion() String = "runtime".Version
+extern func compiler() String = "github.com/reoring/gofx/ports/client-go/pkg/version/host".Compiler
+extern func platform() String = "github.com/reoring/gofx/ports/client-go/pkg/version/host".Platform
+func getWith(build BuildInfo) external.Info {
+ let info = external.infoWithMajor(external.newInfo(), build.major)
+ let info = external.infoWithMinor(info, build.minor)
+ let info = external.infoWithGitVersion(info, build.gitVersion)
+ let info = external.infoWithGitCommit(info, build.gitCommit)
+ let info = external.infoWithGitTreeState(info, build.gitTreeState)
+ let info = external.infoWithBuildDate(info, build.buildDate)
+ let info = external.infoWithGoVersion(info, runtimeVersion())
+ external.infoWithPlatform(external.infoWithCompiler(info, compiler()), platform())
+}
+func get() external.Info { getWith(defaultBuildInfo()) }

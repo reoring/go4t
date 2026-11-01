@@ -1,0 +1,72 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package testing
+import "std/map"
+import lists "std/list"
+import strings "std/string"
+import "std/float"
+import "std/io"
+import cache "github.com/reoring/gofx/ports/client-go/tools/cache"
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+import "github.com/reoring/gofx/ports/client-go/support/outcome"
+import "github.com/reoring/gofx/ports/client-go/support/watch"
+import errors "github.com/reoring/gofx/ports/client-go/deps/support"
+import objects "github.com/reoring/gofx/ports/client-go/deps/objects"
+import runtime "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime"
+import v1 "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+
+type Subscription = Subscription { events: sync.Channel[watch.Event], stop: sync.Channel[Unit], mutex: sync.Mutex, stopped: sync.Ref[Bool] }
+type FakeSourceState[A] = FakeSourceState { items: Map[(String,String),A], changes: Map[Int,watch.Event], watchers: Map[Int,Subscription], version: Int, nextWatcher: Int, listError: Option[errors.Error], shutdown: Bool }
+type FakeControllerSource[A] = FakeControllerSource { mutex: sync.Mutex, state: sync.Ref[FakeSourceState[A]], access: cache.ObjectAccess[A], withResourceVersion: func(A,String) IO[A], toObject: func(A) runtime.Object }
+func newFakeControllerSource[A](access cache.ObjectAccess[A], withResourceVersion func(A,String) IO[A], toObject func(A) runtime.Object) IO[FakeControllerSource[A]] { do { mutex <- sync.newMutex(); state <- sync.newRef(FakeSourceState(map.emptyMap(),map.emptyMap(),map.emptyMap(),0,0,None,false)); ioPure(FakeControllerSource(mutex,state,access,withResourceVersion,toObject)) } }
+func newRawFakeControllerSource() IO[FakeControllerSource[runtime.Object]] { newFakeControllerSource(cache.rawObjectAccess(),func(obj,rv) => do { result <- objects.objectSetResourceVersion(obj,rv); match snd(result) { Some(e) => errors.raiseError(e); None => match fst(result) { Some(value) => ioPure(value); None => ioFail("nil object after resource-version update") } } },func(obj) => obj) }
+func closeSubscription(subscription Subscription) IO[Unit] { sync.withLock(subscription.mutex,sync.uninterruptible(do { stopped <- sync.readRef(subscription.stopped); if stopped { ioPure(unit()) } else { do { sync.writeRef(subscription.stopped,true); sync.close(subscription.stop); sync.close(subscription.events) } } })) }
+func sendSubscription(subscription Subscription, event watch.Event) IO[Unit] { do { result <- io.tryIO(sync.selectCase([sync.sendCase(subscription.events,event,unit()),sync.receiveCase(subscription.stop,func(_) => unit())])); match result { Ok(_) => ioPure(unit()); Err(error) => do { stopped <- sync.readRef(subscription.stopped); if stopped { ioPure(unit()) } else { ioFail(show(error)) } } } } }
+func change[A](source FakeControllerSource[A], eventType String, object A, probability Float) IO[Unit] { sync.withLock(source.mutex,sync.uninterruptible(do {
+ state <- sync.readRef(source.state)
+ if state.shutdown { ioFail("fake controller source used after shutdown") } else { do {
+  let version = state.version+1
+  value <- source.withResourceVersion(object,show(version))
+  key <- source.access.key(value)
+  uid <- source.access.uid(value)
+  match key.error { Some(error) => errors.raiseError(error); None => do {
+   let identity = (key.value,uid)
+   let event = watch.Event(eventType,Some(source.toObject(value)))
+   let items = if eventType == "DELETED" { map.mapDelete(state.items,identity) } else { if eventType == "ADDED" || eventType == "MODIFIED" { map.mapInsert(state.items,identity,value) } else { state.items } }
+   sync.writeRef(source.state,state { items: items, changes: map.mapInsert(state.changes,version,event), version: version })
+   sample <- errors.randomInt(1000000000)
+   if toFloat(sample)/1000000000.0 < probability { lists.forEach(map.mapValues(state.watchers),func(subscription) => sendSubscription(subscription,event)) } else { ioPure(unit()) }
+  } }
+ } }
+ })) }
+func add[A](source FakeControllerSource[A], obj A) IO[Unit] { change(source,"ADDED",obj,1.0) }
+func modify[A](source FakeControllerSource[A], obj A) IO[Unit] { change(source,"MODIFIED",obj,1.0) }
+func delete[A](source FakeControllerSource[A], obj A) IO[Unit] { change(source,"DELETED",obj,1.0) }
+func addDropWatch[A](source FakeControllerSource[A], obj A) IO[Unit] { change(source,"ADDED",obj,0.0) }
+func modifyDropWatch[A](source FakeControllerSource[A], obj A) IO[Unit] { change(source,"MODIFIED",obj,0.0) }
+func deleteDropWatch[A](source FakeControllerSource[A], obj A) IO[Unit] { change(source,"DELETED",obj,0.0) }
+func setListError[A](source FakeControllerSource[A], error Option[errors.Error]) IO[Unit] { sync.withLock(source.mutex,do { state <- sync.readRef(source.state); sync.writeRef(source.state,state { listError: error }) }) }
+func list[A](source FakeControllerSource[A], options v1.ListOptions) IO[outcome.Outcome[cache.ListResult[A]]] { sync.withLock(source.mutex,do { state <- sync.readRef(source.state); if state.shutdown { ioFail("fake controller source used after shutdown") } else { do { copied <- lists.mapM(map.mapValues(state.items),source.access.deepCopy); ioPure(outcome.from(cache.ListResult(copied,show(state.version),""),state.listError)) } } }) }
+func expired(message String) IO[errors.Error] { objects.errorFromObject(objects.statusToObject(v1.statusWithCode(v1.statusWithReason(v1.statusWithMessage(v1.newStatus(),message),v1.statusReasonFromValue("Expired")),410))) }
+func copyEvent(event watch.Event) IO[watch.Event] { match event.object { None => ioPure(event); Some(obj) => do { copy <- objects.objectDeepCopy(obj); ioPure(event { object: copy }) } } }
+func watchFrom[A](source FakeControllerSource[A], options v1.ListOptions) IO[outcome.Outcome[Option[watch.Watch]]] { sync.withLock(source.mutex,sync.uninterruptible(do {
+ state <- sync.readRef(source.state)
+ if state.shutdown { ioFail("fake controller source used after shutdown") } else { match strings.parseInt(v1.listOptionsGetResourceVersion(options)) { None => ioPure(outcome.failure(None,errors.errorNew("invalid resource version"))); Some(version) =>
+  if version > state.version { ioPure(outcome.failure(None,errors.errorNew("resource version in the future not supported by this fake"))) } else {
+   let oldest = match map.mapKeys(state.changes) { Nil => state.version+1; Cons(v,_) => v }
+   if version < state.version && version < oldest { do { error <- expired("too old resource version: " + show(version) + " (" + show(oldest) + ")"); ioPure(outcome.failure(None,error)) } } else { do {
+    let prefix = map(filter(map.mapToList(state.changes),func(pair) => fst(pair) > version),func(pair) => snd(pair))
+    events <- sync.newChannel(max(100,length(prefix)))
+    stop <- sync.newChannel(0)
+    mutex <- sync.newMutex()
+    stopped <- sync.newRef(false)
+    let subscription = Subscription(events,stop,mutex,stopped)
+    lists.forEach(prefix,func(event) => do { copied <- copyEvent(event); sync.send(events,copied) })
+    sync.writeRef(source.state,state { nextWatcher: state.nextWatcher+1, watchers: map.mapInsert(state.watchers,state.nextWatcher,subscription) })
+    ioPure(outcome.success(Some(watch.newWatch(events,func() => closeSubscription(subscription)))))
+   } }
+  }
+ } }
+ })) }
+func resetWatch[A](source FakeControllerSource[A]) IO[Unit] { sync.withLock(source.mutex,sync.uninterruptible(do { state <- sync.readRef(source.state); lists.forEach(map.mapValues(state.watchers),closeSubscription); sync.writeRef(source.state,state { changes: map.emptyMap(), watchers: map.emptyMap() }) })) }
+func shutdown[A](source FakeControllerSource[A]) IO[Unit] { sync.withLock(source.mutex,sync.uninterruptible(do { state <- sync.readRef(source.state); lists.forEach(map.mapValues(state.watchers),closeSubscription); sync.writeRef(source.state,state { shutdown: true, watchers: map.emptyMap() }) })) }
+func listWatcher[A](source FakeControllerSource[A]) cache.ListWatcher[A] { cache.ListWatcher(func(options) => list(source,options),func(options) => watchFrom(source,options),true,false) }

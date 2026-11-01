@@ -1,0 +1,71 @@
+package examples
+
+// Copyright 2026 The gofx Authors. SPDX-License-Identifier: Apache-2.0
+// Pinned oracle/scenarios.go is the source of fixture inputs, never expected output.
+import kube "kubernetes"
+import core "deps/k8s.io/api/core/v1"
+import meta "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import types "deps/k8s.io/apimachinery/pkg/types"
+import objects "deps/objects"
+import sync "support/sync"
+import strings "std/string"
+
+func pod(name String,namespace String) core.Pod {
+ let metadata = meta.objectMetaWithResourceVersion(meta.objectMetaWithNamespace(meta.objectMetaWithName(meta.newObjectMeta(),name),namespace),"17")
+ let container = core.containerWithImage(core.containerWithName(core.newContainer(),"main"),"image:fixed")
+ let body = core.podWithObjectMeta(core.newPod(),metadata)
+ core.podWithTypeMeta(core.podWithSpec(body,core.podSpecWithContainers(core.newPodSpec(),Some([container]))),meta.typeMetaWithKind(meta.typeMetaWithAPIVersion(meta.newTypeMeta(),"v1"),"Pod"))
+}
+func typedPodParity() IO[Trace] {
+ do {
+  trace <- newTrace("typed_pod_crud_status_collection_patch")
+  env <- environment()
+  let body = pod("pod-a","team-a")
+  payload <- objectJSON(Some(objects.toObject(core.podObjectType(),body)))
+  let list = core.podListWithTypeMeta(core.podListWithListMeta(core.podListWithItems(core.newPodList(),Some([body])),meta.listMetaWithResourceVersion(meta.newListMeta(),"17")),meta.typeMetaWithKind(meta.typeMetaWithAPIVersion(meta.newTypeMeta(),"v1"),"PodList"))
+  listPayload <- objectJSON(Some(objects.toObject(core.podListObjectType(),list)))
+  let status = "{\"apiVersion\":\"v1\",\"kind\":\"Status\",\"status\":\"Success\",\"code\":200}"
+  let missing = "{\"apiVersion\":\"v1\",\"kind\":\"Status\",\"status\":\"Failure\",\"message\":\"pods \\\"missing\\\" not found\",\"reason\":\"NotFound\",\"details\":{\"name\":\"missing\",\"kind\":\"pods\"},\"code\":404}"
+  let base = "/api/v1/namespaces/team-a/pods"
+  withHTTP(trace,[Exchange("POST",base,201,payload),Exchange("GET",base+"/pod-a",200,payload),Exchange("GET",base,200,listPayload),Exchange("PUT",base+"/pod-a",200,payload),Exchange("PUT",base+"/pod-a/status",200,payload),Exchange("PATCH",base+"/pod-a/status",200,payload),Exchange("DELETE",base+"/pod-a",200,status),Exchange("DELETE",base,200,status),Exchange("GET",base+"/missing",404,missing)],func(url) => do {
+   made <- kube.newForConfig(env,config(url)); client <- present(made)
+   let pods = client.coreV1().pods("team-a")
+   created <- pods.create(body,meta.createOptionsWithFieldValidation(meta.createOptionsWithDryRun(meta.createOptionsWithFieldManager(meta.newCreateOptions(),"creator"),Some(["All"])),"Strict"))
+   created <- require(created); resultEvent(trace,"create",core.podObjectType(),created)
+   got <- pods.get("pod-a",meta.getOptionsWithResourceVersion(meta.newGetOptions(),"17"))
+   got <- require(got); check(meta.objectMetaGetName(core.podGetObjectMeta(got))=="pod-a","Get did not decode response"); resultEvent(trace,"get",core.podObjectType(),got)
+   let options = meta.listOptionsWithContinue(meta.listOptionsWithLimit(meta.listOptionsWithTimeoutSeconds(meta.listOptionsWithResourceVersion(meta.listOptionsWithFieldSelector(meta.listOptionsWithLabelSelector(meta.newListOptions(),"app=demo"),"metadata.name=pod-a"),"17"),Some(21)),7),"fixture-token")
+   listed <- pods.list(options); listed <- require(listed)
+   resultEvent(trace,"list",core.podListObjectType(),listed)
+   updated <- pods.update(body,meta.updateOptionsWithDryRun(meta.updateOptionsWithFieldManager(meta.newUpdateOptions(),"updater"),Some(["All"]))); updated <- require(updated); resultEvent(trace,"update",core.podObjectType(),updated)
+   let running = core.podWithStatus(body,core.podStatusWithPhase(core.podGetStatus(body),core.podPhaseFromValue("Running")))
+   updated <- pods.updateStatus(running,meta.updateOptionsWithFieldManager(meta.newUpdateOptions(),"status-manager")); updated <- require(updated); resultEvent(trace,"update_status",core.podObjectType(),updated)
+   patched <- pods.patch("pod-a","application/merge-patch+json","{\"status\":{\"phase\":\"Running\"}}",meta.patchOptionsWithFieldValidation(meta.patchOptionsWithFieldManager(meta.newPatchOptions(),"patcher"),"Strict"),["status"]); patched <- require(patched); resultEvent(trace,"patch_status",core.podObjectType(),patched)
+   let deleteOptions = meta.deleteOptionsWithDryRun(meta.deleteOptionsWithPreconditions(meta.deleteOptionsWithGracePeriodSeconds(meta.newDeleteOptions(),Some(0)),Some(meta.preconditionsWithUID(meta.newPreconditions(),Some(types.uidFromValue("fixture-uid"))))),Some(["All"]))
+   deleted <- pods.delete("pod-a",deleteOptions); require(deleted)
+   observe(trace,"operation_result",[("operation",quote("delete")),("error","null")])
+   deleted <- pods.deleteCollection(deleteOptions,meta.listOptionsWithTimeoutSeconds(meta.listOptionsWithFieldSelector(meta.listOptionsWithLabelSelector(meta.newListOptions(),"app=demo"),"metadata.name=pod-a"),Some(21))); require(deleted)
+   observe(trace,"operation_result",[("operation",quote("delete_collection")),("error","null")])
+   missing <- pods.get("missing",meta.newGetOptions())
+   check(match missing.error { None => false; Some(_) => true },"missing fixture succeeded")
+   fields <- errorJSON(missing.error)
+   object <- objectJSON(Some(objects.toObject(core.podObjectType(),missing.value)))
+   sync.withLock(trace.lock,do { old <- sync.readRef(trace.events); sync.writeRef(trace.events,append(old,["{\"kind\":\"api_error\",\"fields\":"+strings.substring(fields,0,strings.strLength(fields)-1)+",\"operation\":\"get_missing\",\"object\":"+object+"}}"])) })
+  })
+  ioPure(trace)
+ }
+}
+func resizeParity() IO[Trace] {
+ do {
+  trace <- newTrace("typed_resize_explicit_parent_name")
+  env <- environment()
+  let body = pod("body-name","body-namespace")
+  payload <- objectJSON(Some(objects.toObject(core.podObjectType(),body)))
+  withHTTP(trace,[Exchange("PUT","/api/v1/namespaces/client-namespace/pods/parent-name/resize",200,payload)],func(url) => do {
+   made <- kube.newForConfig(env,config(url)); client <- present(made)
+   result <- client.coreV1().pods("client-namespace").updateResize("parent-name",body,meta.updateOptionsWithFieldManager(meta.newUpdateOptions(),"resizer"))
+   result <- require(result); resultEvent(trace,"resize",core.podObjectType(),result)
+  })
+  ioPure(trace)
+ }
+}

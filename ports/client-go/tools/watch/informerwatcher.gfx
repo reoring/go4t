@@ -1,0 +1,122 @@
+// Native port of client-go v0.37.2 tools/watch/informerwatcher.go (Apache-2.0).
+package watch
+
+import raw "github.com/reoring/gofx/ports/client-go/support/watch"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import errors "github.com/reoring/gofx/ports/client-go/deps/support"
+import runtime "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime"
+import list "std/list"
+import io "std/io"
+
+// Native adapter for a cache controller. The factory registers callbacks before
+// returning; run owns the real reflector/controller and honors its IO context.
+// Delete callbacks pass the tombstone's object, not the tombstone envelope.
+type InformerController[S] = InformerController {
+ store: S, run: func() IO[Unit], hasSynced: func() IO[Bool]
+}
+alias InformerFactory[S] = func(func(runtime.Object) IO[Unit], func(runtime.Object, runtime.Object) IO[Unit], func(runtime.Object) IO[Unit]) IO[InformerController[S]]
+type InformerWatcher[S] = InformerWatcher {
+ store: S, hasSynced: func() IO[Bool], watcher: raw.Watch, task: sync.Task[Unit]
+}
+type EventProcessor = EventProcessor {
+ lock: sync.Mutex, ready: sync.Condition, pending: sync.Ref[List[raw.Event]],
+ stopped: sync.Ref[Bool], stopChannel: sync.Channel[Unit], output: sync.Channel[raw.Event]
+}
+func newEventProcessor() IO[EventProcessor] {
+ do {
+  lock <- sync.newMutex()
+  ready <- sync.newCondition(lock)
+  pending <- sync.newRef([])
+  stopped <- sync.newRef(false)
+  stopChannel <- sync.newChannel(0)
+  output <- sync.newChannel(0)
+  ioPure(EventProcessor(lock, ready, pending, stopped, stopChannel, output))
+ }
+}
+func push(processor EventProcessor, event raw.Event) IO[Unit] {
+ sync.withLock(processor.lock, do {
+  pending <- sync.readRef(processor.pending)
+  sync.writeRef(processor.pending, Cons(event, pending))
+  sync.signal(processor.ready)
+ })
+}
+func takeBatch(processor EventProcessor) IO[List[raw.Event]] {
+ do {
+  pending <- sync.readRef(processor.pending)
+  stopped <- sync.readRef(processor.stopped)
+  match pending {
+   [] => if stopped { ioPure([]) } else { do { sync.wait(processor.ready); takeBatch(processor) } }
+   _ => do { sync.writeRef(processor.pending, []); ioPure(list.reverse(pending)) }
+  }
+ }
+}
+func stopProcessor(processor EventProcessor) IO[Unit] {
+ sync.uninterruptible(sync.withLock(processor.lock, do {
+  stopped <- sync.readRef(processor.stopped)
+  if stopped { ioPure(unit()) } else {
+   do { sync.writeRef(processor.stopped, true); sync.close(processor.stopChannel); sync.broadcast(processor.ready) }
+  }
+ }))
+}
+func writeBatch(processor EventProcessor, batch List[raw.Event]) IO[Unit] {
+ match batch {
+  [] => ioPure(unit())
+  Cons(event, rest) => do {
+   sent <- sync.selectCase([sync.sendCase(processor.output, event, true), sync.receiveCase(processor.stopChannel, func(_) => false)])
+   if sent { writeBatch(processor, rest) } else { ioPure(unit()) }
+  }
+ }
+}
+func runProcessor(processor EventProcessor) IO[Unit] {
+ do {
+  batch <- sync.withLock(processor.lock, takeBatch(processor))
+  writeBatch(processor, batch)
+  stopped <- sync.readRef(processor.stopped)
+  if stopped { ioPure(unit()) } else { runProcessor(processor) }
+ }
+}
+func newIndexerInformerWatcher[S](factory InformerFactory[S]) IO[InformerWatcher[S]] {
+ newIndexerInformerWatcherWithLogger(factory)
+}
+func newIndexerInformerWatcherWithLogger[S](factory InformerFactory[S]) IO[InformerWatcher[S]] {
+ sync.uninterruptible(do {
+  processor <- newEventProcessor()
+  controller <- factory(func(object) => push(processor, raw.Event("ADDED", Some(object))), func(_, object) => push(processor, raw.Event("MODIFIED", Some(object))), func(object) => push(processor, raw.Event("DELETED", Some(object))))
+  pump <- sync.startDetached(sync.ensuring(runProcessor(processor), sync.close(processor.output)))
+  runner <- sync.startDetached(sync.ensuring(controller.run(), stopProcessor(processor)))
+  let stop = func() => do {
+   stopTask(runner)
+   stopProcessor(processor)
+   sync.join(pump)
+  }
+  ioPure(InformerWatcher(controller.store, controller.hasSynced, raw.newWatch(processor.output, stop), runner))
+ })
+}
+alias PreconditionFunc[S] = func(S) IO[outcome.Outcome[Bool]]
+func untilWithSync[S](factory InformerFactory[S], precondition Option[PreconditionFunc[S]], conditions List[ConditionFunc], clock sync.Clock) IO[outcome.Outcome[Option[raw.Event]]] {
+ do {
+  context <- sync.captureContext()
+  sync.bracket(newIndexerInformerWatcher(factory), func(informer) => match precondition {
+   None => untilWithoutRetry(informer.watcher, conditions)
+   Some(check) => sync.uninterruptible(do {
+    synced <- io.tryIO(sync.withContext(context, awaitSync(informer.hasSynced, clock)))
+    match synced {
+     Err(io.Cancelled) => ioPure(outcome.Outcome(None, Some(errors.errorWrap("UntilWithSync: unable to sync caches", errors.errorCancelled()))))
+     Err(io.Timeout) => ioPure(outcome.Outcome(None, Some(errors.errorWrap("UntilWithSync: unable to sync caches", errors.errorCancelled()))))
+     Err(err) => io.ioRaise(err)
+     Ok(_) => sync.withContext(context, do {
+      result <- check(informer.store)
+      match result.error {
+       Some(err) => ioPure(outcome.Outcome(None, Some(err)))
+       None => if result.value { ioPure(outcome.Outcome(None, None)) } else { untilWithoutRetry(informer.watcher, conditions) }
+      }
+     })
+    }
+   })
+  }, func(informer) => raw.stop(informer.watcher))
+ }
+}
+func awaitSync(hasSynced func() IO[Bool], clock sync.Clock) IO[Unit] {
+ do { synced <- hasSynced(); if synced { ioPure(unit()) } else { do { waitNanos(clock, 100000000); awaitSync(hasSynced, clock) } } }
+}

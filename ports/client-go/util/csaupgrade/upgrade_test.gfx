@@ -1,0 +1,75 @@
+// Copyright 2022 The Kubernetes Authors. Licensed under Apache-2.0.
+package csaupgrade
+import meta "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import core "deps/k8s.io/api/core/v1"
+import objects "deps/objects"
+import errors "deps/support"
+import prelude "std/prelude"
+import string "std/string"
+
+func _entry(manager String,operation String,version String,resource String,fields String) meta.ManagedFieldsEntry {
+ meta.managedFieldsEntryWithFieldsV1(meta.managedFieldsEntryWithSubresource(meta.managedFieldsEntryWithAPIVersion(meta.managedFieldsEntryWithOperation(meta.managedFieldsEntryWithManager(meta.newManagedFieldsEntry(),manager),meta.managedFieldsOperationTypeFromValue(operation)),version),resource),Some(meta.fieldsV1WithRaw(meta.newFieldsV1(),Some(fields))))
+}
+func testUpgradeUnionAndSubresourceIsolation() IO[Bool] {
+ do {
+  let apply = _entry("new","Apply","v1","","{\"f:spec\":{\"f:nodeName\":{}}}")
+  let update = _entry("old","Update","v1","","{\"f:spec\":{\"f:priority\":{}}}")
+  let other = _entry("old","Update","v1","status","{\"f:status\":{\"f:phase\":{}}}")
+  result <- upgradedManagedFields(Some([apply,update,other]),"old","new","")
+  match result.value {
+   Some([merged,remaining]) => do {
+    encoded <- _marshal(Some([merged]))
+    ioPure(meta.managedFieldsEntryGetSubresource(remaining)=="status" && meta.managedFieldsEntryGetManager(merged)=="new" && _operation(merged)=="Apply" && string.contains(encoded.0,"nodeName") && string.contains(encoded.0,"priority"))
+   }
+   _ => ioPure(false)
+  }
+ }
+}
+func testUpgradeUsesFirstVersionAndDiscardsOldVersions() IO[Bool] {
+ do {
+  let first = _entry("old","Update","v1","","{\"f:a\":{}}")
+  let old = _entry("old","Update","v2","","{\"f:b\":{}}")
+  result <- upgradedManagedFields(Some([first,old]),"old","new","")
+  match result.value {
+   Some([entry]) => do {
+    encoded <- _marshal(Some([entry]))
+    ioPure(meta.managedFieldsEntryGetAPIVersion(entry)=="v1" && meta.managedFieldsEntryGetManager(entry)=="new" && !string.contains(encoded.0,"f:b"))
+   }
+   _ => ioPure(false)
+  }
+ }
+}
+func testUpgradeNilNoopAndMalformedFieldsets() IO[Bool] {
+ do {
+  none <- upgradedManagedFields(None,"old","new","")
+  let invalid = _entry("old","Update","v1","","invalid")
+  failed <- upgradedManagedFields(Some([invalid]),"old","new","")
+  ioPure((match none.value {None => true; _ => false}) && (match failed.error {Some(error) => string.startsWith(errors.errorMessage(error),"failed to convert fields to set: "); _ => false}))
+ }
+}
+func testFindOwnersSkipsBadFieldsetsAndUsesSetContainment() IO[Bool] {
+ do {
+  let valid = _entry("valid","Update","v1","","{\"f:spec\":{\"f:priority\":{}}}")
+  let invalid = _entry("invalid","Update","v1","","bad")
+  fields <- _decode(valid)
+  match fields.0 {
+   None => ioPure(false)
+   Some(set) => do {
+    owners <- findFieldsOwners([invalid,valid],meta.managedFieldsOperationTypeFromValue("Update"),set)
+    ioPure(prelude.fmap(owners,meta.managedFieldsEntryGetManager)==["valid"])
+   }
+  }
+ }
+}
+func testPatchCarriesResourceVersionAndDoesNotMutateInput() IO[Bool] {
+ do {
+  let fields = [_entry("old","Update","v1","","{\"f:spec\":{\"f:nodeName\":{}}}")]
+  let metadata = meta.objectMetaWithManagedFields(meta.objectMetaWithResourceVersion(meta.newObjectMeta(),"42"),Some(fields))
+  let pod = core.podWithObjectMeta(core.newPod(),metadata)
+  let object = objects.toObject(core.podObjectType(),pod)
+  patch <- upgradeManagedFieldsPatch(object,["old"],"new",[])
+  noop <- upgradeManagedFieldsPatch(object,["missing"],"new",[])
+  original <- _read(object)
+  ioPure((match patch.value {Some(value) => string.contains(value,"\"path\":\"/metadata/managedFields\"") && string.contains(value,"\"path\":\"/metadata/resourceVersion\",\"value\":\"42\"") && string.contains(value,"\"manager\":\"new\""); _ => false}) && (match noop.value {None => true; _ => false}) && _equal(original.0,Some(fields)))
+ }
+}

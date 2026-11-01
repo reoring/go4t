@@ -1,0 +1,12 @@
+// Copyright 2016 The Kubernetes Authors. Licensed under Apache-2.0.
+// Source: kubernetes/typed/core/v1/event_expansion.go at client-go v0.37.2.
+package v1
+import core "deps/k8s.io/api/core/v1"
+import outcome "support/outcome"
+
+// EventSinkImpl keeps the injected EventInterface and its namespace policy.
+type EventSinkImpl = EventSinkImpl { interface: EventInterface }
+func eventSinkCreate(sink EventSinkImpl,event core.Event) IO[outcome.Outcome[Option[core.Event]]] { sink.interface.createWithEventNamespace(event) }
+func eventSinkUpdate(sink EventSinkImpl,event core.Event) IO[outcome.Outcome[Option[core.Event]]] { sink.interface.updateWithEventNamespace(event) }
+func eventSinkPatch(sink EventSinkImpl,event core.Event,data String) IO[outcome.Outcome[Option[core.Event]]] { sink.interface.patchWithEventNamespace(event,data) }
+func getInvolvedObjectNameFieldLabel(version String) String { "involvedObject.name" }

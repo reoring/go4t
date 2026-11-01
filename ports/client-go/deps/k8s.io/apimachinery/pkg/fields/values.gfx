@@ -2,7 +2,7 @@
 // Source: client-go v0.37.2 and exact external dependency declarations.
 // Kubernetes-derived declarations are licensed under Apache-2.0.
 // https://www.apache.org/licenses/LICENSE-2.0
-// Source graph SHA-256: 2e4efd1c862cc7bde1036ba0dc37a4fe08175d4ead5d513b32689e674b91d866
+// Source graph SHA-256: 99a062162cbc99a38896123a3e81ce3ef2f70f2e505fbd058751d52a0a40f167
 package fields
 
 import canonical "github.com/reoring/gofx/ports/client-go/deps/types"
@@ -10,43 +10,46 @@ import support "github.com/reoring/gofx/ports/client-go/deps/support"
 
 alias Fields = canonical.Fields_27c4cb889fe6
 alias InvalidEscapeSequence = canonical.InvalidEscapeSequence_d93a0a6767d7
-extern func newInvalidEscapeSequence() IO[InvalidEscapeSequence] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".New_InvalidEscapeSequence_d93a0a6767d7
+extern func newInvalidEscapeSequence() IO[InvalidEscapeSequence] = "github.com/reoring/gofx/ports/client-go/host/deps".New_InvalidEscapeSequence_d93a0a6767d7
 alias Requirement = canonical.Requirement_1f05892400be
-extern func newRequirement() IO[Requirement] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".New_Requirement_1f05892400be
-extern func requirementGetOperatorIdentity(value Requirement) IO[canonical.Operator_c30ed5be2622] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Get_Requirement_1f05892400be_Operator
-extern func requirementSetOperatorIdentity(value Requirement, field canonical.Operator_c30ed5be2622) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".With_Requirement_1f05892400be_Operator
-extern func requirementGetFieldIdentity(value Requirement) IO[String] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Get_Requirement_1f05892400be_Field
-extern func requirementSetFieldIdentity(value Requirement, field String) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".With_Requirement_1f05892400be_Field
-extern func requirementGetValueIdentity(value Requirement) IO[String] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Get_Requirement_1f05892400be_Value
-extern func requirementSetValueIdentity(value Requirement, field String) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".With_Requirement_1f05892400be_Value
+extern func newRequirement() IO[Requirement] = "github.com/reoring/gofx/ports/client-go/host/deps".New_Requirement_1f05892400be
+extern func requirementGetOperatorIdentity(value Requirement) IO[canonical.Operator_c30ed5be2622] = "github.com/reoring/gofx/ports/client-go/host/deps".Get_Requirement_1f05892400be_Operator
+extern func requirementSetOperatorIdentity(value Requirement, field canonical.Operator_c30ed5be2622) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".With_Requirement_1f05892400be_Operator
+extern func requirementGetFieldIdentity(value Requirement) IO[String] = "github.com/reoring/gofx/ports/client-go/host/deps".Get_Requirement_1f05892400be_Field
+extern func requirementSetFieldIdentity(value Requirement, field String) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".With_Requirement_1f05892400be_Field
+extern func requirementGetValueIdentity(value Requirement) IO[String] = "github.com/reoring/gofx/ports/client-go/host/deps".Get_Requirement_1f05892400be_Value
+extern func requirementSetValueIdentity(value Requirement, field String) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".With_Requirement_1f05892400be_Value
 alias Requirements = canonical.Requirements_02d7cb40ead2
-extern func newRequirements() Requirements = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".New_Requirements_02d7cb40ead2
-extern func requirementsValue(value Requirements) Option[List[canonical.Requirement_1f05892400be]] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Underlying_Requirements_02d7cb40ead2
-extern func requirementsFromValue(value Option[List[canonical.Requirement_1f05892400be]]) Requirements = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".From_Requirements_02d7cb40ead2
+extern func newRequirements() Requirements = "github.com/reoring/gofx/ports/client-go/host/deps".New_Requirements_02d7cb40ead2
+extern func requirementsValue(value Requirements) Option[List[canonical.Requirement_1f05892400be]] = "github.com/reoring/gofx/ports/client-go/host/deps".Underlying_Requirements_02d7cb40ead2
+extern func requirementsFromValue(value Option[List[canonical.Requirement_1f05892400be]]) Requirements = "github.com/reoring/gofx/ports/client-go/host/deps".From_Requirements_02d7cb40ead2
 alias Selector = canonical.Selector_7614816d9611
 alias SetGo = canonical.Set_f75588298284
-extern func newSetGo() SetGo = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".New_Set_f75588298284
-extern func setGoValue(value SetGo) support.ForeignMap[String, String] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Underlying_Set_f75588298284
-extern func setGoFromValue(value support.ForeignMap[String, String]) SetGo = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".From_Set_f75588298284
+extern func newSetGo() SetGo = "github.com/reoring/gofx/ports/client-go/host/deps".New_Set_f75588298284
+extern func setGoValue(value SetGo) support.ForeignMap[String, String] = "github.com/reoring/gofx/ports/client-go/host/deps".Underlying_Set_f75588298284
+extern func setGoFromValue(value support.ForeignMap[String, String]) SetGo = "github.com/reoring/gofx/ports/client-go/host/deps".From_Set_f75588298284
 alias TransformFunc = canonical.TransformFunc_fa6005b2f9d9
-extern func newTransformFunc() IO[TransformFunc] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".New_TransformFunc_fa6005b2f9d9
-extern func transformFuncInvoke(value TransformFunc, p0 String, p1 String) IO[(String, (String, Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Invoke_TransformFunc_fa6005b2f9d9
+extern func newTransformFunc() IO[TransformFunc] = "github.com/reoring/gofx/ports/client-go/host/deps".New_TransformFunc_fa6005b2f9d9
+extern func transformFuncInvoke(value TransformFunc, p0 String, p1 String) IO[(String, (String, Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/host/deps".Invoke_TransformFunc_fa6005b2f9d9
 alias UnescapedRune = canonical.UnescapedRune_306b8f7830b8
-extern func newUnescapedRune() IO[UnescapedRune] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".New_UnescapedRune_306b8f7830b8
-extern func invalidEscapeSequenceCallErrorIdentity(value InvalidEscapeSequence) IO[String] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_6581c8f0ea30e235
-extern func setGoCallAsSelector(value SetGo) IO[(SetGo, Option[canonical.Selector_7614816d9611])] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_215aafd7ddf6d7eb
-extern func setGoCallGet(value SetGo, p0 String) IO[(SetGo, String)] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_4461c61e17da1a78
-extern func setGoCallHas(value SetGo, p0 String) IO[(SetGo, Bool)] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_187a52a5d11e3371
-extern func setGoCallString(value SetGo) IO[(SetGo, String)] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_1a01b1f13c5b1edd
-extern func unescapedRuneCallErrorIdentity(value UnescapedRune) IO[String] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_8f47951ec5af23ca
-extern func fieldsCallGetIdentity(value Fields, p0 String) IO[String] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Interface_23e7e0135d43c8f3
-extern func fieldsCallHasIdentity(value Fields, p0 String) IO[Bool] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Interface_7fd5b7ee4df9e3cc
-extern func selectorCallDeepCopySelectorIdentity(value Selector) IO[Option[canonical.Selector_7614816d9611]] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Interface_9defb331c5669978
-extern func selectorCallEmptyIdentity(value Selector) IO[Bool] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Interface_78526cdbfaf3e0e2
-extern func selectorCallMatchesIdentity(value Selector, p0 Option[canonical.Fields_27c4cb889fe6]) IO[Bool] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Interface_c52a317cfbb8c736
-extern func selectorCallRequirementsIdentity(value Selector) IO[canonical.Requirements_02d7cb40ead2] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Interface_8c31b23a0ca2c911
-extern func selectorCallRequiresExactMatchIdentity(value Selector, p0 String) IO[(String, Bool)] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Interface_5e6a3a798b14c1da
-extern func selectorCallStringIdentity(value Selector) IO[String] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Interface_987e4f48178b7f62
-extern func selectorCallTransformIdentity(value Selector, p0 canonical.TransformFunc_fa6005b2f9d9) IO[(Option[canonical.Selector_7614816d9611], Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Interface_3cf494e378ab8b0c
-extern func newFields(f0 func(String) IO[String], f1 func(String) IO[Bool]) IO[Fields] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".New_Proxy_Fields_27c4cb889fe6
-extern func newSelector(f0 func() IO[Option[canonical.Selector_7614816d9611]], f1 func() IO[Bool], f2 func(Option[canonical.Fields_27c4cb889fe6]) IO[Bool], f3 func() IO[canonical.Requirements_02d7cb40ead2], f4 func(String) IO[(String, Bool)], f5 func() IO[String], f6 func(canonical.TransformFunc_fa6005b2f9d9) IO[(Option[canonical.Selector_7614816d9611], Option[support.Error])]) IO[Selector] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".New_Proxy_Selector_7614816d9611
+extern func newUnescapedRune() IO[UnescapedRune] = "github.com/reoring/gofx/ports/client-go/host/deps".New_UnescapedRune_306b8f7830b8
+extern func callEverything() IO[Option[canonical.Selector_7614816d9611]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_71b7b32c643032ed
+extern func invalidEscapeSequenceCallErrorIdentity(value InvalidEscapeSequence) IO[String] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_6581c8f0ea30e235
+extern func callOneTermEqualSelector(p0 String, p1 String) IO[Option[canonical.Selector_7614816d9611]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_10d19acb04e9454d
+extern func callParseSelector(p0 String) IO[(Option[canonical.Selector_7614816d9611], Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_997311e91e18695a
+extern func setGoCallAsSelector(value SetGo) IO[(SetGo, Option[canonical.Selector_7614816d9611])] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_215aafd7ddf6d7eb
+extern func setGoCallGet(value SetGo, p0 String) IO[(SetGo, String)] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_4461c61e17da1a78
+extern func setGoCallHas(value SetGo, p0 String) IO[(SetGo, Bool)] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_187a52a5d11e3371
+extern func setGoCallString(value SetGo) IO[(SetGo, String)] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_1a01b1f13c5b1edd
+extern func unescapedRuneCallErrorIdentity(value UnescapedRune) IO[String] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_8f47951ec5af23ca
+extern func fieldsCallGetIdentity(value Fields, p0 String) IO[String] = "github.com/reoring/gofx/ports/client-go/host/deps".Interface_23e7e0135d43c8f3
+extern func fieldsCallHasIdentity(value Fields, p0 String) IO[Bool] = "github.com/reoring/gofx/ports/client-go/host/deps".Interface_7fd5b7ee4df9e3cc
+extern func selectorCallDeepCopySelectorIdentity(value Selector) IO[Option[canonical.Selector_7614816d9611]] = "github.com/reoring/gofx/ports/client-go/host/deps".Interface_9defb331c5669978
+extern func selectorCallEmptyIdentity(value Selector) IO[Bool] = "github.com/reoring/gofx/ports/client-go/host/deps".Interface_78526cdbfaf3e0e2
+extern func selectorCallMatchesIdentity(value Selector, p0 Option[canonical.Fields_27c4cb889fe6]) IO[Bool] = "github.com/reoring/gofx/ports/client-go/host/deps".Interface_c52a317cfbb8c736
+extern func selectorCallRequirementsIdentity(value Selector) IO[canonical.Requirements_02d7cb40ead2] = "github.com/reoring/gofx/ports/client-go/host/deps".Interface_8c31b23a0ca2c911
+extern func selectorCallRequiresExactMatchIdentity(value Selector, p0 String) IO[(String, Bool)] = "github.com/reoring/gofx/ports/client-go/host/deps".Interface_5e6a3a798b14c1da
+extern func selectorCallStringIdentity(value Selector) IO[String] = "github.com/reoring/gofx/ports/client-go/host/deps".Interface_987e4f48178b7f62
+extern func selectorCallTransformIdentity(value Selector, p0 canonical.TransformFunc_fa6005b2f9d9) IO[(Option[canonical.Selector_7614816d9611], Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/host/deps".Interface_3cf494e378ab8b0c
+extern func newFields(f0 func(String) IO[String], f1 func(String) IO[Bool]) IO[Fields] = "github.com/reoring/gofx/ports/client-go/host/deps".New_Proxy_Fields_27c4cb889fe6
+extern func newSelector(f0 func() IO[Option[canonical.Selector_7614816d9611]], f1 func() IO[Bool], f2 func(Option[canonical.Fields_27c4cb889fe6]) IO[Bool], f3 func() IO[canonical.Requirements_02d7cb40ead2], f4 func(String) IO[(String, Bool)], f5 func() IO[String], f6 func(canonical.TransformFunc_fa6005b2f9d9) IO[(Option[canonical.Selector_7614816d9611], Option[support.Error])]) IO[Selector] = "github.com/reoring/gofx/ports/client-go/host/deps".New_Proxy_Selector_7614816d9611

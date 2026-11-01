@@ -1,0 +1,8 @@
+// Copyright 2019 The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package util
+import "github.com/reoring/gofx/ports/client-go/deps/support"
+import meta "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import effects "github.com/reoring/gofx/ports/client-go/tools/internal/events"
+func validateEventType(eventType String) Bool { eventType=="Normal" || eventType=="Warning" }
+func isKeyNotFoundError(error Option[support.Error]) Bool { match error { None => false; Some(error) => match effects.statusError(error) { None => false; Some(status) => meta.statusGetCode(status)==404 } } }
+func generateEventName(refName String, unixNano Int) IO[String] { let name = refName+"."+effects.hex(unixNano); if effects.validName(name) { ioPure(name) } else { effects.uuid() } }

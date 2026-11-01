@@ -1,0 +1,1366 @@
+{
+  "version": "v0.37.2",
+  "revision": "72c52dd0cc3b9099b36af11290b0304045dd1ada",
+  "fixtures": [
+    {
+      "source": "openapi/openapitest/testdata/apis__apps__v1_openapi.json",
+      "sha256": "07b6fb5a9c92607a01c08d47d0a52ed420c7aa277cb515fb7a8459bff8cf018e",
+      "bytes": 750931
+    },
+    {
+      "source": "openapi/openapitest/testdata/apis__networking.k8s.io__v1alpha1_openapi.json",
+      "sha256": "afc73e0a94c89f797ac4e45252d3ba58c4a0304ab6b829b6110da9239017e0e5",
+      "bytes": 56471
+    },
+    {
+      "source": "openapi/openapitest/testdata/apis__batch__v1_openapi.json",
+      "sha256": "7b9e9e38ee14590f12b9d539e5cb05d74fe11b5e15118e91f89ded18c09fc2de",
+      "bytes": 446506
+    },
+    {
+      "source": "openapi/openapitest/testdata/apis__discovery.k8s.io__v1_openapi.json",
+      "sha256": "463cbee643f750ac10143a2e66d8cfa03e63d4281b87691644bc5c1c57815c57",
+      "bytes": 137990
+    },
+    {
+      "source": "openapi/openapitest/testdata/api__v1_openapi.json",
+      "sha256": "6aca85ac8f0d588f75f6a74cb12481bb8dc6c325af51faa53e7e5eae3fc10719",
+      "bytes": 1648237
+    }
+  ],
+  "sources": [
+    {
+      "path": "openapi/OWNERS",
+      "sha256": "3b3cd63d555ecba9e498c9ce7fb7f6ac06f43db3b6277109030a7abf6f63ed65",
+      "bytes": 124,
+      "loc": 7,
+      "domain": "openapi",
+      "category": "non-go",
+      "fixture": false,
+      "license": false,
+      "generated": false
+    },
+    {
+      "path": "openapi/cached/client.go",
+      "sha256": "ed5d3ac225a7cd10e8bbdf00e7a2ff3d474576a674033f8ddc9fb9ce918d7b16",
+      "bytes": 2563,
+      "loc": 91,
+      "domain": "openapi",
+      "category": "go-source",
+      "fixture": false,
+      "license": false,
+      "package": "cached",
+      "import_path": "k8s.io/client-go/openapi/cached",
+      "role": "source",
+      "generated": false,
+      "imports": [
+        {
+          "path": "context"
+        },
+        {
+          "path": "sync"
+        },
+        {
+          "path": "k8s.io/client-go/openapi"
+        }
+      ],
+      "declarations": [
+        {
+          "kind": "type",
+          "name": "Client",
+          "line": 26,
+          "exported": true,
+          "signature": "type Client struct {\n\tdelegate\topenapi.ClientWithContext\n\n\tonce\tsync.Once\n\tresult\tmap[string]openapi.GroupVersionWithContext\n\terr\terror\n}"
+        },
+        {
+          "kind": "var",
+          "name": "_",
+          "line": 36,
+          "exported": false,
+          "signature": "var _ openapi.Client = &Client{}"
+        },
+        {
+          "kind": "var",
+          "name": "_",
+          "line": 37,
+          "exported": false,
+          "signature": "var _ openapi.ClientWithContext = &Client{}"
+        },
+        {
+          "kind": "func",
+          "name": "NewClient",
+          "line": 43,
+          "exported": true,
+          "signature": "func NewClient(other openapi.Client) openapi.Client"
+        },
+        {
+          "kind": "func",
+          "name": "NewClientWithContext",
+          "line": 47,
+          "exported": true,
+          "signature": "func NewClientWithContext(other openapi.ClientWithContext) *Client"
+        },
+        {
+          "kind": "func",
+          "name": "newClient",
+          "line": 51,
+          "exported": false,
+          "signature": "func newClient(other openapi.ClientWithContext) *Client"
+        },
+        {
+          "kind": "method",
+          "name": "Paths",
+          "line": 60,
+          "exported": true,
+          "signature": "func (c *Client) Paths() (map[string]openapi.GroupVersion, error)",
+          "receiver": "*Client"
+        },
+        {
+          "kind": "method",
+          "name": "PathsWithContext",
+          "line": 72,
+          "exported": true,
+          "signature": "func (c *Client) PathsWithContext(ctx context.Context) (map[string]openapi.GroupVersionWithContext, error)",
+          "receiver": "*Client"
+        }
+      ]
+    },
+    {
+      "path": "openapi/cached/groupversion.go",
+      "sha256": "92924d66324d41bdb9666af8dae14b3ad8513dcbb8990c1c86b366057a35dc9d",
+      "bytes": 1985,
+      "loc": 80,
+      "domain": "openapi",
+      "category": "go-source",
+      "fixture": false,
+      "license": false,
+      "package": "cached",
+      "import_path": "k8s.io/client-go/openapi/cached",
+      "role": "source",
+      "generated": false,
+      "imports": [
+        {
+          "path": "context"
+        },
+        {
+          "path": "sync"
+        },
+        {
+          "path": "k8s.io/client-go/openapi"
+        }
+      ],
+      "declarations": [
+        {
+          "kind": "type",
+          "name": "groupversion",
+          "line": 26,
+          "exported": false,
+          "signature": "type groupversion struct {\n\tdelegate\topenapi.GroupVersionWithContext\n\n\tlock\tsync.Mutex\n\tdocs\tmap[string]docInfo\n}"
+        },
+        {
+          "kind": "var",
+          "name": "_",
+          "line": 35,
+          "exported": false,
+          "signature": "var _ openapi.GroupVersion = &groupversion{}"
+        },
+        {
+          "kind": "var",
+          "name": "_",
+          "line": 36,
+          "exported": false,
+          "signature": "var _ openapi.GroupVersionWithContext = &groupversion{}"
+        },
+        {
+          "kind": "type",
+          "name": "docInfo",
+          "line": 39,
+          "exported": false,
+          "signature": "type docInfo struct {\n\tdata\t[]byte\n\terr\terror\n}"
+        },
+        {
+          "kind": "func",
+          "name": "newGroupVersion",
+          "line": 44,
+          "exported": false,
+          "signature": "func newGroupVersion(delegate openapi.GroupVersionWithContext) *groupversion"
+        },
+        {
+          "kind": "method",
+          "name": "Schema",
+          "line": 53,
+          "exported": true,
+          "signature": "func (g *groupversion) Schema(contentType string) ([]byte, error)",
+          "receiver": "*groupversion"
+        },
+        {
+          "kind": "method",
+          "name": "SchemaWithContext",
+          "line": 57,
+          "exported": true,
+          "signature": "func (g *groupversion) SchemaWithContext(ctx context.Context, contentType string) ([]byte, error)",
+          "receiver": "*groupversion"
+        },
+        {
+          "kind": "method",
+          "name": "ServerRelativeURL",
+          "line": 78,
+          "exported": true,
+          "signature": "func (c *groupversion) ServerRelativeURL() string",
+          "receiver": "*groupversion"
+        }
+      ]
+    },
+    {
+      "path": "openapi/client.go",
+      "sha256": "849703b5c9a2b9f44cd69be0f6317360f5a046a157d0f737be2f778c4a74aab4",
+      "bytes": 3979,
+      "loc": 129,
+      "domain": "openapi",
+      "category": "go-source",
+      "fixture": false,
+      "license": false,
+      "package": "openapi",
+      "import_path": "k8s.io/client-go/openapi",
+      "role": "source",
+      "generated": false,
+      "imports": [
+        {
+          "path": "context"
+        },
+        {
+          "path": "encoding/json"
+        },
+        {
+          "path": "strings"
+        },
+        {
+          "path": "k8s.io/client-go/rest"
+        },
+        {
+          "path": "k8s.io/kube-openapi/pkg/handler3"
+        }
+      ],
+      "declarations": [
+        {
+          "kind": "type",
+          "name": "Client",
+          "line": 31,
+          "exported": true,
+          "signature": "type Client interface {\n\tPaths() (map[string]GroupVersion, error)\n}"
+        },
+        {
+          "kind": "type",
+          "name": "ClientWithContext",
+          "line": 35,
+          "exported": true,
+          "signature": "type ClientWithContext interface {\n\tPathsWithContext(ctx context.Context) (map[string]GroupVersionWithContext, error)\n}"
+        },
+        {
+          "kind": "func",
+          "name": "ToClientWithContext",
+          "line": 39,
+          "exported": true,
+          "signature": "func ToClientWithContext(c Client) ClientWithContext"
+        },
+        {
+          "kind": "type",
+          "name": "clientWrapper",
+          "line": 51,
+          "exported": false,
+          "signature": "type clientWrapper struct {\n\tdelegate Client\n}"
+        },
+        {
+          "kind": "method",
+          "name": "PathsWithContext",
+          "line": 55,
+          "exported": true,
+          "signature": "func (c *clientWrapper) PathsWithContext(ctx context.Context) (map[string]GroupVersionWithContext, error)",
+          "receiver": "*clientWrapper"
+        },
+        {
+          "kind": "type",
+          "name": "client",
+          "line": 64,
+          "exported": false,
+          "signature": "type client struct {\n\t// URL includes the `hash` query param to take advantage of cache busting\n\trestClient rest.Interface\n}"
+        },
+        {
+          "kind": "func",
+          "name": "NewClient",
+          "line": 72,
+          "exported": true,
+          "signature": "func NewClient(restClient rest.Interface) Client"
+        },
+        {
+          "kind": "func",
+          "name": "NewClientWithContext",
+          "line": 76,
+          "exported": true,
+          "signature": "func NewClientWithContext(restClient rest.Interface) ClientWithContext"
+        },
+        {
+          "kind": "func",
+          "name": "newClient",
+          "line": 80,
+          "exported": false,
+          "signature": "func newClient(restClient rest.Interface) *client"
+        },
+        {
+          "kind": "method",
+          "name": "Paths",
+          "line": 89,
+          "exported": true,
+          "signature": "func (c *client) Paths() (map[string]GroupVersion, error)",
+          "receiver": "*client"
+        },
+        {
+          "kind": "method",
+          "name": "PathsWithContext",
+          "line": 99,
+          "exported": true,
+          "signature": "func (c *client) PathsWithContext(ctx context.Context) (map[string]GroupVersionWithContext, error)",
+          "receiver": "*client"
+        }
+      ]
+    },
+    {
+      "path": "openapi/groupversion.go",
+      "sha256": "cfe2152afb47aac1e3ec875f9686e1ffa955dfe0311d255408592480a744f898",
+      "bytes": 3768,
+      "loc": 124,
+      "domain": "openapi",
+      "category": "go-source",
+      "fixture": false,
+      "license": false,
+      "package": "openapi",
+      "import_path": "k8s.io/client-go/openapi",
+      "role": "source",
+      "generated": false,
+      "imports": [
+        {
+          "path": "context"
+        },
+        {
+          "path": "net/url"
+        },
+        {
+          "path": "k8s.io/kube-openapi/pkg/handler3"
+        }
+      ],
+      "declarations": [
+        {
+          "kind": "const",
+          "name": "ContentTypeOpenAPIV3PB",
+          "line": 26,
+          "exported": true,
+          "signature": "const ContentTypeOpenAPIV3PB = \"application/com.github.proto-openapi.spec.v3@v1.0+protobuf\"",
+          "const_ordinal": 0
+        },
+        {
+          "kind": "type",
+          "name": "GroupVersion",
+          "line": 31,
+          "exported": true,
+          "signature": "type GroupVersion interface {\n\tSchema(contentType string) ([]byte, error)\n\n\t// ServerRelativeURL. Returns the path and parameters used to fetch the schema.\n\t// You should use the Schema method to fetch it, but this value can be used\n\t// to key the current version of the schema in a cache since it contains a\n\t// hash string which changes upon schema update.\n\tServerRelativeURL() string\n}"
+        },
+        {
+          "kind": "type",
+          "name": "GroupVersionWithContext",
+          "line": 41,
+          "exported": true,
+          "signature": "type GroupVersionWithContext interface {\n\tSchemaWithContext(ctx context.Context, contentType string) ([]byte, error)\n\n\t// ServerRelativeURL. Returns the path and parameters used to fetch the schema.\n\t// You should use the Schema method to fetch it, but this value can be used\n\t// to key the current version of the schema in a cache since it contains a\n\t// hash string which changes upon schema update.\n\tServerRelativeURL() string\n}"
+        },
+        {
+          "kind": "func",
+          "name": "ToGroupVersionWithContext",
+          "line": 51,
+          "exported": true,
+          "signature": "func ToGroupVersionWithContext(gv GroupVersion) GroupVersionWithContext"
+        },
+        {
+          "kind": "type",
+          "name": "groupVersionWrapper",
+          "line": 63,
+          "exported": false,
+          "signature": "type groupVersionWrapper struct {\n\tGroupVersion\n}"
+        },
+        {
+          "kind": "method",
+          "name": "SchemaWithContext",
+          "line": 67,
+          "exported": true,
+          "signature": "func (gv *groupVersionWrapper) SchemaWithContext(ctx context.Context, contentType string) ([]byte, error)",
+          "receiver": "*groupVersionWrapper"
+        },
+        {
+          "kind": "type",
+          "name": "groupversion",
+          "line": 71,
+          "exported": false,
+          "signature": "type groupversion struct {\n\tclient\t\t*client\n\titem\t\thandler3.OpenAPIV3DiscoveryGroupVersion\n\tuseClientPrefix\tbool\n}"
+        },
+        {
+          "kind": "var",
+          "name": "_",
+          "line": 78,
+          "exported": false,
+          "signature": "var _ GroupVersion = &groupversion{}"
+        },
+        {
+          "kind": "var",
+          "name": "_",
+          "line": 79,
+          "exported": false,
+          "signature": "var _ GroupVersionWithContext = &groupversion{}"
+        },
+        {
+          "kind": "func",
+          "name": "newGroupVersion",
+          "line": 82,
+          "exported": false,
+          "signature": "func newGroupVersion(client *client, item handler3.OpenAPIV3DiscoveryGroupVersion, useClientPrefix bool) *groupversion"
+        },
+        {
+          "kind": "method",
+          "name": "Schema",
+          "line": 86,
+          "exported": true,
+          "signature": "func (g *groupversion) Schema(contentType string) ([]byte, error)",
+          "receiver": "*groupversion"
+        },
+        {
+          "kind": "method",
+          "name": "SchemaWithContext",
+          "line": 90,
+          "exported": true,
+          "signature": "func (g *groupversion) SchemaWithContext(ctx context.Context, contentType string) ([]byte, error)",
+          "receiver": "*groupversion"
+        },
+        {
+          "kind": "method",
+          "name": "ServerRelativeURL",
+          "line": 122,
+          "exported": true,
+          "signature": "func (g *groupversion) ServerRelativeURL() string",
+          "receiver": "*groupversion"
+        }
+      ]
+    },
+    {
+      "path": "openapi/groupversion_test.go",
+      "sha256": "7d31b7b1159d415504216d48ca36a50be8c4de00078c9e7c38568afdff0998c5",
+      "bytes": 3262,
+      "loc": 106,
+      "domain": "openapi",
+      "category": "go-test",
+      "fixture": false,
+      "license": false,
+      "package": "openapi",
+      "import_path": "k8s.io/client-go/openapi",
+      "role": "test",
+      "generated": false,
+      "imports": [
+        {
+          "path": "fmt"
+        },
+        {
+          "path": "net/http"
+        },
+        {
+          "path": "net/http/httptest"
+        },
+        {
+          "path": "testing"
+        },
+        {
+          "path": "k8s.io/api/apps/v1",
+          "alias": "appsv1"
+        },
+        {
+          "path": "k8s.io/apimachinery/pkg/runtime"
+        },
+        {
+          "path": "k8s.io/client-go/kubernetes/scheme"
+        },
+        {
+          "path": "k8s.io/client-go/rest"
+        }
+      ],
+      "declarations": [
+        {
+          "kind": "func",
+          "name": "TestGroupVersion",
+          "line": 31,
+          "exported": true,
+          "signature": "func TestGroupVersion(t *testing.T)"
+        }
+      ]
+    },
+    {
+      "path": "openapi/openapitest/fakeclient.go",
+      "sha256": "4489773d37f8b1e7728d8f43dfd40efc2fe9666f61bc9422589691826904fc37",
+      "bytes": 2729,
+      "loc": 84,
+      "domain": "openapi",
+      "category": "go-source",
+      "fixture": false,
+      "license": false,
+      "package": "openapitest",
+      "import_path": "k8s.io/client-go/openapi/openapitest",
+      "role": "source",
+      "generated": false,
+      "imports": [
+        {
+          "path": "fmt"
+        },
+        {
+          "path": "k8s.io/apimachinery/pkg/runtime"
+        },
+        {
+          "path": "k8s.io/client-go/openapi"
+        }
+      ],
+      "declarations": [
+        {
+          "kind": "type",
+          "name": "FakeClient",
+          "line": 28,
+          "exported": true,
+          "signature": "type FakeClient struct {\n\t// Hard-coded paths to return from Paths() function.\n\tPathsMap\tmap[string]openapi.GroupVersion\n\t// Hard-coded returned error.\n\tForcedErr\terror\n}"
+        },
+        {
+          "kind": "var",
+          "name": "_",
+          "line": 36,
+          "exported": false,
+          "signature": "var _ openapi.Client = &FakeClient{}"
+        },
+        {
+          "kind": "func",
+          "name": "NewFakeClient",
+          "line": 39,
+          "exported": true,
+          "signature": "func NewFakeClient() *FakeClient"
+        },
+        {
+          "kind": "method",
+          "name": "Paths",
+          "line": 46,
+          "exported": true,
+          "signature": "func (f FakeClient) Paths() (map[string]openapi.GroupVersion, error)",
+          "receiver": "FakeClient"
+        },
+        {
+          "kind": "type",
+          "name": "FakeGroupVersion",
+          "line": 56,
+          "exported": true,
+          "signature": "type FakeGroupVersion struct {\n\t// Hard-coded GroupVersion specification\n\tGVSpec\t[]byte\n\t// Hard-coded returned error.\n\tForcedErr\terror\n}"
+        },
+        {
+          "kind": "var",
+          "name": "_",
+          "line": 64,
+          "exported": false,
+          "signature": "var _ openapi.GroupVersion = &FakeGroupVersion{}"
+        },
+        {
+          "kind": "method",
+          "name": "Schema",
+          "line": 71,
+          "exported": true,
+          "signature": "func (f FakeGroupVersion) Schema(contentType string) ([]byte, error)",
+          "receiver": "FakeGroupVersion"
+        },
+        {
+          "kind": "method",
+          "name": "ServerRelativeURL",
+          "line": 82,
+          "exported": true,
+          "signature": "func (f FakeGroupVersion) ServerRelativeURL() string",
+          "receiver": "FakeGroupVersion"
+        }
+      ]
+    },
+    {
+      "path": "openapi/openapitest/fileclient.go",
+      "sha256": "84f2a209c1e6e5c95bc3e698a7cccc93f65f5c57840681cf530994b87148c216",
+      "bytes": 3048,
+      "loc": 101,
+      "domain": "openapi",
+      "category": "go-source",
+      "fixture": false,
+      "license": false,
+      "package": "openapitest",
+      "import_path": "k8s.io/client-go/openapi/openapitest",
+      "role": "source",
+      "generated": false,
+      "imports": [
+        {
+          "path": "embed"
+        },
+        {
+          "path": "errors"
+        },
+        {
+          "path": "io/fs"
+        },
+        {
+          "path": "os"
+        },
+        {
+          "path": "strings"
+        },
+        {
+          "path": "k8s.io/client-go/openapi"
+        }
+      ],
+      "declarations": [
+        {
+          "kind": "var",
+          "name": "embedded",
+          "line": 30,
+          "exported": false,
+          "signature": "var embedded embed.FS"
+        },
+        {
+          "kind": "func",
+          "name": "NewFileClient",
+          "line": 35,
+          "exported": true,
+          "signature": "func NewFileClient(path string) openapi.Client"
+        },
+        {
+          "kind": "func",
+          "name": "NewEmbeddedFileClient",
+          "line": 41,
+          "exported": true,
+          "signature": "func NewEmbeddedFileClient() openapi.Client"
+        },
+        {
+          "kind": "type",
+          "name": "fileClient",
+          "line": 49,
+          "exported": false,
+          "signature": "type fileClient struct {\n\tf fs.FS\n}"
+        },
+        {
+          "kind": "var",
+          "name": "_",
+          "line": 54,
+          "exported": false,
+          "signature": "var _ openapi.Client = &fileClient{}"
+        },
+        {
+          "kind": "method",
+          "name": "Paths",
+          "line": 65,
+          "exported": true,
+          "signature": "func (f *fileClient) Paths() (map[string]openapi.GroupVersion, error)",
+          "receiver": "*fileClient"
+        },
+        {
+          "kind": "type",
+          "name": "fileGroupVersion",
+          "line": 79,
+          "exported": false,
+          "signature": "type fileGroupVersion struct {\n\tf\t\tfs.FS\n\tfilename\tstring\n}"
+        },
+        {
+          "kind": "var",
+          "name": "_",
+          "line": 85,
+          "exported": false,
+          "signature": "var _ openapi.GroupVersion = &fileGroupVersion{}"
+        },
+        {
+          "kind": "method",
+          "name": "Schema",
+          "line": 91,
+          "exported": true,
+          "signature": "func (f *fileGroupVersion) Schema(contentType string) ([]byte, error)",
+          "receiver": "*fileGroupVersion"
+        },
+        {
+          "kind": "method",
+          "name": "ServerRelativeURL",
+          "line": 99,
+          "exported": true,
+          "signature": "func (f *fileGroupVersion) ServerRelativeURL() string",
+          "receiver": "*fileGroupVersion"
+        }
+      ]
+    },
+    {
+      "path": "openapi/openapitest/fileclient_test.go",
+      "sha256": "af7f459bf9759007b90bf5287cb315e75a541bb1d0740acb734e3286bb63eaff",
+      "bytes": 2733,
+      "loc": 111,
+      "domain": "openapi",
+      "category": "go-test",
+      "fixture": false,
+      "license": false,
+      "package": "openapitest_test",
+      "import_path": "k8s.io/client-go/openapi/openapitest",
+      "role": "test",
+      "generated": false,
+      "imports": [
+        {
+          "path": "testing"
+        },
+        {
+          "path": "k8s.io/client-go/openapi/openapitest"
+        },
+        {
+          "path": "k8s.io/kube-openapi/pkg/spec3"
+        },
+        {
+          "path": "sigs.k8s.io/json",
+          "alias": "kjson"
+        }
+      ],
+      "declarations": [
+        {
+          "kind": "func",
+          "name": "TestOpenAPIEmbeddedTest",
+          "line": 27,
+          "exported": true,
+          "signature": "func TestOpenAPIEmbeddedTest(t *testing.T)"
+        },
+        {
+          "kind": "func",
+          "name": "TestOpenAPITest",
+          "line": 70,
+          "exported": true,
+          "signature": "func TestOpenAPITest(t *testing.T)"
+        }
+      ]
+    },
+    {
+      "path": "openapi/openapitest/testdata/api__v1_openapi.json",
+      "sha256": "6aca85ac8f0d588f75f6a74cb12481bb8dc6c325af51faa53e7e5eae3fc10719",
+      "bytes": 1648237,
+      "loc": 34853,
+      "domain": "openapi",
+      "category": "fixture",
+      "fixture": true,
+      "license": false,
+      "generated": false
+    },
+    {
+      "path": "openapi/openapitest/testdata/apis__apps__v1_openapi.json",
+      "sha256": "07b6fb5a9c92607a01c08d47d0a52ed420c7aa277cb515fb7a8459bff8cf018e",
+      "bytes": 750931,
+      "loc": 15296,
+      "domain": "openapi",
+      "category": "fixture",
+      "fixture": true,
+      "license": false,
+      "generated": false
+    },
+    {
+      "path": "openapi/openapitest/testdata/apis__batch__v1_openapi.json",
+      "sha256": "7b9e9e38ee14590f12b9d539e5cb05d74fe11b5e15118e91f89ded18c09fc2de",
+      "bytes": 446506,
+      "loc": 8811,
+      "domain": "openapi",
+      "category": "fixture",
+      "fixture": true,
+      "license": false,
+      "generated": false
+    },
+    {
+      "path": "openapi/openapitest/testdata/apis__discovery.k8s.io__v1_openapi.json",
+      "sha256": "463cbee643f750ac10143a2e66d8cfa03e63d4281b87691644bc5c1c57815c57",
+      "bytes": 137990,
+      "loc": 2859,
+      "domain": "openapi",
+      "category": "fixture",
+      "fixture": true,
+      "license": false,
+      "generated": false
+    },
+    {
+      "path": "openapi/openapitest/testdata/apis__networking.k8s.io__v1alpha1_openapi.json",
+      "sha256": "afc73e0a94c89f797ac4e45252d3ba58c4a0304ab6b829b6110da9239017e0e5",
+      "bytes": 56471,
+      "loc": 1249,
+      "domain": "openapi",
+      "category": "fixture",
+      "fixture": true,
+      "license": false,
+      "generated": false
+    },
+    {
+      "path": "openapi/typeconverter.go",
+      "sha256": "2e97e1386de63edae150c98d9d6013609a5d3e32091d218422f4b4037d876b79",
+      "bytes": 1438,
+      "loc": 48,
+      "domain": "openapi",
+      "category": "go-source",
+      "fixture": false,
+      "license": false,
+      "package": "openapi",
+      "import_path": "k8s.io/client-go/openapi",
+      "role": "source",
+      "generated": false,
+      "imports": [
+        {
+          "path": "encoding/json"
+        },
+        {
+          "path": "fmt"
+        },
+        {
+          "path": "k8s.io/apimachinery/pkg/util/managedfields"
+        },
+        {
+          "path": "k8s.io/kube-openapi/pkg/spec3"
+        },
+        {
+          "path": "k8s.io/kube-openapi/pkg/validation/spec"
+        }
+      ],
+      "declarations": [
+        {
+          "kind": "func",
+          "name": "NewTypeConverter",
+          "line": 28,
+          "exported": true,
+          "signature": "func NewTypeConverter(client Client, preserveUnknownFields bool) (managedfields.TypeConverter, error)"
+        }
+      ]
+    },
+    {
+      "path": "openapi3/root.go",
+      "sha256": "e3a6d496b4a09fcfa18270a727da113b159b8ac508ac48bd7a84db7c2fcfe751",
+      "bytes": 5806,
+      "loc": 182,
+      "domain": "openapi3",
+      "category": "go-source",
+      "fixture": false,
+      "license": false,
+      "package": "openapi3",
+      "import_path": "k8s.io/client-go/openapi3",
+      "role": "source",
+      "generated": false,
+      "imports": [
+        {
+          "path": "encoding/json"
+        },
+        {
+          "path": "fmt"
+        },
+        {
+          "path": "sort"
+        },
+        {
+          "path": "strings"
+        },
+        {
+          "path": "k8s.io/apimachinery/pkg/runtime"
+        },
+        {
+          "path": "k8s.io/apimachinery/pkg/runtime/schema"
+        },
+        {
+          "path": "k8s.io/client-go/openapi"
+        },
+        {
+          "path": "k8s.io/kube-openapi/pkg/spec3"
+        }
+      ],
+      "declarations": [
+        {
+          "kind": "type",
+          "name": "Root",
+          "line": 40,
+          "exported": true,
+          "signature": "type Root interface {\n\t// GroupVersions returns every GroupVersion for which there is an\n\t// OpenAPI V3 GroupVersion document. Returns an error for problems\n\t// retrieving or parsing the OpenAPI V3 root document.\n\tGroupVersions() ([]schema.GroupVersion, error)\n\t// GVSpec returns the specification for all the resources in a\n\t// GroupVersion as a pointer to a spec3.OpenAPI struct.\n\t// Returns an error for problems retrieving or parsing the root\n\t// document or GroupVersion OpenAPI V3 document.\n\tGVSpec(gv schema.GroupVersion) (*spec3.OpenAPI, error)\n\t// GVSpecAsMap returns the specification for all the resources in a\n\t// GroupVersion as unstructured bytes. Returns an error for\n\t// problems retrieving or parsing the root or GroupVersion\n\t// OpenAPI V3 document.\n\tGVSpecAsMap(gv schema.GroupVersion) (map[string]interface{}, error)\n}"
+        },
+        {
+          "kind": "type",
+          "name": "root",
+          "line": 59,
+          "exported": false,
+          "signature": "type root struct {\n\t// OpenAPI client to retrieve the OpenAPI V3 documents.\n\tclient openapi.Client\n}"
+        },
+        {
+          "kind": "var",
+          "name": "_",
+          "line": 65,
+          "exported": false,
+          "signature": "var _ Root = &root{}"
+        },
+        {
+          "kind": "func",
+          "name": "NewRoot",
+          "line": 69,
+          "exported": true,
+          "signature": "func NewRoot(client openapi.Client) Root"
+        },
+        {
+          "kind": "method",
+          "name": "GroupVersions",
+          "line": 73,
+          "exported": true,
+          "signature": "func (r *root) GroupVersions() ([]schema.GroupVersion, error)",
+          "receiver": "*root"
+        },
+        {
+          "kind": "method",
+          "name": "GVSpec",
+          "line": 95,
+          "exported": true,
+          "signature": "func (r *root) GVSpec(gv schema.GroupVersion) (*spec3.OpenAPI, error)",
+          "receiver": "*root"
+        },
+        {
+          "kind": "method",
+          "name": "GVSpecAsMap",
+          "line": 106,
+          "exported": true,
+          "signature": "func (r *root) GVSpecAsMap(gv schema.GroupVersion) (map[string]interface{}, error)",
+          "receiver": "*root"
+        },
+        {
+          "kind": "method",
+          "name": "retrieveGVBytes",
+          "line": 120,
+          "exported": false,
+          "signature": "func (r *root) retrieveGVBytes(gv schema.GroupVersion) ([]byte, error)",
+          "receiver": "*root"
+        },
+        {
+          "kind": "func",
+          "name": "gvToAPIPath",
+          "line": 137,
+          "exported": false,
+          "signature": "func gvToAPIPath(gv schema.GroupVersion) string"
+        },
+        {
+          "kind": "func",
+          "name": "pathToGroupVersion",
+          "line": 152,
+          "exported": false,
+          "signature": "func pathToGroupVersion(path string) (schema.GroupVersion, error)"
+        },
+        {
+          "kind": "type",
+          "name": "GroupVersionNotFoundError",
+          "line": 176,
+          "exported": true,
+          "signature": "type GroupVersionNotFoundError struct {\n\tgv schema.GroupVersion\n}"
+        },
+        {
+          "kind": "method",
+          "name": "Error",
+          "line": 180,
+          "exported": true,
+          "signature": "func (r *GroupVersionNotFoundError) Error() string",
+          "receiver": "*GroupVersionNotFoundError"
+        }
+      ]
+    },
+    {
+      "path": "openapi3/root_test.go",
+      "sha256": "2023421eb45a58df908c643d20fe7c84a5fe620c9b845020c1f9d118bd0bc64b",
+      "bytes": 8645,
+      "loc": 318,
+      "domain": "openapi3",
+      "category": "go-test",
+      "fixture": false,
+      "license": false,
+      "package": "openapi3",
+      "import_path": "k8s.io/client-go/openapi3",
+      "role": "test",
+      "generated": false,
+      "imports": [
+        {
+          "path": "fmt"
+        },
+        {
+          "path": "reflect"
+        },
+        {
+          "path": "testing"
+        },
+        {
+          "path": "github.com/stretchr/testify/assert"
+        },
+        {
+          "path": "github.com/stretchr/testify/require"
+        },
+        {
+          "path": "k8s.io/apimachinery/pkg/runtime/schema"
+        },
+        {
+          "path": "k8s.io/client-go/openapi"
+        },
+        {
+          "path": "k8s.io/client-go/openapi/openapitest"
+        }
+      ],
+      "declarations": [
+        {
+          "kind": "func",
+          "name": "TestOpenAPIV3Root_GroupVersions",
+          "line": 31,
+          "exported": true,
+          "signature": "func TestOpenAPIV3Root_GroupVersions(t *testing.T)"
+        },
+        {
+          "kind": "func",
+          "name": "TestOpenAPIV3Root_GVSpec",
+          "line": 111,
+          "exported": true,
+          "signature": "func TestOpenAPIV3Root_GVSpec(t *testing.T)"
+        },
+        {
+          "kind": "func",
+          "name": "TestOpenAPIV3Root_GVSpecAsMap",
+          "line": 170,
+          "exported": true,
+          "signature": "func TestOpenAPIV3Root_GVSpecAsMap(t *testing.T)"
+        },
+        {
+          "kind": "func",
+          "name": "TestOpenAPIV3Root_GroupVersionToPath",
+          "line": 229,
+          "exported": true,
+          "signature": "func TestOpenAPIV3Root_GroupVersionToPath(t *testing.T)"
+        },
+        {
+          "kind": "func",
+          "name": "TestOpenAPIV3Root_PathToGroupVersion",
+          "line": 269,
+          "exported": true,
+          "signature": "func TestOpenAPIV3Root_PathToGroupVersion(t *testing.T)"
+        }
+      ]
+    },
+    {
+      "path": "third_party/forked/httpcache/LICENSE",
+      "sha256": "38588bc3264e76b10e9f0c9b0fa0a55786dd0dfc1867846dcf6b811c13cb7e53",
+      "bytes": 1083,
+      "loc": 7,
+      "domain": "third_party",
+      "category": "license",
+      "fixture": false,
+      "license": true,
+      "generated": false
+    },
+    {
+      "path": "third_party/forked/httpcache/httpcache.go",
+      "sha256": "1fec67db5fd68b7d4a1dbf32df92edb26f20a30ef9846dbe58ef8b223241d591",
+      "bytes": 16458,
+      "loc": 554,
+      "domain": "third_party",
+      "category": "go-source",
+      "fixture": false,
+      "license": false,
+      "package": "httpcache",
+      "import_path": "k8s.io/client-go/third_party/forked/httpcache",
+      "role": "source",
+      "generated": false,
+      "imports": [
+        {
+          "path": "bufio"
+        },
+        {
+          "path": "bytes"
+        },
+        {
+          "path": "errors"
+        },
+        {
+          "path": "io"
+        },
+        {
+          "path": "net/http"
+        },
+        {
+          "path": "net/http/httputil"
+        },
+        {
+          "path": "strings"
+        },
+        {
+          "path": "sync"
+        },
+        {
+          "path": "time"
+        }
+      ],
+      "declarations": [
+        {
+          "kind": "const",
+          "name": "stale",
+          "line": 26,
+          "exported": false,
+          "signature": "const stale = iota",
+          "const_ordinal": 0
+        },
+        {
+          "kind": "const",
+          "name": "fresh",
+          "line": 27,
+          "exported": false,
+          "signature": "const fresh = iota",
+          "const_ordinal": 1,
+          "inherited": true
+        },
+        {
+          "kind": "const",
+          "name": "transparent",
+          "line": 28,
+          "exported": false,
+          "signature": "const transparent = iota",
+          "const_ordinal": 2,
+          "inherited": true
+        },
+        {
+          "kind": "const",
+          "name": "XFromCache",
+          "line": 30,
+          "exported": true,
+          "signature": "const XFromCache = \"X-From-Cache\"",
+          "const_ordinal": 3
+        },
+        {
+          "kind": "type",
+          "name": "Cache",
+          "line": 34,
+          "exported": true,
+          "signature": "type Cache interface {\n\t// Get returns the []byte representation of a cached response and a bool\n\t// set to true if the value isn't empty\n\tGet(key string) (responseBytes []byte, ok bool)\n\t// Set stores the []byte representation of a response against a key\n\tSet(key string, responseBytes []byte)\n\t// Delete removes the value associated with the key\n\tDelete(key string)\n}"
+        },
+        {
+          "kind": "func",
+          "name": "cacheKey",
+          "line": 45,
+          "exported": false,
+          "signature": "func cacheKey(req *http.Request) string"
+        },
+        {
+          "kind": "func",
+          "name": "CachedResponse",
+          "line": 55,
+          "exported": true,
+          "signature": "func CachedResponse(c Cache, req *http.Request) (resp *http.Response, err error)"
+        },
+        {
+          "kind": "type",
+          "name": "MemoryCache",
+          "line": 66,
+          "exported": true,
+          "signature": "type MemoryCache struct {\n\tmu\tsync.RWMutex\n\titems\tmap[string][]byte\n}"
+        },
+        {
+          "kind": "method",
+          "name": "Get",
+          "line": 72,
+          "exported": true,
+          "signature": "func (c *MemoryCache) Get(key string) (resp []byte, ok bool)",
+          "receiver": "*MemoryCache"
+        },
+        {
+          "kind": "method",
+          "name": "Set",
+          "line": 80,
+          "exported": true,
+          "signature": "func (c *MemoryCache) Set(key string, resp []byte)",
+          "receiver": "*MemoryCache"
+        },
+        {
+          "kind": "method",
+          "name": "Delete",
+          "line": 87,
+          "exported": true,
+          "signature": "func (c *MemoryCache) Delete(key string)",
+          "receiver": "*MemoryCache"
+        },
+        {
+          "kind": "func",
+          "name": "NewMemoryCache",
+          "line": 94,
+          "exported": true,
+          "signature": "func NewMemoryCache() *MemoryCache"
+        },
+        {
+          "kind": "type",
+          "name": "Transport",
+          "line": 102,
+          "exported": true,
+          "signature": "type Transport struct {\n\t// The RoundTripper interface actually used to make requests\n\t// If nil, http.DefaultTransport is used\n\tTransport\thttp.RoundTripper\n\tCache\t\tCache\n\t// If true, responses returned from the cache will be given an extra header, X-From-Cache\n\tMarkCachedResponses\tbool\n}"
+        },
+        {
+          "kind": "func",
+          "name": "NewTransport",
+          "line": 113,
+          "exported": true,
+          "signature": "func NewTransport(c Cache) *Transport"
+        },
+        {
+          "kind": "method",
+          "name": "Client",
+          "line": 118,
+          "exported": true,
+          "signature": "func (t *Transport) Client() *http.Client",
+          "receiver": "*Transport"
+        },
+        {
+          "kind": "func",
+          "name": "varyMatches",
+          "line": 124,
+          "exported": false,
+          "signature": "func varyMatches(cachedResp *http.Response, req *http.Request) bool"
+        },
+        {
+          "kind": "method",
+          "name": "RoundTrip",
+          "line": 142,
+          "exported": true,
+          "signature": "func (t *Transport) RoundTrip(req *http.Request) (resp *http.Response, err error)",
+          "receiver": "*Transport"
+        },
+        {
+          "kind": "var",
+          "name": "ErrNoDateHeader",
+          "line": 260,
+          "exported": true,
+          "signature": "var ErrNoDateHeader = errors.New(\"no Date header\")"
+        },
+        {
+          "kind": "func",
+          "name": "Date",
+          "line": 263,
+          "exported": true,
+          "signature": "func Date(respHeaders http.Header) (date time.Time, err error)"
+        },
+        {
+          "kind": "type",
+          "name": "realClock",
+          "line": 273,
+          "exported": false,
+          "signature": "type realClock struct{}"
+        },
+        {
+          "kind": "method",
+          "name": "since",
+          "line": 275,
+          "exported": false,
+          "signature": "func (c *realClock) since(d time.Time) time.Duration",
+          "receiver": "*realClock"
+        },
+        {
+          "kind": "type",
+          "name": "timer",
+          "line": 279,
+          "exported": false,
+          "signature": "type timer interface {\n\tsince(d time.Time) time.Duration\n}"
+        },
+        {
+          "kind": "var",
+          "name": "clock",
+          "line": 283,
+          "exported": false,
+          "signature": "var clock timer = &realClock{}"
+        },
+        {
+          "kind": "func",
+          "name": "getFreshness",
+          "line": 294,
+          "exported": false,
+          "signature": "func getFreshness(respHeaders, reqHeaders http.Header) (freshness int)"
+        },
+        {
+          "kind": "func",
+          "name": "canStaleOnError",
+          "line": 377,
+          "exported": false,
+          "signature": "func canStaleOnError(respHeaders, reqHeaders http.Header) bool"
+        },
+        {
+          "kind": "func",
+          "name": "getEndToEndHeaders",
+          "line": 419,
+          "exported": false,
+          "signature": "func getEndToEndHeaders(respHeaders http.Header) []string"
+        },
+        {
+          "kind": "func",
+          "name": "canStore",
+          "line": 447,
+          "exported": false,
+          "signature": "func canStore(reqCacheControl, respCacheControl cacheControl) (canStore bool)"
+        },
+        {
+          "kind": "func",
+          "name": "newGatewayTimeoutResponse",
+          "line": 457,
+          "exported": false,
+          "signature": "func newGatewayTimeoutResponse(req *http.Request) *http.Response"
+        },
+        {
+          "kind": "func",
+          "name": "cloneRequest",
+          "line": 470,
+          "exported": false,
+          "signature": "func cloneRequest(r *http.Request) *http.Request"
+        },
+        {
+          "kind": "type",
+          "name": "cacheControl",
+          "line": 482,
+          "exported": false,
+          "signature": "type cacheControl map[string]string"
+        },
+        {
+          "kind": "func",
+          "name": "parseCacheControl",
+          "line": 484,
+          "exported": false,
+          "signature": "func parseCacheControl(headers http.Header) cacheControl"
+        },
+        {
+          "kind": "func",
+          "name": "headerAllCommaSepValues",
+          "line": 508,
+          "exported": false,
+          "signature": "func headerAllCommaSepValues(headers http.Header, name string) []string"
+        },
+        {
+          "kind": "type",
+          "name": "cachingReadCloser",
+          "line": 523,
+          "exported": false,
+          "signature": "type cachingReadCloser struct {\n\t// Underlying ReadCloser.\n\tR\tio.ReadCloser\n\t// OnEOF is called with a copy of the content of R when EOF is reached.\n\tOnEOF\tfunc(io.Reader)\n\n\tbuf\tbytes.Buffer\t// buf stores a copy of the content of R.\n}"
+        },
+        {
+          "kind": "method",
+          "name": "Read",
+          "line": 536,
+          "exported": true,
+          "signature": "func (r *cachingReadCloser) Read(p []byte) (n int, err error)",
+          "receiver": "*cachingReadCloser"
+        },
+        {
+          "kind": "method",
+          "name": "Close",
+          "line": 545,
+          "exported": true,
+          "signature": "func (r *cachingReadCloser) Close() error",
+          "receiver": "*cachingReadCloser"
+        },
+        {
+          "kind": "func",
+          "name": "NewMemoryCacheTransport",
+          "line": 550,
+          "exported": true,
+          "signature": "func NewMemoryCacheTransport() *Transport"
+        }
+      ]
+    }
+  ]
+}

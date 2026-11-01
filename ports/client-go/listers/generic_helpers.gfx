@@ -1,0 +1,24 @@
+// Copyright 2023 The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+// Native port of client-go v0.37.2 listers/generic_helpers.go.
+package listers
+import cache "github.com/reoring/gofx/ports/client-go/tools/cache"
+import runtime "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime"
+import schema "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime/schema"
+import objects "github.com/reoring/gofx/ports/client-go/deps/objects"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+
+type ResourceIndexer[A] = ResourceIndexer { list: func(cache.ListSelector) IO[outcome.Outcome[List[A]]], get: func(String) IO[outcome.Outcome[Option[A]]], scoped: func(String) ResourceIndexer[A] }
+func new[A](indexer cache.Indexer[A], access cache.ObjectAccess[A], resource schema.GroupResource) ResourceIndexer[A] { resourceAt(indexer,access,resource,"") }
+func resourceAt[A](indexer cache.Indexer[A], access cache.ObjectAccess[A], resource schema.GroupResource, namespace String) ResourceIndexer[A] {
+ let parent = cache.newResourceLister(indexer,access,resource)
+ ResourceIndexer(func(selector) => cache.namespaceListerList(cache.byNamespace(parent,namespace),selector),func(name) => if namespace == "" { cache.listerGet(parent,name) } else { cache.namespaceListerGet(cache.byNamespace(parent,namespace),name) },func(ns) => resourceAt(indexer,access,resource,ns))
+}
+func newNamespaced[A](parent ResourceIndexer[A], namespace String) ResourceIndexer[A] { parent.scoped(namespace) }
+func list[A](indexer ResourceIndexer[A], selector cache.ListSelector) IO[outcome.Outcome[List[A]]] { indexer.list(selector) }
+func get[A](indexer ResourceIndexer[A], name String) IO[outcome.Outcome[Option[A]]] { indexer.get(name) }
+func cast[A](descriptor objects.ObjectType[A], value runtime.Object) IO[A] { match objects.fromObject(descriptor,Some(value)) { Some(typed) => ioPure(typed); None => ioFail("listers: cached object has unexpected concrete type") } }
+func castList[A](descriptor objects.ObjectType[A], values List[runtime.Object]) IO[List[A]] { match values { Nil => ioPure(Nil); Cons(value,rest) => do { typed <- cast(descriptor,value); remaining <- castList(descriptor,rest); ioPure(Cons(typed,remaining)) } } }
+func fromRaw[A](indexer cache.Indexer[runtime.Object], descriptor objects.ObjectType[A], resource schema.GroupResource) ResourceIndexer[A] { rawAt(new(indexer,cache.rawObjectAccess(),resource),descriptor) }
+func rawAt[A](parent ResourceIndexer[runtime.Object], descriptor objects.ObjectType[A]) ResourceIndexer[A] {
+ ResourceIndexer(func(selector) => do { found <- parent.list(selector); typed <- castList(descriptor,found.value); ioPure(outcome.Outcome(typed,found.error)) },func(name) => do { found <- parent.get(name); match found.value { None => ioPure(outcome.Outcome(None,found.error)); Some(value) => do { typed <- cast(descriptor,value); ioPure(outcome.Outcome(Some(typed),found.error)) } } },func(namespace) => rawAt(parent.scoped(namespace),descriptor))
+}

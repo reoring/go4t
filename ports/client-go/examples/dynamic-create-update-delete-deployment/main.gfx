@@ -1,0 +1,13 @@
+package main
+
+// Copyright 2026 The gofx Authors. SPDX-License-Identifier: Apache-2.0
+import examples "examples"
+import sync "support/sync"
+
+func main() IO[Unit] {
+ do {
+  parent <- sync.captureContext()
+  lifetime <- sync.newContext(parent,Some(30000000000))
+  sync.ensuring(sync.withContext(lifetime.0,do { trace <- examples.dynamicDeploymentExample(); examples.outputTraces([trace]) }),sync.cancelContext(lifetime.1))
+ }
+}

@@ -1,0 +1,42 @@
+package main
+import auth "github.com/reoring/gofx/ports/client-go/pkg/apis/clientauthentication"
+import install "github.com/reoring/gofx/ports/client-go/pkg/apis/clientauthentication/install"
+import v1 "github.com/reoring/gofx/ports/client-go/pkg/apis/clientauthentication/v1"
+import meta "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import "std/string"
+func check(value Bool, message String) IO[Unit] { if value { ioPure(unit()) } else { ioFail(message) } }
+func main() IO[Unit] { do {
+ let cluster = auth.newCluster(){server: "https://cluster", tlsServerName: "tls", certificateAuthorityData: Some("\x00\xff"), proxyURL: "http://proxy", disableCompression: true}
+ let status = auth.newExecCredentialStatus(){token: "secret", clientCertificateData: "cert", clientKeyData: "key"}
+ let credential = auth.newExecCredential(){typeMeta: meta.typeMetaWithKind(meta.newTypeMeta(), "ExecCredential"), spec: auth.ExecCredentialSpec(true, Some(cluster)), status: Some(status)}
+ wire <- v1.convertExecCredentialFromInternal(credential)
+ check(meta.typeMetaGetKind(wire.typeMeta) == "", "generated conversion excludes TypeMeta")
+ internal <- v1.convertExecCredentialToInternal(wire)
+ check(internal.spec.interactive, "interactive preserved")
+ check(match internal.spec.cluster { None => false; Some(c) => c.server == "https://cluster" && c.certificateAuthorityData == Some("\x00\xff") && c.disableCompression }, "cluster fields and arbitrary bytes preserved")
+ check(match internal.status { None => false; Some(s) => s.token == "secret" && s.clientKeyData == "key" }, "credentials preserved")
+ empty <- v1.convertExecCredentialFromInternal(auth.newExecCredential())
+ check(match empty.spec.cluster { None => true; Some(_) => false }, "nil cluster remains absent")
+ check(match empty.status { None => true; Some(_) => false }, "nil status remains absent")
+ scheme <- auth.newScheme()
+ install.install(scheme)
+ recognized <- auth.recognizes(scheme, "v1", "ExecCredential")
+ check(recognized, "v1 registration")
+ betaCredential <- auth.convert(scheme, auth.InternalCredential(credential), "v1beta1")
+ check(auth.objectVersion(betaCredential) == "v1beta1", "registered beta conversion")
+ copied <- auth.deepCopyExecCredential(credential)
+ check(meta.typeMetaGetKind(copied.typeMeta) == "ExecCredential", "deepcopy retains metadata")
+ defaulted <- auth.defaultObject(scheme, betaCredential)
+ check(auth.objectVersion(defaulted) == "v1beta1", "defaulting preserves API version")
+ let wireJSON = "{\"apiVersion\":\"client.authentication.k8s.io/v1\",\"kind\":\"ExecCredential\",\"spec\":{\"interactive\":false,\"cluster\":{\"server\":\"https://cluster\",\"certificate-authority-data\":\"AP8=\",\"config\":{\"n\":9007199254740993}}},\"status\":{\"expirationTimestamp\":\"2038-01-19T03:14:07Z\",\"token\":\"secret\"}}"
+ decoded <- auth.decode(scheme, wireJSON)
+ encoded <- auth.encode(scheme, decoded, "v1")
+ check(string.contains(encoded, "9007199254740993"), "opaque config integers must not pass through Float")
+ check(string.contains(encoded, "\"certificate-authority-data\":\"AP8=\""), "wire byte base64 fidelity")
+ check(string.contains(encoded, "\"expirationTimestamp\":\"2038-01-19T03:14:07Z\""), "wire timestamp fidelity")
+ check(string.contains(encoded, "\"interactive\":false"), "required false interactive must be emitted")
+ internalDecoded <- auth.decodeToVersion(scheme, wireJSON, auth.internalVersion())
+ roundtrip <- auth.encode(scheme, internalDecoded, "v1beta1")
+ check(string.contains(roundtrip, "9007199254740993"), "raw config preserved through internal conversion")
+ check(string.contains(roundtrip, "client.authentication.k8s.io/v1beta1"), "wire target version metadata")
+} }

@@ -1,0 +1,22 @@
+package main
+import home "github.com/reoring/gofx/ports/client-go/util/homedir"
+import "std/map"
+func check(actual String, expected String) IO[Unit] { if actual == expected { ioPure(unit()) } else { ioFail("home precedence: expected " + expected + ", got " + actual) } }
+func fixture(os String, files Map[String, home.FileInfo]) home.Host {
+ let env = map.mapFromList([("HOME", "home"), ("HOMEDRIVE", "drive"), ("HOMEPATH", "path"), ("USERPROFILE", "profile")])
+ home.Host(os, func(key) => ioPure(match map.mapLookup(env, key) { Some(value) => value; None => "" }), func(path) => ioPure(map.mapLookup(files, path)), func(a, b, c) => a + "/" + b + "/" + c)
+}
+func main() IO[Unit] { do {
+ unix <- home.homeDirWith(fixture("linux", map.mapFromList([("profile/.kube/config", home.FileInfo(false, true))])))
+ check(unix, "home")
+ config <- home.homeDirWith(fixture("windows", map.mapFromList([("drivepath/.kube/config", home.FileInfo(false, false)), ("profile/.kube/config", home.FileInfo(false, false))])))
+ check(config, "drivepath")
+ writable <- home.homeDirWith(fixture("windows", map.mapFromList([("home", home.FileInfo(false, true)), ("profile", home.FileInfo(true, true)), ("drivepath", home.FileInfo(true, true))])))
+ check(writable, "profile")
+ exists <- home.homeDirWith(fixture("windows", map.mapFromList([("home", home.FileInfo(false, false)), ("profile", home.FileInfo(true, false))])))
+ check(exists, "home")
+ set <- home.homeDirWith(fixture("windows", map.emptyMap()))
+ check(set, "home")
+ empty <- home.homeDirWith(home.Host("windows", func(key) => ioPure(""), func(path) => ioPure(None), func(a, b, c) => a + b + c))
+ check(empty, "")
+} }

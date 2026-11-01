@@ -1,0 +1,36 @@
+// Copyright 2014 The Kubernetes Authors. Licensed under Apache-2.0.
+package auth
+import api "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api"
+import rest "github.com/reoring/gofx/ports/client-go/rest"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import errors "github.com/reoring/gofx/ports/client-go/deps/support"
+import "std/prelude"
+import "std/list"
+import "std/map"
+import "std/string"
+type Info = Info {user:String,password:String,caFile:String,certFile:String,keyFile:String,bearerToken:String,insecure:Option[Bool]}
+func emptyInfo() Info { Info("","","","","","",None) }
+func complete(info Info) Bool { info.user != "" || info.certFile != "" || info.bearerToken != "" }
+func decode(text String) IO[Info] { do {
+ fields <- api.jsonObjectFields(text)
+ let fields = map.mapFromList(prelude.fmap(map.mapToList(fields),func((name,value)) => (string.toLower(name),value)))
+ user <- api.jsonStringValue(api.jsonField(fields,"user"))
+ password <- api.jsonStringValue(api.jsonField(fields,"password"))
+ caFile <- api.jsonStringValue(api.jsonField(fields,"cafile"))
+ certFile <- api.jsonStringValue(api.jsonField(fields,"certfile"))
+ keyFile <- api.jsonStringValue(api.jsonField(fields,"keyfile"))
+ token <- api.jsonStringValue(api.jsonField(fields,"bearertoken"))
+ insecure <- api.decodeOptional(api.jsonField(fields,"insecure"),api.jsonBoolValue)
+ ioPure(Info(user,password,caFile,certFile,keyFile,token,insecure))
+} }
+func encode(info Info) String { api.jsonObject([("User",api.quoteJSON(info.user)),("Password",api.quoteJSON(info.password)),("CAFile",api.quoteJSON(info.caFile)),("CertFile",api.quoteJSON(info.certFile)),("KeyFile",api.quoteJSON(info.keyFile)),("BearerToken",api.quoteJSON(info.bearerToken)),("Insecure",match info.insecure { None => "null"; Some(value) => if value { "true" } else { "false" } })]) }
+func loadFromFile(source api.Source,path String) IO[outcome.Outcome[Option[Info]]] { do {
+ status <- source.stat(path)
+ if match status.error { None => false; Some(error) => api.isNotExist(error) } {
+  ioPure(outcome.Outcome(None,status.error))
+ } else { do {
+  data <- source.read(path)
+  match data.error { Some(error) => ioPure(outcome.failure(None,error)); None => do { decoded <- api.capture(decode(data.value),emptyInfo()); ioPure(outcome.Outcome(if outcome.isSuccess(decoded) { Some(decoded.value) } else { None },decoded.error)) } }
+ } }
+} }
+func mergeWithConfig(info Info,config rest.Config) rest.Config { config{username:info.user,password:info.password,bearerToken:info.bearerToken,tlsClientConfig:config.tlsClientConfig{caFile:info.caFile,certFile:info.certFile,keyFile:info.keyFile,insecure:match info.insecure { None => config.tlsClientConfig.insecure; Some(value) => value }}} }

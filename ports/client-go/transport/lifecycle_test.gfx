@@ -1,0 +1,125 @@
+// Copyright 2015 The Kubernetes Authors. Licensed under Apache-2.0.
+package transport
+import net "github.com/reoring/gofx/ports/client-go/deps/net"
+import tls "github.com/reoring/gofx/ports/client-go/deps/crypto/tls"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import map "std/map"
+import list "std/list"
+
+extern func fixturePipe() IO[(net.Conn, net.Conn)] = "github.com/reoring/gofx/ports/client-go/transport/testsupport".Pipe
+// Pinned upstream ca_rotation_test.go:testCACert1. Expiry is irrelevant to PEM decoding.
+func fixtureCA() String {
+ "-----BEGIN CERTIFICATE-----\nMIIC4DCCAcqgAwIBAgIBATALBgkqhkiG9w0BAQswIzEhMB8GA1UEAwwYMTAuMTMu\nMTI5LjEwNkAxNDIxMzU5MDU4MB4XDTE1MDExNTIxNTczN1oXDTE2MDExNTIxNTcz\nOFowIzEhMB8GA1UEAwwYMTAuMTMuMTI5LjEwNkAxNDIxMzU5MDU4MIIBIjANBgkq\nhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAunDRXGwsiYWGFDlWH6kjGun+PshDGeZX\nxtx9lUnL8pIRWH3wX6f13PO9sktaOWW0T0mlo6k2bMlSLlSZgG9H6og0W6gLS3vq\ns4VavZ6DbXIwemZG2vbRwsvR+t4G6Nbwelm6F8RFnA1Fwt428pavmNQ/wgYzo+T1\n1eS+HiN4ACnSoDSx3QRWcgBkB1g6VReofVjx63i0J+w8Q/41L9GUuLqquFxu6ZnH\n60vTB55lHgFiDLjA1FkEz2dGvGh/wtnFlRvjaPC54JH2K1mPYAUXTreoeJtLJKX0\nycoiyB24+zGCniUmgIsmQWRPaOPircexCp1BOeze82BT1LCZNTVaxQIDAQABoyMw\nITAOBgNVHQ8BAf8EBAMCAKQwDwYDVR0TAQH/BAUwAwEB/zALBgkqhkiG9w0BAQsD\nggEBADMxsUuAFlsYDpF4fRCzXXwrhbtj4oQwcHpbu+rnOPHCZupiafzZpDu+rw4x\nYGPnCb594bRTQn4pAu3Ac18NbLD5pV3uioAkv8oPkgr8aUhXqiv7KdDiaWm6sbAL\nEHiXVBBAFvQws10HMqMoKtO8f1XDNAUkWduakR/U6yMgvOPwS7xl0eUTqyRB6zGb\nK55q2dejiFWaFqB/y78txzvz6UlOZKE44g2JAVoJVM6kGaxh33q8/FmrL4kuN3ut\nW+MmJCVDvd4eEqPwbp7146ZWTqpIJ8lvA6wuChtqV8lhAPka2hD/LMqY8iXNmfXD\numl0obOEy+ON91k+SWTJ3ggmF/U=\n-----END CERTIFICATE-----"
+}
+func testCARotationThrottleAndInvalidFallback() IO[Bool] {
+ sync.bracket(fixtureFile(fixtureCA()), func(path) => do {
+  env <- fixtureEnvironment(true, true)
+  let c = defaultConfig()
+  loaded <- loadTLSFiles(env, c {tls: c.tls {caFile: path}})
+  config <- tlsConfigForLoaded(env, loaded.value)
+  raw <- constructHTTP(config.value, func(network, address) => defaultDial(network, address), None, false)
+  mutex <- sync.newMutex()
+  now <- sync.now(env.clock)
+  state <- sync.newRef(CARotationState(raw, fixtureCA(), now))
+  let holder = CARotation(mutex, state, path)
+  fixtureWrite(path, fixtureCA() + "\n")
+  caTransport(env, holder)
+  fresh <- sync.readRef(state)
+  sync.advance(env.clock, env.caRefreshNanos)
+  caTransport(env, holder)
+  changed <- sync.readRef(state)
+  fixtureWrite(path, "not PEM")
+  sync.advance(env.clock, env.caRefreshNanos)
+  caTransport(env, holder)
+  invalid <- sync.readRef(state)
+  fixtureWrite(path, "")
+  sync.advance(env.clock, env.caRefreshNanos)
+  caTransport(env, holder)
+  empty <- sync.readRef(state)
+  closeHTTP(raw)
+  closeHTTP(changed.transport)
+  ioPure(fresh.caData == fixtureCA() && changed.caData == fixtureCA() + "\n" && invalid.caData == changed.caData && empty.caData == changed.caData)
+ }, fixtureRemove)
+}
+func testEmptyCARootsFeatureAndLoadProvenance() IO[Bool] {
+ sync.bracket(fixtureFile(""), func(path) => do {
+  enabled <- fixtureEnvironment(true, true)
+  disabled <- fixtureEnvironment(true, false)
+  enabledRoots <- rootCertPool(enabled, None)
+  disabledRoots <- rootCertPool(disabled, None)
+  let c = defaultConfig()
+  loaded <- loadTLSFiles(enabled, c {tls: c.tls {caFile: path}})
+  dataWins <- loadTLSFiles(enabled, c {tls: c.tls {caFile: "/missing", caData: Some(fixtureCA())}})
+  ioPure((match enabledRoots.value { None => false; Some(_) => true }) && (match disabledRoots.value { None => true; Some(_) => false }) && loaded.value.tls.reloadCAFiles && outcome.isSuccess(dataWins) && !dataWins.value.tls.reloadCAFiles)
+ }, fixtureRemove)
+}
+func testClientCertificateRotationClosesOnlyOnChange() IO[Bool] {
+ sync.bracket(fixturePipe(), func(pair) => do {
+  connections <- newConnectionSet()
+  let dial = connectionDialer(connections, func(_, _) => ioPure(outcome.success(Some(pair.0))))
+  dial("tcp", "unused")
+  a <- tls.newCertificate()
+  b <- tls.newCertificate()
+  tls.certificateSetOCSPStapleIdentity(b, Some("changed"))
+  current <- sync.newRef(Some(a))
+  mutex <- sync.newMutex()
+  observed <- sync.newRef(None)
+  let rotation = CertificateRotation(mutex, observed, connections, func() => do { value <- sync.readRef(current); ioPure(outcome.success(value)) })
+  loadClientCertificate(rotation)
+  initial <- sync.readRef(connections.values)
+  loadClientCertificate(rotation)
+  same <- sync.readRef(connections.values)
+  sync.writeRef(current, Some(b))
+  loadClientCertificate(rotation)
+  changed <- sync.readRef(connections.values)
+  ioPure(list.length(initial) == 1 && list.length(same) == 1 && list.length(changed) == 0)
+ }, func(pair) => do { closeConnection(pair.0); closeConnection(pair.1) })
+}
+func testCertificateErrorCacheUsesStrictOneSecondBoundary() IO[Bool] {
+ sync.bracket(fixtureFile("invalid-cert"), func(path) => do {
+  clock <- sync.fakeClock(0)
+  loader <- cachingCertificateLoader(clock, path, path)
+  first <- loader()
+  fixtureRemove(path)
+  sync.advance(clock, 1000000000)
+  boundary <- loader()
+  sync.advance(clock, 1)
+  stale <- loader()
+  ioPure((match (first.error, boundary.error, stale.error) { (Some(a), Some(b), Some(c)) => errorText(a) == errorText(b) && errorText(b) != errorText(c); _ => false }))
+ }, fixtureRemove)
+}
+func dropLifetimeWorker(env Environment, completed sync.Channel[Unit]) IO[Unit] { do {
+ blocked <- sync.newChannel(0)
+ started <- sync.newChannel(1)
+ let worker = sync.ensuring(do { sync.send(started, unit()); sync.receive(blocked); ioPure(unit()) }, sync.send(completed, unit()))
+ let c = defaultConfig()
+ key <- tlsConfigKey(c)
+ live <- storeTransport(env, c, key, false, true, ConstructedTransport(fixtureBase(), Some(worker)))
+ sync.receive(started)
+ keepLifetime(live.lifetime)
+} }
+func testUncacheableWorkerLifetimeCancelsAndJoins() IO[Bool] { do {
+ env <- fixtureEnvironment(true, false)
+ completed <- sync.newChannel(1)
+ dropLifetimeWorker(env, completed)
+ fixtureCollect()
+ clock <- sync.realClock()
+ sync.bracket(sync.newTimer(clock, 2000000000), func(timer) => do {
+  timerEvents <- sync.timerChannel(timer)
+  selected <- sync.selectCase([sync.receiveCase(completed, func(_) => true), sync.receiveCase(timerEvents, func(_) => false)])
+  ioPure(selected)
+ }, func(timer) => do { sync.stopTimer(timer); ioPure(unit()) })
+} }
+func testStaleGenerationCannotEvictReplacement() IO[Bool] { do {
+ env <- fixtureEnvironment(true, false)
+ let c = defaultConfig()
+ key <- tlsConfigKey(c)
+ first <- sync.withLock(env.cache.mutex, storeTransport(env, c, key, true, true, ConstructedTransport(fixtureBase(), None)))
+ second <- sync.withLock(env.cache.mutex, storeTransport(env, c, key, true, true, ConstructedTransport(fixtureBase(), None)))
+ evictGeneration(env, key, 1)
+ entries <- sync.readRef(env.cache.weak)
+ keepLifetime(first.lifetime)
+ keepLifetime(second.lifetime)
+ ioPure(match map.mapLookup(entries, key) { None => false; Some(entry) => entry.generation == 2 })
+} }

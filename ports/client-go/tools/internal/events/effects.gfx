@@ -1,0 +1,23 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package events
+import runtime "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime"
+import time "github.com/reoring/gofx/ports/client-go/deps/time"
+import meta "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import "github.com/reoring/gofx/ports/client-go/deps/support"
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+import flow "github.com/reoring/gofx/ports/client-go/util/flowcontrol"
+extern func timeNanos(value time.Time) Int = "github.com/reoring/gofx/ports/client-go/host/events".Nanos
+extern func hex(value Int) String = "github.com/reoring/gofx/ports/client-go/host/events".Hex
+extern func uuid() IO[String] = "github.com/reoring/gofx/ports/client-go/host/events".UUID
+extern func validName(name String) Bool = "github.com/reoring/gofx/ports/client-go/host/events".ValidName
+extern func commonVersion(object runtime.Object) IO[(String,Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/host/events".CommonVersion
+extern func mergePatch(old runtime.Object, updated runtime.Object, example runtime.Object) IO[(String,Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/host/events".MergePatch
+func timestamp(nanos Int) meta.Time { meta.timeWithTime(meta.newTime(),time.unix(0,nanos)) }
+func microTimestamp(nanos Int) meta.MicroTime { meta.microTimeWithTime(meta.newMicroTime(),time.unix(0,nanos)) }
+func timestampNanos(value meta.Time) Int { timeNanos(meta.timeGetTime(value)) }
+func microTimestampNanos(value meta.MicroTime) Int { timeNanos(meta.microTimeGetTime(value)) }
+func sleep(clock sync.Clock, nanos Int) IO[Unit] { flow.sleepNanos(clock,nanos) }
+extern func hostname() IO[(String,Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/host/events".Hostname
+extern func log(message String) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/events".Log
+func defaultLogger(message String, error Option[support.Error]) IO[Unit] { log(message + (match error { None => ""; Some(e) => ": "+support.errorMessage(e) })) }
+extern func statusError(error support.Error) Option[meta.Status] = "github.com/reoring/gofx/ports/client-go/host/events".StatusError

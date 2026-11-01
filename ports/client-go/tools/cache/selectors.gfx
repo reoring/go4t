@@ -1,0 +1,16 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package cache
+import "std/map"
+import labels "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/labels"
+import codec "github.com/reoring/gofx/ports/client-go/deps/codec"
+import schema "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime/schema"
+
+func fromLabelSelector(selector labels.Selector) IO[ListSelector] { do {
+ empty <- labels.selectorCallEmptyIdentity(selector)
+ requirements <- labels.selectorCallRequirementsIdentity(selector)
+ ioPure(ListSelector(empty,!snd(requirements),func(values) => do {
+  view <- labels.newLabels(func(key) => ioPure(match map.mapLookup(values,key) { None => ""; Some(value) => value }),func(key) => ioPure(map.mapMember(values,key)),func(key) => ioPure(match map.mapLookup(values,key) { None => ("",false); Some(value) => (value,true) }))
+  labels.selectorCallMatchesIdentity(selector,Some(view))
+ }))
+} }
+func newResourceLister[A](indexer Indexer[A], access ObjectAccess[A], resource schema.GroupResource) GenericLister[A] { newGenericLister(indexer,access,func(name) => codec.newNotFound(resource,name)) }

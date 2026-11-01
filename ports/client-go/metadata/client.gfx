@@ -1,0 +1,131 @@
+package metadata
+
+import rest "rest"
+import dynamic "dynamic"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import runtime "deps/k8s.io/apimachinery/pkg/runtime"
+import v1 "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import errors "deps/support"
+import outcome "support/outcome"
+import watch "support/watch"
+import codec "deps/codec"
+import types "deps/k8s.io/apimachinery/pkg/types"
+
+// Copyright 2018 The Kubernetes Authors. Licensed under Apache-2.0.
+type Interface = Interface { resource: func(schema.GroupVersionResource) ResourceInterface, unsupportedWatchList: Bool }
+type ResourceInterface = ResourceInterface {
+ namespace: func(String) ResourceInterface,
+ delete: func(String,v1.DeleteOptions,List[String]) IO[outcome.Outcome[Unit]],
+ deleteCollection: func(v1.DeleteOptions,v1.ListOptions) IO[outcome.Outcome[Unit]],
+ get: func(String,v1.GetOptions,List[String]) IO[outcome.Outcome[Option[v1.PartialObjectMetadata]]],
+ list: func(v1.ListOptions) IO[outcome.Outcome[Option[v1.PartialObjectMetadataList]]],
+ watch: func(v1.ListOptions) IO[outcome.Outcome[Option[watch.Watch]]],
+ patch: func(String,String,String,v1.PatchOptions,List[String]) IO[outcome.Outcome[Option[v1.PartialObjectMetadata]]]
+}
+type Client = Client { rest: rest.Interface, parameters: runtime.ParameterCodec, encodeDelete: func(v1.DeleteOptions) IO[outcome.Outcome[String]], fallbackObject: func(String) IO[outcome.Outcome[v1.PartialObjectMetadata]], fallbackList: func(String) IO[outcome.Outcome[v1.PartialObjectMetadataList]], isNotRegistered: func(errors.Error) Bool, objectTypeName: func(Option[runtime.Object]) IO[String], objectDescription: func(v1.PartialObjectMetadata) IO[String] }
+type ResourceClient = ResourceClient { client: Client, gvr: schema.GroupVersionResource, namespace: String }
+func newClient(client Client) Interface { Interface(func(gvr) => resourceInterface(ResourceClient(client,gvr,"")),false) }
+func resourceInterface(c ResourceClient) ResourceInterface {
+ ResourceInterface(func(ns) => resourceInterface(c{namespace: ns}),func(n,p,sub) => delete(c,n,p,sub),func(p,l) => deleteCollection(c,p,l),func(n,p,sub) => get(c,n,p,sub),func(p) => list(c,p),func(p) => watch(c,p),func(n,t,b,p,sub) => patch(c,n,t,b,p,sub))
+}
+func accept(list Bool) String {
+ let kind = if list { "PartialObjectMetadataList" } else { "PartialObjectMetadata" }
+ "application/vnd.kubernetes.protobuf;as="+kind+";g=meta.k8s.io;v=v1,application/json;as="+kind+";g=meta.k8s.io;v=v1,application/json"
+}
+func request(c ResourceClient,verb String,name String,sub List[String],options runtime.Object,list Bool) IO[rest.Request] {
+ do {
+  base <- c.client.rest.verb(verb)
+  rest.specificallyVersionedParams(rest.setHeader(rest.absPath(base,append(dynamic.makeURLSegments(c.gvr,c.namespace,name),sub)),"Accept",[accept(list)]),options,c.client.parameters,dynamic.versionV1())
+ }
+}
+func isLikelyObjectMetadata(value v1.PartialObjectMetadata) IO[Bool] {
+ let meta = v1.partialObjectMetadataGetObjectMeta(value)
+ do {
+  time <- v1.timeCallIsZero(v1.objectMetaGetCreationTimestamp(meta))
+  ioPure(v1.objectMetaGetName(meta) != "" || v1.objectMetaGetGenerateName(meta) != "" || !time.1 || types.uidValue(v1.objectMetaGetUID(meta)) != "")
+ }
+}
+func decodeObject(c ResourceClient,result rest.ResponseResult,patch Bool) IO[outcome.Outcome[Option[v1.PartialObjectMetadata]]] {
+ do {
+  decoded <- rest.resultGet(result)
+  match decoded.error {
+   Some(e) => if c.client.isNotRegistered(e) { do {
+    let raw = rest.resultRaw(result)
+    match raw.error { Some(e) => ioPure(outcome.failure(None,e)); None => do {
+     fallback <- c.client.fallbackObject(raw.value)
+     match fallback.error { Some(e) => ioPure(outcome.failure(None,errors.errorWrap("unable to decode returned object as PartialObjectMetadata",e))); None => do {
+      likely <- isLikelyObjectMetadata(fallback.value)
+      if likely { ioPure(outcome.success(Some(v1.partialObjectMetadataWithTypeMeta(fallback.value,v1.newTypeMeta())))) }
+      else if patch { ioPure(outcome.failure(None,errors.errorNew("object does not appear to match the ObjectMeta schema"))) }
+      else { do { description <- c.client.objectDescription(fallback.value); ioPure(outcome.failure(None,errors.errorNew("object does not appear to match the ObjectMeta schema: "+description))) } }
+     } }
+    } }
+   } } else { ioPure(outcome.failure(None,e)) }
+   None => match decoded.value {
+    Some(object) => match v1.partialObjectMetadataFromRuntimeObject(object) { Some(value) => ioPure(outcome.success(Some(value))); None => unexpectedObject(c,decoded.value) }
+    None => unexpectedObject(c,None)
+   }
+  }
+ }
+}
+func unexpectedObject(c ResourceClient,object Option[runtime.Object]) IO[outcome.Outcome[Option[v1.PartialObjectMetadata]]] {
+ do { kind <- c.client.objectTypeName(object); ioPure(outcome.failure(None,errors.errorNew("unexpected object, expected PartialObjectMetadata but got "+kind))) }
+}
+func get(c ResourceClient,name String,options v1.GetOptions,sub List[String]) IO[outcome.Outcome[Option[v1.PartialObjectMetadata]]] {
+ if name == "" { ioPure(outcome.failure(None,errors.errorNew("name is required"))) } else { do { r <- request(c,"GET",name,sub,v1.getOptionsToRuntimeObject(options),false); result <- rest.doRequest(r); decodeObject(c,result,false) } }
+}
+func list(c ResourceClient,options v1.ListOptions) IO[outcome.Outcome[Option[v1.PartialObjectMetadataList]]] {
+ do {
+  r <- request(c,"GET","",[],v1.listOptionsToRuntimeObject(options),true)
+  result <- rest.doRequest(r)
+  decoded <- rest.resultGet(result)
+  match decoded.error {
+   Some(e) => if c.client.isNotRegistered(e) { do {
+    let raw = rest.resultRaw(result)
+    match raw.error { Some(e) => ioPure(outcome.failure(None,e)); None => do {
+     fallback <- c.client.fallbackList(raw.value)
+     ioPure(match fallback.error { Some(e) => outcome.failure(None,errors.errorWrap("unable to decode returned object as PartialObjectMetadataList",e)); None => outcome.success(Some(v1.partialObjectMetadataListWithTypeMeta(fallback.value,v1.newTypeMeta()))) })
+    } }
+   } } else { ioPure(outcome.failure(None,e)) }
+   None => match decoded.value {
+    Some(object) => match v1.partialObjectMetadataListFromRuntimeObject(object) {
+     Some(value) => ioPure(outcome.success(Some(value)))
+     None => do { kind <- c.client.objectTypeName(decoded.value); ioPure(outcome.failure(None,errors.errorNew("unexpected object, expected PartialObjectMetadataList but got "+kind))) }
+    }
+    None => ioPure(outcome.failure(None,errors.errorNew("unexpected object, expected PartialObjectMetadataList but got <nil>")))
+   }
+  }
+ }
+}
+func watch(c ResourceClient,options v1.ListOptions) IO[outcome.Outcome[Option[watch.Watch]]] {
+ do {
+  r <- request(c,"GET","",[],v1.listOptionsToRuntimeObject(v1.listOptionsWithWatch(options,true)),false)
+  let duration = match v1.listOptionsGetTimeoutSeconds(options) { None => 0; Some(seconds) => seconds*1000000000 }
+  rest.watch(rest.timeout(r,duration))
+ }
+}
+func patch(c ResourceClient,name String,patchType String,data String,options v1.PatchOptions,sub List[String]) IO[outcome.Outcome[Option[v1.PartialObjectMetadata]]] {
+ if name == "" { ioPure(outcome.failure(None,errors.errorNew("name is required"))) } else { do {
+  base <- c.client.rest.patch(patchType)
+  r <- rest.specificallyVersionedParams(rest.setHeader(rest.bodyBytes(rest.absPath(base,append(dynamic.makeURLSegments(c.gvr,c.namespace,name),sub)),data),"Accept",[accept(false)]),v1.patchOptionsToRuntimeObject(options),c.client.parameters,dynamic.versionV1())
+  result <- rest.doRequest(r)
+  decodeObject(c,result,true)
+ } }
+}
+func delete(c ResourceClient,name String,options v1.DeleteOptions,sub List[String]) IO[outcome.Outcome[Unit]] {
+ if name == "" { ioPure(outcome.failure(unit(),errors.errorNew("name is required"))) } else { deleteRequest(c,name,options,sub,None) }
+}
+func deleteCollection(c ResourceClient,options v1.DeleteOptions,listOptions v1.ListOptions) IO[outcome.Outcome[Unit]] { deleteRequest(c,"",options,[],Some(listOptions)) }
+func deleteRequest(c ResourceClient,name String,options v1.DeleteOptions,sub List[String],listOptions Option[v1.ListOptions]) IO[outcome.Outcome[Unit]] {
+ do {
+  encoded <- c.client.encodeDelete(options)
+  match encoded.error { Some(e) => ioPure(outcome.failure(unit(),e)); None => do {
+   base <- c.client.rest.verb("DELETE")
+   let raw = rest.setHeader(rest.bodyBytes(rest.absPath(base,append(dynamic.makeURLSegments(c.gvr,c.namespace,name),sub)),encoded.value),"Content-Type",["application/json"])
+   r <- match listOptions { None => ioPure(raw); Some(options) => rest.specificallyVersionedParams(raw,v1.listOptionsToRuntimeObject(options),c.client.parameters,dynamic.versionV1()) }
+   result <- rest.doRequest(r)
+   error <- rest.resultError(result)
+   ioPure(outcome.from(unit(),error))
+  } }
+ }
+}

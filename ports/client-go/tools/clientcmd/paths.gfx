@@ -1,0 +1,45 @@
+// Copyright 2014 The Kubernetes Authors. Licensed under Apache-2.0.
+package clientcmd
+import api "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import err "github.com/reoring/gofx/ports/client-go/deps/support"
+import "std/prelude"
+import "std/map"
+import "std/list"
+import "std/string"
+type FileReference[A] = FileReference {get:func(A) String,put:func(A,String) A}
+func getClusterFileReferences() List[FileReference[api.Cluster]] { [FileReference(func(c api.Cluster) => c.certificateAuthority,func(c api.Cluster,path String) => c{certificateAuthority:path})] }
+func getAuthInfoFileReferences(value api.AuthInfo) List[FileReference[api.AuthInfo]] {
+ let refs = [FileReference(func(a api.AuthInfo) => a.clientCertificate,func(a api.AuthInfo,path String) => a{clientCertificate:path}),FileReference(func(a api.AuthInfo) => a.clientKey,func(a api.AuthInfo,path String) => a{clientKey:path}),FileReference(func(a api.AuthInfo) => a.tokenFile,func(a api.AuthInfo,path String) => a{tokenFile:path})]
+ match value.exec { None => refs; Some(exec) => if api.hasSeparator(exec.command) { list.append(refs,[FileReference(func(a api.AuthInfo) => match a.exec { None => ""; Some(e) => e.command },func(a api.AuthInfo,path String) => a{exec:prelude.fmap(a.exec,func(e api.ExecConfig) => e{command:path})})]) } else { refs } }
+}
+func resolvePaths[A](value A,refs List[FileReference[A]],base String) A { fold(refs,value,func(value,ref) => ref.put(value,api.resolvePath(ref.get(value),base))) }
+func makeRelative(path String,base String) IO[outcome.Outcome[String]] { if path == "" { ioPure(outcome.success(path)) } else { do { result <- api.relative(base,path); ioPure(outcome.Outcome(match result.1 { None => result.0; Some(_) => path },result.1)) } } }
+func relativizePathWithNoBacksteps[A](value A,refs List[FileReference[A]],base String) IO[outcome.Outcome[A]] { match refs { Nil => ioPure(outcome.success(value)); Cons(ref,rest) => do {
+ let path = ref.get(value)
+ relative <- makeRelative(path,base)
+ _then(relative,value,func(next) => if string.startsWith(next,"../") || string.startsWith(next,".."+api.separator()) { if api.isAbs(path) { relativizePathWithNoBacksteps(value,rest,base) } else { ioPure(outcome.failure(value,api.newError(path+" requires backsteps and is not absolute"))) } } else { relativizePathWithNoBacksteps(ref.put(value,next),rest,base) })
+} } }
+func _originBase(source api.Source,origin String) IO[outcome.Outcome[String]] { do { result <- api.makeAbs(source,api.dir(origin),""); ioPure(match result.error { None => result; Some(error) => outcome.failure("",api.newError("could not determine the absolute path of config file "+origin+": "+err.errorMessage(error))) }) } }
+func _resolveCluster(source api.Source,value api.Cluster) IO[outcome.Outcome[api.Cluster]] { if value.locationOfOrigin == "" { ioPure(outcome.success(value)) } else { do { base <- _originBase(source,value.locationOfOrigin); ioPure(outcome.Outcome(resolvePaths(value,getClusterFileReferences(),base.value),base.error)) } } }
+func _resolveUser(source api.Source,value api.AuthInfo) IO[outcome.Outcome[api.AuthInfo]] { if value.locationOfOrigin == "" { ioPure(outcome.success(value)) } else { do { base <- _originBase(source,value.locationOfOrigin); ioPure(outcome.Outcome(resolvePaths(value,getAuthInfoFileReferences(value),base.value),base.error)) } } }
+func _transformEntries[A](entries List[(String,Option[A])],result Map[String,Option[A]],transform func(A) IO[outcome.Outcome[A]]) IO[outcome.Outcome[Map[String,Option[A]]]] { match entries { Nil => ioPure(outcome.success(result)); Cons((key,value),rest) => match value { None => _transformEntries(rest,map.mapInsert(result,key,None),transform); Some(value) => do { transformed <- transform(value); match transformed.error { Some(error) => ioPure(outcome.failure(result,error)); None => _transformEntries(rest,map.mapInsert(result,key,Some(transformed.value)),transform) } } } } }
+func resolveLocalPaths(source api.Source,value api.Config) IO[outcome.Outcome[api.Config]] { do {
+ clusters <- _transformEntries(map.mapToList(api.mapOrEmpty(value.clusters)),api.mapOrEmpty(value.clusters),func(c) => _resolveCluster(source,c))
+ let value = value{clusters:Some(clusters.value)}
+ match clusters.error { Some(error) => ioPure(outcome.failure(value,error)); None => do {
+ users <- _transformEntries(map.mapToList(api.mapOrEmpty(value.authInfos)),api.mapOrEmpty(value.authInfos),func(a) => _resolveUser(source,a))
+ ioPure(outcome.Outcome(value{authInfos:Some(users.value)},users.error))
+ } }
+} }
+func relativizeClusterLocalPaths(source api.Source,value api.Cluster) IO[outcome.Outcome[api.Cluster]] { if value.locationOfOrigin == "" { ioPure(outcome.failure(value,api.newError("no location of origin for "+value.server))) } else { do { base <- _originBase(source,value.locationOfOrigin); _then(base,value,func(base) => relativizePathWithNoBacksteps(resolvePaths(value,getClusterFileReferences(),base),getClusterFileReferences(),base)) } } }
+func relativizeAuthInfoLocalPaths(source api.Source,value api.AuthInfo) IO[outcome.Outcome[api.AuthInfo]] { if value.locationOfOrigin == "" { ioPure(outcome.failure(value,api.newError("no location of origin for auth info"))) } else { do { base <- _originBase(source,value.locationOfOrigin); _then(base,value,func(base) => relativizePathWithNoBacksteps(resolvePaths(value,getAuthInfoFileReferences(value),base),getAuthInfoFileReferences(value),base)) } } }
+func resolveConfigPaths(value api.Config,base String) api.Config { value{clusters:prelude.fmap(value.clusters,func(entries) => map.mapMap(entries,func(c) => prelude.fmap(c,func(c) => resolvePaths(c,getClusterFileReferences(),base)))),authInfos:prelude.fmap(value.authInfos,func(entries) => map.mapMap(entries,func(a) => prelude.fmap(a,func(a) => resolvePaths(a,getAuthInfoFileReferences(a),base))))} }
+func relativizeConfigPaths(value api.Config,base String) IO[outcome.Outcome[api.Config]] { do {
+ clusters <- _transformEntries(map.mapToList(api.mapOrEmpty(value.clusters)),api.mapOrEmpty(value.clusters),func(c) => relativizePathWithNoBacksteps(c,getClusterFileReferences(),base))
+ let value = value{clusters:Some(clusters.value)}
+ match clusters.error { Some(error) => ioPure(outcome.failure(value,error)); None => do {
+ users <- _transformEntries(map.mapToList(api.mapOrEmpty(value.authInfos)),api.mapOrEmpty(value.authInfos),func(a) => relativizePathWithNoBacksteps(a,getAuthInfoFileReferences(a),base))
+ ioPure(outcome.Outcome(value{authInfos:Some(users.value)},users.error))
+ } }
+} }

@@ -1,0 +1,81 @@
+package openapi
+import rest "rest"
+import http "deps/net/http"
+import errors "deps/support"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import transport "transport"
+import sync "support/sync"
+import outcome "support/outcome"
+import m "std/map"
+import l "std/list"
+import s "std/string"
+
+extern func fixtureResponse(raw String) IO[http.Response] = "github.com/reoring/gofx/ports/client-go/third_party/forked/httpcache/host".FixtureResponse
+func _fixtureClient(prefix String,root String,seen sync.Ref[List[String]]) IO[Option[rest.Interface]] {do {
+ let wire=transport.roundTripper(func(request) => do {
+  url <- transport.requestURL(request)
+  accept <- transport.requestHeader(request,"Accept")
+  history <- sync.readRef(seen);sync.writeRef(seen,l.append(history,[url+" "+accept]))
+  let body=if s.endsWith(url,"/openapi/v3") {root} else {"schema-body"}
+  response <- fixtureResponse("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: "+show(s.strLength(body))+"\r\n\r\n"+body)
+  ioPure(outcome.success(Some(response)))
+ },func(_) => ioPure(unit()),func() => ioPure(unit()))
+ raw <- transport.toHTTP(wire)
+ client <- rest.newHTTPClient(raw,0)
+ clock <- sync.fakeClock(0)
+ let parsed=rest.parseURL("http://example.test"+prefix)
+ match parsed.0 {
+  None => ioPure(None)
+  Some(base) => do {
+   let unsupported=errors.errorNew("test does not encode or decode typed objects")
+   let negotiator=rest.Negotiator{encode:func(_,_) => ioPure(outcome.failure("",unsupported)),decoder:func(_) => ioPure(outcome.failure(None,unsupported)),streamDecoder:func(_,_) => ioPure(outcome.failure(None,unsupported))}
+   let content=rest.ClientContentConfig{acceptContentTypes:"",contentType:"application/json",groupVersion:schema.newGroupVersion(),negotiator:negotiator}
+   result <- rest.newRESTClient(base,"",content,client,None,rest.noWarnings(),clock,false)
+   ioPure(Some(rest.clientInterface(result)))
+  }
+ }
+}}
+func _routeCase(prefix String,returnedPrefix String) IO[Bool] {do {
+ seen <- sync.newRef([])
+ let root="{\"paths\":{\"apis/apps/v1\":{\"serverRelativeURL\":\""+returnedPrefix+"/openapi/v3/apis/apps/v1?hash=014fbff9a07c\"}}}"
+ client <- _fixtureClient(prefix,root,seen)
+ match client {None => ioPure(false);Some(client) => do {
+  listed <- newClient(client).paths()
+  match m.mapLookup(listed.value,"apis/apps/v1") {None => ioPure(false);Some(group) => do {
+   path <- group.serverRelativeURL()
+   result <- group.schema(contentTypeOpenAPIV3PB())
+   history <- sync.readRef(seen)
+   ioPure(path=="/openapi/v3/apis/apps/v1?hash=014fbff9a07c" && result.value=="schema-body" && l.elem("http://example.test"+prefix+"/openapi/v3/apis/apps/v1?hash=014fbff9a07c "+contentTypeOpenAPIV3PB(),history))
+  }}
+ }}
+}}
+func testGroupVersionPrefixesAndHashQuery() IO[Bool] {do {
+ plain <- _routeCase("","")
+ proxied <- _routeCase("/test-endpoint","")
+ returned <- _routeCase("/test-endpoint","/test-endpoint")
+ ioPure(plain && proxied && returned)
+}}
+// Pinned rest/request.go:393-405 and request_test.go:306-314: RequestURI
+// preserves base.Path while replacing the prior request prefix and query.
+func testServerRelativeURLPreservesClientPrefixAndReplacesQuery() IO[Bool] {do {
+ seen <- sync.newRef([])
+ client <- _fixtureClient("/proxy","{\"paths\":{\"api/v1\":{\"serverRelativeURL\":\"/elsewhere/schema?hash=2\"}}}",seen)
+ match client {None => ioPure(false);Some(client) => do {
+  listed <- newClient(client).paths()
+  match m.mapLookup(listed.value,"api/v1") {None => ioPure(false);Some(group) => do {
+   let seeded=rest.Interface{
+    verb:func(method) => do {
+     request <- client.verb(method)
+     ioPure(rest.param(rest.param(rest.prefix(request,["old-prefix"]),"old","value"),"hash","old"))
+    },
+    patch:client.patch,
+    getRateLimiter:client.getRateLimiter,
+    apiVersion:client.apiVersion
+   }
+   path <- group.serverRelativeURL()
+   result <- newGroupVersion(seeded,path,false).schema("application/json")
+   history <- sync.readRef(seen)
+   ioPure(outcome.isSuccess(result) && l.elem("http://example.test/proxy/elsewhere/schema?hash=2 application/json",history))
+  }}
+ }}
+}}

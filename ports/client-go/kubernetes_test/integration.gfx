@@ -1,0 +1,122 @@
+package kubernetes_test
+
+// Copyright 2018-2026 The Kubernetes Authors. Licensed under Apache-2.0.
+// Consumer-visible protocol checks, not generated-source assertions.
+import examples "examples"
+import fixture "util/testing"
+import kube "kubernetes"
+import fake "kubernetes/fake"
+import rest "rest"
+import core "deps/k8s.io/api/core/v1"
+import meta "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import objects "deps/objects"
+import errors "deps/support"
+import sync "support/sync"
+import io "std/io"
+import strings "std/string"
+
+func header(request fixture.Request,name String) Option[String] {
+ match request.headers { [] => None; [(key,values),..rest] => if strings.toLower(key)==strings.toLower(name) { match values { [] => None; [value,.._] => Some(value) } } else { header(request{headers: rest},name) } }
+}
+func userAgentCase(custom String) IO[Unit] {
+ do {
+  env <- examples.environment()
+  calls <- sync.newRef(0)
+  let expected = if custom=="" { rest.defaultKubernetesUserAgent() } else { custom }
+  sync.bracket(fixture.newServer(func(request) => do {
+   examples.check(header(request,"User-Agent")==Some(expected),"wrong clientset User-Agent")
+   count <- sync.readRef(calls); sync.writeRef(calls,count+1)
+   ioPure(fixture.Response(200,[("Content-Type",["application/json"])],"{}"))
+  }),func(server) => do {
+   url <- fixture.serverURL(server)
+   made <- kube.newForConfig(env,(examples.config(url)){userAgent: custom}); client <- examples.present(made)
+   pods <- client.coreV1().pods("").list(meta.newListOptions()); examples.require(pods)
+   secrets <- client.coreV1().secrets("").list(meta.newListOptions()); examples.require(secrets)
+   fixture.checkServer(server)
+   count <- sync.readRef(calls); examples.check(count==2,"expected both clientset resource requests")
+  },fixture.closeServer)
+ }
+}
+func testClientUserAgent() IO[Bool] { do { userAgentCase(""); userAgentCase("test-agent"); ioPure(true) } }
+func testListAndWatchTimeout() IO[Bool] {
+ do {
+  env <- examples.environment()
+  seen <- sync.newRef(0)
+  sync.bracket(fixture.newServer(func(request) => do {
+   examples.check(strings.contains(request.rawQuery,"timeout=21s"),"list/watch timeout not propagated")
+   count <- sync.readRef(seen); sync.writeRef(seen,count+1)
+   ioPure(fixture.Response(404,[("Content-Type",["application/json"])],"{\"kind\":\"Status\",\"apiVersion\":\"v1\",\"status\":\"Failure\",\"reason\":\"NotFound\",\"code\":404}"))
+  }),func(server) => do {
+   url <- fixture.serverURL(server)
+   made <- kube.newForConfig(env,examples.config(url)); client <- examples.present(made)
+   let options = meta.listOptionsWithTimeoutSeconds(meta.newListOptions(),Some(21))
+   listed <- client.appsV1().daemonSets("").list(options)
+   watched <- client.appsV1().daemonSets("").watch(options)
+   examples.check(match listed.error { Some(error) => errors.errorIsNotFound(error); None => false },"list must preserve NotFound")
+   examples.check(match watched.error { Some(error) => errors.errorIsNotFound(error); None => false },"watch must preserve NotFound")
+   count <- sync.readRef(seen); examples.check(count==2,"missing list or watch request")
+   fixture.checkServer(server)
+  },fixture.closeServer)
+  ioPure(true)
+ }
+}
+func testCancellationReachesHTTP() IO[Bool] {
+ do {
+  env <- examples.environment()
+  let allocateSignal: IO[sync.Channel[Unit]] = sync.newChannel(1)
+  started <- allocateSignal
+  canceled <- allocateSignal
+  let allocateNever: IO[sync.Channel[Unit]] = sync.newChannel(0)
+  never <- allocateNever
+  sync.bracket(fixture.newServer(func(_) => sync.ensuring(do {
+   sync.send(started,unit())
+   _ <- sync.receive(never)
+   ioFail("canceled fixture unexpectedly resumed")
+  },sync.send(canceled,unit()))),func(server) => do {
+   url <- fixture.serverURL(server)
+   made <- kube.newForConfig(env,examples.config(url)); client <- examples.present(made)
+   parent <- sync.captureContext(); lifetime <- sync.newContext(parent,Some(5000000000))
+   sync.bracket(sync.start(sync.withContext(lifetime.0,client.coreV1().pods("default").get("held",meta.newGetOptions()))),func(task) => do {
+    _ <- sync.withContext(lifetime.0,sync.receive(started))
+    sync.cancelContext(lifetime.1)
+    result <- io.tryIO(sync.join(task))
+    examples.check(match result { Err(io.Cancelled) => true; Ok(value) => match value.error { Some(error) => errors.errorIs(error,errors.errorCancelled()); None => false }; _ => false },"cancellation lost at clientset boundary")
+    observer <- sync.newContext(parent,Some(5000000000))
+    _ <- sync.ensuring(sync.withContext(observer.0,sync.receive(canceled)),sync.cancelContext(observer.1))
+    ioPure(unit())
+   },func(task) => do { sync.cancelContext(lifetime.1); _ <- io.tryIO(sync.join(task)); ioPure(unit()) })
+  },fixture.closeServer)
+  ioPure(true)
+ }
+}
+func testFakeAndRealGVK() IO[Bool] {
+ do {
+  env <- examples.environment()
+  object <- examples.decode(core.configMapObjectType(),core.newConfigMap(),"{\"metadata\":{\"name\":\"foo-name\",\"namespace\":\"foo-ns\"}}")
+  client <- fake.newSimpleClientset(env,[objects.toObject(core.configMapObjectType(),object)])
+  result <- client.client.coreV1().configMaps("foo-ns").get("foo-name",meta.newGetOptions()); result <- examples.require(result)
+  examples.check(meta.typeMetaGetKind(core.configMapGetTypeMeta(result))=="" && meta.typeMetaGetAPIVersion(core.configMapGetTypeMeta(result))=="","fake must not inject object GVK")
+  list <- client.client.coreV1().configMaps("foo-ns").list(meta.newListOptions()); list <- examples.require(list)
+  examples.check(meta.typeMetaGetKind(core.configMapListGetTypeMeta(list))=="","fake must not inject list GVK")
+  trace <- examples.newTrace("real_get_list_gvk")
+  examples.withHTTP(trace,[examples.Exchange("GET","/api/v1/namespaces/foo-ns/configmaps/foo-name",200,"{\"apiVersion\":\"v1\",\"kind\":\"ConfigMap\",\"metadata\":{\"name\":\"foo-name\",\"namespace\":\"foo-ns\"}}"),examples.Exchange("GET","/api/v1/namespaces/foo-ns/configmaps",200,"{\"apiVersion\":\"v1\",\"kind\":\"ConfigMapList\",\"items\":[]}")],func(url) => do {
+   made <- kube.newForConfig(env,examples.config(url)); client <- examples.present(made)
+   result <- client.coreV1().configMaps("foo-ns").get("foo-name",meta.newGetOptions()); result <- examples.require(result)
+   list <- client.coreV1().configMaps("foo-ns").list(meta.newListOptions()); list <- examples.require(list)
+   examples.check(meta.typeMetaGetKind(core.configMapGetTypeMeta(result))=="" && meta.typeMetaGetKind(core.configMapListGetTypeMeta(list))=="","typed decoder must match fake GVK behavior")
+  })
+  ioPure(true)
+ }
+}
+
+func testWatchListCapabilityAndFactories() IO[Bool] {
+ do {
+  env <- examples.environment()
+  made <- kube.newForConfig(env,examples.config("http://127.0.0.1:1")); real <- examples.present(made)
+  fake <- fake.newClientset(env,[])
+  examples.check(!real.isWatchListSemanticsUnSupported && fake.client.isWatchListSemanticsUnSupported,"real/fake watch-list capability mismatch")
+  examples.controllerExample()
+  examples.fakeInformerExample()
+  ioPure(true)
+ }
+}

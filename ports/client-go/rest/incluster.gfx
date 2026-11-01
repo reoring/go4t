@@ -1,0 +1,65 @@
+package rest
+
+import outcome "support/outcome"
+import errors "deps/support"
+
+// Copyright 2014 The Kubernetes Authors. Licensed under Apache-2.0.
+type ClusterEnvironment = ClusterEnvironment {
+ getenv: func(String) IO[String], readFile: func(String) IO[(String,Option[errors.Error])],
+ validCA: func(String) Bool, diagnostic: func(String) IO[Unit]
+}
+extern func getenv(name String) IO[String] = "github.com/reoring/gofx/ports/client-go/rest/host".Getenv
+extern func validCA(bytes String) Bool = "github.com/reoring/gofx/ports/client-go/rest/host".ValidCA
+extern func hostPort(host String,port String) String = "github.com/reoring/gofx/ports/client-go/rest/host".HostPort
+func inClusterConfigWith(environment ClusterEnvironment) IO[outcome.Outcome[Option[Config]]] {
+ do {
+  host <- environment.getenv("KUBERNETES_SERVICE_HOST")
+  port <- environment.getenv("KUBERNETES_SERVICE_PORT")
+  if host == "" || port == "" { ioPure(outcome.failure(None,errNotInCluster())) } else { do {
+   let tokenFile = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+   let caFile = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+   token <- environment.readFile(tokenFile)
+   match token.1 {
+    Some(error) => ioPure(outcome.failure(None,error))
+    None => do {
+     ca <- environment.readFile(caFile)
+     let caValid = match ca.1 { Some(_) => false; None => environment.validCA(ca.0) }
+     if caValid { ioPure(unit()) } else { environment.diagnostic("Expected to load root CA config from " + caFile + ", but got an error") }
+     let base = emptyConfig()
+     ioPure(outcome.success(Some(base{host: "https://"+hostPort(host,port),bearerToken: token.0,bearerTokenFile: tokenFile,tlsClientConfig: base.tlsClientConfig{caFile: if caValid { caFile } else { "" }}})))
+    }
+   }
+  } }
+ }
+}
+func inClusterConfig() IO[outcome.Outcome[Option[Config]]] { inClusterConfigWith(ClusterEnvironment(getenv,readFile,validCA,func(message) => eprintln(message))) }
+func loadTLSFiles(config Config) IO[outcome.Outcome[Config]] {
+ let load = func(data Option[String],file String) => {
+  if hasBytes(data) { ioPure((data,None)) } else if file == "" { ioPure((None,None)) } else { do { value <- readFile(file); ioPure((Some(value.0),value.1)) } }
+ }
+ do {
+  ca <- load(config.tlsClientConfig.caData,config.tlsClientConfig.caFile)
+  let withCA = config{tlsClientConfig: config.tlsClientConfig{caData: ca.0}}
+  match ca.1 {
+   Some(error) => ioPure(outcome.failure(withCA,error))
+   None => do {
+    cert <- load(config.tlsClientConfig.certData,config.tlsClientConfig.certFile)
+    let withCert = withCA{tlsClientConfig: withCA.tlsClientConfig{certData: cert.0}}
+    match cert.1 {
+     Some(error) => ioPure(outcome.failure(withCert,error))
+     None => do {
+      key <- load(config.tlsClientConfig.keyData,config.tlsClientConfig.keyFile)
+      ioPure(outcome.from(withCert{tlsClientConfig: withCert.tlsClientConfig{keyData: key.0}},key.1))
+     }
+    }
+   }
+  }
+ }
+}
+func configString(config Config) String {
+ // Deliberately render capability identities without invoking user callbacks.
+ "rest.Config{Host:"+quote(config.host)+",APIPath:"+quote(config.apiPath)+",Username:"+quote(config.username)+",Password:"+quote(if config.password=="" { "" } else { "--- REDACTED ---" })+",BearerToken:"+quote(if config.bearerToken=="" { "" } else { "--- REDACTED ---" })+",TLSClientConfig:"+tlsClientConfigString(config.tlsClientConfig)+",AuthConfigPersister:--- REDACTED ---,ExecProvider:--- REDACTED ---}"
+}
+func tlsClientConfigString(config TLSClientConfig) String {
+ "rest.TLSClientConfig{Insecure:"+show(config.insecure)+",ServerName:"+quote(config.serverName)+",CertFile:"+quote(config.certFile)+",KeyFile:"+quote(config.keyFile)+",CAFile:"+quote(config.caFile)+",CertData:"+(if hasBytes(config.certData) { "--- TRUNCATED ---" } else { "[]" })+",KeyData:"+(if hasBytes(config.keyData) { "--- REDACTED ---" } else { "[]" })+"}"
+}

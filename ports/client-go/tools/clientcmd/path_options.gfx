@@ -1,0 +1,19 @@
+// Copyright 2014 The Kubernetes Authors. Licensed under Apache-2.0.
+package clientcmd
+import api "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import "std/list"
+type PathOptions = PathOptions {globalFile:String,envVar:String,explicitFileFlag:String,globalFileSubpath:String,loadingRules:ClientConfigLoadingRules}
+func newDefaultPathOptions(source api.Source) IO[PathOptions] { do {
+ global <- recommendedHomeFile(source)
+ rules <- newDefaultClientConfigLoadingRules(source)
+ ioPure(PathOptions(global,recommendedConfigPathEnvVar(),recommendedConfigPathFlag(),api.joinPath(recommendedHomeDir(),recommendedFileName()),rules{doNotResolvePaths:true}))
+} }
+func getEnvVarFiles(source api.Source,options PathOptions) IO[List[String]] { if options.envVar == "" { ioPure(Nil) } else { do { value <- source.getenv(options.envVar); ioPure(if value == "" { Nil } else { deduplicate(api.splitPathList(value)) }) } } }
+func pathOptionsLoadingPrecedence(source api.Source,options PathOptions) IO[List[String]] { if options.loadingRules.explicitPath != "" { ioPure([options.loadingRules.explicitPath]) } else { do { env <- getEnvVarFiles(source,options); ioPure(if length(env) > 0 { env } else { [options.globalFile] }) } } }
+func pathOptionsDefaultFilename(source api.Source,options PathOptions) IO[String] { if options.loadingRules.explicitPath != "" { ioPure(options.loadingRules.explicitPath) } else { do {
+ env <- getEnvVarFiles(source,options)
+ match env { Nil => ioPure(options.globalFile); Cons(file,Nil) => ioPure(file); _ => do { existing <- _firstExisting(source,env); ioPure(match existing { Some(file) => file; None => _or(list.last(env),options.globalFile) }) } }
+} } }
+func pathOptionsStartingConfig(source api.Source,options PathOptions) IO[outcome.Outcome[Option[api.Config]]] { do { files <- pathOptionsLoadingPrecedence(source,options); getStartingConfig(source,options.loadingRules{precedence:files}) } }
+func pathOptionsAccess(source api.Source,options PathOptions) ConfigAccess { ConfigAccess(func() => pathOptionsLoadingPrecedence(source,options),func() => pathOptionsStartingConfig(source,options),func() => pathOptionsDefaultFilename(source,options),func() => ioPure(options.loadingRules.explicitPath != ""),func() => ioPure(options.loadingRules.explicitPath)) }

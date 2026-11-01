@@ -28,10 +28,49 @@ All `Result[E,A]` signatures below put the error first. Paths and parsers are im
 | `WildcardNode`, `RecursiveNode`, `UnionNode` | Same-named variants; union retains branch-major order |
 | `NodeType`, all twelve `Node*` constants | Same-named native enum in original ordinal order |
 | `Node.Type`, embedded `NodeType.Type` | `nodeType(node)`, `nodeTypeType(kind)` |
-| `NodeTypeName`, `NodeType.String` | Total `nodeTypeName(kind)` instead of a mutable map |
-| Every node's `String` method | `nodeString(node)`, including original six-decimal float diagnostic formatting |
+| `NodeTypeName`, `NodeType.String` | Caller-owned `Map[NodeType,String]`, initialized by `defaultNodeTypeNames()`; `nodeTypeName(names,kind)` |
+| Every node's `String` method | `nodeString(names,node)`, including original six-decimal float diagnostic formatting |
 
 `Parser.root` holds the contents of upstream `Root.Nodes`; wrap in `ListNode` to obtain the root node. Native ADT pattern matching exposes every original node payload without reflection. `upstream-coverage.json` inventories **every upstream exported declaration**, including test-only declarations, original signatures, and every table row. Test-only helper types/functions are represented by native test fixtures, not production APIs.
+
+### Caller-owned node names
+
+The upstream mutable process-global `NodeTypeName` map is replaced by an explicit
+persistent `Map[NodeType,String]`. `defaultNodeTypeNames()` supplies all twelve
+built-in names. Use `std/map.mapInsert(names,kind,name)` to obtain an updated
+registry, or `mapDelete(names,kind)` to remove a name, and pass that value to
+`nodeTypeName(names,kind)` and `nodeString(names,node)`. Retain and reuse the registry
+for a rendering session; previous values and independently initialized registries
+are unchanged. No Go global or implicit default lookup participates in rendering.
+
+Missing entries return the empty string, matching upstream map lookup; they do not
+fall back to the built-in name. Explicit empty names behave the same way. Node
+payload formatting remains unchanged, including the `": "` separator for scalar
+and array nodes. Filter diagnostics obtain both nested list labels from the same
+registry: changing `NodeList` to `"Sequence"` renders a filter as
+`"NodeFilter: Sequence < Sequence"`. This naming policy does not affect parsing or
+JSONPath evaluation.
+
+`testCallerOwnedNodeNames` proves customized type, node and nested filter rendering,
+independent registries, deletion and empty-name behavior. `testNodeNameFormatting`
+covers all default labels and each variant's customized diagnostic formatting.
+Supervisor-released focused validation ran
+`go run ./cmd/gofx test ports/client-go/util/jsonpath` through
+`serialize-vm-tests --class short` with a 180-second bound: **21 passed, 0 failed**,
+including both new cases and the existing parser fixtures. A separate temporary
+public consumer ran via `go run ./cmd/gofx run
+ports/client-go/util/jsonpath/node-name-consumer` under the same admission and
+bound. Its nine assertions passed, covering customized type/node/nested labels,
+independent registries and missing mappings; it printed:
+
+```
+custom=Sequence; node=Sequence; nested=NodeFilter: Sequence < Sequence
+independent=NodeFilter: NodeList < NodeList; missing=NodeFilter:  < 
+public node-name consumer: 9 assertions passed
+```
+
+The temporary consumer and its generated output were removed after the run.
+The historical verification below predates this registry change.
 
 ## Typed input inspection
 

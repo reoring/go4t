@@ -1,0 +1,104 @@
+package testing
+
+// Copyright 2014 The Kubernetes Authors.
+// Licensed under the Apache License, Version 2.0.
+// Native equivalent of util/testing/{fake_handler,remove_file,tmpdir}.go.
+import sync "support/sync"
+import os "deps/os"
+import errors "deps/support"
+import io "std/io"
+
+type TestInterface = TestInterface { error: func(String) IO[Unit], log: func(String) IO[Unit] }
+type LogInterface = LogInterface { log: func(String) IO[Unit] }
+type Request = Request { method: String, path: String, rawQuery: String, headers: List[(String,List[String])], body: String }
+type Response = Response { status: Int, headers: List[(String,List[String])], body: String }
+alias Handler = func(Request) IO[Response]
+type Server = ServerHandle
+alias File = os.File
+type HandlerState = HandlerState { requestReceived: Option[Request], requestCount: Int, hasBeenChecked: Bool, responseBody: String }
+type FakeHandler = FakeHandler { state: sync.Ref[HandlerState], lock: sync.Mutex, statusCode: Int, logger: Option[LogInterface], skipRequest: Option[func(Request) Bool] }
+
+extern func startHTTP(handler func(String,String,String,List[(String,List[String])],String) IO[(Int,(List[(String,List[String])],String))]) IO[Server] = "github.com/reoring/gofx/ports/client-go/util/testing/host".StartHTTP
+extern func serverURL(server Server) IO[String] = "github.com/reoring/gofx/ports/client-go/util/testing/host".ServerURL
+extern func checkServer(server Server) IO[Unit] = "github.com/reoring/gofx/ports/client-go/util/testing/host".CheckServer
+extern func closeServer(server Server) IO[Unit] = "github.com/reoring/gofx/ports/client-go/util/testing/host".CloseServer
+extern func parsePath(path String) (Bool,(String,String)) = "github.com/reoring/gofx/ports/client-go/util/testing/host".ParsePath
+extern func canonicalQuery(query String) String = "github.com/reoring/gofx/ports/client-go/util/testing/host".CanonicalQuery
+extern func mkTmpdir(prefix String) IO[String] = "github.com/reoring/gofx/ports/client-go/util/testing/host".MkdirTemp
+extern func removeAll(path String) IO[Unit] = "github.com/reoring/gofx/ports/client-go/util/testing/host".RemoveAll
+extern func removePath(path String) IO[Unit] = "github.com/reoring/gofx/ports/client-go/util/testing/host".RemovePath
+extern func panic(message String) IO[Unit] = "github.com/reoring/gofx/ports/client-go/util/testing/host".Panic
+
+func newServer(handler Handler) IO[Server] {
+ startHTTP(func(method,path,query,headers,body) => do {
+  response <- handler(Request(method,path,query,headers,body))
+  ioPure((response.status,(response.headers,response.body)))
+ })
+}
+func mkTmpdirOrDie(prefix String) IO[String] {
+ do {
+  result <- io.tryIO(mkTmpdir(prefix))
+  match result { Ok(path) => ioPure(path); Err(error) => io.ioRaise(io.Panic(io.ioErrorMessage(error))) }
+ }
+}
+func closeAndRemove(files List[Option[File]]) IO[Unit] {
+ match files { [] => ioPure(unit()); [file,..rest] => do {
+  match file { None => ioPure(unit()); Some(value) => do {
+   name <- os.fileCallNameIdentity(value)
+   closed <- os.fileCallCloseIdentity(value)
+   match closed { None => ioPure(unit()); Some(error) => ioFail("Error closing "+name+": "+errors.errorMessage(error)) }
+   removed <- io.tryIO(removePath(name))
+   match removed { Ok(_) => ioPure(unit()); Err(error) => ioFail("Error removing "+name+": "+io.ioErrorMessage(error)) }
+  } }
+  closeAndRemove(rest)
+ } }
+}
+func newFakeHandler(status Int,body String,logger Option[LogInterface],skip Option[func(Request) Bool]) IO[FakeHandler] {
+ do { state <- sync.newRef(HandlerState(None,0,false,body)); lock <- sync.newMutex(); ioPure(FakeHandler(state,lock,status,logger,skip)) }
+}
+func setResponseBody(handler FakeHandler,body String) IO[Unit] {
+ sync.withLock(handler.lock,do { state <- sync.readRef(handler.state); sync.writeRef(handler.state,state{responseBody: body}) })
+}
+func snapshot(handler FakeHandler) IO[HandlerState] { sync.withLock(handler.lock,sync.readRef(handler.state)) }
+func serveHTTP(handler FakeHandler,request Request) IO[Response] {
+ sync.withLock(handler.lock,do {
+  state <- sync.readRef(handler.state)
+  let skip = match handler.skipRequest { None => false; Some(test) => test(request) }
+  if skip { ioPure(unit()) } else {
+   if state.hasBeenChecked { panic("got request after having been validated") } else { ioPure(unit()) }
+  }
+  if skip { ioPure(unit()) } else { do {
+   sync.writeRef(handler.state,state{requestReceived: Some(request),requestCount: state.requestCount+1})
+   match handler.logger { None => ioPure(unit()); Some(logger) => logger.log("request body: "+request.body) }
+  } }
+  ioPure(Response(handler.statusCode,[("Content-Type",["application/json"])],state.responseBody))
+ })
+}
+func validateRequestCount(handler FakeHandler,test TestInterface,count Int) IO[Bool] {
+ sync.withLock(handler.lock,do {
+  state <- sync.readRef(handler.state)
+  sync.writeRef(handler.state,state{hasBeenChecked: true})
+  if state.requestCount==count { ioPure(true) } else { do {
+   test.error("Expected "+show(count)+" call, but got "+show(state.requestCount)+". Only the last call is recorded and checked.")
+   ioPure(false)
+  } }
+ })
+}
+func validateRequest(handler FakeHandler,test TestInterface,path String,method String,body Option[String]) IO[Unit] {
+ sync.withLock(handler.lock,do {
+  state <- sync.readRef(handler.state)
+  sync.writeRef(handler.state,state{hasBeenChecked: true})
+  if state.requestCount!=1 { test.log("Expected 1 call, but got "+show(state.requestCount)+". Only the last call is recorded and checked.") } else { ioPure(unit()) }
+  let parsed = parsePath(path)
+  if !parsed.0 { test.error("Couldn't parse "+path+" as a URL.") } else { ioPure(unit()) }
+  match state.requestReceived {
+   None => test.error("Unexpected nil request received for "+path)
+   Some(request) => do {
+    if request.path!=parsed.1.0 { test.error("Unexpected request path, received: "+request.path+", expected: "+parsed.1.0) } else { ioPure(unit()) }
+    if canonicalQuery(request.rawQuery)!=parsed.1.1 { test.error("Unexpected query, received: "+canonicalQuery(request.rawQuery)+", expected: "+parsed.1.1) } else { ioPure(unit()) }
+    if request.method!=method { test.error("Unexpected method: "+request.method+", expected: "+method) } else { ioPure(unit()) }
+    match body { None => ioPure(unit()); Some(expected) => if expected!=request.body { test.error("Received body:\n"+request.body+"\n Doesn't match expected body:\n"+expected) } else { ioPure(unit()) } }
+   }
+  }
+ })
+}

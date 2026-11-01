@@ -1,0 +1,27 @@
+package main
+
+// Copyright 2026 The gofx Authors. SPDX-License-Identifier: Apache-2.0
+import examples "examples"
+import sync "support/sync"
+
+func run() IO[Unit] {
+ do {
+  typed <- examples.typedPodParity()
+  resize <- examples.resizeParity()
+  scale <- examples.applyScaleParity()
+  bind <- examples.bindParity()
+  finalize <- examples.finalizeParity()
+  list <- examples.fakeListParity()
+  snapshot <- examples.snapshotParity()
+  builders <- examples.buildersParity()
+  managed <- examples.managedFieldsParity()
+  examples.outputTraces([typed,resize,scale,bind,finalize,list,snapshot,builders,managed])
+ }
+}
+func main() IO[Unit] {
+ do {
+  parent <- sync.captureContext()
+  bounded <- sync.newContext(parent,Some(120000000000))
+  sync.ensuring(sync.withContext(bounded.0,run()),sync.cancelContext(bounded.1))
+ }
+}

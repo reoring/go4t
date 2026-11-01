@@ -1,0 +1,12 @@
+// Copyright 2014 The Kubernetes Authors. Licensed under Apache-2.0.
+package api
+import "std/map"
+import "std/prelude"
+// Load decodes into NewConfig; named entries decode into NewCluster/NewAuthInfo/NewContext.
+// Preserve those initialized extension maps without changing optional bytes or pointers.
+func normalizeDecodedConfig(value Config) Config { value{
+ clusters:Some(map.mapMap(mapOrEmpty(value.clusters),func(value) => prelude.fmap(value,func(cluster) => cluster{extensions:Some(mapOrEmpty(cluster.extensions))}))),
+ authInfos:Some(map.mapMap(mapOrEmpty(value.authInfos),func(value) => prelude.fmap(value,func(user) => user{extensions:Some(mapOrEmpty(user.extensions))}))),
+ contexts:Some(map.mapMap(mapOrEmpty(value.contexts),func(value) => prelude.fmap(value,func(context) => context{extensions:Some(mapOrEmpty(context.extensions))}))),
+ extensions:Some(mapOrEmpty(value.extensions))
+} }

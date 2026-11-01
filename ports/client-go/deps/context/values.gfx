@@ -2,21 +2,29 @@
 // Source: client-go v0.37.2 and exact external dependency declarations.
 // Kubernetes-derived declarations are licensed under Apache-2.0.
 // https://www.apache.org/licenses/LICENSE-2.0
-// Source graph SHA-256: 2e4efd1c862cc7bde1036ba0dc37a4fe08175d4ead5d513b32689e674b91d866
+// Source graph SHA-256: 99a062162cbc99a38896123a3e81ce3ef2f70f2e505fbd058751d52a0a40f167
 package context
 
 import canonical "github.com/reoring/gofx/ports/client-go/deps/types"
 import support "github.com/reoring/gofx/ports/client-go/deps/support"
 
 alias CancelCauseFunc = canonical.CancelCauseFunc_2868ce53af79
-extern func newCancelCauseFunc() IO[CancelCauseFunc] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".New_CancelCauseFunc_2868ce53af79
-extern func cancelCauseFuncInvoke(value CancelCauseFunc, p0 Option[support.Error]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Invoke_CancelCauseFunc_2868ce53af79
+extern func newCancelCauseFunc() IO[CancelCauseFunc] = "github.com/reoring/gofx/ports/client-go/host/deps".New_CancelCauseFunc_2868ce53af79
+extern func cancelCauseFuncInvoke(value CancelCauseFunc, p0 Option[support.Error]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".Invoke_CancelCauseFunc_2868ce53af79
 alias CancelFunc = canonical.CancelFunc_9d208fe95b93
-extern func newCancelFunc() IO[CancelFunc] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".New_CancelFunc_9d208fe95b93
-extern func cancelFuncInvoke(value CancelFunc) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Invoke_CancelFunc_9d208fe95b93
+extern func newCancelFunc() IO[CancelFunc] = "github.com/reoring/gofx/ports/client-go/host/deps".New_CancelFunc_9d208fe95b93
+extern func cancelFuncInvoke(value CancelFunc) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".Invoke_CancelFunc_9d208fe95b93
 alias Context = canonical.Context_e30d9213847b
-extern func contextCallDeadlineIdentity(value Context) IO[(canonical.Time_16c25373c0e3, Bool)] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Interface_e70f7c6d4e5b81f5
-extern func contextCallDoneIdentity(value Context) IO[support.Channel[Unit]] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Interface_8e9b0fdd5b59f411
-extern func contextCallErrIdentity(value Context) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Interface_7b2e449a73612c57
-extern func contextCallValueIdentity(value Context, p0 Option[support.Any]) IO[Option[support.Any]] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Interface_48496cf7c623caef
-extern func newContext(f0 func() IO[(canonical.Time_16c25373c0e3, Bool)], f1 func() IO[support.Channel[Unit]], f2 func() IO[Option[support.Error]], f3 func(Option[support.Any]) IO[Option[support.Any]]) IO[Context] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".New_Proxy_Context_e30d9213847b
+extern func callBackground() IO[Option[canonical.Context_e30d9213847b]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_c20446c1c42486f6
+extern func callCause() IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_3d4a6e21c832835f
+extern func callTODO() IO[Option[canonical.Context_e30d9213847b]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_7b020fccd1334c78
+extern func callWithCancel() IO[(Option[canonical.Context_e30d9213847b], canonical.CancelFunc_9d208fe95b93)] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_9ea7d37f4c74d10a
+extern func callWithCancelCause() IO[(Option[canonical.Context_e30d9213847b], canonical.CancelCauseFunc_2868ce53af79)] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_71c5220b2c94ad6e
+extern func callWithTimeout(p0 canonical.Duration_147de15d0597) IO[(Option[canonical.Context_e30d9213847b], canonical.CancelFunc_9d208fe95b93)] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_282b74cacc3eb625
+extern func callWithValue(p0 Option[support.Any], p1 Option[support.Any]) IO[Option[canonical.Context_e30d9213847b]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_a478060af26a7678
+extern func callWithoutCancel() IO[Option[canonical.Context_e30d9213847b]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_939e8e0fabab0c5c
+extern func contextCallDeadlineIdentity(value Context) IO[(canonical.Time_16c25373c0e3, Bool)] = "github.com/reoring/gofx/ports/client-go/host/deps".Interface_e70f7c6d4e5b81f5
+extern func contextCallDoneIdentity(value Context) IO[support.Channel[Unit]] = "github.com/reoring/gofx/ports/client-go/host/deps".Interface_8e9b0fdd5b59f411
+extern func contextCallErrIdentity(value Context) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/host/deps".Interface_7b2e449a73612c57
+extern func contextCallValueIdentity(value Context, p0 Option[support.Any]) IO[Option[support.Any]] = "github.com/reoring/gofx/ports/client-go/host/deps".Interface_48496cf7c623caef
+extern func newContext(f0 func() IO[(canonical.Time_16c25373c0e3, Bool)], f1 func() IO[support.Channel[Unit]], f2 func() IO[Option[support.Error]], f3 func(Option[support.Any]) IO[Option[support.Any]]) IO[Context] = "github.com/reoring/gofx/ports/client-go/host/deps".New_Proxy_Context_e30d9213847b

@@ -1,0 +1,80 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+// Native port of client-go v0.37.2 informers/factory.go and internalinterfaces.
+package internalinterfaces
+import "std/map"
+import "std/list"
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+import "github.com/reoring/gofx/ports/client-go/tools/cache"
+import "github.com/reoring/gofx/ports/client-go/kubernetes"
+import "github.com/reoring/gofx/ports/client-go/features"
+import runtime "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime"
+import meta "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import objects "github.com/reoring/gofx/ports/client-go/deps/objects"
+import errors "github.com/reoring/gofx/ports/client-go/deps/support"
+
+alias TweakListOptionsFunc = func(meta.ListOptions) IO[meta.ListOptions]
+alias NewInformerFunc = func(kubernetes.Interface,Int) IO[cache.SharedInformer[runtime.Object]]
+type InformerOptions = InformerOptions { resyncPeriod: Int, indexers: Map[String,cache.IndexFunc[runtime.Object]], informerName: Option[cache.InformerName], tweakListOptions: Option[TweakListOptionsFunc] }
+type FactoryOptions = FactoryOptions { namespace: String, customResync: Map[String,Int], tweakListOptions: Option[TweakListOptionsFunc], transform: Option[cache.TransformFunc[runtime.Object]], informerName: Option[cache.InformerName] }
+alias SharedInformerOption = func(FactoryOptions) FactoryOptions
+type FactoryEntry = FactoryEntry { informer: cache.SharedInformer[runtime.Object], task: Option[sync.Task[Unit]] }
+type FactoryState = FactoryState { entries: Map[String,FactoryEntry], shuttingDown: Bool }
+type SharedInformerFactory = SharedInformerFactory { featureRegistry: features.FeatureRegistry, client: kubernetes.Interface, defaultResync: Int, options: FactoryOptions, mutex: sync.Mutex, state: sync.Ref[FactoryState] }
+func defaultFactoryOptions() FactoryOptions { FactoryOptions("",map.emptyMap(),None,None,None) }
+func withNamespace(namespace String) SharedInformerOption { func(options) => options { namespace: namespace } }
+func withCustomResyncConfig(periods Map[String,Int]) SharedInformerOption { func(options) => options { customResync: fold(map.mapToList(periods),options.customResync,func(acc,pair) => map.mapInsert(acc,fst(pair),snd(pair))) } }
+func withTweakListOptions(tweak TweakListOptionsFunc) SharedInformerOption { func(options) => options { tweakListOptions: Some(tweak) } }
+func withTransform(transform cache.TransformFunc[runtime.Object]) SharedInformerOption { func(options) => options { transform: Some(transform) } }
+func withInformerName(name cache.InformerName) SharedInformerOption { func(options) => options { informerName: Some(name) } }
+func informerName(factory SharedInformerFactory) Option[cache.InformerName] { factory.options.informerName }
+func newSharedInformerFactoryWithOptions(featureRegistry features.FeatureRegistry, client kubernetes.Interface, period Int, options List[SharedInformerOption]) IO[SharedInformerFactory] { do {
+ mutex <- sync.newMutex()
+ state <- sync.newRef(FactoryState(map.emptyMap(),false))
+ ioPure(SharedInformerFactory(featureRegistry,client,period,fold(options,defaultFactoryOptions(),func(config,apply) => apply(config)),mutex,state))
+} }
+func newSharedInformerFactory(featureRegistry features.FeatureRegistry, client kubernetes.Interface, period Int) IO[SharedInformerFactory] { newSharedInformerFactoryWithOptions(featureRegistry,client,period,Nil) }
+func newFilteredSharedInformerFactory(featureRegistry features.FeatureRegistry, client kubernetes.Interface, period Int, namespace String, tweak TweakListOptionsFunc) IO[SharedInformerFactory] { newSharedInformerFactoryWithOptions(featureRegistry,client,period,[withNamespace(namespace),withTweakListOptions(tweak)]) }
+func informerFor(factory SharedInformerFactory, objectType String, create NewInformerFunc) IO[cache.SharedInformer[runtime.Object]] { sync.withLock(factory.mutex,do {
+ state <- sync.readRef(factory.state)
+ match map.mapLookup(state.entries,objectType) {
+  Some(entry) => ioPure(entry.informer)
+  None => do {
+   let period = match map.mapLookup(factory.options.customResync,objectType) { None => factory.defaultResync; Some(value) => value }
+   informer <- create(factory.client,period)
+   _ <- installWatchListGate(factory.featureRegistry,informer)
+   match factory.options.transform { None => ioPure(unit()); Some(transform) => do { result <- cache.setTransform(informer,transform); match result.error { None => ioPure(unit()); Some(_) => ioFail("new informer has already started") } } }
+   sync.writeRef(factory.state,state { entries: map.mapInsert(state.entries,objectType,FactoryEntry(informer,None)) })
+   ioPure(informer)
+  }
+ }
+}) }
+func start(factory SharedInformerFactory) IO[Unit] { do { context <- sync.captureContext(); startWithContext(factory,context) } }
+func startWithContext(factory SharedInformerFactory, context sync.Context) IO[Unit] { sync.withLock(factory.mutex,sync.uninterruptible(do {
+ state <- sync.readRef(factory.state)
+ if state.shuttingDown { ioPure(unit()) } else { do {
+  entries <- list.mapM(map.mapToList(state.entries),func(pair) => do {
+   let entry = snd(pair)
+   next <- match entry.task { Some(_) => ioPure(entry); None => do { task <- sync.startDetached(sync.withContext(context,cache.run(entry.informer))); ioPure(entry { task: Some(task) }) } }
+   ioPure((fst(pair),next))
+  })
+  sync.writeRef(factory.state,state { entries: map.mapFromList(entries) })
+ } }
+})) }
+func shutdown(factory SharedInformerFactory) IO[Unit] { sync.uninterruptible(do {
+ entries <- sync.withLock(factory.mutex,sync.uninterruptible(do { state <- sync.readRef(factory.state); sync.writeRef(factory.state,state { shuttingDown: true }); ioPure(map.mapValues(state.entries)) }))
+ list.forEach(entries,func(entry) => match entry.task { None => ioPure(unit()); Some(task) => do { _ <- sync.join(task); ioPure(unit()) } })
+ match factory.options.informerName { None => ioPure(unit()); Some(name) => cache.releaseInformerName(name) }
+}) }
+func waitForCacheSync(factory SharedInformerFactory) IO[cache.SyncResult] { do {
+ entries <- sync.withLock(factory.mutex,do { state <- sync.readRef(factory.state); ioPure(filter(map.mapToList(state.entries),func(pair) => match snd(pair).task { None => false; Some(_) => true })) })
+ cache.waitForDetailed(map(entries,func(pair) => cache.informerDoneChecker(snd(pair).informer,fst(pair))),func(_) => ioPure(unit()))
+} }
+func waitForCacheSyncWithContext(factory SharedInformerFactory, context sync.Context) IO[cache.SyncResult] { sync.withContext(context,waitForCacheSync(factory)) }
+func tweakOptions(tweak Option[TweakListOptionsFunc], options meta.ListOptions) IO[meta.ListOptions] { match tweak { None => ioPure(options); Some(apply) => apply(options) } }
+func rawIndexers[A](indexers Map[String,cache.IndexFunc[A]], descriptor objects.ObjectType[A]) Map[String,cache.IndexFunc[runtime.Object]] {
+ map.mapMap(indexers,func(index) => func(raw) => match objects.fromObject(descriptor,Some(raw)) { Some(value) => index(value); None => errors.raiseError(cache.cacheError("cache object does not match typed descriptor")) })
+}
+func installWatchListGate(featureRegistry features.FeatureRegistry, informer cache.SharedInformer[runtime.Object]) IO[cache.SharedInformer[runtime.Object]] { do {
+ result <- cache.setWatchListGate(informer,func() => do { gates <- features.featureGates(featureRegistry); gates.enabled(features.watchListClient()) })
+ match result.error { None => ioPure(informer); Some(error) => errors.raiseError(error) }
+} }

@@ -1,0 +1,143 @@
+package rest
+
+import runtime "deps/k8s.io/apimachinery/pkg/runtime"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import errors "deps/support"
+import io "deps/io"
+import outcome "support/outcome"
+import m "std/map"
+import http "deps/net/http"
+import watchcodec "rest/watch"
+import s "std/string"
+
+// Copyright 2014 The Kubernetes Authors. Licensed under Apache-2.0.
+type Body = NoBody | Bytes(String) | Reader(io.Reader)
+type ClientContentConfig = ClientContentConfig {
+ acceptContentTypes: String, contentType: String, groupVersion: schema.GroupVersion,
+ negotiator: Negotiator
+}
+type Negotiator = Negotiator {
+ encode: func(String,runtime.Object) IO[outcome.Outcome[String]],
+ decoder: func(String) IO[outcome.Outcome[Option[runtime.Decoder]]],
+ streamDecoder: func(String,http.Response) IO[outcome.Outcome[Option[watchcodec.Decoder]]]
+}
+type Request = Request {
+ client: RESTClient, contentConfig: ClientContentConfig, contentTypeNotSet: Bool,
+ warningHandler: WarningHandler, rateLimiter: Option[RateLimiter], backoff: Backoff,
+ timeout: Int, maxRetries: Int, verb: String, pathPrefix: String, subpath: String,
+ params: Map[String,List[String]], headers: Map[String,List[String]],
+ namespace: String, namespaceSet: Bool, resource: String, resourceName: String,
+ subresource: String, error: Option[errors.Error], body: Body, retryFactory: func(Int) IO[WithRetry], retryableError: func(String,errors.Error) Bool, measureRequestSize: Bool
+}
+extern func pathJoin(left String,right String) String = "github.com/reoring/gofx/ports/client-go/rest/host".Join
+extern func lowercase(value String) String = "github.com/reoring/gofx/ports/client-go/rest/host".Lower
+extern func contains(value String,part String) Bool = "github.com/reoring/gofx/ports/client-go/rest/host".Contains
+func nameMayNotBe() List[String] { [".",".."] }
+func nameMayNotContain() List[String] { ["/","%"] }
+func isValidPathSegmentPrefix(name String) List[String] {
+ map(filter(nameMayNotContain(),func(part) => { contains(name,part) }),func(part) => { "may not contain '" + part + "'" })
+}
+func isValidPathSegmentName(name String) List[String] {
+ if name == "." || name == ".." { ["may not be '" + name + "'"] } else { isValidPathSegmentPrefix(name) }
+}
+func validatePathSegmentName(name String,prefix Bool) List[String] { if prefix { isValidPathSegmentPrefix(name) } else { isValidPathSegmentName(name) } }
+func invalidSegment(kind String,value String) Option[errors.Error] {
+ let messages = isValidPathSegmentName(value)
+ if length(messages) == 0 { None } else { Some(errors.errorNew("invalid " + kind + " " + quote(value) + ": [" + s.join(" ",messages) + "]")) }
+}
+func requestError(request Request) Option[errors.Error] { request.error }
+func verb(request Request, value String) Request { request{verb: value} }
+func prefix(request Request, segments List[String]) Request {
+ match request.error { Some(_) => request; None => request{pathPrefix: fold(segments,request.pathPrefix,pathJoin)} }
+}
+func suffix(request Request, segments List[String]) Request {
+ match request.error { Some(_) => request; None => request{subpath: fold(segments,request.subpath,pathJoin)} }
+}
+func resource(request Request,value String) Request {
+ match request.error { Some(_) => request; None => {
+  if request.resource != "" { request{error: Some(errors.errorNew("resource already set to " + quote(request.resource) + ", cannot change to " + quote(value)))} }
+  else { match invalidSegment("resource",value) { Some(e) => request{error: Some(e)}; None => request{resource: value} } }
+ } }
+}
+func name(request Request,value String) Request {
+ match request.error { Some(_) => request; None => {
+  if value == "" { request{error: Some(errors.errorNew("resource name may not be empty"))} }
+  else if request.resourceName != "" { request{error: Some(errors.errorNew("resource name already set to " + quote(request.resourceName) + ", cannot change to " + quote(value)))} }
+  else { match invalidSegment("resource name",value) { Some(e) => request{error: Some(e)}; None => request{resourceName: value} } }
+ } }
+}
+func namespace(request Request,value String) Request {
+ match request.error { Some(_) => request; None => {
+  if request.namespaceSet { request{error: Some(errors.errorNew("namespace already set to " + quote(request.namespace) + ", cannot change to " + quote(value)))} }
+  else { match invalidSegment("namespace",value) { Some(e) => request{error: Some(e)}; None => request{namespace: value, namespaceSet: true} } }
+ } }
+}
+func namespaceIfScoped(request Request,value String,scoped Bool) Request { if scoped { namespace(request,value) } else { request } }
+func subResource(request Request,segments List[String]) Request {
+ let value = fold(segments,"",pathJoin)
+ match request.error { Some(_) => request; None => {
+  if request.subresource != "" { request{error: Some(errors.errorNew("subresource already set to " + quote(request.subresource) + ", cannot change to " + quote(value)))} }
+  else {
+   let invalid = fold(segments,None,func(previous,segment) => { match previous { Some(_) => previous; None => invalidSegment("subresource",segment) } })
+   match invalid { Some(error) => request{error: Some(error)}; None => request{subresource: value} }
+  }
+ } }
+}
+func absPath(request Request,segments List[String]) Request {
+ match request.error { Some(_) => request; None => {
+  let joined = fold(segments,request.client.basePath,pathJoin)
+  let final = match segments { Cons(one,Nil) => if s.endsWith(one,"/") && (s.strLength(one)>1 || s.strLength(request.client.basePath)>1) { joined+"/" } else { joined }; _ => joined }
+  request{pathPrefix: final}
+ } }
+}
+func param(request Request,key String,value String) Request {
+ match request.error { Some(_) => request; None => {
+  let previous = match m.mapLookup(request.params,key) { None => []; Some(values) => values }
+  request{params: m.mapInsert(request.params,key,append(previous,[value]))}
+ } }
+}
+func setHeader(request Request,key String,values List[String]) Request { request{headers: m.mapInsert(request.headers,canonicalHeader(key),values)} }
+extern func canonicalHeader(value String) String = "github.com/reoring/gofx/ports/client-go/rest/host".CanonicalHeader
+func timeout(request Request,nanos Int) Request { match request.error { Some(_) => request; None => request{timeout: nanos} } }
+func maxRetries(request Request,value Int) Request { request{maxRetries: max(0,value)} }
+func throttle(request Request,limiter Option[RateLimiter]) Request { request{rateLimiter: limiter} }
+func backOff(request Request,manager Backoff) Request { request{backoff: manager} }
+func warningHandler(request Request,handler WarningHandler) Request { request{warningHandler: handler} }
+func bodyBytes(request Request,value String) Request { match request.error { Some(_) => request; None => request{body: Bytes(value)} } }
+func bodyReader(request Request,value io.Reader) Request { match request.error { Some(_) => request; None => request{body: Reader(value)} } }
+func bodyObject(request Request,value Option[runtime.Object]) IO[Request] {
+ match request.error { Some(_) => ioPure(request); None => match value {
+  None => ioPure(request)
+  Some(object) => do {
+   encoded <- request.contentConfig.negotiator.encode(request.contentConfig.contentType,object)
+   ioPure(match encoded.error { Some(e) => request{error: Some(e)}; None => setHeader(bodyBytes(request,encoded.value),"Content-Type",[request.contentConfig.contentType]) })
+  }
+ } }
+}
+func bodyFile(request Request,file String) IO[Request] {
+ match request.error { Some(_) => ioPure(request); None => do {
+  result <- readFile(file)
+  ioPure(match result.1 { Some(e) => request{error: Some(e)}; None => bodyBytes(request,result.0) })
+ } }
+}
+extern func readFile(file String) IO[(String,Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/rest/host".ReadFile
+func useProtobufAsDefaultIfPreferred(request Request,preferred Bool) Request { if preferred { useProtobufAsDefault(request) } else { request } }
+func useProtobufAsDefault(request Request) Request {
+ if request.contentTypeNotSet && request.contentConfig.acceptContentTypes == "" {
+  setHeader(request{contentConfig: request.contentConfig{contentType: "application/vnd.kubernetes.protobuf", acceptContentTypes: "application/vnd.kubernetes.protobuf,application/json"}},"Accept",["application/vnd.kubernetes.protobuf,application/json"])
+ } else { request }
+}
+func requestPath(request Request) String {
+ let scoped = if request.namespaceSet && request.namespace != "" { pathJoin(pathJoin(request.pathPrefix,"namespaces"),request.namespace) } else { request.pathPrefix }
+ let collection = if request.resource != "" { pathJoin(scoped,lowercase(request.resource)) } else { scoped }
+ if request.resourceName != "" || request.subresource != "" || request.subpath != "" { fold([request.resourceName,request.subresource,request.subpath],collection,pathJoin) } else { collection }
+}
+func requestPreflightCheck(request Request) Option[errors.Error] {
+ match request.error { Some(e) => Some(e); None => {
+  if request.namespaceSet && request.namespace == "" {
+   if request.verb == "POST" { Some(errors.errorNew("an empty namespace may not be set during creation")) }
+   else if request.resourceName != "" && (request.verb == "GET" || request.verb == "PUT" || request.verb == "DELETE") { Some(errors.errorNew("an empty namespace may not be set when a resource name is provided")) }
+   else { None }
+  } else { None }
+ } }
+}

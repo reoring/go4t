@@ -1,0 +1,383 @@
+{
+  "source_version": "v0.37.2",
+  "source_revision": "72c52dd0cc3b9099b36af11290b0304045dd1ada",
+  "evidence": "source mapping only; no build, typecheck, or test was run",
+  "symbols": [
+    {
+      "source": "gentype/fake.go",
+      "line": 35,
+      "kind": "type",
+      "symbol": "FakeClient",
+      "native_file": "fake.gfx",
+      "native": "FakeClient"
+    },
+    {
+      "source": "gentype/fake.go",
+      "line": 44,
+      "kind": "type",
+      "symbol": "FakeClientWithList",
+      "native_file": "fake.gfx",
+      "native": "FakeClientWithList"
+    },
+    {
+      "source": "gentype/fake.go",
+      "line": 50,
+      "kind": "type",
+      "symbol": "FakeClientWithApply",
+      "native_file": "fake.gfx",
+      "native": "FakeClientWithApply"
+    },
+    {
+      "source": "gentype/fake.go",
+      "line": 56,
+      "kind": "type",
+      "symbol": "FakeClientWithListAndApply",
+      "native_file": "fake.gfx",
+      "native": "FakeClientWithListAndApply"
+    },
+    {
+      "source": "gentype/fake.go",
+      "line": 77,
+      "kind": "func",
+      "symbol": "NewFakeClient",
+      "native_file": "fake.gfx",
+      "native": "newFakeClient"
+    },
+    {
+      "source": "gentype/fake.go",
+      "line": 84,
+      "kind": "func",
+      "symbol": "NewFakeClientWithList",
+      "native_file": "fake.gfx",
+      "native": "newFakeClientWithList"
+    },
+    {
+      "source": "gentype/fake.go",
+      "line": 96,
+      "kind": "func",
+      "symbol": "NewFakeClientWithApply",
+      "native_file": "fake.gfx",
+      "native": "newFakeClientWithApply"
+    },
+    {
+      "source": "gentype/fake.go",
+      "line": 107,
+      "kind": "func",
+      "symbol": "NewFakeClientWithListAndApply",
+      "native_file": "fake.gfx",
+      "native": "newFakeClientWithListAndApply"
+    },
+    {
+      "source": "gentype/fake.go",
+      "line": 120,
+      "kind": "method",
+      "symbol": "Get",
+      "native_file": "fake.gfx",
+      "native": "fakeGet"
+    },
+    {
+      "source": "gentype/fake.go",
+      "line": 131,
+      "kind": "func",
+      "symbol": "ToPointerSlice",
+      "native_file": "fake.gfx",
+      "native": "toPointerSlice"
+    },
+    {
+      "source": "gentype/fake.go",
+      "line": 142,
+      "kind": "func",
+      "symbol": "FromPointerSlice",
+      "native_file": "fake.gfx",
+      "native": "fromPointerSlice"
+    },
+    {
+      "source": "gentype/fake.go",
+      "line": 154,
+      "kind": "method",
+      "symbol": "List",
+      "native_file": "fake.gfx",
+      "native": "fakeList"
+    },
+    {
+      "source": "gentype/fake.go",
+      "line": 185,
+      "kind": "method",
+      "symbol": "Watch",
+      "native_file": "fake.gfx",
+      "native": "fakeWatch"
+    },
+    {
+      "source": "gentype/fake.go",
+      "line": 192,
+      "kind": "method",
+      "symbol": "Create",
+      "native_file": "fake.gfx",
+      "native": "fakeCreate"
+    },
+    {
+      "source": "gentype/fake.go",
+      "line": 203,
+      "kind": "method",
+      "symbol": "Update",
+      "native_file": "fake.gfx",
+      "native": "fakeUpdate"
+    },
+    {
+      "source": "gentype/fake.go",
+      "line": 214,
+      "kind": "method",
+      "symbol": "UpdateStatus",
+      "native_file": "fake.gfx",
+      "native": "fakeUpdateStatus"
+    },
+    {
+      "source": "gentype/fake.go",
+      "line": 226,
+      "kind": "method",
+      "symbol": "Delete",
+      "native_file": "fake.gfx",
+      "native": "fakeDelete"
+    },
+    {
+      "source": "gentype/fake.go",
+      "line": 233,
+      "kind": "method",
+      "symbol": "DeleteCollection",
+      "native_file": "fake.gfx",
+      "native": "fakeDeleteCollection"
+    },
+    {
+      "source": "gentype/fake.go",
+      "line": 240,
+      "kind": "method",
+      "symbol": "Patch",
+      "native_file": "fake.gfx",
+      "native": "fakePatch"
+    },
+    {
+      "source": "gentype/fake.go",
+      "line": 251,
+      "kind": "method",
+      "symbol": "Apply",
+      "native_file": "fake.gfx",
+      "native": "fakeApply"
+    },
+    {
+      "source": "gentype/fake.go",
+      "line": 273,
+      "kind": "method",
+      "symbol": "ApplyStatus",
+      "native_file": "fake.gfx",
+      "native": "fakeApplyStatus"
+    },
+    {
+      "source": "gentype/fake.go",
+      "line": 295,
+      "kind": "method",
+      "symbol": "Namespace",
+      "native_file": "fake.gfx",
+      "native": "fakeNamespace"
+    },
+    {
+      "source": "gentype/fake.go",
+      "line": 299,
+      "kind": "method",
+      "symbol": "Kind",
+      "native_file": "fake.gfx",
+      "native": "fakeKind"
+    },
+    {
+      "source": "gentype/fake.go",
+      "line": 303,
+      "kind": "method",
+      "symbol": "Resource",
+      "native_file": "fake.gfx",
+      "native": "fakeResource"
+    },
+    {
+      "source": "gentype/type.go",
+      "line": 45,
+      "kind": "type",
+      "symbol": "Client",
+      "native_file": "type.gfx",
+      "native": "Client"
+    },
+    {
+      "source": "gentype/type.go",
+      "line": 56,
+      "kind": "type",
+      "symbol": "ClientWithList",
+      "native_file": "type.gfx",
+      "native": "ClientWithList"
+    },
+    {
+      "source": "gentype/type.go",
+      "line": 62,
+      "kind": "type",
+      "symbol": "ClientWithApply",
+      "native_file": "type.gfx",
+      "native": "ClientWithApply"
+    },
+    {
+      "source": "gentype/type.go",
+      "line": 68,
+      "kind": "type",
+      "symbol": "ClientWithListAndApply",
+      "native_file": "type.gfx",
+      "native": "ClientWithListAndApply"
+    },
+    {
+      "source": "gentype/type.go",
+      "line": 84,
+      "kind": "type",
+      "symbol": "Option",
+      "native_file": "type.gfx",
+      "native": "ClientOption"
+    },
+    {
+      "source": "gentype/type.go",
+      "line": 86,
+      "kind": "func",
+      "symbol": "PrefersProtobuf",
+      "native_file": "type.gfx",
+      "native": "prefersProtobuf"
+    },
+    {
+      "source": "gentype/type.go",
+      "line": 92,
+      "kind": "func",
+      "symbol": "NewClient",
+      "native_file": "type.gfx",
+      "native": "newClient"
+    },
+    {
+      "source": "gentype/type.go",
+      "line": 110,
+      "kind": "func",
+      "symbol": "NewClientWithList",
+      "native_file": "type.gfx",
+      "native": "newClientWithList"
+    },
+    {
+      "source": "gentype/type.go",
+      "line": 122,
+      "kind": "func",
+      "symbol": "NewClientWithApply",
+      "native_file": "type.gfx",
+      "native": "newClientWithApply"
+    },
+    {
+      "source": "gentype/type.go",
+      "line": 134,
+      "kind": "func",
+      "symbol": "NewClientWithListAndApply",
+      "native_file": "type.gfx",
+      "native": "newClientWithListAndApply"
+    },
+    {
+      "source": "gentype/type.go",
+      "line": 147,
+      "kind": "method",
+      "symbol": "GetClient",
+      "native_file": "type.gfx",
+      "native": "getClient"
+    },
+    {
+      "source": "gentype/type.go",
+      "line": 152,
+      "kind": "method",
+      "symbol": "GetNamespace",
+      "native_file": "type.gfx",
+      "native": "getNamespace"
+    },
+    {
+      "source": "gentype/type.go",
+      "line": 157,
+      "kind": "method",
+      "symbol": "Get",
+      "native_file": "type.gfx",
+      "native": "get"
+    },
+    {
+      "source": "gentype/type.go",
+      "line": 171,
+      "kind": "method",
+      "symbol": "List",
+      "native_file": "type.gfx",
+      "native": "list"
+    },
+    {
+      "source": "gentype/type.go",
+      "line": 189,
+      "kind": "method",
+      "symbol": "Watch",
+      "native_file": "type.gfx",
+      "native": "watch"
+    },
+    {
+      "source": "gentype/type.go",
+      "line": 205,
+      "kind": "method",
+      "symbol": "Create",
+      "native_file": "type.gfx",
+      "native": "create"
+    },
+    {
+      "source": "gentype/type.go",
+      "line": 219,
+      "kind": "method",
+      "symbol": "Update",
+      "native_file": "type.gfx",
+      "native": "update"
+    },
+    {
+      "source": "gentype/type.go",
+      "line": 234,
+      "kind": "method",
+      "symbol": "UpdateStatus",
+      "native_file": "type.gfx",
+      "native": "updateStatus"
+    },
+    {
+      "source": "gentype/type.go",
+      "line": 250,
+      "kind": "method",
+      "symbol": "Delete",
+      "native_file": "type.gfx",
+      "native": "delete"
+    },
+    {
+      "source": "gentype/type.go",
+      "line": 262,
+      "kind": "method",
+      "symbol": "DeleteCollection",
+      "native_file": "type.gfx",
+      "native": "deleteCollection"
+    },
+    {
+      "source": "gentype/type.go",
+      "line": 279,
+      "kind": "method",
+      "symbol": "Patch",
+      "native_file": "type.gfx",
+      "native": "patch"
+    },
+    {
+      "source": "gentype/type.go",
+      "line": 295,
+      "kind": "method",
+      "symbol": "Apply",
+      "native_file": "type.gfx",
+      "native": "apply"
+    },
+    {
+      "source": "gentype/type.go",
+      "line": 322,
+      "kind": "method",
+      "symbol": "ApplyStatus",
+      "native_file": "type.gfx",
+      "native": "applyStatus"
+    }
+  ]
+}

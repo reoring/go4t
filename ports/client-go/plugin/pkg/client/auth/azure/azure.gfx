@@ -1,0 +1,9 @@
+// Copyright 2022 The Kubernetes Authors. Licensed under the Apache License, Version 2.0.
+package azure
+import "rest"
+import "support/outcome"
+import fx "plugin/pkg/client/auth/internal/effects"
+func newAzureAuthProvider(cluster String,config Map[String,String],persister rest.AuthProviderConfigPersister) IO[outcome.Outcome[Option[rest.AuthProvider]]] {
+ ioPure(fx.failure(None,"The azure auth plugin has been removed.\nPlease use the https://github.com/Azure/kubelogin kubectl/client-go credential plugin instead.\nSee https://kubernetes.io/docs/reference/access-authn-authz/authentication/#client-go-credential-plugins for further details"))
+}
+func register(registry rest.AuthProviderRegistry) IO[outcome.Outcome[Unit]] {rest.registerAuthProviderPlugin(registry,"azure",newAzureAuthProvider)}

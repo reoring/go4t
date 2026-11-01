@@ -2,36 +2,39 @@
 // Source: client-go v0.37.2 and exact external dependency declarations.
 // Kubernetes-derived declarations are licensed under Apache-2.0.
 // https://www.apache.org/licenses/LICENSE-2.0
-// Source graph SHA-256: 2e4efd1c862cc7bde1036ba0dc37a4fe08175d4ead5d513b32689e674b91d866
+// Source graph SHA-256: 99a062162cbc99a38896123a3e81ce3ef2f70f2e505fbd058751d52a0a40f167
 package rand
 
 import canonical "github.com/reoring/gofx/ports/client-go/deps/types"
 import support "github.com/reoring/gofx/ports/client-go/deps/support"
 
 alias Rand = canonical.Rand_6c38eb9c6d51
-extern func newRand() IO[Rand] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".New_Rand_6c38eb9c6d51
+extern func newRand() IO[Rand] = "github.com/reoring/gofx/ports/client-go/host/deps".New_Rand_6c38eb9c6d51
 alias Source = canonical.Source_c07b32a505fc
 alias Source64 = canonical.Source64_0f4d7a198a2a
-extern func randCallExpFloat64Identity(value Rand) IO[Float] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_316ac1cc3648c39e
-extern func randCallFloat32Identity(value Rand) IO[Float] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_fa5979d59f470623
-extern func randCallFloat64Identity(value Rand) IO[Float] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_3dbe6372eb71bb5b
-extern func randCallIntIdentity(value Rand) IO[Int] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_bdd70fc863fd9892
-extern func randCallInt31Identity(value Rand) IO[Int] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_3ee4a608ecb17853
-extern func randCallInt31nIdentity(value Rand, p0 Int) IO[Int] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_79cf732c5b9765d8
-extern func randCallInt63Identity(value Rand) IO[Int] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_18aa1e5e1baac82c
-extern func randCallInt63nIdentity(value Rand, p0 Int) IO[Int] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_2d6dfd7f9ffd4ea0
-extern func randCallIntnIdentity(value Rand, p0 Int) IO[Int] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_42cb6ee3c0b2a162
-extern func randCallNormFloat64Identity(value Rand) IO[Float] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_f46df901a08a9df6
-extern func randCallPermIdentity(value Rand, p0 Int) IO[Option[List[Int]]] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_48bba22f76d4df48
-extern func randCallReadIdentity(value Rand, p0 Option[String]) IO[(Option[String], (Int, Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_9822a9155f84e960
-extern func randCallSeedIdentity(value Rand, p0 Int) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_ca927560ad2ab73e
-extern func randCallShuffleIdentity(value Rand, p0 Int, p1 func(Int, Int) IO[Unit]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_122aa936f31b9d5f
-extern func randCallUint32Identity(value Rand) IO[Int] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_9c82ce54a1cc390b
-extern func randCallUint64Identity(value Rand) IO[support.UInt64] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_4e414c1697505fc3
-extern func sourceCallInt63Identity(value Source) IO[Int] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Interface_a950a23cb9cfbcb0
-extern func sourceCallSeedIdentity(value Source, p0 Int) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Interface_c21951e3df5d5d2e
-extern func source64CallInt63Identity(value Source64) IO[Int] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Interface_56c850ac52e03e96
-extern func source64CallSeedIdentity(value Source64, p0 Int) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Interface_a599ec212f7efba9
-extern func source64CallUint64Identity(value Source64) IO[support.UInt64] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Interface_31feefdaccae6b08
-extern func newSource(f0 func() IO[Int], f1 func(Int) IO[Unit]) IO[Source] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".New_Proxy_Source_c07b32a505fc
-extern func newSource64(f0 func() IO[Int], f1 func(Int) IO[Unit], f2 func() IO[support.UInt64]) IO[Source64] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".New_Proxy_Source64_0f4d7a198a2a
+extern func callFloat64() IO[Float] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_906479bdecf1767a
+extern func callNew(p0 Option[canonical.Source_c07b32a505fc]) IO[Option[canonical.Rand_6c38eb9c6d51]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_1a70d15ddbf4330c
+extern func callNewSource(p0 Int) IO[Option[canonical.Source_c07b32a505fc]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_16218833afa0bfec
+extern func randCallExpFloat64Identity(value Rand) IO[Float] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_316ac1cc3648c39e
+extern func randCallFloat32Identity(value Rand) IO[Float] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_fa5979d59f470623
+extern func randCallFloat64Identity(value Rand) IO[Float] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_3dbe6372eb71bb5b
+extern func randCallIntIdentity(value Rand) IO[Int] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_bdd70fc863fd9892
+extern func randCallInt31Identity(value Rand) IO[Int] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_3ee4a608ecb17853
+extern func randCallInt31nIdentity(value Rand, p0 Int) IO[Int] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_79cf732c5b9765d8
+extern func randCallInt63Identity(value Rand) IO[Int] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_18aa1e5e1baac82c
+extern func randCallInt63nIdentity(value Rand, p0 Int) IO[Int] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_2d6dfd7f9ffd4ea0
+extern func randCallIntnIdentity(value Rand, p0 Int) IO[Int] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_42cb6ee3c0b2a162
+extern func randCallNormFloat64Identity(value Rand) IO[Float] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_f46df901a08a9df6
+extern func randCallPermIdentity(value Rand, p0 Int) IO[Option[List[Int]]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_48bba22f76d4df48
+extern func randCallReadIdentity(value Rand, p0 Option[String]) IO[(Option[String], (Int, Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_9822a9155f84e960
+extern func randCallSeedIdentity(value Rand, p0 Int) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_ca927560ad2ab73e
+extern func randCallShuffleIdentity(value Rand, p0 Int, p1 func(Int, Int) IO[Unit]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_122aa936f31b9d5f
+extern func randCallUint32Identity(value Rand) IO[Int] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_9c82ce54a1cc390b
+extern func randCallUint64Identity(value Rand) IO[support.UInt64] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_4e414c1697505fc3
+extern func sourceCallInt63Identity(value Source) IO[Int] = "github.com/reoring/gofx/ports/client-go/host/deps".Interface_a950a23cb9cfbcb0
+extern func sourceCallSeedIdentity(value Source, p0 Int) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".Interface_c21951e3df5d5d2e
+extern func source64CallInt63Identity(value Source64) IO[Int] = "github.com/reoring/gofx/ports/client-go/host/deps".Interface_56c850ac52e03e96
+extern func source64CallSeedIdentity(value Source64, p0 Int) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".Interface_a599ec212f7efba9
+extern func source64CallUint64Identity(value Source64) IO[support.UInt64] = "github.com/reoring/gofx/ports/client-go/host/deps".Interface_31feefdaccae6b08
+extern func newSource(f0 func() IO[Int], f1 func(Int) IO[Unit]) IO[Source] = "github.com/reoring/gofx/ports/client-go/host/deps".New_Proxy_Source_c07b32a505fc
+extern func newSource64(f0 func() IO[Int], f1 func(Int) IO[Unit], f2 func() IO[support.UInt64]) IO[Source64] = "github.com/reoring/gofx/ports/client-go/host/deps".New_Proxy_Source64_0f4d7a198a2a

@@ -1,0 +1,42 @@
+// Copyright 2017 The Kubernetes Authors. Licensed under Apache-2.0.
+package cached
+import openapi "openapi"
+import outcome "support/outcome"
+import sync "support/sync"
+import m "std/map"
+
+func newClient(delegate openapi.Client) IO[openapi.Client] {
+ do {
+  lock <- sync.newMutex()
+  state <- sync.newRef(None)
+  ioPure(openapi.Client{paths:func() => sync.withLock(lock,do {
+   previous <- sync.readRef(state)
+   match previous {
+    Some(result) => ioPure(result)
+    None => do {
+     result <- delegate.paths()
+     wrapped <- _wrap(m.mapToList(result.value),m.emptyMap())
+     let saved = result{value:wrapped}
+     sync.writeRef(state,Some(saved))
+     ioPure(saved)
+    }
+   }
+  })})
+ }
+}
+func _wrap(entries List[(String,openapi.GroupVersion)],result Map[String,openapi.GroupVersion]) IO[Map[String,openapi.GroupVersion]] {
+ match entries { Nil => ioPure(result); Cons(entry,remaining) => do { wrapped <- newGroupVersion(entry.1); _wrap(remaining,m.mapInsert(result,entry.0,wrapped)) } }
+}
+func newGroupVersion(delegate openapi.GroupVersion) IO[openapi.GroupVersion] {
+ do {
+  lock <- sync.newMutex()
+  state <- sync.newRef(m.emptyMap())
+  ioPure(openapi.GroupVersion{serverRelativeURL:delegate.serverRelativeURL,schema:func(contentType) => sync.withLock(lock,do {
+   previous <- sync.readRef(state)
+   match m.mapLookup(previous,contentType) {
+    Some(result) => ioPure(result)
+    None => do { result <- delegate.schema(contentType); sync.writeRef(state,m.mapInsert(previous,contentType,result)); ioPure(result) }
+   }
+  })})
+ }
+}

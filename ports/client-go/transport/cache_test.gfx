@@ -1,0 +1,28 @@
+// Copyright 2015 The Kubernetes Authors. Licensed under Apache-2.0.
+package transport
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import list "std/list"
+
+func testCacheHitAndEntryObservations() IO[Bool] { do {
+ env <- fixtureEnvironment(true, false)
+ events <- sync.newRef([])
+ let observed = env {diagnostics: env.diagnostics {event: func(name, value) => do { old <- sync.readRef(events); sync.writeRef(events, list.append(old, [name + "=" + value])) }}}
+ let c = defaultConfig()
+ let config = c {tls: c.tls {insecure: true}}
+ first <- newTransport(observed, config)
+ second <- newTransport(observed, config)
+ seen <- sync.readRef(events)
+ match first.value { None => ioPure(unit()); Some(rt) => keepLifetime(rt.lifetime) }
+ match second.value { None => ioPure(unit()); Some(rt) => keepLifetime(rt.lifetime) }
+ ioPure(outcome.isSuccess(first) && outcome.isSuccess(second) && seen == ["cache:miss=", "cache_entries=1", "cache:hit=", "cache_entries=1"])
+} }
+func testCanonicalTokenExpiryRoundTrip() IO[Bool] { do {
+ clock <- sync.realClock()
+ now <- sync.now(clock)
+ let expires = sync.add(now, 60000000000)
+ token <- makeToken("access", "Bearer", "refresh", Some(expires))
+ expiry <- tokenExpiry(token)
+ fresh <- tokenFresh(token, now, 10000000000)
+ ioPure(fresh && (match expiry { None => false; Some(value) => sync.elapsed(value, expires) == 0 }))
+} }

@@ -1,0 +1,61 @@
+package examples
+
+// Copyright 2016 The Kubernetes Authors. Licensed under Apache-2.0.
+import election "tools/leaderelection"
+import lock "tools/leaderelection/resourcelock"
+import kube "kubernetes"
+import coord "deps/k8s.io/api/coordination/v1"
+import meta "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import objects "deps/objects"
+import fixture "util/testing"
+import sync "support/sync"
+import io "std/io"
+
+func electionExample() IO[Unit] {
+ do {
+  env <- environment()
+  let initial: Option[coord.Lease] = None
+  state <- sync.newRef(initial)
+  mutex <- sync.newMutex()
+  started <- sync.newChannel(1)
+  stopped <- sync.newChannel(1)
+  sync.bracket(fixture.newServer(func(request) => sync.withLock(mutex,do {
+   let collection = "/apis/coordination.k8s.io/v1/namespaces/default/leases"
+   check(request.path==collection || request.path==collection+"/my-controller-lease","unexpected lease route")
+   current <- sync.readRef(state)
+   if request.method=="GET" { match current {
+    None => ioPure(fixture.Response(404,[("Content-Type",["application/json"])],"{\"apiVersion\":\"v1\",\"kind\":\"Status\",\"status\":\"Failure\",\"message\":\"leases.coordination.k8s.io \\\"my-controller-lease\\\" not found\",\"reason\":\"NotFound\",\"details\":{\"group\":\"coordination.k8s.io\",\"kind\":\"leases\",\"name\":\"my-controller-lease\"},\"code\":404}"))
+    Some(value) => do { body <- objectJSON(Some(objects.toObject(coord.leaseObjectType(),value))); ioPure(fixture.Response(200,[("Content-Type",["application/json"])],body)) }
+   } } else { do {
+    check(request.method=="POST" || request.method=="PUT","unexpected lease method")
+    incoming <- decode(coord.leaseObjectType(),coord.newLease(),request.body)
+    let identity = coord.leaseSpecGetHolderIdentity(coord.leaseGetSpec(incoming))
+    check(identity==Some("my-controller") || identity==Some(""),"unexpected lease holder")
+    let metadata = meta.objectMetaWithResourceVersion(coord.leaseGetObjectMeta(incoming),"1")
+    let value = coord.leaseWithTypeMeta(coord.leaseWithObjectMeta(incoming,metadata),meta.typeMetaWithKind(meta.typeMetaWithAPIVersion(meta.newTypeMeta(),"coordination.k8s.io/v1"),"Lease"))
+    sync.writeRef(state,Some(value))
+    body <- objectJSON(Some(objects.toObject(coord.leaseObjectType(),value)))
+    ioPure(fixture.Response(if request.method=="POST" { 201 } else { 200 },[("Content-Type",["application/json"])],body))
+   } }
+  })),func(server) => do {
+   url <- fixture.serverURL(server)
+   made <- kube.newForConfig(env,config(url)); client <- present(made)
+   leaseLock <- lock.new("leases","default","my-controller-lease",lock.leaseClient(client.coordinationV1().leases("default")),lock.ResourceLockConfig("my-controller",None)); leaseLock <- present(leaseLock)
+   registry <- election.newMetricsRegistry()
+   let callbacks = election.LeaderCallbacks(func() => do { sync.send(started,unit()); awaitCancellation() },func() => sync.send(stopped,unit()),Some(func(identity) => check(identity=="my-controller" || identity=="","unexpected elected identity")))
+   made <- election.newLeaderElector(election.LeaderElectionConfig(leaseLock,15000000000,10000000000,2000000000,callbacks,None,true,"my-controller-lease",false),env.clock,registry)
+   elector <- present(made)
+   parent <- sync.captureContext(); lifetime <- sync.newContext(parent,Some(10000000000))
+   sync.bracket(sync.start(sync.withContext(lifetime.0,election.run(elector))),func(_) => do {
+    _ <- sync.withContext(lifetime.0,sync.receive(started))
+    leader <- election.isLeader(elector); check(leader,"started callback without acquired lease")
+   },func(task) => do { sync.cancelContext(lifetime.1); joinWorkers([task]) })
+   done <- sync.tryReceive(stopped)
+   check(match done { sync.Received(_) => true; _ => false },"stopped-leading callback missing")
+   current <- sync.readRef(state)
+   check(match current { Some(value) => coord.leaseSpecGetHolderIdentity(coord.leaseGetSpec(value))==Some(""); None => false },"lease not released on cancel")
+   fixture.checkServer(server)
+   println("acquired my-controller-lease, canceled controller, released lease")
+  },fixture.closeServer)
+ }
+}

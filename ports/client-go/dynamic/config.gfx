@@ -1,0 +1,47 @@
+package dynamic
+
+import rest "rest"
+import codec "deps/codec"
+import u "deps/k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+import features "features"
+import outcome "support/outcome"
+import applyutil "util/apply"
+import errors "deps/support"
+
+// Copyright 2018 The Kubernetes Authors. Licensed under Apache-2.0.
+func configFor(config rest.Config,registry features.FeatureRegistry) IO[rest.Config] {
+ do {
+  copied <- rest.copyConfig(config)
+  gates <- features.featureGates(registry)
+  allow <- gates.enabled(features.clientsAllowCBOR())
+  prefer <- gates.enabled(features.clientsPreferCBOR())
+  serializer <- newBasicNegotiatedSerializer(allow)
+  ioPure(rest.setKubernetesDefaults(copied{contentConfig: copied.contentConfig{
+   contentType: if allow && prefer { "application/cbor" } else { "application/json" },
+   acceptContentTypes: if allow { "application/json;q=0.9,application/cbor;q=1" } else { "application/json" },
+   negotiatedSerializer: Some(serializer)}}))
+ }
+}
+func objectMarshal() applyutil.Marshal[u.Unstructured] {
+ applyutil.Marshal(func(value) => do { result <- codec.encodeJSON(u.unstructuredToRuntimeObject(value)); ioPure(outcome.from(match result.0 { None => ""; Some(bytes) => bytes },result.1)) },func(value) => do { result <- codec.encodeCBOR(u.unstructuredToRuntimeObject(value)); ioPure(outcome.from(match result.0 { None => ""; Some(bytes) => bytes },result.1)) })
+}
+func fromRESTClient(base rest.RESTClient,registry features.FeatureRegistry) IO[Interface] {
+ do { parameters <- codec.standardParameterCodec(); ioPure(newClient(rest.clientInterface(base),parameters,registry,objectMarshal())) }
+}
+func newForConfig(environment rest.Environment,config rest.Config) IO[outcome.Outcome[Option[Interface]]] {
+ do {
+  configured <- configFor(config,environment.features)
+  result <- rest.unversionedRESTClientFor(environment,configured{apiPath: "/if-you-see-this-search-for-the-break",contentConfig: configured.contentConfig{groupVersion: None}})
+  match result.error { Some(e) => ioPure(outcome.failure(None,e)); None => match result.value { None => ioPure(outcome.success(None)); Some(base) => do { client <- fromRESTClient(base,environment.features); ioPure(outcome.success(Some(client))) } } }
+ }
+}
+func newForConfigAndClient(environment rest.Environment,config rest.Config,httpClient rest.HTTPClient) IO[outcome.Outcome[Option[Interface]]] {
+ do {
+  configured <- configFor(config,environment.features)
+  result <- rest.unversionedRESTClientForConfigAndClient(environment,configured{apiPath: "/if-you-see-this-search-for-the-break",contentConfig: configured.contentConfig{groupVersion: None}},httpClient)
+  match result.error { Some(e) => ioPure(outcome.failure(None,e)); None => match result.value { None => ioPure(outcome.success(None)); Some(base) => do { client <- fromRESTClient(base,environment.features); ioPure(outcome.success(Some(client))) } } }
+ }
+}
+func newForConfigOrDie(environment rest.Environment,config rest.Config) IO[Interface] {
+ do { result <- newForConfig(environment,config); match result.error { Some(e) => errors.raiseError(e); None => match result.value { Some(client) => ioPure(client); None => ioFail("dynamic client constructor returned no client") } } }
+}

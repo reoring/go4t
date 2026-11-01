@@ -1,0 +1,27 @@
+// Copyright 2016 The Kubernetes Authors. Licensed under the Apache License, Version 2.0.
+package auth
+import "rest"
+import "transport"
+import "support/outcome"
+import oidc "plugin/pkg/client/auth/oidc"
+import azure "plugin/pkg/client/auth/azure"
+import gcp "plugin/pkg/client/auth/gcp"
+import exec "plugin/pkg/client/auth/exec"
+
+func registerCommonProviders(registry rest.AuthProviderRegistry,cache oidc.ClientCache,environment oidc.Environment) IO[outcome.Outcome[Unit]] {
+ rest.registerAuthProviderPlugin(registry,"oidc",func(cluster,config,persister) => oidc.newOIDCAuthProvider(cache,environment,cluster,config,persister))
+}
+func registerCloudProviders(registry rest.AuthProviderRegistry) IO[outcome.Outcome[Unit]] {do {
+ first <- azure.register(registry)
+ match first.error {Some(_) => ioPure(first);None => gcp.register(registry)}
+}}
+func registerProviders(registry rest.AuthProviderRegistry,cache oidc.ClientCache,environment oidc.Environment) IO[outcome.Outcome[Unit]] {do {
+ first <- registerCommonProviders(registry,cache,environment)
+ match first.error {Some(_) => ioPure(first);None => registerCloudProviders(registry)}
+}}
+func authentication(registry rest.AuthProviderRegistry,cache exec.Cache,environment exec.Environment) rest.Authentication {
+ rest.Authentication(registry,func(config,cluster,transportConfig) => do {
+  result <- exec.getAuthenticator(cache,environment,config,cluster)
+  match result.error {Some(error) => ioPure(outcome.failure(transportConfig,error));None => match result.value {Some(a) => exec.updateTransportConfig(a,transportConfig);None => ioFail("authenticator invariant: absent successful authenticator")}}
+ })
+}

@@ -1,0 +1,60 @@
+// Copyright 2026 The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package leaderelection
+import beta "deps/k8s.io/api/coordination/v1beta1"
+import coord "deps/k8s.io/api/coordination/v1"
+import meta "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import errors "deps/support"
+import "support/sync"
+import "support/outcome"
+import queue "util/workqueue"
+import "std/io"
+
+func testCandidateCreationAckAndRetryTrace() IO[Bool] {
+ do {
+  clock <- sync.fakeClock(1700000000000000000); metrics <- queue.newMetricsRegistry()
+  value <- sync.newRef(None); trace <- sync.newRef(Nil); fail <- sync.newRef(false); handler <- sync.newRef(None)
+  let get = func(_name) => do { object <- sync.readRef(value); ioPure(match object { None => outcome.failure(None,errors.errorNotFound("coordination.k8s.io","leasecandidates","candidate")); Some(_) => outcome.success(object) }) }
+  let create = func(object) => do { _recordTrace(trace,"create"); sync.writeRef(value,Some(object)); ioPure(outcome.success(Some(object))) }
+  let update = func(object) => do {
+   _recordTrace(trace,"update"); failing <- sync.readRef(fail)
+   if failing { ioPure(outcome.failure(None,errors.errorConflict("coordination.k8s.io","leasecandidates","candidate",None))) }
+   else { do { sync.writeRef(value,Some(object)); ioPure(outcome.success(Some(object))) } }
+  }
+  let informer = CandidateInformer(get,func() => ioPure(unit()),func() => ioPure(true),func(callback) => do { sync.writeRef(handler,Some(callback)); ioPure(None) })
+  constructed <- newCandidate(CandidateClient(create,update),informer,"default","candidate","lease","1.35.0","1.34.0",coord.coordinatedLeaseStrategyFromValue("OldestEmulationVersion"),clock,metrics)
+  match constructed.value {
+   None => ioPure(false)
+   Some(pair) => do {
+    let candidate = pair.0
+    first <- ensureLease(candidate); created <- sync.readRef(value)
+    match created {
+     None => do { candidate.queue.delaying.queue.shutDown(); ioPure(false) }
+     Some(object) => do {
+      let original = beta.leaseCandidateGetSpec(object)
+      sync.advance(clock,1000000000); now <- sync.now(clock)
+      let ping = meta.microTimeWithTime(meta.newMicroTime(),meta.timeGetTime(_wireTime(now)))
+      let pinged = beta.leaseCandidateWithSpec(object,beta.leaseCandidateSpecWithPingTime(original,Some(ping)))
+      needs <- candidateNeedsAck(pinged); sync.writeRef(value,Some(pinged))
+      registered <- sync.readRef(handler); match registered { None => ioPure(unit()); Some(callback) => callback(pinged) }
+      worked <- processNextWorkItem(candidate); acknowledged <- sync.readRef(value)
+      let acked = match acknowledged { None => false; Some(latest) => beta.leaseCandidateSpecGetLeaseName(beta.leaseCandidateGetSpec(latest)) == "lease" }
+      again <- match acknowledged { None => ioPure(true); Some(latest) => candidateNeedsAck(latest) }
+      sync.writeRef(fail,true); enqueueLease(candidate); retried <- processNextWorkItem(candidate); retries <- queue.numRequeues(candidate.queue,0)
+      events <- sync.readRef(trace); candidate.queue.delaying.queue.shutDown()
+      ioPure(_noError(first) && needs && worked && acked && !again && retried && retries == 1 && events == ["create","update","update"] && beta.leaseCandidateSpecGetBinaryVersion(original) == "1.35.0" && beta.leaseCandidateSpecGetEmulationVersion(original) == "1.34.0")
+     }
+    }
+   }
+  }
+ }
+}
+func testCandidateRegistrationErrorStopsQueue() IO[Bool] {
+ do {
+  clock <- sync.fakeClock(0); metrics <- queue.newMetricsRegistry()
+  let error = errors.errorNew("handler registration rejected")
+  let client = CandidateClient(func(object) => ioPure(outcome.success(Some(object))),func(object) => ioPure(outcome.success(Some(object))))
+  let informer = CandidateInformer(func(_name) => ioPure(outcome.success(None)),func() => ioPure(unit()),func() => ioPure(false),func(_callback) => ioPure(Some(error)))
+  result <- newCandidate(client,informer,"ns","candidate","lease","1","1",coord.newCoordinatedLeaseStrategy(),clock,metrics)
+  ioPure(match result.error { None => false; Some(found) => errors.errorIs(found,error) })
+ }
+}

@@ -1,0 +1,42 @@
+// Copyright 2018 The Kubernetes Authors. Licensed under Apache-2.0.
+package clientauthentication
+import meta "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import runtime "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime"
+import objects "github.com/reoring/gofx/ports/client-go/deps/objects"
+import support "github.com/reoring/gofx/ports/client-go/deps/support"
+func rawToObject(value runtime.RawExtension) IO[Option[runtime.Object]] { do {
+ (object, error) <- objects.rawExtensionToObject(value)
+ match error { None => ioPure(object); Some(cause) => support.raiseError(cause) }
+} }
+func objectToRaw(value Option[runtime.Object]) IO[runtime.RawExtension] { do {
+ // Generated conversion passes &in.Config, never a nil pointer-to-interface.
+ (raw, error) <- objects.objectToRawExtension(Some(value), runtime.newRawExtension())
+ match error { None => ioPure(raw); Some(cause) => support.raiseError(cause) }
+} }
+func convertClusterToInternal(value WireCluster) IO[Cluster] { do {
+ config <- rawToObject(value.config)
+ ioPure(Cluster(value.server, value.tlsServerName, value.insecureSkipTLSVerify, value.certificateAuthorityData, value.proxyURL, value.disableCompression, config))
+} }
+func convertClusterFromInternal(value Cluster) IO[WireCluster] { do {
+ config <- objectToRaw(value.config)
+ ioPure(WireCluster(value.server, value.tlsServerName, value.insecureSkipTLSVerify, value.certificateAuthorityData, value.proxyURL, value.disableCompression, config))
+} }
+func convertSpecToInternal(value WireSpec) IO[ExecCredentialSpec] { do {
+ cluster <- match value.cluster { None => ioPure(None); Some(c) => do { out <- convertClusterToInternal(c); ioPure(Some(out)) } }
+ ioPure(ExecCredentialSpec(value.interactive, cluster))
+} }
+func convertSpecFromInternal(value ExecCredentialSpec) IO[WireSpec] { do {
+ cluster <- match value.cluster { None => ioPure(None); Some(c) => do { out <- convertClusterFromInternal(c); ioPure(Some(out)) } }
+ ioPure(WireSpec(value.interactive, cluster))
+} }
+func convertStatusToInternal(value ExecCredentialStatus) ExecCredentialStatus { value }
+func convertStatusFromInternal(value ExecCredentialStatus) ExecCredentialStatus { value }
+// Generated conversion deliberately does not copy TypeMeta.
+func convertToInternal(value WireCredential) IO[ExecCredential] { do {
+ spec <- convertSpecToInternal(value.spec)
+ ioPure(ExecCredential(meta.newTypeMeta(), spec, value.status))
+} }
+func convertFromInternal(value ExecCredential) IO[WireCredential] { do {
+ spec <- convertSpecFromInternal(value.spec)
+ ioPure(WireCredential(meta.newTypeMeta(), spec, value.status))
+} }

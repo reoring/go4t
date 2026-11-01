@@ -1,0 +1,37 @@
+package openapitest
+import openapi "openapi"
+import outcome "support/outcome"
+import errors "deps/support"
+import io "std/io"
+import m "std/map"
+import s "std/string"
+
+// Pinned fakeclient.go:71-84: URL panic is independent of construction and Schema.
+func testFakeURLPanicsOnlyOnAccess() IO[Bool] {do {
+ let group=fakeGroupVersion(FakeGroupVersion{gvSpec:"schema-bytes",forcedErr:None})
+ let client=fakeClient(FakeClient{pathsMap:m.mapFromList([("api/v1",group)]),forcedErr:None})
+ paths <- client.paths()
+ schema <- group.schema("application/json")
+ unsupported <- group.schema("application/yaml")
+ failure <- io.tryIO(group.serverRelativeURL())
+ again <- group.schema("application/json")
+ ioPure(outcome.isSuccess(paths) && m.mapSize(paths.value)==1 && outcome.isSuccess(schema) && schema.value=="schema-bytes" && outcome.isSuccess(again) && again.value==schema.value && (match unsupported.error {Some(error) => errors.errorMessage(error)=="application/json is only content type supported: application/yaml";None => false}) && (match failure {Err(io.Panic(message)) => message=="unimplemented";_ => false}))
+}}
+func _fileURLCase(client openapi.Client) IO[Bool] {do {
+ paths <- client.paths()
+ match m.mapLookup(paths.value,"apis/networking.k8s.io/v1alpha1") {
+  None => ioPure(false)
+  Some(group) => do {
+   url <- group.serverRelativeURL()
+   schema <- group.schema("application/json")
+   unsupported <- group.schema("application/yaml")
+   again <- group.serverRelativeURL()
+   ioPure(outcome.isSuccess(paths) && url=="apis__networking.k8s.io__v1alpha1_openapi.json" && again==url && outcome.isSuccess(schema) && s.strLength(schema.value)>0 && (match unsupported.error {Some(error) => errors.errorMessage(error)=="openapitest only supports 'application/json' contentType";None => false}))
+  }
+ }
+}}
+func testFileURLsPreserveExactFilenames() IO[Bool] {do {
+ embedded <- _fileURLCase(newEmbeddedFileClient())
+ disk <- _fileURLCase(newFileClient("openapi/openapitest/testdata"))
+ ioPure(embedded && disk)
+}}

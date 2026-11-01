@@ -1,0 +1,51 @@
+package metadata
+
+import rest "rest"
+import dynamic "dynamic"
+import codec "deps/codec"
+import objects "deps/objects"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import v1 "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import errors "deps/support"
+import outcome "support/outcome"
+
+// Copyright 2018 The Kubernetes Authors. Licensed under Apache-2.0.
+func configFor(config rest.Config) IO[rest.Config] {
+ do {
+  copied <- rest.copyConfig(config)
+  serializer <- dynamic.metadataSerializer()
+  ioPure(rest.setKubernetesDefaults(copied{contentConfig: copied.contentConfig{contentType: "application/vnd.kubernetes.protobuf",acceptContentTypes: "application/vnd.kubernetes.protobuf,application/json",negotiatedSerializer: Some(serializer)}}))
+ }
+}
+func fromRESTClient(base rest.RESTClient) IO[Interface] {
+ do {
+  parameters <- codec.standardParameterCodec()
+  ioPure(newClient(Client(rest.clientInterface(base),parameters,
+   func(options) => do {
+    let typed = v1.deleteOptionsWithTypeMeta(options,v1.typeMetaWithKind(v1.typeMetaWithAPIVersion(v1.newTypeMeta(),"v1"),"DeleteOptions"))
+    result <- codec.encodeJSON(v1.deleteOptionsToRuntimeObject(typed))
+    ioPure(outcome.from(match result.0 { None => ""; Some(bytes) => bytes },result.1))
+   },
+   func(bytes) => do { result <- codec.decodeJSON(v1.partialObjectMetadataObjectType(),bytes); ioPure(outcome.from(match result.0 { None => v1.newPartialObjectMetadata(); Some(value) => value },result.1)) },
+   func(bytes) => do { result <- codec.decodeJSON(v1.partialObjectMetadataListObjectType(),bytes); ioPure(outcome.from(match result.0 { None => v1.newPartialObjectMetadataList(); Some(value) => value },result.1)) },
+   errors.errorIsNotRegistered,objects.objectTypeName,
+   func(object) => objects.objectGoString(Some(v1.partialObjectMetadataToRuntimeObject(object))))))
+ }
+}
+func newForConfig(environment rest.Environment,config rest.Config) IO[outcome.Outcome[Option[Interface]]] {
+ do {
+  configured <- configFor(config)
+  result <- rest.restClientFor(environment,configured{apiPath: "/this-value-should-never-be-sent",contentConfig: configured.contentConfig{groupVersion: Some(schema.newGroupVersion())}})
+  match result.error { Some(e) => ioPure(outcome.failure(None,e)); None => match result.value { None => ioPure(outcome.success(None)); Some(base) => do { client <- fromRESTClient(base); ioPure(outcome.success(Some(client))) } } }
+ }
+}
+func newForConfigAndClient(environment rest.Environment,config rest.Config,httpClient rest.HTTPClient) IO[outcome.Outcome[Option[Interface]]] {
+ do {
+  configured <- configFor(config)
+  result <- rest.restClientForConfigAndClient(environment,configured{apiPath: "/this-value-should-never-be-sent",contentConfig: configured.contentConfig{groupVersion: Some(schema.newGroupVersion())}},httpClient)
+  match result.error { Some(e) => ioPure(outcome.failure(None,e)); None => match result.value { None => ioPure(outcome.success(None)); Some(base) => do { client <- fromRESTClient(base); ioPure(outcome.success(Some(client))) } } }
+ }
+}
+func newForConfigOrDie(environment rest.Environment,config rest.Config) IO[Interface] {
+ do { result <- newForConfig(environment,config); match result.error { Some(e) => errors.raiseError(e); None => match result.value { Some(client) => ioPure(client); None => ioFail("metadata client constructor returned no client") } } }
+}

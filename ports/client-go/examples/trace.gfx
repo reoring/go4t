@@ -1,0 +1,70 @@
+package examples
+
+// Copyright 2026 The gofx Authors. SPDX-License-Identifier: Apache-2.0
+import fixture "util/testing"
+import sync "support/sync"
+import objects "deps/objects"
+import runtime "deps/k8s.io/apimachinery/pkg/runtime"
+import errors "deps/support"
+import strings "std/string"
+
+type Trace = Trace { id: String, events: sync.Ref[List[String]], lock: sync.Mutex }
+type Exchange = Exchange { method: String, path: String, status: Int, body: String }
+extern func quote(value String) String = "github.com/reoring/gofx/ports/client-go/examples/host".Quote
+extern func queryJSON(value String) IO[String] = "github.com/reoring/gofx/ports/client-go/examples/host".QueryJSON
+extern func objectJSON(value Option[runtime.Object]) IO[String] = "github.com/reoring/gofx/ports/client-go/examples/host".ObjectJSON
+extern func errorJSON(value Option[errors.Error]) IO[String] = "github.com/reoring/gofx/ports/client-go/examples/host".ErrorJSON
+func jsonObject(fields List[(String,String)]) String {
+ "{"+strings.join(",",map(fields,func((key,value)) => quote(key)+":"+value))+"}"
+}
+func jsonStrings(values List[String]) String { "["+strings.join(",",map(values,quote))+"]" }
+func newTrace(id String) IO[Trace] { do { events <- sync.newRef([]); lock <- sync.newMutex(); ioPure(Trace(id,events,lock)) } }
+func observe(trace Trace,kind String,fields List[(String,String)]) IO[Unit] {
+ sync.withLock(trace.lock,do { old <- sync.readRef(trace.events); sync.writeRef(trace.events,append(old,[jsonObject([("kind",quote(kind)),("fields",jsonObject(fields))])])) })
+}
+func traceJSON(trace Trace) IO[String] {
+ do { events <- sync.withLock(trace.lock,sync.readRef(trace.events)); ioPure(jsonObject([("id",quote(trace.id)),("events","["+strings.join(",",events)+"]")])) }
+}
+func resultEvent[A](trace Trace,operation String,descriptor objects.ObjectType[A],object A) IO[Unit] {
+ do { body <- objectJSON(Some(objects.toObject(descriptor,object))); observe(trace,"typed_result",[("operation",quote(operation)),("object",body)]) }
+}
+func requestEvent(trace Trace,request fixture.Request) IO[Unit] {
+ do {
+  query <- queryJSON(request.rawQuery)
+  let headers = jsonObject(map(request.headers,func((key,values)) => (key,jsonStrings(values))))
+  observe(trace,"http_request",[("method",quote(request.method)),("path",quote(request.path)),("raw_query",quote(request.rawQuery)),("query",query),("headers",headers),("body",quote(request.body))])
+ }
+}
+func withHTTP[A](trace Trace,exchanges List[Exchange],run func(String) IO[A]) IO[A] { withValidatedHTTP(trace,exchanges,func(_) => ioPure(unit()),run) }
+func withValidatedHTTP[A](trace Trace,exchanges List[Exchange],validate func(fixture.Request) IO[Unit],run func(String) IO[A]) IO[A] {
+ do {
+  pending <- sync.newRef(exchanges)
+  lock <- sync.newMutex()
+  sync.bracket(fixture.newServer(func(request) => sync.withLock(lock,do {
+   remaining <- sync.readRef(pending)
+   match remaining {
+    [] => ioFail("unexpected request "+request.method+" "+request.path)
+    [exchange,..rest] => do {
+     check(request.method==exchange.method && request.path==exchange.path,"fixture request mismatch: "+request.method+" "+request.path+" expected "+exchange.method+" "+exchange.path)
+     sync.writeRef(pending,rest)
+     requestEvent(trace,request)
+     validate(request)
+     ioPure(fixture.Response(exchange.status,[("Content-Type",["application/json"])],exchange.body))
+    }
+   }
+  })),func(server) => do {
+   url <- fixture.serverURL(server)
+   value <- run(url)
+   fixture.checkServer(server)
+   remaining <- sync.readRef(pending)
+   check(length(remaining)==0,"unconsumed HTTP exchanges: "+show(length(remaining)))
+   ioPure(value)
+  },fixture.closeServer)
+ }
+}
+func outputTraces(traces List[Trace]) IO[Unit] {
+ do { encoded <- encodeTraces(traces); println(jsonObject([("schema_version","1"),("upstream_version",quote("v0.37.2")),("upstream_revision",quote("72c52dd0cc3b9099b36af11290b0304045dd1ada")),("scenarios","["+strings.join(",",encoded)+"]")])) }
+}
+func encodeTraces(traces List[Trace]) IO[List[String]] {
+ match traces { [] => ioPure([]); [trace,..rest] => do { encoded <- traceJSON(trace); remaining <- encodeTraces(rest); ioPure(Cons(encoded,remaining)) } }
+}

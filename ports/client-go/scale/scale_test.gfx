@@ -1,0 +1,64 @@
+package scale
+
+import internal "scale/scheme"
+import autoscaling "scale/scheme/autoscalingv1"
+import extensions "scale/scheme/extensionsv1beta1"
+import apps1 "scale/scheme/appsv1beta1"
+import apps2 "scale/scheme/appsv1beta2"
+import a "deps/k8s.io/api/autoscaling/v1"
+import v1 "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import fixture "dynamic/testing"
+import dynamic "dynamic"
+import discovery "discovery"
+import rest "rest"
+import outcome "support/outcome"
+import sync "support/sync"
+import l "std/list"
+
+// Copyright 2026 The Kubernetes Authors. Licensed under Apache-2.0.
+// Pinned scale/client_test.go and scheme conversion.go selector contracts.
+func testEveryExternalScaleVersionRoundTrips() IO[Bool] {
+ do {
+  converter <- newScaleConverter()
+  let status = a.scaleStatusWithSelector(a.scaleStatusWithReplicas(a.newScaleStatus(),4),"env=prod,tier in (api,web)")
+  let original = a.scaleWithStatus(a.scaleWithSpec(a.scaleWithObjectMeta(a.newScale(),v1.objectMetaWithName(v1.newObjectMeta(),"custom")),a.scaleSpecWithReplicas(a.newScaleSpec(),7)),status)
+  results <- l.mapM([autoscaling.schemeGroupVersion(),extensions.schemeGroupVersion(),apps1.schemeGroupVersion(),apps2.schemeGroupVersion()],func(version) => do {
+   outward <- convertToVersion(converter,internal.ExternalScale(a.scaleToRuntimeObject(original)),version)
+   back <- convertToVersion(converter,outward.value,autoscaling.schemeGroupVersion())
+   ioPure(outcome.isSuccess(outward) && outcome.isSuccess(back) && (match back.value {
+    internal.InternalScale(_) => false
+    internal.ExternalScale(object) => match a.scaleFromRuntimeObject(object) { None => false; Some(value) => a.scaleSpecGetReplicas(a.scaleGetSpec(value))==7 && a.scaleStatusGetReplicas(a.scaleGetStatus(value))==4 && v1.objectMetaGetName(a.scaleGetObjectMeta(value))=="custom" }
+   }))
+  })
+  ioPure(length(scaleVersions())==7 && l.all(results,func(value) => value))
+ }
+}
+func testInvalidSelectorAndUnknownVersionAreErrors() IO[Bool] {
+ do {
+  converter <- newScaleConverter()
+  let malformed = a.scaleWithStatus(a.newScale(),a.scaleStatusWithSelector(a.newScaleStatus(),"label in ("))
+  result <- convertToVersion(converter,internal.ExternalScale(a.scaleToRuntimeObject(malformed)),apps1.schemeGroupVersion())
+  unknown <- convertToVersion(converter,internal.ExternalScale(a.scaleToRuntimeObject(a.newScale())),internal.groupVersion("unknown","v99"))
+  ioPure(!outcome.isSuccess(result) && !outcome.isSuccess(unknown))
+ }
+}
+func testDiscoveryFirstMatchingScaleAndSuccessfulCacheOnly() IO[Bool] {
+ do {
+  serializer <- dynamic.newBasicNegotiatedSerializer(false)
+  f <- fixture.newFixture(serializer,"application/json","{}")
+  calls <- sync.newRef(0)
+  let first = v1.aPIResourceWithKind(v1.aPIResourceWithVersion(v1.aPIResourceWithGroup(v1.aPIResourceWithName(v1.newAPIResource(),"cheddars/scale"),"apps"),"v1beta2"),"Scale")
+  let second = v1.aPIResourceWithKind(v1.aPIResourceWithVersion(v1.aPIResourceWithGroup(v1.aPIResourceWithName(v1.newAPIResource(),"cheddars/scale"),"autoscaling"),"v1"),"Scale")
+  let base = discovery.newDiscoveryClient(rest.clientInterface(f.client))
+  let client = base{serverResourcesForGroupVersion: func(_) => do { old <- sync.readRef(calls); sync.writeRef(calls,old+1); ioPure(outcome.success(Some(discovery.resourceList("custom/v1",[first,second])))) }}
+  resolver <- newDiscoveryScaleKindResolver(client)
+  let resource = schema.groupVersionResourceWithResource(schema.groupVersionResourceWithVersion(schema.groupVersionResourceWithGroup(schema.newGroupVersionResource(),"custom"),"v1"),"cheddars")
+  one <- resolver.scaleForResource(resource)
+  two <- resolver.scaleForResource(resource)
+  missing <- resolver.scaleForResource(schema.groupVersionResourceWithResource(resource,"absent"))
+  again <- resolver.scaleForResource(schema.groupVersionResourceWithResource(resource,"absent"))
+  count <- sync.readRef(calls)
+  ioPure(outcome.isSuccess(one) && outcome.isSuccess(two) && schema.groupVersionKindGetGroup(one.value)=="apps" && schema.groupVersionKindGetVersion(one.value)=="v1beta2" && !outcome.isSuccess(missing) && !outcome.isSuccess(again) && count==3)
+ }
+}

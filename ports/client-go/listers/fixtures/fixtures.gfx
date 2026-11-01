@@ -1,0 +1,10 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+// Deterministic external API values shared by generated lister behavior tests.
+package fixtures
+import meta "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import support "github.com/reoring/gofx/ports/client-go/deps/support"
+
+func labelMap() support.ForeignMap[String,String] { support.mapWith(meta.objectMetaGetLabels(meta.newObjectMeta()),"app","fixture") }
+func metadata(name String, namespace String) meta.ObjectMeta { meta.objectMetaWithLabels(meta.objectMetaWithNamespace(meta.objectMetaWithName(meta.newObjectMeta(),name),namespace),labelMap()) }
+// Mode zero is nil; one is matching; two is allocated but empty; three is invalid.
+func selector(mode Int) Option[meta.LabelSelector] { if mode == 0 { None } else { if mode == 1 { Some(meta.labelSelectorWithMatchLabels(meta.newLabelSelector(),labelMap())) } else { if mode == 2 { Some(meta.newLabelSelector()) } else { Some(meta.labelSelectorWithMatchExpressions(meta.newLabelSelector(),Some([meta.labelSelectorRequirementWithOperator(meta.newLabelSelectorRequirement(),meta.labelSelectorOperatorFromValue("Invalid"))]))) } } } }

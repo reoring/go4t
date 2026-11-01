@@ -1,0 +1,99 @@
+// Copyright 2014 The Kubernetes Authors. Licensed under Apache-2.0.
+package cert
+import x509 "github.com/reoring/gofx/ports/client-go/deps/crypto/x509"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import list "std/list"
+extern func _fixturePair(cn String, before Int, after Int) IO[(String, String)] = "github.com/reoring/gofx/ports/client-go/util/cert/testsupport".Pair
+extern func _fixtureTemplate(cn String) IO[x509.CertificateRequest] = "github.com/reoring/gofx/ports/client-go/util/cert/testsupport".Template
+extern func _fixture(name String) String = "github.com/reoring/gofx/ports/client-go/util/keyutil/testsupport".Fixture
+extern func _otherKey() IO[String] = "github.com/reoring/gofx/ports/client-go/util/cert/testsupport".OtherKey
+extern func _tempDir() IO[String] = "github.com/reoring/gofx/ports/client-go/util/cert/testsupport".TempDir
+extern func _removeDir(path String) IO[Unit] = "github.com/reoring/gofx/ports/client-go/util/cert/testsupport".RemoveAll
+extern func _mode(path String) IO[Int] = "github.com/reoring/gofx/ports/client-go/util/cert/testsupport".Mode
+func testPEMPartialResultsAndHeaders() IO[Bool] { do {
+ pair <- _fixturePair("node", 0, 100000000000)
+ parsed <- parseCertsPEM(pair.0 + "-----BEGIN CERTIFICATE-----\nYmFk\n-----END CERTIFICATE-----\n")
+ ignored <- parseCertsPEM("-----BEGIN CERTIFICATE-----\nComment: ignored\n\nYmFk\n-----END CERTIFICATE-----\n" + pair.0)
+ none <- parseCertsPEM("not PEM")
+ ioPure(list.length(parsed.value) == 1 && !outcome.isSuccess(parsed) && outcome.isSuccess(ignored) && list.length(ignored.value) == 1 && !outcome.isSuccess(none))
+} }
+func testCSRSignatureSubjectAndSAN() IO[Bool] { do {
+ template <- _fixtureTemplate("node")
+ let block = decodePEM(_fixture("ec"))
+ match block { None => ioPure(false); Some((kind, (_, (bytes, _)))) => do {
+  key <- parsePrivate(kind, bytes)
+  match key.0 { None => ioPure(false); Some(key) => do {
+   csr <- makeCSRFromTemplate(key, template)
+   parsed <- parseCSR(csr.value)
+   match parsed.value { None => ioPure(false); Some(parsed) => do {
+    signature <- verifyCSRKey(parsed, key); names <- requestNames(parsed, true)
+    ioPure(outcome.isSuccess(csr) && names.0 == "node" && names.1.1.0 == ["fixture.local"] && (match signature { None => true; Some(_) => false }))
+   } }
+  } }
+ } }
+} }
+func testKeyMismatchAndExpiredCertificateRemainReal() IO[Bool] { do {
+ pair <- _fixturePair("node", 0, 1000000000)
+ other <- _otherKey()
+ good <- keyPair(pair.0, pair.1); bad <- keyPair(pair.0, other)
+ match good.0 { None => ioPure(false); Some(value) => do {
+  leaf <- leaf(value)
+  match leaf { None => ioPure(false); Some(leaf) => do { validity <- times(leaf); ioPure(validity.1 == 1000000000 && (match good.1 { None => true; Some(_) => false }) && (match bad.1 { Some(_) => true; None => false })) } }
+ } }
+} }
+func testWriteCertificatePermissionsAndMissingPair() IO[Bool] {
+ sync.bracket(_tempDir(), func(dir) => do {
+  let path = joinPath(dir, "nested/cert.pem")
+  result <- writeCert(path, _fixture("cert")); mode <- _mode(path)
+  bothMissing <- canReadCertAndKey(joinPath(dir, "absent"), joinPath(dir, "absent-key"))
+  missingKey <- canReadCertAndKey(path, joinPath(dir, "absent-key"))
+  ioPure(outcome.isSuccess(result) && mode == 420 && outcome.isSuccess(bothMissing) && !bothMissing.value && !outcome.isSuccess(missingKey))
+ }, _removeDir)
+}
+func testSelfSignedCAUsesInjectedClockAndSAN() IO[Bool] { do {
+ clock <- sync.fakeClock(1000000000000)
+ let block = decodePEM(_fixture("ec"))
+ match block { None => ioPure(false); Some((kind, (_, (bytes, _)))) => do {
+  key <- parsePrivate(kind, bytes)
+  match key.0 { None => ioPure(false); Some(key) => do {
+   result <- newSelfSignedCACert(clock, Config("ca.example", [], AltNames([], []), [], None), key)
+   match result.value { None => ioPure(false); Some(certificate) => do {
+    names <- certificateNames(certificate, false); valid <- times(certificate)
+    caUsage <- x509.certificateGetKeyUsageIdentity(certificate)
+    caExtended <- x509.certificateGetExtKeyUsageIdentity(certificate)
+    caConstraints <- x509.certificateGetBasicConstraintsValidIdentity(certificate)
+    signed <- signCertificate("server.example", [], ["server.example"], [], valid.0, valid.1, false, 2, key, Some(certificate), key)
+    match signed.0 { None => ioPure(false); Some(serving) => do {
+     servingUsage <- x509.certificateGetKeyUsageIdentity(serving)
+     servingExtended <- x509.certificateGetExtKeyUsageIdentity(serving)
+     servingConstraints <- x509.certificateGetBasicConstraintsValidIdentity(serving)
+     let serverAuth = match servingExtended { Some(Cons(usage, Nil)) => x509.extKeyUsageValue(usage) == 1; _ => false }
+     let noCAExtended = match caExtended { None => true; Some(Nil) => true; _ => false }
+     ioPure(outcome.isSuccess(result) && names.1.1.0 == ["ca.example"] && valid.0 == 1000000000000 && valid.1 == 315361000000000000 && x509.keyUsageValue(caUsage) == 37 && caConstraints && noCAExtended && x509.keyUsageValue(servingUsage) == 5 && servingConstraints && serverAuth)
+    } }
+   } }
+  } }
+ } }
+} }
+type _InspectionServer = _InspectionServerHandle
+extern func _inspectionServer(cert String, key String) IO[(String, _InspectionServer)] = "github.com/reoring/gofx/ports/client-go/util/cert/testsupport".InspectionServer
+extern func _stopInspection(server _InspectionServer) IO[Unit] = "github.com/reoring/gofx/ports/client-go/util/cert/testsupport".StopInspectionServer
+extern func _noCredentials(server _InspectionServer, count Int) IO[Bool] = "github.com/reoring/gofx/ports/client-go/util/cert/testsupport".NoClientCredentials
+func testUnverifiedLoopbackInspectionReturnsActualMetadataWithoutCredentials() IO[Bool] { do {
+ pair <- _fixturePair("untrusted-expired-self-signed", 0, 1000000000)
+ sync.bracket(_inspectionServer(pair.0, pair.1), func(server) => do {
+  names <- getClientCANames(server.0)
+  serving <- getServingCertificatesForURL("https://" + server.0, "untrusted-expired-self-signed")
+  noCredentials <- _noCredentials(server.1, 2)
+  expected <- parseCertsPEM(pair.0)
+  match (expected.value, serving.value.0, names.value) {
+   (Cons(expected, Nil), Cons(actual, Nil), Cons(name, Nil)) => do {
+    expectedDER <- certificateDER(expected); actualDER <- certificateDER(actual)
+    subject <- x509.certificateGetRawSubjectIdentity(expected)
+    ioPure(outcome.isSuccess(names) && outcome.isSuccess(serving) && noCredentials && expectedDER == actualDER && subject == Some(name) && list.length(serving.value.1) == 1)
+   }
+   _ => ioPure(false)
+  }
+ }, func(server) => _stopInspection(server.1))
+} }

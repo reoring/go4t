@@ -1,0 +1,54 @@
+package rest
+
+import api "tools/clientcmd/api"
+import transport "transport"
+import sync "support/sync"
+import outcome "support/outcome"
+import errors "deps/support"
+import m "std/map"
+
+// Copyright 2014 The Kubernetes Authors. Licensed under Apache-2.0.
+type AuthProvider = AuthProvider {
+  wrapTransport: transport.WrapperFunc,
+  login: func() IO[outcome.Outcome[Unit]]
+}
+type AuthProviderConfigPersister = AuthProviderConfigPersister {
+  persist: func(Map[String,String]) IO[outcome.Outcome[Unit]]
+}
+alias Factory = func(String,Map[String,String],AuthProviderConfigPersister) IO[outcome.Outcome[Option[AuthProvider]]]
+type AuthProviderRegistry = AuthProviderRegistry {
+  lock: sync.Mutex,
+  factories: sync.Ref[Map[String,Factory]]
+}
+extern func quote(value String) String = "github.com/reoring/gofx/ports/client-go/rest/host".Quote
+func newAuthProviderRegistry() IO[AuthProviderRegistry] {
+  do {
+    lock <- sync.newMutex()
+    factories <- sync.newRef(m.emptyMap())
+    ioPure(AuthProviderRegistry(lock,factories))
+  }
+}
+func registerAuthProviderPlugin(registry AuthProviderRegistry, name String, factory Factory) IO[outcome.Outcome[Unit]] {
+  sync.withLock(registry.lock, do {
+    factories <- sync.readRef(registry.factories)
+    match m.mapLookup(factories,name) {
+      Some(_) => ioPure(outcome.failure(unit(),errors.errorNew("auth Provider Plugin " + quote(name) + " was registered twice")))
+      None => do {
+        sync.writeRef(registry.factories,m.mapInsert(factories,name,factory))
+        ioPure(outcome.success(unit()))
+      }
+    }
+  })
+}
+func noopAuthProviderConfigPersister() AuthProviderConfigPersister {
+  AuthProviderConfigPersister(func(_) => { ioPure(outcome.success(unit())) })
+}
+func getAuthProvider(registry AuthProviderRegistry, clusterAddress String, config api.AuthProviderConfig, persister Option[AuthProviderConfigPersister]) IO[outcome.Outcome[Option[AuthProvider]]] {
+  sync.withLock(registry.lock, do {
+    factories <- sync.readRef(registry.factories)
+    match m.mapLookup(factories,config.name) {
+      None => ioPure(outcome.failure(None,errors.errorNew("no Auth Provider found for name " + quote(config.name))))
+      Some(factory) => factory(clusterAddress,match config.config { None => m.emptyMap(); Some(values) => values },match persister { None => noopAuthProviderConfigPersister(); Some(p) => p })
+    }
+  })
+}

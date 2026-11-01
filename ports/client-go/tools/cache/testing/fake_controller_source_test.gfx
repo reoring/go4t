@@ -1,0 +1,15 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package testing
+import "std/list"
+import "github.com/reoring/gofx/ports/client-go/support/outcome"
+import "github.com/reoring/gofx/ports/client-go/support/watch"
+import objects "github.com/reoring/gofx/ports/client-go/deps/objects"
+import codec "github.com/reoring/gofx/ports/client-go/deps/codec"
+import runtime "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime"
+import v1 "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+
+func sourceTestObject(name String) IO[runtime.Object] { do { decoder <- codec.newJSONDecoder(); result <- codec.decode(decoder,"{\"apiVersion\":\"v1\",\"kind\":\"Pod\",\"metadata\":{\"name\":\"" + name + "\"}}",None,None); match result.object { Some(obj) => ioPure(obj); None => ioFail("cannot create source test object") } } }
+func sourceEventVersion(event Option[watch.Event]) IO[String] { match event { None => ioPure("EOF"); Some(value) => match value.object { None => ioPure("nil"); Some(obj) => do { version <- objects.objectResourceVersion(obj); ioPure(fst(version)) } } } }
+func testSourceHistoryPrefixAndShutdown() IO[Bool] { do { source <- newRawFakeControllerSource(); obj <- sourceTestObject("pod"); add(source,obj); modify(source,obj); modify(source,obj); result <- watchFrom(source,v1.listOptionsWithResourceVersion(v1.newListOptions(),"1")); snapshot <- list(source,v1.newListOptions()); shutdown(source); match result.value { None => ioPure(false); Some(watcher) => do { first <- watch.next(watcher); second <- watch.next(watcher); eof <- watch.next(watcher); a <- sourceEventVersion(first); b <- sourceEventVersion(second); c <- sourceEventVersion(eof); ioPure(snapshot.value.resourceVersion == "3" && a == "2" && b == "3" && c == "EOF") } } } }
+func testSourceResetExpiresOldWatch() IO[Bool] { do { source <- newRawFakeControllerSource(); obj <- sourceTestObject("pod"); add(source,obj); modify(source,obj); resetWatch(source); old <- watchFrom(source,v1.listOptionsWithResourceVersion(v1.newListOptions(),"1")); current <- watchFrom(source,v1.listOptionsWithResourceVersion(v1.newListOptions(),"2")); modify(source,obj); shutdown(source); match current.value { None => ioPure(false); Some(watcher) => do { event <- watch.next(watcher); version <- sourceEventVersion(event); ioPure(!outcome.isSuccess(old) && version == "3") } } } }
+func testSourceDropWatchStillAdvancesList() IO[Bool] { do { source <- newRawFakeControllerSource(); obj <- sourceTestObject("pod"); addDropWatch(source,obj); snapshot <- list(source,v1.newListOptions()); shutdown(source); ioPure(snapshot.value.resourceVersion == "1" && length(snapshot.value.items) == 1) } }

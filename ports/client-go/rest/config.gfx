@@ -1,0 +1,90 @@
+package rest
+
+import api "tools/clientcmd/api"
+import auth "pkg/apis/clientauthentication"
+import transport "transport"
+import runtime "deps/k8s.io/apimachinery/pkg/runtime"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import http "deps/net/http"
+import url "deps/net/url"
+import outcome "support/outcome"
+import version "pkg/version"
+import strings "std/string"
+import flowcontrol "util/flowcontrol"
+import errors "deps/support"
+
+// Copyright 2014 The Kubernetes Authors. Licensed under Apache-2.0.
+type ContentConfig = ContentConfig {
+ acceptContentTypes: String, contentType: String,
+ groupVersion: Option[schema.GroupVersion],
+ negotiatedSerializer: Option[runtime.NegotiatedSerializer]
+}
+type TLSClientConfig = TLSClientConfig {
+ insecure: Bool, serverName: String, certFile: String, keyFile: String, caFile: String,
+ certData: Option[String], keyData: Option[String], caData: Option[String],
+ nextProtos: Option[List[String]]
+}
+alias ImpersonationConfig = transport.ImpersonationConfig
+alias RateLimiter = flowcontrol.RateLimiter
+type Config = Config {
+ host: String, apiPath: String, contentConfig: ContentConfig,
+ username: String, password: String, bearerToken: String, bearerTokenFile: String,
+ impersonate: ImpersonationConfig, authProvider: Option[api.AuthProviderConfig],
+ authConfigPersister: Option[AuthProviderConfigPersister], execProvider: Option[api.ExecConfig],
+ tlsClientConfig: TLSClientConfig, userAgent: String, disableCompression: Bool,
+ transport: Option[transport.RoundTripper], wrapTransport: Option[transport.WrapperFunc],
+ qps: Float, burst: Int, rateLimiter: Option[RateLimiter],
+ warningHandler: Option[WarningHandler], warningHandlerWithContext: Option[WarningHandler],
+ timeout: Int, dial: Option[transport.DialHolder],
+ proxy: Option[func(http.Request) IO[outcome.Outcome[Option[url.URL]]]]
+}
+// Explicit injection avoids an import cycle from REST to exec plugins.
+type Authentication = Authentication {
+ providers: AuthProviderRegistry,
+ exec: func(api.ExecConfig,Option[auth.Cluster],transport.Config) IO[outcome.Outcome[transport.Config]]
+}
+func defaultQPS() Float { 5.0 }
+func defaultBurst() Int { 10 }
+func emptyContentConfig() ContentConfig { ContentConfig("","",None,None) }
+func emptyTLSClientConfig() TLSClientConfig { TLSClientConfig(false,"","","","",None,None,None,None) }
+func emptyConfig() Config {
+ Config("","",emptyContentConfig(),"","","","",transport.ImpersonationConfig("","",None,None),None,None,None,emptyTLSClientConfig(),"",false,None,None,0.0,0,None,None,None,0,None,None)
+}
+func copyConfig(config Config) IO[Config] {
+ match config.execProvider {
+  None => ioPure(config)
+  Some(exec) => match exec.config {
+   None => ioPure(config)
+   Some(object) => do {
+    copied <- runtime.objectCallDeepCopyObject(object)
+    ioPure(config{execProvider: Some(exec{config: copied.1})})
+   }
+  }
+ }
+}
+func anonymousClientConfig(config Config) Config {
+ config{username: "", password: "", bearerToken: "", bearerTokenFile: "", impersonate: transport.ImpersonationConfig("","",None,None), authProvider: None, authConfigPersister: None, execProvider: None, transport: None, wrapTransport: None, tlsClientConfig: config.tlsClientConfig{certFile: "", keyFile: "", certData: None, keyData: None}}
+}
+func wrap(config Config, wrapper transport.WrapperFunc) Config {
+ let combined = match config.wrapTransport { None => wrapper; Some(old) => func(base) => { wrapper(old(base)) } }
+ config{wrapTransport: Some(combined)}
+}
+func transportConfig(config Config) transport.Config {
+ let tls = config.tlsClientConfig
+ transport.Config(config.userAgent,transport.TLSConfig(tls.caFile,tls.certFile,tls.keyFile,false,false,tls.insecure,tls.serverName,tls.caData,tls.certData,tls.keyData,tls.nextProtos,None),config.username,config.password,config.bearerToken,config.bearerTokenFile,config.impersonate,config.disableCompression,config.transport,config.wrapTransport,config.dial,config.proxy)
+}
+func addUserAgent(config Config, agent String) Config { config{userAgent: defaultKubernetesUserAgent() + "/" + agent} }
+extern func processCommand() String = "github.com/reoring/gofx/ports/client-go/rest/host".ProcessCommand
+extern func commandBase(value String) String = "github.com/reoring/gofx/ports/client-go/rest/host".CommandBase
+extern func osName() String = "github.com/reoring/gofx/ports/client-go/rest/host".OSName
+extern func architecture() String = "github.com/reoring/gofx/ports/client-go/rest/host".Architecture
+func defaultKubernetesUserAgent() String {
+ let build = version.defaultBuildInfo()
+ let command = if processCommand() == "" { "unknown" } else { commandBase(processCommand()) }
+ let release = if build.gitVersion == "" { "unknown" } else { match strings.split("-",build.gitVersion) { Cons(value,_) => value; Nil => "unknown" } }
+ let commit = if build.gitCommit == "" { "unknown" } else { prefixBytes(build.gitCommit,7) }
+ command+"/"+release+" ("+osName()+"/"+architecture()+") kubernetes/"+commit
+}
+func setKubernetesDefaults(config Config) Config { if config.userAgent == "" { config{userAgent: defaultKubernetesUserAgent()} } else { config } }
+extern func sentinelError(identity String,message String) errors.Error = "github.com/reoring/gofx/ports/client-go/rest/host".SentinelError
+func errNotInCluster() errors.Error { sentinelError("client-go/rest.ErrNotInCluster","unable to load in-cluster configuration, KUBERNETES_SERVICE_HOST and KUBERNETES_SERVICE_PORT must be defined") }

@@ -1,0 +1,33 @@
+// Copyright 2015 The Kubernetes Authors. Licensed under Apache-2.0.
+package transport
+import http "github.com/reoring/gofx/ports/client-go/deps/net/http"
+import io "github.com/reoring/gofx/ports/client-go/deps/io"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+
+extern func fixtureBody(onClose func() IO[Unit]) IO[io.ReadCloser] = "github.com/reoring/gofx/ports/client-go/transport/testsupport".Body
+extern func fixtureSameHTTP(a http.RoundTripper, b http.RoundTripper) IO[Bool] = "github.com/reoring/gofx/ports/client-go/transport/testsupport".SameLifetime
+func testOriginalHTTPIdentityAndWrapperTraversal() IO[Bool] { do {
+ raw <- defaultHTTPTransport()
+ roundTrip <- toHTTP(fromHTTP(raw))
+ same <- fixtureSameHTTP(raw, roundTrip)
+ let wrapped = newBearerAuthRoundTripper("token", fromHTTP(raw))
+ outer <- toHTTP(wrapped)
+ inner <- wrappedHTTP(outer)
+ traversed <- match inner { None => ioPure(false); Some(value) => fixtureSameHTTP(raw, value) }
+ ioPure(same && traversed)
+} }
+func testOAuthFailureClosesBodyWithoutDispatch() IO[Bool] { do {
+ closes <- sync.newRef(0)
+ calls <- sync.newRef(0)
+ body <- fixtureBody(func() => do { n <- sync.readRef(closes); sync.writeRef(closes, n + 1) })
+ request <- http.newRequest()
+ http.requestSetBodyIdentity(request, Some(body))
+ clock <- sync.fakeClock(0)
+ let source = TokenSource(func() => ioPure(outcome.failure(None, newError("source failed"))))
+ let base = roundTripper(func(_) => do { sync.writeRef(calls, 1); ioPure(outcome.success(None)) }, func(_) => ioPure(unit()), func() => ioPure(unit()))
+ result <- tokenSourceWrapTransport(clock, source)(base).roundTrip(request)
+ closed <- sync.readRef(closes)
+ dispatched <- sync.readRef(calls)
+ ioPure(closed == 1 && dispatched == 0 && (match result.error { None => false; Some(error) => errorText(error) == "source failed" }))
+} }

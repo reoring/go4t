@@ -2,52 +2,66 @@
 // Source: client-go v0.37.2 and exact external dependency declarations.
 // Kubernetes-derived declarations are licensed under Apache-2.0.
 // https://www.apache.org/licenses/LICENSE-2.0
-// Source graph SHA-256: 2e4efd1c862cc7bde1036ba0dc37a4fe08175d4ead5d513b32689e674b91d866
+// Source graph SHA-256: 99a062162cbc99a38896123a3e81ce3ef2f70f2e505fbd058751d52a0a40f167
 package wait
 
 import canonical "github.com/reoring/gofx/ports/client-go/deps/types"
 import support "github.com/reoring/gofx/ports/client-go/deps/support"
 
 alias Backoff = canonical.Backoff_58805196c64b
-extern func newBackoff() Backoff = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".New_Backoff_58805196c64b
-extern func backoffGetDuration(value Backoff) canonical.Duration_147de15d0597 = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Get_Backoff_58805196c64b_Duration
-extern func backoffWithDuration(value Backoff, field canonical.Duration_147de15d0597) Backoff = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".With_Backoff_58805196c64b_Duration
-extern func backoffGetFactor(value Backoff) Float = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Get_Backoff_58805196c64b_Factor
-extern func backoffWithFactor(value Backoff, field Float) Backoff = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".With_Backoff_58805196c64b_Factor
-extern func backoffGetJitter(value Backoff) Float = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Get_Backoff_58805196c64b_Jitter
-extern func backoffWithJitter(value Backoff, field Float) Backoff = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".With_Backoff_58805196c64b_Jitter
-extern func backoffGetSteps(value Backoff) Int = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Get_Backoff_58805196c64b_Steps
-extern func backoffWithSteps(value Backoff, field Int) Backoff = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".With_Backoff_58805196c64b_Steps
-extern func backoffGetCap(value Backoff) canonical.Duration_147de15d0597 = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Get_Backoff_58805196c64b_Cap
-extern func backoffWithCap(value Backoff, field canonical.Duration_147de15d0597) Backoff = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".With_Backoff_58805196c64b_Cap
+extern func newBackoff() Backoff = "github.com/reoring/gofx/ports/client-go/host/deps".New_Backoff_58805196c64b
+extern func backoffGetDuration(value Backoff) canonical.Duration_147de15d0597 = "github.com/reoring/gofx/ports/client-go/host/deps".Get_Backoff_58805196c64b_Duration
+extern func backoffWithDuration(value Backoff, field canonical.Duration_147de15d0597) Backoff = "github.com/reoring/gofx/ports/client-go/host/deps".With_Backoff_58805196c64b_Duration
+extern func backoffGetFactor(value Backoff) Float = "github.com/reoring/gofx/ports/client-go/host/deps".Get_Backoff_58805196c64b_Factor
+extern func backoffWithFactor(value Backoff, field Float) Backoff = "github.com/reoring/gofx/ports/client-go/host/deps".With_Backoff_58805196c64b_Factor
+extern func backoffGetJitter(value Backoff) Float = "github.com/reoring/gofx/ports/client-go/host/deps".Get_Backoff_58805196c64b_Jitter
+extern func backoffWithJitter(value Backoff, field Float) Backoff = "github.com/reoring/gofx/ports/client-go/host/deps".With_Backoff_58805196c64b_Jitter
+extern func backoffGetSteps(value Backoff) Int = "github.com/reoring/gofx/ports/client-go/host/deps".Get_Backoff_58805196c64b_Steps
+extern func backoffWithSteps(value Backoff, field Int) Backoff = "github.com/reoring/gofx/ports/client-go/host/deps".With_Backoff_58805196c64b_Steps
+extern func backoffGetCap(value Backoff) canonical.Duration_147de15d0597 = "github.com/reoring/gofx/ports/client-go/host/deps".Get_Backoff_58805196c64b_Cap
+extern func backoffWithCap(value Backoff, field canonical.Duration_147de15d0597) Backoff = "github.com/reoring/gofx/ports/client-go/host/deps".With_Backoff_58805196c64b_Cap
 alias BackoffManager = canonical.BackoffManager_c9c4422e7865
 alias ConditionFunc = canonical.ConditionFunc_d7c752b60633
-extern func newConditionFunc() IO[ConditionFunc] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".New_ConditionFunc_d7c752b60633
-extern func conditionFuncInvoke(value ConditionFunc) IO[(Bool, Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Invoke_ConditionFunc_d7c752b60633
+extern func newConditionFunc() IO[ConditionFunc] = "github.com/reoring/gofx/ports/client-go/host/deps".New_ConditionFunc_d7c752b60633
+extern func conditionFuncInvoke(value ConditionFunc) IO[(Bool, Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/host/deps".Invoke_ConditionFunc_d7c752b60633
 alias ConditionWithContextFunc = canonical.ConditionWithContextFunc_674399d69b09
-extern func newConditionWithContextFunc() IO[ConditionWithContextFunc] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".New_ConditionWithContextFunc_674399d69b09
-extern func conditionWithContextFuncInvoke(value ConditionWithContextFunc) IO[(Bool, Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Invoke_ConditionWithContextFunc_674399d69b09
+extern func newConditionWithContextFunc() IO[ConditionWithContextFunc] = "github.com/reoring/gofx/ports/client-go/host/deps".New_ConditionWithContextFunc_674399d69b09
+extern func conditionWithContextFuncInvoke(value ConditionWithContextFunc) IO[(Bool, Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/host/deps".Invoke_ConditionWithContextFunc_674399d69b09
 alias DelayFunc = canonical.DelayFunc_d4da34d9d6fb
-extern func newDelayFunc() IO[DelayFunc] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".New_DelayFunc_d4da34d9d6fb
-extern func delayFuncInvoke(value DelayFunc) IO[canonical.Duration_147de15d0597] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Invoke_DelayFunc_d4da34d9d6fb
+extern func newDelayFunc() IO[DelayFunc] = "github.com/reoring/gofx/ports/client-go/host/deps".New_DelayFunc_d4da34d9d6fb
+extern func delayFuncInvoke(value DelayFunc) IO[canonical.Duration_147de15d0597] = "github.com/reoring/gofx/ports/client-go/host/deps".Invoke_DelayFunc_d4da34d9d6fb
 alias Group = canonical.Group_d45ce919f86e
-extern func newGroup() IO[Group] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".New_Group_d45ce919f86e
+extern func newGroup() IO[Group] = "github.com/reoring/gofx/ports/client-go/host/deps".New_Group_d45ce919f86e
 alias Timer = canonical.Timer_38890f7df632
-extern func backoffCallDelayFunc(value Backoff) IO[(Backoff, canonical.DelayFunc_d4da34d9d6fb)] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_f90ee8e3b39db6d0
-extern func backoffCallDelayWithReset(value Backoff, p0 Option[canonical.Clock_50f5cfbc3077], p1 canonical.Duration_147de15d0597) IO[(Backoff, canonical.DelayFunc_d4da34d9d6fb)] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_86af98a34d60a5c6
-extern func backoffCallStep(value Backoff) IO[(Backoff, canonical.Duration_147de15d0597)] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_1b2a67d0650da1eb
-extern func backoffCallTimer(value Backoff) IO[(Backoff, Option[canonical.Timer_38890f7df632])] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_1e7c604fb3db4f58
-extern func conditionFuncCallWithContextIdentity(value ConditionFunc) IO[canonical.ConditionWithContextFunc_674399d69b09] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_990c41c11dedca4c
-extern func delayFuncCallConcurrentIdentity(value DelayFunc) IO[canonical.DelayFunc_d4da34d9d6fb] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_28fa2920d472be0e
-extern func delayFuncCallTimerIdentity(value DelayFunc, p0 Option[canonical.Clock_50f5cfbc3077]) IO[Option[canonical.Timer_38890f7df632]] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_671d1139e5dd1a29
-extern func delayFuncCallUntilIdentity(value DelayFunc, p0 Bool, p1 Bool, p2 canonical.ConditionWithContextFunc_674399d69b09) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_8ffb5d67d1d7d32d
-extern func groupCallStartIdentity(value Group, p0 func() IO[Unit]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_d2023825581a962a
-extern func groupCallStartWithChannelIdentity(value Group, p0 support.Channel[Unit], p1 func(support.Channel[Unit]) IO[Unit]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_faa0b59d0bf7a0bf
-extern func groupCallStartWithContextIdentity(value Group, p0 func() IO[Unit]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_85b91ff8c9cb67f6
-extern func groupCallWaitIdentity(value Group) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_fd3a3b1e3846c200
-extern func backoffManagerCallBackoffIdentity(value BackoffManager) IO[Option[canonical.Timer_2bad1f4da54b]] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Interface_a3daea1f74f84a6a
-extern func timerCallCIdentity(value Timer) IO[support.Channel[canonical.Time_16c25373c0e3]] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Interface_19e5d0a59234700e
-extern func timerCallNextIdentity(value Timer) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Interface_c802b13b11bbdb4d
-extern func timerCallStopIdentity(value Timer) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Interface_38d8459ed27271a5
-extern func newBackoffManager(f0 func() IO[Option[canonical.Timer_2bad1f4da54b]]) IO[BackoffManager] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".New_Proxy_BackoffManager_c9c4422e7865
-extern func newTimer(f0 func() IO[support.Channel[canonical.Time_16c25373c0e3]], f1 func() IO[Unit], f2 func() IO[Unit]) IO[Timer] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".New_Proxy_Timer_38890f7df632
+extern func backoffCallDelayFunc(value Backoff) IO[(Backoff, canonical.DelayFunc_d4da34d9d6fb)] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_f90ee8e3b39db6d0
+extern func backoffCallDelayWithReset(value Backoff, p0 Option[canonical.Clock_50f5cfbc3077], p1 canonical.Duration_147de15d0597) IO[(Backoff, canonical.DelayFunc_d4da34d9d6fb)] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_86af98a34d60a5c6
+extern func backoffCallStep(value Backoff) IO[(Backoff, canonical.Duration_147de15d0597)] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_1b2a67d0650da1eb
+extern func backoffCallTimer(value Backoff) IO[(Backoff, Option[canonical.Timer_38890f7df632])] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_1e7c604fb3db4f58
+extern func conditionFuncCallWithContextIdentity(value ConditionFunc) IO[canonical.ConditionWithContextFunc_674399d69b09] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_990c41c11dedca4c
+extern func callContextForChannel(p0 support.Channel[Unit]) IO[Option[canonical.Context_e30d9213847b]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_ce3b35632518234f
+extern func delayFuncCallConcurrentIdentity(value DelayFunc) IO[canonical.DelayFunc_d4da34d9d6fb] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_28fa2920d472be0e
+extern func delayFuncCallTimerIdentity(value DelayFunc, p0 Option[canonical.Clock_50f5cfbc3077]) IO[Option[canonical.Timer_38890f7df632]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_671d1139e5dd1a29
+extern func delayFuncCallUntilIdentity(value DelayFunc, p0 Bool, p1 Bool, p2 canonical.ConditionWithContextFunc_674399d69b09) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_8ffb5d67d1d7d32d
+extern func callErrorInterrupted(p0 Option[support.Error]) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_b26ab05002deab4e
+extern func callExponentialBackoff(p0 canonical.Backoff_58805196c64b, p1 canonical.ConditionFunc_d7c752b60633) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_b03353e85d5ceaf1
+extern func callExponentialBackoffWithContext(p0 canonical.Backoff_58805196c64b, p1 canonical.ConditionWithContextFunc_674399d69b09) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_9c1a26e6b1b8647f
+extern func groupCallStartIdentity(value Group, p0 func() IO[Unit]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_d2023825581a962a
+extern func groupCallStartWithChannelIdentity(value Group, p0 support.Channel[Unit], p1 func(support.Channel[Unit]) IO[Unit]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_faa0b59d0bf7a0bf
+extern func groupCallStartWithContextIdentity(value Group, p0 func() IO[Unit]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_85b91ff8c9cb67f6
+extern func groupCallWaitIdentity(value Group) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_fd3a3b1e3846c200
+extern func callInterrupted(p0 Option[support.Error]) IO[Bool] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_8ef31f00f734c7de
+extern func callJitter(p0 canonical.Duration_147de15d0597, p1 Float) IO[canonical.Duration_147de15d0597] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_188142b45a77b70e
+extern func callJitterUntilWithContext(p0 func() IO[Unit], p1 canonical.Duration_147de15d0597, p2 Float, p3 Bool) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_76bf1057995e1320
+extern func callNonSlidingUntilWithContext(p0 func() IO[Unit], p1 canonical.Duration_147de15d0597) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_316a70da4974a0c7
+extern func callPollImmediateUntil(p0 canonical.Duration_147de15d0597, p1 canonical.ConditionFunc_d7c752b60633, p2 support.Channel[Unit]) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_ebee10eac489c911
+extern func callPollInfiniteWithContext(p0 canonical.Duration_147de15d0597, p1 canonical.ConditionWithContextFunc_674399d69b09) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_73bfaf3f497ac653
+extern func callPollUntilContextCancel(p0 canonical.Duration_147de15d0597, p1 Bool, p2 canonical.ConditionWithContextFunc_674399d69b09) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_aa7e55243f8bc4a6
+extern func callPollUntilContextTimeout(p0 canonical.Duration_147de15d0597, p1 canonical.Duration_147de15d0597, p2 Bool, p3 canonical.ConditionWithContextFunc_674399d69b09) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_e87463529a654df1
+extern func callUntil(p0 func() IO[Unit], p1 canonical.Duration_147de15d0597, p2 support.Channel[Unit]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_eb5f0f2c57572b27
+extern func callUntilWithContext(p0 func() IO[Unit], p1 canonical.Duration_147de15d0597) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_19c23820cbb31d46
+extern func backoffManagerCallBackoffIdentity(value BackoffManager) IO[Option[canonical.Timer_2bad1f4da54b]] = "github.com/reoring/gofx/ports/client-go/host/deps".Interface_a3daea1f74f84a6a
+extern func timerCallCIdentity(value Timer) IO[support.Channel[canonical.Time_16c25373c0e3]] = "github.com/reoring/gofx/ports/client-go/host/deps".Interface_19e5d0a59234700e
+extern func timerCallNextIdentity(value Timer) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".Interface_c802b13b11bbdb4d
+extern func timerCallStopIdentity(value Timer) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".Interface_38d8459ed27271a5
+extern func newBackoffManager(f0 func() IO[Option[canonical.Timer_2bad1f4da54b]]) IO[BackoffManager] = "github.com/reoring/gofx/ports/client-go/host/deps".New_Proxy_BackoffManager_c9c4422e7865
+extern func newTimer(f0 func() IO[support.Channel[canonical.Time_16c25373c0e3]], f1 func() IO[Unit], f2 func() IO[Unit]) IO[Timer] = "github.com/reoring/gofx/ports/client-go/host/deps".New_Proxy_Timer_38890f7df632

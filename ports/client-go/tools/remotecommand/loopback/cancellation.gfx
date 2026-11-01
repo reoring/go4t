@@ -1,0 +1,38 @@
+// Copyright 2026 The gofx Authors. Licensed under Apache-2.0.
+package loopback
+import remote "github.com/reoring/gofx/ports/client-go/tools/remotecommand"
+import spdy "github.com/reoring/gofx/ports/client-go/transport/spdy"
+import raw "github.com/reoring/gofx/ports/client-go/deps/k8s.io/streaming/pkg/httpstream"
+import rawio "github.com/reoring/gofx/ports/client-go/deps/io"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import effects "std/io"
+
+type CancellationFixture = CancellationFixtureHandle
+extern func _openCancellation() IO[CancellationFixture] = "github.com/reoring/gofx/ports/client-go/tools/remotecommand/loopback/host".OpenCancellation
+extern func _cancellationConnection(fixture CancellationFixture) IO[raw.Connection] = "github.com/reoring/gofx/ports/client-go/tools/remotecommand/loopback/host".CancellationConnection
+extern func _cancellationInput(fixture CancellationFixture) IO[rawio.Reader] = "github.com/reoring/gofx/ports/client-go/tools/remotecommand/loopback/host".CancellationInput
+extern func _cancellationReady(fixture CancellationFixture) IO[Unit] = "github.com/reoring/gofx/ports/client-go/tools/remotecommand/loopback/host".CancellationReady
+extern func _cancellationComplete(fixture CancellationFixture) IO[Bool] = "github.com/reoring/gofx/ports/client-go/tools/remotecommand/loopback/host".CancellationComplete
+extern func _closeCancellation(fixture CancellationFixture) IO[Unit] = "github.com/reoring/gofx/ports/client-go/tools/remotecommand/loopback/host".CloseCancellation
+
+func runCancellation() IO[Bool] {sync.bracket(_openCancellation(),func(fixture)=>do {
+ raw<-_cancellationConnection(fixture)
+ input<-_cancellationInput(fixture)
+ let connection=spdy.fromConnection(raw)
+ let options=remote.emptyStreamOptions()
+ parent<-sync.captureContext()
+ sync.bracket(sync.newContext(parent,None),func(child)=>
+  sync.bracket(sync.start(sync.withContext(child.0,remote.streamProtocol(5,connection,options {stdin:Some(spdy.fromReader(input)),stdout:Some(spdy.discard())}))),func(task)=>do {
+   _cancellationReady(fixture)
+   sync.cancelContext(child.1)
+   result<-effects.tryIO(sync.join(task))
+   complete<-_cancellationComplete(fixture)
+   ioPure(complete && (match result {Err(effects.Cancelled)=>true;_=>false}))
+  },func(task)=>do {
+   sync.cancelContext(child.1)
+   sync.cancelTask(task)
+   connection.close()
+   _ <- effects.tryIO(sync.join(task))
+   ioPure(unit())
+  }),func(child)=>sync.cancelContext(child.1))
+},_closeCancellation)}

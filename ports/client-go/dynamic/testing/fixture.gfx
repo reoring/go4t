@@ -1,0 +1,45 @@
+package testing
+
+import rest "rest"
+import dynamic "dynamic"
+import transport "transport"
+import http "deps/net/http"
+import url "deps/net/url"
+import runtime "deps/k8s.io/apimachinery/pkg/runtime"
+import sync "support/sync"
+import outcome "support/outcome"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import features "features"
+
+// Copyright 2026 The Kubernetes Authors. Licensed under Apache-2.0.
+// Permanent deterministic transport fixture. No original client-go dependency.
+type Call = Call { method: String, path: String, query: String, accept: String, contentType: String } deriving Eq
+type Fixture = Fixture { client: rest.RESTClient, calls: sync.Ref[List[Call]] }
+extern func response(status Int,media String,body String,retry String) IO[http.Response] = "github.com/reoring/gofx/ports/client-go/rest/host".Response
+func featureRegistry() IO[features.FeatureRegistry] { features.newFeatureRegistry(features.Environment(func(_) => ioPure(None),func(_) => ioPure(unit()))) }
+func newFixture(serializer runtime.NegotiatedSerializer,media String,reply String) IO[Fixture] {
+ do {
+  clock <- sync.fakeClock(0)
+  calls <- sync.newRef([])
+  transport <- transport.toHTTP(transport.roundTripper(func(request) => do {
+   method <- http.requestGetMethodIdentity(request)
+   location <- http.requestGetURLIdentity(request)
+   path <- match location { None => ioPure(""); Some(location) => url.urlGetPathIdentity(location) }
+   query <- match location { None => ioPure(""); Some(location) => url.urlGetRawQueryIdentity(location) }
+   headers <- http.requestGetHeaderIdentity(request)
+   accept <- http.headerCallGet(headers,"Accept")
+   content <- http.headerCallGet(headers,"Content-Type")
+   previous <- sync.readRef(calls)
+   sync.writeRef(calls,append(previous,[Call(method,path,query,accept.1,content.1)]))
+   result <- response(200,media,reply,"")
+   ioPure(outcome.success(Some(result)))
+  },func(_) => ioPure(unit()),func() => ioPure(unit())))
+  httpClient <- rest.newHTTPClient(transport,0)
+  let parsed = rest.parseURL("http://fixture.invalid")
+  match parsed.0 { None => ioFail("invalid fixture URL"); Some(base) => do {
+   let gv = schema.groupVersionWithVersion(schema.newGroupVersion(),"v1")
+   client <- rest.newRESTClient(base,"",rest.ClientContentConfig("application/json","application/json",gv,rest.newNegotiator(serializer,gv)),httpClient,None,rest.noWarnings(),clock,false)
+   ioPure(Fixture(client,calls))
+  } }
+ }
+}

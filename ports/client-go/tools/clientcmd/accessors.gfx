@@ -1,0 +1,26 @@
+// Copyright 2014 The Kubernetes Authors. Licensed under Apache-2.0.
+package clientcmd
+import api "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api"
+import rest "github.com/reoring/gofx/ports/client-go/rest"
+import err "github.com/reoring/gofx/ports/client-go/deps/support"
+import "std/map"
+import "std/list"
+import "std/prelude"
+import "std/string"
+alias PersistAuthProviderConfigForUser = func(String) rest.AuthProviderConfigPersister
+type MissingConfigError = MissingConfigError {missing:List[String]}
+func missingConfigError(value MissingConfigError) err.Error { _taggedError("missing-config","Config not found: "+string.join(", ",value.missing),Nil) }
+func clusterDefaults(source api.Source) IO[api.Cluster] { do { server <- source.getenv("KUBERNETES_MASTER"); ioPure(api.emptyCluster(){server:if server == "" { "http://localhost:8080" } else { server }}) } }
+func defaultClientConfig(source api.Source) IO[DirectClientConfig] { do { defaults <- clusterDefaults(source); newDefaultClientConfig(source,api.newConfig(),emptyOverrides(){clusterDefaults:defaults}) } }
+func getConfigFileReferences(value api.Config) List[FileReference[api.Config]] {
+ let clusters = list.concatMap(map.mapToList(api.mapOrEmpty(value.clusters)),func((key,value)) => match value { None => Nil; Some(_) => prelude.fmap(getClusterFileReferences(),func(ref) => FileReference(func(config) => ref.get(_or(api.getCluster(config,key),api.emptyCluster())),func(config,path) => api.withCluster(config,key,Some(ref.put(_or(api.getCluster(config,key),api.emptyCluster()),path))))) })
+ let users = list.concatMap(map.mapToList(api.mapOrEmpty(value.authInfos)),func((key,value)) => match value { None => Nil; Some(value) => prelude.fmap(getAuthInfoFileReferences(value),func(ref) => FileReference(func(config) => ref.get(_or(api.getAuthInfo(config,key),api.emptyAuthInfo())),func(config,path) => api.withAuthInfo(config,key,Some(ref.put(_or(api.getAuthInfo(config,key),api.emptyAuthInfo()),path))))) })
+ list.append(clusters,users)
+}
+func defaultConfigAccess(source api.Source) ConfigAccess { ConfigAccess(
+ func() => do { rules <- newDefaultClientConfigLoadingRules(source); ioPure(getLoadingPrecedence(rules)) },
+ func() => do { rules <- newDefaultClientConfigLoadingRules(source); getStartingConfig(source,rules) },
+ func() => do { rules <- newDefaultClientConfigLoadingRules(source); getDefaultFilename(source,rules) },
+ func() => ioPure(false),
+ func() => ioPure("")
+) }

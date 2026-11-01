@@ -1,0 +1,79 @@
+// Copyright 2015 The Kubernetes Authors. Licensed under Apache-2.0.
+package testing
+import runtime "deps/k8s.io/apimachinery/pkg/runtime"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import meta "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import managed "deps/k8s.io/apimachinery/pkg/util/managedfields"
+import outcome "support/outcome"
+import native "testing/internal"
+
+type ManagedOperation = ManagedCreate(meta.CreateOptions) | ManagedUpdate(meta.UpdateOptions) | ManagedPatch(meta.PatchOptions) | ManagedApply(meta.PatchOptions)
+func newFieldManagedObjectTracker(scheme runtime.Scheme, decoder runtime.Decoder, converter managed.TypeConverter) IO[ObjectTracker] { do {
+ base <- newObjectTracker(scheme,decoder)
+ ioPure(base{
+ create: func(resource,object,namespace,options) => {
+  let parsed = assertOptionalSingleArgument(options,meta.newCreateOptions())
+  match parsed.error { Some(e) => ioPure(outcome.failure(unit(),e)); None => _managedChange(base,scheme,converter,resource,object,namespace,ManagedCreate(parsed.value)) }
+ },
+ update: func(resource,object,namespace,options) => {
+  let parsed = assertOptionalSingleArgument(options,meta.newUpdateOptions())
+  match parsed.error { Some(e) => ioPure(outcome.failure(unit(),e)); None => _managedChange(base,scheme,converter,resource,object,namespace,ManagedUpdate(parsed.value)) }
+ },
+ patch: func(resource,object,namespace,options) => {
+  let parsed = assertOptionalSingleArgument(options,meta.newPatchOptions())
+  match parsed.error { Some(e) => ioPure(outcome.failure(unit(),e)); None => _managedChange(base,scheme,converter,resource,object,namespace,ManagedPatch(parsed.value)) }
+ },
+ apply: func(resource,object,namespace,options) => {
+  let parsed = assertOptionalSingleArgument(options,meta.newPatchOptions())
+  match parsed.error { Some(e) => ioPure(outcome.failure(unit(),e)); None => _managedChange(base,scheme,converter,resource,object,namespace,ManagedApply(parsed.value)) }
+ }
+ })
+} }
+func _managedChange(base ObjectTracker, scheme runtime.Scheme, converter managed.TypeConverter, resource schema.GroupVersionResource, object runtime.Object, namespace String, operation ManagedOperation) IO[outcome.Outcome[Unit]] { do {
+ mapped <- native.mappedKind(scheme,resource)
+ match mapped.0 {
+ None => ioPure(outcome.from(unit(),mapped.1))
+ Some(kind) => do {
+  defaulter <- objectDefaulter()
+  manager <- native.fieldManager(scheme,converter,kind,defaulter)
+  match manager.0 {
+   None => ioPure(outcome.from(unit(),manager.1))
+   Some(manager) => do {
+    submitted <- match operation { ManagedCreate(_) => native.setKind(object,kind); _ => ioPure(object) }
+    identity <- native.objectIdentity(submitted)
+    match identity.1 { Some(e) => ioPure(outcome.failure(unit(),e)); None => do {
+     fetched <- base.get(resource,namespace,identity.0.1,[meta.newGetOptions()])
+     let absent = match fetched.error { Some(e) => native.isNotFound(e); None => false }
+     let allowAbsent = match operation { ManagedCreate(_) => true; ManagedApply(_) => true; _ => false }
+     if _hasError(fetched.error) && !(absent && allowAbsent) { ioPure(outcome.from(unit(),fetched.error)) }
+     else { do {
+      live <- if absent { do {
+       created <- native.newObject(scheme,kind)
+       match created.0 { None => ioPure(created); Some(value) => do { stamped <- native.setKind(value,kind); ioPure((Some(stamped),created.1)) } }
+      } } else { ioPure((fetched.value,fetched.error)) }
+      match live.0 { None => ioPure(outcome.from(unit(),live.1)); Some(liveObject) => do {
+       changed <- match operation {
+        ManagedCreate(options) => native.fieldUpdate(manager,liveObject,submitted,meta.createOptionsGetFieldManager(options))
+        ManagedUpdate(options) => native.fieldUpdate(manager,liveObject,submitted,meta.updateOptionsGetFieldManager(options))
+        ManagedPatch(options) => native.fieldUpdate(manager,liveObject,submitted,meta.patchOptionsGetFieldManager(options))
+        ManagedApply(options) => native.fieldApply(manager,liveObject,submitted,meta.patchOptionsGetFieldManager(options),match meta.patchOptionsGetForce(options) { None => false; Some(force) => force })
+       }
+       if _hasError(changed.1) { ioPure(outcome.from(unit(),changed.1)) } else { match changed.0 { None => ioPure(outcome.from(unit(),changed.1)); Some(result) => match operation {
+        ManagedCreate(options) => base.create(resource,result,namespace,[options])
+        ManagedUpdate(options) => base.update(resource,result,namespace,[options])
+        ManagedPatch(options) => base.patch(resource,result,namespace,[options])
+        ManagedApply(options) => if absent { base.create(resource,result,namespace,[_patchCreateOptions(options)]) } else { base.update(resource,result,namespace,[_patchUpdateOptions(options)]) }
+       } } }
+      } }
+     } }
+    } }
+   }
+  }
+ }
+ }
+} }
+func _patchCreateOptions(options meta.PatchOptions) meta.CreateOptions { meta.createOptionsWithFieldValidation(meta.createOptionsWithFieldManager(meta.createOptionsWithDryRun(meta.newCreateOptions(),meta.patchOptionsGetDryRun(options)),meta.patchOptionsGetFieldManager(options)),meta.patchOptionsGetFieldValidation(options)) }
+func _patchUpdateOptions(options meta.PatchOptions) meta.UpdateOptions { meta.updateOptionsWithFieldValidation(meta.updateOptionsWithFieldManager(meta.updateOptionsWithDryRun(meta.newUpdateOptions(),meta.patchOptionsGetDryRun(options)),meta.patchOptionsGetFieldManager(options)),meta.patchOptionsGetFieldValidation(options)) }
+func _createUpdateOptions(options meta.CreateOptions) meta.UpdateOptions { meta.updateOptionsWithFieldValidation(meta.updateOptionsWithFieldManager(meta.updateOptionsWithDryRun(meta.newUpdateOptions(),meta.createOptionsGetDryRun(options)),meta.createOptionsGetFieldManager(options)),meta.createOptionsGetFieldValidation(options)) }
+// Upstream fake tracking deliberately does not run server-side defaulting.
+func objectDefaulter() IO[runtime.ObjectDefaulter] { runtime.newObjectDefaulter(func(object) => ioPure((object,unit()))) }

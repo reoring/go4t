@@ -1,0 +1,111 @@
+package fake
+
+import dynamic "dynamic"
+import keys "dynamic/dynamicinformer"
+import testing "testing"
+import selectors "testing/internal"
+import runtime "deps/k8s.io/apimachinery/pkg/runtime"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import v1 "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import u "deps/k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+import errors "deps/support"
+import objects "deps/objects"
+import outcome "support/outcome"
+import codec "deps/codec"
+import watch "support/watch"
+import sync "support/sync"
+import cache "tools/cache"
+import m "std/map"
+import s "std/string"
+
+// Copyright 2018 The Kubernetes Authors. Licensed under Apache-2.0.
+type FakeDynamicClient = FakeDynamicClient { fake: testing.Fake, scheme: runtime.Scheme, tracker: testing.ObjectTracker, listKinds: Map[keys.ResourceKey,String] }
+type ResourceClient = ResourceClient { client: FakeDynamicClient, resource: schema.GroupVersionResource, namespace: String }
+extern func schemeToUnstructured(scheme runtime.Scheme,object runtime.Object) IO[(Option[u.Unstructured],Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/dynamic/host".SchemeToUnstructured
+extern func toUnstructured(object runtime.Object) IO[(Option[u.Unstructured],Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/dynamic/host".ToUnstructured
+extern func guessKindResource(kind schema.GroupVersionKind) IO[(schema.GroupVersionResource,schema.GroupVersionResource)] = "github.com/reoring/gofx/ports/client-go/dynamic/host".GuessKindResource
+extern func schemeDecoder(scheme runtime.Scheme) IO[runtime.Decoder] = "github.com/reoring/gofx/ports/client-go/dynamic/host".SchemeDecoder
+func interface(client FakeDynamicClient) dynamic.Interface { dynamic.Interface(func(gvr) => resourceInterface(ResourceClient(client,gvr,"")),true) }
+func resourceInterface(c ResourceClient) dynamic.ResourceInterface {
+ dynamic.ResourceInterface(func(ns) => resourceInterface(c{namespace: ns}),func(o,p,sub) => create(c,o,p,sub),func(o,p,sub) => update(c,o,p,sub),func(o,p) => update(c,o,p,["status"]),func(n,p,sub) => delete(c,n,p,sub),func(p,l) => deleteCollection(c,p,l),func(n,p,sub) => get(c,n,p,sub),func(p) => list(c,p),func(p) => watch(c,p),func(n,t,b,p,sub) => patch(c,n,t,b,p,sub),func(n,o,p,sub) => apply(c,n,o,p,sub),func(n,o,p) => apply(c,n,o,p,["status"]))
+}
+func defaultObject(operation String) Option[runtime.Object] { Some(v1.statusToRuntimeObject(v1.statusWithStatus(v1.newStatus(),"dynamic "+operation+" fail"))) }
+func invoke(c ResourceClient,action testing.Action,defaultValue Option[runtime.Object]) IO[outcome.Outcome[Option[u.Unstructured]]] {
+ do {
+  result <- testing.invokes(c.client.fake,action,defaultValue)
+  match result.error { Some(e) => ioPure(outcome.failure(None,e)); None => match result.value {
+   None => ioPure(outcome.success(None))
+   Some(value) => do { converted <- schemeToUnstructured(c.client.scheme,value); ioPure(outcome.from(converted.0,converted.1)) }
+  } }
+ }
+}
+func create(c ResourceClient,object u.Unstructured,options v1.CreateOptions,sub List[String]) IO[outcome.Outcome[Option[u.Unstructured]]] {
+ do {
+  name <- if length(sub)>0 { do { name <- u.unstructuredCallGetName(object); ioPure(name.1) } } else { ioPure("") }
+  let action = if length(sub)>0 { testing.newCreateSubresourceActionWithOptions(c.resource,name,s.join("/",sub),c.namespace,u.unstructuredToRuntimeObject(object),options) } else { testing.newCreateActionWithOptions(c.resource,c.namespace,u.unstructuredToRuntimeObject(object),options) }
+  invoke(c,action,Some(u.unstructuredToRuntimeObject(object)))
+ }
+}
+func update(c ResourceClient,object u.Unstructured,options v1.UpdateOptions,sub List[String]) IO[outcome.Outcome[Option[u.Unstructured]]] {
+ invoke(c,testing.newUpdateSubresourceActionWithOptions(c.resource,s.join("/",sub),c.namespace,u.unstructuredToRuntimeObject(object),options),Some(u.unstructuredToRuntimeObject(object)))
+}
+func get(c ResourceClient,name String,options v1.GetOptions,sub List[String]) IO[outcome.Outcome[Option[u.Unstructured]]] { invoke(c,testing.newGetSubresourceActionWithOptions(c.resource,c.namespace,s.join("/",sub),name,options),defaultObject("get")) }
+func delete(c ResourceClient,name String,options v1.DeleteOptions,sub List[String]) IO[outcome.Outcome[Unit]] {
+ do { result <- testing.invokes(c.client.fake,testing.newDeleteSubresourceActionWithOptions(c.resource,s.join("/",sub),c.namespace,name,options),defaultObject("delete")); ioPure(outcome.from(unit(),result.error)) }
+}
+func deleteCollection(c ResourceClient,options v1.DeleteOptions,listOptions v1.ListOptions) IO[outcome.Outcome[Unit]] {
+ do { action <- testing.newDeleteCollectionActionWithOptions(c.resource,c.namespace,options,listOptions); result <- testing.invokes(c.client.fake,action,defaultObject("deletecollection")); ioPure(outcome.from(unit(),result.error)) }
+}
+func patch(c ResourceClient,name String,patchType String,bytes String,options v1.PatchOptions,sub List[String]) IO[outcome.Outcome[Option[u.Unstructured]]] { invoke(c,testing.newPatchSubresourceActionWithOptions(c.resource,c.namespace,name,patchType,bytes,options,sub),defaultObject("patch")) }
+func apply(c ResourceClient,name String,object u.Unstructured,options v1.ApplyOptions,sub List[String]) IO[outcome.Outcome[Option[u.Unstructured]]] {
+ do {
+  encoded <- codec.encodeJSON(u.unstructuredToRuntimeObject(object))
+  match encoded.1 { Some(e) => ioPure(outcome.failure(None,e)); None => do {
+   patchOptions <- v1.applyOptionsCallToPatchOptions(options)
+   patch(c,name,"application/apply-patch+yaml",match encoded.0 { None => ""; Some(bytes) => bytes },patchOptions.1,sub)
+  } }
+ }
+}
+func watch(c ResourceClient,options v1.ListOptions) IO[outcome.Outcome[Option[watch.Watch]]] { do { action <- testing.newWatchActionWithOptions(c.resource,c.namespace,v1.listOptionsWithWatch(options,true)); testing.invokesWatch(c.client.fake,action) } }
+func list(c ResourceClient,options v1.ListOptions) IO[outcome.Outcome[Option[u.UnstructuredList]]] {
+ match m.mapLookup(c.client.listKinds,keys.resourceKey(c.resource)) {
+  None => ioFail("coding error: you must register resource to list kind for every resource you're going to LIST when creating the client.  See NewSimpleDynamicClientWithCustomListKinds or register the list into the scheme")
+  Some(kind) => do {
+   let baseKind = s.substring(kind,0,s.strLength(kind)-4)
+   let gvk = schema.groupVersionKindWithKind(schema.groupVersionKindWithVersion(schema.groupVersionKindWithGroup(schema.newGroupVersionKind(),schema.groupVersionResourceGetGroup(c.resource)),schema.groupVersionResourceGetVersion(c.resource)),baseKind)
+   actionOptions <- if c.namespace == "" { selectors.canonicalListOptions(options) } else { ioPure(options) }
+   action <- testing.newListActionWithOptions(c.resource,gvk,c.namespace,actionOptions)
+   result <- testing.invokes(c.client.fake,action,defaultObject("list"))
+   match result.value {
+    None => ioPure(outcome.from(None,result.error))
+    Some(object) => do {
+     converted <- schemeToUnstructured(c.client.scheme,object)
+     match converted.1 { Some(e) => ioPure(outcome.failure(None,e)); None => match converted.0 {
+      None => ioPure(outcome.success(None))
+      Some(value) => do {
+       entire <- u.unstructuredCallToList(value)
+       match entire.1.1 { Some(e) => ioPure(outcome.failure(None,e)); None => match entire.1.0 {
+        None => ioPure(outcome.success(None))
+        Some(list) => do {
+         let items = match u.unstructuredListGetItems(list) { None => []; Some(items) => items }
+         selected <- cache.filterObjects(items,func(item) => selectors.matchesLabels(v1.listOptionsGetLabelSelector(options),u.unstructuredToRuntimeObject(item)))
+         rv <- u.unstructuredListCallGetResourceVersion(list)
+         continuation <- u.unstructuredListCallGetContinue(list)
+         remaining <- u.unstructuredListCallGetRemainingItemCount(list)
+         withRV <- u.unstructuredListCallSetResourceVersion(u.unstructuredListWithItems(u.newUnstructuredList(),if length(selected)==0 { None } else { Some(selected) }),rv.1)
+         withContinue <- u.unstructuredListCallSetContinue(withRV.0,continuation.1)
+         withRemaining <- u.unstructuredListCallSetRemainingItemCount(withContinue.0,remaining.1)
+         withKind <- u.unstructuredListCallSetKind(withRemaining.0,kind)
+         let group = schema.groupVersionResourceGetGroup(c.resource)
+         let version = schema.groupVersionResourceGetVersion(c.resource)
+         withVersion <- u.unstructuredListCallSetAPIVersion(withKind.0,if group=="" { version } else { group+"/"+version })
+         ioPure(outcome.success(Some(withVersion.0)))
+        }
+       } }
+      }
+     } }
+    }
+   }
+  }
+ }
+}

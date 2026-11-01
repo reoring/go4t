@@ -1,0 +1,190 @@
+// Copyright 2015 The Kubernetes Authors. Licensed under Apache-2.0.
+package transport
+import http "github.com/reoring/gofx/ports/client-go/deps/net/http"
+import net "github.com/reoring/gofx/ports/client-go/deps/net"
+import tls "github.com/reoring/gofx/ports/client-go/deps/crypto/tls"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import features "github.com/reoring/gofx/ports/client-go/features"
+import map "std/map"
+import string "std/string"
+import io "std/io"
+
+type CacheKey = CacheKey {
+ insecure: Bool, caData: String, caFile: String, certData: String, keyData: String,
+ certFile: String, keyFile: String, serverName: String, nextProtos: String,
+ disableCompression: Bool, getCert: Int, dial: Int
+} deriving Eq, Ord
+type WeakEntry = WeakEntry {weak: WeakLifetime, generation: Int, certHolder: Option[GetCertHolder], dialHolder: Option[DialHolder]}
+type StrongEntry = StrongEntry {transport: RoundTripper, certHolder: Option[GetCertHolder], dialHolder: Option[DialHolder]}
+type TransportCache = TransportCache {mutex: sync.Mutex, weak: sync.Ref[Map[CacheKey, WeakEntry]], strong: sync.Ref[Map[CacheKey, StrongEntry]], sequence: sync.Ref[Int]}
+type Diagnostics = Diagnostics {verbosity: func() IO[Int], log: func(String, List[(String, String)]) IO[Unit], event: func(String, String) IO[Unit]}
+type Environment = Environment {cache: TransportCache, clock: sync.Clock, features: features.FeatureRegistry, diagnostics: Diagnostics, certRefreshNanos: Int, caRefreshNanos: Int}
+func newTransportCache() IO[TransportCache] { do {
+ mutex <- sync.newMutex()
+ weak <- sync.newRef(map.emptyMap())
+ strong <- sync.newRef(map.emptyMap())
+ sequence <- sync.newRef(0)
+ ioPure(TransportCache(mutex, weak, strong, sequence))
+} }
+func newEnvironment(registry features.FeatureRegistry) IO[Environment] { do {
+ cache <- newTransportCache()
+ clock <- sync.realClock()
+ ioPure(Environment(cache, clock, registry, defaultDiagnostics(), 300000000000, 300000000000))
+} }
+func tlsConfigKey(c Config) IO[CacheKey] { do {
+ cert <- match c.tls.getCertHolder { None => ioPure(0); Some(holder) => identityNumber(holder.identity) }
+ dial <- match c.dialHolder { None => ioPure(0); Some(holder) => identityNumber(holder.identity) }
+ ioPure(CacheKey(c.tls.insecure,
+  if c.tls.reloadCAFiles { "" } else { bytesValue(c.tls.caData) }, if c.tls.reloadCAFiles { c.tls.caFile } else { "" },
+  if c.tls.reloadTLSFiles { "" } else { bytesValue(c.tls.certData) }, if c.tls.reloadTLSFiles { "" } else { bytesValue(c.tls.keyData) },
+  if c.tls.reloadTLSFiles { c.tls.certFile } else { "" }, if c.tls.reloadTLSFiles { c.tls.keyFile } else { "" },
+  c.tls.serverName, string.join(",", optionList(c.tls.nextProtos)), c.disableCompression, cert, dial))
+} }
+func cacheKeyString(key CacheKey) String {
+ "insecure:" + show(key.insecure) + ", caData:" + string.showQuoted(key.caData) + ", caFile:" + key.caFile + ", certData:" + string.showQuoted(key.certData) + ", keyData:" + (if key.keyData == "" { "<none>" } else { "<redacted>" }) + ", serverName:" + key.serverName + ", disableCompression:" + show(key.disableCompression) + ", getCert:" + show(key.getCert) + ", dial:" + show(key.dial)
+}
+func defaultDialer(network String, address String) IO[outcome.Outcome[Option[net.Conn]]] { do { result <- defaultDial(network, address); ioPure(match result { (value, error) => outcome.from(value, error) }) } }
+type ConstructedTransport = ConstructedTransport {transport: RoundTripper, worker: Option[IO[Unit]]}
+func constructTransport(env Environment, c Config) IO[outcome.Outcome[Option[ConstructedTransport]]] { do {
+ tlsConfig <- tlsConfigForLoaded(env, c)
+ match tlsConfig.error {
+  Some(error) => ioPure(outcome.failure(None, error))
+  None => {
+   let plain = match (tlsConfig.value, c.dialHolder, c.proxy) { (None, None, None) => true; _ => false }
+   if plain { do { rt <- defaultHTTPTransport(); ioPure(outcome.success(Some(ConstructedTransport(fromHTTP(rt), None)))) } } else { do {
+    let dial = match c.dialHolder { None => defaultDialer; Some(holder) => holder.dial }
+    connections <- newConnectionSet()
+    let rotating = c.tls.reloadTLSFiles && (hasCertAuth(c) || hasCertCallback(c)) && (match tlsConfig.value { None => false; Some(_) => true })
+    prepared <- match tlsConfig.value {
+     Some(security) => if rotating { do {
+      callback <- tls.configGetGetClientCertificateIdentity(security)
+      let reload = func() => do { result <- callback(None); ioPure(outcome.from(result.0, result.1)) }
+      mutex <- sync.newMutex()
+      state <- sync.newRef(None)
+      let rotation = CertificateRotation(mutex, state, connections, reload)
+      tls.configSetGetClientCertificateIdentity(security, func(_) => do { result <- loadClientCertificate(rotation); ioPure((result.value, result.error)) })
+      ioPure(outcome.success(Some((Some(security), Some(rotation)))))
+     } } else { ioPure(outcome.success(Some((Some(security), None)))) }
+     None => ioPure(outcome.success(Some((None, None))))
+    }
+    match (prepared.error, prepared.value) {
+     (Some(error), _) => ioPure(outcome.failure(None, error))
+     (None, Some((security, rotation))) => do {
+      let chosenDial = if rotating { connectionDialer(connections, dial) } else { dial }
+      let proxy = match c.proxy { None => None; Some(callback) => Some(func(req) => do { result <- callback(req); ioPure((result.value, result.error)) }) }
+      raw <- constructHTTP(security, func(network, address) => do { result <- chosenDial(network, address); ioPure((result.value, result.error)) }, proxy, c.disableCompression)
+      rt <- if c.tls.reloadCAFiles && c.tls.caFile != "" { newCARotatingTransport(env, c.tls.caFile, bytesValue(c.tls.caData), raw) } else { ioPure(fromHTTP(raw)) }
+      let worker = match rotation { None => None; Some(value) => Some(certificateRotationWorker(env, value)) }
+      ioPure(outcome.success(Some(ConstructedTransport(rt, worker))))
+     }
+     _ => ioPure(outcome.from(None, prepared.error))
+    }
+   } }
+  }
+ }
+} }
+func ignoreTaskCancellation(task sync.Task[Unit]) IO[Unit] { do {
+ result <- io.tryIO(sync.join(task))
+ match result { Ok(_) => ioPure(unit()); Err(io.Cancelled) => ioPure(unit()); Err(error) => io.ioRaise(error) }
+} }
+func stopRotation(task Option[sync.Task[Unit]]) IO[Unit] {
+ match task { None => ioPure(unit()); Some(value) => sync.uninterruptible(do { sync.cancelTask(value); ignoreTaskCancellation(value) }) }
+}
+func observeCacheEntries(env Environment, gc Bool) IO[Unit] { do {
+ count <- if gc { do { entries <- sync.readRef(env.cache.weak); ioPure(map.mapSize(entries)) } } else { do { entries <- sync.readRef(env.cache.strong); ioPure(map.mapSize(entries)) } }
+ env.diagnostics.event("cache_entries", show(count))
+} }
+func cleanupTransport(env Environment, task Option[sync.Task[Unit]], key CacheKey, generation Int, cacheable Bool) IO[Unit] { do {
+ stopRotation(task)
+ match task { None => ioPure(unit()); Some(_) => env.diagnostics.event("certificate_rotation_gc", "") }
+ if cacheable { evictGeneration(env, key, generation) } else { ioPure(unit()) }
+} }
+func evictGeneration(env Environment, key CacheKey, generation Int) IO[Unit] {
+ sync.withLock(env.cache.mutex, do {
+  entries <- sync.readRef(env.cache.weak)
+  match map.mapLookup(entries, key) {
+   Some(entry) => if entry.generation == generation { do { sync.writeRef(env.cache.weak, map.mapDelete(entries, key)); env.diagnostics.event("cache_gc:deleted", "") } } else { env.diagnostics.event("cache_gc:skipped", "") }
+   None => env.diagnostics.event("cache_gc:skipped", "")
+  }
+  observeCacheEntries(env, true)
+ })
+}
+func attachLifetime(base RoundTripper, lifetime Lifetime) RoundTripper {
+ RoundTripper(
+  func(req) => sync.ensuring(base.roundTrip(req), keepLifetime(Some(lifetime))),
+  func(req) => sync.ensuring(base.cancelRequest(req), keepLifetime(Some(lifetime))),
+  func() => sync.ensuring(base.closeIdleConnections(), keepLifetime(Some(lifetime))),
+  Some(lifetime), None, func() => ioPure(Some(base)))
+}
+func storeTransport(env Environment, c Config, key CacheKey, cacheable Bool, gc Bool, constructed ConstructedTransport) IO[RoundTripper] {
+ sync.uninterruptible(do {
+  task <- match constructed.worker { None => ioPure(None); Some(worker) => do { running <- sync.startDetached(worker); ioPure(Some(running)) } }
+  if !gc {
+   do {
+    if cacheable { do { entries <- sync.readRef(env.cache.strong); sync.writeRef(env.cache.strong, map.mapInsert(entries, key, StrongEntry(constructed.transport, c.tls.getCertHolder, c.dialHolder))) } } else { ioPure(unit()) }
+    ioPure(constructed.transport)
+   }
+  } else {
+   if !cacheable && (match task { None => true; Some(_) => false }) { ioPure(constructed.transport) } else { do {
+    seq <- if cacheable { sync.readRef(env.cache.sequence) } else { ioPure(0) }
+    let generation = seq + 1
+    if cacheable { sync.writeRef(env.cache.sequence, generation) } else { ioPure(unit()) }
+    lifetime <- newLifetime(constructed.transport, cleanupTransport(env, task, key, generation, cacheable))
+    if cacheable { do {
+     weak <- weakLifetime(lifetime)
+     entries <- sync.readRef(env.cache.weak)
+     sync.writeRef(env.cache.weak, map.mapInsert(entries, key, WeakEntry(weak, generation, c.tls.getCertHolder, c.dialHolder)))
+    } } else { ioPure(unit()) }
+    ioPure(attachLifetime(constructed.transport, lifetime))
+   } }
+  }
+ })
+}
+func cachedTransport(env Environment, c Config, key CacheKey, cacheable Bool, gc Bool) IO[outcome.Outcome[Option[RoundTripper]]] { do {
+ found <- if !cacheable { ioPure((None, false)) } else {
+  if !gc { do { entries <- sync.readRef(env.cache.strong); ioPure((match map.mapLookup(entries, key) { None => None; Some(entry) => Some(entry.transport) }, false)) } } else { do {
+   entries <- sync.readRef(env.cache.weak)
+   match map.mapLookup(entries, key) {
+    None => ioPure((None, false))
+    Some(entry) => do {
+     lifetime <- derefLifetime(entry.weak)
+     match lifetime { None => ioPure((None, true)); Some(value) => do { base <- lifetimeValue(value); ioPure((Some(attachLifetime(base, value)), false)) } }
+    }
+   }
+  } }
+ }
+ match found.0 {
+  Some(value) => do { env.diagnostics.event("cache:hit", ""); ioPure(outcome.success(Some(value))) }
+  None => do {
+   env.diagnostics.event(if cacheable { if found.1 { "cache:miss-gc" } else { "cache:miss" } } else { "cache:uncacheable" }, "")
+   result <- constructTransport(env, c)
+   match (result.error, result.value) {
+    (None, Some(value)) => if !needsTLS(c) && (match c.dialHolder { None => true; Some(_) => false }) && (match c.proxy { None => true; Some(_) => false }) { ioPure(outcome.success(Some(value.transport))) } else { do { rt <- storeTransport(env, c, key, cacheable, gc, value); ioPure(outcome.success(Some(rt))) } }
+    _ => ioPure(outcome.from(None, result.error))
+   }
+  }
+ }
+} }
+func newTransport(env Environment, config Config) IO[outcome.Outcome[Option[RoundTripper]]] {
+ if (match config.transport { None => false; Some(_) => true }) && (hasCA(config) || hasCertAuth(config) || hasCertCallback(config) || config.tls.insecure) {
+  ioPure(outcome.failure(None, newError("using a custom transport with TLS certificate options or the insecure flag is not allowed")))
+ } else { do {
+  base <- match config.transport {
+   Some(rt) => ioPure(outcome.success(Some(rt)))
+   None => do {
+    loaded <- loadTLSFiles(env, config)
+    match loaded.error {
+     Some(error) => ioPure(outcome.failure(None, error))
+     None => do {
+      key <- tlsConfigKey(loaded.value)
+      gc <- featureEnabled(env, features.clientsAllowTLSCacheGC())
+      let cacheable = match config.proxy { None => true; Some(_) => false }
+      if cacheable { sync.withLock(env.cache.mutex, sync.ensuring(cachedTransport(env, loaded.value, key, true, gc), observeCacheEntries(env, gc))) } else { cachedTransport(env, loaded.value, key, false, gc) }
+     }
+    }
+   }
+  }
+  match (base.error, base.value) { (None, Some(rt)) => httpWrappersForConfig(env, config, rt); _ => ioPure(base) }
+ } }
+}

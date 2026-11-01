@@ -1,0 +1,58 @@
+package rest
+
+import sync "support/sync"
+import m "std/map"
+
+// Copyright 2019 The Kubernetes Authors. Licensed under Apache-2.0.
+type Warning = Warning { code: Int, agent: String, text: String }
+type WarningHandler = WarningHandler { handleWarningHeader: func(Int,String,String) IO[Unit] }
+alias WarningHandlerWithContext = WarningHandler
+type WarningWriterOptions = WarningWriterOptions { deduplicate: Bool, color: Bool }
+type WarningWriter = WarningWriter {
+ lock: sync.Mutex, written: sync.Ref[Map[String,Unit]], count: sync.Ref[Int],
+ output: func(String) IO[Unit], options: WarningWriterOptions
+}
+func noWarnings() WarningHandler { WarningHandler(func(_,_,_) => { ioPure(unit()) }) }
+func warningLogger(log func(String) IO[Unit]) WarningHandler {
+ WarningHandler(func(code,_,text) => { if code == 299 && text != "" { log("Warning: " + text) } else { ioPure(unit()) } })
+}
+func newWarningWriter(output func(String) IO[Unit], options WarningWriterOptions) IO[WarningWriter] {
+ do {
+  lock <- sync.newMutex()
+  written <- sync.newRef(m.emptyMap())
+  count <- sync.newRef(0)
+  ioPure(WarningWriter(lock,written,count,output,options))
+ }
+}
+func warningWriterHandler(writer WarningWriter) WarningHandler {
+ WarningHandler(func(code,_,text) => {
+  if code != 299 || text == "" { ioPure(unit()) } else {
+   sync.withLock(writer.lock,do {
+    written <- sync.readRef(writer.written)
+    if writer.options.deduplicate && m.mapMember(written,text) { ioPure(unit()) } else { do {
+     if writer.options.deduplicate { sync.writeRef(writer.written,m.mapInsert(written,text,unit())) } else { ioPure(unit()) }
+     count <- sync.readRef(writer.count)
+     sync.writeRef(writer.count,count+1)
+     writer.output(if writer.options.color { "\u001b[33;1mWarning:\u001b[0m " + text + "\n" } else { "Warning: " + text + "\n" })
+    } }
+   })
+  }
+ })
+}
+func warningCount(writer WarningWriter) IO[Int] { sync.withLock(writer.lock,sync.readRef(writer.count)) }
+func handleWarnings(handler WarningHandler, warnings List[Warning]) IO[Unit] {
+ match warnings { Nil => ioPure(unit()); Cons(w,rest) => do { handler.handleWarningHeader(w.code,w.agent,w.text); handleWarnings(handler,rest) } }
+}
+type WarningRegistry = WarningRegistry { handler: sync.Ref[WarningHandler] }
+func newWarningRegistry(log func(String) IO[Unit]) IO[WarningRegistry] {
+ do { handler <- sync.newRef(warningLogger(log)); ioPure(WarningRegistry(handler)) }
+}
+func setDefaultWarningHandler(registry WarningRegistry,handler Option[WarningHandler]) IO[Unit] {
+ sync.writeRef(registry.handler,match handler { None => noWarnings(); Some(handler) => handler })
+}
+func defaultWarningHandler(registry WarningRegistry) WarningHandler {
+ WarningHandler(func(code,agent,text) => do {
+  handler <- sync.readRef(registry.handler)
+  handler.handleWarningHeader(code,agent,text)
+ })
+}

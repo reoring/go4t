@@ -1,0 +1,74 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package restmapper
+import "discovery"
+import "support/sync"
+import "support/outcome"
+import "std/list"
+import "std/prelude"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import errors "deps/support"
+import "std/string"
+type DeferredDiscoveryRESTMapper = DeferredDiscoveryRESTMapper { client: discovery.CachedDiscoveryInterface, mutex: sync.Mutex, delegate: sync.Ref[Option[RESTMapper]], discovered: sync.Ref[List[APIGroupResources]] }
+func getDelegate(d DeferredDiscoveryRESTMapper) IO[outcome.Outcome[Option[RESTMapper]]] {
+ sync.withLock(d.mutex,do {
+  existing <- sync.readRef(d.delegate)
+  match existing {
+   Some(mapper) => ioPure(outcome.success(Some(mapper)))
+   None => do {
+    groups <- getAPIGroupResources(d.client.discovery)
+    match groups.error { Some(e) => ioPure(outcome.failure(None,e)); None => do {
+     let mapper = newDiscoveryRESTMapper(groups.value)
+     sync.writeRef(d.delegate,Some(mapper))
+     sync.writeRef(d.discovered,groups.value)
+     ioPure(outcome.success(Some(mapper)))
+    } }
+   }
+  }
+ })
+}
+func reset(d DeferredDiscoveryRESTMapper) IO[Unit] { sync.withLock(d.mutex,do { d.client.invalidate(); sync.writeRef(d.delegate,None) }) }
+func deferredCall[A](d DeferredDiscoveryRESTMapper,empty A,action func(RESTMapper) IO[outcome.Outcome[A]],retry func(outcome.Outcome[A]) Bool) IO[outcome.Outcome[A]] {
+ do {
+  delegate <- getDelegate(d)
+  match delegate.value {
+   None => ioPure(outcome.Outcome(empty,delegate.error))
+   Some(mapper) => do {
+    result <- action(mapper)
+    if retry(result) { do {
+     fresh <- d.client.fresh()
+     if fresh { ioPure(result) } else { do { reset(d); deferredCall(d,empty,action,retry) } }
+    } } else { ioPure(result) }
+   }
+  }
+ }
+}
+func asRESTMapper(d DeferredDiscoveryRESTMapper) RESTMapper {
+ RESTMapper(
+  func(r) => deferredCall(d,gvk("","",""),func(m) => m.kindFor(r),func(r) => match r.error { None => false; Some(e) => true }),
+  func(r) => deferredCall(d,[],func(m) => m.kindsFor(r),func(r) => list.length(r.value)==0),
+  func(r) => deferredCall(d,gvr("","",""),func(m) => m.resourceFor(r),func(r) => match r.error { None => false; Some(e) => true }),
+  func(r) => deferredCall(d,[],func(m) => m.resourcesFor(r),func(r) => list.length(r.value)==0),
+  func(gk,vs) => deferredCall(d,None,func(m) => m.restMapping(gk,vs),func(r) => match r.error { None => false; Some(e) => true }),
+  func(gk,vs) => deferredCall(d,[],func(m) => m.restMappings(gk,vs),func(r) => list.length(r.value)==0),
+  func(r) => deferredCall(d,r,func(m) => m.resourceSingularizer(r),func(r) => match r.error { None => false; Some(e) => true }),
+  func() => reset(d))
+}
+func newDeferredDiscoveryRESTMapper(client discovery.CachedDiscoveryInterface) IO[RESTMapper] {
+ do { state <- newDeferredDiscoveryRESTMapperState(client); ioPure(asRESTMapper(state)) }
+}
+func newDeferredDiscoveryRESTMapperState(client discovery.CachedDiscoveryInterface) IO[DeferredDiscoveryRESTMapper] {
+ do { mutex <- sync.newMutex(); state <- sync.newRef(None); groups <- sync.newRef([]); ioPure(DeferredDiscoveryRESTMapper(client,mutex,state,groups)) }
+}
+func deferredString(d DeferredDiscoveryRESTMapper) IO[String] {
+ do {
+  ready <- getDelegate(d)
+  match ready.error {
+   Some(e) => ioPure("DeferredDiscoveryRESTMapper{"+errors.errorMessage(e)+"}")
+   None => do {
+    groups <- sync.readRef(d.discovered)
+    let mappings = entries(groups)
+    ioPure("DeferredDiscoveryRESTMapper{\n\t"+string.join("\n\t",prelude.map(mappings,func(e) => schema.groupVersionKindGetGroup(e.mapping.groupVersionKind)+"/"+schema.groupVersionKindGetVersion(e.mapping.groupVersionKind)+", Kind="+schema.groupVersionKindGetKind(e.mapping.groupVersionKind)+" => "+schema.groupVersionResourceGetResource(e.mapping.resource)+" ("+e.mapping.scope+")"))+"\n}")
+   }
+  }
+ }
+}

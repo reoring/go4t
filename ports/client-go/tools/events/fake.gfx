@@ -1,0 +1,19 @@
+// Copyright 2019 The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package events
+import internal "github.com/reoring/gofx/ports/client-go/tools/internal/events"
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+import "github.com/reoring/gofx/ports/client-go/deps/support"
+import runtime "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime"
+import meta "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+type FakeRecorder = FakeRecorder { events: Option[sync.Channel[String]], verbose: Bool }
+func newFakeRecorder(bufferSize Int) IO[FakeRecorder] { do { events <- sync.newChannel(bufferSize); ioPure(FakeRecorder(Some(events),false)) } }
+func _fakeWrite(f FakeRecorder, regarding Option[runtime.Object], related Option[runtime.Object], annotations support.ForeignMap[String,String], eventType String, reason String, action String, note String) IO[Unit] {
+ match f.events { None => ioPure(unit()); Some(events) => do {
+  suffix <- if f.verbose { do { a <- internal.objectString(regarding,false); b <- internal.objectString(related,false); ioPure(a+b+internal.annotationsString(annotations)) } } else { ioPure("") }
+  sync.send(events,eventType+" "+reason+" "+(if f.verbose { action+" " } else { "" })+note+suffix)
+ } }
+}
+func fakeRecorder(f FakeRecorder) EventRecorder {
+ let annotations = meta.objectMetaGetAnnotations(meta.newObjectMeta())
+ internal.EventRecorder(func(regarding,related,eventType,reason,action,note) => _fakeWrite(f,regarding,related,annotations,eventType,reason,action,note),func(regarding,related,annotations,eventType,reason,action,note) => _fakeWrite(f,regarding,related,annotations,eventType,reason,action,note),func(logger) => fakeRecorder(f))
+}

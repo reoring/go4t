@@ -1,0 +1,45 @@
+package main
+
+import runtime "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime"
+import "std/io"
+
+func require(ok Bool, message String) IO[Unit] {
+ if ok { ioPure(unit()) } else { ioFail(message) }
+}
+func expect[A](value Option[A], message String) IO[A] {
+ match value {Some(item) => ioPure(item); None => ioFail(message)}
+}
+func first[A](values List[A]) IO[A] {
+ match values {Cons(item, _) => ioPure(item); Nil => ioFail("empty serializer result")}
+}
+
+func main() IO[Unit] {
+ do {
+  info <- runtime.newSerializerInfo()
+  runtime.serializerInfoSetMediaTypeIdentity(info, "application/json")
+  runtime.serializerInfoSetMediaTypeTypeIdentity(info, "application")
+  runtime.serializerInfoSetMediaTypeSubTypeIdentity(info, "json")
+  stream <- runtime.newStreamSerializerInfo()
+  runtime.streamSerializerInfoSetEncodesAsTextIdentity(stream, true)
+  runtime.serializerInfoSetStreamSerializerIdentity(info, Some(stream))
+  negotiated <- runtime.newNegotiatedSerializer(
+   func(decoder, version) => ioPure(decoder),
+   func(encoder, version) => ioPure(encoder),
+   func() => ioPure(Some([info]))
+  )
+  result <- runtime.negotiatedSerializerCallSupportedMediaTypesIdentity(negotiated)
+  values <- expect(result, "nil serializer list")
+  copied <- first(values)
+  mediaType <- runtime.serializerInfoGetMediaTypeIdentity(copied)
+  require(mediaType == "application/json", "callback lost by-value serializer info")
+  runtime.serializerInfoSetMediaTypeIdentity(copied, "application/cbor")
+  originalMediaType <- runtime.serializerInfoGetMediaTypeIdentity(info)
+  require(originalMediaType == "application/json", "callback mutated source instead of copying Go value")
+  copiedStreamOption <- runtime.serializerInfoGetStreamSerializerIdentity(copied)
+  copiedStream <- expect(copiedStreamOption, "nested stream pointer missing")
+  runtime.streamSerializerInfoSetEncodesAsTextIdentity(copiedStream, false)
+  originalStreamFlag <- runtime.streamSerializerInfoGetEncodesAsTextIdentity(stream)
+  require(!originalStreamFlag, "by-value conversion deep-copied nested identity")
+  println("serializer-value-proof: exact struct by-value callback; source isolation; nested identity PASS")
+ }
+}

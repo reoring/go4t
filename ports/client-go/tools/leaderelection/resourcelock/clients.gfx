@@ -1,0 +1,27 @@
+// Copyright 2016-2026 The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package resourcelock
+import typed "kubernetes/typed/coordination/v1"
+import meta "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import "support/outcome"
+import "rest"
+
+func leaseClient(client typed.LeaseInterface) LeaseClient {
+ LeaseClient(
+  func(name) => do { result <- client.get(name,meta.newGetOptions()); ioPure(outcome.mapValue(result,func(value) => Some(value))) },
+  func(value) => do { result <- client.create(value,meta.newCreateOptions()); ioPure(outcome.mapValue(result,func(value) => Some(value))) },
+  func(value) => do { result <- client.update(value,meta.newUpdateOptions()); ioPure(outcome.mapValue(result,func(value) => Some(value))) }
+ )
+}
+func newFromKubeconfig(environment rest.Environment,kind String,namespace String,name String,config ResourceLockConfig,kubeconfig rest.Config,renewDeadline Int) IO[outcome.Outcome[Option[Interface]]] {
+ do {
+  let requestConfig = rest.addUserAgent(kubeconfig { timeout:max(1000000000,renewDeadline / 2) },"leader-election")
+  client <- typed.newForConfig(environment,requestConfig)
+  match client.error {
+   Some(error) => ioPure(outcome.failure(None,error))
+   None => match client.value {
+    None => ioFail("coordination client constructor returned no client")
+    Some(value) => new(kind,namespace,name,leaseClient(value.leases(namespace)),config)
+   }
+  }
+ }
+}

@@ -1,0 +1,39 @@
+package rest
+
+import url "deps/net/url"
+import errors "deps/support"
+import sync "support/sync"
+import http "deps/net/http"
+
+// Copyright 2014 The Kubernetes Authors. Licensed under Apache-2.0.
+alias HTTPClient = http.Client
+alias RequestConstructionError = errors.Error
+extern func classifiedError(classification String,message String,cause Option[errors.Error]) errors.Error = "github.com/reoring/gofx/ports/client-go/rest/host".ClassifiedError
+extern func errorHasClassification(error errors.Error,classification String) Bool = "github.com/reoring/gofx/ports/client-go/rest/host".ErrorHasClassification
+extern func classifiedErrorCause(error errors.Error,classification String) Option[errors.Error] = "github.com/reoring/gofx/ports/client-go/rest/host".ClassifiedErrorCause
+func requestConstructionError(cause Option[errors.Error]) RequestConstructionError {
+ let message = match cause { None => "<nil>"; Some(error) => errors.errorMessage(error) }
+ classifiedError("client-go/rest.RequestConstructionError","request construction error: '"+message+"'",cause)
+}
+func isRequestConstructionError(error errors.Error) Bool { errorHasClassification(error,"client-go/rest.RequestConstructionError") }
+func requestConstructionErrorCause(error RequestConstructionError) Option[errors.Error] { classifiedErrorCause(error,"client-go/rest.RequestConstructionError") }
+func requestConstructionErrorMessage(error RequestConstructionError) String { errors.errorMessage(error) }
+func newRequestWithClient(base url.URL,path String,content ClientContentConfig,client HTTPClient,clock sync.Clock) IO[Request] {
+ do { client <- newRESTClient(base,path,content,client,None,noWarnings(),clock,content.contentType==""); newRequest(client) }
+}
+func interfaceGet(client Interface) IO[Request] { client.verb("GET") }
+func interfacePost(client Interface) IO[Request] { client.verb("POST") }
+func interfacePut(client Interface) IO[Request] { client.verb("PUT") }
+func interfaceDelete(client Interface) IO[Request] { client.verb("DELETE") }
+func deepCopyTLSClientConfig(config TLSClientConfig) TLSClientConfig { config }
+func deepCopyIntoTLSClientConfig(config TLSClientConfig,destination TLSClientConfig) TLSClientConfig { config }
+func readExpBackoffConfig(clock sync.Clock) IO[Backoff] {
+ do {
+  base <- getenv("KUBE_CLIENT_BACKOFF_BASE")
+  duration <- getenv("KUBE_CLIENT_BACKOFF_DURATION")
+  match (parseInteger(base),parseInteger(duration)) {
+   (Some(base),Some(duration)) => do { value <- newURLBackoff(clock,base*1000000000,duration*1000000000); ioPure(urlBackoff(value)) }
+   _ => ioPure(noBackoff(clock))
+  }
+ }
+}

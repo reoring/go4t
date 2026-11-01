@@ -1,0 +1,56 @@
+package main
+
+import http "github.com/reoring/gofx/ports/client-go/deps/net/http"
+import url "github.com/reoring/gofx/ports/client-go/deps/net/url"
+import "std/io"
+
+func require(ok Bool, message String) IO[Unit] {
+ if ok { ioPure(unit()) } else { ioFail(message) }
+}
+func expect[A](value Option[A], message String) IO[A] {
+ match value { Some(item) => ioPure(item); None => ioFail(message) }
+}
+
+func main() IO[Unit] {
+ do {
+  request <- http.newRequest()
+  let requestAlias = request
+  initial <- http.requestGetURLIdentity(request)
+  require(match initial {None => true; Some(_) => false}, "new request URL must be nil")
+  first <- url.newURL()
+  url.urlSetHostIdentity(first, "first.example")
+  http.requestSetURLIdentity(request, Some(first))
+  observed <- http.requestGetURLIdentity(requestAlias)
+  firstView <- expect(observed, "nil-to-Some URL assignment lost")
+  url.urlSetPathIdentity(firstView, "/shared")
+  firstPath <- url.urlGetPathIdentity(first)
+  require(firstPath == "/shared", "URL pointer assignment copied its identity")
+  replacement <- url.newURL()
+  url.urlSetHostIdentity(replacement, "replacement.example")
+  http.requestSetURLIdentity(requestAlias, Some(replacement))
+  replaced <- http.requestGetURLIdentity(request)
+  replacementView <- expect(replaced, "replacement URL lost")
+  replacementHost <- url.urlGetHostIdentity(replacementView)
+  firstHost <- url.urlGetHostIdentity(first)
+  require(replacementHost == "replacement.example" && firstHost == "first.example", "URL replacement mutated old pointee")
+  http.requestSetURLIdentity(request, None)
+  cleared <- http.requestGetURLIdentity(requestAlias)
+  require(match cleared {None => true; Some(_) => false}, "URL clear did not assign nil")
+  parsedResult <- url.callParse("https://parsed.example/original")
+  parsed <- expect(parsedResult.0, "URL parse returned nil")
+  require(match parsedResult.1 {None => true; Some(_) => false}, "URL parse failed")
+  url.urlSetHostIdentity(parsed, "parsed-mutated.example")
+  parsedHost <- url.urlGetHostIdentity(parsed)
+  require(parsedHost == "parsed-mutated.example", "parsed addressable URL view rejected mutation")
+  requestResult <- http.callNewRequest("GET", "https://original.example/", None)
+  parsedRequest <- expect(requestResult.0, "request constructor returned nil")
+  require(match requestResult.1 {None => true; Some(_) => false}, "request constructor failed")
+  http.requestSetURLIdentity(parsedRequest, Some(parsed))
+  linked <- http.requestGetURLIdentity(parsedRequest)
+  linkedURL <- expect(linked, "parsed request addressable view rejected URL assignment")
+  url.urlSetPathIdentity(linkedURL, "/after-ingress")
+  parsedPath <- url.urlGetPathIdentity(parsed)
+  require(parsedPath == "/after-ingress", "parsed URL identity was copied or mutation discarded")
+  println("identity-field-proof: nullable URL set/replace/clear; shared aliases; parsed pointer ingress PASS")
+ }
+}

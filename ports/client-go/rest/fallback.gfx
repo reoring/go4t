@@ -1,0 +1,13 @@
+package rest
+
+import features "features"
+import sync "support/sync"
+
+// Copyright 2024 The Kubernetes Authors. Licensed under Apache-2.0.
+func unsupportedMediaType(client RESTClient,requestContentType String) IO[Unit] {
+ do {
+  allow <- match client.featureRegistry { None => ioPure(false); Some(registry) => do { gates <- features.featureGates(registry); gates.enabled(features.clientsAllowCBOR()) } }
+  let media = parseMediaType(requestContentType).0
+  if allow && (media=="application/cbor" || media=="application/apply-patch+cbor") { sync.writeRef(client.unsupportedCBOR,true) } else { ioPure(unit()) }
+ }
+}

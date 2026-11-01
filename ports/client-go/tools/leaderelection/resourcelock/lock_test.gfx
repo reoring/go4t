@@ -1,0 +1,98 @@
+// Copyright 2026 The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package resourcelock
+import coord "deps/k8s.io/api/coordination/v1"
+import meta "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import time "deps/time"
+import errors "deps/support"
+import "support/sync"
+import "support/outcome"
+
+type TestLeaseStore = TestLeaseStore { client:LeaseClient, current:sync.Ref[Option[coord.Lease]], requests:sync.Ref[List[String]] }
+func _testLeaseStore() IO[TestLeaseStore] {
+ do {
+  current <- sync.newRef(None); requests <- sync.newRef(Nil)
+  let record = func(verb) => do { old <- sync.readRef(requests); sync.writeRef(requests,append(old,[verb])) }
+  let get = func(_name) => do { record("get"); value <- sync.readRef(current); ioPure(match value { Some(_) => outcome.success(value); None => outcome.failure(None,errors.errorNotFound("coordination.k8s.io","leases","lease")) }) }
+  let create = func(value) => do { record("create"); old <- sync.readRef(current); match old {
+   Some(_) => ioPure(outcome.failure(None,errors.errorConflict("coordination.k8s.io","leases","lease",None)))
+   None => do { let updated = coord.leaseWithObjectMeta(value,meta.objectMetaWithResourceVersion(coord.leaseGetObjectMeta(value),"1")); sync.writeRef(current,Some(updated)); ioPure(outcome.success(Some(updated))) }
+  } }
+  let update = func(value) => do { record("update"); old <- sync.readRef(current); match old {
+   None => ioPure(outcome.failure(None,errors.errorNotFound("coordination.k8s.io","leases","lease")))
+   Some(previous) => if meta.objectMetaGetResourceVersion(coord.leaseGetObjectMeta(previous)) != meta.objectMetaGetResourceVersion(coord.leaseGetObjectMeta(value)) { ioPure(outcome.failure(None,errors.errorConflict("coordination.k8s.io","leases","lease",None))) }
+   else { do { let version = meta.objectMetaGetResourceVersion(coord.leaseGetObjectMeta(previous)) + "x"; let updated = coord.leaseWithObjectMeta(value,meta.objectMetaWithResourceVersion(coord.leaseGetObjectMeta(value),version)); sync.writeRef(current,Some(updated)); ioPure(outcome.success(Some(updated))) } }
+  } }
+  ioPure(TestLeaseStore(LeaseClient(get,create,update),current,requests))
+ }
+}
+func _metadata() meta.ObjectMeta { meta.objectMetaWithNamespace(meta.objectMetaWithName(meta.newObjectMeta(),"lease"),"default") }
+func testLeasePreservesResourceVersionLabelsAndConflict() IO[Bool] {
+ do {
+  store <- _testLeaseStore(); let labels = errors.mapWith(meta.objectMetaGetLabels(meta.newObjectMeta()),"owner","me")
+  lock <- newLeaseLock(_metadata(),store.client,ResourceLockConfig("me",None),labels)
+  uninitialized <- update(lock,emptyRecord()); created <- create(lock,emptyRecord() { holderIdentity:"me" })
+  first <- sync.readRef(store.current)
+  match first {
+   None => ioPure(false)
+   Some(value) => do {
+    let metadata = coord.leaseGetObjectMeta(value)
+    let changed = coord.leaseWithObjectMeta(value,meta.objectMetaWithLabels(metadata,errors.mapWith(errors.mapWith(meta.objectMetaGetLabels(metadata),"extra","kept"),"owner","other")))
+    sync.writeRef(store.current,Some(changed))
+    refreshed <- get(lock); changedError <- update(lock,emptyRecord() { holderIdentity:"me" })
+    updated <- sync.readRef(store.current)
+    match updated {
+     None => ioPure(false)
+     Some(latest) => do {
+      let rv = meta.objectMetaGetResourceVersion(coord.leaseGetObjectMeta(latest))
+      let other = coord.leaseWithObjectMeta(latest,meta.objectMetaWithResourceVersion(coord.leaseGetObjectMeta(latest),"external")); sync.writeRef(store.current,Some(other))
+      conflict <- update(lock,emptyRecord()); _ <- get(lock); retried <- update(lock,emptyRecord())
+      let finalLabels = meta.objectMetaGetLabels(coord.leaseGetObjectMeta(latest))
+      ioPure((match uninitialized { Some(e) => errors.errorMessage(e) == "lease not initialized, call get or create first"; None => false }) && _clear(created) && _clear(refreshed.error) && _clear(changedError) && _clear(retried) && rv == "1x" && errors.mapLookup(finalLabels,"extra") == Some("kept") && errors.mapLookup(finalLabels,"owner") == Some("me") && (match conflict { Some(e) => errors.errorIsConflict(e); None => false }))
+     }
+    }
+   }
+  }
+ }
+}
+func _clear(error Option[errors.Error]) Bool { match error { None => true; Some(_) => false } }
+func testLeaseConversionAndRecordEncoding() IO[Bool] {
+ do {
+  let timestamp = meta.timeWithTime(meta.newTime(),time.unix(1700000000,123456000))
+  let record = LeaderElectionRecord("me",17,timestamp,timestamp,9007199254740993,coord.coordinatedLeaseStrategyFromValue("OldestEmulationVersion"),"next")
+  let spec = leaderElectionRecordToLeaseSpec(record); let decoded = leaseSpecToLeaderElectionRecord(spec)
+  encoded <- encodeRecord(record)
+  sameTime <- time.timeCallEqual(meta.timeGetTime(timestamp),meta.timeGetTime(decoded.acquireTime))
+  let expected = "{\"holderIdentity\":\"me\",\"leaseDurationSeconds\":17,\"acquireTime\":\"2023-11-14T22:13:20Z\",\"renewTime\":\"2023-11-14T22:13:20Z\",\"leaderTransitions\":9007199254740993,\"strategy\":\"OldestEmulationVersion\",\"preferredHolder\":\"next\"}"
+  ioPure(encoded.value == expected && _clear(encoded.error) && sameTime.1 && decoded.holderIdentity == "me" && decoded.preferredHolder == "next" && decoded.leaderTransitions == 1 && coord.leaseSpecGetLeaseDurationSeconds(spec) == Some(17) && (match coord.leaseSpecGetPreferredHolder(leaderElectionRecordToLeaseSpec(emptyRecord())) { None => true; Some(_) => false }))
+ }
+}
+func testRemovedLockKindsAndUnknownKind() IO[Bool] {
+ do { store <- _testLeaseStore(); a <- new("endpoints","default","lease",store.client,ResourceLockConfig("me",None)); b <- new("configmapsleases","default","lease",store.client,ResourceLockConfig("me",None)); c <- new("nope","default","lease",store.client,ResourceLockConfig("me",None))
+  ioPure(_message(a.error) == "endpoints lock is removed, migrate to leases" && _message(b.error) == "configmapsleases lock is removed, migrated to leases" && _message(c.error) == "Invalid lock-type nope")
+ }
+}
+func _message(error Option[errors.Error]) String { match error { None => ""; Some(e) => errors.errorMessage(e) } }
+func testMultiLockUnknownLeaderAndConcatenatedRaw() IO[Bool] {
+ do {
+  primary <- _testLeaseStore(); secondary <- _testLeaseStore()
+  a <- newLeaseLock(_metadata(),primary.client,ResourceLockConfig("me",None),meta.objectMetaGetLabels(meta.newObjectMeta()))
+  b <- newLeaseLock(_metadata(),secondary.client,ResourceLockConfig("me",None),meta.objectMetaGetLabels(meta.newObjectMeta()))
+  _ <- create(a,emptyRecord() { holderIdentity:"first" }); _ <- create(b,emptyRecord() { holderIdentity:"second" })
+  result <- multiLock(asInterface(a),asInterface(b)).get()
+  ioPure(match result.value { None => false; Some(pair) => pair.0.holderIdentity == unknownLeader() && _clear(result.error) })
+ }
+}
+func testLeaseEventHasCanonicalSubjectAndMessage() IO[Bool] {
+ do {
+  store <- _testLeaseStore(); recorded <- sync.newRef(false)
+  let recorder = EventRecorder(func(object,eventType,reason,message) => do {
+   let valid = match coord.leaseFromRuntimeObject(object) {
+    None => false
+    Some(lease) => meta.objectMetaGetName(coord.leaseGetObjectMeta(lease)) == "lease" && meta.typeMetaGetKind(coord.leaseGetTypeMeta(lease)) == "Lease" && meta.typeMetaGetAPIVersion(coord.leaseGetTypeMeta(lease)) == "coordination.k8s.io/v1"
+   }
+   sync.writeRef(recorded,valid && eventType == "Normal" && reason == "LeaderElection" && message == "me became leader")
+  })
+  lock <- newLeaseLock(_metadata(),store.client,ResourceLockConfig("me",Some(recorder)),meta.objectMetaGetLabels(meta.newObjectMeta()))
+  _ <- create(lock,emptyRecord()); recordEvent(lock,"became leader"); sync.readRef(recorded)
+ }
+}

@@ -1,0 +1,49 @@
+// Copyright 2014 The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+// Source: tools/reference/ref.go, client-go v0.37.2.
+package reference
+import core "github.com/reoring/gofx/ports/client-go/deps/k8s.io/api/core/v1"
+import meta "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import runtime "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime"
+import schema "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime/schema"
+import "github.com/reoring/gofx/ports/client-go/deps/objects"
+import "github.com/reoring/gofx/ports/client-go/deps/support"
+import "github.com/reoring/gofx/ports/client-go/support/outcome"
+import effects "github.com/reoring/gofx/ports/client-go/tools/internal/events"
+extern func _typeName(object runtime.Object) IO[String] = "github.com/reoring/gofx/ports/client-go/host/events".TypeName
+extern func _kindsString(kinds Option[List[schema.GroupVersionKind]]) String = "github.com/reoring/gofx/ports/client-go/host/events".KindsString
+func errNilObject() support.Error { support.errorTagged("k8s.io/client-go/tools/reference","ErrNilObject","can't reference a nil object") }
+func _empty(gvk schema.GroupVersionKind) Bool { schema.groupVersionKindGetGroup(gvk)=="" && schema.groupVersionKindGetVersion(gvk)=="" && schema.groupVersionKindGetKind(gvk)=="" }
+func _kind(scheme Option[runtime.Scheme], object runtime.Object) IO[outcome.Outcome[Option[schema.GroupVersionKind]]] { do {
+ gvk <- objects.objectGroupVersionKind(object)
+ if !_empty(gvk) { ioPure(outcome.Outcome(Some(gvk),None)) } else {
+  match scheme { None => ioPure(outcome.Outcome(None,Some(support.errorNew("scheme is required to look up gvk")))); Some(scheme) => do {
+   kinds <- runtime.schemeCallObjectKindsIdentity(scheme,Some(object))
+   match kinds.1.1.1 { Some(error) => ioPure(outcome.Outcome(None,Some(error))); None => {
+    let first = match kinds.1.0 { Some(Cons(k,_)) => if _empty(k) { None } else { Some(k) }; _ => None }
+    match first { Some(k) => ioPure(outcome.Outcome(Some(k),None)); None => do { description <- _typeName(object); ioPure(outcome.Outcome(None,Some(support.errorNew("unexpected gvks registered for object " + description + ": " + _kindsString(kinds.1.0))))) } }
+   } }
+  } }
+ }
+} }
+func getReference(scheme Option[runtime.Scheme], object Option[runtime.Object]) IO[outcome.Outcome[Option[core.ObjectReference]]] {
+ match object { None => ioPure(outcome.Outcome(None,Some(errNilObject()))); Some(object) => {
+  match core.objectReferenceFromRuntimeObject(object) { Some(reference) => ioPure(outcome.Outcome(Some(reference),None)); None => do {
+   metadata <- objects.objectMetadata(object)
+   common <- match metadata.0 { Some(m) => ioPure((meta.objectMetaGetResourceVersion(m),None)); None => effects.commonVersion(object) }
+   match common.1 { Some(error) => ioPure(outcome.Outcome(None,Some(error))); None => do {
+    kind <- _kind(scheme,object)
+    match kind.value { None => ioPure(outcome.Outcome(None,kind.error)); Some(gvk) => {
+     let group = schema.groupVersionKindGetGroup(gvk)
+     let version = if group == "" { schema.groupVersionKindGetVersion(gvk) } else { group + "/" + schema.groupVersionKindGetVersion(gvk) }
+     let base = core.objectReferenceWithResourceVersion(core.objectReferenceWithAPIVersion(core.objectReferenceWithKind(core.newObjectReference(),schema.groupVersionKindGetKind(gvk)),version),common.0)
+     let reference = match metadata.0 { None => base; Some(m) => core.objectReferenceWithUID(core.objectReferenceWithNamespace(core.objectReferenceWithName(base,meta.objectMetaGetName(m)),meta.objectMetaGetNamespace(m)),meta.objectMetaGetUID(m)) }
+     ioPure(outcome.Outcome(Some(reference),None))
+    } }
+   } }
+  } }
+ } }
+}
+func getPartialReference(scheme Option[runtime.Scheme], object Option[runtime.Object], fieldPath String) IO[outcome.Outcome[Option[core.ObjectReference]]] { do {
+ result <- getReference(scheme,object)
+ ioPure(outcome.Outcome(match result.value { None => None; Some(ref) => Some(core.objectReferenceWithFieldPath(ref,fieldPath)) },result.error))
+} }

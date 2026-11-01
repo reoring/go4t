@@ -1,0 +1,38 @@
+package testing
+
+// Copyright 2021 The Kubernetes Authors. Licensed under Apache-2.0.
+// External kube-openapi performs schema conversion and content negotiation.
+// Request accounting and fixture ownership remain native.
+import sync "support/sync"
+import m "std/map"
+import spec "deps/k8s.io/kube-openapi/pkg/spec3"
+
+type OpenAPIService = OpenAPIServiceHandle
+type FakeOpenAPIServer = FakeOpenAPIServer { httpServer: Server, servedDocuments: Map[String,spec.OpenAPI], requestCounters: sync.Ref[Map[String,Int]], lock: sync.Mutex }
+extern func readDocuments(path String) IO[List[(String,String)]] = "github.com/reoring/gofx/ports/client-go/util/testing/host".ReadDocuments
+extern func newOpenAPI() IO[OpenAPIService] = "github.com/reoring/gofx/ports/client-go/util/testing/host".NewOpenAPI
+extern func updateOpenAPI(service OpenAPIService,key String,document String) IO[spec.OpenAPI] = "github.com/reoring/gofx/ports/client-go/util/testing/host".UpdateOpenAPI
+extern func serveOpenAPI(service OpenAPIService,method String,path String,query String,headers List[(String,List[String])],body String) IO[(Int,(List[(String,List[String])],String))] = "github.com/reoring/gofx/ports/client-go/util/testing/host".ServeOpenAPI
+func installDocuments(service OpenAPIService,documents List[(String,String)]) IO[List[(String,spec.OpenAPI)]] {
+ match documents { [] => ioPure([]); [(key,document),..rest] => do { value <- updateOpenAPI(service,key,document); values <- installDocuments(service,rest); ioPure(Cons((key,value),values)) } }
+}
+func newFakeOpenAPIV3Server(path String) IO[FakeOpenAPIServer] {
+ do {
+  documents <- readDocuments(path)
+  service <- newOpenAPI()
+  installed <- installDocuments(service,documents)
+  counters <- sync.newRef(m.emptyMap())
+  lock <- sync.newMutex()
+  server <- newServer(func(request) => do {
+   sync.withLock(lock,do {
+    counts <- sync.readRef(counters)
+    let previous = match m.mapLookup(counts,request.path) { None => 0; Some(n) => n }
+    sync.writeRef(counters,m.mapInsert(counts,request.path,previous+1))
+   })
+   response <- serveOpenAPI(service,request.method,request.path,request.rawQuery,request.headers,request.body)
+   ioPure(Response(response.0,response.1.0,response.1.1))
+  })
+  ioPure(FakeOpenAPIServer(server,m.mapFromList(installed),counters,lock))
+ }
+}
+func requestCounters(server FakeOpenAPIServer) IO[Map[String,Int]] { sync.withLock(server.lock,sync.readRef(server.requestCounters)) }

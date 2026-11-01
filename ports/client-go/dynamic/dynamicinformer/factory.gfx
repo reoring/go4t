@@ -1,0 +1,61 @@
+package dynamicinformer
+
+import cache "tools/cache"
+import sync "support/sync"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import m "std/map"
+import listlib "std/list"
+
+// Copyright 2018 The Kubernetes Authors. Licensed under Apache-2.0.
+// Keys are captured immutable values, not opaque external objects.
+type ResourceKey = ResourceKey { group: String, version: String, resource: String } deriving Eq, Ord
+func resourceKey(gvr schema.GroupVersionResource) ResourceKey { ResourceKey(schema.groupVersionResourceGetGroup(gvr),schema.groupVersionResourceGetVersion(gvr),schema.groupVersionResourceGetResource(gvr)) }
+type GenericInformer[A] = GenericInformer { informer: cache.SharedInformer[A], lister: cache.GenericLister[A] }
+type Entry[A] = Entry { resource: schema.GroupVersionResource, informer: GenericInformer[A], task: Option[sync.Task[Unit]] }
+type FactoryState[A] = FactoryState { entries: Map[ResourceKey,Entry[A]], shuttingDown: Bool }
+type Factory[A] = Factory { mutex: sync.Mutex, state: sync.Ref[FactoryState[A]], build: func(schema.GroupVersionResource) IO[GenericInformer[A]], clock: sync.Clock }
+func newFactory[A](build func(schema.GroupVersionResource) IO[GenericInformer[A]],clock sync.Clock) IO[Factory[A]] {
+ do { mutex <- sync.newMutex(); state <- sync.newRef(FactoryState(m.emptyMap(),false)); ioPure(Factory(mutex,state,build,clock)) }
+}
+func forResource[A](factory Factory[A],resource schema.GroupVersionResource) IO[GenericInformer[A]] {
+ sync.withLock(factory.mutex,sync.uninterruptible(do {
+  state <- sync.readRef(factory.state)
+  let key = resourceKey(resource)
+  match m.mapLookup(state.entries,key) {
+   Some(entry) => ioPure(entry.informer)
+   None => do {
+    informer <- factory.build(resource)
+    sync.writeRef(factory.state,state{entries: m.mapInsert(state.entries,key,Entry(resource,informer,None))})
+    ioPure(informer)
+   }
+  }
+ }))
+}
+func start[A](factory Factory[A]) IO[Unit] {
+ do {
+  context <- sync.captureContext()
+  sync.withLock(factory.mutex,sync.uninterruptible(do {
+   state <- sync.readRef(factory.state)
+   if state.shuttingDown { ioPure(unit()) } else { do {
+    entries <- listlib.mapM(m.mapToList(state.entries),func(pair) => match pair.1.task {
+     Some(_) => ioPure(pair)
+     None => do { task <- sync.startDetached(sync.withContext(context,cache.run(pair.1.informer.informer))); ioPure((pair.0,pair.1{task: Some(task)})) }
+    })
+    sync.writeRef(factory.state,state{entries: m.mapFromList(entries)})
+   } }
+  }))
+ }
+}
+func waitForCacheSync[A](factory Factory[A]) IO[List[(schema.GroupVersionResource,Bool)]] {
+ do {
+  entries <- sync.withLock(factory.mutex,do { state <- sync.readRef(factory.state); ioPure(m.mapValues(state.entries)) })
+  let started = filter(entries,func(entry) => match entry.task { None => false; Some(_) => true })
+  listlib.mapM(started,func(entry) => do { synced <- cache.waitForCacheSync(factory.clock,[func() => cache.hasSynced(entry.informer.informer)]); ioPure((entry.resource,synced)) })
+ }
+}
+func shutdown[A](factory Factory[A]) IO[Unit] {
+ sync.uninterruptible(do {
+  entries <- sync.withLock(factory.mutex,do { state <- sync.readRef(factory.state); sync.writeRef(factory.state,state{shuttingDown: true}); ioPure(m.mapValues(state.entries)) })
+  listlib.forEach(entries,func(entry) => match entry.task { None => ioPure(unit()); Some(task) => sync.join(task) })
+ })
+}

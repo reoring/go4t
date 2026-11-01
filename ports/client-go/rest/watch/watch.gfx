@@ -1,0 +1,58 @@
+package watch
+
+import streaming "deps/k8s.io/apimachinery/pkg/runtime/serializer/streaming"
+import runtime "deps/k8s.io/apimachinery/pkg/runtime"
+import errors "deps/support"
+import codec "deps/codec"
+import outcome "support/outcome"
+import watch "support/watch"
+
+// Copyright 2014 The Kubernetes Authors. Licensed under Apache-2.0.
+alias Event = watch.Event
+type Decoder = Decoder { decoder: streaming.Decoder, embeddedDecoder: runtime.Decoder }
+type Encoder = Encoder { encoder: streaming.Encoder, embeddedEncoder: runtime.Encoder }
+extern func readEnvelopeValues(decoder streaming.Decoder) IO[(Bool,(String,(String,Option[errors.Error])))] = "github.com/reoring/gofx/ports/client-go/rest/watch/host".ReadEnvelope
+func readEnvelope(decoder streaming.Decoder) IO[(String,(String,Option[errors.Error]))] {
+ do {
+  value <- readEnvelopeValues(decoder)
+  ioPure(if value.0 { value.1 } else {
+   match value.1.1.1 {
+    Some(_) => value.1
+    None => ("",("",Some(errors.errorNew("unable to decode to metav1.WatchEvent"))))
+   }
+  })
+ }
+}
+extern func writeEnvelope(encoder streaming.Encoder,kind String,data String) IO[Option[errors.Error]] = "github.com/reoring/gofx/ports/client-go/rest/watch/host".WriteEnvelope
+extern func encodeObject(encoder runtime.Encoder,object Option[runtime.Object]) IO[(String,Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/rest/watch/host".EncodeObject
+func newDecoder(decoder streaming.Decoder,embeddedDecoder runtime.Decoder) Decoder { Decoder(decoder,embeddedDecoder) }
+func newEncoder(encoder streaming.Encoder,embeddedEncoder runtime.Encoder) Encoder { Encoder(encoder,embeddedEncoder) }
+func decode(decoder Decoder) IO[outcome.Outcome[Option[Event]]] {
+ do {
+  envelope <- readEnvelope(decoder.decoder)
+  match envelope.1.1 {
+   Some(error) => ioPure(outcome.failure(None,error))
+   None => {
+    let kind = envelope.0
+    if kind != "ADDED" && kind != "MODIFIED" && kind != "DELETED" && kind != "ERROR" && kind != "BOOKMARK" { ioPure(outcome.failure(None,errors.errorNew("got invalid watch event type: " + kind))) }
+    else { do {
+     decoded <- codec.decode(decoder.embeddedDecoder,envelope.1.0,None,None)
+     match decoded.error {
+      Some(error) => ioPure(outcome.failure(None,errors.errorNew("unable to decode watch event: " + errors.errorMessage(error))))
+      None => ioPure(outcome.success(match decoded.object { None => None; Some(object) => Some(watch.Event(kind,Some(object))) }))
+     }
+    } }
+   }
+  }
+ }
+}
+func close(decoder Decoder) IO[Option[errors.Error]] { streaming.decoderCallCloseIdentity(decoder.decoder) }
+func encode(encoder Encoder,event Event) IO[outcome.Outcome[Unit]] {
+ do {
+  object <- encodeObject(encoder.embeddedEncoder,event.object)
+  match object.1 {
+   Some(error) => ioPure(outcome.failure(unit(),error))
+   None => do { error <- writeEnvelope(encoder.encoder,event.eventType,object.0); ioPure(outcome.from(unit(),error)) }
+  }
+ }
+}

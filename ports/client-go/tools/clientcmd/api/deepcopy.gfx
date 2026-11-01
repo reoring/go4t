@@ -1,0 +1,14 @@
+// Copyright 2014 The Kubernetes Authors. Licensed under Apache-2.0.
+package api
+func deepCopyAllowlistEntry(value AllowlistEntry) AllowlistEntry { value }
+func deepCopyAllowlistEntryInto(value AllowlistEntry,destination AllowlistEntry) AllowlistEntry { value }
+func deepCopyExecEnvVar(value ExecEnvVar) ExecEnvVar { value }
+func deepCopyExecEnvVarInto(value ExecEnvVar,destination ExecEnvVar) ExecEnvVar { value }
+func deepCopyPluginPolicy(value PluginPolicy) PluginPolicy { value }
+func deepCopyPluginPolicyInto(value PluginPolicy,destination PluginPolicy) PluginPolicy { value }
+func deepCopyAuthProviderConfigInto(value AuthProviderConfig,destination AuthProviderConfig) AuthProviderConfig { deepCopyAuthProviderConfig(value) }
+func deepCopyPreferencesInto(value Preferences,destination Preferences) IO[Preferences] { deepCopyPreferences(value) }
+func deepCopyClusterInto(value Cluster,destination Cluster) IO[Cluster] { deepCopyCluster(value) }
+func deepCopyContextInto(value Context,destination Context) IO[Context] { deepCopyContext(value) }
+func deepCopyAuthInfoInto(value AuthInfo,destination AuthInfo) IO[AuthInfo] { deepCopyAuthInfo(value) }
+func deepCopyExecConfigInto(value ExecConfig,destination ExecConfig) IO[ExecConfig] { deepCopyExecConfig(value) }

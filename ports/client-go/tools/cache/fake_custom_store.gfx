@@ -1,0 +1,18 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package cache
+import "std/map"
+import "std/list"
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+import "github.com/reoring/gofx/ports/client-go/support/outcome"
+import types "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/types"
+
+// Store is itself the native FakeCustomStore capability: partial overrides retain
+// the same deliberately empty defaults as upstream's testing helper.
+type FakeCustomStore[A] = FakeCustomStore { addFunc: Option[func(A) IO[outcome.Outcome[Unit]]], updateFunc: Option[func(A) IO[outcome.Outcome[Unit]]], deleteFunc: Option[func(A) IO[outcome.Outcome[Unit]]], listFunc: Option[func() IO[List[A]]], listKeysFunc: Option[func() IO[List[String]]], getFunc: Option[func(A) IO[outcome.Outcome[Option[A]]]], getByKeyFunc: Option[func(String) IO[outcome.Outcome[Option[A]]]], replaceFunc: Option[func(List[A],String) IO[outcome.Outcome[Unit]]], resyncFunc: Option[func() IO[outcome.Outcome[Unit]]], bookmarkFunc: Option[func(String) IO[Unit]], resourceVersionFunc: Option[func() IO[String]], deleteByKeyFunc: Option[func(String) IO[outcome.Outcome[Unit]]] }
+func newFakeCustomStore[A](custom FakeCustomStore[A]) Store[A] { Store(func(obj) => match custom.addFunc { None => ioPure(outcome.success(unit())); Some(f) => f(obj) },func(obj) => match custom.updateFunc { None => ioPure(outcome.success(unit())); Some(f) => f(obj) },func(obj) => match custom.deleteFunc { None => ioPure(outcome.success(unit())); Some(f) => f(obj) },func() => match custom.listFunc { None => ioPure(Nil); Some(f) => f() },func() => match custom.listKeysFunc { None => ioPure(Nil); Some(f) => f() },func(obj) => match custom.getFunc { None => ioPure(outcome.success(None)); Some(f) => f(obj) },func(key) => match custom.getByKeyFunc { None => ioPure(outcome.success(None)); Some(f) => f(key) },func(items,rv) => match custom.replaceFunc { None => ioPure(outcome.success(unit())); Some(f) => f(items,rv) },func() => match custom.resyncFunc { None => ioPure(outcome.success(unit())); Some(f) => f() },func(rv) => match custom.bookmarkFunc { None => ioPure(unit()); Some(f) => f(rv) },func() => match custom.resourceVersionFunc { None => ioPure(""); Some(f) => f() },func(txns) => ioPure(Some(TransactionError(Nil,length(txns),[cacheError("transaction not supported")]))),None,func(key) => match custom.deleteByKeyFunc { None => ioPure(outcome.success(unit())); Some(f) => f(key) }) }
+type FakeExpirationPolicy[A] = FakeExpirationPolicy { neverExpire: sync.Ref[Map[String,Unit]], key: KeyFunc[A] }
+func newFakeExpirationPolicy[A](key KeyFunc[A]) IO[FakeExpirationPolicy[A]] { do { ref <- sync.newRef(map.emptyMap()); ioPure(FakeExpirationPolicy(ref,key)) } }
+func fakeExpirationPolicy[A](policy FakeExpirationPolicy[A]) ExpirationPolicy[A] { ExpirationPolicy(func(entry) => do { keys <- sync.readRef(policy.neverExpire); key <- policy.key(entry.object); ioPure(!map.mapMember(keys,key.value)) }) }
+func newFakeExpirationStore[A](access ObjectAccess[A], deleted sync.Channel[String], policy ExpirationPolicy[A], clock sync.Clock) IO[Store[A]] { do { cache <- newExpirationCache(access,policy,clock,func(key) => sync.send(deleted,key)); ioPure(expirationStore(cache)) } }
+func namespacedNameAsObjectName(name types.NamespacedName) ObjectName { ObjectName(types.namespacedNameGetNamespace(name),types.namespacedNameGetName(name)) }
+func asNamespacedName(name ObjectName) types.NamespacedName { types.namespacedNameWithName(types.namespacedNameWithNamespace(types.newNamespacedName(),name.namespace),name.name) }

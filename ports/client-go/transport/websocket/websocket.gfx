@@ -1,0 +1,119 @@
+// Copyright 2023 The Kubernetes Authors. Licensed under Apache-2.0.
+// Source: client-go v0.37.2 transport/websocket/roundtripper.go.
+package websocket
+import http "github.com/reoring/gofx/ports/client-go/deps/net/http"
+import url "github.com/reoring/gofx/ports/client-go/deps/net/url"
+import tls "github.com/reoring/gofx/ports/client-go/deps/crypto/tls"
+import raw "github.com/reoring/gofx/ports/client-go/deps/github.com/gorilla/websocket"
+import errors "github.com/reoring/gofx/ports/client-go/deps/support"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import transport "github.com/reoring/gofx/ports/client-go/transport"
+import rest "github.com/reoring/gofx/ports/client-go/rest"
+import spdy "github.com/reoring/gofx/ports/client-go/transport/spdy"
+import strings "std/string"
+
+alias Conn = raw.Conn
+type ConnectionHolder = ConnectionHolder { connection: sync.Ref[Option[Conn]], protocols: sync.Ref[List[String]] }
+type Transports = Transports { transport: transport.RoundTripper, holder: ConnectionHolder }
+type RoundTripper = RoundTripper {tlsConfig:Option[tls.Config],proxier:Option[func(http.Request) IO[(Option[url.URL],Option[errors.Error])]],holder:ConnectionHolder}
+func newRoundTripper(tlsConfig Option[tls.Config],proxier Option[func(http.Request) IO[(Option[url.URL],Option[errors.Error])]]) IO[RoundTripper] {do {
+ connection<-sync.newRef(None)
+ protocols<-sync.newRef(Nil)
+ ioPure(RoundTripper {tlsConfig:tlsConfig,proxier:proxier,holder:ConnectionHolder {connection:connection,protocols:protocols}})
+}}
+func tlsClientConfig(value RoundTripper) Option[tls.Config] {value.tlsConfig}
+func asTransport(value RoundTripper) transport.RoundTripper {transport.roundTripper(func(req)=>roundTrip(value.holder,value.tlsConfig,value.proxier,req),func(_)=>do {conn<-connection(value.holder);match conn {None=>ioPure(unit());Some(c)=>close(c)}},func()=>ioPure(unit()))}
+extern func _scheme(request http.Request) IO[String] = "github.com/reoring/gofx/ports/client-go/transport/websocket/host".RequestScheme
+extern func _dial(request http.Request, tls Option[tls.Config], proxy Option[func(http.Request) IO[(Option[url.URL],Option[errors.Error])]], protocols List[String], scheme String) IO[(Option[Conn],(Option[http.Response],Option[errors.Error]))] = "github.com/reoring/gofx/ports/client-go/transport/websocket/host".Dial
+extern func isBadHandshake(error errors.Error) Bool = "github.com/reoring/gofx/ports/client-go/transport/websocket/host".IsBadHandshake
+extern func upgradeFailure(error errors.Error) errors.Error = "github.com/reoring/gofx/ports/client-go/transport/websocket/host".UpgradeFailure
+extern func isUpgradeFailure(error errors.Error) Bool = "github.com/reoring/gofx/ports/client-go/transport/websocket/host".IsUpgradeFailure
+extern func upgradeFailureCause(error errors.Error) Option[errors.Error] = "github.com/reoring/gofx/ports/client-go/transport/websocket/host".UpgradeFailureCause
+extern func isHTTPSProxyError(error errors.Error) Bool = "github.com/reoring/gofx/ports/client-go/transport/websocket/host".IsHTTPSProxyError
+extern func _status(response http.Response) IO[String] = "github.com/reoring/gofx/ports/client-go/transport/websocket/host".StatusText
+extern func _errorBody(response http.Response, limit Int) IO[(String,Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/transport/websocket/host".ErrorBody
+extern func _decodeStatus(body String) Option[errors.Error] = "github.com/reoring/gofx/ports/client-go/transport/websocket/host".DecodeStatus
+extern func readMessage(conn Conn) IO[(Int,(String,Option[errors.Error]))] = "github.com/reoring/gofx/ports/client-go/transport/websocket/host".ReadMessage
+extern func writeMessage(conn Conn, kind Int, data String, deadline Int) IO[Option[errors.Error]] = "github.com/reoring/gofx/ports/client-go/transport/websocket/host".WriteMessage
+extern func control(conn Conn, kind Int, data String, deadline Int) IO[Option[errors.Error]] = "github.com/reoring/gofx/ports/client-go/transport/websocket/host".Control
+extern func heartbeat(conn Conn, deadline Int) IO[Option[errors.Error]] = "github.com/reoring/gofx/ports/client-go/transport/websocket/host".Heartbeat
+extern func readTimeout(conn Conn,nanos Int) IO[Option[errors.Error]] = "github.com/reoring/gofx/ports/client-go/transport/websocket/host".ReadTimeout
+extern func isNormalClose(error errors.Error) Bool = "github.com/reoring/gofx/ports/client-go/transport/websocket/host".IsNormalClose
+extern func writeFrame(conn Conn, prefix String, data String, deadline Int) IO[(Int,Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/transport/websocket/host".WriteFrame
+func dataBufferSize() Int { 32768 }
+func connection(holder ConnectionHolder) IO[Option[Conn]] { sync.readRef(holder.connection) }
+func close(conn Conn) IO[Unit] { do { _ <- raw.connCallCloseIdentity(conn); ioPure(unit()) } }
+func subprotocol(conn Conn) IO[String] { raw.connCallSubprotocolIdentity(conn) }
+func _contains(xs List[String], x String) Bool { match xs { Nil => false; Cons(v,tail) => v==x || _contains(tail,x) } }
+func _protocolHeaders(headers List[(String,List[String])]) List[String] {match headers {Nil=>Nil;Cons(h,tail)=>if strings.toLower(h.0)=="sec-websocket-protocol" {h.1} else {_protocolHeaders(tail)}}}
+func _addProtocols(request http.Request,protocols List[String]) IO[Unit] {match protocols {Nil=>ioPure(unit());Cons(p,tail)=>do {transport.addRequestHeader(request,"Sec-Websocket-Protocol",p);_addProtocols(request,tail)}}}
+func _handshakeError(error errors.Error, response Option[http.Response]) IO[errors.Error] { match response {
+ None => ioPure(upgradeFailure(error)); Some(r) => sync.ensuring(do {
+  status <- _status(r)
+  body <- _errorBody(r,65536)
+  let cause = errors.errorWrap("${errors.errorMessage(error)} (${status})",error)
+  ioPure(upgradeFailure(match body.1 {
+   Some(_) => errors.errorWrap("${errors.errorMessage(cause)}: unable to read error from server response",cause);
+   None => match _decodeStatus(body.0) { Some(e) => e; None => if strings.trim(body.0)=="" { cause } else { errors.errorWrap("${errors.errorMessage(cause)}: ${strings.trim(body.0)}",cause) } }
+  }))
+ },do { _ <- spdy.closeResponse(r); ioPure(unit()) })
+} }
+func _roundTrip(holder ConnectionHolder, tls Option[tls.Config], proxy Option[func(http.Request) IO[(Option[url.URL],Option[errors.Error])]], request http.Request) IO[outcome.Outcome[Option[http.Response]]] {
+ do {
+  req <- transport.cloneRequest(request)
+  headers<-transport.requestHeaders(req)
+  stored<-sync.readRef(holder.protocols)
+  let protocols=match _protocolHeaders(headers) {Nil=>stored;values=>values}
+  transport.deleteRequestHeader(req,"Sec-Websocket-Protocol")
+  scheme <- _scheme(req)
+  if scheme!="https" && scheme!="http" { ioPure(outcome.failure(None,errors.errorNew("unknown url scheme: ${scheme}"))) } else { do {
+   result <- _dial(req,tls,proxy,protocols,if scheme=="https" { "wss" } else { "ws" })
+   match result.1.1 { Some(e) => do {
+    failure <- if isBadHandshake(e) { _handshakeError(e,result.1.0) } else { ioPure(e) }
+    ioPure(outcome.failure(None,failure))
+   }; None => match result.0 { None => ioPure(outcome.failure(None,errors.errorNew("websocket connection is nil"))); Some(conn) => do {
+    selected <- subprotocol(conn)
+    if !_contains(protocols,selected) { do { close(conn); ioPure(outcome.failure(None,upgradeFailure(errors.errorNew("invalid protocol, expected one of ${protocols}, got ${selected}")))) } } else { do {
+     sync.writeRef(holder.connection,Some(conn))
+     ioPure(outcome.success(result.1.0))
+    } }
+   } } }
+  } }
+ }
+}
+func roundTrip(holder ConnectionHolder, tls Option[tls.Config], proxy Option[func(http.Request) IO[(Option[url.URL],Option[errors.Error])]], request http.Request) IO[outcome.Outcome[Option[http.Response]]] {
+ sync.bracket(sync.newRef(false),func(closed)=>do {
+  result<-_roundTrip(holder,tls,proxy,request)
+  error<-transport.closeRequestBody(request)
+  sync.writeRef(closed,true)
+  ioPure(match result.error {Some(_)=>result;None=>outcome.from(result.value,error)})
+ },func(closed)=>do {done<-sync.readRef(closed);if done {ioPure(unit())} else {do {_ <- transport.closeRequestBody(request);ioPure(unit())}}})
+}
+func roundTripperFor(environment rest.Environment, config rest.Config) IO[outcome.Outcome[Option[Transports]]] { do {
+ tls <- rest.tlsConfigFor(environment,config)
+ match tls.error { Some(e) => ioPure(outcome.failure(None,e)); None => do {
+  let proxy = match config.proxy { None => None; Some(p) => Some(func(req) => do { result <- p(req); ioPure((result.value,result.error)) }) }
+  value<-newRoundTripper(tls.value,proxy)
+  let holder=value.holder
+  let base=asTransport(value)
+  wrapped <- rest.httpWrappersForConfig(environment,config,base)
+  ioPure(outcome.from(match wrapped.value { None => None; Some(t) => Some(Transports {transport:t,holder:holder}) },wrapped.error))
+ } }
+} }
+func negotiate(rt transport.RoundTripper, holder ConnectionHolder, request http.Request, protocols List[String]) IO[outcome.Outcome[Option[Conn]]] { do {
+ sync.writeRef(holder.protocols,protocols)
+ transport.deleteRequestHeader(request,"Sec-Websocket-Protocol")
+ _addProtocols(request,protocols)
+ result <- rt.roundTrip(request)
+ match result.error { Some(e) => ioPure(outcome.failure(None,e)); None => match result.value {
+  None => ioPure(outcome.failure(None,errors.errorNew("empty upgrade response"))); Some(r) => do {
+   error <- spdy.closeResponse(r)
+   conn <- connection(holder)
+   match error { None => ioPure(outcome.success(conn)); Some(e) => do {
+    match conn { None => ioPure(unit()); Some(c) => close(c) }
+    ioPure(outcome.failure(None,errors.errorWrap("error closing response body",e)))
+   } }
+  }
+ } }
+} }

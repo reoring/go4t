@@ -1,0 +1,53 @@
+package consistencydetector
+
+import meta "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import errors "github.com/reoring/gofx/ports/client-go/deps/support"
+import io "std/io"
+
+func testConsistencyAccess(logs sync.Ref[List[String]]) Access[List[Int], Int] {
+ Access(func(items) => ioPure(outcome.Outcome(items, None)), func(item) => ioPure(outcome.Outcome(show(item), None)), func(a, b) => ioPure(a == b), func(a, b) => ioPure(show(a) + " != " + show(b)), func(message, err) => do { old <- sync.readRef(logs); sync.writeRef(logs, Cons(message, old)) })
+}
+func testConsistencySortsUIDAndExactOptions() IO[Bool] {
+ do {
+  logs <- sync.newRef([])
+  seen <- sync.newRef(meta.newListOptions())
+  clock <- sync.realClock()
+  let options = meta.listOptionsWithLimit(meta.listOptionsWithResourceVersion(meta.newListOptions(), "0"), 1)
+  checkDataConsistency("test", "7", func(request) => do { sync.writeRef(seen, request); ioPure(outcome.Outcome([2, 1], None)) }, None, options, func() => ioPure([1, 2]), testConsistencyAccess(logs), clock)
+  actual <- sync.readRef(seen)
+  ioPure(meta.listOptionsGetLimit(actual) == 0 && meta.listOptionsGetResourceVersion(actual) == "7" && meta.resourceVersionMatchValue(meta.listOptionsGetResourceVersionMatch(actual)) == "Exact")
+ }
+}
+func testConsistencyMismatchPanics() IO[Bool] {
+ do {
+  logs <- sync.newRef([])
+  clock <- sync.realClock()
+  result <- io.tryIO(checkDataConsistency("probe", "7", func(_) => ioPure(outcome.Outcome([1], None)), None, meta.newListOptions(), func() => ioPure([2]), testConsistencyAccess(logs), clock))
+  ioPure(match result { Err(io.Panic(message)) => message == "data inconsistency detected for probe, panicking!"; _ => false })
+ }
+}
+func testConsistencySkipsInvalidParameters() IO[Bool] {
+ do {
+  logs <- sync.newRef([])
+  calls <- sync.newRef(0)
+  clock <- sync.realClock()
+  checkDataConsistency("", "0", func(_) => do { sync.writeRef(calls, 1); ioPure(outcome.Outcome([], None)) }, None, meta.newListOptions(), func() => ioPure([]), testConsistencyAccess(logs), clock)
+  count <- sync.readRef(calls)
+  ioPure(count == 0 && !canFormAdditionalListCall("8", meta.listOptionsWithContinue(meta.newListOptions(), "next")))
+ }
+}
+func testConsistencyCancellationLogsAndStops() IO[Bool] {
+ do {
+  logs <- sync.newRef([])
+  started <- sync.newChannel(1)
+  clock <- sync.realClock()
+  task <- sync.startDetached(checkDataConsistency("", "7", func(_) => do { sync.send(started, unit()); ioPure(outcome.Outcome([], Some(errors.errorNew("retry")))) }, None, meta.newListOptions(), func() => ioPure([]), testConsistencyAccess(logs), clock))
+  sync.receive(started)
+  sync.cancelTask(task)
+  sync.join(task)
+  messages <- sync.readRef(logs)
+  ioPure(match messages { Cons(message, _) => message == "Failed to list data from the server, the data consistency check won't be performed, stopCh was closed"; _ => false })
+ }
+}

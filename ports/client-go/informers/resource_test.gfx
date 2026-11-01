@@ -1,0 +1,27 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package informers
+import "std/map"
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+import "github.com/reoring/gofx/ports/client-go/kubernetes"
+import "github.com/reoring/gofx/ports/client-go/features"
+import "github.com/reoring/gofx/ports/client-go/tools/cache"
+import api "github.com/reoring/gofx/ports/client-go/deps/k8s.io/api/core/v1"
+import meta "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import schema "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime/schema"
+
+// Supply a native real or fake clientset. No network call occurs before start.
+func generatedResourceDefaultsFixture(featureRegistry features.FeatureRegistry, client kubernetes.Interface) IO[Bool] { do {
+ factory <- newSharedInformerFactory(featureRegistry,client,0)
+ let pods = core(factory).v1().pods()
+ raw <- pods.informer()
+ typed <- pods.typedInformer()
+ let resource = schema.groupVersionResourceWithResource(schema.groupVersionResourceWithVersion(schema.newGroupVersionResource(),"v1"),"pods")
+ generic <- forResource(factory,resource)
+ indexers <- raw.indexer.getIndexers()
+ let pod = api.podWithObjectMeta(api.newPod(),meta.objectMetaWithNamespace(meta.newObjectMeta(),"namespace"))
+ namespaces <- match map.mapLookup(indexers,"namespace") { None => ioPure(Nil); Some(index) => do { result <- index(api.podToRuntimeObject(pod)); ioPure(result.value) } }
+ let unsupported = schema.groupVersionResourceWithResource(resource,"bindings")
+ rejected <- forResource(factory,unsupported)
+ shutdown(factory)
+ ioPure(factory.options.namespace == "" && namespaces == ["namespace"] && sync.sameRef(raw.identity,typed.raw.identity) && (match generic.value { None => false; Some(value) => sync.sameRef(value.informer.identity,raw.identity) }) && (match rejected.error { None => false; Some(_) => true }))
+} }

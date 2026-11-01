@@ -1,0 +1,107 @@
+// Copyright 2017 The Kubernetes Authors. Licensed under Apache-2.0.
+// Native port of client-go v0.37.2 openapi/client.go and groupversion.go.
+package openapi
+
+import rest "rest"
+import outcome "support/outcome"
+import errors "deps/support"
+import v2 "deps/github.com/google/gnostic-models/openapiv2"
+import spec3 "deps/k8s.io/kube-openapi/pkg/spec3"
+import spec "deps/k8s.io/kube-openapi/pkg/validation/spec"
+import managed "deps/k8s.io/apimachinery/pkg/util/managedfields"
+import m "std/map"
+import s "std/string"
+import url "deps/net/url"
+
+type Client = Client { paths: func() IO[outcome.Outcome[Map[String,GroupVersion]]] }
+type GroupVersion = GroupVersion { schema: func(String) IO[outcome.Outcome[String]], serverRelativeURL: func() IO[String] }
+func contentTypeOpenAPIV3PB() String { "application/com.github.proto-openapi.spec.v3@v1.0+protobuf" }
+extern func _discovery(data String) IO[(List[(String,String)],Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/openapi/host".Discovery
+extern func _urlParts(value String) IO[((String,List[(String,String)]),Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/openapi/host".URLParts
+extern func decodeV2(data String) IO[(Option[v2.Document],Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/openapi/host".DecodeV2
+extern func decodeV3(data String) IO[(Option[spec3.OpenAPI],Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/openapi/host".DecodeV3
+extern func componentSchemas(value spec3.OpenAPI) IO[List[(String,Option[spec.Schema])]] = "github.com/reoring/gofx/ports/client-go/openapi/host".Components
+extern func _converter(schemas List[(String,Option[spec.Schema])],preserve Bool) IO[(Option[managed.TypeConverter],Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/openapi/host".Converter
+func _trimPrefix(value String,prefix String) String { if s.startsWith(value,prefix) { s.substring(value,s.strLength(prefix),s.strLength(value)) } else { value } }
+func _trimSuffix(value String,suffix String) String { if s.endsWith(value,suffix) { s.substring(value,0,s.strLength(value)-s.strLength(suffix)) } else { value } }
+
+func newClient(client rest.Interface) Client { Client{paths:func() => paths(client)} }
+func paths(client rest.Interface) IO[outcome.Outcome[Map[String,GroupVersion]]] {
+ do {
+  request <- rest.interfaceGet(client)
+  response <- rest.doRaw(rest.absPath(request,["/openapi/v3"]))
+  match response.error {
+   Some(error) => ioPure(outcome.failure(m.emptyMap(),error))
+   None => do {
+    decoded <- _discovery(response.value)
+    match decoded.1 {
+     Some(error) => ioPure(outcome.failure(m.emptyMap(),error))
+     None => do {
+      root <- rest.interfaceGet(client)
+      rootURL <- rest.requestURL(rest.absPath(root,["/"]))
+      rootPath <- url.urlGetPathIdentity(rootURL)
+      let prefix = _trimSuffix(rootPath,"/")
+      let result = fold(decoded.0,m.emptyMap(),func(result,entry) => {
+       let url = _trimPrefix(entry.1,prefix)
+       m.mapInsert(result,entry.0,newGroupVersion(client,url,s.startsWith(url,"/openapi/v3")))
+      })
+      ioPure(outcome.success(result))
+     }
+    }
+   }
+  }
+ }
+}
+func newGroupVersion(client rest.Interface,url String,useClientPrefix Bool) GroupVersion {
+ GroupVersion{serverRelativeURL:func() => ioPure(url),schema:func(contentType) => do {
+  request <- rest.interfaceGet(client)
+  if !useClientPrefix { do { selected <- rest.requestURI(request,url); rest.doRaw(rest.setHeader(selected,"Accept",[contentType])) } }
+  else { do {
+   parsed <- _urlParts(url)
+   match parsed.1 {
+    Some(error) => ioPure(outcome.failure("",error))
+    None => {
+     let selected = fold(parsed.0.1,rest.absPath(request,[parsed.0.0]),func(req,pair) => rest.param(req,pair.0,pair.1))
+     rest.doRaw(rest.setHeader(selected,"Accept",[contentType]))
+    }
+   }
+  } }
+ }}
+}
+func openAPISchema(client rest.Interface) IO[outcome.Outcome[Option[v2.Document]]] {
+ do {
+  request <- rest.interfaceGet(client)
+  response <- rest.doRaw(rest.setHeader(rest.absPath(request,["/openapi/v2"]),"Accept",["application/com.github.proto-openapi.spec.v2@v1.0+protobuf"]))
+  match response.error { Some(error) => ioPure(outcome.failure(None,error)); None => do { decoded <- decodeV2(response.value); ioPure(outcome.Outcome{value:decoded.0,error:decoded.1}) } }
+ }
+}
+func newTypeConverter(client Client,preserveUnknownFields Bool) IO[outcome.Outcome[Option[managed.TypeConverter]]] {
+ do {
+  listed <- client.paths()
+  match listed.error {
+   Some(error) => ioPure(outcome.failure(None,errors.errorWrap("failed to list paths",error)))
+   None => _collectSchemas(m.mapValues(listed.value),m.emptyMap(),preserveUnknownFields)
+  }
+ }
+}
+func _collectSchemas(groups List[GroupVersion],schemas Map[String,Option[spec.Schema]],preserve Bool) IO[outcome.Outcome[Option[managed.TypeConverter]]] {
+ match groups {
+  Nil => do { result <- _converter(m.mapToList(schemas),preserve); ioPure(outcome.Outcome{value:result.0,error:result.1}) }
+  Cons(group,remaining) => do {
+   downloaded <- group.schema("application/json")
+   match downloaded.error {
+    Some(error) => ioPure(outcome.failure(None,errors.errorWrap("failed to download schema",error)))
+    None => do {
+     decoded <- decodeV3(downloaded.value)
+     match decoded.1 {
+      Some(error) => ioPure(outcome.failure(None,errors.errorWrap("failed to parse schema",error)))
+      None => match decoded.0 {
+       None => _collectSchemas(remaining,schemas,preserve)
+       Some(document) => do { entries <- componentSchemas(document); _collectSchemas(remaining,fold(entries,schemas,func(result,pair) => m.mapInsert(result,pair.0,pair.1)),preserve) }
+      }
+     }
+    }
+   }
+  }
+ }
+}

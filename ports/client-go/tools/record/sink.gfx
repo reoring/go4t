@@ -1,0 +1,7 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package record
+import typed "github.com/reoring/gofx/ports/client-go/kubernetes/typed/core/v1"
+// The typed expansion methods retain nil results and route from event.Namespace.
+func eventSinkImpl(client typed.EventInterface) EventSink {
+ EventSink(client.createWithEventNamespace,client.updateWithEventNamespace,client.patchWithEventNamespace)
+}

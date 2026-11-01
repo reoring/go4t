@@ -1,0 +1,75 @@
+package watch
+
+import raw "github.com/reoring/gofx/ports/client-go/support/watch"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import errors "github.com/reoring/gofx/ports/client-go/deps/support"
+import runtime "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime"
+
+func testRetryUnknownEventTerminatesWithStatus(access RetryAccess) IO[Bool] {
+ do {
+  fake <- newFakeWithChanSize(1)
+  fakeAction(fake, "UNKNOWN", None)
+  output <- sync.newChannel(1)
+  result <- receiveRetry(fake.watcher, access, "opaque-version", output)
+  event <- sync.receive(output)
+  raw.stop(fake.watcher)
+  ioPure(result.done && result.resourceVersion == "opaque-version" && (match event { Some(value) => value.eventType == "ERROR"; None => false }))
+ }
+}
+func testRetryMissingResourceVersionTerminates(access RetryAccess) IO[Bool] {
+ do {
+  fake <- newFakeWithChanSize(1)
+  add(fake, None)
+  output <- sync.newChannel(1)
+  result <- receiveRetry(fake.watcher, access, "opaque-version", output)
+  event <- sync.receive(output)
+  raw.stop(fake.watcher)
+  ioPure(result.done && (match event { Some(value) => value.eventType == "ERROR"; None => false }))
+ }
+}
+func testRetryGoneForwardsOriginalStatus(access RetryAccess, gone runtime.Object) IO[Bool] {
+ do {
+  fake <- newFakeWithChanSize(1)
+  error(fake, Some(gone))
+  output <- sync.newChannel(1)
+  result <- receiveRetry(fake.watcher, access, "rv", output)
+  event <- sync.receive(output)
+  raw.stop(fake.watcher)
+  ioPure(result.done && result.delay == 0 && (match event { Some(value) => value.eventType == "ERROR"; None => false }))
+ }
+}
+func testRetryUnexpectedStatusIsRetried(access RetryAccess, unexpected runtime.Object) IO[Bool] {
+ do {
+  fake <- newFakeWithChanSize(1)
+  error(fake, Some(unexpected))
+  output <- sync.newChannel(1)
+  result <- receiveRetry(fake.watcher, access, "rv", output)
+  forwarded <- sync.tryReceive(output)
+  raw.stop(fake.watcher)
+  ioPure(!result.done && result.resourceVersion == "rv" && (match forwarded { sync.Pending => true; _ => false }))
+ }
+}
+func testRetryValidationAndUnreadStop(access RetryAccess, object runtime.Object) IO[Bool] {
+ do {
+  clock <- sync.realClock()
+  calls <- sync.newRef(0)
+  let client = func(_) => do {
+   n <- sync.readRef(calls)
+   sync.writeRef(calls, n + 1)
+   fake <- newFakeWithChanSize(1)
+   add(fake, Some(object))
+   ioPure(outcome.Outcome(Some(fake.watcher), None))
+  }
+  invalid <- newRetryWatcher("", client, access, clock)
+  valid <- newRetryWatcher("rv", client, access, clock)
+  match valid.value {
+   None => ioPure(false)
+   Some(watcher) => do {
+    raw.stop(watcher.watcher)
+    raw.stop(watcher.watcher)
+    ioPure(match invalid.error { Some(err) => errors.errorMessage(err) == "initial RV \"\" is not supported due to issues with underlying WATCH"; None => false })
+   }
+  }
+ }
+}

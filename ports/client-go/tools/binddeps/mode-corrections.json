@@ -1,0 +1,21 @@
+{
+  "k8s.io/apimachinery/pkg/version.Info": {
+    "approved_by": "Main: explicit version.Info snapshot correction after core verification failure",
+    "source": "k8s.io/apimachinery@v0.37.2/pkg/version/types.go:22-46",
+    "additional_source": "k8s.io/apimachinery@v0.37.2/pkg/version/zz_generated.model_name.go:25-27",
+    "rationale": "Info is a value DTO with thirteen exported string fields and value-receiver String/OpenAPIModelName methods. It has no mutable identity, locks, resources, or lifecycle. Native pkg/version.getWith remains pure; canonical nominal identity is unchanged.",
+    "mode": {"from": "identity", "to": "snapshot"},
+    "field_status": {"from": "typed effectful identity field access", "to": "typed get and copy-on-write update"},
+    "fields": ["Major", "Minor", "EmulationMajor", "EmulationMinor", "MinCompatibilityMajor", "MinCompatibilityMinor", "GitVersion", "GitCommit", "GitTreeState", "BuildDate", "GoVersion", "Compiler", "Platform"],
+    "methods": {
+      "String": {
+        "native_name": {"from": "infoCallStringIdentity", "to": "infoCallString"},
+        "returns": {"from": "String", "to": "(Info, String)"}
+      },
+      "OpenAPIModelName": {
+        "native_name": {"from": "infoCallOpenAPIModelNameIdentity", "to": "infoCallOpenAPIModelName"},
+        "returns": {"from": "String", "to": "(Info, String)"}
+      }
+    }
+  }
+}

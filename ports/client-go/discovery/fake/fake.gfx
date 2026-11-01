@@ -1,0 +1,70 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package fake
+import "discovery"
+import "testing"
+import meta "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import version "deps/k8s.io/apimachinery/pkg/version"
+import document "deps/github.com/google/gnostic-models/openapiv2"
+import build "pkg/version"
+import errors "deps/support"
+import "support/outcome"
+import "support/sync"
+import "std/map"
+import "std/list"
+import "std/string"
+type FakeDiscovery = FakeDiscovery { fake: testing.Fake, serverVersion: sync.Ref[Option[version.Info]] }
+extern func statusError(code Int,reason String,message String) errors.Error = "github.com/reoring/gofx/ports/client-go/discovery/host".StatusError
+func invoke(fake FakeDiscovery,resource String) IO[Option[errors.Error]] {
+ do { result <- testing.invokes(fake.fake,testing.newAction(testing.Generic,"get",schema.groupVersionResourceWithResource(schema.newGroupVersionResource(),resource),""),None); ioPure(result.error) }
+}
+func serverGroups(fake FakeDiscovery) IO[outcome.Outcome[Option[meta.APIGroupList]]] {
+ do {
+  error <- invoke(fake,"group")
+  match error {
+   Some(e) => ioPure(outcome.failure(None,e))
+   None => do {
+    resources <- testing.resources(fake.fake)
+    let groups = list.fold(resources,outcome.success(map.emptyMap()),func(acc,r) => match acc.error {
+     Some(e) => acc
+     None => {
+      let parsed = discovery.parseGroupVersion(meta.aPIResourceListGetGroupVersion(r))
+      match parsed.error { Some(e) => outcome.failure(map.emptyMap(),e); None => {
+       let v = discovery.discoveryVersion(meta.aPIResourceListGetGroupVersion(r),parsed.value.1)
+       let group = match map.mapLookup(acc.value,parsed.value.0) { None => meta.aPIGroupWithPreferredVersion(meta.aPIGroupWithName(meta.newAPIGroup(),parsed.value.0),v); Some(g) => g }
+       outcome.success(map.mapInsert(acc.value,parsed.value.0,meta.aPIGroupWithVersions(group,Some(list.append(discovery.values(meta.aPIGroupGetVersions(group)),[v])))))
+      } }
+     }
+    })
+    ioPure(outcome.Outcome(Some(discovery.groupList(map.mapValues(groups.value))),groups.error))
+   }
+  }
+ }
+}
+func asDiscovery(fake FakeDiscovery) discovery.DiscoveryInterface {
+ discovery.DiscoveryInterface(None,
+  func() => serverGroups(fake),
+  func(gv) => do {
+   error <- invoke(fake,"resource")
+   match error { Some(e) => ioPure(outcome.failure(None,e)); None => do {
+    resources <- testing.resources(fake.fake)
+    ioPure(match list.filter(resources,func(r) => meta.aPIResourceListGetGroupVersion(r)==gv) { Cons(first,rest) => outcome.success(Some(first)); Nil => outcome.failure(None,statusError(404,"NotFound","the server could not find the requested resource, GroupVersion "+string.showQuoted(gv)+" not found")) })
+   } }
+  },
+  func() => do {
+   groups <- serverGroups(fake)
+   match groups.error { Some(e) => ioPure(outcome.failure(discovery.GroupsAndResources(None,None),e)); None => do {
+    error <- invoke(fake,"resource")
+    resources <- testing.resources(fake.fake)
+    ioPure(outcome.Outcome(discovery.GroupsAndResources(match groups.value { None => None; Some(g) => meta.aPIGroupListGetGroups(g) },Some(resources)),error))
+   } }
+  },
+  func() => ioPure(outcome.success([])),func() => ioPure(outcome.success([])),
+  func() => do { error <- invoke(fake,"version"); version <- sync.readRef(fake.serverVersion); ioPure(outcome.Outcome(match error { Some(e) => None; None => Some(match version { Some(v) => v; None => build.get() }) },error)) },
+  func() => do { d <- document.newDocument(); ioPure(outcome.success(Some(d))) },
+  func() => errors.raiseError(errors.errorNew("fake discovery does not implement OpenAPIV3")),
+  func() => asDiscovery(fake),None)
+}
+func newFakeDiscoveryState(fake testing.Fake) IO[FakeDiscovery] { do { version <- sync.newRef(None); ioPure(FakeDiscovery(fake,version)) } }
+func newFakeDiscovery(fake testing.Fake) IO[discovery.DiscoveryInterface] { do { state <- newFakeDiscoveryState(fake); ioPure(asDiscovery(state)) } }
+func setServerVersion(fake FakeDiscovery,version Option[version.Info]) IO[Unit] { sync.writeRef(fake.serverVersion,version) }

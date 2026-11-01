@@ -2,17 +2,23 @@
 // Source: client-go v0.37.2 and exact external dependency declarations.
 // Kubernetes-derived declarations are licensed under Apache-2.0.
 // https://www.apache.org/licenses/LICENSE-2.0
-// Source graph SHA-256: 2e4efd1c862cc7bde1036ba0dc37a4fe08175d4ead5d513b32689e674b91d866
+// Source graph SHA-256: 99a062162cbc99a38896123a3e81ce3ef2f70f2e505fbd058751d52a0a40f167
 package io
 
 import canonical "github.com/reoring/gofx/ports/client-go/deps/types"
 import support "github.com/reoring/gofx/ports/client-go/deps/support"
 
 alias Closer = canonical.Closer_507d60675a91
+alias LimitedReader = canonical.LimitedReader_5e9f34ff84ed
+extern func newLimitedReader() IO[LimitedReader] = "github.com/reoring/gofx/ports/client-go/host/deps".New_LimitedReader_5e9f34ff84ed
+extern func limitedReaderGetRIdentity(value LimitedReader) IO[Option[canonical.Reader_4d25c51b00a6]] = "github.com/reoring/gofx/ports/client-go/host/deps".Get_LimitedReader_5e9f34ff84ed_R
+extern func limitedReaderSetRIdentity(value LimitedReader, field Option[canonical.Reader_4d25c51b00a6]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".With_LimitedReader_5e9f34ff84ed_R
+extern func limitedReaderGetNIdentity(value LimitedReader) IO[Int] = "github.com/reoring/gofx/ports/client-go/host/deps".Get_LimitedReader_5e9f34ff84ed_N
+extern func limitedReaderSetNIdentity(value LimitedReader, field Int) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".With_LimitedReader_5e9f34ff84ed_N
 alias PipeReader = canonical.PipeReader_90ac6f239c2f
-extern func newPipeReader() IO[PipeReader] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".New_PipeReader_90ac6f239c2f
+extern func newPipeReader() IO[PipeReader] = "github.com/reoring/gofx/ports/client-go/host/deps".New_PipeReader_90ac6f239c2f
 alias PipeWriter = canonical.PipeWriter_ec79c50cbf8f
-extern func newPipeWriter() IO[PipeWriter] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".New_PipeWriter_ec79c50cbf8f
+extern func newPipeWriter() IO[PipeWriter] = "github.com/reoring/gofx/ports/client-go/host/deps".New_PipeWriter_ec79c50cbf8f
 alias ReadCloser = canonical.ReadCloser_60c0a355b93f
 alias ReadWriteCloser = canonical.ReadWriteCloser_fb65cc9c9a20
 alias Reader = canonical.Reader_4d25c51b00a6
@@ -22,36 +28,43 @@ alias Seeker = canonical.Seeker_d9d809559c76
 alias WriteCloser = canonical.WriteCloser_2b440fd1d51d
 alias Writer = canonical.Writer_38b5996d575b
 alias Internal_onceError = canonical.Internal_onceError_9118d3d11225
-extern func internal_onceErrorGetMutexIdentity(value Internal_onceError) IO[canonical.Mutex_efea4f723211] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Get_Internal_onceError_9118d3d11225_Mutex
-extern func internal_onceErrorSetMutexIdentity(value Internal_onceError, field canonical.Mutex_efea4f723211) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".With_Internal_onceError_9118d3d11225_Mutex
+extern func internal_onceErrorGetMutexIdentity(value Internal_onceError) IO[canonical.Mutex_efea4f723211] = "github.com/reoring/gofx/ports/client-go/host/deps".Get_Internal_onceError_9118d3d11225_Mutex
+extern func internal_onceErrorSetMutexIdentity(value Internal_onceError, field canonical.Mutex_efea4f723211) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".With_Internal_onceError_9118d3d11225_Mutex
 alias Internal_pipe = canonical.Internal_pipe_0394a595d183
-extern func pipeReaderCallCloseIdentity(value PipeReader) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_b805918168e3a98b
-extern func pipeReaderCallCloseWithErrorIdentity(value PipeReader, p0 Option[support.Error]) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_e92d024e37465d9a
-extern func pipeReaderCallReadIdentity(value PipeReader, p0 Option[String]) IO[(Option[String], (Int, Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_c201fbe055a9fd70
-extern func pipeWriterCallCloseIdentity(value PipeWriter) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_ffad9b52bc10b649
-extern func pipeWriterCallCloseWithErrorIdentity(value PipeWriter, p0 Option[support.Error]) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_e162133264108cdc
-extern func pipeWriterCallWriteIdentity(value PipeWriter, p0 Option[String]) IO[(Option[String], (Int, Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_707620e6d50a6371
-extern func internal_onceErrorCallLoadIdentity(value Internal_onceError) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_16b5ee5ba1ba1d1a
-extern func internal_onceErrorCallStoreIdentity(value Internal_onceError, p0 Option[support.Error]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_fe5325a995b6aba5
-extern func closerCallCloseIdentity(value Closer) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Interface_08dfc0b4c3d68e3b
-extern func readCloserCallCloseIdentity(value ReadCloser) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Interface_4f5458b84168e7db
-extern func readCloserCallReadIdentity(value ReadCloser, p0 Option[String]) IO[(Option[String], (Int, Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Interface_0a86023d63ce52de
-extern func readWriteCloserCallCloseIdentity(value ReadWriteCloser) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Interface_930e13204dd5320d
-extern func readWriteCloserCallReadIdentity(value ReadWriteCloser, p0 Option[String]) IO[(Option[String], (Int, Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Interface_9c1dba03e46032f3
-extern func readWriteCloserCallWriteIdentity(value ReadWriteCloser, p0 Option[String]) IO[(Option[String], (Int, Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Interface_1147273bcb4eefbc
-extern func readerCallReadIdentity(value Reader, p0 Option[String]) IO[(Option[String], (Int, Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Interface_1eb74c81983bc14d
-extern func readerAtCallReadAtIdentity(value ReaderAt, p0 Option[String], p1 Int) IO[(Option[String], (Int, Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Interface_29ef7943f6e4d54f
-extern func runeReaderCallReadRuneIdentity(value RuneReader) IO[(Int, (Int, Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Interface_f4df2b26696e3d1d
-extern func seekerCallSeekIdentity(value Seeker, p0 Int, p1 Int) IO[(Int, Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Interface_982d5d774db235ba
-extern func writeCloserCallCloseIdentity(value WriteCloser) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Interface_809fe949da9dca94
-extern func writeCloserCallWriteIdentity(value WriteCloser, p0 Option[String]) IO[(Option[String], (Int, Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Interface_861dc21ee157cda9
-extern func writerCallWriteIdentity(value Writer, p0 Option[String]) IO[(Option[String], (Int, Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Interface_90cf36f271a95563
-extern func newCloser(f0 func() IO[Option[support.Error]]) IO[Closer] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".New_Proxy_Closer_507d60675a91
-extern func newReadCloser(f0 func() IO[Option[support.Error]], f1 func(Option[String]) IO[(Option[String], (Int, Option[support.Error]))]) IO[ReadCloser] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".New_Proxy_ReadCloser_60c0a355b93f
-extern func newReadWriteCloser(f0 func() IO[Option[support.Error]], f1 func(Option[String]) IO[(Option[String], (Int, Option[support.Error]))], f2 func(Option[String]) IO[(Option[String], (Int, Option[support.Error]))]) IO[ReadWriteCloser] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".New_Proxy_ReadWriteCloser_fb65cc9c9a20
-extern func newReader(f0 func(Option[String]) IO[(Option[String], (Int, Option[support.Error]))]) IO[Reader] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".New_Proxy_Reader_4d25c51b00a6
-extern func newReaderAt(f0 func(Option[String], Int) IO[(Option[String], (Int, Option[support.Error]))]) IO[ReaderAt] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".New_Proxy_ReaderAt_02af1083c1dc
-extern func newRuneReader(f0 func() IO[(Int, (Int, Option[support.Error]))]) IO[RuneReader] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".New_Proxy_RuneReader_5e24258ccf36
-extern func newSeeker(f0 func(Int, Int) IO[(Int, Option[support.Error])]) IO[Seeker] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".New_Proxy_Seeker_d9d809559c76
-extern func newWriteCloser(f0 func() IO[Option[support.Error]], f1 func(Option[String]) IO[(Option[String], (Int, Option[support.Error]))]) IO[WriteCloser] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".New_Proxy_WriteCloser_2b440fd1d51d
-extern func newWriter(f0 func(Option[String]) IO[(Option[String], (Int, Option[support.Error]))]) IO[Writer] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".New_Proxy_Writer_38b5996d575b
+extern func callCopy(p0 Option[canonical.Writer_38b5996d575b], p1 Option[canonical.Reader_4d25c51b00a6]) IO[(Int, Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_4db527658fc99e58
+extern func callLimitReader(p0 Option[canonical.Reader_4d25c51b00a6], p1 Int) IO[Option[canonical.Reader_4d25c51b00a6]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_9ea033932a83f399
+extern func limitedReaderCallReadIdentity(value LimitedReader, p0 Option[String]) IO[(Option[String], (Int, Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_0dd5f794ddc2d4c4
+extern func callNopCloser(p0 Option[canonical.Reader_4d25c51b00a6]) IO[Option[canonical.ReadCloser_60c0a355b93f]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_8d2aaaabdc0ff013
+extern func callPipe() IO[(Option[canonical.PipeReader_90ac6f239c2f], Option[canonical.PipeWriter_ec79c50cbf8f])] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_aca133a2dbdc794e
+extern func pipeReaderCallCloseIdentity(value PipeReader) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_b805918168e3a98b
+extern func pipeReaderCallCloseWithErrorIdentity(value PipeReader, p0 Option[support.Error]) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_e92d024e37465d9a
+extern func pipeReaderCallReadIdentity(value PipeReader, p0 Option[String]) IO[(Option[String], (Int, Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_c201fbe055a9fd70
+extern func pipeWriterCallCloseIdentity(value PipeWriter) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_ffad9b52bc10b649
+extern func pipeWriterCallCloseWithErrorIdentity(value PipeWriter, p0 Option[support.Error]) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_e162133264108cdc
+extern func pipeWriterCallWriteIdentity(value PipeWriter, p0 Option[String]) IO[(Option[String], (Int, Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_707620e6d50a6371
+extern func callReadAll(p0 Option[canonical.Reader_4d25c51b00a6]) IO[(Option[String], Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_45da605f2a5459af
+extern func callReadFull(p0 Option[canonical.Reader_4d25c51b00a6], p1 Option[String]) IO[(Option[String], (Int, Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_ef91c3c7e34f6d54
+extern func internal_onceErrorCallLoadIdentity(value Internal_onceError) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_16b5ee5ba1ba1d1a
+extern func internal_onceErrorCallStoreIdentity(value Internal_onceError, p0 Option[support.Error]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_fe5325a995b6aba5
+extern func closerCallCloseIdentity(value Closer) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/host/deps".Interface_08dfc0b4c3d68e3b
+extern func readCloserCallCloseIdentity(value ReadCloser) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/host/deps".Interface_4f5458b84168e7db
+extern func readCloserCallReadIdentity(value ReadCloser, p0 Option[String]) IO[(Option[String], (Int, Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/host/deps".Interface_0a86023d63ce52de
+extern func readWriteCloserCallCloseIdentity(value ReadWriteCloser) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/host/deps".Interface_930e13204dd5320d
+extern func readWriteCloserCallReadIdentity(value ReadWriteCloser, p0 Option[String]) IO[(Option[String], (Int, Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/host/deps".Interface_9c1dba03e46032f3
+extern func readWriteCloserCallWriteIdentity(value ReadWriteCloser, p0 Option[String]) IO[(Option[String], (Int, Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/host/deps".Interface_1147273bcb4eefbc
+extern func readerCallReadIdentity(value Reader, p0 Option[String]) IO[(Option[String], (Int, Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/host/deps".Interface_1eb74c81983bc14d
+extern func readerAtCallReadAtIdentity(value ReaderAt, p0 Option[String], p1 Int) IO[(Option[String], (Int, Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/host/deps".Interface_29ef7943f6e4d54f
+extern func runeReaderCallReadRuneIdentity(value RuneReader) IO[(Int, (Int, Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/host/deps".Interface_f4df2b26696e3d1d
+extern func seekerCallSeekIdentity(value Seeker, p0 Int, p1 Int) IO[(Int, Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/host/deps".Interface_982d5d774db235ba
+extern func writeCloserCallCloseIdentity(value WriteCloser) IO[Option[support.Error]] = "github.com/reoring/gofx/ports/client-go/host/deps".Interface_809fe949da9dca94
+extern func writeCloserCallWriteIdentity(value WriteCloser, p0 Option[String]) IO[(Option[String], (Int, Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/host/deps".Interface_861dc21ee157cda9
+extern func writerCallWriteIdentity(value Writer, p0 Option[String]) IO[(Option[String], (Int, Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/host/deps".Interface_90cf36f271a95563
+extern func newCloser(f0 func() IO[Option[support.Error]]) IO[Closer] = "github.com/reoring/gofx/ports/client-go/host/deps".New_Proxy_Closer_507d60675a91
+extern func newReadCloser(f0 func() IO[Option[support.Error]], f1 func(Option[String]) IO[(Option[String], (Int, Option[support.Error]))]) IO[ReadCloser] = "github.com/reoring/gofx/ports/client-go/host/deps".New_Proxy_ReadCloser_60c0a355b93f
+extern func newReadWriteCloser(f0 func() IO[Option[support.Error]], f1 func(Option[String]) IO[(Option[String], (Int, Option[support.Error]))], f2 func(Option[String]) IO[(Option[String], (Int, Option[support.Error]))]) IO[ReadWriteCloser] = "github.com/reoring/gofx/ports/client-go/host/deps".New_Proxy_ReadWriteCloser_fb65cc9c9a20
+extern func newReader(f0 func(Option[String]) IO[(Option[String], (Int, Option[support.Error]))]) IO[Reader] = "github.com/reoring/gofx/ports/client-go/host/deps".New_Proxy_Reader_4d25c51b00a6
+extern func newReaderAt(f0 func(Option[String], Int) IO[(Option[String], (Int, Option[support.Error]))]) IO[ReaderAt] = "github.com/reoring/gofx/ports/client-go/host/deps".New_Proxy_ReaderAt_02af1083c1dc
+extern func newRuneReader(f0 func() IO[(Int, (Int, Option[support.Error]))]) IO[RuneReader] = "github.com/reoring/gofx/ports/client-go/host/deps".New_Proxy_RuneReader_5e24258ccf36
+extern func newSeeker(f0 func(Int, Int) IO[(Int, Option[support.Error])]) IO[Seeker] = "github.com/reoring/gofx/ports/client-go/host/deps".New_Proxy_Seeker_d9d809559c76
+extern func newWriteCloser(f0 func() IO[Option[support.Error]], f1 func(Option[String]) IO[(Option[String], (Int, Option[support.Error]))]) IO[WriteCloser] = "github.com/reoring/gofx/ports/client-go/host/deps".New_Proxy_WriteCloser_2b440fd1d51d
+extern func newWriter(f0 func(Option[String]) IO[(Option[String], (Int, Option[support.Error]))]) IO[Writer] = "github.com/reoring/gofx/ports/client-go/host/deps".New_Proxy_Writer_38b5996d575b

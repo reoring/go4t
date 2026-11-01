@@ -1,0 +1,179 @@
+// Copyright 2014 The Kubernetes Authors. Licensed under Apache-2.0.
+package api
+import runtime "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime"
+import "std/map"
+import "std/list"
+import "std/io"
+import "std/prelude"
+import objects "github.com/reoring/gofx/ports/client-go/deps/objects"
+import errors "github.com/reoring/gofx/ports/client-go/deps/support"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+func copyObject(value Option[runtime.Object]) IO[Option[runtime.Object]] { match value { None => ioPure(None); Some(object) => objects.objectDeepCopy(object) } }
+func copyRaw(value runtime.RawExtension) IO[runtime.RawExtension] { objects.rawExtensionDeepCopy(value) }
+
+// Conversion precedes allocation and collision detection, including for existing keys.
+func _namedToMap[A,B](remaining List[A], all List[A], destination Option[Map[String,Option[B]]], name func(A) String, convert func(A) IO[outcome.Outcome[Option[B]]], render func(List[A]) IO[String], description String) IO[outcome.Outcome[Option[Map[String,Option[B]]]]] {
+ match remaining {
+  Nil => ioPure(outcome.success(destination))
+  Cons(entry,rest) => do {
+   converted <- convert(entry)
+   match converted.error {
+    Some(error) => ioPure(outcome.failure(destination,error))
+    None => {
+     let values = match destination { None => map.emptyMap(); Some(values) => values }
+     match map.mapLookup(values,name(entry)) {
+      Some(Some(_)) => do {
+       context <- render(all)
+       ioPure(outcome.failure(Some(values),errors.errorNew("error converting *[]Named"+description+": duplicate name \""+name(entry)+"\" in list: "+context)))
+      }
+      _ => _namedToMap(rest,all,Some(map.mapInsert(values,name(entry),converted.value)),name,convert,render,description)
+     }
+    }
+   }
+  }
+ }
+}
+// mapToList is in key order; append after the existing destination, never sort it.
+func _mapToNamed[A,B](remaining List[(String,Option[A])], destination Option[List[B]], convert func(String,Option[A]) IO[outcome.Outcome[B]]) IO[outcome.Outcome[Option[List[B]]]] {
+ _mapToNamedLoop(remaining,destination,Nil,convert)
+}
+func _appendConverted[A](destination Option[List[A]], reversed List[A]) Option[List[A]] { match reversed { Nil => destination; _ => Some(list.append(listOrEmpty(destination),list.reverse(reversed))) } }
+func _mapToNamedLoop[A,B](remaining List[(String,Option[A])], destination Option[List[B]], reversed List[B], convert func(String,Option[A]) IO[outcome.Outcome[B]]) IO[outcome.Outcome[Option[List[B]]]] {
+ match remaining {
+  Nil => ioPure(outcome.success(_appendConverted(destination,reversed)))
+  Cons((key,value),rest) => do {
+   converted <- convert(key,value)
+   match converted.error {
+    Some(error) => ioPure(outcome.failure(_appendConverted(destination,reversed),error))
+    None => _mapToNamedLoop(rest,destination,Cons(converted.value,reversed),convert)
+   }
+  }
+ }
+}
+func _conversionEntries[A](value Option[Map[String,A]]) List[(String,A)] { match value { None => Nil; Some(values) => map.mapToList(values) } }
+func _rawToObject(value NamedExtension) IO[outcome.Outcome[Option[runtime.Object]]] { do { converted <- objects.rawExtensionToObject(value.extension); ioPure(outcome.from(converted.0,converted.1)) } }
+func _objectToNamed(key String,value Option[runtime.Object]) IO[outcome.Outcome[NamedExtension]] { do { converted <- objects.objectToRawExtension(Some(value),runtime.newRawExtension()); ioPure(outcome.from(NamedExtension(key,converted.0),converted.1)) } }
+func convertNamedExtensionsToInternal(value Option[List[NamedExtension]],destination Option[Map[String,Option[runtime.Object]]]) IO[outcome.Outcome[Option[Map[String,Option[runtime.Object]]]]] {
+ let entries = listOrEmpty(value)
+ _namedToMap(entries,entries,destination,func(entry) => entry.name,_rawToObject,_formatNamedExtensions,"Extension into *map[string]runtime.Object")
+}
+func convertNamedExtensionsFromInternal(value Option[Map[String,Option[runtime.Object]]],destination Option[List[NamedExtension]]) IO[outcome.Outcome[Option[List[NamedExtension]]]] { _mapToNamed(_conversionEntries(value),destination,_objectToNamed) }
+func emptyWirePreferences() WirePreferences { WirePreferences(false,None) }
+func emptyWireCluster() WireCluster { WireCluster("","",false,"",None,"",false,None) }
+func emptyWireContext() WireContext { WireContext("","","",None) }
+func emptyWireAuthInfo() WireAuthInfo { WireAuthInfo("",None,"",None,"","","","",None,None,"","",None,None,None) }
+func emptyWireConfig() WireConfig { WireConfig("","",emptyWirePreferences(),None,None,None,"",None) }
+func setDefaultsExecConfig(value WireExecConfig) WireExecConfig { if value.interactiveMode == "" && (value.apiVersion == "client.authentication.k8s.io/v1beta1" || value.apiVersion == "client.authentication.k8s.io/v1alpha1") { value{interactiveMode:ifAvailableExecInteractiveMode()} } else { value } }
+func convertExecConfigToInternal(value WireExecConfig) ExecConfig { ExecConfig(value.command,value.args,value.env,value.apiVersion,value.installHint,value.provideClusterInfo,None,value.interactiveMode,false,"",newPluginPolicy()) }
+func convertExecConfigFromInternal(value ExecConfig) WireExecConfig { WireExecConfig(value.command,value.args,value.env,value.apiVersion,value.installHint,value.provideClusterInfo,value.interactiveMode) }
+func convertPreferencesToInternal(value WirePreferences,destination Preferences) IO[outcome.Outcome[Preferences]] { do {
+ extensions <- convertNamedExtensionsToInternal(value.extensions,destination.extensions)
+ ioPure(outcome.mapValue(extensions,func(entries) => Preferences(value.colors,entries)))
+} }
+func convertPreferencesFromInternal(value Preferences,destination WirePreferences) IO[outcome.Outcome[WirePreferences]] { do {
+ extensions <- convertNamedExtensionsFromInternal(value.extensions,destination.extensions)
+ ioPure(outcome.mapValue(extensions,func(entries) => WirePreferences(value.colors,entries)))
+} }
+func convertClusterToInternal(value WireCluster,destination Cluster) IO[outcome.Outcome[Cluster]] { do {
+ extensions <- convertNamedExtensionsToInternal(value.extensions,destination.extensions)
+ ioPure(outcome.mapValue(extensions,func(entries) => Cluster(destination.locationOfOrigin,value.server,value.tlsServerName,value.insecureSkipTLSVerify,value.certificateAuthority,value.certificateAuthorityData,value.proxyURL,value.disableCompression,entries)))
+} }
+func convertClusterFromInternal(value Cluster,destination WireCluster) IO[outcome.Outcome[WireCluster]] { do {
+ extensions <- convertNamedExtensionsFromInternal(value.extensions,destination.extensions)
+ ioPure(outcome.mapValue(extensions,func(entries) => WireCluster(value.server,value.tlsServerName,value.insecureSkipTLSVerify,value.certificateAuthority,value.certificateAuthorityData,value.proxyURL,value.disableCompression,entries)))
+} }
+func convertContextToInternal(value WireContext,destination Context) IO[outcome.Outcome[Context]] { do {
+ extensions <- convertNamedExtensionsToInternal(value.extensions,destination.extensions)
+ ioPure(outcome.mapValue(extensions,func(entries) => Context(destination.locationOfOrigin,value.cluster,value.authInfo,value.namespace,entries)))
+} }
+func convertContextFromInternal(value Context,destination WireContext) IO[outcome.Outcome[WireContext]] { do {
+ extensions <- convertNamedExtensionsFromInternal(value.extensions,destination.extensions)
+ ioPure(outcome.mapValue(extensions,func(entries) => WireContext(value.cluster,value.authInfo,value.namespace,entries)))
+} }
+func convertAuthInfoToInternal(value WireAuthInfo,destination AuthInfo) IO[outcome.Outcome[AuthInfo]] { do {
+ extensions <- convertNamedExtensionsToInternal(value.extensions,destination.extensions)
+ let exec = prelude.fmap(value.exec,convertExecConfigToInternal)
+ ioPure(outcome.mapValue(extensions,func(entries) => AuthInfo(destination.locationOfOrigin,value.clientCertificate,value.clientCertificateData,value.clientKey,value.clientKeyData,value.token,value.tokenFile,value.impersonate,value.impersonateUID,value.impersonateGroups,value.impersonateUserExtra,value.username,value.password,value.authProvider,exec,entries)))
+} }
+func convertAuthInfoFromInternal(value AuthInfo,destination WireAuthInfo) IO[outcome.Outcome[WireAuthInfo]] { do {
+ extensions <- convertNamedExtensionsFromInternal(value.extensions,destination.extensions)
+ let exec = prelude.fmap(value.exec,convertExecConfigFromInternal)
+ ioPure(outcome.mapValue(extensions,func(entries) => WireAuthInfo(value.clientCertificate,value.clientCertificateData,value.clientKey,value.clientKeyData,value.token,value.tokenFile,value.impersonate,value.impersonateUID,value.impersonateGroups,value.impersonateUserExtra,value.username,value.password,value.authProvider,exec,entries)))
+} }
+func convertNamedClustersToInternal(value Option[List[NamedCluster]],destination Option[Map[String,Option[Cluster]]]) IO[outcome.Outcome[Option[Map[String,Option[Cluster]]]]] {
+ let entries = listOrEmpty(value)
+ _namedToMap(entries,entries,destination,func(entry) => entry.name,func(entry) => do { converted <- convertClusterToInternal(entry.cluster,newCluster()); ioPure(outcome.mapValue(converted,func(value) => Some(value))) },_formatNamedClusters,"Cluster into *map[string]*api.Cluster")
+}
+func convertNamedClustersFromInternal(value Option[Map[String,Option[Cluster]]],destination Option[List[NamedCluster]]) IO[outcome.Outcome[Option[List[NamedCluster]]]] {
+ _mapToNamed(_conversionEntries(value),destination,func(key,entry) => match entry {
+  None => io.ioRaise(io.Panic("runtime error: invalid memory address or nil pointer dereference"))
+  Some(entry) => do { converted <- convertClusterFromInternal(entry,emptyWireCluster()); ioPure(outcome.mapValue(converted,func(value) => NamedCluster(key,value))) }
+ })
+}
+func convertNamedAuthInfosToInternal(value Option[List[NamedAuthInfo]],destination Option[Map[String,Option[AuthInfo]]]) IO[outcome.Outcome[Option[Map[String,Option[AuthInfo]]]]] {
+ let entries = listOrEmpty(value)
+ _namedToMap(entries,entries,destination,func(entry) => entry.name,func(entry) => do { converted <- convertAuthInfoToInternal(entry.authInfo,newAuthInfo()); ioPure(outcome.mapValue(converted,func(value) => Some(value))) },_formatNamedAuthInfos,"AuthInfo into *map[string]*api.AuthInfo")
+}
+func convertNamedAuthInfosFromInternal(value Option[Map[String,Option[AuthInfo]]],destination Option[List[NamedAuthInfo]]) IO[outcome.Outcome[Option[List[NamedAuthInfo]]]] {
+ _mapToNamed(_conversionEntries(value),destination,func(key,entry) => match entry {
+  None => io.ioRaise(io.Panic("runtime error: invalid memory address or nil pointer dereference"))
+  Some(entry) => do { converted <- convertAuthInfoFromInternal(entry,emptyWireAuthInfo()); ioPure(outcome.mapValue(converted,func(value) => NamedAuthInfo(key,value))) }
+ })
+}
+func convertNamedContextsToInternal(value Option[List[NamedContext]],destination Option[Map[String,Option[Context]]]) IO[outcome.Outcome[Option[Map[String,Option[Context]]]]] {
+ let entries = listOrEmpty(value)
+ _namedToMap(entries,entries,destination,func(entry) => entry.name,func(entry) => do { converted <- convertContextToInternal(entry.context,newContext()); ioPure(outcome.mapValue(converted,func(value) => Some(value))) },_formatNamedContexts,"Context into *map[string]*api.Context")
+}
+func convertNamedContextsFromInternal(value Option[Map[String,Option[Context]]],destination Option[List[NamedContext]]) IO[outcome.Outcome[Option[List[NamedContext]]]] {
+ _mapToNamed(_conversionEntries(value),destination,func(key,entry) => match entry {
+  None => io.ioRaise(io.Panic("runtime error: invalid memory address or nil pointer dereference"))
+  Some(entry) => do { converted <- convertContextFromInternal(entry,emptyWireContext()); ioPure(outcome.mapValue(converted,func(value) => NamedContext(key,value))) }
+ })
+}
+func convertConfigToInternal(value WireConfig,destination Config) IO[outcome.Outcome[Config]] { do {
+ converted <- convertPreferencesToInternal(value.preferences,destination.preferences)
+ let destination = destination{preferences:converted.value}
+ match converted.error { Some(error) => ioPure(outcome.failure(destination,error)); None => do {
+ converted <- convertNamedClustersToInternal(value.clusters,destination.clusters)
+ let destination = destination{clusters:converted.value}
+ match converted.error { Some(error) => ioPure(outcome.failure(destination,error)); None => do {
+ converted <- convertNamedAuthInfosToInternal(value.authInfos,destination.authInfos)
+ let destination = destination{authInfos:converted.value}
+ match converted.error { Some(error) => ioPure(outcome.failure(destination,error)); None => do {
+ converted <- convertNamedContextsToInternal(value.contexts,destination.contexts)
+ let destination = destination{contexts:converted.value}
+ match converted.error { Some(error) => ioPure(outcome.failure(destination,error)); None => do {
+ let destination = destination{currentContext:value.currentContext}
+ converted <- convertNamedExtensionsToInternal(value.extensions,destination.extensions)
+ let destination = destination{extensions:converted.value}
+ ioPure(outcome.from(destination,converted.error))
+ } }
+ } }
+ } }
+ } }
+} }
+func convertConfigFromInternal(value Config,destination WireConfig) IO[outcome.Outcome[WireConfig]] { do {
+ converted <- convertPreferencesFromInternal(value.preferences,destination.preferences)
+ let destination = destination{preferences:converted.value}
+ match converted.error { Some(error) => ioPure(outcome.failure(destination,error)); None => do {
+ converted <- convertNamedClustersFromInternal(value.clusters,destination.clusters)
+ let destination = destination{clusters:converted.value}
+ match converted.error { Some(error) => ioPure(outcome.failure(destination,error)); None => do {
+ converted <- convertNamedAuthInfosFromInternal(value.authInfos,destination.authInfos)
+ let destination = destination{authInfos:converted.value}
+ match converted.error { Some(error) => ioPure(outcome.failure(destination,error)); None => do {
+ converted <- convertNamedContextsFromInternal(value.contexts,destination.contexts)
+ let destination = destination{contexts:converted.value}
+ match converted.error { Some(error) => ioPure(outcome.failure(destination,error)); None => do {
+ let destination = destination{currentContext:value.currentContext}
+ converted <- convertNamedExtensionsFromInternal(value.extensions,destination.extensions)
+ let destination = destination{extensions:converted.value}
+ ioPure(outcome.from(destination,converted.error))
+ } }
+ } }
+ } }
+ } }
+} }
+func defaultWireConfig(value WireConfig) WireConfig { value{authInfos:prelude.fmap(value.authInfos,func(entries) => prelude.fmap(entries,func(entry) => entry{authInfo:entry.authInfo{exec:prelude.fmap(entry.authInfo.exec,setDefaultsExecConfig)}}))} }
+func decodeConfig(text String) IO[Config] { do { let scheme = standardScheme(); wire <- decodeWithScheme(scheme,text); internal <- convert(scheme,wire,internalVersion()); match internal { InternalConfig(value) => ioPure(normalizeDecodedConfig(value)); VersionedConfig(_,_) => ioFail("conversion returned a versioned config for internal target") } } }
+func encodeConfig(value Config) IO[String] { encodeWithScheme(standardScheme(),InternalConfig(value),"v1") }

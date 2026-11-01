@@ -1,0 +1,22 @@
+package pager
+
+import runtime "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime"
+import objects "github.com/reoring/gofx/ports/client-go/deps/objects"
+import errors "github.com/reoring/gofx/ports/client-go/deps/support"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+
+// The runtime.Object specialization preserves nil elements. A first/final page
+// with no continuation is returned untouched, including nil-vs-empty slices.
+func objectPageAccess() PageAccess[runtime.Object, Option[runtime.Object]] {
+ PageAccess(func(object) => do {
+  result <- objects.objectListInfo(object)
+  let (metadata, error) = result
+  let (rv, links) = metadata
+  let (selfLink, continuation) = links
+  ioPure(outcome.Outcome(PageInfo(rv, selfLink, continuation), error))
+ }, func(object, allocate) => do {
+  result <- objects.objectListItems(object, allocate)
+  let (items, error) = result
+  ioPure(outcome.Outcome(match items { None => []; Some(values) => values }, error))
+ }, func(info, items) => objects.newObjectList(info.resourceVersion, info.selfLink, Some(items)), errors.errorIsResourceExpired)
+}

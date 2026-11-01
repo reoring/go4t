@@ -10,6 +10,7 @@ import "std/list"
 import "std/string"
 import "std/result"
 import "std/float"
+import "std/map"
 
 type ParamsEntry = ParamsEntry { value: Int, known: Bool, derived: Bool } deriving Eq, Debug
 type Node = TextNode(String) | ArrayNode(ParamsEntry,ParamsEntry,ParamsEntry) | ListNode(List[Node]) | FieldNode(String) | IdentifierNode(String) | FilterNode(List[Node],List[Node],String) | IntNode(Int) | FloatNode(Float) | WildcardNode | RecursiveNode | UnionNode(List[List[Node]]) | BoolNode(Bool) deriving Eq, Debug
@@ -27,16 +28,24 @@ func nodeType(n Node) NodeType {
   }
 }
 func nodeTypeType(t NodeType) NodeType { t }
-func nodeTypeName(t NodeType) String { show(t) }
+func defaultNodeTypeNames() Map[NodeType,String] {
+  map.mapFromList([
+    (NodeText,"NodeText"),(NodeArray,"NodeArray"),(NodeList,"NodeList"),
+    (NodeField,"NodeField"),(NodeIdentifier,"NodeIdentifier"),(NodeFilter,"NodeFilter"),
+    (NodeInt,"NodeInt"),(NodeFloat,"NodeFloat"),(NodeWildcard,"NodeWildcard"),
+    (NodeRecursive,"NodeRecursive"),(NodeUnion,"NodeUnion"),(NodeBool,"NodeBool")
+  ])
+}
+func nodeTypeName(names Map[NodeType,String],t NodeType) String { result.fromOption(map.mapLookup(names,t),"") }
 func paramString(p ParamsEntry) String { "{" + show(p.value) + " " + show(p.known) + " " + show(p.derived) + "}" }
-func nodeString(n Node) String {
-  let kind = nodeTypeName(nodeType(n))
+func nodeString(names Map[NodeType,String],n Node) String {
+  let kind = nodeTypeName(names,nodeType(n))
   match n {
     TextNode(s) => kind + ": " + s FieldNode(s) => kind + ": " + s IdentifierNode(s) => kind + ": " + s
     IntNode(i) => kind + ": " + show(i) FloatNode(f) => kind + ": " + float.showFloatFixed(f,6)
     BoolNode(b) => kind + ": " + show(b)
     ArrayNode(a,b,c) => kind + ": [" + paramString(a) + " " + paramString(b) + " " + paramString(c) + "]"
-    FilterNode(_,_,op) => kind + ": NodeList " + op + " NodeList"
+    FilterNode(_,_,op) => kind + ": " + nodeTypeName(names,NodeList) + " " + op + " " + nodeTypeName(names,NodeList)
     _ => kind
   }
 }

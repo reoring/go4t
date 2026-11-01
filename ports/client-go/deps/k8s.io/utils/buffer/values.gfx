@@ -2,17 +2,18 @@
 // Source: client-go v0.37.2 and exact external dependency declarations.
 // Kubernetes-derived declarations are licensed under Apache-2.0.
 // https://www.apache.org/licenses/LICENSE-2.0
-// Source graph SHA-256: 2e4efd1c862cc7bde1036ba0dc37a4fe08175d4ead5d513b32689e674b91d866
+// Source graph SHA-256: 99a062162cbc99a38896123a3e81ce3ef2f70f2e505fbd058751d52a0a40f167
 package buffer
 
 import canonical "github.com/reoring/gofx/ports/client-go/deps/types"
 import support "github.com/reoring/gofx/ports/client-go/deps/support"
 
 alias RingGrowing = canonical.RingGrowing_d736fbb88147
-extern func newRingGrowing() IO[RingGrowing] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".New_RingGrowing_d736fbb88147
+extern func newRingGrowing() IO[RingGrowing] = "github.com/reoring/gofx/ports/client-go/host/deps".New_RingGrowing_d736fbb88147
 alias TypedRingGrowing[T] = canonical.TypedRingGrowing_078186f409a6[T]
-extern func zeroTypedRingGrowingLike[T](prototype TypedRingGrowing[T]) IO[TypedRingGrowing[T]] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".ZeroLike_TypedRingGrowing_078186f409a6
-extern func typedRingGrowingCallCapIdentity[T](value TypedRingGrowing[T]) IO[Int] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_829791e1f905941a
-extern func typedRingGrowingCallLenIdentity[T](value TypedRingGrowing[T]) IO[Int] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_a6f3bbe57c13c609
-extern func typedRingGrowingCallReadOneIdentity[T](value TypedRingGrowing[T]) IO[(T, Bool)] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_3242b6e31562e793
-extern func typedRingGrowingCallWriteOneIdentity[T](value TypedRingGrowing[T], p0 T) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_5cdc144e3feda646
+extern func zeroTypedRingGrowingLike[T](prototype TypedRingGrowing[T]) IO[TypedRingGrowing[T]] = "github.com/reoring/gofx/ports/client-go/host/deps".ZeroLike_TypedRingGrowing_078186f409a6
+extern func callNewRingGrowing(p0 Int) IO[Option[canonical.TypedRingGrowing_078186f409a6[Option[support.Any]]]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_1fc01f7dbd801a67
+extern func typedRingGrowingCallCapIdentity[T](value TypedRingGrowing[T]) IO[Int] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_829791e1f905941a
+extern func typedRingGrowingCallLenIdentity[T](value TypedRingGrowing[T]) IO[Int] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_a6f3bbe57c13c609
+extern func typedRingGrowingCallReadOneIdentity[T](value TypedRingGrowing[T]) IO[(T, Bool)] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_3242b6e31562e793
+extern func typedRingGrowingCallWriteOneIdentity[T](value TypedRingGrowing[T], p0 T) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_5cdc144e3feda646

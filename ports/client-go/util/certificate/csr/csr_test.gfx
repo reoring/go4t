@@ -1,0 +1,87 @@
+// Copyright 2020 The Kubernetes Authors. Licensed under Apache-2.0.
+package csr
+import api "github.com/reoring/gofx/ports/client-go/deps/k8s.io/api/certificates/v1"
+import crypto "github.com/reoring/gofx/ports/client-go/deps/crypto"
+import x509 "github.com/reoring/gofx/ports/client-go/deps/crypto/x509"
+import support "github.com/reoring/gofx/ports/client-go/deps/support"
+import cert "github.com/reoring/gofx/ports/client-go/util/cert"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import watch "github.com/reoring/gofx/ports/client-go/support/watch"
+import io "std/io"
+extern func _status(object api.CertificateSigningRequest, name String, uid String, condition String, bytes String) api.CertificateSigningRequest = "github.com/reoring/gofx/ports/client-go/util/certificate/csr/testsupport".WithStatus
+extern func _apiError(kind String) support.Error = "github.com/reoring/gofx/ports/client-go/util/certificate/csr/testsupport".APIError
+extern func _fixtureKey(name String) String = "github.com/reoring/gofx/ports/client-go/util/keyutil/testsupport".Fixture
+extern func _fixtureTemplate(cn String) IO[x509.CertificateRequest] = "github.com/reoring/gofx/ports/client-go/util/cert/testsupport".Template
+func testCSRConditionOutcomes() IO[Bool] {
+ let base = newRequest("node", "example/signer", "", None, [])
+ let approved = conditionResult("node", "uid", "ADDED", Some(_status(base, "node", "uid", "Approved", "issued")))
+ let pending = conditionResult("node", "uid", "MODIFIED", Some(_status(base, "node", "uid", "Approved", "")))
+ let denied = conditionResult("node", "uid", "ADDED", Some(_status(base, "node", "uid", "Denied", "issued")))
+ let failed = conditionResult("node", "uid", "MODIFIED", Some(_status(base, "node", "uid", "Failed", "issued")))
+ let replaced = conditionResult("node", "uid", "ADDED", Some(_status(base, "node", "other", "Approved", "issued")))
+ let deleted = conditionResult("node", "uid", "DELETED", Some(base))
+ ioPure(approved.value == Some("issued") && pending.value == None && !outcome.isSuccess(denied) && !outcome.isSuccess(failed) && !outcome.isSuccess(replaced) && !outcome.isSuccess(deleted))
+}
+func testDurationConversionsPreserveInt32Contract() IO[Bool] { ioPure(durationToExpirationSeconds(1999999999) == 1 && durationToExpirationSeconds(-1999999999) == -1 && durationToExpirationSeconds(2147483648000000000) == -2147483648 && expirationSecondsToDuration(42) == 42000000000) }
+func _key() IO[crypto.PrivateKey] {
+ match cert.decodePEM(_fixtureKey("ec")) { Some((kind, (_, (bytes, _)))) => do { parsed <- cert.parsePrivate(kind, bytes); match parsed.0 { Some(key) => ioPure(key); None => ioFail("fixture key parse failed") } }; None => ioFail("fixture key PEM missing") }
+}
+func testCSRSignerCompatibilityAndAPIErrorIdentity() IO[Bool] { do {
+ clock <- sync.fakeClock(0); key <- _key(); template <- _fixtureTemplate("node"); bytes <- cert.makeCSRFromTemplate(key, template)
+ let original = newRequest("node", "example/signer", bytes.value, None, [])
+ let anonymous = newRequest("node", "", bytes.value, None, [])
+ let different = newRequest("node", "other/signer", bytes.value, None, [])
+ compatible <- ensureCompatible(clock, anonymous, original, key)
+ incompatible <- ensureCompatible(clock, different, original, key)
+ let wrapped = cert.formatAPIError("cannot create certificate signing request: ", _apiError("Forbidden"))
+ ioPure((match compatible { None => true; Some(_) => false }) && (match incompatible { None => false; Some(error) => cert.errorText(error) == "csr signerNames differ: new \"other/signer\", orig: \"example/signer\"" }) && cert.apiErrorKind(wrapped) == "Forbidden")
+} }
+func testCSRCreateV1FallbackAndExistingReuse() IO[Bool] { do {
+ clock <- sync.fakeClock(0); key <- _key(); template <- _fixtureTemplate("node"); bytes <- cert.makeCSRFromTemplate(key, template)
+ calls <- sync.newRef([])
+ let original = _status(newRequest("node", "example/signer", bytes.value, None, []), "node", "uid", "", "")
+ let client = Client(
+  func(version, _) => do { old <- sync.readRef(calls); sync.writeRef(calls, Cons(version, old)); ioPure(outcome.failure(original, _apiError(if version == "v1" { "NotFound" } else { "AlreadyExists" }))) },
+  func(_, _) => ioPure(outcome.success(original)),
+  func(_, _) => ioFail("unexpected list"), func(_, _) => ioFail("unexpected watch"))
+ result <- requestCertificate(clock, client, bytes.value, "node", "example/signer", None, ["client auth"], key)
+ observed <- sync.readRef(calls)
+ ioPure(outcome.isSuccess(result) && result.value == ("node", "uid") && observed == ["v1beta1", "v1"])
+} }
+func testCSRWaitObservesListedApprovalBeforeWatching() IO[Bool] { do {
+ clock <- sync.fakeClock(0)
+ let obj = _status(newRequest("node", "example/signer", "", None, []), "node", "uid", "Approved", "real-certificate-bytes")
+ let listed = api.certificateSigningRequestListWithItems(api.newCertificateSigningRequestList(), Some([obj]))
+ let client = Client(func(_, _) => ioFail("unexpected create"), func(_, _) => ioFail("unexpected get"), func(_, _) => ioPure(outcome.success(listed)), func(_, _) => ioFail("watch must not start for listed issued certificate"))
+ result <- waitForCertificate(clock, client, "node", "uid")
+ ioPure(outcome.isSuccess(result) && result.value == "real-certificate-bytes")
+} }
+func testWatchCancellationStopsAndJoinsProducer() IO[Bool] { do {
+ events <- sync.newChannel(0); opened <- sync.newChannel(1); stopped <- sync.newChannel(1)
+ let stream = watch.newWatch(events, func() => sync.send(stopped, unit()))
+ let client = Client(func(_, _) => ioFail("unexpected create"), func(_, _) => ioFail("unexpected get"), func(_, _) => ioFail("unexpected list"), func(_, _) => do { sync.send(opened, unit()); ioPure(outcome.success(Some(stream))) })
+ task <- sync.start(io.tryIO(_watchOnce(client, "v1", "node", "uid", "")))
+ sync.receive(opened); sync.cancelTask(task); result <- sync.join(task)
+ cleaned <- sync.receive(stopped)
+ ioPure((match result { Err(_) => true; Ok(_) => false }) && (match cleaned { Some(_) => true; None => false }))
+} }
+extern func _signedPair(cn String, before Int, after Int) IO[(String, String)] = "github.com/reoring/gofx/ports/client-go/util/cert/testsupport".Pair
+func testCSRCompatibilityRejectsExpiredChainAndWrongSigningKey() IO[Bool] { do {
+ clock <- sync.fakeClock(2000000000); key <- _key(); template <- _fixtureTemplate("node")
+ request <- cert.makeCSRFromTemplate(key, template)
+ let original = newRequest("node", "example/signer", request.value, None, [])
+ expiredPair <- _signedPair("node", 0, 1000000000)
+ let issued = _status(original, "node", "uid", "Approved", expiredPair.0)
+ expired <- ensureCompatible(clock, issued, original, key)
+ match cert.decodePEM(_fixtureKey("rsa")) {
+  Some((format, (_, (bytes, _)))) => do {
+   parsed <- cert.parsePrivate(format, bytes)
+   match parsed.0 { Some(other) => do {
+    mismatched <- ensureCompatible(clock, original, original, other)
+    ioPure((match expired { Some(_) => true; None => false }) && (match mismatched { Some(_) => true; None => false }))
+   }; None => ioPure(false) }
+  }
+  None => ioPure(false)
+ }
+} }

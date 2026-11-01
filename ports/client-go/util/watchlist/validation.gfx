@@ -1,0 +1,12 @@
+package watchlist
+
+import objects "github.com/reoring/gofx/ports/client-go/deps/objects"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+
+func canonicalValidation() Validation {
+ Validation(func(options) => do {
+  result <- objects.validateListOptions(options, true)
+  let (valid, error) = result
+  ioPure(outcome.Outcome(valid, error))
+ })
+}

@@ -1,0 +1,9 @@
+// Copyright 2022 The Kubernetes Authors. Licensed under the Apache License, Version 2.0.
+package gcp
+import "rest"
+import "support/outcome"
+import fx "plugin/pkg/client/auth/internal/effects"
+func newGCPAuthProvider(cluster String,config Map[String,String],persister rest.AuthProviderConfigPersister) IO[outcome.Outcome[Option[rest.AuthProvider]]] {
+ ioPure(fx.failure(None,"The gcp auth plugin has been removed.\nPlease use the \"gke-gcloud-auth-plugin\" kubectl/client-go credential plugin instead.\nSee https://cloud.google.com/blog/products/containers-kubernetes/kubectl-auth-changes-in-gke for further details"))
+}
+func register(registry rest.AuthProviderRegistry) IO[outcome.Outcome[Unit]] {rest.registerAuthProviderPlugin(registry,"gcp",newGCPAuthProvider)}

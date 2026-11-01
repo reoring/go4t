@@ -1,0 +1,49 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+// Native owner-selector algorithms from client-go v0.37.2 listers/*/*/*_expansion.go.
+package listers
+import "std/map"
+import "std/string"
+import cache "github.com/reoring/gofx/ports/client-go/tools/cache"
+import objects "github.com/reoring/gofx/ports/client-go/deps/objects"
+import runtime "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime"
+import meta "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import labels "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/labels"
+import support "github.com/reoring/gofx/ports/client-go/deps/support"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+
+func selectorFromLabelSelector(value Option[meta.LabelSelector]) IO[Option[cache.ListSelector]] { do {
+ converted <- objects.labelSelectorAsSelector(value)
+ match snd(converted) { Some(_) => ioPure(None); None => match fst(converted) { None => ioPure(None); Some(selector) => do { native <- cache.fromLabelSelector(selector); ioPure(Some(native)) } } }
+} }
+func selectorFromMap(value support.ForeignMap[String,String]) IO[Option[cache.ListSelector]] { do {
+ converted <- labels.setGoCallAsSelectorPreValidated(labels.setGoFromValue(value))
+ match snd(converted) { None => ioPure(None); Some(selector) => do { native <- cache.fromLabelSelector(selector); ioPure(Some(native)) } }
+} }
+// Go's %v string-map representation has sorted keys, no quoting, and space separators.
+func labelsString(values Map[String,String]) String { "map[" + string.join(" ",map(map.mapToList(values),func(pair) => fst(pair) + ":" + snd(pair))) + "]" }
+func formatOwnerError(template String, values List[String]) String { match values { Nil => template; Cons(value,rest) => match string.indexOf(template,"%") { None => template; Some(index) => string.substring(template,0,index) + value + formatOwnerError(string.substring(template,index+2,string.strLength(template)),rest) } } }
+func ownerError[A](template String, name String, namespace String, values Map[String,String]) IO[outcome.Outcome[List[A]]] {
+ ioPure(outcome.failure(Nil,support.errorNew(formatOwnerError(template,[name,namespace,labelsString(values)]))))
+}
+func selectOwners[A](items List[A], namespace String, values Map[String,String], checkNamespace Bool, rejectEmpty Bool, selector func(A) IO[Option[cache.ListSelector]], observeNamespace func(A) IO[String], result func(A) IO[A]) IO[List[A]] {
+ match items { Nil => ioPure(Nil); Cons(item,rest) => do {
+  sameNamespace <- if checkNamespace { do { observed <- observeNamespace(item); ioPure(observed == namespace) } } else { ioPure(true) }
+  chosen <- if sameNamespace { do { candidate <- selector(item); match candidate { None => ioPure(false); Some(selection) => if rejectEmpty && selection.empty { ioPure(false) } else { selection.matches(values) } } } } else { ioPure(false) }
+  if chosen { do { value <- result(item); remaining <- selectOwners(rest,namespace,values,checkNamespace,rejectEmpty,selector,observeNamespace,result); ioPure(Cons(value,remaining)) } } else { selectOwners(rest,namespace,values,checkNamespace,rejectEmpty,selector,observeNamespace,result) }
+ } }
+}
+func matchOwners[A](indexer ResourceIndexer[A], subject runtime.Object, requireLabels Bool, noLabelsError String, noMatchError String, checkNamespace Bool, rejectEmpty Bool, selector func(A) IO[Option[cache.ListSelector]], observeNamespace func(A) IO[String], result func(A) IO[A]) IO[outcome.Outcome[List[A]]] { do {
+ metadata <- objects.objectMetadata(subject)
+ match snd(metadata) { Some(error) => ioPure(outcome.failure(Nil,error)); None => match fst(metadata) { None => ioFail("listers: subject has no object metadata"); Some(snapshot) => do {
+  let name = meta.objectMetaGetName(snapshot)
+  let namespace = meta.objectMetaGetNamespace(snapshot)
+  let values = map.mapFromList(support.mapEntries(meta.objectMetaGetLabels(snapshot)))
+  if requireLabels && map.mapSize(values) == 0 { ownerError(noLabelsError,name,namespace,values) } else { do {
+   candidates <- indexer.scoped(namespace).list(cache.everythingSelector())
+   match candidates.error { Some(error) => ioPure(outcome.failure(Nil,error)); None => do {
+    selected <- selectOwners(candidates.value,namespace,values,checkNamespace,rejectEmpty,selector,observeNamespace,result)
+    match selected { Nil => ownerError(noMatchError,name,namespace,values); Cons(_,_) => ioPure(outcome.success(selected)) }
+   } }
+  } }
+ } } }
+} }

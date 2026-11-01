@@ -1,0 +1,64 @@
+// Copyright 2026 The Kubernetes Authors. Licensed under Apache-2.0.
+package exec
+import api "tools/clientcmd/api"
+import auth "pkg/apis/clientauthentication"
+import errors "deps/support"
+import "support/sync"
+import "support/outcome"
+import "transport"
+import http "deps/net/http"
+import fx "plugin/pkg/client/auth/internal/effects"
+import "std/string"
+func _repeatLimit(limiter Sometimes,count Int,hits sync.Ref[Int]) IO[Unit] {if count == 0 {ioPure(unit())} else {do {doSometimes(limiter,do {n <- sync.readRef(hits);sync.writeRef(hits,n+1)});_repeatLimit(limiter,count-1,hits)}}}
+func testInstallHintThresholdAndWindowReset() IO[Bool] {do {
+ clock <- sync.fakeClock(100);hits <- sync.newRef(0);limiter <- newSometimes(2,1000,clock)
+ _repeatLimit(limiter,10,hits);first <- sync.readRef(hits)
+ sync.advance(clock,999);_repeatLimit(limiter,1,hits);boundaryBefore <- sync.readRef(hits)
+ sync.advance(clock,1);_repeatLimit(limiter,10,hits);after <- sync.readRef(hits)
+ ioPure(first == 2 && boundaryBefore == 2 && after == 4)
+}}
+func testCacheIdentityPreservesPresenceAndCluster() IO[Bool] {
+ let config = _testConfig()
+ ioPure(configEqual(config,config) && !configEqual(config,config{args:Some(Nil)}) && !configEqual(config,config{env:Some(Nil)}) && !configEqual(config,config{installHint:"different"}) && !configEqual(config,config{provideClusterInfo:true}) && !clusterEqual(None,Some(auth.newCluster())) && !clusterEqual(Some(auth.newCluster()),Some(auth.newCluster(){server:"https://other.invalid"})))
+}
+func testDeniedPolicyNeverInvokesPlugin() IO[Bool] {do {
+ clock <- sync.fakeClock(0);calls <- sync.newRef(0);cache <- newCache();result <- getAuthenticator(cache,_testEnvironment(clock,calls,_testWire("fixture","")),_testConfig(){pluginPolicy:api.PluginPolicy("DenyAll",None)},None);a <- _testAuthenticator(result)
+ creds <- getCreds(a);count <- sync.readRef(calls)
+ ioPure(count == 0 && (match creds.error {None => false;Some(e) => string.contains(errors.errorMessage(e),"policy set to \"DenyAll\"")}))
+}}
+func testUnauthorizedReturnsOriginalResponseWithoutReplay() IO[Bool] {do {
+ clock <- sync.fakeClock(0);calls <- sync.newRef(0);requests <- sync.newRef(0);cache <- newCache();created <- getAuthenticator(cache,_testEnvironment(clock,calls,_testWire("fixture","")),_testConfig(),None);a <- _testAuthenticator(created)
+ request <- http.newRequest();response <- http.newResponse();http.responseSetStatusCodeIdentity(response,401)
+ let base = transport.roundTripper(func(r) => do {n <- sync.readRef(requests);sync.writeRef(requests,n+1);ioPure(outcome.success(Some(response)))},func(r) => ioPure(unit()),func() => ioPure(unit()))
+ result <- roundTrip(a,base,request);count <- sync.readRef(calls);requestCount <- sync.readRef(requests);header <- transport.requestHeader(request,"Authorization")
+ status <- match result.value {None => ioPure(0);Some(r) => transport.responseStatus(r)}
+ ioPure(status == 401 && count == 2 && requestCount == 1 && header == "")
+}}
+func testRefreshFailureRetainsOldGeneration() IO[Bool] {do {
+ clock <- sync.fakeClock(0);calls <- sync.newRef(0);cache <- newCache()
+ let base = _testEnvironment(clock,calls,"")
+ let env = base{run:func(command,environment,interactive) => do {n <- sync.readRef(calls);sync.writeRef(calls,n+1);ioPure((if n == 0 {_testWire("fixture","")} else {"malformed"},"",(0,None)))}}
+ created <- getAuthenticator(cache,env,_testConfig(),None);a <- _testAuthenticator(created);first <- getCreds(a)
+ match first.value {None => ioPure(false);Some(c) => do {failed <- maybeRefreshCreds(a,c);cached <- getCreds(a);count <- sync.readRef(calls);ioPure(!outcome.isSuccess(failed) && count == 2 && (match cached.value {None => false;Some(old) => old.generation == c.generation && old.token == c.token}))}}
+}}
+func testNoninteractiveDoesNotInspectTerminal() IO[Bool] {do {
+ clock <- sync.fakeClock(0);calls <- sync.newRef(0);cache <- newCache()
+ let environment = _testEnvironment(clock,calls,_testWire("fixture","")){terminal:func() => ioFail("terminal must not be queried")}
+ created <- getAuthenticator(cache,environment,_testConfig(),None);a <- _testAuthenticator(created);result <- getCreds(a)
+ ioPure(outcome.isSuccess(result))
+}}
+func testEquivalentConfigurationsShareTLSHolderIdentity() IO[Bool] {do {
+ clock <- sync.fakeClock(0);calls <- sync.newRef(0);cache <- newCache()
+ let environment = _testEnvironment(clock,calls,_testWire("fixture",""))
+ first <- getAuthenticator(cache,environment,_testConfig(),None);a <- _testAuthenticator(first)
+ second <- getAuthenticator(cache,environment,_testConfig(),None);b <- _testAuthenticator(second)
+ third <- getAuthenticator(cache,environment,_testConfig(){args:Some(["different"])},None);c <- _testAuthenticator(third)
+ x <- transport.identityNumber(a.getCert.identity);y <- transport.identityNumber(b.getCert.identity);z <- transport.identityNumber(c.getCert.identity)
+ da <- transport.identityNumber(a.dial.identity);db <- transport.identityNumber(b.dial.identity)
+ ioPure(x == y && x != z && da == db)
+}}
+func testZeroAndDistantExpirationPreserveTimeRange() IO[Bool] {do {
+ zero <- auth.decodeStatus("{\"expirationTimestamp\":\"0001-01-01T00:00:00Z\",\"token\":\"fixture\"}")
+ distant <- auth.decodeStatus("{\"expirationTimestamp\":\"9999-12-31T00:00:00Z\",\"token\":\"fixture\"}")
+ ioPure(!credsExpired(zero.expirationTimestamp,1) && !credsExpired(distant.expirationTimestamp,1))
+}}

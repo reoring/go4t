@@ -1,0 +1,98 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package rest
+
+import flowcontrol "util/flowcontrol"
+import sync "support/sync"
+import errors "deps/support"
+import io "std/io"
+import conc "std/conc"
+
+func testURLBackoffUsesSuppliedAggregateJitterAndExpiry() IO[Bool] {
+ do {
+  clock <- sync.fakeClock(0)
+  native <- flowcontrol.newBackOffBy(func(a,b) => compare(a,b),100,500,clock,0.1,func() => ioPure(0.5),func(event,last,maximum) => sync.elapsed(last,event) >= 2000)
+  now <- sync.now(clock)
+  flowcontrol.next(native,"example.invalid:8443",now)
+  adapter <- newURLBackoffWithBackoff(native)
+  let manager = urlBackoff(adapter)
+  match (parseURL("https://example.invalid:8443/api/pods").0,parseURL("http://example.invalid:8443/other?watch=true").0,parseURL("https://example.invalid:9443/api/pods").0) {
+   (Some(first),Some(sameHost),Some(otherPort)) => do {
+    // Existing state is shared, not copied or reconstructed by the adapter.
+    seeded <- manager.calculateBackoff(first)
+    manager.updateBackoff(sameHost,None,429)
+    jittered <- manager.calculateBackoff(first)
+    shared <- flowcontrol.get(native,"example.invalid:8443")
+    isolated <- manager.calculateBackoff(otherPort)
+    // Default expiry would reset after 1000; the supplied policy retains at 1999.
+    sync.advance(clock,1999)
+    manager.updateBackoff(first,None,503)
+    retained <- manager.calculateBackoff(sameHost)
+    sync.advance(clock,2000)
+    manager.updateBackoff(first,None,500)
+    expired <- manager.calculateBackoff(first)
+    flowcontrol.reset(native,"example.invalid:8443")
+    externallyReset <- manager.calculateBackoff(first)
+    ioPure(seeded==105 && jittered==215 && shared==215 && isolated==0 && retained==440 && expired==105 && externallyReset==0)
+   }
+   _ => ioPure(false)
+  }
+ }
+}
+
+func testURLBackoffDefaultGrowthExpiryResetAndDisable() IO[Bool] {
+ do {
+  clock <- sync.fakeClock(0)
+  adapter <- newURLBackoff(clock,100,500)
+  let manager = urlBackoff(adapter)
+  match parseURL("https://example.invalid/api/pods").0 {
+   None => ioPure(false)
+   Some(location) => do {
+    empty <- manager.calculateBackoff(location)
+    manager.updateBackoff(location,None,429); first <- manager.calculateBackoff(location)
+    manager.updateBackoff(location,None,500); second <- manager.calculateBackoff(location)
+    manager.updateBackoff(location,None,599); third <- manager.calculateBackoff(location)
+    manager.updateBackoff(location,None,503); capped <- manager.calculateBackoff(location)
+    sync.advance(clock,1000)
+    manager.updateBackoff(location,None,429); exact <- manager.calculateBackoff(location)
+    sync.advance(clock,1001)
+    stale <- manager.calculateBackoff(location)
+    manager.updateBackoff(location,None,500); restarted <- manager.calculateBackoff(location)
+    manager.updateBackoff(location,None,499); reset499 <- manager.calculateBackoff(location)
+    manager.updateBackoff(location,None,429)
+    manager.updateBackoff(location,Some(errors.errorNew("transport failure")),0); resetError <- manager.calculateBackoff(location)
+    manager.updateBackoff(location,None,503)
+    manager.updateBackoff(location,None,200); resetSuccess <- manager.calculateBackoff(location)
+    manager.updateBackoff(location,None,429)
+    disable(adapter); disabled <- manager.calculateBackoff(location)
+    manager.updateBackoff(location,None,503); stillDisabled <- manager.calculateBackoff(location)
+    ioPure(empty==0 && first==100 && second==200 && third==400 && capped==500 && exact==500 && stale==500 && restarted==100 && reset499==0 && resetError==0 && resetSuccess==0 && disabled==0 && stillDisabled==0)
+   }
+  }
+ }
+}
+
+func testURLBackoffDisableDetachesSuppliedAggregateAndSleepCancels() IO[Bool] {
+ do {
+  clock <- sync.fakeClock(0)
+  native <- flowcontrol.newFakeBackOff(100,500,clock)
+  adapter <- newURLBackoffWithBackoff(native)
+  let manager = urlBackoff(adapter)
+  match parseURL("https://example.invalid/path").0 {
+   None => ioPure(false)
+   Some(location) => do {
+    manager.updateBackoff(location,None,429)
+    disable(adapter)
+    manager.updateBackoff(location,None,500)
+    original <- flowcontrol.get(native,"example.invalid")
+    disabled <- manager.calculateBackoff(location)
+    manager.sleep(0); manager.sleep(-1)
+    // A long timer on the supplied fake clock must remain context-cancellable.
+    parent <- sync.captureContext()
+    child <- sync.newContext(parent,None)
+    sync.cancelContext(child.1)
+    cancelled <- conc.withTimeout(1000,io.tryIO(sync.withContext(child.0,manager.sleep(1000000000))))
+    ioPure(original==100 && disabled==0 && (match cancelled { Err(io.Cancelled) => true; _ => false }))
+   }
+  }
+ }
+}

@@ -1,0 +1,31 @@
+package main
+
+import version "github.com/reoring/gofx/ports/client-go/pkg/version"
+import external "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/version"
+import "std/io"
+
+func require(ok Bool, message String) IO[Unit] {
+ if ok { ioPure(unit()) } else { ioFail(message) }
+}
+
+func main() IO[Unit] {
+ do {
+  let initial = external.newInfo()
+  let build = version.BuildInfo("1", "37", "v1.37.2-proof", "commit", "clean", "2026-11-02")
+  let info = version.getWith(build)
+  require(external.infoGetMajor(info) == "1" && external.infoGetMinor(info) == "37", "version numeric fields lost")
+  require(external.infoGetGitVersion(info) == "v1.37.2-proof", "version GitVersion lost")
+  require(external.infoGetGitCommit(info) == "commit" && external.infoGetGitTreeState(info) == "clean", "version build fields lost")
+  require(external.infoGetBuildDate(info) == "2026-11-02", "version build date lost")
+  require(external.infoGetGoVersion(info) != "" && external.infoGetCompiler(info) != "" && external.infoGetPlatform(info) != "", "version runtime fields lost")
+  let updated = external.infoWithMinCompatibilityMinor(external.infoWithMinCompatibilityMajor(external.infoWithEmulationMinor(external.infoWithEmulationMajor(info, "2"), "3"), "4"), "5")
+  require(external.infoGetEmulationMajor(updated) == "2" && external.infoGetEmulationMinor(updated) == "3", "version emulation fields lost")
+  require(external.infoGetMinCompatibilityMajor(updated) == "4" && external.infoGetMinCompatibilityMinor(updated) == "5", "version compatibility fields lost")
+  require(external.infoGetEmulationMajor(info) == "" && external.infoGetMajor(initial) == "", "version update mutated earlier snapshot")
+  shown <- external.infoCallString(info)
+  require(shown.1 == "v1.37.2-proof", "Info.String value receiver mismatch")
+  model <- external.infoCallOpenAPIModelName(info)
+  require(model.1 == "io.k8s.apimachinery.pkg.version.Info", "Info OpenAPI model name mismatch")
+  println("version-binding-proof: pure getWith; thirteen fields; immutable snapshots; value methods PASS")
+ }
+}

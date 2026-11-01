@@ -1,28 +1,37 @@
 package objects
 
 import runtime "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime"
+import canonical "github.com/reoring/gofx/ports/client-go/deps/types"
 import support "github.com/reoring/gofx/ports/client-go/deps/support"
 import meta "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/apis/meta/v1"
 import schema "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime/schema"
+import labels "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/labels"
+
+alias ObjectType[A] = canonical.ObjectType[A]
+extern func toObject[A](descriptor ObjectType[A], value A) runtime.Object = "github.com/reoring/gofx/ports/client-go/host/deps".TypedObjectTo
+extern func fromObject[A](descriptor ObjectType[A], value Option[runtime.Object]) Option[A] = "github.com/reoring/gofx/ports/client-go/host/deps".TypedObjectFrom
+extern func shallowCopy[A](descriptor ObjectType[A], value A) IO[A] = "github.com/reoring/gofx/ports/client-go/host/deps".ObjectShallowCopy
+extern func labelSelectorAsSelector(value Option[meta.LabelSelector]) IO[(Option[labels.Selector], Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/host/deps".LabelSelectorAsSelector
 
 // DeepCopyObject may return nil for a user-provided implementation.
-extern func objectDeepCopy(value runtime.Object) IO[Option[runtime.Object]] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".ObjectDeepCopy
-extern func rawExtensionDeepCopy(value runtime.RawExtension) IO[runtime.RawExtension] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".RawExtensionDeepCopy
-extern func objectEqual(left Option[runtime.Object], right Option[runtime.Object]) IO[Bool] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".ObjectEqual
-extern func rawExtensionToObject(value runtime.RawExtension) IO[(Option[runtime.Object], Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".RawExtensionToObject
-extern func objectToRawExtension(value Option[Option[runtime.Object]], previous runtime.RawExtension) IO[(runtime.RawExtension, Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".ObjectToRawExtension
-extern func objectResourceVersion(value runtime.Object) IO[(String, Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".ObjectResourceVersion
-extern func objectAsStatus(value runtime.Object) Option[meta.Status] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".ObjectAsStatus
-extern func objectMetadata(value runtime.Object) IO[(Option[meta.ObjectMeta], Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".ObjectMetadata
-extern func objectResourceVersionValue(value runtime.Object) IO[Option[String]] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".ObjectResourceVersionValue
-extern func errorFromObject(value runtime.Object) IO[support.Error] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".ErrorFromObject
-extern func errorHasStatusCause(value support.Error, cause meta.CauseType) Bool = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".ErrorHasStatusCause
-extern func objectListInfo(value runtime.Object) IO[((String, (String, String)), Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".ObjectListInfo
-extern func objectListItems(value runtime.Object, allocate Bool) IO[(Option[List[Option[runtime.Object]]], Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".ObjectListItems
-extern func newObjectList(resourceVersion String, selfLink String, items Option[List[Option[runtime.Object]]]) IO[runtime.Object] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".NewObjectList
-extern func validateListOptions(value meta.ListOptions, watchListFeatureEnabled Bool) IO[(Bool, Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".ValidateListOptions
-extern func objectGroupVersionKind(value runtime.Object) IO[schema.GroupVersionKind] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".ObjectGroupVersionKind
-extern func statusToObject(value meta.Status) runtime.Object = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".StatusToObject
-extern func objectGoString(value Option[runtime.Object]) IO[String] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".ObjectGoString
-extern func objectSetResourceVersion(value runtime.Object, resourceVersion String) IO[(Option[runtime.Object], Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".ObjectSetResourceVersion
-extern func listOptionsToObject(value meta.ListOptions) runtime.Object = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".ListOptionsToObject
+extern func objectDeepCopy(value runtime.Object) IO[Option[runtime.Object]] = "github.com/reoring/gofx/ports/client-go/host/deps".ObjectDeepCopy
+extern func rawExtensionDeepCopy(value runtime.RawExtension) IO[runtime.RawExtension] = "github.com/reoring/gofx/ports/client-go/host/deps".RawExtensionDeepCopy
+extern func objectEqual(left Option[runtime.Object], right Option[runtime.Object]) IO[Bool] = "github.com/reoring/gofx/ports/client-go/host/deps".ObjectEqual
+extern func rawExtensionToObject(value runtime.RawExtension) IO[(Option[runtime.Object], Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/host/deps".RawExtensionToObject
+extern func objectToRawExtension(value Option[Option[runtime.Object]], previous runtime.RawExtension) IO[(runtime.RawExtension, Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/host/deps".ObjectToRawExtension
+extern func objectResourceVersion(value runtime.Object) IO[(String, Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/host/deps".ObjectResourceVersion
+extern func objectAsStatus(value runtime.Object) Option[meta.Status] = "github.com/reoring/gofx/ports/client-go/host/deps".ObjectAsStatus
+extern func objectMetadata(value runtime.Object) IO[(Option[meta.ObjectMeta], Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/host/deps".ObjectMetadata
+extern func objectResourceVersionValue(value runtime.Object) IO[Option[String]] = "github.com/reoring/gofx/ports/client-go/host/deps".ObjectResourceVersionValue
+extern func errorFromObject(value runtime.Object) IO[support.Error] = "github.com/reoring/gofx/ports/client-go/host/deps".ErrorFromObject
+extern func errorHasStatusCause(value support.Error, cause meta.CauseType) Bool = "github.com/reoring/gofx/ports/client-go/host/deps".ErrorHasStatusCause
+extern func objectListInfo(value runtime.Object) IO[((String, (String, String)), Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/host/deps".ObjectListInfo
+extern func objectListItems(value runtime.Object, allocate Bool) IO[(Option[List[Option[runtime.Object]]], Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/host/deps".ObjectListItems
+extern func newObjectList(resourceVersion String, selfLink String, items Option[List[Option[runtime.Object]]]) IO[runtime.Object] = "github.com/reoring/gofx/ports/client-go/host/deps".NewObjectList
+extern func validateListOptions(value meta.ListOptions, watchListFeatureEnabled Bool) IO[(Bool, Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/host/deps".ValidateListOptions
+extern func objectGroupVersionKind(value runtime.Object) IO[schema.GroupVersionKind] = "github.com/reoring/gofx/ports/client-go/host/deps".ObjectGroupVersionKind
+extern func statusToObject(value meta.Status) runtime.Object = "github.com/reoring/gofx/ports/client-go/host/deps".StatusToObject
+extern func objectGoString(value Option[runtime.Object]) IO[String] = "github.com/reoring/gofx/ports/client-go/host/deps".ObjectGoString
+extern func objectSetResourceVersion(value runtime.Object, resourceVersion String) IO[(Option[runtime.Object], Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/host/deps".ObjectSetResourceVersion
+extern func listOptionsToObject(value meta.ListOptions) runtime.Object = "github.com/reoring/gofx/ports/client-go/host/deps".ListOptionsToObject
+extern func objectTypeName(value Option[runtime.Object]) IO[String] = "github.com/reoring/gofx/ports/client-go/host/deps".ObjectTypeName

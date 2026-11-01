@@ -1,0 +1,40 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package regression
+import "discovery"
+import memory "discovery/cached/memory"
+import disk "discovery/cached/disk"
+import "openapi"
+import "support/sync"
+import "support/outcome"
+import "std/map"
+func schemaCacheCase(wrap func(discovery.DiscoveryInterface) IO[discovery.CachedDiscoveryInterface]) IO[Bool] {
+ do {
+  factoryCalls <- sync.newRef(0)
+  pathCalls <- sync.newRef(0)
+  base <- clientFixture([],[])
+  let delegate = base{openAPIV3:func() => do {
+   n <- sync.readRef(factoryCalls); sync.writeRef(factoryCalls,n+1)
+   ioPure(openapi.Client(func() => do { n <- sync.readRef(pathCalls); sync.writeRef(pathCalls,n+1); ioPure(outcome.success(map.emptyMap())) }))
+  }}
+  cache <- wrap(delegate)
+  first <- cache.discovery.openAPIV3()
+  second <- cache.discovery.openAPIV3()
+  first.paths()
+  second.paths()
+  beforeFactory <- sync.readRef(factoryCalls)
+  beforePaths <- sync.readRef(pathCalls)
+  cache.invalidate()
+  third <- cache.discovery.openAPIV3()
+  third.paths()
+  afterFactory <- sync.readRef(factoryCalls)
+  afterPaths <- sync.readRef(pathCalls)
+  ioPure(beforeFactory==1 && beforePaths==1 && afterFactory==2 && afterPaths==2)
+ }
+}
+func testMemoryOpenAPICacheInvalidation() IO[Bool] { schemaCacheCase(memory.newMemCacheClient) }
+func testDiskOpenAPICacheInvalidation() IO[Bool] {
+ sync.bracket(tempDirectory(),func(directory) => do {
+  clock <- sync.fakeClock(0)
+  schemaCacheCase(func(delegate) => disk.newCachedDiscoveryClient(discovery.CachedDiscoveryInterface(delegate,func() => ioPure(true),func() => ioPure(unit())),directory,100,clock))
+ },removeDirectory)
+}

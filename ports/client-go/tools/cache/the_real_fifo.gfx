@@ -1,0 +1,61 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package cache
+import lists "std/list"
+import "std/map"
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+import "github.com/reoring/gofx/ports/client-go/support/outcome"
+
+type RealEvent[A] = ObjectDelta(String,Delta[A]) | ReplacedAll(List[A],String) | SyncAll | BookmarkInfo(String)
+type RealFIFOOptions[A] = RealFIFOOptions { access: ObjectAccess[A], knownObjects: Option[Store[A]], transformer: Option[TransformFunc[A]], atomicEvents: Bool, unlockWhileProcessing: Bool, emitDeltaTypeBookmark: Bool }
+type RealFIFO[A] = RealFIFO { queue: KeyQueue[RealEvent[A]], serial: sync.Ref[Int], options: RealFIFOOptions[A], batchSize: Int }
+func newRealFIFOWithOptions[A](options RealFIFOOptions[A]) IO[RealFIFO[A]] {
+ if options.atomicEvents && (match options.knownObjects { Some(_) => true; None => false }) { ioFail("coding error: knownObjects must not be provided when AtomicEvents is true") } else { if !options.atomicEvents && options.unlockWhileProcessing { ioFail("coding error: UnlockWhileProcessing must be false when AtomicEvents is false") } else { if !options.atomicEvents && (match options.knownObjects { None => true; Some(_) => false }) { ioFail("coding error: knownObjects must be provided when AtomicEvents is false") } else { if !options.atomicEvents && options.emitDeltaTypeBookmark { ioFail("coding error: EmitDeltaTypeBookmark must be false when AtomicEvents is false") } else { do { q <- newKeyQueue(false); serial <- sync.newRef(0); ioPure(RealFIFO(q,serial,options,1000)) } } } } }
+}
+func realAppend[A](f RealFIFO[A], s KeyQueueState[RealEvent[A]], event RealEvent[A]) IO[KeyQueueState[RealEvent[A]]] { do { serial <- sync.readRef(f.serial); sync.writeRef(f.serial,serial+1); ioPure(queueInsert(s,show(serial),event)) } }
+func realObjectEvent[A](f RealFIFO[A], kind DeltaType, object Deleted[A], transform Bool) IO[outcome.Outcome[RealEvent[A]]] { do { key <- deletionKey(f.options.access,object); result <- match object { DeletedObject(value) => if transform { do { changed <- transformObject(f.options.transformer,value); ioPure(outcome.mapValue(changed,func(v) => DeletedObject(v))) } } else { ioPure(outcome.success(object)) }; _ => ioPure(outcome.success(object)) }; ioPure(outcome.from(ObjectDelta(key.value,Delta(kind,result.value)),match key.error { Some(e) => Some(e); None => result.error })) } }
+func realAction[A](f RealFIFO[A], kind DeltaType, object Deleted[A]) IO[outcome.Outcome[Unit]] { sync.withLock(f.queue.mutex,sync.uninterruptible(do { event <- realObjectEvent(f,kind,object,true); s <- sync.readRef(f.queue.state); next <- match event.error { Some(_) => ioPure(s); None => realAppend(f,s,event.value) }; queuePublish(f.queue,next { populated: true }); sync.broadcast(f.queue.condition); ioPure(outcome.from(unit(),event.error)) })) }
+func realAdd[A](f RealFIFO[A], object A) IO[outcome.Outcome[Unit]] { realAction(f,Added,DeletedObject(object)) }
+func realUpdate[A](f RealFIFO[A], object A) IO[outcome.Outcome[Unit]] { realAction(f,Updated,DeletedObject(object)) }
+func realDelete[A](f RealFIFO[A], object Deleted[A]) IO[outcome.Outcome[Unit]] { realAction(f,Deleted,object) }
+func realOrdered[A](s KeyQueueState[RealEvent[A]]) List[RealEvent[A]] { reverse(fold(append(s.front,reverse(s.back)),Nil,func(acc,key) => match map.mapLookup(s.items,key) { None => acc; Some(event) => Cons(event,acc) })) }
+func realTransformList[A](f RealFIFO[A], objects List[A]) IO[outcome.Outcome[List[A]]] { match objects { Nil => ioPure(outcome.success(Nil)); Cons(obj,rest) => do { transformed <- transformObject(f.options.transformer,obj); match transformed.error { Some(e) => ioPure(outcome.failure(Nil,e)); None => do { remaining <- realTransformList(f,rest); ioPure(outcome.from(Cons(transformed.value,remaining.value),remaining.error)) } } } } }
+func realReplacementEvents[A](f RealFIFO[A], objects List[A]) IO[outcome.Outcome[List[RealEvent[A]]]] { match objects { Nil => ioPure(outcome.success(Nil)); Cons(obj,rest) => do { event <- realObjectEvent(f,Replaced,DeletedObject(obj),true); match event.error { Some(e) => ioPure(outcome.failure(Nil,e)); None => do { remaining <- realReplacementEvents(f,rest); ioPure(outcome.from(Cons(event.value,remaining.value),remaining.error)) } } } } }
+func realReplace[A](f RealFIFO[A], objects List[A], rv String) IO[outcome.Outcome[Unit]] { sync.withLock(f.queue.mutex,sync.uninterruptible(do {
+ s <- sync.readRef(f.queue.state)
+ events <- if f.options.atomicEvents { do { transformed <- realTransformList(f,objects); ioPure(outcome.mapValue(transformed,func(xs) => [ReplacedAll(xs,rv)])) } } else { do {
+  known <- knownSnapshot(f.options.knownObjects)
+  knownNames <- knownKeys(f.options.knownObjects)
+  keyed <- keyedObjects(f.options.access,None,objects,map.emptyMap())
+  let ordered = realOrdered(s)
+  let pending = fold(ordered,map.emptyMap(),func(acc,event) => match event { ObjectDelta(key,d) => map.mapInsert(acc,key,d); _ => acc })
+  let firstKeys = reverse(fst(fold(ordered,(Nil,map.emptyMap()),func(acc,event) => match event { ObjectDelta(key,_) => if map.mapMember(snd(acc),key) { acc } else { (Cons(key,fst(acc)),map.mapInsert(snd(acc),key,unit())) }; _ => acc })))
+  let queuedDeletes = fold(firstKeys,Nil,func(acc,key) => if map.mapMember(keyed.value,key) { acc } else { match map.mapLookup(pending,key) { Some(d) => if d.deltaType == Deleted { acc } else { Cons(ObjectDelta(key,Delta(Deleted,DeletedFinalStateUnknown(key,deletionObject(d.object)))),acc) }; None => acc } })
+  let knownDeletes = fold(knownNames,Nil,func(acc,key) => if map.mapMember(keyed.value,key) || map.mapMember(pending,key) { acc } else { Cons(ObjectDelta(key,Delta(Deleted,DeletedFinalStateUnknown(key,map.mapLookup(known,key)))),acc) })
+  replacements <- realReplacementEvents(f,objects)
+  ioPure(outcome.from(append(reverse(queuedDeletes),append(reverse(knownDeletes),replacements.value)),match keyed.error { Some(e) => Some(e); None => replacements.error }))
+ } }
+ match events.error { Some(e) => ioPure(outcome.failure(unit(),e)); None => do { next <- foldRealAppend(f,s,events.value); queuePublish(f.queue,next { populated: true, initial: if s.populated { s.initial } else { map.mapSize(next.items) } }); sync.broadcast(f.queue.condition); ioPure(outcome.success(unit())) } }
+ })) }
+func foldRealAppend[A](f RealFIFO[A], s KeyQueueState[RealEvent[A]], events List[RealEvent[A]]) IO[KeyQueueState[RealEvent[A]]] { match events { Nil => ioPure(s); Cons(event,rest) => do { next <- realAppend(f,s,event); foldRealAppend(f,next,rest) } } }
+func realResync[A](f RealFIFO[A]) IO[outcome.Outcome[Unit]] { sync.withLock(f.queue.mutex,sync.uninterruptible(do { s <- sync.readRef(f.queue.state); events <- if f.options.atomicEvents { ioPure([SyncAll]) } else { do { known <- knownSnapshot(f.options.knownObjects); let pending = fold(realOrdered(s),map.emptyMap(),func(acc,event) => match event { ObjectDelta(key,_) => map.mapInsert(acc,key,unit()); _ => acc }); ioPure(map(filter(map.mapToList(known),func(pair) => !map.mapMember(pending,fst(pair))),func(pair) => ObjectDelta(fst(pair),Delta(Sync,DeletedObject(snd(pair)))))) } }; next <- foldRealAppend(f,s,events); queuePublish(f.queue,next); sync.broadcast(f.queue.condition); ioPure(outcome.success(unit())) })) }
+func realBookmark[A](f RealFIFO[A], rv String) IO[outcome.Outcome[Unit]] { if !f.options.emitDeltaTypeBookmark { ioPure(outcome.success(unit())) } else { sync.withLock(f.queue.mutex,sync.uninterruptible(do { s <- sync.readRef(f.queue.state); next <- realAppend(f,s,BookmarkInfo(rv)); queuePublish(f.queue,next); sync.broadcast(f.queue.condition); ioPure(outcome.success(unit())) })) } }
+func realPop[A](f RealFIFO[A], process func(RealEvent[A],Bool) IO[ProcessResult]) IO[outcome.Outcome[Option[RealEvent[A]]]] { do { result <- realPopBatch(f,func(events,initial) => match events { Cons(event,_) => process(event,initial); Nil => ioPure(processSuccess()) },process,1); ioPure(outcome.mapValue(result,func(events) => match events { Nil => None; Cons(event,_) => Some(event) })) } }
+func realBatchPrefix[A](events List[(String,RealEvent[A])], limit Int, seen Map[String,Unit], selected List[(String,RealEvent[A])]) List[(String,RealEvent[A])] { if limit <= 0 { reverse(selected) } else { match events { Nil => reverse(selected); Cons(pair,rest) => match snd(pair) { ObjectDelta(key,_) => if map.mapMember(seen,key) { reverse(selected) } else { realBatchPrefix(rest,limit-1,map.mapInsert(seen,key,unit()),Cons(pair,selected)) }; _ => if length(selected) == 0 { [pair] } else { reverse(selected) } } } } }
+func realPopBatch[A](f RealFIFO[A], batch func(List[RealEvent[A]],Bool) IO[ProcessResult], single func(RealEvent[A],Bool) IO[ProcessResult], limit Int) IO[outcome.Outcome[List[RealEvent[A]]]] { do { context <- sync.captureContext(); sync.bracket(sync.withLock(f.queue.mutex,realTakeBatch(f,batch,single,max(1,min(limit,f.batchSize)),context)),func(selected) => match selected { (Nil,_,result) => ioPure(result); (events,initial,_) => do { processed <- measureQueueProcess(f.queue,realProcessEvents(events,initial,batch,single)); ioPure(outcome.from(events,processed.error)) } },func(selected) => match selected { (Nil,_,_) => ioPure(unit()); (events,_,_) => sync.withLock(f.queue.mutex,do { s <- sync.readRef(f.queue.state); queuePublish(f.queue,s { initial: max(0,s.initial-length(events)) }) }) }) } }
+func realProcessEvents[A](events List[RealEvent[A]], initial Bool, batch func(List[RealEvent[A]],Bool) IO[ProcessResult], single func(RealEvent[A],Bool) IO[ProcessResult]) IO[ProcessResult] { match events { Cons(event,Nil) => single(event,initial); _ => batch(events,initial) } }
+func realTakeBatch[A](f RealFIFO[A], batch func(List[RealEvent[A]],Bool) IO[ProcessResult], single func(RealEvent[A],Bool) IO[ProcessResult], limit Int, context sync.Context) IO[(List[RealEvent[A]],Bool,outcome.Outcome[List[RealEvent[A]]])] { do {
+ s <- sync.readRef(f.queue.state)
+ if map.mapSize(s.items) == 0 { if s.closed { ioPure((Nil,false,outcome.failure(Nil,errFIFOClosed()))) } else { do { sync.wait(f.queue.condition); realTakeBatch(f,batch,single,limit,context) } } } else {
+  match s.front {
+   Nil => do { sync.writeRef(f.queue.state,s { front: reverse(s.back), back: Nil }); realTakeBatch(f,batch,single,limit,context) }
+   Cons(_,_) => {
+    let pairs = map(lists.take(limit,s.front),func(key) => (key,map.mapLookup(s.items,key)))
+    let available = reverse(fold(pairs,Nil,func(acc,pair) => match snd(pair) { None => acc; Some(event) => Cons((fst(pair),event),acc) }))
+    let selected = realBatchPrefix(available,if s.initial > 0 { min(limit,s.initial) } else { limit },map.emptyMap(),Nil)
+    let events = map(selected,func(pair) => snd(pair))
+    let next = s { items: fold(selected,s.items,func(items,pair) => map.mapDelete(items,fst(pair))), front: lists.drop(length(selected),s.front) }
+    sync.uninterruptible(do { queuePublish(f.queue,next); if f.options.unlockWhileProcessing && map.mapSize(next.items) < f.batchSize*2 { ioPure((events,!s.synced,outcome.success(Nil))) } else { do { processed <- sync.ensuring(measureQueueProcess(f.queue,sync.withContext(context,realProcessEvents(events,!s.synced,batch,single))),queueFinishInitial(f.queue,max(0,s.initial-length(events)))); ioPure((Nil,!s.synced,outcome.from(events,processed.error))) } } })
+   }
+  }
+ }
+} }

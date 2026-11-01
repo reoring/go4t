@@ -1,0 +1,45 @@
+// Copyright 2015 The Kubernetes Authors. Licensed under Apache-2.0.
+package testing
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import runtime "deps/k8s.io/apimachinery/pkg/runtime"
+import meta "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import native "testing/internal"
+func newGetAction(resource schema.GroupVersionResource, namespace String, name String) Action { newGetActionWithOptions(resource,namespace,name,meta.newGetOptions()) }
+func newRootGetActionWithOptions(resource schema.GroupVersionResource, name String, options meta.GetOptions) Action { newGetActionWithOptions(resource,"",name,options) }
+func newRootGetAction(resource schema.GroupVersionResource, name String) Action { newRootGetActionWithOptions(resource,name,meta.newGetOptions()) }
+func newGetSubresourceAction(resource schema.GroupVersionResource, namespace String, subresource String, name String) Action { newGetSubresourceActionWithOptions(resource,namespace,subresource,name,meta.newGetOptions()) }
+func newRootGetSubresourceActionWithOptions(resource schema.GroupVersionResource, subresource String, name String, options meta.GetOptions) Action { newGetSubresourceActionWithOptions(resource,"",subresource,name,options) }
+func newRootGetSubresourceAction(resource schema.GroupVersionResource, subresource String, name String) Action { newRootGetSubresourceActionWithOptions(resource,subresource,name,meta.newGetOptions()) }
+func newCreateAction(resource schema.GroupVersionResource, namespace String, object runtime.Object) Action { newCreateActionWithOptions(resource,namespace,object,meta.newCreateOptions()) }
+func newRootCreateActionWithOptions(resource schema.GroupVersionResource, object runtime.Object, options meta.CreateOptions) Action { newCreateActionWithOptions(resource,"",object,options) }
+func newRootCreateAction(resource schema.GroupVersionResource, object runtime.Object) Action { newRootCreateActionWithOptions(resource,object,meta.newCreateOptions()) }
+func newCreateSubresourceAction(resource schema.GroupVersionResource, name String, subresource String, namespace String, object runtime.Object) Action { newCreateSubresourceActionWithOptions(resource,name,subresource,namespace,object,meta.newCreateOptions()) }
+func newRootCreateSubresourceActionWithOptions(resource schema.GroupVersionResource, name String, subresource String, object runtime.Object, options meta.CreateOptions) Action { newCreateSubresourceActionWithOptions(resource,name,subresource,"",object,options) }
+func newRootCreateSubresourceAction(resource schema.GroupVersionResource, name String, subresource String, object runtime.Object) Action { newRootCreateSubresourceActionWithOptions(resource,name,subresource,object,meta.newCreateOptions()) }
+func newUpdateAction(resource schema.GroupVersionResource, namespace String, object runtime.Object) Action { newUpdateActionWithOptions(resource,namespace,object,meta.newUpdateOptions()) }
+func newRootUpdateActionWithOptions(resource schema.GroupVersionResource, object runtime.Object, options meta.UpdateOptions) Action { newUpdateActionWithOptions(resource,"",object,options) }
+func newRootUpdateAction(resource schema.GroupVersionResource, object runtime.Object) Action { newRootUpdateActionWithOptions(resource,object,meta.newUpdateOptions()) }
+func newUpdateSubresourceAction(resource schema.GroupVersionResource, subresource String, namespace String, object runtime.Object) Action { newUpdateSubresourceActionWithOptions(resource,subresource,namespace,object,meta.newUpdateOptions()) }
+func newRootUpdateSubresourceActionWithOptions(resource schema.GroupVersionResource, subresource String, object runtime.Object, options meta.UpdateOptions) Action { newUpdateSubresourceActionWithOptions(resource,subresource,"",object,options) }
+func newRootUpdateSubresourceAction(resource schema.GroupVersionResource, subresource String, object runtime.Object) Action { newRootUpdateSubresourceActionWithOptions(resource,subresource,object,meta.newUpdateOptions()) }
+func newDeleteAction(resource schema.GroupVersionResource, namespace String, name String) Action { newDeleteActionWithOptions(resource,namespace,name,meta.newDeleteOptions()) }
+func newRootDeleteActionWithOptions(resource schema.GroupVersionResource, name String, options meta.DeleteOptions) Action { newDeleteActionWithOptions(resource,"",name,options) }
+func newRootDeleteAction(resource schema.GroupVersionResource, name String) Action { newRootDeleteActionWithOptions(resource,name,meta.newDeleteOptions()) }
+func newDeleteSubresourceAction(resource schema.GroupVersionResource, subresource String, namespace String, name String) Action { newDeleteSubresourceActionWithOptions(resource,subresource,namespace,name,meta.newDeleteOptions()) }
+func newRootDeleteSubresourceActionWithOptions(resource schema.GroupVersionResource, subresource String, name String, options meta.DeleteOptions) Action { newDeleteSubresourceActionWithOptions(resource,subresource,"",name,options) }
+func newRootDeleteSubresourceAction(resource schema.GroupVersionResource, subresource String, name String) Action { newRootDeleteSubresourceActionWithOptions(resource,subresource,name,meta.newDeleteOptions()) }
+func newPatchAction(resource schema.GroupVersionResource, namespace String, name String, patchType String, patch String) Action { newPatchActionWithOptions(resource,namespace,name,patchType,patch,meta.newPatchOptions()) }
+func newRootPatchActionWithOptions(resource schema.GroupVersionResource, name String, patchType String, patch String, options meta.PatchOptions) Action { newPatchActionWithOptions(resource,"",name,patchType,patch,options) }
+func newRootPatchAction(resource schema.GroupVersionResource, name String, patchType String, patch String) Action { newRootPatchActionWithOptions(resource,name,patchType,patch,meta.newPatchOptions()) }
+func newPatchSubresourceAction(resource schema.GroupVersionResource, namespace String, name String, patchType String, patch String, subresources List[String]) Action { newPatchSubresourceActionWithOptions(resource,namespace,name,patchType,patch,meta.newPatchOptions(),subresources) }
+func newRootPatchSubresourceActionWithOptions(resource schema.GroupVersionResource, name String, patchType String, patch String, options meta.PatchOptions, subresources List[String]) Action { newPatchSubresourceActionWithOptions(resource,"",name,patchType,patch,options,subresources) }
+func newRootPatchSubresourceAction(resource schema.GroupVersionResource, name String, patchType String, patch String, subresources List[String]) Action { newRootPatchSubresourceActionWithOptions(resource,name,patchType,patch,meta.newPatchOptions(),subresources) }
+func newRootListActionWithOptions(resource schema.GroupVersionResource, kind schema.GroupVersionKind, options meta.ListOptions) IO[Action] { do { canonical <- native.canonicalListOptions(options); ioPure((newAction(ListAction,"list",resource,"")){listKind: kind,listOptions: canonical}) } }
+func newListAction(resource schema.GroupVersionResource, kind schema.GroupVersionKind, namespace String, options meta.ListOptions) IO[Action] { do { canonical <- native.canonicalListOptions(options); ioPure((newAction(ListAction,"list",resource,namespace)){listKind: kind,listOptions: canonical}) } }
+func newRootListAction(resource schema.GroupVersionResource, kind schema.GroupVersionKind, options meta.ListOptions) IO[Action] { newRootListActionWithOptions(resource,kind,options) }
+func newWatchAction(resource schema.GroupVersionResource, namespace String, options meta.ListOptions) IO[Action] { newWatchActionWithOptions(resource,namespace,options) }
+func newRootWatchActionWithOptions(resource schema.GroupVersionResource, options meta.ListOptions) IO[Action] { newWatchActionWithOptions(resource,"",options) }
+func newRootWatchAction(resource schema.GroupVersionResource, options meta.ListOptions) IO[Action] { newRootWatchActionWithOptions(resource,options) }
+func newDeleteCollectionAction(resource schema.GroupVersionResource, namespace String, options meta.ListOptions) IO[Action] { newDeleteCollectionActionWithOptions(resource,namespace,meta.newDeleteOptions(),options) }
+func newRootDeleteCollectionActionWithOptions(resource schema.GroupVersionResource, options meta.DeleteOptions, listOptions meta.ListOptions) IO[Action] { newDeleteCollectionActionWithOptions(resource,"",options,listOptions) }
+func newRootDeleteCollectionAction(resource schema.GroupVersionResource, options meta.ListOptions) IO[Action] { newRootDeleteCollectionActionWithOptions(resource,meta.newDeleteOptions(),options) }

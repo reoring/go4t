@@ -1,0 +1,154 @@
+package rest
+
+import url "deps/net/url"
+import runtime "deps/k8s.io/apimachinery/pkg/runtime"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import errors "deps/support"
+import transport "transport"
+import outcome "support/outcome"
+import sync "support/sync"
+import features "features"
+import http "deps/net/http"
+import m "std/map"
+import strings "std/string"
+
+// Copyright 2014 The Kubernetes Authors. Licensed under Apache-2.0.
+type RESTClient = RESTClient {
+ base: url.URL, basePath: String, versionedAPIPath: String,
+ content: ClientContentConfig, contentTypeDefaulted: Bool,
+ httpClient: HTTPClient, rateLimiter: Option[RateLimiter],
+ warningHandler: WarningHandler, timeout: Int, createBackoff: func() IO[Backoff],
+ unsupportedCBOR: sync.Ref[Bool], featureRegistry: Option[features.FeatureRegistry], clock: sync.Clock, metrics: Option[MetricsBinding]
+}
+type Interface = Interface {
+ verb: func(String) IO[Request], patch: func(String) IO[Request],
+ getRateLimiter: func() Option[RateLimiter], apiVersion: func() schema.GroupVersion
+}
+type ResponseWrapper = ResponseWrapper { doRaw: func() IO[outcome.Outcome[String]], stream: func() IO[outcome.Outcome[Option[Stream]]] }
+type Environment = Environment {
+ transport: transport.Environment, features: features.FeatureRegistry, authentication: Authentication,
+ clock: sync.Clock, warningHandler: WarningHandler,
+ newRateLimiter: func(Float,Int) IO[RateLimiter], metrics: Option[MetricsBinding]
+}
+extern func encodeObject(serializer runtime.NegotiatedSerializer,version schema.GroupVersion,media String,object runtime.Object) IO[(String,Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/rest/host".EncodeObject
+extern func newDecoder(serializer runtime.NegotiatedSerializer,version schema.GroupVersion,media String) IO[(Option[runtime.Decoder],Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/rest/host".NewDecoder
+func newNegotiator(serializer runtime.NegotiatedSerializer,version schema.GroupVersion) Negotiator {
+ Negotiator(func(media,object) => do { result <- encodeObject(serializer,version,media,object); ioPure(outcome.from(result.0,result.1)) },func(media) => do { result <- newDecoder(serializer,version,media); ioPure(outcome.from(result.0,result.1)) },func(media,response) => negotiateWatch(serializer,version,media,response))
+}
+func newRESTClient(base url.URL,versionedAPIPath String,content ClientContentConfig,client HTTPClient,rateLimiter Option[RateLimiter],warning WarningHandler,clock sync.Clock,defaulted Bool) IO[RESTClient] {
+ do {
+  parts <- urlParts(base)
+  let basePath = if strings.endsWith(parts.1.1,"/") { parts.1.1 } else { parts.1.1+"/" }
+  normalized <- urlWith(base,basePath,"","")
+  unsupported <- sync.newRef(false)
+  timeout <- httpClientTimeout(client)
+  ioPure(RESTClient(normalized,basePath,versionedAPIPath,content,defaulted,client,rateLimiter,warning,timeout,func() => readExpBackoffConfig(clock),unsupported,None,clock,None))
+ }
+}
+func restClientForConfigAndClient(environment Environment,config Config,client HTTPClient) IO[outcome.Outcome[Option[RESTClient]]] {
+ do { ensureMetrics(environment.metrics); _restClientForConfigAndClient(environment,config,client) }
+}
+func _restClientForConfigAndClient(environment Environment,config Config,client HTTPClient) IO[outcome.Outcome[Option[RESTClient]]] {
+ match config.contentConfig.groupVersion {
+  None => ioPure(outcome.failure(None,errors.errorNew("GroupVersion is required when initializing a RESTClient")))
+  Some(version) => match config.contentConfig.negotiatedSerializer {
+   None => ioPure(outcome.failure(None,errors.errorNew("NegotiatedSerializer is required when initializing a RESTClient")))
+   Some(serializer) => do {
+    server <- defaultServerUrlFor(config)
+    match server.value {
+     None => ioPure(outcome.from(None,server.error))
+     Some((base,path)) => do {
+      limiter <- match config.rateLimiter {
+       Some(limiter) => ioPure(Some(limiter))
+       None => {
+        let qps = if config.qps == 0.0 { defaultQPS() } else { config.qps }
+        let burst = if config.burst == 0 { defaultBurst() } else { config.burst }
+        if qps>0.0 { do { limiter <- environment.newRateLimiter(qps,burst); ioPure(Some(limiter)) } } else { ioPure(None) }
+       }
+      }
+      gates <- features.featureGates(environment.features)
+      allow <- gates.enabled(features.clientsAllowCBOR())
+      prefer <- gates.enabled(features.clientsPreferCBOR())
+      let media = if config.contentConfig.contentType == "" { if allow && prefer { "application/cbor" } else { "application/json" } } else { config.contentConfig.contentType }
+      let warning = match config.warningHandlerWithContext { Some(handler) => handler; None => match config.warningHandler { Some(handler) => handler; None => environment.warningHandler } }
+      result <- newRESTClient(base,path,ClientContentConfig(config.contentConfig.acceptContentTypes,media,version,newNegotiator(serializer,version)),client,limiter,warning,environment.clock,config.contentConfig.contentType == "")
+      ioPure(outcome.success(Some(result{featureRegistry: Some(environment.features),metrics: environment.metrics})))
+     }
+    }
+   }
+  }
+ }
+}
+func restClientFor(environment Environment,config Config) IO[outcome.Outcome[Option[RESTClient]]] {
+ match config.contentConfig.groupVersion {
+  None => ioPure(outcome.failure(None,errors.errorNew("GroupVersion is required when initializing a RESTClient")))
+  Some(_) => match config.contentConfig.negotiatedSerializer {
+   None => ioPure(outcome.failure(None,errors.errorNew("NegotiatedSerializer is required when initializing a RESTClient")))
+   Some(_) => do {
+    server <- defaultServerUrlFor(config)
+    match server.error {
+     Some(error) => ioPure(outcome.failure(None,error))
+     None => do {
+      result <- httpClientFor(environment,config)
+      match result.value { None => ioPure(outcome.from(None,result.error)); Some(client) => restClientForConfigAndClient(environment,config,client) }
+     }
+    }
+   }
+  }
+ }
+}
+func unversionedRESTClientForConfigAndClient(environment Environment,config Config,client HTTPClient) IO[outcome.Outcome[Option[RESTClient]]] {
+ let urlVersion = match config.contentConfig.groupVersion { None => schema.newGroupVersion(); Some(v) => v }
+ do {
+  result <- restClientForConfigAndClient(environment,config{contentConfig: config.contentConfig{groupVersion: Some(urlVersion)}},client)
+  match (config.contentConfig.groupVersion,config.contentConfig.negotiatedSerializer,result.value) {
+   (None,Some(serializer),Some(client)) => {
+    let version = schema.groupVersionWithGroup(schema.groupVersionWithVersion(schema.newGroupVersion(),"v1"),"meta.k8s.io")
+    ioPure(result{value: Some(client{content: client.content{groupVersion: version,negotiator: newNegotiator(serializer,version)}})})
+   }
+   _ => ioPure(result)
+  }
+ }
+}
+func unversionedRESTClientFor(environment Environment,config Config) IO[outcome.Outcome[Option[RESTClient]]] {
+ match config.contentConfig.negotiatedSerializer {
+  None => ioPure(outcome.failure(None,errors.errorNew("NegotiatedSerializer is required when initializing a RESTClient")))
+  Some(_) => do {
+   server <- defaultServerUrlFor(config)
+   match server.error {
+    Some(error) => ioPure(outcome.failure(None,error))
+    None => do { result <- httpClientFor(environment,config); match result.value { None => ioPure(outcome.from(None,result.error)); Some(client) => unversionedRESTClientForConfigAndClient(environment,config,client) } }
+   }
+  }
+ }
+}
+func newRequest(client RESTClient) IO[Request] {
+ do {
+  backoff <- client.createBackoff()
+  negotiated <- getClientContentConfig(client)
+  let content = negotiated.0
+  let accept = if content.acceptContentTypes != "" { content.acceptContentTypes } else { content.contentType+", */*" }
+  ioPure(Request(client,content,negotiated.1,client.warningHandler,client.rateLimiter,backoff,client.timeout,10,"",pathJoin(pathJoin("/",client.basePath),client.versionedAPIPath),"",m.emptyMap(),m.mapInsert(m.emptyMap(),"Accept",[accept]),"",false,"","","",None,NoBody,newRetry,func(method,error) => method=="GET" && retryableConnection(error),true))
+ }
+}
+func clientVerb(client RESTClient,value String) IO[Request] { do { request <- newRequest(client); ioPure(verb(request,value)) } }
+func get(client RESTClient) IO[Request] { clientVerb(client,"GET") }
+func post(client RESTClient) IO[Request] { clientVerb(client,"POST") }
+func put(client RESTClient) IO[Request] { clientVerb(client,"PUT") }
+func delete(client RESTClient) IO[Request] { clientVerb(client,"DELETE") }
+func patch(client RESTClient,patchType String) IO[Request] { do { request <- clientVerb(client,"PATCH"); ioPure(setHeader(request,"Content-Type",[patchType])) } }
+func apiVersion(client RESTClient) schema.GroupVersion { client.content.groupVersion }
+func getRateLimiter(client RESTClient) Option[RateLimiter] { client.rateLimiter }
+func clientInterface(client RESTClient) Interface { Interface(func(value) => clientVerb(client,value),func(media) => patch(client,media),func() => client.rateLimiter,func() => client.content.groupVersion) }
+func responseWrapper(request Request) ResponseWrapper { ResponseWrapper(func() => doRaw(request),func() => stream(request)) }
+extern func constructHTTPClient(transport http.RoundTripper,timeout Int) IO[HTTPClient] = "github.com/reoring/gofx/ports/client-go/rest/host".NewHTTPClient
+extern func isDefaultHTTPTransport(transport http.RoundTripper) IO[Bool] = "github.com/reoring/gofx/ports/client-go/rest/host".IsDefaultHTTPTransport
+extern func defaultHTTPClient() IO[HTTPClient] = "github.com/reoring/gofx/ports/client-go/rest/host".DefaultHTTPClient
+func newHTTPClient(transport http.RoundTripper,timeout Int) IO[HTTPClient] {
+ do {
+  defaultTransport <- isDefaultHTTPTransport(transport)
+  if !defaultTransport || timeout>0 { constructHTTPClient(transport,timeout) } else { defaultHTTPClient() }
+ }
+}
+extern func httpClientDo(client http.Client,request http.Request) IO[(Option[http.Response],Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/rest/host".HTTPClientDo
+extern func httpClientTimeout(client HTTPClient) IO[Int] = "github.com/reoring/gofx/ports/client-go/rest/host".HTTPClientTimeout

@@ -1,0 +1,147 @@
+// Copyright 2016 The Kubernetes Authors. Licensed under Apache-2.0.
+// Source: client-go v0.37.2 util/certificate/csr/csr.go.
+package csr
+import api "github.com/reoring/gofx/ports/client-go/deps/k8s.io/api/certificates/v1"
+import certX509 "github.com/reoring/gofx/ports/client-go/deps/crypto/x509"
+import beta "github.com/reoring/gofx/ports/client-go/deps/k8s.io/api/certificates/v1beta1"
+import meta "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import runtime "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime"
+import crypto "github.com/reoring/gofx/ports/client-go/deps/crypto"
+import support "github.com/reoring/gofx/ports/client-go/deps/support"
+import kubernetes "github.com/reoring/gofx/ports/client-go/kubernetes"
+import cert "github.com/reoring/gofx/ports/client-go/util/cert"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import watch "github.com/reoring/gofx/ports/client-go/support/watch"
+import list "std/list"
+extern func newRequest(name String, signer String, request String, expiration Option[Int], usages List[String]) api.CertificateSigningRequest = "github.com/reoring/gofx/ports/client-go/util/certificate/csr/host".NewRequest
+extern func _toBeta(value api.CertificateSigningRequest) beta.CertificateSigningRequest = "github.com/reoring/gofx/ports/client-go/util/certificate/csr/host".ToBeta
+extern func _fromBeta(value beta.CertificateSigningRequest) api.CertificateSigningRequest = "github.com/reoring/gofx/ports/client-go/util/certificate/csr/host".FromBeta
+extern func _listFromBeta(value beta.CertificateSigningRequestList) api.CertificateSigningRequestList = "github.com/reoring/gofx/ports/client-go/util/certificate/csr/host".ListFromBeta
+extern func eventObject(value Option[runtime.Object]) Option[api.CertificateSigningRequest] = "github.com/reoring/gofx/ports/client-go/util/certificate/csr/host".EventObject
+extern func conditions(value api.CertificateSigningRequest) List[(String, (String, String))] = "github.com/reoring/gofx/ports/client-go/util/certificate/csr/host".Conditions
+extern func name(value api.CertificateSigningRequest) String = "github.com/reoring/gofx/ports/client-go/util/certificate/csr/host".Name
+extern func uid(value api.CertificateSigningRequest) String = "github.com/reoring/gofx/ports/client-go/util/certificate/csr/host".UID
+extern func request(value api.CertificateSigningRequest) String = "github.com/reoring/gofx/ports/client-go/util/certificate/csr/host".Request
+extern func signer(value api.CertificateSigningRequest) String = "github.com/reoring/gofx/ports/client-go/util/certificate/csr/host".Signer
+extern func certificate(value api.CertificateSigningRequest) String = "github.com/reoring/gofx/ports/client-go/util/certificate/csr/host".Certificate
+extern func _options(name String, version String) meta.ListOptions = "github.com/reoring/gofx/ports/client-go/util/certificate/csr/host".ListOptions
+extern func _items(value api.CertificateSigningRequestList) List[api.CertificateSigningRequest] = "github.com/reoring/gofx/ports/client-go/util/certificate/csr/host".ListItems
+extern func _version(value api.CertificateSigningRequestList) String = "github.com/reoring/gofx/ports/client-go/util/certificate/csr/host".ListVersion
+// Version is "v1" or "v1beta1". The normalized external object is canonical v1.
+type Client = Client {create: func(String, api.CertificateSigningRequest) IO[outcome.Outcome[api.CertificateSigningRequest]], get: func(String, String) IO[outcome.Outcome[api.CertificateSigningRequest]], list: func(String, meta.ListOptions) IO[outcome.Outcome[api.CertificateSigningRequestList]], watch: func(String, meta.ListOptions) IO[outcome.Outcome[Option[watch.Watch]]]}
+func fromClientset(client kubernetes.Interface) Client {
+ let v1 = client.certificatesV1().certificateSigningRequests()
+ let vbeta = client.certificatesV1beta1().certificateSigningRequests()
+ Client(
+  func(version, obj) => if version == "v1" { v1.create(obj, meta.newCreateOptions()) } else { do { result <- vbeta.create(_toBeta(obj), meta.newCreateOptions()); ioPure(outcome.mapValue(result, _fromBeta)) } },
+  func(version, name) => if version == "v1" { v1.get(name, meta.newGetOptions()) } else { do { result <- vbeta.get(name, meta.newGetOptions()); ioPure(outcome.mapValue(result, _fromBeta)) } },
+  func(version, options) => if version == "v1" { v1.list(options) } else { do { result <- vbeta.list(options); ioPure(outcome.mapValue(result, _listFromBeta)) } },
+  func(version, options) => if version == "v1" { v1.watch(options) } else { vbeta.watch(options) }
+ )
+}
+func durationToExpirationSeconds(nanos Int) Int { let n = nanos / 1000000000; let low = n % 4294967296; if low > 2147483647 { low - 4294967296 } else { if low < -2147483648 { low + 4294967296 } else { low } } }
+func expirationSecondsToDuration(seconds Int) Int { seconds * 1000000000 }
+func _create(client Client, obj api.CertificateSigningRequest, usages List[String]) IO[outcome.Outcome[api.CertificateSigningRequest]] {
+ if signer(obj) != "" && signer(obj) != "kubernetes.io/legacy-unknown" && (match usages { Nil => false; _ => true }) { do {
+  result <- client.create("v1", obj)
+  match result.error { Some(error) => if cert.apiErrorKind(error) == "NotFound" { client.create("v1beta1", obj) } else { ioPure(result) }; None => ioPure(result) }
+ } } else { client.create("v1beta1", obj) }
+}
+func _get(client Client, name String) IO[outcome.Outcome[api.CertificateSigningRequest]] { do {
+ result <- client.get("v1", name)
+ match result.error { Some(error) => if cert.apiErrorKind(error) == "NotFound" { client.get("v1beta1", name) } else { ioPure(result) }; None => ioPure(result) }
+} }
+func _certificatesValid(certs List[certX509.Certificate], now Int) IO[Option[support.Error]] {
+ match certs { Nil => ioPure(None); Cons(c, rest) => do { times <- cert.times(c); if now > times.1 { ioPure(Some(cert.newError("one of the certificates for the CSR has expired: " + cert.timeText(times.1)))) } else { _certificatesValid(rest, now) } } }
+}
+func ensureCompatible(clock sync.Clock, newer api.CertificateSigningRequest, original api.CertificateSigningRequest, key crypto.PrivateKey) IO[Option[support.Error]] { do {
+ n <- cert.parseCSR(request(newer)); o <- cert.parseCSR(request(original))
+ match (n.error, o.error, n.value, o.value) {
+  (Some(error), _, _, _) => ioPure(Some(cert.newError("unable to parse new csr: " + cert.errorText(error))))
+  (_, Some(error), _, _) => ioPure(Some(cert.newError("unable to parse original csr: " + cert.errorText(error))))
+  (_, _, Some(n), Some(o)) => do {
+   equal <- cert.subjectEqual(n, o)
+   if !equal { ioPure(Some(cert.newError(_subjectDifference(n, o)))) } else { if signer(newer) != "" && signer(original) != "" && signer(newer) != signer(original) { ioPure(Some(cert.newError("csr signerNames differ: new " + cert.quote(signer(newer)) + ", orig: " + cert.quote(signer(original))))) } else { do {
+    verified <- cert.verifyCSRKey(n, key)
+    match verified { Some(error) => ioPure(Some(cert.wrapError("error validating signature new CSR against old key", error))); None => if certificate(newer) == "" { ioPure(None) } else { do {
+     parsed <- cert.parseCertsPEM(certificate(newer))
+     match parsed.error { Some(error) => ioPure(Some(cert.wrapError("error parsing signed certificate for CSR", error))); None => do { now <- sync.now(clock); _certificatesValid(parsed.value, sync.unixNanos(now)) } }
+    } } }
+   } } }
+  }
+  _ => ioPure(Some(cert.newError("CSR parser returned no request")))
+ }
+} }
+func requestCertificate(clock sync.Clock, client Client, bytes String, reqName String, signerName String, duration Option[Int], usages List[String], key crypto.PrivateKey) IO[outcome.Outcome[(String, String)]] { do {
+ let expiration = match duration { None => None; Some(n) => Some(durationToExpirationSeconds(n)) }
+ let obj = newRequest(reqName, signerName, bytes, expiration, usages)
+ created <- _create(client, obj, usages)
+ match created.error {
+  None => ioPure(outcome.success((name(created.value), uid(created.value))))
+  Some(error) => if cert.apiErrorKind(error) == "AlreadyExists" && reqName != "" { do {
+   existing <- _get(client, reqName)
+   match existing.error { Some(error) => ioPure(outcome.failure(("", ""), cert.formatAPIError("cannot retrieve certificate signing request: ", error))); None => do {
+    compatible <- ensureCompatible(clock, existing.value, obj, key)
+    ioPure(match compatible { Some(error) => outcome.failure(("", ""), cert.newError("retrieved csr is not compatible: " + cert.errorText(error))); None => outcome.success((name(existing.value), uid(existing.value))) })
+   } }
+  } } else { ioPure(outcome.failure(("", ""), cert.formatAPIError("cannot create certificate signing request: ", error))) }
+ }
+} }
+func _conditionError(items List[(String, (String, String))]) Option[support.Error] {
+ match items { Nil => None; Cons((kind, (reason, message)), rest) => if kind == "Denied" { Some(cert.newError("certificate signing request is denied, reason: " + reason + ", message: " + message)) } else { if kind == "Failed" { Some(cert.newError("certificate signing request failed, reason: " + reason + ", message: " + message)) } else { _conditionError(rest) } } }
+}
+func conditionResult(reqName String, reqUID String, eventType String, obj Option[api.CertificateSigningRequest]) outcome.Outcome[Option[String]] {
+ if eventType == "DELETED" { outcome.failure(None, cert.newError("csr " + cert.quote(reqName) + " was deleted")) } else { if eventType != "ADDED" && eventType != "MODIFIED" { outcome.success(None) } else { match obj {
+  None => outcome.failure(None, cert.newError("unexpected type received in CSR watch"))
+  Some(obj) => if uid(obj) != reqUID { outcome.failure(None, cert.newError("csr " + cert.quote(name(obj)) + " changed UIDs")) } else { match _conditionError(conditions(obj)) {
+   Some(error) => outcome.failure(None, error)
+   None => outcome.success(if list.any(conditions(obj), func(c) => c.0 == "Approved") && certificate(obj) != "" { Some(certificate(obj)) } else { None })
+  } }
+ } } }
+}
+func pause(clock sync.Clock, nanos Int) IO[Unit] { sync.bracket(sync.newTimer(clock, nanos), func(timer) => do { channel <- sync.timerChannel(timer); sync.receive(channel); ioPure(unit()) }, func(timer) => do { sync.stopTimer(timer); ioPure(unit()) }) }
+func _listed(items List[api.CertificateSigningRequest], name String, uid String) outcome.Outcome[Option[String]] {
+ match items { Nil => outcome.success(None); Cons(item, rest) => { let result = conditionResult(name, uid, "ADDED", Some(item)); match (result.value, result.error) { (None, None) => _listed(rest, name, uid); _ => result } } }
+}
+func _events(stream watch.Watch, name String, uid String) IO[outcome.Outcome[Option[String]]] { do {
+ event <- watch.next(stream)
+ match event { None => ioPure(outcome.success(None)); Some(event) => {
+  let result = conditionResult(name, uid, event.eventType, eventObject(event.object))
+  match (result.error, result.value) { (None, None) => if event.eventType == "ERROR" { ioPure(outcome.success(None)) } else { _events(stream, name, uid) }; _ => ioPure(result) }
+ } }
+} }
+func _waitVersion(clock sync.Clock, client Client, version String, reqName String, reqUID String, listed api.CertificateSigningRequestList) IO[outcome.Outcome[String]] {
+ let ready = _listed(_items(listed), reqName, reqUID)
+ match (ready.error, ready.value) {
+  (Some(error), _) => ioPure(outcome.failure("", cert.formatAPIError("cannot watch on the certificate signing request: ", error)))
+  (None, Some(bytes)) => ioPure(outcome.success(bytes))
+  _ => do {
+   result <- _watchOnce(client, version, reqName, reqUID, _version(listed))
+   match (result.error, result.value) {
+    (Some(error), _) => ioPure(outcome.failure("", cert.formatAPIError("cannot watch on the certificate signing request: ", error)))
+    (None, Some(bytes)) => ioPure(outcome.success(bytes))
+    _ => _relist(clock, client, version, reqName, reqUID)
+   }
+  }
+ }
+}
+func _relist(clock sync.Clock, client Client, version String, name String, uid String) IO[outcome.Outcome[String]] { do {
+ pause(clock, 1000000000)
+ result <- client.list(version, _options(name, ""))
+ match result.error { None => _waitVersion(clock, client, version, name, uid, result.value); Some(_) => _relist(clock, client, version, name, uid) }
+} }
+func waitForCertificate(clock sync.Clock, client Client, reqName String, reqUID String) IO[outcome.Outcome[String]] { do {
+ v1 <- client.list("v1", _options(reqName, ""))
+ match v1.error { None => _waitVersion(clock, client, "v1", reqName, reqUID, v1.value); Some(_) => do {
+  beta <- client.list("v1beta1", _options(reqName, ""))
+  match beta.error { None => _waitVersion(clock, client, "v1beta1", reqName, reqUID, beta.value); Some(_) => do { pause(clock, 1000000000); waitForCertificate(clock, client, reqName, reqUID) } }
+ } }
+} }
+extern func _subjectDifference(a certX509.CertificateRequest, b certX509.CertificateRequest) String = "github.com/reoring/gofx/ports/client-go/util/cert/host".SubjectDifference
+func _watchOnce(client Client, version String, reqName String, reqUID String, resourceVersion String) IO[outcome.Outcome[Option[String]]] {
+ sync.bracket(client.watch(version, _options(reqName, resourceVersion)), func(opened) => match (opened.error, opened.value) {
+  (None, Some(stream)) => _events(stream, reqName, reqUID)
+  _ => ioPure(outcome.success(None))
+ }, func(opened) => match opened.value { None => ioPure(unit()); Some(stream) => watch.stop(stream) })
+}

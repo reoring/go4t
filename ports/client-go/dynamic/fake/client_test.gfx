@@ -1,0 +1,35 @@
+package fake
+
+import testing "testing"
+import runtime "deps/k8s.io/apimachinery/pkg/runtime"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import u "deps/k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+import v1 "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import outcome "support/outcome"
+import io "std/io"
+
+// Copyright 2026 The Kubernetes Authors. Licensed under Apache-2.0.
+// Pinned fake/simple_test.go and real/fake validation distinctions.
+func testFakeKeepsEmptyNameAndApplyManagedFields() IO[Bool] {
+ do {
+  scheme <- do { value <- runtime.callNewScheme(); match value { Some(scheme) => ioPure(scheme); None => ioFail("apimachinery NewScheme returned nil") } }
+  client <- newSimpleDynamicClientWithCustomListKinds(scheme,[],[])
+  object <- u.unstructuredCallSetManagedFields(u.newUnstructured(),Some([v1.newManagedFieldsEntry()]))
+  testing.prependReactor(client.fake,"*","*",func(_) => ioPure(testing.Reaction(true,outcome.success(Some(u.unstructuredToRuntimeObject(object.0))))))
+  let gvr = schema.groupVersionResourceWithResource(schema.groupVersionResourceWithVersion(schema.groupVersionResourceWithGroup(schema.newGroupVersionResource(),"custom.example"),"v1"),"mice")
+  let resource = interface(client).resource(gvr)
+  got <- resource.get("",v1.newGetOptions(),["status"])
+  applied <- resource.apply("",object.0,v1.newApplyOptions(),["status"])
+  recorded <- testing.actions(client.fake)
+  ioPure(outcome.isSuccess(got) && outcome.isSuccess(applied) && (match recorded { Cons(get,Cons(apply,Nil)) => get.name=="" && get.subresource=="status" && apply.patchType=="application/apply-patch+yaml" && apply.subresource=="status"; _ => false }))
+ }
+}
+func testListNeedsRegisteredKindRatherThanGuessingAtCallTime() IO[Bool] {
+ do {
+  scheme <- do { value <- runtime.callNewScheme(); match value { Some(scheme) => ioPure(scheme); None => ioFail("apimachinery NewScheme returned nil") } }
+  client <- newSimpleDynamicClientWithCustomListKinds(scheme,[],[])
+  let gvr = schema.groupVersionResourceWithResource(schema.newGroupVersionResource(),"unregistered")
+  result <- io.tryIO(interface(client).resource(gvr).list(v1.newListOptions()))
+  ioPure(match result { Err(_) => true; Ok(_) => false })
+ }
+}

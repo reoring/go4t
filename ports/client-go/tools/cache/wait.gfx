@@ -1,0 +1,42 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package cache
+import "std/map"
+import lists "std/list"
+import strings "std/string"
+import "std/io"
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+import errors "github.com/reoring/gofx/ports/client-go/deps/support"
+
+type SyncResult = SyncResult { error: Option[errors.Error], synced: Map[String,Bool] }
+func syncResultAsError(result SyncResult) Option[errors.Error] {
+ match result.error {
+  None => None
+  Some(error) => {
+   let names = map(filter(map.mapToList(result.synced),func(pair) => !snd(pair)),func(pair) => fst(pair))
+   Some(errors.errorWrap("failed to sync all caches: " + strings.join(", ",names),error))
+  }
+ }
+}
+func isDone(checker DoneChecker) IO[Bool] { do { status <- sync.tryReceive(checker.done); ioPure(match status { sync.Pending => false; _ => true }) } }
+func waitFor(checkers List[DoneChecker]) IO[Bool] { do { result <- waitForDetailed(checkers,func(_) => ioPure(unit())); ioPure(match result.error { None => true; Some(_) => false }) } }
+func waitForDetailed(checkers List[DoneChecker], completed func(String) IO[Unit]) IO[SyncResult] { do {
+ context <- sync.captureContext()
+ sync.uninterruptible(do {
+  result <- io.tryIO(sync.withContext(context,waitForRemaining(checkers,completed)))
+  final <- lists.mapM(checkers,func(checker) => do { done <- isDone(checker); ioPure((checker.name,done)) })
+  let states = map.mapFromList(final)
+  let allDone = lists.all(final,func(pair) => snd(pair))
+  ioPure(SyncResult(if allDone { None } else { match result { Ok(_) => Some(errors.errorCancelled()); Err(_) => Some(errors.errorCancelled()) } },states))
+ })
+} }
+func waitForRemaining(checkers List[DoneChecker], completed func(String) IO[Unit]) IO[Unit] { match checkers { Nil => ioPure(unit()); _ => do {
+ selected <- sync.selectReceive(map(checkers,func(checker) => checker.done))
+ let index = fst(selected)
+ let pairs = lists.zip(lists.range(0,length(checkers)),checkers)
+ match lists.find(pairs,func(pair) => fst(pair) == index) { None => ioFail("sync checker selection invariant"); Some((_,checker)) => completed(checker.name) }
+ waitForRemaining(map(filter(pairs,func(pair) => fst(pair) != index),func(pair) => snd(pair)),completed)
+} } }
+func waitForNamedCacheSync(clock sync.Clock, name String, checks List[func() IO[Bool]], report func(String) IO[Unit]) IO[Bool] { do { report("Waiting for caches to sync: " + name); synced <- waitForCacheSync(clock,checks); report(if synced { "Caches are synced: " + name } else { "Unable to sync caches: " + name }); ioPure(synced) } }
+func informerDoneChecker[A](informer SharedInformer[A], name String) DoneChecker { DoneChecker(name,informer.done) }
+func handlerDoneChecker[A](handler HandlerRegistration[A], name String) DoneChecker { DoneChecker(name,handlerDone(handler)) }
+func queueDoneChecker[A](queue KeyQueue[A], name String) DoneChecker { DoneChecker(name,queue.done) }

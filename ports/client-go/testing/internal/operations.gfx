@@ -1,0 +1,46 @@
+// Copyright 2015 The Kubernetes Authors. Licensed under Apache-2.0.
+package internal
+import runtime "deps/k8s.io/apimachinery/pkg/runtime"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import meta "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import managed "deps/k8s.io/apimachinery/pkg/util/managedfields"
+import errors "deps/support"
+import labels "deps/k8s.io/apimachinery/pkg/labels"
+import fields "deps/k8s.io/apimachinery/pkg/fields"
+
+extern func joinPath(parts List[String]) String = "github.com/reoring/gofx/ports/client-go/testing/host".JoinPath
+extern func _parseLabels(value String) IO[(String,Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/testing/host".ParseLabels
+extern func _parseFields(value String) IO[(String,Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/testing/host".ParseFields
+extern func labelSelector(value String) IO[labels.Selector] = "github.com/reoring/gofx/ports/client-go/testing/host".LabelSelector
+extern func fieldSelector(value String) IO[fields.Selector] = "github.com/reoring/gofx/ports/client-go/testing/host".FieldSelector
+func _validSelector(raw String, parsed (String,Option[errors.Error])) IO[String] { match parsed.1 { None => ioPure(parsed.0); Some(error) => ioFail("invalid selector "+show(raw)+": "+errors.errorMessage(error)) } }
+func validateSelectors(options meta.ListOptions) IO[Unit] { do { l <- _parseLabels(meta.listOptionsGetLabelSelector(options)); _validSelector(meta.listOptionsGetLabelSelector(options),l); f <- _parseFields(meta.listOptionsGetFieldSelector(options)); _validSelector(meta.listOptionsGetFieldSelector(options),f); ioPure(unit()) } }
+func canonicalListOptions(options meta.ListOptions) IO[meta.ListOptions] { do { l <- _parseLabels(meta.listOptionsGetLabelSelector(options)); label <- _validSelector(meta.listOptionsGetLabelSelector(options),l); f <- _parseFields(meta.listOptionsGetFieldSelector(options)); field <- _validSelector(meta.listOptionsGetFieldSelector(options),f); ioPure(meta.listOptionsWithFieldSelector(meta.listOptionsWithLabelSelector(meta.newListOptions(),label),field)) } }
+extern func matchesLabels(selector String, object runtime.Object) IO[Bool] = "github.com/reoring/gofx/ports/client-go/testing/host".MatchesLabels
+extern func objectIdentity(object runtime.Object) IO[((String,String),Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/testing/host".ObjectIdentity
+extern func setNamespace(object runtime.Object, namespace String) IO[(Option[runtime.Object],Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/testing/host".SetNamespace
+extern func setName(object runtime.Object, name String) IO[(Option[runtime.Object],Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/testing/host".SetName
+extern func setKind(object runtime.Object, kind schema.GroupVersionKind) IO[runtime.Object] = "github.com/reoring/gofx/ports/client-go/testing/host".SetKind
+extern func newObject(scheme runtime.Scheme, kind schema.GroupVersionKind) IO[(Option[runtime.Object],Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/testing/host".NewObject
+extern func objectKinds(scheme runtime.Scheme, object runtime.Object) IO[(List[schema.GroupVersionKind],Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/testing/host".ObjectKinds
+extern func partialMetadataKind(object runtime.Object) IO[Option[(String,schema.GroupVersionKind)]] = "github.com/reoring/gofx/ports/client-go/testing/host".PartialMetadataKind
+extern func guessResource(kind schema.GroupVersionKind) schema.GroupVersionResource = "github.com/reoring/gofx/ports/client-go/testing/host".GuessResource
+extern func isList(object runtime.Object) IO[Bool] = "github.com/reoring/gofx/ports/client-go/testing/host".IsList
+extern func extractList(object runtime.Object, decoder runtime.Decoder) IO[(List[runtime.Object],Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/testing/host".ExtractList
+extern func fillList(object runtime.Object, resourceVersion String, items List[runtime.Object]) IO[(Option[runtime.Object],Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/testing/host".FillList
+extern func notFound(resource schema.GroupVersionResource, name String) errors.Error = "github.com/reoring/gofx/ports/client-go/testing/host".NotFound
+extern func alreadyExists(resource schema.GroupVersionResource, name String) errors.Error = "github.com/reoring/gofx/ports/client-go/testing/host".AlreadyExists
+extern func badRequest(message String) errors.Error = "github.com/reoring/gofx/ports/client-go/testing/host".BadRequest
+extern func isNotFound(error errors.Error) Bool = "github.com/reoring/gofx/ports/client-go/testing/host".IsNotFound
+extern func sameObjectType(left runtime.Object, right runtime.Object) Bool = "github.com/reoring/gofx/ports/client-go/testing/host".SameObjectType
+extern func marshalObject(object runtime.Object) IO[(String,Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/testing/host".MarshalObject
+extern func unmarshalObject(template runtime.Object, data String) IO[(Option[runtime.Object],Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/testing/host".UnmarshalObject
+extern func jsonPatch(data String, patch String) IO[(String,Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/testing/host".JSONPatch
+extern func mergePatch(data String, patch String) IO[(String,Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/testing/host".MergePatch
+extern func strategicPatch(data String, patch String, template runtime.Object) IO[(String,Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/testing/host".StrategicPatch
+extern func applyObject(data String) IO[(Option[runtime.Object],Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/testing/host".ApplyObject
+extern func parseInt(value String) (Int,Option[errors.Error]) = "github.com/reoring/gofx/ports/client-go/testing/host".ParseInt
+extern func mappedKind(scheme runtime.Scheme, resource schema.GroupVersionResource) IO[(Option[schema.GroupVersionKind],Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/testing/host".MappedKind
+extern func fieldManager(scheme runtime.Scheme, converter managed.TypeConverter, kind schema.GroupVersionKind, defaulter runtime.ObjectDefaulter) IO[(Option[managed.FieldManager],Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/testing/host".FieldManager
+extern func fieldUpdate(manager managed.FieldManager, live runtime.Object, object runtime.Object, name String) IO[(Option[runtime.Object],Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/testing/host".FieldUpdate
+extern func fieldApply(manager managed.FieldManager, live runtime.Object, object runtime.Object, name String, force Bool) IO[(Option[runtime.Object],Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/testing/host".FieldApply

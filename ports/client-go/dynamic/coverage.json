@@ -1,0 +1,754 @@
+{
+  "schema_version": 1,
+  "source": {
+    "version": "v0.37.2",
+    "revision": "72c52dd0cc3b9099b36af11290b0304045dd1ada"
+  },
+  "verification": "NOT RUN: supervisor-owned acceptance",
+  "sources": [
+    {
+      "path": "dynamic/dynamicinformer/informer.go",
+      "sha256": "9a93694b149d52a348fd5002e2c0b3afc63c4b0c0cc8aa7bccbdf86c5b5299c3",
+      "symbols": [
+        {
+          "kind": "func",
+          "name": "NewDynamicSharedInformerFactory",
+          "receiver": null,
+          "line": 36,
+          "native": "dynamic/dynamicinformer.newSharedInformerFactory"
+        },
+        {
+          "kind": "func",
+          "name": "NewFilteredDynamicSharedInformerFactory",
+          "receiver": null,
+          "line": 42,
+          "native": "dynamic/dynamicinformer.newFilteredSharedInformerFactory"
+        },
+        {
+          "kind": "method",
+          "name": "ForResource",
+          "receiver": "*dynamicSharedInformerFactory",
+          "line": 74,
+          "native": "dynamic/dynamicinformer.forResource"
+        },
+        {
+          "kind": "method",
+          "name": "Start",
+          "receiver": "*dynamicSharedInformerFactory",
+          "line": 91,
+          "native": "dynamic/dynamicinformer.start"
+        },
+        {
+          "kind": "method",
+          "name": "WaitForCacheSync",
+          "receiver": "*dynamicSharedInformerFactory",
+          "line": 116,
+          "native": "dynamic/dynamicinformer.waitForCacheSync"
+        },
+        {
+          "kind": "method",
+          "name": "Shutdown",
+          "receiver": "*dynamicSharedInformerFactory",
+          "line": 137,
+          "native": "dynamic/dynamicinformer.shutdown"
+        },
+        {
+          "kind": "func",
+          "name": "NewFilteredDynamicInformer",
+          "receiver": null,
+          "line": 147,
+          "native": "dynamic/dynamicinformer.newFilteredInformer"
+        },
+        {
+          "kind": "method",
+          "name": "Informer",
+          "receiver": "*dynamicInformer",
+          "line": 194,
+          "native": "dynamic/dynamicinformer.GenericInformer.informer"
+        },
+        {
+          "kind": "method",
+          "name": "Lister",
+          "receiver": "*dynamicInformer",
+          "line": 198,
+          "native": "dynamic/dynamicinformer.GenericInformer.lister"
+        }
+      ]
+    },
+    {
+      "path": "dynamic/dynamicinformer/interface.go",
+      "sha256": "20b63a87e7c5cbbecc720091364c652a29fcf1d3b5e3944c444e72cf19caee60",
+      "symbols": [
+        {
+          "kind": "type",
+          "name": "DynamicSharedInformerFactory",
+          "receiver": null,
+          "line": 26,
+          "native": "dynamic/dynamicinformer.SharedInformerFactory"
+        },
+        {
+          "kind": "type",
+          "name": "TweakListOptionsFunc",
+          "receiver": null,
+          "line": 53,
+          "native": "dynamic/dynamicinformer.TweakListOptionsFunc"
+        }
+      ]
+    },
+    {
+      "path": "dynamic/dynamiclister/interface.go",
+      "sha256": "8c97027b394b576594f6bba4f773c55d84739f8c3052b8a36135d01b4ac6049e",
+      "symbols": [
+        {
+          "kind": "type",
+          "name": "Lister",
+          "receiver": null,
+          "line": 25,
+          "native": "dynamic/dynamiclister.Lister"
+        },
+        {
+          "kind": "type",
+          "name": "NamespaceLister",
+          "receiver": null,
+          "line": 35,
+          "native": "dynamic/dynamiclister.NamespaceLister"
+        }
+      ]
+    },
+    {
+      "path": "dynamic/dynamiclister/lister.go",
+      "sha256": "c807cb597cfeafc0a3d931a8d4ef9dad6b89d183d00c1fd9783a555f9f0a6efa",
+      "symbols": [
+        {
+          "kind": "func",
+          "name": "New",
+          "receiver": null,
+          "line": 37,
+          "native": "dynamic/dynamiclister.newLister"
+        },
+        {
+          "kind": "method",
+          "name": "List",
+          "receiver": "*dynamicLister",
+          "line": 42,
+          "native": "dynamic/dynamiclister.list"
+        },
+        {
+          "kind": "method",
+          "name": "Get",
+          "receiver": "*dynamicLister",
+          "line": 50,
+          "native": "dynamic/dynamiclister.get"
+        },
+        {
+          "kind": "method",
+          "name": "Namespace",
+          "receiver": "*dynamicLister",
+          "line": 62,
+          "native": "dynamic/dynamiclister.namespace"
+        },
+        {
+          "kind": "method",
+          "name": "List",
+          "receiver": "*dynamicNamespaceLister",
+          "line": 74,
+          "native": "dynamic/dynamiclister.namespaceList"
+        },
+        {
+          "kind": "method",
+          "name": "Get",
+          "receiver": "*dynamicNamespaceLister",
+          "line": 82,
+          "native": "dynamic/dynamiclister.namespaceGet"
+        }
+      ]
+    },
+    {
+      "path": "dynamic/dynamiclister/shim.go",
+      "sha256": "65d2389843b46c91a07c4c903ee70b7c76eaa9165ab221e7e037ced0c5a19d54",
+      "symbols": [
+        {
+          "kind": "func",
+          "name": "NewRuntimeObjectShim",
+          "receiver": null,
+          "line": 35,
+          "native": "dynamic/dynamiclister.newRuntimeObjectShim"
+        },
+        {
+          "kind": "method",
+          "name": "List",
+          "receiver": "*dynamicListerShim",
+          "line": 40,
+          "native": "dynamic/dynamiclister.RuntimeObjectLister.list"
+        },
+        {
+          "kind": "method",
+          "name": "Get",
+          "receiver": "*dynamicListerShim",
+          "line": 54,
+          "native": "dynamic/dynamiclister.RuntimeObjectLister.get"
+        },
+        {
+          "kind": "method",
+          "name": "ByNamespace",
+          "receiver": "*dynamicListerShim",
+          "line": 58,
+          "native": "dynamic/dynamiclister.RuntimeObjectLister.byNamespace"
+        },
+        {
+          "kind": "method",
+          "name": "List",
+          "receiver": "*dynamicNamespaceListerShim",
+          "line": 71,
+          "native": "dynamic/dynamiclister.RuntimeObjectNamespaceLister.list"
+        },
+        {
+          "kind": "method",
+          "name": "Get",
+          "receiver": "*dynamicNamespaceListerShim",
+          "line": 85,
+          "native": "dynamic/dynamiclister.RuntimeObjectNamespaceLister.get"
+        }
+      ]
+    },
+    {
+      "path": "dynamic/fake/simple.go",
+      "sha256": "4815695d840669df278bef1ca43655cf7a373d18ee884ffa34855f33a6964994",
+      "symbols": [
+        {
+          "kind": "func",
+          "name": "NewSimpleDynamicClient",
+          "receiver": null,
+          "line": 37,
+          "native": "dynamic/fake.newSimpleDynamicClient"
+        },
+        {
+          "kind": "func",
+          "name": "NewSimpleDynamicClientWithCustomListKinds",
+          "receiver": null,
+          "line": 71,
+          "native": "dynamic/fake.newSimpleDynamicClientWithCustomListKinds"
+        },
+        {
+          "kind": "type",
+          "name": "FakeDynamicClient",
+          "receiver": null,
+          "line": 136,
+          "native": "dynamic/fake.FakeDynamicClient"
+        },
+        {
+          "kind": "method",
+          "name": "Tracker",
+          "receiver": "*FakeDynamicClient",
+          "line": 155,
+          "native": "dynamic/fake.FakeDynamicClient.tracker"
+        },
+        {
+          "kind": "method",
+          "name": "Resource",
+          "receiver": "*FakeDynamicClient",
+          "line": 159,
+          "native": "dynamic/fake.interface(...).resource"
+        },
+        {
+          "kind": "method",
+          "name": "IsWatchListSemanticsUnSupported",
+          "receiver": "*FakeDynamicClient",
+          "line": 163,
+          "native": "dynamic/fake.interface(...).unsupportedWatchList"
+        },
+        {
+          "kind": "method",
+          "name": "Namespace",
+          "receiver": "*dynamicResourceClient",
+          "line": 167,
+          "native": "dynamic/fake.resourceInterface(...).namespace"
+        },
+        {
+          "kind": "method",
+          "name": "Create",
+          "receiver": "*dynamicResourceClient",
+          "line": 173,
+          "native": "dynamic/fake.create"
+        },
+        {
+          "kind": "method",
+          "name": "Update",
+          "receiver": "*dynamicResourceClient",
+          "line": 221,
+          "native": "dynamic/fake.update"
+        },
+        {
+          "kind": "method",
+          "name": "UpdateStatus",
+          "receiver": "*dynamicResourceClient",
+          "line": 257,
+          "native": "dynamic/fake.resourceInterface(...).updateStatus"
+        },
+        {
+          "kind": "method",
+          "name": "Delete",
+          "receiver": "*dynamicResourceClient",
+          "line": 285,
+          "native": "dynamic/fake.delete"
+        },
+        {
+          "kind": "method",
+          "name": "DeleteCollection",
+          "receiver": "*dynamicResourceClient",
+          "line": 308,
+          "native": "dynamic/fake.deleteCollection"
+        },
+        {
+          "kind": "method",
+          "name": "Get",
+          "receiver": "*dynamicResourceClient",
+          "line": 324,
+          "native": "dynamic/fake.get"
+        },
+        {
+          "kind": "method",
+          "name": "List",
+          "receiver": "*dynamicResourceClient",
+          "line": 359,
+          "native": "dynamic/fake.list"
+        },
+        {
+          "kind": "method",
+          "name": "Watch",
+          "receiver": "*dynamicResourceClient",
+          "line": 415,
+          "native": "dynamic/fake.watch"
+        },
+        {
+          "kind": "method",
+          "name": "Patch",
+          "receiver": "*dynamicResourceClient",
+          "line": 431,
+          "native": "dynamic/fake.patch"
+        },
+        {
+          "kind": "method",
+          "name": "Apply",
+          "receiver": "*dynamicResourceClient",
+          "line": 468,
+          "native": "dynamic/fake.apply"
+        },
+        {
+          "kind": "method",
+          "name": "ApplyStatus",
+          "receiver": "*dynamicResourceClient",
+          "line": 512,
+          "native": "dynamic/fake.resourceInterface(...).applyStatus"
+        }
+      ]
+    },
+    {
+      "path": "dynamic/interface.go",
+      "sha256": "40b35a09cddd7d0af42471be41424cfa2be20ffde246882abe934b44001fb1be",
+      "symbols": [
+        {
+          "kind": "type",
+          "name": "Interface",
+          "receiver": null,
+          "line": 29,
+          "native": "dynamic.Interface"
+        },
+        {
+          "kind": "type",
+          "name": "ResourceInterface",
+          "receiver": null,
+          "line": 33,
+          "native": "dynamic.ResourceInterface"
+        },
+        {
+          "kind": "type",
+          "name": "NamespaceableResourceInterface",
+          "receiver": null,
+          "line": 47,
+          "native": "dynamic.ResourceInterface"
+        },
+        {
+          "kind": "type",
+          "name": "APIPathResolverFunc",
+          "receiver": null,
+          "line": 54,
+          "native": "dynamic.APIPathResolverFunc"
+        },
+        {
+          "kind": "func",
+          "name": "LegacyAPIPathResolverFunc",
+          "receiver": null,
+          "line": 58,
+          "native": "dynamic.legacyAPIPathResolverFunc"
+        }
+      ]
+    },
+    {
+      "path": "dynamic/scheme.go",
+      "sha256": "fe7a87be185675f161081aaa98a4ad30daa9d60f760d0810aad626747c33cf94",
+      "symbols": [
+        {
+          "kind": "method",
+          "name": "SupportedMediaTypes",
+          "receiver": "basicNegotiatedSerializer",
+          "line": 75,
+          "native": "dynamic.newBasicNegotiatedSerializer"
+        },
+        {
+          "kind": "method",
+          "name": "EncoderForVersion",
+          "receiver": "basicNegotiatedSerializer",
+          "line": 79,
+          "native": "dynamic.newBasicNegotiatedSerializer"
+        },
+        {
+          "kind": "method",
+          "name": "DecoderToVersion",
+          "receiver": "basicNegotiatedSerializer",
+          "line": 87,
+          "native": "dynamic.newBasicNegotiatedSerializer"
+        },
+        {
+          "kind": "method",
+          "name": "New",
+          "receiver": "unstructuredCreater",
+          "line": 95,
+          "native": "dynamic.newUnstructuredCreater"
+        },
+        {
+          "kind": "method",
+          "name": "ObjectKinds",
+          "receiver": "unstructuredTyper",
+          "line": 109,
+          "native": "dynamic.newUnstructuredTyper"
+        },
+        {
+          "kind": "method",
+          "name": "Recognizes",
+          "receiver": "unstructuredTyper",
+          "line": 120,
+          "native": "dynamic.newUnstructuredTyper"
+        },
+        {
+          "kind": "method",
+          "name": "ObjectKinds",
+          "receiver": "permissiveTyper",
+          "line": 131,
+          "native": "dynamic.newUnstructuredTyper"
+        },
+        {
+          "kind": "method",
+          "name": "Recognizes",
+          "receiver": "permissiveTyper",
+          "line": 142,
+          "native": "dynamic.newUnstructuredTyper"
+        }
+      ]
+    },
+    {
+      "path": "dynamic/simple.go",
+      "sha256": "e0eac85a93eb7be8577e5ca053520eb9020de748e458d23e0aa0cec7a8516b10",
+      "symbols": [
+        {
+          "kind": "type",
+          "name": "DynamicClient",
+          "receiver": null,
+          "line": 35,
+          "native": "dynamic.Client"
+        },
+        {
+          "kind": "func",
+          "name": "ConfigFor",
+          "receiver": null,
+          "line": 43,
+          "native": "dynamic.configFor"
+        },
+        {
+          "kind": "func",
+          "name": "New",
+          "receiver": null,
+          "line": 63,
+          "native": "dynamic.newClient"
+        },
+        {
+          "kind": "func",
+          "name": "NewForConfigOrDie",
+          "receiver": null,
+          "line": 69,
+          "native": "dynamic.newForConfigOrDie"
+        },
+        {
+          "kind": "func",
+          "name": "NewForConfig",
+          "receiver": null,
+          "line": 80,
+          "native": "dynamic.newForConfig"
+        },
+        {
+          "kind": "func",
+          "name": "NewForConfigAndClient",
+          "receiver": null,
+          "line": 92,
+          "native": "dynamic.newForConfigAndClient"
+        },
+        {
+          "kind": "method",
+          "name": "Resource",
+          "receiver": "*DynamicClient",
+          "line": 110,
+          "native": "dynamic.Interface.resource"
+        },
+        {
+          "kind": "method",
+          "name": "Namespace",
+          "receiver": "*dynamicResourceClient",
+          "line": 114,
+          "native": "dynamic.ResourceInterface.namespace"
+        },
+        {
+          "kind": "method",
+          "name": "Create",
+          "receiver": "*dynamicResourceClient",
+          "line": 120,
+          "native": "dynamic.create"
+        },
+        {
+          "kind": "method",
+          "name": "Update",
+          "receiver": "*dynamicResourceClient",
+          "line": 149,
+          "native": "dynamic.update"
+        },
+        {
+          "kind": "method",
+          "name": "UpdateStatus",
+          "receiver": "*dynamicResourceClient",
+          "line": 175,
+          "native": "dynamic.ResourceInterface.updateStatus"
+        },
+        {
+          "kind": "method",
+          "name": "Delete",
+          "receiver": "*dynamicResourceClient",
+          "line": 201,
+          "native": "dynamic.delete"
+        },
+        {
+          "kind": "method",
+          "name": "DeleteCollection",
+          "receiver": "*dynamicResourceClient",
+          "line": 217,
+          "native": "dynamic.deleteCollection"
+        },
+        {
+          "kind": "method",
+          "name": "Get",
+          "receiver": "*dynamicResourceClient",
+          "line": 231,
+          "native": "dynamic.get"
+        },
+        {
+          "kind": "method",
+          "name": "List",
+          "receiver": "*dynamicResourceClient",
+          "line": 249,
+          "native": "dynamic.list"
+        },
+        {
+          "kind": "method",
+          "name": "Watch",
+          "receiver": "*dynamicResourceClient",
+          "line": 264,
+          "native": "dynamic.watch"
+        },
+        {
+          "kind": "method",
+          "name": "Patch",
+          "receiver": "*dynamicResourceClient",
+          "line": 274,
+          "native": "dynamic.patch"
+        },
+        {
+          "kind": "method",
+          "name": "Apply",
+          "receiver": "*dynamicResourceClient",
+          "line": 293,
+          "native": "dynamic.apply"
+        },
+        {
+          "kind": "method",
+          "name": "ApplyStatus",
+          "receiver": "*dynamicResourceClient",
+          "line": 326,
+          "native": "dynamic.ResourceInterface.applyStatus"
+        }
+      ]
+    }
+  ],
+  "upstream_tests": [
+    {
+      "path": "dynamic/client_test.go",
+      "sha256": "40e02572238aa41811da599a8adf383ab2189fd600713423021ee570e62ad863",
+      "cases": [
+        "TestDoesClientSupportWatchListSemantics",
+        "TestList",
+        "TestGet",
+        "TestDelete",
+        "TestDeleteCollection",
+        "TestCreate",
+        "TestUpdate",
+        "TestWatch",
+        "TestPatch",
+        "TestInvalidSegments"
+      ]
+    },
+    {
+      "path": "dynamic/dynamicinformer/informer_test.go",
+      "sha256": "d785a6ba59587dbd97ec479c50ec693e04f9fe576a3b1415fb989a62e913114a",
+      "cases": [
+        "TestWatchListSemanticsSimple",
+        "TestUnSupportWatchListSemantics",
+        "TestFilteredDynamicSharedInformerFactory",
+        "TestDynamicSharedInformerFactory"
+      ]
+    },
+    {
+      "path": "dynamic/dynamiclister/lister_test.go",
+      "sha256": "cfaf616826a88006185e9273834121481433d8048ca41282950a5072b8f5ec34",
+      "cases": [
+        "TestNamespaceGetMethod",
+        "TestNamespaceListMethod",
+        "TestListerGetMethod",
+        "TestListerListMethod"
+      ]
+    },
+    {
+      "path": "dynamic/fake/simple_test.go",
+      "sha256": "31e9d915977c76e26f01d13344adb8f229ef2d8b21e20a0480616fa9b7ae1787",
+      "cases": [
+        "TestDoesClientSupportWatchListSemantics",
+        "TestGet",
+        "TestListDecoding",
+        "TestGetDecoding",
+        "TestList",
+        "Test_ListKind",
+        "TestPatch",
+        "TestListWithUnstructuredObjectsAndTypedScheme",
+        "TestListWithNoFixturesAndTypedScheme",
+        "TestListWithNoScheme",
+        "TestListWithTypedFixtures"
+      ]
+    },
+    {
+      "path": "dynamic/golden_test.go",
+      "sha256": "b5439afb95c820eeb4241baef657a48c6491b02e21dbee28ea6c3c2f15108904",
+      "cases": [
+        "TestGoldenRequest",
+        "TestGoldenResponse"
+      ]
+    }
+  ],
+  "fixtures": [
+    {
+      "source": "dynamic/testdata/TestGoldenRequest/apply",
+      "native": "dynamic/testdata/TestGoldenRequest/apply",
+      "sha256": "6ccefa4b0524a98b7aae00643b06dba206dbcea1ad894d9847a58d66eb4b1e3a"
+    },
+    {
+      "source": "dynamic/testdata/TestGoldenRequest/applystatus",
+      "native": "dynamic/testdata/TestGoldenRequest/applystatus",
+      "sha256": "d9c34da197f0ab5d3dda9df270600fc7c58a8636c32ebd66b051b1e1eff4535b"
+    },
+    {
+      "source": "dynamic/testdata/TestGoldenRequest/create",
+      "native": "dynamic/testdata/TestGoldenRequest/create",
+      "sha256": "2df1487ea8ce7d645841b278402a38448c721eab2aa1959211d78569d504887d"
+    },
+    {
+      "source": "dynamic/testdata/TestGoldenRequest/delete",
+      "native": "dynamic/testdata/TestGoldenRequest/delete",
+      "sha256": "d5e9535fbcb8a1963665be0c10367091f34364e02974591f0e7cc0b2ff8fb5bd"
+    },
+    {
+      "source": "dynamic/testdata/TestGoldenRequest/deletecollection",
+      "native": "dynamic/testdata/TestGoldenRequest/deletecollection",
+      "sha256": "3348d34386fe8a5149f6a8a6f29b1ed23d5f2b3187cef14f9c5d7149e70fd323"
+    },
+    {
+      "source": "dynamic/testdata/TestGoldenRequest/get",
+      "native": "dynamic/testdata/TestGoldenRequest/get",
+      "sha256": "93cc250bf143d1776c7fd667dbb9a1a529fd9be42417db03ee91377b08f61850"
+    },
+    {
+      "source": "dynamic/testdata/TestGoldenRequest/list",
+      "native": "dynamic/testdata/TestGoldenRequest/list",
+      "sha256": "8f75840368d176634b7079b4f26528bee72c5b9ca34123e7e637036e2aaf5852"
+    },
+    {
+      "source": "dynamic/testdata/TestGoldenRequest/patch",
+      "native": "dynamic/testdata/TestGoldenRequest/patch",
+      "sha256": "1a2efdc65058d1b0256e8eea91764fba93c5a257e94081cdd5f5b14f9aecf889"
+    },
+    {
+      "source": "dynamic/testdata/TestGoldenRequest/update",
+      "native": "dynamic/testdata/TestGoldenRequest/update",
+      "sha256": "12a1ffe8828221e320c716c7ec358362ff2a2c553fd41089df211e14700fd161"
+    },
+    {
+      "source": "dynamic/testdata/TestGoldenRequest/updatestatus",
+      "native": "dynamic/testdata/TestGoldenRequest/updatestatus",
+      "sha256": "6c4727b6007dd708d419aea7a1ee992fb71e3819ca7ae079d9348eb7a16a3cd4"
+    },
+    {
+      "source": "dynamic/testdata/TestGoldenRequest/watch",
+      "native": "dynamic/testdata/TestGoldenRequest/watch",
+      "sha256": "15ec74e3a74fa3e0fde7243d90816641cf388f93f809899dce54a0163f0eaa7e"
+    },
+    {
+      "source": "dynamic/testdata/TestGoldenResponse/create",
+      "native": "dynamic/testdata/TestGoldenResponse/create",
+      "sha256": "7da4624f9c3d561dfb52d487cf64c4cc0019faead9c75a42780904c6665cbc12"
+    },
+    {
+      "source": "dynamic/testdata/TestGoldenResponse/get",
+      "native": "dynamic/testdata/TestGoldenResponse/get",
+      "sha256": "7da4624f9c3d561dfb52d487cf64c4cc0019faead9c75a42780904c6665cbc12"
+    },
+    {
+      "source": "dynamic/testdata/TestGoldenResponse/list",
+      "native": "dynamic/testdata/TestGoldenResponse/list",
+      "sha256": "b2021b95e43da7560721ec1d19a6dd25fe8333aeeeef1b2a93a881c975030d8c"
+    },
+    {
+      "source": "dynamic/testdata/TestGoldenResponse/responses/events",
+      "native": "dynamic/testdata/TestGoldenResponse/responses/events",
+      "sha256": "4c6443c99ab2511d59de53c17b25ced3ae09b58e5ac96d1ea6a69ffabe09d0ca"
+    },
+    {
+      "source": "dynamic/testdata/TestGoldenResponse/responses/list",
+      "native": "dynamic/testdata/TestGoldenResponse/responses/list",
+      "sha256": "2d1a89e33a6e26dabd19431e44dd6dc8eb021d5fa9ff945a5e80b46e23d7c519"
+    },
+    {
+      "source": "dynamic/testdata/TestGoldenResponse/responses/nonlist",
+      "native": "dynamic/testdata/TestGoldenResponse/responses/nonlist",
+      "sha256": "c65be27dbad05fc4bc47ff521392181cda456ad9c45eecdfc80a343ab454380d"
+    },
+    {
+      "source": "dynamic/testdata/TestGoldenResponse/update",
+      "native": "dynamic/testdata/TestGoldenResponse/update",
+      "sha256": "7da4624f9c3d561dfb52d487cf64c4cc0019faead9c75a42780904c6665cbc12"
+    },
+    {
+      "source": "dynamic/testdata/TestGoldenResponse/updatestatus",
+      "native": "dynamic/testdata/TestGoldenResponse/updatestatus",
+      "sha256": "7da4624f9c3d561dfb52d487cf64c4cc0019faead9c75a42780904c6665cbc12"
+    },
+    {
+      "source": "dynamic/testdata/TestGoldenResponse/watch",
+      "native": "dynamic/testdata/TestGoldenResponse/watch",
+      "sha256": "bda87adb025f40ba5844c29e51ca1a8b6d807622e436148cc1107ca700bb21ba"
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+// Copyright 2020 The Kubernetes Authors. Licensed under Apache-2.0.
+package transport
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import queue "github.com/reoring/gofx/ports/client-go/util/workqueue"
+import flow "github.com/reoring/gofx/ports/client-go/util/flowcontrol"
+
+func newCertificateQueue(env Environment) IO[queue.RateLimitingQueue[String]] { do {
+ exponential <- queue.newItemExponentialFailureRateLimiter(5000000, 1000000000000)
+ bucket <- flow.newTokenBucketWithClock(10.0, 100, env.clock)
+ let limiter = queue.newMaxOfRateLimiter([exponential, queue.newBucketRateLimiter(bucket)])
+ registry <- queue.newMetricsRegistry()
+ queue.newRateLimitingQueueWithConfig(limiter, queue.RateLimitingQueueConfig("DynamicClientCertificate", registry, None, env.clock, None))
+} }
+func certificatePoll(env Environment, q queue.RateLimitingQueue[String]) IO[Unit] { do {
+ q.delaying.queue.add("key")
+ rotationPause(env.clock, env.certRefreshNanos)
+ certificatePoll(env, q)
+} }
+func certificateProcess(env Environment, rotation CertificateRotation, q queue.RateLimitingQueue[String]) IO[Unit] { do {
+ item <- q.delaying.queue.get()
+ match item {
+  None => ioPure(unit())
+  Some(key) => do {
+   sync.ensuring(do {
+    result <- loadClientCertificate(rotation)
+    match result.error {
+     None => queue.forget(q, key)
+     Some(error) => do { env.diagnostics.event("certificate_reload_error", errorText(error)); queue.addRateLimited(q, key) }
+    }
+   }, q.delaying.queue.done(key))
+   certificateProcess(env, rotation, q)
+  }
+ }
+} }
+func certificateRotationWorker(env Environment, rotation CertificateRotation) IO[Unit] {
+ sync.bracket(newCertificateQueue(env), func(q) =>
+  sync.bracket(sync.start(certificatePoll(env, q)), func(_) => certificateProcess(env, rotation, q), func(poller) => stopRotation(Some(poller))),
+  func(q) => q.delaying.queue.shutDown())
+}

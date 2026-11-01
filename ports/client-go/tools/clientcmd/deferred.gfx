@@ -1,0 +1,99 @@
+// Copyright 2014 The Kubernetes Authors. Licensed under Apache-2.0.
+package clientcmd
+import api "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api"
+import rest "github.com/reoring/gofx/ports/client-go/rest"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import "std/string"
+import "std/prelude"
+type KubeconfigGetter = KubeconfigGetter {get:func() IO[outcome.Outcome[Option[api.Config]]]}
+type ClientConfigLoader = ClientConfigLoader {load:func() IO[outcome.Outcome[Option[api.Config]]],access:ConfigAccess,isDefaultConfig:func(rest.Config) IO[Bool]}
+type InClusterConfig = InClusterConfig {client:ClientConfig,possible:func() IO[Bool]}
+type DeferredLoadingClientConfig = DeferredLoadingClientConfig {source:api.Source,loader:ClientConfigLoader,overrides:ConfigOverrides,fallback:Option[PromptInput],inCluster:InClusterConfig,loaded:sync.Ref[Option[DirectClientConfig]],lock:sync.Mutex}
+func rulesLoader(source api.Source,rules ClientConfigLoadingRules) ClientConfigLoader { ClientConfigLoader(func() => loadRules(source,rules),loadingRulesAccess(source,rules),func(value) => isDefaultConfig(rules,value)) }
+func clientConfigGetter(getter KubeconfigGetter) ClientConfigLoader { ClientConfigLoader(getter.get,ConfigAccess(func() => ioPure(Nil),getter.get,func() => ioPure(""),func() => ioPure(false),func() => ioPure("")),func(_) => ioPure(false)) }
+func newNonInteractiveDeferredLoadingClientConfig(source api.Source,loader ClientConfigLoader,overrides ConfigOverrides) IO[DeferredLoadingClientConfig] { newDeferredLoadingClientConfig(source,loader,overrides,None,systemInClusterConfig(source,overrides,rest.inClusterConfig)) }
+func newInteractiveDeferredLoadingClientConfig(source api.Source,loader ClientConfigLoader,overrides ConfigOverrides,input PromptInput) IO[DeferredLoadingClientConfig] { newDeferredLoadingClientConfig(source,loader,overrides,Some(input),systemInClusterConfig(source,overrides,rest.inClusterConfig)) }
+func newDeferredLoadingClientConfig(source api.Source,loader ClientConfigLoader,overrides ConfigOverrides,fallback Option[PromptInput],inCluster InClusterConfig) IO[DeferredLoadingClientConfig] { do { loaded <- sync.newRef(None); lock <- sync.newMutex(); ioPure(DeferredLoadingClientConfig(source,loader,overrides,fallback,inCluster,loaded,lock)) } }
+func createClientConfig(config DeferredLoadingClientConfig) IO[outcome.Outcome[Option[DirectClientConfig]]] { sync.withLock(config.lock,do {
+ cached <- sync.readRef(config.loaded)
+ match cached { Some(_) => ioPure(outcome.success(cached)); None => do {
+ loaded <- config.loader.load()
+ match loaded.error { Some(error) => ioPure(outcome.failure(None,error)); None => match loaded.value { None => ioPure(outcome.success(None)); Some(value) => do {
+ direct <- match config.fallback { None => newNonInteractiveClientConfig(config.source,value,config.overrides.currentContext,config.overrides,Some(config.loader.access)); Some(input) => newInteractiveClientConfig(config.source,value,config.overrides.currentContext,config.overrides,input,Some(config.loader.access)) }
+ sync.writeRef(config.loaded,Some(direct))
+ ioPure(outcome.success(Some(direct)))
+ } } }
+ } }
+}) }
+func deferredRawConfig(config DeferredLoadingClientConfig) IO[outcome.Outcome[api.Config]] { do { created <- createClientConfig(config); match created.error { Some(error) => ioPure(outcome.failure(api.emptyConfig(),error)); None => match created.value { None => ioPure(outcome.success(api.emptyConfig())); Some(direct) => rawConfig(direct) } } } }
+func deferredClientConfig(config DeferredLoadingClientConfig) IO[outcome.Outcome[Option[rest.Config]]] { do {
+ created <- createClientConfig(config)
+ match created.error {
+  Some(error) => ioPure(outcome.failure(None,error))
+  None => match created.value {
+   None => ioPure(outcome.success(None))
+   Some(direct) => do {
+    merged <- clientConfig(direct)
+    match merged.error {
+     Some(error) => if !isEmptyConfig(error) { ioPure(merged) } else { _fallbackClient(config,merged) }
+     None => match merged.value {
+      None => _fallbackClient(config,merged)
+      Some(value) => do {
+       default <- config.loader.isDefaultConfig(value)
+       if default { _fallbackClient(config,merged) } else { ioPure(merged) }
+      }
+     }
+    }
+   }
+  }
+ }
+} }
+func _fallbackClient(config DeferredLoadingClientConfig,merged outcome.Outcome[Option[rest.Config]]) IO[outcome.Outcome[Option[rest.Config]]] { do { possible <- config.inCluster.possible(); if possible { config.inCluster.client.clientConfig() } else { ioPure(merged) } } }
+func deferredNamespace(config DeferredLoadingClientConfig) IO[outcome.Outcome[(String,Bool)]] { do {
+ created <- createClientConfig(config)
+ match created.error { Some(error) => ioPure(outcome.failure(("",false),error)); None => match created.value { None => ioPure(outcome.success(("",false))); Some(direct) => do {
+ ns <- namespace(direct)
+ possible <- config.inCluster.possible()
+ if (match ns.error { None => false; Some(error) => !isEmptyConfig(error) }) || ns.value.1 || !possible { ioPure(ns) } else if ns.value.0 != "" && ns.value.0 != "default" { ioPure(ns) } else {
+ let context = api.getContext(direct.config,if config.overrides.currentContext != "" { config.overrides.currentContext } else { direct.config.currentContext })
+ if match context { None => false; Some(context) => context.namespace != "" } { ioPure(ns) } else { config.inCluster.client.namespace() }
+ }
+ } } }
+} }
+func deferredAsClientConfig(config DeferredLoadingClientConfig) ClientConfig { ClientConfig(func() => deferredRawConfig(config),func() => deferredClientConfig(config),func() => deferredNamespace(config),Some(config.loader.access)) }
+func systemInClusterConfig(source api.Source,overrides ConfigOverrides,provider func() IO[outcome.Outcome[Option[rest.Config]]]) InClusterConfig { InClusterConfig(ClientConfig(func() => ioPure(outcome.failure(api.emptyConfig(),api.newError("inCluster environment config doesn't support multiple clusters"))),func() => do {
+ loaded <- provider()
+ ioPure(outcome.mapValue(loaded,func(value) => prelude.fmap(value,func(value) => {
+ let value = if overrides.clusterInfo.server != "" { value{host:overrides.clusterInfo.server} } else { value }
+ let value = if overrides.authInfo.token != "" || overrides.authInfo.tokenFile != "" { value{bearerToken:overrides.authInfo.token,bearerTokenFile:overrides.authInfo.tokenFile} } else { value }
+ if overrides.clusterInfo.certificateAuthority != "" { value{tlsClientConfig:value.tlsClientConfig{caFile:overrides.clusterInfo.certificateAuthority}} } else { value }
+ })))
+},func() => inClusterNamespace(source),Some(defaultConfigAccess(source))),func() => do {
+ host <- source.getenv("KUBERNETES_SERVICE_HOST")
+ port <- source.getenv("KUBERNETES_SERVICE_PORT")
+ file <- source.stat("/var/run/secrets/kubernetes.io/serviceaccount/token")
+ ioPure(host != "" && port != "" && outcome.isSuccess(file) && !file.value.isDir)
+}) }
+func inClusterNamespace(source api.Source) IO[outcome.Outcome[(String,Bool)]] { do {
+ env <- source.getenv("POD_NAMESPACE")
+ if env != "" { ioPure(outcome.success((env,false))) } else { do {
+ file <- source.read("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
+ let namespace = string.trim(file.value)
+ ioPure(outcome.success((if outcome.isSuccess(file) && namespace != "" { namespace } else { "default" },false)))
+ } }
+} }
+func buildConfigFromFlags(source api.Source,masterURL String,kubeconfigPath String) IO[outcome.Outcome[Option[rest.Config]]] { if masterURL == "" && kubeconfigPath == "" { do {
+ inCluster <- rest.inClusterConfig()
+ if outcome.isSuccess(inCluster) { ioPure(inCluster) } else { _buildConfig(source,masterURL,kubeconfigPath) }
+} } else { _buildConfig(source,masterURL,kubeconfigPath) } }
+func _buildConfig(source api.Source,masterURL String,kubeconfigPath String) IO[outcome.Outcome[Option[rest.Config]]] { do {
+ let rules = emptyLoadingRules(){explicitPath:kubeconfigPath}
+ let overrides = emptyOverrides(){clusterInfo:api.emptyCluster(){server:masterURL}}
+ config <- newNonInteractiveDeferredLoadingClientConfig(source,rulesLoader(source,rules),overrides)
+ deferredClientConfig(config)
+} }
+func buildConfigFromKubeconfigGetter(source api.Source,masterURL String,getter KubeconfigGetter) IO[outcome.Outcome[Option[rest.Config]]] { do {
+ config <- newNonInteractiveDeferredLoadingClientConfig(source,clientConfigGetter(getter),emptyOverrides(){clusterInfo:api.emptyCluster(){server:masterURL}})
+ deferredClientConfig(config)
+} }

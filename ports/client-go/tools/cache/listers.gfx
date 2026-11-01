@@ -1,0 +1,39 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package cache
+import "std/map"
+import lists "std/list"
+import strings "std/string"
+import "github.com/reoring/gofx/ports/client-go/support/outcome"
+import errors "github.com/reoring/gofx/ports/client-go/deps/support"
+
+type ObjectName = ObjectName { namespace: String, name: String } deriving Eq, Ord
+func newObjectName(namespace String, name String) ObjectName { ObjectName(namespace,name) }
+func objectNameParts(name ObjectName) (String,String) { (name.namespace,name.name) }
+func objectNameString(name ObjectName) String { if name.namespace == "" { name.name } else { name.namespace + "/" + name.name } }
+func parseObjectName(value String) outcome.Outcome[ObjectName] { match strings.split("/",value) { Cons(name,Nil) => outcome.success(ObjectName("",name)); Cons(namespace,Cons(name,Nil)) => outcome.success(ObjectName(namespace,name)); _ => outcome.failure(ObjectName("",""),cacheError("unexpected key format: " + strings.showQuoted(value))) } }
+func splitMetaNamespaceKey(value String) outcome.Outcome[(String,String)] { outcome.mapValue(parseObjectName(value),func(n) => (n.namespace,n.name)) }
+func deletionHandlingMetaNamespaceKeyFunc[A](access ObjectAccess[A], object Deleted[A]) IO[outcome.Outcome[String]] { deletionKey(access,object) }
+func deletionHandlingObjectToName[A](access ObjectAccess[A], object Deleted[A]) IO[outcome.Outcome[ObjectName]] { do { key <- deletionKey(access,object); ioPure(match key.error { Some(e) => outcome.failure(ObjectName("",""),e); None => parseObjectName(key.value) }) } }
+func deletedObjectName[A](access ObjectAccess[A], object Deleted[A]) IO[ObjectName] { do { key <- deletionKey(access,object); let parsed = parseObjectName(key.value); ioPure(if outcome.isSuccess(parsed) { parsed.value } else { ObjectName("",key.value) }) } }
+type ListSelector = ListSelector { empty: Bool, matchesNothing: Bool, matches: func(Map[String,String]) IO[Bool] }
+func everythingSelector() ListSelector { ListSelector(true,false,func(_) => ioPure(true)) }
+func nothingSelector() ListSelector { ListSelector(false,true,func(_) => ioPure(false)) }
+func filterObjects[A](objects List[A], accept func(A) IO[Bool]) IO[List[A]] { match objects { Nil => ioPure(Nil); Cons(obj,rest) => do { keep <- accept(obj); remaining <- filterObjects(rest,accept); ioPure(if keep { Cons(obj,remaining) } else { remaining }) } } }
+func matchesSelector[A](access ObjectAccess[A], selector ListSelector, obj A) IO[Bool] { if selector.matchesNothing { ioPure(false) } else { if selector.empty { ioPure(true) } else { do { labels <- access.labels(obj); selector.matches(labels) } } } }
+func listAll[A](store Store[A], access ObjectAccess[A], selector ListSelector, appendItem func(A) IO[Unit]) IO[outcome.Outcome[Unit]] { if selector.matchesNothing { ioPure(outcome.success(unit())) } else { do { objects <- store.list(); lists.forEach(objects,func(obj) => do { selected <- matchesSelector(access,selector,obj); if selected { appendItem(obj) } else { ioPure(unit()) } }); ioPure(outcome.success(unit())) } } }
+func namespaceObjects[A](indexer Indexer[A], access ObjectAccess[A], namespace String) IO[List[A]] { if namespace == "" { indexer.store.list() } else { do { indexed <- indexer.byIndex("namespace",namespace); if outcome.isSuccess(indexed) { ioPure(indexed.value) } else { do { all <- indexer.store.list(); filterObjects(all,func(obj) => do { observed <- access.namespace(obj); ioPure(observed == namespace) }) } } } } }
+func listAllByNamespace[A](indexer Indexer[A], access ObjectAccess[A], namespace String, selector ListSelector, appendItem func(A) IO[Unit]) IO[outcome.Outcome[Unit]] {
+ if selector.matchesNothing { ioPure(outcome.success(unit())) } else { do {
+  objects <- namespaceObjects(indexer,access,namespace)
+  lists.forEach(objects,func(obj) => do { selected <- matchesSelector(access,selector,obj); if selected { appendItem(obj) } else { ioPure(unit()) } })
+  ioPure(outcome.success(unit()))
+ } }
+}
+type GenericLister[A] = GenericLister { indexer: Indexer[A], access: ObjectAccess[A], notFound: func(String) errors.Error }
+type GenericNamespaceLister[A] = GenericNamespaceLister { parent: GenericLister[A], namespace: String }
+func newGenericLister[A](indexer Indexer[A], access ObjectAccess[A], notFound func(String) errors.Error) GenericLister[A] { GenericLister(indexer,access,notFound) }
+func listerList[A](lister GenericLister[A], selector ListSelector) IO[outcome.Outcome[List[A]]] { do { objects <- lister.indexer.store.list(); selected <- filterObjects(objects,func(obj) => matchesSelector(lister.access,selector,obj)); ioPure(outcome.success(selected)) } }
+func listerGet[A](lister GenericLister[A], name String) IO[outcome.Outcome[Option[A]]] { do { found <- lister.indexer.store.getByKey(name); ioPure(match found.error { Some(_) => found; None => match found.value { Some(_) => found; None => outcome.failure(None,lister.notFound(name)) } }) } }
+func byNamespace[A](lister GenericLister[A], namespace String) GenericNamespaceLister[A] { GenericNamespaceLister(lister,namespace) }
+func namespaceListerGet[A](lister GenericNamespaceLister[A], name String) IO[outcome.Outcome[Option[A]]] { do { result <- lister.parent.indexer.store.getByKey(lister.namespace + "/" + name); ioPure(match result.error { Some(_) => result; None => match result.value { Some(_) => result; None => outcome.failure(None,lister.parent.notFound(name)) } }) } }
+func namespaceListerList[A](lister GenericNamespaceLister[A], selector ListSelector) IO[outcome.Outcome[List[A]]] { do { objects <- namespaceObjects(lister.parent.indexer,lister.parent.access,lister.namespace); selected <- filterObjects(objects,func(obj) => matchesSelector(lister.parent.access,selector,obj)); ioPure(outcome.success(selected)) } }

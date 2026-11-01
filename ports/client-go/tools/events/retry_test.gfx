@@ -1,0 +1,16 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package events
+import api "github.com/reoring/gofx/ports/client-go/deps/k8s.io/api/events/v1"
+import "github.com/reoring/gofx/ports/client-go/deps/support"
+import "github.com/reoring/gofx/ports/client-go/support/outcome"
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+func testTransportFailureStopsAtTwelveAttemptsTrace() IO[Bool] { do {
+ clock <- sync.fakeClock(0); calls <- sync.newRef(0); logs <- sync.newRef(0)
+ let fail = func(event) => do { n <- sync.readRef(calls); sync.writeRef(calls,n+1); ioPure(outcome.Outcome(None,Some(support.errorNew("transport unavailable")))) }
+ let sink = EventSink(fail,fail,func(event,patch) => fail(event))
+ let logger = func(message,error) => do { n <- sync.readRef(logs); sync.writeRef(logs,n+1) }
+ b <- newBroadcasterWithClock(sink,clock,0,logger)
+ _attempt(b,api.newEvent(),1)
+ count <- sync.readRef(calls); messages <- sync.readRef(logs); shutdown(b)
+ ioPure(count==12 && messages==1)
+} }

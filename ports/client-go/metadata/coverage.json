@@ -1,0 +1,531 @@
+{
+  "schema_version": 1,
+  "source": {
+    "version": "v0.37.2",
+    "revision": "72c52dd0cc3b9099b36af11290b0304045dd1ada"
+  },
+  "verification": "NOT RUN: supervisor-owned acceptance",
+  "sources": [
+    {
+      "path": "metadata/fake/simple.go",
+      "sha256": "f5aa9b320bf178aa931753f10fd76ee141ba1602a26359ab9ec3d113f736f1fa",
+      "symbols": [
+        {
+          "kind": "type",
+          "name": "MetadataClient",
+          "receiver": null,
+          "line": 38,
+          "native": "metadata/fake.ResourceClient"
+        },
+        {
+          "kind": "func",
+          "name": "NewTestScheme",
+          "receiver": null,
+          "line": 45,
+          "native": "metadata/fake.newTestScheme"
+        },
+        {
+          "kind": "func",
+          "name": "NewSimpleMetadataClient",
+          "receiver": null,
+          "line": 52,
+          "native": "metadata/fake.newSimpleMetadataClient"
+        },
+        {
+          "kind": "type",
+          "name": "FakeMetadataClient",
+          "receiver": null,
+          "line": 90,
+          "native": "metadata/fake.FakeMetadataClient"
+        },
+        {
+          "kind": "method",
+          "name": "Tracker",
+          "receiver": "*FakeMetadataClient",
+          "line": 107,
+          "native": "metadata/fake.FakeMetadataClient.tracker"
+        },
+        {
+          "kind": "method",
+          "name": "Resource",
+          "receiver": "*FakeMetadataClient",
+          "line": 112,
+          "native": "metadata/fake.resource"
+        },
+        {
+          "kind": "method",
+          "name": "IsWatchListSemanticsUnSupported",
+          "receiver": "*FakeMetadataClient",
+          "line": 116,
+          "native": "metadata/fake.interface(...).unsupportedWatchList"
+        },
+        {
+          "kind": "method",
+          "name": "Namespace",
+          "receiver": "*metadataResourceClient",
+          "line": 122,
+          "native": "metadata/fake.namespace"
+        },
+        {
+          "kind": "method",
+          "name": "CreateFake",
+          "receiver": "*metadataResourceClient",
+          "line": 129,
+          "native": "metadata/fake.createFake"
+        },
+        {
+          "kind": "method",
+          "name": "UpdateFake",
+          "receiver": "*metadataResourceClient",
+          "line": 177,
+          "native": "metadata/fake.updateFake"
+        },
+        {
+          "kind": "method",
+          "name": "UpdateStatus",
+          "receiver": "*metadataResourceClient",
+          "line": 213,
+          "native": "metadata/fake.updateStatus"
+        },
+        {
+          "kind": "method",
+          "name": "Delete",
+          "receiver": "*metadataResourceClient",
+          "line": 241,
+          "native": "metadata/fake.delete"
+        },
+        {
+          "kind": "method",
+          "name": "DeleteCollection",
+          "receiver": "*metadataResourceClient",
+          "line": 265,
+          "native": "metadata/fake.deleteCollection"
+        },
+        {
+          "kind": "method",
+          "name": "Get",
+          "receiver": "*metadataResourceClient",
+          "line": 282,
+          "native": "metadata/fake.get"
+        },
+        {
+          "kind": "method",
+          "name": "List",
+          "receiver": "*metadataResourceClient",
+          "line": 317,
+          "native": "metadata/fake.list"
+        },
+        {
+          "kind": "method",
+          "name": "Watch",
+          "receiver": "*metadataResourceClient",
+          "line": 364,
+          "native": "metadata/fake.watch"
+        },
+        {
+          "kind": "method",
+          "name": "Patch",
+          "receiver": "*metadataResourceClient",
+          "line": 380,
+          "native": "metadata/fake.patch"
+        }
+      ]
+    },
+    {
+      "path": "metadata/interface.go",
+      "sha256": "ea9894939195c6129a4b8c40be11a5bf1dcd131b3b6eb6aba0d43239143c852b",
+      "symbols": [
+        {
+          "kind": "type",
+          "name": "Interface",
+          "receiver": null,
+          "line": 30,
+          "native": "metadata.Interface"
+        },
+        {
+          "kind": "type",
+          "name": "ResourceInterface",
+          "receiver": null,
+          "line": 36,
+          "native": "metadata.ResourceInterface"
+        },
+        {
+          "kind": "type",
+          "name": "Getter",
+          "receiver": null,
+          "line": 46,
+          "native": "metadata.ResourceInterface"
+        }
+      ]
+    },
+    {
+      "path": "metadata/metadata.go",
+      "sha256": "f5ff4407b948e3cf3382ecc5617a954921174c12b808f927be79ab7ccbff189a",
+      "symbols": [
+        {
+          "kind": "type",
+          "name": "Client",
+          "receiver": null,
+          "line": 56,
+          "native": "metadata.Client"
+        },
+        {
+          "kind": "func",
+          "name": "ConfigFor",
+          "receiver": null,
+          "line": 64,
+          "native": "metadata.configFor"
+        },
+        {
+          "kind": "func",
+          "name": "NewForConfigOrDie",
+          "receiver": null,
+          "line": 77,
+          "native": "metadata.newForConfigOrDie"
+        },
+        {
+          "kind": "func",
+          "name": "NewForConfig",
+          "receiver": null,
+          "line": 91,
+          "native": "metadata.newForConfig"
+        },
+        {
+          "kind": "func",
+          "name": "NewForConfigAndClient",
+          "receiver": null,
+          "line": 103,
+          "native": "metadata.newForConfigAndClient"
+        },
+        {
+          "kind": "method",
+          "name": "Resource",
+          "receiver": "*Client",
+          "line": 125,
+          "native": "metadata.Interface.resource"
+        },
+        {
+          "kind": "method",
+          "name": "Namespace",
+          "receiver": "*client",
+          "line": 131,
+          "native": "metadata.ResourceInterface.namespace"
+        },
+        {
+          "kind": "method",
+          "name": "Delete",
+          "receiver": "*client",
+          "line": 138,
+          "native": "metadata.delete"
+        },
+        {
+          "kind": "method",
+          "name": "DeleteCollection",
+          "receiver": "*client",
+          "line": 163,
+          "native": "metadata.deleteCollection"
+        },
+        {
+          "kind": "method",
+          "name": "Get",
+          "receiver": "*client",
+          "line": 181,
+          "native": "metadata.get"
+        },
+        {
+          "kind": "method",
+          "name": "List",
+          "receiver": "*client",
+          "line": 220,
+          "native": "metadata.list"
+        },
+        {
+          "kind": "method",
+          "name": "Watch",
+          "receiver": "*client",
+          "line": 253,
+          "native": "metadata.watch"
+        },
+        {
+          "kind": "method",
+          "name": "Patch",
+          "receiver": "*client",
+          "line": 268,
+          "native": "metadata.patch"
+        }
+      ]
+    },
+    {
+      "path": "metadata/metadatainformer/informer.go",
+      "sha256": "777149da7e4edac47caa3923e509e37a7f04e31c1260b94b7aad3556c37e6e51",
+      "symbols": [
+        {
+          "kind": "type",
+          "name": "SharedInformerOption",
+          "receiver": null,
+          "line": 37,
+          "native": "metadata/metadatainformer.SharedInformerOption"
+        },
+        {
+          "kind": "func",
+          "name": "WithTransform",
+          "receiver": null,
+          "line": 40,
+          "native": "metadata/metadatainformer.withTransform"
+        },
+        {
+          "kind": "func",
+          "name": "NewSharedInformerFactory",
+          "receiver": null,
+          "line": 48,
+          "native": "metadata/metadatainformer.newSharedInformerFactory"
+        },
+        {
+          "kind": "func",
+          "name": "NewFilteredSharedInformerFactory",
+          "receiver": null,
+          "line": 54,
+          "native": "metadata/metadatainformer.newFilteredSharedInformerFactory"
+        },
+        {
+          "kind": "func",
+          "name": "NewSharedInformerFactoryWithOptions",
+          "receiver": null,
+          "line": 66,
+          "native": "metadata/metadatainformer.newSharedInformerFactoryWithOptions"
+        },
+        {
+          "kind": "method",
+          "name": "ForResource",
+          "receiver": "*metadataSharedInformerFactory",
+          "line": 104,
+          "native": "metadata/metadatainformer.forResource"
+        },
+        {
+          "kind": "method",
+          "name": "Start",
+          "receiver": "*metadataSharedInformerFactory",
+          "line": 124,
+          "native": "metadata/metadatainformer.start"
+        },
+        {
+          "kind": "method",
+          "name": "StartWithContext",
+          "receiver": "*metadataSharedInformerFactory",
+          "line": 129,
+          "native": "metadata/metadatainformer.start (implicit IO context)"
+        },
+        {
+          "kind": "method",
+          "name": "WaitForCacheSync",
+          "receiver": "*metadataSharedInformerFactory",
+          "line": 154,
+          "native": "metadata/metadatainformer.waitForCacheSync"
+        },
+        {
+          "kind": "method",
+          "name": "Shutdown",
+          "receiver": "*metadataSharedInformerFactory",
+          "line": 175,
+          "native": "metadata/metadatainformer.shutdown"
+        },
+        {
+          "kind": "func",
+          "name": "NewFilteredMetadataInformer",
+          "receiver": null,
+          "line": 185,
+          "native": "metadata/metadatainformer.newFilteredInformer"
+        },
+        {
+          "kind": "method",
+          "name": "Informer",
+          "receiver": "*metadataInformer",
+          "line": 229,
+          "native": "dynamic/dynamicinformer.GenericInformer.informer"
+        },
+        {
+          "kind": "method",
+          "name": "Lister",
+          "receiver": "*metadataInformer",
+          "line": 233,
+          "native": "dynamic/dynamicinformer.GenericInformer.lister"
+        }
+      ]
+    },
+    {
+      "path": "metadata/metadatainformer/interface.go",
+      "sha256": "3e666a664354018f5f65c0afaeab2ed208c7af3e4894eab8fb0b758664429849",
+      "symbols": [
+        {
+          "kind": "type",
+          "name": "SharedInformerFactory",
+          "receiver": null,
+          "line": 26,
+          "native": "metadata/metadatainformer.SharedInformerFactory"
+        },
+        {
+          "kind": "type",
+          "name": "TweakListOptionsFunc",
+          "receiver": null,
+          "line": 53,
+          "native": "metadata/metadatainformer.TweakListOptionsFunc"
+        }
+      ]
+    },
+    {
+      "path": "metadata/metadatalister/interface.go",
+      "sha256": "54ee5b56d24b0b70e6335e4d19c1cb5c726c4c624b8775d3574a19be02852b21",
+      "symbols": [
+        {
+          "kind": "type",
+          "name": "Lister",
+          "receiver": null,
+          "line": 25,
+          "native": "metadata/metadatalister.Lister"
+        },
+        {
+          "kind": "type",
+          "name": "NamespaceLister",
+          "receiver": null,
+          "line": 35,
+          "native": "metadata/metadatalister.NamespaceLister"
+        }
+      ]
+    },
+    {
+      "path": "metadata/metadatalister/lister.go",
+      "sha256": "13de9354f1cc97e0f6f68863bfa883ca787f24eec337baa685d26fbc5795c619",
+      "symbols": [
+        {
+          "kind": "func",
+          "name": "New",
+          "receiver": null,
+          "line": 37,
+          "native": "metadata/metadatalister.newLister"
+        },
+        {
+          "kind": "method",
+          "name": "List",
+          "receiver": "*metadataLister",
+          "line": 42,
+          "native": "metadata/metadatalister.list"
+        },
+        {
+          "kind": "method",
+          "name": "Get",
+          "receiver": "*metadataLister",
+          "line": 50,
+          "native": "metadata/metadatalister.get"
+        },
+        {
+          "kind": "method",
+          "name": "Namespace",
+          "receiver": "*metadataLister",
+          "line": 62,
+          "native": "metadata/metadatalister.namespace"
+        },
+        {
+          "kind": "method",
+          "name": "List",
+          "receiver": "*metadataNamespaceLister",
+          "line": 74,
+          "native": "metadata/metadatalister.namespaceList"
+        },
+        {
+          "kind": "method",
+          "name": "Get",
+          "receiver": "*metadataNamespaceLister",
+          "line": 82,
+          "native": "metadata/metadatalister.namespaceGet"
+        }
+      ]
+    },
+    {
+      "path": "metadata/metadatalister/shim.go",
+      "sha256": "a54fb16c0581fe423e22fc469bc16372f1d73d2895a603a267108ce599d3554d",
+      "symbols": [
+        {
+          "kind": "func",
+          "name": "NewRuntimeObjectShim",
+          "receiver": null,
+          "line": 35,
+          "native": "metadata/metadatalister.newRuntimeObjectShim"
+        },
+        {
+          "kind": "method",
+          "name": "List",
+          "receiver": "*metadataListerShim",
+          "line": 40,
+          "native": "metadata/metadatalister.RuntimeObjectLister.list"
+        },
+        {
+          "kind": "method",
+          "name": "Get",
+          "receiver": "*metadataListerShim",
+          "line": 54,
+          "native": "metadata/metadatalister.RuntimeObjectLister.get"
+        },
+        {
+          "kind": "method",
+          "name": "ByNamespace",
+          "receiver": "*metadataListerShim",
+          "line": 58,
+          "native": "metadata/metadatalister.RuntimeObjectLister.byNamespace"
+        },
+        {
+          "kind": "method",
+          "name": "List",
+          "receiver": "*metadataNamespaceListerShim",
+          "line": 71,
+          "native": "metadata/metadatalister.RuntimeObjectNamespaceLister.list"
+        },
+        {
+          "kind": "method",
+          "name": "Get",
+          "receiver": "*metadataNamespaceListerShim",
+          "line": 85,
+          "native": "metadata/metadatalister.RuntimeObjectNamespaceLister.get"
+        }
+      ]
+    }
+  ],
+  "upstream_tests": [
+    {
+      "path": "metadata/fake/simple_test.go",
+      "sha256": "6fdf93a1399a163e8736961513bf74dc517fdd17c53dc1f37f60713a26099d1f",
+      "cases": [
+        "TestDoesClientSupportWatchListSemantics",
+        "TestList",
+        "TestPatch"
+      ]
+    },
+    {
+      "path": "metadata/metadata_test.go",
+      "sha256": "425c89e1419eace12fcaf60aeed294365ef7347f43cb3b544103ffed543eba27",
+      "cases": [
+        "TestDoesClientSupportWatchListSemantics",
+        "TestClient"
+      ]
+    },
+    {
+      "path": "metadata/metadatainformer/informer_test.go",
+      "sha256": "1be6814ac72dc51305a3d8650f971ea093bb2fcdf1a586a15984adc5ffe1d44e",
+      "cases": [
+        "TestWatchListSemanticsSimple",
+        "TestUnSupportWatchListSemantics",
+        "TestMetadataSharedInformerFactory"
+      ]
+    },
+    {
+      "path": "metadata/metadatalister/lister_test.go",
+      "sha256": "3566208b14e0d98732d0c46c427d5de2740bd6ae01c9a9a4b183613c786f511a",
+      "cases": [
+        "TestNamespaceGetMethod",
+        "TestNamespaceListMethod",
+        "TestListerGetMethod",
+        "TestListerListMethod"
+      ]
+    }
+  ],
+  "fixtures": []
+}

@@ -1,0 +1,33 @@
+// Copyright 2014 The Kubernetes Authors. Licensed under Apache-2.0.
+package api
+import "std/string"
+import "std/prelude"
+import runtime "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime"
+
+// Only primitive/dependency formatting crosses the host boundary. The native
+// records and complete input-list diagnostic are assembled here, in field order.
+extern func _formatConversionBytes(value Option[String]) String = "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api/host".FormatBytes
+extern func _formatConversionRaw(value runtime.RawExtension) String = "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api/host".FormatRawExtension
+func _formatSequence(values List[String]) String { "["+string.join(" ",values)+"]" }
+func _formatRecord(values List[String]) String { "{"+string.join(" ",values)+"}" }
+func _formatStringList(value Option[List[String]]) String { _formatSequence(listOrEmpty(value)) }
+func _formatStringMap(value Option[Map[String,String]]) String { "map["+string.join(" ",prelude.fmap(_conversionEntries(value),func((key,value)) => key+":"+value))+"]" }
+func _formatExtraMap(value Option[Map[String,Option[List[String]]]]) String { "map["+string.join(" ",prelude.fmap(_conversionEntries(value),func((key,value)) => key+":"+_formatStringList(value)))+"]" }
+func _formatNamedExtensions(values List[NamedExtension]) IO[String] { ioPure(_formatSequence(prelude.fmap(values,func(value) => _formatRecord([value.name,_formatConversionRaw(value.extension)])))) }
+func _formatWireCluster(value WireCluster) IO[String] { do {
+ extensions <- _formatNamedExtensions(listOrEmpty(value.extensions))
+ ioPure(_formatRecord([value.server,value.tlsServerName,show(value.insecureSkipTLSVerify),value.certificateAuthority,_formatConversionBytes(value.certificateAuthorityData),value.proxyURL,show(value.disableCompression),extensions]))
+} }
+func _formatWireContext(value WireContext) IO[String] { do {
+ extensions <- _formatNamedExtensions(listOrEmpty(value.extensions))
+ ioPure(_formatRecord([value.cluster,value.authInfo,value.namespace,extensions]))
+} }
+func _formatWireExec(value Option[WireExecConfig]) String { match value { None => "<nil>"; Some(value) => "&"+_formatRecord([value.command,_formatStringList(value.args),_formatSequence(prelude.fmap(listOrEmpty(value.env),func(entry) => _formatRecord([entry.name,entry.value]))),value.apiVersion,value.installHint,show(value.provideClusterInfo),value.interactiveMode]) } }
+func _formatWireProvider(value Option[AuthProviderConfig]) String { match value { None => "<nil>"; Some(value) => "&"+_formatRecord([value.name,_formatStringMap(value.config)]) } }
+func _formatWireAuthInfo(value WireAuthInfo) IO[String] { do {
+ extensions <- _formatNamedExtensions(listOrEmpty(value.extensions))
+ ioPure(_formatRecord([value.clientCertificate,_formatConversionBytes(value.clientCertificateData),value.clientKey,_formatConversionBytes(value.clientKeyData),value.token,value.tokenFile,value.impersonate,value.impersonateUID,_formatStringList(value.impersonateGroups),_formatExtraMap(value.impersonateUserExtra),value.username,value.password,_formatWireProvider(value.authProvider),_formatWireExec(value.exec),extensions]))
+} }
+func _formatNamedClusters(values List[NamedCluster]) IO[String] { do { entries <- prelude.traverse(values,func(value) => do { text <- _formatWireCluster(value.cluster); ioPure(_formatRecord([value.name,text])) }); ioPure(_formatSequence(entries)) } }
+func _formatNamedAuthInfos(values List[NamedAuthInfo]) IO[String] { do { entries <- prelude.traverse(values,func(value) => do { text <- _formatWireAuthInfo(value.authInfo); ioPure(_formatRecord([value.name,text])) }); ioPure(_formatSequence(entries)) } }
+func _formatNamedContexts(values List[NamedContext]) IO[String] { do { entries <- prelude.traverse(values,func(value) => do { text <- _formatWireContext(value.context); ioPure(_formatRecord([value.name,text])) }); ioPure(_formatSequence(entries)) } }

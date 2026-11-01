@@ -1,0 +1,225 @@
+// Copyright 2015 The Kubernetes Authors. Licensed under Apache-2.0.
+// Native parity probes for pinned client-go v0.37.2; not executed in the implementation wave.
+package transport
+import http "github.com/reoring/gofx/ports/client-go/deps/net/http"
+import tls "github.com/reoring/gofx/ports/client-go/deps/crypto/tls"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import features "github.com/reoring/gofx/ports/client-go/features"
+import map "std/map"
+import string "std/string"
+
+extern func fixtureFile(data String) IO[String] = "github.com/reoring/gofx/ports/client-go/transport/testsupport".NewFile
+extern func fixtureWrite(path String, data String) IO[Unit] = "github.com/reoring/gofx/ports/client-go/transport/testsupport".WriteFile
+extern func fixtureRemove(path String) IO[Unit] = "github.com/reoring/gofx/ports/client-go/transport/testsupport".RemoveFile
+extern func fixtureSameLifetime(a Lifetime, b Lifetime) IO[Bool] = "github.com/reoring/gofx/ports/client-go/transport/testsupport".SameLifetime
+extern func fixtureCollect() IO[Unit] = "github.com/reoring/gofx/ports/client-go/transport/testsupport".Collect
+
+func fixtureEnvironment(gc Bool, ca Bool) IO[Environment] { do {
+ registry <- features.newFeatureRegistry(features.Environment(func(_) => ioPure(None), func(_) => ioPure(unit())))
+ features.replaceFeatureGates(registry, features.Gates(func(feature) => ioPure(if feature == features.clientsAllowTLSCacheGC() { gc } else { if feature == features.clientsAllowCARotation() { ca } else { false } }), None, None, "transport-test"))
+ env <- newEnvironment(registry)
+ clock <- sync.fakeClock(1000000000)
+ ioPure(env {clock: clock, diagnostics: Diagnostics(func() => ioPure(0), func(_, _) => ioPure(unit()), func(_, _) => ioPure(unit()))})
+} }
+func fixtureResponse(status Int) IO[http.Response] { do {
+ response <- http.newResponse()
+ http.responseSetStatusCodeIdentity(response, status)
+ ioPure(response)
+} }
+func fixtureBase() RoundTripper { roundTripper(func(_) => ioPure(outcome.success(None)), func(_) => ioPure(unit()), func() => ioPure(unit())) }
+func testConfigPredicates() Bool {
+ let c = defaultConfig()
+ !hasBasicAuth(c) && !hasTokenAuth(c) && !hasCA(c) && !hasCertAuth(c) &&
+ hasBasicAuth(c {username: "u"}) && !hasBasicAuth(c {password: "p"}) &&
+ hasTokenAuth(c {bearerTokenFile: "token"}) &&
+ !hasCertAuth(c {tls: c.tls {certData: Some("cert")}}) &&
+ hasCertAuth(c {tls: c.tls {certFile: "cert", keyData: Some("key")}})
+}
+func testRequestAuthIsolationAndOverride() IO[Bool] { do {
+ seen <- sync.newRef("")
+ let base = roundTripper(func(req) => do { value <- requestHeader(req, "Authorization"); sync.writeRef(seen, value); ioPure(outcome.success(None)) }, func(_) => ioPure(unit()), func() => ioPure(unit()))
+ request <- http.newRequest()
+ let wrapper = newBasicAuthRoundTripper("user", "pass", base)
+ wrapper.roundTrip(request)
+ first <- sync.readRef(seen)
+ original <- requestHeader(request, "Authorization")
+ setRequestHeader(request, "Authorization", "Bearer explicit")
+ wrapper.roundTrip(request)
+ overridden <- sync.readRef(seen)
+ ioPure(first == "Basic dXNlcjpwYXNz" && original == "" && overridden == "Bearer explicit")
+} }
+func testWrapperConstructionAndRequestOrder() IO[Bool] { do {
+ env <- fixtureEnvironment(false, false)
+ order <- sync.newRef("")
+ seen <- sync.newRef("")
+ let base = roundTripper(func(req) => do { user <- requestHeader(req, "Impersonate-User"); agent <- requestHeader(req, "User-Agent"); auth <- requestHeader(req, "Authorization"); sync.writeRef(seen, user + "/" + agent + "/" + auth); ioPure(outcome.success(None)) }, func(_) => ioPure(unit()), func() => ioPure(unit()))
+ let wrapper = func(name) => func(rt) => layer(rt, func(req) => do { old <- sync.readRef(order); sync.writeRef(order, old + name); rt.roundTrip(req) })
+ let c = defaultConfig()
+ let configured = wrap(wrap(c {bearerToken: "token", userAgent: "agent", impersonate: ImpersonationConfig("user", "", None, None)}, wrapper("first")), wrapper("second"))
+ result <- httpWrappersForConfig(env, configured, base)
+ request <- http.newRequest()
+ match result.value { None => ioPure(false); Some(rt) => do {
+  rt.roundTrip(request)
+  observed <- sync.readRef(order)
+  headers <- sync.readRef(seen)
+  unchanged <- requestHeader(request, "Impersonate-User")
+  ioPure(observed == "secondfirst" && headers == "user/agent/Bearer token" && unchanged == "")
+ } }
+} }
+func testCredentialConflictAndCustomTransportConflict() IO[Bool] { do {
+ env <- fixtureEnvironment(false, false)
+ let c = defaultConfig()
+ auth <- newTransport(env, c {username: "u", bearerToken: "token"})
+ custom <- newTransport(env, c {transport: Some(fixtureBase()), tls: c.tls {insecure: true}})
+ ioPure((match auth.error { Some(e) => errorText(e) == "username/password or bearer token may be set, but not both"; None => false }) && (match custom.error { Some(e) => errorText(e) == "using a custom transport with TLS certificate options or the insecure flag is not allowed"; None => false }))
+} }
+func testImpersonationAndAuthProxyIsolation() IO[Bool] { do {
+ request <- http.newRequest()
+ setRequestHeader(request, "X-Remote-Extra-Stale", "old")
+ setRequestHeader(request, "X-Remote-Group", "old-group")
+ extras <- sync.newRef("")
+ let extra = Some(map.mapFromList([("example.com/%role", Some(["new"]))]))
+ let base = roundTripper(func(req) => do { value <- requestHeader(req, "X-Remote-Extra-example.com%2F%25role"); stale <- requestHeader(req, "X-Remote-Extra-Stale"); group <- requestHeader(req, "X-Remote-Group"); sync.writeRef(extras, value + "/" + stale + "/" + group); ioPure(outcome.success(None)) }, func(_) => ioPure(unit()), func() => ioPure(unit()))
+ newAuthProxyRoundTripper("u", "id", Some(["g"]), extra, base).roundTrip(request)
+ observed <- sync.readRef(extras)
+ old <- requestHeader(request, "X-Remote-Group")
+ ioPure(observed == "new//g" && old == "old-group" && headerKeyEscape("x%20/y") == "x%2520%2Fy")
+} }
+func testCacheKeyPolicy() IO[Bool] { do {
+ let c = defaultConfig()
+ a <- tlsConfigKey(c)
+ b <- tlsConfigKey(c {username: "user", password: "secret", bearerToken: "token", userAgent: "agent"})
+ data <- tlsConfigKey(c {tls: c.tls {certData: Some("cert"), keyData: Some("secret")}})
+ paths <- tlsConfigKey(c {tls: c.tls {reloadTLSFiles: true, certFile: "a", keyFile: "b", certData: Some("cert"), keyData: Some("secret")}})
+ ca <- tlsConfigKey(c {tls: c.tls {reloadCAFiles: true, caFile: "a", caData: Some("ignored")}})
+ protocols <- tlsConfigKey(c {tls: c.tls {nextProtos: Some(["h2", "http/1.1"])}})
+ ioPure(a == b && data != paths && paths.certData == "" && paths.keyData == "" && ca.caData == "" && ca.caFile == "a" && protocols != a && !string.contains(cacheKeyString(data), "secret"))
+} }
+func testCacheReuseAndIdentityHolders() IO[Bool] { do {
+ env <- fixtureEnvironment(true, false)
+ let c = defaultConfig()
+ let configured = c {tls: c.tls {insecure: true}}
+ first <- newTransport(env, configured)
+ second <- newTransport(env, configured {userAgent: "different"})
+ ids <- sync.readRef(env.cache.sequence)
+ match (first.value, second.value) { (Some(a), Some(b)) => match (a.lifetime, b.lifetime) { (Some(x), Some(y)) => do { same <- fixtureSameLifetime(x, y); ioPure(same && ids == 1) }; _ => ioPure(false) }; _ => ioPure(false) }
+} }
+func testProxyDisablesCache() IO[Bool] { do {
+ env <- fixtureEnvironment(true, false)
+ let c = defaultConfig()
+ let configured = c {proxy: Some(func(_) => ioPure(outcome.success(None)))}
+ newTransport(env, configured)
+ newTransport(env, configured)
+ entries <- sync.readRef(env.cache.weak)
+ ioPure(map.mapSize(entries) == 0)
+} }
+func testTokenRefreshBoundaryAndFailureFallback() IO[Bool] { do {
+ clock <- sync.fakeClock(1000)
+ calls <- sync.newRef(0)
+ now <- sync.now(clock)
+ value <- makeToken("one", "", "", Some(sync.add(now, 1000)))
+ let base = TokenSource(func() => do { n <- sync.readRef(calls); sync.writeRef(calls, n + 1); if n == 0 { ioPure(outcome.success(Some(value))) } else { ioPure(outcome.failure(None, newError("refresh failed"))) } })
+ cached <- newCachedTokenSourceWithClock(clock, 10, base)
+ cached.token()
+ sync.advance(clock, 989)
+ cached.token()
+ before <- sync.readRef(calls)
+ sync.advance(clock, 1)
+ fallback <- cached.token()
+ after <- sync.readRef(calls)
+ ioPure(before == 1 && after == 2 && outcome.isSuccess(fallback) && (match fallback.value { None => false; Some(_) => true }))
+} }
+func testResetStrictAgeAndNoReplay401() IO[Bool] { do {
+ clock <- sync.fakeClock(1000)
+ acquisitions <- sync.newRef(0)
+ trips <- sync.newRef(0)
+ now <- sync.now(clock)
+ token <- makeToken("token", "", "", Some(sync.add(now, 99000)))
+ let source = TokenSource(func() => do { n <- sync.readRef(acquisitions); sync.writeRef(acquisitions, n + 1); ioPure(outcome.success(Some(token))) })
+ cached <- newCachedTokenSourceWithClock(clock, 0, source)
+ response <- fixtureResponse(401)
+ let base = roundTripper(func(_) => do { n <- sync.readRef(trips); sync.writeRef(trips, n + 1); ioPure(outcome.success(Some(response))) }, func(_) => ioPure(unit()), func() => ioPure(unit()))
+ let wrapper = resettableTokenSourceWrapTransport(clock, cached)(base)
+ request <- http.newRequest()
+ wrapper.roundTrip(request)
+ cached.token()
+ first <- sync.readRef(acquisitions)
+ sync.advance(clock, 1)
+ wrapper.roundTrip(request)
+ cached.token()
+ second <- sync.readRef(acquisitions)
+ count <- sync.readRef(trips)
+ original <- requestHeader(request, "Authorization")
+ ioPure(first == 1 && second == 2 && count == 2 && original == "")
+} }
+func testExplicitAuthSkipsTokenSource() IO[Bool] { do {
+ clock <- sync.fakeClock(0)
+ calls <- sync.newRef(0)
+ let source = TokenSource(func() => do { sync.writeRef(calls, 1); ioPure(outcome.failure(None, newError("must not be called"))) })
+ request <- http.newRequest()
+ setRequestHeader(request, "Authorization", "Bearer user")
+ let wrapper = tokenSourceWrapTransport(clock, source)(fixtureBase())
+ result <- wrapper.roundTrip(request)
+ count <- sync.readRef(calls)
+ ioPure(count == 0 && outcome.isSuccess(result))
+} }
+func testTokenFileFallbackAndPrecedence() IO[Bool] {
+ sync.bracket(fixtureFile("file-token\n"), func(path) => do {
+  env <- fixtureEnvironment(false, false)
+  seen <- sync.newRef("")
+  let base = roundTripper(func(req) => do { value <- requestHeader(req, "Authorization"); sync.writeRef(seen, value); ioPure(outcome.success(None)) }, func(_) => ioPure(unit()), func() => ioPure(unit()))
+  built <- newBearerAuthWithRefreshRoundTripper(env, "configured", path, base)
+  request <- http.newRequest()
+  match built.value { None => ioPure(false); Some(wrapper) => do {
+   wrapper.roundTrip(request)
+   first <- sync.readRef(seen)
+   fixtureWrite(path, "")
+   sync.advance(env.clock, 60000000000)
+   wrapper.roundTrip(request)
+   second <- sync.readRef(seen)
+   ioPure(first == "Bearer file-token" && second == first)
+  } }
+ }, fixtureRemove)
+}
+func testTLSFlagsAndErrorPrecedence() IO[Bool] { do {
+ env <- fixtureEnvironment(false, false)
+ let c = defaultConfig()
+ built <- tlsConfigFor(env, c {tls: c.tls {insecure: true, serverName: "example", nextProtos: Some(["http/1.1"])}})
+ conflict <- tlsConfigFor(env, c {tls: c.tls {insecure: true, caFile: "/nonexistent/transport-test"}})
+ match built.value { None => ioPure(false); Some(value) => do {
+  version <- tls.configGetMinVersionIdentity(value)
+  protocols <- tls.configGetNextProtosIdentity(value)
+  ioPure(version == 771 && protocols == Some(["http/1.1"]) && (match conflict.error { None => false; Some(error) => errorText(error) == "specifying a root certificates file with the insecure flag is not allowed" }))
+ } }
+} }
+func testStaticCredentialsPrecedeCertificateCallback() IO[Bool] { do {
+ env <- fixtureEnvironment(false, false)
+ calls <- sync.newRef(0)
+ holder <- newGetCertHolder(func() => do { sync.writeRef(calls, 1); ioPure(outcome.success(None)) })
+ let c = defaultConfig()
+ result <- tlsConfigFor(env, c {tls: c.tls {certData: Some("not a certificate"), keyData: Some("not a key"), getCertHolder: Some(holder)}})
+ count <- sync.readRef(calls)
+ ioPure(!outcome.isSuccess(result) && count == 0)
+} }
+func testContextCancellerPreservesProvidedError() IO[Bool] { do {
+ contexts <- sync.newChannel(1)
+ stop <- sync.newChannel(0)
+ task <- sync.start(do { context <- sync.captureContext(); sync.send(contexts, context); sync.receive(stop); ioPure(unit()) })
+ context <- sync.receive(contexts)
+ sync.cancelTask(task)
+ ignoreTaskCancellation(task)
+ match context { None => ioPure(false); Some(value) => do {
+  request <- http.newRequest()
+  result <- contextCanceller(value, newError("closed context"))(fixtureBase()).roundTrip(request)
+  ioPure(match result.error { None => false; Some(error) => errorText(error) == "closed context" })
+ } }
+} }
+func testMaskingAndHeaderEscapingVectors() Bool {
+ maskValue("AUTHORIZATION", "Bearer secret") == "Bearer <masked>" &&
+ maskValue("Authorization", "Basic ") == "Basic" &&
+ maskValue("Authorization", "unknown secret") == "<masked>" &&
+ maskValue("X-Test", "public") == "public" &&
+ headerKeyEscape("example.com/key%") == "example.com%2Fkey%25" &&
+ debugLevels([debugByContext()], 7) == [7, 0, 3, 4]
+}

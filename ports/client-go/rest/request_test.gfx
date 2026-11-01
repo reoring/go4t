@@ -1,0 +1,170 @@
+package rest
+
+import http "deps/net/http"
+import reader "deps/io"
+import runtime "deps/k8s.io/apimachinery/pkg/runtime"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import codec "deps/codec"
+import errors "deps/support"
+import outcome "support/outcome"
+import transport "transport"
+import sync "support/sync"
+import m "std/map"
+import io "std/io"
+
+// Copyright 2026 The Kubernetes Authors. Licensed under Apache-2.0.
+// Pinned sources: request_test.go TestRequestWithErrorWontChange,
+// TestRequestPreflightCheck, TestRequestMaxRetries, TestResultIntoWithNoBodyReturnsErr.
+extern func responseFixture(status Int,media String,body String,retry String) IO[http.Response] = "github.com/reoring/gofx/ports/client-go/rest/host".Response
+extern func stringReader(value String) reader.Reader = "github.com/reoring/gofx/ports/client-go/rest/host".StringReader
+func fixtureRequest(run func(http.Request) IO[outcome.Outcome[Option[http.Response]]]) IO[Request] {
+ do {
+  clock <- sync.fakeClock(0)
+  decoder <- codec.newJSONDecoder()
+  let negotiator = Negotiator(func(_,_) => ioPure(outcome.failure("",errors.errorNew("fixture encodes no objects"))),func(_) => ioPure(outcome.success(Some(decoder))),func(_,_) => ioPure(outcome.failure(None,errors.errorNew("fixture opens no streams"))))
+  let parsed = parseURL("http://example.invalid/proxy")
+  match parsed.0 {
+   None => ioFail("invalid fixture URL")
+   Some(base) => do {
+    let gv = schema.groupVersionWithVersion(schema.newGroupVersion(),"v1")
+    raw <- transport.toHTTP(transport.roundTripper(run,func(_) => ioPure(unit()),func() => ioPure(unit())))
+    httpClient <- newHTTPClient(raw,0)
+    client <- newRESTClient(base,"/api/v1",ClientContentConfig("","application/json",gv,negotiator),httpClient,None,noWarnings(),clock,false)
+    get(client)
+   }
+  }
+ }
+}
+func unusedHTTP(request http.Request) IO[outcome.Outcome[Option[http.Response]]] { ioFail("unexpected HTTP execution") }
+func testStoredErrorsAndPathValidation() IO[Bool] {
+ do {
+  request <- fixtureRequest(unusedHTTP)
+  let failed = name(request,"")
+  let preserved = resource(namespace(prefix(failed,["ignored"]),"ignored"),"ignored")
+  let constructed = name(subResource(resource(namespace(request,"team-a"),"Pods"),["status","details"]),"pod-a")
+  ioPure((match preserved.error { None => false; Some(e) => errors.errorMessage(e)=="resource name may not be empty" }) && preserved.pathPrefix==request.pathPrefix && requestPath(constructed)=="/proxy/api/v1/namespaces/team-a/pods/pod-a/status/details" && isValidPathSegmentName("a/%")==["may not contain '/'","may not contain '%'"] && isValidPathSegmentName("..")==["may not be '..'"])
+ }
+}
+func testNamespacePreflightDoesNotCallHTTP() IO[Bool] {
+ do {
+  request <- fixtureRequest(unusedHTTP)
+  let post = namespace(verb(request,"POST"),"")
+  result <- doRaw(post)
+  let named = name(namespace(request,""),"pod-a")
+  result2 <- doRaw(named)
+  ioPure((match result.error { None => false; Some(error) => errors.errorMessage(error)=="an empty namespace may not be set during creation" }) && (match result2.error { None => false; Some(error) => errors.errorMessage(error)=="an empty namespace may not be set when a resource name is provided" }))
+ }
+}
+func testQueryOrderingAndRequestURIClearing() IO[Bool] {
+ do {
+  request <- fixtureRequest(unusedHTTP)
+  let query = param(param(param(request,"command","echo"),"command","a b"),"labelSelector","a=b")
+  cleared <- requestURI(query,"/api/v1/pods?resourceVersion=17")
+  ioPure(encodedQuery(query.params)=="command=echo&command=a+b&labelSelector=a%3Db" && encodedQuery(cleared.params)=="resourceVersion=17" && requestPath(cleared)=="/proxy/api/v1/pods")
+ }
+}
+func testRetry429CeilingAndReaderNoReplay() IO[Bool] {
+ do {
+  calls <- sync.newRef(0)
+  request <- fixtureRequest(func(_) => do {
+   count <- sync.readRef(calls); sync.writeRef(calls,count+1)
+   response <- responseFixture(429,"text/plain","busy","0")
+   ioPure(outcome.success(Some(response)))
+  })
+  raw <- doRaw(maxRetries(request,2))
+  count <- sync.readRef(calls)
+  sync.writeRef(calls,0)
+  streamed <- doRaw(bodyReader(maxRetries(request,20),stringReader("payload")))
+  count2 <- sync.readRef(calls)
+  ioPure(count==3 && count2==1 && raw.value=="busy" && streamed.value=="busy" && !outcome.isSuccess(raw) && !outcome.isSuccess(streamed))
+ }
+}
+func testRawMalformedBodyAndCreatedStatus() IO[Bool] {
+ do {
+  request <- fixtureRequest(func(_) => do { response <- responseFixture(201,"application/json","{broken",""); ioPure(outcome.success(Some(response))) })
+  result <- doRequest(request)
+  decoded <- resultGet(result)
+  ioPure(resultWasCreated(result) && resultRaw(result).value=="{broken" && !outcome.isSuccess(decoded))
+ }
+}
+func testWarningWriterDeduplicatesOnly299() IO[Bool] {
+ do {
+  lines <- sync.newRef([])
+  writer <- newWarningWriter(func(line) => do { old <- sync.readRef(lines); sync.writeRef(lines,append(old,[line])) },WarningWriterOptions(true,false))
+  handleWarnings(warningWriterHandler(writer),[Warning(299,"-","same"),Warning(299,"-","same"),Warning(199,"-","other"),Warning(299,"-","")])
+  count <- warningCount(writer)
+  written <- sync.readRef(lines)
+  ioPure(count==1 && written==["Warning: same\n"])
+ }
+}
+func testOutcomeRetainsPartialError() Bool {
+ let error = errors.errorNew("partial")
+ let result = outcome.failure("bytes",error)
+ result.value=="bytes" && (match result.error { None => false; Some(retained) => errors.errorIs(retained,error) })
+}
+extern func faultResponse(status Int,media String,prefix String,error errors.Error) IO[http.Response] = "github.com/reoring/gofx/ports/client-go/rest/host".FaultResponse
+func testRawReadFailureRetainsPartialOutput() IO[Bool] {
+ do {
+  let original = errors.errorNew("body interrupted")
+  request <- fixtureRequest(func(_) => do {
+   response <- faultResponse(200,"application/json","partial",original)
+   ioPure(outcome.success(Some(response)))
+  })
+  result <- doRaw(request)
+  ioPure(result.value=="partial" && (match result.error { None => false; Some(error) => errors.errorIs(error,original) }))
+ }
+}
+func testCancellationStopsAttempt() IO[Bool] {
+ do {
+  entered <- sync.newChannel(0)
+  request <- fixtureRequest(func(_) => do {
+   sync.send(entered,unit())
+   clock <- sync.realClock()
+   sleep(clock,10000000000)
+   ioPure(outcome.success(None))
+  })
+  worker <- sync.start(io.tryIO(doRaw(request)))
+  sync.receive(entered)
+  sync.cancelTask(worker)
+  result <- sync.uninterruptible(sync.join(worker))
+  ioPure(match result { Err(io.Cancelled) => true; _ => false })
+ }
+}
+func testInClusterSentinelAndAnonymousCredentials() IO[Bool] {
+ do {
+  let environment = ClusterEnvironment(func(_) => ioPure(""),func(_) => ioFail("unexpected file access"),func(_) => false,func(_) => ioPure(unit()))
+  result <- inClusterConfigWith(environment)
+  let base = emptyConfig()
+  let anonymous = anonymousClientConfig(base{password: "password",bearerToken: "token",tlsClientConfig: base.tlsClientConfig{keyData: Some("private")}})
+  ioPure(anonymous.password=="" && anonymous.bearerToken=="" && anonymous.tlsClientConfig.keyData==None && (match result.error { None => false; Some(error) => errors.errorIs(error,errNotInCluster()) }))
+ }
+}
+func testCBORDisabledScrubsOnlyAffectedAccept() IO[Bool] {
+ do {
+  request <- fixtureRequest(unusedHTTP)
+  let original = request.contentConfig{contentType: "application/cbor",acceptContentTypes: "application/cbor;q=0.5, application/json"}
+  let scrubbed = scrubCBORContentConfig(original,false)
+  let untouched = scrubCBORContentConfig(original{acceptContentTypes: "application/json, text/plain;q=0.2"},false)
+  ioPure(scrubbed.contentType=="application/json" && scrubbed.acceptContentTypes=="application/json,application/json; q=0.5" && untouched.acceptContentTypes=="application/json, text/plain;q=0.2")
+ }
+}
+func testConfigEqualityPreservesNilAndFunctions() IO[Bool] {
+ do {
+  let base = emptyConfig()
+  equal <- configEqual(base,base)
+  different <- configEqual(base,base{tlsClientConfig: base.tlsClientConfig{caData: Some("")}})
+  let callback = base{proxy: Some(func(_) => ioPure(outcome.success(None)))}
+  functions <- configEqual(callback,callback)
+  ioPure(equal && !different && !functions)
+ }
+}
+func testConstructionErrorClassificationIsExplicit() Bool {
+ let original = errors.errorNew("invalid name")
+ let classified = requestConstructionError(Some(original))
+ let empty = requestConstructionError(None)
+ isRequestConstructionError(classified) &&
+ !isRequestConstructionError(original) &&
+ errors.errorMessage(classified)=="request construction error: 'invalid name'" &&
+ errors.errorMessage(empty)=="request construction error: '<nil>'" &&
+ (match requestConstructionErrorCause(classified) { None => false; Some(cause) => errors.errorIs(cause,original) })
+}

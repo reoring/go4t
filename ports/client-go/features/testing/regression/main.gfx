@@ -1,0 +1,27 @@
+package main
+import features "github.com/reoring/gofx/ports/client-go/features"
+import testing "github.com/reoring/gofx/ports/client-go/features/testing"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import "std/map"
+func check(value Bool, message String) IO[Unit] { if value { ioPure(unit()) } else { ioFail(message) } }
+func clean(actions List[IO[Unit]]) IO[Unit] { match actions { Nil => ioPure(unit()); Cons(action, rest) => do { action; clean(rest) } } }
+func main() IO[Unit] { do {
+ registry <- features.newFeatureRegistry(features.Environment(func(key) => ioPure(None), func(message) => ioPure(unit())))
+ overrides <- testing.newOverrides()
+ cleanups <- sync.newRef(Nil)
+ let register = func(action IO[Unit]) => do { actions <- sync.readRef(cleanups); sync.writeRef(cleanups, Cons(action, actions)) }
+ let parent = testing.Test("parent", register, func(message) => ioFail(message))
+ let child = testing.Test("parent/child", register, func(message) => ioFail(message))
+ let sibling = testing.Test("other", register, func(message) => ioFail(message))
+ a <- testing.setFeatureDuringTest(overrides, registry, parent, features.inOrderInformers(), false)
+ check(match a { Ok(_) => true; Err(_) => false }, "test override must bypass GA lock")
+ b <- testing.setFeatureDuringTest(overrides, registry, child, features.inOrderInformers(), true)
+ check(match b { Ok(_) => true; Err(_) => false }, "subtest override permitted")
+ c <- testing.setFeatureDuringTest(overrides, registry, sibling, features.inOrderInformers(), false)
+ check(match c { Err(_) => true; Ok(_) => false }, "sibling override rejected")
+ actions <- sync.readRef(cleanups)
+ clean(actions)
+ gates <- features.featureGates(registry)
+ restored <- gates.enabled(features.inOrderInformers())
+ check(restored, "LIFO cleanup restores original value")
+} }

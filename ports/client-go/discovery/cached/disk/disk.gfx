@@ -1,0 +1,91 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package disk
+import "discovery"
+import meta "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import errors "deps/support"
+import "support/outcome"
+import "support/sync"
+import "openapi"
+import cached "openapi/cached"
+import "std/map"
+import "std/list"
+extern func readFile(path String) IO[(String,(Int,Option[errors.Error]))] = "github.com/reoring/gofx/ports/client-go/discovery/host".ReadFile
+extern func atomicWrite(path String,data String,directoryMode Int,fileMode Int) IO[Option[errors.Error]] = "github.com/reoring/gofx/ports/client-go/discovery/host".AtomicWrite
+extern func joinPath(left String,right String) String = "github.com/reoring/gofx/ports/client-go/discovery/host".JoinPath
+extern func encodeGroupsJSON(value meta.APIGroupList) IO[(String,Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/discovery/host".EncodeGroups
+extern func encodeResourcesJSON(value meta.APIResourceList) IO[(String,Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/discovery/host".EncodeResources
+func cacheTypeMeta(kind String) meta.TypeMeta { meta.typeMetaWithAPIVersion(meta.typeMetaWithKind(meta.newTypeMeta(),kind),"v1") }
+func encodeGroups(value meta.APIGroupList) IO[(String,Option[errors.Error])] { encodeGroupsJSON(meta.aPIGroupListWithTypeMeta(value,cacheTypeMeta("APIGroupList"))) }
+func encodeResources(value meta.APIResourceList) IO[(String,Option[errors.Error])] { encodeResourcesJSON(meta.aPIResourceListWithTypeMeta(value,cacheTypeMeta("APIResourceList"))) }
+type State = State { ourFiles: Map[String,Bool], fresh: Bool, invalidated: Bool, openapi: Option[openapi.Client] }
+type DiskCache = DiskCache { delegate: discovery.CachedDiscoveryInterface, directory: String, ttl: Int, clock: sync.Clock, mutex: sync.Mutex, state: sync.Ref[State] }
+func getCachedFile(cache DiskCache,path String) IO[outcome.Outcome[String]] {
+ do {
+  state <- sync.readRef(cache.state)
+  let ours = map.mapMember(state.ourFiles,path)
+  if state.invalidated && !ours { ioPure(outcome.failure("",errors.errorNew("cache invalidated"))) }
+  else { do {
+   data <- readFile(path)
+   now <- sync.now(cache.clock)
+   match data.1.1 {
+    Some(e) => ioPure(outcome.failure("",e))
+    None => if sync.unixNanos(now)>data.1.0+cache.ttl { ioPure(outcome.failure("",errors.errorNew("cache expired"))) }
+    else { do { sync.writeRef(cache.state,state{fresh:state.fresh && ours}); ioPure(outcome.success(data.0)) } }
+   }
+  } }
+ }
+}
+func writeCachedFile(cache DiskCache,path String,data (String,Option[errors.Error])) IO[Unit] {
+ match data.1 {
+  Some(e) => ioPure(unit())
+  None => do {
+   err <- atomicWrite(path,data.0,488,432)
+   match err { Some(e) => ioPure(unit()); None => do { s <- sync.readRef(cache.state); sync.writeRef(cache.state,s{ourFiles:map.mapInsert(s.ourFiles,path,true)}) } }
+  }
+ }
+}
+func serverGroups(cache DiskCache) IO[outcome.Outcome[Option[meta.APIGroupList]]] {
+ sync.withLock(cache.mutex,do {
+  let path = joinPath(cache.directory,"servergroups.json")
+  stored <- getCachedFile(cache,path)
+  decoded <- match stored.error { None => discovery.decodeGroups(stored.value); Some(e) => ioPure((None,Some(e))) }
+  match decoded.1 {
+   None => ioPure(outcome.success(decoded.0))
+   Some(e) => do {
+    live <- cache.delegate.discovery.serverGroups()
+    match (live.error,live.value) { (None,Some(g)) => if list.length(discovery.values(meta.aPIGroupListGetGroups(g)))>0 { do { bytes <- encodeGroups(g); writeCachedFile(cache,path,bytes) } } else { ioPure(unit()) }; _ => ioPure(unit()) }
+    ioPure(live)
+   }
+  }
+ })
+}
+func serverResources(cache DiskCache,gv String) IO[outcome.Outcome[Option[meta.APIResourceList]]] {
+ sync.withLock(cache.mutex,do {
+  let path = joinPath(joinPath(cache.directory,gv),"serverresources.json")
+  stored <- getCachedFile(cache,path)
+  decoded <- match stored.error { None => discovery.decodeResources(stored.value); Some(e) => ioPure((None,Some(e))) }
+  match decoded.1 {
+   None => ioPure(outcome.success(decoded.0))
+   Some(e) => do {
+    live <- cache.delegate.discovery.serverResourcesForGroupVersion(gv)
+    match (live.error,live.value) { (None,Some(r)) => if list.length(discovery.values(meta.aPIResourceListGetAPIResources(r)))>0 { do { bytes <- encodeResources(r); writeCachedFile(cache,path,bytes) } } else { ioPure(unit()) }; _ => ioPure(unit()) }
+    ioPure(live)
+   }
+  }
+ })
+}
+func openAPI(cache DiskCache) IO[openapi.Client] { sync.withLock(cache.mutex,do {
+ s <- sync.readRef(cache.state)
+ match s.openapi { Some(c) => ioPure(c); None => do { base <- cache.delegate.discovery.openAPIV3(); c <- cached.newClient(base); sync.writeRef(cache.state,s{openapi:Some(c)}); ioPure(c) } }
+}) }
+func invalidate(cache DiskCache) IO[Unit] { sync.withLock(cache.mutex,do { sync.writeRef(cache.state,State(map.emptyMap(),true,true,None)); cache.delegate.invalidate() }) }
+func asDiscovery(cache DiskCache) discovery.DiscoveryInterface {
+ let base = cache.delegate.discovery
+ base{serverGroups:func() => serverGroups(cache),serverResourcesForGroupVersion:func(gv) => serverResources(cache,gv),
+ serverGroupsAndResources:func() => discovery.serverGroupsAndResources(asDiscovery(cache)),serverPreferredResources:func() => discovery.serverPreferredResources(asDiscovery(cache)),
+ serverPreferredNamespacedResources:func() => discovery.serverPreferredNamespacedResources(asDiscovery(cache)),openAPIV3:func() => openAPI(cache),
+ withLegacy:func() => asDiscovery(cache),groupsAndMaybeResources:None}
+}
+func newCachedDiscoveryClient(delegate discovery.CachedDiscoveryInterface,directory String,ttl Int,clock sync.Clock) IO[discovery.CachedDiscoveryInterface] {
+ do { mutex <- sync.newMutex(); state <- sync.newRef(State(map.emptyMap(),true,false,None)); let cache = DiskCache(delegate,directory,ttl,clock,mutex,state); ioPure(discovery.CachedDiscoveryInterface(asDiscovery(cache),func() => sync.withLock(mutex,do { s <- sync.readRef(state); ioPure(s.fresh) }),func() => invalidate(cache))) }
+}

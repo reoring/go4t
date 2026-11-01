@@ -1,0 +1,66 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package cache
+import "std/map"
+import lists "std/list"
+import strings "std/string"
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+import "github.com/reoring/gofx/ports/client-go/support/outcome"
+import errors "github.com/reoring/gofx/ports/client-go/deps/support"
+import runtime "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime"
+import v1 "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+
+alias Indexers[A] = Map[String,IndexFunc[A]]
+alias TypedIndexers[A] = Map[String,IndexFunc[A]]
+alias TypedIndexer[A] = Indexer[A]
+alias ResourceEventHandlerRegistration[A] = HandlerRegistration[A]
+func indexFuncToKeyFuncAdapter[A](index IndexFunc[A]) KeyFunc[A] { func(obj) => do { result <- index(obj); ioPure(match result.error { Some(e) => outcome.failure("",e); None => match result.value { Nil => outcome.failure("",cacheError("unexpected empty indexKeys")); Cons(key,Nil) => outcome.success(key); _ => outcome.failure("",cacheError("too many keys: " + show(result.value))) } }) } }
+type HandlerOptions = HandlerOptions { resyncPeriod: Option[Int] }
+func addEventHandlerWithOptions[A](informer SharedInformer[A], handler ResourceEventHandler[A], options HandlerOptions) IO[outcome.Outcome[HandlerRegistration[A]]] { addEventHandlerWithResyncPeriod(informer,handler,match options.resyncPeriod { Some(period) => period; None => informer.defaultResync }) }
+func newRawSharedIndexInformer(lw ListWatcher[runtime.Object], resync Int, indexers Indexers[runtime.Object], clock sync.Clock) IO[SharedInformer[runtime.Object]] { newSharedIndexInformer(lw,rawObjectAccess(),func(obj) => outcome.success(obj),resync,indexers,clock) }
+type InformerController = InformerController { run: func() IO[Unit], hasSynced: func() IO[Bool], lastSyncResourceVersion: func() IO[String], done: sync.Channel[Unit] }
+type InformerOptions[A] = InformerOptions { listerWatcher: ListWatcher[A], access: ObjectAccess[A], decode: func(runtime.Object) outcome.Outcome[A], handler: ResourceEventHandler[A], resyncPeriod: Int, transformer: Option[TransformFunc[A]], indexers: Indexers[A], clock: sync.Clock, inOrder: Bool, atomicEvents: Bool, unlockWhileProcessing: Bool, emitBookmarks: Bool }
+func newInformerWithOptions[A](options InformerOptions[A]) IO[(Indexer[A],InformerController)] { do {
+ indexer <- newIndexer(options.access,options.indexers)
+ if options.inOrder { do {
+  fifo <- newRealFIFOWithOptions(RealFIFOOptions(options.access,if options.atomicEvents { None } else { Some(indexer.store) },options.transformer,options.atomicEvents,options.unlockWhileProcessing,options.emitBookmarks))
+  let store = ReflectorStore(func(obj) => realAdd(fifo,obj),func(obj) => realUpdate(fifo,obj),func(obj) => realDelete(fifo,DeletedObject(obj)),func(items,rv) => realReplace(fifo,items,rv),func() => realResync(fifo),Some(func(rv) => realBookmark(fifo,rv)),None,options.transformer)
+  reflector <- newReflector(defaultReflectorOptions(options.listerWatcher,store,options.access,options.decode,options.clock) { resyncPeriod: options.resyncPeriod })
+  let queue = Queue(func(process) => realPop(fifo,process),func() => queueClose(fifo.queue),func() => queueHasSynced(fifo.queue),fifo.queue.done)
+  let controller = newController(queue,reflector,func(event,initial) => processRealEvent(options.handler,indexer.store,event,initial,options.access),func() => ioPure(unit()))
+  ioPure((indexer,InformerController(func() => controllerRun(controller),func() => queue.hasSynced(),func() => reflectorResourceVersion(reflector),fifo.queue.done)))
+ } } else { do {
+  fifo <- newDeltaFIFOWithOptions(DeltaFIFOOptions(options.access,Some(indexer.store),options.transformer,true))
+  reflector <- newReflector(defaultReflectorOptions(options.listerWatcher,deltaAsReflector(fifo),options.access,options.decode,options.clock) { resyncPeriod: options.resyncPeriod })
+  let controller = newController(deltaQueue(fifo),reflector,func(deltas,initial) => processDeltas(options.handler,indexer.store,deltas,initial,options.access),func() => ioPure(unit()))
+  ioPure((indexer,InformerController(func() => controllerRun(controller),func() => queueHasSynced(fifo.queue),func() => reflectorResourceVersion(reflector),fifo.queue.done)))
+ } }
+} }
+func processRealEvent[A](handler ResourceEventHandler[A], store Store[A], event RealEvent[A], initial Bool, access ObjectAccess[A]) IO[ProcessResult] { match event {
+ ObjectDelta(_,delta) => processDeltas(handler,store,[delta],initial,access)
+ BookmarkInfo(rv) => do { store.bookmark(rv); ioPure(processSuccess()) }
+ SyncAll => do { items <- store.list(); lists.forEach(items,func(obj) => handler.onUpdate(obj,obj)); ioPure(processSuccess()) }
+ ReplacedAll(items,rv) => do {
+  old <- store.list()
+  oldKeyed <- keyedObjects(access,None,old,map.emptyMap())
+  newKeyed <- keyedObjects(access,None,items,map.emptyMap())
+  result <- store.replace(items,rv)
+  match result.error { Some(e) => ioPure(ProcessResult(Some(e),false)); None => do {
+   lists.forEach(map.mapToList(oldKeyed.value),func(pair) => if map.mapMember(newKeyed.value,fst(pair)) { ioPure(unit()) } else { handler.onDelete(DeletedFinalStateUnknown(fst(pair),Some(snd(pair)))) })
+   lists.forEach(map.mapToList(newKeyed.value),func(pair) => match map.mapLookup(oldKeyed.value,fst(pair)) { None => handler.onAdd(snd(pair),initial); Some(previous) => handler.onUpdate(previous,snd(pair)) })
+   ioPure(processSuccess())
+  } }
+ }
+} }
+func checkWatchListDataConsistencyIfRequested[A](enabled Bool, identity String, rv String, list ListFunc[A], transform Option[TransformFunc[A]], retrieve func() IO[List[A]], access ObjectAccess[A]) IO[Unit] { if !enabled { ioPure(unit()) } else { do {
+ result <- list(v1.listOptionsWithResourceVersionMatch(v1.listOptionsWithResourceVersion(v1.newListOptions(),rv),v1.resourceVersionMatchFromValue("Exact")))
+ match result.error { Some(e) => errors.raiseError(e); None => do {
+  actual <- retrieve()
+  expected <- keyedObjects(access,transform,result.value.items,map.emptyMap())
+  observed <- keyedObjects(access,None,actual,map.emptyMap())
+  same <- if map.mapKeys(expected.value) != map.mapKeys(observed.value) { ioPure(false) } else { do { comparisons <- lists.mapM(map.mapToList(expected.value),func(pair) => match map.mapLookup(observed.value,fst(pair)) { None => ioPure(false); Some(value) => access.equal(snd(pair),value) }); ioPure(lists.all(comparisons,func(x) => x)) } }
+  if same && outcome.isSuccess(expected) && outcome.isSuccess(observed) { ioPure(unit()) } else { ioFail("data inconsistency detected for " + identity) }
+ } }
+} } }
+func nameForFunctions(names List[String]) String { let nonempty = filter(names,func(name) => name != ""); let qualifiers = map(nonempty,functionQualifier); match qualifiers { Nil => ""; Cons(first,rest) => if lists.all(rest,func(q) => q == first) { first } else { strings.join("+",nonempty) } } }
+func functionQualifier(name String) String { let parts = strings.split(".",name); if length(parts) <= 1 { name } else { strings.join(".",lists.take(length(parts)-1,parts)) } }
+type NamedResourceEventHandler[A] = NamedResourceEventHandler { name: String, handler: ResourceEventHandler[A] }

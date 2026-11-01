@@ -1,0 +1,60 @@
+package examples
+
+// Copyright 2017 The Kubernetes Authors. Licensed under Apache-2.0.
+import dynamic "dynamic"
+import u "deps/k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import meta "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import retry "util/retry"
+import errors "deps/support"
+
+extern func setNestedInt(object u.Unstructured,path List[String],value Int) IO[u.Unstructured] = "github.com/reoring/gofx/ports/client-go/examples/host".SetNestedInt
+extern func setNestedString(object u.Unstructured,path List[String],value String) IO[u.Unstructured] = "github.com/reoring/gofx/ports/client-go/examples/host".SetNestedString
+extern func nestedMaps(object u.Unstructured,path List[String]) IO[Option[List[u.Unstructured]]] = "github.com/reoring/gofx/ports/client-go/examples/host".NestedMaps
+extern func setNestedMaps(object u.Unstructured,path List[String],value List[u.Unstructured]) IO[u.Unstructured] = "github.com/reoring/gofx/ports/client-go/examples/host".SetNestedMaps
+
+func deploymentResource() schema.GroupVersionResource { schema.groupVersionResourceWithResource(schema.groupVersionResourceWithVersion(schema.groupVersionResourceWithGroup(schema.newGroupVersionResource(),"apps"),"v1"),"deployments") }
+func updateDynamicDeployment(body u.Unstructured) IO[u.Unstructured] {
+ do {
+  resized <- setNestedInt(body,["spec","replicas"],1)
+  let path = ["spec","template","spec","containers"]
+  containers <- nestedMaps(resized,path)
+  match containers {
+   Some(Cons(first,rest)) => do { changed <- setNestedString(first,["image"],"nginx:1.13"); setNestedMaps(resized,path,Cons(changed,rest)) }
+   _ => ioFail("deployment containers not found")
+  }
+ }
+}
+func dynamicDeploymentWorkflow(client dynamic.Interface,initial u.Unstructured) IO[u.UnstructuredList] {
+ do {
+  let deployments = client.resource(deploymentResource()).namespace("default")
+  created <- deployments.create(initial,meta.newCreateOptions(),[]); present(created)
+  failure <- retry.retryOnConflict(retry.defaultRetry(),func() => do {
+   latest <- deployments.get("demo-deployment",meta.newGetOptions(),[]); latest <- present(latest)
+   updated <- updateDynamicDeployment(latest)
+   result <- deployments.update(updated,meta.newUpdateOptions(),[])
+   ioPure(result.error)
+  })
+  match failure { None => ioPure(unit()); Some(error) => ioFail(errors.errorMessage(error)) }
+  listed <- deployments.list(meta.newListOptions()); listed <- present(listed)
+  deleted <- deployments.delete("demo-deployment",meta.deleteOptionsWithPropagationPolicy(meta.newDeleteOptions(),Some(meta.deletionPropagationFromValue("Foreground"))),[]); require(deleted)
+  ioPure(listed)
+ }
+}
+func dynamicDeploymentExample() IO[Trace] {
+ do {
+  trace <- newTrace("dynamic_deployment_create_update_delete")
+  env <- environment()
+  let before = deploymentJSON(2,"nginx:1.12")
+  let after = deploymentJSON(1,"nginx:1.13")
+  initial <- decode(u.unstructuredObjectType(),u.newUnstructured(),before)
+  let path = "/apis/apps/v1/namespaces/default/deployments"
+  withValidatedHTTP(trace,[Exchange("POST",path,201,before),Exchange("GET",path+"/demo-deployment",200,before),Exchange("PUT",path+"/demo-deployment",200,after),Exchange("GET",path,200,"{\"apiVersion\":\"apps/v1\",\"kind\":\"DeploymentList\",\"items\":["+after+"]}"),Exchange("DELETE",path+"/demo-deployment",200,"{\"kind\":\"Status\",\"apiVersion\":\"v1\",\"status\":\"Success\",\"code\":200}")],validateDeploymentRequest,func(url) => do {
+   made <- dynamic.newForConfig(env,config(url)); client <- present(made)
+   listed <- dynamicDeploymentWorkflow(client,initial)
+   check(match u.unstructuredListGetItems(listed) { Some([_]) => true; _ => false },"dynamic list returned unexpected items")
+   resultEvent(trace,"list",u.unstructuredListObjectType(),listed)
+  })
+  ioPure(trace)
+ }
+}

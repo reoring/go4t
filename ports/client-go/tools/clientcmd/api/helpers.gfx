@@ -1,0 +1,39 @@
+// Copyright 2015 The Kubernetes Authors. Licensed under Apache-2.0.
+package api
+import "std/map"
+import "std/list"
+import "std/prelude"
+import "std/string"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+func isConfigEmpty(value Config) Bool { map.mapSize(mapOrEmpty(value.authInfos)) == 0 && map.mapSize(mapOrEmpty(value.clusters)) == 0 && map.mapSize(mapOrEmpty(value.contexts)) == 0 && value.currentContext == "" && !value.preferences.colors && map.mapSize(mapOrEmpty(value.preferences.extensions)) == 0 && map.mapSize(mapOrEmpty(value.extensions)) == 0 }
+func minifyConfig(value Config) outcome.Outcome[Config] {
+ if value.currentContext == "" { outcome.failure(value,newError("current-context must exist in order to minify")) } else { match getContext(value,value.currentContext) { None => outcome.failure(value,newError("cannot locate context "+value.currentContext)); Some(context) => {
+ let cluster = getCluster(value,context.cluster)
+ let user = getAuthInfo(value,context.authInfo)
+ if context.cluster != "" && (match cluster { None => true; Some(_) => false }) { outcome.failure(value,newError("cannot locate cluster "+context.cluster)) } else if context.authInfo != "" && (match user { None => true; Some(_) => false }) { outcome.failure(value,newError("cannot locate user "+context.authInfo)) } else {
+ outcome.success(value{contexts:Some(map.mapFromList([(value.currentContext,Some(context))])),clusters:Some(if context.cluster == "" { map.emptyMap() } else { map.mapFromList([(context.cluster,cluster)]) }),authInfos:Some(if context.authInfo == "" { map.emptyMap() } else { map.mapFromList([(context.authInfo,user)]) })})
+ }
+ } } }
+}
+func _mapValues[A,B](values Option[Map[String,A]],f func(A) B) Option[Map[String,B]] { prelude.fmap(values,func(values) => map.mapMap(values,f)) }
+func _mapValuesIO[A,B](values Option[Map[String,A]],f func(A) IO[B]) IO[Option[Map[String,B]]] { match values { None => ioPure(None); Some(values) => do { entries <- prelude.traverse(map.mapToList(values),func((key,value)) => do { result <- f(value); ioPure((key,result)) }); ioPure(Some(map.mapFromList(entries))) } } }
+func _optionIO[A,B](value Option[A],f func(A) IO[B]) IO[Option[B]] { match value { None => ioPure(None); Some(value) => do { result <- f(value); ioPure(Some(result)) } } }
+func deepCopyPreferences(value Preferences) IO[Preferences] { do { extensions <- _mapValuesIO(value.extensions,copyObject); ioPure(value{extensions:extensions}) } }
+func deepCopyCluster(value Cluster) IO[Cluster] { do { extensions <- _mapValuesIO(value.extensions,copyObject); ioPure(value{extensions:extensions}) } }
+func deepCopyContext(value Context) IO[Context] { do { extensions <- _mapValuesIO(value.extensions,copyObject); ioPure(value{extensions:extensions}) } }
+func deepCopyExecConfig(value ExecConfig) IO[ExecConfig] { do { config <- copyObject(value.config); ioPure(value{config:config}) } }
+func deepCopyAuthProviderConfig(value AuthProviderConfig) AuthProviderConfig { value }
+func deepCopyAuthInfo(value AuthInfo) IO[AuthInfo] { do { extensions <- _mapValuesIO(value.extensions,copyObject); exec <- _optionIO(value.exec,deepCopyExecConfig); ioPure(value{extensions:extensions,exec:exec}) } }
+func deepCopyConfig(value Config) IO[Config] { do { preferences <- deepCopyPreferences(value.preferences); clusters <- _mapValuesIO(value.clusters,func(value) => _optionIO(value,deepCopyCluster)); users <- _mapValuesIO(value.authInfos,func(value) => _optionIO(value,deepCopyAuthInfo)); contexts <- _mapValuesIO(value.contexts,func(value) => _optionIO(value,deepCopyContext)); extensions <- _mapValuesIO(value.extensions,copyObject); ioPure(value{preferences:preferences,clusters:clusters,authInfos:users,contexts:contexts,extensions:extensions}) } }
+func deepCopyConfigInto(value Config,destination Config) IO[Config] { deepCopyConfig(value) }
+func deepCopyObject(value Config) IO[Config] { deepCopyConfig(value) }
+func _redact(value String) String { if value == "" { "" } else { "REDACTED" } }
+func redactSecrets(value Config) Config { value{authInfos:_mapValues(value.authInfos,func(value) => prelude.fmap(value,func(user) => user{password:_redact(user.password),token:_redact(user.token),clientKeyData:prelude.fmap(user.clientKeyData,func(_) => "REDACTED")}))} }
+func shortenConfig(value Config) IO[Config] { do {
+ omitted <- decodeBytes("DATA+OMITTED")
+ ioPure(value{authInfos:_mapValues(value.authInfos,func(value) => prelude.fmap(value,func(user) => user{token:_redact(user.token),clientKeyData:prelude.fmap(user.clientKeyData,func(bytes) => if bytes == "" { bytes } else { omitted }),clientCertificateData:prelude.fmap(user.clientCertificateData,func(bytes) => if bytes == "" { bytes } else { omitted })})),clusters:_mapValues(value.clusters,func(value) => prelude.fmap(value,func(cluster) => cluster{certificateAuthorityData:prelude.fmap(cluster.certificateAuthorityData,func(bytes) => if bytes == "" { bytes } else { omitted })}))})
+} }
+func authProviderConfigString(value AuthProviderConfig) String { "api.AuthProviderConfig{Name: "+quoteJSON(value.name)+", Config: map[string]string{"+(match value.config { None => "<nil>"; Some(_) => "--- REDACTED ---" })+"}}" }
+func authProviderConfigGoString(value AuthProviderConfig) String { authProviderConfigString(value) }
+func execConfigString(value ExecConfig) String { "api.ExecConfig{Command: "+quoteJSON(value.command)+", Args: "+(if length(listOrEmpty(value.args)) == 0 { "[]string(nil)" } else { "[]string{\"--- REDACTED ---\"}" })+", Env: "+(if length(listOrEmpty(value.env)) == 0 { "[]ExecEnvVar(nil)" } else { "[]ExecEnvVar{--- REDACTED ---}" })+", APIVersion: "+quoteJSON(value.apiVersion)+", ProvideClusterInfo: "+show(value.provideClusterInfo)+", Config: "+(match value.config { None => "runtime.Object(nil)"; Some(_) => "runtime.Object(--- REDACTED ---)" })+", StdinUnavailable: "+show(value.stdinUnavailable)+"}" }
+func execConfigGoString(value ExecConfig) String { execConfigString(value) }

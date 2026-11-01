@@ -1,0 +1,112 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package regression
+import "discovery"
+import disk "discovery/cached/disk"
+import "rest"
+import "transport"
+import http "deps/net/http"
+import codec "deps/codec"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import errors "deps/support"
+import "support/outcome"
+import "support/sync"
+import "std/list"
+import "std/string"
+extern func responseFixture(status Int,media String,body String,retry String) IO[http.Response] = "github.com/reoring/gofx/ports/client-go/rest/host".Response
+extern func tempDirectory() IO[String] = "github.com/reoring/gofx/ports/client-go/discovery/regression/host".TempDirectory
+extern func removeDirectory(path String) IO[Unit] = "github.com/reoring/gofx/ports/client-go/discovery/regression/host".RemoveDirectory
+extern func setFileTime(path String,time Int) IO[Unit] = "github.com/reoring/gofx/ports/client-go/discovery/regression/host".SetFileTime
+func restFixture(run func(http.Request) IO[outcome.Outcome[Option[http.Response]]]) IO[rest.Interface] {
+ do {
+  clock <- sync.fakeClock(0)
+  decoder <- codec.newJSONDecoder()
+  let negotiator = rest.Negotiator(func(media,object) => ioPure(outcome.failure("",errors.errorNew("test encoder is unused"))),func(media) => ioPure(outcome.success(Some(decoder))),func(media,response) => ioPure(outcome.failure(None,errors.errorNew("test stream decoder is unused"))))
+  let parsed = rest.parseURL("http://discovery.test")
+  match parsed.0 { None => ioFail("invalid fixture URL"); Some(url) => do {
+   raw <- transport.toHTTP(transport.roundTripper(run,func(r) => ioPure(unit()),func() => ioPure(unit())))
+   http <- rest.newHTTPClient(raw,0)
+   client <- rest.newRESTClient(url,"",rest.ClientContentConfig("","application/json",schema.newGroupVersion(),negotiator),http,None,rest.noWarnings(),clock,false)
+   ioPure(rest.clientInterface(client))
+  } }
+ }
+}
+func testAggregatedFallbackUsesAllLegacyVersionEndpoints() IO[Bool] {
+ do {
+  requests <- sync.newRef([])
+  client <- restFixture(func(request) => do {
+   url <- transport.requestURL(request)
+   accept <- transport.requestHeader(request,"Accept")
+   previous <- sync.readRef(requests)
+   sync.writeRef(requests,list.append(previous,[(url,accept)]))
+   response <- if string.endsWith(url,"/api") { responseFixture(200,discovery.acceptV2(),"{\"items\":[{\"metadata\":{\"name\":\"\"},\"versions\":[{\"version\":\"v1\",\"resources\":[]}]}]}","") }
+   else if string.endsWith(url,"/apis") { responseFixture(200,"application/json","{\"groups\":[{\"name\":\"apps\",\"versions\":[{\"groupVersion\":\"apps/v1\",\"version\":\"v1\"}],\"preferredVersion\":{\"groupVersion\":\"apps/v1\",\"version\":\"v1\"}}]}","") }
+   else if string.endsWith(url,"/api/v1") { responseFixture(200,"application/json","{\"groupVersion\":\"v1\",\"resources\":[{\"name\":\"pods\",\"kind\":\"Pod\"}]}","") }
+   else { responseFixture(200,"application/json","{\"groupVersion\":\"apps/v1\",\"resources\":[{\"name\":\"deployments\",\"kind\":\"Deployment\"}]}","") }
+   ioPure(outcome.success(Some(response)))
+  })
+  let discoveryClient = discovery.newDiscoveryClient(client)
+  result <- discoveryClient.serverGroupsAndResources()
+  seen <- sync.readRef(requests)
+  ioPure(outcome.isSuccess(result) && list.length(discovery.values(result.value.resources))==2 && list.length(seen)==4 && list.any(seen,func(r) => string.endsWith(r.0,"/api/v1")) && list.any(seen,func(r) => string.endsWith(r.0,"/apis/apps/v1")) && list.any(seen,func(r) => r.1==discovery.acceptV2()+","+discovery.acceptV1()))
+ }
+}
+func testLegacyOnlyHeaderAndCore404Tolerance() IO[Bool] {
+ do {
+  accepts <- sync.newRef([])
+  client <- restFixture(func(request) => do {
+   accept <- transport.requestHeader(request,"Accept"); old <- sync.readRef(accepts); sync.writeRef(accepts,list.append(old,[accept]))
+   url <- transport.requestURL(request)
+   response <- if string.endsWith(url,"/apis") { responseFixture(200,"application/json","{\"groups\":[]}","") } else { responseFixture(404,"application/json","{\"kind\":\"Status\",\"apiVersion\":\"v1\",\"status\":\"Failure\",\"reason\":\"NotFound\",\"code\":404}","") }
+   ioPure(outcome.success(Some(response)))
+  })
+  let legacy = (discovery.newDiscoveryClient(client)).withLegacy()
+  groups <- legacy.serverGroups()
+  result <- legacy.serverResourcesForGroupVersion("v1")
+  accepted <- sync.readRef(accepts)
+  ioPure(outcome.isSuccess(groups) && outcome.isSuccess(result) && list.take(2,accepted)==["application/json","application/json"])
+ }
+}
+func testContentTypeParameterOrderingAndMalformedTypes() Bool {
+ let kind = schema.groupVersionKindWithKind(schema.groupVersionKindWithVersion(schema.groupVersionKindWithGroup(schema.newGroupVersionKind(),"apidiscovery.k8s.io"),"v2"),"APIGroupDiscoveryList")
+ let reordered = discovery.contentTypeIsGVK("application/json;as=APIGroupDiscoveryList;v=v2;g=apidiscovery.k8s.io;charset=utf-8",kind)
+ let malformed = discovery.contentTypeIsGVK("malformed content type string",kind)
+ reordered.value && outcome.isSuccess(reordered) && !outcome.isSuccess(malformed)
+}
+func testDiskTTLInvalidationAndForeignFileFreshness() IO[Bool] {
+ sync.bracket(tempDirectory(),func(directory) => do {
+  clock <- sync.fakeClock(100)
+  calls <- sync.newRef(0)
+  base <- clientFixture([group("a",["v1"],"v1")],[])
+  let delegate = base{serverGroups:func() => do { n <- sync.readRef(calls); sync.writeRef(calls,n+1); base.serverGroups() }}
+  let cachedDelegate = discovery.CachedDiscoveryInterface(delegate,func() => ioPure(true),func() => ioPure(unit()))
+  cache <- disk.newCachedDiscoveryClient(cachedDelegate,directory,10,clock)
+  first <- cache.discovery.serverGroups()
+  setFileTime(disk.joinPath(directory,"servergroups.json"),100)
+  second <- cache.discovery.serverGroups()
+  reused <- sync.readRef(calls)
+  foreign <- disk.newCachedDiscoveryClient(cachedDelegate,directory,10,clock)
+  third <- foreign.discovery.serverGroups()
+  fresh <- foreign.fresh()
+  foreign.invalidate()
+  invalidated <- foreign.discovery.serverGroups()
+  afterInvalidation <- sync.readRef(calls)
+  setFileTime(disk.joinPath(directory,"servergroups.json"),100)
+  sync.advance(clock,11)
+  expired <- cache.discovery.serverGroups()
+  afterExpiry <- sync.readRef(calls)
+  ioPure(outcome.isSuccess(first) && outcome.isSuccess(second) && outcome.isSuccess(third) && outcome.isSuccess(invalidated) && outcome.isSuccess(expired) && reused==1 && !fresh && afterInvalidation==2 && afterExpiry==3)
+ },removeDirectory)
+}
+func testDiskChecksumDetectsCorruptionAndDeletion() IO[Bool] {
+ sync.bracket(tempDirectory(),func(directory) => do {
+  let cache = disk.sumDiskCache(directory)
+  cache.set("GET /api","payload")
+  valid <- cache.get("GET /api")
+  ignored <- disk.atomicWrite(disk.joinPath(directory,disk.sanitize("GET /api")),"corrupt",488,432)
+  invalid <- cache.get("GET /api")
+  cache.set("GET /api","payload")
+  cache.delete("GET /api")
+  deleted <- cache.get("GET /api")
+  ioPure(valid==Some("payload") && invalid==None && deleted==None)
+ },removeDirectory)
+}

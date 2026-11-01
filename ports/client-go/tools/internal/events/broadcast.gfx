@@ -1,0 +1,65 @@
+// Copyright 2014-2019 The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+// Native queue/lifetime policy shared by the two event APIs.
+package events
+import "std/list"
+import "std/io"
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+
+type ListenerState[A] = ListenerState { pending: List[A], incoming: List[A], size: Int, stopped: Bool }
+type Listener[A] = Listener { mutex: sync.Mutex, ready: sync.Condition, state: sync.Ref[ListenerState[A]], task: sync.Ref[Option[sync.Task[Unit]]] }
+type HubState[A] = HubState { listeners: List[Listener[A]], stopped: Bool }
+type Hub[A] = Hub { mutex: sync.Mutex, state: sync.Ref[HubState[A]], capacity: Int }
+func newHub[A](capacity Int) IO[Hub[A]] { do { m <- sync.newMutex(); s <- sync.newRef(HubState([],false)); ioPure(Hub(m,s,capacity)) } }
+func _next[A](listener Listener[A]) IO[Option[A]] { sync.withLock(listener.mutex,_nextLocked(listener)) }
+func _nextLocked[A](listener Listener[A]) IO[Option[A]] { do {
+ s <- sync.readRef(listener.state)
+ match s.pending {
+  Cons(value,rest) => do { sync.writeRef(listener.state,s { pending: rest, size: s.size-1 }); ioPure(Some(value)) }
+  Nil => match s.incoming {
+   Cons(_,_) => do { sync.writeRef(listener.state,s { pending: list.reverse(s.incoming), incoming: [] }); _nextLocked(listener) }
+   Nil => if s.stopped { ioPure(None) } else { do { sync.wait(listener.ready); _nextLocked(listener) } }
+  }
+ }
+} }
+func _consume[A](listener Listener[A], callback func(A) IO[Unit]) IO[Unit] { do {
+ value <- _next(listener)
+ match value { None => ioPure(unit()); Some(value) => do { callback(value); _consume(listener,callback) } }
+} }
+func stopListener[A](listener Listener[A]) IO[Unit] {
+ sync.uninterruptible(sync.withLock(listener.mutex,do { s <- sync.readRef(listener.state); sync.writeRef(listener.state,s { stopped: true, pending: [], incoming: [], size: 0 }); sync.broadcast(listener.ready) }))
+}
+func _remove[A](hub Hub[A], listener Listener[A]) IO[Unit] { sync.uninterruptible(do {
+ stopListener(listener)
+ sync.withLock(hub.mutex,do { s <- sync.readRef(hub.state); sync.writeRef(hub.state,s { listeners: list.filter(s.listeners,func(l) => !sync.sameRef(l.state,listener.state)) }) })
+}) }
+func addListener[A](hub Hub[A], callback func(A) IO[Unit]) IO[Listener[A]] { do {
+ m <- sync.newMutex(); c <- sync.newCondition(m); s <- sync.newRef(ListenerState([],[],0,false)); t <- sync.newRef(None)
+ let listener = Listener(m,c,s,t)
+ sync.withLock(hub.mutex,do {
+  state <- sync.readRef(hub.state)
+  if state.stopped { stopListener(listener) } else { sync.writeRef(hub.state,state { listeners: Cons(listener,state.listeners) }) }
+ })
+ started <- io.tryIO(sync.start(sync.ensuring(_consume(listener,callback),_remove(hub,listener))))
+ match started { Err(error) => do { _remove(hub,listener); io.ioRaise(error) }; Ok(task) => do { sync.writeRef(t,Some(task)); ioPure(listener) } }
+} }
+func _enqueue[A](listeners List[Listener[A]], value A, capacity Int) IO[Bool] {
+ match listeners { Nil => ioPure(true); Cons(listener,rest) => do {
+  accepted <- sync.withLock(listener.mutex,do {
+   s <- sync.readRef(listener.state)
+   if s.stopped { ioPure(true) } else { if s.size >= capacity { ioPure(false) } else { do {
+    sync.writeRef(listener.state,s { incoming: Cons(value,s.incoming), size: s.size+1 }); sync.signal(listener.ready); ioPure(true)
+   } } }
+  })
+  others <- _enqueue(rest,value,capacity); ioPure(accepted && others)
+ } }
+}
+func publish[A](hub Hub[A], value A) IO[Bool] {
+ sync.withLock(hub.mutex,do { s <- sync.readRef(hub.state); if s.stopped { ioPure(false) } else { _enqueue(s.listeners,value,hub.capacity) } })
+}
+func _drain[A](listener Listener[A]) IO[Unit] { sync.withLock(listener.mutex,do { s <- sync.readRef(listener.state); sync.writeRef(listener.state,s { stopped: true }); sync.broadcast(listener.ready) }) }
+func _stopAll[A](listeners List[Listener[A]]) IO[Unit] { match listeners { Nil => ioPure(unit()); Cons(l,rest) => do { _drain(l); _stopAll(rest) } } }
+func _joinAll[A](listeners List[Listener[A]]) IO[Unit] { match listeners { Nil => ioPure(unit()); Cons(l,rest) => do { t <- sync.readRef(l.task); match t { None => ioPure(unit()); Some(t) => do { io.tryIO(sync.join(t)); ioPure(unit()) } }; _joinAll(rest) } } }
+func shutdown[A](hub Hub[A]) IO[Unit] { sync.uninterruptible(do {
+ listeners <- sync.withLock(hub.mutex,do { s <- sync.readRef(hub.state); sync.writeRef(hub.state,s { stopped: true }); _stopAll(s.listeners); ioPure(s.listeners) })
+ _joinAll(listeners)
+}) }

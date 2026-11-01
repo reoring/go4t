@@ -1,0 +1,24 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package cache
+import "std/list"
+import "github.com/reoring/gofx/ports/client-go/support/outcome"
+import rest "github.com/reoring/gofx/ports/client-go/rest"
+import objects "github.com/reoring/gofx/ports/client-go/deps/objects"
+import codec "github.com/reoring/gofx/ports/client-go/deps/codec"
+import runtime "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime"
+import v1 "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import schema "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime/schema"
+
+func listOptionsRequest(client rest.Interface, namespace String, resource String, options v1.ListOptions) IO[rest.Request] { do { request <- client.verb("GET"); parameterCodec <- codec.standardParameterCodec(); rest.versionedParams(rest.resource(rest.namespace(request,namespace),resource),objects.listOptionsToObject(options),parameterCodec) } }
+func rawListResult(object runtime.Object) IO[outcome.Outcome[ListResult[runtime.Object]]] { do { gvk <- objects.objectGroupVersionKind(object); if schema.groupVersionKindGetGroup(gvk) == "meta.k8s.io" && (schema.groupVersionKindGetKind(gvk) == "Table" || schema.groupVersionKindGetKind(gvk) == "TableList") { ioPure(outcome.failure(ListResult(Nil,"",""),cacheError("unsupported list gvk: Table"))) } else { do { info <- objects.objectListInfo(object); items <- objects.objectListItems(object,true); let converted = requireListObjects(match fst(items) { None => Nil; Some(values) => values }); ioPure(outcome.from(ListResult(converted.value,fst(fst(info)),snd(snd(fst(info)))),match snd(info) { Some(e) => Some(e); None => match snd(items) { Some(e) => Some(e); None => converted.error } })) } } } }
+func requireListObjects(items List[Option[runtime.Object]]) outcome.Outcome[List[runtime.Object]] {
+ match items {
+  Nil => outcome.success(Nil)
+  Cons(None,_) => outcome.failure(Nil,cacheError("list contains a nil runtime.Object"))
+  Cons(Some(obj),rest) => {
+   let result = requireListObjects(rest)
+   outcome.from(Cons(obj,result.value),result.error)
+  }
+ }
+}
+func restListWatchClient(client rest.Interface) ListWatchClient[runtime.Object] { ListWatchClient(func(namespace,resource,options) => do { request <- listOptionsRequest(client,namespace,resource,options); response <- rest.doRequest(request); result <- rest.resultGet(response); match result.error { Some(e) => ioPure(outcome.failure(ListResult(Nil,"",""),e)); None => match result.value { None => ioPure(outcome.failure(ListResult(Nil,"",""),cacheError("list returned no object"))); Some(obj) => rawListResult(obj) } } },func(namespace,resource,options) => do { request <- listOptionsRequest(client,namespace,resource,options); rest.watch(request) }) }

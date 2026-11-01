@@ -1,0 +1,31 @@
+// Copyright 2020 The Kubernetes Authors. Licensed under Apache-2.0.
+package exec
+import api "github.com/reoring/gofx/ports/client-go/tools/clientcmd/api"
+import auth "github.com/reoring/gofx/ports/client-go/pkg/apis/clientauthentication"
+import install "github.com/reoring/gofx/ports/client-go/pkg/apis/clientauthentication/install"
+import rest "github.com/reoring/gofx/ports/client-go/rest"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import err "github.com/reoring/gofx/ports/client-go/deps/support"
+type LoadedExecCredential = LoadedExecCredential {credential:Option[auth.CredentialObject],config:Option[rest.Config]}
+func execInfoEnv() String { "KUBERNETES_EXEC_INFO" }
+func emptyLoadedExecCredential() LoadedExecCredential { LoadedExecCredential(None,None) }
+func loadExecCredentialFromEnv(source api.Source) IO[outcome.Outcome[LoadedExecCredential]] { do {
+ value <- source.getenv(execInfoEnv())
+ if value == "" { ioPure(outcome.failure(emptyLoadedExecCredential(),api.newError("KUBERNETES_EXEC_INFO env var is unset or empty"))) } else { loadExecCredential(value) }
+} }
+func loadExecCredential(data String) IO[outcome.Outcome[LoadedExecCredential]] { do {
+ scheme <- auth.newScheme()
+ install.install(scheme)
+ decoded <- api.capture(auth.decode(scheme,data),auth.InternalCredential(auth.newExecCredential()))
+ match decoded.error { Some(error) => ioPure(outcome.failure(emptyLoadedExecCredential(),api.newError("decode: "+err.errorMessage(error)))); None => do {
+ let object = decoded.value
+ converted <- api.capture(auth.convert(scheme,object,auth.internalVersion()),auth.InternalCredential(auth.newExecCredential()))
+ match converted.error { Some(error) => ioPure(outcome.failure(emptyLoadedExecCredential(),api.newError("cannot convert to ExecCredential: "+err.errorMessage(error)))); None => match converted.value {
+ auth.InternalCredential(credential) => match credential.spec.cluster { None => ioPure(outcome.failure(emptyLoadedExecCredential(),api.newError("ExecCredential does not contain cluster information"))); Some(cluster) => {
+ let config = rest.execClusterToConfig(cluster)
+ ioPure(match config.error { Some(error) => outcome.failure(emptyLoadedExecCredential(),api.newError("cannot create rest.Config: "+err.errorMessage(error))); None => outcome.success(LoadedExecCredential(Some(object),config.value)) })
+ } }
+ auth.VersionedCredential(_,wire) => ioFail("credential scheme did not produce the requested internal version")
+ } }
+ } }
+} }

@@ -1,0 +1,168 @@
+// Copyright 2015-2026 The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+// Native policy port of client-go v0.37.2 leaderelection.go.
+package leaderelection
+
+import rl "tools/leaderelection/resourcelock"
+import meta "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import time "deps/time"
+import errors "deps/support"
+import "support/outcome"
+import "support/sync"
+import "std/io"
+
+func jitterFactor() Float { 1.2 }
+type LeaderCallbacks = LeaderCallbacks { onStartedLeading:func() IO[Unit], onStoppedLeading:func() IO[Unit], onNewLeader:Option[func(String) IO[Unit]] }
+type LeaderElectionConfig = LeaderElectionConfig { lock:rl.Interface, leaseDuration:Int, renewDeadline:Int, retryPeriod:Int, callbacks:LeaderCallbacks, watchDog:Option[HealthzAdaptor], releaseOnCancel:Bool, name:String, coordinated:Bool }
+type Observation = Observation { record:rl.LeaderElectionRecord, raw:String, at:Option[sync.Instant], reportedLeader:String }
+type LeaderElector = LeaderElector { config:LeaderElectionConfig, clock:sync.Clock, metrics:LeaderMetric, observation:sync.Ref[Observation], mutex:sync.Mutex }
+func validate(config LeaderElectionConfig) Option[errors.Error] {
+ let message = if config.leaseDuration <= config.renewDeadline { "leaseDuration must be greater than renewDeadline" }
+ else { if config.renewDeadline <= config.retryPeriod + config.retryPeriod / 5 { "renewDeadline must be greater than retryPeriod*JitterFactor" }
+ else { if config.leaseDuration < 1 { "leaseDuration must be greater than zero" }
+ else { if config.renewDeadline < 1 { "renewDeadline must be greater than zero" }
+ else { if config.retryPeriod < 1 { "retryPeriod must be greater than zero" }
+ else { if config.lock.identity == "" { "Lock identity is empty" } else { "" } } } } } }
+ if message == "" { None } else { Some(errors.errorNew(message)) }
+}
+// Required lock and callbacks are non-null by construction in the native API.
+func newLeaderElector(config LeaderElectionConfig,clock sync.Clock,registry MetricsRegistry) IO[outcome.Outcome[Option[LeaderElector]]] {
+ match validate(config) {
+  Some(e) => ioPure(outcome.failure(None,e))
+  None => do {
+   metric <- newLeaderMetric(registry); metric.off(config.name)
+   observation <- sync.newRef(Observation(rl.emptyRecord(),"",None,"")); mutex <- sync.newMutex()
+   ioPure(outcome.success(Some(LeaderElector(config,clock,metric,observation,mutex))))
+  }
+ }
+}
+func getObservation(e LeaderElector) IO[Observation] { sync.withLock(e.mutex,sync.readRef(e.observation)) }
+func getLeader(e LeaderElector) IO[String] { do { o <- getObservation(e); ioPure(o.record.holderIdentity) } }
+func isLeader(e LeaderElector) IO[Bool] { do { leader <- getLeader(e); ioPure(leader == e.config.lock.identity) } }
+func setObservedRecord(e LeaderElector,record rl.LeaderElectionRecord) IO[Unit] {
+ sync.withLock(e.mutex,do { now <- sync.now(e.clock); o <- sync.readRef(e.observation); sync.writeRef(e.observation,o { record:record,at:Some(now) }) })
+}
+func _observe(e LeaderElector,record rl.LeaderElectionRecord,raw String) IO[Unit] {
+ sync.withLock(e.mutex,do { o <- sync.readRef(e.observation); if o.raw == raw { ioPure(unit()) } else { do { now <- sync.now(e.clock); sync.writeRef(e.observation,o { record:record,raw:raw,at:Some(now) }) } } })
+}
+func _valid(o Observation,now sync.Instant) Bool { match o.at { None => false; Some(at) => sync.elapsed(at,now) < o.record.leaseDurationSeconds * 1000000000 } }
+func _expired(o Observation,now sync.Instant) Bool { match o.at { None => true; Some(at) => sync.elapsed(at,now) > o.record.leaseDurationSeconds * 1000000000 } }
+func _wireTime(now sync.Instant) meta.Time { meta.timeWithTime(meta.newTime(),time.unix(sync.unixNanos(now) / 1000000000,sync.unixNanos(now) % 1000000000)) }
+func _proposal(e LeaderElector,now sync.Instant) rl.LeaderElectionRecord {
+ let timestamp = _wireTime(now)
+ rl.LeaderElectionRecord(e.config.lock.identity,e.config.leaseDuration / 1000000000,timestamp,timestamp,0,rl.emptyRecord().strategy,"")
+}
+func _updateObserved(e LeaderElector,record rl.LeaderElectionRecord) IO[Bool] {
+ do { error <- e.config.lock.update(record); match error { Some(_) => ioPure(false); None => do { setObservedRecord(e,record); ioPure(true) } } }
+}
+func tryAcquireOrRenew(e LeaderElector) IO[Bool] {
+ do {
+  now <- sync.now(e.clock); observed <- getObservation(e); let proposed = _proposal(e,now)
+  fast <- if observed.record.holderIdentity == e.config.lock.identity && _valid(observed,now) {
+   _updateObserved(e,proposed { acquireTime:observed.record.acquireTime,leaderTransitions:observed.record.leaderTransitions })
+  } else { ioPure(false) }
+  if fast { ioPure(true) } else { _slowAcquire(e,proposed,now) }
+ }
+}
+func _slowAcquire(e LeaderElector,proposed rl.LeaderElectionRecord,now sync.Instant) IO[Bool] {
+ do { result <- e.config.lock.get(); match result.error {
+  Some(error) => if errors.errorIsNotFound(error) {
+   do { created <- e.config.lock.create(proposed); match created { Some(_) => ioPure(false); None => do { setObservedRecord(e,proposed); ioPure(true) } } }
+  } else { ioPure(false) }
+  None => match result.value {
+   None => ioPure(false)
+   Some(old) => do {
+    _observe(e,old.0,old.1); observed <- getObservation(e)
+    let ours = observed.record.holderIdentity == e.config.lock.identity
+    if old.0.holderIdentity != "" && _valid(observed,now) && !ours { ioPure(false) }
+    else { do {
+     if ours { e.metrics.slowpathExercised(e.config.name) } else { ioPure(unit()) }
+     let next = if ours { proposed { acquireTime:old.0.acquireTime,leaderTransitions:old.0.leaderTransitions } } else { proposed { leaderTransitions:old.0.leaderTransitions+1 } }
+     _updateObserved(e,next)
+    } }
+   }
+  }
+ } }
+}
+func tryCoordinatedRenew(e LeaderElector) IO[Bool] {
+ do { now <- sync.now(e.clock); result <- e.config.lock.get(); match result.error {
+  Some(_) => ioPure(false)
+  None => match result.value {
+   None => ioPure(false)
+   Some(old) => do {
+    _observe(e,old.0,old.1); observed <- getObservation(e)
+    if _expired(observed,now) || observed.record.holderIdentity != e.config.lock.identity || old.0.preferredHolder != "" { ioPure(false) }
+    else { do { e.metrics.slowpathExercised(e.config.name); let next = _proposal(e,now) { acquireTime:old.0.acquireTime,leaderTransitions:old.0.leaderTransitions,strategy:old.0.strategy }; _updateObserved(e,next) } }
+   }
+  }
+ } }
+}
+func tryRelease(e LeaderElector) IO[Bool] {
+ do { result <- e.config.lock.get(); match result.error {
+  Some(_) => ioPure(false)
+  None => match result.value {
+   None => ioPure(false)
+   Some(old) => do { ours <- isLeader(e); if !ours { ioPure(true) } else { do {
+    now <- sync.now(e.clock); let timestamp = _wireTime(now)
+    let record = rl.emptyRecord() { leaderTransitions:old.0.leaderTransitions,leaseDurationSeconds:1,acquireTime:timestamp,renewTime:timestamp }
+    error <- e.config.lock.update(record)
+    match error { None => do { setObservedRecord(e,record); ioPure(true) }; Some(err) => if errors.errorIsConflict(err) { tryRelease(e) } else { ioPure(false) } }
+   } } }
+  }
+ } }
+}
+// A clock-driven cancellation task also interrupts in-flight API calls.
+func _withTimeout[A](clock sync.Clock,nanos Int,action IO[A]) IO[Result[io.IoError,A]] {
+ do {
+  parent <- sync.captureContext()
+  sync.uninterruptible(sync.bracket(sync.newContext(parent,None),func(context) => do {
+   timer <- sync.newTimer(clock,nanos)
+   sync.bracket(sync.start(sync.withContext(context.0,do { channel <- sync.timerChannel(timer); _ <- sync.receive(channel); sync.cancelContext(context.1) })),func(_watcher) => io.tryIO(sync.withContext(context.0,action)),func(watcher) => do { sync.cancelTask(watcher); _ <- io.tryIO(sync.join(watcher)); _ <- sync.stopTimer(timer); ioPure(unit()) })
+  },func(context) => sync.cancelContext(context.1)))
+ }
+}
+func release(e LeaderElector) IO[Bool] { do { result <- _withTimeout(e.clock,e.config.renewDeadline,tryRelease(e)); ioPure(match result { Ok(value) => value; Err(_) => false }) } }
+func maybeReportTransition(e LeaderElector) IO[Unit] {
+ do {
+  changed <- sync.withLock(e.mutex,do { o <- sync.readRef(e.observation); if o.reportedLeader == o.record.holderIdentity { ioPure(None) } else { do { sync.writeRef(e.observation,o { reportedLeader:o.record.holderIdentity }); ioPure(Some(o.record.holderIdentity)) } } })
+  match (changed,e.config.callbacks.onNewLeader) { (Some(leader),Some(callback)) => do { _ <- sync.start(callback(leader)); ioPure(unit()) }; _ => ioPure(unit()) }
+ }
+}
+func check(e LeaderElector,tolerance Int) IO[Option[errors.Error]] {
+ do { o <- getObservation(e); now <- sync.now(e.clock)
+  let unhealthy = o.record.holderIdentity == e.config.lock.identity && (match o.at { None => true; Some(at) => sync.elapsed(at,now) > e.config.leaseDuration+tolerance })
+  ioPure(if unhealthy { Some(errors.errorNew("failed election to renew leadership on lease " + e.config.name)) } else { None })
+ }
+}
+func _sleep(clock sync.Clock,nanos Int) IO[Unit] { sync.bracket(sync.newTimer(clock,nanos),func(timer) => do { channel <- sync.timerChannel(timer); _ <- sync.receive(channel); ioPure(unit()) },func(timer) => do { _ <- sync.stopTimer(timer); ioPure(unit()) }) }
+func _attempt(e LeaderElector) IO[Bool] { if e.config.coordinated { tryCoordinatedRenew(e) } else { tryAcquireOrRenew(e) } }
+func acquire(e LeaderElector) IO[Bool] {
+ do { result <- _attempt(e); maybeReportTransition(e)
+  if result { do { e.config.lock.recordEvent("became leader"); e.metrics.on(e.config.name); ioPure(true) } }
+  else { do { jitter <- errors.randomInt(e.config.retryPeriod + e.config.retryPeriod / 5); _sleep(e.clock,e.config.retryPeriod + jitter); acquire(e) } }
+ }
+}
+func _retryRenew(e LeaderElector) IO[Unit] { do { done <- _attempt(e); if done { ioPure(unit()) } else { do { _sleep(e.clock,e.config.retryPeriod); _retryRenew(e) } } } }
+func _renewLoop(e LeaderElector) IO[Unit] {
+ do { renewed <- _withTimeout(e.clock,e.config.renewDeadline,_retryRenew(e)); maybeReportTransition(e)
+  match renewed { Err(_) => ioPure(unit()); Ok(_) => do { _sleep(e.clock,e.config.retryPeriod); _renewLoop(e) } }
+ }
+}
+func _finishLeading(e LeaderElector) IO[Unit] {
+ do { e.metrics.off(e.config.name); if e.config.releaseOnCancel { do { _ <- release(e); ioPure(unit()) } } else { ioPure(unit()) }; e.config.lock.recordEvent("stopped leading") }
+}
+func renew(e LeaderElector) IO[Unit] { sync.ensuring(_renewLoop(e),_finishLeading(e)) }
+func run(e LeaderElector) IO[Unit] {
+ sync.ensuring(sync.bracket(acquire(e),func(acquired) =>
+  if acquired { do {
+   parent <- sync.captureContext()
+   sync.bracket(sync.newContext(parent,None),func(context) => sync.withContext(context.0,do { _ <- sync.start(e.config.callbacks.onStartedLeading()); _renewLoop(e) }),func(context) => sync.cancelContext(context.1))
+  } } else { ioPure(unit()) },
+  func(acquired) => if acquired { _finishLeading(e) } else { ioPure(unit()) }
+ ),e.config.callbacks.onStoppedLeading())
+}
+func runOrDie(config LeaderElectionConfig,clock sync.Clock,registry MetricsRegistry) IO[Unit] {
+ do { result <- newLeaderElector(config,clock,registry); match result.value {
+  None => match result.error { Some(error) => errors.raiseError(error); None => ioFail("leader elector construction returned no value") }
+  Some(e) => do { match config.watchDog { None => ioPure(unit()); Some(watchdog) => setLeaderElection(watchdog,e) }; run(e) }
+ } }
+}

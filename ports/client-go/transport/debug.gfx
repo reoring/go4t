@@ -1,0 +1,88 @@
+// Copyright 2015 The Kubernetes Authors. Licensed under Apache-2.0.
+package transport
+import http "github.com/reoring/gofx/ports/client-go/deps/net/http"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import list "std/list"
+import string "std/string"
+import prelude "std/prelude"
+
+type Trace = TraceHandle
+alias DebugLevel = Int
+extern func logVerbosity() IO[Int] = "github.com/reoring/gofx/ports/client-go/transport/host".LogVerbosity
+extern func logFields(message String, fields List[(String, String)]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/transport/host".LogFields
+extern func logEvent(event String, value String) IO[Unit] = "github.com/reoring/gofx/ports/client-go/transport/host".LogEvent
+extern func responseHeaders(response http.Response) IO[List[(String, List[String])]] = "github.com/reoring/gofx/ports/client-go/transport/host".ResponseHeaders
+extern func responseStatusText(response http.Response) IO[String] = "github.com/reoring/gofx/ports/client-go/transport/host".ResponseStatusText
+extern func traceRequest(request http.Request) IO[(http.Request, Trace)] = "github.com/reoring/gofx/ports/client-go/transport/host".TraceRequest
+extern func traceValues(trace Trace) IO[List[(String, Int)]] = "github.com/reoring/gofx/ports/client-go/transport/host".TraceValues
+func defaultDiagnostics() Diagnostics { Diagnostics(logVerbosity, logFields, logEvent) }
+func debugJustURL() Int { 0 }
+func debugURLTiming() Int { 1 }
+func debugCurlCommand() Int { 2 }
+func debugRequestHeaders() Int { 3 }
+func debugResponseStatus() Int { 4 }
+func debugResponseHeaders() Int { 5 }
+func debugDetailedTiming() Int { 6 }
+func debugByContext() Int { 7 }
+func maskValue(key String, value String) String {
+ if string.toLower(key) != "authorization" || value == "" { value } else {
+  let authType = match string.indexOf(value, " ") { Some(index) => if index > 0 { string.substring(value, 0, index) } else { value }; None => value }
+  let lower = string.toLower(authType)
+  if lower != "bearer" && lower != "basic" && lower != "negotiate" { "<masked>" } else {
+   if string.strLength(value) > string.strLength(authType) + 1 { authType + " <masked>" } else { authType }
+  }
+ }
+}
+func maskedHeaders(headers List[(String, List[String])]) List[(String, List[String])] {
+ prelude.fmap(headers, func((key, values)) => (key, prelude.fmap(values, func(value) => maskValue(key, value))))
+}
+func headersString(headers List[(String, List[String])]) String {
+ string.strConcat(prelude.fmap(list.sortBy(maskedHeaders(headers), func(a, b) => compare(a.0, b.0)), func((key, values)) => string.strConcat(prelude.fmap(values, func(value) => key + ": " + value + "\n"))))
+}
+func curlCommand(method String, url String, headers List[(String, List[String])]) String {
+ let flags = string.strConcat(prelude.fmap(maskedHeaders(headers), func((key, values)) => string.strConcat(prelude.fmap(values, func(value) => " -H " + string.showQuoted(key + ": " + value)))))
+ "curl -v -X" + method + " " + flags + " '" + url + "'\n"
+}
+func debugLevels(levels List[Int], verbosity Int) List[Int] {
+ if !list.elem(debugByContext(), levels) { levels } else {
+  let contextual = if verbosity >= 9 { [2, 1, 6, 5] } else { if verbosity >= 8 { [0, 3, 4, 5] } else { if verbosity >= 7 { [0, 3, 4] } else { if verbosity >= 6 { [1] } else { [] } } } }
+  list.append(levels, contextual)
+ }
+}
+func newDebuggingRoundTripper(env Environment, base RoundTripper, levels List[Int]) RoundTripper {
+ layer(base, func(request) => do {
+  verbosity <- env.diagnostics.verbosity()
+  let selected = list.filter(debugLevels(levels, verbosity), func(level) => level != debugByContext())
+  if list.length(selected) == 0 { base.roundTrip(request) } else { debugRoundTrip(env, base, selected, request) }
+ })
+}
+func debugRoundTrip(env Environment, base RoundTripper, selected List[Int], request http.Request) IO[outcome.Outcome[Option[http.Response]]] {
+ let enabled = func(level) => list.elem(level, selected)
+ do {
+  method <- requestMethod(request)
+  url <- requestURL(request)
+  headers <- if enabled(debugRequestHeaders()) || enabled(debugCurlCommand()) { requestHeaders(request) } else { ioPure([]) }
+  let before = list.append(if enabled(debugJustURL()) { [("verb", method), ("url", url)] } else { [] }, list.append(if enabled(debugCurlCommand()) { [("curlCommand", curlCommand(method, url, headers))] } else { [] }, if enabled(debugRequestHeaders()) { [("headers", headersString(headers))] } else { [] }))
+  if list.length(before) == 0 { ioPure(unit()) } else { env.diagnostics.log("Request", before) }
+  started <- sync.now(env.clock)
+  traced <- if enabled(debugDetailedTiming()) { do { trace <- traceRequest(request); ioPure((trace.0, Some(trace.1))) } } else { ioPure((request, None)) }
+  result <- base.roundTrip(traced.0)
+  finished <- sync.now(env.clock)
+  status <- match (result.error, result.value) { (None, Some(response)) => responseStatusText(response); _ => ioPure("") }
+  responseHeaderValues <- if enabled(debugResponseHeaders()) { match (result.error, result.value) { (None, Some(response)) => responseHeaders(response); _ => ioPure([]) } } else { ioPure([]) }
+  details <- match traced.1 { None => ioPure([]); Some(trace) => traceValues(trace) }
+  let timing = if enabled(debugURLTiming()) { [("verb", method), ("url", url)] } else { [] }
+  let responseInfo = list.append(if enabled(debugURLTiming()) || enabled(debugResponseStatus()) { [("status", status)] } else { [] }, if enabled(debugResponseHeaders()) { [("headers", headersString(responseHeaderValues))] } else { [] })
+  let duration = if enabled(debugURLTiming()) || enabled(debugDetailedTiming()) || enabled(debugResponseStatus()) { [("milliseconds", show(sync.elapsed(started, finished) / 1000000))] } else { [] }
+  let fields = list.append(timing, list.append(responseInfo, list.append(duration, traceFields(details))))
+  if list.length(fields) == 0 { ioPure(unit()) } else { env.diagnostics.log("Response", fields) }
+  ioPure(result)
+ }
+}
+func traceFields(values List[(String, Int)]) List[(String, String)] {
+ let reused = list.elem(("connectionReused", 1), values)
+ let selected = list.filter(values, func((key, nanos)) => key != "connectionReused" && (if reused { key == "getConnection" || (key == "serverProcessing" && nanos != 0) } else { key != "getConnection" && (key != "serverProcessing" || nanos != 0) }))
+ prelude.fmap(selected, func((key, nanos)) => (key + "Milliseconds", show(nanos / 1000000)))
+}
+func debugWrappers(env Environment, base RoundTripper) RoundTripper { newDebuggingRoundTripper(env, base, [debugByContext()]) }

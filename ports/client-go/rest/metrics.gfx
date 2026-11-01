@@ -1,0 +1,147 @@
+package rest
+
+import metrics "tools/metrics"
+import sync "support/sync"
+import errors "deps/support"
+import http "deps/net/http"
+import url "deps/net/url"
+import io "std/io"
+import strings "std/string"
+import m "std/map"
+import transport "transport"
+import features "features"
+import outcome "support/outcome"
+
+// Copyright 2015 The Kubernetes Authors. Licensed under Apache-2.0.
+type MetricsBinding = MetricsBinding { registry: metrics.Registry, override: Option[metrics.Provider] }
+func newEnvironment(transport transport.Environment,features features.FeatureRegistry,authentication Authentication,clock sync.Clock,warningHandler WarningHandler,newRateLimiter func(Float,Int) IO[RateLimiter]) Environment {
+ Environment(transport,features,authentication,clock,warningHandler,newRateLimiter,None)
+}
+func withMetrics(environment Environment,registry metrics.Registry,override Option[metrics.Provider]) IO[Environment] {
+ do { metrics.ensureRegistered(registry); ioPure(environment{metrics: Some(MetricsBinding(registry,override))}) }
+}
+func clientWithMetrics(client RESTClient,registry metrics.Registry,override Option[metrics.Provider]) IO[RESTClient] {
+ do { metrics.ensureRegistered(registry); ioPure(client{metrics: Some(MetricsBinding(registry,override))}) }
+}
+func ensureMetrics(binding Option[MetricsBinding]) IO[Unit] { match binding { None => ioPure(unit()); Some(binding) => metrics.ensureRegistered(binding.registry) } }
+func observeMetrics(request Request,observe func(metrics.Provider) IO[Unit]) IO[Unit] {
+ match request.client.metrics {
+  None => ioPure(unit())
+  Some(binding) => do { provider <- metrics.provider(binding.registry,binding.override); observe(provider) }
+ }
+}
+func _segment(parts List[String],index Int) String { match parts { Nil => ""; Cons(value,rest) => if index==0 { value } else { _segment(rest,index-1) } } }
+func _replaceSegment(parts List[String],index Int,value String) List[String] { match parts { Nil => []; Cons(old,rest) => if index==0 { Cons(value,rest) } else { Cons(old,_replaceSegment(rest,index-1,value)) } } }
+func finalURLTemplate(request Request) IO[url.URL] {
+ let parameters = m.mapMap(request.params,func(_) => ["{value}"])
+ do {
+  location <- requestURL(request{params: parameters})
+  parts <- urlParts(location)
+  let path = parts.1.1
+  let base = request.client.basePath
+  let trimmed = if strings.contains(path,base) { stripPrefix(path,base) } else { path }
+  let relative = if strings.startsWith(trimmed,"/") { trimmed } else { "/"+trimmed }
+  let segments = strings.split("/",relative)
+  let group = _segment(segments,1)
+  let index = if group=="api" { 3 } else { 4 }
+  let count = length(segments)-index
+  if length(segments)<=2 { ioPure(location) }
+  else if group!="api" && group!="apis" { urlWith(location,"/{prefix}","","") }
+  else { do {
+   let names = if count==2 { _replaceSegment(segments,index+1,"{name}") }
+    else if count==3 {
+     _replaceSegment(segments,index+1,if _segment(segments,index+2)=="finalize" || _segment(segments,index+2)=="status" { "{name}" } else { "{namespace}" })
+    } else if count>=4 {
+     let namespaces = _replaceSegment(segments,index+1,"{namespace}")
+     if _segment(segments,index+3)!="finalize" && _segment(segments,index+3)!="status" { _replaceSegment(namespaces,index+3,"{name}") } else { namespaces }
+    } else { segments }
+   query <- rawQuery(location)
+   urlWith(location,pathJoin(base,strings.join("/",names)),query,"")
+  } }
+ }
+}
+func requestMetricHost(request Request) IO[String] { do { location <- requestURL(request); parts <- urlParts(location); ioPure(parts.1.0) } }
+func observeAttempt(request Request,response Option[http.Response],isRetry Bool) IO[Unit] {
+ do {
+  code <- match response { None => ioPure("<error>"); Some(response) => do { info <- responseInfo(response); ioPure(show(info.0)) } }
+  host <- requestMetricHost(request)
+  observeMetrics(request,func(provider) => provider.requestResult.increment(code,request.verb,host))
+  if isRetry { observeMetrics(request,func(provider) => provider.requestRetry.incrementRetry(code,request.verb,host)) } else { ioPure(unit()) }
+ }
+}
+extern func requestSizeInfo(request http.Request) IO[(Int,Bool)] = "github.com/reoring/gofx/ports/client-go/rest/host".RequestSizeInfo
+extern func byteLength(value String) Int = "github.com/reoring/gofx/ports/client-go/rest/host".ByteLength
+func observeRequestSize(request Request,httpRequest http.Request) IO[Unit] {
+ if !request.measureRequestSize { ioPure(unit()) } else { do {
+  size <- requestSizeInfo(httpRequest)
+  if size.0>=0 && !(size.1 && size.0==0) { do { host <- requestMetricHost(request); observeMetrics(request,func(provider) => provider.requestSize.observe(request.verb,host,toFloat(size.0))) } } else { ioPure(unit()) }
+ } }
+}
+func observeResponseSize(request Request,body String,error Option[errors.Error]) IO[Unit] {
+ if byteLength(body)>0 || (match error { None => true; Some(_) => false }) { do {
+  host <- requestMetricHost(request)
+  observeMetrics(request,func(provider) => provider.responseSize.observe(request.verb,host,toFloat(byteLength(body))))
+ } } else { ioPure(unit()) }
+}
+func withRequestLatency[A](request Request,action IO[A]) IO[A] {
+ match request.client.metrics {
+  None => action
+  Some(_) => do {
+   start <- sync.now(request.client.clock)
+   sync.ensuring(action,sync.uninterruptible(do {
+    end <- sync.now(request.client.clock)
+    location <- finalURLTemplate(request)
+    observeMetrics(request,func(provider) => provider.requestLatency.observe(request.verb,location,sync.elapsed(start,end)))
+   }))
+  }
+ }
+}
+func measuredThrottle(request Request,wait IO[Unit]) IO[Unit] {
+ match request.client.metrics {
+  None => wait
+  Some(_) => do {
+   start <- sync.now(request.client.clock)
+   result <- io.tryIO(wait)
+   match result {
+    Err(io.Cancelled) => io.ioRaise(io.Cancelled)
+    Err(io.Timeout) => io.ioRaise(io.Timeout)
+    _ => do {
+     end <- sync.now(request.client.clock)
+     location <- finalURLTemplate(request)
+     observeMetrics(request,func(provider) => provider.rateLimiterLatency.observe(request.verb,location,sync.elapsed(start,end)))
+     match result { Ok(_) => ioPure(unit()); Err(error) => io.ioRaise(error) }
+    }
+   }
+  }
+ }
+}
+type DNSObservation = DNSObservation { host: String, start: sync.Instant }
+extern func attachDNSCallbacks(request http.Request,start func(String) IO[Unit],done func() IO[Unit]) IO[http.Request] = "github.com/reoring/gofx/ports/client-go/rest/host".AttachDNSCallbacks
+func traceRequest(request Request,httpRequest http.Request) IO[http.Request] {
+ match request.client.metrics {
+  None => ioPure(httpRequest)
+  Some(_) => do {
+   initial <- sync.now(request.client.clock)
+   state <- sync.newRef(DNSObservation("",initial))
+   mutex <- sync.newMutex()
+   attachDNSCallbacks(httpRequest,func(host) => sync.withLock(mutex,do { start <- sync.now(request.client.clock); sync.writeRef(state,DNSObservation(host,start)) }),func() => sync.withLock(mutex,do {
+    observation <- sync.readRef(state)
+    end <- sync.now(request.client.clock)
+    observeMetrics(request,func(provider) => provider.resolverLatency.observe(observation.host,sync.elapsed(observation.start,end)))
+   }))
+  }
+ }
+}
+extern func stripPrefix(value String,prefix String) String = "github.com/reoring/gofx/ports/client-go/rest/host".TrimPrefix
+func performMeasuredAttempt(request Request,retry WithRetry,httpRequest http.Request) IO[outcome.Outcome[Option[http.Response]]] {
+ do {
+  context <- sync.captureContext()
+  sync.uninterruptible(do {
+   returned <- sync.withContext(context,httpClientDo(request.client.httpClient,httpRequest))
+   let result = outcome.from(returned.0,returned.1)
+   observeRequestSize(request,httpRequest)
+   retry.after(request,result.value,result.error)
+   ioPure(result)
+  })
+ }
+}

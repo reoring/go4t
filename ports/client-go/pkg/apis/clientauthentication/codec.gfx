@@ -1,0 +1,109 @@
+// Copyright 2018 The Kubernetes Authors. Licensed under Apache-2.0.
+package clientauthentication
+import meta "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import runtime "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime"
+import "std/map"
+import "std/list"
+import "std/string"
+import "std/prelude"
+extern func _splitObject(text String) IO[List[(String, String)]] = "github.com/reoring/gofx/ports/client-go/pkg/apis/clientauthentication/host".SplitObject
+extern func _stringValue(text String) IO[String] = "github.com/reoring/gofx/ports/client-go/pkg/apis/clientauthentication/host".StringValue
+extern func _boolValue(text String) IO[Bool] = "github.com/reoring/gofx/ports/client-go/pkg/apis/clientauthentication/host".BoolValue
+extern func _quote(text String) String = "github.com/reoring/gofx/ports/client-go/pkg/apis/clientauthentication/host".QuoteJSON
+extern func _encodeBytes(text String) String = "github.com/reoring/gofx/ports/client-go/pkg/apis/clientauthentication/host".EncodeBytes
+extern func _decodeBytes(text String) IO[String] = "github.com/reoring/gofx/ports/client-go/pkg/apis/clientauthentication/host".DecodeBytes
+extern func _encodeTime(value meta.Time) IO[String] = "github.com/reoring/gofx/ports/client-go/pkg/apis/clientauthentication/host".EncodeTime
+extern func _decodeTime(text String) IO[meta.Time] = "github.com/reoring/gofx/ports/client-go/pkg/apis/clientauthentication/host".DecodeTime
+extern func _encodeRaw(value runtime.RawExtension) IO[String] = "github.com/reoring/gofx/ports/client-go/pkg/apis/clientauthentication/host".EncodeRaw
+extern func _decodeRaw(text String) IO[runtime.RawExtension] = "github.com/reoring/gofx/ports/client-go/pkg/apis/clientauthentication/host".DecodeRaw
+func _object(text String) IO[Map[String, String]] { do { fields <- _splitObject(text); ioPure(map.mapFromList(fields)) } }
+func _field(fields Map[String, String], key String) String { match map.mapLookup(fields, key) { None => "null"; Some(value) => value } }
+func _stringField(fields Map[String, String], key String) IO[String] { _stringValue(_field(fields, key)) }
+func _boolField(fields Map[String, String], key String) IO[Bool] { _boolValue(_field(fields, key)) }
+func _jsonObject(fields List[(String, String)]) String { "{" + string.join(",", prelude.map(fields, func((key, value)) => _quote(key) + ":" + value)) + "}" }
+func _optionalString(fields List[(String, String)], key String, value String) List[(String, String)] { if value == "" { fields } else { list.append(fields, [(key, _quote(value))]) } }
+func _optionalBool(fields List[(String, String)], key String, value Bool) List[(String, String)] { if value { list.append(fields, [(key, "true")]) } else { fields } }
+func encodeCluster(value WireCluster) IO[String] { do {
+ config <- _encodeRaw(value.config)
+ let fields = [("server", _quote(value.server))]
+ let fields = _optionalString(fields, "tls-server-name", value.tlsServerName)
+ let fields = _optionalBool(fields, "insecure-skip-tls-verify", value.insecureSkipTLSVerify)
+ let fields = match value.certificateAuthorityData { None => fields; Some(bytes) => _optionalString(fields, "certificate-authority-data", _encodeBytes(bytes)) }
+ let fields = _optionalString(fields, "proxy-url", value.proxyURL)
+ let fields = _optionalBool(fields, "disable-compression", value.disableCompression)
+ // RawExtension is a struct field: encoding/json emits null for its zero value.
+ ioPure(_jsonObject(list.append(fields, [("config", config)])))
+} }
+func decodeCluster(text String) IO[WireCluster] { do {
+ fields <- _object(text)
+ server <- _stringField(fields, "server")
+ tls <- _stringField(fields, "tls-server-name")
+ insecure <- _boolField(fields, "insecure-skip-tls-verify")
+ bytes <- match map.mapLookup(fields, "certificate-authority-data") {
+  None => ioPure(None)
+  Some(raw) => if raw == "null" { ioPure(None) } else { do { encoded <- _stringValue(raw); decoded <- _decodeBytes(encoded); ioPure(Some(decoded)) } }
+ }
+ proxy <- _stringField(fields, "proxy-url")
+ compression <- _boolField(fields, "disable-compression")
+ config <- _decodeRaw(_field(fields, "config"))
+ ioPure(WireCluster(server, tls, insecure, bytes, proxy, compression, config))
+} }
+func encodeSpec(value WireSpec) IO[String] { do {
+ cluster <- match value.cluster { None => ioPure(Nil); Some(c) => do { encoded <- encodeCluster(c); ioPure([("cluster", encoded)]) } }
+ ioPure(_jsonObject(list.append(cluster, [("interactive", if value.interactive { "true" } else { "false" })])))
+} }
+func decodeSpec(text String) IO[WireSpec] { do {
+ fields <- _object(text)
+ interactive <- _boolField(fields, "interactive")
+ cluster <- match map.mapLookup(fields, "cluster") { None => ioPure(None); Some(raw) => if raw == "null" { ioPure(None) } else { do { c <- decodeCluster(raw); ioPure(Some(c)) } } }
+ ioPure(WireSpec(interactive, cluster))
+} }
+func encodeStatus(value ExecCredentialStatus) IO[String] { do {
+ expiration <- match value.expirationTimestamp { None => ioPure(Nil); Some(time) => do { encoded <- _encodeTime(time); ioPure([("expirationTimestamp", encoded)]) } }
+ let fields = _optionalString(expiration, "token", value.token)
+ let fields = _optionalString(fields, "clientCertificateData", value.clientCertificateData)
+ ioPure(_jsonObject(_optionalString(fields, "clientKeyData", value.clientKeyData)))
+} }
+func decodeStatus(text String) IO[ExecCredentialStatus] { do {
+ fields <- _object(text)
+ expiration <- match map.mapLookup(fields, "expirationTimestamp") { None => ioPure(None); Some(raw) => if raw == "null" { ioPure(None) } else { do { time <- _decodeTime(raw); ioPure(Some(time)) } } }
+ token <- _stringField(fields, "token")
+ certificate <- _stringField(fields, "clientCertificateData")
+ key <- _stringField(fields, "clientKeyData")
+ ioPure(ExecCredentialStatus(expiration, token, certificate, key))
+} }
+func encodeWireCredential(value WireCredential) IO[String] { do {
+ spec <- encodeSpec(value.spec)
+ let fields = _optionalString(Nil, "kind", meta.typeMetaGetKind(value.typeMeta))
+ let fields = _optionalString(fields, "apiVersion", meta.typeMetaGetAPIVersion(value.typeMeta))
+ status <- match value.status { None => ioPure(Nil); Some(s) => do { encoded <- encodeStatus(s); ioPure([("status", encoded)]) } }
+ ioPure(_jsonObject(list.append(list.append(fields, [("spec", spec)]), status)))
+} }
+func decodeWireCredential(text String) IO[WireCredential] { do {
+ fields <- _object(text)
+ kind <- _stringField(fields, "kind")
+ version <- _stringField(fields, "apiVersion")
+ spec <- decodeSpec(_field(fields, "spec"))
+ status <- match map.mapLookup(fields, "status") { None => ioPure(None); Some(raw) => if raw == "null" { ioPure(None) } else { do { s <- decodeStatus(raw); ioPure(Some(s)) } } }
+ let metadata = meta.typeMetaWithAPIVersion(meta.typeMetaWithKind(meta.newTypeMeta(), kind), version)
+ ioPure(WireCredential(metadata, spec, status))
+} }
+func encode(scheme Scheme, object CredentialObject, version String) IO[String] { do {
+ converted <- convert(scheme, object, version)
+ wire <- match converted { VersionedCredential(_, value) => ioPure(value); InternalCredential(value) => convertFromInternal(value) }
+ let metadata = meta.typeMetaWithAPIVersion(meta.typeMetaWithKind(meta.newTypeMeta(), "ExecCredential"), groupName() + "/" + version)
+ encodeWireCredential(wire{typeMeta: metadata})
+} }
+func decode(scheme Scheme, text String) IO[CredentialObject] { do {
+ value <- decodeWireCredential(text)
+ let version = meta.typeMetaGetAPIVersion(value.typeMeta)
+ let prefix = groupName() + "/"
+ if !string.startsWith(version, prefix) { ioFail("unregistered clientauthentication apiVersion: " + version) } else { do {
+  let api = string.substring(version, string.strLength(prefix), string.strLength(version))
+  recognized <- recognizes(scheme, api, meta.typeMetaGetKind(value.typeMeta))
+  if !recognized { ioFail("unregistered clientauthentication kind or version: " + version) } else {
+   if api == internalVersion() { do { internal <- convertToInternal(value); ioPure(InternalCredential(internal)) } } else { ioPure(VersionedCredential(api, value)) }
+  }
+ } }
+} }
+func decodeToVersion(scheme Scheme, text String, version String) IO[CredentialObject] { do { decoded <- decode(scheme, text); convert(scheme, decoded, version) } }

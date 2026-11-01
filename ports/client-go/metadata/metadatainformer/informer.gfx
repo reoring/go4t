@@ -1,0 +1,39 @@
+package metadatainformer
+
+import client "metadata"
+import dynamic "dynamic"
+import factory "dynamic/dynamicinformer"
+import cache "tools/cache"
+import sync "support/sync"
+import v1 "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import u "deps/k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+import schema "deps/k8s.io/apimachinery/pkg/runtime/schema"
+import errors "deps/support"
+import outcome "support/outcome"
+import m "std/map"
+import features "features"
+
+// Copyright 2018 The Kubernetes Authors. Licensed under Apache-2.0.
+alias TweakListOptionsFunc = func(v1.ListOptions) IO[v1.ListOptions]
+alias SharedInformerFactory = factory.Factory[v1.PartialObjectMetadata]
+func newFilteredInformer(registry features.FeatureRegistry,client client.Interface,gvr schema.GroupVersionResource,namespace String,resync Int,indexers Map[String,cache.IndexFunc[v1.PartialObjectMetadata]],tweak TweakListOptionsFunc,clock sync.Clock) IO[factory.GenericInformer[v1.PartialObjectMetadata]] {
+ let resource = client.resource(gvr).namespace(namespace)
+ let access = dynamic.objectAccess(v1.partialObjectMetadataObjectType())
+ let lw = cache.ListWatcher(func(options) => do {
+  options <- tweak(options)
+  result <- resource.list(options)
+  match result.error { Some(e) => ioPure(outcome.failure(cache.ListResult([],"",""),e)); None => match result.value {
+   None => ioPure(outcome.failure(cache.ListResult([],"",""),errors.errorNew("list returned no object")))
+   Some(value) => do { listing <- ioPure(cache.ListResult(match v1.partialObjectMetadataListGetItems(value) { None => []; Some(items) => items },v1.listMetaGetResourceVersion(v1.partialObjectMetadataListGetListMeta(value)),v1.listMetaGetContinue(v1.partialObjectMetadataListGetListMeta(value)))); ioPure(outcome.success(listing)) }
+  } }
+ },func(options) => do { options <- tweak(options); resource.watch(options) },client.unsupportedWatchList,false)
+ do {
+  informer <- cache.newSharedIndexInformerWithFeatures(registry,lw,access,func(object) => dynamic.decodeTyped(v1.partialObjectMetadataObjectType(),v1.newPartialObjectMetadata(),object),resync,indexers,clock)
+  let gr = schema.groupResourceWithResource(schema.groupResourceWithGroup(schema.newGroupResource(),schema.groupVersionResourceGetGroup(gvr)),schema.groupVersionResourceGetResource(gvr))
+  ioPure(factory.GenericInformer(informer,cache.newResourceLister(cache.getIndexer(informer),access,gr)))
+ }
+}
+func newFilteredSharedInformerFactory(registry features.FeatureRegistry,client client.Interface,resync Int,namespace String,tweak TweakListOptionsFunc,clock sync.Clock) IO[SharedInformerFactory] {
+ factory.newFactory(func(gvr) => newFilteredInformer(registry,client,gvr,namespace,resync,m.mapInsert(m.emptyMap(),"namespace",cache.namespaceIndex(dynamic.objectAccess(v1.partialObjectMetadataObjectType()))),tweak,clock),clock)
+}
+func newSharedInformerFactory(registry features.FeatureRegistry,client client.Interface,resync Int,clock sync.Clock) IO[SharedInformerFactory] { newFilteredSharedInformerFactory(registry,client,resync,"",func(options) => ioPure(options),clock) }

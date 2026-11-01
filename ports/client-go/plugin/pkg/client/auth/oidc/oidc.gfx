@@ -1,0 +1,181 @@
+// Copyright 2016 The Kubernetes Authors. Licensed under the Apache License, Version 2.0.
+package oidc
+import "rest"
+import "transport"
+import http "deps/net/http"
+import errors "deps/support"
+import "support/sync"
+import "support/outcome"
+import fx "plugin/pkg/client/auth/internal/effects"
+import "std/map"
+import "std/string"
+import "std/prelude"
+
+extern func _newHTTPClient(roundTripper http.RoundTripper) IO[http.Client] = "github.com/reoring/gofx/ports/client-go/plugin/host".NewHTTPClient
+extern func _request(client http.Client,method String,url String,headers List[(String,String)],body String,limit Int) IO[(Int,String,(String,String))] = "github.com/reoring/gofx/ports/client-go/plugin/host".HTTPRequest
+extern func _parseForm(body String) IO[List[(String,String)]] = "github.com/reoring/gofx/ports/client-go/plugin/host".ParseForm
+extern func _basic(user String,password String) String = "github.com/reoring/gofx/ports/client-go/plugin/host".EncodeBasic
+extern func _mediaType(value String) String = "github.com/reoring/gofx/ports/client-go/plugin/host".MediaType
+extern func _integer(value String) IO[Int] = "github.com/reoring/gofx/ports/client-go/plugin/host".JSONInteger
+extern func _byteLength(value String) Int = "github.com/reoring/gofx/ports/client-go/plugin/host".ByteLength
+extern func _bytePrefix(value String,limit Int) String = "github.com/reoring/gofx/ports/client-go/plugin/host".BytePrefix
+
+type Environment = Environment {clock:sync.Clock,newClient:func(String,Option[String]) IO[outcome.Outcome[Option[http.Client]]],request:func(http.Client,String,String,List[(String,String)],String,Int) IO[(Int,String,(String,String))]}
+type Provider = Provider {client:http.Client,environment:Environment,mutex:sync.Mutex,config:sync.Ref[Map[String,String]],persister:rest.AuthProviderConfigPersister}
+type ClientEntry = ClientEntry {clusterAddress:String,issuerURL:String,clientID:String,provider:Provider}
+type ClientCache = ClientCache {mutex:sync.Mutex,entries:sync.Ref[List[ClientEntry]]}
+func newClientCache() IO[ClientCache] {do {mutex <- sync.newMutex();entries <- sync.newRef(Nil);ioPure(ClientCache(mutex,entries))}}
+func newEnvironment(environment transport.Environment) IO[Environment] {do {
+ clock <- sync.realClock()
+ ioPure(Environment(clock,func(file,data) => do {
+  let config = transport.defaultConfig()
+  result <- transport.newTransport(environment,config{tls:config.tls{caFile:file,caData:data}})
+  match result.error {Some(e) => ioPure(outcome.failure(None,e));None => match result.value {None => ioPure(fx.failure(None,"oidc: transport construction returned no transport"));Some(t) => fx.attempt(None,do {raw <- transport.toHTTP(t);client <- _newHTTPClient(raw);ioPure(Some(client))})}}
+ },_request))
+}}
+func _lookup(entries List[ClientEntry],cluster String,issuer String,id String) Option[Provider] {match entries {Nil => None;Cons(e,rest) => if e.clusterAddress == cluster && e.issuerURL == issuer && e.clientID == id {Some(e.provider)} else {_lookup(rest,cluster,issuer,id)}}}
+func newProvider(cache ClientCache,env Environment,cluster String,config Map[String,String],persister rest.AuthProviderConfigPersister) IO[outcome.Outcome[Option[Provider]]] {
+ let issuer = fx.field(config,"idp-issuer-url")
+ let id = fx.field(config,"client-id")
+ if issuer == "" {ioPure(fx.failure(None,"Must provide idp-issuer-url"))} else {if id == "" {ioPure(fx.failure(None,"Must provide client-id"))} else {sync.withLock(cache.mutex,do {
+  entries <- sync.readRef(cache.entries)
+  match _lookup(entries,cluster,issuer,id) {Some(provider) => ioPure(outcome.success(Some(provider)));None => do {
+   let encoded = fx.field(config,"idp-certificate-authority-data")
+   decoded <- if encoded == "" {ioPure(outcome.success(None))} else {fx.attempt(None,do {bytes <- fx.decodeBase64(encoded,false);ioPure(Some(bytes))})}
+   match decoded.error {Some(e) => ioPure(outcome.failure(None,e));None => do {
+    client <- env.newClient(fx.field(config,"idp-certificate-authority"),decoded.value)
+    match client.error {Some(e) => ioPure(outcome.failure(None,e));None => match client.value {None => ioPure(fx.failure(None,"oidc: transport construction returned no client"));Some(httpClient) => do {
+     mutex <- sync.newMutex();state <- sync.newRef(config)
+     let provider = Provider(httpClient,env,mutex,state,persister)
+     sync.writeRef(cache.entries,Cons(ClientEntry(cluster,issuer,id,provider),entries))
+     ioPure(outcome.success(Some(provider)))
+    }}}
+   }}
+  }}
+ })}}
+}
+func newOIDCAuthProvider(cache ClientCache,env Environment,cluster String,config Map[String,String],persister rest.AuthProviderConfigPersister) IO[outcome.Outcome[Option[rest.AuthProvider]]] {do {
+ provider <- newProvider(cache,env,cluster,config,persister)
+ ioPure(outcome.mapValue(provider,func(value) => prelude.fmap(value,func(p) => rest.AuthProvider(func(base) => wrapTransport(p,base),login))))
+}}
+func login() IO[outcome.Outcome[Unit]] {ioPure(fx.failure(unit(),"not yet implemented"))}
+func wrapTransport(provider Provider,base transport.RoundTripper) transport.RoundTripper {transport.layer(base,func(request) => roundTrip(provider,base,request))}
+func wrappedRoundTripper(base transport.RoundTripper) transport.RoundTripper {base}
+func roundTrip(provider Provider,base transport.RoundTripper,request http.Request) IO[outcome.Outcome[Option[http.Response]]] {do {
+ authorization <- transport.requestHeader(request,"Authorization")
+ if authorization != "" {base.roundTrip(request)} else {do {
+  token <- idToken(provider)
+  match token.error {Some(e) => ioPure(outcome.failure(None,e));None => do {
+   copy <- transport.cloneRequest(request);transport.setRequestHeader(copy,"Authorization","Bearer "+token.value);base.roundTrip(copy)
+  }}
+ }}
+}}
+// Despite its historical name, this predicate returns true while a token is valid.
+// Pinned client-go intentionally does NOT verify signatures, issuer, audience or JWKS.
+func idTokenExpired(nowNanos Int,token String) IO[outcome.Outcome[Bool]] {
+ match string.split(".",token) {
+  Cons(_,Cons(payload,Cons(_,Nil))) => do {
+   decoded <- fx.attempt("",fx.decodeBase64(payload,true))
+   match decoded.error {Some(e) => ioPure(outcome.failure(false,e));None => do {
+    parsed <- fx.attempt(Nil,fx.splitObject(decoded.value))
+    match parsed.error {Some(e) => ioPure(outcome.failure(false,fx.wrapError("parsing claims",e)));None => do {
+     let fields = map.mapFromList(parsed.value)
+     expiry <- match map.mapLookup(fields,"exp") {None => ioPure(outcome.success(-62135596800));Some(raw) => fx.attempt(0,fx.jsonSeconds(raw))}
+     ioPure(match expiry.error {Some(e) => outcome.failure(false,fx.wrapError("parsing claims",e));None => outcome.success(nowNanos / 1000000000 + 10 < expiry.value || (nowNanos / 1000000000 + 10 == expiry.value && nowNanos % 1000000000 < 0))})
+    }}
+   }}
+  }
+  _ => ioPure(fx.failure(false,"ID Token is not a valid JWT"))
+ }
+}
+func tokenEndpoint(provider Provider,issuer String) IO[outcome.Outcome[String]] {do {
+ let address = (if string.endsWith(issuer,"/") {string.substring(issuer,0,string.strLength(issuer)-1)} else {issuer}) + "/.well-known/openid-configuration"
+ result <- fx.attempt((0,"",("","")),provider.environment.request(provider.client,"GET",address,Nil,"",-1))
+ match result.error {Some(e) => ioPure(outcome.failure("",e));None => match result.value {(status,statusText,(_,body)) => {
+  if status != 200 {ioPure(fx.failure("","oidc: failed to query metadata endpoint " + statusText + ": " + fx.quote(if _byteLength(body)>80 {_bytePrefix(body,80)+"..."} else {body})))} else {do {
+   fields <- fx.attempt(Nil,fx.splitObject(body))
+   match fields.error {Some(e) => ioPure(outcome.failure("",fx.wrapError("oidc: failed to decode provider discovery object",e)));None => do {
+    endpoint <- match map.mapLookup(map.mapFromList(fields.value),"token_endpoint") {None => ioPure(outcome.success(""));Some(raw) => fx.attempt("",fx.jsonString(raw))}
+    ioPure(match endpoint.error {Some(e) => outcome.failure("",fx.wrapError("oidc: failed to decode provider discovery object",e));None => if endpoint.value == "" {fx.failure("","oidc: discovery object doesn't contain a token_endpoint")} else {endpoint}})
+   }}
+  }}
+ }}}
+}}
+func idToken(provider Provider) IO[outcome.Outcome[String]] {sync.withLock(provider.mutex,do {
+ config <- sync.readRef(provider.config)
+ let token = fx.field(config,"id-token")
+ now <- sync.now(provider.environment.clock)
+ valid <- if token == "" {ioPure(outcome.success(false))} else {idTokenExpired(sync.unixNanos(now),token)}
+ match valid.error {Some(e) => ioPure(outcome.failure("",e));None => if valid.value {ioPure(outcome.success(token))} else {
+  let refresh = fx.field(config,"refresh-token")
+  if refresh == "" {ioPure(fx.failure("","No valid id-token, and cannot refresh without refresh-token"))} else {do {
+   endpoint <- tokenEndpoint(provider,fx.field(config,"idp-issuer-url"))
+   match endpoint.error {Some(e) => ioPure(outcome.failure("",e));None => do {
+    refreshed <- refreshToken(provider,endpoint.value,config,refresh)
+    match refreshed.error {Some(e) => ioPure(outcome.failure("",fx.wrapError("failed to refresh token",e)));None => {
+     let fields = refreshed.value
+     match map.mapLookup(fields,"id_token") {None => ioPure(fx.failure("","token response did not contain an id_token, either the scope \"openid\" wasn't requested upon login, or the provider doesn't support id_tokens as part of the refresh response"));Some(idToken) => do {
+      let rotated = fx.field(fields,"refresh_token")
+      let updated = map.mapInsert(if rotated != "" && rotated != refresh {map.mapInsert(config,"refresh-token",rotated)} else {config},"id-token",idToken)
+      persisted <- provider.persister.persist(updated)
+      match persisted.error {Some(e) => ioPure(outcome.failure("",fx.wrapError("could not persist new tokens",e)));None => do {
+       sync.writeRef(provider.config,updated)
+       ioPure(outcome.success(idToken))
+      }}
+     }}
+    }}
+   }}
+  }}
+ }}
+})}
+// oauth2 AutoDetect tries HTTP Basic first and request parameters second. Each
+// refresh creates a new source upstream, so there is no cross-refresh style cache.
+func refreshToken(provider Provider,endpoint String,config Map[String,String],refresh String) IO[outcome.Outcome[Map[String,String]]] {do {
+ first <- _exchange(provider,endpoint,config,refresh,true)
+ match first.error {None => ioPure(first);Some(_) => _exchange(provider,endpoint,config,refresh,false)}
+}}
+func _exchange(provider Provider,endpoint String,config Map[String,String],refresh String,basic Bool) IO[outcome.Outcome[Map[String,String]]] {do {
+ let fields = [("grant_type","refresh_token"),("refresh_token",refresh)]
+ let credentials = filter([("client_id",fx.field(config,"client-id")),("client_secret",fx.field(config,"client-secret"))],func(pair) => snd(pair) != "")
+ let body = fx.formEncode(if basic {fields} else {prelude.append(fields,credentials)})
+ let headers = [("Content-Type","application/x-www-form-urlencoded")]
+ let headers = if basic {Cons(("Authorization","Basic "+_basic(fx.field(config,"client-id"),fx.field(config,"client-secret"))),headers)} else {headers}
+ response <- fx.attempt((0,"",("","")),provider.environment.request(provider.client,"POST",endpoint,headers,body,1048576))
+ match response.error {Some(e) => ioPure(outcome.failure(map.emptyMap(),e));None => match response.value {(status,statusText,(contentType,body)) => {
+  do {
+   let mediaType = _mediaType(contentType)
+   let isForm = mediaType == "application/x-www-form-urlencoded" || mediaType == "text/plain"
+   decoded <- if isForm {fx.attempt(map.emptyMap(),do {pairs <- _parseForm(body);ioPure(map.mapFromList(pairs))})} else {_tokenFields(body)}
+   let failureStatus = status < 200 || status > 299
+   ioPure(match decoded.error {
+    Some(e) => if failureStatus {outcome.failure(map.emptyMap(),_retrieveError(statusText,body,map.emptyMap()))} else {outcome.failure(map.emptyMap(),fx.wrapError(if isForm {"oauth2: cannot parse response"} else {"oauth2: cannot parse json"},e))}
+    None => if failureStatus || fx.field(decoded.value,"error") != "" {outcome.failure(map.emptyMap(),_retrieveError(statusText,body,decoded.value))} else {if fx.field(decoded.value,"access_token") == "" {fx.failure(map.emptyMap(),"oauth2: server response missing access_token")} else {decoded}}
+   })
+  }
+ }}}
+}}
+func _tokenFields(body String) IO[outcome.Outcome[Map[String,String]]] {do {
+ fields <- fx.attempt(Nil,fx.splitObject(body))
+ match fields.error {Some(e) => ioPure(outcome.failure(map.emptyMap(),e));None => _decodeFields(fields.value,map.emptyMap())}
+}}
+func _decodeFields(fields List[(String,String)],values Map[String,String]) IO[outcome.Outcome[Map[String,String]]] {match fields {
+ Nil => ioPure(outcome.success(values))
+ Cons((key,raw),rest) => if key == "access_token" || key == "refresh_token" || key == "error" || key == "error_description" || key == "error_uri" || key == "token_type" {do {
+  text <- fx.attempt("",fx.jsonString(raw));match text.error {Some(e) => ioPure(outcome.failure(map.emptyMap(),e));None => _decodeFields(rest,map.mapInsert(values,key,text.value))}
+ }} else {if key == "id_token" {do {
+  text <- fx.attempt("",fx.jsonString(raw))
+  // Token.Extra type assertion treats non-string id_token as absent, not a decoder error.
+  _decodeFields(rest,match text.error {Some(_) => values;None => if raw == "null" {values} else {map.mapInsert(values,key,text.value)}})
+ }} else {if key == "expires_in" && raw != "null" {do {parsed <- fx.attempt(0,_integer(raw));match parsed.error {Some(e) => ioPure(outcome.failure(map.emptyMap(),e));None => _decodeFields(rest,values)}}} else {_decodeFields(rest,values)}}}
+}}
+func _retrieveError(status String,body String,fields Map[String,String]) errors.Error {
+ let code = fx.field(fields,"error")
+ if code == "" {fx.errorText("oauth2: cannot fetch token: " + status + "\nResponse: " + body)} else {
+  let description = fx.field(fields,"error_description")
+  let uri = fx.field(fields,"error_uri")
+  fx.errorText("oauth2: " + fx.quote(code) + (if description == "" {""} else {" " + fx.quote(description)}) + (if uri == "" {""} else {" " + fx.quote(uri)}))
+ }
+}
+func expiryDelta() Int {10000000000}
+func unmarshalJSONTime(raw String) IO[outcome.Outcome[Int]] {fx.attempt(0,fx.jsonSeconds(raw))}
+func marshalJSONTime(seconds Int) String {show(seconds)}

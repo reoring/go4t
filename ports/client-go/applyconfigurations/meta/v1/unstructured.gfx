@@ -1,0 +1,89 @@
+// Copyright 2021 The Kubernetes Authors. Licensed under Apache-2.0.
+package v1
+
+import discovery "discovery"
+import document "deps/github.com/google/gnostic-models/openapiv2"
+import external "deps/k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+import managedfields "deps/k8s.io/apimachinery/pkg/util/managedfields"
+import errors "deps/support"
+import outcome "support/outcome"
+import sync "support/sync"
+
+type UnstructuredExtractor = UnstructuredExtractor {
+ extract: func(external.Unstructured,String) IO[outcome.Outcome[Option[external.Unstructured]]],
+ extractStatus: func(external.Unstructured,String) IO[outcome.Outcome[Option[external.Unstructured]]]
+}
+type _ParserCache = _ParserCache {
+ discovery: discovery.DiscoveryInterface,
+ parser: sync.Ref[managedfields.GvkParser],
+ checked: sync.Ref[Option[sync.Instant]],
+ mutex: sync.Mutex,
+ clock: sync.Clock
+}
+extern func _buildParser(doc document.Document) IO[(Option[managedfields.GvkParser],Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/applyconfigurations/host".BuildGVKParser
+extern func _extractObject(parser managedfields.GvkParser,object external.Unstructured,manager String,subresource String) IO[(Option[external.Unstructured],Option[errors.Error])] = "github.com/reoring/gofx/ports/client-go/applyconfigurations/host".ExtractUnstructured
+extern func _identity(object external.Unstructured) (String,(String,(String,String))) = "github.com/reoring/gofx/ports/client-go/applyconfigurations/host".UnstructuredIdentity
+extern func _withIdentity(object external.Unstructured,name String,namespace String,kind String,apiVersion String) external.Unstructured = "github.com/reoring/gofx/ports/client-go/applyconfigurations/host".WithUnstructuredIdentity
+func _regenerate(client discovery.DiscoveryInterface) IO[outcome.Outcome[Option[managedfields.GvkParser]]] {
+ do {
+  doc <- client.openAPISchema()
+  match (doc.value,doc.error) {
+   (_,Some(error)) => ioPure(outcome.failure(None,error))
+   (Some(value),None) => do { parsed <- _buildParser(value); ioPure(outcome.from(parsed.0,parsed.1)) }
+   _ => ioPure(outcome.failure(None,errors.errorNew("OpenAPI schema is nil")))
+  }
+ }
+}
+func _getParser(cache _ParserCache) IO[outcome.Outcome[Option[managedfields.GvkParser]]] {
+ sync.withLock(cache.mutex,do {
+  now <- sync.now(cache.clock)
+  checked <- sync.readRef(cache.checked)
+  let expired = match checked { None => true; Some(previous) => sync.elapsed(previous,now) > 60000000000 }
+  if expired { do {
+   sync.writeRef(cache.checked,Some(now))
+   parsed <- _regenerate(cache.discovery)
+   match parsed.value { None => ioPure(unit()); Some(parser) => sync.writeRef(cache.parser,parser) }
+   ioPure(parsed)
+  } } else { do { parser <- sync.readRef(cache.parser); ioPure(outcome.success(Some(parser))) } }
+ })
+}
+func _extract(cache _ParserCache,object external.Unstructured,manager String,subresource String) IO[outcome.Outcome[Option[external.Unstructured]]] {
+ do {
+  parser <- _getParser(cache)
+  match (parser.value,parser.error) {
+   (_,Some(error)) => ioPure(outcome.failure(None,errors.errorWrap("failed to fetch the objectType",error)))
+   (Some(value),None) => do {
+    result <- _extractObject(value,object,manager,subresource)
+    ioPure(match (result.0,result.1) {
+     (_,Some(error)) => outcome.failure(None,errors.errorWrap("failed calling ExtractInto for unstructured",error))
+     (Some(extracted),None) => {
+      let identity = _identity(object)
+      outcome.success(Some(_withIdentity(extracted,identity.0,identity.1.0,identity.1.1.0,identity.1.1.1)))
+     }
+     _ => outcome.success(None)
+    })
+   }
+   _ => ioPure(outcome.success(None))
+  }
+ }
+}
+func newUnstructuredExtractorWithClock(client discovery.DiscoveryInterface,clock sync.Clock) IO[outcome.Outcome[Option[UnstructuredExtractor]]] {
+ do {
+  initial <- _regenerate(client)
+  match (initial.value,initial.error) {
+   (_,Some(error)) => ioPure(outcome.failure(None,errors.errorWrap("failed generating initial GVK Parser",error)))
+   (Some(value),None) => do {
+    parser <- sync.newRef(value)
+    let initiallyUnchecked: Option[sync.Instant] = None
+    checked <- sync.newRef(initiallyUnchecked)
+    mutex <- sync.newMutex()
+    let cache = _ParserCache(client,parser,checked,mutex,clock)
+    ioPure(outcome.success(Some(UnstructuredExtractor(func(object,manager) => _extract(cache,object,manager,""),func(object,manager) => _extract(cache,object,manager,"status")))))
+   }
+   _ => ioPure(outcome.success(None))
+  }
+ }
+}
+func newUnstructuredExtractor(client discovery.DiscoveryInterface) IO[outcome.Outcome[Option[UnstructuredExtractor]]] {
+ do { clock <- sync.realClock(); newUnstructuredExtractorWithClock(client,clock) }
+}

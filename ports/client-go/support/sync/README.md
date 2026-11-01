@@ -1,6 +1,6 @@
 # Native synchronization effects
 
-`sync.gfx` is the typed API. `internal/hostsync` supplies generic Go effects through
+`sync.gfx` is the typed API. `host/sync` supplies generic Go effects through
 opaque erased handles and `rt.Shapes`; no client-go policy lives in the host.
 The authoritative signature list is the Shared prerequisite contracts in
 `../../DESIGN.md`.
@@ -34,6 +34,11 @@ close-unblocks-send without a native send/close race.
 consumption, or `Closed` only after closure and buffer draining. A rendezvous
 sender already waiting is ready. The implementation uses native select/default,
 not a polling loop or timer. The raw tuple bridge is private to the source module.
+
+`trySend(channel, value)` performs one native select/default under the existing
+send/close barrier. It returns true only when committed, false when no buffer
+slot or rendezvous receiver is available, and typed `Panic` on a closed channel.
+It does not wait for capacity, retry or introduce queue policy.
 
 `receiveCase(channel, mapper)` and `sendCase(channel, value, result)` construct
 pure typed `Case[R]` descriptors. `selectCase` commits one mixed send/receive;
@@ -97,8 +102,8 @@ condition wakeup, lossless selection, closed-channel draining, rendezvous and
 cancelled empty receives, detached cleanup and strict join beyond 100ms,
 failure/panic propagation, real timers and fake 25/50 microsecond timers with
 reset/stop. Its source and generated artifacts were removed after success.
-Focused host regression tests are retained in `internal/hostsync/sync_test.go`.
-The explicitly assigned `go test -race ./internal/hostsync` boundary verification
+Focused host regression tests are retained in `host/sync/sync_test.go`.
+The explicitly assigned `go test -race ./host/sync` boundary verification
 exercises closed-send races, task ownership, typed failures and cancellation.
 
 The extended primitive smoke exercised native mixed selection, duplicate send

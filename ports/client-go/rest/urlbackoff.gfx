@@ -1,0 +1,41 @@
+package rest
+
+import url "deps/net/url"
+import errors "deps/support"
+import sync "support/sync"
+import flowcontrol "util/flowcontrol"
+
+// Copyright 2014 The Kubernetes Authors. Licensed under Apache-2.0.
+type Backoff = Backoff {
+ updateBackoff: func(url.URL,Option[errors.Error],Int) IO[Unit],
+ calculateBackoff: func(url.URL) IO[Int], sleep: func(Int) IO[Unit]
+}
+alias BackoffManager = Backoff
+alias BackoffManagerWithContext = Backoff
+type URLBackoff = URLBackoff { backoff: sync.Ref[flowcontrol.Backoff[String]] }
+func sleep(clock sync.Clock,nanos Int) IO[Unit] {
+ if nanos <= 0 { ioPure(unit()) } else { sync.bracket(sync.newTimer(clock,nanos),func(timer) => do { channel <- sync.timerChannel(timer); sync.receive(channel); ioPure(unit()) },func(timer) => do { sync.stopTimer(timer); ioPure(unit()) }) }
+}
+func noBackoff(clock sync.Clock) Backoff { Backoff(func(_,_,_) => ioPure(unit()),func(_) => ioPure(0),func(nanos) => sleep(clock,nanos)) }
+func newURLBackoffWithBackoff(backoff flowcontrol.Backoff[String]) IO[URLBackoff] {
+ do { current <- sync.newRef(backoff); ioPure(URLBackoff(current)) }
+}
+func newURLBackoff(clock sync.Clock,initial Int,maximum Int) IO[URLBackoff] {
+ do { backoff <- flowcontrol.newFakeBackOff(initial,maximum,clock); newURLBackoffWithBackoff(backoff) }
+}
+func disable(backoff URLBackoff) IO[Unit] {
+ do { current <- sync.readRef(backoff.backoff); disabled <- flowcontrol.newFakeBackOff(0,0,current.clock); sync.writeRef(backoff.backoff,disabled) }
+}
+func urlBackoff(backoff URLBackoff) Backoff {
+ Backoff(func(location,_,status) => do {
+  parts <- urlParts(location)
+  current <- sync.readRef(backoff.backoff)
+  if status == 429 || status > 499 {
+   do { now <- sync.now(current.clock); flowcontrol.next(current,parts.1.0,now) }
+  } else { flowcontrol.reset(current,parts.1.0) }
+ },func(location) => do {
+  parts <- urlParts(location)
+  current <- sync.readRef(backoff.backoff)
+  flowcontrol.get(current,parts.1.0)
+ },func(nanos) => do { current <- sync.readRef(backoff.backoff); sleep(current.clock,nanos) })
+}

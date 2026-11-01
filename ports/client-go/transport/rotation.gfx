@@ -1,0 +1,110 @@
+// Copyright 2020 The Kubernetes Authors. Licensed under Apache-2.0.
+package transport
+import http "github.com/reoring/gofx/ports/client-go/deps/net/http"
+import net "github.com/reoring/gofx/ports/client-go/deps/net"
+import tls "github.com/reoring/gofx/ports/client-go/deps/crypto/tls"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import list "std/list"
+
+extern func trackConnection(conn net.Conn, closed func() IO[Unit]) IO[net.Conn] = "github.com/reoring/gofx/ports/client-go/transport/host".TrackConnection
+
+type ConnectionSet = ConnectionSet {mutex: sync.Mutex, values: sync.Ref[List[(Int, net.Conn)]], sequence: sync.Ref[Int]}
+func newConnectionSet() IO[ConnectionSet] { do { mutex <- sync.newMutex(); values <- sync.newRef([]); sequence <- sync.newRef(0); ioPure(ConnectionSet(mutex, values, sequence)) } }
+func closeAllConnections(connections ConnectionSet) IO[Unit] {
+ do {
+  values <- sync.withLock(connections.mutex, do { old <- sync.readRef(connections.values); sync.writeRef(connections.values, []); ioPure(old) })
+  list.forEach(values, func((_, conn)) => closeConnection(conn))
+ }
+}
+func connectionDialer(connections ConnectionSet, dial func(String, String) IO[outcome.Outcome[Option[net.Conn]]]) func(String, String) IO[outcome.Outcome[Option[net.Conn]]] {
+ func(network, address) => do {
+  transferred <- sync.newRef(false)
+  sync.bracket(dial(network, address), func(result) => match (result.error, result.value) {
+   (None, Some(conn)) => sync.uninterruptible(do {
+    wrapped <- sync.withLock(connections.mutex, do {
+     id <- sync.readRef(connections.sequence)
+     sync.writeRef(connections.sequence, id + 1)
+     wrapped <- trackConnection(conn, func() => sync.withLock(connections.mutex, do {
+      values <- sync.readRef(connections.values)
+      sync.writeRef(connections.values, list.filter(values, func((key, _)) => key != id))
+     }))
+     values <- sync.readRef(connections.values)
+     sync.writeRef(connections.values, Cons((id, wrapped), values))
+     ioPure(wrapped)
+    })
+    sync.writeRef(transferred, true)
+    ioPure(outcome.success(Some(wrapped)))
+   })
+   _ => ioPure(result)
+  }, func(result) => do {
+   owned <- sync.readRef(transferred)
+   if owned { ioPure(unit()) } else { match result.value { None => ioPure(unit()); Some(conn) => closeConnection(conn) } }
+  })
+ }
+}
+type CertificateRotation = CertificateRotation {mutex: sync.Mutex, current: sync.Ref[Option[tls.Certificate]], connections: ConnectionSet, reload: func() IO[outcome.Outcome[Option[tls.Certificate]]]}
+func loadClientCertificate(rotation CertificateRotation) IO[outcome.Outcome[Option[tls.Certificate]]] {
+ sync.withLock(rotation.mutex, do {
+  result <- rotation.reload()
+  match result.error {
+   Some(_) => ioPure(result)
+   None => do {
+    previous <- sync.readRef(rotation.current)
+    equal <- certificatesEqual(previous, result.value)
+    if equal { ioPure(outcome.success(previous)) } else { do {
+     sync.writeRef(rotation.current, result.value)
+     match previous { None => ioPure(unit()); Some(_) => closeAllConnections(rotation.connections) }
+     ioPure(result)
+    } }
+   }
+  }
+ })
+}
+func rotationPause(clock sync.Clock, duration Int) IO[Unit] {
+ sync.bracket(sync.newTimer(clock, duration), func(timer) => do { events <- sync.timerChannel(timer); sync.receive(events); ioPure(unit()) }, func(timer) => do { sync.stopTimer(timer); ioPure(unit()) })
+}
+type CARotationState = CARotationState {transport: http.RoundTripper, caData: String, checked: sync.Instant}
+type CARotation = CARotation {mutex: sync.Mutex, state: sync.Ref[CARotationState], path: String}
+func caTransport(env Environment, holder CARotation) IO[http.RoundTripper] {
+ sync.withLock(holder.mutex, do {
+  current <- sync.readRef(holder.state)
+  now <- sync.now(env.clock)
+  if sync.elapsed(current.checked, now) < env.caRefreshNanos { ioPure(current.transport) } else { do {
+   sync.writeRef(holder.state, current {checked: now})
+   loaded <- readFile(holder.path)
+   match loaded {
+    (_, Some(error)) => do { env.diagnostics.event("ca_reload:failure:read_error", errorText(error)); ioPure(current.transport) }
+    (data, None) => {
+     let bytes = bytesValue(data)
+     if bytes == "" { do { env.diagnostics.event("ca_reload:failure:empty", ""); ioPure(current.transport) } } else {
+      if bytes == current.caData { do { env.diagnostics.event("ca_reload:success:unchanged", ""); ioPure(current.transport) } } else { do {
+       pool <- rootCertPool(env, data)
+       match (pool.error, pool.value) {
+        (None, Some(roots)) => do {
+         replacement <- cloneHTTPRoots(current.transport, roots)
+         sync.writeRef(holder.state, CARotationState(replacement, bytes, now))
+         closeHTTP(current.transport)
+         env.diagnostics.event("ca_reload:success:updated", "")
+         ioPure(replacement)
+        }
+        (Some(error), _) => do { env.diagnostics.event("ca_reload:failure:ca_parse_error", errorText(error)); ioPure(current.transport) }
+        _ => ioPure(current.transport)
+       }
+      } }
+     }
+    }
+   }
+  } }
+ })
+}
+func newCARotatingTransport(env Environment, path String, data String, transport http.RoundTripper) IO[RoundTripper] {
+ do {
+  mutex <- sync.newMutex()
+  now <- sync.now(env.clock)
+  state <- sync.newRef(CARotationState(transport, data, now))
+  let holder = CARotation(mutex, state, path)
+  let rt = roundTripper(func(req) => do { raw <- caTransport(env, holder); (fromHTTP(raw)).roundTrip(req) }, func(req) => do { current <- sync.readRef(state); cancelHTTP(current.transport, req) }, func() => do { current <- sync.readRef(state); closeHTTP(current.transport) })
+  ioPure(rt {wrappedRoundTripper: func() => do { current <- sync.readRef(state); ioPure(Some(fromHTTP(current.transport))) }})
+ }
+}

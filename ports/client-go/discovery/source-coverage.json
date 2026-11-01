@@ -1,0 +1,1645 @@
+{
+  "source_version": "v0.37.2",
+  "source_revision": "72c52dd0cc3b9099b36af11290b0304045dd1ada",
+  "exported_declarations": [
+    {
+      "upstream": "discovery/aggregated_discovery.go",
+      "line": 29,
+      "symbol": "StaleGroupVersionError",
+      "native": "discovery.staleGroupVersionError",
+      "context": null
+    },
+    {
+      "upstream": "discovery/aggregated_discovery.go",
+      "line": 33,
+      "symbol": "StaleGroupVersionError.Error",
+      "native": "deps/support.errorMessage",
+      "context": null
+    },
+    {
+      "upstream": "discovery/aggregated_discovery.go",
+      "line": 39,
+      "symbol": "SplitGroupsAndResources",
+      "native": "discovery.splitGroupsAndResources",
+      "context": null
+    },
+    {
+      "upstream": "discovery/cached/disk/cached_discovery.go",
+      "line": 45,
+      "symbol": "CachedDiscoveryClient",
+      "native": "discovery/cached/disk.DiskCache",
+      "context": null
+    },
+    {
+      "upstream": "discovery/cached/disk/cached_discovery.go",
+      "line": 79,
+      "symbol": "*CachedDiscoveryClient.ServerResourcesForGroupVersion",
+      "native": "discovery.DiscoveryInterface.serverResourcesForGroupVersion",
+      "context": null
+    },
+    {
+      "upstream": "discovery/cached/disk/cached_discovery.go",
+      "line": 84,
+      "symbol": "*CachedDiscoveryClient.ServerResourcesForGroupVersionWithContext",
+      "native": "discovery.DiscoveryInterface.serverResourcesForGroupVersion",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/cached/disk/cached_discovery.go",
+      "line": 118,
+      "symbol": "*CachedDiscoveryClient.ServerGroupsAndResources",
+      "native": "discovery.serverGroupsAndResources",
+      "context": null
+    },
+    {
+      "upstream": "discovery/cached/disk/cached_discovery.go",
+      "line": 123,
+      "symbol": "*CachedDiscoveryClient.ServerGroupsAndResourcesWithContext",
+      "native": "discovery.serverGroupsAndResources",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/cached/disk/cached_discovery.go",
+      "line": 133,
+      "symbol": "*CachedDiscoveryClient.ServerGroups",
+      "native": "discovery.DiscoveryInterface.serverGroups",
+      "context": null
+    },
+    {
+      "upstream": "discovery/cached/disk/cached_discovery.go",
+      "line": 139,
+      "symbol": "*CachedDiscoveryClient.ServerGroupsWithContext",
+      "native": "discovery.DiscoveryInterface.serverGroups",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/cached/disk/cached_discovery.go",
+      "line": 249,
+      "symbol": "*CachedDiscoveryClient.RESTClient",
+      "native": "discovery.DiscoveryInterface.restClient",
+      "context": null
+    },
+    {
+      "upstream": "discovery/cached/disk/cached_discovery.go",
+      "line": 259,
+      "symbol": "*CachedDiscoveryClient.ServerPreferredResources",
+      "native": "discovery.serverPreferredResources",
+      "context": null
+    },
+    {
+      "upstream": "discovery/cached/disk/cached_discovery.go",
+      "line": 265,
+      "symbol": "*CachedDiscoveryClient.ServerPreferredResourcesWithContext",
+      "native": "discovery.serverPreferredResources",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/cached/disk/cached_discovery.go",
+      "line": 275,
+      "symbol": "*CachedDiscoveryClient.ServerPreferredNamespacedResources",
+      "native": "discovery.serverPreferredNamespacedResources",
+      "context": null
+    },
+    {
+      "upstream": "discovery/cached/disk/cached_discovery.go",
+      "line": 281,
+      "symbol": "*CachedDiscoveryClient.ServerPreferredNamespacedResourcesWithContext",
+      "native": "discovery.serverPreferredNamespacedResources",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/cached/disk/cached_discovery.go",
+      "line": 290,
+      "symbol": "*CachedDiscoveryClient.ServerVersion",
+      "native": "discovery.DiscoveryInterface.serverVersion",
+      "context": null
+    },
+    {
+      "upstream": "discovery/cached/disk/cached_discovery.go",
+      "line": 295,
+      "symbol": "*CachedDiscoveryClient.ServerVersionWithContext",
+      "native": "discovery.DiscoveryInterface.serverVersion",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/cached/disk/cached_discovery.go",
+      "line": 304,
+      "symbol": "*CachedDiscoveryClient.OpenAPISchema",
+      "native": "discovery.DiscoveryInterface.openAPISchema -> openapi.openAPISchema",
+      "context": null
+    },
+    {
+      "upstream": "discovery/cached/disk/cached_discovery.go",
+      "line": 309,
+      "symbol": "*CachedDiscoveryClient.OpenAPISchemaWithContext",
+      "native": "discovery.DiscoveryInterface.openAPISchema -> openapi.openAPISchema",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/cached/disk/cached_discovery.go",
+      "line": 314,
+      "symbol": "*CachedDiscoveryClient.OpenAPIV3",
+      "native": "discovery.DiscoveryInterface.openAPIV3 -> openapi.newClient",
+      "context": null
+    },
+    {
+      "upstream": "discovery/cached/disk/cached_discovery.go",
+      "line": 319,
+      "symbol": "*CachedDiscoveryClient.OpenAPIV3WithContext",
+      "native": "discovery.DiscoveryInterface.openAPIV3 -> openapi.newClient",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/cached/disk/cached_discovery.go",
+      "line": 343,
+      "symbol": "*CachedDiscoveryClient.Fresh",
+      "native": "discovery.CachedDiscoveryInterface.fresh",
+      "context": null
+    },
+    {
+      "upstream": "discovery/cached/disk/cached_discovery.go",
+      "line": 349,
+      "symbol": "*CachedDiscoveryClient.FreshWithContext",
+      "native": "discovery.CachedDiscoveryInterface.fresh",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/cached/disk/cached_discovery.go",
+      "line": 361,
+      "symbol": "*CachedDiscoveryClient.Invalidate",
+      "native": "discovery.CachedDiscoveryInterface.invalidate",
+      "context": null
+    },
+    {
+      "upstream": "discovery/cached/disk/cached_discovery.go",
+      "line": 366,
+      "symbol": "*CachedDiscoveryClient.InvalidateWithContext",
+      "native": "discovery.CachedDiscoveryInterface.invalidate",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/cached/disk/cached_discovery.go",
+      "line": 389,
+      "symbol": "*CachedDiscoveryClient.WithLegacy",
+      "native": "discovery.DiscoveryInterface.withLegacy",
+      "context": null
+    },
+    {
+      "upstream": "discovery/cached/disk/cached_discovery.go",
+      "line": 395,
+      "symbol": "*CachedDiscoveryClient.WithLegacyWithContext",
+      "native": "discovery.DiscoveryInterface.withLegacy",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/cached/disk/cached_discovery.go",
+      "line": 408,
+      "symbol": "NewCachedDiscoveryClientForConfig",
+      "native": "discovery/cached/disk.newCachedDiscoveryClientForConfig",
+      "context": null
+    },
+    {
+      "upstream": "discovery/cached/disk/round_tripper.go",
+      "line": 52,
+      "symbol": "*cacheRoundTripper.RoundTrip",
+      "native": "third_party/forked/httpcache.roundTrip via disk.newCacheRoundTripper",
+      "context": null
+    },
+    {
+      "upstream": "discovery/cached/disk/round_tripper.go",
+      "line": 56,
+      "symbol": "*cacheRoundTripper.CancelRequest",
+      "native": "transport.RoundTripper.cancelRequest inherited by transport.layer",
+      "context": null
+    },
+    {
+      "upstream": "discovery/cached/disk/round_tripper.go",
+      "line": 67,
+      "symbol": "*cacheRoundTripper.WrappedRoundTripper",
+      "native": "transport.RoundTripper.unwrap inherited by transport.layer",
+      "context": null
+    },
+    {
+      "upstream": "discovery/cached/disk/round_tripper.go",
+      "line": 83,
+      "symbol": "*sumDiskCache.Get",
+      "native": "disk.sumDiskCache.get",
+      "context": null
+    },
+    {
+      "upstream": "discovery/cached/disk/round_tripper.go",
+      "line": 102,
+      "symbol": "*sumDiskCache.Set",
+      "native": "disk.sumDiskCache.set",
+      "context": null
+    },
+    {
+      "upstream": "discovery/cached/disk/round_tripper.go",
+      "line": 107,
+      "symbol": "*sumDiskCache.Delete",
+      "native": "disk.sumDiskCache.delete",
+      "context": null
+    },
+    {
+      "upstream": "discovery/cached/legacy.go",
+      "line": 25,
+      "symbol": "NewMemCacheClient",
+      "native": "discovery/cached/memory.newMemCacheClient",
+      "context": null
+    },
+    {
+      "upstream": "discovery/cached/legacy.go",
+      "line": 30,
+      "symbol": "ErrCacheNotFound",
+      "native": "discovery/cached/memory.errCacheNotFound",
+      "context": null
+    },
+    {
+      "upstream": "discovery/cached/memory/memcache.go",
+      "line": 63,
+      "symbol": "ErrCacheNotFound",
+      "native": "discovery/cached/memory.errCacheNotFound",
+      "context": null
+    },
+    {
+      "upstream": "discovery/cached/memory/memcache.go",
+      "line": 71,
+      "symbol": "*emptyResponseError.Error",
+      "native": "deps/support.errorMessage",
+      "context": null
+    },
+    {
+      "upstream": "discovery/cached/memory/memcache.go",
+      "line": 107,
+      "symbol": "*memCacheClient.ServerResourcesForGroupVersion",
+      "native": "discovery.DiscoveryInterface.serverResourcesForGroupVersion",
+      "context": null
+    },
+    {
+      "upstream": "discovery/cached/memory/memcache.go",
+      "line": 112,
+      "symbol": "*memCacheClient.ServerResourcesForGroupVersionWithContext",
+      "native": "discovery.DiscoveryInterface.serverResourcesForGroupVersion",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/cached/memory/memcache.go",
+      "line": 148,
+      "symbol": "*memCacheClient.ServerGroupsAndResources",
+      "native": "discovery.serverGroupsAndResources",
+      "context": null
+    },
+    {
+      "upstream": "discovery/cached/memory/memcache.go",
+      "line": 153,
+      "symbol": "*memCacheClient.ServerGroupsAndResourcesWithContext",
+      "native": "discovery.serverGroupsAndResources",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/cached/memory/memcache.go",
+      "line": 164,
+      "symbol": "*memCacheClient.GroupsAndMaybeResources",
+      "native": "discovery.groupsAndMaybeResources",
+      "context": null
+    },
+    {
+      "upstream": "discovery/cached/memory/memcache.go",
+      "line": 171,
+      "symbol": "*memCacheClient.GroupsAndMaybeResourcesWithContext",
+      "native": "discovery.groupsAndMaybeResources",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/cached/memory/memcache.go",
+      "line": 208,
+      "symbol": "*memCacheClient.ServerGroups",
+      "native": "discovery.DiscoveryInterface.serverGroups",
+      "context": null
+    },
+    {
+      "upstream": "discovery/cached/memory/memcache.go",
+      "line": 212,
+      "symbol": "*memCacheClient.ServerGroupsWithContext",
+      "native": "discovery.DiscoveryInterface.serverGroups",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/cached/memory/memcache.go",
+      "line": 220,
+      "symbol": "*memCacheClient.RESTClient",
+      "native": "discovery.DiscoveryInterface.restClient",
+      "context": null
+    },
+    {
+      "upstream": "discovery/cached/memory/memcache.go",
+      "line": 227,
+      "symbol": "*memCacheClient.ServerPreferredResources",
+      "native": "discovery.serverPreferredResources",
+      "context": null
+    },
+    {
+      "upstream": "discovery/cached/memory/memcache.go",
+      "line": 231,
+      "symbol": "*memCacheClient.ServerPreferredResourcesWithContext",
+      "native": "discovery.serverPreferredResources",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/cached/memory/memcache.go",
+      "line": 238,
+      "symbol": "*memCacheClient.ServerPreferredNamespacedResources",
+      "native": "discovery.serverPreferredNamespacedResources",
+      "context": null
+    },
+    {
+      "upstream": "discovery/cached/memory/memcache.go",
+      "line": 242,
+      "symbol": "*memCacheClient.ServerPreferredNamespacedResourcesWithContext",
+      "native": "discovery.serverPreferredNamespacedResources",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/cached/memory/memcache.go",
+      "line": 249,
+      "symbol": "*memCacheClient.ServerVersion",
+      "native": "discovery.DiscoveryInterface.serverVersion",
+      "context": null
+    },
+    {
+      "upstream": "discovery/cached/memory/memcache.go",
+      "line": 253,
+      "symbol": "*memCacheClient.ServerVersionWithContext",
+      "native": "discovery.DiscoveryInterface.serverVersion",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/cached/memory/memcache.go",
+      "line": 260,
+      "symbol": "*memCacheClient.OpenAPISchema",
+      "native": "discovery.DiscoveryInterface.openAPISchema -> openapi.openAPISchema",
+      "context": null
+    },
+    {
+      "upstream": "discovery/cached/memory/memcache.go",
+      "line": 264,
+      "symbol": "*memCacheClient.OpenAPISchemaWithContext",
+      "native": "discovery.DiscoveryInterface.openAPISchema -> openapi.openAPISchema",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/cached/memory/memcache.go",
+      "line": 271,
+      "symbol": "*memCacheClient.OpenAPIV3",
+      "native": "discovery.DiscoveryInterface.openAPIV3 -> openapi.newClient",
+      "context": null
+    },
+    {
+      "upstream": "discovery/cached/memory/memcache.go",
+      "line": 275,
+      "symbol": "*memCacheClient.OpenAPIV3WithContext",
+      "native": "discovery.DiscoveryInterface.openAPIV3 -> openapi.newClient",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/cached/memory/memcache.go",
+      "line": 294,
+      "symbol": "*memCacheClient.Fresh",
+      "native": "discovery.CachedDiscoveryInterface.fresh",
+      "context": null
+    },
+    {
+      "upstream": "discovery/cached/memory/memcache.go",
+      "line": 298,
+      "symbol": "*memCacheClient.FreshWithContext",
+      "native": "discovery.CachedDiscoveryInterface.fresh",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/cached/memory/memcache.go",
+      "line": 313,
+      "symbol": "*memCacheClient.Invalidate",
+      "native": "discovery.CachedDiscoveryInterface.invalidate",
+      "context": null
+    },
+    {
+      "upstream": "discovery/cached/memory/memcache.go",
+      "line": 319,
+      "symbol": "*memCacheClient.InvalidateWithContext",
+      "native": "discovery.CachedDiscoveryInterface.invalidate",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/cached/memory/memcache.go",
+      "line": 437,
+      "symbol": "*memCacheClient.WithLegacy",
+      "native": "discovery.DiscoveryInterface.withLegacy",
+      "context": null
+    },
+    {
+      "upstream": "discovery/cached/memory/memcache.go",
+      "line": 443,
+      "symbol": "*memCacheClient.WithLegacyWithContext",
+      "native": "discovery.DiscoveryInterface.withLegacy",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/cached/memory/memcache.go",
+      "line": 456,
+      "symbol": "NewMemCacheClient",
+      "native": "discovery/cached/memory.newMemCacheClient",
+      "context": null
+    },
+    {
+      "upstream": "discovery/cached/memory/memcache.go",
+      "line": 465,
+      "symbol": "NewMemCacheClientWithContext",
+      "native": "discovery/cached/memory.newMemCacheClient",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 61,
+      "symbol": "AcceptV1",
+      "native": "discovery.acceptV1",
+      "context": null
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 65,
+      "symbol": "AcceptV2",
+      "native": "discovery.acceptV2",
+      "context": null
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 66,
+      "symbol": "AcceptV2NoPeer",
+      "native": "discovery.acceptV2NoPeer",
+      "context": null
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 80,
+      "symbol": "DiscoveryInterface",
+      "native": "discovery.DiscoveryInterface",
+      "context": null
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 99,
+      "symbol": "DiscoveryInterfaceWithContext",
+      "native": "discovery.DiscoveryInterface",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 113,
+      "symbol": "DiscoveryInterfaces",
+      "native": "discovery.DiscoveryInterface",
+      "context": null
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 118,
+      "symbol": "ToDiscoveryInterfaceWithContext",
+      "native": "native IO capability identity; context-wrapper hierarchy eliminated",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 144,
+      "symbol": "*discoveryInterfaceWrapper.RESTClient",
+      "native": "discovery.DiscoveryInterface.restClient",
+      "context": null
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 148,
+      "symbol": "*discoveryInterfaceWrapper.WithLegacyWithContext",
+      "native": "discovery.DiscoveryInterface.withLegacy",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 159,
+      "symbol": "AggregatedDiscoveryInterface",
+      "native": "discovery.DiscoveryInterface.groupsAndMaybeResources",
+      "context": null
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 171,
+      "symbol": "AggregatedDiscoveryInterfaceWithContext",
+      "native": "discovery.DiscoveryInterface.groupsAndMaybeResources",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 177,
+      "symbol": "ToAggregatedDiscoveryInterfaceWithContext",
+      "native": "native IO capability identity; context-wrapper hierarchy eliminated",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 195,
+      "symbol": "*aggregatedDiscoveryInterfaceWrapper.GroupsAndMaybeResourcesWithContext",
+      "native": "discovery.groupsAndMaybeResources",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 207,
+      "symbol": "CachedDiscoveryInterface",
+      "native": "discovery.CachedDiscoveryInterface",
+      "context": null
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 232,
+      "symbol": "CachedDiscoveryInterfaceWithContext",
+      "native": "discovery.CachedDiscoveryInterface",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 245,
+      "symbol": "ToCachedDiscoveryInterfaceWithContext",
+      "native": "native IO capability identity; context-wrapper hierarchy eliminated",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 263,
+      "symbol": "*cachedDiscoveryInterfaceWrapper.FreshWithContext",
+      "native": "discovery.CachedDiscoveryInterface.fresh",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 267,
+      "symbol": "*cachedDiscoveryInterfaceWrapper.InvalidateWithContext",
+      "native": "discovery.CachedDiscoveryInterface.invalidate",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 276,
+      "symbol": "ServerGroupsInterface",
+      "native": "discovery.DiscoveryInterface.serverGroups",
+      "context": null
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 287,
+      "symbol": "ServerGroupsInterfaceWithContext",
+      "native": "discovery.DiscoveryInterface.serverGroups",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 293,
+      "symbol": "ToServerGroupsInterfaceWithContext",
+      "native": "native IO capability identity; context-wrapper hierarchy eliminated",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 309,
+      "symbol": "*serverGroupsInterfaceWrapper.ServerGroupsWithContext",
+      "native": "discovery.DiscoveryInterface.serverGroups",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 318,
+      "symbol": "ServerResourcesInterface",
+      "native": "discovery.DiscoveryInterface resource callbacks",
+      "context": null
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 357,
+      "symbol": "ServerResourcesInterfaceWithContext",
+      "native": "discovery.DiscoveryInterface resource callbacks",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 379,
+      "symbol": "ToServerResourcesInterfaceWithContext",
+      "native": "native IO capability identity; context-wrapper hierarchy eliminated",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 395,
+      "symbol": "*serverResourcesInterfaceWrapper.ServerResourcesForGroupVersionWithContext",
+      "native": "discovery.DiscoveryInterface.serverResourcesForGroupVersion",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 399,
+      "symbol": "*serverResourcesInterfaceWrapper.ServerGroupsAndResourcesWithContext",
+      "native": "discovery.serverGroupsAndResources",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 403,
+      "symbol": "*serverResourcesInterfaceWrapper.ServerPreferredResourcesWithContext",
+      "native": "discovery.serverPreferredResources",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 407,
+      "symbol": "*serverResourcesInterfaceWrapper.ServerPreferredNamespacedResourcesWithContext",
+      "native": "discovery.serverPreferredNamespacedResources",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 416,
+      "symbol": "ServerVersionInterface",
+      "native": "discovery.DiscoveryInterface.serverVersion",
+      "context": null
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 426,
+      "symbol": "ServerVersionInterfaceWithContext",
+      "native": "discovery.DiscoveryInterface.serverVersion",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 431,
+      "symbol": "ToServerVersionInterfaceWithContext",
+      "native": "native IO capability identity; context-wrapper hierarchy eliminated",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 447,
+      "symbol": "*serverVersionInterfaceWrapper.ServerVersionWithContext",
+      "native": "discovery.DiscoveryInterface.serverVersion",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 456,
+      "symbol": "OpenAPISchemaInterface",
+      "native": "discovery.DiscoveryInterface.openAPISchema",
+      "context": null
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 466,
+      "symbol": "OpenAPISchemaInterfaceWithContext",
+      "native": "discovery.DiscoveryInterface.openAPISchema",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 471,
+      "symbol": "ToOpenAPISchemaInterfaceWithContext",
+      "native": "native IO capability identity; context-wrapper hierarchy eliminated",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 487,
+      "symbol": "*openAPISchemaInterfaceWrapper.OpenAPISchemaWithContext",
+      "native": "discovery.DiscoveryInterface.openAPISchema -> openapi.openAPISchema",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 494,
+      "symbol": "OpenAPIV3SchemaInterface",
+      "native": "discovery.DiscoveryInterface.openAPIV3",
+      "context": null
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 501,
+      "symbol": "OpenAPIV3SchemaInterfaceWithContext",
+      "native": "discovery.DiscoveryInterface.openAPIV3",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 505,
+      "symbol": "OpenAPIV3ToSchemaInterfaceWithContext",
+      "native": "native IO capability identity; context-wrapper hierarchy eliminated",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 521,
+      "symbol": "*openAPIV3SchemaInterfaceWrapper.OpenAPIV3WithContext",
+      "native": "discovery.DiscoveryInterface.openAPIV3 -> openapi.newClient",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 525,
+      "symbol": "ToOpenAPIClientWithContext",
+      "native": "native IO capability identity; context-wrapper hierarchy eliminated",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 542,
+      "symbol": "*openAPIClientWrapper.PathsWithContext",
+      "native": "openapi.Client.paths",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 553,
+      "symbol": "DiscoveryClient",
+      "native": "discovery.DiscoveryInterface",
+      "context": null
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 596,
+      "symbol": "*DiscoveryClient.GroupsAndMaybeResources",
+      "native": "discovery.groupsAndMaybeResources",
+      "context": null
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 611,
+      "symbol": "*DiscoveryClient.GroupsAndMaybeResourcesWithContext",
+      "native": "discovery.groupsAndMaybeResources",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 773,
+      "symbol": "ContentTypeIsGVK",
+      "native": "discovery.contentTypeIsGVK",
+      "context": null
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 791,
+      "symbol": "*DiscoveryClient.ServerGroups",
+      "native": "discovery.DiscoveryInterface.serverGroups",
+      "context": null
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 797,
+      "symbol": "*DiscoveryClient.ServerGroupsWithContext",
+      "native": "discovery.DiscoveryInterface.serverGroups",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 810,
+      "symbol": "*DiscoveryClient.ServerResourcesForGroupVersion",
+      "native": "discovery.DiscoveryInterface.serverResourcesForGroupVersion",
+      "context": null
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 815,
+      "symbol": "*DiscoveryClient.ServerResourcesForGroupVersionWithContext",
+      "native": "discovery.DiscoveryInterface.serverResourcesForGroupVersion",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 842,
+      "symbol": "*DiscoveryClient.ServerGroupsAndResources",
+      "native": "discovery.serverGroupsAndResources",
+      "context": null
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 847,
+      "symbol": "*DiscoveryClient.ServerGroupsAndResourcesWithContext",
+      "native": "discovery.serverGroupsAndResources",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 854,
+      "symbol": "ErrGroupDiscoveryFailed",
+      "native": "discovery.groupDiscoveryFailed",
+      "context": null
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 860,
+      "symbol": "*ErrGroupDiscoveryFailed.Error",
+      "native": "deps/support.errorMessage",
+      "context": null
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 870,
+      "symbol": "*ErrGroupDiscoveryFailed.Is",
+      "native": "deps/support.errorIs + structural error tag identity",
+      "context": null
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 877,
+      "symbol": "IsGroupDiscoveryFailedError",
+      "native": "discovery.isGroupDiscoveryFailedError",
+      "context": null
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 884,
+      "symbol": "GroupDiscoveryFailedErrorGroups",
+      "native": "discovery.groupDiscoveryFailedErrorGroups",
+      "context": null
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 895,
+      "symbol": "ServerGroupsAndResources",
+      "native": "discovery.serverGroupsAndResources",
+      "context": null
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 899,
+      "symbol": "ServerGroupsAndResourcesWithContext",
+      "native": "discovery.serverGroupsAndResources",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 971,
+      "symbol": "ServerPreferredResources",
+      "native": "discovery.serverPreferredResources",
+      "context": null
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 976,
+      "symbol": "ServerPreferredResourcesWithContext",
+      "native": "discovery.serverPreferredResources",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 1104,
+      "symbol": "*DiscoveryClient.ServerPreferredResources",
+      "native": "discovery.serverPreferredResources",
+      "context": null
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 1114,
+      "symbol": "*DiscoveryClient.ServerPreferredResourcesWithContext",
+      "native": "discovery.serverPreferredResources",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 1128,
+      "symbol": "*DiscoveryClient.ServerPreferredNamespacedResources",
+      "native": "discovery.serverPreferredNamespacedResources",
+      "context": null
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 1134,
+      "symbol": "*DiscoveryClient.ServerPreferredNamespacedResourcesWithContext",
+      "native": "discovery.serverPreferredNamespacedResources",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 1143,
+      "symbol": "ServerPreferredNamespacedResources",
+      "native": "discovery.serverPreferredNamespacedResources",
+      "context": null
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 1148,
+      "symbol": "ServerPreferredNamespacedResourcesWithContext",
+      "native": "discovery.serverPreferredNamespacedResources",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 1156,
+      "symbol": "*DiscoveryClient.ServerVersion",
+      "native": "discovery.DiscoveryInterface.serverVersion",
+      "context": null
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 1161,
+      "symbol": "*DiscoveryClient.ServerVersionWithContext",
+      "native": "discovery.DiscoveryInterface.serverVersion",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 1175,
+      "symbol": "*DiscoveryClient.OpenAPISchema",
+      "native": "discovery.DiscoveryInterface.openAPISchema -> openapi.openAPISchema",
+      "context": null
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 1180,
+      "symbol": "*DiscoveryClient.OpenAPISchemaWithContext",
+      "native": "discovery.DiscoveryInterface.openAPISchema -> openapi.openAPISchema",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 1196,
+      "symbol": "*DiscoveryClient.OpenAPIV3",
+      "native": "discovery.DiscoveryInterface.openAPIV3 -> openapi.newClient",
+      "context": null
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 1200,
+      "symbol": "*DiscoveryClient.OpenAPIV3WithContext",
+      "native": "discovery.DiscoveryInterface.openAPIV3 -> openapi.newClient",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 1210,
+      "symbol": "*DiscoveryClient.WithLegacy",
+      "native": "discovery.DiscoveryInterface.withLegacy",
+      "context": null
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 1218,
+      "symbol": "*DiscoveryClient.WithLegacyWithContext",
+      "native": "discovery.DiscoveryInterface.withLegacy",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 1272,
+      "symbol": "NewDiscoveryClientForConfig",
+      "native": "discovery.newDiscoveryClientForConfig",
+      "context": null
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 1287,
+      "symbol": "NewDiscoveryClientForConfigAndClient",
+      "native": "discovery.newDiscoveryClientForConfigAndClient",
+      "context": null
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 1298,
+      "symbol": "NewDiscoveryClientForConfigOrDie",
+      "native": "discovery.newDiscoveryClientForConfigOrDie",
+      "context": null
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 1308,
+      "symbol": "NewDiscoveryClient",
+      "native": "discovery.newDiscoveryClient",
+      "context": null
+    },
+    {
+      "upstream": "discovery/discovery_client.go",
+      "line": 1314,
+      "symbol": "*DiscoveryClient.RESTClient",
+      "native": "discovery.DiscoveryInterface.restClient",
+      "context": null
+    },
+    {
+      "upstream": "discovery/fake/discovery.go",
+      "line": 40,
+      "symbol": "FakeDiscovery",
+      "native": "discovery/fake.FakeDiscovery",
+      "context": null
+    },
+    {
+      "upstream": "discovery/fake/discovery.go",
+      "line": 57,
+      "symbol": "*FakeDiscovery.ServerResourcesForGroupVersion",
+      "native": "discovery.DiscoveryInterface.serverResourcesForGroupVersion",
+      "context": null
+    },
+    {
+      "upstream": "discovery/fake/discovery.go",
+      "line": 63,
+      "symbol": "*FakeDiscovery.ServerResourcesForGroupVersionWithContext",
+      "native": "discovery.DiscoveryInterface.serverResourcesForGroupVersion",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/fake/discovery.go",
+      "line": 90,
+      "symbol": "*FakeDiscovery.ServerGroupsAndResources",
+      "native": "discovery.serverGroupsAndResources",
+      "context": null
+    },
+    {
+      "upstream": "discovery/fake/discovery.go",
+      "line": 95,
+      "symbol": "*FakeDiscovery.ServerGroupsAndResourcesWithContext",
+      "native": "discovery.serverGroupsAndResources",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/fake/discovery.go",
+      "line": 121,
+      "symbol": "*FakeDiscovery.ServerPreferredResources",
+      "native": "discovery.serverPreferredResources",
+      "context": null
+    },
+    {
+      "upstream": "discovery/fake/discovery.go",
+      "line": 127,
+      "symbol": "*FakeDiscovery.ServerPreferredResourcesWithContext",
+      "native": "discovery.serverPreferredResources",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/fake/discovery.go",
+      "line": 137,
+      "symbol": "*FakeDiscovery.ServerPreferredNamespacedResources",
+      "native": "discovery.serverPreferredNamespacedResources",
+      "context": null
+    },
+    {
+      "upstream": "discovery/fake/discovery.go",
+      "line": 143,
+      "symbol": "*FakeDiscovery.ServerPreferredNamespacedResourcesWithContext",
+      "native": "discovery.serverPreferredNamespacedResources",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/fake/discovery.go",
+      "line": 153,
+      "symbol": "*FakeDiscovery.ServerGroups",
+      "native": "discovery.DiscoveryInterface.serverGroups",
+      "context": null
+    },
+    {
+      "upstream": "discovery/fake/discovery.go",
+      "line": 159,
+      "symbol": "*FakeDiscovery.ServerGroupsWithContext",
+      "native": "discovery.DiscoveryInterface.serverGroups",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/fake/discovery.go",
+      "line": 207,
+      "symbol": "*FakeDiscovery.ServerVersion",
+      "native": "discovery.DiscoveryInterface.serverVersion",
+      "context": null
+    },
+    {
+      "upstream": "discovery/fake/discovery.go",
+      "line": 212,
+      "symbol": "*FakeDiscovery.ServerVersionWithContext",
+      "native": "discovery.DiscoveryInterface.serverVersion",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/fake/discovery.go",
+      "line": 234,
+      "symbol": "*FakeDiscovery.OpenAPISchema",
+      "native": "discovery.DiscoveryInterface.openAPISchema -> openapi.openAPISchema",
+      "context": null
+    },
+    {
+      "upstream": "discovery/fake/discovery.go",
+      "line": 239,
+      "symbol": "*FakeDiscovery.OpenAPISchemaWithContext",
+      "native": "discovery.DiscoveryInterface.openAPISchema -> openapi.openAPISchema",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/fake/discovery.go",
+      "line": 246,
+      "symbol": "*FakeDiscovery.OpenAPIV3",
+      "native": "discovery.DiscoveryInterface.openAPIV3 -> openapi.newClient",
+      "context": null
+    },
+    {
+      "upstream": "discovery/fake/discovery.go",
+      "line": 250,
+      "symbol": "*FakeDiscovery.OpenAPIV3WithContext",
+      "native": "discovery.DiscoveryInterface.openAPIV3 -> openapi.newClient",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/fake/discovery.go",
+      "line": 256,
+      "symbol": "*FakeDiscovery.RESTClient",
+      "native": "discovery.DiscoveryInterface.restClient",
+      "context": null
+    },
+    {
+      "upstream": "discovery/fake/discovery.go",
+      "line": 263,
+      "symbol": "*FakeDiscovery.WithLegacy",
+      "native": "discovery.DiscoveryInterface.withLegacy",
+      "context": null
+    },
+    {
+      "upstream": "discovery/fake/discovery.go",
+      "line": 267,
+      "symbol": "*FakeDiscovery.WithLegacyWithContext",
+      "native": "discovery.DiscoveryInterface.withLegacy",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "discovery/helper.go",
+      "line": 31,
+      "symbol": "IsResourceEnabled",
+      "native": "discovery.isResourceEnabled",
+      "context": null
+    },
+    {
+      "upstream": "discovery/helper.go",
+      "line": 52,
+      "symbol": "MatchesServerVersion",
+      "native": "discovery.matchesServerVersion",
+      "context": null
+    },
+    {
+      "upstream": "discovery/helper.go",
+      "line": 66,
+      "symbol": "ServerSupportsVersion",
+      "native": "discovery.serverSupportsVersion",
+      "context": null
+    },
+    {
+      "upstream": "discovery/helper.go",
+      "line": 93,
+      "symbol": "GroupVersionResources",
+      "native": "discovery.groupVersionResources",
+      "context": null
+    },
+    {
+      "upstream": "discovery/helper.go",
+      "line": 108,
+      "symbol": "FilteredBy",
+      "native": "discovery.filteredBy",
+      "context": null
+    },
+    {
+      "upstream": "discovery/helper.go",
+      "line": 126,
+      "symbol": "ResourcePredicate",
+      "native": "func(String,APIResource) Bool",
+      "context": null
+    },
+    {
+      "upstream": "discovery/helper.go",
+      "line": 131,
+      "symbol": "ResourcePredicateFunc",
+      "native": "func(String,APIResource) Bool",
+      "context": null
+    },
+    {
+      "upstream": "discovery/helper.go",
+      "line": 134,
+      "symbol": "ResourcePredicateFunc.Match",
+      "native": "native predicate invocation",
+      "context": null
+    },
+    {
+      "upstream": "discovery/helper.go",
+      "line": 139,
+      "symbol": "SupportsAllVerbs",
+      "native": "discovery.supportsAllVerbs",
+      "context": null
+    },
+    {
+      "upstream": "discovery/helper.go",
+      "line": 144,
+      "symbol": "SupportsAllVerbs.Match",
+      "native": "native predicate invocation",
+      "context": null
+    },
+    {
+      "upstream": "restmapper/category_expansion.go",
+      "line": 34,
+      "symbol": "CategoryExpander",
+      "native": "restmapper.CategoryExpander",
+      "context": null
+    },
+    {
+      "upstream": "restmapper/category_expansion.go",
+      "line": 40,
+      "symbol": "CategoryExpanderWithContext",
+      "native": "restmapper.CategoryExpander",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "restmapper/category_expansion.go",
+      "line": 44,
+      "symbol": "ToCategoryExpanderWithContext",
+      "native": "native IO capability identity; context-wrapper hierarchy eliminated",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "restmapper/category_expansion.go",
+      "line": 60,
+      "symbol": "*categoryExpanderWrapper.ExpandWithContext",
+      "native": "restmapper.CategoryExpander.expand",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "restmapper/category_expansion.go",
+      "line": 66,
+      "symbol": "SimpleCategoryExpander",
+      "native": "restmapper.simpleCategoryExpander",
+      "context": null
+    },
+    {
+      "upstream": "restmapper/category_expansion.go",
+      "line": 76,
+      "symbol": "SimpleCategoryExpander.Expand",
+      "native": "restmapper.CategoryExpander.expand",
+      "context": null
+    },
+    {
+      "upstream": "restmapper/category_expansion.go",
+      "line": 82,
+      "symbol": "SimpleCategoryExpander.ExpandWithContext",
+      "native": "restmapper.CategoryExpander.expand",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "restmapper/category_expansion.go",
+      "line": 99,
+      "symbol": "NewDiscoveryCategoryExpander",
+      "native": "restmapper.newDiscoveryCategoryExpander",
+      "context": null
+    },
+    {
+      "upstream": "restmapper/category_expansion.go",
+      "line": 106,
+      "symbol": "NewDiscoveryCategoryExpanderWithContext",
+      "native": "restmapper.newDiscoveryCategoryExpander",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "restmapper/category_expansion.go",
+      "line": 122,
+      "symbol": "discoveryCategoryExpander.Expand",
+      "native": "restmapper.CategoryExpander.expand",
+      "context": null
+    },
+    {
+      "upstream": "restmapper/category_expansion.go",
+      "line": 127,
+      "symbol": "discoveryCategoryExpander.ExpandWithContext",
+      "native": "restmapper.CategoryExpander.expand",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "restmapper/category_expansion.go",
+      "line": 164,
+      "symbol": "UnionCategoryExpander",
+      "native": "restmapper.unionCategoryExpander",
+      "context": null
+    },
+    {
+      "upstream": "restmapper/category_expansion.go",
+      "line": 169,
+      "symbol": "UnionCategoryExpander.Expand",
+      "native": "restmapper.CategoryExpander.expand",
+      "context": null
+    },
+    {
+      "upstream": "restmapper/category_expansion.go",
+      "line": 181,
+      "symbol": "UnionCategoryExpanderWithContext",
+      "native": "restmapper.unionCategoryExpander",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "restmapper/category_expansion.go",
+      "line": 186,
+      "symbol": "UnionCategoryExpanderWithContext.ExpandWithContext",
+      "native": "restmapper.CategoryExpander.expand",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "restmapper/discovery.go",
+      "line": 35,
+      "symbol": "APIGroupResources",
+      "native": "restmapper.APIGroupResources",
+      "context": null
+    },
+    {
+      "upstream": "restmapper/discovery.go",
+      "line": 48,
+      "symbol": "NewDiscoveryRESTMapper",
+      "native": "restmapper.newDiscoveryRESTMapper",
+      "context": null
+    },
+    {
+      "upstream": "restmapper/discovery.go",
+      "line": 63,
+      "symbol": "NewDiscoveryRESTMapperWithContext",
+      "native": "restmapper.newDiscoveryRESTMapper",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "restmapper/discovery.go",
+      "line": 180,
+      "symbol": "GetAPIGroupResources",
+      "native": "restmapper.getAPIGroupResources",
+      "context": null
+    },
+    {
+      "upstream": "restmapper/discovery.go",
+      "line": 186,
+      "symbol": "GetAPIGroupResourcesWithContext",
+      "native": "restmapper.getAPIGroupResources",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "restmapper/discovery.go",
+      "line": 218,
+      "symbol": "DeferredDiscoveryRESTMapper",
+      "native": "restmapper.DeferredDiscoveryRESTMapper",
+      "context": null
+    },
+    {
+      "upstream": "restmapper/discovery.go",
+      "line": 238,
+      "symbol": "NewDeferredDiscoveryRESTMapper",
+      "native": "restmapper.newDeferredDiscoveryRESTMapper",
+      "context": null
+    },
+    {
+      "upstream": "restmapper/discovery.go",
+      "line": 247,
+      "symbol": "NewDeferredDiscoveryRESTMapperWithContext",
+      "native": "restmapper.newDeferredDiscoveryRESTMapper",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "restmapper/discovery.go",
+      "line": 272,
+      "symbol": "*DeferredDiscoveryRESTMapper.Reset",
+      "native": "restmapper.RESTMapper.reset",
+      "context": null
+    },
+    {
+      "upstream": "restmapper/discovery.go",
+      "line": 278,
+      "symbol": "*DeferredDiscoveryRESTMapper.ResetWithContext",
+      "native": "restmapper.RESTMapper.reset",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "restmapper/discovery.go",
+      "line": 294,
+      "symbol": "*DeferredDiscoveryRESTMapper.KindFor",
+      "native": "restmapper.RESTMapper.kindFor",
+      "context": null
+    },
+    {
+      "upstream": "restmapper/discovery.go",
+      "line": 300,
+      "symbol": "*DeferredDiscoveryRESTMapper.KindForWithContext",
+      "native": "restmapper.RESTMapper.kindFor",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "restmapper/discovery.go",
+      "line": 319,
+      "symbol": "*DeferredDiscoveryRESTMapper.KindsFor",
+      "native": "restmapper.RESTMapper.kindsFor",
+      "context": null
+    },
+    {
+      "upstream": "restmapper/discovery.go",
+      "line": 325,
+      "symbol": "*DeferredDiscoveryRESTMapper.KindsForWithContext",
+      "native": "restmapper.RESTMapper.kindsFor",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "restmapper/discovery.go",
+      "line": 344,
+      "symbol": "*DeferredDiscoveryRESTMapper.ResourceFor",
+      "native": "restmapper.RESTMapper.resourceFor",
+      "context": null
+    },
+    {
+      "upstream": "restmapper/discovery.go",
+      "line": 350,
+      "symbol": "*DeferredDiscoveryRESTMapper.ResourceForWithContext",
+      "native": "restmapper.RESTMapper.resourceFor",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "restmapper/discovery.go",
+      "line": 369,
+      "symbol": "*DeferredDiscoveryRESTMapper.ResourcesFor",
+      "native": "restmapper.RESTMapper.resourcesFor",
+      "context": null
+    },
+    {
+      "upstream": "restmapper/discovery.go",
+      "line": 375,
+      "symbol": "*DeferredDiscoveryRESTMapper.ResourcesForWithContext",
+      "native": "restmapper.RESTMapper.resourcesFor",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "restmapper/discovery.go",
+      "line": 394,
+      "symbol": "*DeferredDiscoveryRESTMapper.RESTMapping",
+      "native": "restmapper.RESTMapper.restMapping",
+      "context": null
+    },
+    {
+      "upstream": "restmapper/discovery.go",
+      "line": 400,
+      "symbol": "*DeferredDiscoveryRESTMapper.RESTMappingWithContext",
+      "native": "restmapper.RESTMapper.restMapping",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "restmapper/discovery.go",
+      "line": 420,
+      "symbol": "*DeferredDiscoveryRESTMapper.RESTMappings",
+      "native": "restmapper.RESTMapper.restMappings",
+      "context": null
+    },
+    {
+      "upstream": "restmapper/discovery.go",
+      "line": 427,
+      "symbol": "*DeferredDiscoveryRESTMapper.RESTMappingsWithContext",
+      "native": "restmapper.RESTMapper.restMappings",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "restmapper/discovery.go",
+      "line": 446,
+      "symbol": "*DeferredDiscoveryRESTMapper.ResourceSingularizer",
+      "native": "restmapper.RESTMapper.resourceSingularizer",
+      "context": null
+    },
+    {
+      "upstream": "restmapper/discovery.go",
+      "line": 452,
+      "symbol": "*DeferredDiscoveryRESTMapper.ResourceSingularizerWithContext",
+      "native": "restmapper.RESTMapper.resourceSingularizer",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "restmapper/discovery.go",
+      "line": 465,
+      "symbol": "*DeferredDiscoveryRESTMapper.String",
+      "native": "restmapper.deferredString",
+      "context": null
+    },
+    {
+      "upstream": "restmapper/shortcut.go",
+      "line": 49,
+      "symbol": "NewShortcutExpander",
+      "native": "restmapper.newShortcutExpander",
+      "context": null
+    },
+    {
+      "upstream": "restmapper/shortcut.go",
+      "line": 54,
+      "symbol": "NewShortcutExpanderWithContext",
+      "native": "restmapper.newShortcutExpander",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "restmapper/shortcut.go",
+      "line": 63,
+      "symbol": "shortcutExpander.KindFor",
+      "native": "restmapper.RESTMapper.kindFor",
+      "context": null
+    },
+    {
+      "upstream": "restmapper/shortcut.go",
+      "line": 68,
+      "symbol": "shortcutExpander.KindForWithContext",
+      "native": "restmapper.RESTMapper.kindFor",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "restmapper/shortcut.go",
+      "line": 88,
+      "symbol": "shortcutExpander.KindsFor",
+      "native": "restmapper.RESTMapper.kindsFor",
+      "context": null
+    },
+    {
+      "upstream": "restmapper/shortcut.go",
+      "line": 93,
+      "symbol": "shortcutExpander.KindsForWithContext",
+      "native": "restmapper.RESTMapper.kindsFor",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "restmapper/shortcut.go",
+      "line": 102,
+      "symbol": "shortcutExpander.ResourcesFor",
+      "native": "restmapper.RESTMapper.resourcesFor",
+      "context": null
+    },
+    {
+      "upstream": "restmapper/shortcut.go",
+      "line": 107,
+      "symbol": "shortcutExpander.ResourcesForWithContext",
+      "native": "restmapper.RESTMapper.resourcesFor",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "restmapper/shortcut.go",
+      "line": 116,
+      "symbol": "shortcutExpander.ResourceFor",
+      "native": "restmapper.RESTMapper.resourceFor",
+      "context": null
+    },
+    {
+      "upstream": "restmapper/shortcut.go",
+      "line": 121,
+      "symbol": "shortcutExpander.ResourceForWithContext",
+      "native": "restmapper.RESTMapper.resourceFor",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "restmapper/shortcut.go",
+      "line": 130,
+      "symbol": "shortcutExpander.ResourceSingularizer",
+      "native": "restmapper.RESTMapper.resourceSingularizer",
+      "context": null
+    },
+    {
+      "upstream": "restmapper/shortcut.go",
+      "line": 135,
+      "symbol": "shortcutExpander.ResourceSingularizerWithContext",
+      "native": "restmapper.RESTMapper.resourceSingularizer",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "restmapper/shortcut.go",
+      "line": 144,
+      "symbol": "shortcutExpander.RESTMapping",
+      "native": "restmapper.RESTMapper.restMapping",
+      "context": null
+    },
+    {
+      "upstream": "restmapper/shortcut.go",
+      "line": 149,
+      "symbol": "shortcutExpander.RESTMappingWithContext",
+      "native": "restmapper.RESTMapper.restMapping",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "restmapper/shortcut.go",
+      "line": 158,
+      "symbol": "shortcutExpander.RESTMappings",
+      "native": "restmapper.RESTMapper.restMappings",
+      "context": null
+    },
+    {
+      "upstream": "restmapper/shortcut.go",
+      "line": 163,
+      "symbol": "shortcutExpander.RESTMappingsWithContext",
+      "native": "restmapper.RESTMapper.restMappings",
+      "context": "implicit IO"
+    },
+    {
+      "upstream": "restmapper/shortcut.go",
+      "line": 279,
+      "symbol": "shortcutExpander.Reset",
+      "native": "restmapper.RESTMapper.reset",
+      "context": null
+    },
+    {
+      "upstream": "restmapper/shortcut.go",
+      "line": 283,
+      "symbol": "shortcutExpander.ResetWithContext",
+      "native": "restmapper.RESTMapper.reset",
+      "context": "implicit IO"
+    }
+  ],
+  "verification": "not run; source mapping only"
+}

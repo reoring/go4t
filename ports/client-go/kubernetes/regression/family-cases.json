@@ -1,0 +1,4215 @@
+{
+  "case_count": 162,
+  "cases": [
+    {
+      "client_source": "kubernetes/typed/admissionregistration/v1/admissionregistration_client.go",
+      "function": "runCase000",
+      "group_accessor": "admissionregistrationV1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/admissionregistration/v1.MutatingAdmissionPolicy",
+      "resource_getter": "mutatingAdmissionPolicies",
+      "response": {
+        "apiVersion": "admissionregistration.k8s.io/v1",
+        "kind": "MutatingAdmissionPolicy",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/admissionregistration/v1/mutatingadmissionpolicy.go"
+    },
+    {
+      "client_source": "kubernetes/typed/admissionregistration/v1/admissionregistration_client.go",
+      "function": "runCase001",
+      "group_accessor": "admissionregistrationV1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/admissionregistration/v1.MutatingAdmissionPolicyBinding",
+      "resource_getter": "mutatingAdmissionPolicyBindings",
+      "response": {
+        "apiVersion": "admissionregistration.k8s.io/v1",
+        "kind": "MutatingAdmissionPolicyBinding",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/admissionregistration/v1/mutatingadmissionpolicybinding.go"
+    },
+    {
+      "client_source": "kubernetes/typed/admissionregistration/v1/admissionregistration_client.go",
+      "function": "runCase002",
+      "group_accessor": "admissionregistrationV1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/admissionregistration/v1.MutatingWebhookConfiguration",
+      "resource_getter": "mutatingWebhookConfigurations",
+      "response": {
+        "apiVersion": "admissionregistration.k8s.io/v1",
+        "kind": "MutatingWebhookConfiguration",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/admissionregistration/v1/mutatingwebhookconfiguration.go"
+    },
+    {
+      "client_source": "kubernetes/typed/admissionregistration/v1/admissionregistration_client.go",
+      "function": "runCase003",
+      "group_accessor": "admissionregistrationV1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/admissionregistration/v1.ValidatingAdmissionPolicy",
+      "resource_getter": "validatingAdmissionPolicies",
+      "response": {
+        "apiVersion": "admissionregistration.k8s.io/v1",
+        "kind": "ValidatingAdmissionPolicy",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/admissionregistration/v1/validatingadmissionpolicy.go"
+    },
+    {
+      "client_source": "kubernetes/typed/admissionregistration/v1/admissionregistration_client.go",
+      "function": "runCase004",
+      "group_accessor": "admissionregistrationV1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/admissionregistration/v1.ValidatingAdmissionPolicyBinding",
+      "resource_getter": "validatingAdmissionPolicyBindings",
+      "response": {
+        "apiVersion": "admissionregistration.k8s.io/v1",
+        "kind": "ValidatingAdmissionPolicyBinding",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/admissionregistration/v1/validatingadmissionpolicybinding.go"
+    },
+    {
+      "client_source": "kubernetes/typed/admissionregistration/v1/admissionregistration_client.go",
+      "function": "runCase005",
+      "group_accessor": "admissionregistrationV1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/admissionregistration/v1.ValidatingWebhookConfiguration",
+      "resource_getter": "validatingWebhookConfigurations",
+      "response": {
+        "apiVersion": "admissionregistration.k8s.io/v1",
+        "kind": "ValidatingWebhookConfiguration",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/admissionregistration/v1/validatingwebhookconfiguration.go"
+    },
+    {
+      "client_source": "kubernetes/typed/admissionregistration/v1alpha1/admissionregistration_client.go",
+      "function": "runCase006",
+      "group_accessor": "admissionregistrationV1alpha1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/admissionregistration/v1alpha1.MutatingAdmissionPolicy",
+      "resource_getter": "mutatingAdmissionPolicies",
+      "response": {
+        "apiVersion": "admissionregistration.k8s.io/v1alpha1",
+        "kind": "MutatingAdmissionPolicy",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/admissionregistration/v1alpha1/mutatingadmissionpolicy.go"
+    },
+    {
+      "client_source": "kubernetes/typed/admissionregistration/v1alpha1/admissionregistration_client.go",
+      "function": "runCase007",
+      "group_accessor": "admissionregistrationV1alpha1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/admissionregistration/v1alpha1.MutatingAdmissionPolicyBinding",
+      "resource_getter": "mutatingAdmissionPolicyBindings",
+      "response": {
+        "apiVersion": "admissionregistration.k8s.io/v1alpha1",
+        "kind": "MutatingAdmissionPolicyBinding",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/admissionregistration/v1alpha1/mutatingadmissionpolicybinding.go"
+    },
+    {
+      "client_source": "kubernetes/typed/admissionregistration/v1alpha1/admissionregistration_client.go",
+      "function": "runCase008",
+      "group_accessor": "admissionregistrationV1alpha1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/admissionregistration/v1alpha1.ValidatingAdmissionPolicy",
+      "resource_getter": "validatingAdmissionPolicies",
+      "response": {
+        "apiVersion": "admissionregistration.k8s.io/v1alpha1",
+        "kind": "ValidatingAdmissionPolicy",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/admissionregistration/v1alpha1/validatingadmissionpolicy.go"
+    },
+    {
+      "client_source": "kubernetes/typed/admissionregistration/v1alpha1/admissionregistration_client.go",
+      "function": "runCase009",
+      "group_accessor": "admissionregistrationV1alpha1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/admissionregistration/v1alpha1.ValidatingAdmissionPolicyBinding",
+      "resource_getter": "validatingAdmissionPolicyBindings",
+      "response": {
+        "apiVersion": "admissionregistration.k8s.io/v1alpha1",
+        "kind": "ValidatingAdmissionPolicyBinding",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/admissionregistration/v1alpha1/validatingadmissionpolicybinding.go"
+    },
+    {
+      "client_source": "kubernetes/typed/admissionregistration/v1beta1/admissionregistration_client.go",
+      "function": "runCase010",
+      "group_accessor": "admissionregistrationV1beta1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/admissionregistration/v1beta1.MutatingAdmissionPolicy",
+      "resource_getter": "mutatingAdmissionPolicies",
+      "response": {
+        "apiVersion": "admissionregistration.k8s.io/v1beta1",
+        "kind": "MutatingAdmissionPolicy",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/admissionregistration/v1beta1/mutatingadmissionpolicy.go"
+    },
+    {
+      "client_source": "kubernetes/typed/admissionregistration/v1beta1/admissionregistration_client.go",
+      "function": "runCase011",
+      "group_accessor": "admissionregistrationV1beta1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/admissionregistration/v1beta1.MutatingAdmissionPolicyBinding",
+      "resource_getter": "mutatingAdmissionPolicyBindings",
+      "response": {
+        "apiVersion": "admissionregistration.k8s.io/v1beta1",
+        "kind": "MutatingAdmissionPolicyBinding",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/admissionregistration/v1beta1/mutatingadmissionpolicybinding.go"
+    },
+    {
+      "client_source": "kubernetes/typed/admissionregistration/v1beta1/admissionregistration_client.go",
+      "function": "runCase012",
+      "group_accessor": "admissionregistrationV1beta1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/admissionregistration/v1beta1.MutatingWebhookConfiguration",
+      "resource_getter": "mutatingWebhookConfigurations",
+      "response": {
+        "apiVersion": "admissionregistration.k8s.io/v1beta1",
+        "kind": "MutatingWebhookConfiguration",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/admissionregistration/v1beta1/mutatingwebhookconfiguration.go"
+    },
+    {
+      "client_source": "kubernetes/typed/admissionregistration/v1beta1/admissionregistration_client.go",
+      "function": "runCase013",
+      "group_accessor": "admissionregistrationV1beta1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/admissionregistration/v1beta1.ValidatingAdmissionPolicy",
+      "resource_getter": "validatingAdmissionPolicies",
+      "response": {
+        "apiVersion": "admissionregistration.k8s.io/v1beta1",
+        "kind": "ValidatingAdmissionPolicy",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/admissionregistration/v1beta1/validatingadmissionpolicy.go"
+    },
+    {
+      "client_source": "kubernetes/typed/admissionregistration/v1beta1/admissionregistration_client.go",
+      "function": "runCase014",
+      "group_accessor": "admissionregistrationV1beta1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/admissionregistration/v1beta1.ValidatingAdmissionPolicyBinding",
+      "resource_getter": "validatingAdmissionPolicyBindings",
+      "response": {
+        "apiVersion": "admissionregistration.k8s.io/v1beta1",
+        "kind": "ValidatingAdmissionPolicyBinding",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/admissionregistration/v1beta1/validatingadmissionpolicybinding.go"
+    },
+    {
+      "client_source": "kubernetes/typed/admissionregistration/v1beta1/admissionregistration_client.go",
+      "function": "runCase015",
+      "group_accessor": "admissionregistrationV1beta1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/admissionregistration/v1beta1.ValidatingWebhookConfiguration",
+      "resource_getter": "validatingWebhookConfigurations",
+      "response": {
+        "apiVersion": "admissionregistration.k8s.io/v1beta1",
+        "kind": "ValidatingWebhookConfiguration",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/admissionregistration/v1beta1/validatingwebhookconfiguration.go"
+    },
+    {
+      "client_source": "kubernetes/typed/apiserverinternal/v1alpha1/apiserverinternal_client.go",
+      "function": "runCase016",
+      "group_accessor": "internalV1alpha1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/apiserverinternal/v1alpha1.StorageVersion",
+      "resource_getter": "storageVersions",
+      "response": {
+        "apiVersion": "internal.apiserver.k8s.io/v1alpha1",
+        "kind": "StorageVersion",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/apiserverinternal/v1alpha1/storageversion.go"
+    },
+    {
+      "client_source": "kubernetes/typed/apps/v1/apps_client.go",
+      "function": "runCase017",
+      "group_accessor": "appsV1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/apps/v1.ControllerRevision",
+      "resource_getter": "controllerRevisions",
+      "response": {
+        "apiVersion": "apps/v1",
+        "kind": "ControllerRevision",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/apps/v1/controllerrevision.go"
+    },
+    {
+      "client_source": "kubernetes/typed/apps/v1/apps_client.go",
+      "function": "runCase018",
+      "group_accessor": "appsV1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/apps/v1.DaemonSet",
+      "resource_getter": "daemonSets",
+      "response": {
+        "apiVersion": "apps/v1",
+        "kind": "DaemonSet",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/apps/v1/daemonset.go"
+    },
+    {
+      "client_source": "kubernetes/typed/apps/v1/apps_client.go",
+      "function": "runCase019",
+      "group_accessor": "appsV1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/apps/v1.Deployment",
+      "resource_getter": "deployments",
+      "response": {
+        "apiVersion": "apps/v1",
+        "kind": "Deployment",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/apps/v1/deployment.go"
+    },
+    {
+      "client_source": "kubernetes/typed/apps/v1/apps_client.go",
+      "function": "runCase020",
+      "group_accessor": "appsV1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/apps/v1.ReplicaSet",
+      "resource_getter": "replicaSets",
+      "response": {
+        "apiVersion": "apps/v1",
+        "kind": "ReplicaSet",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/apps/v1/replicaset.go"
+    },
+    {
+      "client_source": "kubernetes/typed/apps/v1/apps_client.go",
+      "function": "runCase021",
+      "group_accessor": "appsV1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/apps/v1.StatefulSet",
+      "resource_getter": "statefulSets",
+      "response": {
+        "apiVersion": "apps/v1",
+        "kind": "StatefulSet",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/apps/v1/statefulset.go"
+    },
+    {
+      "client_source": "kubernetes/typed/apps/v1beta1/apps_client.go",
+      "function": "runCase022",
+      "group_accessor": "appsV1beta1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/apps/v1beta1.ControllerRevision",
+      "resource_getter": "controllerRevisions",
+      "response": {
+        "apiVersion": "apps/v1beta1",
+        "kind": "ControllerRevision",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/apps/v1beta1/controllerrevision.go"
+    },
+    {
+      "client_source": "kubernetes/typed/apps/v1beta1/apps_client.go",
+      "function": "runCase023",
+      "group_accessor": "appsV1beta1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/apps/v1beta1.Deployment",
+      "resource_getter": "deployments",
+      "response": {
+        "apiVersion": "apps/v1beta1",
+        "kind": "Deployment",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/apps/v1beta1/deployment.go"
+    },
+    {
+      "client_source": "kubernetes/typed/apps/v1beta1/apps_client.go",
+      "function": "runCase024",
+      "group_accessor": "appsV1beta1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/apps/v1beta1.StatefulSet",
+      "resource_getter": "statefulSets",
+      "response": {
+        "apiVersion": "apps/v1beta1",
+        "kind": "StatefulSet",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/apps/v1beta1/statefulset.go"
+    },
+    {
+      "client_source": "kubernetes/typed/apps/v1beta2/apps_client.go",
+      "function": "runCase025",
+      "group_accessor": "appsV1beta2",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/apps/v1beta2.ControllerRevision",
+      "resource_getter": "controllerRevisions",
+      "response": {
+        "apiVersion": "apps/v1beta2",
+        "kind": "ControllerRevision",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/apps/v1beta2/controllerrevision.go"
+    },
+    {
+      "client_source": "kubernetes/typed/apps/v1beta2/apps_client.go",
+      "function": "runCase026",
+      "group_accessor": "appsV1beta2",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/apps/v1beta2.DaemonSet",
+      "resource_getter": "daemonSets",
+      "response": {
+        "apiVersion": "apps/v1beta2",
+        "kind": "DaemonSet",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/apps/v1beta2/daemonset.go"
+    },
+    {
+      "client_source": "kubernetes/typed/apps/v1beta2/apps_client.go",
+      "function": "runCase027",
+      "group_accessor": "appsV1beta2",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/apps/v1beta2.Deployment",
+      "resource_getter": "deployments",
+      "response": {
+        "apiVersion": "apps/v1beta2",
+        "kind": "Deployment",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/apps/v1beta2/deployment.go"
+    },
+    {
+      "client_source": "kubernetes/typed/apps/v1beta2/apps_client.go",
+      "function": "runCase028",
+      "group_accessor": "appsV1beta2",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/apps/v1beta2.ReplicaSet",
+      "resource_getter": "replicaSets",
+      "response": {
+        "apiVersion": "apps/v1beta2",
+        "kind": "ReplicaSet",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/apps/v1beta2/replicaset.go"
+    },
+    {
+      "client_source": "kubernetes/typed/apps/v1beta2/apps_client.go",
+      "function": "runCase029",
+      "group_accessor": "appsV1beta2",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/apps/v1beta2.StatefulSet",
+      "resource_getter": "statefulSets",
+      "response": {
+        "apiVersion": "apps/v1beta2",
+        "kind": "StatefulSet",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/apps/v1beta2/statefulset.go"
+    },
+    {
+      "client_source": "kubernetes/typed/authentication/v1/authentication_client.go",
+      "function": "runCase030",
+      "group_accessor": "authenticationV1",
+      "input": {
+        "apiVersion": "authentication.k8s.io/v1",
+        "kind": "SelfSubjectReview",
+        "metadata": {
+          "name": "input-name",
+          "namespace": "input-namespace"
+        }
+      },
+      "namespace": "",
+      "operation": "Create",
+      "options": {
+        "dryRun": [
+          "All"
+        ],
+        "fieldManager": "family-fixture",
+        "fieldValidation": "Strict"
+      },
+      "request_name": null,
+      "resource": "k8s.io/api/authentication/v1.SelfSubjectReview",
+      "resource_getter": "selfSubjectReviews",
+      "response": {
+        "apiVersion": "authentication.k8s.io/v1",
+        "kind": "SelfSubjectReview",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/authentication/v1/selfsubjectreview.go"
+    },
+    {
+      "client_source": "kubernetes/typed/authentication/v1/authentication_client.go",
+      "function": "runCase031",
+      "group_accessor": "authenticationV1",
+      "input": {
+        "apiVersion": "authentication.k8s.io/v1",
+        "kind": "TokenReview",
+        "metadata": {
+          "name": "input-name",
+          "namespace": "input-namespace"
+        }
+      },
+      "namespace": "",
+      "operation": "Create",
+      "options": {
+        "dryRun": [
+          "All"
+        ],
+        "fieldManager": "family-fixture",
+        "fieldValidation": "Strict"
+      },
+      "request_name": null,
+      "resource": "k8s.io/api/authentication/v1.TokenReview",
+      "resource_getter": "tokenReviews",
+      "response": {
+        "apiVersion": "authentication.k8s.io/v1",
+        "kind": "TokenReview",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/authentication/v1/tokenreview.go"
+    },
+    {
+      "client_source": "kubernetes/typed/authentication/v1alpha1/authentication_client.go",
+      "function": "runCase032",
+      "group_accessor": "authenticationV1alpha1",
+      "input": {
+        "apiVersion": "authentication.k8s.io/v1alpha1",
+        "kind": "SelfSubjectReview",
+        "metadata": {
+          "name": "input-name",
+          "namespace": "input-namespace"
+        }
+      },
+      "namespace": "",
+      "operation": "Create",
+      "options": {
+        "dryRun": [
+          "All"
+        ],
+        "fieldManager": "family-fixture",
+        "fieldValidation": "Strict"
+      },
+      "request_name": null,
+      "resource": "k8s.io/api/authentication/v1alpha1.SelfSubjectReview",
+      "resource_getter": "selfSubjectReviews",
+      "response": {
+        "apiVersion": "authentication.k8s.io/v1alpha1",
+        "kind": "SelfSubjectReview",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/authentication/v1alpha1/selfsubjectreview.go"
+    },
+    {
+      "client_source": "kubernetes/typed/authentication/v1beta1/authentication_client.go",
+      "function": "runCase033",
+      "group_accessor": "authenticationV1beta1",
+      "input": {
+        "apiVersion": "authentication.k8s.io/v1beta1",
+        "kind": "SelfSubjectReview",
+        "metadata": {
+          "name": "input-name",
+          "namespace": "input-namespace"
+        }
+      },
+      "namespace": "",
+      "operation": "Create",
+      "options": {
+        "dryRun": [
+          "All"
+        ],
+        "fieldManager": "family-fixture",
+        "fieldValidation": "Strict"
+      },
+      "request_name": null,
+      "resource": "k8s.io/api/authentication/v1beta1.SelfSubjectReview",
+      "resource_getter": "selfSubjectReviews",
+      "response": {
+        "apiVersion": "authentication.k8s.io/v1beta1",
+        "kind": "SelfSubjectReview",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/authentication/v1beta1/selfsubjectreview.go"
+    },
+    {
+      "client_source": "kubernetes/typed/authentication/v1beta1/authentication_client.go",
+      "function": "runCase034",
+      "group_accessor": "authenticationV1beta1",
+      "input": {
+        "apiVersion": "authentication.k8s.io/v1beta1",
+        "kind": "TokenReview",
+        "metadata": {
+          "name": "input-name",
+          "namespace": "input-namespace"
+        }
+      },
+      "namespace": "",
+      "operation": "Create",
+      "options": {
+        "dryRun": [
+          "All"
+        ],
+        "fieldManager": "family-fixture",
+        "fieldValidation": "Strict"
+      },
+      "request_name": null,
+      "resource": "k8s.io/api/authentication/v1beta1.TokenReview",
+      "resource_getter": "tokenReviews",
+      "response": {
+        "apiVersion": "authentication.k8s.io/v1beta1",
+        "kind": "TokenReview",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/authentication/v1beta1/tokenreview.go"
+    },
+    {
+      "client_source": "kubernetes/typed/authorization/v1/authorization_client.go",
+      "function": "runCase035",
+      "group_accessor": "authorizationV1",
+      "input": {
+        "apiVersion": "authorization.k8s.io/v1",
+        "kind": "LocalSubjectAccessReview",
+        "metadata": {
+          "name": "input-name",
+          "namespace": "input-namespace"
+        }
+      },
+      "namespace": "client-namespace",
+      "operation": "Create",
+      "options": {
+        "dryRun": [
+          "All"
+        ],
+        "fieldManager": "family-fixture",
+        "fieldValidation": "Strict"
+      },
+      "request_name": null,
+      "resource": "k8s.io/api/authorization/v1.LocalSubjectAccessReview",
+      "resource_getter": "localSubjectAccessReviews",
+      "response": {
+        "apiVersion": "authorization.k8s.io/v1",
+        "kind": "LocalSubjectAccessReview",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/authorization/v1/localsubjectaccessreview.go"
+    },
+    {
+      "client_source": "kubernetes/typed/authorization/v1/authorization_client.go",
+      "function": "runCase036",
+      "group_accessor": "authorizationV1",
+      "input": {
+        "apiVersion": "authorization.k8s.io/v1",
+        "kind": "SelfSubjectAccessReview",
+        "metadata": {
+          "name": "input-name",
+          "namespace": "input-namespace"
+        }
+      },
+      "namespace": "",
+      "operation": "Create",
+      "options": {
+        "dryRun": [
+          "All"
+        ],
+        "fieldManager": "family-fixture",
+        "fieldValidation": "Strict"
+      },
+      "request_name": null,
+      "resource": "k8s.io/api/authorization/v1.SelfSubjectAccessReview",
+      "resource_getter": "selfSubjectAccessReviews",
+      "response": {
+        "apiVersion": "authorization.k8s.io/v1",
+        "kind": "SelfSubjectAccessReview",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/authorization/v1/selfsubjectaccessreview.go"
+    },
+    {
+      "client_source": "kubernetes/typed/authorization/v1/authorization_client.go",
+      "function": "runCase037",
+      "group_accessor": "authorizationV1",
+      "input": {
+        "apiVersion": "authorization.k8s.io/v1",
+        "kind": "SelfSubjectRulesReview",
+        "metadata": {
+          "name": "input-name",
+          "namespace": "input-namespace"
+        }
+      },
+      "namespace": "",
+      "operation": "Create",
+      "options": {
+        "dryRun": [
+          "All"
+        ],
+        "fieldManager": "family-fixture",
+        "fieldValidation": "Strict"
+      },
+      "request_name": null,
+      "resource": "k8s.io/api/authorization/v1.SelfSubjectRulesReview",
+      "resource_getter": "selfSubjectRulesReviews",
+      "response": {
+        "apiVersion": "authorization.k8s.io/v1",
+        "kind": "SelfSubjectRulesReview",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/authorization/v1/selfsubjectrulesreview.go"
+    },
+    {
+      "client_source": "kubernetes/typed/authorization/v1/authorization_client.go",
+      "function": "runCase038",
+      "group_accessor": "authorizationV1",
+      "input": {
+        "apiVersion": "authorization.k8s.io/v1",
+        "kind": "SubjectAccessReview",
+        "metadata": {
+          "name": "input-name",
+          "namespace": "input-namespace"
+        }
+      },
+      "namespace": "",
+      "operation": "Create",
+      "options": {
+        "dryRun": [
+          "All"
+        ],
+        "fieldManager": "family-fixture",
+        "fieldValidation": "Strict"
+      },
+      "request_name": null,
+      "resource": "k8s.io/api/authorization/v1.SubjectAccessReview",
+      "resource_getter": "subjectAccessReviews",
+      "response": {
+        "apiVersion": "authorization.k8s.io/v1",
+        "kind": "SubjectAccessReview",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/authorization/v1/subjectaccessreview.go"
+    },
+    {
+      "client_source": "kubernetes/typed/authorization/v1beta1/authorization_client.go",
+      "function": "runCase039",
+      "group_accessor": "authorizationV1beta1",
+      "input": {
+        "apiVersion": "authorization.k8s.io/v1beta1",
+        "kind": "LocalSubjectAccessReview",
+        "metadata": {
+          "name": "input-name",
+          "namespace": "input-namespace"
+        }
+      },
+      "namespace": "client-namespace",
+      "operation": "Create",
+      "options": {
+        "dryRun": [
+          "All"
+        ],
+        "fieldManager": "family-fixture",
+        "fieldValidation": "Strict"
+      },
+      "request_name": null,
+      "resource": "k8s.io/api/authorization/v1beta1.LocalSubjectAccessReview",
+      "resource_getter": "localSubjectAccessReviews",
+      "response": {
+        "apiVersion": "authorization.k8s.io/v1beta1",
+        "kind": "LocalSubjectAccessReview",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/authorization/v1beta1/localsubjectaccessreview.go"
+    },
+    {
+      "client_source": "kubernetes/typed/authorization/v1beta1/authorization_client.go",
+      "function": "runCase040",
+      "group_accessor": "authorizationV1beta1",
+      "input": {
+        "apiVersion": "authorization.k8s.io/v1beta1",
+        "kind": "SelfSubjectAccessReview",
+        "metadata": {
+          "name": "input-name",
+          "namespace": "input-namespace"
+        }
+      },
+      "namespace": "",
+      "operation": "Create",
+      "options": {
+        "dryRun": [
+          "All"
+        ],
+        "fieldManager": "family-fixture",
+        "fieldValidation": "Strict"
+      },
+      "request_name": null,
+      "resource": "k8s.io/api/authorization/v1beta1.SelfSubjectAccessReview",
+      "resource_getter": "selfSubjectAccessReviews",
+      "response": {
+        "apiVersion": "authorization.k8s.io/v1beta1",
+        "kind": "SelfSubjectAccessReview",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/authorization/v1beta1/selfsubjectaccessreview.go"
+    },
+    {
+      "client_source": "kubernetes/typed/authorization/v1beta1/authorization_client.go",
+      "function": "runCase041",
+      "group_accessor": "authorizationV1beta1",
+      "input": {
+        "apiVersion": "authorization.k8s.io/v1beta1",
+        "kind": "SelfSubjectRulesReview",
+        "metadata": {
+          "name": "input-name",
+          "namespace": "input-namespace"
+        }
+      },
+      "namespace": "",
+      "operation": "Create",
+      "options": {
+        "dryRun": [
+          "All"
+        ],
+        "fieldManager": "family-fixture",
+        "fieldValidation": "Strict"
+      },
+      "request_name": null,
+      "resource": "k8s.io/api/authorization/v1beta1.SelfSubjectRulesReview",
+      "resource_getter": "selfSubjectRulesReviews",
+      "response": {
+        "apiVersion": "authorization.k8s.io/v1beta1",
+        "kind": "SelfSubjectRulesReview",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/authorization/v1beta1/selfsubjectrulesreview.go"
+    },
+    {
+      "client_source": "kubernetes/typed/authorization/v1beta1/authorization_client.go",
+      "function": "runCase042",
+      "group_accessor": "authorizationV1beta1",
+      "input": {
+        "apiVersion": "authorization.k8s.io/v1beta1",
+        "kind": "SubjectAccessReview",
+        "metadata": {
+          "name": "input-name",
+          "namespace": "input-namespace"
+        }
+      },
+      "namespace": "",
+      "operation": "Create",
+      "options": {
+        "dryRun": [
+          "All"
+        ],
+        "fieldManager": "family-fixture",
+        "fieldValidation": "Strict"
+      },
+      "request_name": null,
+      "resource": "k8s.io/api/authorization/v1beta1.SubjectAccessReview",
+      "resource_getter": "subjectAccessReviews",
+      "response": {
+        "apiVersion": "authorization.k8s.io/v1beta1",
+        "kind": "SubjectAccessReview",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/authorization/v1beta1/subjectaccessreview.go"
+    },
+    {
+      "client_source": "kubernetes/typed/autoscaling/v1/autoscaling_client.go",
+      "function": "runCase043",
+      "group_accessor": "autoscalingV1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/autoscaling/v1.HorizontalPodAutoscaler",
+      "resource_getter": "horizontalPodAutoscalers",
+      "response": {
+        "apiVersion": "autoscaling/v1",
+        "kind": "HorizontalPodAutoscaler",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/autoscaling/v1/horizontalpodautoscaler.go"
+    },
+    {
+      "client_source": "kubernetes/typed/autoscaling/v2/autoscaling_client.go",
+      "function": "runCase044",
+      "group_accessor": "autoscalingV2",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/autoscaling/v2.HorizontalPodAutoscaler",
+      "resource_getter": "horizontalPodAutoscalers",
+      "response": {
+        "apiVersion": "autoscaling/v2",
+        "kind": "HorizontalPodAutoscaler",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/autoscaling/v2/horizontalpodautoscaler.go"
+    },
+    {
+      "client_source": "kubernetes/typed/batch/v1/batch_client.go",
+      "function": "runCase045",
+      "group_accessor": "batchV1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/batch/v1.CronJob",
+      "resource_getter": "cronJobs",
+      "response": {
+        "apiVersion": "batch/v1",
+        "kind": "CronJob",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/batch/v1/cronjob.go"
+    },
+    {
+      "client_source": "kubernetes/typed/batch/v1/batch_client.go",
+      "function": "runCase046",
+      "group_accessor": "batchV1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/batch/v1.Job",
+      "resource_getter": "jobs",
+      "response": {
+        "apiVersion": "batch/v1",
+        "kind": "Job",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/batch/v1/job.go"
+    },
+    {
+      "client_source": "kubernetes/typed/batch/v1beta1/batch_client.go",
+      "function": "runCase047",
+      "group_accessor": "batchV1beta1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/batch/v1beta1.CronJob",
+      "resource_getter": "cronJobs",
+      "response": {
+        "apiVersion": "batch/v1beta1",
+        "kind": "CronJob",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/batch/v1beta1/cronjob.go"
+    },
+    {
+      "client_source": "kubernetes/typed/certificates/v1/certificates_client.go",
+      "function": "runCase048",
+      "group_accessor": "certificatesV1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/certificates/v1.CertificateSigningRequest",
+      "resource_getter": "certificateSigningRequests",
+      "response": {
+        "apiVersion": "certificates.k8s.io/v1",
+        "kind": "CertificateSigningRequest",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/certificates/v1/certificatesigningrequest.go"
+    },
+    {
+      "client_source": "kubernetes/typed/certificates/v1/certificates_client.go",
+      "function": "runCase049",
+      "group_accessor": "certificatesV1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/certificates/v1.ClusterTrustBundle",
+      "resource_getter": "clusterTrustBundles",
+      "response": {
+        "apiVersion": "certificates.k8s.io/v1",
+        "kind": "ClusterTrustBundle",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/certificates/v1/clustertrustbundle.go"
+    },
+    {
+      "client_source": "kubernetes/typed/certificates/v1/certificates_client.go",
+      "function": "runCase050",
+      "group_accessor": "certificatesV1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/certificates/v1.PodCertificateRequest",
+      "resource_getter": "podCertificateRequests",
+      "response": {
+        "apiVersion": "certificates.k8s.io/v1",
+        "kind": "PodCertificateRequest",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/certificates/v1/podcertificaterequest.go"
+    },
+    {
+      "client_source": "kubernetes/typed/certificates/v1alpha1/certificates_client.go",
+      "function": "runCase051",
+      "group_accessor": "certificatesV1alpha1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/certificates/v1alpha1.ClusterTrustBundle",
+      "resource_getter": "clusterTrustBundles",
+      "response": {
+        "apiVersion": "certificates.k8s.io/v1alpha1",
+        "kind": "ClusterTrustBundle",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/certificates/v1alpha1/clustertrustbundle.go"
+    },
+    {
+      "client_source": "kubernetes/typed/certificates/v1beta1/certificates_client.go",
+      "function": "runCase052",
+      "group_accessor": "certificatesV1beta1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/certificates/v1beta1.CertificateSigningRequest",
+      "resource_getter": "certificateSigningRequests",
+      "response": {
+        "apiVersion": "certificates.k8s.io/v1beta1",
+        "kind": "CertificateSigningRequest",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/certificates/v1beta1/certificatesigningrequest.go"
+    },
+    {
+      "client_source": "kubernetes/typed/certificates/v1beta1/certificates_client.go",
+      "function": "runCase053",
+      "group_accessor": "certificatesV1beta1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/certificates/v1beta1.ClusterTrustBundle",
+      "resource_getter": "clusterTrustBundles",
+      "response": {
+        "apiVersion": "certificates.k8s.io/v1beta1",
+        "kind": "ClusterTrustBundle",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/certificates/v1beta1/clustertrustbundle.go"
+    },
+    {
+      "client_source": "kubernetes/typed/certificates/v1beta1/certificates_client.go",
+      "function": "runCase054",
+      "group_accessor": "certificatesV1beta1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/certificates/v1beta1.PodCertificateRequest",
+      "resource_getter": "podCertificateRequests",
+      "response": {
+        "apiVersion": "certificates.k8s.io/v1beta1",
+        "kind": "PodCertificateRequest",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/certificates/v1beta1/podcertificaterequest.go"
+    },
+    {
+      "client_source": "kubernetes/typed/coordination/v1/coordination_client.go",
+      "function": "runCase055",
+      "group_accessor": "coordinationV1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/coordination/v1.Lease",
+      "resource_getter": "leases",
+      "response": {
+        "apiVersion": "coordination.k8s.io/v1",
+        "kind": "Lease",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/coordination/v1/lease.go"
+    },
+    {
+      "client_source": "kubernetes/typed/coordination/v1alpha2/coordination_client.go",
+      "function": "runCase056",
+      "group_accessor": "coordinationV1alpha2",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/coordination/v1alpha2.LeaseCandidate",
+      "resource_getter": "leaseCandidates",
+      "response": {
+        "apiVersion": "coordination.k8s.io/v1alpha2",
+        "kind": "LeaseCandidate",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/coordination/v1alpha2/leasecandidate.go"
+    },
+    {
+      "client_source": "kubernetes/typed/coordination/v1beta1/coordination_client.go",
+      "function": "runCase057",
+      "group_accessor": "coordinationV1beta1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/coordination/v1beta1.Lease",
+      "resource_getter": "leases",
+      "response": {
+        "apiVersion": "coordination.k8s.io/v1beta1",
+        "kind": "Lease",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/coordination/v1beta1/lease.go"
+    },
+    {
+      "client_source": "kubernetes/typed/coordination/v1beta1/coordination_client.go",
+      "function": "runCase058",
+      "group_accessor": "coordinationV1beta1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/coordination/v1beta1.LeaseCandidate",
+      "resource_getter": "leaseCandidates",
+      "response": {
+        "apiVersion": "coordination.k8s.io/v1beta1",
+        "kind": "LeaseCandidate",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/coordination/v1beta1/leasecandidate.go"
+    },
+    {
+      "client_source": "kubernetes/typed/core/v1/core_client.go",
+      "function": "runCase059",
+      "group_accessor": "coreV1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/core/v1.ComponentStatus",
+      "resource_getter": "componentStatuses",
+      "response": {
+        "apiVersion": "v1",
+        "kind": "ComponentStatus",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/core/v1/componentstatus.go"
+    },
+    {
+      "client_source": "kubernetes/typed/core/v1/core_client.go",
+      "function": "runCase060",
+      "group_accessor": "coreV1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/core/v1.ConfigMap",
+      "resource_getter": "configMaps",
+      "response": {
+        "apiVersion": "v1",
+        "kind": "ConfigMap",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/core/v1/configmap.go"
+    },
+    {
+      "client_source": "kubernetes/typed/core/v1/core_client.go",
+      "function": "runCase061",
+      "group_accessor": "coreV1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/core/v1.Endpoints",
+      "resource_getter": "endpoints",
+      "response": {
+        "apiVersion": "v1",
+        "kind": "Endpoints",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/core/v1/endpoints.go"
+    },
+    {
+      "client_source": "kubernetes/typed/core/v1/core_client.go",
+      "function": "runCase062",
+      "group_accessor": "coreV1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/core/v1.Event",
+      "resource_getter": "events",
+      "response": {
+        "apiVersion": "v1",
+        "kind": "Event",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/core/v1/event.go"
+    },
+    {
+      "client_source": "kubernetes/typed/core/v1/core_client.go",
+      "function": "runCase063",
+      "group_accessor": "coreV1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/core/v1.LimitRange",
+      "resource_getter": "limitRanges",
+      "response": {
+        "apiVersion": "v1",
+        "kind": "LimitRange",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/core/v1/limitrange.go"
+    },
+    {
+      "client_source": "kubernetes/typed/core/v1/core_client.go",
+      "function": "runCase064",
+      "group_accessor": "coreV1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/core/v1.Namespace",
+      "resource_getter": "namespaces",
+      "response": {
+        "apiVersion": "v1",
+        "kind": "Namespace",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/core/v1/namespace.go"
+    },
+    {
+      "client_source": "kubernetes/typed/core/v1/core_client.go",
+      "function": "runCase065",
+      "group_accessor": "coreV1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/core/v1.Node",
+      "resource_getter": "nodes",
+      "response": {
+        "apiVersion": "v1",
+        "kind": "Node",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/core/v1/node.go"
+    },
+    {
+      "client_source": "kubernetes/typed/core/v1/core_client.go",
+      "function": "runCase066",
+      "group_accessor": "coreV1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/core/v1.PersistentVolume",
+      "resource_getter": "persistentVolumes",
+      "response": {
+        "apiVersion": "v1",
+        "kind": "PersistentVolume",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/core/v1/persistentvolume.go"
+    },
+    {
+      "client_source": "kubernetes/typed/core/v1/core_client.go",
+      "function": "runCase067",
+      "group_accessor": "coreV1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/core/v1.PersistentVolumeClaim",
+      "resource_getter": "persistentVolumeClaims",
+      "response": {
+        "apiVersion": "v1",
+        "kind": "PersistentVolumeClaim",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/core/v1/persistentvolumeclaim.go"
+    },
+    {
+      "client_source": "kubernetes/typed/core/v1/core_client.go",
+      "function": "runCase068",
+      "group_accessor": "coreV1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/core/v1.Pod",
+      "resource_getter": "pods",
+      "response": {
+        "apiVersion": "v1",
+        "kind": "Pod",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/core/v1/pod.go"
+    },
+    {
+      "client_source": "kubernetes/typed/core/v1/core_client.go",
+      "function": "runCase069",
+      "group_accessor": "coreV1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/core/v1.PodTemplate",
+      "resource_getter": "podTemplates",
+      "response": {
+        "apiVersion": "v1",
+        "kind": "PodTemplate",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/core/v1/podtemplate.go"
+    },
+    {
+      "client_source": "kubernetes/typed/core/v1/core_client.go",
+      "function": "runCase070",
+      "group_accessor": "coreV1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/core/v1.ReplicationController",
+      "resource_getter": "replicationControllers",
+      "response": {
+        "apiVersion": "v1",
+        "kind": "ReplicationController",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/core/v1/replicationcontroller.go"
+    },
+    {
+      "client_source": "kubernetes/typed/core/v1/core_client.go",
+      "function": "runCase071",
+      "group_accessor": "coreV1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/core/v1.ResourceQuota",
+      "resource_getter": "resourceQuotas",
+      "response": {
+        "apiVersion": "v1",
+        "kind": "ResourceQuota",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/core/v1/resourcequota.go"
+    },
+    {
+      "client_source": "kubernetes/typed/core/v1/core_client.go",
+      "function": "runCase072",
+      "group_accessor": "coreV1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/core/v1.Secret",
+      "resource_getter": "secrets",
+      "response": {
+        "apiVersion": "v1",
+        "kind": "Secret",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/core/v1/secret.go"
+    },
+    {
+      "client_source": "kubernetes/typed/core/v1/core_client.go",
+      "function": "runCase073",
+      "group_accessor": "coreV1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/core/v1.Service",
+      "resource_getter": "services",
+      "response": {
+        "apiVersion": "v1",
+        "kind": "Service",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/core/v1/service.go"
+    },
+    {
+      "client_source": "kubernetes/typed/core/v1/core_client.go",
+      "function": "runCase074",
+      "group_accessor": "coreV1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/core/v1.ServiceAccount",
+      "resource_getter": "serviceAccounts",
+      "response": {
+        "apiVersion": "v1",
+        "kind": "ServiceAccount",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/core/v1/serviceaccount.go"
+    },
+    {
+      "client_source": "kubernetes/typed/discovery/v1/discovery_client.go",
+      "function": "runCase075",
+      "group_accessor": "discoveryV1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/discovery/v1.EndpointSlice",
+      "resource_getter": "endpointSlices",
+      "response": {
+        "apiVersion": "discovery.k8s.io/v1",
+        "kind": "EndpointSlice",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/discovery/v1/endpointslice.go"
+    },
+    {
+      "client_source": "kubernetes/typed/discovery/v1beta1/discovery_client.go",
+      "function": "runCase076",
+      "group_accessor": "discoveryV1beta1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/discovery/v1beta1.EndpointSlice",
+      "resource_getter": "endpointSlices",
+      "response": {
+        "apiVersion": "discovery.k8s.io/v1beta1",
+        "kind": "EndpointSlice",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/discovery/v1beta1/endpointslice.go"
+    },
+    {
+      "client_source": "kubernetes/typed/events/v1/events_client.go",
+      "function": "runCase077",
+      "group_accessor": "eventsV1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/events/v1.Event",
+      "resource_getter": "events",
+      "response": {
+        "apiVersion": "events.k8s.io/v1",
+        "kind": "Event",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/events/v1/event.go"
+    },
+    {
+      "client_source": "kubernetes/typed/events/v1beta1/events_client.go",
+      "function": "runCase078",
+      "group_accessor": "eventsV1beta1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/events/v1beta1.Event",
+      "resource_getter": "events",
+      "response": {
+        "apiVersion": "events.k8s.io/v1beta1",
+        "kind": "Event",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/events/v1beta1/event.go"
+    },
+    {
+      "client_source": "kubernetes/typed/extensions/v1beta1/extensions_client.go",
+      "function": "runCase079",
+      "group_accessor": "extensionsV1beta1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/extensions/v1beta1.DaemonSet",
+      "resource_getter": "daemonSets",
+      "response": {
+        "apiVersion": "extensions/v1beta1",
+        "kind": "DaemonSet",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/extensions/v1beta1/daemonset.go"
+    },
+    {
+      "client_source": "kubernetes/typed/extensions/v1beta1/extensions_client.go",
+      "function": "runCase080",
+      "group_accessor": "extensionsV1beta1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/extensions/v1beta1.Deployment",
+      "resource_getter": "deployments",
+      "response": {
+        "apiVersion": "extensions/v1beta1",
+        "kind": "Deployment",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/extensions/v1beta1/deployment.go"
+    },
+    {
+      "client_source": "kubernetes/typed/extensions/v1beta1/extensions_client.go",
+      "function": "runCase081",
+      "group_accessor": "extensionsV1beta1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/extensions/v1beta1.Ingress",
+      "resource_getter": "ingresses",
+      "response": {
+        "apiVersion": "extensions/v1beta1",
+        "kind": "Ingress",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/extensions/v1beta1/ingress.go"
+    },
+    {
+      "client_source": "kubernetes/typed/extensions/v1beta1/extensions_client.go",
+      "function": "runCase082",
+      "group_accessor": "extensionsV1beta1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/extensions/v1beta1.NetworkPolicy",
+      "resource_getter": "networkPolicies",
+      "response": {
+        "apiVersion": "extensions/v1beta1",
+        "kind": "NetworkPolicy",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/extensions/v1beta1/networkpolicy.go"
+    },
+    {
+      "client_source": "kubernetes/typed/extensions/v1beta1/extensions_client.go",
+      "function": "runCase083",
+      "group_accessor": "extensionsV1beta1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/extensions/v1beta1.ReplicaSet",
+      "resource_getter": "replicaSets",
+      "response": {
+        "apiVersion": "extensions/v1beta1",
+        "kind": "ReplicaSet",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/extensions/v1beta1/replicaset.go"
+    },
+    {
+      "client_source": "kubernetes/typed/flowcontrol/v1/flowcontrol_client.go",
+      "function": "runCase084",
+      "group_accessor": "flowcontrolV1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/flowcontrol/v1.FlowSchema",
+      "resource_getter": "flowSchemas",
+      "response": {
+        "apiVersion": "flowcontrol.apiserver.k8s.io/v1",
+        "kind": "FlowSchema",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/flowcontrol/v1/flowschema.go"
+    },
+    {
+      "client_source": "kubernetes/typed/flowcontrol/v1/flowcontrol_client.go",
+      "function": "runCase085",
+      "group_accessor": "flowcontrolV1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/flowcontrol/v1.PriorityLevelConfiguration",
+      "resource_getter": "priorityLevelConfigurations",
+      "response": {
+        "apiVersion": "flowcontrol.apiserver.k8s.io/v1",
+        "kind": "PriorityLevelConfiguration",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/flowcontrol/v1/prioritylevelconfiguration.go"
+    },
+    {
+      "client_source": "kubernetes/typed/flowcontrol/v1beta1/flowcontrol_client.go",
+      "function": "runCase086",
+      "group_accessor": "flowcontrolV1beta1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/flowcontrol/v1beta1.FlowSchema",
+      "resource_getter": "flowSchemas",
+      "response": {
+        "apiVersion": "flowcontrol.apiserver.k8s.io/v1beta1",
+        "kind": "FlowSchema",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/flowcontrol/v1beta1/flowschema.go"
+    },
+    {
+      "client_source": "kubernetes/typed/flowcontrol/v1beta1/flowcontrol_client.go",
+      "function": "runCase087",
+      "group_accessor": "flowcontrolV1beta1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/flowcontrol/v1beta1.PriorityLevelConfiguration",
+      "resource_getter": "priorityLevelConfigurations",
+      "response": {
+        "apiVersion": "flowcontrol.apiserver.k8s.io/v1beta1",
+        "kind": "PriorityLevelConfiguration",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/flowcontrol/v1beta1/prioritylevelconfiguration.go"
+    },
+    {
+      "client_source": "kubernetes/typed/flowcontrol/v1beta2/flowcontrol_client.go",
+      "function": "runCase088",
+      "group_accessor": "flowcontrolV1beta2",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/flowcontrol/v1beta2.FlowSchema",
+      "resource_getter": "flowSchemas",
+      "response": {
+        "apiVersion": "flowcontrol.apiserver.k8s.io/v1beta2",
+        "kind": "FlowSchema",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/flowcontrol/v1beta2/flowschema.go"
+    },
+    {
+      "client_source": "kubernetes/typed/flowcontrol/v1beta2/flowcontrol_client.go",
+      "function": "runCase089",
+      "group_accessor": "flowcontrolV1beta2",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/flowcontrol/v1beta2.PriorityLevelConfiguration",
+      "resource_getter": "priorityLevelConfigurations",
+      "response": {
+        "apiVersion": "flowcontrol.apiserver.k8s.io/v1beta2",
+        "kind": "PriorityLevelConfiguration",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/flowcontrol/v1beta2/prioritylevelconfiguration.go"
+    },
+    {
+      "client_source": "kubernetes/typed/flowcontrol/v1beta3/flowcontrol_client.go",
+      "function": "runCase090",
+      "group_accessor": "flowcontrolV1beta3",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/flowcontrol/v1beta3.FlowSchema",
+      "resource_getter": "flowSchemas",
+      "response": {
+        "apiVersion": "flowcontrol.apiserver.k8s.io/v1beta3",
+        "kind": "FlowSchema",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/flowcontrol/v1beta3/flowschema.go"
+    },
+    {
+      "client_source": "kubernetes/typed/flowcontrol/v1beta3/flowcontrol_client.go",
+      "function": "runCase091",
+      "group_accessor": "flowcontrolV1beta3",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/flowcontrol/v1beta3.PriorityLevelConfiguration",
+      "resource_getter": "priorityLevelConfigurations",
+      "response": {
+        "apiVersion": "flowcontrol.apiserver.k8s.io/v1beta3",
+        "kind": "PriorityLevelConfiguration",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/flowcontrol/v1beta3/prioritylevelconfiguration.go"
+    },
+    {
+      "client_source": "kubernetes/typed/lifecycle/v1alpha1/lifecycle_client.go",
+      "function": "runCase092",
+      "group_accessor": "lifecycleV1alpha1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/lifecycle/v1alpha1.Eviction",
+      "resource_getter": "evictions",
+      "response": {
+        "apiVersion": "lifecycle.k8s.io/v1alpha1",
+        "kind": "Eviction",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/lifecycle/v1alpha1/eviction.go"
+    },
+    {
+      "client_source": "kubernetes/typed/lifecycle/v1alpha1/lifecycle_client.go",
+      "function": "runCase093",
+      "group_accessor": "lifecycleV1alpha1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/lifecycle/v1alpha1.EvictionRequest",
+      "resource_getter": "evictionRequests",
+      "response": {
+        "apiVersion": "lifecycle.k8s.io/v1alpha1",
+        "kind": "EvictionRequest",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/lifecycle/v1alpha1/evictionrequest.go"
+    },
+    {
+      "client_source": "kubernetes/typed/networking/v1/networking_client.go",
+      "function": "runCase094",
+      "group_accessor": "networkingV1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/networking/v1.IPAddress",
+      "resource_getter": "iPAddresses",
+      "response": {
+        "apiVersion": "networking.k8s.io/v1",
+        "kind": "IPAddress",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/networking/v1/ipaddress.go"
+    },
+    {
+      "client_source": "kubernetes/typed/networking/v1/networking_client.go",
+      "function": "runCase095",
+      "group_accessor": "networkingV1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/networking/v1.Ingress",
+      "resource_getter": "ingresses",
+      "response": {
+        "apiVersion": "networking.k8s.io/v1",
+        "kind": "Ingress",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/networking/v1/ingress.go"
+    },
+    {
+      "client_source": "kubernetes/typed/networking/v1/networking_client.go",
+      "function": "runCase096",
+      "group_accessor": "networkingV1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/networking/v1.IngressClass",
+      "resource_getter": "ingressClasses",
+      "response": {
+        "apiVersion": "networking.k8s.io/v1",
+        "kind": "IngressClass",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/networking/v1/ingressclass.go"
+    },
+    {
+      "client_source": "kubernetes/typed/networking/v1/networking_client.go",
+      "function": "runCase097",
+      "group_accessor": "networkingV1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/networking/v1.NetworkPolicy",
+      "resource_getter": "networkPolicies",
+      "response": {
+        "apiVersion": "networking.k8s.io/v1",
+        "kind": "NetworkPolicy",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/networking/v1/networkpolicy.go"
+    },
+    {
+      "client_source": "kubernetes/typed/networking/v1/networking_client.go",
+      "function": "runCase098",
+      "group_accessor": "networkingV1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/networking/v1.ServiceCIDR",
+      "resource_getter": "serviceCIDRs",
+      "response": {
+        "apiVersion": "networking.k8s.io/v1",
+        "kind": "ServiceCIDR",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/networking/v1/servicecidr.go"
+    },
+    {
+      "client_source": "kubernetes/typed/networking/v1beta1/networking_client.go",
+      "function": "runCase099",
+      "group_accessor": "networkingV1beta1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/networking/v1beta1.IPAddress",
+      "resource_getter": "iPAddresses",
+      "response": {
+        "apiVersion": "networking.k8s.io/v1beta1",
+        "kind": "IPAddress",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/networking/v1beta1/ipaddress.go"
+    },
+    {
+      "client_source": "kubernetes/typed/networking/v1beta1/networking_client.go",
+      "function": "runCase100",
+      "group_accessor": "networkingV1beta1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/networking/v1beta1.Ingress",
+      "resource_getter": "ingresses",
+      "response": {
+        "apiVersion": "networking.k8s.io/v1beta1",
+        "kind": "Ingress",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/networking/v1beta1/ingress.go"
+    },
+    {
+      "client_source": "kubernetes/typed/networking/v1beta1/networking_client.go",
+      "function": "runCase101",
+      "group_accessor": "networkingV1beta1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/networking/v1beta1.IngressClass",
+      "resource_getter": "ingressClasses",
+      "response": {
+        "apiVersion": "networking.k8s.io/v1beta1",
+        "kind": "IngressClass",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/networking/v1beta1/ingressclass.go"
+    },
+    {
+      "client_source": "kubernetes/typed/networking/v1beta1/networking_client.go",
+      "function": "runCase102",
+      "group_accessor": "networkingV1beta1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/networking/v1beta1.ServiceCIDR",
+      "resource_getter": "serviceCIDRs",
+      "response": {
+        "apiVersion": "networking.k8s.io/v1beta1",
+        "kind": "ServiceCIDR",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/networking/v1beta1/servicecidr.go"
+    },
+    {
+      "client_source": "kubernetes/typed/node/v1/node_client.go",
+      "function": "runCase103",
+      "group_accessor": "nodeV1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/node/v1.RuntimeClass",
+      "resource_getter": "runtimeClasses",
+      "response": {
+        "apiVersion": "node.k8s.io/v1",
+        "kind": "RuntimeClass",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/node/v1/runtimeclass.go"
+    },
+    {
+      "client_source": "kubernetes/typed/node/v1alpha1/node_client.go",
+      "function": "runCase104",
+      "group_accessor": "nodeV1alpha1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/node/v1alpha1.RuntimeClass",
+      "resource_getter": "runtimeClasses",
+      "response": {
+        "apiVersion": "node.k8s.io/v1alpha1",
+        "kind": "RuntimeClass",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/node/v1alpha1/runtimeclass.go"
+    },
+    {
+      "client_source": "kubernetes/typed/node/v1beta1/node_client.go",
+      "function": "runCase105",
+      "group_accessor": "nodeV1beta1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/node/v1beta1.RuntimeClass",
+      "resource_getter": "runtimeClasses",
+      "response": {
+        "apiVersion": "node.k8s.io/v1beta1",
+        "kind": "RuntimeClass",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/node/v1beta1/runtimeclass.go"
+    },
+    {
+      "client_source": "kubernetes/typed/policy/v1/policy_client.go",
+      "function": "runCase106",
+      "group_accessor": "policyV1",
+      "input": {
+        "apiVersion": "policy/v1",
+        "kind": "Eviction",
+        "metadata": {
+          "name": "input-name",
+          "namespace": "input-namespace"
+        }
+      },
+      "namespace": "client-namespace",
+      "operation": "Evict",
+      "options": {},
+      "request_name": null,
+      "resource": "k8s.io/api/policy/v1.Eviction",
+      "resource_getter": "evictions",
+      "response": {
+        "apiVersion": "v1",
+        "code": 200,
+        "kind": "Status",
+        "status": "Success"
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/policy/v1/eviction.go"
+    },
+    {
+      "client_source": "kubernetes/typed/policy/v1/policy_client.go",
+      "function": "runCase107",
+      "group_accessor": "policyV1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/policy/v1.PodDisruptionBudget",
+      "resource_getter": "podDisruptionBudgets",
+      "response": {
+        "apiVersion": "policy/v1",
+        "kind": "PodDisruptionBudget",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/policy/v1/poddisruptionbudget.go"
+    },
+    {
+      "client_source": "kubernetes/typed/policy/v1beta1/policy_client.go",
+      "function": "runCase108",
+      "group_accessor": "policyV1beta1",
+      "input": {
+        "apiVersion": "policy/v1beta1",
+        "kind": "Eviction",
+        "metadata": {
+          "name": "input-name",
+          "namespace": "input-namespace"
+        }
+      },
+      "namespace": "client-namespace",
+      "operation": "Evict",
+      "options": {},
+      "request_name": null,
+      "resource": "k8s.io/api/policy/v1beta1.Eviction",
+      "resource_getter": "evictions",
+      "response": {
+        "apiVersion": "v1",
+        "code": 200,
+        "kind": "Status",
+        "status": "Success"
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/policy/v1beta1/eviction.go"
+    },
+    {
+      "client_source": "kubernetes/typed/policy/v1beta1/policy_client.go",
+      "function": "runCase109",
+      "group_accessor": "policyV1beta1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/policy/v1beta1.PodDisruptionBudget",
+      "resource_getter": "podDisruptionBudgets",
+      "response": {
+        "apiVersion": "policy/v1beta1",
+        "kind": "PodDisruptionBudget",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/policy/v1beta1/poddisruptionbudget.go"
+    },
+    {
+      "client_source": "kubernetes/typed/rbac/v1/rbac_client.go",
+      "function": "runCase110",
+      "group_accessor": "rbacV1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/rbac/v1.ClusterRole",
+      "resource_getter": "clusterRoles",
+      "response": {
+        "apiVersion": "rbac.authorization.k8s.io/v1",
+        "kind": "ClusterRole",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/rbac/v1/clusterrole.go"
+    },
+    {
+      "client_source": "kubernetes/typed/rbac/v1/rbac_client.go",
+      "function": "runCase111",
+      "group_accessor": "rbacV1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/rbac/v1.ClusterRoleBinding",
+      "resource_getter": "clusterRoleBindings",
+      "response": {
+        "apiVersion": "rbac.authorization.k8s.io/v1",
+        "kind": "ClusterRoleBinding",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/rbac/v1/clusterrolebinding.go"
+    },
+    {
+      "client_source": "kubernetes/typed/rbac/v1/rbac_client.go",
+      "function": "runCase112",
+      "group_accessor": "rbacV1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/rbac/v1.Role",
+      "resource_getter": "roles",
+      "response": {
+        "apiVersion": "rbac.authorization.k8s.io/v1",
+        "kind": "Role",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/rbac/v1/role.go"
+    },
+    {
+      "client_source": "kubernetes/typed/rbac/v1/rbac_client.go",
+      "function": "runCase113",
+      "group_accessor": "rbacV1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/rbac/v1.RoleBinding",
+      "resource_getter": "roleBindings",
+      "response": {
+        "apiVersion": "rbac.authorization.k8s.io/v1",
+        "kind": "RoleBinding",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/rbac/v1/rolebinding.go"
+    },
+    {
+      "client_source": "kubernetes/typed/rbac/v1alpha1/rbac_client.go",
+      "function": "runCase114",
+      "group_accessor": "rbacV1alpha1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/rbac/v1alpha1.ClusterRole",
+      "resource_getter": "clusterRoles",
+      "response": {
+        "apiVersion": "rbac.authorization.k8s.io/v1alpha1",
+        "kind": "ClusterRole",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/rbac/v1alpha1/clusterrole.go"
+    },
+    {
+      "client_source": "kubernetes/typed/rbac/v1alpha1/rbac_client.go",
+      "function": "runCase115",
+      "group_accessor": "rbacV1alpha1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/rbac/v1alpha1.ClusterRoleBinding",
+      "resource_getter": "clusterRoleBindings",
+      "response": {
+        "apiVersion": "rbac.authorization.k8s.io/v1alpha1",
+        "kind": "ClusterRoleBinding",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/rbac/v1alpha1/clusterrolebinding.go"
+    },
+    {
+      "client_source": "kubernetes/typed/rbac/v1alpha1/rbac_client.go",
+      "function": "runCase116",
+      "group_accessor": "rbacV1alpha1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/rbac/v1alpha1.Role",
+      "resource_getter": "roles",
+      "response": {
+        "apiVersion": "rbac.authorization.k8s.io/v1alpha1",
+        "kind": "Role",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/rbac/v1alpha1/role.go"
+    },
+    {
+      "client_source": "kubernetes/typed/rbac/v1alpha1/rbac_client.go",
+      "function": "runCase117",
+      "group_accessor": "rbacV1alpha1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/rbac/v1alpha1.RoleBinding",
+      "resource_getter": "roleBindings",
+      "response": {
+        "apiVersion": "rbac.authorization.k8s.io/v1alpha1",
+        "kind": "RoleBinding",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/rbac/v1alpha1/rolebinding.go"
+    },
+    {
+      "client_source": "kubernetes/typed/rbac/v1beta1/rbac_client.go",
+      "function": "runCase118",
+      "group_accessor": "rbacV1beta1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/rbac/v1beta1.ClusterRole",
+      "resource_getter": "clusterRoles",
+      "response": {
+        "apiVersion": "rbac.authorization.k8s.io/v1beta1",
+        "kind": "ClusterRole",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/rbac/v1beta1/clusterrole.go"
+    },
+    {
+      "client_source": "kubernetes/typed/rbac/v1beta1/rbac_client.go",
+      "function": "runCase119",
+      "group_accessor": "rbacV1beta1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/rbac/v1beta1.ClusterRoleBinding",
+      "resource_getter": "clusterRoleBindings",
+      "response": {
+        "apiVersion": "rbac.authorization.k8s.io/v1beta1",
+        "kind": "ClusterRoleBinding",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/rbac/v1beta1/clusterrolebinding.go"
+    },
+    {
+      "client_source": "kubernetes/typed/rbac/v1beta1/rbac_client.go",
+      "function": "runCase120",
+      "group_accessor": "rbacV1beta1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/rbac/v1beta1.Role",
+      "resource_getter": "roles",
+      "response": {
+        "apiVersion": "rbac.authorization.k8s.io/v1beta1",
+        "kind": "Role",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/rbac/v1beta1/role.go"
+    },
+    {
+      "client_source": "kubernetes/typed/rbac/v1beta1/rbac_client.go",
+      "function": "runCase121",
+      "group_accessor": "rbacV1beta1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/rbac/v1beta1.RoleBinding",
+      "resource_getter": "roleBindings",
+      "response": {
+        "apiVersion": "rbac.authorization.k8s.io/v1beta1",
+        "kind": "RoleBinding",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/rbac/v1beta1/rolebinding.go"
+    },
+    {
+      "client_source": "kubernetes/typed/resource/v1/resource_client.go",
+      "function": "runCase122",
+      "group_accessor": "resourceV1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/resource/v1.DeviceClass",
+      "resource_getter": "deviceClasses",
+      "response": {
+        "apiVersion": "resource.k8s.io/v1",
+        "kind": "DeviceClass",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/resource/v1/deviceclass.go"
+    },
+    {
+      "client_source": "kubernetes/typed/resource/v1/resource_client.go",
+      "function": "runCase123",
+      "group_accessor": "resourceV1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/resource/v1.DeviceTaintRule",
+      "resource_getter": "deviceTaintRules",
+      "response": {
+        "apiVersion": "resource.k8s.io/v1",
+        "kind": "DeviceTaintRule",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/resource/v1/devicetaintrule.go"
+    },
+    {
+      "client_source": "kubernetes/typed/resource/v1/resource_client.go",
+      "function": "runCase124",
+      "group_accessor": "resourceV1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/resource/v1.ResourceClaim",
+      "resource_getter": "resourceClaims",
+      "response": {
+        "apiVersion": "resource.k8s.io/v1",
+        "kind": "ResourceClaim",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/resource/v1/resourceclaim.go"
+    },
+    {
+      "client_source": "kubernetes/typed/resource/v1/resource_client.go",
+      "function": "runCase125",
+      "group_accessor": "resourceV1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/resource/v1.ResourceClaimTemplate",
+      "resource_getter": "resourceClaimTemplates",
+      "response": {
+        "apiVersion": "resource.k8s.io/v1",
+        "kind": "ResourceClaimTemplate",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/resource/v1/resourceclaimtemplate.go"
+    },
+    {
+      "client_source": "kubernetes/typed/resource/v1/resource_client.go",
+      "function": "runCase126",
+      "group_accessor": "resourceV1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/resource/v1.ResourceSlice",
+      "resource_getter": "resourceSlices",
+      "response": {
+        "apiVersion": "resource.k8s.io/v1",
+        "kind": "ResourceSlice",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/resource/v1/resourceslice.go"
+    },
+    {
+      "client_source": "kubernetes/typed/resource/v1alpha3/resource_client.go",
+      "function": "runCase127",
+      "group_accessor": "resourceV1alpha3",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/resource/v1alpha3.DeviceTaintRule",
+      "resource_getter": "deviceTaintRules",
+      "response": {
+        "apiVersion": "resource.k8s.io/v1alpha3",
+        "kind": "DeviceTaintRule",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/resource/v1alpha3/devicetaintrule.go"
+    },
+    {
+      "client_source": "kubernetes/typed/resource/v1alpha3/resource_client.go",
+      "function": "runCase128",
+      "group_accessor": "resourceV1alpha3",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/resource/v1alpha3.ResourcePoolStatusRequest",
+      "resource_getter": "resourcePoolStatusRequests",
+      "response": {
+        "apiVersion": "resource.k8s.io/v1alpha3",
+        "kind": "ResourcePoolStatusRequest",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/resource/v1alpha3/resourcepoolstatusrequest.go"
+    },
+    {
+      "client_source": "kubernetes/typed/resource/v1beta1/resource_client.go",
+      "function": "runCase129",
+      "group_accessor": "resourceV1beta1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/resource/v1beta1.DeviceClass",
+      "resource_getter": "deviceClasses",
+      "response": {
+        "apiVersion": "resource.k8s.io/v1beta1",
+        "kind": "DeviceClass",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/resource/v1beta1/deviceclass.go"
+    },
+    {
+      "client_source": "kubernetes/typed/resource/v1beta1/resource_client.go",
+      "function": "runCase130",
+      "group_accessor": "resourceV1beta1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/resource/v1beta1.ResourceClaim",
+      "resource_getter": "resourceClaims",
+      "response": {
+        "apiVersion": "resource.k8s.io/v1beta1",
+        "kind": "ResourceClaim",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/resource/v1beta1/resourceclaim.go"
+    },
+    {
+      "client_source": "kubernetes/typed/resource/v1beta1/resource_client.go",
+      "function": "runCase131",
+      "group_accessor": "resourceV1beta1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/resource/v1beta1.ResourceClaimTemplate",
+      "resource_getter": "resourceClaimTemplates",
+      "response": {
+        "apiVersion": "resource.k8s.io/v1beta1",
+        "kind": "ResourceClaimTemplate",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/resource/v1beta1/resourceclaimtemplate.go"
+    },
+    {
+      "client_source": "kubernetes/typed/resource/v1beta1/resource_client.go",
+      "function": "runCase132",
+      "group_accessor": "resourceV1beta1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/resource/v1beta1.ResourceSlice",
+      "resource_getter": "resourceSlices",
+      "response": {
+        "apiVersion": "resource.k8s.io/v1beta1",
+        "kind": "ResourceSlice",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/resource/v1beta1/resourceslice.go"
+    },
+    {
+      "client_source": "kubernetes/typed/resource/v1beta2/resource_client.go",
+      "function": "runCase133",
+      "group_accessor": "resourceV1beta2",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/resource/v1beta2.DeviceClass",
+      "resource_getter": "deviceClasses",
+      "response": {
+        "apiVersion": "resource.k8s.io/v1beta2",
+        "kind": "DeviceClass",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/resource/v1beta2/deviceclass.go"
+    },
+    {
+      "client_source": "kubernetes/typed/resource/v1beta2/resource_client.go",
+      "function": "runCase134",
+      "group_accessor": "resourceV1beta2",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/resource/v1beta2.DeviceTaintRule",
+      "resource_getter": "deviceTaintRules",
+      "response": {
+        "apiVersion": "resource.k8s.io/v1beta2",
+        "kind": "DeviceTaintRule",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/resource/v1beta2/devicetaintrule.go"
+    },
+    {
+      "client_source": "kubernetes/typed/resource/v1beta2/resource_client.go",
+      "function": "runCase135",
+      "group_accessor": "resourceV1beta2",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/resource/v1beta2.ResourceClaim",
+      "resource_getter": "resourceClaims",
+      "response": {
+        "apiVersion": "resource.k8s.io/v1beta2",
+        "kind": "ResourceClaim",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/resource/v1beta2/resourceclaim.go"
+    },
+    {
+      "client_source": "kubernetes/typed/resource/v1beta2/resource_client.go",
+      "function": "runCase136",
+      "group_accessor": "resourceV1beta2",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/resource/v1beta2.ResourceClaimTemplate",
+      "resource_getter": "resourceClaimTemplates",
+      "response": {
+        "apiVersion": "resource.k8s.io/v1beta2",
+        "kind": "ResourceClaimTemplate",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/resource/v1beta2/resourceclaimtemplate.go"
+    },
+    {
+      "client_source": "kubernetes/typed/resource/v1beta2/resource_client.go",
+      "function": "runCase137",
+      "group_accessor": "resourceV1beta2",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/resource/v1beta2.ResourceSlice",
+      "resource_getter": "resourceSlices",
+      "response": {
+        "apiVersion": "resource.k8s.io/v1beta2",
+        "kind": "ResourceSlice",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/resource/v1beta2/resourceslice.go"
+    },
+    {
+      "client_source": "kubernetes/typed/scheduling/v1/scheduling_client.go",
+      "function": "runCase138",
+      "group_accessor": "schedulingV1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/scheduling/v1.PriorityClass",
+      "resource_getter": "priorityClasses",
+      "response": {
+        "apiVersion": "scheduling.k8s.io/v1",
+        "kind": "PriorityClass",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/scheduling/v1/priorityclass.go"
+    },
+    {
+      "client_source": "kubernetes/typed/scheduling/v1alpha3/scheduling_client.go",
+      "function": "runCase139",
+      "group_accessor": "schedulingV1alpha3",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/scheduling/v1alpha3.CompositePodGroup",
+      "resource_getter": "compositePodGroups",
+      "response": {
+        "apiVersion": "scheduling.k8s.io/v1alpha3",
+        "kind": "CompositePodGroup",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/scheduling/v1alpha3/compositepodgroup.go"
+    },
+    {
+      "client_source": "kubernetes/typed/scheduling/v1alpha3/scheduling_client.go",
+      "function": "runCase140",
+      "group_accessor": "schedulingV1alpha3",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/scheduling/v1alpha3.PodGroup",
+      "resource_getter": "podGroups",
+      "response": {
+        "apiVersion": "scheduling.k8s.io/v1alpha3",
+        "kind": "PodGroup",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/scheduling/v1alpha3/podgroup.go"
+    },
+    {
+      "client_source": "kubernetes/typed/scheduling/v1alpha3/scheduling_client.go",
+      "function": "runCase141",
+      "group_accessor": "schedulingV1alpha3",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/scheduling/v1alpha3.Workload",
+      "resource_getter": "workloads",
+      "response": {
+        "apiVersion": "scheduling.k8s.io/v1alpha3",
+        "kind": "Workload",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/scheduling/v1alpha3/workload.go"
+    },
+    {
+      "client_source": "kubernetes/typed/scheduling/v1beta1/scheduling_client.go",
+      "function": "runCase142",
+      "group_accessor": "schedulingV1beta1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/scheduling/v1beta1.PodGroup",
+      "resource_getter": "podGroups",
+      "response": {
+        "apiVersion": "scheduling.k8s.io/v1beta1",
+        "kind": "PodGroup",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/scheduling/v1beta1/podgroup.go"
+    },
+    {
+      "client_source": "kubernetes/typed/scheduling/v1beta1/scheduling_client.go",
+      "function": "runCase143",
+      "group_accessor": "schedulingV1beta1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/scheduling/v1beta1.PriorityClass",
+      "resource_getter": "priorityClasses",
+      "response": {
+        "apiVersion": "scheduling.k8s.io/v1beta1",
+        "kind": "PriorityClass",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/scheduling/v1beta1/priorityclass.go"
+    },
+    {
+      "client_source": "kubernetes/typed/scheduling/v1beta1/scheduling_client.go",
+      "function": "runCase144",
+      "group_accessor": "schedulingV1beta1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/scheduling/v1beta1.Workload",
+      "resource_getter": "workloads",
+      "response": {
+        "apiVersion": "scheduling.k8s.io/v1beta1",
+        "kind": "Workload",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/scheduling/v1beta1/workload.go"
+    },
+    {
+      "client_source": "kubernetes/typed/storage/v1/storage_client.go",
+      "function": "runCase145",
+      "group_accessor": "storageV1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/storage/v1.CSIDriver",
+      "resource_getter": "cSIDrivers",
+      "response": {
+        "apiVersion": "storage.k8s.io/v1",
+        "kind": "CSIDriver",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/storage/v1/csidriver.go"
+    },
+    {
+      "client_source": "kubernetes/typed/storage/v1/storage_client.go",
+      "function": "runCase146",
+      "group_accessor": "storageV1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/storage/v1.CSINode",
+      "resource_getter": "cSINodes",
+      "response": {
+        "apiVersion": "storage.k8s.io/v1",
+        "kind": "CSINode",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/storage/v1/csinode.go"
+    },
+    {
+      "client_source": "kubernetes/typed/storage/v1/storage_client.go",
+      "function": "runCase147",
+      "group_accessor": "storageV1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/storage/v1.CSIStorageCapacity",
+      "resource_getter": "cSIStorageCapacities",
+      "response": {
+        "apiVersion": "storage.k8s.io/v1",
+        "kind": "CSIStorageCapacity",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/storage/v1/csistoragecapacity.go"
+    },
+    {
+      "client_source": "kubernetes/typed/storage/v1/storage_client.go",
+      "function": "runCase148",
+      "group_accessor": "storageV1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/storage/v1.StorageClass",
+      "resource_getter": "storageClasses",
+      "response": {
+        "apiVersion": "storage.k8s.io/v1",
+        "kind": "StorageClass",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/storage/v1/storageclass.go"
+    },
+    {
+      "client_source": "kubernetes/typed/storage/v1/storage_client.go",
+      "function": "runCase149",
+      "group_accessor": "storageV1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/storage/v1.VolumeAttachment",
+      "resource_getter": "volumeAttachments",
+      "response": {
+        "apiVersion": "storage.k8s.io/v1",
+        "kind": "VolumeAttachment",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/storage/v1/volumeattachment.go"
+    },
+    {
+      "client_source": "kubernetes/typed/storage/v1/storage_client.go",
+      "function": "runCase150",
+      "group_accessor": "storageV1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/storage/v1.VolumeAttributesClass",
+      "resource_getter": "volumeAttributesClasses",
+      "response": {
+        "apiVersion": "storage.k8s.io/v1",
+        "kind": "VolumeAttributesClass",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/storage/v1/volumeattributesclass.go"
+    },
+    {
+      "client_source": "kubernetes/typed/storage/v1alpha1/storage_client.go",
+      "function": "runCase151",
+      "group_accessor": "storageV1alpha1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/storage/v1alpha1.CSIStorageCapacity",
+      "resource_getter": "cSIStorageCapacities",
+      "response": {
+        "apiVersion": "storage.k8s.io/v1alpha1",
+        "kind": "CSIStorageCapacity",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/storage/v1alpha1/csistoragecapacity.go"
+    },
+    {
+      "client_source": "kubernetes/typed/storage/v1alpha1/storage_client.go",
+      "function": "runCase152",
+      "group_accessor": "storageV1alpha1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/storage/v1alpha1.VolumeAttachment",
+      "resource_getter": "volumeAttachments",
+      "response": {
+        "apiVersion": "storage.k8s.io/v1alpha1",
+        "kind": "VolumeAttachment",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/storage/v1alpha1/volumeattachment.go"
+    },
+    {
+      "client_source": "kubernetes/typed/storage/v1alpha1/storage_client.go",
+      "function": "runCase153",
+      "group_accessor": "storageV1alpha1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/storage/v1alpha1.VolumeAttributesClass",
+      "resource_getter": "volumeAttributesClasses",
+      "response": {
+        "apiVersion": "storage.k8s.io/v1alpha1",
+        "kind": "VolumeAttributesClass",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/storage/v1alpha1/volumeattributesclass.go"
+    },
+    {
+      "client_source": "kubernetes/typed/storage/v1beta1/storage_client.go",
+      "function": "runCase154",
+      "group_accessor": "storageV1beta1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/storage/v1beta1.CSIDriver",
+      "resource_getter": "cSIDrivers",
+      "response": {
+        "apiVersion": "storage.k8s.io/v1beta1",
+        "kind": "CSIDriver",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/storage/v1beta1/csidriver.go"
+    },
+    {
+      "client_source": "kubernetes/typed/storage/v1beta1/storage_client.go",
+      "function": "runCase155",
+      "group_accessor": "storageV1beta1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/storage/v1beta1.CSINode",
+      "resource_getter": "cSINodes",
+      "response": {
+        "apiVersion": "storage.k8s.io/v1beta1",
+        "kind": "CSINode",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/storage/v1beta1/csinode.go"
+    },
+    {
+      "client_source": "kubernetes/typed/storage/v1beta1/storage_client.go",
+      "function": "runCase156",
+      "group_accessor": "storageV1beta1",
+      "input": null,
+      "namespace": "client-namespace",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/storage/v1beta1.CSIStorageCapacity",
+      "resource_getter": "cSIStorageCapacities",
+      "response": {
+        "apiVersion": "storage.k8s.io/v1beta1",
+        "kind": "CSIStorageCapacity",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Namespaced",
+      "source": "kubernetes/typed/storage/v1beta1/csistoragecapacity.go"
+    },
+    {
+      "client_source": "kubernetes/typed/storage/v1beta1/storage_client.go",
+      "function": "runCase157",
+      "group_accessor": "storageV1beta1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/storage/v1beta1.StorageClass",
+      "resource_getter": "storageClasses",
+      "response": {
+        "apiVersion": "storage.k8s.io/v1beta1",
+        "kind": "StorageClass",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/storage/v1beta1/storageclass.go"
+    },
+    {
+      "client_source": "kubernetes/typed/storage/v1beta1/storage_client.go",
+      "function": "runCase158",
+      "group_accessor": "storageV1beta1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/storage/v1beta1.VolumeAttachment",
+      "resource_getter": "volumeAttachments",
+      "response": {
+        "apiVersion": "storage.k8s.io/v1beta1",
+        "kind": "VolumeAttachment",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/storage/v1beta1/volumeattachment.go"
+    },
+    {
+      "client_source": "kubernetes/typed/storage/v1beta1/storage_client.go",
+      "function": "runCase159",
+      "group_accessor": "storageV1beta1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/storage/v1beta1.VolumeAttributesClass",
+      "resource_getter": "volumeAttributesClasses",
+      "response": {
+        "apiVersion": "storage.k8s.io/v1beta1",
+        "kind": "VolumeAttributesClass",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/storage/v1beta1/volumeattributesclass.go"
+    },
+    {
+      "client_source": "kubernetes/typed/storagemigration/v1/storagemigration_client.go",
+      "function": "runCase160",
+      "group_accessor": "storagemigrationV1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/storagemigration/v1.StorageVersionMigration",
+      "resource_getter": "storageVersionMigrations",
+      "response": {
+        "apiVersion": "storagemigration.k8s.io/v1",
+        "kind": "StorageVersionMigration",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/storagemigration/v1/storageversionmigration.go"
+    },
+    {
+      "client_source": "kubernetes/typed/storagemigration/v1beta1/storagemigration_client.go",
+      "function": "runCase161",
+      "group_accessor": "storagemigrationV1beta1",
+      "input": null,
+      "namespace": "",
+      "operation": "Get",
+      "options": {
+        "resourceVersion": "fixture-rv"
+      },
+      "request_name": "request-name",
+      "resource": "k8s.io/api/storagemigration/v1beta1.StorageVersionMigration",
+      "resource_getter": "storageVersionMigrations",
+      "response": {
+        "apiVersion": "storagemigration.k8s.io/v1beta1",
+        "kind": "StorageVersionMigration",
+        "metadata": {
+          "name": "response-name",
+          "namespace": "response-namespace",
+          "resourceVersion": "response-rv"
+        }
+      },
+      "scope": "Cluster",
+      "source": "kubernetes/typed/storagemigration/v1beta1/storageversionmigration.go"
+    }
+  ],
+  "config": {
+    "accept_content_types": "application/json",
+    "content_type": "application/json",
+    "host": "http://family.invalid",
+    "qps": -1
+  },
+  "group_count": 55,
+  "schema_version": 1,
+  "selection": "Get then List then Create, otherwise source-defined Evict",
+  "source": {
+    "revision": "72c52dd0cc3b9099b36af11290b0304045dd1ada",
+    "version": "v0.37.2"
+  }
+}

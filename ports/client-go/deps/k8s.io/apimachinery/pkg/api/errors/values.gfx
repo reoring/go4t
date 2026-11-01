@@ -2,7 +2,7 @@
 // Source: client-go v0.37.2 and exact external dependency declarations.
 // Kubernetes-derived declarations are licensed under Apache-2.0.
 // https://www.apache.org/licenses/LICENSE-2.0
-// Source graph SHA-256: 2e4efd1c862cc7bde1036ba0dc37a4fe08175d4ead5d513b32689e674b91d866
+// Source graph SHA-256: 99a062162cbc99a38896123a3e81ce3ef2f70f2e505fbd058751d52a0a40f167
 package errors
 
 import canonical "github.com/reoring/gofx/ports/client-go/deps/types"
@@ -10,19 +10,39 @@ import support "github.com/reoring/gofx/ports/client-go/deps/support"
 
 alias APIStatus = canonical.APIStatus_6086bfd87322
 alias ErrorReporter = canonical.ErrorReporter_9b767cda1bfb
-extern func newErrorReporter() IO[ErrorReporter] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".New_ErrorReporter_9b767cda1bfb
+extern func newErrorReporter() IO[ErrorReporter] = "github.com/reoring/gofx/ports/client-go/host/deps".New_ErrorReporter_9b767cda1bfb
 alias StatusError = canonical.StatusError_9a42585dea2a
-extern func newStatusError() IO[StatusError] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".New_StatusError_9a42585dea2a
-extern func statusErrorGetErrStatusIdentity(value StatusError) IO[canonical.Status_8e47a5c8cf5c] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Get_StatusError_9a42585dea2a_ErrStatus
-extern func statusErrorSetErrStatusIdentity(value StatusError, field canonical.Status_8e47a5c8cf5c) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".With_StatusError_9a42585dea2a_ErrStatus
+extern func newStatusError() IO[StatusError] = "github.com/reoring/gofx/ports/client-go/host/deps".New_StatusError_9a42585dea2a
+extern func statusErrorGetErrStatusIdentity(value StatusError) IO[canonical.Status_8e47a5c8cf5c] = "github.com/reoring/gofx/ports/client-go/host/deps".Get_StatusError_9a42585dea2a_ErrStatus
+extern func statusErrorSetErrStatusIdentity(value StatusError, field canonical.Status_8e47a5c8cf5c) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".With_StatusError_9a42585dea2a_ErrStatus
 alias UnexpectedObjectError = canonical.UnexpectedObjectError_2235b599f8f9
-extern func newUnexpectedObjectError() IO[UnexpectedObjectError] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".New_UnexpectedObjectError_2235b599f8f9
-extern func unexpectedObjectErrorGetObjectIdentity(value UnexpectedObjectError) IO[Option[canonical.Object_afe2f0b1d210]] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Get_UnexpectedObjectError_2235b599f8f9_Object
-extern func unexpectedObjectErrorSetObjectIdentity(value UnexpectedObjectError, field Option[canonical.Object_afe2f0b1d210]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".With_UnexpectedObjectError_2235b599f8f9_Object
-extern func errorReporterCallAsObjectIdentity(value ErrorReporter, p0 Option[support.Error]) IO[Option[canonical.Object_afe2f0b1d210]] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_5c8b2b01390b6dd3
-extern func statusErrorCallDebugErrorIdentity(value StatusError) IO[(String, Option[List[Option[support.Any]]])] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_12d2a144e3c9c5dd
-extern func statusErrorCallErrorIdentity(value StatusError) IO[String] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_ded3759d593e39c5
-extern func statusErrorCallStatusIdentity(value StatusError) IO[canonical.Status_8e47a5c8cf5c] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_c5d83baecf349175
-extern func unexpectedObjectErrorCallErrorIdentity(value UnexpectedObjectError) IO[String] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Call_202290a75d0b862b
-extern func aPIStatusCallStatusIdentity(value APIStatus) IO[canonical.Status_8e47a5c8cf5c] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Interface_b66c4784ec7fcf02
-extern func newAPIStatus(f0 func() IO[canonical.Status_8e47a5c8cf5c]) IO[APIStatus] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".New_Proxy_APIStatus_6086bfd87322
+extern func newUnexpectedObjectError() IO[UnexpectedObjectError] = "github.com/reoring/gofx/ports/client-go/host/deps".New_UnexpectedObjectError_2235b599f8f9
+extern func unexpectedObjectErrorGetObjectIdentity(value UnexpectedObjectError) IO[Option[canonical.Object_afe2f0b1d210]] = "github.com/reoring/gofx/ports/client-go/host/deps".Get_UnexpectedObjectError_2235b599f8f9_Object
+extern func unexpectedObjectErrorSetObjectIdentity(value UnexpectedObjectError, field Option[canonical.Object_afe2f0b1d210]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/host/deps".With_UnexpectedObjectError_2235b599f8f9_Object
+extern func errorReporterCallAsObjectIdentity(value ErrorReporter, p0 Option[support.Error]) IO[Option[canonical.Object_afe2f0b1d210]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_5c8b2b01390b6dd3
+extern func callFromObject(p0 Option[canonical.Object_afe2f0b1d210]) IO[(Option[canonical.Object_afe2f0b1d210], Option[support.Error])] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_4cafebcebcb925c3
+extern func callHasStatusCause(p0 Option[support.Error], p1 canonical.CauseType_561ac1f4bd4b) IO[Bool] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_4be912eb2c8a182b
+extern func callIsAlreadyExists(p0 Option[support.Error]) IO[Bool] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_b66ad3479c807fc1
+extern func callIsConflict(p0 Option[support.Error]) IO[Bool] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_7ed8aa4061334c3d
+extern func callIsForbidden(p0 Option[support.Error]) IO[Bool] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_14f2fb993cac9bd8
+extern func callIsGone(p0 Option[support.Error]) IO[Bool] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_883fd4a3cf8e4b22
+extern func callIsInternalError(p0 Option[support.Error]) IO[Bool] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_1a1e319fa5e7dea2
+extern func callIsNotFound(p0 Option[support.Error]) IO[Bool] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_c5f162784a127807
+extern func callIsResourceExpired(p0 Option[support.Error]) IO[Bool] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_ee2421786355b242
+extern func callIsTimeout(p0 Option[support.Error]) IO[Bool] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_236a7b53e3d7ad6b
+extern func callIsTooManyRequests(p0 Option[support.Error]) IO[Bool] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_b7b322d72db9ba4e
+extern func callIsUnauthorized(p0 Option[support.Error]) IO[Bool] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_1083548ba7749dcb
+extern func callIsUnexpectedServerError(p0 Option[support.Error]) IO[Bool] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_5b860a5a3ac05b7e
+extern func callNewAlreadyExists(p0 canonical.GroupResource_cc3368bdb324, p1 String) IO[Option[canonical.StatusError_9a42585dea2a]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_794d90bccc776ecc
+extern func callNewBadRequest(p0 String) IO[Option[canonical.StatusError_9a42585dea2a]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_3ec86ef285e82149
+extern func callNewClientErrorReporter(p0 Int, p1 String, p2 String) IO[Option[canonical.ErrorReporter_9b767cda1bfb]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_f2bbfbd25cb0dbd7
+extern func callNewGenericServerResponse(p0 Int, p1 String, p2 canonical.GroupResource_cc3368bdb324, p3 String, p4 String, p5 Int, p6 Bool) IO[Option[canonical.StatusError_9a42585dea2a]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_7bc662aaaa298078
+extern func callNewInternalError(p0 Option[support.Error]) IO[Option[canonical.StatusError_9a42585dea2a]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_a3e901259e4baf1f
+extern func callNewNotFound(p0 canonical.GroupResource_cc3368bdb324, p1 String) IO[Option[canonical.StatusError_9a42585dea2a]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_39a19f858af672f7
+extern func callNewResourceExpired(p0 String) IO[Option[canonical.StatusError_9a42585dea2a]] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_9eef5d1c9f355097
+extern func statusErrorCallDebugErrorIdentity(value StatusError) IO[(String, Option[List[Option[support.Any]]])] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_12d2a144e3c9c5dd
+extern func statusErrorCallErrorIdentity(value StatusError) IO[String] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_ded3759d593e39c5
+extern func statusErrorCallStatusIdentity(value StatusError) IO[canonical.Status_8e47a5c8cf5c] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_c5d83baecf349175
+extern func unexpectedObjectErrorCallErrorIdentity(value UnexpectedObjectError) IO[String] = "github.com/reoring/gofx/ports/client-go/host/deps".Call_202290a75d0b862b
+extern func aPIStatusCallStatusIdentity(value APIStatus) IO[canonical.Status_8e47a5c8cf5c] = "github.com/reoring/gofx/ports/client-go/host/deps".Interface_b66c4784ec7fcf02
+extern func newAPIStatus(f0 func() IO[canonical.Status_8e47a5c8cf5c]) IO[APIStatus] = "github.com/reoring/gofx/ports/client-go/host/deps".New_Proxy_APIStatus_6086bfd87322

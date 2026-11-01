@@ -1,0 +1,26 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package record
+import core "github.com/reoring/gofx/ports/client-go/deps/k8s.io/api/core/v1"
+import meta "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import "github.com/reoring/gofx/ports/client-go/deps/support"
+import "github.com/reoring/gofx/ports/client-go/support/outcome"
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+import rest "github.com/reoring/gofx/ports/client-go/rest"
+func testNamespaceSourceAndShutdownTrace() IO[Bool] { do {
+ clock <- sync.fakeClock(1000000000)
+ broadcaster <- newBroadcaster([withCorrelatorOptions(defaultCorrelatorOptions(clock))])
+ received <- sync.newChannel(1)
+ startEventWatcher(broadcaster,func(event) => sync.send(received,event))
+ let source = core.eventSourceWithHost(core.eventSourceWithComponent(core.newEventSource(),"controller"),"node")
+ let recorder = newRecorder(broadcaster,None,source)
+ let reference = core.objectReferenceWithName(core.newObjectReference(),"cluster-object")
+ recorder.event(Some(core.objectReferenceToRuntimeObject(reference)),"Normal","Created","message")
+ event <- sync.receive(received); shutdown(broadcaster); stopped <- sync.readRef(broadcaster.stopped)
+ ioPure(stopped && (match event { None => false; Some(event) => meta.objectMetaGetNamespace(core.eventGetObjectMeta(event))=="default" && core.eventGetReportingController(event)=="controller" && core.eventGetReportingInstance(event)=="node" && core.eventSourceGetComponent(core.eventGetSource(event))=="controller" }))
+} }
+func testLegacyConstructionErrorIsTerminalTrace() IO[Bool] { do {
+ clock <- sync.fakeClock(1000000000); c <- newEventCorrelator(clock); calls <- sync.newRef(0)
+ let error = rest.requestConstructionError(Some(support.errorNew("bad request")))
+ let sink = EventSink(func(event) => do { sync.writeRef(calls,1); ioPure(outcome.Outcome(None,Some(error))) },func(event) => ioPure(outcome.Outcome(Some(event),None)),func(event,patch) => ioPure(outcome.Outcome(Some(event),None)))
+ done <- recordEvent(sink,core.newEvent(),"",false,c); count <- sync.readRef(calls); ioPure(done && count==1)
+} }

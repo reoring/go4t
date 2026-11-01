@@ -1,0 +1,5 @@
+// Copyright The Kubernetes Authors. Licensed under Apache-2.0.
+// The complete generated schema is embedded by applyconfigurations/host.
+package internal
+import typed "deps/sigs.k8s.io/structured-merge-diff/v6/typed"
+extern func parser() IO[typed.Parser] = "github.com/reoring/gofx/ports/client-go/applyconfigurations/host".Parser

@@ -1,0 +1,31 @@
+// Copyright 2018 The Kubernetes Authors. Licensed under Apache-2.0.
+package keyutil
+import cert "github.com/reoring/gofx/ports/client-go/util/cert"
+import outcome "github.com/reoring/gofx/ports/client-go/support/outcome"
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import list "std/list"
+extern func _fixture(name String) String = "github.com/reoring/gofx/ports/client-go/util/keyutil/testsupport".Fixture
+extern func _pkcs8(name String) String = "github.com/reoring/gofx/ports/client-go/util/keyutil/testsupport".PKCS8
+extern func _tempDir() IO[String] = "github.com/reoring/gofx/ports/client-go/util/cert/testsupport".TempDir
+extern func _removeDir(path String) IO[Unit] = "github.com/reoring/gofx/ports/client-go/util/cert/testsupport".RemoveAll
+extern func _mode(path String) IO[Int] = "github.com/reoring/gofx/ports/client-go/util/cert/testsupport".Mode
+func testPrivateFormatsAndIgnoredParameters() IO[Bool] { do {
+ values <- list.mapM([_fixture("rsa"), _fixture("ec"), _fixture("ecparams"), _pkcs8("rsa"), _pkcs8("ec")], func(bytes) => do { parsed <- parsePrivateKeyPEM(bytes); ioPure(outcome.isSuccess(parsed) && (match parsed.value { Some(_) => true; None => false })) })
+ malformed <- parsePrivateKeyPEM("-----BEGIN PRIVATE KEY-----\nYmFk\n-----END PRIVATE KEY-----")
+ ioPure(list.all(values, func(value) => value) && (match malformed.error { Some(error) => cert.errorText(error) == "data does not contain a valid RSA or ECDSA private key"; None => false }))
+} }
+func testPublicExtractionFromPublicPrivateCertificateBlocks() IO[Bool] { do {
+ parsed <- parsePublicKeysPEM(_fixture("rsapub") + "\n" + _fixture("ecpub") + "\n" + _fixture("rsa") + "\n" + _pkcs8("rsa") + "\n" + _fixture("cert"))
+ empty <- parsePublicKeysPEM("garbage")
+ ioPure(outcome.isSuccess(parsed) && list.length(parsed.value) == 5 && !outcome.isSuccess(empty))
+} }
+func testWriteAndLoadPreservesKeyPermissionsAndCorruptFiles() IO[Bool] {
+ sync.bracket(_tempDir(), func(dir) => do {
+  let path = cert.joinPath(dir, "nested/key.pem")
+  generated <- loadOrGenerateKeyFile(path); mode <- _mode(path)
+  loaded <- loadOrGenerateKeyFile(path)
+  cert.writeFile(path, "corrupt", 384)
+  bad <- loadOrGenerateKeyFile(path); bytes <- cert.readFile(path)
+  ioPure(outcome.isSuccess(generated) && generated.value.1 && mode == 384 && outcome.isSuccess(loaded) && !loaded.value.1 && loaded.value.0 == generated.value.0 && !outcome.isSuccess(bad) && bytes.0 == "corrupt")
+ }, _removeDir)
+}

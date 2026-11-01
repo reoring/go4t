@@ -1,0 +1,40 @@
+package examples
+
+// Copyright 2025 The Kubernetes Authors. Licensed under Apache-2.0.
+import app "applyconfigurations/apps/v1"
+import core "applyconfigurations/core/v1"
+import metaapply "applyconfigurations/meta/v1"
+import meta "deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import apps "deps/k8s.io/api/apps/v1"
+import kube "kubernetes"
+import m "std/map"
+import objectsCore "deps/k8s.io/api/core/v1"
+import strings "std/string"
+
+func serverSideApplyExample() IO[Trace] {
+ do {
+  trace <- newTrace("deployment_server_side_apply")
+  env <- environment()
+  let labels = Some(m.mapFromList([("app","my-app")]))
+  let container = core.containerWithImage(core.containerWithName(core.container(),"nginx"),"nginx:1.14.2")
+  let pod = core.podSpecWithContainers(core.podSpec(),[Some(container)])
+  let template = core.podTemplateSpecWithSpec(core.podTemplateSpecWithLabels(core.podTemplateSpec(),labels),Some(pod))
+  let selector = metaapply.labelSelectorWithMatchLabels(metaapply.labelSelector(),labels)
+  let spec = app.deploymentSpecWithTemplate(app.deploymentSpecWithSelector(app.deploymentSpecWithReplicas(app.deploymentSpec(),2),Some(selector)),Some(template))
+  let desired = app.deploymentWithSpec(app.deployment("my-app","default"),Some(spec))
+  withValidatedHTTP(trace,[Exchange("PATCH","/apis/apps/v1/namespaces/default/deployments/my-app",200,"{\"apiVersion\":\"apps/v1\",\"kind\":\"Deployment\",\"metadata\":{\"name\":\"my-app\",\"namespace\":\"default\"},\"spec\":{\"replicas\":2}}")],func(request) => do {
+   check(strings.contains(request.rawQuery,"fieldManager=my-controller"),"apply field manager missing")
+   sent <- decode(apps.deploymentObjectType(),apps.newDeployment(),request.body)
+   let spec = apps.deploymentGetSpec(sent)
+   check(apps.deploymentSpecGetReplicas(spec)==Some(2) && meta.objectMetaGetName(apps.deploymentGetObjectMeta(sent))=="my-app","incorrect transmitted apply configuration")
+   let containers = objectsCore.podSpecGetContainers(objectsCore.podTemplateSpecGetSpec(apps.deploymentSpecGetTemplate(spec)))
+   check(match containers { Some([container]) => objectsCore.containerGetImage(container)=="nginx:1.14.2"; _ => false },"incorrect apply container")
+  },func(url) => do {
+   made <- kube.newForConfig(env,config(url)); client <- present(made)
+   result <- client.appsV1().deployments("default").apply(Some(desired),meta.applyOptionsWithFieldManager(meta.newApplyOptions(),"my-controller")); result <- present(result)
+   check(meta.objectMetaGetName(apps.deploymentGetObjectMeta(result))=="my-app","apply response object not decoded")
+   resultEvent(trace,"apply",apps.deploymentObjectType(),result)
+  })
+  ioPure(trace)
+ }
+}

@@ -1,0 +1,44 @@
+// Copyright 2026 The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package leaderelection
+import "support/sync"
+import rl "tools/leaderelection/resourcelock"
+import errors "deps/support"
+import "std/io"
+
+func testTimingValidationOrderAndBoundaries() IO[Bool] {
+ do {
+  lock <- _controlledLock("me",None)
+  let config = _testConfig(lock.lock,_silentCallbacks())
+  let duration = validate(config { leaseDuration:config.renewDeadline })
+  let jitter = validate(config { renewDeadline:2400000000 })
+  let zeroRetry = validate(config { retryPeriod:0 })
+  let empty = validate(config { lock:lock.lock { identity:"" } })
+  ioPure(_validationMessage(duration) == "leaseDuration must be greater than renewDeadline" && _validationMessage(jitter) == "renewDeadline must be greater than retryPeriod*JitterFactor" && _validationMessage(zeroRetry) == "retryPeriod must be greater than zero" && _validationMessage(empty) == "Lock identity is empty" && _noError(validate(config { renewDeadline:2400000001 })))
+ }
+}
+func _validationMessage(error Option[errors.Error]) String { match error { None => ""; Some(e) => errors.errorMessage(e) } }
+func testMetricsFirstProviderWinsAndInitialOff() IO[Bool] {
+ do {
+  events <- sync.newRef(Nil); registry <- newMetricsRegistry()
+  let metric = LeaderMetric(func(name) => _recordTrace(events,"on:"+name),func(name) => _recordTrace(events,"off:"+name),func(name) => _recordTrace(events,"slow:"+name))
+  setProvider(registry,MetricsProvider(func() => ioPure(metric)))
+  setProvider(registry,MetricsProvider(func() => ioFail("second provider must never be called")))
+  clock <- sync.fakeClock(1700000000000000000); lock <- _controlledLock("me",None)
+  constructed <- newLeaderElector(_testConfig(lock.lock,_silentCallbacks()),clock,registry)
+  match constructed.value { None => ioPure(false); Some(e) => do {
+   _ <- acquire(e); sync.writeRef(lock.conflicts,1); _ <- tryAcquireOrRenew(e)
+   observed <- sync.readRef(events); ioPure(observed == ["off:test","on:test","slow:test"])
+  } }
+ }
+}
+func testNewLeaderCallbackOnlyOnTransition() IO[Bool] {
+ do {
+  clock <- sync.fakeClock(1700000000000000000); lock <- _controlledLock("me",None); notifications <- sync.newChannel(2)
+  let callbacks = _silentCallbacks() { onNewLeader:Some(func(leader) => sync.send(notifications,leader)) }
+  e <- _testElector(_testConfig(lock.lock,callbacks),clock)
+  _ <- tryAcquireOrRenew(e); maybeReportTransition(e); first <- sync.receive(notifications)
+  maybeReportTransition(e); extra <- sync.tryReceive(notifications)
+  setObservedRecord(e,rl.emptyRecord() { holderIdentity:"other" }); maybeReportTransition(e); second <- sync.receive(notifications)
+  ioPure(first == Some("me") && second == Some("other") && (match extra { sync.Pending => true; _ => false }))
+ }
+}

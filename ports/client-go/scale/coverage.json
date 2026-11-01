@@ -1,0 +1,867 @@
+{
+  "schema_version": 1,
+  "source": {
+    "version": "v0.37.2",
+    "revision": "72c52dd0cc3b9099b36af11290b0304045dd1ada"
+  },
+  "verification": "NOT RUN: supervisor-owned acceptance",
+  "sources": [
+    {
+      "path": "scale/client.go",
+      "sha256": "c86470eb9850b575c56497e8cf1a4a93d1443d507ec29684f5a9b6ee15261ab3",
+      "symbols": [
+        {
+          "kind": "func",
+          "name": "NewForConfig",
+          "receiver": null,
+          "line": 60,
+          "native": "scale.newForConfig"
+        },
+        {
+          "kind": "func",
+          "name": "New",
+          "receiver": null,
+          "line": 79,
+          "native": "scale.newClient"
+        },
+        {
+          "kind": "method",
+          "name": "Scales",
+          "receiver": "*scaleClient",
+          "line": 143,
+          "native": "scale.ScalesGetter.scales"
+        },
+        {
+          "kind": "method",
+          "name": "Get",
+          "receiver": "*namespacedScaleClient",
+          "line": 150,
+          "native": "scale.get"
+        },
+        {
+          "kind": "method",
+          "name": "Update",
+          "receiver": "*namespacedScaleClient",
+          "line": 176,
+          "native": "scale.update"
+        },
+        {
+          "kind": "method",
+          "name": "Patch",
+          "receiver": "*namespacedScaleClient",
+          "line": 222,
+          "native": "scale.patch"
+        }
+      ]
+    },
+    {
+      "path": "scale/doc.go",
+      "sha256": "f607568cdbd4a3cf258dbd9367883e13463ce8cdfd2268177ded6c26d565b7a7",
+      "symbols": []
+    },
+    {
+      "path": "scale/fake/client.go",
+      "sha256": "ebe297d47d3492756b0300a5f36fa48cc847a2ead7f1b57cd49cee90c61cd4e1",
+      "symbols": [
+        {
+          "kind": "type",
+          "name": "FakeScaleClient",
+          "receiver": null,
+          "line": 34,
+          "native": "scale/fake.FakeScaleClient"
+        },
+        {
+          "kind": "method",
+          "name": "Scales",
+          "receiver": "*FakeScaleClient",
+          "line": 38,
+          "native": "scale/fake.interface(...).scales"
+        },
+        {
+          "kind": "method",
+          "name": "Get",
+          "receiver": "*fakeNamespacedScaleClient",
+          "line": 50,
+          "native": "scale/fake.get"
+        },
+        {
+          "kind": "method",
+          "name": "Update",
+          "receiver": "*fakeNamespacedScaleClient",
+          "line": 61,
+          "native": "scale/fake.update"
+        },
+        {
+          "kind": "method",
+          "name": "Patch",
+          "receiver": "*fakeNamespacedScaleClient",
+          "line": 72,
+          "native": "scale/fake.patch"
+        }
+      ]
+    },
+    {
+      "path": "scale/interfaces.go",
+      "sha256": "23769ed217769aeed3899327ba70b7f5defc1ce0d8576717f06656854edeb321",
+      "symbols": [
+        {
+          "kind": "type",
+          "name": "ScalesGetter",
+          "receiver": null,
+          "line": 29,
+          "native": "scale.ScalesGetter"
+        },
+        {
+          "kind": "type",
+          "name": "ScaleInterface",
+          "receiver": null,
+          "line": 38,
+          "native": "scale.ScaleInterface"
+        }
+      ]
+    },
+    {
+      "path": "scale/scheme/appsint/doc.go",
+      "sha256": "ba12c018602375ee1e39109f159feae835d043c3924ad14d804c2299720e1d43",
+      "symbols": []
+    },
+    {
+      "path": "scale/scheme/appsint/register.go",
+      "sha256": "edee2cbe073dc56b39a4895c23f0872eb2170f386c90c1013998a7f4d9981c2e",
+      "symbols": [
+        {
+          "kind": "const",
+          "name": "GroupName",
+          "receiver": null,
+          "line": 27,
+          "native": "scale/scheme/appsint.groupName"
+        },
+        {
+          "kind": "var",
+          "name": "SchemeGroupVersion",
+          "receiver": null,
+          "line": 30,
+          "native": "scale/scheme/appsint.schemeGroupVersion"
+        },
+        {
+          "kind": "func",
+          "name": "Kind",
+          "receiver": null,
+          "line": 33,
+          "native": "scale/scheme/appsint.kind"
+        },
+        {
+          "kind": "func",
+          "name": "Resource",
+          "receiver": null,
+          "line": 38,
+          "native": "scale/scheme/appsint.resource"
+        },
+        {
+          "kind": "var",
+          "name": "SchemeBuilder",
+          "receiver": null,
+          "line": 44,
+          "native": "scale/scheme/appsint.addToScheme"
+        },
+        {
+          "kind": "var",
+          "name": "AddToScheme",
+          "receiver": null,
+          "line": 46,
+          "native": "scale/scheme/appsint.addToScheme"
+        }
+      ]
+    },
+    {
+      "path": "scale/scheme/appsv1beta1/conversion.go",
+      "sha256": "838ba539906dd99265c9ad01e5f6a9678c9c1e2a0abfb7c886dc0163c7cc3c50",
+      "symbols": [
+        {
+          "kind": "func",
+          "name": "Convert_scheme_ScaleStatus_To_v1beta1_ScaleStatus",
+          "receiver": null,
+          "line": 28,
+          "native": "scale/scheme/appsv1beta1.toScaleStatus"
+        },
+        {
+          "kind": "func",
+          "name": "Convert_v1beta1_ScaleStatus_To_scheme_ScaleStatus",
+          "receiver": null,
+          "line": 47,
+          "native": "scale/scheme/appsv1beta1.fromScaleStatus"
+        }
+      ]
+    },
+    {
+      "path": "scale/scheme/appsv1beta1/doc.go",
+      "sha256": "de6877fb58855bfa41924b75a78ad9d4e0da041aaf9c1e95703b5b9e86b9fe3d",
+      "symbols": []
+    },
+    {
+      "path": "scale/scheme/appsv1beta1/register.go",
+      "sha256": "becff07fba8250452551af5d823be36512dc742176a1e909e9ed36f2ce642714",
+      "symbols": [
+        {
+          "kind": "const",
+          "name": "GroupName",
+          "receiver": null,
+          "line": 25,
+          "native": "scale/scheme/appsv1beta1.groupName"
+        },
+        {
+          "kind": "var",
+          "name": "SchemeGroupVersion",
+          "receiver": null,
+          "line": 28,
+          "native": "scale/scheme/appsv1beta1.schemeGroupVersion"
+        },
+        {
+          "kind": "func",
+          "name": "Resource",
+          "receiver": null,
+          "line": 31,
+          "native": "scale/scheme/appsv1beta1.resource"
+        },
+        {
+          "kind": "var",
+          "name": "AddToScheme",
+          "receiver": null,
+          "line": 37,
+          "native": "scale/scheme/appsv1beta1.addToScheme"
+        }
+      ]
+    },
+    {
+      "path": "scale/scheme/appsv1beta1/zz_generated.conversion.go",
+      "sha256": "ff1373ebe6daf70150d3b48ebc17f62b72a0132f1e084d6a3d184b94aab63f23",
+      "symbols": [
+        {
+          "kind": "func",
+          "name": "RegisterConversions",
+          "receiver": null,
+          "line": 39,
+          "native": "scale/scheme/appsv1beta1.registerConversions"
+        },
+        {
+          "kind": "func",
+          "name": "Convert_v1beta1_Scale_To_scheme_Scale",
+          "receiver": null,
+          "line": 85,
+          "native": "scale/scheme/appsv1beta1.fromScale"
+        },
+        {
+          "kind": "func",
+          "name": "Convert_scheme_Scale_To_v1beta1_Scale",
+          "receiver": null,
+          "line": 101,
+          "native": "scale/scheme/appsv1beta1.toScale"
+        },
+        {
+          "kind": "func",
+          "name": "Convert_v1beta1_ScaleSpec_To_scheme_ScaleSpec",
+          "receiver": null,
+          "line": 111,
+          "native": "scale/scheme/appsv1beta1.fromScaleSpec"
+        },
+        {
+          "kind": "func",
+          "name": "Convert_scheme_ScaleSpec_To_v1beta1_ScaleSpec",
+          "receiver": null,
+          "line": 121,
+          "native": "scale/scheme/appsv1beta1.toScaleSpec"
+        }
+      ]
+    },
+    {
+      "path": "scale/scheme/appsv1beta2/conversion.go",
+      "sha256": "3079cf8c1fac00656681297800655efa84141bcaa4e3b845457ffca1770de472",
+      "symbols": [
+        {
+          "kind": "func",
+          "name": "Convert_scheme_ScaleStatus_To_v1beta2_ScaleStatus",
+          "receiver": null,
+          "line": 28,
+          "native": "scale/scheme/appsv1beta2.toScaleStatus"
+        },
+        {
+          "kind": "func",
+          "name": "Convert_v1beta2_ScaleStatus_To_scheme_ScaleStatus",
+          "receiver": null,
+          "line": 47,
+          "native": "scale/scheme/appsv1beta2.fromScaleStatus"
+        }
+      ]
+    },
+    {
+      "path": "scale/scheme/appsv1beta2/doc.go",
+      "sha256": "c54dd15b8681b6b4a6dc2fecb488672239cb76def01af3e9ae5dc95cade12a5e",
+      "symbols": []
+    },
+    {
+      "path": "scale/scheme/appsv1beta2/register.go",
+      "sha256": "eab56feb7ed4dba13b66042f789553844f4c304c84af5114a0593976d14488bc",
+      "symbols": [
+        {
+          "kind": "const",
+          "name": "GroupName",
+          "receiver": null,
+          "line": 25,
+          "native": "scale/scheme/appsv1beta2.groupName"
+        },
+        {
+          "kind": "var",
+          "name": "SchemeGroupVersion",
+          "receiver": null,
+          "line": 28,
+          "native": "scale/scheme/appsv1beta2.schemeGroupVersion"
+        },
+        {
+          "kind": "func",
+          "name": "Resource",
+          "receiver": null,
+          "line": 31,
+          "native": "scale/scheme/appsv1beta2.resource"
+        },
+        {
+          "kind": "var",
+          "name": "AddToScheme",
+          "receiver": null,
+          "line": 37,
+          "native": "scale/scheme/appsv1beta2.addToScheme"
+        }
+      ]
+    },
+    {
+      "path": "scale/scheme/appsv1beta2/zz_generated.conversion.go",
+      "sha256": "69488c92d6583314aa8275a25bc71768dd42f4a586521a001cfb956cf2ad4328",
+      "symbols": [
+        {
+          "kind": "func",
+          "name": "RegisterConversions",
+          "receiver": null,
+          "line": 39,
+          "native": "scale/scheme/appsv1beta2.registerConversions"
+        },
+        {
+          "kind": "func",
+          "name": "Convert_v1beta2_Scale_To_scheme_Scale",
+          "receiver": null,
+          "line": 85,
+          "native": "scale/scheme/appsv1beta2.fromScale"
+        },
+        {
+          "kind": "func",
+          "name": "Convert_scheme_Scale_To_v1beta2_Scale",
+          "receiver": null,
+          "line": 101,
+          "native": "scale/scheme/appsv1beta2.toScale"
+        },
+        {
+          "kind": "func",
+          "name": "Convert_v1beta2_ScaleSpec_To_scheme_ScaleSpec",
+          "receiver": null,
+          "line": 111,
+          "native": "scale/scheme/appsv1beta2.fromScaleSpec"
+        },
+        {
+          "kind": "func",
+          "name": "Convert_scheme_ScaleSpec_To_v1beta2_ScaleSpec",
+          "receiver": null,
+          "line": 121,
+          "native": "scale/scheme/appsv1beta2.toScaleSpec"
+        }
+      ]
+    },
+    {
+      "path": "scale/scheme/autoscalingv1/conversion.go",
+      "sha256": "5dbae1bc6088967546e52dca607c0a9a4c8dbc23b0ab5eae7b34e1402376462e",
+      "symbols": [
+        {
+          "kind": "func",
+          "name": "Convert_scheme_ScaleStatus_To_v1_ScaleStatus",
+          "receiver": null,
+          "line": 28,
+          "native": "scale/scheme/autoscalingv1.toScaleStatus"
+        },
+        {
+          "kind": "func",
+          "name": "Convert_v1_ScaleStatus_To_scheme_ScaleStatus",
+          "receiver": null,
+          "line": 42,
+          "native": "scale/scheme/autoscalingv1.fromScaleStatus"
+        }
+      ]
+    },
+    {
+      "path": "scale/scheme/autoscalingv1/doc.go",
+      "sha256": "2c808fad5bb5211158f9b2e56a7ab49fd07f46a705d18182ca8e561f2de09107",
+      "symbols": []
+    },
+    {
+      "path": "scale/scheme/autoscalingv1/register.go",
+      "sha256": "6acd4792b40ee0ccbc7cfcb3e1c211db3826d0abc555baa84ac5186ed270067c",
+      "symbols": [
+        {
+          "kind": "const",
+          "name": "GroupName",
+          "receiver": null,
+          "line": 25,
+          "native": "scale/scheme/autoscalingv1.groupName"
+        },
+        {
+          "kind": "var",
+          "name": "SchemeGroupVersion",
+          "receiver": null,
+          "line": 28,
+          "native": "scale/scheme/autoscalingv1.schemeGroupVersion"
+        },
+        {
+          "kind": "func",
+          "name": "Resource",
+          "receiver": null,
+          "line": 31,
+          "native": "scale/scheme/autoscalingv1.resource"
+        },
+        {
+          "kind": "var",
+          "name": "AddToScheme",
+          "receiver": null,
+          "line": 37,
+          "native": "scale/scheme/autoscalingv1.addToScheme"
+        }
+      ]
+    },
+    {
+      "path": "scale/scheme/autoscalingv1/zz_generated.conversion.go",
+      "sha256": "022c992f48faeaf065fc5715f3385c2d8f1322c36c17569ec9d1dceb12035ecc",
+      "symbols": [
+        {
+          "kind": "func",
+          "name": "RegisterConversions",
+          "receiver": null,
+          "line": 39,
+          "native": "scale/scheme/autoscalingv1.registerConversions"
+        },
+        {
+          "kind": "func",
+          "name": "Convert_v1_Scale_To_scheme_Scale",
+          "receiver": null,
+          "line": 85,
+          "native": "scale/scheme/autoscalingv1.fromScale"
+        },
+        {
+          "kind": "func",
+          "name": "Convert_scheme_Scale_To_v1_Scale",
+          "receiver": null,
+          "line": 101,
+          "native": "scale/scheme/autoscalingv1.toScale"
+        },
+        {
+          "kind": "func",
+          "name": "Convert_v1_ScaleSpec_To_scheme_ScaleSpec",
+          "receiver": null,
+          "line": 111,
+          "native": "scale/scheme/autoscalingv1.fromScaleSpec"
+        },
+        {
+          "kind": "func",
+          "name": "Convert_scheme_ScaleSpec_To_v1_ScaleSpec",
+          "receiver": null,
+          "line": 121,
+          "native": "scale/scheme/autoscalingv1.toScaleSpec"
+        }
+      ]
+    },
+    {
+      "path": "scale/scheme/doc.go",
+      "sha256": "8938e3c5066ca10c6332e7562f17b7c72e6148409e269f3b7383c363d456d248",
+      "symbols": []
+    },
+    {
+      "path": "scale/scheme/extensionsint/doc.go",
+      "sha256": "411f21a17862e7528f41a4f3e1ec9f893e9659cf1a14c9658c55722c81a2abe8",
+      "symbols": []
+    },
+    {
+      "path": "scale/scheme/extensionsint/register.go",
+      "sha256": "d5ca0df7915a064a0ba14ffe9c5d6b3bb63893b3ece50970e31ff978e919f98b",
+      "symbols": [
+        {
+          "kind": "const",
+          "name": "GroupName",
+          "receiver": null,
+          "line": 27,
+          "native": "scale/scheme/extensionsint.groupName"
+        },
+        {
+          "kind": "var",
+          "name": "SchemeGroupVersion",
+          "receiver": null,
+          "line": 30,
+          "native": "scale/scheme/extensionsint.schemeGroupVersion"
+        },
+        {
+          "kind": "func",
+          "name": "Kind",
+          "receiver": null,
+          "line": 33,
+          "native": "scale/scheme/extensionsint.kind"
+        },
+        {
+          "kind": "func",
+          "name": "Resource",
+          "receiver": null,
+          "line": 38,
+          "native": "scale/scheme/extensionsint.resource"
+        },
+        {
+          "kind": "var",
+          "name": "SchemeBuilder",
+          "receiver": null,
+          "line": 44,
+          "native": "scale/scheme/extensionsint.addToScheme"
+        },
+        {
+          "kind": "var",
+          "name": "AddToScheme",
+          "receiver": null,
+          "line": 46,
+          "native": "scale/scheme/extensionsint.addToScheme"
+        }
+      ]
+    },
+    {
+      "path": "scale/scheme/extensionsv1beta1/conversion.go",
+      "sha256": "b00a192d55132e0a9e2c50e032cc3164cdc660dd693694dda6f0fc664f015310",
+      "symbols": [
+        {
+          "kind": "func",
+          "name": "Convert_scheme_ScaleStatus_To_v1beta1_ScaleStatus",
+          "receiver": null,
+          "line": 28,
+          "native": "scale/scheme/extensionsv1beta1.toScaleStatus"
+        },
+        {
+          "kind": "func",
+          "name": "Convert_v1beta1_ScaleStatus_To_scheme_ScaleStatus",
+          "receiver": null,
+          "line": 47,
+          "native": "scale/scheme/extensionsv1beta1.fromScaleStatus"
+        }
+      ]
+    },
+    {
+      "path": "scale/scheme/extensionsv1beta1/doc.go",
+      "sha256": "9cfe6b27f05c6cfba3f3aa3a8a563ea5041d3622f4c78c07c00e77c4959a7813",
+      "symbols": []
+    },
+    {
+      "path": "scale/scheme/extensionsv1beta1/register.go",
+      "sha256": "6782cbf6fe965da950b52588b563d2850a2a32e6e6f20f15f1acd954bd9c45db",
+      "symbols": [
+        {
+          "kind": "const",
+          "name": "GroupName",
+          "receiver": null,
+          "line": 25,
+          "native": "scale/scheme/extensionsv1beta1.groupName"
+        },
+        {
+          "kind": "var",
+          "name": "SchemeGroupVersion",
+          "receiver": null,
+          "line": 28,
+          "native": "scale/scheme/extensionsv1beta1.schemeGroupVersion"
+        },
+        {
+          "kind": "func",
+          "name": "Resource",
+          "receiver": null,
+          "line": 31,
+          "native": "scale/scheme/extensionsv1beta1.resource"
+        },
+        {
+          "kind": "var",
+          "name": "AddToScheme",
+          "receiver": null,
+          "line": 37,
+          "native": "scale/scheme/extensionsv1beta1.addToScheme"
+        }
+      ]
+    },
+    {
+      "path": "scale/scheme/extensionsv1beta1/zz_generated.conversion.go",
+      "sha256": "a9dd0a45d89f5b99c2980f1019d8c4f09774869ad36feb49b82494026187991c",
+      "symbols": [
+        {
+          "kind": "func",
+          "name": "RegisterConversions",
+          "receiver": null,
+          "line": 39,
+          "native": "scale/scheme/extensionsv1beta1.registerConversions"
+        },
+        {
+          "kind": "func",
+          "name": "Convert_v1beta1_Scale_To_scheme_Scale",
+          "receiver": null,
+          "line": 85,
+          "native": "scale/scheme/extensionsv1beta1.fromScale"
+        },
+        {
+          "kind": "func",
+          "name": "Convert_scheme_Scale_To_v1beta1_Scale",
+          "receiver": null,
+          "line": 101,
+          "native": "scale/scheme/extensionsv1beta1.toScale"
+        },
+        {
+          "kind": "func",
+          "name": "Convert_v1beta1_ScaleSpec_To_scheme_ScaleSpec",
+          "receiver": null,
+          "line": 111,
+          "native": "scale/scheme/extensionsv1beta1.fromScaleSpec"
+        },
+        {
+          "kind": "func",
+          "name": "Convert_scheme_ScaleSpec_To_v1beta1_ScaleSpec",
+          "receiver": null,
+          "line": 121,
+          "native": "scale/scheme/extensionsv1beta1.toScaleSpec"
+        }
+      ]
+    },
+    {
+      "path": "scale/scheme/register.go",
+      "sha256": "baac30bfd24e7c8bd2bcb2f8b1447286139c383dc9c6fbe5672cc3ac780c9a61",
+      "symbols": [
+        {
+          "kind": "const",
+          "name": "GroupName",
+          "receiver": null,
+          "line": 26,
+          "native": "scale/scheme.groupName"
+        },
+        {
+          "kind": "var",
+          "name": "SchemeGroupVersion",
+          "receiver": null,
+          "line": 29,
+          "native": "scale/scheme.schemeGroupVersion"
+        },
+        {
+          "kind": "func",
+          "name": "Kind",
+          "receiver": null,
+          "line": 32,
+          "native": "scale/scheme.kind"
+        },
+        {
+          "kind": "func",
+          "name": "Resource",
+          "receiver": null,
+          "line": 37,
+          "native": "scale/scheme.resource"
+        },
+        {
+          "kind": "var",
+          "name": "SchemeBuilder",
+          "receiver": null,
+          "line": 43,
+          "native": "scale/scheme.addToScheme"
+        },
+        {
+          "kind": "var",
+          "name": "AddToScheme",
+          "receiver": null,
+          "line": 45,
+          "native": "scale/scheme.addToScheme"
+        }
+      ]
+    },
+    {
+      "path": "scale/scheme/types.go",
+      "sha256": "8ba089aa11f09d9a2e263178a7c96502a55a2c04846f602273810465d60af5e9",
+      "symbols": [
+        {
+          "kind": "type",
+          "name": "Scale",
+          "receiver": null,
+          "line": 29,
+          "native": "scale/scheme.Scale"
+        },
+        {
+          "kind": "type",
+          "name": "ScaleSpec",
+          "receiver": null,
+          "line": 45,
+          "native": "scale/scheme.ScaleSpec"
+        },
+        {
+          "kind": "type",
+          "name": "ScaleStatus",
+          "receiver": null,
+          "line": 52,
+          "native": "scale/scheme.ScaleStatus"
+        }
+      ]
+    },
+    {
+      "path": "scale/scheme/zz_generated.deepcopy.go",
+      "sha256": "e8a860076596e0433414cef726d40224f1b69d0acfbb76f680ca99dd3c1d06c1",
+      "symbols": [
+        {
+          "kind": "method",
+          "name": "DeepCopyInto",
+          "receiver": "*Scale",
+          "line": 30,
+          "native": "scale/scheme.deepCopy"
+        },
+        {
+          "kind": "method",
+          "name": "DeepCopy",
+          "receiver": "*Scale",
+          "line": 40,
+          "native": "scale/scheme.deepCopy"
+        },
+        {
+          "kind": "method",
+          "name": "DeepCopyObject",
+          "receiver": "*Scale",
+          "line": 50,
+          "native": "scale/scheme.deepCopy"
+        },
+        {
+          "kind": "method",
+          "name": "DeepCopyInto",
+          "receiver": "*ScaleSpec",
+          "line": 58,
+          "native": "scale/scheme.ScaleSpec immutable value copy"
+        },
+        {
+          "kind": "method",
+          "name": "DeepCopy",
+          "receiver": "*ScaleSpec",
+          "line": 64,
+          "native": "scale/scheme.ScaleSpec immutable value copy"
+        },
+        {
+          "kind": "method",
+          "name": "DeepCopyInto",
+          "receiver": "*ScaleStatus",
+          "line": 74,
+          "native": "scale/scheme.deepCopyStatus"
+        },
+        {
+          "kind": "method",
+          "name": "DeepCopy",
+          "receiver": "*ScaleStatus",
+          "line": 85,
+          "native": "scale/scheme.deepCopyStatus"
+        }
+      ]
+    },
+    {
+      "path": "scale/util.go",
+      "sha256": "13d222d05939eeeace0770eec9414f4d66435c44c04cbce73663a619299e9151",
+      "symbols": [
+        {
+          "kind": "type",
+          "name": "PreferredResourceMapper",
+          "receiver": null,
+          "line": 40,
+          "native": "scale.PreferredResourceMapper"
+        },
+        {
+          "kind": "type",
+          "name": "ScaleKindResolver",
+          "receiver": null,
+          "line": 50,
+          "native": "scale.ScaleKindResolver"
+        },
+        {
+          "kind": "method",
+          "name": "ScaleForResource",
+          "receiver": "*discoveryScaleResolver",
+          "line": 63,
+          "native": "scale.discoverScaleKind"
+        },
+        {
+          "kind": "method",
+          "name": "ScaleForResource",
+          "receiver": "*cachedScaleKindResolver",
+          "line": 99,
+          "native": "scale.newDiscoveryScaleKindResolver"
+        },
+        {
+          "kind": "func",
+          "name": "NewDiscoveryScaleKindResolver",
+          "receiver": null,
+          "line": 125,
+          "native": "scale.newDiscoveryScaleKindResolver"
+        },
+        {
+          "kind": "type",
+          "name": "ScaleConverter",
+          "receiver": null,
+          "line": 137,
+          "native": "scale.ScaleConverter"
+        },
+        {
+          "kind": "func",
+          "name": "NewScaleConverter",
+          "receiver": null,
+          "line": 145,
+          "native": "scale.newScaleConverter"
+        },
+        {
+          "kind": "method",
+          "name": "Scheme",
+          "receiver": "*ScaleConverter",
+          "line": 169,
+          "native": "scale.ScaleConverter.scheme"
+        },
+        {
+          "kind": "method",
+          "name": "Codecs",
+          "receiver": "*ScaleConverter",
+          "line": 173,
+          "native": "scale.ScaleConverter.codecs"
+        },
+        {
+          "kind": "method",
+          "name": "ScaleVersions",
+          "receiver": "*ScaleConverter",
+          "line": 177,
+          "native": "scale.scaleVersions"
+        },
+        {
+          "kind": "method",
+          "name": "ConvertToVersion",
+          "receiver": "*ScaleConverter",
+          "line": 190,
+          "native": "scale.convertToVersion"
+        }
+      ]
+    }
+  ],
+  "upstream_tests": [
+    {
+      "path": "scale/client_test.go",
+      "sha256": "f0dd3b4afde5fb0a6715a0f788b2fa2aa31b5ee976724980b04c77c7e995a953",
+      "cases": [
+        "TestGetScale",
+        "TestUpdateScale",
+        "TestPatchScale"
+      ]
+    },
+    {
+      "path": "scale/roundtrip_test.go",
+      "sha256": "76085534c78bbec62f80f11e9ed672aff98929ab845b6f2d13d9973210340c5e",
+      "cases": [
+        "TestRoundTrip"
+      ]
+    }
+  ],
+  "fixtures": []
+}

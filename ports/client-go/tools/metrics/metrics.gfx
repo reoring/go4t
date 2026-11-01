@@ -1,0 +1,120 @@
+// Copyright 2015 The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+// Native port of tools/metrics/metrics.go at client-go v0.37.2.
+package metrics
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+import url "github.com/reoring/gofx/ports/client-go/deps/net/url"
+
+type DurationMetric = DurationMetric { observe: func(Int) IO[Unit] }
+type ExpiryMetric = ExpiryMetric { set: func(Option[sync.Instant]) IO[Unit] }
+type LatencyMetric = LatencyMetric { observe: func(String, url.URL, Int) IO[Unit] }
+type ResolverLatencyMetric = ResolverLatencyMetric { observe: func(String, Int) IO[Unit] }
+type SizeMetric = SizeMetric { observe: func(String, String, Float) IO[Unit] }
+type ResultMetric = ResultMetric { increment: func(String, String, String) IO[Unit] }
+type CallsMetric = CallsMetric { increment: func(Int, String) IO[Unit] }
+type PolicyCallsMetric = PolicyCallsMetric { increment: func(String) IO[Unit] }
+type RetryMetric = RetryMetric { incrementRetry: func(String, String, String) IO[Unit] }
+type TransportCacheMetric = TransportCacheMetric { observe: func(Int) IO[Unit] }
+type TransportCreateCallsMetric = TransportCreateCallsMetric { increment: func(String) IO[Unit] }
+type TransportCAReloadsMetric = TransportCAReloadsMetric { increment: func(String, String) IO[Unit] }
+type TransportCertRotationGCCallsMetric = TransportCertRotationGCCallsMetric { increment: func() IO[Unit] }
+type TransportCacheGCCallsMetric = TransportCacheGCCallsMetric { increment: func(String) IO[Unit] }
+type Provider = Provider {
+ clientCertExpiry: ExpiryMetric,
+ clientCertRotationAge: DurationMetric,
+ requestLatency: LatencyMetric,
+ resolverLatency: ResolverLatencyMetric,
+ requestSize: SizeMetric,
+ responseSize: SizeMetric,
+ rateLimiterLatency: LatencyMetric,
+ requestResult: ResultMetric,
+ execPluginCalls: CallsMetric,
+ execPluginPolicyCalls: PolicyCallsMetric,
+ requestRetry: RetryMetric,
+ transportCacheEntries: TransportCacheMetric,
+ transportCreateCalls: TransportCreateCallsMetric,
+ transportCAReloads: TransportCAReloadsMetric,
+ transportCertRotationGCCalls: TransportCertRotationGCCallsMetric,
+ transportCacheGCCalls: TransportCacheGCCallsMetric
+}
+type RegisterOpts = RegisterOpts {
+ clientCertExpiry: Option[ExpiryMetric],
+ clientCertRotationAge: Option[DurationMetric],
+ requestLatency: Option[LatencyMetric],
+ resolverLatency: Option[ResolverLatencyMetric],
+ requestSize: Option[SizeMetric],
+ responseSize: Option[SizeMetric],
+ rateLimiterLatency: Option[LatencyMetric],
+ requestResult: Option[ResultMetric],
+ execPluginCalls: Option[CallsMetric],
+ execPluginPolicyCalls: Option[PolicyCallsMetric],
+ requestRetry: Option[RetryMetric],
+ transportCacheEntries: Option[TransportCacheMetric],
+ transportCreateCalls: Option[TransportCreateCallsMetric],
+ transportCAReloads: Option[TransportCAReloadsMetric],
+ transportCertRotationGCCalls: Option[TransportCertRotationGCCallsMetric],
+ transportCacheGCCalls: Option[TransportCacheGCCallsMetric],
+ registerFn: Option[func() IO[Unit]]
+}
+type Registration = Registration { installed: Bool, phase: Int, options: RegisterOpts, metrics: Provider }
+type Registry = Registry { mutex: sync.Mutex, state: sync.Ref[Registration], ready: sync.Condition }
+func emptyOptions() RegisterOpts { RegisterOpts(None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None) }
+func newRegistry() IO[Registry] { do { m <- sync.newMutex(); s <- sync.newRef(Registration(false,0,emptyOptions(),noopProvider())); ready <- sync.newCondition(m); ioPure(Registry(m,s,ready)) } }
+// The first Register wins as a whole, including omitted fields.
+func register(registry Registry, options RegisterOpts) IO[Unit] {
+ sync.withLock(registry.mutex,do { s <- sync.readRef(registry.state); if s.installed { ioPure(unit()) } else { sync.writeRef(registry.state,s { installed: true, options: options, metrics: _resolve(s { options: options }) }) } })
+}
+// Like sync.Once, concurrent callers wait until the winning callback completes.
+func _claim(registry Registry) IO[Option[func() IO[Unit]]] { do {
+ s <- sync.readRef(registry.state)
+ if s.phase==2 { ioPure(None) } else { if s.phase==1 { do { sync.wait(registry.ready); _claim(registry) } } else {
+  match s.options.registerFn { None => ioPure(None); Some(f) => do { sync.writeRef(registry.state,s { phase: 1 }); ioPure(Some(f)) } }
+ } }
+} }
+func ensureRegistered(registry Registry) IO[Unit] { do {
+ callback <- sync.withLock(registry.mutex,_claim(registry))
+ match callback { None => ioPure(unit()); Some(f) => sync.ensuring(f(),sync.uninterruptible(sync.withLock(registry.mutex,do {
+  s <- sync.readRef(registry.state); sync.writeRef(registry.state,s { phase: 2 }); sync.broadcast(registry.ready)
+ }))) }
+} }
+func noopProvider() Provider { Provider(
+ ExpiryMetric(func(expiry) => ioPure(unit())),
+ DurationMetric(func(nanos) => ioPure(unit())),
+ LatencyMetric(func(verb, url, nanos) => ioPure(unit())),
+ ResolverLatencyMetric(func(host, nanos) => ioPure(unit())),
+ SizeMetric(func(verb, host, size) => ioPure(unit())),
+ SizeMetric(func(verb, host, size) => ioPure(unit())),
+ LatencyMetric(func(verb, url, nanos) => ioPure(unit())),
+ ResultMetric(func(code, method, host) => ioPure(unit())),
+ CallsMetric(func(exitCode, callStatus) => ioPure(unit())),
+ PolicyCallsMetric(func(status) => ioPure(unit())),
+ RetryMetric(func(code, method, host) => ioPure(unit())),
+ TransportCacheMetric(func(value) => ioPure(unit())),
+ TransportCreateCallsMetric(func(result) => ioPure(unit())),
+ TransportCAReloadsMetric(func(result, reason) => ioPure(unit())),
+ TransportCertRotationGCCallsMetric(func() => ioPure(unit())),
+ TransportCacheGCCallsMetric(func(result) => ioPure(unit()))
+) }
+func _resolve(s Registration) Provider {
+ let defaults = s.metrics
+ Provider(
+  match s.options.clientCertExpiry { None => defaults.clientCertExpiry; Some(m) => m },
+  match s.options.clientCertRotationAge { None => defaults.clientCertRotationAge; Some(m) => m },
+  match s.options.requestLatency { None => defaults.requestLatency; Some(m) => m },
+  match s.options.resolverLatency { None => defaults.resolverLatency; Some(m) => m },
+  match s.options.requestSize { None => defaults.requestSize; Some(m) => m },
+  match s.options.responseSize { None => defaults.responseSize; Some(m) => m },
+  match s.options.rateLimiterLatency { None => defaults.rateLimiterLatency; Some(m) => m },
+  match s.options.requestResult { None => defaults.requestResult; Some(m) => m },
+  match s.options.execPluginCalls { None => defaults.execPluginCalls; Some(m) => m },
+  match s.options.execPluginPolicyCalls { None => defaults.execPluginPolicyCalls; Some(m) => m },
+  match s.options.requestRetry { None => defaults.requestRetry; Some(m) => m },
+  match s.options.transportCacheEntries { None => defaults.transportCacheEntries; Some(m) => m },
+  match s.options.transportCreateCalls { None => defaults.transportCreateCalls; Some(m) => m },
+  match s.options.transportCAReloads { None => defaults.transportCAReloads; Some(m) => m },
+  match s.options.transportCertRotationGCCalls { None => defaults.transportCertRotationGCCalls; Some(m) => m },
+  match s.options.transportCacheGCCalls { None => defaults.transportCacheGCCalls; Some(m) => m }
+ )
+}
+func provider(registry Registry, override Option[Provider]) IO[Provider] { match override { Some(p) => ioPure(p); None => do {
+ ensureRegistered(registry); s <- sync.withLock(registry.mutex,sync.readRef(registry.state)); ioPure(s.metrics)
+} } }
