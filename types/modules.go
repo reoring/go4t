@@ -261,6 +261,9 @@ func (r *moduleResolver) lookup(name string, pos ast.Pos, typ bool) string {
 		if resolved := table[member]; resolved != "" {
 			return resolved
 		}
+		if typ && table[member+"Go"] != "" && contains(PreludeExports, member) {
+			r.fail(pos, "module %s has no exported name %s; the Go type %s is bound as %s.%sGo because %s is a prelude name", target.module.Path, member, member, alias, member, member)
+		}
 		r.fail(pos, "module %s has no exported name %s", target.module.Path, member)
 	}
 	if resolved := own[name]; resolved != "" {
