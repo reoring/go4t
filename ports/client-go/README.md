@@ -28,7 +28,7 @@ also records 75 manual host adapters. These scopes are not a count of original G
 tests executed and must not be summed with repeated fixture or consumer runs.
 
 A development-only Kubernetes v1.37.0 Kind proof recorded 29 assertions and
-confirmed namespace cleanup; its cluster was retained. This is bounded runtime
+confirmed namespace cleanup; the owned cluster was deleted afterward. This is bounded runtime
 evidence contributing to experimental acceptance, not production approval.
 
 ## Native composition
@@ -187,5 +187,5 @@ failure branch or a platform matrix, and do not certify production use. Counts
 from different scopes or repeated runs must not be summed as unique coverage.
 Domain READMEs may retain historical implementation-owner snapshots.
 
-The final integration commit is being prepared by the primary; no completed
-commit is claimed here.
+The accepted source integration is committed as `5c0eb5a` on
+`experiment/client-go-gofx`; compiler fixes are separate preceding commits.
