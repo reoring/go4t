@@ -142,9 +142,14 @@ type Method struct {
 	Scheme *Scheme
 }
 
+// Instance is `instance C[T]` or `instance C[T[A..]] given D[A]..`. Params are
+// the head's rigid variables (kind *); Context are the constraints on them, in
+// declaration order. Codegen emits one dict field per Context entry.
 type Instance struct {
 	Class   *Class
 	TypeCon *TCon
+	Params  []*TVar
+	Context []Constraint
 	Decl    *ast.InstanceDecl
 }
 
@@ -200,7 +205,8 @@ type DictRef struct {
 	Kind       DictKind
 	Class      string
 	Instance   *Instance // DictInstance
-	Param      string    // DictParam: constrained tparam name of the enclosing function
+	Args       []DictRef // DictInstance: one per Instance.Context entry, in order
+	Param      string    // DictParam: constrained tparam name of the enclosing function or instance
 	ParamClass string    // DictParam: class bound on that tparam
 	Super      *DictRef  // DictSuper: subclass dictionary to upcast from
 }

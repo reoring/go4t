@@ -222,3 +222,47 @@ Errors are printed `file:line:col: message` and exit 1.
 The initial `unit : Unit` value is exposed as a zero-argument function because extern
 declarations are functions: `extern func unit() Unit = "gofx/rt".UnitValue`.
 Programs write `unit()` to obtain `Unit`; this is reflected in the contract above.
+
+## Pass 3: if/else layout, List, constrained instances
+
+### `if` / `else` layout
+The lexer does not insert `;` after `}` when the next non-space token on the following line
+is the keyword `else`. (Implementation: the lexer peeks ahead past whitespace/newlines; if the
+next word is `else`, the newline is skipped silently.) `if a { x }\nelse { y }` is one expression.
+
+### List and list literals
+Prelude declares `type List[A] = Nil | Cons(A, List[A])`, `instance Functor[List]`,
+`instance Monad[List]` (bind = flat map), `instance Show[List[A]] given Show[A]`
+(renders `[1, 2, 3]`), and functions `fold[A, B](xs List[A], init B, f func(B, A) B) B`,
+`length[A](xs List[A]) Int`, `append[A](xs List[A], ys List[A]) List[A]`,
+`filter[A](xs List[A], p func(A) Bool) List[A]`, `reverse[A](xs List[A]) List[A]`.
+Surface syntax `[e1, e2, ...]` (`ast.ListLit`) is typed as `List[A]` with all elements unified
+to `A`; `[]` is `List[A]` with `A` a fresh meta (defaults to `Unit` if unconstrained, as any
+other meta). Codegen desugars to nested `Cons`/`Nil` constructor values.
+`[` after an expression is never indexing (no indexing in gofx); `[` in expression position
+always starts a list literal.
+
+### Constrained instances
+```
+instance Show[Option[A]] given Show[A] { show(o) { match o { | None => "None" | Some(a) => "Some(" + show(a) + ")" } } }
+instance Show[Pair[A, B]] given Show[A], Show[B] { ... }
+```
+- Head: `Class[TypeCon]` (as before, TypeCon kind must equal the class param kind) or
+  `Class[TypeCon[P1, .., Pn]]` where `Pi` are distinct fresh type variables of kind `*`, `n`
+  equals the arity of `TypeCon`, and the class param has kind `*`. The `given` context lists
+  constraints `D[Pi]` only on those variables (each `Pi` at most one constraint, PoC).
+- Instance lookup for `C[T]`: zonk `T`; if head is a TCon, find instance for (C, TCon). If
+  the instance has Params, bind them to T's args and recursively resolve each Context
+  constraint, producing `DictRef{Kind: DictInstance, Instance, Args}`. Failure of any inner
+  constraint fails the outer one with `no instance D[X] (required by instance C[TypeCon[..]])`.
+- Inside the instance's method bodies, each context constraint `D[Pi]` is in scope as a
+  dictionary param `DictParam{Param: Pi, ParamClass: D}`; the instance's own class for the
+  head type is also resolvable (recursion through the instance itself, e.g. `show` on the
+  tail inside `Show[List[A]]`).
+- Codegen: `type Show_Option struct{ dict_A Show }` (one field per Context entry, named
+  `dict_<Param>`), value `Show_Option{dict_A: <Args[0] expr>}`. Instances without context
+  remain `Show_Int{}`. Superclass embedding is unchanged: `Monad_X struct{ Functor_X; ... }`,
+  where the embedded `Functor_X` value is built from the *Functor* instance's own Args
+  (resolved by the checker as a `DictSuper`-free lookup; codegen asks the checker-produced
+  `Instance.Context` of the superclass instance: for PoC superclass instances of constrained
+  instances must have the same Params/Context shape, checker enforces this).

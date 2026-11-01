@@ -63,11 +63,22 @@ type MethodSig struct {
 	Ret     Type
 }
 
+// InstanceDecl is `instance Class[TypeCon]` or
+// `instance Class[TypeCon[A, B]] given Show[A], Show[B]`. Head type parameters
+// are fresh variables of kind *; Context lists class constraints on them.
 type InstanceDecl struct {
 	Pos     Pos
 	Class   string
 	TypeCon string // bare type constructor name
+	Params  []string
+	Context []Constraint
 	Methods []InstMethod
+}
+
+type Constraint struct {
+	Pos   Pos
+	Class string
+	Param string // one of InstanceDecl.Params
 }
 
 type InstMethod struct {
@@ -231,6 +242,12 @@ type Binary struct {
 	ExprBase
 	Op   string
 	L, R Expr
+}
+
+// ListLit is `[a, b, c]`; desugars to Cons(a, Cons(b, Cons(c, Nil))).
+type ListLit struct {
+	ExprBase
+	Elems []Expr
 }
 
 type Unary struct {
