@@ -99,9 +99,9 @@ variable. Prefixing each name with `_` silences its warning.
 
 ```console
 $ go run ./cmd/gofx check examples/diagnostics/bad_alias_mismatch.gfx
-examples/diagnostics/bad_alias_mismatch.gfx:6:22: type mismatch: expected Rates, got Int
-func rates() Rates { 1 }
-                     ^
+examples/diagnostics/bad_alias_mismatch.gfx:8:3: type mismatch: expected Rates, got Int
+  1
+  ^
 exit status 1
 ```
 

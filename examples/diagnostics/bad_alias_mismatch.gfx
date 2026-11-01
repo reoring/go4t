@@ -1,7 +1,13 @@
 package main
 
 type Currency = USD | EUR
+
 alias Rates = Map[Currency, Float]
 
-func rates() Rates { 1 }
-func main() IO[Unit] { ioPure(unit()) }
+func rates() Rates {
+  1
+}
+
+func main() IO[Unit] {
+  ioPure(unit())
+}
