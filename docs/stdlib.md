@@ -128,24 +128,33 @@ Source: [`float/float.gfx`](../std/float/float.gfx). 24 top-level declarations.
 
 ## `std/io`
 
-Source: [`io/io.gfx`](../std/io/io.gfx). 27 top-level declarations.
+Source: [`io/io.gfx`](../std/io/io.gfx). 31 top-level declarations.
 
-All operations returning IO are deferred; `formatTime` is pure.
+All operations returning IO are deferred; `formatTime` and `ioErrorMessage` are pure.
+IO errors are classified as NotFound, PermissionDenied, AlreadyExists, Timeout,
+Cancelled, Network, or Failure; recovered action/worker panics are Panic.
+Wrapped Go errors follow the same classification. See SPEC §6.2 for precedence.
 
 | Source signature | Semantics | Boundary behaviour |
 | --- | --- | --- |
-| `func ioFailWith[E Show, A](e E) IO[A]` | Fail with the error's Show rendering. | Show rendering is strict while constructing the deferred ioFail. |
+| `type IoError = NotFound(String) \| PermissionDenied(String) \| AlreadyExists(String) \| Timeout \| Cancelled \| Panic(String) \| Network(String) \| Failure(String) deriving Eq, Debug` | Typed IO failures; String payloads carry the message. | Timeout/Cancelled are nullary; other messages may be empty; constructors are qualified through io. |
+| `func ioErrorMessage(e IoError) String` | Return the display message without a constructor wrapper. | Timeout → `context deadline exceeded`; Cancelled → `context canceled`; all other payloads unchanged. |
+| `instance Show[IoError]` | show delegates to ioErrorMessage. | Panic text has no added prefix; empty message displays empty text. |
+| `instance Eq[IoError]` | Derived constructor and payload equality. | Different constructors are unequal even with equal messages; nullary values equal themselves. |
+| `instance Debug[IoError]` | Derived structural constructor rendering. | String payloads are quoted and escaped; Timeout/Cancelled have no parentheses. |
+| `extern func ioRaise[A](e IoError) IO[A] = "gofx/rt".Raise` | Construct a deferred failure preserving the supplied kind and message. | tryIO captures Err(e); no failure merely from constructing the action. |
+| `func ioFailWith[E Show, A](e E) IO[A]` | Raise Failure with the error's Show rendering. | Show rendering is strict while constructing the deferred ioFail; use ioRaise to preserve an IoError constructor. |
 | `extern func ioPure[A](a A) IO[A] = "gofx/rt".Pure` | Construct a successful IO holding an already evaluated value. | Argument is already strict; re-running returns the same value without recomputing its construction. |
 | `extern func ioBind[A, B](io IO[A], f func(A) IO[B]) IO[B] = "gofx/rt".Bind` | Sequence IO, passing its result to the continuation. | Failure skips f; success invokes f when the action runs, not when constructed. |
-| `extern func ioFail[A](msg String) IO[A] = "gofx/rt".Fail` | Construct a deferred error with the supplied message. | Every message, including empty text, constructs a failing deferred IO; no output or failure occurs merely by constructing it. |
+| `extern func ioFail[A](msg String) IO[A] = "gofx/rt".Fail` | Construct a deferred Failure with the supplied message. | Every message, including empty text, constructs a failing deferred IO; no output or failure occurs merely by constructing it. |
 | `extern func println(s String) IO[Unit] = "gofx/rt".Println` | Write text and a newline to stdout when run. | Empty text still prints a newline; output errors fail the IO. |
 | `extern func readLine() IO[Option[String]] = "gofx/rt".ReadLine` | Read one input line, stripping its LF or CRLF terminator. | Empty EOF gives `None`; a blank line gives `Some("")`; LF/CRLF terminators are stripped; a final unterminated nonempty line is `Some(line)`; other read errors fail the IO. |
 | `extern func readAll() IO[String] = "gofx/rt".ReadAll` | Read all remaining stdin, including buffered input. | Empty remaining input gives `""`; includes bytes already buffered by prior `readLine` calls; read errors fail the IO. |
 | `extern func args() IO[List[String]] = "gofx/rt".Args` | Read program arguments, excluding the executable name. | No program arguments gives `Nil`; executable name excluded; empty argument strings retained. |
 | `extern func exit[A](code Int) IO[A] = "gofx/rt".Exit` | Terminate the process with the supplied status when run. | Not catchable by tryIO; follows OS/Go process status semantics. |
 | `extern func getEnv(name String) IO[Option[String]] = "gofx/rt".GetEnv` | Read an optional environment value. | Absent name gives `None`; present empty value gives `Some("")`; values are not trimmed. |
-| `extern func tryIO[A](io IO[A]) IO[Result[String, A]] = "gofx/rt".TryIO` | Run lazily; success becomes Ok, returned errors and recovered panics become Err. | Success → Ok; error → Err(error text); action panic → Err(payload text without prefix); construction panics/exit not caught. |
-| `extern func readFile(path String) IO[String] = "gofx/rt".ReadFile` | Read the complete file; filesystem errors fail the IO. | Empty file → empty string; filesystem failures remain IO errors. |
+| `extern func tryIO[A](io IO[A]) IO[Result[IoError, A]] = "gofx/rt".TryIO` | Run lazily; success becomes Ok, typed failures and recovered panics become Err. | Error → Err(IoError); action panic → Err(Panic(payload text without prefix)); construction panics/exit not caught. |
+| `extern func readFile(path String) IO[String] = "gofx/rt".ReadFile` | Read the complete file; filesystem errors fail the IO. | Empty file → empty string; missing path → NotFound; other errors use the IO classification. |
 | `extern func writeFile(path String, content String) IO[Unit] = "gofx/rt".WriteFile` | Create or truncate, preserving existing runtime parent-directory creation. | Creates parent directories and truncates existing file; directories 0755/files 0644 subject to umask; write errors fail. |
 | `extern func appendFile(path String, content String) IO[Unit] = "gofx/rt".AppendFile` | Create or append, creating missing parent directories; write/close errors fail. | Creates parent directories/file if absent; appends without truncation; write/close errors fail. |
 | `extern func fileExists(path String) IO[Bool] = "gofx/rt".FileExists` | True for an existing file/directory, false for a missing path; other stat errors fail. | Missing false; existing directory true; other stat errors fail. |

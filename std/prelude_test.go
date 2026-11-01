@@ -55,6 +55,7 @@ func TestStdInventoryParses(t *testing.T) {
 	want := []string{
 		"class Functor", "class Monad", "class Show", "class Eq", "type Ordering", "class Ord",
 		"type Option", "type List", "type State",
+		"type IoError", "instance Show[IoError]", "func ioRaise", "func ioErrorMessage", "func tryIO",
 		"instance Functor[Option]", "instance Monad[Option]",
 		"instance Functor[List]", "instance Monad[List]",
 		"instance Functor[State]", "instance Monad[State]",

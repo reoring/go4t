@@ -1,7 +1,6 @@
 package rt
 
 import (
-	"errors"
 	"fmt"
 	"math"
 	"sync"
@@ -21,10 +20,11 @@ type Fiber struct {
 func runConcurrentIO(action IO) (value any, err error) {
 	defer func() {
 		if p := recover(); p != nil {
-			value, err = nil, fmt.Errorf("panic: %v", p)
+			value, err = nil, &Failure{Kind: Panic, Message: fmt.Sprint(p)}
 		}
 	}()
-	return action()
+	value, err = action()
+	return value, ClassifyError(err)
 }
 
 func forkIO(action IO) *Fiber {
@@ -157,7 +157,7 @@ func Timeout(millis, action any) any {
 			return NoneOf(), nil
 		}
 		if ms > math.MaxInt64/int64(time.Millisecond) {
-			return nil, errors.New("timeout: duration out of range")
+			return nil, &Failure{Kind: FailureKind, Message: "timeout: duration out of range"}
 		}
 		timer := time.NewTimer(time.Duration(ms) * time.Millisecond)
 		defer timer.Stop()

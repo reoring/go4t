@@ -36,8 +36,8 @@ func fetchRates() IO[Map[Currency, Float]] {
     results <- conc.parMapIO([JPY, USD, EUR], func(c) => io.tryIO(fetchRate(c)))
     fetched <- list.mapM(results, func(r) => match r {
       Ok(pair) => ioPure(Some(pair))
-      | Err(msg) => do {
-        io.eprintln("warn: ${msg}; using fallback")
+      | Err(e) => do {
+        io.eprintln("warn: ${io.ioErrorMessage(e)}; using fallback")
         ioPure(None)
       }
     })

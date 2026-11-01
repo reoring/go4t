@@ -164,7 +164,7 @@ func TestAdapters(t *testing.T) {
     bad := typedWithError_("bad").(rt.IO)
     if foreign.Calls != 0 { t.Fatal("Go effect executed before IO") }
     if got, err := good(); got != "ok" || err != nil { t.Fatalf("good = %v, %v", got, err) }
-    if got, err := bad(); got != nil || err == nil || err.Error() != "fixture failure" { t.Fatalf("bad = %v, %v", got, err) }
+    if got, err := bad(); got != nil || !reflect.DeepEqual(err, &rt.Failure{Kind: rt.FailureKind, Message: "fixture failure"}) { t.Fatalf("bad = %v, %v", got, err) }
     if _, err := good(); err != nil || foreign.Calls != 3 { t.Fatalf("IO replay: calls %d, err %v", foreign.Calls, err) }
     for _, tc := range []struct { action any; want any }{
         {typedStringsWithError_(rt.ListFromStrings([]string{"ok"})), rt.ListFromStrings([]string{"ok"})},
@@ -183,6 +183,8 @@ func TestHTTPAdapter(t *testing.T) {
     if requests != 0 { t.Fatal("HTTP effect before IO") }
     if status, err := action(); status != int64(418) || err != nil { t.Fatalf("HTTP result = %v, %v", status, err) }
     server.Close()
-    if status, err := action(); status != nil || err == nil { t.Fatalf("HTTP error result = %v, %v", status, err) }
+    status, err := action()
+    failure, ok := err.(*rt.Failure)
+    if status != nil || !ok || failure.Kind != rt.Network { t.Fatalf("HTTP error result = %v, %v", status, err) }
 }
 `

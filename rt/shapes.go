@@ -1,6 +1,6 @@
 package rt
 
-// ShapeFuncs bridges the generated program's List, Option, Result, tuple and Ordering
+// ShapeFuncs bridges the generated program's List, Option, Result, IoError, tuple and Ordering
 // representations across the any ABI. Generated init functions register these operations
 // before any runtime calls. Uncons returns ok=false for Nil and the head and tail for Cons.
 type ShapeFuncs struct {
@@ -10,6 +10,8 @@ type ShapeFuncs struct {
 	None       func() any
 	Ok         func(a any) any
 	Err        func(e any) any
+	IoError    func(kind string, msg string) any
+	IoErrorOf  func(v any) (kind, msg string)
 	Uncons     func(l any) (h, t any, ok bool)
 	Tuple2     func(a, b any) any
 	Untuple2   func(p any) (a, b any)

@@ -31,15 +31,16 @@ func Bind(io any, f any) any {
 	return IO(func() (any, error) {
 		value, err := io.(IO)()
 		if err != nil {
-			return nil, err
+			return nil, ClassifyError(err)
 		}
-		return f.(func(any) any)(value).(IO)()
+		value, err = f.(func(any) any)(value).(IO)()
+		return value, ClassifyError(err)
 	})
 }
 
 // Fail constructs an IO that fails with the given string message.
 func Fail(msg any) any {
-	err := errors.New(msg.(string))
+	err := &Failure{Kind: FailureKind, Message: msg.(string)}
 	return IO(func() (any, error) { return nil, err })
 }
 
@@ -49,12 +50,12 @@ func TryIO(io any) any {
 	return IO(func() (value any, err error) {
 		defer func() {
 			if p := recover(); p != nil {
-				value, err = ErrOf(fmt.Sprint(p)), nil
+				value, err = ErrOf(failureValue(&Failure{Kind: Panic, Message: fmt.Sprint(p)})), nil
 			}
 		}()
 		result, failure := io.(IO)()
 		if failure != nil {
-			return ErrOf(failure.Error()), nil
+			return ErrOf(failureValue(failure)), nil
 		}
 		return OkOf(result), nil
 	})
@@ -78,7 +79,7 @@ func RunMain(io any) {
 func Println(s any) any {
 	return IO(func() (any, error) {
 		if _, err := fmt.Fprintln(os.Stdout, s.(string)); err != nil {
-			return nil, err
+			return nil, ClassifyError(err)
 		}
 		return Unit{}, nil
 	})
@@ -103,7 +104,7 @@ func ReadLine() any {
 	return IO(func() (any, error) {
 		line, err := stdinReader.ReadString('\n')
 		if err != nil && err != io.EOF {
-			return nil, err
+			return nil, ClassifyError(err)
 		}
 		if err == io.EOF && line == "" {
 			return NoneOf(), nil
@@ -121,7 +122,7 @@ func ReadAll() any {
 	return IO(func() (any, error) {
 		text, err := io.ReadAll(stdinReader)
 		if err != nil {
-			return nil, err
+			return nil, ClassifyError(err)
 		}
 		return string(text), nil
 	})
@@ -158,7 +159,7 @@ func ReadFile(path any) any {
 	return IO(func() (any, error) {
 		text, err := os.ReadFile(path.(string))
 		if err != nil {
-			return nil, err
+			return nil, ClassifyError(err)
 		}
 		return string(text), nil
 	})
@@ -169,10 +170,10 @@ func WriteFile(path, content any) any {
 	return IO(func() (any, error) {
 		p := path.(string)
 		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
-			return nil, err
+			return nil, ClassifyError(err)
 		}
 		if err := os.WriteFile(p, []byte(content.(string)), 0o644); err != nil {
-			return nil, err
+			return nil, ClassifyError(err)
 		}
 		return Unit{}, nil
 	})
@@ -182,7 +183,7 @@ func WriteFile(path, content any) any {
 func Eprintln(s any) any {
 	return IO(func() (any, error) {
 		if _, err := fmt.Fprintln(os.Stderr, s.(string)); err != nil {
-			return nil, err
+			return nil, ClassifyError(err)
 		}
 		return Unit{}, nil
 	})
@@ -193,19 +194,19 @@ func AppendFile(path, content any) any {
 	return IO(func() (any, error) {
 		p := path.(string)
 		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
-			return nil, err
+			return nil, ClassifyError(err)
 		}
 		f, err := os.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o644)
 		if err != nil {
-			return nil, err
+			return nil, ClassifyError(err)
 		}
 		_, writeErr := io.WriteString(f, content.(string))
 		closeErr := f.Close()
 		if writeErr != nil {
-			return nil, writeErr
+			return nil, ClassifyError(writeErr)
 		}
 		if closeErr != nil {
-			return nil, closeErr
+			return nil, ClassifyError(closeErr)
 		}
 		return Unit{}, nil
 	})
@@ -219,7 +220,7 @@ func FileExists(path any) any {
 			return false, nil
 		}
 		if err != nil {
-			return nil, err
+			return nil, ClassifyError(err)
 		}
 		return true, nil
 	})
@@ -230,7 +231,7 @@ func ListDir(path any) any {
 	return IO(func() (any, error) {
 		entries, err := os.ReadDir(path.(string))
 		if err != nil {
-			return nil, err
+			return nil, ClassifyError(err)
 		}
 		if Shapes.Cons == nil || Shapes.Nil == nil {
 			panic("rt.Shapes is not initialized: Cons and Nil are required")
@@ -247,7 +248,7 @@ func ListDir(path any) any {
 func RemoveFile(path any) any {
 	return IO(func() (any, error) {
 		if err := os.Remove(path.(string)); err != nil {
-			return nil, err
+			return nil, ClassifyError(err)
 		}
 		return Unit{}, nil
 	})
@@ -257,7 +258,7 @@ func RemoveFile(path any) any {
 func Print(s any) any {
 	return IO(func() (any, error) {
 		if _, err := fmt.Fprint(os.Stdout, s.(string)); err != nil {
-			return nil, err
+			return nil, ClassifyError(err)
 		}
 		return Unit{}, nil
 	})
@@ -286,7 +287,7 @@ func RandomInt(lo, hi any) any {
 	return IO(func() (any, error) {
 		lower, upper := lo.(int64), hi.(int64)
 		if lower > upper {
-			return nil, errors.New("randomInt: lo must be <= hi")
+			return nil, &Failure{Kind: FailureKind, Message: "randomInt: lo must be <= hi"}
 		}
 		width := uint64(upper) - uint64(lower) + 1
 		if width == 0 {
@@ -307,7 +308,7 @@ func Sleep(millis any) any {
 	return IO(func() (any, error) {
 		n := millis.(int64)
 		if n > int64((1<<63-1)/time.Millisecond) {
-			return nil, errors.New("sleep: duration out of range")
+			return nil, &Failure{Kind: FailureKind, Message: "sleep: duration out of range"}
 		}
 		if n > 0 {
 			time.Sleep(time.Duration(n) * time.Millisecond)

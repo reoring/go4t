@@ -91,16 +91,16 @@ func TestForkAwaitLazyReusableAndConcurrent(t *testing.T) {
 }
 
 func TestAwaitFailureAndPanic(t *testing.T) {
-	wantErr := errors.New("fiber failed")
+	wantErr := &Failure{Kind: FailureKind, Message: "fiber failed"}
 	for _, tt := range []struct {
 		name string
 		io   IO
 		want string
 	}{
 		{"failure", IO(func() (any, error) { return nil, wantErr }), "fiber failed"},
-		{"panic string", IO(func() (any, error) { panic("broken task") }), "panic: broken task"},
-		{"panic error", IO(func() (any, error) { panic(wantErr) }), "panic: fiber failed"},
-		{"panic nil", IO(func() (any, error) { panic(nil) }), "panic: panic called with nil argument"},
+		{"panic string", IO(func() (any, error) { panic("broken task") }), "broken task"},
+		{"panic error", IO(func() (any, error) { panic(wantErr) }), "fiber failed"},
+		{"panic nil", IO(func() (any, error) { panic(nil) }), "panic called with nil argument"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			fiber, err := Fork(tt.io).(IO)()
@@ -216,7 +216,7 @@ func TestParMapIOEmptyAndFailures(t *testing.T) {
 		receiveConcTest(t, finished)
 		want := "task failed"
 		if mapperPanic {
-			want = "panic: mapper failed"
+			want = "mapper failed"
 		}
 		if got.value != nil || got.err == nil || got.err.Error() != want {
 			t.Fatalf("ParMapIO = (%v, %v), want (nil, %q)", got.value, got.err, want)
@@ -235,7 +235,7 @@ func TestRaceFirstCompletionAndAbandonedPanic(t *testing.T) {
 				defer close(finished)
 				panic("loser failed after race returned")
 			})
-			wantErr := errors.New("winner failed")
+			wantErr := &Failure{Kind: FailureKind, Message: "winner failed"}
 			fast := IO(func() (any, error) {
 				<-started
 				if failure {
@@ -296,7 +296,7 @@ func TestParBothTupleAndFailure(t *testing.T) {
 		release()
 		got := receiveConcTest(t, result)
 		if failure {
-			if got.value != nil || got.err == nil || got.err.Error() != "panic: right failed" {
+			if got.value != nil || got.err == nil || got.err.Error() != "right failed" {
 				t.Fatalf("ParBoth = (%v, %v), want right panic failure", got.value, got.err)
 			}
 		} else if !reflect.DeepEqual(got.value, [2]any{int64(7), "right"}) || got.err != nil {
@@ -316,7 +316,7 @@ func TestTimeoutSomeNoneAndFailures(t *testing.T) {
 		{"success", Pure(int64(8)), testSome{int64(8)}, ""},
 		{"nil success", Pure(nil), testSome{nil}, ""},
 		{"failure", Fail("timed task failed"), nil, "timed task failed"},
-		{"panic", IO(func() (any, error) { panic("timed panic") }), nil, "panic: timed panic"},
+		{"panic", IO(func() (any, error) { panic("timed panic") }), nil, "timed panic"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			got := receiveConcTest(t, runConcTest(Timeout(int64(1000), tt.io)))

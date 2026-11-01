@@ -12,6 +12,7 @@ type testSome struct{ value any }
 type testNone struct{}
 type testOk struct{ value any }
 type testErr struct{ value any }
+type testIoError struct{ kind, message string }
 type testTuple2 struct{ a, b any }
 
 func installTestShapes(t *testing.T) {
@@ -25,6 +26,11 @@ func installTestShapes(t *testing.T) {
 		None: func() any { return testNone{} },
 		Ok:   func(a any) any { return testOk{a} },
 		Err:  func(e any) any { return testErr{e} },
+		IoError: func(kind, message string) any { return testIoError{kind, message} },
+		IoErrorOf: func(v any) (string, string) {
+			failure := v.(testIoError)
+			return failure.kind, failure.message
+		},
 		Uncons: func(l any) (any, any, bool) {
 			switch l := l.(type) {
 			case testCons:
@@ -88,6 +94,8 @@ func TestUnsetShapesPanicClearly(t *testing.T) {
 		{"None unset", ShapeFuncs{}, func() { NoneOf() }, "rt.Shapes is not initialized: None is required"},
 		{"Ok unset", ShapeFuncs{}, func() { OkOf(int64(1)) }, "rt.Shapes is not initialized: Ok is required"},
 		{"Err unset", ShapeFuncs{}, func() { ErrOf("failed") }, "rt.Shapes is not initialized: Err is required"},
+		{"IoError unset", ShapeFuncs{}, func() { failureValue(&Failure{Kind: FailureKind, Message: "failed"}) }, "rt.Shapes is not initialized: IoError is required"},
+		{"IoErrorOf unset", ShapeFuncs{}, func() { Raise(testIoError{"Failure", "failed"}) }, "rt.Shapes is not initialized: IoErrorOf is required"},
 		{"Tuple2 unset", ShapeFuncs{}, func() { Tuple2Of(int64(1), "two") }, "rt.Shapes is not initialized: Tuple2 is required"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

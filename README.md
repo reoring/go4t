@@ -76,6 +76,12 @@ Ordinary IO errors exit 1; an uncaught action panic exits 2. The outer
 nonzero child status. `gofx check` cannot validate a foreign Go signature;
 `build`/`run` perform that validation.
 
+Recover with `io.tryIO(action) : IO[Result[io.IoError, A]]`. Match typed
+constructors such as `io.NotFound(message)`; use `io.ioErrorMessage(e)` or
+`show(e)` for display and `io.ioRaise(e)` to rethrow without losing its kind.
+`ioFail("unavailable")` is captured as `Err(io.Failure("unavailable"))`, whose
+Show output remains `Err(unavailable)`; Debug includes the Failure constructor.
+
 ## Examples
 
 Commands run from the checkout root with an installed `gofx` (or substitute
@@ -116,6 +122,7 @@ historical observed output; current imports/signatures are defined by SPEC/std.
 | [pipe-partial](examples/pipe-partial) | Multiline pipelines, call placeholders and operator sections. | `gofx run examples/pipe-partial/main.gfx` |
 | [records](examples/records) | Records, interpolation and let polymorphism; intentional Unit-default warning. | `gofx run examples/records/main.gfx` |
 | [routes](examples/routes) | Shortest paths, record updates and unreachable Option results. | `gofx run examples/routes/main.gfx` |
+| [sales-report](examples/sales-report) | Parallel rate fetches, typed IO recovery, fallback rates and JSON sales aggregation. | `gofx run examples/sales-report` |
 | [scheduler](examples/scheduler) | Custom task ordering, guards and a bounded scheduling plan. | `gofx run examples/scheduler/main.gfx` |
 | [state](examples/state) | Pure counter/stack transitions and generic monadic sequencing. | `gofx run examples/state/main.gfx` |
 | [stdlib-extras](examples/stdlib-extras) | Regex log parsing, stable grouping/sorting, table formatting and Lazy. | `gofx run examples/stdlib-extras/main.gfx` |
@@ -130,6 +137,10 @@ finished. Omitting its output-prefix argument instead writes root-level fixtures
 The word-count command supplies both checked-in stdin and its `3` argument.
 Typed externs require both listed files (or their directory); do not run main alone.
 `fmt/before.gfx` is already canonical, so `fmt -d` on it currently prints nothing.
+`sales-report` simulates rate requests locally. If its randomized EUR request
+fails, recovery extracts the IoError message and stderr remains
+`warn: rate service: EUR unavailable; using fallback`; report totals depend on
+whether the live or fallback EUR rate was selected.
 
 Intentional negative examples are not normal smoke programs:
 

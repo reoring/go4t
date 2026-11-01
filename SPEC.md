@@ -563,12 +563,31 @@ foreign semantics.
 
 ### 6.2 Failure and recovery
 
-`ioFail(msg)` is a deferred failure. Bind stops at the first failed action.
-`io.tryIO(action)` executes lazily and returns `IO[Result[String, A]]`: success
-becomes Ok; IO errors become Err(error text); recovered panics become
-Err(`fmt.Sprint(value)`) **without** an added `panic:` prefix. Capture includes
-bind continuations while running the action, not earlier argument construction.
-`result.liftResult` turns Err(e) into `ioFail(show(e))`.
+`ioFail(msg)` is a deferred `Failure(msg)`. Bind stops at the first failed action.
+`std/io` defines `IoError` with constructors `NotFound(String)`,
+`PermissionDenied(String)`, `AlreadyExists(String)`, `Timeout`, `Cancelled`,
+`Panic(String)`, `Network(String)`, and `Failure(String)`. It derives Eq and Debug;
+its hand-written Show instance returns `io.ioErrorMessage(e)`, not the constructor.
+Timeout's message is `context deadline exceeded`; Cancelled's is `context canceled`.
+Other messages are their String payload, including empty text.
+
+`io.tryIO(action)` executes lazily and returns `IO[Result[io.IoError, A]]`:
+success becomes Ok; IO failures become Err with their typed error; recovered
+panics become `Err(io.Panic(fmt.Sprint(value)))` **without** an added `panic:` prefix.
+Capture includes bind continuations while running the action, not earlier
+argument construction. `io.ioRaise(e)` raises an existing IoError without losing
+its constructor; `io.ioFailWith(e)` and `result.liftResult(Err(e))` instead raise
+`Failure(show(e))`.
+
+Every runtime IO failure is `*rt.Failure{Kind, Message}`, implementing Go `error`.
+Go errors from filesystem, stream, time/random and natural-ABI extern boundaries
+are classified in this order (including wrapped errors): not-exist → NotFound,
+permission → PermissionDenied, already-exists → AlreadyExists,
+`context.DeadlineExceeded` → Timeout, `context.Canceled` → Cancelled,
+`net.Error` → Network, otherwise Failure. Existing typed failures retain their
+kind and message. Timeout/Cancelled have canonical messages because their ADT
+constructors carry no payload. Generated code registers the `rt.Shapes.IoError`
+constructor bridge and `rt.Shapes.IoErrorOf` destructor bridge alongside Result.
 
 `rt.RunMain` reports ordinary IO failures as `error: <message>` and exits 1;
 a panic while running its action prints `error: panic: <message>` and exits 2.
@@ -584,7 +603,7 @@ import "std/io"
 func main() IO[Unit] {
   do {
     answer <- io.tryIO(ioFail("unavailable"))
-    let typed: Result[String, Int] = answer
+    let typed: Result[io.IoError, Int] = answer
     println(show(typed))
   }
 }
@@ -633,7 +652,7 @@ class Ord[A] : Eq[A] { compare(a A, b A) Ordering }
 | `std/prelude` | Classes above; Ordering/Option and primitive/pair/Option instances; core combinators |
 | `std/list` | List/instances; folds, traversal, searching, slicing, sorting, `catOptions`, `mapMaybe`, accumulator helpers |
 | `std/result` | Result/instances; Result and Option helpers; liftResult |
-| `std/io` | IO instances, console, arguments/environment, files, clocks, randomInt, randomFloat, sleep, tryIO |
+| `std/io` | IO instances, IoError (Eq/Debug/Show), ioRaise/ioErrorMessage, console, arguments/environment, files, clocks, randomInt, randomFloat, sleep, tryIO |
 | `std/float` | Float instances, conversions/math/formatting; minInt/maxInt/abs |
 | `std/string` | Rune-oriented strings, Unicode classification, parsing/padding |
 | `std/regex` | Go-regexp matching, captures, replacement and splitting |
@@ -1283,15 +1302,17 @@ share immutable storage, but empty slices do not retain the backing allocation.
 | `readAll` | Empty remaining input gives `""`; includes bytes already buffered by prior `readLine` calls; read errors fail the IO. |
 | `args` | No program arguments gives `Nil`; executable name excluded; empty argument strings retained. |
 | `getEnv` | Absent name gives `None`; present empty value gives `Some("")`; values are not trimmed. |
-| `ioFail` | Every message, including empty text, constructs a failing deferred IO; no output or failure occurs merely by constructing it. |
+| `ioFail` | Every message, including empty text, constructs a deferred `Failure(msg)`; no output or failure occurs merely by constructing it. |
 
 | Operation | Boundary |
 | --- | --- |
 | ioPure / ioBind | Values already evaluated before action construction; bind skips continuation after IO failure |
 | Result fmap/bind / pure | Map only Ok; first Err skips continuation; pure is Ok; Eq compares constructor/payload, Ord places Err before Ok |
 | fromOption/fromResult | Default used for None/Err but evaluated strictly before call; maybe/either invoke only selected callback |
-| tryIO | Deferred/repeatable; error text preserved; action panic payload captured without prefix; cannot capture construction panic or process exit |
-| readFile | Read entire contents; filesystem errors fail IO |
+| tryIO | Deferred/repeatable `IO[Result[io.IoError, A]]`; typed failures preserved; action panic becomes Panic(payload text without prefix); cannot capture construction panic or process exit |
+| ioRaise / ioFailWith | Raise the supplied IoError unchanged / raise Failure(show(e)); arguments and Show rendering are strict, failure is deferred |
+| ioErrorMessage / Show[IoError] | Payload text; Timeout → `context deadline exceeded`, Cancelled → `context canceled`; Debug retains constructors and quotes String payloads |
+| readFile | Read entire contents; missing path fails with NotFound; other filesystem errors classified as in §6.2 |
 | writeFile / appendFile | Create parent directories (0755) and files (0644), subject to umask; overwrite / append; write and close errors fail |
 | fileExists | Missing → false; existing file/directory → true; other stat errors fail |
 | listDir | Sorted entry names, including directories, not full paths; empty directory → Nil |
@@ -1316,7 +1337,7 @@ share immutable storage, but empty slices do not retain the backing allocation.
 | race | First completion including failure; loser can continue effects and publish into a buffered channel |
 | timeout | <= 0 → None without starting; positive overflow → `timeout: duration out of range`; success including erased nil → Some; timely error propagates; completion/expiry tie unspecified |
 | Duration bound | Positive milliseconds must be <= MaxInt64 / 1,000,000 (Go time.Duration nanoseconds) |
-| Worker panic | Ordinary IO error `panic: <value>`, including losing/timed-out tasks; awaiting it is an error path, not RunMain direct panic |
+| Worker panic | Typed `Panic(fmt.Sprint(value))` IO failure without a `panic:` message prefix, including losing/timed-out tasks; awaiting it is an error path, not RunMain direct panic |
 | Lifetime | No cancellation or global join; blocked task blocks parMapIO/parBoth; abandoned fibers end with process |
 
 ### 10.7 JSON and foreign ABI

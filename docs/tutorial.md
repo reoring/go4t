@@ -166,8 +166,11 @@ turns a displayed Err into a failed IO. Defaults supplied to `fromResult` and
 
 ### Recovering an IO error or action panic with tryIO
 
-`io.tryIO` returns an action that succeeds with a Result, even if the wrapped
-action fails or panics. It does not catch an error that happened before the
+`io.tryIO` returns `IO[Result[io.IoError, A]]`, even if the wrapped action fails
+or panics. Match typed constructors such as `io.NotFound(message)`,
+`io.PermissionDenied(message)` and `io.Panic(message)` rather than inspecting
+error strings. `io.ioErrorMessage(e)` or `show(e)` gives the message; `debug(e)`
+includes the constructor. It does not catch an error that happened before the
 action was constructed, nor explicit process exit.
 
 ```gofx
@@ -182,19 +185,44 @@ func divideLater() IO[Int] {
 func main() IO[Unit] {
   do {
     failed <- io.tryIO(ioFail("service unavailable"))
-    let typed: Result[String, Int] = failed
+    let typed: Result[io.IoError, Int] = failed
     panicked <- io.tryIO(divideLater())
     println("${typed}; ${panicked}")
   }
 }
 ```
 
-The recovered panic payload has no extra `panic:` prefix. Unhandled ordinary IO
-failure prints `error: ...`, exit 1; a direct panic **during action execution**
-prints `error: panic: ...`, exit 2. Panics during action construction are outside
-RunMain recovery. A worker panic from concurrency is instead an ordinary IO
-error with `panic: ...` text. Installed `gofx run` preserves child exit status;
-the outer Go launcher does not preserve arbitrary nonzero statuses.
+The output remains `Err(service unavailable); Err(runtime error: integer divide by zero)`.
+The errors themselves are `io.Failure("service unavailable")` and
+`io.Panic("runtime error: integer divide by zero")`. `io.ioRaise(e)` preserves an
+IoError constructor when rethrowing; `ioFail` and `io.ioFailWith` raise Failure.
+Timeout and Cancelled have no payload and display `context deadline exceeded`
+and `context canceled`, respectively.
+
+Unhandled ordinary IO failure prints `error: ...`, exit 1; a direct panic
+**during action execution** prints `error: panic: ...`, exit 2. Panics during
+action construction are outside RunMain recovery. A worker panic from concurrency
+is instead a typed Panic IO failure, with no added `panic:` message prefix.
+Installed `gofx run` preserves child exit status; the outer Go launcher does not
+preserve arbitrary nonzero statuses.
+
+For example, missing-file recovery can distinguish a missing configuration from
+other failures:
+
+```gofx
+package main
+import "std/io"
+func main() IO[Unit] {
+  do {
+    loaded <- io.tryIO(io.readFile("/nonexistent"))
+    match loaded {
+      Err(io.NotFound(message)) => println("missing configuration: " + message)
+      | Err(e) => io.ioRaise(e)
+      | Ok(text) => println(text)
+    }
+  }
+}
+```
 
 ## 6. Modules are directories; imports are file-local
 
@@ -269,8 +297,8 @@ func testArithmetic() Bool { 2 + 3 == 5 }
 func testRecovery() IO[Bool] {
   do {
     recovered <- io.tryIO(ioFail("expected"))
-    let typed: Result[String, Int] = recovered
-    ioPure(typed == Err("expected"))
+    let typed: Result[io.IoError, Int] = recovered
+    ioPure(typed == Err(io.Failure("expected")))
   }
 }
 func main() IO[Unit] { println("Run this file with gofx test.") }

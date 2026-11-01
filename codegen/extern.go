@@ -56,7 +56,7 @@ func (g *generator) emitExtern(f *types.FuncInfo) string {
 	result := adapter.Result
 	if adapter.Error {
 		value, failure := g.fresh(), g.fresh()
-		fmt.Fprintf(&out, "%s, %s := %s\nif %s != nil { return nil, %s }\nreturn %s, nil\n})\n", value, failure, call, failure, failure, boxExtern(result, value))
+		fmt.Fprintf(&out, "%s, %s := %s\nif %s != nil { return nil, rt.ClassifyError(%s) }\nreturn %s, nil\n})\n", value, failure, call, failure, failure, boxExtern(result, value))
 	} else if result.Kind == goextern.Optional {
 		value, present := g.fresh(), g.fresh()
 		fmt.Fprintf(&out, "%s, %s := %s\nif %s { return rt.SomeOf(%s) }\nreturn rt.NoneOf()\n", value, present, call, present, boxExtern(result, value))

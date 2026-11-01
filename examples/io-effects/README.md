@@ -6,8 +6,11 @@ the program writes `<prefix>.report.txt` and appends to `<prefix>.log`.
 Without arguments the configuration path is `examples/io-effects/missing.conf`
 and the output prefix is `io-effects`.
 
-A failed `tryIO(readFile(path))` becomes `Err(message)`, so the program falls back
-to `3 4`. A successful read uses the file as-is. Pure validation uses `do` over
+A failed `tryIO(readFile(path))` becomes `Err(e)` with an `io.IoError` (a missing
+file is `io.NotFound(message)`), so the program falls back to `3 4`.
+`io.ioErrorMessage(e)` or `show(e)` retrieves the message when needed.
+A successful read uses the file as-is. The stdout/report formats below are unchanged.
+Pure validation uses `do` over
 `Result[String]`: parsing and positivity checks stop at the first `Err`. The
 `bad also-bad` demonstration reports the first parse failure, never the second.
 Each report is overwritten; each log entry uses `formatTime(nowMillis(), ...)`
