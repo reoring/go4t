@@ -1,0 +1,9 @@
+package main
+
+func testArithmetic() Bool { 1 + 2 == 3 }
+
+func testWords() Bool { length(words("small practical tools")) == 3 }
+
+func testIO() IO[Bool] { ioPure(true) }
+
+func main() IO[Unit] { println("Run this example with gofx test.") }
