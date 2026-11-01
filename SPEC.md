@@ -784,6 +784,40 @@ and deterministic collision suffixes. Names/dictionaries are module-prefixed.
 `codegen.Generate(*types.Program, string) (map[string][]byte, error)` is the public
 generator. The module loader feeds `types.Check([]*ast.Module)`, with entry last.
 
+The deterministic `bench.CompileSource(N)` workload contains N data types deriving
+Eq/Ord/Debug, N polymorphic functions constrained by Eq + Debug and N match
+expressions (5,203 source lines at N=400). `BenchmarkCompile` measures in-process
+parse + module loading + checking with `ReportAllocs`, total allocation and a
+`runtime.ReadMemStats` live-heap sample every millisecond and at completion.
+The reported peak is the largest **observed** heap increase above a post-GC
+baseline, not an exact allocator high-water mark. Generated Go bytes include all
+dependency files. The separate `go build` wall time includes compilation/linking,
+uses the normal Go build cache, and removes the output binary before each
+iteration; it does not include gofx checking or code generation.
+
+Linux/amd64 Ryzen 9 7950X3D calibration (single iteration, Go 1.26.1,
+before Pass 13 type-print elision; decimal MB/KB, not a CI portability guarantee):
+
+| Program | N | Source lines | Check ms | Alloc MB | Sampled peak MB | Go KB | Build ms | Longest error chars |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Generated scale | 400 | 5,203 | 51.42 | 36.265 | 11.313 | 1,631.319 | 2,239.28 | 559 |
+| All std modules | — | 1,679 | 12.15 | 7.412 | 2.749 | 160.795 | 291.49 | 557 |
+
+The diagnostic probe injects Bool where Int is expected beneath 32 nested
+`Option` constructors. The checker returns one error; its complete rendered
+length, including position, is counted in Unicode characters. `compile-*`
+entries in `bench/budget.json` bound check/build nanoseconds, allocated bytes,
+sampled heap bytes, generated Go bytes and diagnostic characters at **2×** these
+calibration measurements. Run
+`go test ./bench -run . -bench Compile -benchtime=1x` to enforce them.
+
+The std fixture imports every embedded std module into one compiled program
+(source lines include the entry and dependencies). Literal single-module
+concatenation is skipped: std modules have distinct `package` declarations and
+qualified references such as `prelude.pure` and `r.Err`; flattening them is not a
+semantics-preserving operation. The fixture preserves those namespaces, then
+checks, generates and builds the entire module graph together.
+
 Classes become interfaces and instances dictionary structs; constrained functions
 receive dictionaries. Known Int/Bool/Float locals, parameters/results, pattern
 bindings and tail-loop state use int64/bool/float64. Polymorphic values,
@@ -950,11 +984,16 @@ server; setup and executable-path configuration are in [editors/README.md](edito
 
 ### 8.6 Performance evidence (historical, not a portability guarantee)
 
-The benchmark harness times built-program startup, input construction, workload
-and output; compilation is excluded. It validates output even during calibration.
-`bench/budget.json` contains nanoseconds/iteration; excess fails the test.
-`GOFX_BENCH_RECORD=1` disables budget enforcement only; `GOFX_BENCH_ROOT` selects
-the checkout. CI invokes `go test ./bench -run '^TestBudgets$' -bench . -benchtime=1x -timeout=12m`.
+The runtime benchmark harness times built-program startup, input construction,
+workload and output; compilation is excluded from `BenchmarkPrograms`. It
+validates output even during calibration. The separate `BenchmarkCompile`
+measurements and budgets are described in §8.1. `bench/budget.json` contains
+nanoseconds/iteration for runtime workloads and unit-suffixed `compile-*` limits;
+excess fails the test. `GOFX_BENCH_RECORD=1` disables budget enforcement only;
+`GOFX_BENCH_ROOT` selects the checkout for runtime benchmarks and the generated
+Go module's runtime dependency (in-process compile benchmarks use the checkout
+being tested). CI invokes
+`go test ./bench -run . -bench . -benchtime=1x -timeout=12m`.
 
 Historical Linux/amd64 Ryzen 9 7950X3D, Go 1.26.1 host measurements from the perf
 slice (single samples; **not measured on a CI runner**):

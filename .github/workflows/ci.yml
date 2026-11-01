@@ -51,4 +51,4 @@ jobs:
           go-version-file: go.mod
           cache: false
       - name: Enforce benchmark budgets
-        run: go test ./bench -run '^TestBudgets$' -bench . -benchtime=1x -timeout=12m
+        run: go test ./bench -run . -bench . -benchtime=1x -timeout=12m
