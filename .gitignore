@@ -3,3 +3,4 @@
 .wt/
 report.json
 sales.csv
+omp-session-*.html
