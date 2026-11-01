@@ -105,13 +105,23 @@ func initRuntime(root string) (string, error) {
 	return dir, nil
 }
 
+const getUsage = "usage: gofx get [--no-bind] <path>@<version>"
+
 func runGet(args []string) error {
-	if len(args) != 1 {
-		return fmt.Errorf("usage: gofx get <path>@<version>")
+	var target string
+	noBind := false
+	for _, arg := range args {
+		if arg == "--no-bind" && !noBind {
+			noBind = true
+		} else if target == "" && !strings.HasPrefix(arg, "-") {
+			target = arg
+		} else {
+			return fmt.Errorf("%s", getUsage)
+		}
 	}
-	modulePath, version, ok := strings.Cut(args[0], "@")
+	modulePath, version, ok := strings.Cut(target, "@")
 	if !ok || !modules.ValidModulePath(modulePath) || version == "" || version == "none" || strings.ContainsAny(version, "@ \t\r\n") {
-		return fmt.Errorf("usage: gofx get <path>@<version>")
+		return fmt.Errorf("%s", getUsage)
 	}
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -129,11 +139,11 @@ func runGet(args []string) error {
 	} else if err != nil {
 		return err
 	}
-	command := exec.Command("go", "get", args[0])
+	command := exec.Command("go", "get", target)
 	command.Dir = root
 	command.Stdin, command.Stdout, command.Stderr = os.Stdin, os.Stdout, os.Stderr
 	if err := command.Run(); err != nil {
-		return fmt.Errorf("gofx get: go get %s: %w", args[0], err)
+		return fmt.Errorf("gofx get: go get %s: %w", target, err)
 	}
 	selected, err := modules.ResolveGoModule(root, modulePath)
 	if err != nil {
@@ -143,5 +153,11 @@ func runGet(args []string) error {
 		return fmt.Errorf("gofx get: module %s has no selected version", modulePath)
 	}
 	manifest.SetRequire(modulePath, selected.Version)
-	return os.WriteFile(filepath.Join(root, "gofx.mod"), manifest.Bytes(), 0o644)
+	if err := os.WriteFile(filepath.Join(root, "gofx.mod"), manifest.Bytes(), 0o644); err != nil {
+		return err
+	}
+	if noBind {
+		return nil
+	}
+	return bindModule(root, selected)
 }

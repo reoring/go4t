@@ -12,9 +12,15 @@ import (
 	"gofx/types"
 )
 
-const bindUsage = "gofx:1:1: usage: gofx bind IMPORT [FILE.gfx|DIR...] [-o FILE.gfx|DIR] [--prefix STR] [--shim DIR]"
+const bindUsage = "gofx:1:1: usage: gofx bind IMPORT [FILE.gfx|DIR...] [-o FILE.gfx|DIR] [--prefix STR] [--shim DIR] | gofx bind --module PATH"
 
 func runBind(args []string) error {
+	if len(args) != 0 && args[0] == "--module" {
+		if len(args) != 2 || !modules.ValidModulePath(args[1]) {
+			return fmt.Errorf("%s", bindUsage)
+		}
+		return runBindModule(args[1])
+	}
 	if len(args) == 0 || strings.HasPrefix(args[0], "-") {
 		return fmt.Errorf("%s", bindUsage)
 	}
@@ -84,6 +90,12 @@ func runBind(args []string) error {
 	for _, name := range types.PreludeExports {
 		options.Prelude[name] = true
 	}
+	return writeBindings(pkg, options, output, shimDir, shimPath, shimPackage)
+}
+
+// writeBindings is shared by single-package binding and module enumeration.
+func writeBindings(pkg *extern.Package, options extern.BindOptions, output, shimDir, shimPath, shimPackage string) error {
+	var err error
 	source := extern.Bind(pkg, options)
 	if shimDir != "" {
 		methods, shim, shimErr := extern.BindMethods(pkg, options, shimPath, shimPackage)

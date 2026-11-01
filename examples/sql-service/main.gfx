@@ -1,0 +1,60 @@
+package main
+
+import "gofxbind/database/sql"
+import "glue"
+import "std/dyn"
+import "std/http"
+import "std/io"
+import "std/json"
+import "std/result"
+import "std/string"
+
+extern func tempDir() String = "os".TempDir
+
+type Count = Count{count: Int} deriving json.Encode
+
+func insertRows(db sql.DB, rows List[String]) IO[Unit] {
+  match rows {
+    Nil => ioPure(unit())
+    Cons(name, rest) => do {
+      sql.dBExecContext(db, "INSERT INTO people (name) VALUES (?)", [dyn.Str(name)])
+      insertRows(db, rest)
+    }
+  }
+}
+
+func handle(db sql.DB, request http.Request) IO[http.Response] {
+  match (request.method, request.path) {
+    ("GET", "/count") => do {
+      row <- sql.dBQueryRowContext(db, "SELECT COUNT(*) FROM people", [])
+      values <- sql.rowScan(row, 1)
+      match values {
+        [dyn.Int(count)] => ioPure(http.jsonResponse(200, Count{count: count}))
+        _ => ioFail("COUNT(*) did not return one integer")
+      }
+    }
+    ("GET", "/metrics") => do {
+      body <- glue.renderMetrics()
+      ioPure(http.Response(200, [("Content-Type", "text/plain; version=0.0.4; charset=utf-8")], body))
+    }
+    _ => ioPure(http.response(404, "not found"))
+  }
+}
+
+func main() IO[Unit] {
+  do {
+    argv <- io.args()
+    let port = head(argv) |> result.maybe(8080, func(s) => string.parseInt(s) |> result.fromOption(_, 8080))
+    millis <- io.nowMillis()
+    nonce <- io.randomInt(0, 1000000000)
+    let path = match argv {
+      Cons(_, Cons(file, _)) => file
+      _ => tempDir() + "/gofx-sql-service-${millis}-${nonce}.db"
+    }
+    db <- sql.open("sqlite", path)
+    sql.dBExecContext(db, "CREATE TABLE people (name TEXT NOT NULL)", [])
+    insertRows(db, ["Ada", "Grace", "Margaret"])
+    println("sql-service port=${port} database=${path}")
+    http.serve(port, handle(db, _))
+  }
+}
