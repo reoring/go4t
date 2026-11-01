@@ -1245,3 +1245,93 @@ per path (max 3: approval → observation → delete), (c) oracle tests unchange
 `go generate` idempotent. The interpreter is the cost; it must not grow with the number of
 decision branches.
 
+
+## Pass 18: Go is the ecosystem (contract for parallel slices)
+
+Input: the reviewer's two remaining "do not use yet" items — no DB/auth/metrics std, and no
+third-party ecosystem. Decision: gofx does not grow its own; `bind` becomes a complete
+"declarations + shim" generator so a Go package is usable after one command, and `gofx get`
+produces those bindings for a whole Go module. TypeScript analogy: `bind` is `dts-gen` plus the
+JS-side shim, `gofx get` is `npm install` that also writes `@types`.
+
+Today `database/sql`, `client_golang` and friends are ~90% skipped by `bind` for four reasons:
+struct parameters/results, a leading `context.Context`, variadics, callbacks. Pass 15/16 built
+the value mirror in the gofx→Go direction; this pass reuses it Go→gofx. No language change.
+
+### Domain model
+
+- **Foreign mirror** (`extern/mirror.go`, new; shares the mirrorable predicate's spirit with
+  `codegen/mirror.go` but runs on `go/types`). A Go type is *foreign-mirrorable* when it is:
+  a primitive of the §8.3 table; `[]T`/`map[K]T` with mirrorable `T` and scalar `K`;
+  `*T` with mirrorable `T` → `Option[T]`; `time.Duration` → `Int` (ns); `time.Time` → `Int`
+  (UnixNano, zero time → 0); `error` in a *field* → `Option[String]` (message);
+  an exported struct whose exported fields are all mirrorable (unexported fields ignored,
+  embedded structs flattened by Go's promotion rules) → gofx record `type <Name> = <Name>{…}`
+  declared once in the binding file, fields lower-cased, `deriving Eq, Debug`; a named
+  non-struct type whose underlying is mirrorable → same mirror as its underlying (not a
+  distinct gofx type; the shim converts); `[]byte` → `String` (bytes copied). Anything else
+  (interfaces, funcs in fields, channels, generics, cyclic structs) is a **handle**
+  (`type <Name> = <Name>Handle`, opaque, Pass 15) when named, or unsupported.
+- **Context absorption.** A function/method whose first parameter is `context.Context` binds
+  as returning `IO[R]` (`IO[Unit]` when it returns only `error`, `IO[Result…]` never: errors
+  are `*rt.Failure`); the shim takes the context from the `rt.IO` execution environment
+  (`func(ctx context.Context) (any, error)`). Non-ctx functions returning `error` or
+  `(T, error)` keep the existing `IO` inference. Cancellation therefore flows gofx
+  `withTimeout`/`cancel` → Go.
+- **Variadics.** `...T` with mirrorable `T` → trailing `List[T]`. `...any` → `List[dyn.Value]`
+  where `std/dyn` is a new std module:
+  `type Value = Null | Bool(Bool) | Int(Int) | Float(Float) | Str(String) | Bytes(String) | Time(Int) | List(List[Value]) | Map(Map[String, Value])`
+  `deriving Eq, Debug`; the shim converts each constructor to its natural Go value
+  (`Int`→`int64`, `Time`→`time.Time`, `Bytes`→`[]byte`). `any` results (e.g. `sql` scan
+  targets) convert back by dynamic type (`int*`/`uint*`→Int, `float*`→Float, `string`→Str,
+  `[]byte`→Bytes, `bool`→Bool, `time.Time`→Time, `nil`→Null, other → `Str(fmt.Sprint)`).
+  Registration of the Value constructors uses `rt.Shapes` like Json.
+- **Callbacks.** A parameter `func(A1..An) (R | (R, error) | error | nothing)` with mirrorable
+  `Ai`/`R` binds as `func(A1..An) R` / `func(A1..An) IO[R]`; the shim wraps the erased gofx
+  function value into the Go func type, converting arguments in and the result out. A `ctx`
+  first parameter on the callback is dropped on the gofx side. Callbacks returning error run
+  the gofx `IO` with the enclosing context. Methods on interface parameters (`http.Handler`)
+  are not callbacks; use the func-typed variant (`http.HandlerFunc`) via a Go wrapper.
+- **Scan-style out-parameters.** `(dest ...any)` with no other use (`sql.Rows.Scan`,
+  `sql.Row.Scan`) is recognized by shape (`...any` parameter, result `error`) and bound as
+  `IO[List[dyn.Value]]` taking `count Int`: the shim allocates `count` `*any` slots, scans,
+  converts. This is the one shape-based special case; it is documented as such.
+- **`gofx get` writes bindings.** After `go get`, `gofx get <module>@<v>` enumerates the
+  module's non-internal, non-test, non-main packages (`go list -m -json` → `Dir`,
+  `go list ./...` inside it), runs `bind --shim` for each into
+  `gofxbind/<import path>/` under the project root (`bindings.gfx` + `gofx_shim_<base>.go`,
+  the Go files form a Go package per directory), and records `require` as today. The
+  `.gfx` files import as `gofxbind/<import path>` (search rule 1, a subdirectory of the
+  root). Re-running regenerates; `gofx get --no-bind` skips; `gofx bind --module <path>`
+  does the enumeration alone for std packages such as `database/sql`.
+  Bindings are committed artifacts like `gofx_export.go` (§8.7 recipe).
+- **Shim package naming.** `gofx_shim_<base>.go` already exists; multiple Go packages with
+  the same base under one module get the directory from the import path, so no clash.
+
+### Not in scope (documented limits)
+
+Go generics (write a one-line concrete Go wrapper); satisfying Go interfaces with gofx values
+(use constructor functions such as `strings.NewReader`); unsafe/cgo; performance of the copy
+boundary.
+
+### Slices
+
+- `bind-mirror` (deep): foreign mirror (structs, pointers, time, bytes, named underlying),
+  context absorption, variadics incl. `...any` via `std/dyn`, callbacks, Scan shape;
+  `extern/mirror.go`, `extern/bind.go`, `extern/methods.go`, `extern/match.go` as needed,
+  `std/dyn/dyn.gfx` + `rt/dyn.go` + codegen shape registration; SPEC §8.3 rewrite of the
+  table/skip list, §7 std list, §10.7 rows; tests in `extern/` with a fixture package.
+- `get-bind` (deep): `gofx get` binding generation, `--no-bind`, `bind --module`,
+  `gofxbind/` layout, SPEC §8.2/§2.2; `examples/sql-service`: `gofx get modernc.org/sqlite`
+  + `database/sql` + `github.com/prometheus/client_golang/prometheus` and `…/promhttp`,
+  an HTTP service that inserts/counts rows and exposes `/metrics`, with **no hand-written
+  Go except generics wrappers**, smoke-tested by a `cmd/gofx` tools test (temp module,
+  offline from the local module cache: modernc.org/sqlite v1.59.0 and
+  client_golang v1.24.1 are cached; use `GOFLAGS=-mod=mod GOPROXY=off` in tests).
+  The example depends on `bind-mirror`; it starts from the design and integrates when
+  the sibling lands (coordinate via messages; the primary merges bind-mirror first).
+
+Acceptance: `examples/sql-service` runs end to end; count of `// skipped:` lines when binding
+`database/sql` and `prometheus` drops to generics/interface-satisfaction cases only (report the
+before/after numbers); all existing bind snapshots unchanged where no new rule applies.
+
