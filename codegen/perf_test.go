@@ -31,7 +31,7 @@ func main() IO[Unit] {
 		}
 	}
 	output, err := runQualityGo(t, source, false)
-	if err != nil || output != "42 3 500000500000 [2, 3]\n" {
+	if err != nil || output != "42 3.0 500000500000 [2, 3]\n" {
 		t.Fatalf("output %q: %v", output, err)
 	}
 }
@@ -48,7 +48,7 @@ func main() IO[Unit] { println("${pick(1, 2)} ${pick(2.0, 1.0)} ${pick(3, 4)}") 
 		t.Fatal("copies are not deduplicated by dictionaries")
 	}
 	output, err := runQualityGo(t, source, false)
-	if err != nil || output != "2 2 4\n" {
+	if err != nil || output != "2 2.0 4\n" {
 		t.Fatalf("output %q: %v", output, err)
 	}
 }
@@ -60,7 +60,7 @@ func main() IO[Unit] {
  println("${9223372036854775807 + 1} ${1.0 / 0.0} ${float.isNaN(0.0 / 0.0)} ${show(-0.0)} ${float.nan() < 1.0} ${float.nan() == float.nan()}")
 }`)
 	output, err := runQualityGo(t, source, false)
-	if err != nil || output != "-9223372036854775808 +Inf true -0 true false\n" {
+	if err != nil || output != "-9223372036854775808 +Inf true -0.0 true false\n" {
 		t.Fatalf("output %q: %v", output, err)
 	}
 }
@@ -80,7 +80,7 @@ func main() IO[Unit] { do {
  println("${float.nan() <= float.nan()} ${float.nan() >= float.nan()} ${float.nan() > 0.0} ${0.0 > float.nan()} ${0.0 >= float.nan()} ${float.nan() <= 0.0} ${0.0 <= float.nan()} ${false < true} ${false <= false} ${true > false} ${true >= true}")
 } }`)
 	output, err := runQualityGo(t, source, false)
-	want := "([9, 5, 14, 3, 1], [false, true, false, false, true, true]) ([2, 1, 0.75, 3, -1.5], true) false true true\ntrue true false true true true false true true true true\n"
+	want := "([9, 5, 14, 3, 1], [false, true, false, false, true, true]) ([2.0, 1.0, 0.75, 3.0, -1.5], true) false true true\ntrue true false true true true false true true true true\n"
 	if err != nil || output != want {
 		t.Fatalf("output %q: %v", output, err)
 	}

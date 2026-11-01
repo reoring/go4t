@@ -26,6 +26,10 @@ status: 200
 twice: 23
 ```
 
+The extern `gofx/rt/stdhttp.GetStatus(string) rt.IO` constructs a deferred HTTP
+request using its execution context. SIGINT/SIGTERM or cancellation of its fiber
+interrupts the request. HTTP non-2xx statuses are values, not IO failures.
+
 ## Tree
 
 `go run ./cmd/gofx run examples/tree/main.gfx` needs no network access. It defines

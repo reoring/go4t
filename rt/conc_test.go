@@ -1,6 +1,7 @@
 package rt
 
 import (
+	"context"
 	"errors"
 	"math"
 	"reflect"
@@ -20,7 +21,7 @@ type concTestResult struct {
 func runConcTest(action any) <-chan concTestResult {
 	result := make(chan concTestResult, 1)
 	go func() {
-		value, err := action.(IO)()
+		value, err := action.(IO)(context.Background())
 		result <- concTestResult{value, err}
 	}()
 	return result
@@ -51,7 +52,7 @@ func TestForkAwaitLazyReusableAndConcurrent(t *testing.T) {
 	started := make(chan struct{}, 2)
 	var calls atomic.Int32
 	want := &struct{ value int }{42}
-	fork := Fork(IO(func() (any, error) {
+	fork := Fork(IO(func(context.Context) (any, error) {
 		calls.Add(1)
 		started <- struct{}{}
 		<-gate
@@ -60,7 +61,7 @@ func TestForkAwaitLazyReusableAndConcurrent(t *testing.T) {
 	if calls.Load() != 0 {
 		t.Fatal("Fork ran before its IO was executed")
 	}
-	fiber, err := fork()
+	fiber, err := fork(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,14 +79,14 @@ func TestForkAwaitLazyReusableAndConcurrent(t *testing.T) {
 			t.Fatalf("Await = (%v, %v), want (%v, nil)", got.value, got.err, want)
 		}
 	}
-	if value, err := await.(IO)(); value != want || err != nil || calls.Load() != 1 {
+	if value, err := await.(IO)(context.Background()); value != want || err != nil || calls.Load() != 1 {
 		t.Fatalf("repeated Await = (%v, %v), calls = %d", value, err, calls.Load())
 	}
-	other, err := fork()
+	other, err := fork(context.Background())
 	if err != nil || other == fiber {
 		t.Fatalf("repeated Fork = (%v, %v), want a fresh fiber", other, err)
 	}
-	if value, err := Await(other).(IO)(); value != want || err != nil || calls.Load() != 2 {
+	if value, err := Await(other).(IO)(context.Background()); value != want || err != nil || calls.Load() != 2 {
 		t.Fatalf("second fiber = (%v, %v), calls = %d", value, err, calls.Load())
 	}
 }
@@ -97,13 +98,13 @@ func TestAwaitFailureAndPanic(t *testing.T) {
 		io   IO
 		want string
 	}{
-		{"failure", IO(func() (any, error) { return nil, wantErr }), "fiber failed"},
-		{"panic string", IO(func() (any, error) { panic("broken task") }), "broken task"},
-		{"panic error", IO(func() (any, error) { panic(wantErr) }), "fiber failed"},
-		{"panic nil", IO(func() (any, error) { panic(nil) }), "panic called with nil argument"},
+		{"failure", IO(func(context.Context) (any, error) { return nil, wantErr }), "fiber failed"},
+		{"panic string", IO(func(context.Context) (any, error) { panic("broken task") }), "broken task"},
+		{"panic error", IO(func(context.Context) (any, error) { panic(wantErr) }), "fiber failed"},
+		{"panic nil", IO(func(context.Context) (any, error) { panic(nil) }), "panic called with nil argument"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			fiber, err := Fork(tt.io).(IO)()
+			fiber, err := Fork(tt.io).(IO)(context.Background())
 			if err != nil {
 				t.Fatalf("Fork failed rather than capturing the outcome: %v", err)
 			}
@@ -118,12 +119,12 @@ func TestAwaitFailureAndPanic(t *testing.T) {
 			}
 		})
 	}
-	fiber, _ := Fork(Fail("stop")).(IO)()
+	fiber, _ := Fork(Fail("stop")).(IO)(context.Background())
 	called := false
 	_, err := Bind(Await(fiber), func(any) any {
 		called = true
 		return Pure(Unit{})
-	}).(IO)()
+	}).(IO)(context.Background())
 	if called || err == nil || err.Error() != "stop" {
 		t.Fatalf("awaited failure did not short-circuit Bind: called=%v, error=%v", called, err)
 	}
@@ -142,7 +143,7 @@ func TestParMapIOParallelAndInputOrder(t *testing.T) {
 	var called atomic.Int32
 	action := ParMapIO(ListFromStrings(values), func(value any) any {
 		called.Add(1)
-		return IO(func() (any, error) {
+		return IO(func(context.Context) (any, error) {
 			name := value.(string)
 			started <- name
 			<-gates[name]
@@ -181,7 +182,7 @@ func TestParMapIOEmptyAndFailures(t *testing.T) {
 	value, err := ParMapIO(Shapes.Nil(), func(any) any {
 		t.Fatal("mapper called for empty list")
 		return nil
-	}).(IO)()
+	}).(IO)(context.Background())
 	if value != (testNil{}) || err != nil {
 		t.Fatalf("empty result = (%v, %v)", value, err)
 	}
@@ -190,16 +191,21 @@ func TestParMapIOEmptyAndFailures(t *testing.T) {
 		gate, release := concTestGate(t)
 		failed := make(chan struct{})
 		finished := make(chan struct{})
+		started := make(chan struct{})
 		result := runConcTest(ParMapIO(ListFromStrings([]string{"blocked", "failure"}), func(a any) any {
+			if a == "failure" {
+				<-started
+			}
 			if a == "failure" && mapperPanic {
 				close(failed)
 				panic("mapper failed")
 			}
-			return IO(func() (any, error) {
+			return IO(func(context.Context) (any, error) {
 				if a == "failure" {
 					close(failed)
 					return nil, errors.New("task failed")
 				}
+				close(started)
 				<-gate
 				close(finished)
 				return a, nil
@@ -229,14 +235,14 @@ func TestRaceFirstCompletionAndAbandonedPanic(t *testing.T) {
 		for _, failure := range []bool{false, true} {
 			gate, release := concTestGate(t)
 			started, finished := make(chan struct{}), make(chan struct{})
-			slow := IO(func() (any, error) {
+			slow := IO(func(context.Context) (any, error) {
 				close(started)
 				<-gate
 				defer close(finished)
 				panic("loser failed after race returned")
 			})
 			wantErr := &Failure{Kind: FailureKind, Message: "winner failed"}
-			fast := IO(func() (any, error) {
+			fast := IO(func(context.Context) (any, error) {
 				<-started
 				if failure {
 					return nil, wantErr
@@ -273,12 +279,12 @@ func TestParBothTupleAndFailure(t *testing.T) {
 	for _, failure := range []bool{false, true} {
 		gate, release := concTestGate(t)
 		started := make(chan struct{}, 2)
-		left := IO(func() (any, error) {
+		left := IO(func(context.Context) (any, error) {
 			started <- struct{}{}
 			<-gate
 			return int64(7), nil
 		})
-		right := IO(func() (any, error) {
+		right := IO(func(context.Context) (any, error) {
 			started <- struct{}{}
 			if failure {
 				panic("right failed")
@@ -316,7 +322,7 @@ func TestTimeoutSomeNoneAndFailures(t *testing.T) {
 		{"success", Pure(int64(8)), testSome{int64(8)}, ""},
 		{"nil success", Pure(nil), testSome{nil}, ""},
 		{"failure", Fail("timed task failed"), nil, "timed task failed"},
-		{"panic", IO(func() (any, error) { panic("timed panic") }), nil, "timed panic"},
+		{"panic", IO(func(context.Context) (any, error) { panic("timed panic") }), nil, "timed panic"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			got := receiveConcTest(t, runConcTest(Timeout(int64(1000), tt.io)))
@@ -330,7 +336,7 @@ func TestTimeoutSomeNoneAndFailures(t *testing.T) {
 	}
 	gate, release := concTestGate(t)
 	started, finished := make(chan struct{}), make(chan struct{})
-	action := Timeout(int64(5), IO(func() (any, error) {
+	action := Timeout(int64(5), IO(func(context.Context) (any, error) {
 		close(started)
 		<-gate
 		defer close(finished)
@@ -355,7 +361,7 @@ func TestTimeoutDurationBoundaries(t *testing.T) {
 	installTestShapes(t)
 	for _, millis := range []int64{math.MinInt64, -1, 0, math.MaxInt64} {
 		var called atomic.Bool
-		got := receiveConcTest(t, runConcTest(Timeout(millis, IO(func() (any, error) {
+		got := receiveConcTest(t, runConcTest(Timeout(millis, IO(func(context.Context) (any, error) {
 			called.Store(true)
 			return int64(1), nil
 		}))))

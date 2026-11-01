@@ -3,6 +3,7 @@
 package testrt
 
 import (
+	"context"
 	"fmt"
 
 	"gofx/rt"
@@ -12,8 +13,11 @@ import (
 // a successful IO containing whether the test passed. An IO error is a failed
 // test, not a short circuit of the remaining harness.
 func Run(name, action any) any {
-	return rt.IO(func() (any, error) {
-		result, err := action.(func() any)().(rt.IO)()
+	return rt.IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		result, err := action.(func() any)().(rt.IO)(ctx)
 		if err != nil {
 			fmt.Printf("FAIL %s: %s\n", name.(string), err)
 			return false, nil

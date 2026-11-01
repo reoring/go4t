@@ -3,37 +3,52 @@ package rt
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"math/rand/v2"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 )
 
 // Unit is the value returned by effects that have no meaningful result.
 type Unit struct{}
 
-// IO is a deferred effect, returning either an erased value or an error.
-type IO func() (any, error)
+// IO is a deferred effect executed with a cancellation/deadline environment.
+type IO func(ctx context.Context) (any, error)
 
 // Pure wraps a value in an IO without performing any effects.
 func Pure(a any) any {
-	return IO(func() (any, error) { return a, nil })
+	return IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, ClassifyError(err)
+		}
+		return a, nil
+	})
 }
 
 // Bind sequences effects, invoking f only if the first effect succeeds.
 // f has the erased signature func(any) any and returns an IO.
 func Bind(io any, f any) any {
-	return IO(func() (any, error) {
-		value, err := io.(IO)()
+	return IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, ClassifyError(err)
+		}
+
+		value, err := io.(IO)(ctx)
 		if err != nil {
 			return nil, ClassifyError(err)
 		}
-		value, err = f.(func(any) any)(value).(IO)()
+		if err := ctx.Err(); err != nil {
+			return nil, ClassifyError(err)
+		}
+		value, err = f.(func(any) any)(value).(IO)(ctx)
 		return value, ClassifyError(err)
 	})
 }
@@ -41,19 +56,27 @@ func Bind(io any, f any) any {
 // Fail constructs an IO that fails with the given string message.
 func Fail(msg any) any {
 	err := &Failure{Kind: FailureKind, Message: msg.(string)}
-	return IO(func() (any, error) { return nil, err })
+	return IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, ClassifyError(err)
+		}
+		return nil, err
+	})
 }
 
 // TryIO captures errors and panics from running an action as a generated Result.
 // Like Bind, it is lazy; panics while constructing its argument are outside it.
 func TryIO(io any) any {
-	return IO(func() (value any, err error) {
+	return IO(func(ctx context.Context) (value any, err error) {
 		defer func() {
 			if p := recover(); p != nil {
 				value, err = ErrOf(failureValue(&Failure{Kind: Panic, Message: fmt.Sprint(p)})), nil
 			}
 		}()
-		result, failure := io.(IO)()
+		if failure := ctx.Err(); failure != nil {
+			return ErrOf(failureValue(failure)), nil
+		}
+		result, failure := io.(IO)(ctx)
 		if failure != nil {
 			return ErrOf(failureValue(failure)), nil
 		}
@@ -63,21 +86,35 @@ func TryIO(io any) any {
 
 // RunMain exits with status 1 for failed IO and status 2 for an uncaught panic.
 func RunMain(io any) {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 	defer func() {
 		if p := recover(); p != nil {
 			fmt.Fprintln(os.Stderr, "error: panic:", p)
 			os.Exit(2)
 		}
 	}()
-	if _, err := io.(IO)(); err != nil {
-		fmt.Fprintln(os.Stderr, "error:", err)
+	_, err := io.(IO)(ctx)
+	if err == nil {
+		err = ctx.Err()
+	}
+	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			fmt.Fprintln(os.Stderr, "error: cancelled")
+		} else {
+			fmt.Fprintln(os.Stderr, "error:", err)
+		}
 		os.Exit(1)
 	}
 }
 
 // Println constructs an IO that prints a string and a newline to stdout.
 func Println(s any) any {
-	return IO(func() (any, error) {
+	return IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, ClassifyError(err)
+		}
+
 		if _, err := fmt.Fprintln(os.Stdout, s.(string)); err != nil {
 			return nil, ClassifyError(err)
 		}
@@ -98,11 +135,60 @@ func ShowString(s any) any { return s }
 var stdinReader = bufio.NewReader(os.Stdin)
 var programArgs = os.Args[1:]
 
+// A cancelled stdin read cannot interrupt an arbitrary Go Reader. Keep at most
+// one read in flight and serialize access to the shared buffer; the caller can
+// leave immediately while that read finishes when input or EOF arrives.
+var stdinGate = make(chan struct{}, 1)
+
+func readStdin(ctx context.Context, all bool) (string, error) {
+	select {
+	case stdinGate <- struct{}{}:
+	case <-ctx.Done():
+		return "", ctx.Err()
+	}
+	if err := ctx.Err(); err != nil {
+		<-stdinGate
+		return "", err
+	}
+	reader := stdinReader
+	type result struct {
+		text string
+		err  error
+	}
+	completed := make(chan result, 1)
+	go func() {
+		defer func() { <-stdinGate }()
+		var text string
+		var err error
+		if all {
+			var data []byte
+			data, err = io.ReadAll(reader)
+			text = string(data)
+		} else {
+			text, err = reader.ReadString('\n')
+		}
+		completed <- result{text, err}
+	}()
+	select {
+	case result := <-completed:
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
+		return result.text, result.err
+	case <-ctx.Done():
+		return "", ctx.Err()
+	}
+}
+
 // ReadLine defers reading one line from stdin. LF and CRLF terminators are removed;
 // a final unterminated line is Some, and only an empty EOF is None.
 func ReadLine() any {
-	return IO(func() (any, error) {
-		line, err := stdinReader.ReadString('\n')
+	return IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, ClassifyError(err)
+		}
+
+		line, err := readStdin(ctx, false)
 		if err != nil && err != io.EOF {
 			return nil, ClassifyError(err)
 		}
@@ -119,25 +205,37 @@ func ReadLine() any {
 
 // ReadAll defers reading the remaining stdin, including any buffered bytes.
 func ReadAll() any {
-	return IO(func() (any, error) {
-		text, err := io.ReadAll(stdinReader)
+	return IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, ClassifyError(err)
+		}
+
+		text, err := readStdin(ctx, true)
 		if err != nil {
 			return nil, ClassifyError(err)
 		}
-		return string(text), nil
+		return text, nil
 	})
 }
 
 // Args defers constructing the program's arguments, excluding the executable.
 func Args() any {
-	return IO(func() (any, error) {
+	return IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, ClassifyError(err)
+		}
+
 		return ListFromStrings(programArgs), nil
 	})
 }
 
 // Exit terminates only when its IO is executed. Runtime stdout is unbuffered.
 func Exit(code any) any {
-	return IO(func() (any, error) {
+	return IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, ClassifyError(err)
+		}
+
 		os.Exit(int(code.(int64)))
 		return Unit{}, nil
 	})
@@ -145,7 +243,11 @@ func Exit(code any) any {
 
 // GetEnv distinguishes an absent environment variable from a present empty one.
 func GetEnv(name any) any {
-	return IO(func() (any, error) {
+	return IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, ClassifyError(err)
+		}
+
 		value, ok := os.LookupEnv(name.(string))
 		if !ok {
 			return NoneOf(), nil
@@ -156,7 +258,11 @@ func GetEnv(name any) any {
 
 // ReadFile defers reading a whole file as a string; a missing file fails the IO.
 func ReadFile(path any) any {
-	return IO(func() (any, error) {
+	return IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, ClassifyError(err)
+		}
+
 		text, err := os.ReadFile(path.(string))
 		if err != nil {
 			return nil, ClassifyError(err)
@@ -167,7 +273,11 @@ func ReadFile(path any) any {
 
 // WriteFile defers writing content to path, creating parent directories.
 func WriteFile(path, content any) any {
-	return IO(func() (any, error) {
+	return IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, ClassifyError(err)
+		}
+
 		p := path.(string)
 		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 			return nil, ClassifyError(err)
@@ -181,7 +291,11 @@ func WriteFile(path, content any) any {
 
 // Eprintln constructs an IO that prints a string and a newline to stderr.
 func Eprintln(s any) any {
-	return IO(func() (any, error) {
+	return IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, ClassifyError(err)
+		}
+
 		if _, err := fmt.Fprintln(os.Stderr, s.(string)); err != nil {
 			return nil, ClassifyError(err)
 		}
@@ -191,7 +305,11 @@ func Eprintln(s any) any {
 
 // AppendFile appends content, creating the file and its parents if needed.
 func AppendFile(path, content any) any {
-	return IO(func() (any, error) {
+	return IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, ClassifyError(err)
+		}
+
 		p := path.(string)
 		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 			return nil, ClassifyError(err)
@@ -214,7 +332,11 @@ func AppendFile(path, content any) any {
 
 // FileExists returns false only for a missing path; other stat errors fail the IO.
 func FileExists(path any) any {
-	return IO(func() (any, error) {
+	return IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, ClassifyError(err)
+		}
+
 		_, err := os.Stat(path.(string))
 		if errors.Is(err, os.ErrNotExist) {
 			return false, nil
@@ -228,7 +350,11 @@ func FileExists(path any) any {
 
 // ListDir returns sorted entry names, not full paths.
 func ListDir(path any) any {
-	return IO(func() (any, error) {
+	return IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, ClassifyError(err)
+		}
+
 		entries, err := os.ReadDir(path.(string))
 		if err != nil {
 			return nil, ClassifyError(err)
@@ -246,7 +372,11 @@ func ListDir(path any) any {
 
 // RemoveFile removes a file or empty directory; a missing path fails the IO.
 func RemoveFile(path any) any {
-	return IO(func() (any, error) {
+	return IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, ClassifyError(err)
+		}
+
 		if err := os.Remove(path.(string)); err != nil {
 			return nil, ClassifyError(err)
 		}
@@ -256,7 +386,11 @@ func RemoveFile(path any) any {
 
 // Print writes a string to stdout without adding a newline.
 func Print(s any) any {
-	return IO(func() (any, error) {
+	return IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, ClassifyError(err)
+		}
+
 		if _, err := fmt.Fprint(os.Stdout, s.(string)); err != nil {
 			return nil, ClassifyError(err)
 		}
@@ -266,14 +400,24 @@ func Print(s any) any {
 
 // NowMillis reads the Unix wall clock in milliseconds when its IO runs.
 func NowMillis() any {
-	return IO(func() (any, error) { return time.Now().UnixMilli(), nil })
+	return IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, ClassifyError(err)
+		}
+		return time.Now().UnixMilli(), nil
+	})
 }
 
 var monotonicOrigin = time.Now()
 
 // MonotonicMillis returns elapsed milliseconds since runtime initialization.
 func MonotonicMillis() any {
-	return IO(func() (any, error) { return time.Since(monotonicOrigin).Milliseconds(), nil })
+	return IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, ClassifyError(err)
+		}
+		return time.Since(monotonicOrigin).Milliseconds(), nil
+	})
 }
 
 // FormatTime formats Unix milliseconds in UTC using a Go time layout.
@@ -284,7 +428,11 @@ func FormatTime(millis, layout any) any {
 // RandomInt samples the inclusive interval uniformly, including the full Int range.
 // It is not a cryptographic random source.
 func RandomInt(lo, hi any) any {
-	return IO(func() (any, error) {
+	return IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, ClassifyError(err)
+		}
+
 		lower, upper := lo.(int64), hi.(int64)
 		if lower > upper {
 			return nil, &Failure{Kind: FailureKind, Message: "randomInt: lo must be <= hi"}
@@ -300,18 +448,33 @@ func RandomInt(lo, hi any) any {
 // RandomFloat samples [0, 1) uniformly when its IO runs.
 // Like RandomInt, it is not a cryptographic random source.
 func RandomFloat() any {
-	return IO(func() (any, error) { return rand.Float64(), nil })
+	return IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, ClassifyError(err)
+		}
+		return rand.Float64(), nil
+	})
 }
 
 // Sleep waits for positive milliseconds; nonpositive durations return immediately.
 func Sleep(millis any) any {
-	return IO(func() (any, error) {
+	return IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, ClassifyError(err)
+		}
+
 		n := millis.(int64)
 		if n > int64((1<<63-1)/time.Millisecond) {
 			return nil, &Failure{Kind: FailureKind, Message: "sleep: duration out of range"}
 		}
 		if n > 0 {
-			time.Sleep(time.Duration(n) * time.Millisecond)
+			timer := time.NewTimer(time.Duration(n) * time.Millisecond)
+			defer timer.Stop()
+			select {
+			case <-timer.C:
+			case <-ctx.Done():
+				return nil, ClassifyError(ctx.Err())
+			}
 		}
 		return Unit{}, nil
 	})

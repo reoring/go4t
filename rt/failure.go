@@ -96,5 +96,10 @@ func Raise(value any) any {
 	}
 	kind, message := Shapes.IoErrorOf(value)
 	failure := &Failure{Kind: Kind(kind), Message: message}
-	return IO(func() (any, error) { return nil, failure })
+	return IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, ClassifyError(err)
+		}
+		return nil, failure
+	})
 }

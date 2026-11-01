@@ -36,7 +36,8 @@ func (g *generator) emitExtern(f *types.FuncInfo) string {
 	if adapter.Error {
 		// No Go call or mutable slice conversion runs until the IO is executed.
 		// Re-running an IO therefore receives a fresh list-to-slice conversion.
-		out.WriteString("return rt.IO(func() (any, error) {\n")
+		g.contextIO = true
+		out.WriteString("return rt.IO(func(ctx context.Context) (any, error) {\nif err := ctx.Err(); err != nil { return nil, rt.ClassifyError(err) }\n")
 	}
 	var natural []string
 	for i, value := range adapter.Params {

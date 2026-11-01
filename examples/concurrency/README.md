@@ -28,8 +28,19 @@ wall time varies with scheduling and system load.
 returns the first completion, including failure. `timeout` returns `None` for a
 late result and `Some(value)` for an early success; early failures still fail IO.
 
-**Abandonment is not cancellation.** The losing race task and expired timeout
-task keep running and may perform effects while the process lives. Their results
-are discarded, and their eventual failures/panics are captured. The runtime does
-not wait for them, or other unawaited fibers, after `main` finishes. This example
-therefore exits without waiting for either 1,000 ms slow task.
+**Cancellation stops cooperative effects.** The losing race task and expired
+timeout task are cancelled and joined before returning. Their sleeping actions
+stop immediately, so a print sequenced after the sleep will not run. An extern
+that ignores its context is abandoned after a 100 ms cleanup grace (`timeout`:
+deadline + 100 ms), and may still perform effects after the operation returns.
+
+`conc.cancel(fiber)` requests cancellation without waiting; awaiting an unfinished,
+cancelled fiber fails. A completed fiber retains its cached outcome.
+`conc.withTimeout(millis, action)` fails on expiry instead of returning `None`;
+timely failures still propagate in either form. `parMapIO` cancels siblings on its
+first observed failure, then joins them. Uncooperative foreign code can delay that
+join; cancelling the enclosing action bounds cleanup to 100 ms.
+
+SIGINT or SIGTERM cancels the running main action and its child fibers, reporting
+`error: cancelled` with exit status 1. There is no global join when main succeeds:
+unawaited fibers do not keep the process alive.

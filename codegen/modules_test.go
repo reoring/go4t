@@ -126,7 +126,7 @@ func main() IO[Unit] {
 			if err != nil {
 				t.Fatal(err)
 			}
-			want := "prelude list result io float\n[Some(1), Some(2)]\nOk(3)\n"
+			want := "prelude list result io float\n[Some(1), Some(2)]\nOk(3.0)\n"
 			if output := runGeneratedModules(t, generated); output != want {
 				t.Fatalf("output = %q, want %q", output, want)
 			}

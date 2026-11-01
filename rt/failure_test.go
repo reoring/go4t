@@ -85,11 +85,11 @@ func TestRaiseRoundTrip(t *testing.T) {
 			value := testIoError{string(kind), message}
 			action := Raise(value).(IO)
 			for range 2 {
-				got, err := action()
+				got, err := action(context.Background())
 				if got != nil || !reflect.DeepEqual(err, &Failure{Kind: kind, Message: message}) {
 					t.Fatalf("Raise = (%v, %#v)", got, err)
 				}
-				got, err = TryIO(action).(IO)()
+				got, err = TryIO(action).(IO)(context.Background())
 				if err != nil || got != (testErr{value}) {
 					t.Fatalf("TryIO(Raise) = (%#v, %v)", got, err)
 				}
@@ -101,14 +101,14 @@ func TestRaiseRoundTrip(t *testing.T) {
 func TestIOFailureBoundaries(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "missing")
 	for _, action := range []any{ReadFile(missing), RemoveFile(missing), ListDir(missing)} {
-		_, err := action.(IO)()
+		_, err := action.(IO)(context.Background())
 		failure, ok := err.(*Failure)
 		if !ok || failure.Kind != NotFound {
 			t.Fatalf("filesystem error = %#v, want NotFound", err)
 		}
 	}
 	for _, action := range []any{Fail(""), RandomInt(int64(2), int64(1)), Sleep(int64(1<<63 - 1)), Timeout(int64(1<<63-1), Pure(Unit{}))} {
-		_, err := action.(IO)()
+		_, err := action.(IO)(context.Background())
 		failure, ok := err.(*Failure)
 		if !ok || failure.Kind != FailureKind {
 			t.Fatalf("IO error = %#v, want Failure", err)
@@ -116,7 +116,7 @@ func TestIOFailureBoundaries(t *testing.T) {
 	}
 	for _, input := range []func() any{ReadLine, ReadAll} {
 		setTestInput(t, failingInput{os.ErrPermission})
-		_, err := input().(IO)()
+		_, err := input().(IO)(context.Background())
 		if !reflect.DeepEqual(err, &Failure{Kind: PermissionDenied, Message: os.ErrPermission.Error()}) {
 			t.Fatalf("stdin error = %#v", err)
 		}
@@ -124,18 +124,18 @@ func TestIOFailureBoundaries(t *testing.T) {
 }
 
 func TestForeignFailuresAtSequenceAndConcurrentBoundaries(t *testing.T) {
-	foreign := IO(func() (any, error) { return nil, os.ErrPermission })
+	foreign := IO(func(context.Context) (any, error) { return nil, os.ErrPermission })
 	for _, action := range []IO{
 		Bind(foreign, func(any) any { t.Fatal("failed bind continued"); return Pure(nil) }).(IO),
 		Bind(Pure(nil), func(any) any { return foreign }).(IO),
-		IO(func() (any, error) { return runConcurrentIO(foreign) }),
+		IO(func(ctx context.Context) (any, error) { return runConcurrentIO(ctx, foreign) }),
 	} {
-		_, err := action()
+		_, err := action(context.Background())
 		if !reflect.DeepEqual(err, &Failure{Kind: PermissionDenied, Message: os.ErrPermission.Error()}) {
 			t.Fatalf("foreign failure = %#v", err)
 		}
 	}
-	_, err := runConcurrentIO(IO(func() (any, error) { panic(os.ErrPermission) }))
+	_, err := runConcurrentIO(context.Background(), IO(func(context.Context) (any, error) { panic(os.ErrPermission) }))
 	if !reflect.DeepEqual(err, &Failure{Kind: Panic, Message: os.ErrPermission.Error()}) {
 		t.Fatalf("concurrent panic = %#v, want Panic rather than PermissionDenied", err)
 	}

@@ -302,12 +302,13 @@ func main() IO[Unit] {
 	}
 	toolsWrite(t, filepath.Join(dir, "main.go"), `package main
 import (
+    "context"
     "clitoolstest/embedded"
     "gofx/rt"
 )
 func main() {
     var action rt.IO = embedded.Main()
-    value, err := action()
+    value, err := action(context.Background())
     if err != nil { panic(err) }
     if _, ok := value.(rt.Unit); !ok { panic("not Unit") }
 }

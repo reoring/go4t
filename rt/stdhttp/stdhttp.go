@@ -2,19 +2,31 @@
 package stdhttp
 
 import (
+	"context"
 	"net/http"
 	"time"
+
+	"gofx/rt"
 )
 
 var client = &http.Client{Timeout: 10 * time.Second}
 
-// GetStatus fetches a URL and returns its HTTP status. HTTP error statuses are
-// values; network failures are errors. The generated extern adapter supplies IO.
-func GetStatus(url string) (int64, error) {
-	response, err := client.Get(url)
-	if err != nil {
-		return 0, err
+// GetStatus constructs a deferred, cancellable HTTP GET. HTTP error statuses
+// are values; transport failures are IO errors.
+func GetStatus(url string) rt.IO {
+	return func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		if err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		response, err := client.Do(request)
+		if err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		defer response.Body.Close()
+		return int64(response.StatusCode), nil
 	}
-	defer response.Body.Close()
-	return int64(response.StatusCode), nil
 }
