@@ -120,3 +120,18 @@ For native client-go domain APIs, retain upstream module boundaries and exported
 - Mixed synchronization selection, captured Context, ensuring/bracket and Poll are now part of `support/sync`; their exact signatures in `support/sync/sync.gfx` and cleanup rules in its README are authoritative. Bracket is required where cancellation between acquisition and the next source bind would otherwise skip cleanup.
 
 The next independent core owners are ClientConfig, Transport, Rest and AuthPlugins. They publish native signatures from their owned modules before dependent consumer work; the supervisor resolves shared boundaries. Generated-resource and higher-level controller waves consume those contracts rather than inventing their own client/config representations.
+
+## Observed large-suite harness limit
+
+The unmodified full apply-configuration registry test command reached the host
+parser's scope-depth limit at 952 tests (`<test>:504: exceeded max scope depth
+during object resolution`). `cmd/gofx/tools.go:testHarness` currently emits one
+`do` block containing one bind per test and a single growing sum.
+
+Fix the owning CLI harness generator, not the client-go test set or the parser
+limit: generate bounded-size sequential helpers with a bounded aggregation tree.
+Preserve exact discovery, source order, Bool/IO[Bool] handling, panic/error capture,
+continued execution after failures, summary counts, exit status and name hygiene.
+The full original registry command must run afterward; splitting away cases or
+claiming a smaller test run is not acceptance. `ClientGoHarness` owns only the
+CLI harness implementation/tests and its existing specification documentation.
