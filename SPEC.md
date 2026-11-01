@@ -936,6 +936,14 @@ constructor). Document symbols are hierarchical in declaration order; generated
 derivations are excluded. Builtins have no source target. Embedded std uses
 `gofx-std:///std/list/list.gfx`; `gofx/stdlib` returns that source for a `uri`.
 
+The sales-report acceptance session exercises both open source files, the full
+`summarize` function signature and `rates` type on hover, `parseCsv` navigation
+from `main.gfx` into `domain.gfx`, document symbols, and separate full-buffer
+changes producing an unused-let warning and a type error with exclusive ranges.
+The exact observed stdio exchange and editor-host availability are recorded in
+[`docs/lsp-verification.md`](docs/lsp-verification.md); the framed replay is
+`lsp/sales_report_test.go`.
+
 No completion, rename, incremental edits, file watching, workspace symbols or
 LSP formatting is advertised. The dependency-free VS Code client spawns this
 server; setup and executable-path configuration are in [editors/README.md](editors/README.md).
