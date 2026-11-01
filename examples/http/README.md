@@ -393,7 +393,7 @@ Run from the repository root:
 go run ./cmd/gofx run examples/wc/main.gfx -- 3 < examples/wc/input.txt
 ```
 
-Expected output (unverified):
+Output:
 
 ```text
 lines: 12, words: 60
@@ -408,7 +408,7 @@ The invalid-number path prints usage to stdout and exits with status 2:
 go run ./cmd/gofx run examples/wc/main.gfx -- x < examples/wc/input.txt
 ```
 
-Expected stdout (unverified):
+Output:
 
 ```text
 usage: wc [N]
@@ -424,7 +424,7 @@ Fixed data demonstrates splitting, trimming and joining, Unicode rune indexes
 and counts, replacement of all occurrences, repetition, integer parsing, and
 decimal padding.
 
-Expected output (unverified):
+Output:
 
 ```text
 split: [  red,  green , blue  ]
