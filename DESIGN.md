@@ -611,3 +611,209 @@ asc, prints `showPadLeft(count, 5) + " " + word` for the top N where N comes fro
 (`parseInt`, default 10), and `exit(2)` with a usage message when the argument is not a
 number. README records a run with a fixed input file `examples/wc/input.txt` via
 `go run ./cmd/gofx run examples/wc/main.gfx -- 3 < examples/wc/input.txt`.
+
+## Pass 12: towards practical programs (contract for parallel slices)
+
+Goal: everything a person needs to write a small CLI/service in gofx. The work is split
+into independent slices, each developed in its own git worktree/branch off `master`
+(`.wt/<slice>`, branch `slice/<slice>`). The primary merges slices in order and resolves
+conflicts. Rules for every slice:
+
+- Do **not** edit `SPEC.md` or `DESIGN.md` (the primary integrates). Write the SPEC delta
+  (new grammar, types, prelude signatures, limitations removed) to `docs/slices/<slice>.md`.
+- Do not commit. Leave the worktree with the finished change; the primary commits it.
+- Run only the slice's own package tests and its example (`go run ./cmd/gofx run
+  examples/<slice>/main.gfx`), not the whole suite; the primary runs `go test ./...` after
+  integration.
+- Every slice adds `examples/<slice>/main.gfx` (+ `README.md` with the observed output)
+  exercising the feature end to end, and unit tests in the owning package(s) for behaviour,
+  boundaries and error messages.
+- Keep diagnostics in the `file:line:col: message` form. Keep the uniform `any` ABI unless
+  the slice is `typed-extern`.
+- Names below are **fixed contracts**; other slices may rely on them without seeing the
+  implementation. A slice that needs a name owned by another slice declares it as the
+  owner will (same spelling, same signature) only if it is required to compile its tests,
+  and notes the duplication in its `docs/slices/<slice>.md` so the primary deletes one copy.
+
+### Slice contracts (wave A)
+
+**float-num** — builtin `Float : *` (`types.Float`, Go `float64`), literal `1.5`, `2e3`,
+`1.0e-3` (lexer token Float; `1.` and `.5` are not literals). `+ - * /` accept
+`Float/Float` as well as `Int/Int` (resolved after inference like `+` today; `/` on Float
+is IEEE division, no panic); `%` stays Int; unary `-` on Float. `Show/Eq/Ord[Float]`
+(`show` uses Go `strconv.FormatFloat(f, 'g', -1, 64)`; `Ord` orders NaN below everything,
+`Eq` is IEEE except NaN == NaN is false). Prelude: `toFloat(n Int) Float`,
+`truncate(f Float) Int`, `floor`, `ceil`, `round(f Float) Int`, `sqrt`, `pow(x Float, y Float) Float`,
+`powInt(x Int, y Int) Int`, `parseFloat(s String) Option[Float]`, `showFloatFixed(f Float, decimals Int) String`,
+`min[A Ord](a A, b A) A`, `max[A Ord](a A, b A) A`, `absFloat`, `nan() Float`, `isNaN`.
+Default for an unconstrained numeric literal remains Int (no numeric defaulting).
+
+**collections** — builtin opaque type constructors `Map : (*,*) -> *`, `Set : (*) -> *`,
+`Array : (*) -> *` (`types.Map/Set/Array`), implemented in `rt/coll.go` as persistent
+structures (Map/Set: balanced tree ordered by the key's `compare`, passed from the prelude
+as a `func(any, any) any` returning the generated `Ordering` value, read back through a new
+`rt.Shapes.OrderingOf func(any) int` (-1/0/1) that codegen registers; Array: Go slice
+copied on write). Prelude API (all pure):
+```
+emptyMap[K, V]() Map[K, V]        mapInsert[K Ord, V](m Map[K, V], k K, v V) Map[K, V]
+mapLookup[K Ord, V](m Map[K, V], k K) Option[V]   mapDelete[K Ord, V](m, k) Map[K, V]
+mapMember[K Ord, V](m, k) Bool    mapSize[K, V](m) Int
+mapFromList[K Ord, V](xs List[(K, V)]) Map[K, V]  mapToList[K, V](m) List[(K, V)]   // ascending keys
+mapKeys[K, V](m) List[K]   mapValues[K, V](m) List[V]
+mapAdjust[K Ord, V](m, k, f func(V) V) Map[K, V]   // no-op when absent
+mapAlter[K Ord, V](m, k, f func(Option[V]) Option[V]) Map[K, V]
+mapUnion[K Ord, V](a, b) Map[K, V]  // left-biased
+mapMap[K, V, W](m Map[K, V], f func(V) W) Map[K, W]   mapFold[K, V, B](m, init B, f func(B, K, V) B) B
+groupBy[K Ord, A](xs List[A], key func(A) K) Map[K, List[A]]   // preserves element order
+emptySet[A]() Set[A]  setInsert[A Ord](s, a) Set[A]  setDelete  setMember  setSize  setFromList  setToList  setUnion  setIntersection  setDifference
+arrayFromList[A](xs List[A]) Array[A]  arrayToList  arrayLength  arrayGet[A](a Array[A], i Int) Option[A]
+arraySet[A](a, i Int, v A) Array[A]  // copy; out of range returns a unchanged
+arrayMap  arrayFold  arrayPush  arraySlice(a, start, end)  arraySortBy
+```
+Instances: `Show[Map[K, V]] given Show[K], Show[V]` renders `{k: v, k2: v2}`;
+`Show[Set[A]]` renders `#{a, b}`; `Show[Array[A]]` renders `#[a, b]`; `Eq` for all three
+given `Eq` on the components (Map/Set compare as sorted lists; this requires the keys to be
+`Ord` to build, so `Eq[Map[K,V]] given Eq[K], Eq[V]` compares `mapToList`), `Functor[Array]`,
+`Functor[Map[K]]`, `Foldable` is owned by **deriving** — do not add it here.
+
+**io-effects** — prelude `type Result[E, A] = Err(E) | Ok(A) deriving Eq, Ord, Show` with
+`instance Functor[Result[E]]`, `instance Monad[Result[E]]` (`do` works on Result; `Err`
+short-circuits). Helpers `mapErr[E, F, A](r, f func(E) F) Result[F, A]`,
+`fromResult[E, A](r, d A) A`, `okOr[E, A](o Option[A], e E) Result[E, A]`,
+`toOption[E, A](r) Option[A]`, `isOk`, `isErr`, `either[E, A, B](r, onErr func(E) B, onOk func(A) B) B`,
+`liftResult[E Show, A](r Result[E, A]) IO[A]` (Err → `ioFail(show(e))`),
+`tryIO[A](io IO[A]) IO[Result[String, A]]` (never fails; captures `ioFail`, extern errors
+**and Go panics** inside the action as `Err(message)`), `ioFailWith[E Show, A](e E) IO[A]`.
+Runtime error policy: `rt.RunMain` recovers panics raised while running `main`'s IO and
+reports them as `error: panic: <msg>` with exit status 2 (`ioFail`/extern errors keep
+`error: <msg>`, exit 1). Files/time/random (all `IO`): `readFile(path) IO[String]`,
+`writeFile(path, content) IO[Unit]`, `appendFile`, `fileExists(path) IO[Bool]`,
+`listDir(path) IO[List[String]]` (sorted names), `removeFile`, `eprintln(s) IO[Unit]`,
+`print(s) IO[Unit]` (no newline), `nowMillis() IO[Int]` (Unix ms), `monotonicMillis() IO[Int]`,
+`formatTime(millis Int, layout String) String` (pure, UTC, Go layout), `randomInt(lo Int, hi Int) IO[Int]`
+(inclusive), `randomFloat() IO[Float]` only if `Float` exists in the worktree — otherwise skip
+it and note it, `sleep(millis Int) IO[Unit]`. `rt.ReadFile/WriteFile/Eprintln` already exist.
+Codegen registers `rt.Shapes.Ok/Err` (`rt_ok`, `rt_err`) like `Some/None`.
+
+**local-recursion** — `let f = func(...) => body` is recursive when `f` occurs free in the
+lambda (checker: bind `f` monomorphically in the lambda's environment, generalise after).
+New block statement `func name(params) RetType { body }` (same grammar as a top-level
+function without type parameters; types required) — a maximal run of consecutive local
+`func` statements is one mutually recursive group, checked monomorphically then
+generalised together; they see the enclosing scope. Codegen: Go `var f_ func(any) any;
+f_ = func(...) {...}` for recursive lets and groups. Also allowed inside `do`.
+
+**pipe-partial** — `|>` binary operator, lowest precedence (below `||`), left-assoc:
+`x |> f(a, b)` ≡ `f(x, a, b)`; `x |> f` ≡ `f(x)`; `x |> (func(y) => …)` applies. Placeholder
+sections: a call whose arguments include `_` (`add(1, _)`, `map(_, f)`, `mapInsert(_, k, v)`)
+is a lambda over the `_` positions in order (`func(a) => add(1, a)`); operator sections
+`(_ + 1)`, `(2 * _)`, `(_ == x)` likewise (parenthesised, exactly one `_` per side allowed,
+both sides `_` gives a 2-ary lambda). `_` elsewhere in expression position remains an
+error (`_ is only valid as a placeholder in a call or operator section`). Patterns are
+unaffected. Lexer: `|>` is a new punct and a continuation token for layout.
+
+**deriving** — split `Show` (user-facing) from a new prelude `class Debug[A] { debug(a A) String }`.
+`deriving Show` is removed (error `deriving Show is not supported; derive Debug and write
+instance Show if a display form is needed`); `deriving Debug` produces the structural form
+(`C`, `C(f1, f2)`, `C{a: f1, ..}`) via the fields' `Debug`. Prelude provides `Debug` for
+`Int String Bool Unit Float? Ordering Option List Result? tuples` (String renders quoted
+with Go escapes) and keeps today's `Show` instances (`Show[String]` is identity). String
+interpolation uses `Show`. Examples currently deriving `Show` switch to `Debug` (and
+interpolate with `${debug(x)}`) or gain a hand-written `Show`. New prelude classes
+```
+class Foldable[F[_]] { foldr[A, B](fa F[A], init B, f func(A, B) B) B }
+class Traversable[F[_]] : Functor[F] { traverse[M[_] Monad, A, B](fa F[A], f func(A) M[B]) M[F[B]] }
+```
+with instances for `List`, `Option`, and prelude helpers `foldl`/`toList`/`foldMapList`
+expressed via `Foldable`. `deriving Functor, Foldable, Traversable` for data types whose
+**last** type parameter is the mapped one; the parameter may occur directly, inside
+`List`/`Option`/other `Functor` instances' arguments, in tuples, and in the type's own
+recursive occurrences; occurrences in function types or as a non-last argument are an
+error naming the constructor and field.
+
+**multi-constraint** — `TParam := Ident [ '[' '_' {',' '_'} ']' ] [ Ident { '+' Ident } ]`;
+`ast.TypeParam.Constraints` already is a slice. Scheme constraints keep declaration order;
+codegen dict parameter names become `dict_<T>` when a tparam has one constraint (unchanged)
+and `dict_<T>_<Class>` when it has several. Duplicate classes on one parameter are an error;
+a class and its superclass together is allowed (the subclass dict is used for both).
+Resolution for rigid `C[T]` succeeds if any constraint of `T` is `C` or a subclass.
+
+**alias-fields** — new top-level `alias Name[Params] = Type` (keyword `alias`); fully
+transparent (expanded in `types/resolve.go`; must be fully applied; cycles are an error;
+`alias` names live in the type namespace). Common-field access: `x.f` and `x{f: e}` on a
+multi-constructor type are allowed when **every** constructor declares field `f` with the
+same type (positions may differ); codegen emits a type switch. Error otherwise names the
+constructor lacking the field.
+
+**diagnostics** — `ast.Pos` gains `End Pos` tracking on declarations, expressions and
+patterns (parser sets it); `types.Error` carries `Pos` and `End`; the CLI prints the source
+line under the message with `^~~~` under the span (`gofx check`, `build`, `run`).
+Non-exhaustive match errors list missing patterns (`missing: Some(_), None` /
+`missing: (true, _)`), up to 5. `no instance Show[T]` for a user data type appends
+`hint: add 'deriving Debug' (or 'Show') or write 'instance Show[T]'`. Unused `let`/lambda
+parameter/local warning `x is unused; prefix with _ to silence` (identifiers starting with
+`_` are exempt). Warnings keep the same `file:line:col: warning: msg` form.
+
+**codegen-quality** — self tail calls (a top-level or local function whose body's result
+position calls itself, through `if`/`match`/block tails) become a `for` loop with parameter
+reassignment (test: `fold` over 1,000,000 elements runs without stack growth). Generated Go
+carries `//line <file>.gfx:<n>` directives before each function and each `match` arm so Go
+panics report `.gfx` positions; output is `go/format`-ed. Add `.github/workflows/ci.yml`
+running `go vet ./...`, `go test ./...` and every `examples/*/main.gfx` via `gofx run`
+(inputs from `examples/*/input.txt` when present, args from `examples/*/args.txt`).
+
+**concurrency** — builtin `Fiber : (*) -> *` (`types.Fiber`). Prelude (`rt/conc.go`):
+`fork[A](io IO[A]) IO[Fiber[A]]` (runs on a goroutine; failure/panic is captured),
+`await[A](f Fiber[A]) IO[A]` (re-raises the fiber's failure), `parMapIO[A, B](xs List[A], f func(A) IO[B]) IO[List[B]]`
+(all in parallel, first failure wins after all complete), `race[A](a IO[A], b IO[A]) IO[A]`,
+`parBoth[A, B](a IO[A], b IO[B]) IO[(A, B)]`, `timeout[A](millis Int, io IO[A]) IO[Option[A]]`,
+`sleep` is owned by io-effects (declare only if needed, see rule above). `rt.RunMain`
+exits only after `main`'s IO completes; unawaited fibers are abandoned.
+
+**typed-extern** — `extern func f(x Int, s String) Bool = "pkg".F` may bind a Go function
+with the **natural** signature `func F(int64, string) bool` (`Int→int64`, `Float→float64`,
+`String→string`, `Bool→bool`, `Unit→rt.Unit`, `IO[T]→rt.IO`, `List[String]→[]string`,
+`List[Int]→[]int64`, `Option[T]→(T, bool)` for primitive `T`, everything else `any`).
+Codegen emits an adapter wrapper that converts; existing `any`-ABI externs keep working
+because the adapter is chosen by inspecting the Go package: new command `gofx bind
+<go-import-path> [-o FILE.gfx]` parses the package (`go list -json` + `go/parser`,
+`go/types` from the standard library, no third-party deps) and emits `extern func`
+declarations for every exported function whose signature is representable, with a
+`// skipped: Name (reason)` comment for the rest; the codegen adapter also uses that
+analysis (shared package `extern/`) at build time so the ABI (natural vs `any`) is chosen
+per Go function. `rt/stdhttp.GetStatus` is rewritten to the natural signature as the proof.
+
+**cli-tools** — `gofx test FILE.gfx...`: compiles the program with every top-level
+`func test<Name>() Bool` or `func test<Name>() IO[Bool]` collected into a generated harness
+`main` (user `main` is not required for `gofx test`); prints `PASS testName` / `FAIL testName`
+per test, a summary line, exit 1 on any failure. `gofx eval 'EXPR' [FILE.gfx...]` wraps the
+expression in `func main() IO[Unit] { println(show(EXPR)) }` (if EXPR has type `IO[A]` with
+`Show[A]`, it is run and its result shown; the checker's error decides). `gofx build -o
+PATH` chooses the output directory; `gofx build --emit-go DIR --package NAME` writes a
+non-main Go package exposing `func Main() rt.IO` for embedding in Go programs.
+
+**stdlib-extras** — prelude additions (pure, `rt/str.go` where native):
+List: `zipWith`, `unzip`, `any`, `all`, `find[A](xs, p) Option[A]`, `findIndex`, `partition`,
+`nub[A Eq]`, `range(lo, hi) List[Int]` (half-open), `replicate`, `intercalate`,
+`flatten`, `last`, `init`, `splitAt`, `span`, `takeWhile`, `dropWhile`, `lookup[K Eq, V](k, xs List[(K, V)]) Option[V]`,
+`indexed[A](xs) List[(Int, A)]`, `iterate[A](n Int, x A, f func(A) A) List[A]`, `foldr`
+(plain List version if deriving's Foldable is absent in the worktree — note the duplication), `product`,
+`count[A](xs, p) Int`, `unfold`, `chunksOf`, `sortOn[A, K Ord](xs, key func(A) K)`.
+String: `codePoint(s String) Option[Int]` (first rune), `fromCodePoint(n Int) String`,
+`isDigit/isAlpha/isSpace/isUpper/isLower(s String) Bool` (all runes satisfy, non-empty),
+`indexOf(s, sub) Option[Int]` (rune index), `padRight(s, width) String`, `padLeft`,
+`reverseString`, `splitOnce(sep, s) Option[(String, String)]`, `charAt(s, i) Option[String]`,
+`showQuoted(s) String`. Regex (Go `regexp`, pattern compile failure → `None`/`false`):
+`regexMatch(pattern, s) Bool`, `regexFind(pattern, s) Option[String]`,
+`regexFindAll(pattern, s) List[String]`, `regexReplace(pattern, s, repl) String`,
+`regexSplit(pattern, s) List[String]`, `regexCaptures(pattern, s) Option[List[String]]`.
+`type Lazy[A] = Lazy(func(Unit) A)` with `force[A](l Lazy[A]) A`, `delay`; a memoising
+variant is not required (pure re-evaluation is acceptable; document it).
+`docs/slices/stdlib-extras.md` must tabulate the boundary behaviour of **every** prelude
+list/string function (`tail(Nil)`, `take(-1, …)`, `substring` clamping, `/ 0`, …).
+
+### Wave B (after wave A is merged)
+modules (`import`, qualified names, prelude shadowing, `std/*` split), lsp (`gofx lsp`),
+fmt (`gofx fmt`), perf (Int/Bool unboxing, specialisation, benchmarks in CI),
+json-deriving (`deriving Encode, Decode`), docs (SPEC rewrite, tutorial). Contracts are
+written when wave A has landed.
