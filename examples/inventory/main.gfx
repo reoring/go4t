@@ -6,8 +6,6 @@ type Sku = Sku(String)
 type Stock = Stock{sku: Sku, qty: Int}      // 在庫: sku, 数量
 type Line = Line{sku: Sku, qty: Int}        // 注文明細: sku, 要求数
 
-type Result[E, A] = Err(E) | Ok(A)         // 自前の Either
-
 // ===== 型クラスのインスタンス =====
 
 instance Show[Sku] {
@@ -24,35 +22,6 @@ instance Show[Stock] {
 
 instance Show[Line] {
   show(l) { "${l.qty}x${l.sku}" }
-}
-
-instance Show[Result[E, A]] given Show[E], Show[A] {
-  show(r) {
-    match r {
-      Err(e) => "Err(${e})"
-      Ok(a) => "Ok(${a})"
-    }
-  }
-}
-
-// Result[E, _] は Functor / Monad。Monad は Functor のサブクラスなので両方書く
-instance Functor[Result[E]] {
-  fmap(r, f) {
-    match r {
-      Err(e) => Err(e)
-      Ok(a) => Ok(f(a))
-    }
-  }
-}
-
-instance Monad[Result[E]] {
-  pure(a) { Ok(a) }
-  bind(r, f) {
-    match r {
-      Err(e) => Err(e)
-      Ok(a) => f(a)
-    }
-  }
 }
 
 // ===== 純粋ロジック =====

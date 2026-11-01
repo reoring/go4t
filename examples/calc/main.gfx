@@ -22,8 +22,6 @@ type EvalError =
   | DivByZero
   | TypeError{expected: String, got: Value} deriving Eq
 
-type Result[E, A] = Err(E) | Ok(A)
-
 // ===== Show =====
 
 instance Show[Op] {
@@ -62,18 +60,6 @@ instance Show[EvalError] {
       TypeError{expected: want, got: got} => "expected ${want}, got ${got}"
     }
   }
-}
-
-instance Show[Result[E, A]] given Show[E], Show[A] {
-  show(r) { match r { Err(e) => "Err(${e})" | Ok(a) => "Ok(${a})" } }
-}
-
-instance Functor[Result[E]] {
-  fmap(r, f) { match r { Err(e) => Err(e) | Ok(a) => Ok(f(a)) } }
-}
-instance Monad[Result[E]] {
-  pure(a) { Ok(a) }
-  bind(r, f) { match r { Err(e) => Err(e) | Ok(a) => f(a) } }
 }
 
 // ===== 環境 =====

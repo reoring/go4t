@@ -19,12 +19,15 @@ func TestPreludeParses(t *testing.T) {
 	}
 	want := []string{
 		"class Functor", "class Monad", "class Show", "class Eq", "type Ordering", "class Ord",
-		"type Option", "type List", "type State",
+		"type Option", "type Result", "type List", "type State",
 		"instance Functor[Option]", "instance Monad[Option]",
+		"instance Functor[Result]", "instance Monad[Result]",
 		"instance Functor[List]", "instance Monad[List]",
 		"instance Functor[State]", "instance Monad[State]",
 		"func runState", "func evalState", "func execState", "func get", "func put", "func modify",
 		"func fromOption", "func maybe", "func isSome", "func isNone",
+		"func mapErr", "func fromResult", "func okOr", "func toOption", "func isOk", "func isErr",
+		"func either", "func liftResult", "func ioFailWith",
 		"instance Show[List]", "instance Show[Tuple2]",
 		"func ioPure", "func ioBind", "func ioFail", "func println",
 		"func showInt", "func showBool", "func showString", "func unit",
@@ -34,6 +37,9 @@ func TestPreludeParses(t *testing.T) {
 		"func trim", "func toUpper", "func toLower", "func startsWith", "func endsWith", "func contains",
 		"func replace", "func substring", "func chars", "func repeat", "func parseInt", "func showPadLeft",
 		"func readLine", "func readAll", "func args", "func exit", "func getEnv",
+		"func tryIO", "func readFile", "func writeFile", "func appendFile", "func fileExists",
+		"func listDir", "func removeFile", "func eprintln", "func print", "func nowMillis",
+		"func monotonicMillis", "func formatTime", "func randomInt", "func sleep",
 		"instance Show[Int]", "instance Show[String]", "instance Show[Bool]",
 		"instance Eq[Int]", "instance Ord[Int]", "instance Eq[String]", "instance Ord[String]",
 		"instance Eq[Bool]", "instance Ord[Bool]", "instance Eq[Unit]",
@@ -51,6 +57,7 @@ func TestPreludeParses(t *testing.T) {
 	wantDeriving := map[string][]string{
 		"Ordering": {"Eq", "Ord", "Show"},
 		"Option":   {"Eq", "Ord", "Show"},
+		"Result":   {"Eq", "Ord", "Show"},
 		"List":     {"Eq", "Ord"},
 	}
 	var names []string

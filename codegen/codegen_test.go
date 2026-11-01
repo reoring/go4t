@@ -1272,6 +1272,8 @@ func (fakeImporter) Import(path string) (*gotypes.Package, error) {
 			{"Nil", 0, 1},
 			{"Some", 1, 1},
 			{"None", 0, 1},
+			{"Ok", 1, 1},
+			{"Err", 1, 1},
 			{"Uncons", 1, 3},
 		} {
 			params := make([]*gotypes.Var, shape.params)
