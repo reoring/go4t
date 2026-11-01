@@ -344,11 +344,20 @@ Field names share the value namespace rules (lower-case) but are scoped to their
 two constructors may reuse a field name.
 
 ### String interpolation
-A string literal containing `{expr}` is an `ast.Interp`. Lexer: inside a `"..."` literal,
-`{` starts an interpolation; `}` ends it; `{{` / `}}` are literal braces; nested string
-literals inside `{}` are allowed (the lexer tracks brace depth and quote state); the
-expression text is re-lexed and parsed as an expression by the parser (positions offset to
-the original location). Each `expr` must have a `Show` instance (resolved into
-`Ann.ShowDicts[i]`); String values use `Show[String]` (identity). Codegen:
+A string literal containing `${expr}` is an `ast.Interp`. Lexer: inside a `"..."` literal,
+`${` starts an interpolation and the matching `}` ends it; `$$` is a literal `$`; a bare `$`
+not followed by `{` is a literal `$`; `{` and `}` outside `${...}` are ordinary characters
+(no `{{` escape). Nested string literals inside `${}` are allowed (the lexer tracks brace
+depth and quote state); the expression text is re-lexed and parsed as an expression by the
+parser (positions offset to the original location). Each `expr` must have a `Show` instance
+(resolved into `Ann.ShowDicts[i]`); String values use `Show[String]` (identity). Codegen:
 `rt.Concat(parts ...any) any` taking strings; emit `rt.Concat("a ", <dict>.Show(x), " b")`.
 `rt` adds `Concat`.
+
+Rationale (pass 6): `{` already means block, record literal and record update; `"{x}"` next
+to `else { ... }` was unreadable. `$` is unused elsewhere in the grammar.
+
+### Match arm style
+The leading `|` before the first arm remains legal but the examples and prelude write
+one-line matches without it (`match p { (A(x), A(y)) => x == y }`) and multi-line matches
+with one arm per line and no `|` unless arms span several lines.
