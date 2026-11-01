@@ -68,6 +68,8 @@ type Lexer struct {
 	line, col int
 	lastKind  Kind
 	lastText  string
+	lastEnd   ast.Pos // preceding real token, excluding inserted semicolons
+	Comments  []ast.Comment
 	// nest tracks unclosed delimiters. Newlines inside `(` or `[` never
 	// insert `;` (gofx has no trailing commas); `{` resets to statement
 	// context so blocks nested in calls still get their statements separated.
@@ -191,6 +193,9 @@ func (l *Lexer) All() ([]Token, error) {
 
 func (l *Lexer) emit(t Token) Token {
 	t.End = ast.Pos{Line: l.line, Col: l.col}
+	if t.Text != ";" && t.Kind != EOF {
+		l.lastEnd = t.End
+	}
 	l.lastKind, l.lastText = t.Kind, t.Text
 	if t.Kind == Punct {
 		switch t.Text {
@@ -233,9 +238,15 @@ func (l *Lexer) next() (Token, error) {
 			continue
 		}
 		if r == '/' && l.peek(1) == '/' {
+			start := l.i
+			pos := ast.Pos{Line: l.line, Col: l.col}
 			for l.i < len(l.src) && l.peek(0) != '\n' {
 				l.advance()
 			}
+			l.Comments = append(l.Comments, ast.Comment{
+				Pos: pos, End: ast.Pos{Line: l.line, Col: l.col},
+				Text: string(l.src[start:l.i]), Trailing: l.lastEnd.Line == pos.Line,
+			})
 			continue
 		}
 		pos := ast.Pos{Line: l.line, Col: l.col}

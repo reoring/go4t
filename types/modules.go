@@ -183,7 +183,13 @@ func identifier(s string) string {
 	return name
 }
 func (r *moduleResolver) fail(pos ast.Pos, format string, args ...any) {
-	panic(&Error{File: r.file.Name, Pos: pos, Msg: fmt.Sprintf(format, args...)})
+	var end ast.Pos
+	for _, decl := range r.file.Decls {
+		if candidate := ast.EndAt(decl, pos); candidate != (ast.Pos{}) {
+			end = candidate
+		}
+	}
+	panic(&Error{File: r.file.Name, Pos: pos, End: end, Msg: fmt.Sprintf(format, args...)})
 }
 func (r *moduleResolver) declare(s *moduleScope, table map[string]string, name string, pos ast.Pos, typ bool) string {
 	checkName(pos, name)
@@ -498,7 +504,9 @@ func (r *moduleResolver) expr(e ast.Expr, ts, vs map[string]bool) ast.Expr {
 		if field, ok := e.X.(*ast.Field); ok {
 			if id, ok := field.X.(*ast.Ident); ok && !vs[id.Name] && r.imports[id.Name] != nil && capitalised(strings.TrimLeft(field.Name, "_")) {
 				exprs(e.Values)
-				return &ast.RecordLit{ExprBase: e.ExprBase, Ctor: r.lookup(id.Name+"."+field.Name, id.Pos, false), Names: e.Names, Values: e.Values}
+				base := e.ExprBase
+				base.Pos = id.Pos
+				return &ast.RecordLit{ExprBase: base, Ctor: r.lookup(id.Name+"."+field.Name, id.Pos, false), Names: e.Names, Values: e.Values}
 			}
 		}
 		e.X = expr(e.X)

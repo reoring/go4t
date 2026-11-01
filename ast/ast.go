@@ -80,10 +80,20 @@ func (i *Import) GetEnd() Pos    { return i.End }
 func (i *Import) SetEnd(end Pos) { i.End = end }
 
 type File struct {
-	Package string
-	Name    string // display name used in diagnostics (e.g. "prelude.gfx"); set by the caller
-	Imports []Import
-	Decls   []Decl
+	Package  string
+	Name     string // display name used in diagnostics; set by the caller
+	Imports  []Import
+	Decls    []Decl
+	Source   string // original source for position-based tooling; empty for synthesized files
+	Comments []Comment
+}
+
+// Comment retains a line comment, including // but excluding its newline.
+// Trailing reports whether a source token precedes it on the same line.
+type Comment struct {
+	Pos, End Pos
+	Text     string
+	Trailing bool
 }
 
 // Node spans use one-based rune columns and an exclusive End position.

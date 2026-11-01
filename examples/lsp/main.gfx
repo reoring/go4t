@@ -1,0 +1,8 @@
+package main
+import "helpers"
+
+// Prints a greeting supplied by the imported helper module.
+func main() IO[Unit] {
+  let message = helpers.keep(helpers.greeting("LSP"))
+  println(message)
+}

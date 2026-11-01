@@ -1,0 +1,7 @@
+package helpers
+
+// Keeps its argument without changing its type.
+func keep[A](value A) A { value }
+
+// Builds a friendly greeting.
+func greeting(name String) String { "Hello, " + name + "!" }

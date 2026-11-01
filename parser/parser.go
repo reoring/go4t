@@ -70,13 +70,17 @@ type Parser struct {
 }
 
 func Parse(src string) (f *ast.File, err error) {
-	toks, err := lexer.New(src).All()
+	l := lexer.New(src)
+	toks, err := l.All()
 	if err != nil {
 		return nil, err
 	}
 	p := &Parser{toks: toks, source: src}
 	defer recoverParseError(&err)
-	return p.file(), nil
+	f = p.file()
+	f.Source = src
+	f.Comments = l.Comments
+	return f, nil
 }
 
 // ParseExpr parses exactly one expression, starting at the one-based position
