@@ -30,24 +30,26 @@ type decide_Action interface{ isAction() }
 
 type decide_Action_ObserveInitial struct{}
 
-//line decide/decide.gfx:73
+//line decide/decide.gfx:118
 func (*decide_Action_ObserveInitial) isAction() {}
 
 type decide_Action_ObserveAuthorized struct{}
 
-//line decide/decide.gfx:73
+//line decide/decide.gfx:118
 func (*decide_Action_ObserveAuthorized) isAction() {}
 
-type decide_Action_DeleteStale struct{}
+type decide_Action_DeleteStale struct {
+	F0 any
+}
 
-//line decide/decide.gfx:73
+//line decide/decide.gfx:118
 func (*decide_Action_DeleteStale) isAction() {}
 
 type decide_Action_Publish struct {
 	F0 any
 }
 
-//line decide/decide.gfx:73
+//line decide/decide.gfx:118
 func (*decide_Action_Publish) isAction() {}
 
 type decide_Approval interface{ isApproval() }
@@ -97,32 +99,32 @@ type decide_ApprovalState interface{ isApprovalState() }
 
 type decide_ApprovalState_Pending struct{}
 
-//line decide/decide.gfx:75
+//line decide/decide.gfx:120
 func (*decide_ApprovalState_Pending) isApprovalState() {}
 
 type decide_ApprovalState_Accepted struct{}
 
-//line decide/decide.gfx:75
+//line decide/decide.gfx:120
 func (*decide_ApprovalState_Accepted) isApprovalState() {}
 
 type decide_ApprovalState_Rejected struct{}
 
-//line decide/decide.gfx:75
+//line decide/decide.gfx:120
 func (*decide_ApprovalState_Rejected) isApprovalState() {}
 
 type decide_ApprovalState_Superseded struct{}
 
-//line decide/decide.gfx:75
+//line decide/decide.gfx:120
 func (*decide_ApprovalState_Superseded) isApprovalState() {}
 
 type decide_ApprovalState_Expired struct{}
 
-//line decide/decide.gfx:75
+//line decide/decide.gfx:120
 func (*decide_ApprovalState_Expired) isApprovalState() {}
 
 type decide_ApprovalState_Unknown struct{}
 
-//line decide/decide.gfx:75
+//line decide/decide.gfx:120
 func (*decide_ApprovalState_Unknown) isApprovalState() {}
 
 type decide_AuthOkObs interface{ isAuthOkObs() }
@@ -131,9 +133,10 @@ type decide_AuthOkObs_AuthOkObs struct {
 	F0 any
 	F1 any
 	F2 any
+	F3 any
 }
 
-//line decide/decide.gfx:32
+//line decide/decide.gfx:76
 func (*decide_AuthOkObs_AuthOkObs) isAuthOkObs() {}
 
 type decide_AuthorizedObservation interface{ isAuthorizedObservation() }
@@ -143,31 +146,31 @@ type decide_AuthorizedObservation_AuthBlocked struct {
 	F1 any
 }
 
-//line decide/decide.gfx:33
+//line decide/decide.gfx:77
 func (*decide_AuthorizedObservation_AuthBlocked) isAuthorizedObservation() {}
 
 type decide_AuthorizedObservation_AuthOk struct {
 	F0 any
 }
 
-//line decide/decide.gfx:33
+//line decide/decide.gfx:77
 func (*decide_AuthorizedObservation_AuthOk) isAuthorizedObservation() {}
 
 type decide_DeleteResult interface{ isDeleteResult() }
 
 type decide_DeleteResult_Deleted struct{}
 
-//line decide/decide.gfx:34
+//line decide/decide.gfx:78
 func (*decide_DeleteResult_Deleted) isDeleteResult() {}
 
 type decide_DeleteResult_CasFailed struct{}
 
-//line decide/decide.gfx:34
+//line decide/decide.gfx:78
 func (*decide_DeleteResult_CasFailed) isDeleteResult() {}
 
 type decide_DeleteResult_DeleteFailed struct{}
 
-//line decide/decide.gfx:34
+//line decide/decide.gfx:78
 func (*decide_DeleteResult_DeleteFailed) isDeleteResult() {}
 
 type decide_Mode interface{ isMode() }
@@ -184,6 +187,208 @@ type decide_Mode_Live struct {
 //line decide/decide.gfx:26
 func (*decide_Mode_Live) isMode() {}
 
+type decide_ObsReason interface{ isObsReason() }
+
+type decide_ObsReason_AttachmentDeletionInProgress struct{}
+
+//line decide/decide.gfx:31
+func (*decide_ObsReason_AttachmentDeletionInProgress) isObsReason() {}
+
+type decide_ObsReason_AttachmentDriverMismatch struct{}
+
+//line decide/decide.gfx:32
+func (*decide_ObsReason_AttachmentDriverMismatch) isObsReason() {}
+
+type decide_ObsReason_AttachmentTargetMismatch struct{}
+
+//line decide/decide.gfx:33
+func (*decide_ObsReason_AttachmentTargetMismatch) isObsReason() {}
+
+type decide_ObsReason_CurrentAttachmentNotUnique struct{}
+
+//line decide/decide.gfx:34
+func (*decide_ObsReason_CurrentAttachmentNotUnique) isObsReason() {}
+
+type decide_ObsReason_CurrentNodeNotFound struct{}
+
+//line decide/decide.gfx:35
+func (*decide_ObsReason_CurrentNodeNotFound) isObsReason() {}
+
+type decide_ObsReason_CurrentNodeNotReady struct{}
+
+//line decide/decide.gfx:36
+func (*decide_ObsReason_CurrentNodeNotReady) isObsReason() {}
+
+type decide_ObsReason_NodeDeletionInProgress struct{}
+
+//line decide/decide.gfx:37
+func (*decide_ObsReason_NodeDeletionInProgress) isObsReason() {}
+
+type decide_ObsReason_NodeObservationFailed struct{}
+
+//line decide/decide.gfx:38
+func (*decide_ObsReason_NodeObservationFailed) isObsReason() {}
+
+type decide_ObsReason_NodeTargetNotUnique struct{}
+
+//line decide/decide.gfx:39
+func (*decide_ObsReason_NodeTargetNotUnique) isObsReason() {}
+
+type decide_ObsReason_PersistentVolumeBindingMismatch struct{}
+
+//line decide/decide.gfx:40
+func (*decide_ObsReason_PersistentVolumeBindingMismatch) isObsReason() {}
+
+type decide_ObsReason_PersistentVolumeClaimNotBound struct{}
+
+//line decide/decide.gfx:41
+func (*decide_ObsReason_PersistentVolumeClaimNotBound) isObsReason() {}
+
+type decide_ObsReason_PersistentVolumeClaimNotFound struct{}
+
+//line decide/decide.gfx:42
+func (*decide_ObsReason_PersistentVolumeClaimNotFound) isObsReason() {}
+
+type decide_ObsReason_PersistentVolumeClaimReadFailed struct{}
+
+//line decide/decide.gfx:43
+func (*decide_ObsReason_PersistentVolumeClaimReadFailed) isObsReason() {}
+
+type decide_ObsReason_PersistentVolumeNotBound struct{}
+
+//line decide/decide.gfx:44
+func (*decide_ObsReason_PersistentVolumeNotBound) isObsReason() {}
+
+type decide_ObsReason_PersistentVolumeNotFound struct{}
+
+//line decide/decide.gfx:45
+func (*decide_ObsReason_PersistentVolumeNotFound) isObsReason() {}
+
+type decide_ObsReason_PersistentVolumeReadFailed struct{}
+
+//line decide/decide.gfx:46
+func (*decide_ObsReason_PersistentVolumeReadFailed) isObsReason() {}
+
+type decide_ObsReason_PodObservationFailed struct{}
+
+//line decide/decide.gfx:47
+func (*decide_ObsReason_PodObservationFailed) isObsReason() {}
+
+type decide_ObsReason_PodTargetNotUnique struct{}
+
+//line decide/decide.gfx:48
+func (*decide_ObsReason_PodTargetNotUnique) isObsReason() {}
+
+type decide_ObsReason_StaleAttachmentNotUnique struct{}
+
+//line decide/decide.gfx:49
+func (*decide_ObsReason_StaleAttachmentNotUnique) isObsReason() {}
+
+type decide_ObsReason_StaleNodeNotFound struct{}
+
+//line decide/decide.gfx:50
+func (*decide_ObsReason_StaleNodeNotFound) isObsReason() {}
+
+type decide_ObsReason_StaleNodeReadinessAmbiguous struct{}
+
+//line decide/decide.gfx:51
+func (*decide_ObsReason_StaleNodeReadinessAmbiguous) isObsReason() {}
+
+type decide_ObsReason_StaleNodeRecovered struct{}
+
+//line decide/decide.gfx:52
+func (*decide_ObsReason_StaleNodeRecovered) isObsReason() {}
+
+type decide_ObsReason_StorageCapabilityDeletionInProgress struct{}
+
+//line decide/decide.gfx:53
+func (*decide_ObsReason_StorageCapabilityDeletionInProgress) isObsReason() {}
+
+type decide_ObsReason_StorageCapabilityNotFound struct{}
+
+//line decide/decide.gfx:54
+func (*decide_ObsReason_StorageCapabilityNotFound) isObsReason() {}
+
+type decide_ObsReason_StorageCapabilityReadFailed struct{}
+
+//line decide/decide.gfx:55
+func (*decide_ObsReason_StorageCapabilityReadFailed) isObsReason() {}
+
+type decide_ObsReason_StorageClassMismatch struct{}
+
+//line decide/decide.gfx:56
+func (*decide_ObsReason_StorageClassMismatch) isObsReason() {}
+
+type decide_ObsReason_StorageClassMissing struct{}
+
+//line decide/decide.gfx:57
+func (*decide_ObsReason_StorageClassMissing) isObsReason() {}
+
+type decide_ObsReason_TargetDeletionInProgress struct{}
+
+//line decide/decide.gfx:58
+func (*decide_ObsReason_TargetDeletionInProgress) isObsReason() {}
+
+type decide_ObsReason_TargetReferenceMissing struct{}
+
+//line decide/decide.gfx:59
+func (*decide_ObsReason_TargetReferenceMissing) isObsReason() {}
+
+type decide_ObsReason_TerminatingPodUsesClaim struct{}
+
+//line decide/decide.gfx:60
+func (*decide_ObsReason_TerminatingPodUsesClaim) isObsReason() {}
+
+type decide_ObsReason_VolumeAttachmentObservationFailed struct{}
+
+//line decide/decide.gfx:61
+func (*decide_ObsReason_VolumeAttachmentObservationFailed) isObsReason() {}
+
+type decide_ObsReason_VolumeAttachmentSetNotUnique struct{}
+
+//line decide/decide.gfx:62
+func (*decide_ObsReason_VolumeAttachmentSetNotUnique) isObsReason() {}
+
+type decide_ObsReason_AttachmentSetChanged struct{}
+
+//line decide/decide.gfx:63
+func (*decide_ObsReason_AttachmentSetChanged) isObsReason() {}
+
+type decide_ObsReason_AttachmentStateChanged struct{}
+
+//line decide/decide.gfx:64
+func (*decide_ObsReason_AttachmentStateChanged) isObsReason() {}
+
+type decide_ObsReason_CurrentAttachmentIdentityChanged struct{}
+
+//line decide/decide.gfx:65
+func (*decide_ObsReason_CurrentAttachmentIdentityChanged) isObsReason() {}
+
+type decide_ObsReason_CurrentAttachmentTargetChanged struct{}
+
+//line decide/decide.gfx:66
+func (*decide_ObsReason_CurrentAttachmentTargetChanged) isObsReason() {}
+
+type decide_ObsReason_CurrentNodeIdentityChanged struct{}
+
+//line decide/decide.gfx:67
+func (*decide_ObsReason_CurrentNodeIdentityChanged) isObsReason() {}
+
+type decide_ObsReason_StaleAttachmentTargetChanged struct{}
+
+//line decide/decide.gfx:68
+func (*decide_ObsReason_StaleAttachmentTargetChanged) isObsReason() {}
+
+type decide_ObsReason_StaleNodeIdentityChanged struct{}
+
+//line decide/decide.gfx:69
+func (*decide_ObsReason_StaleNodeIdentityChanged) isObsReason() {}
+
+type decide_ObsReason_TargetBindingIdentityChanged struct{}
+
+//line decide/decide.gfx:70
+func (*decide_ObsReason_TargetBindingIdentityChanged) isObsReason() {}
+
 type decide_Observation interface{ isObservation() }
 
 type decide_Observation_ObsBlocked struct {
@@ -191,14 +396,14 @@ type decide_Observation_ObsBlocked struct {
 	F1 any
 }
 
-//line decide/decide.gfx:30
+//line decide/decide.gfx:72
 func (*decide_Observation_ObsBlocked) isObservation() {}
 
 type decide_Observation_ObsOk struct {
 	F0 any
 }
 
-//line decide/decide.gfx:30
+//line decide/decide.gfx:72
 func (*decide_Observation_ObsOk) isObservation() {}
 
 type decide_Observed interface{ isObserved() }
@@ -218,109 +423,109 @@ type decide_Observed_Observed struct {
 	F11 any
 }
 
-//line decide/decide.gfx:36
+//line decide/decide.gfx:80
 func (*decide_Observed_Observed) isObserved() {}
 
 type decide_Reason interface{ isReason() }
 
 type decide_Reason_ApprovalReferenceMissing struct{}
 
-//line decide/decide.gfx:51
+//line decide/decide.gfx:95
 func (*decide_Reason_ApprovalReferenceMissing) isReason() {}
 
 type decide_Reason_ApprovalReadFailed struct{}
 
-//line decide/decide.gfx:51
+//line decide/decide.gfx:95
 func (*decide_Reason_ApprovalReadFailed) isReason() {}
 
 type decide_Reason_ApprovalDeletionInProgress struct{}
 
-//line decide/decide.gfx:52
+//line decide/decide.gfx:96
 func (*decide_Reason_ApprovalDeletionInProgress) isReason() {}
 
 type decide_Reason_ApprovalReferenceMismatch struct{}
 
-//line decide/decide.gfx:52
+//line decide/decide.gfx:96
 func (*decide_Reason_ApprovalReferenceMismatch) isReason() {}
 
 type decide_Reason_ApprovalOperationIdentityMismatch struct{}
 
-//line decide/decide.gfx:52
+//line decide/decide.gfx:96
 func (*decide_Reason_ApprovalOperationIdentityMismatch) isReason() {}
 
 type decide_Reason_ApprovalOperationGenerationMismatch struct{}
 
-//line decide/decide.gfx:53
+//line decide/decide.gfx:97
 func (*decide_Reason_ApprovalOperationGenerationMismatch) isReason() {}
 
 type decide_Reason_ApprovalTargetBindingMismatch struct{}
 
-//line decide/decide.gfx:53
+//line decide/decide.gfx:97
 func (*decide_Reason_ApprovalTargetBindingMismatch) isReason() {}
 
 type decide_Reason_ApprovalEvidenceIncomplete struct{}
 
-//line decide/decide.gfx:53
+//line decide/decide.gfx:97
 func (*decide_Reason_ApprovalEvidenceIncomplete) isReason() {}
 
 type decide_Reason_ApprovalTimeInvalid struct{}
 
-//line decide/decide.gfx:54
+//line decide/decide.gfx:98
 func (*decide_Reason_ApprovalTimeInvalid) isReason() {}
 
 type decide_Reason_ApprovalWindowInvalid struct{}
 
-//line decide/decide.gfx:54
+//line decide/decide.gfx:98
 func (*decide_Reason_ApprovalWindowInvalid) isReason() {}
 
 type decide_Reason_ApprovalExpired struct{}
 
-//line decide/decide.gfx:55
+//line decide/decide.gfx:99
 func (*decide_Reason_ApprovalExpired) isReason() {}
 
 type decide_Reason_ApprovalNoLongerAccepted struct{}
 
-//line decide/decide.gfx:55
+//line decide/decide.gfx:99
 func (*decide_Reason_ApprovalNoLongerAccepted) isReason() {}
 
 type decide_Reason_ApprovalRejected struct{}
 
-//line decide/decide.gfx:55
+//line decide/decide.gfx:99
 func (*decide_Reason_ApprovalRejected) isReason() {}
 
 type decide_Reason_ApprovalSuperseded struct{}
 
-//line decide/decide.gfx:55
+//line decide/decide.gfx:99
 func (*decide_Reason_ApprovalSuperseded) isReason() {}
 
 type decide_Reason_ApprovalObservationSuperseded struct{}
 
-//line decide/decide.gfx:56
+//line decide/decide.gfx:100
 func (*decide_Reason_ApprovalObservationSuperseded) isReason() {}
 
 type decide_Reason_ApprovalBindingChanged struct{}
 
-//line decide/decide.gfx:56
+//line decide/decide.gfx:100
 func (*decide_Reason_ApprovalBindingChanged) isReason() {}
 
 type decide_Reason_FeatureGateDisabled struct{}
 
-//line decide/decide.gfx:56
+//line decide/decide.gfx:100
 func (*decide_Reason_FeatureGateDisabled) isReason() {}
 
 type decide_Reason_DeletionStateLost struct{}
 
-//line decide/decide.gfx:57
+//line decide/decide.gfx:101
 func (*decide_Reason_DeletionStateLost) isReason() {}
 
 type decide_Reason_DeleteCompareAndSwapFailed struct{}
 
-//line decide/decide.gfx:57
+//line decide/decide.gfx:101
 func (*decide_Reason_DeleteCompareAndSwapFailed) isReason() {}
 
 type decide_Reason_DeleteRequestFailed struct{}
 
-//line decide/decide.gfx:57
+//line decide/decide.gfx:101
 func (*decide_Reason_DeleteRequestFailed) isReason() {}
 
 type decide_ReasonCode interface{ isReasonCode() }
@@ -329,14 +534,14 @@ type decide_ReasonCode_Decided struct {
 	F0 any
 }
 
-//line decide/decide.gfx:60
+//line decide/decide.gfx:104
 func (*decide_ReasonCode_Decided) isReasonCode() {}
 
 type decide_ReasonCode_FromObservation struct {
 	F0 any
 }
 
-//line decide/decide.gfx:60
+//line decide/decide.gfx:104
 func (*decide_ReasonCode_FromObservation) isReasonCode() {}
 
 type decide_Status interface{ isStatus() }
@@ -348,7 +553,7 @@ type decide_Status_Blocked struct {
 	F3 any
 }
 
-//line decide/decide.gfx:65
+//line decide/decide.gfx:109
 func (*decide_Status_Blocked) isStatus() {}
 
 type decide_Status_Running struct {
@@ -357,7 +562,7 @@ type decide_Status_Running struct {
 	F2 any
 }
 
-//line decide/decide.gfx:66
+//line decide/decide.gfx:110
 func (*decide_Status_Running) isStatus() {}
 
 type decide_Status_Succeeded struct {
@@ -366,39 +571,39 @@ type decide_Status_Succeeded struct {
 	F2 any
 }
 
-//line decide/decide.gfx:67
+//line decide/decide.gfx:111
 func (*decide_Status_Succeeded) isStatus() {}
 
 type decide_Status_AwaitingApproval struct{}
 
-//line decide/decide.gfx:68
+//line decide/decide.gfx:112
 func (*decide_Status_AwaitingApproval) isStatus() {}
 
 type decide_Status_Authorized struct{}
 
-//line decide/decide.gfx:69
+//line decide/decide.gfx:113
 func (*decide_Status_Authorized) isStatus() {}
 
 type decide_Status_Committed struct{}
 
-//line decide/decide.gfx:70
+//line decide/decide.gfx:114
 func (*decide_Status_Committed) isStatus() {}
 
 type decide_Target interface{ isTarget() }
 
 type decide_Target_Present struct{}
 
-//line decide/decide.gfx:31
+//line decide/decide.gfx:73
 func (*decide_Target_Present) isTarget() {}
 
 type decide_Target_Deleting struct{}
 
-//line decide/decide.gfx:31
+//line decide/decide.gfx:73
 func (*decide_Target_Deleting) isTarget() {}
 
 type decide_Target_Absent struct{}
 
-//line decide/decide.gfx:31
+//line decide/decide.gfx:73
 func (*decide_Target_Absent) isTarget() {}
 
 type decide_Timestamp interface{ isTimestamp() }
@@ -1073,41 +1278,1366 @@ func (dictself dict_decide_Debug_Mode) prelude_Debug(a_ any) any {
 	}())
 }
 
-type dict_decide_Eq_Observation struct{}
+type dict_decide_Eq_ObsReason struct{}
 
-//line decide/decide.gfx:30
-func (dictself dict_decide_Eq_Observation) prelude_Eq(a_ any, b_ any) any {
-//line decide/decide.gfx:30
+//line decide/decide.gfx:31
+func (dictself dict_decide_Eq_ObsReason) prelude_Eq(a_ any, b_ any) any {
+//line decide/decide.gfx:31
 	return (
-//line decide/decide.gfx:30
+//line decide/decide.gfx:31
 	func() bool {
 		var _gofx244 any = &Tuple2{F0: a_, F1: b_}
 		_ = _gofx244
-//line decide/decide.gfx:30
+//line decide/decide.gfx:31
 		switch _gofx245 := _gofx244.(type) {
 		case *Tuple2:
 			_ = _gofx245
 			switch _gofx247 := _gofx245.F0.(type) {
-			case *decide_Observation_ObsBlocked:
+			case *decide_ObsReason_AttachmentDeletionInProgress:
 				_ = _gofx247
+				switch _gofx246 := _gofx245.F1.(type) {
+				case *decide_ObsReason_AttachmentDeletionInProgress:
+					_ = _gofx246
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+					return true
+				}
+			}
+		}
+//line decide/decide.gfx:31
+		switch _gofx248 := _gofx244.(type) {
+		case *Tuple2:
+			_ = _gofx248
+			switch _gofx250 := _gofx248.F0.(type) {
+			case *decide_ObsReason_AttachmentDriverMismatch:
+				_ = _gofx250
+				switch _gofx249 := _gofx248.F1.(type) {
+				case *decide_ObsReason_AttachmentDriverMismatch:
+					_ = _gofx249
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+					return true
+				}
+			}
+		}
+//line decide/decide.gfx:31
+		switch _gofx251 := _gofx244.(type) {
+		case *Tuple2:
+			_ = _gofx251
+			switch _gofx253 := _gofx251.F0.(type) {
+			case *decide_ObsReason_AttachmentTargetMismatch:
+				_ = _gofx253
+				switch _gofx252 := _gofx251.F1.(type) {
+				case *decide_ObsReason_AttachmentTargetMismatch:
+					_ = _gofx252
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+					return true
+				}
+			}
+		}
+//line decide/decide.gfx:31
+		switch _gofx254 := _gofx244.(type) {
+		case *Tuple2:
+			_ = _gofx254
+			switch _gofx256 := _gofx254.F0.(type) {
+			case *decide_ObsReason_CurrentAttachmentNotUnique:
+				_ = _gofx256
+				switch _gofx255 := _gofx254.F1.(type) {
+				case *decide_ObsReason_CurrentAttachmentNotUnique:
+					_ = _gofx255
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+					return true
+				}
+			}
+		}
+//line decide/decide.gfx:31
+		switch _gofx257 := _gofx244.(type) {
+		case *Tuple2:
+			_ = _gofx257
+			switch _gofx259 := _gofx257.F0.(type) {
+			case *decide_ObsReason_CurrentNodeNotFound:
+				_ = _gofx259
+				switch _gofx258 := _gofx257.F1.(type) {
+				case *decide_ObsReason_CurrentNodeNotFound:
+					_ = _gofx258
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+					return true
+				}
+			}
+		}
+//line decide/decide.gfx:31
+		switch _gofx260 := _gofx244.(type) {
+		case *Tuple2:
+			_ = _gofx260
+			switch _gofx262 := _gofx260.F0.(type) {
+			case *decide_ObsReason_CurrentNodeNotReady:
+				_ = _gofx262
+				switch _gofx261 := _gofx260.F1.(type) {
+				case *decide_ObsReason_CurrentNodeNotReady:
+					_ = _gofx261
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+					return true
+				}
+			}
+		}
+//line decide/decide.gfx:31
+		switch _gofx263 := _gofx244.(type) {
+		case *Tuple2:
+			_ = _gofx263
+			switch _gofx265 := _gofx263.F0.(type) {
+			case *decide_ObsReason_NodeDeletionInProgress:
+				_ = _gofx265
+				switch _gofx264 := _gofx263.F1.(type) {
+				case *decide_ObsReason_NodeDeletionInProgress:
+					_ = _gofx264
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+					return true
+				}
+			}
+		}
+//line decide/decide.gfx:31
+		switch _gofx266 := _gofx244.(type) {
+		case *Tuple2:
+			_ = _gofx266
+			switch _gofx268 := _gofx266.F0.(type) {
+			case *decide_ObsReason_NodeObservationFailed:
+				_ = _gofx268
+				switch _gofx267 := _gofx266.F1.(type) {
+				case *decide_ObsReason_NodeObservationFailed:
+					_ = _gofx267
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+					return true
+				}
+			}
+		}
+//line decide/decide.gfx:31
+		switch _gofx269 := _gofx244.(type) {
+		case *Tuple2:
+			_ = _gofx269
+			switch _gofx271 := _gofx269.F0.(type) {
+			case *decide_ObsReason_NodeTargetNotUnique:
+				_ = _gofx271
+				switch _gofx270 := _gofx269.F1.(type) {
+				case *decide_ObsReason_NodeTargetNotUnique:
+					_ = _gofx270
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+					return true
+				}
+			}
+		}
+//line decide/decide.gfx:31
+		switch _gofx272 := _gofx244.(type) {
+		case *Tuple2:
+			_ = _gofx272
+			switch _gofx274 := _gofx272.F0.(type) {
+			case *decide_ObsReason_PersistentVolumeBindingMismatch:
+				_ = _gofx274
+				switch _gofx273 := _gofx272.F1.(type) {
+				case *decide_ObsReason_PersistentVolumeBindingMismatch:
+					_ = _gofx273
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+					return true
+				}
+			}
+		}
+//line decide/decide.gfx:31
+		switch _gofx275 := _gofx244.(type) {
+		case *Tuple2:
+			_ = _gofx275
+			switch _gofx277 := _gofx275.F0.(type) {
+			case *decide_ObsReason_PersistentVolumeClaimNotBound:
+				_ = _gofx277
+				switch _gofx276 := _gofx275.F1.(type) {
+				case *decide_ObsReason_PersistentVolumeClaimNotBound:
+					_ = _gofx276
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+					return true
+				}
+			}
+		}
+//line decide/decide.gfx:31
+		switch _gofx278 := _gofx244.(type) {
+		case *Tuple2:
+			_ = _gofx278
+			switch _gofx280 := _gofx278.F0.(type) {
+			case *decide_ObsReason_PersistentVolumeClaimNotFound:
+				_ = _gofx280
+				switch _gofx279 := _gofx278.F1.(type) {
+				case *decide_ObsReason_PersistentVolumeClaimNotFound:
+					_ = _gofx279
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+					return true
+				}
+			}
+		}
+//line decide/decide.gfx:31
+		switch _gofx281 := _gofx244.(type) {
+		case *Tuple2:
+			_ = _gofx281
+			switch _gofx283 := _gofx281.F0.(type) {
+			case *decide_ObsReason_PersistentVolumeClaimReadFailed:
+				_ = _gofx283
+				switch _gofx282 := _gofx281.F1.(type) {
+				case *decide_ObsReason_PersistentVolumeClaimReadFailed:
+					_ = _gofx282
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+					return true
+				}
+			}
+		}
+//line decide/decide.gfx:31
+		switch _gofx284 := _gofx244.(type) {
+		case *Tuple2:
+			_ = _gofx284
+			switch _gofx286 := _gofx284.F0.(type) {
+			case *decide_ObsReason_PersistentVolumeNotBound:
+				_ = _gofx286
+				switch _gofx285 := _gofx284.F1.(type) {
+				case *decide_ObsReason_PersistentVolumeNotBound:
+					_ = _gofx285
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+					return true
+				}
+			}
+		}
+//line decide/decide.gfx:31
+		switch _gofx287 := _gofx244.(type) {
+		case *Tuple2:
+			_ = _gofx287
+			switch _gofx289 := _gofx287.F0.(type) {
+			case *decide_ObsReason_PersistentVolumeNotFound:
+				_ = _gofx289
+				switch _gofx288 := _gofx287.F1.(type) {
+				case *decide_ObsReason_PersistentVolumeNotFound:
+					_ = _gofx288
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+					return true
+				}
+			}
+		}
+//line decide/decide.gfx:31
+		switch _gofx290 := _gofx244.(type) {
+		case *Tuple2:
+			_ = _gofx290
+			switch _gofx292 := _gofx290.F0.(type) {
+			case *decide_ObsReason_PersistentVolumeReadFailed:
+				_ = _gofx292
+				switch _gofx291 := _gofx290.F1.(type) {
+				case *decide_ObsReason_PersistentVolumeReadFailed:
+					_ = _gofx291
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+					return true
+				}
+			}
+		}
+//line decide/decide.gfx:31
+		switch _gofx293 := _gofx244.(type) {
+		case *Tuple2:
+			_ = _gofx293
+			switch _gofx295 := _gofx293.F0.(type) {
+			case *decide_ObsReason_PodObservationFailed:
+				_ = _gofx295
+				switch _gofx294 := _gofx293.F1.(type) {
+				case *decide_ObsReason_PodObservationFailed:
+					_ = _gofx294
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+					return true
+				}
+			}
+		}
+//line decide/decide.gfx:31
+		switch _gofx296 := _gofx244.(type) {
+		case *Tuple2:
+			_ = _gofx296
+			switch _gofx298 := _gofx296.F0.(type) {
+			case *decide_ObsReason_PodTargetNotUnique:
+				_ = _gofx298
+				switch _gofx297 := _gofx296.F1.(type) {
+				case *decide_ObsReason_PodTargetNotUnique:
+					_ = _gofx297
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+					return true
+				}
+			}
+		}
+//line decide/decide.gfx:31
+		switch _gofx299 := _gofx244.(type) {
+		case *Tuple2:
+			_ = _gofx299
+			switch _gofx301 := _gofx299.F0.(type) {
+			case *decide_ObsReason_StaleAttachmentNotUnique:
+				_ = _gofx301
+				switch _gofx300 := _gofx299.F1.(type) {
+				case *decide_ObsReason_StaleAttachmentNotUnique:
+					_ = _gofx300
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+					return true
+				}
+			}
+		}
+//line decide/decide.gfx:31
+		switch _gofx302 := _gofx244.(type) {
+		case *Tuple2:
+			_ = _gofx302
+			switch _gofx304 := _gofx302.F0.(type) {
+			case *decide_ObsReason_StaleNodeNotFound:
+				_ = _gofx304
+				switch _gofx303 := _gofx302.F1.(type) {
+				case *decide_ObsReason_StaleNodeNotFound:
+					_ = _gofx303
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+					return true
+				}
+			}
+		}
+//line decide/decide.gfx:31
+		switch _gofx305 := _gofx244.(type) {
+		case *Tuple2:
+			_ = _gofx305
+			switch _gofx307 := _gofx305.F0.(type) {
+			case *decide_ObsReason_StaleNodeReadinessAmbiguous:
+				_ = _gofx307
+				switch _gofx306 := _gofx305.F1.(type) {
+				case *decide_ObsReason_StaleNodeReadinessAmbiguous:
+					_ = _gofx306
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+					return true
+				}
+			}
+		}
+//line decide/decide.gfx:31
+		switch _gofx308 := _gofx244.(type) {
+		case *Tuple2:
+			_ = _gofx308
+			switch _gofx310 := _gofx308.F0.(type) {
+			case *decide_ObsReason_StaleNodeRecovered:
+				_ = _gofx310
+				switch _gofx309 := _gofx308.F1.(type) {
+				case *decide_ObsReason_StaleNodeRecovered:
+					_ = _gofx309
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+					return true
+				}
+			}
+		}
+//line decide/decide.gfx:31
+		switch _gofx311 := _gofx244.(type) {
+		case *Tuple2:
+			_ = _gofx311
+			switch _gofx313 := _gofx311.F0.(type) {
+			case *decide_ObsReason_StorageCapabilityDeletionInProgress:
+				_ = _gofx313
+				switch _gofx312 := _gofx311.F1.(type) {
+				case *decide_ObsReason_StorageCapabilityDeletionInProgress:
+					_ = _gofx312
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+					return true
+				}
+			}
+		}
+//line decide/decide.gfx:31
+		switch _gofx314 := _gofx244.(type) {
+		case *Tuple2:
+			_ = _gofx314
+			switch _gofx316 := _gofx314.F0.(type) {
+			case *decide_ObsReason_StorageCapabilityNotFound:
+				_ = _gofx316
+				switch _gofx315 := _gofx314.F1.(type) {
+				case *decide_ObsReason_StorageCapabilityNotFound:
+					_ = _gofx315
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+					return true
+				}
+			}
+		}
+//line decide/decide.gfx:31
+		switch _gofx317 := _gofx244.(type) {
+		case *Tuple2:
+			_ = _gofx317
+			switch _gofx319 := _gofx317.F0.(type) {
+			case *decide_ObsReason_StorageCapabilityReadFailed:
+				_ = _gofx319
+				switch _gofx318 := _gofx317.F1.(type) {
+				case *decide_ObsReason_StorageCapabilityReadFailed:
+					_ = _gofx318
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+					return true
+				}
+			}
+		}
+//line decide/decide.gfx:31
+		switch _gofx320 := _gofx244.(type) {
+		case *Tuple2:
+			_ = _gofx320
+			switch _gofx322 := _gofx320.F0.(type) {
+			case *decide_ObsReason_StorageClassMismatch:
+				_ = _gofx322
+				switch _gofx321 := _gofx320.F1.(type) {
+				case *decide_ObsReason_StorageClassMismatch:
+					_ = _gofx321
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+					return true
+				}
+			}
+		}
+//line decide/decide.gfx:31
+		switch _gofx323 := _gofx244.(type) {
+		case *Tuple2:
+			_ = _gofx323
+			switch _gofx325 := _gofx323.F0.(type) {
+			case *decide_ObsReason_StorageClassMissing:
+				_ = _gofx325
+				switch _gofx324 := _gofx323.F1.(type) {
+				case *decide_ObsReason_StorageClassMissing:
+					_ = _gofx324
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+					return true
+				}
+			}
+		}
+//line decide/decide.gfx:31
+		switch _gofx326 := _gofx244.(type) {
+		case *Tuple2:
+			_ = _gofx326
+			switch _gofx328 := _gofx326.F0.(type) {
+			case *decide_ObsReason_TargetDeletionInProgress:
+				_ = _gofx328
+				switch _gofx327 := _gofx326.F1.(type) {
+				case *decide_ObsReason_TargetDeletionInProgress:
+					_ = _gofx327
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+					return true
+				}
+			}
+		}
+//line decide/decide.gfx:31
+		switch _gofx329 := _gofx244.(type) {
+		case *Tuple2:
+			_ = _gofx329
+			switch _gofx331 := _gofx329.F0.(type) {
+			case *decide_ObsReason_TargetReferenceMissing:
+				_ = _gofx331
+				switch _gofx330 := _gofx329.F1.(type) {
+				case *decide_ObsReason_TargetReferenceMissing:
+					_ = _gofx330
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+					return true
+				}
+			}
+		}
+//line decide/decide.gfx:31
+		switch _gofx332 := _gofx244.(type) {
+		case *Tuple2:
+			_ = _gofx332
+			switch _gofx334 := _gofx332.F0.(type) {
+			case *decide_ObsReason_TerminatingPodUsesClaim:
+				_ = _gofx334
+				switch _gofx333 := _gofx332.F1.(type) {
+				case *decide_ObsReason_TerminatingPodUsesClaim:
+					_ = _gofx333
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+					return true
+				}
+			}
+		}
+//line decide/decide.gfx:31
+		switch _gofx335 := _gofx244.(type) {
+		case *Tuple2:
+			_ = _gofx335
+			switch _gofx337 := _gofx335.F0.(type) {
+			case *decide_ObsReason_VolumeAttachmentObservationFailed:
+				_ = _gofx337
+				switch _gofx336 := _gofx335.F1.(type) {
+				case *decide_ObsReason_VolumeAttachmentObservationFailed:
+					_ = _gofx336
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+					return true
+				}
+			}
+		}
+//line decide/decide.gfx:31
+		switch _gofx338 := _gofx244.(type) {
+		case *Tuple2:
+			_ = _gofx338
+			switch _gofx340 := _gofx338.F0.(type) {
+			case *decide_ObsReason_VolumeAttachmentSetNotUnique:
+				_ = _gofx340
+				switch _gofx339 := _gofx338.F1.(type) {
+				case *decide_ObsReason_VolumeAttachmentSetNotUnique:
+					_ = _gofx339
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+					return true
+				}
+			}
+		}
+//line decide/decide.gfx:31
+		switch _gofx341 := _gofx244.(type) {
+		case *Tuple2:
+			_ = _gofx341
+			switch _gofx343 := _gofx341.F0.(type) {
+			case *decide_ObsReason_AttachmentSetChanged:
+				_ = _gofx343
+				switch _gofx342 := _gofx341.F1.(type) {
+				case *decide_ObsReason_AttachmentSetChanged:
+					_ = _gofx342
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+					return true
+				}
+			}
+		}
+//line decide/decide.gfx:31
+		switch _gofx344 := _gofx244.(type) {
+		case *Tuple2:
+			_ = _gofx344
+			switch _gofx346 := _gofx344.F0.(type) {
+			case *decide_ObsReason_AttachmentStateChanged:
+				_ = _gofx346
+				switch _gofx345 := _gofx344.F1.(type) {
+				case *decide_ObsReason_AttachmentStateChanged:
+					_ = _gofx345
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+					return true
+				}
+			}
+		}
+//line decide/decide.gfx:31
+		switch _gofx347 := _gofx244.(type) {
+		case *Tuple2:
+			_ = _gofx347
+			switch _gofx349 := _gofx347.F0.(type) {
+			case *decide_ObsReason_CurrentAttachmentIdentityChanged:
+				_ = _gofx349
+				switch _gofx348 := _gofx347.F1.(type) {
+				case *decide_ObsReason_CurrentAttachmentIdentityChanged:
+					_ = _gofx348
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+					return true
+				}
+			}
+		}
+//line decide/decide.gfx:31
+		switch _gofx350 := _gofx244.(type) {
+		case *Tuple2:
+			_ = _gofx350
+			switch _gofx352 := _gofx350.F0.(type) {
+			case *decide_ObsReason_CurrentAttachmentTargetChanged:
+				_ = _gofx352
+				switch _gofx351 := _gofx350.F1.(type) {
+				case *decide_ObsReason_CurrentAttachmentTargetChanged:
+					_ = _gofx351
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+					return true
+				}
+			}
+		}
+//line decide/decide.gfx:31
+		switch _gofx353 := _gofx244.(type) {
+		case *Tuple2:
+			_ = _gofx353
+			switch _gofx355 := _gofx353.F0.(type) {
+			case *decide_ObsReason_CurrentNodeIdentityChanged:
+				_ = _gofx355
+				switch _gofx354 := _gofx353.F1.(type) {
+				case *decide_ObsReason_CurrentNodeIdentityChanged:
+					_ = _gofx354
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+					return true
+				}
+			}
+		}
+//line decide/decide.gfx:31
+		switch _gofx356 := _gofx244.(type) {
+		case *Tuple2:
+			_ = _gofx356
+			switch _gofx358 := _gofx356.F0.(type) {
+			case *decide_ObsReason_StaleAttachmentTargetChanged:
+				_ = _gofx358
+				switch _gofx357 := _gofx356.F1.(type) {
+				case *decide_ObsReason_StaleAttachmentTargetChanged:
+					_ = _gofx357
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+					return true
+				}
+			}
+		}
+//line decide/decide.gfx:31
+		switch _gofx359 := _gofx244.(type) {
+		case *Tuple2:
+			_ = _gofx359
+			switch _gofx361 := _gofx359.F0.(type) {
+			case *decide_ObsReason_StaleNodeIdentityChanged:
+				_ = _gofx361
+				switch _gofx360 := _gofx359.F1.(type) {
+				case *decide_ObsReason_StaleNodeIdentityChanged:
+					_ = _gofx360
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+					return true
+				}
+			}
+		}
+//line decide/decide.gfx:31
+		switch _gofx362 := _gofx244.(type) {
+		case *Tuple2:
+			_ = _gofx362
+			switch _gofx364 := _gofx362.F0.(type) {
+			case *decide_ObsReason_TargetBindingIdentityChanged:
+				_ = _gofx364
+				switch _gofx363 := _gofx362.F1.(type) {
+				case *decide_ObsReason_TargetBindingIdentityChanged:
+					_ = _gofx363
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+					return true
+				}
+			}
+		}
+//line decide/decide.gfx:31
+		{
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return false
+		}
+	}())
+}
+
+type dict_decide_Debug_ObsReason struct{}
+
+//line decide/decide.gfx:31
+func (dictself dict_decide_Debug_ObsReason) prelude_Debug(a_ any) any {
+//line decide/decide.gfx:31
+	return (
+//line decide/decide.gfx:31
+	func() any {
+		var _gofx365 any = a_
+		_ = _gofx365
+//line decide/decide.gfx:31
+		switch _gofx366 := _gofx365.(type) {
+		case *decide_ObsReason_AttachmentDeletionInProgress:
+			_ = _gofx366
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "AttachmentDeletionInProgress"
+		}
+//line decide/decide.gfx:31
+		switch _gofx367 := _gofx365.(type) {
+		case *decide_ObsReason_AttachmentDriverMismatch:
+			_ = _gofx367
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "AttachmentDriverMismatch"
+		}
+//line decide/decide.gfx:31
+		switch _gofx368 := _gofx365.(type) {
+		case *decide_ObsReason_AttachmentTargetMismatch:
+			_ = _gofx368
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "AttachmentTargetMismatch"
+		}
+//line decide/decide.gfx:31
+		switch _gofx369 := _gofx365.(type) {
+		case *decide_ObsReason_CurrentAttachmentNotUnique:
+			_ = _gofx369
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "CurrentAttachmentNotUnique"
+		}
+//line decide/decide.gfx:31
+		switch _gofx370 := _gofx365.(type) {
+		case *decide_ObsReason_CurrentNodeNotFound:
+			_ = _gofx370
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "CurrentNodeNotFound"
+		}
+//line decide/decide.gfx:31
+		switch _gofx371 := _gofx365.(type) {
+		case *decide_ObsReason_CurrentNodeNotReady:
+			_ = _gofx371
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "CurrentNodeNotReady"
+		}
+//line decide/decide.gfx:31
+		switch _gofx372 := _gofx365.(type) {
+		case *decide_ObsReason_NodeDeletionInProgress:
+			_ = _gofx372
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "NodeDeletionInProgress"
+		}
+//line decide/decide.gfx:31
+		switch _gofx373 := _gofx365.(type) {
+		case *decide_ObsReason_NodeObservationFailed:
+			_ = _gofx373
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "NodeObservationFailed"
+		}
+//line decide/decide.gfx:31
+		switch _gofx374 := _gofx365.(type) {
+		case *decide_ObsReason_NodeTargetNotUnique:
+			_ = _gofx374
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "NodeTargetNotUnique"
+		}
+//line decide/decide.gfx:31
+		switch _gofx375 := _gofx365.(type) {
+		case *decide_ObsReason_PersistentVolumeBindingMismatch:
+			_ = _gofx375
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "PersistentVolumeBindingMismatch"
+		}
+//line decide/decide.gfx:31
+		switch _gofx376 := _gofx365.(type) {
+		case *decide_ObsReason_PersistentVolumeClaimNotBound:
+			_ = _gofx376
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "PersistentVolumeClaimNotBound"
+		}
+//line decide/decide.gfx:31
+		switch _gofx377 := _gofx365.(type) {
+		case *decide_ObsReason_PersistentVolumeClaimNotFound:
+			_ = _gofx377
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "PersistentVolumeClaimNotFound"
+		}
+//line decide/decide.gfx:31
+		switch _gofx378 := _gofx365.(type) {
+		case *decide_ObsReason_PersistentVolumeClaimReadFailed:
+			_ = _gofx378
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "PersistentVolumeClaimReadFailed"
+		}
+//line decide/decide.gfx:31
+		switch _gofx379 := _gofx365.(type) {
+		case *decide_ObsReason_PersistentVolumeNotBound:
+			_ = _gofx379
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "PersistentVolumeNotBound"
+		}
+//line decide/decide.gfx:31
+		switch _gofx380 := _gofx365.(type) {
+		case *decide_ObsReason_PersistentVolumeNotFound:
+			_ = _gofx380
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "PersistentVolumeNotFound"
+		}
+//line decide/decide.gfx:31
+		switch _gofx381 := _gofx365.(type) {
+		case *decide_ObsReason_PersistentVolumeReadFailed:
+			_ = _gofx381
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "PersistentVolumeReadFailed"
+		}
+//line decide/decide.gfx:31
+		switch _gofx382 := _gofx365.(type) {
+		case *decide_ObsReason_PodObservationFailed:
+			_ = _gofx382
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "PodObservationFailed"
+		}
+//line decide/decide.gfx:31
+		switch _gofx383 := _gofx365.(type) {
+		case *decide_ObsReason_PodTargetNotUnique:
+			_ = _gofx383
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "PodTargetNotUnique"
+		}
+//line decide/decide.gfx:31
+		switch _gofx384 := _gofx365.(type) {
+		case *decide_ObsReason_StaleAttachmentNotUnique:
+			_ = _gofx384
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "StaleAttachmentNotUnique"
+		}
+//line decide/decide.gfx:31
+		switch _gofx385 := _gofx365.(type) {
+		case *decide_ObsReason_StaleNodeNotFound:
+			_ = _gofx385
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "StaleNodeNotFound"
+		}
+//line decide/decide.gfx:31
+		switch _gofx386 := _gofx365.(type) {
+		case *decide_ObsReason_StaleNodeReadinessAmbiguous:
+			_ = _gofx386
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "StaleNodeReadinessAmbiguous"
+		}
+//line decide/decide.gfx:31
+		switch _gofx387 := _gofx365.(type) {
+		case *decide_ObsReason_StaleNodeRecovered:
+			_ = _gofx387
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "StaleNodeRecovered"
+		}
+//line decide/decide.gfx:31
+		switch _gofx388 := _gofx365.(type) {
+		case *decide_ObsReason_StorageCapabilityDeletionInProgress:
+			_ = _gofx388
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "StorageCapabilityDeletionInProgress"
+		}
+//line decide/decide.gfx:31
+		switch _gofx389 := _gofx365.(type) {
+		case *decide_ObsReason_StorageCapabilityNotFound:
+			_ = _gofx389
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "StorageCapabilityNotFound"
+		}
+//line decide/decide.gfx:31
+		switch _gofx390 := _gofx365.(type) {
+		case *decide_ObsReason_StorageCapabilityReadFailed:
+			_ = _gofx390
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "StorageCapabilityReadFailed"
+		}
+//line decide/decide.gfx:31
+		switch _gofx391 := _gofx365.(type) {
+		case *decide_ObsReason_StorageClassMismatch:
+			_ = _gofx391
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "StorageClassMismatch"
+		}
+//line decide/decide.gfx:31
+		switch _gofx392 := _gofx365.(type) {
+		case *decide_ObsReason_StorageClassMissing:
+			_ = _gofx392
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "StorageClassMissing"
+		}
+//line decide/decide.gfx:31
+		switch _gofx393 := _gofx365.(type) {
+		case *decide_ObsReason_TargetDeletionInProgress:
+			_ = _gofx393
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "TargetDeletionInProgress"
+		}
+//line decide/decide.gfx:31
+		switch _gofx394 := _gofx365.(type) {
+		case *decide_ObsReason_TargetReferenceMissing:
+			_ = _gofx394
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "TargetReferenceMissing"
+		}
+//line decide/decide.gfx:31
+		switch _gofx395 := _gofx365.(type) {
+		case *decide_ObsReason_TerminatingPodUsesClaim:
+			_ = _gofx395
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "TerminatingPodUsesClaim"
+		}
+//line decide/decide.gfx:31
+		switch _gofx396 := _gofx365.(type) {
+		case *decide_ObsReason_VolumeAttachmentObservationFailed:
+			_ = _gofx396
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "VolumeAttachmentObservationFailed"
+		}
+//line decide/decide.gfx:31
+		switch _gofx397 := _gofx365.(type) {
+		case *decide_ObsReason_VolumeAttachmentSetNotUnique:
+			_ = _gofx397
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "VolumeAttachmentSetNotUnique"
+		}
+//line decide/decide.gfx:31
+		switch _gofx398 := _gofx365.(type) {
+		case *decide_ObsReason_AttachmentSetChanged:
+			_ = _gofx398
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "AttachmentSetChanged"
+		}
+//line decide/decide.gfx:31
+		switch _gofx399 := _gofx365.(type) {
+		case *decide_ObsReason_AttachmentStateChanged:
+			_ = _gofx399
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "AttachmentStateChanged"
+		}
+//line decide/decide.gfx:31
+		switch _gofx400 := _gofx365.(type) {
+		case *decide_ObsReason_CurrentAttachmentIdentityChanged:
+			_ = _gofx400
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "CurrentAttachmentIdentityChanged"
+		}
+//line decide/decide.gfx:31
+		switch _gofx401 := _gofx365.(type) {
+		case *decide_ObsReason_CurrentAttachmentTargetChanged:
+			_ = _gofx401
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "CurrentAttachmentTargetChanged"
+		}
+//line decide/decide.gfx:31
+		switch _gofx402 := _gofx365.(type) {
+		case *decide_ObsReason_CurrentNodeIdentityChanged:
+			_ = _gofx402
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "CurrentNodeIdentityChanged"
+		}
+//line decide/decide.gfx:31
+		switch _gofx403 := _gofx365.(type) {
+		case *decide_ObsReason_StaleAttachmentTargetChanged:
+			_ = _gofx403
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "StaleAttachmentTargetChanged"
+		}
+//line decide/decide.gfx:31
+		switch _gofx404 := _gofx365.(type) {
+		case *decide_ObsReason_StaleNodeIdentityChanged:
+			_ = _gofx404
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "StaleNodeIdentityChanged"
+		}
+//line decide/decide.gfx:31
+		{
+			_gofx405 := _gofx365.(*decide_ObsReason_TargetBindingIdentityChanged)
+			_ = _gofx405
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "TargetBindingIdentityChanged"
+		}
+	}())
+}
+
+type dict_decide_Show_ObsReason struct{}
+
+//line decide/decide.gfx:31
+func (dictself dict_decide_Show_ObsReason) prelude_Show(a_ any) any {
+//line decide/decide.gfx:31
+	return (
+//line decide/decide.gfx:31
+	func() any {
+		var _gofx406 any = a_
+		_ = _gofx406
+//line decide/decide.gfx:31
+		switch _gofx407 := _gofx406.(type) {
+		case *decide_ObsReason_AttachmentDeletionInProgress:
+			_ = _gofx407
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "AttachmentDeletionInProgress"
+		}
+//line decide/decide.gfx:31
+		switch _gofx408 := _gofx406.(type) {
+		case *decide_ObsReason_AttachmentDriverMismatch:
+			_ = _gofx408
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "AttachmentDriverMismatch"
+		}
+//line decide/decide.gfx:31
+		switch _gofx409 := _gofx406.(type) {
+		case *decide_ObsReason_AttachmentTargetMismatch:
+			_ = _gofx409
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "AttachmentTargetMismatch"
+		}
+//line decide/decide.gfx:31
+		switch _gofx410 := _gofx406.(type) {
+		case *decide_ObsReason_CurrentAttachmentNotUnique:
+			_ = _gofx410
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "CurrentAttachmentNotUnique"
+		}
+//line decide/decide.gfx:31
+		switch _gofx411 := _gofx406.(type) {
+		case *decide_ObsReason_CurrentNodeNotFound:
+			_ = _gofx411
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "CurrentNodeNotFound"
+		}
+//line decide/decide.gfx:31
+		switch _gofx412 := _gofx406.(type) {
+		case *decide_ObsReason_CurrentNodeNotReady:
+			_ = _gofx412
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "CurrentNodeNotReady"
+		}
+//line decide/decide.gfx:31
+		switch _gofx413 := _gofx406.(type) {
+		case *decide_ObsReason_NodeDeletionInProgress:
+			_ = _gofx413
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "NodeDeletionInProgress"
+		}
+//line decide/decide.gfx:31
+		switch _gofx414 := _gofx406.(type) {
+		case *decide_ObsReason_NodeObservationFailed:
+			_ = _gofx414
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "NodeObservationFailed"
+		}
+//line decide/decide.gfx:31
+		switch _gofx415 := _gofx406.(type) {
+		case *decide_ObsReason_NodeTargetNotUnique:
+			_ = _gofx415
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "NodeTargetNotUnique"
+		}
+//line decide/decide.gfx:31
+		switch _gofx416 := _gofx406.(type) {
+		case *decide_ObsReason_PersistentVolumeBindingMismatch:
+			_ = _gofx416
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "PersistentVolumeBindingMismatch"
+		}
+//line decide/decide.gfx:31
+		switch _gofx417 := _gofx406.(type) {
+		case *decide_ObsReason_PersistentVolumeClaimNotBound:
+			_ = _gofx417
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "PersistentVolumeClaimNotBound"
+		}
+//line decide/decide.gfx:31
+		switch _gofx418 := _gofx406.(type) {
+		case *decide_ObsReason_PersistentVolumeClaimNotFound:
+			_ = _gofx418
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "PersistentVolumeClaimNotFound"
+		}
+//line decide/decide.gfx:31
+		switch _gofx419 := _gofx406.(type) {
+		case *decide_ObsReason_PersistentVolumeClaimReadFailed:
+			_ = _gofx419
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "PersistentVolumeClaimReadFailed"
+		}
+//line decide/decide.gfx:31
+		switch _gofx420 := _gofx406.(type) {
+		case *decide_ObsReason_PersistentVolumeNotBound:
+			_ = _gofx420
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "PersistentVolumeNotBound"
+		}
+//line decide/decide.gfx:31
+		switch _gofx421 := _gofx406.(type) {
+		case *decide_ObsReason_PersistentVolumeNotFound:
+			_ = _gofx421
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "PersistentVolumeNotFound"
+		}
+//line decide/decide.gfx:31
+		switch _gofx422 := _gofx406.(type) {
+		case *decide_ObsReason_PersistentVolumeReadFailed:
+			_ = _gofx422
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "PersistentVolumeReadFailed"
+		}
+//line decide/decide.gfx:31
+		switch _gofx423 := _gofx406.(type) {
+		case *decide_ObsReason_PodObservationFailed:
+			_ = _gofx423
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "PodObservationFailed"
+		}
+//line decide/decide.gfx:31
+		switch _gofx424 := _gofx406.(type) {
+		case *decide_ObsReason_PodTargetNotUnique:
+			_ = _gofx424
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "PodTargetNotUnique"
+		}
+//line decide/decide.gfx:31
+		switch _gofx425 := _gofx406.(type) {
+		case *decide_ObsReason_StaleAttachmentNotUnique:
+			_ = _gofx425
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "StaleAttachmentNotUnique"
+		}
+//line decide/decide.gfx:31
+		switch _gofx426 := _gofx406.(type) {
+		case *decide_ObsReason_StaleNodeNotFound:
+			_ = _gofx426
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "StaleNodeNotFound"
+		}
+//line decide/decide.gfx:31
+		switch _gofx427 := _gofx406.(type) {
+		case *decide_ObsReason_StaleNodeReadinessAmbiguous:
+			_ = _gofx427
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "StaleNodeReadinessAmbiguous"
+		}
+//line decide/decide.gfx:31
+		switch _gofx428 := _gofx406.(type) {
+		case *decide_ObsReason_StaleNodeRecovered:
+			_ = _gofx428
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "StaleNodeRecovered"
+		}
+//line decide/decide.gfx:31
+		switch _gofx429 := _gofx406.(type) {
+		case *decide_ObsReason_StorageCapabilityDeletionInProgress:
+			_ = _gofx429
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "StorageCapabilityDeletionInProgress"
+		}
+//line decide/decide.gfx:31
+		switch _gofx430 := _gofx406.(type) {
+		case *decide_ObsReason_StorageCapabilityNotFound:
+			_ = _gofx430
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "StorageCapabilityNotFound"
+		}
+//line decide/decide.gfx:31
+		switch _gofx431 := _gofx406.(type) {
+		case *decide_ObsReason_StorageCapabilityReadFailed:
+			_ = _gofx431
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "StorageCapabilityReadFailed"
+		}
+//line decide/decide.gfx:31
+		switch _gofx432 := _gofx406.(type) {
+		case *decide_ObsReason_StorageClassMismatch:
+			_ = _gofx432
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "StorageClassMismatch"
+		}
+//line decide/decide.gfx:31
+		switch _gofx433 := _gofx406.(type) {
+		case *decide_ObsReason_StorageClassMissing:
+			_ = _gofx433
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "StorageClassMissing"
+		}
+//line decide/decide.gfx:31
+		switch _gofx434 := _gofx406.(type) {
+		case *decide_ObsReason_TargetDeletionInProgress:
+			_ = _gofx434
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "TargetDeletionInProgress"
+		}
+//line decide/decide.gfx:31
+		switch _gofx435 := _gofx406.(type) {
+		case *decide_ObsReason_TargetReferenceMissing:
+			_ = _gofx435
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "TargetReferenceMissing"
+		}
+//line decide/decide.gfx:31
+		switch _gofx436 := _gofx406.(type) {
+		case *decide_ObsReason_TerminatingPodUsesClaim:
+			_ = _gofx436
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "TerminatingPodUsesClaim"
+		}
+//line decide/decide.gfx:31
+		switch _gofx437 := _gofx406.(type) {
+		case *decide_ObsReason_VolumeAttachmentObservationFailed:
+			_ = _gofx437
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "VolumeAttachmentObservationFailed"
+		}
+//line decide/decide.gfx:31
+		switch _gofx438 := _gofx406.(type) {
+		case *decide_ObsReason_VolumeAttachmentSetNotUnique:
+			_ = _gofx438
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "VolumeAttachmentSetNotUnique"
+		}
+//line decide/decide.gfx:31
+		switch _gofx439 := _gofx406.(type) {
+		case *decide_ObsReason_AttachmentSetChanged:
+			_ = _gofx439
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "AttachmentSetChanged"
+		}
+//line decide/decide.gfx:31
+		switch _gofx440 := _gofx406.(type) {
+		case *decide_ObsReason_AttachmentStateChanged:
+			_ = _gofx440
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "AttachmentStateChanged"
+		}
+//line decide/decide.gfx:31
+		switch _gofx441 := _gofx406.(type) {
+		case *decide_ObsReason_CurrentAttachmentIdentityChanged:
+			_ = _gofx441
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "CurrentAttachmentIdentityChanged"
+		}
+//line decide/decide.gfx:31
+		switch _gofx442 := _gofx406.(type) {
+		case *decide_ObsReason_CurrentAttachmentTargetChanged:
+			_ = _gofx442
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "CurrentAttachmentTargetChanged"
+		}
+//line decide/decide.gfx:31
+		switch _gofx443 := _gofx406.(type) {
+		case *decide_ObsReason_CurrentNodeIdentityChanged:
+			_ = _gofx443
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "CurrentNodeIdentityChanged"
+		}
+//line decide/decide.gfx:31
+		switch _gofx444 := _gofx406.(type) {
+		case *decide_ObsReason_StaleAttachmentTargetChanged:
+			_ = _gofx444
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "StaleAttachmentTargetChanged"
+		}
+//line decide/decide.gfx:31
+		switch _gofx445 := _gofx406.(type) {
+		case *decide_ObsReason_StaleNodeIdentityChanged:
+			_ = _gofx445
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "StaleNodeIdentityChanged"
+		}
+//line decide/decide.gfx:31
+		{
+			_gofx446 := _gofx406.(*decide_ObsReason_TargetBindingIdentityChanged)
+			_ = _gofx446
+//line decide/decide.gfx:31
+//line decide/decide.gfx:31
+			return "TargetBindingIdentityChanged"
+		}
+	}())
+}
+
+type dict_decide_Eq_Observation struct{}
+
+//line decide/decide.gfx:72
+func (dictself dict_decide_Eq_Observation) prelude_Eq(a_ any, b_ any) any {
+//line decide/decide.gfx:72
+	return (
+//line decide/decide.gfx:72
+	func() bool {
+		var _gofx447 any = &Tuple2{F0: a_, F1: b_}
+		_ = _gofx447
+//line decide/decide.gfx:72
+		switch _gofx448 := _gofx447.(type) {
+		case *Tuple2:
+			_ = _gofx448
+			switch _gofx450 := _gofx448.F0.(type) {
+			case *decide_Observation_ObsBlocked:
+				_ = _gofx450
 				{
-					var x0_ any = _gofx247.F0
+					var x0_ any = _gofx450.F0
 					_ = x0_
 					{
-						var x1_ any = _gofx247.F1
+						var x1_ any = _gofx450.F1
 						_ = x1_
-						switch _gofx246 := _gofx245.F1.(type) {
+						switch _gofx449 := _gofx448.F1.(type) {
 						case *decide_Observation_ObsBlocked:
-							_ = _gofx246
+							_ = _gofx449
 							{
-								var y0_ any = _gofx246.F0
+								var y0_ any = _gofx449.F0
 								_ = y0_
 								{
-									var y1_ any = _gofx246.F1
+									var y1_ any = _gofx449.F1
 									_ = y1_
-//line decide/decide.gfx:30
-//line decide/decide.gfx:30
-									return (any((dict_prelude_Eq_String{}).prelude_Eq(x0_, y0_)).(bool) && any((dict_prelude_Eq_String{}).prelude_Eq(x1_, y1_)).(bool))
+//line decide/decide.gfx:72
+//line decide/decide.gfx:72
+									return (any((dict_decide_Eq_ObsReason{}).prelude_Eq(x0_, y0_)).(bool) && any((dict_prelude_Eq_String{}).prelude_Eq(x1_, y1_)).(bool))
 								}
 							}
 						}
@@ -1115,34 +2645,34 @@ func (dictself dict_decide_Eq_Observation) prelude_Eq(a_ any, b_ any) any {
 				}
 			}
 		}
-//line decide/decide.gfx:30
-		switch _gofx248 := _gofx244.(type) {
+//line decide/decide.gfx:72
+		switch _gofx451 := _gofx447.(type) {
 		case *Tuple2:
-			_ = _gofx248
-			switch _gofx250 := _gofx248.F0.(type) {
+			_ = _gofx451
+			switch _gofx453 := _gofx451.F0.(type) {
 			case *decide_Observation_ObsOk:
-				_ = _gofx250
+				_ = _gofx453
 				{
-					var x0_ any = _gofx250.F0
+					var x0_ any = _gofx453.F0
 					_ = x0_
-					switch _gofx249 := _gofx248.F1.(type) {
+					switch _gofx452 := _gofx451.F1.(type) {
 					case *decide_Observation_ObsOk:
-						_ = _gofx249
+						_ = _gofx452
 						{
-							var y0_ any = _gofx249.F0
+							var y0_ any = _gofx452.F0
 							_ = y0_
-//line decide/decide.gfx:30
-//line decide/decide.gfx:30
+//line decide/decide.gfx:72
+//line decide/decide.gfx:72
 							return any((dict_prelude_Eq_String{}).prelude_Eq(x0_, y0_)).(bool)
 						}
 					}
 				}
 			}
 		}
-//line decide/decide.gfx:30
+//line decide/decide.gfx:72
 		{
-//line decide/decide.gfx:30
-//line decide/decide.gfx:30
+//line decide/decide.gfx:72
+//line decide/decide.gfx:72
 			return false
 		}
 	}())
@@ -1150,39 +2680,39 @@ func (dictself dict_decide_Eq_Observation) prelude_Eq(a_ any, b_ any) any {
 
 type dict_decide_Debug_Observation struct{}
 
-//line decide/decide.gfx:30
+//line decide/decide.gfx:72
 func (dictself dict_decide_Debug_Observation) prelude_Debug(a_ any) any {
-//line decide/decide.gfx:30
+//line decide/decide.gfx:72
 	return (
-//line decide/decide.gfx:30
+//line decide/decide.gfx:72
 	func() any {
-		var _gofx251 any = a_
-		_ = _gofx251
-//line decide/decide.gfx:30
-		switch _gofx252 := _gofx251.(type) {
+		var _gofx454 any = a_
+		_ = _gofx454
+//line decide/decide.gfx:72
+		switch _gofx455 := _gofx454.(type) {
 		case *decide_Observation_ObsBlocked:
-			_ = _gofx252
+			_ = _gofx455
 			{
-				var x0_ any = _gofx252.F0
+				var x0_ any = _gofx455.F0
 				_ = x0_
 				{
-					var x1_ any = _gofx252.F1
+					var x1_ any = _gofx455.F1
 					_ = x1_
-//line decide/decide.gfx:30
-//line decide/decide.gfx:30
-					return rt.Concat("ObsBlocked(", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_String{}).prelude_Debug(x0_)), ", ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_String{}).prelude_Debug(x1_)), ")")
+//line decide/decide.gfx:72
+//line decide/decide.gfx:72
+					return rt.Concat("ObsBlocked(", (dict_prelude_Show_String{}).prelude_Show((dict_decide_Debug_ObsReason{}).prelude_Debug(x0_)), ", ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_String{}).prelude_Debug(x1_)), ")")
 				}
 			}
 		}
-//line decide/decide.gfx:30
+//line decide/decide.gfx:72
 		{
-			_gofx253 := _gofx251.(*decide_Observation_ObsOk)
-			_ = _gofx253
+			_gofx456 := _gofx454.(*decide_Observation_ObsOk)
+			_ = _gofx456
 			{
-				var x0_ any = _gofx253.F0
+				var x0_ any = _gofx456.F0
 				_ = x0_
-//line decide/decide.gfx:30
-//line decide/decide.gfx:30
+//line decide/decide.gfx:72
+//line decide/decide.gfx:72
 				return rt.Concat("ObsOk(", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_String{}).prelude_Debug(x0_)), ")")
 			}
 		}
@@ -1191,66 +2721,66 @@ func (dictself dict_decide_Debug_Observation) prelude_Debug(a_ any) any {
 
 type dict_decide_Eq_Target struct{}
 
-//line decide/decide.gfx:31
+//line decide/decide.gfx:73
 func (dictself dict_decide_Eq_Target) prelude_Eq(a_ any, b_ any) any {
-//line decide/decide.gfx:31
+//line decide/decide.gfx:73
 	return (
-//line decide/decide.gfx:31
+//line decide/decide.gfx:73
 	func() bool {
-		var _gofx254 any = &Tuple2{F0: a_, F1: b_}
-		_ = _gofx254
-//line decide/decide.gfx:31
-		switch _gofx255 := _gofx254.(type) {
+		var _gofx457 any = &Tuple2{F0: a_, F1: b_}
+		_ = _gofx457
+//line decide/decide.gfx:73
+		switch _gofx458 := _gofx457.(type) {
 		case *Tuple2:
-			_ = _gofx255
-			switch _gofx257 := _gofx255.F0.(type) {
+			_ = _gofx458
+			switch _gofx460 := _gofx458.F0.(type) {
 			case *decide_Target_Present:
-				_ = _gofx257
-				switch _gofx256 := _gofx255.F1.(type) {
+				_ = _gofx460
+				switch _gofx459 := _gofx458.F1.(type) {
 				case *decide_Target_Present:
-					_ = _gofx256
-//line decide/decide.gfx:31
-//line decide/decide.gfx:31
+					_ = _gofx459
+//line decide/decide.gfx:73
+//line decide/decide.gfx:73
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:31
-		switch _gofx258 := _gofx254.(type) {
+//line decide/decide.gfx:73
+		switch _gofx461 := _gofx457.(type) {
 		case *Tuple2:
-			_ = _gofx258
-			switch _gofx260 := _gofx258.F0.(type) {
+			_ = _gofx461
+			switch _gofx463 := _gofx461.F0.(type) {
 			case *decide_Target_Deleting:
-				_ = _gofx260
-				switch _gofx259 := _gofx258.F1.(type) {
+				_ = _gofx463
+				switch _gofx462 := _gofx461.F1.(type) {
 				case *decide_Target_Deleting:
-					_ = _gofx259
-//line decide/decide.gfx:31
-//line decide/decide.gfx:31
+					_ = _gofx462
+//line decide/decide.gfx:73
+//line decide/decide.gfx:73
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:31
-		switch _gofx261 := _gofx254.(type) {
+//line decide/decide.gfx:73
+		switch _gofx464 := _gofx457.(type) {
 		case *Tuple2:
-			_ = _gofx261
-			switch _gofx263 := _gofx261.F0.(type) {
+			_ = _gofx464
+			switch _gofx466 := _gofx464.F0.(type) {
 			case *decide_Target_Absent:
-				_ = _gofx263
-				switch _gofx262 := _gofx261.F1.(type) {
+				_ = _gofx466
+				switch _gofx465 := _gofx464.F1.(type) {
 				case *decide_Target_Absent:
-					_ = _gofx262
-//line decide/decide.gfx:31
-//line decide/decide.gfx:31
+					_ = _gofx465
+//line decide/decide.gfx:73
+//line decide/decide.gfx:73
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:31
+//line decide/decide.gfx:73
 		{
-//line decide/decide.gfx:31
-//line decide/decide.gfx:31
+//line decide/decide.gfx:73
+//line decide/decide.gfx:73
 			return false
 		}
 	}())
@@ -1258,36 +2788,36 @@ func (dictself dict_decide_Eq_Target) prelude_Eq(a_ any, b_ any) any {
 
 type dict_decide_Debug_Target struct{}
 
-//line decide/decide.gfx:31
+//line decide/decide.gfx:73
 func (dictself dict_decide_Debug_Target) prelude_Debug(a_ any) any {
-//line decide/decide.gfx:31
+//line decide/decide.gfx:73
 	return (
-//line decide/decide.gfx:31
+//line decide/decide.gfx:73
 	func() any {
-		var _gofx264 any = a_
-		_ = _gofx264
-//line decide/decide.gfx:31
-		switch _gofx265 := _gofx264.(type) {
+		var _gofx467 any = a_
+		_ = _gofx467
+//line decide/decide.gfx:73
+		switch _gofx468 := _gofx467.(type) {
 		case *decide_Target_Present:
-			_ = _gofx265
-//line decide/decide.gfx:31
-//line decide/decide.gfx:31
+			_ = _gofx468
+//line decide/decide.gfx:73
+//line decide/decide.gfx:73
 			return "Present"
 		}
-//line decide/decide.gfx:31
-		switch _gofx266 := _gofx264.(type) {
+//line decide/decide.gfx:73
+		switch _gofx469 := _gofx467.(type) {
 		case *decide_Target_Deleting:
-			_ = _gofx266
-//line decide/decide.gfx:31
-//line decide/decide.gfx:31
+			_ = _gofx469
+//line decide/decide.gfx:73
+//line decide/decide.gfx:73
 			return "Deleting"
 		}
-//line decide/decide.gfx:31
+//line decide/decide.gfx:73
 		{
-			_gofx267 := _gofx264.(*decide_Target_Absent)
-			_ = _gofx267
-//line decide/decide.gfx:31
-//line decide/decide.gfx:31
+			_gofx470 := _gofx467.(*decide_Target_Absent)
+			_ = _gofx470
+//line decide/decide.gfx:73
+//line decide/decide.gfx:73
 			return "Absent"
 		}
 	}())
@@ -1295,45 +2825,53 @@ func (dictself dict_decide_Debug_Target) prelude_Debug(a_ any) any {
 
 type dict_decide_Eq_AuthOkObs struct{}
 
-//line decide/decide.gfx:32
+//line decide/decide.gfx:76
 func (dictself dict_decide_Eq_AuthOkObs) prelude_Eq(a_ any, b_ any) any {
-//line decide/decide.gfx:32
+//line decide/decide.gfx:76
 	return (
-//line decide/decide.gfx:32
+//line decide/decide.gfx:76
 	func() bool {
-		var _gofx268 any = &Tuple2{F0: a_, F1: b_}
-		_ = _gofx268
-//line decide/decide.gfx:32
+		var _gofx471 any = &Tuple2{F0: a_, F1: b_}
+		_ = _gofx471
+//line decide/decide.gfx:76
 		{
-			_gofx269 := _gofx268.(*Tuple2)
-			_ = _gofx269
+			_gofx472 := _gofx471.(*Tuple2)
+			_ = _gofx472
 			{
-				_gofx271 := _gofx269.F0.(*decide_AuthOkObs_AuthOkObs)
-				_ = _gofx271
+				_gofx474 := _gofx472.F0.(*decide_AuthOkObs_AuthOkObs)
+				_ = _gofx474
 				{
-					var x0_ any = _gofx271.F0
+					var x0_ any = _gofx474.F0
 					_ = x0_
 					{
-						var x1_ any = _gofx271.F1
+						var x1_ any = _gofx474.F1
 						_ = x1_
 						{
-							var x2_ bool = any(_gofx271.F2).(bool)
+							var x2_ bool = any(_gofx474.F2).(bool)
 							_ = x2_
 							{
-								_gofx270 := _gofx269.F1.(*decide_AuthOkObs_AuthOkObs)
-								_ = _gofx270
+								var x3_ any = _gofx474.F3
+								_ = x3_
 								{
-									var y0_ any = _gofx270.F0
-									_ = y0_
+									_gofx473 := _gofx472.F1.(*decide_AuthOkObs_AuthOkObs)
+									_ = _gofx473
 									{
-										var y1_ any = _gofx270.F1
-										_ = y1_
+										var y0_ any = _gofx473.F0
+										_ = y0_
 										{
-											var y2_ bool = any(_gofx270.F2).(bool)
-											_ = y2_
-//line decide/decide.gfx:32
-//line decide/decide.gfx:32
-											return ((any((dict_decide_Eq_Target{}).prelude_Eq(x0_, y0_)).(bool) && any((dict_prelude_Eq_String{}).prelude_Eq(x1_, y1_)).(bool)) && (x2_ == y2_))
+											var y1_ any = _gofx473.F1
+											_ = y1_
+											{
+												var y2_ bool = any(_gofx473.F2).(bool)
+												_ = y2_
+												{
+													var y3_ any = _gofx473.F3
+													_ = y3_
+//line decide/decide.gfx:76
+//line decide/decide.gfx:76
+													return (((any((dict_decide_Eq_Target{}).prelude_Eq(x0_, y0_)).(bool) && any((dict_prelude_Eq_String{}).prelude_Eq(x1_, y1_)).(bool)) && (x2_ == y2_)) && any((dict_prelude_Eq_String{}).prelude_Eq(x3_, y3_)).(bool))
+												}
+											}
 										}
 									}
 								}
@@ -1348,30 +2886,34 @@ func (dictself dict_decide_Eq_AuthOkObs) prelude_Eq(a_ any, b_ any) any {
 
 type dict_decide_Debug_AuthOkObs struct{}
 
-//line decide/decide.gfx:32
+//line decide/decide.gfx:76
 func (dictself dict_decide_Debug_AuthOkObs) prelude_Debug(a_ any) any {
-//line decide/decide.gfx:32
+//line decide/decide.gfx:76
 	return (
-//line decide/decide.gfx:32
+//line decide/decide.gfx:76
 	func() any {
-		var _gofx272 any = a_
-		_ = _gofx272
-//line decide/decide.gfx:32
+		var _gofx475 any = a_
+		_ = _gofx475
+//line decide/decide.gfx:76
 		{
-			_gofx273 := _gofx272.(*decide_AuthOkObs_AuthOkObs)
-			_ = _gofx273
+			_gofx476 := _gofx475.(*decide_AuthOkObs_AuthOkObs)
+			_ = _gofx476
 			{
-				var x0_ any = _gofx273.F0
+				var x0_ any = _gofx476.F0
 				_ = x0_
 				{
-					var x1_ any = _gofx273.F1
+					var x1_ any = _gofx476.F1
 					_ = x1_
 					{
-						var x2_ bool = any(_gofx273.F2).(bool)
+						var x2_ bool = any(_gofx476.F2).(bool)
 						_ = x2_
-//line decide/decide.gfx:32
-//line decide/decide.gfx:32
-						return rt.Concat("AuthOkObs{target: ", (dict_prelude_Show_String{}).prelude_Show((dict_decide_Debug_Target{}).prelude_Debug(x0_)), ", digest: ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_String{}).prelude_Debug(x1_)), ", currentAttached: ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_Bool{}).prelude_Debug(x2_)), "}")
+						{
+							var x3_ any = _gofx476.F3
+							_ = x3_
+//line decide/decide.gfx:76
+//line decide/decide.gfx:76
+							return rt.Concat("AuthOkObs{target: ", (dict_prelude_Show_String{}).prelude_Show((dict_decide_Debug_Target{}).prelude_Debug(x0_)), ", digest: ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_String{}).prelude_Debug(x1_)), ", currentAttached: ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_Bool{}).prelude_Debug(x2_)), ", staleIdentity: ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_String{}).prelude_Debug(x3_)), "}")
+						}
 					}
 				}
 			}
@@ -1381,39 +2923,39 @@ func (dictself dict_decide_Debug_AuthOkObs) prelude_Debug(a_ any) any {
 
 type dict_decide_Eq_AuthorizedObservation struct{}
 
-//line decide/decide.gfx:33
+//line decide/decide.gfx:77
 func (dictself dict_decide_Eq_AuthorizedObservation) prelude_Eq(a_ any, b_ any) any {
-//line decide/decide.gfx:33
+//line decide/decide.gfx:77
 	return (
-//line decide/decide.gfx:33
+//line decide/decide.gfx:77
 	func() bool {
-		var _gofx274 any = &Tuple2{F0: a_, F1: b_}
-		_ = _gofx274
-//line decide/decide.gfx:33
-		switch _gofx275 := _gofx274.(type) {
+		var _gofx477 any = &Tuple2{F0: a_, F1: b_}
+		_ = _gofx477
+//line decide/decide.gfx:77
+		switch _gofx478 := _gofx477.(type) {
 		case *Tuple2:
-			_ = _gofx275
-			switch _gofx277 := _gofx275.F0.(type) {
+			_ = _gofx478
+			switch _gofx480 := _gofx478.F0.(type) {
 			case *decide_AuthorizedObservation_AuthBlocked:
-				_ = _gofx277
+				_ = _gofx480
 				{
-					var x0_ any = _gofx277.F0
+					var x0_ any = _gofx480.F0
 					_ = x0_
 					{
-						var x1_ any = _gofx277.F1
+						var x1_ any = _gofx480.F1
 						_ = x1_
-						switch _gofx276 := _gofx275.F1.(type) {
+						switch _gofx479 := _gofx478.F1.(type) {
 						case *decide_AuthorizedObservation_AuthBlocked:
-							_ = _gofx276
+							_ = _gofx479
 							{
-								var y0_ any = _gofx276.F0
+								var y0_ any = _gofx479.F0
 								_ = y0_
 								{
-									var y1_ any = _gofx276.F1
+									var y1_ any = _gofx479.F1
 									_ = y1_
-//line decide/decide.gfx:33
-//line decide/decide.gfx:33
-									return (any((dict_prelude_Eq_String{}).prelude_Eq(x0_, y0_)).(bool) && any((dict_prelude_Eq_String{}).prelude_Eq(x1_, y1_)).(bool))
+//line decide/decide.gfx:77
+//line decide/decide.gfx:77
+									return (any((dict_decide_Eq_ObsReason{}).prelude_Eq(x0_, y0_)).(bool) && any((dict_prelude_Eq_String{}).prelude_Eq(x1_, y1_)).(bool))
 								}
 							}
 						}
@@ -1421,34 +2963,34 @@ func (dictself dict_decide_Eq_AuthorizedObservation) prelude_Eq(a_ any, b_ any) 
 				}
 			}
 		}
-//line decide/decide.gfx:33
-		switch _gofx278 := _gofx274.(type) {
+//line decide/decide.gfx:77
+		switch _gofx481 := _gofx477.(type) {
 		case *Tuple2:
-			_ = _gofx278
-			switch _gofx280 := _gofx278.F0.(type) {
+			_ = _gofx481
+			switch _gofx483 := _gofx481.F0.(type) {
 			case *decide_AuthorizedObservation_AuthOk:
-				_ = _gofx280
+				_ = _gofx483
 				{
-					var x0_ any = _gofx280.F0
+					var x0_ any = _gofx483.F0
 					_ = x0_
-					switch _gofx279 := _gofx278.F1.(type) {
+					switch _gofx482 := _gofx481.F1.(type) {
 					case *decide_AuthorizedObservation_AuthOk:
-						_ = _gofx279
+						_ = _gofx482
 						{
-							var y0_ any = _gofx279.F0
+							var y0_ any = _gofx482.F0
 							_ = y0_
-//line decide/decide.gfx:33
-//line decide/decide.gfx:33
+//line decide/decide.gfx:77
+//line decide/decide.gfx:77
 							return any((dict_decide_Eq_AuthOkObs{}).prelude_Eq(x0_, y0_)).(bool)
 						}
 					}
 				}
 			}
 		}
-//line decide/decide.gfx:33
+//line decide/decide.gfx:77
 		{
-//line decide/decide.gfx:33
-//line decide/decide.gfx:33
+//line decide/decide.gfx:77
+//line decide/decide.gfx:77
 			return false
 		}
 	}())
@@ -1456,39 +2998,39 @@ func (dictself dict_decide_Eq_AuthorizedObservation) prelude_Eq(a_ any, b_ any) 
 
 type dict_decide_Debug_AuthorizedObservation struct{}
 
-//line decide/decide.gfx:33
+//line decide/decide.gfx:77
 func (dictself dict_decide_Debug_AuthorizedObservation) prelude_Debug(a_ any) any {
-//line decide/decide.gfx:33
+//line decide/decide.gfx:77
 	return (
-//line decide/decide.gfx:33
+//line decide/decide.gfx:77
 	func() any {
-		var _gofx281 any = a_
-		_ = _gofx281
-//line decide/decide.gfx:33
-		switch _gofx282 := _gofx281.(type) {
+		var _gofx484 any = a_
+		_ = _gofx484
+//line decide/decide.gfx:77
+		switch _gofx485 := _gofx484.(type) {
 		case *decide_AuthorizedObservation_AuthBlocked:
-			_ = _gofx282
+			_ = _gofx485
 			{
-				var x0_ any = _gofx282.F0
+				var x0_ any = _gofx485.F0
 				_ = x0_
 				{
-					var x1_ any = _gofx282.F1
+					var x1_ any = _gofx485.F1
 					_ = x1_
-//line decide/decide.gfx:33
-//line decide/decide.gfx:33
-					return rt.Concat("AuthBlocked(", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_String{}).prelude_Debug(x0_)), ", ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_String{}).prelude_Debug(x1_)), ")")
+//line decide/decide.gfx:77
+//line decide/decide.gfx:77
+					return rt.Concat("AuthBlocked(", (dict_prelude_Show_String{}).prelude_Show((dict_decide_Debug_ObsReason{}).prelude_Debug(x0_)), ", ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_String{}).prelude_Debug(x1_)), ")")
 				}
 			}
 		}
-//line decide/decide.gfx:33
+//line decide/decide.gfx:77
 		{
-			_gofx283 := _gofx281.(*decide_AuthorizedObservation_AuthOk)
-			_ = _gofx283
+			_gofx486 := _gofx484.(*decide_AuthorizedObservation_AuthOk)
+			_ = _gofx486
 			{
-				var x0_ any = _gofx283.F0
+				var x0_ any = _gofx486.F0
 				_ = x0_
-//line decide/decide.gfx:33
-//line decide/decide.gfx:33
+//line decide/decide.gfx:77
+//line decide/decide.gfx:77
 				return rt.Concat("AuthOk(", (dict_prelude_Show_String{}).prelude_Show((dict_decide_Debug_AuthOkObs{}).prelude_Debug(x0_)), ")")
 			}
 		}
@@ -1497,66 +3039,66 @@ func (dictself dict_decide_Debug_AuthorizedObservation) prelude_Debug(a_ any) an
 
 type dict_decide_Eq_DeleteResult struct{}
 
-//line decide/decide.gfx:34
+//line decide/decide.gfx:78
 func (dictself dict_decide_Eq_DeleteResult) prelude_Eq(a_ any, b_ any) any {
-//line decide/decide.gfx:34
+//line decide/decide.gfx:78
 	return (
-//line decide/decide.gfx:34
+//line decide/decide.gfx:78
 	func() bool {
-		var _gofx284 any = &Tuple2{F0: a_, F1: b_}
-		_ = _gofx284
-//line decide/decide.gfx:34
-		switch _gofx285 := _gofx284.(type) {
+		var _gofx487 any = &Tuple2{F0: a_, F1: b_}
+		_ = _gofx487
+//line decide/decide.gfx:78
+		switch _gofx488 := _gofx487.(type) {
 		case *Tuple2:
-			_ = _gofx285
-			switch _gofx287 := _gofx285.F0.(type) {
+			_ = _gofx488
+			switch _gofx490 := _gofx488.F0.(type) {
 			case *decide_DeleteResult_Deleted:
-				_ = _gofx287
-				switch _gofx286 := _gofx285.F1.(type) {
+				_ = _gofx490
+				switch _gofx489 := _gofx488.F1.(type) {
 				case *decide_DeleteResult_Deleted:
-					_ = _gofx286
-//line decide/decide.gfx:34
-//line decide/decide.gfx:34
+					_ = _gofx489
+//line decide/decide.gfx:78
+//line decide/decide.gfx:78
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:34
-		switch _gofx288 := _gofx284.(type) {
+//line decide/decide.gfx:78
+		switch _gofx491 := _gofx487.(type) {
 		case *Tuple2:
-			_ = _gofx288
-			switch _gofx290 := _gofx288.F0.(type) {
+			_ = _gofx491
+			switch _gofx493 := _gofx491.F0.(type) {
 			case *decide_DeleteResult_CasFailed:
-				_ = _gofx290
-				switch _gofx289 := _gofx288.F1.(type) {
+				_ = _gofx493
+				switch _gofx492 := _gofx491.F1.(type) {
 				case *decide_DeleteResult_CasFailed:
-					_ = _gofx289
-//line decide/decide.gfx:34
-//line decide/decide.gfx:34
+					_ = _gofx492
+//line decide/decide.gfx:78
+//line decide/decide.gfx:78
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:34
-		switch _gofx291 := _gofx284.(type) {
+//line decide/decide.gfx:78
+		switch _gofx494 := _gofx487.(type) {
 		case *Tuple2:
-			_ = _gofx291
-			switch _gofx293 := _gofx291.F0.(type) {
+			_ = _gofx494
+			switch _gofx496 := _gofx494.F0.(type) {
 			case *decide_DeleteResult_DeleteFailed:
-				_ = _gofx293
-				switch _gofx292 := _gofx291.F1.(type) {
+				_ = _gofx496
+				switch _gofx495 := _gofx494.F1.(type) {
 				case *decide_DeleteResult_DeleteFailed:
-					_ = _gofx292
-//line decide/decide.gfx:34
-//line decide/decide.gfx:34
+					_ = _gofx495
+//line decide/decide.gfx:78
+//line decide/decide.gfx:78
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:34
+//line decide/decide.gfx:78
 		{
-//line decide/decide.gfx:34
-//line decide/decide.gfx:34
+//line decide/decide.gfx:78
+//line decide/decide.gfx:78
 			return false
 		}
 	}())
@@ -1564,36 +3106,36 @@ func (dictself dict_decide_Eq_DeleteResult) prelude_Eq(a_ any, b_ any) any {
 
 type dict_decide_Debug_DeleteResult struct{}
 
-//line decide/decide.gfx:34
+//line decide/decide.gfx:78
 func (dictself dict_decide_Debug_DeleteResult) prelude_Debug(a_ any) any {
-//line decide/decide.gfx:34
+//line decide/decide.gfx:78
 	return (
-//line decide/decide.gfx:34
+//line decide/decide.gfx:78
 	func() any {
-		var _gofx294 any = a_
-		_ = _gofx294
-//line decide/decide.gfx:34
-		switch _gofx295 := _gofx294.(type) {
+		var _gofx497 any = a_
+		_ = _gofx497
+//line decide/decide.gfx:78
+		switch _gofx498 := _gofx497.(type) {
 		case *decide_DeleteResult_Deleted:
-			_ = _gofx295
-//line decide/decide.gfx:34
-//line decide/decide.gfx:34
+			_ = _gofx498
+//line decide/decide.gfx:78
+//line decide/decide.gfx:78
 			return "Deleted"
 		}
-//line decide/decide.gfx:34
-		switch _gofx296 := _gofx294.(type) {
+//line decide/decide.gfx:78
+		switch _gofx499 := _gofx497.(type) {
 		case *decide_DeleteResult_CasFailed:
-			_ = _gofx296
-//line decide/decide.gfx:34
-//line decide/decide.gfx:34
+			_ = _gofx499
+//line decide/decide.gfx:78
+//line decide/decide.gfx:78
 			return "CasFailed"
 		}
-//line decide/decide.gfx:34
+//line decide/decide.gfx:78
 		{
-			_gofx297 := _gofx294.(*decide_DeleteResult_DeleteFailed)
-			_ = _gofx297
-//line decide/decide.gfx:34
-//line decide/decide.gfx:34
+			_gofx500 := _gofx497.(*decide_DeleteResult_DeleteFailed)
+			_ = _gofx500
+//line decide/decide.gfx:78
+//line decide/decide.gfx:78
 			return "DeleteFailed"
 		}
 	}())
@@ -1601,98 +3143,98 @@ func (dictself dict_decide_Debug_DeleteResult) prelude_Debug(a_ any) any {
 
 type dict_decide_Eq_Observed struct{}
 
-//line decide/decide.gfx:36
+//line decide/decide.gfx:80
 func (dictself dict_decide_Eq_Observed) prelude_Eq(a_ any, b_ any) any {
-//line decide/decide.gfx:36
+//line decide/decide.gfx:80
 	return (
-//line decide/decide.gfx:36
+//line decide/decide.gfx:80
 	func() bool {
-		var _gofx298 any = &Tuple2{F0: a_, F1: b_}
-		_ = _gofx298
-//line decide/decide.gfx:36
+		var _gofx501 any = &Tuple2{F0: a_, F1: b_}
+		_ = _gofx501
+//line decide/decide.gfx:80
 		{
-			_gofx299 := _gofx298.(*Tuple2)
-			_ = _gofx299
+			_gofx502 := _gofx501.(*Tuple2)
+			_ = _gofx502
 			{
-				_gofx301 := _gofx299.F0.(*decide_Observed_Observed)
-				_ = _gofx301
+				_gofx504 := _gofx502.F0.(*decide_Observed_Observed)
+				_ = _gofx504
 				{
-					var x0_ any = _gofx301.F0
+					var x0_ any = _gofx504.F0
 					_ = x0_
 					{
-						var x1_ bool = any(_gofx301.F1).(bool)
+						var x1_ bool = any(_gofx504.F1).(bool)
 						_ = x1_
 						{
-							var x2_ int64 = any(_gofx301.F2).(int64)
+							var x2_ int64 = any(_gofx504.F2).(int64)
 							_ = x2_
 							{
-								var x3_ bool = any(_gofx301.F3).(bool)
+								var x3_ bool = any(_gofx504.F3).(bool)
 								_ = x3_
 								{
-									var x4_ bool = any(_gofx301.F4).(bool)
+									var x4_ bool = any(_gofx504.F4).(bool)
 									_ = x4_
 									{
-										var x5_ bool = any(_gofx301.F5).(bool)
+										var x5_ bool = any(_gofx504.F5).(bool)
 										_ = x5_
 										{
-											var x6_ any = _gofx301.F6
+											var x6_ any = _gofx504.F6
 											_ = x6_
 											{
-												var x7_ int64 = any(_gofx301.F7).(int64)
+												var x7_ int64 = any(_gofx504.F7).(int64)
 												_ = x7_
 												{
-													var x8_ int64 = any(_gofx301.F8).(int64)
+													var x8_ int64 = any(_gofx504.F8).(int64)
 													_ = x8_
 													{
-														var x9_ any = _gofx301.F9
+														var x9_ any = _gofx504.F9
 														_ = x9_
 														{
-															var x10_ any = _gofx301.F10
+															var x10_ any = _gofx504.F10
 															_ = x10_
 															{
-																var x11_ any = _gofx301.F11
+																var x11_ any = _gofx504.F11
 																_ = x11_
 																{
-																	_gofx300 := _gofx299.F1.(*decide_Observed_Observed)
-																	_ = _gofx300
+																	_gofx503 := _gofx502.F1.(*decide_Observed_Observed)
+																	_ = _gofx503
 																	{
-																		var y0_ any = _gofx300.F0
+																		var y0_ any = _gofx503.F0
 																		_ = y0_
 																		{
-																			var y1_ bool = any(_gofx300.F1).(bool)
+																			var y1_ bool = any(_gofx503.F1).(bool)
 																			_ = y1_
 																			{
-																				var y2_ int64 = any(_gofx300.F2).(int64)
+																				var y2_ int64 = any(_gofx503.F2).(int64)
 																				_ = y2_
 																				{
-																					var y3_ bool = any(_gofx300.F3).(bool)
+																					var y3_ bool = any(_gofx503.F3).(bool)
 																					_ = y3_
 																					{
-																						var y4_ bool = any(_gofx300.F4).(bool)
+																						var y4_ bool = any(_gofx503.F4).(bool)
 																						_ = y4_
 																						{
-																							var y5_ bool = any(_gofx300.F5).(bool)
+																							var y5_ bool = any(_gofx503.F5).(bool)
 																							_ = y5_
 																							{
-																								var y6_ any = _gofx300.F6
+																								var y6_ any = _gofx503.F6
 																								_ = y6_
 																								{
-																									var y7_ int64 = any(_gofx300.F7).(int64)
+																									var y7_ int64 = any(_gofx503.F7).(int64)
 																									_ = y7_
 																									{
-																										var y8_ int64 = any(_gofx300.F8).(int64)
+																										var y8_ int64 = any(_gofx503.F8).(int64)
 																										_ = y8_
 																										{
-																											var y9_ any = _gofx300.F9
+																											var y9_ any = _gofx503.F9
 																											_ = y9_
 																											{
-																												var y10_ any = _gofx300.F10
+																												var y10_ any = _gofx503.F10
 																												_ = y10_
 																												{
-																													var y11_ any = _gofx300.F11
+																													var y11_ any = _gofx503.F11
 																													_ = y11_
-//line decide/decide.gfx:36
-//line decide/decide.gfx:36
+//line decide/decide.gfx:80
+//line decide/decide.gfx:80
 																													return (((((((((((any((dict_decide_Eq_Mode{}).prelude_Eq(x0_, y0_)).(bool) && (x1_ == y1_)) && (x2_ == y2_)) && (x3_ == y3_)) && (x4_ == y4_)) && (x5_ == y5_)) && any((dict_prelude_Eq_String{}).prelude_Eq(x6_, y6_)).(bool)) && (x7_ == y7_)) && (x8_ == y8_)) && any((dict_prelude_Eq_Option{dict_A: dict_decide_Eq_Observation{}}).prelude_Eq(x9_, y9_)).(bool)) && any((dict_prelude_Eq_Option{dict_A: dict_decide_Eq_AuthorizedObservation{}}).prelude_Eq(x10_, y10_)).(bool)) && any((dict_prelude_Eq_Option{dict_A: dict_decide_Eq_DeleteResult{}}).prelude_Eq(x11_, y11_)).(bool))
 																												}
 																											}
@@ -1726,56 +3268,56 @@ func (dictself dict_decide_Eq_Observed) prelude_Eq(a_ any, b_ any) any {
 
 type dict_decide_Debug_Observed struct{}
 
-//line decide/decide.gfx:36
+//line decide/decide.gfx:80
 func (dictself dict_decide_Debug_Observed) prelude_Debug(a_ any) any {
-//line decide/decide.gfx:36
+//line decide/decide.gfx:80
 	return (
-//line decide/decide.gfx:36
+//line decide/decide.gfx:80
 	func() any {
-		var _gofx302 any = a_
-		_ = _gofx302
-//line decide/decide.gfx:36
+		var _gofx505 any = a_
+		_ = _gofx505
+//line decide/decide.gfx:80
 		{
-			_gofx303 := _gofx302.(*decide_Observed_Observed)
-			_ = _gofx303
+			_gofx506 := _gofx505.(*decide_Observed_Observed)
+			_ = _gofx506
 			{
-				var x0_ any = _gofx303.F0
+				var x0_ any = _gofx506.F0
 				_ = x0_
 				{
-					var x1_ bool = any(_gofx303.F1).(bool)
+					var x1_ bool = any(_gofx506.F1).(bool)
 					_ = x1_
 					{
-						var x2_ int64 = any(_gofx303.F2).(int64)
+						var x2_ int64 = any(_gofx506.F2).(int64)
 						_ = x2_
 						{
-							var x3_ bool = any(_gofx303.F3).(bool)
+							var x3_ bool = any(_gofx506.F3).(bool)
 							_ = x3_
 							{
-								var x4_ bool = any(_gofx303.F4).(bool)
+								var x4_ bool = any(_gofx506.F4).(bool)
 								_ = x4_
 								{
-									var x5_ bool = any(_gofx303.F5).(bool)
+									var x5_ bool = any(_gofx506.F5).(bool)
 									_ = x5_
 									{
-										var x6_ any = _gofx303.F6
+										var x6_ any = _gofx506.F6
 										_ = x6_
 										{
-											var x7_ int64 = any(_gofx303.F7).(int64)
+											var x7_ int64 = any(_gofx506.F7).(int64)
 											_ = x7_
 											{
-												var x8_ int64 = any(_gofx303.F8).(int64)
+												var x8_ int64 = any(_gofx506.F8).(int64)
 												_ = x8_
 												{
-													var x9_ any = _gofx303.F9
+													var x9_ any = _gofx506.F9
 													_ = x9_
 													{
-														var x10_ any = _gofx303.F10
+														var x10_ any = _gofx506.F10
 														_ = x10_
 														{
-															var x11_ any = _gofx303.F11
+															var x11_ any = _gofx506.F11
 															_ = x11_
-//line decide/decide.gfx:36
-//line decide/decide.gfx:36
+//line decide/decide.gfx:80
+//line decide/decide.gfx:80
 															return rt.Concat("Observed{mode: ", (dict_prelude_Show_String{}).prelude_Show((dict_decide_Debug_Mode{}).prelude_Debug(x0_)), ", featureGateEnabled: ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_Bool{}).prelude_Debug(x1_)), ", operationGeneration: ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_Int{}).prelude_Debug(x2_)), ", authorized: ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_Bool{}).prelude_Debug(x3_)), ", committed: ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_Bool{}).prelude_Debug(x4_)), ", requested: ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_Bool{}).prelude_Debug(x5_)), ", approvedObservationDigest: ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_String{}).prelude_Debug(x6_)), ", nowNanos: ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_Int{}).prelude_Debug(x7_)), ", approvalMaxAgeNanos: ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_Int{}).prelude_Debug(x8_)), ", initial: ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_Option{dict_A: dict_decide_Debug_Observation{}}).prelude_Debug(x9_)), ", authorizedObs: ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_Option{dict_A: dict_decide_Debug_AuthorizedObservation{}}).prelude_Debug(x10_)), ", deleteResult: ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_Option{dict_A: dict_decide_Debug_DeleteResult{}}).prelude_Debug(x11_)), "}")
 														}
 													}
@@ -1795,338 +3337,338 @@ func (dictself dict_decide_Debug_Observed) prelude_Debug(a_ any) any {
 
 type dict_decide_Eq_Reason struct{}
 
-//line decide/decide.gfx:51
+//line decide/decide.gfx:95
 func (dictself dict_decide_Eq_Reason) prelude_Eq(a_ any, b_ any) any {
-//line decide/decide.gfx:51
+//line decide/decide.gfx:95
 	return (
-//line decide/decide.gfx:51
+//line decide/decide.gfx:95
 	func() bool {
-		var _gofx304 any = &Tuple2{F0: a_, F1: b_}
-		_ = _gofx304
-//line decide/decide.gfx:51
-		switch _gofx305 := _gofx304.(type) {
+		var _gofx507 any = &Tuple2{F0: a_, F1: b_}
+		_ = _gofx507
+//line decide/decide.gfx:95
+		switch _gofx508 := _gofx507.(type) {
 		case *Tuple2:
-			_ = _gofx305
-			switch _gofx307 := _gofx305.F0.(type) {
+			_ = _gofx508
+			switch _gofx510 := _gofx508.F0.(type) {
 			case *decide_Reason_ApprovalReferenceMissing:
-				_ = _gofx307
-				switch _gofx306 := _gofx305.F1.(type) {
+				_ = _gofx510
+				switch _gofx509 := _gofx508.F1.(type) {
 				case *decide_Reason_ApprovalReferenceMissing:
-					_ = _gofx306
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+					_ = _gofx509
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:51
-		switch _gofx308 := _gofx304.(type) {
+//line decide/decide.gfx:95
+		switch _gofx511 := _gofx507.(type) {
 		case *Tuple2:
-			_ = _gofx308
-			switch _gofx310 := _gofx308.F0.(type) {
+			_ = _gofx511
+			switch _gofx513 := _gofx511.F0.(type) {
 			case *decide_Reason_ApprovalReadFailed:
-				_ = _gofx310
-				switch _gofx309 := _gofx308.F1.(type) {
+				_ = _gofx513
+				switch _gofx512 := _gofx511.F1.(type) {
 				case *decide_Reason_ApprovalReadFailed:
-					_ = _gofx309
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+					_ = _gofx512
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:51
-		switch _gofx311 := _gofx304.(type) {
+//line decide/decide.gfx:95
+		switch _gofx514 := _gofx507.(type) {
 		case *Tuple2:
-			_ = _gofx311
-			switch _gofx313 := _gofx311.F0.(type) {
+			_ = _gofx514
+			switch _gofx516 := _gofx514.F0.(type) {
 			case *decide_Reason_ApprovalDeletionInProgress:
-				_ = _gofx313
-				switch _gofx312 := _gofx311.F1.(type) {
+				_ = _gofx516
+				switch _gofx515 := _gofx514.F1.(type) {
 				case *decide_Reason_ApprovalDeletionInProgress:
-					_ = _gofx312
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+					_ = _gofx515
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:51
-		switch _gofx314 := _gofx304.(type) {
+//line decide/decide.gfx:95
+		switch _gofx517 := _gofx507.(type) {
 		case *Tuple2:
-			_ = _gofx314
-			switch _gofx316 := _gofx314.F0.(type) {
+			_ = _gofx517
+			switch _gofx519 := _gofx517.F0.(type) {
 			case *decide_Reason_ApprovalReferenceMismatch:
-				_ = _gofx316
-				switch _gofx315 := _gofx314.F1.(type) {
+				_ = _gofx519
+				switch _gofx518 := _gofx517.F1.(type) {
 				case *decide_Reason_ApprovalReferenceMismatch:
-					_ = _gofx315
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+					_ = _gofx518
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:51
-		switch _gofx317 := _gofx304.(type) {
+//line decide/decide.gfx:95
+		switch _gofx520 := _gofx507.(type) {
 		case *Tuple2:
-			_ = _gofx317
-			switch _gofx319 := _gofx317.F0.(type) {
+			_ = _gofx520
+			switch _gofx522 := _gofx520.F0.(type) {
 			case *decide_Reason_ApprovalOperationIdentityMismatch:
-				_ = _gofx319
-				switch _gofx318 := _gofx317.F1.(type) {
+				_ = _gofx522
+				switch _gofx521 := _gofx520.F1.(type) {
 				case *decide_Reason_ApprovalOperationIdentityMismatch:
-					_ = _gofx318
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+					_ = _gofx521
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:51
-		switch _gofx320 := _gofx304.(type) {
+//line decide/decide.gfx:95
+		switch _gofx523 := _gofx507.(type) {
 		case *Tuple2:
-			_ = _gofx320
-			switch _gofx322 := _gofx320.F0.(type) {
+			_ = _gofx523
+			switch _gofx525 := _gofx523.F0.(type) {
 			case *decide_Reason_ApprovalOperationGenerationMismatch:
-				_ = _gofx322
-				switch _gofx321 := _gofx320.F1.(type) {
+				_ = _gofx525
+				switch _gofx524 := _gofx523.F1.(type) {
 				case *decide_Reason_ApprovalOperationGenerationMismatch:
-					_ = _gofx321
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+					_ = _gofx524
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:51
-		switch _gofx323 := _gofx304.(type) {
+//line decide/decide.gfx:95
+		switch _gofx526 := _gofx507.(type) {
 		case *Tuple2:
-			_ = _gofx323
-			switch _gofx325 := _gofx323.F0.(type) {
+			_ = _gofx526
+			switch _gofx528 := _gofx526.F0.(type) {
 			case *decide_Reason_ApprovalTargetBindingMismatch:
-				_ = _gofx325
-				switch _gofx324 := _gofx323.F1.(type) {
+				_ = _gofx528
+				switch _gofx527 := _gofx526.F1.(type) {
 				case *decide_Reason_ApprovalTargetBindingMismatch:
-					_ = _gofx324
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+					_ = _gofx527
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:51
-		switch _gofx326 := _gofx304.(type) {
+//line decide/decide.gfx:95
+		switch _gofx529 := _gofx507.(type) {
 		case *Tuple2:
-			_ = _gofx326
-			switch _gofx328 := _gofx326.F0.(type) {
+			_ = _gofx529
+			switch _gofx531 := _gofx529.F0.(type) {
 			case *decide_Reason_ApprovalEvidenceIncomplete:
-				_ = _gofx328
-				switch _gofx327 := _gofx326.F1.(type) {
+				_ = _gofx531
+				switch _gofx530 := _gofx529.F1.(type) {
 				case *decide_Reason_ApprovalEvidenceIncomplete:
-					_ = _gofx327
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+					_ = _gofx530
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:51
-		switch _gofx329 := _gofx304.(type) {
+//line decide/decide.gfx:95
+		switch _gofx532 := _gofx507.(type) {
 		case *Tuple2:
-			_ = _gofx329
-			switch _gofx331 := _gofx329.F0.(type) {
+			_ = _gofx532
+			switch _gofx534 := _gofx532.F0.(type) {
 			case *decide_Reason_ApprovalTimeInvalid:
-				_ = _gofx331
-				switch _gofx330 := _gofx329.F1.(type) {
+				_ = _gofx534
+				switch _gofx533 := _gofx532.F1.(type) {
 				case *decide_Reason_ApprovalTimeInvalid:
-					_ = _gofx330
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+					_ = _gofx533
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:51
-		switch _gofx332 := _gofx304.(type) {
+//line decide/decide.gfx:95
+		switch _gofx535 := _gofx507.(type) {
 		case *Tuple2:
-			_ = _gofx332
-			switch _gofx334 := _gofx332.F0.(type) {
+			_ = _gofx535
+			switch _gofx537 := _gofx535.F0.(type) {
 			case *decide_Reason_ApprovalWindowInvalid:
-				_ = _gofx334
-				switch _gofx333 := _gofx332.F1.(type) {
+				_ = _gofx537
+				switch _gofx536 := _gofx535.F1.(type) {
 				case *decide_Reason_ApprovalWindowInvalid:
-					_ = _gofx333
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+					_ = _gofx536
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:51
-		switch _gofx335 := _gofx304.(type) {
+//line decide/decide.gfx:95
+		switch _gofx538 := _gofx507.(type) {
 		case *Tuple2:
-			_ = _gofx335
-			switch _gofx337 := _gofx335.F0.(type) {
+			_ = _gofx538
+			switch _gofx540 := _gofx538.F0.(type) {
 			case *decide_Reason_ApprovalExpired:
-				_ = _gofx337
-				switch _gofx336 := _gofx335.F1.(type) {
+				_ = _gofx540
+				switch _gofx539 := _gofx538.F1.(type) {
 				case *decide_Reason_ApprovalExpired:
-					_ = _gofx336
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+					_ = _gofx539
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:51
-		switch _gofx338 := _gofx304.(type) {
+//line decide/decide.gfx:95
+		switch _gofx541 := _gofx507.(type) {
 		case *Tuple2:
-			_ = _gofx338
-			switch _gofx340 := _gofx338.F0.(type) {
+			_ = _gofx541
+			switch _gofx543 := _gofx541.F0.(type) {
 			case *decide_Reason_ApprovalNoLongerAccepted:
-				_ = _gofx340
-				switch _gofx339 := _gofx338.F1.(type) {
+				_ = _gofx543
+				switch _gofx542 := _gofx541.F1.(type) {
 				case *decide_Reason_ApprovalNoLongerAccepted:
-					_ = _gofx339
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+					_ = _gofx542
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:51
-		switch _gofx341 := _gofx304.(type) {
+//line decide/decide.gfx:95
+		switch _gofx544 := _gofx507.(type) {
 		case *Tuple2:
-			_ = _gofx341
-			switch _gofx343 := _gofx341.F0.(type) {
+			_ = _gofx544
+			switch _gofx546 := _gofx544.F0.(type) {
 			case *decide_Reason_ApprovalRejected:
-				_ = _gofx343
-				switch _gofx342 := _gofx341.F1.(type) {
+				_ = _gofx546
+				switch _gofx545 := _gofx544.F1.(type) {
 				case *decide_Reason_ApprovalRejected:
-					_ = _gofx342
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+					_ = _gofx545
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:51
-		switch _gofx344 := _gofx304.(type) {
+//line decide/decide.gfx:95
+		switch _gofx547 := _gofx507.(type) {
 		case *Tuple2:
-			_ = _gofx344
-			switch _gofx346 := _gofx344.F0.(type) {
+			_ = _gofx547
+			switch _gofx549 := _gofx547.F0.(type) {
 			case *decide_Reason_ApprovalSuperseded:
-				_ = _gofx346
-				switch _gofx345 := _gofx344.F1.(type) {
+				_ = _gofx549
+				switch _gofx548 := _gofx547.F1.(type) {
 				case *decide_Reason_ApprovalSuperseded:
-					_ = _gofx345
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+					_ = _gofx548
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:51
-		switch _gofx347 := _gofx304.(type) {
+//line decide/decide.gfx:95
+		switch _gofx550 := _gofx507.(type) {
 		case *Tuple2:
-			_ = _gofx347
-			switch _gofx349 := _gofx347.F0.(type) {
+			_ = _gofx550
+			switch _gofx552 := _gofx550.F0.(type) {
 			case *decide_Reason_ApprovalObservationSuperseded:
-				_ = _gofx349
-				switch _gofx348 := _gofx347.F1.(type) {
+				_ = _gofx552
+				switch _gofx551 := _gofx550.F1.(type) {
 				case *decide_Reason_ApprovalObservationSuperseded:
-					_ = _gofx348
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+					_ = _gofx551
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:51
-		switch _gofx350 := _gofx304.(type) {
+//line decide/decide.gfx:95
+		switch _gofx553 := _gofx507.(type) {
 		case *Tuple2:
-			_ = _gofx350
-			switch _gofx352 := _gofx350.F0.(type) {
+			_ = _gofx553
+			switch _gofx555 := _gofx553.F0.(type) {
 			case *decide_Reason_ApprovalBindingChanged:
-				_ = _gofx352
-				switch _gofx351 := _gofx350.F1.(type) {
+				_ = _gofx555
+				switch _gofx554 := _gofx553.F1.(type) {
 				case *decide_Reason_ApprovalBindingChanged:
-					_ = _gofx351
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+					_ = _gofx554
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:51
-		switch _gofx353 := _gofx304.(type) {
+//line decide/decide.gfx:95
+		switch _gofx556 := _gofx507.(type) {
 		case *Tuple2:
-			_ = _gofx353
-			switch _gofx355 := _gofx353.F0.(type) {
+			_ = _gofx556
+			switch _gofx558 := _gofx556.F0.(type) {
 			case *decide_Reason_FeatureGateDisabled:
-				_ = _gofx355
-				switch _gofx354 := _gofx353.F1.(type) {
+				_ = _gofx558
+				switch _gofx557 := _gofx556.F1.(type) {
 				case *decide_Reason_FeatureGateDisabled:
-					_ = _gofx354
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+					_ = _gofx557
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:51
-		switch _gofx356 := _gofx304.(type) {
+//line decide/decide.gfx:95
+		switch _gofx559 := _gofx507.(type) {
 		case *Tuple2:
-			_ = _gofx356
-			switch _gofx358 := _gofx356.F0.(type) {
+			_ = _gofx559
+			switch _gofx561 := _gofx559.F0.(type) {
 			case *decide_Reason_DeletionStateLost:
-				_ = _gofx358
-				switch _gofx357 := _gofx356.F1.(type) {
+				_ = _gofx561
+				switch _gofx560 := _gofx559.F1.(type) {
 				case *decide_Reason_DeletionStateLost:
-					_ = _gofx357
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+					_ = _gofx560
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:51
-		switch _gofx359 := _gofx304.(type) {
+//line decide/decide.gfx:95
+		switch _gofx562 := _gofx507.(type) {
 		case *Tuple2:
-			_ = _gofx359
-			switch _gofx361 := _gofx359.F0.(type) {
+			_ = _gofx562
+			switch _gofx564 := _gofx562.F0.(type) {
 			case *decide_Reason_DeleteCompareAndSwapFailed:
-				_ = _gofx361
-				switch _gofx360 := _gofx359.F1.(type) {
+				_ = _gofx564
+				switch _gofx563 := _gofx562.F1.(type) {
 				case *decide_Reason_DeleteCompareAndSwapFailed:
-					_ = _gofx360
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+					_ = _gofx563
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:51
-		switch _gofx362 := _gofx304.(type) {
+//line decide/decide.gfx:95
+		switch _gofx565 := _gofx507.(type) {
 		case *Tuple2:
-			_ = _gofx362
-			switch _gofx364 := _gofx362.F0.(type) {
+			_ = _gofx565
+			switch _gofx567 := _gofx565.F0.(type) {
 			case *decide_Reason_DeleteRequestFailed:
-				_ = _gofx364
-				switch _gofx363 := _gofx362.F1.(type) {
+				_ = _gofx567
+				switch _gofx566 := _gofx565.F1.(type) {
 				case *decide_Reason_DeleteRequestFailed:
-					_ = _gofx363
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+					_ = _gofx566
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:51
+//line decide/decide.gfx:95
 		{
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 			return false
 		}
 	}())
@@ -2134,172 +3676,172 @@ func (dictself dict_decide_Eq_Reason) prelude_Eq(a_ any, b_ any) any {
 
 type dict_decide_Debug_Reason struct{}
 
-//line decide/decide.gfx:51
+//line decide/decide.gfx:95
 func (dictself dict_decide_Debug_Reason) prelude_Debug(a_ any) any {
-//line decide/decide.gfx:51
+//line decide/decide.gfx:95
 	return (
-//line decide/decide.gfx:51
+//line decide/decide.gfx:95
 	func() any {
-		var _gofx365 any = a_
-		_ = _gofx365
-//line decide/decide.gfx:51
-		switch _gofx366 := _gofx365.(type) {
+		var _gofx568 any = a_
+		_ = _gofx568
+//line decide/decide.gfx:95
+		switch _gofx569 := _gofx568.(type) {
 		case *decide_Reason_ApprovalReferenceMissing:
-			_ = _gofx366
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+			_ = _gofx569
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 			return "ApprovalReferenceMissing"
 		}
-//line decide/decide.gfx:51
-		switch _gofx367 := _gofx365.(type) {
+//line decide/decide.gfx:95
+		switch _gofx570 := _gofx568.(type) {
 		case *decide_Reason_ApprovalReadFailed:
-			_ = _gofx367
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+			_ = _gofx570
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 			return "ApprovalReadFailed"
 		}
-//line decide/decide.gfx:51
-		switch _gofx368 := _gofx365.(type) {
+//line decide/decide.gfx:95
+		switch _gofx571 := _gofx568.(type) {
 		case *decide_Reason_ApprovalDeletionInProgress:
-			_ = _gofx368
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+			_ = _gofx571
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 			return "ApprovalDeletionInProgress"
 		}
-//line decide/decide.gfx:51
-		switch _gofx369 := _gofx365.(type) {
+//line decide/decide.gfx:95
+		switch _gofx572 := _gofx568.(type) {
 		case *decide_Reason_ApprovalReferenceMismatch:
-			_ = _gofx369
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+			_ = _gofx572
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 			return "ApprovalReferenceMismatch"
 		}
-//line decide/decide.gfx:51
-		switch _gofx370 := _gofx365.(type) {
+//line decide/decide.gfx:95
+		switch _gofx573 := _gofx568.(type) {
 		case *decide_Reason_ApprovalOperationIdentityMismatch:
-			_ = _gofx370
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+			_ = _gofx573
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 			return "ApprovalOperationIdentityMismatch"
 		}
-//line decide/decide.gfx:51
-		switch _gofx371 := _gofx365.(type) {
+//line decide/decide.gfx:95
+		switch _gofx574 := _gofx568.(type) {
 		case *decide_Reason_ApprovalOperationGenerationMismatch:
-			_ = _gofx371
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+			_ = _gofx574
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 			return "ApprovalOperationGenerationMismatch"
 		}
-//line decide/decide.gfx:51
-		switch _gofx372 := _gofx365.(type) {
+//line decide/decide.gfx:95
+		switch _gofx575 := _gofx568.(type) {
 		case *decide_Reason_ApprovalTargetBindingMismatch:
-			_ = _gofx372
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+			_ = _gofx575
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 			return "ApprovalTargetBindingMismatch"
 		}
-//line decide/decide.gfx:51
-		switch _gofx373 := _gofx365.(type) {
+//line decide/decide.gfx:95
+		switch _gofx576 := _gofx568.(type) {
 		case *decide_Reason_ApprovalEvidenceIncomplete:
-			_ = _gofx373
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+			_ = _gofx576
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 			return "ApprovalEvidenceIncomplete"
 		}
-//line decide/decide.gfx:51
-		switch _gofx374 := _gofx365.(type) {
+//line decide/decide.gfx:95
+		switch _gofx577 := _gofx568.(type) {
 		case *decide_Reason_ApprovalTimeInvalid:
-			_ = _gofx374
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+			_ = _gofx577
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 			return "ApprovalTimeInvalid"
 		}
-//line decide/decide.gfx:51
-		switch _gofx375 := _gofx365.(type) {
+//line decide/decide.gfx:95
+		switch _gofx578 := _gofx568.(type) {
 		case *decide_Reason_ApprovalWindowInvalid:
-			_ = _gofx375
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+			_ = _gofx578
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 			return "ApprovalWindowInvalid"
 		}
-//line decide/decide.gfx:51
-		switch _gofx376 := _gofx365.(type) {
+//line decide/decide.gfx:95
+		switch _gofx579 := _gofx568.(type) {
 		case *decide_Reason_ApprovalExpired:
-			_ = _gofx376
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+			_ = _gofx579
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 			return "ApprovalExpired"
 		}
-//line decide/decide.gfx:51
-		switch _gofx377 := _gofx365.(type) {
+//line decide/decide.gfx:95
+		switch _gofx580 := _gofx568.(type) {
 		case *decide_Reason_ApprovalNoLongerAccepted:
-			_ = _gofx377
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+			_ = _gofx580
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 			return "ApprovalNoLongerAccepted"
 		}
-//line decide/decide.gfx:51
-		switch _gofx378 := _gofx365.(type) {
+//line decide/decide.gfx:95
+		switch _gofx581 := _gofx568.(type) {
 		case *decide_Reason_ApprovalRejected:
-			_ = _gofx378
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+			_ = _gofx581
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 			return "ApprovalRejected"
 		}
-//line decide/decide.gfx:51
-		switch _gofx379 := _gofx365.(type) {
+//line decide/decide.gfx:95
+		switch _gofx582 := _gofx568.(type) {
 		case *decide_Reason_ApprovalSuperseded:
-			_ = _gofx379
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+			_ = _gofx582
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 			return "ApprovalSuperseded"
 		}
-//line decide/decide.gfx:51
-		switch _gofx380 := _gofx365.(type) {
+//line decide/decide.gfx:95
+		switch _gofx583 := _gofx568.(type) {
 		case *decide_Reason_ApprovalObservationSuperseded:
-			_ = _gofx380
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+			_ = _gofx583
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 			return "ApprovalObservationSuperseded"
 		}
-//line decide/decide.gfx:51
-		switch _gofx381 := _gofx365.(type) {
+//line decide/decide.gfx:95
+		switch _gofx584 := _gofx568.(type) {
 		case *decide_Reason_ApprovalBindingChanged:
-			_ = _gofx381
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+			_ = _gofx584
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 			return "ApprovalBindingChanged"
 		}
-//line decide/decide.gfx:51
-		switch _gofx382 := _gofx365.(type) {
+//line decide/decide.gfx:95
+		switch _gofx585 := _gofx568.(type) {
 		case *decide_Reason_FeatureGateDisabled:
-			_ = _gofx382
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+			_ = _gofx585
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 			return "FeatureGateDisabled"
 		}
-//line decide/decide.gfx:51
-		switch _gofx383 := _gofx365.(type) {
+//line decide/decide.gfx:95
+		switch _gofx586 := _gofx568.(type) {
 		case *decide_Reason_DeletionStateLost:
-			_ = _gofx383
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+			_ = _gofx586
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 			return "DeletionStateLost"
 		}
-//line decide/decide.gfx:51
-		switch _gofx384 := _gofx365.(type) {
+//line decide/decide.gfx:95
+		switch _gofx587 := _gofx568.(type) {
 		case *decide_Reason_DeleteCompareAndSwapFailed:
-			_ = _gofx384
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+			_ = _gofx587
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 			return "DeleteCompareAndSwapFailed"
 		}
-//line decide/decide.gfx:51
+//line decide/decide.gfx:95
 		{
-			_gofx385 := _gofx365.(*decide_Reason_DeleteRequestFailed)
-			_ = _gofx385
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+			_gofx588 := _gofx568.(*decide_Reason_DeleteRequestFailed)
+			_ = _gofx588
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 			return "DeleteRequestFailed"
 		}
 	}())
@@ -2307,172 +3849,172 @@ func (dictself dict_decide_Debug_Reason) prelude_Debug(a_ any) any {
 
 type dict_decide_Show_Reason struct{}
 
-//line decide/decide.gfx:51
+//line decide/decide.gfx:95
 func (dictself dict_decide_Show_Reason) prelude_Show(a_ any) any {
-//line decide/decide.gfx:51
+//line decide/decide.gfx:95
 	return (
-//line decide/decide.gfx:51
+//line decide/decide.gfx:95
 	func() any {
-		var _gofx386 any = a_
-		_ = _gofx386
-//line decide/decide.gfx:51
-		switch _gofx387 := _gofx386.(type) {
+		var _gofx589 any = a_
+		_ = _gofx589
+//line decide/decide.gfx:95
+		switch _gofx590 := _gofx589.(type) {
 		case *decide_Reason_ApprovalReferenceMissing:
-			_ = _gofx387
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+			_ = _gofx590
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 			return "ApprovalReferenceMissing"
 		}
-//line decide/decide.gfx:51
-		switch _gofx388 := _gofx386.(type) {
+//line decide/decide.gfx:95
+		switch _gofx591 := _gofx589.(type) {
 		case *decide_Reason_ApprovalReadFailed:
-			_ = _gofx388
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+			_ = _gofx591
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 			return "ApprovalReadFailed"
 		}
-//line decide/decide.gfx:51
-		switch _gofx389 := _gofx386.(type) {
+//line decide/decide.gfx:95
+		switch _gofx592 := _gofx589.(type) {
 		case *decide_Reason_ApprovalDeletionInProgress:
-			_ = _gofx389
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+			_ = _gofx592
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 			return "ApprovalDeletionInProgress"
 		}
-//line decide/decide.gfx:51
-		switch _gofx390 := _gofx386.(type) {
+//line decide/decide.gfx:95
+		switch _gofx593 := _gofx589.(type) {
 		case *decide_Reason_ApprovalReferenceMismatch:
-			_ = _gofx390
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+			_ = _gofx593
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 			return "ApprovalReferenceMismatch"
 		}
-//line decide/decide.gfx:51
-		switch _gofx391 := _gofx386.(type) {
+//line decide/decide.gfx:95
+		switch _gofx594 := _gofx589.(type) {
 		case *decide_Reason_ApprovalOperationIdentityMismatch:
-			_ = _gofx391
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+			_ = _gofx594
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 			return "ApprovalOperationIdentityMismatch"
 		}
-//line decide/decide.gfx:51
-		switch _gofx392 := _gofx386.(type) {
+//line decide/decide.gfx:95
+		switch _gofx595 := _gofx589.(type) {
 		case *decide_Reason_ApprovalOperationGenerationMismatch:
-			_ = _gofx392
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+			_ = _gofx595
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 			return "ApprovalOperationGenerationMismatch"
 		}
-//line decide/decide.gfx:51
-		switch _gofx393 := _gofx386.(type) {
+//line decide/decide.gfx:95
+		switch _gofx596 := _gofx589.(type) {
 		case *decide_Reason_ApprovalTargetBindingMismatch:
-			_ = _gofx393
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+			_ = _gofx596
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 			return "ApprovalTargetBindingMismatch"
 		}
-//line decide/decide.gfx:51
-		switch _gofx394 := _gofx386.(type) {
+//line decide/decide.gfx:95
+		switch _gofx597 := _gofx589.(type) {
 		case *decide_Reason_ApprovalEvidenceIncomplete:
-			_ = _gofx394
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+			_ = _gofx597
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 			return "ApprovalEvidenceIncomplete"
 		}
-//line decide/decide.gfx:51
-		switch _gofx395 := _gofx386.(type) {
+//line decide/decide.gfx:95
+		switch _gofx598 := _gofx589.(type) {
 		case *decide_Reason_ApprovalTimeInvalid:
-			_ = _gofx395
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+			_ = _gofx598
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 			return "ApprovalTimeInvalid"
 		}
-//line decide/decide.gfx:51
-		switch _gofx396 := _gofx386.(type) {
+//line decide/decide.gfx:95
+		switch _gofx599 := _gofx589.(type) {
 		case *decide_Reason_ApprovalWindowInvalid:
-			_ = _gofx396
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+			_ = _gofx599
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 			return "ApprovalWindowInvalid"
 		}
-//line decide/decide.gfx:51
-		switch _gofx397 := _gofx386.(type) {
+//line decide/decide.gfx:95
+		switch _gofx600 := _gofx589.(type) {
 		case *decide_Reason_ApprovalExpired:
-			_ = _gofx397
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+			_ = _gofx600
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 			return "ApprovalExpired"
 		}
-//line decide/decide.gfx:51
-		switch _gofx398 := _gofx386.(type) {
+//line decide/decide.gfx:95
+		switch _gofx601 := _gofx589.(type) {
 		case *decide_Reason_ApprovalNoLongerAccepted:
-			_ = _gofx398
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+			_ = _gofx601
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 			return "ApprovalNoLongerAccepted"
 		}
-//line decide/decide.gfx:51
-		switch _gofx399 := _gofx386.(type) {
+//line decide/decide.gfx:95
+		switch _gofx602 := _gofx589.(type) {
 		case *decide_Reason_ApprovalRejected:
-			_ = _gofx399
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+			_ = _gofx602
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 			return "ApprovalRejected"
 		}
-//line decide/decide.gfx:51
-		switch _gofx400 := _gofx386.(type) {
+//line decide/decide.gfx:95
+		switch _gofx603 := _gofx589.(type) {
 		case *decide_Reason_ApprovalSuperseded:
-			_ = _gofx400
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+			_ = _gofx603
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 			return "ApprovalSuperseded"
 		}
-//line decide/decide.gfx:51
-		switch _gofx401 := _gofx386.(type) {
+//line decide/decide.gfx:95
+		switch _gofx604 := _gofx589.(type) {
 		case *decide_Reason_ApprovalObservationSuperseded:
-			_ = _gofx401
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+			_ = _gofx604
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 			return "ApprovalObservationSuperseded"
 		}
-//line decide/decide.gfx:51
-		switch _gofx402 := _gofx386.(type) {
+//line decide/decide.gfx:95
+		switch _gofx605 := _gofx589.(type) {
 		case *decide_Reason_ApprovalBindingChanged:
-			_ = _gofx402
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+			_ = _gofx605
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 			return "ApprovalBindingChanged"
 		}
-//line decide/decide.gfx:51
-		switch _gofx403 := _gofx386.(type) {
+//line decide/decide.gfx:95
+		switch _gofx606 := _gofx589.(type) {
 		case *decide_Reason_FeatureGateDisabled:
-			_ = _gofx403
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+			_ = _gofx606
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 			return "FeatureGateDisabled"
 		}
-//line decide/decide.gfx:51
-		switch _gofx404 := _gofx386.(type) {
+//line decide/decide.gfx:95
+		switch _gofx607 := _gofx589.(type) {
 		case *decide_Reason_DeletionStateLost:
-			_ = _gofx404
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+			_ = _gofx607
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 			return "DeletionStateLost"
 		}
-//line decide/decide.gfx:51
-		switch _gofx405 := _gofx386.(type) {
+//line decide/decide.gfx:95
+		switch _gofx608 := _gofx589.(type) {
 		case *decide_Reason_DeleteCompareAndSwapFailed:
-			_ = _gofx405
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+			_ = _gofx608
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 			return "DeleteCompareAndSwapFailed"
 		}
-//line decide/decide.gfx:51
+//line decide/decide.gfx:95
 		{
-			_gofx406 := _gofx386.(*decide_Reason_DeleteRequestFailed)
-			_ = _gofx406
-//line decide/decide.gfx:51
-//line decide/decide.gfx:51
+			_gofx609 := _gofx589.(*decide_Reason_DeleteRequestFailed)
+			_ = _gofx609
+//line decide/decide.gfx:95
+//line decide/decide.gfx:95
 			return "DeleteRequestFailed"
 		}
 	}())
@@ -2480,66 +4022,66 @@ func (dictself dict_decide_Show_Reason) prelude_Show(a_ any) any {
 
 type dict_decide_Eq_ReasonCode struct{}
 
-//line decide/decide.gfx:60
+//line decide/decide.gfx:104
 func (dictself dict_decide_Eq_ReasonCode) prelude_Eq(a_ any, b_ any) any {
-//line decide/decide.gfx:60
+//line decide/decide.gfx:104
 	return (
-//line decide/decide.gfx:60
+//line decide/decide.gfx:104
 	func() bool {
-		var _gofx407 any = &Tuple2{F0: a_, F1: b_}
-		_ = _gofx407
-//line decide/decide.gfx:60
-		switch _gofx408 := _gofx407.(type) {
+		var _gofx610 any = &Tuple2{F0: a_, F1: b_}
+		_ = _gofx610
+//line decide/decide.gfx:104
+		switch _gofx611 := _gofx610.(type) {
 		case *Tuple2:
-			_ = _gofx408
-			switch _gofx410 := _gofx408.F0.(type) {
+			_ = _gofx611
+			switch _gofx613 := _gofx611.F0.(type) {
 			case *decide_ReasonCode_Decided:
-				_ = _gofx410
+				_ = _gofx613
 				{
-					var x0_ any = _gofx410.F0
+					var x0_ any = _gofx613.F0
 					_ = x0_
-					switch _gofx409 := _gofx408.F1.(type) {
+					switch _gofx612 := _gofx611.F1.(type) {
 					case *decide_ReasonCode_Decided:
-						_ = _gofx409
+						_ = _gofx612
 						{
-							var y0_ any = _gofx409.F0
+							var y0_ any = _gofx612.F0
 							_ = y0_
-//line decide/decide.gfx:60
-//line decide/decide.gfx:60
+//line decide/decide.gfx:104
+//line decide/decide.gfx:104
 							return any((dict_decide_Eq_Reason{}).prelude_Eq(x0_, y0_)).(bool)
 						}
 					}
 				}
 			}
 		}
-//line decide/decide.gfx:60
-		switch _gofx411 := _gofx407.(type) {
+//line decide/decide.gfx:104
+		switch _gofx614 := _gofx610.(type) {
 		case *Tuple2:
-			_ = _gofx411
-			switch _gofx413 := _gofx411.F0.(type) {
+			_ = _gofx614
+			switch _gofx616 := _gofx614.F0.(type) {
 			case *decide_ReasonCode_FromObservation:
-				_ = _gofx413
+				_ = _gofx616
 				{
-					var x0_ any = _gofx413.F0
+					var x0_ any = _gofx616.F0
 					_ = x0_
-					switch _gofx412 := _gofx411.F1.(type) {
+					switch _gofx615 := _gofx614.F1.(type) {
 					case *decide_ReasonCode_FromObservation:
-						_ = _gofx412
+						_ = _gofx615
 						{
-							var y0_ any = _gofx412.F0
+							var y0_ any = _gofx615.F0
 							_ = y0_
-//line decide/decide.gfx:60
-//line decide/decide.gfx:60
-							return any((dict_prelude_Eq_String{}).prelude_Eq(x0_, y0_)).(bool)
+//line decide/decide.gfx:104
+//line decide/decide.gfx:104
+							return any((dict_decide_Eq_ObsReason{}).prelude_Eq(x0_, y0_)).(bool)
 						}
 					}
 				}
 			}
 		}
-//line decide/decide.gfx:60
+//line decide/decide.gfx:104
 		{
-//line decide/decide.gfx:60
-//line decide/decide.gfx:60
+//line decide/decide.gfx:104
+//line decide/decide.gfx:104
 			return false
 		}
 	}())
@@ -2547,36 +4089,36 @@ func (dictself dict_decide_Eq_ReasonCode) prelude_Eq(a_ any, b_ any) any {
 
 type dict_decide_Debug_ReasonCode struct{}
 
-//line decide/decide.gfx:60
+//line decide/decide.gfx:104
 func (dictself dict_decide_Debug_ReasonCode) prelude_Debug(a_ any) any {
-//line decide/decide.gfx:60
+//line decide/decide.gfx:104
 	return (
-//line decide/decide.gfx:60
+//line decide/decide.gfx:104
 	func() any {
-		var _gofx414 any = a_
-		_ = _gofx414
-//line decide/decide.gfx:60
-		switch _gofx415 := _gofx414.(type) {
+		var _gofx617 any = a_
+		_ = _gofx617
+//line decide/decide.gfx:104
+		switch _gofx618 := _gofx617.(type) {
 		case *decide_ReasonCode_Decided:
-			_ = _gofx415
+			_ = _gofx618
 			{
-				var x0_ any = _gofx415.F0
+				var x0_ any = _gofx618.F0
 				_ = x0_
-//line decide/decide.gfx:60
-//line decide/decide.gfx:60
+//line decide/decide.gfx:104
+//line decide/decide.gfx:104
 				return rt.Concat("Decided(", (dict_prelude_Show_String{}).prelude_Show((dict_decide_Debug_Reason{}).prelude_Debug(x0_)), ")")
 			}
 		}
-//line decide/decide.gfx:60
+//line decide/decide.gfx:104
 		{
-			_gofx416 := _gofx414.(*decide_ReasonCode_FromObservation)
-			_ = _gofx416
+			_gofx619 := _gofx617.(*decide_ReasonCode_FromObservation)
+			_ = _gofx619
 			{
-				var x0_ any = _gofx416.F0
+				var x0_ any = _gofx619.F0
 				_ = x0_
-//line decide/decide.gfx:60
-//line decide/decide.gfx:60
-				return rt.Concat("FromObservation(", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_String{}).prelude_Debug(x0_)), ")")
+//line decide/decide.gfx:104
+//line decide/decide.gfx:104
+				return rt.Concat("FromObservation(", (dict_prelude_Show_String{}).prelude_Show((dict_decide_Debug_ObsReason{}).prelude_Debug(x0_)), ")")
 			}
 		}
 	}())
@@ -2584,50 +4126,50 @@ func (dictself dict_decide_Debug_ReasonCode) prelude_Debug(a_ any) any {
 
 type dict_decide_Eq_Status struct{}
 
-//line decide/decide.gfx:65
+//line decide/decide.gfx:109
 func (dictself dict_decide_Eq_Status) prelude_Eq(a_ any, b_ any) any {
-//line decide/decide.gfx:65
+//line decide/decide.gfx:109
 	return (
-//line decide/decide.gfx:65
+//line decide/decide.gfx:109
 	func() bool {
-		var _gofx417 any = &Tuple2{F0: a_, F1: b_}
-		_ = _gofx417
-//line decide/decide.gfx:65
-		switch _gofx418 := _gofx417.(type) {
+		var _gofx620 any = &Tuple2{F0: a_, F1: b_}
+		_ = _gofx620
+//line decide/decide.gfx:109
+		switch _gofx621 := _gofx620.(type) {
 		case *Tuple2:
-			_ = _gofx418
-			switch _gofx420 := _gofx418.F0.(type) {
+			_ = _gofx621
+			switch _gofx623 := _gofx621.F0.(type) {
 			case *decide_Status_Blocked:
-				_ = _gofx420
+				_ = _gofx623
 				{
-					var x0_ any = _gofx420.F0
+					var x0_ any = _gofx623.F0
 					_ = x0_
 					{
-						var x1_ any = _gofx420.F1
+						var x1_ any = _gofx623.F1
 						_ = x1_
 						{
-							var x2_ any = _gofx420.F2
+							var x2_ any = _gofx623.F2
 							_ = x2_
 							{
-								var x3_ bool = any(_gofx420.F3).(bool)
+								var x3_ bool = any(_gofx623.F3).(bool)
 								_ = x3_
-								switch _gofx419 := _gofx418.F1.(type) {
+								switch _gofx622 := _gofx621.F1.(type) {
 								case *decide_Status_Blocked:
-									_ = _gofx419
+									_ = _gofx622
 									{
-										var y0_ any = _gofx419.F0
+										var y0_ any = _gofx622.F0
 										_ = y0_
 										{
-											var y1_ any = _gofx419.F1
+											var y1_ any = _gofx622.F1
 											_ = y1_
 											{
-												var y2_ any = _gofx419.F2
+												var y2_ any = _gofx622.F2
 												_ = y2_
 												{
-													var y3_ bool = any(_gofx419.F3).(bool)
+													var y3_ bool = any(_gofx622.F3).(bool)
 													_ = y3_
-//line decide/decide.gfx:65
-//line decide/decide.gfx:65
+//line decide/decide.gfx:109
+//line decide/decide.gfx:109
 													return (((any((dict_prelude_Eq_String{}).prelude_Eq(x0_, y0_)).(bool) && any((dict_decide_Eq_ReasonCode{}).prelude_Eq(x1_, y1_)).(bool)) && any((dict_prelude_Eq_String{}).prelude_Eq(x2_, y2_)).(bool)) && (x3_ == y3_))
 												}
 											}
@@ -2640,36 +4182,36 @@ func (dictself dict_decide_Eq_Status) prelude_Eq(a_ any, b_ any) any {
 				}
 			}
 		}
-//line decide/decide.gfx:65
-		switch _gofx421 := _gofx417.(type) {
+//line decide/decide.gfx:109
+		switch _gofx624 := _gofx620.(type) {
 		case *Tuple2:
-			_ = _gofx421
-			switch _gofx423 := _gofx421.F0.(type) {
+			_ = _gofx624
+			switch _gofx626 := _gofx624.F0.(type) {
 			case *decide_Status_Running:
-				_ = _gofx423
+				_ = _gofx626
 				{
-					var x0_ any = _gofx423.F0
+					var x0_ any = _gofx626.F0
 					_ = x0_
 					{
-						var x1_ any = _gofx423.F1
+						var x1_ any = _gofx626.F1
 						_ = x1_
 						{
-							var x2_ bool = any(_gofx423.F2).(bool)
+							var x2_ bool = any(_gofx626.F2).(bool)
 							_ = x2_
-							switch _gofx422 := _gofx421.F1.(type) {
+							switch _gofx625 := _gofx624.F1.(type) {
 							case *decide_Status_Running:
-								_ = _gofx422
+								_ = _gofx625
 								{
-									var y0_ any = _gofx422.F0
+									var y0_ any = _gofx625.F0
 									_ = y0_
 									{
-										var y1_ any = _gofx422.F1
+										var y1_ any = _gofx625.F1
 										_ = y1_
 										{
-											var y2_ bool = any(_gofx422.F2).(bool)
+											var y2_ bool = any(_gofx625.F2).(bool)
 											_ = y2_
-//line decide/decide.gfx:65
-//line decide/decide.gfx:65
+//line decide/decide.gfx:109
+//line decide/decide.gfx:109
 											return ((any((dict_prelude_Eq_String{}).prelude_Eq(x0_, y0_)).(bool) && any((dict_prelude_Eq_String{}).prelude_Eq(x1_, y1_)).(bool)) && (x2_ == y2_))
 										}
 									}
@@ -2680,36 +4222,36 @@ func (dictself dict_decide_Eq_Status) prelude_Eq(a_ any, b_ any) any {
 				}
 			}
 		}
-//line decide/decide.gfx:65
-		switch _gofx424 := _gofx417.(type) {
+//line decide/decide.gfx:109
+		switch _gofx627 := _gofx620.(type) {
 		case *Tuple2:
-			_ = _gofx424
-			switch _gofx426 := _gofx424.F0.(type) {
+			_ = _gofx627
+			switch _gofx629 := _gofx627.F0.(type) {
 			case *decide_Status_Succeeded:
-				_ = _gofx426
+				_ = _gofx629
 				{
-					var x0_ any = _gofx426.F0
+					var x0_ any = _gofx629.F0
 					_ = x0_
 					{
-						var x1_ any = _gofx426.F1
+						var x1_ any = _gofx629.F1
 						_ = x1_
 						{
-							var x2_ bool = any(_gofx426.F2).(bool)
+							var x2_ bool = any(_gofx629.F2).(bool)
 							_ = x2_
-							switch _gofx425 := _gofx424.F1.(type) {
+							switch _gofx628 := _gofx627.F1.(type) {
 							case *decide_Status_Succeeded:
-								_ = _gofx425
+								_ = _gofx628
 								{
-									var y0_ any = _gofx425.F0
+									var y0_ any = _gofx628.F0
 									_ = y0_
 									{
-										var y1_ any = _gofx425.F1
+										var y1_ any = _gofx628.F1
 										_ = y1_
 										{
-											var y2_ bool = any(_gofx425.F2).(bool)
+											var y2_ bool = any(_gofx628.F2).(bool)
 											_ = y2_
-//line decide/decide.gfx:65
-//line decide/decide.gfx:65
+//line decide/decide.gfx:109
+//line decide/decide.gfx:109
 											return ((any((dict_prelude_Eq_String{}).prelude_Eq(x0_, y0_)).(bool) && any((dict_prelude_Eq_String{}).prelude_Eq(x1_, y1_)).(bool)) && (x2_ == y2_))
 										}
 									}
@@ -2720,58 +4262,58 @@ func (dictself dict_decide_Eq_Status) prelude_Eq(a_ any, b_ any) any {
 				}
 			}
 		}
-//line decide/decide.gfx:65
-		switch _gofx427 := _gofx417.(type) {
+//line decide/decide.gfx:109
+		switch _gofx630 := _gofx620.(type) {
 		case *Tuple2:
-			_ = _gofx427
-			switch _gofx429 := _gofx427.F0.(type) {
+			_ = _gofx630
+			switch _gofx632 := _gofx630.F0.(type) {
 			case *decide_Status_AwaitingApproval:
-				_ = _gofx429
-				switch _gofx428 := _gofx427.F1.(type) {
+				_ = _gofx632
+				switch _gofx631 := _gofx630.F1.(type) {
 				case *decide_Status_AwaitingApproval:
-					_ = _gofx428
-//line decide/decide.gfx:65
-//line decide/decide.gfx:65
+					_ = _gofx631
+//line decide/decide.gfx:109
+//line decide/decide.gfx:109
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:65
-		switch _gofx430 := _gofx417.(type) {
+//line decide/decide.gfx:109
+		switch _gofx633 := _gofx620.(type) {
 		case *Tuple2:
-			_ = _gofx430
-			switch _gofx432 := _gofx430.F0.(type) {
+			_ = _gofx633
+			switch _gofx635 := _gofx633.F0.(type) {
 			case *decide_Status_Authorized:
-				_ = _gofx432
-				switch _gofx431 := _gofx430.F1.(type) {
+				_ = _gofx635
+				switch _gofx634 := _gofx633.F1.(type) {
 				case *decide_Status_Authorized:
-					_ = _gofx431
-//line decide/decide.gfx:65
-//line decide/decide.gfx:65
+					_ = _gofx634
+//line decide/decide.gfx:109
+//line decide/decide.gfx:109
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:65
-		switch _gofx433 := _gofx417.(type) {
+//line decide/decide.gfx:109
+		switch _gofx636 := _gofx620.(type) {
 		case *Tuple2:
-			_ = _gofx433
-			switch _gofx435 := _gofx433.F0.(type) {
+			_ = _gofx636
+			switch _gofx638 := _gofx636.F0.(type) {
 			case *decide_Status_Committed:
-				_ = _gofx435
-				switch _gofx434 := _gofx433.F1.(type) {
+				_ = _gofx638
+				switch _gofx637 := _gofx636.F1.(type) {
 				case *decide_Status_Committed:
-					_ = _gofx434
-//line decide/decide.gfx:65
-//line decide/decide.gfx:65
+					_ = _gofx637
+//line decide/decide.gfx:109
+//line decide/decide.gfx:109
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:65
+//line decide/decide.gfx:109
 		{
-//line decide/decide.gfx:65
-//line decide/decide.gfx:65
+//line decide/decide.gfx:109
+//line decide/decide.gfx:109
 			return false
 		}
 	}())
@@ -2779,100 +4321,100 @@ func (dictself dict_decide_Eq_Status) prelude_Eq(a_ any, b_ any) any {
 
 type dict_decide_Debug_Status struct{}
 
-//line decide/decide.gfx:65
+//line decide/decide.gfx:109
 func (dictself dict_decide_Debug_Status) prelude_Debug(a_ any) any {
-//line decide/decide.gfx:65
+//line decide/decide.gfx:109
 	return (
-//line decide/decide.gfx:65
+//line decide/decide.gfx:109
 	func() any {
-		var _gofx436 any = a_
-		_ = _gofx436
-//line decide/decide.gfx:65
-		switch _gofx437 := _gofx436.(type) {
+		var _gofx639 any = a_
+		_ = _gofx639
+//line decide/decide.gfx:109
+		switch _gofx640 := _gofx639.(type) {
 		case *decide_Status_Blocked:
-			_ = _gofx437
+			_ = _gofx640
 			{
-				var x0_ any = _gofx437.F0
+				var x0_ any = _gofx640.F0
 				_ = x0_
 				{
-					var x1_ any = _gofx437.F1
+					var x1_ any = _gofx640.F1
 					_ = x1_
 					{
-						var x2_ any = _gofx437.F2
+						var x2_ any = _gofx640.F2
 						_ = x2_
 						{
-							var x3_ bool = any(_gofx437.F3).(bool)
+							var x3_ bool = any(_gofx640.F3).(bool)
 							_ = x3_
-//line decide/decide.gfx:65
-//line decide/decide.gfx:65
+//line decide/decide.gfx:109
+//line decide/decide.gfx:109
 							return rt.Concat("Blocked{stage: ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_String{}).prelude_Debug(x0_)), ", reason: ", (dict_prelude_Show_String{}).prelude_Show((dict_decide_Debug_ReasonCode{}).prelude_Debug(x1_)), ", message: ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_String{}).prelude_Debug(x2_)), ", approvalMatches: ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_Bool{}).prelude_Debug(x3_)), "}")
 						}
 					}
 				}
 			}
 		}
-//line decide/decide.gfx:65
-		switch _gofx438 := _gofx436.(type) {
+//line decide/decide.gfx:109
+		switch _gofx641 := _gofx639.(type) {
 		case *decide_Status_Running:
-			_ = _gofx438
+			_ = _gofx641
 			{
-				var x0_ any = _gofx438.F0
+				var x0_ any = _gofx641.F0
 				_ = x0_
 				{
-					var x1_ any = _gofx438.F1
+					var x1_ any = _gofx641.F1
 					_ = x1_
 					{
-						var x2_ bool = any(_gofx438.F2).(bool)
+						var x2_ bool = any(_gofx641.F2).(bool)
 						_ = x2_
-//line decide/decide.gfx:65
-//line decide/decide.gfx:65
+//line decide/decide.gfx:109
+//line decide/decide.gfx:109
 						return rt.Concat("Running(", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_String{}).prelude_Debug(x0_)), ", ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_String{}).prelude_Debug(x1_)), ", ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_Bool{}).prelude_Debug(x2_)), ")")
 					}
 				}
 			}
 		}
-//line decide/decide.gfx:65
-		switch _gofx439 := _gofx436.(type) {
+//line decide/decide.gfx:109
+		switch _gofx642 := _gofx639.(type) {
 		case *decide_Status_Succeeded:
-			_ = _gofx439
+			_ = _gofx642
 			{
-				var x0_ any = _gofx439.F0
+				var x0_ any = _gofx642.F0
 				_ = x0_
 				{
-					var x1_ any = _gofx439.F1
+					var x1_ any = _gofx642.F1
 					_ = x1_
 					{
-						var x2_ bool = any(_gofx439.F2).(bool)
+						var x2_ bool = any(_gofx642.F2).(bool)
 						_ = x2_
-//line decide/decide.gfx:65
-//line decide/decide.gfx:65
+//line decide/decide.gfx:109
+//line decide/decide.gfx:109
 						return rt.Concat("Succeeded(", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_String{}).prelude_Debug(x0_)), ", ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_String{}).prelude_Debug(x1_)), ", ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_Bool{}).prelude_Debug(x2_)), ")")
 					}
 				}
 			}
 		}
-//line decide/decide.gfx:65
-		switch _gofx440 := _gofx436.(type) {
+//line decide/decide.gfx:109
+		switch _gofx643 := _gofx639.(type) {
 		case *decide_Status_AwaitingApproval:
-			_ = _gofx440
-//line decide/decide.gfx:65
-//line decide/decide.gfx:65
+			_ = _gofx643
+//line decide/decide.gfx:109
+//line decide/decide.gfx:109
 			return "AwaitingApproval"
 		}
-//line decide/decide.gfx:65
-		switch _gofx441 := _gofx436.(type) {
+//line decide/decide.gfx:109
+		switch _gofx644 := _gofx639.(type) {
 		case *decide_Status_Authorized:
-			_ = _gofx441
-//line decide/decide.gfx:65
-//line decide/decide.gfx:65
+			_ = _gofx644
+//line decide/decide.gfx:109
+//line decide/decide.gfx:109
 			return "Authorized"
 		}
-//line decide/decide.gfx:65
+//line decide/decide.gfx:109
 		{
-			_gofx442 := _gofx436.(*decide_Status_Committed)
-			_ = _gofx442
-//line decide/decide.gfx:65
-//line decide/decide.gfx:65
+			_gofx645 := _gofx639.(*decide_Status_Committed)
+			_ = _gofx645
+//line decide/decide.gfx:109
+//line decide/decide.gfx:109
 			return "Committed"
 		}
 	}())
@@ -2880,90 +4422,98 @@ func (dictself dict_decide_Debug_Status) prelude_Debug(a_ any) any {
 
 type dict_decide_Eq_Action struct{}
 
-//line decide/decide.gfx:73
+//line decide/decide.gfx:118
 func (dictself dict_decide_Eq_Action) prelude_Eq(a_ any, b_ any) any {
-//line decide/decide.gfx:73
+//line decide/decide.gfx:118
 	return (
-//line decide/decide.gfx:73
+//line decide/decide.gfx:118
 	func() bool {
-		var _gofx443 any = &Tuple2{F0: a_, F1: b_}
-		_ = _gofx443
-//line decide/decide.gfx:73
-		switch _gofx444 := _gofx443.(type) {
+		var _gofx646 any = &Tuple2{F0: a_, F1: b_}
+		_ = _gofx646
+//line decide/decide.gfx:118
+		switch _gofx647 := _gofx646.(type) {
 		case *Tuple2:
-			_ = _gofx444
-			switch _gofx446 := _gofx444.F0.(type) {
+			_ = _gofx647
+			switch _gofx649 := _gofx647.F0.(type) {
 			case *decide_Action_ObserveInitial:
-				_ = _gofx446
-				switch _gofx445 := _gofx444.F1.(type) {
+				_ = _gofx649
+				switch _gofx648 := _gofx647.F1.(type) {
 				case *decide_Action_ObserveInitial:
-					_ = _gofx445
-//line decide/decide.gfx:73
-//line decide/decide.gfx:73
+					_ = _gofx648
+//line decide/decide.gfx:118
+//line decide/decide.gfx:118
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:73
-		switch _gofx447 := _gofx443.(type) {
+//line decide/decide.gfx:118
+		switch _gofx650 := _gofx646.(type) {
 		case *Tuple2:
-			_ = _gofx447
-			switch _gofx449 := _gofx447.F0.(type) {
+			_ = _gofx650
+			switch _gofx652 := _gofx650.F0.(type) {
 			case *decide_Action_ObserveAuthorized:
-				_ = _gofx449
-				switch _gofx448 := _gofx447.F1.(type) {
+				_ = _gofx652
+				switch _gofx651 := _gofx650.F1.(type) {
 				case *decide_Action_ObserveAuthorized:
-					_ = _gofx448
-//line decide/decide.gfx:73
-//line decide/decide.gfx:73
+					_ = _gofx651
+//line decide/decide.gfx:118
+//line decide/decide.gfx:118
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:73
-		switch _gofx450 := _gofx443.(type) {
+//line decide/decide.gfx:118
+		switch _gofx653 := _gofx646.(type) {
 		case *Tuple2:
-			_ = _gofx450
-			switch _gofx452 := _gofx450.F0.(type) {
+			_ = _gofx653
+			switch _gofx655 := _gofx653.F0.(type) {
 			case *decide_Action_DeleteStale:
-				_ = _gofx452
-				switch _gofx451 := _gofx450.F1.(type) {
-				case *decide_Action_DeleteStale:
-					_ = _gofx451
-//line decide/decide.gfx:73
-//line decide/decide.gfx:73
-					return true
+				_ = _gofx655
+				{
+					var x0_ any = _gofx655.F0
+					_ = x0_
+					switch _gofx654 := _gofx653.F1.(type) {
+					case *decide_Action_DeleteStale:
+						_ = _gofx654
+						{
+							var y0_ any = _gofx654.F0
+							_ = y0_
+//line decide/decide.gfx:118
+//line decide/decide.gfx:118
+							return any((dict_prelude_Eq_String{}).prelude_Eq(x0_, y0_)).(bool)
+						}
+					}
 				}
 			}
 		}
-//line decide/decide.gfx:73
-		switch _gofx453 := _gofx443.(type) {
+//line decide/decide.gfx:118
+		switch _gofx656 := _gofx646.(type) {
 		case *Tuple2:
-			_ = _gofx453
-			switch _gofx455 := _gofx453.F0.(type) {
+			_ = _gofx656
+			switch _gofx658 := _gofx656.F0.(type) {
 			case *decide_Action_Publish:
-				_ = _gofx455
+				_ = _gofx658
 				{
-					var x0_ any = _gofx455.F0
+					var x0_ any = _gofx658.F0
 					_ = x0_
-					switch _gofx454 := _gofx453.F1.(type) {
+					switch _gofx657 := _gofx656.F1.(type) {
 					case *decide_Action_Publish:
-						_ = _gofx454
+						_ = _gofx657
 						{
-							var y0_ any = _gofx454.F0
+							var y0_ any = _gofx657.F0
 							_ = y0_
-//line decide/decide.gfx:73
-//line decide/decide.gfx:73
+//line decide/decide.gfx:118
+//line decide/decide.gfx:118
 							return any((dict_decide_Eq_Status{}).prelude_Eq(x0_, y0_)).(bool)
 						}
 					}
 				}
 			}
 		}
-//line decide/decide.gfx:73
+//line decide/decide.gfx:118
 		{
-//line decide/decide.gfx:73
-//line decide/decide.gfx:73
+//line decide/decide.gfx:118
+//line decide/decide.gfx:118
 			return false
 		}
 	}())
@@ -2971,47 +4521,51 @@ func (dictself dict_decide_Eq_Action) prelude_Eq(a_ any, b_ any) any {
 
 type dict_decide_Debug_Action struct{}
 
-//line decide/decide.gfx:73
+//line decide/decide.gfx:118
 func (dictself dict_decide_Debug_Action) prelude_Debug(a_ any) any {
-//line decide/decide.gfx:73
+//line decide/decide.gfx:118
 	return (
-//line decide/decide.gfx:73
+//line decide/decide.gfx:118
 	func() any {
-		var _gofx456 any = a_
-		_ = _gofx456
-//line decide/decide.gfx:73
-		switch _gofx457 := _gofx456.(type) {
+		var _gofx659 any = a_
+		_ = _gofx659
+//line decide/decide.gfx:118
+		switch _gofx660 := _gofx659.(type) {
 		case *decide_Action_ObserveInitial:
-			_ = _gofx457
-//line decide/decide.gfx:73
-//line decide/decide.gfx:73
+			_ = _gofx660
+//line decide/decide.gfx:118
+//line decide/decide.gfx:118
 			return "ObserveInitial"
 		}
-//line decide/decide.gfx:73
-		switch _gofx458 := _gofx456.(type) {
+//line decide/decide.gfx:118
+		switch _gofx661 := _gofx659.(type) {
 		case *decide_Action_ObserveAuthorized:
-			_ = _gofx458
-//line decide/decide.gfx:73
-//line decide/decide.gfx:73
+			_ = _gofx661
+//line decide/decide.gfx:118
+//line decide/decide.gfx:118
 			return "ObserveAuthorized"
 		}
-//line decide/decide.gfx:73
-		switch _gofx459 := _gofx456.(type) {
+//line decide/decide.gfx:118
+		switch _gofx662 := _gofx659.(type) {
 		case *decide_Action_DeleteStale:
-			_ = _gofx459
-//line decide/decide.gfx:73
-//line decide/decide.gfx:73
-			return "DeleteStale"
-		}
-//line decide/decide.gfx:73
-		{
-			_gofx460 := _gofx456.(*decide_Action_Publish)
-			_ = _gofx460
+			_ = _gofx662
 			{
-				var x0_ any = _gofx460.F0
+				var x0_ any = _gofx662.F0
 				_ = x0_
-//line decide/decide.gfx:73
-//line decide/decide.gfx:73
+//line decide/decide.gfx:118
+//line decide/decide.gfx:118
+				return rt.Concat("DeleteStale(", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_String{}).prelude_Debug(x0_)), ")")
+			}
+		}
+//line decide/decide.gfx:118
+		{
+			_gofx663 := _gofx659.(*decide_Action_Publish)
+			_ = _gofx663
+			{
+				var x0_ any = _gofx663.F0
+				_ = x0_
+//line decide/decide.gfx:118
+//line decide/decide.gfx:118
 				return rt.Concat("Publish(", (dict_prelude_Show_String{}).prelude_Show((dict_decide_Debug_Status{}).prelude_Debug(x0_)), ")")
 			}
 		}
@@ -3020,114 +4574,114 @@ func (dictself dict_decide_Debug_Action) prelude_Debug(a_ any) any {
 
 type dict_decide_Eq_ApprovalState struct{}
 
-//line decide/decide.gfx:75
+//line decide/decide.gfx:120
 func (dictself dict_decide_Eq_ApprovalState) prelude_Eq(a_ any, b_ any) any {
-//line decide/decide.gfx:75
+//line decide/decide.gfx:120
 	return (
-//line decide/decide.gfx:75
+//line decide/decide.gfx:120
 	func() bool {
-		var _gofx461 any = &Tuple2{F0: a_, F1: b_}
-		_ = _gofx461
-//line decide/decide.gfx:75
-		switch _gofx462 := _gofx461.(type) {
+		var _gofx664 any = &Tuple2{F0: a_, F1: b_}
+		_ = _gofx664
+//line decide/decide.gfx:120
+		switch _gofx665 := _gofx664.(type) {
 		case *Tuple2:
-			_ = _gofx462
-			switch _gofx464 := _gofx462.F0.(type) {
+			_ = _gofx665
+			switch _gofx667 := _gofx665.F0.(type) {
 			case *decide_ApprovalState_Pending:
-				_ = _gofx464
-				switch _gofx463 := _gofx462.F1.(type) {
+				_ = _gofx667
+				switch _gofx666 := _gofx665.F1.(type) {
 				case *decide_ApprovalState_Pending:
-					_ = _gofx463
-//line decide/decide.gfx:75
-//line decide/decide.gfx:75
+					_ = _gofx666
+//line decide/decide.gfx:120
+//line decide/decide.gfx:120
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:75
-		switch _gofx465 := _gofx461.(type) {
+//line decide/decide.gfx:120
+		switch _gofx668 := _gofx664.(type) {
 		case *Tuple2:
-			_ = _gofx465
-			switch _gofx467 := _gofx465.F0.(type) {
+			_ = _gofx668
+			switch _gofx670 := _gofx668.F0.(type) {
 			case *decide_ApprovalState_Accepted:
-				_ = _gofx467
-				switch _gofx466 := _gofx465.F1.(type) {
+				_ = _gofx670
+				switch _gofx669 := _gofx668.F1.(type) {
 				case *decide_ApprovalState_Accepted:
-					_ = _gofx466
-//line decide/decide.gfx:75
-//line decide/decide.gfx:75
+					_ = _gofx669
+//line decide/decide.gfx:120
+//line decide/decide.gfx:120
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:75
-		switch _gofx468 := _gofx461.(type) {
+//line decide/decide.gfx:120
+		switch _gofx671 := _gofx664.(type) {
 		case *Tuple2:
-			_ = _gofx468
-			switch _gofx470 := _gofx468.F0.(type) {
+			_ = _gofx671
+			switch _gofx673 := _gofx671.F0.(type) {
 			case *decide_ApprovalState_Rejected:
-				_ = _gofx470
-				switch _gofx469 := _gofx468.F1.(type) {
+				_ = _gofx673
+				switch _gofx672 := _gofx671.F1.(type) {
 				case *decide_ApprovalState_Rejected:
-					_ = _gofx469
-//line decide/decide.gfx:75
-//line decide/decide.gfx:75
+					_ = _gofx672
+//line decide/decide.gfx:120
+//line decide/decide.gfx:120
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:75
-		switch _gofx471 := _gofx461.(type) {
+//line decide/decide.gfx:120
+		switch _gofx674 := _gofx664.(type) {
 		case *Tuple2:
-			_ = _gofx471
-			switch _gofx473 := _gofx471.F0.(type) {
+			_ = _gofx674
+			switch _gofx676 := _gofx674.F0.(type) {
 			case *decide_ApprovalState_Superseded:
-				_ = _gofx473
-				switch _gofx472 := _gofx471.F1.(type) {
+				_ = _gofx676
+				switch _gofx675 := _gofx674.F1.(type) {
 				case *decide_ApprovalState_Superseded:
-					_ = _gofx472
-//line decide/decide.gfx:75
-//line decide/decide.gfx:75
+					_ = _gofx675
+//line decide/decide.gfx:120
+//line decide/decide.gfx:120
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:75
-		switch _gofx474 := _gofx461.(type) {
+//line decide/decide.gfx:120
+		switch _gofx677 := _gofx664.(type) {
 		case *Tuple2:
-			_ = _gofx474
-			switch _gofx476 := _gofx474.F0.(type) {
+			_ = _gofx677
+			switch _gofx679 := _gofx677.F0.(type) {
 			case *decide_ApprovalState_Expired:
-				_ = _gofx476
-				switch _gofx475 := _gofx474.F1.(type) {
+				_ = _gofx679
+				switch _gofx678 := _gofx677.F1.(type) {
 				case *decide_ApprovalState_Expired:
-					_ = _gofx475
-//line decide/decide.gfx:75
-//line decide/decide.gfx:75
+					_ = _gofx678
+//line decide/decide.gfx:120
+//line decide/decide.gfx:120
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:75
-		switch _gofx477 := _gofx461.(type) {
+//line decide/decide.gfx:120
+		switch _gofx680 := _gofx664.(type) {
 		case *Tuple2:
-			_ = _gofx477
-			switch _gofx479 := _gofx477.F0.(type) {
+			_ = _gofx680
+			switch _gofx682 := _gofx680.F0.(type) {
 			case *decide_ApprovalState_Unknown:
-				_ = _gofx479
-				switch _gofx478 := _gofx477.F1.(type) {
+				_ = _gofx682
+				switch _gofx681 := _gofx680.F1.(type) {
 				case *decide_ApprovalState_Unknown:
-					_ = _gofx478
-//line decide/decide.gfx:75
-//line decide/decide.gfx:75
+					_ = _gofx681
+//line decide/decide.gfx:120
+//line decide/decide.gfx:120
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:75
+//line decide/decide.gfx:120
 		{
-//line decide/decide.gfx:75
-//line decide/decide.gfx:75
+//line decide/decide.gfx:120
+//line decide/decide.gfx:120
 			return false
 		}
 	}())
@@ -3135,276 +4689,276 @@ func (dictself dict_decide_Eq_ApprovalState) prelude_Eq(a_ any, b_ any) any {
 
 type dict_decide_Debug_ApprovalState struct{}
 
-//line decide/decide.gfx:75
+//line decide/decide.gfx:120
 func (dictself dict_decide_Debug_ApprovalState) prelude_Debug(a_ any) any {
-//line decide/decide.gfx:75
+//line decide/decide.gfx:120
 	return (
-//line decide/decide.gfx:75
+//line decide/decide.gfx:120
 	func() any {
-		var _gofx480 any = a_
-		_ = _gofx480
-//line decide/decide.gfx:75
-		switch _gofx481 := _gofx480.(type) {
+		var _gofx683 any = a_
+		_ = _gofx683
+//line decide/decide.gfx:120
+		switch _gofx684 := _gofx683.(type) {
 		case *decide_ApprovalState_Pending:
-			_ = _gofx481
-//line decide/decide.gfx:75
-//line decide/decide.gfx:75
+			_ = _gofx684
+//line decide/decide.gfx:120
+//line decide/decide.gfx:120
 			return "Pending"
 		}
-//line decide/decide.gfx:75
-		switch _gofx482 := _gofx480.(type) {
+//line decide/decide.gfx:120
+		switch _gofx685 := _gofx683.(type) {
 		case *decide_ApprovalState_Accepted:
-			_ = _gofx482
-//line decide/decide.gfx:75
-//line decide/decide.gfx:75
+			_ = _gofx685
+//line decide/decide.gfx:120
+//line decide/decide.gfx:120
 			return "Accepted"
 		}
-//line decide/decide.gfx:75
-		switch _gofx483 := _gofx480.(type) {
+//line decide/decide.gfx:120
+		switch _gofx686 := _gofx683.(type) {
 		case *decide_ApprovalState_Rejected:
-			_ = _gofx483
-//line decide/decide.gfx:75
-//line decide/decide.gfx:75
+			_ = _gofx686
+//line decide/decide.gfx:120
+//line decide/decide.gfx:120
 			return "Rejected"
 		}
-//line decide/decide.gfx:75
-		switch _gofx484 := _gofx480.(type) {
+//line decide/decide.gfx:120
+		switch _gofx687 := _gofx683.(type) {
 		case *decide_ApprovalState_Superseded:
-			_ = _gofx484
-//line decide/decide.gfx:75
-//line decide/decide.gfx:75
+			_ = _gofx687
+//line decide/decide.gfx:120
+//line decide/decide.gfx:120
 			return "Superseded"
 		}
-//line decide/decide.gfx:75
-		switch _gofx485 := _gofx480.(type) {
+//line decide/decide.gfx:120
+		switch _gofx688 := _gofx683.(type) {
 		case *decide_ApprovalState_Expired:
-			_ = _gofx485
-//line decide/decide.gfx:75
-//line decide/decide.gfx:75
+			_ = _gofx688
+//line decide/decide.gfx:120
+//line decide/decide.gfx:120
 			return "Expired"
 		}
-//line decide/decide.gfx:75
+//line decide/decide.gfx:120
 		{
-			_gofx486 := _gofx480.(*decide_ApprovalState_Unknown)
-			_ = _gofx486
-//line decide/decide.gfx:75
-//line decide/decide.gfx:75
+			_gofx689 := _gofx683.(*decide_ApprovalState_Unknown)
+			_ = _gofx689
+//line decide/decide.gfx:120
+//line decide/decide.gfx:120
 			return "Unknown"
 		}
 	}())
 }
 
-//line decide/decide.gfx:243
+//line decide/decide.gfx:288
 func decide__approvalDigest_(o_ any) any {
-//line decide/decide.gfx:244
+//line decide/decide.gfx:289
 	return (
-//line decide/decide.gfx:244
+//line decide/decide.gfx:289
 	func() any {
-		var _gofx487 any = any(o_).(*decide_Observed_Observed).F0
-		_ = _gofx487
-//line decide/decide.gfx:245
-		switch _gofx488 := _gofx487.(type) {
+		var _gofx690 any = any(o_).(*decide_Observed_Observed).F0
+		_ = _gofx690
+//line decide/decide.gfx:290
+		switch _gofx691 := _gofx690.(type) {
 		case *decide_Mode_Live:
-			_ = _gofx488
-			switch _gofx489 := _gofx488.F0.(type) {
+			_ = _gofx691
+			switch _gofx692 := _gofx691.F0.(type) {
 			case *decide_ApprovalRead_Read:
-				_ = _gofx489
+				_ = _gofx692
 				{
-					var a_ any = _gofx489.F0
+					var a_ any = _gofx692.F0
 					_ = a_
-//line decide/decide.gfx:245
-//line decide/decide.gfx:245
+//line decide/decide.gfx:290
+//line decide/decide.gfx:290
 					return any(a_).(*decide_Approval_Approval).F10
 				}
 			}
 		}
-//line decide/decide.gfx:246
+//line decide/decide.gfx:291
 		{
-//line decide/decide.gfx:246
-//line decide/decide.gfx:246
+//line decide/decide.gfx:291
+//line decide/decide.gfx:291
 			return ""
 		}
 	}())
 }
 
-//line decide/decide.gfx:254
+//line decide/decide.gfx:299
 func decide__approvalMessage_(reason_ any) any {
-//line decide/decide.gfx:255
+//line decide/decide.gfx:300
 	return (
-//line decide/decide.gfx:255
+//line decide/decide.gfx:300
 	func() any {
-		var _gofx490 any = reason_
-		_ = _gofx490
-//line decide/decide.gfx:256
-		switch _gofx491 := _gofx490.(type) {
+		var _gofx693 any = reason_
+		_ = _gofx693
+//line decide/decide.gfx:301
+		switch _gofx694 := _gofx693.(type) {
 		case *decide_Reason_ApprovalReferenceMissing:
-			_ = _gofx491
-//line decide/decide.gfx:256
-//line decide/decide.gfx:256
+			_ = _gofx694
+//line decide/decide.gfx:301
+//line decide/decide.gfx:301
 			return "Non-dry-run attachment repair requires approvalRef"
 		}
-//line decide/decide.gfx:257
-		switch _gofx492 := _gofx490.(type) {
+//line decide/decide.gfx:302
+		switch _gofx695 := _gofx693.(type) {
 		case *decide_Reason_ApprovalReadFailed:
-			_ = _gofx492
-//line decide/decide.gfx:257
-//line decide/decide.gfx:257
+			_ = _gofx695
+//line decide/decide.gfx:302
+//line decide/decide.gfx:302
 			return "Attachment repair approval could not be read"
 		}
-//line decide/decide.gfx:258
-		switch _gofx493 := _gofx490.(type) {
+//line decide/decide.gfx:303
+		switch _gofx696 := _gofx693.(type) {
 		case *decide_Reason_ApprovalDeletionInProgress:
-			_ = _gofx493
-//line decide/decide.gfx:258
-//line decide/decide.gfx:258
+			_ = _gofx696
+//line decide/decide.gfx:303
+//line decide/decide.gfx:303
 			return "Attachment repair approval is deleting"
 		}
-//line decide/decide.gfx:259
-		switch _gofx494 := _gofx490.(type) {
+//line decide/decide.gfx:304
+		switch _gofx697 := _gofx693.(type) {
 		case *decide_Reason_ApprovalReferenceMismatch:
-			_ = _gofx494
-//line decide/decide.gfx:259
-//line decide/decide.gfx:259
+			_ = _gofx697
+//line decide/decide.gfx:304
+//line decide/decide.gfx:304
 			return "Operation does not reference this attachment repair approval"
 		}
-//line decide/decide.gfx:260
-		switch _gofx495 := _gofx490.(type) {
+//line decide/decide.gfx:305
+		switch _gofx698 := _gofx693.(type) {
 		case *decide_Reason_ApprovalOperationIdentityMismatch:
-			_ = _gofx495
-//line decide/decide.gfx:260
-//line decide/decide.gfx:260
+			_ = _gofx698
+//line decide/decide.gfx:305
+//line decide/decide.gfx:305
 			return "Approval does not reference the exact operation UID"
 		}
-//line decide/decide.gfx:261
-		switch _gofx496 := _gofx490.(type) {
+//line decide/decide.gfx:306
+		switch _gofx699 := _gofx693.(type) {
 		case *decide_Reason_ApprovalOperationGenerationMismatch:
-			_ = _gofx496
-//line decide/decide.gfx:261
-//line decide/decide.gfx:261
+			_ = _gofx699
+//line decide/decide.gfx:306
+//line decide/decide.gfx:306
 			return "Approval does not reference the exact operation generation"
 		}
-//line decide/decide.gfx:262
-		switch _gofx497 := _gofx490.(type) {
+//line decide/decide.gfx:307
+		switch _gofx700 := _gofx693.(type) {
 		case *decide_Reason_ApprovalTargetBindingMismatch:
-			_ = _gofx497
-//line decide/decide.gfx:262
-//line decide/decide.gfx:262
+			_ = _gofx700
+//line decide/decide.gfx:307
+//line decide/decide.gfx:307
 			return "Approval does not reference the exact operation target binding"
 		}
-//line decide/decide.gfx:263
-		switch _gofx498 := _gofx490.(type) {
+//line decide/decide.gfx:308
+		switch _gofx701 := _gofx693.(type) {
 		case *decide_Reason_ApprovalEvidenceIncomplete:
-			_ = _gofx498
-//line decide/decide.gfx:263
-//line decide/decide.gfx:263
+			_ = _gofx701
+//line decide/decide.gfx:308
+//line decide/decide.gfx:308
 			return "Attachment repair approval evidence is incomplete"
 		}
-//line decide/decide.gfx:264
-		switch _gofx499 := _gofx490.(type) {
+//line decide/decide.gfx:309
+		switch _gofx702 := _gofx693.(type) {
 		case *decide_Reason_ApprovalTimeInvalid:
-			_ = _gofx499
-//line decide/decide.gfx:264
-//line decide/decide.gfx:264
+			_ = _gofx702
+//line decide/decide.gfx:309
+//line decide/decide.gfx:309
 			return "Attachment repair approval time is invalid"
 		}
-//line decide/decide.gfx:265
-		switch _gofx500 := _gofx490.(type) {
+//line decide/decide.gfx:310
+		switch _gofx703 := _gofx693.(type) {
 		case *decide_Reason_ApprovalWindowInvalid:
-			_ = _gofx500
-//line decide/decide.gfx:265
-//line decide/decide.gfx:265
+			_ = _gofx703
+//line decide/decide.gfx:310
+//line decide/decide.gfx:310
 			return "Attachment repair approval window is invalid"
 		}
-//line decide/decide.gfx:266
+//line decide/decide.gfx:311
 		{
-//line decide/decide.gfx:266
-//line decide/decide.gfx:266
+//line decide/decide.gfx:311
+//line decide/decide.gfx:311
 			return ""
 		}
 	}())
 }
 
-//line decide/decide.gfx:180
+//line decide/decide.gfx:225
 func decide__approvalState_(o_ any, read_ any) any {
-//line decide/decide.gfx:181
+//line decide/decide.gfx:226
 	return (
-//line decide/decide.gfx:181
+//line decide/decide.gfx:226
 	func() any {
-		var _gofx501 any = read_
-		_ = _gofx501
-//line decide/decide.gfx:182
-		switch _gofx502 := _gofx501.(type) {
+		var _gofx704 any = read_
+		_ = _gofx704
+//line decide/decide.gfx:227
+		switch _gofx705 := _gofx704.(type) {
 		case *decide_ApprovalRead_NoRef:
-			_ = _gofx502
-//line decide/decide.gfx:182
-//line decide/decide.gfx:182
+			_ = _gofx705
+//line decide/decide.gfx:227
+//line decide/decide.gfx:227
 			return &result_Result_Err{F0: &decide_Reason_ApprovalReferenceMissing{}}
 		}
-//line decide/decide.gfx:183
-		switch _gofx503 := _gofx501.(type) {
+//line decide/decide.gfx:228
+		switch _gofx706 := _gofx704.(type) {
 		case *decide_ApprovalRead_ReadFailed:
-			_ = _gofx503
-//line decide/decide.gfx:183
-//line decide/decide.gfx:183
+			_ = _gofx706
+//line decide/decide.gfx:228
+//line decide/decide.gfx:228
 			return &result_Result_Err{F0: &decide_Reason_ApprovalReadFailed{}}
 		}
-//line decide/decide.gfx:184
-		switch _gofx504 := _gofx501.(type) {
+//line decide/decide.gfx:229
+		switch _gofx707 := _gofx704.(type) {
 		case *decide_ApprovalRead_Missing:
-			_ = _gofx504
-//line decide/decide.gfx:184
-//line decide/decide.gfx:184
+			_ = _gofx707
+//line decide/decide.gfx:229
+//line decide/decide.gfx:229
 			return &result_Result_Ok{F0: &decide_ApprovalState_Pending{}}
 		}
-//line decide/decide.gfx:185
+//line decide/decide.gfx:230
 		{
-			_gofx508 := _gofx501.(*decide_ApprovalRead_Read)
-			_ = _gofx508
+			_gofx711 := _gofx704.(*decide_ApprovalRead_Read)
+			_ = _gofx711
 			{
-				var a_ any = _gofx508.F0
+				var a_ any = _gofx711.F0
 				_ = a_
-//line decide/decide.gfx:185
-//line decide/decide.gfx:185
+//line decide/decide.gfx:230
+//line decide/decide.gfx:230
 				return (
-//line decide/decide.gfx:185
+//line decide/decide.gfx:230
 				func() any {
-					var _gofx505 any = decide__bindingProblem_(o_, a_)
-					_ = _gofx505
-//line decide/decide.gfx:186
-					switch _gofx506 := _gofx505.(type) {
+					var _gofx708 any = decide__bindingProblem_(o_, a_)
+					_ = _gofx708
+//line decide/decide.gfx:231
+					switch _gofx709 := _gofx708.(type) {
 					case *prelude_Option_Some:
-						_ = _gofx506
+						_ = _gofx709
 						{
-							var reason_ any = _gofx506.F0
+							var reason_ any = _gofx709.F0
 							_ = reason_
-//line decide/decide.gfx:186
-//line decide/decide.gfx:186
+//line decide/decide.gfx:231
+//line decide/decide.gfx:231
 							return &result_Result_Err{F0: reason_}
 						}
 					}
-//line decide/decide.gfx:187
+//line decide/decide.gfx:232
 					{
-						_gofx507 := _gofx505.(*prelude_Option_None)
-						_ = _gofx507
-//line decide/decide.gfx:187
-//line decide/decide.gfx:188
+						_gofx710 := _gofx708.(*prelude_Option_None)
+						_ = _gofx710
+//line decide/decide.gfx:232
+//line decide/decide.gfx:233
 						return (
-//line decide/decide.gfx:188
+//line decide/decide.gfx:233
 						func() any {
 							if !decide__before_(any(any(o_).(*decide_Observed_Observed).F7).(int64), any(a_).(*decide_Approval_Approval).F8) {
-//line decide/decide.gfx:188
+//line decide/decide.gfx:233
 								return (
-//line decide/decide.gfx:188
+//line decide/decide.gfx:233
 								func() any {
-//line decide/decide.gfx:189
+//line decide/decide.gfx:234
 									return &result_Result_Ok{F0: &decide_ApprovalState_Expired{}}
 								}())
 							}
-//line decide/decide.gfx:190
+//line decide/decide.gfx:235
 							return (
-//line decide/decide.gfx:190
+//line decide/decide.gfx:235
 							func() any {
-//line decide/decide.gfx:191
+//line decide/decide.gfx:236
 								return &result_Result_Ok{F0: decide__phase_(any(a_).(*decide_Approval_Approval).F9)}
 							}())
 						}())
@@ -3415,173 +4969,173 @@ func decide__approvalState_(o_ any, read_ any) any {
 	}())
 }
 
-//line decide/decide.gfx:226
+//line decide/decide.gfx:271
 func decide__before_(nowNanos_ int64, t_ any) bool {
-//line decide/decide.gfx:227
+//line decide/decide.gfx:272
 	return (
-//line decide/decide.gfx:227
+//line decide/decide.gfx:272
 	func() bool {
-		var _gofx509 any = t_
-		_ = _gofx509
-//line decide/decide.gfx:228
-		switch _gofx510 := _gofx509.(type) {
+		var _gofx712 any = t_
+		_ = _gofx712
+//line decide/decide.gfx:273
+		switch _gofx713 := _gofx712.(type) {
 		case *decide_Timestamp_AtNanos:
-			_ = _gofx510
+			_ = _gofx713
 			{
-				var at_ int64 = any(_gofx510.F0).(int64)
+				var at_ int64 = any(_gofx713.F0).(int64)
 				_ = at_
-//line decide/decide.gfx:228
-//line decide/decide.gfx:228
+//line decide/decide.gfx:273
+//line decide/decide.gfx:273
 				return (nowNanos_ < at_)
 			}
 		}
-//line decide/decide.gfx:229
+//line decide/decide.gfx:274
 		{
-//line decide/decide.gfx:229
-//line decide/decide.gfx:229
+//line decide/decide.gfx:274
+//line decide/decide.gfx:274
 			return false
 		}
 	}())
 }
 
-//line decide/decide.gfx:197
+//line decide/decide.gfx:242
 func decide__bindingProblem_(o_ any, a_ any) any {
-//line decide/decide.gfx:198
+//line decide/decide.gfx:243
 	return (
-//line decide/decide.gfx:198
+//line decide/decide.gfx:243
 	func() any {
 		if any(any(a_).(*decide_Approval_Approval).F0).(bool) {
-//line decide/decide.gfx:198
+//line decide/decide.gfx:243
 			return (
-//line decide/decide.gfx:198
+//line decide/decide.gfx:243
 			func() any {
-//line decide/decide.gfx:199
+//line decide/decide.gfx:244
 				return &prelude_Option_Some{F0: &decide_Reason_ApprovalDeletionInProgress{}}
 			}())
 		}
-//line decide/decide.gfx:200
+//line decide/decide.gfx:245
 		return (
-//line decide/decide.gfx:200
+//line decide/decide.gfx:245
 		func() any {
 			if !any(any(a_).(*decide_Approval_Approval).F1).(bool) {
-//line decide/decide.gfx:200
+//line decide/decide.gfx:245
 				return (
-//line decide/decide.gfx:200
+//line decide/decide.gfx:245
 				func() any {
-//line decide/decide.gfx:201
+//line decide/decide.gfx:246
 					return &prelude_Option_Some{F0: &decide_Reason_ApprovalReferenceMismatch{}}
 				}())
 			}
-//line decide/decide.gfx:202
+//line decide/decide.gfx:247
 			return (
-//line decide/decide.gfx:202
+//line decide/decide.gfx:247
 			func() any {
 				if !any(any(a_).(*decide_Approval_Approval).F2).(bool) {
-//line decide/decide.gfx:202
+//line decide/decide.gfx:247
 					return (
-//line decide/decide.gfx:202
+//line decide/decide.gfx:247
 					func() any {
-//line decide/decide.gfx:203
+//line decide/decide.gfx:248
 						return &prelude_Option_Some{F0: &decide_Reason_ApprovalOperationIdentityMismatch{}}
 					}())
 				}
-//line decide/decide.gfx:204
+//line decide/decide.gfx:249
 				return (
-//line decide/decide.gfx:204
+//line decide/decide.gfx:249
 				func() any {
 					if (!any((dict_prelude_Eq_Option{dict_A: dict_prelude_Eq_Int{}}).prelude_Eq(any(a_).(*decide_Approval_Approval).F3, &prelude_Option_Some{F0: any(any(o_).(*decide_Observed_Observed).F2).(int64)})).(bool)) {
-//line decide/decide.gfx:204
+//line decide/decide.gfx:249
 						return (
-//line decide/decide.gfx:204
+//line decide/decide.gfx:249
 						func() any {
-//line decide/decide.gfx:205
+//line decide/decide.gfx:250
 							return &prelude_Option_Some{F0: &decide_Reason_ApprovalOperationGenerationMismatch{}}
 						}())
 					}
-//line decide/decide.gfx:206
+//line decide/decide.gfx:251
 					return (
-//line decide/decide.gfx:206
+//line decide/decide.gfx:251
 					func() any {
 						if !any(any(a_).(*decide_Approval_Approval).F4).(bool) {
-//line decide/decide.gfx:206
+//line decide/decide.gfx:251
 							return (
-//line decide/decide.gfx:206
+//line decide/decide.gfx:251
 							func() any {
-//line decide/decide.gfx:207
+//line decide/decide.gfx:252
 								return &prelude_Option_Some{F0: &decide_Reason_ApprovalTargetBindingMismatch{}}
 							}())
 						}
-//line decide/decide.gfx:208
+//line decide/decide.gfx:253
 						return (
-//line decide/decide.gfx:208
+//line decide/decide.gfx:253
 						func() any {
 							if (!any(any(a_).(*decide_Approval_Approval).F5).(bool)) || (!any(any(a_).(*decide_Approval_Approval).F6).(bool)) {
-//line decide/decide.gfx:208
+//line decide/decide.gfx:253
 								return (
-//line decide/decide.gfx:208
+//line decide/decide.gfx:253
 								func() any {
-//line decide/decide.gfx:209
+//line decide/decide.gfx:254
 									return &prelude_Option_Some{F0: &decide_Reason_ApprovalEvidenceIncomplete{}}
 								}())
 							}
-//line decide/decide.gfx:210
+//line decide/decide.gfx:255
 							return (
-//line decide/decide.gfx:210
+//line decide/decide.gfx:255
 							func() any {
-//line decide/decide.gfx:211
+//line decide/decide.gfx:256
 								return (
-//line decide/decide.gfx:211
+//line decide/decide.gfx:256
 								func() any {
-									var _gofx511 any = &Tuple2{F0: any(a_).(*decide_Approval_Approval).F7, F1: any(a_).(*decide_Approval_Approval).F8}
-									_ = _gofx511
-//line decide/decide.gfx:212
-									switch _gofx512 := _gofx511.(type) {
+									var _gofx714 any = &Tuple2{F0: any(a_).(*decide_Approval_Approval).F7, F1: any(a_).(*decide_Approval_Approval).F8}
+									_ = _gofx714
+//line decide/decide.gfx:257
+									switch _gofx715 := _gofx714.(type) {
 									case *Tuple2:
-										_ = _gofx512
-										switch _gofx514 := _gofx512.F0.(type) {
+										_ = _gofx715
+										switch _gofx717 := _gofx715.F0.(type) {
 										case *decide_Timestamp_AtNanos:
-											_ = _gofx514
+											_ = _gofx717
 											{
-												var approvedAt_ int64 = any(_gofx514.F0).(int64)
+												var approvedAt_ int64 = any(_gofx717.F0).(int64)
 												_ = approvedAt_
-												switch _gofx513 := _gofx512.F1.(type) {
+												switch _gofx716 := _gofx715.F1.(type) {
 												case *decide_Timestamp_AtNanos:
-													_ = _gofx513
+													_ = _gofx716
 													{
-														var expiresAt_ int64 = any(_gofx513.F0).(int64)
+														var expiresAt_ int64 = any(_gofx716.F0).(int64)
 														_ = expiresAt_
-//line decide/decide.gfx:212
-//line decide/decide.gfx:213
+//line decide/decide.gfx:257
+//line decide/decide.gfx:258
 														return (
-//line decide/decide.gfx:213
+//line decide/decide.gfx:258
 														func() any {
 															if approvedAt_ > any(any(o_).(*decide_Observed_Observed).F7).(int64) {
-//line decide/decide.gfx:213
+//line decide/decide.gfx:258
 																return (
-//line decide/decide.gfx:213
+//line decide/decide.gfx:258
 																func() any {
-//line decide/decide.gfx:214
+//line decide/decide.gfx:259
 																	return &prelude_Option_Some{F0: &decide_Reason_ApprovalTimeInvalid{}}
 																}())
 															}
-//line decide/decide.gfx:215
+//line decide/decide.gfx:260
 															return (
-//line decide/decide.gfx:215
+//line decide/decide.gfx:260
 															func() any {
 																if (expiresAt_ <= approvedAt_) || ((expiresAt_ - approvedAt_) > any(any(o_).(*decide_Observed_Observed).F8).(int64)) {
-//line decide/decide.gfx:215
+//line decide/decide.gfx:260
 																	return (
-//line decide/decide.gfx:215
+//line decide/decide.gfx:260
 																	func() any {
-//line decide/decide.gfx:216
+//line decide/decide.gfx:261
 																		return &prelude_Option_Some{F0: &decide_Reason_ApprovalWindowInvalid{}}
 																	}())
 																}
-//line decide/decide.gfx:217
+//line decide/decide.gfx:262
 																return (
-//line decide/decide.gfx:217
+//line decide/decide.gfx:262
 																func() any {
-//line decide/decide.gfx:218
+//line decide/decide.gfx:263
 																	return &prelude_Option_None{}
 																}())
 															}())
@@ -3591,30 +5145,30 @@ func decide__bindingProblem_(o_ any, a_ any) any {
 											}
 										}
 									}
-//line decide/decide.gfx:220
-									switch _gofx515 := _gofx511.(type) {
+//line decide/decide.gfx:265
+									switch _gofx718 := _gofx714.(type) {
 									case *Tuple2:
-										_ = _gofx515
-										switch _gofx516 := _gofx515.F0.(type) {
+										_ = _gofx718
+										switch _gofx719 := _gofx718.F0.(type) {
 										case *decide_Timestamp_AtNanos:
-											_ = _gofx516
+											_ = _gofx719
 											{
 												{
-//line decide/decide.gfx:220
-//line decide/decide.gfx:220
+//line decide/decide.gfx:265
+//line decide/decide.gfx:265
 													return &prelude_Option_Some{F0: &decide_Reason_ApprovalWindowInvalid{}}
 												}
 											}
 										}
 									}
-//line decide/decide.gfx:221
+//line decide/decide.gfx:266
 									{
-										_gofx517 := _gofx511.(*Tuple2)
-										_ = _gofx517
+										_gofx720 := _gofx714.(*Tuple2)
+										_ = _gofx720
 										{
 											{
-//line decide/decide.gfx:221
-//line decide/decide.gfx:221
+//line decide/decide.gfx:266
+//line decide/decide.gfx:266
 												return &prelude_Option_Some{F0: &decide_Reason_ApprovalTimeInvalid{}}
 											}
 										}
@@ -3629,129 +5183,129 @@ func decide__bindingProblem_(o_ any, a_ any) any {
 	}())
 }
 
-//line decide/decide.gfx:250
+//line decide/decide.gfx:295
 func decide__blocked_(stage_ any, reason_ any, message_ any) any {
-//line decide/decide.gfx:251
+//line decide/decide.gfx:296
 	return &decide_Status_Blocked{F0: stage_, F1: &decide_ReasonCode_Decided{F0: reason_}, F2: message_, F3: false}
 }
 
-//line decide/decide.gfx:130
+//line decide/decide.gfx:175
 func decide__decideAuthorized_(o_ any, committed_ bool) any {
 	{
 		var approved_ any = decide__approvalDigest_(o_)
 		_ = approved_
-//line decide/decide.gfx:132
+//line decide/decide.gfx:177
 		return (
-//line decide/decide.gfx:132
+//line decide/decide.gfx:177
 		func() any {
 			if (!any(any(o_).(*decide_Observed_Observed).F5).(bool)) && (!any(any(o_).(*decide_Observed_Observed).F1).(bool)) {
-//line decide/decide.gfx:132
+//line decide/decide.gfx:177
 				return (
-//line decide/decide.gfx:132
+//line decide/decide.gfx:177
 				func() any {
-//line decide/decide.gfx:133
+//line decide/decide.gfx:178
 					return &decide_Action_Publish{F0: decide__blocked_("DeleteExactAttachment", &decide_Reason_FeatureGateDisabled{}, "Storage attachment repair execution is disabled")}
 				}())
 			}
-//line decide/decide.gfx:134
+//line decide/decide.gfx:179
 			return (
-//line decide/decide.gfx:134
+//line decide/decide.gfx:179
 			func() any {
 				if any((dict_prelude_Eq_String{}).prelude_Eq(approved_, "")).(bool) || (!any((dict_prelude_Eq_String{}).prelude_Eq(approved_, any(o_).(*decide_Observed_Observed).F6)).(bool)) {
-//line decide/decide.gfx:134
+//line decide/decide.gfx:179
 					return (
-//line decide/decide.gfx:134
+//line decide/decide.gfx:179
 					func() any {
-//line decide/decide.gfx:135
+//line decide/decide.gfx:180
 						return &decide_Action_Publish{F0: decide__blocked_("ValidateApproval", &decide_Reason_ApprovalBindingChanged{}, "Approval binding no longer matches the authorized observation")}
 					}())
 				}
-//line decide/decide.gfx:136
+//line decide/decide.gfx:181
 				return (
-//line decide/decide.gfx:136
+//line decide/decide.gfx:181
 				func() any {
-//line decide/decide.gfx:137
+//line decide/decide.gfx:182
 					return (
-//line decide/decide.gfx:137
+//line decide/decide.gfx:182
 					func() any {
-						var _gofx518 any = any(o_).(*decide_Observed_Observed).F10
-						_ = _gofx518
-//line decide/decide.gfx:138
-						switch _gofx519 := _gofx518.(type) {
+						var _gofx721 any = any(o_).(*decide_Observed_Observed).F10
+						_ = _gofx721
+//line decide/decide.gfx:183
+						switch _gofx722 := _gofx721.(type) {
 						case *prelude_Option_None:
-							_ = _gofx519
-//line decide/decide.gfx:138
-//line decide/decide.gfx:138
+							_ = _gofx722
+//line decide/decide.gfx:183
+//line decide/decide.gfx:183
 							return &decide_Action_ObserveAuthorized{}
 						}
-//line decide/decide.gfx:139
-						switch _gofx520 := _gofx518.(type) {
+//line decide/decide.gfx:184
+						switch _gofx723 := _gofx721.(type) {
 						case *prelude_Option_Some:
-							_ = _gofx520
-							switch _gofx521 := _gofx520.F0.(type) {
+							_ = _gofx723
+							switch _gofx724 := _gofx723.F0.(type) {
 							case *decide_AuthorizedObservation_AuthBlocked:
-								_ = _gofx521
+								_ = _gofx724
 								{
-									var reason_ any = _gofx521.F0
+									var reason_ any = _gofx724.F0
 									_ = reason_
 									{
-										var message_ any = _gofx521.F1
+										var message_ any = _gofx724.F1
 										_ = message_
-//line decide/decide.gfx:139
-//line decide/decide.gfx:139
+//line decide/decide.gfx:184
+//line decide/decide.gfx:184
 										return &decide_Action_Publish{F0: &decide_Status_Blocked{F0: "RevalidateObservation", F1: &decide_ReasonCode_FromObservation{F0: reason_}, F2: message_, F3: false}}
 									}
 								}
 							}
 						}
-//line decide/decide.gfx:140
+//line decide/decide.gfx:185
 						{
-							_gofx522 := _gofx518.(*prelude_Option_Some)
-							_ = _gofx522
-							switch _gofx523 := _gofx522.F0.(type) {
+							_gofx725 := _gofx721.(*prelude_Option_Some)
+							_ = _gofx725
+							switch _gofx726 := _gofx725.F0.(type) {
 							case *decide_AuthorizedObservation_AuthOk:
-								_ = _gofx523
+								_ = _gofx726
 								{
-									var obs_ any = _gofx523.F0
+									var obs_ any = _gofx726.F0
 									_ = obs_
-//line decide/decide.gfx:140
-//line decide/decide.gfx:141
+//line decide/decide.gfx:185
+//line decide/decide.gfx:186
 									return (
-//line decide/decide.gfx:141
+//line decide/decide.gfx:186
 									func() any {
 										if !committed_ {
-//line decide/decide.gfx:141
+//line decide/decide.gfx:186
 											return (
-//line decide/decide.gfx:141
+//line decide/decide.gfx:186
 											func() any {
-//line decide/decide.gfx:142
+//line decide/decide.gfx:187
 												return (
-//line decide/decide.gfx:142
+//line decide/decide.gfx:187
 												func() any {
 													if (!any((dict_decide_Eq_Target{}).prelude_Eq(any(obs_).(*decide_AuthOkObs_AuthOkObs).F0, &decide_Target_Present{})).(bool)) || (!any((dict_prelude_Eq_String{}).prelude_Eq(any(obs_).(*decide_AuthOkObs_AuthOkObs).F1, approved_)).(bool)) {
-//line decide/decide.gfx:142
+//line decide/decide.gfx:187
 														return (
-//line decide/decide.gfx:142
+//line decide/decide.gfx:187
 														func() any {
-//line decide/decide.gfx:143
+//line decide/decide.gfx:188
 															return &decide_Action_Publish{F0: decide__blocked_("CommitExactDeletion", &decide_Reason_ApprovalObservationSuperseded{}, "Live observation changed before deletion commitment; no attachment was deleted")}
 														}())
 													}
-//line decide/decide.gfx:144
+//line decide/decide.gfx:189
 													return (
-//line decide/decide.gfx:144
+//line decide/decide.gfx:189
 													func() any {
-//line decide/decide.gfx:145
+//line decide/decide.gfx:190
 														return &decide_Action_Publish{F0: &decide_Status_Committed{}}
 													}())
 												}())
 											}())
 										}
-//line decide/decide.gfx:147
+//line decide/decide.gfx:192
 										return (
-//line decide/decide.gfx:147
+//line decide/decide.gfx:192
 										func() any {
-//line decide/decide.gfx:148
+//line decide/decide.gfx:193
 											return decide__decideCommitted_(o_, obs_, approved_)
 										}())
 									}())
@@ -3766,90 +5320,90 @@ func decide__decideAuthorized_(o_ any, committed_ bool) any {
 	}
 }
 
-//line decide/decide.gfx:112
+//line decide/decide.gfx:157
 func decide__decideAwaiting_(o_ any, state_ any, digest_ any) any {
-//line decide/decide.gfx:113
+//line decide/decide.gfx:158
 	return (
-//line decide/decide.gfx:113
+//line decide/decide.gfx:158
 	func() any {
-		var _gofx524 any = state_
-		_ = _gofx524
-//line decide/decide.gfx:114
-		switch _gofx525 := _gofx524.(type) {
+		var _gofx727 any = state_
+		_ = _gofx727
+//line decide/decide.gfx:159
+		switch _gofx728 := _gofx727.(type) {
 		case *decide_ApprovalState_Pending:
-			_ = _gofx525
-//line decide/decide.gfx:114
-//line decide/decide.gfx:114
+			_ = _gofx728
+//line decide/decide.gfx:159
+//line decide/decide.gfx:159
 			return &decide_Action_Publish{F0: &decide_Status_AwaitingApproval{}}
 		}
-//line decide/decide.gfx:115
-		switch _gofx526 := _gofx524.(type) {
+//line decide/decide.gfx:160
+		switch _gofx729 := _gofx727.(type) {
 		case *decide_ApprovalState_Unknown:
-			_ = _gofx526
-//line decide/decide.gfx:115
-//line decide/decide.gfx:115
+			_ = _gofx729
+//line decide/decide.gfx:160
+//line decide/decide.gfx:160
 			return &decide_Action_Publish{F0: &decide_Status_AwaitingApproval{}}
 		}
-//line decide/decide.gfx:116
-		switch _gofx527 := _gofx524.(type) {
+//line decide/decide.gfx:161
+		switch _gofx730 := _gofx727.(type) {
 		case *decide_ApprovalState_Rejected:
-			_ = _gofx527
-//line decide/decide.gfx:116
-//line decide/decide.gfx:116
+			_ = _gofx730
+//line decide/decide.gfx:161
+//line decide/decide.gfx:161
 			return &decide_Action_Publish{F0: decide__blocked_("ValidateApproval", &decide_Reason_ApprovalRejected{}, "Attachment repair approval was rejected")}
 		}
-//line decide/decide.gfx:117
-		switch _gofx528 := _gofx524.(type) {
+//line decide/decide.gfx:162
+		switch _gofx731 := _gofx727.(type) {
 		case *decide_ApprovalState_Superseded:
-			_ = _gofx528
-//line decide/decide.gfx:117
-//line decide/decide.gfx:117
+			_ = _gofx731
+//line decide/decide.gfx:162
+//line decide/decide.gfx:162
 			return &decide_Action_Publish{F0: decide__blocked_("ValidateApproval", &decide_Reason_ApprovalSuperseded{}, "Attachment repair approval was superseded by newer observation evidence")}
 		}
-//line decide/decide.gfx:118
-		switch _gofx529 := _gofx524.(type) {
+//line decide/decide.gfx:163
+		switch _gofx732 := _gofx727.(type) {
 		case *decide_ApprovalState_Expired:
-			_ = _gofx529
-//line decide/decide.gfx:118
-//line decide/decide.gfx:118
+			_ = _gofx732
+//line decide/decide.gfx:163
+//line decide/decide.gfx:163
 			return &decide_Action_Publish{F0: decide__blocked_("ValidateApproval", &decide_Reason_ApprovalExpired{}, "Attachment repair approval expired before deletion authorization")}
 		}
-//line decide/decide.gfx:119
+//line decide/decide.gfx:164
 		{
-			_gofx530 := _gofx524.(*decide_ApprovalState_Accepted)
-			_ = _gofx530
-//line decide/decide.gfx:119
-//line decide/decide.gfx:120
+			_gofx733 := _gofx727.(*decide_ApprovalState_Accepted)
+			_ = _gofx733
+//line decide/decide.gfx:164
+//line decide/decide.gfx:165
 			return (
-//line decide/decide.gfx:120
+//line decide/decide.gfx:165
 			func() any {
 				if !any((dict_prelude_Eq_String{}).prelude_Eq(decide__approvalDigest_(o_), digest_)).(bool) {
-//line decide/decide.gfx:120
+//line decide/decide.gfx:165
 					return (
-//line decide/decide.gfx:120
+//line decide/decide.gfx:165
 					func() any {
-//line decide/decide.gfx:121
+//line decide/decide.gfx:166
 						return &decide_Action_Publish{F0: decide__blocked_("ValidateApproval", &decide_Reason_ApprovalObservationSuperseded{}, "Accepted approval does not match the current attachment observation")}
 					}())
 				}
-//line decide/decide.gfx:122
+//line decide/decide.gfx:167
 				return (
-//line decide/decide.gfx:122
+//line decide/decide.gfx:167
 				func() any {
 					if !any(any(o_).(*decide_Observed_Observed).F1).(bool) {
-//line decide/decide.gfx:122
+//line decide/decide.gfx:167
 						return (
-//line decide/decide.gfx:122
+//line decide/decide.gfx:167
 						func() any {
-//line decide/decide.gfx:123
+//line decide/decide.gfx:168
 							return &decide_Action_Publish{F0: &decide_Status_Blocked{F0: "ValidateApproval", F1: &decide_ReasonCode_Decided{F0: &decide_Reason_FeatureGateDisabled{}}, F2: "Storage attachment repair execution is disabled", F3: true}}
 						}())
 					}
-//line decide/decide.gfx:124
+//line decide/decide.gfx:169
 					return (
-//line decide/decide.gfx:124
+//line decide/decide.gfx:169
 					func() any {
-//line decide/decide.gfx:125
+//line decide/decide.gfx:170
 						return &decide_Action_Publish{F0: &decide_Status_Authorized{}}
 					}())
 				}())
@@ -3858,96 +5412,96 @@ func decide__decideAwaiting_(o_ any, state_ any, digest_ any) any {
 	}())
 }
 
-//line decide/decide.gfx:154
+//line decide/decide.gfx:199
 func decide__decideCommitted_(o_ any, obs_ any, approved_ any) any {
-//line decide/decide.gfx:155
+//line decide/decide.gfx:200
 	return (
-//line decide/decide.gfx:155
+//line decide/decide.gfx:200
 	func() any {
-		var _gofx531 any = any(obs_).(*decide_AuthOkObs_AuthOkObs).F0
-		_ = _gofx531
-//line decide/decide.gfx:156
-		switch _gofx540 := _gofx531.(type) {
+		var _gofx734 any = any(obs_).(*decide_AuthOkObs_AuthOkObs).F0
+		_ = _gofx734
+//line decide/decide.gfx:201
+		switch _gofx743 := _gofx734.(type) {
 		case *decide_Target_Present:
-			_ = _gofx540
-//line decide/decide.gfx:156
-//line decide/decide.gfx:157
+			_ = _gofx743
+//line decide/decide.gfx:201
+//line decide/decide.gfx:202
 			return (
-//line decide/decide.gfx:157
+//line decide/decide.gfx:202
 			func() any {
 				if any(any(o_).(*decide_Observed_Observed).F5).(bool) {
-//line decide/decide.gfx:157
+//line decide/decide.gfx:202
 					return (
-//line decide/decide.gfx:157
+//line decide/decide.gfx:202
 					func() any {
-//line decide/decide.gfx:158
+//line decide/decide.gfx:203
 						return &decide_Action_Publish{F0: decide__blocked_("WaitForConvergence", &decide_Reason_DeletionStateLost{}, "Deletion was requested but the exact stale attachment is no longer deleting")}
 					}())
 				}
-//line decide/decide.gfx:159
+//line decide/decide.gfx:204
 				return (
-//line decide/decide.gfx:159
+//line decide/decide.gfx:204
 				func() any {
 					if !any((dict_prelude_Eq_String{}).prelude_Eq(any(obs_).(*decide_AuthOkObs_AuthOkObs).F1, approved_)).(bool) {
-//line decide/decide.gfx:159
+//line decide/decide.gfx:204
 						return (
-//line decide/decide.gfx:159
+//line decide/decide.gfx:204
 						func() any {
-//line decide/decide.gfx:160
+//line decide/decide.gfx:205
 							return &decide_Action_Publish{F0: decide__blocked_("DeleteExactAttachment", &decide_Reason_ApprovalObservationSuperseded{}, "Live observation changed after approval; no attachment was deleted")}
 						}())
 					}
-//line decide/decide.gfx:161
+//line decide/decide.gfx:206
 					return (
-//line decide/decide.gfx:161
+//line decide/decide.gfx:206
 					func() any {
-//line decide/decide.gfx:162
+//line decide/decide.gfx:207
 						return (
-//line decide/decide.gfx:162
+//line decide/decide.gfx:207
 						func() any {
-							var _gofx532 any = any(o_).(*decide_Observed_Observed).F11
-							_ = _gofx532
-//line decide/decide.gfx:163
-							switch _gofx533 := _gofx532.(type) {
+							var _gofx735 any = any(o_).(*decide_Observed_Observed).F11
+							_ = _gofx735
+//line decide/decide.gfx:208
+							switch _gofx736 := _gofx735.(type) {
 							case *prelude_Option_None:
-								_ = _gofx533
-//line decide/decide.gfx:163
-//line decide/decide.gfx:163
-								return &decide_Action_DeleteStale{}
+								_ = _gofx736
+//line decide/decide.gfx:208
+//line decide/decide.gfx:208
+								return &decide_Action_DeleteStale{F0: any(obs_).(*decide_AuthOkObs_AuthOkObs).F3}
 							}
-//line decide/decide.gfx:164
-							switch _gofx534 := _gofx532.(type) {
+//line decide/decide.gfx:209
+							switch _gofx737 := _gofx735.(type) {
 							case *prelude_Option_Some:
-								_ = _gofx534
-								switch _gofx535 := _gofx534.F0.(type) {
+								_ = _gofx737
+								switch _gofx738 := _gofx737.F0.(type) {
 								case *decide_DeleteResult_CasFailed:
-									_ = _gofx535
-//line decide/decide.gfx:164
-//line decide/decide.gfx:164
+									_ = _gofx738
+//line decide/decide.gfx:209
+//line decide/decide.gfx:209
 									return &decide_Action_Publish{F0: decide__blocked_("DeleteExactAttachment", &decide_Reason_DeleteCompareAndSwapFailed{}, "The exact deletion target changed before compare-and-swap delete")}
 								}
 							}
-//line decide/decide.gfx:165
-							switch _gofx536 := _gofx532.(type) {
+//line decide/decide.gfx:210
+							switch _gofx739 := _gofx735.(type) {
 							case *prelude_Option_Some:
-								_ = _gofx536
-								switch _gofx537 := _gofx536.F0.(type) {
+								_ = _gofx739
+								switch _gofx740 := _gofx739.F0.(type) {
 								case *decide_DeleteResult_DeleteFailed:
-									_ = _gofx537
-//line decide/decide.gfx:165
-//line decide/decide.gfx:165
+									_ = _gofx740
+//line decide/decide.gfx:210
+//line decide/decide.gfx:210
 									return &decide_Action_Publish{F0: decide__blocked_("DeleteExactAttachment", &decide_Reason_DeleteRequestFailed{}, "The exact stale attachment delete request failed")}
 								}
 							}
-//line decide/decide.gfx:166
+//line decide/decide.gfx:211
 							{
-								_gofx538 := _gofx532.(*prelude_Option_Some)
-								_ = _gofx538
-								switch _gofx539 := _gofx538.F0.(type) {
+								_gofx741 := _gofx735.(*prelude_Option_Some)
+								_ = _gofx741
+								switch _gofx742 := _gofx741.F0.(type) {
 								case *decide_DeleteResult_Deleted:
-									_ = _gofx539
-//line decide/decide.gfx:166
-//line decide/decide.gfx:166
+									_ = _gofx742
+//line decide/decide.gfx:211
+//line decide/decide.gfx:211
 									return &decide_Action_Publish{F0: &decide_Status_Running{F0: "WaitForConvergence", F1: "Exact stale attachment deletion was requested", F2: true}}
 								}
 							}
@@ -3957,37 +5511,37 @@ func decide__decideCommitted_(o_ any, obs_ any, approved_ any) any {
 				}())
 			}())
 		}
-//line decide/decide.gfx:169
-		switch _gofx541 := _gofx531.(type) {
+//line decide/decide.gfx:214
+		switch _gofx744 := _gofx734.(type) {
 		case *decide_Target_Deleting:
-			_ = _gofx541
-//line decide/decide.gfx:169
-//line decide/decide.gfx:169
+			_ = _gofx744
+//line decide/decide.gfx:214
+//line decide/decide.gfx:214
 			return &decide_Action_Publish{F0: &decide_Status_Running{F0: "WaitForConvergence", F1: "Authorized stale attachment deletion is converging", F2: true}}
 		}
-//line decide/decide.gfx:170
+//line decide/decide.gfx:215
 		{
-			_gofx542 := _gofx531.(*decide_Target_Absent)
-			_ = _gofx542
-//line decide/decide.gfx:170
-//line decide/decide.gfx:171
+			_gofx745 := _gofx734.(*decide_Target_Absent)
+			_ = _gofx745
+//line decide/decide.gfx:215
+//line decide/decide.gfx:216
 			return (
-//line decide/decide.gfx:171
+//line decide/decide.gfx:216
 			func() any {
 				if any(any(obs_).(*decide_AuthOkObs_AuthOkObs).F2).(bool) {
-//line decide/decide.gfx:171
+//line decide/decide.gfx:216
 					return (
-//line decide/decide.gfx:171
+//line decide/decide.gfx:216
 					func() any {
-//line decide/decide.gfx:172
+//line decide/decide.gfx:217
 						return &decide_Action_Publish{F0: &decide_Status_Succeeded{F0: "Complete", F1: "Storage attachment repair converged", F2: true}}
 					}())
 				}
-//line decide/decide.gfx:173
+//line decide/decide.gfx:218
 				return (
-//line decide/decide.gfx:173
+//line decide/decide.gfx:218
 				func() any {
-//line decide/decide.gfx:174
+//line decide/decide.gfx:219
 					return &decide_Action_Publish{F0: &decide_Status_Running{F0: "WaitForConvergence", F1: "Stale attachment is absent and the exact current attachment is converging", F2: true}}
 				}())
 			}())
@@ -3995,120 +5549,120 @@ func decide__decideCommitted_(o_ any, obs_ any, approved_ any) any {
 	}())
 }
 
-//line decide/decide.gfx:91
+//line decide/decide.gfx:136
 func decide__decideLive_(o_ any, state_ any) any {
 	{
 		var committed_ bool = (any(any(o_).(*decide_Observed_Observed).F4).(bool) || any(any(o_).(*decide_Observed_Observed).F5).(bool))
 		_ = committed_
-//line decide/decide.gfx:93
+//line decide/decide.gfx:138
 		return (
-//line decide/decide.gfx:93
+//line decide/decide.gfx:138
 		func() any {
 			if (any((dict_decide_Eq_ApprovalState{}).prelude_Eq(state_, &decide_ApprovalState_Expired{})).(bool) && committed_) {
-//line decide/decide.gfx:93
+//line decide/decide.gfx:138
 				return (
-//line decide/decide.gfx:93
+//line decide/decide.gfx:138
 				func() any {
-//line decide/decide.gfx:94
+//line decide/decide.gfx:139
 					return decide__decideAuthorized_(o_, committed_)
 				}())
 			}
-//line decide/decide.gfx:95
+//line decide/decide.gfx:140
 			return (
-//line decide/decide.gfx:95
+//line decide/decide.gfx:140
 			func() any {
 				if any(any(o_).(*decide_Observed_Observed).F3).(bool) {
-//line decide/decide.gfx:95
+//line decide/decide.gfx:140
 					return (
-//line decide/decide.gfx:95
+//line decide/decide.gfx:140
 					func() any {
-//line decide/decide.gfx:96
+//line decide/decide.gfx:141
 						return (
-//line decide/decide.gfx:96
+//line decide/decide.gfx:141
 						func() any {
 							if any((dict_decide_Eq_ApprovalState{}).prelude_Eq(state_, &decide_ApprovalState_Expired{})).(bool) {
-//line decide/decide.gfx:96
+//line decide/decide.gfx:141
 								return (
-//line decide/decide.gfx:96
+//line decide/decide.gfx:141
 								func() any {
-//line decide/decide.gfx:97
+//line decide/decide.gfx:142
 									return &decide_Action_Publish{F0: decide__blocked_("ValidateApproval", &decide_Reason_ApprovalExpired{}, "Attachment repair approval expired before deletion commitment")}
 								}())
 							}
-//line decide/decide.gfx:98
+//line decide/decide.gfx:143
 							return (
-//line decide/decide.gfx:98
+//line decide/decide.gfx:143
 							func() any {
 								if (!any((dict_decide_Eq_ApprovalState{}).prelude_Eq(state_, &decide_ApprovalState_Accepted{})).(bool)) {
-//line decide/decide.gfx:98
+//line decide/decide.gfx:143
 									return (
-//line decide/decide.gfx:98
+//line decide/decide.gfx:143
 									func() any {
-//line decide/decide.gfx:99
+//line decide/decide.gfx:144
 										return &decide_Action_Publish{F0: decide__blocked_("ValidateApproval", &decide_Reason_ApprovalNoLongerAccepted{}, "Attachment repair approval is no longer accepted")}
 									}())
 								}
-//line decide/decide.gfx:100
+//line decide/decide.gfx:145
 								return (
-//line decide/decide.gfx:100
+//line decide/decide.gfx:145
 								func() any {
-//line decide/decide.gfx:101
+//line decide/decide.gfx:146
 									return decide__decideAuthorized_(o_, committed_)
 								}())
 							}())
 						}())
 					}())
 				}
-//line decide/decide.gfx:103
+//line decide/decide.gfx:148
 				return (
-//line decide/decide.gfx:103
+//line decide/decide.gfx:148
 				func() any {
-//line decide/decide.gfx:104
+//line decide/decide.gfx:149
 					return (
-//line decide/decide.gfx:104
+//line decide/decide.gfx:149
 					func() any {
-						var _gofx543 any = any(o_).(*decide_Observed_Observed).F9
-						_ = _gofx543
-//line decide/decide.gfx:105
-						switch _gofx544 := _gofx543.(type) {
+						var _gofx746 any = any(o_).(*decide_Observed_Observed).F9
+						_ = _gofx746
+//line decide/decide.gfx:150
+						switch _gofx747 := _gofx746.(type) {
 						case *prelude_Option_None:
-							_ = _gofx544
-//line decide/decide.gfx:105
-//line decide/decide.gfx:105
+							_ = _gofx747
+//line decide/decide.gfx:150
+//line decide/decide.gfx:150
 							return &decide_Action_ObserveInitial{}
 						}
-//line decide/decide.gfx:106
-						switch _gofx545 := _gofx543.(type) {
+//line decide/decide.gfx:151
+						switch _gofx748 := _gofx746.(type) {
 						case *prelude_Option_Some:
-							_ = _gofx545
-							switch _gofx546 := _gofx545.F0.(type) {
+							_ = _gofx748
+							switch _gofx749 := _gofx748.F0.(type) {
 							case *decide_Observation_ObsBlocked:
-								_ = _gofx546
+								_ = _gofx749
 								{
-									var reason_ any = _gofx546.F0
+									var reason_ any = _gofx749.F0
 									_ = reason_
 									{
-										var message_ any = _gofx546.F1
+										var message_ any = _gofx749.F1
 										_ = message_
-//line decide/decide.gfx:106
-//line decide/decide.gfx:106
+//line decide/decide.gfx:151
+//line decide/decide.gfx:151
 										return &decide_Action_Publish{F0: &decide_Status_Blocked{F0: "ValidateObservation", F1: &decide_ReasonCode_FromObservation{F0: reason_}, F2: message_, F3: false}}
 									}
 								}
 							}
 						}
-//line decide/decide.gfx:107
+//line decide/decide.gfx:152
 						{
-							_gofx547 := _gofx543.(*prelude_Option_Some)
-							_ = _gofx547
-							switch _gofx548 := _gofx547.F0.(type) {
+							_gofx750 := _gofx746.(*prelude_Option_Some)
+							_ = _gofx750
+							switch _gofx751 := _gofx750.F0.(type) {
 							case *decide_Observation_ObsOk:
-								_ = _gofx548
+								_ = _gofx751
 								{
-									var digest_ any = _gofx548.F0
+									var digest_ any = _gofx751.F0
 									_ = digest_
-//line decide/decide.gfx:107
-//line decide/decide.gfx:107
+//line decide/decide.gfx:152
+//line decide/decide.gfx:152
 									return decide__decideAwaiting_(o_, state_, digest_)
 								}
 							}
@@ -4121,91 +5675,91 @@ func decide__decideLive_(o_ any, state_ any) any {
 	}
 }
 
-//line decide/decide.gfx:233
+//line decide/decide.gfx:278
 func decide__phase_(phase_ any) any {
-//line decide/decide.gfx:234
+//line decide/decide.gfx:279
 	return (
-//line decide/decide.gfx:234
+//line decide/decide.gfx:279
 	func() any {
 		if any((dict_prelude_Eq_String{}).prelude_Eq(phase_, "")).(bool) {
-//line decide/decide.gfx:234
+//line decide/decide.gfx:279
 			return (
-//line decide/decide.gfx:234
+//line decide/decide.gfx:279
 			func() any {
-//line decide/decide.gfx:234
+//line decide/decide.gfx:279
 				return &decide_ApprovalState_Pending{}
 			}())
 		}
-//line decide/decide.gfx:235
+//line decide/decide.gfx:280
 		return (
-//line decide/decide.gfx:235
+//line decide/decide.gfx:280
 		func() any {
 			if any((dict_prelude_Eq_String{}).prelude_Eq(phase_, "Pending")).(bool) {
-//line decide/decide.gfx:235
+//line decide/decide.gfx:280
 				return (
-//line decide/decide.gfx:235
+//line decide/decide.gfx:280
 				func() any {
-//line decide/decide.gfx:235
+//line decide/decide.gfx:280
 					return &decide_ApprovalState_Pending{}
 				}())
 			}
-//line decide/decide.gfx:236
+//line decide/decide.gfx:281
 			return (
-//line decide/decide.gfx:236
+//line decide/decide.gfx:281
 			func() any {
 				if any((dict_prelude_Eq_String{}).prelude_Eq(phase_, "Accepted")).(bool) {
-//line decide/decide.gfx:236
+//line decide/decide.gfx:281
 					return (
-//line decide/decide.gfx:236
+//line decide/decide.gfx:281
 					func() any {
-//line decide/decide.gfx:236
+//line decide/decide.gfx:281
 						return &decide_ApprovalState_Accepted{}
 					}())
 				}
-//line decide/decide.gfx:237
+//line decide/decide.gfx:282
 				return (
-//line decide/decide.gfx:237
+//line decide/decide.gfx:282
 				func() any {
 					if any((dict_prelude_Eq_String{}).prelude_Eq(phase_, "Rejected")).(bool) {
-//line decide/decide.gfx:237
+//line decide/decide.gfx:282
 						return (
-//line decide/decide.gfx:237
+//line decide/decide.gfx:282
 						func() any {
-//line decide/decide.gfx:237
+//line decide/decide.gfx:282
 							return &decide_ApprovalState_Rejected{}
 						}())
 					}
-//line decide/decide.gfx:238
+//line decide/decide.gfx:283
 					return (
-//line decide/decide.gfx:238
+//line decide/decide.gfx:283
 					func() any {
 						if any((dict_prelude_Eq_String{}).prelude_Eq(phase_, "Superseded")).(bool) {
-//line decide/decide.gfx:238
+//line decide/decide.gfx:283
 							return (
-//line decide/decide.gfx:238
+//line decide/decide.gfx:283
 							func() any {
-//line decide/decide.gfx:238
+//line decide/decide.gfx:283
 								return &decide_ApprovalState_Superseded{}
 							}())
 						}
-//line decide/decide.gfx:239
+//line decide/decide.gfx:284
 						return (
-//line decide/decide.gfx:239
+//line decide/decide.gfx:284
 						func() any {
 							if any((dict_prelude_Eq_String{}).prelude_Eq(phase_, "Expired")).(bool) {
-//line decide/decide.gfx:239
+//line decide/decide.gfx:284
 								return (
-//line decide/decide.gfx:239
+//line decide/decide.gfx:284
 								func() any {
-//line decide/decide.gfx:239
+//line decide/decide.gfx:284
 									return &decide_ApprovalState_Expired{}
 								}())
 							}
-//line decide/decide.gfx:240
+//line decide/decide.gfx:285
 							return (
-//line decide/decide.gfx:240
+//line decide/decide.gfx:285
 							func() any {
-//line decide/decide.gfx:240
+//line decide/decide.gfx:285
 								return &decide_ApprovalState_Unknown{}
 							}())
 						}())
@@ -4216,63 +5770,63 @@ func decide__phase_(phase_ any) any {
 	}())
 }
 
-//line decide/decide.gfx:77
+//line decide/decide.gfx:122
 func decide_decide_(o_ any) any {
-//line decide/decide.gfx:78
+//line decide/decide.gfx:123
 	return (
-//line decide/decide.gfx:78
+//line decide/decide.gfx:123
 	func() any {
-		var _gofx552 any = any(o_).(*decide_Observed_Observed).F0
-		_ = _gofx552
-//line decide/decide.gfx:79
-		switch _gofx559 := _gofx552.(type) {
+		var _gofx755 any = any(o_).(*decide_Observed_Observed).F0
+		_ = _gofx755
+//line decide/decide.gfx:124
+		switch _gofx762 := _gofx755.(type) {
 		case *decide_Mode_DryRun:
-			_ = _gofx559
-//line decide/decide.gfx:79
-//line decide/decide.gfx:79
+			_ = _gofx762
+//line decide/decide.gfx:124
+//line decide/decide.gfx:124
 			return (
-//line decide/decide.gfx:79
+//line decide/decide.gfx:124
 			func() any {
-				var _gofx553 any = any(o_).(*decide_Observed_Observed).F9
-				_ = _gofx553
-//line decide/decide.gfx:80
-				switch _gofx554 := _gofx553.(type) {
+				var _gofx756 any = any(o_).(*decide_Observed_Observed).F9
+				_ = _gofx756
+//line decide/decide.gfx:125
+				switch _gofx757 := _gofx756.(type) {
 				case *prelude_Option_None:
-					_ = _gofx554
-//line decide/decide.gfx:80
-//line decide/decide.gfx:80
+					_ = _gofx757
+//line decide/decide.gfx:125
+//line decide/decide.gfx:125
 					return &decide_Action_ObserveInitial{}
 				}
-//line decide/decide.gfx:81
-				switch _gofx555 := _gofx553.(type) {
+//line decide/decide.gfx:126
+				switch _gofx758 := _gofx756.(type) {
 				case *prelude_Option_Some:
-					_ = _gofx555
-					switch _gofx556 := _gofx555.F0.(type) {
+					_ = _gofx758
+					switch _gofx759 := _gofx758.F0.(type) {
 					case *decide_Observation_ObsBlocked:
-						_ = _gofx556
+						_ = _gofx759
 						{
-							var reason_ any = _gofx556.F0
+							var reason_ any = _gofx759.F0
 							_ = reason_
 							{
-								var message_ any = _gofx556.F1
+								var message_ any = _gofx759.F1
 								_ = message_
-//line decide/decide.gfx:81
-//line decide/decide.gfx:81
+//line decide/decide.gfx:126
+//line decide/decide.gfx:126
 								return &decide_Action_Publish{F0: &decide_Status_Blocked{F0: "ValidateObservation", F1: &decide_ReasonCode_FromObservation{F0: reason_}, F2: message_, F3: false}}
 							}
 						}
 					}
 				}
-//line decide/decide.gfx:82
+//line decide/decide.gfx:127
 				{
-					_gofx557 := _gofx553.(*prelude_Option_Some)
-					_ = _gofx557
-					switch _gofx558 := _gofx557.F0.(type) {
+					_gofx760 := _gofx756.(*prelude_Option_Some)
+					_ = _gofx760
+					switch _gofx761 := _gofx760.F0.(type) {
 					case *decide_Observation_ObsOk:
-						_ = _gofx558
+						_ = _gofx761
 						{
-//line decide/decide.gfx:82
-//line decide/decide.gfx:82
+//line decide/decide.gfx:127
+//line decide/decide.gfx:127
 							return &decide_Action_Publish{F0: &decide_Status_Succeeded{F0: "DryRunComplete", F1: "Storage attachment repair observation completed without mutation", F2: false}}
 						}
 					}
@@ -4280,41 +5834,41 @@ func decide_decide_(o_ any) any {
 				panic("non-exhaustive match")
 			}())
 		}
-//line decide/decide.gfx:84
+//line decide/decide.gfx:129
 		{
-			_gofx563 := _gofx552.(*decide_Mode_Live)
-			_ = _gofx563
+			_gofx766 := _gofx755.(*decide_Mode_Live)
+			_ = _gofx766
 			{
-				var approval_ any = _gofx563.F0
+				var approval_ any = _gofx766.F0
 				_ = approval_
-//line decide/decide.gfx:84
-//line decide/decide.gfx:84
+//line decide/decide.gfx:129
+//line decide/decide.gfx:129
 				return (
-//line decide/decide.gfx:84
+//line decide/decide.gfx:129
 				func() any {
-					var _gofx560 any = decide__approvalState_(o_, approval_)
-					_ = _gofx560
-//line decide/decide.gfx:85
-					switch _gofx561 := _gofx560.(type) {
+					var _gofx763 any = decide__approvalState_(o_, approval_)
+					_ = _gofx763
+//line decide/decide.gfx:130
+					switch _gofx764 := _gofx763.(type) {
 					case *result_Result_Err:
-						_ = _gofx561
+						_ = _gofx764
 						{
-							var reason_ any = _gofx561.F0
+							var reason_ any = _gofx764.F0
 							_ = reason_
-//line decide/decide.gfx:85
-//line decide/decide.gfx:85
+//line decide/decide.gfx:130
+//line decide/decide.gfx:130
 							return &decide_Action_Publish{F0: decide__blocked_("ValidateApproval", reason_, decide__approvalMessage_(reason_))}
 						}
 					}
-//line decide/decide.gfx:86
+//line decide/decide.gfx:131
 					{
-						_gofx562 := _gofx560.(*result_Result_Ok)
-						_ = _gofx562
+						_gofx765 := _gofx763.(*result_Result_Ok)
+						_ = _gofx765
 						{
-							var state_ any = _gofx562.F0
+							var state_ any = _gofx765.F0
 							_ = state_
-//line decide/decide.gfx:86
-//line decide/decide.gfx:86
+//line decide/decide.gfx:131
+//line decide/decide.gfx:131
 							return decide__decideLive_(o_, state_)
 						}
 					}
@@ -4324,11 +5878,11 @@ func decide_decide_(o_ any) any {
 	}())
 }
 
-//line decide/decide.gfx:270
+//line decide/decide.gfx:315
 func decide_main_() any {
-//line decide/decide.gfx:270
+//line decide/decide.gfx:315
 	return io_ioPure_(prelude_unit_())
 }
 
-//line decide/decide.gfx:270
+//line decide/decide.gfx:315
 func Main() rt.IO { return decide_main_().(rt.IO) }

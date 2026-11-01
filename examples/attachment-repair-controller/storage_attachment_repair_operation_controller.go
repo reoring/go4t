@@ -71,6 +71,11 @@ type attachmentRepairObservation struct {
 	safety            map[string]any
 }
 
+type obsBlock struct {
+	reason  decide.ObsReason
+	message string
+}
+
 func (r *AttachmentRepairOperationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx, "storageAttachmentRepairOperation", req.NamespacedName)
 	if r.Log.GetSink() != nil {
@@ -114,47 +119,42 @@ func (r *AttachmentRepairOperationReconciler) reconcileOperation(ctx context.Con
 		NowNanos:                  r.now().UnixNano(),
 		ApprovalMaxAgeNanos:        int64(attachmentRepairApprovalMaxAge),
 	}
-	var obs *attachmentRepairObservation
+	var initialObs, authorizedObs *attachmentRepairObservation
 	for {
 		switch a := decide.Decide(o).(type) {
 		case decide.ActionObserveInitial:
 			if o.Initial.Present {
 				panic("decide asked twice")
 			}
-			var reason, message string
-			obs, reason, message = r.observeInitialSafety(ctx, operation)
+			var block *obsBlock
+			initialObs, block = r.observeInitialTyped(ctx, operation)
 			var observation decide.Observation
-			if reason != "" {
-				observation = decide.ObservationObsBlocked{F0: reason, F1: message}
+			if block != nil {
+				observation = decide.ObservationObsBlocked{F0: block.reason, F1: block.message}
 			} else {
-				observation = decide.ObservationObsOk{F0: obs.digest}
+				observation = decide.ObservationObsOk{F0: initialObs.digest}
 			}
 			o.Initial = rt.Option[decide.Observation]{Present: true, Value: observation}
 		case decide.ActionObserveAuthorized:
 			if o.AuthorizedObs.Present {
 				panic("decide asked twice")
 			}
-			var targetState, reason, message string
-			obs, targetState, reason, message = r.observeAuthorizedSafety(ctx, operation, o.Requested)
+			var target decide.Target
+			var block *obsBlock
+			authorizedObs, target, block = r.observeAuthorizedSafety(ctx, operation, o.Requested)
 			var observation decide.AuthorizedObservation
-			if reason != "" {
-				observation = decide.AuthorizedObservationAuthBlocked{F0: reason, F1: message}
+			if block != nil {
+				observation = decide.AuthorizedObservationAuthBlocked{F0: block.reason, F1: block.message}
 			} else {
-				var target decide.Target
-				switch targetState {
-				case "present":
-					target = decide.TargetPresent
-				case "deleting":
-					target = decide.TargetDeleting
-				case "absent":
-					target = decide.TargetAbsent
-				default:
-					panic("unknown attachment target state")
+				staleIdentity := ""
+				if authorizedObs.staleAttachment != nil {
+					staleIdentity = attachmentRepairObjectIdentityDigest("volume-attachment-v1", authorizedObs.staleAttachment)
 				}
 				observation = decide.AuthorizedObservationAuthOk{F0: decide.AuthOkObs{
 					Target:          target,
-					Digest:          obs.digest,
-					CurrentAttached: obs.currentAttachment != nil && obs.currentAttachment.Status.Attached,
+					Digest:          authorizedObs.digest,
+					CurrentAttached: authorizedObs.currentAttachment != nil && authorizedObs.currentAttachment.Status.Attached,
+					StaleIdentity:   staleIdentity,
 				}}
 			}
 			o.AuthorizedObs = rt.Option[decide.AuthorizedObservation]{Present: true, Value: observation}
@@ -162,9 +162,10 @@ func (r *AttachmentRepairOperationReconciler) reconcileOperation(ctx context.Con
 			if o.DeleteResult.Present {
 				panic("decide asked twice")
 			}
-			uid := obs.staleAttachment.GetUID()
-			resourceVersion := obs.staleAttachment.GetResourceVersion()
-			err := r.Client.Delete(ctx, obs.staleAttachment, client.Preconditions{UID: &uid, ResourceVersion: &resourceVersion})
+			staleAttachment := observedStaleAttachment(authorizedObs, a.F0)
+			uid := staleAttachment.GetUID()
+			resourceVersion := staleAttachment.GetResourceVersion()
+			err := r.Client.Delete(ctx, staleAttachment, client.Preconditions{UID: &uid, ResourceVersion: &resourceVersion})
 			result := decide.DeleteResultDeleted
 			switch {
 			case apierrors.IsNotFound(err) || apierrors.IsConflict(err) || apierrors.IsInvalid(err):
@@ -174,11 +175,21 @@ func (r *AttachmentRepairOperationReconciler) reconcileOperation(ctx context.Con
 			}
 			o.DeleteResult = rt.Option[decide.DeleteResult]{Present: true, Value: result}
 		case decide.ActionPublish:
-			return r.publish(operation, a.F0, obs, approval)
+			if authorizedObs != nil {
+				return r.publish(operation, a.F0, authorizedObs, approval)
+			}
+			return r.publish(operation, a.F0, initialObs, approval)
 		default:
 			panic("unknown decide action")
 		}
 	}
+}
+
+func observedStaleAttachment(authorizedObs *attachmentRepairObservation, identity string) *storagev1.VolumeAttachment {
+	if authorizedObs == nil || authorizedObs.staleAttachment == nil || attachmentRepairObjectIdentityDigest("volume-attachment-v1", authorizedObs.staleAttachment) != identity {
+		panic("decide named a stale attachment that was not observed")
+	}
+	return authorizedObs.staleAttachment
 }
 
 func (r *AttachmentRepairOperationReconciler) publish(operation *unstructured.Unstructured, status decide.Status, obs *attachmentRepairObservation, approval *unstructured.Unstructured) (map[string]any, time.Duration) {
@@ -209,7 +220,7 @@ func reasonString(reason decide.ReasonCode) string {
 	case decide.ReasonCodeDecided:
 		return r.F0.String()
 	case decide.ReasonCodeFromObservation:
-		return r.F0
+		return r.F0.String()
 	default:
 		panic("unknown decide reason")
 	}
@@ -345,82 +356,90 @@ func attachmentRepairApprovalExpiresAt(approval *unstructured.Unstructured) (tim
 }
 
 func (r *AttachmentRepairOperationReconciler) observeInitialSafety(ctx context.Context, operation *unstructured.Unstructured) (*attachmentRepairObservation, string, string) {
-	obs, reason, message := r.observeBase(ctx, operation)
-	if reason != "" {
-		return obs, reason, message
+	obs, block := r.observeInitialTyped(ctx, operation)
+	if block != nil {
+		return obs, block.reason.String(), block.message
 	}
-	if reason, message = r.classifyInitialAttachments(ctx, obs); reason != "" {
-		return obs, reason, message
-	}
-	obs.digest = attachmentRepairObservationDigest(obs)
-	obs.safety["repairAdmitted"] = true
 	return obs, "", ""
 }
 
-func (r *AttachmentRepairOperationReconciler) observeBase(ctx context.Context, operation *unstructured.Unstructured) (*attachmentRepairObservation, string, string) {
+func (r *AttachmentRepairOperationReconciler) observeInitialTyped(ctx context.Context, operation *unstructured.Unstructured) (*attachmentRepairObservation, *obsBlock) {
+	obs, block := r.observeBase(ctx, operation)
+	if block != nil {
+		return obs, block
+	}
+	if block = r.classifyInitialAttachments(ctx, obs); block != nil {
+		return obs, block
+	}
+	obs.digest = attachmentRepairObservationDigest(obs)
+	obs.safety["repairAdmitted"] = true
+	return obs, nil
+}
+
+func (r *AttachmentRepairOperationReconciler) observeBase(ctx context.Context, operation *unstructured.Unstructured) (*attachmentRepairObservation, *obsBlock) {
 	obs := &attachmentRepairObservation{safety: attachmentRepairSafetyStatus()}
 	capabilityName := firstNonEmptyNestedString(operation.Object, []string{"spec", "storageCapabilityRef", "name"})
 	pvcNamespace := firstNonEmptyNestedString(operation.Object, []string{"spec", "persistentVolumeClaimRef", "namespace"})
 	pvcName := firstNonEmptyNestedString(operation.Object, []string{"spec", "persistentVolumeClaimRef", "name"})
 	if capabilityName == "" || pvcNamespace == "" || pvcName == "" {
-		return obs, "TargetReferenceMissing", "StorageCapability and PersistentVolumeClaim references are required"
+		return obs, &obsBlock{decide.ObsReasonTargetReferenceMissing, "StorageCapability and PersistentVolumeClaim references are required"}
 	}
 	obs.capability = newStorageCapabilityObject()
 	if err := r.Client.Get(ctx, client.ObjectKey{Namespace: operation.GetNamespace(), Name: capabilityName}, obs.capability); err != nil {
 		if apierrors.IsNotFound(err) {
-			return obs, "StorageCapabilityNotFound", "Referenced StorageCapability was not found"
+			return obs, &obsBlock{decide.ObsReasonStorageCapabilityNotFound, "Referenced StorageCapability was not found"}
 		}
-		return obs, "StorageCapabilityReadFailed", "Referenced StorageCapability could not be read"
+		return obs, &obsBlock{decide.ObsReasonStorageCapabilityReadFailed, "Referenced StorageCapability could not be read"}
 	}
 	if !obs.capability.GetDeletionTimestamp().IsZero() {
-		return obs, "StorageCapabilityDeletionInProgress", "Referenced StorageCapability is deleting"
+		return obs, &obsBlock{decide.ObsReasonStorageCapabilityDeletionInProgress, "Referenced StorageCapability is deleting"}
 	}
 	capabilitySpec := parseSpec(obs.capability)
 	if capabilitySpec.storageClassName == "" {
-		return obs, "StorageClassMissing", "Referenced StorageCapability does not publish a block StorageClass"
+		return obs, &obsBlock{decide.ObsReasonStorageClassMissing, "Referenced StorageCapability does not publish a block StorageClass"}
 	}
 
 	obs.pvc = &corev1.PersistentVolumeClaim{}
 	if err := r.Client.Get(ctx, client.ObjectKey{Namespace: pvcNamespace, Name: pvcName}, obs.pvc); err != nil {
 		if apierrors.IsNotFound(err) {
-			return obs, "PersistentVolumeClaimNotFound", "Target PersistentVolumeClaim was not found"
+			return obs, &obsBlock{decide.ObsReasonPersistentVolumeClaimNotFound, "Target PersistentVolumeClaim was not found"}
 		}
-		return obs, "PersistentVolumeClaimReadFailed", "Target PersistentVolumeClaim could not be read"
+		return obs, &obsBlock{decide.ObsReasonPersistentVolumeClaimReadFailed, "Target PersistentVolumeClaim could not be read"}
 	}
 	if !obs.pvc.GetDeletionTimestamp().IsZero() {
-		return obs, "TargetDeletionInProgress", "Target PersistentVolumeClaim is deleting"
+		return obs, &obsBlock{decide.ObsReasonTargetDeletionInProgress, "Target PersistentVolumeClaim is deleting"}
 	}
 	if obs.pvc.Status.Phase != corev1.ClaimBound || obs.pvc.Spec.VolumeName == "" {
-		return obs, "PersistentVolumeClaimNotBound", "Target PersistentVolumeClaim is not bound"
+		return obs, &obsBlock{decide.ObsReasonPersistentVolumeClaimNotBound, "Target PersistentVolumeClaim is not bound"}
 	}
 	obs.safety["persistentVolumeClaimBound"] = true
 	if obs.pvc.Spec.StorageClassName == nil || *obs.pvc.Spec.StorageClassName != capabilitySpec.storageClassName {
-		return obs, "StorageClassMismatch", "Target PersistentVolumeClaim does not use the referenced StorageCapability"
+		return obs, &obsBlock{decide.ObsReasonStorageClassMismatch, "Target PersistentVolumeClaim does not use the referenced StorageCapability"}
 	}
 	obs.safety["storageClassMatches"] = true
 
 	obs.pv = &corev1.PersistentVolume{}
 	if err := r.Client.Get(ctx, client.ObjectKey{Name: obs.pvc.Spec.VolumeName}, obs.pv); err != nil {
 		if apierrors.IsNotFound(err) {
-			return obs, "PersistentVolumeNotFound", "Bound PersistentVolume was not found"
+			return obs, &obsBlock{decide.ObsReasonPersistentVolumeNotFound, "Bound PersistentVolume was not found"}
 		}
-		return obs, "PersistentVolumeReadFailed", "Bound PersistentVolume could not be read"
+		return obs, &obsBlock{decide.ObsReasonPersistentVolumeReadFailed, "Bound PersistentVolume could not be read"}
 	}
 	if !obs.pv.GetDeletionTimestamp().IsZero() {
-		return obs, "TargetDeletionInProgress", "Bound PersistentVolume is deleting"
+		return obs, &obsBlock{decide.ObsReasonTargetDeletionInProgress, "Bound PersistentVolume is deleting"}
 	}
 	if obs.pv.Status.Phase != corev1.VolumeBound {
-		return obs, "PersistentVolumeNotBound", "Bound PersistentVolume is not in the Bound phase"
+		return obs, &obsBlock{decide.ObsReasonPersistentVolumeNotBound, "Bound PersistentVolume is not in the Bound phase"}
 	}
 	claimRef := obs.pv.Spec.ClaimRef
 	if claimRef == nil || claimRef.Namespace != obs.pvc.Namespace || claimRef.Name != obs.pvc.Name || claimRef.UID != obs.pvc.UID || obs.pv.Spec.StorageClassName != capabilitySpec.storageClassName {
-		return obs, "PersistentVolumeBindingMismatch", "PersistentVolume binding does not match the exact target claim"
+		return obs, &obsBlock{decide.ObsReasonPersistentVolumeBindingMismatch, "PersistentVolume binding does not match the exact target claim"}
 	}
 	obs.safety["persistentVolumeBindingMatches"] = true
 
 	var podList corev1.PodList
 	if err := r.Client.List(ctx, &podList, client.InNamespace(pvcNamespace)); err != nil {
-		return obs, "PodObservationFailed", "Pods using the target claim could not be read"
+		return obs, &obsBlock{decide.ObsReasonPodObservationFailed, "Pods using the target claim could not be read"}
 	}
 	for i := range podList.Items {
 		pod := podList.Items[i]
@@ -429,7 +448,7 @@ func (r *AttachmentRepairOperationReconciler) observeBase(ctx context.Context, o
 		}
 		if !pod.GetDeletionTimestamp().IsZero() {
 			obs.safety["terminatingPodPresent"] = true
-			return obs, "TerminatingPodUsesClaim", "A terminating Pod still uses the target PersistentVolumeClaim"
+			return obs, &obsBlock{decide.ObsReasonTerminatingPodUsesClaim, "A terminating Pod still uses the target PersistentVolumeClaim"}
 		}
 		if pod.Status.Phase == corev1.PodSucceeded || pod.Status.Phase == corev1.PodFailed {
 			continue
@@ -438,13 +457,13 @@ func (r *AttachmentRepairOperationReconciler) observeBase(ctx context.Context, o
 	}
 	obs.safety["podsUsingClaimCount"] = int64(len(obs.pods))
 	if len(obs.pods) != 1 || obs.pods[0].Spec.NodeName == "" {
-		return obs, "PodTargetNotUnique", "Exactly one non-terminating scheduled Pod must use the target PersistentVolumeClaim"
+		return obs, &obsBlock{decide.ObsReasonPodTargetNotUnique, "Exactly one non-terminating scheduled Pod must use the target PersistentVolumeClaim"}
 	}
 	obs.safety["currentPodScheduled"] = true
 
 	var attachmentList storagev1.VolumeAttachmentList
 	if err := r.Client.List(ctx, &attachmentList); err != nil {
-		return obs, "VolumeAttachmentObservationFailed", "VolumeAttachment evidence could not be read"
+		return obs, &obsBlock{decide.ObsReasonVolumeAttachmentObservationFailed, "VolumeAttachment evidence could not be read"}
 	}
 	for i := range attachmentList.Items {
 		attachment := attachmentList.Items[i]
@@ -454,57 +473,57 @@ func (r *AttachmentRepairOperationReconciler) observeBase(ctx context.Context, o
 	}
 	obs.safety["volumeAttachmentCount"] = int64(len(obs.attachments))
 	obs.safety["targetResolved"] = true
-	return obs, "", ""
+	return obs, nil
 }
 
-func (r *AttachmentRepairOperationReconciler) classifyInitialAttachments(ctx context.Context, obs *attachmentRepairObservation) (string, string) {
+func (r *AttachmentRepairOperationReconciler) classifyInitialAttachments(ctx context.Context, obs *attachmentRepairObservation) *obsBlock {
 	if len(obs.attachments) != 2 {
-		return "VolumeAttachmentSetNotUnique", "Exactly two VolumeAttachments must exist for the target PersistentVolume"
+		return &obsBlock{decide.ObsReasonVolumeAttachmentSetNotUnique, "Exactly two VolumeAttachments must exist for the target PersistentVolume"}
 	}
 	currentNodeName := obs.pods[0].Spec.NodeName
 	for i := range obs.attachments {
 		attachment := &obs.attachments[i]
 		if !attachment.GetDeletionTimestamp().IsZero() {
-			return "AttachmentDeletionInProgress", "A target VolumeAttachment is already deleting"
+			return &obsBlock{decide.ObsReasonAttachmentDeletionInProgress, "A target VolumeAttachment is already deleting"}
 		}
 		if attachment.Spec.NodeName == currentNodeName {
 			if attachment.Status.Attached || obs.currentAttachment != nil {
-				return "CurrentAttachmentNotUnique", "Exactly one pending current VolumeAttachment is required"
+				return &obsBlock{decide.ObsReasonCurrentAttachmentNotUnique, "Exactly one pending current VolumeAttachment is required"}
 			}
 			obs.currentAttachment = attachment.DeepCopy()
 			continue
 		}
 		if !attachment.Status.Attached || obs.staleAttachment != nil {
-			return "StaleAttachmentNotUnique", "Exactly one attached stale VolumeAttachment is required"
+			return &obsBlock{decide.ObsReasonStaleAttachmentNotUnique, "Exactly one attached stale VolumeAttachment is required"}
 		}
 		obs.staleAttachment = attachment.DeepCopy()
 	}
 	if obs.currentAttachment == nil || obs.staleAttachment == nil {
-		return "AttachmentTargetMismatch", "Current and stale attachment targets could not be proven"
+		return &obsBlock{decide.ObsReasonAttachmentTargetMismatch, "Current and stale attachment targets could not be proven"}
 	}
 	if obs.currentAttachment.Spec.Attacher == "" || obs.currentAttachment.Spec.Attacher != obs.staleAttachment.Spec.Attacher {
-		return "AttachmentDriverMismatch", "Current and stale attachments do not use one CSI attacher"
+		return &obsBlock{decide.ObsReasonAttachmentDriverMismatch, "Current and stale attachments do not use one CSI attacher"}
 	}
 	obs.safety["currentAttachmentCandidateCount"] = int64(1)
 	obs.safety["staleAttachmentCandidateCount"] = int64(1)
 	return r.observeAttachmentNodes(ctx, obs, true)
 }
 
-func (r *AttachmentRepairOperationReconciler) observeAttachmentNodes(ctx context.Context, obs *attachmentRepairObservation, allowStaleAbsent bool) (string, string) {
+func (r *AttachmentRepairOperationReconciler) observeAttachmentNodes(ctx context.Context, obs *attachmentRepairObservation, allowStaleAbsent bool) *obsBlock {
 	currentName := obs.currentAttachment.Spec.NodeName
 	staleName := obs.staleAttachment.Spec.NodeName
 	if currentName == "" || staleName == "" || currentName == staleName {
-		return "NodeTargetNotUnique", "Current and stale attachment Nodes must be distinct"
+		return &obsBlock{decide.ObsReasonNodeTargetNotUnique, "Current and stale attachment Nodes must be distinct"}
 	}
 	obs.currentNode = &corev1.Node{}
 	if err := r.Client.Get(ctx, client.ObjectKey{Name: currentName}, obs.currentNode); err != nil {
 		if apierrors.IsNotFound(err) {
-			return "CurrentNodeNotFound", "Current attachment target Node was not found"
+			return &obsBlock{decide.ObsReasonCurrentNodeNotFound, "Current attachment target Node was not found"}
 		}
-		return "NodeObservationFailed", "Current attachment target Node could not be read"
+		return &obsBlock{decide.ObsReasonNodeObservationFailed, "Current attachment target Node could not be read"}
 	}
 	if !obs.currentNode.GetDeletionTimestamp().IsZero() || attachmentRepairNodeReady(obs.currentNode) != corev1.ConditionTrue {
-		return "CurrentNodeNotReady", "Current attachment target Node is not Ready"
+		return &obsBlock{decide.ObsReasonCurrentNodeNotReady, "Current attachment target Node is not Ready"}
 	}
 	obs.safety["currentNodeReady"] = true
 
@@ -513,34 +532,34 @@ func (r *AttachmentRepairOperationReconciler) observeAttachmentNodes(ctx context
 		if apierrors.IsNotFound(err) && allowStaleAbsent {
 			obs.staleNode = nil
 			obs.safety["staleNodeAbsent"] = true
-			return "", ""
+			return nil
 		}
 		if apierrors.IsNotFound(err) {
-			return "StaleNodeNotFound", "Stale attachment target Node was not found"
+			return &obsBlock{decide.ObsReasonStaleNodeNotFound, "Stale attachment target Node was not found"}
 		}
-		return "NodeObservationFailed", "Stale attachment target Node could not be read"
+		return &obsBlock{decide.ObsReasonNodeObservationFailed, "Stale attachment target Node could not be read"}
 	}
 	if !obs.staleNode.GetDeletionTimestamp().IsZero() {
-		return "NodeDeletionInProgress", "Stale attachment target Node is deleting"
+		return &obsBlock{decide.ObsReasonNodeDeletionInProgress, "Stale attachment target Node is deleting"}
 	}
 	staleReady := attachmentRepairNodeReady(obs.staleNode)
 	obs.safety["staleNodeRecovered"] = staleReady == corev1.ConditionTrue
 	if staleReady == corev1.ConditionTrue {
-		return "StaleNodeRecovered", "Stale attachment Node recovered before repair"
+		return &obsBlock{decide.ObsReasonStaleNodeRecovered, "Stale attachment Node recovered before repair"}
 	}
 	if staleReady != corev1.ConditionFalse {
-		return "StaleNodeReadinessAmbiguous", "Stale attachment Node readiness is ambiguous"
+		return &obsBlock{decide.ObsReasonStaleNodeReadinessAmbiguous, "Stale attachment Node readiness is ambiguous"}
 	}
-	return "", ""
+	return nil
 }
 
-func (r *AttachmentRepairOperationReconciler) observeAuthorizedSafety(ctx context.Context, operation *unstructured.Unstructured, requested bool) (*attachmentRepairObservation, string, string, string) {
-	obs, reason, message := r.observeBase(ctx, operation)
-	if reason != "" {
-		return obs, "", reason, message
+func (r *AttachmentRepairOperationReconciler) observeAuthorizedSafety(ctx context.Context, operation *unstructured.Unstructured, requested bool) (*attachmentRepairObservation, decide.Target, *obsBlock) {
+	obs, block := r.observeBase(ctx, operation)
+	if block != nil {
+		return obs, 0, block
 	}
 	if attachmentRepairTargetBindingIdentityDigest(obs) != firstStatusString(operation, "status", "execution", "targetBindingIdentityDigest") {
-		return obs, "", "TargetBindingIdentityChanged", "StorageCapability, PersistentVolumeClaim, or PersistentVolume identity changed after authorization"
+		return obs, 0, &obsBlock{decide.ObsReasonTargetBindingIdentityChanged, "StorageCapability, PersistentVolumeClaim, or PersistentVolume identity changed after authorization"}
 	}
 	staleDigest := firstStatusString(operation, "status", "execution", "staleAttachmentIdentityDigest")
 	currentDigest := firstStatusString(operation, "status", "execution", "currentAttachmentIdentityDigest")
@@ -553,58 +572,58 @@ func (r *AttachmentRepairOperationReconciler) observeAuthorizedSafety(ctx contex
 		case currentDigest:
 			obs.currentAttachment = attachment.DeepCopy()
 		default:
-			return obs, "", "AttachmentSetChanged", "An unapproved or recreated VolumeAttachment exists for the target PersistentVolume"
+			return obs, 0, &obsBlock{decide.ObsReasonAttachmentSetChanged, "An unapproved or recreated VolumeAttachment exists for the target PersistentVolume"}
 		}
 	}
 	if obs.currentAttachment == nil {
-		return obs, "", "CurrentAttachmentIdentityChanged", "The authorized current VolumeAttachment is missing or was recreated"
+		return obs, 0, &obsBlock{decide.ObsReasonCurrentAttachmentIdentityChanged, "The authorized current VolumeAttachment is missing or was recreated"}
 	}
 	if !obs.currentAttachment.GetDeletionTimestamp().IsZero() || obs.currentAttachment.Spec.Source.PersistentVolumeName == nil || *obs.currentAttachment.Spec.Source.PersistentVolumeName != obs.pv.Name || obs.currentAttachment.Spec.NodeName != obs.pods[0].Spec.NodeName {
-		return obs, "", "CurrentAttachmentTargetChanged", "The authorized current attachment target changed"
+		return obs, 0, &obsBlock{decide.ObsReasonCurrentAttachmentTargetChanged, "The authorized current attachment target changed"}
 	}
 	obs.currentNode = &corev1.Node{}
 	if err := r.Client.Get(ctx, client.ObjectKey{Name: obs.currentAttachment.Spec.NodeName}, obs.currentNode); err != nil {
-		return obs, "", "CurrentNodeNotFound", "Current attachment target Node was not found"
+		return obs, 0, &obsBlock{decide.ObsReasonCurrentNodeNotFound, "Current attachment target Node was not found"}
 	}
 	if !obs.currentNode.GetDeletionTimestamp().IsZero() || attachmentRepairNodeReady(obs.currentNode) != corev1.ConditionTrue {
-		return obs, "", "CurrentNodeNotReady", "Current attachment target Node is not Ready"
+		return obs, 0, &obsBlock{decide.ObsReasonCurrentNodeNotReady, "Current attachment target Node is not Ready"}
 	}
 	if attachmentRepairObjectIdentityDigest("node-v1", obs.currentNode) != firstStatusString(operation, "status", "execution", "currentNodeIdentityDigest") {
-		return obs, "", "CurrentNodeIdentityChanged", "Current attachment target Node was recreated"
+		return obs, 0, &obsBlock{decide.ObsReasonCurrentNodeIdentityChanged, "Current attachment target Node was recreated"}
 	}
 	obs.safety["currentNodeReady"] = true
 	obs.safety["currentAttachmentCandidateCount"] = int64(1)
 
 	if obs.staleAttachment == nil {
 		obs.safety["repairAdmitted"] = true
-		return obs, "absent", "", ""
+		return obs, decide.TargetAbsent, nil
 	}
 	if obs.staleAttachment.Spec.Source.PersistentVolumeName == nil || *obs.staleAttachment.Spec.Source.PersistentVolumeName != obs.pv.Name || obs.staleAttachment.Spec.NodeName == obs.currentAttachment.Spec.NodeName {
-		return obs, "", "StaleAttachmentTargetChanged", "The authorized stale attachment target changed"
+		return obs, 0, &obsBlock{decide.ObsReasonStaleAttachmentTargetChanged, "The authorized stale attachment target changed"}
 	}
 	obs.safety["staleAttachmentCandidateCount"] = int64(1)
-	if reason, message = r.observeAttachmentNodes(ctx, obs, true); reason != "" {
-		return obs, "", reason, message
+	if block = r.observeAttachmentNodes(ctx, obs, true); block != nil {
+		return obs, 0, block
 	}
 	storedStaleNodeDigest := firstStatusString(operation, "status", "execution", "staleNodeIdentityDigest")
 	if obs.staleNode != nil {
 		if storedStaleNodeDigest == "" || attachmentRepairObjectIdentityDigest("node-v1", obs.staleNode) != storedStaleNodeDigest {
-			return obs, "", "StaleNodeIdentityChanged", "Stale attachment target Node appeared or was recreated after authorization"
+			return obs, 0, &obsBlock{decide.ObsReasonStaleNodeIdentityChanged, "Stale attachment target Node appeared or was recreated after authorization"}
 		}
 	}
 	if !obs.staleAttachment.GetDeletionTimestamp().IsZero() {
 		obs.safety["repairAdmitted"] = true
-		return obs, "deleting", "", ""
+		return obs, decide.TargetDeleting, nil
 	}
 	if requested {
-		return obs, "present", "", ""
+		return obs, decide.TargetPresent, nil
 	}
 	if !obs.staleAttachment.Status.Attached || obs.currentAttachment.Status.Attached {
-		return obs, "", "AttachmentStateChanged", "Attachment state changed after authorization"
+		return obs, 0, &obsBlock{decide.ObsReasonAttachmentStateChanged, "Attachment state changed after authorization"}
 	}
 	obs.digest = attachmentRepairObservationDigest(obs)
 	obs.safety["repairAdmitted"] = true
-	return obs, "present", "", ""
+	return obs, decide.TargetPresent, nil
 }
 
 func attachmentRepairObservationDigest(obs *attachmentRepairObservation) string {
@@ -910,9 +929,9 @@ func (r *AttachmentRepairApprovalReconciler) observeApproval(ctx context.Context
 		return attachmentRepairApprovalStatus(approval, "Accepted", "ApprovalAccepted", "Approval remains bound to the authorized attachment repair observation"), requeueAfter
 	}
 	observer := &AttachmentRepairOperationReconciler{Client: r.Client, Now: r.Now}
-	obs, reason, message := observer.observeInitialSafety(ctx, operation)
-	if reason != "" {
-		return attachmentRepairApprovalStatus(approval, "Superseded", reason, "Attachment repair observation is no longer executable: "+message), 0
+	obs, block := observer.observeInitialTyped(ctx, operation)
+	if block != nil {
+		return attachmentRepairApprovalStatus(approval, "Superseded", block.reason.String(), "Attachment repair observation is no longer executable: "+block.message), 0
 	}
 	if approvalDigest != obs.digest {
 		return attachmentRepairApprovalStatus(approval, "Superseded", "ObservationDigestChanged", "Approval observation digest no longer matches live attachment evidence"), 0

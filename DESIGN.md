@@ -1179,9 +1179,10 @@ Input: the approval controller proved read-only decisions; the reviewer asked ho
 
 - **Observation stays in Go.** `observeBase`/`classifyInitialAttachments`/`observeAttachmentNodes`/
   `observeAuthorizedSafety` are dependent reads with I/O classification reasons
-  (`PersistentVolumeNotFound`, `PodTargetNotUnique`, …); they are kept verbatim and project to a
-  small result sum. Their reason strings cross as opaque `String` (I/O-layer facts, like error
-  messages), not as `Reason` constructors.
+  (`PersistentVolumeNotFound`, `PodTargetNotUnique`, …); their control flow is kept verbatim but
+  they produce `decide` values directly: the closed `ObsReason` enum (41 constructors, one per
+  reason the chains can report, `Show` = name) and `Target`. No string reason or state crosses
+  the boundary; the Go-side `default:` for an unknown target state disappears with it.
 - **The workflow state machine moves to gofx** (`decide/decide.gfx`): everything in
   `reconcileOperation` and `reconcileAuthorized`, plus `readBoundApproval`'s pure part
   (`validateAttachmentRepairApprovalBinding`, expiry, state derivation).
@@ -1192,8 +1193,12 @@ Input: the approval controller proved read-only decisions; the reviewer asked ho
 `Option`/sum that starts empty; `Action` is
 
 ```
-type Action = ObserveInitial | ObserveAuthorized | DeleteStale | Publish(Status)
+type Action = ObserveInitial | ObserveAuthorized | DeleteStale(String) | Publish(Status)
 ```
+
+`DeleteStale` names its target by identity digest (`AuthOkObs.staleIdentity`), so the Go side
+proves it deletes the object the authorized observation saw (`panic` on mismatch) instead of
+relying on action order over a shared mutable observation.
 
 Go runs a loop: call `Decide`; on `ObserveInitial`/`ObserveAuthorized` perform that observation,
 fill the field, call again; on `DeleteStale` perform the compare-and-swap delete, fill
@@ -1212,18 +1217,18 @@ type Approval = Approval{ deleting, refMatches, opIdentityMatches: Bool, generat
                           targetBindingMatches, digestValid, evidenceComplete: Bool,
                           approvedAt, expiresAt: Timestamp, phase: String, digest: String }
 type Timestamp = NoTimestamp | InvalidTimestamp | AtNanos(Int)          // from Pass 16 example
-type Observation = ObsBlocked(String, String) | ObsOk(String)            // reason, message | digest
-type AuthorizedObservation = AuthBlocked(String, String)
-                           | AuthOk{ target: Target, digest: String, currentAttached: Bool }
+type Observation = ObsBlocked(ObsReason, String) | ObsOk(String)         // reason, message | digest
+type AuthorizedObservation = AuthBlocked(ObsReason, String)
+                           | AuthOk(AuthOkObs{ target: Target, digest: String, currentAttached: Bool, staleIdentity: String })
 type Target = Present | Deleting | Absent
 type DeleteResult = Deleted | CasFailed | DeleteFailed
 type Observed = Observed{ mode: Mode, featureGateEnabled, authorized, committed, requested: Bool,
                           approvedObservationDigest: String, nowNanos: Int,
                           initial: Option[Observation], authorized: Option[AuthorizedObservation],
                           deleteResult: Option[DeleteResult] }
-type Status = Blocked(String, ReasonCode, String) | Running(String, String, Bool)
+type Status = Blocked{stage, reason: ReasonCode, message, approvalMatches: Bool} | Running(String, String, Bool)
             | Succeeded(String, String, Bool) | AwaitingApproval | Authorized | Committed
-type ReasonCode = Decided(Reason) | Observed(String)
+type ReasonCode = Decided(Reason) | FromObservation(ObsReason)
 ```
 
 `Status` names the status-builder the Go side already has (`blockedStatus`, `runningStatus`, …);

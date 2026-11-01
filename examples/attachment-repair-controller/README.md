@@ -22,13 +22,29 @@ compare-and-swap outcomes, and convergence. Its generated boundary is
 Interpreter protocol:
 
 1. Read dry-run/live mode and approval facts; initialize all three observation/result Options absent.
-2. Call `Decide`; `ObserveInitial` runs the existing initial observation and fills its Option.
-3. `ObserveAuthorized` runs the existing authorized observation and fills its Option.
-4. `DeleteStale` deletes the observed attachment with exact UID/resource-version preconditions and fills its result Option.
-5. Call `Decide` again after each effect; `Publish` maps the final status to the existing builder and returns.
+2. Call `Decide`; `ObserveInitial` runs the typed initial observation and fills its Option, retaining the result as `initialObs`.
+3. `ObserveAuthorized` runs the typed authorized observation and fills its Option, retaining the result separately as `authorizedObs`.
+4. `DeleteStale(identity)` requires an authorized observation and checks that `identity` equals `attachmentRepairObjectIdentityDigest("volume-attachment-v1", authorizedObs.staleAttachment)`. It then deletes that exact attachment with UID/resource-version preconditions and fills its result Option.
+5. Call `Decide` again after each effect; `Publish` maps the final status to the existing builder and returns, using `authorizedObs` when available and otherwise `initialObs`.
 
-Every effect guards its Option with `panic("decide asked twice")`. Observation
-chains, digests, status builders, and the approval reconciler are unchanged.
+Every effect guards its Option with `panic("decide asked twice")`. A missing
+authorized observation, missing stale attachment, or mismatched deletion identity
+panics with `decide named a stale attachment that was not observed` before deletion.
+`AuthOkObs.StaleIdentity` contains the same identity digest, or the empty string
+when the stale attachment is absent.
+
+Observation chains produce the closed `decide.ObsReason` enum directly; their
+optional `*obsBlock` carries that reason and the unchanged message (`nil` means
+success). Authorized observations also produce `decide.Target` directly, without
+a string-state conversion. No string reasons cross the gofx boundary:
+`ObsBlocked`/`AuthBlocked` carry `ObsReason`, and `ReasonCode` is
+`Decided(Reason)` or `FromObservation(ObsReason)`. Both reason variants are rendered
+with `.String()` only when building Go status.
+
+The original `observeInitialSafety` signature remains the oracle fixture's named
+dependency, rendering the result of `observeInitialTyped` as strings. The
+interpreter and approval reconciler call the typed chain directly. Observation
+control flow, reason/message pairs, digests, and status builders are unchanged.
 The shared `validateAttachmentRepairApprovalBinding` and
 `attachmentRepairApprovalExpiresAt` functions remain verbatim because the
 approval reconciler still calls them; only the operation's decisions moved.
@@ -45,8 +61,10 @@ Iteration counts include the final `Publish`:
 | Committed, present target: successful delete, CAS failure, or other delete failure | 3 |
 
 `decision_protocol_test.go` observes representative 1/2/3-call traces, including
-all three delete results; maximum observed is **3**. It also preserves the
-matched-approval safety evidence when a disabled feature gate blocks
+all three delete results and their identity payloads; maximum observed is **3**.
+It checks typed observation block reasons and the deletion identity guard,
+including mismatched identity and missing observation/attachment cases, and
+preserves matched-approval safety evidence when a disabled feature gate blocks
 authorization. There is no package-global iteration counter or shared
 measurement state in production reconciliation.
 
@@ -64,15 +82,17 @@ including internal blank lines, excluding imports and between-function blanks):
 | Change | Lines |
 | --- | ---: |
 | Removed `reconcileOperation`, `reconcileAuthorized`, `readBoundApproval` bodies/functions | 130 |
-| Added interpreter/initialization, publisher, reason mapping, mode/approval/timestamp projection | 164 |
-| Net boundary increase | 34 |
-| Interpreter `for` loop itself, including its closing brace | 64 |
+| Added interpreter/initialization, identity guard, publisher, reason mapping, mode/approval/timestamp projection | 169 |
+| Net boundary increase | 39 |
+| Interpreter `for` loop itself, including its closing brace (previously 64) | 63 |
+| Deletion identity guard helper | 6 |
 | `publish` status mapping function | 22 |
 | `reasonString` function | 10 |
 
-These counts exclude generated Go, the retained shared validator/expiry helper,
-and test code. The interpreter's branches correspond to protocol effects, not
-individual workflow outcomes.
+These counts exclude generated Go, the observation chains and oracle-facing
+observation helper, the retained shared validator/expiry helper, and test code.
+The interpreter loop shrank by one line; its branches correspond to protocol
+effects, not individual workflow outcomes.
 
 ## Production helpers
 

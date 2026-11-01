@@ -25,12 +25,56 @@ type Approval = Approval{
 type ApprovalRead = NoRef | ReadFailed | Missing | Read(Approval) deriving Eq, Debug
 type Mode = DryRun | Live(ApprovalRead) deriving Eq, Debug
 
-// Observation outcomes come from Go's dependent-read chains; their reasons are
-// I/O facts and cross as text.
-type Observation = ObsBlocked(String, String) | ObsOk(String) deriving Eq, Debug
+// Observation outcomes come from Go's dependent-read chains. ObsReason is the
+// closed set of reasons those chains can report; Go produces the constructor
+// directly.
+type ObsReason = AttachmentDeletionInProgress
+  | AttachmentDriverMismatch
+  | AttachmentTargetMismatch
+  | CurrentAttachmentNotUnique
+  | CurrentNodeNotFound
+  | CurrentNodeNotReady
+  | NodeDeletionInProgress
+  | NodeObservationFailed
+  | NodeTargetNotUnique
+  | PersistentVolumeBindingMismatch
+  | PersistentVolumeClaimNotBound
+  | PersistentVolumeClaimNotFound
+  | PersistentVolumeClaimReadFailed
+  | PersistentVolumeNotBound
+  | PersistentVolumeNotFound
+  | PersistentVolumeReadFailed
+  | PodObservationFailed
+  | PodTargetNotUnique
+  | StaleAttachmentNotUnique
+  | StaleNodeNotFound
+  | StaleNodeReadinessAmbiguous
+  | StaleNodeRecovered
+  | StorageCapabilityDeletionInProgress
+  | StorageCapabilityNotFound
+  | StorageCapabilityReadFailed
+  | StorageClassMismatch
+  | StorageClassMissing
+  | TargetDeletionInProgress
+  | TargetReferenceMissing
+  | TerminatingPodUsesClaim
+  | VolumeAttachmentObservationFailed
+  | VolumeAttachmentSetNotUnique
+  | AttachmentSetChanged
+  | AttachmentStateChanged
+  | CurrentAttachmentIdentityChanged
+  | CurrentAttachmentTargetChanged
+  | CurrentNodeIdentityChanged
+  | StaleAttachmentTargetChanged
+  | StaleNodeIdentityChanged
+  | TargetBindingIdentityChanged
+  deriving Eq, Debug, Show
+type Observation = ObsBlocked(ObsReason, String) | ObsOk(String) deriving Eq, Debug
 type Target = Present | Deleting | Absent deriving Eq, Debug
-type AuthOkObs = AuthOkObs{target: Target, digest: String, currentAttached: Bool} deriving Eq, Debug
-type AuthorizedObservation = AuthBlocked(String, String) | AuthOk(AuthOkObs) deriving Eq, Debug
+// staleIdentity is the identity digest of the stale VolumeAttachment that a
+// DeleteStale action names, so Go can prove it deletes the observed object.
+type AuthOkObs = AuthOkObs{target: Target, digest: String, currentAttached: Bool, staleIdentity: String} deriving Eq, Debug
+type AuthorizedObservation = AuthBlocked(ObsReason, String) | AuthOk(AuthOkObs) deriving Eq, Debug
 type DeleteResult = Deleted | CasFailed | DeleteFailed deriving Eq, Debug
 
 type Observed = Observed{
@@ -57,7 +101,7 @@ type Reason = ApprovalReferenceMissing | ApprovalReadFailed
   | DeletionStateLost | DeleteCompareAndSwapFailed | DeleteRequestFailed
   deriving Eq, Debug, Show
 
-type ReasonCode = Decided(Reason) | FromObservation(String) deriving Eq, Debug
+type ReasonCode = Decided(Reason) | FromObservation(ObsReason) deriving Eq, Debug
 
 // Status names the Go status builder. Blocked carries whether the accepted
 // approval was already proven to match the observation (safety evidence).
@@ -70,7 +114,8 @@ type Status = Blocked{stage: String, reason: ReasonCode, message: String, approv
   | Committed
   deriving Eq, Debug
 
-type Action = ObserveInitial | ObserveAuthorized | DeleteStale | Publish(Status) deriving Eq, Debug
+// DeleteStale names the stale attachment by identity digest.
+type Action = ObserveInitial | ObserveAuthorized | DeleteStale(String) | Publish(Status) deriving Eq, Debug
 
 type ApprovalState = Pending | Accepted | Rejected | Superseded | Expired | Unknown deriving Eq, Debug
 
@@ -160,7 +205,7 @@ func _decideCommitted(o Observed, obs AuthOkObs, approved String) Action {
         Publish(_blocked("DeleteExactAttachment", ApprovalObservationSuperseded, "Live observation changed after approval; no attachment was deleted"))
       } else {
         match o.deleteResult {
-          None => DeleteStale
+          None => DeleteStale(obs.staleIdentity)
           Some(CasFailed) => Publish(_blocked("DeleteExactAttachment", DeleteCompareAndSwapFailed, "The exact deletion target changed before compare-and-swap delete"))
           Some(DeleteFailed) => Publish(_blocked("DeleteExactAttachment", DeleteRequestFailed, "The exact stale attachment delete request failed"))
           Some(Deleted) => Publish(Running("WaitForConvergence", "Exact stale attachment deletion was requested", true))

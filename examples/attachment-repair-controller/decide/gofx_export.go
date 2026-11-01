@@ -15,6 +15,7 @@ type ActionObserveAuthorized struct {
 func (ActionObserveAuthorized) isAction() {}
 
 type ActionDeleteStale struct {
+	F0 string
 }
 
 func (ActionDeleteStale) isAction() {}
@@ -64,10 +65,11 @@ type AuthOkObs struct {
 	Target          Target
 	Digest          string
 	CurrentAttached bool
+	StaleIdentity   string
 }
 type AuthorizedObservation interface{ isAuthorizedObservation() }
 type AuthorizedObservationAuthBlocked struct {
-	F0 string
+	F0 ObsReason
 	F1 string
 }
 
@@ -112,9 +114,141 @@ type ModeLive struct {
 
 func (ModeLive) isMode() {}
 
+type ObsReason int
+
+const (
+	ObsReasonAttachmentDeletionInProgress ObsReason = iota
+	ObsReasonAttachmentDriverMismatch
+	ObsReasonAttachmentTargetMismatch
+	ObsReasonCurrentAttachmentNotUnique
+	ObsReasonCurrentNodeNotFound
+	ObsReasonCurrentNodeNotReady
+	ObsReasonNodeDeletionInProgress
+	ObsReasonNodeObservationFailed
+	ObsReasonNodeTargetNotUnique
+	ObsReasonPersistentVolumeBindingMismatch
+	ObsReasonPersistentVolumeClaimNotBound
+	ObsReasonPersistentVolumeClaimNotFound
+	ObsReasonPersistentVolumeClaimReadFailed
+	ObsReasonPersistentVolumeNotBound
+	ObsReasonPersistentVolumeNotFound
+	ObsReasonPersistentVolumeReadFailed
+	ObsReasonPodObservationFailed
+	ObsReasonPodTargetNotUnique
+	ObsReasonStaleAttachmentNotUnique
+	ObsReasonStaleNodeNotFound
+	ObsReasonStaleNodeReadinessAmbiguous
+	ObsReasonStaleNodeRecovered
+	ObsReasonStorageCapabilityDeletionInProgress
+	ObsReasonStorageCapabilityNotFound
+	ObsReasonStorageCapabilityReadFailed
+	ObsReasonStorageClassMismatch
+	ObsReasonStorageClassMissing
+	ObsReasonTargetDeletionInProgress
+	ObsReasonTargetReferenceMissing
+	ObsReasonTerminatingPodUsesClaim
+	ObsReasonVolumeAttachmentObservationFailed
+	ObsReasonVolumeAttachmentSetNotUnique
+	ObsReasonAttachmentSetChanged
+	ObsReasonAttachmentStateChanged
+	ObsReasonCurrentAttachmentIdentityChanged
+	ObsReasonCurrentAttachmentTargetChanged
+	ObsReasonCurrentNodeIdentityChanged
+	ObsReasonStaleAttachmentTargetChanged
+	ObsReasonStaleNodeIdentityChanged
+	ObsReasonTargetBindingIdentityChanged
+)
+
+func (v ObsReason) String() string {
+	switch v {
+	case ObsReasonAttachmentDeletionInProgress:
+		return "AttachmentDeletionInProgress"
+	case ObsReasonAttachmentDriverMismatch:
+		return "AttachmentDriverMismatch"
+	case ObsReasonAttachmentTargetMismatch:
+		return "AttachmentTargetMismatch"
+	case ObsReasonCurrentAttachmentNotUnique:
+		return "CurrentAttachmentNotUnique"
+	case ObsReasonCurrentNodeNotFound:
+		return "CurrentNodeNotFound"
+	case ObsReasonCurrentNodeNotReady:
+		return "CurrentNodeNotReady"
+	case ObsReasonNodeDeletionInProgress:
+		return "NodeDeletionInProgress"
+	case ObsReasonNodeObservationFailed:
+		return "NodeObservationFailed"
+	case ObsReasonNodeTargetNotUnique:
+		return "NodeTargetNotUnique"
+	case ObsReasonPersistentVolumeBindingMismatch:
+		return "PersistentVolumeBindingMismatch"
+	case ObsReasonPersistentVolumeClaimNotBound:
+		return "PersistentVolumeClaimNotBound"
+	case ObsReasonPersistentVolumeClaimNotFound:
+		return "PersistentVolumeClaimNotFound"
+	case ObsReasonPersistentVolumeClaimReadFailed:
+		return "PersistentVolumeClaimReadFailed"
+	case ObsReasonPersistentVolumeNotBound:
+		return "PersistentVolumeNotBound"
+	case ObsReasonPersistentVolumeNotFound:
+		return "PersistentVolumeNotFound"
+	case ObsReasonPersistentVolumeReadFailed:
+		return "PersistentVolumeReadFailed"
+	case ObsReasonPodObservationFailed:
+		return "PodObservationFailed"
+	case ObsReasonPodTargetNotUnique:
+		return "PodTargetNotUnique"
+	case ObsReasonStaleAttachmentNotUnique:
+		return "StaleAttachmentNotUnique"
+	case ObsReasonStaleNodeNotFound:
+		return "StaleNodeNotFound"
+	case ObsReasonStaleNodeReadinessAmbiguous:
+		return "StaleNodeReadinessAmbiguous"
+	case ObsReasonStaleNodeRecovered:
+		return "StaleNodeRecovered"
+	case ObsReasonStorageCapabilityDeletionInProgress:
+		return "StorageCapabilityDeletionInProgress"
+	case ObsReasonStorageCapabilityNotFound:
+		return "StorageCapabilityNotFound"
+	case ObsReasonStorageCapabilityReadFailed:
+		return "StorageCapabilityReadFailed"
+	case ObsReasonStorageClassMismatch:
+		return "StorageClassMismatch"
+	case ObsReasonStorageClassMissing:
+		return "StorageClassMissing"
+	case ObsReasonTargetDeletionInProgress:
+		return "TargetDeletionInProgress"
+	case ObsReasonTargetReferenceMissing:
+		return "TargetReferenceMissing"
+	case ObsReasonTerminatingPodUsesClaim:
+		return "TerminatingPodUsesClaim"
+	case ObsReasonVolumeAttachmentObservationFailed:
+		return "VolumeAttachmentObservationFailed"
+	case ObsReasonVolumeAttachmentSetNotUnique:
+		return "VolumeAttachmentSetNotUnique"
+	case ObsReasonAttachmentSetChanged:
+		return "AttachmentSetChanged"
+	case ObsReasonAttachmentStateChanged:
+		return "AttachmentStateChanged"
+	case ObsReasonCurrentAttachmentIdentityChanged:
+		return "CurrentAttachmentIdentityChanged"
+	case ObsReasonCurrentAttachmentTargetChanged:
+		return "CurrentAttachmentTargetChanged"
+	case ObsReasonCurrentNodeIdentityChanged:
+		return "CurrentNodeIdentityChanged"
+	case ObsReasonStaleAttachmentTargetChanged:
+		return "StaleAttachmentTargetChanged"
+	case ObsReasonStaleNodeIdentityChanged:
+		return "StaleNodeIdentityChanged"
+	case ObsReasonTargetBindingIdentityChanged:
+		return "TargetBindingIdentityChanged"
+	default:
+		panic("invalid constructor")
+	}
+}
+
 type Observation interface{ isObservation() }
 type ObservationObsBlocked struct {
-	F0 string
+	F0 ObsReason
 	F1 string
 }
 
@@ -220,7 +354,7 @@ type ReasonCodeDecided struct {
 func (ReasonCodeDecided) isReasonCode() {}
 
 type ReasonCodeFromObservation struct {
-	F0 string
+	F0 ObsReason
 }
 
 func (ReasonCodeFromObservation) isReasonCode() {}
@@ -310,7 +444,7 @@ func toGo_Action(v any) Action {
 	case *decide_Action_ObserveAuthorized:
 		return ActionObserveAuthorized{}
 	case *decide_Action_DeleteStale:
-		return ActionDeleteStale{}
+		return ActionDeleteStale{F0: toGo_String(x.F0)}
 	case *decide_Action_Publish:
 		return ActionPublish{F0: toGo_Status(x.F0)}
 	default:
@@ -324,7 +458,7 @@ func fromGo_Action(v Action) any {
 	case ActionObserveAuthorized:
 		return &decide_Action_ObserveAuthorized{}
 	case ActionDeleteStale:
-		return &decide_Action_DeleteStale{}
+		return &decide_Action_DeleteStale{F0: fromGo_String(x.F0)}
 	case ActionPublish:
 		return &decide_Action_Publish{F0: fromGo_Status(x.F0)}
 	default:
@@ -401,14 +535,14 @@ func (v ApprovalReadRead) String() string {
 func toGo_AuthOkObs(v any) AuthOkObs {
 	switch x := v.(type) {
 	case *decide_AuthOkObs_AuthOkObs:
-		return AuthOkObs{Target: toGo_Target(x.F0), Digest: toGo_String(x.F1), CurrentAttached: toGo_Bool(x.F2)}
+		return AuthOkObs{Target: toGo_Target(x.F0), Digest: toGo_String(x.F1), CurrentAttached: toGo_Bool(x.F2), StaleIdentity: toGo_String(x.F3)}
 	default:
 		panic("invalid constructor")
 	}
 }
 func fromGo_AuthOkObs(v AuthOkObs) any {
 	x := v
-	return &decide_AuthOkObs_AuthOkObs{F0: fromGo_Target(x.Target), F1: fromGo_String(x.Digest), F2: fromGo_Bool(x.CurrentAttached)}
+	return &decide_AuthOkObs_AuthOkObs{F0: fromGo_Target(x.Target), F1: fromGo_String(x.Digest), F2: fromGo_Bool(x.CurrentAttached), F3: fromGo_String(x.StaleIdentity)}
 }
 func (v AuthOkObs) String() string {
 	return (dict_decide_Debug_AuthOkObs{}).prelude_Debug(fromGo_AuthOkObs(v)).(string)
@@ -416,7 +550,7 @@ func (v AuthOkObs) String() string {
 func toGo_AuthorizedObservation(v any) AuthorizedObservation {
 	switch x := v.(type) {
 	case *decide_AuthorizedObservation_AuthBlocked:
-		return AuthorizedObservationAuthBlocked{F0: toGo_String(x.F0), F1: toGo_String(x.F1)}
+		return AuthorizedObservationAuthBlocked{F0: toGo_ObsReason(x.F0), F1: toGo_String(x.F1)}
 	case *decide_AuthorizedObservation_AuthOk:
 		return AuthorizedObservationAuthOk{F0: toGo_AuthOkObs(x.F0)}
 	default:
@@ -426,7 +560,7 @@ func toGo_AuthorizedObservation(v any) AuthorizedObservation {
 func fromGo_AuthorizedObservation(v AuthorizedObservation) any {
 	switch x := v.(type) {
 	case AuthorizedObservationAuthBlocked:
-		return &decide_AuthorizedObservation_AuthBlocked{F0: fromGo_String(x.F0), F1: fromGo_String(x.F1)}
+		return &decide_AuthorizedObservation_AuthBlocked{F0: fromGo_ObsReason(x.F0), F1: fromGo_String(x.F1)}
 	case AuthorizedObservationAuthOk:
 		return &decide_AuthorizedObservation_AuthOk{F0: fromGo_AuthOkObs(x.F0)}
 	default:
@@ -489,10 +623,182 @@ func (v ModeDryRun) String() string {
 func (v ModeLive) String() string {
 	return (dict_decide_Debug_Mode{}).prelude_Debug(fromGo_Mode(v)).(string)
 }
+func toGo_ObsReason(v any) ObsReason {
+	switch v.(type) {
+	case *decide_ObsReason_AttachmentDeletionInProgress:
+		return ObsReasonAttachmentDeletionInProgress
+	case *decide_ObsReason_AttachmentDriverMismatch:
+		return ObsReasonAttachmentDriverMismatch
+	case *decide_ObsReason_AttachmentTargetMismatch:
+		return ObsReasonAttachmentTargetMismatch
+	case *decide_ObsReason_CurrentAttachmentNotUnique:
+		return ObsReasonCurrentAttachmentNotUnique
+	case *decide_ObsReason_CurrentNodeNotFound:
+		return ObsReasonCurrentNodeNotFound
+	case *decide_ObsReason_CurrentNodeNotReady:
+		return ObsReasonCurrentNodeNotReady
+	case *decide_ObsReason_NodeDeletionInProgress:
+		return ObsReasonNodeDeletionInProgress
+	case *decide_ObsReason_NodeObservationFailed:
+		return ObsReasonNodeObservationFailed
+	case *decide_ObsReason_NodeTargetNotUnique:
+		return ObsReasonNodeTargetNotUnique
+	case *decide_ObsReason_PersistentVolumeBindingMismatch:
+		return ObsReasonPersistentVolumeBindingMismatch
+	case *decide_ObsReason_PersistentVolumeClaimNotBound:
+		return ObsReasonPersistentVolumeClaimNotBound
+	case *decide_ObsReason_PersistentVolumeClaimNotFound:
+		return ObsReasonPersistentVolumeClaimNotFound
+	case *decide_ObsReason_PersistentVolumeClaimReadFailed:
+		return ObsReasonPersistentVolumeClaimReadFailed
+	case *decide_ObsReason_PersistentVolumeNotBound:
+		return ObsReasonPersistentVolumeNotBound
+	case *decide_ObsReason_PersistentVolumeNotFound:
+		return ObsReasonPersistentVolumeNotFound
+	case *decide_ObsReason_PersistentVolumeReadFailed:
+		return ObsReasonPersistentVolumeReadFailed
+	case *decide_ObsReason_PodObservationFailed:
+		return ObsReasonPodObservationFailed
+	case *decide_ObsReason_PodTargetNotUnique:
+		return ObsReasonPodTargetNotUnique
+	case *decide_ObsReason_StaleAttachmentNotUnique:
+		return ObsReasonStaleAttachmentNotUnique
+	case *decide_ObsReason_StaleNodeNotFound:
+		return ObsReasonStaleNodeNotFound
+	case *decide_ObsReason_StaleNodeReadinessAmbiguous:
+		return ObsReasonStaleNodeReadinessAmbiguous
+	case *decide_ObsReason_StaleNodeRecovered:
+		return ObsReasonStaleNodeRecovered
+	case *decide_ObsReason_StorageCapabilityDeletionInProgress:
+		return ObsReasonStorageCapabilityDeletionInProgress
+	case *decide_ObsReason_StorageCapabilityNotFound:
+		return ObsReasonStorageCapabilityNotFound
+	case *decide_ObsReason_StorageCapabilityReadFailed:
+		return ObsReasonStorageCapabilityReadFailed
+	case *decide_ObsReason_StorageClassMismatch:
+		return ObsReasonStorageClassMismatch
+	case *decide_ObsReason_StorageClassMissing:
+		return ObsReasonStorageClassMissing
+	case *decide_ObsReason_TargetDeletionInProgress:
+		return ObsReasonTargetDeletionInProgress
+	case *decide_ObsReason_TargetReferenceMissing:
+		return ObsReasonTargetReferenceMissing
+	case *decide_ObsReason_TerminatingPodUsesClaim:
+		return ObsReasonTerminatingPodUsesClaim
+	case *decide_ObsReason_VolumeAttachmentObservationFailed:
+		return ObsReasonVolumeAttachmentObservationFailed
+	case *decide_ObsReason_VolumeAttachmentSetNotUnique:
+		return ObsReasonVolumeAttachmentSetNotUnique
+	case *decide_ObsReason_AttachmentSetChanged:
+		return ObsReasonAttachmentSetChanged
+	case *decide_ObsReason_AttachmentStateChanged:
+		return ObsReasonAttachmentStateChanged
+	case *decide_ObsReason_CurrentAttachmentIdentityChanged:
+		return ObsReasonCurrentAttachmentIdentityChanged
+	case *decide_ObsReason_CurrentAttachmentTargetChanged:
+		return ObsReasonCurrentAttachmentTargetChanged
+	case *decide_ObsReason_CurrentNodeIdentityChanged:
+		return ObsReasonCurrentNodeIdentityChanged
+	case *decide_ObsReason_StaleAttachmentTargetChanged:
+		return ObsReasonStaleAttachmentTargetChanged
+	case *decide_ObsReason_StaleNodeIdentityChanged:
+		return ObsReasonStaleNodeIdentityChanged
+	case *decide_ObsReason_TargetBindingIdentityChanged:
+		return ObsReasonTargetBindingIdentityChanged
+	default:
+		panic("invalid constructor")
+	}
+}
+func fromGo_ObsReason(v ObsReason) any {
+	switch v {
+	case ObsReasonAttachmentDeletionInProgress:
+		return &decide_ObsReason_AttachmentDeletionInProgress{}
+	case ObsReasonAttachmentDriverMismatch:
+		return &decide_ObsReason_AttachmentDriverMismatch{}
+	case ObsReasonAttachmentTargetMismatch:
+		return &decide_ObsReason_AttachmentTargetMismatch{}
+	case ObsReasonCurrentAttachmentNotUnique:
+		return &decide_ObsReason_CurrentAttachmentNotUnique{}
+	case ObsReasonCurrentNodeNotFound:
+		return &decide_ObsReason_CurrentNodeNotFound{}
+	case ObsReasonCurrentNodeNotReady:
+		return &decide_ObsReason_CurrentNodeNotReady{}
+	case ObsReasonNodeDeletionInProgress:
+		return &decide_ObsReason_NodeDeletionInProgress{}
+	case ObsReasonNodeObservationFailed:
+		return &decide_ObsReason_NodeObservationFailed{}
+	case ObsReasonNodeTargetNotUnique:
+		return &decide_ObsReason_NodeTargetNotUnique{}
+	case ObsReasonPersistentVolumeBindingMismatch:
+		return &decide_ObsReason_PersistentVolumeBindingMismatch{}
+	case ObsReasonPersistentVolumeClaimNotBound:
+		return &decide_ObsReason_PersistentVolumeClaimNotBound{}
+	case ObsReasonPersistentVolumeClaimNotFound:
+		return &decide_ObsReason_PersistentVolumeClaimNotFound{}
+	case ObsReasonPersistentVolumeClaimReadFailed:
+		return &decide_ObsReason_PersistentVolumeClaimReadFailed{}
+	case ObsReasonPersistentVolumeNotBound:
+		return &decide_ObsReason_PersistentVolumeNotBound{}
+	case ObsReasonPersistentVolumeNotFound:
+		return &decide_ObsReason_PersistentVolumeNotFound{}
+	case ObsReasonPersistentVolumeReadFailed:
+		return &decide_ObsReason_PersistentVolumeReadFailed{}
+	case ObsReasonPodObservationFailed:
+		return &decide_ObsReason_PodObservationFailed{}
+	case ObsReasonPodTargetNotUnique:
+		return &decide_ObsReason_PodTargetNotUnique{}
+	case ObsReasonStaleAttachmentNotUnique:
+		return &decide_ObsReason_StaleAttachmentNotUnique{}
+	case ObsReasonStaleNodeNotFound:
+		return &decide_ObsReason_StaleNodeNotFound{}
+	case ObsReasonStaleNodeReadinessAmbiguous:
+		return &decide_ObsReason_StaleNodeReadinessAmbiguous{}
+	case ObsReasonStaleNodeRecovered:
+		return &decide_ObsReason_StaleNodeRecovered{}
+	case ObsReasonStorageCapabilityDeletionInProgress:
+		return &decide_ObsReason_StorageCapabilityDeletionInProgress{}
+	case ObsReasonStorageCapabilityNotFound:
+		return &decide_ObsReason_StorageCapabilityNotFound{}
+	case ObsReasonStorageCapabilityReadFailed:
+		return &decide_ObsReason_StorageCapabilityReadFailed{}
+	case ObsReasonStorageClassMismatch:
+		return &decide_ObsReason_StorageClassMismatch{}
+	case ObsReasonStorageClassMissing:
+		return &decide_ObsReason_StorageClassMissing{}
+	case ObsReasonTargetDeletionInProgress:
+		return &decide_ObsReason_TargetDeletionInProgress{}
+	case ObsReasonTargetReferenceMissing:
+		return &decide_ObsReason_TargetReferenceMissing{}
+	case ObsReasonTerminatingPodUsesClaim:
+		return &decide_ObsReason_TerminatingPodUsesClaim{}
+	case ObsReasonVolumeAttachmentObservationFailed:
+		return &decide_ObsReason_VolumeAttachmentObservationFailed{}
+	case ObsReasonVolumeAttachmentSetNotUnique:
+		return &decide_ObsReason_VolumeAttachmentSetNotUnique{}
+	case ObsReasonAttachmentSetChanged:
+		return &decide_ObsReason_AttachmentSetChanged{}
+	case ObsReasonAttachmentStateChanged:
+		return &decide_ObsReason_AttachmentStateChanged{}
+	case ObsReasonCurrentAttachmentIdentityChanged:
+		return &decide_ObsReason_CurrentAttachmentIdentityChanged{}
+	case ObsReasonCurrentAttachmentTargetChanged:
+		return &decide_ObsReason_CurrentAttachmentTargetChanged{}
+	case ObsReasonCurrentNodeIdentityChanged:
+		return &decide_ObsReason_CurrentNodeIdentityChanged{}
+	case ObsReasonStaleAttachmentTargetChanged:
+		return &decide_ObsReason_StaleAttachmentTargetChanged{}
+	case ObsReasonStaleNodeIdentityChanged:
+		return &decide_ObsReason_StaleNodeIdentityChanged{}
+	case ObsReasonTargetBindingIdentityChanged:
+		return &decide_ObsReason_TargetBindingIdentityChanged{}
+	default:
+		panic("invalid constructor")
+	}
+}
 func toGo_Observation(v any) Observation {
 	switch x := v.(type) {
 	case *decide_Observation_ObsBlocked:
-		return ObservationObsBlocked{F0: toGo_String(x.F0), F1: toGo_String(x.F1)}
+		return ObservationObsBlocked{F0: toGo_ObsReason(x.F0), F1: toGo_String(x.F1)}
 	case *decide_Observation_ObsOk:
 		return ObservationObsOk{F0: toGo_String(x.F0)}
 	default:
@@ -502,7 +808,7 @@ func toGo_Observation(v any) Observation {
 func fromGo_Observation(v Observation) any {
 	switch x := v.(type) {
 	case ObservationObsBlocked:
-		return &decide_Observation_ObsBlocked{F0: fromGo_String(x.F0), F1: fromGo_String(x.F1)}
+		return &decide_Observation_ObsBlocked{F0: fromGo_ObsReason(x.F0), F1: fromGo_String(x.F1)}
 	case ObservationObsOk:
 		return &decide_Observation_ObsOk{F0: fromGo_String(x.F0)}
 	default:
@@ -627,7 +933,7 @@ func toGo_ReasonCode(v any) ReasonCode {
 	case *decide_ReasonCode_Decided:
 		return ReasonCodeDecided{F0: toGo_Reason(x.F0)}
 	case *decide_ReasonCode_FromObservation:
-		return ReasonCodeFromObservation{F0: toGo_String(x.F0)}
+		return ReasonCodeFromObservation{F0: toGo_ObsReason(x.F0)}
 	default:
 		panic("invalid constructor")
 	}
@@ -637,7 +943,7 @@ func fromGo_ReasonCode(v ReasonCode) any {
 	case ReasonCodeDecided:
 		return &decide_ReasonCode_Decided{F0: fromGo_Reason(x.F0)}
 	case ReasonCodeFromObservation:
-		return &decide_ReasonCode_FromObservation{F0: fromGo_String(x.F0)}
+		return &decide_ReasonCode_FromObservation{F0: fromGo_ObsReason(x.F0)}
 	default:
 		panic("invalid constructor")
 	}
