@@ -1,0 +1,32 @@
+package main
+
+func sumTo(n Int) Int {
+  let go = func(i, acc) => if i == 0 { acc } else { go(i - 1, acc + i) }
+  go(n, 0)
+}
+
+func parity(n Int) Bool {
+  func isEven(i Int) Bool {
+    if i == 0 { true } else { isOdd(i - 1) }
+  }
+  func isOdd(i Int) Bool {
+    if i == 0 { false } else { isEven(i - 1) }
+  }
+  isEven(n)
+}
+
+func main() IO[Unit] {
+  do {
+    base <- ioPure(10)
+    func addBase(n Int) Int {
+      if n == 0 { base } else { 1 + addBase(n - 1) }
+    }
+    let repeatValue = func(n, x) => if n == 0 { x } else { repeatValue(n - 1, x) }
+    let render = func(n, x) => if n == 0 { show(x) } else { render(n - 1, x) }
+    println("sum 1..5: ${sumTo(5)}")
+    println("even 10: ${parity(10)}, even 7: ${parity(7)}")
+    println("do helper: ${addBase(3)}")
+    println("polymorphic: ${repeatValue(2, 42)}, ${repeatValue(2, true)}")
+    println("dictionaries: " + render(2, 7) + ", " + render(2, false))
+  }
+}

@@ -6,6 +6,8 @@ type locals struct {
 	parent  *locals
 	values  map[string]Type
 	schemes map[string]*localScheme
+	// Only the singleton scope prebinding a recursive let sets recursiveUse.
+	recursiveUse *bool
 }
 
 func newLocals(parent *locals) *locals {
@@ -15,6 +17,9 @@ func newLocals(parent *locals) *locals {
 func (l *locals) lookup(name string) (Type, *localScheme) {
 	for ; l != nil; l = l.parent {
 		if t := l.values[name]; t != nil {
+			if l.recursiveUse != nil {
+				*l.recursiveUse = true
+			}
 			return t, l.schemes[name]
 		}
 	}
@@ -56,7 +61,12 @@ func (c *checker) body(constraints []Constraint, scope map[string]Type) *bodyChe
 }
 
 func (b *bodyChecker) check(params []ast.Param, signature *TFunc, block *ast.Block) {
-	env := newLocals(nil)
+	b.functionBody(params, signature, block, nil)
+	b.finish()
+}
+
+func (b *bodyChecker) functionBody(params []ast.Param, signature *TFunc, block *ast.Block, outer *locals) {
+	env := newLocals(outer)
 	for i, param := range params {
 		checkValueName(block.Pos, param.Name)
 		if env.values[param.Name] != nil {
@@ -66,13 +76,23 @@ func (b *bodyChecker) check(params []ast.Param, signature *TFunc, block *ast.Blo
 	}
 	result := b.block(block, env)
 	unify(block.Result.GetPos(), signature.Ret, result)
-	b.finish()
 }
 
 func (b *bodyChecker) block(block *ast.Block, outer *locals) Type {
 	env := newLocals(outer)
-	for _, stmt := range block.Stmts {
-		switch stmt := stmt.(type) {
+	for i := 0; i < len(block.Stmts); i++ {
+		switch stmt := block.Stmts[i].(type) {
+		case *ast.FuncDecl:
+			group := []*ast.FuncDecl{stmt}
+			for i+1 < len(block.Stmts) {
+				next, ok := block.Stmts[i+1].(*ast.FuncDecl)
+				if !ok {
+					break
+				}
+				group = append(group, next)
+				i++
+			}
+			b.localFunctions(group, env)
 		case *ast.LetStmt:
 			b.let(stmt.Pos, stmt.Name, stmt.Pat, stmt.Type, stmt.Value, env)
 		case *ast.ExprStmt:
@@ -275,8 +295,19 @@ func (b *bodyChecker) inferExpected(e ast.Expr, env *locals, expected Type) Type
 		local := newLocals(env)
 		head := b.c.fresh(arityKind(1))
 		b.obligations = append(b.obligations, obligation{expr: e, constraints: []Constraint{{Class: "Monad", Arg: head}}, monad: true})
-		for _, stmt := range e.Stmts {
-			switch stmt := stmt.(type) {
+		for i := 0; i < len(e.Stmts); i++ {
+			switch stmt := e.Stmts[i].(type) {
+			case *ast.FuncDecl:
+				group := []*ast.FuncDecl{stmt}
+				for i+1 < len(e.Stmts) {
+					next, ok := e.Stmts[i+1].(*ast.FuncDecl)
+					if !ok {
+						break
+					}
+					group = append(group, next)
+					i++
+				}
+				b.localFunctions(group, local)
 			case *ast.DoBind:
 				if stmt.Pat != nil {
 					b.localPattern(stmt.Pos, stmt.Pat, b.monadic(stmt.X, head, local), local, "bind")

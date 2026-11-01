@@ -123,6 +123,8 @@ type Ctor struct {
 	FieldNames []string
 }
 
+// FuncDecl also represents a local function statement in a block or do.
+// Local functions have no type parameters or extern binding.
 type FuncDecl struct {
 	Pos     Pos
 	Name    string
@@ -167,6 +169,7 @@ type ExprStmt struct{ X Expr }
 
 func (*LetStmt) stmtNode()  {}
 func (*ExprStmt) stmtNode() {}
+func (*FuncDecl) stmtNode() {}
 
 // Expr nodes carry an Ann slot the checker fills with *types.Ann.
 type Expr interface {
@@ -306,9 +309,10 @@ type DoLet struct {
 }
 type DoExpr struct{ X Expr }
 
-func (*DoBind) doStmtNode() {}
-func (*DoLet) doStmtNode()  {}
-func (*DoExpr) doStmtNode() {}
+func (*DoBind) doStmtNode()   {}
+func (*DoLet) doStmtNode()    {}
+func (*DoExpr) doStmtNode()   {}
+func (*FuncDecl) doStmtNode() {}
 
 type Binary struct {
 	ExprBase

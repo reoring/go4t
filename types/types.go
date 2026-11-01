@@ -333,6 +333,9 @@ type Ann struct {
 	// the resolved dictionaries. A let without constraints is a plain local
 	// regardless of its TParams (erasure makes type generalisation free).
 	LetScheme *Scheme
+	// Recursive marks a let-bound lambda whose name occurs free in its body.
+	// Its self references are monomorphic and do not apply LetScheme dictionaries.
+	Recursive bool
 }
 
 // AnnOf returns the annotation of e, panicking if Check did not run.

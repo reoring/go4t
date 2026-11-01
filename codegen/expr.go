@@ -20,6 +20,19 @@ func (g *generator) statements(stmts []ast.Stmt, result ast.Expr) string {
 	var out strings.Builder
 	for i, stmt := range stmts {
 		switch stmt := stmt.(type) {
+		case *ast.FuncDecl:
+			group := []*ast.FuncDecl{stmt}
+			next := i + 1
+			for next < len(stmts) {
+				decl, ok := stmts[next].(*ast.FuncDecl)
+				if !ok {
+					break
+				}
+				group = append(group, decl)
+				next++
+			}
+			out.WriteString(g.localFunctions(group, g.statements(stmts[next:], result)))
+			return out.String()
 		case *ast.LetStmt:
 			// A nested scope preserves lexical shadowing, including the case where
 			// the initializer refers to the previous binding of the same name.
@@ -46,14 +59,24 @@ func (g *generator) letStatement(name string, pattern ast.Pattern, value ast.Exp
 }
 
 func (g *generator) letBinding(name string, value ast.Expr) string {
+	sourceName := name
 	name = mangle(name)
-	if ann, ok := (*value.AnnSlot()).(*types.Ann); ok && ann != nil && ann.LetScheme != nil {
+	ann, _ := (*value.AnnSlot()).(*types.Ann)
+	if ann != nil && ann.LetScheme != nil {
 		scheme := ann.LetScheme
 		previous := g.dictScope
 		g.dictScope.params = append(g.dictScope.params, scheme.Constraints...)
-		body := g.expr(value)
+		var body string
+		if ann.Recursive {
+			body = g.recursiveLambdaBinding(sourceName, value.(*ast.Lambda)) + "return " + name + "\n"
+		} else {
+			body = "return " + g.expr(value) + "\n"
+		}
 		g.dictScope = previous
-		return name + " := func(" + strings.Join(g.dictParams(scheme.Constraints), ", ") + ") any {\nreturn " + body + "\n}\n_ = " + name + "\n"
+		return name + " := func(" + strings.Join(g.dictParams(scheme.Constraints), ", ") + ") any {\n" + body + "}\n_ = " + name + "\n"
+	}
+	if ann != nil && ann.Recursive {
+		return g.recursiveLambdaBinding(sourceName, value.(*ast.Lambda))
 	}
 	return "var " + name + " any = " + g.expr(value) + "\n_ = " + name + "\n"
 }
@@ -221,6 +244,21 @@ func (g *generator) expr(expr ast.Expr) string {
 			var value ast.Expr
 			var name string
 			switch stmt := e.Stmts[i].(type) {
+			case *ast.FuncDecl:
+				start := i
+				for start > 0 {
+					if _, ok := e.Stmts[start-1].(*ast.FuncDecl); !ok {
+						break
+					}
+					start--
+				}
+				group := make([]*ast.FuncDecl, i-start+1)
+				for j := range group {
+					group[j] = e.Stmts[start+j].(*ast.FuncDecl)
+				}
+				body = g.localFunctions(group, body)
+				i = start
+				continue
 			case *ast.DoBind:
 				value, name = stmt.X, mangle(stmt.Name)
 				if stmt.Pat != nil {
