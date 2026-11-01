@@ -377,7 +377,9 @@ Rule 3 lists tokens that can never start a statement, so a line beginning with o
 is always the continuation of the previous expression. `-` is included: a statement never
 starts with unary minus in practice (write `0 - x` or parenthesise if you must).
 All three checks live in `lexer.needSemi`/`lexer.continuationAhead`; no other place
-decides insertion. `lexer_test.go` carries the full matrix.
+decides insertion. The lexer cannot tell record braces from block braces, so the parser
+skips inserted `;` inside record constructor declarations, record literals/updates and
+record patterns (pass 11 fix; `parser/layout_record_test.go`). `lexer_test.go` carries the full matrix.
 
 ### State monad
 Prelude adds:

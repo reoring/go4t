@@ -48,6 +48,10 @@ A newline is converted to `;` iff all of:
    `else`, `|`, `||`, `.`, `)`, `]`, `given`, `deriving`, `=>`, `<-`, or a binary operator
    (`+ - * / % == != < <= > >= &&`).
 
+Braces of record constructors, record literals/updates and record patterns are not
+blocks: newlines inside them are ignored, so fields may be written one per line (with or
+without a trailing comma).
+
 Consequences: `else` may start a line; match arms may be written one per line with or
 without a leading `|`; constructor alternatives in `type` may start lines with `|`;
 operators may lead a continuation line; a line starting with `-` is a continuation (write

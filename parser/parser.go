@@ -369,6 +369,8 @@ func (p *Parser) typeDecl() ast.Decl {
 			}
 			p.expectP(")")
 		} else if p.acceptP("{") {
+			// Record braces are not blocks: newline-inserted ';' are layout noise.
+			p.skipSemis()
 			if p.isP("}") {
 				p.fail(c.Pos, "record constructor needs at least one field")
 			}
@@ -376,7 +378,12 @@ func (p *Parser) typeDecl() ast.Decl {
 				c.FieldNames = append(c.FieldNames, p.ident())
 				p.expectP(":")
 				c.Fields = append(c.Fields, p.typ())
-				if !p.acceptP(",") || p.isP("}") {
+				p.skipSemis()
+				if !p.acceptP(",") {
+					break
+				}
+				p.skipSemis()
+				if p.isP("}") {
 					break
 				}
 			}
@@ -709,11 +716,13 @@ func (p *Parser) pattern() ast.Pattern {
 		if isUpper(t.Text) {
 			if p.acceptP("{") {
 				record := &ast.PRecord{Pos: t.Pos, Ctor: t.Text}
+				p.skipSemis()
 				for !p.isP("}") {
 					if p.isP("..") {
 						restPos := p.next().Pos
 						record.Rest = true
 						p.acceptP(",")
+						p.skipSemis()
 						if !p.isP("}") {
 							p.fail(restPos, ".. must be last in record pattern")
 						}
@@ -727,9 +736,11 @@ func (p *Parser) pattern() ast.Pattern {
 					p.expectP(":")
 					record.Names = append(record.Names, name)
 					record.Pats = append(record.Pats, p.pattern())
+					p.skipSemis()
 					if !p.acceptP(",") {
 						break
 					}
+					p.skipSemis()
 				}
 				p.expectP("}")
 				if len(record.Names) == 0 && !record.Rest {
@@ -815,20 +826,33 @@ func (p *Parser) postfix() ast.Expr {
 	}
 }
 
+// recordAhead reports `{ Ident :` on the same line as the preceding token;
+// a newline directly after `{` (inserted `;`) is skipped for the lookahead.
 func (p *Parser) recordAhead() bool {
-	return p.isP("{") && p.i > 0 && p.i+2 < len(p.toks) &&
-		p.toks[p.i-1].Pos.Line == p.pos().Line &&
-		p.toks[p.i+1].Kind == lexer.Ident &&
-		p.toks[p.i+2].Kind == lexer.Punct && p.toks[p.i+2].Text == ":"
+	if !p.isP("{") || p.i == 0 || p.toks[p.i-1].Pos.Line != p.pos().Line {
+		return false
+	}
+	j := p.i + 1
+	for j < len(p.toks) && p.toks[j].Kind == lexer.Punct && p.toks[j].Text == ";" {
+		j++
+	}
+	return j+1 < len(p.toks) && p.toks[j].Kind == lexer.Ident &&
+		p.toks[j+1].Kind == lexer.Punct && p.toks[j+1].Text == ":"
 }
 
 func (p *Parser) recordFields() (names []string, values []ast.Expr) {
 	p.expectP("{")
+	p.skipSemis()
 	for {
 		names = append(names, p.ident())
 		p.expectP(":")
 		values = append(values, p.expr())
-		if !p.acceptP(",") || p.isP("}") {
+		p.skipSemis()
+		if !p.acceptP(",") {
+			break
+		}
+		p.skipSemis()
+		if p.isP("}") {
 			break
 		}
 	}
