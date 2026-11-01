@@ -54,7 +54,7 @@ var keywords = map[string]bool{
 
 // puncts ordered longest-first for maximal munch.
 var puncts = []string{
-	"=>", "<-", "==", "!=", "<=", ">=", "&&", "||", "..",
+	"=>", "<-", "==", "!=", "<=", ">=", "&&", "||", "|>", "..",
 	"(", ")", "[", "]", "{", "}", ",", ";", ".", "=", ":", "|", "_", "@",
 	"+", "-", "*", "/", "%", "<", ">", "!",
 }
@@ -149,7 +149,7 @@ func (l *Lexer) continuationAhead() bool {
 	}
 	switch l.src[i] {
 	case '.', ')', ']', '|', '+', '-', '*', '/', '%', '<', '>':
-		// Covers single | and binary ||, <=, >= and the <- bind arrow.
+		// Covers single |, binary || and |>, <=, >= and the <- bind arrow.
 		return true
 	case '=':
 		return i+1 < len(l.src) && (l.src[i+1] == '=' || l.src[i+1] == '>')
