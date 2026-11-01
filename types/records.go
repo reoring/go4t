@@ -76,23 +76,47 @@ func (b *bodyChecker) recordType(pos ast.Pos, receiver ast.Expr, typ Type, field
 		head, args = prune(app.Fun), app.Args
 	}
 	if con, ok := head.(*TCon); ok {
-		if data := b.c.program.DataTypes[con.Name]; data != nil && len(data.Ctors) == 1 {
+		if data := b.c.program.DataTypes[con.Name]; data != nil {
 			ctor := data.Ctors[0]
-			if ctor.FieldNames != nil && (field == "" || fieldIndex(ctor, field) >= 0) {
-				sub := make(map[*TVar]Type, len(data.TParams))
-				for i, param := range data.TParams {
-					sub[param] = args[i]
-				}
-				fields := substituteList(ctor.Fields, sub)
-				if fields == nil {
-					fields = ctor.Fields
-				}
-				return ctor, fields
+			sub := make(map[*TVar]Type, len(data.TParams))
+			for i, param := range data.TParams {
+				sub[param] = args[i]
+			}
+			fields := substituteList(ctor.Fields, sub)
+			if fields == nil {
+				fields = ctor.Fields
+			}
+			return ctor, fields
+		}
+	}
+	fail(pos, "field %s requires a record type", field)
+	return nil, nil
+}
+
+func commonRecordFields(pos ast.Pos, ctor *Ctor, names []string, ann *Ann) {
+	ann.Ctor = ctor
+	ann.FieldIndexes = recordIndexes(pos, ctor, names, false)
+	if len(ctor.Data.Ctors) == 1 {
+		return
+	}
+	ann.RecordCases = make([]RecordCase, len(ctor.Data.Ctors))
+	ann.RecordCases[0] = RecordCase{Ctor: ctor, Indexes: ann.FieldIndexes}
+	// Check presence first, in declaration order, so the diagnostic always
+	// names the first constructor missing one of the requested fields.
+	for i, other := range ctor.Data.Ctors[1:] {
+		ann.RecordCases[i+1] = RecordCase{Ctor: other, Indexes: recordIndexes(pos, other, names, false)}
+	}
+	for _, record := range ann.RecordCases[1:] {
+		for i, index := range record.Indexes {
+			expected, actual := ctor.Fields[ann.FieldIndexes[i]], record.Ctor.Fields[index]
+			// Declaration types contain no inference metas: this comparison
+			// cannot specialize the receiver to make incompatible fields agree.
+			if !unifyTypes(pos, expected, actual) {
+				fail(pos, "field %s has type %s in constructor %s; expected %s from constructor %s",
+					names[i], TypeString(actual), record.Ctor.Name, TypeString(expected), ctor.Name)
 			}
 		}
 	}
-	fail(pos, "field %s requires a single-constructor record type", field)
-	return nil, nil
 }
 
 func (b *bodyChecker) field(e *ast.Field, env *locals, ann *Ann) Type {
@@ -121,7 +145,8 @@ func (b *bodyChecker) field(e *ast.Field, env *locals, ann *Ann) Type {
 	checkValueName(e.GetPos(), e.Name)
 	typ := b.infer(e.X, env)
 	ctor, fields := b.recordType(e.GetPos(), e.X, typ, e.Name)
-	ann.Ctor, ann.FieldIndex = ctor, fieldIndex(ctor, e.Name)
+	commonRecordFields(e.GetPos(), ctor, []string{e.Name}, ann)
+	ann.FieldIndex = ann.FieldIndexes[0]
 	return fields[ann.FieldIndex]
 }
 
@@ -133,8 +158,7 @@ func (b *bodyChecker) recordUpdate(e *ast.RecordUpdate, env *locals, ann *Ann) T
 		checkValueName(e.GetPos(), name)
 	}
 	ctor, fields := b.recordType(e.GetPos(), e.X, typ, name)
-	ann.Ctor = ctor
-	ann.FieldIndexes = recordIndexes(e.GetPos(), ctor, e.Names, false)
+	commonRecordFields(e.GetPos(), ctor, e.Names, ann)
 	b.recordValues(e.Values, ann.FieldIndexes, fields, env)
 	return typ
 }

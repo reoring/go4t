@@ -83,6 +83,9 @@ func (g *generator) expr(expr ast.Expr) string {
 			return fmt.Sprintf("any(%s).(*%s).F%d", g.expr(e.X), g.tupleName(len(tuple.Args)), e.Index)
 		}
 		ann := g.ann(e)
+		if len(ann.RecordCases) != 0 {
+			return g.commonField(e)
+		}
 		return fmt.Sprintf("any(%s).(*%s).F%d", g.expr(e.X), ctorName(ann.Ctor), ann.FieldIndex)
 	case *ast.RecordLit:
 		ann := g.ann(e)
@@ -93,25 +96,17 @@ func (g *generator) expr(expr ast.Expr) string {
 		return "&" + ctorName(ann.Ctor) + "{" + strings.Join(fields, ", ") + "}"
 	case *ast.RecordUpdate:
 		ann := g.ann(e)
+		if len(ann.RecordCases) != 0 {
+			return g.commonRecordUpdate(e)
+		}
 		base := g.fresh()
 		var out strings.Builder
 		fmt.Fprintf(&out, "func() any {\n%s := any(%s).(*%s)\n_ = %s\n", base, g.expr(e.X), ctorName(ann.Ctor), base)
-		replaced := make([]bool, len(ann.Ctor.Fields))
-		for _, index := range ann.FieldIndexes {
-			replaced[index] = true
-		}
-		fields := make([]string, 0, len(ann.Ctor.Fields))
-		for index, changed := range replaced {
-			if !changed {
-				fields = append(fields, fmt.Sprintf("F%d: %s.F%d", index, base, index))
-			}
-		}
-		// Emit replacements in source order, not declaration order: their
-		// expressions may call functions or fail.
+		values := make([]string, len(e.Values))
 		for i, value := range e.Values {
-			fields = append(fields, fmt.Sprintf("F%d: %s", ann.FieldIndexes[i], g.expr(value)))
+			values[i] = g.expr(value)
 		}
-		fmt.Fprintf(&out, "return &%s{%s}\n}()", ctorName(ann.Ctor), strings.Join(fields, ", "))
+		fmt.Fprintf(&out, "return %s\n}()", updatedRecord(ann.Ctor, ann.FieldIndexes, base, values))
 		return out.String()
 	case *ast.BoolLit:
 		return strconv.FormatBool(e.Value)

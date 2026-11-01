@@ -15,6 +15,8 @@ type instanceKey struct{ class, con string }
 type checker struct {
 	program    *Program
 	cons       map[string]*TCon
+	aliases    map[string]*typeAlias
+	instDecls  map[*ast.InstanceDecl]*Instance
 	ctors      map[string]*Ctor
 	methods    map[string]*Method
 	instances  map[instanceKey]*Instance
@@ -73,6 +75,7 @@ func Check(files []*ast.File) (program *Program, err error) {
 		},
 		cons: make(map[string]*TCon), ctors: make(map[string]*Ctor),
 		methods: make(map[string]*Method), instances: make(map[instanceKey]*Instance),
+		aliases: make(map[string]*typeAlias), instDecls: make(map[*ast.InstanceDecl]*Instance),
 		sources: make(map[ast.Decl]string),
 	}
 	for _, file := range files {
@@ -94,6 +97,7 @@ func Check(files []*ast.File) (program *Program, err error) {
 		c.cons[con.Name] = con
 	}
 	c.collectNames(files)
+	c.checkAliases(files)
 	c.checkSuperclasses(files)
 	c.collectSignatures(files)
 	c.collectInstances(files)
@@ -109,7 +113,7 @@ func Check(files []*ast.File) (program *Program, err error) {
 					b.check(decl.Params, f.Scheme.Type, decl.Body)
 				}
 			case *ast.InstanceDecl:
-				inst := c.instances[instanceKey{decl.Class, decl.TypeCon}]
+				inst := c.instDecls[decl]
 				head := inst.head()
 				for _, method := range decl.Methods {
 					m := c.methods[method.Name]
@@ -177,7 +181,7 @@ func (c *checker) typeCon(name string) *TCon {
 
 func (c *checker) reserveType(pos ast.Pos, name string) {
 	checkName(pos, name)
-	if c.typeCon(name) != nil || c.program.Classes[name] != nil {
+	if c.typeCon(name) != nil || c.program.Classes[name] != nil || c.aliases[name] != nil {
 		fail(pos, "duplicate declaration %s", name)
 	}
 }
@@ -251,6 +255,9 @@ func (c *checker) collectNames(files []*ast.File) {
 					data.Ctors = append(data.Ctors, ct)
 					c.ctors[ct.Name] = ct
 				}
+			case *ast.AliasDecl:
+				c.reserveType(decl.Pos, decl.Name)
+				c.collectAlias(decl)
 			case *ast.FuncDecl:
 				c.reserveValue(decl.Pos, decl.Name)
 				c.program.Funcs[decl.Name] = &FuncInfo{Name: decl.Name, Decl: decl}
@@ -363,67 +370,6 @@ func (c *checker) collectSignatures(files []*ast.File) {
 	}
 }
 
-func (c *checker) resolveType(t ast.Type, scope map[string]Type) Type {
-	switch t := t.(type) {
-	case *ast.TypeName:
-		base := scope[t.Name]
-		if base == nil {
-			if con := c.typeCon(t.Name); con != nil {
-				base = con
-			}
-		}
-		if base == nil {
-			fail(t.Pos, "unknown type %s", t.Name)
-		}
-		if len(t.Args) == 0 {
-			return base
-		}
-		k, ok := kindOf(base).(KArrow)
-		if !ok || len(t.Args) > len(k.Params) {
-			fail(t.Pos, "kind mismatch applying %s to %d arguments", t.Name, len(t.Args))
-		}
-		args := make([]Type, len(t.Args))
-		for i, arg := range t.Args {
-			args[i] = c.resolveType(arg, scope)
-			requireKind(typePos(arg), kindOf(args[i]), k.Params[i])
-		}
-		return App(base, args...)
-	case *ast.FuncType:
-		f := &TFunc{Params: make([]Type, len(t.Params)), Ret: c.valueType(t.Ret, scope)}
-		for i, param := range t.Params {
-			f.Params[i] = c.valueType(param, scope)
-		}
-		return f
-	case *ast.TupleType:
-		args := make([]Type, len(t.Elems))
-		for i, elem := range t.Elems {
-			args[i] = c.valueType(elem, scope)
-		}
-		return App(Tuple(len(args)), args...)
-	default:
-		panic("missing syntactic type")
-	}
-}
-
-func typePos(t ast.Type) ast.Pos {
-	switch t := t.(type) {
-	case *ast.TypeName:
-		return t.Pos
-	case *ast.FuncType:
-		return t.Pos
-	case *ast.TupleType:
-		return t.Pos
-	default:
-		panic("missing syntactic type")
-	}
-}
-
-func (c *checker) valueType(t ast.Type, scope map[string]Type) Type {
-	resolved := c.resolveType(t, scope)
-	requireKind(typePos(t), kindOf(resolved), KStar{})
-	return resolved
-}
-
 func (c *checker) collectInstances(files []*ast.File) {
 	for _, file := range files {
 		c.file = file.Name
@@ -432,17 +378,15 @@ func (c *checker) collectInstances(files []*ast.File) {
 			if !ok {
 				continue
 			}
-			class, con := c.program.Classes[d.Class], c.typeCon(d.TypeCon)
+			class := c.program.Classes[d.Class]
 			if class == nil {
 				fail(d.Pos, "unknown class %s", d.Class)
-			}
-			if con == nil {
-				fail(d.Pos, "unknown type constructor %s", d.TypeCon)
 			}
 			names := d.Params
 			if len(d.Fixed) != 0 {
 				names = d.Fixed
 			}
+			con, names := c.instanceHead(d, names)
 			residual := con.Kind
 			if len(names) != 0 {
 				kind, ok := con.Kind.(KArrow)
@@ -494,6 +438,7 @@ func (c *checker) collectInstances(files []*ast.File) {
 				inst.Context = append(inst.Context, Constraint{Class: constraint.Class, Arg: param})
 			}
 			c.instances[key] = inst
+			c.instDecls[d] = inst
 			c.program.Instances = append(c.program.Instances, inst)
 			seen := make(map[string]bool)
 			for _, m := range d.Methods {

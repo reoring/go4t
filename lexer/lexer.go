@@ -49,7 +49,7 @@ func (t Token) String() string {
 var keywords = map[string]bool{
 	"package": true, "class": true, "instance": true, "type": true, "func": true,
 	"extern": true, "let": true, "do": true, "match": true, "if": true, "else": true,
-	"true": true, "false": true, "given": true, "deriving": true,
+	"true": true, "false": true, "given": true, "deriving": true, "alias": true,
 }
 
 // puncts ordered longest-first for maximal munch.

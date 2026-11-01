@@ -3,7 +3,7 @@
 // Grammar (';' is inserted at newlines, Go-style, except before 'else'):
 //
 //	File     := 'package' Ident ';' { Decl ';' }
-//	Decl     := Class | Instance | TypeDecl | Func | Extern
+//	Decl     := Class | Instance | TypeDecl | Alias | Func | Extern
 //	Class    := 'class' Ident '[' TParam ']' [ ':' Ident '[' Ident ']' ] '{' { MethodSig ';' } '}'
 //	Instance := 'instance' Ident '[' InstHead ']' [ 'given' Context ] '{' { Ident '(' Idents ')' Block ';' } '}'
 //	InstHead := Ident [ '[' Idents ']' ] | '(' Ident ',' Ident { ',' Ident } ')'
@@ -11,6 +11,7 @@
 //	Context  := Constraint { ',' Constraint }
 //	Constraint := Ident '[' Ident ']' // parameter declared in the instance head
 //	TypeDecl := 'type' Ident [ '[' Idents ']' ] '=' Ctor { '|' Ctor } [ 'deriving' Idents ]
+//	Alias    := 'alias' Ident [ '[' Idents ']' ] '=' Type
 //	Ctor     := Ident [ '(' [ Type { ',' Type } ] ')' | '{' NamedType { ',' NamedType } [ ',' ] '}' ]
 //	NamedType := Ident ':' Type // records need at least one field; no positional/named mixing
 //	Func     := 'func' Ident [ TParams ] '(' Params ')' Type Block
@@ -189,6 +190,8 @@ func (p *Parser) decl() ast.Decl {
 		return p.instanceDecl()
 	case "type":
 		return p.typeDecl()
+	case "alias":
+		return p.aliasDecl()
 	case "func":
 		return p.funcDecl(false)
 	case "extern":
@@ -342,6 +345,23 @@ func (p *Parser) instanceDecl() ast.Decl {
 		p.skipSemis()
 	}
 	p.expectP("}")
+	return d
+}
+
+func (p *Parser) aliasDecl() ast.Decl {
+	pos := p.next().Pos
+	d := &ast.AliasDecl{Pos: pos, Name: p.ident()}
+	if p.acceptP("[") {
+		for {
+			d.TParams = append(d.TParams, p.ident())
+			if !p.acceptP(",") {
+				break
+			}
+		}
+		p.expectP("]")
+	}
+	p.expectP("=")
+	d.Type = p.typ()
 	return d
 }
 

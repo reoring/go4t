@@ -6,6 +6,180 @@ import (
 	"gofx/ast"
 )
 
+// Alias bodies are resolved once in their own parameter scope. Keeping the
+// template separate from applications both detects declaration cycles and lets
+// finite uses such as Identity[Identity[Int]] expand normally.
+type typeAlias struct {
+	decl      *ast.AliasDecl
+	params    []*TVar
+	typ       Type
+	resolving bool
+}
+
+func (c *checker) collectAlias(decl *ast.AliasDecl) {
+	alias := &typeAlias{decl: decl}
+	seen := make(map[string]bool, len(decl.TParams))
+	for _, name := range decl.TParams {
+		checkName(decl.Pos, name)
+		if seen[name] {
+			fail(decl.Pos, "duplicate type parameter %s", name)
+		}
+		seen[name] = true
+		alias.params = append(alias.params, &TVar{Name: name, Kind: KStar{}})
+	}
+	c.aliases[decl.Name] = alias
+}
+
+func (c *checker) checkAliases(files []*ast.File) {
+	for _, file := range files {
+		c.file = file.Name
+		for _, decl := range file.Decls {
+			if decl, ok := decl.(*ast.AliasDecl); ok {
+				c.resolveAlias(c.aliases[decl.Name], decl.Pos)
+			}
+		}
+	}
+}
+
+func (c *checker) resolveAlias(alias *typeAlias, pos ast.Pos) Type {
+	if alias.typ != nil {
+		return alias.typ
+	}
+	if alias.resolving {
+		fail(pos, "type alias cycle involving %s", alias.decl.Name)
+	}
+	alias.resolving = true
+	file := c.file
+	c.file = c.sources[alias.decl]
+	alias.typ = c.resolveType(alias.decl.Type, paramScope(alias.params))
+	c.file = file
+	alias.resolving = false
+	return alias.typ
+}
+
+func (c *checker) applyAlias(t *ast.TypeName, alias *typeAlias, scope map[string]Type) Type {
+	if len(t.Args) != len(alias.params) {
+		fail(t.Pos, "arity mismatch for alias %s: want %d arguments, got %d", t.Name, len(alias.params), len(t.Args))
+	}
+	template := c.resolveAlias(alias, t.Pos)
+	if len(t.Args) == 0 {
+		return template
+	}
+	sub := make(map[*TVar]Type, len(t.Args))
+	for i, arg := range t.Args {
+		sub[alias.params[i]] = c.valueType(arg, scope)
+	}
+	return substitute(template, sub)
+}
+
+func (c *checker) resolveType(t ast.Type, scope map[string]Type) Type {
+	switch t := t.(type) {
+	case *ast.TypeName:
+		base := scope[t.Name]
+		if base == nil {
+			if alias := c.aliases[t.Name]; alias != nil {
+				return c.applyAlias(t, alias, scope)
+			}
+			if con := c.typeCon(t.Name); con != nil {
+				base = con
+			}
+		}
+		if base == nil {
+			fail(t.Pos, "unknown type %s", t.Name)
+		}
+		if len(t.Args) == 0 {
+			return base
+		}
+		k, ok := kindOf(base).(KArrow)
+		if !ok || len(t.Args) > len(k.Params) {
+			fail(t.Pos, "kind mismatch applying %s to %d arguments", t.Name, len(t.Args))
+		}
+		args := make([]Type, len(t.Args))
+		for i, arg := range t.Args {
+			args[i] = c.resolveType(arg, scope)
+			requireKind(typePos(arg), kindOf(args[i]), k.Params[i])
+		}
+		return App(base, args...)
+	case *ast.FuncType:
+		f := &TFunc{Params: make([]Type, len(t.Params)), Ret: c.valueType(t.Ret, scope)}
+		for i, param := range t.Params {
+			f.Params[i] = c.valueType(param, scope)
+		}
+		return f
+	case *ast.TupleType:
+		args := make([]Type, len(t.Elems))
+		for i, elem := range t.Elems {
+			args[i] = c.valueType(elem, scope)
+		}
+		return App(Tuple(len(args)), args...)
+	default:
+		panic("missing syntactic type")
+	}
+}
+
+func typePos(t ast.Type) ast.Pos {
+	switch t := t.(type) {
+	case *ast.TypeName:
+		return t.Pos
+	case *ast.FuncType:
+		return t.Pos
+	case *ast.TupleType:
+		return t.Pos
+	default:
+		panic("missing syntactic type")
+	}
+}
+
+func (c *checker) valueType(t ast.Type, scope map[string]Type) Type {
+	resolved := c.resolveType(t, scope)
+	requireKind(typePos(t), kindOf(resolved), KStar{})
+	return resolved
+}
+
+// Instance coherence remains constructor-keyed: expansion must preserve the
+// existing head form of a constructor applied to distinct fresh parameters.
+// Reordering is allowed, but specialization, nesting, repetition and erasure
+// would require a different instance matching model.
+func (c *checker) instanceHead(d *ast.InstanceDecl, names []string) (*TCon, []string) {
+	if c.aliases[d.TypeCon] == nil {
+		con := c.typeCon(d.TypeCon)
+		if con == nil {
+			fail(d.Pos, "unknown type constructor %s", d.TypeCon)
+		}
+		return con, names
+	}
+	scope := make(map[string]Type, len(names))
+	head := &ast.TypeName{Pos: d.Pos, Name: d.TypeCon}
+	for _, name := range names {
+		checkName(d.Pos, name)
+		if scope[name] != nil {
+			fail(d.Pos, "duplicate type parameter %s", name)
+		}
+		scope[name] = &TVar{Name: name, Kind: KStar{}}
+		head.Args = append(head.Args, &ast.TypeName{Pos: d.Pos, Name: name})
+	}
+	expanded := c.resolveType(head, scope)
+	var args []Type
+	if app, ok := expanded.(*TApp); ok {
+		expanded, args = app.Fun, app.Args
+	}
+	con, ok := expanded.(*TCon)
+	if !ok || len(args) != len(names) {
+		fail(d.Pos, "instance head must be a type constructor")
+	}
+	ordered := make([]string, len(args))
+	seen := make(map[*TVar]bool, len(args))
+	for i, arg := range args {
+		param, ok := arg.(*TVar)
+		if !ok || seen[param] || scope[param.Name] != param {
+			fail(d.Pos, "instance head must be a type constructor")
+		}
+		seen[param] = true
+		ordered[i] = param.Name
+	}
+	return con, ordered
+}
+
 func (b *bodyChecker) finish() {
 	warningsStart := len(b.c.program.Warnings)
 	b.finishLets()
