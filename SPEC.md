@@ -7,11 +7,16 @@ It compiles to Go. This document describes the merged Pass 12 implementation;
 lists every source declaration. `DESIGN.md` records historical design contracts,
 not an alternative definition of current behaviour.
 
-*Error* means compile-time rejection; *warning* is nonfatal. Grammar below is
-schematic EBNF: separators include explicit and layout-inserted semicolons,
-comma-separated syntax permits the parser's optional trailing comma, and `Name`
-is an identifier optionally qualified by a file-local import alias. Complete
-`gofx` fences are checked by `docs/check_test.go`; `gofx error` fences must fail.
+*Error* means compile-time rejection; *warning* is nonfatal. Grammar below uses
+EBNF: `:=` defines a production, `|` chooses, `{...}` repeats zero or more times,
+`[...]` is optional, parentheses group, and quoted strings are fixed lexer
+tokens. `? ... ?` names a lexical token class defined in §1. Commas and
+separators are explicit in the grammar; a `Separator` may be written or inserted
+by layout. `Name` is optionally qualified by a file-local import alias.
+`File` is the grammar's only unreferenced root. `docs/grammar_test.go` checks
+all `ebnf` fences, reference/terminal coverage, and bounded parser-only generation.
+Complete `gofx` fences are checked by `docs/check_test.go`; `gofx error` fences
+must fail.
 
 ## 1. Lexical structure
 
@@ -48,6 +53,21 @@ else true false given deriving`.
 
 Punctuation includes `( ) [ ] { } , ; . .. = : | |> @ => <- == != <= >= && || + - * / % < > ! _`.
 
+The lexical leaves of the syntactic grammar are token classes, not literal
+spellings. `LowerIdent` includes private lower-case names; `UpperIdent` includes
+private upper-case names (ignoring leading underscores). Neither includes `_`.
+`String` excludes interpolation; `Interp` contains at least one `${...}`.
+
+```ebnf
+Ident      := ? identifier ?
+LowerIdent := ? lower-case identifier ?
+UpperIdent := ? upper-case identifier ?
+Int        := ? integer literal ?
+Float      := ? float literal ?
+String     := ? string literal ?
+Interp     := ? interpolated string literal ?
+```
+
 ### 1.4 Layout
 
 A newline inserts `;` when the previous token can end an expression (identifier,
@@ -68,10 +88,11 @@ separate statements. Tuple access `t.0.1` is not lexed as a Float literal.
 ### 2.1 Files, declarations and namespaces
 
 ```ebnf
-File       := 'package' Ident {Separator} {Import} {Decl}
+File       := {Separator} 'package' Ident {Separator} {Import} {Decl {Separator}}
 Import     := 'import' [Ident] String {Separator}
 Decl       := Class | Instance | TypeDecl | AliasDecl | Func | Extern
 Name       := Ident ['.' Ident]
+Separator  := ';'
 ```
 
 Imports precede declarations. Top-level declarations in one module are mutually
@@ -169,10 +190,11 @@ alias parameters have kind `*`; function/class parameters can have higher kinds.
 
 ```ebnf
 Type    := Name ['[' Type {',' Type} ']']
-         | 'func' '(' [Type {',' Type}] ')' Type
+         | 'func' '(' [Type {',' Type} [',']] ')' Type
          | '(' Type ')' | '(' Type ',' Type {',' Type} ')'
 TParams := '[' TParam {',' TParam} ']'
 TParam  := Ident ['[' '_' {',' '_'} ']'] [Name {'+' Name}]
+DataParams := '[' Ident {',' Ident} ']'
 ```
 
 A constructor may be partially applied where a higher kind is expected:
@@ -185,19 +207,24 @@ supplies both, regardless of their order. Unrelated constraints remain separate.
 Explicit schemes preserve parameter and constraint order. A class's own parameter
 uses superclass syntax, not a trailing constraint list.
 
+Trailing commas are accepted in function-type parameter lists, but not in
+type applications, tuple types, type-parameter lists, or higher-kind arities.
+
 ### 3.3 Algebraic data and aliases
 
 ```ebnf
-TypeDecl  := 'type' Ident ['[' Ident {',' Ident} ']'] '=' Ctor {'|' Ctor}
+TypeDecl  := 'type' Ident [DataParams] '=' Ctor {'|' Ctor}
              ['deriving' Name {',' Name}]
-Ctor      := Ident | Ident '(' Type {',' Type} ')'
-           | Ident '{' Ident ':' Type {',' Ident ':' Type} '}'
-AliasDecl := 'alias' Ident ['[' Ident {',' Ident} ']'] '=' Type
+Ctor      := Ident ['(' [Type {',' Type} [',']] ')'
+             | '{' Ident ':' Type {',' Ident ':' Type} [','] '}']
+AliasDecl := 'alias' Ident [DataParams] '=' Type
 ```
 
-Constructors are nullary, positional, or record-form. Records also support
-positional construction and patterns. Recursive and parameterised data are
-allowed; deriving rules are in §7.2. There are no zero-field record constructors.
+Constructors are nullary (bare or `C()`), positional, or record-form. Records
+also support positional construction and patterns. Recursive and parameterised
+data are allowed; deriving rules are in §7.2. There are no zero-field record
+constructors. Data and alias parameters are plain names, not constrained or
+higher-kinded function parameters.
 
 Aliases share the type namespace, introduce no constructors, and expand before
 inference, field checking and instance resolution. They are transparent, not
@@ -210,9 +237,9 @@ uses declaration-scope parameter identity; diagnostics display expanded types.
 ### 3.4 Functions and extern declarations
 
 ```ebnf
-Func   := 'func' Ident [TParams] '(' [Param {',' Param}] ')' Type Block
+Func   := 'func' Ident [TParams] '(' [Param {',' Param} [',']] ')' Type Block
 Param  := Ident Type
-Extern := 'extern' 'func' Ident [TParams] '(' [Param {',' Param}] ')' Type
+Extern := 'extern' 'func' Ident [TParams] '(' [Param {',' Param} [',']] ')' Type
           '=' String '.' Ident
 ```
 
@@ -225,10 +252,11 @@ bind exported package-level Go functions; `check` validates only the gofx type.
 
 ```ebnf
 Class      := 'class' Ident '[' TParam ']' [':' Name '[' Ident ']']
-              '{' {MethodSig} '}'
-MethodSig  := Ident [TParams] '(' [Param {',' Param}] ')' Type
+              '{' {Separator} {MethodSig {Separator}} '}'
+MethodSig  := Ident [TParams] '(' [Param {',' Param} [',']] ')' Type
 Instance   := 'instance' Name '[' Head ']' ['given' Constraint {',' Constraint}]
-              '{' {Ident '(' [Ident {',' Ident}] ')' Block} '}'
+              '{' {Separator} {InstMethod {Separator}} '}'
+InstMethod := Ident '(' [Ident {',' Ident} [',']] ')' Block
 Head       := Name ['[' HeadArg {',' HeadArg} ']']
             | '(' Ident ',' Ident {',' Ident} ')'
 HeadArg    := Ident
@@ -239,6 +267,10 @@ Classes have one parameter, possibly higher-kinded, and at most one superclass
 on that parameter. Methods may add their own parameters/constraints. Each method
 must be implemented exactly once with matching value arity. A subclass instance
 requires its superclass instance with compatible head and context.
+
+The superclass argument must be the class parameter. Instance head arguments
+must be distinct, and `given` arguments must name parameters of that head;
+these name-dependent restrictions are enforced by the parser as well.
 
 A head can be bare (`Functor[List]`), fully applied (`Show[List[A]]`) or partially
 applied (`Monad[Result[E]]`), with remaining arity matching the class parameter's
@@ -264,34 +296,44 @@ import alias.
 ### 4.1 Grammar and precedence
 
 ```ebnf
-Expr       := 'func' '(' [LParam {',' LParam}] ')' '=>' Expr
-            | 'do' '{' {DoStmt Separator} Expr [Separator] '}'
+Expr       := 'func' '(' [LParam {',' LParam} [',']] ')' '=>' Expr
+            | 'do' '{' {Separator} {DoStmt Separator} Expr {Separator} '}'
             | 'match' Expr '{' Arms '}'
-            | 'if' Expr Block 'else' (Block | IfExpr)
-            | Binary
-LParam     := Ident [Type] | IrrefutablePattern
+            | IfExpr | Binary
+IfExpr     := 'if' Expr Block 'else' (Block | IfExpr)
+LParam     := LowerIdent [Type] | Pattern
 Binary     := Unary {BinOp Unary}                    // precedence below
-Unary      := ['-' | '!'] Postfix
-Postfix    := Primary {'(' [CallArg {',' CallArg}] ')' | '.' Ident | '.' Int | RecordFields}
+BinOp      := '|>' | '||' | '&&' | '==' | '!=' | '<' | '<=' | '>' | '>='
+            | '+' | '-' | '*' | '/' | '%'
+Unary      := {'-' | '!'} Postfix
+Postfix    := Primary {'(' [CallArg {',' CallArg} [',']] ')' | '.' Ident | '.' Int | RecordFields}
 CallArg    := Expr | '_' | Projection
 Primary    := Name | Int | Float | String | Interp | 'true' | 'false'
-            | Name RecordFields | '(' Expr ')' | '(' Expr ',' Expr {',' Expr} ')'
-            | '[' [Expr {',' Expr}] ']' | Block | Section
-Block      := '{' {Stmt Separator} Expr [Separator] '}'
+            | ConstructorName RecordFields | '(' Expr ')' | '(' Expr ',' Expr {',' Expr} ')'
+            | '[' [Expr {',' Expr} [',']] ']' | Block | Section
+Block      := '{' {Separator} {Stmt Separator} Expr {Separator} '}'
 Stmt       := LetStmt | LocalFunc | Expr
-LetStmt    := 'let' (Ident | IrrefutablePattern) [':' Type] '=' Expr
-LocalFunc  := 'func' Ident '(' [Param {',' Param}] ')' Type Block
-DoStmt     := (Ident | IrrefutablePattern) '<-' Expr | LetStmt | LocalFunc | Expr
-Section    := '(' '_' BinOp Expr ')' | '(' Expr BinOp '_' ')' | '(' '_' BinOp '_' ')'
+LetStmt    := 'let' Pattern [':' Type] '=' Expr
+LocalFunc  := 'func' Ident '(' [Param {',' Param} [',']] ')' Type Block
+DoStmt     := Pattern '<-' Expr | LetStmt | LocalFunc | Expr
+Section    := '(' '_' BinOp Unary ')' | '(' Unary BinOp '_' ')' | '(' '_' BinOp '_' ')'
             | '(' Projection ')'
 Projection := '_' '.' (Ident | Int) {'.' (Ident | Int)}
-RecordFields := '{' Ident ':' Expr {',' Ident ':' Expr} '}'
+RecordFields := '{' Ident ':' Expr {',' Ident ':' Expr} [','] '}'
 ```
 
 Precedence, low to high: `|>`; `||`; `&&`; `== != < <= > >=`; `+ -`;
 `* / %`; unary `- !`; postfix. Binary operators associate left. The grammar's
 `Name` in expression position is resolved against imports versus record fields;
 not every `x.f` is a qualified module name.
+
+Unary operators may repeat. Sections have a whole unary operand on each
+non-placeholder side; parenthesise a compound expression, e.g. `(_ + (a + b))`.
+Pattern irrefutability in lets, lambdas and do binds is checked after parsing,
+not a separate syntactic production. Only a bare lower-case lambda parameter
+may carry a type annotation. Statement separators shown here are the
+unambiguous form; the parser also accepts adjacent statements when their token
+boundaries suffice (e.g. a local function followed by the block result).
 
 ### 4.2 Operators
 
@@ -437,14 +479,17 @@ constructor lacking one. Unknown receiver type requires annotation:
 ### 4.7 Pattern matching
 
 ```ebnf
-Arms    := ['|'] Arm {(';' | '|') Arm}
+Arms    := {Separator} ['|'] {Separator} Arm {ArmSep Arm} [ArmSep]
+ArmSep  := (';' | '|') {';' | '|'}
 Arm     := Pattern ['if' Expr] '=>' Expr
 Pattern := '_' | Int | Float | String | 'true' | 'false'
          | LowerIdent | LowerIdent '@' Pattern
-         | ConstructorName ['(' Pattern {',' Pattern} ')']
-         | ConstructorName '{' [Ident ':' Pattern {',' Ident ':' Pattern}] [',' '..'] '}'
+         | ConstructorName ['(' [Pattern {',' Pattern} [',']] ')']
+         | ConstructorName RecordPatternFields
          | '(' Pattern ',' Pattern {',' Pattern} ')' | '(' Pattern ')'
          | '[' [Pattern {',' Pattern} [',' ListRest] [',']] ']'
+ConstructorName := [Ident '.'] UpperIdent
+RecordPatternFields := '{' ('..' [','] | Ident ':' Pattern {',' Ident ':' Pattern} [',' '..'] [',']) '}'
 ListRest := '..' [LowerIdent | '_']
 ```
 
@@ -452,6 +497,11 @@ Constructors may be qualified/private within their owning module. Arms run in
 order: the first matching pattern whose guard is true yields the value. All arms
 have one type. Variables bind once per pattern; guards see them. Record patterns
 must name all fields or use `..`; positional patterns also work for records.
+
+Record patterns require at least one field or a rest marker: `C{..}` is valid,
+but `C{}` and `C{, ..}` are not. A nullary positional pattern may be `C` or
+`C()`. Arm separators may repeat or trail the last arm; tuple patterns do not
+allow a trailing comma.
 
 List patterns desugar in the parser: `[]` is `Nil`, `[p1, p2, p3]` is
 `Cons(p1, Cons(p2, Cons(p3, Nil)))`, and `[p1, p2, ..rest]` is
