@@ -996,11 +996,15 @@ and deterministic collision suffixes. Names/dictionaries are module-prefixed.
 `codegen.Generate(*types.Program, string) (map[string][]byte, error)` is the public
 generator. The module loader feeds `types.Check([]*ast.Module)`, with entry last.
 
-Result-position matches emit their branches directly into the enclosing Go
-function, including nonrecursive functions. This keeps large match bodies visible
-to Go's inlining cost model rather than hiding them inside a returned immediately
-invoked closure. Expression-position matches still use a value-producing closure.
-Both forms evaluate the scrutinee once and retain arm order, guards and bindings.
+Result-position matches, conditionals and blocks emit their control flow directly
+into the enclosing Go function, including nonrecursive functions. This keeps
+large bodies visible to Go's inlining cost model rather than hiding them inside
+returned immediately invoked closures, and avoids repeatedly expanding nested
+closure names while inlining conditional branches. Expression-position forms
+still use value-producing closures. Both forms preserve lexical scope, selected
+branch evaluation and result representations; matches evaluate their scrutinee
+once and retain arm order, guards and bindings. Only eligible recursive calls
+require a tail-recursion plan.
 
 The deterministic `bench.CompileSource(N)` workload contains N data types deriving
 Eq/Ord/Debug, N polymorphic functions constrained by Eq + Debug and N match

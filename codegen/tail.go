@@ -161,8 +161,13 @@ func (g *generator) namedLambda(name string, lambda *ast.Lambda) string {
 
 func (g *generator) result(expr ast.Expr, plan *tailPlan) string {
 	g.collectAnnotation(expr)
-	if match, ok := expr.(*ast.Match); ok {
-		return g.matchResult(match, plan)
+	switch e := expr.(type) {
+	case *ast.Match:
+		return g.matchResult(e, plan)
+	case *ast.If:
+		return g.line(e.GetPos()) + "if " + g.condition(e.Cond) + " {\n" + g.result(e.Then, plan) + "} else {\n" + g.result(e.Else, plan) + "}\n"
+	case *ast.BlockExpr:
+		return g.tailStatements(e.Block.Stmts, e.Block.Result, plan)
 	}
 	if plan != nil {
 		switch e := expr.(type) {
@@ -185,10 +190,6 @@ func (g *generator) result(expr ast.Expr, plan *tailPlan) string {
 				out.WriteString("continue\n")
 				return out.String()
 			}
-		case *ast.If:
-			return g.line(e.GetPos()) + "if " + g.condition(e.Cond) + " {\n" + g.result(e.Then, plan) + "} else {\n" + g.result(e.Else, plan) + "}\n"
-		case *ast.BlockExpr:
-			return g.tailStatements(e.Block.Stmts, e.Block.Result, plan)
 		}
 	}
 	return g.line(expr.GetPos()) + "return " + convert(g.expr(expr), g.exprRep(expr), g.returnRep) + "\n"

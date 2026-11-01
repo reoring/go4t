@@ -265,6 +265,106 @@ func init() {
 	}
 }
 
+func TestNestedResultBranches(t *testing.T) {
+	// Nested else blocks containing IO branches used to multiply the names of
+	// inlined closures. Exercise every branch with the default Go optimizer.
+	const branches = 11
+	var source strings.Builder
+	source.WriteString("package main\nfunc choose(n Int) IO[Int] { do {\nvalue <- ")
+	for i := range branches {
+		fmt.Fprintf(&source, "if n == %d { do { value <- ioPure(%d); ioPure(value) } } else { ", i, i)
+	}
+	fmt.Fprintf(&source, "do { value <- ioPure(%d); ioPure(value) }", branches)
+	source.WriteString(strings.Repeat(" }", branches))
+	source.WriteString("\nioPure(value)\n} }\n")
+	for i := range branches + 1 {
+		fmt.Fprintf(&source, "func caller%d() IO[Int] { choose(%d) }\n", i, i)
+	}
+	source.WriteString("func main() IO[Unit] { do {\n")
+	var values []string
+	for i := range branches + 1 {
+		fmt.Fprintf(&source, "value%d <- caller%d()\n", i, i)
+		values = append(values, fmt.Sprintf("value%d", i))
+	}
+	fmt.Fprintf(&source, "println(show(%s))\n} }\n", strings.Join(values, " + "))
+	generated := qualityProgram(t, "nested-result-branches.gfx", source.String())
+	output, err := runQualityGo(t, generated, false)
+	want := fmt.Sprintf("%d\n", branches*(branches+1)/2)
+	if err != nil || output != want {
+		t.Fatalf("nested result branches: %v\nwant %q, got %q", err, want, output)
+	}
+}
+
+func TestResultBranchScopesAndLaziness(t *testing.T) {
+	source := qualityProgram(t, "result-branches.gfx", `package main
+func observed(n Int, observe func(Int) Int) Int {
+  let value = 100
+  if observe(n) == 0 {
+    let value = value + 1
+    observe(value)
+  } else {
+    let value = value + 2
+    if observe(n) == 1 {
+      let value = value + 1
+      observe(value)
+    } else { observe(value + 2) }
+  }
+}
+func erasedBranch[A](yes Bool, a A, b A) A {
+  if yes { let value = a; value } else { let value = b; value }
+}
+func capturedBranch(yes Bool, value Int) func(Unit) Int {
+  if yes { let value = value + 1; func(_) => value }
+  else { let value = value + 2; func(_) => value }
+}
+func scalarBranch(yes Bool) Float {
+  if yes { let value = 1.5; value } else { let value = 2.5; value }
+}
+func expressionBranch(yes Bool) Int {
+  10 + (if yes { let value = 2; value } else { let value = 3; value })
+}
+func guardedBranch(value Option[Int]) Int {
+  match value {
+    Some(n) if n > 0 => if n == 1 { let n = n + 1; n } else { n }
+    Some(n) => n
+    None => 0
+  }
+}
+func main() IO[Unit] {
+  let first = erasedBranch(true,"left","right")
+  let second = erasedBranch(false,3,4)
+  println("${first} ${second} ${capturedBranch(true,5)(unit())} ${capturedBranch(false,5)(unit())} ${scalarBranch(true)} ${scalarBranch(false)} ${expressionBranch(true)} ${expressionBranch(false)} ${guardedBranch(Some(1))} ${guardedBranch(Some(-2))}")
+}`)
+	// Observe conditions and selected branches across the generated boundary;
+	// nonselected branches must not call the observer.
+	source = append(source, []byte(`
+func init() {
+	for n, want := range [][]int64{{0,101},{1,1,103},{2,2,104}} {
+		var calls []int64
+		got := observed_(int64(n), func(value any) any {
+			calls = append(calls, value.(int64))
+			return value
+		})
+		if len(calls) != len(want) {
+			panic("result branch evaluated an unselected branch")
+		}
+		for i, value := range want {
+			if calls[i] != value {
+				panic("result branch lost evaluation order or lexical shadowing")
+			}
+		}
+		if any(got).(int64) != want[len(want)-1] {
+			panic("result branch returned the wrong value")
+		}
+	}
+}
+`)...)
+	output, err := runQualityGo(t, source, false)
+	if err != nil || output != "left 4 6 7 1.5 2.5 12 13 2 -2\n" {
+		t.Fatalf("result branch semantics: %v\n%s", err, output)
+	}
+}
+
 func TestSourceDirectivesAndFormatting(t *testing.T) {
 	source := qualityProgram(t, "positions.gfx", `package main
 func choose(n Int) Int {
