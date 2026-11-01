@@ -1,0 +1,42 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package workqueue
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+import "github.com/reoring/gofx/ports/client-go/util/flowcontrol"
+
+func invokeWhen[A](limiter RateLimiter[A], item A, n Int) IO[Int] {
+ if n <= 0 { ioPure(0) } else { do { value <- limiter.when(item); if n == 1 { ioPure(value) } else { invokeWhen(limiter,item,n-1) } } }
+}
+func testExponentialCountsCapAndForget() IO[Bool] {
+ do {
+  limiter <- newItemExponentialFailureRateLimiter(1000000,1000000000)
+  a <- limiter.when(1); b <- limiter.when(1); c <- limiter.when(2)
+  count <- limiter.numRequeues(1)
+  cap <- invokeWhen(limiter,3,1000)
+  limiter.forget(1); reset <- limiter.numRequeues(1); first <- limiter.when(1)
+  ioPure(a == 1000000 && b == 2000000 && c == a && count == 2 && cap == 1000000000 && reset == 0 && first == a)
+ }
+}
+func testFastSlowMaxOfAndMaxWait() IO[Bool] {
+ do {
+  fast <- newItemFastSlowRateLimiter(5000000,3000000000,3)
+  exp <- newItemExponentialFailureRateLimiter(1000000,1000000000)
+  let both = newMaxOfRateLimiter([fast,exp])
+  a <- both.when(1); b <- both.when(1); c <- both.when(1); d <- both.when(1)
+  fc <- fast.numRequeues(1); ec <- exp.numRequeues(1)
+  let capped = newWithMaxWaitRateLimiter(both,100000000)
+  cap <- capped.when(1); count <- capped.numRequeues(1)
+  capped.forget(1); reset <- both.numRequeues(1)
+  ioPure(a == 5000000 && b == a && c == a && d == 3000000000 && fc == 4 && ec == 4 && cap == 100000000 && count == 5 && reset == 0)
+ }
+}
+func testBucketReservations() IO[Bool] {
+ do {
+  clock <- sync.fakeClock(0); bucket <- flowcontrol.newTokenBucketWithClock(10.0,2,clock)
+  let limiter = newBucketRateLimiter(bucket)
+  a <- limiter.when(1); b <- limiter.when(2); c <- limiter.when(3); d <- limiter.when(1)
+  limiter.forget(1); count <- limiter.numRequeues(1)
+  sync.advance(clock,200000000)
+  e <- limiter.when(4)
+  ioPure(a == 0 && b == 0 && c == 100000000 && d == 200000000 && e == 100000000 && count == 0)
+ }
+}

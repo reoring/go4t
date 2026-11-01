@@ -15,6 +15,7 @@ func init(){
  rt.Shapes.Some=func(value any)any{return testOption{value,true}}
  rt.Shapes.None=func()any{return testOption{}}
  rt.Shapes.Tuple2=func(a,b any)any{return [2]any{a,b}}
+ rt.Shapes.OptionValue=func(value any)(any,bool){option:=value.(testOption);return option.value,option.some}
 }
 func TestMixedSelectionOnlyMapsWinner(t *testing.T){
  a:=mustExecute(t,NewChannel(int64(1)));b:=mustExecute(t,NewChannel(int64(1)))

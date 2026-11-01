@@ -1,0 +1,20 @@
+package outcome
+
+import errors "deps/support"
+
+// Copyright 2026 The Kubernetes Authors.
+// Licensed under the Apache License, Version 2.0.
+// Partial values and their original error are independent, not an Either.
+type Outcome[A] = Outcome { value: A, error: Option[errors.Error] }
+
+func success[A](value A) Outcome[A] { Outcome(value, None) }
+func failure[A](value A, error errors.Error) Outcome[A] { Outcome(value, Some(error)) }
+func from[A](value A, error Option[errors.Error]) Outcome[A] { Outcome(value, error) }
+func value[A](result Outcome[A]) A { result.value }
+func error[A](result Outcome[A]) Option[errors.Error] { result.error }
+func isSuccess[A](result Outcome[A]) Bool {
+  match result.error { None => true; Some(_) => false }
+}
+func mapValue[A,B](result Outcome[A], transform func(A) B) Outcome[B] {
+  Outcome(transform(result.value), result.error)
+}

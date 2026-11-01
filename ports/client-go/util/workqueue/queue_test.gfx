@@ -1,0 +1,109 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package workqueue
+import "std/map"
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+
+// A non-string key with an explicit identity capability.
+type TestItem = TestItem { key: Int, payload: String }
+func testItemCompare(a TestItem,b TestItem) Ordering { compare(a.key,b.key) }
+func testDuplicateWhileProcessing() IO[Bool] {
+ do {
+  q <- newBy(testItemCompare)
+  add(q,TestItem(7,"first")); first <- get(q)
+  add(q,TestItem(7,"second")); add(q,TestItem(7,"third"))
+  during <- length(q)
+  received <- sync.newChannel(1)
+  worker <- sync.start(do { second <- get(q); sync.send(received,second) })
+  done(q,TestItem(7,"first"))
+  second <- sync.receive(received); sync.join(worker)
+  done(q,TestItem(7,"second")); after <- length(q); shutDown(q)
+  ioPure(during == 0 && after == 0 && (match (first,second) {
+   (Some(a),Some(Some(b))) => a.key == 7 && b.key == 7
+   _ => false
+  }))
+ }
+}
+func testReadyQueueTouchOnlyBeforeProcessing() IO[Bool] {
+ do {
+  fifo <- defaultQueue(); touched <- sync.newRef(0)
+  let storage = fifo { touch: func(item) => do { n <- sync.readRef(touched); sync.writeRef(touched,n+1) } }
+  registry <- newMetricsRegistry(); clock <- sync.fakeClock(0)
+  q <- newWithConfigBy(testItemCompare,QueueConfig("",registry,None,clock,Some(storage)))
+  add(q,TestItem(1,"one")); add(q,TestItem(1,"two")); _ <- get(q)
+  add(q,TestItem(1,"three")); add(q,TestItem(1,"four"))
+  n <- sync.readRef(touched); done(q,TestItem(1,"")); shutDown(q)
+  ioPure(n == 1)
+ }
+}
+func testForcedShutdownReleasesDrain() IO[Bool] {
+ do {
+  q <- new(); add(q,11); _ <- get(q)
+  draining <- sync.start(shutDownWithDrain(q))
+  terminal <- get(q)
+  shutDown(q); sync.join(draining)
+  // Done still requeues dirty work after shutdown; shutdown only rejects Add.
+  done(q,11)
+  ioPure(match terminal { None => true; Some(_) => false })
+ }
+}
+func testDrainDoesNotWaitForPendingItems() IO[Bool] {
+ do { q <- new(); add(q,3); shutDownWithDrain(q); n <- length(q); item <- get(q); done(q,3)
+  ioPure(n == 1 && item == Some(3))
+ }
+}
+func testDirtyDoneAfterShutdown() IO[Bool] {
+ do { q <- new(); add(q,9); _ <- get(q); add(q,9); shutDown(q)
+  before <- get(q); done(q,9); after <- get(q); done(q,9)
+  ioPure(before == None && after == Some(9))
+ }
+}
+func testDelayedEarlierWins() IO[Bool] {
+ do {
+  clock <- sync.fakeClock(0); now <- sync.now(clock)
+  first <- heapInsert(emptyDelayHeap(func(a,b) => compare(a,b)),DelayedEntry(5,sync.add(now,50000000)))
+  later <- heapInsert(first,DelayedEntry(5,sync.add(now,70000000)))
+  earlier <- heapInsert(later,DelayedEntry(5,sync.add(now,30000000)))
+  entry <- heapAt(earlier,0)
+  remaining <- heapPop(earlier)
+  ioPure(later.size == 1 && earlier.size == 1 && remaining.size == 0 && sync.elapsed(now,entry.readyAt) == 30000000)
+ }
+}
+func testDelayedHeapOrderingAndReplacement() IO[Bool] {
+ do {
+  clock <- sync.fakeClock(0); now <- sync.now(clock)
+  a <- heapInsert(emptyDelayHeap(func(a,b) => compare(a,b)),DelayedEntry(1,sync.add(now,100)))
+  b <- heapInsert(a,DelayedEntry(2,sync.add(now,50)))
+  c <- heapInsert(b,DelayedEntry(3,sync.add(now,25)))
+  d <- heapInsert(c,DelayedEntry(1,sync.add(now,10)))
+  x <- heapAt(d,0); h <- heapPop(d); y <- heapAt(h,0); j <- heapPop(h); z <- heapAt(j,0)
+  ioPure(x.item == 1 && y.item == 3 && z.item == 2 && map.mapSize(d.indices) == 3)
+ }
+}
+func testDelayedZeroAndShutdown() IO[Bool] {
+ do {
+  clock <- sync.fakeClock(0); registry <- newMetricsRegistry()
+  q <- newDelayingQueue(DelayingQueueConfig("",registry,None,clock,None))
+  addAfter(q,22,0); item <- q.queue.get(); q.queue.done(22)
+  addAfter(q,23,1000000000); shutDownDelaying(q)
+  sync.advance(clock,2000000000); n <- q.queue.length()
+  ioPure(item == Some(22) && n == 0)
+ }
+}
+func delayInputBarrier(q DelayingQueue[Int], ack sync.Channel[Unit]) IO[Unit] {
+ do { now <- sync.now(q.clock); sync.send(q.input,DelayedEntry(-1,now)); _ <- sync.receive(ack); ioPure(unit()) }
+}
+func testDelayedEarlierWinsThroughWorker() IO[Bool] {
+ do {
+  clock <- sync.fakeClock(0); registry <- newMetricsRegistry(); base <- new()
+  ack <- sync.newChannel(0)
+  let callbacks = asInterface(base)
+  let observed = callbacks { add: func(item) => if item == -1 { sync.send(ack,unit()) } else { add(base,item) } }
+  q <- newDelayingQueue(DelayingQueueConfig("",registry,None,clock,Some(observed)))
+  addAfter(q,1,50000000); addAfter(q,1,70000000); delayInputBarrier(q,ack)
+  before <- length(base); sync.advance(clock,60000000); first <- get(base); done(base,1)
+  addAfter(q,2,50000000); addAfter(q,2,30000000); delayInputBarrier(q,ack)
+  sync.advance(clock,40000000); second <- get(base); done(base,2)
+  shutDownDelaying(q); sync.advance(clock,100000000); after <- length(base)
+  ioPure(before == 0 && first == Some(1) && second == Some(2) && after == 0)
+ }
+}

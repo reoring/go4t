@@ -1,0 +1,21 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package workqueue
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+
+func testRateLimitingQueueForwardsAndForgetDoesNotDone() IO[Bool] {
+ do {
+  base <- new(); delays <- sync.newChannel(5)
+  let delaying = DelayingInterface(asInterface(base),func(item,delay) => sync.send(delays,(item,delay)))
+  limiter <- newItemExponentialFailureRateLimiter(1000000,1000000000)
+  let q = newRateLimitingQueue(limiter,delaying)
+  add(base,1); _ <- get(base)
+  addRateLimited(q,1); addRateLimited(q,1); addRateLimited(q,2)
+  a <- sync.receive(delays); b <- sync.receive(delays); c <- sync.receive(delays)
+  count <- numRequeues(q,1); forget(q,1); reset <- numRequeues(q,1)
+  addRateLimited(q,1); d <- sync.receive(delays)
+  // Processing survives Forget; a dirty Add still waits for Done.
+  add(base,1); before <- length(base); done(base,1); after <- length(base)
+  shutDown(base)
+  ioPure(a == Some((1,1000000)) && b == Some((1,2000000)) && c == Some((2,1000000)) && d == a && count == 2 && reset == 0 && before == 0 && after == 1)
+ }
+}

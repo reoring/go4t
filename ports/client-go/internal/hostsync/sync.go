@@ -23,6 +23,7 @@ type reference struct { mu sync.RWMutex; value any }
 func NewRef(value any) any { return effect(func(context.Context) (any,error) { return &reference{value:value},nil }) }
 func ReadRef(ref any) any { return effect(func(context.Context) (any,error) { r:=ref.(*reference); r.mu.RLock(); defer r.mu.RUnlock(); return r.value,nil }) }
 func WriteRef(ref, value any) any { return effect(func(context.Context) (any,error) { r:=ref.(*reference); r.mu.Lock(); defer r.mu.Unlock(); r.value=value; return rt.Unit{},nil }) }
+func SameRef(a,b any) any { return a.(*reference)==b.(*reference) }
 
 type mutex struct { token chan struct{} }
 type executionKey struct{}

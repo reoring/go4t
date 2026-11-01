@@ -1,0 +1,1291 @@
+{
+  "schema_version": 1,
+  "upstream_version": "v0.37.2",
+  "upstream_revision": "72c52dd0cc3b9099b36af11290b0304045dd1ada",
+  "scenarios": [
+    {
+      "id": "typed_pod_crud_status_collection_patch",
+      "events": [
+        {
+          "kind": "http_request",
+          "fields": {
+            "body": "{\"kind\":\"Pod\",\"apiVersion\":\"v1\",\"metadata\":{\"name\":\"pod-a\",\"namespace\":\"team-a\",\"resourceVersion\":\"17\"},\"spec\":{\"containers\":[{\"name\":\"main\",\"image\":\"image:fixed\",\"resources\":{}}]},\"status\":{}}\n",
+            "headers": {
+              "Accept": [
+                "application/json"
+              ],
+              "Accept-Encoding": [
+                "gzip"
+              ],
+              "Content-Length": [
+                "194"
+              ],
+              "Content-Type": [
+                "application/json"
+              ],
+              "User-Agent": [
+                "gofx-client-go-oracle/1"
+              ]
+            },
+            "method": "POST",
+            "path": "/api/v1/namespaces/team-a/pods",
+            "query": {
+              "dryRun": [
+                "All"
+              ],
+              "fieldManager": [
+                "creator"
+              ],
+              "fieldValidation": [
+                "Strict"
+              ],
+              "timeout": [
+                "10s"
+              ]
+            },
+            "raw_query": "dryRun=All\u0026fieldManager=creator\u0026fieldValidation=Strict\u0026timeout=10s"
+          }
+        },
+        {
+          "kind": "typed_result",
+          "fields": {
+            "object": {
+              "metadata": {
+                "name": "pod-a",
+                "namespace": "team-a",
+                "resourceVersion": "17"
+              },
+              "spec": {
+                "containers": [
+                  {
+                    "image": "image:fixed",
+                    "name": "main",
+                    "resources": {}
+                  }
+                ]
+              },
+              "status": {}
+            },
+            "operation": "create"
+          }
+        },
+        {
+          "kind": "http_request",
+          "fields": {
+            "body": "",
+            "headers": {
+              "Accept": [
+                "application/json"
+              ],
+              "Accept-Encoding": [
+                "gzip"
+              ],
+              "User-Agent": [
+                "gofx-client-go-oracle/1"
+              ]
+            },
+            "method": "GET",
+            "path": "/api/v1/namespaces/team-a/pods/pod-a",
+            "query": {
+              "resourceVersion": [
+                "17"
+              ],
+              "timeout": [
+                "10s"
+              ]
+            },
+            "raw_query": "resourceVersion=17\u0026timeout=10s"
+          }
+        },
+        {
+          "kind": "typed_result",
+          "fields": {
+            "object": {
+              "metadata": {
+                "name": "pod-a",
+                "namespace": "team-a",
+                "resourceVersion": "17"
+              },
+              "spec": {
+                "containers": [
+                  {
+                    "image": "image:fixed",
+                    "name": "main",
+                    "resources": {}
+                  }
+                ]
+              },
+              "status": {}
+            },
+            "operation": "get"
+          }
+        },
+        {
+          "kind": "http_request",
+          "fields": {
+            "body": "",
+            "headers": {
+              "Accept": [
+                "application/json"
+              ],
+              "Accept-Encoding": [
+                "gzip"
+              ],
+              "User-Agent": [
+                "gofx-client-go-oracle/1"
+              ]
+            },
+            "method": "GET",
+            "path": "/api/v1/namespaces/team-a/pods",
+            "query": {
+              "continue": [
+                "fixture-token"
+              ],
+              "fieldSelector": [
+                "metadata.name=pod-a"
+              ],
+              "labelSelector": [
+                "app=demo"
+              ],
+              "limit": [
+                "7"
+              ],
+              "resourceVersion": [
+                "17"
+              ],
+              "timeout": [
+                "21s"
+              ],
+              "timeoutSeconds": [
+                "21"
+              ]
+            },
+            "raw_query": "continue=fixture-token\u0026fieldSelector=metadata.name%3Dpod-a\u0026labelSelector=app%3Ddemo\u0026limit=7\u0026resourceVersion=17\u0026timeout=21s\u0026timeoutSeconds=21"
+          }
+        },
+        {
+          "kind": "typed_result",
+          "fields": {
+            "object": {
+              "items": [
+                {
+                  "apiVersion": "v1",
+                  "kind": "Pod",
+                  "metadata": {
+                    "name": "pod-a",
+                    "namespace": "team-a",
+                    "resourceVersion": "17"
+                  },
+                  "spec": {
+                    "containers": [
+                      {
+                        "image": "image:fixed",
+                        "name": "main",
+                        "resources": {}
+                      }
+                    ]
+                  },
+                  "status": {}
+                }
+              ],
+              "metadata": {
+                "resourceVersion": "17"
+              }
+            },
+            "operation": "list"
+          }
+        },
+        {
+          "kind": "http_request",
+          "fields": {
+            "body": "{\"kind\":\"Pod\",\"apiVersion\":\"v1\",\"metadata\":{\"name\":\"pod-a\",\"namespace\":\"team-a\",\"resourceVersion\":\"17\"},\"spec\":{\"containers\":[{\"name\":\"main\",\"image\":\"image:fixed\",\"resources\":{}}]},\"status\":{}}\n",
+            "headers": {
+              "Accept": [
+                "application/json"
+              ],
+              "Accept-Encoding": [
+                "gzip"
+              ],
+              "Content-Length": [
+                "194"
+              ],
+              "Content-Type": [
+                "application/json"
+              ],
+              "User-Agent": [
+                "gofx-client-go-oracle/1"
+              ]
+            },
+            "method": "PUT",
+            "path": "/api/v1/namespaces/team-a/pods/pod-a",
+            "query": {
+              "dryRun": [
+                "All"
+              ],
+              "fieldManager": [
+                "updater"
+              ],
+              "timeout": [
+                "10s"
+              ]
+            },
+            "raw_query": "dryRun=All\u0026fieldManager=updater\u0026timeout=10s"
+          }
+        },
+        {
+          "kind": "typed_result",
+          "fields": {
+            "object": {
+              "metadata": {
+                "name": "pod-a",
+                "namespace": "team-a",
+                "resourceVersion": "17"
+              },
+              "spec": {
+                "containers": [
+                  {
+                    "image": "image:fixed",
+                    "name": "main",
+                    "resources": {}
+                  }
+                ]
+              },
+              "status": {}
+            },
+            "operation": "update"
+          }
+        },
+        {
+          "kind": "http_request",
+          "fields": {
+            "body": "{\"kind\":\"Pod\",\"apiVersion\":\"v1\",\"metadata\":{\"name\":\"pod-a\",\"namespace\":\"team-a\",\"resourceVersion\":\"17\"},\"spec\":{\"containers\":[{\"name\":\"main\",\"image\":\"image:fixed\",\"resources\":{}}]},\"status\":{\"phase\":\"Running\"}}\n",
+            "headers": {
+              "Accept": [
+                "application/json"
+              ],
+              "Accept-Encoding": [
+                "gzip"
+              ],
+              "Content-Length": [
+                "211"
+              ],
+              "Content-Type": [
+                "application/json"
+              ],
+              "User-Agent": [
+                "gofx-client-go-oracle/1"
+              ]
+            },
+            "method": "PUT",
+            "path": "/api/v1/namespaces/team-a/pods/pod-a/status",
+            "query": {
+              "fieldManager": [
+                "status-manager"
+              ],
+              "timeout": [
+                "10s"
+              ]
+            },
+            "raw_query": "fieldManager=status-manager\u0026timeout=10s"
+          }
+        },
+        {
+          "kind": "typed_result",
+          "fields": {
+            "object": {
+              "metadata": {
+                "name": "pod-a",
+                "namespace": "team-a",
+                "resourceVersion": "17"
+              },
+              "spec": {
+                "containers": [
+                  {
+                    "image": "image:fixed",
+                    "name": "main",
+                    "resources": {}
+                  }
+                ]
+              },
+              "status": {}
+            },
+            "operation": "update_status"
+          }
+        },
+        {
+          "kind": "http_request",
+          "fields": {
+            "body": "{\"status\":{\"phase\":\"Running\"}}",
+            "headers": {
+              "Accept": [
+                "application/json"
+              ],
+              "Accept-Encoding": [
+                "gzip"
+              ],
+              "Content-Length": [
+                "30"
+              ],
+              "Content-Type": [
+                "application/merge-patch+json"
+              ],
+              "User-Agent": [
+                "gofx-client-go-oracle/1"
+              ]
+            },
+            "method": "PATCH",
+            "path": "/api/v1/namespaces/team-a/pods/pod-a/status",
+            "query": {
+              "fieldManager": [
+                "patcher"
+              ],
+              "fieldValidation": [
+                "Strict"
+              ],
+              "timeout": [
+                "10s"
+              ]
+            },
+            "raw_query": "fieldManager=patcher\u0026fieldValidation=Strict\u0026timeout=10s"
+          }
+        },
+        {
+          "kind": "typed_result",
+          "fields": {
+            "object": {
+              "metadata": {
+                "name": "pod-a",
+                "namespace": "team-a",
+                "resourceVersion": "17"
+              },
+              "spec": {
+                "containers": [
+                  {
+                    "image": "image:fixed",
+                    "name": "main",
+                    "resources": {}
+                  }
+                ]
+              },
+              "status": {}
+            },
+            "operation": "patch_status"
+          }
+        },
+        {
+          "kind": "http_request",
+          "fields": {
+            "body": "{\"kind\":\"DeleteOptions\",\"apiVersion\":\"v1\",\"gracePeriodSeconds\":0,\"preconditions\":{\"uid\":\"fixture-uid\"},\"dryRun\":[\"All\"]}\n",
+            "headers": {
+              "Accept": [
+                "application/json"
+              ],
+              "Accept-Encoding": [
+                "gzip"
+              ],
+              "Content-Length": [
+                "121"
+              ],
+              "Content-Type": [
+                "application/json"
+              ],
+              "User-Agent": [
+                "gofx-client-go-oracle/1"
+              ]
+            },
+            "method": "DELETE",
+            "path": "/api/v1/namespaces/team-a/pods/pod-a",
+            "query": {
+              "timeout": [
+                "10s"
+              ]
+            },
+            "raw_query": "timeout=10s"
+          }
+        },
+        {
+          "kind": "operation_result",
+          "fields": {
+            "error": null,
+            "operation": "delete"
+          }
+        },
+        {
+          "kind": "http_request",
+          "fields": {
+            "body": "{\"kind\":\"DeleteOptions\",\"apiVersion\":\"v1\",\"gracePeriodSeconds\":0,\"preconditions\":{\"uid\":\"fixture-uid\"},\"dryRun\":[\"All\"]}\n",
+            "headers": {
+              "Accept": [
+                "application/json"
+              ],
+              "Accept-Encoding": [
+                "gzip"
+              ],
+              "Content-Length": [
+                "121"
+              ],
+              "Content-Type": [
+                "application/json"
+              ],
+              "User-Agent": [
+                "gofx-client-go-oracle/1"
+              ]
+            },
+            "method": "DELETE",
+            "path": "/api/v1/namespaces/team-a/pods",
+            "query": {
+              "fieldSelector": [
+                "metadata.name=pod-a"
+              ],
+              "labelSelector": [
+                "app=demo"
+              ],
+              "timeout": [
+                "21s"
+              ],
+              "timeoutSeconds": [
+                "21"
+              ]
+            },
+            "raw_query": "fieldSelector=metadata.name%3Dpod-a\u0026labelSelector=app%3Ddemo\u0026timeout=21s\u0026timeoutSeconds=21"
+          }
+        },
+        {
+          "kind": "operation_result",
+          "fields": {
+            "error": null,
+            "operation": "delete_collection"
+          }
+        },
+        {
+          "kind": "http_request",
+          "fields": {
+            "body": "",
+            "headers": {
+              "Accept": [
+                "application/json"
+              ],
+              "Accept-Encoding": [
+                "gzip"
+              ],
+              "User-Agent": [
+                "gofx-client-go-oracle/1"
+              ]
+            },
+            "method": "GET",
+            "path": "/api/v1/namespaces/team-a/pods/missing",
+            "query": {
+              "timeout": [
+                "10s"
+              ]
+            },
+            "raw_query": "timeout=10s"
+          }
+        },
+        {
+          "kind": "api_error",
+          "fields": {
+            "context_canceled": false,
+            "deadline_exceeded": false,
+            "go_type": "*errors.StatusError",
+            "message": "pods \"missing\" not found",
+            "object": {
+              "metadata": {},
+              "spec": {
+                "containers": null
+              },
+              "status": {}
+            },
+            "operation": "get_missing",
+            "status": {
+              "code": 404,
+              "details": {
+                "kind": "pods",
+                "name": "missing"
+              },
+              "message": "pods \"missing\" not found",
+              "metadata": {},
+              "reason": "NotFound",
+              "status": "Failure"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "typed_resize_explicit_parent_name",
+      "events": [
+        {
+          "kind": "http_request",
+          "fields": {
+            "body": "{\"kind\":\"Pod\",\"apiVersion\":\"v1\",\"metadata\":{\"name\":\"body-name\",\"namespace\":\"body-namespace\",\"resourceVersion\":\"17\"},\"spec\":{\"containers\":[{\"name\":\"main\",\"image\":\"image:fixed\",\"resources\":{}}]},\"status\":{}}\n",
+            "headers": {
+              "Accept": [
+                "application/json"
+              ],
+              "Accept-Encoding": [
+                "gzip"
+              ],
+              "Content-Length": [
+                "206"
+              ],
+              "Content-Type": [
+                "application/json"
+              ],
+              "User-Agent": [
+                "gofx-client-go-oracle/1"
+              ]
+            },
+            "method": "PUT",
+            "path": "/api/v1/namespaces/client-namespace/pods/parent-name/resize",
+            "query": {
+              "fieldManager": [
+                "resizer"
+              ],
+              "timeout": [
+                "10s"
+              ]
+            },
+            "raw_query": "fieldManager=resizer\u0026timeout=10s"
+          }
+        },
+        {
+          "kind": "typed_result",
+          "fields": {
+            "object": {
+              "metadata": {
+                "name": "body-name",
+                "namespace": "body-namespace",
+                "resourceVersion": "17"
+              },
+              "spec": {
+                "containers": [
+                  {
+                    "image": "image:fixed",
+                    "name": "main",
+                    "resources": {}
+                  }
+                ]
+              },
+              "status": {}
+            },
+            "operation": "resize"
+          }
+        }
+      ]
+    },
+    {
+      "id": "apply_scale_without_configuration_name",
+      "events": [
+        {
+          "kind": "http_request",
+          "fields": {
+            "body": "{\"kind\":\"Scale\",\"apiVersion\":\"autoscaling/v1\",\"spec\":{\"replicas\":3}}",
+            "headers": {
+              "Accept": [
+                "application/json"
+              ],
+              "Accept-Encoding": [
+                "gzip"
+              ],
+              "Content-Length": [
+                "68"
+              ],
+              "Content-Type": [
+                "application/apply-patch+yaml"
+              ],
+              "User-Agent": [
+                "gofx-client-go-oracle/1"
+              ]
+            },
+            "method": "PATCH",
+            "path": "/apis/apps/v1/namespaces/team-a/deployments/parent-name/scale",
+            "query": {
+              "fieldManager": [
+                "scale-manager"
+              ],
+              "force": [
+                "true"
+              ],
+              "timeout": [
+                "10s"
+              ]
+            },
+            "raw_query": "fieldManager=scale-manager\u0026force=true\u0026timeout=10s"
+          }
+        },
+        {
+          "kind": "typed_result",
+          "fields": {
+            "configuration_name_absent": true,
+            "object": {
+              "metadata": {
+                "name": "parent-name",
+                "namespace": "team-a"
+              },
+              "spec": {
+                "replicas": 3
+              },
+              "status": {
+                "replicas": 0
+              }
+            },
+            "operation": "apply_scale"
+          }
+        }
+      ]
+    },
+    {
+      "id": "real_and_fake_bind_namespace",
+      "events": [
+        {
+          "kind": "http_request",
+          "fields": {
+            "body": "{\"kind\":\"Binding\",\"apiVersion\":\"v1\",\"metadata\":{\"name\":\"pod-a\",\"namespace\":\"body-namespace\"},\"target\":{\"kind\":\"Node\",\"name\":\"node-a\"}}\n",
+            "headers": {
+              "Accept": [
+                "application/json"
+              ],
+              "Accept-Encoding": [
+                "gzip"
+              ],
+              "Content-Length": [
+                "135"
+              ],
+              "Content-Type": [
+                "application/json"
+              ],
+              "User-Agent": [
+                "gofx-client-go-oracle/1"
+              ]
+            },
+            "method": "POST",
+            "path": "/api/v1/namespaces/client-namespace/pods/pod-a/binding",
+            "query": {
+              "fieldManager": [
+                "binder"
+              ],
+              "timeout": [
+                "10s"
+              ]
+            },
+            "raw_query": "fieldManager=binder\u0026timeout=10s"
+          }
+        },
+        {
+          "kind": "operation_result",
+          "fields": {
+            "error": null,
+            "implementation": "real"
+          }
+        },
+        {
+          "kind": "fake_action",
+          "fields": {
+            "go_type": "testing.CreateActionImpl",
+            "namespace": "body-namespace",
+            "object": {
+              "apiVersion": "v1",
+              "kind": "Binding",
+              "metadata": {
+                "name": "pod-a",
+                "namespace": "body-namespace"
+              },
+              "target": {
+                "kind": "Node",
+                "name": "node-a"
+              }
+            },
+            "options": {},
+            "phase": "fake_bind",
+            "resource": {
+              "Group": "",
+              "Resource": "pods",
+              "Version": "v1"
+            },
+            "subresource": "binding",
+            "verb": "create"
+          }
+        }
+      ]
+    },
+    {
+      "id": "fake_namespace_finalize",
+      "events": [
+        {
+          "kind": "fake_action",
+          "fields": {
+            "go_type": "testing.CreateActionImpl",
+            "namespace": "",
+            "object": {
+              "metadata": {
+                "name": "namespace-a"
+              },
+              "spec": {
+                "finalizers": [
+                  "kubernetes"
+                ]
+              },
+              "status": {}
+            },
+            "options": {},
+            "phase": "finalize",
+            "resource": {
+              "Group": "",
+              "Resource": "namespaces",
+              "Version": "v1"
+            },
+            "subresource": "finalize",
+            "verb": "create"
+          }
+        },
+        {
+          "kind": "typed_result",
+          "fields": {
+            "object": {
+              "metadata": {
+                "name": "namespace-a"
+              },
+              "spec": {
+                "finalizers": [
+                  "kubernetes"
+                ]
+              },
+              "status": {}
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "fake_list_label_not_field_filter",
+      "events": [
+        {
+          "kind": "fake_action",
+          "fields": {
+            "fields": "metadata.name=field-match",
+            "go_type": "testing.ListActionImpl",
+            "kind": {
+              "Group": "",
+              "Kind": "Pod",
+              "Version": "v1"
+            },
+            "labels": "app=selected",
+            "namespace": "team-a",
+            "options": {
+              "fieldSelector": "metadata.name=field-match",
+              "labelSelector": "app=selected"
+            },
+            "phase": "list",
+            "resource": {
+              "Group": "",
+              "Resource": "pods",
+              "Version": "v1"
+            },
+            "subresource": "",
+            "verb": "list"
+          }
+        },
+        {
+          "kind": "typed_result",
+          "fields": {
+            "object": {
+              "items": [
+                {
+                  "apiVersion": "v1",
+                  "kind": "Pod",
+                  "metadata": {
+                    "labels": {
+                      "app": "selected"
+                    },
+                    "name": "label-match",
+                    "namespace": "team-a",
+                    "resourceVersion": "17"
+                  },
+                  "spec": {
+                    "containers": [
+                      {
+                        "image": "image:fixed",
+                        "name": "main",
+                        "resources": {}
+                      }
+                    ]
+                  },
+                  "status": {}
+                }
+              ],
+              "metadata": {
+                "resourceVersion": "4"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "fake_action_snapshot_and_reactor_mutation",
+      "events": [
+        {
+          "kind": "fake_action",
+          "fields": {
+            "go_type": "testing.CreateActionImpl",
+            "namespace": "team-a",
+            "object": {
+              "apiVersion": "v1",
+              "kind": "Pod",
+              "metadata": {
+                "name": "pod-a",
+                "namespace": "team-a",
+                "resourceVersion": "17",
+                "selfLink": "reactor-mutated"
+              },
+              "spec": {
+                "containers": [
+                  {
+                    "image": "image:fixed",
+                    "name": "main",
+                    "resources": {}
+                  }
+                ]
+              },
+              "status": {}
+            },
+            "options": {
+              "fieldManager": "creator"
+            },
+            "phase": "first_reactor_after_mutation",
+            "resource": {
+              "Group": "",
+              "Resource": "pods",
+              "Version": "v1"
+            },
+            "subresource": "",
+            "verb": "create"
+          }
+        },
+        {
+          "kind": "fake_action",
+          "fields": {
+            "go_type": "testing.CreateActionImpl",
+            "namespace": "team-a",
+            "object": {
+              "apiVersion": "v1",
+              "kind": "Pod",
+              "metadata": {
+                "name": "pod-a",
+                "namespace": "team-a",
+                "resourceVersion": "17",
+                "selfLink": "reactor-mutated"
+              },
+              "spec": {
+                "containers": [
+                  {
+                    "image": "image:fixed",
+                    "name": "main",
+                    "resources": {}
+                  }
+                ]
+              },
+              "status": {}
+            },
+            "options": {
+              "fieldManager": "creator"
+            },
+            "phase": "second_reactor",
+            "resource": {
+              "Group": "",
+              "Resource": "pods",
+              "Version": "v1"
+            },
+            "subresource": "",
+            "verb": "create"
+          }
+        },
+        {
+          "kind": "fake_action",
+          "fields": {
+            "go_type": "testing.CreateActionImpl",
+            "namespace": "team-a",
+            "object": {
+              "apiVersion": "v1",
+              "kind": "Pod",
+              "metadata": {
+                "name": "pod-a",
+                "namespace": "team-a",
+                "resourceVersion": "17"
+              },
+              "spec": {
+                "containers": [
+                  {
+                    "image": "image:fixed",
+                    "name": "main",
+                    "resources": {}
+                  }
+                ]
+              },
+              "status": {}
+            },
+            "options": {
+              "fieldManager": "creator"
+            },
+            "phase": "recorded_action",
+            "resource": {
+              "Group": "",
+              "Resource": "pods",
+              "Version": "v1"
+            },
+            "subresource": "",
+            "verb": "create"
+          }
+        },
+        {
+          "kind": "typed_result",
+          "fields": {
+            "input": {
+              "apiVersion": "v1",
+              "kind": "Pod",
+              "metadata": {
+                "name": "pod-a",
+                "namespace": "team-a",
+                "resourceVersion": "17"
+              },
+              "spec": {
+                "containers": [
+                  {
+                    "image": "image:fixed",
+                    "name": "main",
+                    "resources": {}
+                  }
+                ]
+              },
+              "status": {}
+            },
+            "returned": {
+              "apiVersion": "v1",
+              "kind": "Pod",
+              "metadata": {
+                "name": "pod-a",
+                "namespace": "team-a",
+                "resourceVersion": "17",
+                "selfLink": "reactor-mutated"
+              },
+              "spec": {
+                "containers": [
+                  {
+                    "image": "image:fixed",
+                    "name": "main",
+                    "resources": {}
+                  }
+                ]
+              },
+              "status": {}
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "apply_builder_presence_merge_append",
+      "events": [
+        {
+          "kind": "apply_configuration",
+          "fields": {
+            "object": {},
+            "stage": "unset"
+          }
+        },
+        {
+          "kind": "apply_configuration",
+          "fields": {
+            "object": {
+              "apiVersion": "v1",
+              "kind": "Pod",
+              "metadata": {
+                "name": "pod-a",
+                "namespace": "team-a"
+              },
+              "spec": {
+                "hostNetwork": false,
+                "nodeName": "",
+                "terminationGracePeriodSeconds": 0
+              }
+            },
+            "stage": "explicit_zero_false_empty"
+          }
+        },
+        {
+          "kind": "apply_configuration",
+          "fields": {
+            "object": {
+              "apiVersion": "v1",
+              "kind": "Pod",
+              "metadata": {
+                "finalizers": [
+                  "first",
+                  "second",
+                  "third"
+                ],
+                "labels": {
+                  "first": "one",
+                  "second": "two",
+                  "shared": "after"
+                },
+                "name": "pod-a",
+                "namespace": "team-a"
+              },
+              "spec": {
+                "containers": [
+                  {
+                    "name": "first"
+                  },
+                  {
+                    "name": "second"
+                  }
+                ],
+                "hostNetwork": false,
+                "nodeName": "",
+                "terminationGracePeriodSeconds": 0
+              }
+            },
+            "stage": "merged_and_appended"
+          }
+        },
+        {
+          "kind": "builder_panic",
+          "fields": {
+            "go_type": "string",
+            "message": "nil value passed to WithOwnerReferences"
+          }
+        }
+      ]
+    },
+    {
+      "id": "field_managed_clientset_conflicts",
+      "events": [
+        {
+          "kind": "managed_object",
+          "fields": {
+            "data": {
+              "k0": "v0"
+            },
+            "ownership": [
+              {
+                "api_version": "v1",
+                "fields_type": "FieldsV1",
+                "fields_v1": {
+                  "f:data": {
+                    ".": {},
+                    "f:k0": {}
+                  }
+                },
+                "manager": "manager-0",
+                "operation": "Update",
+                "subresource": ""
+              }
+            ],
+            "stage": "create"
+          }
+        },
+        {
+          "kind": "managed_object",
+          "fields": {
+            "data": {
+              "k0": "v0",
+              "k1": "v1"
+            },
+            "ownership": [
+              {
+                "api_version": "v1",
+                "fields_type": "FieldsV1",
+                "fields_v1": {
+                  "f:data": {
+                    "f:k1": {}
+                  }
+                },
+                "manager": "manager-1",
+                "operation": "Apply",
+                "subresource": ""
+              },
+              {
+                "api_version": "v1",
+                "fields_type": "FieldsV1",
+                "fields_v1": {
+                  "f:data": {
+                    ".": {},
+                    "f:k0": {}
+                  }
+                },
+                "manager": "manager-0",
+                "operation": "Update",
+                "subresource": ""
+              }
+            ],
+            "stage": "apply_manager_1"
+          }
+        },
+        {
+          "kind": "api_error",
+          "fields": {
+            "context_canceled": false,
+            "deadline_exceeded": false,
+            "go_type": "*errors.StatusError",
+            "message": "Apply failed with 1 conflict: conflict with \"manager-1\": .data.k1",
+            "status": {
+              "code": 409,
+              "details": {
+                "causes": [
+                  {
+                    "field": ".data.k1",
+                    "message": "conflict with \"manager-1\"",
+                    "reason": "FieldManagerConflict"
+                  }
+                ]
+              },
+              "message": "Apply failed with 1 conflict: conflict with \"manager-1\": .data.k1",
+              "metadata": {},
+              "reason": "Conflict",
+              "status": "Failure"
+            }
+          }
+        },
+        {
+          "kind": "managed_object",
+          "fields": {
+            "data": {
+              "k0": "v0",
+              "k1": "v1",
+              "k2": "v2"
+            },
+            "ownership": [
+              {
+                "api_version": "v1",
+                "fields_type": "FieldsV1",
+                "fields_v1": {
+                  "f:data": {
+                    "f:k1": {}
+                  }
+                },
+                "manager": "manager-1",
+                "operation": "Apply",
+                "subresource": ""
+              },
+              {
+                "api_version": "v1",
+                "fields_type": "FieldsV1",
+                "fields_v1": {
+                  "f:data": {
+                    "f:k2": {}
+                  }
+                },
+                "manager": "manager-2",
+                "operation": "Apply",
+                "subresource": ""
+              },
+              {
+                "api_version": "v1",
+                "fields_type": "FieldsV1",
+                "fields_v1": {
+                  "f:data": {
+                    ".": {},
+                    "f:k0": {}
+                  }
+                },
+                "manager": "manager-0",
+                "operation": "Update",
+                "subresource": ""
+              }
+            ],
+            "stage": "apply_manager_2"
+          }
+        },
+        {
+          "kind": "managed_object",
+          "fields": {
+            "data": {
+              "k0": "v0",
+              "k1": "updated",
+              "k2": "v2"
+            },
+            "ownership": [
+              {
+                "api_version": "v1",
+                "fields_type": "FieldsV1",
+                "fields_v1": {
+                  "f:data": {
+                    "f:k1": {}
+                  }
+                },
+                "manager": "manager-1",
+                "operation": "Apply",
+                "subresource": ""
+              },
+              {
+                "api_version": "v1",
+                "fields_type": "FieldsV1",
+                "fields_v1": {
+                  "f:data": {
+                    "f:k2": {}
+                  }
+                },
+                "manager": "manager-2",
+                "operation": "Apply",
+                "subresource": ""
+              },
+              {
+                "api_version": "v1",
+                "fields_type": "FieldsV1",
+                "fields_v1": {
+                  "f:data": {
+                    ".": {},
+                    "f:k0": {}
+                  }
+                },
+                "manager": "manager-0",
+                "operation": "Update",
+                "subresource": ""
+              }
+            ],
+            "stage": "update_owned_field"
+          }
+        },
+        {
+          "kind": "managed_object",
+          "fields": {
+            "data": {
+              "k0": "v0",
+              "k1": "forced"
+            },
+            "ownership": [
+              {
+                "api_version": "v1",
+                "fields_type": "FieldsV1",
+                "fields_v1": {
+                  "f:data": {
+                    "f:k1": {}
+                  }
+                },
+                "manager": "manager-2",
+                "operation": "Apply",
+                "subresource": ""
+              },
+              {
+                "api_version": "v1",
+                "fields_type": "FieldsV1",
+                "fields_v1": {
+                  "f:data": {
+                    ".": {},
+                    "f:k0": {}
+                  }
+                },
+                "manager": "manager-0",
+                "operation": "Update",
+                "subresource": ""
+              }
+            ],
+            "stage": "force_and_omit_previous_field"
+          }
+        }
+      ]
+    }
+  ]
+}

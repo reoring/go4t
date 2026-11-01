@@ -1,0 +1,23 @@
+package watch
+
+import sync "github.com/reoring/gofx/ports/client-go/support/sync"
+import runtime "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime"
+
+type Event = Event { eventType: String, object: Option[runtime.Object] }
+type Watch = _Watch(sync.Channel[Event], func() IO[Unit])
+
+func newWatch(events sync.Channel[Event], stopProducer func() IO[Unit]) Watch {
+ _Watch(events, stopProducer)
+}
+
+func next(watch Watch) IO[Option[Event]] {
+ match watch { _Watch(events, _) => sync.receive(events) }
+}
+
+func receiveCase[R](watch Watch, mapper func(Option[Event]) R) sync.Case[R] {
+ match watch { _Watch(events, _) => sync.receiveCase(events, mapper) }
+}
+
+func stop(watch Watch) IO[Unit] {
+ match watch { _Watch(_, stopProducer) => sync.uninterruptible(stopProducer()) }
+}

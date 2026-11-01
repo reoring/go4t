@@ -1,0 +1,149 @@
+package main
+
+import core "github.com/reoring/gofx/ports/client-go/deps/k8s.io/api/core/v1"
+import meta "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import schema "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime/schema"
+import smd "github.com/reoring/gofx/ports/client-go/deps/sigs.k8s.io/structured-merge-diff/v6/schema"
+import support "github.com/reoring/gofx/ports/client-go/deps/support"
+import codec "github.com/reoring/gofx/ports/client-go/deps/codec"
+import left "github.com/reoring/gofx/ports/client-go/tools/binddeps/proof/left"
+import right "github.com/reoring/gofx/ports/client-go/tools/binddeps/proof/right"
+import runtimeApi "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime"
+import objects "github.com/reoring/gofx/ports/client-go/deps/objects"
+import "std/io"
+
+extern func aliasConvert(a Option[core.Pod], b Option[core.Pod]) IO[((Option[core.Pod], Option[core.Pod]), (Bool, Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/tools/binddeps/proofhost".AliasConvert
+extern func recursiveFixture() smd.TypeRef = "github.com/reoring/gofx/ports/client-go/tools/binddeps/proofhost".RecursiveFixture
+extern func sameMap(a Option[smd.MapGo], b Option[smd.MapGo]) IO[((Option[smd.MapGo], Option[smd.MapGo]), Bool)] = "github.com/reoring/gofx/ports/client-go/tools/binddeps/proofhost".SameMap
+extern func pointerMap() IO[support.ForeignMap[support.PointerKey[core.Pod],String]] = "github.com/reoring/gofx/ports/client-go/tools/binddeps/proofhost".PointerMap
+
+func require(ok Bool, message String) IO[Unit] {
+ if ok { ioPure(unit()) } else { ioFail(message) }
+}
+func expect[A](value Option[A], message String) IO[A] {
+ match value {
+  Some(x) => ioPure(x)
+  None => ioFail(message)
+ }
+}
+alias CallbackDecodeResult = ((Option[String], (Option[schema.GroupVersionKind], Option[runtimeApi.Object])), (Option[runtimeApi.Object], (Option[schema.GroupVersionKind], Option[support.Error])))
+func callbackDecode(data Option[String], defaults Option[schema.GroupVersionKind], into Option[runtimeApi.Object]) IO[CallbackDecodeResult] {
+ let pod = core.podWithObjectMeta(core.newPod(), meta.objectMetaWithName(meta.newObjectMeta(), "callback"))
+ let kind = schema.groupVersionKindWithKind(schema.newGroupVersionKind(), "Pod")
+ let err = support.errorConflict("", "pods", "callback", None)
+ ioPure(((data, (defaults, into)), (Some(core.podToRuntimeObject(pod)), (Some(kind), Some(err)))))
+}
+func invalidUInt() IO[support.UInt64] {
+ do {
+  ioPure(unit())
+  ioPure(support.uint64(4294967296, 0))
+ }
+}
+func main() IO[Unit] {
+ do {
+  let original = core.newPod()
+  let originalMeta = core.podGetObjectMeta(original)
+  let renamed = meta.objectMetaWithName(originalMeta, "typed-pod")
+  let transported = right.metadata(left.metadata(renamed))
+  let pod = core.podWithObjectMeta(original, transported)
+  require(meta.objectMetaGetName(core.podGetObjectMeta(pod)) == "typed-pod", "typed metadata did not survive canonical imports")
+  require(meta.objectMetaGetName(core.podGetObjectMeta(original)) == "", "immutable Pod input was mutated")
+  let absentLabels = meta.objectMetaGetLabels(originalMeta)
+  require(support.mapIsNil(absentLabels), "zero labels must remain nil")
+  let emptyLabels = support.mapEmpty(absentLabels)
+  let withEmptyLabels = meta.objectMetaWithLabels(originalMeta, emptyLabels)
+  require(!support.mapIsNil(meta.objectMetaGetLabels(withEmptyLabels)), "empty labels were collapsed to nil")
+  let labels = support.mapWith(emptyLabels, "app", "typed")
+  label <- expect(support.mapLookup(labels, "app"), "typed map entry missing")
+  require(label == "typed", "typed map value mismatch")
+  let zeroList = core.newPodList()
+  require(match core.podListGetItems(zeroList) {None => true Some(_) => false}, "zero PodList.Items must be nil")
+  let emptyList = core.podListWithItems(zeroList, Some([]))
+  require(match core.podListGetItems(emptyList) {Some(_) => true None => false}, "empty PodList.Items lost presence")
+  let populated = core.podListWithItems(emptyList, Some([pod]))
+  items <- expect(core.podListGetItems(populated), "typed PodList missing")
+  require(match items {Cons(item, _) => meta.objectMetaGetName(core.podGetObjectMeta(item)) == "typed-pod" Nil => false}, "PodList lost typed item")
+  let options = meta.newListOptions()
+  require(match meta.listOptionsGetSendInitialEvents(options) {None => true Some(_) => false}, "initial events should be absent")
+  let explicitFalse = meta.listOptionsWithSendInitialEvents(options, Some(false))
+  require(match meta.listOptionsGetSendInitialEvents(explicitFalse) {Some(flag) => !flag None => false}, "explicit false lost presence")
+  let large = 9007199254740993
+  let largeOptions = meta.listOptionsWithLimit(explicitFalse, large)
+  require(meta.listOptionsGetLimit(largeOptions) == large, "int64 precision lost above 2^53")
+  let u = support.uint64(4294967295, 4294967295)
+  require(support.uint64High(u) == 4294967295 && support.uint64Low(u) == 4294967295, "uint64 bits lost")
+  let leaf = smd.typeRefWithNamedType(smd.newTypeRef(), Some("leaf"))
+  let recursiveMap = smd.mapGoWithElementType(smd.newMapGo(), leaf)
+  let atom = smd.atomWithMap(smd.newAtom(), Some(recursiveMap))
+  let nested = smd.typeRefWithInlined(smd.newTypeRef(), atom)
+  nestedMap <- expect(smd.atomGetMap(smd.typeRefGetInlined(nested)), "recursive map missing")
+  leafName <- expect(smd.typeRefGetNamedType(smd.mapGoGetElementType(nestedMap)), "recursive leaf missing")
+  require(leafName == "leaf", "recursive graph was flattened")
+  aliasResult <- aliasConvert(Some(pod), Some(pod))
+  require(aliasResult.1.0, "snapshot alias was lost across external Scheme.Convert")
+  firstAlias <- expect(aliasResult.0.0, "first updated alias missing")
+  secondAlias <- expect(aliasResult.0.1, "second updated alias missing")
+  require(meta.objectMetaGetName(core.podGetObjectMeta(firstAlias)) == "alias-updated", "first updated input lost")
+  require(meta.objectMetaGetName(core.podGetObjectMeta(secondAlias)) == "alias-updated", "second updated input lost")
+  require(meta.objectMetaGetName(core.podGetObjectMeta(pod)) == "typed-pod", "external conversion mutated the input snapshot")
+  let cycle = recursiveFixture()
+  cycleMap <- expect(smd.atomGetMap(smd.typeRefGetInlined(cycle)), "cyclic map missing")
+  repeatedMap <- expect(smd.atomGetMap(smd.typeRefGetInlined(smd.mapGoGetElementType(cycleMap))), "cyclic map edge missing")
+  cycleResult <- sameMap(Some(cycleMap), Some(repeatedMap))
+  require(cycleResult.1, "cyclic snapshot alias was not preserved")
+  decoder <- codec.newJSONDecoder()
+  decoded <- codec.decode(decoder, "{\"apiVersion\":\"v1\",\"kind\":\"Pod\",\"metadata\":{\"name\":\"decoded\"},\"unknownStrictField\":true}", None, None)
+  object <- expect(decoded.object, "decode lost object on strict error")
+  decodedPod <- expect(core.podFromRuntimeObject(object), "decode returned wrong concrete object")
+  require(meta.objectMetaGetName(core.podGetObjectMeta(decodedPod)) == "decoded", "decoded typed fields lost")
+  kind <- expect(decoded.gvk, "decode lost GVK on strict error")
+  require(schema.groupVersionKindGetKind(kind) == "Pod", "decode GVK mismatch")
+  err <- expect(decoded.error, "strict decoding error missing")
+  require(support.errorIsStrictDecoding(err), "structured strict error identity lost")
+  let resource = schema.groupResourceWithResource(schema.newGroupResource(), "pods")
+  let notFound = codec.newNotFound(resource, "absent")
+  require(support.errorIsNotFound(notFound), "API status predicate lost")
+  status <- expect(codec.errorStatus(notFound), "API status payload missing")
+  require(meta.statusGetCode(status) == 404, "API status code lost")
+  proxy <- runtimeApi.newDecoder(callbackDecode)
+  proxied <- codec.decode(proxy, "callback-input", None, None)
+  proxyObject <- expect(proxied.object, "native decoder callback lost object")
+  proxyPod <- expect(core.podFromRuntimeObject(proxyObject), "native decoder callback lost concrete type")
+  require(meta.objectMetaGetName(core.podGetObjectMeta(proxyPod)) == "callback", "native decoder callback value mismatch")
+  proxyKind <- expect(proxied.gvk, "native decoder callback lost GVK")
+  require(schema.groupVersionKindGetKind(proxyKind) == "Pod", "native decoder callback GVK mismatch")
+  proxyError <- expect(proxied.error, "native decoder callback lost partial-result error")
+  require(support.errorIsConflict(proxyError), "native decoder callback erased API error")
+  invalid <- io.tryIO(invalidUInt())
+  require(match invalid {Err(_) => true Ok(_) => false}, "invalid uint64 components were accepted")
+  pointerKeys <- pointerMap()
+  key <- expect(match support.mapEntries(pointerKeys) {Cons(pair, _) => Some(pair.0) Nil => None}, "pointer map key missing")
+  keyed <- expect(support.mapLookup(pointerKeys, key), "pointer key identity lost on lookup")
+  require(keyed == "pointer-key", "pointer key map value mismatch")
+  let nilKey = support.mapNilPointerKey(pointerKeys)
+  require(!support.pointerKeyEqual(key, nilKey), "nonnull and nil pointer keys collapsed")
+  nilPointer <- expect(support.mapLookup(support.mapWith(pointerKeys, nilKey, "nil"), nilKey), "nil pointer key missing")
+  require(nilPointer == "nil", "nil pointer key value lost")
+  copied <- objects.objectDeepCopy(object)
+  equal <- objects.objectEqual(Some(object), copied)
+  require(equal, "external object deepcopy equality lost")
+  let raw = runtimeApi.rawExtensionWithRaw(runtimeApi.newRawExtension(), Some("{\"hello\":1}"))
+  rawObject <- objects.rawExtensionToObject(raw)
+  require(match rawObject.0 {Some(_) => true None => false}, "RawExtension failed to convert to Unknown")
+  nullRaw <- objects.objectToRawExtension(None, runtimeApi.newRawExtension())
+  require(match runtimeApi.rawExtensionGetRaw(nullRaw.0) {Some(value) => value == "null" None => false}, "nil *Object conversion lost")
+  absentRaw <- objects.objectToRawExtension(Some(None), runtimeApi.newRawExtension())
+  require(match runtimeApi.rawExtensionGetRaw(absentRaw.0) {None => true Some(_) => false}, "pointer-to-nil Object conversion lost")
+  let leafError = support.errorNew("leaf")
+  let wrappedError = support.errorWrap("context", leafError)
+  require(support.errorIs(wrappedError, leafError), "error wrapping lost identity")
+  require(support.errorMessage(wrappedError) == "context: leaf", "error wrapper message mismatch")
+  version <- objects.objectResourceVersion(object)
+  require(version.0 == "", "object metadata resourceVersion mismatch")
+  statusObject <- meta.statusCallDeepCopyObject(meta.statusWithCode(meta.newStatus(), 503))
+  statusValue <- expect(statusObject.1, "Status DeepCopyObject returned nil")
+  typedStatus <- expect(objects.objectAsStatus(statusValue), "typed Status projection failed")
+  require(meta.statusGetCode(typedStatus) == 503, "typed Status code lost")
+  println("dependency-proof: typed Pod/PodList/ListOptions; presence; int64/uint64; recursive schema; canonical identity; decode object+GVK+structured-error PASS")
+ }
+}

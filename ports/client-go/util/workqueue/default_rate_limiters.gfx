@@ -1,0 +1,55 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package workqueue
+import "std/map"
+import "std/list"
+import "std/float"
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+import "github.com/reoring/gofx/ports/client-go/util/flowcontrol"
+
+type RateLimiter[A] = RateLimiter { when: func(A) IO[Int], forget: func(A) IO[Unit], numRequeues: func(A) IO[Int] }
+func cappedExponential(base Int, maximum Int, exponent Int) Int {
+ let backoff = toFloat(base)*float.pow(2.0,toFloat(exponent))
+ if backoff > 9223372036854775807.0 { maximum } else { min(float.truncate(backoff),maximum) }
+}
+func newCountingRateLimiterBy[A](cmp func(A,A) Ordering, delay func(Int) Int) IO[RateLimiter[A]] {
+ do {
+  state <- sync.newRef(map.emptyMap()); mutex <- sync.newMutex()
+  let count = func(item) => do { counts <- sync.readRef(state); ioPure(match map.mapLookupBy(counts,item,cmp) { None => 0; Some(n) => n }) }
+  ioPure(RateLimiter(func(item) => sync.withLock(mutex,sync.uninterruptible(do {
+   n <- count(item); counts <- sync.readRef(state)
+   sync.writeRef(state,map.mapInsertBy(counts,item,n+1,cmp)); ioPure(delay(n))
+  })),func(item) => sync.withLock(mutex,do { counts <- sync.readRef(state); sync.writeRef(state,map.mapDeleteBy(counts,item,cmp)) }),func(item) => sync.withLock(mutex,count(item))))
+ }
+}
+func newItemExponentialFailureRateLimiterBy[A](cmp func(A,A) Ordering, base Int, maximum Int) IO[RateLimiter[A]] {
+ newCountingRateLimiterBy(cmp,func(n) => cappedExponential(base,maximum,n))
+}
+func newItemExponentialFailureRateLimiter[A Ord](base Int, maximum Int) IO[RateLimiter[A]] { newItemExponentialFailureRateLimiterBy(func(a,b) => compare(a,b),base,maximum) }
+func newItemFastSlowRateLimiterBy[A](cmp func(A,A) Ordering, fast Int, slow Int, attempts Int) IO[RateLimiter[A]] {
+ newCountingRateLimiterBy(cmp,func(n) => if n+1 <= attempts { fast } else { slow })
+}
+func newItemFastSlowRateLimiter[A Ord](fast Int, slow Int, attempts Int) IO[RateLimiter[A]] { newItemFastSlowRateLimiterBy(func(a,b) => compare(a,b),fast,slow,attempts) }
+func maximumWhen[A](limiters List[RateLimiter[A]], item A, result Int) IO[Int] {
+ match limiters { Nil => ioPure(result); Cons(l,rest) => do { n <- l.when(item); maximumWhen(rest,item,max(result,n)) } }
+}
+func maximumCount[A](limiters List[RateLimiter[A]], item A, result Int) IO[Int] {
+ match limiters { Nil => ioPure(result); Cons(l,rest) => do { n <- l.numRequeues(item); maximumCount(rest,item,max(result,n)) } }
+}
+func forgetAll[A](limiters List[RateLimiter[A]], item A) IO[Unit] {
+ match limiters { Nil => ioPure(unit()); Cons(l,rest) => do { l.forget(item); forgetAll(rest,item) } }
+}
+func newMaxOfRateLimiter[A](limiters List[RateLimiter[A]]) RateLimiter[A] {
+ RateLimiter(func(item) => maximumWhen(limiters,item,0),func(item) => forgetAll(limiters,item),func(item) => maximumCount(limiters,item,0))
+}
+func newWithMaxWaitRateLimiter[A](limiter RateLimiter[A], maximum Int) RateLimiter[A] {
+ RateLimiter(func(item) => do { delay <- limiter.when(item); ioPure(min(delay,maximum)) },limiter.forget,limiter.numRequeues)
+}
+func newBucketRateLimiter[A](bucket flowcontrol.TokenBucket) RateLimiter[A] {
+ RateLimiter(func(item) => flowcontrol.reserveDelay(bucket),func(item) => ioPure(unit()),func(item) => ioPure(0))
+}
+func defaultItemBasedRateLimiterBy[A](cmp func(A,A) Ordering) IO[RateLimiter[A]] { newItemExponentialFailureRateLimiterBy(cmp,1000000,1000000000000) }
+func defaultItemBasedRateLimiter[A Ord]() IO[RateLimiter[A]] { defaultItemBasedRateLimiterBy(func(a,b) => compare(a,b)) }
+func defaultControllerRateLimiterBy[A](cmp func(A,A) Ordering) IO[RateLimiter[A]] {
+ do { item <- newItemExponentialFailureRateLimiterBy(cmp,5000000,1000000000000); bucket <- flowcontrol.newTokenBucket(10.0,100); ioPure(newMaxOfRateLimiter([item,newBucketRateLimiter(bucket)])) }
+}
+func defaultControllerRateLimiter[A Ord]() IO[RateLimiter[A]] { defaultControllerRateLimiterBy(func(a,b) => compare(a,b)) }

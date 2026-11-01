@@ -1,0 +1,54 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package retry
+import "github.com/reoring/gofx/ports/client-go/deps/support"
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+import wait "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/util/wait"
+import time "github.com/reoring/gofx/ports/client-go/deps/time"
+
+func testRetryExhaustionPreservesOriginalError() IO[Bool] {
+ do {
+  clock <- sync.fakeClock(0); calls <- sync.newRef(0)
+  let original = support.errorInterrupted(None)
+  let config = newBackoff(0,1.0,0.0,3,0)
+  result <- onErrorWithClock(config,func(error) => true,func() => do {
+   n <- sync.readRef(calls); sync.writeRef(calls,n+1); ioPure(Some(original))
+  },clock,func() => ioPure(0.0))
+  n <- sync.readRef(calls)
+  ioPure(n == 3 && wait.backoffGetSteps(config) == 3 && (match result { None => false; Some(error) => support.errorIs(error,original) }))
+ }
+}
+func testRetrySuccessAndNonRetriableStopImmediately() IO[Bool] {
+ do {
+  clock <- sync.fakeClock(0); calls <- sync.newRef(0)
+  let original = support.waitTimeoutError()
+  result <- onErrorWithClock(newBackoff(0,1.0,0.0,5,0),func(error) => true,func() => do {
+   n <- sync.readRef(calls); sync.writeRef(calls,n+1)
+   ioPure(if n < 2 { Some(original) } else { None })
+  },clock,func() => ioPure(0.0))
+  n <- sync.readRef(calls)
+  nonRetriable <- onErrorWithClock(defaultRetry(),func(error) => false,func() => ioPure(Some(original)),clock,func() => ioPure(0.0))
+  ioPure(n == 3 && (match result { None => true; Some(_) => false }) && (match nonRetriable { None => false; Some(error) => support.errorIs(error,original) }))
+ }
+}
+func testZeroStepsAndCapExhaustion() IO[Bool] {
+ do {
+  clock <- sync.fakeClock(0); called <- sync.newRef(false)
+  zero <- onErrorWithClock(newBackoff(0,1.0,0.0,0,0),func(error) => true,func() => do { sync.writeRef(called,true); ioPure(None) },clock,func() => ioPure(0.0))
+  wasCalled <- sync.readRef(called)
+  let (delay,next) = step(newBackoff(10,5.0,0.1,4,20),0.5)
+  ioPure(!wasCalled && delay == 10 && time.durationValue(wait.backoffGetDuration(next)) == 20 && wait.backoffGetSteps(next) == 0 && (match zero { None => false; Some(error) => support.errorIsInterrupted(error) }))
+ }
+}
+func testConflictAndCancellationIdentity() IO[Bool] {
+ do {
+  let conflict = support.errorConflict("","pods","example",None)
+  let cancelled = support.errorCancelled()
+  calls <- sync.newRef(0)
+  exhausted <- retryOnConflict(newBackoff(0,1.0,0.0,3,0),func() => do {
+   n <- sync.readRef(calls); sync.writeRef(calls,n+1); ioPure(Some(conflict))
+  })
+  count <- sync.readRef(calls)
+  preserved <- retryOnConflict(defaultBackoff(),func() => ioPure(Some(cancelled)))
+  ioPure(count == 3 && (match exhausted { None => false; Some(e) => support.errorIs(e,conflict) }) && (match preserved { None => false; Some(e) => support.errorIs(e,cancelled) }))
+ }
+}

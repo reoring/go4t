@@ -1,0 +1,95 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package flowcontrol
+import "std/float"
+import "std/io"
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+
+type PassiveRateLimiter = PassiveRateLimiter { tryAccept: func() IO[Bool], stop: func() IO[Unit], qps: Float }
+type RateLimiter = RateLimiter { passive: PassiveRateLimiter, accept: func() IO[Unit], wait: func() IO[Unit] }
+type Clock = Clock { now: func() IO[sync.Instant], sleep: func(Int) IO[Unit] }
+func clockCapabilities(clock sync.Clock) Clock { Clock(func() => sync.now(clock),func(nanos) => sleepNanos(clock,nanos)) }
+type BucketState = BucketState { tokens: Float, last: sync.Instant, lastEvent: sync.Instant }
+type TokenBucket = TokenBucket { state: sync.Ref[BucketState], mutex: sync.Mutex, clock: Clock, qps: Float, burst: Int }
+type Reservation = Reservation { ok: Bool, timeToAct: sync.Instant }
+func newTokenBucketWithCapabilities(qps Float, burst Int, clock Clock) IO[TokenBucket] {
+ do { now <- clock.now(); state <- sync.newRef(BucketState(toFloat(burst),now,now)); mutex <- sync.newMutex(); ioPure(TokenBucket(state,mutex,clock,qps,burst)) }
+}
+func newTokenBucketWithClock(qps Float, burst Int, clock sync.Clock) IO[TokenBucket] { newTokenBucketWithCapabilities(qps,burst,clockCapabilities(clock)) }
+func newTokenBucket(qps Float, burst Int) IO[TokenBucket] { do { clock <- sync.realClock(); newTokenBucketWithClock(qps,burst,clock) } }
+func tokensFromDuration(qps Float, duration Int) Float { if qps <= 0.0 { 0.0 } else { toFloat(duration)/1000000000.0*qps } }
+func durationFromTokens(qps Float, tokens Float) Int {
+ if qps <= 0.0 { 9223372036854775807 } else {
+  let duration = tokens/qps*1000000000.0
+  if duration >= 9223372036854775807.0 { 9223372036854775807 } else { float.truncate(duration) }
+ }
+}
+func available(bucket TokenBucket, s BucketState, now sync.Instant) Float {
+ min(toFloat(bucket.burst),s.tokens+tokensFromDuration(bucket.qps,max(0,sync.elapsed(s.last,now))))
+}
+func reserveAt(bucket TokenBucket, now sync.Instant, maximumWait Int) IO[Reservation] {
+ sync.withLock(bucket.mutex,do {
+  s <- sync.readRef(bucket.state)
+  let tokens = available(bucket,s,now)-1.0
+  let delay = if tokens < 0.0 { durationFromTokens(bucket.qps,-tokens) } else { 0 }
+  if bucket.burst >= 1 && delay <= maximumWait {
+   do { let at = sync.add(now,delay); sync.writeRef(bucket.state,BucketState(tokens,now,at)); ioPure(Reservation(true,at)) }
+  } else { ioPure(Reservation(false,now)) }
+ })
+}
+func reserveDelay(bucket TokenBucket) IO[Int] {
+ do { now <- bucket.clock.now(); r <- reserveAt(bucket,now,9223372036854775807)
+  if r.ok { ioPure(max(0,sync.elapsed(now,r.timeToAct))) } else { ioPure(9223372036854775807) }
+ }
+}
+func cancelReservation(bucket TokenBucket, r Reservation) IO[Unit] { do { now <- bucket.clock.now(); cancelReservationAt(bucket,r,now) } }
+func cancelReservationAt(bucket TokenBucket, r Reservation, now sync.Instant) IO[Unit] {
+ if !r.ok { ioPure(unit()) } else { sync.withLock(bucket.mutex,do {
+  s <- sync.readRef(bucket.state)
+  let restore = 1.0-tokensFromDuration(bucket.qps,sync.elapsed(r.timeToAct,s.lastEvent))
+  if sync.instantComparison(r.timeToAct,now) < 0 || restore <= 0.0 { ioPure(unit()) } else {
+   let previous = sync.add(r.timeToAct,durationFromTokens(bucket.qps,-1.0))
+   let lastEvent = if sync.instantComparison(r.timeToAct,s.lastEvent) == 0 && sync.instantComparison(previous,now) >= 0 { previous } else { s.lastEvent }
+   sync.writeRef(bucket.state,BucketState(min(toFloat(bucket.burst),available(bucket,s,now)+restore),now,lastEvent))
+  }
+ }) }
+}
+func sleepNanos(clock sync.Clock, nanos Int) IO[Unit] {
+ if nanos <= 0 { ioPure(unit()) } else {
+  sync.bracket(sync.newTimer(clock,nanos),
+   func(timer) => do { ch <- sync.timerChannel(timer); _ <- sync.receive(ch); ioPure(unit()) },
+   func(timer) => do { _ <- sync.stopTimer(timer); ioPure(unit()) })
+ }
+}
+func tokenTryAccept(bucket TokenBucket) IO[Bool] { do { now <- bucket.clock.now(); r <- reserveAt(bucket,now,0); ioPure(r.ok) } }
+func tokenAccept(bucket TokenBucket) IO[Unit] { do { delay <- reserveDelay(bucket); bucket.clock.sleep(delay) } }
+func tokenWait(bucket TokenBucket) IO[Unit] {
+ do {
+  context <- sync.captureContext()
+  sync.uninterruptible(do {
+   if bucket.burst < 1 { ioFail("rate: Wait(n=1) exceeds limiter's burst " + show(bucket.burst)) } else { ioPure(unit()) }
+   sync.withContext(context,ioPure(unit()))
+   remaining <- sync.contextRemaining(context)
+   clock <- sync.realClock()
+   now <- sync.now(clock)
+   r <- reserveAt(bucket,now,match remaining { None => 9223372036854775807; Some(n) => n })
+   if !r.ok { ioFail("rate: Wait(n=1) would exceed context deadline") } else { do {
+    result <- io.tryIO(sync.withContext(context,sleepNanos(clock,max(0,sync.elapsed(now,r.timeToAct)))))
+    match result { Ok(_) => ioPure(unit()); Err(e) => do { current <- sync.now(clock); cancelReservationAt(bucket,r,current); io.ioRaise(e) } }
+   } }
+  })
+ }
+}
+func tokenPassive(bucket TokenBucket) PassiveRateLimiter { PassiveRateLimiter(func() => tokenTryAccept(bucket),func() => ioPure(unit()),bucket.qps) }
+func tokenLimiter(bucket TokenBucket) RateLimiter { RateLimiter(tokenPassive(bucket),func() => tokenAccept(bucket),func() => tokenWait(bucket)) }
+func newTokenBucketRateLimiterWithClock(qps Float, burst Int, clock sync.Clock) IO[RateLimiter] { do { b <- newTokenBucketWithClock(qps,burst,clock); ioPure(tokenLimiter(b)) } }
+func newTokenBucketPassiveRateLimiterWithClock(qps Float, burst Int, clock sync.Clock) IO[PassiveRateLimiter] { do { b <- newTokenBucketWithClock(qps,burst,clock); ioPure(tokenPassive(b)) } }
+func newTokenBucketRateLimiterWithCapabilities(qps Float, burst Int, clock Clock) IO[RateLimiter] { do { b <- newTokenBucketWithCapabilities(qps,burst,clock); ioPure(tokenLimiter(b)) } }
+func newTokenBucketPassiveRateLimiterWithCapabilities(qps Float, burst Int, clock Clock) IO[PassiveRateLimiter] { do { b <- newTokenBucketWithCapabilities(qps,burst,clock); ioPure(tokenPassive(b)) } }
+func newTokenBucketRateLimiter(qps Float, burst Int) IO[RateLimiter] { do { b <- newTokenBucket(qps,burst); ioPure(tokenLimiter(b)) } }
+func newTokenBucketPassiveRateLimiter(qps Float, burst Int) IO[PassiveRateLimiter] { do { b <- newTokenBucket(qps,burst); ioPure(tokenPassive(b)) } }
+func newFakeAlwaysRateLimiter() RateLimiter { RateLimiter(PassiveRateLimiter(func() => ioPure(true),func() => ioPure(unit()),1.0),func() => ioPure(unit()),func() => ioPure(unit())) }
+func newFakeNeverRateLimiter() IO[RateLimiter] {
+ do { stopped <- sync.newChannel(0)
+  ioPure(RateLimiter(PassiveRateLimiter(func() => ioPure(false),func() => sync.close(stopped),1.0),func() => do { _ <- sync.receive(stopped); ioPure(unit()) },func() => ioFail("can not be accept")))
+ }
+}

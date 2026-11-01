@@ -135,3 +135,14 @@ func TestCleanupAndDetachedPreserveContextValues(t *testing.T) {
  })))
  if value!="retained" || err!=nil {t.Fatalf("cleanup context = (%v,%v)",value,err)}
 }
+
+func TestSameRefIdentity(t *testing.T) {
+ left:=mustExecute(t,NewRef(int64(7)))
+ alias:=left
+ right:=mustExecute(t,NewRef(int64(7)))
+ if SameRef(left,alias)!=true || SameRef(left,right)!=false {t.Fatal("reference identity confused with equal contents")}
+ mustExecute(t,WriteRef(left,int64(42)))
+ if SameRef(left,alias)!=true || SameRef(left,right)!=false {t.Fatal("mutation changed reference identity")}
+ mustExecute(t,WriteRef(right,int64(42)))
+ if SameRef(left,right)!=false {t.Fatal("equal mutated contents merged identities")}
+}

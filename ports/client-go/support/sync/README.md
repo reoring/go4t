@@ -6,6 +6,8 @@ The authoritative signature list is the Shared prerequisite contracts in
 `../../DESIGN.md`.
 
 References serialize individual reads/writes, not multi-operation transitions.
+`sameRef(a, b)` compares opaque reference identity, never mutable contents:
+aliases remain equal after writes, and separate equal-valued cells stay unequal.
 Use `withLock` for transitions. Locks are non-reentrant. Condition operations
 belong inside the associated `withLock` action; `wait` registers before releasing
 ownership and always reacquires before returning, including cancellation. Use
@@ -59,6 +61,14 @@ for expired deadlines. `withContext(context, action)` restores that environment
 but retains the caller's execution identity, never transferring lock ownership
 to another task. These probes do not override ordinary IO cancellation checks.
 
+`newContext(parent, timeoutNanos)` derives a child and returns its private
+`Cancel` capability. `None` requests cancellation only; `Some(ns)` adds a real
+nanosecond timeout, including immediate expiration for zero or negative values.
+`cancelContext` is idempotent and can cancel only that derived child, never its
+parent. Bracket creation with release (or otherwise guarantee cleanup), running
+cancellation cleanup uninterruptibly. Values are inherited; `withContext` still
+retains caller execution identity instead of transferring captured ownership.
+
 `ensuring(action, cleanup)` always runs cleanup with cancellation removed,
 including when action fails or panics. `bracket(acquire, use, release)` registers
 release in the same host interpreter boundary as successful acquisition.
@@ -70,6 +80,9 @@ failure does not invoke release.
 
 Clock durations are signed integer nanoseconds. Real instants retain Go's
 monotonic component; fake instants start at the requested Unix nanosecond.
+Host-only `InstantValue(time.Time) any` and `TimeValue(any) time.Time` box/access
+the complete Go value losslessly, including monotonic readings and location.
+They perform no UnixNano conversion or token-expiry policy.
 Timers have one buffered notification, never close their channel, and nonpositive
 durations fire immediately. Explicitly closing a timer channel leaves it
 closed; later expiry cannot deliver into it. Stop/reset return whether the timer
@@ -94,3 +107,9 @@ including cancellation exactly after acquisition and before use. Retained
 `extensions_test.go` checks cancellation/close races, cross-channel registration,
 context ownership, release counts, panic classification and failure precedence
 under the same focused race-enabled command.
+
+Derived-context regressions cover positive, zero and negative timeout,
+parent cancellation, idempotent child cancellation, parent isolation, value
+inheritance and prevention of cross-task ownership transfer. A disposable
+native smoke also exercised the pure host time bridge's exact round trip;
+no permanent forwarding-only test was added.

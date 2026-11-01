@@ -1,0 +1,66 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package workqueue
+import "std/io"
+import "std/list"
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+
+alias DoWorkPieceFunc = func(Int) IO[Unit]
+type Options = Options { chunkSize: Int }
+func withChunkSize(size Int) Options { Options(size) }
+func parallelizeUntil(workers Int, pieces Int, work DoWorkPieceFunc, options List[Options]) IO[Unit] {
+ if pieces == 0 { ioPure(unit()) } else { do {
+  context <- sync.captureContext()
+  sync.uninterruptible(do {
+   let chunkSize = max(1,fold(options,1,func(size,option) => option.chunkSize))
+   let chunks = (pieces+chunkSize-1)/chunkSize
+   let count = min(workers,chunks)
+   if count < 0 { ioFail("sync: negative WaitGroup counter") } else { do {
+    next <- sync.newRef(0); mutex <- sync.newMutex()
+    tasks <- startWorkers(count,context,next,mutex,chunks,chunkSize,pieces,work,Nil)
+    joinWorkers(tasks,None)
+   } }
+  })
+ } }
+}
+func startWorkers(count Int, context sync.Context, next sync.Ref[Int], mutex sync.Mutex, chunks Int, size Int, pieces Int, work DoWorkPieceFunc, tasks List[sync.Task[Unit]]) IO[List[sync.Task[Unit]]] {
+ if count == 0 { ioPure(tasks) } else { do {
+  worker <- sync.startDetached(runWorker(context,next,mutex,chunks,size,pieces,work))
+  startWorkers(count-1,context,next,mutex,chunks,size,pieces,work,Cons(worker,tasks))
+ } }
+}
+func runWorker(context sync.Context, next sync.Ref[Int], mutex sync.Mutex, chunks Int, size Int, pieces Int, work DoWorkPieceFunc) IO[Unit] {
+ do {
+  cancelled <- sync.contextCancelled(context)
+  if cancelled { ioPure(unit()) } else { do {
+   chunk <- sync.withLock(mutex,do { n <- sync.readRef(next); if n < chunks { sync.writeRef(next,n+1) } else { ioPure(unit()) }; ioPure(n) })
+   if chunk >= chunks { ioPure(unit()) } else { do {
+    keepGoing <- runChunk(context,chunk*size,min(pieces,(chunk+1)*size),work)
+    if keepGoing { runWorker(context,next,mutex,chunks,size,pieces,work) } else { ioPure(unit()) }
+   } }
+  } }
+ }
+}
+func runChunk(context sync.Context, piece Int, end Int, work DoWorkPieceFunc) IO[Bool] {
+ if piece >= end { ioPure(true) } else { do {
+  cancelled <- sync.contextCancelled(context)
+  if cancelled { ioPure(false) } else { do {
+   outcome <- io.tryIO(sync.withContext(context,work(piece)))
+   match outcome {
+    Ok(_) => runChunk(context,piece+1,end,work)
+    Err(io.Cancelled) => ioPure(false)
+    Err(io.Timeout) => ioPure(false)
+    Err(e) => io.ioRaise(e)
+   }
+  } }
+ } }
+}
+func joinWorkers(tasks List[sync.Task[Unit]], failure Option[io.IoError]) IO[Unit] {
+ match tasks {
+  Nil => match failure { None => ioPure(unit()); Some(e) => io.ioRaise(e) }
+  Cons(task,rest) => do {
+   outcome <- io.tryIO(sync.join(task))
+   let first = match failure { Some(e) => Some(e); None => match outcome { Ok(_) => None; Err(e) => Some(e) } }
+   joinWorkers(rest,first)
+  }
+ }
+}

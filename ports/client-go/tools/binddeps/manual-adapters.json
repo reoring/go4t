@@ -1,0 +1,332 @@
+{
+  "deps/codec/codec.gfx": {
+    "operations": [
+      {
+        "declaration": "extern func newJSONDecoder() IO[runtime.Decoder]",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".NewJSONDecoder",
+        "name": "newJSONDecoder"
+      },
+      {
+        "declaration": "extern func decodeValues(decoder runtime.Decoder, data String, defaults Option[schema.GroupVersionKind], into Option[runtime.Object]) IO[(Option[runtime.Object], (Option[schema.GroupVersionKind], Option[support.Error]))]",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".Decode",
+        "name": "decodeValues"
+      },
+      {
+        "declaration": "extern func errorStatus(error support.Error) Option[meta.Status]",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".ErrorStatus",
+        "name": "errorStatus"
+      },
+      {
+        "declaration": "extern func newNotFound(resource schema.GroupResource, name String) support.Error",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".NewNotFound",
+        "name": "newNotFound"
+      },
+      {
+        "declaration": "extern func standardParameterCodec() IO[runtime.ParameterCodec]",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".StandardParameterCodec",
+        "name": "standardParameterCodec"
+      }
+    ],
+    "scope": "Generic external dependency conversion/access/effect only; no client-go policy"
+  },
+  "deps/objects/objects.gfx": {
+    "operations": [
+      {
+        "declaration": "extern func objectDeepCopy(value runtime.Object) IO[Option[runtime.Object]]",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".ObjectDeepCopy",
+        "name": "objectDeepCopy"
+      },
+      {
+        "declaration": "extern func rawExtensionDeepCopy(value runtime.RawExtension) IO[runtime.RawExtension]",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".RawExtensionDeepCopy",
+        "name": "rawExtensionDeepCopy"
+      },
+      {
+        "declaration": "extern func objectEqual(left Option[runtime.Object], right Option[runtime.Object]) IO[Bool]",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".ObjectEqual",
+        "name": "objectEqual"
+      },
+      {
+        "declaration": "extern func rawExtensionToObject(value runtime.RawExtension) IO[(Option[runtime.Object], Option[support.Error])]",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".RawExtensionToObject",
+        "name": "rawExtensionToObject"
+      },
+      {
+        "declaration": "extern func objectToRawExtension(value Option[Option[runtime.Object]], previous runtime.RawExtension) IO[(runtime.RawExtension, Option[support.Error])]",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".ObjectToRawExtension",
+        "name": "objectToRawExtension"
+      },
+      {
+        "declaration": "extern func objectResourceVersion(value runtime.Object) IO[(String, Option[support.Error])]",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".ObjectResourceVersion",
+        "name": "objectResourceVersion"
+      },
+      {
+        "declaration": "extern func objectAsStatus(value runtime.Object) Option[meta.Status]",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".ObjectAsStatus",
+        "name": "objectAsStatus"
+      },
+      {
+        "declaration": "extern func objectMetadata(value runtime.Object) IO[(Option[meta.ObjectMeta], Option[support.Error])]",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".ObjectMetadata",
+        "name": "objectMetadata"
+      },
+      {
+        "declaration": "extern func objectResourceVersionValue(value runtime.Object) IO[Option[String]]",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".ObjectResourceVersionValue",
+        "name": "objectResourceVersionValue"
+      },
+      {
+        "declaration": "extern func errorFromObject(value runtime.Object) IO[support.Error]",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".ErrorFromObject",
+        "name": "errorFromObject"
+      },
+      {
+        "declaration": "extern func errorHasStatusCause(value support.Error, cause meta.CauseType) Bool",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".ErrorHasStatusCause",
+        "name": "errorHasStatusCause"
+      },
+      {
+        "declaration": "extern func objectListInfo(value runtime.Object) IO[((String, (String, String)), Option[support.Error])]",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".ObjectListInfo",
+        "name": "objectListInfo"
+      },
+      {
+        "declaration": "extern func objectListItems(value runtime.Object, allocate Bool) IO[(Option[List[Option[runtime.Object]]], Option[support.Error])]",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".ObjectListItems",
+        "name": "objectListItems"
+      },
+      {
+        "declaration": "extern func newObjectList(resourceVersion String, selfLink String, items Option[List[Option[runtime.Object]]]) IO[runtime.Object]",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".NewObjectList",
+        "name": "newObjectList"
+      },
+      {
+        "declaration": "extern func validateListOptions(value meta.ListOptions, watchListFeatureEnabled Bool) IO[(Bool, Option[support.Error])]",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".ValidateListOptions",
+        "name": "validateListOptions"
+      },
+      {
+        "declaration": "extern func objectGroupVersionKind(value runtime.Object) IO[schema.GroupVersionKind]",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".ObjectGroupVersionKind",
+        "name": "objectGroupVersionKind"
+      },
+      {
+        "declaration": "extern func statusToObject(value meta.Status) runtime.Object",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".StatusToObject",
+        "name": "statusToObject"
+      },
+      {
+        "declaration": "extern func objectGoString(value Option[runtime.Object]) IO[String]",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".ObjectGoString",
+        "name": "objectGoString"
+      },
+      {
+        "declaration": "extern func objectSetResourceVersion(value runtime.Object, resourceVersion String) IO[(Option[runtime.Object], Option[support.Error])]",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".ObjectSetResourceVersion",
+        "name": "objectSetResourceVersion"
+      },
+      {
+        "declaration": "extern func listOptionsToObject(value meta.ListOptions) runtime.Object",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".ListOptionsToObject",
+        "name": "listOptionsToObject"
+      }
+    ],
+    "scope": "Generic external dependency conversion/access/effect only; no client-go policy"
+  },
+  "deps/support/values.gfx": {
+    "operations": [
+      {
+        "declaration": "extern func uint64(high Int, low Int) UInt64",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".UInt64",
+        "name": "uint64"
+      },
+      {
+        "declaration": "extern func uint64High(value UInt64) Int",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".UInt64High",
+        "name": "uint64High"
+      },
+      {
+        "declaration": "extern func uint64Low(value UInt64) Int",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".UInt64Low",
+        "name": "uint64Low"
+      },
+      {
+        "declaration": "extern func mapIsNil[K,V](value ForeignMap[K,V]) Bool",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".IsNil",
+        "name": "mapIsNil"
+      },
+      {
+        "declaration": "extern func mapEmpty[K,V](prototype ForeignMap[K,V]) ForeignMap[K,V]",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".MapEmpty",
+        "name": "mapEmpty"
+      },
+      {
+        "declaration": "extern func mapLookup[K,V](value ForeignMap[K,V], key K) Option[V]",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".MapLookup",
+        "name": "mapLookup"
+      },
+      {
+        "declaration": "extern func mapEntries[K,V](value ForeignMap[K,V]) List[(K,V)]",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".MapEntries",
+        "name": "mapEntries"
+      },
+      {
+        "declaration": "extern func mapWith[K,V](value ForeignMap[K,V], key K, entry V) ForeignMap[K,V]",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".MapWith",
+        "name": "mapWith"
+      },
+      {
+        "declaration": "extern func mapWithout[K,V](value ForeignMap[K,V], key K) ForeignMap[K,V]",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".MapWithout",
+        "name": "mapWithout"
+      },
+      {
+        "declaration": "extern func mapNewPointerKey[A,V](prototype ForeignMap[PointerKey[A],V], value A) IO[PointerKey[A]]",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".MapNewPointerKey",
+        "name": "mapNewPointerKey"
+      },
+      {
+        "declaration": "extern func mapNilPointerKey[A,V](prototype ForeignMap[PointerKey[A],V]) PointerKey[A]",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".MapNilPointerKey",
+        "name": "mapNilPointerKey"
+      },
+      {
+        "declaration": "extern func pointerKeyValue[A](key PointerKey[A]) Option[A]",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".PointerKeyValue",
+        "name": "pointerKeyValue"
+      },
+      {
+        "declaration": "extern func pointerKeyEqual[A](left PointerKey[A], right PointerKey[A]) Bool",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".PointerKeyEqual",
+        "name": "pointerKeyEqual"
+      },
+      {
+        "declaration": "extern func channelReceive[A](value Channel[A]) IO[Option[A]]",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".ChannelReceive",
+        "name": "channelReceive"
+      },
+      {
+        "declaration": "extern func channelSend[A](value Channel[A], item A) IO[Unit]",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".ChannelSend",
+        "name": "channelSend"
+      },
+      {
+        "declaration": "extern func channelClose[A](value Channel[A]) IO[Unit]",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".ChannelClose",
+        "name": "channelClose"
+      },
+      {
+        "declaration": "extern func errorMessage(value Error) String",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".ErrorMessage",
+        "name": "errorMessage"
+      },
+      {
+        "declaration": "extern func errorIs(value Error, target Error) Bool",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".ErrorIs",
+        "name": "errorIs"
+      },
+      {
+        "declaration": "extern func errorIsNotFound(value Error) Bool",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".ErrorIsNotFound",
+        "name": "errorIsNotFound"
+      },
+      {
+        "declaration": "extern func errorIsConflict(value Error) Bool",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".ErrorIsConflict",
+        "name": "errorIsConflict"
+      },
+      {
+        "declaration": "extern func errorIsStrictDecoding(value Error) Bool",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".ErrorIsStrictDecoding",
+        "name": "errorIsStrictDecoding"
+      },
+      {
+        "declaration": "extern func waitTimeoutError() Error",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".WaitTimeoutError",
+        "name": "waitTimeoutError"
+      },
+      {
+        "declaration": "extern func errorInterrupted(cause Option[Error]) Error",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".ErrorInterrupted",
+        "name": "errorInterrupted"
+      },
+      {
+        "declaration": "extern func errorIsInterrupted(value Error) Bool",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".ErrorIsInterrupted",
+        "name": "errorIsInterrupted"
+      },
+      {
+        "declaration": "extern func errorConflict(group String, resource String, name String, cause Option[Error]) Error",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".ErrorConflict",
+        "name": "errorConflict"
+      },
+      {
+        "declaration": "extern func errorCancelled() Error",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".ErrorCancelled",
+        "name": "errorCancelled"
+      },
+      {
+        "declaration": "extern func raiseError[A](error Error) IO[A]",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".RaiseError",
+        "name": "raiseError"
+      },
+      {
+        "declaration": "extern func errorNew(message String) Error",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".ErrorNew",
+        "name": "errorNew"
+      },
+      {
+        "declaration": "extern func errorWrap(message String, cause Error) Error",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".ErrorWrap",
+        "name": "errorWrap"
+      },
+      {
+        "declaration": "extern func errorIsResourceExpired(value Error) Bool",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".ErrorIsResourceExpired",
+        "name": "errorIsResourceExpired"
+      },
+      {
+        "declaration": "extern func errorIsTimeout(value Error) Bool",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".ErrorIsTimeout",
+        "name": "errorIsTimeout"
+      },
+      {
+        "declaration": "extern func errorIsTooManyRequests(value Error) Bool",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".ErrorIsTooManyRequests",
+        "name": "errorIsTooManyRequests"
+      },
+      {
+        "declaration": "extern func errorIsInternal(value Error) Bool",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".ErrorIsInternal",
+        "name": "errorIsInternal"
+      },
+      {
+        "declaration": "extern func errorIsConnectionRefused(value Error) Bool",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".ErrorIsConnectionRefused",
+        "name": "errorIsConnectionRefused"
+      },
+      {
+        "declaration": "extern func randomInt(bound Int) IO[Int]",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".RandomInt",
+        "name": "randomInt"
+      },
+      {
+        "declaration": "extern func errorInternal(cause Error) Error",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".ErrorInternal",
+        "name": "errorInternal"
+      },
+      {
+        "declaration": "extern func errorIsForbidden(value Error) Bool",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".ErrorIsForbidden",
+        "name": "errorIsForbidden"
+      },
+      {
+        "declaration": "extern func errorIsUnauthorized(value Error) Bool",
+        "host": "\"github.com/reoring/gofx/ports/client-go/internal/hostdeps\".ErrorIsUnauthorized",
+        "name": "errorIsUnauthorized"
+      }
+    ],
+    "scope": "Generic external dependency conversion/access/effect only; no client-go policy"
+  }
+}

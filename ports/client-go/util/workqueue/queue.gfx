@@ -1,0 +1,140 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package workqueue
+
+import "std/map"
+import "std/list"
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+
+// ReadyQueue callbacks are serialized by Typed's mutex; callbacks must not reenter it.
+type ReadyQueue[A] = ReadyQueue { touch: func(A) IO[Unit], push: func(A) IO[Unit], pop: func() IO[A], length: func() IO[Int] }
+type Fifo[A] = Fifo { front: List[A], back: List[A], size: Int }
+func defaultQueue[A]() IO[ReadyQueue[A]] {
+ do {
+  state <- sync.newRef(Fifo(Nil, Nil, 0))
+  ioPure(ReadyQueue(func(item) => ioPure(unit()), func(item) => do {
+   s <- sync.readRef(state)
+   sync.writeRef(state, Fifo(s.front, Cons(item, s.back), s.size + 1))
+  }, func() => fifoPop(state), func() => do { s <- sync.readRef(state); ioPure(s.size) }))
+ }
+}
+func fifoPop[A](state sync.Ref[Fifo[A]]) IO[A] {
+ do {
+  s <- sync.readRef(state)
+  match s.front {
+   Cons(x, xs) => do { sync.writeRef(state, Fifo(xs, s.back, s.size - 1)); ioPure(x) }
+   Nil => match reverse(s.back) {
+    Cons(x, xs) => do { sync.writeRef(state, Fifo(xs, Nil, s.size - 1)); ioPure(x) }
+    Nil => ioFail("workqueue: pop of empty ready queue")
+   }
+  }
+ }
+}
+type QueueState[A] = QueueState { dirty: Map[A, Unit], processing: Map[A, Unit], shuttingDown: Bool, drain: Bool }
+type Typed[A] = Typed { state: sync.Ref[QueueState[A]], mutex: sync.Mutex, condition: sync.Condition, ready: ReadyQueue[A], compareItem: func(A,A) Ordering, metrics: QueueMetrics[A], stop: sync.Channel[sync.Instant], metricTask: sync.Ref[Option[sync.Task[Unit]]] }
+type QueueConfig[A] = QueueConfig { name: String, registry: MetricsRegistry, provider: Option[MetricsProvider], clock: sync.Clock, queue: Option[ReadyQueue[A]] }
+func newBy[A](cmp func(A,A) Ordering) IO[Typed[A]] {
+ do { clock <- sync.realClock(); ready <- defaultQueue(); newQueue(cmp,ready,clock,"",None) }
+}
+func new[A Ord]() IO[Typed[A]] { newBy(func(a,b) => compare(a,b)) }
+func newWithConfig[A Ord](config QueueConfig[A]) IO[Typed[A]] { newWithConfigBy(func(a,b) => compare(a,b), config) }
+func newWithConfigBy[A](cmp func(A,A) Ordering, config QueueConfig[A]) IO[Typed[A]] {
+ do {
+  ready <- match config.queue { Some(q) => ioPure(q); None => defaultQueue() }
+  provider <- resolveProvider(config.registry, config.provider)
+  newQueue(cmp,ready,config.clock,config.name,provider)
+ }
+}
+func newQueue[A](cmp func(A,A) Ordering, ready ReadyQueue[A], clock sync.Clock, name String, provider Option[MetricsProvider]) IO[Typed[A]] {
+ sync.uninterruptible(do {
+  state <- sync.newRef(QueueState(map.emptyMap(), map.emptyMap(), false, false))
+  mutex <- sync.newMutex()
+  condition <- sync.newCondition(mutex)
+  metrics <- newQueueMetrics(cmp,name,provider,clock)
+  stop <- sync.newChannel(0)
+  task <- sync.newRef(None)
+  let q = Typed(state, mutex, condition, ready, cmp, metrics, stop, task)
+  if metrics.enabled {
+   do { running <- sync.startDetached(metricsLoop(q)); sync.writeRef(task, Some(running)) }
+  } else { ioPure(unit()) }
+  ioPure(q)
+ })
+}
+func add[A](q Typed[A], item A) IO[Unit] {
+ sync.withLock(q.mutex, sync.uninterruptible(do {
+  s <- sync.readRef(q.state)
+  if s.shuttingDown { ioPure(unit()) } else {
+   if map.mapMemberBy(s.dirty, item, q.compareItem) {
+    if map.mapMemberBy(s.processing, item, q.compareItem) { ioPure(unit()) } else { q.ready.touch(item) }
+   } else { do {
+    metricAdd(q.metrics, item)
+    sync.writeRef(q.state, s { dirty: map.mapInsertBy(s.dirty, item, unit(), q.compareItem) })
+    if map.mapMemberBy(s.processing, item, q.compareItem) { ioPure(unit()) } else { do { q.ready.push(item); sync.signal(q.condition) } }
+   } }
+  }
+ }))
+}
+func length[A](q Typed[A]) IO[Int] { sync.withLock(q.mutex, q.ready.length()) }
+func get[A](q Typed[A]) IO[Option[A]] { sync.withLock(q.mutex, getLocked(q)) }
+func getLocked[A](q Typed[A]) IO[Option[A]] {
+ do {
+  n <- q.ready.length()
+  s <- sync.readRef(q.state)
+  if n == 0 {
+   if s.shuttingDown { ioPure(None) } else { do { sync.wait(q.condition); getLocked(q) } }
+  } else { sync.uninterruptible(do {
+   item <- q.ready.pop()
+   metricGet(q.metrics, item)
+   sync.writeRef(q.state, s { dirty: map.mapDeleteBy(s.dirty, item, q.compareItem), processing: map.mapInsertBy(s.processing, item, unit(), q.compareItem) })
+   ioPure(Some(item))
+  }) }
+ }
+}
+func done[A](q Typed[A], item A) IO[Unit] {
+ sync.withLock(q.mutex, sync.uninterruptible(do {
+  metricDone(q.metrics, item)
+  s <- sync.readRef(q.state)
+  let processing = map.mapDeleteBy(s.processing, item, q.compareItem)
+  sync.writeRef(q.state, s { processing: processing })
+  if map.mapMemberBy(s.dirty, item, q.compareItem) { do { q.ready.push(item); sync.signal(q.condition) } }
+  else { if map.mapSize(processing) == 0 { sync.signal(q.condition) } else { ioPure(unit()) } }
+ }))
+}
+func shuttingDown[A](q Typed[A]) IO[Bool] { sync.withLock(q.mutex, do { s <- sync.readRef(q.state); ioPure(s.shuttingDown) }) }
+func shutDown[A](q Typed[A]) IO[Unit] { shutdownMode(q, false) }
+func shutDownWithDrain[A](q Typed[A]) IO[Unit] { shutdownMode(q, true) }
+func shutdownMode[A](q Typed[A], drain Bool) IO[Unit] {
+ do {
+  sync.withLock(q.mutex, do {
+   sync.uninterruptible(do {
+    s <- sync.readRef(q.state)
+    if s.shuttingDown { ioPure(unit()) } else { sync.close(q.stop) }
+    sync.writeRef(q.state, s { shuttingDown: true, drain: drain })
+    sync.broadcast(q.condition)
+   })
+   if drain { awaitDrain(q) } else { ioPure(unit()) }
+  })
+  task <- sync.readRef(q.metricTask)
+  match task { None => ioPure(unit()); Some(t) => sync.join(t) }
+ }
+}
+func awaitDrain[A](q Typed[A]) IO[Unit] {
+ do { s <- sync.readRef(q.state)
+  if map.mapSize(s.processing) != 0 && s.drain { do { sync.wait(q.condition); awaitDrain(q) } } else { ioPure(unit()) }
+ }
+}
+func metricsLoop[A](q Typed[A]) IO[Unit] {
+ sync.bracket(sync.newTimer(q.metrics.clock,500000000),
+  func(timer) => metricsTick(q,timer),
+  func(timer) => do { _ <- sync.stopTimer(timer); ioPure(unit()) })
+}
+func metricsTick[A](q Typed[A], timer sync.Timer) IO[Unit] {
+ do {
+  channel <- sync.timerChannel(timer)
+  event <- sync.selectReceive([q.stop,channel])
+  if fst(event) == 0 { ioPure(unit()) } else { do {
+   sync.withLock(q.mutex,do { s <- sync.readRef(q.state); if s.shuttingDown { ioPure(unit()) } else { metricUpdate(q.metrics) } })
+   _ <- sync.resetTimer(timer,500000000)
+   metricsTick(q,timer)
+  } }
+ }
+}

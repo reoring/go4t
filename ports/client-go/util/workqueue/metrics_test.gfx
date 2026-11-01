@@ -1,0 +1,50 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package workqueue
+import "std/list"
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+
+type TestMetrics = TestMetrics { adds: sync.Ref[Int], depth: sync.Ref[Int], latency: sync.Ref[List[Float]], duration: sync.Ref[List[Float]], unfinished: sync.Ref[Float], longest: sync.Ref[Float], retries: sync.Ref[Int] }
+func increment(ref sync.Ref[Int], by Int) IO[Unit] { do { value <- sync.readRef(ref); sync.writeRef(ref,value+by) } }
+func observe(ref sync.Ref[List[Float]], value Float) IO[Unit] { do { values <- sync.readRef(ref); sync.writeRef(ref,Cons(value,values)) } }
+func newTestMetrics() IO[TestMetrics] {
+ do { a <- sync.newRef(0); d <- sync.newRef(0); l <- sync.newRef(Nil); w <- sync.newRef(Nil); u <- sync.newRef(0.0); o <- sync.newRef(0.0); r <- sync.newRef(0); ioPure(TestMetrics(a,d,l,w,u,o,r)) }
+}
+func testProvider(m TestMetrics) MetricsProvider {
+ MetricsProvider(func(name) => ioPure(GaugeMetric(func() => increment(m.depth,1),func() => increment(m.depth,-1))),
+ func(name) => ioPure(CounterMetric(func() => increment(m.adds,1))),
+ func(name) => ioPure(HistogramMetric(func(value) => observe(m.latency,value))),
+ func(name) => ioPure(HistogramMetric(func(value) => observe(m.duration,value))),
+ func(name) => ioPure(SettableGaugeMetric(func(value) => sync.writeRef(m.unfinished,value))),
+ func(name) => ioPure(SettableGaugeMetric(func(value) => sync.writeRef(m.longest,value))),
+ func(name) => ioPure(CounterMetric(func() => increment(m.retries,1))))
+}
+func testMetricsDirtyDepthLatencyAndDuration() IO[Bool] {
+ do {
+  clock <- sync.fakeClock(0); registry <- newMetricsRegistry(); metrics <- newTestMetrics()
+  setProvider(registry,testProvider(metrics))
+  q <- newWithConfig(QueueConfig("queue",registry,None,clock,None))
+  add(q,1); sync.advance(clock,50000); _ <- get(q)
+  add(q,1); add(q,1); add(q,1); add(q,1); add(q,1)
+  adds <- sync.readRef(metrics.adds); depth <- sync.readRef(metrics.depth)
+  sync.advance(clock,25000); done(q,1); _ <- get(q)
+  sync.advance(clock,1000000)
+  sync.withLock(q.mutex,metricUpdate(q.metrics))
+  longest <- sync.readRef(metrics.longest); total <- sync.readRef(metrics.unfinished)
+  done(q,1); latency <- sync.readRef(metrics.latency); duration <- sync.readRef(metrics.duration)
+  shutDown(q)
+  ioPure(adds == 2 && depth == 1 && latency == [0.000025,0.00005] && duration == [0.001,0.000025] && total == 0.001 && longest == 0.001)
+ }
+}
+func testProviderFirstAssignmentAndOverride() IO[Bool] {
+ do {
+  clock <- sync.fakeClock(0); registry <- newMetricsRegistry()
+  first <- newTestMetrics(); ignored <- newTestMetrics(); override <- newTestMetrics()
+  setProvider(registry,testProvider(first)); setProvider(registry,testProvider(ignored))
+  q <- newWithConfig(QueueConfig("one",registry,None,clock,None))
+  r <- newWithConfig(QueueConfig("two",registry,Some(testProvider(override)),clock,None))
+  add(q,1); add(r,1)
+  a <- sync.readRef(first.adds); b <- sync.readRef(ignored.adds); c <- sync.readRef(override.adds)
+  shutDown(q); shutDown(r)
+  ioPure(a == 1 && b == 0 && c == 1)
+ }
+}

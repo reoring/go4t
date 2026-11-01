@@ -9,6 +9,10 @@ import (
 
 type clock struct { mu sync.Mutex; fake bool; now time.Time; timers map[*timer]struct{} }
 type instant struct { time time.Time }
+// TimeValue and InstantValue preserve the full Go value, including monotonic time.
+// They are host adapters, not source-level serialization or expiry policy.
+func TimeValue(handle any) time.Time { return handle.(*instant).time }
+func InstantValue(value time.Time) any { return &instant{time:value} }
 type timer struct { clock *clock; channel *channel; due time.Time; active bool; generation uint64; real *time.Timer }
 func RealClock() any { return effect(func(context.Context)(any,error){ return &clock{},nil }) }
 func FakeClock(start any) any { return effect(func(context.Context)(any,error){ return &clock{fake:true,now:time.Unix(0,start.(int64)),timers:make(map[*timer]struct{})},nil }) }

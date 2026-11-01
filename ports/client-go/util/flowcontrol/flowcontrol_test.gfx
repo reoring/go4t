@@ -1,0 +1,86 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package flowcontrol
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+
+func testBucketBurstRefillAndStopNoop() IO[Bool] {
+ do {
+  clock <- sync.fakeClock(0); limiter <- newTokenBucketRateLimiterWithClock(1.0,3,clock)
+  a <- limiter.passive.tryAccept(); b <- limiter.passive.tryAccept(); c <- limiter.passive.tryAccept(); d <- limiter.passive.tryAccept()
+  limiter.passive.stop(); sync.advance(clock,1000000000); e <- limiter.passive.tryAccept()
+  ioPure(a && b && c && !d && e && limiter.passive.qps == 1.0)
+ }
+}
+func testReservationCancellationRestoresOnlyUnclaimedCapacity() IO[Bool] {
+ do {
+  clock <- sync.fakeClock(0); bucket <- newTokenBucketWithClock(1.0,1,clock); now <- sync.now(clock)
+  _ <- reserveAt(bucket,now,0)
+  first <- reserveAt(bucket,now,9223372036854775807)
+  second <- reserveAt(bucket,now,9223372036854775807)
+  cancelReservation(bucket,first)
+  // A later reservation consumes the capacity first reserved; cancellation cannot steal it.
+  s <- sync.readRef(bucket.state)
+  cancelReservation(bucket,second); t <- sync.readRef(bucket.state)
+  ioPure(s.tokens == -2.0 && t.tokens == -1.0)
+ }
+}
+func testNeverAndAlwaysLimiter() IO[Bool] {
+ do {
+  let always = newFakeAlwaysRateLimiter()
+  accepted <- always.passive.tryAccept(); always.accept(); always.wait()
+  never <- newFakeNeverRateLimiter(); rejected <- never.passive.tryAccept()
+  task <- sync.start(never.accept()); never.passive.stop(); sync.join(task)
+  ioPure(accepted && !rejected)
+ }
+}
+func testExponentialBackoffResetAndExpiry() IO[Bool] {
+ do {
+  clock <- sync.fakeClock(0); b <- newFakeBackOff(100,500,clock); now <- sync.now(clock)
+  initial <- get(b,1); next(b,1,now); first <- get(b,1)
+  next(b,1,now); second <- get(b,1)
+  next(b,1,now); third <- get(b,1)
+  next(b,1,now); capped <- get(b,1)
+  sync.advance(clock,1000); exact <- sync.now(clock); next(b,1,exact); same <- get(b,1)
+  sync.advance(clock,1001); later <- sync.now(clock); next(b,1,later); resetDelay <- get(b,1)
+  reset(b,1); empty <- get(b,1)
+  ioPure(initial == 0 && first == 100 && second == 200 && third == 400 && capped == 500 && same == 500 && resetDelay == 100 && empty == 0)
+ }
+}
+func testBackoffCustomExpiryGcAndJitter() IO[Bool] {
+ do {
+  clock <- sync.fakeClock(0)
+  b <- newBackOffBy(func(a,b) => compare(a,b),100,500,clock,0.1,func() => ioPure(0.5),func(event,last,maximum) => sync.elapsed(last,event) >= 2000)
+  now <- sync.now(clock); next(b,7,now); first <- get(b,7)
+  next(b,7,now); second <- get(b,7)
+  sync.advance(clock,1999); gc(b); retained <- get(b,7)
+  sync.advance(clock,1); gc(b); removed <- get(b,7)
+  ioPure(first == 105 && second == 215 && retained == 215 && removed == 0)
+ }
+}
+func testBackoffSinceAndSinceUpdate() IO[Bool] {
+ do {
+  clock <- sync.fakeClock(0); b <- newFakeBackOff(100,500,clock); event <- sync.now(clock)
+  next(b,1,event); current <- isInBackOffSince(b,1,event)
+  sync.advance(clock,100); now <- sync.now(clock)
+  elapsed <- isInBackOffSince(b,1,event); update <- isInBackOffSinceUpdate(b,1,now)
+  ioPure(current && !elapsed && !update)
+ }
+}
+func repeatedRefill(limiter RateLimiter, clock sync.Clock, count Int) IO[Bool] {
+ if count == 0 { ioPure(true) } else { do {
+  accepted <- limiter.passive.tryAccept()
+  sync.advance(clock,2000000000)
+  rest <- repeatedRefill(limiter,clock,count-1)
+  ioPure(accepted && rest)
+ } }
+}
+func testRatePrecisionAndInjectedSleep() IO[Bool] {
+ do {
+  clock <- sync.fakeClock(0)
+  let c = Clock(func() => sync.now(clock),func(nanos) => sync.advance(clock,nanos))
+  limiter <- newTokenBucketRateLimiterWithCapabilities(1000000000.0/1031425000.0,1,c)
+  accepted <- repeatedRefill(limiter,clock,60)
+  limiter.accept(); limiter.accept()
+  now <- sync.now(clock)
+  ioPure(accepted && sync.unixNanos(now) > 120000000000)
+ }
+}

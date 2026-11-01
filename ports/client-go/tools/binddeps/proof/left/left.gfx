@@ -1,0 +1,3 @@
+package left
+import meta "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+func metadata(value meta.ObjectMeta) meta.ObjectMeta { value }

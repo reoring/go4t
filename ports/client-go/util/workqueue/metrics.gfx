@@ -1,0 +1,79 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package workqueue
+import "std/map"
+import "std/list"
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+
+type GaugeMetric = GaugeMetric { inc: func() IO[Unit], dec: func() IO[Unit] }
+type SettableGaugeMetric = SettableGaugeMetric { set: func(Float) IO[Unit] }
+type CounterMetric = CounterMetric { inc: func() IO[Unit] }
+type HistogramMetric = HistogramMetric { observe: func(Float) IO[Unit] }
+alias SummaryMetric = HistogramMetric
+type MetricsProvider = MetricsProvider {
+ newDepthMetric: func(String) IO[GaugeMetric], newAddsMetric: func(String) IO[CounterMetric],
+ newLatencyMetric: func(String) IO[HistogramMetric], newWorkDurationMetric: func(String) IO[HistogramMetric],
+ newUnfinishedWorkSecondsMetric: func(String) IO[SettableGaugeMetric], newLongestRunningProcessorSecondsMetric: func(String) IO[SettableGaugeMetric], newRetriesMetric: func(String) IO[CounterMetric]
+}
+type MetricsRegistry = MetricsRegistry { mutex: sync.Mutex, provider: sync.Ref[Option[MetricsProvider]] }
+func newMetricsRegistry() IO[MetricsRegistry] { do { m <- sync.newMutex(); p <- sync.newRef(None); ioPure(MetricsRegistry(m,p)) } }
+func setProvider(registry MetricsRegistry, provider MetricsProvider) IO[Unit] {
+ sync.withLock(registry.mutex, do { old <- sync.readRef(registry.provider); match old { None => sync.writeRef(registry.provider, Some(provider)); Some(_) => ioPure(unit()) } })
+}
+func resolveProvider(registry MetricsRegistry, override Option[MetricsProvider]) IO[Option[MetricsProvider]] {
+ match override { Some(p) => ioPure(Some(p)); None => sync.withLock(registry.mutex, sync.readRef(registry.provider)) }
+}
+type MetricSinks = MetricSinks { depth: GaugeMetric, adds: CounterMetric, latency: HistogramMetric, duration: HistogramMetric, unfinished: SettableGaugeMetric, longest: SettableGaugeMetric }
+type MetricTimes[A] = MetricTimes { added: Map[A,sync.Instant], started: Map[A,sync.Instant] }
+type QueueMetrics[A] = QueueMetrics { enabled: Bool, sinks: Option[MetricSinks], times: sync.Ref[MetricTimes[A]], clock: sync.Clock, compareItem: func(A,A) Ordering }
+func newQueueMetrics[A](cmp func(A,A) Ordering, name String, provider Option[MetricsProvider], clock sync.Clock) IO[QueueMetrics[A]] {
+ do {
+  times <- sync.newRef(MetricTimes(map.emptyMap(), map.emptyMap()))
+  sinks <- if name == "" { ioPure(None) } else { match provider {
+   None => ioPure(None)
+   Some(p) => do {
+    depth <- p.newDepthMetric(name); adds <- p.newAddsMetric(name)
+    latency <- p.newLatencyMetric(name); duration <- p.newWorkDurationMetric(name)
+    unfinished <- p.newUnfinishedWorkSecondsMetric(name); longest <- p.newLongestRunningProcessorSecondsMetric(name)
+    ioPure(Some(MetricSinks(depth,adds,latency,duration,unfinished,longest)))
+   }
+  } }
+  ioPure(QueueMetrics(match sinks { None => false; Some(_) => true }, sinks,times,clock,cmp))
+ }
+}
+func metricAdd[A](m QueueMetrics[A], item A) IO[Unit] {
+ match m.sinks { None => ioPure(unit()); Some(s) => do {
+  s.adds.inc(); s.depth.inc(); t <- sync.readRef(m.times)
+  if map.mapMemberBy(t.added,item,m.compareItem) { ioPure(unit()) } else { do {
+   now <- sync.now(m.clock); sync.writeRef(m.times,t { added: map.mapInsertBy(t.added,item,now,m.compareItem) })
+  } }
+ } }
+}
+func metricGet[A](m QueueMetrics[A], item A) IO[Unit] {
+ match m.sinks { None => ioPure(unit()); Some(s) => do {
+  s.depth.dec(); t <- sync.readRef(m.times); now <- sync.now(m.clock)
+  match map.mapLookupBy(t.added,item,m.compareItem) { None => ioPure(unit()); Some(start) => s.latency.observe(toFloat(sync.elapsed(start,now)) / 1000000000.0) }
+  sync.writeRef(m.times,MetricTimes(map.mapDeleteBy(t.added,item,m.compareItem),map.mapInsertBy(t.started,item,now,m.compareItem)))
+ } }
+}
+func metricDone[A](m QueueMetrics[A], item A) IO[Unit] {
+ match m.sinks { None => ioPure(unit()); Some(s) => do {
+  t <- sync.readRef(m.times)
+  match map.mapLookupBy(t.started,item,m.compareItem) { None => ioPure(unit()); Some(start) => do {
+   now <- sync.now(m.clock); s.duration.observe(toFloat(sync.elapsed(start,now)) / 1000000000.0)
+   sync.writeRef(m.times,t { started: map.mapDeleteBy(t.started,item,m.compareItem) })
+  } }
+ } }
+}
+func metricUpdate[A](m QueueMetrics[A]) IO[Unit] {
+ match m.sinks { None => ioPure(unit()); Some(s) => do {
+  t <- sync.readRef(m.times); now <- sync.now(m.clock)
+  let ages = map(map.mapValues(t.started),func(start) => toFloat(sync.elapsed(start,now)) / 1000000000.0)
+  s.unfinished.set(fold(ages,0.0,func(sum,age) => sum+age))
+  s.longest.set(fold(ages,0.0,func(oldest,age) => max(oldest,age)))
+ } }
+}
+func newRetryMetric(name String, provider Option[MetricsProvider]) IO[CounterMetric] {
+ if name == "" { ioPure(CounterMetric(func() => ioPure(unit()))) } else {
+  match provider { None => ioPure(CounterMetric(func() => ioPure(unit()))); Some(p) => p.newRetriesMetric(name) }
+ }
+}

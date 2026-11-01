@@ -1,0 +1,24 @@
+package codec
+
+import runtime "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime"
+import schema "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/runtime/schema"
+import meta "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/apis/meta/v1"
+import support "github.com/reoring/gofx/ports/client-go/deps/support"
+
+type DecodeOutcome = DecodeOutcome{
+ object: Option[runtime.Object],
+ gvk: Option[schema.GroupVersionKind],
+ error: Option[support.Error]
+}
+
+extern func newJSONDecoder() IO[runtime.Decoder] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".NewJSONDecoder
+extern func decodeValues(decoder runtime.Decoder, data String, defaults Option[schema.GroupVersionKind], into Option[runtime.Object]) IO[(Option[runtime.Object], (Option[schema.GroupVersionKind], Option[support.Error]))] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".Decode
+func decode(decoder runtime.Decoder, data String, defaults Option[schema.GroupVersionKind], into Option[runtime.Object]) IO[DecodeOutcome] {
+ do {
+  result <- decodeValues(decoder, data, defaults, into)
+  ioPure(DecodeOutcome{object: result.0, gvk: result.1.0, error: result.1.1})
+ }
+}
+extern func errorStatus(error support.Error) Option[meta.Status] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".ErrorStatus
+extern func newNotFound(resource schema.GroupResource, name String) support.Error = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".NewNotFound
+extern func standardParameterCodec() IO[runtime.ParameterCodec] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".StandardParameterCodec

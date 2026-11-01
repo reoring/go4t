@@ -1,0 +1,53 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package retry
+import "std/float"
+import "std/io"
+import "github.com/reoring/gofx/ports/client-go/deps/support"
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+import "github.com/reoring/gofx/ports/client-go/util/flowcontrol"
+import wait "github.com/reoring/gofx/ports/client-go/deps/k8s.io/apimachinery/pkg/util/wait"
+import time "github.com/reoring/gofx/ports/client-go/deps/time"
+
+alias Backoff = wait.Backoff
+func newBackoff(duration Int, factor Float, jitter Float, steps Int, cap Int) Backoff {
+ let b = wait.backoffWithDuration(wait.newBackoff(),time.durationFromValue(duration))
+ let f = wait.backoffWithFactor(b,factor)
+ let j = wait.backoffWithJitter(f,jitter)
+ let s = wait.backoffWithSteps(j,steps)
+ wait.backoffWithCap(s,time.durationFromValue(cap))
+}
+func defaultRetry() Backoff { newBackoff(10000000,1.0,0.1,5,0) }
+func defaultBackoff() Backoff { newBackoff(10000000,5.0,0.1,4,0) }
+func step(backoff Backoff, random Float) (Int,Backoff) {
+ let base = time.durationValue(wait.backoffGetDuration(backoff))
+ let jitter = wait.backoffGetJitter(backoff)
+ let factor = wait.backoffGetFactor(backoff)
+ let cap = time.durationValue(wait.backoffGetCap(backoff))
+ let duration = if jitter > 0.0 { base+float.truncate(random*jitter*toFloat(base)) } else { base }
+ let next = if factor == 0.0 { base } else { float.truncate(toFloat(base)*factor) }
+ let capped = cap > 0 && next > cap
+ let revised = wait.backoffWithDuration(backoff,time.durationFromValue(if capped { cap } else { next }))
+ (duration,wait.backoffWithSteps(revised,if capped { 0 } else { max(0,wait.backoffGetSteps(backoff)-1) }))
+}
+func onError(backoff Backoff, retriable func(support.Error) Bool, action func() IO[Option[support.Error]]) IO[Option[support.Error]] {
+ do { clock <- sync.realClock(); onErrorWithClock(backoff,retriable,action,clock,func() => io.randomFloat()) }
+}
+func onErrorWithClock(backoff Backoff, retriable func(support.Error) Bool, action func() IO[Option[support.Error]], clock sync.Clock, random func() IO[Float]) IO[Option[support.Error]] {
+ retryLoop(backoff,retriable,action,clock,random,None)
+}
+func retryLoop(backoff Backoff, retriable func(support.Error) Bool, action func() IO[Option[support.Error]], clock sync.Clock, random func() IO[Float], last Option[support.Error]) IO[Option[support.Error]] {
+ if wait.backoffGetSteps(backoff) <= 0 { ioPure(match last { None => Some(support.waitTimeoutError()); Some(e) => Some(e) }) }
+ else { do {
+  result <- action()
+  match result {
+   None => ioPure(None)
+   Some(error) => if !retriable(error) || wait.backoffGetSteps(backoff) == 1 { ioPure(Some(error)) } else { do {
+    sample <- if wait.backoffGetJitter(backoff) > 0.0 { random() } else { ioPure(0.0) }
+    let (delay,next) = step(backoff,sample)
+    flowcontrol.sleepNanos(clock,delay)
+    retryLoop(next,retriable,action,clock,random,Some(error))
+   } }
+  }
+ } }
+}
+func retryOnConflict(backoff Backoff, action func() IO[Option[support.Error]]) IO[Option[support.Error]] { onError(backoff,support.errorIsConflict,action) }

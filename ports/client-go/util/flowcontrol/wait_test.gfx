@@ -1,0 +1,72 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package flowcontrol
+import "std/conc"
+import "std/io"
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+
+func _bucketState(bucket TokenBucket) IO[BucketState] {
+ sync.withLock(bucket.mutex,sync.readRef(bucket.state))
+}
+func _sameBucketState(a BucketState, b BucketState) Bool {
+ a.tokens == b.tokens && sync.instantComparison(a.last,b.last) == 0 && sync.instantComparison(a.lastEvent,b.lastEvent) == 0
+}
+func testWaitAvailableTokenSucceeds() IO[Bool] {
+ do {
+  bucket <- newTokenBucket(0.0001,1)
+  outcome <- io.tryIO(conc.withTimeout(100,tokenWait(bucket)))
+  state <- _bucketState(bucket)
+  ioPure((match outcome { Ok(_) => true; Err(_) => false }) && state.tokens == 0.0)
+ }
+}
+func testWaitShortDeadlineDoesNotReserve() IO[Bool] {
+ do {
+  bucket <- newTokenBucket(0.0001,1)
+  tokenWait(bucket)
+  before <- _bucketState(bucket)
+  observation <- conc.withTimeout(100,do {
+   context <- sync.captureContext()
+   remaining <- sync.contextRemaining(context)
+   outcome <- io.tryIO(tokenWait(bucket))
+   ioPure((remaining,outcome))
+  })
+  after <- _bucketState(bucket)
+  let (remaining,outcome) = observation
+  let shortDeadline = match remaining { None => false; Some(nanos) => nanos > 0 && nanos <= 100000000 }
+  let expectedFailure = match outcome { Err(io.Failure(message)) => message == "rate: Wait(n=1) would exceed context deadline"; _ => false }
+  ioPure(shortDeadline && expectedFailure && _sameBucketState(before,after))
+ }
+}
+// Await an exact committed reservation, not an elapsed sleep or nonempty signal.
+// Its caller supplies a bounded real deadline; no timer races decide readiness.
+func _awaitWaitReservation(bucket TokenBucket) IO[BucketState] {
+ do {
+  state <- _bucketState(bucket)
+  if state.tokens < 0.0 { ioPure(state) } else { _awaitWaitReservation(bucket) }
+ }
+}
+func testWaitCancellationRestoresReservation() IO[Bool] {
+ do {
+  bucket <- newTokenBucket(0.0001,1)
+  tokenWait(bucket)
+  sync.bracket(sync.start(tokenWait(bucket)),func(waiter) => do {
+   committed <- conc.withTimeout(1000,_awaitWaitReservation(bucket))
+   sync.cancelTask(waiter)
+   outcome <- io.tryIO(sync.join(waiter))
+   restored <- _bucketState(bucket)
+   let expected = min(toFloat(bucket.burst),available(bucket,committed,restored.last)+1.0)
+   let cancelled = match outcome { Err(io.Cancelled) => true; _ => false }
+   clock <- sync.realClock(); now <- sync.now(clock)
+   let nextDelay = durationFromTokens(bucket.qps,1.0-available(bucket,restored,now))
+   subsequent <- reserveAt(bucket,now,9223372036854775807)
+   afterNext <- _bucketState(bucket)
+   cancelReservationAt(bucket,subsequent,now)
+   ioPure(cancelled && committed.tokens < 0.0 && restored.tokens == expected &&
+    subsequent.ok && sync.elapsed(now,subsequent.timeToAct) == nextDelay &&
+    afterNext.tokens == available(bucket,restored,now)-1.0)
+  },func(waiter) => do {
+   sync.cancelTask(waiter)
+   _ <- io.tryIO(sync.join(waiter))
+   ioPure(unit())
+  })
+ }
+}

@@ -1,0 +1,50 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package workqueue
+import "std/map"
+import "std/io"
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+
+func visitationCase(pieces Int, workers Int, chunk Int) IO[Bool] {
+ do {
+  visited <- sync.newRef(map.emptyMap()); mutex <- sync.newMutex()
+  parallelizeUntil(workers,pieces,func(piece) => sync.withLock(mutex,do {
+   values <- sync.readRef(visited)
+   let before = match map.mapLookup(values,piece) { None => 0; Some(n) => n }
+   sync.writeRef(visited,map.mapInsert(values,piece,before+1))
+  }),[withChunkSize(chunk)])
+  values <- sync.readRef(visited)
+  ioPure(map.mapSize(values) == pieces && map.mapFold(values,true,func(ok,key,n) => ok && key >= 0 && key < pieces && n == 1))
+ }
+}
+func testParallelizerVisitsEveryPieceOnce() IO[Bool] {
+ do { a <- visitationCase(1000,10,1); b <- visitationCase(1000,10,10); c <- visitationCase(1000,10,100); d <- visitationCase(999,10,13); ioPure(a && b && c && d) }
+}
+func testParallelizerBoundAndCancellation() IO[Bool] {
+ do {
+  entered <- sync.newChannel(3); blocked <- sync.newChannel(0)
+  visits <- sync.newRef(0); completed <- sync.newRef(0); mutex <- sync.newMutex()
+  job <- sync.start(parallelizeUntil(3,100,func(piece) => sync.ensuring(do {
+   sync.withLock(mutex,do { n <- sync.readRef(visits); sync.writeRef(visits,n+1) })
+   sync.send(entered,piece)
+   _ <- sync.receive(blocked)
+   ioPure(unit())
+  },sync.withLock(mutex,do { n <- sync.readRef(completed); sync.writeRef(completed,n+1) })),[withChunkSize(1)]))
+  _ <- sync.receive(entered); _ <- sync.receive(entered); _ <- sync.receive(entered)
+  before <- sync.readRef(visits)
+  sync.cancelTask(job)
+  // The coordinator survives cancellation to join all callbacks/workers.
+  _ <- io.tryIO(sync.join(job))
+  after <- sync.readRef(visits)
+  exited <- sync.readRef(completed)
+  ioPure(before == 3 && after == 3 && exited == 3)
+ }
+}
+func testZeroWorkersAndPieces() IO[Bool] {
+ do {
+  visited <- sync.newRef(false)
+  parallelizeUntil(0,20,func(piece) => sync.writeRef(visited,true),Nil)
+  parallelizeUntil(10,0,func(piece) => sync.writeRef(visited,true),Nil)
+  seen <- sync.readRef(visited)
+  ioPure(!seen)
+ }
+}

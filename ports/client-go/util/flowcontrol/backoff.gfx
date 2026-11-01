@@ -1,0 +1,64 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package flowcontrol
+import "std/map"
+import "std/float"
+import "std/io"
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+
+type BackoffEntry = BackoffEntry { duration: Int, lastUpdate: sync.Instant }
+type Backoff[A] = Backoff { mutex: sync.Mutex, entries: sync.Ref[Map[A,BackoffEntry]], clock: sync.Clock, initial: Int, maximum: Int, jitterFactor: Float, random: func() IO[Float], hasExpired: func(sync.Instant,sync.Instant,Int) Bool, compareItem: func(A,A) Ordering }
+func defaultHasExpired(event sync.Instant, last sync.Instant, maximum Int) Bool { sync.elapsed(last,event) > maximum*2 }
+func newBackOffBy[A](cmp func(A,A) Ordering, initial Int, maximum Int, clock sync.Clock, jitter Float, random func() IO[Float], expired func(sync.Instant,sync.Instant,Int) Bool) IO[Backoff[A]] {
+ do { mutex <- sync.newMutex(); entries <- sync.newRef(map.emptyMap()); ioPure(Backoff(mutex,entries,clock,initial,maximum,jitter,random,expired,cmp)) }
+}
+func newFakeBackOff[A Ord](initial Int, maximum Int, clock sync.Clock) IO[Backoff[A]] { newFakeBackOffWithJitter(initial,maximum,clock,0.0) }
+func newFakeBackOffWithJitter[A Ord](initial Int, maximum Int, clock sync.Clock, jitter Float) IO[Backoff[A]] { newBackOffBy(func(a,b) => compare(a,b),initial,maximum,clock,jitter,func() => io.randomFloat(),defaultHasExpired) }
+func newBackOffWithJitter[A Ord](initial Int, maximum Int, jitter Float) IO[Backoff[A]] { do { clock <- sync.realClock(); newFakeBackOffWithJitter(initial,maximum,clock,jitter) } }
+func newBackOff[A Ord](initial Int, maximum Int) IO[Backoff[A]] { newBackOffWithJitter(initial,maximum,0.0) }
+func get[A](b Backoff[A], item A) IO[Int] {
+ sync.withLock(b.mutex,do { entries <- sync.readRef(b.entries); ioPure(match map.mapLookupBy(entries,item,b.compareItem) { None => 0; Some(e) => e.duration }) })
+}
+func jitter[A](b Backoff[A], delay Int) IO[Int] {
+ if b.jitterFactor <= 0.0 { ioPure(0) } else { do { value <- b.random(); ioPure(float.truncate(value*b.jitterFactor*toFloat(delay))) } }
+}
+func next[A](b Backoff[A], item A, event sync.Instant) IO[Unit] {
+ sync.withLock(b.mutex,do {
+  entries <- sync.readRef(b.entries)
+  let old = map.mapLookupBy(entries,item,b.compareItem)
+  let initial = match old { None => true; Some(e) => b.hasExpired(event,e.lastUpdate,b.maximum) }
+  let duration = match old { None => b.initial; Some(e) => if initial { b.initial } else { e.duration } }
+  extra <- jitter(b,duration)
+  let delay = if initial { duration+extra } else { min(duration*2+extra,b.maximum) }
+  now <- sync.now(b.clock)
+  sync.writeRef(b.entries,map.mapInsertBy(entries,item,BackoffEntry(delay,now),b.compareItem))
+ })
+}
+func reset[A](b Backoff[A], item A) IO[Unit] {
+ sync.withLock(b.mutex,do { entries <- sync.readRef(b.entries); sync.writeRef(b.entries,map.mapDeleteBy(entries,item,b.compareItem)) })
+}
+func deleteEntry[A](b Backoff[A], item A) IO[Unit] { reset(b,item) }
+func isInBackOffSince[A](b Backoff[A], item A, event sync.Instant) IO[Bool] {
+ sync.withLock(b.mutex,do {
+  entries <- sync.readRef(b.entries); now <- sync.now(b.clock)
+  ioPure(match map.mapLookupBy(entries,item,b.compareItem) {
+   None => false
+   Some(e) => !b.hasExpired(event,e.lastUpdate,b.maximum) && sync.elapsed(event,now) < e.duration
+  })
+ })
+}
+func isInBackOffSinceUpdate[A](b Backoff[A], item A, event sync.Instant) IO[Bool] {
+ sync.withLock(b.mutex,do {
+  entries <- sync.readRef(b.entries)
+  ioPure(match map.mapLookupBy(entries,item,b.compareItem) {
+   None => false
+   Some(e) => !b.hasExpired(event,e.lastUpdate,b.maximum) && sync.elapsed(e.lastUpdate,event) < e.duration
+  })
+ })
+}
+func gc[A](b Backoff[A]) IO[Unit] {
+ sync.withLock(b.mutex,do {
+  entries <- sync.readRef(b.entries); now <- sync.now(b.clock)
+  let retained = map.mapFold(entries,entries,func(result,key,e) => if b.hasExpired(now,e.lastUpdate,b.maximum) { map.mapDeleteBy(result,key,b.compareItem) } else { result })
+  sync.writeRef(b.entries,retained)
+ })
+}

@@ -1,0 +1,161 @@
+// Copyright The Kubernetes Authors. SPDX-License-Identifier: Apache-2.0
+package workqueue
+import "std/map"
+import "std/list"
+import "github.com/reoring/gofx/ports/client-go/support/sync"
+
+type QueueInterface[A] = QueueInterface { add: func(A) IO[Unit], length: func() IO[Int], get: func() IO[Option[A]], done: func(A) IO[Unit], shutDown: func() IO[Unit], shutDownWithDrain: func() IO[Unit], shuttingDown: func() IO[Bool] }
+func asInterface[A](q Typed[A]) QueueInterface[A] {
+ QueueInterface(func(x) => add(q,x),func() => length(q),func() => get(q),func(x) => done(q,x),func() => shutDown(q),func() => shutDownWithDrain(q),func() => shuttingDown(q))
+}
+type DelayedEntry[A] = DelayedEntry { item: A, readyAt: sync.Instant }
+type DelayHeap[A] = DelayHeap { entries: Map[Int,DelayedEntry[A]], indices: Map[A,Int], size: Int, compareItem: func(A,A) Ordering }
+func emptyDelayHeap[A](cmp func(A,A) Ordering) DelayHeap[A] { DelayHeap(map.emptyMap(),map.emptyMap(),0,cmp) }
+func heapAt[A](h DelayHeap[A], i Int) IO[DelayedEntry[A]] {
+ match map.mapLookup(h.entries,i) { Some(x) => ioPure(x); None => ioFail("workqueue: invalid heap index") }
+}
+func heapSet[A](h DelayHeap[A], i Int, entry DelayedEntry[A]) DelayHeap[A] {
+ h { entries: map.mapInsert(h.entries,i,entry), indices: map.mapInsertBy(h.indices,entry.item,i,h.compareItem) }
+}
+func heapSwap[A](h DelayHeap[A], a Int, b Int) IO[DelayHeap[A]] {
+ do { x <- heapAt(h,a); y <- heapAt(h,b); ioPure(heapSet(heapSet(h,a,y),b,x)) }
+}
+func heapUp[A](h DelayHeap[A], i Int) IO[DelayHeap[A]] {
+ if i == 0 { ioPure(h) } else { do {
+  let parent = (i-1)/2
+  x <- heapAt(h,i); p <- heapAt(h,parent)
+  if sync.instantComparison(x.readyAt,p.readyAt) < 0 { do { swapped <- heapSwap(h,i,parent); heapUp(swapped,parent) } } else { ioPure(h) }
+ } }
+}
+func heapDown[A](h DelayHeap[A], i Int) IO[DelayHeap[A]] {
+ let left = i*2+1
+ if left >= h.size { ioPure(h) } else { do {
+  let right = left+1
+  l <- heapAt(h,left)
+  child <- if right < h.size { do { r <- heapAt(h,right); ioPure(if sync.instantComparison(r.readyAt,l.readyAt) < 0 { right } else { left }) } } else { ioPure(left) }
+  c <- heapAt(h,child); x <- heapAt(h,i)
+  if sync.instantComparison(c.readyAt,x.readyAt) < 0 { do { swapped <- heapSwap(h,i,child); heapDown(swapped,child) } } else { ioPure(h) }
+ } }
+}
+func heapInsert[A](h DelayHeap[A], entry DelayedEntry[A]) IO[DelayHeap[A]] {
+ match map.mapLookupBy(h.indices,entry.item,h.compareItem) {
+  Some(i) => do { old <- heapAt(h,i); if sync.instantComparison(entry.readyAt,old.readyAt) < 0 { heapUp(heapSet(h,i,DelayedEntry(old.item,entry.readyAt)),i) } else { ioPure(h) } }
+  None => heapUp(heapSet(h { size: h.size+1 },h.size,entry),h.size)
+ }
+}
+func heapPop[A](h DelayHeap[A]) IO[DelayHeap[A]] {
+ do {
+  root <- heapAt(h,0)
+  let n = h.size-1
+  moved <- if n == 0 { ioPure(h) } else { do { last <- heapAt(h,n); ioPure(heapSet(h,0,last)) } }
+  heapDown(moved { size: n, entries: map.mapDelete(moved.entries,n), indices: map.mapDeleteBy(moved.indices,root.item,h.compareItem) },0)
+ }
+}
+type DelayEvent[A] = DelayInput(DelayedEntry[A]) | DelayTick | DelayStop
+type DelayingQueue[A] = DelayingQueue { queue: QueueInterface[A], clock: sync.Clock, input: sync.Channel[DelayedEntry[A]], stop: sync.Channel[Unit], mutex: sync.Mutex, stopped: sync.Ref[Bool], timer: sync.Timer, worker: sync.Ref[Option[sync.Task[Unit]]], retries: CounterMetric }
+type DelayingQueueConfig[A] = DelayingQueueConfig { name: String, registry: MetricsRegistry, provider: Option[MetricsProvider], clock: sync.Clock, queue: Option[QueueInterface[A]] }
+func newDelayingQueueBy[A](cmp func(A,A) Ordering, config DelayingQueueConfig[A]) IO[DelayingQueue[A]] {
+ sync.uninterruptible(do {
+  base <- match config.queue { Some(q) => ioPure(q); None => do { q <- newWithConfigBy(cmp,QueueConfig(config.name,config.registry,config.provider,config.clock,None)); ioPure(asInterface(q)) } }
+  input <- sync.newChannel(1000); stop <- sync.newChannel(0)
+  mutex <- sync.newMutex(); stopped <- sync.newRef(false)
+  timer <- sync.newTimer(config.clock,10000000000); worker <- sync.newRef(None)
+  provider <- resolveProvider(config.registry,config.provider); retries <- newRetryMetric(config.name,provider)
+  let q = DelayingQueue(base,config.clock,input,stop,mutex,stopped,timer,worker,retries)
+  w <- sync.startDetached(delayLoop(q,emptyDelayHeap(cmp))); sync.writeRef(worker,Some(w))
+  ioPure(q)
+ })
+}
+func newDelayingQueue[A Ord](config DelayingQueueConfig[A]) IO[DelayingQueue[A]] { newDelayingQueueBy(func(a,b) => compare(a,b),config) }
+func addAfter[A](q DelayingQueue[A], item A, duration Int) IO[Unit] {
+ do { stopped <- q.queue.shuttingDown()
+  if stopped { ioPure(unit()) } else { do {
+   q.retries.inc()
+   if duration <= 0 { q.queue.add(item) } else { do {
+    now <- sync.now(q.clock)
+    sync.selectCase([
+     sync.receiveCase(q.stop,func(_) => unit()),
+     sync.sendCase(q.input,DelayedEntry(item,sync.add(now,duration)),unit())
+    ])
+   } }
+  } }
+ }
+}
+func promoteDue[A](q DelayingQueue[A], h DelayHeap[A], now sync.Instant) IO[DelayHeap[A]] {
+ if h.size == 0 { ioPure(h) } else { do {
+  entry <- heapAt(h,0)
+  if sync.instantComparison(entry.readyAt,now) > 0 { ioPure(h) } else { do { q.queue.add(entry.item); rest <- heapPop(h); promoteDue(q,rest,now) } }
+ } }
+}
+func delayLoop[A](q DelayingQueue[A], heap DelayHeap[A]) IO[Unit] {
+ do {
+  stopped <- q.queue.shuttingDown()
+  if stopped { do { _ <- sync.stopTimer(q.timer); ioPure(unit()) } } else { do {
+   now <- sync.now(q.clock); h <- promoteDue(q,heap,now)
+   delay <- if h.size == 0 { ioPure(10000000000) } else { do { first <- heapAt(h,0); ioPure(min(10000000000,max(0,sync.elapsed(now,first.readyAt)))) } }
+   _ <- sync.resetTimer(q.timer,delay)
+   timer <- sync.timerChannel(q.timer)
+   event <- sync.selectCase([
+    sync.receiveCase(q.stop,func(_) => DelayStop),
+    sync.receiveCase(timer,func(_) => DelayTick),
+    sync.receiveCase(q.input,func(value) => match value { None => DelayStop; Some(e) => DelayInput(e) })
+   ])
+   match event {
+    DelayStop => do { _ <- sync.stopTimer(q.timer); ioPure(unit()) }
+    DelayTick => delayLoop(q,h)
+    DelayInput(e) => do {
+     updated <- insertIncoming(q,h,e)
+     drained <- drainIncoming(q,updated)
+     delayLoop(q,drained)
+    }
+   }
+  } }
+ }
+}
+func insertIncoming[A](q DelayingQueue[A], h DelayHeap[A], e DelayedEntry[A]) IO[DelayHeap[A]] {
+ do { current <- sync.now(q.clock)
+  if sync.instantComparison(e.readyAt,current) <= 0 { do { q.queue.add(e.item); ioPure(h) } } else { heapInsert(h,e) }
+ }
+}
+func drainIncoming[A](q DelayingQueue[A], heap DelayHeap[A]) IO[DelayHeap[A]] {
+ do {
+  input <- sync.tryReceive(q.input)
+  match input {
+   sync.Pending => ioPure(heap)
+   sync.Closed => ioPure(heap)
+   sync.Received(e) => do { updated <- insertIncoming(q,heap,e); drainIncoming(q,updated) }
+  }
+ }
+}
+func shutDownDelaying[A](q DelayingQueue[A]) IO[Unit] {
+ do {
+  sync.withLock(q.mutex,sync.uninterruptible(do {
+   stopped <- sync.readRef(q.stopped)
+   if stopped { ioPure(unit()) } else { do { q.queue.shutDown(); sync.writeRef(q.stopped,true); sync.close(q.stop) } }
+  }))
+  worker <- sync.readRef(q.worker)
+  match worker { None => ioPure(unit()); Some(w) => sync.join(w) }
+ }
+}
+type DelayingInterface[A] = DelayingInterface { queue: QueueInterface[A], addAfter: func(A,Int) IO[Unit] }
+func asDelayingInterface[A](q DelayingQueue[A]) DelayingInterface[A] {
+ DelayingInterface(q.queue { shutDown: func() => shutDownDelaying(q) },func(item,delay) => addAfter(q,item,delay))
+}
+type RateLimitingQueue[A] = RateLimitingQueue { delaying: DelayingInterface[A], limiter: RateLimiter[A] }
+type RateLimitingQueueConfig[A] = RateLimitingQueueConfig { name: String, registry: MetricsRegistry, provider: Option[MetricsProvider], clock: sync.Clock, delayingQueue: Option[DelayingInterface[A]] }
+func newRateLimitingQueue[A](limiter RateLimiter[A], delaying DelayingInterface[A]) RateLimitingQueue[A] { RateLimitingQueue(delaying,limiter) }
+func newRateLimitingQueueWithConfigBy[A](cmp func(A,A) Ordering, limiter RateLimiter[A], config RateLimitingQueueConfig[A]) IO[RateLimitingQueue[A]] {
+ do {
+  delaying <- match config.delayingQueue {
+   Some(q) => ioPure(q)
+   None => do { q <- newDelayingQueueBy(cmp,DelayingQueueConfig(config.name,config.registry,config.provider,config.clock,None)); ioPure(asDelayingInterface(q)) }
+  }
+  ioPure(newRateLimitingQueue(limiter,delaying))
+ }
+}
+func newRateLimitingQueueWithConfig[A Ord](limiter RateLimiter[A], config RateLimitingQueueConfig[A]) IO[RateLimitingQueue[A]] {
+ newRateLimitingQueueWithConfigBy(func(a,b) => compare(a,b),limiter,config)
+}
+func addRateLimited[A](q RateLimitingQueue[A], item A) IO[Unit] { do { delay <- q.limiter.when(item); q.delaying.addAfter(item,delay) } }
+func forget[A](q RateLimitingQueue[A], item A) IO[Unit] { q.limiter.forget(item) }
+func numRequeues[A](q RateLimitingQueue[A], item A) IO[Int] { q.limiter.numRequeues(item) }

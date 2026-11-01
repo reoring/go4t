@@ -1,0 +1,48 @@
+package support
+
+// These handles are structural bridges, not replacements for named Go types.
+type UInt64 = UInt64Handle
+type ForeignMap[K, V] = ForeignMapHandle
+type PointerKey[A] = PointerKeyHandle
+type Channel[A] = ChannelHandle
+type Any = AnyHandle
+type Error = ErrorHandle
+
+extern func uint64(high Int, low Int) UInt64 = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".UInt64
+extern func uint64High(value UInt64) Int = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".UInt64High
+extern func uint64Low(value UInt64) Int = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".UInt64Low
+extern func mapIsNil[K,V](value ForeignMap[K,V]) Bool = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".IsNil
+extern func mapEmpty[K,V](prototype ForeignMap[K,V]) ForeignMap[K,V] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".MapEmpty
+extern func mapLookup[K,V](value ForeignMap[K,V], key K) Option[V] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".MapLookup
+extern func mapEntries[K,V](value ForeignMap[K,V]) List[(K,V)] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".MapEntries
+extern func mapWith[K,V](value ForeignMap[K,V], key K, entry V) ForeignMap[K,V] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".MapWith
+extern func mapWithout[K,V](value ForeignMap[K,V], key K) ForeignMap[K,V] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".MapWithout
+extern func mapNewPointerKey[A,V](prototype ForeignMap[PointerKey[A],V], value A) IO[PointerKey[A]] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".MapNewPointerKey
+extern func mapNilPointerKey[A,V](prototype ForeignMap[PointerKey[A],V]) PointerKey[A] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".MapNilPointerKey
+extern func pointerKeyValue[A](key PointerKey[A]) Option[A] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".PointerKeyValue
+extern func pointerKeyEqual[A](left PointerKey[A], right PointerKey[A]) Bool = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".PointerKeyEqual
+extern func channelReceive[A](value Channel[A]) IO[Option[A]] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".ChannelReceive
+extern func channelSend[A](value Channel[A], item A) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".ChannelSend
+extern func channelClose[A](value Channel[A]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".ChannelClose
+extern func errorMessage(value Error) String = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".ErrorMessage
+extern func errorIs(value Error, target Error) Bool = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".ErrorIs
+extern func errorIsNotFound(value Error) Bool = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".ErrorIsNotFound
+extern func errorIsConflict(value Error) Bool = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".ErrorIsConflict
+extern func errorIsStrictDecoding(value Error) Bool = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".ErrorIsStrictDecoding
+extern func waitTimeoutError() Error = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".WaitTimeoutError
+extern func errorInterrupted(cause Option[Error]) Error = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".ErrorInterrupted
+extern func errorIsInterrupted(value Error) Bool = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".ErrorIsInterrupted
+extern func errorConflict(group String, resource String, name String, cause Option[Error]) Error = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".ErrorConflict
+extern func errorCancelled() Error = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".ErrorCancelled
+extern func raiseError[A](error Error) IO[A] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".RaiseError
+extern func errorNew(message String) Error = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".ErrorNew
+extern func errorWrap(message String, cause Error) Error = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".ErrorWrap
+extern func errorIsResourceExpired(value Error) Bool = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".ErrorIsResourceExpired
+extern func errorIsTimeout(value Error) Bool = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".ErrorIsTimeout
+extern func errorIsTooManyRequests(value Error) Bool = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".ErrorIsTooManyRequests
+extern func errorIsInternal(value Error) Bool = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".ErrorIsInternal
+extern func errorIsConnectionRefused(value Error) Bool = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".ErrorIsConnectionRefused
+extern func randomInt(bound Int) IO[Int] = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".RandomInt
+extern func errorInternal(cause Error) Error = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".ErrorInternal
+extern func errorIsForbidden(value Error) Bool = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".ErrorIsForbidden
+extern func errorIsUnauthorized(value Error) Bool = "github.com/reoring/gofx/ports/client-go/internal/hostdeps".ErrorIsUnauthorized

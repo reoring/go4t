@@ -7,6 +7,7 @@ import (
 )
 
 type capturedContext struct { context context.Context }
+type cancelHandle struct { cancel context.CancelFunc }
 func CaptureContext() any { return effect(func(ctx context.Context)(any,error){return &capturedContext{ctx},nil}) }
 func ContextCancelled(handle any) any { return effect(func(context.Context)(any,error){return handle.(*capturedContext).context.Err()!=nil,nil}) }
 func ContextRemaining(handle any) any { return effect(func(context.Context)(any,error){
@@ -20,6 +21,15 @@ func WithContext(handle,action any) any { return rt.IO(func(caller context.Conte
  restored:=context.WithValue(handle.(*capturedContext).context,executionKey{},identity)
  return effect(func(ctx context.Context)(any,error){return action.(rt.IO)(ctx)}).(rt.IO)(restored)
 }) }
+
+func NewContext(parent,timeoutNanos any) any { return effect(func(context.Context)(any,error){
+ var child context.Context
+ var cancel context.CancelFunc
+ nanos,hasTimeout:=rt.Shapes.OptionValue(timeoutNanos)
+ if hasTimeout {child,cancel=context.WithTimeout(parent.(*capturedContext).context,time.Duration(nanos.(int64)))} else {child,cancel=context.WithCancel(parent.(*capturedContext).context)}
+ return rt.Tuple2Of(&capturedContext{child},&cancelHandle{cancel}),nil
+}) }
+func CancelContext(handle any) any { return effect(func(context.Context)(any,error){handle.(*cancelHandle).cancel();return rt.Unit{},nil}) }
 
 // invoke contains both callback construction and execution in the same panic
 // boundary. Bracket must not use rt.Bind between acquisition and registration.
