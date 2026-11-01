@@ -336,7 +336,7 @@ Source: [`map/map.gfx`](../std/map/map.gfx). 25 top-level declarations.
 
 ## `std/prelude`
 
-Source: [`prelude/prelude.gfx`](../std/prelude/prelude.gfx). 50 top-level declarations.
+Source: [`prelude/prelude.gfx`](../std/prelude/prelude.gfx). 49 top-level declarations.
 
 | Source signature | Semantics | Boundary behaviour |
 | --- | --- | --- |
@@ -344,17 +344,16 @@ Source: [`prelude/prelude.gfx`](../std/prelude/prelude.gfx). 50 top-level declar
 | `class Monad[M[_]] : Functor[M] { pure[A](a A) M[A] bind[A, B](ma M[A], f func(A) M[B]) M[B] }` | Inject values and sequence dependent computations. | Requires Functor; pure/bind are qualified prelude methods, not implicit exports. |
 | `class Foldable[F[_]] { foldr[A, B](fa F[A], init B, f func(A, B) B) B }` | Right fold occurrences of the element type. | Empty fold returns init; fold association is right, independent of callback evaluation strictness. |
 | `class Traversable[F[_]] : Functor[F] { traverse[M[_] Monad, A, B](fa F[A], f func(A) M[B]) M[F[B]] }` | Shape-preserving traversal with a supplied Monad. | Requires Functor; sequences left-to-right by source fields/elements; Monad determines short-circuiting. |
-| `class Show[A] { show(a A) String }` | User-facing display, used by interpolation. | Not derivable; String is identity; Unit has no standard Show. |
+| `class Show[A] { show(a A) String }` | User-facing display, used by interpolation. | Derivable only for enums (all constructors nullary), as source constructor names; String is identity; Unit has no standard Show. |
 | `class Debug[A] { debug(a A) String }` | Structural diagnostic rendering. | Derivable; strings quoted with Go escapes, Unit (), lists Cons(..., Nil). |
 | `class Eq[A] { eq(a A, b A) Bool }` | Type-directed equality used by == and !=. | Function values unsupported; Float NaN is unequal to itself. |
-| `type Ordering = LT \| EQ \| GT deriving Eq, Ord, Debug` | Three-way ordering result: LT, EQ, GT. | Derived Eq/Ord/Debug; declaration order LT < EQ < GT; Show is handwritten. |
+| `type Ordering = LT \| EQ \| GT deriving Eq, Ord, Debug, Show` | Three-way ordering result: LT, EQ, GT. | Derived Eq/Ord/Debug/Show; declaration order LT < EQ < GT; display is LT/EQ/GT. |
 | `class Ord[A] : Eq[A] { compare(a A, b A) Ordering }` | Three-way comparison used by relational operators. | Requires Eq; Float compares NaNs EQ even though its Eq is false. |
 | `type Option[A] = None \| Some(A) deriving Eq, Ord, Debug` | Optional value: None or Some(A). | Derived Eq/Ord/Debug constrain A; None precedes Some; no payload for None. |
 | `instance Functor[Option]` | Map Option's element/result while retaining shape. | None unchanged, no callback. |
 | `instance Monad[Option]` | Inject and sequence Option computations. | pure is Some; bind stops on None. |
 | `instance Foldable[Option]` | Right fold Option elements. | Empty/None returns init; Some(a) calls f(a, init). |
 | `instance Traversable[Option]` | Effectfully map Option without changing its shape. | Empty/None uses pure without callback; effects follow element order and the chosen Monad short-circuits. |
-| `instance Show[Ordering]` | Display as LT/EQ/GT, using field Show where applicable. | No fields or quoting. |
 | `instance Show[Option[A]] given Show[A]` | Display as None/Some(a), using field Show where applicable. | None has no payload; Some uses unquoted String display. |
 | `instance Show[Tuple2[A, B]] given Show[A], Show[B]` | Display as (a, b), using field Show where applicable. | Both components require Show; not a general tuple-arity instance. |
 | `instance Debug[Tuple2[A, B]] given Debug[A], Debug[B]` | Structural rendering of Tuple2. | Both fields require Debug; strings quoted; pair arity only. |
@@ -398,6 +397,7 @@ Derived instances (expanded from the type declarations above):
 | `instance Eq[Ordering]` | Constructor/field equality. | Only equal constructors compare equal. |
 | `instance Ord[Ordering]` | Declaration-order constructor comparison, then lexicographic fields. | LT < EQ < GT; requires its Eq instance. |
 | `instance Debug[Ordering]` | Structural constructor/field rendering. | LT, EQ or GT with no payload. |
+| `instance Show[Ordering]` | Display as LT/EQ/GT. | Derived from nullary source constructor names; no fields or quoting. |
 | `instance Eq[Option[A]] given Eq[A]` | Constructor/field equality. | All parameters require Eq, including phantom parameters. |
 | `instance Ord[Option[A]] given Ord[A]` | Declaration-order constructor comparison, then lexicographic fields. | Requires Eq plus Ord on all parameters; Nil/None/Err precede Cons/Some/Ok respectively. |
 | `instance Debug[Option[A]] given Debug[A]` | Structural constructor/field rendering. | All parameters require Debug; strings quoted; List uses Cons(..., Nil), not display brackets. |

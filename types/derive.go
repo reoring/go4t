@@ -25,7 +25,11 @@ func expandDeriving(f *ast.File, sourceNames map[string]string) error {
 			switch class {
 			case "Eq", "Ord", "Debug", "Functor", "Foldable", "Traversable", "Encode", "Decode":
 			case "Show":
-				return &Error{File: f.Name, Pos: d.Pos, Msg: "deriving Show is not supported; derive Debug and write instance Show if a display form is needed"}
+				for _, ctor := range d.Ctors {
+					if len(ctor.Fields) != 0 {
+						return &Error{File: f.Name, Pos: d.Pos, Msg: "deriving Show is only supported for enums (all constructors nullary); derive Debug and write instance Show[T] for a display form"}
+					}
+				}
 			default:
 				return &Error{File: f.Name, Pos: d.Pos, Msg: fmt.Sprintf("cannot derive %s for %s: unknown class", class, d.Name)}
 			}
@@ -73,6 +77,9 @@ func expandDeriving(f *ast.File, sourceNames map[string]string) error {
 				method.Name, method.Body.Result = "compare", deriveOrd(d)
 			case "Debug":
 				method.Name, method.Params, method.Body.Result = "debug", []string{"a"}, deriveDebug(d, sourceNames)
+			case "Show":
+				// Nullary constructor display is identical to its Debug form.
+				method.Name, method.Params, method.Body.Result = "show", []string{"a"}, deriveDebug(d, sourceNames)
 			case "Encode":
 				method.Name, method.Params, method.Body.Result = "encode", []string{"a"}, deriveEncode(d, sourceNames)
 			case "Decode":

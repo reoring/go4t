@@ -59,9 +59,104 @@ func value() Option[Leading[Int, String]] { prelude.traverse(Leading(1, 2), func
 	}
 }
 
+func TestDerivingEnumShow(t *testing.T) {
+	for _, tt := range []struct {
+		name, source string
+		constructors []string
+		params       int
+	}{
+		{"Currency", `type Currency = JPY | USD | EUR deriving Eq, Ord, Debug, Show
+func value() String { show(JPY) + "${USD}" + show(EUR) }`, []string{"JPY", "USD", "EUR"}, 0},
+		{"Singleton", `type Singleton = Only deriving prelude.Show
+func value() String { show(Only) }`, []string{"Only"}, 0},
+		{"Phantom", `type Phantom[A] = First | Last deriving Show
+func value() String { let x: Phantom[Int] = First; show(x) }`, []string{"First", "Last"}, 1},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			files := derivingFiles(t, tt.source)
+			for range 2 {
+				p, err := types.Check(files)
+				if err != nil {
+					t.Fatal(err)
+				}
+				found := 0
+				for _, inst := range p.Instances {
+					if inst.Class.Name != "Show" || inst.TypeCon.Name != tt.name {
+						continue
+					}
+					found++
+					if len(inst.Params) != tt.params || len(inst.Context) != tt.params {
+						t.Fatalf("Show[%s] parameters/context = %d/%d, want %d", tt.name, len(inst.Params), len(inst.Context), tt.params)
+					}
+					for _, constraint := range inst.Context {
+						if constraint.Class != "Show" {
+							t.Fatalf("Show[%s] constraint = %#v", tt.name, constraint)
+						}
+					}
+					assertEnumShowNames(t, inst, tt.constructors)
+				}
+				if found != 1 {
+					t.Fatalf("Show[%s] instances = %d, want 1", tt.name, found)
+				}
+				call := p.Funcs["value"].Decl.Body.Result
+				walkExprs(reflect.ValueOf(call), func(e ast.Expr) { assertZonked(t, e) })
+			}
+		})
+	}
+}
+
+func TestDerivingEnumShowModuleNames(t *testing.T) {
+	root := moduleFixture(t, map[string]string{
+		"main.gfx": `package main
+import "money"
+func main() IO[Unit] { println("${money.JPY}|${money.USD}|${money.EUR}") }`,
+		"money/domain.gfx": `package money
+type Currency = JPY | USD | EUR deriving Show`,
+	})
+	p, err := checkModuleFixture(t, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, inst := range p.Instances {
+		if inst.Class.Name == "Show" && p.ModuleNames[inst.TypeCon.Name] == "Currency" {
+			assertEnumShowNames(t, inst, []string{"JPY", "USD", "EUR"})
+			return
+		}
+	}
+	t.Fatal("missing imported Show[Currency] instance")
+}
+
+func assertEnumShowNames(t *testing.T, inst *types.Instance, names []string) {
+	t.Helper()
+	if len(inst.Decl.Methods) != 1 || inst.Decl.Methods[0].Name != "show" {
+		t.Fatalf("Show methods = %#v", inst.Decl.Methods)
+	}
+	method := inst.Decl.Methods[0]
+	match, ok := method.Body.Result.(*ast.Match)
+	if !ok || len(match.Arms) != len(names) {
+		t.Fatalf("Show body = %#v, want %d constructor arms", method.Body.Result, len(names))
+	}
+	for i, arm := range match.Arms {
+		pattern, ok := arm.Pat.(*ast.PCtor)
+		if !ok || len(pattern.Args) != 0 {
+			t.Fatalf("Show arm %d pattern = %#v", i, arm.Pat)
+		}
+		literal, ok := arm.Body.(*ast.StringLit)
+		if !ok || literal.Value != names[i] {
+			t.Fatalf("Show arm %d body = %#v, want %q", i, arm.Body, names[i])
+		}
+	}
+	walkExprs(reflect.ValueOf(inst.Decl), func(e ast.Expr) { assertZonked(t, e) })
+}
+
 func TestDerivingDiagnostics(t *testing.T) {
 	cases := []struct{ source, want string }{
-		{`type T = T deriving Show`, "deriving Show is not supported; derive Debug and write instance Show if a display form is needed"},
+		{`type T = T(Int) deriving Show`, "deriving Show is only supported for enums (all constructors nullary); derive Debug and write instance Show[T] for a display form"},
+		{`type T = Empty | T{value: Int} deriving Show`, "deriving Show is only supported for enums (all constructors nullary); derive Debug and write instance Show[T] for a display form"},
+		{`type T[A] = Empty | T(A) deriving Show`, "deriving Show is only supported for enums (all constructors nullary); derive Debug and write instance Show[T] for a display form"},
+		{`type T = T deriving Show, Show`, "duplicate deriving class Show for T"},
+		{`type T = T deriving Show; instance Show[T] { show(a) { "T" } }`, "duplicate instance Show[T]"},
+		{`type Phantom[A] = Phantom deriving Show; func value(x Phantom[Unit]) String { show(x) }`, "no instance Show[Unit] (required by instance Show[Phantom[A]])"},
 		{`type T = T deriving Unknown`, "cannot derive Unknown for T: unknown class"},
 		{`type T[A] = T(A) deriving Debug, Debug`, "duplicate deriving class Debug for T"},
 		{`type T[A] = T(A) deriving Functor, Functor`, "duplicate deriving class Functor for T"},

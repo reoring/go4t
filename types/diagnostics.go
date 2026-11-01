@@ -43,7 +43,12 @@ func (c *checker) instanceHint(class string, arg Type) string {
 	}
 	switch class {
 	case "Show":
-		return fmt.Sprintf("; hint: write 'instance Show[%s]' (or 'deriving Debug' for a structural form)", TypeString(arg))
+		for _, ctor := range c.program.DataTypes[con.Name].Ctors {
+			if len(ctor.Fields) != 0 {
+				return fmt.Sprintf("; hint: write 'instance Show[%s]' (or 'deriving Debug' for a structural form)", TypeString(arg))
+			}
+		}
+		fallthrough
 	case "Debug", "Eq", "Ord":
 		return fmt.Sprintf("; hint: add 'deriving %s' or write 'instance %s[%s]'", class, class, TypeString(arg))
 	}
