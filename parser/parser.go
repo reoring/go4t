@@ -1,0 +1,592 @@
+// Package parser builds the gofx AST.
+//
+// Grammar (';' is inserted by the lexer at newlines, Go-style):
+//
+//	File     := 'package' Ident ';' { Decl ';' }
+//	Decl     := Class | Instance | TypeDecl | Func | Extern
+//	Class    := 'class' Ident '[' TParam ']' [ ':' Ident '[' Ident ']' ] '{' { MethodSig ';' } '}'
+//	Instance := 'instance' Ident '[' Ident ']' '{' { Ident '(' Idents ')' Block ';' } '}'
+//	TypeDecl := 'type' Ident [ '[' Idents ']' ] '=' Ctor { '|' Ctor }
+//	Func     := 'func' Ident [ TParams ] '(' Params ')' Type Block
+//	Extern   := 'extern' 'func' Ident [ TParams ] '(' Params ')' Type '=' String '.' Ident
+//	TParam   := Ident [ '[' '_' { ',' '_' } ']' ] { Ident }
+//	Block    := '{' { Stmt ';' } Expr [ ';' ] '}'
+//	Stmt     := 'let' Ident '=' Expr | Expr
+//	Expr     := 'func' '(' LParams ')' '=>' Expr | 'do' DoBlock | 'match' Expr '{' Arms '}'
+//	          | 'if' Expr Block 'else' ( Block | IfExpr ) | Binary
+//	Pattern  := '_' | Lit | Ident [ '(' Pattern { ',' Pattern } ')' ]
+package parser
+
+import (
+	"fmt"
+	"strconv"
+
+	"gofx/ast"
+	"gofx/lexer"
+)
+
+type Parser struct {
+	toks []lexer.Token
+	i    int
+}
+
+func Parse(src string) (f *ast.File, err error) {
+	toks, err := lexer.New(src).All()
+	if err != nil {
+		return nil, err
+	}
+	p := &Parser{toks: toks}
+	defer func() {
+		if r := recover(); r != nil {
+			pe, ok := r.(parseError)
+			if !ok {
+				panic(r)
+			}
+			err = pe
+		}
+	}()
+	return p.file(), nil
+}
+
+type parseError struct{ msg string }
+
+func (e parseError) Error() string { return e.msg }
+
+func (p *Parser) fail(pos ast.Pos, format string, args ...any) {
+	panic(parseError{fmt.Sprintf("%s: %s", pos, fmt.Sprintf(format, args...))})
+}
+
+func (p *Parser) tok() lexer.Token { return p.toks[p.i] }
+func (p *Parser) pos() ast.Pos     { return p.tok().Pos }
+
+func (p *Parser) is(kind lexer.Kind, text string) bool {
+	t := p.tok()
+	return t.Kind == kind && t.Text == text
+}
+func (p *Parser) isP(text string) bool { return p.is(lexer.Punct, text) }
+func (p *Parser) isK(text string) bool { return p.is(lexer.Keyword, text) }
+
+func (p *Parser) next() lexer.Token {
+	t := p.toks[p.i]
+	if t.Kind != lexer.EOF {
+		p.i++
+	}
+	return t
+}
+
+func (p *Parser) expectP(text string) lexer.Token {
+	if !p.isP(text) {
+		p.fail(p.pos(), "expected %q, found %s", text, p.tok())
+	}
+	return p.next()
+}
+
+func (p *Parser) expectK(text string) lexer.Token {
+	if !p.isK(text) {
+		p.fail(p.pos(), "expected %q, found %s", text, p.tok())
+	}
+	return p.next()
+}
+
+func (p *Parser) ident() string {
+	t := p.tok()
+	if t.Kind != lexer.Ident {
+		p.fail(t.Pos, "expected identifier, found %s", t)
+	}
+	p.next()
+	return t.Text
+}
+
+func (p *Parser) skipSemis() {
+	for p.isP(";") {
+		p.next()
+	}
+}
+
+func (p *Parser) acceptP(text string) bool {
+	if p.isP(text) {
+		p.next()
+		return true
+	}
+	return false
+}
+
+// ---- declarations ----
+
+func (p *Parser) file() *ast.File {
+	p.skipSemis()
+	p.expectK("package")
+	f := &ast.File{Package: p.ident()}
+	p.skipSemis()
+	for p.tok().Kind != lexer.EOF {
+		f.Decls = append(f.Decls, p.decl())
+		p.skipSemis()
+	}
+	return f
+}
+
+func (p *Parser) decl() ast.Decl {
+	t := p.tok()
+	if t.Kind != lexer.Keyword {
+		p.fail(t.Pos, "expected declaration, found %s", t)
+	}
+	switch t.Text {
+	case "class":
+		return p.classDecl()
+	case "instance":
+		return p.instanceDecl()
+	case "type":
+		return p.typeDecl()
+	case "func":
+		return p.funcDecl(false)
+	case "extern":
+		p.next()
+		return p.funcDecl(true)
+	}
+	p.fail(t.Pos, "expected declaration, found %s", t)
+	return nil
+}
+
+func (p *Parser) tparam() ast.TypeParam {
+	tp := ast.TypeParam{Name: p.ident()}
+	if p.acceptP("[") {
+		p.expectP("_")
+		tp.Arity = 1
+		for p.acceptP(",") {
+			p.expectP("_")
+			tp.Arity++
+		}
+		p.expectP("]")
+	}
+	for p.tok().Kind == lexer.Ident {
+		tp.Constraints = append(tp.Constraints, p.ident())
+	}
+	return tp
+}
+
+func (p *Parser) tparams() []ast.TypeParam {
+	if !p.acceptP("[") {
+		return nil
+	}
+	var out []ast.TypeParam
+	for {
+		out = append(out, p.tparam())
+		if !p.acceptP(",") {
+			break
+		}
+	}
+	p.expectP("]")
+	return out
+}
+
+func (p *Parser) params() []ast.Param {
+	p.expectP("(")
+	var out []ast.Param
+	for !p.isP(")") {
+		name := p.ident()
+		out = append(out, ast.Param{Name: name, Type: p.typ()})
+		if !p.acceptP(",") {
+			break
+		}
+	}
+	p.expectP(")")
+	return out
+}
+
+func (p *Parser) classDecl() ast.Decl {
+	pos := p.next().Pos
+	c := &ast.ClassDecl{Pos: pos, Name: p.ident()}
+	p.expectP("[")
+	c.Param = p.tparam()
+	p.expectP("]")
+	if p.acceptP(":") {
+		c.Super = p.ident()
+		p.expectP("[")
+		if n := p.ident(); n != c.Param.Name {
+			p.fail(pos, "superclass must be applied to %s", c.Param.Name)
+		}
+		p.expectP("]")
+	}
+	p.expectP("{")
+	p.skipSemis()
+	for !p.isP("}") {
+		m := ast.MethodSig{Pos: p.pos(), Name: p.ident()}
+		m.TParams = p.tparams()
+		m.Params = p.params()
+		m.Ret = p.typ()
+		c.Methods = append(c.Methods, m)
+		p.skipSemis()
+	}
+	p.expectP("}")
+	return c
+}
+
+func (p *Parser) instanceDecl() ast.Decl {
+	pos := p.next().Pos
+	d := &ast.InstanceDecl{Pos: pos, Class: p.ident()}
+	p.expectP("[")
+	d.TypeCon = p.ident()
+	p.expectP("]")
+	p.expectP("{")
+	p.skipSemis()
+	for !p.isP("}") {
+		m := ast.InstMethod{Pos: p.pos(), Name: p.ident()}
+		p.expectP("(")
+		for !p.isP(")") {
+			m.Params = append(m.Params, p.ident())
+			if !p.acceptP(",") {
+				break
+			}
+		}
+		p.expectP(")")
+		m.Body = p.block()
+		d.Methods = append(d.Methods, m)
+		p.skipSemis()
+	}
+	p.expectP("}")
+	return d
+}
+
+func (p *Parser) typeDecl() ast.Decl {
+	pos := p.next().Pos
+	d := &ast.TypeDecl{Pos: pos, Name: p.ident()}
+	if p.acceptP("[") {
+		for {
+			d.TParams = append(d.TParams, p.ident())
+			if !p.acceptP(",") {
+				break
+			}
+		}
+		p.expectP("]")
+	}
+	p.expectP("=")
+	for {
+		c := ast.Ctor{Pos: p.pos(), Name: p.ident()}
+		if p.acceptP("(") {
+			for !p.isP(")") {
+				c.Fields = append(c.Fields, p.typ())
+				if !p.acceptP(",") {
+					break
+				}
+			}
+			p.expectP(")")
+		}
+		d.Ctors = append(d.Ctors, c)
+		if !p.acceptP("|") {
+			break
+		}
+	}
+	return d
+}
+
+func (p *Parser) funcDecl(extern bool) ast.Decl {
+	pos := p.expectK("func").Pos
+	d := &ast.FuncDecl{Pos: pos, Name: p.ident()}
+	d.TParams = p.tparams()
+	d.Params = p.params()
+	d.Ret = p.typ()
+	if extern {
+		p.expectP("=")
+		t := p.tok()
+		if t.Kind != lexer.String {
+			p.fail(t.Pos, "expected import path string, found %s", t)
+		}
+		p.next()
+		p.expectP(".")
+		d.Extern = &ast.ExternRef{ImportPath: t.Text, Name: p.ident()}
+		return d
+	}
+	d.Body = p.block()
+	return d
+}
+
+// ---- types ----
+
+func (p *Parser) typ() ast.Type {
+	pos := p.pos()
+	if p.isK("func") {
+		p.next()
+		ft := &ast.FuncType{Pos: pos}
+		p.expectP("(")
+		for !p.isP(")") {
+			ft.Params = append(ft.Params, p.typ())
+			if !p.acceptP(",") {
+				break
+			}
+		}
+		p.expectP(")")
+		ft.Ret = p.typ()
+		return ft
+	}
+	tn := &ast.TypeName{Pos: pos, Name: p.ident()}
+	if p.acceptP("[") {
+		for {
+			tn.Args = append(tn.Args, p.typ())
+			if !p.acceptP(",") {
+				break
+			}
+		}
+		p.expectP("]")
+	}
+	return tn
+}
+
+// ---- blocks / statements ----
+
+func (p *Parser) block() *ast.Block {
+	b := &ast.Block{Pos: p.expectP("{").Pos}
+	p.skipSemis()
+	for {
+		if p.isP("}") {
+			p.fail(p.pos(), "block must end with an expression")
+		}
+		if p.isK("let") {
+			pos := p.next().Pos
+			name := p.ident()
+			p.expectP("=")
+			b.Stmts = append(b.Stmts, &ast.LetStmt{Pos: pos, Name: name, Value: p.expr()})
+			p.skipSemis()
+			continue
+		}
+		e := p.expr()
+		p.skipSemis()
+		if p.isP("}") {
+			b.Result = e
+			break
+		}
+		b.Stmts = append(b.Stmts, &ast.ExprStmt{X: e})
+	}
+	p.expectP("}")
+	return b
+}
+
+// ---- expressions ----
+
+func (p *Parser) expr() ast.Expr {
+	pos := p.pos()
+	switch {
+	case p.isK("func"):
+		p.next()
+		l := &ast.Lambda{ExprBase: ast.ExprBase{Pos: pos}}
+		p.expectP("(")
+		for !p.isP(")") {
+			prm := ast.Param{Name: p.ident()}
+			if !p.isP(",") && !p.isP(")") {
+				prm.Type = p.typ()
+			}
+			l.Params = append(l.Params, prm)
+			if !p.acceptP(",") {
+				break
+			}
+		}
+		p.expectP(")")
+		p.expectP("=>")
+		l.Body = p.expr()
+		return l
+	case p.isK("do"):
+		p.next()
+		return p.doExpr(pos)
+	case p.isK("match"):
+		p.next()
+		return p.matchExpr(pos)
+	case p.isK("if"):
+		return p.ifExpr()
+	}
+	return p.binary(0)
+}
+
+func (p *Parser) ifExpr() ast.Expr {
+	pos := p.expectK("if").Pos
+	e := &ast.If{ExprBase: ast.ExprBase{Pos: pos}}
+	e.Cond = p.expr()
+	e.Then = p.blockExpr()
+	p.expectK("else")
+	if p.isK("if") {
+		e.Else = p.ifExpr()
+	} else {
+		e.Else = p.blockExpr()
+	}
+	return e
+}
+
+func (p *Parser) blockExpr() ast.Expr {
+	pos := p.pos()
+	return &ast.BlockExpr{ExprBase: ast.ExprBase{Pos: pos}, Block: p.block()}
+}
+
+func (p *Parser) doExpr(pos ast.Pos) ast.Expr {
+	d := &ast.Do{ExprBase: ast.ExprBase{Pos: pos}}
+	p.expectP("{")
+	p.skipSemis()
+	for {
+		if p.isP("}") {
+			p.fail(p.pos(), "do block must end with an expression")
+		}
+		spos := p.pos()
+		if p.isK("let") {
+			p.next()
+			name := p.ident()
+			p.expectP("=")
+			d.Stmts = append(d.Stmts, &ast.DoLet{Pos: spos, Name: name, Value: p.expr()})
+			p.skipSemis()
+			continue
+		}
+		if p.tok().Kind == lexer.Ident && p.toks[p.i+1].Kind == lexer.Punct && p.toks[p.i+1].Text == "<-" {
+			name := p.ident()
+			p.next()
+			d.Stmts = append(d.Stmts, &ast.DoBind{Pos: spos, Name: name, X: p.expr()})
+			p.skipSemis()
+			continue
+		}
+		e := p.expr()
+		p.skipSemis()
+		if p.isP("}") {
+			d.Result = e
+			break
+		}
+		d.Stmts = append(d.Stmts, &ast.DoExpr{X: e})
+	}
+	p.expectP("}")
+	return d
+}
+
+func (p *Parser) matchExpr(pos ast.Pos) ast.Expr {
+	m := &ast.Match{ExprBase: ast.ExprBase{Pos: pos}}
+	m.Scrut = p.expr()
+	p.expectP("{")
+	p.skipSemis()
+	for !p.isP("}") {
+		arm := ast.Arm{Pos: p.pos(), Pat: p.pattern()}
+		p.expectP("=>")
+		arm.Body = p.expr()
+		m.Arms = append(m.Arms, arm)
+		p.skipSemis()
+	}
+	p.expectP("}")
+	if len(m.Arms) == 0 {
+		p.fail(pos, "match needs at least one arm")
+	}
+	return m
+}
+
+func (p *Parser) pattern() ast.Pattern {
+	t := p.tok()
+	switch t.Kind {
+	case lexer.Punct:
+		if t.Text == "_" {
+			p.next()
+			return &ast.PWild{Pos: t.Pos}
+		}
+	case lexer.Int, lexer.String:
+		return &ast.PLit{Pos: t.Pos, X: p.primary()}
+	case lexer.Keyword:
+		if t.Text == "true" || t.Text == "false" {
+			return &ast.PLit{Pos: t.Pos, X: p.primary()}
+		}
+	case lexer.Ident:
+		p.next()
+		if p.isP("(") {
+			p.next()
+			c := &ast.PCtor{Pos: t.Pos, Name: t.Text}
+			for !p.isP(")") {
+				c.Args = append(c.Args, p.pattern())
+				if !p.acceptP(",") {
+					break
+				}
+			}
+			p.expectP(")")
+			return c
+		}
+		if isUpper(t.Text) {
+			return &ast.PCtor{Pos: t.Pos, Name: t.Text}
+		}
+		return &ast.PVar{Pos: t.Pos, Name: t.Text}
+	}
+	p.fail(t.Pos, "expected pattern, found %s", t)
+	return nil
+}
+
+func isUpper(s string) bool { return s != "" && s[0] >= 'A' && s[0] <= 'Z' }
+
+var binPrec = map[string]int{
+	"||": 1, "&&": 2,
+	"==": 3, "!=": 3, "<": 3, "<=": 3, ">": 3, ">=": 3,
+	"+": 4, "-": 4, "*": 5, "/": 5,
+}
+
+func (p *Parser) binary(minPrec int) ast.Expr {
+	left := p.unary()
+	for {
+		t := p.tok()
+		prec, ok := binPrec[t.Text]
+		if t.Kind != lexer.Punct || !ok || prec <= minPrec {
+			return left
+		}
+		p.next()
+		right := p.binary(prec)
+		left = &ast.Binary{ExprBase: ast.ExprBase{Pos: t.Pos}, Op: t.Text, L: left, R: right}
+	}
+}
+
+func (p *Parser) unary() ast.Expr {
+	t := p.tok()
+	if t.Kind == lexer.Punct && (t.Text == "-" || t.Text == "!") {
+		p.next()
+		return &ast.Unary{ExprBase: ast.ExprBase{Pos: t.Pos}, Op: t.Text, X: p.unary()}
+	}
+	return p.postfix()
+}
+
+func (p *Parser) postfix() ast.Expr {
+	e := p.primary()
+	for p.isP("(") {
+		pos := p.next().Pos
+		c := &ast.Call{ExprBase: ast.ExprBase{Pos: pos}, Fn: e}
+		for !p.isP(")") {
+			c.Args = append(c.Args, p.expr())
+			if !p.acceptP(",") {
+				break
+			}
+		}
+		p.expectP(")")
+		e = c
+	}
+	return e
+}
+
+func (p *Parser) primary() ast.Expr {
+	t := p.tok()
+	base := ast.ExprBase{Pos: t.Pos}
+	switch t.Kind {
+	case lexer.Ident:
+		p.next()
+		return &ast.Ident{ExprBase: base, Name: t.Text}
+	case lexer.Int:
+		p.next()
+		v, err := strconv.ParseInt(t.Text, 10, 64)
+		if err != nil {
+			p.fail(t.Pos, "bad integer literal %s", t.Text)
+		}
+		return &ast.IntLit{ExprBase: base, Value: v}
+	case lexer.String:
+		p.next()
+		return &ast.StringLit{ExprBase: base, Value: t.Text}
+	case lexer.Keyword:
+		if t.Text == "true" || t.Text == "false" {
+			p.next()
+			return &ast.BoolLit{ExprBase: base, Value: t.Text == "true"}
+		}
+	case lexer.Punct:
+		if t.Text == "(" {
+			p.next()
+			e := p.expr()
+			p.expectP(")")
+			return e
+		}
+		if t.Text == "{" {
+			return p.blockExpr()
+		}
+	}
+	p.fail(t.Pos, "expected expression, found %s", t)
+	return nil
+}
