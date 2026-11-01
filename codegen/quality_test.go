@@ -167,6 +167,104 @@ func main() IO[Unit] {
 	}
 }
 
+func TestLargeResultMatchWithManyCallers(t *testing.T) {
+	// A result-position match must remain practical to compile with Go's
+	// default inliner, even when every constructor has its own caller.
+	const count = 952
+	var source strings.Builder
+	source.WriteString("package main\ntype Configuration = ")
+	for i := range count {
+		if i != 0 {
+			source.WriteString(" | ")
+		}
+		fmt.Fprintf(&source, "Value%d(Int)", i)
+	}
+	source.WriteString("\nfunc lookup(key (String,String,String)) Option[Configuration] { match key {\n")
+	for i := range count {
+		fmt.Fprintf(&source, "(\"group\",\"version\",\"kind%d\") => Some(Value%d(%d))\n", i, i, i)
+	}
+	source.WriteString("_ => None\n} }\n")
+	for i := range count {
+		fmt.Fprintf(&source, "func caller%d() Int { match lookup((\"group\",\"version\",\"kind%d\")) { Some(Value%d(n)) => n; _ => -1 } }\n", i, i, i)
+	}
+	var batches []string
+	for start := 0; start < count; start += 32 {
+		name := fmt.Sprintf("batch%d", start)
+		batches = append(batches, name+"()")
+		fmt.Fprintf(&source, "func %s() Int { ", name)
+		for i := start; i < start+32 && i < count; i++ {
+			if i != start {
+				source.WriteString(" + ")
+			}
+			fmt.Fprintf(&source, "caller%d()", i)
+		}
+		source.WriteString(" }\n")
+	}
+	fmt.Fprintf(&source, "func main() IO[Unit] { println(show(%s)) }\n", strings.Join(batches, " + "))
+	generated := qualityProgram(t, "large-result-match.gfx", source.String())
+	output, err := runQualityGo(t, generated, false)
+	want := fmt.Sprintf("%d\n", count*(count-1)/2)
+	if err != nil || output != want {
+		t.Fatalf("large result match: %v\nwant %q, got %q", err, want, output)
+	}
+}
+
+func TestResultMatchEvaluationScopesAndReturns(t *testing.T) {
+	source := qualityProgram(t, "result-match.gfx", `package main
+type Value = Number(Int) | Text(String)
+func evaluated(next func() Value) Int {
+  match next() { Number(n) if n < 0 => -1; Number(n) => n; Text(_) => -2 }
+}
+func guarded(value Value, n Int) Int {
+  match value {
+    Number(n) if n < 0 => n
+    Number(n) if n == 7 => n + 1
+    Number(n) => n + 2
+    Text(_) => n
+  }
+}
+func erased[A](value Option[A], fallback A) A {
+  match value { Some(n) => n; None => fallback }
+}
+func selected(value Value) Value {
+  match value { Number(n) => Number(n + 1); Text(n) => Text(n) }
+}
+func closure(value Value) func(Unit) Int {
+  match value {
+    Number(n) => func(_) => n
+    Text(_) => func(_) => -1
+  }
+}
+func expression(value Value) Int {
+  10 + (match value { Number(n) => n; Text(_) => 0 })
+}
+func main() IO[Unit] {
+  let returned = match selected(Number(4)) { Number(n) => n; Text(_) => -1 }
+  let textValue = Text("x")
+  let fallback = erased(None,"fallback")
+  println("${guarded(Number(-3),99)} ${guarded(Number(7),99)} ${guarded(Number(2),99)} ${guarded(textValue,99)} ${erased(Some(4),0)} ${fallback} ${returned} ${closure(Number(9))(unit())} ${expression(Number(5))}")
+}
+`)
+	// The Go callback makes evaluation count observable without adding an
+	// impure primitive to the source language.
+	source = append(source, []byte(`
+func init() {
+	calls := 0
+	got := evaluated_(func() any {
+		calls++
+		return &Value_Number{F0: int64(7)}
+	})
+	if any(got).(int64) != 7 || calls != 1 {
+		panic("result match must evaluate its scrutinee exactly once")
+	}
+}
+`)...)
+	output, err := runQualityGo(t, source, false)
+	if err != nil || output != "-3 8 4 99 4 fallback 5 9 15\n" {
+		t.Fatalf("result match semantics: %v\n%s", err, output)
+	}
+}
+
 func TestSourceDirectivesAndFormatting(t *testing.T) {
 	source := qualityProgram(t, "positions.gfx", `package main
 func choose(n Int) Int {

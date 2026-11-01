@@ -996,6 +996,12 @@ and deterministic collision suffixes. Names/dictionaries are module-prefixed.
 `codegen.Generate(*types.Program, string) (map[string][]byte, error)` is the public
 generator. The module loader feeds `types.Check([]*ast.Module)`, with entry last.
 
+Result-position matches emit their branches directly into the enclosing Go
+function, including nonrecursive functions. This keeps large match bodies visible
+to Go's inlining cost model rather than hiding them inside a returned immediately
+invoked closure. Expression-position matches still use a value-producing closure.
+Both forms evaluate the scrutinee once and retain arm order, guards and bindings.
+
 The deterministic `bench.CompileSource(N)` workload contains N data types deriving
 Eq/Ord/Debug, N polymorphic functions constrained by Eq + Debug and N match
 expressions (5,203 source lines at N=400). `BenchmarkCompile` measures in-process
