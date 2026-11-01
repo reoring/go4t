@@ -8,12 +8,13 @@ import "std/list"
 import "std/string"
 
 type Health = Health{ok: Bool} deriving json.Encode
+
 type Sum = Sum{sum: Int} deriving json.Encode, json.Decode
 
 func number(query List[(String, String)], name String) Result[String, Int] {
   match list.lookup(name, query) {
     None => Err("missing query parameter: " + name)
-    Some(text) => match string.parseInt(text) {
+    | Some(text) => match string.parseInt(text) {
       None => Err("invalid integer: " + name)
       Some(n) => Ok(n)
     }
@@ -47,7 +48,10 @@ func ready(url String) IO[Unit] {
     result <- io.tryIO(http.get(url + "/health"))
     match result {
       Ok(_) => ioPure(unit())
-      Err(io.Network(_)) => do { io.sleep(10); ready(url) }
+      | Err(io.Network(_)) => do {
+        io.sleep(10)
+        ready(url)
+      }
       Err(e) => io.ioRaise(e)
     }
   }
@@ -73,12 +77,18 @@ func main() IO[Unit] {
     argv <- io.args()
     let port = match argv {
       [] => 8080
-      [text, .._] => match string.parseInt(text) { Some(n) => n; None => 8080 }
+      | [text, ..] => match string.parseInt(text) {
+        Some(n) => n
+        None => 8080
+      }
     }
     let url = "http://127.0.0.1:" + show(port)
     server <- conc.fork(http.serve(port, handle))
     result <- io.tryIO(fetchSum(url))
     conc.cancel(server)
-    match result { Ok(_) => ioPure(unit()); Err(e) => io.ioRaise(e) }
+    match result {
+      Ok(_) => ioPure(unit())
+      Err(e) => io.ioRaise(e)
+    }
   }
 }

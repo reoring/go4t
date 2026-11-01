@@ -66,7 +66,6 @@ func amountOf(o Order) Int {
 }
 
 // ---- 効果は IO に隔離。HTTP は std/http ----
-
 func notify(total Int) IO[Unit] {
   do {
     response <- http.get("https://example.com")

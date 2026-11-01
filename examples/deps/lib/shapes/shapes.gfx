@@ -1,3 +1,5 @@
 package shapes
 
-func area(width Int, height Int) Int { width * height }
+func area(width Int, height Int) Int {
+  width * height
+}

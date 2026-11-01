@@ -3,11 +3,25 @@ package http
 import "std/prelude"
 import "std/json"
 
-type Request = Request{method: String, url: String, path: String, query: List[(String, String)], headers: List[(String, String)], body: String}
-type Response = Response{status: Int, headers: List[(String, String)], body: String}
+type Request = Request{
+  method: String,
+  url: String,
+  path: String,
+  query: List[(String, String)],
+  headers: List[(String, String)],
+  body: String
+}
+
+type Response = Response{
+  status: Int,
+  headers: List[(String, String)],
+  body: String
+}
 
 extern func _request(method String, url String, path String, query List[(String, String)], headers List[(String, String)], body String, millis Int) IO[(Int, List[(String, String)], String)] = "gofx/rt".HTTPRequest
+
 extern func _header(headers List[(String, String)], name String) Option[String] = "gofx/rt".HTTPHeader
+
 extern func _serve(port Int, handler func(String, String, String, List[(String, String)], List[(String, String)], String) IO[(Int, List[(String, String)], String)]) IO[Unit] = "gofx/rt".HTTPServe
 
 func request(r Request) IO[Response] {
@@ -17,7 +31,9 @@ func request(r Request) IO[Response] {
 func requestWithTimeout(r Request, millis Int) IO[Response] {
   do {
     result <- _request(r.method, r.url, r.path, r.query, r.headers, r.body, millis)
-    match result { (status, headers, body) => ioPure(Response(status, headers, body)) }
+    match result {
+      (status, headers, body) => ioPure(Response(status, headers, body))
+    }
   }
 }
 
