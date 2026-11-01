@@ -37,8 +37,8 @@ import prom "prom"
 func main() IO[Unit] { println("bound") }
 `)
 	out, stderr, status := toolsCommand(t, dir, "", "run", "main.gfx")
-	warning := filepath.Join(dir, "sql", "bindings.gfx") + ":21:1: warning: shadows prelude name Result\ntype Result = ResultHandle\n^\n"
-	if out != "bound\n" || stderr != warning || status != 0 {
+	// sql.Result binds as ResultGo, so no prelude-shadow warning is printed.
+	if out != "bound\n" || stderr != "" || status != 0 {
 		t.Fatalf("run cached bindings: stdout=%q stderr=%q status=%d", out, stderr, status)
 	}
 }

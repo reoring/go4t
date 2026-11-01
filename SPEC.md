@@ -1297,8 +1297,12 @@ binding output and load-context selection are unchanged.
 
 Exported methods of exported named types include value and pointer receivers
 (and promoted methods), once each; aliases do not introduce additional receiver
-types. The first letter of `<Type><Method>` is lower-cased, or `--prefix` is
-prepended without changing the Go spelling. Each receiver uses its record/value
+types. Without `--prefix`, the receiver type name is lower-cased as a word
+(`URL.Hostname` → `urlHostname`, `DB.ExecContext` → `dbExecContext`,
+`HTTPClient.Do` → `httpClientDo`); with `--prefix` the Go spelling is kept after
+the prefix. A Go type whose name is owned by the implicit prelude (`Result`,
+`Option`, `List`, …) binds with a `Go` suffix (`sql.Result` → `ResultGo`) so
+generated bindings never shadow prelude names. Each receiver uses its record/value
 mirror or handle, and each method adds
 `extern func <type><Method>(recv <Type>, ...) ... = "<shim import path>".<Type>_<Method>`.
 Pointer receivers on records operate on a fresh copy, without mutating the

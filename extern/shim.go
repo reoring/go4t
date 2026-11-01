@@ -379,7 +379,7 @@ func BindWithShim(pkg *Package, options BindOptions, shimPath, shimPackage strin
 		emit(f.Name, f.Name, shimName, callee, f.Signature, nil)
 	}
 	for _, m := range pkg.Methods {
-		emit(receiverPrefix(m.TypeName)+m.Name, m.TypeName+"."+m.Name, m.TypeName+"_"+m.Name, "receiver."+m.Name, m.Signature, m.Receiver)
+		emit(methodBindingName(m.TypeName, m.Name, options.Prefix), m.TypeName+"."+m.Name, m.TypeName+"_"+m.Name, "receiver."+m.Name, m.Signature, m.Receiver)
 	}
 	name := options.Package
 	if name == "" {
@@ -413,6 +413,15 @@ func BindWithShim(pkg *Package, options BindOptions, shimPath, shimPackage strin
 		return "", nil, fmt.Errorf("format binding shim: %w", err)
 	}
 	return source, formatted, nil
+}
+
+// methodBindingName keeps the Go spelling after an explicit prefix; without one the
+// receiver type is lower-cased so DB.ExecContext binds as dbExecContext.
+func methodBindingName(typeName, method, prefix string) string {
+	if prefix != "" {
+		return typeName + method
+	}
+	return receiverPrefix(typeName) + method
 }
 
 // receiverPrefix lower-cases a receiver type name for binding names: DB.ExecContext

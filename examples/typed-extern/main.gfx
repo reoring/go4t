@@ -8,7 +8,7 @@ func main() IO[Unit] {
     println(strRepeat("na", 3))
     println(show(strFields("typed externs   keep lists")))
     url <- parseURL("https://gofx.example:8443/guide")
-    println(uRLHostname(url))
-    println(uRLString(url))
+    println(urlHostname(url))
+    println(urlString(url))
   }
 }

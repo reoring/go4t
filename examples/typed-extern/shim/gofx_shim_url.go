@@ -2,158 +2,471 @@
 package shim
 
 import (
-	gofmt "fmt"
-	go1 "net/url"
+	context "context"
+	go3 "errors"
+	fmt "fmt"
+	rt "gofx/rt"
+	go2 "net/url"
 )
 
-func Error_Error(recv any) string {
-	receiver, ok := recv.(*go1.Error)
-	if !ok {
-		panic(gofmt.Sprintf("gofx shim: Error_Error: receiver is <%T>", recv))
-	}
-	return receiver.Error()
+func gofxMirror0To(v any, ctx context.Context) string {
+	return string(v.(string))
 }
-
-func Error_Temporary(recv any) bool {
-	receiver, ok := recv.(*go1.Error)
-	if !ok {
-		panic(gofmt.Sprintf("gofx shim: Error_Temporary: receiver is <%T>", recv))
-	}
-	return receiver.Temporary()
+func gofxMirror0From(v string) any {
+	return string(v)
 }
-
-func Error_Timeout(recv any) bool {
-	receiver, ok := recv.(*go1.Error)
-	if !ok {
-		panic(gofmt.Sprintf("gofx shim: Error_Timeout: receiver is <%T>", recv))
+func gofxMirror1To(v any, ctx context.Context) []string {
+	var result []string
+	for {
+		x, rest, ok := rt.Shapes.Uncons(v)
+		if !ok {
+			return result
+		}
+		result = append(result, gofxMirror0To(x, ctx))
+		v = rest
 	}
-	return receiver.Timeout()
 }
-
-func EscapeError_Error(recv any) string {
-	receiver, ok := recv.(go1.EscapeError)
-	if !ok {
-		panic(gofmt.Sprintf("gofx shim: EscapeError_Error: receiver is <%T>", recv))
+func gofxMirror1From(v []string) any {
+	result := rt.Shapes.Nil()
+	for i := len(v) - 1; i >= 0; i-- {
+		result = rt.Shapes.Cons(gofxMirror0From(v[i]), result)
 	}
-	return receiver.Error()
+	return result
 }
-
-func InvalidHostError_Error(recv any) string {
-	receiver, ok := recv.(go1.InvalidHostError)
-	if !ok {
-		panic(gofmt.Sprintf("gofx shim: InvalidHostError_Error: receiver is <%T>", recv))
-	}
-	return receiver.Error()
+func JoinPath(p0 any, p1 any) any {
+	return rt.IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		value, err := go2.JoinPath(gofxMirror0To(p0, ctx), gofxMirror1To(p1, ctx)...)
+		if err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		return gofxMirror0From(value), nil
+	})
 }
-
-func URL_EscapedFragment(recv any) string {
-	receiver, ok := recv.(*go1.URL)
-	if !ok {
-		panic(gofmt.Sprintf("gofx shim: URL_EscapedFragment: receiver is <%T>", recv))
-	}
-	return receiver.EscapedFragment()
+func gofxMirror2To(v any, ctx context.Context) *go2.URL {
+	return v.(*go2.URL)
 }
-
-func URL_EscapedPath(recv any) string {
-	receiver, ok := recv.(*go1.URL)
-	if !ok {
-		panic(gofmt.Sprintf("gofx shim: URL_EscapedPath: receiver is <%T>", recv))
-	}
-	return receiver.EscapedPath()
+func gofxMirror2From(v *go2.URL) any {
+	return v
 }
-
-func URL_Hostname(recv any) string {
-	receiver, ok := recv.(*go1.URL)
-	if !ok {
-		panic(gofmt.Sprintf("gofx shim: URL_Hostname: receiver is <%T>", recv))
-	}
-	return receiver.Hostname()
+func Parse(p0 any) any {
+	return rt.IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		value, err := go2.Parse(gofxMirror0To(p0, ctx))
+		if err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		return gofxMirror2From(value), nil
+	})
 }
-
-func URL_IsAbs(recv any) bool {
-	receiver, ok := recv.(*go1.URL)
-	if !ok {
-		panic(gofmt.Sprintf("gofx shim: URL_IsAbs: receiver is <%T>", recv))
-	}
-	return receiver.IsAbs()
+func gofxMirror3To(v any, ctx context.Context) go2.Values {
+	result := make(go2.Values)
+	rt.ForeignMapEach(v, func(k, x any) { result[gofxMirror0To(k, ctx)] = gofxMirror1To(x, ctx) })
+	return result
 }
-
-func URL_Port(recv any) string {
-	receiver, ok := recv.(*go1.URL)
-	if !ok {
-		panic(gofmt.Sprintf("gofx shim: URL_Port: receiver is <%T>", recv))
+func gofxMirror3From(v go2.Values) any {
+	entries := make([][2]any, 0, len(v))
+	for k, x := range v {
+		entries = append(entries, [2]any{gofxMirror0From(k), gofxMirror1From(x)})
 	}
-	return receiver.Port()
+	return rt.ForeignMap(entries)
 }
-
-func URL_Redacted(recv any) string {
-	receiver, ok := recv.(*go1.URL)
-	if !ok {
-		panic(gofmt.Sprintf("gofx shim: URL_Redacted: receiver is <%T>", recv))
-	}
-	return receiver.Redacted()
+func ParseQuery(p0 any) any {
+	return rt.IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		value, err := go2.ParseQuery(gofxMirror0To(p0, ctx))
+		if err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		return gofxMirror3From(value), nil
+	})
 }
-
-func URL_RequestURI(recv any) string {
-	receiver, ok := recv.(*go1.URL)
-	if !ok {
-		panic(gofmt.Sprintf("gofx shim: URL_RequestURI: receiver is <%T>", recv))
-	}
-	return receiver.RequestURI()
+func ParseRequestURI(p0 any) any {
+	return rt.IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		value, err := go2.ParseRequestURI(gofxMirror0To(p0, ctx))
+		if err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		return gofxMirror2From(value), nil
+	})
 }
-
-func URL_String(recv any) string {
-	receiver, ok := recv.(*go1.URL)
-	if !ok {
-		panic(gofmt.Sprintf("gofx shim: URL_String: receiver is <%T>", recv))
-	}
-	return receiver.String()
+func gofxMirror4To(v any, ctx context.Context) *go2.Userinfo {
+	return v.(*go2.Userinfo)
 }
-
-func Userinfo_Password(recv any) (string, bool) {
-	receiver, ok := recv.(*go1.Userinfo)
-	if !ok {
-		panic(gofmt.Sprintf("gofx shim: Userinfo_Password: receiver is <%T>", recv))
-	}
-	return receiver.Password()
+func gofxMirror4From(v *go2.Userinfo) any {
+	return v
 }
-
-func Userinfo_String(recv any) string {
-	receiver, ok := recv.(*go1.Userinfo)
-	if !ok {
-		panic(gofmt.Sprintf("gofx shim: Userinfo_String: receiver is <%T>", recv))
-	}
-	return receiver.String()
+func User(p0 any) any {
+	ctx := context.Background()
+	_ = ctx
+	value := go2.User(gofxMirror0To(p0, ctx))
+	return gofxMirror4From(value)
 }
-
-func Userinfo_Username(recv any) string {
-	receiver, ok := recv.(*go1.Userinfo)
-	if !ok {
-		panic(gofmt.Sprintf("gofx shim: Userinfo_Username: receiver is <%T>", recv))
-	}
-	return receiver.Username()
+func UserPassword(p0 any, p1 any) any {
+	ctx := context.Background()
+	_ = ctx
+	value := go2.UserPassword(gofxMirror0To(p0, ctx), gofxMirror0To(p1, ctx))
+	return gofxMirror4From(value)
 }
-
-func Values_Encode(recv any) string {
-	receiver, ok := recv.(go1.Values)
+func gofxMirror7To(v any, ctx context.Context) error {
+	x, ok := rt.OptionValue(v)
 	if !ok {
-		panic(gofmt.Sprintf("gofx shim: Values_Encode: receiver is <%T>", recv))
+		return nil
 	}
-	return receiver.Encode()
+	return go3.New(x.(string))
 }
-
-func Values_Get(recv any, p0 string) string {
-	receiver, ok := recv.(go1.Values)
-	if !ok {
-		panic(gofmt.Sprintf("gofx shim: Values_Get: receiver is <%T>", recv))
+func gofxMirror7From(v error) any {
+	if v == nil {
+		return rt.NoneOf()
 	}
-	return receiver.Get(p0)
+	return rt.SomeOf(v.Error())
 }
-
-func Values_Has(recv any, p0 string) bool {
-	receiver, ok := recv.(go1.Values)
+func gofxMirror6To(v any, ctx context.Context) go2.Error {
+	var result go2.Error
+	result.Op = gofxMirror0To(rt.ForeignRecordField("gofx/examples/typed-extern/shim.Error", v, 0), ctx)
+	result.URL = gofxMirror0To(rt.ForeignRecordField("gofx/examples/typed-extern/shim.Error", v, 1), ctx)
+	result.Err = gofxMirror7To(rt.ForeignRecordField("gofx/examples/typed-extern/shim.Error", v, 2), ctx)
+	return result
+}
+func gofxMirror6From(v go2.Error) any {
+	fields := make([]any, 3)
+	fields[0] = gofxMirror0From(v.Op)
+	fields[1] = gofxMirror0From(v.URL)
+	fields[2] = gofxMirror7From(v.Err)
+	return rt.ForeignRecord("gofx/examples/typed-extern/shim.Error", fields)
+}
+func gofxMirror5To(v any, ctx context.Context) *go2.Error {
+	result := gofxMirror6To(v, ctx)
+	return &result
+}
+func gofxMirror5From(v *go2.Error) any {
+	return gofxMirror6From(*v)
+}
+func Error_Error(recv any) any {
+	ctx := context.Background()
+	_ = ctx
+	receiver := gofxMirror5To(recv, ctx)
+	value := receiver.Error()
+	return gofxMirror0From(value)
+}
+func gofxMirror8To(v any, ctx context.Context) bool {
+	return bool(v.(bool))
+}
+func gofxMirror8From(v bool) any {
+	return bool(v)
+}
+func Error_Temporary(recv any) any {
+	ctx := context.Background()
+	_ = ctx
+	receiver := gofxMirror5To(recv, ctx)
+	value := receiver.Temporary()
+	return gofxMirror8From(value)
+}
+func Error_Timeout(recv any) any {
+	ctx := context.Background()
+	_ = ctx
+	receiver := gofxMirror5To(recv, ctx)
+	value := receiver.Timeout()
+	return gofxMirror8From(value)
+}
+func Error_Unwrap(recv any) any {
+	return rt.IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		receiver := gofxMirror5To(recv, ctx)
+		if err := receiver.Unwrap(); err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		return rt.Unit{}, nil
+	})
+}
+func gofxMirror9To(v any, ctx context.Context) go2.EscapeError {
+	return go2.EscapeError(v.(string))
+}
+func gofxMirror9From(v go2.EscapeError) any {
+	return string(v)
+}
+func EscapeError_Error(recv any) any {
+	ctx := context.Background()
+	_ = ctx
+	receiver := gofxMirror9To(recv, ctx)
+	value := receiver.Error()
+	return gofxMirror0From(value)
+}
+func gofxMirror10To(v any, ctx context.Context) go2.InvalidHostError {
+	return go2.InvalidHostError(v.(string))
+}
+func gofxMirror10From(v go2.InvalidHostError) any {
+	return string(v)
+}
+func InvalidHostError_Error(recv any) any {
+	ctx := context.Background()
+	_ = ctx
+	receiver := gofxMirror10To(recv, ctx)
+	value := receiver.Error()
+	return gofxMirror0From(value)
+}
+func gofxMirror11To(v any, ctx context.Context) []byte {
+	return []byte(v.(string))
+}
+func gofxMirror11From(v []byte) any {
+	return string(v)
+}
+func URL_AppendBinary(recv any, p0 any) any {
+	return rt.IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		receiver, ok := recv.(*go2.URL)
+		if !ok {
+			panic(fmt.Sprintf("gofx shim: URL_AppendBinary: receiver is <%T>", recv))
+		}
+		value, err := receiver.AppendBinary(gofxMirror11To(p0, ctx))
+		if err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		return gofxMirror11From(value), nil
+	})
+}
+func URL_EscapedFragment(recv any) any {
+	ctx := context.Background()
+	_ = ctx
+	receiver, ok := recv.(*go2.URL)
 	if !ok {
-		panic(gofmt.Sprintf("gofx shim: Values_Has: receiver is <%T>", recv))
+		panic(fmt.Sprintf("gofx shim: URL_EscapedFragment: receiver is <%T>", recv))
 	}
-	return receiver.Has(p0)
+	value := receiver.EscapedFragment()
+	return gofxMirror0From(value)
+}
+func URL_EscapedPath(recv any) any {
+	ctx := context.Background()
+	_ = ctx
+	receiver, ok := recv.(*go2.URL)
+	if !ok {
+		panic(fmt.Sprintf("gofx shim: URL_EscapedPath: receiver is <%T>", recv))
+	}
+	value := receiver.EscapedPath()
+	return gofxMirror0From(value)
+}
+func URL_Hostname(recv any) any {
+	ctx := context.Background()
+	_ = ctx
+	receiver, ok := recv.(*go2.URL)
+	if !ok {
+		panic(fmt.Sprintf("gofx shim: URL_Hostname: receiver is <%T>", recv))
+	}
+	value := receiver.Hostname()
+	return gofxMirror0From(value)
+}
+func URL_IsAbs(recv any) any {
+	ctx := context.Background()
+	_ = ctx
+	receiver, ok := recv.(*go2.URL)
+	if !ok {
+		panic(fmt.Sprintf("gofx shim: URL_IsAbs: receiver is <%T>", recv))
+	}
+	value := receiver.IsAbs()
+	return gofxMirror8From(value)
+}
+func URL_JoinPath(recv any, p0 any) any {
+	ctx := context.Background()
+	_ = ctx
+	receiver, ok := recv.(*go2.URL)
+	if !ok {
+		panic(fmt.Sprintf("gofx shim: URL_JoinPath: receiver is <%T>", recv))
+	}
+	value := receiver.JoinPath(gofxMirror1To(p0, ctx)...)
+	return gofxMirror2From(value)
+}
+func URL_MarshalBinary(recv any) any {
+	return rt.IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		receiver, ok := recv.(*go2.URL)
+		if !ok {
+			panic(fmt.Sprintf("gofx shim: URL_MarshalBinary: receiver is <%T>", recv))
+		}
+		value, err := receiver.MarshalBinary()
+		if err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		return gofxMirror11From(value), nil
+	})
+}
+func URL_Parse(recv any, p0 any) any {
+	return rt.IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		receiver, ok := recv.(*go2.URL)
+		if !ok {
+			panic(fmt.Sprintf("gofx shim: URL_Parse: receiver is <%T>", recv))
+		}
+		value, err := receiver.Parse(gofxMirror0To(p0, ctx))
+		if err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		return gofxMirror2From(value), nil
+	})
+}
+func URL_Port(recv any) any {
+	ctx := context.Background()
+	_ = ctx
+	receiver, ok := recv.(*go2.URL)
+	if !ok {
+		panic(fmt.Sprintf("gofx shim: URL_Port: receiver is <%T>", recv))
+	}
+	value := receiver.Port()
+	return gofxMirror0From(value)
+}
+func URL_Query(recv any) any {
+	ctx := context.Background()
+	_ = ctx
+	receiver, ok := recv.(*go2.URL)
+	if !ok {
+		panic(fmt.Sprintf("gofx shim: URL_Query: receiver is <%T>", recv))
+	}
+	value := receiver.Query()
+	return gofxMirror3From(value)
+}
+func URL_Redacted(recv any) any {
+	ctx := context.Background()
+	_ = ctx
+	receiver, ok := recv.(*go2.URL)
+	if !ok {
+		panic(fmt.Sprintf("gofx shim: URL_Redacted: receiver is <%T>", recv))
+	}
+	value := receiver.Redacted()
+	return gofxMirror0From(value)
+}
+func URL_RequestURI(recv any) any {
+	ctx := context.Background()
+	_ = ctx
+	receiver, ok := recv.(*go2.URL)
+	if !ok {
+		panic(fmt.Sprintf("gofx shim: URL_RequestURI: receiver is <%T>", recv))
+	}
+	value := receiver.RequestURI()
+	return gofxMirror0From(value)
+}
+func URL_ResolveReference(recv any, p0 any) any {
+	ctx := context.Background()
+	_ = ctx
+	receiver, ok := recv.(*go2.URL)
+	if !ok {
+		panic(fmt.Sprintf("gofx shim: URL_ResolveReference: receiver is <%T>", recv))
+	}
+	value := receiver.ResolveReference(gofxMirror2To(p0, ctx))
+	return gofxMirror2From(value)
+}
+func URL_String(recv any) any {
+	ctx := context.Background()
+	_ = ctx
+	receiver, ok := recv.(*go2.URL)
+	if !ok {
+		panic(fmt.Sprintf("gofx shim: URL_String: receiver is <%T>", recv))
+	}
+	value := receiver.String()
+	return gofxMirror0From(value)
+}
+func URL_UnmarshalBinary(recv any, p0 any) any {
+	return rt.IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		receiver, ok := recv.(*go2.URL)
+		if !ok {
+			panic(fmt.Sprintf("gofx shim: URL_UnmarshalBinary: receiver is <%T>", recv))
+		}
+		if err := receiver.UnmarshalBinary(gofxMirror11To(p0, ctx)); err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		return rt.Unit{}, nil
+	})
+}
+func Userinfo_Password(recv any) any {
+	ctx := context.Background()
+	_ = ctx
+	receiver, ok := recv.(*go2.Userinfo)
+	if !ok {
+		panic(fmt.Sprintf("gofx shim: Userinfo_Password: receiver is <%T>", recv))
+	}
+	value, present := receiver.Password()
+	if !present {
+		return rt.NoneOf()
+	}
+	return rt.SomeOf(gofxMirror0From(value))
+}
+func Userinfo_String(recv any) any {
+	ctx := context.Background()
+	_ = ctx
+	receiver, ok := recv.(*go2.Userinfo)
+	if !ok {
+		panic(fmt.Sprintf("gofx shim: Userinfo_String: receiver is <%T>", recv))
+	}
+	value := receiver.String()
+	return gofxMirror0From(value)
+}
+func Userinfo_Username(recv any) any {
+	ctx := context.Background()
+	_ = ctx
+	receiver, ok := recv.(*go2.Userinfo)
+	if !ok {
+		panic(fmt.Sprintf("gofx shim: Userinfo_Username: receiver is <%T>", recv))
+	}
+	value := receiver.Username()
+	return gofxMirror0From(value)
+}
+func Values_Add(recv any, p0 any, p1 any) any {
+	ctx := context.Background()
+	_ = ctx
+	receiver := gofxMirror3To(recv, ctx)
+	receiver.Add(gofxMirror0To(p0, ctx), gofxMirror0To(p1, ctx))
+	return rt.Unit{}
+}
+func Values_Del(recv any, p0 any) any {
+	ctx := context.Background()
+	_ = ctx
+	receiver := gofxMirror3To(recv, ctx)
+	receiver.Del(gofxMirror0To(p0, ctx))
+	return rt.Unit{}
+}
+func Values_Encode(recv any) any {
+	ctx := context.Background()
+	_ = ctx
+	receiver := gofxMirror3To(recv, ctx)
+	value := receiver.Encode()
+	return gofxMirror0From(value)
+}
+func Values_Get(recv any, p0 any) any {
+	ctx := context.Background()
+	_ = ctx
+	receiver := gofxMirror3To(recv, ctx)
+	value := receiver.Get(gofxMirror0To(p0, ctx))
+	return gofxMirror0From(value)
+}
+func Values_Has(recv any, p0 any) any {
+	ctx := context.Background()
+	_ = ctx
+	receiver := gofxMirror3To(recv, ctx)
+	value := receiver.Has(gofxMirror0To(p0, ctx))
+	return gofxMirror8From(value)
+}
+func Values_Set(recv any, p0 any, p1 any) any {
+	ctx := context.Background()
+	_ = ctx
+	receiver := gofxMirror3To(recv, ctx)
+	receiver.Set(gofxMirror0To(p0, ctx), gofxMirror0To(p1, ctx))
+	return rt.Unit{}
 }

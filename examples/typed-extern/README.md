@@ -89,8 +89,10 @@ This writes `methods.gfx` and `shim/gofx_shim_url.go`. The small hand-written
 `parseURL` extern produces `IO[URL]`. The generated `type URL = URLHandle` is
 opaque: do not construct, match, derive instances for, or `show` it. The method
 shims accept `any`, check that it contains `*url.URL`, and call the Go method.
-`uRLHostname` and `uRLString` use the normal bind naming rule: only the first
-letter is lower-cased. A `--prefix native` binding would use `nativeURLHostname`.
+`urlHostname` and `urlString` use the bind naming rule for methods: the receiver
+type is lower-cased as a word (`URL` → `url`, `DB` → `db`, `HTTPClient` →
+`httpClient`). A `--prefix native` binding keeps the Go spelling:
+`nativeURLHostname`.
 
 Compile and run all the gofx files as one program:
 
