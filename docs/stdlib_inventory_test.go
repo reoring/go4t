@@ -58,7 +58,20 @@ func TestStdlibInventory(t *testing.T) {
 		}
 		lines := strings.Split(string(source), "\n")
 		for _, declaration := range file.Decls {
-			header := strings.TrimSuffix(strings.TrimSpace(lines[declaration.GetPos().Line-1]), " {")
+			header := strings.TrimSpace(lines[declaration.GetPos().Line-1])
+			if strings.HasSuffix(header, "{") && !strings.HasSuffix(header, " {") {
+				// Formatted multi-line record: join field lines until the closing brace.
+				fields := []string{}
+				for i := declaration.GetPos().Line; i < len(lines); i++ {
+					line := strings.TrimSpace(lines[i])
+					if line == "}" {
+						break
+					}
+					fields = append(fields, strings.TrimSuffix(line, ","))
+				}
+				header += strings.Join(fields, ", ") + "}"
+			}
+			header = strings.TrimSuffix(header, " {")
 			// Markdown escapes sum-constructor pipes, but signatures must
 			// otherwise match source (including extern targets and context).
 			header = strings.ReplaceAll(header, "|", "\\|")
