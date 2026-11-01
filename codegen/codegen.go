@@ -33,7 +33,8 @@ import (
 )
 
 // Generate emits the prelude and user declarations together. An empty goPackage
-// selects main. The input must carry the fully zonked annotations from Check.
+// selects main; other package names expose Main() rt.IO for embedding instead of
+// a Go main function. The input must carry the fully zonked annotations from Check.
 // Extern functions forward any arguments and results without representation casts.
 func Generate(prog *types.Program, goPackage string) (source []byte, err error) {
 	if prog == nil {
@@ -251,7 +252,11 @@ func Generate(prog *types.Program, goPackage string) (source []byte, err error) 
 	}
 	g.fileName = g.sources[prog.Main.Decl]
 	out.WriteString(g.line(prog.Main.Decl.Pos))
-	fmt.Fprintf(&out, "func main() { rt.RunMain(%s()) }\n", mangle(prog.Main.Name))
+	if goPackage == "main" {
+		fmt.Fprintf(&out, "func main() { rt.RunMain(%s()) }\n", mangle(prog.Main.Name))
+	} else {
+		fmt.Fprintf(&out, "func Main() rt.IO { return %s().(rt.IO) }\n", mangle(prog.Main.Name))
+	}
 	arities := make([]int, 0, len(g.tuples))
 	for arity := range g.tuples {
 		arities = append(arities, arity)
