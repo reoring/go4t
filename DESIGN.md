@@ -361,3 +361,49 @@ to `else { ... }` was unreadable. `$` is unused elsewhere in the grammar.
 The leading `|` before the first arm remains legal but the examples and prelude write
 one-line matches without it (`match p { (A(x), A(y)) => x == y }`) and multi-line matches
 with one arm per line and no `|` unless arms span several lines.
+
+## Pass 7: layout rule, State monad, vet-clean codegen
+
+### Layout rule (single definition)
+A newline becomes `;` iff ALL of:
+1. the previous token is one of: identifier, Int, String, interpolated string, `true`,
+   `false`, `)`, `]`, `}`, `_`  (Go's rule), and
+2. the innermost unclosed delimiter is `{` or there is none (`(`/`[` suppress), and
+3. the next token (skipping whitespace, blank lines and `//` comments) is NOT one of the
+   *leading continuation tokens*: `else`, `|` (not `||`), `.` (field access), `)`, `]`,
+   `given`, `=>`, `<-`, or a binary operator (`+ - * / == != < <= > >= && ||`).
+
+Rule 3 lists tokens that can never start a statement, so a line beginning with one of them
+is always the continuation of the previous expression. `-` is included: a statement never
+starts with unary minus in practice (write `0 - x` or parenthesise if you must).
+All three checks live in `lexer.needSemi`/`lexer.continuationAhead`; no other place
+decides insertion. `lexer_test.go` carries the full matrix.
+
+### State monad
+Prelude adds:
+```
+type State[S, A] = State(func(S) (A, S))
+instance Functor[State[S]] { fmap(st, f) { State(func(s) => match runState(st, s) { (a, s2) => (f(a), s2) }) } }
+instance Monad[State[S]] {
+  pure(a) { State(func(s) => (a, s)) }
+  bind(st, f) { State(func(s) => match runState(st, s) { (a, s2) => runState(f(a), s2) }) }
+}
+func runState[S, A](st State[S, A], s S) (A, S)
+func evalState[S, A](st State[S, A], s S) A
+func execState[S, A](st State[S, A], s S) S
+func get[S]() State[S, S]
+func put[S](s S) State[S, Unit]
+func modify[S](f func(S) S) State[S, Unit]
+func forEach[M[_] Monad, A](xs List[A], f func(A) M[Unit]) M[Unit]   // sequence_ / traverse_
+func mapM[M[_] Monad, A, B](xs List[A], f func(A) M[B]) M[List[B]]
+```
+`examples/bank` rewrites `applyAll` with `State[(List[Account], Option[(Failure, Int)]), Unit]`
+via `forEach` + `modify`, output unchanged.
+
+### Vet-clean generated code
+`match` lowering ends with the last arm's code reachable and the
+`panic("non-exhaustive match")` emitted only when the checker's exhaustiveness proof does
+not already make the last arm total: emit the final arm WITHOUT a guard (plain fallthrough
+after all other arms failed) when the match is exhaustive (always, after Check); the panic
+is therefore never emitted. `go vet ./...` must pass on a tree containing every example's
+`main_gen/` directory; `cmd/gofx` test runs `go vet` on a generated example.
