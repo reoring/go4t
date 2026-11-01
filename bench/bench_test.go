@@ -51,8 +51,9 @@ var workloads = []struct{ name, output string }{
 
 func TestBudgets(t *testing.T) {
 	limits := budgets(t)
-	if len(limits) != len(workloads) {
-		t.Fatalf("budget count = %d, want %d", len(limits), len(workloads))
+	want := len(workloads) + 2*len(compileMetrics)
+	if len(limits) != want {
+		t.Fatalf("budget count = %d, want %d", len(limits), want)
 	}
 	for _, w := range workloads {
 		if limits[w.name] <= 0 {
@@ -60,6 +61,14 @@ func TestBudgets(t *testing.T) {
 		}
 		if _, err := os.Stat(w.name + ".gfx"); err != nil {
 			t.Error(err)
+		}
+	}
+	for _, workload := range []string{"scale", "std"} {
+		for _, metric := range compileMetrics {
+			key := "compile-" + workload + "-" + metric
+			if limits[key] <= 0 {
+				t.Errorf("missing positive budget for %s", key)
+			}
 		}
 	}
 }

@@ -2,5 +2,17 @@
   "sort": 3184539436,
   "map": 254533822,
   "fold": 1318928408,
-  "wc": 1429359620
+  "wc": 1429359620,
+  "compile-scale-check-ns": 102842914,
+  "compile-scale-alloc-bytes": 72529344,
+  "compile-scale-peak-heap-bytes": 22625888,
+  "compile-scale-go-bytes": 3262638,
+  "compile-scale-build-ns": 4478567522,
+  "compile-scale-error-chars": 1118,
+  "compile-std-check-ns": 24307656,
+  "compile-std-alloc-bytes": 14824992,
+  "compile-std-peak-heap-bytes": 5498448,
+  "compile-std-go-bytes": 321590,
+  "compile-std-build-ns": 582989752,
+  "compile-std-error-chars": 1114
 }
