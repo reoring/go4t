@@ -495,3 +495,13 @@ pattern binds, `if !(guard) { fall through to the next arm }` — implement by m
 arm's body conditional and continuing to the next arm's test on failure (the existing
 sequential-arm lowering supports this: arms are sequential `if`/type-switch blocks, so a
 failed guard simply falls out of the block).
+
+### Superclass context implication (pass 9 amendment to pass 3)
+The superclass instance's context need not be identical to the subclass instance's. Rule:
+for `instance Sub[T[P..]] given G1[Pi]..` the required `instance Super[T[P..]] given H1[Pj]..`
+must have the same Params shape, and each `Hk[Pj]` must be *implied* by the sub context:
+some `Gm[Pj]` with `Gm == Hk` or `Hk` on `Gm`'s superclass chain. The checker records, per
+subclass instance, how to build the superclass dictionary: `Instance.SuperArgs []DictRef`,
+one per entry of the superclass instance's Context, each a `DictParam` (naming the sub
+context param) possibly wrapped in `DictSuper`. Codegen initialises the embedded superclass
+struct field from `SuperArgs` instead of assuming identical names.

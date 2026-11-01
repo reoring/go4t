@@ -220,7 +220,13 @@ type Instance struct {
 	Fixed   []*TVar
 	Params  []*TVar
 	Context []Constraint
-	Decl    *ast.InstanceDecl
+	// SuperArgs, for an instance of a class with a superclass, gives one
+	// DictRef per Context entry of the superclass instance for the same
+	// head, expressed in terms of this instance's Context (DictParam,
+	// possibly wrapped in DictSuper). Nil when the class has no superclass
+	// or the superclass instance has an empty Context.
+	SuperArgs []DictRef
+	Decl      *ast.InstanceDecl
 }
 
 type DataType struct {
