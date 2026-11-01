@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -124,5 +125,40 @@ func GetEnv(name any) any {
 			return NoneOf(), nil
 		}
 		return SomeOf(value), nil
+	})
+}
+
+// ReadFile defers reading a whole file as a string; a missing file fails the IO.
+func ReadFile(path any) any {
+	return IO(func() (any, error) {
+		text, err := os.ReadFile(path.(string))
+		if err != nil {
+			return nil, err
+		}
+		return string(text), nil
+	})
+}
+
+// WriteFile defers writing content to path, creating parent directories.
+func WriteFile(path, content any) any {
+	return IO(func() (any, error) {
+		p := path.(string)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			return nil, err
+		}
+		if err := os.WriteFile(p, []byte(content.(string)), 0o644); err != nil {
+			return nil, err
+		}
+		return Unit{}, nil
+	})
+}
+
+// Eprintln constructs an IO that prints a string and a newline to stderr.
+func Eprintln(s any) any {
+	return IO(func() (any, error) {
+		if _, err := fmt.Fprintln(os.Stderr, s.(string)); err != nil {
+			return nil, err
+		}
+		return Unit{}, nil
 	})
 }

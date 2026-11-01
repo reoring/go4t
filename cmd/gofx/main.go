@@ -1,6 +1,8 @@
-// Command gofx checks, builds, or runs a gofx source file and its prelude.
+// Command gofx checks, builds, or runs gofx source files and their prelude.
+// Several files form one program (same package, mutually visible declarations);
+// the first file names the output directory.
 // Successful checks report non-fatal warnings to stderr before continuing.
-// Usage: gofx {check|build} FILE.gfx | gofx run FILE.gfx [-- args...].
+// Usage: gofx {check|build} FILE.gfx... | gofx run FILE.gfx... [-- args...].
 package main
 
 import (
@@ -27,26 +29,49 @@ func main() {
 }
 
 func run(args []string) error {
-	if len(args) < 2 || (args[0] != "check" && args[0] != "build" && args[0] != "run") ||
-		(len(args) > 2 && (args[0] != "run" || args[2] != "--")) {
-		return fmt.Errorf("gofx:1:1: usage: gofx {check|build} FILE.gfx | gofx run FILE.gfx [-- args...]")
+	usage := fmt.Errorf("gofx:1:1: usage: gofx {check|build} FILE.gfx... | gofx run FILE.gfx... [-- args...]")
+	if len(args) < 2 || (args[0] != "check" && args[0] != "build" && args[0] != "run") {
+		return usage
 	}
-	command, file := args[0], args[1]
-	user, err := os.ReadFile(file)
-	if err != nil {
-		return diagnostic(file, err)
+	command := args[0]
+	var inputs, progArgs []string
+	rest := args[1:]
+	for i, arg := range rest {
+		if arg == "--" {
+			if command != "run" {
+				return usage
+			}
+			progArgs = rest[i+1:]
+			break
+		}
+		inputs = append(inputs, arg)
 	}
+	if len(inputs) == 0 {
+		return usage
+	}
+	file := inputs[0]
 	preludeFile, err := parser.Parse(prelude.Source)
 	if err != nil {
 		return diagnostic("prelude.gfx", err)
 	}
 	preludeFile.Name = "prelude.gfx"
-	userFile, err := parser.Parse(string(user))
-	if err != nil {
-		return diagnostic(file, err)
+	files := []*ast.File{preludeFile}
+	for _, input := range inputs {
+		source, err := os.ReadFile(input)
+		if err != nil {
+			return diagnostic(input, err)
+		}
+		parsed, err := parser.Parse(string(source))
+		if err != nil {
+			return diagnostic(input, err)
+		}
+		parsed.Name = input
+		if parsed.Package != files[len(files)-1].Package && len(files) > 1 {
+			return fmt.Errorf("%s:1:1: package %s differs from %s", input, parsed.Package, files[1].Package)
+		}
+		files = append(files, parsed)
 	}
-	userFile.Name = file
-	program, err := types.Check([]*ast.File{preludeFile, userFile})
+	program, err := types.Check(files)
 	if err != nil {
 		return diagnostic(file, err)
 	}
@@ -100,10 +125,6 @@ func run(args []string) error {
 	build.Stdout, build.Stderr = os.Stdout, os.Stderr
 	if err := build.Run(); err != nil {
 		return diagnostic(file, fmt.Errorf("go build: %w", err))
-	}
-	var progArgs []string
-	if len(args) > 2 {
-		progArgs = args[3:]
 	}
 	process := exec.Command(bin, progArgs...)
 	process.Stdin, process.Stdout, process.Stderr = os.Stdin, os.Stdout, os.Stderr
