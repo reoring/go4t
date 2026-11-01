@@ -1,5 +1,6 @@
 // Package codegen lowers a checked gofx program to a single, formatted Go file.
-// Values use the erased any ABI; type-class constraints become Go dictionaries.
+// Checked scalar values use native Go types; erased boundaries and type classes
+// use any values and Go dictionaries.
 // Constrained instances store their context dictionaries on the method receiver;
 // functions, method-local constraints, and generalised lets use explicit params.
 // Tuple arities used in annotations, declarations, literals, or patterns receive
@@ -12,8 +13,9 @@
 // nested patterns and guarded final arms retain a defensive match panic. Lambda
 // parameters, lets and do binds use the same irrefutable pattern bindings; pattern
 // lets evaluate their initializer once and remain monomorphic. Boolean operators
-// short circuit in Go; comparisons dispatch through Eq/Ord dictionaries. Derived
-// instances use the ordinary checked instance representation and dictionary ABI.
+// short circuit in Go; non-scalar comparisons dispatch through Eq/Ord dictionaries.
+// Small constrained functions get bounded copies for concrete dictionary tuples.
+// Derived instances use the ordinary checked instance representation and dictionary ABI.
 // Programs declaring the standard List, Option and Result constructors register
 // their erased value shapes with rt during init, without exposing generated types to rt.
 package codegen
@@ -61,6 +63,9 @@ func Generate(prog *types.Program, goPackage string) (source []byte, err error) 
 		instances:  make(map[string]*types.Instance, len(prog.Instances)),
 		tuples:     make(map[int]struct{}),
 		recordPats: prog.RecordPats,
+		funcs:      prog.Funcs,
+		locals:     make(map[string]string),
+		specials:   make(map[string][]*specialization),
 	}
 	g.indexSources(prog)
 	for _, instance := range prog.Instances {
@@ -82,6 +87,7 @@ func Generate(prog *types.Program, goPackage string) (source []byte, err error) 
 		}
 	}
 	header.WriteString(")\n")
+	g.planSpecializations(prog)
 	for _, name := range sortedKeys(prog.DataTypes) {
 		d := prog.DataTypes[name]
 		fmt.Fprintf(&out, "type %s interface { is%s() }\n", d.Name, d.Name)
@@ -206,43 +212,24 @@ func Generate(prog *types.Program, goPackage string) (source []byte, err error) 
 				g.fail(method.Pos, "unknown method %s.%s", instance.Class.Name, method.Name)
 			}
 			params := g.dictParams(scheme.Constraints)
+			restore := g.localScope()
 			for _, param := range method.Params {
 				params = append(params, mangle(param)+" any")
+				g.locals[param] = "any"
 			}
 			g.dictScope = dictionaryScope{receiver: "dictself", params: scheme.Constraints, context: instance.Context}
 			out.WriteString(g.line(method.Pos))
-			fmt.Fprintf(&out, "func (dictself %s) %s(%s) any {\n%s}\n", name, exported(method.Name), strings.Join(params, ", "), g.block(method.Body))
+			fmt.Fprintf(&out, "func (dictself %s) %s(%s) any {\n%s}\n", name, exported(method.Name), strings.Join(params, ", "), g.returning("any", func() string { return g.block(method.Body) }))
+			restore()
 		}
 	}
 	for _, name := range funcNames {
-		f := prog.Funcs[name]
-		g.fileName = g.sources[f.Decl]
-		g.dictScope = dictionaryScope{params: f.Scheme.Constraints}
-		g.collectType(f.Scheme.Type)
-		params := g.dictParams(f.Scheme.Constraints)
-		var plan *tailPlan
-		var body ast.Expr
-		if f.Decl.Body != nil {
-			body = &ast.BlockExpr{Block: f.Decl.Body}
-			plan = g.planTail(f.Name, types.RefFunc, f.Decl.Params, f.Scheme.Constraints, body)
-		}
-		for i, param := range f.Decl.Params {
-			name := mangle(param.Name)
-			if plan != nil {
-				name = plan.params[i]
-			}
-			params = append(params, name+" any")
-		}
-		out.WriteString(g.line(f.Decl.Pos))
-		fmt.Fprintf(&out, "func %s(%s) any {\n", mangle(f.Name), strings.Join(params, ", "))
-		if f.Decl.Extern != nil {
-			out.WriteString(g.emitExtern(f))
-		} else if plan != nil {
-			out.WriteString(g.loopBody(plan, f.Decl.Params, body))
-		} else {
-			out.WriteString(g.block(f.Decl.Body))
-		}
-		out.WriteString("}\n")
+		out.WriteString(g.emitFunction(prog.Funcs[name], mangle(name)))
+	}
+	for _, spec := range g.specialOrder {
+		g.special, g.typeArgs = spec, spec.types
+		out.WriteString(g.emitFunction(spec.function, spec.name))
+		g.special, g.typeArgs = nil, nil
 	}
 	if prog.Main == nil {
 		return nil, fmt.Errorf("program has no main function")
@@ -284,18 +271,27 @@ func Generate(prog *types.Program, goPackage string) (source []byte, err error) 
 }
 
 type generator struct {
-	ctors       map[string]*types.Ctor
-	recordPats  map[*ast.PRecord]types.RecordPat
-	imports     map[string]string
-	externs     goextern.Loader
-	instances   map[string]*types.Instance
-	tuples      map[int]struct{}
-	dictScope   dictionaryScope
-	sources     map[ast.Decl]string
-	typeSources map[string]sourceLocation
-	fileName    string
-	next        int
-	ordering    bool
+	ctors        map[string]*types.Ctor
+	recordPats   map[*ast.PRecord]types.RecordPat
+	imports      map[string]string
+	externs      goextern.Loader
+	instances    map[string]*types.Instance
+	tuples       map[int]struct{}
+	dictScope    dictionaryScope
+	sources      map[ast.Decl]string
+	typeSources  map[string]sourceLocation
+	aliases      map[string]*ast.AliasDecl
+	fileName     string
+	next         int
+	ordering     bool
+	funcs        map[string]*types.FuncInfo
+	locals       map[string]string
+	patternTypes map[ast.Pattern]types.Type
+	returnRep    string
+	typeArgs     map[string]types.Type
+	special      *specialization
+	specials     map[string][]*specialization
+	specialOrder []*specialization
 }
 
 type dictionaryScope struct {
@@ -395,6 +391,11 @@ func (g *generator) dictName(param, class string, constraints []types.Constraint
 func (g *generator) dict(dict *types.DictRef) string {
 	if dict == nil {
 		g.fail(ast.Pos{}, "missing dictionary annotation")
+	}
+	if dict.Kind == types.DictParam && g.special != nil {
+		if concrete, ok := g.special.dicts[dictKey(dict.Param, dict.ParamClass)]; ok {
+			return g.dict(&concrete)
+		}
 	}
 	switch dict.Kind {
 	case types.DictInstance:

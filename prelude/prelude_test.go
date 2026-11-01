@@ -44,7 +44,7 @@ func TestPreludeParses(t *testing.T) {
 		"func fold", "func length", "func append", "func filter", "func reverse",
 		"func fst", "func snd", "func zip",
 		"func head", "func tail", "func take", "func drop", "func sum", "func concatMap",
-		"func elem", "func insertBy", "func sortBy", "func sort", "func maximum", "func minimum",
+		"func elem", "func sortBy", "func sort", "func maximum", "func minimum",
 	}
 	names := make(map[string]bool)
 	for _, decl := range file.Decls {

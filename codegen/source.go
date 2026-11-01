@@ -16,9 +16,13 @@ type sourceLocation struct {
 func (g *generator) indexSources(prog *types.Program) {
 	g.sources = make(map[ast.Decl]string)
 	g.typeSources = make(map[string]sourceLocation)
+	g.aliases = make(map[string]*ast.AliasDecl)
 	for _, file := range prog.Files {
 		for _, decl := range file.Decls {
 			g.sources[decl] = file.Name
+			if alias, ok := decl.(*ast.AliasDecl); ok {
+				g.aliases[alias.Name] = alias
+			}
 			if data, ok := decl.(*ast.TypeDecl); ok {
 				g.typeSources[data.Name] = sourceLocation{file.Name, data.Pos}
 				for _, ctor := range data.Ctors {

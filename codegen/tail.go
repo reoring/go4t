@@ -15,6 +15,7 @@ import (
 type tailPlan struct {
 	params []string
 	calls  map[*ast.Call]bool
+	reps   []string
 }
 
 func (g *generator) planTail(name string, ref types.RefKind, params []ast.Param, constraints []types.Constraint, body ast.Expr) *tailPlan {
@@ -32,7 +33,14 @@ func (g *generator) planTail(name string, ref types.RefKind, params []ast.Param,
 				return
 			}
 			for i, constraint := range constraints {
-				if g.dict(&ann.Dicts[i]) != g.dictField(constraint, constraints) {
+				expected := g.dictField(constraint, constraints)
+				if g.special != nil {
+					if v, ok := constraint.Arg.(*types.TVar); ok {
+						dict := g.special.dicts[dictKey(v.Name, constraint.Class)]
+						expected = g.dict(&dict)
+					}
+				}
+				if g.dict(&ann.Dicts[i]) != expected {
 					return
 				}
 			}
@@ -109,15 +117,35 @@ func patternBinds(pattern ast.Pattern, name string) bool {
 }
 
 func (g *generator) loopBody(plan *tailPlan, params []ast.Param, result ast.Expr) string {
+	restore := g.localScope()
+	defer restore()
+	patterns := make([]ast.Pattern, len(params))
+	for i, param := range params {
+		patterns[i] = param.Pat
+		if patterns[i] == nil {
+			patterns[i] = &ast.PVar{Name: param.Name}
+		}
+		t := g.parameterType(param)
+		if len(plan.reps) > i && plan.reps[i] != "any" {
+			switch plan.reps[i] {
+			case "int64":
+				t = types.Int
+			case "bool":
+				t = types.Bool
+			case "float64":
+				t = types.Float
+			}
+		}
+		g.bindPattern(patterns[i], t)
+	}
 	body := g.result(result, plan)
 	for i := len(params) - 1; i >= 0; i-- {
-		pattern := params[i].Pat
-		if pattern == nil {
-			pattern = &ast.PVar{Name: params[i].Name}
+		// Fresh lexical bindings keep captured values stable across iterations.
+		rep := "any"
+		if len(plan.reps) > i {
+			rep = plan.reps[i]
 		}
-		// Fresh lexical bindings on every iteration are essential: a closure
-		// passed to the next iteration must retain the old parameter values.
-		body, _ = g.pattern(pattern, plan.params[i], body, true)
+		body, _ = g.patternAs(patterns[i], plan.params[i], rep, body, true)
 	}
 	return "for {\n" + body + "}\n"
 }
@@ -129,11 +157,8 @@ func (g *generator) namedLambda(name string, lambda *ast.Lambda) string {
 	if plan == nil {
 		return g.expr(lambda)
 	}
-	params := make([]string, len(plan.params))
-	for i, param := range plan.params {
-		params[i] = param + " any"
-	}
-	return g.sourceExpr(lambda.GetPos(), "func("+strings.Join(params, ", ")+") any {\n"+g.loopBody(plan, lambda.Params, lambda.Body)+"}")
+	code := g.lambdaBody(lambda, plan)
+	return g.sourceExpr(lambda.GetPos(), code)
 }
 
 func (g *generator) result(expr ast.Expr, plan *tailPlan) string {
@@ -147,7 +172,11 @@ func (g *generator) result(expr ast.Expr, plan *tailPlan) string {
 				args := make([]string, len(e.Args))
 				for i, arg := range e.Args {
 					args[i] = g.fresh()
-					fmt.Fprintf(&out, "var %s any = %s\n", args[i], g.expr(arg))
+					rep := "any"
+					if len(plan.reps) > i {
+						rep = plan.reps[i]
+					}
+					fmt.Fprintf(&out, "var %s %s = %s\n", args[i], rep, convert(g.expr(arg), g.exprRep(arg), rep))
 				}
 				if len(args) != 0 {
 					fmt.Fprintf(&out, "%s = %s\n", strings.Join(plan.params, ", "), strings.Join(args, ", "))
@@ -156,26 +185,30 @@ func (g *generator) result(expr ast.Expr, plan *tailPlan) string {
 				return out.String()
 			}
 		case *ast.If:
-			return g.line(e.GetPos()) + "if any(" + g.expr(e.Cond) + ").(bool) {\n" + g.result(e.Then, plan) + "} else {\n" + g.result(e.Else, plan) + "}\n"
+			return g.line(e.GetPos()) + "if " + g.condition(e.Cond) + " {\n" + g.result(e.Then, plan) + "} else {\n" + g.result(e.Else, plan) + "}\n"
 		case *ast.Match:
 			return g.matchResult(e, plan)
 		case *ast.BlockExpr:
 			return g.tailStatements(e.Block.Stmts, e.Block.Result, plan)
 		}
 	}
-	return g.line(expr.GetPos()) + "return " + g.expr(expr) + "\n"
+	return g.line(expr.GetPos()) + "return " + convert(g.expr(expr), g.exprRep(expr), g.returnRep) + "\n"
 }
 
 func (g *generator) matchResult(match *ast.Match, plan *tailPlan) string {
 	var out strings.Builder
 	value := g.fresh()
-	fmt.Fprintf(&out, "var %s any = %s\n_ = %s\n", value, g.expr(match.Scrut), value)
+	rep := g.exprRep(match.Scrut)
+	fmt.Fprintf(&out, "var %s %s = %s\n_ = %s\n", value, rep, g.expr(match.Scrut), value)
 	for i, arm := range match.Arms {
+		restore := g.localScope()
+		g.bindPattern(arm.Pat, g.ann(match.Scrut).Type)
 		body := g.line(arm.Pos) + g.result(arm.Body, plan)
 		if arm.Guard != nil {
-			body = g.line(arm.Pos) + "if any(" + g.expr(arm.Guard) + ").(bool) {\n" + body + "}\n"
+			body = g.line(arm.Pos) + "if " + g.condition(arm.Guard) + " {\n" + body + "}\n"
 		}
-		code, guarded := g.pattern(arm.Pat, value, body, i == len(match.Arms)-1 && arm.Guard == nil)
+		code, guarded := g.patternAs(arm.Pat, value, rep, body, i == len(match.Arms)-1 && arm.Guard == nil)
+		restore()
 		out.WriteString(g.line(arm.Pos))
 		out.WriteString(code)
 		if i == len(match.Arms)-1 && (guarded || arm.Guard != nil) {

@@ -52,11 +52,7 @@ func captured[A Show + Ord](x A) String { let f = describe; f(x) }
 		"func describe_(dict_A_Show Show, dict_A_Ord Ord, x_ any) any",
 		"rt.AddString((dict_A_Show).Show(x_), (Show_Ordering{}).Show((dict_A_Ord).Compare(x_, x_)))",
 		"return describe_(dict_A_Show, dict_A_Ord, x_)",
-		"return describe_(Show_Int{}, Ord_Int{}, int64(1))",
-		"func equal_(dict_A_Eq Eq, dict_A_Ord Ord, x_ any) any",
-		"return (dict_A_Ord).Eq(x_, x_)",
 		"return equal_(dict_A_Ord, dict_A_Ord, x_)",
-		"return equal_(Ord_Int{}, Ord_Int{}, int64(1))",
 		"func single_(dict_A Show, x_ any) any",
 		"return (dict_A).Show(x_)",
 		"return describe_(dict_A_Show, dict_A_Ord, a0)")

@@ -81,7 +81,7 @@ func TestNonTailAndShadowedCallsStayCalls(t *testing.T) {
 	addFunc(p, "nonTail", []string{"x"}, []types.Type{types.Int}, &ast.Binary{
 		ExprBase: annotated(&types.Ann{Type: types.Int}), Op: "+", L: recur, R: integer(1),
 	})
-	out := assertSource(t, p, "rt.AddInt(nonTail_(x_), int64(1))")
+	out := assertSource(t, p, "nonTail_(x_)", "+ int64(1)")
 	if strings.Contains(out, "for {") {
 		t.Fatalf("non-tail recursion was looped:\n%s", out)
 	}

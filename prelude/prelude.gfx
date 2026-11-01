@@ -579,21 +579,8 @@ func elem[A Eq](x A, xs List[A]) Bool {
   }
 }
 
-func insertBy[A](x A, xs List[A], cmp func(A, A) Ordering) List[A] {
-  match xs {
-    Nil => Cons(x, Nil)
-    Cons(y, rest) => match cmp(x, y) {
-      GT => Cons(y, insertBy(x, rest, cmp))
-      _ => Cons(x, xs)
-    }
-  }
-}
-
 func sortBy[A](xs List[A], cmp func(A, A) Ordering) List[A] {
-  match xs {
-    Nil => Nil
-    Cons(x, rest) => insertBy(x, sortBy(rest, cmp), cmp)
-  }
+  arrayToList(arraySortBy(arrayFromList(xs), cmp))
 }
 
 func sort[A Ord](xs List[A]) List[A] {

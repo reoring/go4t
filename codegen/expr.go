@@ -40,7 +40,11 @@ func (g *generator) tailStatements(stmts []ast.Stmt, result ast.Expr, plan *tail
 		case *ast.LetStmt:
 			// A nested scope preserves lexical shadowing, including the case where
 			// the initializer refers to the previous binding of the same name.
-			out.WriteString(g.letStatement(stmt.Name, stmt.Pat, stmt.Value, g.tailStatements(stmts[i+1:], result, plan)))
+			restore := g.localScope()
+			g.bindLet(stmt.Name, stmt.Pat, stmt.Value)
+			body := g.tailStatements(stmts[i+1:], result, plan)
+			restore()
+			out.WriteString(g.letStatement(stmt.Name, stmt.Pat, stmt.Value, body))
 			return out.String()
 		case *ast.ExprStmt:
 			fmt.Fprintf(&out, "_ = %s\n", g.expr(stmt.X))
@@ -57,8 +61,9 @@ func (g *generator) letStatement(name string, pattern ast.Pattern, value ast.Exp
 		return "{\n" + g.letBinding(name, value) + body + "}\n"
 	}
 	temp := g.fresh()
-	binding := "var " + temp + " any = " + g.expr(value) + "\n_ = " + temp + "\n"
-	body, _ = g.pattern(pattern, temp, body, true)
+	rep := g.exprRep(value)
+	binding := "var " + temp + " " + rep + " = " + g.expr(value) + "\n_ = " + temp + "\n"
+	body, _ = g.patternAs(pattern, temp, rep, body, true)
 	return "{\n" + binding + body + "}\n"
 }
 
@@ -83,20 +88,24 @@ func (g *generator) letBinding(name string, value ast.Expr) string {
 	if ann != nil && ann.Recursive {
 		return g.recursiveLambdaBinding(sourceName, value.(*ast.Lambda))
 	}
-	return "var " + name + " any = " + g.expr(value) + "\n_ = " + name + "\n"
+	return "var " + name + " " + g.exprRep(value) + " = " + g.expr(value) + "\n_ = " + name + "\n"
 }
 
 func (g *generator) expr(expr ast.Expr) (code string) {
+	rep := "any"
 	defer func() {
 		if strings.HasPrefix(code, "func(") {
 			code = g.sourceExpr(expr.GetPos(), code)
 		}
+		code = convert(code, rep, g.exprRep(expr))
 	}()
 	g.collectAnnotation(expr)
 	switch e := expr.(type) {
 	case *ast.IntLit:
+		rep = "int64"
 		return "int64(" + strconv.FormatInt(e.Value, 10) + ")"
 	case *ast.FloatLit:
+		rep = "float64"
 		return "float64(" + strconv.FormatFloat(e.Value, 'g', -1, 64) + ")"
 	case *ast.StringLit:
 		return strconv.Quote(e.Value)
@@ -144,6 +153,7 @@ func (g *generator) expr(expr ast.Expr) (code string) {
 		fmt.Fprintf(&out, "return %s\n}()", updatedRecord(ann.Ctor, ann.FieldIndexes, base, values))
 		return out.String()
 	case *ast.BoolLit:
+		rep = "bool"
 		return strconv.FormatBool(e.Value)
 	case *ast.TupleLit:
 		args := make([]string, len(e.Elems))
@@ -166,6 +176,9 @@ func (g *generator) expr(expr ast.Expr) (code string) {
 		switch ann.Ref {
 		case types.RefLocal:
 			if len(ann.Dicts) == 0 {
+				if r := g.locals[e.Name]; r != "" {
+					rep = r
+				}
 				return mangle(e.Name)
 			}
 			dicts := make([]string, len(ann.Dicts))
@@ -174,9 +187,7 @@ func (g *generator) expr(expr ast.Expr) (code string) {
 			}
 			return mangle(e.Name) + "(" + strings.Join(dicts, ", ") + ")"
 		case types.RefFunc:
-			if len(ann.Dicts) == 0 {
-				return mangle(e.Name)
-			}
+			return g.functionValue(e)
 		case types.RefMethod:
 			if len(ann.Dicts) == 1 {
 				return "(" + g.dict(&ann.Dicts[0]) + ")." + exported(e.Name)
@@ -200,6 +211,11 @@ func (g *generator) expr(expr ast.Expr) (code string) {
 			args[i] = g.expr(arg)
 		}
 		if ident, ok := e.Fn.(*ast.Ident); ok && g.ann(ident).Ref != types.RefLocal {
+			if spec := g.specialized(ident); spec != nil {
+				rep = scalar(substitute(spec.function.Scheme.Type.Ret, spec.types))
+			} else if f := g.funcs[ident.Name]; f != nil && f.Decl.Extern == nil {
+				rep = scalar(f.Scheme.Type.Ret)
+			}
 			return g.identCall(ident, args)
 		}
 		ft := g.funcType(e.Fn)
@@ -209,79 +225,29 @@ func (g *generator) expr(expr ast.Expr) (code string) {
 		}
 		return "any(" + g.expr(e.Fn) + ").(func(" + strings.Join(params, ", ") + ") any)(" + strings.Join(args, ", ") + ")"
 	case *ast.Lambda:
-		params := make([]string, len(e.Params))
-		body := g.result(e.Body, nil)
-		for i := len(e.Params) - 1; i >= 0; i-- {
-			param := e.Params[i]
-			params[i] = fmt.Sprintf("p%d any", i)
-			pattern := param.Pat
-			if pattern == nil {
-				pattern = &ast.PVar{Name: param.Name}
-			}
-			body, _ = g.pattern(pattern, fmt.Sprintf("p%d", i), body, true)
-		}
-		return "func(" + strings.Join(params, ", ") + ") any {\n" + body + "}"
+		return g.lambda(e)
 	case *ast.BlockExpr:
-		return "func() any {\n" + g.block(e.Block) + "}()"
+		rep = g.exprRep(e)
+		body := g.returning(rep, func() string { return g.block(e.Block) })
+		return "func() " + rep + " {\n" + body + "}()"
 	case *ast.If:
-		return "func() any {\nif any(" + g.expr(e.Cond) + ").(bool) {\n" + g.result(e.Then, nil) + "}\n" + g.result(e.Else, nil) + "}()"
+		rep = g.exprRep(e)
+		body := g.returning(rep, func() string {
+			return "if " + g.condition(e.Cond) + " {\n" + g.result(e.Then, nil) + "}\n" + g.result(e.Else, nil)
+		})
+		return "func() " + rep + " {\n" + body + "}()"
 	case *ast.Match:
-		return "func() any {\n" + g.matchResult(e, nil) + "}()"
+		rep = g.exprRep(e)
+		body := g.returning(rep, func() string { return g.matchResult(e, nil) })
+		return "func() " + rep + " {\n" + body + "}()"
 	case *ast.Do:
-		dict := g.dict(g.ann(e).Monad)
-		body := g.result(e.Result, nil)
-		for i := len(e.Stmts) - 1; i >= 0; i-- {
-			var value ast.Expr
-			var name string
-			switch stmt := e.Stmts[i].(type) {
-			case *ast.FuncDecl:
-				start := i
-				for start > 0 {
-					if _, ok := e.Stmts[start-1].(*ast.FuncDecl); !ok {
-						break
-					}
-					start--
-				}
-				group := make([]*ast.FuncDecl, i-start+1)
-				for j := range group {
-					group[j] = e.Stmts[start+j].(*ast.FuncDecl)
-				}
-				body = g.localFunctions(group, body)
-				i = start
-				continue
-			case *ast.DoBind:
-				value, name = stmt.X, mangle(stmt.Name)
-				if stmt.Pat != nil {
-					name = "p"
-					body, _ = g.pattern(stmt.Pat, name, body, true)
-				}
-			case *ast.DoExpr:
-				value, name = stmt.X, "_"
-			case *ast.DoLet:
-				body = g.letStatement(stmt.Name, stmt.Pat, stmt.Value, body)
-				continue
-			default:
-				g.fail(e.GetPos(), "unsupported do statement %T", stmt)
-			}
-			continuation := g.sourceExpr(value.GetPos(), "func("+name+" any) any {\n"+body+"}")
-			body = "return (" + dict + ").Bind(" + g.expr(value) + ", " + continuation + ")\n"
-		}
-		return "func() any {\n" + body + "}()"
+		return "func() any {\n" + g.returning("any", func() string { return g.doStatements(e, 0) }) + "}()"
 	case *ast.Binary:
+		rep = g.exprRep(e)
 		return g.binary(e)
 	case *ast.Unary:
-		var op string
-		typ := g.ann(e.X).Type
-		if e.Op == "-" && isCon(typ, "Int") {
-			op = "NegInt"
-		} else if e.Op == "-" && isCon(typ, "Float") {
-			op = "NegFloat"
-		} else if e.Op == "!" && isCon(typ, "Bool") {
-			op = "Not"
-		} else {
-			g.fail(e.GetPos(), "unsupported unary operator %s on %s", e.Op, types.TypeString(typ))
-		}
-		return "rt." + op + "(" + g.expr(e.X) + ")"
+		rep = g.exprRep(e.X)
+		return g.nativeUnary(e)
 	}
 	g.fail(expr.GetPos(), "unsupported expression %T", expr)
 	return ""
@@ -310,6 +276,12 @@ func (g *generator) identCall(ident *ast.Ident, args []string) string {
 		callee = "(" + g.dict(&dicts[0]) + ")." + exported(ident.Name)
 		dicts = dicts[1:]
 	case types.RefFunc:
+		if spec := g.specialized(ident); spec != nil {
+			for i, t := range spec.function.Scheme.Type.Params {
+				args[i] = convert(args[i], g.rep(g.funcType(ident).Params[i]), scalar(substitute(t, spec.types)))
+			}
+			return spec.name + "(" + strings.Join(args, ", ") + ")"
+		}
 	default:
 		g.fail(ident.GetPos(), "invalid direct call annotation")
 	}
@@ -343,14 +315,20 @@ func construct(name string, args []string) string {
 // are only unguarded when they are irrefutable on their own. Lambda parameters,
 // lets and do binds reuse this path. The result reports whether a pattern can still fall through.
 func (g *generator) pattern(pattern ast.Pattern, value, success string, unguarded bool) (string, bool) {
+	return g.patternAs(pattern, value, "any", success, unguarded)
+}
+
+func (g *generator) patternAs(pattern ast.Pattern, value, valueRep, success string, unguarded bool) (string, bool) {
 	switch p := pattern.(type) {
 	case *ast.PWild:
 		return "{\n" + success + "}\n", false
 	case *ast.PVar:
-		return "{\nvar " + mangle(p.Name) + " any = " + value + "\n_ = " + mangle(p.Name) + "\n" + success + "}\n", false
+		rep := g.rep(g.patternTypes[p])
+		return "{\nvar " + mangle(p.Name) + " " + rep + " = " + convert(value, valueRep, rep) + "\n_ = " + mangle(p.Name) + "\n" + success + "}\n", false
 	case *ast.PAs:
-		code, guarded := g.pattern(p.Pat, value, success, unguarded)
-		return "{\nvar " + mangle(p.Name) + " any = " + value + "\n_ = " + mangle(p.Name) + "\n" + code + "}\n", guarded
+		code, guarded := g.patternAs(p.Pat, value, valueRep, success, unguarded)
+		rep := g.rep(g.patternTypes[p])
+		return "{\nvar " + mangle(p.Name) + " " + rep + " = " + convert(value, valueRep, rep) + "\n_ = " + mangle(p.Name) + "\n" + code + "}\n", guarded
 	case *ast.PTuple:
 		return g.structPattern(g.tupleName(len(p.Elems)), p.Elems, value, success, unguarded)
 	case *ast.PCtor:
@@ -383,7 +361,7 @@ func (g *generator) pattern(pattern ast.Pattern, value, success string, unguarde
 		default:
 			g.fail(p.Pos, "unsupported literal pattern %T", p.X)
 		}
-		return "if " + value + ".(" + rep + ") == " + g.expr(p.X) + " {\n" + success + "}\n", true
+		return "if " + convert(value, valueRep, rep) + " == " + g.expr(p.X) + " {\n" + success + "}\n", true
 	}
 	g.fail(ast.Pos{}, "unsupported pattern %T", pattern)
 	return "", false
@@ -426,19 +404,26 @@ func (g *generator) binary(expr *ast.Binary) string {
 	left, right := g.expr(expr.L), g.expr(expr.R)
 	switch expr.Op {
 	case "&&", "||":
-		return "any(any(" + left + ").(bool) " + expr.Op + " any(" + right + ").(bool))"
+		return "(" + convert(left, g.exprRep(expr.L), "bool") + " " + expr.Op + " " + convert(right, g.exprRep(expr.R), "bool") + ")"
 	case "==", "!=", "<", "<=", ">", ">=":
 		ann := g.ann(expr)
 		if len(ann.Dicts) != 1 {
 			g.fail(expr.GetPos(), "comparison requires one dictionary annotation")
 		}
+		operand := g.exprRep(expr.L)
+		if operand == "int64" || (operand == "bool" || operand == "float64") && (expr.Op == "==" || expr.Op == "!=") {
+			return g.nativeBinary(expr, left, right)
+		}
+		if operand == "float64" || operand == "bool" {
+			return g.nativeOrdering(expr, operand, left, right)
+		}
 		dict := "(" + g.dict(&ann.Dicts[0]) + ")"
 		if expr.Op == "==" || expr.Op == "!=" {
 			equal := dict + ".Eq(" + left + ", " + right + ")"
 			if expr.Op == "!=" {
-				return "rt.Not(" + equal + ")"
+				return "(!any(" + equal + ").(bool))"
 			}
-			return equal
+			return "any(" + equal + ").(bool)"
 		}
 		g.ordering = true
 		var helper string
@@ -452,49 +437,14 @@ func (g *generator) binary(expr *ast.Binary) string {
 		case ">=":
 			helper = "ord_ge"
 		}
-		return "any(" + helper + "(" + dict + ".Compare(" + left + ", " + right + ")))"
+		return helper + "(" + dict + ".Compare(" + left + ", " + right + "))"
 	}
-	var typ types.Type
-	if expr.Op == "+" {
-		typ = g.ann(expr).Type
-	} else {
-		typ = g.ann(expr.L).Type
+	if rep := g.exprRep(expr); rep == "int64" || rep == "float64" {
+		return g.nativeBinary(expr, convert(left, g.exprRep(expr.L), rep), convert(right, g.exprRep(expr.R), rep))
 	}
-	var op string
-	switch expr.Op {
-	case "+":
-		if isCon(typ, "Int") {
-			op = "AddInt"
-		} else if isCon(typ, "Float") {
-			op = "AddFloat"
-		} else if isCon(typ, "String") {
-			op = "AddString"
-		}
-	case "-", "*", "/", "%":
-		if isCon(typ, "Int") {
-			switch expr.Op {
-			case "-":
-				op = "SubInt"
-			case "*":
-				op = "MulInt"
-			case "/":
-				op = "DivInt"
-			case "%":
-				op = "ModInt"
-			}
-		} else if isCon(typ, "Float") {
-			switch expr.Op {
-			case "-":
-				op = "SubFloat"
-			case "*":
-				op = "MulFloat"
-			case "/":
-				op = "DivFloat"
-			}
-		}
+	if expr.Op == "+" && isCon(g.ann(expr).Type, "String") {
+		return "rt.AddString(" + left + ", " + right + ")"
 	}
-	if op == "" {
-		g.fail(expr.GetPos(), "unsupported binary operator %s on %s", expr.Op, types.TypeString(typ))
-	}
-	return "rt." + op + "(" + left + ", " + right + ")"
+	g.fail(expr.GetPos(), "unsupported binary operator %s on %s", expr.Op, types.TypeString(g.ann(expr.L).Type))
+	return ""
 }
