@@ -5,8 +5,6 @@ import (
 	"net/http/httptest"
 	"sync/atomic"
 	"testing"
-
-	"gofx/rt"
 )
 
 func TestGetStatus(t *testing.T) {
@@ -19,11 +17,7 @@ func TestGetStatus(t *testing.T) {
 		w.WriteHeader(http.StatusTeapot)
 	}))
 	t.Cleanup(server.Close)
-	action := GetStatus(server.URL).(rt.IO)
-	if requests.Load() != 0 {
-		t.Fatal("GetStatus sent a request before its IO was run")
-	}
-	got, err := action()
+	got, err := GetStatus(server.URL)
 	if err != nil || got != int64(418) {
 		t.Fatalf("GetStatus result = (%v, %v), want (int64(418), nil)", got, err)
 	}
@@ -35,8 +29,8 @@ func TestGetStatus(t *testing.T) {
 func TestGetStatusClosedServer(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
 	server.Close()
-	got, err := GetStatus(server.URL).(rt.IO)()
-	if got != nil || err == nil {
-		t.Fatalf("GetStatus result = (%v, %v), want (nil, network error)", got, err)
+	got, err := GetStatus(server.URL)
+	if got != 0 || err == nil {
+		t.Fatalf("GetStatus result = (%v, %v), want (0, network error)", got, err)
 	}
 }

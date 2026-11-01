@@ -1,8 +1,9 @@
-// Command gofx checks, builds, or runs gofx source files and their prelude.
+// Command gofx checks, builds, runs gofx sources, and binds Go packages.
 // Several files form one program (same package, mutually visible declarations);
 // the first file names the output directory.
 // Successful checks report non-fatal warnings to stderr before continuing.
-// Usage: gofx {check|build} FILE.gfx... | gofx run FILE.gfx... [-- args...].
+// Usage: gofx {check|build} FILE.gfx... | gofx run FILE.gfx... [-- args...]
+// | gofx bind IMPORT [-o FILE.gfx] [--prefix STR].
 package main
 
 import (
@@ -29,7 +30,10 @@ func main() {
 }
 
 func run(args []string) error {
-	usage := fmt.Errorf("gofx:1:1: usage: gofx {check|build} FILE.gfx... | gofx run FILE.gfx... [-- args...]")
+	if len(args) > 0 && args[0] == "bind" {
+		return runBind(args[1:])
+	}
+	usage := fmt.Errorf("gofx:1:1: usage: gofx {check|build} FILE.gfx... | gofx run FILE.gfx... [-- args...] | gofx bind IMPORT [-o FILE.gfx] [--prefix STR]")
 	if len(args) < 2 || (args[0] != "check" && args[0] != "build" && args[0] != "run") {
 		return usage
 	}

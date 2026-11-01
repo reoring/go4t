@@ -146,7 +146,7 @@ func TestRunUsage(t *testing.T) {
 		{"build", "main.gfx", "--", "argument"},
 	} {
 		err := run(args)
-		want := "gofx:1:1: usage: gofx {check|build} FILE.gfx... | gofx run FILE.gfx... [-- args...]"
+		want := "gofx:1:1: usage: gofx {check|build} FILE.gfx... | gofx run FILE.gfx... [-- args...] | gofx bind IMPORT [-o FILE.gfx] [--prefix STR]"
 		if err == nil || err.Error() != want {
 			t.Errorf("run(%q) = %v, want %q", args, err, want)
 		}

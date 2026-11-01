@@ -42,6 +42,34 @@ func ListToStrings(list any) []string {
 	}
 }
 
+// ListFromInts constructs a generated List[Int], preserving input order.
+func ListFromInts(values []int64) any {
+	if Shapes.Cons == nil || Shapes.Nil == nil {
+		panic("rt.Shapes is not initialized: Cons and Nil are required")
+	}
+	list := Shapes.Nil()
+	for i := len(values) - 1; i >= 0; i-- {
+		list = Shapes.Cons(values[i], list)
+	}
+	return list
+}
+
+// ListToInts reads a generated List[Int], preserving input order.
+func ListToInts(list any) []int64 {
+	if Shapes.Uncons == nil {
+		panic("rt.Shapes is not initialized: Uncons is required")
+	}
+	var values []int64
+	for {
+		head, tail, ok := Shapes.Uncons(list)
+		if !ok {
+			return values
+		}
+		values = append(values, head.(int64))
+		list = tail
+	}
+}
+
 // SomeOf constructs a generated Option containing value.
 func SomeOf(value any) any {
 	if Shapes.Some == nil {
