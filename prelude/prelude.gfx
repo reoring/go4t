@@ -333,6 +333,27 @@ extern func chars(s String) List[String] = "gofx/rt".Chars
 extern func repeat(s String, n Int) String = "gofx/rt".Repeat
 extern func parseInt(s String) Option[Int] = "gofx/rt".ParseInt
 extern func showPadLeft(n Int, width Int) String = "gofx/rt".ShowPadLeft
+extern func codePoint(s String) Option[Int] = "gofx/rt".CodePoint
+extern func fromCodePoint(n Int) String = "gofx/rt".FromCodePoint
+extern func isDigit(s String) Bool = "gofx/rt".IsDigit
+extern func isAlpha(s String) Bool = "gofx/rt".IsAlpha
+extern func isSpace(s String) Bool = "gofx/rt".IsSpace
+extern func isUpper(s String) Bool = "gofx/rt".IsUpper
+extern func isLower(s String) Bool = "gofx/rt".IsLower
+extern func indexOf(s String, sub String) Option[Int] = "gofx/rt".IndexOf
+extern func padRight(s String, width Int) String = "gofx/rt".PadRight
+extern func padLeft(s String, width Int) String = "gofx/rt".PadLeft
+extern func reverseString(s String) String = "gofx/rt".ReverseString
+extern func splitOnce(sep String, s String) Option[(String, String)] = "gofx/rt".SplitOnce
+extern func charAt(s String, i Int) Option[String] = "gofx/rt".CharAt
+extern func showQuoted(s String) String = "gofx/rt".ShowQuoted
+
+extern func regexMatch(pattern String, s String) Bool = "gofx/rt".RegexMatch
+extern func regexFind(pattern String, s String) Option[String] = "gofx/rt".RegexFind
+extern func regexFindAll(pattern String, s String) List[String] = "gofx/rt".RegexFindAll
+extern func regexReplace(pattern String, s String, repl String) String = "gofx/rt".RegexReplace
+extern func regexSplit(pattern String, s String) List[String] = "gofx/rt".RegexSplit
+extern func regexCaptures(pattern String, s String) Option[List[String]] = "gofx/rt".RegexCaptures
 
 extern func readLine() IO[Option[String]] = "gofx/rt".ReadLine
 extern func readAll() IO[String] = "gofx/rt".ReadAll
@@ -741,4 +762,224 @@ instance Functor[Map[K]] {
 
 instance Functor[Array] {
   fmap(a, f) { arrayMap(a, f) }
+func zipWith[A, B, C](xs List[A], ys List[B], f func(A, B) C) List[C] {
+  zipWithAcc(xs, ys, f, Nil)
+}
+
+func zipWithAcc[A, B, C](xs List[A], ys List[B], f func(A, B) C, acc List[C]) List[C] {
+  match (xs, ys) {
+    (Cons(x, restX), Cons(y, restY)) => zipWithAcc(restX, restY, f, Cons(f(x, y), acc))
+    _ => reverse(acc)
+  }
+}
+
+func unzip[A, B](xs List[(A, B)]) (List[A], List[B]) {
+  let (as, bs) = fold(xs, (Nil, Nil), func((as, bs), (a, b)) => (Cons(a, as), Cons(b, bs)))
+  (reverse(as), reverse(bs))
+}
+
+func any[A](xs List[A], p func(A) Bool) Bool {
+  match xs {
+    Nil => false
+    Cons(x, rest) => if p(x) { true } else { any(rest, p) }
+  }
+}
+
+func all[A](xs List[A], p func(A) Bool) Bool {
+  match xs {
+    Nil => true
+    Cons(x, rest) => if p(x) { all(rest, p) } else { false }
+  }
+}
+
+func find[A](xs List[A], p func(A) Bool) Option[A] {
+  match xs {
+    Nil => None
+    Cons(x, rest) => if p(x) { Some(x) } else { find(rest, p) }
+  }
+}
+
+func findIndex[A](xs List[A], p func(A) Bool) Option[Int] {
+  findIndexFrom(xs, p, 0)
+}
+
+func findIndexFrom[A](xs List[A], p func(A) Bool, i Int) Option[Int] {
+  match xs {
+    Nil => None
+    Cons(x, rest) => if p(x) { Some(i) } else { findIndexFrom(rest, p, i + 1) }
+  }
+}
+
+func partition[A](xs List[A], p func(A) Bool) (List[A], List[A]) {
+  let (yes, no) = fold(xs, (Nil, Nil), func((yes, no), x) =>
+    if p(x) { (Cons(x, yes), no) } else { (yes, Cons(x, no)) })
+  (reverse(yes), reverse(no))
+}
+
+func nub[A Eq](xs List[A]) List[A] {
+  reverse(fold(xs, Nil, func(seen, x) => if elem(x, seen) { seen } else { Cons(x, seen) }))
+}
+
+func range(lo Int, hi Int) List[Int] {
+  rangeAcc(lo, hi, Nil)
+}
+
+func rangeAcc(lo Int, hi Int, acc List[Int]) List[Int] {
+  if lo >= hi { acc } else { rangeAcc(lo, hi - 1, Cons(hi - 1, acc)) }
+}
+
+func replicate[A](n Int, x A) List[A] {
+  replicateAcc(n, x, Nil)
+}
+
+func replicateAcc[A](n Int, x A, acc List[A]) List[A] {
+  if n <= 0 { acc } else { replicateAcc(n - 1, x, Cons(x, acc)) }
+}
+
+func intercalate[A](sep List[A], xss List[List[A]]) List[A] {
+  match xss {
+    Nil => Nil
+    Cons(xs, rest) => reverse(fold(rest, reverse(xs), func(acc, ys) =>
+      fold(ys, fold(sep, acc, func(zs, x) => Cons(x, zs)), func(zs, y) => Cons(y, zs))))
+  }
+}
+
+func flatten[A](xss List[List[A]]) List[A] {
+  reverse(fold(xss, Nil, func(acc, xs) => fold(xs, acc, func(ys, x) => Cons(x, ys))))
+}
+
+func last[A](xs List[A]) Option[A] {
+  match xs {
+    Nil => None
+    Cons(x, Nil) => Some(x)
+    Cons(_, rest) => last(rest)
+  }
+}
+
+func init[A](xs List[A]) List[A] {
+  initAcc(xs, Nil)
+}
+
+func initAcc[A](xs List[A], acc List[A]) List[A] {
+  match xs {
+    Nil => reverse(acc)
+    Cons(_, Nil) => reverse(acc)
+    Cons(x, rest) => initAcc(rest, Cons(x, acc))
+  }
+}
+
+func splitAt[A](n Int, xs List[A]) (List[A], List[A]) {
+  splitAtAcc(n, xs, Nil)
+}
+
+func splitAtAcc[A](n Int, xs List[A], acc List[A]) (List[A], List[A]) {
+  if n <= 0 { (reverse(acc), xs) }
+  else {
+    match xs {
+      Nil => (reverse(acc), Nil)
+      Cons(x, rest) => splitAtAcc(n - 1, rest, Cons(x, acc))
+    }
+  }
+}
+
+func span[A](xs List[A], p func(A) Bool) (List[A], List[A]) {
+  spanAcc(xs, p, Nil)
+}
+
+func spanAcc[A](xs List[A], p func(A) Bool, acc List[A]) (List[A], List[A]) {
+  match xs {
+    Nil => (reverse(acc), Nil)
+    Cons(x, rest) => if p(x) { spanAcc(rest, p, Cons(x, acc)) } else { (reverse(acc), xs) }
+  }
+}
+
+func takeWhile[A](xs List[A], p func(A) Bool) List[A] {
+  fst(span(xs, p))
+}
+
+func dropWhile[A](xs List[A], p func(A) Bool) List[A] {
+  match xs {
+    Nil => Nil
+    Cons(x, rest) => if p(x) { dropWhile(rest, p) } else { xs }
+  }
+}
+
+func lookup[K Eq, V](k K, xs List[(K, V)]) Option[V] {
+  match xs {
+    Nil => None
+    Cons((key, value), rest) => if eq(k, key) { Some(value) } else { lookup(k, rest) }
+  }
+}
+
+func indexed[A](xs List[A]) List[(Int, A)] {
+  indexedFrom(xs, 0, Nil)
+}
+
+func indexedFrom[A](xs List[A], i Int, acc List[(Int, A)]) List[(Int, A)] {
+  match xs {
+    Nil => reverse(acc)
+    Cons(x, rest) => indexedFrom(rest, i + 1, Cons((i, x), acc))
+  }
+}
+
+func iterate[A](n Int, x A, f func(A) A) List[A] {
+  iterateAcc(n, x, f, Nil)
+}
+
+func iterateAcc[A](n Int, x A, f func(A) A, acc List[A]) List[A] {
+  if n <= 0 { reverse(acc) }
+  else if n == 1 { reverse(Cons(x, acc)) }
+  else { iterateAcc(n - 1, f(x), f, Cons(x, acc)) }
+}
+
+func product(xs List[Int]) Int {
+  fold(xs, 1, func(acc, x) => acc * x)
+}
+
+func count[A](xs List[A], p func(A) Bool) Int {
+  fold(xs, 0, func(n, x) => if p(x) { n + 1 } else { n })
+}
+
+func unfold[S, A](seed S, step func(S) Option[(A, S)]) List[A] {
+  unfoldAcc(seed, step, Nil)
+}
+
+func unfoldAcc[S, A](seed S, step func(S) Option[(A, S)], acc List[A]) List[A] {
+  match step(seed) {
+    None => reverse(acc)
+    Some((x, next)) => unfoldAcc(next, step, Cons(x, acc))
+  }
+}
+
+func chunksOf[A](n Int, xs List[A]) List[List[A]] {
+  chunksOfAcc(n, xs, Nil)
+}
+
+func chunksOfAcc[A](n Int, xs List[A], acc List[List[A]]) List[List[A]] {
+  if n <= 0 { reverse(acc) }
+  else {
+    match xs {
+      Nil => reverse(acc)
+      Cons(_, _) => {
+        let (chunk, rest) = splitAt(n, xs)
+        chunksOfAcc(n, rest, Cons(chunk, acc))
+      }
+    }
+  }
+}
+
+func sortOn[A, K Ord](xs List[A], key func(A) K) List[A] {
+  let keyed = map(xs, func(x) => (key(x), x))
+  map(sortBy(keyed, func((a, _), (b, _)) => compare(a, b)), func((_, x)) => x)
+}
+
+// Lazy delays a pure computation; each force re-evaluates it (no memoisation).
+type Lazy[A] = Lazy(func(Unit) A)
+
+func delay[A](f func(Unit) A) Lazy[A] {
+  Lazy(f)
+}
+
+func force[A](l Lazy[A]) A {
+  match l { Lazy(f) => f(unit()) }
 }

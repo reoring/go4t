@@ -50,6 +50,8 @@ func TestStringFunctions(t *testing.T) {
 		{"chars empty", func() any { return ListToStrings(Chars("")) }, []string(nil)},
 		{"repeat", func() any { return Repeat("日🙂", int64(3)) }, "日🙂日🙂日🙂"},
 		{"repeat zero", func() any { return Repeat("word", int64(0)) }, ""},
+		{"repeat negative", func() any { return Repeat("word", int64(-1)) }, ""},
+		{"repeat minimum", func() any { return Repeat("word", int64(-1<<63)) }, ""},
 		{"repeat empty", func() any { return Repeat("", int64(5)) }, ""},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
