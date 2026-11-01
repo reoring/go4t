@@ -1,0 +1,5 @@
+// want: type mismatch: expected Int, got http.Response
+package main
+import "std/http"
+func bad(x http.Response) Int { x }
+func main() IO[Unit] { ioPure(unit()) }

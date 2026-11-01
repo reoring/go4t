@@ -1,0 +1,5 @@
+// want: duplicate constraint m.Render for type parameter A
+package main
+import m "model"
+func bad[A m.Render + m.Render](x A) A { x }
+func main() IO[Unit] { ioPure(unit()) }

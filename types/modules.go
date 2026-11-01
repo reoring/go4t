@@ -490,11 +490,12 @@ func (r *moduleResolver) expr(e ast.Expr, ts, vs map[string]bool) ast.Expr {
 	switch e := e.(type) {
 	case *ast.Ident:
 		if !vs[e.Name] {
+			e.Display = e.DisplayName()
 			e.Name = r.lookup(e.Name, e.Pos, false)
 		}
 	case *ast.Field:
 		if id, ok := e.X.(*ast.Ident); ok && !vs[id.Name] && r.imports[id.Name] != nil {
-			return &ast.Ident{ExprBase: e.ExprBase, Name: r.lookup(id.Name+"."+e.Name, id.Pos, false)}
+			return &ast.Ident{ExprBase: e.ExprBase, Name: r.lookup(id.Name+"."+e.Name, id.Pos, false), Display: id.Name + "." + e.Name}
 		}
 		e.X = expr(e.X)
 	case *ast.RecordLit:

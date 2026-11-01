@@ -28,6 +28,7 @@ type document struct {
 type snapshot struct {
 	sources     map[string]string
 	index       *types.PositionIndex
+	program     *types.Program
 	diagnostics map[string][]Diagnostic
 }
 type server struct {
@@ -254,9 +255,9 @@ func (s *server) handle(m rpcMessage) error {
 	}
 	text := ""
 	if binding.Type != nil {
-		text = types.TypeString(binding.Type)
+		text = snap.program.TypeString(binding.Type, path)
 	} else if binding.Definition != nil && binding.Definition.Type != nil {
-		text = types.TypeString(binding.Definition.Type)
+		text = snap.program.TypeString(binding.Definition.Type, path)
 	}
 	if text != "" {
 		text = binding.Name + " : " + text
@@ -380,6 +381,7 @@ func (s *server) check(dir, closed string) error {
 		if err != nil {
 			report(ordered[0], err)
 		} else {
+			snap.program = program
 			snap.index = program.PositionIndex()
 			for _, warning := range program.Warnings {
 				path := warning.File
@@ -452,7 +454,7 @@ func (s *snapshot) symbol(symbol *types.Symbol) DocumentSymbol {
 	src := s.sources[symbol.File]
 	result := DocumentSymbol{Name: symbol.Name, Kind: kind, Range: sourceRange(src, symbol.Pos, symbol.End), SelectionRange: sourceRange(src, symbol.NamePos, symbol.NameEnd)}
 	if symbol.Type != nil {
-		result.Detail = types.TypeString(symbol.Type)
+		result.Detail = s.program.TypeString(symbol.Type, symbol.File)
 	}
 	for _, child := range symbol.Children {
 		result.Children = append(result.Children, s.symbol(child))

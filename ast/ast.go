@@ -50,11 +50,19 @@ type TypeParam struct {
 // pattern instead of a name (`func((a, b), _) => ...`); then Pat is set and
 // Name is "" . Function declarations always use Name.
 type Param struct {
-	Pos  Pos
-	End  Pos
-	Name string
-	Type Type    // nil for untyped lambda params
-	Pat  Pattern // lambda only; nil when the parameter is a plain name
+	Pos     Pos
+	End     Pos
+	Name    string
+	Display string  // source spelling for synthesized parameters; empty for source names
+	Type    Type    // nil for untyped lambda params
+	Pat     Pattern // lambda only; nil when the parameter is a plain name
+}
+
+func (p Param) DisplayName() string {
+	if p.Display != "" {
+		return p.Display
+	}
+	return p.Name
 }
 
 // ---- declarations ----
@@ -268,7 +276,16 @@ func (e *ExprBase) exprNode()     {}
 type Ident struct {
 	ExprBase
 	Name        string
+	Display     string // source spelling when Name is synthesized or qualified
 	Placeholder bool // synthesized section/call parameter reference
+}
+
+// DisplayName returns the source spelling without exposing compiler identities.
+func (e *Ident) DisplayName() string {
+	if e.Display != "" {
+		return e.Display
+	}
+	return e.Name
 }
 
 type IntLit struct {

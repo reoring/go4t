@@ -42,7 +42,7 @@ func replaceMetas(t Type, sub map[*TMeta]Type) Type {
 		if args == nil {
 			args = a.Args
 		}
-		return &TAlias{Name: a.Name, Args: args, Body: body}
+		return &TAlias{Name: a.Name, Display: a.Display, Args: args, Body: body}
 	}
 	t = prune(t)
 	switch t := t.(type) {

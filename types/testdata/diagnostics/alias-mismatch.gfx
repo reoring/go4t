@@ -1,0 +1,5 @@
+// want: type mismatch: expected Int, got m.Label
+package main
+import m "model"
+func bad() Int { m.label() }
+func main() IO[Unit] { ioPure(unit()) }

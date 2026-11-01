@@ -1,0 +1,5 @@
+// want: unknown field missing in constructor m.Box
+package main
+import m "model"
+func bad(x m.Box) Int { x.missing }
+func main() IO[Unit] { ioPure(unit()) }

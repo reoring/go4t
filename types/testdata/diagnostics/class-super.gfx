@@ -1,0 +1,5 @@
+// want: no instance m.Base[Int] (required superclass)
+package main
+import m "model"
+instance m.Derived[Int] {}
+func main() IO[Unit] { ioPure(unit()) }

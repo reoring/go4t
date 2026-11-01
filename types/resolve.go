@@ -46,7 +46,7 @@ func (c *checker) resolveAlias(alias *typeAlias, pos ast.Pos) Type {
 		return alias.typ
 	}
 	if alias.resolving {
-		fail(pos, "type alias cycle involving %s", alias.decl.Name)
+		fail(pos, "type alias cycle involving %s", diagnosticName(alias.decl.Name))
 	}
 	alias.resolving = true
 	file := c.file
@@ -59,7 +59,7 @@ func (c *checker) resolveAlias(alias *typeAlias, pos ast.Pos) Type {
 
 func (c *checker) applyAlias(t *ast.TypeName, alias *typeAlias, scope map[string]Type) Type {
 	if len(t.Args) != len(alias.params) {
-		fail(t.Pos, "arity mismatch for alias %s: want %d arguments, got %d", t.Name, len(alias.params), len(t.Args))
+		fail(t.Pos, "arity mismatch for alias %s: want %d arguments, got %d", diagnosticName(t.Name), len(alias.params), len(t.Args))
 	}
 	template := c.resolveAlias(alias, t.Pos)
 	args := make([]Type, len(t.Args))
@@ -68,11 +68,7 @@ func (c *checker) applyAlias(t *ast.TypeName, alias *typeAlias, scope map[string
 		args[i] = c.valueType(arg, scope)
 		sub[alias.params[i]] = args[i]
 	}
-	name := t.Name
-	if source := c.program.ModuleNames[name]; source != "" {
-		name = source
-	}
-	return &TAlias{Name: name, Args: args, Body: substitute(template, sub)}
+	return &TAlias{Name: t.Name, Display: c.program.ModuleNames[t.Name], Args: args, Body: substitute(template, sub)}
 }
 
 func (c *checker) resolveType(t ast.Type, scope map[string]Type) Type {
@@ -88,14 +84,14 @@ func (c *checker) resolveType(t ast.Type, scope map[string]Type) Type {
 			}
 		}
 		if base == nil {
-			fail(t.Pos, "unknown type %s", t.Name)
+			fail(t.Pos, "unknown type %s", diagnosticName(t.Name))
 		}
 		if len(t.Args) == 0 {
 			return base
 		}
 		k, ok := kindOf(base).(KArrow)
 		if !ok || len(t.Args) > len(k.Params) {
-			fail(t.Pos, "kind mismatch applying %s to %d arguments", t.Name, len(t.Args))
+			fail(t.Pos, "kind mismatch applying %s to %d arguments", base, len(t.Args))
 		}
 		args := make([]Type, len(t.Args))
 		for i, arg := range t.Args {
@@ -147,7 +143,7 @@ func (c *checker) instanceHead(d *ast.InstanceDecl, names []string) (*TCon, []st
 	if c.aliases[d.TypeCon] == nil {
 		con := c.typeCon(d.TypeCon)
 		if con == nil {
-			fail(d.Pos, "unknown type constructor %s", d.TypeCon)
+			fail(d.Pos, "unknown type constructor %s", diagnosticName(d.TypeCon))
 		}
 		return con, names
 	}
@@ -213,7 +209,7 @@ func (b *bodyChecker) finish() {
 		}
 		for _, constraint := range o.constraints {
 			if unresolved(constraint.Arg) {
-				fail(o.expr.GetPos(), "unresolved class constraint %s[%s]", constraint.Class, constraint.Arg)
+				fail(o.expr.GetPos(), "unresolved class constraint %s[%s]", diagnosticName(constraint.Class), constraint.Arg)
 			}
 		}
 	}
@@ -310,13 +306,13 @@ func (b *bodyChecker) resolveDictionary(constraint Constraint) (DictRef, *diagno
 			var classes []string
 			for _, bound := range b.constraints {
 				if bound.Arg == param {
-					classes = append(classes, bound.Class)
+					classes = append(classes, b.c.program.namesFor(b.c.file).name(bound.Class, ""))
 				}
 			}
 			if len(classes) == 0 {
-				return DictRef{}, messagef("no instance %s[%s] (type parameter %s has no class constraints)", constraint.Class, constraint.Arg, param.Name)
+				return DictRef{}, messagef("no instance %s[%s] (type parameter %s has no class constraints)", diagnosticName(constraint.Class), constraint.Arg, param.Name)
 			}
-			return DictRef{}, messagef("no instance %s[%s] (type parameter %s is constrained only by %s)", constraint.Class, constraint.Arg, param.Name, strings.Join(classes, " + "))
+			return DictRef{}, messagef("no instance %s[%s] (type parameter %s is constrained only by %s)", diagnosticName(constraint.Class), constraint.Arg, param.Name, strings.Join(classes, " + "))
 		}
 	}
 	head := arg
@@ -328,7 +324,7 @@ func (b *bodyChecker) resolveDictionary(constraint Constraint) (DictRef, *diagno
 		if inst := b.c.instances[instanceKey{constraint.Class, con.Name}]; inst != nil {
 			sub, matches := inst.matchHead(args)
 			if !matches {
-				return DictRef{}, messagef("no instance %s[%s]%s", constraint.Class, constraint.Arg, b.c.instanceHint(constraint.Class, constraint.Arg))
+				return DictRef{}, messagef("no instance %s[%s]%s", diagnosticName(constraint.Class), constraint.Arg, b.c.instanceHint(constraint.Class, constraint.Arg))
 			}
 			dict := DictRef{Kind: DictInstance, Class: constraint.Class, Instance: inst}
 			if len(inst.Context) != 0 {
@@ -338,7 +334,7 @@ func (b *bodyChecker) resolveDictionary(constraint Constraint) (DictRef, *diagno
 					required.Arg = substitute(required.Arg, sub)
 					nested, message := b.resolveDictionary(required)
 					if message != nil {
-						return DictRef{}, messagef("%s (required by instance %s[%s])", message, inst.Class.Name, inst.head())
+						return DictRef{}, messagef("%s (required by instance %s[%s])", message, diagnosticName(inst.Class.Name), inst.head())
 					}
 					dict.Args[i] = b.upcastDictionary(nested, context.Class)
 				}
@@ -346,5 +342,5 @@ func (b *bodyChecker) resolveDictionary(constraint Constraint) (DictRef, *diagno
 			return dict, nil
 		}
 	}
-	return DictRef{}, messagef("no instance %s[%s]%s", constraint.Class, constraint.Arg, b.c.instanceHint(constraint.Class, constraint.Arg))
+	return DictRef{}, messagef("no instance %s[%s]%s", diagnosticName(constraint.Class), constraint.Arg, b.c.instanceHint(constraint.Class, constraint.Arg))
 }

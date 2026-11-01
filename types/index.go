@@ -213,12 +213,12 @@ func (b *indexBuilder) add(f *ast.File, pos ast.Pos, name string, t Type, s *Sym
 	}
 	b.index.files[f.Name] = append(b.index.files[f.Name], Binding{Name: name, Pos: pos, End: nameEnd(pos, name), Type: t, Definition: s})
 }
-func ctorType(c *Ctor) Type {
+func (b *indexBuilder) ctorType(c *Ctor) Type {
 	args := make([]Type, len(c.Data.TParams))
 	for i, t := range c.Data.TParams {
 		args[i] = t
 	}
-	ret := App(&TCon{Name: c.Data.Name, Kind: arityKind(len(args))}, args...)
+	ret := App(&TCon{Name: c.Data.Name, Display: b.p.ModuleNames[c.Data.Name], Kind: arityKind(len(args))}, args...)
 	if len(c.Fields) == 0 {
 		return ret
 	}
@@ -239,12 +239,12 @@ func (b *indexBuilder) declaration(f *ast.File, d ast.Decl) *Symbol {
 		if data == nil {
 			return nil
 		}
-		s := b.symbol(f, d.Name, TypeSymbol, d, &TCon{Name: d.Name, Kind: arityKind(len(data.TParams))})
+		s := b.symbol(f, d.Name, TypeSymbol, d, &TCon{Name: d.Name, Display: b.p.ModuleNames[d.Name], Kind: arityKind(len(data.TParams))})
 		b.types[d.Name] = s
 		for i := range d.Ctors {
 			c := &d.Ctors[i]
 			cc := data.Ctors[i]
-			child := b.symbol(f, c.Name, ConstructorSymbol, c, ctorType(cc))
+			child := b.symbol(f, c.Name, ConstructorSymbol, c, b.ctorType(cc))
 			b.ctors[c.Name] = child
 			if s != nil && child != nil {
 				s.Children = append(s.Children, child)
@@ -263,7 +263,7 @@ func (b *indexBuilder) declaration(f *ast.File, d ast.Decl) *Symbol {
 		}
 		return s
 	case *ast.AliasDecl:
-		s := b.symbol(f, d.Name, AliasSymbol, d, &TCon{Name: d.Name, Kind: arityKind(len(d.TParams))})
+		s := b.symbol(f, d.Name, AliasSymbol, d, &TCon{Name: d.Name, Display: b.p.ModuleNames[d.Name], Kind: arityKind(len(d.TParams))})
 		b.types[d.Name] = s
 		return s
 	case *ast.ClassDecl:
@@ -453,7 +453,7 @@ func (b *indexBuilder) functions(f *ast.File, group []*ast.FuncDecl, end ast.Pos
 func (b *indexBuilder) syntaxType(t ast.Type, pos ast.Pos) Type {
 	switch t := t.(type) {
 	case *ast.TypeName:
-		var base Type = &TCon{Name: t.Name}
+		var base Type = &TCon{Name: t.Name, Display: b.p.ModuleNames[t.Name]}
 		if local := b.lookup(t.Name, pos, true); local != nil {
 			base = local.Type
 		}

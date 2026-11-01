@@ -1,0 +1,5 @@
+// want: cannot infer record type of _.product; annotate
+package main
+
+func bad() Unit { let projection = Some(_.product); unit() }
+func main() IO[Unit] { ioPure(unit()) }

@@ -1,0 +1,5 @@
+// want: non-exhaustive match; missing: m.Right
+package main
+import m "model"
+func bad(x m.Choice) Int { match x { m.Left => 0 } }
+func main() IO[Unit] { ioPure(unit()) }

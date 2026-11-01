@@ -1,0 +1,5 @@
+// want: arity mismatch for pattern m.Box: want 1 arguments, got 2
+package main
+import m "model"
+func bad(x m.Box) Int { match x { m.Box(a, b) => a } }
+func main() IO[Unit] { ioPure(unit()) }

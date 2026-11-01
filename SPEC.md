@@ -599,6 +599,16 @@ are not cut mid-token, so 160 is an elision trigger, not a hard output cap.
 `check`, `build` and `run` accept `--full-types` to disable this elision without
 expanding aliases. LSP hover uses the same default printer.
 
+Diagnostics and hover use source-level names, never compiler-generated identifiers.
+Synthesized placeholder and section parameters display as `_`, with projection
+paths preserved (`_.product`, `_.0`), and never produce unused-variable warnings.
+Data types, aliases, classes and constructors use the import alias of the file
+being diagnosed or hovered (`http.Response`, or `web.Response` after
+`import web "std/http"`); names from that file's own module and implicit prelude
+re-exports remain bare. With multiple aliases for one module, the first import
+is used; types from a transitive module not directly imported use its package
+name. Qualification is identical with `--full-types`.
+
 Missing-pattern witnesses for `List[_]` always use list syntax, regardless of
 whether the source wrote list or `Nil`/`Cons` patterns, including lists nested
 inside other types. `[]` denotes an empty list, `[_]` exactly one element, and

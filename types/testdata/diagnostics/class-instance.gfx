@@ -1,0 +1,5 @@
+// want: no instance m.Render[m.Box]
+package main
+import m "model"
+func bad(x m.Box) String { m.render(x) }
+func main() IO[Unit] { ioPure(unit()) }

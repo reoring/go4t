@@ -1,0 +1,5 @@
+// want: occurs check:
+package main
+import m "model"
+func bad(x m.Box) Unit { let f = func(g) => g((g, func() => x)); unit() }
+func main() IO[Unit] { ioPure(unit()) }

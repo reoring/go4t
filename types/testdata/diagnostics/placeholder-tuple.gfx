@@ -1,0 +1,5 @@
+// want: cannot infer tuple type of _.0; annotate
+package main
+
+func bad() Unit { let projection = Some(_.0); unit() }
+func main() IO[Unit] { ioPure(unit()) }

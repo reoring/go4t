@@ -70,7 +70,7 @@ func (b *bodyChecker) functionBody(params []ast.Param, signature *TFunc, block *
 	for i, param := range params {
 		checkValueName(block.Pos, param.Name)
 		if env.values[param.Name] != nil {
-			fail(block.Pos, "duplicate parameter %s", param.Name)
+			fail(block.Pos, "duplicate parameter %s", param.DisplayName())
 		}
 		env.values[param.Name] = signature.Params[i]
 		if outer != nil {
@@ -151,7 +151,7 @@ func (b *bodyChecker) ident(e *ast.Ident, env *locals, ann *Ann) Type {
 		b.obligations = append(b.obligations, obligation{expr: e, constraints: cs})
 		return substitute(m.Scheme.Type, sub)
 	}
-	fail(e.GetPos(), "unknown identifier %s", e.Name)
+	fail(e.GetPos(), "unknown identifier %s", e.DisplayName())
 	return nil
 }
 
@@ -259,10 +259,12 @@ func (b *bodyChecker) inferExpected(e ast.Expr, env *locals, expected Type) Type
 			} else {
 				checkValueName(pos, param.Name)
 				if local.values[param.Name] != nil {
-					fail(pos, "duplicate parameter %s", param.Name)
+					fail(pos, "duplicate parameter %s", param.DisplayName())
 				}
 				local.values[param.Name] = ft.Params[i]
-				b.trackLocal(local, param.Name, param.Pos, param.End)
+				if param.Display == "" {
+					b.trackLocal(local, param.Name, param.Pos, param.End)
+				}
 			}
 		}
 		ret := b.infer(e.Body, local)
@@ -439,10 +441,10 @@ func (b *bodyChecker) pattern(p ast.Pattern, expected Type, env *locals) {
 	case *ast.PRecord:
 		ctor := b.c.ctors[p.Ctor]
 		if ctor == nil {
-			fail(p.Pos, "unknown constructor %s", p.Ctor)
+			fail(p.Pos, "unknown constructor %s", diagnosticName(p.Ctor))
 		}
 		if ctor.FieldNames == nil {
-			fail(p.Pos, "%s is not a record constructor", p.Ctor)
+			fail(p.Pos, "%s is not a record constructor", diagnosticName(p.Ctor))
 		}
 		fields, ret, _ := b.c.instantiateCtor(ctor)
 		unify(p.Pos, expected, ret)
@@ -454,12 +456,12 @@ func (b *bodyChecker) pattern(p ast.Pattern, expected Type, env *locals) {
 	case *ast.PCtor:
 		ctor := b.c.ctors[p.Name]
 		if ctor == nil {
-			fail(p.Pos, "unknown constructor %s", p.Name)
+			fail(p.Pos, "unknown constructor %s", diagnosticName(p.Name))
 		}
 		fields, ret, _ := b.c.instantiateCtor(ctor)
 		unify(p.Pos, expected, ret)
 		if len(fields) != len(p.Args) {
-			fail(p.Pos, "arity mismatch for pattern %s: want %d arguments, got %d", p.Name, len(fields), len(p.Args))
+			fail(p.Pos, "arity mismatch for pattern %s: want %d arguments, got %d", diagnosticName(p.Name), len(fields), len(p.Args))
 		}
 		for i, arg := range p.Args {
 			b.pattern(arg, fields[i], env)

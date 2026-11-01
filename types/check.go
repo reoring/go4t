@@ -67,6 +67,10 @@ func Check(modules []*ast.Module) (program *Program, err error) {
 			}
 		}
 		if e, ok := err.(*Error); ok && c != nil {
+			e.names = c.program.namesFor(e.File)
+			if e.detail != nil {
+				e.Msg = e.detail.render(false, e.names)
+			}
 			c.completeSpan(e)
 		}
 	}()
@@ -197,14 +201,14 @@ func (c *checker) typeCon(name string) *TCon {
 func (c *checker) reserveType(pos ast.Pos, name string) {
 	checkName(pos, name)
 	if c.typeCon(name) != nil || c.program.Classes[name] != nil || c.aliases[name] != nil {
-		fail(pos, "duplicate declaration %s", name)
+		fail(pos, "duplicate declaration %s", diagnosticName(name))
 	}
 }
 
 func (c *checker) reserveValue(pos ast.Pos, name string) {
 	checkValueName(pos, name)
 	if c.program.Funcs[name] != nil || c.methods[name] != nil {
-		fail(pos, "duplicate declaration %s", name)
+		fail(pos, "duplicate declaration %s", diagnosticName(name))
 	}
 }
 
@@ -250,20 +254,20 @@ func (c *checker) collectNames(files []*ast.File) {
 					data.TParams = append(data.TParams, &TVar{Name: name, Kind: KStar{}})
 				}
 				c.program.DataTypes[data.Name] = data
-				c.cons[data.Name] = &TCon{Name: data.Name, Kind: arityKind(len(data.TParams))}
+				c.cons[data.Name] = &TCon{Name: data.Name, Display: c.program.ModuleNames[data.Name], Kind: arityKind(len(data.TParams))}
 				for i, ctor := range decl.Ctors {
 					checkName(ctor.Pos, ctor.Name)
 					if !capitalised(ctor.Name) {
 						fail(ctor.Pos, "constructor name must be capitalised")
 					}
 					if c.ctors[ctor.Name] != nil {
-						fail(ctor.Pos, "duplicate declaration %s", ctor.Name)
+						fail(ctor.Pos, "duplicate declaration %s", diagnosticName(ctor.Name))
 					}
 					seenFields := make(map[string]bool, len(ctor.FieldNames))
 					for _, name := range ctor.FieldNames {
 						checkValueName(ctor.Pos, name)
 						if seenFields[name] {
-							fail(ctor.Pos, "duplicate field %s in constructor %s", name, ctor.Name)
+							fail(ctor.Pos, "duplicate field %s in constructor %s", name, diagnosticName(ctor.Name))
 						}
 						seenFields[name] = true
 					}
@@ -292,7 +296,7 @@ func (c *checker) checkSuperclasses(files []*ast.File) {
 			return
 		}
 		if state[class.Name] == 1 {
-			fail(class.Decl.Pos, "superclass cycle involving %s", class.Name)
+			fail(class.Decl.Pos, "superclass cycle involving %s", diagnosticName(class.Name))
 		}
 		state[class.Name] = 1
 		if len(class.Decl.Param.Constraints) != 0 {
@@ -301,7 +305,7 @@ func (c *checker) checkSuperclasses(files []*ast.File) {
 		if class.Super != "" {
 			super := c.program.Classes[class.Super]
 			if super == nil {
-				fail(class.Decl.Pos, "unknown superclass %s", class.Super)
+				fail(class.Decl.Pos, "unknown superclass %s", diagnosticName(class.Super))
 			}
 			requireKind(class.Decl.Pos, class.Param.Kind, super.Param.Kind)
 			visit(super)
@@ -339,12 +343,12 @@ func (c *checker) scheme(pos ast.Pos, tparams []ast.TypeParam, params []ast.Para
 		seen := make(map[string]bool, len(p.Constraints))
 		for _, name := range p.Constraints {
 			if seen[name] {
-				fail(pos, "duplicate constraint %s for type parameter %s", name, p.Name)
+				fail(pos, "duplicate constraint %s for type parameter %s", diagnosticName(name), p.Name)
 			}
 			seen[name] = true
 			class := c.program.Classes[name]
 			if class == nil {
-				fail(pos, "unknown class %s", name)
+				fail(pos, "unknown class %s", diagnosticName(name))
 			}
 			requireKind(pos, v.Kind, class.Param.Kind)
 			s.Constraints = append(s.Constraints, Constraint{Class: name, Arg: v})
@@ -355,7 +359,7 @@ func (c *checker) scheme(pos ast.Pos, tparams []ast.TypeParam, params []ast.Para
 	for i, p := range params {
 		checkValueName(pos, p.Name)
 		if seen[p.Name] {
-			fail(pos, "duplicate parameter %s", p.Name)
+			fail(pos, "duplicate parameter %s", p.DisplayName())
 		}
 		seen[p.Name] = true
 		s.Type.Params[i] = c.valueType(p.Type, scope)
@@ -401,7 +405,7 @@ func (c *checker) collectInstances(files []*ast.File) {
 			}
 			class := c.program.Classes[d.Class]
 			if class == nil {
-				fail(d.Pos, "unknown class %s", d.Class)
+				fail(d.Pos, "unknown class %s", diagnosticName(d.Class))
 			}
 			names := d.Params
 			if len(d.Fixed) != 0 {
@@ -412,7 +416,7 @@ func (c *checker) collectInstances(files []*ast.File) {
 			if len(names) != 0 {
 				kind, ok := con.Kind.(KArrow)
 				if !ok || len(names) > len(kind.Params) {
-					fail(d.Pos, "kind mismatch applying %s to %d arguments", con.Name, len(names))
+					fail(d.Pos, "kind mismatch applying %s to %d arguments", con, len(names))
 				}
 				residual = kind.Ret
 				if len(names) < len(kind.Params) {
@@ -427,9 +431,9 @@ func (c *checker) collectInstances(files []*ast.File) {
 				oldModule := c.moduleFiles[c.sources[previous.Decl]]
 				newModule := c.moduleFiles[file.Name]
 				if oldModule != newModule {
-					fail(d.Pos, "duplicate instance %s[%s] in modules %s and %s", class.Name, con.Name, oldModule, newModule)
+					fail(d.Pos, "duplicate instance %s[%s] in modules %s and %s", diagnosticName(class.Name), con, oldModule, newModule)
 				}
-				fail(d.Pos, "duplicate instance %s[%s]", class.Name, con.Name)
+				fail(d.Pos, "duplicate instance %s[%s]", diagnosticName(class.Name), con)
 			}
 			inst := &Instance{Class: class, TypeCon: con, Decl: d}
 			scope := make(map[string]*TVar, len(names))
@@ -457,7 +461,7 @@ func (c *checker) collectInstances(files []*ast.File) {
 			for _, constraint := range d.Context {
 				required := c.program.Classes[constraint.Class]
 				if required == nil {
-					fail(constraint.Pos, "unknown class %s", constraint.Class)
+					fail(constraint.Pos, "unknown class %s", diagnosticName(constraint.Class))
 				}
 				param := scope[constraint.Param]
 				if param == nil {
@@ -465,7 +469,7 @@ func (c *checker) collectInstances(files []*ast.File) {
 				}
 				key := Constraint{Class: constraint.Class, Arg: param}
 				if constrained[key] {
-					fail(constraint.Pos, "duplicate constraint %s for type parameter %s", constraint.Class, param.Name)
+					fail(constraint.Pos, "duplicate constraint %s for type parameter %s", diagnosticName(constraint.Class), param.Name)
 				}
 				constrained[key] = true
 				requireKind(constraint.Pos, param.Kind, required.Param.Kind)
@@ -482,19 +486,19 @@ func (c *checker) collectInstances(files []*ast.File) {
 				}
 				method := c.methods[m.Name]
 				if method == nil || method.Class != class {
-					fail(m.Pos, "unknown method %s in instance %s", m.Name, class.Name)
+					fail(m.Pos, "unknown method %s in instance %s", diagnosticName(m.Name), diagnosticName(class.Name))
 				}
 				if seen[m.Name] {
-					fail(m.Pos, "duplicate method %s", m.Name)
+					fail(m.Pos, "duplicate method %s", diagnosticName(m.Name))
 				}
 				seen[m.Name] = true
 				if len(m.Params) != len(method.Scheme.Type.Params) {
-					fail(m.Pos, "arity mismatch for method %s: want %d parameters, got %d", m.Name, len(method.Scheme.Type.Params), len(m.Params))
+					fail(m.Pos, "arity mismatch for method %s: want %d parameters, got %d", diagnosticName(m.Name), len(method.Scheme.Type.Params), len(m.Params))
 				}
 			}
 			for _, m := range class.Methods {
 				if !seen[m.Name] {
-					fail(d.Pos, "missing method %s in instance %s", m.Name, class.Name)
+					fail(d.Pos, "missing method %s in instance %s", diagnosticName(m.Name), diagnosticName(class.Name))
 				}
 			}
 		}
@@ -503,7 +507,7 @@ func (c *checker) collectInstances(files []*ast.File) {
 		c.file = c.sources[decl]
 		c.decl = decl
 		if c.instances[instanceKey{"Eq", decl.Name}] == nil {
-			fail(decl.Pos, "deriving Ord for %s requires an Eq instance", decl.Name)
+			fail(decl.Pos, "deriving Ord for %s requires an Eq instance", diagnosticName(decl.Name))
 		}
 	}
 	for _, inst := range c.program.Instances {
@@ -512,11 +516,11 @@ func (c *checker) collectInstances(files []*ast.File) {
 		if super := inst.Class.Super; super != "" {
 			parent := c.instances[instanceKey{super, inst.TypeCon.Name}]
 			if parent == nil {
-				fail(inst.Decl.Pos, "no instance %s[%s] (required superclass)%s", super, inst.TypeCon.Name, c.instanceHint(super, inst.head()))
+				fail(inst.Decl.Pos, "no instance %s[%s] (required superclass)%s", diagnosticName(super), inst.TypeCon, c.instanceHint(super, inst.head()))
 			}
 			args, ok := c.superclassArgs(inst, parent)
 			if !ok {
-				fail(inst.Decl.Pos, "superclass instance %s[%s] context is not implied", super, inst.TypeCon.Name)
+				fail(inst.Decl.Pos, "superclass instance %s[%s] context is not implied", diagnosticName(super), inst.TypeCon)
 			}
 			inst.SuperArgs = args
 		}
