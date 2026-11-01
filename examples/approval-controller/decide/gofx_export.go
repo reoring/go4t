@@ -66,10 +66,19 @@ type FetchedWindowWindowFound struct {
 
 func (FetchedWindowWindowFound) isFetchedWindow() {}
 
-type Gate struct {
+type GateEvidence interface{ isGateEvidence() }
+type GateEvidenceGate struct {
 	Name  string
 	State string
 }
+
+func (GateEvidenceGate) isGateEvidence() {}
+
+type GateEvidenceInvalidGate struct {
+}
+
+func (GateEvidenceInvalidGate) isGateEvidence() {}
+
 type Observed struct {
 	Binding              Binding
 	Plan                 FetchedPlan
@@ -86,8 +95,7 @@ type Plan struct {
 	ChangeSetFingerprint string
 	BaseGitCommit        string
 	PlanType             string
-	GatesValid           bool
-	Gates                []Gate
+	Gates                []GateEvidence
 	EvidenceTtlMillis    rt.Option[int64]
 	ObservedAtPresent    bool
 	ObservedAtMillis     rt.Option[int64]
@@ -352,20 +360,31 @@ func (v FetchedWindowWindowReadError) String() string {
 func (v FetchedWindowWindowFound) String() string {
 	return (dict_decide_Debug_FetchedWindow{}).prelude_Debug(fromGo_FetchedWindow(v)).(string)
 }
-func toGo_Gate(v any) Gate {
+func toGo_GateEvidence(v any) GateEvidence {
 	switch x := v.(type) {
-	case *decide_Gate_Gate:
-		return Gate{Name: toGo_String(x.F0), State: toGo_String(x.F1)}
+	case *decide_GateEvidence_Gate:
+		return GateEvidenceGate{Name: toGo_String(x.F0), State: toGo_String(x.F1)}
+	case *decide_GateEvidence_InvalidGate:
+		return GateEvidenceInvalidGate{}
 	default:
 		panic("invalid constructor")
 	}
 }
-func fromGo_Gate(v Gate) any {
-	x := v
-	return &decide_Gate_Gate{F0: fromGo_String(x.Name), F1: fromGo_String(x.State)}
+func fromGo_GateEvidence(v GateEvidence) any {
+	switch x := v.(type) {
+	case GateEvidenceGate:
+		return &decide_GateEvidence_Gate{F0: fromGo_String(x.Name), F1: fromGo_String(x.State)}
+	case GateEvidenceInvalidGate:
+		return &decide_GateEvidence_InvalidGate{}
+	default:
+		panic("invalid constructor")
+	}
 }
-func (v Gate) String() string {
-	return (dict_decide_Debug_Gate{}).prelude_Debug(fromGo_Gate(v)).(string)
+func (v GateEvidenceGate) String() string {
+	return (dict_decide_Debug_GateEvidence{}).prelude_Debug(fromGo_GateEvidence(v)).(string)
+}
+func (v GateEvidenceInvalidGate) String() string {
+	return (dict_decide_Debug_GateEvidence{}).prelude_Debug(fromGo_GateEvidence(v)).(string)
 }
 func toGo_Observed(v any) Observed {
 	switch x := v.(type) {
@@ -385,14 +404,14 @@ func (v Observed) String() string {
 func toGo_Plan(v any) Plan {
 	switch x := v.(type) {
 	case *decide_Plan_Plan:
-		return Plan{Generation: toGo_Int(x.F0), Phase: toGo_String(x.F1), EvidenceHash: toGo_String(x.F2), ChangeSetFingerprint: toGo_String(x.F3), BaseGitCommit: toGo_String(x.F4), PlanType: toGo_String(x.F5), GatesValid: toGo_Bool(x.F6), Gates: toGo_List_Gate(x.F7), EvidenceTtlMillis: toGo_Option_Int(x.F8), ObservedAtPresent: toGo_Bool(x.F9), ObservedAtMillis: toGo_Option_Int(x.F10)}
+		return Plan{Generation: toGo_Int(x.F0), Phase: toGo_String(x.F1), EvidenceHash: toGo_String(x.F2), ChangeSetFingerprint: toGo_String(x.F3), BaseGitCommit: toGo_String(x.F4), PlanType: toGo_String(x.F5), Gates: toGo_List_GateEvidence(x.F6), EvidenceTtlMillis: toGo_Option_Int(x.F7), ObservedAtPresent: toGo_Bool(x.F8), ObservedAtMillis: toGo_Option_Int(x.F9)}
 	default:
 		panic("invalid constructor")
 	}
 }
 func fromGo_Plan(v Plan) any {
 	x := v
-	return &decide_Plan_Plan{F0: fromGo_Int(x.Generation), F1: fromGo_String(x.Phase), F2: fromGo_String(x.EvidenceHash), F3: fromGo_String(x.ChangeSetFingerprint), F4: fromGo_String(x.BaseGitCommit), F5: fromGo_String(x.PlanType), F6: fromGo_Bool(x.GatesValid), F7: fromGo_List_Gate(x.Gates), F8: fromGo_Option_Int(x.EvidenceTtlMillis), F9: fromGo_Bool(x.ObservedAtPresent), F10: fromGo_Option_Int(x.ObservedAtMillis)}
+	return &decide_Plan_Plan{F0: fromGo_Int(x.Generation), F1: fromGo_String(x.Phase), F2: fromGo_String(x.EvidenceHash), F3: fromGo_String(x.ChangeSetFingerprint), F4: fromGo_String(x.BaseGitCommit), F5: fromGo_String(x.PlanType), F6: fromGo_List_GateEvidence(x.Gates), F7: fromGo_Option_Int(x.EvidenceTtlMillis), F8: fromGo_Bool(x.ObservedAtPresent), F9: fromGo_Option_Int(x.ObservedAtMillis)}
 }
 func (v Plan) String() string {
 	return (dict_decide_Debug_Plan{}).prelude_Debug(fromGo_Plan(v)).(string)
@@ -594,12 +613,12 @@ func fromGo_Window(v Window) any {
 func (v Window) String() string {
 	return (dict_decide_Debug_Window{}).prelude_Debug(fromGo_Window(v)).(string)
 }
-func toGo_List_Gate(v any) []Gate {
-	var result []Gate
+func toGo_List_GateEvidence(v any) []GateEvidence {
+	var result []GateEvidence
 	for {
 		switch x := v.(type) {
 		case *list_List_Cons:
-			result = append(result, toGo_Gate(x.F0))
+			result = append(result, toGo_GateEvidence(x.F0))
 			v = x.F1
 		case *list_List_Nil:
 			return result
@@ -608,10 +627,10 @@ func toGo_List_Gate(v any) []Gate {
 		}
 	}
 }
-func fromGo_List_Gate(v []Gate) any {
+func fromGo_List_GateEvidence(v []GateEvidence) any {
 	var result any = &list_List_Nil{}
 	for i := len(v) - 1; i >= 0; i-- {
-		result = &list_List_Cons{F0: fromGo_Gate(v[i]), F1: result}
+		result = &list_List_Cons{F0: fromGo_GateEvidence(v[i]), F1: result}
 	}
 	return result
 }

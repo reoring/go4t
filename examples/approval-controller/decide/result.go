@@ -397,14 +397,14 @@ func result_either_(r_ any, onErr_ any, onOk_ any) any {
 	return (
 //line std/result/result.gfx:109
 	func() any {
-		var _gofx704 any = r_
-		_ = _gofx704
+		var _gofx714 any = r_
+		_ = _gofx714
 //line std/result/result.gfx:110
-		switch _gofx705 := _gofx704.(type) {
+		switch _gofx715 := _gofx714.(type) {
 		case *result_Result_Err:
-			_ = _gofx705
+			_ = _gofx715
 			{
-				var e_ any = _gofx705.F0
+				var e_ any = _gofx715.F0
 				_ = e_
 //line std/result/result.gfx:110
 //line std/result/result.gfx:110
@@ -413,10 +413,10 @@ func result_either_(r_ any, onErr_ any, onOk_ any) any {
 		}
 //line std/result/result.gfx:111
 		{
-			_gofx706 := _gofx704.(*result_Result_Ok)
-			_ = _gofx706
+			_gofx716 := _gofx714.(*result_Result_Ok)
+			_ = _gofx716
 			{
-				var a_ any = _gofx706.F0
+				var a_ any = _gofx716.F0
 				_ = a_
 //line std/result/result.gfx:111
 //line std/result/result.gfx:111
@@ -432,22 +432,22 @@ func result_fromOption_(o_ any, d_ any) any {
 	return (
 //line std/result/result.gfx:39
 	func() any {
-		var _gofx707 any = o_
-		_ = _gofx707
+		var _gofx717 any = o_
+		_ = _gofx717
 //line std/result/result.gfx:40
-		switch _gofx708 := _gofx707.(type) {
+		switch _gofx718 := _gofx717.(type) {
 		case *prelude_Option_None:
-			_ = _gofx708
+			_ = _gofx718
 //line std/result/result.gfx:40
 //line std/result/result.gfx:40
 			return d_
 		}
 //line std/result/result.gfx:41
 		{
-			_gofx709 := _gofx707.(*prelude_Option_Some)
-			_ = _gofx709
+			_gofx719 := _gofx717.(*prelude_Option_Some)
+			_ = _gofx719
 			{
-				var a_ any = _gofx709.F0
+				var a_ any = _gofx719.F0
 				_ = a_
 //line std/result/result.gfx:41
 //line std/result/result.gfx:41
@@ -463,12 +463,12 @@ func result_fromResult_(r_ any, d_ any) any {
 	return (
 //line std/result/result.gfx:74
 	func() any {
-		var _gofx710 any = r_
-		_ = _gofx710
+		var _gofx720 any = r_
+		_ = _gofx720
 //line std/result/result.gfx:75
-		switch _gofx711 := _gofx710.(type) {
+		switch _gofx721 := _gofx720.(type) {
 		case *result_Result_Err:
-			_ = _gofx711
+			_ = _gofx721
 			{
 //line std/result/result.gfx:75
 //line std/result/result.gfx:75
@@ -477,10 +477,10 @@ func result_fromResult_(r_ any, d_ any) any {
 		}
 //line std/result/result.gfx:76
 		{
-			_gofx712 := _gofx710.(*result_Result_Ok)
-			_ = _gofx712
+			_gofx722 := _gofx720.(*result_Result_Ok)
+			_ = _gofx722
 			{
-				var a_ any = _gofx712.F0
+				var a_ any = _gofx722.F0
 				_ = a_
 //line std/result/result.gfx:76
 //line std/result/result.gfx:76
@@ -496,12 +496,12 @@ func result_isErr_(r_ any) bool {
 	return (
 //line std/result/result.gfx:102
 	func() bool {
-		var _gofx713 any = r_
-		_ = _gofx713
+		var _gofx723 any = r_
+		_ = _gofx723
 //line std/result/result.gfx:103
-		switch _gofx714 := _gofx713.(type) {
+		switch _gofx724 := _gofx723.(type) {
 		case *result_Result_Err:
-			_ = _gofx714
+			_ = _gofx724
 			{
 //line std/result/result.gfx:103
 //line std/result/result.gfx:103
@@ -510,8 +510,8 @@ func result_isErr_(r_ any) bool {
 		}
 //line std/result/result.gfx:104
 		{
-			_gofx715 := _gofx713.(*result_Result_Ok)
-			_ = _gofx715
+			_gofx725 := _gofx723.(*result_Result_Ok)
+			_ = _gofx725
 			{
 //line std/result/result.gfx:104
 //line std/result/result.gfx:104
@@ -527,20 +527,20 @@ func result_isNone_(o_ any) bool {
 	return (
 //line std/result/result.gfx:60
 	func() bool {
-		var _gofx716 any = o_
-		_ = _gofx716
+		var _gofx726 any = o_
+		_ = _gofx726
 //line std/result/result.gfx:61
-		switch _gofx717 := _gofx716.(type) {
+		switch _gofx727 := _gofx726.(type) {
 		case *prelude_Option_None:
-			_ = _gofx717
+			_ = _gofx727
 //line std/result/result.gfx:61
 //line std/result/result.gfx:61
 			return true
 		}
 //line std/result/result.gfx:62
 		{
-			_gofx718 := _gofx716.(*prelude_Option_Some)
-			_ = _gofx718
+			_gofx728 := _gofx726.(*prelude_Option_Some)
+			_ = _gofx728
 			{
 //line std/result/result.gfx:62
 //line std/result/result.gfx:62
@@ -556,12 +556,12 @@ func result_isOk_(r_ any) bool {
 	return (
 //line std/result/result.gfx:95
 	func() bool {
-		var _gofx719 any = r_
-		_ = _gofx719
+		var _gofx729 any = r_
+		_ = _gofx729
 //line std/result/result.gfx:96
-		switch _gofx720 := _gofx719.(type) {
+		switch _gofx730 := _gofx729.(type) {
 		case *result_Result_Err:
-			_ = _gofx720
+			_ = _gofx730
 			{
 //line std/result/result.gfx:96
 //line std/result/result.gfx:96
@@ -570,8 +570,8 @@ func result_isOk_(r_ any) bool {
 		}
 //line std/result/result.gfx:97
 		{
-			_gofx721 := _gofx719.(*result_Result_Ok)
-			_ = _gofx721
+			_gofx731 := _gofx729.(*result_Result_Ok)
+			_ = _gofx731
 			{
 //line std/result/result.gfx:97
 //line std/result/result.gfx:97
@@ -587,20 +587,20 @@ func result_isSome_(o_ any) bool {
 	return (
 //line std/result/result.gfx:53
 	func() bool {
-		var _gofx722 any = o_
-		_ = _gofx722
+		var _gofx732 any = o_
+		_ = _gofx732
 //line std/result/result.gfx:54
-		switch _gofx723 := _gofx722.(type) {
+		switch _gofx733 := _gofx732.(type) {
 		case *prelude_Option_None:
-			_ = _gofx723
+			_ = _gofx733
 //line std/result/result.gfx:54
 //line std/result/result.gfx:54
 			return false
 		}
 //line std/result/result.gfx:55
 		{
-			_gofx724 := _gofx722.(*prelude_Option_Some)
-			_ = _gofx724
+			_gofx734 := _gofx732.(*prelude_Option_Some)
+			_ = _gofx734
 			{
 //line std/result/result.gfx:55
 //line std/result/result.gfx:55
@@ -616,14 +616,14 @@ func result_liftResult_(dict_E prelude_Show, r_ any) any {
 	return (
 //line std/result/result.gfx:116
 	func() any {
-		var _gofx725 any = r_
-		_ = _gofx725
+		var _gofx735 any = r_
+		_ = _gofx735
 //line std/result/result.gfx:117
-		switch _gofx726 := _gofx725.(type) {
+		switch _gofx736 := _gofx735.(type) {
 		case *result_Result_Err:
-			_ = _gofx726
+			_ = _gofx736
 			{
-				var e_ any = _gofx726.F0
+				var e_ any = _gofx736.F0
 				_ = e_
 //line std/result/result.gfx:117
 //line std/result/result.gfx:117
@@ -632,10 +632,10 @@ func result_liftResult_(dict_E prelude_Show, r_ any) any {
 		}
 //line std/result/result.gfx:118
 		{
-			_gofx727 := _gofx725.(*result_Result_Ok)
-			_ = _gofx727
+			_gofx737 := _gofx735.(*result_Result_Ok)
+			_ = _gofx737
 			{
-				var a_ any = _gofx727.F0
+				var a_ any = _gofx737.F0
 				_ = a_
 //line std/result/result.gfx:118
 //line std/result/result.gfx:118
@@ -651,14 +651,14 @@ func result_mapErr_(r_ any, f_ any) any {
 	return (
 //line std/result/result.gfx:67
 	func() any {
-		var _gofx728 any = r_
-		_ = _gofx728
+		var _gofx738 any = r_
+		_ = _gofx738
 //line std/result/result.gfx:68
-		switch _gofx729 := _gofx728.(type) {
+		switch _gofx739 := _gofx738.(type) {
 		case *result_Result_Err:
-			_ = _gofx729
+			_ = _gofx739
 			{
-				var e_ any = _gofx729.F0
+				var e_ any = _gofx739.F0
 				_ = e_
 //line std/result/result.gfx:68
 //line std/result/result.gfx:68
@@ -667,10 +667,10 @@ func result_mapErr_(r_ any, f_ any) any {
 		}
 //line std/result/result.gfx:69
 		{
-			_gofx730 := _gofx728.(*result_Result_Ok)
-			_ = _gofx730
+			_gofx740 := _gofx738.(*result_Result_Ok)
+			_ = _gofx740
 			{
-				var a_ any = _gofx730.F0
+				var a_ any = _gofx740.F0
 				_ = a_
 //line std/result/result.gfx:69
 //line std/result/result.gfx:69
@@ -686,22 +686,22 @@ func result_maybe_(o_ any, d_ any, f_ any) any {
 	return (
 //line std/result/result.gfx:46
 	func() any {
-		var _gofx731 any = o_
-		_ = _gofx731
+		var _gofx741 any = o_
+		_ = _gofx741
 //line std/result/result.gfx:47
-		switch _gofx732 := _gofx731.(type) {
+		switch _gofx742 := _gofx741.(type) {
 		case *prelude_Option_None:
-			_ = _gofx732
+			_ = _gofx742
 //line std/result/result.gfx:47
 //line std/result/result.gfx:47
 			return d_
 		}
 //line std/result/result.gfx:48
 		{
-			_gofx733 := _gofx731.(*prelude_Option_Some)
-			_ = _gofx733
+			_gofx743 := _gofx741.(*prelude_Option_Some)
+			_ = _gofx743
 			{
-				var a_ any = _gofx733.F0
+				var a_ any = _gofx743.F0
 				_ = a_
 //line std/result/result.gfx:48
 //line std/result/result.gfx:48
@@ -717,22 +717,22 @@ func result_okOr_(o_ any, e_ any) any {
 	return (
 //line std/result/result.gfx:81
 	func() any {
-		var _gofx734 any = o_
-		_ = _gofx734
+		var _gofx744 any = o_
+		_ = _gofx744
 //line std/result/result.gfx:82
-		switch _gofx735 := _gofx734.(type) {
+		switch _gofx745 := _gofx744.(type) {
 		case *prelude_Option_None:
-			_ = _gofx735
+			_ = _gofx745
 //line std/result/result.gfx:82
 //line std/result/result.gfx:82
 			return &result_Result_Err{F0: e_}
 		}
 //line std/result/result.gfx:83
 		{
-			_gofx736 := _gofx734.(*prelude_Option_Some)
-			_ = _gofx736
+			_gofx746 := _gofx744.(*prelude_Option_Some)
+			_ = _gofx746
 			{
-				var a_ any = _gofx736.F0
+				var a_ any = _gofx746.F0
 				_ = a_
 //line std/result/result.gfx:83
 //line std/result/result.gfx:83
@@ -748,12 +748,12 @@ func result_toOption_(r_ any) any {
 	return (
 //line std/result/result.gfx:88
 	func() any {
-		var _gofx737 any = r_
-		_ = _gofx737
+		var _gofx747 any = r_
+		_ = _gofx747
 //line std/result/result.gfx:89
-		switch _gofx738 := _gofx737.(type) {
+		switch _gofx748 := _gofx747.(type) {
 		case *result_Result_Err:
-			_ = _gofx738
+			_ = _gofx748
 			{
 //line std/result/result.gfx:89
 //line std/result/result.gfx:89
@@ -762,10 +762,10 @@ func result_toOption_(r_ any) any {
 		}
 //line std/result/result.gfx:90
 		{
-			_gofx739 := _gofx737.(*result_Result_Ok)
-			_ = _gofx739
+			_gofx749 := _gofx747.(*result_Result_Ok)
+			_ = _gofx749
 			{
-				var a_ any = _gofx739.F0
+				var a_ any = _gofx749.F0
 				_ = a_
 //line std/result/result.gfx:90
 //line std/result/result.gfx:90

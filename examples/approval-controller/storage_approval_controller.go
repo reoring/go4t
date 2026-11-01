@@ -120,16 +120,16 @@ func (r *ApprovalReconciler) observeInputs(ctx context.Context, approval *unstru
 				ChangeSetFingerprint: firstStatusString(plan, "status", "changeSetFingerprint"),
 				BaseGitCommit:        firstNonEmptyNestedString(plan.Object, []string{"spec", "baseRevision", "gitCommit"}),
 				PlanType:             firstNonEmptyNestedString(plan.Object, []string{"spec", "type"}),
-				GatesValid:           true,
 			}
 			gates, _, _ := unstructured.NestedSlice(plan.Object, "status", "safetyGates")
-			observedPlan.Gates = make([]decide.Gate, len(gates))
+			observedPlan.Gates = make([]decide.GateEvidence, len(gates))
 			for i, raw := range gates {
 				gate, ok := raw.(map[string]any)
 				if !ok {
-					observedPlan.GatesValid = false
+					observedPlan.Gates[i] = decide.GateEvidenceInvalidGate{}
+					continue
 				}
-				observedPlan.Gates[i] = decide.Gate{
+				observedPlan.Gates[i] = decide.GateEvidenceGate{
 					Name:  strings.TrimSpace(mapStringDefault(gate, "name")),
 					State: strings.TrimSpace(mapStringDefault(gate, "state")),
 				}

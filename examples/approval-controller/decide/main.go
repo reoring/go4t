@@ -36,80 +36,85 @@ type decide_Binding_Binding struct {
 	F4 any
 }
 
-//line decide/decide.gfx:26
+//line decide/decide.gfx:25
 func (*decide_Binding_Binding) isBinding() {}
 
 type decide_FetchedPlan interface{ isFetchedPlan() }
 
 type decide_FetchedPlan_PlanNotReferenced struct{}
 
-//line decide/decide.gfx:43
+//line decide/decide.gfx:42
 func (*decide_FetchedPlan_PlanNotReferenced) isFetchedPlan() {}
 
 type decide_FetchedPlan_PlanReadError struct{}
 
-//line decide/decide.gfx:43
+//line decide/decide.gfx:42
 func (*decide_FetchedPlan_PlanReadError) isFetchedPlan() {}
 
 type decide_FetchedPlan_PlanMissing struct{}
 
-//line decide/decide.gfx:43
+//line decide/decide.gfx:42
 func (*decide_FetchedPlan_PlanMissing) isFetchedPlan() {}
 
 type decide_FetchedPlan_PlanFound struct {
 	F0 any
 }
 
-//line decide/decide.gfx:43
+//line decide/decide.gfx:42
 func (*decide_FetchedPlan_PlanFound) isFetchedPlan() {}
 
 type decide_FetchedPolicy interface{ isFetchedPolicy() }
 
 type decide_FetchedPolicy_PolicyNotReferenced struct{}
 
-//line decide/decide.gfx:44
+//line decide/decide.gfx:43
 func (*decide_FetchedPolicy_PolicyNotReferenced) isFetchedPolicy() {}
 
 type decide_FetchedPolicy_PolicyReadError struct{}
 
-//line decide/decide.gfx:44
+//line decide/decide.gfx:43
 func (*decide_FetchedPolicy_PolicyReadError) isFetchedPolicy() {}
 
 type decide_FetchedPolicy_PolicyFound struct {
 	F0 any
 }
 
-//line decide/decide.gfx:44
+//line decide/decide.gfx:43
 func (*decide_FetchedPolicy_PolicyFound) isFetchedPolicy() {}
 
 type decide_FetchedWindow interface{ isFetchedWindow() }
 
 type decide_FetchedWindow_WindowNotReferenced struct{}
 
-//line decide/decide.gfx:45
+//line decide/decide.gfx:44
 func (*decide_FetchedWindow_WindowNotReferenced) isFetchedWindow() {}
 
 type decide_FetchedWindow_WindowReadError struct{}
 
-//line decide/decide.gfx:45
+//line decide/decide.gfx:44
 func (*decide_FetchedWindow_WindowReadError) isFetchedWindow() {}
 
 type decide_FetchedWindow_WindowFound struct {
 	F0 any
 }
 
-//line decide/decide.gfx:45
+//line decide/decide.gfx:44
 func (*decide_FetchedWindow_WindowFound) isFetchedWindow() {}
 
-type decide_Gate interface{ isGate() }
+type decide_GateEvidence interface{ isGateEvidence() }
 
-type decide_Gate_Gate struct {
+type decide_GateEvidence_Gate struct {
 	F0 any
 	F1 any
 }
 
-//line decide/decide.gfx:24
-func (*decide_Gate_Gate) isGate() {}
+//line decide/decide.gfx:23
+func (*decide_GateEvidence_Gate) isGateEvidence() {}
+
+type decide_GateEvidence_InvalidGate struct{}
+
+//line decide/decide.gfx:23
+func (*decide_GateEvidence_InvalidGate) isGateEvidence() {}
 
 type decide_Observed interface{ isObserved() }
 
@@ -123,23 +128,22 @@ type decide_Observed_Observed struct {
 	F6 any
 }
 
-//line decide/decide.gfx:47
+//line decide/decide.gfx:46
 func (*decide_Observed_Observed) isObserved() {}
 
 type decide_Plan interface{ isPlan() }
 
 type decide_Plan_Plan struct {
-	F0  any
-	F1  any
-	F2  any
-	F3  any
-	F4  any
-	F5  any
-	F6  any
-	F7  any
-	F8  any
-	F9  any
-	F10 any
+	F0 any
+	F1 any
+	F2 any
+	F3 any
+	F4 any
+	F5 any
+	F6 any
+	F7 any
+	F8 any
+	F9 any
 }
 
 //line decide/decide.gfx:10
@@ -151,144 +155,144 @@ type decide_Policy_Policy struct {
 	F0 any
 }
 
-//line decide/decide.gfx:34
+//line decide/decide.gfx:33
 func (*decide_Policy_Policy) isPolicy() {}
 
 type decide_Reason interface{ isReason() }
 
 type decide_Reason_PlanReferenceMissing struct{}
 
-//line decide/decide.gfx:58
+//line decide/decide.gfx:57
 func (*decide_Reason_PlanReferenceMissing) isReason() {}
 
 type decide_Reason_PlanNotFound struct{}
 
-//line decide/decide.gfx:58
+//line decide/decide.gfx:57
 func (*decide_Reason_PlanNotFound) isReason() {}
 
 type decide_Reason_PlanReadFailed struct{}
 
-//line decide/decide.gfx:58
+//line decide/decide.gfx:57
 func (*decide_Reason_PlanReadFailed) isReason() {}
 
 type decide_Reason_PlanExpired struct{}
 
-//line decide/decide.gfx:59
+//line decide/decide.gfx:58
 func (*decide_Reason_PlanExpired) isReason() {}
 
 type decide_Reason_PlanSuperseded struct{}
 
-//line decide/decide.gfx:59
+//line decide/decide.gfx:58
 func (*decide_Reason_PlanSuperseded) isReason() {}
 
 type decide_Reason_PlanNotReady struct{}
 
-//line decide/decide.gfx:59
+//line decide/decide.gfx:58
 func (*decide_Reason_PlanNotReady) isReason() {}
 
 type decide_Reason_PlanGenerationMismatch struct{}
 
-//line decide/decide.gfx:60
+//line decide/decide.gfx:59
 func (*decide_Reason_PlanGenerationMismatch) isReason() {}
 
 type decide_Reason_EvidenceHashMismatch struct{}
 
-//line decide/decide.gfx:60
+//line decide/decide.gfx:59
 func (*decide_Reason_EvidenceHashMismatch) isReason() {}
 
 type decide_Reason_ChangeSetFingerprintMismatch struct{}
 
-//line decide/decide.gfx:60
+//line decide/decide.gfx:59
 func (*decide_Reason_ChangeSetFingerprintMismatch) isReason() {}
 
 type decide_Reason_BaseRevisionMismatch struct{}
 
-//line decide/decide.gfx:60
+//line decide/decide.gfx:59
 func (*decide_Reason_BaseRevisionMismatch) isReason() {}
 
 type decide_Reason_PolicyReferenceMissing struct{}
 
-//line decide/decide.gfx:61
+//line decide/decide.gfx:60
 func (*decide_Reason_PolicyReferenceMissing) isReason() {}
 
 type decide_Reason_PolicyReadFailed struct{}
 
-//line decide/decide.gfx:61
+//line decide/decide.gfx:60
 func (*decide_Reason_PolicyReadFailed) isReason() {}
 
 type decide_Reason_PolicyGenerationMismatch struct{}
 
-//line decide/decide.gfx:61
+//line decide/decide.gfx:60
 func (*decide_Reason_PolicyGenerationMismatch) isReason() {}
 
 type decide_Reason_MaintenanceWindowReadFailed struct{}
 
-//line decide/decide.gfx:62
+//line decide/decide.gfx:61
 func (*decide_Reason_MaintenanceWindowReadFailed) isReason() {}
 
 type decide_Reason_MaintenanceWindowApprovalDisabled struct{}
 
-//line decide/decide.gfx:62
+//line decide/decide.gfx:61
 func (*decide_Reason_MaintenanceWindowApprovalDisabled) isReason() {}
 
 type decide_Reason_MaintenanceWindowOperationNotAllowed struct{}
 
-//line decide/decide.gfx:63
+//line decide/decide.gfx:62
 func (*decide_Reason_MaintenanceWindowOperationNotAllowed) isReason() {}
 
 type decide_Reason_MaintenanceWindowClosed struct{}
 
-//line decide/decide.gfx:63
+//line decide/decide.gfx:62
 func (*decide_Reason_MaintenanceWindowClosed) isReason() {}
 
 type decide_Reason_SafetyGatesMissing struct{}
 
-//line decide/decide.gfx:64
+//line decide/decide.gfx:63
 func (*decide_Reason_SafetyGatesMissing) isReason() {}
 
 type decide_Reason_SafetyGateInvalid struct{}
 
-//line decide/decide.gfx:64
+//line decide/decide.gfx:63
 func (*decide_Reason_SafetyGateInvalid) isReason() {}
 
 type decide_Reason_SafetyGateBlocked struct{}
 
-//line decide/decide.gfx:64
+//line decide/decide.gfx:63
 func (*decide_Reason_SafetyGateBlocked) isReason() {}
 
 type decide_Reason_OperationReadFailed struct{}
 
-//line decide/decide.gfx:65
+//line decide/decide.gfx:64
 func (*decide_Reason_OperationReadFailed) isReason() {}
 
 type decide_Reason_ConflictingOperationActive struct{}
 
-//line decide/decide.gfx:65
+//line decide/decide.gfx:64
 func (*decide_Reason_ConflictingOperationActive) isReason() {}
 
 type decide_Reason_EvidenceTTLInvalid struct{}
 
-//line decide/decide.gfx:66
+//line decide/decide.gfx:65
 func (*decide_Reason_EvidenceTTLInvalid) isReason() {}
 
 type decide_Reason_EvidenceTimestampMissing struct{}
 
-//line decide/decide.gfx:66
+//line decide/decide.gfx:65
 func (*decide_Reason_EvidenceTimestampMissing) isReason() {}
 
 type decide_Reason_EvidenceTimestampInvalid struct{}
 
-//line decide/decide.gfx:66
+//line decide/decide.gfx:65
 func (*decide_Reason_EvidenceTimestampInvalid) isReason() {}
 
 type decide_Reason_EvidenceExpired struct{}
 
-//line decide/decide.gfx:66
+//line decide/decide.gfx:65
 func (*decide_Reason_EvidenceExpired) isReason() {}
 
 type decide_Reason_ApprovalAccepted struct{}
 
-//line decide/decide.gfx:67
+//line decide/decide.gfx:66
 func (*decide_Reason_ApprovalAccepted) isReason() {}
 
 type decide_Verdict interface{ isVerdict() }
@@ -298,7 +302,7 @@ type decide_Verdict_Rejected struct {
 	F1 any
 }
 
-//line decide/decide.gfx:72
+//line decide/decide.gfx:71
 func (*decide_Verdict_Rejected) isVerdict() {}
 
 type decide_Verdict_Expired struct {
@@ -306,7 +310,7 @@ type decide_Verdict_Expired struct {
 	F1 any
 }
 
-//line decide/decide.gfx:73
+//line decide/decide.gfx:72
 func (*decide_Verdict_Expired) isVerdict() {}
 
 type decide_Verdict_Superseded struct {
@@ -314,7 +318,7 @@ type decide_Verdict_Superseded struct {
 	F1 any
 }
 
-//line decide/decide.gfx:74
+//line decide/decide.gfx:73
 func (*decide_Verdict_Superseded) isVerdict() {}
 
 type decide_Verdict_Pending struct {
@@ -323,14 +327,14 @@ type decide_Verdict_Pending struct {
 	F2 any
 }
 
-//line decide/decide.gfx:75
+//line decide/decide.gfx:74
 func (*decide_Verdict_Pending) isVerdict() {}
 
 type decide_Verdict_Accepted struct {
 	F0 any
 }
 
-//line decide/decide.gfx:76
+//line decide/decide.gfx:75
 func (*decide_Verdict_Accepted) isVerdict() {}
 
 type decide_Window interface{ isWindow() }
@@ -342,7 +346,7 @@ type decide_Window_Window struct {
 	F3 any
 }
 
-//line decide/decide.gfx:36
+//line decide/decide.gfx:35
 func (*decide_Window_Window) isWindow() {}
 
 //line std/list/list.gfx:6
@@ -504,61 +508,53 @@ func (dictself dict_decide_Eq_Plan) prelude_Eq(a_ any, b_ any) any {
 										var x5_ any = _gofx199.F5
 										_ = x5_
 										{
-											var x6_ bool = any(_gofx199.F6).(bool)
+											var x6_ any = _gofx199.F6
 											_ = x6_
 											{
 												var x7_ any = _gofx199.F7
 												_ = x7_
 												{
-													var x8_ any = _gofx199.F8
+													var x8_ bool = any(_gofx199.F8).(bool)
 													_ = x8_
 													{
-														var x9_ bool = any(_gofx199.F9).(bool)
+														var x9_ any = _gofx199.F9
 														_ = x9_
 														{
-															var x10_ any = _gofx199.F10
-															_ = x10_
+															_gofx198 := _gofx197.F1.(*decide_Plan_Plan)
+															_ = _gofx198
 															{
-																_gofx198 := _gofx197.F1.(*decide_Plan_Plan)
-																_ = _gofx198
+																var y0_ int64 = any(_gofx198.F0).(int64)
+																_ = y0_
 																{
-																	var y0_ int64 = any(_gofx198.F0).(int64)
-																	_ = y0_
+																	var y1_ any = _gofx198.F1
+																	_ = y1_
 																	{
-																		var y1_ any = _gofx198.F1
-																		_ = y1_
+																		var y2_ any = _gofx198.F2
+																		_ = y2_
 																		{
-																			var y2_ any = _gofx198.F2
-																			_ = y2_
+																			var y3_ any = _gofx198.F3
+																			_ = y3_
 																			{
-																				var y3_ any = _gofx198.F3
-																				_ = y3_
+																				var y4_ any = _gofx198.F4
+																				_ = y4_
 																				{
-																					var y4_ any = _gofx198.F4
-																					_ = y4_
+																					var y5_ any = _gofx198.F5
+																					_ = y5_
 																					{
-																						var y5_ any = _gofx198.F5
-																						_ = y5_
+																						var y6_ any = _gofx198.F6
+																						_ = y6_
 																						{
-																							var y6_ bool = any(_gofx198.F6).(bool)
-																							_ = y6_
+																							var y7_ any = _gofx198.F7
+																							_ = y7_
 																							{
-																								var y7_ any = _gofx198.F7
-																								_ = y7_
+																								var y8_ bool = any(_gofx198.F8).(bool)
+																								_ = y8_
 																								{
-																									var y8_ any = _gofx198.F8
-																									_ = y8_
-																									{
-																										var y9_ bool = any(_gofx198.F9).(bool)
-																										_ = y9_
-																										{
-																											var y10_ any = _gofx198.F10
-																											_ = y10_
+																									var y9_ any = _gofx198.F9
+																									_ = y9_
 //line decide/decide.gfx:10
 //line decide/decide.gfx:10
-																											return (((((((((((x0_ == y0_) && any((dict_prelude_Eq_String{}).prelude_Eq(x1_, y1_)).(bool)) && any((dict_prelude_Eq_String{}).prelude_Eq(x2_, y2_)).(bool)) && any((dict_prelude_Eq_String{}).prelude_Eq(x3_, y3_)).(bool)) && any((dict_prelude_Eq_String{}).prelude_Eq(x4_, y4_)).(bool)) && any((dict_prelude_Eq_String{}).prelude_Eq(x5_, y5_)).(bool)) && (x6_ == y6_)) && any((dict_list_Eq_List{dict_A: dict_decide_Eq_Gate{}}).prelude_Eq(x7_, y7_)).(bool)) && any((dict_prelude_Eq_Option{dict_A: dict_prelude_Eq_Int{}}).prelude_Eq(x8_, y8_)).(bool)) && (x9_ == y9_)) && any((dict_prelude_Eq_Option{dict_A: dict_prelude_Eq_Int{}}).prelude_Eq(x10_, y10_)).(bool))
-																										}
-																									}
+																									return ((((((((((x0_ == y0_) && any((dict_prelude_Eq_String{}).prelude_Eq(x1_, y1_)).(bool)) && any((dict_prelude_Eq_String{}).prelude_Eq(x2_, y2_)).(bool)) && any((dict_prelude_Eq_String{}).prelude_Eq(x3_, y3_)).(bool)) && any((dict_prelude_Eq_String{}).prelude_Eq(x4_, y4_)).(bool)) && any((dict_prelude_Eq_String{}).prelude_Eq(x5_, y5_)).(bool)) && any((dict_list_Eq_List{dict_A: dict_decide_Eq_GateEvidence{}}).prelude_Eq(x6_, y6_)).(bool)) && any((dict_prelude_Eq_Option{dict_A: dict_prelude_Eq_Int{}}).prelude_Eq(x7_, y7_)).(bool)) && (x8_ == y8_)) && any((dict_prelude_Eq_Option{dict_A: dict_prelude_Eq_Int{}}).prelude_Eq(x9_, y9_)).(bool))
 																								}
 																							}
 																						}
@@ -618,24 +614,20 @@ func (dictself dict_decide_Debug_Plan) prelude_Debug(a_ any) any {
 									var x5_ any = _gofx201.F5
 									_ = x5_
 									{
-										var x6_ bool = any(_gofx201.F6).(bool)
+										var x6_ any = _gofx201.F6
 										_ = x6_
 										{
 											var x7_ any = _gofx201.F7
 											_ = x7_
 											{
-												var x8_ any = _gofx201.F8
+												var x8_ bool = any(_gofx201.F8).(bool)
 												_ = x8_
 												{
-													var x9_ bool = any(_gofx201.F9).(bool)
+													var x9_ any = _gofx201.F9
 													_ = x9_
-													{
-														var x10_ any = _gofx201.F10
-														_ = x10_
 //line decide/decide.gfx:10
 //line decide/decide.gfx:10
-														return rt.Concat("Plan{generation: ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_Int{}).prelude_Debug(x0_)), ", phase: ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_String{}).prelude_Debug(x1_)), ", evidenceHash: ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_String{}).prelude_Debug(x2_)), ", changeSetFingerprint: ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_String{}).prelude_Debug(x3_)), ", baseGitCommit: ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_String{}).prelude_Debug(x4_)), ", planType: ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_String{}).prelude_Debug(x5_)), ", gatesValid: ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_Bool{}).prelude_Debug(x6_)), ", gates: ", (dict_prelude_Show_String{}).prelude_Show((dict_list_Debug_List{dict_A: dict_decide_Debug_Gate{}}).prelude_Debug(x7_)), ", evidenceTtlMillis: ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_Option{dict_A: dict_prelude_Debug_Int{}}).prelude_Debug(x8_)), ", observedAtPresent: ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_Bool{}).prelude_Debug(x9_)), ", observedAtMillis: ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_Option{dict_A: dict_prelude_Debug_Int{}}).prelude_Debug(x10_)), "}")
-													}
+													return rt.Concat("Plan{generation: ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_Int{}).prelude_Debug(x0_)), ", phase: ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_String{}).prelude_Debug(x1_)), ", evidenceHash: ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_String{}).prelude_Debug(x2_)), ", changeSetFingerprint: ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_String{}).prelude_Debug(x3_)), ", baseGitCommit: ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_String{}).prelude_Debug(x4_)), ", planType: ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_String{}).prelude_Debug(x5_)), ", gates: ", (dict_prelude_Show_String{}).prelude_Show((dict_list_Debug_List{dict_A: dict_decide_Debug_GateEvidence{}}).prelude_Debug(x6_)), ", evidenceTtlMillis: ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_Option{dict_A: dict_prelude_Debug_Int{}}).prelude_Debug(x7_)), ", observedAtPresent: ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_Bool{}).prelude_Debug(x8_)), ", observedAtMillis: ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_Option{dict_A: dict_prelude_Debug_Int{}}).prelude_Debug(x9_)), "}")
 												}
 											}
 										}
@@ -650,22 +642,22 @@ func (dictself dict_decide_Debug_Plan) prelude_Debug(a_ any) any {
 	}())
 }
 
-type dict_decide_Eq_Gate struct{}
+type dict_decide_Eq_GateEvidence struct{}
 
-//line decide/decide.gfx:24
-func (dictself dict_decide_Eq_Gate) prelude_Eq(a_ any, b_ any) any {
-//line decide/decide.gfx:24
+//line decide/decide.gfx:23
+func (dictself dict_decide_Eq_GateEvidence) prelude_Eq(a_ any, b_ any) any {
+//line decide/decide.gfx:23
 	return (
-//line decide/decide.gfx:24
+//line decide/decide.gfx:23
 	func() bool {
 		var _gofx202 any = &Tuple2{F0: a_, F1: b_}
 		_ = _gofx202
-//line decide/decide.gfx:24
-		{
-			_gofx203 := _gofx202.(*Tuple2)
+//line decide/decide.gfx:23
+		switch _gofx203 := _gofx202.(type) {
+		case *Tuple2:
 			_ = _gofx203
-			{
-				_gofx205 := _gofx203.F0.(*decide_Gate_Gate)
+			switch _gofx205 := _gofx203.F0.(type) {
+			case *decide_GateEvidence_Gate:
 				_ = _gofx205
 				{
 					var x0_ any = _gofx205.F0
@@ -673,8 +665,8 @@ func (dictself dict_decide_Eq_Gate) prelude_Eq(a_ any, b_ any) any {
 					{
 						var x1_ any = _gofx205.F1
 						_ = x1_
-						{
-							_gofx204 := _gofx203.F1.(*decide_Gate_Gate)
+						switch _gofx204 := _gofx203.F1.(type) {
+						case *decide_GateEvidence_Gate:
 							_ = _gofx204
 							{
 								var y0_ any = _gofx204.F0
@@ -682,8 +674,8 @@ func (dictself dict_decide_Eq_Gate) prelude_Eq(a_ any, b_ any) any {
 								{
 									var y1_ any = _gofx204.F1
 									_ = y1_
-//line decide/decide.gfx:24
-//line decide/decide.gfx:24
+//line decide/decide.gfx:23
+//line decide/decide.gfx:23
 									return (any((dict_prelude_Eq_String{}).prelude_Eq(x0_, y0_)).(bool) && any((dict_prelude_Eq_String{}).prelude_Eq(x1_, y1_)).(bool))
 								}
 							}
@@ -692,90 +684,120 @@ func (dictself dict_decide_Eq_Gate) prelude_Eq(a_ any, b_ any) any {
 				}
 			}
 		}
+//line decide/decide.gfx:23
+		switch _gofx206 := _gofx202.(type) {
+		case *Tuple2:
+			_ = _gofx206
+			switch _gofx208 := _gofx206.F0.(type) {
+			case *decide_GateEvidence_InvalidGate:
+				_ = _gofx208
+				switch _gofx207 := _gofx206.F1.(type) {
+				case *decide_GateEvidence_InvalidGate:
+					_ = _gofx207
+//line decide/decide.gfx:23
+//line decide/decide.gfx:23
+					return true
+				}
+			}
+		}
+//line decide/decide.gfx:23
+		{
+//line decide/decide.gfx:23
+//line decide/decide.gfx:23
+			return false
+		}
 	}())
 }
 
-type dict_decide_Debug_Gate struct{}
+type dict_decide_Debug_GateEvidence struct{}
 
-//line decide/decide.gfx:24
-func (dictself dict_decide_Debug_Gate) prelude_Debug(a_ any) any {
-//line decide/decide.gfx:24
+//line decide/decide.gfx:23
+func (dictself dict_decide_Debug_GateEvidence) prelude_Debug(a_ any) any {
+//line decide/decide.gfx:23
 	return (
-//line decide/decide.gfx:24
+//line decide/decide.gfx:23
 	func() any {
-		var _gofx206 any = a_
-		_ = _gofx206
-//line decide/decide.gfx:24
-		{
-			_gofx207 := _gofx206.(*decide_Gate_Gate)
-			_ = _gofx207
+		var _gofx209 any = a_
+		_ = _gofx209
+//line decide/decide.gfx:23
+		switch _gofx210 := _gofx209.(type) {
+		case *decide_GateEvidence_Gate:
+			_ = _gofx210
 			{
-				var x0_ any = _gofx207.F0
+				var x0_ any = _gofx210.F0
 				_ = x0_
 				{
-					var x1_ any = _gofx207.F1
+					var x1_ any = _gofx210.F1
 					_ = x1_
-//line decide/decide.gfx:24
-//line decide/decide.gfx:24
+//line decide/decide.gfx:23
+//line decide/decide.gfx:23
 					return rt.Concat("Gate{name: ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_String{}).prelude_Debug(x0_)), ", state: ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_String{}).prelude_Debug(x1_)), "}")
 				}
 			}
+		}
+//line decide/decide.gfx:23
+		{
+			_gofx211 := _gofx209.(*decide_GateEvidence_InvalidGate)
+			_ = _gofx211
+//line decide/decide.gfx:23
+//line decide/decide.gfx:23
+			return "InvalidGate"
 		}
 	}())
 }
 
 type dict_decide_Eq_Binding struct{}
 
-//line decide/decide.gfx:26
+//line decide/decide.gfx:25
 func (dictself dict_decide_Eq_Binding) prelude_Eq(a_ any, b_ any) any {
-//line decide/decide.gfx:26
+//line decide/decide.gfx:25
 	return (
-//line decide/decide.gfx:26
+//line decide/decide.gfx:25
 	func() bool {
-		var _gofx208 any = &Tuple2{F0: a_, F1: b_}
-		_ = _gofx208
-//line decide/decide.gfx:26
+		var _gofx212 any = &Tuple2{F0: a_, F1: b_}
+		_ = _gofx212
+//line decide/decide.gfx:25
 		{
-			_gofx209 := _gofx208.(*Tuple2)
-			_ = _gofx209
+			_gofx213 := _gofx212.(*Tuple2)
+			_ = _gofx213
 			{
-				_gofx211 := _gofx209.F0.(*decide_Binding_Binding)
-				_ = _gofx211
+				_gofx215 := _gofx213.F0.(*decide_Binding_Binding)
+				_ = _gofx215
 				{
-					var x0_ any = _gofx211.F0
+					var x0_ any = _gofx215.F0
 					_ = x0_
 					{
-						var x1_ any = _gofx211.F1
+						var x1_ any = _gofx215.F1
 						_ = x1_
 						{
-							var x2_ any = _gofx211.F2
+							var x2_ any = _gofx215.F2
 							_ = x2_
 							{
-								var x3_ any = _gofx211.F3
+								var x3_ any = _gofx215.F3
 								_ = x3_
 								{
-									var x4_ any = _gofx211.F4
+									var x4_ any = _gofx215.F4
 									_ = x4_
 									{
-										_gofx210 := _gofx209.F1.(*decide_Binding_Binding)
-										_ = _gofx210
+										_gofx214 := _gofx213.F1.(*decide_Binding_Binding)
+										_ = _gofx214
 										{
-											var y0_ any = _gofx210.F0
+											var y0_ any = _gofx214.F0
 											_ = y0_
 											{
-												var y1_ any = _gofx210.F1
+												var y1_ any = _gofx214.F1
 												_ = y1_
 												{
-													var y2_ any = _gofx210.F2
+													var y2_ any = _gofx214.F2
 													_ = y2_
 													{
-														var y3_ any = _gofx210.F3
+														var y3_ any = _gofx214.F3
 														_ = y3_
 														{
-															var y4_ any = _gofx210.F4
+															var y4_ any = _gofx214.F4
 															_ = y4_
-//line decide/decide.gfx:26
-//line decide/decide.gfx:26
+//line decide/decide.gfx:25
+//line decide/decide.gfx:25
 															return ((((any((dict_prelude_Eq_Option{dict_A: dict_prelude_Eq_Int{}}).prelude_Eq(x0_, y0_)).(bool) && any((dict_prelude_Eq_String{}).prelude_Eq(x1_, y1_)).(bool)) && any((dict_prelude_Eq_String{}).prelude_Eq(x2_, y2_)).(bool)) && any((dict_prelude_Eq_String{}).prelude_Eq(x3_, y3_)).(bool)) && any((dict_prelude_Eq_Option{dict_A: dict_prelude_Eq_Int{}}).prelude_Eq(x4_, y4_)).(bool))
 														}
 													}
@@ -795,35 +817,35 @@ func (dictself dict_decide_Eq_Binding) prelude_Eq(a_ any, b_ any) any {
 
 type dict_decide_Debug_Binding struct{}
 
-//line decide/decide.gfx:26
+//line decide/decide.gfx:25
 func (dictself dict_decide_Debug_Binding) prelude_Debug(a_ any) any {
-//line decide/decide.gfx:26
+//line decide/decide.gfx:25
 	return (
-//line decide/decide.gfx:26
+//line decide/decide.gfx:25
 	func() any {
-		var _gofx212 any = a_
-		_ = _gofx212
-//line decide/decide.gfx:26
+		var _gofx216 any = a_
+		_ = _gofx216
+//line decide/decide.gfx:25
 		{
-			_gofx213 := _gofx212.(*decide_Binding_Binding)
-			_ = _gofx213
+			_gofx217 := _gofx216.(*decide_Binding_Binding)
+			_ = _gofx217
 			{
-				var x0_ any = _gofx213.F0
+				var x0_ any = _gofx217.F0
 				_ = x0_
 				{
-					var x1_ any = _gofx213.F1
+					var x1_ any = _gofx217.F1
 					_ = x1_
 					{
-						var x2_ any = _gofx213.F2
+						var x2_ any = _gofx217.F2
 						_ = x2_
 						{
-							var x3_ any = _gofx213.F3
+							var x3_ any = _gofx217.F3
 							_ = x3_
 							{
-								var x4_ any = _gofx213.F4
+								var x4_ any = _gofx217.F4
 								_ = x4_
-//line decide/decide.gfx:26
-//line decide/decide.gfx:26
+//line decide/decide.gfx:25
+//line decide/decide.gfx:25
 								return rt.Concat("Binding{planGeneration: ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_Option{dict_A: dict_prelude_Debug_Int{}}).prelude_Debug(x0_)), ", evidenceHash: ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_String{}).prelude_Debug(x1_)), ", changeSetFingerprint: ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_String{}).prelude_Debug(x2_)), ", baseGitCommit: ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_String{}).prelude_Debug(x3_)), ", policyGeneration: ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_Option{dict_A: dict_prelude_Debug_Int{}}).prelude_Debug(x4_)), "}")
 							}
 						}
@@ -836,32 +858,32 @@ func (dictself dict_decide_Debug_Binding) prelude_Debug(a_ any) any {
 
 type dict_decide_Eq_Policy struct{}
 
-//line decide/decide.gfx:34
+//line decide/decide.gfx:33
 func (dictself dict_decide_Eq_Policy) prelude_Eq(a_ any, b_ any) any {
-//line decide/decide.gfx:34
+//line decide/decide.gfx:33
 	return (
-//line decide/decide.gfx:34
+//line decide/decide.gfx:33
 	func() bool {
-		var _gofx214 any = &Tuple2{F0: a_, F1: b_}
-		_ = _gofx214
-//line decide/decide.gfx:34
+		var _gofx218 any = &Tuple2{F0: a_, F1: b_}
+		_ = _gofx218
+//line decide/decide.gfx:33
 		{
-			_gofx215 := _gofx214.(*Tuple2)
-			_ = _gofx215
+			_gofx219 := _gofx218.(*Tuple2)
+			_ = _gofx219
 			{
-				_gofx217 := _gofx215.F0.(*decide_Policy_Policy)
-				_ = _gofx217
+				_gofx221 := _gofx219.F0.(*decide_Policy_Policy)
+				_ = _gofx221
 				{
-					var x0_ int64 = any(_gofx217.F0).(int64)
+					var x0_ int64 = any(_gofx221.F0).(int64)
 					_ = x0_
 					{
-						_gofx216 := _gofx215.F1.(*decide_Policy_Policy)
-						_ = _gofx216
+						_gofx220 := _gofx219.F1.(*decide_Policy_Policy)
+						_ = _gofx220
 						{
-							var y0_ int64 = any(_gofx216.F0).(int64)
+							var y0_ int64 = any(_gofx220.F0).(int64)
 							_ = y0_
-//line decide/decide.gfx:34
-//line decide/decide.gfx:34
+//line decide/decide.gfx:33
+//line decide/decide.gfx:33
 							return (x0_ == y0_)
 						}
 					}
@@ -873,23 +895,23 @@ func (dictself dict_decide_Eq_Policy) prelude_Eq(a_ any, b_ any) any {
 
 type dict_decide_Debug_Policy struct{}
 
-//line decide/decide.gfx:34
+//line decide/decide.gfx:33
 func (dictself dict_decide_Debug_Policy) prelude_Debug(a_ any) any {
-//line decide/decide.gfx:34
+//line decide/decide.gfx:33
 	return (
-//line decide/decide.gfx:34
+//line decide/decide.gfx:33
 	func() any {
-		var _gofx218 any = a_
-		_ = _gofx218
-//line decide/decide.gfx:34
+		var _gofx222 any = a_
+		_ = _gofx222
+//line decide/decide.gfx:33
 		{
-			_gofx219 := _gofx218.(*decide_Policy_Policy)
-			_ = _gofx219
+			_gofx223 := _gofx222.(*decide_Policy_Policy)
+			_ = _gofx223
 			{
-				var x0_ int64 = any(_gofx219.F0).(int64)
+				var x0_ int64 = any(_gofx223.F0).(int64)
 				_ = x0_
-//line decide/decide.gfx:34
-//line decide/decide.gfx:34
+//line decide/decide.gfx:33
+//line decide/decide.gfx:33
 				return rt.Concat("Policy{generation: ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_Int{}).prelude_Debug(x0_)), "}")
 			}
 		}
@@ -898,50 +920,50 @@ func (dictself dict_decide_Debug_Policy) prelude_Debug(a_ any) any {
 
 type dict_decide_Eq_Window struct{}
 
-//line decide/decide.gfx:36
+//line decide/decide.gfx:35
 func (dictself dict_decide_Eq_Window) prelude_Eq(a_ any, b_ any) any {
-//line decide/decide.gfx:36
+//line decide/decide.gfx:35
 	return (
-//line decide/decide.gfx:36
+//line decide/decide.gfx:35
 	func() bool {
-		var _gofx220 any = &Tuple2{F0: a_, F1: b_}
-		_ = _gofx220
-//line decide/decide.gfx:36
+		var _gofx224 any = &Tuple2{F0: a_, F1: b_}
+		_ = _gofx224
+//line decide/decide.gfx:35
 		{
-			_gofx221 := _gofx220.(*Tuple2)
-			_ = _gofx221
+			_gofx225 := _gofx224.(*Tuple2)
+			_ = _gofx225
 			{
-				_gofx223 := _gofx221.F0.(*decide_Window_Window)
-				_ = _gofx223
+				_gofx227 := _gofx225.F0.(*decide_Window_Window)
+				_ = _gofx227
 				{
-					var x0_ any = _gofx223.F0
+					var x0_ any = _gofx227.F0
 					_ = x0_
 					{
-						var x1_ any = _gofx223.F1
+						var x1_ any = _gofx227.F1
 						_ = x1_
 						{
-							var x2_ any = _gofx223.F2
+							var x2_ any = _gofx227.F2
 							_ = x2_
 							{
-								var x3_ bool = any(_gofx223.F3).(bool)
+								var x3_ bool = any(_gofx227.F3).(bool)
 								_ = x3_
 								{
-									_gofx222 := _gofx221.F1.(*decide_Window_Window)
-									_ = _gofx222
+									_gofx226 := _gofx225.F1.(*decide_Window_Window)
+									_ = _gofx226
 									{
-										var y0_ any = _gofx222.F0
+										var y0_ any = _gofx226.F0
 										_ = y0_
 										{
-											var y1_ any = _gofx222.F1
+											var y1_ any = _gofx226.F1
 											_ = y1_
 											{
-												var y2_ any = _gofx222.F2
+												var y2_ any = _gofx226.F2
 												_ = y2_
 												{
-													var y3_ bool = any(_gofx222.F3).(bool)
+													var y3_ bool = any(_gofx226.F3).(bool)
 													_ = y3_
-//line decide/decide.gfx:36
-//line decide/decide.gfx:36
+//line decide/decide.gfx:35
+//line decide/decide.gfx:35
 													return (((any((dict_prelude_Eq_Option{dict_A: dict_prelude_Eq_Bool{}}).prelude_Eq(x0_, y0_)).(bool) && any((dict_list_Eq_List{dict_A: dict_prelude_Eq_String{}}).prelude_Eq(x1_, y1_)).(bool)) && any((dict_prelude_Eq_String{}).prelude_Eq(x2_, y2_)).(bool)) && (x3_ == y3_))
 												}
 											}
@@ -959,32 +981,32 @@ func (dictself dict_decide_Eq_Window) prelude_Eq(a_ any, b_ any) any {
 
 type dict_decide_Debug_Window struct{}
 
-//line decide/decide.gfx:36
+//line decide/decide.gfx:35
 func (dictself dict_decide_Debug_Window) prelude_Debug(a_ any) any {
-//line decide/decide.gfx:36
+//line decide/decide.gfx:35
 	return (
-//line decide/decide.gfx:36
+//line decide/decide.gfx:35
 	func() any {
-		var _gofx224 any = a_
-		_ = _gofx224
-//line decide/decide.gfx:36
+		var _gofx228 any = a_
+		_ = _gofx228
+//line decide/decide.gfx:35
 		{
-			_gofx225 := _gofx224.(*decide_Window_Window)
-			_ = _gofx225
+			_gofx229 := _gofx228.(*decide_Window_Window)
+			_ = _gofx229
 			{
-				var x0_ any = _gofx225.F0
+				var x0_ any = _gofx229.F0
 				_ = x0_
 				{
-					var x1_ any = _gofx225.F1
+					var x1_ any = _gofx229.F1
 					_ = x1_
 					{
-						var x2_ any = _gofx225.F2
+						var x2_ any = _gofx229.F2
 						_ = x2_
 						{
-							var x3_ bool = any(_gofx225.F3).(bool)
+							var x3_ bool = any(_gofx229.F3).(bool)
 							_ = x3_
-//line decide/decide.gfx:36
-//line decide/decide.gfx:36
+//line decide/decide.gfx:35
+//line decide/decide.gfx:35
 							return rt.Concat("Window{approvalRequired: ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_Option{dict_A: dict_prelude_Debug_Bool{}}).prelude_Debug(x0_)), ", allowedOperations: ", (dict_prelude_Show_String{}).prelude_Show((dict_list_Debug_List{dict_A: dict_prelude_Debug_String{}}).prelude_Debug(x1_)), ", phase: ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_String{}).prelude_Debug(x2_)), ", currentWindowOpen: ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_Bool{}).prelude_Debug(x3_)), "}")
 						}
 					}
@@ -996,90 +1018,90 @@ func (dictself dict_decide_Debug_Window) prelude_Debug(a_ any) any {
 
 type dict_decide_Eq_FetchedPlan struct{}
 
-//line decide/decide.gfx:43
+//line decide/decide.gfx:42
 func (dictself dict_decide_Eq_FetchedPlan) prelude_Eq(a_ any, b_ any) any {
-//line decide/decide.gfx:43
+//line decide/decide.gfx:42
 	return (
-//line decide/decide.gfx:43
+//line decide/decide.gfx:42
 	func() bool {
-		var _gofx226 any = &Tuple2{F0: a_, F1: b_}
-		_ = _gofx226
-//line decide/decide.gfx:43
-		switch _gofx227 := _gofx226.(type) {
+		var _gofx230 any = &Tuple2{F0: a_, F1: b_}
+		_ = _gofx230
+//line decide/decide.gfx:42
+		switch _gofx231 := _gofx230.(type) {
 		case *Tuple2:
-			_ = _gofx227
-			switch _gofx229 := _gofx227.F0.(type) {
+			_ = _gofx231
+			switch _gofx233 := _gofx231.F0.(type) {
 			case *decide_FetchedPlan_PlanNotReferenced:
-				_ = _gofx229
-				switch _gofx228 := _gofx227.F1.(type) {
+				_ = _gofx233
+				switch _gofx232 := _gofx231.F1.(type) {
 				case *decide_FetchedPlan_PlanNotReferenced:
-					_ = _gofx228
-//line decide/decide.gfx:43
-//line decide/decide.gfx:43
+					_ = _gofx232
+//line decide/decide.gfx:42
+//line decide/decide.gfx:42
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:43
-		switch _gofx230 := _gofx226.(type) {
+//line decide/decide.gfx:42
+		switch _gofx234 := _gofx230.(type) {
 		case *Tuple2:
-			_ = _gofx230
-			switch _gofx232 := _gofx230.F0.(type) {
+			_ = _gofx234
+			switch _gofx236 := _gofx234.F0.(type) {
 			case *decide_FetchedPlan_PlanReadError:
-				_ = _gofx232
-				switch _gofx231 := _gofx230.F1.(type) {
+				_ = _gofx236
+				switch _gofx235 := _gofx234.F1.(type) {
 				case *decide_FetchedPlan_PlanReadError:
-					_ = _gofx231
-//line decide/decide.gfx:43
-//line decide/decide.gfx:43
+					_ = _gofx235
+//line decide/decide.gfx:42
+//line decide/decide.gfx:42
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:43
-		switch _gofx233 := _gofx226.(type) {
+//line decide/decide.gfx:42
+		switch _gofx237 := _gofx230.(type) {
 		case *Tuple2:
-			_ = _gofx233
-			switch _gofx235 := _gofx233.F0.(type) {
+			_ = _gofx237
+			switch _gofx239 := _gofx237.F0.(type) {
 			case *decide_FetchedPlan_PlanMissing:
-				_ = _gofx235
-				switch _gofx234 := _gofx233.F1.(type) {
+				_ = _gofx239
+				switch _gofx238 := _gofx237.F1.(type) {
 				case *decide_FetchedPlan_PlanMissing:
-					_ = _gofx234
-//line decide/decide.gfx:43
-//line decide/decide.gfx:43
+					_ = _gofx238
+//line decide/decide.gfx:42
+//line decide/decide.gfx:42
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:43
-		switch _gofx236 := _gofx226.(type) {
+//line decide/decide.gfx:42
+		switch _gofx240 := _gofx230.(type) {
 		case *Tuple2:
-			_ = _gofx236
-			switch _gofx238 := _gofx236.F0.(type) {
+			_ = _gofx240
+			switch _gofx242 := _gofx240.F0.(type) {
 			case *decide_FetchedPlan_PlanFound:
-				_ = _gofx238
+				_ = _gofx242
 				{
-					var x0_ any = _gofx238.F0
+					var x0_ any = _gofx242.F0
 					_ = x0_
-					switch _gofx237 := _gofx236.F1.(type) {
+					switch _gofx241 := _gofx240.F1.(type) {
 					case *decide_FetchedPlan_PlanFound:
-						_ = _gofx237
+						_ = _gofx241
 						{
-							var y0_ any = _gofx237.F0
+							var y0_ any = _gofx241.F0
 							_ = y0_
-//line decide/decide.gfx:43
-//line decide/decide.gfx:43
+//line decide/decide.gfx:42
+//line decide/decide.gfx:42
 							return any((dict_decide_Eq_Plan{}).prelude_Eq(x0_, y0_)).(bool)
 						}
 					}
 				}
 			}
 		}
-//line decide/decide.gfx:43
+//line decide/decide.gfx:42
 		{
-//line decide/decide.gfx:43
-//line decide/decide.gfx:43
+//line decide/decide.gfx:42
+//line decide/decide.gfx:42
 			return false
 		}
 	}())
@@ -1087,47 +1109,47 @@ func (dictself dict_decide_Eq_FetchedPlan) prelude_Eq(a_ any, b_ any) any {
 
 type dict_decide_Debug_FetchedPlan struct{}
 
-//line decide/decide.gfx:43
+//line decide/decide.gfx:42
 func (dictself dict_decide_Debug_FetchedPlan) prelude_Debug(a_ any) any {
-//line decide/decide.gfx:43
+//line decide/decide.gfx:42
 	return (
-//line decide/decide.gfx:43
+//line decide/decide.gfx:42
 	func() any {
-		var _gofx239 any = a_
-		_ = _gofx239
-//line decide/decide.gfx:43
-		switch _gofx240 := _gofx239.(type) {
+		var _gofx243 any = a_
+		_ = _gofx243
+//line decide/decide.gfx:42
+		switch _gofx244 := _gofx243.(type) {
 		case *decide_FetchedPlan_PlanNotReferenced:
-			_ = _gofx240
-//line decide/decide.gfx:43
-//line decide/decide.gfx:43
+			_ = _gofx244
+//line decide/decide.gfx:42
+//line decide/decide.gfx:42
 			return "PlanNotReferenced"
 		}
-//line decide/decide.gfx:43
-		switch _gofx241 := _gofx239.(type) {
+//line decide/decide.gfx:42
+		switch _gofx245 := _gofx243.(type) {
 		case *decide_FetchedPlan_PlanReadError:
-			_ = _gofx241
-//line decide/decide.gfx:43
-//line decide/decide.gfx:43
+			_ = _gofx245
+//line decide/decide.gfx:42
+//line decide/decide.gfx:42
 			return "PlanReadError"
 		}
-//line decide/decide.gfx:43
-		switch _gofx242 := _gofx239.(type) {
+//line decide/decide.gfx:42
+		switch _gofx246 := _gofx243.(type) {
 		case *decide_FetchedPlan_PlanMissing:
-			_ = _gofx242
-//line decide/decide.gfx:43
-//line decide/decide.gfx:43
+			_ = _gofx246
+//line decide/decide.gfx:42
+//line decide/decide.gfx:42
 			return "PlanMissing"
 		}
-//line decide/decide.gfx:43
+//line decide/decide.gfx:42
 		{
-			_gofx243 := _gofx239.(*decide_FetchedPlan_PlanFound)
-			_ = _gofx243
+			_gofx247 := _gofx243.(*decide_FetchedPlan_PlanFound)
+			_ = _gofx247
 			{
-				var x0_ any = _gofx243.F0
+				var x0_ any = _gofx247.F0
 				_ = x0_
-//line decide/decide.gfx:43
-//line decide/decide.gfx:43
+//line decide/decide.gfx:42
+//line decide/decide.gfx:42
 				return rt.Concat("PlanFound(", (dict_prelude_Show_String{}).prelude_Show((dict_decide_Debug_Plan{}).prelude_Debug(x0_)), ")")
 			}
 		}
@@ -1136,74 +1158,74 @@ func (dictself dict_decide_Debug_FetchedPlan) prelude_Debug(a_ any) any {
 
 type dict_decide_Eq_FetchedPolicy struct{}
 
-//line decide/decide.gfx:44
+//line decide/decide.gfx:43
 func (dictself dict_decide_Eq_FetchedPolicy) prelude_Eq(a_ any, b_ any) any {
-//line decide/decide.gfx:44
+//line decide/decide.gfx:43
 	return (
-//line decide/decide.gfx:44
+//line decide/decide.gfx:43
 	func() bool {
-		var _gofx244 any = &Tuple2{F0: a_, F1: b_}
-		_ = _gofx244
-//line decide/decide.gfx:44
-		switch _gofx245 := _gofx244.(type) {
+		var _gofx248 any = &Tuple2{F0: a_, F1: b_}
+		_ = _gofx248
+//line decide/decide.gfx:43
+		switch _gofx249 := _gofx248.(type) {
 		case *Tuple2:
-			_ = _gofx245
-			switch _gofx247 := _gofx245.F0.(type) {
+			_ = _gofx249
+			switch _gofx251 := _gofx249.F0.(type) {
 			case *decide_FetchedPolicy_PolicyNotReferenced:
-				_ = _gofx247
-				switch _gofx246 := _gofx245.F1.(type) {
+				_ = _gofx251
+				switch _gofx250 := _gofx249.F1.(type) {
 				case *decide_FetchedPolicy_PolicyNotReferenced:
-					_ = _gofx246
-//line decide/decide.gfx:44
-//line decide/decide.gfx:44
+					_ = _gofx250
+//line decide/decide.gfx:43
+//line decide/decide.gfx:43
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:44
-		switch _gofx248 := _gofx244.(type) {
+//line decide/decide.gfx:43
+		switch _gofx252 := _gofx248.(type) {
 		case *Tuple2:
-			_ = _gofx248
-			switch _gofx250 := _gofx248.F0.(type) {
+			_ = _gofx252
+			switch _gofx254 := _gofx252.F0.(type) {
 			case *decide_FetchedPolicy_PolicyReadError:
-				_ = _gofx250
-				switch _gofx249 := _gofx248.F1.(type) {
+				_ = _gofx254
+				switch _gofx253 := _gofx252.F1.(type) {
 				case *decide_FetchedPolicy_PolicyReadError:
-					_ = _gofx249
-//line decide/decide.gfx:44
-//line decide/decide.gfx:44
+					_ = _gofx253
+//line decide/decide.gfx:43
+//line decide/decide.gfx:43
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:44
-		switch _gofx251 := _gofx244.(type) {
+//line decide/decide.gfx:43
+		switch _gofx255 := _gofx248.(type) {
 		case *Tuple2:
-			_ = _gofx251
-			switch _gofx253 := _gofx251.F0.(type) {
+			_ = _gofx255
+			switch _gofx257 := _gofx255.F0.(type) {
 			case *decide_FetchedPolicy_PolicyFound:
-				_ = _gofx253
+				_ = _gofx257
 				{
-					var x0_ any = _gofx253.F0
+					var x0_ any = _gofx257.F0
 					_ = x0_
-					switch _gofx252 := _gofx251.F1.(type) {
+					switch _gofx256 := _gofx255.F1.(type) {
 					case *decide_FetchedPolicy_PolicyFound:
-						_ = _gofx252
+						_ = _gofx256
 						{
-							var y0_ any = _gofx252.F0
+							var y0_ any = _gofx256.F0
 							_ = y0_
-//line decide/decide.gfx:44
-//line decide/decide.gfx:44
+//line decide/decide.gfx:43
+//line decide/decide.gfx:43
 							return any((dict_decide_Eq_Policy{}).prelude_Eq(x0_, y0_)).(bool)
 						}
 					}
 				}
 			}
 		}
-//line decide/decide.gfx:44
+//line decide/decide.gfx:43
 		{
-//line decide/decide.gfx:44
-//line decide/decide.gfx:44
+//line decide/decide.gfx:43
+//line decide/decide.gfx:43
 			return false
 		}
 	}())
@@ -1211,39 +1233,39 @@ func (dictself dict_decide_Eq_FetchedPolicy) prelude_Eq(a_ any, b_ any) any {
 
 type dict_decide_Debug_FetchedPolicy struct{}
 
-//line decide/decide.gfx:44
+//line decide/decide.gfx:43
 func (dictself dict_decide_Debug_FetchedPolicy) prelude_Debug(a_ any) any {
-//line decide/decide.gfx:44
+//line decide/decide.gfx:43
 	return (
-//line decide/decide.gfx:44
+//line decide/decide.gfx:43
 	func() any {
-		var _gofx254 any = a_
-		_ = _gofx254
-//line decide/decide.gfx:44
-		switch _gofx255 := _gofx254.(type) {
+		var _gofx258 any = a_
+		_ = _gofx258
+//line decide/decide.gfx:43
+		switch _gofx259 := _gofx258.(type) {
 		case *decide_FetchedPolicy_PolicyNotReferenced:
-			_ = _gofx255
-//line decide/decide.gfx:44
-//line decide/decide.gfx:44
+			_ = _gofx259
+//line decide/decide.gfx:43
+//line decide/decide.gfx:43
 			return "PolicyNotReferenced"
 		}
-//line decide/decide.gfx:44
-		switch _gofx256 := _gofx254.(type) {
+//line decide/decide.gfx:43
+		switch _gofx260 := _gofx258.(type) {
 		case *decide_FetchedPolicy_PolicyReadError:
-			_ = _gofx256
-//line decide/decide.gfx:44
-//line decide/decide.gfx:44
+			_ = _gofx260
+//line decide/decide.gfx:43
+//line decide/decide.gfx:43
 			return "PolicyReadError"
 		}
-//line decide/decide.gfx:44
+//line decide/decide.gfx:43
 		{
-			_gofx257 := _gofx254.(*decide_FetchedPolicy_PolicyFound)
-			_ = _gofx257
+			_gofx261 := _gofx258.(*decide_FetchedPolicy_PolicyFound)
+			_ = _gofx261
 			{
-				var x0_ any = _gofx257.F0
+				var x0_ any = _gofx261.F0
 				_ = x0_
-//line decide/decide.gfx:44
-//line decide/decide.gfx:44
+//line decide/decide.gfx:43
+//line decide/decide.gfx:43
 				return rt.Concat("PolicyFound(", (dict_prelude_Show_String{}).prelude_Show((dict_decide_Debug_Policy{}).prelude_Debug(x0_)), ")")
 			}
 		}
@@ -1252,74 +1274,74 @@ func (dictself dict_decide_Debug_FetchedPolicy) prelude_Debug(a_ any) any {
 
 type dict_decide_Eq_FetchedWindow struct{}
 
-//line decide/decide.gfx:45
+//line decide/decide.gfx:44
 func (dictself dict_decide_Eq_FetchedWindow) prelude_Eq(a_ any, b_ any) any {
-//line decide/decide.gfx:45
+//line decide/decide.gfx:44
 	return (
-//line decide/decide.gfx:45
+//line decide/decide.gfx:44
 	func() bool {
-		var _gofx258 any = &Tuple2{F0: a_, F1: b_}
-		_ = _gofx258
-//line decide/decide.gfx:45
-		switch _gofx259 := _gofx258.(type) {
+		var _gofx262 any = &Tuple2{F0: a_, F1: b_}
+		_ = _gofx262
+//line decide/decide.gfx:44
+		switch _gofx263 := _gofx262.(type) {
 		case *Tuple2:
-			_ = _gofx259
-			switch _gofx261 := _gofx259.F0.(type) {
+			_ = _gofx263
+			switch _gofx265 := _gofx263.F0.(type) {
 			case *decide_FetchedWindow_WindowNotReferenced:
-				_ = _gofx261
-				switch _gofx260 := _gofx259.F1.(type) {
+				_ = _gofx265
+				switch _gofx264 := _gofx263.F1.(type) {
 				case *decide_FetchedWindow_WindowNotReferenced:
-					_ = _gofx260
-//line decide/decide.gfx:45
-//line decide/decide.gfx:45
+					_ = _gofx264
+//line decide/decide.gfx:44
+//line decide/decide.gfx:44
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:45
-		switch _gofx262 := _gofx258.(type) {
+//line decide/decide.gfx:44
+		switch _gofx266 := _gofx262.(type) {
 		case *Tuple2:
-			_ = _gofx262
-			switch _gofx264 := _gofx262.F0.(type) {
+			_ = _gofx266
+			switch _gofx268 := _gofx266.F0.(type) {
 			case *decide_FetchedWindow_WindowReadError:
-				_ = _gofx264
-				switch _gofx263 := _gofx262.F1.(type) {
+				_ = _gofx268
+				switch _gofx267 := _gofx266.F1.(type) {
 				case *decide_FetchedWindow_WindowReadError:
-					_ = _gofx263
-//line decide/decide.gfx:45
-//line decide/decide.gfx:45
+					_ = _gofx267
+//line decide/decide.gfx:44
+//line decide/decide.gfx:44
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:45
-		switch _gofx265 := _gofx258.(type) {
+//line decide/decide.gfx:44
+		switch _gofx269 := _gofx262.(type) {
 		case *Tuple2:
-			_ = _gofx265
-			switch _gofx267 := _gofx265.F0.(type) {
+			_ = _gofx269
+			switch _gofx271 := _gofx269.F0.(type) {
 			case *decide_FetchedWindow_WindowFound:
-				_ = _gofx267
+				_ = _gofx271
 				{
-					var x0_ any = _gofx267.F0
+					var x0_ any = _gofx271.F0
 					_ = x0_
-					switch _gofx266 := _gofx265.F1.(type) {
+					switch _gofx270 := _gofx269.F1.(type) {
 					case *decide_FetchedWindow_WindowFound:
-						_ = _gofx266
+						_ = _gofx270
 						{
-							var y0_ any = _gofx266.F0
+							var y0_ any = _gofx270.F0
 							_ = y0_
-//line decide/decide.gfx:45
-//line decide/decide.gfx:45
+//line decide/decide.gfx:44
+//line decide/decide.gfx:44
 							return any((dict_decide_Eq_Window{}).prelude_Eq(x0_, y0_)).(bool)
 						}
 					}
 				}
 			}
 		}
-//line decide/decide.gfx:45
+//line decide/decide.gfx:44
 		{
-//line decide/decide.gfx:45
-//line decide/decide.gfx:45
+//line decide/decide.gfx:44
+//line decide/decide.gfx:44
 			return false
 		}
 	}())
@@ -1327,39 +1349,39 @@ func (dictself dict_decide_Eq_FetchedWindow) prelude_Eq(a_ any, b_ any) any {
 
 type dict_decide_Debug_FetchedWindow struct{}
 
-//line decide/decide.gfx:45
+//line decide/decide.gfx:44
 func (dictself dict_decide_Debug_FetchedWindow) prelude_Debug(a_ any) any {
-//line decide/decide.gfx:45
+//line decide/decide.gfx:44
 	return (
-//line decide/decide.gfx:45
+//line decide/decide.gfx:44
 	func() any {
-		var _gofx268 any = a_
-		_ = _gofx268
-//line decide/decide.gfx:45
-		switch _gofx269 := _gofx268.(type) {
+		var _gofx272 any = a_
+		_ = _gofx272
+//line decide/decide.gfx:44
+		switch _gofx273 := _gofx272.(type) {
 		case *decide_FetchedWindow_WindowNotReferenced:
-			_ = _gofx269
-//line decide/decide.gfx:45
-//line decide/decide.gfx:45
+			_ = _gofx273
+//line decide/decide.gfx:44
+//line decide/decide.gfx:44
 			return "WindowNotReferenced"
 		}
-//line decide/decide.gfx:45
-		switch _gofx270 := _gofx268.(type) {
+//line decide/decide.gfx:44
+		switch _gofx274 := _gofx272.(type) {
 		case *decide_FetchedWindow_WindowReadError:
-			_ = _gofx270
-//line decide/decide.gfx:45
-//line decide/decide.gfx:45
+			_ = _gofx274
+//line decide/decide.gfx:44
+//line decide/decide.gfx:44
 			return "WindowReadError"
 		}
-//line decide/decide.gfx:45
+//line decide/decide.gfx:44
 		{
-			_gofx271 := _gofx268.(*decide_FetchedWindow_WindowFound)
-			_ = _gofx271
+			_gofx275 := _gofx272.(*decide_FetchedWindow_WindowFound)
+			_ = _gofx275
 			{
-				var x0_ any = _gofx271.F0
+				var x0_ any = _gofx275.F0
 				_ = x0_
-//line decide/decide.gfx:45
-//line decide/decide.gfx:45
+//line decide/decide.gfx:44
+//line decide/decide.gfx:44
 				return rt.Concat("WindowFound(", (dict_prelude_Show_String{}).prelude_Show((dict_decide_Debug_Window{}).prelude_Debug(x0_)), ")")
 			}
 		}
@@ -1368,68 +1390,68 @@ func (dictself dict_decide_Debug_FetchedWindow) prelude_Debug(a_ any) any {
 
 type dict_decide_Eq_Observed struct{}
 
-//line decide/decide.gfx:47
+//line decide/decide.gfx:46
 func (dictself dict_decide_Eq_Observed) prelude_Eq(a_ any, b_ any) any {
-//line decide/decide.gfx:47
+//line decide/decide.gfx:46
 	return (
-//line decide/decide.gfx:47
+//line decide/decide.gfx:46
 	func() bool {
-		var _gofx272 any = &Tuple2{F0: a_, F1: b_}
-		_ = _gofx272
-//line decide/decide.gfx:47
+		var _gofx276 any = &Tuple2{F0: a_, F1: b_}
+		_ = _gofx276
+//line decide/decide.gfx:46
 		{
-			_gofx273 := _gofx272.(*Tuple2)
-			_ = _gofx273
+			_gofx277 := _gofx276.(*Tuple2)
+			_ = _gofx277
 			{
-				_gofx275 := _gofx273.F0.(*decide_Observed_Observed)
-				_ = _gofx275
+				_gofx279 := _gofx277.F0.(*decide_Observed_Observed)
+				_ = _gofx279
 				{
-					var x0_ any = _gofx275.F0
+					var x0_ any = _gofx279.F0
 					_ = x0_
 					{
-						var x1_ any = _gofx275.F1
+						var x1_ any = _gofx279.F1
 						_ = x1_
 						{
-							var x2_ any = _gofx275.F2
+							var x2_ any = _gofx279.F2
 							_ = x2_
 							{
-								var x3_ any = _gofx275.F3
+								var x3_ any = _gofx279.F3
 								_ = x3_
 								{
-									var x4_ bool = any(_gofx275.F4).(bool)
+									var x4_ bool = any(_gofx279.F4).(bool)
 									_ = x4_
 									{
-										var x5_ bool = any(_gofx275.F5).(bool)
+										var x5_ bool = any(_gofx279.F5).(bool)
 										_ = x5_
 										{
-											var x6_ int64 = any(_gofx275.F6).(int64)
+											var x6_ int64 = any(_gofx279.F6).(int64)
 											_ = x6_
 											{
-												_gofx274 := _gofx273.F1.(*decide_Observed_Observed)
-												_ = _gofx274
+												_gofx278 := _gofx277.F1.(*decide_Observed_Observed)
+												_ = _gofx278
 												{
-													var y0_ any = _gofx274.F0
+													var y0_ any = _gofx278.F0
 													_ = y0_
 													{
-														var y1_ any = _gofx274.F1
+														var y1_ any = _gofx278.F1
 														_ = y1_
 														{
-															var y2_ any = _gofx274.F2
+															var y2_ any = _gofx278.F2
 															_ = y2_
 															{
-																var y3_ any = _gofx274.F3
+																var y3_ any = _gofx278.F3
 																_ = y3_
 																{
-																	var y4_ bool = any(_gofx274.F4).(bool)
+																	var y4_ bool = any(_gofx278.F4).(bool)
 																	_ = y4_
 																	{
-																		var y5_ bool = any(_gofx274.F5).(bool)
+																		var y5_ bool = any(_gofx278.F5).(bool)
 																		_ = y5_
 																		{
-																			var y6_ int64 = any(_gofx274.F6).(int64)
+																			var y6_ int64 = any(_gofx278.F6).(int64)
 																			_ = y6_
-//line decide/decide.gfx:47
-//line decide/decide.gfx:47
+//line decide/decide.gfx:46
+//line decide/decide.gfx:46
 																			return ((((((any((dict_decide_Eq_Binding{}).prelude_Eq(x0_, y0_)).(bool) && any((dict_decide_Eq_FetchedPlan{}).prelude_Eq(x1_, y1_)).(bool)) && any((dict_decide_Eq_FetchedPolicy{}).prelude_Eq(x2_, y2_)).(bool)) && any((dict_decide_Eq_FetchedWindow{}).prelude_Eq(x3_, y3_)).(bool)) && (x4_ == y4_)) && (x5_ == y5_)) && (x6_ == y6_))
 																		}
 																	}
@@ -1453,41 +1475,41 @@ func (dictself dict_decide_Eq_Observed) prelude_Eq(a_ any, b_ any) any {
 
 type dict_decide_Debug_Observed struct{}
 
-//line decide/decide.gfx:47
+//line decide/decide.gfx:46
 func (dictself dict_decide_Debug_Observed) prelude_Debug(a_ any) any {
-//line decide/decide.gfx:47
+//line decide/decide.gfx:46
 	return (
-//line decide/decide.gfx:47
+//line decide/decide.gfx:46
 	func() any {
-		var _gofx276 any = a_
-		_ = _gofx276
-//line decide/decide.gfx:47
+		var _gofx280 any = a_
+		_ = _gofx280
+//line decide/decide.gfx:46
 		{
-			_gofx277 := _gofx276.(*decide_Observed_Observed)
-			_ = _gofx277
+			_gofx281 := _gofx280.(*decide_Observed_Observed)
+			_ = _gofx281
 			{
-				var x0_ any = _gofx277.F0
+				var x0_ any = _gofx281.F0
 				_ = x0_
 				{
-					var x1_ any = _gofx277.F1
+					var x1_ any = _gofx281.F1
 					_ = x1_
 					{
-						var x2_ any = _gofx277.F2
+						var x2_ any = _gofx281.F2
 						_ = x2_
 						{
-							var x3_ any = _gofx277.F3
+							var x3_ any = _gofx281.F3
 							_ = x3_
 							{
-								var x4_ bool = any(_gofx277.F4).(bool)
+								var x4_ bool = any(_gofx281.F4).(bool)
 								_ = x4_
 								{
-									var x5_ bool = any(_gofx277.F5).(bool)
+									var x5_ bool = any(_gofx281.F5).(bool)
 									_ = x5_
 									{
-										var x6_ int64 = any(_gofx277.F6).(int64)
+										var x6_ int64 = any(_gofx281.F6).(int64)
 										_ = x6_
-//line decide/decide.gfx:47
-//line decide/decide.gfx:47
+//line decide/decide.gfx:46
+//line decide/decide.gfx:46
 										return rt.Concat("Observed{binding: ", (dict_prelude_Show_String{}).prelude_Show((dict_decide_Debug_Binding{}).prelude_Debug(x0_)), ", plan: ", (dict_prelude_Show_String{}).prelude_Show((dict_decide_Debug_FetchedPlan{}).prelude_Debug(x1_)), ", policy: ", (dict_prelude_Show_String{}).prelude_Show((dict_decide_Debug_FetchedPolicy{}).prelude_Debug(x2_)), ", window: ", (dict_prelude_Show_String{}).prelude_Show((dict_decide_Debug_FetchedWindow{}).prelude_Debug(x3_)), ", operationsReadable: ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_Bool{}).prelude_Debug(x4_)), ", conflictingOperation: ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_Bool{}).prelude_Debug(x5_)), ", nowMillis: ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_Int{}).prelude_Debug(x6_)), "}")
 									}
 								}
@@ -1502,450 +1524,450 @@ func (dictself dict_decide_Debug_Observed) prelude_Debug(a_ any) any {
 
 type dict_decide_Eq_Reason struct{}
 
-//line decide/decide.gfx:58
+//line decide/decide.gfx:57
 func (dictself dict_decide_Eq_Reason) prelude_Eq(a_ any, b_ any) any {
-//line decide/decide.gfx:58
+//line decide/decide.gfx:57
 	return (
-//line decide/decide.gfx:58
+//line decide/decide.gfx:57
 	func() bool {
-		var _gofx278 any = &Tuple2{F0: a_, F1: b_}
-		_ = _gofx278
-//line decide/decide.gfx:58
-		switch _gofx279 := _gofx278.(type) {
+		var _gofx282 any = &Tuple2{F0: a_, F1: b_}
+		_ = _gofx282
+//line decide/decide.gfx:57
+		switch _gofx283 := _gofx282.(type) {
 		case *Tuple2:
-			_ = _gofx279
-			switch _gofx281 := _gofx279.F0.(type) {
+			_ = _gofx283
+			switch _gofx285 := _gofx283.F0.(type) {
 			case *decide_Reason_PlanReferenceMissing:
-				_ = _gofx281
-				switch _gofx280 := _gofx279.F1.(type) {
+				_ = _gofx285
+				switch _gofx284 := _gofx283.F1.(type) {
 				case *decide_Reason_PlanReferenceMissing:
-					_ = _gofx280
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+					_ = _gofx284
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:58
-		switch _gofx282 := _gofx278.(type) {
+//line decide/decide.gfx:57
+		switch _gofx286 := _gofx282.(type) {
 		case *Tuple2:
-			_ = _gofx282
-			switch _gofx284 := _gofx282.F0.(type) {
+			_ = _gofx286
+			switch _gofx288 := _gofx286.F0.(type) {
 			case *decide_Reason_PlanNotFound:
-				_ = _gofx284
-				switch _gofx283 := _gofx282.F1.(type) {
+				_ = _gofx288
+				switch _gofx287 := _gofx286.F1.(type) {
 				case *decide_Reason_PlanNotFound:
-					_ = _gofx283
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+					_ = _gofx287
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:58
-		switch _gofx285 := _gofx278.(type) {
+//line decide/decide.gfx:57
+		switch _gofx289 := _gofx282.(type) {
 		case *Tuple2:
-			_ = _gofx285
-			switch _gofx287 := _gofx285.F0.(type) {
+			_ = _gofx289
+			switch _gofx291 := _gofx289.F0.(type) {
 			case *decide_Reason_PlanReadFailed:
-				_ = _gofx287
-				switch _gofx286 := _gofx285.F1.(type) {
+				_ = _gofx291
+				switch _gofx290 := _gofx289.F1.(type) {
 				case *decide_Reason_PlanReadFailed:
-					_ = _gofx286
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+					_ = _gofx290
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:58
-		switch _gofx288 := _gofx278.(type) {
+//line decide/decide.gfx:57
+		switch _gofx292 := _gofx282.(type) {
 		case *Tuple2:
-			_ = _gofx288
-			switch _gofx290 := _gofx288.F0.(type) {
+			_ = _gofx292
+			switch _gofx294 := _gofx292.F0.(type) {
 			case *decide_Reason_PlanExpired:
-				_ = _gofx290
-				switch _gofx289 := _gofx288.F1.(type) {
+				_ = _gofx294
+				switch _gofx293 := _gofx292.F1.(type) {
 				case *decide_Reason_PlanExpired:
-					_ = _gofx289
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+					_ = _gofx293
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:58
-		switch _gofx291 := _gofx278.(type) {
+//line decide/decide.gfx:57
+		switch _gofx295 := _gofx282.(type) {
 		case *Tuple2:
-			_ = _gofx291
-			switch _gofx293 := _gofx291.F0.(type) {
+			_ = _gofx295
+			switch _gofx297 := _gofx295.F0.(type) {
 			case *decide_Reason_PlanSuperseded:
-				_ = _gofx293
-				switch _gofx292 := _gofx291.F1.(type) {
+				_ = _gofx297
+				switch _gofx296 := _gofx295.F1.(type) {
 				case *decide_Reason_PlanSuperseded:
-					_ = _gofx292
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+					_ = _gofx296
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:58
-		switch _gofx294 := _gofx278.(type) {
+//line decide/decide.gfx:57
+		switch _gofx298 := _gofx282.(type) {
 		case *Tuple2:
-			_ = _gofx294
-			switch _gofx296 := _gofx294.F0.(type) {
+			_ = _gofx298
+			switch _gofx300 := _gofx298.F0.(type) {
 			case *decide_Reason_PlanNotReady:
-				_ = _gofx296
-				switch _gofx295 := _gofx294.F1.(type) {
+				_ = _gofx300
+				switch _gofx299 := _gofx298.F1.(type) {
 				case *decide_Reason_PlanNotReady:
-					_ = _gofx295
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+					_ = _gofx299
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:58
-		switch _gofx297 := _gofx278.(type) {
+//line decide/decide.gfx:57
+		switch _gofx301 := _gofx282.(type) {
 		case *Tuple2:
-			_ = _gofx297
-			switch _gofx299 := _gofx297.F0.(type) {
+			_ = _gofx301
+			switch _gofx303 := _gofx301.F0.(type) {
 			case *decide_Reason_PlanGenerationMismatch:
-				_ = _gofx299
-				switch _gofx298 := _gofx297.F1.(type) {
+				_ = _gofx303
+				switch _gofx302 := _gofx301.F1.(type) {
 				case *decide_Reason_PlanGenerationMismatch:
-					_ = _gofx298
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+					_ = _gofx302
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:58
-		switch _gofx300 := _gofx278.(type) {
+//line decide/decide.gfx:57
+		switch _gofx304 := _gofx282.(type) {
 		case *Tuple2:
-			_ = _gofx300
-			switch _gofx302 := _gofx300.F0.(type) {
+			_ = _gofx304
+			switch _gofx306 := _gofx304.F0.(type) {
 			case *decide_Reason_EvidenceHashMismatch:
-				_ = _gofx302
-				switch _gofx301 := _gofx300.F1.(type) {
+				_ = _gofx306
+				switch _gofx305 := _gofx304.F1.(type) {
 				case *decide_Reason_EvidenceHashMismatch:
-					_ = _gofx301
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+					_ = _gofx305
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:58
-		switch _gofx303 := _gofx278.(type) {
+//line decide/decide.gfx:57
+		switch _gofx307 := _gofx282.(type) {
 		case *Tuple2:
-			_ = _gofx303
-			switch _gofx305 := _gofx303.F0.(type) {
+			_ = _gofx307
+			switch _gofx309 := _gofx307.F0.(type) {
 			case *decide_Reason_ChangeSetFingerprintMismatch:
-				_ = _gofx305
-				switch _gofx304 := _gofx303.F1.(type) {
+				_ = _gofx309
+				switch _gofx308 := _gofx307.F1.(type) {
 				case *decide_Reason_ChangeSetFingerprintMismatch:
-					_ = _gofx304
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+					_ = _gofx308
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:58
-		switch _gofx306 := _gofx278.(type) {
+//line decide/decide.gfx:57
+		switch _gofx310 := _gofx282.(type) {
 		case *Tuple2:
-			_ = _gofx306
-			switch _gofx308 := _gofx306.F0.(type) {
+			_ = _gofx310
+			switch _gofx312 := _gofx310.F0.(type) {
 			case *decide_Reason_BaseRevisionMismatch:
-				_ = _gofx308
-				switch _gofx307 := _gofx306.F1.(type) {
+				_ = _gofx312
+				switch _gofx311 := _gofx310.F1.(type) {
 				case *decide_Reason_BaseRevisionMismatch:
-					_ = _gofx307
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+					_ = _gofx311
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:58
-		switch _gofx309 := _gofx278.(type) {
+//line decide/decide.gfx:57
+		switch _gofx313 := _gofx282.(type) {
 		case *Tuple2:
-			_ = _gofx309
-			switch _gofx311 := _gofx309.F0.(type) {
+			_ = _gofx313
+			switch _gofx315 := _gofx313.F0.(type) {
 			case *decide_Reason_PolicyReferenceMissing:
-				_ = _gofx311
-				switch _gofx310 := _gofx309.F1.(type) {
+				_ = _gofx315
+				switch _gofx314 := _gofx313.F1.(type) {
 				case *decide_Reason_PolicyReferenceMissing:
-					_ = _gofx310
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+					_ = _gofx314
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:58
-		switch _gofx312 := _gofx278.(type) {
+//line decide/decide.gfx:57
+		switch _gofx316 := _gofx282.(type) {
 		case *Tuple2:
-			_ = _gofx312
-			switch _gofx314 := _gofx312.F0.(type) {
+			_ = _gofx316
+			switch _gofx318 := _gofx316.F0.(type) {
 			case *decide_Reason_PolicyReadFailed:
-				_ = _gofx314
-				switch _gofx313 := _gofx312.F1.(type) {
+				_ = _gofx318
+				switch _gofx317 := _gofx316.F1.(type) {
 				case *decide_Reason_PolicyReadFailed:
-					_ = _gofx313
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+					_ = _gofx317
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:58
-		switch _gofx315 := _gofx278.(type) {
+//line decide/decide.gfx:57
+		switch _gofx319 := _gofx282.(type) {
 		case *Tuple2:
-			_ = _gofx315
-			switch _gofx317 := _gofx315.F0.(type) {
+			_ = _gofx319
+			switch _gofx321 := _gofx319.F0.(type) {
 			case *decide_Reason_PolicyGenerationMismatch:
-				_ = _gofx317
-				switch _gofx316 := _gofx315.F1.(type) {
+				_ = _gofx321
+				switch _gofx320 := _gofx319.F1.(type) {
 				case *decide_Reason_PolicyGenerationMismatch:
-					_ = _gofx316
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+					_ = _gofx320
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:58
-		switch _gofx318 := _gofx278.(type) {
+//line decide/decide.gfx:57
+		switch _gofx322 := _gofx282.(type) {
 		case *Tuple2:
-			_ = _gofx318
-			switch _gofx320 := _gofx318.F0.(type) {
+			_ = _gofx322
+			switch _gofx324 := _gofx322.F0.(type) {
 			case *decide_Reason_MaintenanceWindowReadFailed:
-				_ = _gofx320
-				switch _gofx319 := _gofx318.F1.(type) {
+				_ = _gofx324
+				switch _gofx323 := _gofx322.F1.(type) {
 				case *decide_Reason_MaintenanceWindowReadFailed:
-					_ = _gofx319
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+					_ = _gofx323
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:58
-		switch _gofx321 := _gofx278.(type) {
+//line decide/decide.gfx:57
+		switch _gofx325 := _gofx282.(type) {
 		case *Tuple2:
-			_ = _gofx321
-			switch _gofx323 := _gofx321.F0.(type) {
+			_ = _gofx325
+			switch _gofx327 := _gofx325.F0.(type) {
 			case *decide_Reason_MaintenanceWindowApprovalDisabled:
-				_ = _gofx323
-				switch _gofx322 := _gofx321.F1.(type) {
+				_ = _gofx327
+				switch _gofx326 := _gofx325.F1.(type) {
 				case *decide_Reason_MaintenanceWindowApprovalDisabled:
-					_ = _gofx322
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+					_ = _gofx326
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:58
-		switch _gofx324 := _gofx278.(type) {
+//line decide/decide.gfx:57
+		switch _gofx328 := _gofx282.(type) {
 		case *Tuple2:
-			_ = _gofx324
-			switch _gofx326 := _gofx324.F0.(type) {
+			_ = _gofx328
+			switch _gofx330 := _gofx328.F0.(type) {
 			case *decide_Reason_MaintenanceWindowOperationNotAllowed:
-				_ = _gofx326
-				switch _gofx325 := _gofx324.F1.(type) {
+				_ = _gofx330
+				switch _gofx329 := _gofx328.F1.(type) {
 				case *decide_Reason_MaintenanceWindowOperationNotAllowed:
-					_ = _gofx325
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+					_ = _gofx329
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:58
-		switch _gofx327 := _gofx278.(type) {
+//line decide/decide.gfx:57
+		switch _gofx331 := _gofx282.(type) {
 		case *Tuple2:
-			_ = _gofx327
-			switch _gofx329 := _gofx327.F0.(type) {
+			_ = _gofx331
+			switch _gofx333 := _gofx331.F0.(type) {
 			case *decide_Reason_MaintenanceWindowClosed:
-				_ = _gofx329
-				switch _gofx328 := _gofx327.F1.(type) {
+				_ = _gofx333
+				switch _gofx332 := _gofx331.F1.(type) {
 				case *decide_Reason_MaintenanceWindowClosed:
-					_ = _gofx328
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+					_ = _gofx332
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:58
-		switch _gofx330 := _gofx278.(type) {
+//line decide/decide.gfx:57
+		switch _gofx334 := _gofx282.(type) {
 		case *Tuple2:
-			_ = _gofx330
-			switch _gofx332 := _gofx330.F0.(type) {
+			_ = _gofx334
+			switch _gofx336 := _gofx334.F0.(type) {
 			case *decide_Reason_SafetyGatesMissing:
-				_ = _gofx332
-				switch _gofx331 := _gofx330.F1.(type) {
+				_ = _gofx336
+				switch _gofx335 := _gofx334.F1.(type) {
 				case *decide_Reason_SafetyGatesMissing:
-					_ = _gofx331
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+					_ = _gofx335
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:58
-		switch _gofx333 := _gofx278.(type) {
+//line decide/decide.gfx:57
+		switch _gofx337 := _gofx282.(type) {
 		case *Tuple2:
-			_ = _gofx333
-			switch _gofx335 := _gofx333.F0.(type) {
+			_ = _gofx337
+			switch _gofx339 := _gofx337.F0.(type) {
 			case *decide_Reason_SafetyGateInvalid:
-				_ = _gofx335
-				switch _gofx334 := _gofx333.F1.(type) {
+				_ = _gofx339
+				switch _gofx338 := _gofx337.F1.(type) {
 				case *decide_Reason_SafetyGateInvalid:
-					_ = _gofx334
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+					_ = _gofx338
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:58
-		switch _gofx336 := _gofx278.(type) {
+//line decide/decide.gfx:57
+		switch _gofx340 := _gofx282.(type) {
 		case *Tuple2:
-			_ = _gofx336
-			switch _gofx338 := _gofx336.F0.(type) {
+			_ = _gofx340
+			switch _gofx342 := _gofx340.F0.(type) {
 			case *decide_Reason_SafetyGateBlocked:
-				_ = _gofx338
-				switch _gofx337 := _gofx336.F1.(type) {
+				_ = _gofx342
+				switch _gofx341 := _gofx340.F1.(type) {
 				case *decide_Reason_SafetyGateBlocked:
-					_ = _gofx337
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+					_ = _gofx341
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:58
-		switch _gofx339 := _gofx278.(type) {
+//line decide/decide.gfx:57
+		switch _gofx343 := _gofx282.(type) {
 		case *Tuple2:
-			_ = _gofx339
-			switch _gofx341 := _gofx339.F0.(type) {
+			_ = _gofx343
+			switch _gofx345 := _gofx343.F0.(type) {
 			case *decide_Reason_OperationReadFailed:
-				_ = _gofx341
-				switch _gofx340 := _gofx339.F1.(type) {
+				_ = _gofx345
+				switch _gofx344 := _gofx343.F1.(type) {
 				case *decide_Reason_OperationReadFailed:
-					_ = _gofx340
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+					_ = _gofx344
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:58
-		switch _gofx342 := _gofx278.(type) {
+//line decide/decide.gfx:57
+		switch _gofx346 := _gofx282.(type) {
 		case *Tuple2:
-			_ = _gofx342
-			switch _gofx344 := _gofx342.F0.(type) {
+			_ = _gofx346
+			switch _gofx348 := _gofx346.F0.(type) {
 			case *decide_Reason_ConflictingOperationActive:
-				_ = _gofx344
-				switch _gofx343 := _gofx342.F1.(type) {
+				_ = _gofx348
+				switch _gofx347 := _gofx346.F1.(type) {
 				case *decide_Reason_ConflictingOperationActive:
-					_ = _gofx343
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+					_ = _gofx347
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:58
-		switch _gofx345 := _gofx278.(type) {
+//line decide/decide.gfx:57
+		switch _gofx349 := _gofx282.(type) {
 		case *Tuple2:
-			_ = _gofx345
-			switch _gofx347 := _gofx345.F0.(type) {
+			_ = _gofx349
+			switch _gofx351 := _gofx349.F0.(type) {
 			case *decide_Reason_EvidenceTTLInvalid:
-				_ = _gofx347
-				switch _gofx346 := _gofx345.F1.(type) {
+				_ = _gofx351
+				switch _gofx350 := _gofx349.F1.(type) {
 				case *decide_Reason_EvidenceTTLInvalid:
-					_ = _gofx346
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+					_ = _gofx350
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:58
-		switch _gofx348 := _gofx278.(type) {
+//line decide/decide.gfx:57
+		switch _gofx352 := _gofx282.(type) {
 		case *Tuple2:
-			_ = _gofx348
-			switch _gofx350 := _gofx348.F0.(type) {
+			_ = _gofx352
+			switch _gofx354 := _gofx352.F0.(type) {
 			case *decide_Reason_EvidenceTimestampMissing:
-				_ = _gofx350
-				switch _gofx349 := _gofx348.F1.(type) {
+				_ = _gofx354
+				switch _gofx353 := _gofx352.F1.(type) {
 				case *decide_Reason_EvidenceTimestampMissing:
-					_ = _gofx349
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+					_ = _gofx353
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:58
-		switch _gofx351 := _gofx278.(type) {
+//line decide/decide.gfx:57
+		switch _gofx355 := _gofx282.(type) {
 		case *Tuple2:
-			_ = _gofx351
-			switch _gofx353 := _gofx351.F0.(type) {
+			_ = _gofx355
+			switch _gofx357 := _gofx355.F0.(type) {
 			case *decide_Reason_EvidenceTimestampInvalid:
-				_ = _gofx353
-				switch _gofx352 := _gofx351.F1.(type) {
+				_ = _gofx357
+				switch _gofx356 := _gofx355.F1.(type) {
 				case *decide_Reason_EvidenceTimestampInvalid:
-					_ = _gofx352
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+					_ = _gofx356
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:58
-		switch _gofx354 := _gofx278.(type) {
+//line decide/decide.gfx:57
+		switch _gofx358 := _gofx282.(type) {
 		case *Tuple2:
-			_ = _gofx354
-			switch _gofx356 := _gofx354.F0.(type) {
+			_ = _gofx358
+			switch _gofx360 := _gofx358.F0.(type) {
 			case *decide_Reason_EvidenceExpired:
-				_ = _gofx356
-				switch _gofx355 := _gofx354.F1.(type) {
+				_ = _gofx360
+				switch _gofx359 := _gofx358.F1.(type) {
 				case *decide_Reason_EvidenceExpired:
-					_ = _gofx355
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+					_ = _gofx359
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:58
-		switch _gofx357 := _gofx278.(type) {
+//line decide/decide.gfx:57
+		switch _gofx361 := _gofx282.(type) {
 		case *Tuple2:
-			_ = _gofx357
-			switch _gofx359 := _gofx357.F0.(type) {
+			_ = _gofx361
+			switch _gofx363 := _gofx361.F0.(type) {
 			case *decide_Reason_ApprovalAccepted:
-				_ = _gofx359
-				switch _gofx358 := _gofx357.F1.(type) {
+				_ = _gofx363
+				switch _gofx362 := _gofx361.F1.(type) {
 				case *decide_Reason_ApprovalAccepted:
-					_ = _gofx358
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+					_ = _gofx362
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 					return true
 				}
 			}
 		}
-//line decide/decide.gfx:58
+//line decide/decide.gfx:57
 		{
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return false
 		}
 	}())
@@ -1953,228 +1975,228 @@ func (dictself dict_decide_Eq_Reason) prelude_Eq(a_ any, b_ any) any {
 
 type dict_decide_Debug_Reason struct{}
 
-//line decide/decide.gfx:58
+//line decide/decide.gfx:57
 func (dictself dict_decide_Debug_Reason) prelude_Debug(a_ any) any {
-//line decide/decide.gfx:58
+//line decide/decide.gfx:57
 	return (
-//line decide/decide.gfx:58
+//line decide/decide.gfx:57
 	func() any {
-		var _gofx360 any = a_
-		_ = _gofx360
-//line decide/decide.gfx:58
-		switch _gofx361 := _gofx360.(type) {
+		var _gofx364 any = a_
+		_ = _gofx364
+//line decide/decide.gfx:57
+		switch _gofx365 := _gofx364.(type) {
 		case *decide_Reason_PlanReferenceMissing:
-			_ = _gofx361
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+			_ = _gofx365
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return "PlanReferenceMissing"
 		}
-//line decide/decide.gfx:58
-		switch _gofx362 := _gofx360.(type) {
+//line decide/decide.gfx:57
+		switch _gofx366 := _gofx364.(type) {
 		case *decide_Reason_PlanNotFound:
-			_ = _gofx362
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+			_ = _gofx366
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return "PlanNotFound"
 		}
-//line decide/decide.gfx:58
-		switch _gofx363 := _gofx360.(type) {
+//line decide/decide.gfx:57
+		switch _gofx367 := _gofx364.(type) {
 		case *decide_Reason_PlanReadFailed:
-			_ = _gofx363
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+			_ = _gofx367
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return "PlanReadFailed"
 		}
-//line decide/decide.gfx:58
-		switch _gofx364 := _gofx360.(type) {
+//line decide/decide.gfx:57
+		switch _gofx368 := _gofx364.(type) {
 		case *decide_Reason_PlanExpired:
-			_ = _gofx364
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+			_ = _gofx368
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return "PlanExpired"
 		}
-//line decide/decide.gfx:58
-		switch _gofx365 := _gofx360.(type) {
+//line decide/decide.gfx:57
+		switch _gofx369 := _gofx364.(type) {
 		case *decide_Reason_PlanSuperseded:
-			_ = _gofx365
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+			_ = _gofx369
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return "PlanSuperseded"
 		}
-//line decide/decide.gfx:58
-		switch _gofx366 := _gofx360.(type) {
+//line decide/decide.gfx:57
+		switch _gofx370 := _gofx364.(type) {
 		case *decide_Reason_PlanNotReady:
-			_ = _gofx366
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+			_ = _gofx370
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return "PlanNotReady"
 		}
-//line decide/decide.gfx:58
-		switch _gofx367 := _gofx360.(type) {
+//line decide/decide.gfx:57
+		switch _gofx371 := _gofx364.(type) {
 		case *decide_Reason_PlanGenerationMismatch:
-			_ = _gofx367
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+			_ = _gofx371
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return "PlanGenerationMismatch"
 		}
-//line decide/decide.gfx:58
-		switch _gofx368 := _gofx360.(type) {
+//line decide/decide.gfx:57
+		switch _gofx372 := _gofx364.(type) {
 		case *decide_Reason_EvidenceHashMismatch:
-			_ = _gofx368
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+			_ = _gofx372
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return "EvidenceHashMismatch"
 		}
-//line decide/decide.gfx:58
-		switch _gofx369 := _gofx360.(type) {
+//line decide/decide.gfx:57
+		switch _gofx373 := _gofx364.(type) {
 		case *decide_Reason_ChangeSetFingerprintMismatch:
-			_ = _gofx369
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+			_ = _gofx373
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return "ChangeSetFingerprintMismatch"
 		}
-//line decide/decide.gfx:58
-		switch _gofx370 := _gofx360.(type) {
+//line decide/decide.gfx:57
+		switch _gofx374 := _gofx364.(type) {
 		case *decide_Reason_BaseRevisionMismatch:
-			_ = _gofx370
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+			_ = _gofx374
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return "BaseRevisionMismatch"
 		}
-//line decide/decide.gfx:58
-		switch _gofx371 := _gofx360.(type) {
+//line decide/decide.gfx:57
+		switch _gofx375 := _gofx364.(type) {
 		case *decide_Reason_PolicyReferenceMissing:
-			_ = _gofx371
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+			_ = _gofx375
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return "PolicyReferenceMissing"
 		}
-//line decide/decide.gfx:58
-		switch _gofx372 := _gofx360.(type) {
+//line decide/decide.gfx:57
+		switch _gofx376 := _gofx364.(type) {
 		case *decide_Reason_PolicyReadFailed:
-			_ = _gofx372
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+			_ = _gofx376
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return "PolicyReadFailed"
 		}
-//line decide/decide.gfx:58
-		switch _gofx373 := _gofx360.(type) {
+//line decide/decide.gfx:57
+		switch _gofx377 := _gofx364.(type) {
 		case *decide_Reason_PolicyGenerationMismatch:
-			_ = _gofx373
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+			_ = _gofx377
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return "PolicyGenerationMismatch"
 		}
-//line decide/decide.gfx:58
-		switch _gofx374 := _gofx360.(type) {
+//line decide/decide.gfx:57
+		switch _gofx378 := _gofx364.(type) {
 		case *decide_Reason_MaintenanceWindowReadFailed:
-			_ = _gofx374
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+			_ = _gofx378
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return "MaintenanceWindowReadFailed"
 		}
-//line decide/decide.gfx:58
-		switch _gofx375 := _gofx360.(type) {
+//line decide/decide.gfx:57
+		switch _gofx379 := _gofx364.(type) {
 		case *decide_Reason_MaintenanceWindowApprovalDisabled:
-			_ = _gofx375
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+			_ = _gofx379
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return "MaintenanceWindowApprovalDisabled"
 		}
-//line decide/decide.gfx:58
-		switch _gofx376 := _gofx360.(type) {
+//line decide/decide.gfx:57
+		switch _gofx380 := _gofx364.(type) {
 		case *decide_Reason_MaintenanceWindowOperationNotAllowed:
-			_ = _gofx376
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+			_ = _gofx380
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return "MaintenanceWindowOperationNotAllowed"
 		}
-//line decide/decide.gfx:58
-		switch _gofx377 := _gofx360.(type) {
+//line decide/decide.gfx:57
+		switch _gofx381 := _gofx364.(type) {
 		case *decide_Reason_MaintenanceWindowClosed:
-			_ = _gofx377
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+			_ = _gofx381
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return "MaintenanceWindowClosed"
 		}
-//line decide/decide.gfx:58
-		switch _gofx378 := _gofx360.(type) {
+//line decide/decide.gfx:57
+		switch _gofx382 := _gofx364.(type) {
 		case *decide_Reason_SafetyGatesMissing:
-			_ = _gofx378
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+			_ = _gofx382
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return "SafetyGatesMissing"
 		}
-//line decide/decide.gfx:58
-		switch _gofx379 := _gofx360.(type) {
+//line decide/decide.gfx:57
+		switch _gofx383 := _gofx364.(type) {
 		case *decide_Reason_SafetyGateInvalid:
-			_ = _gofx379
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+			_ = _gofx383
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return "SafetyGateInvalid"
 		}
-//line decide/decide.gfx:58
-		switch _gofx380 := _gofx360.(type) {
+//line decide/decide.gfx:57
+		switch _gofx384 := _gofx364.(type) {
 		case *decide_Reason_SafetyGateBlocked:
-			_ = _gofx380
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+			_ = _gofx384
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return "SafetyGateBlocked"
 		}
-//line decide/decide.gfx:58
-		switch _gofx381 := _gofx360.(type) {
+//line decide/decide.gfx:57
+		switch _gofx385 := _gofx364.(type) {
 		case *decide_Reason_OperationReadFailed:
-			_ = _gofx381
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+			_ = _gofx385
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return "OperationReadFailed"
 		}
-//line decide/decide.gfx:58
-		switch _gofx382 := _gofx360.(type) {
+//line decide/decide.gfx:57
+		switch _gofx386 := _gofx364.(type) {
 		case *decide_Reason_ConflictingOperationActive:
-			_ = _gofx382
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+			_ = _gofx386
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return "ConflictingOperationActive"
 		}
-//line decide/decide.gfx:58
-		switch _gofx383 := _gofx360.(type) {
+//line decide/decide.gfx:57
+		switch _gofx387 := _gofx364.(type) {
 		case *decide_Reason_EvidenceTTLInvalid:
-			_ = _gofx383
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+			_ = _gofx387
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return "EvidenceTTLInvalid"
 		}
-//line decide/decide.gfx:58
-		switch _gofx384 := _gofx360.(type) {
+//line decide/decide.gfx:57
+		switch _gofx388 := _gofx364.(type) {
 		case *decide_Reason_EvidenceTimestampMissing:
-			_ = _gofx384
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+			_ = _gofx388
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return "EvidenceTimestampMissing"
 		}
-//line decide/decide.gfx:58
-		switch _gofx385 := _gofx360.(type) {
+//line decide/decide.gfx:57
+		switch _gofx389 := _gofx364.(type) {
 		case *decide_Reason_EvidenceTimestampInvalid:
-			_ = _gofx385
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+			_ = _gofx389
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return "EvidenceTimestampInvalid"
 		}
-//line decide/decide.gfx:58
-		switch _gofx386 := _gofx360.(type) {
+//line decide/decide.gfx:57
+		switch _gofx390 := _gofx364.(type) {
 		case *decide_Reason_EvidenceExpired:
-			_ = _gofx386
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+			_ = _gofx390
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return "EvidenceExpired"
 		}
-//line decide/decide.gfx:58
+//line decide/decide.gfx:57
 		{
-			_gofx387 := _gofx360.(*decide_Reason_ApprovalAccepted)
-			_ = _gofx387
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+			_gofx391 := _gofx364.(*decide_Reason_ApprovalAccepted)
+			_ = _gofx391
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return "ApprovalAccepted"
 		}
 	}())
@@ -2182,228 +2204,228 @@ func (dictself dict_decide_Debug_Reason) prelude_Debug(a_ any) any {
 
 type dict_decide_Show_Reason struct{}
 
-//line decide/decide.gfx:58
+//line decide/decide.gfx:57
 func (dictself dict_decide_Show_Reason) prelude_Show(a_ any) any {
-//line decide/decide.gfx:58
+//line decide/decide.gfx:57
 	return (
-//line decide/decide.gfx:58
+//line decide/decide.gfx:57
 	func() any {
-		var _gofx388 any = a_
-		_ = _gofx388
-//line decide/decide.gfx:58
-		switch _gofx389 := _gofx388.(type) {
+		var _gofx392 any = a_
+		_ = _gofx392
+//line decide/decide.gfx:57
+		switch _gofx393 := _gofx392.(type) {
 		case *decide_Reason_PlanReferenceMissing:
-			_ = _gofx389
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+			_ = _gofx393
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return "PlanReferenceMissing"
 		}
-//line decide/decide.gfx:58
-		switch _gofx390 := _gofx388.(type) {
+//line decide/decide.gfx:57
+		switch _gofx394 := _gofx392.(type) {
 		case *decide_Reason_PlanNotFound:
-			_ = _gofx390
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+			_ = _gofx394
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return "PlanNotFound"
 		}
-//line decide/decide.gfx:58
-		switch _gofx391 := _gofx388.(type) {
+//line decide/decide.gfx:57
+		switch _gofx395 := _gofx392.(type) {
 		case *decide_Reason_PlanReadFailed:
-			_ = _gofx391
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+			_ = _gofx395
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return "PlanReadFailed"
 		}
-//line decide/decide.gfx:58
-		switch _gofx392 := _gofx388.(type) {
+//line decide/decide.gfx:57
+		switch _gofx396 := _gofx392.(type) {
 		case *decide_Reason_PlanExpired:
-			_ = _gofx392
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+			_ = _gofx396
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return "PlanExpired"
 		}
-//line decide/decide.gfx:58
-		switch _gofx393 := _gofx388.(type) {
+//line decide/decide.gfx:57
+		switch _gofx397 := _gofx392.(type) {
 		case *decide_Reason_PlanSuperseded:
-			_ = _gofx393
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+			_ = _gofx397
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return "PlanSuperseded"
 		}
-//line decide/decide.gfx:58
-		switch _gofx394 := _gofx388.(type) {
+//line decide/decide.gfx:57
+		switch _gofx398 := _gofx392.(type) {
 		case *decide_Reason_PlanNotReady:
-			_ = _gofx394
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+			_ = _gofx398
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return "PlanNotReady"
 		}
-//line decide/decide.gfx:58
-		switch _gofx395 := _gofx388.(type) {
+//line decide/decide.gfx:57
+		switch _gofx399 := _gofx392.(type) {
 		case *decide_Reason_PlanGenerationMismatch:
-			_ = _gofx395
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+			_ = _gofx399
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return "PlanGenerationMismatch"
 		}
-//line decide/decide.gfx:58
-		switch _gofx396 := _gofx388.(type) {
+//line decide/decide.gfx:57
+		switch _gofx400 := _gofx392.(type) {
 		case *decide_Reason_EvidenceHashMismatch:
-			_ = _gofx396
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+			_ = _gofx400
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return "EvidenceHashMismatch"
 		}
-//line decide/decide.gfx:58
-		switch _gofx397 := _gofx388.(type) {
+//line decide/decide.gfx:57
+		switch _gofx401 := _gofx392.(type) {
 		case *decide_Reason_ChangeSetFingerprintMismatch:
-			_ = _gofx397
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+			_ = _gofx401
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return "ChangeSetFingerprintMismatch"
 		}
-//line decide/decide.gfx:58
-		switch _gofx398 := _gofx388.(type) {
+//line decide/decide.gfx:57
+		switch _gofx402 := _gofx392.(type) {
 		case *decide_Reason_BaseRevisionMismatch:
-			_ = _gofx398
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+			_ = _gofx402
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return "BaseRevisionMismatch"
 		}
-//line decide/decide.gfx:58
-		switch _gofx399 := _gofx388.(type) {
+//line decide/decide.gfx:57
+		switch _gofx403 := _gofx392.(type) {
 		case *decide_Reason_PolicyReferenceMissing:
-			_ = _gofx399
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+			_ = _gofx403
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return "PolicyReferenceMissing"
 		}
-//line decide/decide.gfx:58
-		switch _gofx400 := _gofx388.(type) {
+//line decide/decide.gfx:57
+		switch _gofx404 := _gofx392.(type) {
 		case *decide_Reason_PolicyReadFailed:
-			_ = _gofx400
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+			_ = _gofx404
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return "PolicyReadFailed"
 		}
-//line decide/decide.gfx:58
-		switch _gofx401 := _gofx388.(type) {
+//line decide/decide.gfx:57
+		switch _gofx405 := _gofx392.(type) {
 		case *decide_Reason_PolicyGenerationMismatch:
-			_ = _gofx401
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+			_ = _gofx405
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return "PolicyGenerationMismatch"
 		}
-//line decide/decide.gfx:58
-		switch _gofx402 := _gofx388.(type) {
+//line decide/decide.gfx:57
+		switch _gofx406 := _gofx392.(type) {
 		case *decide_Reason_MaintenanceWindowReadFailed:
-			_ = _gofx402
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+			_ = _gofx406
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return "MaintenanceWindowReadFailed"
 		}
-//line decide/decide.gfx:58
-		switch _gofx403 := _gofx388.(type) {
+//line decide/decide.gfx:57
+		switch _gofx407 := _gofx392.(type) {
 		case *decide_Reason_MaintenanceWindowApprovalDisabled:
-			_ = _gofx403
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+			_ = _gofx407
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return "MaintenanceWindowApprovalDisabled"
 		}
-//line decide/decide.gfx:58
-		switch _gofx404 := _gofx388.(type) {
+//line decide/decide.gfx:57
+		switch _gofx408 := _gofx392.(type) {
 		case *decide_Reason_MaintenanceWindowOperationNotAllowed:
-			_ = _gofx404
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+			_ = _gofx408
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return "MaintenanceWindowOperationNotAllowed"
 		}
-//line decide/decide.gfx:58
-		switch _gofx405 := _gofx388.(type) {
+//line decide/decide.gfx:57
+		switch _gofx409 := _gofx392.(type) {
 		case *decide_Reason_MaintenanceWindowClosed:
-			_ = _gofx405
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+			_ = _gofx409
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return "MaintenanceWindowClosed"
 		}
-//line decide/decide.gfx:58
-		switch _gofx406 := _gofx388.(type) {
+//line decide/decide.gfx:57
+		switch _gofx410 := _gofx392.(type) {
 		case *decide_Reason_SafetyGatesMissing:
-			_ = _gofx406
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+			_ = _gofx410
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return "SafetyGatesMissing"
 		}
-//line decide/decide.gfx:58
-		switch _gofx407 := _gofx388.(type) {
+//line decide/decide.gfx:57
+		switch _gofx411 := _gofx392.(type) {
 		case *decide_Reason_SafetyGateInvalid:
-			_ = _gofx407
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+			_ = _gofx411
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return "SafetyGateInvalid"
 		}
-//line decide/decide.gfx:58
-		switch _gofx408 := _gofx388.(type) {
+//line decide/decide.gfx:57
+		switch _gofx412 := _gofx392.(type) {
 		case *decide_Reason_SafetyGateBlocked:
-			_ = _gofx408
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+			_ = _gofx412
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return "SafetyGateBlocked"
 		}
-//line decide/decide.gfx:58
-		switch _gofx409 := _gofx388.(type) {
+//line decide/decide.gfx:57
+		switch _gofx413 := _gofx392.(type) {
 		case *decide_Reason_OperationReadFailed:
-			_ = _gofx409
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+			_ = _gofx413
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return "OperationReadFailed"
 		}
-//line decide/decide.gfx:58
-		switch _gofx410 := _gofx388.(type) {
+//line decide/decide.gfx:57
+		switch _gofx414 := _gofx392.(type) {
 		case *decide_Reason_ConflictingOperationActive:
-			_ = _gofx410
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+			_ = _gofx414
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return "ConflictingOperationActive"
 		}
-//line decide/decide.gfx:58
-		switch _gofx411 := _gofx388.(type) {
+//line decide/decide.gfx:57
+		switch _gofx415 := _gofx392.(type) {
 		case *decide_Reason_EvidenceTTLInvalid:
-			_ = _gofx411
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+			_ = _gofx415
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return "EvidenceTTLInvalid"
 		}
-//line decide/decide.gfx:58
-		switch _gofx412 := _gofx388.(type) {
+//line decide/decide.gfx:57
+		switch _gofx416 := _gofx392.(type) {
 		case *decide_Reason_EvidenceTimestampMissing:
-			_ = _gofx412
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+			_ = _gofx416
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return "EvidenceTimestampMissing"
 		}
-//line decide/decide.gfx:58
-		switch _gofx413 := _gofx388.(type) {
+//line decide/decide.gfx:57
+		switch _gofx417 := _gofx392.(type) {
 		case *decide_Reason_EvidenceTimestampInvalid:
-			_ = _gofx413
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+			_ = _gofx417
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return "EvidenceTimestampInvalid"
 		}
-//line decide/decide.gfx:58
-		switch _gofx414 := _gofx388.(type) {
+//line decide/decide.gfx:57
+		switch _gofx418 := _gofx392.(type) {
 		case *decide_Reason_EvidenceExpired:
-			_ = _gofx414
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+			_ = _gofx418
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return "EvidenceExpired"
 		}
-//line decide/decide.gfx:58
+//line decide/decide.gfx:57
 		{
-			_gofx415 := _gofx388.(*decide_Reason_ApprovalAccepted)
-			_ = _gofx415
-//line decide/decide.gfx:58
-//line decide/decide.gfx:58
+			_gofx419 := _gofx392.(*decide_Reason_ApprovalAccepted)
+			_ = _gofx419
+//line decide/decide.gfx:57
+//line decide/decide.gfx:57
 			return "ApprovalAccepted"
 		}
 	}())
@@ -2411,38 +2433,38 @@ func (dictself dict_decide_Show_Reason) prelude_Show(a_ any) any {
 
 type dict_decide_Eq_Verdict struct{}
 
-//line decide/decide.gfx:72
+//line decide/decide.gfx:71
 func (dictself dict_decide_Eq_Verdict) prelude_Eq(a_ any, b_ any) any {
-//line decide/decide.gfx:72
+//line decide/decide.gfx:71
 	return (
-//line decide/decide.gfx:72
+//line decide/decide.gfx:71
 	func() bool {
-		var _gofx416 any = &Tuple2{F0: a_, F1: b_}
-		_ = _gofx416
-//line decide/decide.gfx:72
-		switch _gofx417 := _gofx416.(type) {
+		var _gofx420 any = &Tuple2{F0: a_, F1: b_}
+		_ = _gofx420
+//line decide/decide.gfx:71
+		switch _gofx421 := _gofx420.(type) {
 		case *Tuple2:
-			_ = _gofx417
-			switch _gofx419 := _gofx417.F0.(type) {
+			_ = _gofx421
+			switch _gofx423 := _gofx421.F0.(type) {
 			case *decide_Verdict_Rejected:
-				_ = _gofx419
+				_ = _gofx423
 				{
-					var x0_ any = _gofx419.F0
+					var x0_ any = _gofx423.F0
 					_ = x0_
 					{
-						var x1_ any = _gofx419.F1
+						var x1_ any = _gofx423.F1
 						_ = x1_
-						switch _gofx418 := _gofx417.F1.(type) {
+						switch _gofx422 := _gofx421.F1.(type) {
 						case *decide_Verdict_Rejected:
-							_ = _gofx418
+							_ = _gofx422
 							{
-								var y0_ any = _gofx418.F0
+								var y0_ any = _gofx422.F0
 								_ = y0_
 								{
-									var y1_ any = _gofx418.F1
+									var y1_ any = _gofx422.F1
 									_ = y1_
-//line decide/decide.gfx:72
-//line decide/decide.gfx:72
+//line decide/decide.gfx:71
+//line decide/decide.gfx:71
 									return (any((dict_decide_Eq_Reason{}).prelude_Eq(x0_, y0_)).(bool) && any((dict_prelude_Eq_String{}).prelude_Eq(x1_, y1_)).(bool))
 								}
 							}
@@ -2451,30 +2473,30 @@ func (dictself dict_decide_Eq_Verdict) prelude_Eq(a_ any, b_ any) any {
 				}
 			}
 		}
-//line decide/decide.gfx:72
-		switch _gofx420 := _gofx416.(type) {
+//line decide/decide.gfx:71
+		switch _gofx424 := _gofx420.(type) {
 		case *Tuple2:
-			_ = _gofx420
-			switch _gofx422 := _gofx420.F0.(type) {
+			_ = _gofx424
+			switch _gofx426 := _gofx424.F0.(type) {
 			case *decide_Verdict_Expired:
-				_ = _gofx422
+				_ = _gofx426
 				{
-					var x0_ any = _gofx422.F0
+					var x0_ any = _gofx426.F0
 					_ = x0_
 					{
-						var x1_ any = _gofx422.F1
+						var x1_ any = _gofx426.F1
 						_ = x1_
-						switch _gofx421 := _gofx420.F1.(type) {
+						switch _gofx425 := _gofx424.F1.(type) {
 						case *decide_Verdict_Expired:
-							_ = _gofx421
+							_ = _gofx425
 							{
-								var y0_ any = _gofx421.F0
+								var y0_ any = _gofx425.F0
 								_ = y0_
 								{
-									var y1_ any = _gofx421.F1
+									var y1_ any = _gofx425.F1
 									_ = y1_
-//line decide/decide.gfx:72
-//line decide/decide.gfx:72
+//line decide/decide.gfx:71
+//line decide/decide.gfx:71
 									return (any((dict_decide_Eq_Reason{}).prelude_Eq(x0_, y0_)).(bool) && any((dict_prelude_Eq_String{}).prelude_Eq(x1_, y1_)).(bool))
 								}
 							}
@@ -2483,30 +2505,30 @@ func (dictself dict_decide_Eq_Verdict) prelude_Eq(a_ any, b_ any) any {
 				}
 			}
 		}
-//line decide/decide.gfx:72
-		switch _gofx423 := _gofx416.(type) {
+//line decide/decide.gfx:71
+		switch _gofx427 := _gofx420.(type) {
 		case *Tuple2:
-			_ = _gofx423
-			switch _gofx425 := _gofx423.F0.(type) {
+			_ = _gofx427
+			switch _gofx429 := _gofx427.F0.(type) {
 			case *decide_Verdict_Superseded:
-				_ = _gofx425
+				_ = _gofx429
 				{
-					var x0_ any = _gofx425.F0
+					var x0_ any = _gofx429.F0
 					_ = x0_
 					{
-						var x1_ any = _gofx425.F1
+						var x1_ any = _gofx429.F1
 						_ = x1_
-						switch _gofx424 := _gofx423.F1.(type) {
+						switch _gofx428 := _gofx427.F1.(type) {
 						case *decide_Verdict_Superseded:
-							_ = _gofx424
+							_ = _gofx428
 							{
-								var y0_ any = _gofx424.F0
+								var y0_ any = _gofx428.F0
 								_ = y0_
 								{
-									var y1_ any = _gofx424.F1
+									var y1_ any = _gofx428.F1
 									_ = y1_
-//line decide/decide.gfx:72
-//line decide/decide.gfx:72
+//line decide/decide.gfx:71
+//line decide/decide.gfx:71
 									return (any((dict_decide_Eq_Reason{}).prelude_Eq(x0_, y0_)).(bool) && any((dict_prelude_Eq_String{}).prelude_Eq(x1_, y1_)).(bool))
 								}
 							}
@@ -2515,36 +2537,36 @@ func (dictself dict_decide_Eq_Verdict) prelude_Eq(a_ any, b_ any) any {
 				}
 			}
 		}
-//line decide/decide.gfx:72
-		switch _gofx426 := _gofx416.(type) {
+//line decide/decide.gfx:71
+		switch _gofx430 := _gofx420.(type) {
 		case *Tuple2:
-			_ = _gofx426
-			switch _gofx428 := _gofx426.F0.(type) {
+			_ = _gofx430
+			switch _gofx432 := _gofx430.F0.(type) {
 			case *decide_Verdict_Pending:
-				_ = _gofx428
+				_ = _gofx432
 				{
-					var x0_ any = _gofx428.F0
+					var x0_ any = _gofx432.F0
 					_ = x0_
 					{
-						var x1_ any = _gofx428.F1
+						var x1_ any = _gofx432.F1
 						_ = x1_
 						{
-							var x2_ int64 = any(_gofx428.F2).(int64)
+							var x2_ int64 = any(_gofx432.F2).(int64)
 							_ = x2_
-							switch _gofx427 := _gofx426.F1.(type) {
+							switch _gofx431 := _gofx430.F1.(type) {
 							case *decide_Verdict_Pending:
-								_ = _gofx427
+								_ = _gofx431
 								{
-									var y0_ any = _gofx427.F0
+									var y0_ any = _gofx431.F0
 									_ = y0_
 									{
-										var y1_ any = _gofx427.F1
+										var y1_ any = _gofx431.F1
 										_ = y1_
 										{
-											var y2_ int64 = any(_gofx427.F2).(int64)
+											var y2_ int64 = any(_gofx431.F2).(int64)
 											_ = y2_
-//line decide/decide.gfx:72
-//line decide/decide.gfx:72
+//line decide/decide.gfx:71
+//line decide/decide.gfx:71
 											return ((any((dict_decide_Eq_Reason{}).prelude_Eq(x0_, y0_)).(bool) && any((dict_prelude_Eq_String{}).prelude_Eq(x1_, y1_)).(bool)) && (x2_ == y2_))
 										}
 									}
@@ -2555,34 +2577,34 @@ func (dictself dict_decide_Eq_Verdict) prelude_Eq(a_ any, b_ any) any {
 				}
 			}
 		}
-//line decide/decide.gfx:72
-		switch _gofx429 := _gofx416.(type) {
+//line decide/decide.gfx:71
+		switch _gofx433 := _gofx420.(type) {
 		case *Tuple2:
-			_ = _gofx429
-			switch _gofx431 := _gofx429.F0.(type) {
+			_ = _gofx433
+			switch _gofx435 := _gofx433.F0.(type) {
 			case *decide_Verdict_Accepted:
-				_ = _gofx431
+				_ = _gofx435
 				{
-					var x0_ int64 = any(_gofx431.F0).(int64)
+					var x0_ int64 = any(_gofx435.F0).(int64)
 					_ = x0_
-					switch _gofx430 := _gofx429.F1.(type) {
+					switch _gofx434 := _gofx433.F1.(type) {
 					case *decide_Verdict_Accepted:
-						_ = _gofx430
+						_ = _gofx434
 						{
-							var y0_ int64 = any(_gofx430.F0).(int64)
+							var y0_ int64 = any(_gofx434.F0).(int64)
 							_ = y0_
-//line decide/decide.gfx:72
-//line decide/decide.gfx:72
+//line decide/decide.gfx:71
+//line decide/decide.gfx:71
 							return (x0_ == y0_)
 						}
 					}
 				}
 			}
 		}
-//line decide/decide.gfx:72
+//line decide/decide.gfx:71
 		{
-//line decide/decide.gfx:72
-//line decide/decide.gfx:72
+//line decide/decide.gfx:71
+//line decide/decide.gfx:71
 			return false
 		}
 	}())
@@ -2590,158 +2612,158 @@ func (dictself dict_decide_Eq_Verdict) prelude_Eq(a_ any, b_ any) any {
 
 type dict_decide_Debug_Verdict struct{}
 
-//line decide/decide.gfx:72
+//line decide/decide.gfx:71
 func (dictself dict_decide_Debug_Verdict) prelude_Debug(a_ any) any {
-//line decide/decide.gfx:72
+//line decide/decide.gfx:71
 	return (
-//line decide/decide.gfx:72
+//line decide/decide.gfx:71
 	func() any {
-		var _gofx432 any = a_
-		_ = _gofx432
-//line decide/decide.gfx:72
-		switch _gofx433 := _gofx432.(type) {
+		var _gofx436 any = a_
+		_ = _gofx436
+//line decide/decide.gfx:71
+		switch _gofx437 := _gofx436.(type) {
 		case *decide_Verdict_Rejected:
-			_ = _gofx433
+			_ = _gofx437
 			{
-				var x0_ any = _gofx433.F0
+				var x0_ any = _gofx437.F0
 				_ = x0_
 				{
-					var x1_ any = _gofx433.F1
+					var x1_ any = _gofx437.F1
 					_ = x1_
-//line decide/decide.gfx:72
-//line decide/decide.gfx:72
+//line decide/decide.gfx:71
+//line decide/decide.gfx:71
 					return rt.Concat("Rejected(", (dict_prelude_Show_String{}).prelude_Show((dict_decide_Debug_Reason{}).prelude_Debug(x0_)), ", ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_String{}).prelude_Debug(x1_)), ")")
 				}
 			}
 		}
-//line decide/decide.gfx:72
-		switch _gofx434 := _gofx432.(type) {
+//line decide/decide.gfx:71
+		switch _gofx438 := _gofx436.(type) {
 		case *decide_Verdict_Expired:
-			_ = _gofx434
+			_ = _gofx438
 			{
-				var x0_ any = _gofx434.F0
+				var x0_ any = _gofx438.F0
 				_ = x0_
 				{
-					var x1_ any = _gofx434.F1
+					var x1_ any = _gofx438.F1
 					_ = x1_
-//line decide/decide.gfx:72
-//line decide/decide.gfx:72
+//line decide/decide.gfx:71
+//line decide/decide.gfx:71
 					return rt.Concat("Expired(", (dict_prelude_Show_String{}).prelude_Show((dict_decide_Debug_Reason{}).prelude_Debug(x0_)), ", ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_String{}).prelude_Debug(x1_)), ")")
 				}
 			}
 		}
-//line decide/decide.gfx:72
-		switch _gofx435 := _gofx432.(type) {
+//line decide/decide.gfx:71
+		switch _gofx439 := _gofx436.(type) {
 		case *decide_Verdict_Superseded:
-			_ = _gofx435
+			_ = _gofx439
 			{
-				var x0_ any = _gofx435.F0
+				var x0_ any = _gofx439.F0
 				_ = x0_
 				{
-					var x1_ any = _gofx435.F1
+					var x1_ any = _gofx439.F1
 					_ = x1_
-//line decide/decide.gfx:72
-//line decide/decide.gfx:72
+//line decide/decide.gfx:71
+//line decide/decide.gfx:71
 					return rt.Concat("Superseded(", (dict_prelude_Show_String{}).prelude_Show((dict_decide_Debug_Reason{}).prelude_Debug(x0_)), ", ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_String{}).prelude_Debug(x1_)), ")")
 				}
 			}
 		}
-//line decide/decide.gfx:72
-		switch _gofx436 := _gofx432.(type) {
+//line decide/decide.gfx:71
+		switch _gofx440 := _gofx436.(type) {
 		case *decide_Verdict_Pending:
-			_ = _gofx436
+			_ = _gofx440
 			{
-				var x0_ any = _gofx436.F0
+				var x0_ any = _gofx440.F0
 				_ = x0_
 				{
-					var x1_ any = _gofx436.F1
+					var x1_ any = _gofx440.F1
 					_ = x1_
 					{
-						var x2_ int64 = any(_gofx436.F2).(int64)
+						var x2_ int64 = any(_gofx440.F2).(int64)
 						_ = x2_
-//line decide/decide.gfx:72
-//line decide/decide.gfx:72
+//line decide/decide.gfx:71
+//line decide/decide.gfx:71
 						return rt.Concat("Pending(", (dict_prelude_Show_String{}).prelude_Show((dict_decide_Debug_Reason{}).prelude_Debug(x0_)), ", ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_String{}).prelude_Debug(x1_)), ", ", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_Int{}).prelude_Debug(x2_)), ")")
 					}
 				}
 			}
 		}
-//line decide/decide.gfx:72
+//line decide/decide.gfx:71
 		{
-			_gofx437 := _gofx432.(*decide_Verdict_Accepted)
-			_ = _gofx437
+			_gofx441 := _gofx436.(*decide_Verdict_Accepted)
+			_ = _gofx441
 			{
-				var x0_ int64 = any(_gofx437.F0).(int64)
+				var x0_ int64 = any(_gofx441.F0).(int64)
 				_ = x0_
-//line decide/decide.gfx:72
-//line decide/decide.gfx:72
+//line decide/decide.gfx:71
+//line decide/decide.gfx:71
 				return rt.Concat("Accepted(", (dict_prelude_Show_String{}).prelude_Show((dict_prelude_Debug_Int{}).prelude_Debug(x0_)), ")")
 			}
 		}
 	}())
 }
 
-//line decide/decide.gfx:117
+//line decide/decide.gfx:116
 func decide__bindingMatchesPlan_(b_ any, plan_ any) any {
-//line decide/decide.gfx:118
+//line decide/decide.gfx:117
 	return (
-//line decide/decide.gfx:118
+//line decide/decide.gfx:117
 	func() any {
 		if any(result_fromOption_(any(b_).(*decide_Binding_Binding).F0, (
-//line decide/decide.gfx:118
+//line decide/decide.gfx:117
 		func(a int64) int64 { return -a })(int64(1)))).(int64) != any(any(plan_).(*decide_Plan_Plan).F0).(int64) {
-//line decide/decide.gfx:118
+//line decide/decide.gfx:117
 			return (
-//line decide/decide.gfx:118
+//line decide/decide.gfx:117
 			func() any {
-//line decide/decide.gfx:119
+//line decide/decide.gfx:118
 				return &prelude_Option_Some{F0: &decide_Verdict_Rejected{F0: &decide_Reason_PlanGenerationMismatch{}, F1: "Approval plan generation does not match the current resize plan"}}
 			}())
 		}
-//line decide/decide.gfx:120
+//line decide/decide.gfx:119
 		return (
-//line decide/decide.gfx:120
+//line decide/decide.gfx:119
 		func() any {
 			if any((dict_prelude_Eq_String{}).prelude_Eq(any(b_).(*decide_Binding_Binding).F1, "")).(bool) || (!any((dict_prelude_Eq_String{}).prelude_Eq(any(b_).(*decide_Binding_Binding).F1, any(plan_).(*decide_Plan_Plan).F2)).(bool)) {
-//line decide/decide.gfx:120
+//line decide/decide.gfx:119
 				return (
-//line decide/decide.gfx:120
+//line decide/decide.gfx:119
 				func() any {
-//line decide/decide.gfx:121
+//line decide/decide.gfx:120
 					return &prelude_Option_Some{F0: &decide_Verdict_Rejected{F0: &decide_Reason_EvidenceHashMismatch{}, F1: "Approval evidence hash does not match the current resize plan"}}
 				}())
 			}
-//line decide/decide.gfx:122
+//line decide/decide.gfx:121
 			return (
-//line decide/decide.gfx:122
+//line decide/decide.gfx:121
 			func() any {
 				if any((dict_prelude_Eq_String{}).prelude_Eq(any(b_).(*decide_Binding_Binding).F2, "")).(bool) || (!any((dict_prelude_Eq_String{}).prelude_Eq(any(b_).(*decide_Binding_Binding).F2, any(plan_).(*decide_Plan_Plan).F3)).(bool)) {
-//line decide/decide.gfx:122
+//line decide/decide.gfx:121
 					return (
-//line decide/decide.gfx:122
+//line decide/decide.gfx:121
 					func() any {
-//line decide/decide.gfx:123
+//line decide/decide.gfx:122
 						return &prelude_Option_Some{F0: &decide_Verdict_Rejected{F0: &decide_Reason_ChangeSetFingerprintMismatch{}, F1: "Approval change-set fingerprint does not match the current resize plan"}}
 					}())
 				}
-//line decide/decide.gfx:124
+//line decide/decide.gfx:123
 				return (
-//line decide/decide.gfx:124
+//line decide/decide.gfx:123
 				func() any {
 					if (!any((dict_prelude_Eq_String{}).prelude_Eq(any(b_).(*decide_Binding_Binding).F3, "")).(bool)) && (!any((dict_prelude_Eq_String{}).prelude_Eq(any(b_).(*decide_Binding_Binding).F3, any(plan_).(*decide_Plan_Plan).F4)).(bool)) {
-//line decide/decide.gfx:124
+//line decide/decide.gfx:123
 						return (
-//line decide/decide.gfx:124
+//line decide/decide.gfx:123
 						func() any {
-//line decide/decide.gfx:125
+//line decide/decide.gfx:124
 							return &prelude_Option_Some{F0: &decide_Verdict_Rejected{F0: &decide_Reason_BaseRevisionMismatch{}, F1: "Approval base revision does not match the current resize plan"}}
 						}())
 					}
-//line decide/decide.gfx:126
+//line decide/decide.gfx:125
 					return (
-//line decide/decide.gfx:126
+//line decide/decide.gfx:125
 					func() any {
-//line decide/decide.gfx:127
+//line decide/decide.gfx:126
 						return &prelude_Option_None{}
 					}())
 				}())
@@ -2750,78 +2772,78 @@ func decide__bindingMatchesPlan_(b_ any, plan_ any) any {
 	}())
 }
 
-//line decide/decide.gfx:88
+//line decide/decide.gfx:87
 func decide__decidePlan_(o_ any, plan_ any) any {
-//line decide/decide.gfx:89
+//line decide/decide.gfx:88
 	return (
-//line decide/decide.gfx:89
+//line decide/decide.gfx:88
 	func() any {
 		if any((dict_prelude_Eq_String{}).prelude_Eq(any(plan_).(*decide_Plan_Plan).F1, "Expired")).(bool) {
-//line decide/decide.gfx:89
+//line decide/decide.gfx:88
 			return (
-//line decide/decide.gfx:89
+//line decide/decide.gfx:88
 			func() any {
-//line decide/decide.gfx:90
+//line decide/decide.gfx:89
 				return &decide_Verdict_Expired{F0: &decide_Reason_PlanExpired{}, F1: "Storage resize plan expired before approval acceptance"}
 			}())
 		}
-//line decide/decide.gfx:91
+//line decide/decide.gfx:90
 		return (
-//line decide/decide.gfx:91
+//line decide/decide.gfx:90
 		func() any {
 			if any((dict_prelude_Eq_String{}).prelude_Eq(any(plan_).(*decide_Plan_Plan).F1, "Superseded")).(bool) {
-//line decide/decide.gfx:91
+//line decide/decide.gfx:90
 				return (
-//line decide/decide.gfx:91
+//line decide/decide.gfx:90
 				func() any {
-//line decide/decide.gfx:92
+//line decide/decide.gfx:91
 					return &decide_Verdict_Superseded{F0: &decide_Reason_PlanSuperseded{}, F1: "Storage resize plan was superseded by newer evidence"}
 				}())
 			}
-//line decide/decide.gfx:93
+//line decide/decide.gfx:92
 			return (
-//line decide/decide.gfx:93
+//line decide/decide.gfx:92
 			func() any {
 				if !any((dict_prelude_Eq_String{}).prelude_Eq(any(plan_).(*decide_Plan_Plan).F1, "ReadyForApproval")).(bool) {
-//line decide/decide.gfx:93
+//line decide/decide.gfx:92
 					return (
-//line decide/decide.gfx:93
+//line decide/decide.gfx:92
 					func() any {
-//line decide/decide.gfx:94
+//line decide/decide.gfx:93
 						return &decide_Verdict_Rejected{F0: &decide_Reason_PlanNotReady{}, F1: "Storage resize plan is not ready for approval"}
 					}())
 				}
-//line decide/decide.gfx:95
+//line decide/decide.gfx:94
 				return (
-//line decide/decide.gfx:95
+//line decide/decide.gfx:94
 				func() any {
 					{
-						var gates_ any = &list_List_Cons{F0: decide__bindingMatchesPlan_(any(o_).(*decide_Observed_Observed).F0, plan_), F1: &list_List_Cons{F0: decide__policyGenerationMatches_(any(o_).(*decide_Observed_Observed).F0, any(o_).(*decide_Observed_Observed).F2), F1: &list_List_Cons{F0: decide__maintenanceWindowAllows_(any(o_).(*decide_Observed_Observed).F3, plan_), F1: &list_List_Cons{F0: decide__planGatesPassing_(any(any(plan_).(*decide_Plan_Plan).F6).(bool), any(plan_).(*decide_Plan_Plan).F7), F1: &list_List_Cons{F0: decide__noConflictingOperation_(o_), F1: &list_List_Nil{}}}}}}
+						var gates_ any = &list_List_Cons{F0: decide__bindingMatchesPlan_(any(o_).(*decide_Observed_Observed).F0, plan_), F1: &list_List_Cons{F0: decide__policyGenerationMatches_(any(o_).(*decide_Observed_Observed).F0, any(o_).(*decide_Observed_Observed).F2), F1: &list_List_Cons{F0: decide__maintenanceWindowAllows_(any(o_).(*decide_Observed_Observed).F3, plan_), F1: &list_List_Cons{F0: decide__planGatesPassing_(any(plan_).(*decide_Plan_Plan).F6), F1: &list_List_Cons{F0: decide__noConflictingOperation_(o_), F1: &list_List_Nil{}}}}}}
 						_ = gates_
-//line decide/decide.gfx:103
+//line decide/decide.gfx:102
 						return (
-//line decide/decide.gfx:103
+//line decide/decide.gfx:102
 						func() any {
-							var _gofx438 any = decide__firstFailure_(gates_)
-							_ = _gofx438
-//line decide/decide.gfx:104
-							switch _gofx439 := _gofx438.(type) {
+							var _gofx442 any = decide__firstFailure_(gates_)
+							_ = _gofx442
+//line decide/decide.gfx:103
+							switch _gofx443 := _gofx442.(type) {
 							case *prelude_Option_Some:
-								_ = _gofx439
+								_ = _gofx443
 								{
-									var v_ any = _gofx439.F0
+									var v_ any = _gofx443.F0
 									_ = v_
-//line decide/decide.gfx:104
-//line decide/decide.gfx:104
+//line decide/decide.gfx:103
+//line decide/decide.gfx:103
 									return v_
 								}
 							}
-//line decide/decide.gfx:105
+//line decide/decide.gfx:104
 							{
-								_gofx440 := _gofx438.(*prelude_Option_None)
-								_ = _gofx440
-//line decide/decide.gfx:105
-//line decide/decide.gfx:105
+								_gofx444 := _gofx442.(*prelude_Option_None)
+								_ = _gofx444
+//line decide/decide.gfx:104
+//line decide/decide.gfx:104
 								return decide__evidenceFresh_(plan_, any(any(o_).(*decide_Observed_Observed).F6).(int64))
 							}
 						}())
@@ -2832,102 +2854,102 @@ func decide__decidePlan_(o_ any, plan_ any) any {
 	}())
 }
 
-//line decide/decide.gfx:185
+//line decide/decide.gfx:191
 func decide__evidenceFresh_(plan_ any, nowMillis_ int64) any {
-//line decide/decide.gfx:186
+//line decide/decide.gfx:192
 	return (
-//line decide/decide.gfx:186
+//line decide/decide.gfx:192
 	func() any {
-		var _gofx441 any = any(plan_).(*decide_Plan_Plan).F8
-		_ = _gofx441
-//line decide/decide.gfx:187
-		switch _gofx442 := _gofx441.(type) {
+		var _gofx445 any = any(plan_).(*decide_Plan_Plan).F7
+		_ = _gofx445
+//line decide/decide.gfx:193
+		switch _gofx446 := _gofx445.(type) {
 		case *prelude_Option_None:
-			_ = _gofx442
-//line decide/decide.gfx:187
-//line decide/decide.gfx:187
+			_ = _gofx446
+//line decide/decide.gfx:193
+//line decide/decide.gfx:193
 			return &decide_Verdict_Accepted{F0: int64(0)}
 		}
-//line decide/decide.gfx:188
-		switch _gofx443 := _gofx441.(type) {
+//line decide/decide.gfx:194
+		switch _gofx447 := _gofx445.(type) {
 		case *prelude_Option_Some:
-			_ = _gofx443
-			{
-				var ttl_ int64 = any(_gofx443.F0).(int64)
-				_ = ttl_
-//line decide/decide.gfx:188
-				if ttl_ <= int64(0) {
-//line decide/decide.gfx:188
-//line decide/decide.gfx:188
-					return &decide_Verdict_Expired{F0: &decide_Reason_EvidenceTTLInvalid{}, F1: "Resize plan evidence TTL is invalid"}
-				}
-			}
-		}
-//line decide/decide.gfx:189
-		{
-			_gofx447 := _gofx441.(*prelude_Option_Some)
 			_ = _gofx447
 			{
 				var ttl_ int64 = any(_gofx447.F0).(int64)
 				_ = ttl_
-//line decide/decide.gfx:189
-//line decide/decide.gfx:190
+//line decide/decide.gfx:194
+				if ttl_ <= int64(0) {
+//line decide/decide.gfx:194
+//line decide/decide.gfx:194
+					return &decide_Verdict_Expired{F0: &decide_Reason_EvidenceTTLInvalid{}, F1: "Resize plan evidence TTL is invalid"}
+				}
+			}
+		}
+//line decide/decide.gfx:195
+		{
+			_gofx451 := _gofx445.(*prelude_Option_Some)
+			_ = _gofx451
+			{
+				var ttl_ int64 = any(_gofx451.F0).(int64)
+				_ = ttl_
+//line decide/decide.gfx:195
+//line decide/decide.gfx:196
 				return (
-//line decide/decide.gfx:190
+//line decide/decide.gfx:196
 				func() any {
-					if !any(any(plan_).(*decide_Plan_Plan).F9).(bool) {
-//line decide/decide.gfx:190
+					if !any(any(plan_).(*decide_Plan_Plan).F8).(bool) {
+//line decide/decide.gfx:196
 						return (
-//line decide/decide.gfx:190
+//line decide/decide.gfx:196
 						func() any {
-//line decide/decide.gfx:191
+//line decide/decide.gfx:197
 							return &decide_Verdict_Expired{F0: &decide_Reason_EvidenceTimestampMissing{}, F1: "Resize plan evidence timestamp is missing"}
 						}())
 					}
-//line decide/decide.gfx:192
+//line decide/decide.gfx:198
 					return (
-//line decide/decide.gfx:192
+//line decide/decide.gfx:198
 					func() any {
-//line decide/decide.gfx:193
+//line decide/decide.gfx:199
 						return (
-//line decide/decide.gfx:193
+//line decide/decide.gfx:199
 						func() any {
-							var _gofx444 any = any(plan_).(*decide_Plan_Plan).F10
-							_ = _gofx444
-//line decide/decide.gfx:194
-							switch _gofx445 := _gofx444.(type) {
+							var _gofx448 any = any(plan_).(*decide_Plan_Plan).F9
+							_ = _gofx448
+//line decide/decide.gfx:200
+							switch _gofx449 := _gofx448.(type) {
 							case *prelude_Option_None:
-								_ = _gofx445
-//line decide/decide.gfx:194
-//line decide/decide.gfx:194
+								_ = _gofx449
+//line decide/decide.gfx:200
+//line decide/decide.gfx:200
 								return &decide_Verdict_Expired{F0: &decide_Reason_EvidenceTimestampInvalid{}, F1: "Resize plan evidence timestamp is invalid"}
 							}
-//line decide/decide.gfx:195
+//line decide/decide.gfx:201
 							{
-								_gofx446 := _gofx444.(*prelude_Option_Some)
-								_ = _gofx446
+								_gofx450 := _gofx448.(*prelude_Option_Some)
+								_ = _gofx450
 								{
-									var observedAt_ int64 = any(_gofx446.F0).(int64)
+									var observedAt_ int64 = any(_gofx450.F0).(int64)
 									_ = observedAt_
-//line decide/decide.gfx:195
-//line decide/decide.gfx:196
+//line decide/decide.gfx:201
+//line decide/decide.gfx:202
 									return (
-//line decide/decide.gfx:196
+//line decide/decide.gfx:202
 									func() any {
 										if nowMillis_ >= (observedAt_ + ttl_) {
-//line decide/decide.gfx:196
+//line decide/decide.gfx:202
 											return (
-//line decide/decide.gfx:196
+//line decide/decide.gfx:202
 											func() any {
-//line decide/decide.gfx:197
+//line decide/decide.gfx:203
 												return &decide_Verdict_Expired{F0: &decide_Reason_EvidenceExpired{}, F1: "Resize plan evidence expired before approval acceptance"}
 											}())
 										}
-//line decide/decide.gfx:198
+//line decide/decide.gfx:204
 										return (
-//line decide/decide.gfx:198
+//line decide/decide.gfx:204
 										func() any {
-//line decide/decide.gfx:199
+//line decide/decide.gfx:205
 											return &decide_Verdict_Accepted{F0: ((observedAt_ + ttl_) - nowMillis_)}
 										}())
 									}())
@@ -2941,151 +2963,159 @@ func decide__evidenceFresh_(plan_ any, nowMillis_ int64) any {
 	}())
 }
 
-//line decide/decide.gfx:110
+//line decide/decide.gfx:109
 func decide__firstFailure_(checks_ any) any {
-//line decide/decide.gfx:111
+//line decide/decide.gfx:110
 	return (
-//line decide/decide.gfx:111
+//line decide/decide.gfx:110
 	func() any {
-		var _gofx448 any = list_find_(checks_, (
-//line decide/decide.gfx:111
+		var _gofx452 any = list_find_(checks_, (
+//line decide/decide.gfx:110
 		func(a0 any) any {
 			return (
-//line decide/decide.gfx:111
+//line decide/decide.gfx:110
 			func(p0 any) bool {
 				{
 					var c_ any = p0
 					_ = c_
-//line decide/decide.gfx:111
+//line decide/decide.gfx:110
 					return (!any((dict_prelude_Eq_Option{dict_A: dict_decide_Eq_Verdict{}}).prelude_Eq(c_, &prelude_Option_None{})).(bool))
 				}
 			})(a0)
 		}))
-		_ = _gofx448
-//line decide/decide.gfx:112
-		switch _gofx449 := _gofx448.(type) {
+		_ = _gofx452
+//line decide/decide.gfx:111
+		switch _gofx453 := _gofx452.(type) {
 		case *prelude_Option_Some:
-			_ = _gofx449
+			_ = _gofx453
 			{
-				var found_ any = _gofx449.F0
+				var found_ any = _gofx453.F0
 				_ = found_
-//line decide/decide.gfx:112
-//line decide/decide.gfx:112
+//line decide/decide.gfx:111
+//line decide/decide.gfx:111
 				return found_
 			}
 		}
-//line decide/decide.gfx:113
+//line decide/decide.gfx:112
 		{
-			_gofx450 := _gofx448.(*prelude_Option_None)
-			_ = _gofx450
-//line decide/decide.gfx:113
-//line decide/decide.gfx:113
+			_gofx454 := _gofx452.(*prelude_Option_None)
+			_ = _gofx454
+//line decide/decide.gfx:112
+//line decide/decide.gfx:112
 			return &prelude_Option_None{}
 		}
 	}())
 }
 
-//line decide/decide.gfx:173
-func decide__gateName_(g_ any) any {
-//line decide/decide.gfx:173
+//line decide/decide.gfx:174
+func decide__gateFails_(g_ any) bool {
+//line decide/decide.gfx:175
 	return (
-//line decide/decide.gfx:173
-	func() any {
-		if any((dict_prelude_Eq_String{}).prelude_Eq(any(g_).(*decide_Gate_Gate).F0, "")).(bool) {
-//line decide/decide.gfx:173
-			return (
-//line decide/decide.gfx:173
-			func() any {
-//line decide/decide.gfx:173
-				return "unknown"
-			}())
+//line decide/decide.gfx:175
+	func() bool {
+		var _gofx455 any = g_
+		_ = _gofx455
+//line decide/decide.gfx:176
+		switch _gofx456 := _gofx455.(type) {
+		case *decide_GateEvidence_InvalidGate:
+			_ = _gofx456
+//line decide/decide.gfx:176
+//line decide/decide.gfx:176
+			return true
 		}
-//line decide/decide.gfx:173
-		return (
-//line decide/decide.gfx:173
-		func() any {
-//line decide/decide.gfx:173
-			return any(g_).(*decide_Gate_Gate).F0
-		}())
+//line decide/decide.gfx:177
+		{
+			_gofx457 := _gofx455.(*decide_GateEvidence_Gate)
+			_ = _gofx457
+			{
+				{
+					var state_ any = _gofx457.F1
+					_ = state_
+//line decide/decide.gfx:177
+//line decide/decide.gfx:177
+					return ((!any((dict_prelude_Eq_String{}).prelude_Eq(state_, "Pass")).(bool)) && (!any((dict_prelude_Eq_String{}).prelude_Eq(state_, "Warn")).(bool)))
+				}
+			}
+		}
 	}())
 }
 
-//line decide/decide.gfx:145
+//line decide/decide.gfx:144
 func decide__maintenanceWindowAllows_(window_ any, plan_ any) any {
-//line decide/decide.gfx:146
+//line decide/decide.gfx:145
 	return (
-//line decide/decide.gfx:146
+//line decide/decide.gfx:145
 	func() any {
-		var _gofx451 any = window_
-		_ = _gofx451
-//line decide/decide.gfx:147
-		switch _gofx452 := _gofx451.(type) {
+		var _gofx458 any = window_
+		_ = _gofx458
+//line decide/decide.gfx:146
+		switch _gofx459 := _gofx458.(type) {
 		case *decide_FetchedWindow_WindowNotReferenced:
-			_ = _gofx452
-//line decide/decide.gfx:147
-//line decide/decide.gfx:147
+			_ = _gofx459
+//line decide/decide.gfx:146
+//line decide/decide.gfx:146
 			return &prelude_Option_None{}
 		}
-//line decide/decide.gfx:148
-		switch _gofx453 := _gofx451.(type) {
+//line decide/decide.gfx:147
+		switch _gofx460 := _gofx458.(type) {
 		case *decide_FetchedWindow_WindowReadError:
-			_ = _gofx453
-//line decide/decide.gfx:148
-//line decide/decide.gfx:148
+			_ = _gofx460
+//line decide/decide.gfx:147
+//line decide/decide.gfx:147
 			return &prelude_Option_Some{F0: &decide_Verdict_Rejected{F0: &decide_Reason_MaintenanceWindowReadFailed{}, F1: "Referenced maintenance window could not be read"}}
 		}
-//line decide/decide.gfx:149
+//line decide/decide.gfx:148
 		{
-			_gofx454 := _gofx451.(*decide_FetchedWindow_WindowFound)
-			_ = _gofx454
+			_gofx461 := _gofx458.(*decide_FetchedWindow_WindowFound)
+			_ = _gofx461
 			{
-				var w_ any = _gofx454.F0
+				var w_ any = _gofx461.F0
 				_ = w_
+//line decide/decide.gfx:148
 //line decide/decide.gfx:149
-//line decide/decide.gfx:150
 				return (
-//line decide/decide.gfx:150
+//line decide/decide.gfx:149
 				func() any {
 					if any((dict_prelude_Eq_Option{dict_A: dict_prelude_Eq_Bool{}}).prelude_Eq(any(w_).(*decide_Window_Window).F0, &prelude_Option_Some{F0: false})).(bool) {
-//line decide/decide.gfx:150
+//line decide/decide.gfx:149
 						return (
-//line decide/decide.gfx:150
+//line decide/decide.gfx:149
 						func() any {
-//line decide/decide.gfx:151
+//line decide/decide.gfx:150
 							return &prelude_Option_Some{F0: &decide_Verdict_Rejected{F0: &decide_Reason_MaintenanceWindowApprovalDisabled{}, F1: "Maintenance window disables approvals for a data-risk storage workflow"}}
 						}())
 					}
-//line decide/decide.gfx:152
+//line decide/decide.gfx:151
 					return (
-//line decide/decide.gfx:152
+//line decide/decide.gfx:151
 					func() any {
 						if (list_length_(any(w_).(*decide_Window_Window).F1) > int64(0)) && (!list_elem__special1(any(plan_).(*decide_Plan_Plan).F5, any(w_).(*decide_Window_Window).F1)) {
-//line decide/decide.gfx:152
+//line decide/decide.gfx:151
 							return (
-//line decide/decide.gfx:152
+//line decide/decide.gfx:151
 							func() any {
-//line decide/decide.gfx:153
+//line decide/decide.gfx:152
 								return &prelude_Option_Some{F0: &decide_Verdict_Rejected{F0: &decide_Reason_MaintenanceWindowOperationNotAllowed{}, F1: "Maintenance window does not allow this storage workflow type"}}
 							}())
 						}
-//line decide/decide.gfx:154
+//line decide/decide.gfx:153
 						return (
-//line decide/decide.gfx:154
+//line decide/decide.gfx:153
 						func() any {
 							if any((dict_prelude_Eq_String{}).prelude_Eq(any(w_).(*decide_Window_Window).F2, "Open")).(bool) || any(any(w_).(*decide_Window_Window).F3).(bool) {
-//line decide/decide.gfx:154
+//line decide/decide.gfx:153
 								return (
-//line decide/decide.gfx:154
+//line decide/decide.gfx:153
 								func() any {
-//line decide/decide.gfx:155
+//line decide/decide.gfx:154
 									return &prelude_Option_None{}
 								}())
 							}
-//line decide/decide.gfx:156
+//line decide/decide.gfx:155
 							return (
-//line decide/decide.gfx:156
+//line decide/decide.gfx:155
 							func() any {
-//line decide/decide.gfx:157
+//line decide/decide.gfx:156
 								return &prelude_Option_Some{F0: &decide_Verdict_Rejected{F0: &decide_Reason_MaintenanceWindowClosed{}, F1: "Maintenance window is not open for approval acceptance"}}
 							}())
 						}())
@@ -3096,69 +3126,60 @@ func decide__maintenanceWindowAllows_(window_ any, plan_ any) any {
 	}())
 }
 
-//line decide/decide.gfx:175
+//line decide/decide.gfx:181
 func decide__noConflictingOperation_(o_ any) any {
-//line decide/decide.gfx:176
+//line decide/decide.gfx:182
 	return (
-//line decide/decide.gfx:176
+//line decide/decide.gfx:182
 	func() any {
 		if !any(any(o_).(*decide_Observed_Observed).F4).(bool) {
-//line decide/decide.gfx:176
+//line decide/decide.gfx:182
 			return (
-//line decide/decide.gfx:176
+//line decide/decide.gfx:182
 			func() any {
-//line decide/decide.gfx:177
+//line decide/decide.gfx:183
 				return &prelude_Option_Some{F0: &decide_Verdict_Rejected{F0: &decide_Reason_OperationReadFailed{}, F1: "Storage resize operations could not be read"}}
 			}())
 		}
-//line decide/decide.gfx:178
+//line decide/decide.gfx:184
 		return (
-//line decide/decide.gfx:178
+//line decide/decide.gfx:184
 		func() any {
 			if any(any(o_).(*decide_Observed_Observed).F5).(bool) {
-//line decide/decide.gfx:178
+//line decide/decide.gfx:184
 				return (
-//line decide/decide.gfx:178
+//line decide/decide.gfx:184
 				func() any {
-//line decide/decide.gfx:179
+//line decide/decide.gfx:185
 					return &prelude_Option_Some{F0: &decide_Verdict_Rejected{F0: &decide_Reason_ConflictingOperationActive{}, F1: "Another storage resize operation is active for this capability"}}
 				}())
 			}
-//line decide/decide.gfx:180
+//line decide/decide.gfx:186
 			return (
-//line decide/decide.gfx:180
+//line decide/decide.gfx:186
 			func() any {
-//line decide/decide.gfx:181
+//line decide/decide.gfx:187
 				return &prelude_Option_None{}
 			}())
 		}())
 	}())
 }
 
-//line decide/decide.gfx:162
-func decide__planGatesPassing_(valid_ bool, gates_ any) any {
 //line decide/decide.gfx:163
+func decide__planGatesPassing_(gates_ any) any {
+//line decide/decide.gfx:164
 	return (
-//line decide/decide.gfx:163
+//line decide/decide.gfx:164
 	func() any {
-		var _gofx455 any = gates_
-		_ = _gofx455
-//line decide/decide.gfx:164
-		switch _gofx456 := _gofx455.(type) {
+		var _gofx462 any = gates_
+		_ = _gofx462
+//line decide/decide.gfx:165
+		switch _gofx463 := _gofx462.(type) {
 		case *list_List_Nil:
-			_ = _gofx456
-//line decide/decide.gfx:164
-//line decide/decide.gfx:164
+			_ = _gofx463
+//line decide/decide.gfx:165
+//line decide/decide.gfx:165
 			return &prelude_Option_Some{F0: &decide_Verdict_Rejected{F0: &decide_Reason_SafetyGatesMissing{}, F1: "Resize plan has no approval safety gate evidence"}}
-		}
-//line decide/decide.gfx:165
-		{
-//line decide/decide.gfx:165
-			if !valid_ {
-//line decide/decide.gfx:165
-//line decide/decide.gfx:165
-				return &prelude_Option_Some{F0: &decide_Verdict_Rejected{F0: &decide_Reason_SafetyGateInvalid{}, F1: "Resize plan has invalid safety gate evidence"}}
-			}
 		}
 //line decide/decide.gfx:166
 		{
@@ -3167,129 +3188,156 @@ func decide__planGatesPassing_(valid_ bool, gates_ any) any {
 			return (
 //line decide/decide.gfx:166
 			func() any {
-				var _gofx457 any = list_find_(gates_, (
+				var _gofx464 any = list_find_(gates_, (
 //line decide/decide.gfx:166
-				func(a0 any) any {
-					return (
-//line decide/decide.gfx:166
-					func(p0 any) bool {
-						{
-							var g_ any = p0
-							_ = g_
-//line decide/decide.gfx:166
-							return ((!any((dict_prelude_Eq_String{}).prelude_Eq(any(g_).(*decide_Gate_Gate).F1, "Pass")).(bool)) && (!any((dict_prelude_Eq_String{}).prelude_Eq(any(g_).(*decide_Gate_Gate).F1, "Warn")).(bool)))
-						}
-					})(a0)
-				}))
-				_ = _gofx457
+				func(a0 any) any { return decide__gateFails_(a0) }))
+				_ = _gofx464
 //line decide/decide.gfx:167
-				switch _gofx458 := _gofx457.(type) {
+				switch _gofx465 := _gofx464.(type) {
 				case *prelude_Option_None:
-					_ = _gofx458
+					_ = _gofx465
 //line decide/decide.gfx:167
 //line decide/decide.gfx:167
 					return &prelude_Option_None{}
 				}
 //line decide/decide.gfx:168
-				{
-					_gofx459 := _gofx457.(*prelude_Option_Some)
-					_ = _gofx459
-					{
-						var g_ any = _gofx459.F0
-						_ = g_
+				switch _gofx466 := _gofx464.(type) {
+				case *prelude_Option_Some:
+					_ = _gofx466
+					switch _gofx467 := _gofx466.F0.(type) {
+					case *decide_GateEvidence_InvalidGate:
+						_ = _gofx467
 //line decide/decide.gfx:168
 //line decide/decide.gfx:168
-						return &prelude_Option_Some{F0: &decide_Verdict_Rejected{F0: &decide_Reason_SafetyGateBlocked{}, F1: rt.AddString("Resize plan safety gate is not passing: ", decide__gateName_(g_))}}
+						return &prelude_Option_Some{F0: &decide_Verdict_Rejected{F0: &decide_Reason_SafetyGateInvalid{}, F1: "Resize plan has invalid safety gate evidence"}}
 					}
 				}
+//line decide/decide.gfx:169
+				{
+					_gofx468 := _gofx464.(*prelude_Option_Some)
+					_ = _gofx468
+					switch _gofx469 := _gofx468.F0.(type) {
+					case *decide_GateEvidence_Gate:
+						_ = _gofx469
+						{
+							var name_ any = _gofx469.F0
+							_ = name_
+							{
+//line decide/decide.gfx:169
+//line decide/decide.gfx:169
+								return &prelude_Option_Some{F0: &decide_Verdict_Rejected{F0: &decide_Reason_SafetyGateBlocked{}, F1: rt.AddString("Resize plan safety gate is not passing: ", (
+//line decide/decide.gfx:169
+								func() any {
+									if any((dict_prelude_Eq_String{}).prelude_Eq(name_, "")).(bool) {
+//line decide/decide.gfx:169
+										return (
+//line decide/decide.gfx:169
+										func() any {
+//line decide/decide.gfx:169
+											return "unknown"
+										}())
+									}
+//line decide/decide.gfx:169
+									return (
+//line decide/decide.gfx:169
+									func() any {
+//line decide/decide.gfx:169
+										return name_
+									}())
+								}()))}}
+							}
+						}
+					}
+				}
+				panic("non-exhaustive match")
 			}())
 		}
 	}())
 }
 
-//line decide/decide.gfx:131
+//line decide/decide.gfx:130
 func decide__policyGenerationMatches_(b_ any, policy_ any) any {
-//line decide/decide.gfx:132
+//line decide/decide.gfx:131
 	return (
-//line decide/decide.gfx:132
+//line decide/decide.gfx:131
 	func() any {
-		var _gofx460 any = any(b_).(*decide_Binding_Binding).F4
-		_ = _gofx460
-//line decide/decide.gfx:133
-		switch _gofx461 := _gofx460.(type) {
+		var _gofx470 any = any(b_).(*decide_Binding_Binding).F4
+		_ = _gofx470
+//line decide/decide.gfx:132
+		switch _gofx471 := _gofx470.(type) {
 		case *prelude_Option_None:
-			_ = _gofx461
-//line decide/decide.gfx:133
-//line decide/decide.gfx:133
+			_ = _gofx471
+//line decide/decide.gfx:132
+//line decide/decide.gfx:132
 			return &prelude_Option_None{}
 		}
-//line decide/decide.gfx:134
-		switch _gofx462 := _gofx460.(type) {
+//line decide/decide.gfx:133
+		switch _gofx472 := _gofx470.(type) {
 		case *prelude_Option_Some:
-			_ = _gofx462
+			_ = _gofx472
 			{
-				var expected_ int64 = any(_gofx462.F0).(int64)
+				var expected_ int64 = any(_gofx472.F0).(int64)
 				_ = expected_
-//line decide/decide.gfx:134
+//line decide/decide.gfx:133
 				if expected_ <= int64(0) {
-//line decide/decide.gfx:134
-//line decide/decide.gfx:134
+//line decide/decide.gfx:133
+//line decide/decide.gfx:133
 					return &prelude_Option_None{}
 				}
 			}
 		}
-//line decide/decide.gfx:135
+//line decide/decide.gfx:134
 		{
-			_gofx468 := _gofx460.(*prelude_Option_Some)
-			_ = _gofx468
+			_gofx478 := _gofx470.(*prelude_Option_Some)
+			_ = _gofx478
 			{
-				var expected_ int64 = any(_gofx468.F0).(int64)
+				var expected_ int64 = any(_gofx478.F0).(int64)
 				_ = expected_
-//line decide/decide.gfx:135
-//line decide/decide.gfx:135
+//line decide/decide.gfx:134
+//line decide/decide.gfx:134
 				return (
-//line decide/decide.gfx:135
+//line decide/decide.gfx:134
 				func() any {
-					var _gofx463 any = policy_
-					_ = _gofx463
-//line decide/decide.gfx:136
-					switch _gofx464 := _gofx463.(type) {
+					var _gofx473 any = policy_
+					_ = _gofx473
+//line decide/decide.gfx:135
+					switch _gofx474 := _gofx473.(type) {
 					case *decide_FetchedPolicy_PolicyNotReferenced:
-						_ = _gofx464
-//line decide/decide.gfx:136
-//line decide/decide.gfx:136
+						_ = _gofx474
+//line decide/decide.gfx:135
+//line decide/decide.gfx:135
 						return &prelude_Option_Some{F0: &decide_Verdict_Rejected{F0: &decide_Reason_PolicyReferenceMissing{}, F1: "Approval has no referenced storage policy"}}
 					}
-//line decide/decide.gfx:137
-					switch _gofx465 := _gofx463.(type) {
+//line decide/decide.gfx:136
+					switch _gofx475 := _gofx473.(type) {
 					case *decide_FetchedPolicy_PolicyReadError:
-						_ = _gofx465
-//line decide/decide.gfx:137
-//line decide/decide.gfx:137
+						_ = _gofx475
+//line decide/decide.gfx:136
+//line decide/decide.gfx:136
 						return &prelude_Option_Some{F0: &decide_Verdict_Rejected{F0: &decide_Reason_PolicyReadFailed{}, F1: "Referenced storage policy could not be read"}}
 					}
-//line decide/decide.gfx:138
-					switch _gofx466 := _gofx463.(type) {
+//line decide/decide.gfx:137
+					switch _gofx476 := _gofx473.(type) {
 					case *decide_FetchedPolicy_PolicyFound:
-						_ = _gofx466
+						_ = _gofx476
 						{
-							var p_ any = _gofx466.F0
+							var p_ any = _gofx476.F0
 							_ = p_
-//line decide/decide.gfx:138
+//line decide/decide.gfx:137
 							if (any(any(p_).(*decide_Policy_Policy).F0).(int64) > int64(0)) && (any(any(p_).(*decide_Policy_Policy).F0).(int64) != expected_) {
+//line decide/decide.gfx:137
 //line decide/decide.gfx:138
-//line decide/decide.gfx:139
 								return &prelude_Option_Some{F0: &decide_Verdict_Rejected{F0: &decide_Reason_PolicyGenerationMismatch{}, F1: "Approval policy generation does not match the current storage policy"}}
 							}
 						}
 					}
-//line decide/decide.gfx:140
+//line decide/decide.gfx:139
 					{
-						_gofx467 := _gofx463.(*decide_FetchedPolicy_PolicyFound)
-						_ = _gofx467
+						_gofx477 := _gofx473.(*decide_FetchedPolicy_PolicyFound)
+						_ = _gofx477
 						{
-//line decide/decide.gfx:140
-//line decide/decide.gfx:140
+//line decide/decide.gfx:139
+//line decide/decide.gfx:139
 							return &prelude_Option_None{}
 						}
 					}
@@ -3299,58 +3347,58 @@ func decide__policyGenerationMatches_(b_ any, policy_ any) any {
 	}())
 }
 
-//line decide/decide.gfx:79
+//line decide/decide.gfx:78
 func decide_decide_(o_ any) any {
-//line decide/decide.gfx:80
+//line decide/decide.gfx:79
 	return (
-//line decide/decide.gfx:80
+//line decide/decide.gfx:79
 	func() any {
-		var _gofx472 any = any(o_).(*decide_Observed_Observed).F1
-		_ = _gofx472
-//line decide/decide.gfx:81
-		switch _gofx473 := _gofx472.(type) {
+		var _gofx482 any = any(o_).(*decide_Observed_Observed).F1
+		_ = _gofx482
+//line decide/decide.gfx:80
+		switch _gofx483 := _gofx482.(type) {
 		case *decide_FetchedPlan_PlanNotReferenced:
-			_ = _gofx473
-//line decide/decide.gfx:81
-//line decide/decide.gfx:81
+			_ = _gofx483
+//line decide/decide.gfx:80
+//line decide/decide.gfx:80
 			return &decide_Verdict_Rejected{F0: &decide_Reason_PlanReferenceMissing{}, F1: "Storage approval has no referenced resize plan"}
 		}
-//line decide/decide.gfx:82
-		switch _gofx474 := _gofx472.(type) {
+//line decide/decide.gfx:81
+		switch _gofx484 := _gofx482.(type) {
 		case *decide_FetchedPlan_PlanMissing:
-			_ = _gofx474
-//line decide/decide.gfx:82
-//line decide/decide.gfx:82
+			_ = _gofx484
+//line decide/decide.gfx:81
+//line decide/decide.gfx:81
 			return &decide_Verdict_Rejected{F0: &decide_Reason_PlanNotFound{}, F1: "Referenced storage resize plan was not found"}
 		}
-//line decide/decide.gfx:83
-		switch _gofx475 := _gofx472.(type) {
+//line decide/decide.gfx:82
+		switch _gofx485 := _gofx482.(type) {
 		case *decide_FetchedPlan_PlanReadError:
-			_ = _gofx475
-//line decide/decide.gfx:83
-//line decide/decide.gfx:83
+			_ = _gofx485
+//line decide/decide.gfx:82
+//line decide/decide.gfx:82
 			return &decide_Verdict_Pending{F0: &decide_Reason_PlanReadFailed{}, F1: "Referenced storage resize plan could not be read", F2: int64(60000)}
 		}
-//line decide/decide.gfx:84
+//line decide/decide.gfx:83
 		{
-			_gofx476 := _gofx472.(*decide_FetchedPlan_PlanFound)
-			_ = _gofx476
+			_gofx486 := _gofx482.(*decide_FetchedPlan_PlanFound)
+			_ = _gofx486
 			{
-				var plan_ any = _gofx476.F0
+				var plan_ any = _gofx486.F0
 				_ = plan_
-//line decide/decide.gfx:84
-//line decide/decide.gfx:84
+//line decide/decide.gfx:83
+//line decide/decide.gfx:83
 				return decide__decidePlan_(o_, plan_)
 			}
 		}
 	}())
 }
 
-//line decide/decide.gfx:206
+//line decide/decide.gfx:212
 func decide_main_() any {
-//line decide/decide.gfx:206
+//line decide/decide.gfx:212
 	return io_ioPure_(prelude_unit_())
 }
 
-//line decide/decide.gfx:206
+//line decide/decide.gfx:212
 func Main() rt.IO { return decide_main_().(rt.IO) }

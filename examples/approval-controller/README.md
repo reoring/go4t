@@ -67,11 +67,11 @@ to the root module or a workspace, keeping root package discovery unchanged
 
 ## Known behavioural differences
 
-- Malformed gate evidence is preserved as `Plan.GatesValid = false`, producing
-  `SafetyGateInvalid`. If a blocked gate precedes a later malformed element,
-  gofx reports `SafetyGateInvalid`; the original Go loop stopped at the earlier
-  gate with `SafetyGateBlocked`. The unchanged oracle tests do not cover this
-  ordering.
+Gate evidence is projected element-by-element as `GateEvidence = Gate | InvalidGate`,
+so the first malformed or non-passing element decides exactly as the original
+loop did; `gate_order_test.go` passes against both the original Go controller
+and this version.
+
 - A missing approval plan generation is compared using a `-1` sentinel in
   gofx. If a plan itself has generation `-1`, this gate passes instead of
   reporting `PlanGenerationMismatch`. Negative plan generations are not valid

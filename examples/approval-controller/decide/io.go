@@ -451,14 +451,14 @@ func io_ioErrorMessage_(e_ any) any {
 	return (
 //line std/io/io.gfx:8
 	func() any {
-		var _gofx498 any = e_
-		_ = _gofx498
+		var _gofx508 any = e_
+		_ = _gofx508
 //line std/io/io.gfx:9
-		switch _gofx499 := _gofx498.(type) {
+		switch _gofx509 := _gofx508.(type) {
 		case *io_IoError_NotFound:
-			_ = _gofx499
+			_ = _gofx509
 			{
-				var msg_ any = _gofx499.F0
+				var msg_ any = _gofx509.F0
 				_ = msg_
 //line std/io/io.gfx:9
 //line std/io/io.gfx:9
@@ -466,11 +466,11 @@ func io_ioErrorMessage_(e_ any) any {
 			}
 		}
 //line std/io/io.gfx:10
-		switch _gofx500 := _gofx498.(type) {
+		switch _gofx510 := _gofx508.(type) {
 		case *io_IoError_PermissionDenied:
-			_ = _gofx500
+			_ = _gofx510
 			{
-				var msg_ any = _gofx500.F0
+				var msg_ any = _gofx510.F0
 				_ = msg_
 //line std/io/io.gfx:10
 //line std/io/io.gfx:10
@@ -478,11 +478,11 @@ func io_ioErrorMessage_(e_ any) any {
 			}
 		}
 //line std/io/io.gfx:11
-		switch _gofx501 := _gofx498.(type) {
+		switch _gofx511 := _gofx508.(type) {
 		case *io_IoError_AlreadyExists:
-			_ = _gofx501
+			_ = _gofx511
 			{
-				var msg_ any = _gofx501.F0
+				var msg_ any = _gofx511.F0
 				_ = msg_
 //line std/io/io.gfx:11
 //line std/io/io.gfx:11
@@ -490,27 +490,27 @@ func io_ioErrorMessage_(e_ any) any {
 			}
 		}
 //line std/io/io.gfx:12
-		switch _gofx502 := _gofx498.(type) {
+		switch _gofx512 := _gofx508.(type) {
 		case *io_IoError_Timeout:
-			_ = _gofx502
+			_ = _gofx512
 //line std/io/io.gfx:12
 //line std/io/io.gfx:12
 			return "context deadline exceeded"
 		}
 //line std/io/io.gfx:13
-		switch _gofx503 := _gofx498.(type) {
+		switch _gofx513 := _gofx508.(type) {
 		case *io_IoError_Cancelled:
-			_ = _gofx503
+			_ = _gofx513
 //line std/io/io.gfx:13
 //line std/io/io.gfx:13
 			return "context canceled"
 		}
 //line std/io/io.gfx:14
-		switch _gofx504 := _gofx498.(type) {
+		switch _gofx514 := _gofx508.(type) {
 		case *io_IoError_Panic:
-			_ = _gofx504
+			_ = _gofx514
 			{
-				var msg_ any = _gofx504.F0
+				var msg_ any = _gofx514.F0
 				_ = msg_
 //line std/io/io.gfx:14
 //line std/io/io.gfx:14
@@ -518,11 +518,11 @@ func io_ioErrorMessage_(e_ any) any {
 			}
 		}
 //line std/io/io.gfx:15
-		switch _gofx505 := _gofx498.(type) {
+		switch _gofx515 := _gofx508.(type) {
 		case *io_IoError_Network:
-			_ = _gofx505
+			_ = _gofx515
 			{
-				var msg_ any = _gofx505.F0
+				var msg_ any = _gofx515.F0
 				_ = msg_
 //line std/io/io.gfx:15
 //line std/io/io.gfx:15
@@ -531,10 +531,10 @@ func io_ioErrorMessage_(e_ any) any {
 		}
 //line std/io/io.gfx:16
 		{
-			_gofx506 := _gofx498.(*io_IoError_Failure)
-			_ = _gofx506
+			_gofx516 := _gofx508.(*io_IoError_Failure)
+			_ = _gofx516
 			{
-				var msg_ any = _gofx506.F0
+				var msg_ any = _gofx516.F0
 				_ = msg_
 //line std/io/io.gfx:16
 //line std/io/io.gfx:16

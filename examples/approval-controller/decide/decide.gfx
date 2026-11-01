@@ -14,14 +14,13 @@ type Plan = Plan{
   changeSetFingerprint: String,
   baseGitCommit: String,
   planType: String,
-  gatesValid: Bool,                 // false: an element was not an object
-  gates: List[Gate],
+  gates: List[GateEvidence],
   evidenceTtlMillis: Option[Int],   // None: no TTL configured; Some(n <= 0): invalid
   observedAtPresent: Bool,
   observedAtMillis: Option[Int]     // None while present: unparsable
 } deriving Eq, Debug
 
-type Gate = Gate{name: String, state: String} deriving Eq, Debug
+type GateEvidence = Gate{name: String, state: String} | InvalidGate deriving Eq, Debug
 
 type Binding = Binding{
   planGeneration: Option[Int],
@@ -97,7 +96,7 @@ func _decidePlan(o Observed, plan Plan) Verdict {
       _bindingMatchesPlan(o.binding, plan),
       _policyGenerationMatches(o.binding, o.policy),
       _maintenanceWindowAllows(o.window, plan),
-      _planGatesPassing(plan.gatesValid, plan.gates),
+      _planGatesPassing(plan.gates),
       _noConflictingOperation(o)
     ]
     match _firstFailure(gates) {
@@ -159,18 +158,25 @@ func _maintenanceWindowAllows(window FetchedWindow, plan Plan) Option[Verdict] {
   }
 }
 
-func _planGatesPassing(valid Bool, gates List[Gate]) Option[Verdict] {
+// Mirrors the original loop: the first element that is invalid or not
+// Pass/Warn decides, in evidence order.
+func _planGatesPassing(gates List[GateEvidence]) Option[Verdict] {
   match gates {
     Nil => Some(Rejected(SafetyGatesMissing, "Resize plan has no approval safety gate evidence"))
-    _ if !valid => Some(Rejected(SafetyGateInvalid, "Resize plan has invalid safety gate evidence"))
-    _ => match list.find(gates, func(g) => g.state != "Pass" && g.state != "Warn") {
+    _ => match list.find(gates, _gateFails) {
       None => None
-      Some(g) => Some(Rejected(SafetyGateBlocked, "Resize plan safety gate is not passing: " + _gateName(g)))
+      Some(InvalidGate) => Some(Rejected(SafetyGateInvalid, "Resize plan has invalid safety gate evidence"))
+      Some(Gate(name, _)) => Some(Rejected(SafetyGateBlocked, "Resize plan safety gate is not passing: " + (if name == "" { "unknown" } else { name })))
     }
   }
 }
 
-func _gateName(g Gate) String { if g.name == "" { "unknown" } else { g.name } }
+func _gateFails(g GateEvidence) Bool {
+  match g {
+    InvalidGate => true
+    Gate(_, state) => state != "Pass" && state != "Warn"
+  }
+}
 
 func _noConflictingOperation(o Observed) Option[Verdict] {
   if !o.operationsReadable {
