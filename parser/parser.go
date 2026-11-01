@@ -19,13 +19,14 @@
 //	Type     := Ident [ '[' Type { ',' Type } ']' ] | 'func' '(' [ Type { ',' Type } ] ')' Type
 //	          | '(' Type ')' | '(' Type ',' Type { ',' Type } ')'
 //	Block    := '{' { Stmt ';' } Expr [ ';' ] '}'
-//	Stmt     := 'let' Pattern [ ':' Type ] '=' Expr | Expr
+//	Stmt     := 'let' Pattern [ ':' Type ] '=' Expr | LocalFunc | Expr
+//	LocalFunc := 'func' Ident '(' Params ')' Type Block
 //	Expr     := 'func' '(' LParams ')' '=>' Expr | 'do' DoBlock | 'match' Expr '{' Arms '}'
 //	          | 'if' Expr Block 'else' ( Block | IfExpr ) | Binary
 //	LParams  := [ LParam { ',' LParam } [ ',' ] ]
 //	LParam   := LowerIdent [ Type ] | Pattern // only bare non-constructor names may be annotated
 //	DoBlock  := '{' { DoStmt ';' } Expr [ ';' ] '}'
-//	DoStmt   := Pattern '<-' Expr | 'let' Pattern [ ':' Type ] '=' Expr | Expr
+//	DoStmt   := Pattern '<-' Expr | 'let' Pattern [ ':' Type ] '=' Expr | LocalFunc | Expr
 //	Arms     := { ';' } [ '|' ] { ';' } Arm { ArmSep Arm } [ ArmSep ]
 //	Arm      := Pattern [ 'if' Expr ] '=>' Expr
 //	ArmSep   := ( ';' | '|' ) { ';' | '|' }
@@ -480,6 +481,11 @@ func (p *Parser) block() *ast.Block {
 		if p.isP("}") {
 			p.fail(p.pos(), "block must end with an expression")
 		}
+		if p.localFuncAhead() {
+			b.Stmts = append(b.Stmts, p.localFunc())
+			p.skipSemis()
+			continue
+		}
 		if p.isK("let") {
 			pos := p.next().Pos
 			name, pat := p.bindingPattern()
@@ -502,6 +508,19 @@ func (p *Parser) block() *ast.Block {
 	}
 	p.expectP("}")
 	return b
+}
+
+func (p *Parser) localFuncAhead() bool {
+	return p.isK("func") && p.toks[p.i+1].Kind == lexer.Ident
+}
+
+func (p *Parser) localFunc() *ast.FuncDecl {
+	// Reject the only signature form that differs from a top-level function
+	// before parsing its body, retaining the ordinary parameter/type grammar.
+	if next := p.toks[p.i+2]; next.Kind == lexer.Punct && next.Text == "[" {
+		p.fail(next.Pos, "local functions cannot have type parameters")
+	}
+	return p.funcDecl(false).(*ast.FuncDecl)
 }
 
 // bindingPattern preserves the compact Name representation for a bare local.
@@ -606,6 +625,11 @@ func (p *Parser) doExpr(pos ast.Pos) ast.Expr {
 	for {
 		if p.isP("}") {
 			p.fail(p.pos(), "do block must end with an expression")
+		}
+		if p.localFuncAhead() {
+			d.Stmts = append(d.Stmts, p.localFunc())
+			p.skipSemis()
+			continue
 		}
 		spos := p.pos()
 		if p.isK("let") {
