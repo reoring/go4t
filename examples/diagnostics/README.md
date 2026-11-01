@@ -95,6 +95,23 @@ examples/diagnostics/bad_unused.gfx:7:10: warning: value is unused; prefix with 
 Exit 0. These are a let binding, a lambda parameter, and a constructor-pattern
 variable. Prefixing each name with `_` silences its warning.
 
+## Alias mismatch
+
+```console
+$ go run ./cmd/gofx check examples/diagnostics/bad_alias_mismatch.gfx
+examples/diagnostics/bad_alias_mismatch.gfx:6:22: type mismatch: expected Rates, got Int
+func rates() Rates { 1 }
+                     ^
+exit status 1
+```
+
+The annotation uses `alias Rates = Map[Currency, Float]`, so the diagnostic
+keeps `Rates` instead of expanding the map. Aliases remain transparent to type
+checking and code generation; unrelated inferred types are not renamed.
+Long types replace subtrees at depth 3 with `…` only when their complete spelling
+exceeds 160 characters. Add `--full-types` to `check`, `build` or `run` to retain
+all depths; alias names remain intact.
+
 ## Existing-program compatibility
 
 ```sh

@@ -1,7 +1,6 @@
 package types
 
 import (
-	"fmt"
 	"strings"
 	"unicode/utf8"
 
@@ -32,27 +31,27 @@ func (c *checker) completeSpan(e *Error) {
 	}
 }
 
-func (c *checker) instanceHint(class string, arg Type) string {
-	head := arg
+func (c *checker) instanceHint(class string, arg Type) *diagnosticMessage {
+	head := prune(arg)
 	if app, ok := head.(*TApp); ok {
 		head = prune(app.Fun)
 	}
 	con, ok := head.(*TCon)
 	if !ok || c.program.DataTypes[con.Name] == nil {
-		return ""
+		return nil
 	}
 	switch class {
 	case "Show":
 		for _, ctor := range c.program.DataTypes[con.Name].Ctors {
 			if len(ctor.Fields) != 0 {
-				return fmt.Sprintf("; hint: write 'instance Show[%s]' (or 'deriving Debug' for a structural form)", TypeString(arg))
+				return messagef("; hint: write 'instance Show[%s]' (or 'deriving Debug' for a structural form)", arg)
 			}
 		}
 		fallthrough
 	case "Debug", "Eq", "Ord":
-		return fmt.Sprintf("; hint: add 'deriving %s' or write 'instance %s[%s]'", class, class, TypeString(arg))
+		return messagef("; hint: add 'deriving %s' or write 'instance %s[%s]'", class, class, arg)
 	}
-	return ""
+	return nil
 }
 
 type localUse struct {

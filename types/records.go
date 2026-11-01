@@ -113,7 +113,7 @@ func commonRecordFields(pos ast.Pos, ctor *Ctor, names []string, ann *Ann) {
 			// cannot specialize the receiver to make incompatible fields agree.
 			if !unifyTypes(pos, expected, actual) {
 				fail(pos, "field %s has type %s in constructor %s; expected %s from constructor %s",
-					names[i], TypeString(actual), record.Ctor.Name, TypeString(expected), ctor.Name)
+					names[i], actual, record.Ctor.Name, expected, ctor.Name)
 			}
 		}
 	}
@@ -121,26 +121,28 @@ func commonRecordFields(pos ast.Pos, ctor *Ctor, names []string, ann *Ann) {
 
 func (b *bodyChecker) field(e *ast.Field, env *locals, ann *Ann) Type {
 	if e.Index >= 0 {
-		typ := normalize(b.infer(e.X, env))
-		if _, ok := typ.(*TMeta); ok {
+		typ := b.infer(e.X, env)
+		shape := normalize(typ)
+		if _, ok := shape.(*TMeta); ok {
 			fail(e.GetPos(), "cannot infer tuple type of %s.%s; annotate", recordReceiverName(e.X), e.Name)
 		}
-		if app, ok := typ.(*TApp); ok {
+		if app, ok := shape.(*TApp); ok {
 			if con, ok := prune(app.Fun).(*TCon); ok {
 				if n, tuple := IsTuple(con); tuple {
 					if e.Index >= n {
-						fields := make([]string, len(app.Args))
+						fields := make([]any, len(app.Args))
 						for i, field := range app.Args {
-							fields[i] = TypeString(field)
+							fields[i] = field
 						}
-						fail(e.GetPos(), "tuple index %d out of range for (%s)", e.Index, strings.Join(fields, ", "))
+						format := strings.TrimSuffix(strings.Repeat("%s, ", len(fields)), ", ")
+						fail(e.GetPos(), "tuple index %d out of range for (%s)", e.Index, messagef(format, fields...))
 					}
 					ann.Ctor, ann.FieldIndex = nil, e.Index
 					return app.Args[e.Index]
 				}
 			}
 		}
-		fail(e.GetPos(), "tuple index requires a tuple type, got %s", TypeString(typ))
+		fail(e.GetPos(), "tuple index requires a tuple type, got %s", typ)
 	}
 	checkValueName(e.GetPos(), e.Name)
 	typ := b.infer(e.X, env)

@@ -1,7 +1,6 @@
 package types
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 	"unicode"
@@ -161,7 +160,7 @@ func Check(modules []*ast.Module) (program *Program, err error) {
 }
 
 func fail(pos ast.Pos, format string, args ...any) {
-	panic(&Error{Pos: pos, Msg: fmt.Sprintf(format, args...)})
+	panic(NewError(pos, format, args...))
 }
 
 func checkName(pos ast.Pos, name string) {
@@ -571,7 +570,7 @@ func (c *checker) superclassArgs(inst, parent *Instance) ([]DictRef, bool) {
 	for i, constraint := range parent.Context {
 		constraint.Arg = substitute(constraint.Arg, sub)
 		dict, message := b.resolveDictionary(constraint)
-		if message != "" {
+		if message != nil {
 			return nil, false
 		}
 		args[i] = dict
@@ -587,7 +586,7 @@ func (c *checker) checkMain() {
 		c.decl = f.Decl
 		pos = f.Decl.Pos
 		if len(f.Scheme.TParams) == 0 && len(f.Scheme.Type.Params) == 0 {
-			if app, ok := f.Scheme.Type.Ret.(*TApp); ok && app.Fun == IO && len(app.Args) == 1 && app.Args[0] == Unit {
+			if app, ok := prune(f.Scheme.Type.Ret).(*TApp); ok && prune(app.Fun) == IO && len(app.Args) == 1 && prune(app.Args[0]) == Unit {
 				c.program.Main = f
 				return
 			}

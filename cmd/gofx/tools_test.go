@@ -217,7 +217,7 @@ func TestEvalPreservesOriginalError(t *testing.T) {
 		}
 		entry := files[len(files)-1]
 		entry.Files = append(entry.Files, wrapper)
-		_, original := checkFiles(files)
+		_, original := checkFiles(files, false)
 		got := run([]string{"eval", expression})
 		if original == nil || got == nil || original.Error() != got.Error() {
 			t.Errorf("eval %q error=%v, original=%v", expression, got, original)

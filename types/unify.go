@@ -50,9 +50,10 @@ func kindOf(t Type) Kind {
 	}
 }
 
-// prune follows and compresses union-find links. Binding always performs an
-// occurs check first, so neither links nor structural types can contain cycles.
+// prune follows and compresses union-find links and unwraps alias provenance.
+// Binding performs an occurs check first, so semantic types cannot contain cycles.
 func prune(t Type) Type {
+	t = Unalias(t)
 	if m, ok := t.(*TMeta); ok && m.Ref != nil {
 		*m.Ref = prune(*m.Ref)
 		return *m.Ref
@@ -77,30 +78,49 @@ func (c *checker) fresh(kind Kind) *TMeta {
 	return &TMeta{ID: c.nextMeta, Kind: kind}
 }
 
-func occurs(m *TMeta, t Type) bool {
-	t = prune(t)
-	if t == m {
-		return true
+// bindingType performs the occurs check and removes alias provenance in one
+// traversal. Inferred metas must not inherit source spellings, even inside a
+// structural type. Copy only changed branches; rigid TVar identities are shared.
+func bindingType(pos ast.Pos, meta *TMeta, root, typ Type) Type {
+	typ = prune(typ)
+	if typ == meta {
+		fail(pos, "occurs check: %s occurs in %s", meta, root)
 	}
-	switch t := t.(type) {
+	switch typ := typ.(type) {
 	case *TApp:
-		if occurs(m, t.Fun) {
-			return true
-		}
-		for _, arg := range t.Args {
-			if occurs(m, arg) {
-				return true
+		fun := bindingType(pos, meta, root, typ.Fun)
+		args := bindingTypes(pos, meta, root, typ.Args)
+		if fun != typ.Fun || args != nil {
+			if args == nil {
+				args = typ.Args
 			}
+			return App(fun, args...)
 		}
 	case *TFunc:
-		for _, param := range t.Params {
-			if occurs(m, param) {
-				return true
+		params := bindingTypes(pos, meta, root, typ.Params)
+		ret := bindingType(pos, meta, root, typ.Ret)
+		if params != nil || ret != typ.Ret {
+			if params == nil {
+				params = typ.Params
 			}
+			return &TFunc{Params: params, Ret: ret}
 		}
-		return occurs(m, t.Ret)
 	}
-	return false
+	return typ
+}
+
+func bindingTypes(pos ast.Pos, meta *TMeta, root Type, ts []Type) []Type {
+	var changed []Type
+	for i, t := range ts {
+		r := bindingType(pos, meta, root, t)
+		if r != t && changed == nil {
+			changed = append([]Type(nil), ts...)
+		}
+		if changed != nil {
+			changed[i] = r
+		}
+	}
+	return changed
 }
 
 // unify reports structural mismatches using the outermost expected and actual
@@ -109,14 +129,12 @@ func occurs(m *TMeta, t Type) bool {
 // way. Kind errors and occurs checks retain their more specific diagnostics.
 func unify(pos ast.Pos, expected, actual Type) {
 	if !unifyTypes(pos, expected, actual) {
-		fail(pos, "type mismatch: expected %s, got %s", TypeString(expected), TypeString(actual))
+		fail(pos, "type mismatch: expected %s, got %s", expected, actual)
 	}
 }
 
 func bindMeta(pos ast.Pos, meta *TMeta, typ Type) {
-	if occurs(meta, typ) {
-		fail(pos, "occurs check: %s occurs in %s", TypeString(meta), TypeString(typ))
-	}
+	typ = bindingType(pos, meta, typ, typ)
 	meta.Ref = &typ
 }
 
@@ -171,6 +189,16 @@ func unifyTypes(pos ast.Pos, expected, actual Type) bool {
 }
 
 func substitute(t Type, sub map[*TVar]Type) Type {
+	if a, ok := t.(*TAlias); ok {
+		args, body := substituteList(a.Args, sub), substitute(a.Body, sub)
+		if args == nil && body == a.Body {
+			return a
+		}
+		if args == nil {
+			args = a.Args
+		}
+		return &TAlias{Name: a.Name, Args: args, Body: body}
+	}
 	t = prune(t)
 	switch t := t.(type) {
 	case *TVar:
@@ -250,6 +278,26 @@ func unresolved(t Type) bool {
 // zonk runs after class ambiguity checks. Each ordinary meta is defaulted once,
 // notifying the body checker before following the new Unit link.
 func zonk(pos ast.Pos, t Type, onDefault func(*TMeta)) Type {
+	if a, ok := t.(*TAlias); ok {
+		var args []Type
+		for i, arg := range a.Args {
+			z := zonk(pos, arg, onDefault)
+			if z != arg && args == nil {
+				args = append([]Type(nil), a.Args...)
+			}
+			if args != nil {
+				args[i] = z
+			}
+		}
+		body := zonk(pos, a.Body, onDefault)
+		if args == nil && body == a.Body {
+			return a
+		}
+		if args == nil {
+			args = a.Args
+		}
+		return &TAlias{Name: a.Name, Args: args, Body: body}
+	}
 	t = prune(t)
 	switch t := t.(type) {
 	case *TMeta:

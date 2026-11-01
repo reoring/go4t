@@ -270,7 +270,7 @@ func (b *bodyChecker) inferExpected(e ast.Expr, env *locals, expected Type) Type
 			// Keep the existing outer-function diagnostic, rather than
 			// reporting only the return types after contextual inference.
 			actual := &TFunc{Params: ft.Params, Ret: ret}
-			fail(pos, "type mismatch: expected %s, got %s", TypeString(expected), TypeString(actual))
+			fail(pos, "type mismatch: expected %s, got %s", expected, actual)
 		}
 		ft.Ret = ret
 		result = ft

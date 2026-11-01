@@ -48,15 +48,19 @@ A `gofx.mod` file controls language import roots, not Go dependencies.
 
 | Command | Purpose and important flags |
 | --- | --- |
-| `gofx check FILE.gfx\|DIR...` | Load modules and type-check; warnings do not fail; no foreign ABI check. |
-| `gofx build [-o DIR] FILE.gfx\|DIR...` | Emit one file per gofx module into one Go package. |
-| `gofx build --emit-go DIR --package NAME FILE.gfx\|DIR...` | Emit an embeddable non-main package exposing `Main() rt.IO`; incompatible with -o. |
-| `gofx run FILE.gfx\|DIR... [-- args...]` | Build and execute; inherits stdin and preserves child status in the installed CLI. |
+| `gofx check [--full-types] FILE.gfx\|DIR...` | Load modules and type-check; warnings do not fail; no foreign ABI check. |
+| `gofx build [--full-types] [-o DIR] FILE.gfx\|DIR...` | Emit one file per gofx module into one Go package. |
+| `gofx build [--full-types] --emit-go DIR --package NAME FILE.gfx\|DIR...` | Emit an embeddable non-main package exposing `Main() rt.IO`; incompatible with -o. |
+| `gofx run [--full-types] FILE.gfx\|DIR... [-- args...]` | Build and execute; inherits stdin and preserves child status in the installed CLI. |
 | `gofx test FILE.gfx\|DIR...` | Run zero-arg monomorphic `testName` functions returning Bool/IO[Bool]; main optional and ignored. |
 | `gofx eval 'EXPR' [FILE.gfx\|DIR...]` | Evaluate and show a pure value or IO result; supporting imports come from the first file. |
 | `gofx bind IMPORT [FILE.gfx\|DIR...] [-o FILE.gfx\|DIR] [--prefix STR]` | Generate Go extern declarations; unsupported signatures get skip comments. |
 | `gofx fmt [-w\|-d\|-l] FILE...\|DIR` | Print/write/diff/list canonical formatting; -l exits 1 on differences; flags exclusive. |
 | `gofx lsp` | Start the stdio language server. |
+
+Diagnostics and hover retain source-written type aliases. Long types elide
+deeply nested parts with `…`; `--full-types` disables elision for check/build/run
+(without expanding alias names). See the [alias mismatch demo](examples/diagnostics).
 
 Directory compilation includes immediate `.gfx` files; formatting recurses.
 Explicit entry files must share a directory. Imports are file-local and qualified;

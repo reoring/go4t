@@ -51,7 +51,7 @@ func generate(prog *types.Program, goPackage string) (source []byte, err error) 
 	}
 	defer func() {
 		if r := recover(); r != nil {
-			if e, ok := r.(generationError); ok {
+			if e, ok := r.(*types.Error); ok {
 				source, err = nil, e
 			} else {
 				panic(r)
@@ -324,15 +324,8 @@ func (scope *dictionaryScope) hasName(name string) bool {
 	return false
 }
 
-type generationError struct {
-	pos ast.Pos
-	msg string
-}
-
-func (e generationError) Error() string { return fmt.Sprintf("%s: %s", e.pos, e.msg) }
-
 func (g *generator) fail(pos ast.Pos, format string, args ...any) {
-	panic(generationError{pos, fmt.Sprintf(format, args...)})
+	panic(types.NewError(pos, format, args...))
 }
 
 func (g *generator) ann(expr ast.Expr) *types.Ann {
@@ -353,7 +346,7 @@ func (g *generator) collectAnnotation(expr ast.Expr) {
 }
 
 func (g *generator) collectType(typ types.Type) {
-	switch typ := typ.(type) {
+	switch typ := types.Unalias(typ).(type) {
 	case *types.TCon:
 		if arity, ok := types.IsTuple(typ); ok {
 			g.tuples[arity] = struct{}{}
