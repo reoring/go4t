@@ -1,0 +1,24 @@
+package main
+
+type Tree[A] = Leaf | Node(Tree[A], A, Tree[A])
+
+instance Functor[Tree] {
+  fmap(t, f) {
+    match t {
+      | Leaf => Leaf
+      | Node(left, a, right) => Node(fmap(left, f), f(a), fmap(right, f))
+    }
+  }
+}
+
+func render[A Show](t Tree[A]) String {
+  match t {
+    | Leaf => "."
+    | Node(left, a, right) => "(" + render(left) + " " + show(a) + " " + render(right) + ")"
+  }
+}
+
+func main() IO[Unit] {
+  let t = Node(Node(Leaf, 1, Leaf), 2, Leaf)
+  println(render(fmap(t, func(n) => n * 10)))
+}

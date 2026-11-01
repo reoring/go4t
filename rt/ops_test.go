@@ -27,6 +27,20 @@ func TestIntArithmetic(t *testing.T) {
 	}
 }
 
+func TestAddString(t *testing.T) {
+	for _, tt := range []struct{ a, b, want string }{
+		{"hello", " world", "hello world"},
+		{"", "right", "right"},
+		{"left", "", "left"},
+		{"", "", ""},
+		{"こんにちは", "世界", "こんにちは世界"},
+	} {
+		if got := AddString(tt.a, tt.b); got != tt.want {
+			t.Errorf("AddString(%q, %q) = %v (%T), want %q (string)", tt.a, tt.b, got, got, tt.want)
+		}
+	}
+}
+
 func TestDivIntByZeroPanics(t *testing.T) {
 	defer func() {
 		if recover() == nil {

@@ -114,7 +114,7 @@ func TestDoDesugaring(t *testing.T) {
 		ExprBase: annotated(&types.Ann{Type: types.Unit, Monad: &dict}),
 		Stmts: []ast.DoStmt{
 			&ast.DoBind{Name: "x", X: call(ctor("Some"), integer(1))},
-			&ast.DoLet{Name: "y", Value: &ast.Binary{Op: "+", L: local("x", types.Int), R: integer(2)}},
+			&ast.DoLet{Name: "y", Value: &ast.Binary{ExprBase: annotated(&types.Ann{Type: types.Int}), Op: "+", L: local("x", types.Int), R: integer(2)}},
 			&ast.DoExpr{X: call(ctor("Some"), local("y", types.Int))},
 		},
 		Result: call(ctor("Some"), local("y", types.Int)),
@@ -154,7 +154,7 @@ func TestExternWrappersAndImportDeduplication(t *testing.T) {
 	extern(p, "foreign", []string{"input"}, []types.Type{types.String}, "example/foreign", "Echo")
 	extern(p, "foreignAgain", []string{"value"}, []types.Type{types.Int}, "example/foreign", "Echo")
 	extern(p, "unit", nil, nil, "gofx/rt", "UnitValue")
-	extern(p, "show", []string{"number"}, []types.Type{types.Int}, "gofx/rt", "ShowInt")
+	extern(p, "showInt", []string{"number"}, []types.Type{types.Int}, "gofx/rt", "ShowInt")
 	p.Main.Decl.Body.Result = call(function("unit", fnType()))
 	out := assertSource(t, p,
 		`ext_1 "example/foreign"`,
@@ -199,6 +199,7 @@ func TestOperatorSelection(t *testing.T) {
 		value    ast.Expr
 	}{
 		{"+", "AddInt", integer(1)}, {"-", "SubInt", integer(1)}, {"*", "MulInt", integer(1)}, {"/", "DivInt", integer(1)},
+		{"+", "AddString", text("a")},
 		{"==", "EqInt", integer(1)}, {"!=", "NeInt", integer(1)}, {"<", "LtInt", integer(1)}, {"<=", "LeInt", integer(1)}, {">", "GtInt", integer(1)}, {">=", "GeInt", integer(1)},
 		{"==", "EqString", text("a")}, {"!=", "NeString", text("a")}, {"<", "LtString", text("a")}, {"<=", "LeString", text("a")}, {">", "GtString", text("a")}, {">=", "GeString", text("a")},
 		{"==", "EqBool", boolean(true)}, {"!=", "NeBool", boolean(true)}, {"&&", "And", boolean(true)}, {"||", "Or", boolean(true)},
@@ -206,7 +207,11 @@ func TestOperatorSelection(t *testing.T) {
 	for _, tt := range binary {
 		t.Run(tt.name, func(t *testing.T) {
 			p := fixture()
-			p.Main.Decl.Body.Result = &ast.Binary{Op: tt.op, L: tt.value, R: tt.value}
+			expr := &ast.Binary{Op: tt.op, L: tt.value, R: tt.value}
+			if tt.op == "+" {
+				expr.Ann = &types.Ann{Type: types.AnnOf(tt.value).Type}
+			}
+			p.Main.Decl.Body.Result = expr
 			assertSource(t, p, "return rt."+tt.name+"(")
 		})
 	}
@@ -381,7 +386,7 @@ func (fakeImporter) Import(path string) (*gotypes.Package, error) {
 	switch path {
 	case "gofx/rt":
 		funcs = map[string]int{"RunMain": 1, "UnitValue": 0, "ShowInt": 1}
-		for _, name := range strings.Fields("AddInt SubInt MulInt DivInt EqInt NeInt LtInt LeInt GtInt GeInt EqString NeString LtString LeString GtString GeString EqBool NeBool And Or") {
+		for _, name := range strings.Fields("AddInt AddString SubInt MulInt DivInt EqInt NeInt LtInt LeInt GtInt GeInt EqString NeString LtString LeString GtString GeString EqBool NeBool And Or") {
 			funcs[name] = 2
 		}
 		funcs["NegInt"], funcs["Not"] = 1, 1

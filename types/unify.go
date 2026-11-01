@@ -87,53 +87,65 @@ func occurs(m *TMeta, t Type) bool {
 	return false
 }
 
-func unify(pos ast.Pos, a, b Type) {
-	a, b = prune(a), prune(b)
-	if a == b {
-		return
+// unify reports structural mismatches using the outermost expected and actual
+// types supplied by the context, not the nested pair that failed. Types are
+// rendered only on failure, following any inference links resolved along the
+// way. Kind errors and occurs checks retain their more specific diagnostics.
+func unify(pos ast.Pos, expected, actual Type) {
+	if !unifyTypes(pos, expected, actual) {
+		fail(pos, "type mismatch: expected %s, got %s", TypeString(expected), TypeString(actual))
 	}
-	requireKind(pos, kindOf(a), kindOf(b))
-	if m, ok := a.(*TMeta); ok {
-		if occurs(m, b) {
-			fail(pos, "occurs check: %s occurs in %s", TypeString(m), TypeString(b))
-		}
-		m.Ref = &b
-		return
+}
+
+func bindMeta(pos ast.Pos, meta *TMeta, typ Type) {
+	if occurs(meta, typ) {
+		fail(pos, "occurs check: %s occurs in %s", TypeString(meta), TypeString(typ))
 	}
-	if _, ok := b.(*TMeta); ok {
-		unify(pos, b, a)
-		return
+	meta.Ref = &typ
+}
+
+func unifyTypes(pos ast.Pos, expected, actual Type) bool {
+	expected, actual = prune(expected), prune(actual)
+	if expected == actual {
+		return true
 	}
-	switch a := a.(type) {
+	requireKind(pos, kindOf(actual), kindOf(expected))
+	if meta, ok := expected.(*TMeta); ok {
+		bindMeta(pos, meta, actual)
+		return true
+	}
+	if meta, ok := actual.(*TMeta); ok {
+		bindMeta(pos, meta, expected)
+		return true
+	}
+	switch expected := expected.(type) {
 	case *TCon:
-		if b, ok := b.(*TCon); ok && a.Name == b.Name {
-			return
-		}
+		actual, ok := actual.(*TCon)
+		return ok && expected.Name == actual.Name
 	case *TApp:
-		if b, ok := b.(*TApp); ok {
-			if len(a.Args) != len(b.Args) {
-				fail(pos, "type application arity mismatch")
+		if actual, ok := actual.(*TApp); ok && len(expected.Args) == len(actual.Args) {
+			if !unifyTypes(pos, expected.Fun, actual.Fun) {
+				return false
 			}
-			unify(pos, a.Fun, b.Fun)
-			for i, arg := range a.Args {
-				unify(pos, arg, b.Args[i])
+			for i, arg := range expected.Args {
+				if !unifyTypes(pos, arg, actual.Args[i]) {
+					return false
+				}
 			}
-			return
+			return true
 		}
 	case *TFunc:
-		if b, ok := b.(*TFunc); ok {
-			if len(a.Params) != len(b.Params) {
-				fail(pos, "arity mismatch: want %d arguments, got %d", len(a.Params), len(b.Params))
+		if actual, ok := actual.(*TFunc); ok && len(expected.Params) == len(actual.Params) {
+			for i, param := range expected.Params {
+				if !unifyTypes(pos, param, actual.Params[i]) {
+					return false
+				}
 			}
-			for i, param := range a.Params {
-				unify(pos, param, b.Params[i])
-			}
-			unify(pos, a.Ret, b.Ret)
-			return
+			return unifyTypes(pos, expected.Ret, actual.Ret)
 		}
 	}
 	// TVars are rigid and scoped by identity, never just by their printed name.
-	fail(pos, "cannot unify %s with %s", TypeString(a), TypeString(b))
+	return false
 }
 
 func substitute(t Type, sub map[*TVar]Type) Type {

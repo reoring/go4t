@@ -23,7 +23,7 @@ func optionMessage() String {
 func main() IO[Unit] {
   do {
     code <- httpGet("https://example.com")
-    println(show(code))
-    println(optionMessage())
+    println("status: " + show(code))
+    println("twice: " + optionMessage())
   }
 }

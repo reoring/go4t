@@ -40,7 +40,6 @@ func typeName(t *testing.T, typ ast.Type, name string, args ...string) {
 }
 
 func TestDesignSurfaceDeclarations(t *testing.T) {
-	// DESIGN.md explicitly requires semicolons/newlines, not '|', between match arms.
 	f := parse(t, `package main
 class Functor[F[_]] {
  fmap[A, B](fa F[A], f func(A) B) F[B]
@@ -256,6 +255,66 @@ func TestMatchPatterns(t *testing.T) {
 	}
 	if _, ok := m.Arms[6].Pat.(*ast.PWild); !ok {
 		t.Errorf("wildcard = %T", m.Arms[6].Pat)
+	}
+}
+
+func TestMatchArmSeparators(t *testing.T) {
+	for _, tc := range []struct{ name, src string }{
+		{"leading pipe", "match o { | Some(n) => n | None => 0 }"},
+		{"inline pipe", "match o { Some(n) => n | None => 0 }"},
+		{"mixed newline and pipe", `match o {
+ ; | Some(n) => n;
+ ; | ;
+ None => 0
+}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m := result(t, tc.src).(*ast.Match)
+			if exprShape(m.Scrut) != "o" || len(m.Arms) != 2 {
+				t.Fatalf("match = %#v", m)
+			}
+			some := m.Arms[0].Pat.(*ast.PCtor)
+			if some.Name != "Some" || len(some.Args) != 1 || some.Args[0].(*ast.PVar).Name != "n" {
+				t.Fatalf("Some = %#v", some)
+			}
+			if got := exprShape(m.Arms[0].Body); got != "n" {
+				t.Errorf("first body = %s, want n", got)
+			}
+			none := m.Arms[1].Pat.(*ast.PCtor)
+			if none.Name != "None" || len(none.Args) != 0 {
+				t.Fatalf("None = %#v", none)
+			}
+			if got := exprShape(m.Arms[1].Body); got != "0" {
+				t.Errorf("second body = %s, want 0", got)
+			}
+		})
+	}
+}
+
+func TestMatchArmLogicalOrIsNotSeparator(t *testing.T) {
+	m := result(t, "match o { Some(a) => a || b | None => false }").(*ast.Match)
+	if len(m.Arms) != 2 {
+		t.Fatalf("arms = %#v, want two arms", m.Arms)
+	}
+	if got := exprShape(m.Arms[0].Body); got != "(a || b)" {
+		t.Errorf("first body = %s, want (a || b)", got)
+	}
+	if none := m.Arms[1].Pat.(*ast.PCtor); none.Name != "None" {
+		t.Errorf("second pattern = %#v, want None", none)
+	}
+	if body, ok := m.Arms[1].Body.(*ast.BoolLit); !ok || body.Value {
+		t.Errorf("second body = %#v, want false", m.Arms[1].Body)
+	}
+}
+
+func TestDataTypeConstructorPipeSeparator(t *testing.T) {
+	f := parse(t, "package main\ntype T = A | B")
+	if len(f.Decls) != 1 {
+		t.Fatalf("declarations = %#v, want one", f.Decls)
+	}
+	d := f.Decls[0].(*ast.TypeDecl)
+	if d.Name != "T" || len(d.Ctors) != 2 || d.Ctors[0].Name != "A" || d.Ctors[1].Name != "B" {
+		t.Fatalf("type = %#v, want T with constructors A and B", d)
 	}
 }
 

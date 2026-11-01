@@ -228,14 +228,24 @@ func isCon(typ types.Type, name string) bool {
 }
 
 func (g *generator) binaryOp(expr *ast.Binary) string {
-	typ := g.ann(expr.L).Type
+	var typ types.Type
+	if expr.Op == "+" {
+		typ = g.ann(expr).Type
+	} else {
+		typ = g.ann(expr.L).Type
+	}
 	var prefix string
 	switch expr.Op {
-	case "+", "-", "*", "/":
+	case "+":
+		if isCon(typ, "Int") {
+			return "AddInt"
+		}
+		if isCon(typ, "String") {
+			return "AddString"
+		}
+	case "-", "*", "/":
 		if isCon(typ, "Int") {
 			switch expr.Op {
-			case "+":
-				return "AddInt"
 			case "-":
 				return "SubInt"
 			case "*":

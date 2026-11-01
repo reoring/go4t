@@ -54,14 +54,17 @@ func run(args []string) error {
 	if err != nil {
 		return diagnostic(file, err)
 	}
-	output := strings.TrimSuffix(file, filepath.Ext(file)) + "_gen.go"
-	if err := os.WriteFile(output, source, 0o644); err != nil {
+	outputDir := strings.TrimSuffix(file, filepath.Ext(file)) + "_gen"
+	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+		return diagnostic(file, err)
+	}
+	if err := os.WriteFile(filepath.Join(outputDir, "main.go"), source, 0o644); err != nil {
 		return diagnostic(file, err)
 	}
 	if command == "build" {
 		return nil
 	}
-	dir, err := filepath.Abs(filepath.Dir(file))
+	dir, err := filepath.Abs(outputDir)
 	if err != nil {
 		return diagnostic(file, err)
 	}
@@ -74,7 +77,7 @@ func run(args []string) error {
 		return diagnostic(file, err)
 	}
 	// Prefix even a single-component path with ./ so Go treats it as a
-	// directory, not an import path; the module root itself becomes ./.
+	// directory, not an import path.
 	process := exec.Command("go", "run", "./"+filepath.ToSlash(relative))
 	process.Dir = root
 	process.Stdin, process.Stdout, process.Stderr = os.Stdin, os.Stdout, os.Stderr

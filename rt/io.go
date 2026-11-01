@@ -57,3 +57,9 @@ func Println(s any) any {
 
 // ShowInt returns the decimal representation of an Int.
 func ShowInt(n any) any { return strconv.FormatInt(n.(int64), 10) }
+
+// ShowBool returns "true" or "false" for a Bool.
+func ShowBool(b any) any { return strconv.FormatBool(b.(bool)) }
+
+// ShowString returns a String unchanged.
+func ShowString(s any) any { return s }

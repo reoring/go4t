@@ -44,9 +44,20 @@ func main() IO[Unit] {
 
 Builtin types: `Int` (int64), `String`, `Bool`, `Unit`, `IO[A]`, `func(A, B) C`.
 Builtin values (declared in prelude as `extern`): `println : func(String) IO[Unit]`,
-`show : func(Int) String`, `unit : func() Unit`, `ioPure`, `ioBind`, `ioFail(msg String) IO[A]`.
-Binary operators `+ - * /` on `Int`, `== !=` on `Int`/`String`/`Bool`, `< <= > >=` on `Int`/`String`
-only (both sides same type), `&& ||` on Bool, unary `-` on Int, `!` on Bool. No operator overloading in PoC.
+`show : Show method` (class `Show[A] { show(a A) String }`, instances `Int`/`String`/`Bool` backed by
+externs `showInt`/`showString`/`showBool`), `unit : func() Unit`, `ioPure`, `ioBind`, `ioFail(msg String) IO[A]`.
+Binary operators `+` on `Int`/`String` (concatenation), `- * /` on `Int`, `== !=` on
+`Int`/`String`/`Bool`, `< <= > >=` on `Int`/`String` only (both sides same type), `&& ||` on Bool,
+unary `-` on Int, `!` on Bool. No user operator overloading in PoC.
+
+`match` arms are separated by newline, `;`, or `|`; an optional leading `|` is allowed.
+
+Checker diagnostics: unification failure is `type mismatch: expected <T>, got <U>` (expected =
+type demanded by context). Missing instance on a constrained type parameter appends
+`(type parameter F is constrained only by Functor)`. Structural mismatches report the outermost
+expected/actual pair. `+` operand validation is deferred until the body is zonked so operands may
+be resolved through later context; an unresolved `+` defaults to `Int`; `Bool + Bool` reports
+`addition requires Int or String, got Bool`.
 
 Class method names and top-level function names share one global namespace. Constructors are
 capitalised; variables/functions are lower-case. Names must be unique per file (prelude +
@@ -159,7 +170,7 @@ Uniform erased representation: every gofx value is `any` in generated Go.
 | function with constrained tparams `func twice[F[_] Functor, A](...)` | `func twice(dict_F Functor, fa any, f any) any` — one dict param per Constraint in Scheme order, named `dict_<TParam>`; a tparam with two constraints gets two dict params `dict_F_Functor`… (PoC: at most one constraint per tparam; checker rejects more) |
 | `DictSuper` | the subclass interface embeds the superclass, so the value is passed as-is (Go interface upcast); no accessor call needed |
 | extern `= "pkg".Name` | import `pkg` as alias `ext_<n>`; the Go function uses the uniform ABI: every param `any`, result `any` (an `IO[...]` extern returns `rt.IO` boxed in `any`). Codegen emits a plain forwarding wrapper `func name_(a0 any, ...) any { return ext_n.Name(a0, ...) }`. |
-| binary ops | `rt.AddInt(a, b any) any`, `rt.EqInt`, `rt.EqString`, `rt.LtInt`, …, `rt.And`, `rt.Or`, `rt.NegInt`, `rt.Not` (runtime package exports exactly the list in `rt/ops.go`) |
+| binary ops | `rt.AddInt(a, b any) any` / `rt.AddString` chosen by the Binary's zonked type, `rt.EqInt`, `rt.EqString`, `rt.LtInt`, …, `rt.And`, `rt.Or`, `rt.NegInt`, `rt.Not` (runtime package exports exactly the list in `rt/ops.go`) |
 | `main` | generated `func main() { rt.RunMain(main_()) }` — user functions are emitted with a trailing `_` to avoid clashing with Go `main` and keywords: every gofx identifier `x` becomes Go `x_`. |
 
 `rt` package exports (runtime worker implements; codegen emits exactly these names):
@@ -173,16 +184,19 @@ func Fail(msg any) any
 func RunMain(io any)                // runs, prints error to stderr and os.Exit(1) on failure
 func Println(s any) any             // IO[Unit]
 func ShowInt(n any) any             // string
-// ops.go: AddInt SubInt MulInt DivInt NegInt EqInt NeInt LtInt LeInt GtInt GeInt
+func ShowBool(b any) any            // "true" / "false"
+func ShowString(s any) any          // identity
+// ops.go: AddInt AddString SubInt MulInt DivInt NegInt EqInt NeInt LtInt LeInt GtInt GeInt
 //         EqString NeString LtString LeString GtString GeString EqBool NeBool And Or Not
 ```
 
 `rt/stdhttp`: `func GetStatus(url any) any` returning an `IO` whose result is `int64` status code
 (uses `net/http`). This is the PoC's proof that real Go packages are reachable.
 
-Prelude (`prelude/prelude.gfx`) declares: `Functor`, `Monad`, `Option`, `instance
+Prelude (`prelude/prelude.gfx`) declares: `Functor`, `Monad`, `Show`, `Option`, `instance
 Functor[Option]`, `instance Monad[Option]`, `instance Functor[IO]`, `instance Monad[IO]` (via
-externs `ioPure`/`ioBind`), `println`, `show`, `unit`, `ioFail`, and `map`/`flatMap` helpers.
+externs `ioPure`/`ioBind`), `instance Show[Int|String|Bool]`, `println`, `showInt`, `showBool`,
+`showString`, `unit`, `ioFail`, and `map`/`flatMap` helpers.
 `IO` is a builtin TCon of kind `*→*`; `Unit` builtin TCon.
 
 Prelude functions are emitted into the same generated file as user code (one Go file per
@@ -196,8 +210,8 @@ left side failed). `ioFail` constructs a failing IO. Panics inside IO are not re
 ## CLI
 
 ```
-gofx build FILE.gfx   # writes FILE_gen.go in the same directory, package main
-gofx run FILE.gfx     # build then `go run` the directory
+gofx build DIR/NAME.gfx   # writes DIR/NAME_gen/main.go (package main); several programs may share DIR
+gofx run DIR/NAME.gfx     # build then `go run ./DIR/NAME_gen` from the module root; exit code mirrored
 gofx check FILE.gfx   # type-check only
 ```
 

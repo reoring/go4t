@@ -18,9 +18,11 @@ func TestPreludeParses(t *testing.T) {
 		t.Errorf("package = %q, want prelude", file.Package)
 	}
 	want := []string{
-		"class Functor", "class Monad", "type Option",
+		"class Functor", "class Monad", "class Show", "type Option",
 		"instance Functor[Option]", "instance Monad[Option]",
-		"func ioPure", "func ioBind", "func ioFail", "func println", "func show", "func unit",
+		"func ioPure", "func ioBind", "func ioFail", "func println",
+		"func showInt", "func showBool", "func showString", "func unit",
+		"instance Show[Int]", "instance Show[String]", "instance Show[Bool]",
 		"instance Functor[IO]", "instance Monad[IO]",
 		"func map", "func flatMap",
 	}

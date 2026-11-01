@@ -30,6 +30,7 @@ type bodyChecker struct {
 	types       map[string]Type
 	exprs       []ast.Expr
 	obligations []obligation
+	additions   []*ast.Binary
 	comparisons []*ast.Binary
 	matches     []*ast.Match
 }
@@ -47,7 +48,7 @@ func (b *bodyChecker) check(params []ast.Param, signature *TFunc, block *ast.Blo
 		env.values[param.Name] = signature.Params[i]
 	}
 	result := b.block(block, env)
-	unify(block.Result.GetPos(), result, signature.Ret)
+	unify(block.Result.GetPos(), signature.Ret, result)
 	b.finish()
 }
 
@@ -144,13 +145,13 @@ func (b *bodyChecker) infer(e ast.Expr, env *locals) Type {
 			for i := range ft.Params {
 				ft.Params[i] = b.c.fresh(KStar{})
 			}
-			unify(e.Fn.GetPos(), fn, ft)
+			unify(e.Fn.GetPos(), ft, fn)
 		}
 		if len(ft.Params) != len(e.Args) {
 			fail(pos, "arity mismatch: want %d arguments, got %d", len(ft.Params), len(e.Args))
 		}
 		for i, arg := range e.Args {
-			unify(arg.GetPos(), b.infer(arg, env), ft.Params[i])
+			unify(arg.GetPos(), ft.Params[i], b.infer(arg, env))
 		}
 		result = ft.Ret
 	case *ast.Lambda:
@@ -174,16 +175,16 @@ func (b *bodyChecker) infer(e ast.Expr, env *locals) Type {
 	case *ast.BlockExpr:
 		result = b.block(e.Block, env)
 	case *ast.If:
-		unify(e.Cond.GetPos(), b.infer(e.Cond, env), Bool)
+		unify(e.Cond.GetPos(), Bool, b.infer(e.Cond, env))
 		result = b.infer(e.Then, env)
-		unify(e.Else.GetPos(), b.infer(e.Else, env), result)
+		unify(e.Else.GetPos(), result, b.infer(e.Else, env))
 	case *ast.Match:
 		scrut := b.infer(e.Scrut, env)
 		result = b.c.fresh(KStar{})
 		for _, arm := range e.Arms {
 			local := newLocals(env)
 			b.pattern(arm.Pat, scrut, local)
-			unify(arm.Body.GetPos(), b.infer(arm.Body, local), result)
+			unify(arm.Body.GetPos(), result, b.infer(arm.Body, local))
 		}
 		b.matches = append(b.matches, e)
 	case *ast.Do:
@@ -214,17 +215,21 @@ func (b *bodyChecker) infer(e ast.Expr, env *locals) Type {
 		default:
 			fail(pos, "unknown unary operator %s", e.Op)
 		}
-		unify(e.X.GetPos(), arg, result)
+		unify(e.X.GetPos(), result, arg)
 	case *ast.Binary:
 		left, right := b.infer(e.L, env), b.infer(e.R, env)
 		switch e.Op {
-		case "+", "-", "*", "/":
-			unify(e.L.GetPos(), left, Int)
-			unify(e.R.GetPos(), right, Int)
+		case "+":
+			unify(e.R.GetPos(), left, right)
+			b.additions = append(b.additions, e)
+			result = left
+		case "-", "*", "/":
+			unify(e.L.GetPos(), Int, left)
+			unify(e.R.GetPos(), Int, right)
 			result = Int
 		case "&&", "||":
-			unify(e.L.GetPos(), left, Bool)
-			unify(e.R.GetPos(), right, Bool)
+			unify(e.L.GetPos(), Bool, left)
+			unify(e.R.GetPos(), Bool, right)
 			result = Bool
 		case "==", "!=", "<", "<=", ">", ">=":
 			unify(e.R.GetPos(), left, right)
@@ -242,7 +247,7 @@ func (b *bodyChecker) infer(e ast.Expr, env *locals) Type {
 
 func (b *bodyChecker) monadic(e ast.Expr, head Type, env *locals) Type {
 	item := b.c.fresh(KStar{})
-	unify(e.GetPos(), b.infer(e, env), &TApp{Fun: head, Args: []Type{item}})
+	unify(e.GetPos(), &TApp{Fun: head, Args: []Type{item}}, b.infer(e, env))
 	return item
 }
 
@@ -256,7 +261,7 @@ func (b *bodyChecker) pattern(p ast.Pattern, expected Type, env *locals) {
 		}
 		env.values[p.Name] = expected
 	case *ast.PLit:
-		unify(p.Pos, b.infer(p.X, env), expected)
+		unify(p.Pos, expected, b.infer(p.X, env))
 	case *ast.PCtor:
 		ctor := b.c.ctors[p.Name]
 		if ctor == nil {

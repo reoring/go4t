@@ -72,11 +72,11 @@ func bad() Box[Int] { fmap(Boxed(1), func(x) => x) }` + main, "no instance Funct
 		{"wrong main", `func main() Int { 1 }`, "main must have type func() IO[Unit]"},
 		{"missing main", `func other() Int { 1 }`, "main must have type func() IO[Unit]"},
 		{"duplicate instance", `instance Functor[Option] { fmap(fa, f) { fa } }` + main, "duplicate instance Functor[Option]"},
-		{"rigid type", `func bad[A](x A) A { 1 }` + main, "cannot unify"},
+		{"rigid type", `func bad[A](x A) A { 1 }` + main, "type mismatch: expected A, got Int"},
 		{"occurs check", `func bad() Unit { let f = func(x) => x(x); unit() }` + main, "occurs check"},
-		{"monomorphic let", `func bad() Unit { let id = func(x) => x; id(1); id(true); unit() }` + main, "cannot unify"},
+		{"monomorphic let", `func bad() Unit { let id = func(x) => x; id(1); id(true); unit() }` + main, "type mismatch: expected Int, got Bool"},
 		{"call arity", `func bad() Unit { ioPure(); unit() }` + main, "arity mismatch"},
-		{"mixed monads", `func bad() Option[Int] { do { a <- Some(1); ioPure(a) } }` + main, "cannot unify"},
+		{"mixed monads", `func bad() Option[Int] { do { a <- Some(1); ioPure(a) } }` + main, "type mismatch: expected Option["},
 		{"ambiguous class", `func bad() Unit { pure(1); unit() }` + main, "unresolved class constraint"},
 		{"default unconstrained", `func okay() Unit { None; let f = func(x) => x; unit() }` + main, ""},
 		{"primitive comparison", `func okay() Bool { let same = func(x) => x == x; same(1) }` + main, ""},
@@ -99,7 +99,7 @@ instance Monad[Box] { pure(a) { Boxed(a) }; bind(ma, f) { match ma { Boxed(a) =>
 		{"missing method", `class C[A] { c(x A) A }; instance C[Int] {}` + main, "missing method c"},
 		{"extra method", `class C[A] {}; instance C[Int] { extra(x) { x } }` + main, "unknown method extra"},
 		{"wrong method arity", `class C[A] { c(x A) A }; instance C[Int] { c(x, y) { x } }` + main, "arity mismatch"},
-		{"wrong method body", `class C[A] { c(x A) A }; instance C[Int] { c(x) { true } }` + main, "cannot unify"},
+		{"wrong method body", `class C[A] { c(x A) A }; instance C[Int] { c(x) { true } }` + main, "type mismatch: expected Int, got Bool"},
 		{"duplicate declaration", `func ioPure(x Int) Int { x }` + main, "duplicate declaration ioPure"},
 		{"recursive signatures", `func left(x Int) Int { right(x) }; func right(x Int) Int { left(x) }` + main, ""},
 		{"kind in field", `type Bad = BadValue(Option)` + main, "kind mismatch"},
@@ -123,10 +123,10 @@ func use() String { display(1) }` + main, ""},
 		{"constraint without binding", `func bad[F[_], A](fa F[A]) F[A] { fmap(fa, func(x) => x) }` + main, "no instance Functor[F]"},
 		{"typed lambda", `func okay[A](a A) A { (func(x A) => x)(a) }` + main, ""},
 		{"nullary constructor value", `func okay() Option[Int] { None }` + main, ""},
-		{"nullary constructor not callable", `func bad() Option[Int] { None() }` + main, "cannot unify"},
+		{"nullary constructor not callable", `func bad() Option[Int] { None() }` + main, "type mismatch: expected func()"},
 		{"wrong pattern arity", `func bad(x Option[Int]) Int { match x { Some(a, b) => a; None => 0 } }` + main, "arity mismatch for pattern"},
-		{"wrong pattern type", `func bad(x Int) Int { match x { Some(a) => a; _ => 0 } }` + main, "cannot unify"},
-		{"same named rigid parameters", `func wrong[A, B](a A) B { a }` + main, "cannot unify"},
+		{"wrong pattern type", `func bad(x Int) Int { match x { Some(a) => a; _ => 0 } }` + main, "type mismatch: expected Int, got Option["},
+		{"same named rigid parameters", `func wrong[A, B](a A) B { a }` + main, "type mismatch: expected B, got A"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -149,6 +149,105 @@ func use() String { display(1) }` + main, ""},
 				t.Fatal("program lost main or input files")
 			}
 			walkExprs(reflect.ValueOf(files), func(e ast.Expr) { assertZonked(t, e) })
+		})
+	}
+}
+
+func TestAdditionAnnotations(t *testing.T) {
+	tests := []struct {
+		name, source string
+		want         types.Type
+	}{
+		{"literals", `func value() String { "hello, " + "world" }`, types.String},
+		{"parameters", `func value(a String, b String) String { a + b }`, types.String},
+		{"inferred left operand", `func value() String { (func(x) => x + "!")("hello") }`, types.String},
+		{"inferred right operand", `func value() String { (func(x) => "hello" + x)("!") }`, types.String},
+		{"later argument", `func value() String { let concat = func(x) => x + x; concat("hello") }`, types.String},
+		{"return context", `func value() func(String) String { func(x) => x + x }`, types.String},
+		{"integer addition", `func value() Int { 1 + 2 }`, types.Int},
+		{"integer default", `func value() Unit { let add = func(x) => x + x; unit() }`, types.Int},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			files := parseFiles(t, tt.source+"\nfunc main() IO[Unit] { ioPure(unit()) }\n")
+			p, err := types.Check(files)
+			if err != nil {
+				t.Fatal(err)
+			}
+			additions := 0
+			walkExprs(reflect.ValueOf(p.Funcs["value"].Decl.Body), func(e ast.Expr) {
+				assertZonked(t, e)
+				if binary, ok := e.(*ast.Binary); ok && binary.Op == "+" {
+					additions++
+					for _, operand := range []ast.Expr{binary, binary.L, binary.R} {
+						if got := types.AnnOf(operand).Type; got != tt.want {
+							t.Errorf("%T annotation = %s, want %s", operand, types.TypeString(got), types.TypeString(tt.want))
+						}
+					}
+				}
+			})
+			if additions != 1 {
+				t.Fatalf("checked %d additions, want 1", additions)
+			}
+		})
+	}
+}
+
+func TestDiagnosticMessages(t *testing.T) {
+	tests := []struct {
+		name, source, want string
+	}{
+		{"mixed addition", `func bad() Int { 1 + "two" }`, "type mismatch: expected Int, got String"},
+		{"reversed mixed addition", `func bad() String { "one" + 2 }`, "type mismatch: expected String, got Int"},
+		{"boolean addition", `func bad() Bool { true + false }`, "addition requires Int or String, got Bool"},
+		{"string subtraction", `func bad() String { "a" - "b" }`, "type mismatch: expected Int, got String"},
+		{"string multiplication", `func bad() String { "a" * "b" }`, "type mismatch: expected Int, got String"},
+		{"string division", `func bad() String { "a" / "b" }`, "type mismatch: expected Int, got String"},
+		{"return type", `func bad() Int { "wrong" }`, "type mismatch: expected Int, got String"},
+		{"argument type", `func takes(n Int) Int { n }; func bad() Int { takes("wrong") }`, "type mismatch: expected Int, got String"},
+		{"if condition", `func bad() Int { if 1 { 2 } else { 3 } }`, "type mismatch: expected Bool, got Int"},
+		{"if branches", `func bad() Int { if true { 1 } else { false } }`, "type mismatch: expected Int, got Bool"},
+		{"match arms", `func bad(x Option[Int]) Int { match x { Some(n) => n; None => false } }`, "type mismatch: expected Int, got Bool"},
+		{"literal pattern", `func bad(x Int) Int { match x { true => 1; _ => 0 } }`, "type mismatch: expected Int, got Bool"},
+		{"constructor pattern", `type Token = Tok; func bad(x Int) Int { match x { Tok => 1; _ => 0 } }`, "type mismatch: expected Int, got Token"},
+		{"unary operand", `func bad() Int { -true }`, "type mismatch: expected Int, got Bool"},
+		{"boolean operand", `func bad() Bool { true && 1 }`, "type mismatch: expected Bool, got Int"},
+		{"comparison operand", `func bad() Bool { 1 == "one" }`, "type mismatch: expected Int, got String"},
+		{"nested return type", `func bad() func(Int) Int { func(x Int) => true }`, "type mismatch: expected func(Int) Int, got func(Int) Bool"},
+		{"nested argument type", `func takes(f func(Int) Int) Int { f(1) }; func bad() Int { takes(func(x Int) => false) }`, "type mismatch: expected func(Int) Int, got func(Int) Bool"},
+		{"nested parameter type", `func takes(f func(Int) Int) Int { f(1) }; func bad() Int { takes(func(x String) => 1) }`, "type mismatch: expected func(Int) Int, got func(String) Int"},
+		{"nested application type", `func takes(x Option[Int]) Int { 1 }; func bad() Int { takes(Some(true)) }`, "type mismatch: expected Option[Int], got Option[Bool]"},
+		{"function type arity", `func bad() func(Int) Int { func(x Int, y Int) => x }`, "type mismatch: expected func(Int) Int, got func(Int, Int) Int"},
+		{"constrained parameter", `func bad[F[_] Functor, A](fa F[A]) F[A] { do { fa } }`, "no instance Monad[F] (type parameter F is constrained only by Functor)"},
+		{"unconstrained parameter", `func bad[F[_], A](fa F[A]) F[A] { do { fa } }`, "no instance Monad[F] (type parameter F has no class constraints)"},
+		{"method constraint", `func bad[F[_] Functor, A](fa F[A]) F[A] { bind(fa, func(a) => fa) }`, "no instance Monad[F] (type parameter F is constrained only by Functor)"},
+		{"unconstrained method", `func bad[F[_], A](fa F[A]) F[A] { fmap(fa, func(a) => a) }`, "no instance Functor[F] (type parameter F has no class constraints)"},
+		{"ordinary parameter", `class Render[A] { render(a A) String }; func bad[A](a A) String { render(a) }`, "no instance Render[A] (type parameter A has no class constraints)"},
+		{"concrete missing instance", `type Box[A] = Boxed(A); func bad() Box[Int] { fmap(Boxed(1), func(x) => x) }`, "no instance Functor[Box]"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			files := parseFiles(t, tt.source+"\nfunc main() IO[Unit] { ioPure(unit()) }\n")
+			p, err := types.Check(files)
+			var typed *types.Error
+			if p != nil || !errors.As(err, &typed) || typed.Msg != tt.want || typed.Pos.Line == 0 || typed.Pos.Col == 0 {
+				t.Fatalf("Check = (%v, %v), want positioned error %q", p, err, tt.want)
+			}
+		})
+	}
+}
+
+func TestDoMismatchContext(t *testing.T) {
+	for _, body := range []string{"do { ioPure(1); x <- 2; ioPure(x) }", "do { ioPure(1); 2; ioPure(3) }", "do { ioPure(1); 2 }"} {
+		t.Run(body, func(t *testing.T) {
+			files := parseFiles(t, "func bad() IO[Int] { "+body+" }\nfunc main() IO[Unit] { ioPure(unit()) }\n")
+			p, err := types.Check(files)
+			var typed *types.Error
+			// The item type is not yet inferred, so its meta ID is intentionally
+			// unspecified; the expected outer IO application must be retained.
+			if p != nil || !errors.As(err, &typed) || !strings.HasPrefix(typed.Msg, "type mismatch: expected IO[?") || !strings.HasSuffix(typed.Msg, "], got Int") {
+				t.Fatalf("Check = (%v, %v), want expected IO[?], got Int", p, err)
+			}
 		})
 	}
 }

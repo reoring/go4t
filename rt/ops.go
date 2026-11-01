@@ -13,6 +13,8 @@ func LeInt(a, b any) any { return a.(int64) <= b.(int64) }
 func GtInt(a, b any) any { return a.(int64) > b.(int64) }
 func GeInt(a, b any) any { return a.(int64) >= b.(int64) }
 
+func AddString(a, b any) any { return a.(string) + b.(string) }
+
 func EqString(a, b any) any { return a.(string) == b.(string) }
 func NeString(a, b any) any { return a.(string) != b.(string) }
 func LtString(a, b any) any { return a.(string) < b.(string) }

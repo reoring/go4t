@@ -9,6 +9,10 @@ class Monad[M[_]] : Functor[M] {
   bind[A, B](ma M[A], f func(A) M[B]) M[B]
 }
 
+class Show[A] {
+  show(a A) String
+}
+
 type Option[A] = None | Some(A)
 
 instance Functor[Option] {
@@ -34,8 +38,22 @@ extern func ioPure[A](a A) IO[A] = "gofx/rt".Pure
 extern func ioBind[A, B](io IO[A], f func(A) IO[B]) IO[B] = "gofx/rt".Bind
 extern func ioFail[A](msg String) IO[A] = "gofx/rt".Fail
 extern func println(s String) IO[Unit] = "gofx/rt".Println
-extern func show(n Int) String = "gofx/rt".ShowInt
+extern func showInt(n Int) String = "gofx/rt".ShowInt
+extern func showBool(b Bool) String = "gofx/rt".ShowBool
+extern func showString(s String) String = "gofx/rt".ShowString
 extern func unit() Unit = "gofx/rt".UnitValue
+
+instance Show[Int] {
+  show(a) { showInt(a) }
+}
+
+instance Show[String] {
+  show(a) { showString(a) }
+}
+
+instance Show[Bool] {
+  show(a) { showBool(a) }
+}
 
 instance Functor[IO] {
   fmap(fa, f) { ioBind(fa, func(a) => ioPure(f(a))) }

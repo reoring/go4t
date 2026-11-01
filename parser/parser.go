@@ -14,6 +14,9 @@
 //	Stmt     := 'let' Ident '=' Expr | Expr
 //	Expr     := 'func' '(' LParams ')' '=>' Expr | 'do' DoBlock | 'match' Expr '{' Arms '}'
 //	          | 'if' Expr Block 'else' ( Block | IfExpr ) | Binary
+//	Arms     := { ';' } [ '|' ] { ';' } Arm { ArmSep Arm } [ ArmSep ]
+//	Arm      := Pattern '=>' Expr
+//	ArmSep   := ( ';' | '|' ) { ';' | '|' }
 //	Pattern  := '_' | Lit | Ident [ '(' Pattern { ',' Pattern } ')' ]
 package parser
 
@@ -455,12 +458,16 @@ func (p *Parser) matchExpr(pos ast.Pos) ast.Expr {
 	m.Scrut = p.expr()
 	p.expectP("{")
 	p.skipSemis()
+	p.acceptP("|")
+	p.skipSemis()
 	for !p.isP("}") {
 		arm := ast.Arm{Pos: p.pos(), Pat: p.pattern()}
 		p.expectP("=>")
 		arm.Body = p.expr()
 		m.Arms = append(m.Arms, arm)
-		p.skipSemis()
+		for p.isP(";") || p.isP("|") {
+			p.next()
+		}
 	}
 	p.expectP("}")
 	if len(m.Arms) == 0 {

@@ -156,6 +156,28 @@ func TestShowInt(t *testing.T) {
 	}
 }
 
+func TestShowBool(t *testing.T) {
+	for _, tt := range []struct {
+		value bool
+		want  string
+	}{
+		{true, "true"},
+		{false, "false"},
+	} {
+		if got := ShowBool(tt.value); got != tt.want {
+			t.Errorf("ShowBool(%t) = %v, want %q", tt.value, got, tt.want)
+		}
+	}
+}
+
+func TestShowString(t *testing.T) {
+	for _, value := range []string{"", "hello", "こんにちは", "line\n\"quoted\""} {
+		if got := ShowString(value); got != value {
+			t.Errorf("ShowString(%q) = %v, want %q", value, got, value)
+		}
+	}
+}
+
 func TestUnitValue(t *testing.T) {
 	if got := UnitValue(); got != (Unit{}) {
 		t.Fatalf("UnitValue() = %v, want Unit{}", got)

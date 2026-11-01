@@ -3,8 +3,18 @@ package types
 import "gofx/ast"
 
 func (b *bodyChecker) finish() {
-	// Inspect all obligations before defaulting anything: a meta shared by an
-	// unconstrained expression and a class use must never silently become Unit.
+	// Defer + validation so arguments and return context can resolve its type.
+	// Otherwise unconstrained addition keeps the original Int default.
+	for _, expr := range b.additions {
+		typ := prune(AnnOf(expr).Type)
+		if _, ok := typ.(*TMeta); ok {
+			unify(expr.GetPos(), Int, typ)
+		} else if typ != Int && typ != String {
+			fail(expr.GetPos(), "addition requires Int or String, got %s", TypeString(typ))
+		}
+	}
+	// Inspect all obligations before defaulting unconstrained metas to Unit:
+	// a meta shared by an ordinary expression and a class use must not default.
 	for _, o := range b.obligations {
 		for _, constraint := range o.constraints {
 			if unresolved(constraint.Arg) {
@@ -50,10 +60,12 @@ func (b *bodyChecker) finish() {
 func (b *bodyChecker) dictionary(pos ast.Pos, constraint Constraint) DictRef {
 	arg := prune(constraint.Arg)
 	if param, ok := arg.(*TVar); ok {
+		boundClass := ""
 		for _, bound := range b.constraints {
 			if bound.Arg != param {
 				continue
 			}
+			boundClass = bound.Class
 			class := b.c.program.Classes[bound.Class]
 			dict := DictRef{Kind: DictParam, Class: bound.Class, Param: param.Name, ParamClass: bound.Class}
 			for class != nil {
@@ -67,6 +79,12 @@ func (b *bodyChecker) dictionary(pos ast.Pos, constraint Constraint) DictRef {
 				dict = DictRef{Kind: DictSuper, Class: class.Super, Super: &parent}
 				class = b.c.program.Classes[class.Super]
 			}
+		}
+		if b.types[param.Name] == param {
+			if boundClass == "" {
+				fail(pos, "no instance %s[%s] (type parameter %s has no class constraints)", constraint.Class, param.Name, param.Name)
+			}
+			fail(pos, "no instance %s[%s] (type parameter %s is constrained only by %s)", constraint.Class, param.Name, param.Name, boundClass)
 		}
 	}
 	if con, ok := arg.(*TCon); ok {
