@@ -43,7 +43,7 @@ instance Show[Expr] {
     match e {
       Num(n) => show(n)
       Var(x) => x
-      Bin(op, l, r) => "(${l} ${op} ${r})"
+      Bin{op: op, lhs: l, rhs: r} => "(${l} ${op} ${r})"
       Let(x, v, b) => "let ${x} = ${v} in ${b}"
       If(c, t, f) => "if ${c} then ${t} else ${f}"
     }
@@ -59,7 +59,7 @@ instance Show[EvalError] {
     match e {
       Unbound(x) => "unbound variable ${x}"
       DivByZero => "division by zero"
-      TypeError(want, got) => "expected ${want}, got ${got}"
+      TypeError{expected: want, got: got} => "expected ${want}, got ${got}"
     }
   }
 }
@@ -81,8 +81,8 @@ instance Monad[Result[E]] {
 type Env = Env{vars: List[(String, Value)], depth: Int}
 
 func lookup(env Env, x String) Result[EvalError, Value] {
-  match filter(env.vars, func(p) => fst(p) == x) {
-    Cons(p, _) => Ok(snd(p))
+  match filter(env.vars, func(p) => p.0 == x) {
+    Cons(p, _) => Ok(p.1)
     Nil => Err(Unbound(x))
   }
 }
@@ -121,7 +121,7 @@ func eval(env Env, e Expr) Result[EvalError, Value] {
   match e {
     Num(n) => Ok(IntV(n))
     Var(x) => lookup(env, x)
-    Bin(op, l, r) => do {
+    Bin{op: op, lhs: l, rhs: r} => do {
       lv <- eval(env, l)
       rv <- eval(env, r)
       a <- asInt(lv)
@@ -183,15 +183,13 @@ func main() IO[Unit] {
           body: Let{name: "b", value: mul(v("a"), v("a")),
                     body: If{cond: lt(v("a"), v("b")), thenE: v("b"), elseE: v("a")}}})
   ]
-  let run = func(p) => match p {
-    (name, e) => "${name}: ${e}\n  => ${eval(empty, e)}\n  free: ${execState(freeVars([], e), [])}"
-  }
+  let run = func(p (String, Expr)) => "${p.0}: ${p.1}\n  => ${eval(empty, p.1)}\n  free: ${execState(freeVars([], p.1), [])}"
   do {
     forEach(programs, func(p) => println(run(p)))
-    let results = mapM(programs, func(p) => eval(empty, snd(p)))
+    let results = mapM(programs, func(p) => eval(empty, p.1))
     println("all: ${results}")
-    let okOnly = mapM(filter(programs, func(p) => fst(p) != "free" && fst(p) != "div0" && fst(p) != "type"),
-                      func(p) => eval(empty, snd(p)))
+    let okOnly = mapM(filter(programs, func(p) => p.0 != "free" && p.0 != "div0" && p.0 != "type"),
+                      func(p) => eval(empty, p.1))
     println("ok:  ${okOnly}")
   }
 }

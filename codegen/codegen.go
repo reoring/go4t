@@ -5,8 +5,9 @@
 // Tuple arities used in annotations, declarations, literals, or patterns receive
 // one erased struct each. Partially applied instance heads remain erased: only
 // their context constraints contribute dictionary fields.
-// Records reuse positional constructor fields, updates copy a single evaluated
-// base, and interpolation sends each expression through its Show dictionary.
+// Records reuse positional constructor fields, including reordered partial
+// patterns; tuple access uses the annotated base arity. Updates copy a single
+// evaluated base, and interpolation sends each expression through its Show dictionary.
 // Final match arms omit their proven head guard; only refutable nested patterns
 // retain guards and a defensive non-exhaustive-match panic.
 package codegen
@@ -49,8 +50,9 @@ func Generate(prog *types.Program, goPackage string) (source []byte, err error) 
 	}()
 	g := &generator{
 		ctors: make(map[string]*types.Ctor), imports: make(map[string]string),
-		instances: make(map[string]*types.Instance, len(prog.Instances)),
-		tuples:    make(map[int]struct{}),
+		instances:  make(map[string]*types.Instance, len(prog.Instances)),
+		tuples:     make(map[int]struct{}),
+		recordPats: prog.RecordPats,
 	}
 	for _, instance := range prog.Instances {
 		g.instances[instanceName(instance)] = instance
@@ -179,12 +181,13 @@ func Generate(prog *types.Program, goPackage string) (source []byte, err error) 
 }
 
 type generator struct {
-	ctors     map[string]*types.Ctor
-	imports   map[string]string
-	instances map[string]*types.Instance
-	tuples    map[int]struct{}
-	dictScope dictionaryScope
-	next      int
+	ctors      map[string]*types.Ctor
+	recordPats map[*ast.PRecord]types.RecordPat
+	imports    map[string]string
+	instances  map[string]*types.Instance
+	tuples     map[int]struct{}
+	dictScope  dictionaryScope
+	next       int
 }
 
 type dictionaryScope struct {

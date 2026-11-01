@@ -300,14 +300,14 @@ type Ann struct {
 	Inst  []Type
 	Dicts []DictRef
 	Monad *DictRef // *ast.Do only
-	// Ctor is the resolved constructor for *ast.Field, *ast.RecordLit,
-	// *ast.RecordUpdate (and for RefCtor idents).
+	// Ctor is the resolved constructor for record *ast.Field, *ast.RecordLit,
+	// *ast.RecordUpdate (and for RefCtor idents); nil for tuple *ast.Field.
 	Ctor *Ctor
-	// FieldIndex is the positional index of the field for *ast.Field.
+	// FieldIndex is the positional index for *ast.Field. For tuple access,
+	// Type of X is Tuple<n>[...].
 	FieldIndex int
 	// FieldIndexes are the positional indexes of Names for *ast.RecordLit /
-	// *ast.RecordUpdate, in Names order. For a tuple *ast.Field, Ctor is nil
-	// and FieldIndex is the tuple position; Type of X is Tuple<n>[...].
+	// *ast.RecordUpdate, in Names order.
 	FieldIndexes []int
 	// ShowDicts holds, for *ast.Interp, one Show dictionary per Exprs entry.
 	ShowDicts []DictRef

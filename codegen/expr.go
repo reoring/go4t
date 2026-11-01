@@ -68,6 +68,10 @@ func (g *generator) expr(expr ast.Expr) string {
 		}
 		return "rt.Concat(" + strings.Join(parts, ", ") + ")"
 	case *ast.Field:
+		if e.Index >= 0 {
+			tuple := g.ann(e.X).Type.(*types.TApp)
+			return fmt.Sprintf("any(%s).(*%s).F%d", g.expr(e.X), g.tupleName(len(tuple.Args)), e.Index)
+		}
 		ann := g.ann(e)
 		return fmt.Sprintf("any(%s).(*%s).F%d", g.expr(e.X), ctorName(ann.Ctor), ann.FieldIndex)
 	case *ast.RecordLit:
@@ -294,6 +298,16 @@ func (g *generator) pattern(pattern ast.Pattern, value, success string, unguarde
 	case *ast.PCtor:
 		ctor := g.ctor(p.Name, p.Pos)
 		return g.structPattern(ctorName(ctor), p.Args, value, success, unguarded)
+	case *ast.PRecord:
+		record := g.recordPats[p]
+		fields := make([]ast.Pattern, len(record.Ctor.Fields))
+		for i := range fields {
+			fields[i] = &ast.PWild{Pos: p.Pos}
+		}
+		for i, index := range record.Indexes {
+			fields[index] = p.Pats[i]
+		}
+		return g.structPattern(ctorName(record.Ctor), fields, value, success, unguarded)
 	case *ast.PLit:
 		if unguarded {
 			return "{\n" + success + "}\n", false
@@ -323,6 +337,8 @@ func (g *generator) irrefutableHead(pattern ast.Pattern) bool {
 		return g.irrefutableHead(p.Pat)
 	case *ast.PCtor:
 		return len(g.ctor(p.Name, p.Pos).Data.Ctors) == 1
+	case *ast.PRecord:
+		return len(g.recordPats[p].Ctor.Data.Ctors) == 1
 	}
 	return false
 }

@@ -39,7 +39,8 @@ type checker struct {
 //
 // Let-bound values generalize non-environment metas subject to the value
 // restriction; constrained values expose LetScheme for dictionary codegen.
-// Records resolve field indexes statically, and interpolation resolves Show.
+// Record patterns resolve constructors and named field indexes in RecordPats.
+// Record fields and tuple positions resolve indexes statically; interpolation resolves Show.
 // Unconstrained ordinary metas default to Unit with source-ordered warnings.
 // Higher-kinded or class-constrained ambiguities remain errors. Failures return
 // a positioned *Error and a nil program; partial annotations are not usable.
@@ -58,8 +59,12 @@ func Check(files []*ast.File) (program *Program, err error) {
 		}
 	}()
 	c = &checker{
-		program: &Program{Classes: make(map[string]*Class), DataTypes: make(map[string]*DataType), Funcs: make(map[string]*FuncInfo), Files: files},
-		cons:    make(map[string]*TCon), ctors: make(map[string]*Ctor),
+		program: &Program{
+			Classes: make(map[string]*Class), DataTypes: make(map[string]*DataType),
+			Funcs: make(map[string]*FuncInfo), Files: files,
+			RecordPats: make(map[*ast.PRecord]RecordPat),
+		},
+		cons: make(map[string]*TCon), ctors: make(map[string]*Ctor),
 		methods: make(map[string]*Method), instances: make(map[instanceKey]*Instance),
 		sources: make(map[ast.Decl]string),
 	}

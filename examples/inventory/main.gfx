@@ -72,7 +72,9 @@ func addStock(acc List[Stock], s Stock) List[Stock] {
 }
 
 func available(stocks List[Stock], sku Sku) Int {
-  fold(stocks, 0, func(acc, s) => if sameSku(sku, s.sku) { acc + s.qty } else { acc })
+  fold(stocks, 0, func(acc, stock) => match stock {
+    Stock{sku: s, ..} => if sameSku(sku, s) { acc + stock.qty } else { acc }
+  })
 }
 
 // 1 明細の引当。失敗理由を Err に積む

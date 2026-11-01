@@ -1,6 +1,10 @@
 package types
 
-import "gofx/ast"
+import (
+	"strings"
+
+	"gofx/ast"
+)
 
 func (b *bodyChecker) recordLit(e *ast.RecordLit, env *locals, ann *Ann) Type {
 	ctor := b.c.ctors[e.Ctor]
@@ -92,6 +96,28 @@ func (b *bodyChecker) recordType(pos ast.Pos, receiver ast.Expr, typ Type, field
 }
 
 func (b *bodyChecker) field(e *ast.Field, env *locals, ann *Ann) Type {
+	if e.Index >= 0 {
+		typ := normalize(b.infer(e.X, env))
+		if _, ok := typ.(*TMeta); ok {
+			fail(e.GetPos(), "cannot infer tuple type of %s.%s; annotate", recordReceiverName(e.X), e.Name)
+		}
+		if app, ok := typ.(*TApp); ok {
+			if con, ok := prune(app.Fun).(*TCon); ok {
+				if n, tuple := IsTuple(con); tuple {
+					if e.Index >= n {
+						fields := make([]string, len(app.Args))
+						for i, field := range app.Args {
+							fields[i] = TypeString(field)
+						}
+						fail(e.GetPos(), "tuple index %d out of range for (%s)", e.Index, strings.Join(fields, ", "))
+					}
+					ann.Ctor, ann.FieldIndex = nil, e.Index
+					return app.Args[e.Index]
+				}
+			}
+		}
+		fail(e.GetPos(), "tuple index requires a tuple type, got %s", TypeString(typ))
+	}
 	checkValueName(e.GetPos(), e.Name)
 	typ := b.infer(e.X, env)
 	ctor, fields := b.recordType(e.GetPos(), e.X, typ, e.Name)

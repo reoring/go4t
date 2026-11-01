@@ -779,11 +779,11 @@ func TestRecordLiteralsAndFields(t *testing.T) {
 	addFunc(p, "person", nil, nil, literal)
 	addFunc(p, "age", []string{"p"}, []types.Type{person}, &ast.Field{
 		ExprBase: annotated(&types.Ann{Type: types.Int, Ctor: record, FieldIndex: 1}),
-		X:        local("p", person), Name: "age",
+		X:        local("p", person), Name: "age", Index: -1,
 	})
 	addFunc(p, "literalName", nil, nil, &ast.Field{
 		ExprBase: annotated(&types.Ann{Type: types.String, Ctor: record, FieldIndex: 0}),
-		X:        literal, Name: "name",
+		X:        literal, Name: "name", Index: -1,
 	})
 	assertSource(t, p,
 		`return &Person_Person{F1: int64(42), F0: "Ada"}`,

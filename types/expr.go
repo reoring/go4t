@@ -141,7 +141,7 @@ func (b *bodyChecker) infer(e ast.Expr, env *locals) Type {
 
 // Call arguments carry their callee's instantiated type into an untyped
 // lambda before its body is inferred. Standalone lambdas remain infer-only:
-// record receivers still need a type known at the point of field access.
+// record and tuple receivers still need a type known at the point of field access.
 func (b *bodyChecker) inferExpected(e ast.Expr, env *locals, expected Type) Type {
 	ann := &Ann{}
 	*e.AnnSlot() = ann
@@ -341,6 +341,21 @@ func (b *bodyChecker) pattern(p ast.Pattern, expected Type, env *locals) {
 		}
 	case *ast.PLit:
 		unify(p.Pos, expected, b.infer(p.X, env))
+	case *ast.PRecord:
+		ctor := b.c.ctors[p.Ctor]
+		if ctor == nil {
+			fail(p.Pos, "unknown constructor %s", p.Ctor)
+		}
+		if ctor.FieldNames == nil {
+			fail(p.Pos, "%s is not a record constructor", p.Ctor)
+		}
+		fields, ret, _ := b.c.instantiateCtor(ctor)
+		unify(p.Pos, expected, ret)
+		indexes := recordIndexes(p.Pos, ctor, p.Names, !p.Rest)
+		for i, pat := range p.Pats {
+			b.pattern(pat, fields[indexes[i]], env)
+		}
+		b.c.program.RecordPats[p] = RecordPat{Ctor: ctor, Indexes: indexes}
 	case *ast.PCtor:
 		ctor := b.c.ctors[p.Name]
 		if ctor == nil {

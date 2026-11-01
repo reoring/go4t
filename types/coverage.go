@@ -102,8 +102,11 @@ func (c *checker) covers(rows [][]ast.Pattern, columns []Type) bool {
 	// In particular, do not unfold a recursive wildcard column forever.
 	present := make(map[string]bool)
 	for _, row := range rows {
-		if p, ok := patternShape(row[0]).(*ast.PCtor); ok {
+		switch p := patternShape(row[0]).(type) {
+		case *ast.PCtor:
 			present[p.Name] = true
+		case *ast.PRecord:
+			present[c.program.RecordPats[p].Ctor.Name] = true
 		}
 	}
 	for _, ctor := range data.Ctors {
@@ -125,6 +128,13 @@ func (c *checker) covers(rows [][]ast.Pattern, columns []Type) bool {
 			} else if p, ok := patternShape(row[0]).(*ast.PCtor); ok && p.Name == ctor.Name {
 				next := make([]ast.Pattern, 0, len(p.Args)+len(row)-1)
 				next = append(next, p.Args...)
+				next = append(next, row[1:]...)
+				specialized = append(specialized, next)
+			} else if p, ok := patternShape(row[0]).(*ast.PRecord); ok && c.program.RecordPats[p].Ctor == ctor {
+				next := make([]ast.Pattern, len(ctor.Fields), len(ctor.Fields)+len(row)-1)
+				for i, index := range c.program.RecordPats[p].Indexes {
+					next[index] = p.Pats[i]
+				}
 				next = append(next, row[1:]...)
 				specialized = append(specialized, next)
 			}

@@ -7,6 +7,14 @@ omit it before the first arm, keeping `|` only between arms, as in
 `match r { Err(e) => "Err(${e})" | Ok(a) => "Ok(${a})" }`.
 Matches whose arms span several lines retain leading `|` separators.
 
+Record patterns name the fields they match: `Ctor{f: p, g: q}` accepts fields
+in any order. Without `..`, every field must appear exactly once; a trailing
+`..` ignores unlisted fields, as in `User{name: n, ..}`. Unknown or duplicate
+fields are errors. Positional constructor patterns remain valid alongside
+record patterns. Tuple positions are zero-based: `p.0` reads the first element
+and `p.1` the second, with the tuple type known at the access and the index in
+range. The prelude's `fst` and `snd` helpers remain available.
+
 ## HTTP
 
 `go run ./cmd/gofx run examples/http/main.gfx` requires network access. It prints
@@ -75,6 +83,8 @@ uses `Stock{sku: ..., qty: ...}`, field reads use `s.sku` / `l.qty`, and
 expressions and nested tuple patterns compare SKUs and combine stocks; an
 as-pattern (`whole @ Stock(sku, qty)`) retains an unchanged stock without
 rebuilding it. Record constructors still support positional calls and patterns.
+The `available` fold uses `Stock{sku: s, ..}` to match only the SKU, reading
+the quantity from the original stock.
 Partially applied instance heads `Functor[Result[E]]` and `Monad[Result[E]]`
 sequence validation with a generic error type, while `Show[Result[E, A]]` uses
 both constrained dictionaries. String interpolation (`"stocks:   ${stocks}"`)
@@ -101,6 +111,8 @@ io:(1, true)
 constructor. Named construction must provide every field exactly once, in any
 order. Field access and copy updates require a single-constructor record type;
 `u{age: u.age + 1}` preserves the name and email without modifying `u`.
+`Show[User]` matches `User{name: n, ..}` to bind the name while ignoring the
+other fields in the pattern.
 The example maps this update over three users with `fmap`, and sequences an
 `Option`-based `do` that reads `u.email`. Missing email short-circuits to `None`.
 
@@ -151,6 +163,10 @@ syntax such as `Account{id: ..., owner: ..., balance: ...}` or
 `a{balance: a.balance - amt}`. Matches use one-line separators or one arm per
 line without a leading `|`, retaining leading separators when arms span
 several lines.
+`Show[Tx]` uses `Transfer{from: f, to: t, amount: a}` alongside positional
+`Deposit` and `Withdraw` patterns, and `Show[Failure]` names the fields of
+`Insufficient`. The first `applyAll` result is read with `r1.0` and `r1.1`;
+the `step` transition keeps its nested tuple patterns.
 
 `applyAll` sequences each transaction with `forEach` and `modify` over
 `State[(List[Account], Option[(Failure, Int)]), Unit]`, then uses `execState`

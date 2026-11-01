@@ -199,8 +199,8 @@ func TestStringEscapes(t *testing.T) {
 }
 
 func TestMaximalMunchPunctuation(t *testing.T) {
-	got := tokens(t, "<-< == = => != ! <= >= && || + - * / ( ) [ ] { } , ; . : | @ _")
-	want := strings.Fields("<- < == = => != ! <= >= && || + - * / ( ) [ ] { } , ; . : | @ _ ;")
+	got := tokens(t, "<-< == = => != ! <= >= && || + - * / ( ) [ ] { } , ; ... : | @ _")
+	want := strings.Fields("<- < == = => != ! <= >= && || + - * / ( ) [ ] { } , ; .. . : | @ _ ;")
 	if len(got) != len(want)+1 {
 		t.Fatalf("tokens = %#v", got)
 	}
@@ -222,6 +222,56 @@ func TestAsPatternPunctuation(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("tokens = %#v, want %#v", got, want)
+	}
+}
+
+func TestRecordPatternRestPunctuation(t *testing.T) {
+	got := tokens(t, "Point{x: 0, ..\n}")
+	want := []lexer.Token{
+		{Kind: lexer.Ident, Text: "Point", Pos: ast.Pos{Line: 1, Col: 1}},
+		{Kind: lexer.Punct, Text: "{", Pos: ast.Pos{Line: 1, Col: 6}},
+		{Kind: lexer.Ident, Text: "x", Pos: ast.Pos{Line: 1, Col: 7}},
+		{Kind: lexer.Punct, Text: ":", Pos: ast.Pos{Line: 1, Col: 8}},
+		{Kind: lexer.Int, Text: "0", Pos: ast.Pos{Line: 1, Col: 10}},
+		{Kind: lexer.Punct, Text: ",", Pos: ast.Pos{Line: 1, Col: 11}},
+		{Kind: lexer.Punct, Text: "..", Pos: ast.Pos{Line: 1, Col: 13}},
+		{Kind: lexer.Punct, Text: "}", Pos: ast.Pos{Line: 2, Col: 1}},
+		{Kind: lexer.Punct, Text: ";", Pos: ast.Pos{Line: 2, Col: 2}},
+		{Kind: lexer.EOF, Pos: ast.Pos{Line: 2, Col: 2}},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("tokens = %#v, want %#v", got, want)
+	}
+}
+
+func TestTupleAccessTokens(t *testing.T) {
+	for _, tc := range []struct {
+		src   string
+		texts []string
+		kinds []lexer.Kind
+	}{
+		{"p.0", []string{"p", ".", "0"}, []lexer.Kind{lexer.Ident, lexer.Punct, lexer.Int}},
+		{"p.0.1", []string{"p", ".", "0", ".", "1"}, []lexer.Kind{lexer.Ident, lexer.Punct, lexer.Int, lexer.Punct, lexer.Int}},
+		{"p.0.name", []string{"p", ".", "0", ".", "name"}, []lexer.Kind{lexer.Ident, lexer.Punct, lexer.Int, lexer.Punct, lexer.Ident}},
+		{"0.1", []string{"0", ".", "1"}, []lexer.Kind{lexer.Int, lexer.Punct, lexer.Int}},
+	} {
+		t.Run(tc.src, func(t *testing.T) {
+			got := tokens(t, tc.src)
+			if len(got) != len(tc.texts)+2 {
+				t.Fatalf("tokens = %#v", got)
+			}
+			col := 1
+			for i, text := range tc.texts {
+				want := lexer.Token{Kind: tc.kinds[i], Text: text, Pos: ast.Pos{Line: 1, Col: col}}
+				if !reflect.DeepEqual(got[i], want) {
+					t.Errorf("token %d = %#v, want %#v", i, got[i], want)
+				}
+				col += len(text)
+			}
+			if got[len(tc.texts)].Kind != lexer.Punct || got[len(tc.texts)].Text != ";" || got[len(tc.texts)+1].Kind != lexer.EOF {
+				t.Errorf("trailing tokens = %#v", got[len(tc.texts):])
+			}
+		})
 	}
 }
 

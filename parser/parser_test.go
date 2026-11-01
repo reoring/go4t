@@ -458,6 +458,15 @@ func patternShape(p ast.Pattern) string {
 			args[i] = patternShape(arg)
 		}
 		return p.Name + "(" + strings.Join(args, ", ") + ")"
+	case *ast.PRecord:
+		fields := make([]string, len(p.Names))
+		for i, name := range p.Names {
+			fields[i] = name + ": " + patternShape(p.Pats[i])
+		}
+		if p.Rest {
+			fields = append(fields, "..")
+		}
+		return p.Ctor + "{" + strings.Join(fields, ", ") + "}"
 	case *ast.PTuple:
 		elems := make([]string, len(p.Elems))
 		for i, elem := range p.Elems {
@@ -964,11 +973,11 @@ func TestRecordExpressions(t *testing.T) {
 		})
 	}
 	field := result(t, "x.a.b").(*ast.Field)
-	if field.Name != "b" || field.GetPos() != (ast.Pos{Line: 2, Col: 22}) {
+	if field.Name != "b" || field.Index != -1 || field.GetPos() != (ast.Pos{Line: 2, Col: 22}) {
 		t.Fatalf("outer field = %#v", field)
 	}
 	inner := field.X.(*ast.Field)
-	if inner.Name != "a" || inner.GetPos() != (ast.Pos{Line: 2, Col: 20}) || exprShape(inner.X) != "x" {
+	if inner.Name != "a" || inner.Index != -1 || inner.GetPos() != (ast.Pos{Line: 2, Col: 20}) || exprShape(inner.X) != "x" {
 		t.Errorf("inner field = %#v", inner)
 	}
 	record := result(t, "Point{y: 2, x: 1}").(*ast.RecordLit)
@@ -1036,7 +1045,6 @@ func TestRecordSyntaxErrors(t *testing.T) {
 		{"type R = R{a: Int}(String)", `expected declaration, found "("`},
 		{"func f() R { R{a: } }", `expected expression, found "}"`},
 		{"func f() R { r{a: 1, 2} }", `expected identifier, found "2"`},
-		{"func f() R { r.1 }", `expected identifier, found "1"`},
 	} {
 		t.Run(tc.src, func(t *testing.T) {
 			_, err := parser.Parse("package main\n" + tc.src)
@@ -1050,5 +1058,161 @@ func TestRecordSyntaxErrors(t *testing.T) {
 		if err == nil || err.Error() != `2:1: expected end of expression, found "{"` {
 			t.Errorf("error for %q = %v, want separate brace after newline", src, err)
 		}
+	}
+}
+
+func TestRecordPatterns(t *testing.T) {
+	for _, tc := range []struct {
+		src   string
+		names []string
+		pats  []string
+		rest  bool
+	}{
+		{"Point{x: 0, y: value}", []string{"x", "y"}, []string{"0", "value"}, false},
+		{"Point{y: value, x: _}", []string{"y", "x"}, []string{"value", "_"}, false},
+		{"Point{x: 0, ..}", []string{"x"}, []string{"0"}, true},
+		{"Point{..}", nil, nil, true},
+		{"Point{x: 0,}", []string{"x"}, []string{"0"}, false},
+		{"Point{x: 0, ..,}", []string{"x"}, []string{"0"}, true},
+		{"Point{\n x: 0,\n y: value,\n}", []string{"x", "y"}, []string{"0", "value"}, false},
+		{"Point{\n x: 0,\n ..\n}", []string{"x"}, []string{"0"}, true},
+	} {
+		t.Run(tc.src, func(t *testing.T) {
+			e, err := parser.ParseExpr("match p { "+tc.src+" => 1 | Point{..} => 2 }", ast.Pos{Line: 1, Col: 1})
+			if err != nil {
+				t.Fatal(err)
+			}
+			m := e.(*ast.Match)
+			if exprShape(m.Scrut) != "p" || len(m.Arms) != 2 {
+				t.Fatalf("match = %#v", m)
+			}
+			record, ok := m.Arms[0].Pat.(*ast.PRecord)
+			if !ok {
+				t.Fatalf("pattern = %T, want PRecord", m.Arms[0].Pat)
+			}
+			if record.Ctor != "Point" || record.Pos != (ast.Pos{Line: 1, Col: 11}) ||
+				!reflect.DeepEqual(record.Names, tc.names) || len(record.Pats) != len(tc.pats) || record.Rest != tc.rest {
+				t.Fatalf("record = %#v", record)
+			}
+			for i, pat := range record.Pats {
+				if got := patternShape(pat); got != tc.pats[i] {
+					t.Errorf("pattern %d = %s, want %s", i, got, tc.pats[i])
+				}
+			}
+			if got := patternShape(m.Arms[1].Pat); got != "Point{..}" {
+				t.Errorf("second pattern = %s, want Point{..}", got)
+			}
+			if exprShape(m.Arms[0].Body) != "1" || exprShape(m.Arms[1].Body) != "2" {
+				t.Errorf("arm bodies = %#v", m.Arms)
+			}
+		})
+	}
+}
+
+func TestNestedRecordPatterns(t *testing.T) {
+	for _, src := range []string{
+		"Point{x: Pair(a, b), y: (c, d)}",
+		"Box{value: Point{x: 0, ..}, ..}",
+		"whole @ Point{x: value @ Some(n), ..}",
+		"Some(Point{..})",
+		"(Point{..}, Point{x: _, ..})",
+		`Value{string: "text", bool: true, other: false}`,
+	} {
+		t.Run(src, func(t *testing.T) {
+			m := result(t, "match p { "+src+" => 0 }").(*ast.Match)
+			if got := patternShape(m.Arms[0].Pat); got != src {
+				t.Errorf("pattern = %s, want %s", got, src)
+			}
+		})
+	}
+}
+
+func TestRecordPatternErrors(t *testing.T) {
+	for _, tc := range []struct{ src, want string }{
+		{"Point{}", "1:11: record pattern needs fields or .."},
+		{"Point{x: 0, x: y}", "1:23: duplicate field x in record pattern"},
+		{"Point{.., x: 0}", "1:17: .. must be last in record pattern"},
+		{"Point{x: 0, .., y: 1}", "1:23: .. must be last in record pattern"},
+		{"Point{.., ..}", "1:17: .. must be last in record pattern"},
+		{"Point{.. x: 0}", "1:17: .. must be last in record pattern"},
+		{"Point{y, ..}", `1:18: expected ":", found ","`},
+		{"Point{y}", `1:18: expected ":", found "}"`},
+		{"Point{x: }", `1:20: expected pattern, found "}"`},
+		{"point{x: 0}", `1:16: expected "=>", found "{"`},
+		{"..", `1:11: expected pattern, found ".."`},
+	} {
+		t.Run(tc.src, func(t *testing.T) {
+			_, err := parser.ParseExpr("match p { "+tc.src+" => 0 }", ast.Pos{Line: 1, Col: 1})
+			if err == nil || err.Error() != tc.want {
+				t.Fatalf("error = %v, want %q", err, tc.want)
+			}
+		})
+	}
+}
+
+func TestTupleFieldAccess(t *testing.T) {
+	for _, tc := range []struct {
+		src     string
+		names   []string
+		indexes []int
+		cols    []int
+	}{
+		{"p.0", []string{"0"}, []int{0}, []int{2}},
+		{"p.1", []string{"1"}, []int{1}, []int{2}},
+		{"p.12", []string{"12"}, []int{12}, []int{2}},
+		{"p.00", []string{"00"}, []int{0}, []int{2}},
+		{"p.0.1", []string{"0", "1"}, []int{0, 1}, []int{2, 4}},
+		{"p.0.name", []string{"0", "name"}, []int{0, -1}, []int{2, 4}},
+		{"p.name.0", []string{"name", "0"}, []int{-1, 0}, []int{2, 7}},
+		{"p.a.b", []string{"a", "b"}, []int{-1, -1}, []int{2, 4}},
+	} {
+		t.Run(tc.src, func(t *testing.T) {
+			e, err := parser.ParseExpr(tc.src, ast.Pos{Line: 1, Col: 1})
+			if err != nil {
+				t.Fatal(err)
+			}
+			for i := len(tc.names) - 1; i >= 0; i-- {
+				field, ok := e.(*ast.Field)
+				if !ok {
+					t.Fatalf("expression = %T, want Field", e)
+				}
+				if field.Name != tc.names[i] || field.Index != tc.indexes[i] || field.GetPos() != (ast.Pos{Line: 1, Col: tc.cols[i]}) {
+					t.Errorf("field %d = %#v", i, field)
+				}
+				e = field.X
+			}
+			if got := exprShape(e); got != "p" {
+				t.Errorf("base = %s, want p", got)
+			}
+		})
+	}
+	for _, tc := range []struct{ src, want string }{
+		{"p.0 + p.1 * 2", "(p.0 + (p.1 * 2))"},
+		{"f().0.name(1).2", "f().0.name(1).2"},
+		{"(a, b).1", "(a, b).1"},
+		{"p.0{x: 1}.x", "p.0{x: 1}.x"},
+		{"p\n.0\n.name", "p.0.name"},
+	} {
+		t.Run(tc.src, func(t *testing.T) {
+			if got := exprShape(result(t, tc.src)); got != tc.want {
+				t.Errorf("expression = %s, want %s", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestTupleFieldSyntaxErrors(t *testing.T) {
+	for _, tc := range []struct{ src, want string }{
+		{"p.-1", `1:3: expected identifier, found "-"`},
+		{"p..0", `1:2: expected end of expression, found ".."`},
+		{"p.999999999999999999999999999999999999", "1:3: bad tuple index 999999999999999999999999999999999999"},
+		{"Point{x: 0, ..}", `1:13: expected identifier, found ".."`},
+	} {
+		t.Run(tc.src, func(t *testing.T) {
+			_, err := parser.ParseExpr(tc.src, ast.Pos{Line: 1, Col: 1})
+			if err == nil || err.Error() != tc.want {
+				t.Fatalf("error = %v, want %q", err, tc.want)
+			}
+		})
 	}
 }

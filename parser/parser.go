@@ -26,9 +26,12 @@
 //	Arm      := Pattern '=>' Expr
 //	ArmSep   := ( ';' | '|' ) { ';' | '|' }
 //	Pattern  := '_' | Lit | Ident [ '(' [ Pattern { ',' Pattern } ] ')' ]
+//	          | UpperIdent RecordPatternFields
 //	          | LowerIdent '@' Pattern | '(' Pattern ')' | '(' Pattern ',' Pattern { ',' Pattern } ')'
+//	RecordPatternFields := '{' ( '..' [ ',' ] | NamedPattern { ',' NamedPattern } [ ',' '..' ] [ ',' ] ) '}'
+//	NamedPattern := Ident ':' Pattern // names must be unique; '..' must be last; no field punning
 //	LowerIdent := Ident // starts with a lower-case letter; '@' only follows a bare variable name
-//	Postfix  := Primary { '(' [ Expr { ',' Expr } [ ',' ] ] ')' | '.' Ident | RecordFields } // no indexing
+//	Postfix  := Primary { '(' [ Expr { ',' Expr } [ ',' ] ] ')' | '.' ( Ident | Int ) | RecordFields } // no bracket indexing
 //	Primary  := Ident | Lit | Interp | UpperIdent RecordFields | '(' Expr ')' | '(' Expr ',' Expr { ',' Expr } ')' | Block | List
 //	RecordFields := '{' Ident ':' Expr { ',' Ident ':' Expr } [ ',' ] '}'
 //	          // record literals/updates require same-line '{' and lookahead '{' Ident ':';
@@ -640,6 +643,36 @@ func (p *Parser) pattern() ast.Pattern {
 			return c
 		}
 		if isUpper(t.Text) {
+			if p.acceptP("{") {
+				record := &ast.PRecord{Pos: t.Pos, Ctor: t.Text}
+				for !p.isP("}") {
+					if p.isP("..") {
+						restPos := p.next().Pos
+						record.Rest = true
+						p.acceptP(",")
+						if !p.isP("}") {
+							p.fail(restPos, ".. must be last in record pattern")
+						}
+						break
+					}
+					fieldPos := p.pos()
+					name := p.ident()
+					if slices.Contains(record.Names, name) {
+						p.fail(fieldPos, "duplicate field %s in record pattern", name)
+					}
+					p.expectP(":")
+					record.Names = append(record.Names, name)
+					record.Pats = append(record.Pats, p.pattern())
+					if !p.acceptP(",") {
+						break
+					}
+				}
+				p.expectP("}")
+				if len(record.Names) == 0 && !record.Rest {
+					p.fail(t.Pos, "record pattern needs fields or ..")
+				}
+				return record
+			}
 			return &ast.PCtor{Pos: t.Pos, Name: t.Text}
 		}
 		return &ast.PVar{Pos: t.Pos, Name: t.Text}
@@ -696,7 +729,18 @@ func (p *Parser) postfix() ast.Expr {
 			e = c
 		case p.isP("."):
 			pos := p.next().Pos
-			e = &ast.Field{ExprBase: ast.ExprBase{Pos: pos}, X: e, Name: p.ident()}
+			field := &ast.Field{ExprBase: ast.ExprBase{Pos: pos}, X: e, Index: -1}
+			if t := p.tok(); t.Kind == lexer.Int {
+				p.next()
+				index, err := strconv.Atoi(t.Text)
+				if err != nil {
+					p.fail(t.Pos, "bad tuple index %s", t.Text)
+				}
+				field.Name, field.Index = t.Text, index
+			} else {
+				field.Name = p.ident()
+			}
+			e = field
 		case p.recordAhead():
 			update := &ast.RecordUpdate{ExprBase: ast.ExprBase{Pos: p.pos()}, X: e}
 			update.Names, update.Values = p.recordFields()

@@ -27,7 +27,7 @@ instance Show[Tx] {
     match t {
       Deposit(to, amt) => "deposit ${amt} -> ${to}"
       Withdraw(from, amt) => "withdraw ${amt} <- ${from}"
-      Transfer(from, to, amt) => "transfer ${amt} ${from} -> ${to}"
+      Transfer{from: f, to: t, amount: a} => "transfer ${a} ${f} -> ${t}"
     }
   }
 }
@@ -36,7 +36,7 @@ instance Show[Failure] {
   show(f) {
     match f {
       NoSuchAccount(id) => "no such account ${id}"
-      Insufficient(id, need, have) => "${id}: need ${need}, have ${have}"
+      Insufficient{id: id, need: n, have: h} => "${id}: need ${n}, have ${h}"
       BadAmount(n) => "bad amount ${n}"
     }
   }
@@ -158,9 +158,9 @@ func main() IO[Unit] {
     println("book:  ${describe(book)}")
     println("txs:   ${describe(good)}")
     let r1 = applyAll(book, good)
-    println("good:  ${fst(r1)} / ${snd(r1)}")
-    audit("good", fst(r1))
-    let r2 = applyAll(fst(r1), bad)
+    println("good:  ${r1.0} / ${r1.1}")
+    audit("good", r1.0)
+    let r2 = applyAll(r1.0, bad)
     println("bad:   ${fst(r2)} / ${snd(r2)}")
     let r3 = applyAll(book, ugly)
     println("ugly:  ${snd(r3)}")
