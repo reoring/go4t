@@ -4,7 +4,7 @@ package main
 // Mirrors Go ast/ast.go without the mutable Ann slot: the checker produces a
 // separate Core tree (core.gfx) instead of annotating this one.
 
-type Pos = Pos{line: Int, col: Int}
+type Pos = Pos{line: Int, col: Int} deriving Eq, Ord
 
 instance Show[Pos] {
   show(p) { "${p.line}:${p.col}" }
@@ -58,7 +58,7 @@ type Param = PName(String, Option[SType]) | PParam(Pattern)
 // ----- declarations -----
 type File = File{pkg: String, name: String, decls: List[Decl]}
 
-type Decl = DClass(ClassDecl) | DInstance(InstanceDecl) | DType(TypeDecl) | DFunc(FuncDecl)
+type Decl = DeclClass(ClassDecl) | DeclInstance(InstanceDecl) | DeclType(TypeDecl) | DeclFunc(FuncDecl)
 
 type ClassDecl = ClassDecl{pos: Pos, name: String, param: TypeParam, super: Option[String], methods: List[MethodSig]}
 
@@ -67,19 +67,19 @@ type MethodSig = MethodSig{pos: Pos, name: String, tparams: List[TypeParam], par
 // InstanceDecl: `instance Class[TypeCon[P1, P2]] given C[P1]`. The parser puts
 // every head variable in params; the checker splits the leading fixed ones.
 // A tuple head `(A, B)` is recorded as typeCon "Tuple2" with params [A, B].
-type InstanceDecl = InstanceDecl{pos: Pos, class: String, typeCon: String, params: List[String], context: List[Constraint], methods: List[InstMethod]}
+type InstanceDecl = InstanceDecl{pos: Pos, className: String, typeCon: String, params: List[String], context: List[Constraint], methods: List[InstMethod]}
 
-type Constraint = Constraint{pos: Pos, class: String, param: String}
+type Constraint = Constraint{pos: Pos, className: String, param: String}
 
 type InstMethod = InstMethod{pos: Pos, name: String, params: List[String], body: Block}
 
-type TypeDecl = TypeDecl{pos: Pos, name: String, tparams: List[String], ctors: List[CtorDecl], deriving: List[String]}
+type TypeDecl = TypeDecl{pos: Pos, name: String, tparams: List[String], ctors: List[CtorDecl], derivings: List[String]}
 
 // CtorDecl: positional (fieldNames Nil) or record form (fieldNames same length as fields).
 type CtorDecl = CtorDecl{pos: Pos, name: String, fields: List[SType], fieldNames: List[String]}
 
-// FuncDecl: body is None iff extern is Some.
-type FuncDecl = FuncDecl{pos: Pos, name: String, tparams: List[TypeParam], params: List[Param], ret: SType, body: Option[Block], extern: Option[ExternRef]}
+// FuncDecl: body is None iff externRef is Some.
+type FuncDecl = FuncDecl{pos: Pos, name: String, tparams: List[TypeParam], params: List[Param], ret: SType, body: Option[Block], externRef: Option[ExternRef]}
 
 type ExternRef = ExternRef{importPath: String, goName: String}
 

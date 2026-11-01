@@ -61,15 +61,18 @@ type CoreCtor = CoreCtor{name: String, arity: Int, fieldNames: List[String]}
 
 type CoreData = CoreData{name: String, ctors: List[CoreCtor]}
 
-// CoreClass.methods: (method name, parameter count).
-type CoreClass = CoreClass{name: String, super: Option[String], methods: List[(String, Int)]}
+// CoreClass.methods: one signature per method; dictParams are the method's
+// own constraints (tparam, class), arity its parameter count.
+type CoreClass = CoreClass{name: String, super: Option[String], methods: List[CoreMethodSig]}
+
+type CoreMethodSig = CoreMethodSig{name: String, dictParams: List[(String, String)], arity: Int}
 
 // CoreInstance: context entries (tparam, class) become dictionary fields;
 // superArgs feed the embedded superclass dictionary (one per entry of the
 // superclass instance's context).
-type CoreInstance = CoreInstance{class: String, typeCon: String, context: List[(String, String)], superArgs: List[DictRef], methods: List[CoreMethod]}
+type CoreInstance = CoreInstance{className: String, typeCon: String, context: List[(String, String)], superArgs: List[DictRef], methods: List[CoreMethod]}
 
-type CoreMethod = CoreMethod{name: String, params: List[String], body: Core}
+type CoreMethod = CoreMethod{name: String, dictParams: List[(String, String)], params: List[String], body: Core}
 
 type CoreFunc = CoreFunc{name: String, dictParams: List[(String, String)], params: List[String], body: Core}
               | CoreExtern{name: String, importPath: String, goName: String, arity: Int}
