@@ -1,0 +1,47 @@
+package sync
+
+// Nominal handles are carried by the erased extern ABI, never inspected here.
+type Ref[A] = RefHandle
+type Mutex = MutexHandle
+type Condition = ConditionHandle
+type Channel[A] = ChannelHandle
+type Task[A] = TaskHandle
+type Clock = ClockHandle
+type Instant = InstantHandle
+type Timer = TimerHandle
+
+extern func newRef[A](value A) IO[Ref[A]] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".NewRef
+extern func readRef[A](ref Ref[A]) IO[A] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".ReadRef
+extern func writeRef[A](ref Ref[A], value A) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".WriteRef
+extern func newMutex() IO[Mutex] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".NewMutex
+extern func withLock[A](mutex Mutex, action IO[A]) IO[A] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".WithLock
+extern func newCondition(mutex Mutex) IO[Condition] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".NewCondition
+extern func wait(condition Condition) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".Wait
+extern func signal(condition Condition) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".Signal
+extern func broadcast(condition Condition) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".Broadcast
+extern func newChannel[A](capacity Int) IO[Channel[A]] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".NewChannel
+extern func send[A](channel Channel[A], value A) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".Send
+extern func receive[A](channel Channel[A]) IO[Option[A]] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".Receive
+extern func close[A](channel Channel[A]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".Close
+extern func selectReceive[A](channels List[Channel[A]]) IO[(Int, Option[A])] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".SelectReceive
+extern func start[A](action IO[A]) IO[Task[A]] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".Start
+extern func startDetached[A](action IO[A]) IO[Task[A]] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".StartDetached
+extern func cancelTask[A](task Task[A]) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".CancelTask
+extern func join[A](task Task[A]) IO[A] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".Join
+extern func uninterruptible[A](action IO[A]) IO[A] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".Uninterruptible
+extern func realClock() IO[Clock] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".RealClock
+extern func fakeClock(startNanos Int) IO[Clock] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".FakeClock
+extern func now(clock Clock) IO[Instant] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".Now
+extern func unixNanos(instant Instant) Int = "github.com/reoring/gofx/ports/client-go/internal/hostsync".UnixNanos
+extern func elapsed(start Instant, end Instant) Int = "github.com/reoring/gofx/ports/client-go/internal/hostsync".Elapsed
+extern func add(instant Instant, nanos Int) Instant = "github.com/reoring/gofx/ports/client-go/internal/hostsync".Add
+extern func instantComparison(a Instant, b Instant) Int = "github.com/reoring/gofx/ports/client-go/internal/hostsync".CompareInstant
+func compareInstant(a Instant, b Instant) Ordering {
+ let order = instantComparison(a, b)
+ if order < 0 { LT } else { if order > 0 { GT } else { EQ } }
+}
+extern func newTimer(clock Clock, nanos Int) IO[Timer] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".NewTimer
+extern func timerChannel(timer Timer) IO[Channel[Instant]] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".TimerChannel
+extern func stopTimer(timer Timer) IO[Bool] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".StopTimer
+extern func resetTimer(timer Timer, nanos Int) IO[Bool] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".ResetTimer
+extern func advance(clock Clock, nanos Int) IO[Unit] = "github.com/reoring/gofx/ports/client-go/internal/hostsync".Advance
