@@ -262,8 +262,8 @@ func TestTupleInstances(t *testing.T) {
 	p, showInt, _ := showFixture()
 	a, b := &types.TVar{Name: "A", Kind: types.KStar{}}, &types.TVar{Name: "B", Kind: types.KStar{}}
 	ft := showInt.Class.Methods[0].Scheme.Type
-	paramA := types.DictRef{Kind: types.DictParam, Class: "Show", Param: "A", ParamClass: "Show"}
-	paramB := types.DictRef{Kind: types.DictParam, Class: "Show", Param: "B", ParamClass: "Show"}
+	paramA := types.DictRef{Kind: types.DictParam, Class: "Show", Param: a, ParamClass: "Show"}
+	paramB := types.DictRef{Kind: types.DictParam, Class: "Show", Param: b, ParamClass: "Show"}
 	instance := &types.Instance{
 		Class: showInt.Class, TypeCon: types.Tuple(2), Params: []*types.TVar{a, b},
 		Context: []types.Constraint{{Class: "Show", Arg: a}, {Class: "Show", Arg: b}},
@@ -328,7 +328,7 @@ func TestPartiallyAppliedInstances(t *testing.T) {
 			if constrained {
 				instance.Context = []types.Constraint{{Class: "Show", Arg: e}}
 				instance.Decl.Context = []ast.Constraint{{Class: "Show", Param: "E"}}
-				dict := types.DictRef{Kind: types.DictParam, Class: "Show", Param: "E", ParamClass: "Show"}
+				dict := types.DictRef{Kind: types.DictParam, Class: "Show", Param: e, ParamClass: "Show"}
 				errorBody.Block.Stmts = []ast.Stmt{&ast.ExprStmt{X: call(method("show", showInt.Class.Methods[0].Scheme.Type, dict), local("err", e))}}
 				args = []types.DictRef{instanceDict(showInt)}
 				fragments = append(fragments, "type Functor_Result struct {\n\tdict_E Show\n}",
@@ -380,7 +380,7 @@ func TestConstrainedInstances(t *testing.T) {
 	addFunc(p, "concrete", nil, nil, call(method("show", ft, concrete), call(ctor("Some"), integer(7))))
 	nested := instanceDict(showOption, concrete)
 	addFunc(p, "nested", nil, nil, call(method("show", ft, nested), call(ctor("Some"), call(ctor("Some"), integer(8)))))
-	param := types.DictRef{Kind: types.DictParam, Class: "Show", Param: "A", ParamClass: "Show"}
+	param := types.DictRef{Kind: types.DictParam, Class: "Show", Param: showOption.Params[0], ParamClass: "Show"}
 	generic := addFunc(p, "generic", []string{"x"}, []types.Type{types.Unit},
 		call(method("show", ft, instanceDict(showOption, param)), local("x", types.Unit)))
 	generic.Scheme.Constraints = showOption.Context
@@ -397,7 +397,7 @@ func TestConstrainedInstances(t *testing.T) {
 func TestInstanceContextDictionaryClosuresAndRecursion(t *testing.T) {
 	p, showInt, showOption := showFixture()
 	ft := showInt.Class.Methods[0].Scheme.Type
-	param := types.DictRef{Kind: types.DictParam, Class: "Show", Param: "A", ParamClass: "Show"}
+	param := types.DictRef{Kind: types.DictParam, Class: "Show", Param: showOption.Params[0], ParamClass: "Show"}
 	showOption.Decl.Methods[0].Body = &ast.Block{
 		Stmts: []ast.Stmt{
 			&ast.LetStmt{Name: "showValue", Value: method("show", ft, param)},
@@ -427,8 +427,8 @@ func TestMultipleInstanceContextDictionaries(t *testing.T) {
 	data.Ctors = []*types.Ctor{{Name: "Pair", Data: data, Fields: []types.Type{a, b}}}
 	p.DataTypes[data.Name] = data
 	ft := showInt.Class.Methods[0].Scheme.Type
-	paramA := types.DictRef{Kind: types.DictParam, Class: "Show", Param: "A", ParamClass: "Show"}
-	paramB := types.DictRef{Kind: types.DictParam, Class: "Show", Param: "B", ParamClass: "Show"}
+	paramA := types.DictRef{Kind: types.DictParam, Class: "Show", Param: a, ParamClass: "Show"}
+	paramB := types.DictRef{Kind: types.DictParam, Class: "Show", Param: b, ParamClass: "Show"}
 	pair := &types.Instance{
 		Class: showInt.Class, TypeCon: &types.TCon{Name: "Pair"}, Params: data.TParams,
 		Context: []types.Constraint{{Class: "Show", Arg: b}, {Class: "Show", Arg: a}},
@@ -461,7 +461,7 @@ func TestConstrainedSuperclassInstances(t *testing.T) {
 	debug := &types.Class{Name: "Debug", Param: b, Super: "Show"}
 	debug.Methods = []*types.Method{{Name: "debug", Class: debug, Scheme: &types.Scheme{Type: fnType(b)}}}
 	p.Classes[debug.Name] = debug
-	param := types.DictRef{Kind: types.DictParam, Class: "Show", Param: "B", ParamClass: "Show"}
+	param := types.DictRef{Kind: types.DictParam, Class: "Show", Param: b, ParamClass: "Show"}
 	instance := &types.Instance{
 		Class: debug, TypeCon: showOption.TypeCon, Params: []*types.TVar{b},
 		Context:   []types.Constraint{{Class: "Show", Arg: b}},
@@ -493,7 +493,7 @@ func TestInstanceContextSuperclassUpcast(t *testing.T) {
 	p.Instances = append(p.Instances, debugInt)
 	showOption.Context[0].Class = "Debug"
 	showOption.Decl.Context[0].Class = "Debug"
-	param := types.DictRef{Kind: types.DictParam, Class: "Debug", Param: "A", ParamClass: "Debug"}
+	param := types.DictRef{Kind: types.DictParam, Class: "Debug", Param: showOption.Params[0], ParamClass: "Debug"}
 	super := types.DictRef{Kind: types.DictSuper, Class: "Show", Super: &param}
 	showOption.Decl.Methods[0].Body.Result.(*ast.Match).Arms[1].Body =
 		call(method("show", showInt.Class.Methods[0].Scheme.Type, super), local("a", types.Unit))
@@ -528,18 +528,18 @@ func TestClassesAndSuperclassInstances(t *testing.T) {
 func TestDictionaryPassingAndFunctionValues(t *testing.T) {
 	p, functor, _ := classFixture()
 	ft := fnType(types.Unit, fnType(types.Int))
-	param := types.DictRef{Kind: types.DictParam, Class: "Functor", Param: "F", ParamClass: "Functor"}
+	param := types.DictRef{Kind: types.DictParam, Class: "Functor", Param: &types.TVar{Name: "F"}, ParamClass: "Functor"}
 	methodRef := method("fmap", ft, param)
 	f := addFunc(p, "twice", []string{"fa", "f"}, ft.Params,
 		call(methodRef, call(method("fmap", ft, param), local("fa", types.Unit), local("f", fnType(types.Int))), local("f", fnType(types.Int))))
-	f.Scheme.Constraints = []types.Constraint{{Class: "Functor", Arg: &types.TVar{Name: "F"}}}
+	f.Scheme.Constraints = []types.Constraint{{Class: "Functor", Arg: param.Param}}
 	addFunc(p, "concrete", nil, nil, call(function("twice", ft, instanceDict(functor)), call(ctor("Some"), integer(3)), identity()))
 
-	monadParam := types.DictRef{Kind: types.DictParam, Class: "Monad", Param: "M", ParamClass: "Monad"}
+	monadParam := types.DictRef{Kind: types.DictParam, Class: "Monad", Param: &types.TVar{Name: "M"}, ParamClass: "Monad"}
 	super := types.DictRef{Kind: types.DictSuper, Class: "Functor", Super: &monadParam}
 	forward := addFunc(p, "forward", []string{"x", "f"}, ft.Params,
 		call(function("twice", ft, super), local("x", types.Unit), local("f", fnType(types.Int))))
-	forward.Scheme.Constraints = []types.Constraint{{Class: "Monad", Arg: &types.TVar{Name: "M"}}}
+	forward.Scheme.Constraints = []types.Constraint{{Class: "Monad", Arg: monadParam.Param}}
 
 	bound := addFunc(p, "bound", []string{"x", "f"}, ft.Params,
 		call(local("apply", ft), local("x", types.Unit), local("f", fnType(types.Int))))
@@ -569,7 +569,7 @@ func TestMethodOwnDictionaryConstraints(t *testing.T) {
 	addFunc(p, "direct", nil, nil, call(ref, call(ctor("Some"), integer(1)), identity()))
 	bound := addFunc(p, "bound", nil, nil, call(local("apply", scheme.Type), call(ctor("Some"), integer(2)), identity()))
 	bound.Decl.Body.Stmts = []ast.Stmt{&ast.LetStmt{Name: "apply", Value: ref}}
-	param := types.DictRef{Kind: types.DictParam, Class: "Functor", Param: "G", ParamClass: "Functor"}
+	param := types.DictRef{Kind: types.DictParam, Class: "Functor", Param: scheme.TParams[0], ParamClass: "Functor"}
 	localMethod := method("fmap", scheme.Type, param)
 	types.AnnOf(localMethod).Dicts = append(types.AnnOf(localMethod).Dicts, param)
 	functor.Decl.Methods[0].Body.Result = call(localMethod, local("fa", types.Unit), local("f", fnType(types.Int)))
@@ -594,10 +594,10 @@ func TestDoDesugaring(t *testing.T) {
 		Result: call(ctor("Some"), local("y", types.Int)),
 	}
 	addFunc(p, "sequence", nil, nil, do)
-	paramDict := types.DictRef{Kind: types.DictParam, Class: "Monad", Param: "M", ParamClass: "Monad"}
+	paramDict := types.DictRef{Kind: types.DictParam, Class: "Monad", Param: &types.TVar{Name: "M"}, ParamClass: "Monad"}
 	polyDo := &ast.Do{ExprBase: annotated(&types.Ann{Type: types.Unit, Monad: &paramDict}), Stmts: do.Stmts, Result: do.Result}
 	poly := addFunc(p, "genericSequence", nil, nil, polyDo)
-	poly.Scheme.Constraints = []types.Constraint{{Class: "Monad", Arg: &types.TVar{Name: "M"}}}
+	poly.Scheme.Constraints = []types.Constraint{{Class: "Monad", Arg: paramDict.Param}}
 	assertSource(t, p,
 		"func genericSequence_(dict_M Monad) any",
 		"(dict_M).Bind(&Option_Some{F0: int64(1)}, func(",
@@ -765,7 +765,7 @@ func TestStringInterpolation(t *testing.T) {
 	addFunc(p, "empty", nil, nil, &ast.Interp{
 		ExprBase: annotated(&types.Ann{Type: types.String}), Texts: []string{""},
 	})
-	param := types.DictRef{Kind: types.DictParam, Class: "Show", Param: "A", ParamClass: "Show"}
+	param := types.DictRef{Kind: types.DictParam, Class: "Show", Param: showOption.Params[0], ParamClass: "Show"}
 	generic := addFunc(p, "genericInterpolation", []string{"x"}, []types.Type{types.Unit}, &ast.Interp{
 		ExprBase: annotated(&types.Ann{Type: types.String, ShowDicts: []types.DictRef{param}}),
 		Texts:    []string{"", ""}, Exprs: []ast.Expr{local("x", types.Unit)},
@@ -865,11 +865,11 @@ func TestPolymorphicLetDictionaries(t *testing.T) {
 	for _, inDo := range []bool{false, true} {
 		t.Run(fmt.Sprintf("do=%t", inDo), func(t *testing.T) {
 			p, _, monad := classFixture()
-			param := types.DictRef{Kind: types.DictParam, Class: "Monad", Param: "M", ParamClass: "Monad"}
+			param := types.DictRef{Kind: types.DictParam, Class: "Monad", Param: &types.TVar{Name: "M"}, ParamClass: "Monad"}
 			ft := fnType(types.Int)
 			value := &ast.Lambda{
 				ExprBase: annotated(&types.Ann{Type: ft, LetScheme: &types.Scheme{
-					TParams: []*types.TVar{{Name: "M"}}, Constraints: []types.Constraint{{Class: "Monad", Arg: &types.TVar{Name: "M"}}},
+					TParams: []*types.TVar{param.Param}, Constraints: []types.Constraint{{Class: "Monad", Arg: param.Param}},
 				}}),
 				Params: []ast.Param{{Name: "x"}}, Body: call(method("pure", ft, param), local("x", types.Int)),
 			}
@@ -900,8 +900,8 @@ func TestLetInstantiationAndErasedValues(t *testing.T) {
 	p, showInt, showOption := showFixture()
 	a, b := &types.TVar{Name: "A"}, &types.TVar{Name: "B"}
 	ft := &types.TFunc{Params: []types.Type{a, b}, Ret: types.String}
-	paramA := types.DictRef{Kind: types.DictParam, Class: "Show", Param: "A", ParamClass: "Show"}
-	paramB := types.DictRef{Kind: types.DictParam, Class: "Show", Param: "B", ParamClass: "Show"}
+	paramA := types.DictRef{Kind: types.DictParam, Class: "Show", Param: a, ParamClass: "Show"}
+	paramB := types.DictRef{Kind: types.DictParam, Class: "Show", Param: b, ParamClass: "Show"}
 	render := &ast.Lambda{
 		ExprBase: annotated(&types.Ann{Type: ft, LetScheme: &types.Scheme{
 			TParams: []*types.TVar{a, b}, Type: ft,
@@ -923,7 +923,7 @@ func TestLetInstantiationAndErasedValues(t *testing.T) {
 		Params:   []ast.Param{{Name: "x"}},
 		Body:     call(method("show", showInt.Class.Methods[0].Scheme.Type, paramA), local("x", a)),
 	})
-	types.AnnOf(boxed).LetScheme = &types.Scheme{TParams: []*types.TVar{a}, Constraints: showOption.Context}
+	types.AnnOf(boxed).LetScheme = &types.Scheme{TParams: []*types.TVar{a}, Constraints: []types.Constraint{{Class: "Show", Arg: a}}}
 	boxedRef := local("boxed", types.Unit)
 	types.AnnOf(boxedRef).Dicts = []types.DictRef{concrete}
 	f := addFunc(p, "uses", nil, nil, boxedRef)
@@ -952,12 +952,12 @@ func TestLetInstantiationAndErasedValues(t *testing.T) {
 func TestPolymorphicLetDictionaryScopes(t *testing.T) {
 	p, showInt, showOption := showFixture()
 	ft := showInt.Class.Methods[0].Scheme.Type
-	a := types.DictRef{Kind: types.DictParam, Class: "Show", Param: "A", ParamClass: "Show"}
-	b := types.DictRef{Kind: types.DictParam, Class: "Show", Param: "B", ParamClass: "Show"}
-	c := types.DictRef{Kind: types.DictParam, Class: "Show", Param: "C", ParamClass: "Show"}
-	scheme := func(param string) *types.Scheme {
-		tv := &types.TVar{Name: param, Kind: types.KStar{}}
-		return &types.Scheme{TParams: []*types.TVar{tv}, Constraints: []types.Constraint{{Class: "Show", Arg: tv}}, Type: ft}
+	a := types.DictRef{Kind: types.DictParam, Class: "Show", Param: showOption.Params[0], ParamClass: "Show"}
+	b := types.DictRef{Kind: types.DictParam, Class: "Show", Param: &types.TVar{Name: "B"}, ParamClass: "Show"}
+	c := types.DictRef{Kind: types.DictParam, Class: "Show", Param: &types.TVar{Name: "C"}, ParamClass: "Show"}
+	shadowA := types.DictRef{Kind: types.DictParam, Class: "Show", Param: &types.TVar{Name: "A"}, ParamClass: "Show"}
+	scheme := func(param *types.TVar) *types.Scheme {
+		return &types.Scheme{TParams: []*types.TVar{param}, Constraints: []types.Constraint{{Class: "Show", Arg: param}}, Type: ft}
 	}
 	interp := func(dicts ...types.DictRef) ast.Expr {
 		e := &ast.Interp{ExprBase: annotated(&types.Ann{Type: types.String, ShowDicts: dicts})}
@@ -968,18 +968,18 @@ func TestPolymorphicLetDictionaryScopes(t *testing.T) {
 		return e
 	}
 	inner := &ast.Lambda{
-		ExprBase: annotated(&types.Ann{Type: ft, LetScheme: scheme("C")}),
+		ExprBase: annotated(&types.Ann{Type: ft, LetScheme: scheme(c.Param)}),
 		Params:   []ast.Param{{Name: "x"}}, Body: interp(c, b, a),
 	}
 	outer := &ast.Lambda{
-		ExprBase: annotated(&types.Ann{Type: ft, LetScheme: scheme("B")}),
+		ExprBase: annotated(&types.Ann{Type: ft, LetScheme: scheme(b.Param)}),
 		Params:   []ast.Param{{Name: "x"}}, Body: &ast.BlockExpr{Block: &ast.Block{
 			Stmts: []ast.Stmt{&ast.LetStmt{Name: "inner", Value: inner}}, Result: interp(b, a),
 		}},
 	}
 	shadow := &ast.Lambda{
-		ExprBase: annotated(&types.Ann{Type: ft, LetScheme: scheme("A")}),
-		Params:   []ast.Param{{Name: "x"}}, Body: interp(a),
+		ExprBase: annotated(&types.Ann{Type: ft, LetScheme: scheme(shadowA.Param)}),
+		Params:   []ast.Param{{Name: "x"}}, Body: interp(shadowA),
 	}
 	showOption.Decl.Methods[0].Body = &ast.Block{
 		Stmts: []ast.Stmt{
@@ -1088,7 +1088,7 @@ func showFixture() (*types.Program, *types.Instance, *types.Instance) {
 			},
 		}}},
 	}
-	param := types.DictRef{Kind: types.DictParam, Class: "Show", Param: "A", ParamClass: "Show"}
+	param := types.DictRef{Kind: types.DictParam, Class: "Show", Param: a, ParamClass: "Show"}
 	showOption := &types.Instance{
 		Class: show, TypeCon: &types.TCon{Name: "Option"}, Params: []*types.TVar{a},
 		Context: []types.Constraint{{Class: "Show", Arg: a}},

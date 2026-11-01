@@ -307,7 +307,7 @@ func main() IO[Unit] { do { ioPure(unit()) } }
 		t.Fatalf("method annotation = %#v", a)
 	}
 	d := a.Dicts[0]
-	if d.Kind != types.DictSuper || d.Class != "Functor" || d.Super == nil || d.Super.Kind != types.DictParam || d.Super.Param != "M" || d.Super.ParamClass != "Monad" {
+	if d.Kind != types.DictSuper || d.Class != "Functor" || d.Super == nil || d.Super.Kind != types.DictParam || d.Super.Param != p.Funcs["mapped"].Scheme.TParams[0] || d.Super.ParamClass != "Monad" {
 		t.Fatalf("superclass dictionary = %#v", d)
 	}
 	for name, con := range map[string]string{"option": "Option", "effect": "IO"} {
@@ -324,7 +324,7 @@ func main() IO[Unit] { do { ioPure(unit()) } }
 		if name == "main" && (d.Kind != types.DictInstance || d.Instance.TypeCon.Name != "IO") {
 			t.Fatalf("IO dictionary = %#v", d)
 		}
-		if name == "sequenced" && (d.Kind != types.DictParam || d.Param != "M") {
+		if name == "sequenced" && (d.Kind != types.DictParam || d.Param != p.Funcs[name].Scheme.TParams[0]) {
 			t.Fatalf("polymorphic dictionary = %#v", d)
 		}
 	}
@@ -351,7 +351,7 @@ func main() IO[Unit] { ioPure(unit()) }
 		}
 		dict = dict.Super
 	}
-	if dict.Kind != types.DictParam || dict.Class != "Strong" || dict.Param != "M" || dict.ParamClass != "Strong" {
+	if dict.Kind != types.DictParam || dict.Class != "Strong" || dict.Param != p.Funcs["through"].Scheme.TParams[0] || dict.ParamClass != "Strong" {
 		t.Fatalf("superclass root = %#v", dict)
 	}
 	ann = types.AnnOf(p.Funcs["conversion"].Decl.Body.Result.(*ast.Call).Fn)
@@ -366,7 +366,7 @@ func main() IO[Unit] { ioPure(unit()) }
 	}
 	inst := p.Instances[len(p.Instances)-1]
 	ann = types.AnnOf(inst.Decl.Methods[0].Body.Result.(*ast.Call).Fn)
-	if len(ann.Dicts) != 1 || ann.Dicts[0].Kind != types.DictParam || ann.Dicts[0].Param != "F" || ann.Dicts[0].ParamClass != "Functor" {
+	if len(ann.Dicts) != 1 || ann.Dicts[0].Kind != types.DictParam || ann.Dicts[0].Param != inst.Class.Methods[0].Scheme.TParams[0] || ann.Dicts[0].ParamClass != "Functor" {
 		t.Fatalf("instance method's own constraint = %#v", ann)
 	}
 	walkExprs(reflect.ValueOf(files), func(e ast.Expr) { assertZonked(t, e) })
@@ -748,7 +748,7 @@ func assertInstanceDict(t *testing.T, dict types.DictRef, class, con string) {
 
 func assertParamDict(t *testing.T, dict types.DictRef, class, param string) {
 	t.Helper()
-	if dict.Kind != types.DictParam || dict.Class != class || dict.Param != param || dict.ParamClass != class {
+	if dict.Kind != types.DictParam || dict.Class != class || dict.Param == nil || dict.Param.Name != param || dict.ParamClass != class {
 		t.Fatalf("dictionary = %#v, want parameter %s %s", dict, param, class)
 	}
 }

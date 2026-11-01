@@ -81,9 +81,7 @@ func main() IO[Unit] {
 
 `map` is implicit; `p.foldr`, `p.fmap`, `p.pure`, `p.bind` and `p.traverse` need
 an explicit prelude import. A class being implicit does not make every method
-implicit. Avoid reusing an instance-head parameter name for an independently
-constrained method parameter: the inherited dictionary-name collision limitation
-is documented in SPEC §9.
+implicit.
 
 ## 3. IO descriptions versus immediate side effects
 

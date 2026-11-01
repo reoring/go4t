@@ -59,7 +59,7 @@ func TestTailCallDictionariesPassThrough(t *testing.T) {
 	p, showInt, _ := showFixture()
 	a := &types.TVar{Name: "A", Kind: types.KStar{}}
 	constraint := types.Constraint{Class: "Show", Arg: a}
-	ref := types.DictRef{Kind: types.DictParam, Class: "Show", Param: "A", ParamClass: "Show"}
+	ref := types.DictRef{Kind: types.DictParam, Class: "Show", Param: a, ParamClass: "Show"}
 	f := addFunc(p, "again", []string{"x"}, []types.Type{a}, call(function("again", fnType(a), ref), local("x", a)))
 	f.Scheme.Constraints = []types.Constraint{constraint}
 	out := assertSource(t, p, "func again_(dict_A Show,", "continue")

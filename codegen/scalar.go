@@ -256,9 +256,9 @@ func (g *generator) emitFunction(f *types.FuncInfo, name string) string {
 	restore := g.localScope()
 	defer restore()
 	g.fileName = g.sources[f.Decl]
-	g.dictScope = dictionaryScope{params: f.Scheme.Constraints}
+	g.dictScope = g.newDictionaryScope(f.Scheme.Constraints, nil)
 	g.collectType(f.Scheme.Type)
-	params := g.dictParams(f.Scheme.Constraints)
+	params := g.dictScope.declarations()
 	if g.special != nil {
 		params = nil
 	}

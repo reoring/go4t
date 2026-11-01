@@ -92,6 +92,11 @@ func TestPerfGeneratedVet(t *testing.T) {
 		t.Fatal(err)
 	}
 	source := qualityProgram(t, "perf.gfx", string(fixture))
+	vetQualityGo(t, source)
+}
+
+func vetQualityGo(t *testing.T, source []byte) {
+	t.Helper()
 	path := filepath.Join(t.TempDir(), "main.go")
 	if err := os.WriteFile(path, source, 0600); err != nil {
 		t.Fatal(err)

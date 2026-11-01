@@ -74,7 +74,8 @@ func (g *generator) letBinding(name string, value ast.Expr) string {
 	if ann != nil && ann.LetScheme != nil {
 		scheme := ann.LetScheme
 		previous := g.dictScope
-		g.dictScope.params = append(g.dictScope.params, scheme.Constraints...)
+		g.dictScope = g.newDictionaryScope(scheme.Constraints, &previous)
+		params := g.dictScope.declarations()
 		var body string
 		if ann.Recursive {
 			body = g.recursiveLambdaBinding(sourceName, value.(*ast.Lambda)) + "return " + name + "\n"
@@ -82,7 +83,7 @@ func (g *generator) letBinding(name string, value ast.Expr) string {
 			body = "return " + g.expr(value) + "\n"
 		}
 		g.dictScope = previous
-		wrapper := g.sourceExpr(value.GetPos(), "func("+strings.Join(g.dictParams(scheme.Constraints), ", ")+") any {\n"+body+"}")
+		wrapper := g.sourceExpr(value.GetPos(), "func("+strings.Join(params, ", ")+") any {\n"+body+"}")
 		return name + " := " + wrapper + "\n_ = " + name + "\n"
 	}
 	if ann != nil && ann.Recursive {

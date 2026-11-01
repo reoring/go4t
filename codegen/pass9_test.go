@@ -29,8 +29,8 @@ func TestComparisonDictionaryParametersAndInstances(t *testing.T) {
 	box.Ctors = []*types.Ctor{{Name: "Box", Data: box, Fields: []types.Type{a}}}
 	p.DataTypes[box.Name] = box
 	boxCon := &types.TCon{Name: "Box"}
-	eqParam := types.DictRef{Kind: types.DictParam, Class: "Eq", Param: "A", ParamClass: "Eq"}
-	ordParam := types.DictRef{Kind: types.DictParam, Class: "Ord", Param: "B", ParamClass: "Ord"}
+	eqParam := types.DictRef{Kind: types.DictParam, Class: "Eq", Param: a, ParamClass: "Eq"}
+	ordParam := types.DictRef{Kind: types.DictParam, Class: "Ord", Param: b, ParamClass: "Ord"}
 	super := types.DictRef{Kind: types.DictSuper, Class: "Eq", Super: &ordParam}
 	unbox := func(body ast.Expr) *ast.Match {
 		return &ast.Match{Scrut: tupleLiteral(local("left", types.Unit), local("right", types.Unit)), Arms: []ast.Arm{{
@@ -233,7 +233,7 @@ func TestSuperclassContextImplication(t *testing.T) {
 	pair.Ctors = []*types.Ctor{{Name: "Pair", Data: pair, Fields: []types.Type{a, b}}}
 	p.DataTypes[pair.Name] = pair
 	pairCon := &types.TCon{Name: "Pair"}
-	showParam := types.DictRef{Kind: types.DictParam, Class: "Show", Param: "B", ParamClass: "Show"}
+	showParam := types.DictRef{Kind: types.DictParam, Class: "Show", Param: b, ParamClass: "Show"}
 	showPair := &types.Instance{
 		Class: showInt.Class, TypeCon: pairCon, Params: []*types.TVar{a, b}, Context: []types.Constraint{{Class: "Show", Arg: b}},
 		Decl: &ast.InstanceDecl{Methods: []ast.InstMethod{{Name: "show", Params: []string{"pair"}, Body: &ast.Block{Result: &ast.Match{
@@ -243,7 +243,7 @@ func TestSuperclassContextImplication(t *testing.T) {
 			}},
 		}}}}},
 	}
-	inspectParam := types.DictRef{Kind: types.DictParam, Class: "Inspect", Param: "Y", ParamClass: "Inspect"}
+	inspectParam := types.DictRef{Kind: types.DictParam, Class: "Inspect", Param: y, ParamClass: "Inspect"}
 	debugSuper := types.DictRef{Kind: types.DictSuper, Class: "Debug", Super: &inspectParam}
 	showSuper := types.DictRef{Kind: types.DictSuper, Class: "Show", Super: &debugSuper}
 	debugPair := &types.Instance{

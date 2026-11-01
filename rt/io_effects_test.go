@@ -223,3 +223,27 @@ func TestRandomIntBoundaries(t *testing.T) {
 		t.Fatalf("reversed bounds = (%v, %v)", got, err)
 	}
 }
+
+func TestRandomFloat(t *testing.T) {
+	action := RandomFloat().(IO)
+	var first float64
+	different := false
+	for i := range 100 {
+		got, err := action()
+		if err != nil {
+			t.Fatalf("RandomFloat = (%v, %v)", got, err)
+		}
+		value, ok := got.(float64)
+		if !ok || !(value >= 0 && value < 1) {
+			t.Fatalf("RandomFloat = %v (%T), want Float in [0, 1)", got, got)
+		}
+		if i == 0 {
+			first = value
+		} else if value != first {
+			different = true
+		}
+	}
+	if !different {
+		t.Fatal("RandomFloat returned the same value on every execution")
+	}
+}

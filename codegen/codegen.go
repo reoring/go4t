@@ -212,13 +212,14 @@ func generate(prog *types.Program, goPackage string) (source []byte, err error) 
 			if scheme == nil {
 				g.fail(method.Pos, "unknown method %s.%s", instance.Class.Name, method.Name)
 			}
-			params := g.dictParams(scheme.Constraints)
+			g.dictScope = g.newDictionaryScope(scheme.Constraints, nil)
+			g.dictScope.receiver, g.dictScope.context = "dictself", instance.Context
+			params := g.dictScope.declarations()
 			restore := g.localScope()
 			for _, param := range method.Params {
 				params = append(params, mangle(param)+" any")
 				g.locals[param] = "any"
 			}
-			g.dictScope = dictionaryScope{receiver: "dictself", params: scheme.Constraints, context: instance.Context}
 			out.WriteString(g.line(method.Pos))
 			fmt.Fprintf(&out, "func (dictself %s) %s(%s) any {\n%s}\n", name, exported(method.Name), strings.Join(params, ", "), g.returning("any", func() string { return g.block(method.Body) }))
 			restore()
@@ -279,6 +280,7 @@ type generator struct {
 	instances    map[string]*types.Instance
 	tuples       map[int]struct{}
 	dictScope    dictionaryScope
+	dictIDs      map[*types.TVar]int
 	sources      map[ast.Decl]string
 	typeSources  map[string]sourceLocation
 	aliases      map[string]*ast.AliasDecl
@@ -297,8 +299,29 @@ type generator struct {
 
 type dictionaryScope struct {
 	receiver string
-	params   []types.Constraint // Explicit method/let params shadow instance context.
+	params   []types.Constraint // Parameters declared in this lexical scope.
+	names    []string           // Go names fixed when the scope is entered.
 	context  []types.Constraint // Receiver fields have their own naming scope.
+	parent   *dictionaryScope
+}
+
+func (scope *dictionaryScope) declarations() []string {
+	params := make([]string, len(scope.params))
+	for i, constraint := range scope.params {
+		params[i] = scope.names[i] + " " + constraint.Class
+	}
+	return params
+}
+
+func (scope *dictionaryScope) hasName(name string) bool {
+	for ; scope != nil; scope = scope.parent {
+		for _, bound := range scope.names {
+			if bound == name {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 type generationError struct {
@@ -367,26 +390,56 @@ func (g *generator) dictParams(constraints []types.Constraint) []string {
 	return params
 }
 
-func (g *generator) dictField(constraint types.Constraint, constraints []types.Constraint) string {
-	param, ok := constraint.Arg.(*types.TVar)
-	if !ok {
-		g.fail(ast.Pos{}, "dictionary constraint does not name a type parameter")
+func (g *generator) dictID(param *types.TVar) int {
+	if g.dictIDs == nil {
+		g.dictIDs = make(map[*types.TVar]int)
 	}
-	return g.dictName(param.Name, constraint.Class, constraints)
+	if g.dictIDs[param] == 0 {
+		g.dictIDs[param] = len(g.dictIDs) + 1
+	}
+	return g.dictIDs[param]
 }
 
-func (g *generator) dictName(param, class string, constraints []types.Constraint) string {
-	count := 0
-	for _, constraint := range constraints {
-		if variable, ok := constraint.Arg.(*types.TVar); ok && variable.Name == param {
-			count++
+func (g *generator) dictField(constraint types.Constraint, constraints []types.Constraint) string {
+	param, ok := constraint.Arg.(*types.TVar)
+	if !ok || param == nil {
+		g.fail(ast.Pos{}, "dictionary constraint does not name a type parameter")
+	}
+	count, shadowed := 0, false
+	for _, candidate := range constraints {
+		if variable, ok := candidate.Arg.(*types.TVar); ok {
+			if variable == param {
+				count++
+			} else if variable.Name == param.Name {
+				shadowed = true
+			}
 		}
 	}
-	name := "dict_" + param
+	name := "dict_" + param.Name
 	if count > 1 {
-		name += "_" + class
+		name += "_" + constraint.Class
+	}
+	if shadowed {
+		name += fmt.Sprintf("_%d", g.dictID(param))
 	}
 	return name
+}
+
+// A nested dictionary binder must not hide a captured rigid parameter, even
+// when their source spellings match. Keep names stable in each lexical scope.
+func (g *generator) newDictionaryScope(constraints []types.Constraint, parent *dictionaryScope) dictionaryScope {
+	scope := dictionaryScope{params: constraints, names: make([]string, len(constraints)), parent: parent}
+	for i, constraint := range constraints {
+		name := g.dictField(constraint, constraints)
+		if scope.hasName(name) {
+			name += fmt.Sprintf("_%d", g.dictID(constraint.Arg.(*types.TVar)))
+			for scope.hasName(name) {
+				name += "_"
+			}
+		}
+		scope.names[i] = name
+	}
+	return scope
 }
 
 func (g *generator) dict(dict *types.DictRef) string {
@@ -394,7 +447,7 @@ func (g *generator) dict(dict *types.DictRef) string {
 		g.fail(ast.Pos{}, "missing dictionary annotation")
 	}
 	if dict.Kind == types.DictParam && g.special != nil {
-		if concrete, ok := g.special.dicts[dictKey(dict.Param, dict.ParamClass)]; ok {
+		if concrete, ok := g.special.dicts[types.Constraint{Arg: dict.Param, Class: dict.ParamClass}]; ok {
 			return g.dict(&concrete)
 		}
 	}
@@ -404,16 +457,20 @@ func (g *generator) dict(dict *types.DictRef) string {
 			return g.instanceDict(dict.Instance, dict.Args)
 		}
 	case types.DictParam:
-		for _, constraint := range g.dictScope.params {
-			param, ok := constraint.Arg.(*types.TVar)
-			if ok && param.Name == dict.Param && constraint.Class == dict.ParamClass {
-				return g.dictField(constraint, g.dictScope.params)
+		for scope := &g.dictScope; scope != nil; scope = scope.parent {
+			for i, constraint := range scope.params {
+				if constraint.Arg == dict.Param && constraint.Class == dict.ParamClass {
+					return scope.names[i]
+				}
+			}
+			if scope.receiver != "" {
+				for _, constraint := range scope.context {
+					if constraint.Arg == dict.Param && constraint.Class == dict.ParamClass {
+						return scope.receiver + "." + g.dictField(constraint, scope.context)
+					}
+				}
 			}
 		}
-		if g.dictScope.receiver != "" {
-			return g.dictScope.receiver + "." + g.dictName(dict.Param, dict.ParamClass, g.dictScope.context)
-		}
-		return g.dictName(dict.Param, dict.ParamClass, g.dictScope.params)
 	case types.DictSuper:
 		return g.dict(dict.Super)
 	}
@@ -454,8 +511,7 @@ func (g *generator) instanceDict(instance *types.Instance, args []types.DictRef)
 			}
 			found := false
 			for j, constraint := range instance.Context {
-				param, ok := constraint.Arg.(*types.TVar)
-				if ok && param.Name == ref.Param && constraint.Class == ref.ParamClass {
+				if constraint.Arg == ref.Param && constraint.Class == ref.ParamClass {
 					superArgs[i] = args[j]
 					found = true
 					break

@@ -99,7 +99,7 @@ func TestHandwrittenShowInstanceInterpolation(t *testing.T) {
 	box := &types.DataType{Name: "Box", TParams: []*types.TVar{a}}
 	box.Ctors = []*types.Ctor{{Name: "Box", Data: box, Fields: []types.Type{a}, FieldNames: []string{"value"}}}
 	p.DataTypes[box.Name] = box
-	param := types.DictRef{Kind: types.DictParam, Class: "Show", Param: "A", ParamClass: "Show"}
+	param := types.DictRef{Kind: types.DictParam, Class: "Show", Param: a, ParamClass: "Show"}
 	pos := ast.Pos{Line: 2, Col: 1}
 	decl := &ast.InstanceDecl{
 		Pos: pos, Class: "Show", TypeCon: "Box", Params: []string{"A"}, Context: []ast.Constraint{{Class: "Show", Param: "A"}},

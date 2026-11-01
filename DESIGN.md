@@ -124,7 +124,7 @@ type DictRef struct {
     Kind    DictKind          // DictInstance | DictParam | DictSuper
     Class   string
     Instance *Instance        // DictInstance: the resolved instance (Class + TypeCon)
-    Param   string            // DictParam: name of the enclosing function's constrained tparam ("F")
+    Param   *TVar             // DictParam: canonical rigid parameter; pointer identity, never source name
     ParamClass string         // DictParam: the class actually bound on that tparam (may be a subclass of Class)
     Super   *DictRef          // DictSuper: take Class from Super's dictionary via the superclass chain (Super.Class is a subclass of Class)
 }

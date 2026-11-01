@@ -48,7 +48,7 @@ type TCon struct {
 	Kind Kind
 }
 
-// TVar is a rigid (declared) type parameter.
+// TVar is a rigid type parameter. Its pointer, not Name, is its unique identity.
 type TVar struct {
 	Name string
 	Kind Kind
@@ -313,7 +313,7 @@ type DictRef struct {
 	Class      string
 	Instance   *Instance // DictInstance
 	Args       []DictRef // DictInstance: one per Instance.Context entry, in order
-	Param      string    // DictParam: constrained tparam name of the enclosing function or instance
+	Param      *TVar     // DictParam: the enclosing function or instance's rigid parameter
 	ParamClass string    // DictParam: class bound on that tparam
 	Super      *DictRef  // DictSuper: subclass dictionary to upcast from
 }

@@ -33,13 +33,11 @@ func (g *generator) planTail(name string, ref types.RefKind, params []ast.Param,
 				return
 			}
 			for i, constraint := range constraints {
-				expected := g.dictField(constraint, constraints)
-				if g.special != nil {
-					if v, ok := constraint.Arg.(*types.TVar); ok {
-						dict := g.special.dicts[dictKey(v.Name, constraint.Class)]
-						expected = g.dict(&dict)
-					}
+				param, ok := constraint.Arg.(*types.TVar)
+				if !ok {
+					return
 				}
+				expected := g.dict(&types.DictRef{Kind: types.DictParam, Param: param, ParamClass: constraint.Class})
 				if g.dict(&ann.Dicts[i]) != expected {
 					return
 				}

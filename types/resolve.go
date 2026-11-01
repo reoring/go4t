@@ -300,7 +300,7 @@ func (b *bodyChecker) resolveDictionary(constraint Constraint) (DictRef, string)
 		required := b.strongestConstraint(constraint, b.constraints)
 		for _, bound := range b.constraints {
 			if bound.Arg == param && bound.Class == required.Class {
-				dict := DictRef{Kind: DictParam, Class: bound.Class, Param: param.Name, ParamClass: bound.Class}
+				dict := DictRef{Kind: DictParam, Class: bound.Class, Param: param, ParamClass: bound.Class}
 				return b.upcastDictionary(dict, constraint.Class), ""
 			}
 		}

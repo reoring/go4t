@@ -296,6 +296,12 @@ func RandomInt(lo, hi any) any {
 	})
 }
 
+// RandomFloat samples [0, 1) uniformly when its IO runs.
+// Like RandomInt, it is not a cryptographic random source.
+func RandomFloat() any {
+	return IO(func() (any, error) { return rand.Float64(), nil })
+}
+
 // Sleep waits for positive milliseconds; nonpositive durations return immediately.
 func Sleep(millis any) any {
 	return IO(func() (any, error) {

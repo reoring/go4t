@@ -50,6 +50,8 @@ extern func formatTime(millis Int, layout String) String = "gofx/rt".FormatTime
 
 extern func randomInt(lo Int, hi Int) IO[Int] = "gofx/rt".RandomInt
 
+extern func randomFloat() IO[Float] = "gofx/rt".RandomFloat
+
 extern func sleep(millis Int) IO[Unit] = "gofx/rt".Sleep
 
 instance Functor[IO] {

@@ -126,9 +126,9 @@ Source: [`float/float.gfx`](../std/float/float.gfx). 23 top-level declarations.
 
 ## `std/io`
 
-Source: [`io/io.gfx`](../std/io/io.gfx). 26 top-level declarations.
+Source: [`io/io.gfx`](../std/io/io.gfx). 27 top-level declarations.
 
-All operations returning IO are deferred; `formatTime` is pure. There is no `randomFloat` declaration.
+All operations returning IO are deferred; `formatTime` is pure.
 
 | Source signature | Semantics | Boundary behaviour |
 | --- | --- | --- |
@@ -155,6 +155,7 @@ All operations returning IO are deferred; `formatTime` is pure. There is no `ran
 | `extern func monotonicMillis() IO[Int] = "gofx/rt".MonotonicMillis` | Elapsed monotonic milliseconds since runtime initialization. | Elapsed milliseconds since runtime initialization; sampled when run. |
 | `extern func formatTime(millis Int, layout String) String = "gofx/rt".FormatTime` | Pure UTC formatting of Unix milliseconds with a Go time layout. | UTC only; Go layout syntax; negative milliseconds supported. |
 | `extern func randomInt(lo Int, hi Int) IO[Int] = "gofx/rt".RandomInt` | Uniform inclusive interval, supporting the entire signed Int range; not cryptographic. | Inclusive full signed range; lo == hi fixed; lo > hi fails `randomInt: lo must be <= hi`; not cryptographic. |
+| `extern func randomFloat() IO[Float] = "gofx/rt".RandomFloat` | Uniform Float in [0,1), sampled when run using the same automatically seeded RNG as randomInt; not cryptographic. | Never fails; 0 inclusive, 1 exclusive: [0,1). |
 | `extern func sleep(millis Int) IO[Unit] = "gofx/rt".Sleep` | Sleep for positive milliseconds; nonpositive values return immediately. | Nonpositive immediate; duration overflow fails `sleep: duration out of range`. |
 | `instance Functor[IO]` | Map IO's element/result while retaining shape. | Deferred mapper; failed IO skips it. |
 | `instance Monad[IO]` | Inject and sequence IO computations. | pure is ioPure; bind defers effects and skips continuation on failure. |
@@ -530,8 +531,8 @@ Source: [`string/string.gfx`](../std/string/string.gfx). 32 top-level declaratio
 
 ## Inventory totals and maintenance
 
-The source inventory contains **14 modules, 332 top-level declarations**:
-**245 functions/externs, 10 classes, 7 data types, and 70 explicit instances**.
+The source inventory contains **14 modules, 333 top-level declarations**:
+**246 functions/externs, 10 classes, 7 data types, and 70 explicit instances**.
 Class rows include all 11 method signatures; type rows include their constructors.
 The four deriving clauses additionally expand to **12 Eq/Ord/Debug instances**.
 Non-pair JSON tuple instances are synthesized for arities used by a program,

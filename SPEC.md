@@ -564,7 +564,7 @@ class Ord[A] : Eq[A] { compare(a A, b A) Ordering }
 | `std/prelude` | Classes above; Ordering/Option and primitive/pair/Option instances; core combinators |
 | `std/list` | List/instances; folds, traversal, searching, slicing, sorting, accumulator helpers |
 | `std/result` | Result/instances; Result and Option helpers; liftResult |
-| `std/io` | IO instances, console, arguments/environment, files, clocks, randomInt, sleep, tryIO |
+| `std/io` | IO instances, console, arguments/environment, files, clocks, randomInt, randomFloat, sleep, tryIO |
 | `std/float` | Float instances, conversions/math/formatting; minInt/maxInt/abs |
 | `std/string` | Rune-oriented strings, Unicode classification, parsing/padding |
 | `std/regex` | Go-regexp matching, captures, replacement and splitting |
@@ -880,14 +880,9 @@ eligible direct-self tail calls have bounded call-stack lowering.
   parameter positions; deriving Traversable/Ord does not supply Functor/Eq for you.
 - Pair Show/Debug/Eq/Ord instances do not imply arbitrary tuple-arity instances;
   JSON explicitly supports every tuple arity. Unit lacks Show/Ord. Fiber lacks
-  standard class instances. `randomFloat` is **not implemented**; use the actual
-  std/io inventory rather than the conditional historical proposal.
+  standard class instances.
 - JSON Float representation loses large-Int precision and nullable Option identity;
   unsupported/non-finite serialization is not silently repaired.
-- Dictionary references identify parameters by name/class rather than rigid
-  identity. Reusing the same constrained name for an instance-head and a method's
-  own parameter can select the wrong dictionary at runtime; use distinct names.
-  This inherited implementation risk is not a new scoping rule.
 - Trusted externs can break purity. Foreign ABI errors are generation-time, not
   `check` errors. Building/running requires a Go toolchain and resolvable Go module.
 - Native scalars/specialization are selective, not universal unboxing. Mutual or
@@ -1144,6 +1139,7 @@ share immutable storage, but empty slices do not retain the backing allocation.
 | nowMillis / monotonicMillis | Unix milliseconds / elapsed monotonic milliseconds since runtime initialization, sampled when run |
 | formatTime | Pure UTC; accepts Go layout, including negative Unix milliseconds |
 | randomInt | Inclusive signed range, even full Int domain; equal endpoints fixed; lo > hi → `randomInt: lo must be <= hi`; not cryptographic |
+| randomFloat | Uniform Float in [0,1), sampled when run; never fails; same automatically seeded RNG as randomInt; not cryptographic |
 | sleep | Nonpositive immediate; positive duration overflow → `sleep: duration out of range` |
 | exit / run | Explicit process exit not recoverable; installed run preserves status; outer Go launcher collapses nonzero to 1 |
 | RunMain failure/panic | Ordinary error → `error: <msg>`, exit 1; action panic → `error: panic: <msg>`, exit 2; construction panic remains outside recovery |

@@ -15,14 +15,12 @@ type specialization struct {
 	function  *types.FuncInfo
 	name, key string
 	types     map[string]types.Type
-	dicts     map[string]types.DictRef
+	dicts     map[types.Constraint]types.DictRef
 }
-
-func dictKey(param, class string) string { return param + "/" + class }
 
 func (g *generator) resolvedDict(d types.DictRef) types.DictRef {
 	if d.Kind == types.DictParam && g.special != nil {
-		if concrete, ok := g.special.dicts[dictKey(d.Param, d.ParamClass)]; ok {
+		if concrete, ok := g.special.dicts[types.Constraint{Arg: d.Param, Class: d.ParamClass}]; ok {
 			return concrete
 		}
 	}
@@ -114,15 +112,15 @@ func (g *generator) planSpecializations(prog *types.Program) {
 		if key == "" || g.specialized(id) != nil || len(g.specials[id.Name]) >= specializationCopies {
 			return
 		}
-		s := &specialization{function: f, key: key, name: fmt.Sprintf("%s_special%d", mangle(id.Name), len(g.specials[id.Name])+1), types: make(map[string]types.Type), dicts: make(map[string]types.DictRef)}
+		s := &specialization{function: f, key: key, name: fmt.Sprintf("%s_special%d", mangle(id.Name), len(g.specials[id.Name])+1), types: make(map[string]types.Type), dicts: make(map[types.Constraint]types.DictRef)}
 		for i, c := range f.Scheme.Constraints {
 			v, ok := c.Arg.(*types.TVar)
 			if !ok {
 				return
 			}
-			s.dicts[dictKey(v.Name, c.Class)] = dicts[i]
+			s.dicts[c] = dicts[i]
 			for j, p := range f.Scheme.TParams {
-				if p.Name == v.Name {
+				if p == v {
 					s.types[p.Name] = g.substitute(a.Inst[j])
 				}
 			}
