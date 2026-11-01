@@ -49,6 +49,7 @@ type Param struct {
 
 type File struct {
 	Package string
+	Name    string // display name used in diagnostics (e.g. "prelude.gfx"); set by the caller
 	Decls   []Decl
 }
 
