@@ -1,7 +1,6 @@
 package decide
 
 import "std/list"
-import "std/result"
 
 // Observed is the projection of everything the approval decision needs. Go
 // reads the objects (approval, plan, policy, window, operations) up front and
@@ -15,9 +14,9 @@ type Plan = Plan{
   baseGitCommit: String,
   planType: String,
   gates: List[GateEvidence],
-  evidenceTtlMillis: Option[Int],   // None: no TTL configured; Some(n <= 0): invalid
+  evidenceTtlNanos: Option[Int],   // None: no TTL configured; Some(n <= 0): invalid or unparsable
   observedAtPresent: Bool,
-  observedAtMillis: Option[Int]     // None while present: unparsable
+  observedAtNanos: Option[Int]     // None while present: unparsable
 } deriving Eq, Debug
 
 type GateEvidence = Gate{name: String, state: String} | InvalidGate deriving Eq, Debug
@@ -48,7 +47,7 @@ type Observed = Observed{
   window: Fetched[Window],
   operationsReadable: Bool,
   conflictingOperation: Bool,
-  nowMillis: Int
+  nowNanos: Int
 } deriving Eq, Debug
 
 // Reason is the closed set of status reasons this controller may publish.
@@ -99,7 +98,7 @@ func _decidePlan(o Observed, plan Plan) Verdict {
     ]
     match _firstFailure(gates) {
       Some(v) => v
-      None => _evidenceFresh(plan, o.nowMillis)
+      None => _evidenceFresh(plan, o.nowNanos)
     }
   }
 }
@@ -112,7 +111,7 @@ func _firstFailure(checks List[Option[Verdict]]) Option[Verdict] {
 }
 
 func _bindingMatchesPlan(b Binding, plan Plan) Option[Verdict] {
-  if result.fromOption(b.planGeneration, -1) != plan.generation {
+  if b.planGeneration != Some(plan.generation) {
     Some(Rejected(PlanGenerationMismatch, "Approval plan generation does not match the current resize plan"))
   } else if b.evidenceHash == "" || b.evidenceHash != plan.evidenceHash {
     Some(Rejected(EvidenceHashMismatch, "Approval evidence hash does not match the current resize plan"))
@@ -188,21 +187,21 @@ func _noConflictingOperation(o Observed) Option[Verdict] {
   }
 }
 
-func _evidenceFresh(plan Plan, nowMillis Int) Verdict {
-  match plan.evidenceTtlMillis {
+func _evidenceFresh(plan Plan, nowNanos Int) Verdict {
+  match plan.evidenceTtlNanos {
     None => Accepted(0)
     Some(ttl) if ttl <= 0 => Expired(EvidenceTTLInvalid, "Resize plan evidence TTL is invalid")
     Some(ttl) =>
       if !plan.observedAtPresent {
         Expired(EvidenceTimestampMissing, "Resize plan evidence timestamp is missing")
       } else {
-        match plan.observedAtMillis {
+        match plan.observedAtNanos {
           None => Expired(EvidenceTimestampInvalid, "Resize plan evidence timestamp is invalid")
           Some(observedAt) =>
-            if nowMillis >= observedAt + ttl {
+            if nowNanos >= observedAt + ttl {
               Expired(EvidenceExpired, "Resize plan evidence expired before approval acceptance")
             } else {
-              Accepted(observedAt + ttl - nowMillis)
+              Accepted(observedAt + ttl - nowNanos)
             }
         }
       }

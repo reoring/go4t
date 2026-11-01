@@ -71,19 +71,12 @@ generated package to the local gofx runtime. This nested module is not added
 to the root module or a workspace, keeping root package discovery unchanged
 (the same isolation pattern as `examples/deps/app`).
 
-## Known behavioural differences
+## Behavioural parity
 
 Gate evidence is projected element-by-element as `GateEvidence = Gate | InvalidGate`,
 so the first malformed or non-passing element decides exactly as the original
 loop did; `gate_order_test.go` passes against both the original Go controller
-and this version.
-
-- A missing approval plan generation is compared using a `-1` sentinel in
-  gofx. If a plan itself has generation `-1`, this gate passes instead of
-  reporting `PlanGenerationMismatch`. Negative plan generations are not valid
-  Kubernetes metadata, and the unchanged oracle tests do not cover them.
-- TTLs, timestamps, and requeue intervals cross the gofx boundary in
-  milliseconds instead of Go's nanoseconds. Fractional milliseconds are
-  truncated; a positive TTL shorter than one millisecond becomes zero and is
-  reported as `EvidenceTTLInvalid`. Invalid or non-positive TTLs also map to
-  zero, while an absent TTL remains absent.
+and this version. Generations cross as `Option[Int]` and are compared as
+options (no sentinel); durations and timestamps cross as `Int` nanoseconds,
+the same representation as `time.Duration` / `UnixNano`. No known
+behavioural differences remain.

@@ -135,15 +135,15 @@ func (r *ApprovalReconciler) observeInputs(ctx context.Context, approval *unstru
 				}
 			}
 			if ttlValue := firstNonEmptyNestedString(plan.Object, []string{"spec", "evidenceTTL"}); ttlValue != "" {
-				observedPlan.EvidenceTtlMillis.Present = true
+				observedPlan.EvidenceTtlNanos.Present = true
 				if ttl, err := time.ParseDuration(ttlValue); err == nil && ttl > 0 {
-					observedPlan.EvidenceTtlMillis.Value = ttl.Milliseconds()
+					observedPlan.EvidenceTtlNanos.Value = ttl.Nanoseconds()
 				}
 			}
 			if observedAtValue := firstStatusString(plan, "status", "observedAt"); observedAtValue != "" {
 				observedPlan.ObservedAtPresent = true
 				if observedAt, err := time.Parse(time.RFC3339, observedAtValue); err == nil {
-					observedPlan.ObservedAtMillis = rt.Option[int64]{Value: observedAt.UnixMilli(), Present: true}
+					observedPlan.ObservedAtNanos = rt.Option[int64]{Value: observedAt.UnixNano(), Present: true}
 				}
 			}
 			inputs.Plan = decide.FetchedPlanFound{F0: observedPlan}
@@ -201,7 +201,7 @@ func (r *ApprovalReconciler) observeInputs(ctx context.Context, approval *unstru
 			break
 		}
 	}
-	inputs.NowMillis = r.now().UnixMilli()
+	inputs.NowNanos = r.now().UnixNano()
 	return inputs
 }
 
@@ -214,9 +214,9 @@ func publish(verdict decide.Verdict) (phase string, cond metav1.ConditionStatus,
 	case decide.VerdictSuperseded:
 		return "Superseded", metav1.ConditionFalse, verdict.F0.String(), verdict.F1, 0
 	case decide.VerdictPending:
-		return "Pending", metav1.ConditionUnknown, verdict.F0.String(), verdict.F1, time.Duration(verdict.F2) * time.Millisecond
+		return "Pending", metav1.ConditionUnknown, verdict.F0.String(), verdict.F1, time.Duration(verdict.F2) * time.Nanosecond
 	case decide.VerdictAccepted:
-		return "Accepted", metav1.ConditionTrue, decide.ReasonApprovalAccepted.String(), "Storage approval matches current resize plan evidence", time.Duration(verdict.F0) * time.Millisecond
+		return "Accepted", metav1.ConditionTrue, decide.ReasonApprovalAccepted.String(), "Storage approval matches current resize plan evidence", time.Duration(verdict.F0) * time.Nanosecond
 	default:
 		panic("invalid approval verdict")
 	}

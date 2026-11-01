@@ -96,7 +96,7 @@ type Observed struct {
 	Window               FetchedWindow
 	OperationsReadable   bool
 	ConflictingOperation bool
-	NowMillis            int64
+	NowNanos             int64
 }
 type Plan struct {
 	Generation           int64
@@ -106,9 +106,9 @@ type Plan struct {
 	BaseGitCommit        string
 	PlanType             string
 	Gates                []GateEvidence
-	EvidenceTtlMillis    rt.Option[int64]
+	EvidenceTtlNanos     rt.Option[int64]
 	ObservedAtPresent    bool
-	ObservedAtMillis     rt.Option[int64]
+	ObservedAtNanos      rt.Option[int64]
 }
 type Policy struct {
 	Generation int64
@@ -413,14 +413,14 @@ func (v GateEvidenceInvalidGate) String() string {
 func toGo_Observed(v any) Observed {
 	switch x := v.(type) {
 	case *decide_Observed_Observed:
-		return Observed{Binding: toGo_Binding(x.F0), Plan: toGo_FetchedPlan(x.F1), Policy: toGo_FetchedPolicy(x.F2), Window: toGo_FetchedWindow(x.F3), OperationsReadable: toGo_Bool(x.F4), ConflictingOperation: toGo_Bool(x.F5), NowMillis: toGo_Int(x.F6)}
+		return Observed{Binding: toGo_Binding(x.F0), Plan: toGo_FetchedPlan(x.F1), Policy: toGo_FetchedPolicy(x.F2), Window: toGo_FetchedWindow(x.F3), OperationsReadable: toGo_Bool(x.F4), ConflictingOperation: toGo_Bool(x.F5), NowNanos: toGo_Int(x.F6)}
 	default:
 		panic("invalid constructor")
 	}
 }
 func fromGo_Observed(v Observed) any {
 	x := v
-	return &decide_Observed_Observed{F0: fromGo_Binding(x.Binding), F1: fromGo_FetchedPlan(x.Plan), F2: fromGo_FetchedPolicy(x.Policy), F3: fromGo_FetchedWindow(x.Window), F4: fromGo_Bool(x.OperationsReadable), F5: fromGo_Bool(x.ConflictingOperation), F6: fromGo_Int(x.NowMillis)}
+	return &decide_Observed_Observed{F0: fromGo_Binding(x.Binding), F1: fromGo_FetchedPlan(x.Plan), F2: fromGo_FetchedPolicy(x.Policy), F3: fromGo_FetchedWindow(x.Window), F4: fromGo_Bool(x.OperationsReadable), F5: fromGo_Bool(x.ConflictingOperation), F6: fromGo_Int(x.NowNanos)}
 }
 func (v Observed) String() string {
 	return (dict_decide_Debug_Observed{}).prelude_Debug(fromGo_Observed(v)).(string)
@@ -428,14 +428,14 @@ func (v Observed) String() string {
 func toGo_Plan(v any) Plan {
 	switch x := v.(type) {
 	case *decide_Plan_Plan:
-		return Plan{Generation: toGo_Int(x.F0), Phase: toGo_String(x.F1), EvidenceHash: toGo_String(x.F2), ChangeSetFingerprint: toGo_String(x.F3), BaseGitCommit: toGo_String(x.F4), PlanType: toGo_String(x.F5), Gates: toGo_List_GateEvidence(x.F6), EvidenceTtlMillis: toGo_Option_Int(x.F7), ObservedAtPresent: toGo_Bool(x.F8), ObservedAtMillis: toGo_Option_Int(x.F9)}
+		return Plan{Generation: toGo_Int(x.F0), Phase: toGo_String(x.F1), EvidenceHash: toGo_String(x.F2), ChangeSetFingerprint: toGo_String(x.F3), BaseGitCommit: toGo_String(x.F4), PlanType: toGo_String(x.F5), Gates: toGo_List_GateEvidence(x.F6), EvidenceTtlNanos: toGo_Option_Int(x.F7), ObservedAtPresent: toGo_Bool(x.F8), ObservedAtNanos: toGo_Option_Int(x.F9)}
 	default:
 		panic("invalid constructor")
 	}
 }
 func fromGo_Plan(v Plan) any {
 	x := v
-	return &decide_Plan_Plan{F0: fromGo_Int(x.Generation), F1: fromGo_String(x.Phase), F2: fromGo_String(x.EvidenceHash), F3: fromGo_String(x.ChangeSetFingerprint), F4: fromGo_String(x.BaseGitCommit), F5: fromGo_String(x.PlanType), F6: fromGo_List_GateEvidence(x.Gates), F7: fromGo_Option_Int(x.EvidenceTtlMillis), F8: fromGo_Bool(x.ObservedAtPresent), F9: fromGo_Option_Int(x.ObservedAtMillis)}
+	return &decide_Plan_Plan{F0: fromGo_Int(x.Generation), F1: fromGo_String(x.Phase), F2: fromGo_String(x.EvidenceHash), F3: fromGo_String(x.ChangeSetFingerprint), F4: fromGo_String(x.BaseGitCommit), F5: fromGo_String(x.PlanType), F6: fromGo_List_GateEvidence(x.Gates), F7: fromGo_Option_Int(x.EvidenceTtlNanos), F8: fromGo_Bool(x.ObservedAtPresent), F9: fromGo_Option_Int(x.ObservedAtNanos)}
 }
 func (v Plan) String() string {
 	return (dict_decide_Debug_Plan{}).prelude_Debug(fromGo_Plan(v)).(string)
