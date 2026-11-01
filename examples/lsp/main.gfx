@@ -1,0 +1,7 @@
+package main
+
+// Prints a greeting supplied by another file in this directory.
+func main() IO[Unit] {
+  let message = keep(greeting("LSP"))
+  println(message)
+}

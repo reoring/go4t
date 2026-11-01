@@ -14,6 +14,7 @@ import (
 
 	"gofx/ast"
 	"gofx/codegen"
+	"gofx/lsp"
 	"gofx/parser"
 	"gofx/prelude"
 	"gofx/types"
@@ -30,9 +31,15 @@ func main() {
 	}
 }
 
-const usage = "gofx:1:1: usage: gofx check FILE.gfx... | gofx build [-o DIR | --emit-go DIR --package NAME] FILE.gfx... | gofx run FILE.gfx... [-- args...] | gofx test FILE.gfx... | gofx eval 'EXPR' [FILE.gfx...] | gofx bind IMPORT [-o FILE.gfx] [--prefix STR]"
+const usage = "gofx:1:1: usage: gofx check FILE.gfx... | gofx build [-o DIR | --emit-go DIR --package NAME] FILE.gfx... | gofx run FILE.gfx... [-- args...] | gofx test FILE.gfx... | gofx eval 'EXPR' [FILE.gfx...] | gofx bind IMPORT [-o FILE.gfx] [--prefix STR] | gofx lsp"
 
 func run(args []string) error {
+	if len(args) > 0 && args[0] == "lsp" {
+		if len(args) != 1 {
+			return errors.New(usage)
+		}
+		return lsp.Serve(os.Stdin, os.Stdout)
+	}
 	if len(args) > 0 && args[0] == "bind" {
 		return runBind(args[1:])
 	}
