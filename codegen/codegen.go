@@ -243,6 +243,9 @@ func generate(prog *types.Program, goPackage string) (source []byte, err error) 
 	} else {
 		fmt.Fprintf(&out, "func Main() rt.IO { return %s().(rt.IO) }\n", mangle(prog.Main.Name))
 	}
+	if g.contextIO {
+		header.WriteString("import \"context\"\n")
+	}
 	arities := make([]int, 0, len(g.tuples))
 	for arity := range g.tuples {
 		arities = append(arities, arity)
@@ -287,6 +290,7 @@ type generator struct {
 	fileName     string
 	next         int
 	ordering     bool
+	contextIO    bool
 	funcs        map[string]*types.FuncInfo
 	locals       map[string]string
 	patternTypes map[ast.Pattern]types.Type

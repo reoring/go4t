@@ -3,6 +3,7 @@ package rt
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"errors"
 	"io"
 	"os"
@@ -15,7 +16,7 @@ import (
 
 func TestPure(t *testing.T) {
 	value := &struct{ name string }{name: "unchanged"}
-	got, err := Pure(value).(IO)()
+	got, err := Pure(value).(IO)(context.Background())
 	if got != value || err != nil {
 		t.Fatalf("Pure result = (%v, %v), want (%v, nil)", got, err, value)
 	}
@@ -23,13 +24,13 @@ func TestPure(t *testing.T) {
 
 func TestBindIsLazyAndOrdered(t *testing.T) {
 	var steps []string
-	left := IO(func() (any, error) {
+	left := IO(func(context.Context) (any, error) {
 		steps = append(steps, "left")
 		return int64(4), nil
 	})
 	bound := Bind(left, func(value any) any {
 		steps = append(steps, "continuation")
-		return IO(func() (any, error) {
+		return IO(func(context.Context) (any, error) {
 			steps = append(steps, "right")
 			return value.(int64) + 3, nil
 		})
@@ -37,7 +38,7 @@ func TestBindIsLazyAndOrdered(t *testing.T) {
 	if len(steps) != 0 {
 		t.Fatalf("Bind ran effects before execution: %v", steps)
 	}
-	got, err := bound()
+	got, err := bound(context.Background())
 	if got != int64(7) || err != nil {
 		t.Fatalf("Bind result = (%v, %v), want (7, nil)", got, err)
 	}
@@ -55,11 +56,11 @@ func TestBindIsLazyAndOrdered(t *testing.T) {
 func TestBindShortCircuits(t *testing.T) {
 	wantErr := errors.New("left failed")
 	called := false
-	left := IO(func() (any, error) { return nil, wantErr })
+	left := IO(func(context.Context) (any, error) { return nil, wantErr })
 	got, err := Bind(left, func(any) any {
 		called = true
 		return Pure(Unit{})
-	}).(IO)()
+	}).(IO)(context.Background())
 	if called {
 		t.Fatal("Bind invoked its continuation after failure")
 	}
@@ -71,8 +72,8 @@ func TestBindShortCircuits(t *testing.T) {
 func TestBindPropagatesRightError(t *testing.T) {
 	wantErr := errors.New("right failed")
 	got, err := Bind(Pure(int64(1)), func(any) any {
-		return IO(func() (any, error) { return nil, wantErr })
-	}).(IO)()
+		return IO(func(context.Context) (any, error) { return nil, wantErr })
+	}).(IO)(context.Background())
 	if got != nil || err != wantErr {
 		t.Fatalf("Bind result = (%v, %v), want (nil, %v)", got, err, wantErr)
 	}
@@ -93,8 +94,8 @@ func TestIOMonadLaws(t *testing.T) {
 		{"associativity", Bind(Bind(m, f), g), Bind(m, func(x any) any { return Bind(f(x), g) })},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			left, leftErr := tt.left.(IO)()
-			right, rightErr := tt.right.(IO)()
+			left, leftErr := tt.left.(IO)(context.Background())
+			right, rightErr := tt.right.(IO)(context.Background())
 			if leftErr != nil || rightErr != nil || left != right {
 				t.Fatalf("left = (%v, %v), right = (%v, %v)", left, leftErr, right, rightErr)
 			}
@@ -103,7 +104,7 @@ func TestIOMonadLaws(t *testing.T) {
 }
 
 func TestFail(t *testing.T) {
-	got, err := Fail("failure message").(IO)()
+	got, err := Fail("failure message").(IO)(context.Background())
 	if got != nil || err == nil || err.Error() != "failure message" {
 		t.Fatalf("Fail result = (%v, %v), want (nil, failure message)", got, err)
 	}
@@ -128,7 +129,7 @@ func TestPrintln(t *testing.T) {
 	if info.Size() != 0 {
 		t.Fatal("Println wrote before its IO was run")
 	}
-	got, err := action()
+	got, err := action(context.Background())
 	if got != (Unit{}) || err != nil {
 		t.Fatalf("Println result = (%v, %v), want (Unit{}, nil)", got, err)
 	}
@@ -197,13 +198,13 @@ func TestRunMain(t *testing.T) {
 		RunMain(Fail("main failed"))
 		os.Exit(0)
 	case "extern error":
-		RunMain(IO(func() (any, error) { return nil, errors.New("extern failed") }))
+		RunMain(IO(func(context.Context) (any, error) { return nil, errors.New("extern failed") }))
 		os.Exit(0)
 	case "panic":
-		RunMain(IO(func() (any, error) { panic("main panicked") }))
+		RunMain(IO(func(context.Context) (any, error) { panic("main panicked") }))
 		os.Exit(0)
 	case "error panic":
-		RunMain(IO(func() (any, error) { panic(errors.New("panic error")) }))
+		RunMain(IO(func(context.Context) (any, error) { panic(errors.New("panic error")) }))
 		os.Exit(0)
 	}
 	for _, tt := range []struct {
@@ -263,7 +264,7 @@ func TestReadLine(t *testing.T) {
 			setTestInput(t, strings.NewReader(tt.input))
 			action := ReadLine().(IO)
 			for i, want := range tt.want {
-				got, err := action()
+				got, err := action(context.Background())
 				if err != nil || !reflect.DeepEqual(got, want) {
 					t.Fatalf("read %d = (%#v, %v), want (%#v, nil)", i, got, err, want)
 				}
@@ -276,16 +277,16 @@ func TestReadLineAndReadAllShareInput(t *testing.T) {
 	installTestShapes(t)
 	setTestInput(t, strings.NewReader("first\r\nsecond\nthird"))
 	readAll, readLine := ReadAll().(IO), ReadLine().(IO)
-	if got, err := readLine(); got != (testSome{"first"}) || err != nil {
+	if got, err := readLine(context.Background()); got != (testSome{"first"}) || err != nil {
 		t.Fatalf("ReadLine = (%#v, %v), want Some(first)", got, err)
 	}
-	if got, err := readAll(); got != "second\nthird" || err != nil {
+	if got, err := readAll(context.Background()); got != "second\nthird" || err != nil {
 		t.Fatalf("ReadAll = (%#v, %v), want remaining buffered input", got, err)
 	}
-	if got, err := readLine(); got != (testNone{}) || err != nil {
+	if got, err := readLine(context.Background()); got != (testNone{}) || err != nil {
 		t.Fatalf("ReadLine after ReadAll = (%#v, %v), want None", got, err)
 	}
-	if got, err := readAll(); got != "" || err != nil {
+	if got, err := readAll(context.Background()); got != "" || err != nil {
 		t.Fatalf("ReadAll at EOF = (%#v, %v), want empty string", got, err)
 	}
 }
@@ -293,7 +294,7 @@ func TestReadLineAndReadAllShareInput(t *testing.T) {
 func TestReadAll(t *testing.T) {
 	for _, input := range []string{"", "one\n日本\r\n🙂", strings.Repeat("long", 30000)} {
 		setTestInput(t, strings.NewReader(input))
-		if got, err := ReadAll().(IO)(); got != input || err != nil {
+		if got, err := ReadAll().(IO)(context.Background()); got != input || err != nil {
 			t.Fatalf("ReadAll = (%#v, %v), want (%q, nil)", got, err, input)
 		}
 	}
@@ -314,7 +315,7 @@ func TestInputErrors(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			setTestInput(t, failingInput{wantErr})
-			if got, err := tt.action().(IO)(); got != nil || err != wantErr {
+			if got, err := tt.action().(IO)(context.Background()); got != nil || err != wantErr {
 				t.Fatalf("%s = (%#v, %v), want (nil, %v)", tt.name, got, err, wantErr)
 			}
 		})
@@ -329,7 +330,7 @@ func TestArgs(t *testing.T) {
 	action := Args().(IO)
 	for _, want := range [][]string{nil, {"first", "--flag", "two words", "", "日本"}} {
 		programArgs = want
-		got, err := action()
+		got, err := action(context.Background())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -345,17 +346,17 @@ func TestGetEnv(t *testing.T) {
 	t.Setenv(name, "before")
 	action := GetEnv(name).(IO)
 	t.Setenv(name, "日本 text")
-	if got, err := action(); got != (testSome{"日本 text"}) || err != nil {
+	if got, err := action(context.Background()); got != (testSome{"日本 text"}) || err != nil {
 		t.Fatalf("GetEnv = (%#v, %v), want Some of current value", got, err)
 	}
 	t.Setenv(name, "")
-	if got, err := action(); got != (testSome{""}) || err != nil {
+	if got, err := action(context.Background()); got != (testSome{""}) || err != nil {
 		t.Fatalf("GetEnv empty = (%#v, %v), want Some of empty string", got, err)
 	}
 	if err := os.Unsetenv(name); err != nil {
 		t.Fatal(err)
 	}
-	if got, err := action(); got != (testNone{}) || err != nil {
+	if got, err := action(context.Background()); got != (testNone{}) || err != nil {
 		t.Fatalf("GetEnv missing = (%#v, %v), want None", got, err)
 	}
 }

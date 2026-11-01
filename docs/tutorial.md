@@ -347,12 +347,21 @@ func main() IO[Unit] {
 }
 ```
 
-`parMapIO` and `parBoth` join **all** work before reporting the first observed
-failure; an indefinitely blocked sibling still blocks. `race` is first-completion,
-not first-success. Timeout returns None on expiry, not on timely failure. Race
-losers and timed-out actions are **not cancelled** and may continue effects.
-Unawaited fibers do not keep the process alive after main finishes. Use explicit
-joins when effects must finish; this is not structured concurrency.
+`parMapIO` cancels siblings on the first observed failure and joins them;
+`parBoth` joins both without cancelling a sibling merely because the other failed.
+An extern that ignores cancellation can delay either join. `race` is
+first-completion, not first-success: it cancels and joins the loser.
+Timeout returns None on its own expiry, not on timely failure;
+`conc.withTimeout(millis, action)` instead fails on expiry. Both cancel expired
+actions and wait until the deadline plus a 100 ms cleanup grace. Race gives its
+loser the same 100 ms grace. After that, uncooperative foreign code is abandoned
+and may still perform effects; a cancelled sleep never proceeds to its next bind.
+
+`conc.cancel(fiber)` requests cancellation immediately. Awaiting an unfinished,
+cancelled fiber fails, while completed outcomes remain cached. Parent cancellation
+reaches child fibers, and SIGINT/SIGTERM cancels main with exit status 1 and
+`error: cancelled`. Unawaited fibers do not keep the process alive after main
+finishes; use explicit awaits when effects must finish.
 
 ## 11. JSON: derive a schema, handle decoding explicitly
 

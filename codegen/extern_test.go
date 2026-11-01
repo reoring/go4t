@@ -54,7 +54,7 @@ func TestNaturalExternAdapters(t *testing.T) {
 		"value_.(int64)", "int(value_.(int64))", "value_.(float64)", "value_.(string)", "value_.(bool)",
 		"value_.(rt.Unit)", "value_.(rt.IO)", "rt.ListFromStrings(", "rt.ListToStrings(value_)",
 		"rt.ListFromInts(", "rt.ListToInts(value_)", "rt.SomeOf(", "rt.NoneOf()", "value_.(*Option_Some)",
-		"return rt.IO(func() (any, error)",
+		"return rt.IO(func(ctx context.Context) (any, error)",
 	} {
 		if !strings.Contains(string(source), fragment) {
 			t.Errorf("missing adapter fragment %q", fragment)
@@ -126,6 +126,8 @@ func TestHTTPExampleUsesNaturalExtern(t *testing.T) {
 
 const adapterRuntimeTests = `package main
 import (
+    "context"
+    "errors"
     "net/http"
     "net/http/httptest"
     "reflect"
@@ -140,8 +142,8 @@ func TestAdapters(t *testing.T) {
     } {
         if got := tc.call(tc.value); got != tc.value { t.Errorf("roundtrip = %#v, want %#v", got, tc.value) }
     }
-    action := rt.IO(func() (any, error) { return int64(7), nil })
-    if got, err := typedIO_(action).(rt.IO)(); got != int64(7) || err != nil { t.Fatalf("IO = %v, %v", got, err) }
+    action := rt.IO(func(ctx context.Context) (any, error) { return int64(7), nil })
+    if got, err := typedIO_(action).(rt.IO)(context.Background()); got != int64(7) || err != nil { t.Fatalf("IO = %v, %v", got, err) }
     for _, values := range [][]string{nil, {"one", "", "日本"}} {
         got := rt.ListToStrings(typedStrings_(rt.ListFromStrings(values)))
         if !reflect.DeepEqual(got, values) { t.Fatalf("strings = %q, want %q", got, values) }
@@ -160,18 +162,21 @@ func TestAdapters(t *testing.T) {
     erased := &List_Cons{F0: true, F1: &List_Nil{}}
     if typedEcho_(erased) != erased { t.Fatal("any forwarding changed identity") }
     foreign.Calls = 0
+    cancelled, cancel := context.WithCancel(context.Background())
+    cancel()
+    if _, err := typedWithError_("not run").(rt.IO)(cancelled); !errors.Is(err, context.Canceled) || foreign.Calls != 0 { t.Fatalf("cancelled adapter: calls %d, err %v", foreign.Calls, err) }
     good := typedWithError_("ok").(rt.IO)
     bad := typedWithError_("bad").(rt.IO)
     if foreign.Calls != 0 { t.Fatal("Go effect executed before IO") }
-    if got, err := good(); got != "ok" || err != nil { t.Fatalf("good = %v, %v", got, err) }
-    if got, err := bad(); got != nil || err == nil || err.Error() != "fixture failure" { t.Fatalf("bad = %v, %v", got, err) }
-    if _, err := good(); err != nil || foreign.Calls != 3 { t.Fatalf("IO replay: calls %d, err %v", foreign.Calls, err) }
+    if got, err := good(context.Background()); got != "ok" || err != nil { t.Fatalf("good = %v, %v", got, err) }
+    if got, err := bad(context.Background()); got != nil || err == nil || err.Error() != "fixture failure" { t.Fatalf("bad = %v, %v", got, err) }
+    if _, err := good(context.Background()); err != nil || foreign.Calls != 3 { t.Fatalf("IO replay: calls %d, err %v", foreign.Calls, err) }
     for _, tc := range []struct { action any; want any }{
         {typedStringsWithError_(rt.ListFromStrings([]string{"ok"})), rt.ListFromStrings([]string{"ok"})},
         {typedIntsWithError_(rt.ListFromInts([]int64{1})), rt.ListFromInts([]int64{1})},
         {typedErasedWithError_(erased), erased},
     } {
-        got, err := tc.action.(rt.IO)()
+        got, err := tc.action.(rt.IO)(context.Background())
         if err != nil || !reflect.DeepEqual(got, tc.want) { t.Fatalf("boxed IO result: %#v, %v", got, err) }
     }
 }
@@ -181,8 +186,8 @@ func TestHTTPAdapter(t *testing.T) {
     defer server.Close()
     action := httpStatus_(server.URL).(rt.IO)
     if requests != 0 { t.Fatal("HTTP effect before IO") }
-    if status, err := action(); status != int64(418) || err != nil { t.Fatalf("HTTP result = %v, %v", status, err) }
+    if status, err := action(context.Background()); status != int64(418) || err != nil { t.Fatalf("HTTP result = %v, %v", status, err) }
     server.Close()
-    if status, err := action(); status != nil || err == nil { t.Fatalf("HTTP error result = %v, %v", status, err) }
+    if status, err := action(context.Background()); status != nil || err == nil { t.Fatalf("HTTP error result = %v, %v", status, err) }
 }
 `

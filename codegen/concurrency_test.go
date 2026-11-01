@@ -50,3 +50,37 @@ func TestConcurrencyTupleShapes(t *testing.T) {
 		}
 	}
 }
+
+func TestCancellationSourceExecution(t *testing.T) {
+	source := qualityProgram(t, "cancel.gfx", `package main
+import "std/conc"
+import "std/io"
+import "std/result"
+func slow() IO[String] {
+  do {
+    io.sleep(10000)
+    println("must not print")
+    ioPure("late")
+  }
+}
+func main() IO[Unit] {
+  do {
+    fiber <- conc.fork(slow())
+    conc.cancel(fiber)
+    cancelled <- io.tryIO(conc.await(fiber))
+    println(show(result.isErr(cancelled)))
+    expired <- io.tryIO(conc.withTimeout(10, slow()))
+    println(show(result.isErr(expired)))
+    absent <- conc.timeout(10, slow())
+    println(show(absent))
+    winner <- conc.race(slow(), ioPure("winner"))
+    println(winner)
+    ready <- conc.withTimeout(1000, ioPure("ready"))
+    println(ready)
+  }
+}`)
+	output, err := runQualityGo(t, source, false)
+	if err != nil || output != "true\ntrue\nNone\nwinner\nready\n" {
+		t.Fatalf("generated cancellation: output=%q, error=%v", output, err)
+	}
+}

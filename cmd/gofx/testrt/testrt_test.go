@@ -1,6 +1,7 @@
 package testrt
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -22,7 +23,7 @@ func TestRunSuspendsAndCapturesFailures(t *testing.T) {
 			created, executed := 0, 0
 			action := Run("testExample", func() any {
 				created++
-				return rt.IO(func() (any, error) {
+				return rt.IO(func(context.Context) (any, error) {
 					executed++
 					return tt.value, tt.err
 				})
@@ -30,7 +31,7 @@ func TestRunSuspendsAndCapturesFailures(t *testing.T) {
 			if created != 0 || executed != 0 {
 				t.Fatalf("test ran eagerly: created=%d executed=%d", created, executed)
 			}
-			value, err := action()
+			value, err := action(context.Background())
 			if err != nil || value != tt.want || created != 1 || executed != 1 {
 				t.Fatalf("value=%v error=%v created=%d executed=%d, want %v, nil, 1, 1", value, err, created, executed, tt.want)
 			}

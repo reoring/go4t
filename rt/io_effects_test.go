@@ -1,6 +1,7 @@
 package rt
 
 import (
+	"context"
 	"errors"
 	"io"
 	"os"
@@ -22,14 +23,14 @@ func TestTryIO(t *testing.T) {
 		{"success", Pure(int64(42)), testOk{int64(42)}},
 		{"nil success", Pure(nil), testOk{nil}},
 		{"ioFail", Fail("failed"), testErr{"failed"}},
-		{"extern error", IO(func() (any, error) { return int64(9), errors.New("extern failed") }), testErr{"extern failed"}},
-		{"string panic", IO(func() (any, error) { panic("boom") }), testErr{"boom"}},
-		{"error panic", IO(func() (any, error) { panic(errors.New("panic error")) }), testErr{"panic error"}},
-		{"nil panic", IO(func() (any, error) { panic(nil) }), testErr{"panic called with nil argument"}},
+		{"extern error", IO(func(context.Context) (any, error) { return int64(9), errors.New("extern failed") }), testErr{"extern failed"}},
+		{"string panic", IO(func(context.Context) (any, error) { panic("boom") }), testErr{"boom"}},
+		{"error panic", IO(func(context.Context) (any, error) { panic(errors.New("panic error")) }), testErr{"panic error"}},
+		{"nil panic", IO(func(context.Context) (any, error) { panic(nil) }), testErr{"panic called with nil argument"}},
 		{"bind continuation panic", Bind(Pure(Unit{}), func(any) any { panic("continuation") }), testErr{"continuation"}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := TryIO(tt.action).(IO)()
+			got, err := TryIO(tt.action).(IO)(context.Background())
 			if err != nil || !reflect.DeepEqual(got, tt.want) {
 				t.Fatalf("TryIO = (%#v, %v), want (%#v, nil)", got, err, tt.want)
 			}
@@ -40,7 +41,7 @@ func TestTryIO(t *testing.T) {
 func TestTryIOIsLazyAndAllowsContinuation(t *testing.T) {
 	installTestShapes(t)
 	calls := 0
-	action := TryIO(IO(func() (any, error) {
+	action := TryIO(IO(func(context.Context) (any, error) {
 		calls++
 		panic("caught")
 	}))
@@ -54,7 +55,7 @@ func TestTryIOIsLazyAndAllowsContinuation(t *testing.T) {
 		return Pure("continued")
 	}).(IO)
 	for range 2 {
-		if got, err := continued(); got != "continued" || err != nil {
+		if got, err := continued(context.Background()); got != "continued" || err != nil {
 			t.Fatalf("continuation = (%v, %v)", got, err)
 		}
 	}
@@ -69,26 +70,26 @@ func TestIOFiles(t *testing.T) {
 	path := filepath.Join(dir, "nested", "config")
 	write, read := WriteFile(path, "first\n"), ReadFile(path)
 	exists := FileExists(path).(IO)
-	if got, err := exists(); got != false || err != nil {
+	if got, err := exists(context.Background()); got != false || err != nil {
 		t.Fatalf("deferred write created file: (%v, %v)", got, err)
 	}
 	assertIOUnit(t, write)
-	if got, err := exists(); got != true || err != nil {
+	if got, err := exists(context.Background()); got != true || err != nil {
 		t.Fatalf("FileExists = (%v, %v)", got, err)
 	}
 	assertIOUnit(t, AppendFile(path, "second 日本\n"))
-	if got, err := read.(IO)(); got != "first\nsecond 日本\n" || err != nil {
+	if got, err := read.(IO)(context.Background()); got != "first\nsecond 日本\n" || err != nil {
 		t.Fatalf("ReadFile = (%v, %v)", got, err)
 	}
 	assertIOUnit(t, WriteFile(path, "replaced"))
-	if got, err := read.(IO)(); got != "replaced" || err != nil {
+	if got, err := read.(IO)(context.Background()); got != "replaced" || err != nil {
 		t.Fatalf("WriteFile did not truncate: (%v, %v)", got, err)
 	}
 	assertIOUnit(t, AppendFile(filepath.Join(dir, "new", "log"), "created"))
 	for _, name := range []string{"z", "a", "m"} {
 		assertIOUnit(t, WriteFile(filepath.Join(dir, "sorted", name), ""))
 	}
-	got, err := ListDir(filepath.Join(dir, "sorted")).(IO)()
+	got, err := ListDir(filepath.Join(dir, "sorted")).(IO)(context.Background())
 	if err != nil || !slices.Equal(ListToStrings(got), []string{"a", "m", "z"}) {
 		t.Fatalf("ListDir = (%v, %v)", got, err)
 	}
@@ -96,24 +97,24 @@ func TestIOFiles(t *testing.T) {
 	if err := os.Mkdir(empty, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	got, err = ListDir(empty).(IO)()
+	got, err = ListDir(empty).(IO)(context.Background())
 	if err != nil || len(ListToStrings(got)) != 0 {
 		t.Fatalf("empty ListDir = (%v, %v)", got, err)
 	}
 	remove := RemoveFile(path)
-	if got, err := exists(); got != true || err != nil {
+	if got, err := exists(context.Background()); got != true || err != nil {
 		t.Fatal("RemoveFile executed eagerly")
 	}
 	assertIOUnit(t, remove)
-	if got, err := exists(); got != false || err != nil {
+	if got, err := exists(context.Background()); got != false || err != nil {
 		t.Fatalf("removed FileExists = (%v, %v)", got, err)
 	}
 	for _, action := range []any{read, remove, ListDir(path), WriteFile(dir, "bad"), AppendFile(dir, "bad"), FileExists("bad\x00path")} {
-		if got, err := action.(IO)(); got != nil || err == nil {
+		if got, err := action.(IO)(context.Background()); got != nil || err == nil {
 			t.Fatalf("expected filesystem error, got (%v, %v)", got, err)
 		}
 	}
-	captured, err := TryIO(read).(IO)()
+	captured, err := TryIO(read).(IO)(context.Background())
 	failure, ok := captured.(testErr)
 	if err != nil || !ok || !strings.Contains(failure.value.(string), path) {
 		t.Fatalf("TryIO(ReadFile) = (%#v, %v)", captured, err)
@@ -122,7 +123,7 @@ func TestIOFiles(t *testing.T) {
 
 func assertIOUnit(t *testing.T, action any) {
 	t.Helper()
-	if got, err := action.(IO)(); got != (Unit{}) || err != nil {
+	if got, err := action.(IO)(context.Background()); got != (Unit{}) || err != nil {
 		t.Fatalf("IO = (%#v, %v), want (Unit{}, nil)", got, err)
 	}
 }
@@ -161,7 +162,7 @@ func TestIOPrintStreams(t *testing.T) {
 			if err := file.Close(); err != nil {
 				t.Fatal(err)
 			}
-			if got, err := action.(IO)(); got != nil || err == nil {
+			if got, err := action.(IO)(context.Background()); got != nil || err == nil {
 				t.Fatalf("closed stream = (%v, %v)", got, err)
 			}
 		})
@@ -183,12 +184,12 @@ func TestIOTime(t *testing.T) {
 	}
 	action := NowMillis().(IO)
 	before := time.Now().UnixMilli()
-	got, err := action()
+	got, err := action(context.Background())
 	after := time.Now().UnixMilli()
 	if err != nil || got.(int64) < before || got.(int64) > after {
 		t.Fatalf("NowMillis = (%v, %v), outside [%d, %d]", got, err, before, after)
 	}
-	start, err := MonotonicMillis().(IO)()
+	start, err := MonotonicMillis().(IO)(context.Background())
 	if err != nil || start.(int64) < 0 {
 		t.Fatalf("MonotonicMillis = (%v, %v)", start, err)
 	}
@@ -197,14 +198,14 @@ func TestIOTime(t *testing.T) {
 	if time.Since(beforeSleep) < 2*time.Millisecond {
 		t.Fatal("Sleep returned too soon")
 	}
-	end, err := MonotonicMillis().(IO)()
+	end, err := MonotonicMillis().(IO)(context.Background())
 	if err != nil || end.(int64) < start.(int64) {
 		t.Fatalf("monotonic clock went backwards: (%v, %v)", end, err)
 	}
 	for _, n := range []int64{0, -1, -1 << 63} {
 		assertIOUnit(t, Sleep(n))
 	}
-	if got, err := Sleep(int64(1<<63 - 1)).(IO)(); got != nil || err == nil || err.Error() != "sleep: duration out of range" {
+	if got, err := Sleep(int64(1<<63 - 1)).(IO)(context.Background()); got != nil || err == nil || err.Error() != "sleep: duration out of range" {
 		t.Fatalf("overflow sleep = (%v, %v)", got, err)
 	}
 }
@@ -213,13 +214,13 @@ func TestRandomIntBoundaries(t *testing.T) {
 	for _, bounds := range [][2]int64{{0, 0}, {-9, -9}, {-8, -2}, {-1, 1}, {1<<63 - 1, 1<<63 - 1}, {-1 << 63, -1 << 63}, {-1 << 63, 1<<63 - 1}, {0, 1<<63 - 1}} {
 		action := RandomInt(bounds[0], bounds[1]).(IO)
 		for range 100 {
-			got, err := action()
+			got, err := action(context.Background())
 			if err != nil || got.(int64) < bounds[0] || got.(int64) > bounds[1] {
 				t.Fatalf("RandomInt%v = (%v, %v)", bounds, got, err)
 			}
 		}
 	}
-	if got, err := RandomInt(int64(2), int64(1)).(IO)(); got != nil || err == nil || err.Error() != "randomInt: lo must be <= hi" {
+	if got, err := RandomInt(int64(2), int64(1)).(IO)(context.Background()); got != nil || err == nil || err.Error() != "randomInt: lo must be <= hi" {
 		t.Fatalf("reversed bounds = (%v, %v)", got, err)
 	}
 }
@@ -229,7 +230,7 @@ func TestRandomFloat(t *testing.T) {
 	var first float64
 	different := false
 	for i := range 100 {
-		got, err := action()
+		got, err := action(context.Background())
 		if err != nil {
 			t.Fatalf("RandomFloat = (%v, %v)", got, err)
 		}

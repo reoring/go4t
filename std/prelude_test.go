@@ -69,7 +69,7 @@ func TestStdInventoryParses(t *testing.T) {
 		"func trim", "func toUpper", "func toLower", "func startsWith", "func endsWith", "func contains",
 		"func replace", "func substring", "func chars", "func repeat", "func parseInt", "func showPadLeft",
 		"func readLine", "func readAll", "func args", "func exit", "func getEnv",
-		"func fork", "func await", "func parMapIO", "func race", "func parBoth", "func timeout",
+		"func fork", "func await", "func cancel", "func parMapIO", "func race", "func parBoth", "func timeout", "func withTimeout",
 		"func sleep", "func monotonicMillis",
 		"instance Show[Int]", "instance Show[String]", "instance Show[Bool]",
 		"instance Eq[Int]", "instance Ord[Int]", "instance Eq[String]", "instance Ord[String]",

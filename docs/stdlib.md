@@ -28,8 +28,8 @@ bounded. For the combined language boundary tables see
 | `String : *` | Go text string. | Rune APIs and byte equality/order are distinct. |
 | `Bool : *` | true or false. | Both literals form an exhaustive match. |
 | `Unit : *` | Sole value from unit(). | Eq/Debug, no Show/Ord. |
-| `IO : (*) -> *` | Deferred fallible action. | Construction is strict; running is deferred. |
-| `Fiber : (*) -> *` | Cached concurrent outcome. | No standard class instances or cancellation. |
+| `IO : (*) -> *` | Deferred fallible action. | Construction is strict; running is deferred with an implicit cancellation/deadline context. |
+| `Fiber : (*) -> *` | Cached concurrent outcome with a child context. | No standard class instances; `std/conc.cancel` requests cancellation. |
 | `Map : (*, *) -> *` | Persistent AVL map. | Comparator EQ identifies keys; consistent ordering required. |
 | `Set : (*) -> *` | Persistent AVL set. | Comparator-equivalent elements deduplicated. |
 | `Array : (*) -> *` | Immutable indexed sequence. | Copy on write/push/sort, Option reads. |
@@ -84,16 +84,18 @@ Source: [`array/array.gfx`](../std/array/array.gfx). 14 top-level declarations.
 
 ## `std/conc`
 
-Source: [`conc/conc.gfx`](../std/conc/conc.gfx). 6 top-level declarations.
+Source: [`conc/conc.gfx`](../std/conc/conc.gfx). 8 top-level declarations.
 
 | Source signature | Semantics | Boundary behaviour |
 | --- | --- | --- |
-| `extern func fork[A](io IO[A]) IO[Fiber[A]] = "gofx/rt".Fork` | Start one action in a goroutine when this IO is run. | Construction does not start; repeated execution creates distinct fibers; failures/panics cached. |
-| `extern func await[A](f Fiber[A]) IO[A] = "gofx/rt".Await` | Wait for and return a Fiber's cached outcome. | Repeat/concurrent awaits do not rerun the task; original error propagates; worker panic is an IO error. |
-| `extern func parMapIO[A, B](xs List[A], f func(A) IO[B]) IO[List[B]] = "gofx/rt".ParMapIO` | Run mapper/actions in parallel, join all, return input-ordered values. | Nil returns Nil without mapper calls; all tasks finish before return, even on failure; first observed error wins. |
-| `extern func race[A](a IO[A], b IO[A]) IO[A] = "gofx/rt".Race` | Return the first completed action's outcome. | Failure can win; loser is not cancelled and may continue effects; completion ties unspecified. |
-| `extern func parBoth[A, B](a IO[A], b IO[B]) IO[(A, B)] = "gofx/rt".ParBoth` | Run and join two actions, returning a pair in argument order. | Joins both even on failure; blocked sibling blocks completion; first observed error wins. |
-| `extern func timeout[A](millis Int, io IO[A]) IO[Option[A]] = "gofx/rt".Timeout` | Run with a millisecond deadline, wrapping timely success in Some. | Nonpositive returns None without start; overflow fails `timeout: duration out of range`; timely error propagates, late action is not cancelled. |
+| `extern func fork[A](io IO[A]) IO[Fiber[A]] = "gofx/rt".Fork` | Start one action in a goroutine with a child execution context. | Construction does not start; repeated execution creates distinct fibers; failures/panics cached; parent cancellation propagates. |
+| `extern func await[A](f Fiber[A]) IO[A] = "gofx/rt".Await` | Wait for and return a Fiber's cached outcome. | Repeat/concurrent awaits do not rerun the task; original error propagates; caller or unfinished-fiber cancellation ends the wait. |
+| `extern func cancel[A](f Fiber[A]) IO[Unit] = "gofx/rt".Cancel` | Request cancellation of a fiber. | Deferred and idempotent; returns immediately, without joining; cancelled unfinished-fiber awaits fail with cancellation, completed outcomes stay cached. |
+| `extern func parMapIO[A, B](xs List[A], f func(A) IO[B]) IO[List[B]] = "gofx/rt".ParMapIO` | Run mapper/actions in parallel, cancel siblings on first failure, join, return input-ordered values. | Nil returns Nil without mapper calls; first observed error wins; an uncooperative sibling can delay the failure join; enclosing cancellation bounds cleanup to 100 ms. |
+| `extern func race[A](a IO[A], b IO[A]) IO[A] = "gofx/rt".Race` | Return the first completed action's outcome after cancelling and joining the loser. | Failure can win; completion ties unspecified; uncooperative loser abandoned after 100 ms, cooperative loser completes before return. |
+| `extern func parBoth[A, B](a IO[A], b IO[B]) IO[(A, B)] = "gofx/rt".ParBoth` | Run and join two actions, returning a pair in argument order. | Joins both even on failure, without sibling cancellation; first observed error wins; enclosing cancellation bounds cleanup to 100 ms. |
+| `extern func timeout[A](millis Int, io IO[A]) IO[Option[A]] = "gofx/rt".Timeout` | Option form of withTimeout: Some on timely success, None on own expiry. | Nonpositive returns None without start; overflow fails `timeout: duration out of range`; timely errors and enclosing deadlines propagate; expired action cancelled and joined until deadline + 100 ms. |
+| `extern func withTimeout[A](millis Int, io IO[A]) IO[A] = "gofx/rt".WithTimeout` | Run with a millisecond deadline, failing on expiry. | Nonpositive fails without start; overflow fails `withTimeout: duration out of range`; expiry wraps `context.DeadlineExceeded`; cancels and joins expired action until deadline + 100 ms. |
 
 ## `std/float`
 

@@ -590,24 +590,49 @@ func main() IO[Unit] {
 
 ### 6.3 Concurrency
 
+An effect executes with an implicit cancellation/deadline environment: in Go,
+`rt.IO` is `func(ctx context.Context) (any, error)`. This is not a source-language
+value and does not change purity. `RunMain` supplies a background context cancelled
+by SIGINT/SIGTERM; cancellation reports `error: cancelled` and exits 1. Embedders
+run the action returned by `Main() rt.IO` with their own context. Bind passes the
+same context through both actions and checks it before starting the continuation.
+Sleep and HTTP stop when cancelled; stdin actions stop waiting immediately.
+An already-blocked stdin read may retain one worker until input/EOF arrives;
+stdin buffer access is serialized and that cancelled read can consume the input.
+File operations check cancellation before starting but do not interrupt a syscall.
+
 Import `std/conc`. `fork` starts an action on a goroutine **when run**, returning
-an opaque Fiber. `await` returns its cached outcome; multiple awaits do not rerun
-it. `parMapIO` starts all mapper/actions concurrently, joins all and returns
-input-ordered results. `parBoth` joins both and returns argument-ordered values.
-Both retain the first **observed** failure; concurrent ties are unspecified and
-a blocked sibling still blocks the join.
+an opaque Fiber with a child context. `await` returns its cached outcome; repeated
+or concurrent awaits do not rerun it. `cancel(fiber)` requests cancellation and
+returns immediately, even for an uncooperative extern. Awaiting an unfinished,
+cancelled fiber fails with cancellation; a completed fiber retains its outcome.
+Parent cancellation reaches child fibers, while cancelling one child does not
+cancel its parent or siblings. An await also stops when its own caller is cancelled.
+
+`parMapIO` starts mapper/actions concurrently, cancels siblings on the first
+observed failure, joins them and returns input-ordered results on success.
+`parBoth` joins both and returns argument-ordered values; failure alone does not
+cancel its sibling. Both retain the first **observed** failure; concurrent ties
+are unspecified. A foreign action that ignores cancellation can delay a normal
+join. Parent cancellation ends either wait after at most a 100 ms cleanup grace.
 
 `race` returns the first completion, failure included, not the first success.
-`timeout` returns Some on timely success, propagates timely failure, or None on
-expiry. Nonpositive timeout returns None without starting the action. Timers
-start before launch; completion/expiry ties are unspecified. Positive duration
-overflow fails rather than wrapping.
+It cancels the loser and joins it before returning, with a 100 ms cleanup grace.
+`withTimeout(millis, action)` fails with an error wrapping
+`context.DeadlineExceeded` when its deadline expires. `timeout` is the Option
+form of the same operation: Some on timely success, None on its own expiry.
+Both propagate timely action failures and enclosing-context cancellation/deadlines.
+Nonpositive budgets do not start the action; `withTimeout` fails immediately and
+`timeout` returns None. Positive duration overflow fails rather than wrapping.
+Timers start before launch; completion/expiry ties are unspecified.
+Expired actions are cancelled and joined, bounded by the deadline plus 100 ms.
+Cooperative actions therefore cannot continue a bind after their cancelled sleep.
+An extern that ignores its context can outlive that bound and still perform effects.
 
 Worker panics, including mapper construction, become ordinary IO errors
-`panic: <value>`; awaiting one therefore uses exit 1 unless handled. Race losers
-and timed-out tasks can continue to perform effects: abandonment is **not
-cancellation**. There is no cancellation API or global join; unawaited fibers do
-not keep a completed main alive. §10 gives all edge cases.
+`panic: <value>`; awaiting one therefore uses exit 1 unless handled. There is no
+global join; unawaited fibers do not keep a completed main alive. §10 gives all
+edge cases.
 
 ## 7. Prelude, deriving and standard modules
 
@@ -873,9 +898,12 @@ match. Mismatches during generation report
 `extern F: Go signature X does not match declared type Y` at the extern position.
 
 For Go `(T, error)` returns declared as IO[T], the call, conversions and boxing
-are **inside** the generated action. Re-running repeats the call; non-nil errors
-propagate unchanged. For example `gofx/rt/stdhttp.GetStatus(string) (int64, error)`
-returns any HTTP status, including non-2xx, or a network error.
+are **inside** the generated context-taking action. Re-running repeats the call;
+non-nil errors propagate unchanged. The adapter checks cancellation before the
+call, but cannot interrupt a foreign function without context support.
+For cancellable foreign effects, return `rt.IO` and honor its execution context:
+`gofx/rt/stdhttp.GetStatus(string) rt.IO` uses the HTTP request context and returns
+any HTTP status, including non-2xx, or a transport error.
 
 `bind` emits a complete declaration file in lexical exported-function order,
 stdout by default. `-o` names a file or an existing directory (`bindings.gfx`).
@@ -957,7 +985,7 @@ eligible direct-self tail calls have bounded call-stack lowering.
 ## 9. Known limitations
 
 - No mutable references, character type (use one-rune Strings), arbitrary-precision
-  integers, general exception syntax, cancellation or structured fiber lifetime.
+  integers, general exception syntax or automatic global fiber joining.
 - No expression type ascription (use typed lets/parameters); field access needs a
   known receiver type. `if` always needs `else`; bindings require irrefutable patterns.
 - Rank-1 polymorphism only; no inferred polymorphic recursion, local type parameter
@@ -1247,15 +1275,18 @@ share immutable storage, but empty slices do not retain the backing allocation.
 
 | Operation | Boundary |
 | --- | --- |
-| fork | Deferred; running same fork action twice creates distinct fibers; worker failure/panic cached |
-| await | Repeat/concurrent awaits safe; action never reruns; original error returned unchanged |
-| parMapIO | Empty → Nil, no mapper calls; mapper/action both deferred and panic-protected; results in input order; joins all even after failure |
-| parBoth | Joins both; pair in argument order; first observed failure retained, not fixed left bias |
-| race | First completion including failure; loser can continue effects and publish into a buffered channel |
-| timeout | <= 0 → None without starting; positive overflow → `timeout: duration out of range`; success including erased nil → Some; timely error propagates; completion/expiry tie unspecified |
+| fork | Deferred; each run creates a child context and distinct fiber; worker failure/panic cached |
+| await | Repeat/concurrent awaits safe; action never reruns; caller cancellation or unfinished-fiber cancellation ends the wait; completed outcome stays cached |
+| cancel | Deferred, idempotent cancellation request; returns Unit without waiting; unfinished-fiber awaits fail with `context.Canceled` |
+| parMapIO | Empty → Nil, no mapper calls; mapper/action deferred and panic-protected; results in input order; first failure cancels siblings, then joins |
+| parBoth | Joins both; pair in argument order; first observed failure retained, not fixed left bias; failure alone does not cancel sibling |
+| race | First completion including failure; cancels and joins loser, abandoning uncooperative code after 100 ms; completion ties unspecified |
+| withTimeout | <= 0 → deadline failure without starting; overflow → `withTimeout: duration out of range`; expiry wraps `context.DeadlineExceeded`; timely failure propagates |
+| timeout | Option form of withTimeout; <= 0 → None without starting; overflow → `timeout: duration out of range`; success including erased nil → Some; own expiry → None; timely errors/enclosing deadlines propagate |
+| Timeout cleanup | Expired action cancelled and joined until its deadline + 100 ms; uncooperative externs may outlive this bound |
 | Duration bound | Positive milliseconds must be <= MaxInt64 / 1,000,000 (Go time.Duration nanoseconds) |
 | Worker panic | Ordinary IO error `panic: <value>`, including losing/timed-out tasks; awaiting it is an error path, not RunMain direct panic |
-| Lifetime | No cancellation or global join; blocked task blocks parMapIO/parBoth; abandoned fibers end with process |
+| Lifetime | Cancellation propagates to children; no global join; uncooperative tasks can delay normal parMapIO/parBoth joins; enclosing cancellation bounds cleanup to 100 ms |
 
 ### 10.7 JSON and foreign ABI
 
