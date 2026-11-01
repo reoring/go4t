@@ -913,3 +913,82 @@ std/prelude function with signature + one-line semantics + boundary row), and up
 run command). The docs slice must verify every code snippet by extracting fenced
 ` ```gofx ` blocks into `.gfx` files and running `gofx check` over them (`docs/check_test.go`).
 Starts after modules merged (it documents the module system).
+
+## Pass 13: service-grade gofx (contract for parallel slices)
+
+Input: user acceptance review after Pass 12 (P0–P3 list). Same mechanics as Pass 12: one
+worktree `.wt/<slice>` / branch `slice/<slice>` per slice, no commits by workers, the primary
+merges in dependency order. Unlike Pass 12, slices **edit `SPEC.md` in place** (the sections
+named in their contract) — `docs/slices/` is not used any more; `docs/check_test.go` and
+`docs/stdlib_inventory_test.go` keep documentation honest.
+
+### Domain model changes
+
+- **Effect runtime.** `rt.IO` becomes `func(ctx context.Context) (any, error)`. A context is
+  the *execution environment* of an effect: it carries cancellation and deadline only. Purity
+  is unaffected (no user-visible context value). `RunMain` runs `main` with `context.Background()`
+  wrapped so that SIGINT/SIGTERM cancel it. Every rt effect that blocks (`sleep`, `readLine`,
+  fibers, HTTP) selects on `ctx.Done()`.
+- **Failure.** An IO failure is `*rt.Failure{Kind Kind, Message string}` (implements `error`).
+  Kinds are a closed set mirrored by the std ADT
+  `type IoError = NotFound(String) | PermissionDenied(String) | AlreadyExists(String) | Timeout | Cancelled | Panic(String) | Network(String) | Failure(String)`
+  (`deriving Eq, Debug`, hand-written `Show` = message text). `ioFail(msg)` raises `Failure(msg)`;
+  `ioFailWith[E Show]` keeps raising `Failure(show(e))`; new `ioRaise(e IoError) IO[A]` raises a
+  typed failure. `tryIO: IO[A] -> IO[Result[IoError, A]]` (breaking change from `Result[String, A]`;
+  all std/examples/docs migrate; `ioErrorMessage(e IoError) String` gives the old text).
+  Go errors from externs/natural-ABI adapters are classified in rt (`os.IsNotExist` → NotFound,
+  `os.IsPermission` → PermissionDenied, `os.IsExist` → AlreadyExists, `context.DeadlineExceeded`
+  → Timeout, `context.Canceled` → Cancelled, `net.Error` → Network, else Failure).
+  Codegen registers `rt.Shapes.IoError func(kind string, msg string) any` building the ADT
+  value (same mechanism as `rt_ok`/`rt_err`), and `rt.Shapes.IoErrorOf func(v any) (kind, msg string)`.
+- **Fibers.** `Fiber` owns a child context; `cancel[A](f Fiber[A]) IO[Unit]` cancels it and
+  returns immediately; awaiting a cancelled fiber fails with `Cancelled`. `timeout` and `race`
+  cancel the loser and wait for it to finish before returning (bounded: a loser that ignores
+  its context is abandoned after `timeout`'s own deadline + 100 ms, documented). `parMapIO`
+  cancels siblings on first failure. New `withTimeout[A](millis Int, io IO[A]) IO[A]` (fails with
+  `Timeout` instead of returning `Option`); `timeout` stays as the `Option` form implemented on top.
+- **HTTP.** `std/http`: `type Request = Request{method: String, url: String, path: String, query: List[(String, String)], headers: List[(String, String)], body: String}`,
+  `type Response = Response{status: Int, headers: List[(String, String)], body: String}`,
+  `request(r Request) IO[Response]` (failures: Network/Timeout/Cancelled; non-2xx is a normal
+  Response), `get(url) IO[Response]`, `post(url, contentType, body) IO[Response]`,
+  `response(status, body) Response`, `jsonResponse[A Encode](status, a) Response`,
+  `header(r Response|Request? , name) Option[String]` (two functions: `requestHeader`, `responseHeader`),
+  `serve(port Int, handler func(Request) IO[Response]) IO[Unit]` — blocks until the enclosing
+  context is cancelled (SIGINT or `cancel` on the fiber running it), each request handled on
+  its own fiber with the request's context; handler failure → 500 with the message in the body
+  and a line on stderr; `servePath` is not needed (route by `r.path` in the handler). Records
+  cross the ABI via **new shapes** `rt.Shapes.Tuple3/Untuple3` (codegen `rt_tuple3`/`rt_untuple3`,
+  same pattern as Tuple2) — rt returns `(status, headers, body)` tuples and the gofx side builds
+  the records. Client has a default 30 s timeout; `requestWithTimeout(r, millis)`.
+- **Dependencies.** A gofx library is a Go module containing `.gfx` files and a `gofx.mod`.
+  `gofx init <module-path>` writes `go.mod` (module path, `require gofx`) and `gofx.mod`.
+  `gofx get <path>@<version>` runs `go get` in the project's go.mod and appends
+  `require <path> <version>` to `gofx.mod`. Import resolution order: project module root →
+  `gofx.mod` requires, resolved via `go list -m -json <path>` to the module cache directory →
+  `GOFX_PATH` → embedded `std`. Tests use a fixture library module wired with `replace`
+  (no network).
+- **Show/Float.** `show(Float)` always contains a decimal point or exponent (`1.0`, `1.5`,
+  `1e+21`, `NaN`, `+Inf`) — same formatter as `Debug[Float]`. `showFloatFixed` is the display
+  recommendation for money (SPEC §4.8 / §10.1 note).
+- **Deriving Show** is allowed for enums *and* newtypes (single constructor, single field):
+  `show(C(x)) = show(x)` (field type must have `Show`; type params get `Show` constraints).
+  Error text for everything else: `deriving Show is only supported for enums and single-field newtypes; derive Debug and write instance Show[T] for a display form`.
+  `Show` deriving does not require `Debug` (stated in §7.2 table).
+- **Type printing.** Types resolved through an `alias` keep the alias name for printing
+  (`types.TAlias{Name, Args, Body}`: transparent to unification/instances, opaque to the
+  printer); diagnostics print alias names when the source used them. Diagnostic types longer
+  than 160 characters are elided at depth ≥ 3 with `…`; `gofx check --full-types` disables elision.
+- **Debug[List]** is the literal form `[a, b]` (Pass 13 wave 0, already in flight).
+- **Run anywhere** (wave 0, in flight): the `gofx` binary embeds `rt/**` and synthesises a Go
+  module in a temp dir for `run/test/eval` outside any go.mod; only programs with non-`gofx/rt`
+  externs need a project go.mod.
+
+### Slices
+
+Wave 0 (running): `run-anywhere` (P0-1/2), `list-debug` (P2-7).
+Wave 1 (independent, parallel): `show-rules` (P2-8/9/11/15), `ebnf-sync` (P2-10),
+`io-error` (P1-5), `cancel` (P1-3), `compile-scale` (P3-12), `type-print` (P3-13),
+`lsp-verify` (P3-14).
+Wave 2 (after wave 1 merge): `http` (P1-4, on cancel + io-error), `deps` (P1-6, on run-anywhere).
+Wave 3: an `examples/http-service` program (JSON GET → decode → aggregate → serve) written as the
+acceptance program for P1, and a re-run of compile-scale/type-print/lsp-verify against it.
