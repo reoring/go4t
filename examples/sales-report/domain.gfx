@@ -7,7 +7,7 @@ import "std/list"
 import codec "std/json"
 
 // ===== ドメイン =====
-type Currency = JPY | USD | EUR deriving Eq, Ord, Debug, codec.Encode, codec.Decode
+type Currency = JPY | USD | EUR deriving Eq, Ord, Debug, Show, codec.Encode, codec.Decode
 
 type Sale = Sale{
   day: String,

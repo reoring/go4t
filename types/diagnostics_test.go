@@ -55,11 +55,19 @@ func TestInstanceDerivingHints(t *testing.T) {
 		}
 		_, err := types.Check([]*ast.Module{{Files: parseFiles(t, extra+"type Hidden = Hidden; func value() "+ret+" { "+expr+" }"+pass5Main)}})
 		want := "hint: add 'deriving " + class + "' or write 'instance " + class + "[Hidden]'"
-		if class == "Show" {
-			want = "hint: write 'instance Show[Hidden]' (or 'deriving Debug' for a structural form)"
-		}
 		if err == nil || !strings.Contains(err.Error(), want) {
 			t.Errorf("%s: %v, want %s", class, err, want)
+		}
+	}
+	for _, source := range []string{
+		`type Hidden = Hidden(Int); func value() String { show(Hidden(1)) }`,
+		`type Hidden = Empty | Hidden{value: Int}; func value() String { show(Empty) }`,
+	} {
+		_, err := types.Check([]*ast.Module{{Files: parseFiles(t, source+pass5Main)}})
+		var typed *types.Error
+		want := "no instance Show[Hidden]; hint: write 'instance Show[Hidden]' (or 'deriving Debug' for a structural form)"
+		if !errors.As(err, &typed) || typed.Msg != want {
+			t.Errorf("non-enum hint: %v, want %s", err, want)
 		}
 	}
 	_, err := types.Check([]*ast.Module{{Files: parseFiles(t, `func value() String { show(unit()) }`+pass5Main)}})

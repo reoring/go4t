@@ -34,7 +34,7 @@ class Eq[A] {
   eq(a A, b A) Bool
 }
 
-type Ordering = LT | EQ | GT deriving Eq, Ord, Debug
+type Ordering = LT | EQ | GT deriving Eq, Ord, Debug, Show
 
 class Ord[A] : Eq[A] {
   compare(a A, b A) Ordering
@@ -78,16 +78,6 @@ instance Traversable[Option] {
     match fa {
       None => pure(None)
       Some(a) => fmap(f(a), func(b) => Some(b))
-    }
-  }
-}
-
-instance Show[Ordering] {
-  show(a) {
-    match a {
-      LT => "LT"
-      EQ => "EQ"
-      GT => "GT"
     }
   }
 }

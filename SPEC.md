@@ -461,15 +461,19 @@ Examples of stable message forms:
 ```text
 non-exhaustive match; missing: None, Some(_)
 no instance Ord[A] (type parameter A is constrained only by Eq + Show)
+no instance Show[Currency]; hint: add 'deriving Show' or write 'instance Show[Currency]'
 no instance Show[Hidden]; hint: write 'instance Show[Hidden]' (or 'deriving Debug' for a structural form)
+deriving Show is only supported for enums (all constructors nullary); derive Debug and write instance Show[T] for a display form
 x is unused; prefix with _ to silence
 shadows prelude name map
 ```
 
 User-data missing Debug/Eq/Ord hints suggest that deriving class or a handwritten
-instance. Show hints never recommend `deriving Show`. Builtins, functions, rigid
-parameters and other classes do not receive deriving hints. Recursive instance
-errors preserve the underlying hint and requiring context.
+instance. Show hints suggest `deriving Show` only for enums (all constructors
+nullary); other data types suggest a handwritten Show instance or `deriving Debug`
+for structural output. Builtins, functions, rigid parameters and other classes do
+not receive deriving hints. Recursive instance errors preserve the underlying
+hint and requiring context.
 
 Unused lets, local/lambda parameters, pattern variables and named do binds warn;
 `_`-prefixed bindings and top-level/instance-method parameters are exempt. Guards
@@ -589,26 +593,29 @@ from Int. Exponents and NaN/infinities are retained unchanged.
 
 ### 7.2 Deriving rules
 
-Supported classes: **Eq, Ord, Debug, Functor, Foldable, Traversable, Encode,
-Decode** (the last two qualified through a `std/json` import). Derivation
+Supported classes: **Eq, Ord, Debug, Show, Functor, Foldable, Traversable, Encode,
+Decode** (Show only for enums; the last two qualified through a `std/json` import). Derivation
 expands to ordinary checked instances; duplicate deriving names and explicit
 instance conflicts are errors.
 
-**Show is deliberately not derivable.** It is user-facing display;
-Debug is structural output. The exact rejection is:
-`deriving Show is not supported; derive Debug and write instance Show if a display form is needed`.
+**Show is derivable only for enums (all constructors nullary).** It renders each
+constructor as its unqualified source name: `show(C)` is `"C"`. Payload-bearing
+data types require an explicit user-facing display instance; Debug remains
+structural output. The exact rejection for any non-nullary constructor is:
+`deriving Show is only supported for enums (all constructors nullary); derive Debug and write instance Show[T] for a display form`.
 
 | Class | Generated contract |
 | --- | --- |
 | Eq | Equal constructor and corresponding equal fields; function fields unsupported |
 | Ord | Constructor declaration order, then lexicographic fields; requires Eq instance; function fields unsupported |
 | Debug | `C`, `C(f1, f2)`, `C{a: f1, b: f2}` via each field's Debug; strings quoted with Go escapes |
+| Show | Enums only: every constructor must be nullary; `C` renders as `"C"` without quotes or module qualification in the output |
 | Functor | Map the last type parameter; preserve unmapped fields and shape |
 | Foldable | Right-associated fold over last-parameter occurrences in declaration/tuple order; ignore unmapped fields |
 | Traversable | Map with Monad effects in that order, preserving shape; requires Functor, does not derive it automatically |
 | Encode / Decode | JSON representation and path-aware errors below |
 
-Eq/Ord/Debug/Encode/Decode constrain **every** data parameter with that class,
+Eq/Ord/Debug/Show/Encode/Decode constrain **every** data parameter with that class,
 including phantom parameters. Higher-kinded derivations require at least one
 parameter and fix all but the last without constraining them. The mapped parameter
 may occur directly, inside tuples of any arity, recursively, or as the last
@@ -618,7 +625,8 @@ positional fields). An unmapped function field is legal for these higher-kinded
 classes. Nested instances are resolved normally; traversal's failure policy is
 that of its Monad. Structural List Debug is `Cons(..., Nil)`, not Show's `[a, b]`.
 Result derives Eq/Ord/Debug and has an explicit Show (`Err(e)` / `Ok(a)`);
-Ordering and Option likewise retain handwritten display instances.
+Option also retains its handwritten display instance. Ordering derives Show,
+preserving the display strings `"LT"`, `"EQ"` and `"GT"`.
 
 ```gofx
 package main
@@ -630,9 +638,15 @@ func main() IO[Unit] {
 }
 ```
 
+```gofx
+package main
+type Currency = JPY | USD | EUR deriving Show
+func main() IO[Unit] { println("${JPY}|${USD}|${EUR}") }
+```
+
 ```gofx error
 package main
-type Hidden = Hidden deriving Show
+type Hidden = Hidden(Int) deriving Show
 func main() IO[Unit] { ioPure(unit()) }
 ```
 
@@ -881,8 +895,9 @@ eligible direct-self tail calls have bounded call-stack lowering.
 - Rank-1 polymorphism only; no inferred polymorphic recursion, local type parameter
   declarations, multi-parameter classes, arbitrary specialized/overlapping instances,
   partial aliases, automatic currying or implicit numeric coercion.
-- Deriving Show is removed. Higher-kinded deriving follows only supported last-
-  parameter positions; deriving Traversable/Ord does not supply Functor/Eq for you.
+- Deriving Show requires all constructors to be nullary; payload-bearing types
+  need handwritten display instances. Higher-kinded deriving follows only supported
+  last-parameter positions; deriving Traversable/Ord does not supply Functor/Eq for you.
 - Pair Show/Debug/Eq/Ord instances do not imply arbitrary tuple-arity instances;
   JSON explicitly supports every tuple arity. Unit lacks Show/Ord. Fiber lacks
   standard class instances.
@@ -929,7 +944,7 @@ including exported low-level helpers and private JSON helpers.
 | Placeholder placement | Whole arguments/section operands only; nested holes have independent scopes; fixed expressions run per application |
 | Constraints | Duplicate class on one parameter fails; Eq + Ord is legal and reuses Ord; absent rigid class diagnostics list constraints in order |
 | Match coverage | Guards add no coverage; true/false are exhaustive; other literal domains need default; maximum five missing witnesses |
-| Deriving | Show rejected; Ord needs Eq, Traversable needs Functor; unmapped functions allowed only where the generated class never examines them |
+| Deriving | Show only for enums (all constructors nullary), rendering source constructor names; Ord needs Eq, Traversable needs Functor; unmapped functions allowed only where the generated class never examines them |
 | Pure Lazy | Construction stores thunk; each force reruns it, no memoization |
 | Huge counts/widths | Empty/negative ordinary inputs follow tables below; huge positive allocations can panic/exhaust resources, never silently truncate |
 

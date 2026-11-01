@@ -30,6 +30,7 @@ type Tree[A] = Tip | Leaf(A) | Fork(Tree[A], Tree[A]) deriving Functor, Foldable
 type Nested[E, A] = Nested{tag: E, values: (A, List[Option[A]], (String, A)), children: List[Nested[E, A]]} deriving Functor, Foldable, Traversable
 type Record = Record{number: Int, text: String} deriving Debug
 type Empty[A] = Empty deriving Functor, Foldable, Traversable
+type Currency = JPY | USD | EUR deriving Show
 instance Show[Record] { show(a) { "display" } }
 type DebugOnly = DebugOnly(Int) deriving Debug
 func emptyOption() Option[Int] { None }
@@ -44,6 +45,7 @@ func main() IO[Unit] {
   let ordered = prelude.traverse(nested, step)
   do {
     println("${1}|${"raw"}|${true}|${Some("raw")}|${emptyOption()}|${["a", "b"]}|${("raw", false)}|${LT}|${EQ}|${GT}")
+    println("${JPY}|${USD}|${EUR}")
     println("${debug(1)}|${debug("a\n\"\\\t")}|${debug(false)}|${debug(unit())}|${debug(GT)}")
     println("${debug(Some("x"))}|${debug(emptyOption())}|${debug(["a", "b"])}|${debug(emptyList())}|${debug(("x", true))}")
     println("${Record(1, "x")}|${debug(Record(1, "x"))}")
@@ -112,6 +114,7 @@ func main() IO[Unit] {
 	}
 	want := strings.Join([]string{
 		`1|raw|true|Some(raw)|None|[a, b]|(raw, false)|LT|EQ|GT`,
+		`JPY|USD|EUR`,
 		`1|"a\n\"\\\t"|false|()|GT`,
 		`Some("x")|None|Cons("a", Cons("b", Nil))|Nil|("x", true)`,
 		`display|Record{number: 1, text: "x"}`,
