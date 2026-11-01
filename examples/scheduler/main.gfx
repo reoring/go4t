@@ -1,0 +1,110 @@
+package main
+
+// ===== ドメイン =====
+
+type Priority = Low | Normal | High | Urgent
+type Status   = Todo | Doing | Done
+type Task = Task{id: Int, title: String, prio: Priority, est: Int, status: Status}
+
+// ===== Eq / Ord を手書き(deriving はない) =====
+
+func rank(p Priority) Int {
+  match p { Low => 0 | Normal => 1 | High => 2 | Urgent => 3 }
+}
+
+instance Eq[Priority]  { eq(a, b) { rank(a) == rank(b) } }
+instance Ord[Priority] { compare(a, b) { compare(rank(a), rank(b)) } }
+
+instance Eq[Status] {
+  eq(a, b) {
+    match (a, b) {
+      (Todo, Todo) => true
+      (Doing, Doing) => true
+      (Done, Done) => true
+      _ => false
+    }
+  }
+}
+
+// Task の同一性は id だけで決める
+instance Eq[Task]  { eq(a, b) { a.id == b.id } }
+// 並び: 優先度の高い順、同点なら見積りの短い順
+instance Ord[Task] {
+  compare(a, b) {
+    match compare(b.prio, a.prio) {
+      EQ => compare(a.est, b.est)
+      o => o
+    }
+  }
+}
+
+instance Show[Priority] {
+  show(p) { match p { Low => "low" | Normal => "normal" | High => "HIGH" | Urgent => "URGENT" } }
+}
+instance Show[Status] {
+  show(s) { match s { Todo => "[ ]" | Doing => "[~]" | Done => "[x]" } }
+}
+instance Show[Task] {
+  show(t) { "${t.status} #${t.id} ${t.title} (${t.prio}, ${t.est}h)" }
+}
+
+// ===== 純粋ロジック =====
+
+// ガード付き match で分類
+func bucket(t Task) String {
+  match t {
+    Task{status: Done, ..} => "done"
+    Task{prio: p, est: e, ..} if p >= High && e <= 2 => "quick-win"
+    Task{prio: p, ..} if p >= High => "big-rock"
+    Task{est: e, ..} if e > 8 => "backlog"
+    _ => "normal"
+  }
+}
+
+// 1 日 = hours 時間で、優先順に詰め込めるだけ詰める(短絡 && で安全にアクセス)
+func plan(tasks List[Task], hours Int) (List[Task], List[Task]) {
+  let open = filter(tasks, func(t) => t.status != Done)
+  let step = func(acc (List[Task], Int), t Task) =>
+    if acc.1 >= t.est { (Cons(t, acc.0), acc.1 - t.est) } else { acc }
+  let picked: (List[Task], Int) = fold(sort(open), ([], hours), step)
+  let chosen = reverse(picked.0)
+  let rest = filter(open, func(t) => !elem(t, chosen))
+  (chosen, rest)
+}
+
+func totalHours(ts List[Task]) Int { sum(map(ts, func(t) => t.est)) }
+
+func start(t Task) Task { t{status: Doing} }
+
+// ===== main =====
+
+func main() IO[Unit] {
+  let tasks = [
+    Task{id: 1, title: "fix login bug",      prio: Urgent, est: 2,  status: Todo},
+    Task{id: 2, title: "write release notes", prio: Low,    est: 1,  status: Todo},
+    Task{id: 3, title: "migrate database",    prio: High,   est: 12, status: Todo},
+    Task{id: 4, title: "refactor parser",     prio: Normal, est: 5,  status: Doing},
+    Task{id: 5, title: "update deps",         prio: High,   est: 1,  status: Done},
+    Task{id: 6, title: "add metrics",         prio: High,   est: 3,  status: Todo}
+  ]
+  let planned = plan(tasks, 6)
+  let today = fst(planned)
+  let later = snd(planned)
+  let groups: List[(String, List[Int])] =
+    map(["quick-win", "big-rock", "backlog", "normal", "done"],
+        func(b) => (b, map(filter(tasks, func(t) => bucket(t) == b), func(t) => t.id)))
+  do {
+    println("== all (sorted) ==")
+    forEach(sort(tasks), func(t) => println("  ${t}"))
+    println("== buckets ==")
+    forEach(groups, func((name, ids)) => println("  ${name}: ${ids}"))
+    println("== today (6h) ==")
+    forEach(map(today, start), func(t) => println("  ${t}"))
+    println("  total ${totalHours(today)}h, ${length(later)} left")
+    println("== stats ==")
+    println("  top: ${head(sort(tasks))}")
+    println("  longest: ${maximum(map(tasks, func(t) => t.est))}")
+    println("  Low < Urgent = ${Low < Urgent}, minInt = ${minInt()}")
+    println("  next after today: ${head(sortBy(later, func(a, b) => compare(a.est, b.est)))}")
+  }
+}

@@ -505,3 +505,50 @@ subclass instance, how to build the superclass dictionary: `Instance.SuperArgs [
 one per entry of the superclass instance's Context, each a `DictParam` (naming the sub
 context param) possibly wrapped in `DictSuper`. Codegen initialises the embedded superclass
 struct field from `SuperArgs` instead of assuming identical names.
+
+## Pass 10: let/bind patterns, deriving, Option helpers
+
+### Patterns in `let` and `<-`
+`let pat = e`, `let pat: T = e` (block and `do`), and `pat <- e` in `do` accept an
+irrefutable pattern (same class as lambda parameters: variable, `_`, tuple, record or
+single-constructor pattern, as-pattern). `ast.LetStmt.Pat`, `ast.DoLet.Pat`, `ast.DoBind.Pat`
+are set when the left side is not a bare identifier. Refutable → error
+`let pattern must be irrefutable` / `bind pattern must be irrefutable`. A pattern `let` is
+never generalised (its variables are monomorphic). Codegen binds via the irrefutable-pattern
+lowering used for lambda parameters; for `<-` the bind continuation takes `p any` and
+destructures at the top of its body.
+
+### deriving
+`type T[A, B] = ... deriving Eq, Ord, Show` (`ast.TypeDecl.Deriving`; names must be among
+`Eq`, `Ord`, `Show`; each at most once). Before checking, `types.Check` expands every
+deriving into synthesized `*ast.InstanceDecl`s appended to the same file (positions = the
+type declaration's), then checks normally; a hand-written instance for the same class and
+type is the usual `duplicate instance` error. Generated heads: bare `C[T]` for
+non-parameterised types; `C[T[A, B]] given C[A], C[B]` for parameterised types (every type
+parameter gets the constraint; this over-approximates for phantom/function-typed parameters,
+which is acceptable).
+
+Generated bodies (as if written in source, using `==`, `compare`, `show` on fields, which
+resolve to the field types' instances):
+- `Eq`: `eq(a, b) { match (a, b) { (C1(x1..), C1(y1..)) => x1 == y1 && ... ; ... ; _ => false } }`
+  (nullary pairs → `true`; single-constructor types omit the `_` arm). Field types must
+  themselves be `Eq` (checker error otherwise, with the usual `required by instance` hint).
+  Function-typed fields → error `cannot derive Eq for T: field of function type`.
+- `Ord`: constructors ordered by declaration; `compare(a, b)` = `compare(tag(a), tag(b))`
+  then, for equal constructors, lexicographic `compare` over fields using a generated helper
+  `func <T>_tag(x T) Int`? No — avoid extra top-level names: generate the match directly:
+  `match (a, b) { (C1(x..), C1(y..)) => <lex>; (C1(..), _) => LT; (_, C1(..)) => GT; (C2.. ) ... }`
+  where `<lex>` is `match compare(x1, y1) { EQ => <lex of rest> | o => o }` and the empty lex
+  is `EQ`. Deriving `Ord` requires `Eq` for the same type (derived or hand-written).
+- `Show`: nullary → `"C"`; positional → `"C(${x1}, ${x2})"`; record → `"C{f1: ${x1}, f2: ${x2}}"`.
+  `String` fields are shown via `Show[String]` (no quotes), consistent with the prelude.
+The prelude derives `Eq, Ord, Show` for `Ordering` and `Option`, and `Eq, Ord` for `List`
+and keeps its hand-written `Show[List]`/`Show[(A, B)]` (tuples are builtin; their instances
+stay hand-written).
+
+### Option helpers (prelude)
+```
+fromOption[A](o Option[A], d A) A
+maybe[A, B](o Option[A], d B, f func(A) B) B
+isSome[A](o Option[A]) Bool      isNone[A](o Option[A]) Bool
+```

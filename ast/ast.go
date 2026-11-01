@@ -104,11 +104,13 @@ type InstMethod struct {
 	Body   *Block
 }
 
+// TypeDecl is `type Name[Params] = Ctors [deriving Class, ...]`.
 type TypeDecl struct {
-	Pos     Pos
-	Name    string
-	TParams []string
-	Ctors   []Ctor
+	Pos      Pos
+	Name     string
+	TParams  []string
+	Ctors    []Ctor
+	Deriving []string
 }
 
 // Ctor is `Name(T1, T2)` (positional, FieldNames nil) or the record form
@@ -151,10 +153,12 @@ type Block struct {
 
 type Stmt interface{ stmtNode() }
 
-// LetStmt is `let name = e` or `let name: T = e` (Type nil when absent).
+// LetStmt is `let name = e`, `let name: T = e`, or `let pat = e` /
+// `let pat: T = e` with an irrefutable pattern (Pat set, Name "").
 type LetStmt struct {
 	Pos   Pos
 	Name  string
+	Pat   Pattern
 	Type  Type
 	Value Expr
 }
@@ -281,15 +285,18 @@ type Do struct {
 
 type DoStmt interface{ doStmtNode() }
 
+// DoBind is `name <- e` or `pat <- e` (irrefutable pattern; Pat set, Name "").
 type DoBind struct {
 	Pos  Pos
 	Name string
+	Pat  Pattern
 	X    Expr
 }
 type DoLet struct {
 	Pos   Pos
 	Name  string
-	Type  Type // nil when absent
+	Pat   Pattern // irrefutable pattern when not a plain name
+	Type  Type    // nil when absent
 	Value Expr
 }
 type DoExpr struct{ X Expr }
