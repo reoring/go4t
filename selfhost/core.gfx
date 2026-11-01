@@ -16,9 +16,10 @@ package main
 //   record patterns  -> CPCtor with positional sub-patterns (CPWild for `..`)
 //   record literals  -> CCtor with fields in declaration order
 
-type Core = CLocal(String)                              // local variable / parameter
-          | CGlobal(String, List[DictRef])              // top-level function (incl. extern) applied to its dictionaries
-          | CMethod(String, DictRef)                    // class method selected from a dictionary
+type Core = CLocal(String)                              // local variable / parameter (monomorphic or no constraints)
+          | CLocalDict(String, List[DictRef])           // generalised let with constraints, instantiated: emits x_(dicts...)
+          | CGlobal(String, List[DictRef], Int)         // top-level function (incl. extern): (name, dicts, source arity)
+          | CMethod(String, DictRef, List[DictRef], Int)  // class method: (name, receiver dict, method-own dicts, source arity)
           | CCtorFn(String, String)                     // constructor used as a function value: (data, ctor)
           | CCtor(String, String, List[Core])           // saturated constructor application: (data, ctor, fields)
           | CInt(Int)

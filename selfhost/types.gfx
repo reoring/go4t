@@ -1,0 +1,283 @@
+package main
+
+// Semantic type operations. CheckState.subst is the only source of meta links.
+// Ported from types/unify.go, types/check.go:366-425 and types/let.go:19-74,
+// 151-209. Generalization leaves source metas untouched; its caller decides
+// when a value-restricted let becomes rigid (types/let.go:267-277).
+
+func typesKindString(k Kind) String {
+  match k {
+    KStar => "*"
+    KArrow(n) => "(" + join(", ", fmap(range(0, n), func(i) => "*")) + ") -> *"
+  }
+}
+
+func typesRequireKind(pos Pos, got Kind, want Kind) Check[Unit] {
+  if got == want { pure(unit()) }
+  else { checkFail(pos, "kind mismatch: got ${typesKindString(got)}, want ${typesKindString(want)}") }
+}
+
+// Pure inspection functions expect zonked types when inference links matter.
+func kindOf(t Type) Kind {
+  match t {
+    TCon(_, k) => k
+    TVar(_, k) => k
+    TMeta(_, k) => k
+    TApp(fun, args) => {
+      let remaining = kindArity(kindOf(fun)) - length(args)
+      if remaining > 0 { KArrow(remaining) } else { KStar }
+    }
+    TFunc(_, _) => KStar
+  }
+}
+
+func typeString(t Type) String {
+  match t {
+    TCon(name, _) => name
+    TVar(name, _) => name
+    TMeta(id, _) => "?${id}"
+    TApp(fun, args) => typeString(fun) + "[" + join(", ", fmap(args, typeString)) + "]"
+    TFunc(params, ret) => "func(" + join(", ", fmap(params, typeString)) + ") " + typeString(ret)
+  }
+}
+
+func zonk(t Type) Check[Type] {
+  match t {
+    TMeta(id, _) => do {
+      link <- lookupMeta(id)
+      match link {
+        None => pure(t)
+        Some(bound) => do {
+          resolved <- zonk(bound)
+          bindMeta(id, resolved)
+          pure(resolved)
+        }
+      }
+    }
+    TApp(fun, args) => do {
+      resolvedFun <- zonk(fun)
+      resolvedArgs <- mapMCheck(args, zonk)
+      pure(tApp(resolvedFun, resolvedArgs))
+    }
+    TFunc(params, ret) => do {
+      resolvedParams <- mapMCheck(params, zonk)
+      resolvedRet <- zonk(ret)
+      pure(TFunc(resolvedParams, resolvedRet))
+    }
+    _ => pure(t)
+  }
+}
+
+func typesOccurs(id Int, t Type) Bool {
+  match t {
+    TMeta(other, _) => id == other
+    TApp(fun, args) => typesOccurs(id, fun) || any(args, func(arg) => typesOccurs(id, arg))
+    TFunc(params, ret) => any(params, func(param) => typesOccurs(id, param)) || typesOccurs(id, ret)
+    _ => false
+  }
+}
+
+func typesBind(pos Pos, id Int, typ Type) Check[Bool] {
+  if typesOccurs(id, typ) {
+    checkFail(pos, "occurs check: ?${id} occurs in ${typeString(typ)}")
+  } else { do {
+    bindMeta(id, typ)
+    pure(true)
+  } }
+}
+
+// Structural failure returns false so the outermost pair supplies the error.
+// Occurs/kind failures keep their specific diagnostics (unify.go:106-171).
+func unify(pos Pos, expected Type, actual Type) Check[Unit] { do {
+  matched <- typesUnify(pos, expected, actual)
+  if matched { pure(unit()) } else { do {
+    e <- zonk(expected)
+    a <- zonk(actual)
+    checkFail(pos, "type mismatch: expected ${typeString(e)}, got ${typeString(a)}")
+  } }
+} }
+
+func typesUnify(pos Pos, expected Type, actual Type) Check[Bool] { do {
+  e <- zonk(expected)
+  a <- zonk(actual)
+  typesRequireKind(pos, kindOf(a), kindOf(e))
+  match (e, a) {
+    (TMeta(id, _), TMeta(other, _)) if id == other => pure(true)
+    (TMeta(id, _), _) => typesBind(pos, id, a)
+    (_, TMeta(id, _)) => typesBind(pos, id, e)
+    (TCon(name, _), TCon(other, _)) => pure(name == other)
+    (TVar(name, _), TVar(other, _)) => pure(name == other)
+    (TApp(ef, ea), TApp(af, aa)) => {
+      let extra = length(ea) - length(aa)
+      if extra > 0 {
+        typesUnifyApps(pos, tApp(ef, take(extra, ea)), drop(extra, ea), af, aa)
+      } else if extra < 0 {
+        typesUnifyApps(pos, ef, ea, tApp(af, take(-extra, aa)), drop(-extra, aa))
+      } else { typesUnifyApps(pos, ef, ea, af, aa) }
+    }
+    (TFunc(ep, er), TFunc(ap, ar)) =>
+      if length(ep) != length(ap) { pure(false) } else { do {
+        paramsMatch <- typesUnifyList(pos, ep, ap)
+        if paramsMatch { typesUnify(pos, er, ar) } else { pure(false) }
+      } }
+    _ => pure(false)
+  }
+} }
+
+func typesUnifyApps(pos Pos, ef Type, ea List[Type], af Type, aa List[Type]) Check[Bool] { do {
+  headsMatch <- typesUnify(pos, ef, af)
+  if headsMatch { typesUnifyList(pos, ea, aa) } else { pure(false) }
+} }
+
+func typesUnifyList(pos Pos, expected List[Type], actual List[Type]) Check[Bool] {
+  match (expected, actual) {
+    (Nil, Nil) => pure(true)
+    (Cons(e, es), Cons(a, as)) => do {
+      matched <- typesUnify(pos, e, a)
+      if matched { typesUnifyList(pos, es, as) } else { pure(false) }
+    }
+    _ => pure(false)
+  }
+}
+
+func substTVars(mapping Map[String, Type], t Type) Type {
+  match t {
+    TVar(name, _) => fromOption(t, mapLookup(mapping, name))
+    TApp(fun, args) => tApp(substTVars(mapping, fun), fmap(args, func(arg) => substTVars(mapping, arg)))
+    TFunc(params, ret) => TFunc(fmap(params, func(param) => substTVars(mapping, param)), substTVars(mapping, ret))
+    _ => t
+  }
+}
+
+// Accumulate ids in a tree for ascending unique freeMetas, and collect kinds
+// in a separate left-to-right traversal for first-appearance generalization.
+func typesMetaSet(t Type, found Map[Int, Kind]) Map[Int, Kind] {
+  match t {
+    TMeta(id, k) => mapInsert(found, id, k)
+    TApp(fun, args) => fold(args, typesMetaSet(fun, found), func(acc, arg) => typesMetaSet(arg, acc))
+    TFunc(params, ret) => typesMetaSet(ret, fold(params, found, func(acc, param) => typesMetaSet(param, acc)))
+    _ => found
+  }
+}
+
+func freeMetas(t Type) Check[List[Int]] { do {
+  resolved <- zonk(t)
+  pure(mapKeys(typesMetaSet(resolved, MEmpty)))
+} }
+
+func instantiate(sch Scheme) Check[(Type, List[(String, Type)])] { do {
+  entries <- mapMCheck(sch.tparams, func(param) => do {
+    meta <- freshMeta(snd(param))
+    pure((fst(param), meta))
+  })
+  let mapping = mapFromList(entries)
+  let constraints = fmap(sch.constraints, func(c) =>
+    (fst(c), substTVars(mapping, TVar(snd(c), KStar))))
+  pure((substTVars(mapping, sch.typ), constraints))
+} }
+
+func typesGeneralizeMetas(t Type, fixed List[Int], found Map[Int, Type], revParams List[(String, Kind)]) (Map[Int, Type], List[(String, Kind)]) {
+  match t {
+    TMeta(id, k) =>
+      if elem(id, fixed) || mapMember(found, id) { (found, revParams) }
+      else {
+        let name = "t${mapSize(found)}"
+        (mapInsert(found, id, TVar(name, k)), Cons((name, k), revParams))
+      }
+    TApp(fun, args) => typesGeneralizeList(args, fixed, typesGeneralizeMetas(fun, fixed, found, revParams))
+    TFunc(params, ret) => {
+      let collected = typesGeneralizeList(params, fixed, (found, revParams))
+      typesGeneralizeMetas(ret, fixed, fst(collected), snd(collected))
+    }
+    _ => (found, revParams)
+  }
+}
+
+func typesGeneralizeList(ts List[Type], fixed List[Int], collected (Map[Int, Type], List[(String, Kind)])) (Map[Int, Type], List[(String, Kind)]) {
+  fold(ts, collected, func(acc, t) => typesGeneralizeMetas(t, fixed, fst(acc), snd(acc)))
+}
+
+func typesReplaceMetas(mapping Map[Int, Type], t Type) Type {
+  match t {
+    TMeta(id, _) => fromOption(t, mapLookup(mapping, id))
+    TApp(fun, args) => tApp(typesReplaceMetas(mapping, fun), fmap(args, func(arg) => typesReplaceMetas(mapping, arg)))
+    TFunc(params, ret) => TFunc(fmap(params, func(param) => typesReplaceMetas(mapping, param)), typesReplaceMetas(mapping, ret))
+    _ => t
+  }
+}
+
+func typesGeneralizeConstraints(constraints List[(String, Type)], mapping Map[Int, Type]) Check[(List[(String, String)], List[(String, Type)])] {
+  match constraints {
+    Nil => pure((Nil, Nil))
+    Cons(c, rest) => do {
+      arg <- zonk(snd(c))
+      restResult <- typesGeneralizeConstraints(rest, mapping)
+      match arg {
+        TMeta(id, _) => match mapLookup(mapping, id) {
+          Some(TVar(name, _)) => pure((Cons((fst(c), name), fst(restResult)), snd(restResult)))
+          _ => pure((fst(restResult), Cons(c, snd(restResult))))
+        }
+        _ => pure((fst(restResult), Cons(c, snd(restResult))))
+      }
+    }
+  }
+}
+
+func generalize(fixed List[Int], constraints List[(String, Type)], t Type) Check[(Scheme, List[(String, Type)])] { do {
+  resolved <- zonk(t)
+  let collected = typesGeneralizeMetas(resolved, fixed, MEmpty, Nil)
+  let mapping = fst(collected)
+  splitConstraints <- typesGeneralizeConstraints(constraints, mapping)
+  let sch = Scheme{
+    tparams: reverse(snd(collected)), constraints: fst(splitConstraints),
+    typ: typesReplaceMetas(mapping, resolved)
+  }
+  pure((sch, snd(splitConstraints)))
+} }
+
+func typesValueType(scope Map[String, Type], t SType) Check[Type] { do {
+  resolved <- resolveSType(scope, t)
+  typesRequireKind(stypePos(t), kindOf(resolved), KStar)
+  pure(resolved)
+} }
+
+func typesResolveName(scope Map[String, Type], pos Pos, name String) Check[Type] {
+  match mapLookup(scope, name) {
+    Some(t) => zonk(t)
+    None => do {
+      env <- askEnv()
+      match mapLookup(env.typeKinds, name) {
+        Some(k) => pure(TCon(name, k))
+        None => checkFail(pos, "unknown type ${name}")
+      }
+    }
+  }
+}
+
+func resolveSType(scope Map[String, Type], t SType) Check[Type] {
+  match t {
+    STName(pos, name, args) => do {
+      base <- typesResolveName(scope, pos, name)
+      match args {
+        Nil => pure(base)
+        _ => if length(args) > kindArity(kindOf(base)) {
+          checkFail(pos, "kind mismatch applying ${name} to ${length(args)} arguments")
+        } else { do {
+          resolvedArgs <- mapMCheck(args, func(arg) => typesValueType(scope, arg))
+          pure(tApp(base, resolvedArgs))
+        } }
+      }
+    }
+    STFunc(_, params, ret) => do {
+      resolvedRet <- typesValueType(scope, ret)
+      resolvedParams <- mapMCheck(params, func(param) => typesValueType(scope, param))
+      pure(TFunc(resolvedParams, resolvedRet))
+    }
+    STTuple(pos, elems) => if length(elems) < 2 {
+      checkFail(pos, "tuple arity must be >= 2")
+    } else { do {
+      resolvedElems <- mapMCheck(elems, func(item) => typesValueType(scope, item))
+      pure(tTuple(resolvedElems))
+    } }
+  }
+}

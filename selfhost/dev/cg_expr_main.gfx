@@ -1,0 +1,4 @@
+package main
+
+type GenProbe[A] = State[Int, A]
+func main() IO[Unit] { println("alias") }

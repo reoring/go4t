@@ -1,0 +1,521 @@
+package main
+
+// Recursive-descent port of parser/parser.go. Parser state keeps the previous
+// token position for the same-line record lookahead; failures carry original
+// source positions, including when an interpolation starts a nested parser.
+type PState = PrState{tokens: List[Token], previous: Pos, offset: Int}
+type PResult[A] = PrSuccess(A, PState) | PrFailure(Diag)
+type Parser[A] = PrParser(func(PState) PResult[A])
+
+func runParser[A](parser Parser[A], state PState) PResult[A] {
+  match parser { PrParser(run) => run(state) }
+}
+
+instance Functor[Parser] {
+  fmap(parser, f) {
+    PrParser(func(state) => match runParser(parser, state) {
+      PrFailure(d) => PrFailure(d)
+      PrSuccess(value, rest) => PrSuccess(f(value), rest)
+    })
+  }
+}
+
+instance Monad[Parser] {
+  pure(value) { PrParser(func(state) => PrSuccess(value, state)) }
+  bind(parser, f) {
+    PrParser(func(state) => match runParser(parser, state) {
+      PrFailure(d) => PrFailure(d)
+      PrSuccess(value, rest) => runParser(f(value), rest)
+    })
+  }
+}
+
+// Alternatives restore all state. Only the do-bind left side is speculative;
+// once '<-' has been consumed, failures in its expression must propagate.
+func orElse[A](left Parser[A], right Parser[A]) Parser[A] {
+  PrParser(func(state) => match runParser(left, state) {
+    PrFailure(_) => runParser(right, state)
+    success => success
+  })
+}
+
+func optional[A](parser Parser[A]) Parser[Option[A]] {
+  orElse(fmap(parser, Some), pure(None))
+}
+
+func many[A](parser Parser[A]) Parser[List[A]] {
+  PrParser(func(state) => match runParser(parser, state) {
+    PrFailure(_) => PrSuccess(Nil, state)
+    PrSuccess(value, rest) => if rest.offset == state.offset {
+      PrFailure(Diag{pos: prCurrent(state).pos, msg: "repeated parser must consume input"})
+    } else {
+      match runParser(many(parser), rest) {
+        PrFailure(d) => PrFailure(d)
+        PrSuccess(values, end) => PrSuccess(Cons(value, values), end)
+      }
+    }
+  })
+}
+
+func sepBy[A, B](parser Parser[A], separator Parser[B]) Parser[List[A]] {
+  orElse(do {
+    first <- parser
+    rest <- many(do { separator; parser })
+    pure(Cons(first, rest))
+  }, pure(Nil))
+}
+
+func prFail[A](pos Pos, msg String) Parser[A] {
+  PrParser(func(state) => PrFailure(Diag{pos: pos, msg: msg}))
+}
+
+func prLift[A](result Result[A]) Parser[A] {
+  PrParser(func(state) => match result {
+    Err(d) => PrFailure(d)
+    Ok(value) => PrSuccess(value, state)
+  })
+}
+
+func prCurrent(state PState) Token {
+  match state.tokens {
+    Cons(t, _) => t
+    Nil => Token{kind: TkEOF, text: "", pos: state.previous, parts: Nil}
+  }
+}
+
+func prPeek() Parser[Token] { PrParser(func(state) => PrSuccess(prCurrent(state), state)) }
+
+func prLookahead[A](parser Parser[A]) Parser[A] {
+  PrParser(func(state) => match runParser(parser, state) {
+    PrFailure(d) => PrFailure(d)
+    PrSuccess(value, _) => PrSuccess(value, state)
+  })
+}
+
+func prNext() Parser[Token] {
+  PrParser(func(state) => match state.tokens {
+    Cons(t, rest) if t.kind != TkEOF =>
+      PrSuccess(t, PrState{tokens: rest, previous: t.pos, offset: state.offset + 1})
+    _ => PrSuccess(prCurrent(state), state)
+  })
+}
+
+func prMatches(t Token, kind TokKind, text String) Bool {
+  (t.kind == kind || (kind == TkPunct && text == ";" && t.kind == TkSemi)) && t.text == text
+}
+
+func prIs(kind TokKind, text String) Parser[Bool] {
+  fmap(prPeek(), func(t) => prMatches(t, kind, text))
+}
+
+func prAccept(kind TokKind, text String) Parser[Bool] {
+  do {
+    yes <- prIs(kind, text)
+    if yes { do { prNext(); pure(true) } } else { pure(false) }
+  }
+}
+
+func prQuote(text String) String {
+  "\"" + strConcat(fmap(chars(text), func(c) => match c {
+    "\"" => "\\\"" | "\\" => "\\\\" | "\n" => "\\n" | "\r" => "\\r" | "\t" => "\\t"
+    "\a" => "\\a" | "\b" => "\\b" | "\f" => "\\f" | "\v" => "\\v"
+    _ => c
+  })) + "\""
+}
+
+// Token.Show intentionally labels semicolons as newlines; diagnostics instead
+// use the reference parser's quoted token text (including explicit/inserted ';').
+func prTokenText(t Token) String {
+  if t.kind == TkEOF { "end of file" } else { prQuote(t.text) }
+}
+
+func expect(kind TokKind, text String) Parser[Token] {
+  do {
+    t <- prPeek()
+    if prMatches(t, kind, text) { prNext() }
+    else { prFail(t.pos, "expected " + prQuote(text) + ", found " + prTokenText(t)) }
+  }
+}
+
+func prIdent() Parser[String] {
+  do {
+    t <- prPeek()
+    if t.kind == TkIdent { do { prNext(); pure(t.text) } }
+    else { prFail(t.pos, "expected identifier, found " + prTokenText(t)) }
+  }
+}
+
+func prSkipSemis() Parser[Unit] {
+  do {
+    yes <- prAccept(TkPunct, ";")
+    if yes { prSkipSemis() } else { pure(unit()) }
+  }
+}
+
+// Required separated lists reject trailing separators. Delimited lists accept
+// both empty input and trailing commas, matching the reference's distinct loops.
+func prSeparated1[A](item func() Parser[A], separator String) Parser[List[A]] {
+  do {
+    value <- item()
+    more <- prAccept(TkPunct, separator)
+    rest <- if more { prSeparated1(item, separator) } else { pure(Nil) }
+    pure(Cons(value, rest))
+  }
+}
+
+func prDelimited[A](item func() Parser[A], close String) Parser[List[A]] {
+  do {
+    done <- prIs(TkPunct, close)
+    if done { pure(Nil) } else { do {
+      value <- item()
+      more <- prAccept(TkPunct, ",")
+      rest <- if more { prDelimited(item, close) } else { pure(Nil) }
+      pure(Cons(value, rest))
+    } }
+  }
+}
+
+func prMembers[A](item func() Parser[A]) Parser[List[A]] {
+  do {
+    prSkipSemis()
+    done <- prIs(TkPunct, "}")
+    if done { pure(Nil) } else { do {
+      value <- item()
+      rest <- prMembers(item)
+      pure(Cons(value, rest))
+    } }
+  }
+}
+
+func prRun[A](parser Parser[A], tokens List[Token], base Pos) Result[A] {
+  match runParser(parser, PrState{tokens: tokens, previous: base, offset: 0}) {
+    PrFailure(d) => Err(d)
+    PrSuccess(value, _) => Ok(value)
+  }
+}
+
+func parseFile(name String, src String) Result[File] {
+  do {
+    tokens <- lex(src, Pos{line: 1, col: 1})
+    prRun(prFile(name), tokens, Pos{line: 1, col: 1})
+  }
+}
+
+func parseExprSource(src String, base Pos) Result[Expr] {
+  do {
+    tokens <- lex(src, base)
+    prRun(do {
+      value <- prExpr()
+      prSkipSemis()
+      t <- prPeek()
+      if t.kind == TkEOF { pure(value) }
+      else { prFail(t.pos, "expected end of expression, found " + prTokenText(t)) }
+    }, tokens, base)
+  }
+}
+
+func prFile(name String) Parser[File] {
+  do {
+    prSkipSemis()
+    expect(TkKeyword, "package")
+    pkg <- prIdent()
+    decls <- prDecls()
+    pure(File{pkg: pkg, name: name, decls: decls})
+  }
+}
+
+func prDecls() Parser[List[Decl]] {
+  do {
+    prSkipSemis()
+    t <- prPeek()
+    if t.kind == TkEOF { pure(Nil) } else { do {
+      decl <- prDecl()
+      rest <- prDecls()
+      pure(Cons(decl, rest))
+    } }
+  }
+}
+
+func prDecl() Parser[Decl] {
+  do {
+    t <- prPeek()
+    if t.kind != TkKeyword { prFail(t.pos, "expected declaration, found " + prTokenText(t)) }
+    else { match t.text {
+      "class" => prClassDecl()
+      "instance" => prInstanceDecl()
+      "type" => prTypeDecl()
+      "func" => prFuncDecl(false)
+      "extern" => do { prNext(); prFuncDecl(true) }
+      _ => prFail(t.pos, "expected declaration, found " + prTokenText(t))
+    } }
+  }
+}
+
+func prUnderscore() Parser[Token] { expect(TkPunct, "_") }
+
+func prTypeParam() Parser[TypeParam] {
+  do {
+    name <- prIdent()
+    higher <- prAccept(TkPunct, "[")
+    arity <- if higher { do {
+      holes <- prSeparated1(prUnderscore, ",")
+      expect(TkPunct, "]")
+      pure(length(holes))
+    } } else { pure(0) }
+    t <- prPeek()
+    constraint <- if t.kind == TkIdent { fmap(prIdent(), Some) } else { pure(None) }
+    pure(TypeParam{name: name, arity: arity, constraint: constraint})
+  }
+}
+
+func prTypeParams() Parser[List[TypeParam]] {
+  do {
+    yes <- prAccept(TkPunct, "[")
+    if yes { do {
+      params <- prSeparated1(prTypeParam, ",")
+      expect(TkPunct, "]")
+      pure(params)
+    } } else { pure(Nil) }
+  }
+}
+
+func prParam() Parser[Param] {
+  do { name <- prIdent(); typ <- prType(); pure(PName(name, Some(typ))) }
+}
+
+func prParams() Parser[List[Param]] {
+  do {
+    expect(TkPunct, "(")
+    params <- prDelimited(prParam, ")")
+    expect(TkPunct, ")")
+    pure(params)
+  }
+}
+
+func prMethodSig() Parser[MethodSig] {
+  do {
+    t <- prPeek()
+    name <- prIdent()
+    tparams <- prTypeParams()
+    params <- prParams()
+    ret <- prType()
+    pure(MethodSig{pos: t.pos, name: name, tparams: tparams, params: params, ret: ret})
+  }
+}
+
+func prClassDecl() Parser[Decl] {
+  do {
+    start <- prNext()
+    name <- prIdent()
+    expect(TkPunct, "[")
+    param <- prTypeParam()
+    expect(TkPunct, "]")
+    hasSuper <- prAccept(TkPunct, ":")
+    super <- if hasSuper { do {
+      parent <- prIdent()
+      expect(TkPunct, "[")
+      arg <- prIdent()
+      if arg != param.name { prFail(start.pos, "superclass must be applied to " + param.name) }
+      else { pure(unit()) }
+      expect(TkPunct, "]")
+      pure(Some(parent))
+    } } else { pure(None) }
+    expect(TkPunct, "{")
+    methods <- prMembers(prMethodSig)
+    expect(TkPunct, "}")
+    pure(DeclClass(ClassDecl{pos: start.pos, name: name, param: param, super: super, methods: methods}))
+  }
+}
+
+func prHeadParams(seen List[String]) Parser[List[String]] {
+  do {
+    t <- prPeek()
+    name <- prIdent()
+    if elem(name, seen) { prFail(t.pos, "duplicate instance type parameter " + name) } else { pure(unit()) }
+    more <- prAccept(TkPunct, ",")
+    rest <- if more { prHeadParams(Cons(name, seen)) } else { pure(Nil) }
+    pure(Cons(name, rest))
+  }
+}
+
+func prInstanceHead() Parser[(String, List[String])] {
+  do {
+    t <- prPeek()
+    tuple <- prAccept(TkPunct, "(")
+    if tuple { do {
+      params <- prHeadParams(Nil)
+      expect(TkPunct, ")")
+      if length(params) < 2 { prFail(t.pos, "tuple instance head needs at least two elements") }
+      else { pure(("Tuple" + show(length(params)), params)) }
+    } } else { do {
+      name <- prIdent()
+      applied <- prAccept(TkPunct, "[")
+      params <- if applied { do {
+        values <- prHeadParams(Nil)
+        expect(TkPunct, "]")
+        pure(values)
+      } } else { pure(Nil) }
+      pure((name, params))
+    } }
+  }
+}
+
+func prConstraint(params List[String]) Parser[Constraint] {
+  do {
+    t <- prPeek()
+    className <- prIdent()
+    expect(TkPunct, "[")
+    p <- prPeek()
+    param <- prIdent()
+    if !elem(param, params) { prFail(p.pos, "undeclared instance type parameter " + param) } else { pure(unit()) }
+    expect(TkPunct, "]")
+    pure(Constraint{pos: t.pos, className: className, param: param})
+  }
+}
+
+func prInstMethod() Parser[InstMethod] {
+  do {
+    t <- prPeek()
+    name <- prIdent()
+    expect(TkPunct, "(")
+    params <- prDelimited(prIdent, ")")
+    expect(TkPunct, ")")
+    body <- prBlock()
+    pure(InstMethod{pos: t.pos, name: name, params: params, body: body})
+  }
+}
+
+func prInstanceDecl() Parser[Decl] {
+  do {
+    start <- prNext()
+    className <- prIdent()
+    expect(TkPunct, "[")
+    (typeCon, params) <- prInstanceHead()
+    expect(TkPunct, "]")
+    t <- prPeek()
+    given <- prAccept(TkKeyword, "given")
+    context <- if given { do {
+      if length(params) == 0 { prFail(t.pos, "given requires instance type parameters") } else { pure(unit()) }
+      prSeparated1(func() => prConstraint(params), ",")
+    } } else { pure(Nil) }
+    expect(TkPunct, "{")
+    methods <- prMembers(prInstMethod)
+    expect(TkPunct, "}")
+    pure(DeclInstance(InstanceDecl{pos: start.pos, className: className, typeCon: typeCon, params: params, context: context, methods: methods}))
+  }
+}
+
+func prNamedType() Parser[(String, SType)] {
+  do { name <- prIdent(); expect(TkPunct, ":"); typ <- prType(); pure((name, typ)) }
+}
+
+// Named fields tolerate layout semicolons before/after commas, but not a
+// missing comma. The same loop serves record types and record expressions.
+func prNamedFields[A](item func() Parser[A]) Parser[List[A]] {
+  do {
+    value <- item()
+    prSkipSemis()
+    comma <- prAccept(TkPunct, ",")
+    rest <- if comma { do {
+      prSkipSemis()
+      done <- prIs(TkPunct, "}")
+      if done { pure(Nil) } else { prNamedFields(item) }
+    } } else { pure(Nil) }
+    pure(Cons(value, rest))
+  }
+}
+
+func prCtor() Parser[CtorDecl] {
+  do {
+    t <- prPeek()
+    name <- prIdent()
+    positional <- prAccept(TkPunct, "(")
+    if positional { do {
+      fields <- prDelimited(prType, ")")
+      expect(TkPunct, ")")
+      pure(CtorDecl{pos: t.pos, name: name, fields: fields, fieldNames: Nil})
+    } } else { do {
+      record <- prAccept(TkPunct, "{")
+      if record { do {
+        prSkipSemis()
+        empty <- prIs(TkPunct, "}")
+        if empty { prFail(t.pos, "record constructor needs at least one field") } else { pure(unit()) }
+        fields <- prNamedFields(prNamedType)
+        expect(TkPunct, "}")
+        pure(CtorDecl{pos: t.pos, name: name, fields: fmap(fields, snd), fieldNames: fmap(fields, fst)})
+      } } else { pure(CtorDecl{pos: t.pos, name: name, fields: Nil, fieldNames: Nil}) }
+    } }
+  }
+}
+
+func prTypeDecl() Parser[Decl] {
+  do {
+    t <- prNext()
+    name <- prIdent()
+    parameterized <- prAccept(TkPunct, "[")
+    tparams <- if parameterized { do {
+      names <- prSeparated1(prIdent, ",")
+      expect(TkPunct, "]")
+      pure(names)
+    } } else { pure(Nil) }
+    expect(TkPunct, "=")
+    ctors <- prSeparated1(prCtor, "|")
+    derived <- prAccept(TkKeyword, "deriving")
+    derivings <- if derived { prSeparated1(prIdent, ",") } else { pure(Nil) }
+    pure(DeclType(TypeDecl{pos: t.pos, name: name, tparams: tparams, ctors: ctors, derivings: derivings}))
+  }
+}
+
+func prFuncDecl(isExtern Bool) Parser[Decl] {
+  do {
+    t <- expect(TkKeyword, "func")
+    name <- prIdent()
+    tparams <- prTypeParams()
+    params <- prParams()
+    ret <- prType()
+    if isExtern { do {
+      expect(TkPunct, "=")
+      path <- prPeek()
+      if path.kind != TkString { prFail(path.pos, "expected import path string, found " + prTokenText(path)) } else { pure(unit()) }
+      prNext()
+      expect(TkPunct, ".")
+      goName <- prIdent()
+      pure(DeclFunc(FuncDecl{pos: t.pos, name: name, tparams: tparams, params: params, ret: ret, body: None, externRef: Some(ExternRef{importPath: path.text, goName: goName})}))
+    } } else { do {
+      body <- prBlock()
+      pure(DeclFunc(FuncDecl{pos: t.pos, name: name, tparams: tparams, params: params, ret: ret, body: Some(body), externRef: None}))
+    } }
+  }
+}
+
+func prType() Parser[SType] {
+  do {
+    t <- prPeek()
+    if prMatches(t, TkKeyword, "func") { do {
+      prNext()
+      expect(TkPunct, "(")
+      params <- prDelimited(prType, ")")
+      expect(TkPunct, ")")
+      ret <- prType()
+      pure(STFunc(t.pos, params, ret))
+    } } else if prMatches(t, TkPunct, "(") { do {
+      prNext()
+      first <- prType()
+      tuple <- prAccept(TkPunct, ",")
+      if tuple { do {
+        rest <- prSeparated1(prType, ",")
+        expect(TkPunct, ")")
+        pure(STTuple(t.pos, Cons(first, rest)))
+      } } else { do { expect(TkPunct, ")"); pure(first) } }
+    } } else { do {
+      name <- prIdent()
+      applied <- prAccept(TkPunct, "[")
+      args <- if applied { do {
+        values <- prSeparated1(prType, ",")
+        expect(TkPunct, "]")
+        pure(values)
+      } } else { pure(Nil) }
+      pure(STName(t.pos, name, args))
+    } }
+  }
+}
