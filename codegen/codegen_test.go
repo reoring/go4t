@@ -1273,6 +1273,9 @@ func (fakeImporter) Import(path string) (*gotypes.Package, error) {
 			{"Some", 1, 1},
 			{"None", 0, 1},
 			{"Uncons", 1, 3},
+			{"Tuple2", 2, 1},
+			{"Untuple2", 1, 2},
+			{"OrderingOf", 1, 1},
 		} {
 			params := make([]*gotypes.Var, shape.params)
 			for i := range params {
@@ -1283,6 +1286,9 @@ func (fakeImporter) Import(path string) (*gotypes.Package, error) {
 				typ := anyType
 				if shape.name == "Uncons" && i == 2 {
 					typ = gotypes.Typ[gotypes.Bool]
+				}
+				if shape.name == "OrderingOf" {
+					typ = gotypes.Typ[gotypes.Int]
 				}
 				results[i] = gotypes.NewVar(token.NoPos, pkg, "", typ)
 			}

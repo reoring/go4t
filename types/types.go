@@ -122,6 +122,9 @@ var (
 	Bool   = &TCon{Name: "Bool", Kind: KStar{}}
 	Unit   = &TCon{Name: "Unit", Kind: KStar{}}
 	IO     = &TCon{Name: "IO", Kind: KArrow{Params: []Kind{KStar{}}, Ret: KStar{}}}
+	Map    = &TCon{Name: "Map", Kind: KArrow{Params: []Kind{KStar{}, KStar{}}, Ret: KStar{}}}
+	Set    = &TCon{Name: "Set", Kind: KArrow{Params: []Kind{KStar{}}, Ret: KStar{}}}
+	Array  = &TCon{Name: "Array", Kind: KArrow{Params: []Kind{KStar{}}, Ret: KStar{}}}
 )
 
 // Tuple returns the builtin tuple constructor of arity n (>= 2), named

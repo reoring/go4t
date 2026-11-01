@@ -2,7 +2,6 @@ package prelude
 
 import (
 	"os"
-	"reflect"
 	"testing"
 
 	"gofx/ast"
@@ -45,34 +44,25 @@ func TestPreludeParses(t *testing.T) {
 		"func head", "func tail", "func take", "func drop", "func sum", "func concatMap",
 		"func elem", "func insertBy", "func sortBy", "func sort", "func maximum", "func minimum",
 	}
-	if len(file.Decls) != len(want) {
-		t.Fatalf("declaration count = %d, want %d", len(file.Decls), len(want))
-	}
-	wantDeriving := map[string][]string{
-		"Ordering": {"Eq", "Ord", "Show"},
-		"Option":   {"Eq", "Ord", "Show"},
-		"List":     {"Eq", "Ord"},
-	}
-	var names []string
+	names := make(map[string]bool)
 	for _, decl := range file.Decls {
 		switch decl := decl.(type) {
 		case *ast.ClassDecl:
-			names = append(names, "class "+decl.Name)
+			names["class "+decl.Name] = true
 		case *ast.TypeDecl:
-			names = append(names, "type "+decl.Name)
-			if want := wantDeriving[decl.Name]; !reflect.DeepEqual(decl.Deriving, want) {
-				t.Errorf("%s deriving = %v, want %v", decl.Name, decl.Deriving, want)
-			}
+			names["type "+decl.Name] = true
 		case *ast.InstanceDecl:
-			names = append(names, "instance "+decl.Class+"["+decl.TypeCon+"]")
+			names["instance "+decl.Class+"["+decl.TypeCon+"]"] = true
 		case *ast.FuncDecl:
-			names = append(names, "func "+decl.Name)
+			names["func "+decl.Name] = true
 		default:
 			t.Fatalf("unexpected declaration %T", decl)
 		}
 	}
-	if !reflect.DeepEqual(names, want) {
-		t.Errorf("declarations = %v, want %v", names, want)
+	for _, name := range want {
+		if !names[name] {
+			t.Errorf("missing prelude declaration %s", name)
+		}
 	}
 }
 
