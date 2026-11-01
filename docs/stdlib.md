@@ -222,13 +222,13 @@ Source: [`lazy/lazy.gfx`](../std/lazy/lazy.gfx). 3 top-level declarations.
 
 ## `std/list`
 
-Source: [`list/list.gfx`](../std/list/list.gfx). 67 top-level declarations.
+Source: [`list/list.gfx`](../std/list/list.gfx). 68 top-level declarations.
 
 Accumulator helpers are exported because their names do not begin `_`; prefer the ordinary entrypoints unless deliberately supplying a reversed prefix. `sortBy` is stable array-backed sorting; no `insertBy` remains.
 
 | Source signature | Semantics | Boundary behaviour |
 | --- | --- | --- |
-| `type List[A] = Nil \| Cons(A, List[A]) deriving Eq, Ord, Debug` | Immutable singly linked list: Nil or Cons(A, List[A]). | Derived Eq/Ord/Debug constrain A; Nil is []; lists are homogeneous and finite unless computation diverges. |
+| `type List[A] = Nil \| Cons(A, List[A]) deriving Eq, Ord` | Immutable singly linked list: Nil or Cons(A, List[A]). | Derived Eq/Ord constrain A; explicit Debug requires Debug[A]; Nil is []; lists are homogeneous and finite unless computation diverges. |
 | `instance Functor[List]` | Map List's element/result while retaining shape. | Nil unchanged, no callback; maps each element in order. |
 | `instance Monad[List]` | Inject and sequence List computations. | pure makes singleton; bind concatenates per-element lists; Nil skips callback. |
 | `instance Foldable[List]` | Right fold List elements. | Empty/None returns init; Cons folds right recursively. |
@@ -237,6 +237,7 @@ Accumulator helpers are exported because their names do not begin `_`; prefer th
 | `func toList[F[_] Foldable, A](fa F[A]) List[A]` | Collect any Foldable's elements in fold order. | Empty Foldable → Nil; preserves Foldable traversal order. |
 | `func foldMapList[F[_] Foldable, A, B](fa F[A], f func(A) List[B]) List[B]` | Map folded elements to lists and concatenate them in fold order. | Empty → Nil; empty callback lists add no elements; flatten in fold order. |
 | `instance Show[List[A]] given Show[A]` | Display as [a, b], using field Show where applicable. | Empty []; strings unquoted; element order retained. |
+| `instance Debug[List[A]] given Debug[A]` | Structural list-literal rendering using each element's Debug. | Empty []; elements separated by `, `; strings quoted; nested lists and record fields use brackets; Cons-built lists render identically. |
 | `func forEach[M[_] Monad, A](xs List[A], f func(A) M[Unit]) M[Unit]` | Sequence a list of Monad actions, discarding their Unit results. | `Nil → pure(unit())`, callback not called; singleton sequences one action; short-circuits according to the chosen Monad. |
 | `func mapM[M[_] Monad, A, B](xs List[A], f func(A) M[B]) M[List[B]]` | Sequence a list of Monad actions and collect their results in order. | `Nil → pure(Nil)`, callback not called; singleton maps one action and wraps its value in a singleton list; preserves order. |
 | `func fold[A, B](xs List[A], init B, f func(B, A) B) B` | Left fold a List through an accumulator. | `fold(Nil, init, f) = init`; singleton is `f(init, x)`; left-to-right fold. |
@@ -302,7 +303,6 @@ Derived instances (expanded from the type declarations above):
 | --- | --- | --- |
 | `instance Eq[List[A]] given Eq[A]` | Constructor/field equality. | All parameters require Eq, including phantom parameters. |
 | `instance Ord[List[A]] given Ord[A]` | Declaration-order constructor comparison, then lexicographic fields. | Requires Eq plus Ord on all parameters; Nil/None/Err precede Cons/Some/Ok respectively. |
-| `instance Debug[List[A]] given Debug[A]` | Structural constructor/field rendering. | All parameters require Debug; strings quoted; List uses Cons(..., Nil), not display brackets. |
 
 ## `std/map`
 
@@ -350,7 +350,7 @@ Source: [`prelude/prelude.gfx`](../std/prelude/prelude.gfx). 49 top-level declar
 | `class Foldable[F[_]] { foldr[A, B](fa F[A], init B, f func(A, B) B) B }` | Right fold occurrences of the element type. | Empty fold returns init; fold association is right, independent of callback evaluation strictness. |
 | `class Traversable[F[_]] : Functor[F] { traverse[M[_] Monad, A, B](fa F[A], f func(A) M[B]) M[F[B]] }` | Shape-preserving traversal with a supplied Monad. | Requires Functor; sequences left-to-right by source fields/elements; Monad determines short-circuiting. |
 | `class Show[A] { show(a A) String }` | User-facing display, used by interpolation. | Derivable only for enums (all constructors nullary), as source constructor names; String is identity; Unit has no standard Show. |
-| `class Debug[A] { debug(a A) String }` | Structural diagnostic rendering. | Derivable; strings quoted with Go escapes, Unit (), lists Cons(..., Nil). |
+| `class Debug[A] { debug(a A) String }` | Structural diagnostic rendering. | Derivable; strings quoted with Go escapes, Unit (), lists [a, b] or [] using element Debug. |
 | `class Eq[A] { eq(a A, b A) Bool }` | Type-directed equality used by == and !=. | Function values unsupported; Float NaN is unequal to itself. |
 | `type Ordering = LT \| EQ \| GT deriving Eq, Ord, Debug, Show` | Three-way ordering result: LT, EQ, GT. | Derived Eq/Ord/Debug/Show; declaration order LT < EQ < GT; display is LT/EQ/GT. |
 | `class Ord[A] : Eq[A] { compare(a A, b A) Ordering }` | Three-way comparison used by relational operators. | Requires Eq; Float compares NaNs EQ even though its Eq is false. |
@@ -405,7 +405,7 @@ Derived instances (expanded from the type declarations above):
 | `instance Show[Ordering]` | Display as LT/EQ/GT. | Derived from nullary source constructor names; no fields or quoting. |
 | `instance Eq[Option[A]] given Eq[A]` | Constructor/field equality. | All parameters require Eq, including phantom parameters. |
 | `instance Ord[Option[A]] given Ord[A]` | Declaration-order constructor comparison, then lexicographic fields. | Requires Eq plus Ord on all parameters; Nil/None/Err precede Cons/Some/Ok respectively. |
-| `instance Debug[Option[A]] given Debug[A]` | Structural constructor/field rendering. | All parameters require Debug; strings quoted; List uses Cons(..., Nil), not display brackets. |
+| `instance Debug[Option[A]] given Debug[A]` | Structural constructor/field rendering. | Requires Debug[A]; None or Some(debug(a)); strings quoted and list payloads use brackets. |
 
 ## `std/regex`
 
@@ -449,7 +449,7 @@ Derived instances (expanded from the type declarations above):
 | --- | --- | --- |
 | `instance Eq[Result[E, A]] given Eq[E], Eq[A]` | Constructor/field equality. | All parameters require Eq, including phantom parameters. |
 | `instance Ord[Result[E, A]] given Ord[E], Ord[A]` | Declaration-order constructor comparison, then lexicographic fields. | Requires Eq plus Ord on all parameters; Nil/None/Err precede Cons/Some/Ok respectively. |
-| `instance Debug[Result[E, A]] given Debug[E], Debug[A]` | Structural constructor/field rendering. | All parameters require Debug; strings quoted; List uses Cons(..., Nil), not display brackets. |
+| `instance Debug[Result[E, A]] given Debug[E], Debug[A]` | Structural constructor/field rendering. | Requires Debug[E] and Debug[A]; Err(debug(e)) or Ok(debug(a)); strings quoted and list payloads use brackets. |
 
 ## `std/set`
 

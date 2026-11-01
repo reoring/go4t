@@ -29,6 +29,7 @@ import "std/float"
 type Tree[A] = Tip | Leaf(A) | Fork(Tree[A], Tree[A]) deriving Functor, Foldable, Traversable, Debug
 type Nested[E, A] = Nested{tag: E, values: (A, List[Option[A]], (String, A)), children: List[Nested[E, A]]} deriving Functor, Foldable, Traversable
 type Record = Record{number: Int, text: String} deriving Debug
+type Row = Row{items: List[Int]} deriving Debug
 type Empty[A] = Empty deriving Functor, Foldable, Traversable
 type Currency = JPY | USD | EUR deriving Show
 instance Show[Record] { show(a) { "display" } }
@@ -48,6 +49,13 @@ func main() IO[Unit] {
     println("${JPY}|${USD}|${EUR}")
     println("${debug(1)}|${debug("a\n\"\\\t")}|${debug(false)}|${debug(unit())}|${debug(GT)}")
     println("${debug(Some("x"))}|${debug(emptyOption())}|${debug(["a", "b"])}|${debug(emptyList())}|${debug(("x", true))}")
+    println(debug([Some(1.5), None]))
+    let emptyDebug: List[Int] = []
+    println(debug(emptyDebug))
+    println(debug([[1], []]))
+    println(debug(Row{items: [1, 2]}))
+    println(debug(Cons(Some(1.5), Cons(None, Nil))))
+    println(debug([DebugOnly(2), DebugOnly(3)]))
     println("${Record(1, "x")}|${debug(Record(1, "x"))}")
     println(debug(tree))
     println(show(list.toList(prelude.fmap(tree, func(n) => n + 10))))
@@ -116,7 +124,13 @@ func main() IO[Unit] {
 		`1|raw|true|Some(raw)|None|[a, b]|(raw, false)|LT|EQ|GT`,
 		`JPY|USD|EUR`,
 		`1|"a\n\"\\\t"|false|()|GT`,
-		`Some("x")|None|Cons("a", Cons("b", Nil))|Nil|("x", true)`,
+		`Some("x")|None|["a", "b"]|[]|("x", true)`,
+		`[Some(1.5), None]`,
+		`[]`,
+		`[[1], []]`,
+		`Row{items: [1, 2]}`,
+		`[Some(1.5), None]`,
+		`[DebugOnly(2), DebugOnly(3)]`,
 		`display|Record{number: 1, text: "x"}`,
 		`Fork(Leaf(1), Fork(Leaf(2), Leaf(3)))`,
 		`[11, 12, 13]`,

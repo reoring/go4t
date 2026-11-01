@@ -3,7 +3,7 @@ package list
 import "std/prelude"
 import "std/array"
 
-type List[A] = Nil | Cons(A, List[A]) deriving Eq, Ord, Debug
+type List[A] = Nil | Cons(A, List[A]) deriving Eq, Ord
 
 instance Functor[List] {
   fmap(xs, f) {
@@ -62,6 +62,15 @@ instance Show[List[A]] given Show[A] {
     match xs {
       Nil => "[]"
       Cons(x, rest) => "[" + fold(rest, show(x), func(acc, a) => acc + ", " + show(a)) + "]"
+    }
+  }
+}
+
+instance Debug[List[A]] given Debug[A] {
+  debug(xs) {
+    match xs {
+      Nil => "[]"
+      Cons(x, rest) => "[" + fold(rest, debug(x), func(acc, a) => acc + ", " + debug(a)) + "]"
     }
   }
 }
