@@ -67,11 +67,11 @@ go4t が決定ロジックに与えるもの:
 | 決定ロジックで必要なこと | go4t | Go |
 | --- | --- | --- |
 | N 個のうちどれか、という状態 | 直和型(`A \| B(Int) \| C`) | const + コメント、または `*T` + `bool` |
-| 「すべてのケースを扱ったか?」 | 網羅的 `match`、欠けたパターンを列挙するコンパイルエラー | `default:` を書いて済ませる |
-| エラーをデータとして扱う | `Result[E, A]`、`Option[A]`、`do` による逐次化 | `(T, error)` と `if err != nil` |
-| 決定ロジックが I/O をしない保証 | 効果は `IO[A]` 値。純粋関数は実行できない | 規律 |
+| 「すべてのケースを扱ったか?」 | 網羅性検査付きの `match`、欠けたパターンを列挙するコンパイルエラー | `default:` を書いて済ませる |
+| エラーをデータとして扱う | `Result[E, A]`、`Option[A]`、`do` 記法による逐次処理 | `(T, error)` と `if err != nil` |
+| 決定ロジックが I/O をしない保証 | 作用は `IO[A]` 型の値。純粋関数からは実行できない | 規律 |
 | ネストしたデータの等価・順序・デバッグ表示 | `deriving Eq, Ord, Debug, Show` | 手書きか `reflect.DeepEqual` |
-| コンテナに依存しない汎用的な操作 | 型クラス、高階種(`Functor`、`Monad`、`Monoid`) | 型ごとにコピー |
+| コンテナに依存しない汎用的な操作 | 型クラス、高カインド多相(`Functor`、`Monad`、`Monoid`) | 型ごとにコピー |
 | 「この不変条件は全入力で成り立つ」 | `law` + `proof`、コンパイル時に全値について検査 | 選んだ入力のテーブルテスト、またはランダム入力の property-based testing(`rapid`) |
 
 すべて読みやすい Go にコンパイルされ、Go の速度で動き、依存は `go.mod` で管理します。
@@ -145,14 +145,14 @@ Go + `rapid` との比較で自分たちの主張を切り下げた経緯も含�
 
 ## 言語の概要
 
-- 代数的データ型、不変更新付きレコード、透過的 alias、タプル、永続 `List`/`Map`/`Set`/`Array`
-- Hindley–Milner 推論(rank-1 多相)、superclass と高階種を持つ型クラス、
+- 代数的データ型、レコード(更新構文付き)、型シノニム、タプル、永続データ構造の `List`/`Map`/`Set`/`Array`
+- Hindley–Milner 型推論(ランク 1 多相)、スーパークラスと高カインドを扱える型クラス、
   `deriving Eq, Ord, Show, Debug, Functor, Foldable, Traversable`、JSON `Encode`/`Decode`
-- ガード・タプル・リストパターン・パターン `let` を備えた網羅的 `match`
-- 明示的な効果:`IO[A]`、`do` 風ブロック、型付き `IoError` 回復、
+- 網羅性検査付きの `match`:ガード、タプルパターン、リストパターン、パターン束縛の `let`
+- 明示的な作用:`IO[A]`、`do` 記法風のブロック、`IoError` による型付きのエラー回復、
   キャンセル対応の fiber(`fork`/`await`/race/timeout)
 - `std`:文字列、数値、コレクション、JSON、HTTP クライアント/サーバ、正規表現、
-  遅延値、`State`、並行、ファイル/プロセス I/O
+  遅延評価される値、`State`、並行処理、ファイル/プロセス I/O
 - 双方向の Go 連携:`go4t bind` が任意の Go パッケージの型付き extern を生成
   (opaque handle 上のメソッド含む)、`go4t build --emit-go` が go4t の関数・レコード・直和型を
   自然な Go の型として export
@@ -231,7 +231,7 @@ go4t build hello/main.gt      # hello/main_gen/ に Go ソースを出力
 2. 生成:`go4t build --emit-go decide --package decide decide/decide.gt`
    (`//go:generate` に書く)。パッケージは `Decide`、全レコード・直和型の Go ミラー
    (`ObservedGo`、`ActionRollout{}`、`TtlTtlNanos{F0: …}`)、`Main() rt.IO` を export します。
-3. Go 側:外部の状態を読み、`Observed` を組み立て、`Decide` を呼び、結果で switch し、効果を実行する。
+3. Go 側:外部の状態を読み、`Observed` を組み立て、`Decide` を呼び、結果で switch し、作用を実行する。
    `decide` の中では I/O が起きないことをコンパイラが保証します。
 
 境界をきれいに保つ規則(SPEC §8.7、tutorial §12):
@@ -313,11 +313,11 @@ core prelude だけです。解決順:import 元 module のソースルート、
 | [calc](examples/calc) | `Result` エラー付き式インタプリタ | `go4t run examples/calc/main.gt` |
 | [cards](examples/cards) | ポーカー役判定、derived 順序、seed 付き `State` | `go4t run examples/cards/main.gt` |
 | [scheduler](examples/scheduler) | カスタム順序、ガード、上限付きスケジューリング | `go4t run examples/scheduler/main.gt` |
-| [sales-report](examples/sales-report) | 並列取得、型付き IO 回復、フォールバック | `go4t run examples/sales-report` |
+| [sales-report](examples/sales-report) | 並列取得、型付きの IO エラー回復、フォールバック | `go4t run examples/sales-report` |
 | [http](examples/http) | `std/http` サーバ/クライアント、JSON ルート、キャンセル(loopback) | `go4t run examples/http/main.gt -- 8080` |
 | [concurrency](examples/concurrency) | fork/await、順序付き並列、race、timeout | `go4t run examples/concurrency/main.gt` |
 | [json-deriving](examples/json-deriving) | JSON スキーマ導出とネストしたエラーパス | `go4t run examples/json-deriving/main.gt` |
-| [diagnostics](examples/diagnostics) | 網羅性・alias 不一致の診断(`bad_*.gt` は意図的に失敗) | `go4t run examples/diagnostics/main.gt` |
+| [diagnostics](examples/diagnostics) | 網羅性・型シノニム不一致の診断(`bad_*.gt` は意図的に失敗) | `go4t run examples/diagnostics/main.gt` |
 | [cli-tools](examples/cli-tools) | 純粋/IO テストと eval。`go4t test examples/cli-tools/main.gt` も | `go4t run examples/cli-tools/main.gt` |
 | [bank](examples/bank)、[inventory](examples/inventory)、[orders](examples/orders) | HTTP 通知付きドメイン検証(**ネットワーク**) | `go4t run examples/<name>/main.gt` |
 
@@ -329,13 +329,13 @@ core prelude だけです。解決順:import 元 module のソースルート、
 
 - **Go の代替ではない。** サービス、キャッシュ、クライアント、I/O が主体のものは Go に残す。
   bind して使い、移植しない。
-- **効果システムの研究言語ではない。** 効果型は `IO` 一つで、言語に可変参照はない。
+- **エフェクトシステムの研究言語ではない。** 作用の型は `IO` 一つで、言語に可変参照はない。
   共有可変状態が必要な設計なら、その状態は境界の Go 側に置く。
 - **証明支援系ではない。** 法則は関数を含まないデータ上の等式検査器で、戦術は固定。限界は
   [法則](#法則laws) の節を参照。controller の決定の順序を固定し安全にリファクタリングするには
   足りるが、算術や文字列の性質を証明するものではない。
 - **1.0 ではない。** 文法・std・ABI は上記の移植に耐える程度に安定し SPEC.md に記述されているが、
-  まだ変わりうる。既知の制限は [SPEC §9](SPEC.md#9-known-limitations):rank-1 多相のみ、
+  まだ変わりうる。既知の制限は [SPEC §9](SPEC.md#9-known-limitations):ランク 1 多相のみ、
   多引数型クラスなし、文字型なし、選択的 unboxing、`check` は foreign Go シグネチャを
   検証できない(`build`/`run` は検証する)。
 
@@ -343,7 +343,7 @@ core prelude だけです。解決順:import 元 module のソースルート、
 
 - [Go 開発者向けチュートリアル](docs/tutorial.md) — Go 外側 / go4t 決定ロジックの分担と法則を扱う 13 の短い章。
   全スニペットを CI で型検査。
-- [言語仕様](SPEC.md) — 文法、型と効果の規則、CLI、deriving、export される Go API、境界表。
+- [言語仕様](SPEC.md) — 文法、型と作用の規則、CLI、deriving、export される Go API、境界表。
 - [標準ライブラリ](docs/stdlib.md) — ソースの宣言一覧から生成。
 - [エディタ設定](editors/README.md) — stdio LSP と VS Code クライアント(`go4t.executablePath`)。
 - [設計履歴](DESIGN.md) — 実装スライスごとの契約。食い違う場合は SPEC が正。
