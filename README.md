@@ -5,11 +5,13 @@
 go4t is a small, statically typed functional language that compiles to ordinary
 Go. It exists for one job: **writing the decision core of a Go program** — the
 part that turns observed state into a next step — in a form where every state
-has a name, every case is checked, and nothing performs I/O.
+has a name, every case is checked, nothing performs I/O, and **the invariants
+of the decision are stated as laws and verified for every input** by
+`go4t check`.
 
 Go stays the shell. go4t is the core. You do not rewrite your service in go4t;
-you move the `if ok { … } else if … { return … }` ladders into it and call the
-result from Go as a typed function.
+you move the `if ok { … } else if … { return … }` ladders into it, state what
+must hold about them, and call the result from Go as a typed function.
 
 ```go4t
 package decide
@@ -47,7 +49,12 @@ case decide.FreshnessTtlInvalid:
 ```
 
 Remove an arm from the `match` and `go4t check` fails with
-`missing: (TtlNanos(_), InvalidTimestamp)`. That is the whole value proposition.
+`missing: (TtlNanos(_), InvalidTimestamp)`. Add a law —
+`isStale(freshness(TtlNanos(t), AtNanos(at), now)) == (now >= at + t)` — and
+moving the guard behind another check fails it for all `t`, `at`, `now`, not
+for the handful of samples a table test happens to list. That is the value
+proposition; the rest of this README is honest about how much of it Go can
+match.
 
 ## Why not just Go?
 
@@ -68,13 +75,48 @@ go4t gives the core what Go lacks:
 | Guarantee the core performs no I/O | effects are `IO[A]` values; a pure function cannot run one | discipline |
 | Equality, ordering, debug printing of nested data | `deriving Eq, Ord, Debug, Show` | hand-written or `reflect.DeepEqual` |
 | Generic operations over containers | type classes, higher-kinded (`Functor`, `Monad`, `Monoid`) | per-type copies |
+| "This invariant holds for every input" | `law` + `proof`, checked at compile time for all values | table tests over chosen samples, or property-based testing (`rapid`) over random ones |
 
 Everything compiles to readable Go, runs at Go speed, and uses `go.mod` for
 dependencies. Any Go package can be called through generated typed bindings.
 
+Be clear about the last row. We wrote the node-drain `decide` in plain Go side
+by side (the Go version and its `rapid` tests are recorded in ADR 0002, not
+shipped in this repository): the decision body is the same length, the
+type advantages are real but small, and property-based testing with
+`pgregory.net/rapid` caught all three mutations we tried (evicting a DaemonSet,
+moving the deadline check behind the PDB check, `>=` → `>` on the `now == at`
+boundary) in its default 100 runs, because its generator deliberately favours
+zero, empty and equal values. What remains unique to laws is that they are
+proofs rather than probabilities: no seed, no run count, no generator bias
+to reason about. Whether that is worth a second language is a judgement about
+how deep the branches are, how often their order changes, and how much you
+trust a probabilistic green in CI. For a `decide` with two `if`s, stay in Go.
+
 ## Where it has been used, and what we learned
 
 The language was validated by porting real code, not by writing samples.
+
+**Laws were validated on five decision cores in a row** before we called them
+usable: the attachment-repair controller above (4 laws), a node-drain
+controller written from scratch (`examples/node-drain-controller`, 10 laws:
+withdrawal → missing node → cordon → deadline → PDB → first evictable pod),
+a zone-placement core over `Map` capacity and usage (6 laws, including
+induction over a fallback list), an admission core chaining four gates through
+`Result` (7 laws), and a structural rewrite of the drain core proved
+equivalent to the original (`decide(o) == decideV2(o)`). The first three rounds
+each exposed a completeness gap in the normalizer (a correct law that would
+not close); each was fixed and pinned as a fixture. Rounds four and five needed
+no evaluator change. No round found a soundness defect: the normalizer is
+checked against the real runtime by an open-term property test (every law
+side and partial proof goal, ~75 000 random substitutions compared with
+`go4t run` output). The admission round also produced the first case of the
+checker catching a *false law*: the author's `fullPassAdmits` forgot that a
+negative quota is rejected, and the diagnostic named the condition
+(`stuck on: if (q < 0) …`) rather than a sample. The record, including the
+Go/`rapid` comparison that cut our own claims down, is in
+[`docs/adr/0001-equational-laws.md`](docs/adr/0001-equational-laws.md) and
+[`docs/adr/0002-laws-map-and-diagnostics.md`](docs/adr/0002-laws-map-and-diagnostics.md).
 
 **Two production Kubernetes controllers** (`examples/approval-controller`,
 `examples/attachment-repair-controller`) had their decision logic moved to
@@ -148,9 +190,22 @@ func main() IO[Unit] { ioPure(unit()) }
 Laws use definitional equality, independent of `Eq` instances. Proofs combine
 `refl`, constructor `match`, guard `if` and `rewrite` (including structural
 induction). Only eligible pure, terminating dependencies are admitted; Float
-and untrusted externs are excluded. Laws generate no runtime code. See
+and untrusted externs are excluded. `Map` is modelled symbolically, so
+`mapLookup(mapInsert(m, k, v), k2)` reduces to a key-equality case split.
+Laws generate no runtime code. See
 [tutorial §13](docs/tutorial.md#13-laws) for cancellation, the `freshness`
-`staleIff` guard law and list induction.
+`staleIff` guard law and list induction, and `laws/testdata/placement.gt`,
+`refactor_v2.gt` for a Map-based core and a refactoring-equivalence proof.
+
+What laws cover: first-order data (ADTs, records, `List`, `Option`, `Result`,
+`Map`), "every other field is arbitrary" invariants via `o{field: v}`, gate
+order, early return, idempotence, branch coverage, structural induction
+(including std `filter`/`head`/`append`), and equivalence of two `decide`s.
+What they do not: `Set`/`Array`, reasoning about string contents, order
+reasoning across comparisons (`a < b && b < c ⇒ a < c`), preconditions
+(`requires`), induction through fold-based std functions, and equality of two
+symbolic maps. Proof length grows with the number of branches; that is the
+specification's complexity, not the prover's.
 
 ## Install and quick start
 
@@ -317,6 +372,10 @@ Negative fixtures: `go4t test examples/cli-tools/failing.gt` exits 1,
 - **Not an effect-system research language.** There is one effect type, `IO`,
   and no mutable references in the language. If a design needs shared mutable
   state, that state belongs on the Go side of the boundary.
+- **Not a proof assistant.** Laws are an equational checker over first-order
+  data with a fixed tactic set; see the limits under [Laws](#laws). It is
+  enough to pin a controller's decision order and refactor it safely, not to
+  prove arithmetic or string properties.
 - **Not 1.0.** The grammar, std and ABI are stable enough for the ports above
   and are documented in SPEC.md, but they can still change. Known limits are
   listed in [SPEC §9](SPEC.md#9-known-limitations): rank-1 polymorphism only,
@@ -325,8 +384,8 @@ Negative fixtures: `go4t test examples/cli-tools/failing.gt` exits 1,
 
 ## Documentation and editors
 
-- [Tutorial for Go developers](docs/tutorial.md) — twelve short lessons ending
-  with the Go-shell/go4t-core pattern; every snippet is type-checked in CI.
+- [Tutorial for Go developers](docs/tutorial.md) — thirteen short lessons, the
+  Go-shell/go4t-core pattern and laws; every snippet is type-checked in CI.
 - [Language specification](SPEC.md) — grammar, type and effect rules, CLI,
   deriving, exported Go API, boundary tables.
 - [Standard library reference](docs/stdlib.md) — generated from the source
