@@ -4,10 +4,12 @@
 
 go4t は、通常の Go にコンパイルされる小さな静的型付き関数型言語です。目的は一つ、
 **Go プログラムの「判定の芯」を書くこと**。観測した状態から次の一手を決める部分を、
-すべての状態に名前があり、すべての場合分けが検査され、I/O が一切起きない形で書きます。
+すべての状態に名前があり、すべての場合分けが検査され、I/O が一切起きず、
+**判定の不変条件を法則として書いて `go4t check` が全入力について検証する**形で書きます。
 
 殻は Go のまま、芯だけが go4t です。サービスを go4t で書き直すのではなく、
-`if ok { … } else if … { return … }` の連鎖を go4t に移し、Go から型付き関数として呼びます。
+`if ok { … } else if … { return … }` の連鎖を go4t に移し、それについて成り立つべきことを書き、
+Go から型付き関数として呼びます。
 
 ```go4t
 package decide
@@ -45,7 +47,11 @@ case decide.FreshnessTtlInvalid:
 ```
 
 `match` の arm を 1 本消すと `go4t check` は
-`missing: (TtlNanos(_), InvalidTimestamp)` で失敗します。価値の中心はこれです。
+`missing: (TtlNanos(_), InvalidTimestamp)` で失敗します。法則
+`isStale(freshness(TtlNanos(t), AtNanos(at), now)) == (now >= at + t)` を足せば、
+ガードを別の判定の後ろへ動かしたとき、テーブルテストが並べた数件ではなく
+すべての `t`, `at`, `now` について落ちます。価値の中心はこれです。
+以降は、そのうちどこまでを Go が追いつけるかを正直に書きます。
 
 ## なぜ Go だけでは足りないか
 
@@ -65,13 +71,41 @@ go4t が芯に与えるもの:
 | 芯が I/O をしない保証 | 効果は `IO[A]` 値。純粋関数は実行できない | 規律 |
 | ネストしたデータの等価・順序・デバッグ表示 | `deriving Eq, Ord, Debug, Show` | 手書きか `reflect.DeepEqual` |
 | コンテナ横断の総称操作 | 型クラス、高階種(`Functor`、`Monad`、`Monoid`) | 型ごとにコピー |
+| 「この不変条件は全入力で成り立つ」 | `law` + `proof`、コンパイル時に全値について検査 | 選んだ sample のテーブルテスト、またはランダム生成の property-based testing(`rapid`) |
 
 すべて読める Go に落ち、Go の速度で動き、依存は `go.mod` で管理します。
 どの Go パッケージも生成された型付き binding 経由で呼べます。
 
+最後の行については正直に。node-drain の `decide` を素の Go でも書いて並べました
+(Go 版と `rapid` テストは ADR 0002 に記録、リポジトリには同梱していません)。
+判定本体の行数は同じ、型の利点は本物だが小さく、`pgregory.net/rapid` による
+property-based testing は試した 3 つの破壊(DaemonSet を退避する、期限チェックを
+PDB チェックの後ろへ動かす、`now == at` 境界だけで露呈する `>=` → `>`)を
+既定の 100 回ですべて検出しました。生成器が 0・空・一致する値を意図的に優先するからです。
+法則だけに残るのは「確率ではなく証明」であること——seed も回数も生成器の偏りも考えなくてよい。
+それに第二言語の値段を払うかは、分岐の深さ、順序を変える頻度、CI の確率的な緑を
+どれだけ信用するかの判断です。`if` が 2 つの `decide` なら Go のままで十分です。
+
 ## どこで使われ、何が分かったか
 
 サンプルではなく、実コードの移植で検証しました。
+
+**法則は 5 つの判定の芯で連続して検証してから**「使える」と呼びました:
+上の attachment-repair コントローラ(法則 4 本)、一から書いた node-drain コントローラ
+(`examples/node-drain-controller`、10 本: 取り下げ → ノード消失 → cordon → 期限 → PDB → 最初の退避可能 pod)、
+`Map` の容量と使用量を持つゾーン配置の芯(6 本、fallback 列の帰納法を含む)、
+4 つのゲートを `Result` で連鎖する admission の芯(7 本)、drain の芯を構造から書き換えて
+元と同値だと証明したもの(`decide(o) == decideV2(o)`)。最初の 3 回はそれぞれ正規化器の
+完全性の穴(正しい法則が閉じない)を露呈し、修正して fixture に固定しました。
+4 回目と 5 回目は評価器の変更が不要でした。健全性の欠陥はどの回も出ていません。
+正規化器は開いた項の性質テスト(全法則の両辺と部分証明の目標を約 75,000 件のランダム代入で
+`go4t run` の出力と照合)で実ランタイムと突き合わせています。admission の回では、検査器が
+**偽の法則**を捕まえた初例が出ました。書き手の `fullPassAdmits` は負の quota が拒否されることを
+忘れており、診断は sample ではなく条件そのもの(`stuck on: if (q < 0) …`)を示しました。
+自分たちの主張を削った Go/`rapid` 比較を含む記録は
+[`docs/adr/0001-equational-laws.md`](docs/adr/0001-equational-laws.md) と
+[`docs/adr/0002-laws-map-and-diagnostics.md`](docs/adr/0002-laws-map-and-diagnostics.md) にあります。
+
 
 **本番の Kubernetes controller 2 本**(`examples/approval-controller`、
 `examples/attachment-repair-controller`)の判定ロジックを go4t に移し、元の Go テストファイルは
@@ -135,9 +169,19 @@ func main() IO[Unit] { ioPure(unit()) }
 等式は `Eq` インスタンスとは独立した定義的等価です。`refl`、コンストラクタの
 `match`、条件の `if`、構造的帰納法を含む `rewrite` を組み合わせて証明します。
 対象は純粋性・停止性・安全性の条件を満たす依存だけで、Float や信頼されない extern は
-除外されます。法則の実行時コードは生成されません。
+除外されます。`Map` は記号的にモデル化され、`mapLookup(mapInsert(m, k, v), k2)` は
+キー等価の場合分けに簡約されます。法則の実行時コードは生成されません。
 [チュートリアル §13](docs/tutorial.md#13-laws) に cancel の冪等性、
-`freshness` の `staleIff`、リストの帰納法の例があります。
+`freshness` の `staleIff`、リストの帰納法の例があり、`laws/testdata/placement.gt` と
+`refactor_v2.gt` に Map を持つ芯とリファクタ同値の証明があります。
+
+法則が覆うもの: 一階データ(ADT、レコード、`List`、`Option`、`Result`、`Map`)、
+`o{field: v}` による「他のフィールドは任意」型の不変条件、ゲート順、早期帰還、冪等性、
+分岐被覆、構造的帰納(std の `filter`/`head`/`append` を含む)、二つの `decide` の同値性。
+覆わないもの: `Set`/`Array`、文字列の中身の推論、比較をまたぐ順序推論
+(`a < b && b < c ⇒ a < c`)、前提条件(`requires`)、fold ベースの std 関数への帰納、
+二つの記号的な Map の等式。証明の長さは分岐数に比例します。それは仕様の複雑さであって
+証明器のものではありません。
 
 ## インストールとクイックスタート
 
@@ -272,6 +316,9 @@ core prelude だけです。解決順:import 元 module のソースルート、
   bind して使い、移植しない。
 - **効果システムの研究言語ではない。** 効果型は `IO` 一つで、言語に可変参照はない。
   共有可変状態が必要な設計なら、その状態は境界の Go 側に置く。
+- **証明支援系ではない。** 法則は一階データ上の等式検査器で、戦術は固定。限界は
+  [法則](#法則laws) の節を参照。コントローラの判定順序を固定し安全にリファクタするには
+  足りるが、算術や文字列の性質を証明するものではない。
 - **1.0 ではない。** 文法・std・ABI は上記の移植に耐える程度に安定し SPEC.md に記述されているが、
   まだ変わりうる。既知の制限は [SPEC §9](SPEC.md#9-known-limitations):rank-1 多相のみ、
   多引数型クラスなし、文字型なし、選択的 unboxing、`check` は foreign Go シグネチャを
