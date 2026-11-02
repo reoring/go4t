@@ -79,6 +79,15 @@ func (e *evaluator) resume(t *term) (*term, error) {
 		if indexes != nil && (base.kind == "ctor" || base.kind == "tuple") {
 			return base.args[indexes[0]], nil
 		}
+		if len(t.cases) == 0 && t.ctor != nil {
+			value, stripped := projectUpdate(base, t.ctor, t.index)
+			if value != nil {
+				return value, nil
+			}
+			if stripped != base {
+				return &term{kind: "field", name: t.name, index: t.index, ctor: t.ctor, args: []*term{stripped}}, nil
+			}
+		}
 	case "update":
 		base := t.args[0]
 		indexes := t.indexes

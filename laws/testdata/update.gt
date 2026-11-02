@@ -1,0 +1,33 @@
+package main
+
+type Mode = DryRun | Live deriving Eq, Debug
+type Observed = Observed{mode: Mode, gen: Int, name: String} deriving Eq, Debug
+type Action = Skip | Apply(Int) deriving Eq, Debug
+
+func decide(o Observed) Action {
+  match o.mode {
+    DryRun => Skip
+    Live => Apply(o.gen)
+  }
+}
+
+// (o{mode: v}).mode reduces to v while o stays symbolic.
+law dryRunSkips(o Observed) { decide(o{mode: DryRun}) == Skip }
+proof dryRunSkips(o) { refl }
+
+// (o{mode: v}).gen reduces to o.gen; the outer match still needs o.mode.
+law liveApplies(o Observed) { decide(o{mode: Live}) == Apply(o.gen) }
+proof liveApplies(o) { refl }
+
+// Chained updates: the innermost value of an unshadowed field survives.
+law chained(o Observed, n Int) { o{gen: n}{mode: Live}.gen == n }
+proof chained(o, n) { refl }
+
+law shadowed(o Observed, n Int, m Int) { o{gen: n}{gen: m}.gen == m }
+proof shadowed(o, n, m) { refl }
+
+// A field that was never updated projects through every update.
+law untouched(o Observed, n Int) { o{gen: n}{mode: DryRun}.name == o.name }
+proof untouched(o, n) { refl }
+
+func main() IO[Unit] { ioPure(unit()) }

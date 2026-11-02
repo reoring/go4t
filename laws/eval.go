@@ -251,6 +251,13 @@ func (e *evaluator) evalExpr(expr ast.Expr, env *environment, dicts dictionaryEn
 		if indexes != nil && (base.kind == "ctor" || base.kind == "tuple") {
 			return base.args[indexes[0]], nil
 		}
+		if len(ann.RecordCases) == 0 {
+			value, stripped := projectUpdate(base, ann.Ctor, ann.FieldIndex)
+			if value != nil {
+				return value, nil
+			}
+			base = stripped
+		}
 		return &term{kind: "field", name: x.Name, index: ann.FieldIndex, ctor: ann.Ctor, cases: ann.RecordCases, args: []*term{base}}, nil
 	case *ast.RecordUpdate:
 		base, err := e.eval(x.X, env, dicts)
@@ -458,6 +465,27 @@ func (e *evaluator) block(block *ast.Block, env *environment, dicts dictionaryEn
 		}
 	}
 	return e.eval(block.Result, env, dicts)
+}
+
+// projectUpdate reduces (r{f: v, ...}).g for a single-constructor record whose
+// base r is symbolic. The projection is v when g was updated; otherwise the
+// projection moves to the update's base, recursively, and the stripped base
+// is returned with value nil. Both steps are sound for any r because an update
+// always yields the same constructor with the other fields copied.
+// Multi-constructor (RecordCases) updates are not reduced here.
+func projectUpdate(base *term, ctor *types.Ctor, index int) (value *term, stripped *term) {
+	for base.kind == "update" && len(base.cases) == 0 && base.ctor == ctor {
+		for i, updated := range base.indexes {
+			if updated == index {
+				return base.args[i+1], nil
+			}
+		}
+		base = base.args[0]
+	}
+	if base.kind == "ctor" && base.ctor == ctor {
+		return base.args[index], nil
+	}
+	return nil, base
 }
 
 func caseIndexes(value *term, cases []types.RecordCase) []int {
