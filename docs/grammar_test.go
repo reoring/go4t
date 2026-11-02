@@ -580,6 +580,7 @@ func renderSentence(s grammarSentence) string {
 var grammarGenerationAllowlist = map[string]string{
 	"Class":    "superclass argument must equal the class parameter, not a fresh identifier",
 	"Instance": "given arguments must reuse parameters declared in this instance head",
+	"LawDecl":  "the outermost body operator must be equality; arbitrary Expr sides may require parentheses",
 	"Decl":     "includes the name-dependent Class and Instance declarations",
 	"File":     "includes Decl; imports and all context-free declaration constituents have their own roots",
 }
@@ -613,8 +614,18 @@ func grammarProgram(root, sentence string) (string, bool) {
 		expression = "match value { [_, " + sentence + "] => 1 }"
 	case "Type", "Name", "UpperIdent":
 		return "package main; alias T = " + sentence, true
-	case "TypeDecl", "AliasDecl", "Func", "Extern", "Import":
+	case "TypeDecl", "AliasDecl", "Func", "Extern", "Import", "ProofDecl":
 		return "package main; " + sentence, true
+	case "Tactic":
+		return "package main; proof lawName() { " + sentence + " }", true
+	case "TacticBlock":
+		return "package main; proof lawName() " + sentence, true
+	case "TacticArm":
+		return "package main; proof lawName(x) { match x { " + sentence + " } }", true
+	case "TacticPattern":
+		return "package main; proof lawName(x) { match x { " + sentence + " => refl } }", true
+	case "TacticRecordFields":
+		return "package main; proof lawName(x) { match x { C" + sentence + " => refl } }", true
 	case "Separator":
 		return sentence + " package main", true
 	case "Ctor":

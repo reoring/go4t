@@ -1,0 +1,82 @@
+package main
+
+import "std/string"
+
+law foldStrLength() { string.strLength("é😀") == 2 }
+proof foldStrLength() { refl }
+law foldStrConcat() { string.strConcat(["a", "é"]) == "aé" }
+proof foldStrConcat() { refl }
+law foldJoin() { string.join("/", ["a", "b"]) == "a/b" }
+proof foldJoin() { refl }
+law foldSplit() { string.split(",", "a,b,") == ["a", "b", ""] }
+proof foldSplit() { refl }
+law foldLines() { string.lines("a\nb\n") == ["a", "b"] }
+proof foldLines() { refl }
+law foldWords() { string.words("  a\tb ") == ["a", "b"] }
+proof foldWords() { refl }
+law foldTrim() { string.trim("  é\n") == "é" }
+proof foldTrim() { refl }
+law foldToUpper() { string.toUpper("éa") == "ÉA" }
+proof foldToUpper() { refl }
+law foldToLower() { string.toLower("ÉA") == "éa" }
+proof foldToLower() { refl }
+law foldStartsWith() { string.startsWith("abc", "ab") == true }
+proof foldStartsWith() { refl }
+law foldEndsWith() { string.endsWith("abc", "bc") == true }
+proof foldEndsWith() { refl }
+law foldContains() { string.contains("abc", "b") == true }
+proof foldContains() { refl }
+law foldReplace() { string.replace("aba", "a", "x") == "xbx" }
+proof foldReplace() { refl }
+law foldSubstring() { string.substring("aé😀", 1, 99) == "é😀" }
+proof foldSubstring() { refl }
+law foldChars() { string.chars("é😀") == ["é", "😀"] }
+proof foldChars() { refl }
+law foldRepeat() { string.repeat("é", 3) == "ééé" }
+proof foldRepeat() { refl }
+law foldParseInt() { string.parseInt("-9223372036854775808") == Some(-9223372036854775807 - 1) }
+proof foldParseInt() { refl }
+law foldShowPadLeft() { string.showPadLeft(7, 3) == "  7" }
+proof foldShowPadLeft() { refl }
+law foldCodePoint() { string.codePoint("😀") == Some(128512) }
+proof foldCodePoint() { refl }
+law foldFromCodePoint() { string.fromCodePoint(128512) == "😀" }
+proof foldFromCodePoint() { refl }
+law foldIsDigit() { string.isDigit("12") == true }
+proof foldIsDigit() { refl }
+law foldIsAlpha() { string.isAlpha("éA") == true }
+proof foldIsAlpha() { refl }
+law foldIsSpace() { string.isSpace(" \t") == true }
+proof foldIsSpace() { refl }
+law foldIsUpper() { string.isUpper("ÉA") == true }
+proof foldIsUpper() { refl }
+law foldIsLower() { string.isLower("éa") == true }
+proof foldIsLower() { refl }
+law foldIndexOf() { string.indexOf("éabc", "b") == Some(2) }
+proof foldIndexOf() { refl }
+law foldPadRight() { string.padRight("é", 3) == "é  " }
+proof foldPadRight() { refl }
+law foldPadLeft() { string.padLeft("é", 3) == "  é" }
+proof foldPadLeft() { refl }
+law foldReverseString() { string.reverseString("é😀") == "😀é" }
+proof foldReverseString() { refl }
+law foldSplitOnce() { string.splitOnce(":", "a:b:c") == Some(("a", "b:c")) }
+proof foldSplitOnce() { refl }
+law foldCharAt() { string.charAt("aé😀", 1) == Some("é") }
+proof foldCharAt() { refl }
+law foldShowQuoted() { string.showQuoted("a\nb") == "\"a\\nb\"" }
+proof foldShowQuoted() { refl }
+
+law openTrim(s String) { string.trim(s) == string.trim(s) }
+proof openTrim(s) { refl }
+law openJoin(xs List[String]) { string.join("/", xs) == string.join("/", xs) }
+proof openJoin(xs) { refl }
+law openSplit(s String) { string.split(",", s) == string.split(",", s) }
+proof openSplit(s) { refl }
+law openParse(s String) { string.parseInt(s) == string.parseInt(s) }
+proof openParse(s) { refl }
+law openChar(s String) { string.charAt(s, 1) == string.charAt(s, 1) }
+proof openChar(s) { refl }
+law openSplitOnce(s String) { string.splitOnce(":", s) == string.splitOnce(":", s) }
+proof openSplitOnce(s) { refl }
+func main() IO[Unit] { ioPure(unit()) }

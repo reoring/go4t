@@ -242,6 +242,20 @@ type FuncInfo struct {
 	Decl   *ast.FuncDecl
 }
 
+// LawInfo describes a monomorphic equation, outside the runtime value namespace.
+type LawInfo struct {
+	Decl       *ast.LawDecl
+	ParamTypes []Type
+	Proof      *ProofInfo
+}
+
+// ProofInfo retains the checked split bindings for the equational checker.
+type ProofInfo struct {
+	Decl    *ast.ProofDecl
+	Law     *LawInfo
+	PatVars map[*ast.PVar]Type
+}
+
 type Program struct {
 	Modules []*ast.Module
 	// ModuleNames maps canonical declarations to their source spelling.
@@ -252,6 +266,8 @@ type Program struct {
 	Instances []*Instance
 	DataTypes map[string]*DataType
 	Funcs     map[string]*FuncInfo
+	Laws      map[string]*LawInfo
+	Proofs    map[string]*ProofInfo
 	Main      *FuncInfo
 	// Files in check order: prelude first, then user file(s).
 	Files []*ast.File
@@ -283,6 +299,7 @@ const (
 	RefFunc
 	RefMethod
 	RefCtor
+	RefLaw // only a TRewrite target; never a callable expression
 )
 
 type DictKind int

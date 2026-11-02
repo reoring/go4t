@@ -96,3 +96,7 @@ func (n *PRecord) SetEnd(p Pos) { n.End = p }
 func (n *PAs) GetPos() Pos  { return n.Pos }
 func (n *PAs) GetEnd() Pos  { return n.End }
 func (n *PAs) SetEnd(p Pos) { n.End = p }
+
+func (n *TacticArm) GetPos() Pos  { return n.Pos }
+func (n *TacticArm) GetEnd() Pos  { return n.End }
+func (n *TacticArm) SetEnd(p Pos) { n.End = p }

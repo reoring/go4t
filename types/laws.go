@@ -1,0 +1,230 @@
+package types
+
+import (
+	"strings"
+
+	"go4t/ast"
+)
+
+func (c *checker) pairLaws(files []*ast.File) {
+	for _, file := range files {
+		c.file = file.Name
+		for _, decl := range file.Decls {
+			c.decl = decl
+			switch decl := decl.(type) {
+			case *ast.LawDecl:
+				law := c.program.Laws[decl.Name]
+				law.Proof = c.program.Proofs[decl.Name]
+				if law.Proof == nil {
+					fail(decl.Pos, "law %s has no proof", diagnosticName(decl.Name))
+				}
+			case *ast.ProofDecl:
+				proof := c.program.Proofs[decl.Name]
+				proof.Law = c.program.Laws[decl.Name]
+				if proof.Law == nil {
+					fail(decl.Pos, "proof %s has no law %s", diagnosticName(decl.Name), diagnosticName(decl.Name))
+				}
+				if len(decl.Params) != len(proof.Law.ParamTypes) {
+					fail(decl.Pos, "proof %s: want %d parameters, got %d", diagnosticName(decl.Name), len(proof.Law.ParamTypes), len(decl.Params))
+				}
+			}
+		}
+	}
+}
+
+// All law sides are checked before tactics, so forward and self rewrites have
+// both their parameter types and their annotated result type available.
+func (c *checker) checkLaws(files []*ast.File) {
+	for _, file := range files {
+		c.file = file.Name
+		for _, decl := range file.Decls {
+			law, ok := decl.(*ast.LawDecl)
+			if !ok {
+				continue
+			}
+			c.decl = decl
+			info := c.program.Laws[law.Name]
+			b := c.body(nil, nil)
+			env := lawParams(law.Params, info.ParamTypes)
+			for i, typ := range info.ParamTypes {
+				c.rejectLawFloat(law.Params[i].Pos, typ)
+			}
+			left := b.infer(law.LHS, env)
+			right := b.inferExpected(law.RHS, env, left)
+			unify(law.RHS.GetPos(), left, right)
+			b.finish()
+			b.rejectLawFloats()
+		}
+	}
+	for _, file := range files {
+		c.file = file.Name
+		for _, decl := range file.Decls {
+			proof, ok := decl.(*ast.ProofDecl)
+			if !ok {
+				continue
+			}
+			c.decl = decl
+			info := c.program.Proofs[proof.Name]
+			b := c.body(nil, nil)
+			b.tactic(proof.Body, lawParams(proof.Params, info.Law.ParamTypes), info)
+			b.finish()
+			for pat, typ := range info.PatVars {
+				info.PatVars[pat] = zonk(pat.Pos, typ, b.defaultMeta)
+			}
+			b.rejectLawFloats()
+		}
+	}
+}
+
+func lawParams(params []ast.Param, types []Type) *locals {
+	env := newLocals(nil)
+	for i, param := range params {
+		checkValueName(param.Pos, param.Name)
+		if env.values[param.Name] != nil {
+			fail(param.Pos, "duplicate parameter %s", param.DisplayName())
+		}
+		env.values[param.Name] = types[i]
+	}
+	return env
+}
+
+func (b *bodyChecker) tactic(t ast.Tactic, env *locals, proof *ProofInfo) {
+	switch t := t.(type) {
+	case *ast.TRefl:
+	case *ast.TMatch:
+		typ, _ := env.lookup(t.Var.Name)
+		if typ == nil {
+			fail(t.Var.Pos, "match variable %s is not a proof variable", t.Var.DisplayName())
+		}
+		b.infer(t.Var, env)
+		head := prune(typ)
+		if app, ok := head.(*TApp); ok {
+			head = prune(app.Fun)
+		}
+		con, ok := head.(*TCon)
+		if !ok {
+			fail(t.Var.Pos, "cannot split %s", typ)
+		}
+		_, tuple := IsTuple(con)
+		if !tuple && b.c.program.DataTypes[con.Name] == nil {
+			fail(t.Var.Pos, "cannot split %s", typ)
+		}
+		rows := make([][]ast.Pattern, len(t.Arms))
+		for i, arm := range t.Arms {
+			checkTacticPattern(arm.Pat)
+			local := newLocals(env)
+			b.patVars = proof.PatVars
+			b.pattern(arm.Pat, typ, local)
+			b.patVars = nil
+			rows[i] = []ast.Pattern{arm.Pat}
+			b.tactic(arm.Body, local, proof)
+		}
+		missing := b.c.uncovered(rows, []Type{typ}, 5)
+		if len(missing) != 0 {
+			patterns := make([]string, len(missing))
+			for i, row := range missing {
+				patterns[i] = row[0]
+			}
+			fail(t.Pos, "non-exhaustive match; missing: %s", strings.Join(patterns, ", "))
+		}
+	case *ast.TIf:
+		unify(t.Cond.GetPos(), Bool, b.infer(t.Cond, env))
+		b.tactic(t.Then, env, proof)
+		b.tactic(t.Else, env, proof)
+	case *ast.TRewrite:
+		law := b.c.program.Laws[t.Law.Name]
+		if law == nil {
+			fail(t.Law.Pos, "unknown law %s", t.Law.DisplayName())
+		}
+		if len(t.Args) != len(law.ParamTypes) {
+			fail(t.Pos, "arity mismatch: want %d arguments, got %d", len(law.ParamTypes), len(t.Args))
+		}
+		*t.Law.AnnSlot() = &Ann{Ref: RefLaw, Type: &TFunc{Params: law.ParamTypes, Ret: AnnOf(law.Decl.LHS).Type}}
+		b.exprs = append(b.exprs, t.Law)
+		for i, arg := range t.Args {
+			unify(arg.GetPos(), law.ParamTypes[i], b.inferExpected(arg, env, law.ParamTypes[i]))
+		}
+		b.tactic(t.Body, env, proof)
+	}
+}
+
+func checkTacticPattern(p ast.Pattern) {
+	switch p := p.(type) {
+	case *ast.PVar, *ast.PWild:
+	case *ast.PCtor:
+		if p.List {
+			fail(p.Pos, "tactic match does not support list patterns")
+		}
+		for _, arg := range p.Args {
+			checkTacticPattern(arg)
+		}
+	case *ast.PRecord:
+		for _, pat := range p.Pats {
+			checkTacticPattern(pat)
+		}
+	case *ast.PTuple:
+		for _, elem := range p.Elems {
+			checkTacticPattern(elem)
+		}
+	default:
+		fail(p.GetPos(), "tactic match does not support literal or as-patterns")
+	}
+}
+
+func (b *bodyChecker) rejectLawFloats() {
+	for _, expr := range b.exprs {
+		b.c.rejectLawFloat(expr.GetPos(), AnnOf(expr).Type)
+	}
+}
+
+func (c *checker) rejectLawFloat(pos ast.Pos, typ Type) {
+	if c.lawHasFloat(typ, make(map[*DataType]bool)) {
+		fail(pos, "laws do not support Float")
+	}
+}
+
+// Inspect data fields as well as explicit type arguments. Visiting each data
+// declaration once is enough: its variables are checked at the application,
+// and its fixed fields are independent of those variables. This also handles
+// recursive and non-regular data types without expanding them indefinitely.
+func (c *checker) lawHasFloat(typ Type, seen map[*DataType]bool) bool {
+	if alias, ok := typ.(*TAlias); ok {
+		for _, arg := range alias.Args {
+			if c.lawHasFloat(arg, seen) {
+				return true
+			}
+		}
+		return c.lawHasFloat(alias.Body, seen)
+	}
+	switch typ := prune(typ).(type) {
+	case *TCon:
+		if typ == Float {
+			return true
+		}
+		if data := c.program.DataTypes[typ.Name]; data != nil && !seen[data] {
+			seen[data] = true
+			for _, ctor := range data.Ctors {
+				for _, field := range ctor.Fields {
+					if c.lawHasFloat(field, seen) {
+						return true
+					}
+				}
+			}
+		}
+	case *TApp:
+		for _, arg := range typ.Args {
+			if c.lawHasFloat(arg, seen) {
+				return true
+			}
+		}
+		return c.lawHasFloat(typ.Fun, seen)
+	case *TFunc:
+		for _, param := range typ.Params {
+			if c.lawHasFloat(param, seen) {
+				return true
+			}
+		}
+		return c.lawHasFloat(typ.Ret, seen)
+	}
+	return false
+}

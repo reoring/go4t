@@ -587,6 +587,117 @@ timestamps as `Int` nanoseconds (the representation of `time.Duration` and
 `UnixNano`) so no rounding happens at the boundary. Keep the projection to
 what the decision needs; every call copies it (SPEC §8.7).
 
+## 13. Laws
+
+Tests check chosen inputs. A `law` states an equation for every value of its
+typed parameters; its same-named `proof` explains how to reduce both sides to
+the same term. Save each example separately and run `go4t check FILE.gt`.
+`build`, `run`, `test` and `eval` do not verify proofs; laws generate no Go code.
+
+### Constructor cases: cancellation is idempotent
+
+```go4t
+package main
+type Order = Pending(Int) | Cancelled(Int) | Shipped(Int)
+func cancel(order Order) Order {
+  match order {
+    Pending(n) => Cancelled(n)
+    Cancelled(n) => Cancelled(n)
+    Shipped(n) => Shipped(n)
+  }
+}
+law cancelIdempotent(order Order) {
+  cancel(cancel(order)) == cancel(order)
+}
+proof cancelIdempotent(order) {
+  match order {
+    Pending(_) => refl
+    Cancelled(_) => refl
+    Shipped(_) => refl
+  }
+}
+func main() IO[Unit] { ioPure(unit()) }
+```
+
+`match` opens each constructor case. In each branch `refl` unfolds `cancel`
+and checks that the normal forms agree. No `Eq` instance is needed: a law's
+outer `==` means definitional equality, not a call to the runtime equality method.
+Proof parameter names can differ from law names; binding is positional.
+
+### Guards: exactly when a finite TTL is stale
+
+This is the README's `freshness` decision. Splitting on its guard proves both
+outcomes without assuming an ordering theorem about wrapping Int arithmetic:
+
+```go4t
+package main
+type Ttl = NoTtl | InvalidTtl | TtlNanos(Int) deriving Eq, Debug
+type Timestamp = NoTimestamp | InvalidTimestamp | AtNanos(Int) deriving Eq, Debug
+type Freshness = Fresh(Int) | TtlInvalid | TimestampMissing | TimestampInvalid | Stale deriving Eq, Debug
+func freshness(ttl Ttl, observedAt Timestamp, nowNanos Int) Freshness {
+  match (ttl, observedAt) {
+    (NoTtl, _) => Fresh(0)
+    (InvalidTtl, _) => TtlInvalid
+    (TtlNanos(_), NoTimestamp) => TimestampMissing
+    (TtlNanos(_), InvalidTimestamp) => TimestampInvalid
+    (TtlNanos(t), AtNanos(at)) if nowNanos >= at + t => Stale
+    (TtlNanos(t), AtNanos(at)) => Fresh(at + t - nowNanos)
+  }
+}
+func isStale(value Freshness) Bool {
+  match value { Stale => true; _ => false }
+}
+law staleIff(t Int, at Int, now Int) {
+  isStale(freshness(TtlNanos(t), AtNanos(at), now)) == (now >= at + t)
+}
+proof staleIff(t, at, now) {
+  if now >= at + t { refl } else { refl }
+}
+func main() IO[Unit] { ioPure(unit()) }
+```
+
+`if` adds a true/false assumption to each branch. It does not infer comparison
+transitivity or interchange `>=` with `<=`. It does normalize Int ring
+expressions in operands, so `now >= t + at` would name the same guard.
+
+### Induction: the length of concatenation
+
+Use direct structural definitions here rather than the standard library's
+accumulator-style length. `rewrite` applies the induction hypothesis to the
+tail, replacing left with right everywhere in the goal.
+
+```go4t
+package main
+func len(xs List[Int]) Int {
+  match xs { Nil => 0; Cons(_, tail) => 1 + len(tail) }
+}
+func app(xs List[Int], ys List[Int]) List[Int] {
+  match xs { Nil => ys; Cons(head, tail) => Cons(head, app(tail, ys)) }
+}
+law lenApp(xs List[Int], ys List[Int]) {
+  len(app(xs, ys)) == len(xs) + len(ys)
+}
+proof lenApp(xs, ys) {
+  match xs {
+    Nil => refl
+    Cons(_, tail) => rewrite lenApp(tail, ys) { refl }
+  }
+}
+func main() IO[Unit] { ioPure(unit()) }
+```
+
+The recursive functions and self-rewrite decrease the first argument to its
+structural tail. Any arguments before the decreasing one must stay unchanged;
+later arguments may change. Int ring normalization closes the final addition.
+An accumulator implementation usually needs a stronger lemma quantifying over
+the accumulator, not just the zero-accumulator result.
+
+Only a pure, terminating, untainted fragment is eligible. Float, IO, untrusted
+externs and variable divisors are excluded; trusted prelude/string primitives
+are permitted. Exhaustive cases, a type-correct proof and eligible dependencies
+are necessary but do not guarantee `refl` succeeds. See [SPEC §6.5](../SPEC.md#65-laws-and-proofs)
+for the full rules and diagnostics.
+
 ## Next steps
 
 - [README examples](../README.md#examples) has a command for every example directory,

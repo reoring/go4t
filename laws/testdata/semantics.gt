@@ -1,0 +1,117 @@
+package main
+
+type Row = Row{left: Int, right: Int} deriving Eq, Debug
+type Common = First{value: Int, extra: Int} | Second{extra: Int, value: Int} deriving Eq, Debug
+type Box[A] = Box(A) deriving Eq, Ord, Debug
+type FunctionBox = FunctionBox(func(Int) Int)
+instance Eq[FunctionBox] { eq(a, b) { false } }
+type Unfaithful = Unfaithful(Int)
+instance Eq[Unfaithful] { eq(a, b) { true } }
+
+func keep(x Int) func(Int) Int { func(y) => x }
+law alpha(n Int) { FunctionBox(func(x) => n + x) == FunctionBox(func(y) => n + y) }
+law capture(y Int) { FunctionBox(keep(y)) == FunctionBox(func(z) => y) }
+law notCaptured(y Int) { FunctionBox(keep(y)) == FunctionBox(func(y) => y) }
+law ignoreEq() { Unfaithful(1) == Unfaithful(2) }
+law beta(n Int) { (func(x) => x + 1)(n) == n + 1 }
+law letBindings(n Int) { { let x = n; let n = 7; x + n } == n + 7 }
+law tuple(n Int) { { let (a, b) = (n, 7); a + b } == n + 7 }
+law tupleFree(pair (Int, Int)) { { let (a, _) = pair; a } == pair.0 }
+law lambdaPattern(n Int) { (func((x, y)) => x + y)((n, 1)) == n + 1 }
+
+law record(n Int) { Row{right: 7, left: n}.left == n }
+law recordUpdate(n Int) { Row{right: 7, left: 0}{left: n} == Row{left: n, right: 7} }
+law commonFirst(n Int) { First{extra: 7, value: n}.value == n }
+law commonSecond(n Int) { Second{value: n, extra: 7}.value == n }
+law commonUpdate(n Int) { Second{value: 0, extra: 7}{value: n} == Second{extra: 7, value: n} }
+law recordPattern(n Int) { (match Row{right: 7, left: n} { Row{left: x, ..} => x }) == n }
+law asPattern(n Int) { (match Some(n) { whole @ Some(x) => (whole, x); None => (None, 0) }) == (Some(n), n) }
+law list(n Int) { [n, 1] == Cons(n, Cons(1, Nil)) }
+
+func same[A Eq](x A, y A) Bool { eq(x, y) }
+func throughOrd[A Ord](x A, y A) Bool { same(x, y) }
+law derivedEq() { same(Box(Some(7)), Box(Some(7))) == true }
+law derivedNeq() { same(Box(Some(7)), Box(Some(8))) == false }
+law super() { throughOrd(Box(7), Box(7)) == true }
+law comparison() { (Box(7) < Box(8)) == true }
+law debugValue() { debug(Box(7)) == "Box(7)" }
+law showValue() { show(Some(7)) == "Some(7)" }
+law primitives() { (eq(7, 7) && !eq(true, false) && !eq("a", "b") && "a" < "b" && 7 >= 6 && true > false) == true }
+law renderValue() { (show(7) + show(true) + show("x") + debug("x"), unit()) == ("7truex\"x\"", unit()) }
+law interpolation(n Int) { "value=${n}" == "value=" + show(n) }
+law wrap() { 9223372036854775807 + 1 == -9223372036854775807 - 1 }
+law division() { ((-9223372036854775807 - 1) / -1, (7 % 3, -(2 * 3))) == (-9223372036854775807 - 1, (1, -6)) }
+law booleans() { (!false && !(false && (1 / 0 == 0)) && (true || (1 / 0 == 0))) == true }
+
+class Render[X] { render[A Show](x X, a A) String }
+instance Render[Box[B]] given Show[B] { render(x, a) { match x { Box(b) => show(b) + show(a) } } }
+law methodConstraints() { render(Box(7), true) == "7true" }
+law letPolymorphic() { { let showIt = func(x) => show(x); showIt(7) + showIt(true) } == "7true" }
+law letRecursive() { { let count = func(n) => if n == 0 { 0 } else { count(n - 1) + 1 }; count(3) } == 3 }
+law letRecursiveGeneric() { { let repeat = func(done, x) => if done { show(x) } else { repeat(true, x) }; repeat(false, 7) + repeat(false, true) } == "7true" }
+law localFunctions() { { func first(done Bool) Int { if done { 7 } else { second() } }; func second() Int { first(true) }; first(false) } == 7 }
+
+func ordered(o Option[Int]) Int { match o { Some(0) => 1; Some(_) => 2; None => 3 } }
+law unknownFirst(n Int) { ordered(Some(n)) == 2 }
+func guardOrder(n Int) Int { match n { _ if n > 0 => 1; _ => 2 } }
+law unknownGuard(n Int) { guardOrder(n) == 2 }
+law falseGuard() { guardOrder(0) == 2 }
+law trueGuard() { guardOrder(1) == 1 }
+func partialPair(n Int) Int { match (n, None) { (0, Some(_)) => 1; (_, None) => 2; (_, Some(_)) => 3 } }
+law laterMismatch(n Int) { partialPair(n) == 2 }
+law residualAlpha(o Option[Int]) { (match o { Some(x) => x; None => 0 }) == (match o { Some(y) => y; None => 0 }) }
+law nested(box Box[Option[Int]]) { (match box { Box(o) => match o { Some(x) => Some(x); None => None } }) == (match box { Box(o) => o }) }
+
+func main() IO[Unit] { ioPure(unit()) }
+
+proof alpha(n) { refl }
+proof capture(y) { refl }
+proof notCaptured(y) { refl }
+proof ignoreEq() { refl }
+proof beta(n) { refl }
+proof letBindings(n) { refl }
+proof tuple(n) { refl }
+proof tupleFree(pair) { refl }
+proof lambdaPattern(n) { refl }
+proof record(n) { refl }
+proof recordUpdate(n) { refl }
+proof commonFirst(n) { refl }
+proof commonSecond(n) { refl }
+proof commonUpdate(n) { refl }
+proof recordPattern(n) { refl }
+proof asPattern(n) { refl }
+proof list(n) { refl }
+proof derivedEq() { refl }
+proof derivedNeq() { refl }
+proof super() { refl }
+proof comparison() { refl }
+proof debugValue() { refl }
+proof showValue() { refl }
+proof primitives() { refl }
+proof renderValue() { refl }
+proof interpolation(n) { refl }
+proof wrap() { refl }
+proof division() { refl }
+proof booleans() { refl }
+proof methodConstraints() { refl }
+proof letPolymorphic() { refl }
+proof letRecursive() { refl }
+proof letRecursiveGeneric() { refl }
+proof localFunctions() { refl }
+proof unknownFirst(n) { refl }
+proof unknownGuard(n) { refl }
+proof falseGuard() { refl }
+proof trueGuard() { refl }
+proof laterMismatch(n) { refl }
+proof residualAlpha(o) { refl }
+proof nested(box) { match box { Box(None) => refl; Box(Some(n)) => refl } }
+
+type Nested = Nested{parts: (Option[Int], List[Int]), other: Int} deriving Debug
+law nestedPatterns(r Nested) { (r, r) == (r, r) }
+proof nestedPatterns(renamed) {
+  match renamed {
+    Nested{parts: (None, Nil), ..} => refl
+    Nested{parts: (None, Cons(_, _)), ..} => refl
+    Nested{parts: (Some(_), rest), ..} => match rest { Nil => refl; Cons(_, _) => refl }
+  }
+}

@@ -225,6 +225,105 @@ func (*TypeDecl) declNode()     {}
 func (*AliasDecl) declNode()    {}
 func (*FuncDecl) declNode()     {}
 
+// ---- laws and proofs (ADR 0001) ----
+
+// LawDecl is `law Name(params) { lhs == rhs }`. Params are monomorphic
+// typed names (no type parameters). The equality is definitional: both sides
+// must normalise to alpha-equal terms; the Eq instance of the type is not used.
+type LawDecl struct {
+	Pos    Pos
+	End    Pos
+	Name   string
+	Params []Param
+	LHS    Expr
+	RHS    Expr
+}
+
+// ProofDecl is `proof Name(x, y) { tactic }` for the law of the same name.
+// Params are plain names, positionally rebinding the law's parameters.
+type ProofDecl struct {
+	Pos    Pos
+	End    Pos
+	Name   string
+	Params []Param // Name only; Type nil
+	Body   Tactic
+}
+
+type Tactic interface {
+	Node
+	tacticNode()
+}
+
+// TRefl is `refl`: both goal sides normalise to the same term.
+type TRefl struct{ Pos, End Pos }
+
+// TMatch is `match x { pat => tactic ... }`: splits proof variable x by
+// constructor. Patterns are PCtor/PRecord over PVar/PWild/nested PCtor,
+// or PTuple for tuple-typed variables; no literals, guards or as-patterns.
+type TMatch struct {
+	Pos  Pos
+	End  Pos
+	Var  *Ident
+	Arms []TacticArm
+}
+
+type TacticArm struct {
+	Pos  Pos
+	End  Pos
+	Pat  Pattern
+	Body Tactic
+}
+
+// TIf is `if cond { tactic } else { tactic }`: cond is a Bool expression over
+// proof variables; each branch assumes cond normalises to true/false.
+type TIf struct {
+	Pos  Pos
+	End  Pos
+	Cond Expr
+	Then Tactic
+	Else Tactic
+}
+
+// TRewrite is `rewrite Law(args) { tactic }`: instantiates law Law with
+// args (expressions over proof variables), rewrites every occurrence of its
+// left side with its right side in both goal sides, then continues. Law may
+// be the enclosing proof's own law (induction hypothesis).
+type TRewrite struct {
+	Pos  Pos
+	End  Pos
+	Law  *Ident
+	Args []Expr
+	Body Tactic
+}
+
+func (*LawDecl) declNode()   {}
+func (*ProofDecl) declNode() {}
+
+func (d *LawDecl) GetPos() Pos      { return d.Pos }
+func (d *LawDecl) GetEnd() Pos      { return d.End }
+func (d *LawDecl) SetEnd(end Pos)   { d.End = end }
+func (d *ProofDecl) GetPos() Pos    { return d.Pos }
+func (d *ProofDecl) GetEnd() Pos    { return d.End }
+func (d *ProofDecl) SetEnd(end Pos) { d.End = end }
+
+func (*TRefl) tacticNode()    {}
+func (*TMatch) tacticNode()   {}
+func (*TIf) tacticNode()      {}
+func (*TRewrite) tacticNode() {}
+
+func (t *TRefl) GetPos() Pos       { return t.Pos }
+func (t *TRefl) GetEnd() Pos       { return t.End }
+func (t *TRefl) SetEnd(end Pos)    { t.End = end }
+func (t *TMatch) GetPos() Pos      { return t.Pos }
+func (t *TMatch) GetEnd() Pos      { return t.End }
+func (t *TMatch) SetEnd(end Pos)   { t.End = end }
+func (t *TIf) GetPos() Pos         { return t.Pos }
+func (t *TIf) GetEnd() Pos         { return t.End }
+func (t *TIf) SetEnd(end Pos)      { t.End = end }
+func (t *TRewrite) GetPos() Pos    { return t.Pos }
+func (t *TRewrite) GetEnd() Pos    { return t.End }
+func (t *TRewrite) SetEnd(end Pos) { t.End = end }
+
 // ---- statements / expressions ----
 
 type Block struct {

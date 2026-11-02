@@ -1,0 +1,27 @@
+package main
+
+extern func foreign(n Int) Int = "example.invalid/foreign".Read
+extern func clonedEq(a Int, b Int) Bool = "go4t/rt".EqInt
+law clonedPrimitive() { clonedEq(1, 1) == true }
+func drop(n Int) Int { 0 }
+law strictArgument(n Int) { drop(foreign(n)) == 0 }
+law higherOrder(f func(Int) Int) { f(1) == f(1) }
+type FloatBox = FloatBox(Float) deriving Eq
+func effect() IO[Int] { ioPure(1) }
+func impure() Int { let ignored = effect(); 1 }
+func loop(n Int) Int { loop(n) }
+law foreignDependency(n Int) { foreign(n) == foreign(n) }
+law io() { impure() == 1 }
+law loopDependency(n Int) { loop(n) == n }
+law divZero() { 1 / 0 == 1 / 0 }
+law divVariable(n Int) { 1 / n == 1 / n }
+func main() IO[Unit] { ioPure(unit()) }
+
+proof clonedPrimitive() { refl }
+proof strictArgument(n) { refl }
+proof higherOrder(f) { refl }
+proof foreignDependency(n) { refl }
+proof io() { refl }
+proof loopDependency(n) { refl }
+proof divZero() { refl }
+proof divVariable(n) { refl }

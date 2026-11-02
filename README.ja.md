@@ -121,6 +121,24 @@ Go が reconcile ごとに最大 3 回呼ぶ形にしました。
 完全な仕様:[SPEC.md](SPEC.md)。Go 開発者向け入門:[docs/tutorial.md](docs/tutorial.md)。
 std の全宣言:[docs/stdlib.md](docs/stdlib.md)。(いずれも英語)
 
+### 法則（Laws）
+
+`law` に等式を書き、`go4t check` で選んだテスト入力だけでなく全入力について検証できます。
+
+```go4t
+package main
+law distribute(a Int, b Int, c Int) { (a + b) * c == a * c + b * c }
+proof distribute(a, b, c) { refl }
+func main() IO[Unit] { ioPure(unit()) }
+```
+
+等式は `Eq` インスタンスとは独立した定義的等価です。`refl`、コンストラクタの
+`match`、条件の `if`、構造的帰納法を含む `rewrite` を組み合わせて証明します。
+対象は純粋性・停止性・安全性の条件を満たす依存だけで、Float や信頼されない extern は
+除外されます。法則の実行時コードは生成されません。
+[チュートリアル §13](docs/tutorial.md#13-laws) に cancel の冪等性、
+`freshness` の `staleIff`、リストの帰納法の例があります。
+
 ## インストールとクイックスタート
 
 **Go 1.22 以上**が PATH に必要です(go4t は Go を生成して `go build` を実行します)。
@@ -207,7 +225,7 @@ core prelude だけです。解決順:import 元 module のソースルート、
 
 | コマンド | 目的 |
 | --- | --- |
-| `go4t check [--full-types] FILE.gt\|DIR...` | 読み込みと型検査。warning では失敗しない。foreign ABI はここでは検査しない。 |
+| `go4t check [--full-types] FILE.gt\|DIR...` | 読み込み・型検査・法則と証明の検証。warning では失敗しない。foreign ABI はここでは検査しない。 |
 | `go4t build [--full-types] [-o DIR] FILE.gt\|DIR...` | go4t module ごとに 1 Go ファイルを 1 Go パッケージへ出力。 |
 | `go4t build --emit-go DIR --package NAME FILE.gt\|DIR...` | 型付き export を持つ import 可能な Go パッケージを出力(§8.7)。 |
 | `go4t run [--full-types] FILE.gt\|DIR... [-- args...]` | ビルドして実行。stdin を継承、終了コードを保持。 |
@@ -217,6 +235,9 @@ core prelude だけです。解決順:import 元 module のソースルート、
 | `go4t fmt [-w\|-d\|-l] FILE...\|DIR` | 正規整形。`-l` は差分があれば 1 で終了。 |
 | `go4t init <module-path>` / `go4t get <path>@<version>` | プロジェクトと依存の管理。 |
 | `go4t lsp` | stdio 言語サーバ(診断、hover、定義、シンボル)。 |
+
+証明を検証するのは `check` だけです。`build`、`run`、`test`、`eval` は法則と証明を
+生成コードに含めませんが、構文・型検査は行います。
 
 終了コード:通常の IO エラーは 1、捕捉されない action panic は 2。プログラム内での回復は
 `io.tryIO(action) : IO[Result[io.IoError, A]]`。
@@ -258,7 +279,7 @@ core prelude だけです。解決順:import 元 module のソースルート、
 
 ## ドキュメントとエディタ
 
-- [Go 開発者向けチュートリアル](docs/tutorial.md) — Go 殻 / go4t 芯パターンで終わる 12 の短い章。
+- [Go 開発者向けチュートリアル](docs/tutorial.md) — Go 殻 / go4t 芯と法則の証明を扱う 13 の短い章。
   全スニペットを CI で型検査。
 - [言語仕様](SPEC.md) — 文法、型と効果の規則、CLI、deriving、export される Go API、境界表。
 - [標準ライブラリ](docs/stdlib.md) — ソース棚卸しから生成。

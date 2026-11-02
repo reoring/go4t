@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"go4t/ast"
+	"go4t/laws"
 	"go4t/modules"
 	"go4t/parser"
 	"go4t/std"
@@ -387,6 +388,9 @@ func (s *server) check(dir, closed string) error {
 				path := warning.File
 				byFile[path] = append(byFile[path], Diagnostic{sourceRange(snap.sources[path], warning.Pos, warning.End), 2, "go4t", warning.Msg})
 			}
+			for _, failure := range laws.CheckProgram(program) {
+				report(ordered[0], failure)
+			}
 		}
 	}
 	publish := map[string]bool{}
@@ -446,7 +450,7 @@ var symbolKinds = [...]int{
 	types.FunctionSymbol: 12, types.TypeSymbol: 23, types.ConstructorSymbol: 9,
 	types.FieldSymbol: 8, types.ClassSymbol: 11, types.MethodSymbol: 6,
 	types.AliasSymbol: 26, types.VariableSymbol: 13, types.TypeParameterSymbol: 26,
-	types.InstanceSymbol: 3,
+	types.InstanceSymbol: 3, types.LawSymbol: 12, types.ProofSymbol: 12,
 }
 
 func (s *snapshot) symbol(symbol *types.Symbol) DocumentSymbol {

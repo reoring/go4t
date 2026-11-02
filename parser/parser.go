@@ -3,7 +3,7 @@
 // Grammar (';' is inserted at newlines, Go-style, except before 'else'):
 //
 //	File     := 'package' Ident ';' { Decl ';' }
-//	Decl     := Class | Instance | TypeDecl | Alias | Func | Extern
+//	Decl     := Class | Instance | TypeDecl | Alias | Func | Extern | Law | Proof
 //	Class    := 'class' Ident '[' TParam ']' [ ':' Ident '[' Ident ']' ] '{' { MethodSig ';' } '}'
 //	Instance := 'instance' Ident '[' InstHead ']' [ 'given' Context ] '{' { Ident '(' Idents ')' Block ';' } '}'
 //	InstHead := Ident [ '[' Idents ']' ] | '(' Ident ',' Ident { ',' Ident } ')'
@@ -16,6 +16,16 @@
 //	NamedType := Ident ':' Type // records need at least one field; no positional/named mixing
 //	Func     := 'func' Ident [ TParams ] '(' Params ')' Type Block
 //	Extern   := 'extern' 'func' Ident [ TParams ] '(' Params ')' Type '=' String '.' Ident
+//	Law      := 'law' Ident '(' Params ')' '{' Expr '==' Expr '}'
+//	          // parse a single expression with a top-level ==, then retain its operands;
+//	          // normal precedence applies, so lower-precedence sides need parentheses
+//	Proof    := 'proof' Ident '(' [ Ident { ',' Ident } [ ',' ] ] ')' TacticBlock
+//	TacticBlock := '{' Tactic [ ';' ] '}'
+//	Tactic   := 'refl' | 'match' Ident '{' [ TacticArms ] '}'
+//	          | 'if' Expr TacticBlock 'else' TacticBlock
+//	          | 'rewrite' QualifiedIdent '(' [ Expr { ',' Expr } [ ',' ] ] ')' TacticBlock
+//	TacticArms := { ';' } [ '|' ] { ';' } TacticArm { ArmSep TacticArm } [ ArmSep ]
+//	TacticArm := Pattern '=>' Tactic // constructors, records, tuples, variables and _ only
 //	TParam   := Ident [ '[' '_' { ',' '_' } ']' ] { Ident }
 //	Type     := Ident [ '[' Type { ',' Type } ']' ] | 'func' '(' [ Type { ',' Type } ] ')' Type
 //	          | '(' Type ')' | '(' Type ',' Type { ',' Type } ')'
@@ -256,6 +266,10 @@ func (p *Parser) decl() (decl ast.Decl) {
 	case "extern":
 		p.next()
 		return p.funcDecl(true)
+	case "law":
+		return p.lawDecl()
+	case "proof":
+		return p.proofDecl()
 	}
 	p.fail(t.Pos, "expected declaration, found %s", t)
 	return nil
@@ -514,6 +528,136 @@ func (p *Parser) funcDecl(extern bool) (decl ast.Decl) {
 	}
 	d.Body = p.block()
 	return d
+}
+
+func (p *Parser) lawDecl() ast.Decl {
+	pos := p.next().Pos
+	d := &ast.LawDecl{Pos: pos, Name: p.ident()}
+	d.Params = p.params()
+	p.expectP("{")
+	p.skipSemis()
+	bodyPos := p.pos()
+	body := p.expr()
+	equality, ok := body.(*ast.Binary)
+	if !ok || equality.Op != "==" {
+		p.fail(bodyPos, "law body must be an equality (lhs == rhs)")
+	}
+	d.LHS, d.RHS = equality.L, equality.R
+	p.skipSemis()
+	p.expectP("}")
+	return d
+}
+
+func (p *Parser) proofDecl() ast.Decl {
+	pos := p.next().Pos
+	d := &ast.ProofDecl{Pos: pos, Name: p.ident()}
+	p.expectP("(")
+	for !p.isP(")") {
+		param := ast.Param{Pos: p.pos(), Name: p.ident()}
+		param.End = p.end()
+		d.Params = append(d.Params, param)
+		if !p.acceptP(",") {
+			break
+		}
+	}
+	p.expectP(")")
+	d.Body = p.tacticBlock()
+	return d
+}
+
+func (p *Parser) tacticBlock() ast.Tactic {
+	p.expectP("{")
+	p.skipSemis()
+	tactic := p.tactic()
+	p.skipSemis()
+	p.expectP("}")
+	return tactic
+}
+
+func (p *Parser) tactic() (tactic ast.Tactic) {
+	defer func() { p.finish(tactic) }()
+	pos := p.pos()
+	switch {
+	case p.isK("refl"):
+		p.next()
+		return &ast.TRefl{Pos: pos}
+	case p.isK("match"):
+		p.next()
+		variable := &ast.Ident{ExprBase: ast.ExprBase{Pos: p.pos()}, Name: p.ident()}
+		p.finish(variable)
+		m := &ast.TMatch{Pos: pos, Var: variable}
+		p.expectP("{")
+		p.skipSemis()
+		p.acceptP("|")
+		p.skipSemis()
+		for !p.isP("}") {
+			arm := ast.TacticArm{Pos: p.pos(), Pat: p.pattern()}
+			p.checkTacticPattern(arm.Pat)
+			if p.isK("if") {
+				p.fail(p.pos(), "tactic match does not support guards")
+			}
+			p.expectP("=>")
+			arm.Body = p.tactic()
+			arm.End = p.end()
+			m.Arms = append(m.Arms, arm)
+			for p.isP(";") || p.isP("|") {
+				p.next()
+			}
+		}
+		p.expectP("}")
+		return m
+	case p.isK("if"):
+		p.next()
+		branch := &ast.TIf{Pos: pos, Cond: p.expr()}
+		branch.Then = p.tacticBlock()
+		p.expectK("else")
+		branch.Else = p.tacticBlock()
+		return branch
+	case p.isK("rewrite"):
+		p.next()
+		law := &ast.Ident{ExprBase: ast.ExprBase{Pos: p.pos()}, Name: p.qualified()}
+		p.finish(law)
+		rewrite := &ast.TRewrite{Pos: pos, Law: law}
+		p.expectP("(")
+		for !p.isP(")") {
+			rewrite.Args = append(rewrite.Args, p.expr())
+			if !p.acceptP(",") {
+				break
+			}
+		}
+		p.expectP(")")
+		rewrite.Body = p.tacticBlock()
+		return rewrite
+	}
+	p.fail(pos, "expected tactic, found %s", p.tok())
+	return nil
+}
+
+func (p *Parser) checkTacticPattern(pat ast.Pattern) {
+	switch pat := pat.(type) {
+	case *ast.PVar, *ast.PWild:
+	case *ast.PCtor:
+		if pat.List {
+			p.fail(pat.Pos, "tactic match does not support list patterns")
+		}
+		for _, arg := range pat.Args {
+			p.checkTacticPattern(arg)
+		}
+	case *ast.PRecord:
+		for _, field := range pat.Pats {
+			p.checkTacticPattern(field)
+		}
+	case *ast.PTuple:
+		for _, elem := range pat.Elems {
+			p.checkTacticPattern(elem)
+		}
+	case *ast.PLit:
+		p.fail(pat.Pos, "tactic match does not support literal patterns")
+	case *ast.PAs:
+		p.fail(pat.Pos, "tactic match does not support as-patterns")
+	default:
+		p.fail(pat.GetPos(), "unsupported tactic match pattern")
+	}
 }
 
 // ---- types ----

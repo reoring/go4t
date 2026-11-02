@@ -22,7 +22,7 @@ func Source(src []byte) ([]byte, error) {
 
 // File formats an unchecked parsed AST, retaining comments and surface sugar.
 func File(f *ast.File) []byte {
-	p := &printer{comments: f.Comments}
+	p := &printer{comments: f.Comments, source: f.Source}
 	start := p.offset()
 	p.text("package " + f.Package)
 	p.anchor(f.PackagePos, f.PackageEnd, start, p.offset())
@@ -59,6 +59,8 @@ type printer struct {
 	indent, col int
 	spans       []span
 	comments    []ast.Comment
+	source      string
+	lineOffsets []int // lazily indexed for comment anchors absent from the AST
 	inline      bool // interpolation expressions cannot introduce literal text newlines
 }
 
@@ -188,6 +190,20 @@ func (p *printer) decl(decl ast.Decl) {
 			p.text(" ")
 			p.block(d.Body)
 		}
+	case *ast.LawDecl:
+		p.text("law " + d.Name)
+		p.params(d.Params)
+		p.text(" ")
+		p.open(p.delimiterBetween('{', d.Pos, exprStart(d.LHS)))
+		p.expr(d.LHS, precedence["=="])
+		p.text(" == ")
+		p.expr(d.RHS, precedence["=="]+1)
+		p.close(d.End)
+	case *ast.ProofDecl:
+		p.text("proof " + d.Name)
+		p.params(d.Params)
+		p.text(" ")
+		p.tacticBlock(p.delimiterBetween('{', d.Pos, d.Body.GetPos()), d.End, d.Body)
 	case *ast.AliasDecl:
 		p.text("alias " + d.Name)
 		p.typeNames(d.TParams)
@@ -272,6 +288,79 @@ func (p *printer) decl(decl ast.Decl) {
 	default:
 		panic(fmt.Sprintf("format: unsupported declaration %T", d))
 	}
+}
+
+func (p *printer) tacticBlock(pos, end ast.Pos, tactic ast.Tactic) {
+	p.open(pos)
+	p.tactic(tactic)
+	p.close(end)
+}
+
+func (p *printer) tactic(tactic ast.Tactic) {
+	defer p.mark(tactic.GetPos(), tactic.GetEnd())()
+	switch t := tactic.(type) {
+	case *ast.TRefl:
+		p.text("refl")
+	case *ast.TMatch:
+		p.text("match ")
+		p.expr(t.Var, 0)
+		p.text(" ")
+		p.open(p.delimiterBetween('{', t.Var.GetEnd(), t.End))
+		for i, arm := range t.Arms {
+			if i > 0 {
+				p.newline()
+			}
+			end := p.mark(arm.Pos, arm.End)
+			if p.multilineTacticArm(arm) {
+				p.text("| ")
+			}
+			p.tacticArm(arm)
+			end()
+		}
+		p.close(t.End)
+	case *ast.TIf:
+		p.text("if ")
+		p.expr(t.Cond, 0)
+		p.text(" ")
+		thenEnd := p.delimiterBetween('}', t.Then.GetEnd(), t.Else.GetPos())
+		if thenEnd != (ast.Pos{}) {
+			thenEnd.Col++
+		}
+		p.tacticBlock(p.delimiterBetween('{', t.Cond.GetEnd(), t.Then.GetPos()), thenEnd, t.Then)
+		p.text(" else ")
+		p.tacticBlock(p.delimiterBetween('{', t.Then.GetEnd(), t.Else.GetPos()), t.End, t.Else)
+	case *ast.TRewrite:
+		p.text("rewrite ")
+		p.expr(t.Law, 0)
+		p.text("(")
+		for i, arg := range t.Args {
+			p.comma(i)
+			p.expr(arg, 0)
+		}
+		p.text(") ")
+		argsEnd := t.Law.GetEnd()
+		if len(t.Args) > 0 {
+			argsEnd = t.Args[len(t.Args)-1].GetEnd()
+		}
+		p.tacticBlock(p.delimiterBetween('{', argsEnd, t.Body.GetPos()), t.End, t.Body)
+	default:
+		panic(fmt.Sprintf("format: unsupported tactic %T", t))
+	}
+}
+
+func (p *printer) tacticArm(arm ast.TacticArm) {
+	p.pattern(arm.Pat)
+	p.text(" => ")
+	p.tactic(arm.Body)
+}
+
+func (p *printer) multilineTacticArm(arm ast.TacticArm) bool {
+	if _, simple := arm.Body.(*ast.TRefl); !simple {
+		return true
+	}
+	q := &printer{indent: p.indent, col: p.col, comments: p.comments}
+	q.tacticArm(arm)
+	return strings.Contains(q.b.String(), "\n")
 }
 
 func (p *printer) typ(t ast.Type) {

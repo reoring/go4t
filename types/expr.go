@@ -54,6 +54,7 @@ type bodyChecker struct {
 	bindings    map[ast.Expr]defaultOrigin
 	defaults    map[*TMeta]defaultOrigin
 	localUses   []*localUse
+	patVars     map[*ast.PVar]Type // non-nil only while checking tactic patterns
 }
 
 func (c *checker) body(constraints []Constraint, scope map[string]Type) *bodyChecker {
@@ -435,7 +436,11 @@ func (b *bodyChecker) pattern(p ast.Pattern, expected Type, env *locals) {
 	case *ast.PWild:
 	case *ast.PVar:
 		bindPattern(p.Pos, p.Name, expected, env)
-		b.trackLocal(env, p.Name, p.Pos, p.End)
+		if b.patVars != nil {
+			b.patVars[p] = expected
+		} else {
+			b.trackLocal(env, p.Name, p.Pos, p.End)
+		}
 	case *ast.PAs:
 		bindPattern(p.Pos, p.Name, expected, env)
 		b.trackLocal(env, p.Name, p.Pos, p.End)

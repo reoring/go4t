@@ -3,6 +3,7 @@ package format
 import (
 	"sort"
 	"strings"
+	"unicode/utf8"
 
 	"go4t/ast"
 )
@@ -23,6 +24,55 @@ func (p *printer) hasComments(pos, end ast.Pos) bool {
 		}
 	}
 	return false
+}
+
+// Law/proof ASTs retain tactics rather than Block nodes. Recover missing brace
+// positions only when comments need anchors, without lexing the file again.
+// Callers bound the search to a gap with no expression before the delimiter.
+func (p *printer) delimiterBetween(delimiter rune, start, end ast.Pos) ast.Pos {
+	if len(p.comments) == 0 || p.source == "" || start.Line < 1 || start.Col < 1 {
+		return ast.Pos{}
+	}
+	if p.lineOffsets == nil {
+		p.lineOffsets = []int{0}
+		for i, r := range p.source {
+			if r == '\n' {
+				p.lineOffsets = append(p.lineOffsets, i+1)
+			}
+		}
+	}
+	if start.Line > len(p.lineOffsets) {
+		return ast.Pos{}
+	}
+	offset := p.lineOffsets[start.Line-1]
+	pos := ast.Pos{Line: start.Line, Col: 1}
+	for pos.Col < start.Col && offset < len(p.source) {
+		r, size := utf8.DecodeRuneInString(p.source[offset:])
+		if r == '\n' {
+			return ast.Pos{}
+		}
+		offset += size
+		pos.Col++
+	}
+	comment := false
+	for offset < len(p.source) && compare(pos, end) < 0 {
+		r, size := utf8.DecodeRuneInString(p.source[offset:])
+		if r == '/' && offset+1 < len(p.source) && p.source[offset+1] == '/' {
+			comment = true
+		}
+		if !comment && r == delimiter {
+			return pos
+		}
+		offset += size
+		if r == '\n' {
+			pos.Line++
+			pos.Col = 1
+			comment = false
+		} else {
+			pos.Col++
+		}
+	}
+	return ast.Pos{}
 }
 
 // Attach comments to the closest source boundary, preferring the outermost

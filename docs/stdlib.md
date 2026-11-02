@@ -19,6 +19,17 @@ runes, not bytes/graphemes. Huge positive allocations remain host-resource
 bounded. For the combined language boundary tables see
 [SPEC §10](../SPEC.md#10-boundary-behaviour).
 
+**Law-eligible** classifies function/extern rows by the taint rules in
+[SPEC §6.5](../SPEC.md#65-laws-and-proofs): Yes means untainted, not a guarantee
+of termination or a successful proof. Callbacks and dictionaries must supply
+eligible implementations, and concrete uses must exclude Float and IO.
+No means a direct or transitive unsafe dependency; — marks non-function
+declarations (including instances whose individual methods are classified in
+the [detailed reach report](adr/0001-laws-std-reach.md)).
+The trusted set includes the ten prelude primitives and all 32 `std/string`
+primitives; string folding requires constant arguments. Map, Set and Array
+externs remain excluded. The detailed report lists the first tainting reason.
+
 ## Builtin types (not source declarations)
 
 | Type / kind | Semantics | Boundary |
@@ -67,68 +78,68 @@ func main() IO[Unit] {
 
 Source: [`array/array.gt`](../std/array/array.gt). 14 top-level declarations.
 
-| Source signature | Semantics | Boundary behaviour |
-| --- | --- | --- |
-| `extern func arrayFromList[A](xs List[A]) Array[A] = "go4t/rt".ArrayFromList` | Preserve list order. | Preserve list order. |
-| `extern func arrayToList[A](a Array[A]) List[A] = "go4t/rt".ArrayToList` | Preserve array order. | Preserve array order. |
-| `extern func arrayLength[A](a Array[A]) Int = "go4t/rt".ArrayLength` | Element count; constant time. | Element count; constant time. |
-| `extern func arrayGet[A](a Array[A], i Int) Option[A] = "go4t/rt".ArrayGet` | Zero-based O(1) access; `None` for negative indexes or `i >= length`. | Zero-based O(1) access; `None` for negative indexes or `i >= length`. |
-| `extern func arraySet[A](a Array[A], i Int, v A) Array[A] = "go4t/rt".ArraySet` | Copy and replace at a valid index; return the original unchanged outside `[0, length)`. | Copy and replace at a valid index; return the original unchanged outside `[0, length)`. |
-| `extern func arrayMap[A, B](a Array[A], f func(A) B) Array[B] = "go4t/rt".ArrayMap` | Map in ascending index order into a new array. | Map in ascending index order into a new array. |
-| `extern func arrayFold[A, B](a Array[A], init B, f func(B, A) B) B = "go4t/rt".ArrayFold` | Left fold in ascending index order; empty arrays return `init`. | Left fold in ascending index order; empty arrays return `init`. |
-| `extern func arrayPush[A](a Array[A], v A) Array[A] = "go4t/rt".ArrayPush` | Copy and append one element. | Copy and append one element. |
-| `extern func arraySlice[A](a Array[A], start Int, end Int) Array[A] = "go4t/rt".ArraySlice` | Half-open `[start, end)`; clamp both bounds to `[0, length]`; reversed/empty intervals yield an empty array. | Half-open `[start, end)`; clamp both bounds to `[0, length]`; reversed/empty intervals yield an empty array. |
-| `extern func arraySortBy[A](a Array[A], cmp func(A, A) Ordering) Array[A] = "go4t/rt".ArraySortBy` | Stable sort of a copy using `Ordering`; never modify the input. | Stable sort of a copy using `Ordering`; never modify the input. |
-| `instance Show[Array[A]] given Show[A]` | Display as #[a, b], using field Show where applicable. | Empty #[]; index order. |
-| `instance Debug[Array[A]] given Debug[A]` | Structural rendering as #[a, b] using element Debug. | Empty #[]; index order; strings quoted; no Show required. |
-| `instance Eq[Array[A]] given Eq[A]` | Compare Array values for equality. | Index-order element equality; empty arrays equal. |
-| `instance Functor[Array]` | Map Array's element/result while retaining shape. | Empty unchanged, callback in index order. |
+| Source signature | Semantics | Boundary behaviour | Law-eligible |
+| --- | --- | --- | --- |
+| `extern func arrayFromList[A](xs List[A]) Array[A] = "go4t/rt".ArrayFromList` | Preserve list order. | Preserve list order. | No |
+| `extern func arrayToList[A](a Array[A]) List[A] = "go4t/rt".ArrayToList` | Preserve array order. | Preserve array order. | No |
+| `extern func arrayLength[A](a Array[A]) Int = "go4t/rt".ArrayLength` | Element count; constant time. | Element count; constant time. | No |
+| `extern func arrayGet[A](a Array[A], i Int) Option[A] = "go4t/rt".ArrayGet` | Zero-based O(1) access; `None` for negative indexes or `i >= length`. | Zero-based O(1) access; `None` for negative indexes or `i >= length`. | No |
+| `extern func arraySet[A](a Array[A], i Int, v A) Array[A] = "go4t/rt".ArraySet` | Copy and replace at a valid index; return the original unchanged outside `[0, length)`. | Copy and replace at a valid index; return the original unchanged outside `[0, length)`. | No |
+| `extern func arrayMap[A, B](a Array[A], f func(A) B) Array[B] = "go4t/rt".ArrayMap` | Map in ascending index order into a new array. | Map in ascending index order into a new array. | No |
+| `extern func arrayFold[A, B](a Array[A], init B, f func(B, A) B) B = "go4t/rt".ArrayFold` | Left fold in ascending index order; empty arrays return `init`. | Left fold in ascending index order; empty arrays return `init`. | No |
+| `extern func arrayPush[A](a Array[A], v A) Array[A] = "go4t/rt".ArrayPush` | Copy and append one element. | Copy and append one element. | No |
+| `extern func arraySlice[A](a Array[A], start Int, end Int) Array[A] = "go4t/rt".ArraySlice` | Half-open `[start, end)`; clamp both bounds to `[0, length]`; reversed/empty intervals yield an empty array. | Half-open `[start, end)`; clamp both bounds to `[0, length]`; reversed/empty intervals yield an empty array. | No |
+| `extern func arraySortBy[A](a Array[A], cmp func(A, A) Ordering) Array[A] = "go4t/rt".ArraySortBy` | Stable sort of a copy using `Ordering`; never modify the input. | Stable sort of a copy using `Ordering`; never modify the input. | No |
+| `instance Show[Array[A]] given Show[A]` | Display as #[a, b], using field Show where applicable. | Empty #[]; index order. | — |
+| `instance Debug[Array[A]] given Debug[A]` | Structural rendering as #[a, b] using element Debug. | Empty #[]; index order; strings quoted; no Show required. | — |
+| `instance Eq[Array[A]] given Eq[A]` | Compare Array values for equality. | Index-order element equality; empty arrays equal. | — |
+| `instance Functor[Array]` | Map Array's element/result while retaining shape. | Empty unchanged, callback in index order. | — |
 
 ## `std/conc`
 
 Source: [`conc/conc.gt`](../std/conc/conc.gt). 8 top-level declarations.
 
-| Source signature | Semantics | Boundary behaviour |
-| --- | --- | --- |
-| `extern func fork[A](io IO[A]) IO[Fiber[A]] = "go4t/rt".Fork` | Start one action in a goroutine with a child execution context. | Construction does not start; repeated execution creates distinct fibers; failures/panics cached; parent cancellation propagates. |
-| `extern func await[A](f Fiber[A]) IO[A] = "go4t/rt".Await` | Wait for and return a Fiber's cached outcome. | Repeat/concurrent awaits do not rerun the task; classified failure propagates; caller or unfinished-fiber cancellation ends the wait with Cancelled. |
-| `extern func cancel[A](f Fiber[A]) IO[Unit] = "go4t/rt".Cancel` | Request cancellation of a fiber. | Deferred and idempotent; returns immediately, without joining; cancelled unfinished-fiber awaits fail with Cancelled, completed outcomes stay cached. |
-| `extern func parMapIO[A, B](xs List[A], f func(A) IO[B]) IO[List[B]] = "go4t/rt".ParMapIO` | Run mapper/actions in parallel, cancel siblings on first failure, join, return input-ordered values. | Nil returns Nil without mapper calls; first observed error wins; an uncooperative sibling can delay the failure join; enclosing cancellation bounds cleanup to 100 ms. |
-| `extern func race[A](a IO[A], b IO[A]) IO[A] = "go4t/rt".Race` | Return the first completed action's outcome after cancelling and joining the loser. | Failure can win; completion ties unspecified; uncooperative loser abandoned after 100 ms, cooperative loser completes before return. |
-| `extern func parBoth[A, B](a IO[A], b IO[B]) IO[(A, B)] = "go4t/rt".ParBoth` | Run and join two actions, returning a pair in argument order. | Joins both even on failure, without sibling cancellation; first observed error wins; enclosing cancellation bounds cleanup to 100 ms. |
-| `extern func timeout[A](millis Int, io IO[A]) IO[Option[A]] = "go4t/rt".Timeout` | Option form of withTimeout: Some on timely success, None on own expiry. | Nonpositive returns None without start; overflow fails `timeout: duration out of range`; timely errors and enclosing deadlines propagate; expired action cancelled and joined until deadline + 100 ms. |
-| `extern func withTimeout[A](millis Int, io IO[A]) IO[A] = "go4t/rt".WithTimeout` | Run with a millisecond deadline, failing with Timeout on expiry. | Nonpositive fails without start; overflow fails `withTimeout: duration out of range`; typed Timeout preserves `errors.Is(err, context.DeadlineExceeded)`; cancels and joins expired action until deadline + 100 ms. |
+| Source signature | Semantics | Boundary behaviour | Law-eligible |
+| --- | --- | --- | --- |
+| `extern func fork[A](io IO[A]) IO[Fiber[A]] = "go4t/rt".Fork` | Start one action in a goroutine with a child execution context. | Construction does not start; repeated execution creates distinct fibers; failures/panics cached; parent cancellation propagates. | No |
+| `extern func await[A](f Fiber[A]) IO[A] = "go4t/rt".Await` | Wait for and return a Fiber's cached outcome. | Repeat/concurrent awaits do not rerun the task; classified failure propagates; caller or unfinished-fiber cancellation ends the wait with Cancelled. | No |
+| `extern func cancel[A](f Fiber[A]) IO[Unit] = "go4t/rt".Cancel` | Request cancellation of a fiber. | Deferred and idempotent; returns immediately, without joining; cancelled unfinished-fiber awaits fail with Cancelled, completed outcomes stay cached. | No |
+| `extern func parMapIO[A, B](xs List[A], f func(A) IO[B]) IO[List[B]] = "go4t/rt".ParMapIO` | Run mapper/actions in parallel, cancel siblings on first failure, join, return input-ordered values. | Nil returns Nil without mapper calls; first observed error wins; an uncooperative sibling can delay the failure join; enclosing cancellation bounds cleanup to 100 ms. | No |
+| `extern func race[A](a IO[A], b IO[A]) IO[A] = "go4t/rt".Race` | Return the first completed action's outcome after cancelling and joining the loser. | Failure can win; completion ties unspecified; uncooperative loser abandoned after 100 ms, cooperative loser completes before return. | No |
+| `extern func parBoth[A, B](a IO[A], b IO[B]) IO[(A, B)] = "go4t/rt".ParBoth` | Run and join two actions, returning a pair in argument order. | Joins both even on failure, without sibling cancellation; first observed error wins; enclosing cancellation bounds cleanup to 100 ms. | No |
+| `extern func timeout[A](millis Int, io IO[A]) IO[Option[A]] = "go4t/rt".Timeout` | Option form of withTimeout: Some on timely success, None on own expiry. | Nonpositive returns None without start; overflow fails `timeout: duration out of range`; timely errors and enclosing deadlines propagate; expired action cancelled and joined until deadline + 100 ms. | No |
+| `extern func withTimeout[A](millis Int, io IO[A]) IO[A] = "go4t/rt".WithTimeout` | Run with a millisecond deadline, failing with Timeout on expiry. | Nonpositive fails without start; overflow fails `withTimeout: duration out of range`; typed Timeout preserves `errors.Is(err, context.DeadlineExceeded)`; cancels and joins expired action until deadline + 100 ms. | No |
 
 ## `std/float`
 
 Source: [`float/float.gt`](../std/float/float.gt). 24 top-level declarations.
 
-| Source signature | Semantics | Boundary behaviour |
-| --- | --- | --- |
-| `extern func minInt() Int = "go4t/rt".MinInt` | Return the minimum signed 64-bit Int. | Exactly -9223372036854775808. |
-| `extern func maxInt() Int = "go4t/rt".MaxInt` | Return the maximum signed 64-bit Int. | Exactly 9223372036854775807. |
-| `extern func abs(n Int) Int = "go4t/rt".AbsInt` | Return the wrapping integer absolute value. | abs(minInt()) = minInt(), not a saturating positive value. |
-| `extern func showFloat(f Float) String = "go4t/rt".ShowFloat` | Render Float with Go's shortest round-trippable g format. | NaN, +Inf, -Inf printed literally; integral Float need not have a decimal point. |
-| `extern func debugFloat(f Float) String = "go4t/rt".DebugFloat` | Structural Float rendering via `strconv.FormatFloat(f, 'g', -1, 64)`. | Append .0 only when the result contains none of `.`, `e`, `NaN`, `Inf`; exponents and nonfinite forms unchanged. |
-| `extern func eqFloat(a Float, b Float) Bool = "go4t/rt".EqFloat` | IEEE binary64 equality. | NaN unequal to itself; positive/negative zero equal. |
-| `extern func ltFloat(a Float, b Float) Bool = "go4t/rt".LtFloat` | Strict numeric order with NaN below every non-NaN. | Two NaNs not less than each other; NaN < negative infinity; signed zeros equivalent. |
-| `extern func toFloat(n Int) Float = "go4t/rt".ToFloat` | Convert signed int64 to float64; large integers may round. | Integers beyond binary64 precision may round. |
-| `extern func truncate(f Float) Int = "go4t/rt".Truncate` | Convert toward zero using Go's float64-to-int64 conversion. | Toward zero; nonfinite/out-of-range integer conversion is Go implementation-dependent. |
-| `extern func floor(f Float) Int = "go4t/rt".Floor` | Round toward negative infinity, then convert to Int. | Toward negative infinity, then Go integer conversion; nonfinite/out-of-range not saturated. |
-| `extern func ceil(f Float) Int = "go4t/rt".Ceil` | Round toward positive infinity, then convert to Int. | Toward positive infinity, then Go integer conversion; nonfinite/out-of-range not saturated. |
-| `extern func round(f Float) Int = "go4t/rt".Round` | Round to nearest integer, ties away from zero, then convert to Int. | Nearest, ties away from zero; nonfinite/out-of-range integer conversion is implementation-dependent. |
-| `extern func sqrt(f Float) Float = "go4t/rt".Sqrt` | Go `math.Sqrt`; negative finite inputs produce NaN. | Negative finite input gives NaN; follows math.Sqrt special-value behaviour. |
-| `extern func pow(x Float, y Float) Float = "go4t/rt".Pow` | Go `math.Pow`, including its IEEE special-value behavior. | Follows math.Pow, including zero and IEEE special values. |
-| `extern func powInt(x Int, y Int) Int = "go4t/rt".PowInt` | Integer exponentiation by squaring; overflow wraps like Int multiplication; `0^0 = 1`. Negative exponents truncate reciprocal powers toward zero: base 1 returns 1, base -1 returns ±1 by exponent parity, every other base (including 0) returns 0. No negative-exponent panic. | 0^0 = 1; overflow wraps; negative exponent gives ±1 for bases ±1, otherwise 0, including base 0. |
-| `extern func parseFloat(s String) Option[Float] = "go4t/rt".ParseFloat` | Go `strconv.ParseFloat(s, 64)`; syntax/range errors return None; valid NaN/infinities return Some. | No whitespace trimming; syntax/range errors None; valid NaN/infinity Some; Go text grammar broader than source literals. |
-| `extern func showFloatFixed(f Float, decimals Int) String = "go4t/rt".ShowFloatFixed` | Go `strconv.FormatFloat(f, 'f', decimals, 64)`; ties-to-even decimal formatting, trailing zeros preserved; negative precision selects the shortest fixed form. | Trailing zeros retained; ties-to-even decimal formatting; negative precision shortest fixed form. |
-| `extern func absFloat(f Float) Float = "go4t/rt".AbsFloat` | Go `math.Abs`, including converting negative zero to positive zero. | Negative zero becomes positive zero; NaN remains NaN. |
-| `extern func nan() Float = "go4t/rt".Nan` | Produce an IEEE NaN. | Always an IEEE NaN, unequal to itself under Eq. |
-| `extern func isNaN(f Float) Bool = "go4t/rt".IsNaN` | True exactly for IEEE NaN values. | False for infinities and ordinary numbers. |
-| `instance Show[Float]` | Display with the same shortest g formatter as Debug. | Finite forms without a decimal point or exponent gain .0; show(1.0) is 1.0; NaN, +Inf, -Inf unchanged. Prefer showFloatFixed for money. |
-| `instance Debug[Float]` | Structural rendering distinguishes Float from Int. | debug(1.0) is 1.0, debug(1.5) is 1.5; NaN, +Inf, -Inf and exponents unchanged. |
-| `instance Eq[Float]` | Compare Float values for equality. | NaN unequal to itself; positive/negative zero equal. |
-| `instance Ord[Float]` | Compare Float values with Ordering. | NaN lowest; two NaNs compare EQ; signed zeros EQ. |
+| Source signature | Semantics | Boundary behaviour | Law-eligible |
+| --- | --- | --- | --- |
+| `extern func minInt() Int = "go4t/rt".MinInt` | Return the minimum signed 64-bit Int. | Exactly -9223372036854775808. | No |
+| `extern func maxInt() Int = "go4t/rt".MaxInt` | Return the maximum signed 64-bit Int. | Exactly 9223372036854775807. | No |
+| `extern func abs(n Int) Int = "go4t/rt".AbsInt` | Return the wrapping integer absolute value. | abs(minInt()) = minInt(), not a saturating positive value. | No |
+| `extern func showFloat(f Float) String = "go4t/rt".ShowFloat` | Render Float with Go's shortest round-trippable g format. | NaN, +Inf, -Inf printed literally; integral Float need not have a decimal point. | No |
+| `extern func debugFloat(f Float) String = "go4t/rt".DebugFloat` | Structural Float rendering via `strconv.FormatFloat(f, 'g', -1, 64)`. | Append .0 only when the result contains none of `.`, `e`, `NaN`, `Inf`; exponents and nonfinite forms unchanged. | No |
+| `extern func eqFloat(a Float, b Float) Bool = "go4t/rt".EqFloat` | IEEE binary64 equality. | NaN unequal to itself; positive/negative zero equal. | No |
+| `extern func ltFloat(a Float, b Float) Bool = "go4t/rt".LtFloat` | Strict numeric order with NaN below every non-NaN. | Two NaNs not less than each other; NaN < negative infinity; signed zeros equivalent. | No |
+| `extern func toFloat(n Int) Float = "go4t/rt".ToFloat` | Convert signed int64 to float64; large integers may round. | Integers beyond binary64 precision may round. | No |
+| `extern func truncate(f Float) Int = "go4t/rt".Truncate` | Convert toward zero using Go's float64-to-int64 conversion. | Toward zero; nonfinite/out-of-range integer conversion is Go implementation-dependent. | No |
+| `extern func floor(f Float) Int = "go4t/rt".Floor` | Round toward negative infinity, then convert to Int. | Toward negative infinity, then Go integer conversion; nonfinite/out-of-range not saturated. | No |
+| `extern func ceil(f Float) Int = "go4t/rt".Ceil` | Round toward positive infinity, then convert to Int. | Toward positive infinity, then Go integer conversion; nonfinite/out-of-range not saturated. | No |
+| `extern func round(f Float) Int = "go4t/rt".Round` | Round to nearest integer, ties away from zero, then convert to Int. | Nearest, ties away from zero; nonfinite/out-of-range integer conversion is implementation-dependent. | No |
+| `extern func sqrt(f Float) Float = "go4t/rt".Sqrt` | Go `math.Sqrt`; negative finite inputs produce NaN. | Negative finite input gives NaN; follows math.Sqrt special-value behaviour. | No |
+| `extern func pow(x Float, y Float) Float = "go4t/rt".Pow` | Go `math.Pow`, including its IEEE special-value behavior. | Follows math.Pow, including zero and IEEE special values. | No |
+| `extern func powInt(x Int, y Int) Int = "go4t/rt".PowInt` | Integer exponentiation by squaring; overflow wraps like Int multiplication; `0^0 = 1`. Negative exponents truncate reciprocal powers toward zero: base 1 returns 1, base -1 returns ±1 by exponent parity, every other base (including 0) returns 0. No negative-exponent panic. | 0^0 = 1; overflow wraps; negative exponent gives ±1 for bases ±1, otherwise 0, including base 0. | No |
+| `extern func parseFloat(s String) Option[Float] = "go4t/rt".ParseFloat` | Go `strconv.ParseFloat(s, 64)`; syntax/range errors return None; valid NaN/infinities return Some. | No whitespace trimming; syntax/range errors None; valid NaN/infinity Some; Go text grammar broader than source literals. | No |
+| `extern func showFloatFixed(f Float, decimals Int) String = "go4t/rt".ShowFloatFixed` | Go `strconv.FormatFloat(f, 'f', decimals, 64)`; ties-to-even decimal formatting, trailing zeros preserved; negative precision selects the shortest fixed form. | Trailing zeros retained; ties-to-even decimal formatting; negative precision shortest fixed form. | No |
+| `extern func absFloat(f Float) Float = "go4t/rt".AbsFloat` | Go `math.Abs`, including converting negative zero to positive zero. | Negative zero becomes positive zero; NaN remains NaN. | No |
+| `extern func nan() Float = "go4t/rt".Nan` | Produce an IEEE NaN. | Always an IEEE NaN, unequal to itself under Eq. | No |
+| `extern func isNaN(f Float) Bool = "go4t/rt".IsNaN` | True exactly for IEEE NaN values. | False for infinities and ordinary numbers. | No |
+| `instance Show[Float]` | Display with the same shortest g formatter as Debug. | Finite forms without a decimal point or exponent gain .0; show(1.0) is 1.0; NaN, +Inf, -Inf unchanged. Prefer showFloatFixed for money. | — |
+| `instance Debug[Float]` | Structural rendering distinguishes Float from Int. | debug(1.0) is 1.0, debug(1.5) is 1.5; NaN, +Inf, -Inf and exponents unchanged. | — |
+| `instance Eq[Float]` | Compare Float values for equality. | NaN unequal to itself; positive/negative zero equal. | — |
+| `instance Ord[Float]` | Compare Float values with Ordering. | NaN lowest; two NaNs compare EQ; signed zeros EQ. | — |
 
 ## `std/http`
 
@@ -141,24 +152,24 @@ Records are built in go4t: runtime client results and server handler results use
 six Request fields individually to the go4t adapter. No generated record layout
 is assumed by rt. See SPEC §6.4 and the runnable [HTTP example](../examples/http).
 
-| Source signature | Semantics | Boundary behaviour |
-| --- | --- | --- |
-| `type Request = Request{method: String, url: String, path: String, query: List[(String, String)], headers: List[(String, String)], body: String} deriving Debug` | Client request or incoming server request fields. | Client url must be absolute; nonempty path overrides the URL path, query pairs append. Incoming url is normally relative; path/query are decoded. |
-| `type Response = Response{status: Int, headers: List[(String, String)], body: String} deriving Debug` | Complete HTTP response. | Non-2xx is a normal value, not an IO failure; headers preserve repeated values. |
-| `instance Debug[Request]` | Derived structural rendering of all request fields. | Field order follows the declaration; strings quoted, query/header pairs use list syntax. |
-| `instance Debug[Response]` | Derived structural rendering of all response fields. | `debug(response(200, "ok"))` is `Response{status: 200, headers: [], body: "ok"}`. |
-| `extern func _request(method String, url String, path String, query List[(String, String)], headers List[(String, String)], body String, millis Int) IO[(Int, List[(String, String)], String)] = "go4t/rt".HTTPRequest` | Private field-list client ABI returning a triple. | Deferred; uses context through connection, redirects and full body read; no record-layout dependency. |
-| `extern func _header(headers List[(String, String)], name String) Option[String] = "go4t/rt".HTTPHeader` | Private case-insensitive header lookup. | First matching value, including empty; None if absent. |
-| `extern func _serve(port Int, handler func(String, String, String, List[(String, String)], List[(String, String)], String) IO[(Int, List[(String, String)], String)]) IO[Unit] = "go4t/rt".HTTPServe` | Private server field-list/triple ABI. | Request fields are method, url, path, query, headers, body; handler results are status, headers, body. |
-| `func request(r Request) IO[Response]` | Send a request with a 30 s overall timeout. | Replay sends again; Network/Timeout/Cancelled on transport failure; non-2xx succeeds. No retries. |
-| `func requestWithTimeout(r Request, millis Int) IO[Response]` | Send with an explicit millisecond budget. | Parent cancellation checked first; nonpositive fails Timeout without sending; overflow fails `requestWithTimeout: duration out of range`. |
-| `func get(url String) IO[Response]` | GET with no explicit body/headers/query override. | Uses request's 30 s budget and net/http redirect defaults. |
-| `func post(url String, contentType String, body String) IO[Response]` | POST with Content-Type and complete String body. | Uses request's 30 s budget; status is not restricted to 2xx. |
-| `func response(status Int, body String) Response` | Pure response constructor with no headers. | Does not execute IO or infer a content type; net/http supplies wire defaults when served. |
-| `func jsonResponse[A json.Encode](status Int, a A) Response` | Encode through std/json and set Content-Type to application/json. | Requires Encode; strict encoding may panic before IO construction (e.g. non-finite numbers). |
-| `func requestHeader(r Request, name String) Option[String]` | Read first case-insensitive request header. | Absent → None; present empty → Some(""); Host is exposed on incoming requests. |
-| `func responseHeader(r Response, name String) Option[String]` | Read first case-insensitive response header. | Repeated headers are not joined; first wins. |
-| `func serve(port Int, handler func(Request) IO[Response]) IO[Unit]` | Listen on all interfaces; run each request concurrently with its request context. | Deferred bind; Network on bind error; cancellation shuts down with 5 s grace and fails Cancelled/Timeout without logging; handler failure/panic → 500 with exact message body and `http handler: <message>` stderr line, except Cancelled with an already-done request context is silent. Fork is not a readiness signal. |
+| Source signature | Semantics | Boundary behaviour | Law-eligible |
+| --- | --- | --- | --- |
+| `type Request = Request{method: String, url: String, path: String, query: List[(String, String)], headers: List[(String, String)], body: String} deriving Debug` | Client request or incoming server request fields. | Client url must be absolute; nonempty path overrides the URL path, query pairs append. Incoming url is normally relative; path/query are decoded. | — |
+| `type Response = Response{status: Int, headers: List[(String, String)], body: String} deriving Debug` | Complete HTTP response. | Non-2xx is a normal value, not an IO failure; headers preserve repeated values. | — |
+| `instance Debug[Request]` | Derived structural rendering of all request fields. | Field order follows the declaration; strings quoted, query/header pairs use list syntax. | — |
+| `instance Debug[Response]` | Derived structural rendering of all response fields. | `debug(response(200, "ok"))` is `Response{status: 200, headers: [], body: "ok"}`. | — |
+| `extern func _request(method String, url String, path String, query List[(String, String)], headers List[(String, String)], body String, millis Int) IO[(Int, List[(String, String)], String)] = "go4t/rt".HTTPRequest` | Private field-list client ABI returning a triple. | Deferred; uses context through connection, redirects and full body read; no record-layout dependency. | No |
+| `extern func _header(headers List[(String, String)], name String) Option[String] = "go4t/rt".HTTPHeader` | Private case-insensitive header lookup. | First matching value, including empty; None if absent. | No |
+| `extern func _serve(port Int, handler func(String, String, String, List[(String, String)], List[(String, String)], String) IO[(Int, List[(String, String)], String)]) IO[Unit] = "go4t/rt".HTTPServe` | Private server field-list/triple ABI. | Request fields are method, url, path, query, headers, body; handler results are status, headers, body. | No |
+| `func request(r Request) IO[Response]` | Send a request with a 30 s overall timeout. | Replay sends again; Network/Timeout/Cancelled on transport failure; non-2xx succeeds. No retries. | No |
+| `func requestWithTimeout(r Request, millis Int) IO[Response]` | Send with an explicit millisecond budget. | Parent cancellation checked first; nonpositive fails Timeout without sending; overflow fails `requestWithTimeout: duration out of range`. | No |
+| `func get(url String) IO[Response]` | GET with no explicit body/headers/query override. | Uses request's 30 s budget and net/http redirect defaults. | No |
+| `func post(url String, contentType String, body String) IO[Response]` | POST with Content-Type and complete String body. | Uses request's 30 s budget; status is not restricted to 2xx. | No |
+| `func response(status Int, body String) Response` | Pure response constructor with no headers. | Does not execute IO or infer a content type; net/http supplies wire defaults when served. | Yes |
+| `func jsonResponse[A json.Encode](status Int, a A) Response` | Encode through std/json and set Content-Type to application/json. | Requires Encode; strict encoding may panic before IO construction (e.g. non-finite numbers). | No |
+| `func requestHeader(r Request, name String) Option[String]` | Read first case-insensitive request header. | Absent → None; present empty → Some(""); Host is exposed on incoming requests. | No |
+| `func responseHeader(r Response, name String) Option[String]` | Read first case-insensitive response header. | Repeated headers are not joined; first wins. | No |
+| `func serve(port Int, handler func(Request) IO[Response]) IO[Unit]` | Listen on all interfaces; run each request concurrently with its request context. | Deferred bind; Network on bind error; cancellation shuts down with 5 s grace and fails Cancelled/Timeout without logging; handler failure/panic → 500 with exact message body and `http handler: <message>` stderr line, except Cancelled with an already-done request context is silent. Fork is not a readiness signal. | No |
 
 ## `std/io`
 
@@ -169,42 +180,42 @@ IO errors are classified as NotFound, PermissionDenied, AlreadyExists, Timeout,
 Cancelled, Network, or Failure; recovered action/worker panics are Panic.
 Wrapped Go errors follow the same classification. See SPEC §6.2 for precedence.
 
-| Source signature | Semantics | Boundary behaviour |
-| --- | --- | --- |
-| `type IoError = NotFound(String) \| PermissionDenied(String) \| AlreadyExists(String) \| Timeout \| Cancelled \| Panic(String) \| Network(String) \| Failure(String) deriving Eq, Debug` | Typed IO failures; String payloads carry the message. | Timeout/Cancelled are nullary; other messages may be empty; constructors are qualified through io. |
-| `func ioErrorMessage(e IoError) String` | Return the display message without a constructor wrapper. | Timeout → `context deadline exceeded`; Cancelled → `context canceled`; all other payloads unchanged. |
-| `instance Show[IoError]` | show delegates to ioErrorMessage. | Panic text has no added prefix; empty message displays empty text. |
-| `instance Eq[IoError]` | Derived constructor and payload equality. | Different constructors are unequal even with equal messages; nullary values equal themselves. |
-| `instance Debug[IoError]` | Derived structural constructor rendering. | String payloads are quoted and escaped; Timeout/Cancelled have no parentheses. |
-| `extern func ioRaise[A](e IoError) IO[A] = "go4t/rt".Raise` | Construct a deferred failure preserving the supplied kind and message. | tryIO captures Err(e); no failure merely from constructing the action. |
-| `func ioFailWith[E Show, A](e E) IO[A]` | Raise Failure with the error's Show rendering. | Show rendering is strict while constructing the deferred ioFail; use ioRaise to preserve an IoError constructor. |
-| `extern func ioPure[A](a A) IO[A] = "go4t/rt".Pure` | Construct a successful IO holding an already evaluated value. | Argument is already strict; re-running returns the same value without recomputing its construction. |
-| `extern func ioBind[A, B](io IO[A], f func(A) IO[B]) IO[B] = "go4t/rt".Bind` | Sequence IO, passing its result to the continuation. | Failure skips f; success invokes f when the action runs, not when constructed. |
-| `func void[A](io IO[A]) IO[Unit]` | Run the action and discard its result. | Failure propagates unchanged; the result is `unit()` only on success. |
-| `extern func ioFail[A](msg String) IO[A] = "go4t/rt".Fail` | Construct a deferred Failure with the supplied message. | Every message, including empty text, constructs a failing deferred IO; no output or failure occurs merely by constructing it. |
-| `extern func println(s String) IO[Unit] = "go4t/rt".Println` | Write text and a newline to stdout when run. | Empty text still prints a newline; output errors fail the IO. |
-| `extern func readLine() IO[Option[String]] = "go4t/rt".ReadLine` | Read one input line, stripping its LF or CRLF terminator. | Empty EOF gives `None`; a blank line gives `Some("")`; LF/CRLF terminators are stripped; a final unterminated nonempty line is `Some(line)`; other read errors fail the IO. |
-| `extern func readAll() IO[String] = "go4t/rt".ReadAll` | Read all remaining stdin, including buffered input. | Empty remaining input gives `""`; includes bytes already buffered by prior `readLine` calls; read errors fail the IO. |
-| `extern func args() IO[List[String]] = "go4t/rt".Args` | Read program arguments, excluding the executable name. | No program arguments gives `Nil`; executable name excluded; empty argument strings retained. |
-| `extern func exit[A](code Int) IO[A] = "go4t/rt".Exit` | Terminate the process with the supplied status when run. | Not catchable by tryIO; follows OS/Go process status semantics. |
-| `extern func getEnv(name String) IO[Option[String]] = "go4t/rt".GetEnv` | Read an optional environment value. | Absent name gives `None`; present empty value gives `Some("")`; values are not trimmed. |
-| `extern func tryIO[A](io IO[A]) IO[Result[IoError, A]] = "go4t/rt".TryIO` | Run lazily; success becomes Ok, typed failures and recovered panics become Err. | Error → Err(IoError); action panic → Err(Panic(payload text without prefix)); construction panics/exit not caught. |
-| `extern func readFile(path String) IO[String] = "go4t/rt".ReadFile` | Read the complete file; filesystem errors fail the IO. | Empty file → empty string; missing path → NotFound; other errors use the IO classification. |
-| `extern func writeFile(path String, content String) IO[Unit] = "go4t/rt".WriteFile` | Create or truncate, preserving existing runtime parent-directory creation. | Creates parent directories and truncates existing file; directories 0755/files 0644 subject to umask; write errors fail. |
-| `extern func appendFile(path String, content String) IO[Unit] = "go4t/rt".AppendFile` | Create or append, creating missing parent directories; write/close errors fail. | Creates parent directories/file if absent; appends without truncation; write/close errors fail. |
-| `extern func fileExists(path String) IO[Bool] = "go4t/rt".FileExists` | True for an existing file/directory, false for a missing path; other stat errors fail. | Missing false; existing directory true; other stat errors fail. |
-| `extern func listDir(path String) IO[List[String]] = "go4t/rt".ListDir` | Sorted entry names, not full paths, including directory entries. | Sorted names, not full paths; empty directory Nil; read errors fail. |
-| `extern func removeFile(path String) IO[Unit] = "go4t/rt".RemoveFile` | Remove a file or empty directory; a missing path fails. | Missing/nonempty directory fails; empty directory can be removed. |
-| `extern func eprintln(s String) IO[Unit] = "go4t/rt".Eprintln` | Write s and a newline to stderr. | Even empty text emits newline to stderr; stream error fails. |
-| `extern func print(s String) IO[Unit] = "go4t/rt".Print` | Write s to stdout without a newline. | Empty text emits no bytes; stream error fails; no added newline. |
-| `extern func nowMillis() IO[Int] = "go4t/rt".NowMillis` | Current Unix time in milliseconds, sampled when run. | Unix wall-clock milliseconds, sampled when run, not monotonic. |
-| `extern func monotonicMillis() IO[Int] = "go4t/rt".MonotonicMillis` | Elapsed monotonic milliseconds since runtime initialization. | Elapsed milliseconds since runtime initialization; sampled when run. |
-| `extern func formatTime(millis Int, layout String) String = "go4t/rt".FormatTime` | Pure UTC formatting of Unix milliseconds with a Go time layout. | UTC only; Go layout syntax; negative milliseconds supported. |
-| `extern func randomInt(lo Int, hi Int) IO[Int] = "go4t/rt".RandomInt` | Uniform inclusive interval, supporting the entire signed Int range; not cryptographic. | Inclusive full signed range; lo == hi fixed; lo > hi fails `randomInt: lo must be <= hi`; not cryptographic. |
-| `extern func randomFloat() IO[Float] = "go4t/rt".RandomFloat` | Uniform Float in [0,1), sampled when run using the same automatically seeded RNG as randomInt; not cryptographic. | Never fails; 0 inclusive, 1 exclusive: [0,1). |
-| `extern func sleep(millis Int) IO[Unit] = "go4t/rt".Sleep` | Sleep for positive milliseconds; nonpositive values return immediately. | Nonpositive immediate; duration overflow fails `sleep: duration out of range`. |
-| `instance Functor[IO]` | Map IO's element/result while retaining shape. | Deferred mapper; failed IO skips it. |
-| `instance Monad[IO]` | Inject and sequence IO computations. | pure is ioPure; bind defers effects and skips continuation on failure. |
+| Source signature | Semantics | Boundary behaviour | Law-eligible |
+| --- | --- | --- | --- |
+| `type IoError = NotFound(String) \| PermissionDenied(String) \| AlreadyExists(String) \| Timeout \| Cancelled \| Panic(String) \| Network(String) \| Failure(String) deriving Eq, Debug` | Typed IO failures; String payloads carry the message. | Timeout/Cancelled are nullary; other messages may be empty; constructors are qualified through io. | — |
+| `func ioErrorMessage(e IoError) String` | Return the display message without a constructor wrapper. | Timeout → `context deadline exceeded`; Cancelled → `context canceled`; all other payloads unchanged. | Yes |
+| `instance Show[IoError]` | show delegates to ioErrorMessage. | Panic text has no added prefix; empty message displays empty text. | — |
+| `instance Eq[IoError]` | Derived constructor and payload equality. | Different constructors are unequal even with equal messages; nullary values equal themselves. | — |
+| `instance Debug[IoError]` | Derived structural constructor rendering. | String payloads are quoted and escaped; Timeout/Cancelled have no parentheses. | — |
+| `extern func ioRaise[A](e IoError) IO[A] = "go4t/rt".Raise` | Construct a deferred failure preserving the supplied kind and message. | tryIO captures Err(e); no failure merely from constructing the action. | No |
+| `func ioFailWith[E Show, A](e E) IO[A]` | Raise Failure with the error's Show rendering. | Show rendering is strict while constructing the deferred ioFail; use ioRaise to preserve an IoError constructor. | No |
+| `extern func ioPure[A](a A) IO[A] = "go4t/rt".Pure` | Construct a successful IO holding an already evaluated value. | Argument is already strict; re-running returns the same value without recomputing its construction. | No |
+| `extern func ioBind[A, B](io IO[A], f func(A) IO[B]) IO[B] = "go4t/rt".Bind` | Sequence IO, passing its result to the continuation. | Failure skips f; success invokes f when the action runs, not when constructed. | No |
+| `func void[A](io IO[A]) IO[Unit]` | Run the action and discard its result. | Failure propagates unchanged; the result is `unit()` only on success. | No |
+| `extern func ioFail[A](msg String) IO[A] = "go4t/rt".Fail` | Construct a deferred Failure with the supplied message. | Every message, including empty text, constructs a failing deferred IO; no output or failure occurs merely by constructing it. | No |
+| `extern func println(s String) IO[Unit] = "go4t/rt".Println` | Write text and a newline to stdout when run. | Empty text still prints a newline; output errors fail the IO. | No |
+| `extern func readLine() IO[Option[String]] = "go4t/rt".ReadLine` | Read one input line, stripping its LF or CRLF terminator. | Empty EOF gives `None`; a blank line gives `Some("")`; LF/CRLF terminators are stripped; a final unterminated nonempty line is `Some(line)`; other read errors fail the IO. | No |
+| `extern func readAll() IO[String] = "go4t/rt".ReadAll` | Read all remaining stdin, including buffered input. | Empty remaining input gives `""`; includes bytes already buffered by prior `readLine` calls; read errors fail the IO. | No |
+| `extern func args() IO[List[String]] = "go4t/rt".Args` | Read program arguments, excluding the executable name. | No program arguments gives `Nil`; executable name excluded; empty argument strings retained. | No |
+| `extern func exit[A](code Int) IO[A] = "go4t/rt".Exit` | Terminate the process with the supplied status when run. | Not catchable by tryIO; follows OS/Go process status semantics. | No |
+| `extern func getEnv(name String) IO[Option[String]] = "go4t/rt".GetEnv` | Read an optional environment value. | Absent name gives `None`; present empty value gives `Some("")`; values are not trimmed. | No |
+| `extern func tryIO[A](io IO[A]) IO[Result[IoError, A]] = "go4t/rt".TryIO` | Run lazily; success becomes Ok, typed failures and recovered panics become Err. | Error → Err(IoError); action panic → Err(Panic(payload text without prefix)); construction panics/exit not caught. | No |
+| `extern func readFile(path String) IO[String] = "go4t/rt".ReadFile` | Read the complete file; filesystem errors fail the IO. | Empty file → empty string; missing path → NotFound; other errors use the IO classification. | No |
+| `extern func writeFile(path String, content String) IO[Unit] = "go4t/rt".WriteFile` | Create or truncate, preserving existing runtime parent-directory creation. | Creates parent directories and truncates existing file; directories 0755/files 0644 subject to umask; write errors fail. | No |
+| `extern func appendFile(path String, content String) IO[Unit] = "go4t/rt".AppendFile` | Create or append, creating missing parent directories; write/close errors fail. | Creates parent directories/file if absent; appends without truncation; write/close errors fail. | No |
+| `extern func fileExists(path String) IO[Bool] = "go4t/rt".FileExists` | True for an existing file/directory, false for a missing path; other stat errors fail. | Missing false; existing directory true; other stat errors fail. | No |
+| `extern func listDir(path String) IO[List[String]] = "go4t/rt".ListDir` | Sorted entry names, not full paths, including directory entries. | Sorted names, not full paths; empty directory Nil; read errors fail. | No |
+| `extern func removeFile(path String) IO[Unit] = "go4t/rt".RemoveFile` | Remove a file or empty directory; a missing path fails. | Missing/nonempty directory fails; empty directory can be removed. | No |
+| `extern func eprintln(s String) IO[Unit] = "go4t/rt".Eprintln` | Write s and a newline to stderr. | Even empty text emits newline to stderr; stream error fails. | No |
+| `extern func print(s String) IO[Unit] = "go4t/rt".Print` | Write s to stdout without a newline. | Empty text emits no bytes; stream error fails; no added newline. | No |
+| `extern func nowMillis() IO[Int] = "go4t/rt".NowMillis` | Current Unix time in milliseconds, sampled when run. | Unix wall-clock milliseconds, sampled when run, not monotonic. | No |
+| `extern func monotonicMillis() IO[Int] = "go4t/rt".MonotonicMillis` | Elapsed monotonic milliseconds since runtime initialization. | Elapsed milliseconds since runtime initialization; sampled when run. | No |
+| `extern func formatTime(millis Int, layout String) String = "go4t/rt".FormatTime` | Pure UTC formatting of Unix milliseconds with a Go time layout. | UTC only; Go layout syntax; negative milliseconds supported. | No |
+| `extern func randomInt(lo Int, hi Int) IO[Int] = "go4t/rt".RandomInt` | Uniform inclusive interval, supporting the entire signed Int range; not cryptographic. | Inclusive full signed range; lo == hi fixed; lo > hi fails `randomInt: lo must be <= hi`; not cryptographic. | No |
+| `extern func randomFloat() IO[Float] = "go4t/rt".RandomFloat` | Uniform Float in [0,1), sampled when run using the same automatically seeded RNG as randomInt; not cryptographic. | Never fails; 0 inclusive, 1 exclusive: [0,1). | No |
+| `extern func sleep(millis Int) IO[Unit] = "go4t/rt".Sleep` | Sleep for positive milliseconds; nonpositive values return immediately. | Nonpositive immediate; duration overflow fails `sleep: duration out of range`. | No |
+| `instance Functor[IO]` | Map IO's element/result while retaining shape. | Deferred mapper; failed IO skips it. | — |
+| `instance Monad[IO]` | Inject and sequence IO computations. | pure is ioPure; bind defers effects and skips continuation on failure. | — |
 
 ## `std/json`
 
@@ -212,59 +223,59 @@ Source: [`json/json.gt`](../std/json/json.gt). 39 top-level declarations.
 
 All `_json*` rows are private compiler/codec helpers; user modules cannot call them. JSON strings use JSON rather than Go escaping.
 
-| Source signature | Semantics | Boundary behaviour |
-| --- | --- | --- |
-| `type Json = JNull \| JBool(Bool) \| JNum(Float) \| JStr(String) \| JArr(List[Json]) \| JObj(Map[String, Json]) deriving Debug` | JSON null, Boolean, Float number, string, array, or String-keyed object. | JNum can be constructed nonfinite but JSON printing then panics; object metadata can preserve source order. |
-| `instance Debug[Json]` | Derived structural constructor rendering, not JSON encoding. | Recurses through list/map values; object keys sorted and strings quoted; nonfinite numbers are printable by Debug. |
-| `class Encode[A] { encode(a A) Json }` | Convert a typed value to Json. | Import/qualify std/json; nonfinite numbers fail when printed; nullable Option and large Int are lossy. |
-| `class Decode[A] { decode(j Json) Result[String, A] }` | Convert Json to a typed Result[String, A]. | First failure uses expected <what> at <path>; missing record fields are errors. |
-| `extern func toJson(j Json) String = "go4t/rt".ToJson` | Render a Json value as compact JSON text. | Nonfinite JNum panics `cannot encode non-finite JSON number`; preserves parsed/derived object metadata; ordinary Map keys sorted. |
-| `extern func toJsonPretty(j Json) String = "go4t/rt".ToJsonPretty` | Render Json with two-space indentation and no trailing newline. | Same nonfinite policy/order as toJson; two spaces, no trailing newline. |
-| `extern func parseJson(s String) Result[String, Json] = "go4t/rt".ParseJson` | Parse exactly one JSON value, preserving object member order. | Whitespace accepted; trailing values/malformed input/Float overflow return Err with `invalid JSON: ` prefix; duplicate keys first position/last value. |
-| `extern func _jsonObject(fields List[(String, Json)]) Json = "go4t/rt".JsonObject` | Private ordered-object constructor used by generated encoders. | Private generated-helper contract expects unique field names; empty fields produce empty object; order metadata retained. |
-| `extern func _jsonInt(n Float) Result[String, Int] = "go4t/rt".JsonInt` | Private checked Float-to-Int JSON conversion. | Only finite integral [-2^63, 2^63) accepted; otherwise Err("expected Int at $"). |
-| `extern func _jsonErrorAt(message String, segment String) String = "go4t/rt".JsonErrorAt` | Private insertion of a path segment after the error's root. | Existing ` at $` path extended at root; absent root appends ` at $` plus segment. |
-| `extern func _jsonFieldPath(name String) String = "go4t/rt".JsonFieldPath` | Private rendering of a JSON field path segment. | Identifier key → .name; otherwise JSON-quoted brackets, including empty key. |
-| `func _jsonAt[A](segment String, result Result[String, A]) Result[String, A]` | Private transformation of a Result error to add a path segment. | Ok unchanged; Err receives the prefix without dropping its nested suffix. |
-| `func _jsonDecodeAt[A Decode](segment String, j Json) Result[String, A]` | Private decode with a prefixed path segment. | Returns the decoder's first failure with added segment; success unchanged. |
-| `func _jsonField[A Decode](fields Map[String, Json], name String) Result[String, A]` | Private lookup and decode of a required object field. | Missing field → `expected field at <path>`; explicit null still decoded normally. |
-| `func _jsonArray(j Json, size Int) Result[String, List[Json]]` | Private assertion of an exact-length JSON array. | Nonarray → expected array; wrong length → expected array of length N; exact empty array accepted for size 0. |
-| `func _jsonValues(fields Map[String, Json], size Int) Result[String, List[Json]]` | Private required $values array lookup with exact arity. | Missing $values errors at its quoted field path; exact requested constructor arity required. |
-| `instance Encode[Json]` | Encode as identity Json. | Encode unchanged; Decode always Ok(j). |
-| `instance Decode[Json]` | Decode from identity Json. | Encode unchanged; Decode always Ok(j). |
-| `instance Encode[Int]` | Encode as Float-backed JSON number. | Encoding may round; decoding accepts only finite integral [-2^63, 2^63). |
-| `instance Decode[Int]` | Decode from Float-backed JSON number. | Encoding may round; decoding accepts only finite integral [-2^63, 2^63). |
-| `instance Encode[Float]` | Encode as JSON number. | Decode JNum directly (including manually constructed nonfinite values); printing nonfinite numbers panics. |
-| `instance Decode[Float]` | Decode from JSON number. | Decode JNum directly (including manually constructed nonfinite values); printing nonfinite numbers panics. |
-| `instance Encode[String]` | Encode as JSON string. | Only JStr decodes; empty string valid. |
-| `instance Decode[String]` | Decode from JSON string. | Only JStr decodes; empty string valid. |
-| `instance Encode[Bool]` | Encode as JSON Boolean. | Only JBool decodes. |
-| `instance Decode[Bool]` | Decode from JSON Boolean. | Only JBool decodes. |
-| `instance Encode[Unit]` | Encode as JSON null. | Only JNull decodes; result unit(). |
-| `instance Decode[Unit]` | Decode from JSON null. | Only JNull decodes; result unit(). |
-| `instance Encode[Option[A]] given Encode[A]` | Encode as nullable payload. | Null → None; Some null-like payload cannot round-trip distinctly. |
-| `instance Decode[Option[A]] given Decode[A]` | Decode from nullable payload. | Null → None; Some null-like payload cannot round-trip distinctly. |
-| `instance Encode[List[A]] given Encode[A]` | Encode as JSON array. | Empty array/list valid; decode stops at first failing index, with path. |
-| `instance Decode[List[A]] given Decode[A]` | Decode from JSON array. | Empty array/list valid; decode stops at first failing index, with path. |
-| `func _jsonDecodeList[A Decode](xs List[Json], index Int, acc List[A]) Result[String, List[A]]` | Private index-aware decoding with a reversed accumulator. | Nil → Ok(reverse(acc)); stops on first decode error; indexes start at supplied index. |
-| `instance Encode[Array[A]] given Encode[A]` | Encode as JSON array. | Empty array valid; conversions retain index order; decode errors retain element path. |
-| `instance Decode[Array[A]] given Decode[A]` | Decode from JSON array. | Empty array valid; conversions retain index order; decode errors retain element path. |
-| `instance Encode[Map[String, V]] given Encode[V]` | Encode as String-keyed JSON object. | Encode lexicographic keys; decode first key-order failure; only String keys supported. |
-| `instance Decode[Map[String, V]] given Decode[V]` | Decode from String-keyed JSON object. | Encode lexicographic keys; decode first key-order failure; only String keys supported. |
-| `func _jsonDecodeFields[A Decode](fields List[(String, Json)], acc List[(String, A)]) Result[String, List[(String, A)]]` | Private key-path-aware object-value decoding with a reversed accumulator. | Empty → Ok(reverse(acc)); first failing key path preserved; caller supplies key-ordered fields. |
-| `instance Encode[Tuple2[A, B]] given Encode[A], Encode[B]` | Encode as two-element JSON array. | Exact length 2 on decode; errors carry [0]/[1]; compiler supplies other arities when used. |
-| `instance Decode[Tuple2[A, B]] given Decode[A], Decode[B]` | Decode from two-element JSON array. | Exact length 2 on decode; errors carry [0]/[1]; compiler supplies other arities when used. |
+| Source signature | Semantics | Boundary behaviour | Law-eligible |
+| --- | --- | --- | --- |
+| `type Json = JNull \| JBool(Bool) \| JNum(Float) \| JStr(String) \| JArr(List[Json]) \| JObj(Map[String, Json]) deriving Debug` | JSON null, Boolean, Float number, string, array, or String-keyed object. | JNum can be constructed nonfinite but JSON printing then panics; object metadata can preserve source order. | — |
+| `instance Debug[Json]` | Derived structural constructor rendering, not JSON encoding. | Recurses through list/map values; object keys sorted and strings quoted; nonfinite numbers are printable by Debug. | — |
+| `class Encode[A] { encode(a A) Json }` | Convert a typed value to Json. | Import/qualify std/json; nonfinite numbers fail when printed; nullable Option and large Int are lossy. | — |
+| `class Decode[A] { decode(j Json) Result[String, A] }` | Convert Json to a typed Result[String, A]. | First failure uses expected <what> at <path>; missing record fields are errors. | — |
+| `extern func toJson(j Json) String = "go4t/rt".ToJson` | Render a Json value as compact JSON text. | Nonfinite JNum panics `cannot encode non-finite JSON number`; preserves parsed/derived object metadata; ordinary Map keys sorted. | No |
+| `extern func toJsonPretty(j Json) String = "go4t/rt".ToJsonPretty` | Render Json with two-space indentation and no trailing newline. | Same nonfinite policy/order as toJson; two spaces, no trailing newline. | No |
+| `extern func parseJson(s String) Result[String, Json] = "go4t/rt".ParseJson` | Parse exactly one JSON value, preserving object member order. | Whitespace accepted; trailing values/malformed input/Float overflow return Err with `invalid JSON: ` prefix; duplicate keys first position/last value. | No |
+| `extern func _jsonObject(fields List[(String, Json)]) Json = "go4t/rt".JsonObject` | Private ordered-object constructor used by generated encoders. | Private generated-helper contract expects unique field names; empty fields produce empty object; order metadata retained. | No |
+| `extern func _jsonInt(n Float) Result[String, Int] = "go4t/rt".JsonInt` | Private checked Float-to-Int JSON conversion. | Only finite integral [-2^63, 2^63) accepted; otherwise Err("expected Int at $"). | No |
+| `extern func _jsonErrorAt(message String, segment String) String = "go4t/rt".JsonErrorAt` | Private insertion of a path segment after the error's root. | Existing ` at $` path extended at root; absent root appends ` at $` plus segment. | No |
+| `extern func _jsonFieldPath(name String) String = "go4t/rt".JsonFieldPath` | Private rendering of a JSON field path segment. | Identifier key → .name; otherwise JSON-quoted brackets, including empty key. | No |
+| `func _jsonAt[A](segment String, result Result[String, A]) Result[String, A]` | Private transformation of a Result error to add a path segment. | Ok unchanged; Err receives the prefix without dropping its nested suffix. | No |
+| `func _jsonDecodeAt[A Decode](segment String, j Json) Result[String, A]` | Private decode with a prefixed path segment. | Returns the decoder's first failure with added segment; success unchanged. | No |
+| `func _jsonField[A Decode](fields Map[String, Json], name String) Result[String, A]` | Private lookup and decode of a required object field. | Missing field → `expected field at <path>`; explicit null still decoded normally. | No |
+| `func _jsonArray(j Json, size Int) Result[String, List[Json]]` | Private assertion of an exact-length JSON array. | Nonarray → expected array; wrong length → expected array of length N; exact empty array accepted for size 0. | No |
+| `func _jsonValues(fields Map[String, Json], size Int) Result[String, List[Json]]` | Private required $values array lookup with exact arity. | Missing $values errors at its quoted field path; exact requested constructor arity required. | No |
+| `instance Encode[Json]` | Encode as identity Json. | Encode unchanged; Decode always Ok(j). | — |
+| `instance Decode[Json]` | Decode from identity Json. | Encode unchanged; Decode always Ok(j). | — |
+| `instance Encode[Int]` | Encode as Float-backed JSON number. | Encoding may round; decoding accepts only finite integral [-2^63, 2^63). | — |
+| `instance Decode[Int]` | Decode from Float-backed JSON number. | Encoding may round; decoding accepts only finite integral [-2^63, 2^63). | — |
+| `instance Encode[Float]` | Encode as JSON number. | Decode JNum directly (including manually constructed nonfinite values); printing nonfinite numbers panics. | — |
+| `instance Decode[Float]` | Decode from JSON number. | Decode JNum directly (including manually constructed nonfinite values); printing nonfinite numbers panics. | — |
+| `instance Encode[String]` | Encode as JSON string. | Only JStr decodes; empty string valid. | — |
+| `instance Decode[String]` | Decode from JSON string. | Only JStr decodes; empty string valid. | — |
+| `instance Encode[Bool]` | Encode as JSON Boolean. | Only JBool decodes. | — |
+| `instance Decode[Bool]` | Decode from JSON Boolean. | Only JBool decodes. | — |
+| `instance Encode[Unit]` | Encode as JSON null. | Only JNull decodes; result unit(). | — |
+| `instance Decode[Unit]` | Decode from JSON null. | Only JNull decodes; result unit(). | — |
+| `instance Encode[Option[A]] given Encode[A]` | Encode as nullable payload. | Null → None; Some null-like payload cannot round-trip distinctly. | — |
+| `instance Decode[Option[A]] given Decode[A]` | Decode from nullable payload. | Null → None; Some null-like payload cannot round-trip distinctly. | — |
+| `instance Encode[List[A]] given Encode[A]` | Encode as JSON array. | Empty array/list valid; decode stops at first failing index, with path. | — |
+| `instance Decode[List[A]] given Decode[A]` | Decode from JSON array. | Empty array/list valid; decode stops at first failing index, with path. | — |
+| `func _jsonDecodeList[A Decode](xs List[Json], index Int, acc List[A]) Result[String, List[A]]` | Private index-aware decoding with a reversed accumulator. | Nil → Ok(reverse(acc)); stops on first decode error; indexes start at supplied index. | No |
+| `instance Encode[Array[A]] given Encode[A]` | Encode as JSON array. | Empty array valid; conversions retain index order; decode errors retain element path. | — |
+| `instance Decode[Array[A]] given Decode[A]` | Decode from JSON array. | Empty array valid; conversions retain index order; decode errors retain element path. | — |
+| `instance Encode[Map[String, V]] given Encode[V]` | Encode as String-keyed JSON object. | Encode lexicographic keys; decode first key-order failure; only String keys supported. | — |
+| `instance Decode[Map[String, V]] given Decode[V]` | Decode from String-keyed JSON object. | Encode lexicographic keys; decode first key-order failure; only String keys supported. | — |
+| `func _jsonDecodeFields[A Decode](fields List[(String, Json)], acc List[(String, A)]) Result[String, List[(String, A)]]` | Private key-path-aware object-value decoding with a reversed accumulator. | Empty → Ok(reverse(acc)); first failing key path preserved; caller supplies key-ordered fields. | No |
+| `instance Encode[Tuple2[A, B]] given Encode[A], Encode[B]` | Encode as two-element JSON array. | Exact length 2 on decode; errors carry [0]/[1]; compiler supplies other arities when used. | — |
+| `instance Decode[Tuple2[A, B]] given Decode[A], Decode[B]` | Decode from two-element JSON array. | Exact length 2 on decode; errors carry [0]/[1]; compiler supplies other arities when used. | — |
 
 ## `std/lazy`
 
 Source: [`lazy/lazy.gt`](../std/lazy/lazy.gt). 4 top-level declarations.
 
-| Source signature | Semantics | Boundary behaviour |
-| --- | --- | --- |
-| `type Lazy[A] = Lazy(func(Unit) A)` | A stored pure function from Unit to A. | No memoization: every force calls the thunk again. |
-| `instance Debug[Lazy[A]]` | Render an opaque stored function as `Lazy(<function>)`. | No Debug constraint on A; never forces the thunk. |
-| `func delay[A](f func(Unit) A) Lazy[A]` | Store a pure thunk in Lazy without evaluating its body. | No memoization or thunk execution during construction; ordinary function-argument evaluation is strict. |
-| `func force[A](l Lazy[A]) A` | Call the stored Lazy thunk with unit(). | Every call reevaluates the thunk; no caching, mutation or IO runner. |
+| Source signature | Semantics | Boundary behaviour | Law-eligible |
+| --- | --- | --- | --- |
+| `type Lazy[A] = Lazy(func(Unit) A)` | A stored pure function from Unit to A. | No memoization: every force calls the thunk again. | — |
+| `instance Debug[Lazy[A]]` | Render an opaque stored function as `Lazy(<function>)`. | No Debug constraint on A; never forces the thunk. | — |
+| `func delay[A](f func(Unit) A) Lazy[A]` | Store a pure thunk in Lazy without evaluating its body. | No memoization or thunk execution during construction; ordinary function-argument evaluation is strict. | Yes |
+| `func force[A](l Lazy[A]) A` | Call the stored Lazy thunk with unit(). | Every call reevaluates the thunk; no caching, mutation or IO runner. | Yes |
 
 ## `std/list`
 
@@ -272,76 +283,76 @@ Source: [`list/list.gt`](../std/list/list.gt). 68 top-level declarations.
 
 Accumulator helpers are exported because their names do not begin `_`; prefer the ordinary entrypoints unless deliberately supplying a reversed prefix. `sortBy` is stable array-backed sorting; no `insertBy` remains.
 
-| Source signature | Semantics | Boundary behaviour |
-| --- | --- | --- |
-| `type List[A] = Nil \| Cons(A, List[A]) deriving Eq, Ord` | Immutable singly linked list: Nil or Cons(A, List[A]). | Derived Eq/Ord constrain A; explicit Debug requires Debug[A]; Nil is []; lists are homogeneous and finite unless computation diverges. |
-| `instance Functor[List]` | Map List's element/result while retaining shape. | Nil unchanged, no callback; maps each element in order. |
-| `instance Monad[List]` | Inject and sequence List computations. | pure makes singleton; bind concatenates per-element lists; Nil skips callback. |
-| `instance Foldable[List]` | Right fold List elements. | Empty/None returns init; Cons folds right recursively. |
-| `instance Traversable[List]` | Effectfully map List without changing its shape. | Empty/None uses pure without callback; effects follow element order and the chosen Monad short-circuits. |
-| `func foldl[F[_] Foldable, A, B](fa F[A], init B, f func(B, A) B) B` | Left fold any Foldable using continuations. | Empty returns init; callbacks follow fold order; continuation representation can consume stack. |
-| `func toList[F[_] Foldable, A](fa F[A]) List[A]` | Collect any Foldable's elements in fold order. | Empty Foldable → Nil; preserves Foldable traversal order. |
-| `func foldMapList[F[_] Foldable, A, B](fa F[A], f func(A) List[B]) List[B]` | Map folded elements to lists and concatenate them in fold order. | Empty → Nil; empty callback lists add no elements; flatten in fold order. |
-| `instance Show[List[A]] given Show[A]` | Display as [a, b], using field Show where applicable. | Empty []; strings unquoted; element order retained. |
-| `instance Debug[List[A]] given Debug[A]` | Structural list-literal rendering using each element's Debug. | Empty []; elements separated by `, `; strings quoted; nested lists and record fields use brackets; Cons-built lists render identically. |
-| `func forEach[M[_] Monad, A](xs List[A], f func(A) M[Unit]) M[Unit]` | Sequence a list of Monad actions, discarding their Unit results. | `Nil → pure(unit())`, callback not called; singleton sequences one action; short-circuits according to the chosen Monad. |
-| `func mapM[M[_] Monad, A, B](xs List[A], f func(A) M[B]) M[List[B]]` | Sequence a list of Monad actions and collect their results in order. | `Nil → pure(Nil)`, callback not called; singleton maps one action and wraps its value in a singleton list; preserves order. |
-| `func fold[A, B](xs List[A], init B, f func(B, A) B) B` | Left fold a List through an accumulator. | `fold(Nil, init, f) = init`; singleton is `f(init, x)`; left-to-right fold. |
-| `func length[A](xs List[A]) Int` | Count the elements of a List. | `length(Nil) = 0`; singleton length is 1. |
-| `func append[A](xs List[A], ys List[A]) List[A]` | Concatenate two lists in order. | `append(Nil, ys) = ys`; `append(xs, Nil) = xs` by value. |
-| `func filter[A](xs List[A], p func(A) Bool) List[A]` | Keep elements whose predicate is true, preserving order. | `filter(Nil, p) = Nil`; singleton kept iff `p(x)`; order preserved. |
-| `func reverse[A](xs List[A]) List[A]` | Return a list in reverse order. | Empty and singleton unchanged by value. |
-| `func zip[A, B](xs List[A], ys List[B]) List[(A, B)]` | Pair elements up to the shorter list's length. | Either input empty gives `Nil`; truncates to the shorter input, including singleton inputs. |
-| `func head[A](xs List[A]) Option[A]` | Return the first element as an Option. | `head(Nil) = None`; `head([x]) = Some(x)`; later elements ignored. |
-| `func tail[A](xs List[A]) List[A]` | Return the list without its first element. | `tail(Nil) = Nil`; `tail([x]) = Nil`, never an empty-list panic. |
-| `func take[A](n Int, xs List[A]) List[A]` | Return at most n leading elements. | `take(n <= 0, xs) = Nil`, including `take(-1, xs)` and `minInt()`; empty input stays empty; `n > length(xs)` returns all elements. |
-| `func drop[A](n Int, xs List[A]) List[A]` | Return the suffix after at most n leading elements. | `drop(n <= 0, xs) = xs`; empty input stays empty; `drop(n >= length(xs), xs) = Nil`. |
-| `func sum(xs List[Int]) Int` | Sum Int elements with wrapping addition. | `sum(Nil) = 0`; singleton is its element; signed Int overflow wraps. |
-| `func concatMap[A, B](xs List[A], f func(A) List[B]) List[B]` | Map each element to a list and concatenate in order. | `Nil → Nil`, callback not called; singleton returns `f(x)`; empty produced lists contribute no elements. `pure(x)` for List is `[x]`. |
-| `func catOptions[A](xs List[Option[A]]) List[A]` | Keep Some payloads in input order, discarding None. | Empty/all-None → Nil; singleton Some(x) → [x]; duplicates retained. |
-| `func mapMaybe[A, B](xs List[A], f func(A) Option[B]) List[B]` | Apply f once per element left-to-right, keeping Some payloads and discarding None. | Empty → Nil without callback; all-None → Nil; retained values preserve input order. |
-| `func elem[A Eq](x A, xs List[A]) Bool` | Test membership with the element's Eq instance. | Empty gives false; singleton compares with `Eq`; stops at the first match. |
-| `func sortBy[A](xs List[A], cmp func(A, A) Ordering) List[A]` | Stable sort using a supplied Ordering comparator and an array-backed sort. | Empty/singleton unchanged; comparator not called for these inputs; equal elements retain input order. |
-| `func sort[A Ord](xs List[A]) List[A]` | Stable ascending sort using Ord. | Same boundaries as `sortBy`; uses the element's `Ord.compare`. |
-| `func maximum[A Ord](xs List[A]) Option[A]` | Return the greatest element, retaining the earliest tie. | Empty gives `None`; singleton gives `Some(x)`; ties retain the earliest element. |
-| `func minimum[A Ord](xs List[A]) Option[A]` | Return the least element, retaining the earliest tie. | Empty gives `None`; singleton gives `Some(x)`; ties retain the earliest element. |
-| `func zipWith[A, B, C](xs List[A], ys List[B], f func(A, B) C) List[C]` | pairwise map to the shorter length. | Either list empty gives `Nil` with no callback; singleton pair gives `[f(x, y)]`; truncates to the shorter length. |
-| `func zipWithAcc[A, B, C](xs List[A], ys List[B], f func(A, B) C, acc List[C]) List[C]` | Accumulator implementation of zipWith with a reversed prefix. | Either input empty returns `rev(acc)`; otherwise emits pairs as `zipWith`, following that prefix. |
-| `func unzip[A, B](xs List[(A, B)]) (List[A], List[B])` | separate the pair components in order. | Empty gives `(Nil, Nil)`; singleton `(a,b)` gives `([a], [b])`; order preserved. |
-| `func any[A](xs List[A], p func(A) Bool) Bool` | short-circuit at the first true predicate. | Empty is false; singleton is `p(x)`; first true result short-circuits. |
-| `func all[A](xs List[A], p func(A) Bool) Bool` | short-circuit at the first false predicate. | Empty is true; singleton is `p(x)`; first false result short-circuits. |
-| `func find[A](xs List[A], p func(A) Bool) Option[A]` | first satisfying element. | Empty/no match gives `None`; singleton match gives `Some(x)`; first match wins. |
-| `func findIndex[A](xs List[A], p func(A) Bool) Option[Int]` | zero-based index of the first match. | Empty/no match gives `None`; singleton match gives `Some(0)`; indices are zero-based. |
-| `func findIndexFrom[A](xs List[A], p func(A) Bool, i Int) Option[Int]` | Find the first match with indexes starting at i. | Empty/no match gives `None`; first match at offset j gives `Some(i+j)`. |
-| `func partition[A](xs List[A], p func(A) Bool) (List[A], List[A])` | stable (satisfying, not satisfying) lists. | Empty gives `(Nil, Nil)`; singleton goes into exactly one side; each side retains input order. |
-| `func nub[A Eq](xs List[A]) List[A]` | stable removal of duplicate elements. | Empty/singleton unchanged; first representative of each `Eq` equivalence class retained. |
-| `func range(lo Int, hi Int) List[Int]` | ascending half-open interval [lo, hi). | `range(5, 1)` and `range(n, n)` give `Nil`; `range(n, n+1) = [n]`; `range(-2, 2) = [-2,-1,0,1]`. Half-open endpoints do not increment past `maxInt()` or decrement below `minInt()`. |
-| `func rangeAcc(lo Int, hi Int, acc List[Int]) List[Int]` | Prepend the ascending half-open interval to acc. | `lo >= hi` returns acc; otherwise ascending `[lo, hi)` prepended to acc. |
-| `func replicate[A](n Int, x A) List[A]` | n copies of x. | `n <= 0` gives `Nil`, including `replicate(-1, x)` and `minInt()`; `n = 1` gives `[x]`. |
-| `func replicateAcc[A](n Int, x A, acc List[A]) List[A]` | Prepend n copies to acc. | `n <= 0` returns acc; positive n prepends n copies. |
-| `func intercalate[A](sep List[A], xss List[List[A]]) List[A]` | flatten with sep between adjacent lists. | Empty outer list gives `Nil`; singleton outer list gives its inner list; empty separator is ordinary flattening. Empty inner lists still have separators between them: `intercalate([0], [[], []]) = [0]`. |
-| `func flatten[A](xss List[List[A]]) List[A]` | concatenate in outer and inner order. | Empty outer list or all-empty inner lists give `Nil`; singleton outer list gives its inner list. |
-| `func last[A](xs List[A]) Option[A]` | final element if present. | Empty gives `None`; singleton gives `Some(x)`. |
-| `func init[A](xs List[A]) List[A]` | all but the final element. | Empty and singleton give `Nil`; longer lists lose exactly the last element. |
-| `func initAcc[A](xs List[A], acc List[A]) List[A]` | Return reverse(acc) followed by all but the last input element. | Empty/singleton returns `rev(acc)`; otherwise that prefix followed by `init(xs)`. |
-| `func splitAt[A](n Int, xs List[A]) (List[A], List[A])` | prefix of at most n elements and remaining suffix. | `n <= 0` gives `(Nil, xs)`; `n >= length(xs)` gives `(xs, Nil)`; empty input gives `(Nil, Nil)` for every n. |
-| `func splitAtAcc[A](n Int, xs List[A], acc List[A]) (List[A], List[A])` | Accumulate a taken prefix in reverse before splitting. | `n <= 0` gives `(rev(acc), xs)`; exhaustion gives `(rev(acc) ++ xs, Nil)` by value; otherwise accumulates the taken prefix before reversing. |
-| `func span[A](xs List[A], p func(A) Bool) (List[A], List[A])` | longest satisfying prefix and remaining suffix. | Empty gives `(Nil, Nil)`; immediate predicate failure gives `(Nil, xs)`; all true gives `(xs, Nil)`; stops at first false. |
-| `func spanAcc[A](xs List[A], p func(A) Bool, acc List[A]) (List[A], List[A])` | Accumulate a satisfying prefix in reverse before splitting. | Empty gives `(rev(acc), Nil)`; immediate failure gives `(rev(acc), xs)`; otherwise extends prefix up to first failure. |
-| `func takeWhile[A](xs List[A], p func(A) Bool) List[A]` | longest satisfying prefix. | Empty or immediate predicate failure gives `Nil`; all true returns all elements; stops at first false. |
-| `func dropWhile[A](xs List[A], p func(A) Bool) List[A]` | suffix starting at the first predicate failure. | Empty or all true gives `Nil`; immediate predicate failure returns original list; stops at first false. |
-| `func lookup[K Eq, V](k K, xs List[(K, V)]) Option[V]` | value of the first equal key. | Empty or absent key gives `None`; duplicate keys return the first value; key equality uses `Eq`. |
-| `func indexed[A](xs List[A]) List[(Int, A)]` | pair each element with its zero-based index. | Empty gives `Nil`; singleton gives `[(0, x)]`. |
-| `func indexedFrom[A](xs List[A], i Int, acc List[(Int, A)]) List[(Int, A)]` | Produce indexed elements from i after a reversed prefix accumulator. | Empty returns `rev(acc)`; otherwise that prefix followed by elements indexed starting at i. |
-| `func iterate[A](n Int, x A, f func(A) A) List[A]` | n values x, f(x), f(f(x)), . | `n <= 0` gives `Nil` without calling `f`; `n = 1` gives `[x]` without calling `f`; positive n invokes `f` exactly n-1 times. |
-| `func iterateAcc[A](n Int, x A, f func(A) A, acc List[A]) List[A]` | Generate a finite iteration sequence after a reversed prefix. | `n <= 0` returns `rev(acc)`; otherwise that prefix followed by `iterate(n,x,f)`, still no extra final callback. |
-| `func product(xs List[Int]) Int` | left product with identity 1. | Empty gives 1; singleton is its element; zero produces zero; Int multiplication overflow wraps. |
-| `func count[A](xs List[A], p func(A) Bool) Int` | number of satisfying elements. | Empty gives 0; singleton gives 1 or 0 according to its predicate. |
-| `func unfold[S, A](seed S, step func(S) Option[(A, S)]) List[A]` | emit (value, next seed) until step returns None. | Immediate `None` gives `Nil`; one `Some((x, seed))` followed by `None` gives `[x]`; a step that never returns `None` does not terminate. |
-| `func unfoldAcc[S, A](seed S, step func(S) Option[(A, S)], acc List[A]) List[A]` | Unfold a seed after a reversed prefix accumulator. | Immediate `None` returns `rev(acc)`; otherwise that prefix followed by the unfolding. |
-| `func chunksOf[A](n Int, xs List[A]) List[List[A]]` | consecutive chunks of at most n elements. | Empty gives `Nil`; `n <= 0` gives `Nil` (including `chunksOf(0, xs)` and negative/minimum counts); singleton positive input gives `[[x]]`; positive n beyond the length gives `[xs]` for nonempty xs; incomplete final chunks are retained. |
-| `func chunksOfAcc[A](n Int, xs List[A], acc List[List[A]]) List[List[A]]` | Build consecutive chunks after a reversed prefix accumulator. | Empty or `n <= 0` returns `rev(acc)`; otherwise that prefix followed by the chunks. |
-| `func sortOn[A, K Ord](xs List[A], key func(A) K) List[A]` | stable ascending order by compare(key(a), key(b)). | Empty gives `Nil` without calling key; singleton returns its value and computes its key once; keys compare through `Ord` and equal keys preserve input order. |
+| Source signature | Semantics | Boundary behaviour | Law-eligible |
+| --- | --- | --- | --- |
+| `type List[A] = Nil \| Cons(A, List[A]) deriving Eq, Ord` | Immutable singly linked list: Nil or Cons(A, List[A]). | Derived Eq/Ord constrain A; explicit Debug requires Debug[A]; Nil is []; lists are homogeneous and finite unless computation diverges. | — |
+| `instance Functor[List]` | Map List's element/result while retaining shape. | Nil unchanged, no callback; maps each element in order. | — |
+| `instance Monad[List]` | Inject and sequence List computations. | pure makes singleton; bind concatenates per-element lists; Nil skips callback. | — |
+| `instance Foldable[List]` | Right fold List elements. | Empty/None returns init; Cons folds right recursively. | — |
+| `instance Traversable[List]` | Effectfully map List without changing its shape. | Empty/None uses pure without callback; effects follow element order and the chosen Monad short-circuits. | — |
+| `func foldl[F[_] Foldable, A, B](fa F[A], init B, f func(B, A) B) B` | Left fold any Foldable using continuations. | Empty returns init; callbacks follow fold order; continuation representation can consume stack. | Yes |
+| `func toList[F[_] Foldable, A](fa F[A]) List[A]` | Collect any Foldable's elements in fold order. | Empty Foldable → Nil; preserves Foldable traversal order. | Yes |
+| `func foldMapList[F[_] Foldable, A, B](fa F[A], f func(A) List[B]) List[B]` | Map folded elements to lists and concatenate them in fold order. | Empty → Nil; empty callback lists add no elements; flatten in fold order. | Yes |
+| `instance Show[List[A]] given Show[A]` | Display as [a, b], using field Show where applicable. | Empty []; strings unquoted; element order retained. | — |
+| `instance Debug[List[A]] given Debug[A]` | Structural list-literal rendering using each element's Debug. | Empty []; elements separated by `, `; strings quoted; nested lists and record fields use brackets; Cons-built lists render identically. | — |
+| `func forEach[M[_] Monad, A](xs List[A], f func(A) M[Unit]) M[Unit]` | Sequence a list of Monad actions, discarding their Unit results. | `Nil → pure(unit())`, callback not called; singleton sequences one action; short-circuits according to the chosen Monad. | Yes |
+| `func mapM[M[_] Monad, A, B](xs List[A], f func(A) M[B]) M[List[B]]` | Sequence a list of Monad actions and collect their results in order. | `Nil → pure(Nil)`, callback not called; singleton maps one action and wraps its value in a singleton list; preserves order. | Yes |
+| `func fold[A, B](xs List[A], init B, f func(B, A) B) B` | Left fold a List through an accumulator. | `fold(Nil, init, f) = init`; singleton is `f(init, x)`; left-to-right fold. | Yes |
+| `func length[A](xs List[A]) Int` | Count the elements of a List. | `length(Nil) = 0`; singleton length is 1. | Yes |
+| `func append[A](xs List[A], ys List[A]) List[A]` | Concatenate two lists in order. | `append(Nil, ys) = ys`; `append(xs, Nil) = xs` by value. | Yes |
+| `func filter[A](xs List[A], p func(A) Bool) List[A]` | Keep elements whose predicate is true, preserving order. | `filter(Nil, p) = Nil`; singleton kept iff `p(x)`; order preserved. | Yes |
+| `func reverse[A](xs List[A]) List[A]` | Return a list in reverse order. | Empty and singleton unchanged by value. | Yes |
+| `func zip[A, B](xs List[A], ys List[B]) List[(A, B)]` | Pair elements up to the shorter list's length. | Either input empty gives `Nil`; truncates to the shorter input, including singleton inputs. | Yes |
+| `func head[A](xs List[A]) Option[A]` | Return the first element as an Option. | `head(Nil) = None`; `head([x]) = Some(x)`; later elements ignored. | Yes |
+| `func tail[A](xs List[A]) List[A]` | Return the list without its first element. | `tail(Nil) = Nil`; `tail([x]) = Nil`, never an empty-list panic. | Yes |
+| `func take[A](n Int, xs List[A]) List[A]` | Return at most n leading elements. | `take(n <= 0, xs) = Nil`, including `take(-1, xs)` and `minInt()`; empty input stays empty; `n > length(xs)` returns all elements. | Yes |
+| `func drop[A](n Int, xs List[A]) List[A]` | Return the suffix after at most n leading elements. | `drop(n <= 0, xs) = xs`; empty input stays empty; `drop(n >= length(xs), xs) = Nil`. | Yes |
+| `func sum(xs List[Int]) Int` | Sum Int elements with wrapping addition. | `sum(Nil) = 0`; singleton is its element; signed Int overflow wraps. | Yes |
+| `func concatMap[A, B](xs List[A], f func(A) List[B]) List[B]` | Map each element to a list and concatenate in order. | `Nil → Nil`, callback not called; singleton returns `f(x)`; empty produced lists contribute no elements. `pure(x)` for List is `[x]`. | Yes |
+| `func catOptions[A](xs List[Option[A]]) List[A]` | Keep Some payloads in input order, discarding None. | Empty/all-None → Nil; singleton Some(x) → [x]; duplicates retained. | Yes |
+| `func mapMaybe[A, B](xs List[A], f func(A) Option[B]) List[B]` | Apply f once per element left-to-right, keeping Some payloads and discarding None. | Empty → Nil without callback; all-None → Nil; retained values preserve input order. | Yes |
+| `func elem[A Eq](x A, xs List[A]) Bool` | Test membership with the element's Eq instance. | Empty gives false; singleton compares with `Eq`; stops at the first match. | Yes |
+| `func sortBy[A](xs List[A], cmp func(A, A) Ordering) List[A]` | Stable sort using a supplied Ordering comparator and an array-backed sort. | Empty/singleton unchanged; comparator not called for these inputs; equal elements retain input order. | No |
+| `func sort[A Ord](xs List[A]) List[A]` | Stable ascending sort using Ord. | Same boundaries as `sortBy`; uses the element's `Ord.compare`. | No |
+| `func maximum[A Ord](xs List[A]) Option[A]` | Return the greatest element, retaining the earliest tie. | Empty gives `None`; singleton gives `Some(x)`; ties retain the earliest element. | Yes |
+| `func minimum[A Ord](xs List[A]) Option[A]` | Return the least element, retaining the earliest tie. | Empty gives `None`; singleton gives `Some(x)`; ties retain the earliest element. | Yes |
+| `func zipWith[A, B, C](xs List[A], ys List[B], f func(A, B) C) List[C]` | pairwise map to the shorter length. | Either list empty gives `Nil` with no callback; singleton pair gives `[f(x, y)]`; truncates to the shorter length. | Yes |
+| `func zipWithAcc[A, B, C](xs List[A], ys List[B], f func(A, B) C, acc List[C]) List[C]` | Accumulator implementation of zipWith with a reversed prefix. | Either input empty returns `rev(acc)`; otherwise emits pairs as `zipWith`, following that prefix. | Yes |
+| `func unzip[A, B](xs List[(A, B)]) (List[A], List[B])` | separate the pair components in order. | Empty gives `(Nil, Nil)`; singleton `(a,b)` gives `([a], [b])`; order preserved. | Yes |
+| `func any[A](xs List[A], p func(A) Bool) Bool` | short-circuit at the first true predicate. | Empty is false; singleton is `p(x)`; first true result short-circuits. | Yes |
+| `func all[A](xs List[A], p func(A) Bool) Bool` | short-circuit at the first false predicate. | Empty is true; singleton is `p(x)`; first false result short-circuits. | Yes |
+| `func find[A](xs List[A], p func(A) Bool) Option[A]` | first satisfying element. | Empty/no match gives `None`; singleton match gives `Some(x)`; first match wins. | Yes |
+| `func findIndex[A](xs List[A], p func(A) Bool) Option[Int]` | zero-based index of the first match. | Empty/no match gives `None`; singleton match gives `Some(0)`; indices are zero-based. | Yes |
+| `func findIndexFrom[A](xs List[A], p func(A) Bool, i Int) Option[Int]` | Find the first match with indexes starting at i. | Empty/no match gives `None`; first match at offset j gives `Some(i+j)`. | Yes |
+| `func partition[A](xs List[A], p func(A) Bool) (List[A], List[A])` | stable (satisfying, not satisfying) lists. | Empty gives `(Nil, Nil)`; singleton goes into exactly one side; each side retains input order. | Yes |
+| `func nub[A Eq](xs List[A]) List[A]` | stable removal of duplicate elements. | Empty/singleton unchanged; first representative of each `Eq` equivalence class retained. | Yes |
+| `func range(lo Int, hi Int) List[Int]` | ascending half-open interval [lo, hi). | `range(5, 1)` and `range(n, n)` give `Nil`; `range(n, n+1) = [n]`; `range(-2, 2) = [-2,-1,0,1]`. Half-open endpoints do not increment past `maxInt()` or decrement below `minInt()`. | Yes |
+| `func rangeAcc(lo Int, hi Int, acc List[Int]) List[Int]` | Prepend the ascending half-open interval to acc. | `lo >= hi` returns acc; otherwise ascending `[lo, hi)` prepended to acc. | Yes |
+| `func replicate[A](n Int, x A) List[A]` | n copies of x. | `n <= 0` gives `Nil`, including `replicate(-1, x)` and `minInt()`; `n = 1` gives `[x]`. | Yes |
+| `func replicateAcc[A](n Int, x A, acc List[A]) List[A]` | Prepend n copies to acc. | `n <= 0` returns acc; positive n prepends n copies. | Yes |
+| `func intercalate[A](sep List[A], xss List[List[A]]) List[A]` | flatten with sep between adjacent lists. | Empty outer list gives `Nil`; singleton outer list gives its inner list; empty separator is ordinary flattening. Empty inner lists still have separators between them: `intercalate([0], [[], []]) = [0]`. | Yes |
+| `func flatten[A](xss List[List[A]]) List[A]` | concatenate in outer and inner order. | Empty outer list or all-empty inner lists give `Nil`; singleton outer list gives its inner list. | Yes |
+| `func last[A](xs List[A]) Option[A]` | final element if present. | Empty gives `None`; singleton gives `Some(x)`. | Yes |
+| `func init[A](xs List[A]) List[A]` | all but the final element. | Empty and singleton give `Nil`; longer lists lose exactly the last element. | Yes |
+| `func initAcc[A](xs List[A], acc List[A]) List[A]` | Return reverse(acc) followed by all but the last input element. | Empty/singleton returns `rev(acc)`; otherwise that prefix followed by `init(xs)`. | Yes |
+| `func splitAt[A](n Int, xs List[A]) (List[A], List[A])` | prefix of at most n elements and remaining suffix. | `n <= 0` gives `(Nil, xs)`; `n >= length(xs)` gives `(xs, Nil)`; empty input gives `(Nil, Nil)` for every n. | Yes |
+| `func splitAtAcc[A](n Int, xs List[A], acc List[A]) (List[A], List[A])` | Accumulate a taken prefix in reverse before splitting. | `n <= 0` gives `(rev(acc), xs)`; exhaustion gives `(rev(acc) ++ xs, Nil)` by value; otherwise accumulates the taken prefix before reversing. | Yes |
+| `func span[A](xs List[A], p func(A) Bool) (List[A], List[A])` | longest satisfying prefix and remaining suffix. | Empty gives `(Nil, Nil)`; immediate predicate failure gives `(Nil, xs)`; all true gives `(xs, Nil)`; stops at first false. | Yes |
+| `func spanAcc[A](xs List[A], p func(A) Bool, acc List[A]) (List[A], List[A])` | Accumulate a satisfying prefix in reverse before splitting. | Empty gives `(rev(acc), Nil)`; immediate failure gives `(rev(acc), xs)`; otherwise extends prefix up to first failure. | Yes |
+| `func takeWhile[A](xs List[A], p func(A) Bool) List[A]` | longest satisfying prefix. | Empty or immediate predicate failure gives `Nil`; all true returns all elements; stops at first false. | Yes |
+| `func dropWhile[A](xs List[A], p func(A) Bool) List[A]` | suffix starting at the first predicate failure. | Empty or all true gives `Nil`; immediate predicate failure returns original list; stops at first false. | Yes |
+| `func lookup[K Eq, V](k K, xs List[(K, V)]) Option[V]` | value of the first equal key. | Empty or absent key gives `None`; duplicate keys return the first value; key equality uses `Eq`. | Yes |
+| `func indexed[A](xs List[A]) List[(Int, A)]` | pair each element with its zero-based index. | Empty gives `Nil`; singleton gives `[(0, x)]`. | Yes |
+| `func indexedFrom[A](xs List[A], i Int, acc List[(Int, A)]) List[(Int, A)]` | Produce indexed elements from i after a reversed prefix accumulator. | Empty returns `rev(acc)`; otherwise that prefix followed by elements indexed starting at i. | Yes |
+| `func iterate[A](n Int, x A, f func(A) A) List[A]` | n values x, f(x), f(f(x)), . | `n <= 0` gives `Nil` without calling `f`; `n = 1` gives `[x]` without calling `f`; positive n invokes `f` exactly n-1 times. | Yes |
+| `func iterateAcc[A](n Int, x A, f func(A) A, acc List[A]) List[A]` | Generate a finite iteration sequence after a reversed prefix. | `n <= 0` returns `rev(acc)`; otherwise that prefix followed by `iterate(n,x,f)`, still no extra final callback. | Yes |
+| `func product(xs List[Int]) Int` | left product with identity 1. | Empty gives 1; singleton is its element; zero produces zero; Int multiplication overflow wraps. | Yes |
+| `func count[A](xs List[A], p func(A) Bool) Int` | number of satisfying elements. | Empty gives 0; singleton gives 1 or 0 according to its predicate. | Yes |
+| `func unfold[S, A](seed S, step func(S) Option[(A, S)]) List[A]` | emit (value, next seed) until step returns None. | Immediate `None` gives `Nil`; one `Some((x, seed))` followed by `None` gives `[x]`; a step that never returns `None` does not terminate. | Yes |
+| `func unfoldAcc[S, A](seed S, step func(S) Option[(A, S)], acc List[A]) List[A]` | Unfold a seed after a reversed prefix accumulator. | Immediate `None` returns `rev(acc)`; otherwise that prefix followed by the unfolding. | Yes |
+| `func chunksOf[A](n Int, xs List[A]) List[List[A]]` | consecutive chunks of at most n elements. | Empty gives `Nil`; `n <= 0` gives `Nil` (including `chunksOf(0, xs)` and negative/minimum counts); singleton positive input gives `[[x]]`; positive n beyond the length gives `[xs]` for nonempty xs; incomplete final chunks are retained. | Yes |
+| `func chunksOfAcc[A](n Int, xs List[A], acc List[List[A]]) List[List[A]]` | Build consecutive chunks after a reversed prefix accumulator. | Empty or `n <= 0` returns `rev(acc)`; otherwise that prefix followed by the chunks. | Yes |
+| `func sortOn[A, K Ord](xs List[A], key func(A) K) List[A]` | stable ascending order by compare(key(a), key(b)). | Empty gives `Nil` without calling key; singleton returns its value and computes its key once; keys compare through `Ord` and equal keys preserve input order. | No |
 
 `sortOn` supplies its instantiated key-function type to the lambda:
 `list.sortOn(xs, func(s) => s.jpy)` and `list.sortOn(xs, _.jpy)` both infer the
@@ -353,9 +364,9 @@ permits `Some(_.product)`; without that expectation the record cannot be inferre
 Derived instances (expanded from the type declarations above):
 
 | Instance signature | Semantics | Boundary behaviour |
-| --- | --- | --- |
-| `instance Eq[List[A]] given Eq[A]` | Constructor/field equality. | All parameters require Eq, including phantom parameters. |
-| `instance Ord[List[A]] given Ord[A]` | Declaration-order constructor comparison, then lexicographic fields. | Requires Eq plus Ord on all parameters; Nil/None/Err precede Cons/Some/Ok respectively. |
+| --- | --- | --- | --- |
+| `instance Eq[List[A]] given Eq[A]` | Constructor/field equality. | All parameters require Eq, including phantom parameters. | — |
+| `instance Ord[List[A]] given Ord[A]` | Declaration-order constructor comparison, then lexicographic fields. | Requires Eq plus Ord on all parameters; Nil/None/Err precede Cons/Some/Ok respectively. | — |
 
 ## `std/map`
 
@@ -363,146 +374,146 @@ Source: [`map/map.gt`](../std/map/map.gt). 26 top-level declarations.
 
 `By` functions are exported low-level comparator APIs: use one consistent total order for every operation on a tree. Standard wrappers supply Ord.compare.
 
-| Source signature | Semantics | Boundary behaviour |
-| --- | --- | --- |
-| `extern func emptyMap[K, V]() Map[K, V] = "go4t/rt".EmptyMap` | Empty map, with no key constraint. | Empty map, with no key constraint. |
-| `extern func mapInsertBy[K, V](m Map[K, V], k K, v V, cmp func(K, K) Ordering) Map[K, V] = "go4t/rt".MapInsert` | Insert/replace the key and value; preserve the old map. Uses the explicit comparator instead of Ord. | Insert/replace the key and value; preserve the old map. The comparator must remain consistent for all operations on this tree. |
-| `extern func mapLookupBy[K, V](m Map[K, V], k K, cmp func(K, K) Ordering) Option[V] = "go4t/rt".MapLookup` | `Some(value)` if present, otherwise `None`. Uses the explicit comparator instead of Ord. | `Some(value)` if present, otherwise `None`. The comparator must remain consistent for all operations on this tree. |
-| `extern func mapDeleteBy[K, V](m Map[K, V], k K, cmp func(K, K) Ordering) Map[K, V] = "go4t/rt".MapDelete` | Remove a key; return the original tree when absent. Uses the explicit comparator instead of Ord. | Remove a key; return the original tree when absent. The comparator must remain consistent for all operations on this tree. |
-| `extern func mapMemberBy[K, V](m Map[K, V], k K, cmp func(K, K) Ordering) Bool = "go4t/rt".MapMember` | Whether the key is present. Uses the explicit comparator instead of Ord. | Whether the key is present. The comparator must remain consistent for all operations on this tree. |
-| `extern func mapSize[K, V](m Map[K, V]) Int = "go4t/rt".MapSize` | Number of distinct keys; constant time. | Number of distinct keys; constant time. |
-| `extern func mapFromListBy[K, V](xs List[(K, V)], cmp func(K, K) Ordering) Map[K, V] = "go4t/rt".MapFromList` | Build from pairs; the last pair wins for duplicate keys. Uses the explicit comparator instead of Ord. | Build from pairs; the last pair wins for duplicate keys. The comparator must remain consistent for all operations on this tree. |
-| `extern func mapToList[K, V](m Map[K, V]) List[(K, V)] = "go4t/rt".MapToList` | Pairs in ascending key order. | Pairs in ascending key order. |
-| `extern func mapKeys[K, V](m Map[K, V]) List[K] = "go4t/rt".MapKeys` | Keys in ascending order. | Keys in ascending order. |
-| `extern func mapValues[K, V](m Map[K, V]) List[V] = "go4t/rt".MapValues` | Values in ascending key order, not sorted by value. | Values in ascending key order, not sorted by value. |
-| `extern func mapUnionBy[K, V](a Map[K, V], b Map[K, V], cmp func(K, K) Ordering) Map[K, V] = "go4t/rt".MapUnion` | Left-biased union; a duplicate keeps the left key/value. Uses the explicit comparator instead of Ord. | Left-biased union; a duplicate keeps the left key/value. The comparator must remain consistent for all operations on this tree. |
-| `extern func mapMap[K, V, W](m Map[K, V], f func(V) W) Map[K, W] = "go4t/rt".MapMap` | Map values in ascending-key order without needing `Ord`; keep keys and tree shape. | Map values in ascending-key order without needing `Ord`; keep keys and tree shape. |
-| `extern func mapFold[K, V, B](m Map[K, V], init B, f func(B, K, V) B) B = "go4t/rt".MapFold` | Left fold in ascending-key order; an empty map returns `init`. | Left fold in ascending-key order; an empty map returns `init`. |
-| `func mapInsert[K Ord, V](m Map[K, V], k K, v V) Map[K, V]` | Insert/replace the key and value; preserve the old map. | Insert/replace the key and value; preserve the old map. |
-| `func mapLookup[K Ord, V](m Map[K, V], k K) Option[V]` | `Some(value)` if present, otherwise `None`. | `Some(value)` if present, otherwise `None`. |
-| `func mapDelete[K Ord, V](m Map[K, V], k K) Map[K, V]` | Remove a key; return the original tree when absent. | Remove a key; return the original tree when absent. |
-| `func mapMember[K Ord, V](m Map[K, V], k K) Bool` | Whether the key is present. | Whether the key is present. |
-| `func mapFromList[K Ord, V](xs List[(K, V)]) Map[K, V]` | Build from pairs; the last pair wins for duplicate keys. | Build from pairs; the last pair wins for duplicate keys. |
-| `func mapAdjust[K Ord, V](m Map[K, V], k K, f func(V) V) Map[K, V]` | Apply `f` exactly once to an existing value; do not call `f` if absent. | Apply `f` exactly once to an existing value; do not call `f` if absent. |
-| `func mapAlter[K Ord, V](m Map[K, V], k K, f func(Option[V]) Option[V]) Map[K, V]` | Call `f` exactly once on the current `Option`; `Some` inserts/replaces, `None` deletes. | Call `f` exactly once on the current `Option`; `Some` inserts/replaces, `None` deletes. |
-| `func mapUnion[K Ord, V](a Map[K, V], b Map[K, V]) Map[K, V]` | Left-biased union; a duplicate keeps the left key/value. | Left-biased union; a duplicate keeps the left key/value. |
-| `func groupBy[K Ord, A](xs List[A], key func(A) K) Map[K, List[A]]` | Group under ascending keys, preserving input order within every group. | Group under ascending keys, preserving input order within every group. |
-| `instance Show[Map[K, V]] given Show[K], Show[V]` | Display as {k: v}, using field Show where applicable. | Empty {}; ascending keys, no Ord constraint to display. |
-| `instance Debug[Map[K, V]] given Debug[K], Debug[V]` | Structural rendering as {k: v, k2: v2} using key/value Debug. | Empty {}; ascending keys; strings quoted; no Show/Ord required. |
-| `instance Eq[Map[K, V]] given Eq[K], Eq[V]` | Compare Map values for equality. | Ascending pair-list equality; Eq[K]/Eq[V] only, no Ord required. |
-| `instance Functor[Map[K]]` | Map Map's element/result while retaining shape. | Keys unchanged, values mapped in ascending key order without Ord. |
+| Source signature | Semantics | Boundary behaviour | Law-eligible |
+| --- | --- | --- | --- |
+| `extern func emptyMap[K, V]() Map[K, V] = "go4t/rt".EmptyMap` | Empty map, with no key constraint. | Empty map, with no key constraint. | No |
+| `extern func mapInsertBy[K, V](m Map[K, V], k K, v V, cmp func(K, K) Ordering) Map[K, V] = "go4t/rt".MapInsert` | Insert/replace the key and value; preserve the old map. Uses the explicit comparator instead of Ord. | Insert/replace the key and value; preserve the old map. The comparator must remain consistent for all operations on this tree. | No |
+| `extern func mapLookupBy[K, V](m Map[K, V], k K, cmp func(K, K) Ordering) Option[V] = "go4t/rt".MapLookup` | `Some(value)` if present, otherwise `None`. Uses the explicit comparator instead of Ord. | `Some(value)` if present, otherwise `None`. The comparator must remain consistent for all operations on this tree. | No |
+| `extern func mapDeleteBy[K, V](m Map[K, V], k K, cmp func(K, K) Ordering) Map[K, V] = "go4t/rt".MapDelete` | Remove a key; return the original tree when absent. Uses the explicit comparator instead of Ord. | Remove a key; return the original tree when absent. The comparator must remain consistent for all operations on this tree. | No |
+| `extern func mapMemberBy[K, V](m Map[K, V], k K, cmp func(K, K) Ordering) Bool = "go4t/rt".MapMember` | Whether the key is present. Uses the explicit comparator instead of Ord. | Whether the key is present. The comparator must remain consistent for all operations on this tree. | No |
+| `extern func mapSize[K, V](m Map[K, V]) Int = "go4t/rt".MapSize` | Number of distinct keys; constant time. | Number of distinct keys; constant time. | No |
+| `extern func mapFromListBy[K, V](xs List[(K, V)], cmp func(K, K) Ordering) Map[K, V] = "go4t/rt".MapFromList` | Build from pairs; the last pair wins for duplicate keys. Uses the explicit comparator instead of Ord. | Build from pairs; the last pair wins for duplicate keys. The comparator must remain consistent for all operations on this tree. | No |
+| `extern func mapToList[K, V](m Map[K, V]) List[(K, V)] = "go4t/rt".MapToList` | Pairs in ascending key order. | Pairs in ascending key order. | No |
+| `extern func mapKeys[K, V](m Map[K, V]) List[K] = "go4t/rt".MapKeys` | Keys in ascending order. | Keys in ascending order. | No |
+| `extern func mapValues[K, V](m Map[K, V]) List[V] = "go4t/rt".MapValues` | Values in ascending key order, not sorted by value. | Values in ascending key order, not sorted by value. | No |
+| `extern func mapUnionBy[K, V](a Map[K, V], b Map[K, V], cmp func(K, K) Ordering) Map[K, V] = "go4t/rt".MapUnion` | Left-biased union; a duplicate keeps the left key/value. Uses the explicit comparator instead of Ord. | Left-biased union; a duplicate keeps the left key/value. The comparator must remain consistent for all operations on this tree. | No |
+| `extern func mapMap[K, V, W](m Map[K, V], f func(V) W) Map[K, W] = "go4t/rt".MapMap` | Map values in ascending-key order without needing `Ord`; keep keys and tree shape. | Map values in ascending-key order without needing `Ord`; keep keys and tree shape. | No |
+| `extern func mapFold[K, V, B](m Map[K, V], init B, f func(B, K, V) B) B = "go4t/rt".MapFold` | Left fold in ascending-key order; an empty map returns `init`. | Left fold in ascending-key order; an empty map returns `init`. | No |
+| `func mapInsert[K Ord, V](m Map[K, V], k K, v V) Map[K, V]` | Insert/replace the key and value; preserve the old map. | Insert/replace the key and value; preserve the old map. | No |
+| `func mapLookup[K Ord, V](m Map[K, V], k K) Option[V]` | `Some(value)` if present, otherwise `None`. | `Some(value)` if present, otherwise `None`. | No |
+| `func mapDelete[K Ord, V](m Map[K, V], k K) Map[K, V]` | Remove a key; return the original tree when absent. | Remove a key; return the original tree when absent. | No |
+| `func mapMember[K Ord, V](m Map[K, V], k K) Bool` | Whether the key is present. | Whether the key is present. | No |
+| `func mapFromList[K Ord, V](xs List[(K, V)]) Map[K, V]` | Build from pairs; the last pair wins for duplicate keys. | Build from pairs; the last pair wins for duplicate keys. | No |
+| `func mapAdjust[K Ord, V](m Map[K, V], k K, f func(V) V) Map[K, V]` | Apply `f` exactly once to an existing value; do not call `f` if absent. | Apply `f` exactly once to an existing value; do not call `f` if absent. | No |
+| `func mapAlter[K Ord, V](m Map[K, V], k K, f func(Option[V]) Option[V]) Map[K, V]` | Call `f` exactly once on the current `Option`; `Some` inserts/replaces, `None` deletes. | Call `f` exactly once on the current `Option`; `Some` inserts/replaces, `None` deletes. | No |
+| `func mapUnion[K Ord, V](a Map[K, V], b Map[K, V]) Map[K, V]` | Left-biased union; a duplicate keeps the left key/value. | Left-biased union; a duplicate keeps the left key/value. | No |
+| `func groupBy[K Ord, A](xs List[A], key func(A) K) Map[K, List[A]]` | Group under ascending keys, preserving input order within every group. | Group under ascending keys, preserving input order within every group. | No |
+| `instance Show[Map[K, V]] given Show[K], Show[V]` | Display as {k: v}, using field Show where applicable. | Empty {}; ascending keys, no Ord constraint to display. | — |
+| `instance Debug[Map[K, V]] given Debug[K], Debug[V]` | Structural rendering as {k: v, k2: v2} using key/value Debug. | Empty {}; ascending keys; strings quoted; no Show/Ord required. | — |
+| `instance Eq[Map[K, V]] given Eq[K], Eq[V]` | Compare Map values for equality. | Ascending pair-list equality; Eq[K]/Eq[V] only, no Ord required. | — |
+| `instance Functor[Map[K]]` | Map Map's element/result while retaining shape. | Keys unchanged, values mapped in ascending key order without Ord. | — |
 
 ## `std/prelude`
 
 Source: [`prelude/prelude.gt`](../std/prelude/prelude.gt). 49 top-level declarations.
 
-| Source signature | Semantics | Boundary behaviour |
-| --- | --- | --- |
-| `class Functor[F[_]] { fmap[A, B](fa F[A], f func(A) B) F[B] }` | Map values while retaining a unary constructor shape. | Instance defines fmap; no effect execution implied by mapping IO. |
-| `class Monad[M[_]] : Functor[M] { pure[A](a A) M[A] bind[A, B](ma M[A], f func(A) M[B]) M[B] }` | Inject values and sequence dependent computations. | Requires Functor; pure/bind are qualified prelude methods, not implicit exports. |
-| `class Foldable[F[_]] { foldr[A, B](fa F[A], init B, f func(A, B) B) B }` | Right fold occurrences of the element type. | Empty fold returns init; fold association is right, independent of callback evaluation strictness. |
-| `class Traversable[F[_]] : Functor[F] { traverse[M[_] Monad, A, B](fa F[A], f func(A) M[B]) M[F[B]] }` | Shape-preserving traversal with a supplied Monad. | Requires Functor; sequences left-to-right by source fields/elements; Monad determines short-circuiting. |
-| `class Show[A] { show(a A) String }` | User-facing display, used by interpolation. | Derivable for enums (source constructor names) and single-field newtypes (field Show), without Debug; String is identity; Unit has no standard Show. |
-| `class Debug[A] { debug(a A) String }` | Structural diagnostic rendering. | Derivable; strings quoted with Go escapes, Unit (), lists [a, b] or [] using element Debug. |
-| `class Eq[A] { eq(a A, b A) Bool }` | Type-directed equality used by == and !=. | Function values unsupported; Float NaN is unequal to itself. |
-| `type Ordering = LT \| EQ \| GT deriving Eq, Ord, Debug, Show` | Three-way ordering result: LT, EQ, GT. | Derived Eq/Ord/Debug/Show; declaration order LT < EQ < GT; display is LT/EQ/GT. |
-| `class Ord[A] : Eq[A] { compare(a A, b A) Ordering }` | Three-way comparison used by relational operators. | Requires Eq; Float compares NaNs EQ even though its Eq is false. |
-| `type Option[A] = None \| Some(A) deriving Eq, Ord, Debug` | Optional value: None or Some(A). | Derived Eq/Ord/Debug constrain A; None precedes Some; no payload for None. |
-| `instance Functor[Option]` | Map Option's element/result while retaining shape. | None unchanged, no callback. |
-| `instance Monad[Option]` | Inject and sequence Option computations. | pure is Some; bind stops on None. |
-| `instance Foldable[Option]` | Right fold Option elements. | Empty/None returns init; Some(a) calls f(a, init). |
-| `instance Traversable[Option]` | Effectfully map Option without changing its shape. | Empty/None uses pure without callback; effects follow element order and the chosen Monad short-circuits. |
-| `instance Show[Option[A]] given Show[A]` | Display as None/Some(a), using field Show where applicable. | None has no payload; Some uses unquoted String display. |
-| `instance Show[Tuple2[A, B]] given Show[A], Show[B]` | Display as (a, b), using field Show where applicable. | Both components require Show; not a general tuple-arity instance. |
-| `instance Debug[Tuple2[A, B]] given Debug[A], Debug[B]` | Structural rendering of Tuple2. | Both fields require Debug; strings quoted; pair arity only. |
-| `extern func showInt(n Int) String = "go4t/rt".ShowInt` | Render Int as signed decimal text. | Int64 signed decimal (`0 → "0"`, minimum Int includes its minus sign); Bool renders `"true"` or `"false"`. |
-| `extern func showBool(b Bool) String = "go4t/rt".ShowBool` | Render Bool as true or false. | Int64 signed decimal (`0 → "0"`, minimum Int includes its minus sign); Bool renders `"true"` or `"false"`. |
-| `extern func showString(s String) String = "go4t/rt".ShowString` | Return text unchanged for user-facing display. | Identity, including empty strings; does not add quotes. |
-| `extern func debugString(s String) String = "go4t/rt".DebugString` | Render text in quotes with Go escapes. | Empty → quoted empty string; escapes use strconv.Quote, not JSON escaping. |
-| `extern func unit() Unit = "go4t/rt".UnitValue` | Return the sole Unit value. | One value, rendered by Debug as (); has Eq but no Show/Ord instance. |
-| `extern func eqInt(a Int, b Int) Bool = "go4t/rt".EqInt` | Compare Ints for equality. | Signed extrema compare normally; no overflow-producing subtraction. |
-| `extern func ltInt(a Int, b Int) Bool = "go4t/rt".LtInt` | Compare Ints with signed less-than. | Signed numeric order, including minimum and maximum Int. |
-| `extern func eqString(a String, b String) Bool = "go4t/rt".EqString` | Compare String bytes for equality. | Exact byte equality; empty equals empty. |
-| `extern func ltString(a String, b String) Bool = "go4t/rt".LtString` | Compare Strings in Go's lexicographic byte order. | Go lexicographic byte order; empty precedes every nonempty string; equal strings compare `EQ`. |
-| `extern func eqBool(a Bool, b Bool) Bool = "go4t/rt".EqBool` | Compare Boolean values for equality. | True only when both values are the same Boolean. |
-| `func min[A Ord](a A, b A) A` | Written in go4t: return a when `a <= b`, otherwise b; ties choose a. | Ord ties return first argument; Float uses NaN-low Ord. |
-| `func max[A Ord](a A, b A) A` | Written in go4t: return a when `a >= b`, otherwise b; ties choose a. | Ord ties return first argument; Float uses NaN-low Ord. |
-| `instance Show[Int]` | Display as signed decimal, using field Show where applicable. | Int64 signed decimal (`0 → "0"`, minimum Int includes its minus sign); Bool renders `"true"` or `"false"`. |
-| `instance Show[String]` | Display as unchanged text, using field Show where applicable. | Identity, empty included; not quoting. |
-| `instance Show[Bool]` | Display as true/false, using field Show where applicable. | Int64 signed decimal (`0 → "0"`, minimum Int includes its minus sign); Bool renders `"true"` or `"false"`. |
-| `instance Debug[Int]` | Structural rendering of Int. | Signed decimal, including negative extrema. |
-| `instance Debug[String]` | Structural rendering of String. | Empty → quoted empty string; escapes use strconv.Quote, not JSON escaping. |
-| `instance Debug[Bool]` | Structural rendering of Bool. | true/false. |
-| `instance Debug[Unit]` | Structural rendering of Unit. | Always (). |
-| `instance Eq[Int]` | Compare Int values for equality. | Signed extrema compare normally; no overflow-producing subtraction. |
-| `instance Ord[Int]` | Compare Int values with Ordering. | Signed numeric order. |
-| `instance Eq[String]` | Compare String values for equality. | Exact byte equality; empty equals empty. |
-| `instance Ord[String]` | Compare String values with Ordering. | Lexicographic byte order, empty lowest. |
-| `instance Eq[Bool]` | Compare Bool values for equality. | True only when both values are the same Boolean. |
-| `instance Ord[Bool]` | Compare Bool values with Ordering. | false < true. |
-| `instance Eq[Unit]` | Compare Unit values for equality. | Always true. |
-| `instance Eq[Tuple2[A, B]] given Eq[A], Eq[B]` | Compare Tuple2 values for equality. | Both components compared; both Eq constraints required. |
-| `instance Ord[Tuple2[A, B]] given Ord[A], Ord[B]` | Compare Tuple2 values with Ordering. | Lexicographic components, both Ord constraints required. |
-| `func map[F[_] Functor, A, B](fa F[A], f func(A) B) F[B]` | Apply Functor.fmap to a structure and mapper. | Delegates to loaded Functor; None/Nil do not invoke mapper, IO mapping remains deferred. |
-| `func flatMap[M[_] Monad, A, B](ma M[A], f func(A) M[B]) M[B]` | Apply Monad.bind to a structure/action and continuation. | Delegates to loaded Monad: None/Err/failed IO skip continuation; List enumerates in order. |
-| `func fst[A, B](p (A, B)) A` | Project the first component of a pair. | Requires exactly a pair type, not a generic tuple index; does not evaluate either component again. |
-| `func snd[A, B](p (A, B)) B` | Project the second component of a pair. | Requires exactly a pair type, not a generic tuple index; does not evaluate either component again. |
+| Source signature | Semantics | Boundary behaviour | Law-eligible |
+| --- | --- | --- | --- |
+| `class Functor[F[_]] { fmap[A, B](fa F[A], f func(A) B) F[B] }` | Map values while retaining a unary constructor shape. | Instance defines fmap; no effect execution implied by mapping IO. | — |
+| `class Monad[M[_]] : Functor[M] { pure[A](a A) M[A] bind[A, B](ma M[A], f func(A) M[B]) M[B] }` | Inject values and sequence dependent computations. | Requires Functor; pure/bind are qualified prelude methods, not implicit exports. | — |
+| `class Foldable[F[_]] { foldr[A, B](fa F[A], init B, f func(A, B) B) B }` | Right fold occurrences of the element type. | Empty fold returns init; fold association is right, independent of callback evaluation strictness. | — |
+| `class Traversable[F[_]] : Functor[F] { traverse[M[_] Monad, A, B](fa F[A], f func(A) M[B]) M[F[B]] }` | Shape-preserving traversal with a supplied Monad. | Requires Functor; sequences left-to-right by source fields/elements; Monad determines short-circuiting. | — |
+| `class Show[A] { show(a A) String }` | User-facing display, used by interpolation. | Derivable for enums (source constructor names) and single-field newtypes (field Show), without Debug; String is identity; Unit has no standard Show. | — |
+| `class Debug[A] { debug(a A) String }` | Structural diagnostic rendering. | Derivable; strings quoted with Go escapes, Unit (), lists [a, b] or [] using element Debug. | — |
+| `class Eq[A] { eq(a A, b A) Bool }` | Type-directed equality used by == and !=. | Function values unsupported; Float NaN is unequal to itself. | — |
+| `type Ordering = LT \| EQ \| GT deriving Eq, Ord, Debug, Show` | Three-way ordering result: LT, EQ, GT. | Derived Eq/Ord/Debug/Show; declaration order LT < EQ < GT; display is LT/EQ/GT. | — |
+| `class Ord[A] : Eq[A] { compare(a A, b A) Ordering }` | Three-way comparison used by relational operators. | Requires Eq; Float compares NaNs EQ even though its Eq is false. | — |
+| `type Option[A] = None \| Some(A) deriving Eq, Ord, Debug` | Optional value: None or Some(A). | Derived Eq/Ord/Debug constrain A; None precedes Some; no payload for None. | — |
+| `instance Functor[Option]` | Map Option's element/result while retaining shape. | None unchanged, no callback. | — |
+| `instance Monad[Option]` | Inject and sequence Option computations. | pure is Some; bind stops on None. | — |
+| `instance Foldable[Option]` | Right fold Option elements. | Empty/None returns init; Some(a) calls f(a, init). | — |
+| `instance Traversable[Option]` | Effectfully map Option without changing its shape. | Empty/None uses pure without callback; effects follow element order and the chosen Monad short-circuits. | — |
+| `instance Show[Option[A]] given Show[A]` | Display as None/Some(a), using field Show where applicable. | None has no payload; Some uses unquoted String display. | — |
+| `instance Show[Tuple2[A, B]] given Show[A], Show[B]` | Display as (a, b), using field Show where applicable. | Both components require Show; not a general tuple-arity instance. | — |
+| `instance Debug[Tuple2[A, B]] given Debug[A], Debug[B]` | Structural rendering of Tuple2. | Both fields require Debug; strings quoted; pair arity only. | — |
+| `extern func showInt(n Int) String = "go4t/rt".ShowInt` | Render Int as signed decimal text. | Int64 signed decimal (`0 → "0"`, minimum Int includes its minus sign); Bool renders `"true"` or `"false"`. | Yes |
+| `extern func showBool(b Bool) String = "go4t/rt".ShowBool` | Render Bool as true or false. | Int64 signed decimal (`0 → "0"`, minimum Int includes its minus sign); Bool renders `"true"` or `"false"`. | Yes |
+| `extern func showString(s String) String = "go4t/rt".ShowString` | Return text unchanged for user-facing display. | Identity, including empty strings; does not add quotes. | Yes |
+| `extern func debugString(s String) String = "go4t/rt".DebugString` | Render text in quotes with Go escapes. | Empty → quoted empty string; escapes use strconv.Quote, not JSON escaping. | Yes |
+| `extern func unit() Unit = "go4t/rt".UnitValue` | Return the sole Unit value. | One value, rendered by Debug as (); has Eq but no Show/Ord instance. | Yes |
+| `extern func eqInt(a Int, b Int) Bool = "go4t/rt".EqInt` | Compare Ints for equality. | Signed extrema compare normally; no overflow-producing subtraction. | Yes |
+| `extern func ltInt(a Int, b Int) Bool = "go4t/rt".LtInt` | Compare Ints with signed less-than. | Signed numeric order, including minimum and maximum Int. | Yes |
+| `extern func eqString(a String, b String) Bool = "go4t/rt".EqString` | Compare String bytes for equality. | Exact byte equality; empty equals empty. | Yes |
+| `extern func ltString(a String, b String) Bool = "go4t/rt".LtString` | Compare Strings in Go's lexicographic byte order. | Go lexicographic byte order; empty precedes every nonempty string; equal strings compare `EQ`. | Yes |
+| `extern func eqBool(a Bool, b Bool) Bool = "go4t/rt".EqBool` | Compare Boolean values for equality. | True only when both values are the same Boolean. | Yes |
+| `func min[A Ord](a A, b A) A` | Written in go4t: return a when `a <= b`, otherwise b; ties choose a. | Ord ties return first argument; Float uses NaN-low Ord. | Yes |
+| `func max[A Ord](a A, b A) A` | Written in go4t: return a when `a >= b`, otherwise b; ties choose a. | Ord ties return first argument; Float uses NaN-low Ord. | Yes |
+| `instance Show[Int]` | Display as signed decimal, using field Show where applicable. | Int64 signed decimal (`0 → "0"`, minimum Int includes its minus sign); Bool renders `"true"` or `"false"`. | — |
+| `instance Show[String]` | Display as unchanged text, using field Show where applicable. | Identity, empty included; not quoting. | — |
+| `instance Show[Bool]` | Display as true/false, using field Show where applicable. | Int64 signed decimal (`0 → "0"`, minimum Int includes its minus sign); Bool renders `"true"` or `"false"`. | — |
+| `instance Debug[Int]` | Structural rendering of Int. | Signed decimal, including negative extrema. | — |
+| `instance Debug[String]` | Structural rendering of String. | Empty → quoted empty string; escapes use strconv.Quote, not JSON escaping. | — |
+| `instance Debug[Bool]` | Structural rendering of Bool. | true/false. | — |
+| `instance Debug[Unit]` | Structural rendering of Unit. | Always (). | — |
+| `instance Eq[Int]` | Compare Int values for equality. | Signed extrema compare normally; no overflow-producing subtraction. | — |
+| `instance Ord[Int]` | Compare Int values with Ordering. | Signed numeric order. | — |
+| `instance Eq[String]` | Compare String values for equality. | Exact byte equality; empty equals empty. | — |
+| `instance Ord[String]` | Compare String values with Ordering. | Lexicographic byte order, empty lowest. | — |
+| `instance Eq[Bool]` | Compare Bool values for equality. | True only when both values are the same Boolean. | — |
+| `instance Ord[Bool]` | Compare Bool values with Ordering. | false < true. | — |
+| `instance Eq[Unit]` | Compare Unit values for equality. | Always true. | — |
+| `instance Eq[Tuple2[A, B]] given Eq[A], Eq[B]` | Compare Tuple2 values for equality. | Both components compared; both Eq constraints required. | — |
+| `instance Ord[Tuple2[A, B]] given Ord[A], Ord[B]` | Compare Tuple2 values with Ordering. | Lexicographic components, both Ord constraints required. | — |
+| `func map[F[_] Functor, A, B](fa F[A], f func(A) B) F[B]` | Apply Functor.fmap to a structure and mapper. | Delegates to loaded Functor; None/Nil do not invoke mapper, IO mapping remains deferred. | Yes |
+| `func flatMap[M[_] Monad, A, B](ma M[A], f func(A) M[B]) M[B]` | Apply Monad.bind to a structure/action and continuation. | Delegates to loaded Monad: None/Err/failed IO skip continuation; List enumerates in order. | Yes |
+| `func fst[A, B](p (A, B)) A` | Project the first component of a pair. | Requires exactly a pair type, not a generic tuple index; does not evaluate either component again. | Yes |
+| `func snd[A, B](p (A, B)) B` | Project the second component of a pair. | Requires exactly a pair type, not a generic tuple index; does not evaluate either component again. | Yes |
 
 Derived instances (expanded from the type declarations above):
 
 | Instance signature | Semantics | Boundary behaviour |
-| --- | --- | --- |
-| `instance Eq[Ordering]` | Constructor/field equality. | Only equal constructors compare equal. |
-| `instance Ord[Ordering]` | Declaration-order constructor comparison, then lexicographic fields. | LT < EQ < GT; requires its Eq instance. |
-| `instance Debug[Ordering]` | Structural constructor/field rendering. | LT, EQ or GT with no payload. |
-| `instance Show[Ordering]` | Display as LT/EQ/GT. | Derived from nullary source constructor names; no fields or quoting. |
-| `instance Eq[Option[A]] given Eq[A]` | Constructor/field equality. | All parameters require Eq, including phantom parameters. |
-| `instance Ord[Option[A]] given Ord[A]` | Declaration-order constructor comparison, then lexicographic fields. | Requires Eq plus Ord on all parameters; Nil/None/Err precede Cons/Some/Ok respectively. |
-| `instance Debug[Option[A]] given Debug[A]` | Structural constructor/field rendering. | Requires Debug[A]; None or Some(debug(a)); strings quoted and list payloads use brackets. |
+| --- | --- | --- | --- |
+| `instance Eq[Ordering]` | Constructor/field equality. | Only equal constructors compare equal. | — |
+| `instance Ord[Ordering]` | Declaration-order constructor comparison, then lexicographic fields. | LT < EQ < GT; requires its Eq instance. | — |
+| `instance Debug[Ordering]` | Structural constructor/field rendering. | LT, EQ or GT with no payload. | — |
+| `instance Show[Ordering]` | Display as LT/EQ/GT. | Derived from nullary source constructor names; no fields or quoting. | — |
+| `instance Eq[Option[A]] given Eq[A]` | Constructor/field equality. | All parameters require Eq, including phantom parameters. | — |
+| `instance Ord[Option[A]] given Ord[A]` | Declaration-order constructor comparison, then lexicographic fields. | Requires Eq plus Ord on all parameters; Nil/None/Err precede Cons/Some/Ok respectively. | — |
+| `instance Debug[Option[A]] given Debug[A]` | Structural constructor/field rendering. | Requires Debug[A]; None or Some(debug(a)); strings quoted and list payloads use brackets. | — |
 
 ## `std/regex`
 
 Source: [`regex/regex.gt`](../std/regex/regex.gt). 6 top-level declarations.
 
-| Source signature | Semantics | Boundary behaviour |
-| --- | --- | --- |
-| `extern func regexMatch(pattern String, s String) Bool = "go4t/rt".RegexMatch` | whether any match exists; use anchors for whole-input matching. | Searches anywhere; empty pattern matches even empty input; no match or invalid pattern gives false. |
-| `extern func regexFind(pattern String, s String) Option[String] = "go4t/rt".RegexFind` | first complete match, including an empty match. | No match or invalid pattern gives `None`; an actual empty match gives `Some("")`, not `None`. |
-| `extern func regexFindAll(pattern String, s String) List[String] = "go4t/rt".RegexFindAll` | all non-overlapping complete matches. | No match or invalid pattern gives `Nil`; returns non-overlapping matches in input order. Empty pattern on `"日🙂"` gives `["", "", ""]`; on empty input gives `[""]`. Adjacent empty-match handling follows Go regexp. |
-| `extern func regexReplace(pattern String, s String, repl String) String = "go4t/rt".RegexReplace` | replace all matches with Go replacement expansion. | Invalid pattern/no match leaves input unchanged; replacement uses `$1`, `${name}`, `$$` expansion, with absent groups expanded to empty. Empty pattern inserts at rune boundaries, including both ends. |
-| `extern func regexSplit(pattern String, s String) List[String] = "go4t/rt".RegexSplit` | Go regexp.Split(s, -1). | Invalid pattern gives `Nil`; no delimiter match gives `[s]`; matched leading/trailing nonempty delimiters retain empty fields. Empty pattern splits nonempty input into runes. `regexSplit("", "") = Nil`, while a nonempty valid pattern on empty input gives `[""]` (Go regexp's explicit empty-input rule). |
-| `extern func regexCaptures(pattern String, s String) Option[List[String]] = "go4t/rt".RegexCaptures` | first match's groups, excluding the whole match. | Invalid pattern/no match gives `None`; first match's capture groups only, no whole-match element; groups ordered by opening parentheses. Unmatched optional group gives `""`; a matching pattern with no groups gives `Some(Nil)`, including empty pattern/input. |
+| Source signature | Semantics | Boundary behaviour | Law-eligible |
+| --- | --- | --- | --- |
+| `extern func regexMatch(pattern String, s String) Bool = "go4t/rt".RegexMatch` | whether any match exists; use anchors for whole-input matching. | Searches anywhere; empty pattern matches even empty input; no match or invalid pattern gives false. | No |
+| `extern func regexFind(pattern String, s String) Option[String] = "go4t/rt".RegexFind` | first complete match, including an empty match. | No match or invalid pattern gives `None`; an actual empty match gives `Some("")`, not `None`. | No |
+| `extern func regexFindAll(pattern String, s String) List[String] = "go4t/rt".RegexFindAll` | all non-overlapping complete matches. | No match or invalid pattern gives `Nil`; returns non-overlapping matches in input order. Empty pattern on `"日🙂"` gives `["", "", ""]`; on empty input gives `[""]`. Adjacent empty-match handling follows Go regexp. | No |
+| `extern func regexReplace(pattern String, s String, repl String) String = "go4t/rt".RegexReplace` | replace all matches with Go replacement expansion. | Invalid pattern/no match leaves input unchanged; replacement uses `$1`, `${name}`, `$$` expansion, with absent groups expanded to empty. Empty pattern inserts at rune boundaries, including both ends. | No |
+| `extern func regexSplit(pattern String, s String) List[String] = "go4t/rt".RegexSplit` | Go regexp.Split(s, -1). | Invalid pattern gives `Nil`; no delimiter match gives `[s]`; matched leading/trailing nonempty delimiters retain empty fields. Empty pattern splits nonempty input into runes. `regexSplit("", "") = Nil`, while a nonempty valid pattern on empty input gives `[""]` (Go regexp's explicit empty-input rule). | No |
+| `extern func regexCaptures(pattern String, s String) Option[List[String]] = "go4t/rt".RegexCaptures` | first match's groups, excluding the whole match. | Invalid pattern/no match gives `None`; first match's capture groups only, no whole-match element; groups ordered by opening parentheses. Unmatched optional group gives `""`; a matching pattern with no groups gives `Some(Nil)`, including empty pattern/input. | No |
 
 ## `std/result`
 
 Source: [`result/result.gt`](../std/result/result.gt). 16 top-level declarations.
 
-| Source signature | Semantics | Boundary behaviour |
-| --- | --- | --- |
-| `type Result[E, A] = Err(E) \| Ok(A) deriving Eq, Ord, Debug` | Typed failure Err(E) or success Ok(A). | Derived Eq/Ord/Debug constrain E and A; Err precedes Ok; Monad short-circuits Err. |
-| `instance Show[Result[E, A]] given Show[E], Show[A]` | Display as Err(e)/Ok(a), using field Show where applicable. | Both E/A require Show even if one constructor is absent. |
-| `instance Functor[Result[E]]` | Map Result's element/result while retaining shape. | Err unchanged, callback only on Ok. |
-| `instance Monad[Result[E]]` | Inject and sequence Result computations. | pure is Ok; bind stops on Err. |
-| `func fromOption[A](o Option[A], d A) A` | Return Some's payload or a supplied default for None. | None uses d; d is evaluated even for Some because arguments are strict. |
-| `func maybe[A, B](o Option[A], d B, f func(A) B) B` | Return the default for None or apply f to Some's payload. | None uses d without calling f; Some invokes f once; d itself is strict. |
-| `func isSome[A](o Option[A]) Bool` | Test whether an Option uses Some. | Some(zero/empty value) is true; None false. |
-| `func isNone[A](o Option[A]) Bool` | Test whether an Option uses None. | None true; every Some false. |
-| `func mapErr[E, F, A](r Result[E, A], f func(E) F) Result[F, A]` | Transform only the error payload. | Ok untouched, f not called; Err invokes f once. |
-| `func fromResult[E, A](r Result[E, A], d A) A` | Return the Ok payload, or the supplied default on Err. | Err uses d; d still evaluated eagerly even for Ok. |
-| `func okOr[E, A](o Option[A], e E) Result[E, A]` | Some becomes Ok; None becomes Err(e). | None → Err(e), Some(a) → Ok(a); e is a strict argument. |
-| `func toOption[E, A](r Result[E, A]) Option[A]` | Ok becomes Some; Err becomes None. | Err loses error payload and becomes None; Ok becomes Some. |
-| `func isOk[E, A](r Result[E, A]) Bool` | True exactly for Ok. | True only for Ok, regardless of payload. |
-| `func isErr[E, A](r Result[E, A]) Bool` | True exactly for Err. | True only for Err, regardless of payload. |
-| `func either[E, A, B](r Result[E, A], onErr func(E) B, onOk func(A) B) B` | Invoke exactly the matching callback. | Only matching callback invoked; Result value and callback expressions are strict. |
-| `func liftResult[E Show, A](r Result[E, A]) IO[A]` | Ok becomes ioPure; Err becomes ioFail(show(e)). | Err becomes deferred ioFail(show(e)); Ok becomes ioPure; Show rendering occurs at construction. |
+| Source signature | Semantics | Boundary behaviour | Law-eligible |
+| --- | --- | --- | --- |
+| `type Result[E, A] = Err(E) \| Ok(A) deriving Eq, Ord, Debug` | Typed failure Err(E) or success Ok(A). | Derived Eq/Ord/Debug constrain E and A; Err precedes Ok; Monad short-circuits Err. | — |
+| `instance Show[Result[E, A]] given Show[E], Show[A]` | Display as Err(e)/Ok(a), using field Show where applicable. | Both E/A require Show even if one constructor is absent. | — |
+| `instance Functor[Result[E]]` | Map Result's element/result while retaining shape. | Err unchanged, callback only on Ok. | — |
+| `instance Monad[Result[E]]` | Inject and sequence Result computations. | pure is Ok; bind stops on Err. | — |
+| `func fromOption[A](o Option[A], d A) A` | Return Some's payload or a supplied default for None. | None uses d; d is evaluated even for Some because arguments are strict. | Yes |
+| `func maybe[A, B](o Option[A], d B, f func(A) B) B` | Return the default for None or apply f to Some's payload. | None uses d without calling f; Some invokes f once; d itself is strict. | Yes |
+| `func isSome[A](o Option[A]) Bool` | Test whether an Option uses Some. | Some(zero/empty value) is true; None false. | Yes |
+| `func isNone[A](o Option[A]) Bool` | Test whether an Option uses None. | None true; every Some false. | Yes |
+| `func mapErr[E, F, A](r Result[E, A], f func(E) F) Result[F, A]` | Transform only the error payload. | Ok untouched, f not called; Err invokes f once. | Yes |
+| `func fromResult[E, A](r Result[E, A], d A) A` | Return the Ok payload, or the supplied default on Err. | Err uses d; d still evaluated eagerly even for Ok. | Yes |
+| `func okOr[E, A](o Option[A], e E) Result[E, A]` | Some becomes Ok; None becomes Err(e). | None → Err(e), Some(a) → Ok(a); e is a strict argument. | Yes |
+| `func toOption[E, A](r Result[E, A]) Option[A]` | Ok becomes Some; Err becomes None. | Err loses error payload and becomes None; Ok becomes Some. | Yes |
+| `func isOk[E, A](r Result[E, A]) Bool` | True exactly for Ok. | True only for Ok, regardless of payload. | Yes |
+| `func isErr[E, A](r Result[E, A]) Bool` | True exactly for Err. | True only for Err, regardless of payload. | Yes |
+| `func either[E, A, B](r Result[E, A], onErr func(E) B, onOk func(A) B) B` | Invoke exactly the matching callback. | Only matching callback invoked; Result value and callback expressions are strict. | Yes |
+| `func liftResult[E Show, A](r Result[E, A]) IO[A]` | Ok becomes ioPure; Err becomes ioFail(show(e)). | Err becomes deferred ioFail(show(e)); Ok becomes ioPure; Show rendering occurs at construction. | No |
 
 Derived instances (expanded from the type declarations above):
 
 | Instance signature | Semantics | Boundary behaviour |
-| --- | --- | --- |
-| `instance Eq[Result[E, A]] given Eq[E], Eq[A]` | Constructor/field equality. | All parameters require Eq, including phantom parameters. |
-| `instance Ord[Result[E, A]] given Ord[E], Ord[A]` | Declaration-order constructor comparison, then lexicographic fields. | Requires Eq plus Ord on all parameters; Nil/None/Err precede Cons/Some/Ok respectively. |
-| `instance Debug[Result[E, A]] given Debug[E], Debug[A]` | Structural constructor/field rendering. | Requires Debug[E] and Debug[A]; Err(debug(e)) or Ok(debug(a)); strings quoted and list payloads use brackets. |
+| --- | --- | --- | --- |
+| `instance Eq[Result[E, A]] given Eq[E], Eq[A]` | Constructor/field equality. | All parameters require Eq, including phantom parameters. | — |
+| `instance Ord[Result[E, A]] given Ord[E], Ord[A]` | Declaration-order constructor comparison, then lexicographic fields. | Requires Eq plus Ord on all parameters; Nil/None/Err precede Cons/Some/Ok respectively. | — |
+| `instance Debug[Result[E, A]] given Debug[E], Debug[A]` | Structural constructor/field rendering. | Requires Debug[E] and Debug[A]; Err(debug(e)) or Ok(debug(a)); strings quoted and list payloads use brackets. | — |
 
 ## `std/set`
 
@@ -510,84 +521,84 @@ Source: [`set/set.gt`](../std/set/set.gt). 20 top-level declarations.
 
 `By` functions are exported low-level comparator APIs: use one consistent total order for every operation on a tree. Standard wrappers supply Ord.compare.
 
-| Source signature | Semantics | Boundary behaviour |
-| --- | --- | --- |
-| `extern func emptySet[A]() Set[A] = "go4t/rt".EmptySet` | Empty set without an element constraint. | Empty set without an element constraint. |
-| `extern func setInsertBy[A](s Set[A], a A, cmp func(A, A) Ordering) Set[A] = "go4t/rt".SetInsert` | Add an element; an equivalent existing element is retained. Uses the explicit comparator instead of Ord. | Add an element; an equivalent existing element is retained. The comparator must remain consistent for all operations on this tree. |
-| `extern func setDeleteBy[A](s Set[A], a A, cmp func(A, A) Ordering) Set[A] = "go4t/rt".SetDelete` | Remove an element; absent elements leave the set unchanged. Uses the explicit comparator instead of Ord. | Remove an element; absent elements leave the set unchanged. The comparator must remain consistent for all operations on this tree. |
-| `extern func setMemberBy[A](s Set[A], a A, cmp func(A, A) Ordering) Bool = "go4t/rt".SetMember` | Whether an equivalent element exists. Uses the explicit comparator instead of Ord. | Whether an equivalent element exists. The comparator must remain consistent for all operations on this tree. |
-| `extern func setSize[A](s Set[A]) Int = "go4t/rt".SetSize` | Distinct element count; constant time. | Distinct element count; constant time. |
-| `extern func setFromListBy[A](xs List[A], cmp func(A, A) Ordering) Set[A] = "go4t/rt".SetFromList` | Deduplicate; retain the first representative of equivalent elements. Uses the explicit comparator instead of Ord. | Deduplicate; retain the first representative of equivalent elements. The comparator must remain consistent for all operations on this tree. |
-| `extern func setToList[A](s Set[A]) List[A] = "go4t/rt".SetToList` | Elements in ascending order. | Elements in ascending order. |
-| `extern func setUnionBy[A](a Set[A], b Set[A], cmp func(A, A) Ordering) Set[A] = "go4t/rt".SetUnion` | Elements in either set, retaining the left representative on overlap. Uses the explicit comparator instead of Ord. | Elements in either set, retaining the left representative on overlap. The comparator must remain consistent for all operations on this tree. |
-| `extern func setIntersectionBy[A](a Set[A], b Set[A], cmp func(A, A) Ordering) Set[A] = "go4t/rt".SetIntersection` | Left elements also present in the right set. Uses the explicit comparator instead of Ord. | Left elements also present in the right set. The comparator must remain consistent for all operations on this tree. |
-| `extern func setDifferenceBy[A](a Set[A], b Set[A], cmp func(A, A) Ordering) Set[A] = "go4t/rt".SetDifference` | Left elements absent from the right set. Uses the explicit comparator instead of Ord. | Left elements absent from the right set. The comparator must remain consistent for all operations on this tree. |
-| `func setInsert[A Ord](s Set[A], a A) Set[A]` | Add an element; an equivalent existing element is retained. | Add an element; an equivalent existing element is retained. |
-| `func setDelete[A Ord](s Set[A], a A) Set[A]` | Remove an element; absent elements leave the set unchanged. | Remove an element; absent elements leave the set unchanged. |
-| `func setMember[A Ord](s Set[A], a A) Bool` | Whether an equivalent element exists. | Whether an equivalent element exists. |
-| `func setFromList[A Ord](xs List[A]) Set[A]` | Deduplicate; retain the first representative of equivalent elements. | Deduplicate; retain the first representative of equivalent elements. |
-| `func setUnion[A Ord](a Set[A], b Set[A]) Set[A]` | Elements in either set, retaining the left representative on overlap. | Elements in either set, retaining the left representative on overlap. |
-| `func setIntersection[A Ord](a Set[A], b Set[A]) Set[A]` | Left elements also present in the right set. | Left elements also present in the right set. |
-| `func setDifference[A Ord](a Set[A], b Set[A]) Set[A]` | Left elements absent from the right set. | Left elements absent from the right set. |
-| `instance Show[Set[A]] given Show[A]` | Display as #{a, b}, using field Show where applicable. | Empty #{}; ascending elements. |
-| `instance Debug[Set[A]] given Debug[A]` | Structural rendering as #{a, b} using element Debug. | Empty #{}; ascending elements; strings quoted; no Show/Ord required. |
-| `instance Eq[Set[A]] given Eq[A]` | Compare Set values for equality. | Ascending element-list equality; Eq[A] only. |
+| Source signature | Semantics | Boundary behaviour | Law-eligible |
+| --- | --- | --- | --- |
+| `extern func emptySet[A]() Set[A] = "go4t/rt".EmptySet` | Empty set without an element constraint. | Empty set without an element constraint. | No |
+| `extern func setInsertBy[A](s Set[A], a A, cmp func(A, A) Ordering) Set[A] = "go4t/rt".SetInsert` | Add an element; an equivalent existing element is retained. Uses the explicit comparator instead of Ord. | Add an element; an equivalent existing element is retained. The comparator must remain consistent for all operations on this tree. | No |
+| `extern func setDeleteBy[A](s Set[A], a A, cmp func(A, A) Ordering) Set[A] = "go4t/rt".SetDelete` | Remove an element; absent elements leave the set unchanged. Uses the explicit comparator instead of Ord. | Remove an element; absent elements leave the set unchanged. The comparator must remain consistent for all operations on this tree. | No |
+| `extern func setMemberBy[A](s Set[A], a A, cmp func(A, A) Ordering) Bool = "go4t/rt".SetMember` | Whether an equivalent element exists. Uses the explicit comparator instead of Ord. | Whether an equivalent element exists. The comparator must remain consistent for all operations on this tree. | No |
+| `extern func setSize[A](s Set[A]) Int = "go4t/rt".SetSize` | Distinct element count; constant time. | Distinct element count; constant time. | No |
+| `extern func setFromListBy[A](xs List[A], cmp func(A, A) Ordering) Set[A] = "go4t/rt".SetFromList` | Deduplicate; retain the first representative of equivalent elements. Uses the explicit comparator instead of Ord. | Deduplicate; retain the first representative of equivalent elements. The comparator must remain consistent for all operations on this tree. | No |
+| `extern func setToList[A](s Set[A]) List[A] = "go4t/rt".SetToList` | Elements in ascending order. | Elements in ascending order. | No |
+| `extern func setUnionBy[A](a Set[A], b Set[A], cmp func(A, A) Ordering) Set[A] = "go4t/rt".SetUnion` | Elements in either set, retaining the left representative on overlap. Uses the explicit comparator instead of Ord. | Elements in either set, retaining the left representative on overlap. The comparator must remain consistent for all operations on this tree. | No |
+| `extern func setIntersectionBy[A](a Set[A], b Set[A], cmp func(A, A) Ordering) Set[A] = "go4t/rt".SetIntersection` | Left elements also present in the right set. Uses the explicit comparator instead of Ord. | Left elements also present in the right set. The comparator must remain consistent for all operations on this tree. | No |
+| `extern func setDifferenceBy[A](a Set[A], b Set[A], cmp func(A, A) Ordering) Set[A] = "go4t/rt".SetDifference` | Left elements absent from the right set. Uses the explicit comparator instead of Ord. | Left elements absent from the right set. The comparator must remain consistent for all operations on this tree. | No |
+| `func setInsert[A Ord](s Set[A], a A) Set[A]` | Add an element; an equivalent existing element is retained. | Add an element; an equivalent existing element is retained. | No |
+| `func setDelete[A Ord](s Set[A], a A) Set[A]` | Remove an element; absent elements leave the set unchanged. | Remove an element; absent elements leave the set unchanged. | No |
+| `func setMember[A Ord](s Set[A], a A) Bool` | Whether an equivalent element exists. | Whether an equivalent element exists. | No |
+| `func setFromList[A Ord](xs List[A]) Set[A]` | Deduplicate; retain the first representative of equivalent elements. | Deduplicate; retain the first representative of equivalent elements. | No |
+| `func setUnion[A Ord](a Set[A], b Set[A]) Set[A]` | Elements in either set, retaining the left representative on overlap. | Elements in either set, retaining the left representative on overlap. | No |
+| `func setIntersection[A Ord](a Set[A], b Set[A]) Set[A]` | Left elements also present in the right set. | Left elements also present in the right set. | No |
+| `func setDifference[A Ord](a Set[A], b Set[A]) Set[A]` | Left elements absent from the right set. | Left elements absent from the right set. | No |
+| `instance Show[Set[A]] given Show[A]` | Display as #{a, b}, using field Show where applicable. | Empty #{}; ascending elements. | — |
+| `instance Debug[Set[A]] given Debug[A]` | Structural rendering as #{a, b} using element Debug. | Empty #{}; ascending elements; strings quoted; no Show/Ord required. | — |
+| `instance Eq[Set[A]] given Eq[A]` | Compare Set values for equality. | Ascending element-list equality; Eq[A] only. | — |
 
 ## `std/state`
 
 Source: [`state/state.gt`](../std/state/state.gt). 10 top-level declarations.
 
-| Source signature | Semantics | Boundary behaviour |
-| --- | --- | --- |
-| `type State[S, A] = State(func(S) (A, S))` | A pure state transition S → (A, S). | State is ordinary data, not mutable storage; partial State[S] supports Monad. |
-| `instance Debug[State[S, A]]` | Render an opaque transition as `State(<function>)`. | No Debug constraints on S/A; never runs the transition. |
-| `instance Functor[State[S]]` | Map State's element/result while retaining shape. | Changes result only, preserves final state. |
-| `instance Monad[State[S]]` | Inject and sequence State computations. | pure preserves state; bind threads the first final state into the next transition. |
-| `func runState[S, A](st State[S, A], s S) (A, S)` | Run a pure state transition, returning result and final state. | Each call reruns the pure transition with the supplied state; no mutable global state. |
-| `func evalState[S, A](st State[S, A], s S) A` | Run State and return only its result. | Computes the transition, discards final state only after running it. |
-| `func execState[S, A](st State[S, A], s S) S` | Run State and return only its final state. | Computes the transition, discards result only after running it. |
-| `func get[S]() State[S, S]` | Read the current state without changing it. | Returns (s, s); does not alter state. |
-| `func put[S](s S) State[S, Unit]` | Replace the current state, returning Unit. | Discards prior state; result is Unit. |
-| `func modify[S](f func(S) S) State[S, Unit]` | Apply a function to the current state, returning Unit. | Calls f once per transition execution; returns Unit and new state. |
+| Source signature | Semantics | Boundary behaviour | Law-eligible |
+| --- | --- | --- | --- |
+| `type State[S, A] = State(func(S) (A, S))` | A pure state transition S → (A, S). | State is ordinary data, not mutable storage; partial State[S] supports Monad. | — |
+| `instance Debug[State[S, A]]` | Render an opaque transition as `State(<function>)`. | No Debug constraints on S/A; never runs the transition. | — |
+| `instance Functor[State[S]]` | Map State's element/result while retaining shape. | Changes result only, preserves final state. | — |
+| `instance Monad[State[S]]` | Inject and sequence State computations. | pure preserves state; bind threads the first final state into the next transition. | — |
+| `func runState[S, A](st State[S, A], s S) (A, S)` | Run a pure state transition, returning result and final state. | Each call reruns the pure transition with the supplied state; no mutable global state. | Yes |
+| `func evalState[S, A](st State[S, A], s S) A` | Run State and return only its result. | Computes the transition, discards final state only after running it. | Yes |
+| `func execState[S, A](st State[S, A], s S) S` | Run State and return only its final state. | Computes the transition, discards result only after running it. | Yes |
+| `func get[S]() State[S, S]` | Read the current state without changing it. | Returns (s, s); does not alter state. | Yes |
+| `func put[S](s S) State[S, Unit]` | Replace the current state, returning Unit. | Discards prior state; result is Unit. | Yes |
+| `func modify[S](f func(S) S) State[S, Unit]` | Apply a function to the current state, returning Unit. | Calls f once per transition execution; returns Unit and new state. | Yes |
 
 ## `std/string`
 
 Source: [`string/string.gt`](../std/string/string.gt). 32 top-level declarations.
 
-| Source signature | Semantics | Boundary behaviour |
-| --- | --- | --- |
-| `extern func strLength(s String) Int = "go4t/rt".StrLength` | Count Unicode code points in text. | Empty is 0; one astral rune is 1; `e` plus combining accent is 2. |
-| `extern func strConcat(xs List[String]) String = "go4t/rt".StrConcat` | Concatenate a list of strings with no separator. | Empty list is `""`; singleton is its element; empty elements contribute nothing. |
-| `extern func join(sep String, xs List[String]) String = "go4t/rt".Join` | Concatenate strings with a separator between adjacent elements. | Empty list is `""`; singleton is its element without separator; empty elements still delimit fields. |
-| `extern func split(sep String, s String) List[String] = "go4t/rt".Split` | Split text at literal separator occurrences. | Absent separator gives `[s]`; nonempty separator on empty input gives `[""]`; adjacent/trailing separators retain empty fields. `split("", s)` yields one-rune strings; `split("", "") = Nil`. |
-| `extern func lines(s String) List[String] = "go4t/rt".Lines` | Split at LF and drop exactly one trailing empty field. | Splits only on `\n` and drops exactly one trailing empty field. Empty input gives `Nil`; `"\n" → [""]`; `"a\n\n" → ["a", ""]`; CR is retained in CRLF input. |
-| `extern func words(s String) List[String] = "go4t/rt".Words` | Split into nonempty Unicode-whitespace-delimited words. | Empty/Unicode-whitespace-only input gives `Nil`; runs of Unicode whitespace delimit nonempty fields. |
-| `extern func trim(s String) String = "go4t/rt".Trim` | Remove Unicode whitespace from both ends. | Removes Unicode whitespace only at the ends; empty or all-whitespace becomes `""`. |
-| `extern func toUpper(s String) String = "go4t/rt".ToUpper` | Apply Unicode simple uppercase conversion. | Empty unchanged; Unicode simple case mapping, not locale-specific or full case folding. |
-| `extern func toLower(s String) String = "go4t/rt".ToLower` | Apply Unicode simple lowercase conversion. | Empty unchanged; Unicode simple case mapping, not locale-specific or full case folding. |
-| `extern func startsWith(s String, prefix String) Bool = "go4t/rt".StartsWith` | Test a literal string prefix. | Empty prefix/suffix/substring matches every string, including empty; a nonempty needle does not match empty input. |
-| `extern func endsWith(s String, suffix String) Bool = "go4t/rt".EndsWith` | Test a literal string suffix. | Empty prefix/suffix/substring matches every string, including empty; a nonempty needle does not match empty input. |
-| `extern func contains(s String, sub String) Bool = "go4t/rt".Contains` | Test whether a literal substring occurs. | Empty prefix/suffix/substring matches every string, including empty; a nonempty needle does not match empty input. |
-| `extern func replace(s String, old String, new String) String = "go4t/rt".Replace` | Replace all non-overlapping literal occurrences. | All non-overlapping literal occurrences; absent old value leaves s unchanged. Empty old inserts new at the start, between runes and at the end; `replace("", "", "-") = "-"`. |
-| `extern func substring(s String, start Int, end Int) String = "go4t/rt".Substring` | Return a clamped half-open rune interval. | Half-open rune interval with bounds clamped to `[0, length]`; reversed/equal ranges empty. `substring("a日本", -1, 2) = "a日"`; end past length clamps; start past length or negative end yields `""`; even Int extrema are safe. |
-| `extern func chars(s String) List[String] = "go4t/rt".Chars` | Split into one-rune strings. | Same as `split("", s)`; empty gives `Nil`. |
-| `extern func repeat(s String, n Int) String = "go4t/rt".Repeat` | Repeat a string n times. | `n <= 0` gives `""` (negative counts fixed to stop panicking); empty s gives `""`; positive n repeats exactly n times. |
-| `extern func parseInt(s String) Option[Int] = "go4t/rt".ParseInt` | Parse signed base-10 int64 text. | Signed base-10 Int64. `"+5" → Some(5)`; leading zeros allowed; both signed bounds accepted. Overflow, empty, surrounding whitespace, underscores, decimal fractions, non-ASCII digits and `0x` notation give `None`. |
-| `extern func showPadLeft(n Int, width Int) String = "go4t/rt".ShowPadLeft` | Right-align decimal Int text in a space-padded width. | Decimal number including sign, right-aligned with spaces; width <= decimal length (including any negative width) leaves the decimal unchanged, never truncates. |
-| `extern func codePoint(s String) Option[Int] = "go4t/rt".CodePoint` | first Unicode code point, if present. | Empty gives `None`; otherwise first rune only, e.g. `"日a" → Some(26085)`; malformed UTF-8 decodes as U+FFFD. |
-| `extern func fromCodePoint(n Int) String = "go4t/rt".FromCodePoint` | one Unicode scalar value, or U+FFFD if invalid. | Valid Unicode scalar gives its one-rune string, including NUL at 0. Negative, > U+10FFFF, or surrogate U+D800..U+DFFF gives U+FFFD; large Ints are checked before conversion, never wrap into another character. |
-| `extern func isDigit(s String) Bool = "go4t/rt".IsDigit` | non-empty, every rune satisfies unicode.IsDigit. | Empty false; every rune must be Unicode decimal digit, e.g. `"12٣９"` true, `"1a"` false. |
-| `extern func isAlpha(s String) Bool = "go4t/rt".IsAlpha` | non-empty, every rune satisfies unicode.IsLetter. | Empty false; every rune must be Unicode letter, e.g. `"é日本Z"` true, `"a1"` false. |
-| `extern func isSpace(s String) Bool = "go4t/rt".IsSpace` | non-empty, every rune satisfies unicode.IsSpace. | Empty false; every rune must be Unicode whitespace, e.g. ASCII whitespace and U+2003 true, `" a"` false. |
-| `extern func isUpper(s String) Bool = "go4t/rt".IsUpper` | non-empty, every rune satisfies unicode.IsUpper. | Empty false; every rune must have the respective Unicode case property; digits, uncased letters, punctuation or the opposite case make the result false. |
-| `extern func isLower(s String) Bool = "go4t/rt".IsLower` | non-empty, every rune satisfies unicode.IsLower. | Empty false; every rune must have the respective Unicode case property; digits, uncased letters, punctuation or the opposite case make the result false. |
-| `extern func indexOf(s String, sub String) Option[Int] = "go4t/rt".IndexOf` | rune index of the first substring occurrence. | First match in rune indices; no match gives `None`; empty sub gives `Some(0)` even on empty input; `indexOf("日🙂本", "🙂") = Some(1)`. |
-| `extern func padRight(s String, width Int) String = "go4t/rt".PadRight` | right-pad with ASCII spaces to a rune width. | Pad with spaces only when width exceeds rune count; nonpositive/minimum Int widths leave s unchanged; never truncate; empty string pads to positive width. |
-| `extern func padLeft(s String, width Int) String = "go4t/rt".PadLeft` | left-pad with ASCII spaces to a rune width. | Pad with spaces only when width exceeds rune count; nonpositive/minimum Int widths leave s unchanged; never truncate; empty string pads to positive width. |
-| `extern func reverseString(s String) String = "go4t/rt".ReverseString` | reverse Unicode code points, not grapheme clusters. | Empty/singleton unchanged; reverses code points, so combining accents move independently of their base characters. |
-| `extern func splitOnce(sep String, s String) Option[(String, String)] = "go4t/rt".SplitOnce` | split before/after the first separator. | First occurrence only; no match gives `None`; separators at an end produce an empty side. Empty separator gives `Some(("", s))`, even for empty s. |
-| `extern func charAt(s String, i Int) Option[String] = "go4t/rt".CharAt` | one-rune string at zero-based index i. | Empty, negative/minimum Int index, or index >= rune count gives `None`; valid index gives exactly one rune; malformed UTF-8 decodes as U+FFFD. |
-| `extern func showQuoted(s String) String = "go4t/rt".ShowQuoted` | strconv.Quote: surrounding quotes and Go escapes. | Empty gives `"\"\""`; escapes quotes, backslashes, control characters using Go string syntax; printable Unicode remains readable. |
+| Source signature | Semantics | Boundary behaviour | Law-eligible |
+| --- | --- | --- | --- |
+| `extern func strLength(s String) Int = "go4t/rt".StrLength` | Count Unicode code points in text. | Empty is 0; one astral rune is 1; `e` plus combining accent is 2. | Yes |
+| `extern func strConcat(xs List[String]) String = "go4t/rt".StrConcat` | Concatenate a list of strings with no separator. | Empty list is `""`; singleton is its element; empty elements contribute nothing. | Yes |
+| `extern func join(sep String, xs List[String]) String = "go4t/rt".Join` | Concatenate strings with a separator between adjacent elements. | Empty list is `""`; singleton is its element without separator; empty elements still delimit fields. | Yes |
+| `extern func split(sep String, s String) List[String] = "go4t/rt".Split` | Split text at literal separator occurrences. | Absent separator gives `[s]`; nonempty separator on empty input gives `[""]`; adjacent/trailing separators retain empty fields. `split("", s)` yields one-rune strings; `split("", "") = Nil`. | Yes |
+| `extern func lines(s String) List[String] = "go4t/rt".Lines` | Split at LF and drop exactly one trailing empty field. | Splits only on `\n` and drops exactly one trailing empty field. Empty input gives `Nil`; `"\n" → [""]`; `"a\n\n" → ["a", ""]`; CR is retained in CRLF input. | Yes |
+| `extern func words(s String) List[String] = "go4t/rt".Words` | Split into nonempty Unicode-whitespace-delimited words. | Empty/Unicode-whitespace-only input gives `Nil`; runs of Unicode whitespace delimit nonempty fields. | Yes |
+| `extern func trim(s String) String = "go4t/rt".Trim` | Remove Unicode whitespace from both ends. | Removes Unicode whitespace only at the ends; empty or all-whitespace becomes `""`. | Yes |
+| `extern func toUpper(s String) String = "go4t/rt".ToUpper` | Apply Unicode simple uppercase conversion. | Empty unchanged; Unicode simple case mapping, not locale-specific or full case folding. | Yes |
+| `extern func toLower(s String) String = "go4t/rt".ToLower` | Apply Unicode simple lowercase conversion. | Empty unchanged; Unicode simple case mapping, not locale-specific or full case folding. | Yes |
+| `extern func startsWith(s String, prefix String) Bool = "go4t/rt".StartsWith` | Test a literal string prefix. | Empty prefix/suffix/substring matches every string, including empty; a nonempty needle does not match empty input. | Yes |
+| `extern func endsWith(s String, suffix String) Bool = "go4t/rt".EndsWith` | Test a literal string suffix. | Empty prefix/suffix/substring matches every string, including empty; a nonempty needle does not match empty input. | Yes |
+| `extern func contains(s String, sub String) Bool = "go4t/rt".Contains` | Test whether a literal substring occurs. | Empty prefix/suffix/substring matches every string, including empty; a nonempty needle does not match empty input. | Yes |
+| `extern func replace(s String, old String, new String) String = "go4t/rt".Replace` | Replace all non-overlapping literal occurrences. | All non-overlapping literal occurrences; absent old value leaves s unchanged. Empty old inserts new at the start, between runes and at the end; `replace("", "", "-") = "-"`. | Yes |
+| `extern func substring(s String, start Int, end Int) String = "go4t/rt".Substring` | Return a clamped half-open rune interval. | Half-open rune interval with bounds clamped to `[0, length]`; reversed/equal ranges empty. `substring("a日本", -1, 2) = "a日"`; end past length clamps; start past length or negative end yields `""`; even Int extrema are safe. | Yes |
+| `extern func chars(s String) List[String] = "go4t/rt".Chars` | Split into one-rune strings. | Same as `split("", s)`; empty gives `Nil`. | Yes |
+| `extern func repeat(s String, n Int) String = "go4t/rt".Repeat` | Repeat a string n times. | `n <= 0` gives `""` (negative counts fixed to stop panicking); empty s gives `""`; positive n repeats exactly n times. | Yes |
+| `extern func parseInt(s String) Option[Int] = "go4t/rt".ParseInt` | Parse signed base-10 int64 text. | Signed base-10 Int64. `"+5" → Some(5)`; leading zeros allowed; both signed bounds accepted. Overflow, empty, surrounding whitespace, underscores, decimal fractions, non-ASCII digits and `0x` notation give `None`. | Yes |
+| `extern func showPadLeft(n Int, width Int) String = "go4t/rt".ShowPadLeft` | Right-align decimal Int text in a space-padded width. | Decimal number including sign, right-aligned with spaces; width <= decimal length (including any negative width) leaves the decimal unchanged, never truncates. | Yes |
+| `extern func codePoint(s String) Option[Int] = "go4t/rt".CodePoint` | first Unicode code point, if present. | Empty gives `None`; otherwise first rune only, e.g. `"日a" → Some(26085)`; malformed UTF-8 decodes as U+FFFD. | Yes |
+| `extern func fromCodePoint(n Int) String = "go4t/rt".FromCodePoint` | one Unicode scalar value, or U+FFFD if invalid. | Valid Unicode scalar gives its one-rune string, including NUL at 0. Negative, > U+10FFFF, or surrogate U+D800..U+DFFF gives U+FFFD; large Ints are checked before conversion, never wrap into another character. | Yes |
+| `extern func isDigit(s String) Bool = "go4t/rt".IsDigit` | non-empty, every rune satisfies unicode.IsDigit. | Empty false; every rune must be Unicode decimal digit, e.g. `"12٣９"` true, `"1a"` false. | Yes |
+| `extern func isAlpha(s String) Bool = "go4t/rt".IsAlpha` | non-empty, every rune satisfies unicode.IsLetter. | Empty false; every rune must be Unicode letter, e.g. `"é日本Z"` true, `"a1"` false. | Yes |
+| `extern func isSpace(s String) Bool = "go4t/rt".IsSpace` | non-empty, every rune satisfies unicode.IsSpace. | Empty false; every rune must be Unicode whitespace, e.g. ASCII whitespace and U+2003 true, `" a"` false. | Yes |
+| `extern func isUpper(s String) Bool = "go4t/rt".IsUpper` | non-empty, every rune satisfies unicode.IsUpper. | Empty false; every rune must have the respective Unicode case property; digits, uncased letters, punctuation or the opposite case make the result false. | Yes |
+| `extern func isLower(s String) Bool = "go4t/rt".IsLower` | non-empty, every rune satisfies unicode.IsLower. | Empty false; every rune must have the respective Unicode case property; digits, uncased letters, punctuation or the opposite case make the result false. | Yes |
+| `extern func indexOf(s String, sub String) Option[Int] = "go4t/rt".IndexOf` | rune index of the first substring occurrence. | First match in rune indices; no match gives `None`; empty sub gives `Some(0)` even on empty input; `indexOf("日🙂本", "🙂") = Some(1)`. | Yes |
+| `extern func padRight(s String, width Int) String = "go4t/rt".PadRight` | right-pad with ASCII spaces to a rune width. | Pad with spaces only when width exceeds rune count; nonpositive/minimum Int widths leave s unchanged; never truncate; empty string pads to positive width. | Yes |
+| `extern func padLeft(s String, width Int) String = "go4t/rt".PadLeft` | left-pad with ASCII spaces to a rune width. | Pad with spaces only when width exceeds rune count; nonpositive/minimum Int widths leave s unchanged; never truncate; empty string pads to positive width. | Yes |
+| `extern func reverseString(s String) String = "go4t/rt".ReverseString` | reverse Unicode code points, not grapheme clusters. | Empty/singleton unchanged; reverses code points, so combining accents move independently of their base characters. | Yes |
+| `extern func splitOnce(sep String, s String) Option[(String, String)] = "go4t/rt".SplitOnce` | split before/after the first separator. | First occurrence only; no match gives `None`; separators at an end produce an empty side. Empty separator gives `Some(("", s))`, even for empty s. | Yes |
+| `extern func charAt(s String, i Int) Option[String] = "go4t/rt".CharAt` | one-rune string at zero-based index i. | Empty, negative/minimum Int index, or index >= rune count gives `None`; valid index gives exactly one rune; malformed UTF-8 decodes as U+FFFD. | Yes |
+| `extern func showQuoted(s String) String = "go4t/rt".ShowQuoted` | strconv.Quote: surrounding quotes and Go escapes. | Empty gives `"\"\""`; escapes quotes, backslashes, control characters using Go string syntax; printable Unicode remains readable. | Yes |
 
 ## `std/dyn`
 
@@ -595,11 +606,11 @@ Source: [`dyn/dyn.gt`](../std/dyn/dyn.gt). 1 top-level declaration.
 Import explicitly for Go `any`/variadic bindings. Values are a closed sum, not
 unchecked opaque Go interfaces; unknown Go values decode to their printed text.
 
-| Source signature | Semantics | Boundary behaviour |
-| --- | --- | --- |
-| `type Value = Null \| Bool(Bool) \| Int(Int) \| Float(Float) \| Str(String) \| Bytes(String) \| Time(Int) \| List(List[Value]) \| Map(Map[String, Value]) deriving Eq, Debug` | Tagged foreign values: Null, Bool, Int, Float, Str, Bytes, Time, List and Map. | Bytes copies raw bytes; Time is UnixNano with zero time encoded as 0; List/Map recurse; unknown Go values become Str(fmt.Sprint(value)). |
-| `instance Eq[Value]` | Derived constructor/payload equality. | Different constructors are unequal; Float follows IEEE equality; lists/maps compare their contents. |
-| `instance Debug[Value]` | Derived structural display with constructor names. | Str/Bytes payload strings are quoted; containers recurse; never executes foreign code. |
+| Source signature | Semantics | Boundary behaviour | Law-eligible |
+| --- | --- | --- | --- |
+| `type Value = Null \| Bool(Bool) \| Int(Int) \| Float(Float) \| Str(String) \| Bytes(String) \| Time(Int) \| List(List[Value]) \| Map(Map[String, Value]) deriving Eq, Debug` | Tagged foreign values: Null, Bool, Int, Float, Str, Bytes, Time, List and Map. | Bytes copies raw bytes; Time is UnixNano with zero time encoded as 0; List/Map recurse; unknown Go values become Str(fmt.Sprint(value)). | — |
+| `instance Eq[Value]` | Derived constructor/payload equality. | Different constructors are unequal; Float follows IEEE equality; lists/maps compare their contents. | — |
+| `instance Debug[Value]` | Derived structural display with constructor names. | Str/Bytes payload strings are quoted; containers recurse; never executes foreign code. | — |
 
 ## Inventory totals and maintenance
 

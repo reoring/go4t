@@ -133,6 +133,25 @@ Full reference: [SPEC.md](SPEC.md). Guided introduction for Go developers:
 [docs/tutorial.md](docs/tutorial.md). Every std declaration:
 [docs/stdlib.md](docs/stdlib.md).
 
+### Laws
+
+State an equation once and have `go4t check` verify it for every input, rather
+than only selected test cases:
+
+```go4t
+package main
+law distribute(a Int, b Int, c Int) { (a + b) * c == a * c + b * c }
+proof distribute(a, b, c) { refl }
+func main() IO[Unit] { ioPure(unit()) }
+```
+
+Laws use definitional equality, independent of `Eq` instances. Proofs combine
+`refl`, constructor `match`, guard `if` and `rewrite` (including structural
+induction). Only eligible pure, terminating dependencies are admitted; Float
+and untrusted externs are excluded. Laws generate no runtime code. See
+[tutorial §13](docs/tutorial.md#13-laws) for cancellation, the `freshness`
+`staleIff` guard law and list induction.
+
 ## Install and quick start
 
 Requires **Go 1.22+** on PATH (go4t generates Go and runs `go build`).
@@ -222,7 +241,7 @@ source root, `go4t.mod` requires, `GO4T_PATH`, embedded std. See
 
 | Command | Purpose |
 | --- | --- |
-| `go4t check [--full-types] FILE.gt\|DIR...` | Load and type-check; warnings do not fail; foreign ABI is not checked here. |
+| `go4t check [--full-types] FILE.gt\|DIR...` | Load, type-check and verify laws/proofs; warnings do not fail; foreign ABI is not checked here. |
 | `go4t build [--full-types] [-o DIR] FILE.gt\|DIR...` | Emit one Go file per go4t module into one Go package. |
 | `go4t build --emit-go DIR --package NAME FILE.gt\|DIR...` | Emit an importable Go package with typed exports (§8.7). |
 | `go4t run [--full-types] FILE.gt\|DIR... [-- args...]` | Build and execute; inherits stdin; preserves exit status. |
@@ -232,6 +251,9 @@ source root, `go4t.mod` requires, `GO4T_PATH`, embedded std. See
 | `go4t fmt [-w\|-d\|-l] FILE...\|DIR` | Canonical formatting; `-l` exits 1 on differences. |
 | `go4t init <module-path>` / `go4t get <path>@<version>` | Project and dependency management. |
 | `go4t lsp` | Stdio language server (diagnostics, hover, definition, symbols). |
+
+Only `check` verifies proofs; `build`, `run`, `test` and `eval` omit laws/proofs
+from generated code but still require their source to parse and type-check.
 
 Exit codes: ordinary IO errors 1, uncaught action panic 2. Recover inside the
 program with `io.tryIO(action) : IO[Result[io.IoError, A]]`.

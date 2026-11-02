@@ -14,6 +14,7 @@ import (
 
 	"go4t/ast"
 	"go4t/codegen"
+	"go4t/laws"
 	"go4t/lsp"
 	"go4t/modules"
 	"go4t/types"
@@ -105,6 +106,13 @@ func run(args []string) error {
 		return err
 	}
 	if command == "check" {
+		failures := laws.CheckProgram(program)
+		for _, failure := range failures {
+			fmt.Fprintln(os.Stderr, diagnostic("go4t", failure))
+		}
+		if len(failures) != 0 {
+			return exitStatus(1)
+		}
 		return nil
 	}
 

@@ -48,6 +48,31 @@ func Walk(n Node, visit func(Node)) {
 		if n.Body != nil {
 			walk(n.Body)
 		}
+	case *LawDecl:
+		params(n.Params)
+		walk(n.LHS)
+		walk(n.RHS)
+	case *ProofDecl:
+		params(n.Params)
+		walk(n.Body)
+	case *TMatch:
+		walk(n.Var)
+		for i := range n.Arms {
+			walk(&n.Arms[i])
+		}
+	case *TacticArm:
+		walk(n.Pat)
+		walk(n.Body)
+	case *TIf:
+		walk(n.Cond)
+		walk(n.Then)
+		walk(n.Else)
+	case *TRewrite:
+		walk(n.Law)
+		for _, arg := range n.Args {
+			walk(arg)
+		}
+		walk(n.Body)
 	case *Param:
 		walk(n.Type)
 		walk(n.Pat)

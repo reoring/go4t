@@ -37,7 +37,7 @@ Prefixes `dict_` and `ext_` are reserved. `_name` suppresses unused-local warnin
 and makes a top-level declaration private to its module.
 
 Keywords: `package import alias class instance type func extern let do match if
-else true false given deriving`.
+else true false given deriving law proof refl rewrite`.
 
 ### 1.3 Literals and punctuation
 
@@ -71,7 +71,7 @@ Interp     := ? interpolated string literal ?
 ### 1.4 Layout
 
 A newline inserts `;` when the previous token can end an expression (identifier,
-Int, Float, String/interpolated string, Bool, `)`, `]`, `}`, `_`), the innermost
+Int, Float, String/interpolated string, Bool, `refl`, `)`, `]`, `}`, `_`), the innermost
 unclosed delimiter is a block brace or there is none, and the next token is not
 a continuation: `else`, `|`, `||`, `|>`, `.`, `)`, `]`, `given`, `deriving`,
 `=>`, `<-`, or a binary operator. Blank lines/comments do not break continuation.
@@ -90,7 +90,7 @@ separate statements. Tuple access `t.0.1` is not lexed as a Float literal.
 ```ebnf
 File       := {Separator} 'package' Ident {Separator} {Import} {Decl {Separator}}
 Import     := 'import' [Ident] String {Separator}
-Decl       := Class | Instance | TypeDecl | AliasDecl | Func | Extern
+Decl       := Class | Instance | TypeDecl | AliasDecl | Func | Extern | LawDecl | ProofDecl
 Name       := Ident ['.' Ident]
 Separator  := ';'
 ```
@@ -821,6 +821,103 @@ constructs Response. The server passes six individual Request fields to a
 go4t adapter which constructs Request and returns the handler's Response as a
 triple. Codegen emits `rt_tuple3`/`rt_untuple3` with source directives like Tuple2.
 
+### 6.5 Laws and proofs
+
+A `law` declares an equation universally quantified over its typed, monomorphic
+parameters. A `proof` of the same name is required, with the same number of
+parameters; its untyped names rebind those parameters positionally. Laws are
+not callable functions and have no generated Go representation.
+
+```ebnf
+LawDecl   := 'law' Ident '(' [Param {',' Param} [',']] ')' '{' Expr '==' Expr {Separator} '}'
+ProofDecl := 'proof' Ident '(' [Ident {',' Ident} [',']] ')' TacticBlock
+TacticBlock := '{' {Separator} Tactic {Separator} '}'
+Tactic    := 'refl'
+           | 'match' Ident '{' {Separator} ['|'] {Separator} [TacticArm {ArmSep TacticArm} [ArmSep]] '}'
+           | 'if' Expr TacticBlock 'else' TacticBlock
+           | 'rewrite' Name '(' [Expr {',' Expr} [',']] ')' TacticBlock
+TacticArm := TacticPattern '=>' Tactic
+TacticPattern := '_' | LowerIdent
+              | ConstructorName ['(' [TacticPattern {',' TacticPattern} [',']] ')']
+              | ConstructorName TacticRecordFields
+              | '(' TacticPattern ',' TacticPattern {',' TacticPattern} ')'
+              | '(' TacticPattern ')'
+TacticRecordFields := '{' ('..' [','] | Ident ':' TacticPattern {',' Ident ':' TacticPattern} [',' '..'] [',']) '}'
+```
+
+The outermost expression in a law body must be `==`; parenthesize a side
+containing lower-precedence Boolean operators. This `==` is an equation
+delimiter, not a call to `Eq`: both sides must have the same type but need no
+`Eq` instance. Equality means **definitional equality** of normalized terms,
+up to renaming bound variables (alpha equivalence), not equality according to a
+user-defined `Eq` instance. There is no eta-equivalence rule.
+
+| Tactic | Meaning |
+| --- | --- |
+| `refl` | Normalize both sides under the current assumptions and require identical normal forms. |
+| `match x { C(y) => refl; D => refl }` | Split a proof variable into constructor cases, binding fields. Cases must be exhaustive; nested constructor, record and tuple patterns, variables and `_` are supported, but not literals, guards, as-patterns or list-pattern sugar. Use `Nil`/`Cons` for lists. |
+| `if condition { refl } else { refl }` | Split on a Bool expression, assuming it true or false in the corresponding branch. |
+| `rewrite name(args) { refl }` | Instantiate a law and replace all occurrences of its left side with its right side in both goal sides, then continue with the nested tactic. A left side that instantiates to a lone free variable is rejected. |
+
+Normalization unfolds pure functions, beta-reduces calls, substitutes lets,
+selects decidable match branches, and reduces records and resolved type-class
+methods. An unknown earlier match arm blocks selection of later arms. Int
+`+`, `-`, `*` and unary negation use polynomial normal forms modulo 2^64,
+matching wrapping runtime arithmetic. Comparisons and `/`/`%` are not an
+arithmetic decision procedure. `if` assumptions compare normalized operands,
+so `now >= at + t` and `now >= t + at` describe the same guard.
+
+Only the law-reachable fragment must terminate; ordinary programs retain general
+recursion. Recursive calls must leave all preceding arguments unchanged and
+strictly decrease the first changed argument to a pattern-bound structural
+subterm. Self-`rewrite` uses the same rule for the induction hypothesis: the
+first changed argument must come from an enclosing `match`. Cycles among
+different laws are rejected, so mutual rewrites cannot certify one another.
+A finite normalization fuel budget also bounds unfolding of open terms;
+exhaustion is an incomplete-normalization error, never a successful proof.
+
+Law dependencies are checked transitively for unsafe operations: IO, untrusted
+externs and potentially panicking arithmetic are tainted. Integer `/` and `%`
+are eligible only with a nonzero literal divisor (including a unary negative
+literal); a variable divisor is tainted. Host resource exhaustion, such as
+allocation failure or stack exhaustion, is outside this analysis.
+
+The trusted extern whitelist is the ten prelude primitives (`EqInt`, `LtInt`,
+`EqString`, `LtString`, `EqBool`, `ShowInt`, `ShowBool`, `ShowString`,
+`DebugString`, `UnitValue`) plus the 32 `std/string` primitives. Trust is tied to
+the owning standard-library declaration, not merely a matching foreign symbol.
+String primitives fold only when their arguments are constant; they do not
+provide symbolic string reasoning. `std/map`, `std/set` and `std/array` externs
+remain tainted. Callback and dictionary implementations must themselves be
+eligible. `Float` is forbidden in law parameters, side types and subterms,
+including nested data fields: NaN prevents reflexivity of runtime equality.
+
+Law-related type diagnostics include the following message templates (ordinary
+type mismatch and name-resolution diagnostics still apply):
+
+```text
+law %s has no proof
+proof %s has no law %s
+duplicate law %s
+duplicate proof %s
+proof %s: want %d parameters, got %d
+duplicate parameter %s
+laws do not support Float
+match variable %s is not a proof variable
+cannot split %s
+non-exhaustive match; missing: %s
+unknown law %s
+arity mismatch: want %d arguments, got %d
+tactic match does not support list patterns
+tactic match does not support literal or as-patterns
+```
+
+Proof verification additionally rejects non-decreasing recursion, cyclic law
+dependencies, tainted dependencies, exhausted fuel and unequal residual normal
+forms. A type-correct `refl` is not by itself evidence that a law is true:
+run `go4t check` to verify it. See [tutorial §13](docs/tutorial.md#13-laws)
+for complete programs.
+
 ## 7. Prelude, deriving and standard modules
 
 ### 7.1 Classes and module distribution
@@ -1130,7 +1227,10 @@ go4t lsp
   A go4t-only keyword additionally gains a trailing `_`.
   Re-running regenerates the same bytes when inputs are unchanged. Existing
   unrelated files are preserved; generated bindings should be committed.
-- `check` loads/checks only; no foreign-signature validation or execution.
+- `check` loads, type-checks and verifies laws and proofs (§6.5); it performs no
+  foreign-signature validation or program execution. `build`, `run`, `test` and
+  `eval` do not verify proofs and omit laws/proofs from generated code; their
+  source still must parse and type-check.
 - `--full-types` on `check`, `build` or `run` prints diagnostic types without
   depth elision (§5.2), retaining alias names. It may precede or follow inputs;
   after `run`'s `--` it is a program argument, not a compiler option.
@@ -1550,6 +1650,14 @@ with `go generate main.go`.
 - Native scalars/specialization are selective, not universal unboxing. Mutual or
   non-tail recursion and recursive library folds/maps can still consume stack;
   large allocations remain host-resource bounded. Lazy does not memoise.
+- Laws do not infer comparison transitivity or ordered arithmetic under Int
+  wraparound; variable divisors are tainted. There is no `requires` clause,
+  higher-order quantification or Float law support. Encode guards as Bool
+  equations and split them with `if`. `std/map` remains tainted. Accumulator-style
+  functions (including the library's length via a fold) generally need a
+  generalized lemma over the accumulator, with the structurally decreasing
+  argument before any changing accumulator arguments; a simple length induction
+  hypothesis is not sufficient.
 - Editor support is the deliberately small protocol surface in §8.5. Historical
   example READMEs can show pre-module spellings; use this specification and the
   checked tutorial for current imports and signatures. `selfhost/` is separately

@@ -23,6 +23,8 @@ const (
 	VariableSymbol
 	TypeParameterSymbol
 	InstanceSymbol
+	LawSymbol
+	ProofSymbol
 )
 
 // Symbol is a declaration and its exclusive, one-based rune-column source spans.
@@ -67,7 +69,7 @@ func (x *PositionIndex) Symbols(file string) []*Symbol { return x.symbols[file] 
 // construction cost; clients explicitly request an index when they need it.
 func (p *Program) PositionIndex() *PositionIndex {
 	b := &indexBuilder{p: p, index: &PositionIndex{files: map[string][]Binding{}, symbols: map[string][]*Symbol{}},
-		tokens: map[*ast.File][]lexer.Token{}, values: map[string]*Symbol{}, types: map[string]*Symbol{}, ctors: map[string]*Symbol{}, fields: map[*Ctor][]*Symbol{}}
+		tokens: map[*ast.File][]lexer.Token{}, values: map[string]*Symbol{}, types: map[string]*Symbol{}, ctors: map[string]*Symbol{}, laws: map[string]*Symbol{}, fields: map[*Ctor][]*Symbol{}}
 	for _, f := range p.Files {
 		toks, err := sourceTokens(f.Source, ast.Pos{Line: 1, Col: 1})
 		if err != nil {
@@ -142,6 +144,7 @@ type indexBuilder struct {
 	index                *PositionIndex
 	tokens               map[*ast.File][]lexer.Token
 	values, types, ctors map[string]*Symbol
+	laws                 map[string]*Symbol
 	fields               map[*Ctor][]*Symbol
 	locals               []scopedSymbol
 }
@@ -234,6 +237,14 @@ func (b *indexBuilder) declaration(f *ast.File, d ast.Decl) *Symbol {
 		s := b.symbol(f, d.Name, FunctionSymbol, d, info.Scheme.Type)
 		b.values[d.Name] = s
 		return s
+	case *ast.LawDecl:
+		info := b.p.Laws[d.Name]
+		s := b.symbol(f, d.Name, LawSymbol, d, &TFunc{Params: info.ParamTypes, Ret: exprType(d.LHS)})
+		b.laws[d.Name] = s
+		return s
+	case *ast.ProofDecl:
+		info := b.p.Proofs[d.Name]
+		return b.symbol(f, d.Name, ProofSymbol, d, &TFunc{Params: info.Law.ParamTypes, Ret: exprType(info.Law.Decl.LHS)})
 	case *ast.TypeDecl:
 		data := b.p.DataTypes[d.Name]
 		if data == nil {
@@ -481,6 +492,16 @@ func (b *indexBuilder) collectLocals(f *ast.File, d ast.Decl) {
 	ast.Walk(d, func(n ast.Node) {
 		var tparams []string
 		switch n := n.(type) {
+		case *ast.LawDecl:
+			info := b.p.Laws[n.Name]
+			b.params(f, n.Params, &TFunc{Params: info.ParamTypes}, n.Pos, n.End)
+		case *ast.ProofDecl:
+			info := b.p.Proofs[n.Name]
+			b.params(f, n.Params, &TFunc{Params: info.Law.ParamTypes}, n.Pos, n.End)
+		case *ast.TMatch:
+			for _, arm := range n.Arms {
+				b.pattern(f, arm.Pat, exprType(n.Var), arm.Pos, arm.End)
+			}
 		case *ast.FuncDecl:
 			for _, tp := range n.TParams {
 				tparams = append(tparams, tp.Name)
@@ -632,6 +653,8 @@ func (b *indexBuilder) reference(f *ast.File, n ast.Node) {
 			s = b.values[n.Name]
 		case RefCtor:
 			s = b.ctors[n.Name]
+		case RefLaw:
+			s = b.laws[n.Name]
 		case RefLocal:
 			s = b.lookup(n.Name, n.Pos, false)
 		}

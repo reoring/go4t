@@ -53,6 +53,12 @@ type checker struct {
 // with source-ordered warnings. Higher-kinded or explicit class ambiguities
 // remain errors. Failures return a positioned *Error and a nil program; partial
 // annotations are not usable.
+//
+// Laws and proofs form a separate, module-owned namespace. Their expressions
+// receive ordinary annotations, but equations impose no Eq constraint and
+// neither declaration is emitted as a function. Tactic split variables retain
+// their types in ProofInfo.PatVars; proof and law binders are documentation,
+// rather than candidates for unused-variable warnings.
 func Check(modules []*ast.Module) (program *Program, err error) {
 	var c *checker
 	defer func() {
@@ -79,6 +85,7 @@ func Check(modules []*ast.Module) (program *Program, err error) {
 		program: &Program{
 			Classes: make(map[string]*Class), DataTypes: make(map[string]*DataType),
 			Funcs: make(map[string]*FuncInfo), Files: files,
+			Laws: make(map[string]*LawInfo), Proofs: make(map[string]*ProofInfo),
 			Modules: resolved.modules, ModuleNames: resolved.names, Owners: resolved.owners,
 			Warnings:   resolved.orderedWarnings(),
 			RecordPats: make(map[*ast.PRecord]RecordPat),
@@ -119,6 +126,7 @@ func Check(modules []*ast.Module) (program *Program, err error) {
 	c.checkSuperclasses(files)
 	c.collectSignatures(files)
 	c.collectInstances(files)
+	c.pairLaws(files)
 	c.checkMain()
 	for _, file := range files {
 		c.file = file.Name
@@ -160,6 +168,7 @@ func Check(modules []*ast.Module) (program *Program, err error) {
 			}
 		}
 	}
+	c.checkLaws(files)
 	return c.program, nil
 }
 
@@ -207,7 +216,7 @@ func (c *checker) reserveType(pos ast.Pos, name string) {
 
 func (c *checker) reserveValue(pos ast.Pos, name string) {
 	checkValueName(pos, name)
-	if c.program.Funcs[name] != nil || c.methods[name] != nil {
+	if c.program.Funcs[name] != nil || c.methods[name] != nil || c.program.Laws[name] != nil {
 		fail(pos, "duplicate declaration %s", diagnosticName(name))
 	}
 }
@@ -281,6 +290,21 @@ func (c *checker) collectNames(files []*ast.File) {
 			case *ast.FuncDecl:
 				c.reserveValue(decl.Pos, decl.Name)
 				c.program.Funcs[decl.Name] = &FuncInfo{Name: decl.Name, Decl: decl}
+			case *ast.LawDecl:
+				checkName(decl.Pos, decl.Name)
+				if c.program.Laws[decl.Name] != nil {
+					fail(decl.Pos, "duplicate law %s", diagnosticName(decl.Name))
+				}
+				if c.program.Funcs[decl.Name] != nil || c.methods[decl.Name] != nil {
+					fail(decl.Pos, "duplicate declaration %s", diagnosticName(decl.Name))
+				}
+				c.program.Laws[decl.Name] = &LawInfo{Decl: decl}
+			case *ast.ProofDecl:
+				checkName(decl.Pos, decl.Name)
+				if c.program.Proofs[decl.Name] != nil {
+					fail(decl.Pos, "duplicate proof %s", diagnosticName(decl.Name))
+				}
+				c.program.Proofs[decl.Name] = &ProofInfo{Decl: decl, PatVars: make(map[*ast.PVar]Type)}
 			}
 		}
 	}
@@ -389,6 +413,11 @@ func (c *checker) collectSignatures(files []*ast.File) {
 				}
 			case *ast.FuncDecl:
 				c.program.Funcs[decl.Name].Scheme = c.scheme(decl.Pos, decl.TParams, decl.Params, decl.Ret, make(map[string]Type))
+			case *ast.LawDecl:
+				law := c.program.Laws[decl.Name]
+				for _, param := range decl.Params {
+					law.ParamTypes = append(law.ParamTypes, c.valueType(param.Type, nil))
+				}
 			}
 		}
 	}

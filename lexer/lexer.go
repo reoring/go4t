@@ -52,7 +52,7 @@ var keywords = map[string]bool{
 	"package": true, "class": true, "instance": true, "type": true, "func": true,
 	"extern": true, "let": true, "do": true, "match": true, "if": true, "else": true,
 	"true": true, "false": true, "given": true, "deriving": true, "alias": true,
-	"import": true,
+	"import": true, "law": true, "proof": true, "refl": true, "rewrite": true,
 }
 
 // puncts ordered longest-first for maximal munch.
@@ -123,7 +123,7 @@ func (l *Lexer) needSemi() bool {
 	switch l.lastKind {
 	case Ident, Int, Float, String, InterpTok:
 	case Keyword:
-		if l.lastText != "true" && l.lastText != "false" {
+		if l.lastText != "true" && l.lastText != "false" && l.lastText != "refl" {
 			return false
 		}
 	case Punct:

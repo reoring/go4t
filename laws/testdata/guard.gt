@@ -1,0 +1,53 @@
+package main
+
+type Ttl = NoTtl | InvalidTtl | TtlNanos(Int) deriving Eq, Debug
+type Timestamp = NoTimestamp | InvalidTimestamp | AtNanos(Int) deriving Eq, Debug
+type Freshness = Fresh(Int) | TtlInvalid | TimestampMissing | TimestampInvalid | Stale deriving Eq, Debug
+
+func freshness(ttl Ttl, observedAt Timestamp, nowNanos Int) Freshness {
+  match (ttl, observedAt) {
+    (NoTtl, _) => Fresh(0)
+    (InvalidTtl, _) => TtlInvalid
+    (TtlNanos(_), NoTimestamp) => TimestampMissing
+    (TtlNanos(_), InvalidTimestamp) => TimestampInvalid
+    (TtlNanos(t), AtNanos(at)) if nowNanos >= at + t => Stale
+    (TtlNanos(t), AtNanos(at)) => Fresh(at + t - nowNanos)
+  }
+}
+
+func isStale(f Freshness) Bool { match f { Stale => true; _ => false } }
+
+law staleIff(t Int, at Int, now Int) {
+  isStale(freshness(TtlNanos(t), AtNanos(at), now)) == (now >= at + t)
+}
+law staleIffBeta(t Int, at Int, now Int) {
+  isStale(freshness(TtlNanos(t), AtNanos((func(x) => x)(at)), now)) == (now >= at + t)
+}
+law staleTtl(ttl Ttl, at Int, now Int) {
+  isStale(freshness(ttl, AtNanos(at), now)) == (match ttl { TtlNanos(t) => now >= at + t; _ => false })
+}
+law wrongStale(t Int, at Int, now Int) {
+  isStale(freshness(TtlNanos(t), AtNanos(at), now)) == (now > at + t)
+}
+law nestedIf(a Bool, b Bool) {
+  (if a { if b { 1 } else { 2 } } else { if b { 3 } else { 4 } }) ==
+  (if b { if a { 1 } else { 3 } } else { if a { 2 } else { 4 } })
+}
+law boolSubterms(b Bool) {
+  (b && true, (b || false, !b)) == (if b { true } else { false }, (if b { true } else { false }, if b { false } else { true }))
+}
+law wrongElse(b Bool) { b == true }
+law alphaCondition(o Option[Int]) {
+  (if (match o { Some(x) => x > 0; None => false }) { true } else { false }) ==
+  (match o { Some(y) => y > 0; None => false })
+}
+func main() IO[Unit] { ioPure(unit()) }
+
+proof staleIff(t, at, now) { if now >= at + t { refl } else { refl } }
+proof staleIffBeta(t, at, now) { if now >= t + at { refl } else { refl } }
+proof staleTtl(ttl, at, now) { match ttl { NoTtl => refl; InvalidTtl => refl; TtlNanos(t) => if now >= at + t { refl } else { refl } } }
+proof wrongStale(t, at, now) { if now >= at + t { refl } else { refl } }
+proof nestedIf(a, b) { if a { if b { refl } else { refl } } else { if b { refl } else { refl } } }
+proof boolSubterms(b) { if b { refl } else { refl } }
+proof wrongElse(b) { if b { refl } else { refl } }
+proof alphaCondition(o) { if match o { Some(n) => n > 0; None => false } { refl } else { refl } }

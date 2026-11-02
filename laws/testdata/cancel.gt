@@ -1,0 +1,18 @@
+package main
+
+type Order = Pending(Int) | Cancelled(Int) | Shipped(Int) deriving Eq, Debug
+
+func cancel(o Order) Order {
+  match o {
+    Pending(n) => Cancelled(n)
+    Cancelled(n) => Cancelled(n)
+    Shipped(n) => Shipped(n)
+  }
+}
+
+law cancelIdempotent(o Order) { cancel(cancel(o)) == cancel(o) }
+law cancelPending(n Int) { cancel(Pending(n)) == Cancelled(n) }
+func main() IO[Unit] { ioPure(unit()) }
+
+proof cancelIdempotent(o) { match o { Pending(n) => refl; Cancelled(n) => refl; Shipped(n) => refl } }
+proof cancelPending(n) { refl }

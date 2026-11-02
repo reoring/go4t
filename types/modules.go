@@ -26,10 +26,11 @@ var preludeOwners = map[string]string{
 var jsonIntrinsics = strings.Fields("Json JNull JBool JNum JStr JArr JObj Encode Decode encode decode _jsonObject _jsonInt _jsonErrorAt _jsonFieldPath _jsonAt _jsonDecodeAt _jsonField _jsonArray _jsonValues _jsonDecodeList _jsonDecodeFields")
 
 type moduleScope struct {
-	module        *ast.Module
-	values, types map[string]string
-	prefix        string
-	entry         bool
+	module                *ast.Module
+	values, types         map[string]string
+	laws, proofs          map[string]string
+	prefix                string
+	entry                 bool
 }
 type moduleResolver struct {
 	modules                       []*ast.Module
@@ -67,7 +68,11 @@ func qualifyModules(input []*ast.Module) (*moduleResolver, []*ast.File) {
 			prefix = fmt.Sprintf("%s_%d", base, index)
 		}
 		prefixes[prefix] = true
-		s := &moduleScope{module: m, values: make(map[string]string), types: make(map[string]string), prefix: prefix, entry: index == len(input)-1}
+		s := &moduleScope{
+			module: m, values: make(map[string]string), types: make(map[string]string),
+			laws: make(map[string]string), proofs: make(map[string]string),
+			prefix: prefix, entry: index == len(input)-1,
+		}
 		r.scopes[m.Path] = s
 		if strings.HasPrefix(m.ImportPath, "std/") {
 			standard[m.ImportPath] = s
@@ -82,6 +87,19 @@ func qualifyModules(input []*ast.Module) (*moduleResolver, []*ast.File) {
 				switch d := d.(type) {
 				case *ast.FuncDecl:
 					r.declare(s, s.values, d.Name, d.Pos, false)
+				case *ast.LawDecl:
+					if s.laws[d.Name] != "" {
+						r.fail(d.Pos, "duplicate law %s", d.Name)
+					}
+					if s.values[d.Name] != "" {
+						r.fail(d.Pos, "duplicate declaration %s", d.Name)
+					}
+					r.declare(s, s.laws, d.Name, d.Pos, true)
+				case *ast.ProofDecl:
+					if s.proofs[d.Name] != "" {
+						r.fail(d.Pos, "duplicate proof %s", d.Name)
+					}
+					r.declare(s, s.proofs, d.Name, d.Pos, true)
 				case *ast.TypeDecl:
 					r.declare(s, s.types, d.Name, d.Pos, true)
 					for _, c := range d.Ctors {
@@ -195,6 +213,9 @@ func (r *moduleResolver) declare(s *moduleScope, table map[string]string, name s
 	checkName(pos, name)
 	if !typ {
 		checkValueName(pos, name)
+		if s.laws[name] != "" {
+			r.fail(pos, "duplicate declaration %s", name)
+		}
 	}
 	if table[name] != "" {
 		r.fail(pos, "duplicate declaration %s", name)
@@ -337,6 +358,22 @@ func (r *moduleResolver) declaration(d ast.Decl) {
 		r.shadow(d.Name, d.Pos)
 		d.Name = r.scope.values[d.Name]
 		r.function(d, ts, make(map[string]bool))
+	case *ast.LawDecl:
+		d.Name = r.scope.laws[d.Name]
+		vs := make(map[string]bool, len(d.Params))
+		for _, p := range d.Params {
+			r.typ(p.Type, ts)
+			vs[p.Name] = true
+		}
+		d.LHS = r.expr(d.LHS, ts, vs)
+		d.RHS = r.expr(d.RHS, ts, vs)
+	case *ast.ProofDecl:
+		d.Name = r.scope.proofs[d.Name]
+		vs := make(map[string]bool, len(d.Params))
+		for _, p := range d.Params {
+			vs[p.Name] = true
+		}
+		r.tactic(d.Body, ts, vs)
 	case *ast.TypeDecl:
 		r.shadow(d.Name, d.Pos)
 		d.Name = r.scope.types[d.Name]
@@ -444,6 +481,52 @@ func (r *moduleResolver) pattern(p ast.Pattern, vs map[string]bool) {
 		for _, a := range p.Elems {
 			r.pattern(a, vs)
 		}
+	}
+}
+
+// Laws have import visibility but never enter the ordinary value namespace.
+func (r *moduleResolver) law(name string, pos ast.Pos) string {
+	if alias, member, qualified := strings.Cut(name, "."); qualified {
+		target := r.imports[alias]
+		if target == nil {
+			r.fail(pos, "unknown import alias %s", alias)
+		}
+		if strings.HasPrefix(member, "_") {
+			r.fail(pos, "%s is private to module %s", member, target.module.Path)
+		}
+		if resolved := target.laws[member]; resolved != "" {
+			return resolved
+		}
+	} else if resolved := r.scope.laws[name]; resolved != "" {
+		return resolved
+	}
+	r.fail(pos, "unknown law %s", name)
+	return ""
+}
+
+func (r *moduleResolver) tactic(t ast.Tactic, ts, vs map[string]bool) {
+	switch t := t.(type) {
+	case *ast.TRefl:
+	case *ast.TMatch:
+		if !vs[t.Var.Name] {
+			r.fail(t.Var.Pos, "match variable %s is not a proof variable", t.Var.DisplayName())
+		}
+		for _, arm := range t.Arms {
+			local := scopeCopy(vs)
+			r.pattern(arm.Pat, local)
+			r.tactic(arm.Body, ts, local)
+		}
+	case *ast.TIf:
+		t.Cond = r.expr(t.Cond, ts, vs)
+		r.tactic(t.Then, ts, vs)
+		r.tactic(t.Else, ts, vs)
+	case *ast.TRewrite:
+		t.Law.Display = t.Law.DisplayName()
+		t.Law.Name = r.law(t.Law.Name, t.Law.Pos)
+		for i, arg := range t.Args {
+			t.Args[i] = r.expr(arg, ts, vs)
+		}
+		r.tactic(t.Body, ts, vs)
 	}
 }
 func (r *moduleResolver) let(name string, p ast.Pattern, t ast.Type, value *ast.Expr, ts, vs map[string]bool) {

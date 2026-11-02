@@ -1,0 +1,96 @@
+package main
+
+import "std/list"
+
+type FunctionBox = FunctionBox(func(Int, Int) Int)
+instance Eq[FunctionBox] { eq(a, b) { false } }
+
+func len[A](xs List[A]) Int {
+  match xs { Nil => 0; Cons(_, r) => 1 + len(r) }
+}
+func app[A](xs List[A], ys List[A]) List[A] {
+  match xs { Nil => ys; Cons(x, r) => Cons(x, app(r, ys)) }
+}
+law lenApp(xs List[Int], ys List[Int]) { len(app(xs, ys)) == len(xs) + len(ys) }
+law appNil(xs List[Int]) { app(xs, []) == xs }
+law appAssoc(xs List[Int], ys List[Int], zs List[Int]) { app(app(xs, ys), zs) == app(xs, app(ys, zs)) }
+law wrongLenApp(xs List[Int], ys List[Int]) { len(app(xs, ys)) == len(xs) + len(ys) + 1 }
+law ringComm(a Int, b Int, c Int) { (a + b) * c == c * b + a * c }
+// The parser rejects the positive magnitude in -9223372036854775808.
+law ringWrap(a Int) { a * 0 + 9223372036854775807 + 1 == -9223372036854775807 - 1 }
+law ringPowers(a Int, b Int) { (a + b) * (a - b) == a * a - b * b }
+law ringNeg(a Int, b Int) { -(a - b) + a == b }
+law ringCoefficients(a Int) { a * 9223372036854775807 + a == a * (-9223372036854775807 - 1) }
+law ringAlpha(n Int) { FunctionBox(func(a, b) => (a + b) * n) == FunctionBox(func(x, y) => n * y + x * n) }
+law ringResidual(o Option[Int]) { (match o { None => 0; Some(n) => n }) + 1 == 1 + (match o { None => 0; Some(m) => m }) }
+law ringDivision(a Int, b Int) { (a + b) / 2 == (b + a) / 2 }
+law ringRemainder(a Int, b Int) { (a + b) % 3 == (b + a) % 3 }
+law notDivision(a Int, b Int) { (a + b) / 2 == a / 2 + b / 2 }
+law notOrder(a Int) { (a + 1 > a) == true }
+law notString(a String, b String) { a + b == b + a }
+law bare(a Int) { a + 0 == a }
+law useBare(a Int) { a == a }
+law double(a Int) { a * 2 == a + a }
+law useDouble(a Int) { (a * 2, a * 2) == (a + a, a + a) }
+law cycleA(a Int) { a + 1 == a }
+law cycleB(a Int) { a + 1 == a }
+law stdLenApp(xs list.List[Int], ys list.List[Int]) { list.length(list.append(xs, ys)) == list.length(xs) + list.length(ys) }
+law ihOrder(n Int, xs List[Int], acc Int) { len(xs) == len(xs) }
+law zeroLen(xs List[Int]) { len(xs) == 0 }
+law oneLen(xs List[Int]) { len(xs) == 1 }
+law allOccurrences(xs List[Int]) { (len(xs), len(xs) * len(xs)) == (len(xs) + len(xs), len(xs)) }
+law rewriteDirection(xs List[Int]) { len(xs) == 0 }
+law rewriteIf(xs List[Int]) { (if len(xs) == 0 { 1 } else { 2 }) == 1 }
+law rewriteMatch(xs List[Int]) { (match len(xs) { 0 => 7; _ => 8 }) == 7 }
+law rewriteDivision(xs List[Int]) { len(xs) / 2 == 0 }
+law appPrefix(n Int, xs List[Int]) { app(xs, []) == xs }
+law boolIdentity(n Int, b Bool) { (if b { n } else { n }) == n }
+law expandLen(xs List[Int]) { len(xs) == len(xs) + 1 }
+law rewriteOnce(xs List[Int]) { len(xs) == len(xs) + 1 }
+law ringAlphaResidual(o Option[Int], n Int) {
+  (match o { None => n; Some(x) => (n + x) * (n - x) }) ==
+  (match o { None => n; Some(y) => n * n - y * y })
+}
+func choose(xs List[Int]) func(Int) Int {
+  if len(xs) == 0 { func(n) => n + 1 } else { func(n) => n + 2 }
+}
+law rewriteFunction(xs List[Int]) { choose(xs)(3) == 4 }
+func main() IO[Unit] { ioPure(unit()) }
+
+proof lenApp(xs, ys) { match xs { Nil => refl; Cons(x, r) => rewrite lenApp(r, ys) { refl } } }
+proof appNil(xs) { match xs { Nil => refl; Cons(x, r) => rewrite appNil(r) { refl } } }
+proof appAssoc(xs, ys, zs) { match xs { Nil => refl; Cons(x, r) => rewrite appAssoc(r, ys, zs) { refl } } }
+proof wrongLenApp(xs, ys) { match xs { Nil => refl; Cons(x, r) => rewrite wrongLenApp(r, ys) { refl } } }
+proof ringComm(a, b, c) { refl }
+proof ringWrap(a) { refl }
+proof ringPowers(a, b) { refl }
+proof ringNeg(a, b) { refl }
+proof ringCoefficients(a) { refl }
+proof ringAlpha(n) { refl }
+proof ringResidual(o) { refl }
+proof ringDivision(a, b) { refl }
+proof ringRemainder(a, b) { refl }
+proof notDivision(a, b) { refl }
+proof notOrder(a) { refl }
+proof notString(a, b) { refl }
+proof bare(a) { refl }
+proof useBare(a) { rewrite bare(a) { refl } }
+proof double(a) { refl }
+proof useDouble(a) { rewrite double(a) { refl } }
+proof cycleA(a) { rewrite cycleB(a) { refl } }
+proof cycleB(a) { rewrite cycleA(a) { refl } }
+proof stdLenApp(xs, ys) { match xs { Nil => refl; Cons(x, r) => rewrite stdLenApp(r, ys) { refl } } }
+proof ihOrder(n, xs, acc) { match xs { Nil => refl; Cons(x, r) => rewrite ihOrder(n, r, x) { refl } } }
+proof zeroLen(xs) { refl }
+proof oneLen(xs) { refl }
+proof allOccurrences(xs) { rewrite zeroLen(xs) { refl } }
+proof rewriteDirection(xs) { rewrite zeroLen(xs) { refl } }
+proof rewriteIf(xs) { rewrite zeroLen(xs) { refl } }
+proof rewriteMatch(xs) { rewrite zeroLen(xs) { refl } }
+proof rewriteDivision(xs) { rewrite zeroLen(xs) { refl } }
+proof appPrefix(n, xs) { rewrite double(n) { match xs { Nil => refl; Cons(x, r) => rewrite appPrefix(n, r) { refl } } } }
+proof boolIdentity(n, b) { rewrite double(n) { if b { refl } else { refl } } }
+proof expandLen(xs) { refl }
+proof rewriteOnce(xs) { rewrite expandLen(xs) { refl } }
+proof ringAlphaResidual(o, n) { refl }
+proof rewriteFunction(xs) { rewrite zeroLen(xs) { refl } }
