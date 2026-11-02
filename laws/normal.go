@@ -34,10 +34,27 @@ func boolean(b bool) *term { return &term{kind: "bool", flag: b} }
 
 // Assumption keys are normalized terms. Free IDs must still agree; only binders
 // may be alpha-renamed. This substitutes branch facts, not arbitrary equations.
+//
+// A `match` split performed after an `if` assumption solves variables the
+// assumption mentions (`o.replicas > q` with `o` later split to a record
+// pattern). The assumption is then re-normalized under the current solutions
+// before comparison, so tactic order does not matter. Sound: it is the same
+// term seen through the current substitution.
 func (e *evaluator) assume(value *term) *term {
+	if e.renormalizing {
+		return value
+	}
 	for a := e.assumptions; a != nil; a = a.parent {
 		if alphaEqual(value, a.condition, nil) {
 			return a.value
+		}
+		if solved := e.instantiate(a.condition); solved != a.condition {
+			e.renormalizing = true
+			current, err := e.normal(solved)
+			e.renormalizing = false
+			if err == nil && alphaEqual(value, current, nil) {
+				return a.value
+			}
 		}
 	}
 	return value

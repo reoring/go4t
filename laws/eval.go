@@ -51,6 +51,7 @@ type evaluator struct {
 	fuel, nextID int
 	solutions map[int]*term
 	assumptions *assumption
+	renormalizing bool
 	decreasing map[string][]decreasingPosition
 	decreasingMethods map[*ast.InstMethod][]decreasingPosition
 	currentGoal *rewriteRule

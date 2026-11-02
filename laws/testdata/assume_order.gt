@@ -1,0 +1,31 @@
+package main
+
+type Observed = Observed{replicas: Int, name: String} deriving Eq, Debug
+type Verdict = Over | Within deriving Eq, Debug
+
+func check(o Observed, q Int) Verdict {
+  if o.replicas > q { Over } else { Within }
+}
+
+// Assumption first, split second: the assumption mentions o.replicas, and the
+// later split replaces o by a record pattern. The assumption must still apply.
+law assumeThenSplit(o Observed, q Int) {
+  (check(o, q) == Over) == (o.replicas > q)
+}
+proof assumeThenSplit(o, q) {
+  if o.replicas > q {
+    match o { Observed{replicas: n, name: _} => refl }
+  } else {
+    match o { Observed{replicas: n, name: _} => refl }
+  }
+}
+
+// Split first, assumption second: the previously working order.
+law splitThenAssume(o Observed, q Int) {
+  (check(o, q) == Over) == (o.replicas > q)
+}
+proof splitThenAssume(o, q) {
+  match o { Observed{replicas: n, name: _} => if n > q { refl } else { refl } }
+}
+
+func main() IO[Unit] { ioPure(unit()) }

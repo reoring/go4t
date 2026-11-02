@@ -105,11 +105,14 @@ ADR 0001 の開いた項の性質テストをそのまま使う: Map を含む�
 | --- | --- | --- | --- | --- | --- |
 | 1 | attachment-repair（実コントローラ） | 4 | 2 | 2（レコード更新の射影 → 修正済み） | 0 |
 | 2 | node-drain（新規） | 10 | 8 | 2（opaque 規則 → 修正済み） | 0 |
-| 3 | zone placement（Map） | 6 | 3 | 2（`mapDelete` の記号簡約、比較の向き → 修正中） | 1（`insertCommutes`: Map 値等式、意図どおり不成立） |
+| 3 | zone placement（Map） | 6 | 3 | 2（`mapDelete` の記号簡約、比較の向き → 修正済み） | 1（`insertCommutes`: Map 値等式、意図どおり不成立） |
+| 4 | admission（4 ゲートを `Result` の `flatMap`/`map` で連鎖） | 7 | 5（+2 は利用者側の誤り: 偽の法則 1、戦術順序 1） | 0（評価器起因なし） | 0 |
 
 - Map 越しの帰納法則（`emptyCapacityRejects(o, zones)`: `emptyMap` ならどんな fallback 列でも `Reject`）が素直に通った。`room(o, zone)` のような lookup 2 本のタプル `match` も `if` 1 つで畳めた。
-- 3 回とも健全性の欠陥は出ておらず、全て「正しいのに閉じない」完全性側。`stuck on:` により原因特定は 1 分程度。
-- 判定基準: 「書いたまま 100%」が実務の決定コア 2 回連続で続いたら「使える」と言い切る。現時点は「評価器の穴を見つけては直すループの中」。
+- 4 回目: `Result` の `flatMap` 連鎖は prelude の Monad 辞書解決 → `match` → `Err` 早期帰還で無加工に簡約。derived `Eq` の `Result[Reason, Int]` 比較も通る。偽の法則 `fullPassAdmits`（`q < 0` で quota ゲートが拒否）を `stuck on: if (q#3 < 0) …` が反例条件として示した＝検査器が利用者の誤りを捕まえた初例。ゲート順を入れ替える破壊で 7 本中 6 本が落ちる。
+- 戦術順序（`if` 仮定 → `match` 分割で仮定が外れる）は修正: 仮定の照合時に現在の解で再正規化して比較する（`laws/normal.go` `assume`、再帰防止フラグ付き）。順序はもう問わない。fixture `assume_order.gt`。
+- 4 回とも健全性の欠陥は出ておらず、全て「正しいのに閉じない」完全性側。`stuck on:` により原因特定は 1 分程度。
+- 判定基準: 「書いたまま 100%」（評価器起因の失敗 0）が実務の決定コア 2 回連続で続いたら「使える」と言い切る。4 回目で 1 回目達成。
 
 ## Follow-up
 

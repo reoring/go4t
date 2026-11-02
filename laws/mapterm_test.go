@@ -30,6 +30,14 @@ func TestPlacementLaws(t *testing.T) {
 	}
 }
 
+// assume_order.gt: an `if` assumption made before a `match` split must still
+// apply after the split renames the variables it mentions.
+func TestAssumptionSurvivesLaterSplit(t *testing.T) {
+	for name, err := range diagnosticsByLaw(t, loadFixture(t, "assume_order.gt")) {
+		t.Errorf("%s: %v", name, err)
+	}
+}
+
 func TestMapNeutralComparators(t *testing.T) {
 	p := loadFixture(t, "map_neutral.gt")
 	errors := diagnosticsByLaw(t, p)

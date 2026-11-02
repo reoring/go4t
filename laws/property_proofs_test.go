@@ -202,6 +202,15 @@ func propertyTermSource(t *testing.T, e *evaluator, value *term) string {
 			field = strconv.Itoa(value.index)
 		}
 		return "("+args[0]+")."+field
+	case "update":
+		if len(value.cases) != 0 || value.ctor == nil || value.ctor.FieldNames == nil {
+			break
+		}
+		fields := make([]string, len(value.indexes))
+		for i, index := range value.indexes {
+			fields[i] = value.ctor.FieldNames[index]+": "+args[i+1]
+		}
+		return "("+args[0]+"){"+strings.Join(fields, ", ")+"}"
 	}
 	t.Fatalf("no residual source serializer for %s: %s", value.kind, e.display(value))
 	return ""
