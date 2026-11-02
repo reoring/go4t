@@ -107,12 +107,14 @@ ADR 0001 の開いた項の性質テストをそのまま使う: Map を含む�
 | 2 | node-drain（新規） | 10 | 8 | 2（opaque 規則 → 修正済み） | 0 |
 | 3 | zone placement（Map） | 6 | 3 | 2（`mapDelete` の記号簡約、比較の向き → 修正済み） | 1（`insertCommutes`: Map 値等式、意図どおり不成立） |
 | 4 | admission（4 ゲートを `Result` の `flatMap`/`map` で連鎖） | 7 | 5（+2 は利用者側の誤り: 偽の法則 1、戦術順序 1） | 0（評価器起因なし） | 0 |
+| 5 | node-drain V2（if↔タプル `match`、`match`↔`result.maybe`、first-fit 再帰↔`head∘filter` に書き換え）と `decide(o) == decideV2(o)` + 補題 | 2 | 2（Bool のリテラル `match` は意図的な制限、`if` へ書き換え） | 0 | 0 |
 
 - Map 越しの帰納法則（`emptyCapacityRejects(o, zones)`: `emptyMap` ならどんな fallback 列でも `Reject`）が素直に通った。`room(o, zone)` のような lookup 2 本のタプル `match` も `if` 1 つで畳めた。
 - 4 回目: `Result` の `flatMap` 連鎖は prelude の Monad 辞書解決 → `match` → `Err` 早期帰還で無加工に簡約。derived `Eq` の `Result[Reason, Int]` 比較も通る。偽の法則 `fullPassAdmits`（`q < 0` で quota ゲートが拒否）を `stuck on: if (q#3 < 0) …` が反例条件として示した＝検査器が利用者の誤りを捕まえた初例。ゲート順を入れ替える破壊で 7 本中 6 本が落ちる。
 - 戦術順序（`if` 仮定 → `match` 分割で仮定が外れる）は修正: 仮定の照合時に現在の解で再正規化して比較する（`laws/normal.go` `assume`、再帰防止フラグ付き）。順序はもう問わない。fixture `assume_order.gt`。
 - 4 回とも健全性の欠陥は出ておらず、全て「正しいのに閉じない」完全性側。`stuck on:` により原因特定は 1 分程度。
-- 判定基準: 「書いたまま 100%」（評価器起因の失敗 0）が実務の決定コア 2 回連続で続いたら「使える」と言い切る。4 回目で 1 回目達成。
+- 5 回目: リファクタの安全網として機能。1 本の法則が全分岐を踏み、構造の違いを正規化が吸収。残ったのは本質的な場合分け（Bool 2 × node 3 × deadline 2 × blocked 2 × 補題）で証明約 25 行＝仕様の複雑さそのもの。std の `filter`/`head` は構造再帰なので IH が噛む（fold ベースの `length` とは違う）。4 回目以降、利用者は評価器のソースを一度も開いていない。fixture `refactor_v2.gt`。
+- **判定（2026-11-02）**: 「評価器起因ゼロが 2 回連続」を性格の異なる題材（Result 連鎖／リファクタ同値）で満たした。健全性欠陥は 5 回ゼロ。**「決定コアだけを書く言語」という自己定義の範囲では使える。** 使える範囲: 一階 ADT + レコード + List + Option/Result + Map で閉じる決定コア、`o{...}` 全称の不変条件、ゲート順・早期帰還・冪等性・分岐被覆、構造再帰上の帰納（std の `filter`/`head`/`append` 含む）、二つの `decide` の同値性。使えない（宣言済み）: Set/Array、文字列の中身の推論、比較の順序推論、`requires`、fold ベース std 関数への帰納、Map 値そのものの等式。「使える」に含めないもの: Go シェル側は楽になっていない（目標外）、落ちたときの正規形は長い、証明の行数は分岐数に比例する。
 
 ## Follow-up
 

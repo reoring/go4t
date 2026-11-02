@@ -1,0 +1,169 @@
+package main
+import "std/list"
+import "std/result"
+
+// Node drain controller decision core.
+//
+// A NodeDrain request asks the controller to move every evictable pod off a
+// node. The Go shell observes the node and its pods, calls decide, and applies
+// exactly one action per reconcile. Everything below is pure; the laws at the
+// end are checked by `go4t check` for all observations.
+type NodeState = Schedulable | Cordoned | Missing deriving Eq, Debug
+
+// DaemonSet and Mirror pods are never evicted; they vanish with the node.
+type PodKind = Managed | DaemonSet | Mirror deriving Eq, Debug
+
+type Pod = Pod{name: String, kind: PodKind} deriving Eq, Debug
+
+type Deadline = NoDeadline | DeadlineAt(Int) deriving Eq, Debug
+
+type Observed = Observed{
+  requested: Bool, // the NodeDrain object still asks for a drain
+  node: NodeState,
+  cordonedByUs: Bool, // our annotation is on the node
+  pods: List[Pod], // pods currently bound to the node
+  evictionBlocked: Option[String], // last eviction was refused (PDB), with its message
+  deadline: Deadline,
+  nowNanos: Int
+} deriving Eq, Debug
+
+type FailReason = NodeMissing | TimedOut deriving Eq, Debug
+
+type Action = Noop | Cordon | Uncordon | Evict(String) | Wait(String) | MarkDrained | MarkFailed(FailReason) deriving Eq, Debug
+
+func decide(o Observed) Action {
+  if !o.requested {
+    _release(o)
+  } else {
+    match o.node {
+      Missing => MarkFailed(NodeMissing)
+      Schedulable => Cordon
+      Cordoned => _drain(o)
+    }
+  }
+}
+
+// A withdrawn request only undoes our own cordon.
+func _release(o Observed) Action {
+  match (o.node, o.cordonedByUs) {
+    (Cordoned, true) => Uncordon
+    _ => Noop
+  }
+}
+
+func _drain(o Observed) Action {
+  if _expired(o.nowNanos, o.deadline) {
+    MarkFailed(TimedOut)
+  } else {
+    match o.evictionBlocked {
+      Some(msg) => Wait(msg)
+      None => _evictNext(o.pods)
+    }
+  }
+}
+
+func _expired(now Int, d Deadline) Bool {
+  match d {
+    DeadlineAt(at) => now >= at
+    NoDeadline => false
+  }
+}
+
+func _evictNext(pods List[Pod]) Action {
+  match _firstEvictable(pods) {
+    Some(name) => Evict(name)
+    None => MarkDrained
+  }
+}
+
+func _firstEvictable(pods List[Pod]) Option[String] {
+  match pods {
+    Nil => None
+    | Cons(p, rest) => match p.kind {
+      Managed => Some(p.name)
+      _ => _firstEvictable(rest)
+    }
+  }
+}
+
+func isTimedOut(a Action) Bool { match a { MarkFailed(TimedOut) => true; _ => false } }
+
+// ---- V2: same policy, different structure ---------------------------------
+// One tuple match for the request/node gate, Option-based deadline, and
+// eviction via std/list (head of filter) instead of first-fit recursion.
+
+func decideV2(o Observed) Action {
+  match (o.requested, o.node, o.cordonedByUs) {
+    (false, Cordoned, true) => Uncordon
+    (false, _, _)           => Noop
+    (true, Missing, _)      => MarkFailed(NodeMissing)
+    (true, Schedulable, _)  => Cordon
+    (true, Cordoned, _)     => _drainV2(o)
+  }
+}
+
+func _drainV2(o Observed) Action {
+  let expired = result.maybe(_deadlineOf(o.deadline), false, func(at) => o.nowNanos >= at)
+  if expired { MarkFailed(TimedOut) }
+  else {
+    result.maybe(o.evictionBlocked, _evictV2(o.pods), func(msg) => Wait(msg))
+  }
+}
+
+func _deadlineOf(d Deadline) Option[Int] {
+  match d { DeadlineAt(at) => Some(at); NoDeadline => None }
+}
+
+func _evictV2(pods List[Pod]) Action {
+  match list.head(list.filter(pods, func(p) => p.kind == Managed)) {
+    Some(p) => Evict(p.name)
+    None    => MarkDrained
+  }
+}
+
+// The refactor is behaviour-preserving for every observation.
+law v2Equivalent(o Observed) {
+  decide(o) == decideV2(o)
+}
+proof v2Equivalent(o) {
+  match o {
+    Observed{requested: req, node: n, cordonedByUs: ours, deadline: d, evictionBlocked: b, pods: ps, nowNanos: now} =>
+      if req {
+        match n {
+          Missing => refl
+          Schedulable => refl
+          Cordoned => match d {
+            NoDeadline => match b { Some(_) => refl; None => rewrite evictEquivalent(ps) { refl } }
+            DeadlineAt(at) => if now >= at { refl } else {
+              match b { Some(_) => refl; None => rewrite evictEquivalent(ps) { refl } }
+            }
+          }
+        }
+      } else {
+        match n {
+          Cordoned => if ours { refl } else { refl }
+          Schedulable => refl
+          Missing => refl
+        }
+      }
+  }
+}
+
+// Lemma: first-fit recursion equals head-of-filter.
+law evictEquivalent(pods List[Pod]) {
+  _evictNext(pods) == _evictV2(pods)
+}
+proof evictEquivalent(pods) {
+  match pods {
+    Nil => refl
+    Cons(p, rest) => match p {
+      Pod{kind: k, ..} => match k {
+        Managed   => refl
+        DaemonSet => rewrite evictEquivalent(rest) { refl }
+        Mirror    => rewrite evictEquivalent(rest) { refl }
+      }
+    }
+  }
+}
+
+func main() IO[Unit] { ioPure(unit()) }

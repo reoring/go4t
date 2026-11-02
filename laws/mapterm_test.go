@@ -38,6 +38,15 @@ func TestAssumptionSurvivesLaterSplit(t *testing.T) {
 	}
 }
 
+// refactor_v2.gt: node-drain decide rewritten with tuple matches, result.maybe
+// and head∘filter; decide(o) == decideV2(o) plus the first-fit lemma must
+// close as written (refactoring safety net).
+func TestRefactorEquivalence(t *testing.T) {
+	for name, err := range diagnosticsByLaw(t, loadFixture(t, "refactor_v2.gt")) {
+		t.Errorf("%s: %v", name, err)
+	}
+}
+
 func TestMapNeutralComparators(t *testing.T) {
 	p := loadFixture(t, "map_neutral.gt")
 	errors := diagnosticsByLaw(t, p)
