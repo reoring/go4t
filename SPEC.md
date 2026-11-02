@@ -876,6 +876,14 @@ different laws are rejected, so mutual rewrites cannot certify one another.
 A finite normalization fuel budget also bounds unfolding of open terms;
 exhaustion is an incomplete-normalization error, never a successful proof.
 
+Induction follows the recursion shape of the unfolded function, not the data
+type. Accumulator-based definitions such as `std/list` `length` (a `fold` whose
+accumulator advances at each `Cons`) do not reduce `length(Cons(x, r))` to
+`1 + length(r)`, so an induction hypothesis stated with the accumulator at
+its initial value does not apply. State the law over the fold's accumulator
+(`fold(xs, n, f) == n + ...`) and rewrite with that, or prove over a directly
+structurally recursive function.
+
 Law dependencies are checked transitively for unsafe operations: IO, untrusted
 externs and potentially panicking arithmetic are tainted. Integer `/` and `%`
 are eligible only with a nonzero literal divisor (including a unary negative
