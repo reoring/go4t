@@ -3,11 +3,11 @@
 [English](README.md)
 
 go4t は、通常の Go にコンパイルされる小さな静的型付き関数型言語です。目的は一つ、
-**Go プログラムの「判定の芯」を書くこと**。観測した状態から次の一手を決める部分を、
+**Go プログラムの決定ロジック(decision core)を書くこと**。観測した状態から次の一手を決める部分を、
 すべての状態に名前があり、すべての場合分けが検査され、I/O が一切起きず、
 **判定の不変条件を法則として書いて `go4t check` が全入力について検証する**形で書きます。
 
-殻は Go のまま、芯だけが go4t です。サービスを go4t で書き直すのではなく、
+外側は Go のまま、決定ロジックだけを go4t で書きます。サービスを go4t で書き直すのではなく、
 `if ok { … } else if … { return … }` の連鎖を go4t に移し、それについて成り立つべきことを書き、
 Go から型付き関数として呼びます。
 
@@ -55,20 +55,20 @@ case decide.FreshnessTtlInvalid:
 
 ## なぜ Go だけでは足りないか
 
-Go は殻を書く言語としては良く、芯を書く言語としては弱い。reconciler、ワークフローエンジン、
+Go は外側(I/O、クライアント、配線)を書く言語としては優れ、決定ロジックを書く言語としては弱い。reconciler、ワークフローエンジン、
 ポリシー評価、料金ルール——難しいのは「部分的にしか分かっていない多くの事実」に対する判定です。
-Go はその事実を `(value, ok)`、番兵値、nil になりうるポインタ、bool フラグで表し、
+Go はその事実を `(value, ok)`、sentinel 値(`-1` など)、nil になりうるポインタ、bool フラグで表し、
 判定は早期 return の連鎖になります。網羅されているかはテストでしか示せず、
 テストが全組み合わせを列挙することは稀です。
 
-go4t が芯に与えるもの:
+go4t が決定ロジックに与えるもの:
 
-| 判定の芯で必要なこと | go4t | Go |
+| 決定ロジックで必要なこと | go4t | Go |
 | --- | --- | --- |
 | N 個のうちどれか、という状態 | 直和型(`A \| B(Int) \| C`) | const + コメント、または `*T` + `bool` |
-| 「全部の場合を扱ったか?」 | 網羅的 `match`、欠けたパターンを列挙するコンパイルエラー | `default:` と祈り |
+| 「全部の場合を扱ったか?」 | 網羅的 `match`、欠けたパターンを列挙するコンパイルエラー | `default:` を書いて済ませる |
 | エラーをデータとして扱う | `Result[E, A]`、`Option[A]`、`do` による逐次化 | `(T, error)` と `if err != nil` |
-| 芯が I/O をしない保証 | 効果は `IO[A]` 値。純粋関数は実行できない | 規律 |
+| 決定ロジックが I/O をしない保証 | 効果は `IO[A]` 値。純粋関数は実行できない | 規律 |
 | ネストしたデータの等価・順序・デバッグ表示 | `deriving Eq, Ord, Debug, Show` | 手書きか `reflect.DeepEqual` |
 | コンテナ横断の総称操作 | 型クラス、高階種(`Functor`、`Monad`、`Monoid`) | 型ごとにコピー |
 | 「この不変条件は全入力で成り立つ」 | `law` + `proof`、コンパイル時に全値について検査 | 選んだ sample のテーブルテスト、またはランダム生成の property-based testing(`rapid`) |
@@ -90,11 +90,11 @@ PDB チェックの後ろへ動かす、`now == at` 境界だけで露呈する 
 
 サンプルではなく、実コードの移植で検証しました。
 
-**法則は 5 つの判定の芯で連続して検証してから**「使える」と呼びました:
+**法則は 5 つの決定ロジックで連続して検証してから**「使える」と呼びました:
 上の attachment-repair コントローラ(法則 4 本)、一から書いた node-drain コントローラ
 (`examples/node-drain-controller`、10 本: 取り下げ → ノード消失 → cordon → 期限 → PDB → 最初の退避可能 pod)、
-`Map` の容量と使用量を持つゾーン配置の芯(6 本、fallback 列の帰納法を含む)、
-4 つのゲートを `Result` で連鎖する admission の芯(7 本)、drain の芯を構造から書き換えて
+`Map` の容量と使用量を持つゾーン配置の決定ロジック(6 本、fallback 列の帰納法を含む)、
+4 つのゲートを `Result` で連鎖する admission の決定ロジック(7 本)、drain の決定ロジックを構造から書き換えて
 元と同値だと証明したもの(`decide(o) == decideV2(o)`)。最初の 3 回はそれぞれ正規化器の
 完全性の穴(正しい法則が閉じない)を露呈し、修正して fixture に固定しました。
 4 回目と 5 回目は評価器の変更が不要でした。健全性の欠陥はどの回も出ていません。
@@ -114,7 +114,7 @@ approval の移植では、元テストが一度も通らない判定分岐が�
 (観測 → 認可 → compare-and-swap 削除 → 公開)を純粋な `Decide(Observed) Action` に移し、
 Go が reconcile ごとに最大 3 回呼ぶ形にしました。
 
-移植中の読みやすさの修正は、毎回同じ直し方でした——Go の `(value, ok)`、フラグ、番兵値が
+移植中の読みやすさの修正は、毎回同じ直し方でした——Go の `(value, ok)`、フラグ、sentinel 値が
 コンストラクタになる:
 
 | 入力側の Go の癖 | こう変えた | 効果 |
@@ -122,14 +122,14 @@ Go が reconcile ごとに最大 3 回呼ぶ形にしました。
 | `gatesValid: Bool` + `gates: List[Gate]` | `gates: List[GateEvidence]`、`GateEvidence = Gate \| InvalidGate` | 最初の失敗の順序が Go のループと一致 |
 | 「≤ 0 は不正」付きの `Option[Int]` | `Ttl = NoTtl \| InvalidTtl \| TtlNanos(Int)` | 不正ケースを忘れられない |
 | `present: Bool` + `Option[Int]` | `Timestamp = NoTimestamp \| InvalidTimestamp \| AtNanos(Int)` | ネストした if/match が 1 つの match に、20 → 11 行 |
-| `fromOption(gen, -1)` | `gen != Some(plan.generation)` | 番兵値なし |
+| `fromOption(gen, -1)` | `gen != Some(plan.generation)` | sentinel 値なし |
 
 **`client-go` の 11 万行移植**は製品ではなくスケール実験として行いました。コンパイルは通りました
 (コンパイラ修正 3 件——テストハーネスの分割、返り値位置の `match` と `if`/ブロックをクロージャ化せず
 直接 lowering する変更——が必要で、いずれも言語側に取り込み済み)が、境界がはっきり出ました。
 インフラ層は状態・キャッシュ・I/O が本体で、純粋関数と網羅性の利得が小さく、Go binding 層が
 本体より大きくなります。結論が上の設計規則です——
-**go4t は判定の芯に。インフラは移植せず bind する。**
+**go4t は決定ロジックに限る。インフラは移植せず bind する。**
 移植版は `experiment/client-go-gofx` ブランチ(`ports/client-go`)と、独立リポジトリ
 [reoring/client-go-go4t](https://github.com/reoring/client-go-go4t) にあります。
 `RESULTS.md` に検証内容、`CODE_STATS.md` に移植前後のコード統計を記録しています。
@@ -172,7 +172,7 @@ func main() IO[Unit] { ioPure(unit()) }
 キー等価の場合分けに簡約されます。法則の実行時コードは生成されません。
 [チュートリアル §13](docs/tutorial.md#13-laws) に cancel の冪等性、
 `freshness` の `staleIff`、リストの帰納法の例があり、`laws/testdata/placement.gt` と
-`refactor_v2.gt` に Map を持つ芯とリファクタ同値の証明があります。
+`refactor_v2.gt` に Map を持つ決定ロジックとリファクタ同値の証明があります。
 
 法則が覆うもの: 一階データ(ADT、レコード、`List`、`Option`、`Result`、`Map`)、
 `o{field: v}` による「他のフィールドは任意」型の不変条件、ゲート順、早期帰還、冪等性、
@@ -226,7 +226,7 @@ go4t build hello/main.gt      # hello/main_gen/ に Go ソースを出力
 境界をきれいに保つ規則(SPEC §8.7、tutorial §12):
 
 - 判定に必要なものだけを射影する。呼び出しごとにレコードはコピーされる。
-- 番兵値を境界に渡さない。`Option[Int]` はポインタなしのミラーで渡し、
+- sentinel 値を境界に渡さない。`Option[Int]` はポインタなしのミラーで渡し、
   `-1` で剥がさず `Some(x)` と比較する。
 - 期間とタイムスタンプは `Int` ナノ秒で渡す(`time.Duration` と `UnixNano` の表現そのもの)。
   境界で丸めが起きない。
@@ -292,7 +292,7 @@ core prelude だけです。解決順:import 元 module のソースルート、
 
 | 例 | 内容 | 実行 |
 | --- | --- | --- |
-| [go-shell](examples/go-shell) | 最小の Go 殻 + go4t 芯の雛形 | `go4t run examples/go-shell/core.gt` |
+| [go-shell](examples/go-shell) | 最小の Go 外側 + go4t 決定ロジックの雛形 | `go4t run examples/go-shell/core.gt` |
 | [approval-controller](examples/approval-controller) | 実 controller。元テスト 6 本無変更 | `cd examples/approval-controller && go generate ./... && go test ./...` |
 | [attachment-repair-controller](examples/attachment-repair-controller) | 複数ステップのワークフローを go4t で判定。元テスト 22 本無変更 | `cd examples/attachment-repair-controller && go generate ./... && go test ./...` |
 | [sql-service](examples/sql-service) | `bind` 経由の SQLite + Prometheus HTTP サービス | README 参照 |
@@ -325,7 +325,7 @@ core prelude だけです。解決順:import 元 module のソースルート、
 
 ## ドキュメントとエディタ
 
-- [Go 開発者向けチュートリアル](docs/tutorial.md) — Go 殻 / go4t 芯と法則の証明を扱う 13 の短い章。
+- [Go 開発者向けチュートリアル](docs/tutorial.md) — Go 外側 / go4t 決定ロジックの分担と法則の証明を扱う 13 の短い章。
   全スニペットを CI で型検査。
 - [言語仕様](SPEC.md) — 文法、型と効果の規則、CLI、deriving、export される Go API、境界表。
 - [標準ライブラリ](docs/stdlib.md) — ソース棚卸しから生成。
