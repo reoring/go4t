@@ -861,11 +861,38 @@ user-defined `Eq` instance. There is no eta-equivalence rule.
 
 Normalization unfolds pure functions, beta-reduces calls, substitutes lets,
 selects decidable match branches, and reduces records and resolved type-class
-methods. An unknown earlier match arm blocks selection of later arms. Int
+methods. An unknown earlier match arm blocks selection of later arms. A
+recursive function (or instance method) certified by the termination check is
+unfolded only when the argument at its decreasing position is a constructor or
+tuple; otherwise the call stays neutral, so both sides of a goal stop at the
+same depth. Projections of record updates reduce even when the base is
+symbolic: `(r{f: v}).f` is `v` and `(r{f: v}).g` is `r.g`, for single-
+constructor records. Inside an arm of a stuck `match s`, `s` is assumed equal
+to the arm's pattern, and inside a stuck `if c`, `c` is assumed `true` or
+`false`, so repeated eliminations of the same scrutinee collapse. Int
 `+`, `-`, `*` and unary negation use polynomial normal forms modulo 2^64,
 matching wrapping runtime arithmetic. Comparisons and `/`/`%` are not an
 arithmetic decision procedure. `if` assumptions compare normalized operands,
 so `now >= at + t` and `now >= t + at` describe the same guard.
+
+`Map` values are modelled symbolically. A map whose keys are all constants
+(Int, String, Bool or tuples of those) normalizes to a sorted literal; an
+insertion with a symbolic key stays an `insert` node, with later insertions of
+an identical key shadowing earlier ones. `mapLookup`, `mapMember`, `mapDelete`,
+`mapSize` and `mapFromList` reduce through such nodes, producing key-equality
+conditions of the form `k2 == k` that an `if` tactic can assume:
+`mapLookup(mapInsert(m, k, v), k2)` becomes `if k2 == k { Some(v) } else
+{ mapLookup(m, k2) }`. `mapToList`, `mapKeys`, `mapValues`, `mapFold`,
+`mapMap` and `mapUnion` reduce only between literal maps. These rules apply
+only when the comparator is the `compare` method of a prelude Int/String/Bool
+instance, a derived `Ord`, or tuples and compositions of those, because they
+identify `compare(a, b) == EQ` with `a == b`; custom comparators and
+hand-written `Ord` instances leave every map operation neutral (never tainted).
+
+When `refl` fails, the diagnostic prints both normal forms, `stuck on:` the
+outermost neutral scrutinee or neutral recursive argument of each side (one
+line when both agree), and `differs at:` the first pair of subterms that are
+not alpha-equal.
 
 Only the law-reachable fragment must terminate; ordinary programs retain general
 recursion. Recursive calls must leave all preceding arguments unchanged and
@@ -895,8 +922,9 @@ The trusted extern whitelist is the ten prelude primitives (`EqInt`, `LtInt`,
 `DebugString`, `UnitValue`) plus the 32 `std/string` primitives. Trust is tied to
 the owning standard-library declaration, not merely a matching foreign symbol.
 String primitives fold only when their arguments are constant; they do not
-provide symbolic string reasoning. `std/map`, `std/set` and `std/array` externs
-remain tainted. Callback and dictionary implementations must themselves be
+provide symbolic string reasoning. The 13 `std/map` externs are modelled by the
+normalizer as described above and are therefore eligible. `std/set` and
+`std/array` externs remain tainted. Callback and dictionary implementations must themselves be
 eligible. `Float` is forbidden in law parameters, side types and subterms,
 including nested data fields: NaN prevents reflexivity of runtime equality.
 
@@ -1529,7 +1557,11 @@ eligible direct-self tail calls have bounded call-stack lowering.
 
 `go4t build --emit-go DIR --package NAME FILE.gt` produces an importable Go
 package. Its `go4t_export.go` contains natural Go mirrors, conversion functions,
-and wrappers for eligible functions of the **entry module**. `Main() rt.IO`
+and wrappers for eligible functions of the **entry module**. Every exported
+mirror type carries a Go doc comment naming its go4t declaration and how to
+construct and switch on it (enum constants for all-nullary sums, one struct per
+constructor for payload sums, field mapping for records), so the Go shape can
+be read from the generated file without trial compilation. `Main() rt.IO`
 remains available; ordinary executable builds do not generate this API.
 See [the Go shell example](examples/go-shell) for a Go controller shell calling
 pure go4t decision logic.

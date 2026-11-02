@@ -7,11 +7,26 @@ import (
 	"go4t/ast"
 )
 
-// resume reduces eliminators whose operands became known during ring
-// normalization or rewriting. Opaque recursive calls are unfolded only by
-// replace when an operand actually changes, never merely by reading them back.
+// resume reduces eliminators whose operands became known during normalization
+// or rewriting. Neutral recursive calls reopen only when their certified
+// decreasing argument has acquired a constructor head.
 func (e *evaluator) resume(t *term) (*term, error) {
 	switch t.kind {
+	case "insert":
+		return e.mapInsert(t.args[0], t.args[1], t.args[2], t.dicts[0]), nil
+	case "mapop", "mapfrom":
+		var value *term
+		var err error
+		if t.kind == "mapfrom" {
+			value, err = e.mapFromList(t.args[0], t.args[1], t.dicts[0])
+		} else {
+			var ord *dictionary
+			if len(t.dicts) != 0 { ord = t.dicts[0] }
+			value, err = e.mapOperation(t.name, t.args, ord)
+		}
+		if err != nil { return nil, err }
+		if value.kind == "mapop" || value.kind == "mapfrom" { return e.assume(value), nil }
+		return e.normal(value)
 	case "if":
 		if t.args[0].kind == "bool" {
 			if t.args[0].flag {
@@ -103,6 +118,22 @@ func (e *evaluator) resume(t *term) (*term, error) {
 		}
 	case "call":
 		fn := t.args[0]
+		if fn.kind == "global" && e.unfoldGlobal(fn, t.args[1:]) {
+			value, err := e.apply(fn, t.args[1:])
+			if err != nil {
+				return nil, err
+			}
+			return e.normal(value)
+		}
+		if fn.kind == "method" {
+			method, _, err := e.methodBody(fn.name, fn.dicts)
+			if err != nil { return nil, err }
+			if e.unfoldMethod(method, fn.dicts, t.args[1:]) {
+				value, err := e.apply(fn, t.args[1:])
+				if err != nil { return nil, err }
+				return e.normal(value)
+			}
+		}
 		if fn.kind == "lambda" {
 			binders := fn.args[:len(fn.args)-1]
 			for i, binder := range binders {
@@ -121,7 +152,7 @@ func (e *evaluator) resume(t *term) (*term, error) {
 			case mismatch:
 				continue
 			case unknown:
-				return t, nil
+				return e.assume(t), nil
 			}
 			for id, value := range bindings {
 				e.solutions[id] = value
@@ -141,7 +172,7 @@ func (e *evaluator) resume(t *term) (*term, error) {
 				return body, nil
 			}
 			if guard.kind != "bool" {
-				return t, nil
+				return e.assume(t), nil
 			}
 		}
 		return nil, fmt.Errorf("normalization reached a match with no matching arm")
@@ -181,23 +212,4 @@ func matchNormal(pattern, value *term, bindings map[int]*term) judgement {
 		return status
 	}
 	return unknown
-}
-
-// Reading a closure back into a lambda changes its representation, not its
-// arguments. Only substitution can justify reopening a neutral recursive call.
-func (e *evaluator) hasSolution(t *term) bool {
-	if t.kind == "var" && e.solutions[t.id] != nil {
-		return true
-	}
-	for _, arg := range t.args {
-		if e.hasSolution(arg) {
-			return true
-		}
-	}
-	for _, arm := range t.arms {
-		if e.hasSolution(arm.guard) || e.hasSolution(arm.body) {
-			return true
-		}
-	}
-	return false
 }

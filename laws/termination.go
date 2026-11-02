@@ -14,6 +14,9 @@ import (
 type terminationNode struct {
 	decl ast.Node
 	name string
+	global string
+	method *ast.InstMethod
+	dictionaries []*dictionary
 	params []ast.Param
 	block *ast.Block
 	expr ast.Expr
@@ -27,6 +30,13 @@ type terminationNode struct {
 type terminationEdge struct {
 	to *terminationNode
 	position int // first strict decrease; -1 means no certified decrease
+}
+
+// For a fixed global, dictionaries in scheme-constraint order identify the
+// same instantiation as the termination node's bound dictionary environment.
+type decreasingPosition struct {
+	dicts []*dictionary
+	position int
 }
 
 // root is one-based (zero means no parameter provenance). Only pattern descent
@@ -50,6 +60,8 @@ type terminationEnv map[string]terminationValue
 type terminationChecker struct {
 	e *evaluator
 	nodes []*terminationNode
+	decreasing map[string][]decreasingPosition
+	decreasingMethods map[*ast.InstMethod][]decreasingPosition
 	err error
 }
 
@@ -66,6 +78,13 @@ func (e *evaluator) checkDependencies(law *types.LawInfo, proof *types.ProofInfo
 			c.expression(root, tactic.Cond, nil, nil, false)
 		case *ast.TRewrite:
 			for _, arg := range tactic.Args { c.expression(root, arg, nil, nil, false) }
+			// Rewriting normalizes the referenced equation too. Its
+			// recursive globals need the same certificates as the goal.
+			if tactic.Law.Name != law.Decl.Name {
+				referenced := e.p.Laws[tactic.Law.Name]
+				c.expression(root, referenced.Decl.LHS, nil, nil, false)
+				c.expression(root, referenced.Decl.RHS, nil, nil, false)
+			}
 		}
 	})
 	// Scanning a body appends newly discovered callees to this worklist.
@@ -84,6 +103,8 @@ func (e *evaluator) checkDependencies(law *types.LawInfo, proof *types.ProofInfo
 	if bad := c.nonterminating(); bad != nil {
 		return fmt.Errorf("depends on %s which may not terminate", bad.name)
 	}
+	e.decreasing = c.decreasing
+	e.decreasingMethods = c.decreasingMethods
 	return nil
 }
 
@@ -131,7 +152,9 @@ func (c *terminationChecker) function(name string, dicts []*dictionary) *termina
 	}
 	bound, err := bindDictionaries(nil, f.Scheme.Constraints, dicts)
 	if err != nil { c.err = err; return nil }
-	return c.node(f.Decl, sourceName(c.e.p, name), f.Decl.Params, f.Decl.Body, nil, nil, bound)
+	n := c.node(f.Decl, sourceName(c.e.p, name), f.Decl.Params, f.Decl.Body, nil, nil, bound)
+	n.global, n.dictionaries = name, dicts
+	return n
 }
 
 func (c *terminationChecker) method(name string, dicts []*dictionary) *terminationNode {
@@ -141,7 +164,17 @@ func (c *terminationChecker) method(name string, dicts []*dictionary) *terminati
 	for i, name := range decl.Params { params[i].Name = name }
 	inst := dicts[0].instance
 	label := sourceName(c.e.p, inst.Class.Name)+"["+sourceName(c.e.p, inst.TypeCon.Name)+"]."+name
-	return c.node(decl, label, params, decl.Body, nil, nil, bound)
+	n := c.node(decl, label, params, decl.Body, nil, nil, bound)
+	n.method, n.dictionaries = decl, dicts
+	// Modeled map comparison also calls the lawful Ord's Eq superclass.
+	// Include that implicit dependency so recursive Eq gets the same
+	// certificates as an explicit == in a law or tactic.
+	if name == "compare" && c.e.eligibleMapDictionary(dicts[0], make(map[*types.Instance]bool)) {
+		eq, err := c.e.mapEqDictionary(dicts[0])
+		if err != nil { c.err = err; return nil }
+		c.method("eq", []*dictionary{eq})
+	}
+	return n
 }
 
 func (c *terminationChecker) edge(from, to *terminationNode, args []terminationValue) {
@@ -334,6 +367,20 @@ func (c *terminationChecker) nonterminating() *terminationNode {
 					if bad == nil { bad = member }
 				}
 				position = edge.position
+			}
+		}
+		// No intra-SCC edge means this is an acyclic function, not a
+		// certified recursive one. Publish nothing unless all SCCs pass.
+		if bad == nil && position >= 0 {
+			for member := range members {
+				certificate := decreasingPosition{dicts: member.dictionaries, position: position}
+				if member.global != "" {
+					if c.decreasing == nil { c.decreasing = make(map[string][]decreasingPosition) }
+					c.decreasing[member.global] = append(c.decreasing[member.global], certificate)
+				} else if member.method != nil {
+					if c.decreasingMethods == nil { c.decreasingMethods = make(map[*ast.InstMethod][]decreasingPosition) }
+					c.decreasingMethods[member.method] = append(c.decreasingMethods[member.method], certificate)
+				}
 			}
 		}
 	}

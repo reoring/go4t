@@ -63,6 +63,10 @@ func TestOpenTermProperty(t *testing.T) {
 			for _, name := range names {
 				law, err := e.extractLaw(name)
 				if err == nil {
+					// Rejected dependencies are still sampled when normalization
+					// succeeds, as before; certified laws use production unfolding.
+					_ = e.checkDependencies(p.Laws[name], p.Proofs[name])
+					e.fuel = StepLimit
 					open, _ := propertyEnvironment(e, law.Params)
 					_, _, err = e.equation(law, open)
 				}
@@ -133,12 +137,15 @@ func TestOpenTermProperty(t *testing.T) {
 			}
 			var batches strings.Builder
 			var results []propertyResult
+			runtimeLines := 0
 			for i, target := range targets {
 				e = newEvaluator(p)
 				law, err := e.extractLaw(target.law)
 				if err != nil {
 					t.Fatal(err)
 				}
+				_ = e.checkDependencies(p.Laws[target.law], p.Proofs[target.law])
+				e.fuel = StepLimit
 				target.expr = []ast.Expr{law.LHS, law.RHS}[target.side]
 				variants := propertyVariants(t, e, law)
 				variants = append(variants, propertyProofVariants(t, e, law, target.side)...)
@@ -208,11 +215,28 @@ func TestOpenTermProperty(t *testing.T) {
 						if err == nil {
 							shown, err = e.normal(shown)
 						}
-						if err != nil || shown.kind != "string" {
-							t.Fatalf("%s/%d/%s sample=%d σ={%s}: readback did not close: %v; n=%s; result=%v", target.law, target.side, variant.name, sample, strings.Join(sigma, ", "), err, e.display(normal), shown)
+						if err != nil {
+							t.Fatalf("%s/%d/%s sample=%d σ={%s}: readback failed: %v", target.law, target.side, variant.name, sample, strings.Join(sigma, ", "), err)
 						}
+						result := propertyResult{name: fmt.Sprintf("%s/%d/%s/%d", target.law, target.side, variant.name, sample), source: termSource, sigma: strings.Join(sigma, ", "), normal: e.display(normal), runtimeIndex: runtimeLines, residualIndex: -1}
 						calls = append(calls, runner+"("+strings.Join(args, ", ")+")")
-						results = append(results, propertyResult{name: fmt.Sprintf("%s/%d/%s/%d", target.law, target.side, variant.name, sample), source: termSource, sigma: strings.Join(sigma, ", "), normal: e.display(normal), want: shown.name})
+						runtimeLines++
+						if shown.kind == "string" {
+							result.want = shown.name
+						} else {
+							// Unsupported comparators and nonliteral key types must
+							// stay neutral, even closed. Observe the evaluator's
+							// residual with rt, independently of the original side.
+							if !propertyNeutralMap(closed) {
+								t.Fatalf("%s: readback did not close: n=%s; result=%s", result.name, e.display(normal), e.display(shown))
+							}
+							observations := make([]string, len(observed))
+							for j, value := range observed { observations[j] = propertyTermSource(t, e, value) }
+							calls = append(calls, target.observer+"("+strings.Join(observations, ", ")+")")
+							result.residualIndex = runtimeLines
+							runtimeLines++
+						}
+						results = append(results, result)
 					}
 					e.solutions = make(map[int]*term)
 					sides++
@@ -235,12 +259,14 @@ func TestOpenTermProperty(t *testing.T) {
 				t.Fatalf("go run ./cmd/go4t run %s: %v\n%s", file, err, stderr.String())
 			}
 			lines := strings.Split(strings.TrimSuffix(stdout.String(), "\n"), "\n")
-			if len(lines) != len(results) {
-				t.Fatalf("runtime returned %d lines, want %d\nstderr: %s", len(lines), len(results), stderr.String())
+			if len(lines) != runtimeLines {
+				t.Fatalf("runtime returned %d lines, want %d\nstderr: %s", len(lines), runtimeLines, stderr.String())
 			}
-			for i, result := range results {
-				if lines[i] != result.want {
-					t.Errorf("%s: normalization mismatch\nt = %s\nn = %s\nσ = {%s}\nruntime tσ: %q\nevaluator nσ: %q", result.name, result.source, result.normal, result.sigma, lines[i], result.want)
+			for _, result := range results {
+				want := result.want
+				if result.residualIndex >= 0 { want = lines[result.residualIndex] }
+				if lines[result.runtimeIndex] != want {
+					t.Errorf("%s: normalization mismatch\nt = %s\nn = %s\nσ = {%s}\nruntime tσ: %q\nevaluator nσ: %q", result.name, result.source, result.normal, result.sigma, lines[result.runtimeIndex], want)
 				}
 			}
 			comparisons += len(results)
@@ -259,6 +285,7 @@ type propertyTarget struct {
 
 type propertyResult struct {
 	name, source, sigma, normal, want string
+	runtimeIndex, residualIndex int
 }
 
 type propertyVariant struct {
@@ -359,7 +386,7 @@ func propertyInhabited(e *evaluator, typ types.Type, depth int) bool {
 		return false
 	}
 	switch con.Name {
-	case "Int", "Bool", "String", "Unit":
+	case "Int", "Bool", "String", "Unit", "Map":
 		return true
 	}
 	if _, ok := types.IsTuple(con); ok {
@@ -401,6 +428,7 @@ func propertyValue(t *testing.T, e *evaluator, rng *rand.Rand, typ types.Type, d
 		if sample < len(edges) {
 			return integer(edges[(sample+offset)%len(edges)])
 		}
+		if sample%2 == 0 { return integer(int64(rng.IntN(3)-1)) }
 		if rng.IntN(3) == 0 {
 			return integer(edges[rng.IntN(len(edges))])
 		}
@@ -415,6 +443,7 @@ func propertyValue(t *testing.T, e *evaluator, rng *rand.Rand, typ types.Type, d
 		if sample < len(edges) {
 			return text(edges[(sample+offset)%len(edges)])
 		}
+		if sample%2 == 0 { return text([]string{"", "a", "b"}[rng.IntN(3)]) }
 		alphabet := []rune("ab \"\\\n\t日本語𝄞")
 		chars := make([]rune, rng.IntN(12))
 		for i := range chars {
@@ -423,6 +452,8 @@ func propertyValue(t *testing.T, e *evaluator, rng *rand.Rand, typ types.Type, d
 		return text(string(chars))
 	case "Unit":
 		return &term{kind: "unit"}
+	case "Map":
+		return propertyMapValue(t, e, rng, args, depth, sample, offset)
 	}
 	if _, ok := types.IsTuple(con); ok {
 		fields := make([]*term, len(args))
@@ -462,6 +493,10 @@ func propertyValue(t *testing.T, e *evaluator, rng *rand.Rand, typ types.Type, d
 
 func propertyLiteral(t *testing.T, e *evaluator, value *term) string {
 	t.Helper()
+	switch value.kind {
+	case "insert", "mapop", "mapfrom", "primitive":
+		return propertyTermSource(t, e, value)
+	}
 	args := make([]string, len(value.args))
 	for i, arg := range value.args {
 		args[i] = propertyLiteral(t, e, arg)
@@ -481,6 +516,8 @@ func propertyLiteral(t *testing.T, e *evaluator, value *term) string {
 		return "unit()"
 	case "tuple":
 		return "("+strings.Join(args, ", ")+")"
+	case "map":
+		return propertyMapSource(t, e, value, propertyLiteral)
 	case "ctor":
 		name := e.sourceName(value.ctor.Name)
 		if len(args) == 0 {

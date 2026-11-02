@@ -1,0 +1,233 @@
+package decide
+
+// Node drain controller decision core.
+//
+// A NodeDrain request asks the controller to move every evictable pod off a
+// node. The Go shell observes the node and its pods, calls decide, and applies
+// exactly one action per reconcile. Everything below is pure; the laws at the
+// end are checked by `go4t check` for all observations.
+type NodeState = Schedulable | Cordoned | Missing deriving Eq, Debug
+
+// DaemonSet and Mirror pods are never evicted; they vanish with the node.
+type PodKind = Managed | DaemonSet | Mirror deriving Eq, Debug
+
+type Pod = Pod{name: String, kind: PodKind} deriving Eq, Debug
+
+type Deadline = NoDeadline | DeadlineAt(Int) deriving Eq, Debug
+
+type Observed = Observed{
+  requested: Bool, // the NodeDrain object still asks for a drain
+  node: NodeState,
+  cordonedByUs: Bool, // our annotation is on the node
+  pods: List[Pod], // pods currently bound to the node
+  evictionBlocked: Option[String], // last eviction was refused (PDB), with its message
+  deadline: Deadline,
+  nowNanos: Int
+} deriving Eq, Debug
+
+type FailReason = NodeMissing | TimedOut deriving Eq, Debug
+
+type Action = Noop | Cordon | Uncordon | Evict(String) | Wait(String) | MarkDrained | MarkFailed(FailReason) deriving Eq, Debug
+
+func decide(o Observed) Action {
+  if !o.requested {
+    _release(o)
+  } else {
+    match o.node {
+      Missing => MarkFailed(NodeMissing)
+      Schedulable => Cordon
+      Cordoned => _drain(o)
+    }
+  }
+}
+
+// A withdrawn request only undoes our own cordon.
+func _release(o Observed) Action {
+  match (o.node, o.cordonedByUs) {
+    (Cordoned, true) => Uncordon
+    _ => Noop
+  }
+}
+
+func _drain(o Observed) Action {
+  if _expired(o.nowNanos, o.deadline) {
+    MarkFailed(TimedOut)
+  } else {
+    match o.evictionBlocked {
+      Some(msg) => Wait(msg)
+      None => _evictNext(o.pods)
+    }
+  }
+}
+
+func _expired(now Int, d Deadline) Bool {
+  match d {
+    DeadlineAt(at) => now >= at
+    NoDeadline => false
+  }
+}
+
+func _evictNext(pods List[Pod]) Action {
+  match _firstEvictable(pods) {
+    Some(name) => Evict(name)
+    None => MarkDrained
+  }
+}
+
+func _firstEvictable(pods List[Pod]) Option[String] {
+  match pods {
+    Nil => None
+    | Cons(p, rest) => match p.kind {
+      Managed => Some(p.name)
+      _ => _firstEvictable(rest)
+    }
+  }
+}
+
+func isTimedOut(a Action) Bool {
+  match a {
+    MarkFailed(TimedOut) => true
+    _ => false
+  }
+}
+
+func main() IO[Unit] {
+  ioPure(unit())
+}
+
+// ---- Laws -----------------------------------------------------------------
+// A withdrawn request never touches a node we did not cordon.
+law withdrawnIsNoop(o Observed) {
+  decide(o{requested: false, cordonedByUs: false}) == Noop
+}
+
+proof withdrawnIsNoop(o) {
+  refl
+}
+
+// A withdrawn request uncordons a node we cordoned, whatever the pods are.
+law withdrawnUncordons(o Observed) {
+  decide(o{requested: false, node: Cordoned, cordonedByUs: true}) == Uncordon
+}
+
+proof withdrawnUncordons(o) {
+  refl
+}
+
+// Nothing is evicted before the node is cordoned.
+law cordonFirst(o Observed) {
+  decide(o{requested: true, node: Schedulable}) == Cordon
+}
+
+proof cordonFirst(o) {
+  refl
+}
+
+law missingFails(o Observed) {
+  decide(o{requested: true, node: Missing}) == MarkFailed(NodeMissing)
+}
+
+proof missingFails(o) {
+  refl
+}
+
+// DaemonSet and Mirror pods are transparent to the decision.
+//
+// Recursive calls consume concrete list constructors even below a stuck
+// `if`/`match`. Both sides leave the same call on the symbolic rest, so `refl`
+// needs no case split on the deadline, PDB block or remaining pods.
+law skipsDaemonSet(o Observed, name String, rest List[Pod]) {
+  decide(o{
+    requested: true,
+    node: Cordoned,
+    pods: Cons(Pod{name: name, kind: DaemonSet}, rest)
+  }) == decide(o{requested: true, node: Cordoned, pods: rest})
+}
+
+proof skipsDaemonSet(o, name, rest) {
+  refl
+}
+
+law skipsMirror(o Observed, name String, rest List[Pod]) {
+  decide(o{
+    requested: true,
+    node: Cordoned,
+    pods: Cons(Pod{name: name, kind: Mirror}, rest)
+  }) == decide(o{requested: true, node: Cordoned, pods: rest})
+}
+
+proof skipsMirror(o, name, rest) {
+  refl
+}
+
+// The first managed pod is the one evicted.
+law evictsFirstManaged(o Observed, name String, rest List[Pod]) {
+  decide(o{
+    requested: true,
+    node: Cordoned,
+    deadline: NoDeadline,
+    evictionBlocked: None,
+    pods: Cons(Pod{name: name, kind: Managed}, rest)
+  }) == Evict(name)
+}
+
+proof evictsFirstManaged(o, name, rest) {
+  refl
+}
+
+law drainedWhenEmpty(o Observed) {
+  decide(o{
+    requested: true,
+    node: Cordoned,
+    deadline: NoDeadline,
+    evictionBlocked: None,
+    pods: Nil
+  }) == MarkDrained
+}
+
+proof drainedWhenEmpty(o) {
+  refl
+}
+
+// Eviction progress never reports a timeout (lemma for timesOutExactly).
+law evictNextNotTimedOut(pods List[Pod]) {
+  isTimedOut(_evictNext(pods)) == false
+}
+
+proof evictNextNotTimedOut(pods) {
+  match pods {
+    Nil => refl
+    | Cons(p, rest) => match p {
+      | Pod{kind: k, ..} => match k {
+        Managed => refl
+        | DaemonSet => rewrite evictNextNotTimedOut(rest) {
+          refl
+        }
+        | Mirror => rewrite evictNextNotTimedOut(rest) {
+          refl
+        }
+      }
+    }
+  }
+}
+
+// With a deadline, the drain times out exactly when the clock has passed it,
+// independent of the pods and of any PDB block.
+law timesOutExactly(o Observed, at Int) {
+  isTimedOut(decide(o{requested: true, node: Cordoned, deadline: DeadlineAt(at)})) == (o.nowNanos >= at)
+}
+
+proof timesOutExactly(o, at) {
+  match o {
+    | Observed{nowNanos: now, evictionBlocked: blocked, pods: pods, ..} => if now >= at {
+      refl
+    } else {
+      match blocked {
+        Some(_) => refl
+        | None => rewrite evictNextNotTimedOut(pods) {
+          refl
+        }
+      }
+    }
+  }
+}

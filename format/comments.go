@@ -157,6 +157,17 @@ func (p *printer) withComments() string {
 			} else {
 				text = "\n" + strings.Repeat("  ", indent) + text + "\n" + strings.Repeat("  ", indent)
 			}
+			if best != nil {
+				next := best.pos
+				if order+1 < len(p.comments) && compare(p.comments[order+1].Pos, next) < 0 {
+					next = p.comments[order+1].Pos
+				}
+				// Preserve detached comment groups, but keep adjacent comment
+				// lines together rather than separating each from the anchor.
+				if next.Line > c.End.Line+1 {
+					text += "\n"
+				}
+			}
 		}
 		inserts = append(inserts, insertion{offset, order, text})
 	}

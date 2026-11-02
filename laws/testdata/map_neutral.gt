@@ -1,0 +1,27 @@
+package main
+
+import "std/map"
+
+type Key = Key(Int) deriving Debug
+instance Eq[Key] { eq(a, b) { match (a, b) { (Key(x), Key(y)) => x == y } } }
+// This comparator intentionally violates the Eq superclass law.
+instance Ord[Key] { compare(a, b) { EQ } }
+type Wrapped = Wrapped(Key) deriving Eq, Ord, Debug
+type DerivedOrd = DerivedOrd(Int) deriving Ord, Debug
+instance Eq[DerivedOrd] { eq(a, b) { false } }
+
+law handwritten(k Key, v Int) { map.mapLookup(map.mapInsert(map.emptyMap(), k, v), k) == Some(v) }
+proof handwritten(k, v) { refl }
+law nestedHandwritten(k Wrapped, v Int) { map.mapLookup(map.mapInsert(map.emptyMap(), k, v), k) == Some(v) }
+proof nestedHandwritten(k, v) { refl }
+law handwrittenEq(k DerivedOrd, v Int) { map.mapLookup(map.mapInsert(map.emptyMap(), k, v), k) == Some(v) }
+proof handwrittenEq(k, v) { refl }
+law customComparator(k Int, v Int) { map.mapLookupBy(map.mapInsertBy(map.emptyMap(), k, v, func(a, b) => EQ), k, func(a, b) => EQ) == Some(v) }
+proof customComparator(k, v) { refl }
+law reversedComparator(k Int, v Int) { map.mapLookupBy(map.mapInsertBy(map.emptyMap(), k, v, func(a, b) => compare(b, a)), k, func(a, b) => compare(b, a)) == Some(v) }
+proof reversedComparator(k, v) { refl }
+// Aggregation of an open insert chain is deliberately not modeled.
+law symbolicTraversal(m Map[Int, Int], k Int, v Int) { map.mapToList(map.mapInsert(m, k, v)) == [(k, v)] }
+proof symbolicTraversal(m, k, v) { refl }
+
+func main() IO[Unit] { ioPure(unit()) }

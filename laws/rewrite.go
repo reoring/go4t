@@ -156,15 +156,6 @@ func (e *evaluator) replace(t, from, to *term) (*term, error) {
 	if result.kind == "sum" || result.kind == "product" {
 		return e.rebuildPolynomial(&result)
 	}
-	if result.kind == "call" && result.args[0].kind == "opaque" {
-		head := *result.args[0]
-		head.kind = "global"
-		value, err := e.apply(&head, result.args[1:])
-		if err != nil {
-			return nil, err
-		}
-		return e.normal(value)
-	}
 	return e.normal(&result)
 }
 

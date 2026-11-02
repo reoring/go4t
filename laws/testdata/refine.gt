@@ -1,0 +1,109 @@
+package main
+
+type Mode = DryRun | Live deriving Eq, Debug
+type Observed = Observed{mode: Mode, x: Mode, gen: Int} deriving Eq, Debug
+type Action = Skip | Apply(Int) deriving Eq, Debug
+
+func decideOnce(o Observed) Action {
+  match o.mode { DryRun => Skip; Live => Apply(o.gen) }
+}
+func decide(o Observed) Action {
+  match o.mode { DryRun => decideOnce(o); Live => decideOnce(o) }
+}
+func dryRunOnly(o Observed) Action {
+  match o.mode { DryRun => decide(o); Live => Skip }
+}
+func alwaysSkip(o Observed) Action {
+  match o.mode { DryRun => Skip; Live => Skip }
+}
+
+// Updating the tested field still reduces directly, including nested calls.
+law updatedDryRun(o Observed) { decide(o{mode: DryRun}) == Skip }
+proof updatedDryRun(o) { refl }
+
+// The free record itself is not split. Each arm refines projections in calls.
+law sameScrutinee(o Observed) { decide(o) == decideOnce(o) }
+proof sameScrutinee(o) { refl }
+law nestedDryRun(o Observed) { dryRunOnly(o) == alwaysSkip(o) }
+proof nestedDryRun(o) { refl }
+
+// Both sides always return Skip, but they split distinct projections. This
+// still needs a proof split: there is deliberately no equal-arms reduction.
+law differentScrutinees(o Observed) {
+  dryRunOnly(o) == (match o.x { DryRun => Skip; Live => Skip })
+}
+proof differentScrutinees(o) { refl }
+
+// In the Live arm, x remains free. Leaking the inner Live refinement out of
+// the preceding DryRun arm would falsely prove this law (mode=Live, x=DryRun).
+law noSiblingLeak(o Observed) {
+  (match o.mode {
+    DryRun => match o.x { DryRun => o.x; Live => o.x }
+    Live => o.x
+  }) == (match o.mode {
+    DryRun => match o.x { DryRun => DryRun; Live => Live }
+    Live => Live
+  })
+}
+proof noSiblingLeak(o) { refl }
+
+// Stuck if branches use the same assumptions, including through nested calls.
+func flagValue(b Bool) Int { if b { 1 } else { 2 } }
+law nestedIf(b Bool) {
+  (if b { flagValue(b) } else { flagValue(b) }) == (if b { 1 } else { 2 })
+}
+proof nestedIf(b) { refl }
+law noIfSiblingLeak(a Bool, b Bool) {
+  (if a { if b { b } else { b } } else { b }) ==
+  (if a { if b { true } else { false } } else { false })
+}
+proof noIfSiblingLeak(a, b) { refl }
+
+// Constructor fields, aliases, omitted fields and wildcards remain scoped
+// binders, not unrelated free variables in the reconstructed scrutinee.
+func payload(o Option[Int]) Int { match o { Some(n) => n; None => 0 } }
+law boundPayload(o Option[Int]) {
+  (match o { Some(n) => payload(o); None => payload(o) }) ==
+  (match o { Some(n) => n; None => 0 })
+}
+proof boundPayload(o) { refl }
+law aliasedPayload(o Option[Int]) {
+  (match o { whole @ Some(n) => payload(whole); None => 0 }) ==
+  (match o { whole @ Some(n) => n; None => 0 })
+}
+proof aliasedPayload(o) { refl }
+law wildcardPayload(o Option[Int]) {
+  (match o { Some(_) => payload(o); None => 0 }) ==
+  (match o { Some(n) => n; None => 0 })
+}
+proof wildcardPayload(o) { refl }
+law omittedField(o Observed) {
+  (match o { Observed{mode: DryRun, ..} => decide(o); Observed{mode: Live, gen: n, ..} => decide(o) }) ==
+  (match o { Observed{mode: DryRun, ..} => Skip; Observed{mode: Live, gen: n, ..} => Apply(n) })
+}
+proof omittedField(o) { refl }
+
+// Refinement must apply to integers as well as Bool and algebraic data.
+law literalScrutinee(n Int) {
+  (match n { 0 => n + 1; rest => rest }) ==
+  (match n { 0 => 1; rest => rest })
+}
+proof literalScrutinee(n) { refl }
+
+// Raw closures are not alpha-equal merely because both have a closure head.
+// Matching a partially known tuple must preserve the functions' bodies.
+law differentClosures(b Bool) {
+  (match (func(n) => n + 1, b) {
+    (f, true) => match (func(n) => n + 2, b) {
+      (g, true) => g(0)
+      (g, false) => g(0)
+    }
+    (f, false) => 0
+  }) == (match (func(n) => n + 1, b) {
+    (f, true) => f(0)
+    (f, false) => 0
+  })
+}
+proof differentClosures(b) { refl }
+
+func main() IO[Unit] { ioPure(unit()) }

@@ -1,0 +1,66 @@
+package main
+
+type PodKind = Managed | DaemonSet | Mirror deriving Debug
+type Pod = Pod{name: String, kind: PodKind} deriving Debug
+type Observed = Observed{expired: Bool, blocked: Option[String], pods: List[Pod]} deriving Debug
+type Action = TimedOut | Wait(String) | Evict(String) | Drained deriving Debug
+
+func _firstEvictable(pods List[Pod]) Option[String] {
+  match pods {
+    Nil => None
+    Cons(p, rest) => match p.kind {
+      Managed => Some(p.name)
+      _ => _firstEvictable(rest)
+    }
+  }
+}
+
+func decide(o Observed) Action {
+  if o.expired {
+    TimedOut
+  } else {
+    match o.blocked {
+      Some(message) => Wait(message)
+      None => match _firstEvictable(o.pods) {
+        Some(name) => Evict(name)
+        None => Drained
+      }
+    }
+  }
+}
+
+// Concrete prefixes can be consumed without splitting the enclosing fields.
+law skipsDaemonSet(o Observed, name String, rest List[Pod]) {
+  decide(o{pods: Cons(Pod{name: name, kind: DaemonSet}, rest)}) == decide(o{pods: rest})
+}
+proof skipsDaemonSet(o, name, rest) { refl }
+
+law skipsMirror(o Observed, name String, rest List[Pod]) {
+  decide(o{pods: Cons(Pod{name: name, kind: Mirror}, rest)}) == decide(o{pods: rest})
+}
+proof skipsMirror(o, name, rest) { refl }
+
+law skipsConcrete(o Observed, name String) {
+  decide(o{pods: [Pod{name: name, kind: DaemonSet}, Pod{name: name, kind: Mirror}]}) == decide(o{pods: Nil})
+}
+proof skipsConcrete(o, name) { refl }
+
+// A genuinely symbolic recursive tail remains stuck, not fuel-exhausted.
+law symbolicTail(o Observed, xs List[Pod]) {
+  decide(o{pods: xs}) == decide(o{pods: Nil})
+}
+proof symbolicTail(o, xs) { refl }
+
+func mutualLeft(n Int, xs List[Int]) Int {
+  match xs { Nil => n; Cons(_, rest) => mutualRight(n, rest) }
+}
+func mutualRight(n Int, xs List[Int]) Int {
+  match xs { Nil => n; Cons(_, rest) => mutualLeft(n, rest) }
+}
+law mutual(o Observed) {
+  (match o.blocked { None => mutualLeft(7, [1, 2, 3, 4]); Some(_) => 0 }) ==
+  (match o.blocked { None => 7; Some(_) => 0 })
+}
+proof mutual(o) { refl }
+
+func main() IO[Unit] { ioPure(unit()) }

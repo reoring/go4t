@@ -36,6 +36,50 @@ func mirrorProgram(t *testing.T, files map[string]string) *types.Program {
 	return program
 }
 
+func TestGoMirrorExportDocs(t *testing.T) {
+	program := mirrorProgram(t, map[string]string{
+		"main.gt": `package main
+import "model"
+type NodeState = Schedulable | Cordoned | Missing
+type Action = Noop | Evict(String) | MarkFailed(NodeState)
+type Observed = Observed { requested: Bool, node: NodeState }
+type Box[A] = Box { value: A }
+func state(s NodeState) NodeState { s }
+func echoAction(a Action) Action { a }
+func echoObserved(o Observed) Observed { o }
+func echoBox(b Box[List[String]]) Box[List[String]] { b }
+func remote(r model.Remote) model.Remote { r }
+func main() IO[Unit] { ioPure(unit()) }
+`,
+		"model/model.gt": "package model\ntype Remote = Remote { value: Int }\n",
+	})
+	generated, err := Generate(program, "core")
+	if err != nil {
+		t.Fatal(err)
+	}
+	exports := generated["go4t_export.go"]
+	for _, want := range []string{
+		"// NodeState mirrors go4t `type NodeState = Schedulable | Cordoned | Missing`.\n// All constructors are nullary, so values are the constants NodeStateSchedulable, NodeStateCordoned, NodeStateMissing (compare with == or switch on the value).\ntype NodeState int",
+		"// Action mirrors go4t `type Action = Noop | Evict(String) | MarkFailed(NodeState)`.\n// Construct with ActionNoop{}, ActionEvict{F0: ...}, ActionMarkFailed{F0: ...}; switch on the concrete struct types.\ntype Action interface",
+		"// ActionEvict mirrors go4t constructor `Evict(String)` of Action.\n// Construct with ActionEvict{F0: ...}; fields: F0 string.\ntype ActionEvict struct",
+		"// ActionNoop mirrors go4t constructor `Noop` of Action.\n// Construct with ActionNoop{}; fields: none.\ntype ActionNoop struct",
+		"// Observed mirrors go4t `type Observed = Observed { requested: Bool, node: NodeState }`.\n// Construct with Observed{Requested: ..., Node: ...}; fields: Requested bool, Node NodeState.\ntype Observed struct",
+		"// BoxListString mirrors go4t `type Box[A] = Box { value: A }`.\n// Construct with BoxListString{Value: ...}; fields: Value []string.\ntype BoxListString struct",
+		"// ModelRemote mirrors go4t `type Remote = Remote { value: Int }`.\n// Construct with ModelRemote{Value: ...}; fields: Value int64.\ntype ModelRemote struct",
+	} {
+		if !bytes.Contains(exports, []byte(want)) {
+			t.Errorf("exports missing documentation %q:\n%s", want, exports)
+		}
+	}
+	again, err := Generate(program, "core")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(exports, again["go4t_export.go"]) {
+		t.Fatal("export documentation is not deterministic")
+	}
+}
+
 func TestGoMirrorConversions(t *testing.T) {
 	program := mirrorProgram(t, map[string]string{
 		"main.gt": `package main

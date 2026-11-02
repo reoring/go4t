@@ -111,10 +111,14 @@ func (e *evaluator) match(arms []ast.Arm, value *term, env *environment, dicts d
 }
 
 func (e *evaluator) residualMatch(arms []ast.Arm, value *term, env *environment, dicts dictionaryEnv) (*term, error) {
-	// A recursive call beneath an unknown constructor remains neutral rather
-	// than generating an infinite tree of hypothetical tails.
-	e.residualDepth++
-	defer func() { e.residualDepth-- }()
+	// Assumption keys must be read back: raw closures carry environments that
+	// alphaEqual intentionally never compares. Known matches still beta-reduce
+	// without forcing their function-valued fields.
+	var err error
+	value, err = e.normal(value)
+	if err != nil {
+		return nil, err
+	}
 	result := &term{kind: "match", args: []*term{value}}
 	for _, arm := range arms {
 		status := e.judge(arm.Pat, value, child(env))
@@ -126,19 +130,12 @@ func (e *evaluator) residualMatch(arms []ast.Arm, value *term, env *environment,
 		if err != nil {
 			return nil, err
 		}
-		guard := boolean(true)
-		if arm.Guard != nil {
-			guard, err = e.eval(arm.Guard, branch, dicts)
-			if err != nil {
-				return nil, err
-			}
+		guard, body, err := e.evalMatchArm(arm, pattern, value, branch, dicts)
+		if err != nil {
+			return nil, err
 		}
 		if guard.kind == "bool" && !guard.flag {
 			continue
-		}
-		body, err := e.eval(arm.Body, branch, dicts)
-		if err != nil {
-			return nil, err
 		}
 		result.arms = append(result.arms, normalArm{pattern: pattern, guard: guard, body: body})
 		if status == certain && guard.kind == "bool" && guard.flag {
@@ -148,12 +145,35 @@ func (e *evaluator) residualMatch(arms []ast.Arm, value *term, env *environment,
 	return result, nil
 }
 
+func (e *evaluator) evalMatchArm(arm ast.Arm, pattern, scrutinee *term, env *environment, dicts dictionaryEnv) (*term, *term, error) {
+	parent := e.assumptions
+	e.refineMatch(scrutinee, pattern)
+	defer func() { e.assumptions = parent }()
+	guard := boolean(true)
+	var err error
+	if arm.Guard != nil {
+		guard, err = e.eval(arm.Guard, env, dicts)
+		if err == nil {
+			guard, err = e.normal(guard)
+		}
+		if err != nil || guard.kind == "bool" && !guard.flag {
+			return guard, nil, err
+		}
+	}
+	body, err := e.eval(arm.Body, env, dicts)
+	if err == nil {
+		body, err = e.normal(body)
+	}
+	return guard, body, err
+}
+
 // pattern freshens all variables before normalizing a residual arm. IDs are
 // lexical identities, never source names, so substitution cannot capture them.
 func (e *evaluator) pattern(pattern ast.Pattern, env *environment) (*term, error) {
 	switch p := pattern.(type) {
 	case *ast.PWild:
-		return &term{kind: "wild"}, nil
+		value := e.fresh("_")
+		return &term{kind: "bind", id: value.id, name: value.name}, nil
 	case *ast.PVar:
 		value := e.fresh(p.Name)
 		env.values[p.Name] = value
@@ -188,15 +208,18 @@ func (e *evaluator) pattern(pattern ast.Pattern, env *environment) (*term, error
 	case *ast.PRecord:
 		record := e.p.RecordPats[p]
 		args := make([]*term, len(record.Ctor.Fields))
-		for i := range args {
-			args[i] = &term{kind: "wild"}
-		}
 		for i, field := range p.Pats {
 			value, err := e.pattern(field, env)
 			if err != nil {
 				return nil, err
 			}
 			args[record.Indexes[i]] = value
+		}
+		for i, field := range args {
+			if field == nil {
+				value := e.fresh("_")
+				args[i] = &term{kind: "bind", id: value.id, name: value.name}
+			}
 		}
 		return &term{kind: "ctor", ctor: record.Ctor, args: args}, nil
 	}

@@ -1,0 +1,24 @@
+package main
+import "std/map"
+
+type Observed = Observed{name: String, quota: Map[String, Int], want: Int} deriving Eq, Debug
+type Action = Deny | Allow(Int) deriving Eq, Debug
+
+func decide(o Observed) Action {
+  match map.mapLookup(o.quota, o.name) {
+    None => Deny
+    Some(q) => if q >= o.want { Allow(q) } else { Deny }
+  }
+}
+
+law grantedAllows(o Observed, q Int) {
+  decide(o{quota: map.mapInsert(o.quota, o.name, q), want: q}) == Allow(q)
+}
+proof grantedAllows(o, q) { refl }
+
+law otherKeyUnchanged(o Observed, k String, q Int) {
+  decide(o{quota: map.mapInsert(o.quota, k, q)}) == (if o.name == k { decide(o{quota: map.mapInsert(o.quota, k, q)}) } else { decide(o) })
+}
+proof otherKeyUnchanged(o, k, q) { if o.name == k { refl } else { refl } }
+
+func main() IO[Unit] { ioPure(unit()) }

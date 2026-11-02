@@ -19,7 +19,7 @@ func TestInductionAndRing(t *testing.T) {
 	cycles := 0
 	for _, err := range errors { if strings.Contains(err.Msg, "law dependency cycle") { cycles++ } }
 	if cycles != 1 { t.Errorf("cycle reported %d times", cycles) }
-	if err := errors["stdLenApp"]; err != nil && (!strings.Contains(err.Msg, "fold(") || !strings.Contains(err.Msg, "Nil => 1")) { t.Errorf("missing accumulator evidence: %v", err) }
+	if err := errors["stdLenApp"]; err != nil && (!strings.Contains(err.Msg, "fold(append(") || !strings.Contains(err.Msg, ", 1, func(")) { t.Errorf("missing accumulator evidence: %v", err) }
 }
 
 func TestRewriteDependencyOrderAndProofRequirement(t *testing.T) {

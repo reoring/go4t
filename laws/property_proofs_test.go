@@ -123,6 +123,16 @@ func propertyTermSource(t *testing.T, e *evaluator, value *term) string {
 		return propertyLiteral(t, e, value)
 	case "tuple":
 		return "("+strings.Join(args, ", ")+")"
+	case "map":
+		return propertyMapSource(t, e, value, propertyTermSource)
+	case "insert":
+		return propertyMapReference(t, e, "MapInsert")+"("+strings.Join(args, ", ")+", func(a, b) => compare(a, b))"
+	case "mapop":
+		if len(value.dicts) != 0 { args = append(args, "func(a, b) => compare(a, b)") }
+		return propertyMapReference(t, e, value.name)+"("+strings.Join(args, ", ")+")"
+	case "mapfrom":
+		// The accumulator is the left-fold prefix, not a right-fold tail.
+		return "fold("+args[1]+", "+args[0]+", func(acc, pair) => "+propertyMapReference(t, e, "MapInsert")+"(acc, pair.0, pair.1, func(a, b) => compare(a, b)))"
 	case "ctor":
 		name := e.sourceName(value.ctor.Name)
 		if len(args) == 0 {
@@ -155,7 +165,7 @@ func propertyTermSource(t *testing.T, e *evaluator, value *term) string {
 		return "(func("+strings.Join(args[:len(args)-1], ", ")+") => "+args[len(args)-1]+")"
 	case "call":
 		return "("+args[0]+")("+strings.Join(args[1:], ", ")+")"
-	case "opaque":
+	case "global", "method":
 		return propertyReference(e, value.name)
 	case "primitive":
 		switch strings.TrimPrefix(value.name, "rt.") {

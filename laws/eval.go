@@ -36,9 +36,9 @@ type closure struct {
 	scheme *types.Scheme
 }
 
-// Assumptions belong to proof branches, not lexical scopes. Keeping the stack
-// on the per-proof evaluator threads it through calls, dictionaries, guards,
-// and closure readback even when they create a fresh lexical environment.
+// Assumptions belong to proof and expression branches, not lexical scopes.
+// Each condition is a term equal to value in that branch (Bool hypotheses are
+// one instance). The stack also reaches calls, dictionaries and closure readback.
 type assumption struct {
 	condition, value *term
 	parent *assumption
@@ -51,15 +51,15 @@ type evaluator struct {
 	fuel, nextID int
 	solutions map[int]*term
 	assumptions *assumption
-	active map[string]int
-	residualDepth int
+	decreasing map[string][]decreasingPosition
+	decreasingMethods map[*ast.InstMethod][]decreasingPosition
 	currentGoal *rewriteRule
 }
 
 func newEvaluator(p *types.Program) *evaluator {
-	e := &evaluator{p: p, fuel: StepLimit, ctors: make(map[string]*types.Ctor), solutions: make(map[int]*term), active: make(map[string]int), trustedModules: make(map[string]bool)}
+	e := &evaluator{p: p, fuel: StepLimit, ctors: make(map[string]*types.Ctor), solutions: make(map[int]*term), trustedModules: make(map[string]bool)}
 	for _, module := range p.Modules {
-		if module.ImportPath == "std/prelude" || module.ImportPath == "std/string" {
+		if module.ImportPath == "std/prelude" || module.ImportPath == "std/string" || module.ImportPath == "std/map" {
 			e.trustedModules[module.Path] = true
 		}
 	}
@@ -120,8 +120,14 @@ func (e *evaluator) eval(expr ast.Expr, env *environment, dicts dictionaryEnv) (
 	if err == nil && types.Unalias(ann.Type) == types.Int {
 		return e.normal(value)
 	}
-	if err != nil || e.assumptions == nil || types.Unalias(ann.Type) != types.Bool || value.kind == "bool" {
+	if err != nil || e.assumptions == nil {
 		return value, err
+	}
+	if _, function := types.Unalias(ann.Type).(*types.TFunc); function {
+		return value, nil
+	}
+	if types.Unalias(ann.Type) != types.Bool || value.kind == "bool" {
+		return e.assume(value), nil
 	}
 	// Compare read-back operands, not source spelling. This also alpha-normalizes
 	// lambdas and residual match binders without forcing function arguments
@@ -291,17 +297,23 @@ func (e *evaluator) evalExpr(expr ast.Expr, env *environment, dicts dictionaryEn
 		if err != nil {
 			return nil, err
 		}
+		if cond.kind != "bool" {
+			cond, err = e.normal(cond)
+			if err != nil {
+				return nil, err
+			}
+		}
 		if cond.kind == "bool" {
 			if cond.flag {
 				return e.eval(x.Then, env, dicts)
 			}
 			return e.eval(x.Else, env, dicts)
 		}
-		left, err := e.eval(x.Then, env, dicts)
+		left, err := e.evalIfBranch(x.Then, cond, true, env, dicts)
 		if err != nil {
 			return nil, err
 		}
-		right, err := e.eval(x.Else, env, dicts)
+		right, err := e.evalIfBranch(x.Else, cond, false, env, dicts)
 		return &term{kind: "if", args: []*term{cond, left, right}}, err
 	case *ast.Unary:
 		value, err := e.eval(x.X, env, dicts)
@@ -340,6 +352,17 @@ func (e *evaluator) evalExpr(expr ast.Expr, env *environment, dicts dictionaryEn
 	return nil, fmt.Errorf("unsupported law expression %T", expr)
 }
 
+func (e *evaluator) evalIfBranch(expr ast.Expr, condition *term, flag bool, env *environment, dicts dictionaryEnv) (*term, error) {
+	branch := assumption{condition: condition, value: boolean(flag), parent: e.assumptions}
+	e.assumptions = &branch
+	defer func() { e.assumptions = branch.parent }()
+	value, err := e.eval(expr, env, dicts)
+	if err != nil {
+		return nil, err
+	}
+	return e.normal(value)
+}
+
 func (e *evaluator) evalAll(exprs []ast.Expr, env *environment, dicts dictionaryEnv) ([]*term, error) {
 	args := make([]*term, len(exprs))
 	for i, expr := range exprs {
@@ -371,13 +394,9 @@ func (e *evaluator) apply(fn *term, args []*term) (*term, error) {
 	case "ctorfn":
 		return &term{kind: "ctor", ctor: fn.ctor, args: args}, nil
 	case "global":
-		if e.residualDepth != 0 && e.active[fn.name] != 0 {
-			head := *fn
-			head.kind = "opaque"
-			return &term{kind: "call", args: append([]*term{&head}, args...)}, nil
+		if !e.unfoldGlobal(fn, args) {
+			return &term{kind: "call", args: append([]*term{fn}, args...)}, nil
 		}
-		e.active[fn.name]++
-		defer func() { e.active[fn.name]-- }()
 		f := e.p.Funcs[fn.name]
 		if f.Decl.Extern != nil {
 			return e.extern(f.Decl.Extern, args)
@@ -412,6 +431,19 @@ func (e *evaluator) apply(fn *term, args []*term) (*term, error) {
 	default:
 		return &term{kind: "call", args: append([]*term{fn}, args...)}, nil
 	}
+}
+
+// Recursive globals unfold exactly when their certified decreasing argument
+// has a constructor head, independent of the surrounding evaluation context.
+// A fixed global's ordered dictionaries identify its termination environment.
+func (e *evaluator) unfoldGlobal(fn *term, args []*term) bool {
+	for _, decrease := range e.decreasing[fn.name] {
+		if sameDictionaries(decrease.dicts, fn.dicts) {
+			arg := args[decrease.position]
+			return arg.kind == "ctor" || arg.kind == "tuple"
+		}
+	}
+	return true
 }
 
 func (e *evaluator) block(block *ast.Block, env *environment, dicts dictionaryEnv) (*term, error) {

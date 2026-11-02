@@ -526,6 +526,64 @@ func (g *mirrorGenerator) recursiveValue(t types.Type, visiting map[string]bool)
 	return false
 }
 
+func (g *mirrorGenerator) sourceConstructor(c *types.Ctor) string {
+	name := g.sourceName(c.Name)
+	fields := make([]string, len(c.Fields))
+	for i, field := range c.Fields {
+		fields[i] = types.TypeStringFull(field)
+		if c.FieldNames != nil {
+			fields[i] = c.FieldNames[i] + ": " + fields[i]
+		}
+	}
+	if c.FieldNames != nil {
+		return name + " { " + strings.Join(fields, ", ") + " }"
+	}
+	if len(fields) != 0 {
+		return name + "(" + strings.Join(fields, ", ") + ")"
+	}
+	return name
+}
+
+func (g *mirrorGenerator) sourceDeclaration(d *types.DataType) string {
+	// Describe the original generic declaration, not its substituted Go mirror.
+	d = g.prog.DataTypes[d.Name]
+	name := g.sourceName(d.Name)
+	if len(d.TParams) != 0 {
+		params := make([]string, len(d.TParams))
+		for i, param := range d.TParams {
+			params[i] = param.Name
+		}
+		name += "[" + strings.Join(params, ", ") + "]"
+	}
+	ctors := make([]string, len(d.Ctors))
+	for i, c := range d.Ctors {
+		ctors[i] = g.sourceConstructor(c)
+	}
+	return "type " + name + " = " + strings.Join(ctors, " | ")
+}
+
+func mirrorLiteral(name string, c *types.Ctor) string {
+	fields := make([]string, len(c.Fields))
+	for i := range c.Fields {
+		fields[i] = mirrorField(c, i) + ": ..."
+	}
+	return name + "{" + strings.Join(fields, ", ") + "}"
+}
+
+func (g *mirrorGenerator) emitStructDoc(out *strings.Builder, name string, c *types.Ctor) {
+	fmt.Fprintf(out, "// Construct with %s; fields:", mirrorLiteral(name, c))
+	if len(c.Fields) == 0 {
+		out.WriteString(" none")
+	}
+	for i, field := range c.Fields {
+		if i != 0 {
+			out.WriteString(",")
+		}
+		fmt.Fprintf(out, " %s %s", mirrorField(c, i), g.goType(field))
+	}
+	out.WriteString(".\n")
+}
+
 func (g *mirrorGenerator) emitData(out *strings.Builder, m *mirrorType, d *types.DataType) error {
 	if g.recursiveValue(m.typ, make(map[string]bool)) {
 		return g.dataError(d, fmt.Errorf("recursive Go value type %s", m.goType))
@@ -533,7 +591,13 @@ func (g *mirrorGenerator) emitData(out *strings.Builder, m *mirrorType, d *types
 	if err := g.reserve(m.goType); err != nil {
 		return g.dataError(d, err)
 	}
+	fmt.Fprintf(out, "// %s mirrors go4t `%s`.\n", m.goType, g.sourceDeclaration(d))
 	if mirrorEnum(d) {
+		names := make([]string, len(d.Ctors))
+		for i, c := range d.Ctors {
+			names[i] = m.goType + g.sourceName(c.Name)
+		}
+		fmt.Fprintf(out, "// All constructors are nullary, so values are the constants %s (compare with == or switch on the value).\n", strings.Join(names, ", "))
 		fmt.Fprintf(out, "type %s int\nconst (\n", m.goType)
 		for i, c := range d.Ctors {
 			name := m.goType + g.sourceName(c.Name)
@@ -559,6 +623,11 @@ func (g *mirrorGenerator) emitData(out *strings.Builder, m *mirrorType, d *types
 		return g.dataError(d, err)
 	}
 	if len(d.Ctors) > 1 {
+		literals := make([]string, len(d.Ctors))
+		for i, c := range d.Ctors {
+			literals[i] = mirrorLiteral(m.goType+g.sourceName(c.Name), c)
+		}
+		fmt.Fprintf(out, "// Construct with %s; switch on the concrete struct types.\n", strings.Join(literals, ", "))
 		fmt.Fprintf(out, "type %s interface { is%s() }\n", m.goType, m.goType)
 	}
 	for _, c := range d.Ctors {
@@ -568,7 +637,9 @@ func (g *mirrorGenerator) emitData(out *strings.Builder, m *mirrorType, d *types
 			if err := g.reserve(name); err != nil {
 				return g.dataError(d, err)
 			}
+			fmt.Fprintf(out, "// %s mirrors go4t constructor `%s` of %s.\n", name, g.sourceConstructor(c), g.sourceName(d.Name))
 		}
+		g.emitStructDoc(out, name, c)
 		fmt.Fprintf(out, "type %s struct {\n", name)
 		fields := make(map[string]bool)
 		for i, f := range c.Fields {

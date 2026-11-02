@@ -226,7 +226,13 @@ func (e *evaluator) prove(law lawGoal, proof ast.Tactic, env *environment, vars 
 			return err
 		}
 		if !alphaEqual(left, right, nil) {
-			return fmt.Errorf("stuck normal forms differ\nLHS: %s\nRHS: %s", e.display(left), e.display(right))
+			stuck, differs := e.diagnose(left, right)
+			message := "stuck normal forms differ"
+			if stuck != "" {
+				message += "\n" + stuck
+			}
+			message += "\n" + differs
+			return fmt.Errorf("%s\nLHS: %s\nRHS: %s", message, e.display(left), e.display(right))
 		}
 	case *ast.TRewrite:
 		rule, err := e.rewriteRule(law, tactic, env, vars)

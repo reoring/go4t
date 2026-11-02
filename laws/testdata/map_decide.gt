@@ -1,0 +1,27 @@
+package main
+
+import "std/map"
+
+type Observed = Observed{quota: Map[String, Int], draining: Bool} deriving Eq, Debug
+type Action = Missing | Wait | Drain(Int) deriving Eq, Debug
+
+func decide(o Observed, name String) Action {
+  if map.mapMember(o.quota, name) {
+    match map.mapLookup(o.quota, name) {
+      None => Missing
+      Some(n) => if o.draining { Drain(n) } else { Wait }
+    }
+  } else { Missing }
+}
+
+law updatedQuota(o Observed, name String, n Int) {
+  decide(o{quota: map.mapInsert(o.quota, name, n)}, name) == (if o.draining { Drain(n) } else { Wait })
+}
+proof updatedQuota(o, name, n) { refl }
+
+law updatedOtherQuota(o Observed, name String, other String, n Int) {
+  decide(o{quota: map.mapInsert(o.quota, name, n)}, other) == (if other == name { if o.draining { Drain(n) } else { Wait } } else { decide(o, other) })
+}
+proof updatedOtherQuota(o, name, other, n) { if other == name { refl } else { refl } }
+
+func main() IO[Unit] { ioPure(unit()) }

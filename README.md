@@ -267,6 +267,7 @@ Commands run from the checkout root. Network-using examples are marked.
 | [go-shell](examples/go-shell) | Minimal Go shell + go4t core template. | `go4t run examples/go-shell/core.gt` |
 | [approval-controller](examples/approval-controller) | Real controller; 6 original tests unchanged. | `cd examples/approval-controller && go generate ./... && go test ./...` |
 | [attachment-repair-controller](examples/attachment-repair-controller) | Multi-step workflow decided in go4t; 22 original tests unchanged. | `cd examples/attachment-repair-controller && go generate ./... && go test ./...` |
+| [node-drain-controller](examples/node-drain-controller) | Controller written from scratch with 10 checked laws (cordon-first, DaemonSet transparency, exact timeout). | `go4t check examples/node-drain-controller/decide/decide.gt && cd examples/node-drain-controller && go generate ./... && go test ./...` |
 | [sql-service](examples/sql-service) | SQLite + Prometheus HTTP service via `bind`. | see its README |
 | [typed-extern](examples/typed-extern) | Generated bindings, ABI adapters, opaque method handles. | `go4t run examples/typed-extern` |
 | [deps](examples/deps) | Offline Go-module dependency with local replacement. | `go4t run examples/deps/app` |

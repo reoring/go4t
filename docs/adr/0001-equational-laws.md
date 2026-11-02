@@ -178,6 +178,14 @@ proof cancelIdempotent(order) {
 - `match f(x)` で `f(x)` がスタックする本体。`match x` で `f(x)` が簡約される場合のみ進む。
 - 診断品質: 失敗時はスタックした正規形を表示するのみ。次の `match` / `if` は利用者が正規形を読んで決める。
 
+### 実地評価（2026-11-02、`examples/node-drain-controller`、法則 10 本）
+
+- 効いた点は 1 つに尽きる: 決定の優先順（取り下げ → 消失 → cordon → 期限 → PDB → 退避）を法則として先に書き、全称で固定できた。「期限は pods と PDB に依らず効く」は Go ではテーブルテストでしか言えず、順序を入れ替えると黙って壊れる。法則を先に書くと `_drain` が期限を最初に見る設計が逆算された。
+- `o{field: v}` が「他は任意」の全称として自然に読め、10 本中 6 本が `refl` 一発（レコード更新の射影規則が前提）。破壊時の診断 `LHS: Evict(name) RHS: MarkDrained` は反例列挙より速い。
+- 摩擦: `refl` が閉じない瞬間に評価器内部（残留・opaque）を読む必要があり、1 本（`skipsDaemonSet`）で全体の半分の時間を使った → 再帰呼び出しの unfold 規則を対称化して解消（Follow-up 参照）。スタック正規形が 700 文字超で止まっている部分項の印がない → 診断改善。生成 Go のミラー型の形（nullary sum は `int` 列挙、ペイロード付きは interface）は生成してから知る → 生成ファイルにドキュメントコメント。
+- 範囲の条件: Observed が一階 ADT + List + Option + Int で閉じる限り。Map を持つ観測状態や文字列の中身に依存する分岐は法則の外になり、実コントローラでは大抵どこかにある。Go シェル側（observe/apply）は何も得しない。利点は `decide` の 100 行に閉じる。
+- 結論: 決定コアが一階データで閉じるコントローラなら法則込みで切り出す価値がはっきり出た。「決定コアだけを書く言語」として使えば十分便利、それ以上を期待すると足りない。
+
 ## Consequences
 
 - 肯定: 決定コアの法則（冪等性、不変条件、二つの decide 実装の同値性）をコンパイル時に検査できる。既存の網羅性検査・純粋性・正格意味論がそのまま健全性の前提になる。HM 推論と Go 生成は無変更。
@@ -197,7 +205,8 @@ proof cancelIdempotent(order) {
 - [x] `types.Program` の注釈が評価器の入力として十分かを確認した（2026-11-02）。結果は Context「確認済みの事実」末尾を参照。
 - [x] 実装（2026-11-02、採択後）: 文法 `law`/`proof`/`refl`/`rewrite`（`lexer/`, `parser/`, `format/`, `ast/walk.go`, `ast/span.go`）、検査器（`types/laws.go`: `Program.Laws/Proofs`, `RefLaw`, `LawSymbol/ProofSymbol`、func/law は同一名前空間で重複拒否）、`laws.CheckProgram(p) []*types.Error`（PoC の Go API と `law_`/`hyp_` 規約は削除。停止性検査 `laws/termination.go` は SCC 単位で共通の減少位置を要求、law 参照グラフは依存順に証明し循環は SCC ごとに 1 回報告。`std/string` 32 extern を `go4t/rt` の実体で定数畳み込み: 到達範囲は 184/368 対象内、`std/string` 32/32）、`go4t check` 配線（`cmd/go4t/main.go`、失敗は戦術位置に `^~~~` 付き診断、exit 1。`build/run/test/eval` は無視、codegen 出力は law の有無で同一）、LSP 診断・シンボル、SPEC §6.5 / §8 / §9、tutorial §13、README、`docs/stdlib.md` の Law-eligible 列。検証: `go build ./... && go vet ./... && go test ./...` 全パス（`laws` 61s）。tutorial §13 と README の law 例 4 本を実 CLI `go4t check` で実行し exit 0、`cancel_bad1` は `17:53: law cancelIdempotent: stuck normal forms differ` を出力。
 - 保留（2026-11-02 判断: 需要の証拠が出るまで ADR を立てない）:
-  - `std/map`・`set`・`array`: 定数畳み込みのみの拡張は価値が低い（Map を使う法則は Map 自体を量化するため）。記号的正規形（順序付き連想リスト + `insert`/`lookup`/`delete` の書き換え規則、キー `Ord` 依存、`rt` との一致の性質テスト）が要る。**トリガー**: `Map` を引数に取る `decide` の法則を書く必要が出た時。実績の 2 コントローラ移植は `List` で Observed を表しており未発生。
+  - `std/map`: **ADR 0002 に移行**（2026-11-02、`examples/node-drain-controller` の実地評価でトリガー成立と判断）。`set`・`array` は引き続き保留。
+  - 再帰呼び出しの unfold 規則（2026-11-02 変更、`laws/eval.go` `unfoldGlobal` + `laws/termination.go`）: 旧規則「残留コンテキスト下で再入した呼び出しは opaque」は非対称で、`decide(o{pods: Cons(ds, rest)}) == decide(o{pods: rest})` の両辺が `_firstEvictable(rest)` の unfold 段数で食い違い `refl` が閉じなかった。新規則: 停止性検査が認定した SCC の減少位置の引数が**コンストラクタ／タプル項のときだけ** unfold し、そうでなければ呼び出し側・残留の別なく中立の呼び出し項として残す（非再帰関数は常に unfold）。項サイズで有界、`StepLimit` が後ろ盾。帰結: `skipsDaemonSet`/`skipsMirror` が `refl` で閉じる。`len(app)` 等の帰納法則は両辺の中立 `len(r)` に IH が当たるので従来どおり。`stdLenApp` のスタック表示は展開済み `match` ではなく `fold(r, 1, …)` の中立形になる。開いた項の性質テストは 0 不一致。
     - 将来 ADR の入力（レビューより）: (a) 正規形は「ソート済みキー列の連想リスト」。キーが Int/String 定数なら `insert`/`lookup`/`delete` は定数比較で確定。自由変数キーが混ざると `lookup(insert(m, k, v), k')` は `if k == k' { v } else { lookup(m, k') }` までしか進まず、`if` 戦術で `k == k'` を仮定する運用になる（`freshness` のガードと同じ使い勝手で受け入れ可能）。(b) 汚染分類に「評価器が意味論を持つ extern」という第三の分類が要る（定数畳み込みのホワイトリストとは別）。健全性は既存の開いた項の性質テストで検証できる。(c) 最小集合: 決定コアが Map に使うのは `lookup`/`member`/`size`/`fold` 程度。`lookup`・`member` だけ代数的にし `fold` は対象外でも実コントローラの大半は書ける。到達範囲表に「Map 使用関数のうち lookup/member のみ経由」の列を足して最小集合の根拠にする。
   - レコード更新の射影規則（2026-11-02 追加、`laws/eval.go` `projectUpdate` + `laws/resume.go`）: `(r{f: v}).f → v`、`(r{f: v}).g → r.g` は単一コンストラクタのみ。多コンストラクタ共通フィールド（`RecordCases`）で許すと `r` のコンストラクタが更新対象外の場合に実行時と食い違うため除外が健全。実コントローラ `examples/attachment-repair-controller` で `decide(o{mode: Live(ReadFailed)})` と `_approvalState(o, Read(a{deleting: true}))` の法則が `refl` のみで閉じることを確認。
   - 比較の順序推論: int64 ラップ下で素朴な線形算術は不健全（`a + 1 > a` が偽）。設計の主題は「非オーバーフローを仮定として持ち込む方法」になる。**トリガー**: `a < b && b < c ⇒ a < c` 型の不変条件を法則にする必要が出た時。

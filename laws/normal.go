@@ -32,8 +32,8 @@ func integer(n int64) *term { return &term{kind: "int", number: n} }
 func text(s string) *term { return &term{kind: "string", name: s} }
 func boolean(b bool) *term { return &term{kind: "bool", flag: b} }
 
-// assume receives a normalized Bool term. Free IDs must still agree; only
-// binders may be alpha-renamed. In particular this is not an arithmetic solver.
+// Assumption keys are normalized terms. Free IDs must still agree; only binders
+// may be alpha-renamed. This substitutes branch facts, not arbitrary equations.
 func (e *evaluator) assume(value *term) *term {
 	for a := e.assumptions; a != nil; a = a.parent {
 		if alphaEqual(value, a.condition, nil) {
@@ -50,12 +50,15 @@ func (e *evaluator) normal(value *term) (*term, error) {
 	if err := e.step(); err != nil {
 		return nil, err
 	}
-	refinedCall := value.kind == "call" && len(e.solutions) != 0 && e.hasSolution(value)
 	switch value.kind {
 	case "var":
 		if solution := e.solutions[value.id]; solution != nil {
 			return e.normal(solution)
 		}
+	case "if":
+		return e.normalIf(value)
+	case "match":
+		return e.normalMatch(value)
 	case "closure", "global", "method", "ctorfn":
 		args := make([]*term, value.arity)
 		binders := make([]*term, value.arity+1)
@@ -80,6 +83,11 @@ func (e *evaluator) normal(value *term) (*term, error) {
 	}
 	var args []*term
 	for i, arg := range value.args {
+		// A neutral call retains its global or method head, rather than
+		// eta-expanding that head as a standalone function value.
+		if value.kind == "call" && i == 0 && (arg.kind == "global" || arg.kind == "method") {
+			continue
+		}
 		normal, err := e.normal(arg)
 		if err != nil {
 			return nil, err
@@ -91,31 +99,11 @@ func (e *evaluator) normal(value *term) (*term, error) {
 			args[i] = normal
 		}
 	}
-	var arms []normalArm
-	for i, arm := range value.arms {
-		guard, err := e.normal(arm.guard)
-		if err != nil {
-			return nil, err
-		}
-		body, err := e.normal(arm.body)
-		if err != nil {
-			return nil, err
-		}
-		if (guard != arm.guard || body != arm.body) && arms == nil {
-			arms = append([]normalArm(nil), value.arms...)
-		}
-		if arms != nil {
-			arms[i] = normalArm{pattern: arm.pattern, guard: guard, body: body}
-		}
-	}
-	changed := args != nil || arms != nil
+	changed := args != nil
 	if changed {
 		result := *value
 		if args != nil {
 			result.args = args
-		}
-		if arms != nil {
-			result.arms = arms
 		}
 		value = &result
 	}
@@ -130,18 +118,121 @@ func (e *evaluator) normal(value *term) (*term, error) {
 		if changed {
 			return e.rebuildPolynomial(value)
 		}
-	case "call":
-		if changed && refinedCall && value.args[0].kind == "opaque" {
-			head := *value.args[0]
-			head.kind = "global"
-			result, err := e.apply(&head, value.args[1:])
-			if err != nil {
-				return nil, err
-			}
-			return e.normal(result)
-		}
 	}
 	return e.resume(value)
+}
+
+// patternValue turns residual binders into their neutral values. Wildcards in
+// source patterns are freshened too, so reconstructed values never escape with
+// an unbound field. As-pattern aliases denote the same reconstructed value.
+func (e *evaluator) patternValue(pattern *term) *term {
+	switch pattern.kind {
+	case "bind":
+		return &term{kind: "var", id: pattern.id, name: pattern.name}
+	case "wild":
+		return nil
+	case "as":
+		value := e.patternValue(pattern.args[1])
+		if value != nil {
+			e.assumptions = &assumption{condition: e.patternValue(pattern.args[0]), value: value, parent: e.assumptions}
+		}
+		return value
+	case "ctor", "tuple":
+		if len(pattern.args) == 0 {
+			return pattern
+		}
+		args := make([]*term, len(pattern.args))
+		for i, field := range pattern.args {
+			args[i] = e.patternValue(field)
+			if args[i] == nil {
+				return nil
+			}
+		}
+		return &term{kind: pattern.kind, ctor: pattern.ctor, args: args}
+	default:
+		return pattern
+	}
+}
+
+func (e *evaluator) refineMatch(scrutinee, pattern *term) {
+	if value := e.patternValue(pattern); value != nil {
+		e.assumptions = &assumption{condition: scrutinee, value: value, parent: e.assumptions}
+	}
+}
+
+func (e *evaluator) normalIf(value *term) (*term, error) {
+	condition, err := e.normal(value.args[0])
+	if err != nil {
+		return nil, err
+	}
+	if condition.kind == "bool" {
+		if condition.flag {
+			return e.normal(value.args[1])
+		}
+		return e.normal(value.args[2])
+	}
+	var branches [2]*term
+	for i, body := range value.args[1:] {
+		branch := assumption{condition: condition, value: boolean(i == 0), parent: e.assumptions}
+		e.assumptions = &branch
+		branches[i], err = e.normal(body)
+		e.assumptions = branch.parent
+		if err != nil {
+			return nil, err
+		}
+	}
+	if condition == value.args[0] && branches[0] == value.args[1] && branches[1] == value.args[2] {
+		return e.assume(value), nil
+	}
+	return e.assume(&term{kind: "if", args: []*term{condition, branches[0], branches[1]}}), nil
+}
+
+func (e *evaluator) normalMatch(value *term) (*term, error) {
+	scrutinee, err := e.normal(value.args[0])
+	if err != nil {
+		return nil, err
+	}
+	if scrutinee != value.args[0] {
+		result := *value
+		result.args = []*term{scrutinee}
+		value = &result
+	}
+	// Select a known arm before reading back any unreachable bodies.
+	resumed, err := e.resume(value)
+	if err != nil || resumed != value {
+		return resumed, err
+	}
+	var arms []normalArm
+	for i, arm := range value.arms {
+		guard, body, err := e.normalMatchArm(scrutinee, arm)
+		if err != nil {
+			return nil, err
+		}
+		if (guard != arm.guard || body != arm.body) && arms == nil {
+			arms = append([]normalArm(nil), value.arms...)
+		}
+		if arms != nil {
+			arms[i] = normalArm{pattern: arm.pattern, guard: guard, body: body}
+		}
+	}
+	if arms != nil {
+		result := *value
+		result.arms = arms
+		value = &result
+	}
+	return e.assume(value), nil
+}
+
+func (e *evaluator) normalMatchArm(scrutinee *term, arm normalArm) (*term, *term, error) {
+	parent := e.assumptions
+	e.refineMatch(scrutinee, arm.pattern)
+	defer func() { e.assumptions = parent }()
+	guard, err := e.normal(arm.guard)
+	if err != nil {
+		return nil, nil, err
+	}
+	body, err := e.normal(arm.body)
+	return guard, body, err
 }
 
 func copyBindings(bound map[int]int) map[int]int {
@@ -342,6 +433,14 @@ func (e *evaluator) display(t *term) string {
 		return name+"("+strings.Join(args, ", ")+")"
 	case "tuple":
 		return "("+strings.Join(args, ", ")+")"
+	case "map":
+		entries := make([]string, len(args)/2)
+		for i := range entries { entries[i] = args[2*i]+": "+args[2*i+1] }
+		return "map{"+strings.Join(entries, ", ")+"}"
+	case "insert":
+		return "insert("+strings.Join(args, ", ")+")"
+	case "mapfrom":
+		return "fromListFold("+strings.Join(args, ", ")+")"
 	case "lambda":
 		return "func("+strings.Join(args[:len(args)-1], ", ")+") => "+args[len(args)-1]
 	case "sum":
@@ -356,7 +455,7 @@ func (e *evaluator) display(t *term) string {
 			args = append([]string{strconv.FormatInt(t.number, 10)}, args...)
 		}
 		return "("+strings.Join(args, " * ")+")"
-	case "opaque":
+	case "global", "method":
 		return e.sourceName(t.name)
 	case "binary":
 		return "("+args[0]+" "+t.name+" "+args[1]+")"

@@ -71,31 +71,29 @@ func (e *evaluator) resolve(ref types.DictRef, env dictionaryEnv) (*dictionary, 
 		if err != nil {
 			return nil, err
 		}
-		for dict.instance.Class.Name != ref.Class {
-			inst := dict.instance
-			var super *types.Instance
-			for _, candidate := range e.p.Instances {
-				if candidate.Class.Name == inst.Class.Super && candidate.TypeCon == inst.TypeCon {
-					super = candidate
-					break
-				}
-			}
-			if super == nil {
-				return nil, fmt.Errorf("missing superclass instance %s", ref.Class)
-			}
-			bound, err := bindDictionaries(nil, inst.Context, dict.args)
-			if err != nil {
-				return nil, err
-			}
-			args, err := e.resolveAll(inst.SuperArgs, bound)
-			if err != nil {
-				return nil, err
-			}
-			dict = &dictionary{instance: super, args: args}
-		}
-		return dict, nil
+		return e.superDictionary(dict, ref.Class)
 	}
 	return nil, fmt.Errorf("invalid dictionary annotation")
+}
+
+func (e *evaluator) superDictionary(dict *dictionary, class string) (*dictionary, error) {
+	for dict.instance.Class.Name != class {
+		inst := dict.instance
+		var super *types.Instance
+		for _, candidate := range e.p.Instances {
+			if candidate.Class.Name == inst.Class.Super && candidate.TypeCon == inst.TypeCon {
+				super = candidate
+				break
+			}
+		}
+		if super == nil { return nil, fmt.Errorf("missing superclass instance %s", class) }
+		bound, err := bindDictionaries(nil, inst.Context, dict.args)
+		if err != nil { return nil, err }
+		args, err := e.resolveAll(inst.SuperArgs, bound)
+		if err != nil { return nil, err }
+		dict = &dictionary{instance: super, args: args}
+	}
+	return dict, nil
 }
 
 func (e *evaluator) methodBody(name string, dicts []*dictionary) (*ast.InstMethod, dictionaryEnv, error) {
@@ -133,11 +131,25 @@ func (e *evaluator) method(name string, dicts []*dictionary, args []*term) (*ter
 	if err != nil {
 		return nil, err
 	}
+	if !e.unfoldMethod(method, dicts, args) {
+		fn := &term{kind: "method", name: name, dicts: dicts, arity: len(args)}
+		return &term{kind: "call", args: append([]*term{fn}, args...)}, nil
+	}
 	env := child(nil)
 	for i, param := range method.Params {
 		env.values[param] = args[i]
 	}
 	return e.block(method.Body, env, bound)
+}
+
+func (e *evaluator) unfoldMethod(method *ast.InstMethod, dicts []*dictionary, args []*term) bool {
+	for _, decrease := range e.decreasingMethods[method] {
+		if sameDictionaries(decrease.dicts, dicts) {
+			arg := args[decrease.position]
+			return arg.kind == "ctor" || arg.kind == "tuple"
+		}
+	}
+	return true
 }
 
 func primitive(ref *ast.ExternRef) bool {
@@ -148,7 +160,7 @@ func primitive(ref *ast.ExternRef) bool {
 	case "EqInt", "LtInt", "EqString", "LtString", "EqBool", "ShowInt", "ShowBool", "ShowString", "DebugString", "UnitValue":
 		return true
 	}
-	return stringPrimitive(ref.Name)
+	return stringPrimitive(ref.Name) || modeledMap(ref.Name)
 }
 
 func externError(ref *ast.ExternRef) error {
@@ -158,6 +170,9 @@ func externError(ref *ast.ExternRef) error {
 func (e *evaluator) extern(ref *ast.ExternRef, args []*term) (*term, error) {
 	if !primitive(ref) {
 		return nil, externError(ref)
+	}
+	if modeledMap(ref.Name) {
+		return e.mapExtern(ref.Name, args)
 	}
 	if ref.Name == "UnitValue" {
 		return &term{kind: "unit"}, nil
@@ -169,7 +184,20 @@ func (e *evaluator) extern(ref *ast.ExternRef, args []*term) (*term, error) {
 		}
 	}
 	if !constant {
-		return &term{kind: "primitive", name: "rt."+ref.Name, args: args}, nil
+		// Reflexive comparisons decide even on symbolic operands: Int and
+		// String equality is total and antisymmetric at runtime (Float is
+		// excluded from laws), so EqX(a, a) is true and LtX(a, a) is false.
+		switch ref.Name {
+		case "EqInt", "EqString", "EqBool":
+			if alphaEqual(args[0], args[1], map[int]int{}) {
+				return boolean(true), nil
+			}
+		case "LtInt", "LtString":
+			if alphaEqual(args[0], args[1], map[int]int{}) {
+				return boolean(false), nil
+			}
+		}
+		return &term{kind: "primitive", name: "rt." + ref.Name, args: args}, nil
 	}
 	if stringPrimitive(ref.Name) {
 		return e.stringExtern(ref.Name, args), nil
