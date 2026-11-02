@@ -11,6 +11,7 @@ Commands run from the checkout root. Network-using examples are marked.
 | [attachment-repair-controller](attachment-repair-controller) | Multi-step workflow decided in go4t; 22 original tests unchanged. | `cd examples/attachment-repair-controller && go generate ./... && go test ./...` |
 | [node-drain-controller](node-drain-controller) | Controller written from scratch with 10 checked laws (cordon-first, DaemonSet transparency, exact timeout). | `go4t check examples/node-drain-controller/decide/decide.gt && cd examples/node-drain-controller && go generate ./... && go test ./...` |
 | [sql-service](sql-service) | SQLite + Prometheus HTTP service via `bind`. | see its README |
+| [go-import](go-import) | `import "go:net/http"` / `go:strings` bound at build time: tuples, handle fields, upcasts, package vars (loopback). | `go4t run examples/go-import` |
 | [typed-extern](typed-extern) | Generated bindings, ABI adapters, opaque method handles. | `go4t run examples/typed-extern` |
 | [deps](deps) | Offline Go-module dependency with local replacement. | `go4t run examples/deps/app` |
 | [calc](calc) | Expression interpreter with `Result` errors. | `go4t run examples/calc/main.gt` |

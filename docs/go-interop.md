@@ -32,15 +32,49 @@ Runnable template: [examples/go-shell](../examples/go-shell). Real ports:
 
 ## Calling Go from go4t
 
-```sh
-go4t bind strings --prefix str          # prints extern declarations
-go4t bind modernc.org/sqlite -o bindings.gt
+Import a Go package directly; bindings are generated at build time and never
+committed:
+
+```go4t
+import "go:strings"
+import gohttp "go:net/http"
+
+let (scheme, rest, found) = strings.cut(url, "://")
+request <- gohttp.newRequest("GET", url, strings.newReader("") |> strings.readerAsReader)
+gohttp.requestSetHeader(request, map.mapInsert(gohttp.requestHeader(request), "X-Who", ["Ada"]))
+response <- gohttp.clientDo(gohttp.defaultClient(), request)
 ```
 
-Generated externs cover functions, methods on opaque handles, slices, options
-and errors; signatures that cannot be mirrored get a skip comment instead of a
-wrong binding. [examples/sql-service](../examples/sql-service) is an HTTP service
-over SQLite with Prometheus metrics built this way; [examples/typed-extern](../examples/typed-extern)
+Rules (ADR 0003, SPEC §8):
+
+- Functions, methods, package variables and basic constants become externs;
+  exported fields of opaque structs get `<type><Field>` getters and
+  `<type>Set<Field>` setters (`IO[Unit]`); opaque structs get `new<Type>()`.
+- `(A, B)` results are tuples, `(A, B, error)` is `IO[(A, B)]`, `(A, bool)` is
+  `Option[A]`; `iter.Seq[T]` results are `List[T]`; returned funcs are go4t
+  functions. Still skipped: channels, generic functions, more than three
+  non-error results.
+- Every Go type is declared once, in the module of the package that owns it;
+  `net/http` bindings refer to `io.Reader` as `go_io.Reader` and the loader
+  binds `go:io` transitively. There is no subtyping: convert with the generated
+  upcasts (`strings.readerAsReader`, `goio.readCloserAsReader`).
+- The standard library binds without a `go.mod`; third-party packages need the
+  build module to require them. Shims are written beneath the build output
+  (`<out>/go4tbind/<path>/`, gitignored with `*_gen/`); `go4t check` writes nothing.
+- Each call copies records across the boundary; handles keep identity.
+
+The runnable example is [examples/go-import](../examples/go-import).
+
+`go4t bind` still prints or writes the same declarations for inspection:
+
+```sh
+go4t bind strings --prefix str          # prints extern declarations
+go4t bind modernc.org/sqlite -o bindings.gt --shim shimdir
+```
+
+Signatures that cannot be mirrored get a skip comment instead of a wrong
+binding. [examples/sql-service](../examples/sql-service) predates `go:` imports
+and keeps its generated `go4tbind/` tree; [examples/typed-extern](../examples/typed-extern)
 shows the ABI adapters. `std/http` needs no bindings.
 
 ## Projects and dependencies

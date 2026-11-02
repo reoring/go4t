@@ -26,11 +26,11 @@ var preludeOwners = map[string]string{
 var jsonIntrinsics = strings.Fields("Json JNull JBool JNum JStr JArr JObj Encode Decode encode decode _jsonObject _jsonInt _jsonErrorAt _jsonFieldPath _jsonAt _jsonDecodeAt _jsonField _jsonArray _jsonValues _jsonDecodeList _jsonDecodeFields")
 
 type moduleScope struct {
-	module                *ast.Module
-	values, types         map[string]string
-	laws, proofs          map[string]string
-	prefix                string
-	entry                 bool
+	module        *ast.Module
+	values, types map[string]string
+	laws, proofs  map[string]string
+	prefix        string
+	entry         bool
 }
 type moduleResolver struct {
 	modules                       []*ast.Module
@@ -344,7 +344,7 @@ func (r *moduleResolver) typ(t ast.Type, scope map[string]bool) {
 	}
 }
 func (r *moduleResolver) shadow(name string, pos ast.Pos) {
-	if strings.HasPrefix(r.scope.module.ImportPath, "std/") {
+	if path := r.scope.module.ImportPath; strings.HasPrefix(path, "std/") || strings.HasPrefix(path, "go:") {
 		return
 	}
 	if r.implicitValues[name] != "" || r.implicitTypes[name] != "" {

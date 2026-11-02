@@ -61,7 +61,7 @@ func TestMethodBindingBoundaries(t *testing.T) {
 		"extern func widgetPointer(recv Widget, p0 Option[String]) String",
 		"extern func widgetVariadic(recv Widget, p0 List[String]) String",
 		"extern func widgetVoid(recv Widget) Unit",
-		"// skipped: Widget.Multiple (unsupported multiple results)",
+		"extern func widgetMultiple(recv Widget) (String, String)",
 		"extern func widgetResultPointer(recv Widget) Option[Widget]",
 	} {
 		if !strings.Contains(decls, want) {

@@ -42,23 +42,9 @@ func buildModuleRoot(base string) string {
 
 // prepareBuildModule retains a usable surrounding module; otherwise it supplies
 // the runtime carried by this compiler without changing the user's directory.
-func prepareBuildModule(root string, program *types.Program) (buildModule, error) {
+func prepareBuildModule(root string) (buildModule, error) {
 	if root != "" {
 		return buildModule{dir: root}, nil
-	}
-	// Foreign dependencies belong to an application module, not to an implicit
-	// download or a copy of the caller's unrelated module. Pick errors stably.
-	foreign := ""
-	for _, function := range program.Funcs {
-		if ref := function.Decl.Extern; ref != nil {
-			path := ref.ImportPath
-			if path != "go4t/rt" && !strings.HasPrefix(path, "go4t/rt/") && (foreign == "" || path < foreign) {
-				foreign = path
-			}
-		}
-	}
-	if foreign != "" {
-		return buildModule{}, fmt.Errorf("extern %q requires a Go module: run inside a directory with go.mod that provides it", foreign)
 	}
 	dir, err := os.MkdirTemp("", "go4t-module-")
 	if err != nil {
@@ -75,6 +61,30 @@ func prepareBuildModule(root string, program *types.Program) (buildModule, error
 		return buildModule{}, err
 	}
 	return module, nil
+}
+
+// checkForeign retains the explicit-extern contract outside application modules.
+// go: bindings have already been resolved in the selected module by the adapter.
+func (module buildModule) checkForeign(program *types.Program) error {
+	if !module.temporary {
+		return nil
+	}
+	foreign := ""
+	for name, function := range program.Funcs {
+		if strings.HasPrefix(program.Owners[name], "go:") {
+			continue
+		}
+		if ref := function.Decl.Extern; ref != nil {
+			path := ref.ImportPath
+			if path != "go4t/rt" && !strings.HasPrefix(path, "go4t/rt/") && (foreign == "" || path < foreign) {
+				foreign = path
+			}
+		}
+	}
+	if foreign != "" {
+		return fmt.Errorf("extern %q requires a Go module: run inside a directory with go.mod that provides it", foreign)
+	}
+	return nil
 }
 
 func (module buildModule) close() {

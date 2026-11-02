@@ -37,13 +37,22 @@ type server struct {
 	initialized, shutdown bool
 	documents             map[string]document
 	programs              map[string]*snapshot
+	goBinder              func(directory string) modules.GoBinder
+}
+
+// Options supplies a fresh import binder for each checked source directory.
+type Options struct {
+	GoBinder func(directory string) modules.GoBinder
 }
 
 // Serve reads Content-Length framed JSON-RPC messages until exit or EOF. It
 // writes only protocol messages to out. The caller owns both streams. Requests
 // are processed in order, so every response observes all preceding full changes.
-func Serve(in io.Reader, out io.Writer) error {
+func Serve(in io.Reader, out io.Writer, options ...Options) error {
 	s := &server{out: out, documents: map[string]document{}, programs: map[string]*snapshot{}}
+	for _, option := range options {
+		s.goBinder = option.GoBinder
+	}
 	reader := bufio.NewReader(in)
 	for {
 		data, err := readMessage(reader)
@@ -369,7 +378,11 @@ func (s *server) check(dir, closed string) error {
 		files = append(files, file)
 	}
 	if len(byFile) == 0 && len(files) > 0 {
-		loaded, err := modules.LoadFiles(files, dir)
+		var options modules.Options
+		if s.goBinder != nil {
+			options.GoBinder = s.goBinder(dir)
+		}
+		loaded, err := modules.LoadFiles(files, dir, options)
 		var program *types.Program
 		if err == nil {
 			for _, module := range loaded {

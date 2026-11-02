@@ -63,7 +63,7 @@ func runBind(args []string) error {
 	var loader extern.Loader
 	packageName := "main"
 	if len(inputs) != 0 {
-		loaded, err := modules.Load(inputs)
+		loaded, err := parseFiles(inputs)
 		if err != nil {
 			return diagnostic(inputs[0], err)
 		}

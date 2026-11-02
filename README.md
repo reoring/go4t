@@ -112,7 +112,8 @@ in two `if`s. See [What go4t is not](#what-go4t-is-not).
   fibers (`fork`/`await`/race/timeout) with cancellation.
 - `std`: strings, numbers, collections, JSON, HTTP client/server, regex,
   lazy values, `State`, concurrency, file/process I/O.
-- Go interop both ways: `go4t bind` generates typed externs for any Go package;
+- Go interop both ways: `import "go:net/http"` binds any Go package at build
+  time (functions, methods, fields, tuples, upcasts; nothing committed);
   `go4t build --emit-go` exports go4t functions, records and sums as natural Go
   types.
 - Tooling: `check`, `build`, `run`, `test`, `eval`, `fmt`, LSP server,
@@ -180,7 +181,8 @@ calling Go from go4t (`go4t bind`) and project/dependency layout are in
 ## What go4t is not
 
 - **Not a Go replacement.** Services, caches, clients and anything that is
-  mostly I/O stay in Go. Bind them; do not port them.
+  mostly I/O can be written in go4t against `go:` imports, but gain little from
+  it; the decision core is where exhaustiveness and laws pay.
 - **Not an effect-system research language.** There is one effect type, `IO`,
   and no mutable references in the language.
 - **Not a proof assistant.** Laws are an equational checker over first-order

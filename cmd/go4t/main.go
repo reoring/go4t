@@ -44,7 +44,9 @@ func run(args []string) error {
 		if len(args) != 1 {
 			return errors.New(usage)
 		}
-		return lsp.Serve(os.Stdin, os.Stdout)
+		return lsp.Serve(os.Stdin, os.Stdout, lsp.Options{
+			GoBinder: func(directory string) modules.GoBinder { return newGoImportBinder(directory) },
+		})
 	}
 	if len(args) > 0 && args[0] == "bind" {
 		return runBind(args[1:])
@@ -97,7 +99,43 @@ func run(args []string) error {
 		return errors.New(usage)
 	}
 	file := inputs[0]
-	files, err := parseFiles(inputs)
+	var module buildModule
+	var dir, outputRoot string
+	var options []modules.Options
+	if command != "check" {
+		if outputDir == "" {
+			outputDir = strings.TrimSuffix(file, filepath.Ext(file)) + "_gen"
+			if info, statErr := os.Stat(file); statErr == nil && info.IsDir() {
+				outputDir = filepath.Join(file, "_gen")
+			}
+		}
+		var err error
+		dir, err = filepath.Abs(outputDir)
+		if err != nil {
+			return diagnostic(file, err)
+		}
+		outputRoot = buildModuleRoot(dir)
+		root := outputRoot
+		if command == "build" && root == "" {
+			base, err := inputDirectory(inputs)
+			if err != nil {
+				return diagnostic(file, err)
+			}
+			root = buildModuleRoot(base)
+		}
+		module, err = prepareBuildModule(root)
+		if err != nil {
+			return err
+		}
+		defer module.close()
+		if command == "run" && module.temporary {
+			dir = filepath.Join(module.dir, "prog")
+		}
+		binder := newGoImportBinder(module.dir)
+		binder.outputDir = dir
+		options = append(options, modules.Options{GoBinder: binder})
+	}
+	files, err := parseFiles(inputs, options...)
 	if err != nil {
 		return err
 	}
@@ -116,30 +154,9 @@ func run(args []string) error {
 		return nil
 	}
 
-	if outputDir == "" {
-		outputDir = strings.TrimSuffix(file, filepath.Ext(file)) + "_gen"
-		if info, statErr := os.Stat(file); statErr == nil && info.IsDir() {
-			outputDir = filepath.Join(file, "_gen")
-		}
-	}
-	dir, err := filepath.Abs(outputDir)
-	if err != nil {
-		return diagnostic(file, err)
-	}
-	outputRoot := buildModuleRoot(dir)
-	root := outputRoot
-	if command == "build" && root == "" {
-		base, err := inputDirectory(inputs)
-		if err != nil {
-			return diagnostic(file, err)
-		}
-		root = buildModuleRoot(base)
-	}
-	module, err := prepareBuildModule(root, program)
-	if err != nil {
+	if err := module.checkForeign(program); err != nil {
 		return err
 	}
-	defer module.close()
 	sources, err := codegen.GenerateInDir(program, goPackage, module.dir)
 	if err != nil {
 		var generated *types.Error
@@ -147,9 +164,6 @@ func run(args []string) error {
 			generated.Msg = generated.Message(fullTypes)
 		}
 		return diagnostic(file, err)
-	}
-	if command == "run" && module.temporary {
-		dir = filepath.Join(module.dir, "prog")
 	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return diagnostic(file, err)
@@ -202,8 +216,15 @@ type exitStatus int
 
 func (s exitStatus) Error() string { return fmt.Sprintf("program exited with status %d", s) }
 
-func parseFiles(inputs []string) ([]*ast.Module, error) {
-	modules, err := modules.Load(inputs)
+func parseFiles(inputs []string, options ...modules.Options) ([]*ast.Module, error) {
+	if len(options) == 0 {
+		base, err := inputDirectory(inputs)
+		if err != nil {
+			return nil, err
+		}
+		options = append(options, modules.Options{GoBinder: newGoImportBinder(base)})
+	}
+	modules, err := modules.Load(inputs, options...)
 	if err != nil {
 		file := "go4t"
 		if len(inputs) != 0 {

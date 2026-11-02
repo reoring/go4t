@@ -1394,20 +1394,38 @@ handles, not invented record layouts. Reserved names suggest a prefix.
 | float32/64 | Float | Binary64 on the go4t side |
 | []byte | String | Copy raw bytes, not a text decoding |
 | []T | List[T] | Recursive copy, nil/empty becomes Nil |
+| iter.Seq[T], iter.Seq2[K, V] results | List[T], List[(K, V)] | Eager materialisation in iteration order; iterator parameters are skipped |
 | map[K]T with scalar K | Map[K, T] | Recursive copy; scalar key ordering |
 | *T with a value mirror | Option[T] | nil becomes None; non-nil becomes Some(copy) |
 | time.Duration | Int | Nanoseconds |
 | time.Time | Int | UnixNano; zero time becomes 0, and 0 reconstructs zero time |
 | error in a record field | Option[String] | nil becomes None; otherwise the message; reverse conversion uses a new error |
-| Exported struct with mirrorable exported fields | Record named after the struct | One declaration per binding file, first field letter lower-cased, `deriving Eq, Debug`; promoted embedded fields follow Go lookup, ambiguous fields omitted, unexported fields ignored |
+| Exported struct with mirrorable exported fields | Record named after the struct | Declared in its owning Go package's binding module, first field letter lower-cased, `deriving Eq, Debug`; promoted embedded fields follow Go lookup, ambiguous fields omitted, unexported fields ignored |
 | Named non-struct with mirrorable underlying type | Underlying mirror | No distinct go4t type; shim performs the named Go conversion |
 | Other exported named types | Opaque handle | Includes interfaces, cyclic structs and structs with nonmirrorable fields |
+| Opaque named struct value or pointer | Same opaque handle | A value result is copied into one fresh mutable pointer box; a pointer preserves identity; passing a boxed handle back as a Go value dereferences it |
+| Mirrorable exported field of an opaque named struct | `<type><Field>(recv T) F`, `<type>Set<Field>(recv T, value F) IO[Unit]` | Pure getter; deferred, cancellation-aware setter mutates the handle; unmirrorable fields or binding-name collisions receive a skip comment |
+| Named T implementing exported interface I | `<t>As<I>(recv T) I` | Pure upcast in T's owning module; interfaces in that Go package and its imports are considered, including interface-to-interface widening; generic/constraint interfaces, `error` and identity casts are excluded; binding-name collisions are skipped |
+| Two or three results, except `(A, bool)` | (A, B), (A, B, C) | Runtime tuple; trailing error is removed first and forces IO[tuple]; more than three payload results are skipped |
+| Function parameter or result with mirrorable signature | func(A, ...) R or func(A, ...) IO[R] | Erased callback adapter in both directions; leading context or trailing error forces IO, and returned Go functions run when their IO is executed |
 | any | dyn.Value | Runtime tagged conversion; see §10.7 |
 
 A struct without exported fields is a handle, including an empty struct:
 turning a private-state object such as `sql.DB` into an empty record would lose
-its identity. `*Handle` stays the same handle, not Option. Handles are nominal
-per binding module; the same Go type bound in two modules is not interchangeable.
+its identity. `*Handle` stays the same handle, not Option. With `--shim`, handles
+and value records are declared only by the binding module of their owning Go
+package. Other bindings reference them through generated `go:` imports, such as
+`import go_io "go:io"` and `go_io.Reader`; import aliases avoid generated names.
+All callers therefore share the owning module's type identity. This applies to
+`BindWithShim`; natural-ABI-only `Bind` output is unchanged.
+
+Concrete handles and records expose `<t>As<I>` upcasts for exported nongeneric
+method-set interfaces in their package or its imported packages whenever T or
+*T implements I. Interface handles also expose widening upcasts; for example,
+`strings.readerAsReader` yields `io.Reader`, and `io.readCloserAsReader` widens
+`io.ReadCloser` to `io.Reader`. Handle upcasts preserve identity; record upcasts
+use the existing copy boundary. The builtin `error` interface is not an upcast
+target. A collision emits `// skipped: T.AsI (upcast name collides with existing binding)`.
 
 The companion shims preserve the erased extern ABI (`any` parameters/result).
 Record constructors cannot live in the shim package, because it cannot import

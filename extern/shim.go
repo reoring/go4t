@@ -51,8 +51,14 @@ func (g *shimGenerator) conversion(m *foreignMirror) string {
 		to.WriteString("return rt.Unit{}\n")
 		from.WriteString("return rt.Unit{}\n")
 	case "handle":
-		fmt.Fprintf(&to, "return v.(%s)\n", typ)
-		from.WriteString("return v\n")
+		if _, ok := m.typ.Underlying().(*types.Struct); ok {
+			// Value-origin opaque structs get one mutable box at the boundary.
+			fmt.Fprintf(&to, "if p, ok := v.(*%s); ok { return *p }; return v.(%s)\n", typ, typ)
+			from.WriteString("return &v\n")
+		} else {
+			fmt.Fprintf(&to, "return v.(%s)\n", typ)
+			from.WriteString("return v\n")
+		}
 	case "bytes":
 		fmt.Fprintf(&to, "return %s(v.(string))\n", typ)
 		from.WriteString("return string(v)\n")
@@ -72,6 +78,26 @@ func (g *shimGenerator) conversion(m *foreignMirror) string {
 		inner := g.conversion(m.elem)
 		fmt.Fprintf(&to, "var result %s; for { x, rest, ok := rt.Shapes.Uncons(v); if !ok { return result }; result = append(result, %sTo(x,ctx)); v = rest }\n", typ, inner)
 		fmt.Fprintf(&from, "result := rt.Shapes.Nil(); for i := len(v)-1; i >= 0; i-- { result = rt.Shapes.Cons(%sFrom(v[i]),result) }; return result\n", inner)
+	case "seq":
+		params := make([]string, len(m.elems))
+		values := make([]string, len(m.elems))
+		converted := make([]string, len(m.elems))
+		for i, elem := range m.elems {
+			values[i] = fmt.Sprintf("x%d", i)
+			params[i] = values[i] + " " + g.goType(elem.typ)
+			converted[i] = fmt.Sprintf("%sTo(%s,ctx)", g.conversion(elem), values[i])
+		}
+		fmt.Fprintf(&from, "var values []any; v(func(%s) bool { values = append(values,%s); return true }); result := rt.Shapes.Nil(); for i := len(values)-1; i >= 0; i-- { result = rt.Shapes.Cons(values[i],result) }; return result\n", strings.Join(params, ","), g.fromValues(m.elem, values))
+		for i, elem := range m.elems {
+			params[i] = g.goType(elem.typ)
+		}
+		fmt.Fprintf(&to, "return func(yield func(%s) bool) { rest := v; for { x, tail, ok := rt.Shapes.Uncons(rest); if !ok { return }; rest = tail\n", strings.Join(params, ","))
+		if len(m.elems) == 1 {
+			to.WriteString("x0 := x\n")
+		} else {
+			to.WriteString("x0,x1 := rt.Shapes.Untuple2(x)\n")
+		}
+		fmt.Fprintf(&to, "if !yield(%s) { return } } }\n", strings.Join(converted, ","))
 	case "receiver":
 		inner := g.conversion(m.elem)
 		fmt.Fprintf(&to, "result := %sTo(v,ctx); return &result\n", inner)
@@ -87,6 +113,7 @@ func (g *shimGenerator) conversion(m *foreignMirror) string {
 		fmt.Fprintf(&to, "result := make(%s); rt.ForeignMapEach(v,func(k,x any) { result[%sTo(k,ctx)] = %sTo(x,ctx) }); return result\n", typ, k, e)
 		fmt.Fprintf(&from, "entries := make([][2]any,0,len(v)); for k,x := range v { entries = append(entries,[2]any{%sFrom(k),%sFrom(x)}) }; return rt.ForeignMap(entries)\n", k, e)
 	case "record":
+		recordKey := g.path + "." + foreignTypeName(m.typ.(*types.Named).Obj().Name())
 		fmt.Fprintf(&to, "var result %s\n", typ)
 		from.WriteString("fields := make([]any, " + strconv.Itoa(len(m.fields)) + ")\n")
 		initialized := map[string]bool{}
@@ -115,7 +142,7 @@ func (g *shimGenerator) conversion(m *foreignMirror) string {
 			// Use the promoted selector for the leaf; naming an unexported embedded
 			// value itself would be illegal outside its package.
 			target, source = "result."+leafName, "v."+leafName
-			fmt.Fprintf(&to, "%s = %sTo(rt.ForeignRecordField(%q,v,%d),ctx)\n", target, inner, g.path+"."+m.gt, i)
+			fmt.Fprintf(&to, "%s = %sTo(rt.ForeignRecordField(%q,v,%d),ctx)\n", target, inner, recordKey, i)
 			if len(guards) > 0 {
 				fmt.Fprintf(&from, "var field%d %s; if %s { field%d = %s }; fields[%d] = %sFrom(field%d)\n", i, g.goType(f.mirror.typ), strings.Join(guards, " && "), i, source, i, inner, i)
 			} else {
@@ -123,7 +150,7 @@ func (g *shimGenerator) conversion(m *foreignMirror) string {
 			}
 		}
 		to.WriteString("return result\n")
-		fmt.Fprintf(&from, "return rt.ForeignRecord(%q,fields)\n", g.path+"."+m.gt)
+		fmt.Fprintf(&from, "return rt.ForeignRecord(%q,fields)\n", recordKey)
 	case "callback":
 		c := m.callback
 		sig := m.typ.Underlying().(*types.Signature)
@@ -159,11 +186,15 @@ func (g *shimGenerator) conversion(m *foreignMirror) string {
 		if c.failure || c.context {
 			fmt.Fprintf(&to, "value, err := value.(rt.IO)(%s)\n", ctx)
 			if c.failure {
-				if sig.Results().Len() == 1 {
-					to.WriteString("if err != nil { return err }\n")
-				} else {
-					fmt.Fprintf(&to, "if err != nil { var zero %s; return zero, err }\n", g.goType(sig.Results().At(0).Type()))
+				var zero []string
+				to.WriteString("if err != nil {\n")
+				for i := range sig.Results().Len() - 1 {
+					name := fmt.Sprintf("zero%d", i)
+					fmt.Fprintf(&to, "var %s %s\n", name, g.goType(sig.Results().At(i).Type()))
+					zero = append(zero, name)
 				}
+				zero = append(zero, "err")
+				fmt.Fprintf(&to, "return %s\n}\n", strings.Join(zero, ","))
 			} else {
 				to.WriteString("if err != nil { panic(err) }\n")
 			}
@@ -173,15 +204,41 @@ func (g *shimGenerator) conversion(m *foreignMirror) string {
 		} else if c.result.kind == "unit" && sig.Results().Len() == 1 && c.failure {
 			to.WriteString("_ = value; return nil\n")
 		} else {
-			fmt.Fprintf(&to, "return %sTo(value,%s)", g.conversion(c.result), ctx)
+			if c.result.kind == "tuple" {
+				values := make([]string, len(c.result.elems))
+				converted := make([]string, len(values))
+				for i, elem := range c.result.elems {
+					values[i] = fmt.Sprintf("value%d", i)
+					converted[i] = fmt.Sprintf("%sTo(%s,%s)", g.conversion(elem), values[i], ctx)
+				}
+				fmt.Fprintf(&to, "%s := rt.Shapes.Untuple%d(value)\nreturn %s", strings.Join(values, ","), len(values), strings.Join(converted, ","))
+			} else {
+				fmt.Fprintf(&to, "return %sTo(value,%s)", g.conversion(c.result), ctx)
+			}
 			if c.failure {
 				to.WriteString(",nil")
 			}
 			to.WriteByte('\n')
 		}
 		to.WriteString("}\n")
-		// Callback values are only converted into Go, never reflected back.
-		from.WriteString("return v\n")
+		from.WriteString("return func(")
+		for i := range c.params {
+			if i > 0 {
+				from.WriteByte(',')
+			}
+			fmt.Fprintf(&from, "p%d any", i)
+		}
+		from.WriteString(") any {\n")
+		if c.context || c.failure {
+			from.WriteString("return rt.IO(func(ctx context.Context) (any,error) {\nif err := ctx.Err(); err != nil { return nil,rt.ClassifyError(err) }\n")
+		} else {
+			from.WriteString("ctx := context.Background(); _ = ctx\n")
+		}
+		g.callBody(&from, "v", sig, c)
+		if c.context || c.failure {
+			from.WriteString("})\n")
+		}
+		from.WriteString("}\n")
 	}
 	fmt.Fprintf(&g.body, "func %sTo(v any, ctx context.Context) %s {\n%s}\nfunc %sFrom(v %s) any {\n%s}\n", n, typ, to.String(), n, typ, from.String())
 	return n
@@ -222,13 +279,29 @@ func (g *shimGenerator) emit(name, callee string, sig *types.Signature, c *forei
 		out.WriteString("ctx := context.Background(); _ = ctx\n")
 	}
 	if recv != nil {
-		if recv.kind == "handle" {
-			fmt.Fprintf(&out, "receiver, ok := recv.(%s); if !ok { panic(fmt.Sprintf(%q,recv)) }\n", g.goType(recv.typ), "go4t shim: "+name+": receiver is <%T>")
-			g.imports["fmt"] = "fmt"
-		} else {
-			fmt.Fprintf(&out, "receiver := %sTo(recv,ctx)\n", g.conversion(recv))
-		}
+		fmt.Fprintf(&out, "receiver := %sTo(recv,ctx)\n", g.conversion(recv))
 	}
+	g.callBody(&out, callee, sig, c)
+	if effect {
+		out.WriteString("})\n")
+	}
+	out.WriteString("}\n")
+	g.body.WriteString(out.String())
+}
+
+func (g *shimGenerator) fromValues(m *foreignMirror, values []string) string {
+	if m.kind != "tuple" {
+		return g.conversion(m) + "From(" + values[0] + ")"
+	}
+	converted := make([]string, len(m.elems))
+	for i, elem := range m.elems {
+		converted[i] = g.conversion(elem) + "From(" + values[i] + ")"
+	}
+	return fmt.Sprintf("rt.Tuple%dOf(%s)", len(converted), strings.Join(converted, ","))
+}
+
+func (g *shimGenerator) callBody(out *strings.Builder, callee string, sig *types.Signature, c *foreignCall) {
+	effect := c.context || c.failure
 	var args []string
 	if c.context {
 		args = append(args, "ctx")
@@ -247,55 +320,132 @@ func (g *shimGenerator) emit(name, callee string, sig *types.Signature, c *forei
 		}
 	}
 	call := callee + "(" + strings.Join(args, ",") + ")"
-	count := sig.Results().Len()
 	if c.scan {
-		fmt.Fprintf(&out, "if err := %s; err != nil { return nil,rt.ClassifyError(err) }; return rt.DynListFromGo(values),nil\n", call)
+		fmt.Fprintf(out, "if err := %s; err != nil { return nil,rt.ClassifyError(err) }; return rt.DynListFromGo(values),nil\n", call)
+		return
+	}
+	count := sig.Results().Len()
+	result := "rt.Unit{}"
+	if count == 0 {
+		out.WriteString(call + "\n")
 	} else {
-		result := "rt.Unit{}"
-		if count == 0 {
-			out.WriteString(call + "\n")
-		} else if c.failure && count == 1 {
-			fmt.Fprintf(&out, "if err := %s; err != nil { return nil,rt.ClassifyError(err) }\n", call)
-		} else {
-			if c.failure {
-				fmt.Fprintf(&out, "value,err := %s; if err != nil { return nil,rt.ClassifyError(err) }\n", call)
-			} else if c.optional {
-				fmt.Fprintf(&out, "value,present := %s\n", call)
-			} else {
-				fmt.Fprintf(&out, "value := %s\n", call)
-			}
-			result = g.conversion(c.result) + "From(value)"
-			if c.optional {
-				suffix := ""
-				if effect {
-					suffix = ",nil"
-				}
-				fmt.Fprintf(&out, "if !present { return rt.NoneOf()%s }; return rt.SomeOf(%s)%s\n", suffix, result, suffix)
-				result = ""
-			}
+		n := count
+		if c.failure || c.optional {
+			n--
 		}
-		if result != "" {
-			out.WriteString("return " + result)
+		values := make([]string, n)
+		for i := range values {
+			values[i] = fmt.Sprintf("value%d", i)
+		}
+		targets := append([]string(nil), values...)
+		if c.failure {
+			targets = append(targets, "err")
+		} else if c.optional {
+			targets = append(targets, "present")
+		}
+		fmt.Fprintf(out, "%s := %s\n", strings.Join(targets, ","), call)
+		if c.failure {
+			out.WriteString("if err != nil { return nil,rt.ClassifyError(err) }\n")
+		}
+		if n > 0 {
+			result = g.fromValues(c.result, values)
+		}
+		if c.optional {
+			suffix := ""
 			if effect {
-				out.WriteString(",nil")
+				suffix = ",nil"
 			}
-			out.WriteByte('\n')
+			fmt.Fprintf(out, "if !present { return rt.NoneOf()%s }; return rt.SomeOf(%s)%s\n", suffix, result, suffix)
+			return
 		}
 	}
+	out.WriteString("return " + result)
 	if effect {
-		out.WriteString("})\n")
+		out.WriteString(",nil")
 	}
-	out.WriteString("}\n")
-	g.body.WriteString(out.String())
+	out.WriteByte('\n')
+}
+
+func (g *shimGenerator) accessors(decl *strings.Builder, set *mirrorSet, options BindOptions, used map[string]bool) {
+	seen := map[string]bool{}
+	for {
+		var names []string
+		for name := range set.handles {
+			if !seen[name] {
+				names = append(names, name)
+			}
+		}
+		if len(names) == 0 {
+			return
+		}
+		sort.Strings(names)
+		for _, name := range names {
+			seen[name] = true
+			n := set.handles[name]
+			if _, ok := n.Underlying().(*types.Struct); !ok {
+				continue
+			}
+			for _, field := range promotedFields(n) {
+				display := n.Obj().Name() + "." + field.name
+				getter, reason := bindingName(methodBindingName(n.Obj().Name(), field.name, options.Prefix), options.Prefix)
+				setter, setterReason := bindingName(methodBindingName(n.Obj().Name(), "Set"+field.name, options.Prefix), options.Prefix)
+				if reason == "" {
+					reason = setterReason
+				}
+				if used[getter] || used[setter] {
+					reason = "accessor name collides with existing binding"
+				}
+				m := set.resolve(field.typ, true)
+				if reason == "" && m == nil {
+					reason = "unsupported field type " + types.TypeString(field.typ, nil)
+				}
+				if reason != "" {
+					fmt.Fprintf(decl, "// skipped: %s (%s)\n", display, reason)
+					continue
+				}
+				used[getter], used[setter] = true, true
+				getGo := n.Obj().Name() + "_" + field.name
+				setGo := n.Obj().Name() + "_Set" + field.name
+				fmt.Fprintf(decl, "extern func %s(recv %s) %s = %q.%s\n", getter, name, m.gt, g.path, getGo)
+				fmt.Fprintf(decl, "extern func %s(recv %s, value %s) IO[Unit] = %q.%s\n", setter, name, m.gt, g.path, setGo)
+				conv := g.conversion(m)
+				typ := g.goType(n)
+				fmt.Fprintf(&g.body, "func %s(recv any) any { receiver := recv.(*%s); return %sFrom(receiver.%s) }\n", getGo, typ, conv, field.name)
+				fmt.Fprintf(&g.body, "func %s(recv,value any) any { return rt.IO(func(ctx context.Context) (any,error) { if err := ctx.Err(); err != nil { return nil,rt.ClassifyError(err) }; receiver := recv.(*%s); receiver.%s = %sTo(value,ctx); return rt.Unit{},nil }) }\n", setGo, typ, field.name, conv)
+			}
+		}
+	}
 }
 
 // BindWithShim emits the complete binding file and its erased Go companion.
 // Natural-ABI functions continue to target the original package; other calls
 // use copy-boundary converters, with context captured only at IO execution.
+// Exported variables/constants are pure zero-argument getters, evaluated at
+// each call. Owned opaque structs also get fresh zero-value handle constructors
+// unless their generated name is already reserved by a package binding.
 func BindWithShim(pkg *Package, options BindOptions, shimPath, shimPackage string) (string, []byte, error) {
-	set := newMirrorSet(options.Float)
 	g := &shimGenerator{path: shimPath, imports: map[string]string{"context": "context", "go4t/rt": "rt"}, converters: map[string]string{}}
 	var decl strings.Builder
+	used := map[string]bool{}
+	for _, f := range pkg.Functions {
+		name, _ := bindingName(f.Name, options.Prefix)
+		used[name] = true
+	}
+	for _, m := range pkg.Methods {
+		name, _ := bindingName(methodBindingName(m.TypeName, m.Name, options.Prefix), options.Prefix)
+		used[name] = true
+	}
+	for _, value := range exportedValues(pkg.goPackage) {
+		name, _ := bindingName(value.Name(), options.Prefix)
+		used[name] = true
+	}
+	set := newMirrorSet(options.Float, pkg.Path, used)
+	// A referenced type may have no constructors or methods in its own package.
+	// Still declare it there, so every importer shares its owning module's type.
+	for _, n := range exportedNamedTypes(pkg.goPackage) {
+		set.resolve(n, false)
+	}
+	emitted := map[string]bool{}
 	emit := func(goName, display, shimName, callee string, sig *types.Signature, recvType types.Type) {
 		c, reason := set.call(sig, recvType != nil)
 		var recv *foreignMirror
@@ -328,10 +478,16 @@ func BindWithShim(pkg *Package, options BindOptions, shimPath, shimPackage strin
 		if reason == "" {
 			reason = nreason
 		}
+		// A package function and a method can map to one binding name
+		// (net.InterfaceAddrs and net.Interface.Addrs); the first emitted wins.
+		if reason == "" && emitted[name] {
+			reason = "binding name collides with existing binding"
+		}
 		if reason != "" {
 			fmt.Fprintf(&decl, "// skipped: %s (%s)\n", display, reason)
 			return
 		}
+		emitted[name] = true
 		if options.Prefix == "" && options.Prelude[name] {
 			fmt.Fprintf(&decl, "// collides with prelude: %s\n", name)
 		}
@@ -381,6 +537,10 @@ func BindWithShim(pkg *Package, options BindOptions, shimPath, shimPackage strin
 	for _, m := range pkg.Methods {
 		emit(methodBindingName(m.TypeName, m.Name, options.Prefix), m.TypeName+"."+m.Name, m.TypeName+"_"+m.Name, "receiver."+m.Name, m.Signature, m.Receiver)
 	}
+	g.values(&decl, set, pkg, options, used, emitted)
+	g.constructors(&decl, set, options, used, emitted)
+	g.accessors(&decl, set, options, used)
+	g.upcasts(&decl, set, pkg, options, used)
 	name := options.Package
 	if name == "" {
 		name = "main"

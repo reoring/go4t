@@ -10,6 +10,7 @@ import (
 
 	"go4t/ast"
 	"go4t/codegen"
+	"go4t/modules"
 	"go4t/parser"
 	"go4t/types"
 )
@@ -61,7 +62,12 @@ func testFiles(inputs []string) error {
 	if err := sourceArguments(inputs); err != nil {
 		return err
 	}
-	files, err := parseFiles(inputs)
+	scratch, err := prepareTemporary(inputs, "<test>")
+	if err != nil {
+		return err
+	}
+	defer scratch.close()
+	files, err := parseFiles(inputs, scratch.options())
 	if err != nil {
 		return err
 	}
@@ -77,7 +83,7 @@ func testFiles(inputs []string) error {
 	if err != nil {
 		return err
 	}
-	return runTemporary(program, inputs, "<test>")
+	return scratch.run(program, "<test>")
 }
 
 func evalExpression(source string, inputs []string) error {
@@ -88,7 +94,12 @@ func evalExpression(source string, inputs []string) error {
 	if err != nil {
 		return diagnostic("<eval>", err)
 	}
-	files, err := parseFiles(inputs)
+	scratch, err := prepareTemporary(inputs, "<eval>")
+	if err != nil {
+		return err
+	}
+	defer scratch.close()
+	files, err := parseFiles(inputs, scratch.options())
 	if err != nil {
 		return err
 	}
@@ -121,7 +132,7 @@ func evalExpression(source string, inputs []string) error {
 			return originalErr
 		}
 	}
-	return runTemporary(program, inputs, "<eval>")
+	return scratch.run(program, "<eval>")
 }
 
 func sourceArguments(inputs []string) error {
@@ -275,21 +286,25 @@ func isIOBool(typ ast.Type) bool {
 	return ok && t.Name == "IO" && len(t.Args) == 1 && isType(t.Args[0], "Bool")
 }
 
-// Test/eval artifacts never replace a program's ordinary build output. A usable
-// input module resolves externs; otherwise the compiler supplies its own runtime.
-func runTemporary(program *types.Program, inputs []string, file string) error {
+// temporaryBuild holds the module and source directory for test/eval runs.
+// Both exist before imports are loaded so Go bindings can write their shims
+// beneath the source directory; neither replaces a program's build output.
+type temporaryBuild struct {
+	module buildModule
+	dir    string
+	binder *goImportBinder
+}
+
+// prepareTemporary selects a usable input module to resolve externs; otherwise
+// the compiler supplies its own runtime.
+func prepareTemporary(inputs []string, file string) (*temporaryBuild, error) {
 	base, err := inputDirectory(inputs)
 	if err != nil {
-		return diagnostic(file, err)
+		return nil, diagnostic(file, err)
 	}
-	module, err := prepareBuildModule(buildModuleRoot(base), program)
+	module, err := prepareBuildModule(buildModuleRoot(base))
 	if err != nil {
-		return err
-	}
-	defer module.close()
-	sources, err := codegen.GenerateInDir(program, "main", module.dir)
-	if err != nil {
-		return diagnostic(file, err)
+		return nil, err
 	}
 	dir := filepath.Join(module.dir, "prog")
 	if module.temporary {
@@ -298,11 +313,31 @@ func runTemporary(program *types.Program, inputs []string, file string) error {
 		dir, err = os.MkdirTemp(module.dir, ".go4t-source-")
 	}
 	if err != nil {
+		module.close()
+		return nil, diagnostic(file, err)
+	}
+	binder := newGoImportBinder(module.dir)
+	binder.outputDir = dir
+	return &temporaryBuild{module: module, dir: dir, binder: binder}, nil
+}
+
+func (t *temporaryBuild) options() modules.Options { return modules.Options{GoBinder: t.binder} }
+
+func (t *temporaryBuild) close() {
+	os.RemoveAll(t.dir)
+	t.module.close()
+}
+
+func (t *temporaryBuild) run(program *types.Program, file string) error {
+	if err := t.module.checkForeign(program); err != nil {
+		return err
+	}
+	sources, err := codegen.GenerateInDir(program, "main", t.module.dir)
+	if err != nil {
 		return diagnostic(file, err)
 	}
-	defer os.RemoveAll(dir)
-	if err := emitModules(dir, sources); err != nil {
+	if err := emitModules(t.dir, sources); err != nil {
 		return diagnostic(file, err)
 	}
-	return execute(module.dir, "./"+filepath.Base(dir), file, nil)
+	return execute(t.module.dir, "./"+filepath.Base(t.dir), file, nil)
 }

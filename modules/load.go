@@ -26,9 +26,20 @@ func (e *Error) Error() string   { return fmt.Sprintf("%s:%s: %s", e.File, e.Pos
 func (e *Error) GetPos() ast.Pos { return e.Pos }
 func (e *Error) GetEnd() ast.Pos { return e.End }
 
+// GoBinder supplies parsed bindings for a Go import path without the go: prefix.
+// Implementations own binding generation and any build-time shim output.
+type GoBinder interface {
+	Bind(importPath string) (*ast.Module, error)
+}
+
+// Options configures import resolution. Without GoBinder, go: imports are errors.
+type Options struct {
+	GoBinder GoBinder
+}
+
 // Load accepts explicit entry files or a directory (all its .gt files).
 // Imported directories are always loaded in lexical filename order.
-func Load(inputs []string) ([]*ast.Module, error) {
+func Load(inputs []string, options ...Options) ([]*ast.Module, error) {
 	var files []*ast.File
 	base := "."
 	seen := make(map[string]bool)
@@ -70,12 +81,12 @@ func Load(inputs []string) ([]*ast.Module, error) {
 			}
 		}
 	}
-	return LoadFiles(files, base)
+	return LoadFiles(files, base, options...)
 }
 
 // LoadFiles resolves imports of already-parsed entry files. The caller may add
 // test/eval entry declarations before checking the returned final module.
-func LoadFiles(files []*ast.File, directory string) ([]*ast.Module, error) {
+func LoadFiles(files []*ast.File, directory string, options ...Options) ([]*ast.Module, error) {
 	base, err := filepath.Abs(directory)
 	if err != nil {
 		return nil, err
@@ -96,6 +107,9 @@ func LoadFiles(files []*ast.File, directory string) ([]*ast.Module, error) {
 		root = base
 	}
 	l := loader{base: base, projectRoot: root, seen: map[string]*ast.Module{base: entry}, dependencies: make(map[string]string)}
+	for _, option := range options {
+		l.goBinder = option.GoBinder
+	}
 	if _, err := l.importModule("std/prelude", base); err != nil {
 		return nil, err
 	}
@@ -109,6 +123,7 @@ func LoadFiles(files []*ast.File, directory string) ([]*ast.Module, error) {
 type loader struct {
 	base         string
 	projectRoot  string
+	goBinder     GoBinder
 	seen         map[string]*ast.Module
 	dependencies map[string]string
 	order        []*ast.Module
@@ -161,13 +176,40 @@ func (l *loader) imports(m *ast.Module, dir string) error {
 				return &Error{File: f.Name, Pos: imp.Pos, End: imp.End, Msg: err.Error()}
 			}
 			imp.Resolved = target.Path
+			if imp.Alias == "" && strings.HasPrefix(imp.Path, "go:") {
+				imp.Alias = target.Name
+			}
 		}
 	}
 	return nil
 }
 func (l *loader) importModule(importPath, from string) (*ast.Module, error) {
-	if importPath == "" || path.IsAbs(importPath) || path.Clean(importPath) != importPath || strings.Contains(importPath, "\\") || importPath == ".." || strings.HasPrefix(importPath, "../") {
+	bindingPath := strings.TrimPrefix(importPath, "go:")
+	if bindingPath == "" || path.IsAbs(bindingPath) || path.Clean(bindingPath) != bindingPath || strings.Contains(bindingPath, "\\") || bindingPath == ".." || strings.HasPrefix(bindingPath, "../") {
 		return nil, fmt.Errorf("invalid import path %q", importPath)
+	}
+	if strings.HasPrefix(importPath, "go:") {
+		if m := l.seen[importPath]; m != nil {
+			return m, nil
+		}
+		if l.goBinder == nil {
+			return nil, fmt.Errorf("go import %q requires the go4t CLI", importPath)
+		}
+		m, err := l.goBinder.Bind(bindingPath)
+		if err != nil {
+			return nil, err
+		}
+		m.Path, m.ImportPath = importPath, importPath
+		m.Name = m.Files[0].Package
+		if err := samePackage(m); err != nil {
+			return nil, err
+		}
+		l.seen[importPath] = m
+		if err := l.imports(m, l.base); err != nil {
+			return nil, err
+		}
+		l.order = append(l.order, m)
+		return m, nil
 	}
 	dir, err := l.resolveDirectory(importPath, from)
 	if err != nil {

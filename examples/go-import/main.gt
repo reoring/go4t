@@ -1,0 +1,59 @@
+package main
+
+import "std/conc"
+import "std/http"
+import "std/io"
+import "std/list"
+import "std/map"
+import "std/result"
+import goio "go:io"
+import gohttp "go:net/http"
+import "go:strings"
+
+// A std/http server is the target; the client side is Go's net/http bound at
+// import time. No bindings are committed: `go4t run examples/go-import`.
+func echo(r http.Request) IO[http.Response] {
+  let who = list.find(r.headers, func(h) => h.0 == "X-Who") |> result.maybe("nobody", func(h) => h.1)
+  ioPure(http.response(200, "hello " + who + " via " + r.method + " " + r.path))
+}
+
+func waitUp(url String) IO[Unit] {
+  do {
+    response <- io.tryIO(http.get(url))
+    match response {
+      | Ok(_) => ioPure(unit())
+      | Err(io.Network(_)) => do {
+        io.sleep(10)
+        waitUp(url)
+      }
+      Err(e) => io.ioRaise(e)
+    }
+  }
+}
+
+func call(port Int) IO[String] {
+  do {
+    let body = strings.newReader("") |> strings.readerAsReader
+    request <- gohttp.newRequest("GET", "http://127.0.0.1:" + show(port) + "/greet", body)
+    gohttp.requestSetHeader(request, map.mapInsert(gohttp.requestHeader(request), "X-Who", ["Ada"]))
+    response <- gohttp.clientDo(gohttp.defaultClient(), request)
+    text <- goio.readAll(goio.readCloserAsReader(gohttp.responseBody(response)))
+    ioPure(show(gohttp.responseStatusCode(response)) + " " + text)
+  }
+}
+
+func main() IO[Unit] {
+  do {
+    let (scheme, rest, found) = strings.cut("http://example", "://")
+    println("cut: " + scheme + " | " + rest + " | " + show(found))
+    println("lines: " + show(strings.lines("a\nb\n")))
+    server <- conc.fork(http.serve(18090, echo))
+    conc.withTimeout(2000, waitUp("http://127.0.0.1:18090/greet"))
+    outcome <- io.tryIO(call(18090))
+    conc.cancel(server)
+    match outcome {
+      Ok(text) => println(text)
+      Err(e) => io.ioRaise(e)
+    }
+  }
+}

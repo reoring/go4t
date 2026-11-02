@@ -28,6 +28,8 @@ type Package struct {
 	Name      string
 	Functions []Function
 	Methods   []Method
+	goPackage *types.Package
+	imports   []*types.Package
 }
 
 // Lookup finds an exported function by its Go name.
@@ -80,12 +82,14 @@ func (l *Loader) Load(path string) (*Package, error) {
 	}
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	var target string
+	var targetImports []string
 	for {
 		var listed struct {
 			ImportPath string
 			Name       string
 			Export     string
 			DepOnly    bool
+			Imports    []string
 		}
 		if err := decoder.Decode(&listed); err == io.EOF {
 			break
@@ -98,6 +102,7 @@ func (l *Loader) Load(path string) (*Package, error) {
 				return nil, fmt.Errorf("expected one Go package for %q", path)
 			}
 			target = listed.ImportPath
+			targetImports = listed.Imports
 		}
 	}
 	if target == "" {
@@ -107,7 +112,20 @@ func (l *Loader) Load(path string) (*Package, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read Go package %q: %w", path, err)
 	}
-	p := &Package{Path: pkg.Path(), Name: pkg.Name()}
+	p := &Package{Path: pkg.Path(), Name: pkg.Name(), goPackage: pkg}
+	// Export-data dependencies can have only the names referenced by this
+	// package populated. Import direct dependencies explicitly so interface
+	// discovery sees their complete exported scopes, not just those names.
+	for _, dependency := range targetImports {
+		if dependency == "C" {
+			continue // cgo's pseudo-package has no exported Go interfaces
+		}
+		imported, err := l.importer.Import(dependency)
+		if err != nil {
+			return nil, fmt.Errorf("read Go dependency %q of %q: %w", dependency, path, err)
+		}
+		p.imports = append(p.imports, imported)
+	}
 	for _, name := range pkg.Scope().Names() {
 		if f, ok := pkg.Scope().Lookup(name).(*types.Func); ok && f.Exported() {
 			p.Functions = append(p.Functions, Function{Name: name, Signature: f.Type().(*types.Signature)})
