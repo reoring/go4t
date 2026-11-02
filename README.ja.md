@@ -106,7 +106,6 @@ PDB チェックの後ろへ動かす、`now == at` 境界だけで露呈する 
 [`docs/adr/0001-equational-laws.md`](docs/adr/0001-equational-laws.md) と
 [`docs/adr/0002-laws-map-and-diagnostics.md`](docs/adr/0002-laws-map-and-diagnostics.md) にあります。
 
-
 **本番の Kubernetes controller 2 本**(`examples/approval-controller`、
 `examples/attachment-repair-controller`)の判定ロジックを go4t に移し、元の Go テストファイルは
 バイト単位で無変更のまま oracle として使いました。元テスト 6 + 22 本がすべて無変更で通ります。
