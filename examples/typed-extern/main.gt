@@ -8,7 +8,9 @@ func main() IO[Unit] {
     println(strRepeat("na", 3))
     println(show(strFields("typed externs   keep lists")))
     url <- parseURL("https://go4t.example:8443/guide")
-    println(urlHostname(url))
-    println(urlString(url))
+    hostname <- urlHostname(url)
+    println(hostname)
+    text <- urlString(url)
+    println(text)
   }
 }

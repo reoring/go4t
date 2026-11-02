@@ -72,6 +72,7 @@ func TestExtendedBindingShim(t *testing.T) {
 		"extern func opaqueSetLabel(recv Opaque, value String) IO[Unit]",
 		"extern func opaqueApply(recv Opaque) func(Int) Int",
 		"extern func opaqueSetApply(recv Opaque, value func(Int) Int) IO[Unit]",
+		"extern func opaqueReadLabel(recv Opaque) IO[String]",
 		"extern func optionName(recv OptionGo) String",
 		"// skipped: Opaque.Blocked (unsupported field type chan int)",
 		"// skipped: Opaque.Conflict (accessor name collides with existing binding)",
@@ -257,7 +258,7 @@ func TestBoundary(t *testing.T) {
   equal(s.Opaque_Label(handle),"value")
   run(action)
   equal(s.Opaque_Label(handle),"changed")
-  equal(s.Opaque_ReadLabel(handle),"changed")
+  equal(run(s.Opaque_ReadLabel(handle)),"changed")
   equal(s.ReadValue(handle),"changed")
   equal(s.Opaque_Apply(handle).(func(any) any)(int64(3)),int64(4))
   run(s.Opaque_SetApply(handle,func(v any) any { return v.(int64)*2 }))

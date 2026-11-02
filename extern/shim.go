@@ -229,13 +229,13 @@ func (g *shimGenerator) conversion(m *foreignMirror) string {
 			fmt.Fprintf(&from, "p%d any", i)
 		}
 		from.WriteString(") any {\n")
-		if c.context || c.failure {
+		if c.effect() {
 			from.WriteString("return rt.IO(func(ctx context.Context) (any,error) {\nif err := ctx.Err(); err != nil { return nil,rt.ClassifyError(err) }\n")
 		} else {
 			from.WriteString("ctx := context.Background(); _ = ctx\n")
 		}
 		g.callBody(&from, "v", sig, c)
-		if c.context || c.failure {
+		if c.effect() {
 			from.WriteString("})\n")
 		}
 		from.WriteString("}\n")
@@ -272,7 +272,7 @@ func (g *shimGenerator) emit(name, callee string, sig *types.Signature, c *forei
 		fmt.Fprintf(&out, "p%d any", i)
 	}
 	out.WriteString(") any {\n")
-	effect := c.context || c.failure
+	effect := c.effect()
 	if effect {
 		out.WriteString("return rt.IO(func(ctx context.Context) (any,error) {\nif err := ctx.Err(); err != nil { return nil,rt.ClassifyError(err) }\n")
 	} else {
@@ -301,7 +301,7 @@ func (g *shimGenerator) fromValues(m *foreignMirror, values []string) string {
 }
 
 func (g *shimGenerator) callBody(out *strings.Builder, callee string, sig *types.Signature, c *foreignCall) {
-	effect := c.context || c.failure
+	effect := c.effect()
 	var args []string
 	if c.context {
 		args = append(args, "ctx")
@@ -474,6 +474,9 @@ func BindWithShim(pkg *Package, options BindOptions, shimPath, shimPackage strin
 				}
 			}
 		}
+		if c != nil && recv != nil {
+			c.mutable = recv.kind == "handle"
+		}
 		name, nreason := bindingName(goName, options.Prefix)
 		if reason == "" {
 			reason = nreason
@@ -506,7 +509,7 @@ func BindWithShim(pkg *Package, options BindOptions, shimPath, shimPackage strin
 		if c.optional {
 			result = "Option[" + result + "]"
 		}
-		if c.context || c.failure {
+		if c.effect() {
 			result = "IO[" + result + "]"
 		}
 		target := shimPath

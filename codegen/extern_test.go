@@ -3,12 +3,14 @@ package codegen
 import (
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"go4t/ast"
 	"go4t/modules"
+	"go4t/parser"
 	"go4t/types"
 )
 
@@ -95,8 +97,22 @@ func TestExternMismatchDiagnostics(t *testing.T) {
 	}
 }
 
+// stubBinder stands in for the CLI's Go binder: the example's generated
+// bindings upcast URL to fmt.Stringer, which only needs the handle declared.
+type stubBinder struct{}
+
+func (stubBinder) Bind(importPath string) (*ast.Module, error) {
+	name := path.Base(importPath)
+	file, err := parser.Parse("package " + name + "\ntype Stringer = StringerHandle\n")
+	if err != nil {
+		return nil, err
+	}
+	file.Name = "go:" + importPath + "/bindings.gt"
+	return &ast.Module{Name: name, Files: []*ast.File{file}}, nil
+}
+
 func TestTypedExternExampleUsesNaturalABI(t *testing.T) {
-	modules, err := modules.Load([]string{"../examples/typed-extern"})
+	modules, err := modules.Load([]string{"../examples/typed-extern"}, modules.Options{GoBinder: stubBinder{}})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -28,6 +28,10 @@ type foreignCall struct {
 	params                                     []*foreignMirror
 	result                                     *foreignMirror
 	context, failure, optional, variadic, scan bool
+	// mutable marks a method on a handle receiver: the receiver is shared Go
+	// state, so the call is an effect even without ctx or error. Record, map
+	// and slice receivers are copies and stay pure.
+	mutable bool
 }
 type mirrorSet struct {
 	floats    bool
@@ -272,7 +276,7 @@ func (s *mirrorSet) resolve(t types.Type, callback bool) *foreignMirror {
 			p = append(p, m.gt)
 		}
 		r := c.result.gt
-		if c.context || c.failure {
+		if c.effect() {
 			r = "IO[" + r + "]"
 		}
 		return &foreignMirror{typ: t, kind: "callback", gt: "func(" + strings.Join(p, ", ") + ") " + r, callback: c}
@@ -469,3 +473,6 @@ func foreignTypeName(name string) string {
 	}
 	return name
 }
+
+// effect reports whether a call must run inside IO.
+func (c *foreignCall) effect() bool { return c.context || c.failure || c.mutable }

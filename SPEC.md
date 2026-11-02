@@ -1441,6 +1441,12 @@ The shim receives the executing IO's context, so cancellation and deadlines
 reach Go. An error-only result becomes `IO[Unit]`; no result becomes `Unit`.
 Errors are classified `*rt.Failure`, not nested `Result` values.
 
+A method whose receiver is a handle also forces `IO[R]`, whatever it returns:
+the receiver is shared Go state, so `strings.Builder.Len` is `IO[Int]` and
+`ServeMux.Handle` is `IO[Unit]`. Methods on records, maps and slices operate on
+a copy and stay pure. This keeps every extern that can observe or change
+shared state outside the pure fragment that laws reason about.
+
 Variadic `...T` becomes a final `List[T]`; `...any` becomes `List[dyn.Value]`.
 `std/dyn.Value` has `Null`, `Bool`, `Int`, `Float`, `Str`, `Bytes`, `Time`,
 `List` and `Map` constructors and derives Eq/Debug. List/Map contents convert

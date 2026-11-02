@@ -4,7 +4,7 @@ package shim
 import (
 	context "context"
 	go3 "errors"
-	fmt "fmt"
+	go4 "fmt"
 	rt "go4t/rt"
 	go2 "net/url"
 )
@@ -38,11 +38,11 @@ func JoinPath(p0 any, p1 any) any {
 		if err := ctx.Err(); err != nil {
 			return nil, rt.ClassifyError(err)
 		}
-		value, err := go2.JoinPath(go4tMirror0To(p0, ctx), go4tMirror1To(p1, ctx)...)
+		value0, err := go2.JoinPath(go4tMirror0To(p0, ctx), go4tMirror1To(p1, ctx)...)
 		if err != nil {
 			return nil, rt.ClassifyError(err)
 		}
-		return go4tMirror0From(value), nil
+		return go4tMirror0From(value0), nil
 	})
 }
 func go4tMirror2To(v any, ctx context.Context) *go2.URL {
@@ -56,11 +56,11 @@ func Parse(p0 any) any {
 		if err := ctx.Err(); err != nil {
 			return nil, rt.ClassifyError(err)
 		}
-		value, err := go2.Parse(go4tMirror0To(p0, ctx))
+		value0, err := go2.Parse(go4tMirror0To(p0, ctx))
 		if err != nil {
 			return nil, rt.ClassifyError(err)
 		}
-		return go4tMirror2From(value), nil
+		return go4tMirror2From(value0), nil
 	})
 }
 func go4tMirror3To(v any, ctx context.Context) go2.Values {
@@ -80,11 +80,11 @@ func ParseQuery(p0 any) any {
 		if err := ctx.Err(); err != nil {
 			return nil, rt.ClassifyError(err)
 		}
-		value, err := go2.ParseQuery(go4tMirror0To(p0, ctx))
+		value0, err := go2.ParseQuery(go4tMirror0To(p0, ctx))
 		if err != nil {
 			return nil, rt.ClassifyError(err)
 		}
-		return go4tMirror3From(value), nil
+		return go4tMirror3From(value0), nil
 	})
 }
 func ParseRequestURI(p0 any) any {
@@ -92,11 +92,11 @@ func ParseRequestURI(p0 any) any {
 		if err := ctx.Err(); err != nil {
 			return nil, rt.ClassifyError(err)
 		}
-		value, err := go2.ParseRequestURI(go4tMirror0To(p0, ctx))
+		value0, err := go2.ParseRequestURI(go4tMirror0To(p0, ctx))
 		if err != nil {
 			return nil, rt.ClassifyError(err)
 		}
-		return go4tMirror2From(value), nil
+		return go4tMirror2From(value0), nil
 	})
 }
 func go4tMirror4To(v any, ctx context.Context) *go2.Userinfo {
@@ -108,14 +108,14 @@ func go4tMirror4From(v *go2.Userinfo) any {
 func User(p0 any) any {
 	ctx := context.Background()
 	_ = ctx
-	value := go2.User(go4tMirror0To(p0, ctx))
-	return go4tMirror4From(value)
+	value0 := go2.User(go4tMirror0To(p0, ctx))
+	return go4tMirror4From(value0)
 }
 func UserPassword(p0 any, p1 any) any {
 	ctx := context.Background()
 	_ = ctx
-	value := go2.UserPassword(go4tMirror0To(p0, ctx), go4tMirror0To(p1, ctx))
-	return go4tMirror4From(value)
+	value0 := go2.UserPassword(go4tMirror0To(p0, ctx), go4tMirror0To(p1, ctx))
+	return go4tMirror4From(value0)
 }
 func go4tMirror7To(v any, ctx context.Context) error {
 	x, ok := rt.OptionValue(v)
@@ -155,8 +155,8 @@ func Error_Error(recv any) any {
 	ctx := context.Background()
 	_ = ctx
 	receiver := go4tMirror5To(recv, ctx)
-	value := receiver.Error()
-	return go4tMirror0From(value)
+	value0 := receiver.Error()
+	return go4tMirror0From(value0)
 }
 func go4tMirror8To(v any, ctx context.Context) bool {
 	return bool(v.(bool))
@@ -168,15 +168,15 @@ func Error_Temporary(recv any) any {
 	ctx := context.Background()
 	_ = ctx
 	receiver := go4tMirror5To(recv, ctx)
-	value := receiver.Temporary()
-	return go4tMirror8From(value)
+	value0 := receiver.Temporary()
+	return go4tMirror8From(value0)
 }
 func Error_Timeout(recv any) any {
 	ctx := context.Background()
 	_ = ctx
 	receiver := go4tMirror5To(recv, ctx)
-	value := receiver.Timeout()
-	return go4tMirror8From(value)
+	value0 := receiver.Timeout()
+	return go4tMirror8From(value0)
 }
 func Error_Unwrap(recv any) any {
 	return rt.IO(func(ctx context.Context) (any, error) {
@@ -184,7 +184,8 @@ func Error_Unwrap(recv any) any {
 			return nil, rt.ClassifyError(err)
 		}
 		receiver := go4tMirror5To(recv, ctx)
-		if err := receiver.Unwrap(); err != nil {
+		err := receiver.Unwrap()
+		if err != nil {
 			return nil, rt.ClassifyError(err)
 		}
 		return rt.Unit{}, nil
@@ -200,8 +201,8 @@ func EscapeError_Error(recv any) any {
 	ctx := context.Background()
 	_ = ctx
 	receiver := go4tMirror9To(recv, ctx)
-	value := receiver.Error()
-	return go4tMirror0From(value)
+	value0 := receiver.Error()
+	return go4tMirror0From(value0)
 }
 func go4tMirror10To(v any, ctx context.Context) go2.InvalidHostError {
 	return go2.InvalidHostError(v.(string))
@@ -213,8 +214,8 @@ func InvalidHostError_Error(recv any) any {
 	ctx := context.Background()
 	_ = ctx
 	receiver := go4tMirror10To(recv, ctx)
-	value := receiver.Error()
-	return go4tMirror0From(value)
+	value0 := receiver.Error()
+	return go4tMirror0From(value0)
 }
 func go4tMirror11To(v any, ctx context.Context) []byte {
 	return []byte(v.(string))
@@ -227,81 +228,75 @@ func URL_AppendBinary(recv any, p0 any) any {
 		if err := ctx.Err(); err != nil {
 			return nil, rt.ClassifyError(err)
 		}
-		receiver, ok := recv.(*go2.URL)
-		if !ok {
-			panic(fmt.Sprintf("go4t shim: URL_AppendBinary: receiver is <%T>", recv))
-		}
-		value, err := receiver.AppendBinary(go4tMirror11To(p0, ctx))
+		receiver := go4tMirror2To(recv, ctx)
+		value0, err := receiver.AppendBinary(go4tMirror11To(p0, ctx))
 		if err != nil {
 			return nil, rt.ClassifyError(err)
 		}
-		return go4tMirror11From(value), nil
+		return go4tMirror11From(value0), nil
 	})
 }
 func URL_EscapedFragment(recv any) any {
-	ctx := context.Background()
-	_ = ctx
-	receiver, ok := recv.(*go2.URL)
-	if !ok {
-		panic(fmt.Sprintf("go4t shim: URL_EscapedFragment: receiver is <%T>", recv))
-	}
-	value := receiver.EscapedFragment()
-	return go4tMirror0From(value)
+	return rt.IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		receiver := go4tMirror2To(recv, ctx)
+		value0 := receiver.EscapedFragment()
+		return go4tMirror0From(value0), nil
+	})
 }
 func URL_EscapedPath(recv any) any {
-	ctx := context.Background()
-	_ = ctx
-	receiver, ok := recv.(*go2.URL)
-	if !ok {
-		panic(fmt.Sprintf("go4t shim: URL_EscapedPath: receiver is <%T>", recv))
-	}
-	value := receiver.EscapedPath()
-	return go4tMirror0From(value)
+	return rt.IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		receiver := go4tMirror2To(recv, ctx)
+		value0 := receiver.EscapedPath()
+		return go4tMirror0From(value0), nil
+	})
 }
 func URL_Hostname(recv any) any {
-	ctx := context.Background()
-	_ = ctx
-	receiver, ok := recv.(*go2.URL)
-	if !ok {
-		panic(fmt.Sprintf("go4t shim: URL_Hostname: receiver is <%T>", recv))
-	}
-	value := receiver.Hostname()
-	return go4tMirror0From(value)
+	return rt.IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		receiver := go4tMirror2To(recv, ctx)
+		value0 := receiver.Hostname()
+		return go4tMirror0From(value0), nil
+	})
 }
 func URL_IsAbs(recv any) any {
-	ctx := context.Background()
-	_ = ctx
-	receiver, ok := recv.(*go2.URL)
-	if !ok {
-		panic(fmt.Sprintf("go4t shim: URL_IsAbs: receiver is <%T>", recv))
-	}
-	value := receiver.IsAbs()
-	return go4tMirror8From(value)
+	return rt.IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		receiver := go4tMirror2To(recv, ctx)
+		value0 := receiver.IsAbs()
+		return go4tMirror8From(value0), nil
+	})
 }
 func URL_JoinPath(recv any, p0 any) any {
-	ctx := context.Background()
-	_ = ctx
-	receiver, ok := recv.(*go2.URL)
-	if !ok {
-		panic(fmt.Sprintf("go4t shim: URL_JoinPath: receiver is <%T>", recv))
-	}
-	value := receiver.JoinPath(go4tMirror1To(p0, ctx)...)
-	return go4tMirror2From(value)
+	return rt.IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		receiver := go4tMirror2To(recv, ctx)
+		value0 := receiver.JoinPath(go4tMirror1To(p0, ctx)...)
+		return go4tMirror2From(value0), nil
+	})
 }
 func URL_MarshalBinary(recv any) any {
 	return rt.IO(func(ctx context.Context) (any, error) {
 		if err := ctx.Err(); err != nil {
 			return nil, rt.ClassifyError(err)
 		}
-		receiver, ok := recv.(*go2.URL)
-		if !ok {
-			panic(fmt.Sprintf("go4t shim: URL_MarshalBinary: receiver is <%T>", recv))
-		}
-		value, err := receiver.MarshalBinary()
+		receiver := go4tMirror2To(recv, ctx)
+		value0, err := receiver.MarshalBinary()
 		if err != nil {
 			return nil, rt.ClassifyError(err)
 		}
-		return go4tMirror11From(value), nil
+		return go4tMirror11From(value0), nil
 	})
 }
 func URL_Parse(recv any, p0 any) any {
@@ -309,124 +304,119 @@ func URL_Parse(recv any, p0 any) any {
 		if err := ctx.Err(); err != nil {
 			return nil, rt.ClassifyError(err)
 		}
-		receiver, ok := recv.(*go2.URL)
-		if !ok {
-			panic(fmt.Sprintf("go4t shim: URL_Parse: receiver is <%T>", recv))
-		}
-		value, err := receiver.Parse(go4tMirror0To(p0, ctx))
+		receiver := go4tMirror2To(recv, ctx)
+		value0, err := receiver.Parse(go4tMirror0To(p0, ctx))
 		if err != nil {
 			return nil, rt.ClassifyError(err)
 		}
-		return go4tMirror2From(value), nil
+		return go4tMirror2From(value0), nil
 	})
 }
 func URL_Port(recv any) any {
-	ctx := context.Background()
-	_ = ctx
-	receiver, ok := recv.(*go2.URL)
-	if !ok {
-		panic(fmt.Sprintf("go4t shim: URL_Port: receiver is <%T>", recv))
-	}
-	value := receiver.Port()
-	return go4tMirror0From(value)
+	return rt.IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		receiver := go4tMirror2To(recv, ctx)
+		value0 := receiver.Port()
+		return go4tMirror0From(value0), nil
+	})
 }
 func URL_Query(recv any) any {
-	ctx := context.Background()
-	_ = ctx
-	receiver, ok := recv.(*go2.URL)
-	if !ok {
-		panic(fmt.Sprintf("go4t shim: URL_Query: receiver is <%T>", recv))
-	}
-	value := receiver.Query()
-	return go4tMirror3From(value)
+	return rt.IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		receiver := go4tMirror2To(recv, ctx)
+		value0 := receiver.Query()
+		return go4tMirror3From(value0), nil
+	})
 }
 func URL_Redacted(recv any) any {
-	ctx := context.Background()
-	_ = ctx
-	receiver, ok := recv.(*go2.URL)
-	if !ok {
-		panic(fmt.Sprintf("go4t shim: URL_Redacted: receiver is <%T>", recv))
-	}
-	value := receiver.Redacted()
-	return go4tMirror0From(value)
+	return rt.IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		receiver := go4tMirror2To(recv, ctx)
+		value0 := receiver.Redacted()
+		return go4tMirror0From(value0), nil
+	})
 }
 func URL_RequestURI(recv any) any {
-	ctx := context.Background()
-	_ = ctx
-	receiver, ok := recv.(*go2.URL)
-	if !ok {
-		panic(fmt.Sprintf("go4t shim: URL_RequestURI: receiver is <%T>", recv))
-	}
-	value := receiver.RequestURI()
-	return go4tMirror0From(value)
+	return rt.IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		receiver := go4tMirror2To(recv, ctx)
+		value0 := receiver.RequestURI()
+		return go4tMirror0From(value0), nil
+	})
 }
 func URL_ResolveReference(recv any, p0 any) any {
-	ctx := context.Background()
-	_ = ctx
-	receiver, ok := recv.(*go2.URL)
-	if !ok {
-		panic(fmt.Sprintf("go4t shim: URL_ResolveReference: receiver is <%T>", recv))
-	}
-	value := receiver.ResolveReference(go4tMirror2To(p0, ctx))
-	return go4tMirror2From(value)
+	return rt.IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		receiver := go4tMirror2To(recv, ctx)
+		value0 := receiver.ResolveReference(go4tMirror2To(p0, ctx))
+		return go4tMirror2From(value0), nil
+	})
 }
 func URL_String(recv any) any {
-	ctx := context.Background()
-	_ = ctx
-	receiver, ok := recv.(*go2.URL)
-	if !ok {
-		panic(fmt.Sprintf("go4t shim: URL_String: receiver is <%T>", recv))
-	}
-	value := receiver.String()
-	return go4tMirror0From(value)
+	return rt.IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		receiver := go4tMirror2To(recv, ctx)
+		value0 := receiver.String()
+		return go4tMirror0From(value0), nil
+	})
 }
 func URL_UnmarshalBinary(recv any, p0 any) any {
 	return rt.IO(func(ctx context.Context) (any, error) {
 		if err := ctx.Err(); err != nil {
 			return nil, rt.ClassifyError(err)
 		}
-		receiver, ok := recv.(*go2.URL)
-		if !ok {
-			panic(fmt.Sprintf("go4t shim: URL_UnmarshalBinary: receiver is <%T>", recv))
-		}
-		if err := receiver.UnmarshalBinary(go4tMirror11To(p0, ctx)); err != nil {
+		receiver := go4tMirror2To(recv, ctx)
+		err := receiver.UnmarshalBinary(go4tMirror11To(p0, ctx))
+		if err != nil {
 			return nil, rt.ClassifyError(err)
 		}
 		return rt.Unit{}, nil
 	})
 }
 func Userinfo_Password(recv any) any {
-	ctx := context.Background()
-	_ = ctx
-	receiver, ok := recv.(*go2.Userinfo)
-	if !ok {
-		panic(fmt.Sprintf("go4t shim: Userinfo_Password: receiver is <%T>", recv))
-	}
-	value, present := receiver.Password()
-	if !present {
-		return rt.NoneOf()
-	}
-	return rt.SomeOf(go4tMirror0From(value))
+	return rt.IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		receiver := go4tMirror4To(recv, ctx)
+		value0, present := receiver.Password()
+		if !present {
+			return rt.NoneOf(), nil
+		}
+		return rt.SomeOf(go4tMirror0From(value0)), nil
+	})
 }
 func Userinfo_String(recv any) any {
-	ctx := context.Background()
-	_ = ctx
-	receiver, ok := recv.(*go2.Userinfo)
-	if !ok {
-		panic(fmt.Sprintf("go4t shim: Userinfo_String: receiver is <%T>", recv))
-	}
-	value := receiver.String()
-	return go4tMirror0From(value)
+	return rt.IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		receiver := go4tMirror4To(recv, ctx)
+		value0 := receiver.String()
+		return go4tMirror0From(value0), nil
+	})
 }
 func Userinfo_Username(recv any) any {
-	ctx := context.Background()
-	_ = ctx
-	receiver, ok := recv.(*go2.Userinfo)
-	if !ok {
-		panic(fmt.Sprintf("go4t shim: Userinfo_Username: receiver is <%T>", recv))
-	}
-	value := receiver.Username()
-	return go4tMirror0From(value)
+	return rt.IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		receiver := go4tMirror4To(recv, ctx)
+		value0 := receiver.Username()
+		return go4tMirror0From(value0), nil
+	})
 }
 func Values_Add(recv any, p0 any, p1 any) any {
 	ctx := context.Background()
@@ -446,22 +436,22 @@ func Values_Encode(recv any) any {
 	ctx := context.Background()
 	_ = ctx
 	receiver := go4tMirror3To(recv, ctx)
-	value := receiver.Encode()
-	return go4tMirror0From(value)
+	value0 := receiver.Encode()
+	return go4tMirror0From(value0)
 }
 func Values_Get(recv any, p0 any) any {
 	ctx := context.Background()
 	_ = ctx
 	receiver := go4tMirror3To(recv, ctx)
-	value := receiver.Get(go4tMirror0To(p0, ctx))
-	return go4tMirror0From(value)
+	value0 := receiver.Get(go4tMirror0To(p0, ctx))
+	return go4tMirror0From(value0)
 }
 func Values_Has(recv any, p0 any) any {
 	ctx := context.Background()
 	_ = ctx
 	receiver := go4tMirror3To(recv, ctx)
-	value := receiver.Has(go4tMirror0To(p0, ctx))
-	return go4tMirror8From(value)
+	value0 := receiver.Has(go4tMirror0To(p0, ctx))
+	return go4tMirror8From(value0)
 }
 func Values_Set(recv any, p0 any, p1 any) any {
 	ctx := context.Background()
@@ -469,4 +459,146 @@ func Values_Set(recv any, p0 any, p1 any) any {
 	receiver := go4tMirror3To(recv, ctx)
 	receiver.Set(go4tMirror0To(p0, ctx), go4tMirror0To(p1, ctx))
 	return rt.Unit{}
+}
+func New_URL() any            { return new(go2.URL) }
+func New_Userinfo() any       { return new(go2.Userinfo) }
+func URL_Scheme(recv any) any { receiver := recv.(*go2.URL); return go4tMirror0From(receiver.Scheme) }
+func URL_SetScheme(recv, value any) any {
+	return rt.IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		receiver := recv.(*go2.URL)
+		receiver.Scheme = go4tMirror0To(value, ctx)
+		return rt.Unit{}, nil
+	})
+}
+func URL_Opaque(recv any) any { receiver := recv.(*go2.URL); return go4tMirror0From(receiver.Opaque) }
+func URL_SetOpaque(recv, value any) any {
+	return rt.IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		receiver := recv.(*go2.URL)
+		receiver.Opaque = go4tMirror0To(value, ctx)
+		return rt.Unit{}, nil
+	})
+}
+func URL_User(recv any) any { receiver := recv.(*go2.URL); return go4tMirror4From(receiver.User) }
+func URL_SetUser(recv, value any) any {
+	return rt.IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		receiver := recv.(*go2.URL)
+		receiver.User = go4tMirror4To(value, ctx)
+		return rt.Unit{}, nil
+	})
+}
+func URL_Host(recv any) any { receiver := recv.(*go2.URL); return go4tMirror0From(receiver.Host) }
+func URL_SetHost(recv, value any) any {
+	return rt.IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		receiver := recv.(*go2.URL)
+		receiver.Host = go4tMirror0To(value, ctx)
+		return rt.Unit{}, nil
+	})
+}
+func URL_Path(recv any) any { receiver := recv.(*go2.URL); return go4tMirror0From(receiver.Path) }
+func URL_SetPath(recv, value any) any {
+	return rt.IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		receiver := recv.(*go2.URL)
+		receiver.Path = go4tMirror0To(value, ctx)
+		return rt.Unit{}, nil
+	})
+}
+func URL_Fragment(recv any) any {
+	receiver := recv.(*go2.URL)
+	return go4tMirror0From(receiver.Fragment)
+}
+func URL_SetFragment(recv, value any) any {
+	return rt.IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		receiver := recv.(*go2.URL)
+		receiver.Fragment = go4tMirror0To(value, ctx)
+		return rt.Unit{}, nil
+	})
+}
+func URL_RawQuery(recv any) any {
+	receiver := recv.(*go2.URL)
+	return go4tMirror0From(receiver.RawQuery)
+}
+func URL_SetRawQuery(recv, value any) any {
+	return rt.IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		receiver := recv.(*go2.URL)
+		receiver.RawQuery = go4tMirror0To(value, ctx)
+		return rt.Unit{}, nil
+	})
+}
+func URL_RawPath(recv any) any { receiver := recv.(*go2.URL); return go4tMirror0From(receiver.RawPath) }
+func URL_SetRawPath(recv, value any) any {
+	return rt.IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		receiver := recv.(*go2.URL)
+		receiver.RawPath = go4tMirror0To(value, ctx)
+		return rt.Unit{}, nil
+	})
+}
+func URL_RawFragment(recv any) any {
+	receiver := recv.(*go2.URL)
+	return go4tMirror0From(receiver.RawFragment)
+}
+func URL_SetRawFragment(recv, value any) any {
+	return rt.IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		receiver := recv.(*go2.URL)
+		receiver.RawFragment = go4tMirror0To(value, ctx)
+		return rt.Unit{}, nil
+	})
+}
+func URL_ForceQuery(recv any) any {
+	receiver := recv.(*go2.URL)
+	return go4tMirror8From(receiver.ForceQuery)
+}
+func URL_SetForceQuery(recv, value any) any {
+	return rt.IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		receiver := recv.(*go2.URL)
+		receiver.ForceQuery = go4tMirror8To(value, ctx)
+		return rt.Unit{}, nil
+	})
+}
+func URL_OmitHost(recv any) any {
+	receiver := recv.(*go2.URL)
+	return go4tMirror8From(receiver.OmitHost)
+}
+func URL_SetOmitHost(recv, value any) any {
+	return rt.IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		receiver := recv.(*go2.URL)
+		receiver.OmitHost = go4tMirror8To(value, ctx)
+		return rt.Unit{}, nil
+	})
+}
+func URL_AsStringer(recv any) any { return go4.Stringer(go4tMirror2To(recv, context.Background())) }
+func Userinfo_AsStringer(recv any) any {
+	return go4.Stringer(go4tMirror4To(recv, context.Background()))
 }

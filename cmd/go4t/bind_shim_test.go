@@ -73,7 +73,7 @@ func TestBindShimDirectoryAndErrors(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			dir := toolsModule(t)
 			out, stderr, status := toolsCommand(t, dir, "", "bind", "net/url", "--prefix", "native", "--shim", name)
-			if stderr != "" || status != 0 || !strings.Contains(out, "extern func nativeURLHostname(recv URL) String") {
+			if stderr != "" || status != 0 || !strings.Contains(out, "extern func nativeURLHostname(recv URL) IO[String]") {
 				t.Fatalf("bind: stdout=%q stderr=%q status=%d", out, stderr, status)
 			}
 			generated, err := os.ReadFile(filepath.Join(dir, name, "go4t_shim_url.go"))
