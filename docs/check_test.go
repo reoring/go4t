@@ -149,7 +149,7 @@ func TestDocumentationSnippets(t *testing.T) {
 	// developer's GO4T_PATH override. Tests are intentionally sequential.
 	t.Setenv("GO4T_PATH", "")
 	passBlocks, failBlocks, passPrograms, failPrograms := 0, 0, 0, 0
-	for _, name := range []string{"../SPEC.md", "tutorial.md", "stdlib.md", "../README.md"} {
+	for _, name := range []string{"../SPEC.md", "tutorial.md", "stdlib.md", "laws.md", "../README.md"} {
 		source, err := os.ReadFile(name)
 		if err != nil {
 			t.Fatal(err)
