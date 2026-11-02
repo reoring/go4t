@@ -28,9 +28,9 @@ type foreignCall struct {
 	params                                     []*foreignMirror
 	result                                     *foreignMirror
 	context, failure, optional, variadic, scan bool
-	// mutable marks a method on a handle receiver: the receiver is shared Go
-	// state, so the call is an effect even without ctx or error. Record, map
-	// and slice receivers are copies and stay pure.
+	// mutable marks a call that receives a handle (as receiver or parameter):
+	// the callee can read or change shared Go state, so the call is an effect
+	// even without ctx or error. Records, maps and slices are copies.
 	mutable bool
 }
 type mirrorSet struct {
@@ -476,3 +476,24 @@ func foreignTypeName(name string) string {
 
 // effect reports whether a call must run inside IO.
 func (c *foreignCall) effect() bool { return c.context || c.failure || c.mutable }
+
+// sharesState reports whether a value of this mirror carries a handle, directly
+// or inside a container or Option. Callbacks are values the Go side invokes;
+// their own handle parameters are classified at the callback's signature.
+func (m *foreignMirror) sharesState() bool {
+	if m == nil {
+		return false
+	}
+	if m.kind == "handle" {
+		return true
+	}
+	if m.elem != nil && m.elem.sharesState() {
+		return true
+	}
+	for _, e := range m.elems {
+		if e.sharesState() {
+			return true
+		}
+	}
+	return false
+}

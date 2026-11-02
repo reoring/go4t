@@ -406,11 +406,11 @@ func (g *shimGenerator) accessors(decl *strings.Builder, set *mirrorSet, options
 				used[getter], used[setter] = true, true
 				getGo := n.Obj().Name() + "_" + field.name
 				setGo := n.Obj().Name() + "_Set" + field.name
-				fmt.Fprintf(decl, "extern func %s(recv %s) %s = %q.%s\n", getter, name, m.gt, g.path, getGo)
+				fmt.Fprintf(decl, "extern func %s(recv %s) IO[%s] = %q.%s\n", getter, name, m.gt, g.path, getGo)
 				fmt.Fprintf(decl, "extern func %s(recv %s, value %s) IO[Unit] = %q.%s\n", setter, name, m.gt, g.path, setGo)
 				conv := g.conversion(m)
 				typ := g.goType(n)
-				fmt.Fprintf(&g.body, "func %s(recv any) any { receiver := recv.(*%s); return %sFrom(receiver.%s) }\n", getGo, typ, conv, field.name)
+				fmt.Fprintf(&g.body, "func %s(recv any) any { return rt.IO(func(ctx context.Context) (any,error) { if err := ctx.Err(); err != nil { return nil,rt.ClassifyError(err) }; receiver := recv.(*%s); return %sFrom(receiver.%s),nil }) }\n", getGo, typ, conv, field.name)
 				fmt.Fprintf(&g.body, "func %s(recv,value any) any { return rt.IO(func(ctx context.Context) (any,error) { if err := ctx.Err(); err != nil { return nil,rt.ClassifyError(err) }; receiver := recv.(*%s); receiver.%s = %sTo(value,ctx); return rt.Unit{},nil }) }\n", setGo, typ, field.name, conv)
 			}
 		}
@@ -474,8 +474,11 @@ func BindWithShim(pkg *Package, options BindOptions, shimPath, shimPackage strin
 				}
 			}
 		}
-		if c != nil && recv != nil {
-			c.mutable = recv.kind == "handle"
+		if c != nil {
+			c.mutable = recv != nil && recv.kind == "handle"
+			for _, p := range c.params {
+				c.mutable = c.mutable || p.sharesState()
+			}
 		}
 		name, nreason := bindingName(goName, options.Prefix)
 		if reason == "" {

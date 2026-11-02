@@ -41,7 +41,8 @@ import gohttp "go:net/http"
 
 let (scheme, rest, found) = strings.cut(url, "://")
 request <- gohttp.newRequest("GET", url, strings.newReader("") |> strings.readerAsReader)
-gohttp.requestSetHeader(request, map.mapInsert(gohttp.requestHeader(request), "X-Who", ["Ada"]))
+headers <- gohttp.requestHeader(request)
+gohttp.requestSetHeader(request, map.mapInsert(headers, "X-Who", ["Ada"]))
 response <- gohttp.clientDo(gohttp.defaultClient(), request)
 ```
 
@@ -49,7 +50,10 @@ Rules (ADR 0003, SPEC §8):
 
 - Functions, methods, package variables and basic constants become externs;
   exported fields of opaque structs get `<type><Field>` getters and
-  `<type>Set<Field>` setters (`IO[Unit]`); opaque structs get `new<Type>()`.
+  `<type>Set<Field>` setters; opaque structs get `new<Type>()`.
+- Anything that receives a handle (method receiver, parameter, field getter)
+  is `IO`: a handle is shared Go state. Records, maps and slices cross as
+  copies and stay pure.
 - `(A, B)` results are tuples, `(A, B, error)` is `IO[(A, B)]`, `(A, bool)` is
   `Option[A]`; `iter.Seq[T]` results are `List[T]`; returned funcs are go4t
   functions. Still skipped: channels, generic functions, more than three

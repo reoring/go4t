@@ -48,7 +48,7 @@ func Handle(h *owner.Handle) *owner.Handle { return h }
 			want = []string{
 				`import go_example_test_bindings_owner "go:example.test/bindings/owner"`,
 				"extern func echo(p0 go_example_test_bindings_owner.Record) go_example_test_bindings_owner.Record",
-				"extern func handle(p0 go_example_test_bindings_owner.Handle) go_example_test_bindings_owner.Handle",
+				"extern func handle(p0 go_example_test_bindings_owner.Handle) IO[go_example_test_bindings_owner.Handle]",
 			}
 			forbidden = []string{"type Record =", "type Handle =", `"go:example.test/bindings/consumer"`}
 			if !strings.Contains(string(shim), `rt.ForeignRecord("example.test/bindings/shim_consumer.Record"`) {

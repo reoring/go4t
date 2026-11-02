@@ -68,12 +68,12 @@ func TestExtendedBindingShim(t *testing.T) {
 		"extern func invoke(p0 func() IO[(String, Int)]) IO[(String, Int)]",
 		"extern func invokeContext(p0 func() IO[(String, Int)]) IO[(String, Int)]",
 		"extern func invokeTriple(p0 func() (String, Int, Bool)) (String, Int, Bool)",
-		"extern func opaqueLabel(recv Opaque) String",
+		"extern func opaqueLabel(recv Opaque) IO[String]",
 		"extern func opaqueSetLabel(recv Opaque, value String) IO[Unit]",
-		"extern func opaqueApply(recv Opaque) func(Int) Int",
+		"extern func opaqueApply(recv Opaque) IO[func(Int) Int]",
 		"extern func opaqueSetApply(recv Opaque, value func(Int) Int) IO[Unit]",
 		"extern func opaqueReadLabel(recv Opaque) IO[String]",
-		"extern func optionName(recv OptionGo) String",
+		"extern func optionName(recv OptionGo) IO[String]",
 		"// skipped: Opaque.Blocked (unsupported field type chan int)",
 		"// skipped: Opaque.Conflict (accessor name collides with existing binding)",
 		"// skipped: ConsumeSeq (unsupported parameter type iter.Seq[string])",
@@ -124,11 +124,11 @@ func TestStandardExtendedBindings(t *testing.T) {
 			`extern func readCloserAsCloser(recv ReadCloser) Closer = "example.test/bindings/shim_io".ReadCloser_AsCloser`,
 		}},
 		{"net/http", "shim_http", []string{
-			`extern func requestHeader(recv Request) Map[String, List[String]] = "example.test/bindings/shim_http".Request_Header`,
+			`extern func requestHeader(recv Request) IO[Map[String, List[String]]] = "example.test/bindings/shim_http".Request_Header`,
 			`extern func requestSetHeader(recv Request, value Map[String, List[String]]) IO[Unit] = "example.test/bindings/shim_http".Request_SetHeader`,
 			`import go_io "go:io"`,
 			`extern func newRequest(p0 String, p1 String, p2 go_io.Reader) IO[Request] = "example.test/bindings/shim_http".NewRequest`,
-			"extern func responseBody(recv Response) go_io.ReadCloser",
+			"extern func responseBody(recv Response) IO[go_io.ReadCloser]",
 			`extern func defaultClient() Client = "example.test/bindings/shim_http".DefaultClient`,
 			`extern func newClient() Client = "example.test/bindings/shim_http".New_Client`,
 			`extern func methodGet() String = "example.test/bindings/shim_http".MethodGet`,
@@ -253,19 +253,19 @@ func TestBoundary(t *testing.T) {
  equal(s.InvokeTriple(func() any { return [3]any{"callback",int64(8),true} }),[3]any{"callback",int64(8),true})
  equal(s.InvokeSeq(func() any { return []any{"a","b"} }),[]any{"a","b"})
  for _,handle := range []any{s.Value(),s.Pointer()} {
-  equal(s.Opaque_Label(handle),"value")
+  equal(run(s.Opaque_Label(handle)),"value")
   action := s.Opaque_SetLabel(handle,"changed")
-  equal(s.Opaque_Label(handle),"value")
+  equal(run(s.Opaque_Label(handle)),"value")
   run(action)
-  equal(s.Opaque_Label(handle),"changed")
+  equal(run(s.Opaque_Label(handle)),"changed")
   equal(run(s.Opaque_ReadLabel(handle)),"changed")
-  equal(s.ReadValue(handle),"changed")
-  equal(s.Opaque_Apply(handle).(func(any) any)(int64(3)),int64(4))
+  equal(run(s.ReadValue(handle)),"changed")
+  equal(run(s.Opaque_Apply(handle)).(func(any) any)(int64(3)),int64(4))
   run(s.Opaque_SetApply(handle,func(v any) any { return v.(int64)*2 }))
   equal(handle.(*fixture.Opaque).Apply(3),6)
   cancelled,cancel := context.WithCancel(context.Background()); cancel()
   if _,err := s.Opaque_SetLabel(handle,"wrong").(rt.IO)(cancelled); err == nil { t.Fatal("setter ignored cancellation") }
-  equal(s.Opaque_Label(handle),"changed")
+  equal(run(s.Opaque_Label(handle)),"changed")
  }
 }
 `
@@ -285,7 +285,8 @@ func TestReaderComposition(t *testing.T) {
  if reader != asReader { t.Fatal("upcast changed handle identity") }
  request,err := h.NewRequest("POST","http://example.invalid/",asReader).(rt.IO)(context.Background())
  if err != nil { t.Fatal(err) }
- body := h.Request_Body(request)
+ body,err := h.Request_Body(request).(rt.IO)(context.Background())
+ if err != nil { t.Fatal(err) }
  asBodyReader := i.ReadCloser_AsReader(body)
  if body != asBodyReader { t.Fatal("interface upcast changed handle identity") }
  text,err := i.ReadAll(asBodyReader).(rt.IO)(context.Background())

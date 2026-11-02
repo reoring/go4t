@@ -142,6 +142,7 @@ opaque struct の `new<Type>()`、パッケージ変数・基本型定数の get
 - [ ] クロスビルドキャッシュ(A3)。net/http で推移的に 29 パッケージ・8 秒。キー: Go version + go4t build + export data。
 - [ ] 同一 shim 内で同じ非修飾名を持つ別パッケージの record が `rt.ForeignRecord` のキーで衝突する(既存の制限)。
 - [ ] `go4t get` 自動 bind / `go4t bind --module` / `examples/sql-service/go4tbind/` の cutover。
-- [x] 可変 method の純粋性: handle receiver の method は戻り値に関わらず `IO`(SPEC §8)。record/map/slice receiver は
-      コピーなので純粋のまま。法則の対象となる純粋断片に共有状態を観測・変更する extern が入り込まないための規則。
+- [x] handle を受け取る呼び出しは全部 `IO`(SPEC §8): method receiver、引数(`List`/`Map`/`Option` の中も)、フィールド getter。
+      理由は「変更する」ではなく「共有状態を読む」。record/map/slice はコピーなので純粋。constructor・package 変数 getter・
+      upcast は handle を読まずに返すだけなので純粋。法則の対象となる純粋断片に共有状態を観測・変更する extern が入り込まない。
 - [ ] `async` 構文糖(`IO` の暗黙 lift)。別 ADR。

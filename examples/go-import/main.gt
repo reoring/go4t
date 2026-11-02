@@ -35,10 +35,13 @@ func call(port Int) IO[String] {
   do {
     let body = strings.newReader("") |> strings.readerAsReader
     request <- gohttp.newRequest("GET", "http://127.0.0.1:" + show(port) + "/greet", body)
-    gohttp.requestSetHeader(request, map.mapInsert(gohttp.requestHeader(request), "X-Who", ["Ada"]))
+    headers <- gohttp.requestHeader(request)
+    gohttp.requestSetHeader(request, map.mapInsert(headers, "X-Who", ["Ada"]))
     response <- gohttp.clientDo(gohttp.defaultClient(), request)
-    text <- goio.readAll(goio.readCloserAsReader(gohttp.responseBody(response)))
-    ioPure(show(gohttp.responseStatusCode(response)) + " " + text)
+    body <- gohttp.responseBody(response)
+    text <- goio.readAll(goio.readCloserAsReader(body))
+    status <- gohttp.responseStatusCode(response)
+    ioPure(show(status) + " " + text)
   }
 }
 

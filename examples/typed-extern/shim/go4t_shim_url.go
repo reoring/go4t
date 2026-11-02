@@ -460,9 +460,17 @@ func Values_Set(recv any, p0 any, p1 any) any {
 	receiver.Set(go4tMirror0To(p0, ctx), go4tMirror0To(p1, ctx))
 	return rt.Unit{}
 }
-func New_URL() any            { return new(go2.URL) }
-func New_Userinfo() any       { return new(go2.Userinfo) }
-func URL_Scheme(recv any) any { receiver := recv.(*go2.URL); return go4tMirror0From(receiver.Scheme) }
+func New_URL() any      { return new(go2.URL) }
+func New_Userinfo() any { return new(go2.Userinfo) }
+func URL_Scheme(recv any) any {
+	return rt.IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		receiver := recv.(*go2.URL)
+		return go4tMirror0From(receiver.Scheme), nil
+	})
+}
 func URL_SetScheme(recv, value any) any {
 	return rt.IO(func(ctx context.Context) (any, error) {
 		if err := ctx.Err(); err != nil {
@@ -473,7 +481,15 @@ func URL_SetScheme(recv, value any) any {
 		return rt.Unit{}, nil
 	})
 }
-func URL_Opaque(recv any) any { receiver := recv.(*go2.URL); return go4tMirror0From(receiver.Opaque) }
+func URL_Opaque(recv any) any {
+	return rt.IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		receiver := recv.(*go2.URL)
+		return go4tMirror0From(receiver.Opaque), nil
+	})
+}
 func URL_SetOpaque(recv, value any) any {
 	return rt.IO(func(ctx context.Context) (any, error) {
 		if err := ctx.Err(); err != nil {
@@ -484,7 +500,15 @@ func URL_SetOpaque(recv, value any) any {
 		return rt.Unit{}, nil
 	})
 }
-func URL_User(recv any) any { receiver := recv.(*go2.URL); return go4tMirror4From(receiver.User) }
+func URL_User(recv any) any {
+	return rt.IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		receiver := recv.(*go2.URL)
+		return go4tMirror4From(receiver.User), nil
+	})
+}
 func URL_SetUser(recv, value any) any {
 	return rt.IO(func(ctx context.Context) (any, error) {
 		if err := ctx.Err(); err != nil {
@@ -495,7 +519,15 @@ func URL_SetUser(recv, value any) any {
 		return rt.Unit{}, nil
 	})
 }
-func URL_Host(recv any) any { receiver := recv.(*go2.URL); return go4tMirror0From(receiver.Host) }
+func URL_Host(recv any) any {
+	return rt.IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		receiver := recv.(*go2.URL)
+		return go4tMirror0From(receiver.Host), nil
+	})
+}
 func URL_SetHost(recv, value any) any {
 	return rt.IO(func(ctx context.Context) (any, error) {
 		if err := ctx.Err(); err != nil {
@@ -506,7 +538,15 @@ func URL_SetHost(recv, value any) any {
 		return rt.Unit{}, nil
 	})
 }
-func URL_Path(recv any) any { receiver := recv.(*go2.URL); return go4tMirror0From(receiver.Path) }
+func URL_Path(recv any) any {
+	return rt.IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		receiver := recv.(*go2.URL)
+		return go4tMirror0From(receiver.Path), nil
+	})
+}
 func URL_SetPath(recv, value any) any {
 	return rt.IO(func(ctx context.Context) (any, error) {
 		if err := ctx.Err(); err != nil {
@@ -518,8 +558,13 @@ func URL_SetPath(recv, value any) any {
 	})
 }
 func URL_Fragment(recv any) any {
-	receiver := recv.(*go2.URL)
-	return go4tMirror0From(receiver.Fragment)
+	return rt.IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		receiver := recv.(*go2.URL)
+		return go4tMirror0From(receiver.Fragment), nil
+	})
 }
 func URL_SetFragment(recv, value any) any {
 	return rt.IO(func(ctx context.Context) (any, error) {
@@ -532,8 +577,13 @@ func URL_SetFragment(recv, value any) any {
 	})
 }
 func URL_RawQuery(recv any) any {
-	receiver := recv.(*go2.URL)
-	return go4tMirror0From(receiver.RawQuery)
+	return rt.IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		receiver := recv.(*go2.URL)
+		return go4tMirror0From(receiver.RawQuery), nil
+	})
 }
 func URL_SetRawQuery(recv, value any) any {
 	return rt.IO(func(ctx context.Context) (any, error) {
@@ -545,7 +595,15 @@ func URL_SetRawQuery(recv, value any) any {
 		return rt.Unit{}, nil
 	})
 }
-func URL_RawPath(recv any) any { receiver := recv.(*go2.URL); return go4tMirror0From(receiver.RawPath) }
+func URL_RawPath(recv any) any {
+	return rt.IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		receiver := recv.(*go2.URL)
+		return go4tMirror0From(receiver.RawPath), nil
+	})
+}
 func URL_SetRawPath(recv, value any) any {
 	return rt.IO(func(ctx context.Context) (any, error) {
 		if err := ctx.Err(); err != nil {
@@ -557,8 +615,13 @@ func URL_SetRawPath(recv, value any) any {
 	})
 }
 func URL_RawFragment(recv any) any {
-	receiver := recv.(*go2.URL)
-	return go4tMirror0From(receiver.RawFragment)
+	return rt.IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		receiver := recv.(*go2.URL)
+		return go4tMirror0From(receiver.RawFragment), nil
+	})
 }
 func URL_SetRawFragment(recv, value any) any {
 	return rt.IO(func(ctx context.Context) (any, error) {
@@ -571,8 +634,13 @@ func URL_SetRawFragment(recv, value any) any {
 	})
 }
 func URL_ForceQuery(recv any) any {
-	receiver := recv.(*go2.URL)
-	return go4tMirror8From(receiver.ForceQuery)
+	return rt.IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		receiver := recv.(*go2.URL)
+		return go4tMirror8From(receiver.ForceQuery), nil
+	})
 }
 func URL_SetForceQuery(recv, value any) any {
 	return rt.IO(func(ctx context.Context) (any, error) {
@@ -585,8 +653,13 @@ func URL_SetForceQuery(recv, value any) any {
 	})
 }
 func URL_OmitHost(recv any) any {
-	receiver := recv.(*go2.URL)
-	return go4tMirror8From(receiver.OmitHost)
+	return rt.IO(func(ctx context.Context) (any, error) {
+		if err := ctx.Err(); err != nil {
+			return nil, rt.ClassifyError(err)
+		}
+		receiver := recv.(*go2.URL)
+		return go4tMirror8From(receiver.OmitHost), nil
+	})
 }
 func URL_SetOmitHost(recv, value any) any {
 	return rt.IO(func(ctx context.Context) (any, error) {
