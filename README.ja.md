@@ -89,34 +89,34 @@ PDB チェックの後ろへ動かす、`now == at` の境界でだけ露呈す�
 
 ## どこで使われ、何が分かったか
 
-サンプルではなく、実コードの移植で検証しました。
+サンプルではなく、実コードで検証しました。
 
-**法則は 5 つの決定ロジックで連続して検証してから**「使える」と判断しました:
-上の attachment-repair コントローラ(法則 4 本)、一から書いた node-drain コントローラ
-(`examples/node-drain-controller`、10 本: 取り下げ → ノード消失 → cordon → 期限 → PDB → 最初の退避可能 pod)、
-`Map` の容量と使用量を持つゾーン配置の決定ロジック(6 本、fallback 列の帰納法を含む)、
-4 つのゲートを `Result` で連鎖する admission の決定ロジック(7 本)、drain の決定ロジックを構造から書き換えて
-元と同値だと証明したもの(`decide(o) == decideV2(o)`)。最初の 3 回はそれぞれ正規化器の
-完全性の不足(正しい法則なのに証明が閉じない)が見つかり、修正して fixture に固定しました。
-4 回目と 5 回目は評価器の変更が不要でした。健全性の欠陥(誤った法則が通る)はどの回も出ていません。
-正規化器は開いた項の性質テスト(全法則の両辺と部分証明の目標を約 75,000 件のランダム代入で
-`go4t run` の出力と照合)で実際のランタイムと照合しています。admission の回では、検査器が
-**誤った法則**を検出した最初の例が出ました。書き手の `fullPassAdmits` は負の quota が拒否されることを
-忘れており、診断は sample ではなく条件そのもの(`stuck on: if (q < 0) …`)を示しました。
-自分たちの主張を切り下げることになった Go/`rapid` 比較を含む記録は
+**実際の controller 2 本を移植。** `examples/approval-controller` と
+`examples/attachment-repair-controller` の決定ロジックを go4t に移し、元の Go テスト(6 本 + 22 本)を
+一切変えずにそのまま通しました。approval では、元テストが一度も通っていなかった分岐を
+網羅性検査が見つけました。attachment では、観測 → 認可 → compare-and-swap 削除 → 公開という
+複数ステップのワークフローを純粋な `Decide(Observed) Action` 一つにまとめ、Go 側が reconcile ごとに
+最大 3 回呼ぶ形にしました。
+
+**法則は 5 つの決定ロジックで試してから**「使える」と判断しました。
+
+| 題材 | 法則 | 結果 |
+| --- | --- | --- |
+| attachment-repair controller | 4 本 | 2 本は評価器の修正が必要だった |
+| node-drain controller(`examples/node-drain-controller`、一から作成) | 10 本 | 2 本は評価器の修正が必要だった |
+| ゾーン配置(`Map` で容量と使用量を管理) | 6 本 | 2 本は評価器の修正が必要だった。1 本は設計上証明できない等式 |
+| admission(4 つのゲートを `Result` で連鎖) | 7 本 | 評価器の修正なし |
+| node-drain を構造から書き換え、`decide(o) == decideV2(o)` を証明 | 2 本 | 評価器の修正なし |
+
+最初の 3 回で見つかった問題はすべて「正しい法則なのに証明が閉じない」種類で、修正してテストに固定しました。
+「誤った法則が通る」種類の問題は一度も出ていません。正規化器は、全法則の両辺を約 75,000 件のランダム代入で
+`go4t run` の実行結果と照合するテストで検証しています。admission の回では、書き手が間違えた法則
+(負の quota が拒否されることを忘れていた)を検査器が検出し、`stuck on: if (q < 0) …` と条件を示しました。
+Go + `rapid` との比較で自分たちの主張を切り下げた経緯も含め、記録は
 [`docs/adr/0001-equational-laws.md`](docs/adr/0001-equational-laws.md) と
 [`docs/adr/0002-laws-map-and-diagnostics.md`](docs/adr/0002-laws-map-and-diagnostics.md) にあります。
 
-**本番の Kubernetes controller 2 本**(`examples/approval-controller`、
-`examples/attachment-repair-controller`)の判定ロジックを go4t に移し、元の Go テストファイルは
-バイト単位で無変更のまま oracle として使いました。元テスト 6 + 22 本がすべて無変更で通ります。
-approval の移植では、元テストが一度も通らない判断の分岐が見つかり、その分岐を扱うまで
-網羅性検査がコンパイルを拒否しました。attachment の移植では、複数ステップのワークフロー
-(観測 → 認可 → compare-and-swap 削除 → 公開)を純粋な `Decide(Observed) Action` に移し、
-Go が reconcile ごとに最大 3 回呼ぶ形にしました。
-
-移植中に読みやすさのために加えた修正は、毎回同じ形でした——Go の `(value, ok)`、フラグ、sentinel 値が
-コンストラクタになる:
+**移植で毎回同じ書き換えが起きました。** Go の `(value, ok)`、フラグ、sentinel 値がコンストラクタになります:
 
 | 元の Go の書き方 | 変更後 | 効果 |
 | --- | --- | --- |
