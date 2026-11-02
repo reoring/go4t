@@ -92,6 +92,23 @@ go4t が決定ロジックに与えるもの:
 ランダムテストが通ったという結果をどれだけ信用するかで決まります。
 `if` が 2 つで済む `decide` なら Go のままで十分です。
 
+## ユースケース
+
+go4t が向くのは、**入力の組み合わせが多く、判断の順序に意味がある決定ロジック**です。
+Go 側で状態を集めて `Observed` を作り、go4t の `decide` が次の一手を返し、Go 側が実行します。
+
+| ユースケース | 決定ロジックの中身 | 法則で固定できること | 例 |
+| --- | --- | --- | --- |
+| Kubernetes controller の reconcile | 観測したリソースの状態から、次に打つ API 操作を 1 つ選ぶ | 「cordon してから退避する」などの順序、冪等性、timeout の正確な境界 | [approval-controller](examples/approval-controller)、[attachment-repair-controller](examples/attachment-repair-controller)、[node-drain-controller](examples/node-drain-controller) |
+| admission / 認可のゲート | 複数のチェックを順に通し、最初に失敗した理由を返す | ゲートの順序、負の quota など境界値の拒否 | ADR 0002 の admission の回 |
+| 配置・スケジューリング | 容量と使用量の `Map` から配置先を選び、フォールバックする | 満杯のゾーンには置かない、容量がなければどのフォールバック列でも拒否 | `laws/testdata/placement.gt`、ADR 0002 のゾーン配置 |
+| 複数ステップのワークフロー | 観測 → 認可 → compare-and-swap 削除 → 公開のどの段階かを判断し、次のステップを返す | 段階の判断に漏れがない(網羅性)、ステップの順序 | [attachment-repair-controller](examples/attachment-repair-controller) |
+| ポリシー評価・料金ルール | 部分的にしか分からない事実(期限、TTL、フラグ)から判定する | 期限の `>=` / `>` の境界、不正入力のケースを落とさない | 冒頭の `freshness` |
+| リファクタリングの安全な実施 | 既存の `decide` を構造から書き換える | `decide(o) == decideV2(o)` を全入力で証明 | `laws/testdata/refactor_v2.gt` |
+
+向かないもの: I/O・キャッシュ・クライアントが主体の層。`if` が 2 つで済む判断。
+詳細は [go4t でないもの](#go4t-でないもの) を参照。
+
 ## どこで使われ、何が分かったか
 
 サンプルを書くのではなく、実際のコードを移植して検証しました。

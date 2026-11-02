@@ -93,6 +93,24 @@ to reason about. Whether that is worth a second language is a judgement about
 how deep the branches are, how often their order changes, and how much you
 trust a probabilistic green in CI. For a `decide` with two `if`s, stay in Go.
 
+## Use cases
+
+go4t fits **decisions with many input combinations where the order of checks
+matters**. Go gathers state into `Observed`, go4t's `decide` returns the next
+step, Go performs it.
+
+| Use case | What the decision core does | What laws can pin | Example |
+| --- | --- | --- | --- |
+| Kubernetes controller reconcile | Pick the one API operation to perform next from observed resource state | Order ("cordon before evict"), idempotence, exact timeout boundaries | [approval-controller](examples/approval-controller), [attachment-repair-controller](examples/attachment-repair-controller), [node-drain-controller](examples/node-drain-controller) |
+| Admission / authorization gates | Run checks in order and return the first failure reason | Gate order, rejection at boundary values such as a negative quota | the admission round in ADR 0002 |
+| Placement and scheduling | Choose a target from `Map` capacity and usage, with fallback | A full zone is never chosen; empty capacity rejects for any fallback list | `laws/testdata/placement.gt`, the zone-placement round in ADR 0002 |
+| Multi-step workflows | Decide which stage (observe → authorize → compare-and-swap delete → publish) applies and return the next step | No stage left unhandled (exhaustiveness), step order | [attachment-repair-controller](examples/attachment-repair-controller) |
+| Policy evaluation and pricing rules | Decide from partially known facts (deadlines, TTLs, flags) | The `>=` / `>` boundary on a deadline; no invalid-input case dropped | `freshness` at the top of this README |
+| Safe refactoring | Rewrite an existing `decide` structurally | `decide(o) == decideV2(o)` proved for every input | `laws/testdata/refactor_v2.gt` |
+
+Poor fits: layers that are mostly I/O, caches and clients; decisions that fit
+in two `if`s. See [What go4t is not](#what-go4t-is-not).
+
 ## Where it has been used, and what we learned
 
 The language was validated by porting real code, not by writing samples.
