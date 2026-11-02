@@ -192,6 +192,9 @@ func (e *evaluator) extern(ref *ast.ExternRef, args []*term) (*term, error) {
 			if alphaEqual(args[0], args[1], map[int]int{}) {
 				return boolean(true), nil
 			}
+			if termKey(args[0]) > termKey(args[1]) {
+				args = []*term{args[1], args[0]}
+			}
 		case "LtInt", "LtString":
 			if alphaEqual(args[0], args[1], map[int]int{}) {
 				return boolean(false), nil
@@ -269,6 +272,16 @@ func (e *evaluator) binary(x *ast.Binary, env *environment, dicts dictionaryEnv)
 		if err != nil {
 			return nil, err
 		}
+		// Orient only the trusted scalar orders before evaluating compare.
+		// Branch hypotheses then see the same residual as the mirrored source
+		// expression. Arbitrary user Ord dictionaries need not be lawful.
+		op := x.Op
+		if (op == ">" || op == ">=") && len(ds) == 1 &&
+			(ds[0].instance.TypeCon == types.Int || ds[0].instance.TypeCon == types.String) &&
+			e.trustedMapInstance(ds[0].instance) {
+			left, right = right, left
+			if op == ">" { op = "<" } else { op = "<=" }
+		}
 		method := "compare"
 		if x.Op == "==" || x.Op == "!=" {
 			method = "eq"
@@ -285,7 +298,7 @@ func (e *evaluator) binary(x *ast.Binary, env *environment, dicts dictionaryEnv)
 		}
 		if result.kind == "ctor" {
 			order := e.sourceName(result.ctor.Name)
-			switch x.Op {
+			switch op {
 			case "<":
 				return boolean(order == "LT"), nil
 			case "<=":
@@ -296,7 +309,7 @@ func (e *evaluator) binary(x *ast.Binary, env *environment, dicts dictionaryEnv)
 				return boolean(order != "LT"), nil
 			}
 		}
-		return &term{kind: "order", name: x.Op, args: []*term{result}}, nil
+		return &term{kind: "order", name: op, args: []*term{result}}, nil
 	}
 	if x.Op == "/" || x.Op == "%" {
 		if right.kind != "int" {

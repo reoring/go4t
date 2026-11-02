@@ -42,6 +42,21 @@ func TestReflDiagnostics(t *testing.T) {
 			extra: "\nlaw symbolicEq(xs List[Int]) { eq(xs, Nil) == false }\nproof symbolicEq(xs) { refl }\n",
 			stuck: "stuck on: xs", differs: "differs at: eq(xs, Nil) vs false",
 		},
+		{
+			name: "canonical weak comparison", fixture: "compare.gt", law: "stuckComparison",
+			extra: "\nlaw stuckComparison(c Int, s Int) { decide(c, s) == 0 }\nproof stuckComparison(c, s) { refl }\n",
+			stuck: "stuck on: (s <= 0)", differs: "differs at: if (s <= 0) { 1 } else { 2 } vs 0",
+		},
+		{
+			name: "canonical strict comparison", fixture: "compare.gt", law: "stuckComparison",
+			extra: "\nlaw stuckComparison(a Int, b Int) { (if a > b { 1 } else { 2 }) == 0 }\nproof stuckComparison(a, b) { refl }\n",
+			stuck: "stuck on: (b < a)", differs: "differs at: if (b < a) { 1 } else { 2 } vs 0",
+		},
+		{
+			name: "canonical equality", fixture: "compare.gt", law: "stuckComparison",
+			extra: "\nlaw stuckComparison(a Int, b Int) { (if b == a { 1 } else { 2 }) == 0 }\nproof stuckComparison(a, b) { refl }\n",
+			stuck: "stuck on: (a == b)", differs: "differs at: if (a == b) { 1 } else { 2 } vs 0",
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			source, err := os.ReadFile(filepath.Join("testdata", tc.fixture))

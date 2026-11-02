@@ -24,4 +24,12 @@ proof reversedComparator(k, v) { refl }
 law symbolicTraversal(m Map[Int, Int], k Int, v Int) { map.mapToList(map.mapInsert(m, k, v)) == [(k, v)] }
 proof symbolicTraversal(m, k, v) { refl }
 
+law deleteHandwritten(m Map[Key, Int], k Key) { map.mapLookup(map.mapDelete(m, k), k) == None }
+proof deleteHandwritten(m, k) { refl }
+law deleteCustomComparator(m Map[Int, Int], k Int) { map.mapLookupBy(map.mapDeleteBy(m, k, func(a, b) => EQ), k, func(a, b) => EQ) == None }
+proof deleteCustomComparator(m, k) { refl }
+// A symbolic deletion does not expose its size or reorder other map operations.
+law deleteSize(m Map[Int, Int], k Int) { map.mapSize(map.mapDelete(m, k)) == (if map.mapMember(m, k) { map.mapSize(m) - 1 } else { map.mapSize(m) }) }
+proof deleteSize(m, k) { if map.mapMember(m, k) { refl } else { refl } }
+
 func main() IO[Unit] { ioPure(unit()) }

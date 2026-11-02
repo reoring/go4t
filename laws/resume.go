@@ -62,6 +62,14 @@ func (e *evaluator) resume(t *term) (*term, error) {
 		}
 	case "primitive":
 		constant := true
+		// Equality operands may acquire a different canonical order (or
+		// become reflexive) after substitution or arithmetic normalization.
+		switch t.name {
+		case "rt.EqInt", "rt.EqString", "rt.EqBool", "rt.LtInt", "rt.LtString":
+			value, err := e.extern(&ast.ExternRef{ImportPath: "go4t/rt", Name: strings.TrimPrefix(t.name, "rt.")}, t.args)
+			if err != nil { return nil, err }
+			return e.assume(value), nil
+		}
 		for _, arg := range t.args {
 			if !constantTerm(arg) {
 				constant = false

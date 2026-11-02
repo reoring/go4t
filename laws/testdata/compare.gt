@@ -1,0 +1,52 @@
+package main
+
+// Mirrored operators share a normal form without changing strictness.
+law intLessEqual(a Int, b Int) { (a <= b) == (b >= a) }
+proof intLessEqual(a, b) { refl }
+law intLess(a Int, b Int) { (a < b) == (b > a) }
+proof intLess(a, b) { refl }
+law intEqual(a Int, b Int) { (a == b) == (b == a) }
+proof intEqual(a, b) { refl }
+
+law stringLessEqual(a String, b String) { (a <= b) == (b >= a) }
+proof stringLessEqual(a, b) { refl }
+law stringLess(a String, b String) { (a < b) == (b > a) }
+proof stringLess(a, b) { refl }
+law stringEqual(a String, b String) { (a == b) == (b == a) }
+proof stringEqual(a, b) { refl }
+law boolEqual(a Bool, b Bool) { (a == b) == (b == a) }
+proof boolEqual(a, b) { refl }
+
+func fits(c Int, s Int) Bool { c - c >= s }
+func decide(c Int, s Int) Int { if fits(c, s) { 1 } else { 2 } }
+law normalizedCondition(c Int, s Int) {
+  decide(c, s) == (if s <= 0 { 1 } else { 2 })
+}
+proof normalizedCondition(c, s) { if s <= 0 { refl } else { refl } }
+
+law symmetricCondition(a Int, b Int) {
+  (if a == b { 1 } else { 2 }) == (if b == a { 1 } else { 2 })
+}
+proof symmetricCondition(a, b) { if b == a { refl } else { refl } }
+
+law strictBoundary(a Int) {
+  ((a < a, a <= a), (a > a, a >= a)) == ((false, true), (false, true))
+}
+proof strictBoundary(a) { refl }
+
+// These false laws must stay stuck, and their open forms are runtime-sampled.
+law strictIsNotWeak(a Int, b Int) { (a < b) == (b >= a) }
+proof strictIsNotWeak(a, b) { refl }
+law weakIsNotStrict(a String, b String) { (a <= b) == (b > a) }
+proof weakIsNotStrict(a, b) { refl }
+
+// User Ord/Eq dictionaries need not be lawful; do not impose scalar identities.
+type Custom = Custom(Int) deriving Debug
+instance Eq[Custom] { eq(a, b) { match (a, b) { (Custom(x), Custom(y)) => x < y } } }
+instance Ord[Custom] { compare(a, b) { LT } }
+law customOrder(a Custom, b Custom) { (a < b) == (b > a) }
+proof customOrder(a, b) { refl }
+law customEqual(a Custom, b Custom) { (a == b) == (b == a) }
+proof customEqual(a, b) { refl }
+
+func main() IO[Unit] { ioPure(unit()) }

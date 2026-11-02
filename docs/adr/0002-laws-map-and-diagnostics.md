@@ -99,6 +99,18 @@ ADR 0001 の開いた項の性質テストをそのまま使う: Map を含む�
 - 否定: `fold`/`toList` 系は `insert` チェーンに対して中立のまま。集計を含む法則はリテラル map か `match` で具体化した map でしか閉じない。
 - 否定: 評価器に Map 固有の規則が 10 本前後入る。性質テストが各規則を踏むことを担保する必要がある（代入生成器がキー衝突を起こす値域を使う）。
 
+### 実地評価（2026-11-02、ゾーン配置の決定コア、`capacity`/`used` が `Map[String, Int]`、法則 6 本）
+
+| 回 | 題材 | 法則 | 書いたまま通過 | 回避で通過（原因 → 対応） | 設計上の対象外 |
+| --- | --- | --- | --- | --- | --- |
+| 1 | attachment-repair（実コントローラ） | 4 | 2 | 2（レコード更新の射影 → 修正済み） | 0 |
+| 2 | node-drain（新規） | 10 | 8 | 2（opaque 規則 → 修正済み） | 0 |
+| 3 | zone placement（Map） | 6 | 3 | 2（`mapDelete` の記号簡約、比較の向き → 修正中） | 1（`insertCommutes`: Map 値等式、意図どおり不成立） |
+
+- Map 越しの帰納法則（`emptyCapacityRejects(o, zones)`: `emptyMap` ならどんな fallback 列でも `Reject`）が素直に通った。`room(o, zone)` のような lookup 2 本のタプル `match` も `if` 1 つで畳めた。
+- 3 回とも健全性の欠陥は出ておらず、全て「正しいのに閉じない」完全性側。`stuck on:` により原因特定は 1 分程度。
+- 判定基準: 「書いたまま 100%」が実務の決定コア 2 回連続で続いたら「使える」と言い切る。現時点は「評価器の穴を見つけては直すループの中」。
+
 ## Follow-up
 
 - [x] 実装（2026-11-02、`laws/mapterm.go` ほか）: `map` 項種（ソート済み定数キーのリテラル + 記号キーの `insert` チェーン）、規則表どおりの `lookup`/`member`/`delete`/`size`/`fromList`、リテラル限定の `toList`/`keys`/`values`/`fold`/`mapMap`/`union`、`cmp` が prelude/derived `Ord` の `compare` ラムダのときのみ適用。第三分類 `modeled` を到達範囲表に追加し `std/map` 26/26 対象内。fixture `map.gt`/`map_neutral.gt`/`map_decide.gt`/`map_quota.gt`。性質テストは Map 値と小さいキー値域を生成し 0 不一致。付随: 停止性証明書を instance method にも拡張（再帰 derived `Ord` キー、例 `List[Int]`、が中立のまま無限 unfold しない）。

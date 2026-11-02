@@ -1,0 +1,82 @@
+package main
+import "std/map"
+
+// Zone placement: pick the preferred zone if it has room, else the first
+// fallback zone with room, else reject.
+
+type Observed = Observed{
+  preferred: String,
+  fallbacks: List[String],
+  capacity: Map[String, Int],
+  used: Map[String, Int],
+  size: Int
+} deriving Eq, Debug
+
+type Action = Place(String) | Reject deriving Eq, Debug
+
+func room(o Observed, zone String) Int {
+  match (map.mapLookup(o.capacity, zone), map.mapLookup(o.used, zone)) {
+    (Some(c), Some(u)) => c - u
+    (Some(c), None)    => c
+    _                  => 0
+  }
+}
+
+func fits(o Observed, zone String) Bool { room(o, zone) >= o.size }
+
+func decide(o Observed) Action {
+  if fits(o, o.preferred) { Place(o.preferred) } else { firstFit(o, o.fallbacks) }
+}
+
+func firstFit(o Observed, zones List[String]) Action {
+  match zones {
+    Nil => Reject
+    Cons(z, rest) => if fits(o, z) { Place(z) } else { firstFit(o, rest) }
+  }
+}
+
+// 1. Unused zone with enough capacity: preferred wins, regardless of fallbacks.
+law preferredFresh(o Observed, c Int) {
+  decide(o{capacity: map.mapInsert(o.capacity, o.preferred, c), used: map.mapInsert(o.used, o.preferred, 0), size: c}) == Place(o.preferred)
+}
+proof preferredFresh(o, c) { refl }
+
+// 2. Preferred is full (used == capacity, size positive) → never placed there.
+law preferredFullNotPlaced(o Observed, c Int, s Int) {
+  (decide(o{capacity: map.mapInsert(o.capacity, o.preferred, c), used: map.mapInsert(o.used, o.preferred, c), size: s}) == Place(o.preferred))
+    == (if 0 >= s { true } else { isPreferred(o, firstFit(o{capacity: map.mapInsert(o.capacity, o.preferred, c), used: map.mapInsert(o.used, o.preferred, c), size: s}, o.fallbacks)) })
+}
+func isPreferred(o Observed, a Action) Bool { a == Place(o.preferred) }
+proof preferredFullNotPlaced(o, c, s) { if 0 >= s { refl } else { refl } }
+
+// 3. Capacity change in an unrelated zone does not change the preferred decision.
+law unrelatedZone(o Observed, z String, c Int) {
+  fits(o{capacity: map.mapInsert(o.capacity, z, c)}, o.preferred)
+    == (if o.preferred == z { fits(o{capacity: map.mapInsert(o.capacity, z, c)}, o.preferred) } else { fits(o, o.preferred) })
+}
+proof unrelatedZone(o, z, c) { if o.preferred == z { refl } else { refl } }
+
+// 4. No fallbacks and preferred does not fit → Reject (induction-free).
+law rejectWhenNothing(o Observed) {
+  decide(o{fallbacks: Nil, capacity: map.emptyMap(), used: map.emptyMap(), size: 1}) == Reject
+}
+proof rejectWhenNothing(o) { refl }
+
+// 5. With empty capacity nothing ever fits, for any fallback list (induction).
+law emptyCapacityRejects(o Observed, zones List[String]) {
+  firstFit(o{capacity: map.emptyMap(), size: 1}, zones) == Reject
+}
+proof emptyCapacityRejects(o, zones) {
+  match zones {
+    Nil => refl
+    Cons(_, rest) => rewrite emptyCapacityRejects(o, rest) { refl }
+  }
+}
+
+// 6. Map values as equations: insert order (should not close).
+law insertCommutes(m Map[String, Int], a String, b String) {
+  map.mapInsert(map.mapInsert(m, a, 1), b, 2) == map.mapInsert(map.mapInsert(m, b, 2), a, 1)
+}
+proof insertCommutes(m, a, b) { if a == b { refl } else { refl } }
+
+func main() IO[Unit] { ioPure(unit()) }

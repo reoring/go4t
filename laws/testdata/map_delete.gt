@@ -1,0 +1,83 @@
+package main
+
+import "std/map"
+
+// Deletion retains a symbolic base, but lookup and membership see its removed key.
+law lookupDeleted(m Map[Int, Int], k Int) {
+  map.mapLookup(map.mapDelete(m, k), k) == None
+}
+proof lookupDeleted(m, k) { refl }
+
+law lookupOther(m Map[Int, Int], k Int, j Int) {
+  map.mapLookup(map.mapDelete(m, k), j) == (if j == k { None } else { map.mapLookup(m, j) })
+}
+proof lookupOther(m, k, j) { if j == k { refl } else { refl } }
+
+law memberDeleted(m Map[String, Int], k String) {
+  map.mapMember(map.mapDelete(m, k), k) == false
+}
+proof memberDeleted(m, k) { refl }
+
+law memberOther(m Map[String, Int], k String, j String) {
+  map.mapMember(map.mapDelete(m, k), j) == (if j == k { false } else { map.mapMember(m, j) })
+}
+proof memberOther(m, k, j) { if j == k { refl } else { refl } }
+
+law deleteIdempotent(m Map[Int, Int], k Int) {
+  map.mapDelete(map.mapDelete(m, k), k) == map.mapDelete(m, k)
+}
+proof deleteIdempotent(m, k) { refl }
+
+law lookupDistinct(m Map[Int, Int]) {
+  map.mapLookup(map.mapDelete(m, 1), 2) == map.mapLookup(m, 2)
+}
+proof lookupDistinct(m) { refl }
+
+law memberDistinct(m Map[Int, Int]) {
+  map.mapMember(map.mapDelete(m, 1), 2) == map.mapMember(m, 2)
+}
+proof memberDistinct(m) { refl }
+
+law lookupNested(m Map[Int, Int], k Int, j Int) {
+  map.mapLookup(map.mapDelete(map.mapDelete(m, k), j), k) == None
+}
+proof lookupNested(m, k, j) { if k == j { refl } else { refl } }
+
+type Observed = Observed{
+  preferred: String,
+  fallbacks: List[String],
+  capacity: Map[String, Int],
+  used: Map[String, Int],
+  size: Int
+} deriving Eq, Debug
+
+type Action = Place(String) | Reject deriving Eq, Debug
+
+func room(o Observed, zone String) Int {
+  match (map.mapLookup(o.capacity, zone), map.mapLookup(o.used, zone)) {
+    (Some(c), Some(u)) => c - u
+    (Some(c), None) => c
+    _ => 0
+  }
+}
+
+func fits(o Observed, zone String) Bool { room(o, zone) >= o.size }
+
+func firstFit(o Observed, zones List[String]) Action {
+  match zones {
+    Nil => Reject
+    Cons(z, rest) => if fits(o, z) { Place(z) } else { firstFit(o, rest) }
+  }
+}
+
+func decide(o Observed) Action {
+  if fits(o, o.preferred) { Place(o.preferred) } else { firstFit(o, o.fallbacks) }
+}
+
+// A fresh preferred zone wins regardless of the symbolic fallback list.
+law preferredFresh(o Observed, c Int) {
+  decide(o{capacity: map.mapInsert(o.capacity, o.preferred, c), used: map.mapDelete(o.used, o.preferred), size: c}) == Place(o.preferred)
+}
+proof preferredFresh(o, c) { refl }
+
+func main() IO[Unit] { ioPure(unit()) }

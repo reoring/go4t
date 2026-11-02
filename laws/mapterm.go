@@ -217,6 +217,16 @@ func (e *evaluator) mapLookup(base, key *term, ord *dictionary, member bool) (*t
 		if err != nil { return nil, err }
 		return mapChoice(cond, some(base.args[2]), rest), nil
 	}
+	// A symbolic delete is observable through the same lawful dictionary,
+	// even though its size and underlying map remain neutral.
+	if base.kind == "mapop" && base.name == "MapDelete" && sameDictionaries(base.dicts, []*dictionary{ord}) {
+		cond, err := e.mapEqual(ord, key, base.args[1])
+		if err != nil { return nil, err }
+		if cond.kind == "bool" && cond.flag { return none, nil }
+		rest, err := e.mapLookup(base.args[0], key, ord, member)
+		if err != nil { return nil, err }
+		return mapChoice(cond, none, rest), nil
+	}
 	return mapResidual(name, []*term{base, key}, ord), nil
 }
 
@@ -252,6 +262,9 @@ func (e *evaluator) mapOperation(name string, args []*term, ord *dictionary) (*t
 			rest, err := e.mapOperation(name, []*term{base.args[0], key}, ord)
 			if err != nil { return nil, err }
 			return mapChoice(condition, rest, e.mapInsert(rest, base.args[1], base.args[2], ord)), nil
+		}
+		if base.kind == "mapop" && base.name == name && sameDictionaries(base.dicts, []*dictionary{ord}) && alphaEqual(base.args[1], key, nil) {
+			return base, nil
 		}
 	case "MapSize":
 		if base.kind == "map" { return integer(int64(len(base.args)/2)), nil }

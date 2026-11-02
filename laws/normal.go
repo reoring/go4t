@@ -330,9 +330,9 @@ func (e *evaluator) sourceName(name string) string {
 	return name
 }
 
-// displayComparison recognizes only the residuals emitted by the prelude
-// primitive Eq/Ord instances. This is diagnostic sugar, not normalization:
-// neither the terms nor the equality/assumption machinery are changed.
+// displayComparison reads scalar normal forms without changing their orientation.
+// Equality operands are already sorted and trusted Int/String orders already
+// use < or <=; folding the prelude's compare body is only diagnostic sugar.
 func (e *evaluator) displayComparison(t *term) (op string, left, right *term) {
 	if t.kind == "primitive" && len(t.args) == 2 {
 		switch t.name {
@@ -372,11 +372,13 @@ func (e *evaluator) displayComparison(t *term) (op string, left, right *term) {
 			eqName = "rt.EqString"
 		}
 		if eq.kind == "primitive" && eq.name == eqName && len(eq.args) == 2 &&
-			alphaEqual(a, eq.args[0], nil) && alphaEqual(b, eq.args[1], nil) &&
+			(alphaEqual(a, eq.args[0], nil) && alphaEqual(b, eq.args[1], nil) ||
+				alphaEqual(a, eq.args[1], nil) && alphaEqual(b, eq.args[0], nil)) &&
 			e.displayOrdering(yes, "LT") && e.displayOrdering(no.args[1], "EQ") && e.displayOrdering(no.args[2], "GT") {
 			return t.name, a, b
 		}
 	case "rt.EqBool":
+		if alphaEqual(b, no.args[0], nil) { a, b = b, a }
 		if alphaEqual(a, no.args[0], nil) &&
 			e.displayOrdering(yes, "EQ") && e.displayOrdering(no.args[1], "GT") && e.displayOrdering(no.args[2], "LT") {
 			return t.name, a, b

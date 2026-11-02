@@ -6,12 +6,27 @@ import (
 )
 
 func TestMapLaws(t *testing.T) {
-	for _, file := range []string{"map.gt", "map_decide.gt", "map_quota.gt"} {
+	for _, file := range []string{"map.gt", "map_decide.gt", "map_quota.gt", "map_delete.gt"} {
 		t.Run(file, func(t *testing.T) {
 			if errors := CheckProgram(loadFixture(t, file)); len(errors) != 0 {
 				for _, err := range errors { t.Error(err) }
 			}
 		})
+	}
+}
+
+// placement.gt is a zone-placement decision core written against the public
+// syntax; every law must close as written except insertCommutes, which states
+// equality of two symbolic insert chains and is intentionally not provable.
+func TestPlacementLaws(t *testing.T) {
+	errors := diagnosticsByLaw(t, loadFixture(t, "placement.gt"))
+	for name, err := range errors {
+		if name != "insertCommutes" {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+	if errors["insertCommutes"] == nil {
+		t.Error("insertCommutes: symbolic insert chains must not be reordered")
 	}
 }
 

@@ -872,8 +872,11 @@ to the arm's pattern, and inside a stuck `if c`, `c` is assumed `true` or
 `false`, so repeated eliminations of the same scrutinee collapse. Int
 `+`, `-`, `*` and unary negation use polynomial normal forms modulo 2^64,
 matching wrapping runtime arithmetic. Comparisons and `/`/`%` are not an
-arithmetic decision procedure. `if` assumptions compare normalized operands,
-so `now >= at + t` and `now >= t + at` describe the same guard.
+arithmetic decision procedure, but prelude Int and String comparisons are
+oriented canonically (`a > b` is `b < a`, `a >= b` is `b <= a`) and `==`
+operands are ordered, and `x == x` / `x < x` decide for alpha-equal
+operands. `if` assumptions compare normalized operands, so `now >= at + t`,
+`at + t <= now` and `now >= t + at` describe the same guard.
 
 `Map` values are modelled symbolically. A map whose keys are all constants
 (Int, String, Bool or tuples of those) normalizes to a sorted literal; an
@@ -882,7 +885,10 @@ an identical key shadowing earlier ones. `mapLookup`, `mapMember`, `mapDelete`,
 `mapSize` and `mapFromList` reduce through such nodes, producing key-equality
 conditions of the form `k2 == k` that an `if` tactic can assume:
 `mapLookup(mapInsert(m, k, v), k2)` becomes `if k2 == k { Some(v) } else
-{ mapLookup(m, k2) }`. `mapToList`, `mapKeys`, `mapValues`, `mapFold`,
+{ mapLookup(m, k2) }`, and `mapLookup(mapDelete(m, k), k2)` becomes
+`if k2 == k { None } else { mapLookup(m, k2) }` even when `m` is symbolic.
+Distinct symbolic insertions are never reordered, so equality of two symbolic
+maps is definitional only. `mapToList`, `mapKeys`, `mapValues`, `mapFold`,
 `mapMap` and `mapUnion` reduce only between literal maps. These rules apply
 only when the comparator is the `compare` method of a prelude Int/String/Bool
 instance, a derived `Ord`, or tuples and compositions of those, because they
