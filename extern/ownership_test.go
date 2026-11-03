@@ -41,7 +41,7 @@ func Handle(h *owner.Handle) *owner.Handle { return h }
 				"type Record = Record{count: Int} deriving Eq, Debug",
 				"type Handle = HandleHandle",
 				`extern func valueAsSpeaker(recv Value) Speaker = "example.test/bindings/shim_owner".Value_AsSpeaker`,
-				"// skipped: Collision.AsSpeaker (upcast name collides with existing binding)",
+				"// skipped: Collision.AsSpeaker (name collisionAsSpeaker taken by CollisionAsSpeaker)",
 			}
 			forbidden = []string{`"go:example.test/bindings/owner"`, "AsConstraint(", "AsGeneric(", "speakerAsSpeaker("}
 		} else {

@@ -1400,7 +1400,8 @@ handles, not invented record layouts. Reserved names suggest a prefix.
 | time.Duration | Int | Nanoseconds |
 | time.Time | Int | UnixNano; zero time becomes 0, and 0 reconstructs zero time |
 | error in a record field | Option[String] | nil becomes None; otherwise the message; reverse conversion uses a new error |
-| Exported struct with mirrorable exported fields | Record named after the struct | Declared in its owning Go package's binding module, first field letter lower-cased, `deriving Eq, Debug`; promoted embedded fields follow Go lookup, ambiguous fields omitted, unexported fields ignored |
+| Exported nongeneric named struct T with T implementing json.Marshaler and *T implementing json.Unmarshaler | dyn.Value | Its JSON wire form takes precedence over record/handle layout (except the time.Time rule above); recursive fields use the same rule, pointers become Option[dyn.Value], and methods operate on copies. Convert through encoding/json and the runtime any↔dyn helpers; conversion errors panic with `go4t json scalar: <type>: <err>` |
+| Exported struct with mirrorable exported fields | Record named after the struct | Declared in its owning Go package's binding module, first field letter lower-cased, `deriving Eq, Debug`; a field whose lowered name is a go4t keyword gains a trailing `_` (`SELinuxOptions.Type` → `type_`); promoted embedded fields follow Go lookup, ambiguous fields omitted, unexported fields ignored |
 | Named non-struct with mirrorable underlying type | Underlying mirror | No distinct go4t type; shim performs the named Go conversion |
 | Other exported named types | Opaque handle | Includes interfaces, cyclic structs and structs with nonmirrorable fields |
 | Opaque named struct value or pointer | Same opaque handle | A value result is copied into one fresh mutable pointer box; a pointer preserves identity; passing a boxed handle back as a Go value dereferences it |
@@ -1410,7 +1411,7 @@ handles, not invented record layouts. Reserved names suggest a prefix.
 | Function parameter or result with mirrorable signature | func(A, ...) R or func(A, ...) IO[R] | Erased callback adapter in both directions; leading context or trailing error forces IO, and returned Go functions run when their IO is executed |
 | any | dyn.Value | Runtime tagged conversion; see §10.7 |
 
-A struct without exported fields is a handle, including an empty struct:
+Otherwise, a struct without exported fields is a handle, including an empty struct:
 turning a private-state object such as `sql.DB` into an empty record would lose
 its identity. `*Handle` stays the same handle, not Option. With `--shim`, handles
 and value records are declared only by the binding module of their owning Go
@@ -1425,7 +1426,7 @@ method-set interfaces in their package or its imported packages whenever T or
 `strings.readerAsReader` yields `io.Reader`, and `io.readCloserAsReader` widens
 `io.ReadCloser` to `io.Reader`. Handle upcasts preserve identity; record upcasts
 use the existing copy boundary. The builtin `error` interface is not an upcast
-target. A collision emits `// skipped: T.AsI (upcast name collides with existing binding)`.
+target. Binding-name precedence is method/function > field accessor > constructor/value getter > upcast; ties keep first-seen order. Each loser emits `// skipped: <display> (name <name> taken by <winner display>)`. When one source has upcasts to same-named interfaces, both names include the owning package suffix before the interface name: the last path element CamelCased, with its parent prepended for version segments (`meta/v1` → `AsMetaV1Object`, `runtime` → `AsRuntimeObject`). If those still collide, use the full generated import alias without `go_`, CamelCased.
 
 The companion shims preserve the erased extern ABI (`any` parameters/result).
 Record constructors cannot live in the shim package, because it cannot import

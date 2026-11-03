@@ -30,6 +30,7 @@ type Package struct {
 	Methods   []Method
 	goPackage *types.Package
 	imports   []*types.Package
+	jsonMarshaler, jsonUnmarshaler *types.Interface
 }
 
 // Lookup finds an exported function by its Go name.
@@ -60,6 +61,14 @@ func (l *Loader) Load(path string) (*Package, error) {
 	}
 	if path == "" || strings.HasPrefix(path, "-") || strings.Contains(path, "...") {
 		return nil, fmt.Errorf("invalid Go import path %q", path)
+	}
+	// JSON-scalar mirrors must use the same importer as the package being bound.
+	// Load its interfaces even when the package only implements their methods
+	// structurally and does not import encoding/json itself.
+	if l.importer == nil && path != "encoding/json" {
+		if _, err := l.Load("encoding/json"); err != nil {
+			return nil, err
+		}
 	}
 	cmd := exec.Command("go", "list", "-json", "-export", "-deps", path)
 	cmd.Dir = l.Dir
@@ -113,6 +122,12 @@ func (l *Loader) Load(path string) (*Package, error) {
 		return nil, fmt.Errorf("read Go package %q: %w", path, err)
 	}
 	p := &Package{Path: pkg.Path(), Name: pkg.Name(), goPackage: pkg}
+	jsonPackage, err := l.importer.Import("encoding/json")
+	if err != nil {
+		return nil, fmt.Errorf("read JSON interfaces: %w", err)
+	}
+	p.jsonMarshaler = jsonPackage.Scope().Lookup("Marshaler").Type().Underlying().(*types.Interface)
+	p.jsonUnmarshaler = jsonPackage.Scope().Lookup("Unmarshaler").Type().Underlying().(*types.Interface)
 	// Export-data dependencies can have only the names referenced by this
 	// package populated. Import direct dependencies explicitly so interface
 	// discovery sees their complete exported scopes, not just those names.

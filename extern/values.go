@@ -27,13 +27,10 @@ func exportedValues(pkg *types.Package) []types.Object {
 	return values
 }
 
-func (g *shimGenerator) values(decl *strings.Builder, set *mirrorSet, pkg *Package, options BindOptions, used, emitted map[string]bool) {
+func (g *shimGenerator) values(decl *strings.Builder, set *mirrorSet, pkg *Package, options BindOptions, candidates *bindingCandidates) {
 	qualifier := g.qualifier(types.NewPackage(pkg.Path, pkg.Name))
 	for _, obj := range exportedValues(pkg.goPackage) {
 		name, reason := bindingName(obj.Name(), options.Prefix)
-		if reason == "" && emitted[name] {
-			reason = "binding name collides with existing binding"
-		}
 		var m *foreignMirror
 		if c, ok := obj.(*types.Const); ok {
 			typ := types.Default(c.Type())
@@ -62,23 +59,24 @@ func (g *shimGenerator) values(decl *strings.Builder, set *mirrorSet, pkg *Packa
 			fmt.Fprintf(decl, "// skipped: %s (%s)\n", obj.Name(), reason)
 			continue
 		}
-		used[name], emitted[name] = true, true
-		if options.Prefix == "" && options.Prelude[name] {
-			fmt.Fprintf(decl, "// collides with prelude: %s\n", name)
-		}
-		shimName, value := obj.Name(), obj.Name()
-		if qualifier == "" {
-			shimName = "Go4t_" + shimName
-		} else {
-			value = qualifier + "." + value
-		}
-		fmt.Fprintf(decl, "extern func %s() %s = %q.%s\n", name, m.gt, g.path, shimName)
-		converter := g.conversion(m)
-		fmt.Fprintf(&g.body, "func %s() any { return %sFrom(%s) }\n", shimName, converter, value)
+		candidates.add(name, obj.Name(), bindingValue, func() {
+			if options.Prefix == "" && options.Prelude[name] {
+				fmt.Fprintf(decl, "// collides with prelude: %s\n", name)
+			}
+			shimName, value := obj.Name(), obj.Name()
+			if qualifier == "" {
+				shimName = "Go4t_" + shimName
+			} else {
+				value = qualifier + "." + value
+			}
+			fmt.Fprintf(decl, "extern func %s() %s = %q.%s\n", name, m.gt, g.path, shimName)
+			converter := g.conversion(m)
+			fmt.Fprintf(&g.body, "func %s() any { return %sFrom(%s) }\n", shimName, converter, value)
+		})
 	}
 }
 
-func (g *shimGenerator) constructors(decl *strings.Builder, set *mirrorSet, options BindOptions, used, emitted map[string]bool) {
+func (g *shimGenerator) constructors(decl *strings.Builder, set *mirrorSet, options BindOptions, candidates *bindingCandidates) {
 	names := make([]string, 0, len(set.handles))
 	for name := range set.handles {
 		names = append(names, name)
@@ -91,16 +89,14 @@ func (g *shimGenerator) constructors(decl *strings.Builder, set *mirrorSet, opti
 		}
 		goName := "New" + n.Obj().Name()
 		binding, reason := bindingName(goName, options.Prefix)
-		if used[binding] || emitted[binding] {
-			reason = "constructor name collides with existing binding"
-		}
 		if reason != "" {
 			fmt.Fprintf(decl, "// skipped: %s (%s)\n", goName, reason)
 			continue
 		}
-		used[binding], emitted[binding] = true, true
-		shimName := "New_" + n.Obj().Name()
-		fmt.Fprintf(decl, "extern func %s() %s = %q.%s\n", binding, name, g.path, shimName)
-		fmt.Fprintf(&g.body, "func %s() any { return new(%s) }\n", shimName, g.goType(n))
+		candidates.add(binding, goName, bindingValue, func() {
+			shimName := "New_" + n.Obj().Name()
+			fmt.Fprintf(decl, "extern func %s() %s = %q.%s\n", binding, name, g.path, shimName)
+			fmt.Fprintf(&g.body, "func %s() any { return new(%s) }\n", shimName, g.goType(n))
+		})
 	}
 }

@@ -3,6 +3,7 @@ package extern
 import (
 	"fmt"
 	"go/types"
+	"go4t/lexer"
 	gfxtypes "go4t/types"
 	"sort"
 	"strings"
@@ -34,21 +35,23 @@ type foreignCall struct {
 	mutable bool
 }
 type mirrorSet struct {
-	floats    bool
-	owner     string
-	imports   map[string]string
-	used      map[string]bool
-	records   map[string]*foreignMirror
-	handles   map[string]*types.Named
-	resolving map[types.Type]bool
-	dyn       bool
+	floats                         bool
+	owner                          string
+	imports                        map[string]string
+	used                           map[string]bool
+	records                        map[string]*foreignMirror
+	handles                        map[string]*types.Named
+	resolving                      map[types.Type]bool
+	dyn                            bool
+	jsonMarshaler, jsonUnmarshaler *types.Interface
 }
 
-func newMirrorSet(floats bool, owner string, used map[string]bool) *mirrorSet {
+func newMirrorSet(floats bool, pkg *Package, used map[string]bool) *mirrorSet {
 	return &mirrorSet{
-		floats: floats, owner: owner, used: used, imports: map[string]string{},
+		floats: floats, owner: pkg.Path, used: used, imports: map[string]string{},
 		records: map[string]*foreignMirror{}, handles: map[string]*types.Named{},
-		resolving: map[types.Type]bool{},
+		resolving:     map[types.Type]bool{},
+		jsonMarshaler: pkg.jsonMarshaler, jsonUnmarshaler: pkg.jsonUnmarshaler,
 	}
 }
 
@@ -136,6 +139,13 @@ func (s *mirrorSet) valueMirror(t types.Type, visiting map[types.Type]bool) *for
 			return nil
 		}
 		if _, ok := v.Underlying().(*types.Struct); ok {
+			// A declared JSON wire form takes precedence over representation fields.
+			if s.jsonMarshaler != nil && s.jsonUnmarshaler != nil &&
+				types.Implements(v, s.jsonMarshaler) && types.Implements(types.NewPointer(v), s.jsonUnmarshaler) {
+				s.dyn = true
+				m.kind, m.gt = "jsonscalar", "dyn.Value"
+				return m
+			}
 			fields := promotedFields(v)
 			// A private-state object (sql.DB, url.Userinfo, ...) is a handle, not
 			// an empty record which would silently discard its state.
@@ -160,8 +170,8 @@ func (s *mirrorSet) valueMirror(t types.Type, visiting map[types.Type]bool) *for
 				if fm == nil {
 					return nil
 				}
-				name := lowerName(f.name)
-				if _, reason := bindingName(f.name, ""); reason != "" || names[name] {
+				name := recordFieldName(f.name)
+				if name == "" || names[name] {
 					return nil
 				}
 				names[name] = true
@@ -496,4 +506,24 @@ func (m *foreignMirror) sharesState() bool {
 		}
 	}
 	return false
+}
+
+// recordFieldName maps a Go field to a go4t record field. A field whose name
+// is a go4t keyword (`Type` in SELinuxOptions) gets a trailing underscore, the
+// same rule as package names; other reserved spellings make the type opaque.
+func recordFieldName(goName string) string {
+	name, reason := bindingName(goName, "")
+	if reason == "" {
+		return name
+	}
+	keyword := false
+	lexer.VisitFixedTokens(func(kind lexer.Kind, text string) {
+		if kind == lexer.Keyword && text == name {
+			keyword = true
+		}
+	})
+	if !keyword {
+		return ""
+	}
+	return name + "_"
 }

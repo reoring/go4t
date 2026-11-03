@@ -18,6 +18,42 @@ type shimGenerator struct {
 	next       int
 }
 
+const (
+	bindingCall = iota + 1
+	bindingAccessor
+	bindingValue
+	bindingUpcast
+)
+
+type bindingCandidate struct {
+	name, display string
+	rank          int
+	emit          func()
+}
+
+type bindingCandidates []bindingCandidate
+
+func (c *bindingCandidates) add(name, display string, rank int, emit func()) {
+	*c = append(*c, bindingCandidate{name: name, display: display, rank: rank, emit: emit})
+}
+
+func (c bindingCandidates) emit(decl *strings.Builder) {
+	winners := make(map[string]int, len(c))
+	for i, candidate := range c {
+		winner, exists := winners[candidate.name]
+		if !exists || candidate.rank < c[winner].rank {
+			winners[candidate.name] = i
+		}
+	}
+	for i, candidate := range c {
+		if winner := winners[candidate.name]; winner != i {
+			fmt.Fprintf(decl, "// skipped: %s (name %s taken by %s)\n", candidate.display, candidate.name, c[winner].display)
+		} else {
+			candidate.emit()
+		}
+	}
+}
+
 func (g *shimGenerator) qualifier(p *types.Package) string {
 	if p.Path() == g.path {
 		return ""
@@ -105,6 +141,11 @@ func (g *shimGenerator) conversion(m *foreignMirror) string {
 	case "dyn":
 		to.WriteString("return rt.DynToGo(v)\n")
 		from.WriteString("return rt.DynFromGo(v)\n")
+	case "jsonscalar":
+		jsonAlias := g.qualifier(types.NewPackage("encoding/json", "json"))
+		prefix := "go4t json scalar: " + types.TypeString(m.typ, nil) + ": "
+		fmt.Fprintf(&to, "data, err := %s.Marshal(rt.DynToGo(v)); if err != nil { panic(%q + err.Error()) }; var result %s; if err := result.UnmarshalJSON(data); err != nil { panic(%q + err.Error()) }; return result\n", jsonAlias, prefix, typ, prefix)
+		fmt.Fprintf(&from, "data, err := %s.Marshal(v); if err != nil { panic(%q + err.Error()) }; var value any; if err := %s.Unmarshal(data,&value); err != nil { panic(%q + err.Error()) }; return rt.DynFromGo(value)\n", jsonAlias, prefix, jsonAlias, prefix)
 	case "dynlist":
 		to.WriteString("return rt.DynListToGo(v)\n")
 		from.WriteString("return rt.DynListFromGo(v)\n")
@@ -366,7 +407,7 @@ func (g *shimGenerator) callBody(out *strings.Builder, callee string, sig *types
 	out.WriteByte('\n')
 }
 
-func (g *shimGenerator) accessors(decl *strings.Builder, set *mirrorSet, options BindOptions, used map[string]bool) {
+func (g *shimGenerator) accessors(decl *strings.Builder, set *mirrorSet, options BindOptions, candidates *bindingCandidates) {
 	seen := map[string]bool{}
 	for {
 		var names []string
@@ -392,9 +433,6 @@ func (g *shimGenerator) accessors(decl *strings.Builder, set *mirrorSet, options
 				if reason == "" {
 					reason = setterReason
 				}
-				if used[getter] || used[setter] {
-					reason = "accessor name collides with existing binding"
-				}
 				m := set.resolve(field.typ, true)
 				if reason == "" && m == nil {
 					reason = "unsupported field type " + types.TypeString(field.typ, nil)
@@ -403,15 +441,20 @@ func (g *shimGenerator) accessors(decl *strings.Builder, set *mirrorSet, options
 					fmt.Fprintf(decl, "// skipped: %s (%s)\n", display, reason)
 					continue
 				}
-				used[getter], used[setter] = true, true
 				getGo := n.Obj().Name() + "_" + field.name
 				setGo := n.Obj().Name() + "_Set" + field.name
-				fmt.Fprintf(decl, "extern func %s(recv %s) IO[%s] = %q.%s\n", getter, name, m.gt, g.path, getGo)
-				fmt.Fprintf(decl, "extern func %s(recv %s, value %s) IO[Unit] = %q.%s\n", setter, name, m.gt, g.path, setGo)
-				conv := g.conversion(m)
-				typ := g.goType(n)
-				fmt.Fprintf(&g.body, "func %s(recv any) any { return rt.IO(func(ctx context.Context) (any,error) { if err := ctx.Err(); err != nil { return nil,rt.ClassifyError(err) }; receiver := recv.(*%s); return %sFrom(receiver.%s),nil }) }\n", getGo, typ, conv, field.name)
-				fmt.Fprintf(&g.body, "func %s(recv,value any) any { return rt.IO(func(ctx context.Context) (any,error) { if err := ctx.Err(); err != nil { return nil,rt.ClassifyError(err) }; receiver := recv.(*%s); receiver.%s = %sTo(value,ctx); return rt.Unit{},nil }) }\n", setGo, typ, field.name, conv)
+				candidates.add(getter, display, bindingAccessor, func() {
+					fmt.Fprintf(decl, "extern func %s(recv %s) IO[%s] = %q.%s\n", getter, name, m.gt, g.path, getGo)
+					conv := g.conversion(m)
+					typ := g.goType(n)
+					fmt.Fprintf(&g.body, "func %s(recv any) any { return rt.IO(func(ctx context.Context) (any,error) { if err := ctx.Err(); err != nil { return nil,rt.ClassifyError(err) }; receiver := recv.(*%s); return %sFrom(receiver.%s),nil }) }\n", getGo, typ, conv, field.name)
+				})
+				candidates.add(setter, display, bindingAccessor, func() {
+					fmt.Fprintf(decl, "extern func %s(recv %s, value %s) IO[Unit] = %q.%s\n", setter, name, m.gt, g.path, setGo)
+					conv := g.conversion(m)
+					typ := g.goType(n)
+					fmt.Fprintf(&g.body, "func %s(recv,value any) any { return rt.IO(func(ctx context.Context) (any,error) { if err := ctx.Err(); err != nil { return nil,rt.ClassifyError(err) }; receiver := recv.(*%s); receiver.%s = %sTo(value,ctx); return rt.Unit{},nil }) }\n", setGo, typ, field.name, conv)
+				})
 			}
 		}
 	}
@@ -426,27 +469,29 @@ func (g *shimGenerator) accessors(decl *strings.Builder, set *mirrorSet, options
 func BindWithShim(pkg *Package, options BindOptions, shimPath, shimPackage string) (string, []byte, error) {
 	g := &shimGenerator{path: shimPath, imports: map[string]string{"context": "context", "go4t/rt": "rt"}, converters: map[string]string{}}
 	var decl strings.Builder
-	used := map[string]bool{}
+	// These reservations only keep generated import aliases out of the way;
+	// all binding-name competition is decided by candidates below.
+	importNames := map[string]bool{}
 	for _, f := range pkg.Functions {
 		name, _ := bindingName(f.Name, options.Prefix)
-		used[name] = true
+		importNames[name] = true
 	}
 	for _, m := range pkg.Methods {
 		name, _ := bindingName(methodBindingName(m.TypeName, m.Name, options.Prefix), options.Prefix)
-		used[name] = true
+		importNames[name] = true
 	}
 	for _, value := range exportedValues(pkg.goPackage) {
 		name, _ := bindingName(value.Name(), options.Prefix)
-		used[name] = true
+		importNames[name] = true
 	}
-	set := newMirrorSet(options.Float, pkg.Path, used)
+	set := newMirrorSet(options.Float, pkg, importNames)
 	// A referenced type may have no constructors or methods in its own package.
 	// Still declare it there, so every importer shares its owning module's type.
 	for _, n := range exportedNamedTypes(pkg.goPackage) {
 		set.resolve(n, false)
 	}
-	emitted := map[string]bool{}
-	emit := func(goName, display, shimName, callee string, sig *types.Signature, recvType types.Type) {
+	var candidates bindingCandidates
+	collect := func(goName, display, shimName, callee string, sig *types.Signature, recvType types.Type) {
 		c, reason := set.call(sig, recvType != nil)
 		var recv *foreignMirror
 		if recvType != nil {
@@ -484,49 +529,45 @@ func BindWithShim(pkg *Package, options BindOptions, shimPath, shimPackage strin
 		if reason == "" {
 			reason = nreason
 		}
-		// A package function and a method can map to one binding name
-		// (net.InterfaceAddrs and net.Interface.Addrs); the first emitted wins.
-		if reason == "" && emitted[name] {
-			reason = "binding name collides with existing binding"
-		}
 		if reason != "" {
 			fmt.Fprintf(&decl, "// skipped: %s (%s)\n", display, reason)
 			return
 		}
-		emitted[name] = true
-		if options.Prefix == "" && options.Prelude[name] {
-			fmt.Fprintf(&decl, "// collides with prelude: %s\n", name)
-		}
-		params := []string{}
-		if recv != nil {
-			params = append(params, "recv "+recv.gt)
-		}
-		for i, m := range c.params {
-			p := fmt.Sprintf("p%d", i)
-			if c.scan {
-				p = "count"
+		candidates.add(name, display, bindingCall, func() {
+			if options.Prefix == "" && options.Prelude[name] {
+				fmt.Fprintf(&decl, "// collides with prelude: %s\n", name)
 			}
-			params = append(params, p+" "+m.gt)
-		}
-		result := c.result.gt
-		if c.optional {
-			result = "Option[" + result + "]"
-		}
-		if c.effect() {
-			result = "IO[" + result + "]"
-		}
-		target := shimPath
-		targetName := shimName
-		if recv == nil {
-			if _, _, r := bindingTypes(sig, options.Float); r == "" {
-				target = pkg.Path
-				targetName = goName
+			params := []string{}
+			if recv != nil {
+				params = append(params, "recv "+recv.gt)
 			}
-		}
-		fmt.Fprintf(&decl, "extern func %s(%s) %s = %q.%s\n", name, strings.Join(params, ", "), result, target, targetName)
-		if target == shimPath {
-			g.emit(shimName, callee, sig, c, recv)
-		}
+			for i, m := range c.params {
+				p := fmt.Sprintf("p%d", i)
+				if c.scan {
+					p = "count"
+				}
+				params = append(params, p+" "+m.gt)
+			}
+			result := c.result.gt
+			if c.optional {
+				result = "Option[" + result + "]"
+			}
+			if c.effect() {
+				result = "IO[" + result + "]"
+			}
+			target := shimPath
+			targetName := shimName
+			if recv == nil {
+				if _, _, r := bindingTypes(sig, options.Float); r == "" {
+					target = pkg.Path
+					targetName = goName
+				}
+			}
+			fmt.Fprintf(&decl, "extern func %s(%s) %s = %q.%s\n", name, strings.Join(params, ", "), result, target, targetName)
+			if target == shimPath {
+				g.emit(shimName, callee, sig, c, recv)
+			}
+		})
 	}
 	// A shim living in the bound package itself cannot reuse the function's name.
 	samePackage := g.qualifier(types.NewPackage(pkg.Path, pkg.Name)) == ""
@@ -538,15 +579,16 @@ func BindWithShim(pkg *Package, options BindOptions, shimPath, shimPackage strin
 			}
 			callee, shimName = f.Name, "Go4t_"+f.Name
 		}
-		emit(f.Name, f.Name, shimName, callee, f.Signature, nil)
+		collect(f.Name, f.Name, shimName, callee, f.Signature, nil)
 	}
 	for _, m := range pkg.Methods {
-		emit(methodBindingName(m.TypeName, m.Name, options.Prefix), m.TypeName+"."+m.Name, m.TypeName+"_"+m.Name, "receiver."+m.Name, m.Signature, m.Receiver)
+		collect(methodBindingName(m.TypeName, m.Name, options.Prefix), m.TypeName+"."+m.Name, m.TypeName+"_"+m.Name, "receiver."+m.Name, m.Signature, m.Receiver)
 	}
-	g.values(&decl, set, pkg, options, used, emitted)
-	g.constructors(&decl, set, options, used, emitted)
-	g.accessors(&decl, set, options, used)
-	g.upcasts(&decl, set, pkg, options, used)
+	g.values(&decl, set, pkg, options, &candidates)
+	g.constructors(&decl, set, options, &candidates)
+	g.accessors(&decl, set, options, &candidates)
+	g.upcasts(&decl, set, pkg, options, &candidates)
+	candidates.emit(&decl)
 	name := options.Package
 	if name == "" {
 		name = "main"

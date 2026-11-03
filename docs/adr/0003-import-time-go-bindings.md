@@ -137,6 +137,21 @@ PoC 中に追加した規則: 4b(所有モジュールと upcast)、`internal`/`
 `pragma.DoNotImplement` 経由で bind 不能パッケージに到達するため)、関数とメソッドの binding 名衝突は先勝ちで skip、
 opaque struct の `new<Type>()`、パッケージ変数・基本型定数の getter。
 
+### client-go 到達(2026-11-03)
+
+`k8s.io/apimachinery/pkg/apis/meta/v1/unstructured` 126 extern / 型由来 skip 0、`k8s.io/client-go/dynamic` 34 / 0
+(3 段 interface 連鎖と `ListOptions` 等の record が全部届く)。`go:` import だけの `newUnstructured → setObject → getName`
+スモークは `check` 3.5 秒・`run` 18 秒(推移 26 パッケージ)。ここで決めた規則:
+
+- **JSON scalar**: `T: json.Marshaler` かつ `*T: json.Unmarshaler` な struct は record/handle より先に `dyn.Value` に写す
+  (`metav1.Time`, `resource.Quantity`, `intstr.IntOrString`)。名前一致ではなく interface 実装で判定する。
+  これで `ObjectMeta`・`Pod`・`Node`・`PodSpec` が record になり、typed clientset の値を純粋関数で読める。
+- **名前の順位**: method/function > field accessor > constructor/value getter > upcast。負けた側は
+  `// skipped: X (name n taken by Y)` で勝者を名指しする。走査順には依存しない。`meta/v1` の skip 62 → 8。
+- **同名 interface への upcast** は所有パッケージの短い接尾辞で両方出す(`unstructuredAsMetaV1Object` / `unstructuredAsRuntimeObject`)。
+- **キーワード名のフィールド**は `type_` のように `_` を付ける(パッケージ名と同じ規則)。`SELinuxOptions.Type` 1 つで
+  `PodSpec` 全体が handle になっていた。`core/v1` の skip 0。
+
 ## Follow-up
 
 - [ ] クロスビルドキャッシュ(A3)。net/http で推移的に 29 パッケージ・8 秒。キー: Go version + go4t build + export data。

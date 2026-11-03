@@ -130,3 +130,15 @@ func NewOpaque() Opaque                                        { return Opaque{S
 func OpaqueText(v Opaque) string                               { return v.State.(string) }
 func GenericIdentity[T any](v T) T                             { return v }
 func Unsupported(v chan int) int                               { return 0 }
+
+// Keyword-named fields are renamed with a trailing underscore; other reserved
+// spellings make the type opaque.
+type Labelled struct {
+	Type  string
+	Match int
+}
+
+type Reserved struct{ Ext_ string }
+
+func EchoLabelled(l Labelled) Labelled { return l }
+func EchoReserved(r Reserved) Reserved { return r }
