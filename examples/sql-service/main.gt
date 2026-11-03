@@ -1,7 +1,7 @@
 package main
 
-import "go4tbind/database/sql"
-import "glue"
+import "go:database/sql"
+import "go:example.com/sql-service/glue"
 import "std/dyn"
 import "std/http"
 import "std/io"

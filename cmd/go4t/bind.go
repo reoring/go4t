@@ -8,19 +8,12 @@ import (
 	"unicode"
 
 	"go4t/extern"
-	"go4t/modules"
 	"go4t/types"
 )
 
-const bindUsage = "go4t:1:1: usage: go4t bind IMPORT [FILE.gt|DIR...] [-o FILE.gt|DIR] [--prefix STR] [--shim DIR] | go4t bind --module PATH"
+const bindUsage = "go4t:1:1: usage: go4t bind IMPORT [FILE.gt|DIR...] [-o FILE.gt|DIR] [--prefix STR] [--shim DIR]"
 
 func runBind(args []string) error {
-	if len(args) != 0 && args[0] == "--module" {
-		if len(args) != 2 || !modules.ValidModulePath(args[1]) {
-			return fmt.Errorf("%s", bindUsage)
-		}
-		return runBindModule(args[1])
-	}
 	if len(args) == 0 || strings.HasPrefix(args[0], "-") {
 		return fmt.Errorf("%s", bindUsage)
 	}
@@ -93,7 +86,7 @@ func runBind(args []string) error {
 	return writeBindings(pkg, options, output, shimDir, shimPath, shimPackage)
 }
 
-// writeBindings is shared by single-package binding and module enumeration.
+// writeBindings writes the declarations and optional shim for one Go package.
 func writeBindings(pkg *extern.Package, options extern.BindOptions, output, shimDir, shimPath, shimPackage string) error {
 	var err error
 	source := extern.Bind(pkg, options)

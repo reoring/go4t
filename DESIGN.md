@@ -1296,15 +1296,11 @@ the value mirror in the go4t→Go direction; this pass reuses it Go→go4t. No l
   `sql.Row.Scan`) is recognized by shape (`...any` parameter, result `error`) and bound as
   `IO[List[dyn.Value]]` taking `count Int`: the shim allocates `count` `*any` slots, scans,
   converts. This is the one shape-based special case; it is documented as such.
-- **`go4t get` writes bindings.** After `go get`, `go4t get <module>@<v>` enumerates the
-  module's non-internal, non-test, non-main packages (`go list -m -json` → `Dir`,
-  `go list ./...` inside it), runs `bind --shim` for each into
-  `go4tbind/<import path>/` under the project root (`bindings.gt` + `go4t_shim_<base>.go`,
-  the Go files form a Go package per directory), and records `require` as today. The
-  `.gt` files import as `go4tbind/<import path>` (search rule 1, a subdirectory of the
-  root). Re-running regenerates; `go4t get --no-bind` skips; `go4t bind --module <path>`
-  does the enumeration alone for std packages such as `database/sql`.
-  Bindings are committed artifacts like `go4t_export.go` (§8.7 recipe).
+- **Dependency acquisition and binding are separate (ADR 0003 cutover).**
+  `go4t get <module>@<v>` runs `go get` and records the selected requirement.
+  `go:` imports bind only the packages used by the program, with generated
+  declarations held in memory/cache and shims beneath the ignored build output.
+  Applications commit sources and module files, not generated binding trees.
 - **Shim package naming.** `go4t_shim_<base>.go` already exists; multiple Go packages with
   the same base under one module get the directory from the import path, so no clash.
 
@@ -1321,15 +1317,12 @@ boundary.
   `extern/mirror.go`, `extern/bind.go`, `extern/methods.go`, `extern/match.go` as needed,
   `std/dyn/dyn.gt` + `rt/dyn.go` + codegen shape registration; SPEC §8.3 rewrite of the
   table/skip list, §7 std list, §10.7 rows; tests in `extern/` with a fixture package.
-- `get-bind` (deep): `go4t get` binding generation, `--no-bind`, `bind --module`,
-  `go4tbind/` layout, SPEC §8.2/§2.2; `examples/sql-service`: `go4t get modernc.org/sqlite`
-  + `database/sql` + `github.com/prometheus/client_golang/prometheus` and `…/promhttp`,
-  an HTTP service that inserts/counts rows and exposes `/metrics`, with **no hand-written
-  Go except generics wrappers**, smoke-tested by a `cmd/go4t` tools test (temp module,
-  offline from the local module cache: modernc.org/sqlite v1.59.0 and
-  client_golang v1.24.1 are cached; use `GOFLAGS=-mod=mod GOPROXY=off` in tests).
-  The example depends on `bind-mirror`; it starts from the design and integrates when
-  the sibling lands (coordinate via messages; the primary merges bind-mirror first).
+- `sql-service`: `examples/sql-service` imports `go:database/sql` and its
+  hand-written Go metrics bridge directly. SQLite registration and native
+  Prometheus HTTP handling stay in that bridge. A `cmd/go4t` tools test copies
+  the module and source into a temporary directory, runs offline from cached
+  modernc.org/sqlite v1.59.0 and client_golang v1.24.1, and smokes `/count` and
+  `/metrics`. The pre-ADR-0003 dependency-time binding workflow is retired.
 
 Acceptance: `examples/sql-service` runs end to end; count of `// skipped:` lines when binding
 `database/sql` and `prometheus` drops to generics/interface-satisfaction cases only (report the

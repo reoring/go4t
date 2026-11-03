@@ -269,9 +269,9 @@ func (s *server) handle(m rpcMessage) error {
 	} else if binding.Definition != nil && binding.Definition.Type != nil {
 		text = snap.program.TypeString(binding.Definition.Type, path)
 	}
-	if text != "" {
+	if text != "" && binding.Name != "" {
 		text = binding.Name + " : " + text
-	} else {
+	} else if text == "" {
 		text = binding.Name
 	}
 	if binding.Definition != nil && binding.Definition.Doc != "" {

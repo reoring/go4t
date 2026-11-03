@@ -31,7 +31,7 @@ func main() {
 	}
 }
 
-const usage = "go4t:1:1: usage: go4t init <module-path> | go4t get [--no-bind] <path>@<version> | go4t check [--full-types] FILE.gt|DIR... | go4t build [--full-types] [-o DIR | --emit-go DIR --package NAME] FILE.gt|DIR... | go4t run [--full-types] FILE.gt|DIR... [-- args...] | go4t test FILE.gt|DIR... | go4t eval 'EXPR' [FILE.gt|DIR...] | go4t bind IMPORT [FILE.gt|DIR...] [-o FILE.gt|DIR] [--prefix STR] [--shim DIR] | go4t bind --module PATH | go4t lsp | go4t fmt [-w|-d|-l] FILE...|DIR"
+const usage = "go4t:1:1: usage: go4t init <module-path> | go4t get <path>@<version> | go4t check [--full-types] FILE.gt|DIR... | go4t build [--full-types] [-o DIR | --emit-go DIR --package NAME] FILE.gt|DIR... | go4t run [--full-types] FILE.gt|DIR... [-- args...] | go4t test FILE.gt|DIR... | go4t eval 'EXPR' [FILE.gt|DIR...] | go4t bind IMPORT [FILE.gt|DIR...] [-o FILE.gt|DIR] [--prefix STR] [--shim DIR] | go4t lsp | go4t fmt [-w|-d|-l] FILE...|DIR"
 
 func run(args []string) error {
 	if len(args) > 0 && args[0] == "init" {

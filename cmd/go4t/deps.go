@@ -105,20 +105,13 @@ func initRuntime(root string) (string, error) {
 	return dir, nil
 }
 
-const getUsage = "usage: go4t get [--no-bind] <path>@<version>"
+const getUsage = "usage: go4t get <path>@<version>"
 
 func runGet(args []string) error {
-	var target string
-	noBind := false
-	for _, arg := range args {
-		if arg == "--no-bind" && !noBind {
-			noBind = true
-		} else if target == "" && !strings.HasPrefix(arg, "-") {
-			target = arg
-		} else {
-			return fmt.Errorf("%s", getUsage)
-		}
+	if len(args) != 1 || strings.HasPrefix(args[0], "-") {
+		return fmt.Errorf("%s", getUsage)
 	}
+	target := args[0]
 	modulePath, version, ok := strings.Cut(target, "@")
 	if !ok || !modules.ValidModulePath(modulePath) || version == "" || version == "none" || strings.ContainsAny(version, "@ \t\r\n") {
 		return fmt.Errorf("%s", getUsage)
@@ -156,8 +149,5 @@ func runGet(args []string) error {
 	if err := os.WriteFile(filepath.Join(root, "go4t.mod"), manifest.Bytes(), 0o644); err != nil {
 		return err
 	}
-	if noBind {
-		return nil
-	}
-	return bindModule(root, selected)
+	return nil
 }

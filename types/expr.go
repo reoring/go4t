@@ -98,12 +98,12 @@ func (b *bodyChecker) block(block *ast.Block, outer *locals, expected Type) Type
 			}
 			b.localFunctions(group, env)
 		case *ast.LetStmt:
-			b.let(stmt.Pos, stmt.NamePos, stmt.End, stmt.Name, stmt.Pat, stmt.Type, stmt.Value, env)
+			b.let(stmt.Pos, stmt.NamePos, stmt.End, stmt.Name, stmt.Pat, stmt.Type, &stmt.Value, env)
 		case *ast.ExprStmt:
 			b.infer(stmt.X, env)
 		}
 	}
-	return b.inferExpected(block.Result, env, expected)
+	return b.inferTail(&block.Result, env, expected)
 }
 
 func (c *checker) instantiate(params []*TVar) (map[*TVar]Type, []Type) {
@@ -173,6 +173,10 @@ func (b *bodyChecker) infer(e ast.Expr, env *locals) Type {
 // literal elements and operator operands remain infer-only; in particular an
 // expected Float never changes an integer literal into a floating-point value.
 func (b *bodyChecker) inferExpected(e ast.Expr, env *locals, expected Type) Type {
+	return b.inferContext(e, env, expected, false)
+}
+
+func (b *bodyChecker) inferContext(e ast.Expr, env *locals, expected Type, lift bool) Type {
 	ann := &Ann{}
 	*e.AnnSlot() = ann
 	b.exprs = append(b.exprs, e)
@@ -193,7 +197,7 @@ func (b *bodyChecker) inferExpected(e ast.Expr, env *locals, expected Type) Type
 		b.obligations = append(b.obligations, obligation{expr: e, constraints: constraints, show: true})
 		result = String
 	case *ast.RecordLit:
-		result = b.recordLit(e, env, ann, expected)
+		result = b.recordLit(e, env, ann, expected, lift)
 	case *ast.Field:
 		result = b.field(e, env, ann)
 	case *ast.RecordUpdate:
@@ -232,8 +236,8 @@ func (b *bodyChecker) inferExpected(e ast.Expr, env *locals, expected Type) Type
 		if len(ft.Params) != len(e.Args) {
 			fail(pos, "arity mismatch: want %d arguments, got %d", len(ft.Params), len(e.Args))
 		}
-		if expected != nil {
-			unify(pos, expected, ft.Ret)
+		if expected != nil && !(lift && ioItem(expected) != nil && unresolvedHead(ft.Ret)) {
+			checkContext(pos, expected, ft.Ret, lift)
 		}
 		for i, arg := range e.Args {
 			unify(arg.GetPos(), ft.Params[i], b.inferExpected(arg, env, ft.Params[i]))
@@ -253,12 +257,16 @@ func (b *bodyChecker) inferExpected(e ast.Expr, env *locals, expected Type) Type
 			ft.Params[i] = typ
 		}
 		if contextual {
-			if expectedFunc, ok := prune(expected).(*TFunc); ok {
+			context := expected
+			if lift && ioItem(expected) != nil {
+				context = ioItem(expected)
+			}
+			if expectedFunc, ok := prune(context).(*TFunc); ok {
 				ft.Ret = expectedFunc.Ret
 			} else {
 				ft.Ret = b.c.fresh(KStar{})
 			}
-			unify(pos, expected, ft)
+			checkContext(pos, expected, ft, lift)
 		}
 		for i, param := range e.Params {
 			if param.Pat != nil {
@@ -274,7 +282,7 @@ func (b *bodyChecker) inferExpected(e ast.Expr, env *locals, expected Type) Type
 				}
 			}
 		}
-		ret := b.inferExpected(e.Body, local, ft.Ret)
+		ret := b.inferTail(&e.Body, local, ft.Ret)
 		if contextual && !unifyTypes(pos, ft.Ret, ret) {
 			// Keep the existing outer-function diagnostic, rather than
 			// reporting only the return types after contextual inference.
@@ -287,21 +295,22 @@ func (b *bodyChecker) inferExpected(e ast.Expr, env *locals, expected Type) Type
 		result = b.block(e.Block, env, expected)
 	case *ast.If:
 		unify(e.Cond.GetPos(), Bool, b.infer(e.Cond, env))
-		result = b.inferExpected(e.Then, env, expected)
-		unify(e.Else.GetPos(), result, b.inferExpected(e.Else, env, expected))
+		result = b.inferTail(&e.Then, env, expected)
+		unify(e.Else.GetPos(), result, b.inferTail(&e.Else, env, expected))
 	case *ast.Match:
 		scrut := b.infer(e.Scrut, env)
 		result = b.c.fresh(KStar{})
 		if expected != nil {
 			unify(pos, expected, result)
 		}
-		for _, arm := range e.Arms {
+		for i := range e.Arms {
+			arm := &e.Arms[i]
 			local := newLocals(env)
 			b.pattern(arm.Pat, scrut, local)
 			if arm.Guard != nil {
 				unify(arm.Guard.GetPos(), Bool, b.infer(arm.Guard, local))
 			}
-			unify(arm.Body.GetPos(), result, b.inferExpected(arm.Body, local, result))
+			unify(arm.Body.GetPos(), result, b.inferTail(&arm.Body, local, result))
 		}
 		b.matches = append(b.matches, e)
 	case *ast.Do:
@@ -331,7 +340,7 @@ func (b *bodyChecker) inferExpected(e ast.Expr, env *locals, expected Type) Type
 					b.trackLocal(local, stmt.Name, stmt.Pos, stmt.End)
 				}
 			case *ast.DoLet:
-				b.let(stmt.Pos, stmt.NamePos, stmt.End, stmt.Name, stmt.Pat, stmt.Type, stmt.Value, local)
+				b.let(stmt.Pos, stmt.NamePos, stmt.End, stmt.Name, stmt.Pat, stmt.Type, &stmt.Value, local)
 			case *ast.DoExpr:
 				b.monadic(stmt.X, head, local)
 			}
@@ -341,7 +350,7 @@ func (b *bodyChecker) inferExpected(e ast.Expr, env *locals, expected Type) Type
 		if expected != nil {
 			unify(pos, result, expected)
 		}
-		unify(e.Result.GetPos(), result, b.inferExpected(e.Result, local, expected))
+		unify(e.Result.GetPos(), result, b.inferTail(&e.Result, local, result))
 	case *ast.Unary:
 		arg := b.infer(e.X, env)
 		switch e.Op {
@@ -390,6 +399,10 @@ func (b *bodyChecker) inferExpected(e ast.Expr, env *locals, expected Type) Type
 		panic("unknown expression node")
 	}
 	ann.Type = result
+	if lift {
+		result = b.hoistIOLift(e, result)
+		ann.Type = result
+	}
 	return result
 }
 

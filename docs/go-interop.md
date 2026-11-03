@@ -63,8 +63,8 @@ Rules (ADR 0003, SPEC §8):
   binds `go:io` transitively. There is no subtyping: convert with the generated
   upcasts (`strings.readerAsReader`, `goio.readCloserAsReader`).
 - The standard library binds without a `go.mod`; third-party packages need the
-  build module to require them. Shims are written beneath the build output
-  (`<out>/go4tbind/<path>/`, gitignored with `*_gen/`); `go4t check` writes nothing.
+  build module to require them. Shims are written beneath the ignored build
+  output (`*_gen/`); `go4t check` writes nothing.
 - Each call copies records across the boundary; handles keep identity.
 
 The runnable example is [examples/go-import](../examples/go-import).
@@ -77,8 +77,8 @@ go4t bind modernc.org/sqlite -o bindings.gt --shim shimdir
 ```
 
 Signatures that cannot be mirrored get a skip comment instead of a wrong
-binding. [examples/sql-service](../examples/sql-service) predates `go:` imports
-and keeps its generated `go4tbind/` tree; [examples/typed-extern](../examples/typed-extern)
+binding. [examples/sql-service](../examples/sql-service) uses `go:` imports for
+SQLite and Prometheus integration; [examples/typed-extern](../examples/typed-extern)
 shows the ABI adapters. `std/http` needs no bindings.
 
 ## Projects and dependencies
@@ -91,6 +91,8 @@ go4t get example.com/lib@v1.0.0        # go get, then record in go4t.mod
 ```
 
 Go selects versions and keeps checksums; `go4t.mod` lists language imports.
+`go4t get` only updates dependencies; `go:` imports generate bindings on demand,
+without committed binding artifacts.
 Imports are file-local and qualified (`import "std/io"` → `io.readFile`); only
 the small core prelude is implicit. Resolution order: the importing module's
 source root, `go4t.mod` requires, `GO4T_PATH`, embedded std. See

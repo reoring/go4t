@@ -6,7 +6,7 @@ import (
 	"go4t/ast"
 )
 
-func (b *bodyChecker) recordLit(e *ast.RecordLit, env *locals, ann *Ann, expected Type) Type {
+func (b *bodyChecker) recordLit(e *ast.RecordLit, env *locals, ann *Ann, expected Type, lift bool) Type {
 	ctor := b.c.ctors[e.Ctor]
 	if ctor == nil {
 		fail(e.GetPos(), "unknown constructor %s", diagnosticName(e.Ctor))
@@ -18,7 +18,7 @@ func (b *bodyChecker) recordLit(e *ast.RecordLit, env *locals, ann *Ann, expecte
 	ann.Ctor, ann.Inst = ctor, inst
 	ann.FieldIndexes = recordIndexes(e.GetPos(), ctor, e.Names, true)
 	if expected != nil {
-		unify(e.GetPos(), expected, result)
+		checkContext(e.GetPos(), expected, result, lift)
 	}
 	b.recordValues(e.Values, ann.FieldIndexes, fields, env)
 	return result

@@ -246,7 +246,7 @@ func generateInDir(prog *types.Program, goPackage, dir string, options Options) 
 		}
 	}
 	for _, name := range funcNames {
-		out.WriteString(g.emitFunction(prog.Funcs[name], mangle(name)))
+		out.WriteString(g.emitFunction(prog.Funcs[name], functionName(name)))
 	}
 	for _, spec := range g.specialOrder {
 		g.special, g.typeArgs = spec, spec.types
@@ -259,9 +259,9 @@ func generateInDir(prog *types.Program, goPackage, dir string, options Options) 
 	g.fileName = g.sources[prog.Main.Decl]
 	out.WriteString(g.line(prog.Main.Decl.Pos))
 	if goPackage == "main" {
-		fmt.Fprintf(&out, "func main() { rt.RunMain(%s()) }\n", mangle(prog.Main.Name))
+		fmt.Fprintf(&out, "func main() { rt.RunMain(%s()) }\n", functionName(prog.Main.Name))
 	} else {
-		fmt.Fprintf(&out, "func Main() rt.IO { return %s().(rt.IO) }\n", mangle(prog.Main.Name))
+		fmt.Fprintf(&out, "func Main() rt.IO { return %s().(rt.IO) }\n", functionName(prog.Main.Name))
 	}
 	if g.contextIO {
 		header.WriteString("import \"context\"\n")
@@ -565,6 +565,15 @@ func sortedKeys[V any](items map[string]V) []string {
 }
 
 func mangle(name string) string { return name + "_" }
+
+// The implicitly callable prelude primitive must remain distinct from a local
+// ioPure binding even before module renaming. ext_ is a reserved source prefix.
+func functionName(name string) string {
+	if name == "ioPure" {
+		return "ext_ioPure_"
+	}
+	return mangle(name)
+}
 
 func exported(name string) string {
 	r, n := utf8.DecodeRuneInString(name)

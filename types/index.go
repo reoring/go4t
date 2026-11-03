@@ -52,15 +52,30 @@ type Binding struct {
 type PositionIndex struct {
 	files   map[string][]Binding
 	symbols map[string][]*Symbol
+	ioLifts map[string][]Binding
 }
 
 func (x *PositionIndex) At(file string, pos ast.Pos) *Binding {
 	bs := x.files[file]
 	i := sort.Search(len(bs), func(i int) bool { return less(pos, bs[i].Pos) }) - 1
+	var binding *Binding
 	if i >= 0 && !less(pos, bs[i].Pos) && less(pos, bs[i].End) {
-		return &bs[i]
+		binding = &bs[i]
 	}
-	return nil
+	for _, lift := range x.ioLifts[file] {
+		if less(pos, lift.Pos) || !less(pos, lift.End) {
+			continue
+		}
+		if binding == nil {
+			copy := lift
+			binding = &copy
+		} else if binding.Pos == lift.Pos {
+			copy := *binding
+			copy.Type = lift.Type
+			binding = &copy
+		}
+	}
+	return binding
 }
 func (x *PositionIndex) Symbols(file string) []*Symbol { return x.symbols[file] }
 
@@ -68,7 +83,7 @@ func (x *PositionIndex) Symbols(file string) []*Symbol { return x.symbols[file] 
 // Source-free synthesized nodes are excluded. Ordinary compilation pays no index
 // construction cost; clients explicitly request an index when they need it.
 func (p *Program) PositionIndex() *PositionIndex {
-	b := &indexBuilder{p: p, index: &PositionIndex{files: map[string][]Binding{}, symbols: map[string][]*Symbol{}},
+	b := &indexBuilder{p: p, index: &PositionIndex{files: map[string][]Binding{}, symbols: map[string][]*Symbol{}, ioLifts: map[string][]Binding{}},
 		tokens: map[*ast.File][]lexer.Token{}, values: map[string]*Symbol{}, types: map[string]*Symbol{}, ctors: map[string]*Symbol{}, laws: map[string]*Symbol{}, fields: map[*Ctor][]*Symbol{}}
 	for _, f := range p.Files {
 		toks, err := sourceTokens(f.Source, ast.Pos{Line: 1, Col: 1})
@@ -642,6 +657,17 @@ func (b *indexBuilder) fieldRefs(f *ast.File, n ast.Node, names []string, values
 }
 func (b *indexBuilder) reference(f *ast.File, n ast.Node) {
 	switch n := n.(type) {
+	case *ast.Call:
+		if a, ok := (*n.AnnSlot()).(*Ann); ok && a.ImplicitIO {
+			// Hover the expression's own token, not its arguments or operands.
+			tokens := b.tokens[f]
+			i := sort.Search(len(tokens), func(i int) bool { return !less(tokens[i].Pos, n.Pos) })
+			if i < len(tokens) && tokens[i].Pos == n.Pos {
+				b.index.ioLifts[f.Name] = append(b.index.ioLifts[f.Name], Binding{
+					Pos: n.Pos, End: tokens[i].End, Type: a.Type,
+				})
+			}
+		}
 	case *ast.Ident:
 		a, ok := (*n.AnnSlot()).(*Ann)
 		if !ok {

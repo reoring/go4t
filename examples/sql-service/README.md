@@ -1,8 +1,8 @@
 # SQL service: Go packages from go4t
 
-A small `std/http` service backed by SQLite. The go4t program opens a temporary
-SQLite file through generated `database/sql` bindings, creates a table, inserts
-three names from a `List[String]`, and exposes:
+A small `std/http` service backed by SQLite. The go4t program imports
+`go:database/sql` and `go:example.com/sql-service/glue` directly, opens a temporary
+SQLite file, creates a table, inserts three names, and exposes:
 
 - `GET /count`: `{"count":3}` as JSON, using `QueryRowContext` and the generated
   scan-to-`List[dyn.Value]` adapter.
@@ -10,121 +10,71 @@ three names from a `List[String]`, and exposes:
 
 ## Run
 
-Use a Pass 18 compiler with foreign-mirror/`std/dyn` support and Go 1.25 or newer
-(the pinned Go dependencies require Go 1.25). From this directory, with `go4t`
-on `PATH`:
+Use Go 1.25 or newer (required by the pinned dependencies). Build the CLI from
+the repository root before entering this example's separate Go module:
 
 ```sh
-go4t get modernc.org/sqlite@v1.59.0
-go4t get github.com/prometheus/client_golang@v1.24.1
-go4t bind --module database/sql
-go4t bind example.com/sql-service/glue --shim glue -o glue
-go4t run main.gt -- 8080
+go build -o /tmp/go4t-cutover ./cmd/go4t
+cd examples/sql-service
+/tmp/go4t-cutover run . -- 18099
 ```
 
-The first `go4t run` compiles modernc sqlite and client_golang from source and
-can take several minutes; later runs hit Go's build cache. Binding names:
-receiver types are lower-cased (`sql.dbExecContext`, `sql.rowScan`), and a Go
-type whose name is owned by the go4t prelude gets a `Go` suffix
-(`sql.ResultGo`) so nothing shadows `Result`. Metrics *definitions*
-(`Collector` implementations, channel-based `Describe`/`Collect`) stay in Go;
-the 37 remaining prometheus skips are those channel signatures.
-```
-```
+The first run compiles modernc SQLite and client_golang from source and can take
+several minutes; later runs use Go's build cache and the import-time binding cache.
+No binding-generation command or committed generated sources are needed.
+`go4t get <module>@<version>` only updates dependencies and records the selected
+version in `go4t.mod`.
 
 In another terminal:
 
 ```sh
-curl --fail http://127.0.0.1:8080/count
-curl --fail http://127.0.0.1:8080/metrics
+curl --fail http://127.0.0.1:18099/count
+# {"count":3}
+curl --fail http://127.0.0.1:18099/metrics
+# Prometheus text including go_goroutines and process_cpu_seconds_total
 ```
 
 The server prints the database filename. Stop it with Ctrl-C and remove that
 file afterward. An optional second argument chooses the SQLite filename:
-`go4t run main.gt -- 8080 /tmp/my-sql-service.db`. Use a new filename each run:
-table creation deliberately fails instead of silently reusing an existing DB.
-Without that argument the filename uses Go's temporary directory, the current
-time, and a random suffix. The checked-in `go.mod` replaces `go4t` with this
-repository (`../..`); no published runtime module is required.
+`/tmp/go4t-cutover run . -- 18099 /tmp/my-sql-service.db`. Use a new filename
+each run: table creation deliberately fails instead of silently reusing an
+existing DB. Without that argument the filename uses Go's temporary directory,
+the current time, and a random suffix.
 
-## What is generated
+The checked-in `go.mod` requires `go4t` and replaces it with this repository
+(`../..`); `deps.go` retains that runtime dependency when tidying the module.
+Commit module files and checksums, not generated bindings. Shims are generated
+beneath the ignored build output; checking the source does not write them.
 
-`get` records the selected versions in `go4t.mod`, updates Go's dependency files,
-and binds each loadable non-internal, non-test, non-main package in the requested
-module. Each package produces `bindings.gt` and `go4t_shim_<base>.go` beneath
-`go4tbind/<Go import path>/`. For example:
+## Hand-written Go integration
 
-```text
-go4tbind/modernc.org/sqlite/{bindings.gt,go4t_shim_sqlite.go}
-go4tbind/github.com/prometheus/client_golang/prometheus/{bindings.gt,go4t_shim_prometheus.go}
-go4tbind/github.com/prometheus/client_golang/prometheus/promhttp/{bindings.gt,go4t_shim_promhttp.go}
-go4tbind/database/sql/{bindings.gt,go4t_shim_sql.go}
-glue/{bindings.gt,go4t_shim_glue.go}
-```
-
-These are ordinary project-relative go4t imports, not a second package resolver.
-The Go shim import paths belong to `example.com/sql-service`. Regenerating with
-the same inputs produces identical bytes; `go4t get --no-bind <module>@<version>`
-only updates dependencies. `bind --module` regenerates bindings without `go get`.
-Applications should commit their generated binding artifacts alongside their Go
-module files. This recipe and its test generate them with the compiler in use,
-so a pre-Pass-18 binding snapshot cannot silently hide the new SQL adapters.
-
-## The only hand-written Go
-
-`glue/glue.go` is **19 physical lines**, including blank lines, imports, and braces
-(`wc -l glue/glue.go`). It contains the required blank import of
-`modernc.org/sqlite` and one function:
+`glue/glue.go` registers `modernc.org/sqlite` through its blank import and exposes:
 
 ```go
 func RenderMetrics() (string, error)
 ```
 
 `RenderMetrics` runs the real `promhttp.Handler()` against an
-`httptest.ResponseRecorder`, returning its body or a non-200 error. Ordinary
-`bind` generates `glue.renderMetrics() IO[String]`; the go4t `/metrics` branch
+`httptest.ResponseRecorder`, returning its body or a non-200 error. Import-time
+binding exposes `glue.renderMetrics() IO[String]`; the go4t `/metrics` branch
 awaits that action and sends the body through `std/http`. The native
-`http.Handler` never crosses the erased go4t ABI. There is no driver-registration
-directive and no hand-written SQL adapter. `tempDir` is an ordinary natural-ABI
-extern for Go's `os.TempDir`, not an additional Go helper.
+`http.Handler` never crosses the erased go4t ABI. Channel-based metrics
+collection stays in Go. There is no hand-written SQL adapter. `tempDir` is an
+ordinary natural-ABI extern for Go's `os.TempDir`, not another Go helper.
 
-This is an intentional integration adjustment from the original callback-shim
-example: separately generated modules give native handles distinct nominal
-types, and `std/http` exposes value requests/responses rather than native HTTP
-handles. The single ordinary-ABI wrapper avoids a callback round trip and three
-interface-adaptation wrappers. The foreign-bind fixture, not this example,
-proves the callback conversion rule.
-
-## Offline regression and skip counts
+## Offline regression
 
 From the repository root:
 
 ```sh
-go test ./cmd/go4t -run 'TestGet|TestBindModule|TestSqlService' -v
+go test ./cmd/go4t -run 'TestGet|TestSqlService' -v
 ```
 
-`TestSqlServiceExample` uses a fresh module, `GOFLAGS=-mod=mod`, `GOPROXY=off`,
-and `GOWORK=off`. It verifies both pinned versions with `go list -m -json`, runs
-both `get` commands twice, checks byte-for-byte idempotence, generates the SQL
-and glue bindings, and executes the metrics bridge. If a pinned module is not
-in the local cache, the test skips with the exact missing version. With the
-foreign-mirror slice present it then starts `go4t run`, curls both routes,
-asserts count 3 and real Go/process metric names, kills the process group, and
-removes the temporary module, database, generated code, and executable scratch
-space.
-
-Observed `// skipped:` counts (functions **and** methods, using the shim path):
-
-| Package | Before Pass 18 | This get-bind slice before foreign-mirror integration |
-| --- | ---: | ---: |
-| `database/sql` | 78 | 78 |
-| `github.com/prometheus/client_golang/prometheus` | 191 | 191 |
-
-Enumeration changes do not change binding rules. The focused test logs the
-post-integration counts on the same real packages; no reduced skip count is
-claimed here without running the foreign-mirror implementation. Before that
-slice is merged, the test explicitly skips only its final SQL/server phase
-because embedded `std/dyn` is absent. Pending assertions are `sql.open`, the
-context/variadic `dBExecContext` and `dBQueryRowContext` calls, dynamic `rowScan`,
-and the live HTTP `/count` and `/metrics` requests. Generation, idempotence,
-and execution of the real metrics bridge already run with the old rules.
+`TestSqlServiceExample` copies the source and module files into a fresh module,
+uses `GOFLAGS=-mod=mod`, `GOPROXY=off`, and `GOWORK=off`, and checks the pinned
+SQLite and Prometheus versions are cached. If either is absent, it skips with
+the exact missing version. Otherwise it exercises the metrics bridge through a
+`go:` import, starts the service, curls both routes, asserts count 3 and real
+Go/process metric names, and checks that SQLite created a nonempty database.
+Cleanup kills the process group and removes the temporary module, database,
+generated code, and executable scratch space.

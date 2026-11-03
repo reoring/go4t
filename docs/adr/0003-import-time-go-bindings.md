@@ -21,9 +21,8 @@ README の設計規則「go4t は決定ロジックに限る。インフラは�
   (不透明)になる(`extern/mirror.go:valueMirror` L85–91 の「promoted fields が 0 なら handle」規則と、
   L101 の非公開 embedded pointer 規則)。handle の公開フィールド(`Request.Header`, `Request.URL`)には
   メソッド経由でしか触れない。
-- 既存の binding 配置: `go4t get` / `go4t bind --module` が **プロジェクト直下 `go4tbind/<import path>/`** に
-  `bindings.gt` + `go4t_shim_<base>.go` を書き、`import "go4tbind/database/sql"` で読む
-  (`cmd/go4t/bind_module.go:bindPackages`、`examples/sql-service/README.md`)。モジュール配下の全パッケージを生成する。
+- 従来は依存取得時にモジュール配下の全パッケージの binding をプロジェクト直下へ生成し、
+  コミットしていた。2026-11-04 の cutover で廃止し、`examples/sql-service` も `go:` import へ移行した。
 - build の流れ(`cmd/go4t/main.go:run` L99–171): parse → check → 出力ディレクトリ決定 → build module 決定
   (`runtime.go:prepareBuildModule`。go.mod が無ければ一時モジュール `go4trun` を作り、foreign extern があればエラー)
   → codegen → `go build`。extern の Go import path は `bindings.gt` の文字列がそのまま codegen に渡る。
@@ -34,7 +33,7 @@ README の設計規則「go4t は決定ロジックに限る。インフラは�
 
 ### A. 生成物の置き場
 
-- **A1. 現状**: プロジェクト直下 `go4tbind/` に全パッケージ分をコミット。client-go で 88k 行。却下。
+- **A1. 旧方式**: プロジェクト直下に全パッケージ分をコミット。client-go で 88k 行。却下。
 - **A2. import 時生成(採用)**: `import "go:net/http"` のように `go:` スキームで Go パッケージを直接 import する。
   `bindings.gt` はローダが生成してメモリ上/キャッシュで読み、shim Go は build 出力ディレクトリ配下
   `<out>/go4tbind/<import path>/` に書く。cgo が生成物を build に閉じ込めるのと同じ形。リポジトリには何も残らない。
@@ -80,10 +79,10 @@ adapter を渡す。`modules` → `extern` の依存は作らない。
 
 ### 2. import 解決
 
-- `go:` 接頭辞のみを GoImport と見なす。既存の `go4tbind/...`(A1)は PoC の間は残し、PoC 成功後に
-  `go4t get` の自動 bind と `go4t bind --module` を外す(別 ADR で cutover)。
+- `go:` 接頭辞のみを GoImport と見なす。PoC 成功後の cutover(2026-11-04)で、
+  依存取得時の自動生成とモジュール一括生成コマンドを廃止した。`go4t get` は依存更新だけを行う。
 - 名前: `import "go:net/http"` は修飾子 `http`、`import gohttp "go:net/http"` で別名。パッケージ名は
-  `bindPackages` と同じく `goIdentifier(path.Base)` + キーワード回避。
+  `goIdentifier(path.Base)` + キーワード回避。
 - 標準ライブラリは go.mod 無しでも bind できる(`run` の一時モジュール内で shim を書く)。
   第三者モジュールは build module の go.mod に require が必要。無ければ import 位置でエラー。
 
@@ -128,7 +127,7 @@ accessor は `BindWithShim` が handle 型の Named struct を列挙して生成
    `gohttp.newRequest` → `requestHeader`/`requestSetHeader` → `clientDo(defaultClient(), _)` →
    `goio.readAll(goio.readCloserAsReader(responseBody(_)))` で自前 `std/http` サーバを叩き
    `200 hello Ada via GET /greet` を出力。`go4t run` 8 秒(shim 29 パッケージ、2.6 MB、`_gen/` は gitignore 済み)。
-2. `go4t check examples/go-import` は exit 0 で、`go4tbind/` は作られない(`examples/sql-service/go4tbind` は既存)。
+2. `go4t check examples/go-import` は exit 0 で、プロジェクト直下に binding 生成物は作られない。
 3. `bind strings --shim`: skip 7 → 0。`bind net/http --shim`: 145 → 600 extern(accessor 込み)/ skip 5(chan と
    `[32]byte`、`map[string]func` のフィールド)。`context.WithCancel` は先頭 ctx 規則により `IO[(Context, func() Unit)]`。
 4. `go test ./...` 通過。
@@ -174,7 +173,8 @@ typed clientset(同日): `k8s.io/client-go/kubernetes` 414 / 1(struct キーの 
       変更前 42.37 秒、`GO4T_CACHE=off` 42.06 秒。コメントだけ変えて binary を再ビルドすると
       240 miss / 0 hit、42.16 秒。推移依存の hit は既に取得した export file を使い、`go list` を繰り返さない。
 - [ ] 同一 shim 内で同じ非修飾名を持つ別パッケージの record が `rt.ForeignRecord` のキーで衝突する(既存の制限)。
-- [ ] `go4t get` 自動 bind / `go4t bind --module` / `examples/sql-service/go4tbind/` の cutover。
+- [x] 旧コミット binding ワークフローの cutover(2026-11-04)。依存取得は更新のみにし、
+      モジュール一括生成を廃止。`examples/sql-service` は `go:` import に移行し、コミット済み生成物を削除。
 - [x] handle を受け取る呼び出しは全部 `IO`(SPEC §8): method receiver、引数(`List`/`Map`/`Option` の中も)、フィールド getter。
       理由は「変更する」ではなく「共有状態を読む」。record/map/slice はコピーなので純粋。constructor・package 変数 getter・
       upcast は handle を読まずに返すだけなので純粋。法則の対象となる純粋断片に共有状態を観測・変更する extern が入り込まない。

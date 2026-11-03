@@ -51,6 +51,8 @@ go4t get example.com/lib@v1.0.0        # go get して go4t.mod に記録
 ```
 
 バージョン選択とチェックサムは Go が担当し、`go4t.mod` は言語 import を列挙します。
+`go4t get` は依存の更新だけを行います。Go パッケージは `go:` import で必要時に
+binding を生成するので、生成物をコミットする必要はありません。
 import はファイル単位で修飾付き(`import "std/io"` → `io.readFile`)、暗黙に入るのは小さな
 core prelude だけです。解決順:import 元 module のソースルート、`go4t.mod` の require、
 `GO4T_PATH`、埋め込み std。オフラインでローカル replace を使う構成は [examples/deps](../examples/deps) を参照。

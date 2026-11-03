@@ -115,8 +115,8 @@ contract; the checker cannot infer side effects from Go function bodies.
 ## 4. Do notation is explicit sequencing
 
 A `<-` binding extracts the result of an action. A bare action runs and discards
-its result. A `let` computes a pure local value. The last expression must still
-be an action of the **same Monad**; a local function is a statement, not an action.
+its result. A `let` computes a pure local value. The last expression must check as
+an action of the **same Monad**; a local function is a statement, not an action.
 
 ```go4t
 package main
@@ -136,6 +136,29 @@ There is no reassignment here. The compiler lowers `do` to nested binds. The sam
 notation also works for Option, Result, List and `state.State[S]`: it is not a
 special imperative sublanguage for IO. Pattern binds must be irrefutable; match
 an Option/Result explicitly or use its Monad rather than writing `Some(x) <- ...`.
+
+### Returning a pure value from IO
+
+When an expected type is already `IO[T]`, a pure `T` in a function tail,
+`if`/`match` arm, `do` final expression or annotated let is treated as
+`ioPure(value)`. This includes `unit()`; IO branches can mix actions and values:
+
+```go4t
+package main
+func label(found Bool) IO[String] {
+  if found { "ready" } else { do { println("waiting"); "pending" } }
+}
+func main() IO[Unit] {
+  let answer: IO[Int] = 42
+  do { n <- answer; text <- label(n == 42); println(text); unit() }
+}
+```
+
+Arguments, operands and list elements do not lift. Keep explicit `ioPure` when
+the value's type is still a type variable. Existing IO values are never wrapped
+again or flattened, and other Monads keep their existing rules. This introduces
+no `async` syntax and does not permit `<-` outside `do`; lifting remains strict,
+just like calling `ioPure` yourself.
 
 ## 5. Result replaces repeated error-tuple branching
 

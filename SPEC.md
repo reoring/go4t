@@ -137,9 +137,9 @@ The first existing directory wins, even if it is empty or invalid; errors do
 not fall through. A filesystem std override retains its logical std identity
 for intrinsic types and reexports, alongside its absolute-directory identity.
 
-`go4tbind/<Go import path>` is a generated directory under the project root,
-not a special import namespace. It resolves by rule 1 exactly like any other
-local subdirectory; no resolver extension or additional search step is needed.
+`import "go:<path>"` resolves a Go package through the import-time binder
+(ADR 0003), separate from the source-directory search above. Generated bindings
+are not committed project sources; build shims stay beneath the build output.
 
 A `go4t.mod` begins with `module <name>`, followed by zero or more single-line
 `require <path> <version>` directives. Blank lines and `//` comments are allowed;
@@ -577,6 +577,11 @@ Irrefutable binds, lets and local functions are supported. Desugaring is nested
 `bind`; it is not restricted to IO. Option stops on None; Result stops on Err;
 List enumerates combinations in order; State threads its state. Use `ioPure`,
 `Some`, `Ok`, or qualified `prelude.pure` for the final result as appropriate.
+When the final expression has a resolved expected type `IO[T]`, a pure value of
+type `T` is implicitly lifted with the prelude's `ioPure` (§5.1), including
+`unit()` for `IO[Unit]`. This is expected-type checking, not a change to `do`:
+other Monads still require their own action constructors, and `<-` remains
+restricted to `do`.
 
 ## 5. Type system and diagnostics
 
@@ -598,6 +603,25 @@ resolves projections and unannotated lambda field access without searching for
 record types or looking ahead to later statements. Other positions, including
 list/tuple elements and operator operands, remain infer-only. Numeric literals
 are unaffected: an integer literal is always Int, never contextually Float.
+
+**Implicit IO lift.** In function body tails (including lambda bodies), `if`
+branches, `match` arms, `do` final expressions, and annotated let right-hand
+sides, a resolved expected type `IO[T]` permits a pure expression `e` of inferred
+type `U` to be checked as `ioPure(e)`: `U` must not unify with `IO[_]`, and must
+unify with `T`. The `IO` constructor must already be resolved; an unknown Monad
+head does not select IO. Calls still provide contextual types inside the pure
+value, but argument positions, record fields, operator operands and list/tuple
+elements do **not** themselves lift.
+
+An unresolved type variable is not lifted; write `ioPure` explicitly when the
+pure result type is not known. An existing IO value, including `IO[IO[T]]`, is
+never lifted or flattened; use an explicit join to flatten nested IO. A mismatch
+reports the original types, for example `expected IO[String], got Int`, without
+mentioning an attempted lift. The synthetic call is bound directly to the
+prelude's `ioPure`, even when that name is shadowed. Pure and IO arms may be mixed;
+only pure arms lift, and a wholly pure `if`/`match` can be lifted as a whole.
+There is no new syntax: formatting preserves the source, hover shows the lifted
+`IO[T]` type, and evaluation is as strict as an explicit `ioPure(e)`.
 
 Unresolved kind-`*` variables with no class constraint default to Unit with a
 warning, e.g. `type of None defaulted to Unit; add an annotation or use the value`.
@@ -1218,14 +1242,13 @@ and linear conversion space; the old quadratic `insertBy` helper is removed.
 
 ```text
 go4t init <module-path>
-go4t get [--no-bind] <path>@<version>
+go4t get <path>@<version>
 go4t check [--full-types] FILE.gt|DIR...
 go4t build [--full-types] [-o DIR | --emit-go DIR --package NAME] FILE.gt|DIR...
 go4t run [--full-types] FILE.gt|DIR... [-- args...]
 go4t test FILE.gt|DIR...
 go4t eval 'EXPR' [FILE.gt|DIR...]
 go4t bind IMPORT [FILE.gt|DIR...] [-o FILE.gt|DIR] [--prefix STR] [--shim DIR]
-go4t bind --module PATH
 go4t fmt [-w|-d|-l] FILE...|DIR
 go4t lsp
 ```
@@ -1242,33 +1265,16 @@ go4t lsp
   is published atomically and reused. No `.go4t` tree is created in the project.
   `go4t.mod` initially contains only `module <module-path>`. Keep the referenced
   checkout/cache directory available; local replacements are machine-specific.
-- `get` accepts exactly one `<path>@<version>` (not `@none`) and optionally
-  `--no-bind`, before or after it. From the nearest ancestor `go4t.mod` root,
-  which must also contain `go.mod`, it runs `go get <path>@<version>` with the
-  caller's Go environment and streams. On success it queries Go's selected
-  module version and adds/updates one `require <path> <version>` in `go4t.mod`,
-  preserving comments and other requirements. Version queries such as `@latest`
-  are recorded as the selected version, not the query. Unless `--no-bind` is
-  present, it then generates declarations and Go shims as described below.
+- `get` accepts exactly one `<path>@<version>` (not `@none`). From the nearest
+  ancestor `go4t.mod` root, which must also contain `go.mod`, it runs
+  `go get <path>@<version>` with the caller's Go environment and streams.
+  On success it queries Go's selected module version and adds/updates one
+  `require <path> <version>` in `go4t.mod`, preserving comments and other
+  requirements. Version queries such as `@latest` are recorded as the selected
+  version, not the query. It does not generate bindings.
   On Go failure `go4t.mod` is unchanged; any `go.mod` or `go.sum` changes made by
-  Go are not rolled back. Binding errors do not roll back the successful get or
-  requirement update. Ordinary Go `replace` directives support offline local
-  libraries; no separate download manager or go4t lockfile is used.
-- `bind --module PATH` generates the same bindings without `go get` or changing
-  `go4t.mod`. `PATH` is an already-required Go module (including a local
-  replacement), or one standard package such as `database/sql`, not `std`.
-  Both manifests must exist in the nearest `go4t.mod` root. For a module, Go's
-  `go list -m -json` supplies `Dir`; `go list -e -f '{{.ImportPath}} {{.Name}}'
-  ./...` enumerates packages there with the caller's Go environment. Packages
-  named `main`, `internal` path components, and `_test` packages are excluded.
-  Export data is loaded in the project's selected Go graph; packages that fail
-  to load are skipped with a diagnostic. A standard path binds only that
-  package, not its subpackages. Each package writes
-  `go4tbind/<import path>/bindings.gt` and `go4t_shim_<base>.go`; the `.gt`
-  package spelling is the last path component sanitized as a Go identifier.
-  A go4t-only keyword additionally gains a trailing `_`.
-  Re-running regenerates the same bytes when inputs are unchanged. Existing
-  unrelated files are preserved; generated bindings should be committed.
+  Go are not rolled back. Ordinary Go `replace` directives support offline
+  local libraries; no separate download manager or go4t lockfile is used.
 - `check` loads, type-checks and verifies laws and proofs (§6.5); it performs no
   foreign-signature validation or program execution. `build`, `run`, `test` and
   `eval` do not verify proofs and omit laws/proofs from generated code; their
@@ -1521,10 +1527,9 @@ A wrong dynamic type panics with
 retains the underlying method's nil behaviour. `examples/typed-extern` also
 demonstrates explicit erased Go helpers and generated methods.
 
-`get` and `bind --module` (§8.2) use the same declaration-and-shim pipeline per
-package, placing each in its own `go4tbind/<import path>` directory. Import the
-generated `.gt` module using that project-relative path (§2.2). Go shims use
-the receiving project's Go module path; no global cache of bindings is involved.
+`go:` imports use this declaration-and-shim pipeline on demand. Shims use the
+receiving build module's Go import paths beneath the build output; generated
+bindings and shims may be reused from the import-time cache (ADR 0003).
 
 
 ### 8.4 Formatting

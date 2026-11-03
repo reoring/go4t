@@ -3,13 +3,10 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"errors"
-	"io/fs"
 	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"reflect"
 	"strconv"
 	"strings"
 	"syscall"
@@ -17,7 +14,6 @@ import (
 	"time"
 
 	"go4t/parser"
-	"go4t/std"
 )
 
 func TestSqlServiceExample(t *testing.T) {
@@ -46,7 +42,7 @@ func TestSqlServiceExample(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"go.mod", "go4t.mod", "main.gt", "glue/glue.go"} {
+	for _, name := range []string{"go.mod", "go.sum", "go4t.mod", "deps.go", "main.gt", "glue/glue.go"} {
 		data, err := os.ReadFile(filepath.Join(checkout, "examples/sql-service", name))
 		if err != nil {
 			t.Fatal(err)
@@ -69,65 +65,12 @@ func TestSqlServiceExample(t *testing.T) {
 	// A killed go4t run may not execute its deferred temporary-binary cleanup.
 	// Keep all child scratch space inside the test's owned cleanup directory.
 	t.Setenv("TMPDIR", t.TempDir())
-	getCommands := [][]string{
-		{"get", "modernc.org/sqlite@v1.59.0"},
-		{"get", "github.com/prometheus/client_golang@v1.24.1"},
-	}
-	for _, args := range getCommands {
-		out, stderr, status := toolsCommand(t, root, "", args...)
-		if out != "" || status != 0 {
-			t.Fatalf("%v: stdout=%q stderr=%q status=%d", args, out, stderr, status)
-		}
-	}
-	for _, path := range []string{
-		"modernc.org/sqlite", "github.com/prometheus/client_golang/prometheus",
-		"github.com/prometheus/client_golang/prometheus/promhttp",
-	} {
-		for _, name := range []string{"bindings.gt", "go4t_shim_" + filepath.Base(path) + ".go"} {
-			if _, err := os.Stat(filepath.Join(root, "go4tbind", path, name)); err != nil {
-				t.Fatal(err)
-			}
-		}
-	}
-	before := bindingSnapshot(t, root)
-	for _, args := range getCommands {
-		out, stderr, status := toolsCommand(t, root, "", args...)
-		if out != "" || status != 0 {
-			t.Fatalf("second %v: stdout=%q stderr=%q status=%d", args, out, stderr, status)
-		}
-	}
-	if !reflect.DeepEqual(before, bindingSnapshot(t, root)) {
-		t.Fatal("second ecosystem get changed project files")
-	}
-	for _, args := range [][]string{
-		{"bind", "--module", "database/sql"},
-		{"bind", "example.com/sql-service/glue", "--shim", "glue", "-o", "glue"},
-	} {
-		out, stderr, status := toolsCommand(t, root, "", args...)
-		if out != "" || stderr != "" || status != 0 {
-			t.Fatalf("%v: stdout=%q stderr=%q status=%d", args, out, stderr, status)
-		}
-	}
-	for _, path := range []string{"database/sql", "github.com/prometheus/client_golang/prometheus"} {
-		data, err := os.ReadFile(filepath.Join(root, "go4tbind", path, "bindings.gt"))
-		if err != nil {
-			t.Fatal(err)
-		}
-		t.Logf("%s: %d skipped declarations", path, strings.Count(string(data), "// skipped:"))
-	}
-	probe := toolsWrite(t, filepath.Join(root, "probe.gt"), "package main\nimport \"glue\"\n")
+	probe := toolsWrite(t, filepath.Join(root, "probe.gt"), "package main\nimport \"go:example.com/sql-service/glue\"\n")
 	out, stderr, status := toolsCommand(t, root, "", "eval", "glue.renderMetrics()", probe)
 	if status != 0 || stderr != "" || !strings.Contains(out, "go_goroutines") || !strings.Contains(out, "process_cpu_seconds_total") {
 		t.Fatalf("metrics bridge: stdout=%q stderr=%q status=%d", out, stderr, status)
 	}
 	if err := os.Remove(probe); err != nil {
-		t.Fatal(err)
-	}
-	// This slice can land before the foreign-mirror slice. Once std/dyn is
-	// present, no feature-based skip hides a SQL binding or runtime regression.
-	if _, err := std.FS.ReadFile("dyn/dyn.gt"); errors.Is(err, fs.ErrNotExist) {
-		t.Skip("bind-mirror not merged: generation, idempotence and metrics bridge passed; SQL open, context/variadic calls, dyn scan, and HTTP /count + /metrics await std/dyn")
-	} else if err != nil {
 		t.Fatal(err)
 	}
 

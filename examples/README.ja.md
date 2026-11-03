@@ -11,7 +11,7 @@
 | [approval-controller](approval-controller) | 実際の controller。元テスト 6 本無変更 | `cd examples/approval-controller && go generate ./... && go test ./...` |
 | [attachment-repair-controller](attachment-repair-controller) | 複数ステップのワークフローの決定ロジックを go4t 化。元テスト 22 本無変更 | `cd examples/attachment-repair-controller && go generate ./... && go test ./...` |
 | [node-drain-controller](node-drain-controller) | 一から書いた controller。検証済み法則 10 本(cordon 先行、DaemonSet 透過、正確な timeout) | `go4t check examples/node-drain-controller/decide/decide.gt && cd examples/node-drain-controller && go generate ./... && go test ./...` |
-| [sql-service](sql-service) | `bind` 経由の SQLite + Prometheus HTTP サービス | README 参照 |
+| [sql-service](sql-service) | `go:` import を使う SQLite + Prometheus HTTP サービス | README 参照 |
 | [typed-extern](typed-extern) | 生成 binding、ABI アダプタ、opaque method handle | `go4t run examples/typed-extern` |
 | [deps](deps) | ローカル replace を使うオフライン依存 | `go4t run examples/deps/app` |
 | [calc](calc) | `Result` エラー付き式インタプリタ | `go4t run examples/calc/main.gt` |

@@ -22,10 +22,10 @@ type Outcome = Outcome{action: Action, drain: Drain} deriving Eq, Debug
 func listPodsOnNode(pods corev1.PodInterface, node String) IO[List[core.Pod]] {
   do {
     listed <- pods |> corev1.podInterfaceList(_, meta.newListOptions(){fieldSelector: "spec.nodeName=" + node})
-    ioPure(match listed {
+    match listed {
       None => Nil
       Some(l) => l.items
-    })
+    }
   }
 }
 
@@ -33,8 +33,8 @@ func getNode(nodes corev1.NodeInterface, name String) IO[Option[core.Node]] {
   do {
     fetched <- io.tryIO(corev1.nodeInterfaceGet(nodes, name, meta.newGetOptions()))
     match fetched {
-      Ok(node) => ioPure(node)
-      Err(io.NotFound(_)) => ioPure(None)
+      Ok(node) => node
+      Err(io.NotFound(_)) => None
       Err(e) => io.ioRaise(e)
     }
   }
@@ -47,7 +47,7 @@ func observe(client corev1.CoreV1Interface, d Drain) IO[Observed] {
     node <- getNode(nodes, d.node)
     onNode <- listPodsOnNode(pods, d.node)
     now <- io.nowMillis()
-    ioPure(Observed{
+    Observed{
       requested: d.requested,
       node: nodeState(node),
       cordonedByUs: cordonedByUs(node),
@@ -55,7 +55,7 @@ func observe(client corev1.CoreV1Interface, d Drain) IO[Observed] {
       evictionBlocked: d.lastBlock,
       deadline: d.deadline,
       nowNanos: now * 1000000
-    })
+    }
   }
 }
 
@@ -75,11 +75,11 @@ func evict(pods corev1.PodInterface, name String) IO[Option[String]] {
   do {
     attempt <- io.tryIO(corev1.podInterfaceEvictV1(pods, Some(eviction)))
     match attempt {
-      Ok(_) => ioPure(None)
+      Ok(_) => None
       | Err(e) => {
         let message = io.ioErrorMessage(e)
         if string.startsWith(message, "TooManyRequests:") {
-          ioPure(Some(message))
+          Some(message)
         } else {
           io.ioRaise(e)
         }
@@ -92,15 +92,15 @@ func apply(client corev1.CoreV1Interface, d Drain, action Action) IO[Drain] {
   do {
     nodes <- corev1.coreV1InterfaceNodes(client)
     match action {
-      Cordon => do { patchNode(nodes, d.node, cordonPatch(true)); ioPure(d) }
-      Uncordon => do { patchNode(nodes, d.node, cordonPatch(false)); ioPure(d) }
+      Cordon => do { patchNode(nodes, d.node, cordonPatch(true)); d }
+      Uncordon => do { patchNode(nodes, d.node, cordonPatch(false)); d }
       | Evict(ns, name) => do {
         pods <- corev1.coreV1InterfacePods(client, ns)
         blocked <- evict(pods, name)
-        ioPure(d{lastBlock: blocked})
+        d{lastBlock: blocked}
       }
-      Wait(_) => ioPure(d{lastBlock: None})
-      _ => ioPure(d)
+      Wait(_) => d{lastBlock: None}
+      _ => d
     }
   }
 }
@@ -110,7 +110,7 @@ func reconcile(client corev1.CoreV1Interface, d Drain) IO[Outcome] {
     o <- observe(client, d)
     let action = decide(o)
     next <- apply(client, d, action)
-    ioPure(Outcome(action, next))
+    Outcome(action, next)
   }
 }
 

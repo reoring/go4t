@@ -357,6 +357,9 @@ type Ann struct {
 	// Recursive marks a let-bound lambda whose name occurs free in its body.
 	// Its self references are monomorphic and do not apply LetScheme dictionaries.
 	Recursive bool
+	// ImplicitIO marks a synthetic prelude ioPure call. Its argument retains
+	// the original annotation; tooling presents the call's lifted result type.
+	ImplicitIO bool
 }
 
 // AnnOf returns the annotation of e, panicking if Check did not run.

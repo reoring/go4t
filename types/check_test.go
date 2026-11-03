@@ -234,17 +234,13 @@ func TestDiagnosticMessages(t *testing.T) {
 }
 
 func TestDoMismatchContext(t *testing.T) {
-	for _, body := range []string{"do { ioPure(1); x <- 2; ioPure(x) }", "do { ioPure(1); 2; ioPure(3) }", "do { ioPure(1); 2 }"} {
+	for _, body := range []string{"do { ioPure(1); x <- 2; ioPure(x) }", "do { ioPure(1); 2; ioPure(3) }"} {
 		t.Run(body, func(t *testing.T) {
 			files := parseFiles(t, "func bad() IO[Int] { "+body+" }\nfunc main() IO[Unit] { ioPure(unit()) }\n")
 			p, err := checkFixture(t, []*ast.Module{{Files: files}})
 			var typed *types.Error
-			// The final expression knows the declared result's item type;
-			// earlier statements still have an unconstrained item.
+			// Non-final statements cannot lift and still have an unconstrained item.
 			want := "type mismatch: expected IO[?"
-			if body == "do { ioPure(1); 2 }" {
-				want = "type mismatch: expected IO[Int"
-			}
 			if p != nil || !errors.As(err, &typed) || !strings.HasPrefix(typed.Msg, want) || !strings.HasSuffix(typed.Msg, "], got Int") {
 				t.Fatalf("Check = (%v, %v), want %s...], got Int", p, err, want)
 			}

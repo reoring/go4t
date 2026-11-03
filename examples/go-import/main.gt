@@ -14,14 +14,14 @@ import "go:strings"
 // import time. No bindings are committed: `go4t run examples/go-import`.
 func echo(r http.Request) IO[http.Response] {
   let who = list.find(r.headers, func(h) => h.0 == "X-Who") |> result.maybe("nobody", func(h) => h.1)
-  ioPure(http.response(200, "hello " + who + " via " + r.method + " " + r.path))
+  http.response(200, "hello " + who + " via " + r.method + " " + r.path)
 }
 
 func waitUp(url String) IO[Unit] {
   do {
     response <- io.tryIO(http.get(url))
     match response {
-      | Ok(_) => ioPure(unit())
+      | Ok(_) => unit()
       | Err(io.Network(_)) => do {
         io.sleep(10)
         waitUp(url)
@@ -41,7 +41,7 @@ func call(port Int) IO[String] {
     body <- gohttp.responseBody(response)
     text <- goio.readAll(goio.readCloserAsReader(body))
     status <- gohttp.responseStatusCode(response)
-    ioPure(show(status) + " " + text)
+    show(status) + " " + text
   }
 }
 

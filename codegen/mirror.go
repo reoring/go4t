@@ -933,7 +933,7 @@ func (g *mirrorGenerator) emitWrapper(out *strings.Builder, f *types.FuncInfo) {
 			args[i] = g.from(t, name)
 		}
 	}
-	call := g.internal(mangle(f.Name)) + "(" + strings.Join(args, ", ") + ")"
+	call := g.internal(functionName(f.Name)) + "(" + strings.Join(args, ", ") + ")"
 	if scalar(f.Scheme.Type.Ret) == "any" {
 		call = g.to(f.Scheme.Type.Ret, call)
 	}

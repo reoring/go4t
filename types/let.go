@@ -118,7 +118,8 @@ func (b *bodyChecker) generalizableValues(es []ast.Expr) bool {
 	return true
 }
 
-func (b *bodyChecker) let(pos, namePos, end ast.Pos, name string, pat ast.Pattern, annotation ast.Type, value ast.Expr, env *locals) {
+func (b *bodyChecker) let(pos, namePos, end ast.Pos, name string, pat ast.Pattern, annotation ast.Type, slot *ast.Expr, env *locals) {
+	value := *slot
 	if pat == nil {
 		checkValueName(pos, name)
 	}
@@ -130,13 +131,14 @@ func (b *bodyChecker) let(pos, namePos, end ast.Pos, name string, pat ast.Patter
 	valueEnv := env
 	var self Type
 	var recursive localUse
-	if _, lambda := value.(*ast.Lambda); lambda && pat == nil {
+	if _, lambda := value.(*ast.Lambda); lambda && pat == nil && ioItem(expected) == nil {
 		self = b.c.fresh(KStar{})
 		valueEnv = newLocals(env)
 		valueEnv.values[name] = self
 		valueEnv.uses = map[string]*localUse{name: &recursive}
 	}
-	typ := b.inferExpected(value, valueEnv, expected)
+	typ := b.inferTail(slot, valueEnv, expected)
+	value = *slot
 	if self != nil {
 		unify(value.GetPos(), self, typ)
 		AnnOf(value).Recursive = recursive.used

@@ -277,6 +277,7 @@ func (g *generator) identCall(ident *ast.Ident, args []string) string {
 		callee = "(" + g.dict(&dicts[0]) + ")." + exported(ident.Name)
 		dicts = dicts[1:]
 	case types.RefFunc:
+		callee = functionName(ident.Name)
 		if spec := g.specialized(ident); spec != nil {
 			for i, t := range spec.function.Scheme.Type.Params {
 				args[i] = convert(args[i], g.rep(g.funcType(ident).Params[i]), scalar(substitute(t, spec.types)))

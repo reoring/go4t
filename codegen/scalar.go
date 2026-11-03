@@ -174,7 +174,7 @@ func (g *generator) functionValue(id *ast.Ident) string {
 		}
 	}
 	if !needsAdapter {
-		return mangle(id.Name)
+		return functionName(id.Name)
 	}
 	ft := g.funcType(id)
 	args := anonymousArgs(len(ft.Params))

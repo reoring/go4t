@@ -114,8 +114,6 @@ func TestDependencyCommandArgumentErrors(t *testing.T) {
 		{[]string{"get", "example.com/lib@none"}, getUsage},
 		{[]string{"get", "example.com/lib@v1.0.0", "extra"}, getUsage},
 		{[]string{"get", "-u@v1.0.0"}, getUsage},
-		{[]string{"get", "--no-bind"}, getUsage},
-		{[]string{"get", "--no-bind", "--no-bind", "example.com/lib@v1.0.0"}, getUsage},
 	} {
 		if err := run(tt.args); err == nil || err.Error() != tt.want {
 			t.Fatalf("run(%q)=%v; want %q", tt.args, err, tt.want)
@@ -150,6 +148,15 @@ func TestGetAddsUpdatesAndRunsLocalDependencyOffline(t *testing.T) {
 		selected, err := modules.ResolveGoModule(root, "example.com/lib")
 		if err != nil || selected.Version != version || selected.Dir != library {
 			t.Fatalf("Go module graph=%+v, error=%v", selected, err)
+		}
+		entries, err := os.ReadDir(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, entry := range entries {
+			if entry.Name() != "app" && entry.Name() != "go.mod" && entry.Name() != "go.sum" && entry.Name() != "go4t.mod" {
+				t.Fatalf("get created unexpected project artifact %s", entry.Name())
+			}
 		}
 	}
 	out, stderr, status := toolsCommand(t, nested, "", "get", "example.com/lib@latest")

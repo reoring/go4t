@@ -10,13 +10,17 @@
 | `go4t run [--full-types] FILE.gt\|DIR... [-- args...]` | Build and execute; inherits stdin; preserves exit status. |
 | `go4t test FILE.gt\|DIR...` | Run zero-arg `testName` functions returning `Bool` or `IO[Bool]`. |
 | `go4t eval 'EXPR' [FILE.gt\|DIR...]` | Evaluate a pure value or IO result; imports come from the first file. |
-| `go4t bind IMPORT [-o FILE] [--prefix STR]` | Generate Go extern declarations. |
+| `go4t bind IMPORT [FILE.gt\|DIR...] [-o FILE.gt\|DIR] [--prefix STR] [--shim DIR]` | Generate declarations and optional Go shims for inspection or legacy use. |
 | `go4t fmt [-w\|-d\|-l] FILE...\|DIR` | Canonical formatting; `-l` exits 1 on differences. |
 | `go4t init <module-path>` / `go4t get <path>@<version>` | Project and dependency management. |
 | `go4t lsp` | Stdio language server (diagnostics, hover, definition, symbols). |
 
 Only `check` verifies proofs; `build`, `run`, `test` and `eval` omit laws/proofs
 from generated code but still require their source to parse and type-check.
+
+`go4t get <path>@<version>` runs `go get` and records the selected version in
+`go4t.mod`; it does not generate bindings. Use `import "go:<path>"` to bind Go
+packages on demand while loading the program.
 
 Exit codes: ordinary IO errors 1, uncaught action panic 2. Recover inside the
 program with `io.tryIO(action) : IO[Result[io.IoError, A]]`. With

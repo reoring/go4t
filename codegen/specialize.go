@@ -112,7 +112,7 @@ func (g *generator) planSpecializations(prog *types.Program) {
 		if key == "" || g.specialized(id) != nil || len(g.specials[id.Name]) >= specializationCopies {
 			return
 		}
-		s := &specialization{function: f, key: key, name: fmt.Sprintf("%s_special%d", mangle(id.Name), len(g.specials[id.Name])+1), types: make(map[string]types.Type), dicts: make(map[types.Constraint]types.DictRef)}
+		s := &specialization{function: f, key: key, name: fmt.Sprintf("%s_special%d", functionName(id.Name), len(g.specials[id.Name])+1), types: make(map[string]types.Type), dicts: make(map[types.Constraint]types.DictRef)}
 		for i, c := range f.Scheme.Constraints {
 			v, ok := c.Arg.(*types.TVar)
 			if !ok {
