@@ -12,9 +12,9 @@ func TestScrutineeRefinement(t *testing.T) {
 	diagnostics := diagnosticsByLaw(t, p)
 	bad := map[string]string{
 		"differentScrutinees": "stuck on: o#1.mode",
-		"noSiblingLeak": "stuck normal forms differ",
-		"noIfSiblingLeak": "stuck normal forms differ",
-		"differentClosures": "stuck normal forms differ",
+		"noSiblingLeak":       "stuck normal forms differ",
+		"noIfSiblingLeak":     "stuck normal forms differ",
+		"differentClosures":   "stuck normal forms differ",
 	}
 	for name := range p.Laws {
 		diagnostic := diagnostics[name]
@@ -35,10 +35,14 @@ func TestScrutineeRefinement(t *testing.T) {
 
 	e := newEvaluator(p)
 	law, err := e.extractLaw("nestedDryRun")
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	env, _ := e.proofEnvironment(law, p.Proofs[law.Name])
 	left, right, err := e.equation(law, env)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	want := "match o#1.mode { DryRun => Skip; Live => Skip }"
 	if e.display(left) != want || e.display(right) != want {
 		t.Fatalf("nested normal forms: %s vs %s, want %s", e.display(left), e.display(right), want)
@@ -63,7 +67,7 @@ func TestResidualRefinement(t *testing.T) {
 		}}
 	}
 	for _, tc := range []struct {
-		name string
+		name        string
 		input, want *term
 	}{
 		{"if", choice(x, choice(x, integer(1), integer(9)), choice(x, integer(9), integer(2))), choice(x, integer(1), integer(2))},
@@ -73,11 +77,15 @@ func TestResidualRefinement(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got, err := e.normal(tc.input)
-			if err != nil { t.Fatal(err) }
+			if err != nil {
+				t.Fatal(err)
+			}
 			if !alphaEqual(got, tc.want, nil) {
 				t.Fatalf("normal = %s, want %s", e.display(got), e.display(tc.want))
 			}
-			if e.assumptions != nil { t.Fatal("residual refinement leaked") }
+			if e.assumptions != nil {
+				t.Fatal("residual refinement leaked")
+			}
 		})
 	}
 
@@ -89,6 +97,8 @@ func TestResidualRefinement(t *testing.T) {
 		if _, err := e.normal(input); err == nil || !strings.Contains(err.Error(), "division by zero") {
 			t.Fatalf("normalization error = %v", err)
 		}
-		if e.assumptions != parent { t.Fatal("error path lost the surrounding hypothesis") }
+		if e.assumptions != parent {
+			t.Fatal("error path lost the surrounding hypothesis")
+		}
 	}
 }

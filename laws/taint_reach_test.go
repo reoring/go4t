@@ -18,8 +18,8 @@ import (
 
 type reachEntry struct {
 	module, name, reason, category string
-	node ast.Node
-	deps []*reachEntry
+	node                           ast.Node
+	deps                           []*reachEntry
 }
 
 // TestTaintReach is a static, whole-body taint inventory, not a termination
@@ -28,57 +28,99 @@ func TestTaintReach(t *testing.T) {
 	t.Setenv("GO4T_PATH", "")
 	moduleSet := map[string]bool{}
 	if err := fs.WalkDir(std.FS, ".", func(name string, d fs.DirEntry, err error) error {
-		if err == nil && !d.IsDir() && strings.HasSuffix(name, ".gt") { moduleSet["std/"+path.Dir(name)] = true }
+		if err == nil && !d.IsDir() && strings.HasSuffix(name, ".gt") {
+			moduleSet["std/"+path.Dir(name)] = true
+		}
 		return err
-	}); err != nil { t.Fatal(err) }
+	}); err != nil {
+		t.Fatal(err)
+	}
 	var names []string
-	for name := range moduleSet { names = append(names, name) }
+	for name := range moduleSet {
+		names = append(names, name)
+	}
 	sort.Strings(names)
 	dir := t.TempDir()
 	var source strings.Builder
 	source.WriteString("package inventory\n")
-	for _, name := range names { fmt.Fprintf(&source, "import %q\n", name) }
+	for _, name := range names {
+		fmt.Fprintf(&source, "import %q\n", name)
+	}
 	source.WriteString("func main() IO[Unit] { ioPure(unit()) }\n")
-	if err := os.WriteFile(filepath.Join(dir, "main.gt"), []byte(source.String()), 0600); err != nil { t.Fatal(err) }
+	if err := os.WriteFile(filepath.Join(dir, "main.gt"), []byte(source.String()), 0600); err != nil {
+		t.Fatal(err)
+	}
 	mods, err := modules.Load([]string{dir})
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	p, err := types.Check(mods)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	var entries []*reachEntry
 	funcs := map[string]*reachEntry{}
 	methods := map[*types.Instance]map[string]*reachEntry{}
 	owners := map[ast.Node]string{}
 	for _, mod := range p.Modules {
-		if !moduleSet[mod.ImportPath] { continue }
+		if !moduleSet[mod.ImportPath] {
+			continue
+		}
 		for _, file := range mod.Files {
-			for _, decl := range file.Decls { owners[decl] = mod.ImportPath }
+			for _, decl := range file.Decls {
+				owners[decl] = mod.ImportPath
+			}
 		}
 	}
 	for name, f := range p.Funcs {
 		if module := owners[f.Decl]; module != "" {
 			e := &reachEntry{module: module, name: p.ModuleNames[name], node: f.Decl}
-			if e.name == "" { e.name = name }
-			entries = append(entries, e); funcs[name] = e
+			if e.name == "" {
+				e.name = name
+			}
+			entries = append(entries, e)
+			funcs[name] = e
 		}
 	}
 	for _, inst := range p.Instances {
 		module := owners[inst.Decl]
-		if module == "" { continue }
+		if module == "" {
+			continue
+		}
 		methods[inst] = map[string]*reachEntry{}
 		for i := range inst.Decl.Methods {
 			m := &inst.Decl.Methods[i]
 			class, con := p.ModuleNames[inst.Class.Name], p.ModuleNames[inst.TypeCon.Name]
-			if class == "" { class = inst.Class.Name }; if con == "" { con = inst.TypeCon.Name }
-			e := &reachEntry{module: module, name: class+"["+con+"]."+m.Name, node: m}
-			entries = append(entries, e); methods[inst][m.Name] = e
+			if class == "" {
+				class = inst.Class.Name
+			}
+			if con == "" {
+				con = inst.TypeCon.Name
+			}
+			e := &reachEntry{module: module, name: class + "[" + con + "]." + m.Name, node: m}
+			entries = append(entries, e)
+			methods[inst][m.Name] = e
 		}
 	}
-	sort.Slice(entries, func(i, j int) bool { if entries[i].module != entries[j].module { return entries[i].module < entries[j].module }; return entries[i].name < entries[j].name })
+	sort.Slice(entries, func(i, j int) bool {
+		if entries[i].module != entries[j].module {
+			return entries[i].module < entries[j].module
+		}
+		return entries[i].name < entries[j].name
+	})
 	for _, e := range entries {
-		set := func(category, reason string) { if e.reason == "" { e.category, e.reason = category, reason } }
+		set := func(category, reason string) {
+			if e.reason == "" {
+				e.category, e.reason = category, reason
+			}
+		}
 		if f, ok := e.node.(*ast.FuncDecl); ok {
-			if reachTypeContains(p, p.Funcs[f.Name].Scheme.Type.Ret, types.IO) { set("IO result", "IO result type") }
-			if reachTypeContains(p, p.Funcs[f.Name].Scheme.Type, types.Float) { set("Float", "Float in signature") }
+			if reachTypeContains(p, p.Funcs[f.Name].Scheme.Type.Ret, types.IO) {
+				set("IO result", "IO result type")
+			}
+			if reachTypeContains(p, p.Funcs[f.Name].Scheme.Type, types.Float) {
+				set("Float", "Float in signature")
+			}
 			if f.Extern != nil {
 				switch {
 				case e.module == "std/map" && f.Extern.ImportPath == "go4t/rt" && modeledMap(f.Extern.Name):
@@ -95,58 +137,122 @@ func TestTaintReach(t *testing.T) {
 			if ref.Kind == types.DictSuper && ref.Super != nil {
 				// The superclass implementation is selected by type constructor.
 				base := ref.Super
-				for base.Kind == types.DictSuper && base.Super != nil { base = base.Super }
-				if base.Instance != nil { for inst := range methods { if inst.TypeCon == base.Instance.TypeCon && inst.Class.Name == ref.Class { dictDeps(types.DictRef{Instance: inst, Args: base.Args}, method) } } }
+				for base.Kind == types.DictSuper && base.Super != nil {
+					base = base.Super
+				}
+				if base.Instance != nil {
+					for inst := range methods {
+						if inst.TypeCon == base.Instance.TypeCon && inst.Class.Name == ref.Class {
+							dictDeps(types.DictRef{Instance: inst, Args: base.Args}, method)
+						}
+					}
+				}
 				return
 			}
 			if ref.Instance != nil {
-				for name, dep := range methods[ref.Instance] { if method == "" || name == method { e.deps = append(e.deps, dep) } }
+				for name, dep := range methods[ref.Instance] {
+					if method == "" || name == method {
+						e.deps = append(e.deps, dep)
+					}
+				}
 			}
-			for _, arg := range ref.Args { dictDeps(arg, "") }
+			for _, arg := range ref.Args {
+				dictDeps(arg, "")
+			}
 		}
 		ast.Walk(e.node, func(node ast.Node) {
-			x, ok := node.(ast.Expr); if !ok { return }
+			x, ok := node.(ast.Expr)
+			if !ok {
+				return
+			}
 			a := types.AnnOf(x)
-			if reachTypeContains(p, a.Type, types.IO) { set("IO result", "IO result in body") }
-			if reachTypeContains(p, a.Type, types.Float) { set("Float", "Float use in body") }
+			if reachTypeContains(p, a.Type, types.IO) {
+				set("IO result", "IO result in body")
+			}
+			if reachTypeContains(p, a.Type, types.Float) {
+				set("Float", "Float use in body")
+			}
 			method := ""
 			if id, ok := x.(*ast.Ident); ok {
-				if a.Ref == types.RefFunc && funcs[id.Name] != nil { e.deps = append(e.deps, funcs[id.Name]) }
-				if a.Ref == types.RefMethod { method = id.Name }
+				if a.Ref == types.RefFunc && funcs[id.Name] != nil {
+					e.deps = append(e.deps, funcs[id.Name])
+				}
+				if a.Ref == types.RefMethod {
+					method = id.Name
+				}
 			}
 			if b, ok := x.(*ast.Binary); ok {
-				switch b.Op { case "==", "!=": method = "eq"; case "<", "<=", ">", ">=": method = "compare" }
-				if (b.Op == "/" || b.Op == "%") && !nonzeroLiteral(b.R) { set("division/modulo", "division/modulo with nonconstant or zero divisor") }
+				switch b.Op {
+				case "==", "!=":
+					method = "eq"
+				case "<", "<=", ">", ">=":
+					method = "compare"
+				}
+				if (b.Op == "/" || b.Op == "%") && !nonzeroLiteral(b.R) {
+					set("division/modulo", "division/modulo with nonconstant or zero divisor")
+				}
 			}
-			for _, ref := range a.Dicts { dictDeps(ref, method) }
-			for _, ref := range a.ShowDicts { dictDeps(ref, "show") }
-			if a.Monad != nil { dictDeps(*a.Monad, "") }
+			for _, ref := range a.Dicts {
+				dictDeps(ref, method)
+			}
+			for _, ref := range a.ShowDicts {
+				dictDeps(ref, "show")
+			}
+			if a.Monad != nil {
+				dictDeps(*a.Monad, "")
+			}
 		})
 		sort.Slice(e.deps, func(i, j int) bool { return e.deps[i].module+"."+e.deps[i].name < e.deps[j].module+"."+e.deps[j].name })
 	}
 	// Synchronous propagation makes the chosen reason independent of map order:
 	// shortest path to a direct taint, then lexical callee on equal-length paths.
 	for {
-		type pending struct { e, dep *reachEntry }
+		type pending struct{ e, dep *reachEntry }
 		var next []pending
-		for _, e := range entries { if e.reason == "" { for _, dep := range e.deps { if dep.reason != "" { next = append(next, pending{e, dep}); break } } } }
-		if len(next) == 0 { break }
-		for _, x := range next { x.e.category = "transitive"; x.e.reason = "depends on "+x.dep.module+"."+x.dep.name+" ("+x.dep.reason+")" }
+		for _, e := range entries {
+			if e.reason == "" {
+				for _, dep := range e.deps {
+					if dep.reason != "" {
+						next = append(next, pending{e, dep})
+						break
+					}
+				}
+			}
+		}
+		if len(next) == 0 {
+			break
+		}
+		for _, x := range next {
+			x.e.category = "transitive"
+			x.e.reason = "depends on " + x.dep.module + "." + x.dep.name + " (" + x.dep.reason + ")"
+		}
 	}
 	modeled := 0
 	for _, entry := range entries {
-		if entry.category == "modeled" { modeled++ }
-		if entry.module == "std/map" && entry.reason != "" { t.Errorf("std/map.%s is tainted: %s", entry.name, entry.reason) }
+		if entry.category == "modeled" {
+			modeled++
+		}
+		if entry.module == "std/map" && entry.reason != "" {
+			t.Errorf("std/map.%s is tainted: %s", entry.name, entry.reason)
+		}
 	}
-	if modeled != 13 { t.Errorf("modeled extern count = %d, want 13", modeled) }
+	if modeled != 13 {
+		t.Errorf("modeled extern count = %d, want 13", modeled)
+	}
 	document := reachMarkdown(entries, names)
 	filename := filepath.Join("..", "docs", "adr", "0001-laws-std-reach.md")
 	if os.Getenv("GO4T_UPDATE_TAINT_REACH") == "1" {
-		if err := os.WriteFile(filename, []byte(document), 0644); err != nil { t.Fatal(err) }
+		if err := os.WriteFile(filename, []byte(document), 0644); err != nil {
+			t.Fatal(err)
+		}
 	}
 	want, err := os.ReadFile(filename)
-	if err != nil { t.Fatal(err) }
-	if string(want) != document { t.Fatal("std reach inventory changed; review and regenerate with GO4T_UPDATE_TAINT_REACH=1 go test ./laws/ -run TaintReach") }
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(want) != document {
+		t.Fatal("std reach inventory changed; review and regenerate with GO4T_UPDATE_TAINT_REACH=1 go test ./laws/ -run TaintReach")
+	}
 	t.Logf("classified %d declarations across %d modules", len(entries), len(names))
 }
 
@@ -156,21 +262,42 @@ func reachTypeContains(p *types.Program, t types.Type, con *types.TCon) bool {
 	contains = func(t types.Type) bool {
 		switch t := types.Unalias(t).(type) {
 		case *types.TCon:
-			if t == con { return true }
+			if t == con {
+				return true
+			}
 			if data := p.DataTypes[t.Name]; con != types.Float && data != nil && !seen[t.Name] {
 				seen[t.Name] = true
-				for _, ctor := range data.Ctors { for _, field := range ctor.Fields { if contains(field) { return true } } }
+				for _, ctor := range data.Ctors {
+					for _, field := range ctor.Fields {
+						if contains(field) {
+							return true
+						}
+					}
+				}
 			}
 		case *types.TApp:
-			if contains(t.Fun) { return true }; for _, arg := range t.Args { if contains(arg) { return true } }
+			if contains(t.Fun) {
+				return true
+			}
+			for _, arg := range t.Args {
+				if contains(arg) {
+					return true
+				}
+			}
 		case *types.TFunc:
-			if contains(t.Ret) { return true }; for _, arg := range t.Params { if contains(arg) { return true } }
+			if contains(t.Ret) {
+				return true
+			}
+			for _, arg := range t.Params {
+				if contains(arg) {
+					return true
+				}
+			}
 		}
 		return false
 	}
 	return contains(t)
 }
-
 
 func reachMarkdown(entries []*reachEntry, modules []string) string {
 	var out strings.Builder
@@ -198,22 +325,43 @@ List structure, filtering, folds, append, Option (in std/prelude) and Result com
 	totalGood, totalBad := 0, 0
 	for _, module := range modules {
 		good, bad := 0, 0
-		for _, e := range entries { if e.module == module { if e.reason == "" { good++ } else { bad++ } } }
-		fmt.Fprintf(&out, "| `%s` | %d | %d | %d |\n", module, good, bad, good+bad); totalGood += good; totalBad += bad
+		for _, e := range entries {
+			if e.module == module {
+				if e.reason == "" {
+					good++
+				} else {
+					bad++
+				}
+			}
+		}
+		fmt.Fprintf(&out, "| `%s` | %d | %d | %d |\n", module, good, bad, good+bad)
+		totalGood += good
+		totalBad += bad
 	}
 	fmt.Fprintf(&out, "| **Total** | **%d** | **%d** | **%d** |\n\n", totalGood, totalBad, totalGood+totalBad)
 	out.WriteString("## First-reason breakdown\n\nCounts are disjoint, not all contributing causes. Transitive rows retain the ultimate direct cause in the detailed path.\n\n| First reason | Count |\n| --- | ---: |\n")
 	for _, category := range []string{"extern", "IO result", "Float", "division/modulo", "transitive"} {
-		count := 0; for _, e := range entries { if e.category == category { count++ } }
+		count := 0
+		for _, e := range entries {
+			if e.category == category {
+				count++
+			}
+		}
 		fmt.Fprintf(&out, "| %s | %d |\n", category, count)
 	}
 	for _, module := range modules {
 		fmt.Fprintf(&out, "\n## `%s`\n\n| Function / instance method | Classification | Category | First tainting reason |\n| --- | --- | --- | --- |\n", module)
 		for _, e := range entries {
-			if e.module != module { continue }
+			if e.module != module {
+				continue
+			}
 			status, category, reason := "law-eligible", e.category, "—"
-			if category == "" { category = "source" }
-			if e.reason != "" { status, reason = "tainted", e.reason }
+			if category == "" {
+				category = "source"
+			}
+			if e.reason != "" {
+				status, reason = "tainted", e.reason
+			}
 			fmt.Fprintf(&out, "| `%s` | %s | %s | %s |\n", e.name, status, category, strings.ReplaceAll(reason, "|", "\\|"))
 		}
 	}

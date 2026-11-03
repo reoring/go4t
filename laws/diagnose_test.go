@@ -29,7 +29,7 @@ func TestReflDiagnostics(t *testing.T) {
 		},
 		{
 			name: "record field", fixture: "update.gt", extra: stuckRecordLaw, law: "independentModes",
-			stuck: "stuck on: o.mode\nstuck on: other.mode",
+			stuck:   "stuck on: o.mode\nstuck on: other.mode",
 			differs: "differs at: o vs other",
 		},
 		{
@@ -116,9 +116,9 @@ func TestDiagnosticStuckOn(t *testing.T) {
 	e := newEvaluator(&types.Program{})
 	e.decreasing = map[string][]decreasingPosition{"recursive": {{position: 1}}}
 	for _, tc := range []struct {
-		name string
+		name        string
 		left, right *term
-		want string
+		want        string
 	}{
 		{"same sides", choice(x), choice(x), "stuck on: x#1"},
 		{"distinct sides", choice(x), choice(y), "stuck on: x#1\nstuck on: y#2"},
@@ -172,7 +172,7 @@ func TestDiagnosticFirstDifference(t *testing.T) {
 	one, two, three := integer(1), integer(2), integer(3)
 	x, y := variable("same", 10), variable("same", 11)
 	for _, tc := range []struct {
-		name string
+		name                             string
 		left, right, wantLeft, wantRight *term
 	}{
 		{"equal", tuple(one, two), tuple(one, two), nil, nil},

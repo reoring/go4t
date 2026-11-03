@@ -27,9 +27,18 @@ func TestTerminationReachability(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			p := loadSource(t, "package main\n"+tc.declarations+"\nlaw total(n Int, xs List[Int]) { "+tc.value+" == "+tc.value+" }\nproof total(n, xs) { refl }\nfunc main() IO[Unit] { ioPure(unit()) }\n")
 			errors := CheckProgram(p)
-			if tc.want == "" { if errors != nil { t.Fatal(errors) }; return }
-			if len(errors) != 1 || !strings.Contains(errors[0].Msg, tc.want) { t.Fatalf("got %v, want %q", errors, tc.want) }
-			if errors[0].Pos != p.Laws["total"].Decl.Pos { t.Fatalf("termination diagnostic not at law: %v", errors[0]) }
+			if tc.want == "" {
+				if errors != nil {
+					t.Fatal(errors)
+				}
+				return
+			}
+			if len(errors) != 1 || !strings.Contains(errors[0].Msg, tc.want) {
+				t.Fatalf("got %v, want %q", errors, tc.want)
+			}
+			if errors[0].Pos != p.Laws["total"].Decl.Pos {
+				t.Fatalf("termination diagnostic not at law: %v", errors[0])
+			}
 		})
 	}
 }
@@ -42,6 +51,8 @@ func TestWholeBodyTaintAndProofExpressions(t *testing.T) {
 	} {
 		p := loadSource(t, "package main\nextern func foreign(n Int) Int = \"example.invalid\".Foreign\n"+body+"\nfunc main() IO[Unit] { ioPure(unit()) }\n")
 		errors := CheckProgram(p)
-		if len(errors) != 1 || !strings.Contains(errors[0].Msg, "law depends on extern example.invalid.Foreign") { t.Fatalf("taint escaped: %v", errors) }
+		if len(errors) != 1 || !strings.Contains(errors[0].Msg, "law depends on extern example.invalid.Foreign") {
+			t.Fatalf("taint escaped: %v", errors)
+		}
 	}
 }

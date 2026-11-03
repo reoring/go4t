@@ -12,18 +12,18 @@ import (
 // A term is private to one proof. Checked source nodes and annotations stay
 // shared and immutable; only symbolic terms contain fresh variable identities.
 type term struct {
-	kind, name string
+	kind, name       string
 	id, arity, index int
-	number int64
-	float float64 // Opaque property samples only; source Float expressions stay rejected.
-	flag bool
-	ctor *types.Ctor
-	args []*term
-	arms []normalArm
-	indexes []int
-	cases []types.RecordCase
-	closure *closure
-	dicts []*dictionary
+	number           int64
+	float            float64 // Opaque property samples only; source Float expressions stay rejected.
+	flag             bool
+	ctor             *types.Ctor
+	args             []*term
+	arms             []normalArm
+	indexes          []int
+	cases            []types.RecordCase
+	closure          *closure
+	dicts            []*dictionary
 }
 
 type normalArm struct {
@@ -31,8 +31,8 @@ type normalArm struct {
 }
 
 func integer(n int64) *term { return &term{kind: "int", number: n} }
-func text(s string) *term { return &term{kind: "string", name: s} }
-func boolean(b bool) *term { return &term{kind: "bool", flag: b} }
+func text(s string) *term   { return &term{kind: "string", name: s} }
+func boolean(b bool) *term  { return &term{kind: "bool", flag: b} }
 
 // Assumption keys are normalized terms. Free IDs must still agree; only binders
 // may be alpha-renamed. This substitutes branch facts, not arbitrary equations.
@@ -82,7 +82,7 @@ func (e *evaluator) normal(value *term) (*term, error) {
 		args := make([]*term, value.arity)
 		binders := make([]*term, value.arity+1)
 		for i := range args {
-			name := "a"+strconv.Itoa(i)
+			name := "a" + strconv.Itoa(i)
 			if value.closure != nil && value.closure.params[i].Name != "" {
 				name = value.closure.params[i].Name
 			}
@@ -400,7 +400,9 @@ func (e *evaluator) displayComparison(t *term) (op string, left, right *term) {
 			return t.name, a, b
 		}
 	case "rt.EqBool":
-		if alphaEqual(b, no.args[0], nil) { a, b = b, a }
+		if alphaEqual(b, no.args[0], nil) {
+			a, b = b, a
+		}
 		if alphaEqual(a, no.args[0], nil) &&
 			e.displayOrdering(yes, "EQ") && e.displayOrdering(no.args[1], "GT") && e.displayOrdering(no.args[2], "LT") {
 			return t.name, a, b
@@ -430,7 +432,7 @@ func (e *evaluator) displayComparisonOperand(t *term) string {
 
 func (e *evaluator) display(t *term) string {
 	if op, left, right := e.displayComparison(t); op != "" {
-		return "("+e.displayComparisonOperand(left)+" "+op+" "+e.displayComparisonOperand(right)+")"
+		return "(" + e.displayComparisonOperand(left) + " " + op + " " + e.displayComparisonOperand(right) + ")"
 	}
 	args := make([]string, len(t.args))
 	for i, arg := range t.args {
@@ -438,7 +440,7 @@ func (e *evaluator) display(t *term) string {
 	}
 	switch t.kind {
 	case "var", "bind":
-		return t.name+"#"+strconv.Itoa(t.id)
+		return t.name + "#" + strconv.Itoa(t.id)
 	case "wild":
 		return "_"
 	case "int":
@@ -456,66 +458,68 @@ func (e *evaluator) display(t *term) string {
 		if len(args) == 0 {
 			return name
 		}
-		return name+"("+strings.Join(args, ", ")+")"
+		return name + "(" + strings.Join(args, ", ") + ")"
 	case "tuple":
-		return "("+strings.Join(args, ", ")+")"
+		return "(" + strings.Join(args, ", ") + ")"
 	case "map":
 		entries := make([]string, len(args)/2)
-		for i := range entries { entries[i] = args[2*i]+": "+args[2*i+1] }
-		return "map{"+strings.Join(entries, ", ")+"}"
+		for i := range entries {
+			entries[i] = args[2*i] + ": " + args[2*i+1]
+		}
+		return "map{" + strings.Join(entries, ", ") + "}"
 	case "insert":
-		return "insert("+strings.Join(args, ", ")+")"
+		return "insert(" + strings.Join(args, ", ") + ")"
 	case "mapfrom":
-		return "fromListFold("+strings.Join(args, ", ")+")"
+		return "fromListFold(" + strings.Join(args, ", ") + ")"
 	case "lambda":
-		return "func("+strings.Join(args[:len(args)-1], ", ")+") => "+args[len(args)-1]
+		return "func(" + strings.Join(args[:len(args)-1], ", ") + ") => " + args[len(args)-1]
 	case "sum":
-		return "("+strings.Join(args, " + ")+")"
+		return "(" + strings.Join(args, " + ") + ")"
 	case "product":
 		for i, power := range t.indexes {
 			if power != 1 {
-				args[i] += "^"+strconv.Itoa(power)
+				args[i] += "^" + strconv.Itoa(power)
 			}
 		}
 		if t.number != 1 {
 			args = append([]string{strconv.FormatInt(t.number, 10)}, args...)
 		}
-		return "("+strings.Join(args, " * ")+")"
+		return "(" + strings.Join(args, " * ") + ")"
 	case "global", "method":
 		return e.sourceName(t.name)
 	case "binary":
-		return "("+args[0]+" "+t.name+" "+args[1]+")"
+		return "(" + args[0] + " " + t.name + " " + args[1] + ")"
 	case "unary":
-		return "("+t.name+args[0]+")"
+		return "(" + t.name + args[0] + ")"
 	case "if":
-		return "if "+args[0]+" { "+args[1]+" } else { "+args[2]+" }"
+		return "if " + args[0] + " { " + args[1] + " } else { " + args[2] + " }"
 	case "as":
-		return args[0]+" @ "+args[1]
+		return args[0] + " @ " + args[1]
 	case "call":
-		return args[0]+"("+strings.Join(args[1:], ", ")+")"
+		return args[0] + "(" + strings.Join(args[1:], ", ") + ")"
 	case "field":
 		field := t.name
 		if field == "" {
 			field = strconv.Itoa(t.index)
 		}
-		return args[0]+"."+field
+		return args[0] + "." + field
 	case "update":
 		fields := make([]string, len(args)-1)
 		for i, arg := range args[1:] {
-			fields[i] = strconv.Itoa(t.indexes[i])+": "+arg
+			fields[i] = strconv.Itoa(t.indexes[i]) + ": " + arg
 		}
-		return args[0]+"{"+strings.Join(fields, ", ")+"}"
+		return args[0] + "{" + strings.Join(fields, ", ") + "}"
 	case "match":
 		arms := make([]string, len(t.arms))
 		for i, arm := range t.arms {
 			guard := ""
 			if arm.guard.kind != "bool" || !arm.guard.flag {
-				guard = " if "+e.display(arm.guard)
+				guard = " if " + e.display(arm.guard)
 			}
-			arms[i] = e.display(arm.pattern)+guard+" => "+e.display(arm.body)
+			arms[i] = e.display(arm.pattern) + guard + " => " + e.display(arm.body)
 		}
-		return "match "+args[0]+" { "+strings.Join(arms, "; ")+" }"
+		return "match " + args[0] + " { " + strings.Join(arms, "; ") + " }"
 	default:
-		return t.name+"("+strings.Join(args, ", ")+")"
+		return t.name + "(" + strings.Join(args, ", ") + ")"
 	}
 }

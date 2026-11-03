@@ -13,14 +13,14 @@ import (
 // indexes are their positive powers. Constants and unit products are unboxed.
 // Only checked Int arithmetic enters ring, never String concatenation.
 type factor struct {
-	atom *term
-	key string
+	atom  *term
+	key   string
 	power int
 }
 
 type monomial struct {
 	coefficient int64
-	factors []factor
+	factors     []factor
 }
 
 func polynomial(t *term) []monomial {
@@ -48,7 +48,7 @@ func polynomial(t *term) []monomial {
 }
 
 func multiply(a, b monomial) monomial {
-	m := monomial{coefficient: a.coefficient*b.coefficient, factors: make([]factor, 0, len(a.factors)+len(b.factors))}
+	m := monomial{coefficient: a.coefficient * b.coefficient, factors: make([]factor, 0, len(a.factors)+len(b.factors))}
 	for i, j := 0, 0; i < len(a.factors) || j < len(b.factors); {
 		switch {
 		case j == len(b.factors) || i < len(a.factors) && a.factors[i].key < b.factors[j].key:

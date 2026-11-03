@@ -216,9 +216,13 @@ func TestOpenTermProperty(t *testing.T) {
 						var shown *term
 						if !opaque {
 							fn, err := e.function(target.observer, nil)
-							if err != nil { t.Fatal(err) }
+							if err != nil {
+								t.Fatal(err)
+							}
 							shown, err = e.apply(fn, observed)
-							if err == nil { shown, err = e.normal(shown) }
+							if err == nil {
+								shown, err = e.normal(shown)
+							}
 							if err != nil {
 								t.Fatalf("%s/%d/%s sample=%d σ={%s}: readback failed: %v", target.law, target.side, variant.name, sample, strings.Join(sigma, ", "), err)
 							}
@@ -235,13 +239,17 @@ func TestOpenTermProperty(t *testing.T) {
 								t.Fatalf("%s: readback did not close: n=%s; result=%s", result.name, e.display(normal), e.display(shown))
 							}
 							observations := make([]string, len(observed))
-							for j, value := range observed { observations[j] = propertyTermSource(t, e, value) }
+							for j, value := range observed {
+								observations[j] = propertyTermSource(t, e, value)
+							}
 							calls = append(calls, target.observer+"("+strings.Join(observations, ", ")+")")
 							result.residualIndex = runtimeLines
 							runtimeLines++
 						}
 						results = append(results, result)
-						if hasFloat { floatComparisons++ }
+						if hasFloat {
+							floatComparisons++
+						}
 					}
 					e.solutions = make(map[int]*term)
 					sides++
@@ -269,7 +277,9 @@ func TestOpenTermProperty(t *testing.T) {
 			}
 			for _, result := range results {
 				want := result.want
-				if result.residualIndex >= 0 { want = lines[result.residualIndex] }
+				if result.residualIndex >= 0 {
+					want = lines[result.residualIndex]
+				}
 				if lines[result.runtimeIndex] != want {
 					t.Errorf("%s: normalization mismatch\nt = %s\nn = %s\nσ = {%s}\nruntime tσ: %q\nevaluator nσ: %q", result.name, result.source, result.normal, result.sigma, lines[result.runtimeIndex], want)
 				}
@@ -279,9 +289,13 @@ func TestOpenTermProperty(t *testing.T) {
 		})
 	}
 	for _, edge := range []float64{math.NaN(), math.Copysign(0, -1), math.Inf(1), math.Inf(-1), 0, 1, -1, 1e308, 5e-324} {
-		if !floatSamples[math.Float64bits(edge)] { t.Errorf("Float edge %g was not sampled", edge) }
+		if !floatSamples[math.Float64bits(edge)] {
+			t.Errorf("Float edge %g was not sampled", edge)
+		}
 	}
-	if floatComparisons == 0 { t.Error("no Float-bearing substitutions were compared") }
+	if floatComparisons == 0 {
+		t.Error("no Float-bearing substitutions were compared")
+	}
 	t.Logf("open-term property: laws=%d side/partial-form targets=%d substitutions=%d per target comparisons=%d Float-bearing substitutions=%d intentional rejections=%d runtime=%s", laws, sides, propertySamples, comparisons, floatComparisons, rejected, time.Since(started))
 }
 
@@ -293,15 +307,23 @@ func TestPropertyFloatTerms(t *testing.T) {
 		for sample := range sources {
 			value := propertyValue(t, e, rng, types.Float, propertyDepth, sample, offset)
 			want := sources[(sample+offset)%len(sources)]
-			if got := propertyLiteral(t, e, value); got != want { t.Errorf("sample=%d offset=%d: source=%s, want %s", sample, offset, got, want) }
-			if got := propertyTermSource(t, e, value); got != want { t.Errorf("residual source=%s, want %s", got, want) }
+			if got := propertyLiteral(t, e, value); got != want {
+				t.Errorf("sample=%d offset=%d: source=%s, want %s", sample, offset, got, want)
+			}
+			if got := propertyTermSource(t, e, value); got != want {
+				t.Errorf("residual source=%s, want %s", got, want)
+			}
 			normal, err := e.normal(value)
-			if err != nil || normal != value { t.Fatalf("Float sample was reduced: %v, %v", normal, err) }
+			if err != nil || normal != value {
+				t.Fatalf("Float sample was reduced: %v, %v", normal, err)
+			}
 			copy := &term{kind: "float", float: value.float}
-			if !alphaEqual(value, copy, nil) || termKey(value) != termKey(copy) { t.Fatal("identical Float bits must retain term identity") }
+			if !alphaEqual(value, copy, nil) || termKey(value) != termKey(copy) {
+				t.Fatal("identical Float bits must retain term identity")
+			}
 		}
 	}
-	values := []float64{math.NaN(), math.Float64frombits(math.Float64bits(math.NaN())+1), math.Copysign(0, -1), 0, 1, -1, math.Inf(1), math.Inf(-1)}
+	values := []float64{math.NaN(), math.Float64frombits(math.Float64bits(math.NaN()) + 1), math.Copysign(0, -1), 0, 1, -1, math.Inf(1), math.Inf(-1)}
 	for i, a := range values {
 		for j, b := range values {
 			left, right := &term{kind: "float", float: a}, &term{kind: "float", float: b}
@@ -314,22 +336,22 @@ func TestPropertyFloatTerms(t *testing.T) {
 
 type propertyTarget struct {
 	law, runner, observer, source string
-	side int
-	expr ast.Expr
-	extra []parameter
+	side                          int
+	expr                          ast.Expr
+	extra                         []parameter
 }
 
 type propertyResult struct {
 	name, source, sigma, normal, want string
-	runtimeIndex, residualIndex int
+	runtimeIndex, residualIndex       int
 }
 
 type propertyVariant struct {
 	name, source string
-	normal *term
-	env *environment
-	params []parameter
-	vars []*term
+	normal       *term
+	env          *environment
+	params       []parameter
+	vars         []*term
 }
 
 func propertyEnvironment(e *evaluator, params []parameter) (*environment, []*term) {
@@ -360,7 +382,7 @@ func propertyVariants(t *testing.T, e *evaluator, law lawGoal) []propertyVariant
 				continue
 			}
 			for _, ctor := range data.Ctors {
-				branch := propertyVariant{name: parent.name+"/"+param.Name+"="+e.sourceName(ctor.Name), env: child(nil)}
+				branch := propertyVariant{name: parent.name + "/" + param.Name + "=" + e.sourceName(ctor.Name), env: child(nil)}
 				fields := make([]*term, len(ctor.Fields))
 				for j, field := range propertyFields(data, args, ctor) {
 					name := fmt.Sprintf("%sField%d", param.Name, j)
@@ -464,7 +486,9 @@ func propertyValue(t *testing.T, e *evaluator, rng *rand.Rand, typ types.Type, d
 		if sample < len(edges) {
 			return integer(edges[(sample+offset)%len(edges)])
 		}
-		if sample%2 == 0 { return integer(int64(rng.IntN(3)-1)) }
+		if sample%2 == 0 {
+			return integer(int64(rng.IntN(3) - 1))
+		}
 		if rng.IntN(3) == 0 {
 			return integer(edges[rng.IntN(len(edges))])
 		}
@@ -488,7 +512,9 @@ func propertyValue(t *testing.T, e *evaluator, rng *rand.Rand, typ types.Type, d
 		if sample < len(edges) {
 			return text(edges[(sample+offset)%len(edges)])
 		}
-		if sample%2 == 0 { return text([]string{"", "a", "b"}[rng.IntN(3)]) }
+		if sample%2 == 0 {
+			return text([]string{"", "a", "b"}[rng.IntN(3)])
+		}
 		alphabet := []rune("ab \"\\\n\t日本語𝄞")
 		chars := make([]rune, rng.IntN(12))
 		for i := range chars {
@@ -526,7 +552,7 @@ func propertyValue(t *testing.T, e *evaluator, rng *rand.Rand, typ types.Type, d
 	}
 	index := rng.IntN(len(eligible))
 	if sample < len(eligible) {
-		index = (sample+offset)%len(eligible)
+		index = (sample + offset) % len(eligible)
 	}
 	ctor := eligible[index]
 	fields := make([]*term, len(ctor.Fields))
@@ -538,7 +564,9 @@ func propertyValue(t *testing.T, e *evaluator, rng *rand.Rand, typ types.Type, d
 
 func propertyFloatSamples(value *term, samples map[uint64]bool) bool {
 	if value.kind == "float" {
-		if samples != nil { samples[math.Float64bits(value.float)] = true }
+		if samples != nil {
+			samples[math.Float64bits(value.float)] = true
+		}
 		return true
 	}
 	found := false
@@ -567,7 +595,7 @@ func propertyLiteral(t *testing.T, e *evaluator, value *term) string {
 		if value.number == math.MinInt64 {
 			return "(-9223372036854775807 - 1)"
 		}
-		return "("+strconv.FormatInt(value.number, 10)+")"
+		return "(" + strconv.FormatInt(value.number, 10) + ")"
 	case "float":
 		switch {
 		case math.IsNaN(value.float):
@@ -580,7 +608,9 @@ func propertyLiteral(t *testing.T, e *evaluator, value *term) string {
 			return "(-0.0)"
 		}
 		literal := strconv.FormatFloat(value.float, 'g', -1, 64)
-		if !strings.ContainsAny(literal, ".e") { literal += ".0" }
+		if !strings.ContainsAny(literal, ".e") {
+			literal += ".0"
+		}
 		return literal
 	case "bool":
 		return strconv.FormatBool(value.flag)
@@ -590,7 +620,7 @@ func propertyLiteral(t *testing.T, e *evaluator, value *term) string {
 	case "unit":
 		return "unit()"
 	case "tuple":
-		return "("+strings.Join(args, ", ")+")"
+		return "(" + strings.Join(args, ", ") + ")"
 	case "map":
 		return propertyMapSource(t, e, value, propertyLiteral)
 	case "ctor":
@@ -600,11 +630,11 @@ func propertyLiteral(t *testing.T, e *evaluator, value *term) string {
 		}
 		if value.ctor.FieldNames != nil {
 			for i, field := range value.ctor.FieldNames {
-				args[i] = field+": "+args[i]
+				args[i] = field + ": " + args[i]
 			}
-			return name+"{"+strings.Join(args, ", ")+"}"
+			return name + "{" + strings.Join(args, ", ") + "}"
 		}
-		return name+"("+strings.Join(args, ", ")+")"
+		return name + "(" + strings.Join(args, ", ") + ")"
 	}
 	t.Fatalf("substitution is not closed first-order data: %s", e.display(value))
 	return ""
@@ -642,7 +672,7 @@ func propertyType(e *evaluator, typ types.Type) string {
 		for i, param := range fn.Params {
 			params[i] = propertyType(e, param)
 		}
-		return "func("+strings.Join(params, ", ")+") "+propertyType(e, fn.Ret)
+		return "func(" + strings.Join(params, ", ") + ") " + propertyType(e, fn.Ret)
 	}
 	con, args := typeHead(typ)
 	params := make([]string, len(args))
@@ -650,11 +680,11 @@ func propertyType(e *evaluator, typ types.Type) string {
 		params[i] = propertyType(e, arg)
 	}
 	if _, ok := types.IsTuple(con); ok {
-		return "("+strings.Join(params, ", ")+")"
+		return "(" + strings.Join(params, ", ") + ")"
 	}
 	name := propertyReference(e, con.Name)
 	if len(params) != 0 {
-		name += "["+strings.Join(params, ", ")+"]"
+		name += "[" + strings.Join(params, ", ") + "]"
 	}
 	return name
 }
@@ -662,11 +692,11 @@ func propertyType(e *evaluator, typ types.Type) string {
 func propertyParams(e *evaluator, params []parameter, leadingComma bool) string {
 	parts := make([]string, len(params))
 	for i, param := range params {
-		parts[i] = param.Name+" "+propertyType(e, param.Type)
+		parts[i] = param.Name + " " + propertyType(e, param.Type)
 	}
 	result := strings.Join(parts, ", ")
 	if leadingComma && len(params) != 0 {
-		result = ", "+result
+		result = ", " + result
 	}
 	return result
 }
@@ -685,7 +715,7 @@ func propertyObservation(t *testing.T, e *evaluator, typ types.Type, expr string
 	con, args := typeHead(typ)
 	for _, inst := range e.p.Instances {
 		if inst.Class.Name == "Debug" && inst.TypeCon == con {
-			return "debug("+expr+")"
+			return "debug(" + expr + ")"
 		}
 	}
 	data := e.p.DataTypes[con.Name]
@@ -695,7 +725,7 @@ func propertyObservation(t *testing.T, e *evaluator, typ types.Type, expr string
 	var arms []string
 	for _, ctor := range data.Ctors {
 		names := make([]string, len(ctor.Fields))
-		parts := []string{propertyQuote(e.sourceName(ctor.Name)+"(")}
+		parts := []string{propertyQuote(e.sourceName(ctor.Name) + "(")}
 		for i, field := range propertyFields(data, args, ctor) {
 			names[i] = fmt.Sprintf("propertyField%d", i)
 			if i != 0 {
@@ -706,13 +736,13 @@ func propertyObservation(t *testing.T, e *evaluator, typ types.Type, expr string
 		parts = append(parts, propertyQuote(")"))
 		pattern := propertyReference(e, ctor.Name)
 		if len(names) != 0 {
-			pattern += "("+strings.Join(names, ", ")+")"
+			pattern += "(" + strings.Join(names, ", ") + ")"
 		} else {
 			parts = []string{propertyQuote(e.sourceName(ctor.Name))}
 		}
 		arms = append(arms, pattern+" => "+strings.Join(parts, " + "))
 	}
-	return "(match "+expr+" { "+strings.Join(arms, "; ")+" })"
+	return "(match " + expr + " { " + strings.Join(arms, "; ") + " })"
 }
 
 func propertyOffset(source string, pos ast.Pos) int {
@@ -738,24 +768,39 @@ func propertyLawSource(source string, decl *ast.LawDecl, side int) string {
 	end := propertyOffset(source, decl.End)
 	body := source[start:end]
 	tokens, err := lexer.New(body).All()
-	if err != nil { panic(err) }
+	if err != nil {
+		panic(err)
+	}
 	depth, opened, first, delimiter, last := 0, false, 0, 0, 0
 	for _, token := range tokens {
 		if !opened {
-			if token.Text == "{" { opened = true; first = propertyOffset(body, token.End) }
+			if token.Text == "{" {
+				opened = true
+				first = propertyOffset(body, token.End)
+			}
 			continue
 		}
 		switch token.Text {
-		case "(", "[", "{": depth++
-		case ")", "]": depth--
+		case "(", "[", "{":
+			depth++
+		case ")", "]":
+			depth--
 		case "}":
-			if depth == 0 { last = propertyOffset(body, token.Pos) } else { depth-- }
+			if depth == 0 {
+				last = propertyOffset(body, token.Pos)
+			} else {
+				depth--
+			}
 		case "==":
-			if depth == 0 { delimiter = propertyOffset(body, token.Pos) }
+			if depth == 0 {
+				delimiter = propertyOffset(body, token.Pos)
+			}
 		}
 	}
-	if side == 0 { return strings.TrimSpace(body[first:delimiter]) }
-	return strings.TrimSpace(body[delimiter+2:last])
+	if side == 0 {
+		return strings.TrimSpace(body[first:delimiter])
+	}
+	return strings.TrimSpace(body[delimiter+2 : last])
 }
 
 func propertyWrite(t *testing.T, path, source string) {
@@ -771,15 +816,17 @@ func propertyRejection(file, law string) string {
 	if file == "projection_bad.gt" && law == "stampSelfEqual" {
 		return "Float is not supported in laws"
 	}
-	if file != "rejected.gt" { return "" }
+	if file != "rejected.gt" {
+		return ""
+	}
 	return map[string]string{
-		"clonedPrimitive": "law depends on extern go4t/rt.EqInt",
-		"strictArgument": "law depends on extern example.invalid/foreign.Read",
+		"clonedPrimitive":   "law depends on extern go4t/rt.EqInt",
+		"strictArgument":    "law depends on extern example.invalid/foreign.Read",
 		"foreignDependency": "law depends on extern example.invalid/foreign.Read",
-		"higherOrder": "higher-order",
-		"io": "law depends on IO",
-		"loopDependency": "step limit",
-		"divZero": "division by zero",
-		"divVariable": "nonconstant divisor",
+		"higherOrder":       "higher-order",
+		"io":                "law depends on IO",
+		"loopDependency":    "step limit",
+		"divZero":           "division by zero",
+		"divVariable":       "nonconstant divisor",
 	}[law]
 }

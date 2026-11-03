@@ -29,10 +29,10 @@ func child(env *environment) *environment {
 
 type closure struct {
 	params []ast.Param
-	expr ast.Expr
-	block *ast.Block
-	env *environment
-	dicts dictionaryEnv
+	expr   ast.Expr
+	block  *ast.Block
+	env    *environment
+	dicts  dictionaryEnv
 	scheme *types.Scheme
 }
 
@@ -41,20 +41,20 @@ type closure struct {
 // one instance). The stack also reaches calls, dictionaries and closure readback.
 type assumption struct {
 	condition, value *term
-	parent *assumption
+	parent           *assumption
 }
 
 type evaluator struct {
-	p *types.Program
-	ctors map[string]*types.Ctor
-	trustedModules map[string]bool
-	fuel, nextID int
-	solutions map[int]*term
-	assumptions *assumption
-	renormalizing bool
-	decreasing map[string][]decreasingPosition
+	p                 *types.Program
+	ctors             map[string]*types.Ctor
+	trustedModules    map[string]bool
+	fuel, nextID      int
+	solutions         map[int]*term
+	assumptions       *assumption
+	renormalizing     bool
+	decreasing        map[string][]decreasingPosition
 	decreasingMethods map[*ast.InstMethod][]decreasingPosition
-	currentGoal *rewriteRule
+	currentGoal       *rewriteRule
 }
 
 func newEvaluator(p *types.Program) *evaluator {
@@ -232,7 +232,7 @@ func (e *evaluator) evalExpr(expr ast.Expr, env *environment, dicts dictionaryEn
 			return nil, fmt.Errorf("missing prelude List constructors")
 		}
 		result := &term{kind: "ctor", ctor: nilCtor}
-		for i := len(args)-1; i >= 0; i-- {
+		for i := len(args) - 1; i >= 0; i-- {
 			result = &term{kind: "ctor", ctor: consCtor, args: []*term{args[i], result}}
 		}
 		return result, nil

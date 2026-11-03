@@ -9,7 +9,9 @@ func TestMapLaws(t *testing.T) {
 	for _, file := range []string{"map.gt", "map_decide.gt", "map_quota.gt", "map_delete.gt"} {
 		t.Run(file, func(t *testing.T) {
 			if errors := CheckProgram(loadFixture(t, file)); len(errors) != 0 {
-				for _, err := range errors { t.Error(err) }
+				for _, err := range errors {
+					t.Error(err)
+				}
 			}
 		})
 	}
@@ -67,13 +69,19 @@ func TestMapLiteralOrdering(t *testing.T) {
 		{{kind: "tuple", args: []*term{integer(2), boolean(false)}}, {kind: "tuple", args: []*term{integer(1), boolean(true)}}, {kind: "tuple", args: []*term{integer(1), boolean(false)}}},
 	} {
 		value := &term{kind: "map"}
-		for i, key := range keys { value = e.mapInsert(value, key, integer(int64(i)), nil) }
+		for i, key := range keys {
+			value = e.mapInsert(value, key, integer(int64(i)), nil)
+		}
 		for i := 2; i < len(value.args); i += 2 {
-			if compareMapKeys(value.args[i-2], value.args[i]) >= 0 { t.Fatalf("unordered or duplicate keys: %s", e.display(value)) }
+			if compareMapKeys(value.args[i-2], value.args[i]) >= 0 {
+				t.Fatalf("unordered or duplicate keys: %s", e.display(value))
+			}
 		}
 		last := keys[len(keys)-1]
 		for i := 0; i < len(value.args); i += 2 {
-			if compareMapKeys(value.args[i], last) == 0 && value.args[i+1].number != int64(len(keys)-1) { t.Fatal("duplicate key did not retain last value") }
+			if compareMapKeys(value.args[i], last) == 0 && value.args[i+1].number != int64(len(keys)-1) {
+				t.Fatal("duplicate key did not retain last value")
+			}
 		}
 	}
 }

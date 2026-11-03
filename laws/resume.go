@@ -21,11 +21,17 @@ func (e *evaluator) resume(t *term) (*term, error) {
 			value, err = e.mapFromList(t.args[0], t.args[1], t.dicts[0])
 		} else {
 			var ord *dictionary
-			if len(t.dicts) != 0 { ord = t.dicts[0] }
+			if len(t.dicts) != 0 {
+				ord = t.dicts[0]
+			}
 			value, err = e.mapOperation(t.name, t.args, ord)
 		}
-		if err != nil { return nil, err }
-		if value.kind == "mapop" || value.kind == "mapfrom" { return e.assume(value), nil }
+		if err != nil {
+			return nil, err
+		}
+		if value.kind == "mapop" || value.kind == "mapfrom" {
+			return e.assume(value), nil
+		}
 		return e.normal(value)
 	case "if":
 		if t.args[0].kind == "bool" {
@@ -47,7 +53,7 @@ func (e *evaluator) resume(t *term) (*term, error) {
 			return b, nil
 		}
 		if t.name == "+" && a.kind == "string" && b.kind == "string" {
-			return text(a.name+b.name), nil
+			return text(a.name + b.name), nil
 		}
 		if (t.name == "/" || t.name == "%") && b.kind == "int" {
 			if b.number == 0 {
@@ -55,9 +61,9 @@ func (e *evaluator) resume(t *term) (*term, error) {
 			}
 			if a.kind == "int" {
 				if t.name == "/" {
-					return integer(a.number/b.number), nil
+					return integer(a.number / b.number), nil
 				}
-				return integer(a.number%b.number), nil
+				return integer(a.number % b.number), nil
 			}
 		}
 	case "primitive":
@@ -67,7 +73,9 @@ func (e *evaluator) resume(t *term) (*term, error) {
 		switch t.name {
 		case "rt.EqInt", "rt.EqString", "rt.EqBool", "rt.LtInt", "rt.LtString":
 			value, err := e.extern(&ast.ExternRef{ImportPath: "go4t/rt", Name: strings.TrimPrefix(t.name, "rt.")}, t.args)
-			if err != nil { return nil, err }
+			if err != nil {
+				return nil, err
+			}
 			return e.assume(value), nil
 		}
 		for _, arg := range t.args {
@@ -135,10 +143,14 @@ func (e *evaluator) resume(t *term) (*term, error) {
 		}
 		if fn.kind == "method" {
 			method, _, err := e.methodBody(fn.name, fn.dicts)
-			if err != nil { return nil, err }
+			if err != nil {
+				return nil, err
+			}
 			if e.unfoldMethod(method, fn.dicts, t.args[1:]) {
 				value, err := e.apply(fn, t.args[1:])
-				if err != nil { return nil, err }
+				if err != nil {
+					return nil, err
+				}
 				return e.normal(value)
 			}
 		}

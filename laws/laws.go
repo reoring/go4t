@@ -18,8 +18,8 @@ type parameter struct {
 }
 
 type lawGoal struct {
-	Name string
-	Params []parameter
+	Name     string
+	Params   []parameter
 	LHS, RHS ast.Expr
 }
 
@@ -42,8 +42,10 @@ func CheckProgram(p *types.Program) []*types.Error {
 	}
 	diagnostic := func(node ast.Node, name, message string) *types.Error {
 		separator := ": "
-		if strings.HasPrefix(message, "depends on ") { separator = " " }
-		return &types.Error{Pos: node.GetPos(), End: node.GetEnd(), File: files[node], Msg: "law "+sourceName(p, name)+separator+message}
+		if strings.HasPrefix(message, "depends on ") {
+			separator = " "
+		}
+		return &types.Error{Pos: node.GetPos(), End: node.GetEnd(), File: files[node], Msg: "law " + sourceName(p, name) + separator + message}
 	}
 	var names []string
 	for name := range p.Laws {
@@ -70,7 +72,9 @@ func CheckProgram(p *types.Program) []*types.Error {
 	for _, component := range lawComponents(names, edges) {
 		if len(component) > 1 {
 			members := make([]string, len(component))
-			for i, name := range component { members[i] = sourceName(p, name) }
+			for i, name := range component {
+				members[i] = sourceName(p, name)
+			}
 			name := component[0]
 			errors = append(errors, diagnostic(p.Laws[name].Decl, name, "law dependency cycle: "+strings.Join(members, ", ")))
 			continue
@@ -79,9 +83,13 @@ func CheckProgram(p *types.Program) []*types.Error {
 		info := p.Laws[name]
 		ok := true
 		for _, dep := range edges[name] {
-			if !valid[dep] { ok = false }
+			if !valid[dep] {
+				ok = false
+			}
 		}
-		if !ok { continue }
+		if !ok {
+			continue
+		}
 		proof := p.Proofs[name]
 		if proof == nil {
 			errors = append(errors, diagnostic(info.Decl, name, "missing proof"))
@@ -131,24 +139,34 @@ func lawComponents(names []string, edges map[string][]string) [][]string {
 		for _, to := range edges[name] {
 			if index[to] == 0 {
 				visit(to)
-				if low[to] < low[name] { low[name] = low[to] }
+				if low[to] < low[name] {
+					low[name] = low[to]
+				}
 			} else if active[to] && index[to] < low[name] {
 				low[name] = index[to]
 			}
 		}
-		if low[name] != index[name] { return }
+		if low[name] != index[name] {
+			return
+		}
 		var component []string
 		for {
 			last := stack[len(stack)-1]
 			stack = stack[:len(stack)-1]
 			active[last] = false
 			component = append(component, last)
-			if last == name { break }
+			if last == name {
+				break
+			}
 		}
 		sort.Strings(component)
 		components = append(components, component)
 	}
-	for _, name := range names { if index[name] == 0 { visit(name) } }
+	for _, name := range names {
+		if index[name] == 0 {
+			visit(name)
+		}
+	}
 	return components
 }
 
@@ -160,13 +178,13 @@ func sourceName(p *types.Program, name string) string {
 }
 
 type proofVar struct {
-	value *term
-	typ types.Type
+	value     *term
+	typ       types.Type
 	ancestors []int
 }
 
 type proofFailure struct {
-	node ast.Tactic
+	node    ast.Tactic
 	message string
 }
 
@@ -408,7 +426,9 @@ func (e *evaluator) unsupportedTypeAt(t types.Type, firstOrder, checkFloat bool,
 	case *types.TCon:
 		switch t.Name {
 		case "Float":
-			if checkFloat { return "Float is not supported in laws" }
+			if checkFloat {
+				return "Float is not supported in laws"
+			}
 		case "IO":
 			return "law depends on IO"
 		}

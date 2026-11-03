@@ -70,7 +70,9 @@ func TestReentryCertifiedPositions(t *testing.T) {
 		dict := position.dicts[0]
 		copy := &dictionary{instance: dict.instance, args: append([]*dictionary(nil), dict.args...)}
 		fn, err := e.function("count", []*dictionary{copy})
-		if err != nil { t.Fatal(err) }
+		if err != nil {
+			t.Fatal(err)
+		}
 		args := []*term{{kind: "ctor", ctor: e.ctors["Box"], args: []*term{integer(1)}}, e.fresh("xs")}
 		if e.unfoldGlobal(fn, args) {
 			t.Fatal("a constructor at the wrong position allowed symbolic recursion")
@@ -84,12 +86,16 @@ func TestReentryCertifiedPositions(t *testing.T) {
 	// recursive classification to the other dictionary environment.
 	e.decreasing["count"] = positions[:1]
 	other, err := e.function("count", positions[1].dicts)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	if !e.unfoldGlobal(other, []*term{e.fresh("seed"), e.fresh("xs")}) {
 		t.Fatal("a certificate leaked into another dictionary environment")
 	}
 	identity, err := e.function("identity", nil)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	n := e.fresh("n")
 	value, err := e.apply(identity, []*term{n})
 	if err != nil || value != n {
@@ -111,11 +117,17 @@ func TestReentryFuelBound(t *testing.T) {
  `, list, depth))
 	e := newEvaluator(p)
 	law, err := e.extractLaw("deep")
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	proof := p.Proofs[law.Name]
-	if err := e.checkDependencies(p.Laws[law.Name], proof); err != nil { t.Fatal(err) }
+	if err := e.checkDependencies(p.Laws[law.Name], proof); err != nil {
+		t.Fatal(err)
+	}
 	env, vars := e.proofEnvironment(law, proof)
-	if err := e.prove(law, proof.Decl.Body, env, vars); err != nil { t.Fatal(err) }
+	if err := e.prove(law, proof.Decl.Body, env, vars); err != nil {
+		t.Fatal(err)
+	}
 	if e.fuel <= 0 {
 		t.Fatalf("depth %d exhausted StepLimit %d", depth, StepLimit)
 	}
@@ -139,9 +151,13 @@ func TestReentryTupleAndRewrite(t *testing.T) {
  proof unrelated(n, pair) { rewrite identity(pair) { refl } }
  func main() IO[Unit] { ioPure(unit()) }
  `)
-	if errors := CheckProgram(p); errors != nil { t.Fatal(errors) }
+	if errors := CheckProgram(p); errors != nil {
+		t.Fatal(errors)
+	}
 	e := newEvaluator(p)
-	if err := e.checkDependencies(p.Laws["unrelated"], p.Proofs["unrelated"]); err != nil { t.Fatal(err) }
+	if err := e.checkDependencies(p.Laws["unrelated"], p.Proofs["unrelated"]); err != nil {
+		t.Fatal(err)
+	}
 	if positions := e.decreasing["tupleLength"]; len(positions) != 1 || positions[0].position != 0 {
 		t.Fatalf("rewrite-only dependency was not certified: %v", positions)
 	}

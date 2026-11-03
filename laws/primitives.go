@@ -10,7 +10,7 @@ import (
 
 type dictionary struct {
 	instance *types.Instance
-	args []*dictionary
+	args     []*dictionary
 }
 
 type dictionaryEnv map[types.Constraint]*dictionary
@@ -86,11 +86,17 @@ func (e *evaluator) superDictionary(dict *dictionary, class string) (*dictionary
 				break
 			}
 		}
-		if super == nil { return nil, fmt.Errorf("missing superclass instance %s", class) }
+		if super == nil {
+			return nil, fmt.Errorf("missing superclass instance %s", class)
+		}
 		bound, err := bindDictionaries(nil, inst.Context, dict.args)
-		if err != nil { return nil, err }
+		if err != nil {
+			return nil, err
+		}
 		args, err := e.resolveAll(inst.SuperArgs, bound)
-		if err != nil { return nil, err }
+		if err != nil {
+			return nil, err
+		}
 		dict = &dictionary{instance: super, args: args}
 	}
 	return dict, nil
@@ -240,7 +246,7 @@ func unary(op string, value *term) *term {
 
 func addString(a, b *term) *term {
 	if a.kind == "string" && b.kind == "string" {
-		return text(a.name+b.name)
+		return text(a.name + b.name)
 	}
 	return &term{kind: "binary", name: "+", args: []*term{a, b}}
 }
@@ -280,7 +286,11 @@ func (e *evaluator) binary(x *ast.Binary, env *environment, dicts dictionaryEnv)
 			(ds[0].instance.TypeCon == types.Int || ds[0].instance.TypeCon == types.String) &&
 			e.trustedMapInstance(ds[0].instance) {
 			left, right = right, left
-			if op == ">" { op = "<" } else { op = "<=" }
+			if op == ">" {
+				op = "<"
+			} else {
+				op = "<="
+			}
 		}
 		method := "compare"
 		if x.Op == "==" || x.Op == "!=" {
@@ -322,15 +332,15 @@ func (e *evaluator) binary(x *ast.Binary, env *environment, dicts dictionaryEnv)
 	if left.kind == "int" && right.kind == "int" {
 		switch x.Op {
 		case "+":
-			return integer(left.number+right.number), nil
+			return integer(left.number + right.number), nil
 		case "-":
-			return integer(left.number-right.number), nil
+			return integer(left.number - right.number), nil
 		case "*":
-			return integer(left.number*right.number), nil
+			return integer(left.number * right.number), nil
 		case "/":
-			return integer(left.number/right.number), nil
+			return integer(left.number / right.number), nil
 		case "%":
-			return integer(left.number%right.number), nil
+			return integer(left.number % right.number), nil
 		}
 	}
 	if x.Op == "+" && types.Unalias(types.AnnOf(x).Type) == types.String {
