@@ -152,6 +152,19 @@ opaque struct の `new<Type>()`、パッケージ変数・基本型定数の get
 - **キーワード名のフィールド**は `type_` のように `_` を付ける(パッケージ名と同じ規則)。`SELinuxOptions.Type` 1 つで
   `PodSpec` 全体が handle になっていた。`core/v1` の skip 0。
 
+typed clientset(同日): `k8s.io/client-go/kubernetes` 414 / 1(struct キーの map 1 件)、`typed/core/v1` 851 / 0、
+`typed/policy/v1` 40 / 0。`Clientset → CoreV1 → Pods → PodInterface.List/Get/Patch/Update/EvictV1` が全部届き、
+`Apply`(applyconfigurations)も generics に当たらず bind された。observe/apply は typed で書ける。
+
+**法則側の境界(未解決、別 ADR)**: `corev1.Pod` は `creationTimestamp: dyn.Value` を含み、`dyn.Value` は
+`Float(Float)` を持つ。`types/laws.go:lawHasFloat` と `laws/laws.go:unsupportedType` はどちらも **型を推移的に**走査するので、
+`Pod` を引数に取る法則は、`creationTimestamp` に一切触れなくても `laws do not support Float` で拒否される(実測)。
+つまり `project(corev1.Pod) Pod` のような射影関数は現状 **法則の対象に入れない**。正規化器には Float の規則が無く
+`EqFloat` は stuck になるだけなので、「Float **型の式**は拒否、Float を**含むだけ**のデータ型は不透明として許可」に
+緩める余地があるが、健全性の議論(derived `Eq` の unfold が Float 比較に到達したとき必ず stuck になること)と
+`laws/` の property harness での検証が要るので本 ADR では触らない。それまで、法則の対象は Go シェルのときと同じく
+「`Observed` 以降の純粋断片」に限られ、射影は法則の外に置く。
+
 ## Follow-up
 
 - [ ] クロスビルドキャッシュ(A3)。net/http で推移的に 29 パッケージ・8 秒。キー: Go version + go4t build + export data。
