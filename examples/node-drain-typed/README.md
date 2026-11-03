@@ -56,7 +56,6 @@ location and switches are in [docs/cli.md](../../docs/cli.md).
   shim's `init()`, which registers its exported `IsXxx(error) bool` predicates.
   `IsNotFound` becomes `io.NotFound`; `IsTooManyRequests` remains `io.Failure`
   with the stable `TooManyRequests: ` prefix, so the port no longer guesses
-  from server message substrings. The typed clients import the original Go
-  errors package, not its generated shim, so `main.gt` explicitly imports it
-  as `apierrors`. This named import is sufficient even without a qualified
-  call; go4t does not support blank imports (SPEC §2.2).
+  from server message substrings. The adapter discovers classifiers throughout
+  each bound package's Go dependency closure and links their shims automatically,
+  so importing the typed clientset is enough; no separate errors import is needed.

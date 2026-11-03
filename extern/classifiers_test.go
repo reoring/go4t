@@ -13,6 +13,9 @@ func TestErrorClassifierShim(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if !HasErrorClassifier(pkg) {
+		t.Fatal("classifier predicates were not discovered")
+	}
 	_, shim, err := BindWithShim(pkg, BindOptions{}, "example.test/bindings/shim", "shim")
 	if err != nil {
 		t.Fatal(err)
@@ -64,6 +67,9 @@ func (Checker) IsMethod(error) bool { return true }
 	pkg, err := loader.Load("example.test/bindings/fixture")
 	if err != nil {
 		t.Fatal(err)
+	}
+	if HasErrorClassifier(pkg) {
+		t.Fatal("non-predicates were discovered as classifiers")
 	}
 	_, shim, err := BindWithShim(pkg, BindOptions{}, "example.test/bindings/shim", "shim")
 	if err != nil {

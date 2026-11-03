@@ -114,6 +114,37 @@ func writeBindingCache(entry, source string, shim []byte) error {
 	return writeBindingCacheFile(filepath.Join(entry, "bindings.gt"), []byte(source))
 }
 
+// Classifier metadata shares the binding's content-addressed entry. Negative
+// entries need no bindings or shim, and hits never load Go export data.
+func readClassifierCache(entry string) (bool, error) {
+	if entry == "" {
+		return false, os.ErrNotExist
+	}
+	data, err := os.ReadFile(filepath.Join(entry, "classifier"))
+	if err != nil {
+		return false, err
+	}
+	switch string(data) {
+	case "true":
+		return true, nil
+	case "false":
+		return false, nil
+	default:
+		return false, fmt.Errorf("invalid classifier cache metadata")
+	}
+}
+
+func writeClassifierCache(entry string, present bool) error {
+	if err := os.MkdirAll(entry, 0o755); err != nil {
+		return err
+	}
+	data := "false"
+	if present {
+		data = "true"
+	}
+	return writeBindingCacheFile(filepath.Join(entry, "classifier"), []byte(data))
+}
+
 // Each key identifies exact bytes, so concurrent writers can safely replace
 // either file. Publish bindings last; an incomplete entry is always a miss.
 func writeBindingCacheFile(path string, content []byte) error {

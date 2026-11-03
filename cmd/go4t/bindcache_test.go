@@ -22,6 +22,7 @@ func TestGoImportBindingCache(t *testing.T) {
 			name = "build"
 		}
 		t.Run(name, func(t *testing.T) {
+			entry := ""
 			bind := func() {
 				t.Helper()
 				binder := newGoImportBinder(dir)
@@ -35,25 +36,11 @@ func TestGoImportBindingCache(t *testing.T) {
 				if module.Name != "mirrorfixture" || len(module.Files) != 1 || module.Files[0].Name != "go:"+importPath+"/bindings.gt" {
 					t.Fatalf("unexpected binding module: %#v", module)
 				}
-			}
-			before, err := filepath.Glob(filepath.Join(cache, "bind", "*", "bindings.gt"))
-			if err != nil {
-				t.Fatal(err)
+				entry = binder.cacheEntries[importPath]
 			}
 			bind()
-			after, err := filepath.Glob(filepath.Join(cache, "bind", "*", "bindings.gt"))
-			if err != nil || len(after) != len(before)+1 {
-				t.Fatalf("first bind created %d cache entries, want %d: %v", len(after), len(before)+1, err)
-			}
-			entry := ""
-			for _, candidate := range after {
-				found := false
-				for _, existing := range before {
-					found = found || candidate == existing
-				}
-				if !found {
-					entry = filepath.Dir(candidate)
-				}
+			if entry == "" {
+				t.Fatal("binding cache entry was not recorded")
 			}
 			bindingFile := filepath.Join(entry, "bindings.gt")
 			shimFile := filepath.Join(entry, "shim.go")
@@ -67,7 +54,7 @@ func TestGoImportBindingCache(t *testing.T) {
 			}
 			// A fixed old timestamp avoids clock-resolution races and sleeps.
 			stamp := time.Unix(1234567890, 0)
-			for _, file := range []string{bindingFile, shimFile} {
+			for _, file := range []string{bindingFile, shimFile, filepath.Join(entry, "classifier")} {
 				if err := os.Chtimes(file, stamp, stamp); err != nil {
 					t.Fatal(err)
 				}
@@ -79,7 +66,7 @@ func TestGoImportBindingCache(t *testing.T) {
 				}
 			}
 			bind()
-			for _, file := range []string{bindingFile, shimFile} {
+			for _, file := range []string{bindingFile, shimFile, filepath.Join(entry, "classifier")} {
 				info, err := os.Stat(file)
 				if err != nil || !info.ModTime().Equal(stamp) {
 					t.Fatalf("cache hit rewrote %s: %v", file, err)

@@ -45,6 +45,34 @@ func TestLoadPackages(t *testing.T) {
 	}
 }
 
+func TestLoaderDependencies(t *testing.T) {
+	dir := bindingTestModule(t)
+	writeBindingTestFile(t, dir, "leaf/leaf.go", "package leaf\nfunc Value() string { return \"leaf\" }\n")
+	writeBindingTestFile(t, dir, "dep/dep.go", "package dep\nimport \"example.test/bindings/leaf\"\nfunc Value() string { return leaf.Value() }\n")
+	writeBindingTestFile(t, dir, "lib/lib.go", "package lib\nimport \"example.test/bindings/dep\"\nfunc Value() string { return dep.Value() }\n")
+	loader := Loader{Dir: dir}
+	if len(loader.Dependencies("unknown")) != 0 {
+		t.Fatal("unknown package has dependencies")
+	}
+	if _, err := loader.Load("example.test/bindings/lib"); err != nil {
+		t.Fatal(err)
+	}
+	// Loading the root records both edges; loading its transitive dependency
+	// subsequently must not need a second go list.
+	for parent, child := range map[string]string{"lib": "dep", "dep": "leaf"} {
+		got := loader.Dependencies("example.test/bindings/" + parent)
+		if len(got) != 1 || got[0] != "example.test/bindings/"+child {
+			t.Fatalf("%s dependencies = %q", parent, got)
+		}
+	}
+	t.Setenv("PATH", t.TempDir())
+	for _, name := range []string{"dep", "leaf"} {
+		if _, err := loader.Load("example.test/bindings/" + name); err != nil {
+			t.Fatalf("loading recorded dependency %s: %v", name, err)
+		}
+	}
+}
+
 func TestLoadErrors(t *testing.T) {
 	var loader Loader
 	for _, path := range []string{"", "-json", "./...", "go4t/no-such-extern-package"} {

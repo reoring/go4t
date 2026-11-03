@@ -1452,10 +1452,10 @@ matching predicate wins in this order: `IsNotFound` → `NotFound`,
 except those remaining predicates prefix `Xxx: `. Packages without matching
 predicates emit no classifier. `rt.ClassifyError` preserves nil and existing
 `*rt.Failure` values (including wrapped failures), then tries classifiers in
-registration order before its OS/context/network defaults. Classifiers register
-during package initialization, before IO executes; importing the generated shim
-directly or transitively enables them, but importing only the original Go package
-does not. No other binding semantics are inferred from names.
+registration order before its OS/context/network defaults. Classifiers of every
+importable package in a bound `go:` package's transitive Go dependency closure are
+registered automatically during package initialization, before IO executes,
+without a separate user import. No other binding semantics are inferred from names.
 
 Any call that receives a handle also forces `IO[R]`, whatever it returns: as a
 method receiver (`strings.Builder.Len` is `IO[Int]`, `ServeMux.Handle` is

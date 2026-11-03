@@ -44,6 +44,32 @@ func TestGenerateFilesAndRuntimeShapes(t *testing.T) {
 	}
 }
 
+func TestGenerateSideEffectImports(t *testing.T) {
+	loaded, err := modules.Load([]string{"../examples/modules"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	program, err := types.Check(loaded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []*types.Program{program, fixture()} {
+		generated, err := GenerateInDir(p, "main", "", Options{SideEffectImports: []string{"image/png", "image/jpeg"}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, importPath := range []string{"image/png", "image/jpeg"} {
+			want := `_ "` + importPath + `"`
+			for name, source := range generated {
+				count := strings.Count(string(source), want)
+				if name == "main.go" && count != 1 || name != "main.go" && count != 0 {
+					t.Errorf("%s: side-effect import %q appears %d times", name, importPath, count)
+				}
+			}
+		}
+	}
+}
+
 func runGeneratedModules(t *testing.T, generated map[string][]byte) string {
 	t.Helper()
 	dir := t.TempDir()

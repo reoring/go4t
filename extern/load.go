@@ -48,16 +48,24 @@ func (p *Package) Lookup(name string) (Function, bool) {
 // Dir, if set, selects the module context in which go list resolves imports.
 // It does not cache across compilations, so edits to a Go dependency are visible.
 type Loader struct {
-	Dir      string
-	packages map[string]*Package
-	exports  map[string]string
-	importer types.Importer
+	Dir          string
+	packages     map[string]*Package
+	exports      map[string]string
+	dependencies map[string][]string
+	importer     types.Importer
 }
 
 // ExportFile returns the export-data file recorded by Load for path (including
 // its dependencies), or an empty string if no export data has been loaded.
 func (l *Loader) ExportFile(path string) string {
 	return l.exports[path]
+}
+
+// Dependencies returns the direct imports recorded by Load's go list data,
+// including entries for dependencies of the requested package. Unknown paths
+// have no recorded imports. The returned slice must not be modified.
+func (l *Loader) Dependencies(path string) []string {
+	return l.dependencies[path]
 }
 
 // ExportHash hashes the actual export-data bytes, not their path or timestamp.
@@ -98,52 +106,13 @@ func (l *Loader) Load(path string) (*Package, error) {
 			return nil, err
 		}
 	}
-	cmd := exec.Command("go", "list", "-json", "-export", "-deps", path)
-	cmd.Dir = l.Dir
-	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	data, err := cmd.Output()
-	if err != nil {
-		return nil, fmt.Errorf("load Go package %q: %s", path, strings.TrimSpace(stderr.String()))
-	}
-	if l.exports == nil {
-		l.exports = make(map[string]string)
-		l.packages = make(map[string]*Package)
-		l.importer = importer.ForCompiler(token.NewFileSet(), "gc", func(path string) (io.ReadCloser, error) {
-			file := l.exports[path]
-			if file == "" {
-				return nil, fmt.Errorf("no export data for %q", path)
-			}
-			return os.Open(file)
-		})
-	}
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	var target string
-	var targetImports []string
-	for {
-		var listed struct {
-			ImportPath string
-			Name       string
-			Export     string
-			DepOnly    bool
-			Imports    []string
+	target := path
+	if _, known := l.dependencies[path]; !known {
+		var err error
+		target, err = l.list(path)
+		if err != nil {
+			return nil, err
 		}
-		if err := decoder.Decode(&listed); err == io.EOF {
-			break
-		} else if err != nil {
-			return nil, fmt.Errorf("decode go list for %q: %w", path, err)
-		}
-		l.exports[listed.ImportPath] = listed.Export
-		if !listed.DepOnly {
-			if target != "" {
-				return nil, fmt.Errorf("expected one Go package for %q", path)
-			}
-			target = listed.ImportPath
-			targetImports = listed.Imports
-		}
-	}
-	if target == "" {
-		return nil, fmt.Errorf("no Go package for %q", path)
 	}
 	pkg, err := l.importer.Import(target)
 	if err != nil {
@@ -159,7 +128,7 @@ func (l *Loader) Load(path string) (*Package, error) {
 	// Export-data dependencies can have only the names referenced by this
 	// package populated. Import direct dependencies explicitly so interface
 	// discovery sees their complete exported scopes, not just those names.
-	for _, dependency := range targetImports {
+	for _, dependency := range l.Dependencies(target) {
 		if dependency == "C" {
 			continue // cgo's pseudo-package has no exported Go interfaces
 		}
@@ -177,6 +146,58 @@ func (l *Loader) Load(path string) (*Package, error) {
 	p.Methods = exportedMethods(pkg)
 	l.packages[path] = p
 	return p, nil
+}
+
+// list records the whole dependency graph in the same invocation that resolves
+// export files. Loading a recorded dependency needs no further Go command.
+func (l *Loader) list(path string) (string, error) {
+	cmd := exec.Command("go", "list", "-json", "-export", "-deps", path)
+	cmd.Dir = l.Dir
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	data, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("load Go package %q: %s", path, strings.TrimSpace(stderr.String()))
+	}
+	if l.exports == nil {
+		l.exports = make(map[string]string)
+		l.dependencies = make(map[string][]string)
+		l.packages = make(map[string]*Package)
+		l.importer = importer.ForCompiler(token.NewFileSet(), "gc", func(path string) (io.ReadCloser, error) {
+			file := l.exports[path]
+			if file == "" {
+				return nil, fmt.Errorf("no export data for %q", path)
+			}
+			return os.Open(file)
+		})
+	}
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	var target string
+	for {
+		var listed struct {
+			ImportPath string
+			Export     string
+			DepOnly    bool
+			Imports    []string
+		}
+		if err := decoder.Decode(&listed); err == io.EOF {
+			break
+		} else if err != nil {
+			return "", fmt.Errorf("decode go list for %q: %w", path, err)
+		}
+		l.exports[listed.ImportPath] = listed.Export
+		l.dependencies[listed.ImportPath] = listed.Imports
+		if !listed.DepOnly {
+			if target != "" {
+				return "", fmt.Errorf("expected one Go package for %q", path)
+			}
+			target = listed.ImportPath
+		}
+	}
+	if target == "" {
+		return "", fmt.Errorf("no Go package for %q", path)
+	}
+	return target, nil
 }
 
 // SignatureString prints a stable Go signature without parameter names.

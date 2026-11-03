@@ -332,7 +332,7 @@ func (t *temporaryBuild) run(program *types.Program, file string) error {
 	if err := t.module.checkForeign(program); err != nil {
 		return err
 	}
-	sources, err := codegen.GenerateInDir(program, "main", t.module.dir)
+	sources, err := codegen.GenerateInDir(program, "main", t.module.dir, codegen.Options{SideEffectImports: t.binder.sideEffectImports})
 	if err != nil {
 		return diagnostic(file, err)
 	}

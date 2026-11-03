@@ -40,10 +40,10 @@ import (
 // a Go main function. The input must carry the fully zonked annotations from Check.
 // Extern functions adapt checked natural Go signatures or forward the any ABI.
 func generate(prog *types.Program, goPackage string) (source []byte, err error) {
-	return generateInDir(prog, goPackage, "")
+	return generateInDir(prog, goPackage, "", Options{})
 }
 
-func generateInDir(prog *types.Program, goPackage, dir string) (source []byte, err error) {
+func generateInDir(prog *types.Program, goPackage, dir string, options Options) (source []byte, err error) {
 	if prog == nil {
 		return nil, fmt.Errorf("nil program")
 	}
@@ -90,6 +90,9 @@ func generateInDir(prog *types.Program, goPackage, dir string) (source []byte, e
 			g.imports[path] = alias
 			fmt.Fprintf(&header, "%s %s\n", alias, strconv.Quote(path))
 		}
+	}
+	for _, importPath := range options.SideEffectImports {
+		fmt.Fprintf(&header, "_ %s\n", strconv.Quote(importPath))
 	}
 	header.WriteString(")\n")
 	g.planSpecializations(prog)

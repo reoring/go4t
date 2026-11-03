@@ -102,6 +102,7 @@ func run(args []string) error {
 	var module buildModule
 	var dir, outputRoot string
 	var options []modules.Options
+	var binder *goImportBinder
 	if command != "check" {
 		if outputDir == "" {
 			outputDir = strings.TrimSuffix(file, filepath.Ext(file)) + "_gen"
@@ -131,7 +132,7 @@ func run(args []string) error {
 		if command == "run" && module.temporary {
 			dir = filepath.Join(module.dir, "prog")
 		}
-		binder := newGoImportBinder(module.dir)
+		binder = newGoImportBinder(module.dir)
 		binder.outputDir = dir
 		options = append(options, modules.Options{GoBinder: binder})
 	}
@@ -157,7 +158,7 @@ func run(args []string) error {
 	if err := module.checkForeign(program); err != nil {
 		return err
 	}
-	sources, err := codegen.GenerateInDir(program, goPackage, module.dir)
+	sources, err := codegen.GenerateInDir(program, goPackage, module.dir, codegen.Options{SideEffectImports: binder.sideEffectImports})
 	if err != nil {
 		var generated *types.Error
 		if errors.As(err, &generated) {
