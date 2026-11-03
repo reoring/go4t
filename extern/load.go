@@ -24,12 +24,12 @@ type Function struct {
 
 // Package contains exported functions and methods in lexical name order.
 type Package struct {
-	Path      string
-	Name      string
-	Functions []Function
-	Methods   []Method
-	goPackage *types.Package
-	imports   []*types.Package
+	Path                           string
+	Name                           string
+	Functions                      []Function
+	Methods                        []Method
+	goPackage                      *types.Package
+	imports                        []*types.Package
 	jsonMarshaler, jsonUnmarshaler *types.Interface
 }
 
