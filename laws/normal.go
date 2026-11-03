@@ -1,6 +1,7 @@
 package laws
 
 import (
+	"math"
 	"sort"
 	"strconv"
 	"strings"
@@ -14,6 +15,7 @@ type term struct {
 	kind, name string
 	id, arity, index int
 	number int64
+	float float64 // Opaque property samples only; source Float expressions stay rejected.
 	flag bool
 	ctor *types.Ctor
 	args []*term
@@ -276,6 +278,9 @@ func alphaEqual(a, b *term, bound map[int]int) bool {
 		bound[a.id] = b.id
 		return true
 	}
+	if a.kind == "float" {
+		return math.Float64bits(a.float) == math.Float64bits(b.float)
+	}
 	if a.kind == "lambda" {
 		bound = copyBindings(bound)
 	}
@@ -438,6 +443,8 @@ func (e *evaluator) display(t *term) string {
 		return "_"
 	case "int":
 		return strconv.FormatInt(t.number, 10)
+	case "float":
+		return strconv.FormatFloat(t.float, 'g', -1, 64)
 	case "bool":
 		return strconv.FormatBool(t.flag)
 	case "string":

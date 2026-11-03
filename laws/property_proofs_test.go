@@ -119,7 +119,7 @@ func propertyTermSource(t *testing.T, e *evaluator, value *term) string {
 		return propertyVariable(value)
 	case "wild":
 		return "_"
-	case "int", "bool", "string", "unit":
+	case "int", "float", "bool", "string", "unit":
 		return propertyLiteral(t, e, value)
 	case "tuple":
 		return "("+strings.Join(args, ", ")+")"
@@ -134,7 +134,7 @@ func propertyTermSource(t *testing.T, e *evaluator, value *term) string {
 		// The accumulator is the left-fold prefix, not a right-fold tail.
 		return "fold("+args[1]+", "+args[0]+", func(acc, pair) => "+propertyMapReference(t, e, "MapInsert")+"(acc, pair.0, pair.1, func(a, b) => compare(a, b)))"
 	case "ctor":
-		name := e.sourceName(value.ctor.Name)
+		name := propertyReference(e, value.ctor.Name)
 		if len(args) == 0 {
 			return name
 		}

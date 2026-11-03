@@ -49,7 +49,8 @@ func TestOpenTermProperty(t *testing.T) {
 	if err != nil || len(fixtures) == 0 {
 		t.Fatalf("finding law fixtures: %v (%d files)", err, len(fixtures))
 	}
-	laws, sides, comparisons, rejected, floats := 0, 0, 0, 0, 0
+	laws, sides, comparisons, rejected, floatComparisons := 0, 0, 0, 0, 0
+	floatSamples := make(map[uint64]bool)
 	for _, fixture := range fixtures {
 		t.Run(filepath.Base(fixture), func(t *testing.T) {
 			p := loadFixture(t, filepath.Base(fixture))
@@ -71,17 +72,12 @@ func TestOpenTermProperty(t *testing.T) {
 					_, _, err = e.equation(law, open)
 				}
 				if err != nil {
-					if strings.Contains(err.Error(), "Float") {
-						floats++
-						t.Run(name, func(t *testing.T) { t.Skipf("Float law: %v", err) })
-					} else {
-						want := propertyRejection(filepath.Base(fixture), name)
-						if want == "" || !strings.Contains(err.Error(), want) {
-							t.Fatalf("unexpected rejection of %s: %v", name, err)
-						}
-						rejected++
-						t.Logf("%s: intentional non-normalizable fixture: %v", name, err)
+					want := propertyRejection(filepath.Base(fixture), name)
+					if want == "" || !strings.Contains(err.Error(), want) {
+						t.Fatalf("unexpected rejection of %s: %v", name, err)
 					}
+					rejected++
+					t.Logf("%s: intentional non-normalizable fixture: %v", name, err)
 					e = newEvaluator(p)
 					continue
 				}
@@ -180,8 +176,10 @@ func TestOpenTermProperty(t *testing.T) {
 						e.fuel, e.nextID = StepLimit, nextID
 						e.solutions = make(map[int]*term)
 						var sigma []string
+						hasFloat := false
 						for j, param := range variant.params {
 							v := propertyValue(t, e, rng, param.Type, propertyDepth, sample, j)
+							hasFloat = propertyFloatSamples(v, floatSamples) || hasFloat
 							e.solutions[variant.vars[j].id] = v
 							sigma = append(sigma, param.Name+"="+propertyLiteral(t, e, v))
 						}
@@ -203,31 +201,37 @@ func TestOpenTermProperty(t *testing.T) {
 						for j, param := range target.extra {
 							v := propertyValue(t, e, rng, param.Type, propertyDepth, sample, j+len(variant.params))
 							observed = append(observed, v)
+							hasFloat = propertyFloatSamples(v, floatSamples) || hasFloat
 							literal := propertyLiteral(t, e, v)
 							args = append(args, literal)
 							sigma = append(sigma, param.Name+"="+literal)
 						}
-						fn, err := e.function(target.observer, nil)
-						if err != nil {
-							t.Fatal(err)
+						// Float is opaque to normalization. Observe float-bearing
+						// residuals with the same runtime Debug dictionary as the
+						// original expression, without adding a Float primitive.
+						opaque := false
+						for _, value := range observed {
+							opaque = propertyFloatSamples(value, nil) || opaque
 						}
-						shown, err := e.apply(fn, observed)
-						if err == nil {
-							shown, err = e.normal(shown)
-						}
-						if err != nil {
-							t.Fatalf("%s/%d/%s sample=%d σ={%s}: readback failed: %v", target.law, target.side, variant.name, sample, strings.Join(sigma, ", "), err)
+						var shown *term
+						if !opaque {
+							fn, err := e.function(target.observer, nil)
+							if err != nil { t.Fatal(err) }
+							shown, err = e.apply(fn, observed)
+							if err == nil { shown, err = e.normal(shown) }
+							if err != nil {
+								t.Fatalf("%s/%d/%s sample=%d σ={%s}: readback failed: %v", target.law, target.side, variant.name, sample, strings.Join(sigma, ", "), err)
+							}
 						}
 						result := propertyResult{name: fmt.Sprintf("%s/%d/%s/%d", target.law, target.side, variant.name, sample), source: termSource, sigma: strings.Join(sigma, ", "), normal: e.display(normal), runtimeIndex: runtimeLines, residualIndex: -1}
 						calls = append(calls, runner+"("+strings.Join(args, ", ")+")")
 						runtimeLines++
-						if shown.kind == "string" {
+						if !opaque && shown.kind == "string" {
 							result.want = shown.name
 						} else {
-							// Unsupported comparators and nonliteral key types must
-							// stay neutral, even closed. Observe the evaluator's
-							// residual with rt, independently of the original side.
-							if !propertyNeutralMap(closed) {
+							// Unsupported map comparators and opaque Float fields
+							// use the residual oracle, independently of the source.
+							if !opaque && !propertyNeutralMap(closed) {
 								t.Fatalf("%s: readback did not close: n=%s; result=%s", result.name, e.display(normal), e.display(shown))
 							}
 							observations := make([]string, len(observed))
@@ -237,6 +241,7 @@ func TestOpenTermProperty(t *testing.T) {
 							runtimeLines++
 						}
 						results = append(results, result)
+						if hasFloat { floatComparisons++ }
 					}
 					e.solutions = make(map[int]*term)
 					sides++
@@ -273,7 +278,38 @@ func TestOpenTermProperty(t *testing.T) {
 			t.Logf("%d law sides, %d runtime comparisons", len(targets), len(results))
 		})
 	}
-	t.Logf("open-term property: laws=%d side/partial-form targets=%d substitutions=%d per target comparisons=%d Float skips=%d intentional rejections=%d runtime=%s", laws, sides, propertySamples, comparisons, floats, rejected, time.Since(started))
+	for _, edge := range []float64{math.NaN(), math.Copysign(0, -1), math.Inf(1), math.Inf(-1), 0, 1, -1, 1e308, 5e-324} {
+		if !floatSamples[math.Float64bits(edge)] { t.Errorf("Float edge %g was not sampled", edge) }
+	}
+	if floatComparisons == 0 { t.Error("no Float-bearing substitutions were compared") }
+	t.Logf("open-term property: laws=%d side/partial-form targets=%d substitutions=%d per target comparisons=%d Float-bearing substitutions=%d intentional rejections=%d runtime=%s", laws, sides, propertySamples, comparisons, floatComparisons, rejected, time.Since(started))
+}
+
+func TestPropertyFloatTerms(t *testing.T) {
+	e := newEvaluator(loadFixture(t, "projection.gt"))
+	rng := rand.New(rand.NewPCG(2119, 4))
+	sources := []string{"(0.0 / 0.0)", "(-0.0)", "(1.0 / 0.0)", "(-1.0 / 0.0)", "0.0", "1.0", "-1.0", "1e+308", "5e-324"}
+	for offset := range sources {
+		for sample := range sources {
+			value := propertyValue(t, e, rng, types.Float, propertyDepth, sample, offset)
+			want := sources[(sample+offset)%len(sources)]
+			if got := propertyLiteral(t, e, value); got != want { t.Errorf("sample=%d offset=%d: source=%s, want %s", sample, offset, got, want) }
+			if got := propertyTermSource(t, e, value); got != want { t.Errorf("residual source=%s, want %s", got, want) }
+			normal, err := e.normal(value)
+			if err != nil || normal != value { t.Fatalf("Float sample was reduced: %v, %v", normal, err) }
+			copy := &term{kind: "float", float: value.float}
+			if !alphaEqual(value, copy, nil) || termKey(value) != termKey(copy) { t.Fatal("identical Float bits must retain term identity") }
+		}
+	}
+	values := []float64{math.NaN(), math.Float64frombits(math.Float64bits(math.NaN())+1), math.Copysign(0, -1), 0, 1, -1, math.Inf(1), math.Inf(-1)}
+	for i, a := range values {
+		for j, b := range values {
+			left, right := &term{kind: "float", float: a}, &term{kind: "float", float: b}
+			if alphaEqual(left, right, nil) != (i == j) || (termKey(left) == termKey(right)) != (i == j) {
+				t.Errorf("Float term identity conflates bits %016x and %016x", math.Float64bits(a), math.Float64bits(b))
+			}
+		}
+	}
 }
 
 type propertyTarget struct {
@@ -386,7 +422,7 @@ func propertyInhabited(e *evaluator, typ types.Type, depth int) bool {
 		return false
 	}
 	switch con.Name {
-	case "Int", "Bool", "String", "Unit", "Map":
+	case "Int", "Float", "Bool", "String", "Unit", "Map":
 		return true
 	}
 	if _, ok := types.IsTuple(con); ok {
@@ -433,6 +469,15 @@ func propertyValue(t *testing.T, e *evaluator, rng *rand.Rand, typ types.Type, d
 			return integer(edges[rng.IntN(len(edges))])
 		}
 		return integer(int64(rng.Uint64()))
+	case "Float":
+		edges := [...]float64{math.NaN(), math.Copysign(0, -1), math.Inf(1), math.Inf(-1), 0.0, 1.0, -1.0, 1e308, 5e-324}
+		if sample < len(edges) {
+			return &term{kind: "float", float: edges[(sample+offset)%len(edges)]}
+		}
+		if rng.IntN(3) == 0 {
+			return &term{kind: "float", float: edges[rng.IntN(len(edges))]}
+		}
+		return &term{kind: "float", float: math.Float64frombits(rng.Uint64())}
 	case "Bool":
 		if sample < 2 {
 			return boolean((sample+offset)%2 == 0)
@@ -491,6 +536,22 @@ func propertyValue(t *testing.T, e *evaluator, rng *rand.Rand, typ types.Type, d
 	return &term{kind: "ctor", ctor: ctor, args: fields}
 }
 
+func propertyFloatSamples(value *term, samples map[uint64]bool) bool {
+	if value.kind == "float" {
+		if samples != nil { samples[math.Float64bits(value.float)] = true }
+		return true
+	}
+	found := false
+	for _, arg := range value.args {
+		found = propertyFloatSamples(arg, samples) || found
+	}
+	for _, arm := range value.arms {
+		found = propertyFloatSamples(arm.guard, samples) || found
+		found = propertyFloatSamples(arm.body, samples) || found
+	}
+	return found
+}
+
 func propertyLiteral(t *testing.T, e *evaluator, value *term) string {
 	t.Helper()
 	switch value.kind {
@@ -507,6 +568,20 @@ func propertyLiteral(t *testing.T, e *evaluator, value *term) string {
 			return "(-9223372036854775807 - 1)"
 		}
 		return "("+strconv.FormatInt(value.number, 10)+")"
+	case "float":
+		switch {
+		case math.IsNaN(value.float):
+			return "(0.0 / 0.0)"
+		case math.IsInf(value.float, 1):
+			return "(1.0 / 0.0)"
+		case math.IsInf(value.float, -1):
+			return "(-1.0 / 0.0)"
+		case value.float == 0 && math.Signbit(value.float):
+			return "(-0.0)"
+		}
+		literal := strconv.FormatFloat(value.float, 'g', -1, 64)
+		if !strings.ContainsAny(literal, ".e") { literal += ".0" }
+		return literal
 	case "bool":
 		return strconv.FormatBool(value.flag)
 	case "string":
@@ -519,7 +594,7 @@ func propertyLiteral(t *testing.T, e *evaluator, value *term) string {
 	case "map":
 		return propertyMapSource(t, e, value, propertyLiteral)
 	case "ctor":
-		name := e.sourceName(value.ctor.Name)
+		name := propertyReference(e, value.ctor.Name)
 		if len(args) == 0 {
 			return name
 		}
@@ -577,7 +652,7 @@ func propertyType(e *evaluator, typ types.Type) string {
 	if _, ok := types.IsTuple(con); ok {
 		return "("+strings.Join(params, ", ")+")"
 	}
-	name := e.sourceName(con.Name)
+	name := propertyReference(e, con.Name)
 	if len(params) != 0 {
 		name += "["+strings.Join(params, ", ")+"]"
 	}
@@ -629,11 +704,11 @@ func propertyObservation(t *testing.T, e *evaluator, typ types.Type, expr string
 			parts = append(parts, propertyObservation(t, e, field, names[i], extra))
 		}
 		parts = append(parts, propertyQuote(")"))
-		pattern := e.sourceName(ctor.Name)
+		pattern := propertyReference(e, ctor.Name)
 		if len(names) != 0 {
 			pattern += "("+strings.Join(names, ", ")+")"
 		} else {
-			parts = []string{propertyQuote(pattern)}
+			parts = []string{propertyQuote(e.sourceName(ctor.Name))}
 		}
 		arms = append(arms, pattern+" => "+strings.Join(parts, " + "))
 	}
@@ -693,6 +768,9 @@ func propertyWrite(t *testing.T, path, source string) {
 // These fixture sides deliberately have no admissible normal form. The oracle
 // still checks false equations and terminating sides of invalid proof scripts.
 func propertyRejection(file, law string) string {
+	if file == "projection_bad.gt" && law == "stampSelfEqual" {
+		return "Float is not supported in laws"
+	}
 	if file != "rejected.gt" { return "" }
 	return map[string]string{
 		"clonedPrimitive": "law depends on extern go4t/rt.EqInt",

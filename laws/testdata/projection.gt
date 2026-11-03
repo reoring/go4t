@@ -1,0 +1,42 @@
+package main
+
+import "std/dyn"
+import "std/map"
+
+type Owner = Owner{kind: String} deriving Eq, Debug
+type Meta = Meta{
+  name: String,
+  stamp: dyn.Value,
+  ownerReferences: List[Owner],
+  annotations: Map[String, String]
+} deriving Eq, Debug
+type PodKind = DaemonSet | Managed deriving Eq, Debug
+type Pod = Pod{name: String, kind: PodKind} deriving Eq, Debug
+
+func hasDaemonSet(owners List[Owner]) Bool {
+  match owners {
+    Nil => false
+    Cons(owner, rest) => owner.kind == "DaemonSet" || hasDaemonSet(rest)
+  }
+}
+
+func project(m Meta) Pod {
+  Pod{name: m.name, kind: if hasDaemonSet(m.ownerReferences) { DaemonSet } else { Managed }}
+}
+
+law daemonSetOwner(m Meta) {
+  project(m{ownerReferences: Cons(Owner{kind: "DaemonSet"}, m.ownerReferences)}) == Pod{name: m.name, kind: DaemonSet}
+}
+proof daemonSetOwner(m) { refl }
+
+law noOwners(m Meta) {
+  project(m{ownerReferences: Nil}) == Pod{name: m.name, kind: Managed}
+}
+proof noOwners(m) { refl }
+
+law stampIrrelevant(m Meta, stamp dyn.Value) {
+  project(m{stamp: stamp}) == project(m)
+}
+proof stampIrrelevant(m, stamp) { refl }
+
+func main() IO[Unit] { ioPure(unit()) }

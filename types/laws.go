@@ -178,53 +178,39 @@ func (b *bodyChecker) rejectLawFloats() {
 }
 
 func (c *checker) rejectLawFloat(pos ast.Pos, typ Type) {
-	if c.lawHasFloat(typ, make(map[*DataType]bool)) {
+	if c.lawHasFloat(typ) {
 		fail(pos, "laws do not support Float")
 	}
 }
 
-// Inspect data fields as well as explicit type arguments. Visiting each data
-// declaration once is enough: its variables are checked at the application,
-// and its fixed fields are independent of those variables. This also handles
-// recursive and non-regular data types without expanding them indefinitely.
-func (c *checker) lawHasFloat(typ Type, seen map[*DataType]bool) bool {
+// Float is excluded from expressions and exposed type arguments, but fields
+// of a data type remain opaque until an expression actually reads them.
+func (c *checker) lawHasFloat(typ Type) bool {
 	if alias, ok := typ.(*TAlias); ok {
 		for _, arg := range alias.Args {
-			if c.lawHasFloat(arg, seen) {
+			if c.lawHasFloat(arg) {
 				return true
 			}
 		}
-		return c.lawHasFloat(alias.Body, seen)
+		return c.lawHasFloat(alias.Body)
 	}
 	switch typ := prune(typ).(type) {
 	case *TCon:
-		if typ == Float {
-			return true
-		}
-		if data := c.program.DataTypes[typ.Name]; data != nil && !seen[data] {
-			seen[data] = true
-			for _, ctor := range data.Ctors {
-				for _, field := range ctor.Fields {
-					if c.lawHasFloat(field, seen) {
-						return true
-					}
-				}
-			}
-		}
+		return typ == Float
 	case *TApp:
 		for _, arg := range typ.Args {
-			if c.lawHasFloat(arg, seen) {
+			if c.lawHasFloat(arg) {
 				return true
 			}
 		}
-		return c.lawHasFloat(typ.Fun, seen)
+		return c.lawHasFloat(typ.Fun)
 	case *TFunc:
 		for _, param := range typ.Params {
-			if c.lawHasFloat(param, seen) {
+			if c.lawHasFloat(param) {
 				return true
 			}
 		}
-		return c.lawHasFloat(typ.Ret, seen)
+		return c.lawHasFloat(typ.Ret)
 	}
 	return false
 }

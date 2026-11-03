@@ -16,8 +16,9 @@ func main() IO[Unit] { ioPure(unit()) }
 
 Laws use definitional equality, independent of `Eq` instances. Proofs combine
 `refl`, constructor `match`, guard `if` and `rewrite` (including structural
-induction). Only eligible pure, terminating dependencies are admitted; Float
-and untrusted externs are excluded. `Map` is modelled symbolically, so
+induction). Only eligible pure, terminating dependencies are admitted; untrusted
+externs are excluded. Float expressions are excluded, but data types that merely
+contain Float (such as `dyn.Value`) are allowed as quantified values. `Map` is modelled symbolically, so
 `mapLookup(mapInsert(m, k, v), k2)` reduces to a key-equality case split.
 Laws generate no runtime code. See
 [tutorial §13](tutorial.md#13-laws) for cancellation, the `freshness`

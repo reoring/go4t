@@ -73,6 +73,68 @@ func TestFreshness(t *testing.T) {
 	if errors := CheckProgram(loadFixture(t, "freshness.gt")); errors != nil { t.Fatal(errors) }
 }
 
+func TestProjection(t *testing.T) {
+	if errors := CheckProgram(loadFixture(t, "projection.gt")); errors != nil { t.Fatal(errors) }
+	errors := diagnosticsByLaw(t, loadFixture(t, "projection_bad.gt"))
+	if len(errors) != 1 { t.Fatalf("diagnostics = %v", errors) }
+	if err := errors["stampSelfEqual"]; err == nil || err.Msg != "law stampSelfEqual: Float is not supported in laws" {
+		t.Fatalf("stamp equality diagnostic = %v", err)
+	}
+}
+
+func TestLawDataTypeBoundary(t *testing.T) {
+	for _, tc := range []struct{ name, declarations, want string }{
+		{"float record", `type Box = Box{value: Float}`, ""},
+		{"float recursive", `type Box = End | Link(Box, Float)`, ""},
+		{"float nested argument", `type Box = Box{values: List[Float]}`, ""},
+		{"io record", `type Box = Box{value: IO[Int]}`, "law depends on IO"},
+		{"io after float", `type Box = Box{value: Float, effect: IO[Int]}`, "law depends on IO"},
+		{"io recursive", `type Box = End | Link(Box, IO[Int])`, "law depends on IO"},
+		{"io nested argument", `type Effect = Effect(IO[Int]); type Box = Box(List[Effect])`, "law depends on IO"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := loadSource(t, "package main\n"+tc.declarations+"\nlaw identity(x Box) { x == x }\nproof identity(x) { refl }\nfunc main() IO[Unit] { ioPure(unit()) }\n")
+			errors := CheckProgram(p)
+			if tc.want == "" { if errors != nil { t.Fatal(errors) }; return }
+			if len(errors) != 1 || !strings.Contains(errors[0].Msg, tc.want) { t.Fatalf("diagnostics = %v, want %s", errors, tc.want) }
+		})
+	}
+}
+
+func TestLawFloatReadingDependency(t *testing.T) {
+	p := loadSource(t, `package main
+type Box = Box{value: Float}
+func read(box Box) Int { let ignored = box.value; 1 }
+law identity(box Box) { read(box) == 1 }
+proof identity(box) { refl }
+func main() IO[Unit] { ioPure(unit()) }
+`)
+	errors := CheckProgram(p)
+	if len(errors) != 1 || errors[0].Msg != "law identity: Float is not supported in laws" {
+		t.Fatalf("Float-reading dependency diagnostic = %v", errors)
+	}
+}
+
+func TestLawFloatTypeArguments(t *testing.T) {
+	e := newEvaluator(loadFixture(t, "projection.gt"))
+	for _, typ := range []types.Type{
+		types.Float,
+		types.App(&types.TCon{Name: "List"}, types.Float),
+		types.App(&types.TCon{Name: "Option"}, types.Float),
+		&types.TFunc{Params: []types.Type{types.Float}, Ret: types.Int},
+		&types.TFunc{Params: []types.Type{types.Int}, Ret: types.Float},
+	} {
+		if got := e.unsupportedType(typ, false, make(map[string]bool)); got != "Float is not supported in laws" {
+			t.Errorf("%s: got %q", typ, got)
+		}
+	}
+	literal := &ast.FloatLit{Value: 1}
+	*literal.AnnSlot() = &types.Ann{Type: types.Float}
+	if _, err := e.evalExpr(literal, nil, nil); err == nil || err.Error() != "unsupported law expression *ast.FloatLit" {
+		t.Fatalf("Float literal unexpectedly supported: %v", err)
+	}
+}
+
 func TestRejectedDependencies(t *testing.T) {
 	errors := diagnosticsByLaw(t, loadFixture(t, "rejected.gt"))
 	for name, want := range map[string]string{

@@ -68,8 +68,10 @@ func TestLawDiagnostics(t *testing.T) {
 		{"float parameter", `law identity(x Float) { 1 == 1 }; proof identity(x) { refl }`, "laws do not support Float"},
 		{"float tuple", `law identity(x (Int, Float)) { 1 == 1 }; proof identity(x) { refl }`, "laws do not support Float"},
 		{"float argument", `law identity(x Option[Float]) { 1 == 1 }; proof identity(x) { refl }`, "laws do not support Float"},
-		{"float record", `type Box = Box{value: Float}; law identity(x Box) { x == x }; proof identity(x) { refl }`, "laws do not support Float"},
-		{"float recursive", `type Chain = End | Link(Chain, Float); law identity(x Chain) { x == x }; proof identity(x) { refl }`, "laws do not support Float"},
+		{"float list argument", `law identity(x List[Float]) { 1 == 1 }; proof identity(x) { refl }`, "laws do not support Float"},
+		{"float function parameter", `law identity(f func(Float) Int) { 1 == 1 }; proof identity(f) { refl }`, "laws do not support Float"},
+		{"float function result", `law identity(f func(Int) Float) { 1 == 1 }; proof identity(f) { refl }`, "laws do not support Float"},
+		{"float record field", `type Box = Box{value: Float}; law identity(x Box) { x.value == x.value }; proof identity(x) { refl }`, "laws do not support Float"},
 		{"float alias", `alias Number = Float; law identity(x Number) { x == x }; proof identity(x) { refl }`, "laws do not support Float"},
 		{"float phantom alias", `alias Ignored[A] = Int; law identity(x Ignored[Float]) { x == x }; proof identity(x) { refl }`, "laws do not support Float"},
 		{"float sides", `law identity() { 1.0 == 1.0 }; proof identity() { refl }`, "laws do not support Float"},
@@ -102,6 +104,22 @@ func TestLawDiagnostics(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestLawFloatBearingData(t *testing.T) {
+	for _, source := range []string{
+		`type Box = Box{value: Float}; law identity(x Box) { x == x }; proof identity(x) { refl }`,
+		`type Chain = End | Link(Chain, Float); law identity(x Chain) { x == x }; proof identity(x) { refl }`,
+		`type Box = Box{value: List[Float]}; law identity(x Box) { x == x }; proof identity(x) { refl }`,
+		`type Box = Box{value: Float}; alias Wrapped = Box; law identity(x Wrapped) { x == x }; proof identity(x) { refl }`,
+		`type Box = Box{value: Float}; law identity(x List[Box]) { x == x }; proof identity(x) { refl }`,
+	} {
+		for _, named := range []bool{false, true} {
+			if _, err := checkLawSource(t, source, named); err != nil {
+				t.Fatalf("named=%v: %s: %v", named, source, err)
+			}
+		}
 	}
 }
 

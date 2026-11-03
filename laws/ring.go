@@ -2,6 +2,7 @@ package laws
 
 import (
 	"fmt"
+	"math"
 	"sort"
 	"strconv"
 	"strings"
@@ -186,6 +187,8 @@ func writeTermKey(out *strings.Builder, t *term, bound map[int]int) {
 		}
 	case "bind":
 		bound[t.id] = len(bound)
+	case "float":
+		fmt.Fprintf(out, "%016x", math.Float64bits(t.float))
 	default:
 		if t.kind != "field" {
 			out.WriteString(strconv.Quote(t.name))

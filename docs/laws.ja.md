@@ -15,8 +15,9 @@ func main() IO[Unit] { ioPure(unit()) }
 
 等式は `Eq` インスタンスとは独立した定義的等価です。`refl`、コンストラクタの
 `match`、条件の `if`、構造的帰納法を含む `rewrite` を組み合わせて証明します。
-対象は条件を満たす純粋で停止する依存だけで、Float や信頼されない extern は
-除外されます。`Map` は記号的にモデル化され、`mapLookup(mapInsert(m, k, v), k2)` は
+対象は条件を満たす純粋で停止する依存だけで、信頼されない extern は除外されます。
+Float 型の式は除外されますが、`dyn.Value` のように Float を含むだけのデータ型は量化変数に使えます。
+`Map` は記号的にモデル化され、`mapLookup(mapInsert(m, k, v), k2)` は
 キーが等しいかどうかのケース分けに簡約されます。法則の実行時コードは生成されません。
 [チュートリアル §13](tutorial.md#13-laws) に cancel の冪等性、
 `freshness` の `staleIff`、リストの帰納法の例があり、`laws/testdata/placement.gt` と

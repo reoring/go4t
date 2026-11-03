@@ -1,0 +1,22 @@
+package main
+
+import "std/dyn"
+import "std/map"
+
+type Owner = Owner{kind: String} deriving Eq, Debug
+type Meta = Meta{
+  name: String,
+  stamp: dyn.Value,
+  ownerReferences: List[Owner],
+  annotations: Map[String, String]
+} deriving Eq, Debug
+
+// Definitional equality preserves an opaque stamp, including NaN.
+law stampIdentity(m Meta) { m.stamp == m.stamp }
+proof stampIdentity(m) { refl }
+
+// Runtime Eq is not reflexive for every stamp: dyn.Float may contain NaN.
+law stampSelfEqual(m Meta) { (m.stamp == m.stamp) == true }
+proof stampSelfEqual(m) { refl }
+
+func main() IO[Unit] { ioPure(unit()) }

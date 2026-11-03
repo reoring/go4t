@@ -398,11 +398,17 @@ func substituteType(t types.Type, sub map[*types.TVar]types.Type) types.Type {
 }
 
 func (e *evaluator) unsupportedType(t types.Type, firstOrder bool, seen map[string]bool) string {
+	return e.unsupportedTypeAt(t, firstOrder, true, seen)
+}
+
+// Constructor fields may contain opaque Float values, but IO and higher-order
+// quantified fields retain their existing recursive exclusions.
+func (e *evaluator) unsupportedTypeAt(t types.Type, firstOrder, checkFloat bool, seen map[string]bool) string {
 	switch t := types.Unalias(t).(type) {
 	case *types.TCon:
 		switch t.Name {
 		case "Float":
-			return "Float is not supported in laws"
+			if checkFloat { return "Float is not supported in laws" }
 		case "IO":
 			return "law depends on IO"
 		}
@@ -410,18 +416,18 @@ func (e *evaluator) unsupportedType(t types.Type, firstOrder bool, seen map[stri
 			seen[t.Name] = true
 			for _, ctor := range data.Ctors {
 				for _, field := range ctor.Fields {
-					if reason := e.unsupportedType(field, firstOrder, seen); reason != "" {
+					if reason := e.unsupportedTypeAt(field, firstOrder, false, seen); reason != "" {
 						return reason
 					}
 				}
 			}
 		}
 	case *types.TApp:
-		if reason := e.unsupportedType(t.Fun, firstOrder, seen); reason != "" {
+		if reason := e.unsupportedTypeAt(t.Fun, firstOrder, checkFloat, seen); reason != "" {
 			return reason
 		}
 		for _, arg := range t.Args {
-			if reason := e.unsupportedType(arg, firstOrder, seen); reason != "" {
+			if reason := e.unsupportedTypeAt(arg, firstOrder, checkFloat, seen); reason != "" {
 				return reason
 			}
 		}
@@ -430,11 +436,11 @@ func (e *evaluator) unsupportedType(t types.Type, firstOrder bool, seen map[stri
 			return "higher-order quantified parameters are not supported"
 		}
 		for _, param := range t.Params {
-			if reason := e.unsupportedType(param, false, seen); reason != "" {
+			if reason := e.unsupportedTypeAt(param, false, checkFloat, seen); reason != "" {
 				return reason
 			}
 		}
-		return e.unsupportedType(t.Ret, false, seen)
+		return e.unsupportedTypeAt(t.Ret, false, checkFloat, seen)
 	}
 	return ""
 }
