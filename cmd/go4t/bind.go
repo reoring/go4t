@@ -91,7 +91,7 @@ func writeBindings(pkg *extern.Package, options extern.BindOptions, output, shim
 	var err error
 	source := extern.Bind(pkg, options)
 	if shimDir != "" {
-		bindings, shim, shimErr := extern.BindWithShim(pkg, options, shimPath, shimPackage)
+		bindings, shim, _, shimErr := extern.BindWithShim(pkg, options, shimPath, shimPackage)
 		if shimErr != nil {
 			return diagnostic(shimDir, shimErr)
 		}

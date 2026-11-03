@@ -16,7 +16,7 @@ func TestErrorClassifierShim(t *testing.T) {
 	if !HasErrorClassifier(pkg) {
 		t.Fatal("classifier predicates were not discovered")
 	}
-	_, shim, err := BindWithShim(pkg, BindOptions{}, "example.test/bindings/shim", "shim")
+	_, shim, _, err := BindWithShim(pkg, BindOptions{}, "example.test/bindings/shim", "shim")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -28,7 +28,7 @@ func TestErrorClassifierShim(t *testing.T) {
 	runBindingTestGo(t, dir, "test", "./shim")
 
 	// A shim emitted into the bound package must call unqualified predicates.
-	_, shim, err = BindWithShim(pkg, BindOptions{}, pkg.Path, pkg.Name)
+	_, shim, _, err = BindWithShim(pkg, BindOptions{}, pkg.Path, pkg.Name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +71,7 @@ func (Checker) IsMethod(error) bool { return true }
 	if HasErrorClassifier(pkg) {
 		t.Fatal("non-predicates were discovered as classifiers")
 	}
-	_, shim, err := BindWithShim(pkg, BindOptions{}, "example.test/bindings/shim", "shim")
+	_, shim, _, err := BindWithShim(pkg, BindOptions{}, "example.test/bindings/shim", "shim")
 	if err != nil {
 		t.Fatal(err)
 	}

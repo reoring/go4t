@@ -53,7 +53,21 @@ func main() IO[Unit] {
 			t.Errorf("missing %q in Go shim:\n%s", want, generated)
 		}
 	}
-	out, stderr, status = toolsCommand(t, dir, "", "run", ".")
+	// Legacy output is inspected above; runtime execution uses owner metadata
+	// carried by go: imports rather than the generated inspection file.
+	file := toolsWrite(t, filepath.Join(dir, "run.gt"), `package main
+import f "go:go4t/extern/testdata/methodfixture"
+func main() IO[Unit] {
+  do {
+    println(f.widgetEcho(f.Widget{name: "hello"}, "!"))
+    println(show(f.widgetCount(f.Widget{name: "hello"})))
+    println(show(f.widgetLookup(f.Widget{name: "hello"}, true)))
+    text <- f.widgetRead(f.Widget{name: "read"})
+    println(text)
+  }
+}
+`)
+	out, stderr, status = toolsCommand(t, dir, "", "run", file)
 	if out != "hello!\n5\nSome(hello)\nread\n" || stderr != "" || status != 0 {
 		t.Fatalf("run: stdout=%q stderr=%q status=%d", out, stderr, status)
 	}

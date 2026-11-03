@@ -39,7 +39,7 @@ func TestMethodBindingBoundaries(t *testing.T) {
 			t.Errorf("missing method %s", name)
 		}
 	}
-	decls, source, err := BindWithShim(pkg, BindOptions{Float: true}, "example/shim", "shim")
+	decls, source, _, err := BindWithShim(pkg, BindOptions{Float: true}, "example/shim", "shim")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +76,7 @@ func TestMethodBindingBoundaries(t *testing.T) {
 			t.Errorf("unsupported shim %s:\n%s", forbidden, source)
 		}
 	}
-	prefixed, _, err := BindWithShim(pkg, BindOptions{Prefix: "native"}, "example/shim", "shim")
+	prefixed, _, _, err := BindWithShim(pkg, BindOptions{Prefix: "native"}, "example/shim", "shim")
 	if err != nil {
 		t.Fatal(err)
 	}

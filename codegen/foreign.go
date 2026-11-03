@@ -9,9 +9,15 @@ import (
 
 // The generated program owns all erased record constructors. Register them in
 // its companion init (never in the Go shim, which cannot import the program).
-// Each extern target gets a namespace, and source names survive module mangling.
+// Records use their owning Go package and Go type name, never the calling shim.
 func (g *generator) foreignShapes(out *strings.Builder, prog *types.Program) {
 	seen := map[string]bool{}
+	goOwners := make(map[string]string)
+	for _, module := range prog.Modules {
+		if owner, ok := strings.CutPrefix(module.ImportPath, "go:"); ok {
+			goOwners[module.Path] = owner
+		}
+	}
 	var visit func(string, types.Type)
 	visit = func(path string, t types.Type) {
 		t = types.Unalias(t)
@@ -31,7 +37,19 @@ func (g *generator) foreignShapes(out *strings.Builder, prog *types.Program) {
 			if d == nil {
 				return
 			}
-			key := path + ":" + d.Name
+			name := prog.ModuleNames[d.Name]
+			if name == "" {
+				name = d.Name
+			}
+			recordKey := prog.ForeignRecordKeys[d.Name]
+			if recordKey == "" {
+				owner := goOwners[prog.Owners[d.Name]]
+				if owner == "" {
+					owner = path // legacy inspection bindings have no owner metadata
+				}
+				recordKey = owner + "." + name
+			}
+			key := recordKey + ":" + d.Name
 			if seen[key] {
 				return
 			}
@@ -48,11 +66,7 @@ func (g *generator) foreignShapes(out *strings.Builder, prog *types.Program) {
 			if c.FieldNames == nil {
 				return
 			}
-			name := prog.ModuleNames[d.Name]
-			if name == "" {
-				name = d.Name
-			}
-			fmt.Fprintf(out, "%sfunc init() { rt.RegisterForeignRecord(%q,func(fields []any) any { return &%s{", g.typeLine(d.Name), path+"."+name, ctorName(c))
+			fmt.Fprintf(out, "%sfunc init() { rt.RegisterForeignRecord(%q,func(fields []any) any { return &%s{", g.typeLine(d.Name), recordKey, ctorName(c))
 			for i := range c.Fields {
 				fmt.Fprintf(out, "F%d:fields[%d],", i, i)
 			}

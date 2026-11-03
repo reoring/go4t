@@ -1437,11 +1437,22 @@ target. Binding-name precedence is method/function > field accessor > constructo
 The companion shims preserve the erased extern ABI (`any` parameters/result).
 Record constructors cannot live in the shim package, because it cannot import
 the generated program. Instead, codegen emits companion `init` registrations
-beside the program's ordinary record ADTs, keyed by shim import path and record
-source name. `rt.RegisterForeignRecord` supplies constructor/field operations,
+beside the program's ordinary record ADTs, keyed by
+`<owning Go package import path>.<Go type name>`, not the calling shim's path.
+The Go spelling is retained even when a prelude collision adds `Go` to the
+go4t name (`OptionGo` still registers as `<owner>.Option`). The binder carries
+these keys as semantic module metadata, preserved by the binding cache and
+checker; they are not inferred from comments. Without explicit metadata, a
+record in a `go:` module uses that module's import path without `go:`.
+`rt.RegisterForeignRecord` supplies constructor/field operations,
 just as `rt.Shapes` supplies List/Option/Json operations. Nested records in extern
 signatures are registered recursively. No reflection or second record ABI is
 used. Structs, slices, maps and pointers cross by copy; private state is not copied.
+
+Legacy bindings written with `bind -o` have no semantic owner metadata and
+retain the fallback key `<extern target import path>.<go4t source type name>`.
+These inspection bindings compile but are not a supported runtime path;
+use `go:` imports to execute record conversions.
 
 A leading `context.Context` parameter is omitted and forces an `IO[R]` result.
 The shim receives the executing IO's context, so cancellation and deadlines

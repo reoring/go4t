@@ -172,7 +172,7 @@ typed clientset(同日): `k8s.io/client-go/kubernetes` 414 / 1(struct キーの 
       利用者の `.gt` を touch 後 1.88 秒(どちらも 240 hit / 0 miss)。warm 後は 240 エントリ・45,907,499 bytes。
       変更前 42.37 秒、`GO4T_CACHE=off` 42.06 秒。コメントだけ変えて binary を再ビルドすると
       240 miss / 0 hit、42.16 秒。推移依存の hit は既に取得した export file を使い、`go list` を繰り返さない。
-- [ ] 同一 shim 内で同じ非修飾名を持つ別パッケージの record が `rt.ForeignRecord` のキーで衝突する(既存の制限)。
+- [x] record キーの衝突を解消(2026-11-04)。キーは `<所有 Go パッケージの import path>.<Go 型名>`。prelude 衝突時も Go 型名を使う。
 - [x] 旧コミット binding ワークフローの cutover(2026-11-04)。依存取得は更新のみにし、
       モジュール一括生成を廃止。`examples/sql-service` は `go:` import に移行し、コミット済み生成物を削除。
 - [x] handle を受け取る呼び出しは全部 `IO`(SPEC §8): method receiver、引数(`List`/`Map`/`Option` の中も)、フィールド getter。

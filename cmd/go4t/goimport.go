@@ -56,12 +56,13 @@ func (b *goImportBinder) Bind(importPath string) (*ast.Module, error) {
 	entry, cacheErr := b.cacheEntry(importPath, options, shimPath)
 	var file *ast.File
 	var shim []byte
+	var recordKeys map[string]string
 	if cacheErr != nil {
 		traceBindingCache(importPath, "unavailable", cacheErr)
 	} else if entry == "" {
 		traceBindingCache(importPath, "disabled", nil)
 	} else {
-		file, shim, cacheErr = readBindingCache(entry)
+		file, shim, recordKeys, cacheErr = readBindingCache(entry)
 		if cacheErr == nil {
 			traceBindingCache(importPath, "hit", nil)
 		} else {
@@ -78,7 +79,7 @@ func (b *goImportBinder) Bind(importPath string) (*ast.Module, error) {
 		b.cacheClassifier(entry, extern.HasErrorClassifier(pkg))
 		// Checking uses the same declarations, with a placeholder shim path.
 		var source string
-		source, shim, err = extern.BindWithShim(pkg, options, shimPath, name)
+		source, shim, recordKeys, err = extern.BindWithShim(pkg, options, shimPath, name)
 		if err != nil {
 			return nil, err
 		}
@@ -87,7 +88,7 @@ func (b *goImportBinder) Bind(importPath string) (*ast.Module, error) {
 			return nil, fmt.Errorf("parse Go bindings for %q: %w", importPath, err)
 		}
 		if entry != "" {
-			if err := writeBindingCache(entry, source, shim); err != nil {
+			if err := writeBindingCache(entry, source, shim, recordKeys); err != nil {
 				traceBindingCache(importPath, "write failed", err)
 			}
 		}
@@ -103,7 +104,7 @@ func (b *goImportBinder) Bind(importPath string) (*ast.Module, error) {
 			return nil, err
 		}
 	}
-	module := &ast.Module{Name: file.Package, Files: []*ast.File{file}}
+	module := &ast.Module{Name: file.Package, Files: []*ast.File{file}, ForeignRecordKeys: recordKeys}
 	if b.bound == nil {
 		b.bound = make(map[string]*ast.Module)
 	}

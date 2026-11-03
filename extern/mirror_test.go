@@ -11,7 +11,7 @@ func TestForeignMirrors(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	source, shim, err := BindWithShim(pkg, BindOptions{Float: true}, "fixture/shim", "shim")
+	source, shim, _, err := BindWithShim(pkg, BindOptions{Float: true}, "fixture/shim", "shim")
 	if err != nil {
 		t.Fatal(err)
 	}

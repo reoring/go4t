@@ -107,3 +107,53 @@ func TestClassifierCache(t *testing.T) {
 		t.Fatal("corrupt classifier metadata was a hit")
 	}
 }
+
+func TestGoImportRecordOwnerKeys(t *testing.T) {
+	dir := toolsModule(t)
+	t.Setenv("GO4T_CACHE", t.TempDir())
+	for name, source := range map[string]string{
+		"left/left.go": `package left
+type Status struct { Count int }
+type Option struct { Label string }
+func Echo(v Status) Status { return v }
+`,
+		"right/right.go": `package right
+type Status struct { Message string; Ready bool }
+func Echo(v Status) Status { return v }
+`,
+		"consumer/consumer.go": `package consumer
+import (
+ "clitoolstest/left"
+ "clitoolstest/right"
+)
+func Echo(a left.Status, b right.Status) (left.Status, right.Status) { return a,b }
+func EchoOption(v left.Option) left.Option { return v }
+`,
+	} {
+		file := filepath.Join(dir, name)
+		if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		toolsWrite(t, file, source)
+	}
+	file := toolsWrite(t, filepath.Join(dir, "main.gt"), `package main
+import "go:clitoolstest/left"
+import "go:clitoolstest/right"
+import "go:clitoolstest/consumer"
+func main() IO[Unit] {
+  do {
+    let (a, b) = consumer.echo(left.Status{count: 7}, right.Status{message: "ready", ready: true})
+    println(debug(left.echo(a)))
+    println(debug(right.echo(b)))
+    println(debug(consumer.echoOption(left.OptionGo{label: "owned"})))
+  }
+}
+`)
+	for _, phase := range []string{"cold", "warm"} {
+		out, stderr, status := toolsCommand(t, dir, "", "run", file)
+		const want = "Status{count: 7}\nStatus{message: \"ready\", ready: true}\nOptionGo{label: \"owned\"}\n"
+		if status != 0 || out != want || stderr != "" {
+			t.Fatalf("%s run: stdout=%q stderr=%q status=%d", phase, out, stderr, status)
+		}
+	}
+}

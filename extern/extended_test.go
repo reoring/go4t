@@ -51,7 +51,7 @@ func TestExtendedBindingShim(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	decls, shim, err := BindWithShim(pkg, BindOptions{}, "example.test/bindings/shim", "shim")
+	decls, shim, _, err := BindWithShim(pkg, BindOptions{}, "example.test/bindings/shim", "shim")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +89,7 @@ func TestExtendedBindingShim(t *testing.T) {
 			t.Errorf("unexpected %q:\n%s", forbidden, decls)
 		}
 	}
-	prefixed, _, err := BindWithShim(pkg, BindOptions{Prefix: "native"}, "example.test/bindings/shim", "shim")
+	prefixed, _, _, err := BindWithShim(pkg, BindOptions{Prefix: "native"}, "example.test/bindings/shim", "shim")
 	if err != nil || !strings.Contains(prefixed, "extern func nativeOpaqueSetLabel(recv Opaque, value String) IO[Unit]") {
 		t.Fatalf("prefixed accessors: %v\n%s", err, prefixed)
 	}
@@ -138,7 +138,7 @@ func TestStandardExtendedBindings(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		decls, shim, err := BindWithShim(pkg, BindOptions{Float: true}, "example.test/bindings/"+tc.name, tc.name)
+		decls, shim, _, err := BindWithShim(pkg, BindOptions{Float: true}, "example.test/bindings/"+tc.name, tc.name)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -227,7 +227,7 @@ func TestBoundary(t *testing.T) {
   Tuple3: func(a,b,c any) any { return [3]any{a,b,c} },
   Untuple3: func(v any) (any,any,any) { p := v.([3]any); return p[0],p[1],p[2] },
  }
- rt.RegisterForeignRecord("example.test/bindings/shim.Opts", func(fields []any) any { return fields }, func(v any, i int) any { return v.([]any)[i] })
+ rt.RegisterForeignRecord("example.test/bindings/fixture.Opts", func(fields []any) any { return fields }, func(v any, i int) any { return v.([]any)[i] })
  equal := func(got,want any) { t.Helper(); if !reflect.DeepEqual(got,want) { t.Fatalf("got %#v, want %#v",got,want) } }
  run := func(action any) any { t.Helper(); v,err := action.(rt.IO)(context.Background()); if err != nil { t.Fatal(err) }; return v }
  equal(s.Pair(),[2]any{"pair",int64(7)})

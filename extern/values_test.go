@@ -34,7 +34,7 @@ const Complex = 1+2i
 	if err != nil {
 		t.Fatal(err)
 	}
-	decls, shim, err := BindWithShim(pkg, BindOptions{Float: true}, "example.test/bindings/shim_values", "shim_values")
+	decls, shim, _, err := BindWithShim(pkg, BindOptions{Float: true}, "example.test/bindings/shim_values", "shim_values")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,7 +63,7 @@ const Complex = 1+2i
 	if strings.Count(decls, "extern func newExisting(") != 1 || strings.Count(decls, "extern func stateCount(") != 1 {
 		t.Errorf("duplicate bindings:\n%s", decls)
 	}
-	prefixed, _, err := BindWithShim(pkg, BindOptions{Prefix: "native", Float: true}, "example.test/bindings/shim_values", "shim_values")
+	prefixed, _, _, err := BindWithShim(pkg, BindOptions{Prefix: "native", Float: true}, "example.test/bindings/shim_values", "shim_values")
 	if err != nil {
 		t.Fatal(err)
 	}

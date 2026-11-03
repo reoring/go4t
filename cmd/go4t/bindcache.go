@@ -88,27 +88,42 @@ func bindingCacheKey(identity, goVersion string, exportHash [sha256.Size]byte, i
 	return hex.EncodeToString(hash.Sum(nil))
 }
 
-func readBindingCache(entry string) (*ast.File, []byte, error) {
+func readBindingCache(entry string) (*ast.File, []byte, map[string]string, error) {
 	source, err := os.ReadFile(filepath.Join(entry, "bindings.gt"))
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	file, err := parser.Parse(string(source))
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	shim, err := os.ReadFile(filepath.Join(entry, "shim.go"))
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	return file, shim, nil
+	data, err := os.ReadFile(filepath.Join(entry, "records.json"))
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	var recordKeys map[string]string
+	if err := json.Unmarshal(data, &recordKeys); err != nil {
+		return nil, nil, nil, err
+	}
+	return file, shim, recordKeys, nil
 }
 
-func writeBindingCache(entry, source string, shim []byte) error {
+func writeBindingCache(entry, source string, shim []byte, recordKeys map[string]string) error {
 	if err := os.MkdirAll(entry, 0o755); err != nil {
 		return err
 	}
 	if err := writeBindingCacheFile(filepath.Join(entry, "shim.go"), shim); err != nil {
+		return err
+	}
+	data, err := json.Marshal(recordKeys)
+	if err != nil {
+		return err
+	}
+	if err := writeBindingCacheFile(filepath.Join(entry, "records.json"), data); err != nil {
 		return err
 	}
 	return writeBindingCacheFile(filepath.Join(entry, "bindings.gt"), []byte(source))
@@ -146,7 +161,7 @@ func writeClassifierCache(entry string, present bool) error {
 }
 
 // Each key identifies exact bytes, so concurrent writers can safely replace
-// either file. Publish bindings last; an incomplete entry is always a miss.
+// each file. Publish bindings last; an incomplete entry is always a miss.
 func writeBindingCacheFile(path string, content []byte) error {
 	file, err := os.CreateTemp(filepath.Dir(path), ".tmp-*")
 	if err != nil {

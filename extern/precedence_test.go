@@ -29,7 +29,7 @@ var NewConstruct = 6
 		t.Fatal(err)
 	}
 	for _, prefix := range []string{"", "native"} {
-		decls, shim, err := BindWithShim(pkg, BindOptions{Prefix: prefix}, "example.test/bindings/shim", "shim")
+		decls, shim, _, err := BindWithShim(pkg, BindOptions{Prefix: prefix}, "example.test/bindings/shim", "shim")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -109,7 +109,7 @@ var _ b.Object = (*Collision)(nil)
 		t.Fatal(err)
 	}
 	for _, prefix := range []string{"", "native"} {
-		decls, shim, err := BindWithShim(pkg, BindOptions{Prefix: prefix}, "example.test/bindings/shim", "shim")
+		decls, shim, _, err := BindWithShim(pkg, BindOptions{Prefix: prefix}, "example.test/bindings/shim", "shim")
 		if err != nil {
 			t.Fatal(err)
 		}

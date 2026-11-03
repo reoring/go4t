@@ -260,6 +260,8 @@ type Program struct {
 	Modules []*ast.Module
 	// ModuleNames maps canonical declarations to their source spelling.
 	ModuleNames map[string]string
+	// ForeignRecordKeys maps canonical record declarations to owner-package.GoType.
+	ForeignRecordKeys map[string]string
 	// Owners maps canonical declarations to their owning module path.
 	Owners    map[string]string
 	Classes   map[string]*Class

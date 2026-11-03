@@ -154,7 +154,8 @@ func (g *shimGenerator) conversion(m *foreignMirror) string {
 		fmt.Fprintf(&to, "result := make(%s); rt.ForeignMapEach(v,func(k,x any) { result[%sTo(k,ctx)] = %sTo(x,ctx) }); return result\n", typ, k, e)
 		fmt.Fprintf(&from, "entries := make([][2]any,0,len(v)); for k,x := range v { entries = append(entries,[2]any{%sFrom(k),%sFrom(x)}) }; return rt.ForeignMap(entries)\n", k, e)
 	case "record":
-		recordKey := g.path + "." + foreignTypeName(m.typ.(*types.Named).Obj().Name())
+		obj := m.typ.(*types.Named).Obj()
+		recordKey := obj.Pkg().Path() + "." + obj.Name()
 		fmt.Fprintf(&to, "var result %s\n", typ)
 		from.WriteString("fields := make([]any, " + strconv.Itoa(len(m.fields)) + ")\n")
 		initialized := map[string]bool{}
@@ -466,7 +467,9 @@ func (g *shimGenerator) accessors(decl *strings.Builder, set *mirrorSet, options
 // Exported variables/constants are pure zero-argument getters, evaluated at
 // each call. Owned opaque structs also get fresh zero-value handle constructors
 // unless their generated name is already reserved by a package binding.
-func BindWithShim(pkg *Package, options BindOptions, shimPath, shimPackage string) (string, []byte, error) {
+// The third result maps declared go4t record names to owner-package.GoType keys,
+// retaining Go names even when a prelude collision changes the go4t spelling.
+func BindWithShim(pkg *Package, options BindOptions, shimPath, shimPackage string) (string, []byte, map[string]string, error) {
 	g := &shimGenerator{path: shimPath, imports: map[string]string{"context": "context", "go4t/rt": "rt"}, converters: map[string]string{}}
 	var decl strings.Builder
 	// These reservations only keep generated import aliases out of the way;
@@ -619,9 +622,14 @@ func BindWithShim(pkg *Package, options BindOptions, shimPath, shimPackage strin
 	}
 	formatted, err := format.Source([]byte(goSource.String()))
 	if err != nil {
-		return "", nil, fmt.Errorf("format binding shim: %w", err)
+		return "", nil, nil, fmt.Errorf("format binding shim: %w", err)
 	}
-	return source, formatted, nil
+	recordKeys := make(map[string]string, len(set.records))
+	for name, record := range set.records {
+		obj := record.typ.(*types.Named).Obj()
+		recordKeys[name] = obj.Pkg().Path() + "." + obj.Name()
+	}
+	return source, formatted, recordKeys, nil
 }
 
 // methodBindingName keeps the Go spelling after an explicit prefix; without one the

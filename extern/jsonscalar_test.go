@@ -19,7 +19,7 @@ func Echo(v Scalar) Scalar { return v }
 	if err != nil {
 		t.Fatal(err)
 	}
-	decls, _, err := BindWithShim(pkg, BindOptions{}, "example.test/bindings/shim_nojson", "shim_nojson")
+	decls, _, _, err := BindWithShim(pkg, BindOptions{}, "example.test/bindings/shim_nojson", "shim_nojson")
 	if err != nil || !strings.Contains(decls, "extern func echo(p0 dyn.Value) dyn.Value") {
 		t.Fatalf("structural JSON interfaces: %v\n%s", err, decls)
 	}
@@ -28,7 +28,7 @@ func Echo(v Scalar) Scalar { return v }
 	if err != nil {
 		t.Fatal(err)
 	}
-	decls, shim, err := BindWithShim(pkg, BindOptions{}, "example.test/bindings/shim", "shim")
+	decls, shim, _, err := BindWithShim(pkg, BindOptions{}, "example.test/bindings/shim", "shim")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,7 +130,7 @@ func TestJSONScalarRoundTrip(t *testing.T) {
   None: func() any { return option{} },
   OptionValue: func(v any) (any,bool) { o:=v.(option); return o.value,o.present },
  }
- rt.RegisterForeignRecord("example.test/bindings/shim.Wallet",func(fields []any) any { return fields },func(v any,i int) any { return v.([]any)[i] })
+ rt.RegisterForeignRecord("example.test/bindings/fixture.Wallet",func(fields []any) any { return fields },func(v any,i int) any { return v.([]any)[i] })
  equal := func(got,want any) { t.Helper(); if !reflect.DeepEqual(got,want) { t.Fatalf("got %#v, want %#v",got,want) } }
  money:=dynamic{"str","12.34"}
  equal(s.MakeMoney(int64(1234)),money)

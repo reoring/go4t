@@ -74,6 +74,9 @@ type Module struct {
 	ImportPath string // logical import path; std/... identifies standard declarations
 	Name       string
 	Files      []*File
+	// ForeignRecordKeys maps binder-declared source names to owning Go
+	// package/type keys. It is semantic metadata, not part of source comments.
+	ForeignRecordKeys map[string]string
 }
 
 type Import struct {
@@ -376,7 +379,7 @@ type Ident struct {
 	ExprBase
 	Name        string
 	Display     string // source spelling when Name is synthesized or qualified
-	Placeholder bool // synthesized section/call parameter reference
+	Placeholder bool   // synthesized section/call parameter reference
 }
 
 // DisplayName returns the source spelling without exposing compiler identities.
