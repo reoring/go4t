@@ -55,7 +55,8 @@ func main() IO[Unit] {
   let changed = mutateRecord(r)
   println(show(changed.bytes == "Xytes" && r == makeRecord()))
   let flattened = makeFlattened()
-  println(show(echoFlattened(flattened) == flattened))
+  visible <- flattenedVisible(flattened)
+  println(show(visible == "visible"))
   let ambiguous = Ambiguous{l: 1, r: 2, own: 3}
   println(show(echoAmbiguous(ambiguous) == ambiguous))
   deadline <- conc.withTimeout(1000, hasDeadline())

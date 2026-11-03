@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"syscall"
@@ -91,6 +92,9 @@ func RunMain(io any) {
 	defer func() {
 		if p := recover(); p != nil {
 			fmt.Fprintln(os.Stderr, "error: panic:", p)
+			if os.Getenv("GO4T_TRACE") != "" {
+				os.Stderr.Write(debug.Stack())
+			}
 			os.Exit(2)
 		}
 	}()

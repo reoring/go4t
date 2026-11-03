@@ -23,8 +23,16 @@ type Record struct {
 	Bytes  []byte
 	Err    error
 	Labels map[string]int
+}
+
+// Private state makes a struct a handle, however many exported fields it has.
+type Stateful struct {
+	Name   string
 	hidden string
 }
+
+func EchoStateful(s Stateful) Stateful { return s }
+
 type Count int32
 type Opaque struct{ State any }
 type Counter struct{ n int }
@@ -50,7 +58,7 @@ type Ambiguous struct {
 }
 type PointFn func(Point) Point
 
-func EchoRecord(v Record) Record { v.hidden = "not copied"; return v }
+func EchoRecord(v Record) Record { return v }
 func MakeRecord() Record {
 	return Record{Embedded: Embedded{true}, Name: "record", Point: Point{2, 3}, Maybe: &Point{4, 5}, Wait: 7, At: time.Unix(0, 11), Bytes: []byte("bytes"), Err: errors.New("field"), Labels: map[string]int{"x": 9}}
 }

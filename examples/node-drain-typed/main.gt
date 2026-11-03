@@ -1,0 +1,129 @@
+package main
+
+import "std/io"
+import "std/list"
+import "std/map"
+import "std/result"
+import "std/string"
+import core "go:k8s.io/api/core/v1"
+import policy "go:k8s.io/api/policy/v1"
+import meta "go:k8s.io/apimachinery/pkg/apis/meta/v1"
+import kube "go:k8s.io/client-go/kubernetes"
+import corev1 "go:k8s.io/client-go/kubernetes/typed/core/v1"
+import "go:k8s.io/client-go/tools/clientcmd"
+
+// Drain is the controller's view of one NodeDrain request.
+type Drain = Drain{node: String, requested: Bool, deadline: Deadline, lastBlock: Option[String]} deriving Eq, Debug
+
+type Outcome = Outcome{action: Action, drain: Drain} deriving Eq, Debug
+
+// ---- observe ------------------------------------------------------------------
+
+func listPodsOnNode(pods corev1.PodInterface, node String) IO[List[core.Pod]] {
+  do {
+    listed <- pods |> corev1.podInterfaceList(_, meta.newListOptions(){fieldSelector: "spec.nodeName=" + node})
+    ioPure(match listed {
+      None => Nil
+      Some(l) => l.items
+    })
+  }
+}
+
+func getNode(nodes corev1.NodeInterface, name String) IO[Option[core.Node]] {
+  do {
+    fetched <- io.tryIO(corev1.nodeInterfaceGet(nodes, name, meta.newGetOptions()))
+    match fetched {
+      Ok(node) => ioPure(node)
+      Err(e) => if string.contains(io.ioErrorMessage(e), "not found") { ioPure(None) } else { io.ioRaise(e) }
+    }
+  }
+}
+
+func observe(client corev1.CoreV1Interface, d Drain) IO[Observed] {
+  do {
+    nodes <- corev1.coreV1InterfaceNodes(client)
+    pods <- corev1.coreV1InterfacePods(client, "")
+    node <- getNode(nodes, d.node)
+    onNode <- listPodsOnNode(pods, d.node)
+    now <- io.nowMillis()
+    ioPure(Observed{
+      requested: d.requested,
+      node: nodeState(node),
+      cordonedByUs: cordonedByUs(node),
+      pods: map(onNode, project),
+      evictionBlocked: d.lastBlock,
+      deadline: d.deadline,
+      nowNanos: now * 1000000
+    })
+  }
+}
+
+// ---- apply --------------------------------------------------------------------
+
+func patchNode(nodes corev1.NodeInterface, name String, body String) IO[Unit] {
+  io.void(corev1.nodeInterfacePatch(nodes, name, "application/merge-patch+json", body, meta.newPatchOptions(), []))
+}
+
+func cordonPatch(unschedulable Bool) String {
+  let annotation = if unschedulable { "\"true\"" } else { "null" }
+  "{\"metadata\":{\"annotations\":{\"" + cordonAnnotation() + "\":" + annotation + "}},\"spec\":{\"unschedulable\":" + show(unschedulable) + "}}"
+}
+
+func evict(pods corev1.PodInterface, name String) IO[Option[String]] {
+  let eviction = policy.newEviction(){kind: "Eviction", aPIVersion: "policy/v1", name: name}
+  do {
+    attempt <- io.tryIO(corev1.podInterfaceEvictV1(pods, Some(eviction)))
+    match attempt {
+      Ok(_) => ioPure(None)
+      | Err(e) => {
+        let message = io.ioErrorMessage(e)
+        if string.contains(message, "Too many requests") || string.contains(message, "disruption budget") {
+          ioPure(Some(message))
+        } else {
+          io.ioRaise(e)
+        }
+      }
+    }
+  }
+}
+
+func apply(client corev1.CoreV1Interface, d Drain, action Action) IO[Drain] {
+  do {
+    nodes <- corev1.coreV1InterfaceNodes(client)
+    match action {
+      Cordon => do { patchNode(nodes, d.node, cordonPatch(true)); ioPure(d) }
+      Uncordon => do { patchNode(nodes, d.node, cordonPatch(false)); ioPure(d) }
+      | Evict(ns, name) => do {
+        pods <- corev1.coreV1InterfacePods(client, ns)
+        blocked <- evict(pods, name)
+        ioPure(d{lastBlock: blocked})
+      }
+      Wait(_) => ioPure(d{lastBlock: None})
+      _ => ioPure(d)
+    }
+  }
+}
+
+func reconcile(client corev1.CoreV1Interface, d Drain) IO[Outcome] {
+  do {
+    o <- observe(client, d)
+    let action = decide(o)
+    next <- apply(client, d, action)
+    ioPure(Outcome(action, next))
+  }
+}
+
+// ---- entry --------------------------------------------------------------------
+
+func main() IO[Unit] {
+  do {
+    argv <- io.args()
+    let node = head(argv) |> result.fromOption(_, "worker-1")
+    let requested = !list.elem("--release", argv)
+    config <- clientcmd.buildConfigFromFlags("", tail(argv) |> head |> result.fromOption(_, ""))
+    clientset <- kube.newForConfig(config)
+    client <- kube.clientsetCoreV1(clientset)
+    outcome <- reconcile(client, Drain(node, requested, NoDeadline, None))
+    println(debug(outcome.action))
+  }
+}

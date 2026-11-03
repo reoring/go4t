@@ -147,9 +147,10 @@ func (s *mirrorSet) valueMirror(t types.Type, visiting map[types.Type]bool) *for
 				return m
 			}
 			fields := promotedFields(v)
-			// A private-state object (sql.DB, url.Userinfo, ...) is a handle, not
-			// an empty record which would silently discard its state.
-			if len(fields) == 0 {
+			// A private-state object (sql.DB, url.Userinfo, kubernetes.Clientset)
+			// is a handle, not a record: copying its exported fields would
+			// silently discard the unexported ones.
+			if len(fields) == 0 || hasUnexportedState(v) {
 				return nil
 			}
 			m.kind, m.gt = "record", s.typeName(v)
@@ -223,6 +224,37 @@ type promotedField struct {
 	path []int
 }
 
+// hasUnexportedState reports whether a struct declares an unexported
+// non-embedded field, directly or through a struct it embeds. A pointer
+// embedding (kubernetes.Clientset's *DiscoveryClient) is shared state in
+// itself and counts as well.
+func hasUnexportedState(t types.Type) bool {
+	return unexportedState(t, map[types.Type]bool{})
+}
+
+func unexportedState(t types.Type, seen map[types.Type]bool) bool {
+	st, ok := t.Underlying().(*types.Struct)
+	if !ok || seen[t] {
+		return false
+	}
+	seen[t] = true
+	for i := range st.NumFields() {
+		f := st.Field(i)
+		if f.Embedded() {
+			if _, ptr := f.Type().(*types.Pointer); ptr {
+				return true
+			}
+			if unexportedState(f.Type(), seen) {
+				return true
+			}
+			continue
+		}
+		if !f.Exported() {
+			return true
+		}
+	}
+	return false
+}
 func promotedFields(t types.Type) []promotedField {
 	st := t.Underlying().(*types.Struct)
 	var candidates []promotedField

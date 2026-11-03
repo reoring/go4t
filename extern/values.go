@@ -76,27 +76,47 @@ func (g *shimGenerator) values(decl *strings.Builder, set *mirrorSet, pkg *Packa
 	}
 }
 
+// constructors emits new<Type>() for every struct the owning package declares:
+// a fresh pointer box for handles, the Go zero value converted to a record
+// otherwise. Records are built field-complete in go4t, so the zero value is the
+// base for `newListOptions(){fieldSelector: …}` updates.
 func (g *shimGenerator) constructors(decl *strings.Builder, set *mirrorSet, options BindOptions, candidates *bindingCandidates) {
-	names := make([]string, 0, len(set.handles))
-	for name := range set.handles {
+	type target struct {
+		named  *types.Named
+		mirror *foreignMirror
+	}
+	targets := map[string]target{}
+	for name, n := range set.handles {
+		if _, ok := n.Underlying().(*types.Struct); ok {
+			targets[name] = target{named: n}
+		}
+	}
+	for name, m := range set.records {
+		if n, ok := m.typ.(*types.Named); ok {
+			targets[name] = target{named: n, mirror: m}
+		}
+	}
+	names := make([]string, 0, len(targets))
+	for name := range targets {
 		names = append(names, name)
 	}
 	sort.Strings(names)
 	for _, name := range names {
-		n := set.handles[name]
-		if _, ok := n.Underlying().(*types.Struct); !ok {
-			continue
-		}
-		goName := "New" + n.Obj().Name()
+		t := targets[name]
+		goName := "New" + t.named.Obj().Name()
 		binding, reason := bindingName(goName, options.Prefix)
 		if reason != "" {
 			fmt.Fprintf(decl, "// skipped: %s (%s)\n", goName, reason)
 			continue
 		}
 		candidates.add(binding, goName, bindingValue, func() {
-			shimName := "New_" + n.Obj().Name()
+			shimName := "New_" + t.named.Obj().Name()
 			fmt.Fprintf(decl, "extern func %s() %s = %q.%s\n", binding, name, g.path, shimName)
-			fmt.Fprintf(&g.body, "func %s() any { return new(%s) }\n", shimName, g.goType(n))
+			if t.mirror == nil {
+				fmt.Fprintf(&g.body, "func %s() any { return new(%s) }\n", shimName, g.goType(t.named))
+				return
+			}
+			fmt.Fprintf(&g.body, "func %s() any { var zero %s; return %sFrom(zero) }\n", shimName, g.goType(t.named), g.conversion(t.mirror))
 		})
 	}
 }

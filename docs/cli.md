@@ -19,7 +19,9 @@ Only `check` verifies proofs; `build`, `run`, `test` and `eval` omit laws/proofs
 from generated code but still require their source to parse and type-check.
 
 Exit codes: ordinary IO errors 1, uncaught action panic 2. Recover inside the
-program with `io.tryIO(action) : IO[Result[io.IoError, A]]`.
+program with `io.tryIO(action) : IO[Result[io.IoError, A]]`. With
+`GO4T_TRACE=1` an uncaught panic also prints the Go stack, which locates the
+shim or binding that raised it.
 
 ## Documentation tests
 
