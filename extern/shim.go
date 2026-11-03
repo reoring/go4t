@@ -589,6 +589,7 @@ func BindWithShim(pkg *Package, options BindOptions, shimPath, shimPackage strin
 	g.accessors(&decl, set, options, &candidates)
 	g.upcasts(&decl, set, pkg, options, &candidates)
 	candidates.emit(&decl)
+	g.errorClassifier(pkg)
 	name := options.Package
 	if name == "" {
 		name = "main"

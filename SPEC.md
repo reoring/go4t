@@ -1442,6 +1442,21 @@ The shim receives the executing IO's context, so cancellation and deadlines
 reach Go. An error-only result becomes `IO[Unit]`; no result becomes `Unit`.
 Errors are classified `*rt.Failure`, not nested `Result` values.
 
+The **only semantic inference from Go function names** is error classification:
+when a bound package exports nongeneric `func IsXxx(error) bool` predicates with a
+nonempty `Xxx`, its shim's `init()` registers one `rt.ErrorClassifier`. The first
+matching predicate wins in this order: `IsNotFound` → `NotFound`,
+`IsAlreadyExists` → `AlreadyExists`, `IsForbidden`, `IsUnauthorized` →
+`PermissionDenied`, `IsTimeout`, `IsServerTimeout` → `Timeout`, then all remaining
+`IsXxx` predicates alphabetically → `Failure`. Messages remain `err.Error()`,
+except those remaining predicates prefix `Xxx: `. Packages without matching
+predicates emit no classifier. `rt.ClassifyError` preserves nil and existing
+`*rt.Failure` values (including wrapped failures), then tries classifiers in
+registration order before its OS/context/network defaults. Classifiers register
+during package initialization, before IO executes; importing the generated shim
+directly or transitively enables them, but importing only the original Go package
+does not. No other binding semantics are inferred from names.
+
 Any call that receives a handle also forces `IO[R]`, whatever it returns: as a
 method receiver (`strings.Builder.Len` is `IO[Int]`, `ServeMux.Handle` is
 `IO[Unit]`), as a parameter, directly or inside a `List`/`Map`/`Option`

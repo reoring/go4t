@@ -13,8 +13,8 @@ import (
 	"go4t/types"
 )
 
-// goImportBinder keeps generated bindings in memory. Only build/run supply an
-// output directory; their Go companions live beneath that build output.
+// goImportBinder reuses content-addressed bindings across compilations. Only
+// build/run supply an output directory for their generated Go companions.
 type goImportBinder struct {
 	loader    extern.Loader
 	outputDir string
@@ -28,9 +28,15 @@ func newGoImportBinder(directory string) *goImportBinder {
 }
 
 func (b *goImportBinder) Bind(importPath string) (*ast.Module, error) {
-	pkg, err := b.loader.Load(importPath)
-	if err != nil {
-		return nil, err
+	var pkg *extern.Package
+	var err error
+	// Loading one package records export files for all its dependencies. A hit
+	// for those dependencies needs neither another go list nor Go type loading.
+	if b.loader.ExportFile(importPath) == "" {
+		pkg, err = b.loader.Load(importPath)
+		if err != nil {
+			return nil, err
+		}
 	}
 	name := goIdentifier(path.Base(importPath))
 	lexer.VisitFixedTokens(func(kind lexer.Kind, text string) {
@@ -54,15 +60,43 @@ func (b *goImportBinder) Bind(importPath string) (*ast.Module, error) {
 			return nil, err
 		}
 	}
-	// Use the same declarations for checking and building; a placeholder shim
-	// path is sufficient when the generated Go source will not be executed.
-	source, shim, err := extern.BindWithShim(pkg, options, shimPath, name)
-	if err != nil {
-		return nil, err
+	entry, cacheErr := bindingCacheEntry(&b.loader, importPath, options, shimPath, name)
+	var file *ast.File
+	var shim []byte
+	if cacheErr != nil {
+		traceBindingCache(importPath, "unavailable", cacheErr)
+	} else if entry == "" {
+		traceBindingCache(importPath, "disabled", nil)
+	} else {
+		file, shim, cacheErr = readBindingCache(entry)
+		if cacheErr == nil {
+			traceBindingCache(importPath, "hit", nil)
+		} else {
+			traceBindingCache(importPath, "miss", cacheErr)
+		}
 	}
-	file, err := parser.Parse(source)
-	if err != nil {
-		return nil, fmt.Errorf("parse Go bindings for %q: %w", importPath, err)
+	if file == nil {
+		if pkg == nil {
+			pkg, err = b.loader.Load(importPath)
+			if err != nil {
+				return nil, err
+			}
+		}
+		// Checking uses the same declarations, with a placeholder shim path.
+		var source string
+		source, shim, err = extern.BindWithShim(pkg, options, shimPath, name)
+		if err != nil {
+			return nil, err
+		}
+		file, err = parser.Parse(source)
+		if err != nil {
+			return nil, fmt.Errorf("parse Go bindings for %q: %w", importPath, err)
+		}
+		if entry != "" {
+			if err := writeBindingCache(entry, source, shim); err != nil {
+				traceBindingCache(importPath, "write failed", err)
+			}
+		}
 	}
 	file.Name = "go:" + importPath + "/bindings.gt"
 	if shimDir != "" {

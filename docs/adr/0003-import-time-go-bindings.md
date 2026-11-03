@@ -167,7 +167,12 @@ typed clientset(同日): `k8s.io/client-go/kubernetes` 414 / 1(struct キーの 
 
 ## Follow-up
 
-- [ ] クロスビルドキャッシュ(A3)。net/http で推移的に 29 パッケージ・8 秒。キー: Go version + go4t build + export data。
+- [x] クロスビルドキャッシュ(A3、2026-11-04)。キーは go4t binary identity + Go version + export data SHA-256 +
+      bind options(Prelude 集合を含む) + shim import path。`GO4T_CACHE` で保存先変更、`off` で無効化。
+      `time /tmp/go4t check examples/node-drain-typed` の実測: cold 44.17 秒、warm 1.81 秒、
+      利用者の `.gt` を touch 後 1.88 秒(どちらも 240 hit / 0 miss)。warm 後は 240 エントリ・45,907,499 bytes。
+      変更前 42.37 秒、`GO4T_CACHE=off` 42.06 秒。コメントだけ変えて binary を再ビルドすると
+      240 miss / 0 hit、42.16 秒。推移依存の hit は既に取得した export file を使い、`go list` を繰り返さない。
 - [ ] 同一 shim 内で同じ非修飾名を持つ別パッケージの record が `rt.ForeignRecord` のキーで衝突する(既存の制限)。
 - [ ] `go4t get` 自動 bind / `go4t bind --module` / `examples/sql-service/go4tbind/` の cutover。
 - [x] handle を受け取る呼び出しは全部 `IO`(SPEC §8): method receiver、引数(`List`/`Map`/`Option` の中も)、フィールド getter。

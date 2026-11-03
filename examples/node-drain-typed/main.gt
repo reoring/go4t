@@ -7,6 +7,8 @@ import "std/result"
 import "std/string"
 import core "go:k8s.io/api/core/v1"
 import policy "go:k8s.io/api/policy/v1"
+// Named import registers the error shim; go4t has no blank imports.
+import apierrors "go:k8s.io/apimachinery/pkg/api/errors"
 import meta "go:k8s.io/apimachinery/pkg/apis/meta/v1"
 import kube "go:k8s.io/client-go/kubernetes"
 import corev1 "go:k8s.io/client-go/kubernetes/typed/core/v1"
@@ -34,7 +36,8 @@ func getNode(nodes corev1.NodeInterface, name String) IO[Option[core.Node]] {
     fetched <- io.tryIO(corev1.nodeInterfaceGet(nodes, name, meta.newGetOptions()))
     match fetched {
       Ok(node) => ioPure(node)
-      Err(e) => if string.contains(io.ioErrorMessage(e), "not found") { ioPure(None) } else { io.ioRaise(e) }
+      Err(io.NotFound(_)) => ioPure(None)
+      Err(e) => io.ioRaise(e)
     }
   }
 }
@@ -77,7 +80,7 @@ func evict(pods corev1.PodInterface, name String) IO[Option[String]] {
       Ok(_) => ioPure(None)
       | Err(e) => {
         let message = io.ioErrorMessage(e)
-        if string.contains(message, "Too many requests") || string.contains(message, "disruption budget") {
+        if string.startsWith(message, "TooManyRequests:") {
           ioPure(Some(message))
         } else {
           io.ioRaise(e)

@@ -4,6 +4,7 @@ package extern
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"go/importer"
@@ -51,6 +52,33 @@ type Loader struct {
 	packages map[string]*Package
 	exports  map[string]string
 	importer types.Importer
+}
+
+// ExportFile returns the export-data file recorded by Load for path (including
+// its dependencies), or an empty string if no export data has been loaded.
+func (l *Loader) ExportFile(path string) string {
+	return l.exports[path]
+}
+
+// ExportHash hashes the actual export-data bytes, not their path or timestamp.
+// Call Load first so module replacements and build constraints are resolved.
+func (l *Loader) ExportHash(path string) ([sha256.Size]byte, error) {
+	var sum [sha256.Size]byte
+	file := l.ExportFile(path)
+	if file == "" {
+		return sum, fmt.Errorf("no export data for %q", path)
+	}
+	input, err := os.Open(file)
+	if err != nil {
+		return sum, err
+	}
+	defer input.Close()
+	hash := sha256.New()
+	if _, err := io.Copy(hash, input); err != nil {
+		return sum, err
+	}
+	hash.Sum(sum[:0])
+	return sum, nil
 }
 
 // Load resolves a package using the active Go toolchain, module replacements,

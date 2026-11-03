@@ -48,6 +48,18 @@ func (f *Failure) Is(target error) bool {
 	}
 }
 
+// ErrorClassifier recognizes a foreign error without changing unrecognized errors.
+// The boolean reports whether its kind and message should be used.
+type ErrorClassifier func(error) (Kind, string, bool)
+
+var errorClassifiers []ErrorClassifier
+
+// RegisterErrorClassifier appends a classifier in precedence order. Generated
+// shims register during package initialization, before any IO is executed.
+func RegisterErrorClassifier(classifier ErrorClassifier) {
+	errorClassifiers = append(errorClassifiers, classifier)
+}
+
 // ClassifyError converts foreign errors at the IO boundary. Success and already
 // classified failures pass through unchanged, including wrapped typed failures.
 func ClassifyError(err error) error {
@@ -60,6 +72,11 @@ func ClassifyError(err error) error {
 	var failure *Failure
 	if errors.As(err, &failure) {
 		return failure
+	}
+	for _, classify := range errorClassifiers {
+		if kind, message, ok := classify(err); ok {
+			return &Failure{Kind: kind, Message: message}
+		}
 	}
 	kind, message := FailureKind, err.Error()
 	var network net.Error

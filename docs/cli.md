@@ -23,6 +23,17 @@ program with `io.tryIO(action) : IO[Result[io.IoError, A]]`. With
 `GO4T_TRACE=1` an uncaught panic also prints the Go stack, which locates the
 shim or binding that raised it.
 
+`go:` imports cache generated bindings and Go shims under
+`os.UserCacheDir()/go4t/bind/<key>/` (`bindings.gt` and `shim.go`). Set
+`GO4T_CACHE=/path/to/cache` to use `/path/to/cache/bind/`, or `GO4T_CACHE=off`
+to regenerate on every invocation. Keys include the go4t binary identity, Go
+version, package export-data content, binding options, and shim import path;
+editing or touching a user `.gt` file does not invalidate its Go bindings.
+Checking and building can have separate entries because their shim import paths
+differ. Missing or unparsable entries are regenerated, and cache write failures
+do not prevent compilation. `GO4T_TRACE=1` reports per-package cache hits,
+misses, disabled caching, and cache errors on stderr.
+
 ## Documentation tests
 
 `go test ./docs ./std` extracts every `go4t` fence from SPEC, tutorial, stdlib,

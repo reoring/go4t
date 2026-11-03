@@ -32,16 +32,17 @@ uncordons and the next run is `Noop`.
 | Effectful code | `controller.go` 122 lines + fake `Cluster` interface | `main.gt` 130 lines against the real clientset |
 | Projection to `Observed` | Go, untestable by laws | `project`, `podKind`, `nodeState`: pure, 5 laws |
 | Decision laws | 10 | the same 10, unchanged, plus 5 projection laws |
-| `go4t check` | <1 s | 47 s every run (bindings regenerated in memory) |
-| `go4t run` cold / warm | — | 150 s / 85 s (27 Go packages bound, 236 shim files, 66 MB) |
+| `go4t check` | <1 s | 44 s on an empty binding cache, 1.8 s on hits (240 bound packages) |
+| `go4t run` cold / warm | — | 150 s / 85 s before the cache; Go compilation of the bound packages dominates |
 
 The projection laws are the new territory: a DaemonSet owner anywhere in
 `ownerReferences` yields `DaemonSet` (induction over the owner list), the
 mirror annotation wins over ownership (symbolic `Map` from ADR 0002), and
 `creationTimestamp` (a `dyn.Value`) never influences the projection (ADR 0004).
 
-The timings put the generation cache first on the roadmap: a 47 s `check`
-is outside the inner loop.
+Before the per-package binding cache every `check` regenerated all bindings
+(47 s); with it, editing your own `.gt` files is a 1.8 s `check`. Cache
+location and switches are in [docs/cli.md](../../docs/cli.md).
 
 ## Binding gaps found by running
 
@@ -51,6 +52,11 @@ is outside the inner loop.
 - `Eviction` needs the pod namespace; the API server reported
   `an empty namespace may not be set during creation` and the `Pod`
   projection gained `namespace`.
-- `StatusError` 404/429 cross as `IoError.Failure` with a message; the port
-  matches message text. A `rt.ClassifyError` hook for `apierrors.APIStatus`
-  would restore `NotFound`.
+- Closed: `StatusError` 404/429 are classified by the generated `api/errors`
+  shim's `init()`, which registers its exported `IsXxx(error) bool` predicates.
+  `IsNotFound` becomes `io.NotFound`; `IsTooManyRequests` remains `io.Failure`
+  with the stable `TooManyRequests: ` prefix, so the port no longer guesses
+  from server message substrings. The typed clients import the original Go
+  errors package, not its generated shim, so `main.gt` explicitly imports it
+  as `apierrors`. This named import is sufficient even without a qualified
+  call; go4t does not support blank imports (SPEC §2.2).
