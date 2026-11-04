@@ -150,3 +150,35 @@ full-size runtime comparisons produce matching go4t and Go outputs. The recorded
 go4t wall-time ratios range from 1.75x to 31.78x; persistent collections, boxing,
 and allocation dominate the measured overhead. `bench/PERF.md` records the
 workloads, shared-VM caveats, commands, and CPU profile.
+
+## Scale: the self-hosted compiler
+
+On 2026-11-04 we asked whether anything larger than about 300 lines had
+been shown to work in the current language. `selfhost/`, a go4t→Go compiler
+written in go4t, last reached its fixed point at baseline `6b189c0`. At HEAD
+it failed to parse (`parser.gt:757: expected expression, found "alias"`),
+and its prelude path no longer existed.
+
+The same-day catch-up took one deep-worker agent about 48 minutes.
+Selfhost grew from 4,426 to 5,447 lines, adding `modules.gt`,
+`derive_higher.gt`, and `derive_json.gt`. It now loads `std/` modules and
+local `go4t.mod` roots and accepts deriving
+(`Debug`/`Show`/`Functor`/`Foldable`/`Traversable`/`JSON`), multiple
+constraints, pipelines and sections, `Float`, aliases and common fields,
+list patterns, local recursion groups, and implicit IO tail lift (ADR 0005).
+It parses `law` and `proof`; `import "go:…"` is rejected with
+`selfhost does not bind Go packages`.
+
+`bash selfhost/bootstrap.sh` took 29.5 s on the primary's run: 34 examples
+produced byte-identical stdout to `cmd/go4t`; two nondeterministic examples
+(`concurrency`, `sales-report`) were compared on exit status and line count.
+There were nine explicit skips for `go:` imports, network listeners,
+cluster, and Go-module dependencies. The result was
+`FIXED POINT: stage2 == stage3`.
+
+A 5.4k-line program with a lexer, parser, type checker with classes and
+deriving, and code generator compiles and reproduces itself under the
+current language; the remaining scale limits are the ones measured in
+`bench/PERF.md` (runtime 1.75x–31.78x of Go on data-heavy kernels) and the
+type-system expressiveness items in SPEC §9, not the ability to write large
+programs.
