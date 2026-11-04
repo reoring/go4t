@@ -779,6 +779,123 @@ bits. Sampling can miss counterexamples, does not certify termination, and
 cannot be used as a rewrite lemma. An entirely law-eligible equation must be
 proved instead; `sample` cannot replace a difficult proof.
 
+## 14. Mutable state in IO: Ref
+
+Keep a counter in an opaque `Ref[Int]`. Allocation, reading and modification are
+deferred IO; `modify` runs its pure callback atomically under the cell's lock.
+
+```go4t
+package main
+import "std/ref"
+func main() IO[Unit] {
+  do {
+    counter <- ref.new(0)
+    ref.modify(counter, func(n) => n + 1)
+    ref.modify(counter, func(n) => n + 1)
+    count <- ref.get(counter)
+    println("count=${count}")
+  }
+}
+```
+
+## 15. Throughput maps: mutmap and freeze
+
+For update-heavy work, count in an IO-only `MutMap`, then `freeze` an independent
+persistent snapshot. Use `std/map` to read that snapshot in pure code. Here the
+top word is the first entry after sorting by descending count; ties keep key order.
+
+```go4t
+package main
+import "std/mutmap"
+import maps "std/map"
+import "std/list"
+import "std/string"
+func countWord(counts MutMap[String, Int], word String) IO[Unit] {
+  do {
+    previous <- mutmap.lookup(counts, word)
+    let n = match previous { None => 0; Some(value) => value }
+    mutmap.insert(counts, word, n + 1)
+  }
+}
+func main() IO[Unit] {
+  do {
+    counts <- mutmap.new()
+    list.forEach(string.words("go types go laws go types"), func(word) => countWord(counts, word))
+    snapshot <- mutmap.freeze(counts)
+    let ranked = list.sortBy(maps.mapToList(snapshot),
+      func((_, a), (_, b)) => compare(b, a))
+    println("top=${debug(head(ranked))}")
+  }
+}
+```
+
+Later mutations of `counts` cannot change `snapshot`. The lookup/insert pair is
+not a transaction; this example updates sequentially.
+
+## 16. Conditional effects: when and unless
+
+`if` always needs an `else`. Import the prelude explicitly for `when` and
+`unless`: they select a `Monad[Unit]` action, using a no-op action otherwise.
+
+```go4t
+package main
+import "std/prelude"
+func main() IO[Unit] {
+  let verbose = true
+  let quiet = false
+  do {
+    prelude.when(verbose, println("details enabled"))
+    prelude.unless(quiet, println("not quiet"))
+    prelude.when(false, println("not printed"))
+    unit()
+  }
+}
+```
+
+Only the selected IO effects run. Arguments are still strict: these combinators
+do not defer pure work performed while constructing the action.
+
+## 17. Laws you cannot prove: sample(N)
+
+A regex-based parser depends on untrusted externs, so keep its equation as a
+sampled law rather than claiming a proof. Save this example as `parser.gt`.
+The second law repeats §13's structural example with `induction xs` replacing
+the manual `Nil` / `Cons` arms and self-rewrite.
+
+```go4t
+package main
+import "std/regex"
+func parseWord(text String) Option[String] {
+  match regex.regexCaptures("^word:([a-z]+)$", text) {
+    Some([word]) => Some(word)
+    _ => None
+  }
+}
+law parsePrefixedWord(text String) {
+  parseWord("word:" + text) ==
+    (if regex.regexMatch("^[a-z]+$", text) { Some(text) } else { None })
+}
+proof parsePrefixedWord(text) { sample(500) }
+func len(xs List[Int]) Int {
+  match xs { Nil => 0; Cons(_, tail) => 1 + len(tail) }
+}
+func app(xs List[Int], ys List[Int]) List[Int] {
+  match xs { Nil => ys; Cons(x, tail) => Cons(x, app(tail, ys)) }
+}
+law lenApp(xs List[Int], ys List[Int]) {
+  len(app(xs, ys)) == len(xs) + len(ys)
+}
+proof lenApp(xs, ys) { induction xs }
+func main() IO[Unit] { println(debug(parseWord("word:go"))) }
+```
+
+`go4t check parser.gt` checks the structural proof and emits the notice
+`tested by go4t test (sample 500), not proved` for `parsePrefixedWord`.
+`go4t test parser.gt` runs its 500 samples; `check` does not run them.
+Sampled laws can miss counterexamples and cannot be rewrite lemmas.
+In contrast, `induction xs` supplies all constructor arms and tail hypotheses,
+then closes each arm with `refl`; `lenApp` is proved, not sampled.
+
 ## Next steps
 
 - [README examples](../README.md#examples) has a command for every example directory,

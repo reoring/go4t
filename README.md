@@ -117,11 +117,13 @@ See [What go4t is not](#what-go4t-is-not).
 - Explicit effects: `IO[A]`, `do`-style blocks, typed `IoError` recovery,
   fibers (`fork`/`await`/race/timeout) with cancellation.
 - `std`: strings, numbers, collections, JSON, HTTP client/server, regex,
-  lazy values, `State`, concurrency, file/process I/O.
+  lazy values, `State`, IO-only `Ref`/`MutMap`/channels, concurrency, file/process I/O.
 - Go interop both ways: `import "go:net/http"` binds any Go package at build
   time (functions, methods, fields, tuples, upcasts; nothing committed);
   `go4t build --emit-go` exports go4t functions, records and sums as natural Go
   types.
+- Generic Go functions use call-site monomorphisation; generic receiver methods and instantiated generic named types are still skipped.
+- Extern-dependent laws can use `sample(N)`: `go4t test` tests them, without proving them or making them rewrite lemmas.
 - Tooling: `check`, `build`, `run`, `test`, `eval`, `fmt`, LSP server,
   VS Code extension, source-located diagnostics with `^~~~` spans.
 - Go-flavoured syntax: `func`, `package`, `import`, braces, `|>` pipelines,
@@ -139,7 +141,7 @@ func main() IO[Unit] { ioPure(unit()) }
 ```
 
 Laws use definitional equality over first-order data; proofs combine `refl`,
-constructor `match`, guard `if` and `rewrite` with structural induction. They
+constructor `match`, guard `if`, `rewrite` and `induction`. Proved laws
 generate no runtime code. What laws can and cannot express is listed in
 [docs/laws.md](docs/laws.md); worked examples are in
 [tutorial §13](docs/tutorial.md#13-laws).
@@ -202,7 +204,7 @@ calling Go from go4t (`go4t bind`) and project/dependency layout are in
 
 | Document | Contents |
 | --- | --- |
-| [Tutorial for Go developers](docs/tutorial.md) | Thirteen short lessons; every snippet type-checked in CI. |
+| [Tutorial for Go developers](docs/tutorial.md) | Seventeen short lessons; every go4t snippet type-checked in CI. |
 | [Language specification](SPEC.md) | Grammar, type and effect rules, deriving, exported Go API, boundary tables. |
 | [Laws](docs/laws.md) | What laws cover, what they do not, how proofs are written. |
 | [Go interop](docs/go-interop.md) | Embedding rules, `go4t bind`, projects and dependencies. |

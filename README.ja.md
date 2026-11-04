@@ -112,9 +112,11 @@ I/O はどちらの言語でも書けますが、法則の対象は純粋なコ�
 - 明示的な作用:`IO[A]`、`do` 記法風のブロック、`IoError` による型付きのエラー回復、
   キャンセル対応の fiber(`fork`/`await`/race/timeout)
 - `std`:文字列、数値、コレクション、JSON、HTTP クライアント/サーバ、正規表現、
-  遅延評価される値、`State`、並行処理、ファイル/プロセス I/O
+  遅延評価される値、`State`、IO 専用の `Ref`/`MutMap`/チャネル、並行処理、ファイル/プロセス I/O
 - 双方向の Go 連携:`import "go:net/http"` が Go パッケージの型付き binding を import 時に生成、
   `go4t build --emit-go` が go4t の関数・レコード・直和型を自然な Go の型として export
+- Go のジェネリック関数は呼び出し箇所で単相化。ジェネリックな receiver のメソッドと、型引数を適用したジェネリックな名前付き型は引き続き対象外
+- extern に依存する法則は `sample(N)` で `go4t test` の対象にできるが、証明にはならず、書き換え補題にも使えない
 - ツール:`check`、`build`、`run`、`test`、`eval`、`fmt`、LSP サーバ、VS Code 拡張、
   `^~~~` スパン付きのソース位置診断
 - Go 風の構文:`func`、`package`、`import`、波括弧、`|>` パイプライン、`_` 呼び出しプレースホルダ
@@ -131,7 +133,7 @@ func main() IO[Unit] { ioPure(unit()) }
 ```
 
 等式は関数を含まないデータ上の定義的等価です。`refl`、コンストラクタの `match`、
-条件の `if`、構造的帰納法を含む `rewrite` を組み合わせて証明します。法則の実行時コードは生成されません。
+条件の `if`、`rewrite`、`induction` を組み合わせて証明します。証明済みの法則の実行時コードは生成されません。
 扱える範囲と限界は [docs/laws.ja.md](docs/laws.ja.md)、具体例は
 [チュートリアル §13](docs/tutorial.md#13-laws) にあります。
 
@@ -189,7 +191,7 @@ go4t build --emit-go generated hello/main.gt  # Go ソースのみ出力
 
 | ドキュメント | 内容 |
 | --- | --- |
-| [Go 開発者向けチュートリアル](docs/tutorial.md) | 13 の短い章。全スニペットを CI で型検査(英語) |
+| [Go 開発者向けチュートリアル](docs/tutorial.md) | 17 の短い章。すべての go4t スニペットを CI で型検査(英語) |
 | [言語仕様](SPEC.md) | 文法、型と作用の規則、deriving、export される Go API、境界表(英語) |
 | [法則](docs/laws.ja.md) | 扱えるもの、扱えないもの、証明の書き方 |
 | [Go 連携](docs/go-interop.ja.md) | 埋め込みの規則、`go4t bind`、プロジェクトと依存 |

@@ -1840,12 +1840,13 @@ with `go generate main.go`.
   Mutable references are available as opaque `Ref[A]` cells through `std/ref`;
   allocation, reads and writes require IO.
 - No expression type ascription (use typed lets/parameters); field access needs a
-  known receiver type. `if` always needs `else`; bindings require irrefutable patterns.
+  known receiver type. `if` always needs `else`; use qualified `prelude.when` /
+  `prelude.unless` for conditional effects. Bindings require irrefutable patterns.
 - Rank-1 polymorphism only; no inferred polymorphic recursion, local type parameter
   declarations, multi-parameter classes, arbitrary specialized/overlapping instances,
   partial aliases, automatic currying or implicit numeric coercion.
-- Deriving Show requires all constructors to be nullary; payload-bearing types
-  need handwritten display instances. Higher-kinded deriving follows only supported
+- Deriving Show supports enums and single-field newtypes; other payload-bearing
+  types need handwritten display instances. Higher-kinded deriving follows only supported
   last-parameter positions; deriving Traversable/Ord does not supply Functor/Eq for you.
 - Pair Show/Debug/Eq/Ord instances do not imply arbitrary tuple-arity instances;
   JSON explicitly supports every tuple arity. Unit lacks Show/Ord. Fiber lacks
@@ -1854,10 +1855,11 @@ with `go generate main.go`.
   unsupported/non-finite serialization is not silently repaired.
 - Trusted externs can break purity. Foreign ABI errors are generation-time, not
   `check` errors. Building and running require a Go toolchain. Standalone programs
-  use the embedded runtime.
+  use the embedded runtime. Generic Go functions bind by call-site monomorphisation;
+  generic receiver methods and instantiated generic named types are still skipped.
 - Native scalars/specialization are selective, not universal unboxing. Mutual or
-  non-tail recursion and recursive library folds/maps can still consume stack;
-  large allocations remain host-resource bounded. Lazy does not memoise.
+  non-tail recursion can still consume stack; large allocations remain
+  host-resource bounded. Lazy does not memoise.
   Runtime costs are workload-dependent. `bench/PERF.md` records go4t-versus-Go
   measurements for million-element collections, a million-step Float simulation,
   and a depth-20 tree.
@@ -1867,7 +1869,11 @@ with `go generate main.go`.
 - Laws do not infer comparison transitivity or ordered arithmetic under Int
   wraparound; variable divisors are tainted. There is no `requires` clause,
   higher-order quantification or Float law support. Encode guards as Bool
-  equations and split them with `if`. `std/map` remains tainted. Accumulator-style
+  equations and split them with `if`. `std/map` is modelled symbolically and eligible;
+  `std/mutmap`, `std/ref`, channels and other handles require IO for observations
+  and are never law-eligible. Extern-dependent laws may use `sample(N)`, run by
+  `go4t test`, reported as tested rather than proved, and unusable as rewrite lemmas.
+  `induction x` supplies constructor arms and induction hypotheses. Accumulator-style
   functions (including the library's length via a fold) generally need a
   generalized lemma over the accumulator, with the structurally decreasing
   argument before any changing accumulator arguments; a simple length induction
