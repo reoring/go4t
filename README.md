@@ -2,16 +2,18 @@
 
 [日本語](README.ja.md)
 
-go4t is a small, statically typed functional language that compiles to ordinary
-Go. It exists for one job: **writing the decision core of a Go program** — the
-part that turns observed state into a next step — in a form where every state
-has a name, every case is checked, nothing performs I/O, and **the invariants
-of the decision are stated as laws and verified for every input** by
-`go4t check`.
+go4t is a small, statically typed pure functional language that compiles to
+ordinary Go. Its distinguishing feature is **checked equational laws over
+pure code**: state invariants as equations and have `go4t check` verify them
+for every input. Algebraic data types and exhaustive pattern matching make
+states explicit; effects stay in `IO`.
 
-Go stays the shell. go4t is the core. You do not rewrite your service in go4t;
-you move the `if ok { … } else if … { return … }` ladders into it, state what
-must hold about them, and call the result from Go as a typed function.
+go4t binds Go packages at import time (`import "go:net/http"`) and ships
+IO-only mutable references (`Ref`), channels, fibers, and file streaming.
+It has been used for an end-to-end Kubernetes controller against a real
+cluster, ordinary CLI and HTTP programs, and a 5.4k-line self-hosting compiler.
+You can write a whole program in go4t or embed a pure component in Go, as in
+the decision function below.
 
 ```go4t
 package decide
@@ -56,12 +58,12 @@ for the handful of samples a table test happens to list.
 
 ## Why not just Go?
 
-Go is a good shell language and a weak core language. In a reconciler, a
-workflow engine, a policy evaluator or a pricing rule, the hard part is a
-decision over many partially-known facts. Go expresses those facts as
-`(value, ok)` pairs, sentinel values, nullable pointers and boolean flags; the
-decision becomes a ladder of early returns whose coverage only tests can
-establish.
+In a reconciler, a workflow engine, a policy evaluator or a pricing rule, the
+hard part is often a decision over many partially-known facts. Go expresses
+those facts as `(value, ok)` pairs, sentinel values, nullable pointers and
+boolean flags; the decision becomes a ladder of early returns whose coverage
+only tests can establish. go4t makes those states and cases explicit and lets
+you check equations over the pure code.
 
 | Need in a decision core | go4t | Go |
 | --- | --- | --- |
@@ -73,8 +75,10 @@ establish.
 | Generic operations over containers | type classes, higher-kinded (`Functor`, `Monad`, `Monoid`) | per-type copies |
 | "This invariant holds for every input" | `law` + `proof`, checked at compile time for all values | table tests over chosen samples, or property-based testing (`rapid`) over random ones |
 
-Everything compiles to readable Go, runs at Go speed, and uses `go.mod` for
-dependencies. Any Go package can be called through generated typed bindings.
+Everything compiles to readable Go and uses `go.mod` for dependencies;
+Go packages are called through typed bindings generated at import time.
+Measured runtime on data-heavy kernels is 1.75x–31.78x of Go's wall time
+([bench/PERF.md](bench/PERF.md)); reducing that cost is the current focus.
 
 The last row deserves a caveat: on the same decision core, property-based
 testing with `rapid` caught every mutation we tried; what laws add is a proof
@@ -84,9 +88,10 @@ law rounds are recorded in [docs/evaluation.md](docs/evaluation.md).
 
 ## Use cases
 
-go4t fits **decisions with many input combinations where the order of checks
-matters**. Go gathers state into `Observed`, go4t's `decide` returns the next
-step, Go performs it.
+go4t supports whole CLI, HTTP and controller programs, with effects in `IO`
+and laws over their pure parts. **Decisions with many input combinations
+where the order of checks matters** are a particularly useful place for laws.
+The examples below show that pattern, including embedding a go4t `decide` in Go.
 
 | Use case | What the decision core does | What laws can pin | Example |
 | --- | --- | --- | --- |
@@ -97,8 +102,9 @@ step, Go performs it.
 | Policy evaluation and pricing rules | Decide from partially known facts (deadlines, TTLs, flags) | The `>=` / `>` boundary on a deadline; no invalid-input case dropped | `freshness` at the top of this README |
 | Safe refactoring | Rewrite an existing `decide` structurally | `decide(o) == decideV2(o)` proved for every input | `laws/testdata/refactor_v2.gt` |
 
-Poor fits: layers that are mostly I/O, caches and clients; decisions that fit
-in two `if`s. See [What go4t is not](#what-go4t-is-not).
+For decisions that fit in two `if`s, plain Go may be simpler; I/O code can
+be written in either language, but laws apply only to pure code.
+See [What go4t is not](#what-go4t-is-not).
 
 ## Language at a glance
 
@@ -181,11 +187,11 @@ calling Go from go4t (`go4t bind`) and project/dependency layout are in
 
 ## What go4t is not
 
-- **Not a Go replacement.** Services, caches, clients and anything that is
-  mostly I/O can be written in go4t against `go:` imports, but gain little from
-  it; the decision core is where exhaustiveness and laws pay.
-- **Not an effect-system research language.** There is one effect type, `IO`,
-  and no mutable references in the language.
+- **Not a requirement to replace Go.** Write a whole program in go4t or keep
+  existing Go infrastructure and embed pure components; laws do not prove
+  the behavior of I/O.
+- **Not an effect-system research language.** There is one effect type, `IO`;
+  mutable references, channels and other shared-state operations are IO-only.
 - **Not a proof assistant.** Laws are an equational checker over first-order
   data with a fixed tactic set; see [docs/laws.md](docs/laws.md).
 - **Not 1.0.** The grammar, std and ABI are stable enough for the ports above

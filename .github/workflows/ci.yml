@@ -25,6 +25,12 @@ jobs:
           set -euo pipefail
           for source in examples/*/main.gt; do
             directory="${source%/*}"
+            if [[ -f "$directory/skip.txt" ]]; then
+              reason=
+              IFS= read -r reason < "$directory/skip.txt" || true
+              printf 'skip %s: %s\n' "${directory##*/}" "$reason"
+              continue
+            fi
             input=/dev/null
             if [[ -f "$directory/input.txt" ]]; then
               input="$directory/input.txt"
@@ -46,6 +52,8 @@ jobs:
               go run ./cmd/go4t run "${sources[@]}" -- "${args[@]}" < "$input"
             fi
           done
+      - name: Bootstrap self-hosted compiler
+        run: bash selfhost/bootstrap.sh
   bench:
     runs-on: ubuntu-latest
     timeout-minutes: 15
