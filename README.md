@@ -77,8 +77,12 @@ you check equations over the pure code.
 
 Everything compiles to readable Go and uses `go.mod` for dependencies;
 Go packages are called through typed bindings generated at import time.
-Measured runtime on data-heavy kernels is 1.75x–31.78x of Go's wall time
-([bench/PERF.md](bench/PERF.md)); reducing that cost is the current focus.
+Runtime cost is measured, not guessed ([bench/PERF.md](bench/PERF.md)):
+kernels whose values stay unboxed run at 1.6–4x of Go; updating a persistent
+`Map` while folding costs 19–24x (the price of persistence, as with other
+persistent collections); the IO-only `std/mutmap` alternative is at 5x after
+direct-style IO lowering. Decision cores and controllers read their maps and
+pay none of the update cost. Further work waits for a workload that demands it.
 
 The last row deserves a caveat: on the same decision core, property-based
 testing with `rapid` caught every mutation we tried; what laws add is a proof
@@ -96,6 +100,7 @@ The examples below show that pattern, including embedding a go4t `decide` in Go.
 | Use case | What the decision core does | What laws can pin | Example |
 | --- | --- | --- | --- |
 | Kubernetes controller reconcile | Pick the one API operation to perform next from observed resource state | Order ("cordon before evict"), idempotence, exact timeout boundaries | [approval-controller](examples/approval-controller), [attachment-repair-controller](examples/attachment-repair-controller), [node-drain-controller](examples/node-drain-controller) |
+| Whole controller in go4t | Same as above, with `observe`/`apply` written in go4t against `go:k8s.io/client-go` | The above plus projection laws: "a pod owned by a DaemonSet projects to `DaemonSet`", "the mirror annotation wins" | [node-drain-typed](examples/node-drain-typed) |
 | Admission / authorization gates | Run checks in order and return the first failure reason | Gate order, rejection at boundary values such as a negative quota | the admission round in ADR 0002 |
 | Placement and scheduling | Choose a target from `Map` capacity and usage, with fallback | A full zone is never chosen; empty capacity rejects for any fallback list | `laws/testdata/placement.gt`, the zone-placement round in ADR 0002 |
 | Multi-step workflows | Decide which stage (observe → authorize → compare-and-swap delete → publish) applies and return the next step | No stage left unhandled (exhaustiveness), step order | [attachment-repair-controller](examples/attachment-repair-controller) |
@@ -183,8 +188,12 @@ go4t build --emit-go generated hello/main.gt  # emits Go sources only
    perform the effects. Nothing in `decide` can perform I/O; the compiler
    enforces it.
 
-Runnable template: [examples/go-shell](examples/go-shell). Boundary rules,
-calling Go from go4t (`go4t bind`) and project/dependency layout are in
+Runnable template: [examples/go-shell](examples/go-shell). To write the
+shell in go4t instead, import the Go packages directly
+(`import "go:k8s.io/client-go/kubernetes"`); handles and anything that
+observes shared state are `IO`, plain Go structs become records, and the
+bindings are generated and cached at build time. Boundary rules, `go:`
+imports and project/dependency layout are in
 [docs/go-interop.md](docs/go-interop.md).
 
 ## What go4t is not
@@ -207,7 +216,7 @@ calling Go from go4t (`go4t bind`) and project/dependency layout are in
 | [Tutorial for Go developers](docs/tutorial.md) | Seventeen short lessons; every go4t snippet type-checked in CI. |
 | [Language specification](SPEC.md) | Grammar, type and effect rules, deriving, exported Go API, boundary tables. |
 | [Laws](docs/laws.md) | What laws cover, what they do not, how proofs are written. |
-| [Go interop](docs/go-interop.md) | Embedding rules, `go4t bind`, projects and dependencies. |
+| [Go interop](docs/go-interop.md) | Embedding rules, `go:` imports, projects and dependencies. |
 | [CLI reference](docs/cli.md) | Every command, exit codes. |
 | [Examples](examples/README.md) | All runnable examples with their commands. |
 | [Evaluation](docs/evaluation.md) | Production ports, law rounds, the Go/`rapid` comparison, the `client-go` scale experiment. |

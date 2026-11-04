@@ -146,9 +146,10 @@ library surface (`Ref`, streaming) and proof coverage of externs.
 Same-day follow-ups added IO-only `Ref` cells, named-file streaming through
 `foldLines`/`forEachLine`, executable output from `go4t build` (with `--emit-go`
 for sources only), and directional channels with native Go bindings. Five
-full-size runtime comparisons produce matching go4t and Go outputs. The recorded
-go4t wall-time ratios range from 1.75x to 31.78x; persistent collections, boxing,
-and allocation dominate the measured overhead. `bench/PERF.md` records the
+full-size runtime comparisons produce matching go4t and Go outputs. The ratios
+recorded that morning ranged from 1.75x to 31.78x; the same-day follow-up below
+brought unboxed kernels to 1.6–4x and `mutmap` to 5x, leaving persistent-Map
+updates at 19–24x. `bench/PERF.md` records the
 workloads, shared-VM caveats, commands, and CPU profile.
 
 ## Scale: the self-hosted compiler
@@ -179,7 +180,7 @@ cluster, and Go-module dependencies. The result was
 A 5.4k-line program with a lexer, parser, type checker with classes and
 deriving, and code generator compiles and reproduces itself under the
 current language; the remaining scale limits are the ones measured in
-`bench/PERF.md` (runtime 1.75x–31.78x of Go on data-heavy kernels) and the
+`bench/PERF.md` (1.6–4x of Go where values stay unboxed, 19–24x for persistent-Map updates) and the
 type-system expressiveness items in SPEC §9, not the ability to write large
 programs.
 
@@ -230,18 +231,29 @@ explicit arm tactics or bare `induction x` using `refl` in each arm.
 and proof.
 
 Runtime for data-heavy code moved from 11–32x to 1.6–4x where values stay
-unboxed, while maps remain 9–20x. Int/String boxing accounts for under 4% of CPU
-samples in every kernel; the persistent Map's dominant cost is search-path
-copying (`rt.collEntryBranch`, 44.3% of mapheavy samples), the price of
-persistence, in the same range as other persistent collections. For `mutmap`'s
-remaining 9.4x, tree allocation accounts for about 14%, IO closure allocation
-(`rt.Bind` plus continuations) about 17%, `Some` 6%, and GC 35% of CPU samples.
-[ADR 0008](adr/0008-direct-style-io.md) therefore rejects element unboxing
-for List/Map/Array and chooses direct-style IO lowering instead.
-The 19x applies only to code that updates a Map while folding. A decision
+unboxed, while persistent maps remain 19–24x. Int/String boxing accounts for
+under 4% of CPU samples in every kernel; the persistent Map's dominant cost is
+search-path copying (`rt.collEntryBranch`, 44.3% of mapheavy samples), the
+price of persistence, in the same range as other persistent collections.
+Before [ADR 0008](adr/0008-direct-style-io.md), `mutmap`'s 9.4x was tree
+allocation about 14%, IO closure allocation (`rt.Bind` plus continuations)
+about 17%, `Some` 6%, and GC 35% of CPU samples. The ADR therefore rejected
+element unboxing for List/Map/Array and chose direct-style IO lowering: `do`
+blocks over the builtin IO instance become one Go function of sequential
+statements, with top-level self tail calls as cancellation-checked loops.
+Result: mapheavy-mut 1.04 s → 0.55 s (5.00x Go), peak RSS 385 MB → 113 MB,
+and `rt.Bind` absent from the profile; the 4x target was not reached, and
+what remains (AVL traversal, GC, comparison, node and `Some` allocation, Int
+boxing) is entirely on the data-structure side. The lowering preserves
+evaluation order and `tryIO` capture ranges, falls back to ordinary calls for
+non-tail recursion under `fork`/`foldLines`/`tryIO`, and was accepted on
+byte-identical stdout for the 41 deterministic CI examples, the law harness
+and the self-hosting fixed point. The next step on this path is deferred
+until an IO-heavy workload demands it.
+The 19–24x applies only to code that updates a Map while folding. A decision
 core's `Observed` maps are built once by `observe` and only read by `decide`,
 so controllers pay none of it; update-heavy aggregation belongs to `std/mutmap`
-in IO, which is what the direct-style lowering targets.
+in IO.
 
 ## Third-party friction
 

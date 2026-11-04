@@ -74,8 +74,11 @@ go4t では状態とケースを明示し、純粋なコードについての等
 
 すべて読みやすい Go にコンパイルされ、依存は `go.mod` で管理します。
 Go パッケージは、import 時に生成する型付き binding 経由で呼べます。
-データ処理中心のカーネルで測定した実行時間は Go の 1.75x–31.78x であり
-([bench/PERF.md](bench/PERF.md))、このコストの削減に現在取り組んでいます。
+実行コストは推測ではなく計測しています([bench/PERF.md](bench/PERF.md)):
+値が unboxed のまま済むカーネルは Go の 1.6〜4x、永続 `Map` を更新しながら畳む処理は
+19〜24x(永続データ構造の値段で、他の永続コレクションと同じ桁)、IO 限定の `std/mutmap` は
+直接形式 IO lowering 後で 5x。決定ロジックや controller は Map を読むだけなので更新コストを
+払いません。この先の最適化は、それを要求するワークロードが出るまで行いません。
 
 ただし最後の行には注釈が要ります。同じ決定ロジックに対して、`rapid` による property-based testing は
 試したバグ注入をすべて検出しました。法則が足すのは、確率ではなく証明であることです。
@@ -93,6 +96,7 @@ go4t では CLI・HTTP プログラムや controller 全体を書けます。
 | ユースケース | 決定ロジックの中身 | 法則で固定できること | 例 |
 | --- | --- | --- | --- |
 | Kubernetes controller の reconcile | 観測したリソースの状態から、次に打つ API 操作を 1 つ選ぶ | 「cordon してから退避する」などの順序、冪等性、timeout の正確な境界 | [approval-controller](examples/approval-controller)、[attachment-repair-controller](examples/attachment-repair-controller)、[node-drain-controller](examples/node-drain-controller) |
+| controller 全体を go4t で | 上と同じ決定に加え、`observe`/`apply` も `go:k8s.io/client-go` に対して go4t で書く | 上に加えて射影の法則:「DaemonSet に所有される pod は `DaemonSet` に射影される」「mirror annotation が優先」 | [node-drain-typed](examples/node-drain-typed) |
 | admission / 認可のゲート | 複数のチェックを順に通し、最初に失敗した理由を返す | ゲートの順序、負の quota など境界値の拒否 | ADR 0002 の admission の回 |
 | 配置・スケジューリング | 容量と使用量の `Map` から配置先を選び、フォールバックする | 満杯のゾーンには置かない、容量がなければどのフォールバック列でも拒否 | `laws/testdata/placement.gt`、ADR 0002 のゾーン配置 |
 | 複数ステップのワークフロー | 観測 → 認可 → compare-and-swap 削除 → 公開のどの段階かを判断し、次のステップを返す | 段階の判断に漏れがない(網羅性)、ステップの順序 | [attachment-repair-controller](examples/attachment-repair-controller) |
@@ -173,8 +177,11 @@ go4t build --emit-go generated hello/main.gt  # Go ソースのみ出力
 3. Go 側:外部の状態を読み、`Observed` を組み立て、`Decide` を呼び、結果で switch し、作用を実行する。
    `decide` の中では I/O が起きないことをコンパイラが保証します。
 
-雛形:[examples/go-shell](examples/go-shell)。境界の規則、go4t から Go を呼ぶ `go4t bind`、
-プロジェクトと依存の構成は [docs/go-interop.ja.md](docs/go-interop.ja.md) にあります。
+雛形:[examples/go-shell](examples/go-shell)。シェル側も go4t で書くなら Go パッケージを直接
+import します(`import "go:k8s.io/client-go/kubernetes"`)。handle と共有状態を観測する呼び出しは
+`IO`、plain な Go struct は record になり、binding は build 時に生成・キャッシュされます。
+境界の規則、`go:` import、プロジェクトと依存の構成は
+[docs/go-interop.ja.md](docs/go-interop.ja.md) にあります。
 
 ## go4t でないもの
 
@@ -194,7 +201,7 @@ go4t build --emit-go generated hello/main.gt  # Go ソースのみ出力
 | [Go 開発者向けチュートリアル](docs/tutorial.md) | 17 の短い章。すべての go4t スニペットを CI で型検査(英語) |
 | [言語仕様](SPEC.md) | 文法、型と作用の規則、deriving、export される Go API、境界表(英語) |
 | [法則](docs/laws.ja.md) | 扱えるもの、扱えないもの、証明の書き方 |
-| [Go 連携](docs/go-interop.ja.md) | 埋め込みの規則、`go4t bind`、プロジェクトと依存 |
+| [Go 連携](docs/go-interop.ja.md) | 埋め込みの規則、`go:` import、プロジェクトと依存 |
 | [CLI リファレンス](docs/cli.ja.md) | 全コマンドと終了コード |
 | [Examples](examples/README.ja.md) | 実行できる例と実行コマンド |
 | [検証記録](docs/evaluation.ja.md) | 実際の controller の移植、法則の検証 5 回、Go/`rapid` との比較、`client-go` のスケール実験 |

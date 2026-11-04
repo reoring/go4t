@@ -70,6 +70,7 @@ still apply.
 | wordfreq | 2.45 | ~27x |
 | mapheavy | ~2.3 | ~19x |
 | mapheavy-mut | 1.13 | 9.42x |
+| mapheavy-mut, after direct-style IO ([ADR 0008](../docs/adr/0008-direct-style-io.md)) | 0.55 | 5.00x |
 | treefold | 0.07 | 1.75x |
 
 Native prelude Ord comparison avoids dictionary calls for Int and String keys.
@@ -99,8 +100,24 @@ alternative, with persistent snapshots through `freeze`.
 The remaining map profile attributes approximately 50% to GC, 19% to node
 allocation, and 4% to comparisons. These are approximate profile categories,
 not additive cumulative call-tree percentages. Comparison dispatch is no longer
-the dominant measured cost. Even mapheavy-mut remains about 9.4x Go because
-boxed values, IO closures, and Option allocation remain on its path.
+the dominant measured cost.
+
+### Direct-style IO lowering
+
+Before [ADR 0008](../docs/adr/0008-direct-style-io.md), mapheavy-mut spent
+about 17% of CPU samples allocating IO closures (`rt.Bind` plus continuation
+lambdas). Lowering `do` blocks over the builtin IO instance to one Go function
+of sequential statements, with top-level self tail calls as
+cancellation-checked loops, removed that cost: mapheavy-mut went from 1.04 s to
+0.55 s (5.00x Go) and peak RSS from 385 MB to 113 MB; `rt.Bind` no longer
+appears in the profile. The 4x target was not reached. The remaining 520 ms is
+AVL traversal 29%, GC 21%, comparison 13%, node allocation 12%, Int boxing
+12% and `Some` allocation 6%; all of it is on the data-structure side. The
+persistent kernels did not move (mapheavy 2.4 s, wordfreq 2.5 s; the change
+does not touch pure code). Acceptance was byte-identical stdout on the 41
+deterministic CI examples, the law property harness, and the self-hosting
+fixed point. Evidence:
+[`2026-11-04-directio.json`](perf/results/2026-11-04-directio.json).
 
 Evidence and experiment details:
 [`2026-11-04-map.json`](perf/results/2026-11-04-map.json),
