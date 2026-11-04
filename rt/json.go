@@ -134,7 +134,7 @@ func jsonObject(fields []jsonField) any {
 		mid := len(fields) / 2
 		return collBranch(fields[mid].name, fields[mid].value, build(fields[:mid]), build(fields[mid+1:]))
 	}
-	return Shapes.JObj(mapValue{root: build(fields), jsonOrder: &order})
+	return Shapes.JObj(&mapValue{root: build(fields), jsonOrder: &order})
 }
 
 func jsonLookup(root *collNode, key string) *collNode {
@@ -201,7 +201,7 @@ func writeJSON(out *bytes.Buffer, j any) {
 		}
 		out.WriteByte(']')
 	case "object":
-		object := value.(mapValue)
+		object := value.(*mapValue)
 		out.WriteByte('{')
 		first := true
 		field := func(n *collNode) {

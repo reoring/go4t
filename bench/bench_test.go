@@ -55,6 +55,7 @@ var perfWorkloads = []struct{ name, output string }{
 	{"nbody", "-0.001046538\n"},
 	{"wordfreq", "word01597 571\nword02008 566\nword00951 565\nword03004 565\nword02452 558\nword02900 558\nword03013 558\nword02967 557\nword01772 556\nword02809 556\n"},
 	{"mapheavy", "1000000\n"},
+	{"mapheavy-mut", "1000000\n"},
 	{"treefold", "2097151\n"},
 }
 

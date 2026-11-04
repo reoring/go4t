@@ -81,6 +81,27 @@ func TestJSONMapOrdering(t *testing.T) {
 	}
 }
 
+func TestJSONMapNoopUpdatesDiscardOrder(t *testing.T) {
+	jsonShapes(t)
+	j := ParseJson(`{"z":1,"a":2}`).(testOk).value
+	_, object := Shapes.JsonView(j)
+	compare := func(a, b any) any {
+		return collectionOrdering{strings.Compare(a.(string), b.(string))}
+	}
+	for name, value := range map[string]any{
+		"delete absent": MapDelete(object, "absent", compare),
+		"empty union":   MapUnion(object, EmptyMap(), compare),
+		"self union":    MapUnion(object, object, compare),
+	} {
+		if got := ToJson(Shapes.JObj(value)); got != `{"a":2,"z":1}` {
+			t.Errorf("%s retained source order: %s", name, got)
+		}
+	}
+	if got := ToJson(j); got != `{"z":1,"a":2}` {
+		t.Fatalf("no-op updates mutated source order: %s", got)
+	}
+}
+
 func TestJSONNumberAndPathBoundaries(t *testing.T) {
 	jsonShapes(t)
 	if got := ToJson(Shapes.JNum(float64(38495))); got != "38495" {

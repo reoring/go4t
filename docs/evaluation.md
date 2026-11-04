@@ -230,5 +230,15 @@ explicit arm tactics or bare `induction x` using `refl` in each arm.
 and proof.
 
 Runtime for data-heavy code moved from 11–32x to 1.6–4x where values stay
-unboxed, while maps remain 9–20x and are now the dominant measured cost,
-attributable to boxed values and allocation rather than comparisons.
+unboxed, while maps remain 9–20x. Int/String boxing accounts for under 4% of CPU
+samples in every kernel; the persistent Map's dominant cost is search-path
+copying (`rt.collEntryBranch`, 44.3% of mapheavy samples), the price of
+persistence, in the same range as other persistent collections. For `mutmap`'s
+remaining 9.4x, tree allocation accounts for about 14%, IO closure allocation
+(`rt.Bind` plus continuations) about 17%, `Some` 6%, and GC 35% of CPU samples.
+[ADR 0008](adr/0008-direct-style-io.md) therefore rejects element unboxing
+for List/Map/Array and chooses direct-style IO lowering instead.
+The 19x applies only to code that updates a Map while folding. A decision
+core's `Observed` maps are built once by `observe` and only read by `decide`,
+so controllers pay none of it; update-heavy aggregation belongs to `std/mutmap`
+in IO, which is what the direct-style lowering targets.

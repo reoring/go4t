@@ -3,6 +3,7 @@ package rt
 // Map and Set share immutable AVL nodes. Updates copy only the search path;
 // cached heights and sizes keep lookup/update logarithmic and size constant-time.
 // The distinct wrappers remain opaque to generated go4t programs.
+// Maps cross the erased ABI as *mapValue, avoiding struct-to-interface boxing.
 type mapValue struct {
 	root *collNode
 	// Only parsed/derived JSON objects carry source order. Ordinary Map
@@ -161,28 +162,43 @@ func collList(root *collNode, rest any, value func(*collNode) any) any {
 	return collList(root.left, Shapes.Cons(value(root), rest), value)
 }
 
-func EmptyMap() any { return mapValue{} }
+// All unordered empty maps share an identity, as the former zero struct did.
+var emptyMap = &mapValue{}
+
+func mapFromRoot(root *collNode) *mapValue {
+	if root == nil {
+		return emptyMap
+	}
+	return &mapValue{root: root}
+}
+
+func EmptyMap() any { return emptyMap }
 
 func MapInsert(m, key, value, compare any) any {
-	return mapValue{root: collInsert(m.(mapValue).root, key, value, collComparator(compare), true)}
+	return mapFromRoot(collInsert(m.(*mapValue).root, key, value, collComparator(compare), true))
 }
 
 func MapLookup(m, key, compare any) any {
-	if n := collLookup(m.(mapValue).root, key, collComparator(compare)); n != nil {
+	if n := collLookup(m.(*mapValue).root, key, collComparator(compare)); n != nil {
 		return SomeOf(n.value)
 	}
 	return NoneOf()
 }
 
 func MapDelete(m, key, compare any) any {
-	return mapValue{root: collDelete(m.(mapValue).root, key, collComparator(compare))}
+	value := m.(*mapValue)
+	root := collDelete(value.root, key, collComparator(compare))
+	if root == value.root && value.jsonOrder == nil {
+		return m
+	}
+	return mapFromRoot(root)
 }
 
 func MapMember(m, key, compare any) any {
-	return collLookup(m.(mapValue).root, key, collComparator(compare)) != nil
+	return collLookup(m.(*mapValue).root, key, collComparator(compare)) != nil
 }
 
-func MapSize(m any) any { return int64(collSize(m.(mapValue).root)) }
+func MapSize(m any) any { return int64(collSize(m.(*mapValue).root)) }
 
 // Duplicate keys use the last value in the input list.
 func MapFromList(xs, compare any) any {
@@ -191,7 +207,7 @@ func MapFromList(xs, compare any) any {
 	for {
 		pair, rest, ok := Shapes.Uncons(xs)
 		if !ok {
-			return mapValue{root: root}
+			return mapFromRoot(root)
 		}
 		key, value := Shapes.Untuple2(pair)
 		root = collInsert(root, key, value, cmp, true)
@@ -200,22 +216,26 @@ func MapFromList(xs, compare any) any {
 }
 
 func MapToList(m any) any {
-	return collList(m.(mapValue).root, Shapes.Nil(), func(n *collNode) any { return Tuple2Of(n.key, n.value) })
+	return collList(m.(*mapValue).root, Shapes.Nil(), func(n *collNode) any { return Tuple2Of(n.key, n.value) })
 }
 
 func MapKeys(m any) any {
-	return collList(m.(mapValue).root, Shapes.Nil(), func(n *collNode) any { return n.key })
+	return collList(m.(*mapValue).root, Shapes.Nil(), func(n *collNode) any { return n.key })
 }
 
 func MapValues(m any) any {
-	return collList(m.(mapValue).root, Shapes.Nil(), func(n *collNode) any { return n.value })
+	return collList(m.(*mapValue).root, Shapes.Nil(), func(n *collNode) any { return n.value })
 }
 
 func MapUnion(a, b, compare any) any {
-	root := a.(mapValue).root
+	value := a.(*mapValue)
+	root := value.root
 	cmp := collComparator(compare)
-	collWalk(b.(mapValue).root, func(n *collNode) { root = collInsert(root, n.key, n.value, cmp, false) })
-	return mapValue{root: root}
+	collWalk(b.(*mapValue).root, func(n *collNode) { root = collInsert(root, n.key, n.value, cmp, false) })
+	if root == value.root && value.jsonOrder == nil {
+		return a
+	}
+	return mapFromRoot(root)
 }
 
 func collMap(root *collNode, f func(any) any) *collNode {
@@ -229,12 +249,12 @@ func collMap(root *collNode, f func(any) any) *collNode {
 }
 
 func MapMap(m, f any) any {
-	return mapValue{root: collMap(m.(mapValue).root, f.(func(any) any))}
+	return mapFromRoot(collMap(m.(*mapValue).root, f.(func(any) any)))
 }
 
 func MapFold(m, init, f any) any {
 	fold := f.(func(any, any, any) any)
-	collWalk(m.(mapValue).root, func(n *collNode) { init = fold(init, n.key, n.value) })
+	collWalk(m.(*mapValue).root, func(n *collNode) { init = fold(init, n.key, n.value) })
 	return init
 }
 

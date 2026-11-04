@@ -104,6 +104,56 @@ func TestIOMonadLaws(t *testing.T) {
 	}
 }
 
+func TestRunStepBoundaries(t *testing.T) {
+	for _, stage := range []string{"success", "before", "after", "failure"} {
+		t.Run(stage, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			if stage == "before" {
+				cancel()
+			}
+			calls := 0
+			action := IO(func(context.Context) (any, error) {
+				calls++
+				if stage == "after" || stage == "failure" {
+					cancel()
+				}
+				if stage == "failure" {
+					return int64(9), os.ErrNotExist
+				}
+				return int64(9), nil
+			})
+			value, err := Run(ctx, action)
+			if stage == "success" {
+				if value != int64(9) || err != nil || calls != 1 {
+					t.Fatalf("Run = (%v, %v), calls = %d", value, err, calls)
+				}
+				return
+			}
+			wantKind, wantCalls := Cancelled, 1
+			if stage == "failure" {
+				// The action error wins over cancellation, just as in Bind.
+				wantKind = NotFound
+			}
+			if stage == "before" {
+				wantCalls = 0
+			}
+			var failure *Failure
+			if value != nil || !errors.As(err, &failure) || failure.Kind != wantKind || calls != wantCalls {
+				t.Fatalf("Run = (%v, %v), calls = %d; want kind %v, calls %d", value, err, calls, wantKind, wantCalls)
+			}
+		})
+	}
+}
+
+func TestRunPreservesClassifiedFailure(t *testing.T) {
+	want := &Failure{Kind: FailureKind, Message: "step failed"}
+	_, err := Run(context.Background(), IO(func(context.Context) (any, error) { return nil, want }))
+	if err != want {
+		t.Fatalf("Run error = %v, want original failure %v", err, want)
+	}
+}
+
 func TestFail(t *testing.T) {
 	got, err := Fail("failure message").(IO)(context.Background())
 	if got != nil || !reflect.DeepEqual(err, &Failure{Kind: FailureKind, Message: "failure message"}) {

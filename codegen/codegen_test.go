@@ -5,6 +5,7 @@ import (
 	"fmt"
 	goast "go/ast"
 	"go/format"
+	"go/importer"
 	goparser "go/parser"
 	"go/token"
 	gotypes "go/types"
@@ -1200,7 +1201,7 @@ func assertSource(t *testing.T, p *types.Program, fragments ...string) string {
 	if err != nil {
 		t.Fatalf("output does not parse: %v\n%s", err, source)
 	}
-	config := gotypes.Config{Importer: fakeImporter{}}
+	config := gotypes.Config{Importer: fakeImporter{standard: importer.Default()}}
 	if _, err := config.Check("generated", fset, []*goast.File{file}, nil); err != nil {
 		t.Fatalf("output does not type-check: %v\n%s", err, source)
 	}
@@ -1214,12 +1215,14 @@ func assertSource(t *testing.T, p *types.Program, fragments ...string) string {
 
 // The fake importer checks the erased external ABI without importing rt or
 // compiling the runtime worker's source. It does not replace any go4t lowering.
-type fakeImporter struct{}
+type fakeImporter struct{ standard gotypes.Importer }
 
-func (fakeImporter) Import(path string) (*gotypes.Package, error) {
+func (f fakeImporter) Import(path string) (*gotypes.Package, error) {
 	pkg := gotypes.NewPackage(path, path[strings.LastIndex(path, "/")+1:])
 	var funcs map[string]int
 	switch path {
+	case "context":
+		return f.standard.Import(path)
 	case "go4t/rt":
 		funcs = map[string]int{"RunMain": 1, "UnitValue": 0, "ShowInt": 1, "Concat": 1, "MinInt": 0, "MaxInt": 0}
 		for _, name := range strings.Fields("AddInt AddString SubInt MulInt DivInt EqInt LtInt EqString LtString EqBool AddFloat SubFloat MulFloat DivFloat EqFloat LtFloat ShowFloatFixed") {
@@ -1234,6 +1237,22 @@ func (fakeImporter) Import(path string) (*gotypes.Package, error) {
 	}
 	anyType := gotypes.Universe.Lookup("any").Type()
 	if path == "go4t/rt" {
+		contextPackage, err := f.standard.Import("context")
+		if err != nil {
+			return nil, err
+		}
+		contextType := contextPackage.Scope().Lookup("Context").Type()
+		errorType := gotypes.Universe.Lookup("error").Type()
+		ioParams := gotypes.NewTuple(gotypes.NewVar(token.NoPos, pkg, "ctx", contextType))
+		ioResults := gotypes.NewTuple(gotypes.NewVar(token.NoPos, pkg, "", anyType), gotypes.NewVar(token.NoPos, pkg, "", errorType))
+		ioName := gotypes.NewTypeName(token.NoPos, pkg, "IO", nil)
+		gotypes.NewNamed(ioName, gotypes.NewSignatureType(nil, nil, nil, ioParams, ioResults, false), nil)
+		pkg.Scope().Insert(ioName)
+		classifyParams := gotypes.NewTuple(gotypes.NewVar(token.NoPos, pkg, "", errorType))
+		classifyResults := gotypes.NewTuple(gotypes.NewVar(token.NoPos, pkg, "", errorType))
+		pkg.Scope().Insert(gotypes.NewFunc(token.NoPos, pkg, "ClassifyError", gotypes.NewSignatureType(nil, nil, nil, classifyParams, classifyResults, false)))
+		runParams := gotypes.NewTuple(gotypes.NewVar(token.NoPos, pkg, "ctx", contextType), gotypes.NewVar(token.NoPos, pkg, "io", anyType))
+		pkg.Scope().Insert(gotypes.NewFunc(token.NoPos, pkg, "Run", gotypes.NewSignatureType(nil, nil, nil, runParams, ioResults, false)))
 		var fields []*gotypes.Var
 		for _, shape := range []struct {
 			name    string

@@ -301,6 +301,16 @@ func (g *generator) emitFunction(f *types.FuncInfo, name string) string {
 			return g.emitExtern(f)
 		}
 		if plan != nil {
+			if plan.io {
+				// Each execution starts from the captured arguments, not the last
+				// execution's loop state. Iteration bindings stay fresh for captures.
+				copies := ""
+				if len(plan.params) != 0 {
+					names := strings.Join(plan.params, ", ")
+					copies = names + " := " + names + "\n"
+				}
+				return "return " + g.ioClosure(f.Decl.Pos, copies+g.loopBody(plan, f.Decl.Params, body)) + "\n"
+			}
 			return g.loopBody(plan, f.Decl.Params, body)
 		}
 		return g.block(f.Decl.Body)

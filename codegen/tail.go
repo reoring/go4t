@@ -16,10 +16,18 @@ type tailPlan struct {
 	params []string
 	calls  map[*ast.Call]bool
 	reps   []string
+	io     bool // Results execute in an IO closure rather than returning an action.
 }
 
 func (g *generator) planTail(name string, ref types.RefKind, params []ast.Param, constraints []types.Constraint, body ast.Expr) *tailPlan {
 	plan := &tailPlan{calls: make(map[*ast.Call]bool)}
+	if ref == types.RefFunc {
+		if f := g.funcs[name]; f != nil {
+			if app, ok := types.Unalias(g.substitute(f.Scheme.Type.Ret)).(*types.TApp); ok {
+				plan.io = types.Unalias(app.Fun) == types.IO
+			}
+		}
+	}
 	var visit func(ast.Expr)
 	visit = func(expr ast.Expr) {
 		switch e := expr.(type) {
@@ -68,6 +76,10 @@ func (g *generator) planTail(name string, ref types.RefKind, params []ast.Param,
 				}
 			}
 			visit(e.Block.Result)
+		case *ast.Do:
+			if plan.io && g.directIO(e) {
+				visit(e.Result)
+			}
 		}
 	}
 	for _, param := range params {
@@ -145,6 +157,9 @@ func (g *generator) loopBody(plan *tailPlan, params []ast.Param, result ast.Expr
 		}
 		body, _ = g.patternAs(patterns[i], plan.params[i], rep, body, true)
 	}
+	if plan.io {
+		body = "if err := ctx.Err(); err != nil { return nil, rt.ClassifyError(err) }\n" + body
+	}
 	return "for {\n" + body + "}\n"
 }
 
@@ -168,6 +183,10 @@ func (g *generator) result(expr ast.Expr, plan *tailPlan) string {
 		return g.line(e.GetPos()) + "if " + g.condition(e.Cond) + " {\n" + g.result(e.Then, plan) + "} else {\n" + g.result(e.Else, plan) + "}\n"
 	case *ast.BlockExpr:
 		return g.tailStatements(e.Block.Stmts, e.Block.Result, plan)
+	case *ast.Do:
+		if plan != nil && plan.io && g.directIO(e) {
+			return g.doResult(e, 0, plan)
+		}
 	}
 	if plan != nil {
 		switch e := expr.(type) {
@@ -191,6 +210,9 @@ func (g *generator) result(expr ast.Expr, plan *tailPlan) string {
 				return out.String()
 			}
 		}
+	}
+	if plan != nil && plan.io {
+		return g.line(expr.GetPos()) + "return rt.Run(ctx, " + g.expr(expr) + ")\n"
 	}
 	return g.line(expr.GetPos()) + g.returnValue(expr)
 }

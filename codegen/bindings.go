@@ -110,9 +110,35 @@ func (g *generator) scalarAnnotation(t ast.Type, args map[string]types.Type) typ
 	return nil
 }
 
+// Only the prelude Monad's std/io instance has the runtime sequencing contract.
+// Dictionary parameters keep Bind unless a specialization has resolved them.
+func (g *generator) directIO(e *ast.Do) bool {
+	dict := g.ann(e).Monad
+	if dict == nil {
+		return false
+	}
+	resolved := g.resolvedDict(*dict)
+	instance := resolved.Instance
+	return resolved.Kind == types.DictInstance && instance != nil &&
+		instance.TypeCon == types.IO &&
+		g.standard[instance.Class.Name] == "std/prelude.Monad" &&
+		g.sources[instance.Decl] == "std/io/io.gt"
+}
+
+func (g *generator) ioClosure(pos ast.Pos, body string) string {
+	g.contextIO = true
+	return "rt.IO(" + g.sourceExpr(pos, "func(ctx context.Context) (any, error) {\n"+body+"}") + ")"
+}
+
 func (g *generator) doStatements(e *ast.Do, index int) string {
+	return g.doResult(e, index, nil)
+}
+
+// An IO execution plan emits statements in the enclosing action. A nil plan
+// retains the dictionary Bind lowering, including its continuation scopes.
+func (g *generator) doResult(e *ast.Do, index int, plan *tailPlan) string {
 	if index == len(e.Stmts) {
-		return g.result(e.Result, nil)
+		return g.result(e.Result, plan)
 	}
 	stmt := e.Stmts[index]
 	if f, ok := stmt.(*ast.FuncDecl); ok {
@@ -126,7 +152,7 @@ func (g *generator) doStatements(e *ast.Do, index int) string {
 			group = append(group, f)
 			next++
 		}
-		return g.localFunctions(group, g.doStatements(e, next))
+		return g.localFunctions(group, g.doResult(e, next, plan))
 	}
 	restore := g.localScope()
 	defer restore()
@@ -135,7 +161,7 @@ func (g *generator) doStatements(e *ast.Do, index int) string {
 	switch s := stmt.(type) {
 	case *ast.DoLet:
 		g.bindLet(s.Name, s.Pat, s.Value)
-		body := g.doStatements(e, index+1)
+		body := g.doResult(e, index+1, plan)
 		restore()
 		return g.letStatement(s.Name, s.Pat, s.Value, body)
 	case *ast.DoBind:
@@ -154,7 +180,18 @@ func (g *generator) doStatements(e *ast.Do, index int) string {
 	default:
 		g.fail(e.GetPos(), "unsupported do statement %T", stmt)
 	}
-	body := g.doStatements(e, index+1)
+	body := g.doResult(e, index+1, plan)
+	if plan != nil && plan.io {
+		name, errName := "_", g.fresh()
+		if pattern != nil {
+			name = g.fresh()
+			body, _ = g.pattern(pattern, name, body, true)
+			body = "_ = " + name + "\n" + body
+		}
+		restore()
+		return g.line(value.GetPos()) + "{\n" + name + ", " + errName + " := rt.Run(ctx, " + g.expr(value) + ")\n" +
+			"if " + errName + " != nil { return nil, " + errName + " }\n" + body + "}\n"
+	}
 	name := "_"
 	if pattern != nil {
 		name = "p"

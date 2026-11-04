@@ -127,7 +127,7 @@ func MutMapFreeze(m any) any {
 			return nil, err
 		}
 		defer m.mu.Unlock()
-		return mapValue{root: mutMapFreeze(m.root)}, nil
+		return mapFromRoot(mutMapFreeze(m.root)), nil
 	})
 }
 
@@ -141,7 +141,7 @@ func MutMapThaw(value, compare any) any {
 		var failure error
 		// Reinsert using the supplied Ord even if the source was constructed
 		// with an explicit mapFromListBy comparator of a different order.
-		collWalk(value.(mapValue).root, func(n *collNode) {
+		collWalk(value.(*mapValue).root, func(n *collNode) {
 			if failure != nil {
 				return
 			}

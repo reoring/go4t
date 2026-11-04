@@ -218,14 +218,20 @@ func TestMutMapCancellationAndComparatorPanic(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		shouldCancel, shouldPanic := false, false
 		cmp := func(a, b any) any {
-			if shouldCancel { cancel() }
-			if shouldPanic { panic("comparator panic") }
+			if shouldCancel {
+				cancel()
+			}
+			if shouldPanic {
+				panic("comparator panic")
+			}
 			return collectionCompare(a, b)
 		}
 		m := runMutMap(t, MutMapNew(cmp))
 		runMutMap(t, MutMapInsert(m, int64(1), "old"))
 		action := MutMapInsert(m, int64(1), "new")
-		if remove { action = MutMapDelete(m, int64(1)) }
+		if remove {
+			action = MutMapDelete(m, int64(1))
+		}
 		shouldCancel = true
 		if _, err := action.(IO)(ctx); !errors.Is(err, context.Canceled) {
 			t.Fatalf("cancel during comparison = %v", err)
@@ -233,7 +239,9 @@ func TestMutMapCancellationAndComparatorPanic(t *testing.T) {
 		shouldCancel, shouldPanic = false, true
 		func() {
 			defer func() {
-				if got := recover(); got != "comparator panic" { t.Fatalf("panic = %v", got) }
+				if got := recover(); got != "comparator panic" {
+					t.Fatalf("panic = %v", got)
+				}
 			}()
 			runMutMap(t, action)
 		}()

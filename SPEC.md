@@ -767,6 +767,14 @@ value and does not change purity. `RunMain` supplies a background context cancel
 by SIGINT/SIGTERM; cancellation reports `error: cancelled` and exits 1. Embedders
 run the action returned by `Main() rt.IO` with their own context. Bind passes the
 same context through both actions and checks it before starting the continuation.
+A `do` block whose Monad is the standard `Monad[IO]` instance (`std/io`) is
+lowered to one deferred action whose steps run in sequence through `rt.Run`,
+which performs the same checks as Bind (cancellation before each step, error
+classification, cancellation after it); a self-call in tail position of such a
+function becomes a cancellation-checked loop. Observable behaviour is that of
+the nested bind: pure lets are evaluated after the preceding effect, a failed
+step skips the rest, and non-tail recursion keeps ordinary calls. Other Monads
+and unresolved dictionaries keep the nested bind.
 Sleep and HTTP stop when cancelled; stdin actions stop waiting immediately.
 An already-blocked stdin read may retain one worker until input/EOF arrives;
 stdin buffer access is serialized and that cancelled read can consume the input.

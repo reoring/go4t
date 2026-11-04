@@ -45,7 +45,7 @@ func ForeignMap(entries [][2]any) any {
 		mid := (lo + hi) / 2
 		return collBranch(entries[mid][0], entries[mid][1], build(lo, mid), build(mid+1, hi))
 	}
-	return mapValue{root: build(0, len(entries))}
+	return mapFromRoot(build(0, len(entries)))
 }
 func foreignCompare(a, b any) int {
 	switch a := a.(type) {
@@ -68,5 +68,5 @@ func foreignCompare(a, b any) int {
 	}
 }
 func ForeignMapEach(value any, visit func(any, any)) {
-	collWalk(value.(mapValue).root, func(n *collNode) { visit(n.key, n.value) })
+	collWalk(value.(*mapValue).root, func(n *collNode) { visit(n.key, n.value) })
 }

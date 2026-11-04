@@ -47,6 +47,37 @@ func collectionValues(xs any) []any {
 	}
 }
 
+func TestMapEmptyIdentityAndNoopUpdates(t *testing.T) {
+	collectionShapes(t)
+	empty := EmptyMap()
+	identity := func(v any) any { return v }
+	for name, value := range map[string]any{
+		"constructor": EmptyMap(),
+		"from list":   MapFromList(collectionList(), collectionCompare),
+		"delete":      MapDelete(empty, int64(1), collectionCompare),
+		"union":       MapUnion(empty, empty, collectionCompare),
+		"map":         MapMap(empty, identity),
+		"foreign":     ForeignMap(nil),
+		"freeze":      runMutMap(t, MutMapFreeze(runMutMap(t, MutMapNew(collectionCompare)))),
+		"last delete": MapDelete(MapInsert(empty, int64(1), "one", collectionCompare), int64(1), collectionCompare),
+	} {
+		if value != empty {
+			t.Errorf("%s did not preserve empty-map identity", name)
+		}
+	}
+	m := MapInsert(empty, int64(1), "one", collectionCompare)
+	if MapDelete(m, int64(2), collectionCompare) != m {
+		t.Fatal("missing-key delete changed identity")
+	}
+	if MapUnion(m, empty, collectionCompare) != m || MapUnion(m, m, collectionCompare) != m {
+		t.Fatal("unchanged left-biased union changed identity")
+	}
+	var zero mapValue
+	if MapSize(&zero) != int64(0) || MapLookup(&zero, int64(1), collectionCompare) != (testNone{}) {
+		t.Fatal("zero map payload is not empty")
+	}
+}
+
 func TestMapOrderingAndPersistence(t *testing.T) {
 	collectionShapes(t)
 	empty := EmptyMap()
@@ -338,7 +369,7 @@ func TestMapBranchedSnapshots(t *testing.T) {
 	}
 	for i, m := range snapshots {
 		want := expected[i]
-		checkCollectionTree(t, m.(mapValue).root, -1, 101)
+		checkCollectionTree(t, m.(*mapValue).root, -1, 101)
 		if MapSize(m) != int64(len(want)) {
 			t.Fatalf("snapshot %d size = %v, want %d", i, MapSize(m), len(want))
 		}

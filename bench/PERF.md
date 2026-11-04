@@ -79,12 +79,22 @@ without mutating input records. Persistent maps share immutable key/value entrie
 across copied search-path nodes. `std/mutmap` adds an IO-only ordered mutable
 alternative, with persistent snapshots through `freeze`.
 
-Two alternatives were tried and rejected. An order-8 persistent B-tree reduced
-mapheavy time by 18.7% but increased wordfreq time by 5.5% and allocated more
-bytes. Replacement metadata reuse was also rejected: copying cached metadata
-instead of rebalancing replacements gave no measurable wall-time benefit
-(mapheavy 2.18 to 2.16 s; wordfreq 2.45 to 2.46 s). Neither experiment is the
-landed collection design.
+### Negative results
+
+- **Order-8 persistent B-tree:** reduced mapheavy time by 18.7% but increased
+  wordfreq time by 5.5% and allocated more bytes; rejected.
+- **Replacement metadata reuse:** copying cached metadata instead of rebalancing
+  replacements gave no measurable wall-time benefit (mapheavy 2.18 to 2.16 s;
+  wordfreq 2.45 to 2.46 s); rejected. Neither experiment is the landed collection
+  design.
+- **Element unboxing for List/Map/Array:** not attempted because Int/String
+  boxing is under 4% of CPU samples in every kernel: mapheavy `convT64` 1.75%;
+  wordfreq `convTstring` 1.2% plus `convT64` 0.8%; mapheavy-mut `convT64` 2.5%.
+  [ADR 0008](../docs/adr/0008-direct-style-io.md) records the decision to pursue
+  direct-style IO lowering instead.
+- **Profile interpretation:** these per-site percentages are CPU-sample shares
+  recomputed from the raw profiles in
+  [`2026-11-04-map2.json`](perf/results/2026-11-04-map2.json), not byte shares.
 
 The remaining map profile attributes approximately 50% to GC, 19% to node
 allocation, and 4% to comparisons. These are approximate profile categories,

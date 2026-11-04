@@ -61,7 +61,9 @@ func TestMutMapTypeContracts(t *testing.T) {
 			}
 			_, err = types.Check(mods)
 			if tt.wantError == "" {
-				if err != nil { t.Fatal(err) }
+				if err != nil {
+					t.Fatal(err)
+				}
 			} else if err == nil || !strings.Contains(err.Error(), tt.wantError) {
 				t.Fatalf("error = %v, want %q", err, tt.wantError)
 			}
@@ -114,25 +116,37 @@ func main() IO[Unit] {
 }
 `
 	user, err := parser.Parse(source)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	user.Name = "mutmap_compiled.gt"
 	mods, err := modules.LoadFiles([]*ast.File{user}, ".")
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	program, err := types.Check(mods)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	generated, err := codegen.Generate(program, "main")
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	dir := t.TempDir()
 	args := []string{"run"}
 	for name, source := range generated {
 		path := filepath.Join(dir, name)
-		if err := os.WriteFile(path, source, 0o600); err != nil { t.Fatal(err) }
+		if err := os.WriteFile(path, source, 0o600); err != nil {
+			t.Fatal(err)
+		}
 		args = append(args, path)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	output, err := exec.CommandContext(ctx, "go", args...).CombinedOutput()
-	if err != nil { t.Fatalf("generated mutmap checks: %v\n%s", err, output) }
+	if err != nil {
+		t.Fatalf("generated mutmap checks: %v\n%s", err, output)
+	}
 	if want := strings.Repeat("true\n", 6); string(output) != want {
 		t.Fatalf("output = %q, want %q", output, want)
 	}

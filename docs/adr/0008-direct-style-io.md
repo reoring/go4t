@@ -53,9 +53,14 @@ Status: Accepted
 - IO 末尾再帰ループは、呼び出しが `do` の最終式、または `IO` 戻り型関数本文の末尾位置(`if`/`match` の腕を含む)にある
   自己呼び出しに限る。相互再帰は対象外。ループ化しても各反復で `ctx.Err()` を検査する(無限ループがキャンセル可能
   であることは既存の意味)。
-- 法則との接点はない。`laws/` は `IO` を含む法則を `law depends on IO` で拒否し、記号評価器は AST 上で動く。
-  property harness(`laws/property_test.go`)は生成プログラムの `debug` 出力だけを照合するので、
-  **harness 全件通過を受け入れ条件に含める**(値表現・実行形式の変更が法則の健全性検証を兼ねる)。
+- 法則の評価器との接点はない(`laws/` は `IO` を含む法則を `law depends on IO` で拒否し、記号評価器は AST 上で動く)。
+  しかし生成 Go の形が変わる変更なので ADR 0005 の「バイト同一」検証は使えない。意味論の不変条件は 2 つ:
+  - **評価順序**: `do` 内の純粋な `let`・部分式は Bind 連鎖が評価していた位置(直前の効果の後)で評価し、前倒ししない。
+    `io.tryIO` の捕捉範囲が観測手段(失敗した段の後の `let` は走らない)。
+  - **継続の保持**: ループ化するのは末尾位置の自己呼び出しだけ。`do` の途中にある再帰(`r <- self(n-1); rest`)は
+    通常の呼び出しのまま。`io.foldLines`/`conc.fork`/`tryIO` のような継続を受け取るプリミティブは従来どおり `IO` 値を受け取る。
+  受け入れテスト: CI が回す全 `examples/` の stdout が HEAD のバイナリと一致、selfhost bootstrap の fixed point、
+  property harness 全件通過(純粋断片の退行検知)。
 - selfhost は従来の `Bind` 経路を出し続けてよい(生成 Go はもともと非同一。fixed point は selfhost 同士の比較)。
 
 ## Consequences

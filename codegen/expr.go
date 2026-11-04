@@ -256,6 +256,10 @@ func (g *generator) expr(expr ast.Expr) (code string) {
 		body := g.returning(rep, func() string { return g.matchResult(e, nil) })
 		return "func() " + rep + " {\n" + body + "}()"
 	case *ast.Do:
+		if g.directIO(e) {
+			body := g.returning("any", func() string { return g.doResult(e, 0, &tailPlan{io: true}) })
+			return g.ioClosure(e.GetPos(), body)
+		}
 		return "func() any {\n" + g.returning("any", func() string { return g.doStatements(e, 0) }) + "}()"
 	case *ast.Binary:
 		rep = g.exprRep(e)

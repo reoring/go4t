@@ -19,7 +19,7 @@ func TestMapMixedUpdatesRemainBalanced(t *testing.T) {
 		if MapSize(m) != int64(count-i-1) {
 			t.Fatalf("size after deleting %d = %v", key, MapSize(m))
 		}
-		checkCollectionTree(t, m.(mapValue).root, -1, count)
+		checkCollectionTree(t, m.(*mapValue).root, -1, count)
 	}
 	for key := int64(0); key < count; key++ {
 		if MapLookup(original, key, collectionCompare) != (testSome{key}) {

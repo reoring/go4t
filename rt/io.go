@@ -54,6 +54,22 @@ func Bind(io any, f any) any {
 	})
 }
 
+// Run executes one direct-style IO step, preserving Bind's cancellation and
+// error boundary. A cancellation observed after success prevents the next step.
+func Run(ctx context.Context, io any) (any, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, ClassifyError(err)
+	}
+	value, err := io.(IO)(ctx)
+	if err != nil {
+		return nil, ClassifyError(err)
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, ClassifyError(err)
+	}
+	return value, nil
+}
+
 // Fail constructs an IO that fails with the given string message.
 func Fail(msg any) any {
 	err := &Failure{Kind: FailureKind, Message: msg.(string)}
