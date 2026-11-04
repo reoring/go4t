@@ -52,7 +52,7 @@ gohttp.requestSetHeader(request, map.mapInsert(headers, "X-Who", ["Ada"]))
 response <- gohttp.clientDo(gohttp.defaultClient(), request)
 ```
 
-Rules (ADR 0003, SPEC §8):
+Rules (ADR 0003 and ADR 0009, SPEC §8):
 
 - Functions, methods, package variables and basic constants become externs;
   exported fields of opaque structs get `<type><Field>` getters and
@@ -69,10 +69,21 @@ Rules (ADR 0003, SPEC §8):
   `net/http` bindings refer to `io.Reader` as `go_io.Reader` and the loader
   binds `go:io` transitively. There is no subtyping: convert with the generated
   upcasts (`strings.readerAsReader`, `goio.readCloserAsReader`).
+  In a binding module P, the source type and interface must belong to P or its
+  direct imports, with at least one declared in P: for example,
+  `client.unstructuredAsObject`. Foreign source homonyms gain an owner qualifier
+  (`qImplAsI`); P's own type keeps the unsuffixed name (`implAsI`).
 - The standard library binds without a `go.mod`; third-party packages need the
   build module to require them. Shims are written beneath the ignored build
   output (`*_gen/`); `go4t check` writes nothing.
 - Each call copies records across the boundary; handles keep identity.
+  Struct-handle package variables, fields and method receivers use addresses
+  rather than copying, whether or not they contain locks. True by-value
+  parameters, results, container elements and field setters containing locks
+  are skipped with `copies lock value T`; `*T` remains a handle. Detection follows
+  Go vet's pointer-only `sync.Locker` implementation rule recursively through
+  fields, arrays and embedding; embedding the `sync.Locker` interface alone is
+  not a lock.
 
 The runnable example is [examples/go-import](../examples/go-import).
 

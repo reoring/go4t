@@ -1487,9 +1487,9 @@ are determined by the original Go declaration, not by substituted type arguments
 | Exported struct whose fields are all exported and mirrorable | Record named after the struct | Declared in its owning Go package's binding module, first field letter lower-cased, `deriving Eq, Debug`; a field whose lowered name is a go4t keyword gains a trailing `_` (`SELinuxOptions.Type` → `type_`); promoted embedded fields follow Go lookup, ambiguous fields omitted. A struct with any unexported field, or a pointer embedding, is private state and becomes a handle (`kubernetes.Clientset`): copying its exported fields would silently discard the rest |
 | Named non-struct with mirrorable underlying type | Underlying mirror | No distinct go4t type; shim performs the named Go conversion |
 | Other exported named types | Opaque handle | Includes interfaces, cyclic structs and structs with nonmirrorable fields |
-| Opaque named struct value or pointer | Same opaque handle | A value result is copied into one fresh mutable pointer box; a pointer preserves identity; passing a boxed handle back as a Go value dereferences it |
-| Mirrorable exported field of an opaque named struct | `<type><Field>(recv T) F`, `<type>Set<Field>(recv T, value F) IO[Unit]` | Pure getter; deferred, cancellation-aware setter mutates the handle; unmirrorable fields or binding-name collisions receive a skip comment |
-| Named T implementing exported interface I | `<t>As<I>(recv T) I` | Pure upcast in T's owning module; interfaces in that Go package and its imports are considered, including interface-to-interface widening; generic/constraint interfaces, `error` and identity casts are excluded; binding-name collisions are skipped |
+| Opaque named struct value or pointer | Same opaque handle | A lock-free value result is copied into one fresh mutable pointer box; a pointer preserves identity; passing a boxed handle back as a Go value dereferences it. Package-variable getters, struct-handle field getters and struct-handle receivers use addresses instead. By-value parameters, results and container elements containing locks are skipped with `copies lock value T` |
+| Mirrorable exported field of an opaque named struct | `<type><Field>(recv T) IO[F]`, `<type>Set<Field>(recv T, value F) IO[Unit]` | Deferred, cancellation-aware accessors observe or mutate the handle; struct-handle fields are returned by address. Setters that copy a lock value, unmirrorable fields and binding-name collisions receive a skip comment |
+| Named T implementing exported interface I | `<t>As<I>(recv T) I` | Pure upcast in binding module P when T and I belong to P or its direct imports and at least one is declared in P, including interface-to-interface widening; generic/constraint interfaces, `error` and identity casts are excluded; foreign source homonyms gain an owner suffix while P's own types keep the unsuffixed name; other binding-name collisions are skipped |
 | Two or three results, except `(A, bool)` | (A, B), (A, B, C) | Runtime tuple; trailing error is removed first and forces IO[tuple]; more than three payload results are skipped |
 | Function parameter or result with mirrorable signature | func(A, ...) R or func(A, ...) IO[R] | Erased callback adapter in both directions; leading context or trailing error forces IO, and returned Go functions run when their IO is executed |
 | any | dyn.Value | Runtime tagged conversion; see §10.7 |
@@ -1502,6 +1502,13 @@ package. Other bindings reference them through generated `go:` imports, such as
 `import go_io "go:io"` and `go_io.Reader`; import aliases avoid generated names.
 All callers therefore share the owning module's type identity. This applies to
 `BindWithShim`; natural-ABI-only `Bind` output is unchanged.
+
+Lock detection follows Go vet's copylocks predicate:
+`Implements(*T, sync.Locker) && !Implements(T, sync.Locker)`, recursively through
+struct fields, arrays and embedding. Embedding `sync.Locker` itself, or providing
+value-receiver `Lock`/`Unlock` methods, does not make a struct a lock. A pointer to
+a lock-containing struct remains an opaque handle. Struct-handle receivers use
+the pointer method set whenever it contains the method, irrespective of locks.
 
 Channels preserve native identity as opaque directional handles. Every channel
 operation and typed channel constructor is IO; allocation of shared mutable state
@@ -1526,13 +1533,22 @@ generated typed channel constructor or an imported channel. The type system does
 not distinguish native element representations that share one go4t mirror;
 incompatible conversions fail with `IoError.Failure`, without a forwarding channel.
 
-Concrete handles and records expose `<t>As<I>` upcasts for exported nongeneric
-method-set interfaces in their package or its imported packages whenever T or
-*T implements I. Interface handles also expose widening upcasts; for example,
+Concrete handles, records and JSON scalars expose `<t>As<I>` upcasts whenever T
+or *T implements an exported nongeneric method-set interface I. Binding package
+P considers its own source types against interfaces in P and its direct imports,
+and direct-import source types against interfaces declared in P. Bindings stay
+in P's module; unrelated imports and transitive sources are not searched.
+Foreign sources are resolved only after the implementation check succeeds.
+Interface handles also expose widening upcasts; for example,
 `strings.readerAsReader` yields `io.Reader`, and `io.readCloserAsReader` widens
 `io.ReadCloser` to `io.Reader`. Handle upcasts preserve identity; record upcasts
 use the existing copy boundary. The builtin `error` interface is not an upcast
 target. Binding-name precedence is method/function > field accessor > constructor/value getter > upcast; ties keep first-seen order. Each loser emits `// skipped: <display> (name <name> taken by <winner display>)`. When one source has upcasts to same-named interfaces, both names include the owning package suffix before the interface name: the last path element CamelCased, with its parent prepended for version segments (`meta/v1` → `AsMetaV1Object`, `runtime` → `AsRuntimeObject`). If those still collide, use the full generated import alias without `go_`, CamelCased.
+When multiple candidate sources share a simple name, foreign sources gain the
+same owner qualifier before the source name (`qImplAsI`); P's own type keeps
+`implAsI` and wins ties. Equal short qualifiers fall back to the full generated
+import alias. For example, `client.unstructuredAsObject` converts the directly
+imported `unstructured.Unstructured` into the interface declared by `client`.
 
 The companion shims preserve the erased extern ABI (`any` parameters/result).
 Record constructors cannot live in the shim package, because it cannot import
@@ -1581,9 +1597,10 @@ method receiver (`strings.Builder.Len` is `IO[Int]`, `ServeMux.Handle` is
 field getter (`requestHeader` is `IO[Map[String, List[String]]]`). A handle is
 shared Go state; reading it is an observation. Records, maps and slices cross
 as copies and stay pure. Constructors, package-value getters and upcasts
-return a handle without reading through it and stay pure. This keeps every
-extern that can observe or change shared state outside the pure fragment that
-laws reason about.
+return a handle without reading through it and stay pure. A package variable
+whose value is a struct handle returns `&pkg.Var`, not a boxed copy of its value.
+This keeps every extern that can observe or change shared state outside the
+pure fragment that laws reason about.
 
 Variadic `...T` becomes a final `List[T]`; `...any` becomes `List[dyn.Value]`.
 `std/dyn.Value` has `Null`, `Bool`, `Int`, `Float`, `Str`, `Bytes`, `Time`,

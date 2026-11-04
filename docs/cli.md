@@ -43,8 +43,9 @@ shim or binding that raised it.
 `os.UserCacheDir()/go4t/bind/<key>/` (`bindings.gt` and `shim.go`). Set
 `GO4T_CACHE=/path/to/cache` to use `/path/to/cache/bind/`, or `GO4T_CACHE=off`
 to regenerate on every invocation. Keys include the go4t binary identity, Go
-version, package export-data content, binding options, and shim import path;
-editing or touching a user `.gt` file does not invalidate its Go bindings.
+version, package export-data content, direct imports' export-data hashes sorted
+by import path, binding options, and shim import path. Changing a direct import
+invalidates the binding; editing or touching a user `.gt` file does not.
 Checking and building can have separate entries because their shim import paths
 differ. Missing or unparsable entries are regenerated, and cache write failures
 do not prevent compilation. `GO4T_TRACE=1` reports per-package cache hits,

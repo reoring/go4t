@@ -7,14 +7,15 @@ import "std/list"
 import "std/map"
 import "std/result"
 import "std/string"
-import fetch "go:approvalctl/fetch"
 import strings "go:strings"
 import time "go:time"
 import unstructured "go:k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+import schema "go:k8s.io/apimachinery/pkg/runtime/schema"
+import types "go:k8s.io/apimachinery/pkg/types"
 import client "go:sigs.k8s.io/controller-runtime/pkg/client"
 
-// The shell owns the native client and approval. Only raw Get/List calls need
-// the Go fetch boundary; reference selection and all decision inputs live here.
+// The shell owns the native client and approval; reads, reference selection,
+// and all decision inputs live here.
 func observeInputs(c client.Client, approval unstructured.Unstructured) IO[Observed] {
   do {
     namespace <- unstructured.unstructuredGetNamespace(approval)
@@ -33,7 +34,14 @@ func observeInputs(c client.Client, approval unstructured.Unstructured) IO[Obser
     ])
     window <- _readObject(c, namespace, windowName, "StorageMaintenanceWindow")
     observedWindow <- _projectFetchedWindow(window)
-    (operationsReadError, operations) <- fetch.listOperations(c, namespace)
+    let operations = unstructured.newUnstructuredList()
+    _ <- unstructured.unstructuredListSetGroupVersionKind(operations, schema.GroupVersionKind{
+      group: "storage.appthrust.io", version: "v1alpha1", kind: "StorageResizeOperationList"
+    })
+    let opts = client.newListOptions()
+    _ <- client.listOptionsSetNamespace(opts, namespace)
+    operationsRead <- io.tryIO(client.clientList(c, client.unstructuredListAsObjectList(operations), [client.listOptionsAsListOption(opts)]))
+    let operationsReadError = match operationsRead { Ok(_) => false; Err(_) => true }
     conflicting <- if operationsReadError {
       ioPure(false)
     } else {
@@ -65,8 +73,16 @@ func _readObject(c client.Client, namespace String, name String, kind String) IO
     ioPure(NotReferenced)
   } else {
     do {
-      (obj, missing, readError) <- fetch.get(c, namespace, name, kind)
-      if missing { Missing } else if readError { ReadError } else { Found(obj) }
+      let obj = unstructured.newUnstructured()
+      _ <- unstructured.unstructuredSetGroupVersionKind(obj, schema.GroupVersionKind{
+        group: "storage.appthrust.io", version: "v1alpha1", kind: kind
+      })
+      fetched <- io.tryIO(client.clientGet(c, types.NamespacedName{namespace: namespace, name: name}, client.unstructuredAsObject(obj), []))
+      match fetched {
+        Ok(_) => Found(obj)
+        Err(io.NotFound(_)) => Missing
+        Err(_) => ReadError
+      }
     }
   }
 }

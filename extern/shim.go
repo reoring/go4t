@@ -449,6 +449,14 @@ func (g *shimGenerator) accessors(decl *strings.Builder, set *mirrorSet, options
 					reason = setterReason
 				}
 				m := set.resolve(field.typ, true)
+				getMirror := addressableMirror(m)
+				copyReason := ""
+				if getMirror == m {
+					copyReason = set.copyLockReason(field.typ)
+				}
+				if reason == "" {
+					reason = copyReason
+				}
 				if reason == "" && m == nil {
 					reason = "unsupported field type " + types.TypeString(field.typ, nil)
 				}
@@ -460,10 +468,18 @@ func (g *shimGenerator) accessors(decl *strings.Builder, set *mirrorSet, options
 				setGo := n.Obj().Name() + "_Set" + field.name
 				candidates.add(getter, display, bindingAccessor, func() {
 					fmt.Fprintf(decl, "extern func %s(recv %s) IO[%s] = %q.%s\n", getter, name, m.gt, g.path, getGo)
-					conv := g.conversion(m)
+					conv := g.conversion(getMirror)
 					typ := g.goType(n)
-					fmt.Fprintf(&g.body, "func %s(recv any) any { return rt.IO(func(ctx context.Context) (any,error) { if err := ctx.Err(); err != nil { return nil,rt.ClassifyError(err) }; receiver := recv.(*%s); return %sFrom(receiver.%s),nil }) }\n", getGo, typ, conv, field.name)
+					value := "receiver." + field.name
+					if getMirror != m {
+						value = "&" + value
+					}
+					fmt.Fprintf(&g.body, "func %s(recv any) any { return rt.IO(func(ctx context.Context) (any,error) { if err := ctx.Err(); err != nil { return nil,rt.ClassifyError(err) }; receiver := recv.(*%s); return %sFrom(%s),nil }) }\n", getGo, typ, conv, value)
 				})
+				if reason := set.copyLockReason(field.typ); reason != "" {
+					fmt.Fprintf(decl, "// skipped: %s.Set%s (%s)\n", n.Obj().Name(), field.name, reason)
+					continue
+				}
 				candidates.add(setter, display, bindingAccessor, func() {
 					fmt.Fprintf(decl, "extern func %s(recv %s, value %s) IO[Unit] = %q.%s\n", setter, name, m.gt, g.path, setGo)
 					conv := g.conversion(m)
@@ -538,6 +554,7 @@ func BindWithShim(pkg *Package, options BindOptions, shimPath, shimPackage strin
 					copy := *recv
 					copy.typ = recvType
 					recv = &copy
+					recv = handleMethodReceiver(recv, strings.TrimPrefix(callee, "receiver."))
 					if p, ok := recvType.(*types.Pointer); ok && recv.kind != "handle" {
 						recv = &foreignMirror{typ: p, kind: "receiver", gt: copy.gt, elem: set.resolve(base, false)}
 					}

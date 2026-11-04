@@ -2,6 +2,7 @@ package extern
 
 import (
 	"fmt"
+	"go/token"
 	"go/types"
 	"go4t/lexer"
 	gfxtypes "go4t/types"
@@ -43,6 +44,7 @@ type mirrorSet struct {
 	handles                        map[string]*types.Named
 	channels                       map[string]*foreignMirror
 	resolving                      map[types.Type]bool
+	lockTypes                      map[types.Type]bool
 	dyn                            bool
 	jsonMarshaler, jsonUnmarshaler *types.Interface
 	// Templates share the concrete mirror grammar, but retain type variables.
@@ -94,6 +96,9 @@ func (s *mirrorSet) importable(n *types.Named) bool {
 	if pkg == nil || pkg.Path() == s.owner {
 		return true
 	}
+	if pkg.Path() == "C" {
+		return false
+	}
 	for _, part := range strings.Split(pkg.Path(), "/") {
 		if part == "internal" || part == "vendor" {
 			return false
@@ -104,6 +109,97 @@ func (s *mirrorSet) importable(n *types.Named) bool {
 func lowerName(s string) string     { r := []rune(s); r[0] = unicode.ToLower(r[0]); return string(r) }
 func errorType(t types.Type) bool   { return types.Identical(t, types.Universe.Lookup("error").Type()) }
 func contextType(t types.Type) bool { return named(t, "context", "Context") }
+
+// Match vet's copylocks predicate without importing sync into the bound package.
+// In particular, embedding the Locker interface is not itself a lock value.
+var lockerInterface = func() *types.Interface {
+	signature := types.NewSignatureType(nil, nil, nil, nil, nil, false)
+	return types.NewInterfaceType([]*types.Func{
+		types.NewFunc(token.NoPos, nil, "Lock", signature),
+		types.NewFunc(token.NoPos, nil, "Unlock", signature),
+	}, nil).Complete()
+}()
+
+func (s *mirrorSet) containsLock(t types.Type) bool {
+	t = types.Unalias(t)
+	if locked, known := s.lockTypes[t]; known {
+		return locked
+	}
+	if s.lockTypes == nil {
+		s.lockTypes = make(map[types.Type]bool)
+	}
+	locked := false
+	switch v := t.Underlying().(type) {
+	case *types.Array:
+		locked = s.containsLock(v.Elem())
+	case *types.Struct:
+		locked = types.Implements(types.NewPointer(t), lockerInterface) && !types.Implements(t, lockerInterface)
+		for i := 0; !locked && i < v.NumFields(); i++ {
+			locked = s.containsLock(v.Field(i).Type())
+		}
+	}
+	s.lockTypes[t] = locked
+	return locked
+}
+
+// copyLockReason follows value conversions, including container elements and
+// callback signatures. A pointer to a lock-containing struct stays a handle.
+func (s *mirrorSet) copyLockReason(t types.Type) string {
+	if locked := s.copiedLock(t, map[types.Type]bool{}); locked != nil {
+		return "copies lock value " + types.TypeString(locked, func(*types.Package) string { return "" })
+	}
+	return ""
+}
+
+func (s *mirrorSet) copiedLock(t types.Type, seen map[types.Type]bool) types.Type {
+	t = types.Unalias(t)
+	if seen[t] {
+		return nil
+	}
+	seen[t] = true
+	if s.containsLock(t) {
+		return t
+	}
+	switch v := t.Underlying().(type) {
+	case *types.Pointer:
+		if _, structValue := v.Elem().Underlying().(*types.Struct); !structValue {
+			return s.copiedLock(v.Elem(), seen)
+		}
+	case *types.Slice:
+		return s.copiedLock(v.Elem(), seen)
+	case *types.Array:
+		return s.copiedLock(v.Elem(), seen)
+	case *types.Map:
+		if locked := s.copiedLock(v.Key(), seen); locked != nil {
+			return locked
+		}
+		return s.copiedLock(v.Elem(), seen)
+	case *types.Chan:
+		return s.copiedLock(v.Elem(), seen)
+	case *types.Signature:
+		for _, tuple := range []*types.Tuple{v.Params(), v.Results()} {
+			for i := range tuple.Len() {
+				if locked := s.copiedLock(tuple.At(i).Type(), seen); locked != nil {
+					return locked
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// addressableMirror preserves the storage identity of a struct handle. Other
+// mirrors still copy values, and pointer-origin handles already have an address.
+func addressableMirror(m *foreignMirror) *foreignMirror {
+	if m != nil && m.kind == "handle" {
+		if _, ok := m.typ.Underlying().(*types.Struct); ok {
+			copy := *m
+			copy.typ = types.NewPointer(m.typ)
+			return &copy
+		}
+	}
+	return m
+}
 
 // valueMirror implements the foreign-mirrorable predicate, without fallback to
 // handles. The visiting set rejects cycles even through slices and pointers.
@@ -152,6 +248,9 @@ func (s *mirrorSet) valueMirror(t types.Type, visiting map[types.Type]bool) *for
 			return nil
 		}
 		if _, ok := v.Underlying().(*types.Struct); ok {
+			if s.containsLock(v) {
+				return nil
+			}
 			if v.TypeParams().Len() != 0 {
 				return nil // generic named records need argument-indexed shape registration
 			}
@@ -316,6 +415,14 @@ func (s *mirrorSet) resolve(t types.Type, callback bool) *foreignMirror {
 			return s.resolve(shape, callback)
 		}
 		return &foreignMirror{typ: t, kind: "parameter", gt: s.parameters[p]}
+	}
+	// Container and callback plans can register converters before a caller
+	// reports a skip. Reject lock-copying elements before those side effects.
+	switch t.Underlying().(type) {
+	case *types.Slice, *types.Map, *types.Array, *types.Chan, *types.Signature:
+		if s.copyLockReason(t) != "" {
+			return nil
+		}
 	}
 	// Iterators are materialised only in result position, never callbacks.
 	if named(t, "iter", "Seq") || named(t, "iter", "Seq2") {
@@ -486,6 +593,9 @@ func (s *mirrorSet) call(sig *types.Signature, method bool) (*foreignCall, strin
 	}
 	for i := start; i < sig.Params().Len(); i++ {
 		t := sig.Params().At(i).Type()
+		if reason := s.copyLockReason(t); reason != "" {
+			return nil, reason
+		}
 		var m *foreignMirror
 		if sig.Variadic() && i == sig.Params().Len()-1 && isAny(t.(*types.Slice).Elem()) {
 			s.dyn = true
@@ -515,6 +625,9 @@ func (s *mirrorSet) call(sig *types.Signature, method bool) (*foreignCall, strin
 		elems := make([]*foreignMirror, n)
 		for i := range elems {
 			t := sig.Results().At(i).Type()
+			if reason := s.copyLockReason(t); reason != "" {
+				return nil, reason
+			}
 			elems[i] = s.resultMirror(t)
 			if elems[i] == nil {
 				return nil, fmt.Sprintf("unsupported result type %s", types.TypeString(t, nil))

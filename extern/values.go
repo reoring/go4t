@@ -51,6 +51,11 @@ func (g *shimGenerator) values(decl *strings.Builder, set *mirrorSet, pkg *Packa
 			}
 		} else {
 			m = set.resultMirror(obj.Type())
+			addressed := addressableMirror(m)
+			if addressed == m && reason == "" {
+				reason = set.copyLockReason(obj.Type())
+			}
+			m = addressed
 		}
 		if reason == "" && m == nil {
 			reason = "unsupported value type " + types.TypeString(obj.Type(), nil)
@@ -68,6 +73,11 @@ func (g *shimGenerator) values(decl *strings.Builder, set *mirrorSet, pkg *Packa
 				shimName = "Go4t_" + shimName
 			} else {
 				value = qualifier + "." + value
+			}
+			if !types.Identical(m.typ, obj.Type()) {
+				if _, variable := obj.(*types.Var); variable {
+					value = "&" + value
+				}
 			}
 			fmt.Fprintf(decl, "extern func %s() %s = %q.%s\n", name, m.gt, g.path, shimName)
 			converter := g.conversion(m)

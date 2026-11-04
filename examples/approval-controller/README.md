@@ -11,11 +11,10 @@ name `decide`). The Go shell owns the controller-runtime `client.Client`,
 reconciler, status publishing, and operation creation. It calls
 `decide.ObserveInputs(r.Client, approval)(ctx)`, then `decide.Decide`.
 
-**This uses the raw-read fallback, not a fully go4t API client.** The small
-`fetch/fetch.go` package performs only `Get`/`List`, returning raw unstructured
-objects and not-found/read-error flags. go4t selects the references and
-projects every binding, plan, policy, window, gate, TTL, timestamp, and
-operation-conflict predicate. Reads still happen up front even when an earlier
+go4t performs `Get`/`List` through generated controller-runtime bindings,
+selects the references, and projects every binding, plan, policy, window,
+gate, TTL, timestamp, and operation-conflict predicate. Reads still happen
+up front in plan, policy, window, operations order even when an earlier
 decision gate will reject the approval. Operation creation and its immutable
 approval-binding helpers remain unchanged.
 
@@ -42,37 +41,16 @@ tests remain the correctness oracle. Production helper declarations and test
 fixtures are copied from the same package, except for the fixture-client
 trimming below.
 
-## Binding probe
+## Generated bindings
 
-The throwaway probe imported controller-runtime's client and apimachinery's
-unstructured package. Import-only `go4t check` succeeded. The cached binding
-declarations were:
-
-```go4t
-type Client = ClientHandle
-type Object = ObjectHandle
-type ObjectList = ObjectListHandle
-type Unstructured = UnstructuredHandle
-type UnstructuredList = UnstructuredListHandle
-type NamespacedName = NamespacedName{namespace: String, name: String} deriving Eq, Debug
-extern func clientGet(recv Client, p0 go_k8s_io_apimachinery_pkg_types.NamespacedName, p1 Object, p2 List[GetOption]) IO[Unit] = "go4tbind/sigs.k8s.io/controller-runtime/pkg/client".Client_Get
-extern func clientList(recv Client, p0 ObjectList, p1 List[ListOption]) IO[Unit] = "go4tbind/sigs.k8s.io/controller-runtime/pkg/client".Client_List
-```
-
-`ObjectKey` resolves to its owner record, `types.NamespacedName`; variadic
-options become lists and the leading context is supplied by IO. **Neither
-Get nor List was skipped**, so there is no skip reason to quote. The missing
-piece is the `Unstructured` → `client.Object` upcast: generated upcasts include
-`unstructuredAsMetaV1Object` and `unstructuredAsRuntimeObject`, but not
-controller-runtime's `Object`/`ObjectList`, which are outside unstructured's
-own package/imports. Passing the handle directly produced:
-
-```text
-probe/probe.gt:10:83: type mismatch: expected client.Object, got unstructured.Unstructured
-```
-
-That is why the raw reads remain in Go. The probe source was removed.
-No compiler, binder, or SPEC change is required for this fallback.
+Cross-package upcasts are now generated per
+[ADR 0009](../../docs/adr/0009-cross-package-upcasts-and-lock-values.md):
+`client.unstructuredAsObject` and `client.unstructuredListAsObjectList`
+preserve native handles for `clientGet` and `clientList`. go4t constructs
+unstructured objects with their GVK and uses `types.NamespacedName` for reads;
+namespace-scoped lists use `newListOptions`, `listOptionsSetNamespace`, and
+`listOptionsAsListOption`. `io.tryIO` maps successful reads to `Found`,
+`io.NotFound` to `Missing`, and other read failures to `ReadError`.
 
 ## What moved
 
@@ -80,8 +58,8 @@ Line counts include signatures and bodies, excluding generated code.
 
 | Area | Before | After |
 | --- | --- | --- |
-| Observation and projection | 123-line Go `observeInputs` | Deleted; 225-line `decide/observe.gt` added |
-| API reads | Get/List inside the Go observer | go4t orchestrates reads through 29-line Go `fetch/fetch.go` |
+| Observation and projection | 123-line Go `observeInputs` | Deleted; 241-line `decide/observe.gt` added |
+| API reads | Get/List inside the Go observer | Entirely go4t through generated bindings; 0 handwritten Go lines |
 | Projection | Go constructs `Observed`, `Fetched`, gates and time sums | Entirely go4t; only the optional test clock override remains in the shell |
 | Unused Go helpers | Terminal-phase/string-slice/map-string helpers, list GVK, default clock method | Removed: 45 lines from `helpers.go` and 7 clock-helper lines |
 
@@ -123,7 +101,7 @@ Run inside this directory:
 
 ```sh
 go generate ./...
-go vet .
+go vet ./...
 go test ./... -count=1
 ```
 
@@ -134,9 +112,6 @@ testing:** `_decide_gen/` and its `go4tbind/` packages are ignored, not committe
 Do not edit emitted Go files directly. The previously committed `decide/*.go`
 are removed; `decide/` now contains only handwritten go4t.
 
-Vet targets the handwritten controller package because generated transitive
-bindings currently copy lock-bearing `sync.Pool`, `watch.Recorder`, and
-`sync.RWMutex` values; `go vet ./...` must not include those generated shims.
 The leading underscore excludes `_decide_gen/` from Go's `./...` test package
 walk; the `*_gen/` rule separately excludes it from Git. Tests still compile
 and execute the generated package through the shell import.

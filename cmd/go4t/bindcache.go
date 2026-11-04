@@ -61,10 +61,23 @@ func bindingCacheEntry(loader *extern.Loader, importPath string, options extern.
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(root, "bind", bindingCacheKey(identity, runtime.Version(), exportHash, importPath, options, shimPath, shimName)), nil
+	imports := make(map[string][sha256.Size]byte, len(loader.Dependencies(importPath)))
+	for _, dependency := range loader.Dependencies(importPath) {
+		var hash [sha256.Size]byte
+		// Toolchain pseudo-packages have no export file. Keep their import path
+		// in the key; the Go version already identifies their implementation.
+		if dependency != "unsafe" && dependency != "C" {
+			hash, err = loader.ExportHash(dependency)
+			if err != nil {
+				return "", err
+			}
+		}
+		imports[dependency] = hash
+	}
+	return filepath.Join(root, "bind", bindingCacheKey(identity, runtime.Version(), exportHash, imports, importPath, options, shimPath, shimName)), nil
 }
 
-func bindingCacheKey(identity, goVersion string, exportHash [sha256.Size]byte, importPath string, options extern.BindOptions, shimPath, shimName string) string {
+func bindingCacheKey(identity, goVersion string, exportHash [sha256.Size]byte, imports map[string][sha256.Size]byte, importPath string, options extern.BindOptions, shimPath, shimName string) string {
 	prelude := make([]string, 0, len(options.Prelude))
 	for name, present := range options.Prelude {
 		if present {
@@ -78,13 +91,15 @@ func bindingCacheKey(identity, goVersion string, exportHash [sha256.Size]byte, i
 	key := struct {
 		Binary, GoVersion, ImportPath string
 		Export                        [sha256.Size]byte
+		Imports                       map[string][sha256.Size]byte
 		Prefix, Package               string
 		Float                         bool
 		Prelude                       string
 		ShimPath, ShimName            string
 		GenericSchema                 int
-	}{identity, goVersion, importPath, exportHash, options.Prefix, options.Package, options.Float, hex.EncodeToString(preludeHash.Sum(nil)), shimPath, shimName, 1}
+	}{identity, goVersion, importPath, exportHash, imports, options.Prefix, options.Package, options.Float, hex.EncodeToString(preludeHash.Sum(nil)), shimPath, shimName, 1}
 	hash := sha256.New()
+	// encoding/json sorts map keys, including direct imports by import path.
 	_ = json.NewEncoder(hash).Encode(key)
 	return hex.EncodeToString(hash.Sum(nil))
 }

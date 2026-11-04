@@ -27,7 +27,8 @@ func exportedMethods(pkg *types.Package) []Method {
 			continue
 		}
 		seen := make(map[string]bool)
-		// Prefer the value receiver when both method sets contain a method.
+		// Retain value receivers for records and JSON scalars. Binding collection
+		// switches struct handles to their pointer method set after resolving.
 		for _, receiver := range []types.Type{named, types.NewPointer(named)} {
 			set := types.NewMethodSet(receiver)
 			for i := range set.Len() {
@@ -50,4 +51,12 @@ func exportedMethods(pkg *types.Package) []Method {
 		return methods[i].Name < methods[j].Name
 	})
 	return methods
+}
+
+func handleMethodReceiver(m *foreignMirror, method string) *foreignMirror {
+	addressed := addressableMirror(m)
+	if addressed != m && types.NewMethodSet(addressed.typ).Lookup(nil, method) != nil {
+		return addressed
+	}
+	return m
 }

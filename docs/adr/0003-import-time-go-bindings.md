@@ -88,6 +88,10 @@ adapter を渡す。`modules` → `extern` の依存は作らない。
 
 ### 4b. 外部型の所有モジュールと upcast(PoC 中に判明)
 
+この節の upcast 探索範囲は [ADR 0009](0009-cross-package-upcasts-and-lock-values.md) で一部置き換え。
+直接 import 側の実装型から P の interface への変換も P の binding に生成する。
+struct handle のアドレス取得と lock 値の境界規則も ADR 0009 を参照。
+
 PoC の受け入れ 1 は最初の実装で型エラーになった: `http.newRequest(_, _, p2 Reader)` の `Reader` は net/http の
 bindings 内で再宣言された `io.Reader` の handle、`strings.newReader` の返す `Reader` は `*strings.Reader` の handle で、
 SPEC §8「handle は binding モジュールごとに nominal」のため合成できない。決定:

@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -135,14 +136,50 @@ func TestGoImportBindingCacheReusesDependencyExports(t *testing.T) {
 	}
 }
 
+func TestGoImportBindingCacheDirectImportChange(t *testing.T) {
+	t.Setenv("GO4T_CACHE", t.TempDir())
+	dir := toolsModule(t)
+	for _, name := range []string{"p", "q"} {
+		if err := os.Mkdir(filepath.Join(dir, name), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	toolsWrite(t, filepath.Join(dir, "q", "q.go"), "package q\ntype Impl struct { private int }\n")
+	toolsWrite(t, filepath.Join(dir, "p", "p.go"), "package p\nimport _ \"clitoolstest/q\"\ntype I interface { Do() }\n")
+	bind := func() (string, string) {
+		t.Helper()
+		binder := newGoImportBinder(dir)
+		if _, err := binder.Bind("clitoolstest/p"); err != nil {
+			t.Fatal(err)
+		}
+		entry := binder.cacheEntries["clitoolstest/p"]
+		source, err := os.ReadFile(filepath.Join(entry, "bindings.gt"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return entry, string(source)
+	}
+	before, source := bind()
+	if strings.Contains(source, "extern func implAsI(") {
+		t.Fatal("nonimplementing dependency acquired an upcast")
+	}
+	toolsWrite(t, filepath.Join(dir, "q", "q.go"), "package q\ntype Impl struct { private int }\nfunc (*Impl) Do() {}\n")
+	after, source := bind()
+	if before == after || !strings.Contains(source, "extern func implAsI(recv go_clitoolstest_q.Impl) I") {
+		t.Fatalf("direct-import change did not regenerate upcasts: %q -> %q\n%s", before, after, source)
+	}
+}
+
 func TestBindingCacheKey(t *testing.T) {
 	options := extern.BindOptions{Package: "fixture", Float: true, Prelude: map[string]bool{"show": true, "println": true}}
 	exportHash := sha256.Sum256([]byte("export data"))
-	key := bindingCacheKey("binary", "go-version", exportHash, "fixture", options, "shim/path", "shim")
-	for _, name := range []string{"binary", "go-version", "export", "import", "prefix", "float", "prelude", "package", "shim-path", "shim-name"} {
+	imports := map[string][sha256.Size]byte{"dep/a": sha256.Sum256([]byte("a")), "dep/b": sha256.Sum256([]byte("b"))}
+	key := bindingCacheKey("binary", "go-version", exportHash, imports, "fixture", options, "shim/path", "shim")
+	for _, name := range []string{"binary", "go-version", "export", "dependency-export", "dependency-path", "import", "prefix", "float", "prelude", "package", "shim-path", "shim-name"} {
 		t.Run(name, func(t *testing.T) {
 			binary, version, path, shimPath, shimName := "binary", "go-version", "fixture", "shim/path", "shim"
 			hash, changed := exportHash, options
+			dependencies := map[string][sha256.Size]byte{"dep/b": imports["dep/b"], "dep/a": imports["dep/a"]}
 			switch name {
 			case "binary":
 				binary += "-new"
@@ -150,6 +187,11 @@ func TestBindingCacheKey(t *testing.T) {
 				version += "-new"
 			case "export":
 				hash = sha256.Sum256([]byte("new export data"))
+			case "dependency-export":
+				dependencies["dep/a"] = sha256.Sum256([]byte("changed dependency"))
+			case "dependency-path":
+				dependencies["dep/c"] = dependencies["dep/a"]
+				delete(dependencies, "dep/a")
 			case "import":
 				path += "/new"
 			case "prefix":
@@ -165,14 +207,15 @@ func TestBindingCacheKey(t *testing.T) {
 			case "shim-name":
 				shimName += "_"
 			}
-			if got := bindingCacheKey(binary, version, hash, path, changed, shimPath, shimName); got == key {
+			if got := bindingCacheKey(binary, version, hash, dependencies, path, changed, shimPath, shimName); got == key {
 				t.Fatalf("%s did not invalidate the cache", name)
 			}
 		})
 	}
 	options.Prelude = map[string]bool{"println": true, "absent": false, "show": true}
-	if got := bindingCacheKey("binary", "go-version", exportHash, "fixture", options, "shim/path", "shim"); got != key {
-		t.Fatal("prelude insertion order or absent names changed the set hash")
+	reordered := map[string][sha256.Size]byte{"dep/b": imports["dep/b"], "dep/a": imports["dep/a"]}
+	if got := bindingCacheKey("binary", "go-version", exportHash, reordered, "fixture", options, "shim/path", "shim"); got != key {
+		t.Fatal("map insertion order or absent prelude names changed the key")
 	}
 }
 

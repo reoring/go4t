@@ -51,6 +51,7 @@ type Loader struct {
 	Dir          string
 	packages     map[string]*Package
 	exports      map[string]string
+	exportHashes map[string][sha256.Size]byte
 	dependencies map[string][]string
 	importer     types.Importer
 }
@@ -70,11 +71,15 @@ func (l *Loader) Dependencies(path string) []string {
 
 // ExportHash hashes the actual export-data bytes, not their path or timestamp.
 // Call Load first so module replacements and build constraints are resolved.
+// Immutable export files shared by direct imports are hashed once per loader.
 func (l *Loader) ExportHash(path string) ([sha256.Size]byte, error) {
 	var sum [sha256.Size]byte
 	file := l.ExportFile(path)
 	if file == "" {
 		return sum, fmt.Errorf("no export data for %q", path)
+	}
+	if sum, ok := l.exportHashes[file]; ok {
+		return sum, nil
 	}
 	input, err := os.Open(file)
 	if err != nil {
@@ -86,6 +91,10 @@ func (l *Loader) ExportHash(path string) ([sha256.Size]byte, error) {
 		return sum, err
 	}
 	hash.Sum(sum[:0])
+	if l.exportHashes == nil {
+		l.exportHashes = make(map[string][sha256.Size]byte)
+	}
+	l.exportHashes[file] = sum
 	return sum, nil
 }
 
