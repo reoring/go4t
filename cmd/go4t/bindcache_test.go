@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"go4t/ast"
 	"go4t/extern"
 )
 
@@ -39,6 +40,10 @@ func TestGoImportBindingCache(t *testing.T) {
 				if module.ForeignRecordKeys["Point"] != importPath+".Point" {
 					t.Fatalf("binding cache lost record ownership: %v", module.ForeignRecordKeys)
 				}
+				want := ast.ForeignHandle{PackagePath: importPath, TypeName: "Stateful", Struct: true}
+				if module.ForeignHandleKeys["Stateful"] != want {
+					t.Fatalf("binding cache lost handle identity: %v", module.ForeignHandleKeys)
+				}
 				entry = binder.cacheEntries[importPath]
 			}
 			bind()
@@ -57,7 +62,7 @@ func TestGoImportBindingCache(t *testing.T) {
 			}
 			// A fixed old timestamp avoids clock-resolution races and sleeps.
 			stamp := time.Unix(1234567890, 0)
-			for _, file := range []string{bindingFile, shimFile, filepath.Join(entry, "records.json"), filepath.Join(entry, "classifier")} {
+			for _, file := range []string{bindingFile, shimFile, filepath.Join(entry, "metadata.json"), filepath.Join(entry, "classifier")} {
 				if err := os.Chtimes(file, stamp, stamp); err != nil {
 					t.Fatal(err)
 				}
@@ -69,7 +74,7 @@ func TestGoImportBindingCache(t *testing.T) {
 				}
 			}
 			bind()
-			for _, file := range []string{bindingFile, shimFile, filepath.Join(entry, "records.json"), filepath.Join(entry, "classifier")} {
+			for _, file := range []string{bindingFile, shimFile, filepath.Join(entry, "metadata.json"), filepath.Join(entry, "classifier")} {
 				info, err := os.Stat(file)
 				if err != nil || !info.ModTime().Equal(stamp) {
 					t.Fatalf("cache hit rewrote %s: %v", file, err)
@@ -87,11 +92,11 @@ func TestGoImportBindingCache(t *testing.T) {
 			if err != nil || !bytes.Equal(regenerated, source) {
 				t.Fatalf("corrupt binding was not regenerated: %v", err)
 			}
-			if err := os.Remove(filepath.Join(entry, "records.json")); err != nil {
+			if err := os.Remove(filepath.Join(entry, "metadata.json")); err != nil {
 				t.Fatal(err)
 			}
 			bind()
-			toolsWrite(t, filepath.Join(entry, "records.json"), "{")
+			toolsWrite(t, filepath.Join(entry, "metadata.json"), "{")
 			bind()
 		})
 	}

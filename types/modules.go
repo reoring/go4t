@@ -39,6 +39,7 @@ type moduleResolver struct {
 	methods                       map[string]map[string]string
 	names, owners                 map[string]string
 	foreignRecordKeys             map[string]string
+	foreignHandleKeys             map[string]ast.ForeignHandle
 	warnings                      []*Error
 	file                          *ast.File
 	scope                         *moduleScope
@@ -51,11 +52,13 @@ type moduleResolver struct {
 func qualifyModules(input []*ast.Module) (*moduleResolver, []*ast.File) {
 	r := &moduleResolver{scopes: make(map[string]*moduleScope), methods: make(map[string]map[string]string), names: make(map[string]string), owners: make(map[string]string), implicitValues: make(map[string]string), implicitTypes: make(map[string]string)}
 	r.foreignRecordKeys = make(map[string]string)
+	r.foreignHandleKeys = make(map[string]ast.ForeignHandle)
 	// An unnamed compilation unit has no import identity; useful for embedding
 	// the checker with an explicitly supplied language environment.
 	if len(input) == 1 && input[0].Path == "" {
 		r.modules = input
 		r.foreignRecordKeys = input[0].ForeignRecordKeys
+		r.foreignHandleKeys = input[0].ForeignHandleKeys
 		return r, input[0].Files
 	}
 	prefixes := make(map[string]bool)
@@ -107,6 +110,9 @@ func qualifyModules(input []*ast.Module) (*moduleResolver, []*ast.File) {
 					canonical := r.declare(s, s.types, d.Name, d.Pos, true)
 					if key := m.ForeignRecordKeys[d.Name]; key != "" {
 						r.foreignRecordKeys[canonical] = key
+					}
+					if handle, ok := m.ForeignHandleKeys[d.Name]; ok {
+						r.foreignHandleKeys[canonical] = handle
 					}
 					for _, c := range d.Ctors {
 						r.declare(s, s.values, c.Name, c.Pos, true)

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"go4t/ast"
 	"go4t/modules"
 	"go4t/types"
 )
@@ -332,6 +333,97 @@ func main() IO[Unit] { ioPure(unit()) }
 	if err != nil || ordinary["go4t_export.go"] != nil {
 		t.Fatalf("main package has export file: %v", err)
 	}
+}
+
+func TestGoMirrorLegacyHandleWithoutIdentity(t *testing.T) {
+	program := mirrorProgram(t, map[string]string{"main.gt": `package main
+type URL = URLHandle
+type Wrapped = Wrapped { url: URL }
+type Local = LocalHandle
+extern func parse(s String) IO[URL] = "go4t/examples/typed-extern/shim".Parse
+func host(u URL) URL { u }
+func parsed(s String) IO[URL] { parse(s) }
+func wrapped(v List[Wrapped]) List[Wrapped] { v }
+func echoLocal(v Local) Local { v }
+func main() IO[Unit] { ioPure(unit()) }
+`})
+	generated, err := Generate(program, "core")
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := string(generated["go4t_export.go"])
+	for _, name := range []string{"host", "parsed", "wrapped"} {
+		want := "// not exported: " + name + " (foreign handle URL without Go identity)"
+		if strings.Count(source, want) != 1 {
+			t.Errorf("missing unique skip %q:\n%s", want, source)
+		}
+	}
+	for _, absent := range []string{"type URL ", "toGo_URL", "fromGo_URL", "type Wrapped "} {
+		if strings.Contains(source, absent) {
+			t.Errorf("legacy handle emitted as data %q:\n%s", absent, source)
+		}
+	}
+	if !strings.Contains(source, "type Local int") {
+		t.Fatalf("ordinary enum with Handle suffix was skipped:\n%s", source)
+	}
+}
+
+func TestGoMirrorNativeHandleRecord(t *testing.T) {
+	program := mirrorProgram(t, map[string]string{"main.gt": `package main
+type URL = URLHandle
+type Record = Record { url: URL }
+func keepRecord(v Record) Record { v }
+func main() IO[Unit] { ioPure(unit()) }
+`})
+	program.ForeignHandleKeys = make(map[string]ast.ForeignHandle)
+	program.ForeignRecordKeys = make(map[string]string)
+	for name, source := range program.ModuleNames {
+		switch source {
+		case "URL":
+			program.ForeignHandleKeys[name] = ast.ForeignHandle{PackagePath: "net/url", TypeName: "URL", Struct: true}
+		case "Record":
+			program.ForeignRecordKeys[name] = "example.test/records.Record"
+		}
+	}
+	generated, err := Generate(program, "core")
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := string(generated["go4t_export.go"])
+	for _, want := range []string{
+		"type Record struct {\n\tUrl *go0.URL\n}",
+		"if p, ok := v.(*go0.URL); ok {\n\t\treturn p\n\t}",
+		"x := v.(go0.URL)\n\treturn &x",
+		"func fromGo_URL(v *go0.URL) any {\n\treturn v\n}",
+	} {
+		if !strings.Contains(source, want) {
+			t.Errorf("missing %q:\n%s", want, source)
+		}
+	}
+	check, err := format.Source([]byte(`package core
+import "net/url"
+func CheckHandleBox() {
+	u := toGo_URL(url.URL{Host: "value"})
+	if u.Host != "value" || fromGo_URL(u) != u || toGo_URL(u) != u { panic("handle boxing or identity lost") }
+}
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	generated["handle_check.go"] = check
+	runMirrorConsumer(t, generated, `package main
+import (
+	"fmt"
+	"net/url"
+	"mirrorcheck/core"
+)
+func main() {
+	core.CheckHandleBox()
+	u := &url.URL{Host: "record"}
+	if core.KeepRecord(core.Record{Url: u}).Url != u { panic("foreign record handle field lost identity") }
+	fmt.Println("mirrors ok")
+}
+`)
 }
 
 func TestGoExportNameErrors(t *testing.T) {

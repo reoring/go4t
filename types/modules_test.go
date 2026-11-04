@@ -200,3 +200,30 @@ func main() IO[Unit] {
 		}
 	}
 }
+
+func TestModuleForeignHandleKeys(t *testing.T) {
+	want := ast.ForeignHandle{PackagePath: "net/url", TypeName: "URL", Struct: true}
+	for _, path := range []string{"", "go:net/url"} {
+		t.Run(path, func(t *testing.T) {
+			files := parseFiles(t, "type URL = URLHandle\nfunc identity(u URL) URL { u }\nfunc main() IO[Unit] { ioPure(unit()) }\n")
+			program, err := types.Check([]*ast.Module{{
+				Path: path, Name: "main", Files: files,
+				ForeignHandleKeys: map[string]ast.ForeignHandle{"URL": want},
+			}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(program.ForeignHandleKeys) != 1 {
+				t.Fatalf("handle metadata = %v", program.ForeignHandleKeys)
+			}
+			for name, got := range program.ForeignHandleKeys {
+				if got != want || program.DataTypes[name] == nil {
+					t.Fatalf("handle metadata not keyed by canonical declaration: %s = %v", name, got)
+				}
+				if path == "" && name != "URL" || path != "" && program.ModuleNames[name] != "URL" {
+					t.Fatalf("unexpected canonical name: %s", name)
+				}
+			}
+		})
+	}
+}

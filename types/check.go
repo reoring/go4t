@@ -90,6 +90,7 @@ func Check(modules []*ast.Module) (program *Program, err error) {
 			Laws: make(map[string]*LawInfo), Proofs: make(map[string]*ProofInfo),
 			Modules: resolved.modules, ModuleNames: resolved.names, Owners: resolved.owners,
 			ForeignRecordKeys: resolved.foreignRecordKeys,
+			ForeignHandleKeys: resolved.foreignHandleKeys,
 			Warnings:          resolved.orderedWarnings(),
 			RecordPats:        make(map[*ast.PRecord]RecordPat),
 		},

@@ -25,6 +25,10 @@ Rules that keep the boundary clean (SPEC §8.7, tutorial §12):
   `time.Duration` and `UnixNano` — so no rounding happens at the boundary.
 - A validity flag beside a list becomes a sum per element; "first failure in
   order" then matches the original Go loop exactly.
+- `go:` handles cross as native Go values with identity (`*pkg.T` for opaque
+  structs, `pkg.T` for interfaces), not copied records or enums. A Go shell can
+  own the `*kubernetes.Clientset` and pass it to exported go4t `observe` / `apply`
+  IO functions, or receive the same handle back.
 
 Runnable template: [examples/go-shell](../examples/go-shell). Real ports:
 [examples/approval-controller](../examples/approval-controller),

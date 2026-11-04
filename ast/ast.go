@@ -77,8 +77,18 @@ type Module struct {
 	// ForeignRecordKeys maps binder-declared source names to owning Go
 	// package/type keys. It is semantic metadata, not part of source comments.
 	ForeignRecordKeys map[string]string
+	// ForeignHandleKeys records the native Go identity of opaque handles.
+	ForeignHandleKeys map[string]ForeignHandle
 	// ForeignBindings resolves caller-dependent externs after type inference.
 	ForeignBindings ForeignBindings
+}
+
+// ForeignHandle identifies the Go value stored by an opaque binding type.
+// Struct handles use a pointer box; other named types retain their Go value.
+type ForeignHandle struct {
+	PackagePath string
+	TypeName    string
+	Struct      bool
 }
 
 // ForeignBindings is the import binder's instantiation port. Signature contains

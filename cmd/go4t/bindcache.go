@@ -89,7 +89,7 @@ func bindingCacheKey(identity, goVersion string, exportHash [sha256.Size]byte, i
 	return hex.EncodeToString(hash.Sum(nil))
 }
 
-func readBindingCache(entry string) (*ast.File, []byte, map[string]string, error) {
+func readBindingCache(entry string) (*ast.File, []byte, *extern.BindingMetadata, error) {
 	source, err := os.ReadFile(filepath.Join(entry, "bindings.gt"))
 	if err != nil {
 		return nil, nil, nil, err
@@ -102,29 +102,29 @@ func readBindingCache(entry string) (*ast.File, []byte, map[string]string, error
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	data, err := os.ReadFile(filepath.Join(entry, "records.json"))
+	data, err := os.ReadFile(filepath.Join(entry, "metadata.json"))
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	var recordKeys map[string]string
-	if err := json.Unmarshal(data, &recordKeys); err != nil {
+	var metadata extern.BindingMetadata
+	if err := json.Unmarshal(data, &metadata); err != nil {
 		return nil, nil, nil, err
 	}
-	return file, shim, recordKeys, nil
+	return file, shim, &metadata, nil
 }
 
-func writeBindingCache(entry, source string, shim []byte, recordKeys map[string]string) error {
+func writeBindingCache(entry, source string, shim []byte, metadata *extern.BindingMetadata) error {
 	if err := os.MkdirAll(entry, 0o755); err != nil {
 		return err
 	}
 	if err := writeBindingCacheFile(filepath.Join(entry, "shim.go"), shim); err != nil {
 		return err
 	}
-	data, err := json.Marshal(recordKeys)
+	data, err := json.Marshal(metadata)
 	if err != nil {
 		return err
 	}
-	if err := writeBindingCacheFile(filepath.Join(entry, "records.json"), data); err != nil {
+	if err := writeBindingCacheFile(filepath.Join(entry, "metadata.json"), data); err != nil {
 		return err
 	}
 	return writeBindingCacheFile(filepath.Join(entry, "bindings.gt"), []byte(source))

@@ -267,6 +267,8 @@ type Program struct {
 	ModuleNames map[string]string
 	// ForeignRecordKeys maps canonical record declarations to owner-package.GoType.
 	ForeignRecordKeys map[string]string
+	// ForeignHandleKeys maps canonical handle declarations to native Go types.
+	ForeignHandleKeys map[string]ast.ForeignHandle
 	// Owners maps canonical declarations to their owning module path.
 	Owners    map[string]string
 	Classes   map[string]*Class

@@ -28,7 +28,7 @@ func TestForeignRecordOwnerKeys(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, shim, keys, err := BindWithShim(pkg, BindOptions{}, "example.test/bindings/shim_"+name, "shim_"+name)
+		_, shim, metadata, err := BindWithShim(pkg, BindOptions{}, "example.test/bindings/shim_"+name, "shim_"+name)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -40,8 +40,8 @@ func TestForeignRecordOwnerKeys(t *testing.T) {
 		case "right":
 			want["Status"] = "example.test/bindings/right.Status"
 		}
-		if !reflect.DeepEqual(keys, want) {
-			t.Fatalf("%s record metadata = %v, want %v", name, keys, want)
+		if !reflect.DeepEqual(metadata.RecordKeys, want) {
+			t.Fatalf("%s record metadata = %v, want %v", name, metadata.RecordKeys, want)
 		}
 		writeBindingTestFile(t, dir, "shim_"+name+"/shim.go", string(shim))
 	}

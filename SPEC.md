@@ -1747,18 +1747,29 @@ pure go4t decision logic.
 | `Map[K, V]` | `map[K]V`, only for scalar `K` (`Int`, `Float`, `String`, `Bool`) |
 | `Set[T]` | `map[T]struct{}`, only for scalar `T` |
 | Tuples of arity 2–8 | `rt.Tuple2[A, B]` … `rt.Tuple8[...]`, fields `F0`, `F1`, … |
+| `go:` opaque handle types | Native `*pkg.T` for struct-underlying handles, otherwise `pkg.T` (including interfaces); identity, not a data mirror |
 | Non-parameterised user data | Struct, enum or sealed interface as below |
 | Fully applied user data `T[A1, …, An]` | Monomorphic struct, enum or sealed interface; arguments and substituted constructor fields must be mirrorable |
 | `IO[T]` as the entire result | `func(context.Context) (T, error)` |
 
 Every component must itself be mirrorable; aliases are expanded before deciding.
 Functions, classes, type parameters, bare or partially applied parameterised data,
-non-scalar Map/Set keys, and IO in a parameter or nested position are not mirrorable.
+non-scalar Map/Set keys, IO in a parameter or nested position, and foreign handles
+without Go identity metadata (legacy `go4t bind` files) are not mirrorable.
 Only non-extern top-level functions without type parameters or constraints are
 eligible. Their first name rune is upper-cased (`decide` → `Decide`).
 `main` and `_`-prefixed functions are silently omitted. Other ineligible entry
 functions appear once as `// not exported: <name> (<reason>)`, including externs.
 There is no opaque `any` fallback in this API; §8.3's erased extern ABI is unchanged.
+Legacy handles are skipped with `foreign handle <Type> without Go identity`,
+never exported as nullary enums.
+
+Handles imported through `go:` retain native Go identity in both directions,
+including inside lists, options, map values, tuples, records and IO results.
+Struct handles cross as pointers; a value-origin struct is boxed if necessary.
+No new type declaration, type doc comment or `String()` method is generated for
+a native handle. Go-owned records still use the go4t-shaped record mirrors;
+their handle fields follow the same identity rule.
 
 An entry-module data type keeps its source name, such as `Observed`. Dependency
 types use the module file prefix with its first rune upper-cased, followed by the

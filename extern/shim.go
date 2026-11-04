@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+
+	"go4t/ast"
 )
 
 type shimGenerator struct {
@@ -475,15 +477,21 @@ func (g *shimGenerator) accessors(decl *strings.Builder, set *mirrorSet, options
 	}
 }
 
+// BindingMetadata preserves Go identities independently of binding spellings.
+type BindingMetadata struct {
+	RecordKeys map[string]string
+	HandleKeys map[string]ast.ForeignHandle
+}
+
 // BindWithShim emits the complete binding file and its erased Go companion.
 // Natural-ABI functions continue to target the original package; other calls
 // use copy-boundary converters, with context captured only at IO execution.
 // Exported variables/constants are pure zero-argument getters, evaluated at
 // each call. Owned opaque structs also get fresh zero-value handle constructors
 // unless their generated name is already reserved by a package binding.
-// The third result maps declared go4t record names to owner-package.GoType keys,
-// retaining Go names even when a prelude collision changes the go4t spelling.
-func BindWithShim(pkg *Package, options BindOptions, shimPath, shimPackage string) (string, []byte, map[string]string, error) {
+// The third result retains Go record and handle identities, including names
+// whose go4t spelling changes to avoid a prelude collision.
+func BindWithShim(pkg *Package, options BindOptions, shimPath, shimPackage string) (string, []byte, *BindingMetadata, error) {
 	g := &shimGenerator{path: shimPath, imports: map[string]string{"context": "context", "go4t/rt": "rt"}, converters: map[string]string{}}
 	var decl strings.Builder
 	// These reservations only keep generated import aliases out of the way;
@@ -649,12 +657,23 @@ func BindWithShim(pkg *Package, options BindOptions, shimPath, shimPackage strin
 	if err != nil {
 		return "", nil, nil, fmt.Errorf("format binding shim: %w", err)
 	}
-	recordKeys := make(map[string]string, len(set.records))
+	metadata := &BindingMetadata{
+		RecordKeys: make(map[string]string, len(set.records)),
+		HandleKeys: make(map[string]ast.ForeignHandle, len(set.handles)),
+	}
 	for name, record := range set.records {
 		obj := record.typ.(*types.Named).Obj()
-		recordKeys[name] = obj.Pkg().Path() + "." + obj.Name()
+		metadata.RecordKeys[name] = obj.Pkg().Path() + "." + obj.Name()
 	}
-	return source, formatted, recordKeys, nil
+	for name, handle := range set.handles {
+		if set.records[name] != nil {
+			continue // declarations prefer a record if both plans were discovered
+		}
+		_, boxed := handle.Underlying().(*types.Struct)
+		obj := handle.Obj()
+		metadata.HandleKeys[name] = ast.ForeignHandle{PackagePath: obj.Pkg().Path(), TypeName: obj.Name(), Struct: boxed}
+	}
+	return source, formatted, metadata, nil
 }
 
 // methodBindingName keeps the Go spelling after an explicit prefix; without one the
