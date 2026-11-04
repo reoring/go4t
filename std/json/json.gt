@@ -5,7 +5,7 @@ import r "std/result"
 import "std/map"
 import "std/array"
 
-type Json = JNull | JBool(Bool) | JNum(Float) | JStr(String) | JArr(List[Json]) | JObj(Map[String, Json]) deriving Debug
+type Json = JNull | JBool(Bool) | JInt(Int) | JNum(Float) | JStr(String) | JArr(List[Json]) | JObj(Map[String, Json]) deriving Debug
 
 class Encode[A] {
   encode(a A) Json
@@ -73,13 +73,14 @@ instance Decode[Json] {
 
 instance Encode[Int] {
   encode(a) {
-    JNum(toFloat(a))
+    JInt(a)
   }
 }
 
 instance Decode[Int] {
   decode(j) {
     match j {
+      JInt(n) => Ok(n)
       JNum(n) => _jsonInt(n)
       _ => Err("expected Int at $$")
     }
@@ -95,6 +96,7 @@ instance Encode[Float] {
 instance Decode[Float] {
   decode(j) {
     match j {
+      JInt(n) => Ok(toFloat(n))
       JNum(n) => Ok(n)
       _ => Err("expected Float at $$")
     }

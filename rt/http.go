@@ -114,16 +114,23 @@ func HTTPHeader(headers, name any) any {
 	}
 }
 
-// HTTPServe passes six Request fields to the go4t adapter and receives a
-// (status, headers, body) tuple. net/http supplies each request's goroutine.
-func HTTPServe(port, handler any) any {
+// HTTPServeOnReady passes six Request fields to the go4t adapter and receives a
+// (status, headers, body) tuple. ready runs after binding, before accepting.
+// net/http supplies each request's goroutine.
+func HTTPServeOnReady(host, port, handler, ready any) any {
 	return IO(func(ctx context.Context) (any, error) {
 		if err := ctx.Err(); err != nil {
 			return nil, ClassifyError(err)
 		}
-		listener, err := net.Listen("tcp", ":"+strconv.FormatInt(port.(int64), 10))
+		listener, err := net.Listen("tcp", net.JoinHostPort(host.(string), strconv.FormatInt(port.(int64), 10)))
 		if err != nil {
 			return nil, ClassifyError(err)
+		}
+		defer listener.Close()
+		if _, err := runConcurrentIO(ctx, IO(func(ctx context.Context) (any, error) {
+			return ready.(func(any) any)(int64(listener.Addr().(*net.TCPAddr).Port)).(IO)(ctx)
+		})); err != nil {
+			return nil, err
 		}
 		return serveHTTP(ctx, listener, handler)
 	})

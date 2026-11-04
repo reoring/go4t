@@ -23,7 +23,7 @@ var preludeOwners = map[string]string{
 
 // JSON deriving and runtime shape registration use these canonical identities,
 // without adding any names to the implicit prelude namespace.
-var jsonIntrinsics = strings.Fields("Json JNull JBool JNum JStr JArr JObj Encode Decode encode decode _jsonObject _jsonInt _jsonErrorAt _jsonFieldPath _jsonAt _jsonDecodeAt _jsonField _jsonArray _jsonValues _jsonDecodeList _jsonDecodeFields")
+var jsonIntrinsics = strings.Fields("Json JNull JBool JInt JNum JStr JArr JObj Encode Decode encode decode _jsonObject _jsonInt _jsonErrorAt _jsonFieldPath _jsonAt _jsonDecodeAt _jsonField _jsonArray _jsonValues _jsonDecodeList _jsonDecodeFields")
 
 type moduleScope struct {
 	module        *ast.Module

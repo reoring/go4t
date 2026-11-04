@@ -547,10 +547,12 @@ constructor. The invalid age reports `expected Int at $.age`. All record fields
 are required, even Option fields (write null); extra fields are ignored. Sums use
 `$tag`; positional constructors also use an exact-length `$values` array.
 
-Json numbers are Float. Integers beyond binary64's exact range may lose precision;
-maxInt cannot round-trip through its rounded encoding. NaN/infinity cannot be
-printed. None encodes as null, and Some of a null-like value is indistinguishable
-from None on decode. Use an explicit tagged ADT when that distinction matters.
+Json numbers are exact `JInt(Int)` or `JNum(Float)`. Int values round-trip exactly
+across the full int64 range, including maxInt. Int decoding also accepts integral
+JNum values within inclusive [-2^53, 2^53]; Float decoding accepts JInt through
+conversion, which may round large integers. NaN/infinity cannot be printed.
+None encodes as null, and Some of a null-like value is indistinguishable from
+None on decode. Use an explicit tagged ADT when that distinction matters.
 
 ## 12. Go shell, go4t core: projecting observed state
 
@@ -618,6 +620,12 @@ the same term. Save each example separately and run `go4t check FILE.gt`.
 `build`, `run`, `test` and `eval` do not verify proofs. Proved laws generate no
 Go code; `test` does execute laws explicitly marked `sample(N)`.
 
+Parenthesize conditional equation operands: write
+`(if c { a } else { b }) == x` or `x == (if c { a } else { b })`.
+The unparenthesized left-hand form fails with
+`law body must be an equality (lhs == rhs)`; the unparenthesized right-hand
+form fails with `expected expression, found "if"`.
+
 ### Constructor cases: cancellation is idempotent
 
 ```go4t
@@ -647,6 +655,8 @@ func main() IO[Unit] { ioPure(unit()) }
 and checks that the normal forms agree. No `Eq` instance is needed: a law's
 outer `==` means definitional equality, not a call to the runtime equality method.
 Proof parameter names can differ from law names; binding is positional.
+A failed `refl` shows the two stuck normal forms and the failing proof branch,
+not generated counterexample bindings; a failed `sample` supplies those bindings.
 
 ### Guards: exactly when a finite TTL is stale
 

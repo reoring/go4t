@@ -3,6 +3,7 @@ package main
 import "std/http"
 import "std/json"
 import "std/conc"
+import "std/chan"
 import "std/io"
 import "std/list"
 import "std/string"
@@ -42,24 +43,14 @@ func handle(r http.Request) IO[http.Response] {
   })
 }
 
-// A fork is asynchronous: probe readiness rather than assuming a bind delay.
-func ready(url String) IO[Unit] {
+func fetchSum(ports RecvChan[Int]) IO[Unit] {
   do {
-    result <- io.tryIO(http.get(url + "/health"))
-    match result {
-      Ok(_) => ioPure(unit())
-      | Err(io.Network(_)) => do {
-        io.sleep(10)
-        ready(url)
-      }
-      Err(e) => io.ioRaise(e)
+    bound <- conc.withTimeout(1000, chan.recv(ports))
+    port <- match bound {
+      Some(port) => ioPure(port)
+      None => ioFail("server readiness channel closed")
     }
-  }
-}
-
-func fetchSum(url String) IO[Unit] {
-  do {
-    conc.withTimeout(1000, ready(url))
+    let url = "http://127.0.0.1:" + show(port)
     r <- http.get(url + "/sum?a=1&b=2")
     let decoded: Result[String, Sum] = do {
       value <- json.parseJson(r.body)
@@ -76,15 +67,15 @@ func main() IO[Unit] {
   do {
     argv <- io.args()
     let port = match argv {
-      [] => 8080
+      [] => 0
       | [text, ..] => match string.parseInt(text) {
         Some(n) => n
-        None => 8080
+        None => 0
       }
     }
-    let url = "http://127.0.0.1:" + show(port)
-    server <- conc.fork(http.serve(port, handle))
-    result <- io.tryIO(fetchSum(url))
+    ports <- chan.make(1)
+    server <- conc.fork(http.serveOnReady("127.0.0.1", port, handle, func(actualPort) => chan.send(chan.asSend(ports), actualPort)))
+    result <- io.tryIO(fetchSum(chan.asRecv(ports)))
     conc.cancel(server)
     match result {
       Ok(_) => ioPure(unit())

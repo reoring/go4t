@@ -4,24 +4,25 @@ From the repository root:
 
 ```sh
 go run ./cmd/go4t run examples/http
-# Or choose a free port instead of the default 8080:
+# Or choose a particular loopback port instead of an ephemeral one:
 go run ./cmd/go4t run examples/http -- 18080
 ```
 
-Observed default-port run (exit 0):
+Default output (the selected port is not printed):
 
 ```text
 sum: 3
 ```
 
-The program starts `http.serve` on a fiber, checks readiness via `/health`, calls
-its own `/sum?a=1&b=2` endpoint, decodes the response with `std/json`, prints the
-sum, and calls `conc.cancel` on the server fiber. It cancels the server even if
-the client/decoder fails. Only loopback networking is needed; no Internet access
-or external service is required. Readiness probing is bounded by 1 s and retries
-Network failures while the asynchronous server binds; the HTTP library itself
-does not retry. Select a free port, since an already-running service can answer
-the probe. Invalid integer arguments fall back to 8080.
+The program starts `http.serveOnReady("127.0.0.1", port, ...)` on a fiber. By
+default `port` is 0, asking the OS for an available ephemeral port. The ready
+callback sends the actual port through a buffered `std/chan` channel and returns;
+the server then begins accepting requests. The client waits up to 1 s for that
+notification, calls `/sum?a=1&b=2`, decodes the response with `std/json`, prints
+the sum, and calls `conc.cancel` on the server fiber even if the client/decoder
+fails. No readiness polling, Internet access, or external service is required.
+An explicit port must be free; bind failure is Network. Invalid integer
+arguments fall back to port 0.
 
 | Route | Result |
 | --- | --- |

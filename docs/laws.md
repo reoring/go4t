@@ -29,6 +29,14 @@ Proved laws generate no runtime code. See
 `staleIff` guard law and list induction, and `laws/testdata/placement.gt`,
 `refactor_v2.gt` for a Map-based core and a refactoring-equivalence proof.
 
+Parenthesize a conditional used as either equation operand:
+`(if c { a } else { b }) == x` or `x == (if c { a } else { b })`.
+Without parentheses, the left-hand form is rejected with
+`law body must be an equality (lhs == rhs)`; the right-hand form fails with
+`expected expression, found "if"`.
+A failed `refl` shows the two stuck normal forms and the failing proof branch,
+not generated counterexample bindings; `sample` failures provide those bindings.
+
 What laws cover: first-order data (ADTs, records, `List`, `Option`, `Result`,
 `Map`), "every other field is arbitrary" invariants via `o{field: v}`, gate
 order, early return, idempotence, branch coverage, structural induction

@@ -106,6 +106,13 @@ go4t bind strings --prefix str          # prints extern declarations
 go4t bind modernc.org/sqlite -o bindings.gt --shim shimdir
 ```
 
+For example, inspect `path/filepath` with `go4t bind path/filepath` before
+calling an unfamiliar generated operation. Without `--prefix`, function names
+lower-case the first Go letter (`Base` becomes `base`), so
+`import "go:path/filepath"` exposes `filepath.base(path)`.
+[SPEC §8.3](../SPEC.md#83-externs-and-bind) defines the naming rules, including
+receiver-method names; [CLI reference](cli.md) lists the inspection flags.
+
 Signatures that cannot be mirrored get a skip comment instead of a wrong
 binding. [examples/sql-service](../examples/sql-service) uses `go:` imports for
 SQLite and Prometheus integration; [examples/typed-extern](../examples/typed-extern)

@@ -112,6 +112,8 @@ for line in (p / 'stderr.jsonl').open():
     text = json.loads(line)
     matches = re.findall(r'\b(NotFound|PermissionDenied|Timeout|Cancelled|Network|Failure|Panic)\b', text)
     labels = list(dict.fromkeys(matches))
+    if text.startswith('blocked:'):
+        labels.append('Blocked')
     if 'TooManyRequests:' in text:
         labels.append('TooManyRequests:')
     kind = ','.join(labels) or 'Unclassified'
@@ -164,8 +166,10 @@ while (( SECONDS < DURATION )); do
   recovery=0
   "${K[@]}" rollout restart deployment/go4t-soak-nginx > "$dir/recovery.stdout" 2> "$dir/recovery.stderr" &&
     "${K[@]}" rollout status deployment/go4t-soak-nginx --timeout=180s >> "$dir/recovery.stdout" 2>> "$dir/recovery.stderr" &&
-    "${K[@]}" wait --for=jsonpath='{.status.phase}'=Running pod -l app=go4t-soak-nginx --timeout=180s >> "$dir/recovery.stdout" 2>> "$dir/recovery.stderr" &&
-    "${K[@]}" wait --for=condition=Ready pod -l app=go4t-soak-nginx --timeout=180s >> "$dir/recovery.stdout" 2>> "$dir/recovery.stderr" || recovery=$?
+    hash=$("${K[@]}" get replicasets -l app=go4t-soak-nginx --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.labels.pod-template-hash}' 2>> "$dir/recovery.stderr") &&
+    [[ -n "$hash" ]] &&
+    "${K[@]}" wait --for=jsonpath='{.status.phase}'=Running pod -l "app=go4t-soak-nginx,pod-template-hash=$hash" --timeout=180s >> "$dir/recovery.stdout" 2>> "$dir/recovery.stderr" &&
+    "${K[@]}" wait --for=condition=Ready pod -l "app=go4t-soak-nginx,pod-template-hash=$hash" --timeout=180s >> "$dir/recovery.stdout" 2>> "$dir/recovery.stderr" || recovery=$?
   python3 - "$OUT" "$cycle" "$iterations" "$drained" "$recovery" "$(IFS=,; echo "${codes[*]}")" <<'PY'
 import json, pathlib, sys
 out, cycle, iterations, drained, recovery, codes = sys.argv[1:]

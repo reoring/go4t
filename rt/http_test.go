@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -117,13 +118,26 @@ func TestHTTPRequestCancellation(t *testing.T) {
 
 func startHTTPTestServer(t *testing.T, handler any) (string, context.CancelFunc, <-chan error) {
 	t.Helper()
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
+	ports := make(chan int64, 1)
+	var readyCalls int64
+	ready := func(port any) any {
+		return IO(func(context.Context) (any, error) {
+			if atomic.AddInt64(&readyCalls, 1) != 1 {
+				t.Error("ready called more than once")
+			}
+			ports <- port.(int64)
+			return Unit{}, nil
+		})
+	}
+	action := HTTPServeOnReady("127.0.0.1", int64(0), handler, ready).(IO)
+	select {
+	case <-ports:
+		t.Fatal("server bound before IO execution")
+	default:
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
-	go func() { _, err := serveHTTP(ctx, listener, handler); done <- err; close(done) }()
+	go func() { _, err := action(ctx); done <- err; close(done) }()
 	t.Cleanup(func() {
 		cancel()
 		select {
@@ -132,7 +146,18 @@ func startHTTPTestServer(t *testing.T, handler any) (string, context.CancelFunc,
 			t.Error("serve did not stop within 1 s")
 		}
 	})
-	return "http://" + listener.Addr().String(), cancel, done
+	select {
+	case port := <-ports:
+		if port <= 0 {
+			t.Fatalf("bound port = %d", port)
+		}
+		return "http://" + net.JoinHostPort("127.0.0.1", strconv.FormatInt(port, 10)), cancel, done
+	case err := <-done:
+		t.Fatalf("serve before readiness = %v", err)
+	case <-time.After(time.Second):
+		t.Fatal("serve readiness exceeded 1 s")
+	}
+	return "", cancel, done
 }
 
 func TestHTTPServe(t *testing.T) {
@@ -370,13 +395,17 @@ func TestHTTPServeRequestContexts(t *testing.T) {
 }
 
 func TestHTTPServeBindAndPrecancel(t *testing.T) {
-	listener, err := net.Listen("tcp", ":0")
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer listener.Close()
 	port := int64(listener.Addr().(*net.TCPAddr).Port)
-	action := HTTPServe(port, nil).(IO)
+	ready := func(any) any {
+		t.Error("ready called without a successful bind")
+		return Pure(Unit{})
+	}
+	action := HTTPServeOnReady("127.0.0.1", port, nil, ready).(IO)
 	_, err = action(context.Background())
 	if failure, ok := err.(*Failure); !ok || failure.Kind != Network {
 		t.Fatalf("bind conflict = %#v", err)
@@ -386,5 +415,76 @@ func TestHTTPServeBindAndPrecancel(t *testing.T) {
 	_, err = action(ctx)
 	if !errors.Is(err, context.Canceled) || err.Error() != "context canceled" {
 		t.Fatalf("cancel before bind = %#v", err)
+	}
+}
+
+func TestHTTPServeLoopbackOnly(t *testing.T) {
+	installTestShapes(t)
+	handler := func(_, _, _, _, _, _ any) any {
+		return Pure(Tuple3Of(int64(200), Shapes.Nil(), "loopback"))
+	}
+	address, _, _ := startHTTPTestServer(t, handler)
+	port := strings.TrimPrefix(address, "http://127.0.0.1:")
+	if address != "http://"+net.JoinHostPort("127.0.0.1", port) {
+		t.Fatalf("listener address = %q", address)
+	}
+	client := &http.Client{Timeout: time.Second}
+	defer client.CloseIdleConnections()
+	response, err := client.Get(address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := io.ReadAll(response.Body)
+	response.Body.Close()
+	if err != nil || response.StatusCode != 200 || string(body) != "loopback" {
+		t.Fatalf("ephemeral response = %d %q, %v", response.StatusCode, body, err)
+	}
+	t.Run("other interface", func(t *testing.T) {
+		addresses, err := net.InterfaceAddrs()
+		if err != nil {
+			t.Fatal(err)
+		}
+		checked := false
+		for _, address := range addresses {
+			ip, _, err := net.ParseCIDR(address.String())
+			if err != nil || ip.To4() == nil || ip.IsLoopback() || ip.IsUnspecified() {
+				continue
+			}
+			checked = true
+			conn, err := net.DialTimeout("tcp", net.JoinHostPort(ip.String(), port), 200*time.Millisecond)
+			if err == nil {
+				conn.Close()
+				t.Errorf("loopback server reachable on %s:%s", ip, port)
+			}
+		}
+		if !checked {
+			t.Skip("host has no non-loopback IPv4 interface")
+		}
+	})
+}
+
+func TestHTTPServeReadyFailureClosesListener(t *testing.T) {
+	for _, panicReady := range []bool{false, true} {
+		t.Run(strconv.FormatBool(panicReady), func(t *testing.T) {
+			var port int64
+			calls := 0
+			ready := func(value any) any {
+				calls++
+				port = value.(int64)
+				if panicReady {
+					panic("ready failed")
+				}
+				return Fail("ready failed")
+			}
+			_, err := HTTPServeOnReady("127.0.0.1", int64(0), nil, ready).(IO)(context.Background())
+			if err == nil || err.Error() != "ready failed" || calls != 1 || port <= 0 {
+				t.Fatalf("ready failure = %v, calls = %d, port = %d", err, calls, port)
+			}
+			listener, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", strconv.FormatInt(port, 10)))
+			if err != nil {
+				t.Fatalf("listener leaked after ready failure: %v", err)
+			}
+			listener.Close()
+		})
 	}
 }

@@ -1038,7 +1038,7 @@ class Ord[A] : Eq[A] { compare(a A, b A) Ordering }
 | `std/chan` | Opaque directional channels: make/send/recv/close, explicit asRecv/asSend upcasts |
 | `std/conc` | fork/await, parallel map/pair, race/timeout |
 | `std/float` | Float instances, conversions/math/formatting; minInt/maxInt/abs |
-| `std/http` | Request/Response, request/get/post/requestWithTimeout, response/jsonResponse, requestHeader/responseHeader, serve |
+| `std/http` | Request/Response, request/get/post/requestWithTimeout, response/jsonResponse, requestHeader/responseHeader, serve/serveOn/serveOnReady |
 | `std/io` | IO instances, IoError (Eq/Debug/Show), ioRaise/ioErrorMessage, console, arguments/environment, files, streaming foldLines/forEachLine, clocks, randomInt, randomFloat, sleep, tryIO |
 | `std/json` | Json, Encode/Decode and codecs; not implicitly exported |
 | `std/lazy` | Lazy, delay/force; explicitly **nonmemoising** |
@@ -1141,8 +1141,8 @@ func main() IO[Unit] { ioPure(unit()) }
 
 ### 7.3 JSON
 
-`std/json` defines `Json = JNull | JBool(Bool) | JNum(Float) | JStr(String) |
-JArr(List[Json]) | JObj(Map[String, Json])`, `Encode[A].encode(a) Json` and
+`std/json` defines `Json = JNull | JBool(Bool) | JInt(Int) | JNum(Float) |
+JStr(String) | JArr(List[Json]) | JObj(Map[String, Json])`, `Encode[A].encode(a) Json` and
 `Decode[A].decode(j) Result[String, A]`. Import e.g. `codec "std/json"` and use
 `deriving codec.Encode, codec.Decode`.
 
@@ -1172,11 +1172,17 @@ retain member/declaration order when printed as Json; duplicate parsed keys keep
 first position and last value. Ordinary Map operations discard order metadata;
 Encode[Map] always uses lexicographic String-key order, even for custom comparators.
 
-Numbers in Json are Float. Int encoding may round above binary64's exact range;
-Int decoding requires a finite integral number in [-2^63, 2^63). Printing NaN or
+Numbers in Json are exact `JInt(Int)` or `JNum(Float)`. Int encoding uses JInt
+and round-trips exactly across the full int64 range. Int decoding accepts JInt
+directly or integral JNum values within inclusive [-2^53, 2^53]; Float decoding
+accepts JNum directly and JInt through `toFloat`, which may round large integers.
+Printing JInt uses exact decimal digits without `.0`; Float retains Go's
+`encoding/json` formatting, including integral output and exponent thresholds.
+Integer `-0` normalizes to `0`; Float negative zero prints `-0`. Printing NaN or
 infinity panics `cannot encode non-finite JSON number`. Parsing consumes exactly
-one value, accepts surrounding whitespace, and rejects malformed/trailing input
-or Float overflow with `Err("invalid JSON: " + reason)`.
+one value, accepts surrounding whitespace, and uses JInt for integer literals
+without decimal/exponent syntax that fit int64, otherwise JNum. Malformed/trailing
+input or Float overflow returns `Err("invalid JSON: " + reason)`.
 
 Decode errors are `expected <what> at <path>`, rooted at `$`, with `.name`, quoted
 `["a.b"]`, and zero-based `[2]` segments. Examples:
@@ -1851,7 +1857,7 @@ with `go generate main.go`.
 - Pair Show/Debug/Eq/Ord instances do not imply arbitrary tuple-arity instances;
   JSON explicitly supports every tuple arity. Unit lacks Show/Ord. Fiber lacks
   standard class instances.
-- JSON Float representation loses large-Int precision and nullable Option identity;
+- JSON nullable Option encoding loses Some(null-like value) identity;
   unsupported/non-finite serialization is not silently repaired.
 - Trusted externs can break purity. Foreign ABI errors are generation-time, not
   `check` errors. Building and running require a Go toolchain. Standalone programs
@@ -2176,10 +2182,10 @@ share immutable storage, but empty slices do not retain the backing allocation.
 
 | Boundary | Behaviour |
 | --- | --- |
-| JSON parse | Exactly one value; surrounding whitespace accepted; trailing/malformed/non-finite-range number → Err with `invalid JSON: ` prefix |
-| JSON printing | Compact or two-space pretty without trailing newline; HTML/Unicode separators escaped; non-finite number panics |
+| JSON parse | Exactly one value; surrounding whitespace accepted; integer literals without decimal/exponent syntax that fit int64 become JInt, other numbers become JNum(Float); trailing/malformed/Float-overflow input → Err with `invalid JSON: ` prefix |
+| JSON printing | Compact or two-space pretty without trailing newline; Int prints exact decimal digits without `.0`; Float retains encoding/json formatting, including integral output and exponent thresholds; HTML/Unicode separators escaped; non-finite Float panics |
 | Object order | Parsed source order / derived declaration order; duplicate keys first position/last value; ordinary Map encode lexicographic |
-| Numeric round trip | Int may round through Float; maxInt encodes as 2^63 and cannot decode as Int; decode refuses fractional/nonfinite/out-of-range Int |
+| Numeric round trip | Int round-trips exactly across the full int64 range. Float decoding accepts JInt via conversion. Int decoding accepts JInt directly or integral JNum values within inclusive [-2^53, 2^53]; other values return `expected Int at <path>`. Integer `-0` normalizes to `0`; Float negative zero prints `-0` |
 | Option codec | null always None; Some(null-like value) indistinguishable from None |
 | Records | Every field required, Option included; unknown fields ignored; first declaration-order error |
 | Positional/tuple decode | Exact array length; constructor tags required except sole record; unknown tag reports `<Type> constructor` |
@@ -2213,7 +2219,8 @@ share immutable storage, but empty slices do not retain the backing allocation.
 | Request URL/path/query | Absolute URL required; nonempty path overrides URL path, explicit query pairs append; invalid URL/method/scheme fails Network |
 | Headers | Repeated pairs preserved; lookup is case-insensitive and first-match; absent is None, present empty is Some(""); Host is supported on both sides |
 | `response`, `jsonResponse` | Pure constructors; first has no headers, second encodes via Encode and sets application/json; strict JSON encoding can panic before an IO is constructed |
-| `serve` | Binding is deferred; bind failure is Network; fork is not a readiness signal; cancellation stops accepting and allows up to 5 s for shutdown before force-close |
+| `serve`, `serveOn`, `serveOnReady` | Binding is deferred; bind failure is Network; cancellation stops accepting and allows up to 5 s for shutdown before force-close. `serve` preserves all-interface binding; `serveOn`/`serveOnReady` select the host explicitly (`"127.0.0.1"` for loopback, `""` for all interfaces). |
+| Readiness | `serveOnReady` invokes its callback once after successful binding with the actual port, including when requested port is 0; callback completes before accepting. Callback failure/panic closes the listener and propagates. Fork alone is not a readiness signal. |
 | Handler contexts | One goroutine per request; client disconnect or server cancellation reaches its IO context; handlers are concurrent, not sequential |
 | Handler failure/panic | HTTP 500, exact failure message body (no added newline), stderr `http handler: <message>` plus newline; only Cancelled with an already-done request context suppresses logging, and normal shutdown is silent; construction and action panics use Panic failure |
 

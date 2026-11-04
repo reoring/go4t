@@ -15,6 +15,7 @@ func jsonShapes(t *testing.T) {
 	collectionShapes(t)
 	Shapes.JNull = func() any { return testJSON{kind: "null"} }
 	Shapes.JBool = func(v any) any { return testJSON{"bool", v} }
+	Shapes.JInt = func(v any) any { return testJSON{"integer", v} }
 	Shapes.JNum = func(v any) any { return testJSON{"number", v} }
 	Shapes.JStr = func(v any) any { return testJSON{"string", v} }
 	Shapes.JArr = func(v any) any { return testJSON{"array", v} }
@@ -26,7 +27,7 @@ func TestJSONParsePrint(t *testing.T) {
 	jsonShapes(t)
 	for _, tc := range []struct{ input, want string }{
 		{`null`, `null`}, {`true`, `true`}, {`false`, `false`},
-		{`-12.5e+2`, `-1250`}, {`1E-3`, `0.001`}, {`-0`, `-0`},
+		{`-12.5e+2`, `-1250`}, {`1E-3`, `0.001`}, {`-0`, `0`}, {`-0.0`, `-0`},
 		{`"a\n\t\r\b\f\\\"/"`, `"a\n\t\r\b\f\\\"/"`},
 		{`"\u65e5\ud83d\ude00"`, `"日😀"`},
 		{` {"z":[1,{"b":false,"a":null}],"a":"é"} `, `{"z":[1,{"b":false,"a":null}],"a":"é"}`},
@@ -46,6 +47,73 @@ func TestJSONParsePrint(t *testing.T) {
 	j := ParseJson(`{"z":[1,true],"a":{}}`).(testOk).value
 	if got, want := ToJsonPretty(j), "{\n  \"z\": [\n    1,\n    true\n  ],\n  \"a\": {}\n}"; got != want {
 		t.Fatalf("pretty = %q, want %q", got, want)
+	}
+}
+
+func TestJSONExactIntegers(t *testing.T) {
+	jsonShapes(t)
+	for _, tc := range []struct {
+		text  string
+		value int64
+	}{
+		{"9007199254740993", 9007199254740993},
+		{"-9223372036854775808", math.MinInt64},
+		{"9223372036854775807", math.MaxInt64},
+		{"0", 0},
+		{"-1", -1},
+	} {
+		t.Run(tc.text, func(t *testing.T) {
+			want := testJSON{"integer", tc.value}
+			result, ok := ParseJson(tc.text).(testOk)
+			if !ok || result.value != want {
+				t.Fatalf("parse = %#v, want Ok(%#v)", result, want)
+			}
+			encoded := Shapes.JInt(tc.value)
+			if got := ToJson(encoded); got != tc.text {
+				t.Fatalf("print = %q, want %q", got, tc.text)
+			}
+			if got := ToJsonPretty(encoded); got != tc.text {
+				t.Fatalf("pretty = %q, want %q", got, tc.text)
+			}
+			if got := ParseJson(ToJson(encoded)); got != (testOk{want}) {
+				t.Fatalf("round trip = %#v, want Ok(%#v)", got, want)
+			}
+		})
+	}
+}
+
+func TestJSONFloatLiteralFallback(t *testing.T) {
+	jsonShapes(t)
+	for _, tc := range []struct {
+		text  string
+		value float64
+		intOK bool
+	}{
+		{"1e3", 1000, true},
+		{"1E3", 1000, true},
+		{"1.0", 1, true},
+		{"1.5", 1.5, false},
+		{"9007199254740992.0", 9007199254740992, true},
+		{"-9007199254740992.0", -9007199254740992, true},
+		{"9007199254740994.0", 9007199254740994, false},
+		{"-9007199254740994.0", -9007199254740994, false},
+		{"9223372036854775808", 9223372036854775808.0, false},
+		{"-9223372036854775809", -9223372036854775808.0, false},
+		{"-9223372036854775808.0", -9223372036854775808.0, false},
+	} {
+		t.Run(tc.text, func(t *testing.T) {
+			result, ok := ParseJson(tc.text).(testOk)
+			if want := (testJSON{"number", tc.value}); !ok || result.value != want {
+				t.Fatalf("parse = %#v, want Ok(%#v)", result, want)
+			}
+			want := any(testErr{"expected Int at $"})
+			if tc.intOK {
+				want = testOk{int64(tc.value)}
+			}
+			if got := JsonInt(tc.value); got != want {
+				t.Fatalf("Float to Int = %#v, want %#v", got, want)
+			}
+		})
 	}
 }
 
@@ -104,15 +172,27 @@ func TestJSONMapNoopUpdatesDiscardOrder(t *testing.T) {
 
 func TestJSONNumberAndPathBoundaries(t *testing.T) {
 	jsonShapes(t)
-	if got := ToJson(Shapes.JNum(float64(38495))); got != "38495" {
-		t.Fatalf("whole Float JSON encoding = %v, want 38495", got)
+	for _, tc := range []struct {
+		value float64
+		text  string
+	}{
+		{38495, "38495"},
+		{1e-6, "0.000001"},
+		{1e-7, "1e-7"},
+		{1e20, "100000000000000000000"},
+		{1e21, "1e+21"},
+		{math.Copysign(0, -1), "-0"},
+	} {
+		if got := ToJson(Shapes.JNum(tc.value)); got != tc.text {
+			t.Fatalf("Float JSON encoding = %v, want %s", got, tc.text)
+		}
 	}
-	for _, n := range []float64{1.25, math.Inf(1), math.NaN(), 9223372036854775808.0} {
+	for _, n := range []float64{1.25, math.Inf(1), math.Inf(-1), math.NaN(), 9007199254740994, -9007199254740994, -9223372036854775808.0, 9223372036854775808.0} {
 		if got := JsonInt(n); got != (testErr{"expected Int at $"}) {
 			t.Fatalf("int(%g) = %#v", n, got)
 		}
 	}
-	for _, n := range []float64{-9223372036854775808.0, -1, 0, 42} {
+	for _, n := range []float64{-9007199254740992, 9007199254740992, -1, 0, 42} {
 		if got := JsonInt(n); got != (testOk{int64(n)}) {
 			t.Fatalf("int(%g) = %#v", n, got)
 		}

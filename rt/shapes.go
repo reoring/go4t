@@ -21,6 +21,7 @@ type ShapeFuncs struct {
 	OrderingOf  func(o any) int // LT = -1, EQ = 0, GT = 1
 	JNull       func() any
 	JBool       func(any) any
+	JInt        func(any) any
 	JNum        func(any) any
 	JStr        func(any) any
 	JArr        func(any) any

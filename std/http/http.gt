@@ -22,7 +22,7 @@ extern func _request(method String, url String, path String, query List[(String,
 
 extern func _header(headers List[(String, String)], name String) Option[String] = "go4t/rt".HTTPHeader
 
-extern func _serve(port Int, handler func(String, String, String, List[(String, String)], List[(String, String)], String) IO[(Int, List[(String, String)], String)]) IO[Unit] = "go4t/rt".HTTPServe
+extern func _serveOnReady(host String, port Int, handler func(String, String, String, List[(String, String)], List[(String, String)], String) IO[(Int, List[(String, String)], String)], ready func(Int) IO[Unit]) IO[Unit] = "go4t/rt".HTTPServeOnReady
 
 func request(r Request) IO[Response] {
   requestWithTimeout(r, 30000)
@@ -62,8 +62,17 @@ func responseHeader(r Response, name String) Option[String] {
 }
 
 func serve(port Int, handler func(Request) IO[Response]) IO[Unit] {
-  _serve(port, func(method, url, path, query, headers, body) => do {
+  serveOn("", port, handler)
+}
+
+func serveOn(host String, port Int, handler func(Request) IO[Response]) IO[Unit] {
+  serveOnReady(host, port, handler, func(_) => ioPure(unit()))
+}
+
+// ready runs once after binding and must return before requests are accepted.
+func serveOnReady(host String, port Int, handler func(Request) IO[Response], ready func(Int) IO[Unit]) IO[Unit] {
+  _serveOnReady(host, port, func(method, url, path, query, headers, body) => do {
     r <- handler(Request(method, url, path, query, headers, body))
     ioPure((r.status, r.headers, r.body))
-  })
+  }, ready)
 }

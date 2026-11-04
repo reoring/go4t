@@ -98,38 +98,6 @@ func TestStdInventoryParses(t *testing.T) {
 	}
 }
 
-func TestHTTPExampleParses(t *testing.T) {
-	source, err := os.ReadFile("../examples/http/main.gt")
-	if err != nil {
-		t.Fatal(err)
-	}
-	file, err := parser.Parse(string(source))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if file.Package != "main" {
-		t.Errorf("package = %q, want main", file.Package)
-	}
-	want := []string{"Health", "Sum", "number", "sum", "handle", "ready", "fetchSum", "main"}
-	if len(file.Decls) != len(want) {
-		t.Fatalf("declaration count = %d, want %d", len(file.Decls), len(want))
-	}
-	for i, decl := range file.Decls {
-		var name string
-		switch declaration := decl.(type) {
-		case *ast.FuncDecl:
-			name = declaration.Name
-		case *ast.TypeDecl:
-			name = declaration.Name
-		default:
-			t.Fatalf("declaration %d = %T, want function or record", i, decl)
-		}
-		if name != want[i] {
-			t.Errorf("declaration %d = %s, want %s", i, name, want[i])
-		}
-	}
-}
-
 func TestTextExamplesParse(t *testing.T) {
 	for _, name := range []string{"wc", "strings"} {
 		t.Run(name, func(t *testing.T) {

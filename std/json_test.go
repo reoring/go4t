@@ -20,7 +20,19 @@ import (
 func TestJSONInstancesAndDeriving(t *testing.T) {
 	checks := []struct{ name, expr string }{
 		{"Int", `roundTrip(-42) && roundTrip(0) && roundTrip(9007199254740991)`},
+		{"Int exact range", `roundTrip(9007199254740993) && roundTrip(float.minInt()) && roundTrip(float.maxInt())`},
+		{"Int exact text", `codec.toJson(codec.encode(9007199254740993)) == "9007199254740993" && codec.toJson(codec.encode(float.minInt())) == "-9223372036854775808" && codec.toJson(codec.encode(float.maxInt())) == "9223372036854775807"`},
+		{"Int pretty text", `codec.toJsonPretty(codec.encode(9007199254740993)) == "9007199254740993" && codec.toJsonPretty(codec.encode(float.minInt())) == "-9223372036854775808" && codec.toJsonPretty(codec.encode(float.maxInt())) == "9223372036854775807"`},
+		{"Int exact parse", `parseInt("9007199254740993") == Ok(9007199254740993) && parseInt("-9223372036854775808") == Ok(float.minInt()) && parseInt("9223372036854775807") == Ok(float.maxInt())`},
+		{"Int exponent", `parseInt("1e3") == Ok(1000) && parseInt("1E3") == Ok(1000)`},
+		{"Int decimal", `parseInt("1.0") == Ok(1) && parseInt("-1.0") == Ok(-1)`},
+		{"Int Float range", `parseInt("9007199254740992.0") == Ok(9007199254740992) && parseInt("-9007199254740992.0") == Ok(-9007199254740992) && parseInt("9007199254740994.0") == Err("expected Int at $") && parseInt("-9007199254740994.0") == Err("expected Int at $") && parseInt("-9223372036854775808.0") == Err("expected Int at $")`},
+		{"Int overflow error", `parseInt("9223372036854775808") == Err("expected Int at $") && parseInt("-9223372036854775809") == Err("expected Int at $")`},
 		{"Float", `roundTrip(1.25) && roundTrip(-2e-20)`},
+		{"Float integral", `roundTrip(1000.0) && codec.toJson(codec.encode(1000.0)) == "1000"`},
+		{"Float integer parse", `parseFloat("1000") == Ok(1000.0) && parseFloat("9007199254740993") == Ok(toFloat(9007199254740993)) && parseFloat("-9223372036854775808") == Ok(toFloat(float.minInt())) && parseFloat("9223372036854775807") == Ok(toFloat(float.maxInt()))`},
+		{"Float overflow Int parse", `parseFloat("9223372036854775808") == Ok(9223372036854775808.0) && parseFloat("-9223372036854775809") == Ok(-9223372036854775808.0)`},
+		{"Int debug", `debug(codec.encode(9007199254740993)) == "JInt(9007199254740993)"`},
 		{"String", `roundTrip("日😀\n\"\\") && roundTrip("")`},
 		{"Bool", `roundTrip(true) && roundTrip(false)`},
 		{"Unit", `roundTrip(unit()) && codec.toJson(codec.encode(unit())) == "null"`},
@@ -34,6 +46,9 @@ func TestJSONInstancesAndDeriving(t *testing.T) {
 		{"Json", `serialRoundTrip(json) && codec.toJson(codec.encode(json)) == "{\"z\":null,\"a\":[true,2.5,\"é\"]}"`},
 		{"record order", `codec.toJson(codec.encode(Item("x", 2, 1.5))) == "{\"sku\":\"x\",\"qty\":2,\"price\":1.5}"`},
 		{"record", `roundTrip(Item("x", 2, 1.5))`},
+		{"record exact Int", `roundTrip(Item("x", 9007199254740993, 1.0)) && roundTrip(Item("x", float.minInt(), 1.0)) && roundTrip(Item("x", float.maxInt(), 1.0))`},
+		{"payment exact Int", `roundTrip(Paid(9007199254740993)) && roundTrip(Paid(float.minInt())) && roundTrip(Paid(float.maxInt())) && codec.toJson(codec.encode(Paid(9007199254740993))) == "{\"$tag\":\"Paid\",\"$values\":[9007199254740993]}"`},
+		{"record numeric path", `errorOf(parseItem("{\"sku\":\"x\",\"qty\":9007199254740994.0,\"price\":1}")) == "expected Int at $.qty" && errorOf(parseItem("{\"sku\":\"x\",\"qty\":1.5,\"price\":1}")) == "expected Int at $.qty" && errorOf(parseItem("{\"sku\":\"x\",\"qty\":9223372036854775808,\"price\":1}")) == "expected Int at $.qty" && errorOf(parseItem("{\"sku\":\"x\",\"qty\":-9223372036854775809,\"price\":1}")) == "expected Int at $.qty"`},
 		{"generic recursive", `roundTrip(Fork(1, [Tip, Fork(2, [])]))`},
 		{"generic record", `roundTrip(Box(Some(1), [(true, "x")]))`},
 		{"nullary", `roundTrip(Pending) && codec.toJson(codec.encode(Pending)) == "{\"$tag\":\"Pending\"}"`},
@@ -58,12 +73,14 @@ func TestJSONInstancesAndDeriving(t *testing.T) {
 	source.WriteString(`package main
 import codec "std/json"
 import "std/prelude"
+import "std/float"
 import "std/map"
 import "std/array"
 import "std/result"
 type Item = Item{sku: String, qty: Int, price: Float} deriving codec.Encode, codec.Decode, Eq
 type Order = Order{items: List[Item]} deriving codec.Encode, codec.Decode
 type Status = Pending | Shipped(String) | Named{name: String} deriving codec.Encode, codec.Decode, Eq
+type Payment = Unpaid | Paid(Int) deriving codec.Encode, codec.Decode, Eq
 type Tree[A] = Tip | Fork(A, List[Tree[A]]) deriving codec.Encode, codec.Decode, Eq
 type Box[A, B] = Box{value: A, values: List[B]} deriving codec.Encode, codec.Decode, Eq
 func roundTrip[A codec.Encode + codec.Decode + Eq](a A) Bool {
@@ -76,6 +93,9 @@ func serialRoundTrip[A codec.Encode + codec.Decode](a A) Bool {
 }
 func errorOf[A](r Result[String, A]) String { match r { Err(e) => e; Ok(_) => "success" } }
 func intResult(j codec.Json) Result[String, Int] { codec.decode(j) }
+func parseInt(s String) Result[String, Int] { prelude.bind(codec.parseJson(s), codec.decode) }
+func parseFloat(s String) Result[String, Float] { prelude.bind(codec.parseJson(s), codec.decode) }
+func parseItem(s String) Result[String, Item] { prelude.bind(codec.parseJson(s), codec.decode) }
 func optionResult(j codec.Json) Result[String, Option[String]] { codec.decode(j) }
 func orderResult(j codec.Json) Result[String, Order] { codec.decode(j) }
 func arrayResult(j codec.Json) Result[String, Array[Int]] { codec.decode(j) }

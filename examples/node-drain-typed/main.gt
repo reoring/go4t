@@ -126,5 +126,9 @@ func main() IO[Unit] {
     client <- kube.clientsetCoreV1(clientset)
     outcome <- reconcile(client, Drain(node, requested, NoDeadline, None))
     println(debug(outcome.action))
+    match outcome.drain.lastBlock {
+      None => unit()
+      Some(message) => io.eprintln("blocked: " + message)
+    }
   }
 }

@@ -194,7 +194,7 @@ func cgDeclJsonShapes(ctx GenCtx) String {
     None => ""
     Some(data) => {
       let creates = string.strConcat(map(data.ctors, func(c) => moduleDisplayName(c.name) + ": func(" + (if c.arity == 0 { "" } else { "v any" }) + ") any { return " + cgConstruct(ctorGoName(data.name, c.name), if c.arity == 0 { Nil } else { ["v"] }) + " },\n"))
-      let kinds = [("JNull", "null"), ("JBool", "bool"), ("JNum", "number"), ("JStr", "string"), ("JArr", "array"), ("JObj", "object")]
+      let kinds = [("JNull", "null"), ("JBool", "bool"), ("JInt", "integer"), ("JNum", "number"), ("JStr", "string"), ("JArr", "array"), ("JObj", "object")]
       let views = string.strConcat(map(data.ctors, func(c) => "case *" + ctorGoName(data.name, c.name) + ": return " + genQuote(result.fromOption(lookupAssoc(kinds, moduleDisplayName(c.name)), "")) + ", " + (if c.arity == 0 { "nil" } else { "x.F0" }) + "\n"))
       creates + "JsonView: func(v any) (string, any) { switch x:=v.(type) {\n" + views + "}; panic(\"invalid Json\") },\n"
     }

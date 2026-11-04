@@ -50,14 +50,18 @@ func main() IO[Unit] {
 	for _, phase := range []string{"cold", "warm"} {
 		out, stderr, status := toolsCommand(t, dir, "", "run", file)
 		want := "1\ntrue\n1\n[a, b]\n[b, a]\nonce\n14\nvalue\ntrue\n[3, 1, 2]\n"
-		if status != 0 || out != want || stderr != "" { t.Fatalf("%s: status=%d stdout=%q stderr=%s", phase, status, out, stderr) }
+		if status != 0 || out != want || stderr != "" {
+			t.Fatalf("%s: status=%d stdout=%q stderr=%s", phase, status, out, stderr)
+		}
 	}
 	shims, err := filepath.Glob(filepath.Join(dir, "main_gen", "go4tbind", "slices", "instances", "*", "shim.go"))
-	if err != nil || len(shims) != 6 { t.Fatalf("distinct slices instantiations: %d, %v", len(shims), err) }
+	if err != nil || len(shims) != 6 {
+		t.Fatalf("distinct slices instantiations: %d, %v", len(shims), err)
+	}
 }
 
 func TestGenericGoDiagnostics(t *testing.T) {
-	cases := []struct { name, source, want string }{
+	cases := []struct{ name, source, want string }{
 		{"comparable", `func main() IO[Unit] { do { found <- slices.contains([[1]], [1]); println(show(found)) } }`, "does not satisfy comparable"},
 		{"ordered", `func main() IO[Unit] { do { n <- slices.min([true]); println(show(n)) } }`, "does not satisfy cmp.Ordered"},
 		{"ambiguous", `func main() IO[Unit] { do { slices.clone([]); ioPure(unit()) } }`, "cannot determine type arguments before defaulting"},
@@ -68,13 +72,19 @@ func main() IO[Unit] { do { sync.onceValue(produce); ioPure(unit()) } }`, "type 
 		{"unbounded", `func expand[A](xs List[A]) IO[Unit] { do { slices.clone(xs); expand([xs]) } }
 func main() IO[Unit] { expand([1]) }`, "unbounded polymorphic instantiation"},
 	}
-	for _, tc := range cases { t.Run(tc.name, func(t *testing.T) {
-		dir := toolsModule(t)
-		file := toolsWrite(t, filepath.Join(dir, "main.gt"), "package main\nimport \"go:slices\"\nimport \"go:sync\"\n"+tc.source+"\n")
-		out, stderr, status := toolsCommand(t, dir, "", "check", file)
-		if status != 1 || out != "" || !strings.Contains(stderr, tc.want) || !strings.Contains(stderr, "main.gt:") { t.Fatalf("status=%d stdout=%q stderr=%s; want %q", status, out, stderr, tc.want) }
-		if _, err := os.Stat(filepath.Join(dir, "main_gen")); !os.IsNotExist(err) { t.Fatalf("check emitted build output: %v", err) }
-	}) }
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := toolsModule(t)
+			file := toolsWrite(t, filepath.Join(dir, "main.gt"), "package main\nimport \"go:slices\"\nimport \"go:sync\"\n"+tc.source+"\n")
+			out, stderr, status := toolsCommand(t, dir, "", "check", file)
+			if status != 1 || out != "" || !strings.Contains(stderr, tc.want) || !strings.Contains(stderr, "main.gt:") {
+				t.Fatalf("status=%d stdout=%q stderr=%s; want %q", status, out, stderr, tc.want)
+			}
+			if _, err := os.Stat(filepath.Join(dir, "main_gen")); !os.IsNotExist(err) {
+				t.Fatalf("check emitted build output: %v", err)
+			}
+		})
+	}
 }
 
 func TestGenericTemplateCache(t *testing.T) {
@@ -84,14 +94,22 @@ func TestGenericTemplateCache(t *testing.T) {
 	for _, value := range []string{"[1]", "[\"s\"]"} {
 		file := toolsWrite(t, filepath.Join(dir, "main.gt"), "package main\nimport \"go:slices\"\nfunc main() IO[Unit] { do { slices.clone("+value+"); ioPure(unit()) } }\n")
 		out, stderr, status := toolsCommand(t, dir, "", "check", file)
-		if status != 0 || out != "" || stderr != "" { t.Fatalf("check: %d %q %s", status, out, stderr) }
+		if status != 0 || out != "" || stderr != "" {
+			t.Fatalf("check: %d %q %s", status, out, stderr)
+		}
 		b := newGoImportBinder(dir)
 		m, err := b.Bind("slices")
-		if err != nil || m.ForeignBindings == nil { t.Fatalf("cached port: %v", err) }
-		if entry != "" && entry != b.cacheEntries["slices"] { t.Fatal("caller changed package template key") }
+		if err != nil || m.ForeignBindings == nil {
+			t.Fatalf("cached port: %v", err)
+		}
+		if entry != "" && entry != b.cacheEntries["slices"] {
+			t.Fatal("caller changed package template key")
+		}
 		entry = b.cacheEntries["slices"]
 		_, _, _, err = readBindingCache(entry)
-		if err != nil { t.Fatal(err) }
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 }
 
@@ -112,5 +130,7 @@ func TestGenericBeyondOptimizerLimits(t *testing.T) {
 		t.Fatalf("required specialization: %d %q %s", status, out, stderr)
 	}
 	shims, err := filepath.Glob(filepath.Join(dir, "main_gen", "go4tbind", "slices", "instances", "*", "shim.go"))
-	if err != nil || len(shims) != 9 { t.Fatalf("required copies: %d, %v", len(shims), err) }
+	if err != nil || len(shims) != 9 {
+		t.Fatalf("required copies: %d, %v", len(shims), err)
+	}
 }

@@ -242,3 +242,54 @@ The 19x applies only to code that updates a Map while folding. A decision
 core's `Observed` maps are built once by `observe` and only read by `decide`,
 so controllers pay none of it; update-heavy aggregation belongs to `std/mutmap`
 in IO, which is what the direct-style lowering targets.
+
+## Third-party friction
+
+On 2026-11-04, four fresh agents wrote docs-only programs: logstat (log
+aggregation), ghstars (JSON repository reports and a local HTTP fetch), csvpivot
+(whole-file and streaming CSV pivots), and turnstile (order-state replay).
+They learned from documentation and examples, without inspecting compiler or
+runtime implementation. All four programs ran on their first runtime attempts;
+that does not mean every initial proof check or test invocation succeeded.
+The source observations are retained in
+`.tmp/probe-{logstat,ghstars,csvpivot,turnstile}/FRICTION.md` in the evaluation
+checkout; these ignored artifacts are not part of a packaged release.
+
+The counts below include every line containing `Verdict:` in those logs,
+counted once by its first verdict category. They count observations, not
+programs, failed commands, or independent defects.
+
+| Program | Worked first try | Language gap | Library gap | Doc gap | My error | Other | Total |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| logstat | 3 | 1 | 1 | 1 | 0 | 1 | 7 |
+| ghstars | 0 | 3 | 2 | 0 | 3 | 0 | 8 |
+| csvpivot | 0 | 2 | 2 | 0 | 0 | 2 | 6 |
+| turnstile | 4 | 0 | 1 | 0 | 3 | 0 | 8 |
+
+“Other” includes logstat's concluding usability verdict and csvpivot's
+“no obstacle yet” and “documented boundary” observations. Turnstile also labels
+two “my error” observations as secondary doc gaps and qualifies one successful
+false-law diagnostic as a language gap only if generated bindings were expected.
+Those secondary labels are not double-counted. Ghstars and csvpivot describe
+first-try runtime successes outside their `Verdict:` lines, hence their zero
+counts in that column.
+
+Top gaps and disposition:
+
+- **JSON Int exactness:** turnstile exported `9007199254740993` as
+  `9007199254740992`. Fixed the same day by preserving Int values exactly in
+  JSON rather than passing their encoding through Float.
+- **HTTP loopback and ephemeral ports:** ghstars could only bind all interfaces
+  on a preselected port. Fixed the same day with host-selecting server APIs and
+  bound-port notification for port zero.
+- **Documentation corrections:** this change replaces unsupported list-append
+  notation with `list.append`, locates Int-bound helpers in `std/float`, explains
+  the minimum-Int literal restriction, documents parentheses on conditional
+  equation operands, distinguishes failed-proof diagnostics from sampled
+  counterexample bindings, cross-references generated Go-name inspection, and
+  makes whole-file/streaming line-ending parity explicit.
+- **Documented limits remain:** Float laws are outside the proof fragment
+  (Float addition is also genuinely order-sensitive); sorting is outside
+  universal proofs; there is no standard CSV codec or URL parser. The probes
+  used Int-cents proofs, explicit sampling, and application-level CSV/URL parsing
+  rather than treating those limits as proved behavior.

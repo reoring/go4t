@@ -19,6 +19,11 @@ runes, not bytes/graphemes. Huge positive allocations remain host-resource
 bounded. For the combined language boundary tables see
 [SPEC §10](../SPEC.md#10-boundary-behaviour).
 
+Int bounds live in `std/float`: import it and call `float.minInt()` or
+`float.maxInt()`. The decimal spelling `-9223372036854775808` is not accepted
+as an Int literal: unary minus is applied only after parsing the positive
+magnitude, which is outside Int's range. Use `float.minInt()` instead.
+
 **Law-eligible** classifies function/extern rows by the taint rules in
 [SPEC §6.5](../SPEC.md#65-laws-and-proofs): Yes means untainted, not a guarantee
 of termination or a successful proof. Callbacks and dictionaries must supply
@@ -168,7 +173,7 @@ Source: [`float/float.gt`](../std/float/float.gt). 24 top-level declarations.
 
 ## `std/http`
 
-Source: [`http/http.gt`](../std/http/http.gt). 14 top-level declarations.
+Source: [`http/http.gt`](../std/http/http.gt). 16 top-level declarations.
 
 All client/server effects honor their IO context. Headers are lists of pairs,
 not maps, so repeated values survive the ABI. Bodies are buffered Strings.
@@ -185,7 +190,7 @@ is assumed by rt. See SPEC §6.4 and the runnable [HTTP example](../examples/htt
 | `instance Debug[Response]` | Derived structural rendering of all response fields. | `debug(response(200, "ok"))` is `Response{status: 200, headers: [], body: "ok"}`. | — |
 | `extern func _request(method String, url String, path String, query List[(String, String)], headers List[(String, String)], body String, millis Int) IO[(Int, List[(String, String)], String)] = "go4t/rt".HTTPRequest` | Private field-list client ABI returning a triple. | Deferred; uses context through connection, redirects and full body read; no record-layout dependency. | No |
 | `extern func _header(headers List[(String, String)], name String) Option[String] = "go4t/rt".HTTPHeader` | Private case-insensitive header lookup. | First matching value, including empty; None if absent. | No |
-| `extern func _serve(port Int, handler func(String, String, String, List[(String, String)], List[(String, String)], String) IO[(Int, List[(String, String)], String)]) IO[Unit] = "go4t/rt".HTTPServe` | Private server field-list/triple ABI. | Request fields are method, url, path, query, headers, body; handler results are status, headers, body. | No |
+| `extern func _serveOnReady(host String, port Int, handler func(String, String, String, List[(String, String)], List[(String, String)], String) IO[(Int, List[(String, String)], String)], ready func(Int) IO[Unit]) IO[Unit] = "go4t/rt".HTTPServeOnReady` | Private server field-list/triple ABI with host selection and readiness callback. | Request fields remain method, url, path, query, headers, body; handler results remain status, headers, body; ready receives the actual bound port before accepting requests. | No |
 | `func request(r Request) IO[Response]` | Send a request with a 30 s overall timeout. | Replay sends again; Network/Timeout/Cancelled on transport failure; non-2xx succeeds. No retries. | No |
 | `func requestWithTimeout(r Request, millis Int) IO[Response]` | Send with an explicit millisecond budget. | Parent cancellation checked first; nonpositive fails Timeout without sending; overflow fails `requestWithTimeout: duration out of range`. | No |
 | `func get(url String) IO[Response]` | GET with no explicit body/headers/query override. | Uses request's 30 s budget and net/http redirect defaults. | No |
@@ -194,7 +199,9 @@ is assumed by rt. See SPEC §6.4 and the runnable [HTTP example](../examples/htt
 | `func jsonResponse[A json.Encode](status Int, a A) Response` | Encode through std/json and set Content-Type to application/json. | Requires Encode; strict encoding may panic before IO construction (e.g. non-finite numbers). | No |
 | `func requestHeader(r Request, name String) Option[String]` | Read first case-insensitive request header. | Absent → None; present empty → Some(""); Host is exposed on incoming requests. | No |
 | `func responseHeader(r Response, name String) Option[String]` | Read first case-insensitive response header. | Repeated headers are not joined; first wins. | No |
-| `func serve(port Int, handler func(Request) IO[Response]) IO[Unit]` | Listen on all interfaces; run each request concurrently with its request context. | Deferred bind; Network on bind error; cancellation shuts down with 5 s grace and fails Cancelled/Timeout without logging; handler failure/panic → 500 with exact message body and `http handler: <message>` stderr line, except Cancelled with an already-done request context is silent. Fork is not a readiness signal. | No |
+| `func serve(port Int, handler func(Request) IO[Response]) IO[Unit]` | Equivalent to `serveOn("", port, handler)`; listen on all interfaces and run each request concurrently with its request context. | Deferred bind; Network on bind error; cancellation shuts down with 5 s grace and fails Cancelled/Timeout without logging; handler failure/panic → 500 with exact message body and `http handler: <message>` stderr line, except Cancelled with an already-done request context is silent. Fork is not a readiness signal. | No |
+| `func serveOn(host String, port Int, handler func(Request) IO[Response]) IO[Unit]` | Bind to an explicit host when IO executes; `"127.0.0.1"` restricts to loopback, `""` preserves all interfaces. | Network on bind failure; same request, cancellation and 5 s graceful shutdown behaviour as serve. | No |
+| `func serveOnReady(host String, port Int, handler func(Request) IO[Response], ready func(Int) IO[Unit]) IO[Unit]` | Bind to the host and call ready(actualPort) once after successful binding; port 0 selects an ephemeral port. | Callback must return before requests are accepted; callback failure/panic closes the listener and propagates; otherwise same cancellation/shutdown behaviour as serveOn. | No |
 
 ## `std/io`
 
@@ -204,6 +211,13 @@ All operations returning IO are deferred; `formatTime` and `ioErrorMessage` are 
 IO errors are classified as NotFound, PermissionDenied, AlreadyExists, Timeout,
 Cancelled, Network, or Failure; recovered action/worker panics are Panic.
 Wrapped Go errors follow the same classification. See SPEC §6.2 for precedence.
+
+For whole-file/streaming parity, note that `string.lines` splits on LF and
+retains CR, whereas `io.foldLines` strips both LF and CRLF terminators.
+Use `string.lines(string.replace(text, "\r\n", "\n"))` when matching
+`foldLines` on CRLF input. Both preserve blank lines, deliver an unterminated
+final line, and add no extra line for a final newline; empty input has no lines.
+A bare CR not followed by LF remains part of the line in both APIs.
 
 | Source signature | Semantics | Boundary behaviour | Law-eligible |
 | --- | --- | --- | --- |
@@ -250,17 +264,20 @@ Source: [`json/json.gt`](../std/json/json.gt). 39 top-level declarations.
 
 All `_json*` rows are private compiler/codec helpers; user modules cannot call them. JSON strings use JSON rather than Go escaping.
 
+Law reach is partially eligible: **16 eligible / 23 tainted** declarations;
+`Encode[Int].encode` is eligible, while `Decode[Int].decode` remains Float-tainted.
+
 | Source signature | Semantics | Boundary behaviour | Law-eligible |
 | --- | --- | --- | --- |
-| `type Json = JNull \| JBool(Bool) \| JNum(Float) \| JStr(String) \| JArr(List[Json]) \| JObj(Map[String, Json]) deriving Debug` | JSON null, Boolean, Float number, string, array, or String-keyed object. | JNum can be constructed nonfinite but JSON printing then panics; object metadata can preserve source order. | — |
+| `type Json = JNull \| JBool(Bool) \| JInt(Int) \| JNum(Float) \| JStr(String) \| JArr(List[Json]) \| JObj(Map[String, Json]) deriving Debug` | JSON null, Boolean, exact Int or Float number, string, array, or String-keyed object. | JInt preserves the full int64 range; JNum can be constructed nonfinite but JSON printing then panics; object metadata can preserve source order. | — |
 | `instance Debug[Json]` | Derived structural constructor rendering, not JSON encoding. | Recurses through list/map values; object keys sorted and strings quoted; nonfinite numbers are printable by Debug. | — |
-| `class Encode[A] { encode(a A) Json }` | Convert a typed value to Json. | Import/qualify std/json; nonfinite numbers fail when printed; nullable Option and large Int are lossy. | — |
+| `class Encode[A] { encode(a A) Json }` | Convert a typed value to Json. | Import/qualify std/json; Int encoding is exact; nonfinite Float fails when printed; nullable Option loses Some(null-like value) identity. | — |
 | `class Decode[A] { decode(j Json) Result[String, A] }` | Convert Json to a typed Result[String, A]. | First failure uses expected <what> at <path>; missing record fields are errors. | — |
-| `extern func toJson(j Json) String = "go4t/rt".ToJson` | Render a Json value as compact JSON text. | Nonfinite JNum panics `cannot encode non-finite JSON number`; preserves parsed/derived object metadata; ordinary Map keys sorted. | No |
-| `extern func toJsonPretty(j Json) String = "go4t/rt".ToJsonPretty` | Render Json with two-space indentation and no trailing newline. | Same nonfinite policy/order as toJson; two spaces, no trailing newline. | No |
-| `extern func parseJson(s String) Result[String, Json] = "go4t/rt".ParseJson` | Parse exactly one JSON value, preserving object member order. | Whitespace accepted; trailing values/malformed input/Float overflow return Err with `invalid JSON: ` prefix; duplicate keys first position/last value. | No |
+| `extern func toJson(j Json) String = "go4t/rt".ToJson` | Render a Json value as compact JSON text without a trailing newline. | JInt prints exact decimal digits without `.0`; JNum retains encoding/json formatting, including integral output and exponent thresholds; integer `-0` normalizes to `0`, Float negative zero prints `-0`; HTML/Unicode separators escaped; nonfinite JNum panics `cannot encode non-finite JSON number`; preserves parsed/derived object metadata; ordinary Map keys sorted. | No |
+| `extern func toJsonPretty(j Json) String = "go4t/rt".ToJsonPretty` | Render Json with two-space indentation and no trailing newline. | Same exact Int/Float formatting, escaping, nonfinite policy and object order as toJson. | No |
+| `extern func parseJson(s String) Result[String, Json] = "go4t/rt".ParseJson` | Parse exactly one JSON value, preserving object member order; integer literals without decimal/exponent syntax that fit int64 become JInt, other numbers become JNum. | Whitespace accepted; trailing values/malformed input/Float overflow return Err with `invalid JSON: ` prefix; duplicate keys first position/last value. | No |
 | `extern func _jsonObject(fields List[(String, Json)]) Json = "go4t/rt".JsonObject` | Private ordered-object constructor used by generated encoders. | Private generated-helper contract expects unique field names; empty fields produce empty object; order metadata retained. | No |
-| `extern func _jsonInt(n Float) Result[String, Int] = "go4t/rt".JsonInt` | Private checked Float-to-Int JSON conversion. | Only finite integral [-2^63, 2^63) accepted; otherwise Err("expected Int at $"). | No |
+| `extern func _jsonInt(n Float) Result[String, Int] = "go4t/rt".JsonInt` | Private checked Float-to-Int JSON conversion. | Only finite integral values within inclusive [-2^53, 2^53] accepted; otherwise Err("expected Int at $"). | No |
 | `extern func _jsonErrorAt(message String, segment String) String = "go4t/rt".JsonErrorAt` | Private insertion of a path segment after the error's root. | Existing ` at $` path extended at root; absent root appends ` at $` plus segment. | No |
 | `extern func _jsonFieldPath(name String) String = "go4t/rt".JsonFieldPath` | Private rendering of a JSON field path segment. | Identifier key → .name; otherwise JSON-quoted brackets, including empty key. | No |
 | `func _jsonAt[A](segment String, result Result[String, A]) Result[String, A]` | Private transformation of a Result error to add a path segment. | Ok unchanged; Err receives the prefix without dropping its nested suffix. | No |
@@ -270,10 +287,10 @@ All `_json*` rows are private compiler/codec helpers; user modules cannot call t
 | `func _jsonValues(fields Map[String, Json], size Int) Result[String, List[Json]]` | Private required $values array lookup with exact arity. | Missing $values errors at its quoted field path; exact requested constructor arity required. | No |
 | `instance Encode[Json]` | Encode as identity Json. | Encode unchanged; Decode always Ok(j). | — |
 | `instance Decode[Json]` | Decode from identity Json. | Encode unchanged; Decode always Ok(j). | — |
-| `instance Encode[Int]` | Encode as Float-backed JSON number. | Encoding may round; decoding accepts only finite integral [-2^63, 2^63). | — |
-| `instance Decode[Int]` | Decode from Float-backed JSON number. | Encoding may round; decoding accepts only finite integral [-2^63, 2^63). | — |
-| `instance Encode[Float]` | Encode as JSON number. | Decode JNum directly (including manually constructed nonfinite values); printing nonfinite numbers panics. | — |
-| `instance Decode[Float]` | Decode from JSON number. | Decode JNum directly (including manually constructed nonfinite values); printing nonfinite numbers panics. | — |
+| `instance Encode[Int]` | Encode as JInt without Float conversion. | Exact full-int64 round trip, including minInt/maxInt; prints decimal digits without `.0`. | — |
+| `instance Decode[Int]` | Decode JInt directly or integral JNum within inclusive [-2^53, 2^53]. | Other values return `expected Int at <path>`; nested decode retains its path; `1.0` and `1e3` remain accepted. | — |
+| `instance Encode[Float]` | Encode as JNum. | Printing uses encoding/json formatting; nonfinite numbers panic. | — |
+| `instance Decode[Float]` | Decode JNum directly or JInt through toFloat. | Large Int conversion may round; manually constructed nonfinite JNum decodes directly but cannot be printed as JSON. | — |
 | `instance Encode[String]` | Encode as JSON string. | Only JStr decodes; empty string valid. | — |
 | `instance Decode[String]` | Decode from JSON string. | Only JStr decodes; empty string valid. | — |
 | `instance Encode[Bool]` | Encode as JSON Boolean. | Only JBool decodes. | — |
@@ -309,6 +326,9 @@ Source: [`lazy/lazy.gt`](../std/lazy/lazy.gt). 4 top-level declarations.
 Source: [`list/list.gt`](../std/list/list.gt). 68 top-level declarations.
 
 Accumulator helpers are exported because their names do not begin `_`; prefer the ordinary entrypoints unless deliberately supplying a reversed prefix. `sortBy` is stable array-backed sorting; no `insertBy` remains.
+
+Concatenate with `list.append(xs, ys)` after importing `std/list`; `++` is
+not a go4t operator.
 
 | Source signature | Semantics | Boundary behaviour | Law-eligible |
 | --- | --- | --- | --- |
@@ -363,7 +383,7 @@ Accumulator helpers are exported because their names do not begin `_`; prefer th
 | `func init[A](xs List[A]) List[A]` | all but the final element. | Empty and singleton give `Nil`; longer lists lose exactly the last element. | Yes |
 | `func initAcc[A](xs List[A], acc List[A]) List[A]` | Return reverse(acc) followed by all but the last input element. | Empty/singleton returns `rev(acc)`; otherwise that prefix followed by `init(xs)`. | Yes |
 | `func splitAt[A](n Int, xs List[A]) (List[A], List[A])` | prefix of at most n elements and remaining suffix. | `n <= 0` gives `(Nil, xs)`; `n >= length(xs)` gives `(xs, Nil)`; empty input gives `(Nil, Nil)` for every n. | Yes |
-| `func splitAtAcc[A](n Int, xs List[A], acc List[A]) (List[A], List[A])` | Accumulate a taken prefix in reverse before splitting. | `n <= 0` gives `(rev(acc), xs)`; exhaustion gives `(rev(acc) ++ xs, Nil)` by value; otherwise accumulates the taken prefix before reversing. | Yes |
+| `func splitAtAcc[A](n Int, xs List[A], acc List[A]) (List[A], List[A])` | Accumulate a taken prefix in reverse before splitting. | `n <= 0` gives `(rev(acc), xs)`; exhaustion gives `(list.append(rev(acc), xs), Nil)` by value; otherwise accumulates the taken prefix before reversing. | Yes |
 | `func span[A](xs List[A], p func(A) Bool) (List[A], List[A])` | longest satisfying prefix and remaining suffix. | Empty gives `(Nil, Nil)`; immediate predicate failure gives `(Nil, xs)`; all true gives `(xs, Nil)`; stops at first false. | Yes |
 | `func spanAcc[A](xs List[A], p func(A) Bool, acc List[A]) (List[A], List[A])` | Accumulate a satisfying prefix in reverse before splitting. | Empty gives `(rev(acc), Nil)`; immediate failure gives `(rev(acc), xs)`; otherwise extends prefix up to first failure. | Yes |
 | `func takeWhile[A](xs List[A], p func(A) Bool) List[A]` | longest satisfying prefix. | Empty or immediate predicate failure gives `Nil`; all true returns all elements; stops at first false. | Yes |

@@ -23,9 +23,9 @@ List structure, filtering, folds, append, Option (in std/prelude) and Result com
 | `std/conc` | 0 | 8 | 8 |
 | `std/dyn` | 0 | 2 | 2 |
 | `std/float` | 0 | 24 | 24 |
-| `std/http` | 3 | 11 | 14 |
+| `std/http` | 3 | 13 | 16 |
 | `std/io` | 4 | 32 | 36 |
-| `std/json` | 15 | 24 | 39 |
+| `std/json` | 16 | 23 | 39 |
 | `std/lazy` | 3 | 0 | 3 |
 | `std/list` | 67 | 3 | 70 |
 | `std/map` | 26 | 0 | 26 |
@@ -37,7 +37,7 @@ List structure, filtering, folds, append, Option (in std/prelude) and Result com
 | `std/set` | 0 | 20 | 20 |
 | `std/state` | 10 | 0 | 10 |
 | `std/string` | 32 | 0 | 32 |
-| **Total** | **227** | **166** | **393** |
+| **Total** | **228** | **167** | **395** |
 
 ## First-reason breakdown
 
@@ -46,8 +46,8 @@ Counts are disjoint, not all contributing causes. Transitive rows retain the ult
 | First reason | Count |
 | --- | ---: |
 | extern | 40 |
-| IO result | 66 |
-| Float | 28 |
+| IO result | 68 |
+| Float | 27 |
 | division/modulo | 0 |
 | transitive | 32 |
 
@@ -138,7 +138,7 @@ Counts are disjoint, not all contributing causes. Transitive rows retain the ult
 | `Debug[Response].debug` | law-eligible | source | — |
 | `_header` | tainted | extern | unlisted extern go4t/rt.HTTPHeader |
 | `_request` | tainted | IO result | IO result type |
-| `_serve` | tainted | IO result | IO result type |
+| `_serveOnReady` | tainted | IO result | IO result type |
 | `get` | tainted | IO result | IO result type |
 | `jsonResponse` | tainted | transitive | depends on std/json.toJson (unlisted extern go4t/rt.ToJson) |
 | `post` | tainted | IO result | IO result type |
@@ -148,6 +148,8 @@ Counts are disjoint, not all contributing causes. Transitive rows retain the ult
 | `response` | law-eligible | source | — |
 | `responseHeader` | tainted | transitive | depends on std/http._header (unlisted extern go4t/rt.HTTPHeader) |
 | `serve` | tainted | IO result | IO result type |
+| `serveOn` | tainted | IO result | IO result type |
+| `serveOnReady` | tainted | IO result | IO result type |
 
 ## `std/io`
 
@@ -210,7 +212,7 @@ Counts are disjoint, not all contributing causes. Transitive rows retain the ult
 | `Encode[Array].encode` | tainted | transitive | depends on std/array.arrayToList (unlisted extern go4t/rt.ArrayToList) |
 | `Encode[Bool].encode` | law-eligible | source | — |
 | `Encode[Float].encode` | tainted | Float | Float use in body |
-| `Encode[Int].encode` | tainted | Float | Float use in body |
+| `Encode[Int].encode` | law-eligible | source | — |
 | `Encode[Json].encode` | law-eligible | source | — |
 | `Encode[List].encode` | law-eligible | source | — |
 | `Encode[Map].encode` | law-eligible | source | — |

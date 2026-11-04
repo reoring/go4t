@@ -8,8 +8,8 @@ import (
 // Register after the shared List/Option initializer, just like Result. Runtime
 // JSON parsing constructs the program's actual ADTs, never a parallel JSON ABI.
 func (g *generator) jsonShapes(out *strings.Builder) {
-	names := []string{"JNull", "JBool", "JNum", "JStr", "JArr", "JObj"}
-	kinds := []string{"null", "bool", "number", "string", "array", "object"}
+	names := []string{"JNull", "JBool", "JInt", "JNum", "JStr", "JArr", "JObj"}
+	kinds := []string{"null", "bool", "integer", "number", "string", "array", "object"}
 	for i, name := range names {
 		ctor := g.ctors[name]
 		arity := 1

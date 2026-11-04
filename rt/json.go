@@ -13,7 +13,7 @@ import (
 )
 
 // ParseJson consumes exactly one JSON value. Token decoding retains object order;
-// UseNumber defers conversion until we can reject numbers outside Float's range.
+// UseNumber preserves int64 literals before falling back to Float conversion.
 func ParseJson(source any) any {
 	decoder := json.NewDecoder(strings.NewReader(source.(string)))
 	decoder.UseNumber()
@@ -46,6 +46,11 @@ func readJSON(decoder *json.Decoder) (any, error) {
 	case string:
 		return Shapes.JStr(value), nil
 	case json.Number:
+		if !strings.ContainsAny(value.String(), ".eE") {
+			if n, err := value.Int64(); err == nil {
+				return Shapes.JInt(n), nil
+			}
+		}
 		n, err := value.Float64()
 		if err != nil {
 			return nil, err
@@ -173,6 +178,9 @@ func writeJSON(out *bytes.Buffer, j any) {
 		out.WriteString("null")
 	case "bool":
 		out.WriteString(strconv.FormatBool(value.(bool)))
+	case "integer":
+		var digits [20]byte
+		out.Write(strconv.AppendInt(digits[:0], value.(int64), 10))
 	case "number":
 		n := value.(float64)
 		if math.IsNaN(n) || math.IsInf(n, 0) {
@@ -234,11 +242,11 @@ func writeJSON(out *bytes.Buffer, j any) {
 	}
 }
 
-// JsonInt rejects fractional and out-of-range values rather than truncating or
-// relying on Go's implementation-defined out-of-range Float -> Int conversion.
+// JsonInt accepts integral Floats only within the binary64 exact-integer range.
+// Larger integer literals use JInt directly, without a Float conversion.
 func JsonInt(value any) any {
 	n := value.(float64)
-	if math.IsNaN(n) || n < -9223372036854775808.0 || n >= 9223372036854775808.0 || math.Trunc(n) != n {
+	if math.IsNaN(n) || n < -9007199254740992.0 || n > 9007199254740992.0 || math.Trunc(n) != n {
 		return ErrOf("expected Int at $")
 	}
 	return OkOf(int64(n))
