@@ -97,7 +97,7 @@ go4t では CLI・HTTP プログラムや controller 全体を書けます。
 | --- | --- | --- | --- |
 | Kubernetes controller の reconcile | 観測したリソースの状態から、次に打つ API 操作を 1 つ選ぶ | 「cordon してから退避する」などの順序、冪等性、timeout の正確な境界 | [approval-controller](examples/approval-controller)、[attachment-repair-controller](examples/attachment-repair-controller)、[node-drain-controller](examples/node-drain-controller) |
 | controller 全体を go4t で | 上と同じ決定に加え、`observe`/`apply` も `go:k8s.io/client-go` に対して go4t で書く | 上に加えて射影の法則:「DaemonSet に所有される pod は `DaemonSet` に射影される」「mirror annotation が優先」 | [node-drain-typed](examples/node-drain-typed) |
-| Go がクライアントを持つ go4t controller | Go で作った `*kubernetes.Clientset` を、go4t が export した `observe`/`apply`/`reconcile` の IO 関数に渡す | 決定と射影の同じ 15 法則。reconcile のループは Go で実行 | [node-drain-shell](examples/node-drain-shell) |
+| Go がクライアントを持つ go4t controller | Go で作った `*kubernetes.Clientset` や controller-runtime の `client.Client` を、go4t が export した `observe`/`apply`/`reconcile` の IO 関数に渡す | 決定と射影の同じ 15 法則。reconcile のループは Go で実行。実 controller の observe を go4t に移しても既存 6 テストは無変更 | [node-drain-shell](examples/node-drain-shell)、[approval-controller](examples/approval-controller) |
 | admission / 認可のゲート | 複数のチェックを順に通し、最初に失敗した理由を返す | ゲートの順序、負の quota など境界値の拒否 | ADR 0002 の admission の回 |
 | 配置・スケジューリング | 容量と使用量の `Map` から配置先を選び、フォールバックする | 満杯のゾーンには置かない、容量がなければどのフォールバック列でも拒否 | `laws/testdata/placement.gt`、ADR 0002 のゾーン配置 |
 | 複数ステップのワークフロー | 観測 → 認可 → compare-and-swap 削除 → 公開のどの段階かを判断し、次のステップを返す | 段階の判断に漏れがない(網羅性)、ステップの順序 | [attachment-repair-controller](examples/attachment-repair-controller) |

@@ -4,13 +4,32 @@ Standalone Go module `approvalctl`, package `storage`, extracted from
 `/workspace/platform/internal/controllers/storage/` at platform commit
 `0a9a5de52b47d70f5ad8f5174d1f98efbedef3c3`.
 
-`storage_approval_controller.go` started as a verbatim copy. Its decision logic
-now lives in `decide/decide.gt`, emitted as Go package `approvalctl/decide`.
-The Go shell reads the referenced plan, policy, maintenance window, and
-operations into `decide.Observed`, calls `decide.Decide`, then publishes the
-verdict through the original status helper. Reads happen up front, even when
-an earlier decision gate will reject the approval. Operation creation and its
-immutable approval-binding helpers remain unchanged.
+`storage_approval_controller.go` started as a verbatim copy. Observation and
+projection now live in `decide/observe.gt`, alongside the pure decision in
+`decide/decide.gt`. Both emit into Go package `approvalctl/_decide_gen` (package
+name `decide`). The Go shell owns the controller-runtime `client.Client`,
+reconciler, status publishing, and operation creation. It calls
+`decide.ObserveInputs(r.Client, approval)(ctx)`, then `decide.Decide`.
+
+**This uses the raw-read fallback, not a fully go4t API client.** The small
+`fetch/fetch.go` package performs only `Get`/`List`, returning raw unstructured
+objects and not-found/read-error flags. go4t selects the references and
+projects every binding, plan, policy, window, gate, TTL, timestamp, and
+operation-conflict predicate. Reads still happen up front even when an earlier
+decision gate will reject the approval. Operation creation and its immutable
+approval-binding helpers remain unchanged.
+
+The exported boundary preserves native handles, not copied client records:
+
+```go
+func ObserveInputs(c client.Client, approval *unstructured.Unstructured) func(context.Context) (Observed, error)
+```
+
+The generated signature names its parameters `p0`/`p1` and imports these
+packages as `go0`/`go1`. The shell retains the `Now` test hook; absent that hook,
+go4t samples `time.Now` after the reads, in nanoseconds. An IO-boundary failure
+publishes Pending / PlanReadFailed with its error message; ordinary API read
+failures remain the original `Fetched` and operation-read outcomes.
 
 The shared `Fetched[A]` sum represents `Fetched[Plan]`, `Fetched[Policy]`, and
 `Fetched[Window]` in `Observed`. Their Go mirrors are `FetchedPlan`,
@@ -23,6 +42,54 @@ tests remain the correctness oracle. Production helper declarations and test
 fixtures are copied from the same package, except for the fixture-client
 trimming below.
 
+## Binding probe
+
+The throwaway probe imported controller-runtime's client and apimachinery's
+unstructured package. Import-only `go4t check` succeeded. The cached binding
+declarations were:
+
+```go4t
+type Client = ClientHandle
+type Object = ObjectHandle
+type ObjectList = ObjectListHandle
+type Unstructured = UnstructuredHandle
+type UnstructuredList = UnstructuredListHandle
+type NamespacedName = NamespacedName{namespace: String, name: String} deriving Eq, Debug
+extern func clientGet(recv Client, p0 go_k8s_io_apimachinery_pkg_types.NamespacedName, p1 Object, p2 List[GetOption]) IO[Unit] = "go4tbind/sigs.k8s.io/controller-runtime/pkg/client".Client_Get
+extern func clientList(recv Client, p0 ObjectList, p1 List[ListOption]) IO[Unit] = "go4tbind/sigs.k8s.io/controller-runtime/pkg/client".Client_List
+```
+
+`ObjectKey` resolves to its owner record, `types.NamespacedName`; variadic
+options become lists and the leading context is supplied by IO. **Neither
+Get nor List was skipped**, so there is no skip reason to quote. The missing
+piece is the `Unstructured` → `client.Object` upcast: generated upcasts include
+`unstructuredAsMetaV1Object` and `unstructuredAsRuntimeObject`, but not
+controller-runtime's `Object`/`ObjectList`, which are outside unstructured's
+own package/imports. Passing the handle directly produced:
+
+```text
+probe/probe.gt:10:83: type mismatch: expected client.Object, got unstructured.Unstructured
+```
+
+That is why the raw reads remain in Go. The probe source was removed.
+No compiler, binder, or SPEC change is required for this fallback.
+
+## What moved
+
+Line counts include signatures and bodies, excluding generated code.
+
+| Area | Before | After |
+| --- | --- | --- |
+| Observation and projection | 123-line Go `observeInputs` | Deleted; 225-line `decide/observe.gt` added |
+| API reads | Get/List inside the Go observer | go4t orchestrates reads through 29-line Go `fetch/fetch.go` |
+| Projection | Go constructs `Observed`, `Fetched`, gates and time sums | Entirely go4t; only the optional test clock override remains in the shell |
+| Unused Go helpers | Terminal-phase/string-slice/map-string helpers, list GVK, default clock method | Removed: 45 lines from `helpers.go` and 7 clock-helper lines |
+
+**Export naming:** helpers use `_projectFetchedPlan`, `_projectTtl`, and
+`_projectTimestamp`, not `plan`, `ttl`, or `timestamp`. This avoids first-rune
+upper-casing collisions with `Plan`, `Ttl`, and `Timestamp` under SPEC §8.7;
+the compiler is unchanged.
+
 ## Helpers
 
 `helpers.go` contains:
@@ -31,11 +98,9 @@ trimming below.
   `nestedInt64`, and transitively required `numericToInt64`.
 - `newStorageResizePlanObject`, `newStorageMaintenanceWindowObject`,
   `storageResizePlanResourceGVK`, `storageMaintenanceWindowResourceGVK`.
-- `isTerminalStorageResizeOperationPhase`, `newStorageResizeOperationObject`,
-  `storageResizeOperationResourceGVK`, `storageResizeOperationListResourceGVK`.
+- `newStorageResizeOperationObject`, `storageResizeOperationResourceGVK`.
 - `patchUnstructuredStatus`, `firstStatusString`, `firstNonEmptyNestedString`,
-  `firstNestedStringSlice`, `newStorageAutopilotPolicyObject`,
-  `storageAutopilotPolicyGVK`, `mapStringDefault`.
+  `newStorageAutopilotPolicyObject`, `storageAutopilotPolicyGVK`.
 - `recordStorageWorkflowEvent`, `storageApprovalEvent`, `appendAuditCorrelation`.
 - Constants `StorageCapabilityGroup`, `StorageCapabilityVersion`,
   `StorageResizePlanKind`, `StorageResizeOperationKind`,
@@ -58,13 +123,23 @@ Run inside this directory:
 
 ```sh
 go generate ./...
-go vet ./...
+go vet .
 go test ./... -count=1
 ```
 
-`generate.go` runs `go run ../../cmd/go4t build --emit-go decide --package decide
-decide/decide.gt`. The command regenerates `decide/*.go` from the go4t source;
-do not edit emitted Go files directly.
+`generate.go` runs `go run ../../cmd/go4t build --emit-go _decide_gen --package
+decide decide`. The source directory combines `decide.gt` and `observe.gt` into
+one entry module and one exported API. **Run generation before building or
+testing:** `_decide_gen/` and its `go4tbind/` packages are ignored, not committed.
+Do not edit emitted Go files directly. The previously committed `decide/*.go`
+are removed; `decide/` now contains only handwritten go4t.
+
+Vet targets the handwritten controller package because generated transitive
+bindings currently copy lock-bearing `sync.Pool`, `watch.Recorder`, and
+`sync.RWMutex` values; `go vet ./...` must not include those generated shims.
+The leading underscore excludes `_decide_gen/` from Go's `./...` test package
+walk; the `*_gen/` rule separately excludes it from Git. Tests still compile
+and execute the generated package through the shell import.
 
 The `require go4t v0.0.0` and `replace go4t => ../..` connect the controller and
 generated package to the local go4t runtime. This nested module is not added
@@ -77,9 +152,11 @@ Gate evidence is projected element-by-element as `GateEvidence = Gate | InvalidG
 so the first malformed or non-passing element decides exactly as the original
 loop did; `gate_order_test.go` passes against both the original Go controller
 and this version. Generations cross as `Option[Int]` and are compared as
-options (no sentinel); durations and timestamps cross as `Int` nanoseconds,
-the same representation as `time.Duration` / `UnixNano`. No known
-behavioural differences remain.
+options (no sentinel); durations and timestamps use `Int` nanoseconds,
+the same representation as `time.Duration` / `UnixNano`. Additional native
+boundary tests cover read flags and ordering, missing references, mixed
+allowed-operation lists, numeric binding formats, nanosecond precision,
+cancellation, and preservation of the Go-owned approval.
 
 ## Projection rules learned here
 

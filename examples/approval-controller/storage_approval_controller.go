@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"approvalctl/decide"
+	decide "approvalctl/_decide_gen"
 
 	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
