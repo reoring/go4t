@@ -2,18 +2,61 @@
 
 [日本語](README.ja.md)
 
-go4t is a small, statically typed pure functional language that compiles to
-ordinary Go. Its distinguishing feature is **checked equational laws over
-pure code**: state invariants as equations and have `go4t check` verify them
-for every input. Algebraic data types and exhaustive pattern matching make
-states explicit; effects stay in `IO`.
+go4t is a small programming language that compiles to ordinary Go. You write
+the parts of a program where *getting every case right* matters — a
+reconciler's decision, an authorization gate, a pricing rule — and go4t gives
+you three things Go does not:
 
-go4t binds Go packages at import time (`import "go:net/http"`) and ships
-IO-only mutable references (`Ref`), channels, fibers, and file streaming.
-It has been used for an end-to-end Kubernetes controller against a real
-cluster, ordinary CLI and HTTP programs, and a 5.4k-line self-hosting compiler.
-You can write a whole program in go4t or embed a pure component in Go, as in
-the decision function below.
+1. **States as data.** A value is one of several named cases (`NoTtl |
+   InvalidTtl | TtlNanos(Int)`), and a `match` that forgets a case is a
+   compile error that names the missing pattern.
+2. **A line between pure code and effects.** Functions that do I/O return
+   `IO[A]` values; a pure function cannot call one. The compiler enforces it.
+3. **Laws.** You state an equation about your pure code
+   (`isStale(freshness(TtlNanos(t), AtNanos(at), now)) == (now >= at + t)`)
+   and `go4t check` proves it for **every** input, not for the samples a
+   test happens to list.
+
+Everything else is deliberately ordinary: the output is readable Go, builds
+with `go build`, uses `go.mod` for dependencies, and calls any Go package
+through bindings generated at build time (`import "go:net/http"`). You can
+write a whole program in go4t, or keep your Go program and move one function
+into it.
+
+## Try it in two minutes
+
+Requires **Go 1.22+** on PATH.
+
+```sh
+go install ./cmd/go4t
+go4t eval '1 + 2'        # 3
+```
+
+Create `hello/main.gt`:
+
+```go4t
+package main
+import "std/string"
+func main() IO[Unit] {
+  let names = [" Ada ", " Bob "] |> map(string.trim)
+  println("Hello, " + string.join(" and ", names) + "!")
+}
+```
+
+```sh
+go4t check hello/main.gt      # type-check (and prove laws, if any)
+go4t run hello/main.gt        # Hello, Ada and Bob!
+go4t build hello/main.gt      # builds ./main; keeps Go sources in hello/main_gen/
+```
+
+If you know Go, the [tutorial](docs/tutorial.md) is eighteen short lessons
+that start from Go habits and show what changes.
+
+## A small decision, end to end
+
+Here is the kind of code go4t is for. A controller must decide whether an
+observation is still fresh, given a TTL and a timestamp that may each be
+missing or invalid:
 
 ```go4t
 package decide
@@ -37,8 +80,20 @@ func freshness(ttl Ttl, observedAt Timestamp, nowNanos Int) Freshness {
 func main() IO[Unit] { println(debug(freshness(TtlNanos(10), AtNanos(5), 12))) }
 ```
 
-`go4t build --emit-go decide --package decide decide/decide.gt` turns that into
-a Go package. The Go side fills the inputs and switches on the result:
+Three things to notice:
+
+- The inputs are **sums**, not `*time.Time` plus a `bool`. Every combination
+  the function must handle is visible in its signature.
+- Delete the `(TtlNanos(_), InvalidTimestamp)` arm and `go4t check` fails with
+  `missing: (TtlNanos(_), InvalidTimestamp)`.
+- Add a **law** — `isStale(freshness(TtlNanos(t), AtNanos(at), now)) == (now >= at + t)`
+  — and moving the `Stale` guard behind another check fails the law for all
+  `t`, `at`, `now`. The proof is usually one word (`refl`) or a case split.
+
+To use it from Go, run `go4t build --emit-go decide --package decide
+decide/decide.gt` (typically from a `//go:generate` line). The generated
+package exports `Decide` and plain Go types for every record and sum, and the
+Go side switches on the result:
 
 ```go
 switch step := decide.Freshness(ttl, observedAt, now.UnixNano()).(type) {
@@ -50,20 +105,31 @@ case decide.FreshnessTtlInvalid:
 }
 ```
 
-Remove an arm from the `match` and `go4t check` fails with
-`missing: (TtlNanos(_), InvalidTimestamp)`. Add a law —
-`isStale(freshness(TtlNanos(t), AtNanos(at), now)) == (now >= at + t)` — and
-moving the guard behind another check fails it for all `t`, `at`, `now`, not
-for the handful of samples a table test happens to list.
+## How it fits into a Go program
+
+You choose how much to move. All three shapes have runnable examples and
+share the same decision code:
+
+| Shape | Go keeps | go4t owns | Example |
+| --- | --- | --- | --- |
+| Go shell, go4t decision | the client, the reconcile loop, observe and apply | `decide` | [go-shell](examples/go-shell), [node-drain-controller](examples/node-drain-controller) |
+| Go shell, go4t controller | the client and the loop | `observe`, `decide`, `apply` as exported IO functions that receive the Go client as a native handle | [node-drain-shell](examples/node-drain-shell), [approval-controller](examples/approval-controller) (a real controller: Go went from 271 to 88 lines, its six tests unchanged) |
+| Whole program in go4t | nothing; `main` is go4t | everything, calling Go packages through `import "go:…"` | [node-drain-typed](examples/node-drain-typed) (ran a 3-hour soak on a kind cluster) |
+
+The rule at the boundary is simple: **it never converts lossily**. Go structs
+whose fields are all exported are copied as records; everything else (a
+`*kubernetes.Clientset`, an `error`, a `time.Time` inside a struct) crosses by
+identity as an opaque handle. Anything that can lose information is a named
+function you call on purpose. Details, recipes and the generated names are in
+[docs/go-interop.md](docs/go-interop.md).
 
 ## Why not just Go?
 
 In a reconciler, a workflow engine, a policy evaluator or a pricing rule, the
-hard part is often a decision over many partially-known facts. Go expresses
-those facts as `(value, ok)` pairs, sentinel values, nullable pointers and
-boolean flags; the decision becomes a ladder of early returns whose coverage
-only tests can establish. go4t makes those states and cases explicit and lets
-you check equations over the pure code.
+hard part is a decision over many partially-known facts. Go expresses those
+facts as `(value, ok)` pairs, sentinel values, nullable pointers and boolean
+flags; the decision becomes a ladder of early returns whose coverage only
+tests can establish.
 
 | Need in a decision core | go4t | Go |
 | --- | --- | --- |
@@ -75,69 +141,21 @@ you check equations over the pure code.
 | Generic operations over containers | type classes, higher-kinded (`Functor`, `Monad`, `Monoid`) | per-type copies |
 | "This invariant holds for every input" | `law` + `proof`, checked at compile time for all values | table tests over chosen samples, or property-based testing (`rapid`) over random ones |
 
-Everything compiles to readable Go and uses `go.mod` for dependencies;
-Go packages are called through typed bindings generated at import time.
-Runtime cost is measured, not guessed ([bench/PERF.md](bench/PERF.md)):
-kernels whose values stay unboxed run at 1.6–4x of Go; updating a persistent
-`Map` while folding costs 19–24x (the price of persistence, as with other
-persistent collections); the IO-only `std/mutmap` alternative is at 5x after
-direct-style IO lowering. Decision cores and controllers read their maps and
-pay none of the update cost. Further work waits for a workload that demands it.
+Be honest about the last row: on the same decision core, property-based
+testing with `rapid` caught every mutation we tried; what a law adds is a
+proof instead of a probability. For a `decide` with two `if`s, stay in Go.
 
-The last row deserves a caveat: on the same decision core, property-based
-testing with `rapid` caught every mutation we tried; what laws add is a proof
-instead of a probability. For a `decide` with two `if`s, stay in Go. The
-side-by-side comparison, the two production controller ports and the five
-law rounds are recorded in [docs/evaluation.md](docs/evaluation.md).
+**Speed.** Runtime cost is measured, not guessed ([bench/PERF.md](bench/PERF.md)).
+Code whose values stay unboxed runs at 1.6–4x of the equivalent Go. Updating
+a persistent `Map` inside a hot loop costs 19–24x — that is the price of
+persistence, as with any persistent collection; the IO-only `std/mutmap`
+alternative runs at 5x. Decision cores and controllers *read* their maps and
+pay none of the update cost.
 
-## Use cases
+## Laws, briefly
 
-go4t supports whole CLI, HTTP and controller programs, with effects in `IO`
-and laws over their pure parts. **Decisions with many input combinations
-where the order of checks matters** are a particularly useful place for laws.
-The examples below show that pattern, including embedding a go4t `decide` in Go.
-
-| Use case | What the decision core does | What laws can pin | Example |
-| --- | --- | --- | --- |
-| Kubernetes controller reconcile | Pick the one API operation to perform next from observed resource state | Order ("cordon before evict"), idempotence, exact timeout boundaries | [approval-controller](examples/approval-controller), [attachment-repair-controller](examples/attachment-repair-controller), [node-drain-controller](examples/node-drain-controller) |
-| Whole controller in go4t | Same as above, with `observe`/`apply` written in go4t against `go:k8s.io/client-go` | The above plus projection laws: "a pod owned by a DaemonSet projects to `DaemonSet`", "the mirror annotation wins" | [node-drain-typed](examples/node-drain-typed) |
-| Go-owned client, go4t controller | Pass a native `*kubernetes.Clientset` or controller-runtime `client.Client` from Go to exported go4t `observe`/`apply`/`reconcile` IO functions | The same 15 decision and projection laws, with a Go-owned reconcile loop; a platform controller's observe step moved into go4t with its six tests unchanged | [node-drain-shell](examples/node-drain-shell), [approval-controller](examples/approval-controller) |
-| Admission / authorization gates | Run checks in order and return the first failure reason | Gate order, rejection at boundary values such as a negative quota | the admission round in ADR 0002 |
-| Placement and scheduling | Choose a target from `Map` capacity and usage, with fallback | A full zone is never chosen; empty capacity rejects for any fallback list | `laws/testdata/placement.gt`, the zone-placement round in ADR 0002 |
-| Multi-step workflows | Decide which stage (observe → authorize → compare-and-swap delete → publish) applies and return the next step | No stage left unhandled (exhaustiveness), step order | [attachment-repair-controller](examples/attachment-repair-controller) |
-| Policy evaluation and pricing rules | Decide from partially known facts (deadlines, TTLs, flags) | The `>=` / `>` boundary on a deadline; no invalid-input case dropped | `freshness` at the top of this README |
-| Safe refactoring | Rewrite an existing `decide` structurally | `decide(o) == decideV2(o)` proved for every input | `laws/testdata/refactor_v2.gt` |
-
-For decisions that fit in two `if`s, plain Go may be simpler; I/O code can
-be written in either language, but laws apply only to pure code.
-See [What go4t is not](#what-go4t-is-not).
-
-## Language at a glance
-
-- Algebraic data types, records with immutable update, transparent aliases,
-  tuples, persistent `List`/`Map`/`Set`/`Array`.
-- Hindley–Milner inference with rank-1 polymorphism; type classes with
-  superclasses and higher kinds; `deriving Eq, Ord, Show, Debug, Functor,
-  Foldable, Traversable`, JSON `Encode`/`Decode`.
-- Exhaustive `match` with guards, tuple and list patterns, pattern `let`.
-- Explicit effects: `IO[A]`, `do`-style blocks, typed `IoError` recovery,
-  fibers (`fork`/`await`/race/timeout) with cancellation.
-- `std`: strings, numbers, collections, JSON, HTTP client/server, regex,
-  lazy values, `State`, IO-only `Ref`/`MutMap`/channels, concurrency, file/process I/O.
-- Go interop both ways: `import "go:net/http"` binds any Go package at build
-  time (functions, methods, fields, tuples, upcasts; nothing committed);
-  `go4t build --emit-go` exports go4t functions, records and sums as natural Go
-  types.
-- Generic Go functions use call-site monomorphisation; generic receiver methods and instantiated generic named types are still skipped.
-- Extern-dependent laws can use `sample(N)`: `go4t test` tests them, without proving them or making them rewrite lemmas.
-- Tooling: `check`, `build`, `run`, `test`, `eval`, `fmt`, LSP server,
-  VS Code extension, source-located diagnostics with `^~~~` spans.
-- Go-flavoured syntax: `func`, `package`, `import`, braces, `|>` pipelines,
-  `_` call placeholders.
-
-### Laws
-
-State an equation once and have `go4t check` verify it for every input:
+A law is an equation over pure code; a proof says how to check it. Most
+proofs are short:
 
 ```go4t
 package main
@@ -146,62 +164,66 @@ proof distribute(a, b, c) { refl }
 func main() IO[Unit] { ioPure(unit()) }
 ```
 
-Laws use definitional equality over first-order data; proofs combine `refl`,
-constructor `match`, guard `if`, `rewrite` and `induction`. Proved laws
-generate no runtime code. What laws can and cannot express is listed in
+Proofs combine `refl`, constructor `match`, guard `if`, `rewrite` and
+`induction`. Proved laws generate no runtime code. Laws cover first-order
+data (sums, records, lists, maps, `Int`, `String`, …) and the pure functions
+over them; they do not cover I/O, and an equation that depends on an opaque
+Go function can only be *sampled* (`sample(N)`), which `go4t test` runs
+without treating it as proved. What laws can and cannot express is in
 [docs/laws.md](docs/laws.md); worked examples are in
-[tutorial §13](docs/tutorial.md#13-laws).
+[tutorial §14](docs/tutorial.md#14-laws).
 
-## Install and quick start
+## Where it has been used
 
-Requires **Go 1.22+** on PATH (go4t generates Go and runs `go build`).
+- **Kubernetes controllers.** Two production controllers from the AppThrust
+  platform were ported with their original Go tests kept as the oracle
+  ([approval-controller](examples/approval-controller),
+  [attachment-repair-controller](examples/attachment-repair-controller)). A
+  node-drain controller exists in all three shapes above; the all-go4t one
+  ran 839/839 drain/recover cycles in a three-hour soak.
+- **Ordinary programs.** CLI tools, an HTTP service, and programs written by
+  people who had only read the docs ([docs/evaluation.md](docs/evaluation.md)
+  records what they tripped over and what was changed).
+- **Itself.** `selfhost/` is a 5.4k-line go4t→Go compiler written in go4t
+  that reproduces its own output (`bash selfhost/bootstrap.sh`), checked in CI.
 
-```sh
-go install ./cmd/go4t
-go4t eval '1 + 2'        # 3
-```
+Laws have so far pinned: operation order ("cordon before evict"), idempotence,
+exact `>=`/`>` boundaries on deadlines, "a full zone is never chosen",
+"a pod owned by a DaemonSet projects to `DaemonSet`", and
+`decide(o) == decideV2(o)` across a refactor.
 
-Create `hello/main.gt`:
+## Language at a glance
 
-```go4t
-package main
-import "std/string"
-func main() IO[Unit] {
-  let names = [" Ada ", " Bob "] |> map(string.trim)
-  println("Hello, " + string.join(" and ", names) + "!")
-}
-```
+- Algebraic data types, records with immutable update, tuples, persistent
+  `List`/`Map`/`Set`/`Array`.
+- Hindley–Milner inference; type classes with superclasses and higher kinds;
+  `deriving Eq, Ord, Show, Debug, Functor, Foldable, Traversable`, JSON
+  `Encode`/`Decode`.
+- Exhaustive `match` with guards, tuple and list patterns, pattern `let`.
+- Explicit effects: `IO[A]`, `do` blocks, typed `IoError` recovery, fibers
+  (`fork`/`await`/race/timeout) with cancellation; IO-only `Ref`, `MutMap`,
+  channels.
+- `std`: strings, numbers, collections, JSON, HTTP client/server, regex,
+  lazy values, `State`, file and process I/O.
+- Go interop both ways: `import "go:…"` binds functions, methods, fields,
+  generics and upcasts of any Go package at build time; `--emit-go` exports
+  go4t functions, records and sums as plain Go.
+- Go-flavoured syntax: `func`, `package`, `import`, braces, `|>` pipelines.
+- Tooling: `check`, `build`, `run`, `test`, `eval`, `fmt`, an LSP server and a
+  VS Code extension; diagnostics point at source spans.
 
-```sh
-go4t check hello/main.gt
-go4t run hello/main.gt        # Hello, Ada and Bob!
-go4t build hello/main.gt      # builds ./main; keeps Go sources in hello/main_gen/
-go4t build --emit-go generated hello/main.gt  # emits Go sources only
-```
+## Status and what go4t is not
 
-## Embedding in a Go program
-
-Keep the Go client and reconcile loop, moving only `decide` into go4t
-([go-shell](examples/go-shell), [node-drain-controller](examples/node-drain-controller)).
-Keep the Go client and loop but move `observe`/`decide`/`apply` into go4t
-([node-drain-shell](examples/node-drain-shell), [approval-controller](examples/approval-controller)).
-Or write the whole controller in go4t using `go:` imports
-([node-drain-typed](examples/node-drain-typed)).
-The boundary never converts lossily: records copy, handles keep identity; lossy
-projections are explicit. See [Go interop](docs/go-interop.md) for the recipes and rules.
-
-## What go4t is not
-
-- **Not a requirement to replace Go.** Write a whole program in go4t or keep
-  existing Go infrastructure and embed pure components; laws do not prove
-  the behavior of I/O.
-- **Not an effect-system research language.** There is one effect type, `IO`;
-  mutable references, channels and other shared-state operations are IO-only.
+- **Not 1.0.** The grammar, standard library and Go ABI are stable enough for
+  the ports above and are written down in [SPEC.md](SPEC.md), but they can
+  still change. Known limits: [SPEC §9](SPEC.md#9-known-limitations).
+- **Not a replacement for Go.** Keep your Go program and move the parts that
+  benefit; laws say nothing about I/O.
 - **Not a proof assistant.** Laws are an equational checker over first-order
-  data with a fixed tactic set; see [docs/laws.md](docs/laws.md).
-- **Not 1.0.** The grammar, std and ABI are stable enough for the ports above
-  and are documented in SPEC.md, but they can still change. Known limits:
-  [SPEC §9](SPEC.md#9-known-limitations).
+  data with a fixed set of tactics.
+- **Not an effect-system research language.** There is one effect type, `IO`.
+- **Not fast everywhere.** See *Speed* above before putting a persistent `Map`
+  in a hot loop.
 
 ## Documentation
 
@@ -213,7 +235,8 @@ projections are explicit. See [Go interop](docs/go-interop.md) for the recipes a
 | [Go interop](docs/go-interop.md) | Three migration shapes, the boundary rule, `--emit-go`, `go:` imports and dependencies. |
 | [CLI reference](docs/cli.md) | Every command, exit codes. |
 | [Examples](examples/README.md) | All runnable examples with their commands. |
-| [Evaluation](docs/evaluation.md) | Production ports, law rounds, the Go/`rapid` comparison, the `client-go` scale experiment. |
+| [Evaluation](docs/evaluation.md) | Production ports, law rounds, the Go/`rapid` comparison, the soak, the migration record. |
+| [Architecture decisions](docs/adr/README.md) | Why each rule is the way it is. |
 | [Standard library](docs/stdlib.md) | Generated from the source inventory. |
 | [Editor setup](editors/README.md) | stdio LSP and a VS Code client. |
 | [Design history](DESIGN.md) | Slice contracts; SPEC wins where they differ. |

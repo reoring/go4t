@@ -2,16 +2,61 @@
 
 [English](README.md)
 
-go4t は、通常の Go にコンパイルされる小さな静的型付き純粋関数型言語です。
-特徴は、**純粋なコードについて等式で書いた法則を検証できること**です。
-不変条件を等式で書くと、`go4t check` が全入力について検証します。
-代数的データ型と網羅性検査付きのパターンマッチで状態を明示し、作用は `IO` で扱います。
+go4t は、通常の Go にコンパイルされる小さなプログラミング言語です。
+reconciler の判断、認可のチェック、料金ルールなど、
+*すべてのケースを正しく扱うこと*が重要な部分を書きます。
+go4t には、Go にはない次の 3 つがあります。
 
-`import "go:net/http"` のように、Go パッケージの binding を import 時に生成します。
-IO 専用の可変参照(`Ref`)、チャネル、fiber、ファイルのストリーミング処理も使えます。
-実際のクラスタで動かした Kubernetes controller は、観測から操作の適用まで go4t で書かれています。
-通常の CLI・HTTP プログラムや、5.4k 行の自己ホストコンパイラの実績もあります。
-プログラム全体を go4t で書くことも、次の決定関数のように純粋な部分だけを Go に組み込むこともできます。
+1. **状態をデータで表す。** 値は名前の付いたケースのいずれかです
+   (`NoTtl | InvalidTtl | TtlNanos(Int)`)。
+   `match` にケースが欠けていると、足りないパターンを示すコンパイルエラーになります。
+2. **純粋なコードと作用を分ける。** I/O を行う関数は `IO[A]` 型の値を返します。
+   純粋関数からは呼び出せません。コンパイラがこの制約を検査します。
+3. **法則を書く。** 純粋なコードについて等式
+   (`isStale(freshness(TtlNanos(t), AtNanos(at), now)) == (now >= at + t)`)
+   を書くと、`go4t check` が**すべての**入力について証明します。
+   テストに列挙した入力だけの検査ではありません。
+
+それ以外は、意図的に普段の Go と同じにしています。
+出力は読みやすい Go で、`go build` でビルドでき、依存は `go.mod` で管理します。
+ビルド時に生成するバインディングを通じて、任意の Go パッケージを呼べます
+(`import "go:net/http"`)。
+プログラム全体を go4t で書いても、Go プログラムを残して関数を 1 つだけ移してもかまいません。
+
+## 2 分で試す
+
+PATH に **Go 1.22 以上**が必要です。
+
+```sh
+go install ./cmd/go4t
+go4t eval '1 + 2'        # 3
+```
+
+`hello/main.gt` を作ります。
+
+```go4t
+package main
+import "std/string"
+func main() IO[Unit] {
+  let names = [" Ada ", " Bob "] |> map(string.trim)
+  println("Hello, " + string.join(" and ", names) + "!")
+}
+```
+
+```sh
+go4t check hello/main.gt      # type-check (and prove laws, if any)
+go4t run hello/main.gt        # Hello, Ada and Bob!
+go4t build hello/main.gt      # builds ./main; keeps Go sources in hello/main_gen/
+```
+
+Go を知っている方には、[チュートリアル](docs/tutorial.md)があります。
+Go での書き方を出発点に、何が変わるかを 18 の短い章で説明します。
+
+## 小さな決定を端から端まで
+
+次は go4t が対象とするコードの例です。
+controller が、観測した情報をまだ有効とみなせるか判断します。
+TTL とタイムスタンプは、それぞれ未指定や不正な値の可能性があります。
 
 ```go4t
 package decide
@@ -35,8 +80,21 @@ func freshness(ttl Ttl, observedAt Timestamp, nowNanos Int) Freshness {
 func main() IO[Unit] { println(debug(freshness(TtlNanos(10), AtNanos(5), 12))) }
 ```
 
-`go4t build --emit-go decide --package decide decide/decide.gt` がこれを Go パッケージに変換します。
-Go 側は入力を埋めて、結果で `switch` するだけです。
+注目する点は 3 つです。
+
+- 入力は `*time.Time` と `bool` の組み合わせではなく、**直和型**です。
+  関数が扱うべき組み合わせがすべてシグネチャに表れています。
+- `(TtlNanos(_), InvalidTimestamp)` の分岐を削除すると、`go4t check` は
+  `missing: (TtlNanos(_), InvalidTimestamp)` で失敗します。
+- **法則** `isStale(freshness(TtlNanos(t), AtNanos(at), now)) == (now >= at + t)`
+  を追加すると、`Stale` のガードを別のチェックの後ろへ動かしたとき、
+  すべての `t`、`at`、`now` を対象とする法則の検証が失敗します。
+  証明は通常、単語 1 つ (`refl`) かケース分けで書けます。
+
+Go から使うには、`go4t build --emit-go decide --package decide decide/decide.gt`
+を実行します。通常は `//go:generate` 行から実行します。
+生成されたパッケージは `Decide` と、各レコード・直和型に対応する通常の Go の型を公開します。
+Go 側は結果に応じて `switch` します。
 
 ```go
 switch step := decide.Freshness(ttl, observedAt, now.UnixNano()).(type) {
@@ -48,87 +106,58 @@ case decide.FreshnessTtlInvalid:
 }
 ```
 
-`match` の arm を 1 本消すと、`go4t check` は
-`missing: (TtlNanos(_), InvalidTimestamp)` で失敗します。法則
-`isStale(freshness(TtlNanos(t), AtNanos(at), now)) == (now >= at + t)` を足せば、
-ガードを別のチェックの後ろへ動かしたとき、テーブルテストが並べた数件ではなく
-すべての `t`, `at`, `now` について失敗します。
+## Go プログラムへの組み込み方
+
+どこまで移すかは選べます。次の 3 つの構成には、いずれも実行できる例があり、
+同じ決定ロジックを共有しています。
+
+| 構成 | Go に残す部分 | go4t が担当する部分 | 例 |
+| --- | --- | --- | --- |
+| 外側を Go、決定ロジックを go4t にする | クライアント、reconcile ループ、観測と操作の適用 | `decide` | [go-shell](examples/go-shell)、[node-drain-controller](examples/node-drain-controller) |
+| 外側を Go、controller を go4t にする | クライアントとループ | Go のクライアントをネイティブハンドルとして受け取る、公開 IO 関数の `observe`、`decide`、`apply` | [node-drain-shell](examples/node-drain-shell)、[approval-controller](examples/approval-controller) (実際の controller。Go は 271 行から 88 行になり、6 つのテストは無変更) |
+| プログラム全体を go4t にする | なし。`main` も go4t | すべて。Go パッケージは `import "go:…"` で呼ぶ | [node-drain-typed](examples/node-drain-typed) (kind クラスタで 3 時間の連続稼働試験を実施) |
+
+境界の規則は単純です。**情報が失われる変換はしません。**
+すべてのフィールドが公開されている Go の構造体は、レコードとしてコピーします。
+それ以外 (`*kubernetes.Clientset`、`error`、構造体内の `time.Time` など) は、
+同一性を保った不透明なハンドルとして渡します。
+情報を失う可能性がある操作には名前の付いた関数があり、意図して呼び出します。
+詳細、使い方、生成される名前は [docs/go-interop.md](docs/go-interop.md) にあります。
 
 ## なぜ Go だけでは足りないか
 
 reconciler、ワークフローエンジン、ポリシー評価、料金ルールでは、
-部分的にしか分からない多くの事実をもとにした判断が難しくなりがちです。
-Go はその事実を `(value, ok)`、sentinel 値(`-1` など)、nil になりうるポインタ、bool フラグで表し、
-判断は早期 return の連鎖になります。すべてのケースを扱えているかはテストでしか示せません。
-go4t では状態とケースを明示し、純粋なコードについての等式を検証できます。
+部分的にしか分からない多くの事実をもとにした判断が難しい部分です。
+Go はその事実を `(value, ok)` の組、sentinel 値、nil になりうるポインタ、
+bool フラグで表します。判断は早期 return の連鎖になり、
+すべてのケースを扱えているかはテストでしか示せません。
 
 | 決定ロジックで必要なこと | go4t | Go |
 | --- | --- | --- |
-| N 個のうちどれか、という状態 | 直和型(`A \| B(Int) \| C`) | const + コメント、または `*T` + `bool` |
-| 「すべてのケースを扱ったか?」 | 網羅性検査付きの `match`、欠けたパターンを列挙するコンパイルエラー | `default:` を書いて済ませる |
-| エラーをデータとして扱う | `Result[E, A]`、`Option[A]`、`do` 記法による逐次処理 | `(T, error)` と `if err != nil` |
+| N 個の名前付きケースのいずれかである状態 | 直和型 (`A \| B(Int) \| C`) | const + コメント、または `*T` + `bool` |
+| 「すべてのケースを扱ったか?」 | 網羅性検査付きの `match`。欠けたパターンを列挙するコンパイルエラー | `default:` を書いて済ませる |
+| エラーをデータとして扱う | `Result[E, A]`、`Option[A]`、`do` による逐次処理 | `(T, error)` と `if err != nil` |
 | 決定ロジックが I/O をしない保証 | 作用は `IO[A]` 型の値。純粋関数からは実行できない | 規律 |
 | ネストしたデータの等価・順序・デバッグ表示 | `deriving Eq, Ord, Debug, Show` | 手書きか `reflect.DeepEqual` |
-| コンテナに依存しない汎用的な操作 | 型クラス、高カインド多相(`Functor`、`Monad`、`Monoid`) | 型ごとにコピー |
-| 「この不変条件は全入力で成り立つ」 | `law` + `proof`、コンパイル時に全値について検査 | 選んだ入力のテーブルテスト、またはランダム入力の property-based testing(`rapid`) |
+| コンテナに対する汎用的な操作 | 型クラス、高カインド (`Functor`、`Monad`、`Monoid`) | 型ごとにコピー |
+| 「この不変条件はすべての入力で成り立つ」 | `law` + `proof`。コンパイル時にすべての値について検査 | 選んだ入力のテーブルテスト、またはランダム入力の property-based testing (`rapid`) |
 
-すべて読みやすい Go にコンパイルされ、依存は `go.mod` で管理します。
-Go パッケージは、import 時に生成する型付き binding 経由で呼べます。
-実行コストは推測ではなく計測しています([bench/PERF.md](bench/PERF.md)):
-値が unboxed のまま済むカーネルは Go の 1.6〜4x、永続 `Map` を更新しながら畳む処理は
-19〜24x(永続データ構造の値段で、他の永続コレクションと同じ桁)、IO 限定の `std/mutmap` は
-直接形式 IO lowering 後で 5x。決定ロジックや controller は Map を読むだけなので更新コストを
-払いません。この先の最適化は、それを要求するワークロードが出るまで行いません。
+最後の行には注釈が要ります。同じ決定ロジックに対して、
+`rapid` による property-based testing は、試したバグ注入をすべて検出しました。
+法則が加えるのは、確率ではなく証明です。
+`if` が 2 つで済む `decide` なら、Go のままで十分です。
 
-ただし最後の行には注釈が要ります。同じ決定ロジックに対して、`rapid` による property-based testing は
-試したバグ注入をすべて検出しました。法則が足すのは、確率ではなく証明であることです。
-`if` が 2 つで済む `decide` なら Go のままで十分です。
-Go との比較、実際の controller 2 本の移植、法則の検証 5 回の記録は
-[docs/evaluation.ja.md](docs/evaluation.ja.md) にあります。
+**速度。** 実行コストは推測ではなく計測しています ([bench/PERF.md](bench/PERF.md))。
+値をボックス化せずに済むコードの実行時間は、同等の Go の 1.6〜4 倍です。
+ホットループ内で永続 `Map` を更新すると 19〜24 倍になります。
+これは他の永続コレクションと同じく、永続性のためのコストです。
+IO 専用の代替である `std/mutmap` は 5 倍です。
+決定ロジックや controller はマップを*読む*ため、この更新コストはかかりません。
 
-## ユースケース
+## 法則の概要
 
-go4t では CLI・HTTP プログラムや controller 全体を書けます。
-作用は `IO` で扱い、純粋な部分について法則を検証します。
-特に、**入力の組み合わせが多く、判断の順序に意味がある決定ロジック**で法則が役立ちます。
-以下の例はこの使い方を示しています。go4t の `decide` を Go に組み込む構成も含みます。
-
-| ユースケース | 決定ロジックの中身 | 法則で固定できること | 例 |
-| --- | --- | --- | --- |
-| Kubernetes controller の reconcile | 観測したリソースの状態から、次に打つ API 操作を 1 つ選ぶ | 「cordon してから退避する」などの順序、冪等性、timeout の正確な境界 | [approval-controller](examples/approval-controller)、[attachment-repair-controller](examples/attachment-repair-controller)、[node-drain-controller](examples/node-drain-controller) |
-| controller 全体を go4t で | 上と同じ決定に加え、`observe`/`apply` も `go:k8s.io/client-go` に対して go4t で書く | 上に加えて射影の法則:「DaemonSet に所有される pod は `DaemonSet` に射影される」「mirror annotation が優先」 | [node-drain-typed](examples/node-drain-typed) |
-| Go がクライアントを持つ go4t controller | Go で作った `*kubernetes.Clientset` や controller-runtime の `client.Client` を、go4t が export した `observe`/`apply`/`reconcile` の IO 関数に渡す | 決定と射影の同じ 15 法則。reconcile のループは Go で実行。実 controller の observe を go4t に移しても既存 6 テストは無変更 | [node-drain-shell](examples/node-drain-shell)、[approval-controller](examples/approval-controller) |
-| admission / 認可のゲート | 複数のチェックを順に通し、最初に失敗した理由を返す | ゲートの順序、負の quota など境界値の拒否 | ADR 0002 の admission の回 |
-| 配置・スケジューリング | 容量と使用量の `Map` から配置先を選び、フォールバックする | 満杯のゾーンには置かない、容量がなければどのフォールバック列でも拒否 | `laws/testdata/placement.gt`、ADR 0002 のゾーン配置 |
-| 複数ステップのワークフロー | 観測 → 認可 → compare-and-swap 削除 → 公開のどの段階かを判断し、次のステップを返す | 段階の判断に漏れがない(網羅性)、ステップの順序 | [attachment-repair-controller](examples/attachment-repair-controller) |
-| ポリシー評価・料金ルール | 部分的にしか分からない事実(期限、TTL、フラグ)から判定する | 期限の `>=` / `>` の境界、不正入力のケースを落とさない | 冒頭の `freshness` |
-| リファクタリングの安全な実施 | 既存の `decide` を構造から書き換える | `decide(o) == decideV2(o)` を全入力で証明 | `laws/testdata/refactor_v2.gt` |
-
-`if` が 2 つで済む判断なら、Go のままのほうが簡単かもしれません。
-I/O はどちらの言語でも書けますが、法則の対象は純粋なコードだけです。
-詳細は [go4t でないもの](#go4t-でないもの) を参照。
-
-## 言語の概要
-
-- 代数的データ型、レコード(更新構文付き)、型シノニム、タプル、永続データ構造の `List`/`Map`/`Set`/`Array`
-- Hindley–Milner 型推論(ランク 1 多相)、スーパークラスと高カインドを扱える型クラス、
-  `deriving Eq, Ord, Show, Debug, Functor, Foldable, Traversable`、JSON `Encode`/`Decode`
-- 網羅性検査付きの `match`:ガード、タプルパターン、リストパターン、パターン束縛の `let`
-- 明示的な作用:`IO[A]`、`do` 記法風のブロック、`IoError` による型付きのエラー回復、
-  キャンセル対応の fiber(`fork`/`await`/race/timeout)
-- `std`:文字列、数値、コレクション、JSON、HTTP クライアント/サーバ、正規表現、
-  遅延評価される値、`State`、IO 専用の `Ref`/`MutMap`/チャネル、並行処理、ファイル/プロセス I/O
-- 双方向の Go 連携:`import "go:net/http"` が Go パッケージの型付き binding を import 時に生成、
-  `go4t build --emit-go` が go4t の関数・レコード・直和型を自然な Go の型として export
-- Go のジェネリック関数は呼び出し箇所で単相化。ジェネリックな receiver のメソッドと、型引数を適用したジェネリックな名前付き型は引き続き対象外
-- extern に依存する法則は `sample(N)` で `go4t test` の対象にできるが、証明にはならず、書き換え補題にも使えない
-- ツール:`check`、`build`、`run`、`test`、`eval`、`fmt`、LSP サーバ、VS Code 拡張、
-  `^~~~` スパン付きのソース位置診断
-- Go 風の構文:`func`、`package`、`import`、波括弧、`|>` パイプライン、`_` 呼び出しプレースホルダ
-
-### 法則(Laws)
-
-`law` に等式を書き、`go4t check` で全入力について検証できます。
+法則は純粋なコードについての等式で、証明にはその検査方法を書きます。
+たいていの証明は短く書けます。
 
 ```go4t
 package main
@@ -137,74 +166,87 @@ proof distribute(a, b, c) { refl }
 func main() IO[Unit] { ioPure(unit()) }
 ```
 
-等式は関数を含まないデータ上の定義的等価です。`refl`、コンストラクタの `match`、
-条件の `if`、`rewrite`、`induction` を組み合わせて証明します。証明済みの法則の実行時コードは生成されません。
-扱える範囲と限界は [docs/laws.ja.md](docs/laws.ja.md)、具体例は
-[チュートリアル §13](docs/tutorial.md#13-laws) にあります。
+証明は `refl`、コンストラクタの `match`、ガードの `if`、`rewrite`、
+`induction` を組み合わせて書きます。
+証明済みの法則から実行時コードは生成されません。
+法則は一階のデータ (直和型、レコード、リスト、マップ、`Int`、`String` など) と、
+それらを扱う純粋関数を対象とします。I/O は対象外です。
+また、不透明な Go 関数に依存する等式は、サンプルによる検査 (`sample(N)`) だけが可能です。
+`go4t test` で実行しますが、証明済みとはみなしません。
+法則で表せることと表せないことは [docs/laws.md](docs/laws.md)、
+具体例は [チュートリアル §14](docs/tutorial.md#14-laws) にあります。
 
-## インストールとクイックスタート
+## 使われてきた場所
 
-**Go 1.22 以上**が PATH に必要です(go4t は Go を生成して `go build` を実行します)。
+- **Kubernetes controller。** AppThrust プラットフォームで本番利用されている
+  controller を 2 つ移植しました。元の Go のテストを正しさの基準として残しています
+  ([approval-controller](examples/approval-controller)、
+  [attachment-repair-controller](examples/attachment-repair-controller))。
+  node-drain controller には前述の 3 つの構成があり、全体を go4t で書いたものは、
+  3 時間の連続稼働試験で 839/839 回の drain/recover サイクルを実行しました。
+- **通常のプログラム。** CLI ツール、HTTP サービス、ドキュメントを読んだだけの人が
+  書いたプログラムがあります ([docs/evaluation.md](docs/evaluation.md) に、
+  つまずいた点と変更内容を記録しています)。
+- **go4t 自身。** `selfhost/` は go4t で書かれた 5.4k 行の go4t→Go コンパイラです。
+  自分自身の出力を再現でき (`bash selfhost/bootstrap.sh`)、CI で検査しています。
 
-```sh
-go install ./cmd/go4t
-go4t eval '1 + 2'        # 3
-```
+法則では、これまで次の性質を固定してきました。
 
-`hello/main.gt` を作ります:
+| 対象 | 固定した性質 |
+| --- | --- |
+| 操作の順序 | 「cordon してから evict する」 |
+| 繰り返し実行 | 冪等性 |
+| 期限 | `>=` / `>` の正確な境界 |
+| ゾーンの選択 | 「満杯のゾーンは選ばない」 |
+| pod の変換 | 「DaemonSet に所有される pod は `DaemonSet` に写す」 |
+| リファクタリング | 変更前後で `decide(o) == decideV2(o)` |
 
-```go4t
-package main
-import "std/string"
-func main() IO[Unit] {
-  let names = [" Ada ", " Bob "] |> map(string.trim)
-  println("Hello, " + string.join(" and ", names) + "!")
-}
-```
+## 言語の概要
 
-```sh
-go4t check hello/main.gt
-go4t run hello/main.gt        # Hello, Ada and Bob!
-go4t build hello/main.gt      # ./main をビルドし、Go ソースを hello/main_gen/ に残す
-go4t build --emit-go generated hello/main.gt  # Go ソースのみ出力
-```
+- 代数的データ型、イミュータブルな更新ができるレコード、タプル、
+  永続データ構造の `List`/`Map`/`Set`/`Array`。
+- Hindley–Milner 型推論。スーパークラスと高カインドを扱える型クラス。
+  `deriving Eq, Ord, Show, Debug, Functor, Foldable, Traversable`、JSON の `Encode`/`Decode`。
+- 網羅性検査付きの `match`。ガード、タプル・リストのパターン、パターン束縛の `let`。
+- 明示的な作用: `IO[A]`、`do` ブロック、`IoError` による型付きのエラー回復、
+  キャンセル対応の fiber (`fork`/`await`/race/timeout)。IO 専用の `Ref`、`MutMap`、チャネル。
+- `std`: 文字列、数値、コレクション、JSON、HTTP クライアント/サーバ、正規表現、
+  遅延評価される値、`State`、ファイル・プロセス I/O。
+- 双方向の Go 連携: `import "go:…"` が、任意の Go パッケージの関数、メソッド、
+  フィールド、ジェネリクス、アップキャストをビルド時にバインドします。
+  `--emit-go` は go4t の関数・レコード・直和型を通常の Go として公開します。
+- Go 風の構文: `func`、`package`、`import`、波括弧、`|>` パイプライン。
+- ツール: `check`、`build`、`run`、`test`、`eval`、`fmt`、LSP サーバ、VS Code 拡張。
+  診断にはソースの該当範囲を表示します。
 
-## Go プログラムへの埋め込み
+## 現状と go4t でないもの
 
-Go の client と reconcile loop を残し、`decide` だけを go4t に移せます
-([go-shell](examples/go-shell)、[node-drain-controller](examples/node-drain-controller))。
-client と loop を Go に残したまま、`observe`/`decide`/`apply` を go4t に移す構成もあります
-([node-drain-shell](examples/node-drain-shell)、[approval-controller](examples/approval-controller))。
-`go:` import を使い、controller 全体を go4t で書くこともできます
-([node-drain-typed](examples/node-drain-typed))。
-境界は情報を失う変換をしません。record はコピーし、handle は同一性を保ちます。
-情報が失われる変換は明示的に行います。手順と規則は [Go 連携](docs/go-interop.ja.md) を参照してください。
-
-## go4t でないもの
-
-- **Go を置き換える必要はない。** 全体を go4t で書いても、既存の Go の基盤を残して
-  純粋な部分だけを組み込んでもよい。法則は I/O の振る舞いを証明しない。
-- **エフェクトシステムの研究言語ではない。** 作用の型は `IO` 一つ。
-  可変参照、チャネルなど、共有状態を扱う操作は IO 専用。
-- **証明支援系ではない。** 法則は関数を含まないデータ上の等式検査器で、戦術は固定。
-  [docs/laws.ja.md](docs/laws.ja.md) を参照。
-- **1.0 ではない。** 文法・std・ABI は上記の移植に耐える程度に安定し SPEC.md に記述されているが、
-  まだ変わりうる。既知の制限は [SPEC §9](SPEC.md#9-known-limitations)。
+- **1.0 ではありません。** 文法、標準ライブラリ、Go ABI は、上記の移植に使える程度に
+  安定しており、[SPEC.md](SPEC.md) に記述しています。ただし、まだ変わる可能性があります。
+  既知の制限は [SPEC §9](SPEC.md#9-known-limitations) にあります。
+- **Go の代替ではありません。** Go プログラムは残し、利点のある部分を移してください。
+  法則は I/O について何も保証しません。
+- **証明支援系ではありません。** 法則は一階のデータについての等式検査器で、
+  使える証明戦術は固定されています。
+- **エフェクトシステムの研究言語ではありません。** 作用の型は `IO` の 1 つです。
+- **どこでも高速なわけではありません。** ホットループに永続 `Map` を入れる前に、
+  上の「速度」を参照してください。
 
 ## ドキュメント
 
 | ドキュメント | 内容 |
 | --- | --- |
-| [Go 開発者向けチュートリアル](docs/tutorial.md) | 18 の短い章。すべての go4t スニペットを CI で型検査(英語) |
-| [言語仕様](SPEC.md) | 文法、型と作用の規則、deriving、export される Go API、境界表(英語) |
-| [法則](docs/laws.ja.md) | 扱えるもの、扱えないもの、証明の書き方 |
-| [Go 連携](docs/go-interop.ja.md) | 3 つの移行構成、境界の規則、`--emit-go`、`go:` import と依存 |
-| [CLI リファレンス](docs/cli.ja.md) | 全コマンドと終了コード |
-| [Examples](examples/README.ja.md) | 実行できる例と実行コマンド |
-| [検証記録](docs/evaluation.ja.md) | 実際の controller の移植、法則の検証 5 回、Go/`rapid` との比較、`client-go` のスケール実験 |
-| [標準ライブラリ](docs/stdlib.md) | ソースの宣言一覧から生成(英語) |
-| [エディタ設定](editors/README.md) | stdio LSP と VS Code クライアント |
-| [設計履歴](DESIGN.md) | 実装スライスごとの契約。食い違う場合は SPEC が正 |
+| [Go 開発者向けチュートリアル](docs/tutorial.md) | 18 の短い章。すべての go4t スニペットを CI で型検査。 |
+| [言語仕様](SPEC.md) | 文法、型と作用の規則、deriving、公開する Go API、境界表。 |
+| [法則](docs/laws.md) | 法則で扱えること、扱えないこと、証明の書き方。 |
+| [Go 連携](docs/go-interop.md) | 3 つの移行構成、境界の規則、`--emit-go`、`go:` import と依存。 |
+| [CLI リファレンス](docs/cli.md) | 全コマンドと終了コード。 |
+| [例](examples/README.md) | 実行できるすべての例とコマンド。 |
+| [検証記録](docs/evaluation.md) | 本番 controller の移植、法則の検証、Go/`rapid` の比較、連続稼働試験、移行の記録。 |
+| [アーキテクチャの決定](docs/adr/README.md) | 各規則を採用した理由。 |
+| [標準ライブラリ](docs/stdlib.md) | ソースの宣言一覧から生成。 |
+| [エディタ設定](editors/README.md) | stdio LSP と VS Code クライアント。 |
+| [設計履歴](DESIGN.md) | 実装スライスごとの契約。食い違うときは SPEC が優先。 |
 
 ## ライセンス
 
