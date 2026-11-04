@@ -131,12 +131,15 @@ func (g *generator) expr(expr ast.Expr) (code string) {
 		if len(ann.RecordCases) != 0 {
 			return g.commonField(e)
 		}
+		if scalarRecord(ann.Ctor) {
+			rep = scalar(ann.Ctor.Fields[ann.FieldIndex])
+		}
 		return fmt.Sprintf("any(%s).(*%s).F%d", g.expr(e.X), ctorName(ann.Ctor), ann.FieldIndex)
 	case *ast.RecordLit:
 		ann := g.ann(e)
 		fields := make([]string, len(e.Values))
 		for i, value := range e.Values {
-			fields[i] = fmt.Sprintf("F%d: %s", ann.FieldIndexes[i], g.expr(value))
+			fields[i] = fmt.Sprintf("F%d: %s", ann.FieldIndexes[i], g.recordValue(ann.Ctor, ann.FieldIndexes[i], value))
 		}
 		return "&" + ctorName(ann.Ctor) + "{" + strings.Join(fields, ", ") + "}"
 	case *ast.RecordUpdate:
@@ -149,7 +152,7 @@ func (g *generator) expr(expr ast.Expr) (code string) {
 		fmt.Fprintf(&out, "func() any {\n%s := any(%s).(*%s)\n_ = %s\n", base, g.expr(e.X), ctorName(ann.Ctor), base)
 		values := make([]string, len(e.Values))
 		for i, value := range e.Values {
-			values[i] = g.expr(value)
+			values[i] = g.recordValue(ann.Ctor, ann.FieldIndexes[i], value)
 		}
 		fmt.Fprintf(&out, "return %s\n}()", updatedRecord(ann.Ctor, ann.FieldIndexes, base, values))
 		return out.String()
@@ -198,7 +201,13 @@ func (g *generator) expr(expr ast.Expr) (code string) {
 			if len(ctor.Fields) == 0 {
 				return construct(ctorName(ctor), nil)
 			}
-			return "func(" + strings.Join(anonymousParams(len(ctor.Fields)), ", ") + ") any { return " + construct(ctorName(ctor), anonymousArgs(len(ctor.Fields))) + " }"
+			args := anonymousArgs(len(ctor.Fields))
+			if scalarRecord(ctor) {
+				for i, field := range ctor.Fields {
+					args[i] = convert(args[i], "any", scalar(field))
+				}
+			}
+			return "func(" + strings.Join(anonymousParams(len(ctor.Fields)), ", ") + ") any { return " + construct(ctorName(ctor), args) + " }"
 		default:
 			g.fail(e.GetPos(), "invalid reference annotation")
 		}
@@ -207,6 +216,11 @@ func (g *generator) expr(expr ast.Expr) (code string) {
 		ft := g.funcType(e)
 		return "func(" + strings.Join(anonymousParams(len(ft.Params)), ", ") + ") any { return " + g.identCall(e, anonymousArgs(len(ft.Params))) + " }"
 	case *ast.Call:
+		if id, ok := e.Fn.(*ast.Ident); ok && g.ann(id).Ref == types.RefFunc {
+			if code := g.collectionCall(e, id); code != "" {
+				return code
+			}
+		}
 		args := make([]string, len(e.Args))
 		for i, arg := range e.Args {
 			args[i] = g.expr(arg)

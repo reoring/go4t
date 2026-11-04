@@ -56,6 +56,47 @@ commands, and profile text are retained in
   are inside it. Input files are not cold-cache controlled. Runs alternate go4t
   then Go three times for each kernel; there is no separate warm-up execution.
 
+## 2026-11-04 follow-up
+
+The same-day follow-up changed lowering and collection internals, not the
+workloads' output contracts. These are retained follow-up measurements, not a
+new run of the original table; the shared-VM and timer-resolution caveats above
+still apply.
+
+| Kernel | After go4t wall s | After ratio to Go |
+| --- | ---: | ---: |
+| sortints | 0.24 | 4.00x |
+| nbody | 0.30 | 1.58x |
+| wordfreq | 2.45 | ~27x |
+| mapheavy | ~2.3 | ~19x |
+| mapheavy-mut | 1.13 | 9.42x |
+| treefold | 0.07 | 1.75x |
+
+Native prelude Ord comparison avoids dictionary calls for Int and String keys.
+Native sorting and scalar folds keep known values unboxed. Numeric records store
+native scalar fields, and numeric-record folds can reuse a private accumulator
+without mutating input records. Persistent maps share immutable key/value entries
+across copied search-path nodes. `std/mutmap` adds an IO-only ordered mutable
+alternative, with persistent snapshots through `freeze`.
+
+Two alternatives were tried and rejected. An order-8 persistent B-tree reduced
+mapheavy time by 18.7% but increased wordfreq time by 5.5% and allocated more
+bytes. Replacement metadata reuse was also rejected: copying cached metadata
+instead of rebalancing replacements gave no measurable wall-time benefit
+(mapheavy 2.18 to 2.16 s; wordfreq 2.45 to 2.46 s). Neither experiment is the
+landed collection design.
+
+The remaining map profile attributes approximately 50% to GC, 19% to node
+allocation, and 4% to comparisons. These are approximate profile categories,
+not additive cumulative call-tree percentages. Comparison dispatch is no longer
+the dominant measured cost. Even mapheavy-mut remains about 9.4x Go because
+boxed values, IO closures, and Option allocation remain on its path.
+
+Evidence and experiment details:
+[`2026-11-04-map.json`](perf/results/2026-11-04-map.json),
+[`2026-11-04-map2.json`](perf/results/2026-11-04-map2.json), and
+[`2026-11-04-specialize.json`](perf/results/2026-11-04-specialize.json).
+
 ## Workloads and output contracts
 
 Both implementations of each kernel read the same generated stdin file. The

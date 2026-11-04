@@ -129,17 +129,18 @@ func (*TAlias) isType() {}
 
 // Builtin type constructors.
 var (
-	Int    = &TCon{Name: "Int", Kind: KStar{}}
-	Float  = &TCon{Name: "Float", Kind: KStar{}}
-	String = &TCon{Name: "String", Kind: KStar{}}
-	Bool   = &TCon{Name: "Bool", Kind: KStar{}}
-	Unit   = &TCon{Name: "Unit", Kind: KStar{}}
-	IO     = &TCon{Name: "IO", Kind: KArrow{Params: []Kind{KStar{}}, Ret: KStar{}}}
-	Map    = &TCon{Name: "Map", Kind: KArrow{Params: []Kind{KStar{}, KStar{}}, Ret: KStar{}}}
-	Set    = &TCon{Name: "Set", Kind: KArrow{Params: []Kind{KStar{}}, Ret: KStar{}}}
-	Array  = &TCon{Name: "Array", Kind: KArrow{Params: []Kind{KStar{}}, Ret: KStar{}}}
-	Fiber  = &TCon{Name: "Fiber", Kind: KArrow{Params: []Kind{KStar{}}, Ret: KStar{}}}
+	Int      = &TCon{Name: "Int", Kind: KStar{}}
+	Float    = &TCon{Name: "Float", Kind: KStar{}}
+	String   = &TCon{Name: "String", Kind: KStar{}}
+	Bool     = &TCon{Name: "Bool", Kind: KStar{}}
+	Unit     = &TCon{Name: "Unit", Kind: KStar{}}
+	IO       = &TCon{Name: "IO", Kind: KArrow{Params: []Kind{KStar{}}, Ret: KStar{}}}
+	Map      = &TCon{Name: "Map", Kind: KArrow{Params: []Kind{KStar{}, KStar{}}, Ret: KStar{}}}
+	Set      = &TCon{Name: "Set", Kind: KArrow{Params: []Kind{KStar{}}, Ret: KStar{}}}
+	Array    = &TCon{Name: "Array", Kind: KArrow{Params: []Kind{KStar{}}, Ret: KStar{}}}
+	Fiber    = &TCon{Name: "Fiber", Kind: KArrow{Params: []Kind{KStar{}}, Ret: KStar{}}}
 	Ref      = &TCon{Name: "Ref", Kind: KArrow{Params: []Kind{KStar{}}, Ret: KStar{}}}
+	MutMap   = &TCon{Name: "MutMap", Kind: KArrow{Params: []Kind{KStar{}, KStar{}}, Ret: KStar{}}}
 	Chan     = &TCon{Name: "Chan", Kind: KArrow{Params: []Kind{KStar{}}, Ret: KStar{}}}
 	RecvChan = &TCon{Name: "RecvChan", Kind: KArrow{Params: []Kind{KStar{}}, Ret: KStar{}}}
 	SendChan = &TCon{Name: "SendChan", Kind: KArrow{Params: []Kind{KStar{}}, Ret: KStar{}}}

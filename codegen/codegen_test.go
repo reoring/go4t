@@ -850,7 +850,7 @@ func TestRecordUpdates(t *testing.T) {
 			for _, index := range tt.indexes {
 				update.Names = append(update.Names, record.FieldNames[index])
 				update.Values = append(update.Values, call(function("replace", fnType(types.Int)), integer(int64(index+10))))
-				fields = append(fields, fmt.Sprintf("F%d: replace_(int64(%d))", index, index+10))
+				fields = append(fields, fmt.Sprintf("F%d: any(replace_(int64(%d))).(int64)", index, index+10))
 			}
 			addFunc(p, "update", nil, nil, update)
 			out := assertSource(t, p,

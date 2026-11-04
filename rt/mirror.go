@@ -7,7 +7,7 @@ type Option[T any] struct {
 }
 
 func Some[T any](value T) Option[T] { return Option[T]{Value: value, Present: true} }
-func None[T any]() Option[T]       { return Option[T]{} }
+func None[T any]() Option[T]        { return Option[T]{} }
 
 // Result carries either Ok (IsOk) or Err. The inactive field is ignored.
 type Result[E, A any] struct {

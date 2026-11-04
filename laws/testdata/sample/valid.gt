@@ -1,0 +1,34 @@
+package main
+
+import "std/regex"
+import "std/map"
+
+type Tree = Branch(Tree, Tree) | Leaf(Float) deriving Debug
+
+type Approx = Approx(Int)
+instance Eq[Approx] { eq(a, b) { true } }
+
+law captures() { regex.regexCaptures("^(a)(b)$", "ab") == Some(["a", "b"]) }
+proof captures() { sample(12) }
+
+law replacement(text String) { regex.regexReplace("z", text, "z") == text }
+proof replacement(text) { sample(30) }
+
+law floatIdentity(value Float) { value == value }
+proof floatIdentity(value) { sample(30) }
+
+law treeIdentity(tree Tree, pair (Int, List[String]), values Map[Int, String]) {
+  regex.regexReplace("z", debug(tree) + debug(pair) + debug(values), "z") == debug(tree) + debug(pair) + debug(values)
+}
+proof treeIdentity(tree, pair, values) { sample(30) }
+
+law customEquality() { (if regex.regexMatch("a", "a") { Approx(1) } else { Approx(0) }) == Approx(2) }
+proof customEquality() { sample(1) }
+
+type Plain = Tip | Link(Int, Plain)
+law plainIdentity(value Plain, values List[Plain], table Map[Int, Plain]) {
+  regex.regexMatch("a", "a") == true
+}
+proof plainIdentity(value, values, table) { sample(12) }
+
+func main() IO[Unit] { ioPure(unit()) }

@@ -430,9 +430,34 @@ Source: [`map/map.gt`](../std/map/map.gt). 26 top-level declarations.
 | `instance Eq[Map[K, V]] given Eq[K], Eq[V]` | Compare Map values for equality. | Ascending pair-list equality; Eq[K]/Eq[V] only, no Ord required. | — |
 | `instance Functor[Map[K]]` | Map Map's element/result while retaining shape. | Keys unchanged, values mapped in ascending key order without Ord. | — |
 
+## `std/mutmap`
+
+Source: [`mutmap/mutmap.gt`](../std/mutmap/mutmap.gt). 10 top-level declarations.
+
+`MutMap[K, V]` is an opaque IO-only ordered handle with no standard class
+instances. All operations are deferred IO. Each handle retains its creation-time
+ordering and protects each operation with a mutex. Snapshots copy structure, not
+key/value payloads. Separate lookup and insert calls are not a transaction.
+Explicit comparators must be pure total orders and must not re-enter the same
+handle. Cancellation or panic before a write commits leaves the handle unchanged;
+waiting for its mutex does not interrupt an operation already holding the lock.
+
+| Source signature | Semantics | Boundary behaviour | Law-eligible |
+| --- | --- | --- | --- |
+| `extern func newBy[K, V](cmp func(K, K) Ordering) IO[MutMap[K, V]] = "go4t/rt".MutMapNew` | Construct a handle retaining an explicit comparator. | Fresh empty handle on each execution; comparator must be a pure total order. | No |
+| `func new[K Ord, V]() IO[MutMap[K, V]]` | Construct an empty ordered handle using Ord. | Fresh handle on each execution; retains the creation-time ordering. | No |
+| `extern func insert[K, V](m MutMap[K, V], k K, v V) IO[Unit] = "go4t/rt".MutMapInsert` | O(log n) insertion or replacement. | Replaces an Ord-equivalent key/value without increasing size; uses retained ordering, no Ord constraint. | No |
+| `extern func lookup[K, V](m MutMap[K, V], k K) IO[Option[V]] = "go4t/rt".MutMapLookup` | O(log n) lookup using retained ordering. | Some(value) or None; traversal allocates nothing, but IO/Option wrapper costs remain. | No |
+| `extern func delete[K, V](m MutMap[K, V], k K) IO[Unit] = "go4t/rt".MutMapDelete` | O(log n) deletion using retained ordering. | Missing keys are a no-op; no Ord constraint. | No |
+| `extern func size[K, V](m MutMap[K, V]) IO[Int] = "go4t/rt".MutMapSize` | O(1) number of bindings. | Empty returns zero; no Ord constraint. | No |
+| `extern func toList[K, V](m MutMap[K, V]) IO[List[(K, V)]] = "go4t/rt".MutMapToList` | O(n) ascending snapshot. | Empty returns Nil; no mutable tree nodes are shared; no Ord constraint. | No |
+| `extern func freeze[K, V](m MutMap[K, V]) IO[Map[K, V]] = "go4t/rt".MutMapFreeze` | O(n) persistent snapshot. | Later mutations cannot change its bindings; no Ord constraint. | No |
+| `extern func thawBy[K, V](m Map[K, V], cmp func(K, K) Ordering) IO[MutMap[K, V]] = "go4t/rt".MutMapThaw` | O(n log n) thaw with an explicit retained comparator. | Fresh handle on each execution; source unchanged. | No |
+| `func thaw[K Ord, V](m Map[K, V]) IO[MutMap[K, V]]` | O(n log n) thaw using the supplied Ord. | Fresh handle on each execution; source unchanged. | No |
+
 ## `std/prelude`
 
-Source: [`prelude/prelude.gt`](../std/prelude/prelude.gt). 49 top-level declarations.
+Source: [`prelude/prelude.gt`](../std/prelude/prelude.gt). 51 top-level declarations.
 
 | Source signature | Semantics | Boundary behaviour | Law-eligible |
 | --- | --- | --- | --- |
@@ -485,6 +510,8 @@ Source: [`prelude/prelude.gt`](../std/prelude/prelude.gt). 49 top-level declarat
 | `func flatMap[M[_] Monad, A, B](ma M[A], f func(A) M[B]) M[B]` | Apply Monad.bind to a structure/action and continuation. | Delegates to loaded Monad: None/Err/failed IO skip continuation; List enumerates in order. | Yes |
 | `func fst[A, B](p (A, B)) A` | Project the first component of a pair. | Requires exactly a pair type, not a generic tuple index; does not evaluate either component again. | Yes |
 | `func snd[A, B](p (A, B)) B` | Project the second component of a pair. | Requires exactly a pair type, not a generic tuple index; does not evaluate either component again. | Yes |
+| `func when[M[_] Monad](cond Bool, action M[Unit]) M[Unit]` | Select a Monad action when cond is true. | True returns action; false returns pure(unit()). Arguments are strict; skipped IO effects do not run. | Yes |
+| `func unless[M[_] Monad](cond Bool, action M[Unit]) M[Unit]` | Select a Monad action when cond is false. | Equivalent to when(!cond, action); true returns pure(unit()). Arguments are strict. | Yes |
 
 Derived instances (expanded from the type declarations above):
 

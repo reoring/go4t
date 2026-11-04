@@ -1,0 +1,44 @@
+package main
+
+import "std/io"
+import "std/string"
+import "std/mutmap"
+
+func insertAll(n Int, i Int, values MutMap[Int, Int]) IO[Unit] {
+  if i == n { ioPure(unit()) } else {
+    do {
+      mutmap.insert(values, i, i * 3 + 1)
+      insertAll(n, i + 1, values)
+    }
+  }
+}
+
+func lookupAll(n Int, i Int, values MutMap[Int, Int], hits Int) IO[Int] {
+  if i == n { ioPure(hits) } else {
+    do {
+      found <- mutmap.lookup(values, i)
+      let hit = match found {
+        Some(value) => if value == i * 3 + 1 { 1 } else { 0 }
+        None => 0
+      }
+      lookupAll(n, i + 1, values, hits + hit)
+    }
+  }
+}
+
+func main() IO[Unit] {
+  do {
+    text <- io.readAll()
+    match string.parseInt(string.trim(text)) {
+      Some(n) => if n > 0 {
+        do {
+          values <- mutmap.new()
+          insertAll(n, 0, values)
+          hits <- lookupAll(n, 0, values, 0)
+          println(show(hits))
+        }
+      } else { io.ioFail("expected positive count") }
+      None => io.ioFail("expected positive count")
+    }
+  }
+}

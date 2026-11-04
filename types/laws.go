@@ -46,14 +46,24 @@ func (c *checker) checkLaws(files []*ast.File) {
 			info := c.program.Laws[law.Name]
 			b := c.body(nil, nil)
 			env := lawParams(law.Params, info.ParamTypes)
+			_, sampled := info.Proof.Decl.Body.(*ast.TSample)
 			for i, typ := range info.ParamTypes {
-				c.rejectLawFloat(law.Params[i].Pos, typ)
+				if !sampled {
+					// Proved laws keep the existing Float boundary.
+					c.rejectLawFloat(law.Params[i].Pos, typ)
+				} else {
+					b.sampleParameter(law.Params[i].Pos, typ, make(map[string]bool))
+				}
 			}
 			left := b.infer(law.LHS, env)
 			right := b.inferExpected(law.RHS, env, left)
 			unify(law.RHS.GetPos(), left, right)
 			b.finish()
-			b.rejectLawFloats()
+			if sampled {
+				b.dictionary(law.Pos, Constraint{Class: "Eq", Arg: AnnOf(law.LHS).Type})
+			} else {
+				b.rejectLawFloats()
+			}
 		}
 	}
 	for _, file := range files {
@@ -71,7 +81,9 @@ func (c *checker) checkLaws(files []*ast.File) {
 			for pat, typ := range info.PatVars {
 				info.PatVars[pat] = zonk(pat.Pos, typ, b.defaultMeta)
 			}
-			b.rejectLawFloats()
+			if _, sampled := proof.Body.(*ast.TSample); !sampled {
+				b.rejectLawFloats()
+			}
 		}
 	}
 }
@@ -91,6 +103,13 @@ func lawParams(params []ast.Param, types []Type) *locals {
 func (b *bodyChecker) tactic(t ast.Tactic, env *locals, proof *ProofInfo) {
 	switch t := t.(type) {
 	case *ast.TRefl:
+	case *ast.TSample:
+		if proof.Decl.Body != t {
+			fail(t.Pos, "sample must be the whole proof body")
+		}
+		if t.Count < 1 || t.Count > 100000 {
+			fail(t.Pos, "sample count must be an Int literal in 1..100000")
+		}
 	case *ast.TMatch:
 		typ, _ := env.lookup(t.Var.Name)
 		if typ == nil {
@@ -108,6 +127,35 @@ func (b *bodyChecker) tactic(t ast.Tactic, env *locals, proof *ProofInfo) {
 		_, tuple := IsTuple(con)
 		if !tuple && b.c.program.DataTypes[con.Name] == nil {
 			fail(t.Var.Pos, "cannot split %s", typ)
+		}
+		if t.Induction {
+			data := b.c.program.DataTypes[con.Name]
+			if data == nil {
+				fail(t.Var.Pos, "cannot split %s", typ)
+			}
+			quantified := false
+			for _, param := range proof.Decl.Params {
+				quantified = quantified || param.Name == t.Var.Name
+			}
+			if !quantified {
+				fail(t.Var.Pos, "induction variable %s is not a quantified variable", t.Var.DisplayName())
+			}
+			if t.Bare {
+				return
+			}
+			for _, arm := range t.Arms {
+				pat, ok := arm.Pat.(*ast.PCtor)
+				if !ok {
+					fail(arm.Pos, "induction arms require constructor patterns with field binders")
+				}
+				for _, field := range pat.Args {
+					switch field.(type) {
+					case *ast.PVar, *ast.PWild:
+					default:
+						fail(field.GetPos(), "induction arms require constructor patterns with field binders")
+					}
+				}
+			}
 		}
 		rows := make([][]ast.Pattern, len(t.Arms))
 		for i, arm := range t.Arms {
@@ -135,6 +183,9 @@ func (b *bodyChecker) tactic(t ast.Tactic, env *locals, proof *ProofInfo) {
 		law := b.c.program.Laws[t.Law.Name]
 		if law == nil {
 			fail(t.Law.Pos, "unknown law %s", t.Law.DisplayName())
+		}
+		if _, sampled := law.Proof.Decl.Body.(*ast.TSample); sampled {
+			fail(t.Law.Pos, "cannot rewrite sampled law %s: tested, not proved", t.Law.DisplayName())
 		}
 		if len(t.Args) != len(law.ParamTypes) {
 			fail(t.Pos, "arity mismatch: want %d arguments, got %d", len(law.ParamTypes), len(t.Args))
@@ -211,6 +262,92 @@ func (c *checker) lawHasFloat(typ Type) bool {
 			}
 		}
 		return c.lawHasFloat(typ.Ret)
+	}
+	return false
+}
+
+// Sampling constructs data, never functions, IO descriptions or opaque handles.
+// Check every field, even when another constructor could avoid that field.
+func (b *bodyChecker) sampleParameter(pos ast.Pos, typ Type, seen map[string]bool) {
+	head := Unalias(typ)
+	var args []Type
+	if app, ok := head.(*TApp); ok {
+		head, args = Unalias(app.Fun), app.Args
+	}
+	con, ok := head.(*TCon)
+	if !ok {
+		fail(pos, "sample: no usable generator for %s", typ)
+	}
+	switch con.Name {
+	case "Int", "Float", "Bool", "String", "Unit":
+		return
+	case "Map":
+		b.dictionary(pos, Constraint{Class: "Ord", Arg: args[0]})
+		for _, arg := range args {
+			b.sampleParameter(pos, arg, seen)
+		}
+		return
+	}
+	if _, tuple := IsTuple(con); tuple {
+		for _, arg := range args {
+			b.sampleParameter(pos, arg, seen)
+		}
+		return
+	}
+	data := b.c.program.DataTypes[con.Name]
+	if data == nil || len(data.Ctors) == 0 {
+		fail(pos, "sample: no usable generator for %s", typ)
+	}
+	// Inspect type arguments before cutting recursive constructor cycles.
+	for _, arg := range args {
+		b.sampleParameter(pos, arg, seen)
+	}
+	key := con.Name
+	if seen[key] {
+		return
+	}
+	seen[key] = true
+	sub := make(map[*TVar]Type, len(args))
+	for i, arg := range args {
+		sub[data.TParams[i]] = arg
+	}
+	for _, ctor := range data.Ctors {
+		for _, field := range ctor.Fields {
+			b.sampleParameter(pos, substitute(field, sub), seen)
+		}
+	}
+}
+
+// SampleHasDebug asks the ordinary instance matcher about a concrete generated
+// input. Missing Debug is not a type error: sampling has a structural observer.
+func SampleHasDebug(p *Program, typ Type) bool {
+	return sampleHasInstance(p, "Debug", typ)
+}
+
+func sampleHasInstance(p *Program, class string, typ Type) bool {
+	head := Unalias(typ)
+	var args []Type
+	if app, ok := head.(*TApp); ok {
+		head, args = Unalias(app.Fun), app.Args
+	}
+	con, ok := head.(*TCon)
+	if !ok {
+		return false
+	}
+	for _, inst := range p.Instances {
+		if inst.Class.Name != class || inst.TypeCon != con {
+			continue
+		}
+		sub, matches := inst.matchHead(args)
+		if !matches {
+			return false
+		}
+		for _, context := range inst.Context {
+			if !sampleHasInstance(p, context.Class, substitute(context.Arg, sub)) {
+				return false
+			}
+		}
+		return true
 	}
 	return false
 }

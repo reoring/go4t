@@ -7,7 +7,7 @@ import (
 )
 
 type body struct {
-	id int
+	id                        int
 	x, y, z, vx, vy, vz, mass float64
 }
 
@@ -46,7 +46,9 @@ func energy(bodies [5]body) float64 {
 		kinetic := 0.5 * b.mass * (b.vx*b.vx + b.vy*b.vy + b.vz*b.vz)
 		potential := 0.0
 		for _, other := range bodies {
-			if b.id == other.id { continue }
+			if b.id == other.id {
+				continue
+			}
 			dx, dy, dz := other.x-b.x, other.y-b.y, other.z-b.z
 			potential -= 0.5 * b.mass * other.mass / math.Sqrt(dx*dx+dy*dy+dz*dz+0.01)
 		}
@@ -57,9 +59,15 @@ func energy(bodies [5]body) float64 {
 
 func main() {
 	var steps int
-	if _, err := fmt.Fscan(os.Stdin, &steps); err != nil { panic(err) }
-	if steps < 0 { panic("expected nonnegative steps") }
+	if _, err := fmt.Fscan(os.Stdin, &steps); err != nil {
+		panic(err)
+	}
+	if steps < 0 {
+		panic("expected nonnegative steps")
+	}
 	bodies := initial()
-	for range steps { bodies = advance(bodies) }
+	for range steps {
+		bodies = advance(bodies)
+	}
 	fmt.Printf("%.9f\n", energy(bodies))
 }

@@ -49,8 +49,30 @@ close を使えます。閉じたチャネルからの受信は `None` を返し
 `signal.newSignalChan` などの生成されたコンストラクタを使ってください。
 コンストラクタは IO の実行時にチャネルを確保し、要素には通常の引数・戻り値と同じ
 変換を適用します。[examples/go-chan](../examples/go-chan) に `time.after` と
-producer/consumer fiber の例があります。Go のジェネリック関数と、要素型を
-変換できないチャネルは引き続きスキップされます。
+producer/consumer fiber の例があります。要素型を変換できないチャネルは
+引き続きスキップされます。
+
+Go のジェネリック関数は import 時にテンプレートとして登録され、
+呼び出し箇所の具体型から Go の型引数を決めます。
+Int、Float、Bool、String はそれぞれ `int64`、`float64`、`bool`、`string` に対応し、
+List と Map は要素型にも同じ変換を適用します。
+外部の record と handle は元の Go の型を保持します。
+Go の型制約を検証し、go4t の Eq/Ord で代用しません。
+型引数が決まらない場合、変換できない型、制約違反は使用箇所でエラーにします。
+Go の型引数を明示的に書く必要はありません。
+context、error、Option への変換は、型引数の置換後ではなく元の Go 宣言で決まります。
+ジェネリック関数とそのコールバックはすべて IO です。
+`sync.onceValue` が返す関数も IO を返します。
+トップレベルの多相関数は必要な具体型ごとに生成します。
+ローカルな多相ラムダの型引数が未確定のまま残る場合は、具体型の注釈が必要です。
+`maps.keys` の iterator 戻り値は List になりますが、
+`slices.sorted` のような iterator 引数と、ジェネリックな構造体・interface・receiver は未対応です。
+`slices.sort` はコピーを変更して `IO[Unit]` を返し、呼び出し元の List は変更しません。
+パッケージのテンプレートと具体型ごとの shim は別々にキャッシュします。
+呼び出し側の変更でパッケージのキャッシュは無効になりません。
+[examples/go-generics](../examples/go-generics) と
+[ADR 0006](adr/0006-generic-go-functions.md) を参照してください。
+
 
 ## プロジェクトと依存
 

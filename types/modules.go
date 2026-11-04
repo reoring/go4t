@@ -128,7 +128,8 @@ func qualifyModules(input []*ast.Module) (*moduleResolver, []*ast.File) {
 		"std/prelude": {"Unit"}, "std/map": {"Map"}, "std/set": {"Set"},
 		"std/array": {"Array"}, "std/conc": {"Fiber"}, "std/io": {"IO"},
 		"std/string": {"String"}, "std/float": {"Float"}, "std/ref": {"Ref"},
-		"std/chan": {"Chan", "RecvChan", "SendChan"},
+		"std/mutmap": {"MutMap"},
+		"std/chan":   {"Chan", "RecvChan", "SendChan"},
 	} {
 		if scope := standard[module]; scope != nil {
 			for _, name := range names {
@@ -268,7 +269,7 @@ func contains(names []string, name string) bool {
 }
 func builtinType(name string) bool {
 	switch name {
-	case "Int", "Float", "String", "Bool", "Unit", "IO", "Map", "Set", "Array", "Fiber", "Ref", "Chan", "RecvChan", "SendChan":
+	case "Int", "Float", "String", "Bool", "Unit", "IO", "Map", "Set", "Array", "Fiber", "Ref", "MutMap", "Chan", "RecvChan", "SendChan":
 		return true
 	}
 	return strings.HasPrefix(name, "Tuple")
@@ -517,7 +518,7 @@ func (r *moduleResolver) law(name string, pos ast.Pos) string {
 
 func (r *moduleResolver) tactic(t ast.Tactic, ts, vs map[string]bool) {
 	switch t := t.(type) {
-	case *ast.TRefl:
+	case *ast.TRefl, *ast.TSample:
 	case *ast.TMatch:
 		if !vs[t.Var.Name] {
 			r.fail(t.Var.Pos, "match variable %s is not a proof variable", t.Var.DisplayName())
@@ -709,7 +710,9 @@ func cloneSyntax(v reflect.Value) reflect.Value {
 	case reflect.Struct:
 		out := reflect.New(v.Type()).Elem()
 		for i := range v.NumField() {
-			if v.Type().Field(i).Name != "Ann" {
+			if v.Type().Field(i).Name == "ForeignBindings" {
+				out.Field(i).Set(v.Field(i))
+			} else if v.Type().Field(i).Name != "Ann" {
 				out.Field(i).Set(cloneSyntax(v.Field(i)))
 			}
 		}

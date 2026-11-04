@@ -374,6 +374,8 @@ func choose(n Int) Int {
   }
 }
 func main() IO[Unit] { println(show(choose(0))) }
+type ScalarRecord = ScalarRecord{n: Int}
+func recordIdentity(r ScalarRecord) ScalarRecord { r }
 `)
 	for _, line := range []string{"//line positions.gt:2", "//line positions.gt:4", "//line positions.gt:5", "//line positions.gt:8", "//line std/prelude/prelude.gt:"} {
 		if !bytes.Contains(source, []byte(line)) {

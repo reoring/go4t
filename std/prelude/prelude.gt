@@ -272,6 +272,14 @@ func flatMap[M[_] Monad, A, B](ma M[A], f func(A) M[B]) M[B] {
   bind(ma, f)
 }
 
+func when[M[_] Monad](cond Bool, action M[Unit]) M[Unit] {
+  if cond { action } else { pure(unit()) }
+}
+
+func unless[M[_] Monad](cond Bool, action M[Unit]) M[Unit] {
+  when(!cond, action)
+}
+
 func fst[A, B](p (A, B)) A {
   match p {
     (a, _) => a

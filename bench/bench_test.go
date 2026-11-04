@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -49,9 +50,17 @@ var workloads = []struct{ name, output string }{
 	{"wc", "lines: 1000000, words: 2000000\n1000000 blue\n1000000 redxx\n"},
 }
 
+var perfWorkloads = []struct{ name, output string }{
+	{"sortints", "1072161167218\n"},
+	{"nbody", "-0.001046538\n"},
+	{"wordfreq", "word01597 571\nword02008 566\nword00951 565\nword03004 565\nword02452 558\nword02900 558\nword03013 558\nword02967 557\nword01772 556\nword02809 556\n"},
+	{"mapheavy", "1000000\n"},
+	{"treefold", "2097151\n"},
+}
+
 func TestBudgets(t *testing.T) {
 	limits := budgets(t)
-	want := len(workloads) + 2*len(compileMetrics)
+	want := len(workloads) + len(perfWorkloads) + 2*len(compileMetrics)
 	if len(limits) != want {
 		t.Fatalf("budget count = %d, want %d", len(limits), want)
 	}
@@ -61,6 +70,11 @@ func TestBudgets(t *testing.T) {
 		}
 		if _, err := os.Stat(w.name + ".gt"); err != nil {
 			t.Error(err)
+		}
+	}
+	for _, w := range perfWorkloads {
+		if limits["perf-"+w.name] <= 0 {
+			t.Errorf("missing positive nanosecond budget for perf-%s", w.name)
 		}
 	}
 	for _, workload := range []string{"scale", "std"} {
@@ -90,7 +104,7 @@ func BenchmarkPrograms(b *testing.B) {
 				b.Fatal(err)
 			}
 			dir := filepath.Join(temp, w.name)
-			command(b, checkout, compiler, "build", "-o", dir, source)
+			command(b, checkout, compiler, "build", "--emit-go", dir, source)
 			binary := filepath.Join(dir, "program")
 			files, err := filepath.Glob(filepath.Join(dir, "*.go"))
 			if err != nil || len(files) == 0 {
@@ -130,6 +144,72 @@ func BenchmarkPrograms(b *testing.B) {
 			b.ReportMetric(float64(average), "ns/op")
 			if os.Getenv("GO4T_BENCH_RECORD") == "" && average > limits[w.name] {
 				b.Fatalf("%s exceeded budget: %d ns/op > %d ns/op", w.name, average, limits[w.name])
+			}
+		})
+	}
+}
+
+// The full-size kernels run once, with compilation and input generation outside
+// GNU time. This is a regression ceiling, not a statistically stable benchmark.
+// An explicit input directory permits offline runs; absent inputs skip that
+// kernel rather than silently substituting a smaller workload.
+func TestPerfPrograms(t *testing.T) {
+	if _, err := exec.LookPath("/usr/bin/time"); err != nil {
+		t.Skip("performance budgets require /usr/bin/time")
+	}
+	checkout := root(t)
+	temp := t.TempDir()
+	inputs := os.Getenv("GO4T_PERF_INPUT_DIR")
+	if inputs == "" {
+		if _, err := os.Stat(filepath.Join(checkout, "bench", "perf", "gen", "main.go")); err != nil {
+			t.Skip("performance input generator is unavailable")
+		}
+		inputs = filepath.Join(temp, "input")
+		command(t, checkout, "go", "run", "./bench/perf/gen", inputs)
+	}
+	compiler := filepath.Join(temp, "go4t-PerfBudgets")
+	command(t, checkout, "go", "build", "-o", compiler, "./cmd/go4t")
+	limits := budgets(t)
+	for _, w := range perfWorkloads {
+		t.Run(w.name, func(t *testing.T) {
+			input, err := os.Open(filepath.Join(inputs, w.name+".txt"))
+			if os.IsNotExist(err) {
+				t.Skip("performance input is unavailable")
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer input.Close()
+			binary := filepath.Join(temp, w.name)
+			source := filepath.Join(checkout, "bench", "perf", w.name, "main.gt")
+			command(t, checkout, compiler, "build", "-o", binary, source)
+			timing := filepath.Join(temp, w.name+".time")
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			cmd := exec.CommandContext(ctx, "/usr/bin/time", "-f", "%e", "-o", timing, binary)
+			cmd.Env = append(os.Environ(), "GOMAXPROCS=1", "GOGC=100")
+			cmd.Stdin = input
+			var stdout, stderr bytes.Buffer
+			cmd.Stdout, cmd.Stderr = &stdout, &stderr
+			if err := cmd.Run(); err != nil {
+				t.Fatalf("%s: %v\n%s", w.name, err, stderr.String())
+			}
+			if stdout.String() != w.output {
+				t.Fatalf("%s output = %q, want %q", w.name, stdout.String(), w.output)
+			}
+			data, err := os.ReadFile(timing)
+			if err != nil {
+				t.Fatal(err)
+			}
+			seconds, err := strconv.ParseFloat(strings.TrimSpace(string(data)), 64)
+			if err != nil {
+				t.Fatal(err)
+			}
+			elapsed := int64(seconds * float64(time.Second))
+			limit := limits["perf-"+w.name]
+			t.Logf("%s: %d ns, ceiling %d ns; checksum matched", w.name, elapsed, limit)
+			if os.Getenv("GO4T_BENCH_RECORD") == "" && elapsed > limit {
+				t.Fatalf("%s exceeded budget: %d ns > %d ns", w.name, elapsed, limit)
 			}
 		})
 	}

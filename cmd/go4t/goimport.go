@@ -105,6 +105,7 @@ func (b *goImportBinder) Bind(importPath string) (*ast.Module, error) {
 		}
 	}
 	module := &ast.Module{Name: file.Package, Files: []*ast.File{file}, ForeignRecordKeys: recordKeys}
+	module.ForeignBindings = &genericGoBindings{binder: b, owner: importPath, shimPath: shimPath, baseEntry: entry}
 	if b.bound == nil {
 		b.bound = make(map[string]*ast.Module)
 	}

@@ -1,0 +1,35 @@
+package main
+
+import "std/list"
+import "std/map"
+import "std/mutmap"
+import "std/string"
+
+func countWords(counts MutMap[String, Int], words List[String]) IO[Unit] {
+  match words {
+    Nil => ioPure(unit())
+    Cons(word, rest) => do {
+      previous <- mutmap.lookup(counts, word)
+      let count = match previous { None => 0; Some(n) => n }
+      mutmap.insert(counts, word, count + 1)
+      countWords(counts, rest)
+    }
+  }
+}
+
+func frequencyOrder(a (String, Int), b (String, Int)) Ordering {
+  match compare(snd(b), snd(a)) {
+    EQ => compare(fst(a), fst(b))
+    order => order
+  }
+}
+
+func main() IO[Unit] {
+  do {
+    counts <- mutmap.new()
+    countWords(counts, string.words("pear apple pear banana apple pear cherry banana"))
+    frozen <- mutmap.freeze(counts)
+    let ranked = list.sortBy(map.mapToList(frozen), frequencyOrder)
+    list.forEach(list.take(3, ranked), func((word, count)) => println("${word} ${count}"))
+  }
+}

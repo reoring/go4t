@@ -11,11 +11,11 @@ import (
 // No forwarding goroutine or replacement channel is introduced at the boundary.
 type channel[T any] struct {
 	native any
-	input <-chan T
+	input  <-chan T
 	output chan<- T
-	from func(T) any
-	to func(any, context.Context) T
-	local bool
+	from   func(T) any
+	to     func(any, context.Context) T
+	local  bool
 }
 
 func WrapChan[T any](value chan T, from func(T) any, to func(any, context.Context) T) any {
@@ -137,7 +137,9 @@ func ChanRecv(value any) any {
 			return nil, ClassifyError(err)
 		}
 		defer RecoverChanFailure(&result, &err)
-		return value.(interface{ recv(context.Context) (any, error) }).recv(ctx)
+		return value.(interface {
+			recv(context.Context) (any, error)
+		}).recv(ctx)
 	})
 }
 
@@ -147,7 +149,9 @@ func ChanSend(value, item any) any {
 			return nil, ClassifyError(err)
 		}
 		defer RecoverChanFailure(&result, &err)
-		if err := value.(interface{ send(context.Context, any) error }).send(ctx, item); err != nil {
+		if err := value.(interface {
+			send(context.Context, any) error
+		}).send(ctx, item); err != nil {
 			return nil, err
 		}
 		return Unit{}, nil

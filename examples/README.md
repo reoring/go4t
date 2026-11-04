@@ -14,6 +14,7 @@ Commands run from the checkout root. Network-using examples are marked.
 | [sql-service](sql-service) | SQLite + Prometheus HTTP service via `go:` imports. | see its README |
 | [go-import](go-import) | `import "go:net/http"` / `go:strings` bound at build time: tuples, handle fields, upcasts, package vars (loopback). | `go4t run examples/go-import` |
 | [go-chan](go-chan) | Receive from Go `time.After`; communicate between producer and consumer fibers through a buffered channel. | `go4t run examples/go-chan` |
+| [go-generics](go-generics) | Generic Go package functions instantiated from concrete call-site types, including callbacks and returned closures in IO. | `go4t run examples/go-generics` |
 | [todo](todo) | CLI + JSON file persistence + `std/http` routes, derived codecs, and 3 checked laws (server uses network). | `go4t run examples/todo -- list` |
 | [typed-extern](typed-extern) | Generated bindings, ABI adapters, opaque method handles. | `go4t run examples/typed-extern` |
 | [deps](deps) | Offline Go-module dependency with local replacement. | `go4t run examples/deps/app` |
@@ -32,6 +33,7 @@ Commands run from the checkout root. Network-using examples are marked.
 | [ref](ref) | IO-only mutable references: HTTP request counter, in-memory key/value store, and 50 atomic concurrent increments (loopback traffic). | `go4t run examples/ref` |
 | [state](state) | Pure `State` transitions. | `go4t run examples/state/main.gt` |
 | [collections](collections) | Persistent Map/Set/Array. | `go4t run examples/collections/main.gt` |
+| [mutmap](mutmap) | IO-only ordered word-frequency counting; freeze into a pure Map and print a deterministic top three. | `go4t run examples/mutmap` |
 | [lists](lists) | List Functor/Monad, cartesian `do`. | `go4t run examples/lists/main.gt` |
 | [tree](tree) | Recursive Functor and constrained rendering. | `go4t run examples/tree/main.gt` |
 | [records](records) | Records, interpolation, let polymorphism. | `go4t run examples/records/main.gt` |

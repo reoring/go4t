@@ -184,6 +184,9 @@ func (g *mirrorGenerator) internal(name string) string {
 }
 
 func (g *mirrorGenerator) entryFunction(f *types.FuncInfo) bool {
+	if strings.HasPrefix(f.Name, "ext_go_") {
+		return false // required foreign-instantiation copies are compiler-private
+	}
 	if len(g.prog.Modules) == 0 {
 		// Check([]*ast.File) has no module metadata; retain its entry file boundary.
 		if len(g.prog.Files) > 1 && g.prog.Main != nil {
@@ -869,7 +872,11 @@ func (g *mirrorGenerator) emitDataConversion(out *strings.Builder, m *mirrorType
 				if to {
 					fmt.Fprintf(out, "%s: %s,", mirrorField(c, i), g.to(field, fmt.Sprintf("x.F%d", i)))
 				} else {
-					fmt.Fprintf(out, "F%d: %s,", i, g.from(field, "x."+mirrorField(c, i)))
+					value := g.from(field, "x."+mirrorField(c, i))
+					if scalarRecord(c) {
+						value = convert(value, "any", scalar(field))
+					}
+					fmt.Fprintf(out, "F%d: %s,", i, value)
 				}
 			}
 			out.WriteString("}")

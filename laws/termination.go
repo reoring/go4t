@@ -66,6 +66,12 @@ type terminationChecker struct {
 }
 
 func (e *evaluator) checkDependencies(law *types.LawInfo, proof *types.ProofInfo) error {
+	return e.checkEligibility(law, proof, true)
+}
+
+// Sampling uses the same taint scan but never treats failed termination as an
+// excuse to sample an otherwise eligible law.
+func (e *evaluator) checkEligibility(law *types.LawInfo, proof *types.ProofInfo, termination bool) error {
 	c := &terminationChecker{e: e}
 	root := &terminationNode{name: sourceName(e.p, law.Decl.Name)}
 	c.expression(root, law.Decl.LHS, nil, nil, false)
@@ -113,6 +119,9 @@ func (e *evaluator) checkDependencies(law *types.LawInfo, proof *types.ProofInfo
 	}
 	if c.err != nil {
 		return c.err
+	}
+	if !termination {
+		return nil
 	}
 	if bad := c.nonterminating(); bad != nil {
 		return fmt.Errorf("depends on %s which may not terminate", bad.name)

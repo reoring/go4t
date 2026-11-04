@@ -270,7 +270,7 @@ func runMirrorConsumer(t *testing.T, generated map[string][]byte, consumer strin
 		}
 	}
 	for name, source := range map[string]string{
-		"go.mod": "module mirrorcheck\n\ngo 1.22\n\nrequire go4t v0.0.0\nreplace go4t => " + root + "\n",
+		"go.mod":  "module mirrorcheck\n\ngo 1.22\n\nrequire go4t v0.0.0\nreplace go4t => " + root + "\n",
 		"main.go": consumer,
 	} {
 		if err := os.WriteFile(filepath.Join(dir, name), []byte(source), 0o644); err != nil {

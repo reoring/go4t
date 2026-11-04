@@ -93,7 +93,8 @@ func moduleCanonical(path String, name String) Bool {
   (path == "std/list" && list.elem(name, ["List", "Nil", "Cons", "map", "flatMap", "fold", "filter", "length", "append", "reverse", "head", "tail"])) ||
   (path == "std/result" && list.elem(name, ["Result", "Err", "Ok"])) ||
   (path == "std/io" && list.elem(name, ["println", "print", "eprintln", "ioPure", "ioFail"])) ||
-  (path == "std/float" && name == "toFloat")
+  (path == "std/float" && name == "toFloat") ||
+  (path == "std/mutmap" && name == "MutMap")
 }
 
 func moduleName(path String, entry String, name String) String {
@@ -122,7 +123,7 @@ func moduleDisplayName(name String) String {
 }
 
 func moduleNames(m SourceModule, entry String) TreeMap[String, String] {
-  mapFromList(map(list.concatMap(m.files, func(f) => list.concatMap(f.decls, moduleDeclNames)), func(n) => (n, moduleName(m.path, entry, n))))
+  mapFromList(append(map(list.concatMap(m.files, func(f) => list.concatMap(f.decls, moduleDeclNames)), func(n) => (n, moduleName(m.path, entry, n))), if m.path == "std/mutmap" { [("MutMap", moduleName(m.path, entry, "MutMap"))] } else { Nil }))
 }
 
 func modulePreludeNames() List[String] {

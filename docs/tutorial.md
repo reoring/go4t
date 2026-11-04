@@ -615,7 +615,8 @@ what the decision needs; every call copies it (SPEC §8.7).
 Tests check chosen inputs. A `law` states an equation for every value of its
 typed parameters; its same-named `proof` explains how to reduce both sides to
 the same term. Save each example separately and run `go4t check FILE.gt`.
-`build`, `run`, `test` and `eval` do not verify proofs; laws generate no Go code.
+`build`, `run`, `test` and `eval` do not verify proofs. Proved laws generate no
+Go code; `test` does execute laws explicitly marked `sample(N)`.
 
 ### Constructor cases: cancellation is idempotent
 
@@ -715,11 +716,68 @@ later arguments may change. Int ring normalization closes the final addition.
 An accumulator implementation usually needs a stronger lemma quantifying over
 the accumulator, not just the zero-accumulator result.
 
+The common constructor-match/self-rewrite pattern also has a shorter spelling.
+Replace the proof above with either of these:
+
+```text
+proof lenApp(xs, ys) { induction xs }
+```
+
+```text
+proof lenApp(xs, ys) {
+  induction xs {
+    Nil => refl
+    Cons(head, tail) => refl
+  }
+}
+```
+
+`induction` supplies a rewrite for each field whose type is the same data type
+as the quantified variable, keeping all other law arguments unchanged. For a
+binary tree it supplies both child hypotheses. Bare `induction xs` means every
+constructor arm uses `refl` after those rewrites. Explicit arms can use further
+tactics. The existing structural-descent and argument-order checks still apply.
+
 Only a pure, terminating, untainted fragment is eligible. Float, IO, untrusted
 externs and variable divisors are excluded; trusted prelude/string primitives
 are permitted. Exhaustive cases, a type-correct proof and eligible dependencies
 are necessary but do not guarantee `refl` succeeds. See [SPEC §6.5](../SPEC.md#65-laws-and-proofs)
 for the full rules and diagnostics.
+
+### Regex equations: sampled, not proved
+
+An extern outside the trusted fragment cannot be proved by normalization.
+Keep such an equation as a law with an explicit testing tactic:
+
+```go4t
+package main
+import "std/regex"
+law captures() {
+  regex.regexCaptures("^(a)(b)$", "ab") == Some(["a", "b"])
+}
+proof captures() { sample(30) }
+law replaceIdentity(text String) {
+  regex.regexReplace("z", text, "z") == text
+}
+proof replaceIdentity(text) { sample(100) }
+func main() IO[Unit] { ioPure(unit()) }
+```
+
+`go4t check FILE.gt` reports each law as
+`tested by go4t test (sample N), not proved`, without executing or normalizing
+it. Run `go4t test FILE.gt` to execute the samples. A failed sample prints the
+first counterexample's `debug` bindings, seed and sample index, and fails the
+test command. `GO4T_SAMPLE_SEED` selects another reproducible Int seed.
+
+`sample(N)` must be the whole proof body, with an Int literal from 1 to 100000.
+Inputs need a bounded generator: primitives, tuples, algebraic data, lists and
+maps are supported; functions, IO and handles are not. Binding displays use
+custom `Debug` when available, otherwise structural output. Constructors
+are generated to depth four, with scalar edge cases including NaN, signed zero,
+infinities and Int extremes. The result needs `Eq`; direct Float results compare
+bits. Sampling can miss counterexamples, does not certify termination, and
+cannot be used as a rewrite lemma. An entirely law-eligible equation must be
+proved instead; `sample` cannot replace a difficult proof.
 
 ## Next steps
 

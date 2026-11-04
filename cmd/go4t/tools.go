@@ -10,6 +10,7 @@ import (
 
 	"go4t/ast"
 	"go4t/codegen"
+	"go4t/laws"
 	"go4t/modules"
 	"go4t/parser"
 	"go4t/types"
@@ -106,6 +107,28 @@ func testFiles(inputs []string) error {
 	}
 	harness.Package = entry.Name
 	entry.Files = append(entry.Files, harness)
+	if laws.HasSamples(files) {
+		checked, err := types.Check(files)
+		if err != nil {
+			return diagnostic("<test>", err)
+		}
+		if err := laws.AddSampleTests(files, checked); err != nil {
+			return diagnostic("<test>", err)
+		}
+		kept := entry.Files[:0]
+		for _, file := range entry.Files {
+			if file != harness {
+				kept = append(kept, file)
+			}
+		}
+		entry.Files = kept
+		harness, err = testHarness(entry.Files)
+		if err != nil {
+			return err
+		}
+		harness.Package = entry.Name
+		entry.Files = append(entry.Files, harness)
+	}
 	program, err := checkFiles(files, false)
 	if err != nil {
 		return err

@@ -1,15 +1,15 @@
 # ADR 0006: call-site instantiation of generic Go functions
 
 Date: 2026-11-04
-Status: Proposed — awaiting decision
+Status: Accepted / Implemented (2026-11-04; bounded function scope below)
 
 ## Context
 
-ADR 0003 binds a Go package during import, before checking its callers. Generic Go
-functions remain unreachable under SPEC §8. Generic go4t extern declarations are
-already legal; their Go targets must use the erased ABI, not Go type parameters.
+ADR 0003 binds a Go package during import, before checking its callers. At the
+baseline below, generic Go functions remained unreachable under SPEC §8.
+Generic go4t extern declarations already existed for erased Go targets.
 
-### Confirmed implementation
+### Baseline implementation
 
 - `extern/load.go:Loader.Load` reads Go export data and retains `go/types.Signature`.
   `extern/mirror.go:mirrorSet.call` rejects nonempty `TypeParams` or
@@ -127,11 +127,11 @@ usable bindings after instantiation. Source signatures expose further limits:
 
 ## Decision
 
-Recommend **A: call-site monomorphisation**, with the conservative IO and cache
-rules below. This is a proposal, not authorization to implement or a claim that
-SPEC §8 already supports generic Go calls.
+Accept **A: call-site monomorphisation**, with conservative IO and separate
+template/instance cache identities. The implemented function scope and departures
+from the original broader proposal are recorded below.
 
-### A. Call-site monomorphisation — recommended
+### A. Call-site monomorphisation — accepted
 
 After inference, request one `F[T1, …]` shim wrapper per distinct concrete Go type
  tuple. Import loading exposes generic signature/constraint metadata; a second
@@ -224,7 +224,8 @@ as the preferred collection API even if A is accepted.
 
 ## Rules
 
-These rules apply only if the proposal is accepted.
+The accepted design rules follow. The bounded implementation deviations below
+take precedence over the original named-type and local-helper scope.
 
 1. **Preserve Go identity.** Carry original signatures, constraints, and owner
    metadata through the binder/checker port. Validate concrete tuples with Go's
@@ -286,26 +287,63 @@ bindings and trusted runtime externs do not change under this proposal.
   generated code size, and build work grow with distinct requested tuples.
 - Generic foreign calls require IO even for copied scalar collections. This buys
   a stable, sound effect scheme; relaxing it needs a separate purity decision.
-- Source type inference supplies useful instantiations but is not a complete Go
-  monomorphisation engine. Named-type ownership, higher-order uses, required
-  specialization, and callback effects are acceptance work, not existing support.
-- The measurements prove today's skip surface only. No option has been implemented
-  or smoke-tested; the projected reach is conditional on its stated boundaries.
+- Source inference supplies concrete arguments without adding expression type
+  application. Unresolved, unsupported, or invalid instances are rejected before
+  code generation; ordinary default-to-Unit cannot invent a Go argument.
+- The baseline skip counts remain historical evidence. Registering a template
+  does not prove that every instantiation of that symbol is mirrorable.
 
-## Follow-ups
+## Implemented scope and deviations
 
-- Decide A and its explicit IO deviation together; do not accept one without the
-  other or change SPEC's supported surface while this ADR remains Proposed.
-- Prove concrete Int/String and ordered/comparable calls, two tuples of one symbol,
-  cross-module reuse, result-guided inference, higher-order/partial uses, and
-  required specialization beyond the current 40-node/8-copy optimization limits.
-- Prove instantiated sets and typed queue construction/add/get/shutdown end to end,
-  distinct nominal identities, copy isolation, nested-handle IO, and retained
-  OnceValue callback cancellation/failure behavior. Record actual reach separately
-  from the 68-function projection; keep iterator-input failures explicit.
-- Fix cache tests for tuple addition/removal/order, changed type-owner export data,
-  compiler/toolchain/options changes, concurrent publication, and check/build
-  equivalence. Do not commit generated bindings or measurement shims.
-- On acceptance and implementation, update SPEC §8/§9 and ADR 0003's reach rules;
-  keep this measurement as the pre-change baseline. This documentation-only
-  proposal changes no executable signatures, diagnostics, or runtime behavior.
+- Import-time binding registers every generic package function as a typed
+  template. `ast.ForeignBindings` is the binder/checker port; `modules` does not
+  depend on `extern`. Cache hits restore this port without rebuilding package
+  declarations. Exact Go signatures and constraints are loaded on demand.
+- Required instantiation runs before `types.Check` returns. Codegen consumes
+  ordinary monomorphic externs and helper copies, rather than owning a second
+  independent planner. Check and LSP therefore use the same validation. Check
+  does not write build shims.
+- Top-level polymorphic helpers specialize transitively, including constrained
+  helpers, partial applications, and function values. Required copies have no
+  40-node/8-copy optimization budget. Changing types along a recursive expansion
+  is diagnosed as unbounded polymorphic instantiation. A generalized local
+  lambda whose foreign arguments remain rigid requires a concrete annotation;
+  it is diagnosed rather than silently emitted through an erased fallback.
+- **Named-type scope is narrower than Rule 3:** generic receiver methods and
+  instantiated named structs/interfaces remain unsupported. Generic named
+  collection aliases use existing structural mirrors when possible. Typed
+  workqueue construction/add/get/shutdown is not claimed; its generic functions
+  are registered templates, not usable typed-queue bindings.
+- Iterator parameters remain unsupported, including `slices.sorted`; iterator
+  results such as `maps.keys` materialize Lists. Scalar-map-key and result-arity
+  restrictions remain. `slices.sort` changes only its boundary copy.
+- Generic calls and callbacks are IO in both directions. Conversion and calls
+  run after cancellation checks inside the action. Context/error/optional-result
+  conventions come from the original declaration: substituting a type parameter
+  with Bool does not turn a tuple into Option.
+- The package key includes generic metadata schema version 1. Concrete wrappers
+  occupy separate, atomically published per-tuple companion entries beneath the
+  base cache entry, rather than one program-set entry. Their keys include the
+  exact Go tuple, effect policy, and foreign argument-owner export fingerprints;
+  the base key supplies compiler, toolchain, package export, options, and shim
+  identity. Adding, removing, repeating, or reordering calls leaves the package
+  template bytes unchanged. Only used tuples are imported by generated programs.
+
+### Post-change binding surface
+
+The five baseline commands were repeated in the isolated module
+`/tmp/go4t-generics-impl-4hwcrk`, requiring apimachinery/client-go v0.34.0.
+Each exited 0. Kubernetes commands used `GOFLAGS=-mod=mod`.
+
+| Package | All skips before → after | Generic skips before → after | Templates | Extern declarations after |
+| --- | ---: | ---: | ---: | ---: |
+| slices | 40 → 0 | 40 → 0 | 40 | 40 |
+| maps | 10 → 0 | 10 → 0 | 10 | 10 |
+| sync | 3 → 1 | 2 → 0 | 2 | 48 |
+| k8s.io/apimachinery/pkg/util/sets | 25 → 16 | 25 → 16 | 9 | 95 |
+| k8s.io/client-go/util/workqueue | 90 → 76 | 83 → 69 | 14 | 76 |
+
+All 75 generic package functions are registered; all 85 generic receiver methods
+remain skipped. This is a template count, not 75 successfully instantiated APIs.
+Workqueue still has 69 generic-method skips and 7 other skips; its 14 generic
+function templates do not provide instantiated named queue types.

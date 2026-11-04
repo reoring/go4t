@@ -91,6 +91,10 @@ func TestLawProofExpressionRoundTrip(t *testing.T) {
 		"law f() { f(_, 1) == g(_, 1) }",
 		"proof f(x) { if test(x |> f) { refl } else { rewrite f(x |> g) { refl } } }",
 		"proof f(x) { match x {} }",
+		"proof f(x) { induction x }",
+		"proof f(x) { induction x { Nil => refl; Cons(head, tail) => refl } }",
+		"proof f() { sample(1) }",
+		"proof f(x) { sample(100000) }",
 	} {
 		t.Run(src, func(t *testing.T) { assertProperties(t, "package main\n"+src) })
 	}
@@ -158,4 +162,14 @@ func TestMultilineTacticPattern(t *testing.T) {
 		t.Fatalf("multiline tactic pattern needs a leading bar:\n%s", got)
 	}
 	assertProperties(t, src)
+}
+
+func TestSampleInductionComments(t *testing.T) {
+	for _, src := range []string{
+		"proof f(x) { induction x // every constructor\n}",
+		"proof f(x) { induction x { // split\nNil => refl; Cons(head, tail) => refl // IH\n} }",
+		"proof f() { sample(30) // tested, not proved\n}",
+	} {
+		assertProperties(t, "package main\n"+src)
+	}
 }

@@ -862,6 +862,8 @@ Tactic    := 'refl'
            | 'match' Ident '{' {Separator} ['|'] {Separator} [TacticArm {ArmSep TacticArm} [ArmSep]] '}'
            | 'if' Expr TacticBlock 'else' TacticBlock
            | 'rewrite' Name '(' [Expr {',' Expr} [',']] ')' TacticBlock
+           | ? sample identifier ? '(' Int ')'
+           | ? induction identifier ? Ident ['{' {Separator} ['|'] {Separator} [TacticArm {ArmSep TacticArm} [ArmSep]] '}']
 TacticArm := TacticPattern '=>' Tactic
 TacticPattern := '_' | LowerIdent
               | ConstructorName ['(' [TacticPattern {',' TacticPattern} [',']] ')']
@@ -870,6 +872,10 @@ TacticPattern := '_' | LowerIdent
               | '(' TacticPattern ')'
 TacticRecordFields := '{' ('..' [','] | Ident ':' TacticPattern {',' Ident ':' TacticPattern} [',' '..'] [',']) '}'
 ```
+
+The lexical classes `? sample identifier ?` and `? induction identifier ?`
+match exactly the contextual identifiers `sample` and `induction`, respectively.
+Unlike `refl`, these spellings are not reserved lexer keywords.
 
 The outermost expression in a law body must be `==`; parenthesize a side
 containing lower-precedence Boolean operators. This `==` is an equation
@@ -884,6 +890,17 @@ user-defined `Eq` instance. There is no eta-equivalence rule.
 | `match x { C(y) => refl; D => refl }` | Split a proof variable into constructor cases, binding fields. Cases must be exhaustive; nested constructor, record and tuple patterns, variables and `_` are supported, but not literals, guards, as-patterns or list-pattern sugar. Use `Nil`/`Cons` for lists. |
 | `if condition { refl } else { refl }` | Split on a Bool expression, assuming it true or false in the corresponding branch. |
 | `rewrite name(args) { refl }` | Instantiate a law and replace all occurrences of its left side with its right side in both goal sides, then continue with the nested tactic. A left side that instantiates to a lone free variable is rejected. |
+| `sample(N)` | Test the equation with `go4t test`; do not prove it. This tactic occupies the whole proof body. `N` is an Int literal in 1..100000. All quantified types require usable bounded generators, and the result requires `Eq`; direct Float results compare bits. Equations whose dependencies are all law-eligible are rejected with an instruction to prove them instead. |
+| `induction x { C(y) => tactic; D => tactic }` | Split a quantified datatype variable into exhaustive constructor cases. Before each arm, rewrite with the enclosing law instantiated at every field of the same datatype, leaving other arguments unchanged. Existing structural-descent and argument-order checks apply. |
+| `induction x` | Perform constructor induction with `refl` in every arm after the automatic induction-hypothesis rewrites. |
+
+A sampled law is tested, not proved, and cannot be used by `rewrite`. `check`
+validates sampled laws without normalization and emits one positioned
+tested-not-proved notice per accepted sampled law.
+
+`go4t test` executes ordinary test functions and sampled laws, including imported
+sampled laws, and fails on the first counterexample within each sampled law; the
+diagnostic includes the random seed, sample index, and binding displays.
 
 Normalization unfolds pure functions, beta-reduces calls, substitutes lets,
 selects decidable match branches, and reduces records and resolved type-class
@@ -1019,7 +1036,8 @@ class Ord[A] : Eq[A] { compare(a A, b A) Ordering }
 | `std/lazy` | Lazy, delay/force; explicitly **nonmemoising** |
 | `std/list` | List/instances; folds, traversal, searching, slicing, sorting, `catOptions`, `mapMaybe`, accumulator helpers |
 | `std/map` | Persistent maps and their loaded instances |
-| `std/prelude` | Classes above; Ordering/Option and primitive/pair/Option instances; core combinators |
+| `std/mutmap` | IO-only opaque ordered MutMap handles: new/insert/lookup/delete/size, ascending toList snapshots, freeze/thaw; no standard class instances |
+| `std/prelude` | Classes above; Ordering/Option and primitive/pair/Option instances; core combinators including qualified `prelude.when` / `prelude.unless` for conditional Monad actions |
 | `std/ref` | IO-only opaque Ref cells: new/get/set, atomic modify/update |
 | `std/regex` | Go-regexp matching, captures, replacement and splitting |
 | `std/result` | Result/instances; Result and Option helpers; liftResult |
@@ -1215,11 +1233,22 @@ checks, generates and builds the entire module graph together.
 
 Classes become interfaces and instances dictionary structs; constrained functions
 receive dictionaries. Known Int/Bool/Float locals, parameters/results, pattern
-bindings and tail-loop state use int64/bool/float64. Polymorphic values,
-constructor/tuple fields, dictionary methods, extern wrappers and runtime calls
-remain `any` boundaries. Higher-order values adapt native signatures to erased
-callbacks; strings/aggregates remain erased. Native operators preserve overflow,
-zero division, signed Float zero and NaN-low ordering, including literal operands.
+bindings and tail-loop state use int64/bool/float64. Monomorphic single-constructor
+records whose fields are all Int, Bool or Float store those fields as native Go
+scalars; their erased representation remains a constructor pointer. Other
+constructor/tuple fields, polymorphic values, dictionary methods, extern wrappers
+and runtime calls remain `any` boundaries. Higher-order values adapt native
+signatures to erased callbacks; strings and other aggregates remain erased.
+Native operators preserve overflow, zero division, signed Float zero and NaN-low
+ordering, including literal operands.
+
+List and array folds with known scalar callbacks retain unboxed accumulators.
+Numeric-record folds may reuse a private accumulator; input records remain
+immutable and replacement expressions evaluate before writes.
+
+Prelude Ord[Int] and Ord[String] comparisons may use native collection ordering.
+Custom comparisons retain their declared ordering. Sorting preserves the order
+of equal keys.
 
 Direct self calls in result position (through if/match/block tails) become loops.
 Arguments evaluate left-to-right before simultaneous reassignment; each iteration
@@ -1362,8 +1391,9 @@ and Go's parser/type importer in the module/build-constraint/toolchain context
 selected by `GenerateInDir` (§8.1); standalone CLI execution uses its extracted
 runtime module (§8.2).
 Each exported package-level function gets an adapter; methods are reached through
-generated package-level shims (`bind --shim`), not directly. Generics and variadic
-functions are not extern targets.
+generated package-level shims (`bind --shim`), not directly. Generic package
+functions bind as templates instantiated from concrete call-site types; variadic
+functions are not direct extern targets.
 
 | go4t type | Natural Go ABI | Boundary |
 | --- | --- | --- |
@@ -1404,10 +1434,24 @@ rename names. Primitive `(T, bool)` results infer Option and `(T, error)` infer
 IO; adjacent inputs are emitted independently, never guessed to be Option.
 Without `--shim`, only the natural-ABI table above is inferred. With `--shim`,
 the foreign mirrors below are inferred too. Unsupported functions receive
-`// skipped: Name (reason)`; unsupported methods use `Type.Method`. Generics,
-unnamed interfaces, callback results, unsupported channel elements, and result
-tuples other than `(T, error)` or `(T, bool)` remain unsupported. Named unsupported values become
-handles, not invented record layouts. Reserved names suggest a prefix.
+`// skipped: Name (reason)`; unsupported methods use `Type.Method`. Generic
+receiver methods, instantiated named structs/interfaces, unnamed interfaces,
+unsupported channel elements, and unsupported result tuples remain skipped.
+Named unsupported values become handles, not invented record layouts. Reserved
+names suggest a prefix.
+
+| Go boundary | go4t boundary |
+| --- | --- |
+| Generic package function | A template instantiated from concrete call-site types; every type parameter is determined and its Go constraint is satisfied. |
+| Generic function or callback | IO, including returned callbacks; conversion and invocation occur inside the action after cancellation checks. |
+| Unresolved or unsupported generic instantiation | A compile error at the use site; ordinary Unit defaulting does not determine Go type arguments. |
+| Generic receiver method or instantiated named struct/interface | Unsupported. |
+| Iterator parameter | Unsupported; iterator results remain materialized Lists. |
+
+Int, Float, Bool, and String select int64, float64, bool, and string as generic Go
+type arguments. List and Map compose these mappings. Known foreign records and
+handles retain their Go identity. Context, error, and optional-result conventions
+are determined by the original Go declaration, not by substituted type arguments.
 
 | Foreign Go type | go4t mirror with `--shim` | Conversion |
 | --- | --- | --- |
@@ -1646,6 +1690,10 @@ Go module's runtime dependency (in-process compile benchmarks use the checkout
 being tested). CI invokes
 `go test ./bench -run . -bench . -benchtime=1x -timeout=12m`.
 
+Runtime budgets execute the five `bench/perf` kernels with `GOMAXPROCS=1` and
+`GOGC=100`, validate exact stdout and bound GNU-time wall duration. Missing GNU
+time or a kernel input skips the affected check.
+
 Historical Linux/amd64 Ryzen 9 7950X3D, Go 1.26.1 host measurements from the perf
 slice (single samples; **not measured on a CI runner**):
 
@@ -1805,6 +1853,9 @@ with `go generate main.go`.
   Runtime costs are workload-dependent. `bench/PERF.md` records go4t-versus-Go
   measurements for million-element collections, a million-step Float simulation,
   and a depth-20 tree.
+  Persistent `Map` inserts allocate copied search-path nodes to preserve earlier
+  versions; use `std/mutmap` inside IO for update-heavy throughput, then `freeze`
+  when a pure persistent snapshot is needed.
 - Laws do not infer comparison transitivity or ordered arithmetic under Int
   wraparound; variable divisors are tainted. There is no `requires` clause,
   higher-order quantification or Float law support. Encode guards as Bool

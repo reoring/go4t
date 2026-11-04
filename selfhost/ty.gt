@@ -106,7 +106,7 @@ func emptyEnv() Env {
   Env{
     aliases: MEmpty, classes: MEmpty, methods: MEmpty, datas: MEmpty, ctors: MEmpty, funcs: MEmpty,
     instances: MEmpty,
-    typeKinds: mapFromList([("Int", KStar), ("Float", KStar), ("String", KStar), ("Bool", KStar), ("Unit", KStar), ("IO", KArrow(1)), ("Map", KArrow(2)), ("Set", KArrow(1)), ("Array", KArrow(1)), ("Fiber", KArrow(1)), ("Ref", KArrow(1))])
+    typeKinds: mapFromList([("Int", KStar), ("Float", KStar), ("String", KStar), ("Bool", KStar), ("Unit", KStar), ("IO", KArrow(1)), ("Map", KArrow(2)), ("Set", KArrow(1)), ("Array", KArrow(1)), ("Fiber", KArrow(1)), ("Ref", KArrow(1)), ("MutMap", KArrow(2))])
   }
 }
 

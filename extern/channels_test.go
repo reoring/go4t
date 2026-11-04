@@ -144,7 +144,7 @@ func TestChannelBoundary(t *testing.T) {
 `
 
 func TestChannelCapabilities(t *testing.T) {
-	for _, tc := range []struct { name, source, want string }{
+	for _, tc := range []struct{ name, source, want string }{
 		{"opaque", `func keep[A](c Chan[A]) Chan[A] { c }`, ""},
 		{"qualified", `func keep(c ch.Chan[Int]) ch.RecvChan[Int] { ch.asRecv(c) }`, ""},
 		{"send receive-only", `func bad(c RecvChan[Int]) IO[Unit] { ch.send(c, 1) }`, "type mismatch"},
@@ -161,10 +161,12 @@ func TestChannelCapabilities(t *testing.T) {
 			dir := t.TempDir()
 			writeBindingTestFile(t, dir, "main.gt", "package main\nimport ch \"std/chan\"\n"+tc.source+"\nfunc main() IO[Unit] { ioPure(unit()) }\n")
 			loaded, err := modules.Load([]string{dir})
-			if err != nil { t.Fatal(err) }
+			if err != nil {
+				t.Fatal(err)
+			}
 			_, err = types.Check(loaded)
-			if tc.want == "" && err != nil || tc.want != "" && (err == nil || !strings.Contains(err.Error(),tc.want)) {
-				t.Fatalf("error = %v, want %q",err,tc.want)
+			if tc.want == "" && err != nil || tc.want != "" && (err == nil || !strings.Contains(err.Error(), tc.want)) {
+				t.Fatalf("error = %v, want %q", err, tc.want)
 			}
 		})
 	}
@@ -179,12 +181,16 @@ law receiveLaw(c Chan[Int]) { receive(c) == receive(c) }
 proof receiveLaw(c) { refl }
 func main() IO[Unit] { ioPure(unit()) }
 `)
-	loaded, err := modules.Load([]string{filepath.Join(dir,"main.gt")})
-	if err != nil { t.Fatal(err) }
+	loaded, err := modules.Load([]string{filepath.Join(dir, "main.gt")})
+	if err != nil {
+		t.Fatal(err)
+	}
 	program, err := types.Check(loaded)
-	if err != nil { t.Fatal(err) }
+	if err != nil {
+		t.Fatal(err)
+	}
 	diagnostics := laws.CheckProgram(program)
-	if len(diagnostics) != 1 || !strings.Contains(diagnostics[0].Msg,"law depends on extern go4t/rt.ChanAsRecv") {
-		t.Fatalf("law diagnostics = %v",diagnostics)
+	if len(diagnostics) != 1 || !strings.Contains(diagnostics[0].Msg, "law depends on extern go4t/rt.ChanAsRecv") {
+		t.Fatalf("law diagnostics = %v", diagnostics)
 	}
 }

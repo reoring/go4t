@@ -24,6 +24,7 @@
 //	Tactic   := 'refl' | 'match' Ident '{' [ TacticArms ] '}'
 //	          | 'if' Expr TacticBlock 'else' TacticBlock
 //	          | 'rewrite' QualifiedIdent '(' [ Expr { ',' Expr } [ ',' ] ] ')' TacticBlock
+//	          | 'sample' '(' Int ')' | 'induction' Ident [ '{' [ TacticArms ] '}' ]
 //	TacticArms := { ';' } [ '|' ] { ';' } TacticArm { ArmSep TacticArm } [ ArmSep ]
 //	TacticArm := Pattern '=>' Tactic // constructors, records, tuples, variables and _ only
 //	TParam   := Ident [ '[' '_' { ',' '_' } ']' ] { Ident }
@@ -581,11 +582,30 @@ func (p *Parser) tactic() (tactic ast.Tactic) {
 	case p.isK("refl"):
 		p.next()
 		return &ast.TRefl{Pos: pos}
-	case p.isK("match"):
+	case p.is(lexer.Ident, "sample"):
+		p.next()
+		p.expectP("(")
+		count := p.tok()
+		if count.Kind != lexer.Int {
+			p.fail(count.Pos, "sample count must be an Int literal in 1..100000")
+		}
+		p.next()
+		n, err := strconv.ParseInt(count.Text, 10, 64)
+		if err != nil || n < 1 || n > 100000 {
+			p.fail(count.Pos, "sample count must be an Int literal in 1..100000")
+		}
+		p.expectP(")")
+		return &ast.TSample{Pos: pos, Count: n}
+	case p.isK("match"), p.is(lexer.Ident, "induction"):
+		induction := p.tok().Text == "induction"
 		p.next()
 		variable := &ast.Ident{ExprBase: ast.ExprBase{Pos: p.pos()}, Name: p.ident()}
 		p.finish(variable)
-		m := &ast.TMatch{Pos: pos, Var: variable}
+		m := &ast.TMatch{Pos: pos, Var: variable, Induction: induction}
+		if induction && !p.isP("{") {
+			m.Bare = true
+			return m
+		}
 		p.expectP("{")
 		p.skipSemis()
 		p.acceptP("|")

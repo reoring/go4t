@@ -56,8 +56,9 @@ Rules (ADR 0003, SPEC §8):
   copies and stay pure.
 - `(A, B)` results are tuples, `(A, B, error)` is `IO[(A, B)]`, `(A, bool)` is
   `Option[A]`; `iter.Seq[T]` results are `List[T]`; returned funcs are go4t
-  functions. Still skipped: generic functions, unsupported channel elements,
-  more than three non-error results.
+  functions. Still unsupported: iterator parameters, generic receiver methods,
+  generic named structs/interfaces, unsupported channel elements, and more than
+  three non-error results.
 - Every Go type is declared once, in the module of the package that owns it;
   `net/http` bindings refer to `io.Reader` as `go_io.Reader` and the loader
   binds `go:io` transitively. There is no subtyping: convert with the generated
@@ -76,8 +77,27 @@ handle. `make` creates channels for go4t fibers; use a generated constructor suc
 as `signal.newSignalChan` when passing a channel to a Go API. Constructors
 allocate inside IO, and channel elements use the same conversions as ordinary
 arguments and results. See [examples/go-chan](../examples/go-chan) for `time.after`
-and producer/consumer fibers. Generic Go functions and unsupported channel
-elements remain skipped.
+and producer/consumer fibers. Unsupported channel elements remain skipped.
+
+Generic Go functions bind as templates and instantiate from concrete call-site
+types after checking; no explicit Go type arguments are written. Int, Float,
+Bool, and String select `int64`, `float64`, `bool`, and `string`; List and Map
+compose those mappings, and known foreign records/handles retain their Go
+identity. Go constraints are checked, not replaced by go4t Eq/Ord. Every generic
+call and its callbacks use IO, including returned closures such as
+`sync.onceValue`. Unresolved arguments, unsupported mirrors, and failed
+constraints are errors at the use site. Top-level polymorphic helpers receive
+required concrete copies; generalized local lambdas need concrete annotations
+when a foreign argument otherwise remains rigid. Iterator results still become
+Lists (`maps.keys`); iterator inputs (`slices.sorted`) remain unsupported.
+In-place operations mutate boundary copies: `slices.sort` returns `IO[Unit]`
+and does not update the caller's List. Package templates are cached separately
+from per-tuple shim companions, so changing callers does not invalidate the
+package cache. See [examples/go-generics](../examples/go-generics) and
+[ADR 0006](adr/0006-generic-go-functions.md).
+Context, error, and optional-result conventions follow the original Go
+declaration, not the substituted type arguments.
+
 
 `go4t bind` still prints or writes the same declarations for inspection:
 

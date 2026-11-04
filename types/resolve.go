@@ -213,6 +213,7 @@ func (b *bodyChecker) finish() {
 			}
 		}
 	}
+	b.rememberForeignAmbiguity()
 	b.prepareDefaults()
 	for _, expr := range b.exprs {
 		ann := AnnOf(expr)

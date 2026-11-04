@@ -61,7 +61,7 @@ type printer struct {
 	comments    []ast.Comment
 	source      string
 	lineOffsets []int // lazily indexed for comment anchors absent from the AST
-	inline      bool // interpolation expressions cannot introduce literal text newlines
+	inline      bool  // interpolation expressions cannot introduce literal text newlines
 }
 
 func (p *printer) offset() int {
@@ -301,9 +301,18 @@ func (p *printer) tactic(tactic ast.Tactic) {
 	switch t := tactic.(type) {
 	case *ast.TRefl:
 		p.text("refl")
+	case *ast.TSample:
+		p.text("sample(" + strconv.FormatInt(t.Count, 10) + ")")
 	case *ast.TMatch:
-		p.text("match ")
+		if t.Induction {
+			p.text("induction ")
+		} else {
+			p.text("match ")
+		}
 		p.expr(t.Var, 0)
+		if t.Bare {
+			return
+		}
 		p.text(" ")
 		p.open(p.delimiterBetween('{', t.Var.GetEnd(), t.End))
 		for i, arm := range t.Arms {

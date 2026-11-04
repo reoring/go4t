@@ -29,14 +29,15 @@ List structure, filtering, folds, append, Option (in std/prelude) and Result com
 | `std/lazy` | 3 | 0 | 3 |
 | `std/list` | 67 | 3 | 70 |
 | `std/map` | 26 | 0 | 26 |
-| `std/prelude` | 47 | 0 | 47 |
+| `std/mutmap` | 0 | 10 | 10 |
+| `std/prelude` | 49 | 0 | 49 |
 | `std/ref` | 0 | 5 | 5 |
 | `std/regex` | 0 | 6 | 6 |
 | `std/result` | 18 | 1 | 19 |
 | `std/set` | 0 | 20 | 20 |
 | `std/state` | 10 | 0 | 10 |
 | `std/string` | 32 | 0 | 32 |
-| **Total** | **225** | **156** | **381** |
+| **Total** | **227** | **166** | **393** |
 
 ## First-reason breakdown
 
@@ -45,7 +46,7 @@ Counts are disjoint, not all contributing causes. Transitive rows retain the ult
 | First reason | Count |
 | --- | ---: |
 | extern | 40 |
-| IO result | 56 |
+| IO result | 66 |
 | Float | 28 |
 | division/modulo | 0 |
 | transitive | 32 |
@@ -347,6 +348,21 @@ Counts are disjoint, not all contributing causes. Transitive rows retain the ult
 | `mapUnionBy` | law-eligible | modeled | — |
 | `mapValues` | law-eligible | modeled | — |
 
+## `std/mutmap`
+
+| Function / instance method | Classification | Category | First tainting reason |
+| --- | --- | --- | --- |
+| `delete` | tainted | IO result | IO result type |
+| `freeze` | tainted | IO result | IO result type |
+| `insert` | tainted | IO result | IO result type |
+| `lookup` | tainted | IO result | IO result type |
+| `new` | tainted | IO result | IO result type |
+| `newBy` | tainted | IO result | IO result type |
+| `size` | tainted | IO result | IO result type |
+| `thaw` | tainted | IO result | IO result type |
+| `thawBy` | tainted | IO result | IO result type |
+| `toList` | tainted | IO result | IO result type |
+
 ## `std/prelude`
 
 | Function / instance method | Classification | Category | First tainting reason |
@@ -398,6 +414,8 @@ Counts are disjoint, not all contributing causes. Transitive rows retain the ult
 | `showString` | law-eligible | constant-folding | — |
 | `snd` | law-eligible | source | — |
 | `unit` | law-eligible | constant-folding | — |
+| `unless` | law-eligible | source | — |
+| `when` | law-eligible | source | — |
 
 ## `std/ref`
 

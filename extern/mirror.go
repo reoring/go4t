@@ -45,13 +45,18 @@ type mirrorSet struct {
 	resolving                      map[types.Type]bool
 	dyn                            bool
 	jsonMarshaler, jsonUnmarshaler *types.Interface
+	// Templates share the concrete mirror grammar, but retain type variables.
+	generic, forceIO bool
+	parameters       map[*types.TypeParam]string
+	unknown          map[types.Type]string
+	origins          map[*types.Signature]*types.Signature
 }
 
 func newMirrorSet(floats bool, pkg *Package, used map[string]bool) *mirrorSet {
 	return &mirrorSet{
 		floats: floats, owner: pkg.Path, used: used, imports: map[string]string{},
 		records: map[string]*foreignMirror{}, handles: map[string]*types.Named{},
-		channels: map[string]*foreignMirror{},
+		channels:      map[string]*foreignMirror{},
 		resolving:     map[types.Type]bool{},
 		jsonMarshaler: pkg.jsonMarshaler, jsonUnmarshaler: pkg.jsonUnmarshaler,
 	}
@@ -110,6 +115,12 @@ func (s *mirrorSet) valueMirror(t types.Type, visiting map[types.Type]bool) *for
 	visiting[t] = true
 	defer delete(visiting, t)
 	m := &foreignMirror{typ: t}
+	if p, ok := t.(*types.TypeParam); ok && s.generic {
+		if shape := structuralConstraint(p); shape != nil {
+			return s.valueMirror(shape, visiting)
+		}
+		return &foreignMirror{typ: t, kind: "parameter", gt: s.parameters[p]}
+	}
 	if named(t, "time", "Time") {
 		m.kind, m.gt = "time", "Int"
 		return m
@@ -137,10 +148,13 @@ func (s *mirrorSet) valueMirror(t types.Type, visiting map[types.Type]bool) *for
 			return nil
 		}
 	case *types.Named:
-		if v.TypeParams().Len() != 0 || !v.Obj().Exported() || !s.importable(v) {
+		if (v.TypeParams().Len() != 0 && v.TypeArgs().Len() == 0) || !v.Obj().Exported() || !s.importable(v) {
 			return nil
 		}
 		if _, ok := v.Underlying().(*types.Struct); ok {
+			if v.TypeParams().Len() != 0 {
+				return nil // generic named records need argument-indexed shape registration
+			}
 			// A declared JSON wire form takes precedence over representation fields.
 			if s.jsonMarshaler != nil && s.jsonUnmarshaler != nil &&
 				types.Implements(v, s.jsonMarshaler) && types.Implements(types.NewPointer(v), s.jsonUnmarshaler) {
@@ -207,7 +221,7 @@ func (s *mirrorSet) valueMirror(t types.Type, visiting map[types.Type]bool) *for
 	case *types.Map:
 		m.key = s.valueMirror(v.Key(), visiting)
 		m.elem = s.valueMirror(v.Elem(), visiting)
-		if m.key == nil || m.elem == nil || !scalarMirror(m.key) {
+		if m.key == nil || m.elem == nil || (!scalarMirror(m.key) && !(s.generic && m.key.kind == "parameter")) {
 			return nil
 		}
 		m.kind, m.gt = "map", "Map["+m.key.gt+", "+m.elem.gt+"]"
@@ -297,8 +311,17 @@ func promotedFields(t types.Type) []promotedField {
 }
 func (s *mirrorSet) resolve(t types.Type, callback bool) *foreignMirror {
 	t = types.Unalias(t)
+	if p, ok := t.(*types.TypeParam); ok && s.generic {
+		if shape := structuralConstraint(p); shape != nil {
+			return s.resolve(shape, callback)
+		}
+		return &foreignMirror{typ: t, kind: "parameter", gt: s.parameters[p]}
+	}
 	// Iterators are materialised only in result position, never callbacks.
 	if named(t, "iter", "Seq") || named(t, "iter", "Seq2") {
+		if s.generic {
+			return s.genericUnknown(t)
+		}
 		return nil
 	}
 	if ch, ok := t.Underlying().(*types.Chan); ok {
@@ -392,6 +415,9 @@ func (s *mirrorSet) resolve(t types.Type, callback bool) *foreignMirror {
 			return &foreignMirror{typ: t, kind: "map", gt: "Map[" + k.gt + ", " + e.gt + "]", key: k, elem: e}
 		}
 	}
+	if s.generic {
+		return s.genericUnknown(t)
+	}
 	return nil
 }
 func tupleMirror(elems []*foreignMirror) *foreignMirror {
@@ -437,12 +463,16 @@ func (s *mirrorSet) register(m *foreignMirror) {
 	}
 }
 func (s *mirrorSet) call(sig *types.Signature, method bool) (*foreignCall, string) {
-	if sig.TypeParams().Len() != 0 || sig.RecvTypeParams().Len() != 0 {
+	if !s.generic && (sig.TypeParams().Len() != 0 || sig.RecvTypeParams().Len() != 0) {
 		return nil, "generic function"
 	}
-	c := &foreignCall{variadic: sig.Variadic(), result: &foreignMirror{kind: "unit", gt: "Unit"}}
+	c := &foreignCall{variadic: sig.Variadic(), mutable: s.generic || s.forceIO, result: &foreignMirror{kind: "unit", gt: "Unit"}}
+	origin := sig
+	if original := s.origins[sig]; original != nil {
+		origin = original
+	}
 	start := 0
-	if sig.Params().Len() > 0 && contextType(sig.Params().At(0).Type()) {
+	if sig.Params().Len() > 0 && contextType(origin.Params().At(0).Type()) {
 		c.context = true
 		start = 1
 	}
@@ -470,11 +500,11 @@ func (s *mirrorSet) call(sig *types.Signature, method bool) (*foreignCall, strin
 		c.mutable = c.mutable || m.sharesState()
 	}
 	n := sig.Results().Len()
-	if n > 0 && errorType(sig.Results().At(n-1).Type()) {
+	if n > 0 && errorType(origin.Results().At(n-1).Type()) {
 		c.failure = true
 		n--
 	}
-	if n == 2 && !c.failure && types.Identical(sig.Results().At(1).Type(), types.Typ[types.Bool]) {
+	if n == 2 && !c.failure && types.Identical(origin.Results().At(1).Type(), types.Typ[types.Bool]) {
 		c.optional = true
 		n--
 	}

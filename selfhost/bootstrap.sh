@@ -20,6 +20,7 @@ declare -A SKIP=(
   [http-service]='starts two TCP listeners and makes HTTP requests'
   [sales-service]='starts a TCP listener and makes HTTP requests'
   [go-chan]='imports Go channel fixtures through import-time binding'
+  [go-generics]='imports generic Go functions through import-time binding'
 )
 
 # Classification is explicit; coincident samples cannot establish determinism.

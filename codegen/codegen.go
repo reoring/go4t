@@ -72,6 +72,17 @@ func generateInDir(prog *types.Program, goPackage, dir string, options Options) 
 		locals:     make(map[string]string),
 		specials:   make(map[string][]*specialization),
 	}
+	g.standard = make(map[string]string)
+	g.scalarRecords = make(map[string]*types.Ctor)
+	for name, owner := range prog.Owners {
+		if strings.HasPrefix(owner, "std/") {
+			sourceName := prog.ModuleNames[name]
+			if sourceName == "" {
+				sourceName = name
+			}
+			g.standard[name] = owner + "." + sourceName
+		}
+	}
 	g.indexSources(prog)
 	for _, instance := range prog.Instances {
 		g.instances[instanceName(instance)] = instance
@@ -101,13 +112,20 @@ func generateInDir(prog *types.Program, goPackage, dir string, options Options) 
 		fmt.Fprintf(&out, "type %s interface { is%s() }\n", d.Name, d.Name)
 		for _, ctor := range d.Ctors {
 			g.ctors[ctor.Name] = ctor
+			if scalarRecord(ctor) {
+				g.scalarRecords[d.Name] = ctor
+			}
 			fmt.Fprintf(&out, "type %s struct {", ctorName(ctor))
 			if len(ctor.Fields) > 0 {
 				out.WriteByte('\n')
 			}
 			for i, field := range ctor.Fields {
 				g.collectType(field)
-				fmt.Fprintf(&out, "F%d any\n", i)
+				rep := "any"
+				if scalarRecord(ctor) {
+					rep = scalar(field)
+				}
+				fmt.Fprintf(&out, "F%d %s\n", i, rep)
 			}
 			fmt.Fprintf(&out, "}\n%sfunc (*%s) is%s() {}\n", g.typeLine(ctorName(ctor)), ctorName(ctor), d.Name)
 		}
@@ -221,6 +239,18 @@ func generateInDir(prog *types.Program, goPackage, dir string, options Options) 
 			fmt.Fprintf(&out, "%s\n", field)
 		}
 		out.WriteString("}\n")
+		if g.standard[instance.Class.Name] == "std/prelude.Ord" && g.sources[instance.Decl] == "std/prelude/prelude.gt" {
+			kind := 0
+			switch instance.TypeCon {
+			case types.Int:
+				kind = 1
+			case types.String:
+				kind = 2
+			}
+			if kind != 0 {
+				fmt.Fprintf(&out, "%sfunc (%s) Go4tNativeOrd() int { return %d }\n", g.line(instance.Decl.Pos), name, kind)
+			}
+		}
 		for _, method := range instance.Decl.Methods {
 			var scheme *types.Scheme
 			for _, sig := range instance.Class.Methods {
@@ -296,29 +326,31 @@ func generateInDir(prog *types.Program, goPackage, dir string, options Options) 
 }
 
 type generator struct {
-	ctors        map[string]*types.Ctor
-	recordPats   map[*ast.PRecord]types.RecordPat
-	imports      map[string]string
-	externs      goextern.Loader
-	instances    map[string]*types.Instance
-	tuples       map[int]struct{}
-	dictScope    dictionaryScope
-	dictIDs      map[*types.TVar]int
-	sources      map[ast.Decl]string
-	typeSources  map[string]sourceLocation
-	aliases      map[string]*ast.AliasDecl
-	fileName     string
-	next         int
-	ordering     bool
-	contextIO    bool
-	funcs        map[string]*types.FuncInfo
-	locals       map[string]string
-	patternTypes map[ast.Pattern]types.Type
-	returnRep    string
-	typeArgs     map[string]types.Type
-	special      *specialization
-	specials     map[string][]*specialization
-	specialOrder []*specialization
+	ctors         map[string]*types.Ctor
+	recordPats    map[*ast.PRecord]types.RecordPat
+	imports       map[string]string
+	externs       goextern.Loader
+	instances     map[string]*types.Instance
+	tuples        map[int]struct{}
+	dictScope     dictionaryScope
+	dictIDs       map[*types.TVar]int
+	sources       map[ast.Decl]string
+	typeSources   map[string]sourceLocation
+	aliases       map[string]*ast.AliasDecl
+	fileName      string
+	next          int
+	ordering      bool
+	contextIO     bool
+	funcs         map[string]*types.FuncInfo
+	standard      map[string]string
+	scalarRecords map[string]*types.Ctor
+	locals        map[string]string
+	patternTypes  map[ast.Pattern]types.Type
+	returnRep     string
+	typeArgs      map[string]types.Type
+	special       *specialization
+	specials      map[string][]*specialization
+	specialOrder  []*specialization
 }
 
 type dictionaryScope struct {

@@ -28,6 +28,9 @@ func convert(code, from, to string) string {
 	if to == "" || to == "any" || to == from {
 		return code
 	}
+	if strings.HasPrefix(to, "value:") {
+		return "*any(" + code + ").(*" + strings.TrimPrefix(to, "value:") + ")"
+	}
 	return "any(" + code + ").(" + to + ")"
 }
 
@@ -287,7 +290,13 @@ func (g *generator) emitFunction(f *types.FuncInfo, name string) string {
 		}
 		params = append(params, paramName+" "+rep)
 	}
-	code := g.returning(ret, func() string {
+	record := g.scalarRecordType(f.Scheme.Type.Ret)
+	returnRep := ret
+	if record != nil && f.Decl.Extern == nil {
+		ret = ctorName(record)
+		returnRep = "record:" + ret
+	}
+	code := g.returning(returnRep, func() string {
 		if f.Decl.Extern != nil {
 			return g.emitExtern(f)
 		}
@@ -296,5 +305,232 @@ func (g *generator) emitFunction(f *types.FuncInfo, name string) string {
 		}
 		return g.block(f.Decl.Body)
 	})
+	if record != nil && f.Decl.Extern == nil {
+		args := make([]string, len(params))
+		for i, param := range params {
+			args[i] = strings.Fields(param)[0]
+		}
+		nativeParams := append(params, "_go4tResult *"+ret)
+		native := g.line(f.Decl.Pos) + fmt.Sprintf("func %s_scalar(%s) {\n%s}\n", name, strings.Join(nativeParams, ", "), code)
+		args = append(args, "&result")
+		return native + g.line(f.Decl.Pos) + fmt.Sprintf("func %s(%s) any { var result %s; %s_scalar(%s); return &result }\n", name, strings.Join(params, ", "), ret, name, strings.Join(args, ", "))
+	}
 	return g.line(f.Decl.Pos) + fmt.Sprintf("func %s(%s) %s {\n%s}\n", name, strings.Join(params, ", "), ret, code)
+}
+
+func (g *generator) returnValue(e ast.Expr) string {
+	if record, ok := strings.CutPrefix(g.returnRep, "record:"); ok {
+		if update, ok := e.(*ast.RecordUpdate); ok && len(g.ann(update).RecordCases) == 0 {
+			ann := g.ann(update)
+			base := g.fresh()
+			var out strings.Builder
+			fmt.Fprintf(&out, "%s := any(%s).(*%s)\n", base, g.expr(update.X), record)
+			values := make([]string, len(update.Values))
+			for i, value := range update.Values {
+				values[i] = g.fresh()
+				fmt.Fprintf(&out, "%s := %s\n", values[i], g.recordValue(ann.Ctor, ann.FieldIndexes[i], value))
+			}
+			// Only the private accumulator can alias the destination. Replacements
+			// are fully evaluated before any write, including field swaps.
+			fmt.Fprintf(&out, "if _go4tResult != %s { *_go4tResult = *%s }\n", base, base)
+			for i, value := range values {
+				fmt.Fprintf(&out, "_go4tResult.F%d = %s\n", ann.FieldIndexes[i], value)
+			}
+			out.WriteString("return\n")
+			return out.String()
+		}
+		return "*_go4tResult = " + convert(g.expr(e), "any", "value:"+record) + "\nreturn\n"
+	}
+	return "return " + convert(g.expr(e), g.exprRep(e), g.returnRep) + "\n"
+}
+
+// Numeric records retain the pointer-shaped erased ABI, but their payload does
+// not need an interface allocation for every field of every immutable update.
+func scalarRecord(c *types.Ctor) bool {
+	if c == nil || len(c.Data.TParams) != 0 || len(c.Data.Ctors) != 1 || len(c.FieldNames) == 0 {
+		return false
+	}
+	for _, field := range c.Fields {
+		if scalar(field) == "any" {
+			return false
+		}
+	}
+	return true
+}
+
+func (g *generator) recordValue(ctor *types.Ctor, index int, value ast.Expr) string {
+	code := g.expr(value)
+	if scalarRecord(ctor) {
+		return convert(code, g.exprRep(value), scalar(ctor.Fields[index]))
+	}
+	return code
+}
+
+func (g *generator) scalarRecordType(t types.Type) *types.Ctor {
+	con, ok := types.Unalias(t).(*types.TCon)
+	if !ok {
+		return nil
+	}
+	return g.scalarRecords[con.Name]
+}
+
+// Only an unmodified compare reference, or its exact eta expansion, can carry
+// ordering provenance. Arbitrary closures keep their ordinary function ABI.
+func (g *generator) nativeCompare(e ast.Expr) string {
+	if lambda, ok := e.(*ast.Lambda); ok {
+		if len(lambda.Params) != 2 {
+			return ""
+		}
+		body := lambda.Body
+		if block, ok := body.(*ast.BlockExpr); ok && len(block.Block.Stmts) == 0 {
+			body = block.Block.Result
+		}
+		call, ok := body.(*ast.Call)
+		if !ok || len(call.Args) != 2 {
+			return ""
+		}
+		for i, arg := range call.Args {
+			id, ok := arg.(*ast.Ident)
+			if !ok || lambda.Params[i].Pat != nil || id.Name != lambda.Params[i].Name || g.ann(id).Ref != types.RefLocal {
+				return ""
+			}
+		}
+		e = call.Fn
+	}
+	id, ok := e.(*ast.Ident)
+	if !ok || g.standard[id.Name] != "std/prelude.compare" {
+		return ""
+	}
+	ann := g.ann(id)
+	if ann.Ref != types.RefMethod || len(ann.Dicts) != 1 {
+		return ""
+	}
+	return "rt.NativeCompare(" + g.dict(&ann.Dicts[0]) + ")"
+}
+
+func (g *generator) collectionCall(call *ast.Call, id *ast.Ident) string {
+	f := g.funcs[id.Name]
+	if f == nil {
+		return ""
+	}
+	switch g.standard[id.Name] {
+	case "std/list.fold":
+		return g.nativeFold(call, "ListFoldScalar")
+	case "std/list.sort":
+		if len(g.ann(id).Dicts) == 1 {
+			return "rt.ListSortBy(" + g.expr(call.Args[0]) + ", rt.NativeCompare(" + g.dict(&g.ann(id).Dicts[0]) + "))"
+		}
+	case "std/list.sortBy":
+		if cmp := g.nativeCompare(call.Args[1]); cmp != "" {
+			return "rt.ListSortBy(" + g.expr(call.Args[0]) + ", " + cmp + ")"
+		}
+	case "std/list.sortOn":
+		if len(g.ann(id).Dicts) == 1 {
+			return "rt.ListSortOn(" + g.expr(call.Args[0]) + ", " + g.expr(call.Args[1]) + ", rt.NativeCompare(" + g.dict(&g.ann(id).Dicts[0]) + "))"
+		}
+	}
+	if f.Decl.Extern == nil || f.Decl.Extern.ImportPath != "go4t/rt" {
+		return ""
+	}
+	index := -1
+	switch f.Decl.Extern.Name {
+	case "ArrayFold":
+		return g.nativeFold(call, "ArrayFoldScalar")
+	case "MutMapNew":
+		index = 0
+	case "MapInsert":
+		index = 3
+	case "MapLookup", "MapDelete", "MapMember", "MapUnion",
+		"SetInsert", "SetDelete", "SetMember", "SetUnion", "SetIntersection", "SetDifference":
+		index = 2
+	case "MapFromList", "SetFromList", "ArraySortBy", "MutMapThaw":
+		index = 1
+	}
+	if index < 0 || index >= len(call.Args) {
+		return ""
+	}
+	cmp := g.nativeCompare(call.Args[index])
+	if cmp == "" {
+		return ""
+	}
+	args := make([]string, len(call.Args))
+	for i, arg := range call.Args {
+		if i == index {
+			args[i] = cmp
+		} else {
+			args[i] = g.expr(arg)
+		}
+	}
+	return g.identCall(id, args)
+}
+
+func (g *generator) nativeFold(call *ast.Call, helper string) string {
+	ft := g.funcType(call.Args[2])
+	ret := g.rep(ft.Ret)
+	record := g.scalarRecordType(ft.Ret)
+	if ret == "any" && record == nil {
+		return ""
+	}
+	if record != nil {
+		ret = ctorName(record)
+	}
+	callback := g.nativeFoldCallback(call.Args[2], ret, record)
+	if callback == "" {
+		return ""
+	}
+	init := g.expr(call.Args[1])
+	if record != nil {
+		init = convert(init, "any", "value:"+ret)
+		helper = strings.TrimSuffix(helper, "Scalar") + "Record"
+	}
+	code := "rt." + helper + "(" + g.expr(call.Args[0]) + ", " + init + ", " + callback + ")"
+	if record != nil {
+		code = "rt.BoxRecord(" + code + ")"
+	}
+	return code
+}
+
+func (g *generator) nativeFoldCallback(e ast.Expr, ret string, record *types.Ctor) string {
+	if lambda, ok := e.(*ast.Lambda); ok && record == nil {
+		element := convert("p1", "any", g.rep(g.funcType(e).Params[1]))
+		body := g.sourceExpr(e.GetPos(), g.lambdaCode(lambda, nil, false))
+		return g.sourceExpr(e.GetPos(), "func(p0 "+ret+", p1 any) "+ret+" { return "+body+"(p0, "+element+") }")
+	}
+	id, ok := e.(*ast.Ident)
+	if !ok || g.ann(id).Ref != types.RefFunc {
+		return ""
+	}
+	f := g.funcs[id.Name]
+	if f == nil || f.Decl.Extern != nil {
+		return ""
+	}
+	if record != nil && g.scalarRecordType(f.Scheme.Type.Ret) != record {
+		return ""
+	}
+	params := []string{"p0 " + ret, "p1 any"}
+	elementRep := scalar(f.Scheme.Type.Params[1])
+	if spec := g.specialized(id); spec != nil {
+		elementRep = scalar(substitute(f.Scheme.Type.Params[1], spec.types))
+	}
+	args := []string{"p0", convert("p1", "any", elementRep)}
+	if record != nil {
+		params[0] = "p0 *" + ret
+	}
+	target := functionName(id.Name)
+	if spec := g.specialized(id); spec != nil {
+		target = spec.name
+	}
+	code := g.identCall(id, args)
+	if record != nil {
+		code = strings.Replace(code, target+"(", target+"_scalar(", 1)
+		code = strings.TrimSuffix(code, ")") + ", p0)"
+		return g.sourceExpr(e.GetPos(), "func("+strings.Join(params, ", ")+") { "+code+" }")
+	} else {
+		resultRep := scalar(f.Scheme.Type.Ret)
+		if spec := g.specialized(id); spec != nil {
+			resultRep = scalar(substitute(f.Scheme.Type.Ret, spec.types))
+		}
+		code = convert(code, resultRep, ret)
+	}
+	return g.sourceExpr(e.GetPos(), "func("+strings.Join(params, ", ")+") "+ret+" { return "+code+" }")
 }

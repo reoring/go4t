@@ -1,5 +1,5 @@
-// Package laws checks source-level equational proofs after type checking.
-// Proofs have no runtime representation. Normalization uses Int ring laws,
+// Package laws checks source-level equational proofs after type checking and
+// generates explicit sampled-law tests. Normalization uses Int ring laws,
 // constructor induction, rewriting, and branch-local Boolean assumptions.
 package laws
 
@@ -27,9 +27,9 @@ type lawGoal struct {
 // never evidence of equality, even after the termination check succeeds.
 const StepLimit = 10000
 
-// CheckProgram checks every proof in p, including imported modules that declare
-// laws. It returns positioned diagnostics, or nil when all laws hold. The
-// checked program and its annotations are never modified.
+// CheckProgram verifies proofs and validates sampled laws, including imports.
+// It returns positioned failures; accepted samples are never proof evidence.
+// The checked program and its annotations are never modified.
 func CheckProgram(p *types.Program) []*types.Error {
 	if p == nil {
 		return []*types.Error{{Msg: "nil checked program"}}
@@ -93,6 +93,13 @@ func CheckProgram(p *types.Program) []*types.Error {
 		proof := p.Proofs[name]
 		if proof == nil {
 			errors = append(errors, diagnostic(info.Decl, name, "missing proof"))
+			continue
+		}
+		if _, sampled := proof.Decl.Body.(*ast.TSample); sampled {
+			if err := checkSample(p, info); err != nil {
+				errors = append(errors, diagnostic(info.Decl, name, err.Error()))
+			}
+			// A sample never becomes a proved rewrite dependency.
 			continue
 		}
 		e := newEvaluator(p)
@@ -296,13 +303,25 @@ func (e *evaluator) prove(law lawGoal, proof ast.Tactic, env *environment, vars 
 		if e.solutions[v.value.id] != nil {
 			return fmt.Errorf("proof variable %s is already split", tactic.Var.Name)
 		}
-		for _, arm := range tactic.Arms {
+		arms := tactic.Arms
+		if tactic.Bare {
+			arms = e.inductionArms(tactic, v.typ)
+		}
+		for _, arm := range arms {
 			branch := copyProofVars(vars)
 			value := e.splitPattern(arm.Pat, v, branch)
 			if value != v.value {
 				e.solutions[v.value.id] = value
 			}
-			err := e.prove(law, arm.Body, env, branch)
+			body := arm.Body
+			if tactic.Induction {
+				body, err = e.induction(law, tactic, arm, value, v, env, branch)
+				if err != nil {
+					delete(e.solutions, v.value.id)
+					return err
+				}
+			}
+			err := e.prove(law, body, env, branch)
 			delete(e.solutions, v.value.id)
 			if err != nil {
 				return err

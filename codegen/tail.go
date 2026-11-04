@@ -192,7 +192,7 @@ func (g *generator) result(expr ast.Expr, plan *tailPlan) string {
 			}
 		}
 	}
-	return g.line(expr.GetPos()) + "return " + convert(g.expr(expr), g.exprRep(expr), g.returnRep) + "\n"
+	return g.line(expr.GetPos()) + g.returnValue(expr)
 }
 
 func (g *generator) matchResult(match *ast.Match, plan *tailPlan) string {

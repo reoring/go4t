@@ -8,7 +8,10 @@ import (
 func TestChannelStandardBindings(t *testing.T) {
 	dir := bindingTestModule(t)
 	loader := Loader{Dir: dir}
-	for _, tc := range []struct { path, name string; want []string }{
+	for _, tc := range []struct {
+		path, name string
+		want       []string
+	}{
 		{"time", "shim_time", []string{
 			"extern func after(p0 Int) RecvChan[Int]",
 			"extern func tick(p0 Int) RecvChan[Int]",
@@ -27,11 +30,17 @@ func TestChannelStandardBindings(t *testing.T) {
 		}},
 	} {
 		pkg, err := loader.Load(tc.path)
-		if err != nil { t.Fatal(err) }
+		if err != nil {
+			t.Fatal(err)
+		}
 		decls, shim, _, err := BindWithShim(pkg, BindOptions{Float: true}, "example.test/bindings/"+tc.name, tc.name)
-		if err != nil { t.Fatal(err) }
+		if err != nil {
+			t.Fatal(err)
+		}
 		for _, want := range tc.want {
-			if !strings.Contains(decls,want) { t.Errorf("%s missing %q:\n%s",tc.path,want,decls) }
+			if !strings.Contains(decls, want) {
+				t.Errorf("%s missing %q:\n%s", tc.path, want, decls)
+			}
 		}
 		writeBindingTestFile(t, dir, tc.name+"/shim.go", string(shim))
 	}

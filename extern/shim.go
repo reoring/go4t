@@ -69,7 +69,7 @@ func (g *shimGenerator) goType(t types.Type) string {
 	return types.TypeString(types.Unalias(t), g.qualifier)
 }
 func (g *shimGenerator) conversion(m *foreignMirror) string {
-	key := m.kind + ":" + types.TypeString(m.typ, nil)
+	key := m.kind + ":" + types.TypeString(m.typ, nil) + ":" + m.gt
 	if n := g.converters[key]; n != "" {
 		return n
 	}
@@ -595,6 +595,16 @@ func BindWithShim(pkg *Package, options BindOptions, shimPath, shimPackage strin
 				continue // output of a previous run of this command
 			}
 			callee, shimName = f.Name, "Go4t_"+f.Name
+		}
+		if f.Signature.TypeParams().Len() != 0 {
+			name, reason := bindingName(f.Name, options.Prefix)
+			if reason != "" {
+				fmt.Fprintf(&decl, "// skipped: %s (%s)\n", f.Name, reason)
+			} else {
+				source := genericTemplate(set, f, name)
+				candidates.add(name, f.Name, bindingCall, func() { decl.WriteString(source) })
+			}
+			continue
 		}
 		collect(f.Name, f.Name, shimName, callee, f.Signature, nil)
 	}

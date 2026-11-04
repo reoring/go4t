@@ -8,7 +8,7 @@ import (
 func TestInductionAndRing(t *testing.T) {
 	p := loadFixture(t, "induction.gt")
 	errors := diagnosticsByLaw(t, p)
-	for _, name := range []string{"lenApp", "appNil", "appAssoc", "ringComm", "ringWrap", "ringPowers", "ringNeg", "ringCoefficients", "ringAlpha", "ringResidual", "ringAlphaResidual", "ringDivision", "ringRemainder", "ihOrder", "useDouble", "appPrefix", "boolIdentity"} {
+	for _, name := range []string{"lenApp", "appNil", "appAssoc", "lenAppAuto", "appNilAuto", "appAssocAuto", "mirrorLeaves", "ringComm", "ringWrap", "ringPowers", "ringNeg", "ringCoefficients", "ringAlpha", "ringResidual", "ringAlphaResidual", "ringDivision", "ringRemainder", "ihOrder", "useDouble", "appPrefix", "boolIdentity"} {
 		if err := errors[name]; err != nil {
 			t.Errorf("%s: %v", name, err)
 		}
@@ -103,5 +103,30 @@ func TestRewriteDoesNotRevisitReplacement(t *testing.T) {
 	result, err := e.replace(from, from, to)
 	if err != nil || result != to {
 		t.Fatalf("replacement revisited: %v", err)
+	}
+}
+
+func TestInductionSugarKeepsRewriteChecks(t *testing.T) {
+	for _, tc := range []struct{ tactic, want string }{
+		{"induction xs", ""},
+		{"induction xs { Nil => refl; Cons(_, rest) => refl }", ""},
+		{"induction xs { Nil => refl; Cons(_, rest) => rewrite identity(n + 1, rest) { refl } }", "induction hypothesis must structurally decrease at the first changed argument"},
+		{"induction xs { Nil => refl; Cons(_, rest) => rewrite identity(n, xs) { refl } }", "induction hypothesis must structurally decrease (nondecreasing self-reference is a cycle)"},
+	} {
+		t.Run(tc.tactic, func(t *testing.T) {
+			p := loadSource(t, `package main
+func size(xs List[Int]) Int { match xs { Nil => 0; Cons(_, rest) => 1 + size(rest) } }
+law identity(n Int, xs List[Int]) { size(xs) == size(xs) }
+proof identity(n, xs) { `+tc.tactic+` }
+func main() IO[Unit] { ioPure(unit()) }
+`)
+			errors := CheckProgram(p)
+			if tc.want == "" && len(errors) != 0 {
+				t.Fatal(errors)
+			}
+			if tc.want != "" && (len(errors) != 1 || !strings.Contains(errors[0].Msg, tc.want)) {
+				t.Fatalf("errors = %v, want %s", errors, tc.want)
+			}
+		})
 	}
 }

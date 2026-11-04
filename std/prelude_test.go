@@ -1,14 +1,21 @@
 package std_test
 
 import (
+	"context"
 	"io/fs"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"go4t/ast"
+	"go4t/codegen"
+	"go4t/modules"
 	"go4t/parser"
 	"go4t/std"
+	"go4t/types"
 )
 
 func TestStdInventoryParses(t *testing.T) {
@@ -64,6 +71,7 @@ func TestStdInventoryParses(t *testing.T) {
 		"instance Show[List]", "instance Show[Tuple2]",
 		"func ioPure", "func ioBind", "func ioFail", "func println",
 		"func showInt", "func showBool", "func showString", "func unit",
+		"func when", "func unless",
 		"func eqInt", "func ltInt", "func eqString", "func ltString", "func eqBool",
 		"func minInt", "func maxInt", "func abs",
 		"func strLength", "func strConcat", "func join", "func split", "func lines", "func words",
@@ -144,5 +152,82 @@ func TestTextExamplesParse(t *testing.T) {
 				t.Fatalf("last declaration = %#v, want main function", file.Decls[len(file.Decls)-1])
 			}
 		})
+	}
+}
+
+func TestPreludeWhenUnless(t *testing.T) {
+	const source = `package main
+import "std/prelude"
+
+func optionWhen(cond Bool) Option[Unit] {
+  do {
+    prelude.when(cond, None)
+    Some(unit())
+  }
+}
+
+func optionUnless(cond Bool) Option[Unit] {
+  do {
+    prelude.unless(cond, None)
+    Some(unit())
+  }
+}
+
+func main() IO[Unit] {
+  do {
+    ran <- prelude.when(true, println("when action"))
+    skipped <- prelude.when(false, ioFail("when false ran"))
+    unlessRan <- prelude.unless(false, println("unless action"))
+    unlessSkipped <- prelude.unless(true, ioFail("unless true ran"))
+    println(debug((ran, skipped)))
+    println(debug((unlessRan, unlessSkipped)))
+    println(debug(optionWhen(true)))
+    println(debug(optionWhen(false)))
+    println(debug(optionUnless(false)))
+    println(debug(optionUnless(true)))
+    println(debug(prelude.when(true, Some(unit()))))
+    println(debug(prelude.unless(false, Some(unit()))))
+  }
+}
+`
+	user, err := parser.Parse(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	user.Name = "prelude_when.gt"
+	mods, err := modules.LoadFiles([]*ast.File{user}, ".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := types.Check(mods)
+	if err != nil {
+		t.Fatal(err)
+	}
+	generated, err := codegen.Generate(p, "main")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	root, err := filepath.Abs("..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	generated["go.mod"] = []byte("module preludetest\n\ngo 1.22\n\nrequire go4t v0.0.0\nreplace go4t => " + root + "\n")
+	for name, content := range generated {
+		if err := os.WriteFile(filepath.Join(dir, name), content, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	command := exec.CommandContext(ctx, "go", "run", ".")
+	command.Dir = dir
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("go run generated prelude program: %v\n%s", err, output)
+	}
+	want := "when action\nunless action\n((), ())\n((), ())\nNone\nSome(())\nNone\nSome(())\nSome(())\nSome(())\n"
+	if string(output) != want {
+		t.Fatalf("output = %q, want %q", output, want)
 	}
 }

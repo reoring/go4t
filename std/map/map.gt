@@ -5,6 +5,9 @@ import "std/result"
 import "std/string"
 import "std/prelude"
 
+// Updates preserve earlier versions; iteration follows the supplied Ord.
+// Native scalar comparison is used only for prelude Int/String ordering.
+
 extern func emptyMap[K, V]() Map[K, V] = "go4t/rt".EmptyMap
 
 extern func mapInsertBy[K, V](m Map[K, V], k K, v V, cmp func(K, K) Ordering) Map[K, V] = "go4t/rt".MapInsert

@@ -94,3 +94,16 @@ proof expandLen(xs) { refl }
 proof rewriteOnce(xs) { rewrite expandLen(xs) { refl } }
 proof ringAlphaResidual(o, n) { refl }
 proof rewriteFunction(xs) { rewrite zeroLen(xs) { refl } }
+
+// The same structural hypotheses are supplied automatically by induction.
+law lenAppAuto(xs List[Int], ys List[Int]) { len(app(xs, ys)) == len(xs) + len(ys) }
+proof lenAppAuto(items, other) { induction items }
+law appNilAuto(xs List[Int]) { app(xs, []) == xs }
+proof appNilAuto(xs) { induction xs { Nil => refl; Cons(x, tail) => refl } }
+law appAssocAuto(xs List[Int], ys List[Int], zs List[Int]) { app(app(xs, ys), zs) == app(xs, app(ys, zs)) }
+proof appAssocAuto(xs, ys, zs) { induction xs }
+type Tree = Leaf | Fork(Tree, Tree)
+func leaves(tree Tree) Int { match tree { Leaf => 1; Fork(left, right) => leaves(left) + leaves(right) } }
+func mirror(tree Tree) Tree { match tree { Leaf => Leaf; Fork(left, right) => Fork(mirror(right), mirror(left)) } }
+law mirrorLeaves(tree Tree) { leaves(mirror(tree)) == leaves(tree) }
+proof mirrorLeaves(tree) { induction tree }

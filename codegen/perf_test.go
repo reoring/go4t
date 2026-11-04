@@ -127,3 +127,88 @@ func main() IO[Unit] {
 		t.Fatalf("output %q: %v", output, err)
 	}
 }
+
+func TestPerfNativeSortingPreservesOrdering(t *testing.T) {
+	source := qualityProgram(t, "native-sort.gt", `package main
+import "std/array"
+import "std/list"
+type Backwards = Backwards(Int) deriving Eq, Show
+instance Ord[Backwards] {
+ compare(a, b) { match (a, b) { (Backwards(x), Backwards(y)) => compare(y, x) } }
+}
+func ordered[A Ord](xs List[A]) List[A] { list.sort(xs) }
+func main() IO[Unit] { do {
+ println("${list.sort([3, 1, 2, 1])} ${list.sortBy([3, 1, 2], func(a, b) => compare(a, b))}")
+ let words = ["z", "a", "a"]
+ let keyed = [(2, "x"), (1, "a"), (1, "b")]
+ println("${list.sort(words)} ${list.sortBy([1, 3, 2], func(a, b) => compare(b, a))}")
+ println("${list.sortOn(keyed, func(p) => p.0)}")
+ println("${list.sortOn(keyed, func(p) => Backwards(p.0))}")
+ println("${ordered([Backwards(1), Backwards(3), Backwards(2)])}")
+ let original = array.arrayFromList([3, 1, 2])
+ println("${array.arraySortBy(original, compare)} ${original} ${list.sortBy(Nil, func(a Int, b Int) => compare(a, b))}")
+} }`)
+	for _, fragment := range []string{"Go4tNativeOrd() int", "rt.NativeCompare(", "rt.ListSortOn("} {
+		if !bytes.Contains(source, []byte(fragment)) {
+			t.Errorf("missing native ordering path %q", fragment)
+		}
+	}
+	output, err := runQualityGo(t, source, false)
+	want := "[1, 1, 2, 3] [1, 2, 3]\n[a, a, z] [3, 2, 1]\n[(1, a), (1, b), (2, x)]\n[(2, x), (1, a), (1, b)]\n[3, 2, 1]\n#[1, 2, 3] #[3, 1, 2] []\n"
+	if err != nil || output != want {
+		t.Fatalf("output %q, want %q: %v", output, want, err)
+	}
+}
+
+func TestPerfNativeFoldsAndRecordPayloads(t *testing.T) {
+	source := qualityProgram(t, "native-fold.gt", `package main
+import "std/array"
+import "std/float"
+import "std/list"
+type Body = Body{n: Int, x: Float, yes: Bool} deriving Eq
+func step(a Body, b Body) Body { a{n: a.n + b.n, x: a.x + b.x, yes: a.yes && b.yes} }
+func advanceCount(a Body, b Body) Body { a{n: a.n + 1, x: float.toFloat(a.n)} }
+func replace(a Body, b Body) Body { b{x: a.x} }
+func first[A](a A, b A) A { a }
+func add(a Int, b Int) Int { a + b }
+func main() IO[Unit] { do {
+ let create = Body
+ let original = create(1, -0.0, true)
+ let bodies = array.arrayFromList([Body{n: 2, x: 1.5, yes: true}, Body{n: 3, x: 2.5, yes: false}])
+ let result = array.arrayFold(bodies, original, step)
+ println("${result.n} ${result.x} ${result.yes} ${original.n} ${float.showFloat(original.x)}")
+ println("${array.arrayFold(bodies, original, first) == original}")
+ println("${list.fold([1, 2, 3], 0, add)} ${list.fold([1], 9223372036854775807, func(a, b) => a + b)}")
+ let f = add
+ println("${list.fold([1, 2], 0, f)} ${list.length([true, false])} ${list.sum([1, 2, 3])}")
+ println("${array.arrayFold(array.arrayFromList([1.5, 2.5]), 0.0, func(a, b) => a + b)} ${list.fold(Nil, 7, add)}")
+ println("${float.isNaN(array.arrayFold(array.arrayFromList([float.nan()]), 0.0, func(a, b) => a + b))}")
+ let advanced = list.fold(array.arrayToList(bodies), original, advanceCount)
+ let replaced = array.arrayFold(bodies, original, replace)
+ println("${advanced.n} ${advanced.x} ${replaced.n} ${float.showFloat(replaced.x)} ${original.n}")
+} }`)
+	for _, fragment := range []string{"rt.ListFoldScalar(", "rt.ArrayFoldScalar(", "rt.ListFoldRecord(", "rt.ArrayFoldRecord(", "func step__scalar", "F0 int64", "F1 float64", "F2 bool"} {
+		if !bytes.Contains(source, []byte(fragment)) {
+			t.Errorf("missing native scalar path %q", fragment)
+		}
+	}
+	output, err := runQualityGo(t, source, false)
+	want := "6 4.0 false 1 -0.0\ntrue\n6 -9223372036854775808\n3 2 6\n4.0 7\ntrue\n3 2.0 3 -0.0 1\n"
+	if err != nil || output != want {
+		t.Fatalf("output %q, want %q: %v", output, want, err)
+	}
+}
+
+func TestPerfNativeFoldErasedNilElement(t *testing.T) {
+	output, err := runQualityGo(t, []byte(`package main
+import ("fmt"; "go4t/rt")
+func main() {
+ rt.Shapes.Uncons = func(xs any) (any, any, bool) { return nil, nil, xs != nil }
+ xs := rt.ArrayPush(rt.ArrayFromList(nil), nil)
+ count := func(n int64, value any) int64 { if value != nil { panic("changed element") }; return n + 1 }
+ fmt.Println(rt.ArrayFoldScalar(xs, int64(0), count), rt.ListFoldScalar(true, int64(0), count))
+}`), false)
+	if err != nil || output != "1 1\n" {
+		t.Fatalf("nil erased elements: %q: %v", output, err)
+	}
+}

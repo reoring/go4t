@@ -12,20 +12,22 @@ import (
 type instanceKey struct{ class, con string }
 
 type checker struct {
-	program     *Program
-	cons        map[string]*TCon
-	aliases     map[string]*typeAlias
-	instDecls   map[*ast.InstanceDecl]*Instance
-	ctors       map[string]*Ctor
-	methods     map[string]*Method
-	instances   map[instanceKey]*Instance
-	nextMeta    int
-	file        string
-	sources     map[ast.Decl]string
-	derivedOrd  []*ast.TypeDecl
-	decl        ast.Decl // current source declaration for diagnostic spans
-	mainName    string
-	moduleFiles map[string]string
+	program             *Program
+	cons                map[string]*TCon
+	aliases             map[string]*typeAlias
+	instDecls           map[*ast.InstanceDecl]*Instance
+	ctors               map[string]*Ctor
+	methods             map[string]*Method
+	instances           map[instanceKey]*Instance
+	nextMeta            int
+	file                string
+	sources             map[ast.Decl]string
+	derivedOrd          []*ast.TypeDecl
+	decl                ast.Decl // current source declaration for diagnostic spans
+	mainName            string
+	moduleFiles         map[string]string
+	foreignAmbiguous    map[*ast.Ident]bool
+	hasForeignTemplates bool
 }
 
 // Check collects module declarations before checking bodies. Imports are
@@ -119,13 +121,16 @@ func Check(modules []*ast.Module) (program *Program, err error) {
 			return nil, err
 		}
 	}
-	for _, con := range []*TCon{Int, Float, String, Bool, Unit, IO, Map, Set, Array, Fiber, Ref, Chan, RecvChan, SendChan} {
+	for _, con := range []*TCon{Int, Float, String, Bool, Unit, IO, Map, Set, Array, Fiber, Ref, MutMap, Chan, RecvChan, SendChan} {
 		c.cons[con.Name] = con
 	}
 	c.collectNames(files)
 	c.checkAliases(files)
 	c.checkSuperclasses(files)
 	c.collectSignatures(files)
+	for _, f := range c.program.Funcs {
+		c.hasForeignTemplates = c.hasForeignTemplates || foreignTemplate(f)
+	}
 	c.collectInstances(files)
 	c.pairLaws(files)
 	c.checkMain()
@@ -170,6 +175,7 @@ func Check(modules []*ast.Module) (program *Program, err error) {
 		}
 	}
 	c.checkLaws(files)
+	c.instantiateForeign()
 	return c.program, nil
 }
 

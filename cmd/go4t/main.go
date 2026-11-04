@@ -157,6 +157,9 @@ func run(args []string) error {
 	}
 	if command == "check" {
 		failures := laws.CheckProgram(program)
+		for _, notice := range laws.SampleNotices(program) {
+			fmt.Fprintln(os.Stderr, notice)
+		}
 		for _, failure := range failures {
 			fmt.Fprintln(os.Stderr, diagnostic("go4t", failure))
 		}

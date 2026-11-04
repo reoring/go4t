@@ -77,6 +77,15 @@ type Module struct {
 	// ForeignRecordKeys maps binder-declared source names to owning Go
 	// package/type keys. It is semantic metadata, not part of source comments.
 	ForeignRecordKeys map[string]string
+	// ForeignBindings resolves caller-dependent externs after type inference.
+	ForeignBindings ForeignBindings
+}
+
+// ForeignBindings is the import binder's instantiation port. Signature contains
+// concrete types; foreign TypeNames use their "go:owner.Type" identity.
+// Implementations validate in check-only mode and emit companions in build mode.
+type ForeignBindings interface {
+	Instantiate(symbol string, signature *FuncType) (*ExternRef, error)
 }
 
 type Import struct {
@@ -260,6 +269,12 @@ type Tactic interface {
 // TRefl is `refl`: both goal sides normalise to the same term.
 type TRefl struct{ Pos, End Pos }
 
+// TSample is `sample(N)`: runtime testing only, never proof evidence.
+type TSample struct {
+	Pos, End Pos
+	Count    int64
+}
+
 // TMatch is `match x { pat => tactic ... }`: splits proof variable x by
 // constructor. Patterns are PCtor/PRecord over PVar/PWild/nested PCtor,
 // or PTuple for tuple-typed variables; no literals, guards or as-patterns.
@@ -268,6 +283,9 @@ type TMatch struct {
 	End  Pos
 	Var  *Ident
 	Arms []TacticArm
+	// Induction adds structural self-rewrites; Bare supplies every constructor.
+	Induction bool
+	Bare      bool
 }
 
 type TacticArm struct {
@@ -310,6 +328,7 @@ func (d *ProofDecl) GetEnd() Pos    { return d.End }
 func (d *ProofDecl) SetEnd(end Pos) { d.End = end }
 
 func (*TRefl) tacticNode()    {}
+func (*TSample) tacticNode()  {}
 func (*TMatch) tacticNode()   {}
 func (*TIf) tacticNode()      {}
 func (*TRewrite) tacticNode() {}
@@ -317,6 +336,9 @@ func (*TRewrite) tacticNode() {}
 func (t *TRefl) GetPos() Pos       { return t.Pos }
 func (t *TRefl) GetEnd() Pos       { return t.End }
 func (t *TRefl) SetEnd(end Pos)    { t.End = end }
+func (t *TSample) GetPos() Pos     { return t.Pos }
+func (t *TSample) GetEnd() Pos     { return t.End }
+func (t *TSample) SetEnd(end Pos)  { t.End = end }
 func (t *TMatch) GetPos() Pos      { return t.Pos }
 func (t *TMatch) GetEnd() Pos      { return t.End }
 func (t *TMatch) SetEnd(end Pos)   { t.End = end }

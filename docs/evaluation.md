@@ -182,3 +182,53 @@ current language; the remaining scale limits are the ones measured in
 `bench/PERF.md` (runtime 1.75x–31.78x of Go on data-heavy kernels) and the
 type-system expressiveness items in SPEC §9, not the ability to write large
 programs.
+
+## Removing the measured limits
+
+On 2026-11-04, the same day as the measurements above, follow-up work addressed
+the observed limits rather than changing the evaluation workloads.
+
+**Native lowering.** Native Ord comparison, native sorting and scalar folds,
+and native numeric-record fields with a private fold accumulator reduced
+sortints to 0.24 s (4.00x Go) and nbody to 0.30 s (1.58x). Treefold remained
+1.75x. Input records remain immutable; replacement expressions are evaluated
+before private accumulator writes.
+
+**Maps.** Shared immutable map entries reduced copied payload structure, but
+wordfreq still took 2.45 s (~27x) and mapheavy about 2.3 s (~19x).
+IO-only `std/mutmap` brought mapheavy-mut to 1.13 s (9.42x), with `freeze` for
+persistent snapshots. An order-8 persistent B-tree was rejected: mapheavy
+improved 18.7%, but wordfreq regressed 5.5% and allocated more bytes.
+Replacement metadata reuse was also tried and rejected. Remaining map costs
+were approximately 50% GC, 19% node allocation, and 4% comparisons; mutmap still
+pays for boxing, IO closures, and Option allocation. See the dated follow-up in
+[`bench/PERF.md`](../bench/PERF.md) and its retained
+[`map`](../bench/perf/results/2026-11-04-map.json),
+[`map2`](../bench/perf/results/2026-11-04-map2.json), and
+[`specialize`](../bench/perf/results/2026-11-04-specialize.json) evidence.
+
+**Type friction.** The measurement recorded 0 entries for expression ascription,
+bidirectional typing, or local polymorphism. It found 69 `if`-else sites;
+qualified `prelude.when` and `prelude.unless` now express conditional Monad
+actions without a type-system change. Arguments remain strict, but skipped IO
+effects do not run.
+
+**Generic Go functions.** Concrete call-site instantiation expanded binding
+reach: skipped declarations fell from 40 to 0 in slices, 10 to 0 in maps,
+3 to 1 in sync, 25 to 16 in sets, and 90 to 76 in workqueue. Go constraints
+remain checked at the use site, and generic calls and callbacks use IO.
+Generic receiver methods are still skipped; this is not support for arbitrary
+generic Go types. [ADR 0006](adr/0006-generic-go-functions.md) records the boundary.
+
+**Sampled laws and induction.** `sample(N)` keeps equations outside the trusted
+proof fragment executable through `go4t test`, including imported sampled laws.
+They are reported as `tested, not proved` and cannot supply rewrite lemmas.
+The `induction` tactic performs exhaustive constructor induction and applies
+structurally decreasing induction hypotheses automatically, with either
+explicit arm tactics or bare `induction x` using `refl` in each arm.
+[ADR 0007](adr/0007-sampled-laws.md) records the distinction between testing
+and proof.
+
+Runtime for data-heavy code moved from 11–32x to 1.6–4x where values stay
+unboxed, while maps remain 9–20x and are now the dominant measured cost,
+attributable to boxed values and allocation rather than comparisons.

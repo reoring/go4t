@@ -1,0 +1,28 @@
+package main
+
+import "go:slices"
+import "go:maps"
+import "go:sync"
+import "std/map"
+import "std/list"
+
+func copied[A](xs List[A]) IO[List[A]] {
+  slices.clone(xs)
+}
+
+func main() IO[Unit] {
+  do {
+    values <- copied([3, 1, 2])
+    found <- slices.contains(values, 2)
+    println(show(found))
+    names <- maps.keys(map.mapInsert(map.mapInsert(map.emptyMap(), "b", 2), "a", 1))
+    println(show(list.sort(names)))
+    once <- sync.onceValue(func() => do {
+      println("initialized")
+      ioPure(42)
+    })
+    first <- once()
+    second <- once()
+    println(show(first + second))
+  }
+}

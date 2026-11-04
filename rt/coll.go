@@ -1,7 +1,5 @@
 package rt
 
-import "sort"
-
 // Map and Set share immutable AVL nodes. Updates copy only the search path;
 // cached heights and sizes keep lookup/update logarithmic and size constant-time.
 // The distinct wrappers remain opaque to generated go4t programs.
@@ -14,13 +12,15 @@ type mapValue struct {
 type setValue struct{ root *collNode }
 type arrayValue []any
 
+// Entries are immutable and shared by copied path nodes. Separating the two
+// boxed values keeps each copied node in Go's 48-byte rather than 64-byte class.
+type collEntry struct{ key, value any }
+
 type collNode struct {
-	key, value   any
+	*collEntry
 	left, right  *collNode
 	height, size int
 }
-
-type collCompare func(any, any) any
 
 func collHeight(n *collNode) int {
 	if n == nil {
@@ -37,36 +37,33 @@ func collSize(n *collNode) int {
 }
 
 func collBranch(key, value any, left, right *collNode) *collNode {
-	return &collNode{key: key, value: value, left: left, right: right,
+	return collEntryBranch(&collEntry{key, value}, left, right)
+}
+
+func collEntryBranch(entry *collEntry, left, right *collNode) *collNode {
+	return &collNode{collEntry: entry, left: left, right: right,
 		height: 1 + max(collHeight(left), collHeight(right)), size: 1 + collSize(left) + collSize(right)}
 }
 
 // Balance constructs the new path nodes without ever mutating a shared child.
-func collBalance(key, value any, left, right *collNode) *collNode {
+func collBalance(entry *collEntry, left, right *collNode) *collNode {
 	if collHeight(left) > collHeight(right)+1 {
 		if collHeight(left.left) >= collHeight(left.right) {
-			return collBranch(left.key, left.value, left.left, collBranch(key, value, left.right, right))
+			return collEntryBranch(left.collEntry, left.left, collEntryBranch(entry, left.right, right))
 		}
 		middle := left.right
-		return collBranch(middle.key, middle.value,
-			collBranch(left.key, left.value, left.left, middle.left), collBranch(key, value, middle.right, right))
+		return collEntryBranch(middle.collEntry,
+			collEntryBranch(left.collEntry, left.left, middle.left), collEntryBranch(entry, middle.right, right))
 	}
 	if collHeight(right) > collHeight(left)+1 {
 		if collHeight(right.right) >= collHeight(right.left) {
-			return collBranch(right.key, right.value, collBranch(key, value, left, right.left), right.right)
+			return collEntryBranch(right.collEntry, collEntryBranch(entry, left, right.left), right.right)
 		}
 		middle := right.left
-		return collBranch(middle.key, middle.value,
-			collBranch(key, value, left, middle.left), collBranch(right.key, right.value, middle.right, right.right))
+		return collEntryBranch(middle.collEntry,
+			collEntryBranch(entry, left, middle.left), collEntryBranch(right.collEntry, middle.right, right.right))
 	}
-	return collBranch(key, value, left, right)
-}
-
-func collOrder(cmp collCompare, a, b any) int {
-	if Shapes.OrderingOf == nil {
-		panic("rt.Shapes is not initialized: OrderingOf is required")
-	}
-	return Shapes.OrderingOf(cmp(a, b))
+	return collEntryBranch(entry, left, right)
 }
 
 func collLookup(root *collNode, key any, cmp collCompare) *collNode {
@@ -93,13 +90,13 @@ func collInsert(root *collNode, key, value any, cmp collCompare, replace bool) *
 		if left == root.left {
 			return root
 		}
-		return collBalance(root.key, root.value, left, root.right)
+		return collBalance(root.collEntry, left, root.right)
 	case order > 0:
 		right := collInsert(root.right, key, value, cmp, replace)
 		if right == root.right {
 			return root
 		}
-		return collBalance(root.key, root.value, root.left, right)
+		return collBalance(root.collEntry, root.left, right)
 	default:
 		if !replace {
 			return root
@@ -113,7 +110,7 @@ func collRemoveMin(root *collNode) (*collNode, *collNode) {
 		return root, root.right
 	}
 	minimum, left := collRemoveMin(root.left)
-	return minimum, collBalance(root.key, root.value, left, root.right)
+	return minimum, collBalance(root.collEntry, left, root.right)
 }
 
 func collDelete(root *collNode, key any, cmp collCompare) *collNode {
@@ -126,13 +123,13 @@ func collDelete(root *collNode, key any, cmp collCompare) *collNode {
 		if left == root.left {
 			return root
 		}
-		return collBalance(root.key, root.value, left, root.right)
+		return collBalance(root.collEntry, left, root.right)
 	case order > 0:
 		right := collDelete(root.right, key, cmp)
 		if right == root.right {
 			return root
 		}
-		return collBalance(root.key, root.value, root.left, right)
+		return collBalance(root.collEntry, root.left, right)
 	default:
 		if root.left == nil {
 			return root.right
@@ -141,7 +138,7 @@ func collDelete(root *collNode, key any, cmp collCompare) *collNode {
 			return root.left
 		}
 		minimum, right := collRemoveMin(root.right)
-		return collBalance(minimum.key, minimum.value, root.left, right)
+		return collBalance(minimum.collEntry, root.left, right)
 	}
 }
 
@@ -167,29 +164,29 @@ func collList(root *collNode, rest any, value func(*collNode) any) any {
 func EmptyMap() any { return mapValue{} }
 
 func MapInsert(m, key, value, compare any) any {
-	return mapValue{root: collInsert(m.(mapValue).root, key, value, compare.(func(any, any) any), true)}
+	return mapValue{root: collInsert(m.(mapValue).root, key, value, collComparator(compare), true)}
 }
 
 func MapLookup(m, key, compare any) any {
-	if n := collLookup(m.(mapValue).root, key, compare.(func(any, any) any)); n != nil {
+	if n := collLookup(m.(mapValue).root, key, collComparator(compare)); n != nil {
 		return SomeOf(n.value)
 	}
 	return NoneOf()
 }
 
 func MapDelete(m, key, compare any) any {
-	return mapValue{root: collDelete(m.(mapValue).root, key, compare.(func(any, any) any))}
+	return mapValue{root: collDelete(m.(mapValue).root, key, collComparator(compare))}
 }
 
 func MapMember(m, key, compare any) any {
-	return collLookup(m.(mapValue).root, key, compare.(func(any, any) any)) != nil
+	return collLookup(m.(mapValue).root, key, collComparator(compare)) != nil
 }
 
 func MapSize(m any) any { return int64(collSize(m.(mapValue).root)) }
 
 // Duplicate keys use the last value in the input list.
 func MapFromList(xs, compare any) any {
-	cmp := compare.(func(any, any) any)
+	cmp := collComparator(compare)
 	var root *collNode
 	for {
 		pair, rest, ok := Shapes.Uncons(xs)
@@ -216,7 +213,7 @@ func MapValues(m any) any {
 
 func MapUnion(a, b, compare any) any {
 	root := a.(mapValue).root
-	cmp := compare.(func(any, any) any)
+	cmp := collComparator(compare)
 	collWalk(b.(mapValue).root, func(n *collNode) { root = collInsert(root, n.key, n.value, cmp, false) })
 	return mapValue{root: root}
 }
@@ -244,21 +241,21 @@ func MapFold(m, init, f any) any {
 func EmptySet() any { return setValue{} }
 
 func SetInsert(s, value, compare any) any {
-	return setValue{collInsert(s.(setValue).root, value, nil, compare.(func(any, any) any), false)}
+	return setValue{collInsert(s.(setValue).root, value, nil, collComparator(compare), false)}
 }
 
 func SetDelete(s, value, compare any) any {
-	return setValue{collDelete(s.(setValue).root, value, compare.(func(any, any) any))}
+	return setValue{collDelete(s.(setValue).root, value, collComparator(compare))}
 }
 
 func SetMember(s, value, compare any) any {
-	return collLookup(s.(setValue).root, value, compare.(func(any, any) any)) != nil
+	return collLookup(s.(setValue).root, value, collComparator(compare)) != nil
 }
 
 func SetSize(s any) any { return int64(collSize(s.(setValue).root)) }
 
 func SetFromList(xs, compare any) any {
-	cmp := compare.(func(any, any) any)
+	cmp := collComparator(compare)
 	var root *collNode
 	for {
 		x, rest, ok := Shapes.Uncons(xs)
@@ -276,7 +273,7 @@ func SetToList(s any) any {
 
 func SetUnion(a, b, compare any) any {
 	root := a.(setValue).root
-	cmp := compare.(func(any, any) any)
+	cmp := collComparator(compare)
 	collWalk(b.(setValue).root, func(n *collNode) { root = collInsert(root, n.key, nil, cmp, false) })
 	return setValue{root}
 }
@@ -286,7 +283,7 @@ func SetIntersection(a, b, compare any) any {
 	if other == nil {
 		return EmptySet()
 	}
-	cmp := compare.(func(any, any) any)
+	cmp := collComparator(compare)
 	collWalk(a.(setValue).root, func(n *collNode) {
 		if collLookup(other, n.key, cmp) == nil {
 			root = collDelete(root, n.key, cmp)
@@ -297,7 +294,7 @@ func SetIntersection(a, b, compare any) any {
 
 func SetDifference(a, b, compare any) any {
 	root := a.(setValue).root
-	cmp := compare.(func(any, any) any)
+	cmp := collComparator(compare)
 	collWalk(b.(setValue).root, func(n *collNode) { root = collDelete(root, n.key, cmp) })
 	return setValue{root}
 }
@@ -382,13 +379,5 @@ func ArraySlice(a, start, end any) any {
 }
 
 func ArraySortBy(a, compare any) any {
-	values := a.(arrayValue)
-	if len(values) < 2 {
-		return a
-	}
-	cmp := compare.(func(any, any) any)
-	result := make(arrayValue, len(values))
-	copy(result, values)
-	sort.SliceStable(result, func(i, j int) bool { return collOrder(cmp, result[i], result[j]) < 0 })
-	return result
+	return arraySortBy(a, compare)
 }

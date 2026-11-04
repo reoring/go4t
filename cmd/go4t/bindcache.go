@@ -82,7 +82,8 @@ func bindingCacheKey(identity, goVersion string, exportHash [sha256.Size]byte, i
 		Float                         bool
 		Prelude                       string
 		ShimPath, ShimName            string
-	}{identity, goVersion, importPath, exportHash, options.Prefix, options.Package, options.Float, hex.EncodeToString(preludeHash.Sum(nil)), shimPath, shimName}
+		GenericSchema                 int
+	}{identity, goVersion, importPath, exportHash, options.Prefix, options.Package, options.Float, hex.EncodeToString(preludeHash.Sum(nil)), shimPath, shimName, 1}
 	hash := sha256.New()
 	_ = json.NewEncoder(hash).Encode(key)
 	return hex.EncodeToString(hash.Sum(nil))

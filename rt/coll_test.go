@@ -246,3 +246,126 @@ func TestArraySortStable(t *testing.T) {
 		t.Fatalf("stable sort = %v", got)
 	}
 }
+
+type collectionNativeOrd struct{ kind int }
+
+func (d collectionNativeOrd) Go4tNativeOrd() int { return d.kind }
+func (d collectionNativeOrd) Compare(a, b any) any {
+	panic("native comparator called dictionary")
+}
+
+type collectionReverseOrd struct{}
+
+func (collectionReverseOrd) Compare(a, b any) any { return collectionCompare(b, a) }
+
+func TestMapNativeOrdWitness(t *testing.T) {
+	collectionShapes(t)
+	for _, tt := range []struct {
+		name string
+		kind int
+		keys []any
+	}{
+		{"Int", 1, []any{int64(-1 << 63), int64(-1), int64(0), int64(1), int64(1<<63 - 1)}},
+		{"String", 2, []any{"", "\x00", "a", "a\x00", "z", "é", "日", "🙂"}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			dict := collectionNativeOrd{tt.kind}
+			compare := NativeCompare(dict)
+			if NativeOrdKind(dict) != tt.kind || NativeOrdKind(compare) != tt.kind {
+				t.Fatal("native witness was lost")
+			}
+			m := EmptyMap()
+			for i := len(tt.keys) - 1; i >= 0; i-- {
+				m = MapInsert(m, tt.keys[i], int64(i), compare)
+			}
+			if got := collectionValues(MapKeys(m)); !reflect.DeepEqual(got, tt.keys) {
+				t.Fatalf("native ordering = %v, want %v", got, tt.keys)
+			}
+			for i, key := range tt.keys {
+				if got := MapLookup(m, key, compare); got != (testSome{int64(i)}) {
+					t.Fatalf("lookup %v = %v", key, got)
+				}
+			}
+			replaced := MapInsert(m, tt.keys[0], "new", compare)
+			deleted := MapDelete(replaced, tt.keys[0], compare)
+			if MapLookup(m, tt.keys[0], compare) != (testSome{int64(0)}) ||
+				MapLookup(replaced, tt.keys[0], compare) != (testSome{"new"}) ||
+				MapMember(deleted, tt.keys[0], compare) != false {
+				t.Fatal("native updates did not preserve snapshots")
+			}
+			roundTrip := MapFromList(MapToList(m), compare)
+			if got := collectionValues(MapToList(roundTrip)); !reflect.DeepEqual(got, collectionValues(MapToList(m))) {
+				t.Fatal("native list round trip changed entries")
+			}
+			union := MapUnion(m, replaced, compare)
+			if MapLookup(union, tt.keys[0], compare) != (testSome{int64(0)}) {
+				t.Fatal("native union lost left bias")
+			}
+		})
+	}
+	custom := NativeCompare(collectionReverseOrd{})
+	if NativeOrdKind(custom) != 0 || NativeOrdKind(collectionCompare) != 0 {
+		t.Fatal("arbitrary comparator received a native witness")
+	}
+	m := MapFromList(collectionList(collectionPair{int64(1), "a"}, collectionPair{int64(3), "c"}, collectionPair{int64(2), "b"}), custom)
+	if got := collectionValues(MapKeys(m)); !reflect.DeepEqual(got, []any{int64(3), int64(2), int64(1)}) {
+		t.Fatalf("unmarked dictionary was bypassed: %v", got)
+	}
+}
+
+func TestMapBranchedSnapshots(t *testing.T) {
+	collectionShapes(t)
+	compare := NativeCompare(collectionNativeOrd{1})
+	snapshots := []any{EmptyMap()}
+	expected := []map[int64]int64{{}}
+	for i := 1; i <= 512; i++ {
+		parent := i * 17 % len(snapshots)
+		want := make(map[int64]int64, len(expected[parent])+1)
+		for key, value := range expected[parent] {
+			want[key] = value
+		}
+		key := int64(i * 37 % 101)
+		m := snapshots[parent]
+		if i%4 == 0 {
+			m = MapDelete(m, key, compare)
+			delete(want, key)
+		} else {
+			m = MapInsert(m, key, int64(i), compare)
+			want[key] = int64(i)
+		}
+		snapshots = append(snapshots, m)
+		expected = append(expected, want)
+	}
+	for i, m := range snapshots {
+		want := expected[i]
+		checkCollectionTree(t, m.(mapValue).root, -1, 101)
+		if MapSize(m) != int64(len(want)) {
+			t.Fatalf("snapshot %d size = %v, want %d", i, MapSize(m), len(want))
+		}
+		for key := int64(0); key < 101; key++ {
+			value, present := want[key]
+			var option any = testNone{}
+			if present {
+				option = testSome{value}
+			}
+			if got := MapLookup(m, key, compare); got != option {
+				t.Fatalf("snapshot %d key %d = %v, want %v", i, key, got, option)
+			}
+		}
+	}
+}
+
+func TestMapReplacementRetainsNewEquivalentKey(t *testing.T) {
+	collectionShapes(t)
+	compare := func(a, b any) any {
+		return collectionCompare(a.(int64)/10, b.(int64)/10)
+	}
+	original := MapInsert(EmptyMap(), int64(11), "old", compare)
+	replaced := MapInsert(original, int64(19), "new", compare)
+	if got := collectionValues(MapToList(original)); !reflect.DeepEqual(got, []any{collectionPair{int64(11), "old"}}) {
+		t.Fatalf("original entries = %v", got)
+	}
+	if got := collectionValues(MapToList(replaced)); !reflect.DeepEqual(got, []any{collectionPair{int64(19), "new"}}) {
+		t.Fatalf("replacement entries = %v", got)
+	}
+}

@@ -1,0 +1,34 @@
+package mutmap
+
+// MutMap[K, V] is an opaque IO-only handle with no class instances.
+// The Ord witness is retained at creation; every observation is deferred IO.
+// Insert/lookup/delete are O(log n), size is O(1), toList/freeze are O(n),
+// and thaw is O(n log n). Native Int/String Ord comparisons avoid dictionaries.
+// Explicit By comparators must be pure total orders and must not re-enter the
+// same handle. Cancellation or panic before a write's commit leaves it unchanged;
+// waiting for its mutex does not interrupt an operation already holding the lock.
+extern func newBy[K, V](cmp func(K, K) Ordering) IO[MutMap[K, V]] = "go4t/rt".MutMapNew
+
+func new[K Ord, V]() IO[MutMap[K, V]] {
+  newBy(func(a, b) => compare(a, b))
+}
+
+// Each operation is atomic. A lookup followed by insert is not a transaction.
+extern func insert[K, V](m MutMap[K, V], k K, v V) IO[Unit] = "go4t/rt".MutMapInsert
+
+extern func lookup[K, V](m MutMap[K, V], k K) IO[Option[V]] = "go4t/rt".MutMapLookup
+
+extern func delete[K, V](m MutMap[K, V], k K) IO[Unit] = "go4t/rt".MutMapDelete
+
+extern func size[K, V](m MutMap[K, V]) IO[Int] = "go4t/rt".MutMapSize
+
+// Ascending snapshots never share mutable tree nodes with the handle.
+extern func toList[K, V](m MutMap[K, V]) IO[List[(K, V)]] = "go4t/rt".MutMapToList
+
+extern func freeze[K, V](m MutMap[K, V]) IO[Map[K, V]] = "go4t/rt".MutMapFreeze
+
+extern func thawBy[K, V](m Map[K, V], cmp func(K, K) Ordering) IO[MutMap[K, V]] = "go4t/rt".MutMapThaw
+
+func thaw[K Ord, V](m Map[K, V]) IO[MutMap[K, V]] {
+  thawBy(m, func(a, b) => compare(a, b))
+}

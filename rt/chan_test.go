@@ -67,7 +67,7 @@ func TestChanBufferAndFreshAllocation(t *testing.T) {
 type chanSelectContext struct {
 	context.Context
 	entered chan struct{}
-	once sync.Once
+	once    sync.Once
 }
 
 func (c *chanSelectContext) Done() <-chan struct{} {
@@ -120,7 +120,10 @@ func TestChanClosedOperationsAreFailures(t *testing.T) {
 	installTestShapes(t)
 	c := runChanTest(t, ChanMake(int64(0)))
 	runChanTest(t, ChanClose(c))
-	for _, tc := range []struct { action any; message string }{
+	for _, tc := range []struct {
+		action  any
+		message string
+	}{
 		{ChanClose(c), "chan.close: close of closed channel"},
 		{ChanSend(c, int64(1)), "chan.send: send on closed channel"},
 		{ChanClose(WrapSendChan((chan<- int)(nil), func(v any, _ context.Context) int { return int(v.(int64)) })), "chan.close: close of nil channel"},

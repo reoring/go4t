@@ -13,6 +13,12 @@ func (g *generator) lambda(lambda *ast.Lambda) string {
 }
 
 func (g *generator) lambdaBody(lambda *ast.Lambda, plan *tailPlan) string {
+	return g.lambdaCode(lambda, plan, true)
+}
+
+// Collection loops can accept the native callback directly instead of adapting
+// it to any at every element. Ordinary function values retain the erased ABI.
+func (g *generator) lambdaCode(lambda *ast.Lambda, plan *tailPlan, erased bool) string {
 	restore := g.localScope()
 	defer restore()
 	params := make([]string, len(lambda.Params))
@@ -61,7 +67,7 @@ func (g *generator) lambdaBody(lambda *ast.Lambda, plan *tailPlan) string {
 		}
 	}
 	code := "func(" + strings.Join(params, ", ") + ") " + ret + " {\n" + body + "}"
-	if !native {
+	if !native || !erased {
 		return code
 	}
 	args := anonymousArgs(len(params))

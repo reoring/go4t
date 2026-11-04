@@ -15,7 +15,7 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
 PERF = ROOT / "bench/perf"
-KERNELS = ("wordfreq", "sortints", "nbody", "mapheavy", "treefold")
+KERNELS = ("wordfreq", "sortints", "nbody", "mapheavy", "mapheavy-mut", "treefold")
 RUNNER = Path(os.environ.get(
     "SERIALIZE_VM_TESTS_RUNNER",
     "/home/vagrant/.codex/skills/serialize-vm-tests/scripts/serialize-vm-tests",
