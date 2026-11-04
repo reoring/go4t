@@ -58,7 +58,7 @@ func TestMethodBindingBoundaries(t *testing.T) {
 		"// skipped: Generic.Name (generic function)",
 		"// skipped: Constraint.Text (generic function)",
 		"extern func widgetCallback(recv Widget, p0 func() String) String",
-		"extern func widgetPointer(recv Widget, p0 Option[String]) String",
+		"extern func widgetPointer(recv Widget, p0 Ref[String]) IO[String]",
 		"extern func widgetVariadic(recv Widget, p0 List[String]) String",
 		"extern func widgetVoid(recv Widget) Unit",
 		"extern func widgetMultiple(recv Widget) (String, String)",

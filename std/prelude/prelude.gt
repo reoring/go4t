@@ -5,6 +5,10 @@ import "std/result"
 import "std/io"
 import "std/float"
 
+// GoError is an opaque builtin handle to a Go error, like Ref/Fiber handles.
+// It has no constructors or class instances; std/io exposes retained causes
+// and the explicit goErrorMessage projection.
+
 class Functor[F[_]] {
   fmap[A, B](fa F[A], f func(A) B) F[B]
 }

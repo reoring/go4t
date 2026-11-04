@@ -66,7 +66,7 @@ func (g *generator) foreignShapes(out *strings.Builder, prog *types.Program) {
 			if c.FieldNames == nil {
 				return
 			}
-			fmt.Fprintf(out, "%sfunc init() { rt.RegisterForeignRecord(%q,func(fields []any) any { return &%s{", g.typeLine(d.Name), recordKey, ctorName(c))
+			fmt.Fprintf(out, "%sfunc init() { rt.RegisterForeignRecord(%q,\n%sfunc(fields []any) any { return &%s{", g.typeLine(d.Name), recordKey, g.typeLine(d.Name), ctorName(c))
 			for i := range c.Fields {
 				value := fmt.Sprintf("fields[%d]", i)
 				if scalarRecord(c) {
@@ -74,7 +74,7 @@ func (g *generator) foreignShapes(out *strings.Builder, prog *types.Program) {
 				}
 				fmt.Fprintf(out, "F%d:%s,", i, value)
 			}
-			fmt.Fprintf(out, "} },func(value any,index int) any { v := value.(*%s); _ = v; switch index {", ctorName(c))
+			fmt.Fprintf(out, "} },\n%sfunc(value any,index int) any { v := value.(*%s); _ = v; switch index {", g.typeLine(d.Name), ctorName(c))
 			for i := range c.Fields {
 				fmt.Fprintf(out, "case %d: return v.F%d;", i, i)
 			}

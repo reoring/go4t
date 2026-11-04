@@ -304,7 +304,7 @@ func (i *genericInference) match(pattern types.Type, actual ast.Type, result boo
 		}
 		return i.match(p.Elem(), a.Args[1], false)
 	case *types.Pointer:
-		if a != nil && a.Name == "Option" && len(a.Args) == 1 {
+		if a != nil && (a.Name == "Option" || a.Name == "Ref") && len(a.Args) == 1 {
 			return i.match(p.Elem(), a.Args[0], false)
 		}
 		return nil

@@ -40,7 +40,7 @@ func TestBindCancellationBoundaries(t *testing.T) {
 		if _, err := action.(IO)(ctx); !errors.Is(err, context.Canceled) {
 			t.Fatalf("cancelled effect error = %v", err)
 		}
-		if _, err := action.(IO)(ctx); !reflect.DeepEqual(err, &Failure{Kind: Cancelled, Message: context.Canceled.Error()}) {
+		if _, err := action.(IO)(ctx); !reflect.DeepEqual(err, &Failure{Kind: Cancelled, Message: context.Canceled.Error(), Cause: context.Canceled}) {
 			t.Fatalf("cancelled effect was not classified: %#v", err)
 		}
 	}

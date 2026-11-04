@@ -134,6 +134,7 @@ var (
 	String   = &TCon{Name: "String", Kind: KStar{}}
 	Bool     = &TCon{Name: "Bool", Kind: KStar{}}
 	Unit     = &TCon{Name: "Unit", Kind: KStar{}}
+	GoError  = &TCon{Name: "GoError", Kind: KStar{}}
 	IO       = &TCon{Name: "IO", Kind: KArrow{Params: []Kind{KStar{}}, Ret: KStar{}}}
 	Map      = &TCon{Name: "Map", Kind: KArrow{Params: []Kind{KStar{}, KStar{}}, Ret: KStar{}}}
 	Set      = &TCon{Name: "Set", Kind: KArrow{Params: []Kind{KStar{}}, Ret: KStar{}}}

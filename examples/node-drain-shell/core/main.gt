@@ -2,6 +2,7 @@ package main
 
 import "std/io"
 import "std/list"
+import "std/ref"
 import "std/string"
 import core "go:k8s.io/api/core/v1"
 import policy "go:k8s.io/api/policy/v1"
@@ -71,7 +72,8 @@ func cordonPatch(unschedulable Bool) String {
 func evict(pods corev1.PodInterface, name String) IO[Option[String]] {
   let eviction = policy.newEviction(){kind: "Eviction", aPIVersion: "policy/v1", name: name}
   do {
-    attempt <- io.tryIO(corev1.podInterfaceEvictV1(pods, Some(eviction)))
+    cell <- ref.new(eviction)
+    attempt <- io.tryIO(corev1.podInterfaceEvictV1(pods, cell))
     match attempt {
       Ok(_) => None
       | Err(e) => {

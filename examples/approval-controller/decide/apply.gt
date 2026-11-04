@@ -4,11 +4,13 @@ import "std/dyn"
 import "std/io"
 import "std/list"
 import "std/map"
+import "std/ref"
 import "std/result"
 import "std/string"
 import strings "go:strings"
 import time "go:time"
-import meta "go:k8s.io/apimachinery/pkg/apis/meta/v1"
+import meta "go:k8s.io/apimachinery/pkg/api/meta"
+import metav1 "go:k8s.io/apimachinery/pkg/apis/meta/v1"
 import unstructured "go:k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 import schema "go:k8s.io/apimachinery/pkg/runtime/schema"
 import types "go:k8s.io/apimachinery/pkg/types"
@@ -31,29 +33,17 @@ func publish(verdict Verdict) Publication {
   }
 }
 
-func condition(approval unstructured.Unstructured, conditionType String, status String, reason String, message String) IO[meta.Condition] {
+func condition(approval unstructured.Unstructured, conditionType String, status String, reason String, message String) IO[metav1.Condition] {
   do {
     generation <- unstructured.unstructuredGetGeneration(approval)
-    meta.Condition{
+    metav1.Condition{
       type_: conditionType, status: status, observedGeneration: generation,
       lastTransitionTime: dyn.Str(time.timeFormat(time.now(), time.rFC3339())), reason: reason, message: message
     }
   }
 }
 
-// Like meta.SetStatusCondition, replace only the first matching type and keep
-// its transition time unless Status changes. The Go pointer-to-slice binding
-// copies its argument, so returning the updated immutable list is intentional.
-func setCondition(conditions List[meta.Condition], next meta.Condition) List[meta.Condition] {
-  match conditions {
-    Nil => [next]
-    Cons(current, rest) if current.type_ == next.type_ =>
-      Cons(if current.status == next.status { next{lastTransitionTime: current.lastTransitionTime} } else { next }, rest)
-    Cons(current, rest) => Cons(current, setCondition(rest, next))
-  }
-}
-
-func _existingCondition(raw dyn.Value) IO[Option[meta.Condition]] {
+func _existingCondition(raw dyn.Value) IO[Option[metav1.Condition]] {
   let conditionType = _nestedString(raw, ["type"])
   let status = _nestedString(raw, ["status"])
   let reason = _nestedString(raw, ["reason"])
@@ -62,7 +52,7 @@ func _existingCondition(raw dyn.Value) IO[Option[meta.Condition]] {
   } else {
     do {
       timestamp <- _conditionTimestamp(_nestedString(raw, ["lastTransitionTime"]))
-      Some(meta.Condition{
+      Some(metav1.Condition{
         type_: conditionType, status: status, reason: reason,
         message: _nestedString(raw, ["message"]),
         observedGeneration: result.fromOption(_nestedInt(raw, ["observedGeneration"]), 0),
@@ -72,7 +62,7 @@ func _existingCondition(raw dyn.Value) IO[Option[meta.Condition]] {
   }
 }
 
-func _existingConditions(items List[dyn.Value]) IO[List[meta.Condition]] {
+func _existingConditions(items List[dyn.Value]) IO[List[metav1.Condition]] {
   match items {
     Nil => ioPure(Nil)
     Cons(raw, rest) => do {
@@ -83,7 +73,7 @@ func _existingConditions(items List[dyn.Value]) IO[List[meta.Condition]] {
   }
 }
 
-func _conditionFields(c meta.Condition) dyn.Value {
+func _conditionFields(c metav1.Condition) dyn.Value {
   dyn.Map(map.mapFromList([
     ("type", dyn.Str(c.type_)), ("status", dyn.Str(c.status)),
     ("observedGeneration", dyn.Int(c.observedGeneration)),
@@ -134,10 +124,18 @@ func approvalStatus(approval unstructured.Unstructured, publication Publication)
     generation <- unstructured.unstructuredGetGeneration(approval)
     conditions <- _existingConditions(_nestedList(dyn.Map(fields), ["status", "conditions"]))
     next <- condition(approval, "Accepted", publication.conditionStatus, publication.reason, publication.message)
+    cell <- ref.new(conditions)
+    _ <- meta.setStatusCondition(cell, next)
+    updated <- ref.get(cell)
+    // Keep RFC3339 strings outside metav1.Time's lossy JSON round trip. The
+    // native call owns condition updates; only timestamp spelling is restored.
+    let serialized = list.zipWith(updated, list.append(conditions, [next]), func(current, original) =>
+      _conditionFields(current{lastTransitionTime:
+        if current.status == original.status { original.lastTransitionTime } else { next.lastTransitionTime }}))
     map.mapFromList([
       ("observedGeneration", dyn.Int(generation)), ("phase", dyn.Str(publication.phase)),
       ("message", dyn.Str(publication.message)),
-      ("conditions", dyn.List(map(setCondition(conditions, next), _conditionFields)))
+      ("conditions", dyn.List(serialized))
     ])
   }
 }

@@ -58,18 +58,20 @@ namespace-scoped lists pass `client.inNamespaceAsListOption(namespace)` (ADR 001
 `io.NotFound` to `Missing`, and other read failures to `ReadError`.
 
 All bindings required by apply are available; there is no skipped apply piece.
-`metav1.Condition` is a generated record. `meta.SetStatusCondition` is also
-bound, but its `*[]Condition` argument crosses as a copy and its only result is
-`Bool`, so it cannot return the changed list. go4t's `setCondition` instead
-returns the updated immutable list with the same first-match and transition-time
-semantics. Similarly, status updates use the native `unstructuredSetObject`
-setter rather than mutating a copied `Map` through `SetNestedMap`.
+`metav1.Condition` is a generated record. `meta.setStatusCondition` accepts a
+`Ref[List[metav1.Condition]]` cell and returns `IO[Bool]`; apply creates the cell
+with `ref.new`, calls the native binding, then reads the updated list with
+`ref.get`. The native implementation owns first-match and transition-time
+semantics. Status updates use the native `unstructuredSetObject` setter rather
+than mutating a copied `Map` through `SetNestedMap`.
 
 The `metav1.Time` JSON-scalar binding reparses timestamps with `Time.UnmarshalJSON`,
 which changes their location to `time.Local`. Existing condition timestamps are
 therefore validated by `time.Parse` and rendered from their original wall time
-and offset in go4t, without that lossy conversion. This preserves RFC3339
-formatting, including fraction truncation and zero/invalid timestamps.
+and offset in go4t. Apply carries those strings beside the native call and
+restores the spelling after readback, using the new timestamp only when status
+changes. This preserves RFC3339 formatting, including fraction truncation and
+zero/invalid timestamps, until the JSON-scalar boundary is replaced.
 
 Read and patch error messages keep their original contextual prefixes.
 `io.tryIO` exposes classified errors rather than Go's original error chain;
@@ -86,8 +88,8 @@ comments, excluding generated code and tests.
 | Go helpers | 240 lines, including status, conditions and workflow events | 79 lines: native object constructors, GVKs and fixture string lookup |
 | Observation and projection | 241-line `decide/observe.gt` | Unchanged, entirely go4t |
 | Pure decision | 205-line `decide/decide.gt` | 205 lines; only the publication comment changed |
-| Status and conditions | Go `publish`, `approvalStatus`, condition conversion and merge patch | go4t `publish`, `approvalStatus`, immutable `setCondition`, native status patch |
-| Operations and events | Go ensure/create, snapshot/match/name helpers and event projection | 409-line `decide/apply.gt`, including publication and oracle preview |
+| Status and conditions | Go `publish`, `approvalStatus`, condition conversion and merge patch | go4t `publish`, `approvalStatus`, native `meta.setStatusCondition` through Ref, native status patch |
+| Operations and events | Go ensure/create, snapshot/match/name helpers and event projection | 407-line `decide/apply.gt`, including publication and oracle preview |
 
 **Export naming:** helpers use `_projectFetchedPlan`, `_projectTtl`, and
 `_projectTimestamp`, not `plan`, `ttl`, or `timestamp`. This avoids first-rune

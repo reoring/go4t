@@ -555,6 +555,26 @@ func (s *mirrorSet) resultMirror(t types.Type) *foreignMirror {
 	return s.resolve(t, true)
 }
 
+// parameterMirror distinguishes in-out pointers from nullable value pointers.
+// Only a direct parameter (or a variadic element) denotes a mutable cell;
+// pointers nested in records and ordinary containers retain their value mirror.
+func (s *mirrorSet) parameterMirror(t, origin types.Type) *foreignMirror {
+	if p, ok := types.Unalias(t).(*types.Pointer); ok {
+		if original, ok := types.Unalias(origin).(*types.Pointer); ok {
+			if parameter, ok := types.Unalias(original.Elem()).(*types.TypeParam); ok && structuralConstraint(parameter) == nil {
+				return s.resolve(t, true)
+			}
+		}
+		if elem := s.resolve(p.Elem(), true); elem != nil {
+			switch elem.kind {
+			case "int", "float", "bool", "string", "time", "unit", "record", "slice", "map", "bytes":
+				return &foreignMirror{typ: t, kind: "ref", gt: "Ref[" + elem.gt + "]", elem: elem}
+			}
+		}
+	}
+	return s.resolve(t, true)
+}
+
 func (s *mirrorSet) register(m *foreignMirror) {
 	if m.kind == "record" && m.typ.(*types.Named).Obj().Pkg().Path() == s.owner {
 		s.records[m.gt] = m
@@ -600,8 +620,15 @@ func (s *mirrorSet) call(sig *types.Signature, method bool) (*foreignCall, strin
 		if sig.Variadic() && i == sig.Params().Len()-1 && isAny(t.(*types.Slice).Elem()) {
 			s.dyn = true
 			m = &foreignMirror{typ: t, kind: "dynlist", gt: "List[dyn.Value]"}
+		} else if sig.Variadic() && i == sig.Params().Len()-1 {
+			elem := s.parameterMirror(t.(*types.Slice).Elem(), origin.Params().At(i).Type().(*types.Slice).Elem())
+			if elem != nil && elem.kind == "ref" {
+				m = &foreignMirror{typ: t, kind: "slice", gt: "List[" + elem.gt + "]", elem: elem}
+			} else {
+				m = s.resolve(t, true)
+			}
 		} else {
-			m = s.resolve(t, true)
+			m = s.parameterMirror(t, origin.Params().At(i).Type())
 		}
 		if m == nil {
 			return nil, fmt.Sprintf("unsupported parameter type %s", types.TypeString(t, nil))
@@ -712,7 +739,7 @@ func (m *foreignMirror) sharesState() bool {
 	if m == nil {
 		return false
 	}
-	if m.kind == "handle" || m.kind == "chan" {
+	if m.kind == "handle" || m.kind == "chan" || m.kind == "ref" {
 		return true
 	}
 	if m.callback != nil && (m.callback.effect() || m.callback.hasChannel()) {

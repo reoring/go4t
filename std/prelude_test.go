@@ -63,6 +63,7 @@ func TestStdInventoryParses(t *testing.T) {
 		"class Functor", "class Monad", "class Show", "class Eq", "type Ordering", "class Ord",
 		"type Option", "type List", "type State",
 		"type IoError", "instance Show[IoError]", "func ioRaise", "func ioErrorMessage", "func tryIO",
+		"type IoFailure", "instance Debug[IoFailure]", "func tryIOCause", "func cause", "func goErrorMessage", "func ioRaiseCause",
 		"instance Functor[Option]", "instance Monad[Option]",
 		"instance Functor[List]", "instance Monad[List]",
 		"instance Functor[State]", "instance Monad[State]",

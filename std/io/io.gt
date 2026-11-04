@@ -4,6 +4,28 @@ import "std/prelude"
 
 type IoError = NotFound(String) | PermissionDenied(String) | AlreadyExists(String) | Timeout | Cancelled | Panic(String) | Network(String) | Failure(String) deriving Eq, Debug
 
+// IoFailure keeps the existing IoError match surface alongside the original Go
+// error handle. Failures from ioFail/ioRaise and recovered panics carry None.
+type IoFailure = IoFailure{error: IoError, cause: Option[GoError]}
+
+// Debug shows cause presence without inspecting or rendering the opaque handle.
+instance Debug[IoFailure] {
+  debug(f) {
+    let causeText = match f.cause {
+      None => "None"
+      Some(_) => "Some(<GoError>)"
+    }
+    "IoFailure(" + debug(f.error) + ", " + causeText + ")"
+  }
+}
+
+func cause(f IoFailure) Option[GoError] {
+  f.cause
+}
+
+// The original Go message may differ from ioErrorMessage after classification.
+extern func goErrorMessage(e GoError) String = "go4t/rt".GoErrorMessage
+
 func ioErrorMessage(e IoError) String {
   match e {
     NotFound(msg) => msg
@@ -24,6 +46,10 @@ instance Show[IoError] {
 }
 
 extern func ioRaise[A](e IoError) IO[A] = "go4t/rt".Raise
+
+// Re-raise the supplied constructor/message and the same Go cause handle.
+// Nullary Timeout/Cancelled retain ioErrorMessage's canonical messages.
+extern func ioRaiseCause[A](f IoFailure) IO[A] = "go4t/rt".RaiseCause
 
 func ioFailWith[E Show, A](e E) IO[A] {
   ioFail(show(e))
@@ -53,6 +79,10 @@ extern func exit[A](code Int) IO[A] = "go4t/rt".Exit
 extern func getEnv(name String) IO[Option[String]] = "go4t/rt".GetEnv
 
 extern func tryIO[A](io IO[A]) IO[Result[IoError, A]] = "go4t/rt".TryIO
+
+// Like tryIO, but retains the original Go error as Some in IoFailure.cause.
+// Existing tryIO and Err(NotFound(_)) matches keep their original IoError shape.
+extern func tryIOCause[A](io IO[A]) IO[Result[IoFailure, A]] = "go4t/rt".TryIOCause
 
 extern func readFile(path String) IO[String] = "go4t/rt".ReadFile
 

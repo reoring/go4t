@@ -122,7 +122,7 @@ func Check(modules []*ast.Module) (program *Program, err error) {
 			return nil, err
 		}
 	}
-	for _, con := range []*TCon{Int, Float, String, Bool, Unit, IO, Map, Set, Array, Fiber, Ref, MutMap, Chan, RecvChan, SendChan} {
+	for _, con := range []*TCon{Int, Float, String, Bool, Unit, GoError, IO, Map, Set, Array, Fiber, Ref, MutMap, Chan, RecvChan, SendChan} {
 		c.cons[con.Name] = con
 	}
 	c.collectNames(files)

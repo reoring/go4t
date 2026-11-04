@@ -3,6 +3,7 @@ package main
 import "std/io"
 import "std/list"
 import "std/map"
+import "std/ref"
 import "std/result"
 import "std/string"
 import core "go:k8s.io/api/core/v1"
@@ -73,7 +74,8 @@ func cordonPatch(unschedulable Bool) String {
 func evict(pods corev1.PodInterface, name String) IO[Option[String]] {
   let eviction = policy.newEviction(){kind: "Eviction", aPIVersion: "policy/v1", name: name}
   do {
-    attempt <- io.tryIO(corev1.podInterfaceEvictV1(pods, Some(eviction)))
+    cell <- ref.new(eviction)
+    attempt <- io.tryIO(corev1.podInterfaceEvictV1(pods, cell))
     match attempt {
       Ok(_) => None
       // The pod left between observe and apply (ReplicaSet rollover): already gone.

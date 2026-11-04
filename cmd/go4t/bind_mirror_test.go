@@ -12,14 +12,18 @@ import dyn "std/dyn"
 import "std/map"
 import "std/io"
 import "std/conc"
+import "std/ref"
 import f "go:go4t/extern/testdata/mirrorfixture"
 func main() IO[Unit] {
  do {
   let r = f.makeRecord()
   println(show(f.echoRecord(r) == r))
   println(show(f.pointSum(r.point)))
-  println(show(f.echoPointer(Some(r.point)) == Some(r.point)))
-  println(show(f.echoPointer(None) == None))
+  pointCell <- ref.new(r.point)
+  pointer <- f.echoPointer(pointCell)
+  println(show(pointer == Some(r.point)))
+  pointerValue <- ref.get(pointCell)
+  println(show(pointerValue == r.point))
   println(show(f.echoDuration(123)))
   println(show(f.echoTime(456)))
   println(show(f.echoTime(0)))

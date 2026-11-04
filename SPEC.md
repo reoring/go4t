@@ -176,7 +176,7 @@ println print eprintln ioPure ioFail unit fst snd compare eq min max toFloat
 ```
 
 Reexported types also expose `LT EQ GT None Some Err Ok Nil Cons`. Builtins
-`Int Float String Bool IO Ref Fiber Chan RecvChan SendChan Map Set Array` and tuple
+`Int Float String Bool GoError IO Ref Fiber Chan RecvChan SendChan Map Set Array` and tuple
 types are independent of imports. All instances in loaded modules participate in resolution.
 
 Module declarations and lexical bindings win over implicit names. Top-level
@@ -204,6 +204,7 @@ func main() IO[Unit] {
 | Types | Kind / meaning |
 | --- | --- |
 | `Int`, `Float`, `String`, `Bool`, `Unit` | `*`; int64, binary64, text, Boolean, unit |
+| `GoError` | `*`; opaque Go `error` handle, also available as `prelude.GoError`; no constructors or class instances |
 | `IO[A]` | `(*) -> *`; deferred action producing A or failing |
 | `Fiber[A]` | `(*) -> *`; opaque concurrent result handle |
 | `Ref[A]` | `(*) -> *`; opaque mutable cell accessed only through IO |
@@ -728,16 +729,33 @@ argument construction. `io.ioRaise(e)` raises an existing IoError without losing
 its constructor; `io.ioFailWith(e)` and `result.liftResult(Err(e))` instead raise
 `Failure(show(e))`.
 
-Every runtime IO failure is `*rt.Failure{Kind, Message}`, implementing Go `error`.
+`io.tryIOCause(action)` has the same execution and recovery boundaries, returning
+`IO[Result[io.IoFailure, A]]`, where
+`IoFailure = IoFailure{error: IoError, cause: Option[GoError]}`. Foreign failures
+retain the original Go error as `Some`; failures constructed by `ioFail` or
+`ioRaise` and recovered panics have `None`. `io.cause(f)` returns this optional
+handle, and `io.goErrorMessage(e)` returns its original Go message, which may
+differ from the classified display message. `io.ioRaiseCause(f)` preserves the
+supplied IoError and cause; nullary Timeout/Cancelled use `ioErrorMessage`'s
+canonical messages. `Debug[IoFailure]` renders cause presence as `None` or
+`Some(<GoError>)` without inspecting the handle. Existing `tryIO` results and
+`Err(io.NotFound(_))` matches are unchanged; use `tryIOCause` to retain a cause.
+
+Every runtime IO failure is `*rt.Failure{Kind, Message, Cause}`, implementing Go `error`.
 Go errors from filesystem, stream, time/random and natural-ABI extern boundaries
 are classified in this order (including wrapped errors): not-exist → NotFound,
 permission → PermissionDenied, already-exists → AlreadyExists,
 `context.DeadlineExceeded` → Timeout, `context.Canceled` → Cancelled,
 `net.Error` with `Timeout() == true` → Timeout, other `net.Error` (including URL
 errors) → Network, otherwise Failure. Existing typed failures retain their
-kind and message. Timeout/Cancelled have canonical messages because their ADT
-constructors carry no payload. Generated code registers the `rt.Shapes.IoError`
-constructor bridge and `rt.Shapes.IoErrorOf` destructor bridge alongside Result.
+identity, kind, message and cause, including when wrapped. Every newly classified
+failure retains the original Go error in `Cause`. `Failure.Unwrap()` returns it;
+`Failure.Is(target)` delegates to `errors.Is(Cause, target)` when non-nil and
+otherwise uses the Kind-to-OS/context-sentinel table. Timeout/Cancelled have
+canonical messages because their ADT constructors carry no payload. Generated
+code registers the `rt.Shapes.IoError` constructor bridge and
+`rt.Shapes.IoErrorOf` destructor bridge alongside Result. IoFailure uses the
+existing foreign-record constructor/field bridge, not a second record ABI.
 
 `rt.RunMain` reports ordinary IO failures as `error: <message>` and exits 1;
 a panic while running its action prints `error: panic: <message>` and exits 2.
@@ -1039,13 +1057,13 @@ class Ord[A] : Eq[A] { compare(a A, b A) Ordering }
 | `std/conc` | fork/await, parallel map/pair, race/timeout |
 | `std/float` | Float instances, conversions/math/formatting; minInt/maxInt/abs |
 | `std/http` | Request/Response, request/get/post/requestWithTimeout, response/jsonResponse, requestHeader/responseHeader, serve/serveOn/serveOnReady |
-| `std/io` | IO instances, IoError (Eq/Debug/Show), ioRaise/ioErrorMessage, console, arguments/environment, files, streaming foldLines/forEachLine, clocks, randomInt, randomFloat, sleep, tryIO |
+| `std/io` | IO instances, IoError (Eq/Debug/Show), IoFailure (Debug), ioRaise/ioErrorMessage, tryIOCause/cause/goErrorMessage/ioRaiseCause, console, arguments/environment, files, streaming foldLines/forEachLine, clocks, randomInt, randomFloat, sleep, tryIO |
 | `std/json` | Json, Encode/Decode and codecs; not implicitly exported |
 | `std/lazy` | Lazy, delay/force; explicitly **nonmemoising** |
 | `std/list` | List/instances; folds, traversal, searching, slicing, sorting, `catOptions`, `mapMaybe`, accumulator helpers |
 | `std/map` | Persistent maps and their loaded instances |
 | `std/mutmap` | IO-only opaque ordered MutMap handles: new/insert/lookup/delete/size, ascending toList snapshots, freeze/thaw; no standard class instances |
-| `std/prelude` | Classes above; Ordering/Option and primitive/pair/Option instances; core combinators including qualified `prelude.when` / `prelude.unless` for conditional Monad actions |
+| `std/prelude` | Classes above; Ordering/Option and primitive/pair/Option instances; opaque GoError handle; core combinators including qualified `prelude.when` / `prelude.unless` for conditional Monad actions |
 | `std/ref` | IO-only opaque Ref cells: new/get/set, atomic modify/update |
 | `std/regex` | Go-regexp matching, captures, replacement and splitting |
 | `std/result` | Result/instances; Result and Option helpers; liftResult |
@@ -1476,7 +1494,8 @@ are determined by the original Go declaration, not by substituted type arguments
 | []T | List[T] | Recursive copy, nil/empty becomes Nil |
 | iter.Seq[T], iter.Seq2[K, V] results | List[T], List[(K, V)] | Eager materialisation in iteration order; iterator parameters are skipped |
 | map[K]T with scalar K | Map[K, T] | Recursive copy; scalar key ordering |
-| *T with a value mirror | Option[T] | nil becomes None; non-nil becomes Some(copy) |
+| *T parameter, where T mirrors to a scalar, record, collection or bytes | Ref[T] | Non-null in-out cell; copy its value into Go, call with its address, then copy the updated value back; forces IO |
+| *T result or record field with a value mirror | Option[T] | nil becomes None; non-nil becomes Some(copy) |
 | chan T, <-chan T, chan<- T with mirrorable T | Chan[T], RecvChan[T], SendChan[T] | Opaque directional handles; preserve the native Go channel and reuse the ordinary element converters; unsupported elements retain the signature's skip reason |
 | chan struct{}, <-chan struct{}, chan<- struct{} | Chan[Unit], RecvChan[Unit], SendChan[Unit] | Anonymous completion signals carry Unit |
 | Channel element T encountered in a bound package | new<T>Chan(buffer Int) IO[Chan[T]] | Allocate a fresh native channel when the action executes; generated names follow the existing binding-name precedence |
@@ -1502,6 +1521,21 @@ package. Other bindings reference them through generated `go:` imports, such as
 `import go_io "go:io"` and `go_io.Reader`; import aliases avoid generated names.
 All callers therefore share the owning module's type identity. This applies to
 `BindWithShim`; natural-ABI-only `Bind` output is unchanged.
+
+Pointer meaning depends on position (ADR 0011 §2C). Direct pointer parameters
+with scalar, record, slice, map or bytes payloads use the opaque builtin `Ref`;
+import `std/ref` for `new`, `get` and `set`. This includes read-only Go APIs:
+the binder does not infer whether a callee writes. Variadic `...*T` parameters
+become `List[Ref[T]]`, and callback adapters perform writeback in both directions.
+Pointers inside records or ordinary containers, pointer results, pointer-to-handle
+identity, JSON-scalar pointers and unresolved type-parameter pointers retain their
+existing representations. Method receivers retain their existing receiver rule.
+Each cell read and write takes the runtime Ref lock; the foreign call itself is
+not a cell-atomic transaction. Writeback occurs before returning payloads,
+optional absence or a Go error, including when the callee cancels its context.
+An already-cancelled IO does not call Go or write a cell. Ref parameters cannot
+represent nil; a native callback given a nil in-out pointer panics with
+`go4t ref: nil pointer parameter`.
 
 Lock detection follows Go vet's copylocks predicate:
 `Implements(*T, sync.Locker) && !Implements(T, sync.Locker)`, recursively through
@@ -1563,7 +1597,8 @@ record in a `go:` module uses that module's import path without `go:`.
 `rt.RegisterForeignRecord` supplies constructor/field operations,
 just as `rt.Shapes` supplies List/Option/Json operations. Nested records in extern
 signatures are registered recursively. No reflection or second record ABI is
-used. Structs, slices, maps and pointers cross by copy; private state is not copied.
+used. Structs, slices and maps cross by copy; in-out pointer parameters copy back
+through Ref cells after the call. Private state is not copied.
 
 Legacy bindings written with `bind -o` have no semantic owner metadata and
 retain the fallback key `<extern target import path>.<go4t source type name>`.
@@ -1589,6 +1624,12 @@ registration order before its OS/context/network defaults. Classifiers of every
 importable package in a bound `go:` package's transitive Go dependency closure are
 registered automatically during package initialization, before IO executes,
 without a separate user import. No other binding semantics are inferred from names.
+Every newly classified `rt.Failure` stores the original error in `Cause`,
+including classifier-selected failures. A wrapped existing failure remains the
+same inner `*rt.Failure`; its cause is not replaced by the wrapper.
+`Failure.Unwrap` exposes that cause to `errors.As`; `Failure.Is` delegates to
+`errors.Is(Cause, target)` whenever a cause exists, falling back to its five
+OS/context sentinels only when `Cause == nil`.
 
 Any call that receives a handle also forces `IO[R]`, whatever it returns: as a
 method receiver (`strings.Builder.Len` is `IO[Int]`, `ServeMux.Handle` is
@@ -2232,7 +2273,7 @@ share immutable storage, but empty slices do not retain the backing allocation.
 | Foreign time | Duration is nanoseconds; Time uses UnixNano, zero time → 0, 0 → zero time; Unix epoch and zero time are therefore indistinguishable at this boundary; locations/monotonic clock metadata are lost |
 | Foreign any decode | nil → Null; bool → Bool; signed/unsigned integer widths → Int (uint64 wraps by Go conversion); float32/64 → Float; string → Str; []byte → Bytes; time.Time → Time; []any → List; map[string]any → Map; all other values → Str(fmt.Sprint(value)) |
 | Foreign any encode | Null → nil; Bool/Int/Float/Str → bool/int64/float64/string; Bytes → copied []byte; Time → time.Time; List/Map → recursively copied []any/map[string]any |
-| Foreign callback error | A callback returning error executes go4t IO with its own Go context or the enclosing context, returning its error to Go; the outer fallible shim classifies that error without replacing its message/cause |
+| Foreign callback error | A callback returning error executes go4t IO with its own Go context or the enclosing context, returning its error to Go; the outer fallible shim preserves an existing `*rt.Failure` (including its message/cause) through wrappers; newly classified errors retain the original Go error as `Cause`, accessible through `io.tryIOCause` / `io.cause` |
 | Foreign Scan shape | Only methods with sole `...any` parameter and sole error result; count allocates slots; errors stop decoding; negative count is an IO failure |
 | Runtime shapes | Generated constructors registered once; unregistered Tuple2/Tuple3/Ordering/Ok/Err/List bridge use panics (programming/configuration error), not a source value |
 | Exported List/Map/Set | Copy recursively in both directions, with no mutable slice/map aliasing; nil/empty inputs become empty go4t collections; empty List returns a nil slice and empty Map/Set returns an allocated empty Go map |

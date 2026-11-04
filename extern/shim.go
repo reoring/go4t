@@ -124,6 +124,13 @@ func (g *shimGenerator) conversion(m *foreignMirror) string {
 		inner := g.conversion(m.elem)
 		fmt.Fprintf(&to, "x, ok := rt.OptionValue(v); if !ok { return nil }; result := %sTo(x,ctx); return &result\n", inner)
 		fmt.Fprintf(&from, "if v == nil { return rt.NoneOf() }; return rt.SomeOf(%sFrom(*v))\n", inner)
+	case "ref":
+		inner := g.conversion(m.elem)
+		// IO entry checks cancellation. Reads and writeback use Background so a
+		// completed foreign mutation is not discarded if the callee cancels ctx.
+		// Ref's public helpers own the cell lock; it is not held across Go code.
+		fmt.Fprintf(&to, "x, _ := rt.RefGet(v).(rt.IO)(context.Background()); result := %sTo(x,ctx); return &result\n", inner)
+		fmt.Fprintf(&from, "if v == nil { panic(\"go4t ref: nil pointer parameter\") }; result, _ := rt.RefNew(%sFrom(*v)).(rt.IO)(context.Background()); return result\n", inner)
 	case "slice":
 		inner := g.conversion(m.elem)
 		fmt.Fprintf(&to, "var result %s; for { x, rest, ok := rt.Shapes.Uncons(v); if !ok { return result }; result = append(result, %sTo(x,ctx)); v = rest }\n", typ, inner)
@@ -235,12 +242,21 @@ func (g *shimGenerator) conversion(m *foreignMirror) string {
 			ctx = "a0"
 			start = 1
 		}
+		var writeback strings.Builder
 		for i, p := range c.params {
-			args[i] = g.conversion(p) + "From(a" + strconv.Itoa(i+start) + ")"
+			native := "a" + strconv.Itoa(i+start)
+			args[i] = g.conversion(p) + "From(" + native + ")"
+			if p.refParameter() {
+				cell := "ref" + strconv.Itoa(i)
+				fmt.Fprintf(&to, "%s := %s\n", cell, args[i])
+				g.refWriteback(&writeback, p, cell, native, ctx, true)
+				args[i] = cell
+			}
 		}
 		fmt.Fprintf(&to, "value := f(%s)\n", strings.Join(args, ","))
 		if c.effect() {
 			fmt.Fprintf(&to, "value, err := value.(rt.IO)(%s)\n", ctx)
+			to.WriteString(writeback.String())
 			if c.failure {
 				var zero []string
 				to.WriteString("if err != nil {\n")
@@ -356,9 +372,29 @@ func (g *shimGenerator) fromValues(m *foreignMirror, values []string) string {
 	return fmt.Sprintf("rt.Tuple%dOf(%s)", len(converted), strings.Join(converted, ","))
 }
 
+func (m *foreignMirror) refParameter() bool {
+	return m.kind == "ref" || m.kind == "slice" && m.elem.kind == "ref"
+}
+
+// refWriteback synchronizes parameter cells after invocation, before handling
+// either payloads or errors. Reverse adapters copy go4t callback writes back to
+// the caller's original Go pointers.
+func (g *shimGenerator) refWriteback(out *strings.Builder, m *foreignMirror, cell, native, ctx string, reverse bool) {
+	if m.kind == "slice" {
+		fmt.Fprintf(out, "{ rest := %s; for _, value := range %s { cell, tail, _ := rt.Shapes.Uncons(rest); rest = tail\n", cell, native)
+		g.refWriteback(out, m.elem, "cell", "value", ctx, reverse)
+		out.WriteString("} }\n")
+	} else if reverse {
+		fmt.Fprintf(out, "*%s = *%sTo(%s,%s)\n", native, g.conversion(m), cell, ctx)
+	} else {
+		fmt.Fprintf(out, "_, _ = rt.RefSet(%s,%sFrom(*%s)).(rt.IO)(context.Background())\n", cell, g.conversion(m.elem), native)
+	}
+}
+
 func (g *shimGenerator) callBody(out *strings.Builder, callee string, sig *types.Signature, c *foreignCall) {
 	effect := c.effect()
 	var args []string
+	var writeback strings.Builder
 	if c.context {
 		args = append(args, "ctx")
 	}
@@ -369,6 +405,12 @@ func (g *shimGenerator) callBody(out *strings.Builder, callee string, sig *types
 	} else {
 		for i, p := range c.params {
 			arg := fmt.Sprintf("%sTo(p%d,ctx)", g.conversion(p), i)
+			if p.refParameter() {
+				native := fmt.Sprintf("arg%d", i)
+				fmt.Fprintf(out, "%s := %s\n", native, arg)
+				g.refWriteback(&writeback, p, fmt.Sprintf("p%d", i), native, "ctx", false)
+				arg = native
+			}
 			if c.variadic && i == len(c.params)-1 {
 				arg += "..."
 			}
@@ -384,6 +426,7 @@ func (g *shimGenerator) callBody(out *strings.Builder, callee string, sig *types
 	result := "rt.Unit{}"
 	if count == 0 {
 		out.WriteString(call + "\n")
+		out.WriteString(writeback.String())
 	} else {
 		n := count
 		if c.failure || c.optional {
@@ -400,6 +443,7 @@ func (g *shimGenerator) callBody(out *strings.Builder, callee string, sig *types
 			targets = append(targets, "present")
 		}
 		fmt.Fprintf(out, "%s := %s\n", strings.Join(targets, ","), call)
+		out.WriteString(writeback.String())
 		if c.failure {
 			out.WriteString("if err != nil { return nil,rt.ClassifyError(err) }\n")
 		}

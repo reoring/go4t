@@ -84,18 +84,28 @@ func Fail(msg any) any {
 // TryIO captures errors and panics from running an action as a generated Result.
 // Like Bind, it is lazy; panics while constructing its argument are outside it.
 func TryIO(io any) any {
+	return tryIO(io, failureValue)
+}
+
+// TryIOCause captures the same outcomes as TryIO, retaining the Go error handle
+// in an IoFailure record. Failures without a foreign cause carry None.
+func TryIOCause(io any) any {
+	return tryIO(io, failureCauseValue)
+}
+
+func tryIO(io any, capture func(error) any) any {
 	return IO(func(ctx context.Context) (value any, err error) {
 		defer func() {
 			if p := recover(); p != nil {
-				value, err = ErrOf(failureValue(&Failure{Kind: Panic, Message: fmt.Sprint(p)})), nil
+				value, err = ErrOf(capture(&Failure{Kind: Panic, Message: fmt.Sprint(p)})), nil
 			}
 		}()
 		if failure := ctx.Err(); failure != nil {
-			return ErrOf(failureValue(failure)), nil
+			return ErrOf(capture(failure)), nil
 		}
 		result, failure := io.(IO)(ctx)
 		if failure != nil {
-			return ErrOf(failureValue(failure)), nil
+			return ErrOf(capture(failure)), nil
 		}
 		return OkOf(result), nil
 	})

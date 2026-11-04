@@ -131,7 +131,7 @@ func qualifyModules(input []*ast.Module) (*moduleResolver, []*ast.File) {
 		}
 	}
 	for module, names := range map[string][]string{
-		"std/prelude": {"Unit"}, "std/map": {"Map"}, "std/set": {"Set"},
+		"std/prelude": {"Unit", "GoError"}, "std/map": {"Map"}, "std/set": {"Set"},
 		"std/array": {"Array"}, "std/conc": {"Fiber"}, "std/io": {"IO"},
 		"std/string": {"String"}, "std/float": {"Float"}, "std/ref": {"Ref"},
 		"std/mutmap": {"MutMap"},
@@ -275,7 +275,7 @@ func contains(names []string, name string) bool {
 }
 func builtinType(name string) bool {
 	switch name {
-	case "Int", "Float", "String", "Bool", "Unit", "IO", "Map", "Set", "Array", "Fiber", "Ref", "MutMap", "Chan", "RecvChan", "SendChan":
+	case "Int", "Float", "String", "Bool", "Unit", "GoError", "IO", "Map", "Set", "Array", "Fiber", "Ref", "MutMap", "Chan", "RecvChan", "SendChan":
 		return true
 	}
 	return strings.HasPrefix(name, "Tuple")

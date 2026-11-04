@@ -45,16 +45,68 @@ func TestClassifyError(t *testing.T) {
 				} else if tt.kind == Cancelled {
 					message = context.Canceled.Error()
 				}
-				want := &Failure{Kind: tt.kind, Message: message}
+				want := &Failure{Kind: tt.kind, Message: message, Cause: err}
 				got := ClassifyError(err)
 				if !reflect.DeepEqual(got, want) || got.Error() != message {
 					t.Fatalf("ClassifyError(%v) = %#v, want %#v", err, got, want)
+				}
+				if got.(*Failure).Cause != err || errors.Unwrap(got) != err {
+					t.Fatal("original error identity was not retained as the cause")
 				}
 				if ClassifyError(got) != got || ClassifyError(fmt.Errorf("wrapped: %w", got)) != got {
 					t.Fatal("classified failure identity was not preserved")
 				}
 			}
 		})
+	}
+}
+
+type testStatusError struct{ reason error }
+
+func (e *testStatusError) Error() string { return "pods/example: " + e.reason.Error() }
+func (e *testStatusError) Unwrap() error { return e.reason }
+
+func TestClassifyErrorClassifierCause(t *testing.T) {
+	previous := errorClassifiers
+	t.Cleanup(func() { errorClassifiers = previous })
+	errorClassifiers = nil
+	RegisterErrorClassifier(func(err error) (Kind, string, bool) {
+		var status *testStatusError
+		if errors.As(err, &status) {
+			return NotFound, "classified: " + err.Error(), true
+		}
+		return "", "", false
+	})
+	sentinel := errors.New("not found")
+	status := &testStatusError{reason: sentinel}
+	for _, original := range []error{status, fmt.Errorf("request: %w", status)} {
+		failure := ClassifyError(original).(*Failure)
+		if failure.Kind != NotFound || failure.Message != "classified: "+original.Error() || failure.Cause != original {
+			t.Fatalf("classifier lost kind, message or cause: %#v", failure)
+		}
+		if !errors.Is(failure, sentinel) || !failure.Is(sentinel) {
+			t.Fatal("classified failure lost its foreign sentinel")
+		}
+		if errors.Is(failure, os.ErrNotExist) || failure.Is(os.ErrNotExist) {
+			t.Fatal("kind-based sentinel must not override a non-nil cause")
+		}
+		var recovered *testStatusError
+		if !errors.As(failure, &recovered) || recovered != status {
+			t.Fatal("classified failure lost its concrete foreign error")
+		}
+	}
+}
+
+func TestClassifyErrorNestedFailureCause(t *testing.T) {
+	cause := &testStatusError{reason: errors.New("conflict")}
+	inner := &Failure{Kind: FailureKind, Message: "Conflict: " + cause.Error(), Cause: cause}
+	wrapped := fmt.Errorf("outer: %w", fmt.Errorf("inner: %w", inner))
+	got := ClassifyError(wrapped)
+	if got != inner || got.(*Failure).Cause != cause {
+		t.Fatalf("nested failure changed: %#v, want %#v", got, inner)
+	}
+	if !errors.Is(got, cause.reason) || errors.Unwrap(got) != cause {
+		t.Fatal("nested failure lost its cause chain")
 	}
 }
 
@@ -71,6 +123,9 @@ func TestFailureSentinelPredicates(t *testing.T) {
 	}
 	for _, tt := range sentinels {
 		failure := &Failure{Kind: tt.kind, Message: tt.err.Error()}
+		if errors.Unwrap(failure) != nil {
+			t.Fatal("a cause-free failure must unwrap to nil")
+		}
 		for _, target := range sentinels {
 			if got := errors.Is(failure, target.err); got != (tt.kind == target.kind) {
 				t.Errorf("errors.Is(%#v, %v) = %v", failure, target.err, got)
@@ -124,7 +179,7 @@ func TestIOFailureBoundaries(t *testing.T) {
 	for _, input := range []func() any{ReadLine, ReadAll} {
 		setTestInput(t, failingInput{os.ErrPermission})
 		_, err := input().(IO)(context.Background())
-		if !reflect.DeepEqual(err, &Failure{Kind: PermissionDenied, Message: os.ErrPermission.Error()}) {
+		if !reflect.DeepEqual(err, &Failure{Kind: PermissionDenied, Message: os.ErrPermission.Error(), Cause: os.ErrPermission}) {
 			t.Fatalf("stdin error = %#v", err)
 		}
 	}
@@ -138,7 +193,7 @@ func TestForeignFailuresAtSequenceAndConcurrentBoundaries(t *testing.T) {
 		IO(func(ctx context.Context) (any, error) { return runConcurrentIO(ctx, foreign) }),
 	} {
 		_, err := action(context.Background())
-		if !reflect.DeepEqual(err, &Failure{Kind: PermissionDenied, Message: os.ErrPermission.Error()}) {
+		if !reflect.DeepEqual(err, &Failure{Kind: PermissionDenied, Message: os.ErrPermission.Error(), Cause: os.ErrPermission}) {
 			t.Fatalf("foreign failure = %#v", err)
 		}
 	}

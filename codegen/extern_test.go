@@ -167,12 +167,12 @@ func TestAdapters(t *testing.T) {
     foreign.Calls = 0
     cancelled, cancel := context.WithCancel(context.Background())
     cancel()
-    if _, err := typedWithError_("not run").(rt.IO)(cancelled); !errors.Is(err, context.Canceled) || !reflect.DeepEqual(err, &rt.Failure{Kind: rt.Cancelled, Message: context.Canceled.Error()}) || foreign.Calls != 0 { t.Fatalf("cancelled adapter: calls %d, err %v", foreign.Calls, err) }
+    if _, err := typedWithError_("not run").(rt.IO)(cancelled); !errors.Is(err, context.Canceled) || err.(*rt.Failure).Kind != rt.Cancelled || err.(*rt.Failure).Message != context.Canceled.Error() || err.(*rt.Failure).Cause != context.Canceled || foreign.Calls != 0 { t.Fatalf("cancelled adapter: calls %d, err %v", foreign.Calls, err) }
     good := typedWithError_("ok").(rt.IO)
     bad := typedWithError_("bad").(rt.IO)
     if foreign.Calls != 0 { t.Fatal("Go effect executed before IO") }
     if got, err := good(context.Background()); got != "ok" || err != nil { t.Fatalf("good = %v, %v", got, err) }
-    if got, err := bad(context.Background()); got != nil || !reflect.DeepEqual(err, &rt.Failure{Kind: rt.FailureKind, Message: "fixture failure"}) { t.Fatalf("bad = %v, %v", got, err) }
+    if got, err := bad(context.Background()); got != nil || err.(*rt.Failure).Kind != rt.FailureKind || err.(*rt.Failure).Message != "fixture failure" || err.(*rt.Failure).Cause == nil || err.(*rt.Failure).Cause.Error() != "fixture failure" { t.Fatalf("bad = %v, %v", got, err) }
     if _, err := good(context.Background()); err != nil || foreign.Calls != 3 { t.Fatalf("IO replay: calls %d, err %v", foreign.Calls, err) }
     for _, tc := range []struct { action any; want any }{
         {typedStringsWithError_(rt.ListFromStrings([]string{"ok"})), rt.ListFromStrings([]string{"ok"})},

@@ -205,12 +205,17 @@ is assumed by rt. See SPEC §6.4 and the runnable [HTTP example](../examples/htt
 
 ## `std/io`
 
-Source: [`io/io.gt`](../std/io/io.gt). 34 top-level declarations.
+Source: [`io/io.gt`](../std/io/io.gt). 40 top-level declarations.
 
-All operations returning IO are deferred; `formatTime` and `ioErrorMessage` are pure.
+All operations returning IO are deferred; `formatTime`, `ioErrorMessage`, `cause` and `goErrorMessage` are pure.
 IO errors are classified as NotFound, PermissionDenied, AlreadyExists, Timeout,
 Cancelled, Network, or Failure; recovered action/worker panics are Panic.
 Wrapped Go errors follow the same classification. See SPEC §6.2 for precedence.
+`tryIO` keeps its existing IoError result shape. Use `tryIOCause` when the original
+Go error identity is needed: `cause` returns an opaque GoError, and
+`goErrorMessage` explicitly projects its original (possibly unclassified) message.
+`ioRaiseCause` retains that handle; nullary Timeout/Cancelled use the canonical
+`ioErrorMessage` text. GoError has no equality, Show or Debug instance.
 
 For whole-file/streaming parity, note that `string.lines` splits on LF and
 retains CR, whereas `io.foldLines` strips both LF and CRLF terminators.
@@ -222,11 +227,16 @@ A bare CR not followed by LF remains part of the line in both APIs.
 | Source signature | Semantics | Boundary behaviour | Law-eligible |
 | --- | --- | --- | --- |
 | `type IoError = NotFound(String) \| PermissionDenied(String) \| AlreadyExists(String) \| Timeout \| Cancelled \| Panic(String) \| Network(String) \| Failure(String) deriving Eq, Debug` | Typed IO failures; String payloads carry the message. | Timeout/Cancelled are nullary; other messages may be empty; constructors are qualified through io. | — |
+| `type IoFailure = IoFailure{error: IoError, cause: Option[GoError]}` | Classified IO error together with its original Go error handle, when present. | Some retains the exact Go error; local ioFail/ioRaise failures and recovered panics carry None; no Eq/Show instance. | — |
+| `instance Debug[IoFailure]` | Render the classified error and cause presence. | Uses None or Some(<GoError>) without inspecting the opaque handle. | — |
+| `func cause(f IoFailure) Option[GoError]` | Return the retained original cause handle. | None when no foreign cause exists; no classification or copy. | Yes |
+| `extern func goErrorMessage(e GoError) String = "go4t/rt".GoErrorMessage` | Return the original Go error's Error() message. | No classification, prefix or canonicalization; may differ from ioErrorMessage. | No |
 | `func ioErrorMessage(e IoError) String` | Return the display message without a constructor wrapper. | Timeout → `context deadline exceeded`; Cancelled → `context canceled`; all other payloads unchanged. | Yes |
 | `instance Show[IoError]` | show delegates to ioErrorMessage. | Panic text has no added prefix; empty message displays empty text. | — |
 | `instance Eq[IoError]` | Derived constructor and payload equality. | Different constructors are unequal even with equal messages; nullary values equal themselves. | — |
 | `instance Debug[IoError]` | Derived structural constructor rendering. | String payloads are quoted and escaped; Timeout/Cancelled have no parentheses. | — |
 | `extern func ioRaise[A](e IoError) IO[A] = "go4t/rt".Raise` | Construct a deferred failure preserving the supplied kind and message. | tryIO captures Err(e); no failure merely from constructing the action. | No |
+| `extern func ioRaiseCause[A](f IoFailure) IO[A] = "go4t/rt".RaiseCause` | Construct a deferred failure preserving its IoError and Go cause handle. | Nullary Timeout/Cancelled use canonical ioErrorMessage text; cause is never reclassified; executing cancellation wins before the action. | No |
 | `func ioFailWith[E Show, A](e E) IO[A]` | Raise Failure with the error's Show rendering. | Show rendering is strict while constructing the deferred ioFail; use ioRaise to preserve an IoError constructor. | No |
 | `extern func ioPure[A](a A) IO[A] = "go4t/rt".Pure` | Construct a successful IO holding an already evaluated value. | Argument is already strict; re-running returns the same value without recomputing its construction. | No |
 | `extern func ioBind[A, B](io IO[A], f func(A) IO[B]) IO[B] = "go4t/rt".Bind` | Sequence IO, passing its result to the continuation. | Failure skips f; success invokes f when the action runs, not when constructed. | No |
@@ -239,6 +249,7 @@ A bare CR not followed by LF remains part of the line in both APIs.
 | `extern func exit[A](code Int) IO[A] = "go4t/rt".Exit` | Terminate the process with the supplied status when run. | Not catchable by tryIO; follows OS/Go process status semantics. | No |
 | `extern func getEnv(name String) IO[Option[String]] = "go4t/rt".GetEnv` | Read an optional environment value. | Absent name gives `None`; present empty value gives `Some("")`; values are not trimmed. | No |
 | `extern func tryIO[A](io IO[A]) IO[Result[IoError, A]] = "go4t/rt".TryIO` | Run lazily; success becomes Ok, typed failures and recovered panics become Err. | Error → Err(IoError); action panic → Err(Panic(payload text without prefix)); construction panics/exit not caught. | No |
+| `extern func tryIOCause[A](io IO[A]) IO[Result[IoFailure, A]] = "go4t/rt".TryIOCause` | Capture the same outcomes as tryIO while retaining the original Go error. | Err(IoFailure{error, cause}); Some holds the original error, None for local failures/recovered panics; lazy, replayable and cancellation-aware. | No |
 | `extern func readFile(path String) IO[String] = "go4t/rt".ReadFile` | Read the complete file; filesystem errors fail the IO. | Empty file → empty string; missing path → NotFound; other errors use the IO classification. | No |
 | `extern func foldLines[B](path String, init B, step func(B, String) IO[B]) IO[B] = "go4t/rt".FoldLines` | Stream a named file, sequencing step's IO once per line and returning the final accumulator. | Empty file returns init without calling step; LF/CRLF stripped, bare CR retained, final unterminated line delivered; no fixed line-length limit; storage scales with the longest line plus accumulator; missing path → NotFound, permission errors → PermissionDenied; failure or observed cancellation stops processing and closes the file. | No |
 | `func forEachLine(path String, f func(String) IO[Unit]) IO[Unit]` | Sequence f over file lines through foldLines with a Unit accumulator. | Empty file returns unit() without calling f; line boundaries, classified errors, cancellation and file closure follow foldLines. | No |
@@ -478,6 +489,11 @@ waiting for its mutex does not interrupt an operation already holding the lock.
 ## `std/prelude`
 
 Source: [`prelude/prelude.gt`](../std/prelude/prelude.gt). 51 top-level declarations.
+
+`GoError` (kind `*`, also `prelude.GoError`) is an opaque builtin handle to a
+Go `error`, not a source ADT. Like Ref/Fiber it has no value constructors or
+standard class instances. `std/io` exposes optional causes and the explicit
+`goErrorMessage` projection; the handle retains the original error identity.
 
 | Source signature | Semantics | Boundary behaviour | Law-eligible |
 | --- | --- | --- | --- |

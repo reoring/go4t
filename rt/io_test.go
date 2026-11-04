@@ -553,7 +553,7 @@ func TestInputErrors(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			setTestInput(t, failingInput{wantErr})
-			if got, err := tt.action().(IO)(context.Background()); got != nil || !reflect.DeepEqual(err, &Failure{Kind: FailureKind, Message: wantErr.Error()}) {
+			if got, err := tt.action().(IO)(context.Background()); got != nil || !reflect.DeepEqual(err, &Failure{Kind: FailureKind, Message: wantErr.Error(), Cause: wantErr}) {
 				t.Fatalf("%s = (%#v, %v), want (nil, %v)", tt.name, got, err, wantErr)
 			}
 		})

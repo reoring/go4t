@@ -25,13 +25,20 @@ const (
 type Failure struct {
 	Kind    Kind
 	Message string
+	Cause   error
 }
 
 func (f *Failure) Error() string { return f.Message }
 
-// Is retains standard sentinel predicates after the foreign error is classified.
-// Messages alone never identify cancellation or a filesystem error.
+// Unwrap preserves the original Go error for errors.Is and errors.As.
+func (f *Failure) Unwrap() error { return f.Cause }
+
+// Is delegates to the original error, falling back to standard sentinels only
+// for failures constructed without a cause. Messages never identify a sentinel.
 func (f *Failure) Is(target error) bool {
+	if f.Cause != nil {
+		return errors.Is(f.Cause, target)
+	}
 	switch f.Kind {
 	case NotFound:
 		return target == os.ErrNotExist
@@ -75,7 +82,7 @@ func ClassifyError(err error) error {
 	}
 	for _, classify := range errorClassifiers {
 		if kind, message, ok := classify(err); ok {
-			return &Failure{Kind: kind, Message: message}
+			return &Failure{Kind: kind, Message: message, Cause: err}
 		}
 	}
 	kind, message := FailureKind, err.Error()
@@ -98,7 +105,7 @@ func ClassifyError(err error) error {
 		}
 		kind = Network
 	}
-	return &Failure{Kind: kind, Message: message}
+	return &Failure{Kind: kind, Message: message, Cause: err}
 }
 
 // failureValue constructs the generated IoError carried by an Err result.
@@ -110,13 +117,47 @@ func failureValue(err error) any {
 	return Shapes.IoError(string(failure.Kind), failure.Message)
 }
 
+const ioFailureRecordKey = "go4t/rt.IoFailure"
+
+// failureCauseValue preserves the cause handle alongside the generated IoError.
+func failureCauseValue(err error) any {
+	failure := ClassifyError(err).(*Failure)
+	var cause any
+	if failure.Cause == nil {
+		cause = NoneOf()
+	} else {
+		cause = SomeOf(failure.Cause)
+	}
+	return ForeignRecord(ioFailureRecordKey, []any{failureValue(failure), cause})
+}
+
+// GoErrorMessage reads the original error's message without classifying it.
+func GoErrorMessage(value any) any { return value.(error).Error() }
+
 // Raise constructs a deferred failure from a generated IoError.
 func Raise(value any) any {
+	return raiseFailure(failureFromValue(value))
+}
+
+// RaiseCause re-raises a generated IoFailure without replacing its cause.
+// Nullary IoError constructors retain their canonical messages.
+func RaiseCause(value any) any {
+	failure := failureFromValue(ForeignRecordField(ioFailureRecordKey, value, 0))
+	if cause, ok := OptionValue(ForeignRecordField(ioFailureRecordKey, value, 1)); ok {
+		failure.Cause = cause.(error)
+	}
+	return raiseFailure(failure)
+}
+
+func failureFromValue(value any) *Failure {
 	if Shapes.IoErrorOf == nil {
 		panic("rt.Shapes is not initialized: IoErrorOf is required")
 	}
 	kind, message := Shapes.IoErrorOf(value)
-	failure := &Failure{Kind: Kind(kind), Message: message}
+	return &Failure{Kind: Kind(kind), Message: message}
+}
+
+func raiseFailure(failure *Failure) any {
 	return IO(func(ctx context.Context) (any, error) {
 		if err := ctx.Err(); err != nil {
 			return nil, ClassifyError(err)

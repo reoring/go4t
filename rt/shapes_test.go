@@ -13,6 +13,7 @@ type testNone struct{}
 type testOk struct{ value any }
 type testErr struct{ value any }
 type testIoError struct{ kind, message string }
+type testIoFailure struct{ failure, cause any }
 type testTuple2 struct{ a, b any }
 type testTuple3 struct{ a, b, c any }
 
@@ -20,11 +21,42 @@ func installTestShapes(t *testing.T) {
 	t.Helper()
 	previous := Shapes
 	t.Cleanup(func() { Shapes = previous })
+	previousFailure, hadFailure := foreignRecords[ioFailureRecordKey]
+	t.Cleanup(func() {
+		if hadFailure {
+			foreignRecords[ioFailureRecordKey] = previousFailure
+		} else {
+			delete(foreignRecords, ioFailureRecordKey)
+		}
+	})
+	RegisterForeignRecord(ioFailureRecordKey, func(fields []any) any {
+		return testIoFailure{fields[0], fields[1]}
+	}, func(value any, index int) any {
+		failure := value.(testIoFailure)
+		switch index {
+		case 0:
+			return failure.failure
+		case 1:
+			return failure.cause
+		default:
+			panic("test shape: invalid IoFailure field")
+		}
+	})
 	Shapes = ShapeFuncs{
 		Cons:    func(h, tail any) any { return testCons{h, tail} },
 		Nil:     func() any { return testNil{} },
 		Some:    func(a any) any { return testSome{a} },
 		None:    func() any { return testNone{} },
+		OptionValue: func(value any) (any, bool) {
+			switch value := value.(type) {
+			case testSome:
+				return value.value, true
+			case testNone:
+				return nil, false
+			default:
+				panic("test shape: not an option")
+			}
+		},
 		Ok:      func(a any) any { return testOk{a} },
 		Err:     func(e any) any { return testErr{e} },
 		IoError: func(kind, message string) any { return testIoError{kind, message} },

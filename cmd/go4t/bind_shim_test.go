@@ -38,7 +38,7 @@ func main() IO[Unit] {
 		"type Widget = Widget{name: String} deriving Eq, Debug",
 		`extern func widgetEcho(recv Widget, p0 String) String = "clitoolstest/go-shim".Widget_Echo`,
 		`extern func widgetCount(recv Widget) Int = "clitoolstest/go-shim".Widget_Count`,
-		"extern func widgetPointer(recv Widget, p0 Option[String]) String",
+		"extern func widgetPointer(recv Widget, p0 Ref[String]) IO[String]",
 	} {
 		if !strings.Contains(string(declarations), want) {
 			t.Errorf("missing %q in declarations:\n%s", want, declarations)

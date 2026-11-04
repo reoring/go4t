@@ -21,7 +21,7 @@ func TestForeignMirrors(t *testing.T) {
 		"type Record = Record{enabled: Bool, name: String, point: Point, maybe: Option[Point], wait: Int, at: Int, bytes: String, err: Option[String], labels: Map[String, Int]} deriving Eq, Debug",
 		"type Counter = CounterHandle", "type Opaque = OpaqueHandle", "type Stateful = StatefulHandle",
 		"type Labelled = Labelled{type_: String, match_: Int} deriving Eq, Debug", "type Reserved = ReservedHandle",
-		"extern func echoRecord(p0 Record) Record", "extern func echoPointer(p0 Option[Point]) Option[Point]",
+		"extern func echoRecord(p0 Record) Record", "extern func echoPointer(p0 Ref[Point]) IO[Option[Point]]",
 		"extern func echoDuration(p0 Int) Int", "extern func echoTime(p0 Int) Int", "extern func echoBytes(p0 String) String",
 		"extern func echoCount(p0 Int) Int", "extern func echoMap(p0 Map[Int, List[Point]]) Map[Int, List[Point]]",
 		"extern func withContext(p0 Record) IO[Record]", "extern func contextOnly() IO[String]", "extern func errorOnly(p0 Bool) IO[Unit]",

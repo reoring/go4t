@@ -64,7 +64,7 @@ func TestExtendedBindingShim(t *testing.T) {
 		"extern func returned() func(Int) IO[(String, Int)]",
 		"extern func returnedContext() func(Int) IO[Int]",
 		"extern func returnedSeq() func() List[String]",
-		"extern func functionalOption() func(Option[Opts]) Unit",
+		"extern func functionalOption() func(Ref[Opts]) IO[Unit]",
 		"extern func invoke(p0 func() IO[(String, Int)]) IO[(String, Int)]",
 		"extern func invokeContext(p0 func() IO[(String, Int)]) IO[(String, Int)]",
 		"extern func invokeTriple(p0 func() (String, Int, Bool)) (String, Int, Bool)",
@@ -239,7 +239,9 @@ func TestBoundary(t *testing.T) {
  v,err := s.ReturnedContext().(func(any) any)(int64(5)).(rt.IO)(ctx)
  if err != nil { t.Fatal(err) }; equal(v,int64(5))
  equal(s.ReturnedSeq().(func() any)(),[]any{"first","second"})
- equal(s.FunctionalOption().(func(any) any)(option{[]any{int64(2)},true}),rt.Unit{})
+ opts := run(rt.RefNew([]any{int64(2)}))
+ equal(run(s.FunctionalOption().(func(any) any)(opts)),rt.Unit{})
+ equal(run(rt.RefGet(opts)),[]any{int64(3)})
  callback := func() any { return rt.IO(func(context.Context) (any,error) { return [2]any{"callback",int64(4)},nil }) }
  equal(run(s.Invoke(callback)),[2]any{"callback",int64(4)})
  equal(run(s.InvokeContext(callback)),[2]any{"callback",int64(4)})
