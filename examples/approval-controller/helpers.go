@@ -151,21 +151,6 @@ var storageResizeOperationResourceGVK = schema.GroupVersionKind{
 	Kind:    StorageResizeOperationKind,
 }
 
-var storageResizeOperationListResourceGVK = schema.GroupVersionKind{
-	Group:   StorageCapabilityGroup,
-	Version: StorageCapabilityVersion,
-	Kind:    StorageResizeOperationKind + "List",
-}
-
-func isTerminalStorageResizeOperationPhase(phase string) bool {
-	switch phase {
-	case "Succeeded", "Failed", "Canceled", "RolledBack":
-		return true
-	default:
-		return false
-	}
-}
-
 func newStorageResizeOperationObject() *unstructured.Unstructured {
 	obj := &unstructured.Unstructured{}
 	obj.SetGroupVersionKind(storageResizeOperationResourceGVK)
@@ -203,28 +188,6 @@ func firstNonEmptyNestedString(obj map[string]any, paths ...[]string) string {
 		}
 	}
 	return ""
-}
-
-func firstNestedStringSlice(obj map[string]any, paths ...[]string) ([]string, bool) {
-	for _, path := range paths {
-		values, ok, _ := unstructured.NestedStringSlice(obj, path...)
-		if ok {
-			return values, true
-		}
-		items, ok, _ := unstructured.NestedSlice(obj, path...)
-		if !ok {
-			continue
-		}
-		stringValues := make([]string, 0, len(items))
-		for _, item := range items {
-			value, ok := item.(string)
-			if ok {
-				stringValues = append(stringValues, value)
-			}
-		}
-		return stringValues, true
-	}
-	return nil, false
 }
 
 func newStorageAutopilotPolicyObject() *unstructured.Unstructured {
@@ -273,13 +236,5 @@ func appendAuditCorrelation(message, auditCorrelationID string) string {
 		return message
 	}
 	return message + " auditCorrelationID=" + auditCorrelationID
-}
-
-func mapStringDefault(obj map[string]any, key string) string {
-	if obj == nil {
-		return ""
-	}
-	value, _ := obj[key].(string)
-	return value
 }
 

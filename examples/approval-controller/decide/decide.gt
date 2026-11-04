@@ -2,9 +2,9 @@ package decide
 
 import "std/list"
 
-// Observed is the projection of everything the approval decision needs. Go
-// reads the objects (approval, plan, policy, window, operations) up front and
-// fills this record; decide never asks for more.
+// Observed is the projection of everything the approval decision needs.
+// observeInputs reads and projects the objects up front; decide stays pure
+// and never asks for more.
 
 type Plan = Plan{
   generation: Int,
@@ -18,7 +18,7 @@ type Plan = Plan{
   observedAt: Timestamp
 } deriving Eq, Debug
 
-// Go parses the strings; the decision sees only the three states each can be in.
+// Observation parses the strings; the decision sees three explicit states.
 type Ttl = NoTtl | InvalidTtl | TtlNanos(Int) deriving Eq, Debug
 type Timestamp = NoTimestamp | InvalidTimestamp | AtNanos(Int) deriving Eq, Debug
 

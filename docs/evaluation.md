@@ -305,3 +305,31 @@ Top gaps and disposition:
   universal proofs; there is no standard CSV codec or URL parser. The probes
   used Int-cents proofs, explicit sampling, and application-level CSV/URL parsing
   rather than treating those limits as proved behavior.
+
+## Operational soak: node-drain-typed (2026-11-04)
+
+Question: nothing had run longer than one reconcile. `examples/node-drain-typed/soak`
+drives a dedicated kind cluster (one worker, a 2-replica Deployment, a
+PodDisruptionBudget `minAvailable: 1`) through cordon → evict until `MarkDrained`
+→ `--release` → wait for replacement pods, for three hours.
+
+| measure | value |
+| --- | --- |
+| cycles | 839, all drained, all recovered |
+| reconciles per cycle | mean 4.25, max 16 |
+| wall per cycle | mean 0.41 s, max 20.8 s (PDB back-off) |
+| max RSS of one reconcile | 35.8–38.4 MB, flat over three hours |
+| evictions blocked by the PDB | 49, all classified by the `TooManyRequests:` prefix and retried |
+| unclassified stderr | 8 × `pods "…" not found` (exit 1, next reconcile succeeded) |
+
+The eight failures are the only finding: a pod observed by `observe` was gone by
+the time `apply` evicted it (ReplicaSet rollover between the two). The API
+error was already classified as `io.NotFound`; the example raised it instead of
+treating a vanished pod as evicted. `evict` now maps `NotFound` to "nothing to
+do", the same way `observe` treats a missing node.
+
+Decisions from the observation: no `Throttled` constructor is added to `IoError`
+(the prefix classification carried 49 back-offs without ambiguity); `Conflict`
+was never observed because cordon is a merge patch and eviction is a create,
+neither of which carries a resourceVersion, so there is nothing to add until a
+controller uses `Update`. Memory and reconcile time did not drift.

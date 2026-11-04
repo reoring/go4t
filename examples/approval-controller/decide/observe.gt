@@ -1,0 +1,225 @@
+package decide
+
+import "std/dyn"
+import "std/float"
+import "std/io"
+import "std/list"
+import "std/map"
+import "std/result"
+import "std/string"
+import fetch "go:approvalctl/fetch"
+import strings "go:strings"
+import time "go:time"
+import unstructured "go:k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+import client "go:sigs.k8s.io/controller-runtime/pkg/client"
+
+// The shell owns the native client and approval. Only raw Get/List calls need
+// the Go fetch boundary; reference selection and all decision inputs live here.
+func observeInputs(c client.Client, approval unstructured.Unstructured) IO[Observed] {
+  do {
+    namespace <- unstructured.unstructuredGetNamespace(approval)
+    name <- unstructured.unstructuredGetName(approval)
+    approvalFields <- unstructured.unstructuredObject(approval)
+    let obj = dyn.Map(approvalFields)
+    plan <- _readObject(c, namespace, _nestedString(obj, ["spec", "planRef", "name"]), "StorageResizePlan")
+    planFields <- _fetchedFields(plan)
+    observedPlan <- _projectFetchedPlan(plan, planFields)
+    policy <- _readObject(c, namespace, _nestedString(obj, ["spec", "policyRef", "name"]), "StorageAutopilotPolicy")
+    observedPolicy <- _projectFetchedPolicy(policy)
+    let windowName = _firstNonEmpty([
+      _nestedString(obj, ["spec", "maintenanceWindowRef", "name"]),
+      _nestedString(obj, ["spec", "maintenanceWindow", "name"]),
+      _nestedString(planFields, ["spec", "maintenanceWindowRef", "name"])
+    ])
+    window <- _readObject(c, namespace, windowName, "StorageMaintenanceWindow")
+    observedWindow <- _projectFetchedWindow(window)
+    (operationsReadError, operations) <- fetch.listOperations(c, namespace)
+    conflicting <- if operationsReadError {
+      ioPure(false)
+    } else {
+      do {
+        items <- unstructured.unstructuredListItems(operations)
+        _conflictingOperation(items, name, _nestedString(planFields, ["spec", "storageCapabilityRef", "name"]))
+      }
+    }
+    Observed{
+      binding: Binding{
+        planGeneration: _nestedInt(obj, ["spec", "binding", "planGeneration"]),
+        evidenceHash: _nestedString(obj, ["spec", "binding", "evidenceHash"]),
+        changeSetFingerprint: _nestedString(obj, ["spec", "binding", "changeSetFingerprint"]),
+        baseGitCommit: strings.trimSpace(_nestedString(obj, ["spec", "binding", "baseGitCommit"])),
+        policyGeneration: _nestedInt(obj, ["spec", "binding", "policyGeneration"])
+      },
+      plan: observedPlan,
+      policy: observedPolicy,
+      window: observedWindow,
+      operationsReadable: !operationsReadError,
+      conflictingOperation: conflicting,
+      nowNanos: time.now()
+    }
+  }
+}
+
+func _readObject(c client.Client, namespace String, name String, kind String) IO[Fetched[unstructured.Unstructured]] {
+  if name == "" {
+    ioPure(NotReferenced)
+  } else {
+    do {
+      (obj, missing, readError) <- fetch.get(c, namespace, name, kind)
+      if missing { Missing } else if readError { ReadError } else { Found(obj) }
+    }
+  }
+}
+
+func _fetchedFields(fetched Fetched[unstructured.Unstructured]) IO[dyn.Value] {
+  match fetched {
+    Found(obj) => do { fields <- unstructured.unstructuredObject(obj); dyn.Map(fields) }
+    _ => ioPure(dyn.Null)
+  }
+}
+
+func _projectFetchedPlan(fetched Fetched[unstructured.Unstructured], obj dyn.Value) IO[Fetched[Plan]] {
+  match fetched {
+    NotReferenced => ioPure(NotReferenced)
+    Missing => ioPure(Missing)
+    ReadError => ioPure(ReadError)
+    Found(plan) => do {
+      generation <- unstructured.unstructuredGetGeneration(plan)
+      ttl <- _projectTtl(_nestedString(obj, ["spec", "evidenceTTL"]))
+      observedAt <- _projectTimestamp(_nestedString(obj, ["status", "observedAt"]))
+      Found(Plan{
+        generation: generation,
+        phase: _nestedString(obj, ["status", "phase"]),
+        evidenceHash: _nestedString(obj, ["status", "evidenceHash"]),
+        changeSetFingerprint: _nestedString(obj, ["status", "changeSetFingerprint"]),
+        baseGitCommit: _nestedString(obj, ["spec", "baseRevision", "gitCommit"]),
+        planType: _nestedString(obj, ["spec", "type"]),
+        gates: map(_nestedList(obj, ["status", "safetyGates"]), _projectGate),
+        evidenceTtl: ttl,
+        observedAt: observedAt
+      })
+    }
+  }
+}
+
+func _projectFetchedPolicy(fetched Fetched[unstructured.Unstructured]) IO[Fetched[Policy]] {
+  match fetched {
+    NotReferenced => ioPure(NotReferenced)
+    Found(policy) => do { generation <- unstructured.unstructuredGetGeneration(policy); Found(Policy{generation: generation}) }
+    _ => ioPure(ReadError)
+  }
+}
+
+func _projectFetchedWindow(fetched Fetched[unstructured.Unstructured]) IO[Fetched[Window]] {
+  match fetched {
+    NotReferenced => ioPure(NotReferenced)
+    Found(window) => do {
+      fields <- unstructured.unstructuredObject(window)
+      let obj = dyn.Map(fields)
+      Found(Window{
+        approvalRequired: _nestedBool(obj, ["spec", "approvalPolicy", "required"]),
+        allowedOperations: list.mapMaybe(_nestedList(obj, ["spec", "allowedOperations"]), _asString),
+        phase: _nestedString(obj, ["status", "phase"]),
+        currentWindowOpen: _nestedBool(obj, ["status", "currentWindow", "open"]) == Some(true)
+      })
+    }
+    _ => ioPure(ReadError)
+  }
+}
+
+func _projectGate(raw dyn.Value) GateEvidence {
+  match raw {
+    dyn.Map(_) => Gate{
+      name: strings.trimSpace(_nestedString(raw, ["name"])),
+      state: strings.trimSpace(_nestedString(raw, ["state"]))
+    }
+    _ => InvalidGate
+  }
+}
+
+func _projectTtl(text String) IO[Ttl] {
+  if text == "" {
+    ioPure(NoTtl)
+  } else {
+    do {
+      parsed <- io.tryIO(time.parseDuration(text))
+      match parsed {
+        Ok(nanos) if nanos > 0 => TtlNanos(nanos)
+        _ => InvalidTtl
+      }
+    }
+  }
+}
+
+func _projectTimestamp(text String) IO[Timestamp] {
+  if text == "" {
+    ioPure(NoTimestamp)
+  } else {
+    do {
+      parsed <- io.tryIO(time.parse(time.rFC3339(), text))
+      match parsed {
+        Ok(nanos) => AtNanos(nanos)
+        Err(_) => InvalidTimestamp
+      }
+    }
+  }
+}
+
+func _conflictingOperation(items List[unstructured.Unstructured], approvalName String, capabilityName String) IO[Bool] {
+  match items {
+    Nil => ioPure(false)
+    Cons(operation, rest) => do {
+      name <- unstructured.unstructuredGetName(operation)
+      fields <- unstructured.unstructuredObject(operation)
+      let obj = dyn.Map(fields)
+      let phase = _nestedString(obj, ["status", "phase"])
+      if name != ""
+        && _nestedString(obj, ["spec", "approvalRef", "name"]) != approvalName
+        && _nestedString(obj, ["spec", "storageCapabilityRef", "name"]) == capabilityName
+        && !list.elem(phase, ["Succeeded", "Failed", "Canceled", "RolledBack"]) {
+        ioPure(true)
+      } else {
+        _conflictingOperation(rest, approvalName, capabilityName)
+      }
+    }
+  }
+}
+
+func _nested(obj dyn.Value, path List[String]) dyn.Value {
+  match path {
+    Nil => obj
+    Cons(key, rest) => match obj {
+      dyn.Map(fields) => _nested(result.fromOption(map.mapLookup(fields, key), dyn.Null), rest)
+      _ => dyn.Null
+    }
+  }
+}
+
+func _asString(value dyn.Value) Option[String] {
+  match value { dyn.Str(text) => Some(text); _ => None }
+}
+
+func _nestedString(obj dyn.Value, path List[String]) String {
+  result.fromOption(_asString(_nested(obj, path)), "")
+}
+
+func _nestedInt(obj dyn.Value, path List[String]) Option[Int] {
+  match _nested(obj, path) {
+    dyn.Int(n) => Some(n)
+    dyn.Float(n) => Some(float.truncate(n))
+    dyn.Str(text) => string.parseInt(text)
+    _ => None
+  }
+}
+
+func _nestedBool(obj dyn.Value, path List[String]) Option[Bool] {
+  match _nested(obj, path) { dyn.Bool(value) => Some(value); _ => None }
+}
+
+func _nestedList(obj dyn.Value, path List[String]) List[dyn.Value] {
+  match _nested(obj, path) { dyn.List(items) => items; _ => Nil }
+}
+
+func _firstNonEmpty(values List[String]) String {
+  result.fromOption(list.find(values, func(value) => value != ""), "")
+}
