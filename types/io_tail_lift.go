@@ -1,6 +1,6 @@
 package types
 
-import "go4t/ast"
+import "github.com/reoring/go4t/ast"
 
 // ioItem requires the resolved builtin constructor, not an unconstrained monad
 // head or a user declaration that happens to be spelled IO.
@@ -15,6 +15,13 @@ func ioItem(typ Type) Type {
 func unresolvedHead(typ Type) bool {
 	_, ok := prune(typ).(*TMeta)
 	return ok
+}
+
+// unresolvedAppHead reports an application whose container is still a meta,
+// such as map's F[B] before its arguments have bound F.
+func unresolvedAppHead(typ Type) bool {
+	app, ok := prune(typ).(*TApp)
+	return ok && unresolvedHead(app.Fun)
 }
 
 // A variable is not evidence of a pure result. An application with an unknown

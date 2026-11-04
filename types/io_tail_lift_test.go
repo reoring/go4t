@@ -4,9 +4,11 @@ import (
 	"errors"
 	"testing"
 
-	"go4t/ast"
-	"go4t/types"
+	"github.com/reoring/go4t/ast"
+	"github.com/reoring/go4t/types"
 )
+
+const functorList = "\ninstance Functor[List] { fmap(xs, f) { match xs { Nil => Nil; Cons(x, rest) => Cons(f(x), fmap(rest, f)) } } }\n"
 
 func TestIOTailLift(t *testing.T) {
 	for _, tc := range []struct{ name, result, body string }{
@@ -27,9 +29,10 @@ func TestIOTailLift(t *testing.T) {
 		{"contextual lambda", "IO[func(Sale) String]", `func(s) => s.product`},
 		{"local shadow", "IO[Int]", `let ioPure = func(n Int) => false; 42`},
 		{"IO alias", "Action", `42`},
+		{"container head call", "IO[List[Int]]", `fmap([1], func(n) => n + 1)`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			p, err := checkFixture(t, []*ast.Module{{Files: parseFiles(t, expectedSale+"\nalias Action = IO[Int]\nfunc value() "+tc.result+" { "+tc.body+" }"+pass5Main)}})
+			p, err := checkFixture(t, []*ast.Module{{Files: parseFiles(t, expectedSale+functorList+"\nalias Action = IO[Int]\nfunc value() "+tc.result+" { "+tc.body+" }"+pass5Main)}})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -55,9 +58,10 @@ func TestIOTailLiftBoundaries(t *testing.T) {
 		{"other monad", `func value() Option[Int] { do { n <- Some(1); n } }`, "type mismatch: expected Option[Int], got Int"},
 		{"unknown monad", `func value[M[_] Monad]() M[Int] { 1 }`, "type mismatch: expected M[Int], got Int"},
 		{"do diagnostic", `func value() IO[String] { do { ioPure(0); 1 } }`, "type mismatch: expected IO[String], got Int"},
+		{"container head diagnostic", `func value() IO[String] { fmap([1], func(n) => n + 1) }`, "type mismatch: expected IO[String], got List[Int]"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			p, err := checkFixture(t, []*ast.Module{{Files: parseFiles(t, tc.source+pass5Main)}})
+			p, err := checkFixture(t, []*ast.Module{{Files: parseFiles(t, functorList+tc.source+pass5Main)}})
 			var diagnostic *types.Error
 			if p != nil || !errors.As(err, &diagnostic) || diagnostic.Msg != tc.want {
 				t.Fatalf("Check = (%v, %v), want %q", p, err, tc.want)

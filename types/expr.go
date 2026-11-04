@@ -1,6 +1,6 @@
 package types
 
-import "go4t/ast"
+import "github.com/reoring/go4t/ast"
 
 type locals struct {
 	parent  *locals
@@ -236,11 +236,19 @@ func (b *bodyChecker) inferContext(e ast.Expr, env *locals, expected Type, lift 
 		if len(ft.Params) != len(e.Args) {
 			fail(pos, "arity mismatch: want %d arguments, got %d", len(ft.Params), len(e.Args))
 		}
-		if expected != nil && !(lift && ioItem(expected) != nil && unresolvedHead(ft.Ret)) {
+		// A result whose container head is unknown would be checked against the
+		// context as metas: the diagnostic would print them, and an IO context
+		// would bind the head to IO before the arguments could bind it to the
+		// real container. Check such results after the arguments.
+		deferred := expected != nil && unresolvedAppHead(ft.Ret)
+		if expected != nil && !deferred && !(lift && ioItem(expected) != nil && unresolvedHead(ft.Ret)) {
 			checkContext(pos, expected, ft.Ret, lift)
 		}
 		for i, arg := range e.Args {
 			unify(arg.GetPos(), ft.Params[i], b.inferExpected(arg, env, ft.Params[i]))
+		}
+		if deferred {
+			checkContext(pos, expected, ft.Ret, lift)
 		}
 		result = ft.Ret
 	case *ast.Lambda:
