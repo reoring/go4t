@@ -19,22 +19,24 @@ List structure, filtering, folds, append, Option (in std/prelude) and Result com
 | Module | Eligible | Tainted | Total |
 | --- | ---: | ---: | ---: |
 | `std/array` | 0 | 14 | 14 |
+| `std/chan` | 0 | 6 | 6 |
 | `std/conc` | 0 | 8 | 8 |
 | `std/dyn` | 0 | 2 | 2 |
 | `std/float` | 0 | 24 | 24 |
 | `std/http` | 3 | 11 | 14 |
-| `std/io` | 4 | 30 | 34 |
+| `std/io` | 4 | 32 | 36 |
 | `std/json` | 15 | 24 | 39 |
 | `std/lazy` | 3 | 0 | 3 |
 | `std/list` | 67 | 3 | 70 |
 | `std/map` | 26 | 0 | 26 |
 | `std/prelude` | 47 | 0 | 47 |
+| `std/ref` | 0 | 5 | 5 |
 | `std/regex` | 0 | 6 | 6 |
 | `std/result` | 18 | 1 | 19 |
 | `std/set` | 0 | 20 | 20 |
 | `std/state` | 10 | 0 | 10 |
 | `std/string` | 32 | 0 | 32 |
-| **Total** | **225** | **143** | **368** |
+| **Total** | **225** | **156** | **381** |
 
 ## First-reason breakdown
 
@@ -42,8 +44,8 @@ Counts are disjoint, not all contributing causes. Transitive rows retain the ult
 
 | First reason | Count |
 | --- | ---: |
-| extern | 38 |
-| IO result | 45 |
+| extern | 40 |
+| IO result | 56 |
 | Float | 28 |
 | division/modulo | 0 |
 | transitive | 32 |
@@ -66,6 +68,17 @@ Counts are disjoint, not all contributing causes. Transitive rows retain the ult
 | `arraySlice` | tainted | extern | unlisted extern go4t/rt.ArraySlice |
 | `arraySortBy` | tainted | extern | unlisted extern go4t/rt.ArraySortBy |
 | `arrayToList` | tainted | extern | unlisted extern go4t/rt.ArrayToList |
+
+## `std/chan`
+
+| Function / instance method | Classification | Category | First tainting reason |
+| --- | --- | --- | --- |
+| `asRecv` | tainted | extern | unlisted extern go4t/rt.ChanAsRecv |
+| `asSend` | tainted | extern | unlisted extern go4t/rt.ChanAsSend |
+| `close` | tainted | IO result | IO result type |
+| `make` | tainted | IO result | IO result type |
+| `recv` | tainted | IO result | IO result type |
+| `send` | tainted | IO result | IO result type |
 
 ## `std/conc`
 
@@ -150,6 +163,8 @@ Counts are disjoint, not all contributing causes. Transitive rows retain the ult
 | `eprintln` | tainted | IO result | IO result type |
 | `exit` | tainted | IO result | IO result type |
 | `fileExists` | tainted | IO result | IO result type |
+| `foldLines` | tainted | IO result | IO result type |
+| `forEachLine` | tainted | IO result | IO result type |
 | `formatTime` | tainted | extern | unlisted extern go4t/rt.FormatTime |
 | `getEnv` | tainted | IO result | IO result type |
 | `ioBind` | tainted | IO result | IO result type |
@@ -383,6 +398,16 @@ Counts are disjoint, not all contributing causes. Transitive rows retain the ult
 | `showString` | law-eligible | constant-folding | — |
 | `snd` | law-eligible | source | — |
 | `unit` | law-eligible | constant-folding | — |
+
+## `std/ref`
+
+| Function / instance method | Classification | Category | First tainting reason |
+| --- | --- | --- | --- |
+| `get` | tainted | IO result | IO result type |
+| `modify` | tainted | IO result | IO result type |
+| `new` | tainted | IO result | IO result type |
+| `set` | tainted | IO result | IO result type |
+| `update` | tainted | IO result | IO result type |
 
 ## `std/regex`
 

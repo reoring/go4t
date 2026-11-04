@@ -50,7 +50,7 @@ const Complex = 1+2i
 		"extern func callback() func(Int) Int",
 		"// skipped: NewExisting (name newExisting taken by NewExisting)",
 		"// skipped: StateCount (name stateCount taken by State.Count)",
-		"// skipped: Bad (unsupported value type chan int)",
+		"extern func bad() Chan[Int]",
 		"// skipped: Type (reserved go4t name type; use --prefix)",
 		"// skipped: Huge (constant overflows int)",
 		"// skipped: HugeFloat (constant overflows float64)",

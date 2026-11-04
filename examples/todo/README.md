@@ -97,12 +97,12 @@ alone does not apply. It would need a stronger accumulator lemma instead
 ## Build a binary
 
 ```sh
-go4t build examples/todo && go build -o todo ./examples/todo/_gen
-./todo list
+go4t build -o todo examples/todo && ./todo list
 ./todo add buy milk
 ./todo serve 8080
 ```
 
-`go4t build` emits Go sources in `examples/todo/_gen`; `go build` makes the
-executable. The binary uses the same `TODO_FILE` environment variable and CLI
-arguments, without the `go4t run` separator.
+`go4t build` creates the executable and keeps generated Go sources in
+`examples/todo/_gen`. The binary uses the same `TODO_FILE` environment variable
+and CLI arguments, without the `go4t run` separator. Use
+`go4t build --emit-go DIR examples/todo` to emit Go sources without a binary.

@@ -74,7 +74,8 @@ func TestExtendedBindingShim(t *testing.T) {
 		"extern func opaqueSetApply(recv Opaque, value func(Int) Int) IO[Unit]",
 		"extern func opaqueReadLabel(recv Opaque) IO[String]",
 		"extern func optionName(recv OptionGo) IO[String]",
-		"// skipped: Opaque.Blocked (unsupported field type chan int)",
+		"extern func opaqueBlocked(recv Opaque) IO[Chan[Int]]",
+		"extern func opaqueSetBlocked(recv Opaque, value Chan[Int]) IO[Unit]",
 		"// skipped: Opaque.Conflict (name opaqueSetConflict taken by Opaque.SetConflict)",
 		"// skipped: ConsumeSeq (unsupported parameter type iter.Seq[string])",
 		"// skipped: ConsumeSeq2 (unsupported parameter type iter.Seq2[string, int])",
@@ -82,11 +83,6 @@ func TestExtendedBindingShim(t *testing.T) {
 	} {
 		if !strings.Contains(decls, want) {
 			t.Errorf("missing %q:\n%s", want, decls)
-		}
-	}
-	for _, forbidden := range []string{"extern func opaqueSetBlocked("} {
-		if strings.Contains(decls, forbidden) {
-			t.Errorf("unexpected %q:\n%s", forbidden, decls)
 		}
 	}
 	prefixed, _, _, err := BindWithShim(pkg, BindOptions{Prefix: "native"}, "example.test/bindings/shim", "shim")

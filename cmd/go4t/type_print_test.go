@@ -89,10 +89,11 @@ func main() Effect[Done] {
 	if err := os.WriteFile(file, []byte(source), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if err := run([]string{"build", "--full-types", file}); err != nil {
+	bin := filepath.Join(dir, "prog")
+	if err := run([]string{"build", "--full-types", "-o", bin, file}); err != nil {
 		t.Fatal(err)
 	}
-	command := exec.Command("go", "run", "./main_gen")
+	command := exec.Command(bin)
 	command.Dir = dir
 	output, err := command.CombinedOutput()
 	if err != nil || string(output) != "2\nnative alias\n[alias]\n" {

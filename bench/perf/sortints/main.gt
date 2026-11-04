@@ -1,0 +1,39 @@
+package main
+
+import "std/io"
+import "std/string"
+import "std/list"
+import "std/array"
+
+func shuffled(n Int, seed Int, xs List[Int]) List[Int] {
+  if n == 0 { xs } else {
+    let next = (seed * 48271) % 2147483647
+    shuffled(n - 1, next, Cons(next, xs))
+  }
+}
+
+func checksum(xs Array[Int], i Int, total Int) Int {
+  if i >= array.arrayLength(xs) { total } else {
+    match array.arrayGet(xs, i) {
+      Some(n) => checksum(xs, i + 1000, total + n)
+      None => total
+    }
+  }
+}
+
+func main() IO[Unit] {
+  do {
+    text <- io.readAll()
+    match string.words(text) {
+      Cons(size, Cons(seed, Nil)) => match (string.parseInt(size), string.parseInt(seed)) {
+        (Some(n), Some(s)) => if n > 0 && s > 0 && s < 2147483647 {
+          let values = array.arrayFromList(shuffled(n, s, Nil))
+          let sorted = array.arraySortBy(values, func(a, b) => compare(a, b))
+          println(show(checksum(sorted, 0, 0)))
+        } else { io.ioFail("expected positive size and seed in 1..2147483646") }
+        _ => io.ioFail("expected size and seed")
+      }
+      _ => io.ioFail("expected size and seed")
+    }
+  }
+}

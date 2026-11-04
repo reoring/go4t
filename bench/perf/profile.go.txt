@@ -1,0 +1,17 @@
+package main
+
+import (
+	"os"
+	"runtime/pprof"
+)
+
+// Added only to the separate profiling build, never to the timed binaries.
+func perfProfile() func() {
+	file, err := os.Create(os.Getenv("GO4T_PERF_CPU_PROFILE"))
+	if err != nil { panic(err) }
+	if err := pprof.StartCPUProfile(file); err != nil { panic(err) }
+	return func() {
+		pprof.StopCPUProfile()
+		if err := file.Close(); err != nil { panic(err) }
+	}
+}

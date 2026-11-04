@@ -29,7 +29,7 @@ func TestForeignMirrors(t *testing.T) {
 		"extern func pureCallback(p0 Point, p1 func(Point) Point) Point", "extern func iOCallback(p0 Point, p1 func(Point) IO[Point]) IO[Point]",
 		"extern func errorCallback(p0 func() IO[Unit]) IO[Unit]", "extern func voidCallback(p0 func() Unit) Unit",
 		"extern func counterScan(recv Counter, count Int) IO[List[dyn.Value]]", "extern func counterAdd(recv Counter, p0 Int) IO[Int]",
-		"// skipped: GenericIdentity (generic function)", "// skipped: Unsupported (unsupported parameter type chan int)",
+		"// skipped: GenericIdentity (generic function)", "extern func unsupported(p0 Chan[Int]) IO[Int]",
 	} {
 		if !strings.Contains(source, want) {
 			t.Errorf("missing %q:\n%s", want, source)

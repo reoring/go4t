@@ -1,6 +1,6 @@
 // Command go4t checks, builds, runs, tests, evaluates sources, and binds Go packages.
 // Several files form one program (same package, mutually visible declarations);
-// the first file names the default build directory.
+// the first input names the default binary and generated-source directory.
 // Successful checks report non-fatal warnings to stderr before continuing.
 package main
 
@@ -31,7 +31,7 @@ func main() {
 	}
 }
 
-const usage = "go4t:1:1: usage: go4t init <module-path> | go4t get <path>@<version> | go4t check [--full-types] FILE.gt|DIR... | go4t build [--full-types] [-o DIR | --emit-go DIR --package NAME] FILE.gt|DIR... | go4t run [--full-types] FILE.gt|DIR... [-- args...] | go4t test FILE.gt|DIR... | go4t eval 'EXPR' [FILE.gt|DIR...] | go4t bind IMPORT [FILE.gt|DIR...] [-o FILE.gt|DIR] [--prefix STR] [--shim DIR] | go4t lsp | go4t fmt [-w|-d|-l] FILE...|DIR"
+const usage = "go4t:1:1: usage: go4t init <module-path> | go4t get <path>@<version> | go4t check [--full-types] FILE.gt|DIR... | go4t build [--full-types] [-o FILE | --emit-go DIR [--package NAME]] FILE.gt|DIR... | go4t run [--full-types] FILE.gt|DIR... [-- args...] | go4t test FILE.gt|DIR... | go4t eval 'EXPR' [FILE.gt|DIR...] | go4t bind IMPORT [FILE.gt|DIR...] [-o FILE.gt|DIR] [--prefix STR] [--shim DIR] | go4t lsp | go4t fmt [-w|-d|-l] FILE...|DIR"
 
 func run(args []string) error {
 	if len(args) > 0 && args[0] == "init" {
@@ -67,10 +67,10 @@ func run(args []string) error {
 	default:
 		return errors.New(usage)
 	}
-	outputDir, goPackage := "", "main"
+	build := buildFlags{goPackage: "main"}
 	if command == "build" {
 		var err error
-		args, outputDir, goPackage, err = buildOptions(args)
+		args, build, err = buildOptions(args)
 		if err != nil {
 			return err
 		}
@@ -99,11 +99,19 @@ func run(args []string) error {
 		return errors.New(usage)
 	}
 	file := inputs[0]
+	if command == "build" && build.emitGo == "" {
+		var err error
+		build.outputFile, err = buildOutput(file, build.outputFile)
+		if err != nil {
+			return err
+		}
+	}
 	var module buildModule
-	var dir, outputRoot string
+	var dir, sourceDir string
 	var options []modules.Options
 	var binder *goImportBinder
 	if command != "check" {
+		outputDir := build.emitGo
 		if outputDir == "" {
 			outputDir = strings.TrimSuffix(file, filepath.Ext(file)) + "_gen"
 			if info, statErr := os.Stat(file); statErr == nil && info.IsDir() {
@@ -115,8 +123,7 @@ func run(args []string) error {
 		if err != nil {
 			return diagnostic(file, err)
 		}
-		outputRoot = buildModuleRoot(dir)
-		root := outputRoot
+		root := buildModuleRoot(dir)
 		if command == "build" && root == "" {
 			base, err := inputDirectory(inputs)
 			if err != nil {
@@ -129,11 +136,15 @@ func run(args []string) error {
 			return err
 		}
 		defer module.close()
-		if command == "run" && module.temporary {
-			dir = filepath.Join(module.dir, "prog")
+		sourceDir = dir
+		if module.temporary && (command == "run" || build.emitGo == "") {
+			sourceDir = filepath.Join(module.dir, "prog")
+			if command == "run" {
+				dir = sourceDir
+			}
 		}
 		binder = newGoImportBinder(module.dir)
-		binder.outputDir = dir
+		binder.outputDir = sourceDir
 		options = append(options, modules.Options{GoBinder: binder})
 	}
 	files, err := parseFiles(inputs, options...)
@@ -158,7 +169,7 @@ func run(args []string) error {
 	if err := module.checkForeign(program); err != nil {
 		return err
 	}
-	sources, err := codegen.GenerateInDir(program, goPackage, module.dir, codegen.Options{SideEffectImports: binder.sideEffectImports})
+	sources, err := codegen.GenerateInDir(program, build.goPackage, module.dir, codegen.Options{SideEffectImports: binder.sideEffectImports})
 	if err != nil {
 		var generated *types.Error
 		if errors.As(err, &generated) {
@@ -166,23 +177,39 @@ func run(args []string) error {
 		}
 		return diagnostic(file, err)
 	}
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(sourceDir, 0o755); err != nil {
 		return diagnostic(file, err)
 	}
-	if err := emitModules(dir, sources); err != nil {
+	if err := emitModules(sourceDir, sources); err != nil {
 		return diagnostic(file, err)
 	}
-	if command == "build" {
-		if outputRoot == "" {
-			printBuildModuleNote(dir)
+	if sourceDir != dir {
+		if err := retainBuildSources(sourceDir, dir, sources); err != nil {
+			return diagnostic(file, err)
 		}
+	}
+	if command == "build" && build.emitGo != "" {
 		return nil
 	}
-	relative, err := filepath.Rel(module.dir, dir)
+	relative, err := filepath.Rel(module.dir, sourceDir)
 	if err != nil {
 		return diagnostic(file, err)
 	}
-	return execute(module.dir, "./"+filepath.ToSlash(relative), file, progArgs)
+	source := "./" + filepath.ToSlash(relative)
+	if command == "build" {
+		return buildBinary(module.dir, source, file, build.outputFile)
+	}
+	return execute(module.dir, source, file, progArgs)
+}
+
+func buildBinary(root, source, file, output string) error {
+	build := exec.Command("go", "build", "-o", output, source)
+	build.Dir = root
+	build.Stdout, build.Stderr = os.Stdout, os.Stderr
+	if err := build.Run(); err != nil {
+		return diagnostic(file, fmt.Errorf("go build: %w", err))
+	}
+	return nil
 }
 
 func execute(root, source, file string, progArgs []string) error {
@@ -195,11 +222,8 @@ func execute(root, source, file string, progArgs []string) error {
 	}
 	defer os.RemoveAll(tmp)
 	bin := filepath.Join(tmp, "prog")
-	build := exec.Command("go", "build", "-o", bin, source)
-	build.Dir = root
-	build.Stdout, build.Stderr = os.Stdout, os.Stderr
-	if err := build.Run(); err != nil {
-		return diagnostic(file, fmt.Errorf("go build: %w", err))
+	if err := buildBinary(root, source, file, bin); err != nil {
+		return err
 	}
 	process := exec.Command(bin, progArgs...)
 	process.Stdin, process.Stdout, process.Stderr = os.Stdin, os.Stdout, os.Stderr

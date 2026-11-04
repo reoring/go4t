@@ -310,24 +310,78 @@ func TestToolWarningsRenderSource(t *testing.T) {
 
 func TestBuildOutputOverride(t *testing.T) {
 	dir := toolsModule(t)
-	file := toolsWrite(t, filepath.Join(dir, "source.gt"), "package main\nfunc main() IO[Unit] { println(\"override\") }\n")
+	file := toolsWrite(t, filepath.Join(dir, "source.gt"), "package main\nfunc main() IO[Unit] { println(message()) }\n")
+	second := toolsWrite(t, filepath.Join(dir, "helper.gt"), "package main\nfunc message() String { \"override\" }\n")
 	for _, after := range []bool{false, true} {
 		output := filepath.Join(dir, "nested", strconv.FormatBool(after))
-		args := []string{"build", "-o", output, file}
+		args := []string{"build", "-o", output, file, second}
 		if after {
-			args = []string{"build", file, "-o", output}
+			args = []string{"build", file, second, "--full-types", "-o", output}
 		}
 		if err := run(args); err != nil {
 			t.Fatal(err)
 		}
-		command := exec.Command("go", "run", "./nested/"+strconv.FormatBool(after))
-		command.Dir = dir
+		command := exec.Command(output)
 		if out, err := command.CombinedOutput(); err != nil || string(out) != "override\n" {
 			t.Fatalf("generated executable output=%q error=%v", out, err)
 		}
 	}
+	if _, err := os.Stat(filepath.Join(dir, "source_gen", "main.go")); err != nil {
+		t.Fatalf("generated sources missing: %v", err)
+	}
+}
+
+func TestBuildRejectsDirectoryOutput(t *testing.T) {
+	dir := toolsModule(t)
+	file := toolsWrite(t, filepath.Join(dir, "source.gt"), "package main\nfunc main() IO[Unit] { ioPure(unit()) }\n")
+	out, stderr, status := toolsCommand(t, dir, "", "build", "-o", dir, file)
+	want := file + ":1:1: build output " + strconv.Quote(dir) + " is a directory; use -o FILE or --emit-go DIR\npackage main\n^\n"
+	if out != "" || stderr != want || status != 1 {
+		t.Fatalf("directory output: stdout=%q stderr=%q status=%d; want %q", out, stderr, status, want)
+	}
 	if _, err := os.Stat(filepath.Join(dir, "source_gen")); !os.IsNotExist(err) {
-		t.Fatalf("default directory was created: %v", err)
+		t.Fatalf("rejected output generated sources: %v", err)
+	}
+}
+
+func TestBuildPropagatesGoFailure(t *testing.T) {
+	dir := toolsModule(t)
+	toolsWrite(t, filepath.Join(dir, "source.gt"), "package main\nfunc main() IO[Unit] { ioPure(unit()) }\n")
+	generated := filepath.Join(dir, "source_gen")
+	if err := os.Mkdir(generated, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	toolsWrite(t, filepath.Join(generated, "user.go"), "package main\nvar _ = missingGoSymbol\n")
+	out, stderr, status := toolsCommand(t, dir, "", "build", "-o", "prog", "source.gt")
+	if out != "" || status != 1 || !strings.Contains(stderr, "undefined: missingGoSymbol") ||
+		!strings.Contains(stderr, "source.gt:1:1: go build: exit status 1") {
+		t.Fatalf("Go build failure: stdout=%q stderr=%q status=%d", out, stderr, status)
+	}
+}
+
+func TestEmitGoDefaultsToMain(t *testing.T) {
+	dir := toolsModule(t)
+	file := toolsWrite(t, filepath.Join(dir, "source.gt"), "package main\nfunc main() IO[Unit] { println(\"emitted\") }\n")
+	for _, explicit := range []bool{false, true} {
+		output := filepath.Join(dir, "emitted")
+		args := []string{"build", "--emit-go", output, file}
+		if explicit {
+			args = append(args, "--package", "main")
+		}
+		out, stderr, status := toolsCommand(t, dir, "", args...)
+		if out != "" || stderr != "" || status != 0 {
+			t.Fatalf("emit Go: stdout=%q stderr=%q status=%d", out, stderr, status)
+		}
+		command := exec.Command("go", "run", "./emitted")
+		command.Dir = dir
+		if output, err := command.CombinedOutput(); err != nil || string(output) != "emitted\n" {
+			t.Fatalf("emitted executable: output=%q error=%v", output, err)
+		}
+	}
+	for _, name := range []string{"source", "source_gen"} {
+		if _, err := os.Stat(filepath.Join(dir, name)); !os.IsNotExist(err) {
+			t.Fatalf("emit Go created %s: %v", name, err)
+		}
 	}
 }
 
@@ -458,9 +512,9 @@ func TestGoShellExample(t *testing.T) {
 		t.Fatalf("Go shell vet: %v\n%s", err, out)
 	}
 	// The same marker-based sweep as ordinary modules removes obsolete exports
-	// when the output directory is subsequently used for an executable build.
+	// when the output directory is subsequently used for package main sources.
 	owned := toolsWrite(t, filepath.Join(output, "user.go"), "package main\n")
-	if err := run([]string{"build", "-o", output, input}); err != nil {
+	if err := run([]string{"build", "--emit-go", output, input}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(output, "go4t_export.go")); !os.IsNotExist(err) {
@@ -471,15 +525,16 @@ func TestGoShellExample(t *testing.T) {
 	}
 }
 
-func TestToolUsageErrors(t *testing.T) {
+func TestToolsUsageErrors(t *testing.T) {
 	for _, args := range [][]string{
 		{"test"}, {"eval"}, {"test", "--"}, {"eval", "1", "--"},
 		{"build", "-o"}, {"build", "-o", "out"},
-		{"build", "--emit-go", "out", "main.gt"},
+		{"build", "--emit-go", "out"},
 		{"build", "--package", "app", "main.gt"},
-		{"build", "--emit-go", "out", "--package", "main", "main.gt"},
 		{"build", "-o", "out", "--emit-go", "other", "--package", "app", "main.gt"},
 		{"build", "-o", "out", "-o", "other", "main.gt"},
+		{"build", "--emit-go", "out", "--emit-go", "other", "main.gt"},
+		{"build", "--emit-go", "out", "--package", "app", "--package", "other", "main.gt"},
 		{"build", "--unknown", "main.gt"},
 	} {
 		if err := run(args); err == nil || !strings.Contains(err.Error(), "usage") {

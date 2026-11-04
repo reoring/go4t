@@ -41,6 +41,17 @@ go4t bind modernc.org/sqlite -o bindings.gt
 [examples/typed-extern](../examples/typed-extern) は ABI アダプタの例です。
 `std/http` に binding は不要です。
 
+Go のチャネルは `Chan[T]`、`RecvChan[T]`、`SendChan[T]` に対応します。
+`std/chan` を import すると、キャンセルに対応した送受信と、IO として遅延実行する
+close を使えます。閉じたチャネルからの受信は `None` を返します。
+双方向ハンドルの操作権限は `asRecv` と `asSend` で明示的に制限します。
+`make` は go4t の fiber 用チャネルを作ります。Go API に渡す場合は、
+`signal.newSignalChan` などの生成されたコンストラクタを使ってください。
+コンストラクタは IO の実行時にチャネルを確保し、要素には通常の引数・戻り値と同じ
+変換を適用します。[examples/go-chan](../examples/go-chan) に `time.after` と
+producer/consumer fiber の例があります。Go のジェネリック関数と、要素型を
+変換できないチャネルは引き続きスキップされます。
+
 ## プロジェクトと依存
 
 go4t ライブラリは `go.mod`、`go4t.mod`、`.gt` ファイルを持つ Go module です。

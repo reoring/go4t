@@ -36,7 +36,7 @@ func testArea() Bool { geometry.area(6, 7) == 42 }
 			t.Fatalf("%v: status=%d stdout=%q stderr=%s", test.args, status, out, stderr)
 		}
 	}
-	if _, err := os.Stat(filepath.Join(dir, "out", "geometry.go")); err != nil {
+	if _, err := os.Stat(filepath.Join(dir, "_gen", "geometry.go")); err != nil {
 		t.Fatal(err)
 	}
 }

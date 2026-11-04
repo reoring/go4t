@@ -1,0 +1,442 @@
+{
+  "recorded_at": "2026-11-04T09:34:10+09:00",
+  "invocation": "bench/perf/run.sh --compiler bench/perf/.work/measured-20261104-current/go4t --work-dir bench/perf/.work/results-20261104",
+  "exit_status": 0,
+  "metadata": {
+    "platform": "Linux-6.8.0-64-generic-x86_64-with-glibc2.39",
+    "cpu_count": 30,
+    "load_start": [
+      5.45654296875,
+      4.0263671875,
+      4.0732421875
+    ],
+    "GOMAXPROCS": "1",
+    "GOGC": "100",
+    "go_version": "go version go1.26.1 linux/amd64",
+    "compiler_sha256": "36e2f7c9cb941c2bf844928d385768360906f18be6f641971e9e0ed7102bdc17",
+    "source_sha256": {
+      "bench/perf/run.sh": "e7e11a4b9ac621e98f0367c77bfaf0e40d581d3ec3b6ef3c08fa813ed0674a2b",
+      "bench/perf/profile.go.txt": "255e86d4a0fa97e44b0caa33b4955ed4bbacf528e5387e2c41bc6ae57e0bd529",
+      "bench/perf/driver.py": "e3ebbc4f86e6950a2aa84f56ef8cffc466f8cc49a76c6a04c12909fd109e6505",
+      "bench/perf/.gitignore": "035be897b00b2e4df85234618e91ae2c91213ba53b2bf492fc890efec505f2ae",
+      "bench/perf/gen/main.go": "bbd677e024e44018ee92cf1a4cc0ae860fa60684efeed3a411c3076e4b1c5e10",
+      "bench/perf/sortints/main.gt": "9b44e4f12799a5336547623775349b2ff38882a7767d911730cb6b538755dadf",
+      "bench/perf/mapheavy/main.gt": "1ff56a15dbe83879ed4ae9fe69df8091564222efce7362d63720bdc923bfb490",
+      "bench/perf/wordfreq/main.gt": "756f3d8d0d9d921ebeb956eead74cefe6611b044de98a4ede72b567fdff6561d",
+      "bench/perf/treefold/main.gt": "434cd2fd7c8a0abf3734397a8252ff17aab6924c7beccbac133ddd8e7521d551",
+      "bench/perf/nbody/main.gt": "d3a17e004de1b611c227738983dd3b98bc9b72b0cc1b7cc271aa780e554a5846",
+      "bench/perf/sortints/go/main.go": "5b14005c0db0f80420069ef29c9030f66ed4558f15dfccc3f364ef5387195e02",
+      "bench/perf/mapheavy/go/main.go": "499bd122a717ca8f3669edd13c3054ad1b123f7aa4f3a5b74ef21f77468b981e",
+      "bench/perf/wordfreq/go/main.go": "d78a4497309769cb7e98d76489257b81f835a5743b8cd7c88f87b8e913dfc7f0",
+      "bench/perf/treefold/go/main.go": "9030da42a56e04521c670b3ebd35b2a548554b1f160458c95496282595b8a897",
+      "bench/perf/nbody/go/main.go": "921082a1fe6101acbe78c0936bcc42e14113b0c70f3ea3bff7c5e59130798579"
+    },
+    "input_sha256": {
+      "treefold.txt": "5378796307535df3ec8d8b15a2e2dc5641419c3d3060cfe32238c0fa973f7aa3",
+      "nbody.txt": "085c348f64a3b543e973a33749e90ba20847b99016a87e5228847597d61ce582",
+      "mapheavy.txt": "085c348f64a3b543e973a33749e90ba20847b99016a87e5228847597d61ce582",
+      "sortints.txt": "a488c881c3f74c40a2876e2bfea14bad612fa01ca19ff2ab432e1a293aa99d0c",
+      "wordfreq.txt": "6e2f2e2d9202c2a2e5acd59b59794234b69de379c71e14b2a7559c433b2f870a"
+    },
+    "profile_kernel": "wordfreq",
+    "load_end": [
+      6.5556640625,
+      4.48583984375,
+      4.22509765625
+    ]
+  },
+  "results": [
+    {
+      "kernel": "wordfreq",
+      "runs": {
+        "go4t": [
+          {
+            "exit": 0,
+            "stdout": "wordfreq/go4t-1.stdout",
+            "stderr": "wordfreq/go4t-1.stderr",
+            "seconds": 3.14,
+            "rss_kb": 524404
+          },
+          {
+            "exit": 0,
+            "stdout": "wordfreq/go4t-2.stdout",
+            "stderr": "wordfreq/go4t-2.stderr",
+            "seconds": 2.86,
+            "rss_kb": 305048
+          },
+          {
+            "exit": 0,
+            "stdout": "wordfreq/go4t-3.stdout",
+            "stderr": "wordfreq/go4t-3.stderr",
+            "seconds": 2.95,
+            "rss_kb": 309456
+          }
+        ],
+        "Go": [
+          {
+            "exit": 0,
+            "stdout": "wordfreq/Go-1.stdout",
+            "stderr": "wordfreq/Go-1.stderr",
+            "seconds": 0.13,
+            "rss_kb": 53760
+          },
+          {
+            "exit": 0,
+            "stdout": "wordfreq/Go-2.stdout",
+            "stderr": "wordfreq/Go-2.stderr",
+            "seconds": 0.12,
+            "rss_kb": 57076
+          },
+          {
+            "exit": 0,
+            "stdout": "wordfreq/Go-3.stdout",
+            "stderr": "wordfreq/Go-3.stderr",
+            "seconds": 0.09,
+            "rss_kb": 82080
+          }
+        ]
+      },
+      "binary_bytes": {
+        "go4t": 5415941,
+        "Go": 2469404
+      },
+      "checksum_equal": true,
+      "success": true,
+      "checksum": "word01597 571\nword02008 566\nword00951 565\nword03004 565\nword02452 558\nword02900 558\nword03013 558\nword02967 557\nword01772 556\nword02809 556\n",
+      "checksum_sha256": "5e3e7d2acea4cb964e6d01a049b717ccb9f09f612237955a34a3aac509fa4819",
+      "go4t": {
+        "seconds": 2.86,
+        "rss_kb": 305048
+      },
+      "Go": {
+        "seconds": 0.09,
+        "rss_kb": 53760
+      },
+      "ratio": 31.77777777777778
+    },
+    {
+      "kernel": "sortints",
+      "runs": {
+        "go4t": [
+          {
+            "exit": 0,
+            "stdout": "sortints/go4t-1.stdout",
+            "stderr": "sortints/go4t-1.stderr",
+            "seconds": 1.75,
+            "rss_kb": 116400
+          },
+          {
+            "exit": 0,
+            "stdout": "sortints/go4t-2.stdout",
+            "stderr": "sortints/go4t-2.stderr",
+            "seconds": 1.8,
+            "rss_kb": 116400
+          },
+          {
+            "exit": 0,
+            "stdout": "sortints/go4t-3.stdout",
+            "stderr": "sortints/go4t-3.stderr",
+            "seconds": 1.79,
+            "rss_kb": 132000
+          }
+        ],
+        "Go": [
+          {
+            "exit": 0,
+            "stdout": "sortints/Go-1.stdout",
+            "stderr": "sortints/Go-1.stderr",
+            "seconds": 0.06,
+            "rss_kb": 10080
+          },
+          {
+            "exit": 0,
+            "stdout": "sortints/Go-2.stdout",
+            "stderr": "sortints/Go-2.stderr",
+            "seconds": 0.06,
+            "rss_kb": 9840
+          },
+          {
+            "exit": 0,
+            "stdout": "sortints/Go-3.stdout",
+            "stderr": "sortints/Go-3.stderr",
+            "seconds": 0.06,
+            "rss_kb": 10080
+          }
+        ]
+      },
+      "binary_bytes": {
+        "go4t": 5401660,
+        "Go": 2556747
+      },
+      "checksum_equal": true,
+      "success": true,
+      "checksum": "1072161167218\n",
+      "checksum_sha256": "8a06ab0cb7335b035f6e0a81c737097917cc7a93c4badf94104148c32dc343c7",
+      "go4t": {
+        "seconds": 1.75,
+        "rss_kb": 116400
+      },
+      "Go": {
+        "seconds": 0.06,
+        "rss_kb": 9840
+      },
+      "ratio": 29.166666666666668
+    },
+    {
+      "kernel": "nbody",
+      "runs": {
+        "go4t": [
+          {
+            "exit": 0,
+            "stdout": "nbody/go4t-1.stdout",
+            "stderr": "nbody/go4t-1.stderr",
+            "seconds": 2.37,
+            "rss_kb": 10176
+          },
+          {
+            "exit": 0,
+            "stdout": "nbody/go4t-2.stdout",
+            "stderr": "nbody/go4t-2.stderr",
+            "seconds": 2.32,
+            "rss_kb": 10616
+          },
+          {
+            "exit": 0,
+            "stdout": "nbody/go4t-3.stdout",
+            "stderr": "nbody/go4t-3.stderr",
+            "seconds": 2.28,
+            "rss_kb": 10304
+          }
+        ],
+        "Go": [
+          {
+            "exit": 0,
+            "stdout": "nbody/Go-1.stdout",
+            "stderr": "nbody/Go-1.stderr",
+            "seconds": 0.21,
+            "rss_kb": 2160
+          },
+          {
+            "exit": 0,
+            "stdout": "nbody/Go-2.stdout",
+            "stderr": "nbody/Go-2.stderr",
+            "seconds": 0.21,
+            "rss_kb": 2160
+          },
+          {
+            "exit": 0,
+            "stdout": "nbody/Go-3.stdout",
+            "stderr": "nbody/Go-3.stderr",
+            "seconds": 0.22,
+            "rss_kb": 2160
+          }
+        ]
+      },
+      "binary_bytes": {
+        "go4t": 5392311,
+        "Go": 2556115
+      },
+      "checksum_equal": true,
+      "success": true,
+      "checksum": "-0.001046538\n",
+      "checksum_sha256": "88c91cdaed0c2c25df4689496c9b3b4dfbe2ca3662fb29b52b6c6ec60c309da0",
+      "go4t": {
+        "seconds": 2.28,
+        "rss_kb": 10176
+      },
+      "Go": {
+        "seconds": 0.21,
+        "rss_kb": 2160
+      },
+      "ratio": 10.857142857142856
+    },
+    {
+      "kernel": "mapheavy",
+      "runs": {
+        "go4t": [
+          {
+            "exit": 0,
+            "stdout": "mapheavy/go4t-1.stdout",
+            "stderr": "mapheavy/go4t-1.stderr",
+            "seconds": 3.21,
+            "rss_kb": 228480
+          },
+          {
+            "exit": 0,
+            "stdout": "mapheavy/go4t-2.stdout",
+            "stderr": "mapheavy/go4t-2.stderr",
+            "seconds": 3.06,
+            "rss_kb": 222480
+          },
+          {
+            "exit": 0,
+            "stdout": "mapheavy/go4t-3.stdout",
+            "stderr": "mapheavy/go4t-3.stderr",
+            "seconds": 2.95,
+            "rss_kb": 234960
+          }
+        ],
+        "Go": [
+          {
+            "exit": 0,
+            "stdout": "mapheavy/Go-1.stdout",
+            "stderr": "mapheavy/Go-1.stderr",
+            "seconds": 0.14,
+            "rss_kb": 39600
+          },
+          {
+            "exit": 0,
+            "stdout": "mapheavy/Go-2.stdout",
+            "stderr": "mapheavy/Go-2.stderr",
+            "seconds": 0.13,
+            "rss_kb": 39600
+          },
+          {
+            "exit": 0,
+            "stdout": "mapheavy/Go-3.stdout",
+            "stderr": "mapheavy/Go-3.stderr",
+            "seconds": 0.14,
+            "rss_kb": 39600
+          }
+        ]
+      },
+      "binary_bytes": {
+        "go4t": 5394877,
+        "Go": 2542930
+      },
+      "checksum_equal": true,
+      "success": true,
+      "checksum": "1000000\n",
+      "checksum_sha256": "085c348f64a3b543e973a33749e90ba20847b99016a87e5228847597d61ce582",
+      "go4t": {
+        "seconds": 2.95,
+        "rss_kb": 222480
+      },
+      "Go": {
+        "seconds": 0.13,
+        "rss_kb": 39600
+      },
+      "ratio": 22.692307692307693
+    },
+    {
+      "kernel": "treefold",
+      "runs": {
+        "go4t": [
+          {
+            "exit": 0,
+            "stdout": "treefold/go4t-1.stdout",
+            "stderr": "treefold/go4t-1.stderr",
+            "seconds": 0.08,
+            "rss_kb": 40800
+          },
+          {
+            "exit": 0,
+            "stdout": "treefold/go4t-2.stdout",
+            "stderr": "treefold/go4t-2.stderr",
+            "seconds": 0.08,
+            "rss_kb": 40800
+          },
+          {
+            "exit": 0,
+            "stdout": "treefold/go4t-3.stdout",
+            "stderr": "treefold/go4t-3.stderr",
+            "seconds": 0.07,
+            "rss_kb": 40560
+          }
+        ],
+        "Go": [
+          {
+            "exit": 0,
+            "stdout": "treefold/Go-1.stdout",
+            "stderr": "treefold/Go-1.stderr",
+            "seconds": 0.04,
+            "rss_kb": 19920
+          },
+          {
+            "exit": 0,
+            "stdout": "treefold/Go-2.stdout",
+            "stderr": "treefold/Go-2.stderr",
+            "seconds": 0.04,
+            "rss_kb": 19680
+          },
+          {
+            "exit": 0,
+            "stdout": "treefold/Go-3.stdout",
+            "stderr": "treefold/Go-3.stderr",
+            "seconds": 0.04,
+            "rss_kb": 19440
+          }
+        ]
+      },
+      "binary_bytes": {
+        "go4t": 5376011,
+        "Go": 2542920
+      },
+      "checksum_equal": true,
+      "success": true,
+      "checksum": "2097151\n",
+      "checksum_sha256": "9f8867e5061b7806978de8e32f466c9936956938eb5091d144e4d524fb25d330",
+      "go4t": {
+        "seconds": 0.07,
+        "rss_kb": 40560
+      },
+      "Go": {
+        "seconds": 0.04,
+        "rss_kb": 19440
+      },
+      "ratio": 1.7500000000000002
+    }
+  ],
+  "pprof_top": "File: profile-bin\nBuild ID: 1b7b43d6fe636d0e6f2ffefc2aa794050a6ec3b6\nType: cpu\nTime: 2026-11-04 09:34:07 JST\nDuration: 2.89s, Total samples = 2850ms (98.58%)\nShowing nodes accounting for 1360ms, 47.72% of 2850ms total\nDropped 36 nodes (cum <= 14.25ms)\nShowing top 10 nodes out of 104\n      flat  flat%   sum%        cum   cum%\n     330ms 11.58% 11.58%      490ms 17.19%  runtime.tryDeferToSpanScan\n     150ms  5.26% 16.84%      150ms  5.26%  cmpbody\n     150ms  5.26% 22.11%      320ms 11.23%  go4t/rt.LtString (inline)\n     140ms  4.91% 27.02%      640ms 22.46%  runtime.scanObjectSmall\n     120ms  4.21% 31.23%      120ms  4.21%  runtime.memclrNoHeapPointers\n     110ms  3.86% 35.09%      510ms 17.89%  main.dict_prelude_Ord_String.Compare (inline)\n     100ms  3.51% 38.60%     1130ms 39.65%  go4t/rt.collBalance\n     100ms  3.51% 42.11%      430ms 15.09%  go4t/rt.collLookup\n      80ms  2.81% 44.91%       80ms  2.81%  runtime.(*mspan).moveInlineMarks\n      80ms  2.81% 47.72%      630ms 22.11%  runtime.mallocgcSmallScanNoHeader\n",
+  "commands": [
+    "/home/vagrant/.codex/skills/serialize-vm-tests/scripts/serialize-vm-tests --class short -- go run ./bench/perf/gen /workspace/go4t/bench/perf/.work/results-20261104/input",
+    "/home/vagrant/.codex/skills/serialize-vm-tests/scripts/serialize-vm-tests --class short -- /workspace/go4t/bench/perf/.work/measured-20261104-current/go4t build --emit-go /workspace/go4t/bench/perf/.work/results-20261104/wordfreq/generated --package main /workspace/go4t/bench/perf/wordfreq/main.gt",
+    "/home/vagrant/.codex/skills/serialize-vm-tests/scripts/serialize-vm-tests --class short -- go build -o /workspace/go4t/bench/perf/.work/results-20261104/wordfreq/go4t-bin /workspace/go4t/bench/perf/.work/results-20261104/wordfreq/generated",
+    "/home/vagrant/.codex/skills/serialize-vm-tests/scripts/serialize-vm-tests --class short -- go build -o /workspace/go4t/bench/perf/.work/results-20261104/wordfreq/go-bin /workspace/go4t/bench/perf/wordfreq/go",
+    "/home/vagrant/.codex/skills/serialize-vm-tests/scripts/serialize-vm-tests --class short -- bash -c 'input=$1; shift; exec \"$@\" < \"$input\"' go4t-perf-input /workspace/go4t/bench/perf/.work/results-20261104/input/wordfreq.txt /usr/bin/time -f '%e %M' -o /workspace/go4t/bench/perf/.work/results-20261104/wordfreq/go4t-1.time timeout --kill-after=5s 175s /workspace/go4t/bench/perf/.work/results-20261104/wordfreq/go4t-bin > /workspace/go4t/bench/perf/.work/results-20261104/wordfreq/go4t-1.stdout 2> /workspace/go4t/bench/perf/.work/results-20261104/wordfreq/go4t-1.stderr",
+    "/home/vagrant/.codex/skills/serialize-vm-tests/scripts/serialize-vm-tests --class short -- bash -c 'input=$1; shift; exec \"$@\" < \"$input\"' go4t-perf-input /workspace/go4t/bench/perf/.work/results-20261104/input/wordfreq.txt /usr/bin/time -f '%e %M' -o /workspace/go4t/bench/perf/.work/results-20261104/wordfreq/Go-1.time timeout --kill-after=5s 175s /workspace/go4t/bench/perf/.work/results-20261104/wordfreq/go-bin > /workspace/go4t/bench/perf/.work/results-20261104/wordfreq/Go-1.stdout 2> /workspace/go4t/bench/perf/.work/results-20261104/wordfreq/Go-1.stderr",
+    "/home/vagrant/.codex/skills/serialize-vm-tests/scripts/serialize-vm-tests --class short -- bash -c 'input=$1; shift; exec \"$@\" < \"$input\"' go4t-perf-input /workspace/go4t/bench/perf/.work/results-20261104/input/wordfreq.txt /usr/bin/time -f '%e %M' -o /workspace/go4t/bench/perf/.work/results-20261104/wordfreq/go4t-2.time timeout --kill-after=5s 175s /workspace/go4t/bench/perf/.work/results-20261104/wordfreq/go4t-bin > /workspace/go4t/bench/perf/.work/results-20261104/wordfreq/go4t-2.stdout 2> /workspace/go4t/bench/perf/.work/results-20261104/wordfreq/go4t-2.stderr",
+    "/home/vagrant/.codex/skills/serialize-vm-tests/scripts/serialize-vm-tests --class short -- bash -c 'input=$1; shift; exec \"$@\" < \"$input\"' go4t-perf-input /workspace/go4t/bench/perf/.work/results-20261104/input/wordfreq.txt /usr/bin/time -f '%e %M' -o /workspace/go4t/bench/perf/.work/results-20261104/wordfreq/Go-2.time timeout --kill-after=5s 175s /workspace/go4t/bench/perf/.work/results-20261104/wordfreq/go-bin > /workspace/go4t/bench/perf/.work/results-20261104/wordfreq/Go-2.stdout 2> /workspace/go4t/bench/perf/.work/results-20261104/wordfreq/Go-2.stderr",
+    "/home/vagrant/.codex/skills/serialize-vm-tests/scripts/serialize-vm-tests --class short -- bash -c 'input=$1; shift; exec \"$@\" < \"$input\"' go4t-perf-input /workspace/go4t/bench/perf/.work/results-20261104/input/wordfreq.txt /usr/bin/time -f '%e %M' -o /workspace/go4t/bench/perf/.work/results-20261104/wordfreq/go4t-3.time timeout --kill-after=5s 175s /workspace/go4t/bench/perf/.work/results-20261104/wordfreq/go4t-bin > /workspace/go4t/bench/perf/.work/results-20261104/wordfreq/go4t-3.stdout 2> /workspace/go4t/bench/perf/.work/results-20261104/wordfreq/go4t-3.stderr",
+    "/home/vagrant/.codex/skills/serialize-vm-tests/scripts/serialize-vm-tests --class short -- bash -c 'input=$1; shift; exec \"$@\" < \"$input\"' go4t-perf-input /workspace/go4t/bench/perf/.work/results-20261104/input/wordfreq.txt /usr/bin/time -f '%e %M' -o /workspace/go4t/bench/perf/.work/results-20261104/wordfreq/Go-3.time timeout --kill-after=5s 175s /workspace/go4t/bench/perf/.work/results-20261104/wordfreq/go-bin > /workspace/go4t/bench/perf/.work/results-20261104/wordfreq/Go-3.stdout 2> /workspace/go4t/bench/perf/.work/results-20261104/wordfreq/Go-3.stderr",
+    "/home/vagrant/.codex/skills/serialize-vm-tests/scripts/serialize-vm-tests --class short -- /workspace/go4t/bench/perf/.work/measured-20261104-current/go4t build --emit-go /workspace/go4t/bench/perf/.work/results-20261104/sortints/generated --package main /workspace/go4t/bench/perf/sortints/main.gt",
+    "/home/vagrant/.codex/skills/serialize-vm-tests/scripts/serialize-vm-tests --class short -- go build -o /workspace/go4t/bench/perf/.work/results-20261104/sortints/go4t-bin /workspace/go4t/bench/perf/.work/results-20261104/sortints/generated",
+    "/home/vagrant/.codex/skills/serialize-vm-tests/scripts/serialize-vm-tests --class short -- go build -o /workspace/go4t/bench/perf/.work/results-20261104/sortints/go-bin /workspace/go4t/bench/perf/sortints/go",
+    "/home/vagrant/.codex/skills/serialize-vm-tests/scripts/serialize-vm-tests --class short -- bash -c 'input=$1; shift; exec \"$@\" < \"$input\"' go4t-perf-input /workspace/go4t/bench/perf/.work/results-20261104/input/sortints.txt /usr/bin/time -f '%e %M' -o /workspace/go4t/bench/perf/.work/results-20261104/sortints/go4t-1.time timeout --kill-after=5s 175s /workspace/go4t/bench/perf/.work/results-20261104/sortints/go4t-bin > /workspace/go4t/bench/perf/.work/results-20261104/sortints/go4t-1.stdout 2> /workspace/go4t/bench/perf/.work/results-20261104/sortints/go4t-1.stderr",
+    "/home/vagrant/.codex/skills/serialize-vm-tests/scripts/serialize-vm-tests --class short -- bash -c 'input=$1; shift; exec \"$@\" < \"$input\"' go4t-perf-input /workspace/go4t/bench/perf/.work/results-20261104/input/sortints.txt /usr/bin/time -f '%e %M' -o /workspace/go4t/bench/perf/.work/results-20261104/sortints/Go-1.time timeout --kill-after=5s 175s /workspace/go4t/bench/perf/.work/results-20261104/sortints/go-bin > /workspace/go4t/bench/perf/.work/results-20261104/sortints/Go-1.stdout 2> /workspace/go4t/bench/perf/.work/results-20261104/sortints/Go-1.stderr",
+    "/home/vagrant/.codex/skills/serialize-vm-tests/scripts/serialize-vm-tests --class short -- bash -c 'input=$1; shift; exec \"$@\" < \"$input\"' go4t-perf-input /workspace/go4t/bench/perf/.work/results-20261104/input/sortints.txt /usr/bin/time -f '%e %M' -o /workspace/go4t/bench/perf/.work/results-20261104/sortints/go4t-2.time timeout --kill-after=5s 175s /workspace/go4t/bench/perf/.work/results-20261104/sortints/go4t-bin > /workspace/go4t/bench/perf/.work/results-20261104/sortints/go4t-2.stdout 2> /workspace/go4t/bench/perf/.work/results-20261104/sortints/go4t-2.stderr",
+    "/home/vagrant/.codex/skills/serialize-vm-tests/scripts/serialize-vm-tests --class short -- bash -c 'input=$1; shift; exec \"$@\" < \"$input\"' go4t-perf-input /workspace/go4t/bench/perf/.work/results-20261104/input/sortints.txt /usr/bin/time -f '%e %M' -o /workspace/go4t/bench/perf/.work/results-20261104/sortints/Go-2.time timeout --kill-after=5s 175s /workspace/go4t/bench/perf/.work/results-20261104/sortints/go-bin > /workspace/go4t/bench/perf/.work/results-20261104/sortints/Go-2.stdout 2> /workspace/go4t/bench/perf/.work/results-20261104/sortints/Go-2.stderr",
+    "/home/vagrant/.codex/skills/serialize-vm-tests/scripts/serialize-vm-tests --class short -- bash -c 'input=$1; shift; exec \"$@\" < \"$input\"' go4t-perf-input /workspace/go4t/bench/perf/.work/results-20261104/input/sortints.txt /usr/bin/time -f '%e %M' -o /workspace/go4t/bench/perf/.work/results-20261104/sortints/go4t-3.time timeout --kill-after=5s 175s /workspace/go4t/bench/perf/.work/results-20261104/sortints/go4t-bin > /workspace/go4t/bench/perf/.work/results-20261104/sortints/go4t-3.stdout 2> /workspace/go4t/bench/perf/.work/results-20261104/sortints/go4t-3.stderr",
+    "/home/vagrant/.codex/skills/serialize-vm-tests/scripts/serialize-vm-tests --class short -- bash -c 'input=$1; shift; exec \"$@\" < \"$input\"' go4t-perf-input /workspace/go4t/bench/perf/.work/results-20261104/input/sortints.txt /usr/bin/time -f '%e %M' -o /workspace/go4t/bench/perf/.work/results-20261104/sortints/Go-3.time timeout --kill-after=5s 175s /workspace/go4t/bench/perf/.work/results-20261104/sortints/go-bin > /workspace/go4t/bench/perf/.work/results-20261104/sortints/Go-3.stdout 2> /workspace/go4t/bench/perf/.work/results-20261104/sortints/Go-3.stderr",
+    "/home/vagrant/.codex/skills/serialize-vm-tests/scripts/serialize-vm-tests --class short -- /workspace/go4t/bench/perf/.work/measured-20261104-current/go4t build --emit-go /workspace/go4t/bench/perf/.work/results-20261104/nbody/generated --package main /workspace/go4t/bench/perf/nbody/main.gt",
+    "/home/vagrant/.codex/skills/serialize-vm-tests/scripts/serialize-vm-tests --class short -- go build -o /workspace/go4t/bench/perf/.work/results-20261104/nbody/go4t-bin /workspace/go4t/bench/perf/.work/results-20261104/nbody/generated",
+    "/home/vagrant/.codex/skills/serialize-vm-tests/scripts/serialize-vm-tests --class short -- go build -o /workspace/go4t/bench/perf/.work/results-20261104/nbody/go-bin /workspace/go4t/bench/perf/nbody/go",
+    "/home/vagrant/.codex/skills/serialize-vm-tests/scripts/serialize-vm-tests --class short -- bash -c 'input=$1; shift; exec \"$@\" < \"$input\"' go4t-perf-input /workspace/go4t/bench/perf/.work/results-20261104/input/nbody.txt /usr/bin/time -f '%e %M' -o /workspace/go4t/bench/perf/.work/results-20261104/nbody/go4t-1.time timeout --kill-after=5s 175s /workspace/go4t/bench/perf/.work/results-20261104/nbody/go4t-bin > /workspace/go4t/bench/perf/.work/results-20261104/nbody/go4t-1.stdout 2> /workspace/go4t/bench/perf/.work/results-20261104/nbody/go4t-1.stderr",
+    "/home/vagrant/.codex/skills/serialize-vm-tests/scripts/serialize-vm-tests --class short -- bash -c 'input=$1; shift; exec \"$@\" < \"$input\"' go4t-perf-input /workspace/go4t/bench/perf/.work/results-20261104/input/nbody.txt /usr/bin/time -f '%e %M' -o /workspace/go4t/bench/perf/.work/results-20261104/nbody/Go-1.time timeout --kill-after=5s 175s /workspace/go4t/bench/perf/.work/results-20261104/nbody/go-bin > /workspace/go4t/bench/perf/.work/results-20261104/nbody/Go-1.stdout 2> /workspace/go4t/bench/perf/.work/results-20261104/nbody/Go-1.stderr",
+    "/home/vagrant/.codex/skills/serialize-vm-tests/scripts/serialize-vm-tests --class short -- bash -c 'input=$1; shift; exec \"$@\" < \"$input\"' go4t-perf-input /workspace/go4t/bench/perf/.work/results-20261104/input/nbody.txt /usr/bin/time -f '%e %M' -o /workspace/go4t/bench/perf/.work/results-20261104/nbody/go4t-2.time timeout --kill-after=5s 175s /workspace/go4t/bench/perf/.work/results-20261104/nbody/go4t-bin > /workspace/go4t/bench/perf/.work/results-20261104/nbody/go4t-2.stdout 2> /workspace/go4t/bench/perf/.work/results-20261104/nbody/go4t-2.stderr",
+    "/home/vagrant/.codex/skills/serialize-vm-tests/scripts/serialize-vm-tests --class short -- bash -c 'input=$1; shift; exec \"$@\" < \"$input\"' go4t-perf-input /workspace/go4t/bench/perf/.work/results-20261104/input/nbody.txt /usr/bin/time -f '%e %M' -o /workspace/go4t/bench/perf/.work/results-20261104/nbody/Go-2.time timeout --kill-after=5s 175s /workspace/go4t/bench/perf/.work/results-20261104/nbody/go-bin > /workspace/go4t/bench/perf/.work/results-20261104/nbody/Go-2.stdout 2> /workspace/go4t/bench/perf/.work/results-20261104/nbody/Go-2.stderr",
+    "/home/vagrant/.codex/skills/serialize-vm-tests/scripts/serialize-vm-tests --class short -- bash -c 'input=$1; shift; exec \"$@\" < \"$input\"' go4t-perf-input /workspace/go4t/bench/perf/.work/results-20261104/input/nbody.txt /usr/bin/time -f '%e %M' -o /workspace/go4t/bench/perf/.work/results-20261104/nbody/go4t-3.time timeout --kill-after=5s 175s /workspace/go4t/bench/perf/.work/results-20261104/nbody/go4t-bin > /workspace/go4t/bench/perf/.work/results-20261104/nbody/go4t-3.stdout 2> /workspace/go4t/bench/perf/.work/results-20261104/nbody/go4t-3.stderr",
+    "/home/vagrant/.codex/skills/serialize-vm-tests/scripts/serialize-vm-tests --class short -- bash -c 'input=$1; shift; exec \"$@\" < \"$input\"' go4t-perf-input /workspace/go4t/bench/perf/.work/results-20261104/input/nbody.txt /usr/bin/time -f '%e %M' -o /workspace/go4t/bench/perf/.work/results-20261104/nbody/Go-3.time timeout --kill-after=5s 175s /workspace/go4t/bench/perf/.work/results-20261104/nbody/go-bin > /workspace/go4t/bench/perf/.work/results-20261104/nbody/Go-3.stdout 2> /workspace/go4t/bench/perf/.work/results-20261104/nbody/Go-3.stderr",
+    "/home/vagrant/.codex/skills/serialize-vm-tests/scripts/serialize-vm-tests --class short -- /workspace/go4t/bench/perf/.work/measured-20261104-current/go4t build --emit-go /workspace/go4t/bench/perf/.work/results-20261104/mapheavy/generated --package main /workspace/go4t/bench/perf/mapheavy/main.gt",
+    "/home/vagrant/.codex/skills/serialize-vm-tests/scripts/serialize-vm-tests --class short -- go build -o /workspace/go4t/bench/perf/.work/results-20261104/mapheavy/go4t-bin /workspace/go4t/bench/perf/.work/results-20261104/mapheavy/generated",
+    "/home/vagrant/.codex/skills/serialize-vm-tests/scripts/serialize-vm-tests --class short -- go build -o /workspace/go4t/bench/perf/.work/results-20261104/mapheavy/go-bin /workspace/go4t/bench/perf/mapheavy/go",
+    "/home/vagrant/.codex/skills/serialize-vm-tests/scripts/serialize-vm-tests --class short -- bash -c 'input=$1; shift; exec \"$@\" < \"$input\"' go4t-perf-input /workspace/go4t/bench/perf/.work/results-20261104/input/mapheavy.txt /usr/bin/time -f '%e %M' -o /workspace/go4t/bench/perf/.work/results-20261104/mapheavy/go4t-1.time timeout --kill-after=5s 175s /workspace/go4t/bench/perf/.work/results-20261104/mapheavy/go4t-bin > /workspace/go4t/bench/perf/.work/results-20261104/mapheavy/go4t-1.stdout 2> /workspace/go4t/bench/perf/.work/results-20261104/mapheavy/go4t-1.stderr",
+    "/home/vagrant/.codex/skills/serialize-vm-tests/scripts/serialize-vm-tests --class short -- bash -c 'input=$1; shift; exec \"$@\" < \"$input\"' go4t-perf-input /workspace/go4t/bench/perf/.work/results-20261104/input/mapheavy.txt /usr/bin/time -f '%e %M' -o /workspace/go4t/bench/perf/.work/results-20261104/mapheavy/Go-1.time timeout --kill-after=5s 175s /workspace/go4t/bench/perf/.work/results-20261104/mapheavy/go-bin > /workspace/go4t/bench/perf/.work/results-20261104/mapheavy/Go-1.stdout 2> /workspace/go4t/bench/perf/.work/results-20261104/mapheavy/Go-1.stderr",
+    "/home/vagrant/.codex/skills/serialize-vm-tests/scripts/serialize-vm-tests --class short -- bash -c 'input=$1; shift; exec \"$@\" < \"$input\"' go4t-perf-input /workspace/go4t/bench/perf/.work/results-20261104/input/mapheavy.txt /usr/bin/time -f '%e %M' -o /workspace/go4t/bench/perf/.work/results-20261104/mapheavy/go4t-2.time timeout --kill-after=5s 175s /workspace/go4t/bench/perf/.work/results-20261104/mapheavy/go4t-bin > /workspace/go4t/bench/perf/.work/results-20261104/mapheavy/go4t-2.stdout 2> /workspace/go4t/bench/perf/.work/results-20261104/mapheavy/go4t-2.stderr",
+    "/home/vagrant/.codex/skills/serialize-vm-tests/scripts/serialize-vm-tests --class short -- bash -c 'input=$1; shift; exec \"$@\" < \"$input\"' go4t-perf-input /workspace/go4t/bench/perf/.work/results-20261104/input/mapheavy.txt /usr/bin/time -f '%e %M' -o /workspace/go4t/bench/perf/.work/results-20261104/mapheavy/Go-2.time timeout --kill-after=5s 175s /workspace/go4t/bench/perf/.work/results-20261104/mapheavy/go-bin > /workspace/go4t/bench/perf/.work/results-20261104/mapheavy/Go-2.stdout 2> /workspace/go4t/bench/perf/.work/results-20261104/mapheavy/Go-2.stderr",
+    "/home/vagrant/.codex/skills/serialize-vm-tests/scripts/serialize-vm-tests --class short -- bash -c 'input=$1; shift; exec \"$@\" < \"$input\"' go4t-perf-input /workspace/go4t/bench/perf/.work/results-20261104/input/mapheavy.txt /usr/bin/time -f '%e %M' -o /workspace/go4t/bench/perf/.work/results-20261104/mapheavy/go4t-3.time timeout --kill-after=5s 175s /workspace/go4t/bench/perf/.work/results-20261104/mapheavy/go4t-bin > /workspace/go4t/bench/perf/.work/results-20261104/mapheavy/go4t-3.stdout 2> /workspace/go4t/bench/perf/.work/results-20261104/mapheavy/go4t-3.stderr",
+    "/home/vagrant/.codex/skills/serialize-vm-tests/scripts/serialize-vm-tests --class short -- bash -c 'input=$1; shift; exec \"$@\" < \"$input\"' go4t-perf-input /workspace/go4t/bench/perf/.work/results-20261104/input/mapheavy.txt /usr/bin/time -f '%e %M' -o /workspace/go4t/bench/perf/.work/results-20261104/mapheavy/Go-3.time timeout --kill-after=5s 175s /workspace/go4t/bench/perf/.work/results-20261104/mapheavy/go-bin > /workspace/go4t/bench/perf/.work/results-20261104/mapheavy/Go-3.stdout 2> /workspace/go4t/bench/perf/.work/results-20261104/mapheavy/Go-3.stderr",
+    "/home/vagrant/.codex/skills/serialize-vm-tests/scripts/serialize-vm-tests --class short -- /workspace/go4t/bench/perf/.work/measured-20261104-current/go4t build --emit-go /workspace/go4t/bench/perf/.work/results-20261104/treefold/generated --package main /workspace/go4t/bench/perf/treefold/main.gt",
+    "/home/vagrant/.codex/skills/serialize-vm-tests/scripts/serialize-vm-tests --class short -- go build -o /workspace/go4t/bench/perf/.work/results-20261104/treefold/go4t-bin /workspace/go4t/bench/perf/.work/results-20261104/treefold/generated",
+    "/home/vagrant/.codex/skills/serialize-vm-tests/scripts/serialize-vm-tests --class short -- go build -o /workspace/go4t/bench/perf/.work/results-20261104/treefold/go-bin /workspace/go4t/bench/perf/treefold/go",
+    "/home/vagrant/.codex/skills/serialize-vm-tests/scripts/serialize-vm-tests --class short -- bash -c 'input=$1; shift; exec \"$@\" < \"$input\"' go4t-perf-input /workspace/go4t/bench/perf/.work/results-20261104/input/treefold.txt /usr/bin/time -f '%e %M' -o /workspace/go4t/bench/perf/.work/results-20261104/treefold/go4t-1.time timeout --kill-after=5s 175s /workspace/go4t/bench/perf/.work/results-20261104/treefold/go4t-bin > /workspace/go4t/bench/perf/.work/results-20261104/treefold/go4t-1.stdout 2> /workspace/go4t/bench/perf/.work/results-20261104/treefold/go4t-1.stderr",
+    "/home/vagrant/.codex/skills/serialize-vm-tests/scripts/serialize-vm-tests --class short -- bash -c 'input=$1; shift; exec \"$@\" < \"$input\"' go4t-perf-input /workspace/go4t/bench/perf/.work/results-20261104/input/treefold.txt /usr/bin/time -f '%e %M' -o /workspace/go4t/bench/perf/.work/results-20261104/treefold/Go-1.time timeout --kill-after=5s 175s /workspace/go4t/bench/perf/.work/results-20261104/treefold/go-bin > /workspace/go4t/bench/perf/.work/results-20261104/treefold/Go-1.stdout 2> /workspace/go4t/bench/perf/.work/results-20261104/treefold/Go-1.stderr",
+    "/home/vagrant/.codex/skills/serialize-vm-tests/scripts/serialize-vm-tests --class short -- bash -c 'input=$1; shift; exec \"$@\" < \"$input\"' go4t-perf-input /workspace/go4t/bench/perf/.work/results-20261104/input/treefold.txt /usr/bin/time -f '%e %M' -o /workspace/go4t/bench/perf/.work/results-20261104/treefold/go4t-2.time timeout --kill-after=5s 175s /workspace/go4t/bench/perf/.work/results-20261104/treefold/go4t-bin > /workspace/go4t/bench/perf/.work/results-20261104/treefold/go4t-2.stdout 2> /workspace/go4t/bench/perf/.work/results-20261104/treefold/go4t-2.stderr",
+    "/home/vagrant/.codex/skills/serialize-vm-tests/scripts/serialize-vm-tests --class short -- bash -c 'input=$1; shift; exec \"$@\" < \"$input\"' go4t-perf-input /workspace/go4t/bench/perf/.work/results-20261104/input/treefold.txt /usr/bin/time -f '%e %M' -o /workspace/go4t/bench/perf/.work/results-20261104/treefold/Go-2.time timeout --kill-after=5s 175s /workspace/go4t/bench/perf/.work/results-20261104/treefold/go-bin > /workspace/go4t/bench/perf/.work/results-20261104/treefold/Go-2.stdout 2> /workspace/go4t/bench/perf/.work/results-20261104/treefold/Go-2.stderr",
+    "/home/vagrant/.codex/skills/serialize-vm-tests/scripts/serialize-vm-tests --class short -- bash -c 'input=$1; shift; exec \"$@\" < \"$input\"' go4t-perf-input /workspace/go4t/bench/perf/.work/results-20261104/input/treefold.txt /usr/bin/time -f '%e %M' -o /workspace/go4t/bench/perf/.work/results-20261104/treefold/go4t-3.time timeout --kill-after=5s 175s /workspace/go4t/bench/perf/.work/results-20261104/treefold/go4t-bin > /workspace/go4t/bench/perf/.work/results-20261104/treefold/go4t-3.stdout 2> /workspace/go4t/bench/perf/.work/results-20261104/treefold/go4t-3.stderr",
+    "/home/vagrant/.codex/skills/serialize-vm-tests/scripts/serialize-vm-tests --class short -- bash -c 'input=$1; shift; exec \"$@\" < \"$input\"' go4t-perf-input /workspace/go4t/bench/perf/.work/results-20261104/input/treefold.txt /usr/bin/time -f '%e %M' -o /workspace/go4t/bench/perf/.work/results-20261104/treefold/Go-3.time timeout --kill-after=5s 175s /workspace/go4t/bench/perf/.work/results-20261104/treefold/go-bin > /workspace/go4t/bench/perf/.work/results-20261104/treefold/Go-3.stdout 2> /workspace/go4t/bench/perf/.work/results-20261104/treefold/Go-3.stderr",
+    "/home/vagrant/.codex/skills/serialize-vm-tests/scripts/serialize-vm-tests --class short -- go build -o /workspace/go4t/bench/perf/.work/results-20261104/wordfreq/profile-bin /workspace/go4t/bench/perf/.work/results-20261104/wordfreq/profile-generated",
+    "/home/vagrant/.codex/skills/serialize-vm-tests/scripts/serialize-vm-tests --class short -- bash -c 'input=$1; shift; exec \"$@\" < \"$input\"' go4t-perf-input /workspace/go4t/bench/perf/.work/results-20261104/input/wordfreq.txt timeout --kill-after=5s 175s /workspace/go4t/bench/perf/.work/results-20261104/wordfreq/profile-bin > /workspace/go4t/bench/perf/.work/results-20261104/wordfreq/profile.stdout",
+    "/home/vagrant/.codex/skills/serialize-vm-tests/scripts/serialize-vm-tests --class short -- go tool pprof -top -nodecount=10 /workspace/go4t/bench/perf/.work/results-20261104/wordfreq/profile-bin /workspace/go4t/bench/perf/.work/results-20261104/wordfreq/cpu.pprof > /workspace/go4t/bench/perf/.work/results-20261104/pprof-top.txt"
+  ]
+}

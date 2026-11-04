@@ -176,8 +176,8 @@ println print eprintln ioPure ioFail unit fst snd compare eq min max toFloat
 ```
 
 Reexported types also expose `LT EQ GT None Some Err Ok Nil Cons`. Builtins
-`Int Float String Bool IO Map Set Array Fiber` and tuple types are independent of
-imports. All instances in loaded modules participate in resolution.
+`Int Float String Bool IO Ref Fiber Chan RecvChan SendChan Map Set Array` and tuple
+types are independent of imports. All instances in loaded modules participate in resolution.
 
 Module declarations and lexical bindings win over implicit names. Top-level
 shadowing warns `shadows prelude name X`; it is legal. Explicitly import
@@ -206,6 +206,8 @@ func main() IO[Unit] {
 | `Int`, `Float`, `String`, `Bool`, `Unit` | `*`; int64, binary64, text, Boolean, unit |
 | `IO[A]` | `(*) -> *`; deferred action producing A or failing |
 | `Fiber[A]` | `(*) -> *`; opaque concurrent result handle |
+| `Ref[A]` | `(*) -> *`; opaque mutable cell accessed only through IO |
+| `Chan[A]`, `RecvChan[A]`, `SendChan[A]` | `(*) -> *`; opaque bidirectional, receive-only and send-only channel handles |
 | `Map[K, V]` | `(*, *) -> *`; persistent comparator-ordered map |
 | `Set[A]` | `(*) -> *`; persistent comparator-ordered set |
 | `Array[A]` | `(*) -> *`; immutable random-access sequence |
@@ -1007,28 +1009,32 @@ class Ord[A] : Eq[A] { compare(a A, b A) Ordering }
 
 | Module | Contents (only §2.3's fixed names are implicit) |
 | --- | --- |
-| `std/prelude` | Classes above; Ordering/Option and primitive/pair/Option instances; core combinators |
-| `std/list` | List/instances; folds, traversal, searching, slicing, sorting, `catOptions`, `mapMaybe`, accumulator helpers |
-| `std/result` | Result/instances; Result and Option helpers; liftResult |
-| `std/io` | IO instances, IoError (Eq/Debug/Show), ioRaise/ioErrorMessage, console, arguments/environment, files, clocks, randomInt, randomFloat, sleep, tryIO |
-| `std/float` | Float instances, conversions/math/formatting; minInt/maxInt/abs |
-| `std/string` | Rune-oriented strings, Unicode classification, parsing/padding |
-| `std/regex` | Go-regexp matching, captures, replacement and splitting |
-| `std/map`, `std/set`, `std/array` | Persistent collections and their loaded instances |
+| `std/array` | Persistent arrays and their loaded instances |
+| `std/chan` | Opaque directional channels: make/send/recv/close, explicit asRecv/asSend upcasts |
 | `std/conc` | fork/await, parallel map/pair, race/timeout |
-| `std/state` | State and Functor/Monad instances, state operations |
-| `std/lazy` | Lazy, delay/force; explicitly **nonmemoising** |
-| `std/json` | Json, Encode/Decode and codecs; not implicitly exported |
-| `std/dyn` | Value, an Eq/Debug sum for foreign `any` and variadic arguments; not implicitly exported |
+| `std/float` | Float instances, conversions/math/formatting; minInt/maxInt/abs |
 | `std/http` | Request/Response, request/get/post/requestWithTimeout, response/jsonResponse, requestHeader/responseHeader, serve |
+| `std/io` | IO instances, IoError (Eq/Debug/Show), ioRaise/ioErrorMessage, console, arguments/environment, files, streaming foldLines/forEachLine, clocks, randomInt, randomFloat, sleep, tryIO |
+| `std/json` | Json, Encode/Decode and codecs; not implicitly exported |
+| `std/lazy` | Lazy, delay/force; explicitly **nonmemoising** |
+| `std/list` | List/instances; folds, traversal, searching, slicing, sorting, `catOptions`, `mapMaybe`, accumulator helpers |
+| `std/map` | Persistent maps and their loaded instances |
+| `std/prelude` | Classes above; Ordering/Option and primitive/pair/Option instances; core combinators |
+| `std/ref` | IO-only opaque Ref cells: new/get/set, atomic modify/update |
+| `std/regex` | Go-regexp matching, captures, replacement and splitting |
+| `std/result` | Result/instances; Result and Option helpers; liftResult |
+| `std/set` | Persistent sets and their loaded instances |
+| `std/state` | State and Functor/Monad instances, state operations |
+| `std/string` | Rune-oriented strings, Unicode classification, parsing/padding |
+| `std/dyn` | Value, an Eq/Debug sum for foreign `any` and variadic arguments; not implicitly exported |
 
 Functor/Monad are provided for Option, List, Result[E], IO and State[S];
 Array and Map[K] have Functor. Option/List have Foldable/Traversable. Show/Eq/Ord
 cover Int, Float, String, Bool, Ordering, Option, List, Result and pairs with
 component constraints. Unit has Eq and Debug, **not Show or Ord**. Debug covers
 Int/Float/String/Bool/Unit, Ordering/Option/List/Result and pairs. Map/Set/Array
-have Show/Eq/Debug, not automatic Ord/Foldable; Fiber has no standard class
-instances. The complete explicit and derived inventory is in `docs/stdlib.md`.
+have Show/Eq/Debug, not automatic Ord/Foldable; Ref, Fiber and channel handles have
+no standard class instances. The complete explicit and derived inventory is in `docs/stdlib.md`.
 
 Float Show and Debug share the shortest `g` formatter: `show(1.0)` and
 `debug(1.0)` are both `"1.0"`. Finite forms without a decimal point or exponent
@@ -1248,7 +1254,7 @@ and linear conversion space; the old quadratic `insertBy` helper is removed.
 go4t init <module-path>
 go4t get <path>@<version>
 go4t check [--full-types] FILE.gt|DIR...
-go4t build [--full-types] [-o DIR | --emit-go DIR --package NAME] FILE.gt|DIR...
+go4t build [--full-types] [-o FILE | --emit-go DIR [--package NAME]] FILE.gt|DIR...
 go4t run [--full-types] FILE.gt|DIR... [-- args...]
 go4t test FILE.gt|DIR...
 go4t eval 'EXPR' [FILE.gt|DIR...]
@@ -1286,16 +1292,17 @@ go4t lsp
 - `--full-types` on `check`, `build` or `run` prints diagnostic types without
   depth elision (§5.2), retaining alias names. It may precede or follow inputs;
   after `run`'s `--` it is a program argument, not a compiler option.
-- `build` emits Go **source, not a binary**. Default: `<first-file-stem>_gen/`,
-  or `<DIR>/_gen/` for a directory. `-o` changes it. `--emit-go` and `--package`
-  must occur together, are incompatible with `-o`, and expose `func Main() rt.IO`
-  instead of Go main, plus the typed entry-module API described in §8.7.
-  NAME must be a valid non-keyword Go identifier other than `_` or `main`.
-  Flags can precede/follow inputs. Rewrites remove obsolete compiler-generated
-  Go files (including `go4t_export.go`) but preserve unrelated output-directory files.
-  Outside a Go module resolving `go4t`, it still emits sources and prints a note
-  explaining how to compile them with `require go4t v0.0.0` and a local
-  `replace go4t => /absolute/path/to/go4t`.
+- `build` produces an executable in the current directory. Its default name is
+  the first input directory's basename or the first input filename without `.gt`.
+  `-o FILE` selects the executable path; an existing directory is rejected.
+  Generated Go sources remain in `<first-file-stem>_gen/` or `<DIR>/_gen/`.
+  `--emit-go DIR` emits sources only and is incompatible with `-o`.
+  `--package NAME` requires `--emit-go` and defaults to `main`. Other package
+  names expose `func Main() rt.IO` and the typed entry-module API in §8.7.
+  NAME is a valid non-keyword Go identifier other than `_`.
+  Flags can precede or follow inputs. Rewrites remove obsolete compiler-generated
+  Go files, including `go4t_export.go`, and preserve unrelated output-directory files.
+  Go build diagnostics reach stderr; build failures exit nonzero.
 - `run` emits, builds and executes the whole package, inheriting stdin/stdout/
   stderr and forwarding arguments only after `--`. In a Go module resolving
   `go4t`, its generated sources remain and the executable is temporary. Outside
@@ -1330,8 +1337,13 @@ minimal `module go4t` file with the distribution's Go version. It inspects exter
 in this temporary module, emits sources into `prog/`, builds the whole package,
 and cleans the module and executable on success or failure. The installed binary
 needs only a Go toolchain on PATH, not a checkout, module cache entry, source-path
-hint, or environment override. `build` preserves its requested source output
-directory. For extern inspection it uses that directory's usable Go module,
+hint, or environment override.
+
+`build` retains the executable and generated-source directory. Without a usable
+Go module, compilation uses the embedded runtime in a temporary module and removes
+that module on success or failure. It does not modify the user's `go.mod`.
+`--emit-go` selects source-only output and prints no module-configuration note.
+For extern inspection, `build` uses the output directory's usable Go module,
 then the input's usable module if the output is outside one, then the embedded
 runtime as above; writing sources outside a module does not discard an input
 module's foreign dependencies.
@@ -1393,8 +1405,8 @@ IO; adjacent inputs are emitted independently, never guessed to be Option.
 Without `--shim`, only the natural-ABI table above is inferred. With `--shim`,
 the foreign mirrors below are inferred too. Unsupported functions receive
 `// skipped: Name (reason)`; unsupported methods use `Type.Method`. Generics,
-unnamed channels/interfaces, callback results, and result tuples other than
-`(T, error)` or `(T, bool)` remain unsupported. Named unsupported values become
+unnamed interfaces, callback results, unsupported channel elements, and result
+tuples other than `(T, error)` or `(T, bool)` remain unsupported. Named unsupported values become
 handles, not invented record layouts. Reserved names suggest a prefix.
 
 | Foreign Go type | go4t mirror with `--shim` | Conversion |
@@ -1407,6 +1419,9 @@ handles, not invented record layouts. Reserved names suggest a prefix.
 | iter.Seq[T], iter.Seq2[K, V] results | List[T], List[(K, V)] | Eager materialisation in iteration order; iterator parameters are skipped |
 | map[K]T with scalar K | Map[K, T] | Recursive copy; scalar key ordering |
 | *T with a value mirror | Option[T] | nil becomes None; non-nil becomes Some(copy) |
+| chan T, <-chan T, chan<- T with mirrorable T | Chan[T], RecvChan[T], SendChan[T] | Opaque directional handles; preserve the native Go channel and reuse the ordinary element converters; unsupported elements retain the signature's skip reason |
+| chan struct{}, <-chan struct{}, chan<- struct{} | Chan[Unit], RecvChan[Unit], SendChan[Unit] | Anonymous completion signals carry Unit |
+| Channel element T encountered in a bound package | new<T>Chan(buffer Int) IO[Chan[T]] | Allocate a fresh native channel when the action executes; generated names follow the existing binding-name precedence |
 | time.Duration | Int | Nanoseconds |
 | time.Time | Int | UnixNano; zero time becomes 0, and 0 reconstructs zero time |
 | error in a record field | Option[String] | nil becomes None; otherwise the message; reverse conversion uses a new error |
@@ -1429,6 +1444,29 @@ package. Other bindings reference them through generated `go:` imports, such as
 `import go_io "go:io"` and `go_io.Reader`; import aliases avoid generated names.
 All callers therefore share the owning module's type identity. This applies to
 `BindWithShim`; natural-ABI-only `Bind` output is unchanged.
+
+Channels preserve native identity as opaque directional handles. Every channel
+operation and typed channel constructor is IO; allocation of shared mutable state
+is an effect. Element conversion reuses the ordinary shim converters. Capability
+upcasts are explicit and pure. Channel-bearing and effectful callbacks force their
+enclosing foreign call into IO.
+
+`std/chan` exports `make`, `send`, `recv`, `close`, `asRecv` and `asSend`.
+`make[A](buffer)` returns `IO[Chan[A]]`; `send(SendChan[A], A)` and
+`close(SendChan[A])` return `IO[Unit]`; `recv(RecvChan[A])` returns
+`IO[Option[A]]`. Closed receive returns `None`. Send and receive honor cancellation.
+Closing an already closed channel fails with
+`Failure("chan.close: close of closed channel")`.
+
+`asRecv` and `asSend` are explicit, identity-preserving capability upcasts from
+`Chan`. Receive-only channels cannot be sent to or closed; send-only channels
+cannot be received from. Channels have no standard class instances, and channel
+operations are law-ineligible externs.
+
+`std/chan.make` allocates go4t-only channels. Native Go parameters require a
+generated typed channel constructor or an imported channel. The type system does
+not distinguish native element representations that share one go4t mirror;
+incompatible conversions fail with `IoError.Failure`, without a forwarding channel.
 
 Concrete handles and records expose `<t>As<I>` upcasts for exported nongeneric
 method-set interfaces in their package or its imported packages whenever T or
@@ -1741,8 +1779,10 @@ with `go generate main.go`.
 
 ## 9. Known limitations
 
-- No mutable references, character type (use one-rune Strings), arbitrary-precision
-  integers, general exception syntax or automatic global fiber joining.
+- No character type (use one-rune Strings), arbitrary-precision integers,
+  general exception syntax or automatic global fiber joining.
+  Mutable references are available as opaque `Ref[A]` cells through `std/ref`;
+  allocation, reads and writes require IO.
 - No expression type ascription (use typed lets/parameters); field access needs a
   known receiver type. `if` always needs `else`; bindings require irrefutable patterns.
 - Rank-1 polymorphism only; no inferred polymorphic recursion, local type parameter
@@ -1757,10 +1797,14 @@ with `go generate main.go`.
 - JSON Float representation loses large-Int precision and nullable Option identity;
   unsupported/non-finite serialization is not silently repaired.
 - Trusted externs can break purity. Foreign ABI errors are generation-time, not
-  `check` errors. Building/running requires a Go toolchain and resolvable Go module.
+  `check` errors. Building and running require a Go toolchain. Standalone programs
+  use the embedded runtime.
 - Native scalars/specialization are selective, not universal unboxing. Mutual or
   non-tail recursion and recursive library folds/maps can still consume stack;
   large allocations remain host-resource bounded. Lazy does not memoise.
+  Runtime costs are workload-dependent. `bench/PERF.md` records go4t-versus-Go
+  measurements for million-element collections, a million-step Float simulation,
+  and a depth-20 tree.
 - Laws do not infer comparison transitivity or ordered arithmetic under Int
   wraparound; variable divisors are tainted. There is no `requires` clause,
   higher-order quantification or Float law support. Encode guards as Bool
@@ -2030,6 +2074,9 @@ share immutable storage, but empty slices do not retain the backing allocation.
 | ioRaise / ioFailWith | Raise the supplied IoError unchanged / raise Failure(show(e)); arguments and Show rendering are strict, failure is deferred |
 | ioErrorMessage / Show[IoError] | Payload text; Timeout → `context deadline exceeded`, Cancelled → `context canceled`; Debug retains constructors and quotes String payloads |
 | readFile | Read entire contents; missing path fails with NotFound; other filesystem errors classified as in §6.2 |
+| foldLines | Deferred file-line fold in source order; empty file returns init without calling step; LF/CRLF stripped, bare CR retained, final unterminated line delivered; no fixed line-length limit; streaming storage scales with the longest line plus the accumulator |
+| foldLines / forEachLine | Missing path → NotFound; permission errors → PermissionDenied; other filesystem and step errors classified as in §6.2; first failed step or observed cancellation stops processing; cancellation checked between lines and after the final step; opened file closes on completion, failure, cancellation or panic |
+| forEachLine | Defined through foldLines with a Unit accumulator; invokes f once per line in order; empty file returns unit() without invoking f |
 | writeFile / appendFile | Create parent directories (0755) and files (0644), subject to umask; overwrite / append; write and close errors fail |
 | fileExists | Missing → false; existing file/directory → true; other stat errors fail |
 | listDir | Sorted entry names, including directories, not full paths; empty directory → Nil |
@@ -2116,7 +2163,7 @@ share immutable storage, but empty slices do not retain the backing allocation.
 | Diagnostic spans | One-based rune starts/exclusive ends; CLI caret clamps first line; missing end gives one caret; warnings exit 0 |
 | test | Empty suite succeeds; only explicit Bool/IO[Bool], monomorphic zero-arg `test` plus suffix; user main removed before checking; false/IO failure continues, panic uses ordinary runtime policy |
 | eval | One expression; imports from first entry file; Show needed; failed pure and IO wrappers report original error; no special Unit display |
-| build | Go sources not executable; -o vs --emit-go exclusive; --emit-go/--package paired; unrelated Go files preserved |
+| build | Executable by default; -o names a file and rejects existing directories; --emit-go emits sources only; --package requires --emit-go and defaults to main; generated sources and unrelated Go files are preserved |
 | init | Refuses either existing manifest; resolved go4t Dir wins over content-addressed user-cache runtime; no project-local runtime extraction |
 | get | Exactly path@version; requires go.mod beside nearest go4t.mod; Go failure leaves go4t.mod unchanged; success updates without duplicate requires |
 | fmt | No typecheck/main required; -l differences exit 1, -d differences exit 0; invalid file not written; earlier writes survive later error |

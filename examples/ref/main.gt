@@ -1,0 +1,105 @@
+package main
+
+import "std/conc"
+import "std/http"
+import "std/io"
+import "std/list"
+import "std/map"
+import "std/ref"
+import "std/string"
+
+func handle(requests Ref[Int], store Ref[Map[String, String]], r http.Request) IO[http.Response] {
+  do {
+    number <- ref.update(requests, func(n) => (n + 1, n + 1))
+    if r.method == "GET" && r.path == "/health" {
+      ioPure(http.response(200, "ref ready"))
+    } else if r.method == "GET" && r.path == "/increment" {
+      ioPure(http.response(200, show(number)))
+    } else if r.path == "/kv" {
+      match list.lookup("key", r.query) {
+        None => ioPure(http.response(400, "missing key"))
+        | Some(key) => if r.method == "POST" {
+          do {
+            ref.modify(store, func(values) => map.mapInsert(values, key, r.body))
+            ioPure(http.response(200, "stored"))
+          }
+        } else if r.method == "GET" {
+          do {
+            values <- ref.get(store)
+            ioPure(match map.mapLookup(values, key) {
+              Some(value) => http.response(200, value)
+              None => http.response(404, "not found")
+            })
+          }
+        } else {
+          ioPure(http.response(405, "method not allowed"))
+        }
+      }
+    } else {
+      ioPure(http.response(404, "not found"))
+    }
+  }
+}
+
+// A fork is not a readiness signal; the enclosing timeout bounds the probe.
+func ready(url String) IO[Unit] {
+  do {
+    result <- io.tryIO(http.get(url + "/health"))
+    match result {
+      Ok(r) => if r.status == 200 && r.body == "ref ready" { ioPure(unit()) } else { ioFail("unexpected health response") }
+      | Err(io.Network(_)) => do {
+        io.sleep(10)
+        ready(url)
+      }
+      Err(e) => io.ioRaise(e)
+    }
+  }
+}
+
+func exercise(url String, requests Ref[Int]) IO[Unit] {
+  do {
+    ready(url)
+    // Discard the readiness request before measuring the concurrent burst.
+    ref.set(requests, 0)
+    replies <- conc.parMapIO(list.range(0, 50), func(_) => http.get(url + "/increment"))
+    increments <- ref.get(requests)
+    if increments == 50 && list.all(replies, func(r) => r.status == 200) {
+      println("atomic increments: " + show(increments))
+    } else {
+      ioFail("atomic increment count mismatch")
+    }
+    written <- http.post(url + "/kv?key=answer", "text/plain", "forty-two")
+    found <- http.get(url + "/kv?key=answer")
+    if written.status == 200 && found.status == 200 && found.body == "forty-two" {
+      println("stored: answer=" + found.body)
+    } else {
+      ioFail("key/value round trip failed")
+    }
+    total <- ref.get(requests)
+    if total == 52 { println("requests: " + show(total)) } else { ioFail("request count mismatch") }
+  }
+}
+
+func main() IO[Unit] {
+  do {
+    argv <- io.args()
+    let port = match argv {
+      [] => 18086
+      | [text, ..] => match string.parseInt(text) {
+        Some(n) => n
+        None => 18086
+      }
+    }
+    let url = "http://127.0.0.1:" + show(port)
+    requests <- ref.new(0)
+    let empty: Map[String, String] = map.emptyMap()
+    store <- ref.new(empty)
+    server <- conc.fork(http.serve(port, func(r) => handle(requests, store, r)))
+    result <- io.tryIO(conc.withTimeout(5000, exercise(url, requests)))
+    conc.cancel(server)
+    match result {
+      Ok(_) => ioPure(unit())
+      Err(e) => io.ioRaise(e)
+    }
+  }
+}

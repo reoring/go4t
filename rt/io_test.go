@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
@@ -288,6 +289,193 @@ func TestReadLineAndReadAllShareInput(t *testing.T) {
 	}
 	if got, err := readAll(context.Background()); got != "" || err != nil {
 		t.Fatalf("ReadAll at EOF = (%#v, %v), want empty string", got, err)
+	}
+}
+
+func TestFoldLines(t *testing.T) {
+	long := strings.Repeat("x", 100000)
+	for _, tt := range []struct {
+		name  string
+		input string
+		want  []string
+	}{
+		{"empty", "", nil},
+		{"terminated", "one\ntwo\n", []string{"one", "two"}},
+		{"unterminated", "one\n日本🙂", []string{"one", "日本🙂"}},
+		{"CRLF and blank lines", "one\r\n\r\ntwo\r\n", []string{"one", "", "two"}},
+		{"bare CR", "one\r", []string{"one\r"}},
+		{"long terminated line", long + "\nnext\n", []string{long, "next"}},
+		{"long unterminated line", long, []string{long}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "lines.txt")
+			if err := os.WriteFile(path, []byte(tt.input), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			ctx := context.WithValue(context.Background(), struct{}{}, "fold context")
+			var lines []string
+			step := func(acc, line any) any {
+				if acc != int64(7+len(lines)) {
+					t.Fatalf("step accumulator = %v, want %d", acc, 7+len(lines))
+				}
+				return IO(func(stepCtx context.Context) (any, error) {
+					if stepCtx != ctx {
+						t.Fatal("step did not receive the fold's context")
+					}
+					lines = append(lines, line.(string))
+					return acc.(int64) + 1, nil
+				})
+			}
+			got, err := FoldLines(path, int64(7), step).(IO)(ctx)
+			if want := int64(7 + len(tt.want)); err != nil || got != want {
+				t.Fatalf("FoldLines = (%v, %v), want (%v, nil)", got, err, want)
+			}
+			if !slices.Equal(lines, tt.want) {
+				t.Fatalf("lines = %q, want %q", lines, tt.want)
+			}
+		})
+	}
+}
+
+func TestFoldLinesIsLazyAndRepeatable(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "lines.txt")
+	calls := 0
+	action := FoldLines(path, "init", func(acc, line any) any {
+		calls++
+		return Pure(acc.(string) + ":" + line.(string))
+	}).(IO)
+	if calls != 0 {
+		t.Fatal("FoldLines invoked step before execution")
+	}
+	for _, text := range []string{"one\ntwo\n", "three\n"} {
+		if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		want := "init:" + strings.ReplaceAll(strings.TrimSuffix(text, "\n"), "\n", ":")
+		if got, err := action(context.Background()); err != nil || got != want {
+			t.Fatalf("FoldLines = (%v, %v), want (%q, nil)", got, err, want)
+		}
+	}
+	if calls != 3 {
+		t.Fatalf("step calls = %d, want 3", calls)
+	}
+}
+
+func TestFoldLinesOpenErrors(t *testing.T) {
+	for _, tt := range []struct {
+		name      string
+		cancelled bool
+		want      error
+		kind      Kind
+	}{
+		{"missing", false, os.ErrNotExist, NotFound},
+		{"cancelled before open", true, context.Canceled, Cancelled},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			if tt.cancelled {
+				cancel()
+			}
+			path := filepath.Join(t.TempDir(), "missing.txt")
+			got, err := FoldLines(path, int64(0), func(any, any) any {
+				t.Fatal("step called after open failure or cancellation")
+				return Pure(int64(0))
+			}).(IO)(ctx)
+			var failure *Failure
+			if got != nil || !errors.Is(err, tt.want) || !errors.As(err, &failure) || failure.Kind != tt.kind {
+				t.Fatalf("FoldLines = (%v, %#v), want (nil, %s)", got, err, tt.kind)
+			}
+		})
+	}
+}
+
+func TestFoldLinesStopsAndClosesFile(t *testing.T) {
+	typedFailure := &Failure{Kind: FailureKind, Message: "step failed"}
+	for _, tt := range []struct {
+		name     string
+		fail     error
+		cancelAt int
+		calls    int
+		kind     Kind
+	}{
+		{"completion", nil, 0, 3, ""},
+		{"typed step failure", typedFailure, 0, 1, FailureKind},
+		{"permission step failure", os.ErrPermission, 0, 1, PermissionDenied},
+		{"cancelled between lines", nil, 1, 1, Cancelled},
+		{"cancelled after final unterminated line", nil, 3, 3, Cancelled},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "lines.txt")
+			if err := os.WriteFile(path, []byte("one\ntwo\nthree"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			// Count only this file, so unrelated runtime descriptors cannot make
+			// the close assertion flaky. Closure checks use Linux procfs.
+			countOpen := func() int {
+				t.Helper()
+				entries, err := os.ReadDir("/proc/self/fd")
+				if errors.Is(err, os.ErrNotExist) {
+					return -1
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				count := 0
+				for _, entry := range entries {
+					target, err := os.Readlink(filepath.Join("/proc/self/fd", entry.Name()))
+					if errors.Is(err, os.ErrNotExist) {
+						continue
+					}
+					if err != nil {
+						t.Fatal(err)
+					}
+					if target == path {
+						count++
+					}
+				}
+				return count
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			calls := 0
+			got, err := FoldLines(path, int64(0), func(acc, line any) any {
+				return IO(func(context.Context) (any, error) {
+					calls++
+					if count := countOpen(); count >= 0 && count != 1 {
+						t.Fatalf("open file descriptors during step = %d, want 1", count)
+					}
+					if calls == tt.cancelAt {
+						cancel()
+					}
+					return acc.(int64) + 1, tt.fail
+				})
+			}).(IO)(ctx)
+			if calls != tt.calls {
+				t.Fatalf("step calls = %d, want %d", calls, tt.calls)
+			}
+			if tt.kind == "" {
+				if err != nil || got != int64(3) {
+					t.Fatalf("FoldLines = (%v, %v), want (3, nil)", got, err)
+				}
+			} else {
+				var failure *Failure
+				if got != nil || !errors.As(err, &failure) || failure.Kind != tt.kind {
+					t.Fatalf("FoldLines = (%v, %#v), want (nil, %s)", got, err, tt.kind)
+				}
+				if tt.fail == typedFailure && err != typedFailure {
+					t.Fatalf("typed step error was replaced: %#v", err)
+				}
+				if tt.cancelAt > 0 && (!errors.Is(err, context.Canceled) || failure.Message != context.Canceled.Error()) {
+					t.Fatalf("cancellation = %#v, want canonical Cancelled", err)
+				}
+			}
+			if count := countOpen(); count < 0 {
+				t.Log("file descriptor closure check unavailable without /proc/self/fd")
+			} else if count != 0 {
+				t.Fatalf("open file descriptors after FoldLines = %d, want 0", count)
+			}
+		})
 	}
 }
 

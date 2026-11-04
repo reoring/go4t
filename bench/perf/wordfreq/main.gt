@@ -1,0 +1,30 @@
+package main
+
+import "std/io"
+import "std/string"
+import "std/list"
+import "std/map"
+
+func increment(counts Map[String, Int], word String) Map[String, Int] {
+  let count = match map.mapLookup(counts, word) {
+    Some(n) => n
+    None => 0
+  }
+  map.mapInsert(counts, word, count + 1)
+}
+
+func frequencyOrder(a (String, Int), b (String, Int)) Ordering {
+  match compare(snd(b), snd(a)) {
+    EQ => compare(fst(a), fst(b))
+    order => order
+  }
+}
+
+func main() IO[Unit] {
+  do {
+    text <- io.readAll()
+    let counts = list.fold(string.words(text), map.emptyMap(), increment)
+    let ranked = list.sortBy(map.mapToList(counts), frequencyOrder)
+    list.forEach(list.take(10, ranked), func((word, count)) => println("${word} ${count}"))
+  }
+}

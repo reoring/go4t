@@ -65,14 +65,15 @@ func main() IO[Unit] {
 	if err := os.WriteFile(file, []byte(source), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := run([]string{"build", file}); err != nil {
+	bin := filepath.Join(dir, "pass9")
+	if err := run([]string{"build", "-o", bin, file}); err != nil {
 		t.Fatal(err)
 	}
-	command := exec.Command("go", "run", "./pass9_gen")
+	command := exec.Command(bin)
 	command.Dir = dir
 	output, err := command.CombinedOutput()
 	if err != nil {
-		t.Fatalf("go run ./pass9_gen: %v\n%s", err, output)
+		t.Fatalf("run pass9 binary: %v\n%s", err, output)
 	}
 	want := strings.Join([]string{
 		"(false, true)",

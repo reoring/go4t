@@ -15,8 +15,14 @@ import (
 	"go4t/types"
 )
 
+type buildFlags struct {
+	outputFile string
+	emitGo     string
+	goPackage  string
+}
+
 // buildOptions accepts output flags before or after the input files.
-func buildOptions(args []string) (inputs []string, outputDir, goPackage string, err error) {
+func buildOptions(args []string) (inputs []string, options buildFlags, err error) {
 	inputs = []string{"build"}
 	var output, emit, pkg string
 	for i := 1; i < len(args); i++ {
@@ -26,7 +32,7 @@ func buildOptions(args []string) (inputs []string, outputDir, goPackage string, 
 			inputs = append(inputs, arg)
 		case "-o", "--emit-go", "--package":
 			if i+1 == len(args) || args[i+1] == "" || strings.HasPrefix(args[i+1], "-") {
-				return nil, "", "", errors.New(usage)
+				return nil, options, errors.New(usage)
 			}
 			i++
 			var target *string
@@ -39,23 +45,44 @@ func buildOptions(args []string) (inputs []string, outputDir, goPackage string, 
 				target = &pkg
 			}
 			if *target != "" {
-				return nil, "", "", errors.New(usage)
+				return nil, options, errors.New(usage)
 			}
 			*target = args[i]
 		default:
 			if strings.HasPrefix(arg, "-") {
-				return nil, "", "", errors.New(usage)
+				return nil, options, errors.New(usage)
 			}
 			inputs = append(inputs, arg)
 		}
 	}
-	if len(inputs) == 1 || (emit != "" && output != "") || (emit == "") != (pkg == "") || pkg == "main" {
-		return nil, "", "", errors.New(usage)
+	if len(inputs) == 1 || (emit != "" && output != "") || (emit == "" && pkg != "") {
+		return nil, options, errors.New(usage)
 	}
-	if emit != "" {
-		return inputs, emit, pkg, nil
+	if pkg == "" {
+		pkg = "main"
 	}
-	return inputs, output, "main", nil
+	return inputs, buildFlags{outputFile: output, emitGo: emit, goPackage: pkg}, nil
+}
+
+func buildOutput(file, output string) (string, error) {
+	if output == "" {
+		absolute, err := filepath.Abs(file)
+		if err != nil {
+			return "", diagnostic(file, err)
+		}
+		output = filepath.Base(absolute)
+		if info, err := os.Stat(file); err != nil || !info.IsDir() {
+			output = strings.TrimSuffix(output, ".gt")
+		}
+	}
+	if info, err := os.Stat(output); err == nil && info.IsDir() {
+		return "", diagnostic(file, fmt.Errorf("build output %q is a directory; use -o FILE or --emit-go DIR", output))
+	}
+	absolute, err := filepath.Abs(output)
+	if err != nil {
+		return "", diagnostic(file, err)
+	}
+	return absolute, nil
 }
 
 func testFiles(inputs []string) error {

@@ -33,8 +33,8 @@ func TestBuildUsesPerProgramDirectories(t *testing.T) {
 		if err := os.WriteFile(file, []byte(source), 0o644); err != nil {
 			t.Fatal(err)
 		}
-		if err := run([]string{"build", file}); err != nil {
-			t.Fatal(err)
+		if out, stderr, status := toolsCommand(t, dir, "", "build", file); status != 0 || out != "" || stderr != "" {
+			t.Fatalf("build %s: stdout=%q stderr=%q status=%d", name, out, stderr, status)
 		}
 	}
 
@@ -48,14 +48,9 @@ func TestBuildUsesPerProgramDirectories(t *testing.T) {
 				t.Errorf("%s output does not contain %q", name, fragment)
 			}
 		}
-		rel, err := filepath.Rel(dir, filepath.Join(dir, name+"_gen"))
-		if err != nil {
-			t.Fatal(err)
-		}
-		vet := exec.Command("go", "vet", "./"+filepath.ToSlash(rel))
-		vet.Dir = dir
-		if output, err := vet.CombinedOutput(); err != nil {
-			t.Fatalf("go vet generated %s: %v\n%s", name, err, output)
+		command := exec.Command(filepath.Join(dir, name))
+		if output, err := command.CombinedOutput(); err != nil || string(output) != name+"\n" {
+			t.Fatalf("built %s: %v\n%s", name, err, output)
 		}
 	}
 
@@ -68,6 +63,51 @@ func TestBuildUsesPerProgramDirectories(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dir, "second_gen.go")); !os.IsNotExist(err) {
 		t.Errorf("legacy output was created or could not be checked: %v", err)
+	}
+}
+
+func TestBuildWordCountExecutable(t *testing.T) {
+	root, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	bin := filepath.Join(t.TempDir(), "prog")
+	out, stderr, status := toolsCommand(t, root, "", "build", "-o", bin, "examples/wc/main.gt")
+	if out != "" || stderr != "" || status != 0 {
+		t.Fatalf("build wc: stdout=%q stderr=%q status=%d", out, stderr, status)
+	}
+	input, err := os.Open(filepath.Join(root, "examples", "wc", "input.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer input.Close()
+	command := exec.Command(bin, "3")
+	command.Stdin = input
+	const want = "lines: 12, words: 60\n   24 the\n    5 garden\n    5 leaves\n"
+	if output, err := command.CombinedOutput(); err != nil || string(output) != want {
+		t.Fatalf("wc executable: output=%q error=%v; want %q", output, err, want)
+	}
+}
+
+func TestBuildDefaultDirectoryName(t *testing.T) {
+	dir := toolsModule(t)
+	toolsWrite(t, filepath.Join(dir, "main.gt"), "package main\nfunc main() IO[Unit] { println(\"directory\") }\n")
+	for _, input := range []string{dir + string(filepath.Separator), "."} {
+		cwd := t.TempDir()
+		if input == "." {
+			cwd = dir
+		}
+		out, stderr, status := toolsCommand(t, cwd, "", "build", input)
+		if out != "" || stderr != "" || status != 0 {
+			t.Fatalf("build %q: stdout=%q stderr=%q status=%d", input, out, stderr, status)
+		}
+		command := exec.Command(filepath.Join(cwd, filepath.Base(dir)))
+		if output, err := command.CombinedOutput(); err != nil || string(output) != "directory\n" {
+			t.Fatalf("default binary: output=%q error=%v", output, err)
+		}
+		if _, err := os.Stat(filepath.Join(dir, "_gen", "main.go")); err != nil {
+			t.Fatal(err)
+		}
 	}
 }
 
@@ -98,7 +138,11 @@ func TestWarningsContinueForEveryCommand(t *testing.T) {
 				os.Stderr = previous
 				stderr.Close()
 			})
-			runErr := run([]string{command, file})
+			args := []string{command, file}
+			if command == "build" {
+				args = append(args, "-o", filepath.Join(dir, "warning"))
+			}
+			runErr := run(args)
 			os.Stderr = previous
 			if err := stderr.Close(); err != nil {
 				t.Fatal(err)

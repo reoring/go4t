@@ -1,0 +1,35 @@
+package main
+
+import "std/io"
+import "std/string"
+import "std/list"
+import "std/map"
+
+func insertAll(n Int, i Int, values Map[Int, Int]) Map[Int, Int] {
+  if i == n { values } else {
+    insertAll(n, i + 1, map.mapInsert(values, i, i * 3 + 1))
+  }
+}
+
+func lookupAll(n Int, i Int, values Map[Int, Int], hits Int) Int {
+  if i == n { hits } else {
+    let hit = match map.mapLookup(values, i) {
+      Some(value) => if value == i * 3 + 1 { 1 } else { 0 }
+      None => 0
+    }
+    lookupAll(n, i + 1, values, hits + hit)
+  }
+}
+
+func main() IO[Unit] {
+  do {
+    text <- io.readAll()
+    match string.parseInt(string.trim(text)) {
+      Some(n) => if n > 0 {
+        let values = insertAll(n, 0, map.emptyMap())
+        println(show(lookupAll(n, 0, values, 0)))
+      } else { io.ioFail("expected positive count") }
+      None => io.ioFail("expected positive count")
+    }
+  }
+}

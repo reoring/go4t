@@ -84,8 +84,20 @@ func (g *shimGenerator) conversion(m *foreignMirror) string {
 		fmt.Fprintf(&to, "return %s(v.(%s))\n", typ, erased)
 		fmt.Fprintf(&from, "return %s(v)\n", erased)
 	case "unit":
-		to.WriteString("return rt.Unit{}\n")
+		fmt.Fprintf(&to, "return %s{}\n", typ)
 		from.WriteString("return rt.Unit{}\n")
+	case "chan":
+		inner := g.conversion(m.elem)
+		channel := m.typ.Underlying().(*types.Chan)
+		fmt.Fprintf(&to, "return rt.GoChannel[%s](v)\n", typ)
+		switch channel.Dir() {
+		case types.RecvOnly:
+			fmt.Fprintf(&from, "return rt.WrapRecvChan((<-chan %s)(v),%sFrom)\n", g.goType(m.elem.typ), inner)
+		case types.SendOnly:
+			fmt.Fprintf(&from, "return rt.WrapSendChan((chan<- %s)(v),%sTo)\n", g.goType(m.elem.typ), inner)
+		default:
+			fmt.Fprintf(&from, "return rt.WrapChan((chan %s)(v),%sFrom,%sTo)\n", g.goType(m.elem.typ), inner, inner)
+		}
 	case "handle":
 		if _, ok := m.typ.Underlying().(*types.Struct); ok {
 			// Value-origin opaque structs get one mutable box at the boundary.
@@ -225,7 +237,7 @@ func (g *shimGenerator) conversion(m *foreignMirror) string {
 			args[i] = g.conversion(p) + "From(a" + strconv.Itoa(i+start) + ")"
 		}
 		fmt.Fprintf(&to, "value := f(%s)\n", strings.Join(args, ","))
-		if c.failure || c.context {
+		if c.effect() {
 			fmt.Fprintf(&to, "value, err := value.(rt.IO)(%s)\n", ctx)
 			if c.failure {
 				var zero []string
@@ -272,7 +284,7 @@ func (g *shimGenerator) conversion(m *foreignMirror) string {
 		}
 		from.WriteString(") any {\n")
 		if c.effect() {
-			from.WriteString("return rt.IO(func(ctx context.Context) (any,error) {\nif err := ctx.Err(); err != nil { return nil,rt.ClassifyError(err) }\n")
+			beginShimIO(&from, c.hasChannel())
 		} else {
 			from.WriteString("ctx := context.Background(); _ = ctx\n")
 		}
@@ -316,7 +328,7 @@ func (g *shimGenerator) emit(name, callee string, sig *types.Signature, c *forei
 	out.WriteString(") any {\n")
 	effect := c.effect()
 	if effect {
-		out.WriteString("return rt.IO(func(ctx context.Context) (any,error) {\nif err := ctx.Err(); err != nil { return nil,rt.ClassifyError(err) }\n")
+		beginShimIO(&out, c.hasChannel() || recv.hasChannel())
 	} else {
 		out.WriteString("ctx := context.Background(); _ = ctx\n")
 	}
@@ -454,7 +466,9 @@ func (g *shimGenerator) accessors(decl *strings.Builder, set *mirrorSet, options
 					fmt.Fprintf(decl, "extern func %s(recv %s, value %s) IO[Unit] = %q.%s\n", setter, name, m.gt, g.path, setGo)
 					conv := g.conversion(m)
 					typ := g.goType(n)
-					fmt.Fprintf(&g.body, "func %s(recv,value any) any { return rt.IO(func(ctx context.Context) (any,error) { if err := ctx.Err(); err != nil { return nil,rt.ClassifyError(err) }; receiver := recv.(*%s); receiver.%s = %sTo(value,ctx); return rt.Unit{},nil }) }\n", setGo, typ, field.name, conv)
+					fmt.Fprintf(&g.body, "func %s(recv,value any) any { ", setGo)
+					beginShimIO(&g.body, m.hasChannel())
+					fmt.Fprintf(&g.body, "receiver := recv.(*%s); receiver.%s = %sTo(value,ctx); return rt.Unit{},nil }) }\n", typ, field.name, conv)
 				})
 			}
 		}
@@ -523,7 +537,7 @@ func BindWithShim(pkg *Package, options BindOptions, shimPath, shimPackage strin
 			}
 		}
 		if c != nil {
-			c.mutable = recv != nil && recv.kind == "handle"
+			c.mutable = recv.sharesState()
 			for _, p := range c.params {
 				c.mutable = c.mutable || p.sharesState()
 			}
@@ -591,6 +605,7 @@ func BindWithShim(pkg *Package, options BindOptions, shimPath, shimPackage strin
 	g.constructors(&decl, set, options, &candidates)
 	g.accessors(&decl, set, options, &candidates)
 	g.upcasts(&decl, set, pkg, options, &candidates)
+	g.channelConstructors(&decl, set, options, &candidates)
 	candidates.emit(&decl)
 	g.errorClassifier(pkg)
 	name := options.Package

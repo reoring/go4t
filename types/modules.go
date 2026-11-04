@@ -124,13 +124,18 @@ func qualifyModules(input []*ast.Module) (*moduleResolver, []*ast.File) {
 			}
 		}
 	}
-	for module, name := range map[string]string{
-		"std/prelude": "Unit", "std/map": "Map", "std/set": "Set",
-		"std/array": "Array", "std/conc": "Fiber", "std/io": "IO",
-		"std/string": "String", "std/float": "Float",
+	for module, names := range map[string][]string{
+		"std/prelude": {"Unit"}, "std/map": {"Map"}, "std/set": {"Set"},
+		"std/array": {"Array"}, "std/conc": {"Fiber"}, "std/io": {"IO"},
+		"std/string": {"String"}, "std/float": {"Float"}, "std/ref": {"Ref"},
+		"std/chan": {"Chan", "RecvChan", "SendChan"},
 	} {
-		if scope := standard[module]; scope != nil && scope.types[name] == "" {
-			scope.types[name] = name
+		if scope := standard[module]; scope != nil {
+			for _, name := range names {
+				if scope.types[name] == "" {
+					scope.types[name] = name
+				}
+			}
 		}
 	}
 	prelude := standard["std/prelude"]
@@ -263,7 +268,7 @@ func contains(names []string, name string) bool {
 }
 func builtinType(name string) bool {
 	switch name {
-	case "Int", "Float", "String", "Bool", "Unit", "IO", "Map", "Set", "Array", "Fiber":
+	case "Int", "Float", "String", "Bool", "Unit", "IO", "Map", "Set", "Array", "Fiber", "Ref", "Chan", "RecvChan", "SendChan":
 		return true
 	}
 	return strings.HasPrefix(name, "Tuple")

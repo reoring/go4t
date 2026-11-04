@@ -56,6 +56,12 @@ extern func tryIO[A](io IO[A]) IO[Result[IoError, A]] = "go4t/rt".TryIO
 
 extern func readFile(path String) IO[String] = "go4t/rt".ReadFile
 
+extern func foldLines[B](path String, init B, step func(B, String) IO[B]) IO[B] = "go4t/rt".FoldLines
+
+func forEachLine(path String, f func(String) IO[Unit]) IO[Unit] {
+  foldLines(path, unit(), func(_ignored, line) => f(line))
+}
+
 extern func writeFile(path String, content String) IO[Unit] = "go4t/rt".WriteFile
 
 extern func appendFile(path String, content String) IO[Unit] = "go4t/rt".AppendFile

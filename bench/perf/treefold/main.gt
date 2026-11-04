@@ -1,0 +1,29 @@
+package main
+
+import "std/io"
+import "std/string"
+
+type Tree = Leaf | Node(Tree, Tree)
+
+func build(depth Int) Tree {
+  if depth == 0 { Leaf } else { Node(build(depth - 1), build(depth - 1)) }
+}
+
+func count(tree Tree) Int {
+  match tree {
+    Leaf => 1
+    Node(left, right) => 1 + count(left) + count(right)
+  }
+}
+
+func main() IO[Unit] {
+  do {
+    text <- io.readAll()
+    match string.parseInt(string.trim(text)) {
+      Some(depth) => if depth >= 0 {
+        println(show(count(build(depth))))
+      } else { io.ioFail("expected nonnegative depth") }
+      None => io.ioFail("expected nonnegative depth")
+    }
+  }
+}

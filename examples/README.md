@@ -13,6 +13,7 @@ Commands run from the checkout root. Network-using examples are marked.
 | [node-drain-typed](node-drain-typed) | The same controller with observe/apply in go4t against the typed clientset via `go:` imports; 15 laws incl. projection laws. | see its README (needs a cluster) |
 | [sql-service](sql-service) | SQLite + Prometheus HTTP service via `go:` imports. | see its README |
 | [go-import](go-import) | `import "go:net/http"` / `go:strings` bound at build time: tuples, handle fields, upcasts, package vars (loopback). | `go4t run examples/go-import` |
+| [go-chan](go-chan) | Receive from Go `time.After`; communicate between producer and consumer fibers through a buffered channel. | `go4t run examples/go-chan` |
 | [todo](todo) | CLI + JSON file persistence + `std/http` routes, derived codecs, and 3 checked laws (server uses network). | `go4t run examples/todo -- list` |
 | [typed-extern](typed-extern) | Generated bindings, ABI adapters, opaque method handles. | `go4t run examples/typed-extern` |
 | [deps](deps) | Offline Go-module dependency with local replacement. | `go4t run examples/deps/app` |
@@ -28,6 +29,7 @@ Commands run from the checkout root. Network-using examples are marked.
 | [http](http) | `std/http` server/client, JSON routes, cancellation (loopback). | `go4t run examples/http/main.gt -- 8080` |
 | [sales-report](sales-report) | Parallel fetches, typed IO recovery, fallbacks. | `go4t run examples/sales-report` |
 | [concurrency](concurrency) | Fork/await, ordered parallel work, race, timeout. | `go4t run examples/concurrency/main.gt` |
+| [ref](ref) | IO-only mutable references: HTTP request counter, in-memory key/value store, and 50 atomic concurrent increments (loopback traffic). | `go4t run examples/ref` |
 | [state](state) | Pure `State` transitions. | `go4t run examples/state/main.gt` |
 | [collections](collections) | Persistent Map/Set/Array. | `go4t run examples/collections/main.gt` |
 | [lists](lists) | List Functor/Monad, cartesian `do`. | `go4t run examples/lists/main.gt` |

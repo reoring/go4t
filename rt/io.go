@@ -275,6 +275,59 @@ func ReadFile(path any) any {
 	})
 }
 
+// FoldLines folds a file in order, executing step's IO with the caller's context.
+// LF/CRLF terminators are stripped. ReadString has no fixed line-length limit;
+// streaming storage is bounded by the longest line, apart from the accumulator.
+func FoldLines(path, init, step any) any {
+	return IO(func(ctx context.Context) (result any, err error) {
+		if err := ctx.Err(); err != nil {
+			return nil, ClassifyError(err)
+		}
+		f, err := os.Open(path.(string))
+		if err != nil {
+			return nil, ClassifyError(err)
+		}
+		defer func() {
+			if closeErr := f.Close(); closeErr != nil && err == nil {
+				result, err = nil, ClassifyError(closeErr)
+			}
+		}()
+
+		reader := bufio.NewReader(f)
+		fold := step.(func(any, any) any)
+		acc := init
+		for {
+			if err := ctx.Err(); err != nil {
+				return nil, ClassifyError(err)
+			}
+			line, readErr := reader.ReadString('\n')
+			if readErr != nil && readErr != io.EOF {
+				return nil, ClassifyError(readErr)
+			}
+			if err := ctx.Err(); err != nil {
+				return nil, ClassifyError(err)
+			}
+			if line != "" {
+				if strings.HasSuffix(line, "\n") {
+					line = strings.TrimSuffix(line, "\n")
+					line = strings.TrimSuffix(line, "\r")
+				}
+				acc, err = fold(acc, line).(IO)(ctx)
+				if err != nil {
+					return nil, ClassifyError(err)
+				}
+			}
+			if readErr == io.EOF {
+				break
+			}
+		}
+		if err := ctx.Err(); err != nil {
+			return nil, ClassifyError(err)
+		}
+		return acc, nil
+	})
+}
+
 // WriteFile defers writing content to path, creating parent directories.
 func WriteFile(path, content any) any {
 	return IO(func(ctx context.Context) (any, error) {

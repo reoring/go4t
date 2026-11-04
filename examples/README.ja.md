@@ -13,6 +13,7 @@
 | [node-drain-controller](node-drain-controller) | 一から書いた controller。検証済み法則 10 本(cordon 先行、DaemonSet 透過、正確な timeout) | `go4t check examples/node-drain-controller/decide/decide.gt && cd examples/node-drain-controller && go generate ./... && go test ./...` |
 | [sql-service](sql-service) | `go:` import を使う SQLite + Prometheus HTTP サービス | README 参照 |
 | [go-import](go-import) | `go:net/http` / `go:strings` をビルド時に結合。タプル、ハンドルのフィールド、upcast、パッケージ変数(loopback) | `go4t run examples/go-import` |
+| [go-chan](go-chan) | Go の `time.After` から受信し、バッファ付きチャネルで producer/consumer fiber 間を通信 | `go4t run examples/go-chan` |
 | [todo](todo) | CLI、JSON ファイル保存、`std/http` ルート、JSON コーデック導出、検証済み法則 3 本(サーバはネットワーク使用) | `go4t run examples/todo -- list` |
 | [typed-extern](typed-extern) | 生成 binding、ABI アダプタ、opaque method handle | `go4t run examples/typed-extern` |
 | [deps](deps) | ローカル replace を使うオフライン依存 | `go4t run examples/deps/app` |
@@ -22,6 +23,7 @@
 | [sales-report](sales-report) | 並列取得、型付きの IO エラー回復、フォールバック | `go4t run examples/sales-report` |
 | [http](http) | `std/http` サーバ/クライアント、JSON ルート、キャンセル(loopback) | `go4t run examples/http/main.gt -- 8080` |
 | [concurrency](concurrency) | fork/await、順序付き並列、race、timeout | `go4t run examples/concurrency/main.gt` |
+| [ref](ref) | IO 専用の可変参照。HTTP リクエストカウンタ、メモリ内キーバリューストア、50 回の並行したアトミック加算(loopback 通信) | `go4t run examples/ref` |
 | [json-deriving](json-deriving) | JSON スキーマ導出とネストしたエラーパス | `go4t run examples/json-deriving/main.gt` |
 | [diagnostics](diagnostics) | 網羅性・型シノニム不一致の診断(`bad_*.gt` は意図的に失敗) | `go4t run examples/diagnostics/main.gt` |
 | [cli-tools](cli-tools) | 純粋/IO テストと eval。`go4t test examples/cli-tools/main.gt` も | `go4t run examples/cli-tools/main.gt` |

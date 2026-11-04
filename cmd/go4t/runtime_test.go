@@ -145,27 +145,90 @@ func TestOutsideModuleCleansFailedExecution(t *testing.T) {
 }
 
 func TestBuildOutsideModule(t *testing.T) {
-	for _, override := range []bool{false, true} {
+	for _, name := range []string{"standalone", "unrelated module", "output override", "Go import"} {
+		t.Run(name, func(t *testing.T) {
+			dir, temporary := t.TempDir(), t.TempDir()
+			t.Setenv("TMPDIR", temporary)
+			source := "package main\nfunc main() IO[Unit] { println(\"hi\") }\n"
+			want := "hi\n"
+			inputDir := dir
+			const mod = "module unrelated\n\ngo 1.22\n"
+			switch name {
+			case "unrelated module":
+				toolsWrite(t, filepath.Join(dir, "go.mod"), mod)
+			case "output override":
+				// External binary output still uses the input module for externs.
+				inputDir = toolsModule(t)
+				source = "package main\nextern func upper(s String) String = \"strings\".ToUpper\nfunc main() IO[Unit] { println(upper(\"hi\")) }\n"
+				want = "HI\n"
+			case "Go import":
+				source = "package main\nimport \"go:strings\"\nfunc main() IO[Unit] { println(strings.toUpper(\"hi\")) }\n"
+				want = "HI\n"
+			}
+			file := toolsWrite(t, filepath.Join(inputDir, "main.gt"), source)
+			bin := filepath.Join(dir, "main")
+			args := []string{"build", file}
+			if name == "output override" {
+				bin = filepath.Join(dir, "nested", "prog")
+				args = append(args, "-o", bin)
+			}
+			out, stderr, status := toolsCommand(t, dir, "", args...)
+			if out != "" || stderr != "" || status != 0 {
+				t.Fatalf("%v: stdout=%q stderr=%q status=%d", args, out, stderr, status)
+			}
+			command := exec.Command(bin)
+			if output, err := command.CombinedOutput(); err != nil || string(output) != want {
+				t.Fatalf("standalone binary: output=%q error=%v; want %q", output, err, want)
+			}
+			output := filepath.Join(inputDir, "main_gen")
+			if _, err := os.Stat(filepath.Join(output, "main.go")); err != nil {
+				t.Fatal(err)
+			}
+			if name == "Go import" {
+				if _, err := os.Stat(filepath.Join(output, "go4tbind", "strings", "go4t_shim_strings.go")); err != nil {
+					t.Fatalf("generated shim missing: %v", err)
+				}
+			}
+			if name == "unrelated module" {
+				assertFile(t, filepath.Join(dir, "go.mod"), mod)
+			} else if _, err := os.Stat(filepath.Join(dir, "go.mod")); !os.IsNotExist(err) {
+				t.Fatalf("created a module beside output: %v", err)
+			}
+			if _, err := os.Stat(filepath.Join(output, "go.mod")); !os.IsNotExist(err) {
+				t.Fatalf("created a module in generated sources: %v", err)
+			}
+			entries, err := os.ReadDir(temporary)
+			if err != nil || len(entries) != 0 {
+				t.Fatalf("temporary artifacts remain: %v, %v", entries, err)
+			}
+		})
+	}
+}
+
+func TestEmitGoOutsideModule(t *testing.T) {
+	for _, withInputModule := range []bool{false, true} {
 		dir := t.TempDir()
-		file := toolsWrite(t, filepath.Join(dir, "main.gt"), "package main\nfunc main() IO[Unit] { println(\"hi\") }\n")
-		output := filepath.Join(dir, "main_gen")
-		args := []string{"build", file}
-		if override {
-			// External output still uses the input module to inspect externs.
-			inputDir := toolsModule(t)
-			file = toolsWrite(t, filepath.Join(inputDir, "main.gt"), "package main\nextern func upper(s String) String = \"strings\".ToUpper\nfunc main() IO[Unit] { println(upper(\"hi\")) }\n")
-			output = filepath.Join(dir, "nested", "generated")
-			args = []string{"build", "-o", output, file}
+		inputDir := dir
+		source := "package main\nfunc main() IO[Unit] { println(\"hi\") }\n"
+		if withInputModule {
+			inputDir = toolsModule(t)
+			source = "package main\nextern func upper(s String) String = \"strings\".ToUpper\nfunc main() IO[Unit] { println(upper(\"hi\")) }\n"
 		}
-		out, stderr, status := toolsCommand(t, dir, "", args...)
-		if out != "" || status != 0 || !strings.Contains(stderr, "go build") || !strings.Contains(stderr, "replace go4t =>") {
-			t.Fatalf("%v: stdout=%q stderr=%q status=%d", args, out, stderr, status)
+		file := toolsWrite(t, filepath.Join(inputDir, "main.gt"), source)
+		output := filepath.Join(dir, "nested", "generated")
+		out, stderr, status := toolsCommand(t, dir, "", "build", "--emit-go", output, file)
+		if out != "" || stderr != "" || status != 0 {
+			t.Fatalf("emit Go: stdout=%q stderr=%q status=%d", out, stderr, status)
 		}
-		if _, err := os.Stat(filepath.Join(output, "main.go")); err != nil {
-			t.Fatal(err)
+		contents, err := os.ReadFile(filepath.Join(output, "main.go"))
+		if err != nil || !strings.Contains(string(contents), "package main\n") {
+			t.Fatalf("emitted main package: %v\n%s", err, contents)
 		}
 		if _, err := os.Stat(filepath.Join(output, "go.mod")); !os.IsNotExist(err) {
-			t.Fatalf("build must emit sources only: %v", err)
+			t.Fatalf("emit Go created a module: %v", err)
+		}
+		if _, err := os.Stat(filepath.Join(dir, "main")); !os.IsNotExist(err) {
+			t.Fatalf("emit Go created an executable: %v", err)
 		}
 	}
 }

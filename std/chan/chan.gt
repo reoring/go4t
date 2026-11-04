@@ -1,0 +1,12 @@
+package chan
+
+// Channel capabilities are opaque builtins, like Fiber. Upcasts preserve identity.
+extern func asRecv[A](c Chan[A]) RecvChan[A] = "go4t/rt".ChanAsRecv
+extern func asSend[A](c Chan[A]) SendChan[A] = "go4t/rt".ChanAsSend
+
+// make allocates a fresh go4t-only channel on every execution. Use a generated
+// typed constructor (for example signal.newSignalChan) for a Go API parameter.
+extern func make[A](buffer Int) IO[Chan[A]] = "go4t/rt".ChanMake
+extern func send[A](c SendChan[A], value A) IO[Unit] = "go4t/rt".ChanSend
+extern func recv[A](c RecvChan[A]) IO[Option[A]] = "go4t/rt".ChanRecv
+extern func close[A](c SendChan[A]) IO[Unit] = "go4t/rt".ChanClose

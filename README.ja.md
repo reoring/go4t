@@ -151,7 +151,8 @@ func main() IO[Unit] {
 ```sh
 go4t check hello/main.gt
 go4t run hello/main.gt        # Hello, Ada and Bob!
-go4t build hello/main.gt      # hello/main_gen/ に Go ソースを出力
+go4t build hello/main.gt      # ./main をビルドし、Go ソースを hello/main_gen/ に残す
+go4t build --emit-go generated hello/main.gt  # Go ソースのみ出力
 ```
 
 ## Go プログラムへの埋め込み

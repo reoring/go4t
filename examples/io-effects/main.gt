@@ -40,6 +40,11 @@ func main() IO[Unit] {
       Err(_) => "config: defaults (read failed)"
       Ok(_) => "config: file"
     })
+    lineCount <- io.tryIO(io.foldLines(configPath, 0, func(n, _line) => ioPure(n + 1)))
+    println(match lineCount {
+      Ok(n) => "config lines: ${n}"
+      Err(_) => "config lines: unavailable"
+    })
     let result = validate(config)
     println("validation: ${result}")
     println("early error: ${validate("bad also-bad")}")

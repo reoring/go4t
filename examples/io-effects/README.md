@@ -9,7 +9,9 @@ and the output prefix is `io-effects`.
 A failed `tryIO(readFile(path))` becomes `Err(e)` with an `io.IoError` (a missing
 file is `io.NotFound(message)`), so the program falls back to `3 4`.
 `io.ioErrorMessage(e)` or `show(e)` retrieves the message when needed.
-A successful read uses the file as-is. The stdout/report formats below are unchanged.
+A successful read uses the file as-is. `foldLines` separately counts configuration
+lines without loading the whole file. The count is unavailable when that action
+fails. Report contents are unchanged.
 Pure validation uses `do` over
 `Result[String]`: parsing and positivity checks stop at the first `Err`. The
 `bad also-bad` demonstration reports the first parse failure, never the second.
@@ -27,6 +29,7 @@ Observed stdout (exit 0):
 
 ```text
 config: defaults (read failed)
+config lines: unavailable
 validation: Ok(7)
 early error: Err(first: expected an integer)
 wrote report and appended timestamped log
@@ -56,6 +59,7 @@ Observed stdout (exit 0):
 
 ```text
 config: file
+config lines: 1
 validation: Ok(18)
 early error: Err(first: expected an integer)
 wrote report and appended timestamped log

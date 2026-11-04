@@ -1,0 +1,66 @@
+package main
+
+import "std/io"
+import "std/string"
+import "std/float"
+import "std/array"
+
+type Body = Body{id: Int, x: Float, y: Float, z: Float, vx: Float, vy: Float, vz: Float, mass: Float}
+
+func initial() Array[Body] {
+  array.arrayFromList([
+    Body{id: 0, x: 0.0, y: 0.0, z: 0.0, vx: 0.0, vy: 0.0, vz: 0.0, mass: 1.0},
+    Body{id: 1, x: 1.0, y: 0.0, z: 0.0, vx: 0.0, vy: 1.0, vz: 0.0, mass: 0.001},
+    Body{id: 2, x: 0.0, y: 2.0, z: 0.0, vx: -0.7, vy: 0.0, vz: 0.0, mass: 0.001},
+    Body{id: 3, x: -3.0, y: 0.0, z: 0.0, vx: 0.0, vy: -0.57, vz: 0.0, mass: 0.001},
+    Body{id: 4, x: 0.0, y: -4.0, z: 0.1, vx: 0.5, vy: 0.0, vz: 0.0, mass: 0.001}
+  ])
+}
+
+// Softened gravity, G=1, dt=0.001. Every acceleration uses the old positions.
+func kick(body Body, other Body) Body {
+  let dx = other.x - body.x
+  let dy = other.y - body.y
+  let dz = other.z - body.z
+  let distance2 = dx * dx + dy * dy + dz * dz + 0.01
+  let scale = 0.001 * other.mass / (distance2 * float.sqrt(distance2))
+  body{vx: body.vx + dx * scale, vy: body.vy + dy * scale, vz: body.vz + dz * scale}
+}
+
+func advance(bodies Array[Body]) Array[Body] {
+  array.arrayMap(bodies, func(body) => {
+    let moved = array.arrayFold(bodies, body, kick)
+    moved{x: moved.x + 0.001 * moved.vx, y: moved.y + 0.001 * moved.vy, z: moved.z + 0.001 * moved.vz}
+  })
+}
+
+func simulate(steps Int, bodies Array[Body]) Array[Body] {
+  if steps == 0 { bodies } else { simulate(steps - 1, advance(bodies)) }
+}
+
+func energy(bodies Array[Body]) Float {
+  array.arrayFold(bodies, 0.0, func(total, body) => {
+    let kinetic = 0.5 * body.mass * (body.vx * body.vx + body.vy * body.vy + body.vz * body.vz)
+    let potential = array.arrayFold(bodies, 0.0, func(sum, other) => {
+      if body.id == other.id { sum } else {
+        let dx = other.x - body.x
+        let dy = other.y - body.y
+        let dz = other.z - body.z
+        sum - 0.5 * body.mass * other.mass / float.sqrt(dx * dx + dy * dy + dz * dz + 0.01)
+      }
+    })
+    total + kinetic + potential
+  })
+}
+
+func main() IO[Unit] {
+  do {
+    text <- io.readAll()
+    match string.parseInt(string.trim(text)) {
+      Some(steps) => if steps >= 0 {
+        println(float.showFloatFixed(energy(simulate(steps, initial())), 9))
+      } else { io.ioFail("expected nonnegative steps") }
+      None => io.ioFail("expected nonnegative steps")
+    }
+  }
+}

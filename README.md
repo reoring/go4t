@@ -161,7 +161,8 @@ func main() IO[Unit] {
 ```sh
 go4t check hello/main.gt
 go4t run hello/main.gt        # Hello, Ada and Bob!
-go4t build hello/main.gt      # emits Go source into hello/main_gen/
+go4t build hello/main.gt      # builds ./main; keeps Go sources in hello/main_gen/
+go4t build --emit-go generated hello/main.gt  # emits Go sources only
 ```
 
 ## Embedding in a Go program

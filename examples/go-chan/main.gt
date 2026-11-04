@@ -1,0 +1,40 @@
+package main
+
+import "go:time"
+import ch "std/chan"
+import "std/conc"
+
+func produce(c SendChan[Int]) IO[Unit] {
+  do {
+    ch.send(c, 1)
+    ch.send(c, 2)
+    ch.send(c, 3)
+    ch.close(c)
+  }
+}
+
+func consume(c RecvChan[Int], total Int) IO[Int] {
+  do {
+    value <- ch.recv(c)
+    match value {
+      None => ioPure(total)
+      Some(n) => consume(c, total + n)
+    }
+  }
+}
+
+func main() IO[Unit] {
+  do {
+    tick <- ch.recv(time.after(1000000))
+    match tick {
+      Some(_) => println("timer: ready")
+      None => ioFail("timer closed without a value")
+    }
+    c <- ch.make(2)
+    producer <- conc.fork(produce(ch.asSend(c)))
+    consumer <- conc.fork(consume(ch.asRecv(c), 0))
+    total <- conc.await(consumer)
+    conc.await(producer)
+    println("sum: ${total}")
+  }
+}

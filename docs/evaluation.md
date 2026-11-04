@@ -142,3 +142,11 @@ not load sibling files; it now runs multi-file example directories
 The limit found today was in the prover's normal forms, not in the language
 or bindings; two ordinary programs ran first try, and the remaining gaps are
 library surface (`Ref`, streaming) and proof coverage of externs.
+
+Same-day follow-ups added IO-only `Ref` cells, named-file streaming through
+`foldLines`/`forEachLine`, executable output from `go4t build` (with `--emit-go`
+for sources only), and directional channels with native Go bindings. Five
+full-size runtime comparisons produce matching go4t and Go outputs. The recorded
+go4t wall-time ratios range from 1.75x to 31.78x; persistent collections, boxing,
+and allocation dominate the measured overhead. `bench/PERF.md` records the
+workloads, shared-VM caveats, commands, and CPU profile.

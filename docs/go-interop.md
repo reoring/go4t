@@ -56,8 +56,8 @@ Rules (ADR 0003, SPEC §8):
   copies and stay pure.
 - `(A, B)` results are tuples, `(A, B, error)` is `IO[(A, B)]`, `(A, bool)` is
   `Option[A]`; `iter.Seq[T]` results are `List[T]`; returned funcs are go4t
-  functions. Still skipped: channels, generic functions, more than three
-  non-error results.
+  functions. Still skipped: generic functions, unsupported channel elements,
+  more than three non-error results.
 - Every Go type is declared once, in the module of the package that owns it;
   `net/http` bindings refer to `io.Reader` as `go_io.Reader` and the loader
   binds `go:io` transitively. There is no subtyping: convert with the generated
@@ -68,6 +68,16 @@ Rules (ADR 0003, SPEC §8):
 - Each call copies records across the boundary; handles keep identity.
 
 The runnable example is [examples/go-import](../examples/go-import).
+
+Go channels bind as `Chan[T]`, `RecvChan[T]`, or `SendChan[T]`. Import `std/chan`
+for cancellation-aware send and receive operations and deferred close; receive
+returns `None` after closure. Use `asRecv` and `asSend` to narrow a bidirectional
+handle. `make` creates channels for go4t fibers; use a generated constructor such
+as `signal.newSignalChan` when passing a channel to a Go API. Constructors
+allocate inside IO, and channel elements use the same conversions as ordinary
+arguments and results. See [examples/go-chan](../examples/go-chan) for `time.after`
+and producer/consumer fibers. Generic Go functions and unsupported channel
+elements remain skipped.
 
 `go4t bind` still prints or writes the same declarations for inspection:
 

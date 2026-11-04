@@ -41,6 +41,7 @@ type mirrorSet struct {
 	used                           map[string]bool
 	records                        map[string]*foreignMirror
 	handles                        map[string]*types.Named
+	channels                       map[string]*foreignMirror
 	resolving                      map[types.Type]bool
 	dyn                            bool
 	jsonMarshaler, jsonUnmarshaler *types.Interface
@@ -50,6 +51,7 @@ func newMirrorSet(floats bool, pkg *Package, used map[string]bool) *mirrorSet {
 	return &mirrorSet{
 		floats: floats, owner: pkg.Path, used: used, imports: map[string]string{},
 		records: map[string]*foreignMirror{}, handles: map[string]*types.Named{},
+		channels: map[string]*foreignMirror{},
 		resolving:     map[types.Type]bool{},
 		jsonMarshaler: pkg.jsonMarshaler, jsonUnmarshaler: pkg.jsonUnmarshaler,
 	}
@@ -299,6 +301,42 @@ func (s *mirrorSet) resolve(t types.Type, callback bool) *foreignMirror {
 	if named(t, "iter", "Seq") || named(t, "iter", "Seq2") {
 		return nil
 	}
+	if ch, ok := t.Underlying().(*types.Chan); ok {
+		if n, named := t.(*types.Named); named && (!n.Obj().Exported() || n.TypeParams().Len() != 0 || !s.importable(n)) {
+			return nil
+		}
+		if s.resolving[t] {
+			return nil
+		}
+		s.resolving[t] = true
+		defer delete(s.resolving, t)
+		var elem *foreignMirror
+		if st, ok := types.Unalias(ch.Elem()).(*types.Struct); ok && st.NumFields() == 0 {
+			// Go's anonymous completion signal carries no data.
+			elem = &foreignMirror{typ: ch.Elem(), kind: "unit", gt: "Unit"}
+		} else {
+			elem = s.resolve(ch.Elem(), true)
+		}
+		if elem == nil {
+			return nil
+		}
+		s.channels[types.TypeString(ch.Elem(), nil)] = elem
+		name := "Chan"
+		if ch.Dir() == types.RecvOnly {
+			name = "RecvChan"
+		} else if ch.Dir() == types.SendOnly {
+			name = "SendChan"
+		}
+		return &foreignMirror{typ: t, kind: "chan", gt: name + "[" + elem.gt + "]", elem: elem}
+	}
+	if p, ok := t.(*types.Pointer); ok {
+		if _, channel := p.Elem().Underlying().(*types.Chan); channel {
+			if elem := s.resolve(p.Elem(), true); elem != nil {
+				return &foreignMirror{typ: t, kind: "pointer", gt: "Option[" + elem.gt + "]", elem: elem}
+			}
+			return nil
+		}
+	}
 	if isAny(t) {
 		s.dyn = true
 		return &foreignMirror{typ: t, kind: "dyn", gt: "dyn.Value"}
@@ -429,6 +467,7 @@ func (s *mirrorSet) call(sig *types.Signature, method bool) (*foreignCall, strin
 			return nil, fmt.Sprintf("unsupported parameter type %s", types.TypeString(t, nil))
 		}
 		c.params = append(c.params, m)
+		c.mutable = c.mutable || m.sharesState()
 	}
 	n := sig.Results().Len()
 	if n > 0 && errorType(sig.Results().At(n-1).Type()) {
@@ -508,6 +547,10 @@ func (s *mirrorSet) declarations() string {
 // prelude (Result, Option, List, ...) gets a Go suffix so generated bindings never
 // shadow it; users write the qualified binding name either way.
 func foreignTypeName(name string) string {
+	switch name {
+	case "Ref", "Chan", "RecvChan", "SendChan":
+		return name + "Go"
+	}
 	for _, reserved := range gfxtypes.PreludeExports {
 		if reserved == name {
 			return name + "Go"
@@ -520,13 +563,16 @@ func foreignTypeName(name string) string {
 func (c *foreignCall) effect() bool { return c.context || c.failure || c.mutable }
 
 // sharesState reports whether a value of this mirror carries a handle, directly
-// or inside a container or Option. Callbacks are values the Go side invokes;
-// their own handle parameters are classified at the callback's signature.
+// or inside a container or Option. Invoking an effectful callback also observes
+// shared state; channel-producing callbacks need IO for checked native conversion.
 func (m *foreignMirror) sharesState() bool {
 	if m == nil {
 		return false
 	}
-	if m.kind == "handle" {
+	if m.kind == "handle" || m.kind == "chan" {
+		return true
+	}
+	if m.callback != nil && (m.callback.effect() || m.callback.hasChannel()) {
 		return true
 	}
 	if m.elem != nil && m.elem.sharesState() {

@@ -5,8 +5,8 @@
 | Command | Purpose |
 | --- | --- |
 | `go4t check [--full-types] FILE.gt\|DIR...` | Load, type-check and verify laws/proofs; warnings do not fail; foreign ABI is not checked here. |
-| `go4t build [--full-types] [-o DIR] FILE.gt\|DIR...` | Emit one Go file per go4t module into one Go package. |
-| `go4t build --emit-go DIR --package NAME FILE.gt\|DIR...` | Emit an importable Go package with typed exports (§8.7). |
+| `go4t build [--full-types] [-o FILE] FILE.gt\|DIR...` | Build an executable; retain generated Go sources beside the input. |
+| `go4t build [--full-types] --emit-go DIR [--package NAME] FILE.gt\|DIR...` | Emit Go sources only; package defaults to `main`. Other package names produce typed exports (§8.7). |
 | `go4t run [--full-types] FILE.gt\|DIR... [-- args...]` | Build and execute; inherits stdin; preserves exit status. |
 | `go4t test FILE.gt\|DIR...` | Run zero-arg `testName` functions returning `Bool` or `IO[Bool]`. |
 | `go4t eval 'EXPR' [FILE.gt\|DIR...]` | Evaluate a pure value or IO result; imports come from the first file. |
@@ -17,6 +17,18 @@
 
 Only `check` verifies proofs; `build`, `run`, `test` and `eval` omit laws/proofs
 from generated code but still require their source to parse and type-check.
+
+`go4t build` writes the executable in the current directory, named after the
+first input directory or the first input file without `.gt`. `-o FILE` selects
+another executable path; an existing directory is rejected. Generated sources
+remain in `DIR/_gen` for a directory input or `FILE_gen` for a file input.
+`--emit-go DIR` selects source-only output and cannot be combined with `-o`.
+`--package NAME` is available only with `--emit-go`.
+
+Building requires Go on PATH. The compiler reuses a Go module that provides
+`go4t`, or supplies its embedded runtime in a temporary module without changing
+the user's `go.mod`. Go build diagnostics are printed on stderr and failures
+exit nonzero.
 
 `go4t get <path>@<version>` runs `go get` and records the selected version in
 `go4t.mod`; it does not generate bindings. Use `import "go:<path>"` to bind Go

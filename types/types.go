@@ -139,6 +139,10 @@ var (
 	Set    = &TCon{Name: "Set", Kind: KArrow{Params: []Kind{KStar{}}, Ret: KStar{}}}
 	Array  = &TCon{Name: "Array", Kind: KArrow{Params: []Kind{KStar{}}, Ret: KStar{}}}
 	Fiber  = &TCon{Name: "Fiber", Kind: KArrow{Params: []Kind{KStar{}}, Ret: KStar{}}}
+	Ref      = &TCon{Name: "Ref", Kind: KArrow{Params: []Kind{KStar{}}, Ret: KStar{}}}
+	Chan     = &TCon{Name: "Chan", Kind: KArrow{Params: []Kind{KStar{}}, Ret: KStar{}}}
+	RecvChan = &TCon{Name: "RecvChan", Kind: KArrow{Params: []Kind{KStar{}}, Ret: KStar{}}}
+	SendChan = &TCon{Name: "SendChan", Kind: KArrow{Params: []Kind{KStar{}}, Ret: KStar{}}}
 )
 
 // Tuple returns the builtin tuple constructor of arity n (>= 2), named

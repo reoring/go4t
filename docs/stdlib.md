@@ -41,6 +41,10 @@ externs remain excluded. The detailed report lists the first tainting reason.
 | `Unit : *` | Sole value from unit(). | Eq/Debug, no Show/Ord. |
 | `IO : (*) -> *` | Deferred fallible action. | Construction is strict; running is deferred with an implicit cancellation/deadline context. |
 | `Fiber : (*) -> *` | Cached concurrent outcome with a child context. | No standard class instances; `std/conc.cancel` requests cancellation. |
+| `Ref : (*) -> *` | Opaque mutable cell accessed only through IO. | No standard class instances; operations are atomic per cell. |
+| `Chan : (*) -> *` | Opaque bidirectional channel handle. | No standard class instances; narrow capabilities explicitly with asRecv/asSend. |
+| `RecvChan : (*) -> *` | Opaque receive-only channel handle. | Cannot send or close; closed receive returns None. |
+| `SendChan : (*) -> *` | Opaque send-only channel handle. | Cannot receive; preserves the channel's identity. |
 | `Map : (*, *) -> *` | Persistent AVL map. | Comparator EQ identifies keys; consistent ordering required. |
 | `Set : (*) -> *` | Persistent AVL set. | Comparator-equivalent elements deduplicated. |
 | `Array : (*) -> *` | Immutable indexed sequence. | Copy on write/push/sort, Option reads. |
@@ -94,6 +98,27 @@ Source: [`array/array.gt`](../std/array/array.gt). 14 top-level declarations.
 | `instance Debug[Array[A]] given Debug[A]` | Structural rendering as #[a, b] using element Debug. | Empty #[]; index order; strings quoted; no Show required. | — |
 | `instance Eq[Array[A]] given Eq[A]` | Compare Array values for equality. | Index-order element equality; empty arrays equal. | — |
 | `instance Functor[Array]` | Map Array's element/result while retaining shape. | Empty unchanged, callback in index order. | — |
+
+## `std/chan`
+
+Source: [`chan/chan.gt`](../std/chan/chan.gt). 6 top-level declarations.
+
+Channels preserve native identity and use ordinary shim element converters.
+`make` allocates go4t-only channels; native Go parameters require a generated
+typed constructor, such as `signal.newSignalChan`, or an imported channel.
+The type system does not distinguish native element representations sharing one
+go4t mirror; incompatible conversions fail with `IoError.Failure`, without a
+forwarding channel. Channel handles have no standard class instances, and all
+operations, including pure capability upcasts, are law-ineligible externs.
+
+| Source signature | Semantics | Boundary behaviour | Law-eligible |
+| --- | --- | --- | --- |
+| `extern func asRecv[A](c Chan[A]) RecvChan[A] = "go4t/rt".ChanAsRecv` | Narrow a bidirectional handle to receive-only. | Pure, explicit capability upcast; preserves identity; cannot send or close through the result. | No |
+| `extern func asSend[A](c Chan[A]) SendChan[A] = "go4t/rt".ChanAsSend` | Narrow a bidirectional handle to send-only. | Pure, explicit capability upcast; preserves identity; cannot receive through the result. | No |
+| `extern func make[A](buffer Int) IO[Chan[A]] = "go4t/rt".ChanMake` | Allocate a buffered go4t-only channel. | Deferred; each execution creates a fresh channel; use a generated typed constructor for native Go API parameters. | No |
+| `extern func send[A](c SendChan[A], value A) IO[Unit] = "go4t/rt".ChanSend` | Send one value when the action executes. | Cancellation-aware; uses the channel's element converter; incompatible conversions fail with IoError.Failure. | No |
+| `extern func recv[A](c RecvChan[A]) IO[Option[A]] = "go4t/rt".ChanRecv` | Receive one value as Some, or None after closure. | Deferred and cancellation-aware; uses the ordinary element converter. | No |
+| `extern func close[A](c SendChan[A]) IO[Unit] = "go4t/rt".ChanClose` | Close a channel through its send capability. | Deferred; closing an already closed channel fails with `Failure("chan.close: close of closed channel")`. | No |
 
 ## `std/conc`
 
@@ -173,7 +198,7 @@ is assumed by rt. See SPEC §6.4 and the runnable [HTTP example](../examples/htt
 
 ## `std/io`
 
-Source: [`io/io.gt`](../std/io/io.gt). 32 top-level declarations.
+Source: [`io/io.gt`](../std/io/io.gt). 34 top-level declarations.
 
 All operations returning IO are deferred; `formatTime` and `ioErrorMessage` are pure.
 IO errors are classified as NotFound, PermissionDenied, AlreadyExists, Timeout,
@@ -201,6 +226,8 @@ Wrapped Go errors follow the same classification. See SPEC §6.2 for precedence.
 | `extern func getEnv(name String) IO[Option[String]] = "go4t/rt".GetEnv` | Read an optional environment value. | Absent name gives `None`; present empty value gives `Some("")`; values are not trimmed. | No |
 | `extern func tryIO[A](io IO[A]) IO[Result[IoError, A]] = "go4t/rt".TryIO` | Run lazily; success becomes Ok, typed failures and recovered panics become Err. | Error → Err(IoError); action panic → Err(Panic(payload text without prefix)); construction panics/exit not caught. | No |
 | `extern func readFile(path String) IO[String] = "go4t/rt".ReadFile` | Read the complete file; filesystem errors fail the IO. | Empty file → empty string; missing path → NotFound; other errors use the IO classification. | No |
+| `extern func foldLines[B](path String, init B, step func(B, String) IO[B]) IO[B] = "go4t/rt".FoldLines` | Stream a named file, sequencing step's IO once per line and returning the final accumulator. | Empty file returns init without calling step; LF/CRLF stripped, bare CR retained, final unterminated line delivered; no fixed line-length limit; storage scales with the longest line plus accumulator; missing path → NotFound, permission errors → PermissionDenied; failure or observed cancellation stops processing and closes the file. | No |
+| `func forEachLine(path String, f func(String) IO[Unit]) IO[Unit]` | Sequence f over file lines through foldLines with a Unit accumulator. | Empty file returns unit() without calling f; line boundaries, classified errors, cancellation and file closure follow foldLines. | No |
 | `extern func writeFile(path String, content String) IO[Unit] = "go4t/rt".WriteFile` | Create or truncate, preserving existing runtime parent-directory creation. | Creates parent directories and truncates existing file; directories 0755/files 0644 subject to umask; write errors fail. | No |
 | `extern func appendFile(path String, content String) IO[Unit] = "go4t/rt".AppendFile` | Create or append, creating missing parent directories; write/close errors fail. | Creates parent directories/file if absent; appends without truncation; write/close errors fail. | No |
 | `extern func fileExists(path String) IO[Bool] = "go4t/rt".FileExists` | True for an existing file/directory, false for a missing path; other stat errors fail. | Missing false; existing directory true; other stat errors fail. | No |
@@ -470,6 +497,24 @@ Derived instances (expanded from the type declarations above):
 | `instance Eq[Option[A]] given Eq[A]` | Constructor/field equality. | All parameters require Eq, including phantom parameters. | — |
 | `instance Ord[Option[A]] given Ord[A]` | Declaration-order constructor comparison, then lexicographic fields. | Requires Eq plus Ord on all parameters; Nil/None/Err precede Cons/Some/Ok respectively. | — |
 | `instance Debug[Option[A]] given Debug[A]` | Structural constructor/field rendering. | Requires Debug[A]; None or Some(debug(a)); strings quoted and list payloads use brackets. | — |
+
+## `std/ref`
+
+Source: [`ref/ref.gt`](../std/ref/ref.gt). 5 top-level declarations.
+
+Ref callbacks are pure and run once under the cell's mutex. They do not execute
+IO or re-enter the cell. Cancellation does not interrupt a running callback or
+immediately interrupt a mutex wait. Cancellation observed before commit leaves
+the cell unchanged; cancellation after commit does not roll back the write.
+Callback panics leave the cell unchanged and release the lock.
+
+| Source signature | Semantics | Boundary behaviour | Law-eligible |
+| --- | --- | --- | --- |
+| `extern func new[A](a A) IO[Ref[A]] = "go4t/rt".RefNew` | Allocate a cell containing a. | Deferred; each execution creates a distinct cell; cancelled execution does not allocate. | No |
+| `extern func get[A](r Ref[A]) IO[A] = "go4t/rt".RefGet` | Atomically read the current value. | Deferred; observes the value at execution, not construction; checks cancellation before and after acquiring the lock. | No |
+| `extern func set[A](r Ref[A], a A) IO[Unit] = "go4t/rt".RefSet` | Atomically replace the current value. | Deferred; checks cancellation before acquiring the lock and before writing; returns Unit. | No |
+| `extern func modify[A](r Ref[A], f func(A) A) IO[Unit] = "go4t/rt".RefModify` | Atomically apply a pure transformation. | Callback runs once under the lock; cancellation observed before commit or callback panic preserves the previous value; returns Unit. | No |
+| `extern func update[A, B](r Ref[A], f func(A) (A, B)) IO[B] = "go4t/rt".RefUpdate` | Atomically install the first tuple component and return the second. | Pure callback runs once under the lock; cancellation observed before commit or callback panic preserves the previous value. | No |
 
 ## `std/regex`
 
