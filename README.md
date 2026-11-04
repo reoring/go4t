@@ -216,9 +216,12 @@ exact `>=`/`>` boundaries on deadlines, "a full zone is never chosen",
 
 ## Status and what go4t is not
 
-- **Not 1.0.** The grammar, standard library and Go ABI are stable enough for
-  the ports above and are written down in [SPEC.md](SPEC.md), but they can
-  still change. Known limits: [SPEC §9](SPEC.md#9-known-limitations).
+- **Not 1.0.** The current release is
+  [v0.1.0](https://github.com/reoring/go4t/releases/tag/v0.1.0); `@latest`
+  follows the newest tag, `@v0.1.0` pins it. The grammar, standard library
+  and Go ABI are stable enough for the ports above and are written down in
+  [SPEC.md](SPEC.md), but they can still change between releases. Known
+  limits: [SPEC §9](SPEC.md#9-known-limitations).
 - **Not a replacement for Go.** Keep your Go program and move the parts that
   benefit; laws say nothing about I/O.
 - **Not a proof assistant.** Laws are an equational checker over first-order
