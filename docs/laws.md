@@ -18,7 +18,10 @@ Proved laws use definitional equality, independent of `Eq` instances. Proofs
 combine `refl`, constructor `match`, guard `if`, `rewrite` and `induction`.
 Only eligible pure, terminating dependencies are admitted to proofs; untrusted
 externs are excluded. Float expressions are excluded from proofs, but data types that merely
-contain Float (such as `dyn.Value`) are allowed as quantified values. `Map` is modelled symbolically, so
+contain Float (such as `dyn.Value`) are allowed as quantified values. Quantities you
+want laws about (money, counts, totals) therefore belong in `Int` units such as
+cents; `Float` is for measurements and formatting, and Float sums are genuinely
+order-sensitive, so no law could hold for them anyway. `Map` is modelled symbolically, so
 `mapLookup(mapInsert(m, k, v), k2)` reduces to a key-equality case split.
 Nested updates over a symbolic single-constructor record merge into one update
 with later writes winning and fields ordered by declaration index, so
