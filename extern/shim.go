@@ -25,6 +25,7 @@ const (
 	bindingAccessor
 	bindingValue
 	bindingUpcast
+	bindingJSONView
 )
 
 type bindingCandidate struct {
@@ -164,11 +165,6 @@ func (g *shimGenerator) conversion(m *foreignMirror) string {
 	case "dyn":
 		to.WriteString("return rt.DynToGo(v)\n")
 		from.WriteString("return rt.DynFromGo(v)\n")
-	case "jsonscalar":
-		jsonAlias := g.qualifier(types.NewPackage("encoding/json", "json"))
-		prefix := "go4t json scalar: " + types.TypeString(m.typ, nil) + ": "
-		fmt.Fprintf(&to, "data, err := %s.Marshal(rt.DynToGo(v)); if err != nil { panic(%q + err.Error()) }; var result %s; if err := result.UnmarshalJSON(data); err != nil { panic(%q + err.Error()) }; return result\n", jsonAlias, prefix, typ, prefix)
-		fmt.Fprintf(&from, "data, err := %s.Marshal(v); if err != nil { panic(%q + err.Error()) }; var value any; if err := %s.Unmarshal(data,&value); err != nil { panic(%q + err.Error()) }; return rt.DynFromGo(value)\n", jsonAlias, prefix, jsonAlias, prefix)
 	case "dynlist":
 		to.WriteString("return rt.DynListToGo(v)\n")
 		from.WriteString("return rt.DynListFromGo(v)\n")
@@ -687,6 +683,7 @@ func BindWithShim(pkg *Package, options BindOptions, shimPath, shimPackage strin
 	g.accessors(&decl, set, options, &candidates)
 	g.upcasts(&decl, set, pkg, options, &candidates)
 	g.channelConstructors(&decl, set, options, &candidates)
+	g.jsonViews(&decl, set, pkg, options, &candidates)
 	candidates.emit(&decl)
 	g.errorClassifier(pkg)
 	name := options.Package

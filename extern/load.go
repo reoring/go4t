@@ -107,7 +107,7 @@ func (l *Loader) Load(path string) (*Package, error) {
 	if path == "" || strings.HasPrefix(path, "-") || strings.Contains(path, "...") {
 		return nil, fmt.Errorf("invalid Go import path %q", path)
 	}
-	// JSON-scalar mirrors must use the same importer as the package being bound.
+	// JSON views must use the same importer as the package being bound.
 	// Load its interfaces even when the package only implements their methods
 	// structurally and does not import encoding/json itself.
 	if l.importer == nil && path != "encoding/json" {

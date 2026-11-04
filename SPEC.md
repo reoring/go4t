@@ -1427,6 +1427,12 @@ generated package-level shims (`bind --shim`), not directly. Generic package
 functions bind as templates instantiated from concrete call-site types; variadic
 functions are not direct extern targets.
 
+Boundary invariant (ADR 0011): preserve the ordinary Go value or its opaque
+handle identity; do not silently replace it with a serialization view. Named
+JSON views may normalize or lose information, but adding those views never
+changes the representation chooser. Explicitly documented lossy scalar rules
+below, including `time.Time` → UnixNano, remain unchanged.
+
 | go4t type | Natural Go ABI | Boundary |
 | --- | --- | --- |
 | Int | int64, also int | int64 is canonical; int narrowing follows Go on 32-bit targets |
@@ -1499,18 +1505,19 @@ are determined by the original Go declaration, not by substituted type arguments
 | chan T, <-chan T, chan<- T with mirrorable T | Chan[T], RecvChan[T], SendChan[T] | Opaque directional handles; preserve the native Go channel and reuse the ordinary element converters; unsupported elements retain the signature's skip reason |
 | chan struct{}, <-chan struct{}, chan<- struct{} | Chan[Unit], RecvChan[Unit], SendChan[Unit] | Anonymous completion signals carry Unit |
 | Channel element T encountered in a bound package | new<T>Chan(buffer Int) IO[Chan[T]] | Allocate a fresh native channel when the action executes; generated names follow the existing binding-name precedence |
-| time.Duration | Int | Nanoseconds |
-| time.Time | Int | UnixNano; zero time becomes 0, and 0 reconstructs zero time |
+| time.Duration | Int | Nanoseconds; the named duration type is erased (documented lossy projection) |
+| time.Time | Int | Lossy UnixNano projection: location and monotonic metadata are discarded; zero time becomes 0, and 0 reconstructs zero time |
 | error parameter (including callback parameters and variadic elements) | GoError | Non-null opaque builtin handle; preserve the original Go error identity in both directions; does not itself force IO |
 | error in a non-trailing result, record field, package variable, or container element | Option[GoError] | nil becomes None; otherwise Some(original error); reverse conversion preserves the same error, including its wrapping chain |
 | Trailing error result | IO failure | Unchanged: nil is success; non-nil is classified as an IoError and retained as the cause available through io.tryIOCause / io.cause |
-| Exported nongeneric named struct T with T implementing json.Marshaler and *T implementing json.Unmarshaler | dyn.Value | Its JSON wire form takes precedence over record/handle layout (except the time.Time rule above); recursive fields use the same rule, pointers become Option[dyn.Value], and methods operate on copies. Convert through encoding/json and the runtime any↔dyn helpers; conversion errors panic with `go4t json scalar: <type>: <err>` |
-| Exported struct whose fields are all exported and mirrorable | Record named after the struct | Declared in its owning Go package's binding module, first field letter lower-cased, `deriving Eq, Debug` unless a field contains GoError (including through records or containers); GoError has neither instance. A field whose lowered name is a go4t keyword gains a trailing `_` (`SELinuxOptions.Type` → `type_`); promoted embedded fields follow Go lookup, ambiguous fields omitted. A struct with any unexported field, or a pointer embedding, is private state and becomes a handle (`kubernetes.Clientset`): copying its exported fields would silently discard the rest |
+| Exported nongeneric named T implementing json.Marshaler, with *T implementing json.Unmarshaler | `<t>ToJson(recv T) dyn.Value` | Pure explicit view of the ordinary mirror (including named non-struct types); encoding/json plus runtime any↔dyn conversion. Marshal errors panic with `go4t json view: <type>: <err>`; existing binding names win and skipped views receive a collision comment |
+| Same JSON-capable T | `<t>FromJson(v dyn.Value) IO[T]` | Deferred, cancellation-aware explicit view; encode the dynamic input and unmarshal into T. Conversion errors are IO failures retaining the original Go error as cause; successful results use the ordinary mirror. Unsupported or lock-copying views are skipped |
+| Exported struct whose fields are all exported and mirrorable | Record named after the struct | Declared in its owning Go package's binding module, first field letter lower-cased, `deriving Eq, Debug` unless a field contains an opaque handle or GoError (directly or through records, containers or Option); neither leaf has those instances, and Debug derivation cannot render a handle placeholder. Opaque struct leaves keep their native state. A field whose lowered name is a go4t keyword gains a trailing `_` (`SELinuxOptions.Type` → `type_`); promoted embedded fields follow Go lookup, ambiguous fields omitted. A struct with any unexported field, or a pointer embedding, is private state and becomes a handle (`kubernetes.Clientset`): copying its exported fields would silently discard the rest |
 | Named non-struct with mirrorable underlying type | Underlying mirror | No distinct go4t type; shim performs the named Go conversion |
 | Other exported named types | Opaque handle | Includes interfaces, cyclic structs and structs with nonmirrorable fields |
 | Opaque named struct value or pointer | Same opaque handle | A lock-free value result is copied into one fresh mutable pointer box; a pointer preserves identity; passing a boxed handle back as a Go value dereferences it. Package-variable getters, struct-handle field getters and struct-handle receivers use addresses instead. By-value parameters, results and container elements containing locks are skipped with `copies lock value T` |
 | Mirrorable exported field of an opaque named struct | `<type><Field>(recv T) IO[F]`, `<type>Set<Field>(recv T, value F) IO[Unit]` | Deferred, cancellation-aware accessors observe or mutate the handle; struct-handle fields are returned by address. Setters that copy a lock value, unmirrorable fields and binding-name collisions receive a skip comment |
-| Named T implementing exported interface I | `<t>As<I>(recv T) I` | Pure upcast for handles, records, JSON scalars and named scalar/bytes/slice/map sources (receiver uses the underlying go4t type; the shim restores named T and boxes it only when *T is required) in binding module P when T and I belong to P or its direct imports and at least one is declared in P, including interface-to-interface widening; generic/constraint interfaces, `error` and identity casts are excluded; foreign source homonyms gain an owner suffix while P's own types keep the unsuffixed name; other binding-name collisions are skipped |
+| Named T implementing exported interface I | `<t>As<I>(recv T) I` | Pure upcast for handles, records and named scalar/bytes/slice/map sources (receiver uses the underlying go4t type; the shim restores named T and boxes it only when *T is required) in binding module P when T and I belong to P or its direct imports and at least one is declared in P, including interface-to-interface widening; generic/constraint interfaces, `error` and identity casts are excluded; foreign source homonyms gain an owner suffix while P's own types keep the unsuffixed name; other binding-name collisions are skipped |
 | Two or three results, except `(A, bool)` | (A, B), (A, B, C) | Runtime tuple; trailing error is removed first and forces IO[tuple]; more than three payload results are skipped |
 | Function parameter or result with mirrorable signature | func(A, ...) R or func(A, ...) IO[R] | Erased callback adapter in both directions; leading context or trailing error forces IO, and returned Go functions run when their IO is executed |
 | any | dyn.Value | Runtime tagged conversion; see §10.7 |
@@ -1523,6 +1530,19 @@ package. Other bindings reference them through generated `go:` imports, such as
 `import go_io "go:io"` and `go_io.Reader`; import aliases avoid generated names.
 All callers therefore share the owning module's type identity. This applies to
 `BindWithShim`; natural-ABI-only `Bind` output is unchanged.
+
+JSON interfaces only add named views. For example, `metav1.Time` and
+`resource.Quantity` use opaque handles, while the all-exported
+`intstr.IntOrString` uses a record; all also expose JSON views. Native by-value
+record crossings copy opaque field values, preserving their state (including a
+timestamp's location), not the address of a temporary box. go4t record storage
+and selection retain the original handle box. No ordinary crossing marshals JSON.
+`ToJson` treats failed serialization of a valid domain value as a programming
+error; `FromJson` treats invalid external input as an ordinary fallible IO action.
+Likewise, `net/url.URL` is a record with a `Userinfo` handle field; its fields
+are all exported even though `Userinfo` itself has private state. It has no
+derived Eq or Debug, `urlHostname` / `urlString` operate on copies and are pure,
+and `parse` returns `IO[Option[URL]]` rather than an opaque URL handle.
 
 Error mirrors preserve identity rather than projecting messages (ADR 0011 §3C).
 `GoError` is a builtin like `Ref`, so generated bindings need no import for it.
@@ -1543,8 +1563,8 @@ import `std/ref` for `new`, `get` and `set`. This includes read-only Go APIs:
 the binder does not infer whether a callee writes. Variadic `...*T` parameters
 become `List[Ref[T]]`, and callback adapters perform writeback in both directions.
 Pointers inside records or ordinary containers, pointer results, pointer-to-handle
-identity, JSON-scalar pointers and unresolved type-parameter pointers retain their
-existing representations. Method receivers retain their existing receiver rule.
+identity and unresolved type-parameter pointers retain their existing
+representations. Method receivers retain their existing receiver rule.
 Each cell read and write takes the runtime Ref lock; the foreign call itself is
 not a cell-atomic transaction. Writeback occurs before returning payloads,
 optional absence or a Go error, including when the callee cancels its context.
@@ -1582,7 +1602,7 @@ generated typed channel constructor or an imported channel. The type system does
 not distinguish native element representations that share one go4t mirror;
 incompatible conversions fail with `IoError.Failure`, without a forwarding channel.
 
-Concrete handles, records and JSON scalars expose `<t>As<I>` upcasts whenever T
+Concrete handles, records and named scalar/container sources expose `<t>As<I>` upcasts whenever T
 or *T implements an exported nongeneric method-set interface I. Binding package
 P considers its own source types against interfaces in P and its direct imports,
 and direct-import source types against interfaces declared in P. Bindings stay
@@ -1592,7 +1612,7 @@ Interface handles also expose widening upcasts; for example,
 `strings.readerAsReader` yields `io.Reader`, and `io.readCloserAsReader` widens
 `io.ReadCloser` to `io.Reader`. Handle upcasts preserve identity; record upcasts
 use the existing copy boundary. The builtin `error` interface is not an upcast
-target. Binding-name precedence is method/function > field accessor > constructor/value getter > upcast; ties keep first-seen order. Each loser emits `// skipped: <display> (name <name> taken by <winner display>)`. When one source has upcasts to same-named interfaces, both names include the owning package suffix before the interface name: the last path element CamelCased, with its parent prepended for version segments (`meta/v1` → `AsMetaV1Object`, `runtime` → `AsRuntimeObject`). If those still collide, use the full generated import alias without `go_`, CamelCased.
+target. Binding-name precedence is method/function > field accessor > constructor/value getter > upcast > JSON view; ties keep first-seen order. Each loser emits `// skipped: <display> (name <name> taken by <winner display>)`. When one source has upcasts to same-named interfaces, both names include the owning package suffix before the interface name: the last path element CamelCased, with its parent prepended for version segments (`meta/v1` → `AsMetaV1Object`, `runtime` → `AsRuntimeObject`). If those still collide, use the full generated import alias without `go_`, CamelCased.
 When multiple candidate sources share a simple name, foreign sources gain the
 same owner qualifier before the source name (`qImplAsI`); P's own type keeps
 `implAsI` and wins ties. Equal short qualifiers fall back to the full generated

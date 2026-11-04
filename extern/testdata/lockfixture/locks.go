@@ -24,6 +24,10 @@ var PlainGlobal Plain
 
 type PlainHolder struct { P Plain }
 
+// Private state keeps this accessor-identity fixture opaque even though a
+// record may now contain a Plain handle by value.
+type PrivateHolder struct { P Plain; private bool }
+
 func Take(g Guarded) {}
 func Make() Guarded { return Guarded{} }
 func TakePointer(g *Guarded) {}

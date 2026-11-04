@@ -65,13 +65,20 @@ with `ref.new`, calls the native binding, then reads the updated list with
 semantics. Status updates use the native `unstructuredSetObject` setter rather
 than mutating a copied `Map` through `SetNestedMap`.
 
-The `metav1.Time` JSON-scalar binding reparses timestamps with `Time.UnmarshalJSON`,
-which changes their location to `time.Local`. Existing condition timestamps are
-therefore validated by `time.Parse` and rendered from their original wall time
-and offset in go4t. Apply carries those strings beside the native call and
-restores the spelling after readback, using the new timestamp only when status
-changes. This preserves RFC3339 formatting, including fraction truncation and
-zero/invalid timestamps, until the JSON-scalar boundary is replaced.
+`metav1.Time` is now an opaque handle, not its JSON wire representation
+(ADR 0011 §1C). Observation parses each condition's timestamp directly into that
+handle through the promoted `timeUnmarshalText` method. Apply carries the handle
+through `Condition` and the native Ref update, then calls `timeFormat(RFC3339)`
+only when constructing the final status map. Invalid input uses the zero time.
+No parallel timestamp strings or post-update restoration remain.
+
+This status-map contract is Go `Time.Format(RFC3339)`, not `MarshalJSON`:
+`metav1.Time.MarshalJSON` deliberately formats UTC and zero as null, whereas
+`Format` retains the original offset, drops fractional seconds for this layout,
+and renders zero as `0001-01-01T00:00:00Z`. The explicit `timeToJson` /
+`timeFromJson` views are available when that JSON behavior is wanted; they are
+not used for condition transport. Timestamp parity tests force a non-UTC
+`time.Local` and keep the original expected formatting.
 
 Read and patch error messages keep their original contextual prefixes.
 `io.tryIO` exposes classified errors rather than Go's original error chain;
@@ -86,10 +93,10 @@ comments, excluding generated code and tests.
 | --- | --- | --- |
 | Go reconciler | 271 lines, including publication and operation helpers | 88 lines: request/client loop, observe glue, manager setup |
 | Go helpers | 240 lines, including status, conditions and workflow events | 79 lines: native object constructors, GVKs and fixture string lookup |
-| Observation and projection | 241-line `decide/observe.gt` | Unchanged, entirely go4t |
+| Observation and projection | 241-line `decide/observe.gt` | Entirely go4t, including native-handle condition parsing |
 | Pure decision | 205-line `decide/decide.gt` | 205 lines; only the publication comment changed |
 | Status and conditions | Go `publish`, `approvalStatus`, condition conversion and merge patch | go4t `publish`, `approvalStatus`, native `meta.setStatusCondition` through Ref, native status patch |
-| Operations and events | Go ensure/create, snapshot/match/name helpers and event projection | 407-line `decide/apply.gt`, including publication and oracle preview |
+| Operations and events | Go ensure/create, snapshot/match/name helpers and event projection | `decide/apply.gt`, including publication and oracle preview; timestamp string restoration removed |
 
 **Export naming:** helpers use `_projectFetchedPlan`, `_projectTtl`, and
 `_projectTimestamp`, not `plan`, `ttl`, or `timestamp`. This avoids first-rune

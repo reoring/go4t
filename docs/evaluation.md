@@ -335,3 +335,35 @@ neither of which carries a resourceVersion, so there is nothing to add until a
 controller uses `Update`. Memory and reconcile time did not drift.
 
 The prefix-based 429 classification above describes the recorded soak; `evict` now uses the retained `io.cause` with `apierrors.isTooManyRequests` instead (ADR 0011 §3C).
+
+## Migrating a real controller one layer at a time (2026-11-04)
+
+Question: can an existing Go program adopt go4t gradually, or only be rewritten
+whole? The answer came from `examples/approval-controller`, an AppThrust
+platform controller extracted with its six Go tests kept as the oracle. In
+three steps the Go side shrank from 271 to 88 lines (the reconcile loop,
+manager wiring, and the controller-runtime client) while `observe`, `decide`
+and `apply` moved into go4t, and the oracle never changed. That required the
+export side to pass native handles (`*kubernetes.Clientset`,
+`client.Client`, `*unstructured.Unstructured`) by identity (SPEC §8.7), and
+`examples/node-drain-shell` shows the same shape on a kind cluster.
+
+Each step surfaced a binder rule that was silently lossy rather than
+missing, which is the worse failure: a function that binds, runs, and
+returns the wrong thing. The ones found and their fixes:
+
+| Found in | Lossy rule | Fix |
+| --- | --- | --- |
+| observe | `unstructured.Unstructured` could not be passed as `client.Object`: upcasts only looked inside one package | ADR 0009: symmetric direct-import upcasts |
+| vet of generated shims | package variables, fields and receivers copied lock-bearing structs | ADR 0009: address-of shims, by-value lock crossings skipped |
+| list options | `client.InNamespace` (a named string) had no upcast | ADR 0010: scalar/collection implementers upcast |
+| apply | `meta.SetStatusCondition(*[]Condition, …)` bound but mutated a copy | ADR 0011: argument `*T` binds as `Ref[T]` |
+| apply | `metav1.Time` crossed as its JSON wire form; `UnmarshalJSON` moved the location | ADR 0011: JSON is a view (`timeToJson`/`timeFromJson`), the value is a handle |
+| soak | `apierrors.IsTooManyRequests(error)` received a fresh error built from a message | ADR 0011: errors cross as the `GoError` handle; `Failure` keeps its cause |
+
+The rule that came out of it (ADR 0011): the boundary never converts lossily.
+It copies all-exported structs, keeps everything else by identity, and the
+only lossy operations are named functions (`…FromJson`, `…Parse`) or table
+rows marked lossy (`time.Time` → `Int`). Every rule above was pinned by a
+fixture that runs the generated shim, and node-drain-typed's 15 laws and
+2.4 s warm check were unchanged through all of it.

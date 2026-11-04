@@ -164,13 +164,15 @@ func TestGoImportHandleExports(t *testing.T) {
 	t.Setenv("GO4T_CACHE", t.TempDir())
 	file := toolsWrite(t, filepath.Join(dir, "h.gt"), `package main
 import url "go:net/url"
-type Envelope = Envelope { url: url.URL, urls: List[Option[url.URL]], named: Map[String, url.URL], pair: (url.URL, url.URL) }
+type Envelope = Envelope { user: url.Userinfo, users: List[Option[url.Userinfo]], named: Map[String, url.Userinfo], pair: (url.Userinfo, url.Userinfo) }
 type Box[A] = Box { value: A }
-func host(u url.URL) IO[String] { url.urlHostname(u) }
-func parse(s String) IO[url.URL] { url.parse(s) }
-func keep(u url.URL) url.URL { u }
+func username(u url.Userinfo) IO[String] { url.userinfoUsername(u) }
+func password(u url.Userinfo) IO[Option[String]] { url.userinfoPassword(u) }
+func user(name String) url.Userinfo { url.user(name) }
+func userPassword(name String, password String) url.Userinfo { url.userPassword(name, password) }
+func keep(u url.Userinfo) url.Userinfo { u }
 func echoEnvelope(v Envelope) Envelope { v }
-func boxed(v Box[url.URL]) Box[url.URL] { v }
+func boxed(v Box[url.Userinfo]) Box[url.Userinfo] { v }
 func main() IO[Unit] { ioPure(unit()) }
 `)
 	toolsWrite(t, filepath.Join(dir, "main.go"), `package main
@@ -183,26 +185,30 @@ import (
 )
 func main() {
 	ctx := context.Background()
-	var u *url.URL
-	var err error
-	u, err = hx.Parse("https://example.com/x")(ctx)
-	if err != nil { panic(err) }
-	host, err := hx.Host(u)(ctx)
-	if err != nil || host != "example.com" { panic(fmt.Sprintf("parsed host: %q, %v", host, err)) }
-	direct := &url.URL{Scheme: "https", Host: "go.example:443"}
-	host, err = hx.Host(direct)(ctx)
-	if err != nil || host != "go.example" { panic(fmt.Sprintf("direct host: %q, %v", host, err)) }
+	var u *url.Userinfo = hx.User("alice")
+	username, err := hx.Username(u)(ctx)
+	if err != nil || username != "alice" { panic(fmt.Sprintf("username: %q, %v", username, err)) }
+	password, err := hx.Password(u)(ctx)
+	if err != nil || password.Present { panic("password absent") }
+	direct := url.UserPassword("bob", "secret")
+	username, err = hx.Username(direct)(ctx)
+	if err != nil || username != "bob" { panic(fmt.Sprintf("direct username: %q, %v", username, err)) }
+	password, err = hx.Password(direct)(ctx)
+	if err != nil || !password.Present || password.Value != "secret" { panic("password round trip") }
+	created := hx.UserPassword("carol", "generated")
+	if created.Username() != "carol" { panic("native generated Userinfo") }
+	if value, present := created.Password(); !present || value != "generated" { panic("native password round trip") }
 	if hx.Keep(u) != u || hx.Keep(direct) != direct || hx.Keep(nil) != nil { panic("handle identity lost") }
 	input := hx.Envelope{
-		Url: direct,
-		Urls: []rt.Option[*url.URL]{rt.Some(u), rt.None[*url.URL]()},
-		Named: map[string]*url.URL{"parsed": u},
-		Pair: rt.Tuple2[*url.URL, *url.URL]{F0: u, F1: direct},
+		User: direct,
+		Users: []rt.Option[*url.Userinfo]{rt.Some(u), rt.None[*url.Userinfo]()},
+		Named: map[string]*url.Userinfo{"created": u},
+		Pair: rt.Tuple2[*url.Userinfo, *url.Userinfo]{F0: u, F1: direct},
 	}
 	got := hx.EchoEnvelope(input)
-	if got.Url != direct || len(got.Urls) != 2 || !got.Urls[0].Present || got.Urls[0].Value != u || got.Urls[1].Present ||
-		got.Named["parsed"] != u || got.Pair.F0 != u || got.Pair.F1 != direct { panic("nested handle identity lost") }
-	if hx.Boxed(hx.BoxUrlURL{Value: u}).Value != u { panic("generic handle field identity lost") }
+	if got.User != direct || len(got.Users) != 2 || !got.Users[0].Present || got.Users[0].Value != u || got.Users[1].Present ||
+		got.Named["created"] != u || got.Pair.F0 != u || got.Pair.F1 != direct { panic("nested handle identity lost") }
+	if hx.Boxed(hx.BoxUrlUserinfo{Value: u}).Value != u { panic("generic handle field identity lost") }
 	fmt.Println("handle exports ok")
 }
 `)
@@ -217,7 +223,7 @@ func main() {
 			t.Fatal(err)
 		}
 		source := string(data)
-		for _, absent := range []string{"type UrlURL ", "// not exported: host ", "// not exported: parse "} {
+		for _, absent := range []string{"type UrlUserinfo ", "// not exported: username ", "// not exported: password ", "// not exported: user "} {
 			if strings.Contains(source, absent) {
 				t.Fatalf("%s export contains %q:\n%s", phase, absent, source)
 			}

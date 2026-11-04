@@ -1,6 +1,5 @@
 package main
 
-import "std/dyn"
 import "std/list"
 import "std/map"
 import core "go:k8s.io/api/core/v1"
@@ -181,8 +180,8 @@ proof mirrorAnnotationWins(p, annotations) {
   refl
 }
 
-// Projection ignores the timestamp (a dyn.Value the laws never read).
-law projectIgnoresTimestamp(p core.Pod, t dyn.Value) {
+// Projection ignores the timestamp handle without inspecting or comparing it.
+law projectIgnoresTimestamp(p core.Pod, t meta.Time) {
   project(p{creationTimestamp: t}) == project(p)
 }
 

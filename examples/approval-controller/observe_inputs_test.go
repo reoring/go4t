@@ -168,6 +168,11 @@ func TestPublishVerdictContract(t *testing.T) {
 }
 
 func TestApprovalConditionTimestampParity(t *testing.T) {
+	// The old JSON representation changed UTC into time.Local on readback.
+	// Exercise a non-UTC process location without weakening the wire oracle.
+	previousLocal := time.Local
+	time.Local = time.FixedZone("test/+09:00", 9*60*60)
+	t.Cleanup(func() { time.Local = previousLocal })
 	for _, timestamp := range []string{
 		"", "invalid", "0001-01-01T00:00:00Z",
 		"2026-06-24T01:02:03Z", "2026-06-24T01:02:03.123456789Z",

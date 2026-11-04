@@ -27,7 +27,7 @@ func exportedMethods(pkg *types.Package) []Method {
 			continue
 		}
 		seen := make(map[string]bool)
-		// Retain value receivers for records and JSON scalars. Binding collection
+		// Retain value receivers for records. Binding collection
 		// switches struct handles to their pointer method set after resolving.
 		for _, receiver := range []types.Type{named, types.NewPointer(named)} {
 			set := types.NewMethodSet(receiver)

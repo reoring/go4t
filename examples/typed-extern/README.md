@@ -84,11 +84,14 @@ receiving module):
 go run ./cmd/go4t bind net/url --shim examples/typed-extern/shim -o examples/typed-extern/methods.gt
 ```
 
-This writes `methods.gt` and `shim/go4t_shim_url.go`. The small hand-written
-`shim/url.go` helper returns `(any, error)` from `url.Parse`, so the explicit
-`parseURL` extern produces `IO[URL]`. The generated `type URL = URLHandle` is
-opaque: do not construct, match, derive instances for, or `show` it. The method
-shims accept `any`, check that it contains `*url.URL`, and call the Go method.
+This writes `methods.gt` and `shim/go4t_shim_url.go`; no hand-written parser
+shim is needed. `URL` is a generated record because all its fields are exported.
+Its `Userinfo` field remains an opaque handle, so URL has no derived Eq or Debug.
+The generated `parse` returns `IO[Option[URL]]`: nil is None and a non-nil native
+URL is copied into the record. `main.gt` executes through `go:net/url` so foreign
+record owner metadata is available; the checked-in `methods.gt` and shim remain
+inspection artifacts. It handles both arms before calling the pure
+`url.urlHostname` and `url.urlString` methods on the record.
 `urlHostname` and `urlString` use the bind naming rule for methods: the receiver
 type is lower-cased as a word (`URL` → `url`, `DB` → `db`, `HTTPClient` →
 `httpClient`). A `--prefix native` binding keeps the Go spelling:
@@ -115,7 +118,6 @@ Go `int` conversion (`strings.Repeat`), and `[]string` to generated `List[String
 conversion (`strings.Fields`). The final two call generated shims for
 `(*url.URL).Hostname` and `(*url.URL).String`. go4t values and generated function
 interfaces remain `any`; only the foreign wrappers and method shims adapt them.
-When copying this example into another application, run `bind --shim` inside its
-Go module, ensure the module resolves `go4t`, and update the explicit `parseURL`
-extern to that module's shim import path. A standalone run without a Go module
-cannot resolve the application shim package.
+When copying this example into another application, use `go:net/url` for
+execution and ensure its Go module resolves `go4t`. If keeping the inspection
+artifacts, regenerate `bind --shim` inside that module to write its shim path.

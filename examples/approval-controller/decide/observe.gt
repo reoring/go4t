@@ -9,6 +9,7 @@ import "std/result"
 import "std/string"
 import strings "go:strings"
 import time "go:time"
+import metav1 "go:k8s.io/apimachinery/pkg/apis/meta/v1"
 import unstructured "go:k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 import schema "go:k8s.io/apimachinery/pkg/runtime/schema"
 import types "go:k8s.io/apimachinery/pkg/types"
@@ -236,4 +237,47 @@ func _nestedList(obj dyn.Value, path List[String]) List[dyn.Value] {
 
 func _firstNonEmpty(values List[String]) String {
   result.fromOption(list.find(values, func(value) => value != ""), "")
+}
+
+// Parse directly into the native handle: going through time.Time's Int mirror
+// or the JSON view would discard the original location before status formatting.
+func _conditionTimestamp(text String) IO[metav1.Time] {
+  do {
+    let timestamp = metav1.newTime(0)
+    parsed <- io.tryIO(metav1.timeUnmarshalText(timestamp, text))
+    match parsed {
+      Ok(_) => timestamp
+      Err(_) => metav1.newTime(0)
+    }
+  }
+}
+
+func _existingCondition(raw dyn.Value) IO[Option[metav1.Condition]] {
+  let conditionType = _nestedString(raw, ["type"])
+  let status = _nestedString(raw, ["status"])
+  let reason = _nestedString(raw, ["reason"])
+  if conditionType == "" || status == "" || reason == "" {
+    ioPure(None)
+  } else {
+    do {
+      timestamp <- _conditionTimestamp(_nestedString(raw, ["lastTransitionTime"]))
+      Some(metav1.Condition{
+        type_: conditionType, status: status, reason: reason,
+        message: _nestedString(raw, ["message"]),
+        observedGeneration: result.fromOption(_nestedInt(raw, ["observedGeneration"]), 0),
+        lastTransitionTime: timestamp
+      })
+    }
+  }
+}
+
+func _existingConditions(items List[dyn.Value]) IO[List[metav1.Condition]] {
+  match items {
+    Nil => ioPure(Nil)
+    Cons(raw, rest) => do {
+      current <- _existingCondition(raw)
+      remaining <- _existingConditions(rest)
+      match current { Some(c) => Cons(c, remaining); None => remaining }
+    }
+  }
 }

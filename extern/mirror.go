@@ -11,8 +11,8 @@ import (
 	"unicode"
 )
 
-// A foreignMirror is a boundary plan. Shared-state handles make an enclosing
-// named struct opaque; GoError is an identity-preserving leaf inside records.
+// A foreignMirror is a boundary plan. Records copy their exported fields;
+// opaque leaves retain their Go state rather than projecting a JSON view.
 type foreignMirror struct {
 	typ       types.Type
 	kind, gt  string
@@ -46,7 +46,6 @@ type mirrorSet struct {
 	resolving                      map[types.Type]bool
 	lockTypes                      map[types.Type]bool
 	dyn                            bool
-	jsonMarshaler, jsonUnmarshaler *types.Interface
 	// Templates share the concrete mirror grammar, but retain type variables.
 	generic, forceIO bool
 	parameters       map[*types.TypeParam]string
@@ -58,9 +57,8 @@ func newMirrorSet(floats bool, pkg *Package, used map[string]bool) *mirrorSet {
 	return &mirrorSet{
 		floats: floats, owner: pkg.Path, used: used, imports: map[string]string{},
 		records: map[string]*foreignMirror{}, handles: map[string]*types.Named{},
-		channels:      map[string]*foreignMirror{},
-		resolving:     map[types.Type]bool{},
-		jsonMarshaler: pkg.jsonMarshaler, jsonUnmarshaler: pkg.jsonUnmarshaler,
+		channels:  map[string]*foreignMirror{},
+		resolving: map[types.Type]bool{},
 	}
 }
 
@@ -201,8 +199,8 @@ func addressableMirror(m *foreignMirror) *foreignMirror {
 	return m
 }
 
-// valueMirror implements the foreign-mirrorable predicate, without fallback to
-// handles. The visiting set rejects cycles even through slices and pointers.
+// valueMirror implements the record-field grammar, including opaque struct
+// leaves. The visiting set rejects cycles even through slices and pointers.
 func (s *mirrorSet) valueMirror(t types.Type, visiting map[types.Type]bool) *foreignMirror {
 	t = types.Unalias(t)
 	if visiting[t] {
@@ -254,19 +252,13 @@ func (s *mirrorSet) valueMirror(t types.Type, visiting map[types.Type]bool) *for
 			if v.TypeParams().Len() != 0 {
 				return nil // generic named records need argument-indexed shape registration
 			}
-			// A declared JSON wire form takes precedence over representation fields.
-			if s.jsonMarshaler != nil && s.jsonUnmarshaler != nil &&
-				types.Implements(v, s.jsonMarshaler) && types.Implements(types.NewPointer(v), s.jsonUnmarshaler) {
-				s.dyn = true
-				m.kind, m.gt = "jsonscalar", "dyn.Value"
-				return m
-			}
 			fields := promotedFields(v)
 			// A private-state object (sql.DB, url.Userinfo, kubernetes.Clientset)
 			// is a handle, not a record: copying its exported fields would
 			// silently discard the unexported ones.
 			if len(fields) == 0 || hasUnexportedState(v) {
-				return nil
+				m.kind, m.gt = "handle", s.typeName(v)
+				return m
 			}
 			m.kind, m.gt = "record", s.typeName(v)
 			names := map[string]bool{}
@@ -305,6 +297,10 @@ func (s *mirrorSet) valueMirror(t types.Type, visiting map[types.Type]bool) *for
 		m.elem = s.valueMirror(v.Elem(), visiting)
 		if m.elem == nil {
 			return nil
+		}
+		if m.elem.kind == "handle" {
+			m.kind, m.gt, m.elem = "handle", m.elem.gt, nil
+			break // Pointer-to-handle identity is unchanged, including nil.
 		}
 		m.kind, m.gt = "pointer", "Option["+m.elem.gt+"]"
 	case *types.Slice:
@@ -582,6 +578,15 @@ func (s *mirrorSet) register(m *foreignMirror) {
 	if m.kind == "record" && m.typ.(*types.Named).Obj().Pkg().Path() == s.owner {
 		s.records[m.gt] = m
 	}
+	if m.kind == "handle" {
+		base := m.typ
+		if p, ok := base.(*types.Pointer); ok {
+			base = p.Elem()
+		}
+		if n, ok := base.(*types.Named); ok && n.Obj().Pkg().Path() == s.owner {
+			s.handles[foreignTypeName(n.Obj().Name())] = n
+		}
+	}
 	if m.elem != nil {
 		s.register(m.elem)
 	}
@@ -706,7 +711,7 @@ func (s *mirrorSet) declarations() string {
 				fmt.Fprintf(&out, "%s: %s", f.name, f.mirror.gt)
 			}
 			out.WriteByte('}')
-			if !m.containsGoError() {
+			if !m.containsOpaque() {
 				out.WriteString(" deriving Eq, Debug")
 			}
 			out.WriteByte('\n')
@@ -720,20 +725,20 @@ func (s *mirrorSet) declarations() string {
 	return out.String()
 }
 
-// GoError has no Eq or Debug instance. Do not derive those instances for a
-// record that contains one, even through another record or container.
-func (m *foreignMirror) containsGoError() bool {
+// Handles and GoError have neither Eq nor Debug instances. Do not derive
+// either for records containing them, even through records or containers.
+func (m *foreignMirror) containsOpaque() bool {
 	if m == nil {
 		return false
 	}
-	if m.kind == "error" || m.kind == "goerror" {
+	if m.kind == "handle" || m.kind == "error" || m.kind == "goerror" {
 		return true
 	}
-	if m.elem.containsGoError() || m.key.containsGoError() {
+	if m.elem.containsOpaque() || m.key.containsOpaque() {
 		return true
 	}
 	for _, f := range m.fields {
-		if f.mirror.containsGoError() {
+		if f.mirror.containsOpaque() {
 			return true
 		}
 	}

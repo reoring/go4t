@@ -24,6 +24,9 @@ func TestLockValueBoundaries(t *testing.T) {
 		"extern func takePointer(p0 Guarded) IO[Unit]",
 		"extern func takeLocker(p0 LockerHolder) IO[Unit]",
 		"extern func takeValueLocker(p0 ValueLocker) Unit",
+		"type PlainHolder = PlainHolder{p: Plain}\n",
+		"type PrivateHolder = PrivateHolderHandle\n",
+		"extern func privateHolderP(recv PrivateHolder) IO[Plain]",
 		"// skipped: Holder.SetG (copies lock value Guarded)",
 		"// skipped: TakeArray (copies lock value ArrayGuarded)",
 		"// skipped: TakeEmbedded (copies lock value EmbeddedGuarded)",
@@ -72,8 +75,8 @@ func TestStorageIdentity(t *testing.T) {
  holder.G.Label="promoted"
  if run(s.Guarded_ReadLabel(field))!="promoted" { t.Fatal("promoted value method receiver") }
  if s.PlainGlobal()!=&f.PlainGlobal { t.Fatal("non-lock global copied") }
- plain:=&f.PlainHolder{}
- if run(s.PlainHolder_P(plain))!=&plain.P { t.Fatal("non-lock field copied") }
+ plain:=&f.PrivateHolder{}
+ if run(s.PrivateHolder_P(plain))!=&plain.P { t.Fatal("non-lock field copied") }
 }
 `)
 	runBindingTestGo(t, dir, "test", "./shim")

@@ -90,7 +90,7 @@ func (g *shimGenerator) upcasts(decl *strings.Builder, set *mirrorSet, pkg *Pack
 				continue
 			}
 			valueSource := scalarMirror(m) || m.kind == "bytes" || m.kind == "slice" || m.kind == "map"
-			if !valueSource && m.kind != "record" && m.kind != "handle" && m.kind != "jsonscalar" {
+			if !valueSource && m.kind != "record" && m.kind != "handle" {
 				continue
 			}
 			recv := *m

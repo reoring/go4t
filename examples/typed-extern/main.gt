@@ -1,16 +1,16 @@
 package main
 
-extern func parseURL(raw String) IO[URL] = "go4t/examples/typed-extern/shim".ParseURL
+import url "go:net/url"
 
 func main() IO[Unit] {
   do {
     println(strToUpper("go4t meets Go"))
     println(strRepeat("na", 3))
     println(show(strFields("typed externs   keep lists")))
-    url <- parseURL("https://go4t.example:8443/guide")
-    hostname <- urlHostname(url)
-    println(hostname)
-    text <- urlString(url)
-    println(text)
+    parsed <- url.parse("https://go4t.example:8443/guide")
+    match parsed {
+      Some(value) => do { println(url.urlHostname(value)); println(url.urlString(value)) }
+      None => ioFail("URL parser returned no value")
+    }
   }
 }

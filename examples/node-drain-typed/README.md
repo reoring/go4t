@@ -38,7 +38,10 @@ uncordons and the next run is `Noop`.
 The projection laws are the new territory: a DaemonSet owner anywhere in
 `ownerReferences` yields `DaemonSet` (induction over the owner list), the
 mirror annotation wins over ownership (symbolic `Map` from ADR 0002), and
-`creationTimestamp` (a `dyn.Value`) never influences the projection (ADR 0004).
+`creationTimestamp` (a `meta.Time` handle) never influences the projection
+(ADR 0004/0011). The timestamp law still quantifies over every handle and uses
+`refl`: it neither inspects nor compares the handle, so it needs no Eq instance
+and no sampled fallback. All 15 laws remain proved.
 
 Before the per-package binding cache every `check` regenerated all bindings
 (47 s); with it, editing your own `.gt` files is a 1.8 s `check`. Cache

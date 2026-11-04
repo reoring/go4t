@@ -52,7 +52,7 @@ gohttp.requestSetHeader(request, map.mapInsert(headers, "X-Who", ["Ada"]))
 response <- gohttp.clientDo(gohttp.defaultClient(), request)
 ```
 
-Rules (ADR 0003, ADR 0009 and ADR 0011 §2C/§3C, SPEC §8):
+Rules (ADR 0003, ADR 0009 and ADR 0011, SPEC §8):
 
 - Functions, methods, package variables and basic constants become externs;
   exported fields of opaque structs get `<type><Field>` getters and
@@ -67,9 +67,10 @@ Rules (ADR 0003, ADR 0009 and ADR 0011 §2C/§3C, SPEC §8):
   The shim copies the cell's value into Go and writes the changed value back
   before returning, including on Go errors. `...*T` uses `List[Ref[T]]`.
   Reads and writes each lock the cell; the entire foreign call is not atomic.
-  Results and record fields remain `Option[T]`; pointer-to-handle identity and
-  JSON-scalar/unresolved type-parameter pointer rules are unchanged. A Ref is
-  non-null: native callbacks cannot pass nil for an in-out pointer parameter.
+  Results and record fields with value payloads remain `Option[T]`;
+  pointer-to-handle identity and unresolved type-parameter pointer rules are
+  unchanged. A Ref is non-null: native callbacks cannot pass nil for an in-out
+  pointer parameter.
 - Go `error` parameters become the builtin `GoError`, preserving identity;
   predicates such as `apierrors.isNotFound(cause)` stay pure. Non-trailing
   results, fields, package variables and container elements use
@@ -78,8 +79,9 @@ Rules (ADR 0003, ADR 0009 and ADR 0011 §2C/§3C, SPEC §8):
   predicates, or explicitly read its message with `io.goErrorMessage`.
   Direct/callback parameters and `...error` elements cannot represent nil;
   native callbacks passing nil panic with `go4t error: nil error parameter`.
-  Error-bearing records, including nested ones, omit `deriving Eq, Debug`
-  because `GoError` has no such instances.
+  Records containing errors or opaque handles, directly or through records,
+  containers or Option, omit `deriving Eq, Debug`: neither leaf has those
+  instances, and generic Debug derivation cannot render a handle placeholder.
 - `(A, B)` results are tuples, `(A, B, error)` is `IO[(A, B)]`, `(A, bool)` is
   `Option[A]`; `iter.Seq[T]` results are `List[T]`; returned funcs are go4t
   functions. Still unsupported: iterator parameters, generic receiver methods,
@@ -105,6 +107,21 @@ Rules (ADR 0003, ADR 0009 and ADR 0011 §2C/§3C, SPEC §8):
   Go vet's pointer-only `sync.Locker` implementation rule recursively through
   fields, arrays and embedding; embedding the `sync.Locker` interface alone is
   not a lock.
+- JSON interfaces do not choose a representation. An exported nongeneric named
+  `T` implementing `json.Marshaler`, with `*T` implementing `json.Unmarshaler`,
+  keeps its ordinary scalar/record/handle mirror and gains explicit views:
+  `<t>ToJson(recv T) dyn.Value` and `<t>FromJson(v dyn.Value) IO[T]`.
+  ToJson is pure; a failed Marshal panics with
+  `go4t json view: <type>: <err>`. FromJson runs only inside IO, checks
+  cancellation, and preserves conversion errors as Go causes.
+  Existing functions/methods, accessors, constructors/value getters and upcasts
+  win name collisions; a skipped view receives the normal collision comment.
+  For example, `metav1.Time` and `resource.Quantity` are handles, while
+  `intstr.IntOrString` remains a record; all three also have JSON views.
+  JSON round trips may normalize locations or otherwise lose information.
+  Ordinary record fields never take that route: by-value Go crossings copy
+  native values (including location), while go4t storage preserves handle boxes.
+  The separate `time.Time` → UnixNano `Int` rule remains explicitly lossy.
 
 The runnable example is [examples/go-import](../examples/go-import).
 

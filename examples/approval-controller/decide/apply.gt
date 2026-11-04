@@ -4,9 +4,9 @@ import "std/dyn"
 import "std/io"
 import "std/list"
 import "std/map"
+import "std/prelude"
 import "std/ref"
 import "std/result"
-import "std/string"
 import strings "go:strings"
 import time "go:time"
 import meta "go:k8s.io/apimachinery/pkg/api/meta"
@@ -38,85 +38,22 @@ func condition(approval unstructured.Unstructured, conditionType String, status 
     generation <- unstructured.unstructuredGetGeneration(approval)
     metav1.Condition{
       type_: conditionType, status: status, observedGeneration: generation,
-      lastTransitionTime: dyn.Str(time.timeFormat(time.now(), time.rFC3339())), reason: reason, message: message
+      lastTransitionTime: metav1.now(), reason: reason, message: message
     }
   }
 }
 
-func _existingCondition(raw dyn.Value) IO[Option[metav1.Condition]] {
-  let conditionType = _nestedString(raw, ["type"])
-  let status = _nestedString(raw, ["status"])
-  let reason = _nestedString(raw, ["reason"])
-  if conditionType == "" || status == "" || reason == "" {
-    ioPure(None)
-  } else {
-    do {
-      timestamp <- _conditionTimestamp(_nestedString(raw, ["lastTransitionTime"]))
-      Some(metav1.Condition{
-        type_: conditionType, status: status, reason: reason,
-        message: _nestedString(raw, ["message"]),
-        observedGeneration: result.fromOption(_nestedInt(raw, ["observedGeneration"]), 0),
-        lastTransitionTime: timestamp
-      })
-    }
-  }
-}
-
-func _existingConditions(items List[dyn.Value]) IO[List[metav1.Condition]] {
-  match items {
-    Nil => ioPure(Nil)
-    Cons(raw, rest) => do {
-      current <- _existingCondition(raw)
-      remaining <- _existingConditions(rest)
-      match current { Some(c) => Cons(c, remaining); None => remaining }
-    }
-  }
-}
-
-func _conditionFields(c metav1.Condition) dyn.Value {
-  dyn.Map(map.mapFromList([
-    ("type", dyn.Str(c.type_)), ("status", dyn.Str(c.status)),
-    ("observedGeneration", dyn.Int(c.observedGeneration)),
-    ("lastTransitionTime", c.lastTransitionTime),
-    ("reason", dyn.Str(c.reason)), ("message", dyn.Str(c.message))
-  ]))
-}
-
-// Validate with Go's parser, then render the same RFC3339 wall time and offset.
-// Passing an existing value through metav1.Time's JSON scalar would instead
-// call UnmarshalJSON, which converts it to time.Local before Format.
-func _conditionTimestamp(text String) IO[dyn.Value] {
+func _conditionFields(c metav1.Condition) IO[dyn.Value] {
   do {
-    parsed <- io.tryIO(time.parse(time.rFC3339(), text))
-    match parsed {
-      Err(_) => dyn.Str("0001-01-01T00:00:00Z")
-      Ok(_) => {
-        let (date, clockAndZone, _) = strings.cut(text, "T")
-        let zoneStart = strings.indexAny(clockAndZone, "Z+-")
-        let clock = string.substring(clockAndZone, 0, zoneStart)
-        let zone = string.substring(clockAndZone, zoneStart, string.strLength(clockAndZone))
-        let fractionStart = strings.indexAny(clock, ".,")
-        let seconds = if fractionStart < 0 { clock } else { string.substring(clock, 0, fractionStart) }
-        let (hour, minuteAndSecond, _) = strings.cut(seconds, ":")
-        let paddedHour = if string.strLength(hour) == 1 { "0" + hour } else { hour }
-        dyn.Str(date + "T" + paddedHour + ":" + minuteAndSecond + _conditionZone(zone))
-      }
-    }
+    timestamp <- metav1.timeFormat(c.lastTransitionTime, time.rFC3339())
+    dyn.Map(map.mapFromList([
+      ("type", dyn.Str(c.type_)), ("status", dyn.Str(c.status)),
+      ("observedGeneration", dyn.Int(c.observedGeneration)),
+      ("lastTransitionTime", dyn.Str(timestamp)),
+      ("reason", dyn.Str(c.reason)), ("message", dyn.Str(c.message))
+    ]))
   }
 }
-
-func _conditionZone(zone String) String {
-  if zone == "Z" { "Z" } else {
-    let hours = result.fromOption(string.parseInt(string.substring(zone, 1, 3)), 0)
-    let minutes = result.fromOption(string.parseInt(string.substring(zone, 4, 6)), 0)
-    let total = hours * 60 + minutes
-    if total == 0 { "Z" } else {
-      string.substring(zone, 0, 1) + _twoDigits(total / 60) + ":" + _twoDigits(total % 60)
-    }
-  }
-}
-
-func _twoDigits(n Int) String { (if n < 10 { "0" } else { "" }) + show(n) }
 
 func approvalStatus(approval unstructured.Unstructured, publication Publication) IO[Map[String, dyn.Value]] {
   do {
@@ -127,11 +64,7 @@ func approvalStatus(approval unstructured.Unstructured, publication Publication)
     cell <- ref.new(conditions)
     _ <- meta.setStatusCondition(cell, next)
     updated <- ref.get(cell)
-    // Keep RFC3339 strings outside metav1.Time's lossy JSON round trip. The
-    // native call owns condition updates; only timestamp spelling is restored.
-    let serialized = list.zipWith(updated, list.append(conditions, [next]), func(current, original) =>
-      _conditionFields(current{lastTransitionTime:
-        if current.status == original.status { original.lastTransitionTime } else { next.lastTransitionTime }}))
+    serialized <- prelude.traverse(updated, _conditionFields)
     map.mapFromList([
       ("observedGeneration", dyn.Int(generation)), ("phase", dyn.Str(publication.phase)),
       ("message", dyn.Str(publication.message)),

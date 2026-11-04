@@ -97,13 +97,22 @@ func TestExternMismatchDiagnostics(t *testing.T) {
 	}
 }
 
-// stubBinder stands in for the CLI's Go binder: the example's generated
-// bindings upcast URL to fmt.Stringer, which only needs the handle declared.
+// stubBinder stands in for the CLI's Go binder. net/url is served from the
+// example's checked-in inspection binding (methods.gt, renamed to the module);
+// any other package only needs the handles the example upcasts to.
 type stubBinder struct{}
 
 func (stubBinder) Bind(importPath string) (*ast.Module, error) {
 	name := path.Base(importPath)
-	file, err := parser.Parse("package " + name + "\ntype Stringer = StringerHandle\n")
+	source := "package " + name + "\ntype Stringer = StringerHandle\n"
+	if importPath == "net/url" {
+		data, err := os.ReadFile("../examples/typed-extern/methods.gt")
+		if err != nil {
+			return nil, err
+		}
+		source = strings.Replace(string(data), "package main\n", "package url\n", 1)
+	}
+	file, err := parser.Parse(source)
 	if err != nil {
 		return nil, err
 	}
