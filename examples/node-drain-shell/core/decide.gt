@@ -45,7 +45,7 @@ func ownedByDaemonSet(owners List[meta.OwnerReference]) Bool {
   }
 }
 
-func projectPodKind(p core.Pod) PodKind {
+func podKind(p core.Pod) PodKind {
   if map.mapMember(p.annotations, mirrorAnnotation()) {
     Mirror
   } else if ownedByDaemonSet(p.ownerReferences) {
@@ -55,9 +55,9 @@ func projectPodKind(p core.Pod) PodKind {
   }
 }
 
-func project(p core.Pod) Pod { Pod(p.name, p.namespace, projectPodKind(p)) }
+func project(p core.Pod) Pod { Pod(p.name, p.namespace, podKind(p)) }
 
-func projectNode(n Option[core.Node]) NodeState {
+func nodeState(n Option[core.Node]) NodeState {
   match n {
     None => Missing
     | Some(node) => if node.spec.unschedulable { Cordoned } else { Schedulable }
@@ -164,7 +164,7 @@ proof daemonSetOwnerAnywhere(prefix, owner, rest) {
 }
 
 law noOwnersIsManaged(p core.Pod) {
-  projectPodKind(p{annotations: map.emptyMap(), ownerReferences: Nil}) == Managed
+  podKind(p{annotations: map.emptyMap(), ownerReferences: Nil}) == Managed
 }
 
 proof noOwnersIsManaged(p) {
@@ -174,7 +174,7 @@ proof noOwnersIsManaged(p) {
 // The mirror annotation wins over ownership. Map membership is modelled
 // symbolically (ADR 0002), so this holds for every annotation map.
 law mirrorAnnotationWins(p core.Pod, annotations Map[String, String]) {
-  projectPodKind(p{annotations: map.mapInsert(annotations, mirrorAnnotation(), "")}) == Mirror
+  podKind(p{annotations: map.mapInsert(annotations, mirrorAnnotation(), "")}) == Mirror
 }
 
 proof mirrorAnnotationWins(p, annotations) {

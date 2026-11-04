@@ -47,7 +47,7 @@ func observe(cs kube.Clientset, d Drain) IO[Observed] {
     now <- io.nowMillis()
     Observed{
       requested: d.requested,
-      node: projectNode(node),
+      node: nodeState(node),
       cordonedByUs: cordonedByUs(node),
       pods: map(onNode, project),
       evictionBlocked: d.lastBlock,

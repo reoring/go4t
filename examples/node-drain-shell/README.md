@@ -20,11 +20,9 @@ handle as `*kubernetes.Clientset`, and `IO[T]` as
 | Laws | 10 decision laws | Same 10 decision + 5 projection laws | Same 10 decision + 5 projection laws |
 | Generate step | `go generate ./...` | **Required:** `go generate ./...` | None separately; `go4t run` generates and builds |
 
-**Export naming:** the copied `decide.gt` renames helpers `nodeState` → `projectNode`
-and `podKind` → `projectPodKind` because they collided with `type NodeState` and
-`type PodKind` under SPEC §8.7's first-rune upper-casing.
+**Export naming:** the exporter appends `Fn` when a function's exported name collides with a type or constructor mirror (`nodeState` → `NodeStateFn`, `podKind` → `PodKindFn`).
 
-The 15 laws and their proofs are otherwise unchanged. They constrain pure
+The 15 laws and their proofs are unchanged. They constrain pure
 projection and decisions, not API availability or the success of effects.
 
 ## Generate and run
@@ -129,5 +127,4 @@ func Reconcile(p0 *go0.Clientset, p1 Drain) func(context.Context) (Outcome, erro
 ```
 
 Here `go0` imports `k8s.io/client-go/kubernetes`; none of the three functions
-was marked `// not exported`. Apart from the helper-name collisions noted
-above, no export limitation or compiler change was needed.
+was marked `// not exported`.

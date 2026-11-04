@@ -1793,6 +1793,10 @@ types use the module file prefix with its first rune upper-cased, followed by th
 type name (`model.Remote` → `ModelRemote`); prefix collisions receive deterministic
 numeric suffixes. Only types transitively reachable from eligible signatures are
 emitted, sorted by Go name.
+If an exported function name collides with a type or constructor mirror, the
+function receives an `Fn` suffix (`nodeState` → `NodeStateFn`) while the
+type/constructor name stays unchanged; an already-taken suffixed name still
+produces `Go export name collision: <name>`.
 
 A fully applied data type is named `<T><MirrorName(A1)>…<MirrorName(An)>`,
 using each argument's mirror spelling without non-identifier characters:
@@ -2235,6 +2239,7 @@ share immutable storage, but empty slices do not retain the backing allocation.
 | Exported Float collection keys | Use go4t's NaN-low Ord; a single NaN key is retained. Multiple NaN keys in a Go map/set cannot remain distinct under that Ord and panic with `go4t: duplicate NaN map key` / `go4t: duplicate NaN set key`, avoiding an iteration-order-dependent survivor |
 | Exported enum | Zero value is the first declared constructor; `String()` is the source constructor spelling |
 | Exported parametric mirror name | A clash with a user-declared type produces `Go export name collision: <name>` at that user declaration |
+| Exported function name | Type/constructor mirrors keep their names; a colliding function receives `Fn`. An already-taken suffixed name, or a collision with another function, still produces `Go export name collision: <name>` |
 | Exported invalid constructor | Unknown enum value, nil sum, or unsupported constructor representation panics with `invalid constructor`; sum constructors cross as values, not pointers |
 | Exported IO | Result-only context-taking function; returns converted success or zero result and `*rt.Failure`; no nested/parameter IO or opaque `any` fallback |
 

@@ -426,12 +426,51 @@ func main() {
 `)
 }
 
+func TestGoMirrorFunctionNameCollisions(t *testing.T) {
+	program := mirrorProgram(t, map[string]string{"main.gt": `package main
+type NodeState = Schedulable | Cordoned
+type Box = Box(Int)
+type Event = Payload(Int) | Empty
+func nodeState(s NodeState) NodeState { s }
+func nodeStateSchedulable(s NodeState) NodeState { s }
+func box(b Box) Box { b }
+func eventPayload(e Event) Event { e }
+func main() IO[Unit] { ioPure(unit()) }
+`})
+	generated, err := Generate(program, "core")
+	if err != nil {
+		t.Fatal(err)
+	}
+	exports := string(generated["go4t_export.go"])
+	for _, want := range []string{
+		"type NodeState int",
+		"type Box struct",
+		"type EventPayload struct",
+		"// NodeStateFn exports go4t function nodeState.\n// (renamed from NodeState: collides with type NodeState)\nfunc NodeStateFn(p0 NodeState) NodeState",
+		"// (renamed from NodeStateSchedulable: collides with type NodeStateSchedulable)\nfunc NodeStateSchedulableFn(p0 NodeState) NodeState",
+		"// (renamed from Box: collides with type Box)\nfunc BoxFn(p0 Box) Box",
+		"// (renamed from EventPayload: collides with type EventPayload)\nfunc EventPayloadFn(p0 Event) Event",
+	} {
+		if !strings.Contains(exports, want) {
+			t.Errorf("exports missing %q:\n%s", want, exports)
+		}
+	}
+	again, err := Generate(program, "core")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if exports != string(again["go4t_export.go"]) {
+		t.Fatal("renamed function exports are not deterministic")
+	}
+}
+
 func TestGoExportNameErrors(t *testing.T) {
 	for _, tt := range []struct{ name, source, want string }{
 		{"fields", "type Record = Record { s: Int, ſ: Int }\nfunc echo(r Record) Record { r }", "duplicate exported field S in Record"},
 		{"String field", "type Record = Record { string: Int } deriving Debug\nfunc echo(r Record) Record { r }", "exported field String conflicts with String method in Record"},
 		{"sum String field", "type Event = Message { string: Int } | Empty deriving Debug\nfunc echo(e Event) Event { e }", "exported field String conflicts with String method in Event"},
-		{"function type", "type Box = Box(Int)\nfunc box(b Box) Box { b }", "Go export name collision: Box"},
+		{"function fallback", "type NodeState = Schedulable | Cordoned\nfunc nodeStateFn(s NodeState) NodeState { s }\nfunc nodeState(s NodeState) NodeState { s }", "Go export name collision: NodeStateFn"},
+		{"type fallback", "type NodeState = Schedulable | Cordoned\ntype NodeStateFn = Other\nfunc nodeState(s NodeState) NodeState { s }\nfunc other(s NodeStateFn) NodeStateFn { s }", "Go export name collision: NodeStateFn"},
 		{"functions", "func s() Int { 1 }\nfunc ſ() Int { 2 }", "Go export name collision: S"},
 		{"recursive value", "type Chain = Chain(Option[Chain])\nfunc echo(c Chain) Chain { c }", "recursive Go value type Chain"},
 	} {
