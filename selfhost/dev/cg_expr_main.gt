@@ -1,7 +1,10 @@
 package main
 
-// Standalone declarations for sibling-owned externs; do not include lexer.gt.
-extern func quote(text String) String = "go4t/rt".Quote
+import "std/prelude"
+import "std/list"
+import "std/string"
+
+// Run against all compiler sources through selfhost/dev/run.py cg_expr.
 extern func cgDevWriteFile(path String, text String) IO[Unit] = "go4t/rt".WriteFile
 
 type CGDevCase = CGDevCase{name: String, expression: Core, expected: String, panics: Bool}
@@ -12,7 +15,7 @@ func cgDevInst(className String, typeCon String, context List[(String, String)],
   CoreInstance{className: className, typeCon: typeCon, context: context, superArgs: supers, methods: Nil}
 }
 func cgDevData(name String, ctors List[(String, Int)]) CoreData {
-  CoreData{name: name, ctors: fmap(ctors, func(pair) => CoreCtor{name: fst(pair), arity: snd(pair), fieldNames: Nil})}
+  CoreData{name: name, ctors: prelude.fmap(ctors, func(pair) => CoreCtor{name: fst(pair), arity: snd(pair), fieldNames: Nil})}
 }
 func cgDevCtx() GenCtx {
   let insts = [
@@ -31,9 +34,9 @@ func cgDevCtx() GenCtx {
   ]
   let dataInfos = [cgDevData("Option", [("None", 0), ("Some", 1)]), cgDevData("Box", [("Box", 1)]), cgDevData("Pair", [("Pair", 2)]), cgDevData("Ordering", [("LT", 0), ("EQ", 0), ("GT", 0)])]
   GenCtx{
-    instances: mapFromList(fmap(insts, func(inst) => (instanceKey(inst.className, inst.typeCon), inst))),
-    classes: mapFromList(fmap(classInfos, func(info) => (info.name, info))),
-    datas: mapFromList(fmap(dataInfos, func(info) => (info.name, info))),
+    instances: mapFromList(prelude.fmap(insts, func(inst) => (instanceKey(inst.className, inst.typeCon), inst))),
+    classes: mapFromList(prelude.fmap(classInfos, func(info) => (info.name, info))),
+    datas: mapFromList(prelude.fmap(dataInfos, func(info) => (info.name, info))),
     externs: mapFromList([("externShow", "rt.ShowInt")]), receiver: None, receiverDicts: Nil
   }
 }
@@ -130,19 +133,19 @@ func cgDevEmit(ctx GenCtx, test CGDevCase) Gen[(String, String)] {
     code <- genExpr(ctx, test.expression)
     let check = if test.panics { "checkPanic(" } else { "check(" }
     let argument = if test.panics { "func() any { return " + code + " }" } else { code }
-    pure((test.name + ":\n" + code, check + quote(test.name) + ", " + quote(test.expected) + ", " + argument + ")\n"))
+    prelude.pure((test.name + ":\n" + code, check + quote(test.name) + ", " + quote(test.expected) + ", " + argument + ")\n"))
   }
 }
 func main() IO[Unit] {
   let ctx = cgDevCtx()
   let tests = cgDevCases()
-  let generated = runGen(mapM(tests, func(test) => cgDevEmit(ctx, test)), 0)
+  let generated = runGen(list.mapM(tests, func(test) => cgDevEmit(ctx, test)), 0)
   let receiverCtx = ctx{receiver: Some("dictself"), receiverDicts: [("A", "Show")]}
-  let receivers = runGen(mapM(cgDevReceiverCases(), func(test) => cgDevEmit(receiverCtx, test)), snd(generated))
+  let receivers = runGen(list.mapM(cgDevReceiverCases(), func(test) => cgDevEmit(receiverCtx, test)), snd(generated))
   let tupleProbe = CLet("x", CTuple([CInt(1), CInt(2)]), CMatch(CTupleField(CLocal("outer"), 5, 0), [CArm{pat: CPTuple([CPWild, CPAs("x", CPTuple([CPWild, CPWild, CPWild])), CPWild]), guard: Some(CPrim("ordLe", [CCtor("Ordering", "EQ", Nil)])), body: CInt(0)}]))
-  let source = "package main\n\nimport \"go4t/rt\"\n\nfunc runExpressions() {\nvar dict_A Show = Show_Int{}\n_ = dict_A\n" + strConcat(fmap(fst(generated), snd)) + "}\n\nfunc runReceiverExpressions(dictself Receiver, dict_B Show) {\n" + strConcat(fmap(fst(receivers), snd)) + "}\n"
+  let source = "package main\n\nimport \"go4t/rt\"\n\nfunc runExpressions() {\nvar dict_A_Show Show = Show_Int{}\n_ = dict_A_Show\n" + string.strConcat(prelude.fmap(fst(generated), snd)) + "}\n\nfunc runReceiverExpressions(dictself Receiver, dict_B_Show Show) {\n" + string.strConcat(prelude.fmap(fst(receivers), snd)) + "}\n"
   do {
-    forEach(append(fst(generated), fst(receivers)), func(pair) => println(fst(pair)))
+    list.forEach(append(fst(generated), fst(receivers)), func(pair) => println(fst(pair)))
     if collectTupleArities(tupleProbe) == [2, 3, 5] && usesOrdering(tupleProbe) && !usesOrdering(CInt(0)) && exported("éclair") == "Éclair" {
       println("facts: tuple arities=[2, 3, 5], ordering=true/false, exported=Éclair")
     } else { ioFail("generator fact collection failed") }

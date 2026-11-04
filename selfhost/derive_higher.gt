@@ -1,0 +1,91 @@
+package main
+
+import "std/list"
+import "std/prelude"
+import "std/result"
+
+func isHigherDeriving(name String) Bool { list.elem(name, ["Functor", "Foldable", "Traversable"]) }
+func deriveContains(typ Type, param String) Bool {
+  match typ {
+    TVar(n, _) => n == param
+    TApp(h, args) => deriveContains(h, param) || any(args, func(t) => deriveContains(t, param))
+    TFunc(args, ret) => any(args, func(t) => deriveContains(t, param)) || deriveContains(ret, param)
+    _ => false
+  }
+}
+func deriveValidatePosition(inst InstanceInfo, typ Type, param String) Check[Unit] {
+  if !deriveContains(typ, param) { prelude.pure(unit()) } else {
+    match typ {
+      TFunc(_, _) => checkFail(inst.pos, "cannot derive ${inst.className}: type parameter ${param} occurs in a function type")
+      TApp(h, args) => do {
+        let tuple = match h { TCon(n, _) => result.isSome(isTupleCon(n)) | _ => false }
+        whenCheck(!tuple && any(reverse(tail(reverse(args))), func(t) => deriveContains(t, param)), checkFail(inst.pos, "cannot derive ${inst.className}: type parameter ${param} occurs as a non-last argument"))
+        forEachCheck(args, func(t) => deriveValidatePosition(inst, t, param))
+      }
+      _ => prelude.pure(unit())
+    }
+  }
+}
+func deriveMonad(method MethodInfo) DictRef {
+  let own = tail(method.scheme.constraints)
+  let name = result.maybe(head(own), "M", snd)
+  DParam(name, "Monad")
+}
+func deriveHigherValue(inst InstanceInfo, method MethodInfo, param String, typ Type, value Core, init Core) Check[Core] {
+  if !deriveContains(typ, param) { prelude.pure(if inst.className == "Foldable" { init } else { value }) }
+  else {
+    match typ {
+      TVar(n, _) if n == param => prelude.pure(CCall(CLocal("f"), if inst.className == "Foldable" { [value, init] } else { [value] }))
+      TApp(TCon(n, _), args) if result.isSome(isTupleCon(n)) => do {
+        names <- mapMCheck(args, func(_arg) => freshName("derivedTuple"))
+        let values = map(names, CLocal)
+        body <- deriveHigherFields(inst, method, param, args, values, func(vs) => CTuple(vs), init)
+        prelude.pure(CMatch(value, [declsArm(CPTuple(map(names, CPVar)), body)]))
+      }
+      TApp(h, args) => do {
+        item <- declsRequire(last(args), inst.pos, "invalid higher-kinded field")
+        let container = tApp(h, reverse(tail(reverse(args))))
+        dict <- resolveDict(inst.context, inst.className, container)
+        name <- freshName("derivedItem")
+        acc <- freshName("derivedAcc")
+        body <- deriveHigherValue(inst, method, param, item, CLocal(name), CLocal(acc))
+        let callback = CLambda(if inst.className == "Foldable" { [name, acc] } else { [name] }, body)
+        let extra = if inst.className == "Traversable" { [deriveMonad(method)] } else { Nil }
+        let args = if inst.className == "Foldable" { [value, init, callback] } else { [value, callback] }
+        prelude.pure(CCall(CMethod(method.name, dict, extra, length(args)), args))
+      }
+      _ => checkFail(inst.pos, "unsupported derived field position")
+    }
+  }
+}
+func deriveHigherFields(inst InstanceInfo, method MethodInfo, param String, fields List[Type], values List[Core], construct func(List[Core]) Core, init Core) Check[Core] {
+  if inst.className == "Foldable" {
+    foldCheck(reverse(list.zip(fields, values)), init, func(rest, pair) => deriveHigherValue(inst, method, param, fst(pair), snd(pair), rest))
+  } else if inst.className == "Functor" { do {
+    mapped <- mapMCheck(list.zip(fields, values), func(pair) => deriveHigherValue(inst, method, param, fst(pair), snd(pair), init))
+    prelude.pure(construct(mapped))
+  } } else { do {
+    names <- mapMCheck(fields, func(t) => if deriveContains(t, param) { freshName("derivedValue") } else { prelude.pure("") })
+    let replacements = map(list.zip(names, values), func(pair) => if fst(pair) == "" { snd(pair) } else { CLocal(fst(pair)) })
+    let body = CCall(CMethod("pure", deriveMonad(method), Nil, 1), [construct(replacements)])
+    foldCheck(reverse(list.zip(names, list.zip(fields, values))), body, func(rest, pair) => {
+      let (name, field) = pair
+      if name == "" { prelude.pure(rest) } else { do {
+        effect <- deriveHigherValue(inst, method, param, fst(field), snd(field), init)
+        prelude.pure(CCall(CMethod("bind", deriveMonad(method), Nil, 2), [effect, CLambda([name], rest)]))
+      } }
+    })
+  } }
+}
+func deriveHigher(inst InstanceInfo, data DataInfo, method MethodInfo) Check[CoreMethod] {
+  do {
+    param <- declsRequire(last(data.tparams), inst.pos, "cannot derive ${inst.className} for ${data.name}: requires a last type parameter")
+    arms <- mapMCheck(data.ctors, func(c) => do {
+      forEachCheck(c.fields, func(t) => deriveValidatePosition(inst, t, param))
+      let values = map(zipWithIndex(c.fields), func(p) => CLocal("x${fst(p)}"))
+      body <- deriveHigherFields(inst, method, param, c.fields, values, func(vs) => CCtor(c.data, c.name, vs), CLocal("init"))
+      prelude.pure(declsArm(declsCtorPattern(c, "x"), body))
+    })
+    prelude.pure(CoreMethod{name: method.name, dictParams: declsDictParams(tail(method.scheme.constraints)), params: if inst.className == "Foldable" { ["a", "init", "f"] } else { ["a", "f"] }, body: CMatch(CLocal("a"), arms)})
+  }
+}

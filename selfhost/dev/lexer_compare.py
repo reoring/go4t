@@ -4,6 +4,7 @@ import pathlib
 import random
 import subprocess
 import tempfile
+from run import build_driver, checked
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 SOURCES = [
@@ -89,20 +90,12 @@ with tempfile.TemporaryDirectory(prefix="go4t-lexer-") as directory:
     directory = pathlib.Path(directory)
     selfhost = str(directory / "selfhost-lexer")
     reference = str(directory / "go-lexer")
-    commands = [
-        ["go", "run", "./cmd/go4t", "build", *SOURCES],
-        ["go", "build", "-o", selfhost, "./selfhost/dev/lexer_main_gen"],
-        ["go", "build", "-o", reference, "./selfhost/dev/golex"],
-    ]
-    for command in commands:
-        print("+ " + " ".join(command), flush=True)
-        try:
-            run(command)
-        except subprocess.CalledProcessError as error:
-            print(error.stderr.decode(), end="")
-            raise
+    compiler = directory / "go4t"
+    checked(["go", "build", "-o", str(compiler), "./cmd/go4t"])
+    build_driver("lexer", pathlib.Path(selfhost), compiler)
+    checked(["go", "build", "-o", reference, "./selfhost/dev/golex"])
     files = sorted(str(p.relative_to(ROOT)) for p in ROOT.glob("examples/*/main.gt"))
-    files += ["prelude/prelude.gt"]
+    files += sorted(str(p.relative_to(ROOT)) for p in ROOT.glob("std/*/*.gt"))
     actual = run([selfhost, *files])
     expected = run([reference, *files])
     compare("examples and prelude", actual, expected)

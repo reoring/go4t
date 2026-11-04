@@ -1,18 +1,20 @@
 package main
 
+import "std/string"
+
 // ===== ty.gt — semantic types, schemes, global environment (contract; owner: supervisor) =====
 // Mirrors Go types/types.go. Meta variables are immutable here: a TMeta(id, k)
 // is resolved through CheckState.subst (check.gt), never in place.
 
 type Kind = KStar | KArrow(Int)        // KArrow(n): (*, ..n.. ) -> *
-  deriving Eq, Show
+  deriving Eq, Debug
 
 type Type = TCon(String, Kind)         // builtin or data type constructor
           | TVar(String, Kind)         // rigid type parameter
           | TMeta(Int, Kind)           // inference variable; see subst
           | TApp(Type, List[Type])     // flat application; fun is TCon/TVar/TMeta, never TApp
           | TFunc(List[Type], Type)
-  deriving Eq, Show
+  deriving Eq, Debug
 
 // Constructor application that keeps TApp flat (App in Go: TApp(TApp(f, a), b) => TApp(f, a ++ b)).
 func tApp(fun Type, args List[Type]) Type {
@@ -26,6 +28,7 @@ func tApp(fun Type, args List[Type]) Type {
 }
 
 func tInt() Type { TCon("Int", KStar) }
+func tFloat() Type { TCon("Float", KStar) }
 func tString() Type { TCon("String", KStar) }
 func tBool() Type { TCon("Bool", KStar) }
 func tUnit() Type { TCon("Unit", KStar) }
@@ -40,8 +43,8 @@ func tTuple(elems List[Type]) Type { TApp(tTupleCon(length(elems)), elems) }
 
 // isTupleCon returns the arity when the constructor name is TupleN (N >= 2).
 func isTupleCon(name String) Option[Int] {
-  if startsWith(name, "Tuple") {
-    match parseInt(substring(name, 5, strLength(name))) {
+  if string.startsWith(name, "Tuple") {
+    match string.parseInt(string.substring(name, 5, string.strLength(name))) {
       Some(n) if n >= 2 => Some(n)
       _ => None
     }
@@ -89,20 +92,21 @@ type FuncInfo = FuncInfo{name: String, scheme: Scheme, decl: FuncDecl}
 func instanceKey(className String, typeCon String) String { "${className}/${typeCon}" }
 
 type Env = Env{
-  classes: Map[String, ClassInfo],
-  methods: Map[String, MethodInfo],        // method name -> owning class method
-  datas: Map[String, DataInfo],
-  ctors: Map[String, CtorInfo],
-  funcs: Map[String, FuncInfo],
-  instances: Map[String, InstanceInfo],    // instanceKey(class, typeCon)
-  typeKinds: Map[String, Kind]             // every type-namespace name (builtins + datas) -> kind
+  aliases: TreeMap[String, AliasDecl],
+  classes: TreeMap[String, ClassInfo],
+  methods: TreeMap[String, MethodInfo],        // method name -> owning class method
+  datas: TreeMap[String, DataInfo],
+  ctors: TreeMap[String, CtorInfo],
+  funcs: TreeMap[String, FuncInfo],
+  instances: TreeMap[String, InstanceInfo],    // instanceKey(class, typeCon)
+  typeKinds: TreeMap[String, Kind]             // every type-namespace name (builtins + datas) -> kind
 }
 
 func emptyEnv() Env {
   Env{
-    classes: MEmpty, methods: MEmpty, datas: MEmpty, ctors: MEmpty, funcs: MEmpty,
+    aliases: MEmpty, classes: MEmpty, methods: MEmpty, datas: MEmpty, ctors: MEmpty, funcs: MEmpty,
     instances: MEmpty,
-    typeKinds: mapFromList([("Int", KStar), ("String", KStar), ("Bool", KStar), ("Unit", KStar), ("IO", KArrow(1))])
+    typeKinds: mapFromList([("Int", KStar), ("Float", KStar), ("String", KStar), ("Bool", KStar), ("Unit", KStar), ("IO", KArrow(1)), ("Map", KArrow(2)), ("Set", KArrow(1)), ("Array", KArrow(1)), ("Fiber", KArrow(1)), ("Ref", KArrow(1))])
   }
 }
 
@@ -113,4 +117,30 @@ func emptyEnv() Env {
 type DictRef = DInstance(String, String, List[DictRef])
              | DParam(String, String)
              | DSuper(String, DictRef)
-  deriving Eq, Show
+  deriving Eq, Debug
+
+instance Show[Kind] {
+  show(k) { match k { KStar => "KStar" | KArrow(n) => "KArrow(${n})" } }
+}
+
+instance Show[Type] {
+  show(t) {
+    match t {
+      TCon(n, k) => "TCon(${n}, ${k})"
+      TVar(n, k) => "TVar(${n}, ${k})"
+      TMeta(n, k) => "TMeta(${n}, ${k})"
+      TApp(f, xs) => "TApp(${f}, ${xs})"
+      TFunc(ps, ret) => "TFunc(${ps}, ${ret})"
+    }
+  }
+}
+
+instance Show[DictRef] {
+  show(d) {
+    match d {
+      DInstance(c, t, ds) => "DInstance(${c}, ${t}, ${ds})"
+      DParam(p, c) => "DParam(${p}, ${c})"
+      DSuper(c, d) => "DSuper(${c}, ${d})"
+    }
+  }
+}

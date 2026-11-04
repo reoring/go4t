@@ -1,0 +1,74 @@
+package main
+
+import "std/list"
+import "std/prelude"
+import "std/result"
+
+func jsonName(name String) String { moduleName("std/json", "", name) }
+func deriveList(values List[Core]) Core {
+  fold(reverse(values), CCtor("List", "Nil", Nil), func(rest, value) => CCtor("List", "Cons", [value, rest]))
+}
+func deriveJsonCtor(name String, values List[Core]) Core { CCtor(jsonName("Json"), jsonName(name), values) }
+func deriveResult(name String, value Core) Core { CCtor("Result", name, [value]) }
+func deriveJsonError(message String) Core { deriveResult("Err", CString(message)) }
+func deriveResultBind(value Core, name String, body Core) Core {
+  CMatch(value, [declsArm(CPCtor("Result", "Err", [CPVar("jsonError")]), deriveResult("Err", CLocal("jsonError"))), declsArm(CPCtor("Result", "Ok", [CPVar(name)]), body)])
+}
+func deriveJsonFunction(typ Type) Bool {
+  match typ {
+    TFunc(_, _) => true
+    TApp(h, args) => deriveJsonFunction(h) || any(args, deriveJsonFunction)
+    _ => false
+  }
+}
+func deriveEncode(inst InstanceInfo, data DataInfo) Check[Core] {
+  do {
+    arms <- mapMCheck(data.ctors, func(c) => do {
+      values <- mapMCheck(zipWithIndex(c.fields), func(pair) => do {
+        whenCheck(deriveJsonFunction(snd(pair)), checkFail(inst.pos, "cannot derive Encode for function field"))
+        dict <- resolveDict(inst.context, inst.className, snd(pair))
+        prelude.pure(CCall(CMethod(jsonName("encode"), dict, Nil, 1), [CLocal("x${fst(pair)}")]))
+      })
+      let tags = if length(data.ctors) == 1 && length(c.fieldNames) > 0 { Nil } else { [CTuple([CString("$$tag"), deriveJsonCtor("JStr", [CString(moduleDisplayName(c.name))])])] }
+      let fields = if length(c.fieldNames) > 0 { map(list.zip(c.fieldNames, values), func(p) => CTuple([CString(fst(p)), snd(p)])) }
+        else if length(values) == 0 { Nil } else { [CTuple([CString("$$values"), deriveJsonCtor("JArr", [deriveList(values)])])] }
+      prelude.pure(declsArm(declsCtorPattern(c, "x"), CCall(CGlobal(jsonName("_jsonObject"), Nil, 1), [deriveList(append(tags, fields))])))
+    })
+    prelude.pure(CMatch(CLocal("a"), arms))
+  }
+}
+func deriveDecodeFields(inst InstanceInfo, c CtorInfo) Check[Core] {
+  do {
+    decoded <- mapMCheck(zipWithIndex(c.fields), func(pair) => do {
+      let (i, typ) = pair
+      whenCheck(deriveJsonFunction(typ), checkFail(inst.pos, "cannot derive Decode for function field"))
+      dict <- resolveDict(inst.context, inst.className, typ)
+      prelude.pure(if length(c.fieldNames) > 0 {
+        CCall(CGlobal(jsonName("_jsonField"), [dict], 2), [CLocal("fields"), CString(result.fromOption(nth(c.fieldNames, i), ""))])
+      } else {
+        CCall(CGlobal(jsonName("_jsonDecodeAt"), [dict], 2), [CString("[\"$$values\"][${i}]"), CLocal("x${i}")])
+      })
+    })
+    let constructed = deriveResult("Ok", CCtor(c.data, c.name, map(zipWithIndex(c.fields), func(p) => CLocal("v${fst(p)}"))))
+    let body = fold(reverse(zipWithIndex(decoded)), constructed, func(rest, p) => deriveResultBind(snd(p), "v${fst(p)}", rest))
+    if length(c.fieldNames) > 0 || length(c.fields) == 0 { prelude.pure(body) } else {
+      let pat = fold(reverse(zipWithIndex(c.fields)), CPCtor("List", "Nil", Nil), func(rest, p) => CPCtor("List", "Cons", [CPVar("x${fst(p)}"), rest]))
+      let checked = CMatch(CLocal("values"), [declsArm(pat, body), declsArm(CPWild, deriveJsonError("expected array of length ${length(c.fields)} at $$[\"$$values\"]"))])
+      prelude.pure(deriveResultBind(CCall(CGlobal(jsonName("_jsonValues"), Nil, 2), [CLocal("fields"), CInt(length(c.fields))]), "values", checked))
+    }
+  }
+}
+func deriveDecode(inst InstanceInfo, data DataInfo) Check[Core] {
+  do {
+    body <- match data.ctors {
+      Cons(c, Nil) if length(c.fieldNames) > 0 => deriveDecodeFields(inst, c)
+      _ => do {
+        arms <- mapMCheck(data.ctors, func(c) => do { body <- deriveDecodeFields(inst, c); prelude.pure(declsArm(CPString(moduleDisplayName(c.name)), body)) })
+        let tags = CMatch(CLocal("tag"), append(arms, [declsArm(CPWild, deriveJsonError("expected ${moduleDisplayName(data.name)} constructor at $$[\"$$tag\"]"))]))
+        dict <- resolveDict(Nil, jsonName("Decode"), tString())
+        prelude.pure(deriveResultBind(CCall(CGlobal(jsonName("_jsonField"), [dict], 2), [CLocal("fields"), CString("$$tag")]), "tag", tags))
+      }
+    }
+    prelude.pure(CMatch(CLocal("a"), [declsArm(CPCtor(jsonName("Json"), jsonName("JObj"), [CPVar("fields")]), body), declsArm(CPWild, deriveJsonError("expected object at $$"))]))
+  }
+}

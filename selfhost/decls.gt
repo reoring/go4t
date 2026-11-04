@@ -1,5 +1,11 @@
 package main
 
+import "std/prelude"
+import "std/list"
+import "std/result"
+import "std/string"
+import "std/state"
+
 // Declaration checking follows the Go checker's passes: reserve every namespace,
 // validate superclass graphs, resolve signatures, then collect instances. No AST
 // is changed, so the same files can be checked repeatedly. Tables are ordered Maps;
@@ -9,10 +15,11 @@ package main
 // receiver constraint first. resolveDict has no source-position argument: callers
 // attach their expression/type-declaration position to any returned diagnostic.
 func buildEnv(files List[File]) Check[Unit] {
-  let ds = concatMap(files, func(f) => f.decls)
+  let ds = list.concatMap(files, func(f) => f.decls)
   do {
     forEachCheck(ds, declsValidateDeriving)
     forEachCheck(ds, declsCollectName)
+    forEachCheck(ds, declsCheckAlias)
     forEachCheck(ds, declsCheckSuperclass)
     forEachCheck(ds, declsCollectSignature)
     forEachCheck(files, declsCollectFileInstances)
@@ -24,7 +31,7 @@ func buildEnv(files List[File]) Check[Unit] {
 }
 
 func declsCheckName(pos Pos, name String) Check[Unit] {
-  whenCheck(startsWith(name, "dict_") || startsWith(name, "ext_"), checkFail(pos, "identifier ${quote(name)} uses reserved prefix"))
+  whenCheck(string.startsWith(name, "dict_") || string.startsWith(name, "ext_"), checkFail(pos, "identifier ${quote(name)} uses reserved prefix"))
 }
 
 func declsCapitalised(name String) Bool { isUpper(name) }
@@ -37,7 +44,7 @@ func declsCheckValueName(pos Pos, name String) Check[Unit] {
 }
 
 func declsRequire[A](value Option[A], pos Pos, message String) Check[A] {
-  match value { Some(x) => pure(x) | None => checkFail(pos, message) }
+  match value { Some(x) => prelude.pure(x) | None => checkFail(pos, message) }
 }
 
 func declsTypeKind(env Env, name String) Option[Kind] {
@@ -54,7 +61,7 @@ func declsReserveType(pos Pos, name String) Check[Unit] {
   do {
     declsCheckName(pos, name)
     env <- askEnv()
-    whenCheck(isSome(declsTypeKind(env, name)) || mapMember(env.classes, name), checkFail(pos, "duplicate declaration ${name}"))
+    whenCheck(result.isSome(declsTypeKind(env, name)) || mapMember(env.aliases, name) || mapMember(env.classes, name), checkFail(pos, "duplicate declaration ${name}"))
   }
 }
 
@@ -67,10 +74,10 @@ func declsReserveValue(pos Pos, name String) Check[Unit] {
 }
 
 func declsCheckTypeParams(pos Pos, names List[String]) Check[Unit] {
-  fmap(foldCheck(names, mapEmpty(), func(seen, name) => do {
+  prelude.fmap(foldCheck(names, mapEmpty(), func(seen, name) => do {
     declsCheckName(pos, name)
     whenCheck(mapMember(seen, name), checkFail(pos, "duplicate type parameter ${name}"))
-    pure(mapInsert(seen, name, true))
+    prelude.pure(mapInsert(seen, name, true))
   }), func(ignored) => unit())
 }
 
@@ -85,7 +92,7 @@ func declsCollectName(d Decl) Check[Unit] {
         declsReserveValue(m.pos, m.name)
         let mi = MethodInfo{name: m.name, className: c.name, scheme: monoScheme(tUnit()), arity: length(m.params)}
         modifyEnv(func(e) => e{methods: mapInsert(e.methods, m.name, mi)})
-        pure(mi)
+        prelude.pure(mi)
       })
       modifyEnv(func(e) => e{classes: mapInsert(e.classes, c.name, info{methods: methods})})
     }
@@ -102,11 +109,11 @@ func declsCollectName(d Decl) Check[Unit] {
           foldCheck(c.fieldNames, mapEmpty(), func(seen, name) => do {
             declsCheckValueName(c.pos, name)
             whenCheck(mapMember(seen, name), checkFail(c.pos, "duplicate field ${name} in constructor ${c.name}"))
-            pure(mapInsert(seen, name, true))
+            prelude.pure(mapInsert(seen, name, true))
           })
           let ci = CtorInfo{name: c.name, data: d.name, tparams: d.tparams, fields: Nil, fieldNames: c.fieldNames, index: i, pos: c.pos}
           modifyEnv(func(e) => e{ctors: mapInsert(e.ctors, c.name, ci)})
-          pure(ci)
+          prelude.pure(ci)
         }
       })
       let di = DataInfo{name: d.name, tparams: d.tparams, ctors: ctors, pos: d.pos}
@@ -117,7 +124,12 @@ func declsCollectName(d Decl) Check[Unit] {
       let fi = FuncInfo{name: f.name, scheme: monoScheme(tUnit()), decl: f}
       modifyEnv(func(e) => e{funcs: mapInsert(e.funcs, f.name, fi)})
     }
-    DeclInstance(_) => pure(unit())
+    DeclAlias(a) => do {
+      declsReserveType(a.pos, a.name)
+      declsCheckTypeParams(a.pos, a.tparams)
+      modifyEnv(func(e) => e{aliases: mapInsert(e.aliases, a.name, a)})
+    }
+    DeclInstance(_) => prelude.pure(unit())
   }
 }
 
@@ -129,14 +141,14 @@ func declsSuperclassChain(className String, visited List[String]) Check[List[Str
   do {
     env <- askEnv()
     c <- declsRequire(mapLookup(env.classes, className), noPos(), "unknown class ${className}")
-    whenCheck(elem(className, visited), checkFail(c.pos, "superclass cycle involving ${className}"))
+    whenCheck(list.elem(className, visited), checkFail(c.pos, "superclass cycle involving ${className}"))
     match c.super {
-      None => pure([className])
+      None => prelude.pure([className])
       Some(parentName) => do {
         parent <- declsRequire(mapLookup(env.classes, parentName), c.pos, "unknown superclass ${parentName}")
         typesRequireKind(c.pos, c.paramKind, parent.paramKind)
         rest <- declsSuperclassChain(parentName, Cons(className, visited))
-        pure(Cons(className, rest))
+        prelude.pure(Cons(className, rest))
       }
     }
   }
@@ -145,43 +157,41 @@ func declsSuperclassChain(className String, visited List[String]) Check[List[Str
 func declsCheckSuperclass(d Decl) Check[Unit] {
   match d {
     DeclClass(c) => do {
-      whenCheck(isSome(c.param.constraint), checkFail(c.pos, "class parameter constraints must use the superclass declaration"))
+      whenCheck(length(c.param.constraints) != 0, checkFail(c.pos, "class parameter constraints must use the superclass declaration"))
       superclassChain(c.name)
-      pure(unit())
+      prelude.pure(unit())
     }
-    _ => pure(unit())
+    _ => prelude.pure(unit())
   }
 }
 
-func declsValueType(scope Map[String, Type], t SType) Check[Type] {
+func declsValueType(scope TreeMap[String, Type], t SType) Check[Type] {
   do {
     resolved <- resolveSType(scope, t)
     typesRequireKind(stypePos(t), kindOf(resolved), KStar)
-    pure(resolved)
+    prelude.pure(resolved)
   }
 }
 
-func declsAddTypeParam(pos Pos, scope Map[String, Type], p TypeParam) Check[Map[String, Type]] {
+func declsAddTypeParam(pos Pos, scope TreeMap[String, Type], p TypeParam) Check[TreeMap[String, Type]] {
   do {
     declsCheckName(pos, p.name)
     whenCheck(mapMember(scope, p.name), checkFail(pos, "duplicate type parameter ${p.name}"))
-    match p.constraint {
-      None => pure(unit())
-      Some(name) => do {
-        env <- askEnv()
-        c <- declsRequire(mapLookup(env.classes, name), pos, "unknown class ${name}")
-        typesRequireKind(pos, arityKind(p.arity), c.paramKind)
-      }
-    }
-    pure(mapInsert(scope, p.name, TVar(p.name, arityKind(p.arity))))
+    whenCheck(result.isSome(duplicates(p.constraints)), checkFail(pos, "duplicate constraint on type parameter ${p.name}"))
+    forEachCheck(p.constraints, func(name) => do {
+      env <- askEnv()
+      c <- declsRequire(mapLookup(env.classes, name), pos, "unknown class ${name}")
+      typesRequireKind(pos, arityKind(p.arity), c.paramKind)
+    })
+    prelude.pure(mapInsert(scope, p.name, TVar(p.name, arityKind(p.arity))))
   }
 }
 
 func declsConstraints(ps List[TypeParam]) List[(String, String)] {
-  concatMap(ps, func(p) => match p.constraint { None => Nil | Some(c) => [(c, p.name)] })
+  list.concatMap(ps, func(p) => map(p.constraints, func(c) => (c, p.name)))
 }
 
-func declsScheme(pos Pos, ps List[TypeParam], params List[Param], ret SType, initial Map[String, Type]) Check[Scheme] {
+func declsScheme(pos Pos, ps List[TypeParam], params List[Param], ret SType, initial TreeMap[String, Type]) Check[Scheme] {
   do {
     scope <- foldCheck(ps, initial, func(s, p) => declsAddTypeParam(pos, s, p))
     resolved <- foldCheck(params, (mapEmpty(), Nil), func(acc, p) => match p {
@@ -190,12 +200,12 @@ func declsScheme(pos Pos, ps List[TypeParam], params List[Param], ret SType, ini
         whenCheck(mapMember(fst(acc), name), checkFail(pos, "duplicate parameter ${name}"))
         syntax <- declsRequire(annotation, pos, "missing type annotation for parameter ${name}")
         t <- declsValueType(scope, syntax)
-        pure((mapInsert(fst(acc), name, true), Cons(t, snd(acc))))
+        prelude.pure((mapInsert(fst(acc), name, true), Cons(t, snd(acc))))
       }
       PParam(_) => checkFail(pos, "function declarations require named parameters")
     })
     result <- declsValueType(scope, ret)
-    pure(Scheme{tparams: fmap(ps, func(p) => (p.name, arityKind(p.arity))), constraints: declsConstraints(ps), typ: TFunc(reverse(snd(resolved)), result)})
+    prelude.pure(Scheme{tparams: prelude.fmap(ps, func(p) => (p.name, arityKind(p.arity))), constraints: declsConstraints(ps), typ: TFunc(reverse(snd(resolved)), result)})
   }
 }
 
@@ -209,19 +219,19 @@ func declsCollectSignature(d Decl) Check[Unit] {
         let full = sch{tparams: Cons((info.param, info.paramKind), sch.tparams), constraints: Cons((c.name, info.param), sch.constraints)}
         let mi = MethodInfo{name: m.name, className: c.name, scheme: full, arity: length(m.params)}
         modifyEnv(func(e) => e{methods: mapInsert(e.methods, m.name, mi)})
-        pure(mi)
+        prelude.pure(mi)
       })
       modifyEnv(func(e) => e{classes: mapInsert(e.classes, c.name, info{methods: methods})})
     }
     DeclType(d) => do {
-      let scope = mapFromList(fmap(d.tparams, func(p) => (p, TVar(p, KStar))))
+      let scope = mapFromList(prelude.fmap(d.tparams, func(p) => (p, TVar(p, KStar))))
       ctors <- mapMCheck(d.ctors, func(c) => do {
         env <- askEnv()
         ci <- declsRequire(mapLookup(env.ctors, c.name), c.pos, "unknown constructor ${c.name}")
         fields <- mapMCheck(c.fields, func(t) => declsValueType(scope, t))
         let resolved = ci{fields: fields}
         modifyEnv(func(e) => e{ctors: mapInsert(e.ctors, c.name, resolved)})
-        pure(resolved)
+        prelude.pure(resolved)
       })
       let info = DataInfo{name: d.name, tparams: d.tparams, ctors: ctors, pos: d.pos}
       modifyEnv(func(e) => e{datas: mapInsert(e.datas, d.name, info)})
@@ -231,31 +241,34 @@ func declsCollectSignature(d Decl) Check[Unit] {
       let info = FuncInfo{name: f.name, scheme: sch, decl: f}
       modifyEnv(func(e) => e{funcs: mapInsert(e.funcs, f.name, info)})
     }
-    DeclInstance(_) => pure(unit())
+    DeclAlias(_) => prelude.pure(unit())
+    DeclInstance(_) => prelude.pure(unit())
   }
 }
 
 func declsValidateDeriving(d Decl) Check[Unit] {
   match d {
-    DeclType(t) => fmap(foldCheck(t.derivings, Nil, func(seen, className) => do {
-      whenCheck(!elem(className, ["Eq", "Ord", "Show"]), checkFail(t.pos, "cannot derive ${className} for ${t.name}: unknown class"))
-      whenCheck(elem(className, seen), checkFail(t.pos, "duplicate deriving class ${className} for ${t.name}"))
+    DeclType(t) => prelude.fmap(foldCheck(t.derivings, Nil, func(seen, className) => do {
+      whenCheck(!list.elem(className, ["Eq", "Ord", "Show", "Debug", "Functor", "Foldable", "Traversable", jsonName("Encode"), jsonName("Decode")]), checkFail(t.pos, "cannot derive ${className} for ${t.name}: unknown class"))
+      whenCheck(list.elem(className, seen), checkFail(t.pos, "duplicate deriving class ${className} for ${t.name}"))
       whenCheck((className == "Eq" || className == "Ord") && any(t.ctors, func(c) => any(c.fields, func(f) => match f { STFunc(_, _, _) => true | _ => false })), checkFail(t.pos, "cannot derive ${className} for ${t.name}: field of function type"))
-      pure(Cons(className, seen))
+      whenCheck(className == "Show" && !(all(t.ctors, func(c) => length(c.fields) == 0) || (length(t.ctors) == 1 && all(t.ctors, func(c) => length(c.fields) == 1))), checkFail(t.pos, "deriving Show is only supported for enums and single-field newtypes; derive Debug and write instance Show[T] for a display form"))
+      prelude.pure(Cons(className, seen))
     }), func(ignored) => unit())
-    _ => pure(unit())
+    _ => prelude.pure(unit())
   }
 }
 
 func declsCollectFileInstances(file File) Check[Unit] {
   do {
-    forEachCheck(file.decls, func(d) => match d { DeclInstance(i) => declsCollectInstance(i, false) | _ => pure(unit()) })
+    forEachCheck(file.decls, func(d) => match d { DeclInstance(i) => declsCollectInstance(i, false) | _ => prelude.pure(unit()) })
     forEachCheck(file.decls, func(d) => match d {
       DeclType(t) => forEachCheck(t.derivings, func(c) => {
-        let contexts = fmap(t.tparams, func(p) => Constraint{pos: t.pos, className: c, param: p})
-        declsCollectInstance(InstanceDecl{pos: t.pos, className: c, typeCon: t.name, params: t.tparams, context: contexts, methods: Nil}, true)
+        let params = if isHigherDeriving(c) { reverse(tail(reverse(t.tparams))) } else { t.tparams }
+        let contexts = if isHigherDeriving(c) { Nil } else { prelude.fmap(t.tparams, func(p) => Constraint{pos: t.pos, className: c, param: p}) }
+        declsCollectInstance(InstanceDecl{pos: t.pos, className: c, typeCon: t.name, params: params, context: contexts, methods: Nil}, true)
       })
-      _ => pure(unit())
+      _ => prelude.pure(unit())
     })
   }
 }
@@ -274,15 +287,15 @@ func declsCollectInstance(d InstanceDecl, derived Bool) Check[Unit] {
     declsCheckTypeParams(d.pos, d.params)
     foldCheck(d.context, mapEmpty(), func(seen, constraint) => do {
       required <- declsRequire(mapLookup(env.classes, constraint.className), constraint.pos, "unknown class ${constraint.className}")
-      whenCheck(!elem(constraint.param, d.params), checkFail(constraint.pos, "unknown instance type parameter ${constraint.param}"))
-      whenCheck(mapMember(seen, constraint.param), checkFail(constraint.pos, "at most one constraint per type parameter ${constraint.param}"))
+      whenCheck(!list.elem(constraint.param, d.params), checkFail(constraint.pos, "unknown instance type parameter ${constraint.param}"))
+      whenCheck(mapMember(seen, instanceKey(constraint.className, constraint.param)), checkFail(constraint.pos, "duplicate constraint ${constraint.className}[${constraint.param}]"))
       typesRequireKind(constraint.pos, KStar, required.paramKind)
-      pure(mapInsert(seen, constraint.param, true))
+      prelude.pure(mapInsert(seen, instanceKey(constraint.className, constraint.param), true))
     })
     let partial = kindArity(residual) > 0
-    let info = InstanceInfo{className: c.name, typeCon: d.typeCon, fixed: if partial { d.params } else { Nil }, params: if partial { Nil } else { d.params }, context: fmap(d.context, func(x) => (x.className, x.param)), superArgs: Nil, methods: d.methods, derived: derived, pos: d.pos}
+    let info = InstanceInfo{className: c.name, typeCon: d.typeCon, fixed: if partial { d.params } else { Nil }, params: if partial { Nil } else { d.params }, context: prelude.fmap(d.context, func(x) => (x.className, x.param)), superArgs: Nil, methods: d.methods, derived: derived, pos: d.pos}
     modifyEnv(func(e) => e{instances: mapInsert(e.instances, key, info)})
-    if derived { pure(unit()) } else { declsCheckMethods(info, c) }
+    if derived { prelude.pure(unit()) } else { declsCheckMethods(info, c) }
   }
 }
 
@@ -296,28 +309,28 @@ func declsCheckMethods(inst InstanceInfo, c ClassInfo) Check[Unit] {
       whenCheck(m.className != c.name, checkFail(im.pos, "unknown method ${im.name} in instance ${c.name}"))
       whenCheck(mapMember(seen, im.name), checkFail(im.pos, "duplicate method ${im.name}"))
       whenCheck(length(im.params) != m.arity, checkFail(im.pos, "arity mismatch for method ${im.name}: want ${m.arity} parameters, got ${length(im.params)}"))
-      pure(mapInsert(seen, im.name, true))
+      prelude.pure(mapInsert(seen, im.name, true))
     })
     forEachCheck(c.methods, func(m) => whenCheck(!mapMember(seen, m.name), checkFail(inst.pos, "missing method ${m.name} in instance ${c.name}")))
   }
 }
 
 func declsHeadParams(inst InstanceInfo) List[String] {
-  if isNone(head(inst.fixed)) { inst.params } else { inst.fixed }
+  if result.isNone(head(inst.fixed)) { inst.params } else { inst.fixed }
 }
 
 func declsInstanceHead(env Env, inst InstanceInfo) Type {
-  let k = fromOption(declsTypeKind(env, inst.typeCon), KStar)
-  tApp(TCon(inst.typeCon, k), fmap(declsHeadParams(inst), func(p) => TVar(p, KStar)))
+  let k = result.fromOption(declsTypeKind(env, inst.typeCon), KStar)
+  tApp(TCon(inst.typeCon, k), prelude.fmap(declsHeadParams(inst), func(p) => declsInstanceParam(env, p)))
 }
 
 func declsCheckDerivedOrd(d Decl) Check[Unit] {
   match d {
-    DeclType(t) if elem("Ord", t.derivings) => do {
+    DeclType(t) if list.elem("Ord", t.derivings) => do {
       env <- askEnv()
       whenCheck(!mapMember(env.instances, instanceKey("Eq", t.name)), checkFail(t.pos, "deriving Ord for ${t.name} requires an Eq instance"))
     }
-    _ => pure(unit())
+    _ => prelude.pure(unit())
   }
 }
 
@@ -325,8 +338,8 @@ func declsCheckDerivedOrd(d Decl) Check[Unit] {
 // (notably substitutions) is preserved; errors never turn into success values.
 func declsMapError[A](action Check[A], f func(Diag) Diag) Check[A] {
   Check(func(s) => match runCheck(action, s) {
-    (Err(e), s2) => (Err(f(e)), s2)
-    (Ok(a), s2) => (Ok(a), s2)
+    (CompileErr(e), s2) => (CompileErr(f(e)), s2)
+    (CompileOk(a), s2) => (CompileOk(a), s2)
   })
 }
 
@@ -335,12 +348,12 @@ func declsSetSuperArgs(inst InstanceInfo) Check[Unit] {
     env <- askEnv()
     c <- declsRequire(mapLookup(env.classes, inst.className), inst.pos, "unknown class ${inst.className}")
     match c.super {
-      None => pure(unit())
+      None => prelude.pure(unit())
       Some(name) => do {
         parent <- declsRequire(mapLookup(env.instances, instanceKey(name, inst.typeCon)), inst.pos, "no instance ${name}[${inst.typeCon}] (required superclass)")
         let message = "superclass instance ${name}[${inst.typeCon}] context is not implied"
         whenCheck(length(inst.fixed) != length(parent.fixed) || length(inst.params) != length(parent.params), checkFail(inst.pos, message))
-        let mapping = mapFromList(zip(declsHeadParams(parent), fmap(declsHeadParams(inst), func(p) => TVar(p, KStar))))
+        let mapping = mapFromList(list.zip(declsHeadParams(parent), prelude.fmap(declsHeadParams(inst), func(p) => declsInstanceParam(env, p))))
         args <- declsMapError(mapMCheck(parent.context, func(pair) => do {
           t <- declsRequire(mapLookup(mapping, snd(pair)), inst.pos, message)
           resolveDict(inst.context, fst(pair), t)
@@ -355,7 +368,7 @@ func declsCheckMain() Check[Unit] {
   do {
     env <- askEnv()
     match mapLookup(env.funcs, "main") {
-      Some(f) if length(f.scheme.tparams) == 0 && f.scheme.typ == TFunc(Nil, tIO(tUnit())) => pure(unit())
+      Some(f) if length(f.scheme.tparams) == 0 && f.scheme.typ == TFunc(Nil, tIO(tUnit())) => prelude.pure(unit())
       Some(f) => checkFail(f.decl.pos, "main must have type func() IO[Unit]")
       None => checkFail(Pos{line: 1, col: 1}, "main must have type func() IO[Unit]")
     }
@@ -393,7 +406,7 @@ func declsResolveRigid(className String, name String, remaining List[(String, St
       do {
         chain <- superclassChain(c)
         match declsProjectDict(chain, className, DParam(name, c)) {
-          Some(dict) => pure(dict)
+          Some(dict) => prelude.pure(dict)
           None => declsResolveRigid(className, name, rest, c)
         }
       }
@@ -407,12 +420,12 @@ func declsResolveHead(bounds List[(String, String)], className String, whole Typ
     match fun {
       TCon(name, _) => match mapLookup(env.instances, instanceKey(className, name)) {
         Some(inst) if length(declsHeadParams(inst)) == length(args) => do {
-          let mapping = mapFromList(zip(declsHeadParams(inst), args))
+          let mapping = mapFromList(list.zip(declsHeadParams(inst), args))
           dictionaries <- mapMCheck(inst.context, func(pair) => declsMapError(do {
             t <- declsRequire(mapLookup(mapping, snd(pair)), inst.pos, "unknown instance type parameter ${snd(pair)}")
             resolveDict(bounds, fst(pair), t)
           }, func(e) => e{msg: e.msg + " (required by instance ${inst.className}[${typeString(declsInstanceHead(env, inst))}])"}))
-          pure(DInstance(className, name, dictionaries))
+          prelude.pure(DInstance(className, name, dictionaries))
         }
         _ => checkFail(noPos(), "no instance ${className}[${typeString(whole)}]")
       }
@@ -424,7 +437,7 @@ func declsResolveHead(bounds List[(String, String)], className String, whole Typ
 // Deriving emits the same matches as types/derive.go, directly as Core. Field
 // dictionaries use normal resolution, including recursive and nested instances.
 func declsCtorPattern(c CtorInfo, prefix String) CPat {
-  CPCtor(c.data, c.name, fmap(range(0, length(c.fields)), func(i) => if prefix == "" { CPWild } else { CPVar("${prefix}${i}") }))
+  CPCtor(c.data, c.name, prelude.fmap(range(0, length(c.fields)), func(i) => if prefix == "" { CPWild } else { CPVar("${prefix}${i}") }))
 }
 
 func declsArm(pat CPat, body Core) CArm { CArm{pat: pat, guard: None, body: body} }
@@ -435,7 +448,7 @@ func declsDerivedFields(inst InstanceInfo, c CtorInfo, method String) Check[List
   mapMCheck(zipWithIndex(c.fields), func(pair) => match pair {
     (i, t) => do {
       dict <- declsMapError(resolveDict(inst.context, inst.className, t), func(e) => e{pos: inst.pos})
-      pure(CCall(CMethod(method, dict, Nil, 2), [CLocal("x${i}"), CLocal("y${i}")]))
+      prelude.pure(CCall(CMethod(method, dict, Nil, 2), [CLocal("x${i}"), CLocal("y${i}")]))
     }
   })
 }
@@ -445,10 +458,10 @@ func declsDerivedEq(inst InstanceInfo, data DataInfo) Check[Core] {
     arms <- mapMCheck(data.ctors, func(c) => do {
       fields <- declsDerivedFields(inst, c, "eq")
       let body = match fields { Nil => CBool(true) | Cons(x, rest) => fold(rest, x, func(a, b) => CPrim("and", [a, b])) }
-      pure(declsArm(CPTuple([declsCtorPattern(c, "x"), declsCtorPattern(c, "y")]), body))
+      prelude.pure(declsArm(CPTuple([declsCtorPattern(c, "x"), declsCtorPattern(c, "y")]), body))
     })
     let fallback = if length(data.ctors) > 1 { [declsArm(CPWild, CBool(false))] } else { Nil }
-    pure(CMatch(CTuple([CLocal("a"), CLocal("b")]), append(arms, fallback)))
+    prelude.pure(CMatch(CTuple([CLocal("a"), CLocal("b")]), append(arms, fallback)))
   }
 }
 
@@ -461,9 +474,9 @@ func declsDerivedOrd(inst InstanceInfo, data DataInfo) Check[Core] {
       let tags = if c.index < length(data.ctors) - 1 {
         [declsArm(CPTuple([declsCtorPattern(c, ""), CPWild]), declsOrdering("LT")), declsArm(CPTuple([CPWild, declsCtorPattern(c, "")]), declsOrdering("GT"))]
       } else { Nil }
-      pure(Cons(same, tags))
+      prelude.pure(Cons(same, tags))
     })
-    pure(CMatch(CTuple([CLocal("a"), CLocal("b")]), concatMap(groups, func(xs) => xs)))
+    prelude.pure(CMatch(CTuple([CLocal("a"), CLocal("b")]), list.concatMap(groups, func(xs) => xs)))
   }
 }
 
@@ -472,56 +485,71 @@ func declsDerivedShow(inst InstanceInfo, data DataInfo) Check[Core] {
     arms <- mapMCheck(data.ctors, func(c) => do {
       parts <- mapMCheck(zipWithIndex(c.fields), func(pair) => match pair {
         (i, t) => do {
-          dict <- declsMapError(resolveDict(inst.context, "Show", t), func(e) => e{pos: inst.pos})
-          pure((dict, CLocal("x${i}")))
+          if inst.className == "Debug" && (match t { TFunc(_, _) => true | _ => false }) { prelude.pure(CString("<function>")) }
+          else { do {
+            dict <- declsMapError(resolveDict(inst.context, inst.className, t), func(e) => e{pos: inst.pos})
+            prelude.pure(CCall(CMethod(if inst.className == "Debug" { "debug" } else { "show" }, dict, Nil, 1), [CLocal("x${i}")]))
+          } }
         }
       })
       let record = length(c.fieldNames) > 0
-      let texts = fmap(range(0, length(c.fields)), func(i) => {
-        let prefix = if i == 0 { c.name + (if record { "{" } else { "(" }) } else { ", " }
-        prefix + (if record { fromOption(nth(c.fieldNames, i), "") + ": " } else { "" })
+      let texts = prelude.fmap(range(0, length(c.fields)), func(i) => {
+        let prefix = if i == 0 { moduleDisplayName(c.name) + (if record { "{" } else { "(" }) } else { ", " }
+        prefix + (if record { result.fromOption(nth(c.fieldNames, i), "") + ": " } else { "" })
       })
-      let body = if length(c.fields) == 0 { CString(c.name) } else { CInterp(append(texts, [if record { "}" } else { ")" }]), parts) }
-      pure(declsArm(declsCtorPattern(c, "x"), body))
+      let body = if length(c.fields) == 0 { CString(moduleDisplayName(c.name)) }
+        else if inst.className == "Show" { result.fromOption(head(parts), CString("")) }
+        else { fold(reverse(list.zip(texts, parts)), CString(if record { "}" } else { ")" }), func(rest, pair) => CPrim("addString", [CString(fst(pair)), CPrim("addString", [snd(pair), rest])])) }
+      prelude.pure(declsArm(declsCtorPattern(c, "x"), body))
     })
-    pure(CMatch(CLocal("a"), arms))
+    prelude.pure(CMatch(CLocal("a"), arms))
   }
 }
 
 func declsDictParams(constraints List[(String, String)]) List[(String, String)] {
-  fmap(constraints, func(pair) => (snd(pair), fst(pair)))
+  prelude.fmap(constraints, func(pair) => (snd(pair), fst(pair)))
 }
 
 func declsDerivedInstance(inst InstanceInfo) Check[CoreInstance] {
   do {
     env <- askEnv()
     data <- declsRequire(mapLookup(env.datas, inst.typeCon), inst.pos, "unknown type ${inst.typeCon}")
-    body <- match inst.className {
-      "Eq" => declsDerivedEq(inst, data)
-      "Ord" => declsDerivedOrd(inst, data)
-      "Show" => declsDerivedShow(inst, data)
-      _ => checkFail(inst.pos, "cannot derive ${inst.className} for ${inst.typeCon}: unknown class")
-    }
-    let name = if inst.className == "Eq" { "eq" } else if inst.className == "Ord" { "compare" } else { "show" }
-    let params = if inst.className == "Show" { ["a"] } else { ["a", "b"] }
-    pure(CoreInstance{className: inst.className, typeCon: inst.typeCon, context: declsDictParams(inst.context), superArgs: inst.superArgs, methods: [CoreMethod{name: name, dictParams: Nil, params: params, body: body}]})
+    method <- if isHigherDeriving(inst.className) { do {
+      classInfo <- declsRequire(mapLookup(env.classes, inst.className), inst.pos, "unknown class ${inst.className}")
+      info <- declsRequire(head(classInfo.methods), inst.pos, "class has no method")
+      deriveHigher(inst, data, info)
+    } } else { do {
+      body <- match inst.className {
+        "Eq" => declsDerivedEq(inst, data)
+        "Ord" => declsDerivedOrd(inst, data)
+        "Show" => declsDerivedShow(inst, data)
+        "Debug" => declsDerivedShow(inst, data)
+        n if n == jsonName("Encode") => deriveEncode(inst, data)
+        n if n == jsonName("Decode") => deriveDecode(inst, data)
+        _ => checkFail(inst.pos, "cannot derive ${inst.className} for ${inst.typeCon}: unknown class")
+      }
+      let name = if inst.className == "Eq" { "eq" } else if inst.className == "Ord" { "compare" } else if inst.className == "Debug" { "debug" } else if inst.className == jsonName("Encode") { jsonName("encode") } else if inst.className == jsonName("Decode") { jsonName("decode") } else { "show" }
+      let params = if inst.className == "Eq" || inst.className == "Ord" { ["a", "b"] } else { ["a"] }
+      prelude.pure(CoreMethod{name: name, dictParams: Nil, params: params, body: body})
+    } }
+    prelude.pure(CoreInstance{className: inst.className, typeCon: inst.typeCon, context: declsDictParams(inst.context), superArgs: inst.superArgs, methods: [method]})
   }
 }
 
 func declsCoreData(data DataInfo) CoreData {
-  CoreData{name: data.name, ctors: fmap(data.ctors, func(c) => CoreCtor{name: c.name, arity: length(c.fields), fieldNames: c.fieldNames})}
+  CoreData{name: data.name, ctors: prelude.fmap(data.ctors, func(c) => CoreCtor{name: c.name, arity: length(c.fields), fieldNames: c.fieldNames})}
 }
 
 func declsCoreClass(c ClassInfo) CoreClass {
-  CoreClass{name: c.name, super: c.super, methods: fmap(c.methods, func(m) => CoreMethodSig{name: m.name, dictParams: declsDictParams(tail(m.scheme.constraints)), arity: m.arity})}
+  CoreClass{name: c.name, super: c.super, methods: prelude.fmap(c.methods, func(m) => CoreMethodSig{name: m.name, dictParams: declsDictParams(tail(m.scheme.constraints)), arity: m.arity})}
 }
 
 func declsCoreFunction(f FuncInfo) Check[CoreFunc] {
   match f.decl.externRef {
-    Some(ex) => pure(CoreExtern{name: f.name, importPath: ex.importPath, goName: ex.goName, arity: length(f.decl.params)})
+    Some(ex) => prelude.pure(CoreExtern{name: f.name, importPath: ex.importPath, goName: ex.goName, arity: length(f.decl.params)})
     None => do {
       body <- inferFuncBody(f)
-      pure(CoreFunc{name: f.name, dictParams: declsDictParams(f.scheme.constraints), params: fmap(f.decl.params, func(p) => match p { PName(name, _) => name | PParam(_) => "" }), body: body})
+      prelude.pure(CoreFunc{name: f.name, dictParams: declsDictParams(f.scheme.constraints), params: prelude.fmap(f.decl.params, func(p) => match p { PName(name, _) => name | PParam(_) => "" }), body: body})
     }
   }
 }
@@ -535,47 +563,61 @@ func declsCoreInstance(inst InstanceInfo) Check[CoreInstance] {
       methods <- mapMCheck(inst.methods, func(im) => do {
         m <- declsRequire(mapLookup(env.methods, im.name), im.pos, "unknown method ${im.name} in instance ${inst.className}")
         body <- inferInstanceMethod(inst, m, im)
-        pure(CoreMethod{name: im.name, dictParams: declsDictParams(tail(m.scheme.constraints)), params: im.params, body: body})
+        prelude.pure(CoreMethod{name: im.name, dictParams: declsDictParams(tail(m.scheme.constraints)), params: im.params, body: body})
       })
-      pure(CoreInstance{className: inst.className, typeCon: inst.typeCon, context: declsDictParams(inst.context), superArgs: inst.superArgs, methods: methods})
+      prelude.pure(CoreInstance{className: inst.className, typeCon: inst.typeCon, context: declsDictParams(inst.context), superArgs: inst.superArgs, methods: methods})
     }
   }
 }
 
-func declsCheckFile(file File, acc (Map[String, CoreFunc], Map[String, CoreInstance])) Check[(Map[String, CoreFunc], Map[String, CoreInstance])] {
+func declsCheckFile(file File, acc (TreeMap[String, CoreFunc], TreeMap[String, CoreInstance])) Check[(TreeMap[String, CoreFunc], TreeMap[String, CoreInstance])] {
   do {
     env <- askEnv()
     checked <- foldCheck(file.decls, acc, func(acc, d) => match d {
       DeclFunc(f) => do {
         info <- declsRequire(mapLookup(env.funcs, f.name), f.pos, "unknown function ${f.name}")
         core <- declsCoreFunction(info)
-        pure((mapInsert(fst(acc), f.name, core), snd(acc)))
+        prelude.pure((mapInsert(fst(acc), f.name, core), snd(acc)))
       }
       DeclInstance(i) => do {
         let key = instanceKey(i.className, i.typeCon)
         info <- declsRequire(mapLookup(env.instances, key), i.pos, "unknown instance ${key}")
         core <- declsCoreInstance(info)
-        pure((fst(acc), mapInsert(snd(acc), key, core)))
+        prelude.pure((fst(acc), mapInsert(snd(acc), key, core)))
       }
-      _ => pure(acc)
+      _ => prelude.pure(acc)
     })
     foldCheck(file.decls, checked, func(acc, d) => match d {
       DeclType(t) => foldCheck(t.derivings, acc, func(acc, c) => do {
         let key = instanceKey(c, t.name)
         info <- declsRequire(mapLookup(env.instances, key), t.pos, "unknown instance ${key}")
         core <- declsCoreInstance(info)
-        pure((fst(acc), mapInsert(snd(acc), key, core)))
+        prelude.pure((fst(acc), mapInsert(snd(acc), key, core)))
       })
-      _ => pure(acc)
+      _ => prelude.pure(acc)
     })
   }
 }
 
-func checkProgram(files List[File]) Result[Program] {
+func checkProgram(files List[File]) CompileResult[Program] {
   fst(runCheck(do {
     buildEnv(files)
     checked <- foldCheck(files, (mapEmpty(), mapEmpty()), func(acc, file) => declsCheckFile(file, acc))
     state <- getState()
-    pure(Program{datas: fmap(mapValues(state.env.datas), declsCoreData), classes: fmap(mapValues(state.env.classes), declsCoreClass), instances: mapValues(snd(checked)), funcs: mapValues(fst(checked)), warnings: reverse(state.warnings)})
+    prelude.pure(Program{datas: prelude.fmap(mapValues(state.env.datas), declsCoreData), classes: prelude.fmap(mapValues(state.env.classes), declsCoreClass), instances: mapValues(snd(checked)), funcs: mapValues(fst(checked)), warnings: reverse(state.warnings)})
   }, initialState(emptyEnv())))
+}
+
+func declsInstanceParam(env Env, name String) Type {
+  match mapLookup(env.typeKinds, name) { Some(k) => TCon(name, k) | None => TVar(name, KStar) }
+}
+
+func declsCheckAlias(decl Decl) Check[Unit] {
+  match decl {
+    DeclAlias(a) => do {
+      resolveSType(mapFromList(map(a.tparams, func(p) => (p, TVar(p, KStar)))), STName(a.pos, a.name, map(a.tparams, func(p) => STName(a.pos, p, Nil))))
+      prelude.pure(unit())
+    }
+    _ => prelude.pure(unit())
+  }
 }

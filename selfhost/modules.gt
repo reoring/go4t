@@ -1,0 +1,340 @@
+package main
+
+import "std/io"
+import "std/list"
+import "std/prelude"
+import "std/result"
+import "std/string"
+
+// Modules are loaded once, before qualification, so recursive import graphs work.
+type SourceModule = SourceModule{path: String, files: List[File]}
+type LoadState = LoadState{modules: TreeMap[String, SourceModule], order: List[String]}
+type NameScope = NameScope{names: TreeMap[String, String], locals: List[String]}
+
+func moduleDir(path String) String {
+  let parts = string.split("/", path)
+  let parent = string.join("/", reverse(tail(reverse(parts))))
+  if parent == "" { "." } else { parent }
+}
+
+func moduleJoin(root String, child String) String {
+  if root == "." { child } else { root + "/" + child }
+}
+
+func moduleSources(path String) IO[List[String]] {
+  if string.endsWith(path, ".gt") { ioPure([path]) } else { do {
+    entries <- io.listDir(path)
+    let sources = list.sort(filter(entries, func(n) => string.endsWith(n, ".gt")))
+    if length(sources) == 0 { fail("no .gt files in " + path) }
+    else { ioPure(map(sources, func(n) => moduleJoin(path, n))) }
+  } }
+}
+
+func moduleRoot(path String) IO[(String, String)] {
+  do {
+    exists <- io.fileExists(moduleJoin(path, "go4t.mod"))
+    if exists { do {
+      text <- io.readFile(moduleJoin(path, "go4t.mod"))
+      let directives = filter(map(string.lines(text), string.words), func(xs) => length(xs) > 0)
+      match head(directives) {
+        Some(Cons("module", Cons(name, Nil))) => ioPure((path, name))
+        _ => fail("invalid go4t.mod in " + path)
+      }
+    } } else if path == "." || path == "/" { ioPure(("", "")) }
+    else { moduleRoot(moduleDir(path)) }
+  }
+}
+
+func moduleResolve(path String, from String, entry String) IO[String] {
+  if string.startsWith(path, "go:") { fail("selfhost does not bind Go packages") }
+  else if path == "" || string.startsWith(path, "/") || string.contains(path, "\\") || any(string.split("/", path), func(p) => p == ".." || p == "." || p == "") {
+    fail("invalid import path " + quote(path))
+  } else { do {
+    (root, name) <- moduleRoot(from)
+    let relative = if path == name { "" } else if name != "" && string.startsWith(path, name + "/") { string.substring(path, string.strLength(name) + 1, string.strLength(path)) } else { path }
+    let base = if root == "" { entry } else { root }
+    let local = if relative == "" { base } else { moduleJoin(base, relative) }
+    exists <- io.fileExists(local)
+    if exists { ioPure(local) }
+    else if string.startsWith(path, "std/") { do {
+      standard <- io.fileExists(path)
+      if standard { ioPure(path) } else { fail("module " + quote(path) + " not found") }
+    } } else { fail("module " + quote(path) + " not found") }
+  } }
+}
+
+func moduleLoad(path String, sources List[String], entry String, state LoadState) IO[LoadState] {
+  if mapMember(state.modules, path) { ioPure(state) } else { do {
+    files <- list.mapM(sources, parseInput)
+    let pkg = result.maybe(head(files), "", func(f) => f.pkg)
+    list.forEach(files, func(f) => if f.pkg == pkg { ioPure(unit()) } else { fail(f.name + ":1:1: package " + f.pkg + " differs from " + pkg) })
+    let initial = state{modules: mapInsert(state.modules, path, SourceModule{path: path, files: files})}
+    loaded <- moduleLoadImports(list.concatMap(files, func(f) => f.imports), path, entry, initial)
+    ioPure(loaded{order: append(loaded.order, [path])})
+  } }
+}
+
+func moduleLoadImports(imports List[Import], from String, entry String, state LoadState) IO[LoadState] {
+  match imports {
+    Nil => ioPure(state)
+    Cons(imp, rest) => do {
+      path <- moduleResolve(imp.path, from, entry)
+      loaded <- if mapMember(state.modules, path) { ioPure(state) } else { do {
+        sources <- moduleSources(path)
+        moduleLoad(path, sources, entry, state)
+      } }
+      moduleLoadImports(rest, from, entry, loaded)
+    }
+  }
+}
+
+func moduleCanonical(path String, name String) Bool {
+  path == "std/prelude" ||
+  (path == "std/list" && list.elem(name, ["List", "Nil", "Cons", "map", "flatMap", "fold", "filter", "length", "append", "reverse", "head", "tail"])) ||
+  (path == "std/result" && list.elem(name, ["Result", "Err", "Ok"])) ||
+  (path == "std/io" && list.elem(name, ["println", "print", "eprintln", "ioPure", "ioFail"])) ||
+  (path == "std/float" && name == "toFloat")
+}
+
+func moduleName(path String, entry String, name String) String {
+  if (path == entry && !list.elem(name, modulePreludeNames())) || moduleCanonical(path, name) { name }
+  else {
+    let prefix = string.replace(string.replace(string.replace(path, "/", "_"), ".", "_"), "-", "_")
+    (if isUpper(name) { "M" } else { "m" }) + prefix + "__" + name
+  }
+}
+
+func moduleDeclNames(decl Decl) List[String] {
+  match decl {
+    DeclType(t) => Cons(t.name, map(t.ctors, func(c) => c.name))
+    DeclAlias(a) => [a.name]
+    DeclClass(c) => Cons(c.name, map(c.methods, func(m) => m.name))
+    DeclFunc(f) => [f.name]
+    DeclInstance(_) => Nil
+  }
+}
+
+func moduleDisplayName(name String) String {
+  match string.split("__", name) {
+    Cons(_, Cons(x, rest)) => string.join("__", Cons(x, rest))
+    _ => name
+  }
+}
+
+func moduleNames(m SourceModule, entry String) TreeMap[String, String] {
+  mapFromList(map(list.concatMap(m.files, func(f) => list.concatMap(f.decls, moduleDeclNames)), func(n) => (n, moduleName(m.path, entry, n))))
+}
+
+func modulePreludeNames() List[String] {
+  ["Functor", "Monad", "Show", "Debug", "Eq", "Ord", "Foldable", "Traversable", "Ordering", "Option", "Result", "List", "Unit", "LT", "EQ", "GT", "None", "Some", "Err", "Ok", "Nil", "Cons", "map", "flatMap", "fold", "filter", "length", "append", "reverse", "head", "tail", "show", "debug", "println", "print", "eprintln", "ioPure", "ioFail", "unit", "fst", "snd", "compare", "eq", "min", "max", "toFloat"]
+}
+
+func moduleImportNames(imports List[Import], from String, entry String, state LoadState, names TreeMap[String, String], seen List[String]) IO[TreeMap[String, String]] {
+  match imports {
+    Nil => ioPure(names)
+    Cons(imp, rest) => do {
+      if list.elem(imp.binding, seen) || imp.binding == "_" { fail("duplicate or invalid import alias " + imp.binding) } else { ioPure(unit()) }
+      path <- moduleResolve(imp.path, from, entry)
+      target <- moduleLoaded(state, path)
+      let exports = filter(mapToList(moduleNames(target, entry)), func(kv) => !string.startsWith(fst(kv), "_"))
+      let reexports = if path == "std/prelude" { map(modulePreludeNames(), func(n) => (n, n)) } else { Nil }
+      let qualified = mapFromList(map(append(reexports, exports), func(kv) => (imp.binding + "." + fst(kv), snd(kv))))
+      moduleImportNames(rest, from, entry, state, mapUnion(names, qualified), Cons(imp.binding, seen))
+    }
+  }
+}
+
+func moduleResolveName(scope NameScope, name String) String {
+  if list.elem(name, scope.locals) { name } else { result.fromOption(mapLookup(scope.names, name), name) }
+}
+
+func moduleType(scope NameScope, typ SType) SType {
+  match typ {
+    STName(p, n, args) => STName(p, moduleResolveName(scope, n), map(args, func(t) => moduleType(scope, t)))
+    STFunc(p, args, ret) => STFunc(p, map(args, func(t) => moduleType(scope, t)), moduleType(scope, ret))
+    STTuple(p, ts) => STTuple(p, map(ts, func(t) => moduleType(scope, t)))
+  }
+}
+
+func modulePatternNames(pat Pattern) List[String] {
+  match pat {
+    PVar(_, n) => [n]
+    PAs(_, n, p) => Cons(n, modulePatternNames(p))
+    PCtor(_, _, ps) => list.concatMap(ps, modulePatternNames)
+    PTuple(_, ps) => list.concatMap(ps, modulePatternNames)
+    PRecord(_, _, fs, _) => list.concatMap(map(fs, snd), modulePatternNames)
+    _ => Nil
+  }
+}
+
+func modulePattern(scope NameScope, pat Pattern) Pattern {
+  match pat {
+    PCtor(p, n, ps) => PCtor(p, moduleResolveName(scope, n), map(ps, func(x) => modulePattern(scope, x)))
+    PTuple(p, ps) => PTuple(p, map(ps, func(x) => modulePattern(scope, x)))
+    PRecord(p, n, fs, rest) => PRecord(p, moduleResolveName(scope, n), map(fs, func(x) => (fst(x), modulePattern(scope, snd(x)))), rest)
+    PAs(p, n, x) => PAs(p, n, modulePattern(scope, x))
+    _ => pat
+  }
+}
+
+func moduleParamNames(params List[Param]) List[String] {
+  list.concatMap(params, func(p) => match p { PName(n, _) => [n] | PParam(p) => modulePatternNames(p) })
+}
+
+func moduleParams(scope NameScope, params List[Param]) List[Param] {
+  map(params, func(p) => match p {
+    PName(n, t) => PName(n, prelude.fmap(t, func(t) => moduleType(scope, t)))
+    PParam(p) => PParam(modulePattern(scope, p))
+  })
+}
+
+func moduleExpr(scope NameScope, expr Expr) Expr {
+  match expr {
+    EIdent(p, n) => EIdent(p, moduleResolveName(scope, n))
+    EInterp(p, texts, es) => EInterp(p, texts, map(es, func(e) => moduleExpr(scope, e)))
+    EField(p, EIdent(ep, n), f) => if !list.elem(n, scope.locals) && mapMember(scope.names, n + "." + f) {
+      EIdent(ep, moduleResolveName(scope, n + "." + f))
+    } else { EField(p, moduleExpr(scope, EIdent(ep, n)), f) }
+    EField(p, e, f) => EField(p, moduleExpr(scope, e), f)
+    ETupleField(p, e, i) => ETupleField(p, moduleExpr(scope, e), i)
+    ERecordLit(p, n, fs) => ERecordLit(p, moduleResolveName(scope, n), map(fs, func(kv) => (fst(kv), moduleExpr(scope, snd(kv)))))
+    ERecordUpdate(p, EField(_, EIdent(_, n), c), fs) if mapMember(scope.names, n + "." + c) =>
+      ERecordLit(p, moduleResolveName(scope, n + "." + c), map(fs, func(kv) => (fst(kv), moduleExpr(scope, snd(kv)))))
+    ERecordUpdate(p, e, fs) => ERecordUpdate(p, moduleExpr(scope, e), map(fs, func(kv) => (fst(kv), moduleExpr(scope, snd(kv)))))
+    ECall(p, f, es) => ECall(p, moduleExpr(scope, f), map(es, func(e) => moduleExpr(scope, e)))
+    ELambda(p, ps, e) => ELambda(p, moduleParams(scope, ps), moduleExpr(scope{locals: append(moduleParamNames(ps), scope.locals)}, e))
+    EBlock(p, b) => EBlock(p, moduleBlock(scope, b))
+    EMatch(p, e, arms) => EMatch(p, moduleExpr(scope, e), map(arms, func(a) => {
+      let local = scope{locals: append(modulePatternNames(a.pat), scope.locals)}
+      a{pat: modulePattern(scope, a.pat), guard: prelude.fmap(a.guard, func(g) => moduleExpr(local, g)), body: moduleExpr(local, a.body)}
+    }))
+    EIf(p, c, a, b) => EIf(p, moduleExpr(scope, c), moduleExpr(scope, a), moduleExpr(scope, b))
+    EDo(p, ss, e) => moduleDo(scope, p, ss, e)
+    EBinary(p, op, a, b) => EBinary(p, op, moduleExpr(scope, a), moduleExpr(scope, b))
+    EUnary(p, op, e) => EUnary(p, op, moduleExpr(scope, e))
+    EList(p, es) => EList(p, map(es, func(e) => moduleExpr(scope, e)))
+    ETuple(p, es) => ETuple(p, map(es, func(e) => moduleExpr(scope, e)))
+    _ => expr
+  }
+}
+
+func moduleTargetNames(target LetTarget) List[String] {
+  match target { LName(n) => [n] | LPat(p) => modulePatternNames(p) }
+}
+func moduleTarget(scope NameScope, target LetTarget) LetTarget {
+  match target { LName(_) => target | LPat(p) => LPat(modulePattern(scope, p)) }
+}
+func moduleBlock(scope NameScope, block Block) Block {
+  match block.stmts {
+    Nil => block{result: moduleExpr(scope, block.result)}
+    Cons(SFunc(_), _) => {
+      let (funcs, rest) = localStmtGroup(block.stmts)
+      let local = scope{locals: append(map(funcs, func(f) => f.name), scope.locals)}
+      let following = moduleBlock(local, block{stmts: rest})
+      following{stmts: append(map(funcs, func(f) => SFunc(moduleLocalFunc(local, f))), following.stmts)}
+    }
+    Cons(SLet(p, target, typ, value), rest) => {
+      let local = scope{locals: append(moduleTargetNames(target), scope.locals)}
+      let following = moduleBlock(local, block{stmts: rest})
+      following{stmts: Cons(SLet(p, moduleTarget(scope, target), prelude.fmap(typ, func(t) => moduleType(scope, t)), moduleExpr(if (match value { ELambda(_, _, _) => true | _ => false }) { local } else { scope }, value)), following.stmts)}
+    }
+    Cons(SExpr(e), rest) => {
+      let following = moduleBlock(scope, block{stmts: rest})
+      following{stmts: Cons(SExpr(moduleExpr(scope, e)), following.stmts)}
+    }
+  }
+}
+func moduleDo(scope NameScope, pos Pos, stmts List[DoStmt], expr Expr) Expr {
+  match stmts {
+    Nil => EDo(pos, Nil, moduleExpr(scope, expr))
+    Cons(DoFunc(_), _) => {
+      let (funcs, rest) = localDoGroup(stmts)
+      let local = scope{locals: append(map(funcs, func(f) => f.name), scope.locals)}
+      match moduleDo(local, pos, rest, expr) {
+        EDo(_, ss, e) => EDo(pos, append(map(funcs, func(f) => DoFunc(moduleLocalFunc(local, f))), ss), e)
+        other => other
+      }
+    }
+    Cons(stmt, rest) => {
+      let names = match stmt { DoBind(_, t, _) => moduleTargetNames(t) | DoLet(_, t, _, _) => moduleTargetNames(t) | _ => Nil }
+      let mapped = match stmt {
+        DoBind(p, t, e) => DoBind(p, moduleTarget(scope, t), moduleExpr(scope, e))
+        DoLet(p, t, ty, e) => DoLet(p, moduleTarget(scope, t), prelude.fmap(ty, func(t) => moduleType(scope, t)), moduleExpr(if (match e { ELambda(_, _, _) => true | _ => false }) { scope{locals: append(moduleTargetNames(t), scope.locals)} } else { scope }, e))
+        DoExpr(e) => DoExpr(moduleExpr(scope, e))
+        DoFunc(f) => DoFunc(moduleLocalFunc(scope, f))
+      }
+      match moduleDo(scope{locals: append(names, scope.locals)}, pos, rest, expr) {
+        EDo(_, ss, e) => EDo(pos, Cons(mapped, ss), e)
+        other => other
+      }
+    }
+  }
+}
+
+func moduleTypeParams(scope NameScope, ps List[TypeParam]) List[TypeParam] {
+  map(ps, func(p) => p{constraints: map(p.constraints, func(n) => moduleResolveName(scope, n))})
+}
+func moduleDecl(scope NameScope, decl Decl) Decl {
+  match decl {
+    DeclAlias(a) => DeclAlias(a{name: moduleResolveName(scope, a.name), body: moduleType(scope{locals: a.tparams}, a.body)})
+    DeclType(t) => {
+      let local = scope{locals: t.tparams}
+      DeclType(t{name: moduleResolveName(scope, t.name), ctors: map(t.ctors, func(c) => c{name: moduleResolveName(scope, c.name), fields: map(c.fields, func(f) => moduleType(local, f))}), derivings: map(t.derivings, func(n) => moduleResolveName(scope, n))})
+    }
+    DeclFunc(f) => {
+      let local = scope{locals: map(f.tparams, func(p) => p.name)}
+      DeclFunc(f{name: moduleResolveName(scope, f.name), tparams: moduleTypeParams(scope, f.tparams), params: moduleParams(local, f.params), ret: moduleType(local, f.ret), body: prelude.fmap(f.body, func(b) => moduleBlock(local{locals: append(moduleParamNames(f.params), local.locals)}, b))})
+    }
+    DeclClass(c) => {
+      let local = scope{locals: [c.param.name]}
+      DeclClass(c{name: moduleResolveName(scope, c.name), super: prelude.fmap(c.super, func(n) => moduleResolveName(scope, n)), methods: map(c.methods, func(m) => {
+        let methodScope = local{locals: append(map(m.tparams, func(p) => p.name), local.locals)}
+        m{name: moduleResolveName(scope, m.name), tparams: moduleTypeParams(scope, m.tparams), params: moduleParams(methodScope, m.params), ret: moduleType(methodScope, m.ret)}
+      })})
+    }
+    DeclInstance(i) => DeclInstance(i{className: moduleResolveName(scope, i.className), typeCon: moduleResolveName(scope, i.typeCon), context: map(i.context, func(c) => c{className: moduleResolveName(scope, c.className)}), methods: map(i.methods, func(m) => m{name: moduleResolveName(scope, m.name), body: moduleBlock(scope{locals: append(i.params, m.params)}, m.body)})})
+  }
+}
+
+func moduleQualify(m SourceModule, entry String, state LoadState) IO[List[File]] {
+  list.mapM(m.files, func(f) => do {
+    names <- moduleImportNames(f.imports, m.path, entry, state, moduleNames(m, entry), Nil)
+    ioPure(f{decls: map(f.decls, func(d) => moduleDecl(NameScope{names: names, locals: Nil}, d))})
+  })
+}
+
+func loadProgram(inputs List[String]) IO[List[File]] {
+  do {
+    expanded <- list.mapM(inputs, moduleSources)
+    let names = list.nub(list.concatMap(expanded, func(xs) => xs))
+    let entry = moduleDir(result.fromOption(head(names), "main.gt"))
+    if any(names, func(n) => moduleDir(n) != entry) { fail("entry files must belong to one directory") } else { ioPure(unit()) }
+    initial <- moduleLoad("std/prelude", ["std/prelude/prelude.gt"], entry, LoadState{modules: MEmpty, order: Nil})
+    loaded <- moduleLoad(entry, names, entry, initial)
+    files <- list.mapM(loaded.order, func(path) => do { m <- moduleLoaded(loaded, path); moduleQualify(m, entry, loaded) })
+    ioPure(list.concatMap(files, func(xs) => xs))
+  }
+}
+
+func localStmtGroup(stmts List[Stmt]) (List[FuncDecl], List[Stmt]) {
+  match stmts {
+    Cons(SFunc(f), rest) => { let (fs, ss) = localStmtGroup(rest); (Cons(f, fs), ss) }
+    _ => (Nil, stmts)
+  }
+}
+func localDoGroup(stmts List[DoStmt]) (List[FuncDecl], List[DoStmt]) {
+  match stmts {
+    Cons(DoFunc(f), rest) => { let (fs, ss) = localDoGroup(rest); (Cons(f, fs), ss) }
+    _ => (Nil, stmts)
+  }
+}
+func moduleLocalFunc(scope NameScope, f FuncDecl) FuncDecl {
+  f{params: moduleParams(scope, f.params), ret: moduleType(scope, f.ret), body: prelude.fmap(f.body, func(b) => moduleBlock(scope{locals: append(moduleParamNames(f.params), scope.locals)}, b))}
+}
+
+func moduleLoaded(state LoadState, path String) IO[SourceModule] {
+  match mapLookup(state.modules, path) {
+    Some(m) => ioPure(m)
+    None => fail("internal error: module not loaded: " + path)
+  }
+}

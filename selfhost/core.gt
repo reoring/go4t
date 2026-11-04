@@ -23,6 +23,7 @@ type Core = CLocal(String)                              // local variable / para
           | CCtorFn(String, String)                     // constructor used as a function value: (data, ctor)
           | CCtor(String, String, List[Core])           // saturated constructor application: (data, ctor, fields)
           | CInt(Int)
+          | CFloat(String)
           | CString(String)
           | CBool(Bool)
           | CUnit
@@ -32,6 +33,7 @@ type Core = CLocal(String)                              // local variable / para
           | CRecordUpdate(Core, String, String, Int, List[(Int, Core)])  // (value, data, ctor, fieldCount, replaced)
           | CCall(Core, List[Core])
           | CLambda(List[String], Core)
+          | CLetRec(List[(String, Core)], Core)
           | CLet(String, Core, Core)                    // let name = value; body
           | CLetDict(String, List[(String, String)], Core, Core)  // generalised let with constraints: (name, dict params (tparam, class), value, body)
           | CMatch(Core, List[CArm])
@@ -39,11 +41,11 @@ type Core = CLocal(String)                              // local variable / para
           | CPrim(String, List[Core])                   // see primNames
           | CTuple(List[Core])                          // arity >= 2
 
-// primNames: addInt subInt mulInt divInt modInt negInt addString not and or
+// primNames: Int/Float arithmetic, string addition, Boolean and ordering operations.
 // ordLt ordLe ordGt ordGe (the ord* prims take one Ordering argument).
 // `and`/`or` are short-circuit.
 func primNames() List[String] {
-  ["addInt", "subInt", "mulInt", "divInt", "modInt", "negInt", "addString", "not", "and", "or", "ordLt", "ordLe", "ordGt", "ordGe"]
+  ["addInt", "subInt", "mulInt", "divInt", "modInt", "negInt", "addFloat", "subFloat", "mulFloat", "divFloat", "negFloat", "addString", "not", "and", "or", "ordLt", "ordLe", "ordGt", "ordGe"]
 }
 
 type CArm = CArm{pat: CPat, guard: Option[Core], body: Core}
@@ -51,6 +53,7 @@ type CArm = CArm{pat: CPat, guard: Option[Core], body: Core}
 type CPat = CPWild
           | CPVar(String)
           | CPInt(Int)
+          | CPFloat(String)
           | CPString(String)
           | CPBool(Bool)
           | CPCtor(String, String, List[CPat])          // (data, ctor, positional sub-patterns)

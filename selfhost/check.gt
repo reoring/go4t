@@ -1,13 +1,16 @@
 package main
 
+import "std/prelude"
+import "std/list"
+
 // ===== check.gt — the checker monad (contract; owner: supervisor) =====
 // Check[A] threads CheckState and short-circuits on the first Diag.
 
-type CheckState = CheckState{nextMeta: Int, subst: Map[Int, Type], warnings: List[Diag], env: Env}
+type CheckState = CheckState{nextMeta: Int, subst: TreeMap[Int, Type], warnings: List[Diag], env: Env}
 
-type Check[A] = Check(func(CheckState) (Result[A], CheckState))
+type Check[A] = Check(func(CheckState) (CompileResult[A], CheckState))
 
-func runCheck[A](c Check[A], s CheckState) (Result[A], CheckState) {
+func runCheck[A](c Check[A], s CheckState) (CompileResult[A], CheckState) {
   match c { Check(run) => run(s) }
 }
 
@@ -18,52 +21,52 @@ func initialState(env Env) CheckState {
 instance Functor[Check] {
   fmap(c, f) {
     Check(func(s) => match runCheck(c, s) {
-      (Err(e), s2) => (Err(e), s2)
-      (Ok(a), s2) => (Ok(f(a)), s2)
+      (CompileErr(e), s2) => (CompileErr(e), s2)
+      (CompileOk(a), s2) => (CompileOk(f(a)), s2)
     })
   }
 }
 
 instance Monad[Check] {
-  pure(a) { Check(func(s) => (Ok(a), s)) }
+  pure(a) { Check(func(s) => (CompileOk(a), s)) }
   bind(c, f) {
     Check(func(s) => match runCheck(c, s) {
-      (Err(e), s2) => (Err(e), s2)
-      (Ok(a), s2) => runCheck(f(a), s2)
+      (CompileErr(e), s2) => (CompileErr(e), s2)
+      (CompileOk(a), s2) => runCheck(f(a), s2)
     })
   }
 }
 
 func checkFail[A](pos Pos, msg String) Check[A] {
-  Check(func(s) => (Err(Diag{pos: pos, msg: msg}), s))
+  Check(func(s) => (CompileErr(Diag{pos: pos, msg: msg}), s))
 }
 
 func checkWarn(pos Pos, msg String) Check[Unit] {
-  Check(func(s) => (Ok(unit()), s{warnings: Cons(Diag{pos: pos, msg: msg}, s.warnings)}))
+  Check(func(s) => (CompileOk(unit()), s{warnings: Cons(Diag{pos: pos, msg: msg}, s.warnings)}))
 }
 
-func getState() Check[CheckState] { Check(func(s) => (Ok(s), s)) }
+func getState() Check[CheckState] { Check(func(s) => (CompileOk(s), s)) }
 
-func putState(s2 CheckState) Check[Unit] { Check(func(s) => (Ok(unit()), s2)) }
+func putState(s2 CheckState) Check[Unit] { Check(func(s) => (CompileOk(unit()), s2)) }
 
-func modifyState(f func(CheckState) CheckState) Check[Unit] { Check(func(s) => (Ok(unit()), f(s))) }
+func modifyState(f func(CheckState) CheckState) Check[Unit] { Check(func(s) => (CompileOk(unit()), f(s))) }
 
-func askEnv() Check[Env] { Check(func(s) => (Ok(s.env), s)) }
+func askEnv() Check[Env] { Check(func(s) => (CompileOk(s.env), s)) }
 
 func setEnv(env Env) Check[Unit] { modifyState(func(s) => s{env: env}) }
 
 func modifyEnv(f func(Env) Env) Check[Unit] { modifyState(func(s) => s{env: f(s.env)}) }
 
-func liftResult[A](r Result[A]) Check[A] { Check(func(s) => (r, s)) }
+func liftResult[A](r CompileResult[A]) Check[A] { Check(func(s) => (r, s)) }
 
 // freshMeta allocates an unbound inference variable of the given kind.
 func freshMeta(k Kind) Check[Type] {
-  Check(func(s) => (Ok(TMeta(s.nextMeta, k)), s{nextMeta: s.nextMeta + 1}))
+  Check(func(s) => (CompileOk(TMeta(s.nextMeta, k)), s{nextMeta: s.nextMeta + 1}))
 }
 
 // freshName allocates a unique local name (prefix + counter) for desugaring.
 func freshName(prefix String) Check[String] {
-  Check(func(s) => (Ok("${prefix}_${s.nextMeta}"), s{nextMeta: s.nextMeta + 1}))
+  Check(func(s) => (CompileOk("${prefix}_${s.nextMeta}"), s{nextMeta: s.nextMeta + 1}))
 }
 
 // bindMeta records id := t in the substitution (callers check occurs/kinds).
@@ -72,17 +75,17 @@ func bindMeta(id Int, t Type) Check[Unit] {
 }
 
 func lookupMeta(id Int) Check[Option[Type]] {
-  Check(func(s) => (Ok(mapLookup(s.subst, id)), s))
+  Check(func(s) => (CompileOk(mapLookup(s.subst, id)), s))
 }
 
 // mapMCheck / forEachCheck: Check-specific spellings of the prelude mapM/forEach.
-func mapMCheck[A, B](xs List[A], f func(A) Check[B]) Check[List[B]] { mapM(xs, f) }
+func mapMCheck[A, B](xs List[A], f func(A) Check[B]) Check[List[B]] { list.mapM(xs, f) }
 
-func forEachCheck[A](xs List[A], f func(A) Check[Unit]) Check[Unit] { forEach(xs, f) }
+func forEachCheck[A](xs List[A], f func(A) Check[Unit]) Check[Unit] { list.forEach(xs, f) }
 
 func foldCheck[A, B](xs List[A], init B, f func(B, A) Check[B]) Check[B] {
   match xs {
-    Nil => pure(init)
+    Nil => prelude.pure(init)
     Cons(x, rest) => do {
       acc <- f(init, x)
       foldCheck(rest, acc, f)
@@ -90,4 +93,4 @@ func foldCheck[A, B](xs List[A], init B, f func(B, A) Check[B]) Check[B] {
   }
 }
 
-func whenCheck(cond Bool, c Check[Unit]) Check[Unit] { if cond { c } else { pure(unit()) } }
+func whenCheck(cond Bool, c Check[Unit]) Check[Unit] { if cond { c } else { prelude.pure(unit()) } }

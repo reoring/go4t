@@ -1,7 +1,9 @@
 package main
 
+import "std/prelude"
+import "std/string"
+
 extern func writeFile(path String, content String) IO[Unit] = "go4t/rt".WriteFile
-extern func quote(s String) String = "go4t/rt".Quote
 
 func cgDeclFixture() Program {
   Program{
@@ -47,20 +49,20 @@ func cgDeclFeatureFixture() Program {
 func cgDeclFeatureChecks() IO[Unit] {
   let prog = cgDeclFeatureFixture()
   match generate(prog, "main") {
-    Err(d) => ioFail(show(d))
-    Ok(source) => do {
-      cgDeclAssert(contains(source, "ext_1 \"go4t/rt/stdhttp\"\next_2 \"go4t/rt\"\n") && !contains(source, "ext_3"), "import first-appearance order and deduplication")
-      cgDeclAssert(contains(source, "return ext_2.Println(a0)") && contains(source, "return ext_2.Pure(a0)"), "shared extern alias")
-      cgDeclAssert(contains(source, "type Measure interface {\nArea\nMeasure(dict_A Area, a0 any) any"), "superclass and method constraints")
-      cgDeclAssert(contains(source, "type Measure_Shape struct {\nArea_Shape\ndict_A Area\n}"), "instance embedding and context")
-      cgDeclAssert(contains(source, "func (dictself Measure_Shape) Measure(dict_A Area, x_ any) any {\nreturn (dict_A).Area(x_)"), "method dictionary shadowing")
-      cgDeclAssert(contains(source, "return (dictself.dict_A).Area(x_)"), "instance dictionary scope")
-      cgDeclAssert(contains(source, "rt.Shapes = rt.ShapeFuncs{") && contains(source, "if c, ok := l.(*List_Cons); ok { return c.F0, c.F1, true }"), "runtime shapes ABI")
-      cgDeclAssert(contains(source, "type Tuple2 struct {\nF0 any\nF1 any\n}\ntype Tuple3 struct {\nF0 any\nF1 any\nF2 any\n}\ntype Tuple4 struct"), "tuple sorting and instance-head collection")
-      cgDeclAssert(length(split("type Tuple2 struct", source)) == 2 && length(split("func ord_lt(", source)) == 2, "helper deduplication")
-      cgDeclAssert(contains(source, "func ord_ge(o any) bool") && contains(source, "return any(ord_lt(&Ordering_LT{}))"), "ordering in instance method")
-      cgDeclAssert(match generate(prog{datas: filter(prog.datas, func(d) => d.name != "Option")}, "main") { Ok(text) => !contains(text, "rt.Shapes") | Err(_) => false }, "shapes require both types")
-      cgDeclAssert(match generate(prog{datas: fmap(prog.datas, func(d) => if d.name == "List" { d{ctors: [CoreCtor{name: "Cons", arity: 1, fieldNames: Nil}]} } else { d })}, "main") { Ok(text) => !contains(text, "rt.Shapes") | Err(_) => false }, "shapes require exact constructors")
+    CompileErr(d) => ioFail(show(d))
+    CompileOk(source) => do {
+      cgDeclAssert(string.contains(source, "ext_1 \"go4t/rt/stdhttp\"\next_2 \"go4t/rt\"\n") && !string.contains(source, "ext_3"), "import first-appearance order and deduplication")
+      cgDeclAssert(string.contains(source, "return ext_2.Println(a0)") && string.contains(source, "return ext_2.Pure(a0)"), "shared extern alias")
+      cgDeclAssert(string.contains(source, "type Measure interface {\nArea\nMeasure(dict_A_Area Area, a0 any) any"), "superclass and method constraints")
+      cgDeclAssert(string.contains(source, "type Measure_Shape struct {\nArea_Shape\ndict_A_Area Area\n}"), "instance embedding and context")
+      cgDeclAssert(string.contains(source, "func (dictself Measure_Shape) Measure(dict_A_Area Area, x_ any) any {\nreturn (dict_A_Area).Area(x_)"), "method dictionary shadowing")
+      cgDeclAssert(string.contains(source, "return (dictself.dict_A_Area).Area(x_)"), "instance dictionary scope")
+      cgDeclAssert(string.contains(source, "rt.Shapes = rt.ShapeFuncs{") && string.contains(source, "if c, ok := l.(*List_Cons); ok { return c.F0, c.F1, true }"), "runtime shapes ABI")
+      cgDeclAssert(string.contains(source, "type Tuple2 struct {\nF0 any\nF1 any\n}\ntype Tuple3 struct {\nF0 any\nF1 any\nF2 any\n}\ntype Tuple4 struct"), "tuple sorting and instance-head collection")
+      cgDeclAssert(length(string.split("type Tuple2 struct", source)) == 2 && length(string.split("func ord_lt(", source)) == 2, "helper deduplication")
+      cgDeclAssert(string.contains(source, "func ord_ge(o any) bool") && string.contains(source, "return any(ord_lt(&Ordering_LT{}))"), "ordering in instance method")
+      cgDeclAssert(match generate(prog{datas: filter(prog.datas, func(d) => d.name != "Option")}, "main") { CompileOk(text) => !string.contains(text, "rt.Shapes") | CompileErr(_) => false }, "shapes require both types")
+      cgDeclAssert(match generate(prog{datas: prelude.fmap(prog.datas, func(d) => if d.name == "List" { d{ctors: [CoreCtor{name: "Cons", arity: 1, fieldNames: Nil}]} } else { d })}, "main") { CompileOk(text) => !string.contains(text, "rt.Shapes") | CompileErr(_) => false }, "shapes require exact constructors")
       writeFile("selfhost/dev/out/cgdecls_features/main.go", source)
       println("cg_decls: shapes, superclasses, method scopes, import order, tuples and ordering passed")
     }
@@ -73,26 +75,26 @@ func cgDeclAssert(ok Bool, message String) IO[Unit] {
 
 func cgDeclExpectError(prog Program, pkg String, expected String) IO[Unit] {
   match generate(prog, pkg) {
-    Err(d) => cgDeclAssert(d.msg == expected && d.pos == noPos(), "wrong error: " + show(d))
-    Ok(_) => ioFail("expected error: " + expected)
+    CompileErr(d) => cgDeclAssert(d.msg == expected && d.pos == noPos(), "wrong error: " + show(d))
+    CompileOk(_) => ioFail("expected error: " + expected)
   }
 }
 
 func main() IO[Unit] {
   let prog = cgDeclFixture()
   match generate(prog, "") {
-    Err(d) => ioFail(show(d))
-    Ok(source) => do {
-      cgDeclAssert(startsWith(source, "// Code generated by go4t. DO NOT EDIT.\npackage main\n"), "header")
-      cgDeclAssert(contains(source, "type Shape_Circle struct {\nF0 any\n}"), "positional constructor")
-      cgDeclAssert(contains(source, "type Shape_Rect struct {\nF0 any\nF1 any\n}"), "record constructor")
-      cgDeclAssert(contains(source, "Area(dict" ) == false, "unexpected class dictionary")
-      cgDeclAssert(contains(source, "Area(a0 any) any"), "class method")
-      cgDeclAssert(contains(source, "func (dictself Area_Shape) Area(shape_ any) any"), "instance method")
-      cgDeclAssert(contains(source, "func describe_(dict_A Area, x_ any) any"), "function dictionary")
-      cgDeclAssert(contains(source, "return ext_1.Println(a0)"), "extern wrapper")
-      cgDeclAssert(!contains(source, "rt.Shapes") && !contains(source, "type Tuple") && !contains(source, "func ord_"), "unused helpers")
-      cgDeclAssert(match generate(prog, "") { Ok(again) => source == again | Err(_) => false }, "determinism")
+    CompileErr(d) => ioFail(show(d))
+    CompileOk(source) => do {
+      cgDeclAssert(string.startsWith(source, "// Code generated by go4t. DO NOT EDIT.\npackage main\n"), "header")
+      cgDeclAssert(string.contains(source, "type Shape_Circle struct {\nF0 any\n}"), "positional constructor")
+      cgDeclAssert(string.contains(source, "type Shape_Rect struct {\nF0 any\nF1 any\n}"), "record constructor")
+      cgDeclAssert(string.contains(source, "Area(dict" ) == false, "unexpected class dictionary")
+      cgDeclAssert(string.contains(source, "Area(a0 any) any"), "class method")
+      cgDeclAssert(string.contains(source, "func (dictself Area_Shape) Area(shape_ any) any"), "instance method")
+      cgDeclAssert(string.contains(source, "func describe_(dict_A_Area Area, x_ any) any"), "function dictionary")
+      cgDeclAssert(string.contains(source, "return ext_1.Println(a0)"), "extern wrapper")
+      cgDeclAssert(!string.contains(source, "rt.Shapes") && !string.contains(source, "type Tuple") && !string.contains(source, "func ord_"), "unused helpers")
+      cgDeclAssert(match generate(prog, "") { CompileOk(again) => source == again | CompileErr(_) => false }, "determinism")
       cgDeclExpectError(prog, "func", "invalid Go package name \"func\"")
       cgDeclExpectError(prog, "_", "invalid Go package name \"_\"")
       cgDeclExpectError(prog, "bad-name", "invalid Go package name \"bad-name\"")

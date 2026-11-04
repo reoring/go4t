@@ -1,24 +1,29 @@
 package main
 
+import "std/prelude"
+import "std/list"
+import "std/string"
+import "std/result"
+
 extern func declsDevReadFile(path String) IO[String] = "go4t/rt".ReadFile
 
 func declsDevSource() String {
-  join("\n", [
+  string.join("\n", [
     "package main",
     "class Ranked[A] : Ord[A] {}",
-    "type Record[A, B] = Record{left: A, right: B} deriving Eq, Ord, Show",
+    "type Record[A, B] = Record{left: A, right: B} deriving Eq, Ord, Debug",
     "type Pair[A, B] = Pair(A, B) deriving Eq, Ord",
     "instance Show[Pair[A, B]] given Show[A], Show[B] { show(p) { match p { Pair(a, b) => show(a) + show(b) } } }",
     "instance Ranked[Pair[A, B]] given Ord[A], Ord[B] {}",
-    "type Result[E, A] = Err(E) | Ok(A)",
-    "instance Functor[Result[E]] { fmap(r, f) { match r { Err(e) => Err(e); Ok(a) => Ok(f(a)) } } }",
+    "type Trial[E, A] = TrialErr(E) | TrialOk(A)",
+    "instance Functor[Trial[E]] { fmap(r, f) { match r { TrialErr(e) => TrialErr(e); TrialOk(a) => TrialOk(f(a)) } } }",
     "func bounded[A Ord](x A) A { x }",
     "func main() IO[Unit] { ioPure(unit()) }"
   ])
 }
 
 func declsDevParse(src String) IO[File] {
-  match parseFile("decls-fixture.gt", src) { Ok(f) => ioPure(f) | Err(e) => ioFail(show(e)) }
+  match parseFile("decls-fixture.gt", src) { CompileOk(f) => ioPure(f) | CompileErr(e) => ioFail(show(e)) }
 }
 
 func declsDevPattern(p CPat) String {
@@ -26,10 +31,11 @@ func declsDevPattern(p CPat) String {
     CPWild => "_"
     CPVar(n) => n
     CPInt(n) => show(n)
+    CPFloat(n) => n
     CPString(s) => quote(s)
     CPBool(b) => show(b)
-    CPCtor(d, c, ps) => "${d}.${c}(" + join(", ", fmap(ps, declsDevPattern)) + ")"
-    CPTuple(ps) => "(" + join(", ", fmap(ps, declsDevPattern)) + ")"
+    CPCtor(d, c, ps) => "${d}.${c}(" + string.join(", ", prelude.fmap(ps, declsDevPattern)) + ")"
+    CPTuple(ps) => "(" + string.join(", ", prelude.fmap(ps, declsDevPattern)) + ")"
     CPAs(n, p) => n + "@" + declsDevPattern(p)
   }
 }
@@ -41,23 +47,25 @@ func declsDevCore(c Core) String {
     CGlobal(n, ds, arity) => "CGlobal(${n}, ${show(ds)}, ${arity})"
     CMethod(n, d, ds, arity) => "CMethod(${n}, ${show(d)}, ${show(ds)}, ${arity})"
     CCtorFn(d, n) => "CCtorFn(${d}, ${n})"
-    CCtor(d, n, fields) => "${d}.${n}(" + join(", ", fmap(fields, declsDevCore)) + ")"
+    CCtor(d, n, fields) => "${d}.${n}(" + string.join(", ", prelude.fmap(fields, declsDevCore)) + ")"
     CInt(n) => show(n)
+    CFloat(n) => n
     CString(s) => quote(s)
     CBool(b) => show(b)
     CUnit => "unit"
-    CInterp(texts, parts) => "CInterp(${show(texts)}, [" + join(", ", fmap(parts, func(p) => "(${show(fst(p))}, ${declsDevCore(snd(p))})")) + "])"
+    CInterp(texts, parts) => "CInterp(${show(texts)}, [" + string.join(", ", prelude.fmap(parts, func(p) => "(${show(fst(p))}, ${declsDevCore(snd(p))})")) + "])"
     CField(x, d, c, i) => "CField(${declsDevCore(x)}, ${d}, ${c}, ${i})"
     CTupleField(x, n, i) => "CTupleField(${declsDevCore(x)}, ${n}, ${i})"
-    CRecordUpdate(x, d, c, n, fields) => "CRecordUpdate(${declsDevCore(x)}, ${d}, ${c}, ${n}, [" + join(", ", fmap(fields, func(p) => "${fst(p)}: ${declsDevCore(snd(p))}")) + "])"
-    CCall(f, xs) => "CCall(${declsDevCore(f)}, [" + join(", ", fmap(xs, declsDevCore)) + "])"
+    CRecordUpdate(x, d, c, n, fields) => "CRecordUpdate(${declsDevCore(x)}, ${d}, ${c}, ${n}, [" + string.join(", ", prelude.fmap(fields, func(p) => "${fst(p)}: ${declsDevCore(snd(p))}")) + "])"
+    CCall(f, xs) => "CCall(${declsDevCore(f)}, [" + string.join(", ", prelude.fmap(xs, declsDevCore)) + "])"
     CLambda(ps, b) => "CLambda(${show(ps)}, ${declsDevCore(b)})"
+    CLetRec(fs, b) => "CLetRec(" + show(map(fs, fst)) + ", " + declsDevCore(b) + ")"
     CLet(n, v, b) => "CLet(${n}, ${declsDevCore(v)}, ${declsDevCore(b)})"
     CLetDict(n, ps, v, b) => "CLetDict(${n}, ${show(ps)}, ${declsDevCore(v)}, ${declsDevCore(b)})"
-    CMatch(x, arms) => "CMatch(${declsDevCore(x)}, [" + join("; ", fmap(arms, func(a) => declsDevPattern(a.pat) + (match a.guard { None => "" | Some(g) => " if " + declsDevCore(g) }) + " => " + declsDevCore(a.body))) + "])"
+    CMatch(x, arms) => "CMatch(${declsDevCore(x)}, [" + string.join("; ", prelude.fmap(arms, func(a) => declsDevPattern(a.pat) + (match a.guard { None => "" | Some(g) => " if " + declsDevCore(g) }) + " => " + declsDevCore(a.body))) + "])"
     CIf(c, a, b) => "CIf(${declsDevCore(c)}, ${declsDevCore(a)}, ${declsDevCore(b)})"
-    CPrim(n, xs) => "CPrim(${n}, [" + join(", ", fmap(xs, declsDevCore)) + "])"
-    CTuple(xs) => "CTuple([" + join(", ", fmap(xs, declsDevCore)) + "])"
+    CPrim(n, xs) => "CPrim(${n}, [" + string.join(", ", prelude.fmap(xs, declsDevCore)) + "])"
+    CTuple(xs) => "CTuple([" + string.join(", ", prelude.fmap(xs, declsDevCore)) + "])"
   }
 }
 
@@ -67,9 +75,9 @@ func declsDevSummary(env Env) IO[Unit] {
     println("classes = ${show(mapKeys(env.classes))}")
     println("constructors = ${show(mapKeys(env.ctors))}")
     println("instances = ${show(mapKeys(env.instances))}")
-    forEach(mapValues(env.funcs), func(f) => println("func ${f.name}: ${show(f.scheme.tparams)} ${show(f.scheme.constraints)} ${typeString(f.scheme.typ)}"))
-    forEach(mapValues(env.methods), func(m) => println("method ${m.name}: ${show(m.scheme.tparams)} ${show(m.scheme.constraints)} ${typeString(m.scheme.typ)}"))
-    forEach(filter(mapValues(env.instances), func(i) => i.typeCon == "Result" || i.className == "Ranked"), func(i) => println("head ${i.className}/${i.typeCon}: fixed=${show(i.fixed)} params=${show(i.params)} context=${show(i.context)} supers=${show(i.superArgs)}"))
+    list.forEach(mapValues(env.funcs), func(f) => println("func ${f.name}: ${show(f.scheme.tparams)} ${show(f.scheme.constraints)} ${typeString(f.scheme.typ)}"))
+    list.forEach(mapValues(env.methods), func(m) => println("method ${m.name}: ${show(m.scheme.tparams)} ${show(m.scheme.constraints)} ${typeString(m.scheme.typ)}"))
+    list.forEach(filter(mapValues(env.instances), func(i) => i.typeCon == "Trial" || i.className == "Ranked"), func(i) => println("head ${i.className}/${i.typeCon}: fixed=${show(i.fixed)} params=${show(i.params)} context=${show(i.context)} supers=${show(i.superArgs)}"))
   }
 }
 
@@ -79,8 +87,8 @@ func declsDevAssert(ok Bool, label String) IO[Unit] {
 
 func declsDevDictionary(env Env, label String, bounds List[(String, String)], c String, t Type, expected DictRef) IO[Unit] {
   match fst(runCheck(resolveDict(bounds, c, t), initialState(env))) {
-    Err(e) => ioFail(show(e))
-    Ok(d) => do { println("${label} = ${show(d)}"); declsDevAssert(d == expected, label) }
+    CompileErr(e) => ioFail(show(e))
+    CompileOk(d) => do { println("${label} = ${show(d)}"); declsDevAssert(d == expected, label) }
   }
 }
 
@@ -88,8 +96,8 @@ func declsDevNegative(pre File, source String, expected String) IO[Unit] {
   do {
     f <- declsDevParse("package main\n" + source + "\nfunc main() IO[Unit] { ioPure(unit()) }")
     match fst(runCheck(buildEnv([pre, f]), initialState(emptyEnv()))) {
-      Ok(_) => ioFail("expected error: ${expected}")
-      Err(d) => do { println("negative = ${d.msg}"); declsDevAssert(d.msg == expected, expected) }
+      CompileOk(_) => ioFail("expected error: ${expected}")
+      CompileErr(d) => do { println("negative = ${d.msg}"); declsDevAssert(d.msg == expected, expected) }
     }
   }
 }
@@ -99,13 +107,13 @@ func declsDevNegative(pre File, source String, expected String) IO[Unit] {
 func declsDevContextNegative(pre File) IO[Unit] {
   do {
     f <- declsDevParse("package main\ntype Box[A] = Box(A); instance Show[Box[A]] given Show[A] { show(x) { \"x\" } }; func main() IO[Unit] { ioPure(unit()) }")
-    let invalid = f{decls: fmap(f.decls, func(d) => match d {
-      DeclInstance(i) => DeclInstance(i{context: fmap(i.context, func(c) => c{param: "B"})})
+    let invalid = f{decls: prelude.fmap(f.decls, func(d) => match d {
+      DeclInstance(i) => DeclInstance(i{context: prelude.fmap(i.context, func(c) => c{param: "B"})})
       other => other
     })}
     match fst(runCheck(buildEnv([pre, invalid]), initialState(emptyEnv()))) {
-      Ok(_) => ioFail("expected unknown instance type parameter B")
-      Err(d) => do {
+      CompileOk(_) => ioFail("expected unknown instance type parameter B")
+      CompileErr(d) => do {
         println("negative = ${d.msg}")
         declsDevAssert(d.msg == "unknown instance type parameter B", "unknown instance type parameter B")
       }
@@ -117,24 +125,24 @@ func declsDevProgramNegative(pre File, source String, expected String) IO[Unit] 
   do {
     f <- declsDevParse("package main\n" + source)
     match checkProgram([pre, f]) {
-      Ok(_) => ioFail("expected error: ${expected}")
-      Err(d) => do { println("negative = ${show(d)}"); declsDevAssert(d.msg == expected, expected) }
+      CompileOk(_) => ioFail("expected error: ${expected}")
+      CompileErr(d) => do { println("negative = ${show(d)}"); declsDevAssert(d.msg == expected, expected) }
     }
   }
 }
 
 func declsDevMissing(env Env, bounds List[(String, String)], c String, t Type, expected String) IO[Unit] {
   match fst(runCheck(resolveDict(bounds, c, t), initialState(env))) {
-    Ok(_) => ioFail("expected error: ${expected}")
-    Err(d) => do { println("negative = ${d.msg}"); declsDevAssert(d.msg == expected, expected) }
+    CompileOk(_) => ioFail("expected error: ${expected}")
+    CompileErr(d) => do { println("negative = ${d.msg}"); declsDevAssert(d.msg == expected, expected) }
   }
 }
 
 func declsDevDerived(env Env) IO[Unit] {
-  forEach(filter(mapValues(env.instances), func(i) => i.derived && (i.typeCon == "Record" || i.typeCon == "Pair" || i.typeCon == "List")), func(inst) => {
+  list.forEach(filter(mapValues(env.instances), func(i) => i.derived && (i.typeCon == "Record" || i.typeCon == "Pair" || i.typeCon == "List")), func(inst) => {
     match fst(runCheck(declsDerivedInstance(inst), initialState(env))) {
-      Err(e) => ioFail(show(e))
-      Ok(core) => forEach(core.methods, func(m) => println("derived ${core.className}/${core.typeCon}.${m.name}(${join(", ", m.params)}) = ${declsDevCore(m.body)}"))
+      CompileErr(e) => ioFail(show(e))
+      CompileOk(core) => list.forEach(core.methods, func(m) => println("derived ${core.className}/${core.typeCon}.${m.name}(${string.join(", ", m.params)}) = ${declsDevCore(m.body)}"))
     }
   })
 }
@@ -159,11 +167,11 @@ func declsDevNegatives(pre File, env Env) IO[Unit] {
     declsDevNegative(pre, "type X = X deriving Eq; instance Eq[X] { eq(a,b) { true } }", "duplicate instance Eq[X]")
     declsDevNegative(pre, "type X = X deriving Ord", "deriving Ord for X requires an Eq instance")
     declsDevNegative(pre, "type X = X(func(Int) Int) deriving Eq", "cannot derive Eq for X: field of function type")
-    declsDevNegative(pre, "type X = X deriving Functor", "cannot derive Functor for X: unknown class")
+    declsDevNegative(pre, "type X = X deriving Functor", "kind mismatch: got *, want (*) -> *")
     declsDevNegative(pre, "type X = X deriving Eq, Eq", "duplicate deriving class Eq for X")
     declsDevNegative(pre, "type Box[A] = Box(A); instance Show[Box[A]] given Monad[A] { show(x) { \"x\" } }", "kind mismatch: got *, want (*) -> *")
     declsDevContextNegative(pre)
-    declsDevNegative(pre, "type Box[A] = Box(A); instance Show[Box[A]] given Show[A], Eq[A] { show(x) { \"x\" } }", "at most one constraint per type parameter A")
+    declsDevNegative(pre, "type Box[A] = Box(A); instance Show[Box[A]] given Show[A], Show[A] { show(x) { \"x\" } }", "duplicate constraint Show[A]")
     declsDevNegative(pre, "type Box[A] = Box(A); instance Show[Box[A,B]] { show(x) { \"x\" } }", "kind mismatch applying Box to 2 arguments")
     declsDevNegative(pre, "type R[E,X,A] = R(A); instance Functor[R[E,X]] given Show[E] { fmap(x,f) { x } }; instance Monad[R[E,X]] given Show[X] { pure(a) { R(a) }; bind(x,f) { f(1) } }", "superclass instance Functor[R] context is not implied")
     declsDevMissing(env, Nil, "Show", tUnit(), "no instance Show[Unit]")
@@ -179,32 +187,39 @@ func declsDevNegatives(pre File, env Env) IO[Unit] {
 
 func main() IO[Unit] {
   do {
-    source <- declsDevReadFile("prelude/prelude.gt")
-    pre <- declsDevParse(source)
+    pre <- devPrelude()
     user <- declsDevParse(declsDevSource())
     let checked = runCheck(buildEnv([pre, user]), initialState(emptyEnv()))
     match fst(checked) {
-      Err(e) => ioFail(show(e))
-      Ok(_) => do {
+      CompileErr(e) => ioFail(show(e))
+      CompileOk(_) => do {
         let env = snd(checked).env
         declsDevSummary(env)
         declsDevDerived(env)
         declsDevDictionary(env, "Show[List[(Int, String)]]", Nil, "Show", tList(tTuple([tInt(), tString()])), DInstance("Show", "List", [DInstance("Show", "Tuple2", [DInstance("Show", "Int", Nil), DInstance("Show", "String", Nil)])]))
         declsDevDictionary(env, "Ord[Pair[Int, Int]]", Nil, "Ord", tApp(TCon("Pair", KArrow(2)), [tInt(), tInt()]), DInstance("Ord", "Pair", [DInstance("Ord", "Int", Nil), DInstance("Ord", "Int", Nil)]))
         declsDevDictionary(env, "Functor[M] given Monad[M]", [("Monad", "M")], "Functor", TVar("M", KArrow(1)), DSuper("Functor", DParam("M", "Monad")))
-        declsDevDictionary(env, "Functor[Result[String]]", Nil, "Functor", tApp(TCon("Result", KArrow(2)), [tString()]), DInstance("Functor", "Result", Nil))
+        declsDevDictionary(env, "Functor[Trial[String]]", Nil, "Functor", tApp(TCon("Trial", KArrow(2)), [tString()]), DInstance("Functor", "Trial", Nil))
         declsDevNegatives(pre, env)
         match checkProgram([pre, user]) {
-          Err(e) => ioFail(show(e))
-          Ok(p) => do {
-            declsDevAssert(fmap(p.datas, func(d) => d.name) == mapKeys(env.datas), "Program datas sorted")
-            declsDevAssert(fmap(p.classes, func(c) => c.name) == mapKeys(env.classes), "Program classes sorted")
-            declsDevAssert(fmap(p.instances, func(i) => instanceKey(i.className, i.typeCon)) == mapKeys(env.instances), "Program instances sorted")
-            declsDevAssert(fmap(p.funcs, func(f) => match f { CoreFunc(n, _, _, _) => n | CoreExtern(n, _, _, _) => n }) == mapKeys(env.funcs), "Program functions sorted")
+          CompileErr(e) => ioFail(show(e))
+          CompileOk(p) => do {
+            declsDevAssert(prelude.fmap(p.datas, func(d) => d.name) == mapKeys(env.datas), "Program datas sorted")
+            declsDevAssert(prelude.fmap(p.classes, func(c) => c.name) == mapKeys(env.classes), "Program classes sorted")
+            declsDevAssert(prelude.fmap(p.instances, func(i) => instanceKey(i.className, i.typeCon)) == mapKeys(env.instances), "Program instances sorted")
+            declsDevAssert(prelude.fmap(p.funcs, func(f) => match f { CoreFunc(n, _, _, _) => n | CoreExtern(n, _, _, _) => n }) == mapKeys(env.funcs), "Program functions sorted")
             println("Program assembled: ${length(p.datas)} datas, ${length(p.classes)} classes, ${length(p.instances)} instances, ${length(p.funcs)} functions; ${length(p.warnings)} warnings")
           }
         }
       }
     }
+  }
+}
+
+func devPrelude() IO[File] {
+  do {
+    loaded <- moduleLoad("std/prelude", ["std/prelude/prelude.gt"], "selfhost/dev", LoadState{modules: MEmpty, order: Nil})
+    files <- list.mapM(loaded.order, func(path) => do { m <- moduleLoaded(loaded, path); moduleQualify(m, "selfhost/dev", loaded) })
+    ioPure(File{pkg: "prelude", name: "std/prelude", imports: Nil, decls: list.concatMap(list.concatMap(files, func(xs) => xs), func(f) => f.decls)})
   }
 }

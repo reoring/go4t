@@ -1,5 +1,10 @@
 package main
 
+import "std/prelude"
+import "std/list"
+import "std/string"
+import "std/io"
+
 // Focused acceptance checks. Diagnostic expectations come from:
 // types/unify.go:26-29,106-171; types/types.go:156-180;
 // types/check.go:366-425; types/defaults.go:52-57.
@@ -15,14 +20,14 @@ func emptyEnvWithPreludeKinds() Env {
 func typesTestUnify(e Type, a Type) Check[String] { do {
   unify(noPos(), e, a)
   resolved <- zonk(e)
-  pure(typeString(resolved))
+  prelude.pure(typeString(resolved))
 } }
 
 func typesTestMeta(reverseArgs Bool) Check[String] { do {
   m <- freshMeta(KStar)
   if reverseArgs { unify(noPos(), tInt(), m) } else { unify(noPos(), m, tInt()) }
   resolved <- zonk(m)
-  pure(typeString(resolved))
+  prelude.pure(typeString(resolved))
 } }
 
 func typesTestOccurs() Check[String] { do {
@@ -39,7 +44,7 @@ func typesTestPartial(result Bool, reverseArgs Bool) Check[String] { do {
   resolved <- zonk(short)
   headType <- zonk(f)
   argType <- zonk(a)
-  pure("${typeString(resolved)}; F = ${typeString(headType)}; a = ${typeString(argType)}")
+  prelude.pure("${typeString(resolved)}; F = ${typeString(headType)}; a = ${typeString(argType)}")
 } }
 
 func typesTestOuterMismatch() Check[String] { do {
@@ -57,13 +62,13 @@ func typesTestPathCompression() Check[String] { do {
   resolved <- zonk(a)
   first <- lookupMeta(0)
   second <- lookupMeta(1)
-  if first == Some(tInt()) && second == Some(tInt()) { pure(typeString(resolved) + "; links compressed") }
+  if first == Some(tInt()) && second == Some(tInt()) { prelude.pure(typeString(resolved) + "; links compressed") }
   else { checkFail(noPos(), "path compression failed") }
 } }
 
 func typesTestScheme(sch Scheme) String {
-  let params = join(", ", fmap(sch.tparams, func(p) => "${fst(p)}:${typesKindString(snd(p))}"))
-  let constraints = join(", ", fmap(sch.constraints, func(c) => "${fst(c)}[${snd(c)}]"))
+  let params = string.join(", ", prelude.fmap(sch.tparams, func(p) => "${fst(p)}:${typesKindString(snd(p))}"))
+  let constraints = string.join(", ", prelude.fmap(sch.constraints, func(c) => "${fst(c)}[${snd(c)}]"))
   "forall ${params}. ${constraints} => ${typeString(sch.typ)}"
 }
 
@@ -71,9 +76,9 @@ func typesTestRoundTrip() Check[String] { do {
   let sch = Scheme{tparams: [("A", KStar)], constraints: [("Show", "A")], typ: TFunc([TVar("A", KStar)], tString())}
   inst <- instantiate(sch)
   generic <- generalize(Nil, snd(inst), fst(inst))
-  let constraintText = join(", ", fmap(snd(inst), func(c) => "${fst(c)}[${typeString(snd(c))}]"))
+  let constraintText = string.join(", ", prelude.fmap(snd(inst), func(c) => "${fst(c)}[${typeString(snd(c))}]"))
   if length(snd(generic)) == 0 {
-    pure("${typeString(fst(inst))}; ${constraintText}; ${typesTestScheme(fst(generic))}")
+    prelude.pure("${typeString(fst(inst))}; ${constraintText}; ${typesTestScheme(fst(generic))}")
   } else { checkFail(noPos(), "generalized constraint was retained") }
 } }
 
@@ -85,7 +90,7 @@ func typesTestGeneralizeOrder() Check[String] { do {
   result <- generalize([0], [("Show", later), ("Eq", fixed), ("Show", tList(later))], typ)
   metas <- freeMetas(typ)
   if metas == [0, 1, 2] && snd(result) == [("Eq", fixed), ("Show", tList(later))] {
-    pure(typesTestScheme(fst(result)) + "; fixed/structured constraints retained; free = " + show(metas))
+    prelude.pure(typesTestScheme(fst(result)) + "; fixed/structured constraints retained; free = " + show(metas))
   } else { checkFail(noPos(), "generalization changed fixed constraints or source metas") }
 } }
 
@@ -99,14 +104,14 @@ func typesTestInstantiateKinds() Check[String] { do {
   let firstConstraints = snd(first)
   match firstConstraints {
     Cons(("Functor", TMeta(0, KArrow(1))), Nil) =>
-      pure("${typeString(fst(first))}; ${typeString(fst(second))}; Functor[?0]:(*) -> *")
+      prelude.pure("${typeString(fst(first))}; ${typeString(fst(second))}; Functor[?0]:(*) -> *")
     _ => checkFail(noPos(), "instantiation lost parameter kinds")
   }
 } }
 
 func typesTestResolve(t SType) Check[String] { do {
   resolved <- resolveSType(MEmpty, t)
-  pure(typeString(resolved) + " : " + typesKindString(kindOf(resolved)))
+  prelude.pure(typeString(resolved) + " : " + typesKindString(kindOf(resolved)))
 } }
 
 func typesTestDefaultNone() Check[String] { do {
@@ -115,7 +120,7 @@ func typesTestDefaultNone() Check[String] { do {
   defaultMetas([m, m], origins, Nil)
   defaultMetas([m], origins, Nil)
   resolved <- zonk(tOption(m))
-  pure(typeString(resolved))
+  prelude.pure(typeString(resolved))
 } }
 
 func typesTestDefaultFailure(k Kind, constrained Bool, structured Bool) Check[String] { do {
@@ -125,7 +130,7 @@ func typesTestDefaultFailure(k Kind, constrained Bool, structured Bool) Check[St
   let constraints = if constrained { [("Show", arg)] } else { Nil }
   defaultMetas([m], origins, constraints)
   resolved <- zonk(m)
-  pure(typeString(resolved))
+  prelude.pure(typeString(resolved))
 } }
 
 func typesTestDefaultOrder() Check[String] { do {
@@ -139,7 +144,7 @@ func typesTestDefaultOrder() Check[String] { do {
   ])
   defaultMetas([a, b, c, a], origins, Nil)
   resolved <- zonk(tTuple([a, b, c]))
-  pure(typeString(resolved))
+  prelude.pure(typeString(resolved))
 } }
 
 func typesTestDefaultResolved() Check[String] { do {
@@ -147,7 +152,7 @@ func typesTestDefaultResolved() Check[String] { do {
   unify(noPos(), m, tInt())
   defaultMetas([m], MEmpty, [("Show", m)])
   resolved <- zonk(m)
-  pure(typeString(resolved))
+  prelude.pure(typeString(resolved))
 } }
 
 func typesTestOccursIndirect() Check[String] { do {
@@ -161,7 +166,7 @@ func typesTestResolveScope() Check[String] { do {
   let p = noPos()
   resolved <- resolveSType(mapFromList([("List", TVar("F", KArrow(1))), ("A", TVar("A", KStar))]),
     STName(p, "List", [STName(p, "A", Nil)]))
-  pure(typeString(resolved))
+  prelude.pure(typeString(resolved))
 } }
 
 func typesTestCase(name String, action Check[String], expected String) TypesTestCase {
@@ -194,8 +199,8 @@ func typesTestCases() List[TypesTestCase] {
     typesTestCase("instantiate/generalize", typesTestRoundTrip(), "func(?0) String; Show[?0]; forall t0:*. Show[t0] => func(t0) String"),
     typesTestCase("generalize order/fixed", typesTestGeneralizeOrder(), "forall t0:(*) -> *, t1:*. Show[t1] => func(t0[t1], ?0, t1) t1; fixed/structured constraints retained; free = [0, 1, 2]"),
     typesTestCase("instantiate kinds/freshness", typesTestInstantiateKinds(), "func(?0[?1]) ?1; func(?2[?3]) ?3; Functor[?0]:(*) -> *"),
-    typesTestCase("substitute flatten", pure(typeString(substTVars(mapFromList([("F", tApp(resultCon, [tString()]))]), tApp(TVar("F", KArrow(1)), [tInt()])))), "Result[String, Int]"),
-    typesTestCase("deep flatten", fmap(zonk(TApp(TApp(TApp(TCon("Three", KArrow(3)), [tString()]), [tBool()]), [tInt()])), typeString), "Three[String, Bool, Int]"),
+    typesTestCase("substitute flatten", prelude.pure(typeString(substTVars(mapFromList([("F", tApp(resultCon, [tString()]))]), tApp(TVar("F", KArrow(1)), [tInt()])))), "Result[String, Int]"),
+    typesTestCase("deep flatten", prelude.fmap(zonk(TApp(TApp(TApp(TCon("Three", KArrow(3)), [tString()]), [tBool()]), [tInt()])), typeString), "Three[String, Bool, Int]"),
     typesTestCase("resolve partial", typesTestResolve(STName(p, "Result", [intSyntax])), "Result[Int] : (*) -> *"),
     typesTestCase("resolve tuple", typesTestResolve(STTuple(p, [intSyntax, STName(p, "String", Nil)])), "Tuple2[Int, String] : *"),
     typesTestCase("unknown type", typesTestResolve(STName(p, "Missing", Nil)), "unknown type Missing"),
@@ -227,12 +232,12 @@ func typesTestCases() List[TypesTestCase] {
 
 func typesRunTest(test TypesTestCase) IO[Bool] {
   let checked = runCheck(test.action, initialState(emptyEnvWithPreludeKinds()))
-  let actual = match fst(checked) { Ok(text) => text | Err(diag) => diag.msg }
-  let warnings = fmap(reverse(snd(checked).warnings), func(diag) => show(diag))
+  let actual = match fst(checked) { CompileOk(text) => text | CompileErr(diag) => diag.msg }
+  let warnings = prelude.fmap(reverse(snd(checked).warnings), func(diag) => show(diag))
   let passed = actual == test.expected && warnings == test.warnings
   do {
     println("${test.name}: ${actual}")
-    forEach(warnings, func(warning) => println("  warning: ${warning}"))
+    list.forEach(warnings, func(warning) => println("  warning: ${warning}"))
     if passed { ioPure(unit()) } else { do {
       println("  FAIL expected: ${test.expected}")
       println("  expected warnings: ${show(test.warnings)}")
@@ -243,7 +248,7 @@ func typesRunTest(test TypesTestCase) IO[Bool] {
 }
 
 func main() IO[Unit] { do {
-  results <- mapM(typesTestCases(), typesRunTest)
+  results <- list.mapM(typesTestCases(), typesRunTest)
   if all(results, func(passed) => passed) { println("PASS ${length(results)} type cases") }
-  else { exit(1) }
+  else { io.exit(1) }
 } }

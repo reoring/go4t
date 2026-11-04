@@ -12,7 +12,7 @@ import (
 
 var kindNames = [...]string{
 	lexer.EOF: "TkEOF", lexer.Ident: "TkIdent", lexer.Int: "TkInt",
-	lexer.String: "TkString", lexer.InterpTok: "TkInterp",
+	lexer.Float: "TkFloat", lexer.String: "TkString", lexer.InterpTok: "TkInterp",
 	lexer.Keyword: "TkKeyword", lexer.Punct: "TkPunct",
 }
 

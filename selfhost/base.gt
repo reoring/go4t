@@ -1,9 +1,13 @@
 package main
 
+import "std/prelude"
+import "std/list"
+import "std/result"
+
 // ===== base.gt — shared utilities (contract; owner: supervisor) =====
-// Result: failure-carrying computations (Err carries a diagnostic string
+// CompileResult: failure-carrying computations (CompileErr carries a diagnostic string
 // already formatted as "line:col: message").
-type Result[A] = Err(Diag) | Ok(A)
+type CompileResult[A] = CompileErr(Diag) | CompileOk(A)
 
 type Diag = Diag{pos: Pos, msg: String}
 
@@ -11,44 +15,44 @@ instance Show[Diag] {
   show(d) { "${d.pos.line}:${d.pos.col}: ${d.msg}" }
 }
 
-instance Functor[Result] {
+instance Functor[CompileResult] {
   fmap(r, f) {
     match r {
-      Err(e) => Err(e)
-      Ok(a) => Ok(f(a))
+      CompileErr(e) => CompileErr(e)
+      CompileOk(a) => CompileOk(f(a))
     }
   }
 }
 
-instance Monad[Result] {
-  pure(a) { Ok(a) }
+instance Monad[CompileResult] {
+  pure(a) { CompileOk(a) }
   bind(r, f) {
     match r {
-      Err(e) => Err(e)
-      Ok(a) => f(a)
+      CompileErr(e) => CompileErr(e)
+      CompileOk(a) => f(a)
     }
   }
 }
 
-func isOk[A](r Result[A]) Bool {
+func isOk[A](r CompileResult[A]) Bool {
   match r {
-    Ok(_) => true
-    Err(_) => false
+    CompileOk(_) => true
+    CompileErr(_) => false
   }
 }
 
 // mapMResult: sequence a Result-producing function over a list.
-func mapMResult[A, B](xs List[A], f func(A) Result[B]) Result[List[B]] {
-  mapM(xs, f)
+func mapMResult[A, B](xs List[A], f func(A) CompileResult[B]) CompileResult[List[B]] {
+  list.mapM(xs, f)
 }
 
 // ===== Map: persistent AA tree keyed by an Ord type =====
 // MNode(level, left, key, value, right)
-type Map[K, V] = MEmpty | MNode(Int, Map[K, V], K, V, Map[K, V])
+type TreeMap[K, V] = MEmpty | MNode(Int, TreeMap[K, V], K, V, TreeMap[K, V])
 
-func mapEmpty[K, V]() Map[K, V] { MEmpty }
+func mapEmpty[K, V]() TreeMap[K, V] { MEmpty }
 
-func mapLookup[K Ord, V](m Map[K, V], k K) Option[V] {
+func mapLookup[K Ord, V](m TreeMap[K, V], k K) Option[V] {
   match m {
     MEmpty => None
     MNode(_, l, key, v, r) => match compare(k, key) {
@@ -59,9 +63,9 @@ func mapLookup[K Ord, V](m Map[K, V], k K) Option[V] {
   }
 }
 
-func mapMember[K Ord, V](m Map[K, V], k K) Bool { isSome(mapLookup(m, k)) }
+func mapMember[K Ord, V](m TreeMap[K, V], k K) Bool { result.isSome(mapLookup(m, k)) }
 
-func mapSkew[K, V](m Map[K, V]) Map[K, V] {
+func mapSkew[K, V](m TreeMap[K, V]) TreeMap[K, V] {
   match m {
     MNode(lv, MNode(llv, a, lk, lval, b), k, v, r) if llv == lv =>
       MNode(lv, a, lk, lval, MNode(lv, b, k, v, r))
@@ -69,7 +73,7 @@ func mapSkew[K, V](m Map[K, V]) Map[K, V] {
   }
 }
 
-func mapSplit[K, V](m Map[K, V]) Map[K, V] {
+func mapSplit[K, V](m TreeMap[K, V]) TreeMap[K, V] {
   match m {
     MNode(lv, a, k, v, MNode(rlv, b, rk, rv, MNode(rrlv, c, rrk, rrv, d))) if rrlv == lv =>
       MNode(lv + 1, MNode(lv, a, k, v, b), rk, rv, MNode(rrlv, c, rrk, rrv, d))
@@ -78,7 +82,7 @@ func mapSplit[K, V](m Map[K, V]) Map[K, V] {
 }
 
 // mapInsert replaces the value when the key is present.
-func mapInsert[K Ord, V](m Map[K, V], k K, v V) Map[K, V] {
+func mapInsert[K Ord, V](m TreeMap[K, V], k K, v V) TreeMap[K, V] {
   match m {
     MEmpty => MNode(1, MEmpty, k, v, MEmpty)
     MNode(lv, l, key, old, r) => match compare(k, key) {
@@ -90,33 +94,33 @@ func mapInsert[K Ord, V](m Map[K, V], k K, v V) Map[K, V] {
 }
 
 // mapToList yields (key, value) pairs in ascending key order.
-func mapToList[K, V](m Map[K, V]) List[(K, V)] {
+func mapToList[K, V](m TreeMap[K, V]) List[(K, V)] {
   mapToListAcc(m, Nil)
 }
 
-func mapToListAcc[K, V](m Map[K, V], acc List[(K, V)]) List[(K, V)] {
+func mapToListAcc[K, V](m TreeMap[K, V], acc List[(K, V)]) List[(K, V)] {
   match m {
     MEmpty => acc
     MNode(_, l, k, v, r) => mapToListAcc(l, Cons((k, v), mapToListAcc(r, acc)))
   }
 }
 
-func mapFromList[K Ord, V](xs List[(K, V)]) Map[K, V] {
+func mapFromList[K Ord, V](xs List[(K, V)]) TreeMap[K, V] {
   fold(xs, MEmpty, func(m, kv) => mapInsert(m, fst(kv), snd(kv)))
 }
 
-func mapKeys[K, V](m Map[K, V]) List[K] { fmap(mapToList(m), fst) }
+func mapKeys[K, V](m TreeMap[K, V]) List[K] { prelude.fmap(mapToList(m), fst) }
 
-func mapValues[K, V](m Map[K, V]) List[V] { fmap(mapToList(m), snd) }
+func mapValues[K, V](m TreeMap[K, V]) List[V] { prelude.fmap(mapToList(m), snd) }
 
-func mapSize[K, V](m Map[K, V]) Int { length(mapToList(m)) }
+func mapSize[K, V](m TreeMap[K, V]) Int { length(mapToList(m)) }
 
 // mapUnion is right-biased: entries of b win.
-func mapUnion[K Ord, V](a Map[K, V], b Map[K, V]) Map[K, V] {
+func mapUnion[K Ord, V](a TreeMap[K, V], b TreeMap[K, V]) TreeMap[K, V] {
   fold(mapToList(b), a, func(m, kv) => mapInsert(m, fst(kv), snd(kv)))
 }
 
-func mapMap[K, V, W](m Map[K, V], f func(V) W) Map[K, W] {
+func mapMap[K, V, W](m TreeMap[K, V], f func(V) W) TreeMap[K, W] {
   match m {
     MEmpty => MEmpty
     MNode(lv, l, k, v, r) => MNode(lv, mapMap(l, f), k, f(v), mapMap(r, f))
@@ -147,7 +151,7 @@ func nth[A](xs List[A], i Int) Option[A] {
   }
 }
 
-func zipWithIndex[A](xs List[A]) List[(Int, A)] { zip(range(0, length(xs)), xs) }
+func zipWithIndex[A](xs List[A]) List[(Int, A)] { list.zip(range(0, length(xs)), xs) }
 
 func range(from Int, to Int) List[Int] {
   if from >= to { Nil } else { Cons(from, range(from + 1, to)) }
@@ -159,15 +163,15 @@ func any[A](xs List[A], p func(A) Bool) Bool { fold(xs, false, func(acc, x) => a
 
 func last[A](xs List[A]) Option[A] { head(reverse(xs)) }
 
-func unzip[A, B](xs List[(A, B)]) (List[A], List[B]) { (fmap(xs, fst), fmap(xs, snd)) }
+func unzip[A, B](xs List[(A, B)]) (List[A], List[B]) { (prelude.fmap(xs, fst), prelude.fmap(xs, snd)) }
 
 // foldM over Result: stop at the first Err.
-func foldResult[A, B](xs List[A], init B, f func(B, A) Result[B]) Result[B] {
+func foldResult[A, B](xs List[A], init B, f func(B, A) CompileResult[B]) CompileResult[B] {
   match xs {
-    Nil => Ok(init)
+    Nil => CompileOk(init)
     Cons(x, rest) => match f(init, x) {
-      Err(e) => Err(e)
-      Ok(acc) => foldResult(rest, acc, f)
+      CompileErr(e) => CompileErr(e)
+      CompileOk(acc) => foldResult(rest, acc, f)
     }
   }
 }
@@ -176,6 +180,6 @@ func foldResult[A, B](xs List[A], init B, f func(B, A) Result[B]) Result[B] {
 func duplicates[A Eq](xs List[A]) Option[A] {
   match xs {
     Nil => None
-    Cons(x, rest) => if elem(x, rest) { Some(x) } else { duplicates(rest) }
+    Cons(x, rest) => if list.elem(x, rest) { Some(x) } else { duplicates(rest) }
   }
 }

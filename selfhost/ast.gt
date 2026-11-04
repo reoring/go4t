@@ -4,7 +4,7 @@ package main
 // Mirrors Go ast/ast.go without the mutable Ann slot: the checker produces a
 // separate Core tree (core.gt) instead of annotating this one.
 
-type Pos = Pos{line: Int, col: Int} deriving Eq, Ord
+type Pos = Pos{line: Int, col: Int} deriving Eq, Ord, Debug
 
 instance Show[Pos] {
   show(p) { "${p.line}:${p.col}" }
@@ -18,10 +18,10 @@ func noPos() Pos { Pos{line: 0, col: 0} }
 // the expression source and the position of its first character (just after
 // `${`) so the parser can lex and parse it in place. TkSemi is an inserted or
 // explicit `;`. TkEOF ends every stream.
-type TokKind = TkIdent | TkInt | TkString | TkInterp | TkKeyword | TkPunct | TkSemi | TkEOF
+type TokKind = TkIdent | TkInt | TkFloat | TkString | TkInterp | TkKeyword | TkPunct | TkSemi | TkEOF
   deriving Eq, Ord, Show
 
-type InterpPart = IPText(String) | IPExpr(String, Pos) deriving Eq, Show
+type InterpPart = IPText(String) | IPExpr(String, Pos) deriving Eq, Debug
 
 type Token = Token{kind: TokKind, text: String, pos: Pos, parts: List[InterpPart]}
 
@@ -48,17 +48,19 @@ func stypePos(t SType) Pos {
   }
 }
 
-// TypeParam: name, arity (0 for ordinary, n for F[_, ...]), optional class constraint.
-type TypeParam = TypeParam{name: String, arity: Int, constraint: Option[String]}
+// Type parameters retain their explicitly ordered class constraints.
+type TypeParam = TypeParam{name: String, arity: Int, constraints: List[String]}
 
 // Param: function or lambda parameter. Lambda parameters may be a pattern
 // instead of a name (PParam); function declarations always use PName.
 type Param = PName(String, Option[SType]) | PParam(Pattern)
 
 // ----- declarations -----
-type File = File{pkg: String, name: String, decls: List[Decl]}
+type Import = Import{pos: Pos, binding: String, path: String}
 
-type Decl = DeclClass(ClassDecl) | DeclInstance(InstanceDecl) | DeclType(TypeDecl) | DeclFunc(FuncDecl)
+type File = File{pkg: String, name: String, imports: List[Import], decls: List[Decl]}
+
+type Decl = DeclClass(ClassDecl) | DeclInstance(InstanceDecl) | DeclType(TypeDecl) | DeclFunc(FuncDecl) | DeclAlias(AliasDecl)
 
 type ClassDecl = ClassDecl{pos: Pos, name: String, param: TypeParam, super: Option[String], methods: List[MethodSig]}
 
@@ -72,6 +74,8 @@ type InstanceDecl = InstanceDecl{pos: Pos, className: String, typeCon: String, p
 type Constraint = Constraint{pos: Pos, className: String, param: String}
 
 type InstMethod = InstMethod{pos: Pos, name: String, params: List[String], body: Block}
+
+type AliasDecl = AliasDecl{pos: Pos, name: String, tparams: List[String], body: SType}
 
 type TypeDecl = TypeDecl{pos: Pos, name: String, tparams: List[String], ctors: List[CtorDecl], derivings: List[String]}
 
@@ -87,12 +91,13 @@ type ExternRef = ExternRef{importPath: String, goName: String}
 type Block = Block{pos: Pos, stmts: List[Stmt], result: Expr}
 
 // SLet: `let name = e`, `let name: T = e`, or `let pat [: T] = e` (target LPat).
-type Stmt = SLet(Pos, LetTarget, Option[SType], Expr) | SExpr(Expr)
+type Stmt = SLet(Pos, LetTarget, Option[SType], Expr) | SExpr(Expr) | SFunc(FuncDecl)
 
 type LetTarget = LName(String) | LPat(Pattern)
 
 type Expr = EIdent(Pos, String)
           | EInt(Pos, Int)
+          | EFloat(Pos, String)
           | EString(Pos, String)
           | EBool(Pos, Bool)
           | EInterp(Pos, List[String], List[Expr])      // texts has one more entry than exprs
@@ -113,7 +118,7 @@ type Expr = EIdent(Pos, String)
 
 type Arm = Arm{pos: Pos, pat: Pattern, guard: Option[Expr], body: Expr}
 
-type DoStmt = DoBind(Pos, LetTarget, Expr)
+type DoStmt = DoFunc(FuncDecl) | DoBind(Pos, LetTarget, Expr)
             | DoLet(Pos, LetTarget, Option[SType], Expr)
             | DoExpr(Expr)
 
@@ -122,6 +127,7 @@ type Pattern = PCtor(Pos, String, List[Pattern])
              | PVar(Pos, String)
              | PWild(Pos)
              | PInt(Pos, Int)
+             | PFloat(Pos, String)
              | PString(Pos, String)
              | PBool(Pos, Bool)
              | PTuple(Pos, List[Pattern])              // arity >= 2
@@ -132,6 +138,7 @@ func exprPos(e Expr) Pos {
   match e {
     EIdent(p, _) => p
     EInt(p, _) => p
+    EFloat(p, _) => p
     EString(p, _) => p
     EBool(p, _) => p
     EInterp(p, _, _) => p
@@ -158,6 +165,7 @@ func patPos(p Pattern) Pos {
     PVar(pos, _) => pos
     PWild(pos) => pos
     PInt(pos, _) => pos
+    PFloat(pos, _) => pos
     PString(pos, _) => pos
     PBool(pos, _) => pos
     PTuple(pos, _) => pos

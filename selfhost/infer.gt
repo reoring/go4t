@@ -1,76 +1,85 @@
 package main
 
+import "std/prelude"
+import "std/list"
+import "std/result"
+import "std/string"
+
 // Expression checking follows types/{expr,let,records,coverage,resolve}.go.
 // Inference produces delayed Core builders: dictionaries, addition dispatch and
 // coverage are finalized only after the enclosing body has unified its result.
 // This keeps substitutions in CheckState and avoids mutable AST annotations.
-type Binding = InfMono(Type) | InfPoly(String, Scheme)
-type InfScope = InfScope{locals: Map[String, Binding], tparams: Map[String, Type], givens: List[(String, String)], expected: Type}
+type Binding = InfMono(Type) | InfRecursive(String, Type) | InfPoly(String, Scheme)
+type InfScope = InfScope{locals: TreeMap[String, Binding], tparams: TreeMap[String, Type], givens: List[(String, String)], expected: Type}
 type InfOb = InfOb{pos: Pos, className: String, typ: Type, defaultable: Bool}
 type InfOrigin = InfOrigin{pos: Pos, what: String, priority: Int}
 type InfExpr = InfExpr{typ: Type, emit: func(List[(String, String)]) Check[Core], obligations: List[InfOb], additions: List[(Pos, Type)], defaults: List[(InfOrigin, Type)], uses: List[String]}
-type InfPattern = InfPattern{pat: CPat, bindings: Map[String, Binding]}
+type InfPattern = InfPattern{pat: CPat, bindings: TreeMap[String, Binding]}
 type InfArm = InfArm{pat: CPat, guard: Option[InfExpr], body: InfExpr}
 
 func infLeaf(pos Pos, typ Type, core Core) InfExpr {
-  InfExpr{typ: typ, emit: func(givens) => pure(core), obligations: Nil, additions: Nil, defaults: [(InfOrigin{pos: pos, what: "expression", priority: 1}, typ)], uses: Nil}
+  InfExpr{typ: typ, emit: func(givens) => prelude.pure(core), obligations: Nil, additions: Nil, defaults: [(InfOrigin{pos: pos, what: "expression", priority: 1}, typ)], uses: Nil}
 }
 func infNode(pos Pos, typ Type, children List[InfExpr], emit func(List[(String, String)]) Check[Core]) InfExpr {
-  InfExpr{typ: typ, emit: emit, obligations: infConcat(fmap(children, func(e) => e.obligations)), additions: infConcat(fmap(children, func(e) => e.additions)), defaults: Cons((InfOrigin{pos: pos, what: "expression", priority: 1}, typ), infConcat(fmap(children, func(e) => e.defaults))), uses: infConcat(fmap(children, func(e) => e.uses))}
+  InfExpr{typ: typ, emit: emit, obligations: infConcat(prelude.fmap(children, func(e) => e.obligations)), additions: infConcat(prelude.fmap(children, func(e) => e.additions)), defaults: Cons((InfOrigin{pos: pos, what: "expression", priority: 1}, typ), infConcat(prelude.fmap(children, func(e) => e.defaults))), uses: infConcat(prelude.fmap(children, func(e) => e.uses))}
 }
 func infEmit(es List[InfExpr], givens List[(String, String)]) Check[List[Core]] { mapMCheck(es, func(e) => e.emit(givens)) }
 func infAt[A](pos Pos, action Check[A]) Check[A] {
   Check(func(s) => match runCheck(action, s) {
-    (Err(d), s2) => (Err(d{pos: pos}), s2)
-    (Ok(v), s2) => (Ok(v), s2)
+    (CompileErr(d), s2) => (CompileErr(d{pos: pos}), s2)
+    (CompileOk(v), s2) => (CompileOk(v), s2)
   })
 }
 func infDicts(pos Pos, givens List[(String, String)], cs List[(String, Type)]) Check[List[DictRef]] {
   mapMCheck(cs, func(c) => infAt(pos, resolveDict(givens, fst(c), snd(c))))
 }
 func infObligations(pos Pos, cs List[(String, Type)], defaultable Bool) List[InfOb] {
-  fmap(cs, func(c) => InfOb{pos: pos, className: fst(c), typ: snd(c), defaultable: defaultable})
+  prelude.fmap(cs, func(c) => InfOb{pos: pos, className: fst(c), typ: snd(c), defaultable: defaultable})
 }
 func infValueType(scope InfScope, typ SType) Check[Type] { do {
   t <- resolveSType(scope.tparams, typ)
   typesRequireKind(stypePos(typ), kindOf(t), KStar)
-  pure(t)
+  prelude.pure(t)
 } }
 func infName(pos Pos, name String) Check[Unit] {
-  if startsWith(name, "dict_") || startsWith(name, "ext_") { checkFail(pos, "identifier ${quote(name)} uses reserved prefix") }
+  if string.startsWith(name, "dict_") || string.startsWith(name, "ext_") { checkFail(pos, "identifier ${quote(name)} uses reserved prefix") }
   else if !isLower(name) { checkFail(pos, "value name must start with a lower-case letter") }
-  else { pure(unit()) }
+  else { prelude.pure(unit()) }
 }
 func infCtor(pos Pos, name String) Check[CtorInfo] { do {
   env <- askEnv()
-  match mapLookup(env.ctors, name) { Some(c) => pure(c) | None => checkFail(pos, "unknown constructor ${name}") }
+  match mapLookup(env.ctors, name) { Some(c) => prelude.pure(c) | None => checkFail(pos, "unknown constructor ${name}") }
 } }
 func infInstantiateCtor(ctor CtorInfo) Check[(List[Type], Type)] { do {
   args <- mapMCheck(ctor.tparams, func(p) => freshMeta(KStar))
-  let sub = mapFromList(zip(ctor.tparams, args))
-  pure((fmap(ctor.fields, func(t) => substTVars(sub, t)), tApp(TCon(ctor.data, arityKind(length(args))), args)))
+  let sub = mapFromList(list.zip(ctor.tparams, args))
+  prelude.pure((prelude.fmap(ctor.fields, func(t) => substTVars(sub, t)), tApp(TCon(ctor.data, arityKind(length(args))), args)))
 } }
 func infFunction(pos Pos, typ Type, arity Int) Check[(List[Type], Type)] { do {
   t <- zonk(typ)
   match t {
-    TFunc(ps, ret) => pure((ps, ret))
+    TFunc(ps, ret) => prelude.pure((ps, ret))
     _ => do {
       ret <- freshMeta(KStar)
       ps <- mapMCheck(range(0, arity), func(i) => freshMeta(KStar))
       unify(pos, TFunc(ps, ret), t)
-      pure((ps, ret))
+      prelude.pure((ps, ret))
     }
   }
 } }
 func infIdent(scope InfScope, pos Pos, name String) Check[InfExpr] {
+  if name == "_" { checkFail(pos, "_ is only valid as a placeholder in a call or operator section") } else { infNamedIdent(scope, pos, name) }
+}
+func infNamedIdent(scope InfScope, pos Pos, name String) Check[InfExpr] {
   match mapLookup(scope.locals, name) {
-    Some(InfMono(t)) => pure(infLeaf(pos, t, CLocal(name)))
+    Some(InfMono(t)) => prelude.pure(infLeaf(pos, t, CLocal(name)))
+    Some(InfRecursive(key, t)) => { let value = infLeaf(pos, t, CLocal(name)); prelude.pure(value{uses: [key]}) }
     Some(InfPoly(key, sch)) => do {
       (t, cs, metas) <- infInstantiate(sch)
       let e = infInstLeaf(pos, t, CLocal(name), metas)
-      pure(e{uses: [key], obligations: infObligations(pos, cs, false), emit: func(givens) => do {
+      prelude.pure(e{uses: [key], obligations: infObligations(pos, cs, false), emit: func(givens) => do {
         ds <- infDicts(pos, givens, cs)
-        pure(if infEmpty(ds) { CLocal(name) } else { CLocalDict(name, ds) })
+        prelude.pure(if infEmpty(ds) { CLocal(name) } else { CLocalDict(name, ds) })
       }})
     }
     None => do {
@@ -79,19 +88,19 @@ func infIdent(scope InfScope, pos Pos, name String) Check[InfExpr] {
         Some(f) => do {
           (t, cs, metas) <- infInstantiate(f.scheme)
           let e = infInstLeaf(pos, t, CGlobal(name, Nil, length(f.decl.params)), metas)
-          pure(e{obligations: infObligations(pos, cs, false), emit: func(givens) => do {
+          prelude.pure(e{obligations: infObligations(pos, cs, false), emit: func(givens) => do {
             ds <- infDicts(pos, givens, cs)
-            pure(CGlobal(name, ds, length(f.decl.params)))
+            prelude.pure(CGlobal(name, ds, length(f.decl.params)))
           }})
         }
         None => match mapLookup(env.methods, name) {
           Some(m) => do {
             (t, cs, metas) <- infInstantiate(m.scheme)
             let e = infInstLeaf(pos, t, CLocal(name), metas)
-            pure(e{obligations: infObligations(pos, cs, false), emit: func(givens) => do {
+            prelude.pure(e{obligations: infObligations(pos, cs, false), emit: func(givens) => do {
               ds <- infDicts(pos, givens, cs)
               match ds {
-                Cons(receiver, extra) => pure(CMethod(name, receiver, extra, m.arity))
+                Cons(receiver, extra) => prelude.pure(CMethod(name, receiver, extra, m.arity))
                 Nil => checkFail(pos, "method reference has no dictionary")
               }
             }})
@@ -99,7 +108,7 @@ func infIdent(scope InfScope, pos Pos, name String) Check[InfExpr] {
           None => match mapLookup(env.ctors, name) {
             Some(ctor) => do {
               (ps, ret) <- infInstantiateCtor(ctor)
-              pure(if infEmpty(ps) { infLeaf(pos, ret, CCtor(ctor.data, name, Nil)) } else { infLeaf(pos, TFunc(ps, ret), CCtorFn(ctor.data, name)) })
+              prelude.pure(if infEmpty(ps) { infLeaf(pos, ret, CCtor(ctor.data, name, Nil)) } else { infLeaf(pos, TFunc(ps, ret), CCtorFn(ctor.data, name)) })
             }
             None => checkFail(pos, "unknown identifier ${name}")
           }
@@ -113,47 +122,56 @@ func infExpectedRaw(scope InfScope, expr Expr, expected Option[Type]) Check[InfE
   let pos = exprPos(expr)
   match expr {
     EIdent(_, name) => infIdent(scope, pos, name)
-    EInt(_, n) => pure(infLeaf(pos, tInt(), CInt(n)))
-    EString(_, s) => pure(infLeaf(pos, tString(), CString(s)))
-    EBool(_, b) => pure(infLeaf(pos, tBool(), CBool(b)))
+    EInt(_, n) => prelude.pure(infLeaf(pos, tInt(), CInt(n)))
+    EFloat(_, n) => prelude.pure(infLeaf(pos, tFloat(), CFloat(n)))
+    EString(_, s) => prelude.pure(infLeaf(pos, tString(), CString(s)))
+    EBool(_, b) => prelude.pure(infLeaf(pos, tBool(), CBool(b)))
     EInterp(_, texts, es) => do {
       xs <- mapMCheck(es, func(e) => infExpr(scope, e))
-      let cs = fmap(xs, func(e) => ("Show", e.typ))
+      let cs = prelude.fmap(xs, func(e) => ("Show", e.typ))
       let out = infNode(pos, tString(), xs, func(givens) => do {
-        ds <- mapMCheck(zip(es, xs), func(pair) => infAt(exprPos(fst(pair)), resolveDict(givens, "Show", snd(pair).typ)))
+        ds <- mapMCheck(list.zip(es, xs), func(pair) => infAt(exprPos(fst(pair)), resolveDict(givens, "Show", snd(pair).typ)))
         cores <- infEmit(xs, givens)
-        pure(CInterp(texts, zip(ds, cores)))
+        prelude.pure(CInterp(texts, list.zip(ds, cores)))
       })
-      pure(out{obligations: append(out.obligations, infObligations(pos, cs, false))})
+      prelude.pure(out{obligations: append(out.obligations, infObligations(pos, cs, false))})
     }
     ECall(_, fn, args) => do {
       f <- infExpr(scope, fn)
       (ps, ret) <- infFunction(exprPos(fn), f.typ, length(args))
+      match expected {
+        None => prelude.pure(unit())
+        Some(want) => do {
+          w <- zonk(want)
+          r <- zonk(ret)
+          if (match w { TApp(TCon("IO", _), _) => (match r { TApp(TCon("IO", _), _) => false | _ => true }) | _ => false }) { prelude.pure(unit()) } else { unify(pos, want, ret) }
+        }
+      }
       whenCheck(length(ps) != length(args), checkFail(pos, "arity mismatch: want ${length(ps)} arguments, got ${length(args)}"))
-      xs <- mapMCheck(zip(ps, args), func(pair) => do {
+      xs <- mapMCheck(list.zip(ps, args), func(pair) => do {
         x <- infExpected(scope, snd(pair), Some(fst(pair)))
         unify(exprPos(snd(pair)), fst(pair), x.typ)
-        pure(x)
+        prelude.pure(x)
       })
-      pure(infNode(pos, ret, Cons(f, xs), func(givens) => do {
+      prelude.pure(infNode(pos, ret, Cons(f, xs), func(givens) => do {
         fc <- f.emit(givens)
         cs <- infEmit(xs, givens)
-        pure(match fc { CCtorFn(data, ctor) => CCtor(data, ctor, cs) | _ => CCall(fc, cs) })
+        prelude.pure(match fc { CCtorFn(data, ctor) => CCtor(data, ctor, cs) | _ => CCall(fc, cs) })
       }))
     }
     ELambda(_, params, body) => infLambda(scope, pos, params, body, expected)
-    EBlock(_, block) => infBlock(scope, block)
+    EBlock(_, block) => infStatements(scope, block.stmts, block.result, expected)
     EIf(_, cond, yes, no) => do {
       c <- infExpr(scope, cond)
       unify(exprPos(cond), tBool(), c.typ)
-      a <- infExpr(scope, yes)
-      b <- infExpr(scope, no)
+      a <- infExpected(scope, yes, expected)
+      b <- infExpected(scope, no, expected)
       unify(exprPos(no), a.typ, b.typ)
-      pure(infNode(pos, a.typ, [c, a, b], func(givens) => do { cc <- c.emit(givens); ac <- a.emit(givens); bc <- b.emit(givens); pure(CIf(cc, ac, bc)) }))
+      prelude.pure(infNode(pos, a.typ, [c, a, b], func(givens) => do { cc <- c.emit(givens); ac <- a.emit(givens); bc <- b.emit(givens); prelude.pure(CIf(cc, ac, bc)) }))
     }
     ETuple(_, es) => do {
       xs <- mapMCheck(es, func(e) => infExpr(scope, e))
-      pure(infNode(pos, tTuple(fmap(xs, func(x) => x.typ)), xs, func(givens) => fmap(infEmit(xs, givens), CTuple)))
+      prelude.pure(infNode(pos, tTuple(prelude.fmap(xs, func(x) => x.typ)), xs, func(givens) => prelude.fmap(infEmit(xs, givens), CTuple)))
     }
     EList(_, es) => do {
       env <- askEnv()
@@ -163,28 +181,30 @@ func infExpectedRaw(scope InfScope, expr Expr, expected Option[Type]) Check[InfE
       }
       whenCheck(!valid, checkFail(pos, "list literal requires prelude List"))
       item <- freshMeta(KStar)
-      xs <- mapMCheck(es, func(e) => do { x <- infExpr(scope, e); unify(exprPos(e), item, x.typ); pure(x) })
-      pure(infNode(pos, tList(item), xs, func(givens) => do {
+      xs <- mapMCheck(es, func(e) => do { x <- infExpr(scope, e); unify(exprPos(e), item, x.typ); prelude.pure(x) })
+      prelude.pure(infNode(pos, tList(item), xs, func(givens) => do {
         cs <- infEmit(xs, givens)
-        pure(fold(reverse(cs), CCtor("List", "Nil", Nil), func(rest, x) => CCtor("List", "Cons", [x, rest])))
+        prelude.pure(fold(reverse(cs), CCtor("List", "Nil", Nil), func(rest, x) => CCtor("List", "Cons", [x, rest])))
       }))
     }
     EUnary(_, op, e) => do {
       x <- infExpr(scope, e)
-      pair <- match op { "-" => pure((tInt(), "negInt")) | "!" => pure((tBool(), "not")) | _ => checkFail(pos, "unknown unary operator ${op}") }
+      numeric <- zonk(x.typ)
+      pair <- match op { "-" => prelude.pure(if numeric == tFloat() { (tFloat(), "negFloat") } else { (tInt(), "negInt") }) | "!" => prelude.pure((tBool(), "not")) | _ => checkFail(pos, "unknown unary operator ${op}") }
       unify(exprPos(e), fst(pair), x.typ)
-      pure(infNode(pos, fst(pair), [x], func(givens) => do { c <- x.emit(givens); pure(CPrim(snd(pair), [c])) }))
+      prelude.pure(infNode(pos, fst(pair), [x], func(givens) => do { c <- x.emit(givens); prelude.pure(CPrim(snd(pair), [c])) }))
     }
     EBinary(_, op, left, right) => infBinary(scope, pos, op, left, right)
     ERecordLit(_, ctor, fields) => infRecordLit(scope, pos, ctor, fields)
     EField(_, receiver, field) => infField(scope, pos, receiver, field)
     ETupleField(_, receiver, index) => infTupleField(scope, pos, receiver, index)
     ERecordUpdate(_, receiver, fields) => infRecordUpdate(scope, pos, receiver, fields)
-    EMatch(_, scrut, arms) => infMatch(scope, pos, scrut, arms)
+    EMatch(_, scrut, arms) => infMatch(scope, pos, scrut, arms, expected)
     EDo(_, stmts, result) => do {
       monad <- freshMeta(KArrow(1))
+      match expected { Some(t) => do { z <- zonk(t); match z { TApp(h, Cons(_, Nil)) => unify(pos, monad, h) | _ => prelude.pure(unit()) } } | None => prelude.pure(unit()) }
       out <- infDo(scope, monad, stmts, result)
-      pure(out{obligations: Cons(InfOb{pos: pos, className: "Monad", typ: monad, defaultable: false}, out.obligations)})
+      prelude.pure(out{obligations: Cons(InfOb{pos: pos, className: "Monad", typ: monad, defaultable: false}, out.obligations)})
     }
   }
 }
@@ -199,11 +219,11 @@ func infBinary(scope InfScope, pos Pos, op String, left Expr, right Expr) Check[
         t <- zonk(a.typ)
         ac <- a.emit(givens)
         bc <- b.emit(givens)
-        pure(CPrim(if t == tString() { "addString" } else { "addInt" }, [ac, bc]))
+        prelude.pure(CPrim(if t == tString() { "addString" } else if t == tFloat() { "addFloat" } else { "addInt" }, [ac, bc]))
       })
-      pure(out{additions: Cons((pos, a.typ), out.additions)})
+      prelude.pure(out{additions: Cons((pos, a.typ), out.additions)})
     }
-  } else if elem(op, ["==", "!=", "<", "<=", ">", ">="]) {
+  } else if list.elem(op, ["==", "!=", "<", "<=", ">", ">="]) {
     do {
       unify(exprPos(right), a.typ, b.typ)
       let cls = if op == "==" || op == "!=" { "Eq" } else { "Ord" }
@@ -214,20 +234,23 @@ func infBinary(scope InfScope, pos Pos, op String, left Expr, right Expr) Check[
         ac <- a.emit(givens)
         bc <- b.emit(givens)
         let call = CCall(CMethod(if cls == "Eq" { "eq" } else { "compare" }, dict, Nil, 2), [ac, bc])
-        pure(match op { "==" => call | "!=" => CPrim("not", [call]) | "<" => CPrim("ordLt", [call]) | "<=" => CPrim("ordLe", [call]) | ">" => CPrim("ordGt", [call]) | _ => CPrim("ordGe", [call]) })
+        prelude.pure(match op { "==" => call | "!=" => CPrim("not", [call]) | "<" => CPrim("ordLt", [call]) | "<=" => CPrim("ordLe", [call]) | ">" => CPrim("ordGt", [call]) | _ => CPrim("ordGe", [call]) })
       })
-      pure(out{obligations: Cons(InfOb{pos: pos, className: cls, typ: a.typ, defaultable: true}, out.obligations)})
+      prelude.pure(out{obligations: Cons(InfOb{pos: pos, className: cls, typ: a.typ, defaultable: true}, out.obligations)})
     }
   } else {
     do {
+      numeric <- zonk(a.typ)
+      let nt = if numeric == tFloat() { tFloat() } else { tInt() }
+      let suffix = if numeric == tFloat() { "Float" } else { "Int" }
       pair <- match op {
-        "-" => pure((tInt(), "subInt")) | "*" => pure((tInt(), "mulInt")) | "/" => pure((tInt(), "divInt")) | "%" => pure((tInt(), "modInt"))
-        "&&" => pure((tBool(), "and")) | "||" => pure((tBool(), "or"))
+        "-" => prelude.pure((nt, "sub" + suffix)) | "*" => prelude.pure((nt, "mul" + suffix)) | "/" => prelude.pure((nt, "div" + suffix)) | "%" => prelude.pure((tInt(), "modInt"))
+        "&&" => prelude.pure((tBool(), "and")) | "||" => prelude.pure((tBool(), "or"))
         _ => checkFail(pos, "unknown binary operator ${op}")
       }
       unify(exprPos(left), fst(pair), a.typ)
       unify(exprPos(right), fst(pair), b.typ)
-      pure(infNode(pos, fst(pair), [a, b], func(givens) => do { ac <- a.emit(givens); bc <- b.emit(givens); pure(CPrim(snd(pair), [ac, bc])) }))
+      prelude.pure(infNode(pos, fst(pair), [a, b], func(givens) => do { ac <- a.emit(givens); bc <- b.emit(givens); prelude.pure(CPrim(snd(pair), [ac, bc])) }))
     }
   }
 } }
@@ -237,68 +260,55 @@ func infRecordIndexes(pos Pos, ctor CtorInfo, names List[String], complete Bool)
     infName(pos, name)
     match indexOf(ctor.fieldNames, name) {
       None => checkFail(pos, "unknown field ${name} in constructor ${ctor.name}")
-      Some(i) => if elem(i, seen) { checkFail(pos, "duplicate field ${name} in constructor ${ctor.name}") } else { pure(append(seen, [i])) }
+      Some(i) => if list.elem(i, seen) { checkFail(pos, "duplicate field ${name} in constructor ${ctor.name}") } else { prelude.pure(append(seen, [i])) }
     }
   })
-  forEachCheck(zipWithIndex(ctor.fieldNames), func(pair) => whenCheck(complete && !elem(fst(pair), indexes), checkFail(pos, "missing field ${snd(pair)} in constructor ${ctor.name}")))
-  pure(indexes)
+  forEachCheck(zipWithIndex(ctor.fieldNames), func(pair) => whenCheck(complete && !list.elem(fst(pair), indexes), checkFail(pos, "missing field ${snd(pair)} in constructor ${ctor.name}")))
+  prelude.pure(indexes)
 } }
 func infReceiverName(e Expr) String {
   match e {
     EIdent(_, n) => n | EField(_, x, n) => infReceiverName(x) + "." + n | ETupleField(_, x, i) => infReceiverName(x) + ".${i}"
     ECall(_, _, _) => "Call" | ELambda(_, _, _) => "Lambda" | EBlock(_, _) => "BlockExpr" | EIf(_, _, _, _) => "If" | EMatch(_, _, _) => "Match"
-    EInt(_, _) => "IntLit" | EString(_, _) => "StringLit" | EBool(_, _) => "BoolLit" | EInterp(_, _, _) => "Interp" | ERecordLit(_, _, _) => "RecordLit"
+    EFloat(_, _) => "FloatLit" | EInt(_, _) => "IntLit" | EString(_, _) => "StringLit" | EBool(_, _) => "BoolLit" | EInterp(_, _, _) => "Interp" | ERecordLit(_, _, _) => "RecordLit"
     ERecordUpdate(_, _, _) => "RecordUpdate" | EDo(_, _, _) => "Do" | EBinary(_, _, _, _) => "Binary" | EUnary(_, _, _) => "Unary" | EList(_, _) => "ListLit" | ETuple(_, _) => "TupleLit"
   }
 }
 func infHead(t Type) (Type, List[Type]) { match t { TApp(h, args) => (h, args) | _ => (t, Nil) } }
-func infRecordType(pos Pos, receiver Expr, typ Type, field String) Check[(CtorInfo, List[Type])] { do {
-  t <- zonk(typ)
-  match t {
-    TMeta(_, _) => checkFail(pos, "cannot infer record type of ${infReceiverName(receiver)}.${field}; annotate")
-    _ => do {
-      env <- askEnv()
-      let (h, args) = infHead(t)
-      let candidate = match h { TCon(name, _) => mapLookup(env.datas, name) | _ => None }
-      match candidate {
-        Some(data) => match data.ctors {
-          Cons(ctor, Nil) if !infEmpty(ctor.fieldNames) && (field == "" || elem(field, ctor.fieldNames)) =>
-            pure((ctor, fmap(ctor.fields, func(f) => substTVars(mapFromList(zip(data.tparams, args)), f))))
-          _ => checkFail(pos, "field ${field} requires a single-constructor record type")
-        }
-        None => checkFail(pos, "field ${field} requires a single-constructor record type")
-      }
-    }
-  }
-} }
 func infRecordValues(scope InfScope, fields List[Type], indexes List[Int], values List[Expr]) Check[List[InfExpr]] {
-  mapMCheck(zip(indexes, values), func(pair) => do {
+  mapMCheck(list.zip(indexes, values), func(pair) => do {
     x <- infExpr(scope, snd(pair))
-    unify(exprPos(snd(pair)), fromOption(nth(fields, fst(pair)), tUnit()), x.typ)
-    pure(x)
+    unify(exprPos(snd(pair)), result.fromOption(nth(fields, fst(pair)), tUnit()), x.typ)
+    prelude.pure(x)
   })
 }
 func infRecordLit(scope InfScope, pos Pos, name String, fields List[(String, Expr)]) Check[InfExpr] { do {
   ctor <- infCtor(pos, name)
   whenCheck(infEmpty(ctor.fieldNames), checkFail(pos, "constructor ${name} is not a record"))
   (ts, ret) <- infInstantiateCtor(ctor)
-  indexes <- infRecordIndexes(pos, ctor, fmap(fields, fst), true)
-  xs <- infRecordValues(scope, ts, indexes, fmap(fields, snd))
+  indexes <- infRecordIndexes(pos, ctor, prelude.fmap(fields, fst), true)
+  xs <- infRecordValues(scope, ts, indexes, prelude.fmap(fields, snd))
   // Evaluate in source order before arranging constructor slots (SPEC §6).
   names <- mapMCheck(xs, func(x) => freshName("dict_inferField"))
-  pure(infNode(pos, ret, xs, func(givens) => do {
+  prelude.pure(infNode(pos, ret, xs, func(givens) => do {
     cs <- infEmit(xs, givens)
-    let slots = mapFromList(zip(indexes, names))
-    let value = CCtor(ctor.data, ctor.name, fmap(range(0, length(ts)), func(i) => CLocal(fromOption(mapLookup(slots, i), ""))))
-    pure(fold(reverse(zip(names, cs)), value, func(body, pair) => CLet(fst(pair), snd(pair), body)))
+    let slots = mapFromList(list.zip(indexes, names))
+    let value = CCtor(ctor.data, ctor.name, prelude.fmap(range(0, length(ts)), func(i) => CLocal(result.fromOption(mapLookup(slots, i), ""))))
+    prelude.pure(fold(reverse(list.zip(names, cs)), value, func(body, pair) => CLet(fst(pair), snd(pair), body)))
   }))
 } }
 func infField(scope InfScope, pos Pos, receiver Expr, field String) Check[InfExpr] { do {
   infName(pos, field)
   x <- infExpr(scope, receiver)
-  (ctor, fields) <- infRecordType(pos, receiver, x.typ, field)
-  let i = fromOption(indexOf(ctor.fieldNames, field), 0)
-  pure(infNode(pos, fromOption(nth(fields, i), tUnit()), [x], func(givens) => do { c <- x.emit(givens); pure(CField(c, ctor.data, ctor.name, i)) }))
+  (data, mapping) <- infRecordData(pos, receiver, x.typ, field)
+  typ <- infCommonField(pos, data, field)
+  prelude.pure(infNode(pos, substTVars(mapping, typ), [x], func(givens) => do {
+    value <- x.emit(givens)
+    match data.ctors {
+      Cons(c, Nil) => prelude.pure(CField(value, c.data, c.name, result.fromOption(indexOf(c.fieldNames, field), 0)))
+      _ => prelude.pure(CMatch(value, map(data.ctors, func(c) => declsArm(CPCtor(c.data, c.name, map(c.fieldNames, func(n) => if n == field { CPVar("selectedField") } else { CPWild })), CLocal("selectedField")))))
+    }
+  }))
 } }
 func infTupleField(scope InfScope, pos Pos, receiver Expr, index Int) Check[InfExpr] { do {
   x <- infExpr(scope, receiver)
@@ -307,8 +317,8 @@ func infTupleField(scope InfScope, pos Pos, receiver Expr, index Int) Check[InfE
     TMeta(_, _) => checkFail(pos, "cannot infer tuple type of ${infReceiverName(receiver)}.${index}; annotate")
     TApp(TCon(name, _), args) => match isTupleCon(name) {
       Some(n) => match nth(args, index) {
-        Some(item) if index >= 0 => pure(infNode(pos, item, [x], func(givens) => do { c <- x.emit(givens); pure(CTupleField(c, n, index)) }))
-        _ => checkFail(pos, "tuple index ${index} out of range for (${join(", ", fmap(args, typeString))})")
+        Some(item) if index >= 0 => prelude.pure(infNode(pos, item, [x], func(givens) => do { c <- x.emit(givens); prelude.pure(CTupleField(c, n, index)) }))
+        _ => checkFail(pos, "tuple index ${index} out of range for (${string.join(", ", prelude.fmap(args, typeString))})")
       }
       None => checkFail(pos, "tuple index requires a tuple type, got ${typeString(t)}")
     }
@@ -317,10 +327,26 @@ func infTupleField(scope InfScope, pos Pos, receiver Expr, index Int) Check[InfE
 } }
 func infRecordUpdate(scope InfScope, pos Pos, receiver Expr, fields List[(String, Expr)]) Check[InfExpr] { do {
   x <- infExpr(scope, receiver)
-  (ctor, ts) <- infRecordType(pos, receiver, x.typ, fromOption(head(fmap(fields, fst)), ""))
-  indexes <- infRecordIndexes(pos, ctor, fmap(fields, fst), false)
-  xs <- infRecordValues(scope, ts, indexes, fmap(fields, snd))
-  pure(infNode(pos, x.typ, Cons(x, xs), func(givens) => do { c <- x.emit(givens); cs <- infEmit(xs, givens); pure(CRecordUpdate(c, ctor.data, ctor.name, length(ts), zip(indexes, cs))) }))
+  (data, mapping) <- infRecordData(pos, receiver, x.typ, result.fromOption(head(map(fields, fst)), ""))
+  whenCheck(result.isSome(duplicates(map(fields, fst))), checkFail(pos, "duplicate field in record update"))
+  xs <- mapMCheck(fields, func(pair) => do {
+    typ <- infCommonField(pos, data, fst(pair))
+    value <- infExpected(scope, snd(pair), Some(substTVars(mapping, typ)))
+    unify(exprPos(snd(pair)), substTVars(mapping, typ), value.typ)
+    prelude.pure(value)
+  })
+  receiverName <- freshName("recordBase")
+  replacements <- mapMCheck(fields, func(_field) => freshName("recordField"))
+  prelude.pure(infNode(pos, x.typ, Cons(x, xs), func(givens) => do {
+    value <- x.emit(givens)
+    values <- infEmit(xs, givens)
+    let replaced = mapFromList(list.zip(map(fields, fst), replacements))
+    let body = CMatch(CLocal(receiverName), map(data.ctors, func(c) => {
+      let slots = map(zipWithIndex(c.fieldNames), func(pair) => CLocal(result.fromOption(mapLookup(replaced, snd(pair)), "originalField${fst(pair)}")))
+      declsArm(declsCtorPattern(c, "originalField"), CCtor(c.data, c.name, slots))
+    }))
+    prelude.pure(CLet(receiverName, value, fold(reverse(list.zip(replacements, values)), body, func(rest, pair) => CLet(fst(pair), snd(pair), rest))))
+  }))
 } }
 
 func infEmpty[A](xs List[A]) Bool { match xs { Nil => true | _ => false } }
@@ -332,46 +358,56 @@ func infOrigin(expr Expr) Check[InfOrigin] { do {
     EIdent(_, name) => match mapLookup(env.ctors, name) { Some(c) if infEmpty(c.fields) => Some(name) | _ => None }
     _ => None
   }
-  pure(match special {
+  prelude.pure(match special {
     Some(what) => InfOrigin{pos: exprPos(expr), what: what, priority: 3}
     None => InfOrigin{pos: exprPos(expr), what: match expr { EIdent(_, _) => "Ident" | EField(_, _, _) => "Field" | ETupleField(_, _, _) => "Field" | _ => infReceiverName(expr) }, priority: 1}
   })
 } }
 func infExpected(scope InfScope, expr Expr, expected Option[Type]) Check[InfExpr] { do {
-  out <- infExpectedRaw(scope, expr, expected)
+  raw <- infExpectedRaw(scope, expr, expected)
+  want <- match expected { None => prelude.pure(tUnit()) | Some(t) => zonk(t) }
+  got <- zonk(raw.typ)
+  out <- match want {
+    TApp(TCon("IO", _), Cons(item, Nil)) if (match got { TApp(TCon("IO", _), _) => false | _ => true }) => do {
+      unify(exprPos(expr), item, raw.typ)
+      prelude.pure(infNode(exprPos(expr), want, [raw], func(givens) => do { c <- raw.emit(givens); prelude.pure(CCall(CGlobal("ioPure", Nil, 1), [c])) }))
+    }
+    _ => prelude.pure(raw)
+  }
   origin <- infOrigin(expr)
-  pure(out{defaults: Cons((origin, out.typ), out.defaults)})
+  prelude.pure(out{defaults: Cons((origin, out.typ), out.defaults)})
 } }
 
-func infBindPattern(pos Pos, name String, typ Type, bindings Map[String, Binding]) Check[Map[String, Binding]] { do {
+func infBindPattern(pos Pos, name String, typ Type, bindings TreeMap[String, Binding]) Check[TreeMap[String, Binding]] { do {
   infName(pos, name)
   if mapMember(bindings, name) { checkFail(pos, "duplicate pattern variable ${name}") }
-  else { pure(mapInsert(bindings, name, InfMono(typ))) }
+  else { prelude.pure(mapInsert(bindings, name, InfMono(typ))) }
 } }
-func infPatterns(pats List[Pattern], types List[Type], bindings Map[String, Binding]) Check[(List[CPat], Map[String, Binding])] {
-  foldCheck(zip(pats, types), (Nil, bindings), func(acc, pair) => do {
+func infPatterns(pats List[Pattern], types List[Type], bindings TreeMap[String, Binding]) Check[(List[CPat], TreeMap[String, Binding])] {
+  foldCheck(list.zip(pats, types), (Nil, bindings), func(acc, pair) => do {
     p <- infPattern(snd(pair), fst(pair), snd(acc))
-    pure((append(fst(acc), [p.pat]), p.bindings))
+    prelude.pure((append(fst(acc), [p.pat]), p.bindings))
   })
 }
-func infPattern(expected Type, pat Pattern, bindings Map[String, Binding]) Check[InfPattern] {
+func infPattern(expected Type, pat Pattern, bindings TreeMap[String, Binding]) Check[InfPattern] {
   let pos = patPos(pat)
   match pat {
-    PWild(_) => pure(InfPattern{pat: CPWild, bindings: bindings})
-    PVar(_, name) => do { bs <- infBindPattern(pos, name, expected, bindings); pure(InfPattern{pat: CPVar(name), bindings: bs}) }
+    PWild(_) => prelude.pure(InfPattern{pat: CPWild, bindings: bindings})
+    PVar(_, name) => do { bs <- infBindPattern(pos, name, expected, bindings); prelude.pure(InfPattern{pat: CPVar(name), bindings: bs}) }
     PAs(_, name, inner) => do {
       bs <- infBindPattern(pos, name, expected, bindings)
       p <- infPattern(expected, inner, bs)
-      pure(p{pat: CPAs(name, p.pat)})
+      prelude.pure(p{pat: CPAs(name, p.pat)})
     }
-    PInt(_, n) => do { unify(pos, expected, tInt()); pure(InfPattern{pat: CPInt(n), bindings: bindings}) }
-    PString(_, s) => do { unify(pos, expected, tString()); pure(InfPattern{pat: CPString(s), bindings: bindings}) }
-    PBool(_, b) => do { unify(pos, expected, tBool()); pure(InfPattern{pat: CPBool(b), bindings: bindings}) }
+    PInt(_, n) => do { unify(pos, expected, tInt()); prelude.pure(InfPattern{pat: CPInt(n), bindings: bindings}) }
+    PFloat(_, n) => do { unify(pos, expected, tFloat()); prelude.pure(InfPattern{pat: CPFloat(n), bindings: bindings}) }
+    PString(_, s) => do { unify(pos, expected, tString()); prelude.pure(InfPattern{pat: CPString(s), bindings: bindings}) }
+    PBool(_, b) => do { unify(pos, expected, tBool()); prelude.pure(InfPattern{pat: CPBool(b), bindings: bindings}) }
     PTuple(_, pats) => do {
       ts <- mapMCheck(pats, func(p) => freshMeta(KStar))
       unify(pos, expected, tTuple(ts))
       (ps, bs) <- infPatterns(pats, ts, bindings)
-      pure(InfPattern{pat: CPTuple(ps), bindings: bs})
+      prelude.pure(InfPattern{pat: CPTuple(ps), bindings: bs})
     }
     PCtor(_, name, pats) => do {
       ctor <- infCtor(pos, name)
@@ -379,31 +415,32 @@ func infPattern(expected Type, pat Pattern, bindings Map[String, Binding]) Check
       unify(pos, expected, ret)
       whenCheck(length(ts) != length(pats), checkFail(pos, "arity mismatch for pattern ${name}: want ${length(ts)} arguments, got ${length(pats)}"))
       (ps, bs) <- infPatterns(pats, ts, bindings)
-      pure(InfPattern{pat: CPCtor(ctor.data, name, ps), bindings: bs})
+      prelude.pure(InfPattern{pat: CPCtor(ctor.data, name, ps), bindings: bs})
     }
     PRecord(_, name, fields, rest) => do {
       ctor <- infCtor(pos, name)
       whenCheck(infEmpty(ctor.fieldNames), checkFail(pos, "${name} is not a record constructor"))
       (ts, ret) <- infInstantiateCtor(ctor)
       unify(pos, expected, ret)
-      indexes <- infRecordIndexes(pos, ctor, fmap(fields, fst), !rest)
-      (ps, bs) <- infPatterns(fmap(fields, snd), fmap(indexes, func(i) => fromOption(nth(ts, i), tUnit())), bindings)
-      let indexed = mapFromList(zip(indexes, ps))
-      pure(InfPattern{pat: CPCtor(ctor.data, name, fmap(range(0, length(ts)), func(i) => fromOption(mapLookup(indexed, i), CPWild))), bindings: bs})
+      indexes <- infRecordIndexes(pos, ctor, prelude.fmap(fields, fst), !rest)
+      (ps, bs) <- infPatterns(prelude.fmap(fields, snd), prelude.fmap(indexes, func(i) => result.fromOption(nth(ts, i), tUnit())), bindings)
+      let indexed = mapFromList(list.zip(indexes, ps))
+      prelude.pure(InfPattern{pat: CPCtor(ctor.data, name, prelude.fmap(range(0, length(ts)), func(i) => result.fromOption(mapLookup(indexed, i), CPWild))), bindings: bs})
     }
   }
 }
 func infShape(pat CPat) CPat { match pat { CPAs(_, inner) => infShape(inner) | _ => pat } }
 func infCatchall(pat CPat) Bool { match infShape(pat) { CPWild => true | CPVar(_) => true | _ => false } }
-func infLiteral(pat CPat) Bool { match infShape(pat) { CPInt(_) => true | CPString(_) => true | CPBool(_) => true | _ => false } }
+func infLiteral(pat CPat) Bool { match infShape(pat) { CPInt(_) => true | CPFloat(_) => true | CPString(_) => true | _ => false } }
 func infDefaultRows(rows List[List[CPat]]) List[List[CPat]] {
-  concatMap(rows, func(row) => match row { Cons(p, rest) if infCatchall(p) => [rest] | _ => Nil })
+  list.concatMap(rows, func(row) => match row { Cons(p, rest) if infCatchall(p) => [rest] | _ => Nil })
 }
 func infSpecialRows(rows List[List[CPat]], ctor String, arity Int, tuple Bool) List[List[CPat]] {
-  concatMap(rows, func(row) => match row {
-    Cons(p, rest) => if infCatchall(p) { [append(fmap(range(0, arity), func(i) => CPWild), rest)] }
+  list.concatMap(rows, func(row) => match row {
+    Cons(p, rest) => if infCatchall(p) { [append(prelude.fmap(range(0, arity), func(i) => CPWild), rest)] }
     else { match infShape(p) {
       CPCtor(_, name, args) if !tuple && name == ctor => [append(args, rest)]
+      CPBool(b) if !tuple && ctor == show(b) => [rest]
       CPTuple(args) if tuple => [append(args, rest)]
       _ => Nil
     } }
@@ -413,32 +450,37 @@ func infSpecialRows(rows List[List[CPat]], ctor String, arity Int, tuple Bool) L
 // Matrix specialization is the coverage.go algorithm, including its recursive
 // wildcard termination check (all constructor heads must occur explicitly).
 func infCovers(rows List[List[CPat]], columns List[Type]) Check[Bool] {
-  if infEmpty(rows) { pure(false) } else {
+  if infEmpty(rows) { prelude.pure(false) } else {
     match columns {
-      Nil => pure(true)
+      Nil => prelude.pure(true)
       Cons(column, rest) => do {
         covered <- infCovers(infDefaultRows(rows), rest)
-        if covered { pure(true) } else { do {
+        if covered { prelude.pure(true) } else { do {
           t <- zonk(column)
           let (h, args) = infHead(t)
           env <- askEnv()
           match h {
+            TCon("Bool", _) => do {
+              yes <- infCovers(infSpecialRows(rows, "true", 0, false), rest)
+              no <- infCovers(infSpecialRows(rows, "false", 0, false), rest)
+              prelude.pure(yes && no)
+            }
             TCon(name, _) => match isTupleCon(name) {
               Some(n) => infCovers(infSpecialRows(rows, "", n, true), append(args, rest))
               None => match mapLookup(env.datas, name) {
-                None => pure(false)
+                None => prelude.pure(false)
                 Some(data) => {
-                  let present = concatMap(rows, func(row) => match row { Cons(p, _) => match infShape(p) { CPCtor(_, n, _) => [n] | _ => Nil } | Nil => Nil })
-                  if !all(data.ctors, func(c) => elem(c.name, present)) { pure(false) }
+                  let present = list.concatMap(rows, func(row) => match row { Cons(p, _) => match infShape(p) { CPCtor(_, n, _) => [n] | _ => Nil } | Nil => Nil })
+                  if !all(data.ctors, func(c) => list.elem(c.name, present)) { prelude.pure(false) }
                   else {
-                    foldCheck(data.ctors, true, func(acc, ctor) => if !acc { pure(false) } else {
-                      infCovers(infSpecialRows(rows, ctor.name, length(ctor.fields), false), append(fmap(ctor.fields, func(f) => substTVars(mapFromList(zip(data.tparams, args)), f)), rest))
+                    foldCheck(data.ctors, true, func(acc, ctor) => if !acc { prelude.pure(false) } else {
+                      infCovers(infSpecialRows(rows, ctor.name, length(ctor.fields), false), append(prelude.fmap(ctor.fields, func(f) => substTVars(mapFromList(list.zip(data.tparams, args)), f)), rest))
                     })
                   }
                 }
               }
             }
-            _ => pure(false)
+            _ => prelude.pure(false)
           }
         } }
       }
@@ -450,40 +492,40 @@ func infIrrefutable(pos Pos, pat CPat, typ Type, context String) Check[Unit] { d
   whenCheck(!ok, checkFail(pos, "${context} pattern must be irrefutable"))
 } }
 func infExhaustive(pos Pos, typ Type, arms List[InfArm]) Check[Unit] {
-  let unguarded = filter(arms, func(a) => isNone(a.guard))
+  let unguarded = filter(arms, func(a) => result.isNone(a.guard))
   match last(unguarded) {
-    Some(a) if infCatchall(a.pat) => pure(unit())
+    Some(a) if infCatchall(a.pat) => prelude.pure(unit())
     _ => do {
       whenCheck(any(unguarded, func(a) => infLiteral(a.pat)), checkFail(pos, "non-exhaustive match: literal patterns require a trailing catch-all"))
-      covered <- infCovers(fmap(unguarded, func(a) => [a.pat]), [typ])
+      covered <- infCovers(prelude.fmap(unguarded, func(a) => [a.pat]), [typ])
       whenCheck(!covered, checkFail(pos, "non-exhaustive match"))
     }
   }
 }
-func infMatch(scope InfScope, pos Pos, scrut Expr, arms List[Arm]) Check[InfExpr] { do {
+func infMatch(scope InfScope, pos Pos, scrut Expr, arms List[Arm], expected Option[Type]) Check[InfExpr] { do {
   x <- infExpr(scope, scrut)
   ret <- freshMeta(KStar)
   checked <- mapMCheck(arms, func(arm) => do {
     pat <- infPattern(x.typ, arm.pat, MEmpty)
     let local = scope{locals: mapUnion(scope.locals, pat.bindings)}
     guard <- match arm.guard {
-      None => pure(None)
-      Some(g) => do { c <- infExpr(local, g); unify(exprPos(g), tBool(), c.typ); pure(Some(c)) }
+      None => prelude.pure(None)
+      Some(g) => do { c <- infExpr(local, g); unify(exprPos(g), tBool(), c.typ); prelude.pure(Some(c)) }
     }
-    body <- infExpr(local, arm.body)
+    body <- infExpected(local, arm.body, expected)
     unify(exprPos(arm.body), ret, body.typ)
-    pure(InfArm{pat: pat.pat, guard: guard, body: body})
+    prelude.pure(InfArm{pat: pat.pat, guard: guard, body: body})
   })
-  let children = Cons(x, concatMap(checked, func(a) => Cons(a.body, match a.guard { None => Nil | Some(g) => [g] })))
-  pure(infNode(pos, ret, children, func(givens) => do {
+  let children = Cons(x, list.concatMap(checked, func(a) => Cons(a.body, match a.guard { None => Nil | Some(g) => [g] })))
+  prelude.pure(infNode(pos, ret, children, func(givens) => do {
     infExhaustive(pos, x.typ, checked)
     c <- x.emit(givens)
     cas <- mapMCheck(checked, func(a) => do {
-      g <- match a.guard { None => pure(None) | Some(guard) => fmap(guard.emit(givens), Some) }
+      g <- match a.guard { None => prelude.pure(None) | Some(guard) => prelude.fmap(guard.emit(givens), Some) }
       b <- a.body.emit(givens)
-      pure(CArm{pat: a.pat, guard: g, body: b})
+      prelude.pure(CArm{pat: a.pat, guard: g, body: b})
     })
-    pure(CMatch(c, cas))
+    prelude.pure(CMatch(c, cas))
   }))
 } }
 
@@ -491,55 +533,55 @@ type InfLambdaParam = InfLambdaParam{name: String, pat: Option[CPat], typ: Type}
 func infLambda(scope InfScope, pos Pos, params List[Param], body Expr, expected Option[Type]) Check[InfExpr] { do {
   ts <- mapMCheck(params, func(p) => match p { PName(_, Some(t)) => infValueType(scope, t) | _ => freshMeta(KStar) })
   ret <- freshMeta(KStar)
-  let contextual = isSome(expected) && all(params, func(p) => match p { PName(_, Some(_)) => false | _ => true })
-  whenCheck(contextual, unify(pos, fromOption(expected, TFunc(ts, ret)), TFunc(ts, ret)))
-  (ps, bindings) <- foldCheck(zip(params, ts), (Nil, mapEmpty()), func(acc, pair) => {
+  let contextual = result.isSome(expected)
+  whenCheck(contextual, unify(pos, result.fromOption(expected, TFunc(ts, ret)), TFunc(ts, ret)))
+  (ps, bindings) <- foldCheck(list.zip(params, ts), (Nil, mapEmpty()), func(acc, pair) => {
     let (param, typ) = pair
     match param {
       PName(name, _) => do {
         infName(pos, name)
         whenCheck(mapMember(snd(acc), name), checkFail(pos, "duplicate parameter ${name}"))
-        pure((append(fst(acc), [InfLambdaParam{name: name, pat: None, typ: typ}]), mapInsert(snd(acc), name, InfMono(typ))))
+        prelude.pure((append(fst(acc), [InfLambdaParam{name: name, pat: None, typ: typ}]), mapInsert(snd(acc), name, InfMono(typ))))
       }
       PParam(p) => do {
         checked <- infPattern(typ, p, snd(acc))
         name <- freshName("dict_inferLambda")
-        pure((append(fst(acc), [InfLambdaParam{name: name, pat: Some(checked.pat), typ: typ}]), checked.bindings))
+        prelude.pure((append(fst(acc), [InfLambdaParam{name: name, pat: Some(checked.pat), typ: typ}]), checked.bindings))
       }
     }
   })
-  b <- infExpr(scope{locals: mapUnion(scope.locals, bindings)}, body)
-  whenCheck(contextual, infLambdaResult(pos, fromOption(expected, TFunc(ts, ret)), TFunc(ts, b.typ)))
-  pure(infNode(pos, TFunc(ts, b.typ), [b], func(givens) => do {
-    forEachCheck(ps, func(p) => match p.pat { None => pure(unit()) | Some(pat) => infIrrefutable(pos, pat, p.typ, "lambda parameter") })
+  b <- infExpected(scope{locals: mapUnion(scope.locals, bindings)}, body, if contextual { Some(ret) } else { None })
+  whenCheck(contextual, infLambdaResult(pos, result.fromOption(expected, TFunc(ts, ret)), TFunc(ts, b.typ)))
+  prelude.pure(infNode(pos, TFunc(ts, b.typ), [b], func(givens) => do {
+    forEachCheck(ps, func(p) => match p.pat { None => prelude.pure(unit()) | Some(pat) => infIrrefutable(pos, pat, p.typ, "lambda parameter") })
     core <- b.emit(givens)
     let wrapped = fold(reverse(ps), core, func(rest, p) => match p.pat { None => rest | Some(pat) => CMatch(CLocal(p.name), [CArm{pat: pat, guard: None, body: rest}]) })
-    pure(CLambda(fmap(ps, func(p) => p.name), wrapped))
+    prelude.pure(CLambda(prelude.fmap(ps, func(p) => p.name), wrapped))
   }))
 } }
 func infLambdaResult(pos Pos, expected Type, actual Type) Check[Unit] {
   Check(func(s) => match runCheck(unify(pos, expected, actual), s) {
-    (Ok(v), s2) => (Ok(v), s2)
-    (Err(_), _) => runCheck(do { a <- zonk(expected); b <- zonk(actual); checkFail(pos, "type mismatch: expected ${typeString(a)}, got ${typeString(b)}") }, s)
+    (CompileOk(v), s2) => (CompileOk(v), s2)
+    (CompileErr(_), _) => runCheck(do { a <- zonk(expected); b <- zonk(actual); checkFail(pos, "type mismatch: expected ${typeString(a)}, got ${typeString(b)}") }, s)
   })
 }
 
 func infGeneralizable(scope InfScope, expr Expr) Check[Bool] { do {
   env <- askEnv()
   match expr {
-    ELambda(_, _, _) => pure(true)
-    EInt(_, _) => pure(true) | EString(_, _) => pure(true) | EBool(_, _) => pure(true)
-    EIdent(_, name) => pure(!mapMember(scope.locals, name) && mapMember(env.ctors, name))
+    ELambda(_, _, _) => prelude.pure(true)
+    EFloat(_, _) => prelude.pure(true) | EInt(_, _) => prelude.pure(true) | EString(_, _) => prelude.pure(true) | EBool(_, _) => prelude.pure(true)
+    EIdent(_, name) => prelude.pure(!mapMember(scope.locals, name) && mapMember(env.ctors, name))
     ECall(_, EIdent(_, name), args) => if !mapMember(scope.locals, name) && mapMember(env.ctors, name) {
-      fmap(mapMCheck(args, func(e) => infGeneralizable(scope, e)), func(xs) => all(xs, func(x) => x))
-    } else { pure(false) }
-    ERecordLit(_, _, fields) => fmap(mapMCheck(fmap(fields, snd), func(e) => infGeneralizable(scope, e)), func(xs) => all(xs, func(x) => x))
-    ETuple(_, es) => fmap(mapMCheck(es, func(e) => infGeneralizable(scope, e)), func(xs) => all(xs, func(x) => x))
-    EList(_, es) => fmap(mapMCheck(es, func(e) => infGeneralizable(scope, e)), func(xs) => all(xs, func(x) => x))
-    _ => pure(false)
+      prelude.fmap(mapMCheck(args, func(e) => infGeneralizable(scope, e)), func(xs) => all(xs, func(x) => x))
+    } else { prelude.pure(false) }
+    ERecordLit(_, _, fields) => prelude.fmap(mapMCheck(prelude.fmap(fields, snd), func(e) => infGeneralizable(scope, e)), func(xs) => all(xs, func(x) => x))
+    ETuple(_, es) => prelude.fmap(mapMCheck(es, func(e) => infGeneralizable(scope, e)), func(xs) => all(xs, func(x) => x))
+    EList(_, es) => prelude.fmap(mapMCheck(es, func(e) => infGeneralizable(scope, e)), func(xs) => all(xs, func(x) => x))
+    _ => prelude.pure(false)
   }
 } }
-func infBindingType(binding Binding) Type { match binding { InfMono(t) => t | InfPoly(_, sch) => sch.typ } }
+func infBindingType(binding Binding) Type { match binding { InfMono(t) => t | InfRecursive(_, t) => t | InfPoly(_, sch) => sch.typ } }
 func infReduceOb(ob InfOb) Check[List[InfOb]] { do {
   t <- zonk(ob.typ)
   env <- askEnv()
@@ -547,91 +589,102 @@ func infReduceOb(ob InfOb) Check[List[InfOb]] { do {
   match h {
     TCon(name, _) => match mapLookup(env.instances, instanceKey(ob.className, name)) {
       Some(inst) if length(append(inst.fixed, inst.params)) == length(args) => {
-        let sub = mapFromList(zip(append(inst.fixed, inst.params), args))
-        fmap(mapMCheck(inst.context, func(c) => infReduceOb(ob{className: fst(c), typ: fromOption(mapLookup(sub, snd(c)), TVar(snd(c), KStar))})), infConcat)
+        let sub = mapFromList(list.zip(append(inst.fixed, inst.params), args))
+        prelude.fmap(mapMCheck(inst.context, func(c) => infReduceOb(ob{className: fst(c), typ: result.fromOption(mapLookup(sub, snd(c)), TVar(snd(c), KStar))})), infConcat)
       }
-      _ => pure([ob{typ: t}])
+      _ => prelude.pure([ob{typ: t}])
     }
-    _ => pure([ob{typ: t}])
+    _ => prelude.pure([ob{typ: t}])
   }
 } }
 func infMergeConstraint(pos Pos, cs List[(String, Type)], c (String, Type), candidates List[Int]) Check[List[(String, Type)]] {
-  let generic = match snd(c) { TMeta(id, _) => elem(id, candidates) | _ => false }
-  if !generic { pure(append(cs, [c])) } else {
+  let generic = match snd(c) { TMeta(id, _) => list.elem(id, candidates) | _ => false }
+  if !generic { prelude.pure(append(cs, [c])) } else {
     match cs {
-      Nil => pure([c])
+      Nil => prelude.pure([c])
       Cons(old, rest) => if snd(old) == snd(c) { do {
         oldChain <- superclassChain(fst(old))
         newChain <- superclassChain(fst(c))
-        if elem(fst(c), oldChain) { pure(cs) }
-        else if elem(fst(old), newChain) { pure(Cons(c, rest)) }
-        else { checkFail(pos, "at most one constraint per type parameter ${typeString(snd(c))}") }
-      } } else { fmap(infMergeConstraint(pos, rest, c, candidates), func(tail) => Cons(old, tail)) }
+        if list.elem(fst(c), oldChain) { prelude.pure(cs) }
+        else if list.elem(fst(old), newChain) { prelude.pure(Cons(c, rest)) }
+        else { prelude.fmap(infMergeConstraint(pos, rest, c, candidates), func(tail) => Cons(old, tail)) }
+      } } else { prelude.fmap(infMergeConstraint(pos, rest, c, candidates), func(tail) => Cons(old, tail)) }
     }
   }
 }
 func infRenameScheme(sch Scheme) Check[Scheme] { do {
   names <- mapMCheck(sch.tparams, func(p) => freshName("dict_inferType"))
-  let sub = mapFromList(zip(fmap(sch.tparams, fst), fmap(zip(names, fmap(sch.tparams, snd)), func(p) => TVar(fst(p), snd(p)))))
-  let renamed = mapFromList(zip(fmap(sch.tparams, fst), names))
-  pure(Scheme{tparams: zip(names, fmap(sch.tparams, snd)), constraints: fmap(sch.constraints, func(c) => (fst(c), fromOption(mapLookup(renamed, snd(c)), snd(c)))), typ: substTVars(sub, sch.typ)})
+  let sub = mapFromList(list.zip(prelude.fmap(sch.tparams, fst), prelude.fmap(list.zip(names, prelude.fmap(sch.tparams, snd)), func(p) => TVar(fst(p), snd(p)))))
+  let renamed = mapFromList(list.zip(prelude.fmap(sch.tparams, fst), names))
+  prelude.pure(Scheme{tparams: list.zip(names, prelude.fmap(sch.tparams, snd)), constraints: prelude.fmap(sch.constraints, func(c) => (fst(c), result.fromOption(mapLookup(renamed, snd(c)), snd(c)))), typ: substTVars(sub, sch.typ)})
 } }
 func infLet(scope InfScope, pos Pos, target LetTarget, annotation Option[SType], value Expr, next func(InfScope) Check[InfExpr]) Check[InfExpr] { do {
-  expected <- match annotation { None => pure(None) | Some(t) => fmap(infValueType(scope, t), Some) }
-  v <- infExpected(scope, value, expected)
-  match expected { None => pure(unit()) | Some(t) => unify(exprPos(value), t, v.typ) }
+  expected <- match annotation { None => prelude.pure(None) | Some(t) => prelude.fmap(infValueType(scope, t), Some) }
+  recursive <- match (target, value) {
+    (LName(name), ELambda(_, _, _)) => do { t <- freshMeta(KStar); key <- freshName("dict_recursiveUse"); prelude.pure(Some((name, key, t))) }
+    _ => prelude.pure(None)
+  }
+  let valueScope = match recursive { Some((name, key, typ)) => scope{locals: mapInsert(scope.locals, name, InfRecursive(key, typ))} | None => scope }
+  v <- infExpected(valueScope, value, expected)
+  match recursive { Some((_, _, typ)) => unify(pos, typ, v.typ) | None => prelude.pure(unit()) }
+  match expected { None => prelude.pure(unit()) | Some(t) => unify(exprPos(value), t, v.typ) }
   match target {
     LPat(pat) => do {
       p <- infPattern(v.typ, pat, MEmpty)
       b <- next(scope{locals: mapUnion(scope.locals, p.bindings)})
-      pure(infNode(pos, b.typ, [v, b], func(givens) => do {
+      prelude.pure(infNode(pos, b.typ, [v, b], func(givens) => do {
         infIrrefutable(pos, p.pat, v.typ, "let")
         vc <- v.emit(givens)
         bc <- b.emit(givens)
-        pure(CMatch(vc, [CArm{pat: p.pat, guard: None, body: bc}]))
+        prelude.pure(CMatch(vc, [CArm{pat: p.pat, guard: None, body: bc}]))
       }))
     }
     LName(name) => do {
       infName(pos, name)
       allowed <- infGeneralizable(scope, value)
-      schemeAndObs <- if isNone(annotation) && allowed { do {
+      schemeAndObs <- if result.isNone(annotation) && allowed { do {
         fixedLists <- mapMCheck(mapValues(scope.locals), func(binding) => freeMetas(infBindingType(binding)))
         additionLists <- mapMCheck(v.additions, func(pair) => freeMetas(snd(pair)))
         let fixed = append(infConcat(fixedLists), infConcat(additionLists))
         metas <- freeMetas(v.typ)
-        let candidates = filter(metas, func(id) => !elem(id, fixed))
-        reduced <- fmap(mapMCheck(v.obligations, infReduceOb), infConcat)
+        let candidates = filter(metas, func(id) => !list.elem(id, fixed))
+        reduced <- prelude.fmap(mapMCheck(v.obligations, infReduceOb), infConcat)
         cs <- foldCheck(reduced, Nil, func(acc, ob) => infMergeConstraint(pos, acc, (ob.className, ob.typ), candidates))
         (sch, remaining) <- generalize(fixed, cs, v.typ)
         renamed <- infRenameScheme(sch)
-        pure((renamed, filter(reduced, func(ob) => elem((ob.className, ob.typ), remaining))))
-      } } else { pure((monoScheme(v.typ), v.obligations)) }
+        prelude.pure((renamed, filter(reduced, func(ob) => list.elem((ob.className, ob.typ), remaining))))
+      } } else { prelude.pure((monoScheme(v.typ), v.obligations)) }
       let (sch, remaining) = schemeAndObs
       key <- freshName("dict_inferUse")
       let poly = !infEmpty(sch.tparams)
       let binding = if poly { InfPoly(key, sch) } else { InfMono(v.typ) }
       b <- next(scope{locals: mapInsert(scope.locals, name, binding)})
-      whenCheck(poly && (elem(key, b.uses) || !infEmpty(sch.constraints)), unify(pos, sch.typ, v.typ))
+      whenCheck(poly && (list.elem(key, b.uses) || !infEmpty(sch.constraints)), unify(pos, sch.typ, v.typ))
       let valueNode = v{obligations: if poly { remaining } else { v.obligations }, defaults: Cons((InfOrigin{pos: pos, what: "let " + name, priority: 2}, v.typ), v.defaults)}
       let out = infNode(pos, b.typ, [valueNode, b], func(givens) => do {
-        vc <- v.emit(append(givens, sch.constraints))
+        raw <- v.emit(append(givens, sch.constraints))
+        let vc = match recursive { Some((_, key, _)) if list.elem(key, v.uses) => CLetRec([(name, raw)], CLocal(name)) | _ => raw }
         bc <- b.emit(givens)
-        pure(if infEmpty(sch.constraints) { CLet(name, vc, bc) } else { CLetDict(name, fmap(sch.constraints, func(c) => (snd(c), fst(c))), vc, bc) })
+        prelude.pure(if infEmpty(sch.constraints) { CLet(name, vc, bc) } else { CLetDict(name, prelude.fmap(sch.constraints, func(c) => (snd(c), fst(c))), vc, bc) })
       })
-      pure(out)
+      prelude.pure(out)
     }
   }
 } }
-func infBlock(scope InfScope, block Block) Check[InfExpr] { infStatements(scope, block.stmts, block.result) }
-func infStatements(scope InfScope, stmts List[Stmt], result Expr) Check[InfExpr] {
+func infBlock(scope InfScope, block Block) Check[InfExpr] { infStatements(scope, block.stmts, block.result, None) }
+func infStatements(scope InfScope, stmts List[Stmt], result Expr, expected Option[Type]) Check[InfExpr] {
   match stmts {
-    Nil => infExpr(scope, result)
-    Cons(SLet(pos, target, annotation, value), rest) => infLet(scope, pos, target, annotation, value, func(local) => infStatements(local, rest, result))
+    Nil => infExpected(scope, result, expected)
+    Cons(SFunc(_), _) => {
+      let (funcs, rest) = localStmtGroup(stmts)
+      infLocalFuncs(scope, funcs, func(local) => infStatements(local, rest, result, expected))
+    }
+    Cons(SLet(pos, target, annotation, value), rest) => infLet(scope, pos, target, annotation, value, func(local) => infStatements(local, rest, result, expected))
     Cons(SExpr(expr), rest) => do {
       x <- infExpr(scope, expr)
-      b <- infStatements(scope, rest, result)
+      b <- infStatements(scope, rest, result, expected)
       name <- freshName("dict_inferDiscard")
-      pure(infNode(exprPos(expr), b.typ, [x, b], func(givens) => do { xc <- x.emit(givens); bc <- b.emit(givens); pure(CLet(name, xc, bc)) }))
+      prelude.pure(infNode(exprPos(expr), b.typ, [x, b], func(givens) => do { xc <- x.emit(givens); bc <- b.emit(givens); prelude.pure(CLet(name, xc, bc)) }))
     }
   }
 }
@@ -639,11 +692,15 @@ func infMonadic(scope InfScope, monad Type, expr Expr) Check[(InfExpr, Type)] { 
   item <- freshMeta(KStar)
   x <- infExpr(scope, expr)
   unify(exprPos(expr), tApp(monad, [item]), x.typ)
-  pure((x, item))
+  prelude.pure((x, item))
 } }
 func infDo(scope InfScope, monad Type, stmts List[DoStmt], result Expr) Check[InfExpr] {
   match stmts {
-    Nil => fmap(infMonadic(scope, monad, result), fst)
+    Nil => do { item <- freshMeta(KStar); out <- infExpected(scope, result, Some(tApp(monad, [item]))); unify(exprPos(result), tApp(monad, [item]), out.typ); prelude.pure(out) }
+    Cons(DoFunc(_), _) => {
+      let (funcs, rest) = localDoGroup(stmts)
+      infLocalFuncs(scope, funcs, func(local) => infDo(local, monad, rest, result))
+    }
     Cons(DoLet(pos, target, annotation, value), rest) => infLet(scope, pos, target, annotation, value, func(local) => infDo(local, monad, rest, result))
     Cons(DoExpr(expr), rest) => infDoBind(scope, monad, exprPos(expr), LPat(PWild(exprPos(expr))), expr, rest, result)
     Cons(DoBind(pos, target, expr), rest) => infDoBind(scope, monad, pos, target, expr, rest, result)
@@ -653,23 +710,23 @@ func infDoBind(scope InfScope, monad Type, pos Pos, target LetTarget, expr Expr,
   (x, item) <- infMonadic(scope, monad, expr)
   let pat = match target { LName(name) => PVar(pos, name) | LPat(p) => p }
   p <- infPattern(item, pat, MEmpty)
-  name <- match target { LName(n) => pure(n) | _ => freshName("dict_inferBind") }
+  name <- match target { LName(n) => prelude.pure(n) | _ => freshName("dict_inferBind") }
   b <- infDo(scope{locals: mapUnion(scope.locals, p.bindings)}, monad, rest, result)
-  pure(infNode(pos, b.typ, [x, b], func(givens) => do {
+  prelude.pure(infNode(pos, b.typ, [x, b], func(givens) => do {
     infIrrefutable(pos, p.pat, item, "bind")
     dict <- infAt(pos, resolveDict(givens, "Monad", monad))
     xc <- x.emit(givens)
     bc <- b.emit(givens)
     let body = match target { LName(_) => bc | _ => CMatch(CLocal(name), [CArm{pat: p.pat, guard: None, body: bc}]) }
-    pure(CCall(CMethod("bind", dict, Nil, 2), [xc, CLambda([name], body)]))
+    prelude.pure(CCall(CMethod("bind", dict, Nil, 2), [xc, CLambda([name], body)]))
   }))
 } }
 
 func infMetaNodes(t Type) List[Type] {
   match t {
     TMeta(_, _) => [t]
-    TApp(h, args) => append(infMetaNodes(h), concatMap(args, infMetaNodes))
-    TFunc(ps, ret) => append(concatMap(ps, infMetaNodes), infMetaNodes(ret))
+    TApp(h, args) => append(infMetaNodes(h), list.concatMap(args, infMetaNodes))
+    TFunc(ps, ret) => append(list.concatMap(ps, infMetaNodes), infMetaNodes(ret))
     _ => Nil
   }
 }
@@ -679,10 +736,10 @@ func infFinish(scope InfScope, body InfExpr) Check[Core] { do {
     t <- zonk(snd(pair))
     match t {
       TMeta(_, _) => unify(fst(pair), tInt(), t)
-      _ => whenCheck(t != tInt() && t != tString(), checkFail(fst(pair), "addition requires Int or String, got ${typeString(t)}"))
+      _ => whenCheck(t != tInt() && t != tFloat() && t != tString(), checkFail(fst(pair), "addition requires Int, Float or String, got ${typeString(t)}"))
     }
   })
-  forEachCheck(body.obligations, func(ob) => if ob.defaultable { pure(unit()) } else { do {
+  forEachCheck(body.obligations, func(ob) => if ob.defaultable { prelude.pure(unit()) } else { do {
     ms <- freeMetas(ob.typ)
     t <- zonk(ob.typ)
     whenCheck(!infEmpty(ms), checkFail(ob.pos, "unresolved class constraint ${ob.className}[${typeString(t)}]"))
@@ -690,7 +747,7 @@ func infFinish(scope InfScope, body InfExpr) Check[Core] { do {
   originsAndMetas <- foldCheck(body.defaults, (mapEmpty(), mapEmpty()), func(acc, pair) => do {
     t <- zonk(snd(pair))
     let origin = fst(pair)
-    pure(fold(infMetaNodes(t), acc, func(maps, meta) => match meta {
+    prelude.pure(fold(infMetaNodes(t), acc, func(maps, meta) => match meta {
       TMeta(id, _) => {
         let old = mapLookup(fst(maps), id)
         let origins = match old { Some(o) if !infOriginWins(origin, o) => fst(maps) | _ => mapInsert(fst(maps), id, origin) }
@@ -706,13 +763,13 @@ func infCheckBody(scope InfScope, params List[String], signature Type, block Blo
   match signature {
     TFunc(ts, ret) => do {
       whenCheck(length(params) != length(ts), checkFail(block.pos, "arity mismatch: want ${length(ts)} parameters, got ${length(params)}"))
-      locals <- foldCheck(zip(params, ts), mapEmpty(), func(acc, pair) => do {
+      locals <- foldCheck(list.zip(params, ts), mapEmpty(), func(acc, pair) => do {
         infName(block.pos, fst(pair))
         whenCheck(mapMember(acc, fst(pair)), checkFail(block.pos, "duplicate parameter ${fst(pair)}"))
-        pure(mapInsert(acc, fst(pair), InfMono(snd(pair))))
+        prelude.pure(mapInsert(acc, fst(pair), InfMono(snd(pair))))
       })
       let local = scope{locals: locals, expected: ret}
-      body <- infBlock(local, block)
+      body <- infStatements(local, block.stmts, block.result, Some(ret))
       unify(exprPos(block.result), ret, body.typ)
       infFinish(local, body)
     }
@@ -720,23 +777,23 @@ func infCheckBody(scope InfScope, params List[String], signature Type, block Blo
   }
 }
 func inferFuncBody(info FuncInfo) Check[Core] {
-  let scope = InfScope{locals: MEmpty, tparams: mapFromList(fmap(info.scheme.tparams, func(p) => (fst(p), TVar(fst(p), snd(p))))), givens: info.scheme.constraints, expected: info.scheme.typ}
+  let scope = InfScope{locals: MEmpty, tparams: mapFromList(prelude.fmap(info.scheme.tparams, func(p) => (fst(p), TVar(fst(p), snd(p))))), givens: info.scheme.constraints, expected: info.scheme.typ}
   match info.decl.body {
     None => checkFail(info.decl.pos, "extern function has no body")
-    Some(block) => infCheckBody(scope, fmap(info.decl.params, func(p) => match p { PName(n, _) => n | PParam(_) => "" }), info.scheme.typ, block)
+    Some(block) => infCheckBody(scope, prelude.fmap(info.decl.params, func(p) => match p { PName(n, _) => n | PParam(_) => "" }), info.scheme.typ, block)
   }
 }
 func inferInstanceMethod(inst InstanceInfo, method MethodInfo, im InstMethod) Check[Core] { do {
   env <- askEnv()
   let names = declsHeadParams(inst)
-  let instanceScope = mapFromList(fmap(names, func(n) => (n, TVar(n, KStar))))
+  let instanceScope = mapFromList(prelude.fmap(names, func(n) => (n, declsInstanceParam(env, n))))
   let headType = declsInstanceHead(env, inst)
   match method.scheme.tparams {
     Nil => checkFail(im.pos, "method reference has no class parameter")
     Cons((classParam, _), own) => {
       let sub = mapInsert(mapEmpty(), classParam, headType)
       let signature = substTVars(sub, method.scheme.typ)
-      let tparams = mapUnion(if mapMember(instanceScope, classParam) { instanceScope } else { mapInsert(instanceScope, classParam, headType) }, mapFromList(fmap(own, func(p) => (fst(p), TVar(fst(p), snd(p))))))
+      let tparams = mapUnion(if mapMember(instanceScope, classParam) { instanceScope } else { mapInsert(instanceScope, classParam, headType) }, mapFromList(prelude.fmap(own, func(p) => (fst(p), TVar(fst(p), snd(p))))))
       let ownConstraints = match method.scheme.constraints { Nil => Nil | Cons(_, rest) => rest }
       let scope = InfScope{locals: MEmpty, tparams: tparams, givens: append(inst.context, ownConstraints), expected: signature}
       infCheckBody(scope, im.params, signature, im.body)
@@ -752,27 +809,28 @@ func dumpCore(core Core) String {
     CGlobal(n, ds, arity) => "global(" + n + "," + show(ds) + ",${arity})"
     CMethod(n, d, ds, arity) => "method(" + n + "," + show(d) + "," + show(ds) + ",${arity})"
     CCtorFn(d, c) => "ctorFn(" + d + "." + c + ")"
-    CCtor(d, c, fields) => d + "." + c + "(" + join(",", fmap(fields, dumpCore)) + ")"
-    CInt(n) => "${n}" | CString(s) => quote(s) | CBool(b) => show(b) | CUnit => "unit"
-    CInterp(texts, parts) => "interp(" + show(texts) + ",[" + join(",", fmap(parts, func(p) => show(fst(p)) + ":" + dumpCore(snd(p)))) + "])"
+    CCtor(d, c, fields) => d + "." + c + "(" + string.join(",", prelude.fmap(fields, dumpCore)) + ")"
+    CFloat(n) => n | CInt(n) => "${n}" | CString(s) => quote(s) | CBool(b) => show(b) | CUnit => "unit"
+    CInterp(texts, parts) => "interp(" + show(texts) + ",[" + string.join(",", prelude.fmap(parts, func(p) => show(fst(p)) + ":" + dumpCore(snd(p)))) + "])"
     CField(v, d, c, i) => "field(" + dumpCore(v) + "," + d + "." + c + ",${i})"
     CTupleField(v, n, i) => "tupleField(" + dumpCore(v) + ",${n},${i})"
-    CRecordUpdate(v, d, c, n, fields) => "update(" + dumpCore(v) + "," + d + "." + c + ",${n},[" + join(",", fmap(fields, func(p) => "${fst(p)}:" + dumpCore(snd(p)))) + "])"
-    CCall(f, args) => "call(" + dumpCore(f) + ",[" + join(",", fmap(args, dumpCore)) + "])"
+    CRecordUpdate(v, d, c, n, fields) => "update(" + dumpCore(v) + "," + d + "." + c + ",${n},[" + string.join(",", prelude.fmap(fields, func(p) => "${fst(p)}:" + dumpCore(snd(p)))) + "])"
+    CCall(f, args) => "call(" + dumpCore(f) + ",[" + string.join(",", prelude.fmap(args, dumpCore)) + "])"
     CLambda(ps, body) => "lambda(" + show(ps) + "," + dumpCore(body) + ")"
+    CLetRec(fs, body) => "letrec(" + show(map(fs, fst)) + "," + dumpCore(body) + ")"
     CLet(n, v, body) => "let(" + n + "," + dumpCore(v) + "," + dumpCore(body) + ")"
     CLetDict(n, ds, v, body) => "letDict(" + n + "," + show(ds) + "," + dumpCore(v) + "," + dumpCore(body) + ")"
-    CMatch(v, arms) => "match(" + dumpCore(v) + ",[" + join(",", fmap(arms, func(a) => dumpCPat(a.pat) + (match a.guard { None => "" | Some(g) => " if " + dumpCore(g) }) + "=>" + dumpCore(a.body))) + "])"
+    CMatch(v, arms) => "match(" + dumpCore(v) + ",[" + string.join(",", prelude.fmap(arms, func(a) => dumpCPat(a.pat) + (match a.guard { None => "" | Some(g) => " if " + dumpCore(g) }) + "=>" + dumpCore(a.body))) + "])"
     CIf(c, a, b) => "if(" + dumpCore(c) + "," + dumpCore(a) + "," + dumpCore(b) + ")"
-    CPrim(op, args) => op + "(" + join(",", fmap(args, dumpCore)) + ")"
-    CTuple(xs) => "tuple(" + join(",", fmap(xs, dumpCore)) + ")"
+    CPrim(op, args) => op + "(" + string.join(",", prelude.fmap(args, dumpCore)) + ")"
+    CTuple(xs) => "tuple(" + string.join(",", prelude.fmap(xs, dumpCore)) + ")"
   }
 }
 func dumpCPat(pat CPat) String {
   match pat {
-    CPWild => "_" | CPVar(n) => n | CPInt(n) => "${n}" | CPString(s) => quote(s) | CPBool(b) => show(b)
-    CPCtor(d, c, ps) => d + "." + c + "(" + join(",", fmap(ps, dumpCPat)) + ")"
-    CPTuple(ps) => "(" + join(",", fmap(ps, dumpCPat)) + ")"
+    CPWild => "_" | CPVar(n) => n | CPFloat(n) => n | CPInt(n) => "${n}" | CPString(s) => quote(s) | CPBool(b) => show(b)
+    CPCtor(d, c, ps) => d + "." + c + "(" + string.join(",", prelude.fmap(ps, dumpCPat)) + ")"
+    CPTuple(ps) => "(" + string.join(",", prelude.fmap(ps, dumpCPat)) + ")"
     CPAs(n, p) => n + "@" + dumpCPat(p)
   }
 }
@@ -781,14 +839,66 @@ func dumpCPat(pat CPat) String {
 // instantiate interface can still expose all defaultable metas without relying
 // on its allocator order or reimplementing scheme substitution.
 func infInstantiate(sch Scheme) Check[(Type, List[(String, Type)], List[Type])] { do {
-  let carried = TFunc(Cons(sch.typ, fmap(sch.tparams, func(p) => TVar(fst(p), snd(p)))), tUnit())
+  let carried = TFunc(Cons(sch.typ, prelude.fmap(sch.tparams, func(p) => TVar(fst(p), snd(p)))), tUnit())
   (instantiated, cs) <- instantiate(sch{typ: carried})
   match instantiated {
-    TFunc(Cons(t, metas), _) => pure((t, cs, metas))
+    TFunc(Cons(t, metas), _) => prelude.pure((t, cs, metas))
     _ => checkFail(noPos(), "invalid instantiated signature")
   }
 } }
 func infInstLeaf(pos Pos, typ Type, core Core, metas List[Type]) InfExpr {
   let e = infLeaf(pos, typ, core)
-  e{defaults: append(e.defaults, fmap(metas, func(t) => (InfOrigin{pos: pos, what: "Ident", priority: 1}, t)))}
+  e{defaults: append(e.defaults, prelude.fmap(metas, func(t) => (InfOrigin{pos: pos, what: "Ident", priority: 1}, t)))}
+}
+
+func infRecordData(pos Pos, receiver Expr, typ Type, field String) Check[(DataInfo, TreeMap[String, Type])] {
+  do {
+    t <- zonk(typ)
+    match t {
+      TMeta(_, _) => checkFail(pos, "cannot infer record type of ${infReceiverName(receiver)}.${field}; annotate")
+      _ => do {
+        env <- askEnv()
+        let (h, args) = infHead(t)
+        data <- match h { TCon(n, _) => declsRequire(mapLookup(env.datas, n), pos, "field ${field} requires a record type") | _ => checkFail(pos, "field ${field} requires a record type") }
+        prelude.pure((data, mapFromList(list.zip(data.tparams, args))))
+      }
+    }
+  }
+}
+func infCommonField(pos Pos, data DataInfo, field String) Check[Type] {
+  do {
+    fields <- mapMCheck(data.ctors, func(c) => do {
+      index <- declsRequire(indexOf(c.fieldNames, field), pos, "constructor ${moduleDisplayName(c.name)} has no field ${field}")
+      declsRequire(nth(c.fields, index), pos, "missing record field type")
+    })
+    first <- declsRequire(head(fields), pos, "field ${field} requires a record type")
+    whenCheck(any(fields, func(t) => t != first), checkFail(pos, "field ${field} has incompatible types across constructors"))
+    prelude.pure(first)
+  }
+}
+
+func infLocalFuncs(scope InfScope, funcs List[FuncDecl], next func(InfScope) Check[InfExpr]) Check[InfExpr] {
+  do {
+    let pos = result.maybe(head(funcs), noPos(), func(f) => f.pos)
+    whenCheck(result.isSome(duplicates(map(funcs, func(f) => f.name))), checkFail(pos, "duplicate local function"))
+    signatures <- mapMCheck(funcs, func(f) => do {
+      sch <- declsScheme(f.pos, Nil, f.params, f.ret, scope.tparams)
+      prelude.pure(sch.typ)
+    })
+    let bindings = mapFromList(map(list.zip(funcs, signatures), func(pair) => (fst(pair).name, InfMono(snd(pair)))))
+    let local = scope{locals: mapUnion(scope.locals, bindings)}
+    bodies <- mapMCheck(list.zip(funcs, signatures), func(pair) => do {
+      let f = fst(pair)
+      b <- declsRequire(f.body, f.pos, "local function requires a body")
+      out <- infExpected(local, ELambda(f.pos, f.params, EBlock(b.pos, b)), Some(snd(pair)))
+      unify(f.pos, snd(pair), out.typ)
+      prelude.pure(out)
+    })
+    rest <- next(local)
+    prelude.pure(infNode(pos, rest.typ, append(bodies, [rest]), func(givens) => do {
+      values <- infEmit(bodies, givens)
+      body <- rest.emit(givens)
+      prelude.pure(CLetRec(list.zip(map(funcs, func(f) => f.name), values), body))
+    }))
+  }
 }

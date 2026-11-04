@@ -1,13 +1,25 @@
 package main
 
-extern func isLower(s String) Bool = "go4t/rt".StartsLower
-extern func isUpper(s String) Bool = "go4t/rt".StartsUpper
+import "std/prelude"
+import "std/list"
+import "std/result"
+import "std/string"
+import "std/float"
+
+extern func startsLowerRune(s String) Bool = "go4t/rt".StartsLower
+extern func startsUpperRune(s String) Bool = "go4t/rt".StartsUpper
+
+func identifierBody(s String) String {
+  if string.startsWith(s, "_") { identifierBody(string.substring(s, 1, string.strLength(s))) } else { s }
+}
+func isLower(s String) Bool { startsLowerRune(identifierBody(s)) }
+func isUpper(s String) Bool { startsUpperRune(identifierBody(s)) }
 
 // Recursive-descent port of parser/parser.go. Parser state keeps the previous
 // token position for the same-line record lookahead; failures carry original
 // source positions, including when an interpolation starts a nested parser.
-// SPEC 3.3 and frozen TypeParam allow one constraint, unlike the Go parser's
-// permissive constraint list: a second identifier is diagnosed, never dropped.
+// Type parameters retain ordered + separated class constraints; module names
+// are qualified by the loader before type checking.
 // quote and lex are supplied by lexer.gt; Unicode casing is shared with the
 // checker through the runtime externs above. Constructor recognition remains
 // ASCII A-Z, exactly as parser.go's isUpper (not Unicode IsUpper).
@@ -48,7 +60,7 @@ func orElse[A](left Parser[A], right Parser[A]) Parser[A] {
 }
 
 func optional[A](parser Parser[A]) Parser[Option[A]] {
-  orElse(fmap(parser, Some), pure(None))
+  orElse(prelude.fmap(parser, Some), prelude.pure(None))
 }
 
 func many[A](parser Parser[A]) Parser[List[A]] {
@@ -69,18 +81,18 @@ func sepBy[A, B](parser Parser[A], separator Parser[B]) Parser[List[A]] {
   orElse(do {
     first <- parser
     rest <- many(do { separator; parser })
-    pure(Cons(first, rest))
-  }, pure(Nil))
+    prelude.pure(Cons(first, rest))
+  }, prelude.pure(Nil))
 }
 
 func prFail[A](pos Pos, msg String) Parser[A] {
   PrParser(func(state) => PrFailure(Diag{pos: pos, msg: msg}))
 }
 
-func prLift[A](result Result[A]) Parser[A] {
+func prLift[A](result CompileResult[A]) Parser[A] {
   PrParser(func(state) => match result {
-    Err(d) => PrFailure(d)
-    Ok(value) => PrSuccess(value, state)
+    CompileErr(d) => PrFailure(d)
+    CompileOk(value) => PrSuccess(value, state)
   })
 }
 
@@ -113,13 +125,13 @@ func prMatches(t Token, kind TokKind, text String) Bool {
 }
 
 func prIs(kind TokKind, text String) Parser[Bool] {
-  fmap(prPeek(), func(t) => prMatches(t, kind, text))
+  prelude.fmap(prPeek(), func(t) => prMatches(t, kind, text))
 }
 
 func prAccept(kind TokKind, text String) Parser[Bool] {
   do {
     yes <- prIs(kind, text)
-    if yes { do { prNext(); pure(true) } } else { pure(false) }
+    if yes { do { prNext(); prelude.pure(true) } } else { prelude.pure(false) }
   }
 }
 
@@ -141,7 +153,7 @@ func expect(kind TokKind, text String) Parser[Token] {
 func prIdent() Parser[String] {
   do {
     t <- prPeek()
-    if t.kind == TkIdent { do { prNext(); pure(t.text) } }
+    if t.kind == TkIdent { do { prNext(); prelude.pure(t.text) } }
     else { prFail(t.pos, "expected identifier, found " + prTokenText(t)) }
   }
 }
@@ -149,7 +161,7 @@ func prIdent() Parser[String] {
 func prSkipSemis() Parser[Unit] {
   do {
     yes <- prAccept(TkPunct, ";")
-    if yes { prSkipSemis() } else { pure(unit()) }
+    if yes { prSkipSemis() } else { prelude.pure(unit()) }
   }
 }
 
@@ -159,19 +171,19 @@ func prSeparated1[A](item func() Parser[A], separator String) Parser[List[A]] {
   do {
     value <- item()
     more <- prAccept(TkPunct, separator)
-    rest <- if more { prSeparated1(item, separator) } else { pure(Nil) }
-    pure(Cons(value, rest))
+    rest <- if more { prSeparated1(item, separator) } else { prelude.pure(Nil) }
+    prelude.pure(Cons(value, rest))
   }
 }
 
 func prDelimited[A](item func() Parser[A], close String) Parser[List[A]] {
   do {
     done <- prIs(TkPunct, close)
-    if done { pure(Nil) } else { do {
+    if done { prelude.pure(Nil) } else { do {
       value <- item()
       more <- prAccept(TkPunct, ",")
-      rest <- if more { prDelimited(item, close) } else { pure(Nil) }
-      pure(Cons(value, rest))
+      rest <- if more { prDelimited(item, close) } else { prelude.pure(Nil) }
+      prelude.pure(Cons(value, rest))
     } }
   }
 }
@@ -180,36 +192,36 @@ func prMembers[A](item func() Parser[A]) Parser[List[A]] {
   do {
     prSkipSemis()
     done <- prIs(TkPunct, "}")
-    if done { pure(Nil) } else { do {
+    if done { prelude.pure(Nil) } else { do {
       value <- item()
       rest <- prMembers(item)
-      pure(Cons(value, rest))
+      prelude.pure(Cons(value, rest))
     } }
   }
 }
 
-func prRun[A](parser Parser[A], tokens List[Token], base Pos) Result[A] {
+func prRun[A](parser Parser[A], tokens List[Token], base Pos) CompileResult[A] {
   match runParser(parser, PrState{tokens: tokens, previous: base, offset: 0}) {
-    PrFailure(d) => Err(d)
-    PrSuccess(value, _) => Ok(value)
+    PrFailure(d) => CompileErr(d)
+    PrSuccess(value, _) => CompileOk(value)
   }
 }
 
-func parseFile(name String, src String) Result[File] {
+func parseFile(name String, src String) CompileResult[File] {
   do {
     tokens <- lex(src, Pos{line: 1, col: 1})
     prRun(prFile(name), tokens, Pos{line: 1, col: 1})
   }
 }
 
-func parseExprSource(src String, base Pos) Result[Expr] {
+func parseExprSource(src String, base Pos) CompileResult[Expr] {
   do {
     tokens <- lex(src, base)
     prRun(do {
       value <- prExpr()
       prSkipSemis()
       t <- prPeek()
-      if t.kind == TkEOF { pure(value) }
+      if t.kind == TkEOF { prelude.pure(value) }
       else { prFail(t.pos, "expected end of expression, found " + prTokenText(t)) }
     }, tokens, base)
   }
@@ -220,19 +232,50 @@ func prFile(name String) Parser[File] {
     prSkipSemis()
     expect(TkKeyword, "package")
     pkg <- prIdent()
+    imports <- prImports()
     decls <- prDecls()
-    pure(File{pkg: pkg, name: name, decls: decls})
+    prelude.pure(File{pkg: pkg, name: name, imports: imports, decls: decls})
   }
 }
+
+func prImports() Parser[List[Import]] {
+  do {
+    prSkipSemis()
+    t <- prPeek()
+    if prMatches(t, TkKeyword, "import") { do {
+      prNext()
+      next <- prPeek()
+      binding <- if next.kind == TkIdent { prIdent() } else { prelude.pure("") }
+      path <- prPeek()
+      if path.kind != TkString { prFail(path.pos, "expected import path string") } else { prelude.pure(unit()) }
+      prNext()
+      rest <- prImports()
+      prelude.pure(Cons(Import{pos: t.pos, binding: if binding == "" { result.fromOption(last(string.split("/", path.text)), "") } else { binding }, path: path.text}, rest))
+    } } else { prelude.pure(Nil) }
+  }
+}
+
+func prQualified() Parser[String] {
+  do {
+    name <- prIdent()
+    dotted <- prAccept(TkPunct, ".")
+    if dotted { do { member <- prIdent(); prelude.pure(name + "." + member) } }
+    else { prelude.pure(name) }
+  }
+}
+
 
 func prDecls() Parser[List[Decl]] {
   do {
     prSkipSemis()
     t <- prPeek()
-    if t.kind == TkEOF { pure(Nil) } else { do {
+    if t.kind == TkEOF { prelude.pure(Nil) } else if t.text == "law" || t.text == "proof" { do {
+      prErasedDecl()
+      prDecls()
+    } } else { do {
       decl <- prDecl()
       rest <- prDecls()
-      pure(Cons(decl, rest))
+      prelude.pure(Cons(decl, rest))
     } }
   }
 }
@@ -245,6 +288,7 @@ func prDecl() Parser[Decl] {
       "class" => prClassDecl()
       "instance" => prInstanceDecl()
       "type" => prTypeDecl()
+      "alias" => prAliasDecl()
       "func" => prFuncDecl(false)
       "extern" => do { prNext(); prFuncDecl(true) }
       _ => prFail(t.pos, "expected declaration, found " + prTokenText(t))
@@ -261,14 +305,11 @@ func prTypeParam() Parser[TypeParam] {
     arity <- if higher { do {
       holes <- prSeparated1(prUnderscore, ",")
       expect(TkPunct, "]")
-      pure(length(holes))
-    } } else { pure(0) }
+      prelude.pure(length(holes))
+    } } else { prelude.pure(0) }
     t <- prPeek()
-    constraint <- if t.kind == TkIdent { fmap(prIdent(), Some) } else { pure(None) }
-    extra <- prPeek()
-    if extra.kind == TkIdent { prFail(extra.pos, "type parameter may have at most one constraint") }
-    else { pure(unit()) }
-    pure(TypeParam{name: name, arity: arity, constraint: constraint})
+    constraints <- if t.kind == TkIdent { prSeparated1(prQualified, "+") } else { prelude.pure(Nil) }
+    prelude.pure(TypeParam{name: name, arity: arity, constraints: constraints})
   }
 }
 
@@ -278,13 +319,13 @@ func prTypeParams() Parser[List[TypeParam]] {
     if yes { do {
       params <- prSeparated1(prTypeParam, ",")
       expect(TkPunct, "]")
-      pure(params)
-    } } else { pure(Nil) }
+      prelude.pure(params)
+    } } else { prelude.pure(Nil) }
   }
 }
 
 func prParam() Parser[Param] {
-  do { name <- prIdent(); typ <- prType(); pure(PName(name, Some(typ))) }
+  do { name <- prIdent(); typ <- prType(); prelude.pure(PName(name, Some(typ))) }
 }
 
 func prParams() Parser[List[Param]] {
@@ -292,7 +333,7 @@ func prParams() Parser[List[Param]] {
     expect(TkPunct, "(")
     params <- prDelimited(prParam, ")")
     expect(TkPunct, ")")
-    pure(params)
+    prelude.pure(params)
   }
 }
 
@@ -303,7 +344,7 @@ func prMethodSig() Parser[MethodSig] {
     tparams <- prTypeParams()
     params <- prParams()
     ret <- prType()
-    pure(MethodSig{pos: t.pos, name: name, tparams: tparams, params: params, ret: ret})
+    prelude.pure(MethodSig{pos: t.pos, name: name, tparams: tparams, params: params, ret: ret})
   }
 }
 
@@ -316,18 +357,18 @@ func prClassDecl() Parser[Decl] {
     expect(TkPunct, "]")
     hasSuper <- prAccept(TkPunct, ":")
     super <- if hasSuper { do {
-      parent <- prIdent()
+      parent <- prQualified()
       expect(TkPunct, "[")
       arg <- prIdent()
       if arg != param.name { prFail(start.pos, "superclass must be applied to " + param.name) }
-      else { pure(unit()) }
+      else { prelude.pure(unit()) }
       expect(TkPunct, "]")
-      pure(Some(parent))
-    } } else { pure(None) }
+      prelude.pure(Some(parent))
+    } } else { prelude.pure(None) }
     expect(TkPunct, "{")
     methods <- prMembers(prMethodSig)
     expect(TkPunct, "}")
-    pure(DeclClass(ClassDecl{pos: start.pos, name: name, param: param, super: super, methods: methods}))
+    prelude.pure(DeclClass(ClassDecl{pos: start.pos, name: name, param: param, super: super, methods: methods}))
   }
 }
 
@@ -335,10 +376,10 @@ func prHeadParams(seen List[String]) Parser[List[String]] {
   do {
     t <- prPeek()
     name <- prIdent()
-    if elem(name, seen) { prFail(t.pos, "duplicate instance type parameter " + name) } else { pure(unit()) }
+    if list.elem(name, seen) { prFail(t.pos, "duplicate instance type parameter " + name) } else { prelude.pure(unit()) }
     more <- prAccept(TkPunct, ",")
-    rest <- if more { prHeadParams(Cons(name, seen)) } else { pure(Nil) }
-    pure(Cons(name, rest))
+    rest <- if more { prHeadParams(Cons(name, seen)) } else { prelude.pure(Nil) }
+    prelude.pure(Cons(name, rest))
   }
 }
 
@@ -350,16 +391,16 @@ func prInstanceHead() Parser[(String, List[String])] {
       params <- prHeadParams(Nil)
       expect(TkPunct, ")")
       if length(params) < 2 { prFail(t.pos, "tuple instance head needs at least two elements") }
-      else { pure(("Tuple" + show(length(params)), params)) }
+      else { prelude.pure(("Tuple" + show(length(params)), params)) }
     } } else { do {
-      name <- prIdent()
+      name <- prQualified()
       applied <- prAccept(TkPunct, "[")
       params <- if applied { do {
         values <- prHeadParams(Nil)
         expect(TkPunct, "]")
-        pure(values)
-      } } else { pure(Nil) }
-      pure((name, params))
+        prelude.pure(values)
+      } } else { prelude.pure(Nil) }
+      prelude.pure((name, params))
     } }
   }
 }
@@ -367,13 +408,13 @@ func prInstanceHead() Parser[(String, List[String])] {
 func prConstraint(params List[String]) Parser[Constraint] {
   do {
     t <- prPeek()
-    className <- prIdent()
+    className <- prQualified()
     expect(TkPunct, "[")
     p <- prPeek()
     param <- prIdent()
-    if !elem(param, params) { prFail(p.pos, "undeclared instance type parameter " + param) } else { pure(unit()) }
+    if !list.elem(param, params) { prFail(p.pos, "undeclared instance type parameter " + param) } else { prelude.pure(unit()) }
     expect(TkPunct, "]")
-    pure(Constraint{pos: t.pos, className: className, param: param})
+    prelude.pure(Constraint{pos: t.pos, className: className, param: param})
   }
 }
 
@@ -385,32 +426,32 @@ func prInstMethod() Parser[InstMethod] {
     params <- prDelimited(prIdent, ")")
     expect(TkPunct, ")")
     body <- prBlock()
-    pure(InstMethod{pos: t.pos, name: name, params: params, body: body})
+    prelude.pure(InstMethod{pos: t.pos, name: name, params: params, body: body})
   }
 }
 
 func prInstanceDecl() Parser[Decl] {
   do {
     start <- prNext()
-    className <- prIdent()
+    className <- prQualified()
     expect(TkPunct, "[")
     (typeCon, params) <- prInstanceHead()
     expect(TkPunct, "]")
     t <- prPeek()
     hasGiven <- prAccept(TkKeyword, "given")
     context <- if hasGiven { do {
-      if length(params) == 0 { prFail(t.pos, "given requires instance type parameters") } else { pure(unit()) }
+      if length(params) == 0 { prFail(t.pos, "given requires instance type parameters") } else { prelude.pure(unit()) }
       prSeparated1(func() => prConstraint(params), ",")
-    } } else { pure(Nil) }
+    } } else { prelude.pure(Nil) }
     expect(TkPunct, "{")
     methods <- prMembers(prInstMethod)
     expect(TkPunct, "}")
-    pure(DeclInstance(InstanceDecl{pos: start.pos, className: className, typeCon: typeCon, params: params, context: context, methods: methods}))
+    prelude.pure(DeclInstance(InstanceDecl{pos: start.pos, className: className, typeCon: typeCon, params: params, context: context, methods: methods}))
   }
 }
 
 func prNamedType() Parser[(String, SType)] {
-  do { name <- prIdent(); expect(TkPunct, ":"); typ <- prType(); pure((name, typ)) }
+  do { name <- prIdent(); expect(TkPunct, ":"); typ <- prType(); prelude.pure((name, typ)) }
 }
 
 // Named fields tolerate layout semicolons before/after commas, but not a
@@ -423,9 +464,9 @@ func prNamedFields[A](item func() Parser[A]) Parser[List[A]] {
     rest <- if comma { do {
       prSkipSemis()
       done <- prIs(TkPunct, "}")
-      if done { pure(Nil) } else { prNamedFields(item) }
-    } } else { pure(Nil) }
-    pure(Cons(value, rest))
+      if done { prelude.pure(Nil) } else { prNamedFields(item) }
+    } } else { prelude.pure(Nil) }
+    prelude.pure(Cons(value, rest))
   }
 }
 
@@ -437,17 +478,17 @@ func prCtor() Parser[CtorDecl] {
     if positional { do {
       fields <- prDelimited(prType, ")")
       expect(TkPunct, ")")
-      pure(CtorDecl{pos: t.pos, name: name, fields: fields, fieldNames: Nil})
+      prelude.pure(CtorDecl{pos: t.pos, name: name, fields: fields, fieldNames: Nil})
     } } else { do {
       record <- prAccept(TkPunct, "{")
       if record { do {
         prSkipSemis()
         empty <- prIs(TkPunct, "}")
-        if empty { prFail(t.pos, "record constructor needs at least one field") } else { pure(unit()) }
+        if empty { prFail(t.pos, "record constructor needs at least one field") } else { prelude.pure(unit()) }
         fields <- prNamedFields(prNamedType)
         expect(TkPunct, "}")
-        pure(CtorDecl{pos: t.pos, name: name, fields: fmap(fields, snd), fieldNames: fmap(fields, fst)})
-      } } else { pure(CtorDecl{pos: t.pos, name: name, fields: Nil, fieldNames: Nil}) }
+        prelude.pure(CtorDecl{pos: t.pos, name: name, fields: prelude.fmap(fields, snd), fieldNames: prelude.fmap(fields, fst)})
+      } } else { prelude.pure(CtorDecl{pos: t.pos, name: name, fields: Nil, fieldNames: Nil}) }
     } }
   }
 }
@@ -460,13 +501,13 @@ func prTypeDecl() Parser[Decl] {
     tparams <- if parameterized { do {
       names <- prSeparated1(prIdent, ",")
       expect(TkPunct, "]")
-      pure(names)
-    } } else { pure(Nil) }
+      prelude.pure(names)
+    } } else { prelude.pure(Nil) }
     expect(TkPunct, "=")
     ctors <- prSeparated1(prCtor, "|")
     derived <- prAccept(TkKeyword, "deriving")
-    derivings <- if derived { prSeparated1(prIdent, ",") } else { pure(Nil) }
-    pure(DeclType(TypeDecl{pos: t.pos, name: name, tparams: tparams, ctors: ctors, derivings: derivings}))
+    derivings <- if derived { prSeparated1(prQualified, ",") } else { prelude.pure(Nil) }
+    prelude.pure(DeclType(TypeDecl{pos: t.pos, name: name, tparams: tparams, ctors: ctors, derivings: derivings}))
   }
 }
 
@@ -480,14 +521,14 @@ func prFuncDecl(isExtern Bool) Parser[Decl] {
     if isExtern { do {
       expect(TkPunct, "=")
       path <- prPeek()
-      if path.kind != TkString { prFail(path.pos, "expected import path string, found " + prTokenText(path)) } else { pure(unit()) }
+      if path.kind != TkString { prFail(path.pos, "expected import path string, found " + prTokenText(path)) } else { prelude.pure(unit()) }
       prNext()
       expect(TkPunct, ".")
       goName <- prIdent()
-      pure(DeclFunc(FuncDecl{pos: t.pos, name: name, tparams: tparams, params: params, ret: ret, body: None, externRef: Some(ExternRef{importPath: path.text, goName: goName})}))
+      prelude.pure(DeclFunc(FuncDecl{pos: t.pos, name: name, tparams: tparams, params: params, ret: ret, body: None, externRef: Some(ExternRef{importPath: path.text, goName: goName})}))
     } } else { do {
       body <- prBlock()
-      pure(DeclFunc(FuncDecl{pos: t.pos, name: name, tparams: tparams, params: params, ret: ret, body: Some(body), externRef: None}))
+      prelude.pure(DeclFunc(FuncDecl{pos: t.pos, name: name, tparams: tparams, params: params, ret: ret, body: Some(body), externRef: None}))
     } }
   }
 }
@@ -501,7 +542,7 @@ func prType() Parser[SType] {
       params <- prDelimited(prType, ")")
       expect(TkPunct, ")")
       ret <- prType()
-      pure(STFunc(t.pos, params, ret))
+      prelude.pure(STFunc(t.pos, params, ret))
     } } else if prMatches(t, TkPunct, "(") { do {
       prNext()
       first <- prType()
@@ -509,17 +550,17 @@ func prType() Parser[SType] {
       if tuple { do {
         rest <- prSeparated1(prType, ",")
         expect(TkPunct, ")")
-        pure(STTuple(t.pos, Cons(first, rest)))
-      } } else { do { expect(TkPunct, ")"); pure(first) } }
+        prelude.pure(STTuple(t.pos, Cons(first, rest)))
+      } } else { do { expect(TkPunct, ")"); prelude.pure(first) } }
     } } else { do {
-      name <- prIdent()
+      name <- prQualified()
       applied <- prAccept(TkPunct, "[")
       args <- if applied { do {
         values <- prSeparated1(prType, ",")
         expect(TkPunct, "]")
-        pure(values)
-      } } else { pure(Nil) }
-      pure(STName(t.pos, name, args))
+        prelude.pure(values)
+      } } else { prelude.pure(Nil) }
+      prelude.pure(STName(t.pos, name, args))
     } }
   }
 }
@@ -537,8 +578,13 @@ func prBlock() Parser[Block] {
 func prBlockRest(pos Pos, stmts List[Stmt]) Parser[Block] {
   do {
     t <- prPeek()
+    following <- prSecond()
     if prMatches(t, TkPunct, "}") { prFail(t.pos, "block must end with an expression") }
-    else if prMatches(t, TkKeyword, "let") { do {
+    else if prMatches(t, TkKeyword, "func") && following.kind == TkIdent { do {
+      f <- prLocalFunc()
+      prSkipSemis()
+      prBlockRest(pos, Cons(SFunc(f), stmts))
+    } } else if prMatches(t, TkKeyword, "let") { do {
       prNext()
       target <- prBinding()
       typ <- prAnnotation()
@@ -550,21 +596,20 @@ func prBlockRest(pos Pos, stmts List[Stmt]) Parser[Block] {
       value <- prExpr()
       prSkipSemis()
       done <- prAccept(TkPunct, "}")
-      if done { pure(Block{pos: pos, stmts: reverse(stmts), result: value}) }
+      if done { prelude.pure(Block{pos: pos, stmts: reverse(stmts), result: value}) }
       else { prBlockRest(pos, Cons(SExpr(value), stmts)) }
     } }
   }
 }
-
 func prAnnotation() Parser[Option[SType]] {
   do {
     yes <- prAccept(TkPunct, ":")
-    if yes { fmap(prType(), Some) } else { pure(None) }
+    if yes { prelude.fmap(prType(), Some) } else { prelude.pure(None) }
   }
 }
 
 func prUpper(name String) Bool {
-  let first = substring(name, 0, 1)
+  let first = string.substring(name, 0, 1)
   first >= "A" && first <= "Z"
 }
 
@@ -578,8 +623,8 @@ func prBinding() Parser[LetTarget] {
     following <- prSecond()
     if t.kind == TkIdent && isLower(t.text) && following.kind == TkPunct &&
        (following.text == "=" || following.text == ":" || following.text == "<-") {
-      fmap(prIdent(), LName)
-    } else { fmap(prPattern(), LPat) }
+      prelude.fmap(prIdent(), LName)
+    } else { prelude.fmap(prPattern(), LPat) }
   }
 }
 
@@ -605,13 +650,13 @@ func prLambdaParam() Parser[Param] {
     if t.kind == TkIdent && !prUpper(t.text) && following.text != "@" { do {
       name <- prIdent()
       end <- prPeek()
-      typ <- if prMatches(end, TkPunct, ",") || prMatches(end, TkPunct, ")") { pure(None) }
-             else { fmap(prType(), Some) }
-      pure(PName(name, typ))
+      typ <- if prMatches(end, TkPunct, ",") || prMatches(end, TkPunct, ")") { prelude.pure(None) }
+             else { prelude.fmap(prType(), Some) }
+      prelude.pure(PName(name, typ))
     } } else { do {
       pat <- prPattern()
       end <- prPeek()
-      if prMatches(end, TkPunct, ",") || prMatches(end, TkPunct, ")") { pure(PParam(pat)) }
+      if prMatches(end, TkPunct, ",") || prMatches(end, TkPunct, ")") { prelude.pure(PParam(pat)) }
       else { prFail(end.pos, "pattern parameters cannot be annotated") }
     } }
   }
@@ -625,12 +670,12 @@ func prLambda() Parser[Expr] {
     expect(TkPunct, ")")
     expect(TkPunct, "=>")
     body <- prExpr()
-    pure(ELambda(t.pos, params, body))
+    prelude.pure(ELambda(t.pos, params, body))
   }
 }
 
 func prBlockExpr() Parser[Expr] {
-  do { block <- prBlock(); pure(EBlock(block.pos, block)) }
+  do { block <- prBlock(); prelude.pure(EBlock(block.pos, block)) }
 }
 
 func prIf() Parser[Expr] {
@@ -641,7 +686,7 @@ func prIf() Parser[Expr] {
     expect(TkKeyword, "else")
     chained <- prIs(TkKeyword, "if")
     no <- if chained { prIf() } else { prBlockExpr() }
-    pure(EIf(t.pos, cond, yes, no))
+    prelude.pure(EIf(t.pos, cond, yes, no))
   }
 }
 
@@ -652,8 +697,13 @@ func prDo(pos Pos) Parser[Expr] {
 func prDoRest(pos Pos, stmts List[DoStmt]) Parser[Expr] {
   do {
     t <- prPeek()
+    following <- prSecond()
     if prMatches(t, TkPunct, "}") { prFail(t.pos, "do block must end with an expression") }
-    else if prMatches(t, TkKeyword, "let") { do {
+    else if prMatches(t, TkKeyword, "func") && following.kind == TkIdent { do {
+      f <- prLocalFunc()
+      prSkipSemis()
+      prDoRest(pos, Cons(DoFunc(f), stmts))
+    } } else if prMatches(t, TkKeyword, "let") { do {
       prNext()
       target <- prBinding()
       typ <- prAnnotation()
@@ -665,7 +715,7 @@ func prDoRest(pos Pos, stmts List[DoStmt]) Parser[Expr] {
       binding <- optional(do {
         target <- prBinding()
         expect(TkPunct, "<-")
-        pure(target)
+        prelude.pure(target)
       })
       match binding {
         Some(target) => do {
@@ -677,14 +727,13 @@ func prDoRest(pos Pos, stmts List[DoStmt]) Parser[Expr] {
           value <- prExpr()
           prSkipSemis()
           done <- prAccept(TkPunct, "}")
-          if done { pure(EDo(pos, reverse(stmts), value)) }
+          if done { prelude.pure(EDo(pos, reverse(stmts), value)) }
           else { prDoRest(pos, Cons(DoExpr(value), stmts)) }
         }
       }
     } }
   }
 }
-
 func prMatch(pos Pos) Parser[Expr] {
   do {
     value <- prExpr()
@@ -696,7 +745,7 @@ func prMatch(pos Pos) Parser[Expr] {
     expect(TkPunct, "}")
     match arms {
       Nil => prFail(pos, "match needs at least one arm")
-      _ => pure(EMatch(pos, value, arms))
+      _ => prelude.pure(EMatch(pos, value, arms))
     }
   }
 }
@@ -706,22 +755,22 @@ func prArmSeparators() Parser[Unit] {
     t <- prPeek()
     if prMatches(t, TkPunct, ";") || prMatches(t, TkPunct, "|") {
       do { prNext(); prArmSeparators() }
-    } else { pure(unit()) }
+    } else { prelude.pure(unit()) }
   }
 }
 
 func prArms() Parser[List[Arm]] {
   do {
     t <- prPeek()
-    if prMatches(t, TkPunct, "}") { pure(Nil) } else { do {
+    if prMatches(t, TkPunct, "}") { prelude.pure(Nil) } else { do {
       pat <- prPattern()
       guarded <- prAccept(TkKeyword, "if")
-      guard <- if guarded { fmap(prExpr(), Some) } else { pure(None) }
+      guard <- if guarded { prelude.fmap(prExpr(), Some) } else { prelude.pure(None) }
       expect(TkPunct, "=>")
       body <- prExpr()
       prArmSeparators()
       rest <- prArms()
-      pure(Cons(Arm{pos: t.pos, pat: pat, guard: guard, body: body}, rest))
+      prelude.pure(Cons(Arm{pos: t.pos, pat: pat, guard: guard, body: body}, rest))
     } }
   }
 }
@@ -731,11 +780,13 @@ func prPattern() Parser[Pattern] {
     t <- prPeek()
     match t.kind {
       TkIdent => prIdentPattern(t)
-      TkInt => do { value <- prInteger(t, "bad integer literal "); pure(PInt(t.pos, value)) }
-      TkString => do { prNext(); pure(PString(t.pos, t.text)) }
+      TkInt => do { value <- prInteger(t, "bad integer literal "); prelude.pure(PInt(t.pos, value)) }
+      TkFloat => do { prFloat(t); prelude.pure(PFloat(t.pos, t.text)) }
+      TkString => do { prNext(); prelude.pure(PString(t.pos, t.text)) }
       TkKeyword if t.text == "true" || t.text == "false" =>
-        do { prNext(); pure(PBool(t.pos, t.text == "true")) }
-      TkPunct if t.text == "_" => do { prNext(); pure(PWild(t.pos)) }
+        do { prNext(); prelude.pure(PBool(t.pos, t.text == "true")) }
+      TkPunct if t.text == "_" => do { prNext(); prelude.pure(PWild(t.pos)) }
+      TkPunct if t.text == "[" => do { prNext(); prListPattern(t.pos) }
       TkPunct if t.text == "(" => do {
         prNext()
         first <- prPattern()
@@ -743,8 +794,8 @@ func prPattern() Parser[Pattern] {
         if tuple { do {
           rest <- prSeparated1(prPattern, ",")
           expect(TkPunct, ")")
-          pure(PTuple(t.pos, Cons(first, rest)))
-        } } else { do { expect(TkPunct, ")"); pure(first) } }
+          prelude.pure(PTuple(t.pos, Cons(first, rest)))
+        } } else { do { expect(TkPunct, ")"); prelude.pure(first) } }
       }
       _ => prFail(t.pos, "expected pattern, found " + prTokenText(t))
     }
@@ -753,29 +804,35 @@ func prPattern() Parser[Pattern] {
 
 func prIdentPattern(t Token) Parser[Pattern] {
   do {
-    prNext()
-    alias <- prAccept(TkPunct, "@")
-    if alias { do {
+    name <- prQualified()
+    prNamedPattern(t{ text: name })
+  }
+}
+
+func prNamedPattern(t Token) Parser[Pattern] {
+  do {
+    bindingAlias <- prAccept(TkPunct, "@")
+    if bindingAlias { do {
       if !isLower(t.text) { prFail(t.pos, "as-pattern name must be a lower-case identifier") }
-      else { pure(unit()) }
+      else { prelude.pure(unit()) }
       pat <- prPattern()
-      pure(PAs(t.pos, t.text, pat))
+      prelude.pure(PAs(t.pos, t.text, pat))
     } } else { do {
       positional <- prAccept(TkPunct, "(")
       if positional { do {
         pats <- prDelimited(prPattern, ")")
         expect(TkPunct, ")")
-        pure(PCtor(t.pos, t.text, pats))
-      } } else if prUpper(t.text) { do {
+        prelude.pure(PCtor(t.pos, t.text, pats))
+      } } else if prUpper(result.fromOption(last(string.split(".", t.text)), "")) { do {
         record <- prAccept(TkPunct, "{")
         if record { do {
           prSkipSemis()
           (fields, rest) <- prRecordPatternFields(Nil)
           expect(TkPunct, "}")
           if length(fields) == 0 && !rest { prFail(t.pos, "record pattern needs fields or ..") }
-          else { pure(PRecord(t.pos, t.text, fields, rest)) }
-        } } else { pure(PCtor(t.pos, t.text, Nil)) }
-      } } else { pure(PVar(t.pos, t.text)) }
+          else { prelude.pure(PRecord(t.pos, t.text, fields, rest)) }
+        } } else { prelude.pure(PCtor(t.pos, t.text, Nil)) }
+      } } else { prelude.pure(PVar(t.pos, t.text)) }
     } }
   }
 }
@@ -783,17 +840,17 @@ func prIdentPattern(t Token) Parser[Pattern] {
 func prRecordPatternFields(seen List[String]) Parser[(List[(String, Pattern)], Bool)] {
   do {
     t <- prPeek()
-    if prMatches(t, TkPunct, "}") { pure((Nil, false)) }
+    if prMatches(t, TkPunct, "}") { prelude.pure((Nil, false)) }
     else if prMatches(t, TkPunct, "..") { do {
       prNext()
       prAccept(TkPunct, ",")
       prSkipSemis()
       done <- prIs(TkPunct, "}")
-      if done { pure((Nil, true)) } else { prFail(t.pos, ".. must be last in record pattern") }
+      if done { prelude.pure((Nil, true)) } else { prFail(t.pos, ".. must be last in record pattern") }
     } } else { do {
       name <- prIdent()
-      if elem(name, seen) { prFail(t.pos, "duplicate field " + name + " in record pattern") }
-      else { pure(unit()) }
+      if list.elem(name, seen) { prFail(t.pos, "duplicate field " + name + " in record pattern") }
+      else { prelude.pure(unit()) }
       expect(TkPunct, ":")
       pat <- prPattern()
       prSkipSemis()
@@ -801,19 +858,20 @@ func prRecordPatternFields(seen List[String]) Parser[(List[(String, Pattern)], B
       (fields, rest) <- if more { do {
         prSkipSemis()
         prRecordPatternFields(Cons(name, seen))
-      } } else { pure((Nil, false)) }
-      pure((Cons((name, pat), fields), rest))
+      } } else { prelude.pure((Nil, false)) }
+      prelude.pure((Cons((name, pat), fields), rest))
     } }
   }
 }
 
 func prPrecedence(op String) Int {
   match op {
-    "||" => 1
-    "&&" => 2
-    "==" => 3 | "!=" => 3 | "<" => 3 | "<=" => 3 | ">" => 3 | ">=" => 3
-    "+" => 4 | "-" => 4
-    "*" => 5 | "/" => 5 | "%" => 5
+    "|>" => 1
+    "||" => 2
+    "&&" => 3
+    "==" => 4 | "!=" => 4 | "<" => 4 | "<=" => 4 | ">" => 4 | ">=" => 4
+    "+" => 5 | "-" => 5
+    "*" => 6 | "/" => 6 | "%" => 6
     _ => 0
   }
 }
@@ -826,10 +884,10 @@ func prBinaryRest(left Expr, minPrec Int) Parser[Expr] {
   do {
     t <- prPeek()
     let prec = prPrecedence(t.text)
-    if t.kind != TkPunct || prec <= minPrec { pure(left) } else { do {
+    if t.kind != TkPunct || prec <= minPrec { prelude.pure(left) } else { do {
       prNext()
       right <- prBinary(prec)
-      prBinaryRest(EBinary(t.pos, t.text, left, right), minPrec)
+      prBinaryRest(if t.text == "|>" { prPipe(t.pos, left, right) } else { EBinary(t.pos, t.text, left, right) }, minPrec)
     } }
   }
 }
@@ -840,16 +898,26 @@ func prUnary() Parser[Expr] {
     if t.kind == TkPunct && (t.text == "-" || t.text == "!") { do {
       prNext()
       value <- prUnary()
-      pure(EUnary(t.pos, t.text, value))
-    } } else { do { value <- prPrimary(); prPostfix(value) } }
+      prelude.pure(EUnary(t.pos, t.text, value))
+    } } else { do { value <- prPrimary(); out <- prPostfix(value); prelude.pure(prProjection(out)) } }
+  }
+}
+
+func prFloat(t Token) Parser[Unit] {
+  do {
+    prNext()
+    match float.parseFloat(t.text) {
+      None => prFail(t.pos, "bad float literal " + t.text)
+      Some(_) => prelude.pure(unit())
+    }
   }
 }
 
 func prInteger(t Token, prefix String) Parser[Int] {
   do {
     prNext()
-    match parseInt(t.text) {
-      Some(value) => pure(value)
+    match string.parseInt(t.text) {
+      Some(value) => prelude.pure(value)
       None => prFail(t.pos, prefix + t.text)
     }
   }
@@ -862,21 +930,21 @@ func prPostfix(value Expr) Parser[Expr] {
       prNext()
       args <- prDelimited(prExpr, ")")
       expect(TkPunct, ")")
-      prPostfix(ECall(t.pos, value, args))
+      prPostfix(prCall(t.pos, value, args))
     } } else if prMatches(t, TkPunct, ".") { do {
       prNext()
       field <- prPeek()
       selected <- if field.kind == TkInt { do {
         index <- prInteger(field, "bad tuple index ")
-        pure(ETupleField(t.pos, value, index))
-      } } else { do { name <- prIdent(); pure(EField(t.pos, value, name)) } }
+        prelude.pure(ETupleField(t.pos, value, index))
+      } } else { do { name <- prIdent(); prelude.pure(EField(t.pos, value, name)) } }
       prPostfix(selected)
     } } else { do {
       record <- prRecordAhead()
       if record { do {
         fields <- prRecordFields()
         prPostfix(ERecordUpdate(t.pos, value, fields))
-      } } else { pure(value) }
+      } } else { prelude.pure(value) }
     } }
   }
 }
@@ -907,7 +975,7 @@ func prRecordAhead() Parser[Bool] {
 }
 
 func prNamedExpr() Parser[(String, Expr)] {
-  do { name <- prIdent(); expect(TkPunct, ":"); value <- prExpr(); pure((name, value)) }
+  do { name <- prIdent(); expect(TkPunct, ":"); value <- prExpr(); prelude.pure((name, value)) }
 }
 
 func prRecordFields() Parser[List[(String, Expr)]] {
@@ -916,21 +984,21 @@ func prRecordFields() Parser[List[(String, Expr)]] {
     prSkipSemis()
     fields <- prNamedFields(prNamedExpr)
     expect(TkPunct, "}")
-    pure(fields)
+    prelude.pure(fields)
   }
 }
 
-func prInterpolation(parts List[InterpPart]) Result[(List[String], List[Expr])] {
+func prInterpolation(parts List[InterpPart]) CompileResult[(List[String], List[Expr])] {
   match parts {
-    Nil => Ok((Nil, Nil))
+    Nil => CompileOk((Nil, Nil))
     Cons(IPText(text), rest) => do {
       (texts, exprs) <- prInterpolation(rest)
-      pure((Cons(text, texts), exprs))
+      prelude.pure((Cons(text, texts), exprs))
     }
     Cons(IPExpr(src, pos), rest) => do {
       value <- parseExprSource(src, pos)
       (texts, exprs) <- prInterpolation(rest)
-      pure((texts, Cons(value, exprs)))
+      prelude.pure((texts, Cons(value, exprs)))
     }
   }
 }
@@ -944,18 +1012,20 @@ func prPrimary() Parser[Expr] {
         record <- prRecordAhead()
         if prUpper(t.text) && record { do {
           fields <- prRecordFields()
-          pure(ERecordLit(t.pos, t.text, fields))
-        } } else { pure(EIdent(t.pos, t.text)) }
+          prelude.pure(ERecordLit(t.pos, t.text, fields))
+        } } else { prelude.pure(EIdent(t.pos, t.text)) }
       }
-      TkInt => do { value <- prInteger(t, "bad integer literal "); pure(EInt(t.pos, value)) }
-      TkString => do { prNext(); pure(EString(t.pos, t.text)) }
+      TkInt => do { value <- prInteger(t, "bad integer literal "); prelude.pure(EInt(t.pos, value)) }
+      TkFloat => do { prFloat(t); prelude.pure(EFloat(t.pos, t.text)) }
+      TkString => do { prNext(); prelude.pure(EString(t.pos, t.text)) }
       TkInterp => do {
         prNext()
         (texts, exprs) <- prLift(prInterpolation(t.parts))
-        pure(EInterp(t.pos, texts, exprs))
+        prelude.pure(EInterp(t.pos, texts, exprs))
       }
       TkKeyword if t.text == "true" || t.text == "false" =>
-        do { prNext(); pure(EBool(t.pos, t.text == "true")) }
+        do { prNext(); prelude.pure(EBool(t.pos, t.text == "true")) }
+      TkPunct if t.text == "_" => do { prNext(); prelude.pure(EIdent(t.pos, "_")) }
       TkPunct if t.text == "(" => do {
         prNext()
         first <- prExpr()
@@ -963,15 +1033,15 @@ func prPrimary() Parser[Expr] {
         if tuple { do {
           rest <- prSeparated1(prExpr, ",")
           expect(TkPunct, ")")
-          pure(ETuple(t.pos, Cons(first, rest)))
-        } } else { do { expect(TkPunct, ")"); pure(first) } }
+          prelude.pure(ETuple(t.pos, Cons(first, rest)))
+        } } else { do { expect(TkPunct, ")"); prelude.pure(prOperatorSection(first)) } }
       }
       TkPunct if t.text == "{" => prBlockExpr()
       TkPunct if t.text == "[" => do {
         prNext()
         elems <- prDelimited(prExpr, "]")
         expect(TkPunct, "]")
-        pure(EList(t.pos, elems))
+        prelude.pure(EList(t.pos, elems))
       }
       _ => prFail(t.pos, "expected expression, found " + prTokenText(t))
     }
@@ -981,11 +1051,11 @@ func prPrimary() Parser[Expr] {
 // Stable, complete S-expression dump for bootstrap/integration diagnostics.
 // Positions and file names are retained; lists and options have explicit nodes.
 func prDumpNode(tag String, fields List[String]) String {
-  "(" + tag + (if length(fields) == 0 { "" } else { " " + join(" ", fields) }) + ")"
+  "(" + tag + (if length(fields) == 0 { "" } else { " " + string.join(" ", fields) }) + ")"
 }
 
 func prDumpList[A](values List[A], render func(A) String) String {
-  prDumpNode("list", fmap(values, render))
+  prDumpNode("list", prelude.fmap(values, render))
 }
 
 func prDumpOption[A](value Option[A], render func(A) String) String {
@@ -1003,7 +1073,7 @@ func prDumpSType(typ SType) String {
 }
 
 func prDumpTypeParam(param TypeParam) String {
-  prDumpNode("type-param", [quote(param.name), show(param.arity), prDumpOption(param.constraint, quote)])
+  prDumpNode("type-param", [quote(param.name), show(param.arity), prDumpList(param.constraints, quote)])
 }
 
 func prDumpParam(param Param) String {
@@ -1023,6 +1093,7 @@ func prDumpPattern(pat Pattern) String {
     PVar(pos, name) => prDumpNode("pat-var", [prDumpPos(pos), quote(name)])
     PWild(pos) => prDumpNode("pat-wild", [prDumpPos(pos)])
     PInt(pos, value) => prDumpNode("pat-int", [prDumpPos(pos), show(value)])
+    PFloat(pos, value) => prDumpNode("pat-float", [prDumpPos(pos), value])
     PString(pos, value) => prDumpNode("pat-string", [prDumpPos(pos), quote(value)])
     PBool(pos, value) => prDumpNode("pat-bool", [prDumpPos(pos), show(value)])
     PTuple(pos, elems) => prDumpNode("pat-tuple", [prDumpPos(pos), prDumpList(elems, prDumpPattern)])
@@ -1044,6 +1115,7 @@ func prDumpStmt(stmt Stmt) String {
     SLet(pos, target, typ, value) => prDumpNode("let", [prDumpPos(pos), prDumpTarget(target),
       prDumpOption(typ, prDumpSType), prDumpExpr(value)])
     SExpr(value) => prDumpNode("stmt", [prDumpExpr(value)])
+    SFunc(f) => prDumpNode("local-func", [prDumpDecl(DeclFunc(f))])
   }
 }
 
@@ -1057,6 +1129,7 @@ func prDumpDo(stmt DoStmt) String {
     DoLet(pos, target, typ, value) => prDumpNode("do-let", [prDumpPos(pos), prDumpTarget(target),
       prDumpOption(typ, prDumpSType), prDumpExpr(value)])
     DoExpr(value) => prDumpNode("do-stmt", [prDumpExpr(value)])
+    DoFunc(f) => prDumpNode("do-func", [prDumpDecl(DeclFunc(f))])
   }
 }
 
@@ -1069,6 +1142,7 @@ func prDumpExpr(expr Expr) String {
   match expr {
     EIdent(pos, name) => prDumpNode("ident", [prDumpPos(pos), quote(name)])
     EInt(pos, value) => prDumpNode("int", [prDumpPos(pos), show(value)])
+    EFloat(pos, value) => prDumpNode("float", [prDumpPos(pos), value])
     EString(pos, value) => prDumpNode("string", [prDumpPos(pos), quote(value)])
     EBool(pos, value) => prDumpNode("bool", [prDumpPos(pos), show(value)])
     EInterp(pos, texts, exprs) => prDumpNode("interp", [prDumpPos(pos), prDumpList(texts, quote), prDumpList(exprs, prDumpExpr)])
@@ -1120,6 +1194,7 @@ func prDumpDecl(decl Decl) String {
       prDumpOption(d.super, quote), prDumpList(d.methods, prDumpMethod)])
     DeclInstance(d) => prDumpNode("instance", [prDumpPos(d.pos), quote(d.className), quote(d.typeCon),
       prDumpList(d.params, quote), prDumpList(d.context, prDumpConstraint), prDumpList(d.methods, prDumpInstMethod)])
+    DeclAlias(d) => prDumpNode("alias", [prDumpPos(d.pos), quote(d.name), prDumpList(d.tparams, quote), prDumpSType(d.body)])
     DeclType(d) => prDumpNode("type", [prDumpPos(d.pos), quote(d.name), prDumpList(d.tparams, quote),
       prDumpList(d.ctors, prDumpCtor), prDumpList(d.derivings, quote)])
     DeclFunc(d) => prDumpNode("func", [prDumpPos(d.pos), quote(d.name), prDumpList(d.tparams, prDumpTypeParam),
@@ -1130,4 +1205,141 @@ func prDumpDecl(decl Decl) String {
 
 func dumpFile(file File) String {
   prDumpNode("file", [quote(file.pkg), quote(file.name), prDumpList(file.decls, prDumpDecl)])
+}
+
+func prHole(e Expr) Bool { match e { EIdent(_, "_") => true | _ => false } }
+func prHoleName(pos Pos, n Int) String { "section_${pos.line}_${pos.col}_${n}" }
+func prCall(pos Pos, fun Expr, args List[Expr]) Expr {
+  let holes = filter(zipWithIndex(args), func(p) => prHole(snd(p)))
+  let names = map(holes, func(p) => prHoleName(pos, fst(p)))
+  let values = map(zipWithIndex(args), func(p) => if prHole(snd(p)) { EIdent(pos, prHoleName(pos, fst(p))) } else { snd(p) })
+  let call = ECall(pos, fun, values)
+  if length(holes) == 0 { call } else { ELambda(pos, map(names, func(n) => PName(n, None)), call) }
+}
+func prPipe(pos Pos, left Expr, right Expr) Expr {
+  match right {
+    ECall(p, f, args) => ECall(p, f, Cons(left, args))
+    _ => ECall(pos, right, [left])
+  }
+}
+func prOperatorSection(expr Expr) Expr {
+  match expr {
+    EBinary(p, op, a, b) if prHole(a) || prHole(b) => {
+      let an = prHoleName(p, 0)
+      let bn = prHoleName(p, 1)
+      let params = append(if prHole(a) { [PName(an, None)] } else { Nil }, if prHole(b) { [PName(bn, None)] } else { Nil })
+      ELambda(p, params, EBinary(p, op, if prHole(a) { EIdent(p, an) } else { a }, if prHole(b) { EIdent(p, bn) } else { b }))
+    }
+    ECall(p, f, Cons(a, rest)) if prHole(a) => {
+      let name = prHoleName(p, 0)
+      ELambda(p, [PName(name, None)], ECall(p, f, Cons(EIdent(p, name), rest)))
+    }
+    _ => expr
+  }
+}
+func prProjectionRoot(expr Expr) Bool {
+  match expr {
+    EIdent(_, "_") => true
+    EField(_, e, _) => prProjectionRoot(e)
+    ETupleField(_, e, _) => prProjectionRoot(e)
+    _ => false
+  }
+}
+func prProjectionBody(expr Expr, name String) Expr {
+  match expr {
+    EIdent(p, "_") => EIdent(p, name)
+    EField(p, e, f) => EField(p, prProjectionBody(e, name), f)
+    ETupleField(p, e, i) => ETupleField(p, prProjectionBody(e, name), i)
+    _ => expr
+  }
+}
+func prProjection(expr Expr) Expr {
+  if !prHole(expr) && prProjectionRoot(expr) {
+    let p = exprPos(expr)
+    let name = prHoleName(p, 0)
+    ELambda(p, [PName(name, None)], prProjectionBody(expr, name))
+  } else { expr }
+}
+func prListPattern(pos Pos) Parser[Pattern] {
+  do {
+    end <- prAccept(TkPunct, "]")
+    if end { prelude.pure(PCtor(pos, "Nil", Nil)) } else { do {
+      spread <- prAccept(TkPunct, "..")
+      if spread { do {
+        end <- prIs(TkPunct, "]")
+        rest <- if end { prelude.pure(PWild(pos)) } else { prPattern() }
+        prAccept(TkPunct, ",")
+        expect(TkPunct, "]")
+        prelude.pure(rest)
+      } } else { do {
+        item <- prPattern()
+        comma <- prAccept(TkPunct, ",")
+        rest <- if comma { prListPattern(pos) } else { do { expect(TkPunct, "]"); prelude.pure(PCtor(pos, "Nil", Nil)) } }
+        prelude.pure(PCtor(pos, "Cons", [item, rest]))
+      } }
+    } }
+  }
+}
+
+func prErasedDecl() Parser[Unit] {
+  do {
+    keyword <- prNext()
+    prIdent()
+    if keyword.text == "law" { do {
+      prParams()
+      block <- prBlock()
+      if length(block.stmts) == 0 && (match block.result { EBinary(_, "==", _, _) => true | _ => false }) { prelude.pure(unit()) }
+      else { prFail(keyword.pos, "law body must be an equation") }
+    } } else { do {
+      expect(TkPunct, "(")
+      prDelimited(prIdent, ")")
+      expect(TkPunct, ")")
+      prTacticBlock()
+    } }
+  }
+}
+func prTacticBlock() Parser[Unit] {
+  do { expect(TkPunct, "{"); prSkipSemis(); prTactic(); prSkipSemis(); expect(TkPunct, "}"); prelude.pure(unit()) }
+}
+func prTactic() Parser[Unit] {
+  do {
+    t <- prNext()
+    match t.text {
+      "refl" => prelude.pure(unit())
+      "match" => do { prIdent(); expect(TkPunct, "{"); prTacticArms(); expect(TkPunct, "}"); prelude.pure(unit()) }
+      "if" => do { prExpr(); prTacticBlock(); expect(TkKeyword, "else"); prTacticBlock() }
+      "rewrite" => do { prQualified(); expect(TkPunct, "("); prDelimited(prExpr, ")"); expect(TkPunct, ")"); prTacticBlock() }
+      _ => prFail(t.pos, "expected proof tactic, found " + prTokenText(t))
+    }
+  }
+}
+func prTacticArms() Parser[Unit] {
+  do {
+    prArmSeparators()
+    end <- prIs(TkPunct, "}")
+    if end { prelude.pure(unit()) } else { do { prPattern(); expect(TkPunct, "=>"); prTactic(); prTacticArms() } }
+  }
+}
+
+func prAliasDecl() Parser[Decl] {
+  do {
+    t <- prNext()
+    name <- prIdent()
+    applied <- prAccept(TkPunct, "[")
+    params <- if applied { do { ps <- prSeparated1(prIdent, ","); expect(TkPunct, "]"); prelude.pure(ps) } } else { prelude.pure(Nil) }
+    expect(TkPunct, "=")
+    body <- prType()
+    prelude.pure(DeclAlias(AliasDecl{pos: t.pos, name: name, tparams: params, body: body}))
+  }
+}
+
+func prLocalFunc() Parser[FuncDecl] {
+  do {
+    decl <- prFuncDecl(false)
+    match decl {
+      DeclFunc(f) if length(f.tparams) == 0 => prelude.pure(f)
+      DeclFunc(f) => prFail(f.pos, "local functions cannot declare type parameters")
+      _ => prFail(noPos(), "expected local function")
+    }
+  }
 }

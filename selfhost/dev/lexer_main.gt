@@ -1,5 +1,10 @@
 package main
 
+import "std/list"
+import "std/result"
+import "std/string"
+import "std/io"
+
 extern func readFile(p String) IO[String] = "go4t/rt".ReadFile
 
 func lexerPrintPart(part InterpPart) IO[Unit] {
@@ -11,10 +16,10 @@ func lexerPrintPart(part InterpPart) IO[Unit] {
 
 func lexerPrintSource(src String, base Pos) IO[Unit] {
   match lex(src, base) {
-    Err(d) => println("ERROR ${d.pos.line}:${d.pos.col}: ${d.msg}")
-    Ok(tokens) => forEach(tokens, func(t) => do {
+    CompileErr(d) => println("ERROR ${d.pos.line}:${d.pos.col}: ${d.msg}")
+    CompileOk(tokens) => list.forEach(tokens, func(t) => do {
       println("${t.pos.line}:${t.pos.col} ${show(t.kind)} " + quote(t.text))
-      forEach(t.parts, lexerPrintPart)
+      list.forEach(t.parts, lexerPrintPart)
     })
   }
 }
@@ -53,24 +58,24 @@ func lexerInlineCases() List[(String, String)] {
 
 func main() IO[Unit] {
   do {
-    paths <- args()
+    paths <- io.args()
     match paths {
       Cons("--stdin", Nil) => do {
-        src <- readAll()
+        src <- io.readAll()
         lexerPrintSource(src, Pos{line: 1, col: 1})
       }
       Cons("--base", Cons(line, Cons(col, Nil))) => do {
-        src <- readAll()
-        lexerPrintSource(src, Pos{line: fromOption(parseInt(line), 1), col: fromOption(parseInt(col), 1)})
+        src <- io.readAll()
+        lexerPrintSource(src, Pos{line: result.fromOption(string.parseInt(line), 1), col: result.fromOption(string.parseInt(col), 1)})
       }
       Nil => do {
         lexerPrintFile("examples/parser/main.gt")
-        forEach(lexerInlineCases(), func(entry) => do {
+        list.forEach(lexerInlineCases(), func(entry) => do {
           println("== " + fst(entry))
           lexerPrintSource(snd(entry), Pos{line: 1, col: 1})
         })
       }
-      _ => forEach(paths, lexerPrintFile)
+      _ => list.forEach(paths, lexerPrintFile)
     }
   }
 }

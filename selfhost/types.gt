@@ -1,5 +1,10 @@
 package main
 
+import "std/prelude"
+import "std/list"
+import "std/result"
+import "std/string"
+
 // Semantic type operations. CheckState.subst is the only source of meta links.
 // Ported from types/unify.go, types/check.go:366-425 and types/let.go:19-74,
 // 151-209. Generalization leaves source metas untouched; its caller decides
@@ -8,12 +13,12 @@ package main
 func typesKindString(k Kind) String {
   match k {
     KStar => "*"
-    KArrow(n) => if n <= 0 { "() -> *" } else { "(" + repeat("*, ", n - 1) + "*) -> *" }
+    KArrow(n) => if n <= 0 { "() -> *" } else { "(" + string.repeat("*, ", n - 1) + "*) -> *" }
   }
 }
 
 func typesRequireKind(pos Pos, got Kind, want Kind) Check[Unit] {
-  if got == want { pure(unit()) }
+  if got == want { prelude.pure(unit()) }
   else { checkFail(pos, "kind mismatch: got ${typesKindString(got)}, want ${typesKindString(want)}") }
 }
 
@@ -36,8 +41,8 @@ func typeString(t Type) String {
     TCon(name, _) => name
     TVar(name, _) => name
     TMeta(id, _) => "?${id}"
-    TApp(fun, args) => typeString(fun) + "[" + join(", ", fmap(args, typeString)) + "]"
-    TFunc(params, ret) => "func(" + join(", ", fmap(params, typeString)) + ") " + typeString(ret)
+    TApp(fun, args) => typeString(fun) + "[" + string.join(", ", prelude.fmap(args, typeString)) + "]"
+    TFunc(params, ret) => "func(" + string.join(", ", prelude.fmap(params, typeString)) + ") " + typeString(ret)
   }
 }
 
@@ -46,25 +51,25 @@ func zonk(t Type) Check[Type] {
     TMeta(id, _) => do {
       link <- lookupMeta(id)
       match link {
-        None => pure(t)
+        None => prelude.pure(t)
         Some(bound) => do {
           resolved <- zonk(bound)
           bindMeta(id, resolved)
-          pure(resolved)
+          prelude.pure(resolved)
         }
       }
     }
     TApp(fun, args) => do {
       resolvedFun <- zonk(fun)
       resolvedArgs <- mapMCheck(args, zonk)
-      pure(tApp(resolvedFun, resolvedArgs))
+      prelude.pure(tApp(resolvedFun, resolvedArgs))
     }
     TFunc(params, ret) => do {
       resolvedParams <- mapMCheck(params, zonk)
       resolvedRet <- zonk(ret)
-      pure(TFunc(resolvedParams, resolvedRet))
+      prelude.pure(TFunc(resolvedParams, resolvedRet))
     }
-    _ => pure(t)
+    _ => prelude.pure(t)
   }
 }
 
@@ -75,15 +80,15 @@ func typesPrune(t Type) Check[Type] {
     TMeta(id, _) => do {
       link <- lookupMeta(id)
       match link {
-        None => pure(t)
+        None => prelude.pure(t)
         Some(bound) => do {
           resolved <- typesPrune(bound)
           bindMeta(id, resolved)
-          pure(resolved)
+          prelude.pure(resolved)
         }
       }
     }
-    _ => pure(t)
+    _ => prelude.pure(t)
   }
 }
 
@@ -93,36 +98,36 @@ func typesNormalize(t Type) Check[Type] { do {
     TApp(fun, args) => do {
       resolvedFun <- typesNormalize(fun)
       match resolvedFun {
-        TApp(_, _) => pure(tApp(resolvedFun, args))
-        _ => if fun == resolvedFun { pure(resolved) } else { pure(tApp(resolvedFun, args)) }
+        TApp(_, _) => prelude.pure(tApp(resolvedFun, args))
+        _ => if fun == resolvedFun { prelude.pure(resolved) } else { prelude.pure(tApp(resolvedFun, args)) }
       }
     }
-    _ => pure(resolved)
+    _ => prelude.pure(resolved)
   }
 } }
 
 func typesOccurs(id Int, t Type) Check[Bool] { do {
   resolved <- typesPrune(t)
   match resolved {
-    TMeta(other, _) => pure(id == other)
+    TMeta(other, _) => prelude.pure(id == other)
     TApp(fun, args) => do {
       inHead <- typesOccurs(id, fun)
-      if inHead { pure(true) } else { typesOccursAny(id, args) }
+      if inHead { prelude.pure(true) } else { typesOccursAny(id, args) }
     }
     TFunc(params, ret) => do {
       inParams <- typesOccursAny(id, params)
-      if inParams { pure(true) } else { typesOccurs(id, ret) }
+      if inParams { prelude.pure(true) } else { typesOccurs(id, ret) }
     }
-    _ => pure(false)
+    _ => prelude.pure(false)
   }
 } }
 
 func typesOccursAny(id Int, ts List[Type]) Check[Bool] {
   match ts {
-    Nil => pure(false)
+    Nil => prelude.pure(false)
     Cons(t, rest) => do {
       found <- typesOccurs(id, t)
-      if found { pure(true) } else { typesOccursAny(id, rest) }
+      if found { prelude.pure(true) } else { typesOccursAny(id, rest) }
     }
   }
 }
@@ -134,7 +139,7 @@ func typesBind(pos Pos, id Int, typ Type) Check[Bool] { do {
     checkFail(pos, "occurs check: ?${id} occurs in ${typeString(resolved)}")
   } } else { do {
     bindMeta(id, typ)
-    pure(true)
+    prelude.pure(true)
   } }
 } }
 
@@ -142,7 +147,7 @@ func typesBind(pos Pos, id Int, typ Type) Check[Bool] { do {
 // Occurs/kind failures keep their specific diagnostics (unify.go:106-171).
 func unify(pos Pos, expected Type, actual Type) Check[Unit] { do {
   matched <- typesUnify(pos, expected, actual)
-  if matched { pure(unit()) } else { do {
+  if matched { prelude.pure(unit()) } else { do {
     e <- zonk(expected)
     a <- zonk(actual)
     checkFail(pos, "type mismatch: expected ${typeString(e)}, got ${typeString(a)}")
@@ -154,56 +159,56 @@ func typesUnify(pos Pos, expected Type, actual Type) Check[Bool] { do {
   a <- typesNormalize(actual)
   typesRequireKind(pos, kindOf(a), kindOf(e))
   match (e, a) {
-    (TMeta(id, _), TMeta(other, _)) if id == other => pure(true)
+    (TMeta(id, _), TMeta(other, _)) if id == other => prelude.pure(true)
     (TMeta(id, _), _) => typesBind(pos, id, a)
     (_, TMeta(id, _)) => typesBind(pos, id, e)
-    (TCon(name, _), TCon(other, _)) => pure(name == other)
-    (TVar(name, _), TVar(other, _)) => pure(name == other)
+    (TCon(name, _), TCon(other, _)) => prelude.pure(name == other)
+    (TVar(name, _), TVar(other, _)) => prelude.pure(name == other)
     (TApp(ef, ea), TApp(af, aa)) => {
       let extra = length(ea) - length(aa)
       if extra > 0 {
-        typesUnifyApps(pos, tApp(ef, take(extra, ea)), drop(extra, ea), af, aa)
+        typesUnifyApps(pos, tApp(ef, list.take(extra, ea)), list.drop(extra, ea), af, aa)
       } else if extra < 0 {
-        typesUnifyApps(pos, ef, ea, tApp(af, take(-extra, aa)), drop(-extra, aa))
+        typesUnifyApps(pos, ef, ea, tApp(af, list.take(-extra, aa)), list.drop(-extra, aa))
       } else { typesUnifyApps(pos, ef, ea, af, aa) }
     }
     (TFunc(ep, er), TFunc(ap, ar)) =>
-      if length(ep) != length(ap) { pure(false) } else { do {
+      if length(ep) != length(ap) { prelude.pure(false) } else { do {
         paramsMatch <- typesUnifyList(pos, ep, ap)
-        if paramsMatch { typesUnify(pos, er, ar) } else { pure(false) }
+        if paramsMatch { typesUnify(pos, er, ar) } else { prelude.pure(false) }
       } }
-    _ => pure(false)
+    _ => prelude.pure(false)
   }
 } }
 
 func typesUnifyApps(pos Pos, ef Type, ea List[Type], af Type, aa List[Type]) Check[Bool] { do {
   headsMatch <- typesUnify(pos, ef, af)
-  if headsMatch { typesUnifyList(pos, ea, aa) } else { pure(false) }
+  if headsMatch { typesUnifyList(pos, ea, aa) } else { prelude.pure(false) }
 } }
 
 func typesUnifyList(pos Pos, expected List[Type], actual List[Type]) Check[Bool] {
   match (expected, actual) {
-    (Nil, Nil) => pure(true)
+    (Nil, Nil) => prelude.pure(true)
     (Cons(e, es), Cons(a, as)) => do {
       matched <- typesUnify(pos, e, a)
-      if matched { typesUnifyList(pos, es, as) } else { pure(false) }
+      if matched { typesUnifyList(pos, es, as) } else { prelude.pure(false) }
     }
-    _ => pure(false)
+    _ => prelude.pure(false)
   }
 }
 
-func substTVars(mapping Map[String, Type], t Type) Type {
+func substTVars(mapping TreeMap[String, Type], t Type) Type {
   match t {
-    TVar(name, _) => fromOption(mapLookup(mapping, name), t)
-    TApp(fun, args) => tApp(substTVars(mapping, fun), fmap(args, func(arg) => substTVars(mapping, arg)))
-    TFunc(params, ret) => TFunc(fmap(params, func(param) => substTVars(mapping, param)), substTVars(mapping, ret))
+    TVar(name, _) => result.fromOption(mapLookup(mapping, name), t)
+    TApp(fun, args) => tApp(substTVars(mapping, fun), prelude.fmap(args, func(arg) => substTVars(mapping, arg)))
+    TFunc(params, ret) => TFunc(prelude.fmap(params, func(param) => substTVars(mapping, param)), substTVars(mapping, ret))
     _ => t
   }
 }
 
 // Accumulate ids in a tree for ascending unique freeMetas, and collect kinds
 // in a separate left-to-right traversal for first-appearance generalization.
-func typesMetaSet(t Type, found Map[Int, Kind]) Map[Int, Kind] {
+func typesMetaSet(t Type, found TreeMap[Int, Kind]) TreeMap[Int, Kind] {
   match t {
     TMeta(id, k) => mapInsert(found, id, k)
     TApp(fun, args) => fold(args, typesMetaSet(fun, found), func(acc, arg) => typesMetaSet(arg, acc))
@@ -214,26 +219,26 @@ func typesMetaSet(t Type, found Map[Int, Kind]) Map[Int, Kind] {
 
 func freeMetas(t Type) Check[List[Int]] { do {
   resolved <- zonk(t)
-  pure(mapKeys(typesMetaSet(resolved, MEmpty)))
+  prelude.pure(mapKeys(typesMetaSet(resolved, MEmpty)))
 } }
 
 func instantiate(sch Scheme) Check[(Type, List[(String, Type)])] { do {
   entries <- mapMCheck(sch.tparams, func(param) => do {
     meta <- freshMeta(snd(param))
-    pure((fst(param), meta))
+    prelude.pure((fst(param), meta))
   })
   let mapping = mapFromList(entries)
-  let constraints = fmap(sch.constraints, func(c) =>
+  let constraints = prelude.fmap(sch.constraints, func(c) =>
     (fst(c), substTVars(mapping, TVar(snd(c), KStar))))
-  pure((substTVars(mapping, sch.typ), constraints))
+  prelude.pure((substTVars(mapping, sch.typ), constraints))
 } }
 
-type TypesGeneralization = TypesGeneralization{mapping: Map[Int, Type], revParams: List[(String, Kind)], next: Int}
+type TypesGeneralization = TypesGeneralization{mapping: TreeMap[Int, Type], revParams: List[(String, Kind)], next: Int}
 
 func typesGeneralizeMetas(t Type, fixed List[Int], collected TypesGeneralization) TypesGeneralization {
   match t {
     TMeta(id, k) =>
-      if elem(id, fixed) || mapMember(collected.mapping, id) { collected }
+      if list.elem(id, fixed) || mapMember(collected.mapping, id) { collected }
       else {
         let name = "t${collected.next}"
         TypesGeneralization{
@@ -251,27 +256,27 @@ func typesGeneralizeList(ts List[Type], fixed List[Int], collected TypesGenerali
   fold(ts, collected, func(acc, t) => typesGeneralizeMetas(t, fixed, acc))
 }
 
-func typesReplaceMetas(mapping Map[Int, Type], t Type) Type {
+func typesReplaceMetas(mapping TreeMap[Int, Type], t Type) Type {
   match t {
-    TMeta(id, _) => fromOption(mapLookup(mapping, id), t)
-    TApp(fun, args) => tApp(typesReplaceMetas(mapping, fun), fmap(args, func(arg) => typesReplaceMetas(mapping, arg)))
-    TFunc(params, ret) => TFunc(fmap(params, func(param) => typesReplaceMetas(mapping, param)), typesReplaceMetas(mapping, ret))
+    TMeta(id, _) => result.fromOption(mapLookup(mapping, id), t)
+    TApp(fun, args) => tApp(typesReplaceMetas(mapping, fun), prelude.fmap(args, func(arg) => typesReplaceMetas(mapping, arg)))
+    TFunc(params, ret) => TFunc(prelude.fmap(params, func(param) => typesReplaceMetas(mapping, param)), typesReplaceMetas(mapping, ret))
     _ => t
   }
 }
 
-func typesGeneralizeConstraints(constraints List[(String, Type)], mapping Map[Int, Type]) Check[(List[(String, String)], List[(String, Type)])] {
+func typesGeneralizeConstraints(constraints List[(String, Type)], mapping TreeMap[Int, Type]) Check[(List[(String, String)], List[(String, Type)])] {
   match constraints {
-    Nil => pure((Nil, Nil))
+    Nil => prelude.pure((Nil, Nil))
     Cons(c, rest) => do {
       arg <- zonk(snd(c))
       restResult <- typesGeneralizeConstraints(rest, mapping)
       match arg {
         TMeta(id, _) => match mapLookup(mapping, id) {
-          Some(TVar(name, _)) => pure((Cons((fst(c), name), fst(restResult)), snd(restResult)))
-          _ => pure((fst(restResult), Cons(c, snd(restResult))))
+          Some(TVar(name, _)) => prelude.pure((Cons((fst(c), name), fst(restResult)), snd(restResult)))
+          _ => prelude.pure((fst(restResult), Cons(c, snd(restResult))))
         }
-        _ => pure((fst(restResult), Cons(c, snd(restResult))))
+        _ => prelude.pure((fst(restResult), Cons(c, snd(restResult))))
       }
     }
   }
@@ -286,53 +291,69 @@ func generalize(fixed List[Int], constraints List[(String, Type)], t Type) Check
     tparams: reverse(collected.revParams), constraints: fst(splitConstraints),
     typ: typesReplaceMetas(mapping, resolved)
   }
-  pure((sch, snd(splitConstraints)))
+  prelude.pure((sch, snd(splitConstraints)))
 } }
 
-func typesValueType(scope Map[String, Type], t SType) Check[Type] { do {
+func typesValueType(scope TreeMap[String, Type], t SType) Check[Type] { do {
   resolved <- resolveSType(scope, t)
   typesRequireKind(stypePos(t), kindOf(resolved), KStar)
-  pure(resolved)
+  prelude.pure(resolved)
 } }
 
-func typesResolveName(scope Map[String, Type], pos Pos, name String) Check[Type] {
+func typesResolveName(scope TreeMap[String, Type], pos Pos, name String) Check[Type] {
   match mapLookup(scope, name) {
     Some(t) => zonk(t)
     None => do {
       env <- askEnv()
       match mapLookup(env.typeKinds, name) {
-        Some(k) => pure(TCon(name, k))
+        Some(k) => prelude.pure(TCon(name, k))
         None => checkFail(pos, "unknown type ${name}")
       }
     }
   }
 }
 
-func resolveSType(scope Map[String, Type], t SType) Check[Type] {
+func resolveSType(scope TreeMap[String, Type], t SType) Check[Type] {
+  resolveSTypeVisited(scope, t, Nil)
+}
+
+func typesValueVisited(scope TreeMap[String, Type], t SType, seen List[String]) Check[Type] {
+  do {
+    resolved <- resolveSTypeVisited(scope, t, seen)
+    typesRequireKind(stypePos(t), kindOf(resolved), KStar)
+    prelude.pure(resolved)
+  }
+}
+
+func resolveSTypeVisited(scope TreeMap[String, Type], t SType, seen List[String]) Check[Type] {
   match t {
     STName(pos, name, args) => do {
-      base <- typesResolveName(scope, pos, name)
-      match args {
-        Nil => pure(base)
-        _ => if length(args) > kindArity(kindOf(base)) {
-          checkFail(pos, "kind mismatch applying ${name} to ${length(args)} arguments")
-        } else { do {
-          resolvedArgs <- mapMCheck(args, func(arg) => typesValueType(scope, arg))
-          pure(tApp(base, resolvedArgs))
-        } }
+      env <- askEnv()
+      match (mapLookup(env.aliases, name), mapLookup(scope, name)) {
+        (Some(a), None) => do {
+          whenCheck(list.elem(name, seen), checkFail(pos, "type alias cycle involving ${name}"))
+          whenCheck(length(args) != length(a.tparams), checkFail(pos, "alias ${name} requires ${length(a.tparams)} type arguments"))
+          resolved <- mapMCheck(args, func(arg) => typesValueVisited(scope, arg, seen))
+          resolveSTypeVisited(mapFromList(list.zip(a.tparams, resolved)), a.body, Cons(name, seen))
+        }
+        _ => do {
+          base <- typesResolveName(scope, pos, name)
+          whenCheck(length(args) > kindArity(kindOf(base)), checkFail(pos, "kind mismatch applying ${name} to ${length(args)} arguments"))
+          resolved <- mapMCheck(args, func(arg) => typesValueVisited(scope, arg, seen))
+          prelude.pure(tApp(base, resolved))
+        }
       }
     }
     STFunc(_, params, ret) => do {
-      resolvedRet <- typesValueType(scope, ret)
-      resolvedParams <- mapMCheck(params, func(param) => typesValueType(scope, param))
-      pure(TFunc(resolvedParams, resolvedRet))
+      resultType <- typesValueVisited(scope, ret, seen)
+      parameters <- mapMCheck(params, func(param) => typesValueVisited(scope, param, seen))
+      prelude.pure(TFunc(parameters, resultType))
     }
-    STTuple(pos, elems) => if length(elems) < 2 {
-      checkFail(pos, "tuple arity must be >= 2")
-    } else { do {
-      resolvedElems <- mapMCheck(elems, func(item) => typesValueType(scope, item))
-      pure(tTuple(resolvedElems))
-    } }
+    STTuple(pos, elems) => do {
+      whenCheck(length(elems) < 2, checkFail(pos, "tuple arity must be >= 2"))
+      fields <- mapMCheck(elems, func(item) => typesValueVisited(scope, item, seen))
+      prelude.pure(tTuple(fields))
+    }
   }
 }
 
@@ -342,17 +363,17 @@ func resolveSType(scope Map[String, Type], t SType) Check[Type] {
 // leave the established CheckState.warnings convention intact.
 type TypesDefault = TypesDefault{meta: Type, pos: Pos, what: String}
 
-func typesDefaultOrigin(origins Map[Int, (Pos, String)], id Int) Check[(Pos, String)] {
+func typesDefaultOrigin(origins TreeMap[Int, (Pos, String)], id Int) Check[(Pos, String)] {
   match mapLookup(origins, id) {
-    Some(origin) => pure(origin)
+    Some(origin) => prelude.pure(origin)
     None => checkFail(noPos(), "missing default origin for ?${id}")
   }
 }
 
-func typesCheckDefaultConstraint(origins Map[Int, (Pos, String)], constraint (String, Type)) Check[Unit] { do {
+func typesCheckDefaultConstraint(origins TreeMap[Int, (Pos, String)], constraint (String, Type)) Check[Unit] { do {
   arg <- zonk(snd(constraint))
   match mapKeys(typesMetaSet(arg, MEmpty)) {
-    Nil => pure(unit())
+    Nil => prelude.pure(unit())
     Cons(id, _) => do {
       origin <- typesDefaultOrigin(origins, id)
       checkFail(fst(origin), "unresolved class constraint ${fst(constraint)}[${typeString(arg)}]")
@@ -367,17 +388,17 @@ func typesDefaultOne(entry TypesDefault) Check[Unit] {
       bindMeta(id, tUnit())
     }
     TMeta(_, k) => checkFail(entry.pos, "cannot infer type constructor of kind ${typesKindString(k)}")
-    _ => pure(unit())
+    _ => prelude.pure(unit())
   }
 }
 
-func defaultMetas(metas List[Type], origins Map[Int, (Pos, String)], constraints List[(String, Type)]) Check[Unit] { do {
+func defaultMetas(metas List[Type], origins TreeMap[Int, (Pos, String)], constraints List[(String, Type)]) Check[Unit] { do {
   forEachCheck(constraints, func(constraint) => typesCheckDefaultConstraint(origins, constraint))
   resolved <- mapMCheck(metas, zonk)
   let remaining = fold(resolved, MEmpty, func(found, t) => typesMetaSet(t, found))
   defaults <- mapMCheck(mapToList(remaining), func(entry) => do {
     origin <- typesDefaultOrigin(origins, fst(entry))
-    pure(TypesDefault{meta: TMeta(fst(entry), snd(entry)), pos: fst(origin), what: snd(origin)})
+    prelude.pure(TypesDefault{meta: TMeta(fst(entry), snd(entry)), pos: fst(origin), what: snd(origin)})
   })
-  forEachCheck(sortBy(defaults, func(a, b) => compare(a.pos, b.pos)), typesDefaultOne)
+  forEachCheck(list.sortBy(defaults, func(a, b) => compare(a.pos, b.pos)), typesDefaultOne)
 } }
