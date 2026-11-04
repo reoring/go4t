@@ -1,0 +1,409 @@
+package decide
+
+import "std/dyn"
+import "std/io"
+import "std/list"
+import "std/map"
+import "std/result"
+import "std/string"
+import strings "go:strings"
+import time "go:time"
+import meta "go:k8s.io/apimachinery/pkg/apis/meta/v1"
+import unstructured "go:k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+import schema "go:k8s.io/apimachinery/pkg/runtime/schema"
+import types "go:k8s.io/apimachinery/pkg/types"
+import client "go:sigs.k8s.io/controller-runtime/pkg/client"
+
+type Publication = Publication{
+  phase: String, conditionStatus: String, reason: String, message: String, requeueNanos: Int
+} deriving Eq, Debug
+
+type WorkflowEvent = WorkflowEvent{eventType: String, reason: String, message: String} deriving Eq, Debug
+type Outcome = Outcome{requeueNanos: Int, events: List[WorkflowEvent]} deriving Eq, Debug
+
+func publish(verdict Verdict) Publication {
+  match verdict {
+    Rejected(reason, message) => Publication("Rejected", "False", show(reason), message, 0)
+    Expired(reason, message) => Publication("Expired", "False", show(reason), message, 0)
+    Superseded(reason, message) => Publication("Superseded", "False", show(reason), message, 0)
+    Pending(reason, message, nanos) => Publication("Pending", "Unknown", show(reason), message, nanos)
+    Accepted(nanos) => Publication("Accepted", "True", show(ApprovalAccepted), "Storage approval matches current resize plan evidence", nanos)
+  }
+}
+
+func condition(approval unstructured.Unstructured, conditionType String, status String, reason String, message String) IO[meta.Condition] {
+  do {
+    generation <- unstructured.unstructuredGetGeneration(approval)
+    meta.Condition{
+      type_: conditionType, status: status, observedGeneration: generation,
+      lastTransitionTime: dyn.Str(time.timeFormat(time.now(), time.rFC3339())), reason: reason, message: message
+    }
+  }
+}
+
+// Like meta.SetStatusCondition, replace only the first matching type and keep
+// its transition time unless Status changes. The Go pointer-to-slice binding
+// copies its argument, so returning the updated immutable list is intentional.
+func setCondition(conditions List[meta.Condition], next meta.Condition) List[meta.Condition] {
+  match conditions {
+    Nil => [next]
+    Cons(current, rest) if current.type_ == next.type_ =>
+      Cons(if current.status == next.status { next{lastTransitionTime: current.lastTransitionTime} } else { next }, rest)
+    Cons(current, rest) => Cons(current, setCondition(rest, next))
+  }
+}
+
+func _existingCondition(raw dyn.Value) IO[Option[meta.Condition]] {
+  let conditionType = _nestedString(raw, ["type"])
+  let status = _nestedString(raw, ["status"])
+  let reason = _nestedString(raw, ["reason"])
+  if conditionType == "" || status == "" || reason == "" {
+    ioPure(None)
+  } else {
+    do {
+      timestamp <- _conditionTimestamp(_nestedString(raw, ["lastTransitionTime"]))
+      Some(meta.Condition{
+        type_: conditionType, status: status, reason: reason,
+        message: _nestedString(raw, ["message"]),
+        observedGeneration: result.fromOption(_nestedInt(raw, ["observedGeneration"]), 0),
+        lastTransitionTime: timestamp
+      })
+    }
+  }
+}
+
+func _existingConditions(items List[dyn.Value]) IO[List[meta.Condition]] {
+  match items {
+    Nil => ioPure(Nil)
+    Cons(raw, rest) => do {
+      current <- _existingCondition(raw)
+      remaining <- _existingConditions(rest)
+      match current { Some(c) => Cons(c, remaining); None => remaining }
+    }
+  }
+}
+
+func _conditionFields(c meta.Condition) dyn.Value {
+  dyn.Map(map.mapFromList([
+    ("type", dyn.Str(c.type_)), ("status", dyn.Str(c.status)),
+    ("observedGeneration", dyn.Int(c.observedGeneration)),
+    ("lastTransitionTime", c.lastTransitionTime),
+    ("reason", dyn.Str(c.reason)), ("message", dyn.Str(c.message))
+  ]))
+}
+
+// Validate with Go's parser, then render the same RFC3339 wall time and offset.
+// Passing an existing value through metav1.Time's JSON scalar would instead
+// call UnmarshalJSON, which converts it to time.Local before Format.
+func _conditionTimestamp(text String) IO[dyn.Value] {
+  do {
+    parsed <- io.tryIO(time.parse(time.rFC3339(), text))
+    match parsed {
+      Err(_) => dyn.Str("0001-01-01T00:00:00Z")
+      Ok(_) => {
+        let (date, clockAndZone, _) = strings.cut(text, "T")
+        let zoneStart = strings.indexAny(clockAndZone, "Z+-")
+        let clock = string.substring(clockAndZone, 0, zoneStart)
+        let zone = string.substring(clockAndZone, zoneStart, string.strLength(clockAndZone))
+        let fractionStart = strings.indexAny(clock, ".,")
+        let seconds = if fractionStart < 0 { clock } else { string.substring(clock, 0, fractionStart) }
+        let (hour, minuteAndSecond, _) = strings.cut(seconds, ":")
+        let paddedHour = if string.strLength(hour) == 1 { "0" + hour } else { hour }
+        dyn.Str(date + "T" + paddedHour + ":" + minuteAndSecond + _conditionZone(zone))
+      }
+    }
+  }
+}
+
+func _conditionZone(zone String) String {
+  if zone == "Z" { "Z" } else {
+    let hours = result.fromOption(string.parseInt(string.substring(zone, 1, 3)), 0)
+    let minutes = result.fromOption(string.parseInt(string.substring(zone, 4, 6)), 0)
+    let total = hours * 60 + minutes
+    if total == 0 { "Z" } else {
+      string.substring(zone, 0, 1) + _twoDigits(total / 60) + ":" + _twoDigits(total % 60)
+    }
+  }
+}
+
+func _twoDigits(n Int) String { (if n < 10 { "0" } else { "" }) + show(n) }
+
+func approvalStatus(approval unstructured.Unstructured, publication Publication) IO[Map[String, dyn.Value]] {
+  do {
+    fields <- unstructured.unstructuredObject(approval)
+    generation <- unstructured.unstructuredGetGeneration(approval)
+    conditions <- _existingConditions(_nestedList(dyn.Map(fields), ["status", "conditions"]))
+    next <- condition(approval, "Accepted", publication.conditionStatus, publication.reason, publication.message)
+    map.mapFromList([
+      ("observedGeneration", dyn.Int(generation)), ("phase", dyn.Str(publication.phase)),
+      ("message", dyn.Str(publication.message)),
+      ("conditions", dyn.List(map(setCondition(conditions, next), _conditionFields)))
+    ])
+  }
+}
+
+func patchUnstructuredStatus(c client.Client, approval unstructured.Unstructured, status Map[String, dyn.Value]) IO[Unit] {
+  do {
+    fields <- unstructured.unstructuredObject(approval)
+    if _nested(dyn.Map(fields), ["status"]) == dyn.Map(status) {
+      ioPure(unit())
+    } else {
+      do {
+        original <- unstructured.unstructuredDeepCopy(approval)
+        _ <- unstructured.unstructuredSetObject(approval, map.mapInsert(fields, "status", dyn.Map(status)))
+        patch <- client.mergeFrom(client.unstructuredAsObject(original))
+        writer <- client.clientStatus(c)
+        kind <- unstructured.unstructuredGetKind(approval)
+        _withContext("patch " + kind + " status: ", client.subResourceWriterPatch(writer, client.unstructuredAsObject(approval), patch, []))
+      }
+    }
+  }
+}
+
+// The oracle's read-only observe glue receives a native proposed object. The
+// production apply path constructs status directly and does not make this copy.
+func previewApproval(approval unstructured.Unstructured, verdict Verdict) IO[unstructured.Unstructured] {
+  do {
+    status <- approvalStatus(approval, publish(verdict))
+    proposed <- unstructured.unstructuredDeepCopy(approval)
+    fields <- unstructured.unstructuredObject(proposed)
+    _ <- unstructured.unstructuredSetObject(proposed, map.mapInsert(fields, "status", dyn.Map(status)))
+    proposed
+  }
+}
+
+func apply(c client.Client, approval unstructured.Unstructured, verdict Verdict) IO[Outcome] {
+  do {
+    fields <- unstructured.unstructuredObject(approval)
+    let oldPhase = _nestedString(dyn.Map(fields), ["status", "phase"])
+    let publication = publish(verdict)
+    status <- approvalStatus(approval, publication)
+    _ <- patchUnstructuredStatus(c, approval, status)
+    created <- if publication.phase == "Accepted" {
+      ensureOperationForAcceptedApproval(c, approval)
+    } else { ioPure(None) }
+    let audit = _nestedString(dyn.Map(fields), ["spec", "auditCorrelationID"])
+    let operationEvents = match created {
+      Some(name) => [WorkflowEvent("Normal", "StorageResizeOperationCreated", _appendAuditCorrelation("Storage resize operation " + name + " was created after approval acceptance", audit))]
+      None => Nil
+    }
+    let phaseEvents = if oldPhase == publication.phase { Nil } else { _approvalEvents(publication, audit) }
+    Outcome(publication.requeueNanos, list.append(operationEvents, phaseEvents))
+  }
+}
+
+func _approvalEvents(publication Publication, audit String) List[WorkflowEvent] {
+  let eventType = if publication.phase == "Accepted" { "Normal" } else { "Warning" }
+  if list.elem(publication.phase, ["Accepted", "Rejected", "Expired", "Superseded"]) {
+    let trimmed = strings.trimSpace(publication.message)
+    let message = if trimmed == "" { "Storage approval status changed" } else { trimmed }
+    [WorkflowEvent(eventType, "StorageApproval" + publication.phase, _appendAuditCorrelation(message, audit))]
+  } else { Nil }
+}
+
+func _appendAuditCorrelation(message String, audit String) String {
+  let trimmed = strings.trimSpace(audit)
+  if trimmed == "" { message } else { message + " auditCorrelationID=" + trimmed }
+}
+
+func _withContext(prefix String, action IO[Unit]) IO[Unit] {
+  do {
+    attempt <- io.tryIO(action)
+    match attempt { Ok(_) => ioPure(unit()); Err(err) => io.ioFail(prefix + io.ioErrorMessage(err)) }
+  }
+}
+
+func _newWorkflowObject(kind String) IO[unstructured.Unstructured] {
+  do {
+    let obj = unstructured.newUnstructured()
+    _ <- unstructured.unstructuredSetGroupVersionKind(obj, schema.GroupVersionKind{
+      group: "storage.appthrust.io", version: "v1alpha1", kind: kind
+    })
+    obj
+  }
+}
+
+func storageOperationNameForApproval(approval unstructured.Unstructured, plan unstructured.Unstructured) IO[String] {
+  do {
+    planName <- unstructured.unstructuredGetName(plan)
+    if planName != "" { ioPure(planName + "-operation") } else {
+      do { approvalName <- unstructured.unstructuredGetName(approval); approvalName + "-operation" }
+    }
+  }
+}
+
+func _optionalStringField(fields Map[String, dyn.Value], key String, value String) Map[String, dyn.Value] {
+  if value == "" { fields } else { map.mapInsert(fields, key, dyn.Str(value)) }
+}
+
+func _positiveIntField(fields Map[String, dyn.Value], key String, value Option[Int]) Map[String, dyn.Value] {
+  match value { Some(n) if n > 0 => map.mapInsert(fields, key, dyn.Int(n)); _ => fields }
+}
+
+func storageOperationApprovalBindingSnapshot(approval unstructured.Unstructured, plan unstructured.Unstructured) IO[Map[String, dyn.Value]] {
+  do {
+    fields <- unstructured.unstructuredObject(approval)
+    planGeneration <- unstructured.unstructuredGetGeneration(plan)
+    let obj = dyn.Map(fields)
+    let generation = match _nestedInt(obj, ["spec", "binding", "planGeneration"]) {
+      Some(n) if n > 0 => Some(n)
+      _ => Some(planGeneration)
+    }
+    let binding = _positiveIntField(map.emptyMap(), "planGeneration", generation)
+    let withStrings = fold(["evidenceHash", "changeSetFingerprint", "baseGitCommit"], binding,
+      func(acc, key) => _optionalStringField(acc, key, _nestedString(obj, ["spec", "binding", key])))
+    _positiveIntField(withStrings, "policyGeneration", _nestedInt(obj, ["spec", "binding", "policyGeneration"]))
+  }
+}
+
+func ensureOperationForAcceptedApproval(c client.Client, approval unstructured.Unstructured) IO[Option[String]] {
+  do {
+    approvalFields <- unstructured.unstructuredObject(approval)
+    let obj = dyn.Map(approvalFields)
+    let planName = _nestedString(obj, ["spec", "planRef", "name"])
+    if planName == "" { ioPure(None) } else {
+      do {
+        namespace <- unstructured.unstructuredGetNamespace(approval)
+        approvalName <- unstructured.unstructuredGetName(approval)
+        plan <- _newWorkflowObject("StorageResizePlan")
+        _ <- _withContext("get accepted approval plan: ", client.clientGet(c, types.NamespacedName{namespace: namespace, name: planName}, client.unstructuredAsObject(plan), []))
+        name <- storageOperationNameForApproval(approval, plan)
+        existing <- _newWorkflowObject("StorageResizeOperation")
+        fetched <- io.tryIO(client.clientGet(c, types.NamespacedName{namespace: namespace, name: name}, client.unstructuredAsObject(existing), []))
+        match fetched {
+          Ok(_) => do {
+            existingFields <- unstructured.unstructuredObject(existing)
+            if _nestedString(dyn.Map(existingFields), ["spec", "approvalRef", "name"]) == approvalName {
+              ioPure(None)
+            } else {
+              io.ioFail("storage resize operation " + namespace + "/" + name + " already exists for another approval")
+            }
+          }
+          Err(io.NotFound(_)) => do {
+            operation <- _operationForApproval(approval, plan, name)
+            _ <- client.clientCreate(c, client.unstructuredAsObject(operation), [])
+            createdName <- unstructured.unstructuredGetName(operation)
+            Some(createdName)
+          }
+          Err(err) => io.ioFail("get storage resize operation: " + io.ioErrorMessage(err))
+        }
+      }
+    }
+  }
+}
+
+func _operationForApproval(approval unstructured.Unstructured, plan unstructured.Unstructured, name String) IO[unstructured.Unstructured] {
+  do {
+    approvalFields <- unstructured.unstructuredObject(approval)
+    planFields <- unstructured.unstructuredObject(plan)
+    namespace <- unstructured.unstructuredGetNamespace(approval)
+    approvalName <- unstructured.unstructuredGetName(approval)
+    generation <- unstructured.unstructuredGetGeneration(approval)
+    planName <- unstructured.unstructuredGetName(plan)
+    binding <- storageOperationApprovalBindingSnapshot(approval, plan)
+    let obj = dyn.Map(approvalFields)
+    let planObj = dyn.Map(planFields)
+    let capability = _nestedString(planObj, ["spec", "storageCapabilityRef", "name"])
+    let profile = _nestedString(planObj, ["status", "executionProfile", "profile"])
+    let spec = map.mapFromList([
+      ("workflowChannel", dyn.Str("W")), ("type", dyn.Str(_nestedString(planObj, ["spec", "type"]))),
+      ("planRef", _nameRef(planName)), ("storageCapabilityRef", _nameRef(capability)),
+      ("approvalRef", _nameRef(approvalName)), ("approvalBinding", dyn.Map(binding)),
+      ("executionProfile", dyn.Str(if profile == "" { "ManualHold" } else { profile })),
+      ("rollbackPolicy", dyn.Str("StopAndRequireOperator"))
+    ])
+    let withOptional = fold(["idempotencyKey", "auditCorrelationID"], spec,
+      func(acc, key) => _optionalStringField(acc, key, _nestedString(obj, ["spec", key])))
+    operation <- _newWorkflowObject("StorageResizeOperation")
+    _ <- unstructured.unstructuredSetNamespace(operation, namespace)
+    _ <- unstructured.unstructuredSetName(operation, name)
+    _ <- unstructured.unstructuredSetLabels(operation, map.mapFromList([
+      ("appthrust.io/managed-by", "storage-operator"),
+      ("storage.appthrust.io/resize-plan", planName),
+      ("storage.appthrust.io/storage-approval", approvalName),
+      ("storage.appthrust.io/storage-capability", capability),
+      ("storage.appthrust.io/workflow-generation", show(generation))
+    ]))
+    fields <- unstructured.unstructuredObject(operation)
+    _ <- unstructured.unstructuredSetObject(operation, map.mapInsert(fields, "spec", dyn.Map(withOptional)))
+    operation
+  }
+}
+
+func _nameRef(name String) dyn.Value { dyn.Map(map.mapFromList([("name", dyn.Str(name))])) }
+
+func storageOperationApprovalBindingMatches(operation unstructured.Unstructured, approval unstructured.Unstructured, plan unstructured.Unstructured) IO[(Bool, String, String)] {
+  do {
+    operationFields <- unstructured.unstructuredObject(operation)
+    approvalFields <- unstructured.unstructuredObject(approval)
+    planFields <- unstructured.unstructuredObject(plan)
+    generation <- unstructured.unstructuredGetGeneration(plan)
+    let op = dyn.Map(operationFields)
+    let accepted = dyn.Map(approvalFields)
+    let reviewed = dyn.Map(planFields)
+    let bindingPresent = match _nested(op, ["spec", "approvalBinding"]) { dyn.Map(m) => map.mapSize(m) > 0; _ => false }
+    let failures = [
+      if bindingPresent { None } else { Some(("OperationApprovalBindingMissing", "Storage operation is missing immutable approval evidence binding")) },
+      _operationGenerationMatches(op, accepted, generation),
+      _operationEvidenceMatches(op, accepted, reviewed, "evidenceHash", "OperationEvidenceBindingDrift", "Storage operation approval binding no longer matches the accepted evidence hash"),
+      _operationEvidenceMatches(op, accepted, reviewed, "changeSetFingerprint", "OperationChangeSetBindingDrift", "Storage operation approval binding no longer matches the accepted change-set fingerprint"),
+      _operationCommitMatches(op, accepted, reviewed),
+      _operationPolicyMatches(op, accepted),
+      _operationAuditMatches(op, accepted)
+    ]
+    match list.find(failures, func(failure) => failure != None) {
+      Some(Some((reason, message))) => (false, reason, message)
+      _ => (true, "", "")
+    }
+  }
+}
+
+func _operationGenerationMatches(op dyn.Value, accepted dyn.Value, generation Int) Option[(String, String)] {
+  match _nestedInt(accepted, ["spec", "binding", "planGeneration"]) {
+    Some(expected) if expected > 0 => {
+      let got = _nestedInt(op, ["spec", "approvalBinding", "planGeneration"])
+      if got != Some(expected) {
+        Some(("OperationPlanGenerationBindingDrift", "Storage operation approval binding no longer matches the accepted plan generation"))
+      } else if generation > 0 && got != Some(generation) {
+        Some(("OperationPlanGenerationBindingDrift", "Storage operation approval binding no longer matches the current reviewed plan generation"))
+      } else { None }
+    }
+    _ => None
+  }
+}
+
+func _operationEvidenceMatches(op dyn.Value, accepted dyn.Value, reviewed dyn.Value, key String, reason String, message String) Option[(String, String)] {
+  let expected = _nestedString(accepted, ["spec", "binding", key])
+  let got = _nestedString(op, ["spec", "approvalBinding", key])
+  let current = _nestedString(reviewed, ["status", key])
+  if expected != "" && (got != expected || (current != "" && got != current)) { Some((reason, message)) } else { None }
+}
+
+func _operationCommitMatches(op dyn.Value, accepted dyn.Value, reviewed dyn.Value) Option[(String, String)] {
+  let expected = strings.trimSpace(_nestedString(accepted, ["spec", "binding", "baseGitCommit"]))
+  let got = strings.trimSpace(_nestedString(op, ["spec", "approvalBinding", "baseGitCommit"]))
+  let current = strings.trimSpace(_nestedString(reviewed, ["spec", "baseRevision", "gitCommit"]))
+  if expected != "" && got != expected {
+    Some(("OperationBaseRevisionBindingDrift", "Storage operation approval binding no longer matches the accepted base revision"))
+  } else if expected != "" && current != "" && got != current {
+    Some(("OperationBaseRevisionBindingDrift", "Storage operation approval binding no longer matches the reviewed plan base revision"))
+  } else { None }
+}
+
+func _operationPolicyMatches(op dyn.Value, accepted dyn.Value) Option[(String, String)] {
+  match _nestedInt(accepted, ["spec", "binding", "policyGeneration"]) {
+    Some(expected) if expected > 0 && _nestedInt(op, ["spec", "approvalBinding", "policyGeneration"]) != Some(expected) =>
+      Some(("OperationPolicyGenerationBindingDrift", "Storage operation approval binding no longer matches the accepted policy generation"))
+    _ => None
+  }
+}
+
+func _operationAuditMatches(op dyn.Value, accepted dyn.Value) Option[(String, String)] {
+  let expected = _nestedString(accepted, ["spec", "auditCorrelationID"])
+  let got = _nestedString(op, ["spec", "auditCorrelationID"])
+  if expected != "" && got == "" {
+    Some(("OperationAuditCorrelationMissing", "Storage operation is missing the accepted approval audit correlation"))
+  } else if expected != "" && got != expected {
+    Some(("OperationAuditCorrelationDrift", "Storage operation audit correlation no longer matches the accepted approval"))
+  } else { None }
+}

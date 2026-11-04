@@ -66,8 +66,8 @@ type Reason = PlanReferenceMissing | PlanNotFound | PlanReadFailed
   | ApprovalAccepted
   deriving Eq, Debug, Show
 
-// Verdict fixes phase and condition status together; Go derives both from the
-// constructor. Pending and Accepted carry requeue milliseconds (0 = none).
+// Verdict fixes phase and condition status together; publish derives both from
+// the constructor. Pending and Accepted carry requeue nanoseconds (0 = none).
 type Verdict = Rejected(Reason, String)
   | Expired(Reason, String)
   | Superseded(Reason, String)

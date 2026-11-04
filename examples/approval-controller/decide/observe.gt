@@ -38,9 +38,7 @@ func observeInputs(c client.Client, approval unstructured.Unstructured) IO[Obser
     _ <- unstructured.unstructuredListSetGroupVersionKind(operations, schema.GroupVersionKind{
       group: "storage.appthrust.io", version: "v1alpha1", kind: "StorageResizeOperationList"
     })
-    let opts = client.newListOptions()
-    _ <- client.listOptionsSetNamespace(opts, namespace)
-    operationsRead <- io.tryIO(client.clientList(c, client.unstructuredListAsObjectList(operations), [client.listOptionsAsListOption(opts)]))
+    operationsRead <- io.tryIO(client.clientList(c, client.unstructuredListAsObjectList(operations), [client.inNamespaceAsListOption(namespace)]))
     let operationsReadError = match operationsRead { Ok(_) => false; Err(_) => true }
     conflicting <- if operationsReadError {
       ioPure(false)
