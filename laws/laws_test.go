@@ -104,6 +104,40 @@ func TestFreshness(t *testing.T) {
 	}
 }
 
+// Nested updates over a symbolic single-constructor record merge into one
+// update (later write wins, distinct fields ordered by index), including when
+// the inner update only appears after a rewrite substitutes the base. A
+// dropped write still fails.
+func TestRecordUpdateMerge(t *testing.T) {
+	source, err := os.ReadFile(filepath.Join("testdata", "update.gt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if errors := CheckProgram(loadFixture(t, "update.gt")); errors != nil {
+		t.Fatal(errors)
+	}
+	extra := `
+func pick(xs List[Int], o Observed) Observed {
+  match xs { Nil => o; Cons(_, r) => pick(r, o{gen: 1}) }
+}
+law pickIsUpdate(xs List[Int], o Observed) { pick(xs, o{gen: 1}) == o{gen: 1} }
+proof pickIsUpdate(xs, o) { match xs { Nil => refl; Cons(_, r) => rewrite pickIsUpdate(r, o) { refl } } }
+law viaRewrite(xs List[Int], o Observed) { pick(xs, o{gen: 1}){mode: Live} == o{gen: 1, mode: Live} }
+proof viaRewrite(xs, o) { rewrite pickIsUpdate(xs, o) { refl } }
+law dropsWrite(o Observed, n Int) { o{gen: n}{mode: Live} == o{gen: n} }
+proof dropsWrite(o, n) { refl }
+`
+	errors := diagnosticsByLaw(t, loadSource(t, string(source)+extra))
+	for _, name := range []string{"pickIsUpdate", "viaRewrite"} {
+		if err := errors[name]; err != nil {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+	if err := errors["dropsWrite"]; err == nil || !strings.Contains(err.Msg, "stuck normal forms differ") {
+		t.Errorf("dropped write accepted: %v", err)
+	}
+}
+
 func TestProjection(t *testing.T) {
 	if errors := CheckProgram(loadFixture(t, "projection.gt")); errors != nil {
 		t.Fatal(errors)

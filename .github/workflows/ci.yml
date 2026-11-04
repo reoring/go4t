@@ -39,7 +39,13 @@ jobs:
               sources+=("$directory/gostd.gt")
             fi
             echo "Running $source"
-            go run ./cmd/go4t run "${sources[@]}" -- "${args[@]}" < "$input"
+            directory_sources=("$directory"/*.gt)
+            bad_sources=("$directory"/bad_*.gt)
+            if (( ${#directory_sources[@]} > 1 )) && [[ ! -f "${bad_sources[0]}" ]]; then
+              go run ./cmd/go4t run "$directory" -- "${args[@]}" < "$input"
+            else
+              go run ./cmd/go4t run "${sources[@]}" -- "${args[@]}" < "$input"
+            fi
           done
   bench:
     runs-on: ubuntu-latest

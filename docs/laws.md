@@ -20,6 +20,10 @@ induction). Only eligible pure, terminating dependencies are admitted; untrusted
 externs are excluded. Float expressions are excluded, but data types that merely
 contain Float (such as `dyn.Value`) are allowed as quantified values. `Map` is modelled symbolically, so
 `mapLookup(mapInsert(m, k, v), k2)` reduces to a key-equality case split.
+Nested updates over a symbolic single-constructor record merge into one update
+with later writes winning and fields ordered by declaration index, so
+`r{f: a}{f: b}` and `r{f: b}`, and `r{g: c, f: b}` and `r{f: b, g: c}`, share
+normal forms; multi-constructor record updates are not merged.
 Laws generate no runtime code. See
 [tutorial §13](tutorial.md#13-laws) for cancellation, the `freshness`
 `staleIff` guard law and list induction, and `laws/testdata/placement.gt`,

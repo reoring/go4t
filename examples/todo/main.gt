@@ -1,0 +1,157 @@
+package main
+
+import "std/http"
+import "std/io"
+import "std/json"
+import "std/list"
+import "std/prelude"
+import "std/result"
+import "std/string"
+
+// ---- persistence ----------------------------------------------------------
+
+func storePath() IO[String] {
+  do {
+    env <- io.getEnv("TODO_FILE")
+    result.fromOption(env, "todo.json")
+  }
+}
+
+func decodeStore(text String) Result[String, Store] {
+  prelude.bind(json.parseJson(text), json.decode)
+}
+
+func load(path String) IO[Store] {
+  do {
+    exists <- io.fileExists(path)
+    if exists {
+      do {
+        text <- io.readFile(path)
+        result.liftResult(decodeStore(text))
+      }
+    } else {
+      emptyStore()
+    }
+  }
+}
+
+func save(path String, s Store) IO[Unit] {
+  io.writeFile(path, json.toJsonPretty(json.encode(s)) + "\n")
+}
+
+// ---- CLI ------------------------------------------------------------------
+
+func fail(message String) IO[Unit] {
+  do {
+    io.eprintln("todo: " + message)
+    io.exit(1)
+  }
+}
+
+func runCommand(path String, s Store, cmd Command) IO[Unit] {
+  match cmd {
+    Help => println(usage())
+    ListOpen => println(render(open(s)))
+    ListAll => println(render(s.items))
+    | Add(text) => do {
+      now <- io.nowMillis()
+      let next = add(s, text, now)
+      save(path, next)
+      println("added " + show(s.next))
+    }
+    Done(id) => _commit(path, complete(s, id), "done " + show(id))
+    Remove(id) => _commit(path, remove(s, id), "removed " + show(id))
+    Serve(port) => serve(path, port)
+  }
+}
+
+func _commit(path String, outcome Result[String, Store], message String) IO[Unit] {
+  match outcome {
+    Err(e) => fail(e)
+    | Ok(next) => do {
+      save(path, next)
+      println(message)
+    }
+  }
+}
+
+// ---- HTTP -----------------------------------------------------------------
+
+type NewTodo = NewTodo{text: String} deriving json.Decode
+
+type Problem = Problem{error: String} deriving json.Encode
+
+func problem(status Int, message String) http.Response {
+  http.jsonResponse(status, Problem(message))
+}
+
+// Routes: GET /todos, POST /todos {"text": ...}, POST /todos/<id>/done, DELETE /todos/<id>
+func route(path String, r http.Request) IO[http.Response] {
+  let segments = list.filter(string.split("/", r.path), func(seg) => seg != "")
+  match (r.method, segments) {
+    | ("GET", ["todos"]) => do {
+      s <- load(path)
+      http.jsonResponse(200, s.items)
+    }
+    | ("POST", ["todos"]) => match prelude.bind(json.parseJson(r.body), json.decode) {
+      Err(e) => problem(400, e)
+      | Ok(NewTodo(text)) => do {
+        s <- load(path)
+        now <- io.nowMillis()
+        save(path, add(s, text, now))
+        http.jsonResponse(201, Todo{
+          id: s.next,
+          text: text,
+          done: false,
+          createdAt: now
+        })
+      }
+    }
+    ("POST", ["todos", id, "done"]) => _mutate(path, id, complete)
+    ("DELETE", ["todos", id]) => _mutate(path, id, remove)
+    _ => problem(404, "not found")
+  }
+}
+
+func _mutate(path String, idText String, f func(Store, Int) Result[String, Store]) IO[http.Response] {
+  match string.parseInt(idText) {
+    None => problem(400, "bad id: " + idText)
+    | Some(id) => do {
+      s <- load(path)
+      match f(s, id) {
+        Err(e) => problem(404, e)
+        | Ok(next) => do {
+          save(path, next)
+          http.jsonResponse(200, next.items)
+        }
+      }
+    }
+  }
+}
+
+func serve(path String, port Int) IO[Unit] {
+  do {
+    println("serving " + path + " on http://127.0.0.1:" + show(port))
+    http.serve(port, func(r) => route(path, r))
+  }
+}
+
+// ---- entry ----------------------------------------------------------------
+
+func main() IO[Unit] {
+  do {
+    argv <- io.args()
+    path <- storePath()
+    match parseCommand(argv) {
+      | Err(e) => do {
+        io.eprintln("todo: " + e)
+        io.eprintln(usage())
+        io.exit(2)
+      }
+      | Ok(cmd) => do {
+        s <- load(path)
+        runCommand(path, s, cmd)
+      }
+    }
+  }
+}

@@ -132,6 +132,9 @@ func (e *evaluator) resume(t *term) (*term, error) {
 			}
 			return &term{kind: "ctor", ctor: base.ctor, args: fields}, nil
 		}
+		if len(t.cases) == 0 && base.kind == "update" && len(base.cases) == 0 && base.ctor == t.ctor {
+			return updateTerm(t.ctor, t.indexes, nil, base, t.args[1:]), nil
+		}
 	case "call":
 		fn := t.args[0]
 		if fn.kind == "global" && e.unfoldGlobal(fn, t.args[1:]) {

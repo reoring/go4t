@@ -891,7 +891,11 @@ unfolded only when the argument at its decreasing position is a constructor or
 tuple; otherwise the call stays neutral, so both sides of a goal stop at the
 same depth. Projections of record updates reduce even when the base is
 symbolic: `(r{f: v}).f` is `v` and `(r{f: v}).g` is `r.g`, for single-
-constructor records. Inside an arm of a stuck `match s`, `s` is assumed equal
+constructor records. For single-constructor records, nested updates over a
+symbolic base merge into one update with later writes winning and fields ordered
+by declaration index, so `r{f: a}{f: b}` and `r{f: b}`, and `r{g: c, f: b}` and
+`r{f: b, g: c}`, share normal forms; multi-constructor record updates are not
+merged. Inside an arm of a stuck `match s`, `s` is assumed equal
 to the arm's pattern, and inside a stuck `if c`, `c` is assumed `true` or
 `false`, so repeated eliminations of the same scrutinee collapse. Int
 `+`, `-`, `*` and unary negation use polynomial normal forms modulo 2^64,

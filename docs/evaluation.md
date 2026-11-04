@@ -103,3 +103,42 @@ What remains is cost, not reach: `go4t check` regenerated 240 packages of
 bindings on every run (47 s) until the per-package binding cache brought a
 hit to 1.8 s; `go4t run` cold is dominated by compiling the bound packages
 (150 s cold, 85 s warm).
+
+## Ordinary programs
+
+On 2026-11-04 we asked whether, after ADR 0003–0005, go4t was usable for
+ordinary programs, not only decision cores. Two programs were written from
+docs and examples only:
+
+| Program | Scope | First run | Proved laws |
+| --- | --- | --- | --- |
+| `examples/todo` (primary agent) | CLI `add\|list [--all]\|done\|rm\|serve`; JSON file persistence (`TODO_FILE`), derived `json.Encode/Decode`; `std/http` routes `GET/POST /todos`, `POST /todos/<id>/done`, `DELETE /todos/<id>`. `todo.gt` + `main.gt`: about 260 lines. | All CLI paths and HTTP routes behaved as intended; the only `check` failures were in laws. | 3 |
+| `logstat` (fresh agent, using only `README.md`, `docs/`, `examples/`; scratch probe, not committed) | Regex line parser, `std/map` aggregation, sorted table and `--json` via derived codecs, `import "go:path/filepath"` for `filepath.base`. | Text and JSON output were correct; 30-line fixture, 25 valid, 5 skipped. | 3 |
+
+The todo law `markDone(markDone(xs, id), id) == markDone(xs, id)` exposed a
+prover gap: `differs at: t{2: true}{2: true} vs t{2: true}`. Nested updates
+over a symbolic record were not merged. The same-day fix added the rule in
+SPEC §6.5's normalization paragraph: nested single-constructor updates merge,
+later write wins, fields ordered by index. The law then proved by list induction.
+
+Documented limits were hit as predicted. `list.length` is an accumulator
+fold, so `count(markDone(xs, id)) == count(xs)` is stated over a structural
+`count` (SPEC). Regex is not law-eligible: a concrete parsing example,
+`parseLine("…") == Some(…)`, was rejected with
+`law depends on extern go4t/rt.RegexCaptures`. Concrete examples belong in
+`go4t test` functions. A deliberately false law,
+`lookup(open(add(s, text, now)), s.next) == Some(…)`, was rejected with stuck
+normal forms, as it should be: it is false when `s.next` already occurs in
+`s.items`.
+
+Two library gaps were observed, not fixed: `std` has no mutable reference
+(a stateful HTTP server keeps state in a file or a `go:` handle), and
+`std/io` has no named-file line streaming (`readFile` reads whole files).
+`go4t build DIR` emits Go into `DIR/_gen`; a binary needs
+`go build ./DIR/_gen`. The CI example loop ran `main.gt` alone, which does
+not load sibling files; it now runs multi-file example directories
+(`.github/workflows/ci.yml`).
+
+The limit found today was in the prover's normal forms, not in the language
+or bindings; two ordinary programs ran first try, and the remaining gaps are
+library surface (`Ref`, streaming) and proof coverage of externs.

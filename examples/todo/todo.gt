@@ -1,0 +1,181 @@
+package main
+
+import "std/json"
+import "std/list"
+import "std/string"
+
+// Pure core of an ordinary todo app: data, commands, transitions, rendering.
+
+type Todo = Todo{id: Int, text: String, done: Bool, createdAt: Int} deriving Eq, Debug, json.Encode, json.Decode
+
+type Store = Store{next: Int, items: List[Todo]} deriving Eq, Debug, json.Encode, json.Decode
+
+type Command = Add(String) | ListOpen | ListAll | Done(Int) | Remove(Int) | Serve(Int) | Help deriving Eq, Debug
+
+func emptyStore() Store {
+  Store{next: 1, items: Nil}
+}
+
+// ---- commands ------------------------------------------------------------
+
+func parseCommand(argv List[String]) Result[String, Command] {
+  match argv {
+    [] => Ok(Help)
+    ["help", ..] => Ok(Help)
+    ["add"] => Err("add: missing text")
+    ["add", ..words] => Ok(Add(string.join(" ", words)))
+    ["list"] => Ok(ListOpen)
+    ["list", "--all"] => Ok(ListAll)
+    ["done", id] => _withId("done", id, Done)
+    ["rm", id] => _withId("rm", id, Remove)
+    ["serve", port] => _withId("serve", port, Serve)
+    Cons(other, _) => Err("unknown command: " + other)
+  }
+}
+
+func _withId(name String, text String, mk func(Int) Command) Result[String, Command] {
+  match string.parseInt(text) {
+    Some(n) => Ok(mk(n))
+    None => Err(name + ": expected a number, got " + text)
+  }
+}
+
+// ---- transitions ---------------------------------------------------------
+
+func add(s Store, text String, now Int) Store {
+  Store{
+    next: s.next + 1,
+    items: append(s.items, [Todo{
+      id: s.next,
+      text: text,
+      done: false,
+      createdAt: now
+    }])
+  }
+}
+
+func markDone(items List[Todo], id Int) List[Todo] {
+  map(items, func(t) => if t.id == id {
+    t{done: true}
+  } else {
+    t
+  })
+}
+
+func removeId(items List[Todo], id Int) List[Todo] {
+  list.filter(items, func(t) => t.id != id)
+}
+
+func lookup(items List[Todo], id Int) Option[Todo] {
+  list.find(items, func(t) => t.id == id)
+}
+
+func complete(s Store, id Int) Result[String, Store] {
+  match lookup(s.items, id) {
+    None => Err("no todo with id " + show(id))
+    Some(_) => Ok(s{items: markDone(s.items, id)})
+  }
+}
+
+func remove(s Store, id Int) Result[String, Store] {
+  match lookup(s.items, id) {
+    None => Err("no todo with id " + show(id))
+    Some(_) => Ok(s{items: removeId(s.items, id)})
+  }
+}
+
+func open(s Store) List[Todo] {
+  list.filter(s.items, func(t) => !t.done)
+}
+
+// ---- rendering -----------------------------------------------------------
+
+func renderLine(t Todo) String {
+  let box = if t.done {
+    "[x]"
+  } else {
+    "[ ]"
+  }
+  box + " " + string.showPadLeft(t.id, 3) + "  " + t.text
+}
+
+func render(items List[Todo]) String {
+  match items {
+    Nil => "(nothing to do)"
+    _ => string.join("\n", map(items, renderLine))
+  }
+}
+
+func usage() String {
+  string.join("\n", ["usage: todo <command>", "  add <text...>   add a todo", "  list [--all]    list open (or all) todos", "  done <id>       mark a todo done", "  rm <id>         remove a todo", "  serve <port>    serve the list over HTTP"])
+}
+
+// ---- laws ----------------------------------------------------------------
+
+// Marking done twice is the same as once.
+law markDoneIdempotent(items List[Todo], id Int) {
+  markDone(markDone(items, id), id) == markDone(items, id)
+}
+
+proof markDoneIdempotent(items, id) {
+  match items {
+    Nil => refl
+    | Cons(t, rest) => if t.id == id {
+      rewrite markDoneIdempotent(rest, id) {
+        refl
+      }
+    } else {
+      rewrite markDoneIdempotent(rest, id) {
+        refl
+      }
+    }
+  }
+}
+
+// After removal, the id cannot be found.
+law removeForgets(items List[Todo], id Int) {
+  lookup(removeId(items, id), id) == None
+}
+
+proof removeForgets(items, id) {
+  match items {
+    Nil => refl
+    | Cons(t, rest) => if t.id == id {
+      rewrite removeForgets(rest, id) {
+        refl
+      }
+    } else {
+      rewrite removeForgets(rest, id) {
+        refl
+      }
+    }
+  }
+}
+
+// Marking done does not change the count. std/list length is an accumulator
+// fold (SPEC: not inductive), so the law is stated over a structural count.
+func count[A](xs List[A]) Int {
+  match xs {
+    Nil => 0
+    Cons(_, rest) => 1 + count(rest)
+  }
+}
+
+law markDoneKeepsLength(items List[Todo], id Int) {
+  count(markDone(items, id)) == count(items)
+}
+
+proof markDoneKeepsLength(items, id) {
+  match items {
+    Nil => refl
+    | Cons(t, rest) => if t.id == id {
+      rewrite markDoneKeepsLength(rest, id) {
+        refl
+      }
+    } else {
+      rewrite markDoneKeepsLength(rest, id) {
+        refl
+      }
+    }
+  }
+}

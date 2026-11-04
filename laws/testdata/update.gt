@@ -30,4 +30,16 @@ proof shadowed(o, n, m) { refl }
 law untouched(o Observed, n Int) { o{gen: n}{mode: DryRun}.name == o.name }
 proof untouched(o, n) { refl }
 
+// Nested updates collapse into one: a later write to a field wins, and writes
+// to distinct fields commute, so the updates themselves (not only their
+// projections) share a normal form.
+law laterWriteWins(o Observed, n Int, m Int) { o{gen: n}{gen: m} == o{gen: m} }
+proof laterWriteWins(o, n, m) { refl }
+
+law distinctWritesCommute(o Observed, n Int) { o{gen: n}{mode: Live} == o{mode: Live}{gen: n} }
+proof distinctWritesCommute(o, n) { refl }
+
+law oneUpdateOrderFree(o Observed, n Int) { o{gen: n, mode: Live} == o{mode: Live, gen: n} }
+proof oneUpdateOrderFree(o, n) { refl }
+
 func main() IO[Unit] { ioPure(unit()) }

@@ -13,6 +13,7 @@ Commands run from the checkout root. Network-using examples are marked.
 | [node-drain-typed](node-drain-typed) | The same controller with observe/apply in go4t against the typed clientset via `go:` imports; 15 laws incl. projection laws. | see its README (needs a cluster) |
 | [sql-service](sql-service) | SQLite + Prometheus HTTP service via `go:` imports. | see its README |
 | [go-import](go-import) | `import "go:net/http"` / `go:strings` bound at build time: tuples, handle fields, upcasts, package vars (loopback). | `go4t run examples/go-import` |
+| [todo](todo) | CLI + JSON file persistence + `std/http` routes, derived codecs, and 3 checked laws (server uses network). | `go4t run examples/todo -- list` |
 | [typed-extern](typed-extern) | Generated bindings, ABI adapters, opaque method handles. | `go4t run examples/typed-extern` |
 | [deps](deps) | Offline Go-module dependency with local replacement. | `go4t run examples/deps/app` |
 | [calc](calc) | Expression interpreter with `Result` errors. | `go4t run examples/calc/main.gt` |

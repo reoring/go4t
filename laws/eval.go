@@ -2,6 +2,7 @@ package laws
 
 import (
 	"fmt"
+	"sort"
 
 	"go4t/ast"
 	"go4t/types"
@@ -286,7 +287,7 @@ func (e *evaluator) evalExpr(expr ast.Expr, env *environment, dicts dictionaryEn
 			}
 			return &term{kind: "ctor", ctor: base.ctor, args: fields}, nil
 		}
-		return &term{kind: "update", ctor: ann.Ctor, indexes: ann.FieldIndexes, cases: ann.RecordCases, args: append([]*term{base}, values...)}, nil
+		return updateTerm(ann.Ctor, ann.FieldIndexes, ann.RecordCases, base, values), nil
 	case *ast.Match:
 		value, err := e.eval(x.Scrut, env, dicts)
 		if err != nil {
@@ -519,6 +520,39 @@ func projectUpdate(base *term, ctor *types.Ctor, index int) (value *term, stripp
 		return base.args[index], nil
 	}
 	return nil, base
+}
+
+// updateTerm builds r{...} over a non-constructor base. For single-constructor
+// records a nested update r{f: a}{g: b} collapses into one update where the
+// later write to a field wins, and fields are ordered by index, so
+// r{f: a}{f: b} and r{f: b} (and r{f: a, g: b} and r{g: b, f: a}) share one
+// normal form. Sound because an update always yields the same constructor with
+// the other fields copied. Multi-constructor (cases) updates are left as is.
+func updateTerm(ctor *types.Ctor, indexes []int, cases []types.RecordCase, base *term, values []*term) *term {
+	if len(cases) != 0 {
+		return &term{kind: "update", ctor: ctor, indexes: indexes, cases: cases, args: append([]*term{base}, values...)}
+	}
+	merged := map[int]*term{}
+	if base.kind == "update" && len(base.cases) == 0 && base.ctor == ctor {
+		for i, index := range base.indexes {
+			merged[index] = base.args[i+1]
+		}
+		base = base.args[0]
+	}
+	for i, index := range indexes {
+		merged[index] = values[i]
+	}
+	order := make([]int, 0, len(merged))
+	for index := range merged {
+		order = append(order, index)
+	}
+	sort.Ints(order)
+	args := make([]*term, 1, len(order)+1)
+	args[0] = base
+	for _, index := range order {
+		args = append(args, merged[index])
+	}
+	return &term{kind: "update", ctor: ctor, indexes: order, args: args}
 }
 
 func caseIndexes(value *term, cases []types.RecordCase) []int {
