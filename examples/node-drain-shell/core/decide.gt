@@ -1,0 +1,299 @@
+package main
+
+import "std/dyn"
+import "std/list"
+import "std/map"
+import core "go:k8s.io/api/core/v1"
+import meta "go:k8s.io/apimachinery/pkg/apis/meta/v1"
+
+// Node drain, observe to apply in go4t. The decision core and its ten laws
+// are unchanged from examples/node-drain-controller/decide; what is new is
+// that the projection from Kubernetes objects to Observed is also pure and
+// has its own laws, because corev1.Pod is now an ordinary record.
+type NodeState = Schedulable | Cordoned | Missing deriving Eq, Debug
+
+type PodKind = Managed | DaemonSet | Mirror deriving Eq, Debug
+
+type Pod = Pod{name: String, namespace: String, kind: PodKind} deriving Eq, Debug
+
+type Deadline = NoDeadline | DeadlineAt(Int) deriving Eq, Debug
+
+type Observed = Observed{
+  requested: Bool,
+  node: NodeState,
+  cordonedByUs: Bool,
+  pods: List[Pod],
+  evictionBlocked: Option[String],
+  deadline: Deadline,
+  nowNanos: Int
+} deriving Eq, Debug
+
+type FailReason = NodeMissing | TimedOut deriving Eq, Debug
+
+type Action = Noop | Cordon | Uncordon | Evict(String, String) | Wait(String) | MarkDrained | MarkFailed(FailReason) deriving Eq, Debug
+
+// ---- Projection: Kubernetes objects to Observed -----------------------------
+
+func mirrorAnnotation() String { "kubernetes.io/config.mirror" }
+
+func cordonAnnotation() String { "nodedrain.example/cordoned-by" }
+
+func ownedByDaemonSet(owners List[meta.OwnerReference]) Bool {
+  match owners {
+    Nil => false
+    | Cons(o, rest) => if o.kind == "DaemonSet" { true } else { ownedByDaemonSet(rest) }
+  }
+}
+
+func projectPodKind(p core.Pod) PodKind {
+  if map.mapMember(p.annotations, mirrorAnnotation()) {
+    Mirror
+  } else if ownedByDaemonSet(p.ownerReferences) {
+    DaemonSet
+  } else {
+    Managed
+  }
+}
+
+func project(p core.Pod) Pod { Pod(p.name, p.namespace, projectPodKind(p)) }
+
+func projectNode(n Option[core.Node]) NodeState {
+  match n {
+    None => Missing
+    | Some(node) => if node.spec.unschedulable { Cordoned } else { Schedulable }
+  }
+}
+
+func cordonedByUs(n Option[core.Node]) Bool {
+  match n {
+    None => false
+    Some(node) => map.mapMember(node.annotations, cordonAnnotation())
+  }
+}
+
+// ---- Decision core (unchanged) ------------------------------------------------
+
+func decide(o Observed) Action {
+  if !o.requested {
+    _release(o)
+  } else {
+    match o.node {
+      Missing => MarkFailed(NodeMissing)
+      Schedulable => Cordon
+      Cordoned => _drain(o)
+    }
+  }
+}
+
+func _release(o Observed) Action {
+  match (o.node, o.cordonedByUs) {
+    (Cordoned, true) => Uncordon
+    _ => Noop
+  }
+}
+
+func _drain(o Observed) Action {
+  if _expired(o.nowNanos, o.deadline) {
+    MarkFailed(TimedOut)
+  } else {
+    match o.evictionBlocked {
+      Some(msg) => Wait(msg)
+      None => _evictNext(o.pods)
+    }
+  }
+}
+
+func _expired(now Int, d Deadline) Bool {
+  match d {
+    DeadlineAt(at) => now >= at
+    NoDeadline => false
+  }
+}
+
+func _evictNext(pods List[Pod]) Action {
+  match _firstEvictable(pods) {
+    Some(p) => Evict(p.namespace, p.name)
+    None => MarkDrained
+  }
+}
+
+func _firstEvictable(pods List[Pod]) Option[Pod] {
+  match pods {
+    Nil => None
+    | Cons(p, rest) => match p.kind {
+      Managed => Some(p)
+      _ => _firstEvictable(rest)
+    }
+  }
+}
+
+func isTimedOut(a Action) Bool {
+  match a {
+    MarkFailed(TimedOut) => true
+    _ => false
+  }
+}
+
+// ---- Projection laws (new) ----------------------------------------------------
+// A pod with a DaemonSet owner anywhere in its owner references is a DaemonSet
+// pod unless it is a mirror pod. Induction over the owner list.
+law daemonSetOwnerIsDaemonSet(owner meta.OwnerReference, owners List[meta.OwnerReference]) {
+  ownedByDaemonSet(Cons(owner{kind: "DaemonSet"}, owners)) == true
+}
+
+proof daemonSetOwnerIsDaemonSet(owner, owners) {
+  refl
+}
+
+// A DaemonSet owner anywhere in the list, not only at the head: induction.
+law daemonSetOwnerAnywhere(prefix List[meta.OwnerReference], owner meta.OwnerReference, rest List[meta.OwnerReference]) {
+  ownedByDaemonSet(append(prefix, Cons(owner{kind: "DaemonSet"}, rest))) == true
+}
+
+proof daemonSetOwnerAnywhere(prefix, owner, rest) {
+  match prefix {
+    Nil => refl
+    | Cons(o, more) => if o.kind == "DaemonSet" {
+      refl
+    } else {
+      rewrite daemonSetOwnerAnywhere(more, owner, rest) {
+        refl
+      }
+    }
+  }
+}
+
+law noOwnersIsManaged(p core.Pod) {
+  projectPodKind(p{annotations: map.emptyMap(), ownerReferences: Nil}) == Managed
+}
+
+proof noOwnersIsManaged(p) {
+  refl
+}
+
+// The mirror annotation wins over ownership. Map membership is modelled
+// symbolically (ADR 0002), so this holds for every annotation map.
+law mirrorAnnotationWins(p core.Pod, annotations Map[String, String]) {
+  projectPodKind(p{annotations: map.mapInsert(annotations, mirrorAnnotation(), "")}) == Mirror
+}
+
+proof mirrorAnnotationWins(p, annotations) {
+  refl
+}
+
+// Projection ignores the timestamp (a dyn.Value the laws never read).
+law projectIgnoresTimestamp(p core.Pod, t dyn.Value) {
+  project(p{creationTimestamp: t}) == project(p)
+}
+
+proof projectIgnoresTimestamp(p, t) {
+  refl
+}
+
+// ---- Decision laws (unchanged from examples/node-drain-controller) ------------
+law withdrawnIsNoop(o Observed) {
+  decide(o{requested: false, cordonedByUs: false}) == Noop
+}
+
+proof withdrawnIsNoop(o) {
+  refl
+}
+
+law withdrawnUncordons(o Observed) {
+  decide(o{requested: false, node: Cordoned, cordonedByUs: true}) == Uncordon
+}
+
+proof withdrawnUncordons(o) {
+  refl
+}
+
+law cordonFirst(o Observed) {
+  decide(o{requested: true, node: Schedulable}) == Cordon
+}
+
+proof cordonFirst(o) {
+  refl
+}
+
+law missingFails(o Observed) {
+  decide(o{requested: true, node: Missing}) == MarkFailed(NodeMissing)
+}
+
+proof missingFails(o) {
+  refl
+}
+
+law skipsDaemonSet(o Observed, name String, ns String, rest List[Pod]) {
+  decide(o{requested: true, node: Cordoned, pods: Cons(Pod{name: name, namespace: ns, kind: DaemonSet}, rest)})
+    == decide(o{requested: true, node: Cordoned, pods: rest})
+}
+
+proof skipsDaemonSet(o, name, ns, rest) {
+  refl
+}
+
+law skipsMirror(o Observed, name String, ns String, rest List[Pod]) {
+  decide(o{requested: true, node: Cordoned, pods: Cons(Pod{name: name, namespace: ns, kind: Mirror}, rest)})
+    == decide(o{requested: true, node: Cordoned, pods: rest})
+}
+
+proof skipsMirror(o, name, ns, rest) {
+  refl
+}
+
+law evictsFirstManaged(o Observed, name String, ns String, rest List[Pod]) {
+  decide(o{requested: true, node: Cordoned, deadline: NoDeadline, evictionBlocked: None, pods: Cons(Pod{name: name, namespace: ns, kind: Managed}, rest)})
+    == Evict(ns, name)
+}
+
+proof evictsFirstManaged(o, name, ns, rest) {
+  refl
+}
+
+law drainedWhenEmpty(o Observed) {
+  decide(o{requested: true, node: Cordoned, deadline: NoDeadline, evictionBlocked: None, pods: Nil}) == MarkDrained
+}
+
+proof drainedWhenEmpty(o) {
+  refl
+}
+
+law evictNextNotTimedOut(pods List[Pod]) {
+  isTimedOut(_evictNext(pods)) == false
+}
+
+proof evictNextNotTimedOut(pods) {
+  match pods {
+    Nil => refl
+    | Cons(p, rest) => match p {
+      | Pod{kind: k, ..} => match k {
+        Managed => refl
+        | DaemonSet => rewrite evictNextNotTimedOut(rest) {
+          refl
+        }
+        | Mirror => rewrite evictNextNotTimedOut(rest) {
+          refl
+        }
+      }
+    }
+  }
+}
+
+law timesOutExactly(o Observed, at Int) {
+  isTimedOut(decide(o{requested: true, node: Cordoned, deadline: DeadlineAt(at)})) == (o.nowNanos >= at)
+}
+
+proof timesOutExactly(o, at) {
+  match o {
+    | Observed{nowNanos: now, evictionBlocked: blocked, pods: pods, ..} => if now >= at {
+      refl
+    } else {
+      match blocked {
+        Some(_) => refl
+        | None => rewrite evictNextNotTimedOut(pods) {
+          refl
+        }
+      }
+    }
+  }
+}

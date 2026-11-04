@@ -29,6 +29,8 @@ Rules that keep the boundary clean (SPEC §8.7, tutorial §12):
   structs, `pkg.T` for interfaces), not copied records or enums. A Go shell can
   own the `*kubernetes.Clientset` and pass it to exported go4t `observe` / `apply`
   IO functions, or receive the same handle back.
+  [node-drain-shell](../examples/node-drain-shell) demonstrates this with a
+  Go-owned clientset and reconcile loop calling go4t IO against a kind cluster.
 
 Runnable template: [examples/go-shell](../examples/go-shell). Real ports:
 [examples/approval-controller](../examples/approval-controller),
