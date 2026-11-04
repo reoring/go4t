@@ -27,8 +27,7 @@ func isErrorClassifier(f Function) bool {
 }
 
 // errorClassifier is the sole name-based semantic inference in bindings. It
-// calls the original predicates on the original error, not their erased wrappers
-// (which mirror error arguments as Option[String] and lose the error's type).
+// calls the original predicates directly, without erased go4t ABI adapters.
 func (g *shimGenerator) errorClassifier(pkg *Package) {
 	var names []string
 	for _, f := range pkg.Functions {

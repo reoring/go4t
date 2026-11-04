@@ -3,9 +3,9 @@ package main
 import "std/io"
 import "std/list"
 import "std/ref"
-import "std/string"
 import core "go:k8s.io/api/core/v1"
 import policy "go:k8s.io/api/policy/v1"
+import apierrors "go:k8s.io/apimachinery/pkg/api/errors"
 import meta "go:k8s.io/apimachinery/pkg/apis/meta/v1"
 import kube "go:k8s.io/client-go/kubernetes"
 import corev1 "go:k8s.io/client-go/kubernetes/typed/core/v1"
@@ -73,15 +73,22 @@ func evict(pods corev1.PodInterface, name String) IO[Option[String]] {
   let eviction = policy.newEviction(){kind: "Eviction", aPIVersion: "policy/v1", name: name}
   do {
     cell <- ref.new(eviction)
-    attempt <- io.tryIO(corev1.podInterfaceEvictV1(pods, cell))
+    attempt <- io.tryIOCause(corev1.podInterfaceEvictV1(pods, cell))
     match attempt {
       Ok(_) => None
-      | Err(e) => {
-        let message = io.ioErrorMessage(e)
-        if string.startsWith(message, "TooManyRequests:") {
-          Some(message)
-        } else {
-          io.ioRaise(e)
+      | Err(f) => match f.error {
+        // The pod left between observe and apply (ReplicaSet rollover): already gone.
+        io.NotFound(_) => None
+        | _ => {
+          let throttled = match io.cause(f) {
+            Some(cause) => apierrors.isTooManyRequests(cause)
+            None => false
+          }
+          if throttled {
+            Some(io.ioErrorMessage(f.error))
+          } else {
+            io.ioRaiseCause(f)
+          }
         }
       }
     }

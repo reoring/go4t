@@ -1501,9 +1501,11 @@ are determined by the original Go declaration, not by substituted type arguments
 | Channel element T encountered in a bound package | new<T>Chan(buffer Int) IO[Chan[T]] | Allocate a fresh native channel when the action executes; generated names follow the existing binding-name precedence |
 | time.Duration | Int | Nanoseconds |
 | time.Time | Int | UnixNano; zero time becomes 0, and 0 reconstructs zero time |
-| error in a record field | Option[String] | nil becomes None; otherwise the message; reverse conversion uses a new error |
+| error parameter (including callback parameters and variadic elements) | GoError | Non-null opaque builtin handle; preserve the original Go error identity in both directions; does not itself force IO |
+| error in a non-trailing result, record field, package variable, or container element | Option[GoError] | nil becomes None; otherwise Some(original error); reverse conversion preserves the same error, including its wrapping chain |
+| Trailing error result | IO failure | Unchanged: nil is success; non-nil is classified as an IoError and retained as the cause available through io.tryIOCause / io.cause |
 | Exported nongeneric named struct T with T implementing json.Marshaler and *T implementing json.Unmarshaler | dyn.Value | Its JSON wire form takes precedence over record/handle layout (except the time.Time rule above); recursive fields use the same rule, pointers become Option[dyn.Value], and methods operate on copies. Convert through encoding/json and the runtime any↔dyn helpers; conversion errors panic with `go4t json scalar: <type>: <err>` |
-| Exported struct whose fields are all exported and mirrorable | Record named after the struct | Declared in its owning Go package's binding module, first field letter lower-cased, `deriving Eq, Debug`; a field whose lowered name is a go4t keyword gains a trailing `_` (`SELinuxOptions.Type` → `type_`); promoted embedded fields follow Go lookup, ambiguous fields omitted. A struct with any unexported field, or a pointer embedding, is private state and becomes a handle (`kubernetes.Clientset`): copying its exported fields would silently discard the rest |
+| Exported struct whose fields are all exported and mirrorable | Record named after the struct | Declared in its owning Go package's binding module, first field letter lower-cased, `deriving Eq, Debug` unless a field contains GoError (including through records or containers); GoError has neither instance. A field whose lowered name is a go4t keyword gains a trailing `_` (`SELinuxOptions.Type` → `type_`); promoted embedded fields follow Go lookup, ambiguous fields omitted. A struct with any unexported field, or a pointer embedding, is private state and becomes a handle (`kubernetes.Clientset`): copying its exported fields would silently discard the rest |
 | Named non-struct with mirrorable underlying type | Underlying mirror | No distinct go4t type; shim performs the named Go conversion |
 | Other exported named types | Opaque handle | Includes interfaces, cyclic structs and structs with nonmirrorable fields |
 | Opaque named struct value or pointer | Same opaque handle | A lock-free value result is copied into one fresh mutable pointer box; a pointer preserves identity; passing a boxed handle back as a Go value dereferences it. Package-variable getters, struct-handle field getters and struct-handle receivers use addresses instead. By-value parameters, results and container elements containing locks are skipped with `copies lock value T` |
@@ -1521,6 +1523,19 @@ package. Other bindings reference them through generated `go:` imports, such as
 `import go_io "go:io"` and `go_io.Reader`; import aliases avoid generated names.
 All callers therefore share the owning module's type identity. This applies to
 `BindWithShim`; natural-ABI-only `Bind` output is unchanged.
+
+Error mirrors preserve identity rather than projecting messages (ADR 0011 §3C).
+`GoError` is a builtin like `Ref`, so generated bindings need no import for it.
+An ordinary predicate such as `IsNotFound(error) bool` binds as
+`isNotFound(p0 GoError) Bool`; receiving an error handle alone does not change
+the existing purity rule. Use `io.goErrorMessage` for an explicit message
+projection, or pass a retained `io.cause` to `go:errors` predicates such as `is`.
+Direct error parameters, callback parameters and `...error` elements are
+non-null: a Go caller passing nil through such a go4t-visible parameter is not
+representable and the callback adapter panics with
+`go4t error: nil error parameter`. Ordinary `[]error` and map values instead
+contain `Option[GoError]`, preserving nil elements. Go typed-nil errors are
+non-nil interfaces and remain `Some` handles, just as in Go.
 
 Pointer meaning depends on position (ADR 0011 §2C). Direct pointer parameters
 with scalar, record, slice, map or bytes payloads use the opaque builtin `Ref`;
@@ -1631,8 +1646,8 @@ same inner `*rt.Failure`; its cause is not replaced by the wrapper.
 `errors.Is(Cause, target)` whenever a cause exists, falling back to its five
 OS/context sentinels only when `Cause == nil`.
 
-Any call that receives a handle also forces `IO[R]`, whatever it returns: as a
-method receiver (`strings.Builder.Len` is `IO[Int]`, `ServeMux.Handle` is
+Any call that receives a handle other than `GoError` also forces `IO[R]`,
+whatever it returns: as a method receiver (`strings.Builder.Len` is `IO[Int]`, `ServeMux.Handle` is
 `IO[Unit]`), as a parameter, directly or inside a `List`/`Map`/`Option`
 (`func(b *strings.Builder) int` binds as `IO[Int]`), or as the receiver of a
 field getter (`requestHeader` is `IO[Map[String, List[String]]]`). A handle is
@@ -1640,8 +1655,8 @@ shared Go state; reading it is an observation. Records, maps and slices cross
 as copies and stay pure. Constructors, package-value getters and upcasts
 return a handle without reading through it and stay pure. A package variable
 whose value is a struct handle returns `&pkg.Var`, not a boxed copy of its value.
-This keeps every extern that can observe or change shared state outside the
-pure fragment that laws reason about.
+Error predicates retain their existing pure binding convention; other handles
+keep shared-state observations outside the pure fragment that laws reason about.
 
 Variadic `...T` becomes a final `List[T]`; `...any` becomes `List[dyn.Value]`.
 `std/dyn.Value` has `Null`, `Bool`, `Int`, `Float`, `Str`, `Bytes`, `Time`,

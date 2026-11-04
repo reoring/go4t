@@ -52,14 +52,15 @@ gohttp.requestSetHeader(request, map.mapInsert(headers, "X-Who", ["Ada"]))
 response <- gohttp.clientDo(gohttp.defaultClient(), request)
 ```
 
-Rules (ADR 0003, ADR 0009 and ADR 0011 §2C, SPEC §8):
+Rules (ADR 0003, ADR 0009 and ADR 0011 §2C/§3C, SPEC §8):
 
 - Functions, methods, package variables and basic constants become externs;
   exported fields of opaque structs get `<type><Field>` getters and
   `<type>Set<Field>` setters; opaque structs get `new<Type>()`.
-- Anything that receives a handle (method receiver, parameter, field getter)
-  is `IO`: a handle is shared Go state. By-value records, maps and slices cross
-  as copies and stay pure unless they carry shared state.
+- Anything that receives a mutable handle (method receiver, parameter, field
+  getter) is `IO`: a handle is shared Go state. Error handles are the exception
+  below. By-value records, maps and slices cross as copies and stay pure unless
+  they carry shared state.
 - Direct `*T` parameters with scalar, record, collection or bytes payloads use
   `Ref[T]` and force `IO`, even for read-only callees. Import `std/ref`, allocate
   a cell with `ref.new(value)`, pass it to Go, then read back with `ref.get(cell)`.
@@ -69,6 +70,16 @@ Rules (ADR 0003, ADR 0009 and ADR 0011 §2C, SPEC §8):
   Results and record fields remain `Option[T]`; pointer-to-handle identity and
   JSON-scalar/unresolved type-parameter pointer rules are unchanged. A Ref is
   non-null: native callbacks cannot pass nil for an in-out pointer parameter.
+- Go `error` parameters become the builtin `GoError`, preserving identity;
+  predicates such as `apierrors.isNotFound(cause)` stay pure. Non-trailing
+  results, fields, package variables and container elements use
+  `Option[GoError]` (nil ↔ None); trailing `error` still takes the IO failure
+  path. Use `io.tryIOCause` and `io.cause` to recover a cause, pass it to Go
+  predicates, or explicitly read its message with `io.goErrorMessage`.
+  Direct/callback parameters and `...error` elements cannot represent nil;
+  native callbacks passing nil panic with `go4t error: nil error parameter`.
+  Error-bearing records, including nested ones, omit `deriving Eq, Debug`
+  because `GoError` has no such instances.
 - `(A, B)` results are tuples, `(A, B, error)` is `IO[(A, B)]`, `(A, bool)` is
   `Option[A]`; `iter.Seq[T]` results are `List[T]`; returned funcs are go4t
   functions. Still unsupported: iterator parameters, generic receiver methods,

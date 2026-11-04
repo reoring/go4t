@@ -11,8 +11,8 @@ import (
 	"unicode"
 )
 
-// A foreignMirror is a copy-boundary plan. Handles deliberately do not occur
-// inside records: one opaque field makes the enclosing named struct opaque.
+// A foreignMirror is a boundary plan. Shared-state handles make an enclosing
+// named struct opaque; GoError is an identity-preserving leaf inside records.
 type foreignMirror struct {
 	typ       types.Type
 	kind, gt  string
@@ -30,9 +30,9 @@ type foreignCall struct {
 	params                                     []*foreignMirror
 	result                                     *foreignMirror
 	context, failure, optional, variadic, scan bool
-	// mutable marks a call that receives a handle (as receiver or parameter):
-	// the callee can read or change shared Go state, so the call is an effect
-	// even without ctx or error. Records, maps and slices are copies.
+	// mutable marks a call that receives a shared-state handle (as receiver or
+	// parameter): the call is an effect even without ctx or error. GoError
+	// preserves the existing pure error-predicate convention.
 	mutable bool
 }
 type mirrorSet struct {
@@ -226,7 +226,7 @@ func (s *mirrorSet) valueMirror(t types.Type, visiting map[types.Type]bool) *for
 		return m
 	}
 	if errorType(t) {
-		m.kind, m.gt = "error", "Option[String]"
+		m.kind, m.gt = "error", "Option[GoError]"
 		return m
 	}
 	switch v := t.(type) {
@@ -555,10 +555,13 @@ func (s *mirrorSet) resultMirror(t types.Type) *foreignMirror {
 	return s.resolve(t, true)
 }
 
-// parameterMirror distinguishes in-out pointers from nullable value pointers.
-// Only a direct parameter (or a variadic element) denotes a mutable cell;
-// pointers nested in records and ordinary containers retain their value mirror.
+// parameterMirror distinguishes non-null error handles and in-out pointers
+// from nullable values. Only a direct parameter (or a variadic element) gets
+// these rules; values nested in records and ordinary containers stay nullable.
 func (s *mirrorSet) parameterMirror(t, origin types.Type) *foreignMirror {
+	if errorType(t) {
+		return &foreignMirror{typ: t, kind: "goerror", gt: "GoError"}
+	}
 	if p, ok := types.Unalias(t).(*types.Pointer); ok {
 		if original, ok := types.Unalias(origin).(*types.Pointer); ok {
 			if parameter, ok := types.Unalias(original.Elem()).(*types.TypeParam); ok && structuralConstraint(parameter) == nil {
@@ -622,7 +625,7 @@ func (s *mirrorSet) call(sig *types.Signature, method bool) (*foreignCall, strin
 			m = &foreignMirror{typ: t, kind: "dynlist", gt: "List[dyn.Value]"}
 		} else if sig.Variadic() && i == sig.Params().Len()-1 {
 			elem := s.parameterMirror(t.(*types.Slice).Elem(), origin.Params().At(i).Type().(*types.Slice).Elem())
-			if elem != nil && elem.kind == "ref" {
+			if elem != nil && (elem.kind == "ref" || elem.kind == "goerror") {
 				m = &foreignMirror{typ: t, kind: "slice", gt: "List[" + elem.gt + "]", elem: elem}
 			} else {
 				m = s.resolve(t, true)
@@ -702,7 +705,11 @@ func (s *mirrorSet) declarations() string {
 				}
 				fmt.Fprintf(&out, "%s: %s", f.name, f.mirror.gt)
 			}
-			out.WriteString("} deriving Eq, Debug\n")
+			out.WriteByte('}')
+			if !m.containsGoError() {
+				out.WriteString(" deriving Eq, Debug")
+			}
+			out.WriteByte('\n')
 		} else {
 			fmt.Fprintf(&out, "type %s = %sHandle\n", n, n)
 		}
@@ -713,12 +720,32 @@ func (s *mirrorSet) declarations() string {
 	return out.String()
 }
 
+// GoError has no Eq or Debug instance. Do not derive those instances for a
+// record that contains one, even through another record or container.
+func (m *foreignMirror) containsGoError() bool {
+	if m == nil {
+		return false
+	}
+	if m.kind == "error" || m.kind == "goerror" {
+		return true
+	}
+	if m.elem.containsGoError() || m.key.containsGoError() {
+		return true
+	}
+	for _, f := range m.fields {
+		if f.mirror.containsGoError() {
+			return true
+		}
+	}
+	return false
+}
+
 // foreignTypeName keeps Go type names, except that a name owned by the implicit
 // prelude (Result, Option, List, ...) gets a Go suffix so generated bindings never
 // shadow it; users write the qualified binding name either way.
 func foreignTypeName(name string) string {
 	switch name {
-	case "Ref", "Chan", "RecvChan", "SendChan":
+	case "GoError", "Ref", "Chan", "RecvChan", "SendChan":
 		return name + "Go"
 	}
 	for _, reserved := range gfxtypes.PreludeExports {
@@ -732,9 +759,9 @@ func foreignTypeName(name string) string {
 // effect reports whether a call must run inside IO.
 func (c *foreignCall) effect() bool { return c.context || c.failure || c.mutable }
 
-// sharesState reports whether a value of this mirror carries a handle, directly
-// or inside a container or Option. Invoking an effectful callback also observes
-// shared state; channel-producing callbacks need IO for checked native conversion.
+// sharesState reports whether a value carries a shared-state handle, directly
+// or inside a container or Option. GoError retains pure predicate bindings.
+// Effectful and channel-producing callbacks also require IO.
 func (m *foreignMirror) sharesState() bool {
 	if m == nil {
 		return false

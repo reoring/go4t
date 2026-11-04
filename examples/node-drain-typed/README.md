@@ -54,8 +54,9 @@ location and switches are in [docs/cli.md](../../docs/cli.md).
   projection gained `namespace`.
 - Closed: `StatusError` 404/429 are classified by the generated `api/errors`
   shim's `init()`, which registers its exported `IsXxx(error) bool` predicates.
-  `IsNotFound` becomes `io.NotFound`; `IsTooManyRequests` remains `io.Failure`
-  with the stable `TooManyRequests: ` prefix, so the port no longer guesses
-  from server message substrings. The adapter discovers classifiers throughout
-  each bound package's Go dependency closure and links their shims automatically,
-  so importing the typed clientset is enough; no separate errors import is needed.
+  `IsNotFound` becomes `io.NotFound`, so a pod gone between observe and apply
+  counts as evicted. For 429, `evict` uses `io.tryIOCause` and passes the retained
+  `GoError` to `apierrors.isTooManyRequests`; it no longer classifies by the
+  `TooManyRequests: ` message prefix. The explicit `apierrors` import exposes
+  that pure predicate; automatic classifier discovery still supplies IoError
+  kinds throughout each bound package's Go dependency closure.

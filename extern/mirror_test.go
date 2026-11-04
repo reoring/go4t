@@ -18,7 +18,7 @@ func TestForeignMirrors(t *testing.T) {
 	for _, want := range []string{
 		`import dyn "std/dyn"`,
 		"type Point = Point{x: Int, y: Int} deriving Eq, Debug",
-		"type Record = Record{enabled: Bool, name: String, point: Point, maybe: Option[Point], wait: Int, at: Int, bytes: String, err: Option[String], labels: Map[String, Int]} deriving Eq, Debug",
+		"type Record = Record{enabled: Bool, name: String, point: Point, maybe: Option[Point], wait: Int, at: Int, bytes: String, err: Option[GoError], labels: Map[String, Int]}\n",
 		"type Counter = CounterHandle", "type Opaque = OpaqueHandle", "type Stateful = StatefulHandle",
 		"type Labelled = Labelled{type_: String, match_: Int} deriving Eq, Debug", "type Reserved = ReservedHandle",
 		"extern func echoRecord(p0 Record) Record", "extern func echoPointer(p0 Ref[Point]) IO[Option[Point]]",

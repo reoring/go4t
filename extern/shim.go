@@ -117,9 +117,11 @@ func (g *shimGenerator) conversion(m *foreignMirror) string {
 		fmt.Fprintf(&to, "ns := v.(int64); if ns == 0 { return %s.Time{} }; return %s.Unix(0, ns)\n", timeAlias, timeAlias)
 		from.WriteString("if v.IsZero() { return int64(0) }; return v.UnixNano()\n")
 	case "error":
-		errorsAlias := g.qualifier(types.NewPackage("errors", "errors"))
-		fmt.Fprintf(&to, "x, ok := rt.OptionValue(v); if !ok { return nil }; return %s.New(x.(string))\n", errorsAlias)
-		from.WriteString("if v == nil { return rt.NoneOf() }; return rt.SomeOf(v.Error())\n")
+		to.WriteString("x, ok := rt.OptionValue(v); if !ok { return nil }; return x.(error)\n")
+		from.WriteString("if v == nil { return rt.NoneOf() }; return rt.SomeOf(v)\n")
+	case "goerror":
+		to.WriteString("return v.(error)\n")
+		from.WriteString("if v == nil { panic(\"go4t error: nil error parameter\") }; return v\n")
 	case "pointer":
 		inner := g.conversion(m.elem)
 		fmt.Fprintf(&to, "x, ok := rt.OptionValue(v); if !ok { return nil }; result := %sTo(x,ctx); return &result\n", inner)

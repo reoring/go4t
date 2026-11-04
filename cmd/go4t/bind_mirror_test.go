@@ -17,7 +17,8 @@ import f "go:go4t/extern/testdata/mirrorfixture"
 func main() IO[Unit] {
  do {
   let r = f.makeRecord()
-  println(show(f.echoRecord(r) == r))
+  let echoed = f.echoRecord(r)
+  println(show(echoed.point == r.point && (match echoed.err { Some(e) => io.goErrorMessage(e) == "field"; None => false })))
   println(show(f.pointSum(r.point)))
   pointCell <- ref.new(r.point)
   pointer <- f.echoPointer(pointCell)
@@ -32,7 +33,7 @@ func main() IO[Unit] {
   let m = map.mapFromList([(2, [r.point])])
   println(show(f.echoMap(m) == m))
   copied <- f.withContext(r)
-  println(show(copied == r))
+  println(show(copied.name == r.name && copied.labels == r.labels && (match copied.err { Some(e) => io.goErrorMessage(e) == "field"; None => false })))
   text <- f.contextOnly()
   println(text)
   f.errorOnly(false)
@@ -54,7 +55,7 @@ func main() IO[Unit] {
   failure <- io.tryIO(f.errorCallback(func() => ioFail("callback failure")))
   println(match failure { Err(e) => show(e); Ok(_) => "wrong" })
   let changed = f.mutateRecord(r)
-  println(show(changed.bytes == "Xytes" && r == f.makeRecord()))
+  println(show(changed.bytes == "Xytes" && r.bytes == "bytes" && r.maybe == Some(f.Point{x: 4, y: 5}) && r.labels == f.makeRecord().labels))
   let flattened = f.makeFlattened()
   visible <- f.flattenedVisible(flattened)
   println(show(visible == "visible"))

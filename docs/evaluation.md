@@ -333,3 +333,5 @@ Decisions from the observation: no `Throttled` constructor is added to `IoError`
 was never observed because cordon is a merge patch and eviction is a create,
 neither of which carries a resourceVersion, so there is nothing to add until a
 controller uses `Update`. Memory and reconcile time did not drift.
+
+The prefix-based 429 classification above describes the recorded soak; `evict` now uses the retained `io.cause` with `apierrors.isTooManyRequests` instead (ADR 0011 §3C).
