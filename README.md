@@ -105,6 +105,73 @@ case decide.FreshnessTtlInvalid:
 }
 ```
 
+### The same decision with its I/O in go4t
+
+The shell around a decision does not have to be Go. Effects are values of
+type `IO[A]`, and a `do` block sequences them; `x <- action` runs an action
+and binds its result, while a bare expression is just a pure value. Reading
+the world and turning what was read into a `Timestamp` are two different
+jobs, so they are two different functions:
+
+```go4t
+package main
+import "std/io"
+import "std/string"
+
+type Ttl       = NoTtl | InvalidTtl | TtlNanos(Int)                 deriving Eq, Debug
+type Timestamp = NoTimestamp | InvalidTimestamp | AtNanos(Int)      deriving Eq, Debug
+type Freshness = Fresh(Int) | TtlInvalid | TimestampMissing
+               | TimestampInvalid | Stale                            deriving Eq, Debug
+
+func freshness(ttl Ttl, observedAt Timestamp, nowNanos Int) Freshness {
+  match (ttl, observedAt) {
+    (NoTtl, _)                                          => Fresh(0)
+    (InvalidTtl, _)                                     => TtlInvalid
+    (TtlNanos(_), NoTimestamp)                          => TimestampMissing
+    (TtlNanos(_), InvalidTimestamp)                     => TimestampInvalid
+    (TtlNanos(t), AtNanos(at)) if nowNanos >= at + t    => Stale
+    (TtlNanos(t), AtNanos(at))                          => Fresh(at + t - nowNanos)
+  }
+}
+
+// Reading the file is IO; deciding what the text means is pure.
+func observedAt(path String) IO[Timestamp] {
+  do {
+    read <- io.tryIO(io.readFile(path))
+    match read {
+      Err(io.NotFound(_)) => NoTimestamp
+      | Err(e)            => io.ioRaise(e)
+      | Ok(text)          => match string.parseInt(string.trim(text)) {
+        Some(nanos) => AtNanos(nanos)
+        None        => InvalidTimestamp
+      }
+    }
+  }
+}
+
+func main() IO[Unit] {
+  do {
+    at     <- observedAt("/var/run/last-seen")
+    millis <- io.nowMillis()
+    match freshness(TtlNanos(30 * 1000000000), at, millis * 1000000) {
+      Fresh(left)      => println("fresh for ${left / 1000000} ms more")
+      Stale            => println("stale: re-observe")
+      TimestampMissing => println("never observed")
+      | other          => io.ioFail("invalid input: " + debug(other))
+    }
+  }
+}
+```
+
+`io.tryIO` turns a failing action into a `Result` you can match on, so a
+missing file becomes the `NoTimestamp` case instead of an exception; any
+other failure is re-raised with `io.ioRaise`. A `match` arm may return a plain
+value (`NoTimestamp`) or an action (`io.ioFail(...)`); both are fine where an
+`IO` is expected. With no file the program prints `never observed`; with a
+file containing a recent UnixNano it prints `fresh for 29170 ms more`; with
+garbage it exits 1 with `invalid input: TimestampInvalid`. Nothing in
+`freshness` changed, and its laws still hold.
+
 ## How it fits into a Go program
 
 You choose how much to move. All three shapes have runnable examples and

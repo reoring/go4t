@@ -106,6 +106,71 @@ case decide.FreshnessTtlInvalid:
 }
 ```
 
+### 同じ決定を、I/O も go4t で
+
+決定の外側(シェル)を Go で書く必要はありません。作用は `IO[A]` 型の値で、
+`do` ブロックがそれを順に実行します。`x <- action` は作用を実行して結果を束縛し、
+式をそのまま書けばそれは純粋な値です。「外の世界を読む」ことと
+「読んだものを `Timestamp` に解釈する」ことは別の仕事なので、別の関数にします。
+
+```go4t
+package main
+import "std/io"
+import "std/string"
+
+type Ttl       = NoTtl | InvalidTtl | TtlNanos(Int)                 deriving Eq, Debug
+type Timestamp = NoTimestamp | InvalidTimestamp | AtNanos(Int)      deriving Eq, Debug
+type Freshness = Fresh(Int) | TtlInvalid | TimestampMissing
+               | TimestampInvalid | Stale                            deriving Eq, Debug
+
+func freshness(ttl Ttl, observedAt Timestamp, nowNanos Int) Freshness {
+  match (ttl, observedAt) {
+    (NoTtl, _)                                          => Fresh(0)
+    (InvalidTtl, _)                                     => TtlInvalid
+    (TtlNanos(_), NoTimestamp)                          => TimestampMissing
+    (TtlNanos(_), InvalidTimestamp)                     => TimestampInvalid
+    (TtlNanos(t), AtNanos(at)) if nowNanos >= at + t    => Stale
+    (TtlNanos(t), AtNanos(at))                          => Fresh(at + t - nowNanos)
+  }
+}
+
+// Reading the file is IO; deciding what the text means is pure.
+func observedAt(path String) IO[Timestamp] {
+  do {
+    read <- io.tryIO(io.readFile(path))
+    match read {
+      Err(io.NotFound(_)) => NoTimestamp
+      | Err(e)            => io.ioRaise(e)
+      | Ok(text)          => match string.parseInt(string.trim(text)) {
+        Some(nanos) => AtNanos(nanos)
+        None        => InvalidTimestamp
+      }
+    }
+  }
+}
+
+func main() IO[Unit] {
+  do {
+    at     <- observedAt("/var/run/last-seen")
+    millis <- io.nowMillis()
+    match freshness(TtlNanos(30 * 1000000000), at, millis * 1000000) {
+      Fresh(left)      => println("fresh for ${left / 1000000} ms more")
+      Stale            => println("stale: re-observe")
+      TimestampMissing => println("never observed")
+      | other          => io.ioFail("invalid input: " + debug(other))
+    }
+  }
+}
+```
+
+`io.tryIO` は失敗しうる作用を `Result` に変えるので、ファイルが無いことを
+例外ではなく `NoTimestamp` というケースとして扱えます。それ以外の失敗は
+`io.ioRaise` でそのまま投げ直します。`match` の腕は、純粋な値(`NoTimestamp`)でも
+作用(`io.ioFail(...)`)でもかまいません。`IO` が期待される位置ではどちらも書けます。
+ファイルが無ければ `never observed`、最近の UnixNano が入っていれば
+`fresh for 29170 ms more` と表示し、不正な内容なら `invalid input: TimestampInvalid`
+で終了コード 1 になります。`freshness` は 1 行も変わっておらず、法則もそのまま成り立ちます。
+
 ## Go プログラムへの組み込み方
 
 どこまで移すかは選べます。次の 3 つの構成には、いずれも実行できる例があり、
