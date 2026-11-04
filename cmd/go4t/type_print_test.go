@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"go4t/types"
+	"github.com/reoring/go4t/types"
 )
 
 func TestFullTypesFlag(t *testing.T) {
@@ -60,7 +60,7 @@ func TestAliasCodegenTransparency(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mod := "module aliasprinttest\n\ngo 1.22\n\nrequire go4t v0.0.0\nreplace go4t => " + root + "\n"
+	mod := "module aliasprinttest\n\ngo 1.22\n\nrequire github.com/reoring/go4t v0.0.0\nreplace github.com/reoring/go4t => " + root + "\n"
 	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(mod), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +107,7 @@ func TestFullTypesForeignSignature(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mod := "module foreignsigtest\n\ngo 1.22\n\nrequire go4t v0.0.0\nreplace go4t => " + root + "\n"
+	mod := "module foreignsigtest\n\ngo 1.22\n\nrequire github.com/reoring/go4t v0.0.0\nreplace github.com/reoring/go4t => " + root + "\n"
 	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(mod), 0600); err != nil {
 		t.Fatal(err)
 	}

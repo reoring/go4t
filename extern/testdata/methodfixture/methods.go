@@ -1,6 +1,6 @@
 package methodfixture
 
-import "go4t/rt"
+import "github.com/reoring/go4t/rt"
 
 type Widget struct{ Name string }
 

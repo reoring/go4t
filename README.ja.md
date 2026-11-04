@@ -28,7 +28,7 @@ go4t には、Go にはない次の 3 つがあります。
 PATH に **Go 1.22 以上**が必要です。
 
 ```sh
-go install ./cmd/go4t
+go install github.com/reoring/go4t/cmd/go4t@latest
 go4t eval '1 + 2'        # 3
 ```
 
@@ -184,9 +184,10 @@ func main() IO[Unit] { ioPure(unit()) }
   [attachment-repair-controller](examples/attachment-repair-controller))。
   node-drain controller には前述の 3 つの構成があり、全体を go4t で書いたものは、
   3 時間の連続稼働試験で 839/839 回の drain/recover サイクルを実行しました。
-- **通常のプログラム。** CLI ツール、HTTP サービス、ドキュメントを読んだだけの人が
-  書いたプログラムがあります ([docs/evaluation.md](docs/evaluation.md) に、
-  つまずいた点と変更内容を記録しています)。
+- **通常のプログラム。** CLI ツール、HTTP サービス、そしてコンパイラを見たことのない
+  コーディングエージェント 4 本がドキュメントだけを頼りに書いたプログラムがあります
+  ([docs/evaluation.md](docs/evaluation.md) に、つまずいた点と変更内容を記録しています)。
+  上記はすべてプロジェクト自身の手によるもので、外部の利用者はまだいません。
 - **go4t 自身。** `selfhost/` は go4t で書かれた 5.4k 行の go4t→Go コンパイラです。
   自分自身の出力を再現でき (`bash selfhost/bootstrap.sh`)、CI で検査しています。
 

@@ -36,7 +36,7 @@ func TestErrorClassifierShim(t *testing.T) {
 	writeBindingTestFile(t, dir, "fixture/classifiers_test.go", `package fixture_test
 import (
  "testing"
- "go4t/rt"
+ "github.com/reoring/go4t/rt"
  f "example.test/bindings/fixture"
 )
 func TestSamePackageClassifier(t *testing.T) {
@@ -114,7 +114,7 @@ import (
  "fmt"
  "os"
  "testing"
- "go4t/rt"
+ "github.com/reoring/go4t/rt"
  f "example.test/bindings/fixture"
  s "example.test/bindings/shim"
 )

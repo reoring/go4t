@@ -3,8 +3,8 @@ package codegen
 import (
 	"testing"
 
-	"go4t/ast"
-	"go4t/types"
+	"github.com/reoring/go4t/ast"
+	"github.com/reoring/go4t/types"
 )
 
 func floatLiteral(value float64) *ast.FloatLit {
@@ -13,8 +13,8 @@ func floatLiteral(value float64) *ast.FloatLit {
 
 func TestFloatCodegenFormatting(t *testing.T) {
 	p := fixture()
-	extern(p, "showFloat", []string{"number"}, []types.Type{types.Float}, "go4t/rt", "ShowFloat")
-	extern(p, "showFloatFixed", []string{"number", "decimals"}, []types.Type{types.Float, types.Int}, "go4t/rt", "ShowFloatFixed")
+	extern(p, "showFloat", []string{"number"}, []types.Type{types.Float}, "github.com/reoring/go4t/rt", "ShowFloat")
+	extern(p, "showFloatFixed", []string{"number", "decimals"}, []types.Type{types.Float, types.Int}, "github.com/reoring/go4t/rt", "ShowFloatFixed")
 	p.Main.Decl.Body.Result = tupleLiteral(
 		call(function("showFloat", fnType(types.Float)), floatLiteral(2000)),
 		call(function("showFloatFixed", fnType(types.Float, types.Int)), floatLiteral(0.001), integer(3)),

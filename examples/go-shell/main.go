@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"reflect"
 
-	"go4t/rt"
+	"github.com/reoring/go4t/rt"
 	"goshell/core"
 )
 

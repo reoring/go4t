@@ -7,18 +7,18 @@ import (
 	"strings"
 	"testing"
 
-	"go4t/ast"
-	"go4t/types"
+	"github.com/reoring/go4t/ast"
+	"github.com/reoring/go4t/types"
 )
 
 func TestForeignRecordRegistrationKeys(t *testing.T) {
-	const target = "go4t/extern/testdata/natural"
+	const target = "github.com/reoring/go4t/extern/testdata/natural"
 	dir := t.TempDir()
 	root, err := filepath.Abs("..")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module recordkeys\n\ngo 1.23\n\nrequire go4t v0.0.0\nreplace go4t => "+filepath.ToSlash(root)+"\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module recordkeys\n\ngo 1.23\n\nrequire github.com/reoring/go4t v0.0.0\nreplace github.com/reoring/go4t => "+filepath.ToSlash(root)+"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	for _, tc := range []struct {

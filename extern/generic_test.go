@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"go4t/ast"
+	"github.com/reoring/go4t/ast"
 )
 
 func genericType(name string, args ...ast.Type) *ast.TypeName {
@@ -110,7 +110,7 @@ import (
  "context"
  "errors"
  "testing"
- "go4t/rt"
+ "github.com/reoring/go4t/rt"
  retain "example.test/bindings/Retain"
  invoke "example.test/bindings/Invoke"
  stringify "example.test/bindings/Stringify"

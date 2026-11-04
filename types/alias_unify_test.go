@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"go4t/ast"
+	"github.com/reoring/go4t/ast"
 )
 
 func TestAliasesDoNotChangeUnification(t *testing.T) {

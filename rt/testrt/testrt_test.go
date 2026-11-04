@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"go4t/rt"
+	"github.com/reoring/go4t/rt"
 )
 
 func TestRunSuspendsAndCapturesFailures(t *testing.T) {

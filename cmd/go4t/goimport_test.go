@@ -181,7 +181,7 @@ import (
 	"fmt"
 	"net/url"
 	"clitoolstest/out"
-	"go4t/rt"
+	"github.com/reoring/go4t/rt"
 )
 func main() {
 	ctx := context.Background()

@@ -12,12 +12,12 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"go4t/ast"
-	"go4t/codegen"
-	"go4t/modules"
-	"go4t/parser"
-	"go4t/std"
-	"go4t/types"
+	"github.com/reoring/go4t/ast"
+	"github.com/reoring/go4t/codegen"
+	"github.com/reoring/go4t/modules"
+	"github.com/reoring/go4t/parser"
+	"github.com/reoring/go4t/std"
+	"github.com/reoring/go4t/types"
 )
 
 const compileN = 400
@@ -214,7 +214,7 @@ func BenchmarkCompile(b *testing.B) {
 					b.Fatal(err)
 				}
 			}
-			mod := "module compilebench\n\ngo 1.22\n\nrequire go4t v0.0.0\nreplace go4t => " + filepath.ToSlash(root(b)) + "\n"
+			mod := "module compilebench\n\ngo 1.22\n\nrequire github.com/reoring/go4t v0.0.0\nreplace github.com/reoring/go4t => " + filepath.ToSlash(root(b)) + "\n"
 			if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(mod), 0o644); err != nil {
 				b.Fatal(err)
 			}

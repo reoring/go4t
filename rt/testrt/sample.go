@@ -8,7 +8,7 @@ import (
 	"os"
 	"strconv"
 
-	"go4t/rt"
+	"github.com/reoring/go4t/rt"
 )
 
 const sampleSeed int64 = 0x674f3474

@@ -18,11 +18,11 @@ type Response = Response{
   body: String
 } deriving Debug
 
-extern func _request(method String, url String, path String, query List[(String, String)], headers List[(String, String)], body String, millis Int) IO[(Int, List[(String, String)], String)] = "go4t/rt".HTTPRequest
+extern func _request(method String, url String, path String, query List[(String, String)], headers List[(String, String)], body String, millis Int) IO[(Int, List[(String, String)], String)] = "github.com/reoring/go4t/rt".HTTPRequest
 
-extern func _header(headers List[(String, String)], name String) Option[String] = "go4t/rt".HTTPHeader
+extern func _header(headers List[(String, String)], name String) Option[String] = "github.com/reoring/go4t/rt".HTTPHeader
 
-extern func _serveOnReady(host String, port Int, handler func(String, String, String, List[(String, String)], List[(String, String)], String) IO[(Int, List[(String, String)], String)], ready func(Int) IO[Unit]) IO[Unit] = "go4t/rt".HTTPServeOnReady
+extern func _serveOnReady(host String, port Int, handler func(String, String, String, List[(String, String)], List[(String, String)], String) IO[(Int, List[(String, String)], String)], ready func(Int) IO[Unit]) IO[Unit] = "github.com/reoring/go4t/rt".HTTPServeOnReady
 
 func request(r Request) IO[Response] {
   requestWithTimeout(r, 30000)

@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"go4t/parser"
+	"github.com/reoring/go4t/parser"
 )
 
 func TestSqlServiceExample(t *testing.T) {
@@ -49,7 +49,7 @@ func TestSqlServiceExample(t *testing.T) {
 		}
 		source := string(data)
 		if name == "go.mod" {
-			source = strings.Replace(source, "replace go4t => ../..", "replace go4t => "+strconv.Quote(checkout), 1)
+			source = strings.Replace(source, "replace github.com/reoring/go4t => ../..", "replace github.com/reoring/go4t => "+strconv.Quote(checkout), 1)
 		}
 		if name == "main.gt" {
 			if _, err := parser.Parse(source); err != nil {

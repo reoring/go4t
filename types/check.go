@@ -6,7 +6,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"go4t/ast"
+	"github.com/reoring/go4t/ast"
 )
 
 type instanceKey struct{ class, con string }

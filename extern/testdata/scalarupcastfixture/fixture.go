@@ -1,8 +1,8 @@
 package scalarupcastfixture
 
 import (
-	"go4t/extern/testdata/scalarupcastfixture/config"
-	_ "go4t/extern/testdata/scalarupcastfixture/q"
+	"github.com/reoring/go4t/extern/testdata/scalarupcastfixture/config"
+	_ "github.com/reoring/go4t/extern/testdata/scalarupcastfixture/q"
 )
 
 type Cfg = config.Cfg

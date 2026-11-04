@@ -4,16 +4,16 @@ import (
 	"strings"
 	"testing"
 
-	"go4t/ast"
-	"go4t/parser"
-	"go4t/types"
+	"github.com/reoring/go4t/ast"
+	"github.com/reoring/go4t/parser"
+	"github.com/reoring/go4t/types"
 )
 
 func TestLocalRecursionCompiles(t *testing.T) {
 	const support = `package main
-extern func main() IO[Unit] = "go4t/rt".UnitValue
+extern func main() IO[Unit] = "github.com/reoring/go4t/rt".UnitValue
 class Show[A] { show(x A) String }
-extern func showInt(x Int) String = "go4t/rt".ShowInt
+extern func showInt(x Int) String = "github.com/reoring/go4t/rt".ShowInt
 instance Show[Int] { show(x) { showInt(x) } }
 instance Show[Bool] { show(x) { if x { "true" } else { "false" } } }
 class Functor[F[_]] { fmap[A, B](fa F[A], f func(A) B) F[B] }

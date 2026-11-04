@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"go4t/ast"
+	"github.com/reoring/go4t/ast"
 )
 
 type defaultOrigin struct {

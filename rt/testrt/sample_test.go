@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"go4t/rt"
+	"github.com/reoring/go4t/rt"
 )
 
 func TestSampleSeedAndFirstCounterexample(t *testing.T) {

@@ -8,10 +8,10 @@ import (
 	"strconv"
 	"strings"
 
-	"go4t/ast"
-	"go4t/modules"
-	"go4t/std"
-	"go4t/types"
+	"github.com/reoring/go4t/ast"
+	"github.com/reoring/go4t/modules"
+	"github.com/reoring/go4t/std"
+	"github.com/reoring/go4t/types"
 )
 
 var positionedError = regexp.MustCompile(`^(\d+):(\d+):`)

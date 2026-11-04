@@ -61,7 +61,7 @@ var NewConstruct = 6
 import (
  "context"
  "testing"
- "go4t/rt"
+ "github.com/reoring/go4t/rt"
  f "example.test/bindings/fixture"
  s "example.test/bindings/shim"
 )

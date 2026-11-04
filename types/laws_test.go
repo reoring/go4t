@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"go4t/ast"
-	"go4t/types"
+	"github.com/reoring/go4t/ast"
+	"github.com/reoring/go4t/types"
 )
 
 // Keep an AST-built case for embedders that do not use the source parser.

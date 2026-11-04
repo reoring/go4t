@@ -11,8 +11,8 @@ import (
 	"strconv"
 	"strings"
 
-	"go4t/ast"
-	"go4t/types"
+	"github.com/reoring/go4t/ast"
+	"github.com/reoring/go4t/types"
 )
 
 // Options controls imports needed for package initialization, independently of

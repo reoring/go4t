@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"go4t/ast"
+	"github.com/reoring/go4t/ast"
 )
 
 func TestComparisonDisplay(t *testing.T) {

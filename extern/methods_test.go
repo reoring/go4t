@@ -8,7 +8,7 @@ import (
 
 func TestMethodBindingBoundaries(t *testing.T) {
 	var loader Loader
-	pkg, err := loader.Load("go4t/extern/testdata/methodfixture")
+	pkg, err := loader.Load("github.com/reoring/go4t/extern/testdata/methodfixture")
 	if err != nil {
 		t.Fatal(err)
 	}

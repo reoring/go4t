@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	runtimefs "go4t"
-	"go4t/types"
+	runtimefs "github.com/reoring/go4t"
+	"github.com/reoring/go4t/types"
 )
 
 type buildModule struct {
@@ -34,7 +34,7 @@ func buildModuleRoot(base string) string {
 	if err != nil {
 		return ""
 	}
-	command := exec.Command("go", "list", "-m", "go4t")
+	command := exec.Command("go", "list", "-m", "github.com/reoring/go4t")
 	command.Dir = root
 	if err := command.Run(); err != nil {
 		return ""
@@ -57,7 +57,7 @@ func prepareBuildModule(root string) (buildModule, error) {
 		module.close()
 		return buildModule{}, err
 	}
-	mod := fmt.Sprintf("module go4trun\n\ngo %s\n\nrequire go4t v0.0.0\n\nreplace go4t => ./go4t\n", runtimefs.GoVersion())
+	mod := fmt.Sprintf("module go4trun\n\ngo %s\n\nrequire github.com/reoring/go4t v0.0.0\n\nreplace github.com/reoring/go4t => ./go4t\n", runtimefs.GoVersion())
 	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(mod), 0o644); err != nil {
 		module.close()
 		return buildModule{}, err
@@ -78,7 +78,7 @@ func (module buildModule) checkForeign(program *types.Program) error {
 		}
 		if ref := function.Decl.Extern; ref != nil {
 			path := ref.ImportPath
-			if path != "go4t/rt" && !strings.HasPrefix(path, "go4t/rt/") && (foreign == "" || path < foreign) {
+			if path != "github.com/reoring/go4t/rt" && !strings.HasPrefix(path, "github.com/reoring/go4t/rt/") && (foreign == "" || path < foreign) {
 				foreign = path
 			}
 		}

@@ -3,7 +3,7 @@ package lexer_test
 import (
 	"testing"
 
-	"go4t/lexer"
+	"github.com/reoring/go4t/lexer"
 )
 
 func TestLawKeywords(t *testing.T) {

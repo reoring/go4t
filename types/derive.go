@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"go4t/ast"
+	"github.com/reoring/go4t/ast"
 )
 
 // expandDeriving appends ordinary instances, so their fields and bodies use the

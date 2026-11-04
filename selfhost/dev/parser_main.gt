@@ -13,8 +13,8 @@ import "std/result"
 // `go run ./cmd/go4t check <fixture>` parity checks; remove those after comparing.
 // With no program arguments all current examples and the prelude are dumped;
 // program arguments may instead supply additional source paths to inspect.
-extern func readFile(path String) IO[String] = "go4t/rt".ReadFile
-extern func writeFile(path String, content String) IO[Unit] = "go4t/rt".WriteFile
+extern func readFile(path String) IO[String] = "github.com/reoring/go4t/rt".ReadFile
+extern func writeFile(path String, content String) IO[Unit] = "github.com/reoring/go4t/rt".WriteFile
 
 func showFile(file File) String { dumpFile(file) }
 

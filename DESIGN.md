@@ -12,7 +12,7 @@ packages; each package has one owner.
 | `lexer`, `parser` | primary (done) | source → AST |
 | `types`      | checker worker | kinds, type inference with HKT, class/instance resolution, annotation |
 | `codegen`    | codegen worker | annotated AST → Go source text |
-| `rt`         | runtime worker | Go runtime library imported by generated code (`go4t/rt`) |
+| `rt`         | runtime worker | Go runtime library imported by generated code (`github.com/reoring/go4t/rt`) |
 | `prelude`    | runtime worker | `prelude/prelude.gt` (embedded via `prelude.Source`), parsed + checked before every user file |
 | `cmd/go4t`   | codegen worker | CLI: `go4t build <file.gt>` writes `<name>_gen.go` next to it; `go4t run` builds then `go run` |
 
@@ -33,7 +33,7 @@ class Monad[M[_]] : Functor[M] {
 type Option[A] = None | Some(A)
 instance Functor[Option] { fmap(fa, f) { match fa { None => None | Some(a) => Some(f(a)) } } }   // arms separated by ';' or newline, not '|'
 func twice[F[_] Functor, A](fa F[A], f func(A) A) F[A] { fmap(fmap(fa, f), f) }
-extern func httpGet(url String) IO[Int] = "go4t/rt/stdhttp".GetStatus
+extern func httpGet(url String) IO[Int] = "github.com/reoring/go4t/rt/stdhttp".GetStatus
 func main() IO[Unit] {
   do {
     code <- httpGet("https://example.com")
@@ -220,7 +220,7 @@ Errors are printed `file:line:col: message` and exit 1.
 ## Deviations
 
 The initial `unit : Unit` value is exposed as a zero-argument function because extern
-declarations are functions: `extern func unit() Unit = "go4t/rt".UnitValue`.
+declarations are functions: `extern func unit() Unit = "github.com/reoring/go4t/rt".UnitValue`.
 Programs write `unit()` to obtain `Unit`; this is reflected in the contract above.
 
 ## Pass 3: if/else layout, List, constrained instances
@@ -560,7 +560,7 @@ isSome[A](o Option[A]) Bool      isNone[A](o Option[A]) Bool
 Goal: a go4t program can read input and process text, so small CLI tools are writable.
 No new syntax; everything is prelude externs backed by `rt/str.go` and `rt/io.go`.
 
-### String functions (prelude externs → `"go4t/rt"`)
+### String functions (prelude externs → `"github.com/reoring/go4t/rt"`)
 ```
 strLength(s String) Int                     // rune count
 strConcat(xs List[String]) String           // join without separator
@@ -986,7 +986,7 @@ named in their contract) — `docs/slices/` is not used any more; `docs/check_te
   than 160 characters are elided at depth ≥ 3 with `…`; `go4t check --full-types` disables elision.
 - **Debug[List]** is the literal form `[a, b]` (Pass 13 wave 0, already in flight).
 - **Run anywhere** (wave 0, in flight): the `go4t` binary embeds `rt/**` and synthesises a Go
-  module in a temp dir for `run/test/eval` outside any go.mod; only programs with non-`go4t/rt`
+  module in a temp dir for `run/test/eval` outside any go.mod; only programs with non-`github.com/reoring/go4t/rt`
   externs need a project go.mod.
 
 ### Slices

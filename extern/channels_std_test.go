@@ -56,7 +56,7 @@ import (
  "syscall"
  "testing"
  "time"
- "go4t/rt"
+ "github.com/reoring/go4t/rt"
  c "example.test/bindings/shim_context"
  h "example.test/bindings/shim_http"
  s "example.test/bindings/shim_signal"

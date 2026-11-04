@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"go4t/ast"
+	"github.com/reoring/go4t/ast"
 )
 
 // resume reduces eliminators whose operands became known during normalization
@@ -72,7 +72,7 @@ func (e *evaluator) resume(t *term) (*term, error) {
 		// become reflexive) after substitution or arithmetic normalization.
 		switch t.name {
 		case "rt.EqInt", "rt.EqString", "rt.EqBool", "rt.LtInt", "rt.LtString":
-			value, err := e.extern(&ast.ExternRef{ImportPath: "go4t/rt", Name: strings.TrimPrefix(t.name, "rt.")}, t.args)
+			value, err := e.extern(&ast.ExternRef{ImportPath: "github.com/reoring/go4t/rt", Name: strings.TrimPrefix(t.name, "rt.")}, t.args)
 			if err != nil {
 				return nil, err
 			}
@@ -85,7 +85,7 @@ func (e *evaluator) resume(t *term) (*term, error) {
 			}
 		}
 		if constant {
-			return e.extern(&ast.ExternRef{ImportPath: "go4t/rt", Name: strings.TrimPrefix(t.name, "rt.")}, t.args)
+			return e.extern(&ast.ExternRef{ImportPath: "github.com/reoring/go4t/rt", Name: strings.TrimPrefix(t.name, "rt.")}, t.args)
 		}
 	case "order":
 		if t.args[0].kind == "ctor" {

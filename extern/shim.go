@@ -9,7 +9,7 @@ import (
 	"strings"
 	"unicode"
 
-	"go4t/ast"
+	"github.com/reoring/go4t/ast"
 )
 
 type shimGenerator struct {
@@ -550,7 +550,7 @@ type BindingMetadata struct {
 // The third result retains Go record and handle identities, including names
 // whose go4t spelling changes to avoid a prelude collision.
 func BindWithShim(pkg *Package, options BindOptions, shimPath, shimPackage string) (string, []byte, *BindingMetadata, error) {
-	g := &shimGenerator{path: shimPath, imports: map[string]string{"context": "context", "go4t/rt": "rt"}, converters: map[string]string{}}
+	g := &shimGenerator{path: shimPath, imports: map[string]string{"context": "context", "github.com/reoring/go4t/rt": "rt"}, converters: map[string]string{}}
 	var decl strings.Builder
 	// These reservations only keep generated import aliases out of the way;
 	// all binding-name competition is decided by candidates below.

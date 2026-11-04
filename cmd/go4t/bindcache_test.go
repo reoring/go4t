@@ -9,12 +9,12 @@ import (
 	"testing"
 	"time"
 
-	"go4t/ast"
-	"go4t/extern"
+	"github.com/reoring/go4t/ast"
+	"github.com/reoring/go4t/extern"
 )
 
 func TestGoImportBindingCache(t *testing.T) {
-	const importPath = "go4t/extern/testdata/mirrorfixture"
+	const importPath = "github.com/reoring/go4t/extern/testdata/mirrorfixture"
 	cache := t.TempDir()
 	t.Setenv("GO4T_CACHE", cache)
 	dir := toolsModule(t)
@@ -106,7 +106,7 @@ func TestGoImportBindingCache(t *testing.T) {
 func TestGoImportBindingCacheOff(t *testing.T) {
 	t.Setenv("GO4T_CACHE", "off")
 	binder := newGoImportBinder(toolsModule(t))
-	if _, err := binder.Bind("go4t/extern/testdata/mirrorfixture"); err != nil {
+	if _, err := binder.Bind("github.com/reoring/go4t/extern/testdata/mirrorfixture"); err != nil {
 		t.Fatal(err)
 	}
 	entry, err := bindingCacheEntry(nil, "not-loaded", extern.BindOptions{}, "", "")
@@ -119,13 +119,13 @@ func TestGoImportBindingCacheReusesDependencyExports(t *testing.T) {
 	t.Setenv("GO4T_CACHE", t.TempDir())
 	dir := toolsModule(t)
 	cold := newGoImportBinder(dir)
-	for _, path := range []string{"go4t/extern/testdata/mirrorfixture", "time"} {
+	for _, path := range []string{"github.com/reoring/go4t/extern/testdata/mirrorfixture", "time"} {
 		if _, err := cold.Bind(path); err != nil {
 			t.Fatal(err)
 		}
 	}
 	warm := newGoImportBinder(dir)
-	if _, err := warm.Bind("go4t/extern/testdata/mirrorfixture"); err != nil {
+	if _, err := warm.Bind("github.com/reoring/go4t/extern/testdata/mirrorfixture"); err != nil {
 		t.Fatal(err)
 	}
 	// The first go list already resolved time's export file. A transitive hit
@@ -227,7 +227,7 @@ func TestBindingExportHash(t *testing.T) {
 	if _, err := loader.ExportHash("missing"); err == nil || err.Error() != `no export data for "missing"` {
 		t.Fatalf("missing export hash error: %v", err)
 	}
-	const path = "go4t/extern/testdata/mirrorfixture"
+	const path = "github.com/reoring/go4t/extern/testdata/mirrorfixture"
 	if _, err := loader.Load(path); err != nil {
 		t.Fatal(err)
 	}

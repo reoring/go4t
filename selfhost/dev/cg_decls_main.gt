@@ -3,7 +3,7 @@ package main
 import "std/prelude"
 import "std/string"
 
-extern func writeFile(path String, content String) IO[Unit] = "go4t/rt".WriteFile
+extern func writeFile(path String, content String) IO[Unit] = "github.com/reoring/go4t/rt".WriteFile
 
 func cgDeclFixture() Program {
   Program{
@@ -14,7 +14,7 @@ func cgDeclFixture() Program {
       CoreFunc{name: "describe", dictParams: [("A", "Area")], params: ["x"], body: CString("shape")},
       CoreFunc{name: "identity", dictParams: Nil, params: ["x"], body: CLocal("x")},
       CoreFunc{name: "main", dictParams: Nil, params: Nil, body: CCall(CGlobal("printLine", Nil, 1), [CCall(CGlobal("identity", Nil, 1), [CString("cgdecls")])])},
-      CoreExtern{name: "printLine", importPath: "go4t/rt", goName: "Println", arity: 1}
+      CoreExtern{name: "printLine", importPath: "github.com/reoring/go4t/rt", goName: "Println", arity: 1}
     ], warnings: Nil
   }
 }
@@ -39,9 +39,9 @@ func cgDeclFeatureFixture() Program {
       CoreInstance{className: "OrderProbe", typeCon: "Shape", context: Nil, superArgs: Nil, methods: [CoreMethod{name: "orderProbe", dictParams: Nil, params: Nil, body: CPrim("ordLt", [CCtor("Ordering", "LT", Nil)])}]},
       CoreInstance{className: "Tag", typeCon: "Tuple4", context: Nil, superArgs: Nil, methods: Nil}
     ]),
-    funcs: append([CoreExtern{name: "aFetch", importPath: "go4t/rt/stdhttp", goName: "GetStatus", arity: 1}], append(basic.funcs, [
+    funcs: append([CoreExtern{name: "aFetch", importPath: "github.com/reoring/go4t/rt/stdhttp", goName: "GetStatus", arity: 1}], append(basic.funcs, [
       CoreFunc{name: "tuples", dictParams: Nil, params: Nil, body: CTuple([CTuple([CInt(1), CInt(2), CInt(3)]), CInt(4)])},
-      CoreExtern{name: "zPure", importPath: "go4t/rt", goName: "Pure", arity: 1}
+      CoreExtern{name: "zPure", importPath: "github.com/reoring/go4t/rt", goName: "Pure", arity: 1}
     ]))
   }
 }
@@ -51,7 +51,7 @@ func cgDeclFeatureChecks() IO[Unit] {
   match generate(prog, "main") {
     CompileErr(d) => ioFail(show(d))
     CompileOk(source) => do {
-      cgDeclAssert(string.contains(source, "ext_1 \"go4t/rt/stdhttp\"\next_2 \"go4t/rt\"\n") && !string.contains(source, "ext_3"), "import first-appearance order and deduplication")
+      cgDeclAssert(string.contains(source, "ext_1 \"github.com/reoring/go4t/rt/stdhttp\"\next_2 \"github.com/reoring/go4t/rt\"\n") && !string.contains(source, "ext_3"), "import first-appearance order and deduplication")
       cgDeclAssert(string.contains(source, "return ext_2.Println(a0)") && string.contains(source, "return ext_2.Pure(a0)"), "shared extern alias")
       cgDeclAssert(string.contains(source, "type Measure interface {\nArea\nMeasure(dict_A_Area Area, a0 any) any"), "superclass and method constraints")
       cgDeclAssert(string.contains(source, "type Measure_Shape struct {\nArea_Shape\ndict_A_Area Area\n}"), "instance embedding and context")

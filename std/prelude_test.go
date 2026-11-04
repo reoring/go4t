@@ -10,12 +10,12 @@ import (
 	"testing"
 	"time"
 
-	"go4t/ast"
-	"go4t/codegen"
-	"go4t/modules"
-	"go4t/parser"
-	"go4t/std"
-	"go4t/types"
+	"github.com/reoring/go4t/ast"
+	"github.com/reoring/go4t/codegen"
+	"github.com/reoring/go4t/modules"
+	"github.com/reoring/go4t/parser"
+	"github.com/reoring/go4t/std"
+	"github.com/reoring/go4t/types"
 )
 
 func TestStdInventoryParses(t *testing.T) {
@@ -181,7 +181,7 @@ func main() IO[Unit] {
 	if err != nil {
 		t.Fatal(err)
 	}
-	generated["go.mod"] = []byte("module preludetest\n\ngo 1.22\n\nrequire go4t v0.0.0\nreplace go4t => " + root + "\n")
+	generated["go.mod"] = []byte("module preludetest\n\ngo 1.22\n\nrequire github.com/reoring/go4t v0.0.0\nreplace github.com/reoring/go4t => " + root + "\n")
 	for name, content := range generated {
 		if err := os.WriteFile(filepath.Join(dir, name), content, 0o644); err != nil {
 			t.Fatal(err)

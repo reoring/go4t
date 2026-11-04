@@ -1326,7 +1326,7 @@ go4t lsp
 
 - `init` creates `go.mod` and `go4t.mod` in the current directory; it refuses
   to overwrite either existing file. `go.mod` contains `module <module-path>`,
-  `go 1.22`, `require go4t v0.0.0` and a local replacement for `go4t`.
+  `go 1.22`, `require github.com/reoring/go4t v0.0.0` and a local replacement for `go4t`.
   Before writing, it runs `go list -m -json go4t` from the current directory:
   a resolved `Dir` (normally a checkout inherited from a parent Go module) is
   used directly. Otherwise it extracts the binary's embedded runtime to
@@ -1392,9 +1392,9 @@ go4t lsp
 For `run`, `test`, and `eval`, the nearest ancestor `go.mod` of the generated/input
 directory (the working directory for standalone eval) is used when
 `go list -m go4t` succeeds there. Otherwise the CLI creates a temporary `go4trun`
-module with `require go4t v0.0.0` and `replace go4t => ./go4t`, extracts its embedded
+module with `require github.com/reoring/go4t v0.0.0` and `replace github.com/reoring/go4t => ./go4t`, extracts its embedded
 `rt/` Go source tree (including runtime subpackages) into `go4t/`, and writes a
-minimal `module go4t` file with the distribution's Go version. It inspects externs
+minimal `module github.com/reoring/go4t` file with the distribution's Go version. It inspects externs
 in this temporary module, emits sources into `prog/`, builds the whole package,
 and cleans the module and executable on success or failure. The installed binary
 needs only a Go toolchain on PATH, not a checkout, module cache entry, source-path
@@ -1409,7 +1409,7 @@ then the input's usable module if the output is outside one, then the embedded
 runtime as above; writing sources outside a module does not discard an input
 module's foreign dependencies.
 
-The standalone fallback supports externs only from `go4t/rt` and its subpackages.
+The standalone fallback supports externs only from `github.com/reoring/go4t/rt` and its subpackages.
 Other extern packages require an application Go module resolving both the package
 and `go4t`; otherwise the diagnostic is
 `extern "<pkg>" requires a Go module: run inside a directory with go.mod that provides it`.

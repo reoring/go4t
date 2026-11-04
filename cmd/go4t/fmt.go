@@ -11,7 +11,7 @@ import (
 	"sort"
 	"strings"
 
-	"go4t/format"
+	"github.com/reoring/go4t/format"
 )
 
 const fmtUsage = "go4t:1:1: usage: go4t fmt [-w|-d|-l] FILE...|DIR"

@@ -5,7 +5,7 @@ import (
 	"sync"
 	"testing"
 
-	"go4t/ast"
+	"github.com/reoring/go4t/ast"
 )
 
 func TestStringConstantFolding(t *testing.T) {

@@ -7,11 +7,11 @@ import "std/string"
 // first newline retained for layout; lookahead only inspects a bounded prefix.
 // Every brace resets layout, including record braces. The parser, not the lexer,
 // ignores inserted semicolons between record fields (SPEC section 1.6).
-extern func isLetter(c String) Bool = "go4t/rt".IsLetter
-extern func isDigit(c String) Bool = "go4t/rt".StartsDigit
-extern func isSpace(c String) Bool = "go4t/rt".StartsSpace
-extern func unquote(s String) Option[String] = "go4t/rt".Unquote
-extern func quote(s String) String = "go4t/rt".Quote
+extern func isLetter(c String) Bool = "github.com/reoring/go4t/rt".IsLetter
+extern func isDigit(c String) Bool = "github.com/reoring/go4t/rt".StartsDigit
+extern func isSpace(c String) Bool = "github.com/reoring/go4t/rt".StartsSpace
+extern func unquote(s String) Option[String] = "github.com/reoring/go4t/rt".Unquote
+extern func quote(s String) String = "github.com/reoring/go4t/rt".Quote
 
 type LexCursor = LxCursor{rest: List[String], pos: Pos}
 type LexGap = LxGap{cursor: LexCursor, newline: Option[Pos]}

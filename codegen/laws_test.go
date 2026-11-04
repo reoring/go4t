@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"go4t/modules"
-	"go4t/types"
+	"github.com/reoring/go4t/modules"
+	"github.com/reoring/go4t/types"
 )
 
 func TestLawsAndProofsDoNotChangeGeneratedGo(t *testing.T) {

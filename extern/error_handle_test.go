@@ -7,7 +7,7 @@ import (
 
 func TestGoErrorHandleShim(t *testing.T) {
 	var loader Loader
-	pkg, err := loader.Load("go4t/extern/testdata/errorfixture")
+	pkg, err := loader.Load("github.com/reoring/go4t/extern/testdata/errorfixture")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +54,7 @@ func TestGoErrorHandleCause(t *testing.T) {
 	writeBindingTestFile(t, dir, "main.gt", goErrorHandleCauseProgram)
 	// Exercise the actual io.cause accessor, generated bindings and compiled
 	// program together, not just the equivalent erased runtime representation.
-	runBindingTestGo(t, dir, "run", "-mod=mod", "go4t/cmd/go4t", "run", ".")
+	runBindingTestGo(t, dir, "run", "-mod=mod", "github.com/reoring/go4t/cmd/go4t", "run", ".")
 }
 
 const goErrorHandleRuntimeTest = `package shim_test
@@ -62,8 +62,8 @@ import (
  "context"
  "errors"
  "testing"
- "go4t/rt"
- f "go4t/extern/testdata/errorfixture"
+ "github.com/reoring/go4t/rt"
+ f "github.com/reoring/go4t/extern/testdata/errorfixture"
  s "example.test/bindings/shim"
 )
 type option struct { value any; present bool }
@@ -81,7 +81,7 @@ func TestGoErrorBoundary(t *testing.T) {
   IoErrorOf: func(v any) (string,string) { e := v.(*rt.Failure); return string(e.Kind),e.Message },
   Ok: func(v any) any { return result{v,false} }, Err: func(v any) any { return result{v,true} },
  }
- for _,key := range []string{"go4t/rt.IoFailure","go4t/extern/testdata/errorfixture.Report","go4t/extern/testdata/errorfixture.Nested"} {
+ for _,key := range []string{"github.com/reoring/go4t/rt.IoFailure","github.com/reoring/go4t/extern/testdata/errorfixture.Report","github.com/reoring/go4t/extern/testdata/errorfixture.Nested"} {
   rt.RegisterForeignRecord(key,func(v []any) any { return v },func(v any,i int) any { return v.([]any)[i] })
  }
  run := func(action any) any { t.Helper(); v,err := action.(rt.IO)(context.Background()); if err != nil { t.Fatal(err) }; return v }
@@ -136,7 +136,7 @@ func TestGoErrorBoundary(t *testing.T) {
 const goErrorHandleCauseProgram = `package main
 import "std/io"
 import errors "go:errors"
-import f "go:go4t/extern/testdata/errorfixture"
+import f "go:github.com/reoring/go4t/extern/testdata/errorfixture"
 
 func require(ok Bool) IO[Unit] {
  if ok { ioPure(unit()) } else { ioFail("GoError boundary contract failed") }

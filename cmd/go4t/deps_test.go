@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	runtimefs "go4t"
-	"go4t/modules"
+	runtimefs "github.com/reoring/go4t"
+	"github.com/reoring/go4t/modules"
 )
 
 func offlineDependencies(t *testing.T) {
@@ -34,7 +34,7 @@ func TestInitUsesResolvedCheckout(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "module example.com/app\n\ngo 1.22\n\nrequire go4t v0.0.0\n\nreplace go4t => " + strconv.Quote(checkout) + "\n"
+	want := "module example.com/app\n\ngo 1.22\n\nrequire github.com/reoring/go4t v0.0.0\n\nreplace github.com/reoring/go4t => " + strconv.Quote(checkout) + "\n"
 	assertFile(t, filepath.Join(dir, "go.mod"), want)
 	assertFile(t, filepath.Join(dir, "go4t.mod"), "module example.com/app\n")
 }
@@ -62,7 +62,7 @@ func TestInitExtractsAndReusesEmbeddedRuntime(t *testing.T) {
 		if out != "" || stderr != "" || status != 0 {
 			t.Fatalf("init: stdout=%q stderr=%q status=%d", out, stderr, status)
 		}
-		assertFile(t, filepath.Join(dir, "go.mod"), "module example.com/app\n\ngo 1.22\n\nrequire go4t v0.0.0\n\nreplace go4t => " + strconv.Quote(runtimeDir) + "\n")
+		assertFile(t, filepath.Join(dir, "go.mod"), "module example.com/app\n\ngo 1.22\n\nrequire github.com/reoring/go4t v0.0.0\n\nreplace github.com/reoring/go4t => " + strconv.Quote(runtimeDir) + "\n")
 		assertFile(t, filepath.Join(dir, "go4t.mod"), "module example.com/app\n")
 		entries, err := os.ReadDir(dir)
 		if err != nil || len(entries) != 2 {
@@ -78,7 +78,7 @@ func TestInitExtractsAndReusesEmbeddedRuntime(t *testing.T) {
 	if err != nil || len(entries) != 1 || entries[0].Name() != digest {
 		t.Fatalf("cache should contain only one complete runtime, no extraction leftovers: %v, %v", entries, err)
 	}
-	assertFile(t, filepath.Join(runtimeDir, "go.mod"), "module go4t\n\ngo "+runtimefs.GoVersion()+"\n")
+	assertFile(t, filepath.Join(runtimeDir, "go.mod"), "module github.com/reoring/go4t\n\ngo "+runtimefs.GoVersion()+"\n")
 }
 
 func TestInitRejectsExistingManifests(t *testing.T) {

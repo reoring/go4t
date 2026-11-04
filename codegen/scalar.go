@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"go4t/ast"
-	"go4t/types"
+	"github.com/reoring/go4t/ast"
+	"github.com/reoring/go4t/types"
 )
 
 // Only checked scalar types change representation. Data, functions and type
@@ -439,7 +439,7 @@ func (g *generator) collectionCall(call *ast.Call, id *ast.Ident) string {
 			return "rt.ListSortOn(" + g.expr(call.Args[0]) + ", " + g.expr(call.Args[1]) + ", rt.NativeCompare(" + g.dict(&g.ann(id).Dicts[0]) + "))"
 		}
 	}
-	if f.Decl.Extern == nil || f.Decl.Extern.ImportPath != "go4t/rt" {
+	if f.Decl.Extern == nil || f.Decl.Extern.ImportPath != "github.com/reoring/go4t/rt" {
 		return ""
 	}
 	index := -1

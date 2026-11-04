@@ -3,7 +3,7 @@ package types
 import (
 	"strings"
 
-	"go4t/ast"
+	"github.com/reoring/go4t/ast"
 )
 
 // Alias bodies are resolved once in their own parameter scope. Keeping the

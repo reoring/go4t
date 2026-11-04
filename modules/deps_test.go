@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"go4t/modules"
-	"go4t/types"
+	"github.com/reoring/go4t/modules"
+	"github.com/reoring/go4t/types"
 )
 
 func writeSources(t *testing.T, root string, sources map[string]string) {

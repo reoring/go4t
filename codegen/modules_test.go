@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"go4t/modules"
-	"go4t/std"
-	"go4t/types"
+	"github.com/reoring/go4t/modules"
+	"github.com/reoring/go4t/std"
+	"github.com/reoring/go4t/types"
 )
 
 func TestGenerateFilesAndRuntimeShapes(t *testing.T) {
@@ -82,7 +82,7 @@ func runGeneratedModules(t *testing.T, generated map[string][]byte) string {
 			t.Fatal(err)
 		}
 	}
-	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module moduletest\n\ngo 1.22\n\nrequire go4t v0.0.0\nreplace go4t => "+root+"\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module moduletest\n\ngo 1.22\n\nrequire github.com/reoring/go4t v0.0.0\nreplace github.com/reoring/go4t => "+root+"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	command := exec.Command("go", "run", ".")

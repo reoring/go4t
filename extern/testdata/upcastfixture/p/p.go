@@ -1,8 +1,8 @@
 package p
 
 import (
-	_ "go4t/extern/testdata/upcastfixture/q"
-	_ "go4t/extern/testdata/upcastfixture/unused"
+	_ "github.com/reoring/go4t/extern/testdata/upcastfixture/q"
+	_ "github.com/reoring/go4t/extern/testdata/upcastfixture/unused"
 )
 
 type I interface { Speak() string }

@@ -4,7 +4,7 @@ package shim
 import (
 	context "context"
 	go3 "fmt"
-	rt "go4t/rt"
+	rt "github.com/reoring/go4t/rt"
 	go2 "net/url"
 )
 

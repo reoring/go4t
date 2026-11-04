@@ -1,8 +1,8 @@
 package laws
 
 import (
-	"go4t/ast"
-	"go4t/types"
+	"github.com/reoring/go4t/ast"
+	"github.com/reoring/go4t/types"
 )
 
 // Modeled externs are pure but are not constant-only primitives. Unsupported

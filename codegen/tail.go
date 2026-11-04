@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"go4t/ast"
-	"go4t/types"
+	"github.com/reoring/go4t/ast"
+	"github.com/reoring/go4t/types"
 )
 
 // A plan contains only direct self calls in result position. Calls through

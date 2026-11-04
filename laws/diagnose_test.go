@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"go4t/types"
+	"github.com/reoring/go4t/types"
 )
 
 const stuckRecordLaw = `

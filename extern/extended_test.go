@@ -17,7 +17,7 @@ func bindingTestModule(t *testing.T) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	writeBindingTestFile(t, dir, "go.mod", "module example.test/bindings\n\ngo 1.23\n\nrequire go4t v0.0.0\nreplace go4t => "+filepath.ToSlash(root)+"\n")
+	writeBindingTestFile(t, dir, "go.mod", "module example.test/bindings\n\ngo 1.23\n\nrequire github.com/reoring/go4t v0.0.0\nreplace github.com/reoring/go4t => "+filepath.ToSlash(root)+"\n")
 	return dir
 }
 
@@ -205,7 +205,7 @@ import (
  "errors"
  "reflect"
  "testing"
- "go4t/rt"
+ "github.com/reoring/go4t/rt"
  "example.test/bindings/fixture"
  s "example.test/bindings/shim"
 )
@@ -272,7 +272,7 @@ const standardBindingCompositionTest = `package shim_http_test
 import (
  "context"
  "testing"
- "go4t/rt"
+ "github.com/reoring/go4t/rt"
  h "example.test/bindings/shim_http"
  i "example.test/bindings/shim_io"
  s "example.test/bindings/shim_strings"

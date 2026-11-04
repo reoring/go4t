@@ -24,7 +24,7 @@ List structure, filtering, folds, append, Option (in std/prelude) and Result com
 | `std/dyn` | 0 | 2 | 2 |
 | `std/float` | 0 | 24 | 24 |
 | `std/http` | 3 | 13 | 16 |
-| `std/io` | 4 | 32 | 36 |
+| `std/io` | 6 | 35 | 41 |
 | `std/json` | 16 | 23 | 39 |
 | `std/lazy` | 3 | 0 | 3 |
 | `std/list` | 67 | 3 | 70 |
@@ -37,7 +37,7 @@ List structure, filtering, folds, append, Option (in std/prelude) and Result com
 | `std/set` | 0 | 20 | 20 |
 | `std/state` | 10 | 0 | 10 |
 | `std/string` | 32 | 0 | 32 |
-| **Total** | **228** | **167** | **395** |
+| **Total** | **230** | **170** | **400** |
 
 ## First-reason breakdown
 
@@ -45,8 +45,8 @@ Counts are disjoint, not all contributing causes. Transitive rows retain the ult
 
 | First reason | Count |
 | --- | ---: |
-| extern | 40 |
-| IO result | 68 |
+| extern | 41 |
+| IO result | 70 |
 | Float | 27 |
 | division/modulo | 0 |
 | transitive | 32 |
@@ -55,27 +55,27 @@ Counts are disjoint, not all contributing causes. Transitive rows retain the ult
 
 | Function / instance method | Classification | Category | First tainting reason |
 | --- | --- | --- | --- |
-| `Debug[Array].debug` | tainted | transitive | depends on std/array.arrayToList (unlisted extern go4t/rt.ArrayToList) |
-| `Eq[Array].eq` | tainted | transitive | depends on std/array.arrayToList (unlisted extern go4t/rt.ArrayToList) |
-| `Functor[Array].fmap` | tainted | transitive | depends on std/array.arrayMap (unlisted extern go4t/rt.ArrayMap) |
-| `Show[Array].show` | tainted | transitive | depends on std/array.arrayToList (unlisted extern go4t/rt.ArrayToList) |
-| `arrayFold` | tainted | extern | unlisted extern go4t/rt.ArrayFold |
-| `arrayFromList` | tainted | extern | unlisted extern go4t/rt.ArrayFromList |
-| `arrayGet` | tainted | extern | unlisted extern go4t/rt.ArrayGet |
-| `arrayLength` | tainted | extern | unlisted extern go4t/rt.ArrayLength |
-| `arrayMap` | tainted | extern | unlisted extern go4t/rt.ArrayMap |
-| `arrayPush` | tainted | extern | unlisted extern go4t/rt.ArrayPush |
-| `arraySet` | tainted | extern | unlisted extern go4t/rt.ArraySet |
-| `arraySlice` | tainted | extern | unlisted extern go4t/rt.ArraySlice |
-| `arraySortBy` | tainted | extern | unlisted extern go4t/rt.ArraySortBy |
-| `arrayToList` | tainted | extern | unlisted extern go4t/rt.ArrayToList |
+| `Debug[Array].debug` | tainted | transitive | depends on std/array.arrayToList (unlisted extern github.com/reoring/go4t/rt.ArrayToList) |
+| `Eq[Array].eq` | tainted | transitive | depends on std/array.arrayToList (unlisted extern github.com/reoring/go4t/rt.ArrayToList) |
+| `Functor[Array].fmap` | tainted | transitive | depends on std/array.arrayMap (unlisted extern github.com/reoring/go4t/rt.ArrayMap) |
+| `Show[Array].show` | tainted | transitive | depends on std/array.arrayToList (unlisted extern github.com/reoring/go4t/rt.ArrayToList) |
+| `arrayFold` | tainted | extern | unlisted extern github.com/reoring/go4t/rt.ArrayFold |
+| `arrayFromList` | tainted | extern | unlisted extern github.com/reoring/go4t/rt.ArrayFromList |
+| `arrayGet` | tainted | extern | unlisted extern github.com/reoring/go4t/rt.ArrayGet |
+| `arrayLength` | tainted | extern | unlisted extern github.com/reoring/go4t/rt.ArrayLength |
+| `arrayMap` | tainted | extern | unlisted extern github.com/reoring/go4t/rt.ArrayMap |
+| `arrayPush` | tainted | extern | unlisted extern github.com/reoring/go4t/rt.ArrayPush |
+| `arraySet` | tainted | extern | unlisted extern github.com/reoring/go4t/rt.ArraySet |
+| `arraySlice` | tainted | extern | unlisted extern github.com/reoring/go4t/rt.ArraySlice |
+| `arraySortBy` | tainted | extern | unlisted extern github.com/reoring/go4t/rt.ArraySortBy |
+| `arrayToList` | tainted | extern | unlisted extern github.com/reoring/go4t/rt.ArrayToList |
 
 ## `std/chan`
 
 | Function / instance method | Classification | Category | First tainting reason |
 | --- | --- | --- | --- |
-| `asRecv` | tainted | extern | unlisted extern go4t/rt.ChanAsRecv |
-| `asSend` | tainted | extern | unlisted extern go4t/rt.ChanAsSend |
+| `asRecv` | tainted | extern | unlisted extern github.com/reoring/go4t/rt.ChanAsRecv |
+| `asSend` | tainted | extern | unlisted extern github.com/reoring/go4t/rt.ChanAsSend |
 | `close` | tainted | IO result | IO result type |
 | `make` | tainted | IO result | IO result type |
 | `recv` | tainted | IO result | IO result type |
@@ -109,7 +109,7 @@ Counts are disjoint, not all contributing causes. Transitive rows retain the ult
 | `Eq[Float].eq` | tainted | Float | Float use in body |
 | `Ord[Float].compare` | tainted | Float | Float use in body |
 | `Show[Float].show` | tainted | Float | Float use in body |
-| `abs` | tainted | extern | unlisted extern go4t/rt.AbsInt |
+| `abs` | tainted | extern | unlisted extern github.com/reoring/go4t/rt.AbsInt |
 | `absFloat` | tainted | Float | Float in signature |
 | `ceil` | tainted | Float | Float in signature |
 | `debugFloat` | tainted | Float | Float in signature |
@@ -117,12 +117,12 @@ Counts are disjoint, not all contributing causes. Transitive rows retain the ult
 | `floor` | tainted | Float | Float in signature |
 | `isNaN` | tainted | Float | Float in signature |
 | `ltFloat` | tainted | Float | Float in signature |
-| `maxInt` | tainted | extern | unlisted extern go4t/rt.MaxInt |
-| `minInt` | tainted | extern | unlisted extern go4t/rt.MinInt |
+| `maxInt` | tainted | extern | unlisted extern github.com/reoring/go4t/rt.MaxInt |
+| `minInt` | tainted | extern | unlisted extern github.com/reoring/go4t/rt.MinInt |
 | `nan` | tainted | Float | Float in signature |
 | `parseFloat` | tainted | Float | Float in signature |
 | `pow` | tainted | Float | Float in signature |
-| `powInt` | tainted | extern | unlisted extern go4t/rt.PowInt |
+| `powInt` | tainted | extern | unlisted extern github.com/reoring/go4t/rt.PowInt |
 | `round` | tainted | Float | Float in signature |
 | `showFloat` | tainted | Float | Float in signature |
 | `showFloatFixed` | tainted | Float | Float in signature |
@@ -136,17 +136,17 @@ Counts are disjoint, not all contributing causes. Transitive rows retain the ult
 | --- | --- | --- | --- |
 | `Debug[Request].debug` | law-eligible | source | — |
 | `Debug[Response].debug` | law-eligible | source | — |
-| `_header` | tainted | extern | unlisted extern go4t/rt.HTTPHeader |
+| `_header` | tainted | extern | unlisted extern github.com/reoring/go4t/rt.HTTPHeader |
 | `_request` | tainted | IO result | IO result type |
 | `_serveOnReady` | tainted | IO result | IO result type |
 | `get` | tainted | IO result | IO result type |
-| `jsonResponse` | tainted | transitive | depends on std/json.toJson (unlisted extern go4t/rt.ToJson) |
+| `jsonResponse` | tainted | transitive | depends on std/json.toJson (unlisted extern github.com/reoring/go4t/rt.ToJson) |
 | `post` | tainted | IO result | IO result type |
 | `request` | tainted | IO result | IO result type |
-| `requestHeader` | tainted | transitive | depends on std/http._header (unlisted extern go4t/rt.HTTPHeader) |
+| `requestHeader` | tainted | transitive | depends on std/http._header (unlisted extern github.com/reoring/go4t/rt.HTTPHeader) |
 | `requestWithTimeout` | tainted | IO result | IO result type |
 | `response` | law-eligible | source | — |
-| `responseHeader` | tainted | transitive | depends on std/http._header (unlisted extern go4t/rt.HTTPHeader) |
+| `responseHeader` | tainted | transitive | depends on std/http._header (unlisted extern github.com/reoring/go4t/rt.HTTPHeader) |
 | `serve` | tainted | IO result | IO result type |
 | `serveOn` | tainted | IO result | IO result type |
 | `serveOnReady` | tainted | IO result | IO result type |
@@ -156,6 +156,7 @@ Counts are disjoint, not all contributing causes. Transitive rows retain the ult
 | Function / instance method | Classification | Category | First tainting reason |
 | --- | --- | --- | --- |
 | `Debug[IoError].debug` | law-eligible | source | — |
+| `Debug[IoFailure].debug` | law-eligible | source | — |
 | `Eq[IoError].eq` | law-eligible | source | — |
 | `Functor[IO].fmap` | tainted | IO result | IO result in body |
 | `Monad[IO].bind` | tainted | IO result | IO result in body |
@@ -163,19 +164,22 @@ Counts are disjoint, not all contributing causes. Transitive rows retain the ult
 | `Show[IoError].show` | law-eligible | source | — |
 | `appendFile` | tainted | IO result | IO result type |
 | `args` | tainted | IO result | IO result type |
+| `cause` | law-eligible | source | — |
 | `eprintln` | tainted | IO result | IO result type |
 | `exit` | tainted | IO result | IO result type |
 | `fileExists` | tainted | IO result | IO result type |
 | `foldLines` | tainted | IO result | IO result type |
 | `forEachLine` | tainted | IO result | IO result type |
-| `formatTime` | tainted | extern | unlisted extern go4t/rt.FormatTime |
+| `formatTime` | tainted | extern | unlisted extern github.com/reoring/go4t/rt.FormatTime |
 | `getEnv` | tainted | IO result | IO result type |
+| `goErrorMessage` | tainted | extern | unlisted extern github.com/reoring/go4t/rt.GoErrorMessage |
 | `ioBind` | tainted | IO result | IO result type |
 | `ioErrorMessage` | law-eligible | source | — |
 | `ioFail` | tainted | IO result | IO result type |
 | `ioFailWith` | tainted | IO result | IO result type |
 | `ioPure` | tainted | IO result | IO result type |
 | `ioRaise` | tainted | IO result | IO result type |
+| `ioRaiseCause` | tainted | IO result | IO result type |
 | `listDir` | tainted | IO result | IO result type |
 | `monotonicMillis` | tainted | IO result | IO result type |
 | `nowMillis` | tainted | IO result | IO result type |
@@ -189,6 +193,7 @@ Counts are disjoint, not all contributing causes. Transitive rows retain the ult
 | `removeFile` | tainted | IO result | IO result type |
 | `sleep` | tainted | IO result | IO result type |
 | `tryIO` | tainted | IO result | IO result type |
+| `tryIOCause` | tainted | IO result | IO result type |
 | `void` | tainted | IO result | IO result type |
 | `writeFile` | tainted | IO result | IO result type |
 
@@ -197,19 +202,19 @@ Counts are disjoint, not all contributing causes. Transitive rows retain the ult
 | Function / instance method | Classification | Category | First tainting reason |
 | --- | --- | --- | --- |
 | `Debug[Json].debug` | tainted | Float | Float use in body |
-| `Decode[Array].decode` | tainted | transitive | depends on std/array.arrayFromList (unlisted extern go4t/rt.ArrayFromList) |
+| `Decode[Array].decode` | tainted | transitive | depends on std/array.arrayFromList (unlisted extern github.com/reoring/go4t/rt.ArrayFromList) |
 | `Decode[Bool].decode` | law-eligible | source | — |
 | `Decode[Float].decode` | tainted | Float | Float use in body |
 | `Decode[Int].decode` | tainted | Float | Float use in body |
 | `Decode[Json].decode` | law-eligible | source | — |
-| `Decode[List].decode` | tainted | transitive | depends on std/json._jsonDecodeList (depends on std/json._jsonDecodeAt (depends on std/json._jsonAt (depends on std/json._jsonErrorAt (unlisted extern go4t/rt.JsonErrorAt)))) |
-| `Decode[Map].decode` | tainted | transitive | depends on std/json._jsonDecodeFields (depends on std/json._jsonFieldPath (unlisted extern go4t/rt.JsonFieldPath)) |
+| `Decode[List].decode` | tainted | transitive | depends on std/json._jsonDecodeList (depends on std/json._jsonDecodeAt (depends on std/json._jsonAt (depends on std/json._jsonErrorAt (unlisted extern github.com/reoring/go4t/rt.JsonErrorAt)))) |
+| `Decode[Map].decode` | tainted | transitive | depends on std/json._jsonDecodeFields (depends on std/json._jsonFieldPath (unlisted extern github.com/reoring/go4t/rt.JsonFieldPath)) |
 | `Decode[Option].decode` | law-eligible | source | — |
 | `Decode[String].decode` | law-eligible | source | — |
-| `Decode[Tuple2].decode` | tainted | transitive | depends on std/json._jsonDecodeAt (depends on std/json._jsonAt (depends on std/json._jsonErrorAt (unlisted extern go4t/rt.JsonErrorAt))) |
-| `Decode[Tuple3].decode` | tainted | transitive | depends on std/json._jsonDecodeAt (depends on std/json._jsonAt (depends on std/json._jsonErrorAt (unlisted extern go4t/rt.JsonErrorAt))) |
+| `Decode[Tuple2].decode` | tainted | transitive | depends on std/json._jsonDecodeAt (depends on std/json._jsonAt (depends on std/json._jsonErrorAt (unlisted extern github.com/reoring/go4t/rt.JsonErrorAt))) |
+| `Decode[Tuple3].decode` | tainted | transitive | depends on std/json._jsonDecodeAt (depends on std/json._jsonAt (depends on std/json._jsonErrorAt (unlisted extern github.com/reoring/go4t/rt.JsonErrorAt))) |
 | `Decode[Unit].decode` | law-eligible | source | — |
-| `Encode[Array].encode` | tainted | transitive | depends on std/array.arrayToList (unlisted extern go4t/rt.ArrayToList) |
+| `Encode[Array].encode` | tainted | transitive | depends on std/array.arrayToList (unlisted extern github.com/reoring/go4t/rt.ArrayToList) |
 | `Encode[Bool].encode` | law-eligible | source | — |
 | `Encode[Float].encode` | tainted | Float | Float use in body |
 | `Encode[Int].encode` | law-eligible | source | — |
@@ -222,19 +227,19 @@ Counts are disjoint, not all contributing causes. Transitive rows retain the ult
 | `Encode[Tuple3].encode` | law-eligible | source | — |
 | `Encode[Unit].encode` | law-eligible | source | — |
 | `_jsonArray` | law-eligible | source | — |
-| `_jsonAt` | tainted | transitive | depends on std/json._jsonErrorAt (unlisted extern go4t/rt.JsonErrorAt) |
-| `_jsonDecodeAt` | tainted | transitive | depends on std/json._jsonAt (depends on std/json._jsonErrorAt (unlisted extern go4t/rt.JsonErrorAt)) |
-| `_jsonDecodeFields` | tainted | transitive | depends on std/json._jsonFieldPath (unlisted extern go4t/rt.JsonFieldPath) |
-| `_jsonDecodeList` | tainted | transitive | depends on std/json._jsonDecodeAt (depends on std/json._jsonAt (depends on std/json._jsonErrorAt (unlisted extern go4t/rt.JsonErrorAt))) |
-| `_jsonErrorAt` | tainted | extern | unlisted extern go4t/rt.JsonErrorAt |
-| `_jsonField` | tainted | transitive | depends on std/json._jsonFieldPath (unlisted extern go4t/rt.JsonFieldPath) |
-| `_jsonFieldPath` | tainted | extern | unlisted extern go4t/rt.JsonFieldPath |
+| `_jsonAt` | tainted | transitive | depends on std/json._jsonErrorAt (unlisted extern github.com/reoring/go4t/rt.JsonErrorAt) |
+| `_jsonDecodeAt` | tainted | transitive | depends on std/json._jsonAt (depends on std/json._jsonErrorAt (unlisted extern github.com/reoring/go4t/rt.JsonErrorAt)) |
+| `_jsonDecodeFields` | tainted | transitive | depends on std/json._jsonFieldPath (unlisted extern github.com/reoring/go4t/rt.JsonFieldPath) |
+| `_jsonDecodeList` | tainted | transitive | depends on std/json._jsonDecodeAt (depends on std/json._jsonAt (depends on std/json._jsonErrorAt (unlisted extern github.com/reoring/go4t/rt.JsonErrorAt))) |
+| `_jsonErrorAt` | tainted | extern | unlisted extern github.com/reoring/go4t/rt.JsonErrorAt |
+| `_jsonField` | tainted | transitive | depends on std/json._jsonFieldPath (unlisted extern github.com/reoring/go4t/rt.JsonFieldPath) |
+| `_jsonFieldPath` | tainted | extern | unlisted extern github.com/reoring/go4t/rt.JsonFieldPath |
 | `_jsonInt` | tainted | Float | Float in signature |
-| `_jsonObject` | tainted | extern | unlisted extern go4t/rt.JsonObject |
-| `_jsonValues` | tainted | transitive | depends on std/json._jsonFieldPath (unlisted extern go4t/rt.JsonFieldPath) |
-| `parseJson` | tainted | extern | unlisted extern go4t/rt.ParseJson |
-| `toJson` | tainted | extern | unlisted extern go4t/rt.ToJson |
-| `toJsonPretty` | tainted | extern | unlisted extern go4t/rt.ToJsonPretty |
+| `_jsonObject` | tainted | extern | unlisted extern github.com/reoring/go4t/rt.JsonObject |
+| `_jsonValues` | tainted | transitive | depends on std/json._jsonFieldPath (unlisted extern github.com/reoring/go4t/rt.JsonFieldPath) |
+| `parseJson` | tainted | extern | unlisted extern github.com/reoring/go4t/rt.ParseJson |
+| `toJson` | tainted | extern | unlisted extern github.com/reoring/go4t/rt.ToJson |
+| `toJsonPretty` | tainted | extern | unlisted extern github.com/reoring/go4t/rt.ToJsonPretty |
 
 ## `std/lazy`
 
@@ -300,9 +305,9 @@ Counts are disjoint, not all contributing causes. Transitive rows retain the ult
 | `replicate` | law-eligible | source | — |
 | `replicateAcc` | law-eligible | source | — |
 | `reverse` | law-eligible | source | — |
-| `sort` | tainted | transitive | depends on std/list.sortBy (depends on std/array.arrayFromList (unlisted extern go4t/rt.ArrayFromList)) |
-| `sortBy` | tainted | transitive | depends on std/array.arrayFromList (unlisted extern go4t/rt.ArrayFromList) |
-| `sortOn` | tainted | transitive | depends on std/list.sortBy (depends on std/array.arrayFromList (unlisted extern go4t/rt.ArrayFromList)) |
+| `sort` | tainted | transitive | depends on std/list.sortBy (depends on std/array.arrayFromList (unlisted extern github.com/reoring/go4t/rt.ArrayFromList)) |
+| `sortBy` | tainted | transitive | depends on std/array.arrayFromList (unlisted extern github.com/reoring/go4t/rt.ArrayFromList) |
+| `sortOn` | tainted | transitive | depends on std/list.sortBy (depends on std/array.arrayFromList (unlisted extern github.com/reoring/go4t/rt.ArrayFromList)) |
 | `span` | law-eligible | source | — |
 | `spanAcc` | law-eligible | source | — |
 | `splitAt` | law-eligible | source | — |
@@ -433,12 +438,12 @@ Counts are disjoint, not all contributing causes. Transitive rows retain the ult
 
 | Function / instance method | Classification | Category | First tainting reason |
 | --- | --- | --- | --- |
-| `regexCaptures` | tainted | extern | unlisted extern go4t/rt.RegexCaptures |
-| `regexFind` | tainted | extern | unlisted extern go4t/rt.RegexFind |
-| `regexFindAll` | tainted | extern | unlisted extern go4t/rt.RegexFindAll |
-| `regexMatch` | tainted | extern | unlisted extern go4t/rt.RegexMatch |
-| `regexReplace` | tainted | extern | unlisted extern go4t/rt.RegexReplace |
-| `regexSplit` | tainted | extern | unlisted extern go4t/rt.RegexSplit |
+| `regexCaptures` | tainted | extern | unlisted extern github.com/reoring/go4t/rt.RegexCaptures |
+| `regexFind` | tainted | extern | unlisted extern github.com/reoring/go4t/rt.RegexFind |
+| `regexFindAll` | tainted | extern | unlisted extern github.com/reoring/go4t/rt.RegexFindAll |
+| `regexMatch` | tainted | extern | unlisted extern github.com/reoring/go4t/rt.RegexMatch |
+| `regexReplace` | tainted | extern | unlisted extern github.com/reoring/go4t/rt.RegexReplace |
+| `regexSplit` | tainted | extern | unlisted extern github.com/reoring/go4t/rt.RegexSplit |
 
 ## `std/result`
 
@@ -468,26 +473,26 @@ Counts are disjoint, not all contributing causes. Transitive rows retain the ult
 
 | Function / instance method | Classification | Category | First tainting reason |
 | --- | --- | --- | --- |
-| `Debug[Set].debug` | tainted | transitive | depends on std/set.setToList (unlisted extern go4t/rt.SetToList) |
-| `Eq[Set].eq` | tainted | transitive | depends on std/set.setToList (unlisted extern go4t/rt.SetToList) |
-| `Show[Set].show` | tainted | transitive | depends on std/set.setToList (unlisted extern go4t/rt.SetToList) |
-| `emptySet` | tainted | extern | unlisted extern go4t/rt.EmptySet |
-| `setDelete` | tainted | transitive | depends on std/set.setDeleteBy (unlisted extern go4t/rt.SetDelete) |
-| `setDeleteBy` | tainted | extern | unlisted extern go4t/rt.SetDelete |
-| `setDifference` | tainted | transitive | depends on std/set.setDifferenceBy (unlisted extern go4t/rt.SetDifference) |
-| `setDifferenceBy` | tainted | extern | unlisted extern go4t/rt.SetDifference |
-| `setFromList` | tainted | transitive | depends on std/set.setFromListBy (unlisted extern go4t/rt.SetFromList) |
-| `setFromListBy` | tainted | extern | unlisted extern go4t/rt.SetFromList |
-| `setInsert` | tainted | transitive | depends on std/set.setInsertBy (unlisted extern go4t/rt.SetInsert) |
-| `setInsertBy` | tainted | extern | unlisted extern go4t/rt.SetInsert |
-| `setIntersection` | tainted | transitive | depends on std/set.setIntersectionBy (unlisted extern go4t/rt.SetIntersection) |
-| `setIntersectionBy` | tainted | extern | unlisted extern go4t/rt.SetIntersection |
-| `setMember` | tainted | transitive | depends on std/set.setMemberBy (unlisted extern go4t/rt.SetMember) |
-| `setMemberBy` | tainted | extern | unlisted extern go4t/rt.SetMember |
-| `setSize` | tainted | extern | unlisted extern go4t/rt.SetSize |
-| `setToList` | tainted | extern | unlisted extern go4t/rt.SetToList |
-| `setUnion` | tainted | transitive | depends on std/set.setUnionBy (unlisted extern go4t/rt.SetUnion) |
-| `setUnionBy` | tainted | extern | unlisted extern go4t/rt.SetUnion |
+| `Debug[Set].debug` | tainted | transitive | depends on std/set.setToList (unlisted extern github.com/reoring/go4t/rt.SetToList) |
+| `Eq[Set].eq` | tainted | transitive | depends on std/set.setToList (unlisted extern github.com/reoring/go4t/rt.SetToList) |
+| `Show[Set].show` | tainted | transitive | depends on std/set.setToList (unlisted extern github.com/reoring/go4t/rt.SetToList) |
+| `emptySet` | tainted | extern | unlisted extern github.com/reoring/go4t/rt.EmptySet |
+| `setDelete` | tainted | transitive | depends on std/set.setDeleteBy (unlisted extern github.com/reoring/go4t/rt.SetDelete) |
+| `setDeleteBy` | tainted | extern | unlisted extern github.com/reoring/go4t/rt.SetDelete |
+| `setDifference` | tainted | transitive | depends on std/set.setDifferenceBy (unlisted extern github.com/reoring/go4t/rt.SetDifference) |
+| `setDifferenceBy` | tainted | extern | unlisted extern github.com/reoring/go4t/rt.SetDifference |
+| `setFromList` | tainted | transitive | depends on std/set.setFromListBy (unlisted extern github.com/reoring/go4t/rt.SetFromList) |
+| `setFromListBy` | tainted | extern | unlisted extern github.com/reoring/go4t/rt.SetFromList |
+| `setInsert` | tainted | transitive | depends on std/set.setInsertBy (unlisted extern github.com/reoring/go4t/rt.SetInsert) |
+| `setInsertBy` | tainted | extern | unlisted extern github.com/reoring/go4t/rt.SetInsert |
+| `setIntersection` | tainted | transitive | depends on std/set.setIntersectionBy (unlisted extern github.com/reoring/go4t/rt.SetIntersection) |
+| `setIntersectionBy` | tainted | extern | unlisted extern github.com/reoring/go4t/rt.SetIntersection |
+| `setMember` | tainted | transitive | depends on std/set.setMemberBy (unlisted extern github.com/reoring/go4t/rt.SetMember) |
+| `setMemberBy` | tainted | extern | unlisted extern github.com/reoring/go4t/rt.SetMember |
+| `setSize` | tainted | extern | unlisted extern github.com/reoring/go4t/rt.SetSize |
+| `setToList` | tainted | extern | unlisted extern github.com/reoring/go4t/rt.SetToList |
+| `setUnion` | tainted | transitive | depends on std/set.setUnionBy (unlisted extern github.com/reoring/go4t/rt.SetUnion) |
+| `setUnionBy` | tainted | extern | unlisted extern github.com/reoring/go4t/rt.SetUnion |
 
 ## `std/state`
 

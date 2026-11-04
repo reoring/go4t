@@ -7,8 +7,8 @@ import (
 	"strings"
 	"unicode"
 
-	"go4t/extern"
-	"go4t/types"
+	"github.com/reoring/go4t/extern"
+	"github.com/reoring/go4t/types"
 )
 
 const bindUsage = "go4t:1:1: usage: go4t bind IMPORT [FILE.gt|DIR...] [-o FILE.gt|DIR] [--prefix STR] [--shim DIR]"

@@ -4,12 +4,12 @@ import (
 	"strings"
 	"testing"
 
-	"go4t/ast"
+	"github.com/reoring/go4t/ast"
 )
 
 func TestRefInOutShim(t *testing.T) {
 	var loader Loader
-	pkg, err := loader.Load("go4t/extern/testdata/refinout")
+	pkg, err := loader.Load("github.com/reoring/go4t/extern/testdata/refinout")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,7 +66,7 @@ import (
  "context"
  "reflect"
  "testing"
- "go4t/rt"
+ "github.com/reoring/go4t/rt"
  s "example.test/bindings/shim"
  generic "example.test/bindings/Generic"
  genericSlice "example.test/bindings/GenericSlice"
@@ -82,7 +82,7 @@ func TestRefInOutBoundary(t *testing.T) {
   Tuple2: func(a,b any) any { return [2]any{a,b} },
   Untuple2: func(v any) (any,any) { p := v.([2]any); return p[0],p[1] },
  }
- rt.RegisterForeignRecord("go4t/extern/testdata/refinout.Rec",func(v []any) any { return v },func(v any,i int) any { return v.([]any)[i] })
+ rt.RegisterForeignRecord("github.com/reoring/go4t/extern/testdata/refinout.Rec",func(v []any) any { return v },func(v any,i int) any { return v.([]any)[i] })
  run := func(action any) any { t.Helper(); v,err := action.(rt.IO)(context.Background()); if err != nil { t.Fatal(err) }; return v }
  equal := func(got,want any) { t.Helper(); if !reflect.DeepEqual(got,want) { t.Fatalf("got %#v, want %#v",got,want) } }
  original := []any{"before"}

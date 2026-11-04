@@ -1,6 +1,6 @@
 package q
 
-import "go4t/extern/testdata/scalarupcastfixture/config"
+import "github.com/reoring/go4t/extern/testdata/scalarupcastfixture/config"
 
 type QTag string
 

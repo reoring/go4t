@@ -4,7 +4,7 @@ go 1.26.9
 
 require (
 	github.com/go-logr/logr v1.4.4
-	go4t v0.0.0
+	github.com/reoring/go4t v0.0.0
 	k8s.io/api v0.37.0
 	k8s.io/apimachinery v0.37.0
 	k8s.io/client-go v0.37.0
@@ -69,4 +69,4 @@ require (
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
 
-replace go4t => ../..
+replace github.com/reoring/go4t => ../..

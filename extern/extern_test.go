@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	gfx "go4t/types"
+	gfx "github.com/reoring/go4t/types"
 )
 
 func TestLoadPackages(t *testing.T) {
@@ -13,7 +13,7 @@ func TestLoadPackages(t *testing.T) {
 		{"strings", "ToUpper", "func(string) string"},
 		{"strings", "Repeat", "func(string, int) string"},
 		{"strings", "Fields", "func(string) []string"},
-		{"go4t/rt", "ListFromStrings", "func([]string) any"},
+		{"github.com/reoring/go4t/rt", "ListFromStrings", "func([]string) any"},
 	} {
 		pkg, err := loader.Load(tc.path)
 		if err != nil {
@@ -36,7 +36,7 @@ func TestLoadPackages(t *testing.T) {
 			}
 		}
 	}
-	pkg, err := loader.Load("go4t/extern/testdata/bindfixture")
+	pkg, err := loader.Load("github.com/reoring/go4t/extern/testdata/bindfixture")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +75,7 @@ func TestLoaderDependencies(t *testing.T) {
 
 func TestLoadErrors(t *testing.T) {
 	var loader Loader
-	for _, path := range []string{"", "-json", "./...", "go4t/no-such-extern-package"} {
+	for _, path := range []string{"", "-json", "./...", "github.com/reoring/go4t/no-such-extern-package"} {
 		if _, err := loader.Load(path); err == nil {
 			t.Errorf("Load(%q) succeeded", path)
 		}
@@ -84,7 +84,7 @@ func TestLoadErrors(t *testing.T) {
 
 func TestMatchSignatures(t *testing.T) {
 	var loader Loader
-	pkg, err := loader.Load("go4t/extern/testdata/natural")
+	pkg, err := loader.Load("github.com/reoring/go4t/extern/testdata/natural")
 	if err != nil {
 		t.Fatal(err)
 	}

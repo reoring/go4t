@@ -10,7 +10,7 @@ main.gt     observe (List/Get), apply (merge-patch cordon, EvictV1), entry
 deps.go     keeps the Go modules the imports need in go.sum
 ```
 
-Run against any cluster (needs `go.mod`'s `replace go4t => ../..`):
+Run against any cluster (needs `go.mod`'s `replace github.com/reoring/go4t => ../..`):
 
 ```sh
 kind create cluster --name go4t-drain

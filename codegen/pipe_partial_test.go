@@ -4,14 +4,14 @@ import (
 	"strings"
 	"testing"
 
-	"go4t/ast"
-	"go4t/parser"
-	"go4t/types"
+	"github.com/reoring/go4t/ast"
+	"github.com/reoring/go4t/parser"
+	"github.com/reoring/go4t/types"
 )
 
 func TestPipePartialSourceSmoke(t *testing.T) {
 	file, err := parser.Parse(`package main
-extern func finish(n Int) IO[Unit] = "go4t/extern/testdata/natural".Echo
+extern func finish(n Int) IO[Unit] = "github.com/reoring/go4t/extern/testdata/natural".Echo
 func add(a Int, b Int) Int { a + b }
 func main() IO[Unit] {
  let inc = add(1, _)

@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"go4t/laws"
-	"go4t/modules"
-	"go4t/types"
+	"github.com/reoring/go4t/laws"
+	"github.com/reoring/go4t/modules"
+	"github.com/reoring/go4t/types"
 )
 
 func TestChannelShim(t *testing.T) {
@@ -78,7 +78,7 @@ import (
  "reflect"
  "strings"
  "testing"
- "go4t/rt"
+ "github.com/reoring/go4t/rt"
  f "example.test/bindings/fixture"
  s "example.test/bindings/shim"
 )
@@ -190,7 +190,7 @@ func main() IO[Unit] { ioPure(unit()) }
 		t.Fatal(err)
 	}
 	diagnostics := laws.CheckProgram(program)
-	if len(diagnostics) != 1 || !strings.Contains(diagnostics[0].Msg, "law depends on extern go4t/rt.ChanAsRecv") {
+	if len(diagnostics) != 1 || !strings.Contains(diagnostics[0].Msg, "law depends on extern github.com/reoring/go4t/rt.ChanAsRecv") {
 		t.Fatalf("law diagnostics = %v", diagnostics)
 	}
 }

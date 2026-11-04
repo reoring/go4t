@@ -2,17 +2,17 @@ package ref
 
 // Ref[A] is an opaque builtin handle, like Fiber[A]; it has no class instances.
 // Allocation, reads and writes are deferred IO, never pure observations.
-extern func new[A](a A) IO[Ref[A]] = "go4t/rt".RefNew
+extern func new[A](a A) IO[Ref[A]] = "github.com/reoring/go4t/rt".RefNew
 
-extern func get[A](r Ref[A]) IO[A] = "go4t/rt".RefGet
+extern func get[A](r Ref[A]) IO[A] = "github.com/reoring/go4t/rt".RefGet
 
-extern func set[A](r Ref[A], a A) IO[Unit] = "go4t/rt".RefSet
+extern func set[A](r Ref[A], a A) IO[Unit] = "github.com/reoring/go4t/rt".RefSet
 
 // The pure callback runs once under the cell's lock and must not execute IO.
 // Cancellation observed before commit or a panic leaves the cell unchanged;
 // waiting for the lock does not interrupt a running callback.
-extern func modify[A](r Ref[A], f func(A) A) IO[Unit] = "go4t/rt".RefModify
+extern func modify[A](r Ref[A], f func(A) A) IO[Unit] = "github.com/reoring/go4t/rt".RefModify
 
 // Atomically install the tuple's first value and return its second value.
 // The pure callback has the same lock and cancellation boundaries as modify.
-extern func update[A, B](r Ref[A], f func(A) (A, B)) IO[B] = "go4t/rt".RefUpdate
+extern func update[A, B](r Ref[A], f func(A) (A, B)) IO[B] = "github.com/reoring/go4t/rt".RefUpdate

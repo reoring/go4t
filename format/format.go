@@ -7,8 +7,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"go4t/ast"
-	"go4t/parser"
+	"github.com/reoring/go4t/ast"
+	"github.com/reoring/go4t/parser"
 )
 
 // Source parses and formats a complete source file. Parse errors are unchanged.

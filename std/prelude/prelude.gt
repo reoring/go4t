@@ -111,25 +111,25 @@ instance Debug[Tuple2[A, B]] given Debug[A], Debug[B] {
   }
 }
 
-extern func showInt(n Int) String = "go4t/rt".ShowInt
+extern func showInt(n Int) String = "github.com/reoring/go4t/rt".ShowInt
 
-extern func showBool(b Bool) String = "go4t/rt".ShowBool
+extern func showBool(b Bool) String = "github.com/reoring/go4t/rt".ShowBool
 
-extern func showString(s String) String = "go4t/rt".ShowString
+extern func showString(s String) String = "github.com/reoring/go4t/rt".ShowString
 
-extern func debugString(s String) String = "go4t/rt".DebugString
+extern func debugString(s String) String = "github.com/reoring/go4t/rt".DebugString
 
-extern func unit() Unit = "go4t/rt".UnitValue
+extern func unit() Unit = "github.com/reoring/go4t/rt".UnitValue
 
-extern func eqInt(a Int, b Int) Bool = "go4t/rt".EqInt
+extern func eqInt(a Int, b Int) Bool = "github.com/reoring/go4t/rt".EqInt
 
-extern func ltInt(a Int, b Int) Bool = "go4t/rt".LtInt
+extern func ltInt(a Int, b Int) Bool = "github.com/reoring/go4t/rt".LtInt
 
-extern func eqString(a String, b String) Bool = "go4t/rt".EqString
+extern func eqString(a String, b String) Bool = "github.com/reoring/go4t/rt".EqString
 
-extern func ltString(a String, b String) Bool = "go4t/rt".LtString
+extern func ltString(a String, b String) Bool = "github.com/reoring/go4t/rt".LtString
 
-extern func eqBool(a Bool, b Bool) Bool = "go4t/rt".EqBool
+extern func eqBool(a Bool, b Bool) Bool = "github.com/reoring/go4t/rt".EqBool
 
 func min[A Ord](a A, b A) A {
   if a <= b {

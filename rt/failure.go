@@ -117,7 +117,7 @@ func failureValue(err error) any {
 	return Shapes.IoError(string(failure.Kind), failure.Message)
 }
 
-const ioFailureRecordKey = "go4t/rt.IoFailure"
+const ioFailureRecordKey = "github.com/reoring/go4t/rt.IoFailure"
 
 // failureCauseValue preserves the cause handle alongside the generated IoError.
 func failureCauseValue(err error) any {

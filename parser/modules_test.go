@@ -1,8 +1,8 @@
 package parser_test
 
 import (
-	"go4t/ast"
-	"go4t/parser"
+	"github.com/reoring/go4t/ast"
+	"github.com/reoring/go4t/parser"
 	"strings"
 	"testing"
 )

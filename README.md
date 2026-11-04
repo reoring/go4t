@@ -28,7 +28,7 @@ into it.
 Requires **Go 1.22+** on PATH.
 
 ```sh
-go install ./cmd/go4t
+go install github.com/reoring/go4t/cmd/go4t@latest
 go4t eval '1 + 2'        # 3
 ```
 
@@ -181,9 +181,11 @@ without treating it as proved. What laws can and cannot express is in
   [attachment-repair-controller](examples/attachment-repair-controller)). A
   node-drain controller exists in all three shapes above; the all-go4t one
   ran 839/839 drain/recover cycles in a three-hour soak.
-- **Ordinary programs.** CLI tools, an HTTP service, and programs written by
-  people who had only read the docs ([docs/evaluation.md](docs/evaluation.md)
-  records what they tripped over and what was changed).
+- **Ordinary programs.** CLI tools, an HTTP service, and programs written
+  from the docs alone by four coding agents that had never seen the compiler
+  ([docs/evaluation.md](docs/evaluation.md) records what they tripped over
+  and what was changed). Everything above was done by the project itself; no
+  one outside it has used go4t yet.
 - **Itself.** `selfhost/` is a 5.4k-line go4t→Go compiler written in go4t
   that reproduces its own output (`bash selfhost/bootstrap.sh`), checked in CI.
 

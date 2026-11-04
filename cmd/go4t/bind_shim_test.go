@@ -25,7 +25,7 @@ func main() IO[Unit] {
   }
 }
 `)
-	args := []string{"bind", "go4t/extern/testdata/methodfixture", ".", "--shim", shim, "-o", dir}
+	args := []string{"bind", "github.com/reoring/go4t/extern/testdata/methodfixture", ".", "--shim", shim, "-o", dir}
 	out, stderr, status := toolsCommand(t, dir, "", args...)
 	if out != "" || stderr != "" || status != 0 {
 		t.Fatalf("bind: stdout=%q stderr=%q status=%d", out, stderr, status)
@@ -56,7 +56,7 @@ func main() IO[Unit] {
 	// Legacy output is inspected above; runtime execution uses owner metadata
 	// carried by go: imports rather than the generated inspection file.
 	file := toolsWrite(t, filepath.Join(dir, "run.gt"), `package main
-import f "go:go4t/extern/testdata/methodfixture"
+import f "go:github.com/reoring/go4t/extern/testdata/methodfixture"
 func main() IO[Unit] {
   do {
     println(f.widgetEcho(f.Widget{name: "hello"}, "!"))
@@ -127,7 +127,7 @@ func TestBindShimTypedExternExample(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		text := strings.ReplaceAll(string(source), "go4t/examples/typed-extern/shim", "clitoolstest/shim")
+		text := strings.ReplaceAll(string(source), "github.com/reoring/go4t/examples/typed-extern/shim", "clitoolstest/shim")
 		toolsWrite(t, filepath.Join(dir, name), text)
 	}
 	out, stderr, status := toolsCommand(t, dir, "", "bind", "net/url", "--shim", "shim", "-o", "methods.gt")

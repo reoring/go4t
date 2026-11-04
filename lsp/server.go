@@ -12,12 +12,12 @@ import (
 	"sort"
 	"strings"
 
-	"go4t/ast"
-	"go4t/laws"
-	"go4t/modules"
-	"go4t/parser"
-	"go4t/std"
-	"go4t/types"
+	"github.com/reoring/go4t/ast"
+	"github.com/reoring/go4t/laws"
+	"github.com/reoring/go4t/modules"
+	"github.com/reoring/go4t/parser"
+	"github.com/reoring/go4t/std"
+	"github.com/reoring/go4t/types"
 )
 
 const stdScheme = "go4t-std"
@@ -131,7 +131,7 @@ func (s *server) handle(m rpcMessage) error {
 	if m.Method == "initialized" || m.Method == "$/cancelRequest" || m.Method == "$/setTrace" {
 		return nil
 	}
-	if m.Method == "go4t/stdlib" {
+	if m.Method == "github.com/reoring/go4t/stdlib" {
 		if request {
 			var params struct {
 				URI string `json:"uri"`

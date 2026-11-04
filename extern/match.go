@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"go/types"
 
-	gfx "go4t/types"
+	gfx "github.com/reoring/go4t/types"
 )
 
 // Kind identifies the representation conversion required at the foreign boundary.
@@ -51,7 +51,7 @@ func Match(f Function, declared *gfx.TFunc) (Adapter, error) {
 			uniform = uniform && isAny(sig.Params().At(i).Type())
 		}
 		result := sig.Results().At(0).Type()
-		if uniform && (isAny(result) || (application(declared.Ret, "IO") != nil && named(result, "go4t/rt", "IO"))) {
+		if uniform && (isAny(result) || (application(declared.Ret, "IO") != nil && named(result, "github.com/reoring/go4t/rt", "IO"))) {
 			return Adapter{Uniform: true}, nil
 		}
 	}
@@ -135,7 +135,7 @@ func matchValue(t gfx.Type, tuple *types.Tuple, offset int) (Value, int, bool) {
 		}
 	}
 	if application(t, "IO") != nil {
-		return Value{Kind: Scalar, Go: "rt.IO"}, 1, named(goType, "go4t/rt", "IO")
+		return Value{Kind: Scalar, Go: "rt.IO"}, 1, named(goType, "github.com/reoring/go4t/rt", "IO")
 	}
 	if con, ok := gfx.Unalias(t).(*gfx.TCon); ok {
 		var basic types.BasicKind
@@ -152,7 +152,7 @@ func matchValue(t gfx.Type, tuple *types.Tuple, offset int) (Value, int, bool) {
 		case "Bool":
 			basic = types.Bool
 		case "Unit":
-			return Value{Kind: Scalar, Go: "rt.Unit"}, 1, named(goType, "go4t/rt", "Unit")
+			return Value{Kind: Scalar, Go: "rt.Unit"}, 1, named(goType, "github.com/reoring/go4t/rt", "Unit")
 		}
 		if basic != types.Invalid {
 			return Value{Kind: Scalar, Go: types.Typ[basic].Name()}, 1, types.Identical(goType, types.Typ[basic])

@@ -201,7 +201,7 @@ func main() IO[Unit] { do {
 
 func TestPerfNativeFoldErasedNilElement(t *testing.T) {
 	output, err := runQualityGo(t, []byte(`package main
-import ("fmt"; "go4t/rt")
+import ("fmt"; "github.com/reoring/go4t/rt")
 func main() {
  rt.Shapes.Uncons = func(xs any) (any, any, bool) { return nil, nil, xs != nil }
  xs := rt.ArrayPush(rt.ArrayFromList(nil), nil)

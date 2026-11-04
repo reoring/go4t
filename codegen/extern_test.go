@@ -8,10 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	"go4t/ast"
-	"go4t/modules"
-	"go4t/parser"
-	"go4t/types"
+	"github.com/reoring/go4t/ast"
+	"github.com/reoring/go4t/modules"
+	"github.com/reoring/go4t/parser"
+	"github.com/reoring/go4t/types"
 )
 
 func TestNaturalExternAdapters(t *testing.T) {
@@ -32,7 +32,7 @@ func TestNaturalExternAdapters(t *testing.T) {
 		{"OptionBool", app("Option", types.Bool)}, {"OptionUnit", app("Option", types.Unit)},
 		{"Echo", app("List", types.Bool)},
 	} {
-		extern(p, "typed"+tc.name, []string{"value"}, []types.Type{tc.typ}, "go4t/extern/testdata/natural", tc.name)
+		extern(p, "typed"+tc.name, []string{"value"}, []types.Type{tc.typ}, "github.com/reoring/go4t/extern/testdata/natural", tc.name)
 		p.Funcs["typed"+tc.name].Scheme.Type.Ret = tc.typ
 	}
 	for _, tc := range []struct {
@@ -42,7 +42,7 @@ func TestNaturalExternAdapters(t *testing.T) {
 		{"WithError", types.String}, {"StringsWithError", app("List", types.String)},
 		{"IntsWithError", app("List", types.Int)}, {"ErasedWithError", app("List", types.Bool)},
 	} {
-		extern(p, "typed"+tc.name, []string{"value"}, []types.Type{tc.typ}, "go4t/extern/testdata/natural", tc.name)
+		extern(p, "typed"+tc.name, []string{"value"}, []types.Type{tc.typ}, "github.com/reoring/go4t/extern/testdata/natural", tc.name)
 		p.Funcs["typed"+tc.name].Scheme.Type.Ret = app("IO", tc.typ)
 	}
 	source, err := generate(p, "main")
@@ -65,7 +65,7 @@ func TestNaturalExternAdapters(t *testing.T) {
 		t.Fatal(err)
 	}
 	files := map[string]string{
-		"go.mod":       "module adaptertest\n\ngo 1.22\nrequire go4t v0.0.0\nreplace go4t => " + filepath.ToSlash(root) + "\n",
+		"go.mod":       "module adaptertest\n\ngo 1.22\nrequire github.com/reoring/go4t v0.0.0\nreplace github.com/reoring/go4t => " + filepath.ToSlash(root) + "\n",
 		"main.go":      string(source),
 		"main_test.go": adapterRuntimeTests,
 	}
@@ -84,10 +84,10 @@ func TestNaturalExternAdapters(t *testing.T) {
 func TestExternMismatchDiagnostics(t *testing.T) {
 	for _, tc := range []struct{ symbol, want string }{
 		{"Int", "extern Int: Go signature func(int64) int64 does not match declared type func(String) Bool"},
-		{"Missing", "extern Missing: exported Go function not found in go4t/extern/testdata/natural"},
+		{"Missing", "extern Missing: exported Go function not found in github.com/reoring/go4t/extern/testdata/natural"},
 	} {
 		p := fixture()
-		extern(p, "foreign", []string{"value"}, []types.Type{types.String}, "go4t/extern/testdata/natural", tc.symbol)
+		extern(p, "foreign", []string{"value"}, []types.Type{types.String}, "github.com/reoring/go4t/extern/testdata/natural", tc.symbol)
 		p.Funcs["foreign"].Decl.Pos = ast.Pos{Line: 3, Col: 7}
 		p.Funcs["foreign"].Scheme.Type.Ret = types.Bool
 		_, err := generate(p, "main")
@@ -144,8 +144,8 @@ import (
     "errors"
     "reflect"
     "testing"
-    "go4t/rt"
-    foreign "go4t/extern/testdata/natural"
+    "github.com/reoring/go4t/rt"
+    foreign "github.com/reoring/go4t/extern/testdata/natural"
 )
 func TestAdapters(t *testing.T) {
     for _, tc := range []struct { call func(any) any; value any }{

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"go4t/format"
+	"github.com/reoring/go4t/format"
 )
 
 const lawProofFixture = `// Equational laws.

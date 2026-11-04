@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"go4t/types"
+	"github.com/reoring/go4t/types"
 )
 
 func propertyMapReference(t *testing.T, e *evaluator, runtime string) string {

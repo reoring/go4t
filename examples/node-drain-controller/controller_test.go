@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"go4t/rt"
+	"github.com/reoring/go4t/rt"
 
 	"nodedrainctl/decide"
 )

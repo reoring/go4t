@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"go4t/ast"
-	"go4t/parser"
-	"go4t/std"
+	"github.com/reoring/go4t/ast"
+	"github.com/reoring/go4t/parser"
+	"github.com/reoring/go4t/std"
 )
 
 func moduleDocumentation(document, module string) (string, bool) {

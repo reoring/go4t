@@ -148,7 +148,7 @@ The leading underscore excludes `_decide_gen/` from Go's `./...` test package
 walk; the `*_gen/` rule separately excludes it from Git. Tests still compile
 and execute the generated package through the shell import.
 
-The `require go4t v0.0.0` and `replace go4t => ../..` connect the controller and
+The `require github.com/reoring/go4t v0.0.0` and `replace github.com/reoring/go4t => ../..` connect the controller and
 generated package to the local go4t runtime. This nested module is not added
 to the root module or a workspace, keeping root package discovery unchanged
 (the same isolation pattern as `examples/deps/app`).

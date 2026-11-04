@@ -8,7 +8,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"go4t/lexer"
+	"github.com/reoring/go4t/lexer"
 )
 
 // BindOptions describes the language scope receiving generated declarations.
@@ -131,7 +131,7 @@ func bindingType(t types.Type, floats bool) (string, bool) {
 	if types.Identical(t, types.NewSlice(types.Typ[types.Int64])) {
 		return "List[Int]", true
 	}
-	if named(t, "go4t/rt", "Unit") {
+	if named(t, "github.com/reoring/go4t/rt", "Unit") {
 		return "Unit", true
 	}
 	// any and rt.IO erase the go4t type (and IO result), so they require an

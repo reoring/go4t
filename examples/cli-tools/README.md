@@ -66,8 +66,8 @@ A Go caller imports the generated package and runs its exported entry:
 
 ```go
 import (
-    embedded "go4t/examples/cli-tools/embedded_gen"
-    "go4t/rt"
+    embedded "github.com/reoring/go4t/examples/cli-tools/embedded_gen"
+    "github.com/reoring/go4t/rt"
 )
 
 func main() {
@@ -77,7 +77,7 @@ func main() {
 ```
 
 `cmd/go4t` includes an integration test that emits a package into a temporary Go
-module, imports it using `replace go4t => <repository>`, and executes `Main()`.
+module, imports it using `replace github.com/reoring/go4t => <repository>`, and executes `Main()`.
 
 ## Ordinary example execution
 

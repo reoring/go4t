@@ -4,25 +4,25 @@ import "std/list"
 import "std/string"
 import "std/prelude"
 
-extern func arrayFromList[A](xs List[A]) Array[A] = "go4t/rt".ArrayFromList
+extern func arrayFromList[A](xs List[A]) Array[A] = "github.com/reoring/go4t/rt".ArrayFromList
 
-extern func arrayToList[A](a Array[A]) List[A] = "go4t/rt".ArrayToList
+extern func arrayToList[A](a Array[A]) List[A] = "github.com/reoring/go4t/rt".ArrayToList
 
-extern func arrayLength[A](a Array[A]) Int = "go4t/rt".ArrayLength
+extern func arrayLength[A](a Array[A]) Int = "github.com/reoring/go4t/rt".ArrayLength
 
-extern func arrayGet[A](a Array[A], i Int) Option[A] = "go4t/rt".ArrayGet
+extern func arrayGet[A](a Array[A], i Int) Option[A] = "github.com/reoring/go4t/rt".ArrayGet
 
-extern func arraySet[A](a Array[A], i Int, v A) Array[A] = "go4t/rt".ArraySet
+extern func arraySet[A](a Array[A], i Int, v A) Array[A] = "github.com/reoring/go4t/rt".ArraySet
 
-extern func arrayMap[A, B](a Array[A], f func(A) B) Array[B] = "go4t/rt".ArrayMap
+extern func arrayMap[A, B](a Array[A], f func(A) B) Array[B] = "github.com/reoring/go4t/rt".ArrayMap
 
-extern func arrayFold[A, B](a Array[A], init B, f func(B, A) B) B = "go4t/rt".ArrayFold
+extern func arrayFold[A, B](a Array[A], init B, f func(B, A) B) B = "github.com/reoring/go4t/rt".ArrayFold
 
-extern func arrayPush[A](a Array[A], v A) Array[A] = "go4t/rt".ArrayPush
+extern func arrayPush[A](a Array[A], v A) Array[A] = "github.com/reoring/go4t/rt".ArrayPush
 
-extern func arraySlice[A](a Array[A], start Int, end Int) Array[A] = "go4t/rt".ArraySlice
+extern func arraySlice[A](a Array[A], start Int, end Int) Array[A] = "github.com/reoring/go4t/rt".ArraySlice
 
-extern func arraySortBy[A](a Array[A], cmp func(A, A) Ordering) Array[A] = "go4t/rt".ArraySortBy
+extern func arraySortBy[A](a Array[A], cmp func(A, A) Ordering) Array[A] = "github.com/reoring/go4t/rt".ArraySortBy
 
 instance Show[Array[A]] given Show[A] {
   show(a) {

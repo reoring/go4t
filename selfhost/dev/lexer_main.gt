@@ -5,7 +5,7 @@ import "std/result"
 import "std/string"
 import "std/io"
 
-extern func readFile(p String) IO[String] = "go4t/rt".ReadFile
+extern func readFile(p String) IO[String] = "github.com/reoring/go4t/rt".ReadFile
 
 func lexerPrintPart(part InterpPart) IO[Unit] {
   match part {

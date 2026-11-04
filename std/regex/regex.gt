@@ -2,14 +2,14 @@ package regex
 
 import "std/list"
 
-extern func regexMatch(pattern String, s String) Bool = "go4t/rt".RegexMatch
+extern func regexMatch(pattern String, s String) Bool = "github.com/reoring/go4t/rt".RegexMatch
 
-extern func regexFind(pattern String, s String) Option[String] = "go4t/rt".RegexFind
+extern func regexFind(pattern String, s String) Option[String] = "github.com/reoring/go4t/rt".RegexFind
 
-extern func regexFindAll(pattern String, s String) List[String] = "go4t/rt".RegexFindAll
+extern func regexFindAll(pattern String, s String) List[String] = "github.com/reoring/go4t/rt".RegexFindAll
 
-extern func regexReplace(pattern String, s String, repl String) String = "go4t/rt".RegexReplace
+extern func regexReplace(pattern String, s String, repl String) String = "github.com/reoring/go4t/rt".RegexReplace
 
-extern func regexSplit(pattern String, s String) List[String] = "go4t/rt".RegexSplit
+extern func regexSplit(pattern String, s String) List[String] = "github.com/reoring/go4t/rt".RegexSplit
 
-extern func regexCaptures(pattern String, s String) Option[List[String]] = "go4t/rt".RegexCaptures
+extern func regexCaptures(pattern String, s String) Option[List[String]] = "github.com/reoring/go4t/rt".RegexCaptures

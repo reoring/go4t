@@ -182,6 +182,6 @@ The oracle's SHA-256 before and after the rewrite is
 
 The module uses the same Go line (`1.26.9`) and direct Kubernetes,
 controller-runtime, and logr versions as `../approval-controller/go.mod`.
-`require go4t v0.0.0` and `replace go4t => ../..` resolve the generated boundary's
+`require github.com/reoring/go4t v0.0.0` and `replace github.com/reoring/go4t => ../..` resolve the generated boundary's
 runtime and the local generator. This is a nested module, not added to the root
 module or a workspace.

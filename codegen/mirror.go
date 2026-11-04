@@ -10,8 +10,8 @@ import (
 	"strconv"
 	"strings"
 
-	"go4t/ast"
-	"go4t/types"
+	"github.com/reoring/go4t/ast"
+	"github.com/reoring/go4t/types"
 )
 
 // Export generation runs after module renaming. Only references to the erased
@@ -343,7 +343,7 @@ func (g *mirrorGenerator) qualifier(path string) string {
 	switch path {
 	case "context", "sort":
 		alias = path
-	case "go4t/rt":
+	case "github.com/reoring/go4t/rt":
 		alias = "rt"
 	default:
 		for n := 0; ; n++ {
@@ -540,7 +540,7 @@ func (g *mirrorGenerator) goType(t types.Type) string {
 		g.qualifier("context")
 		return "func(context.Context) (" + parts[0] + ", error)"
 	default:
-		g.qualifier("go4t/rt")
+		g.qualifier("github.com/reoring/go4t/rt")
 		name := "rt." + head.Name
 		if len(parts) != 0 {
 			name += "[" + strings.Join(parts, ", ") + "]"
@@ -950,7 +950,7 @@ func (g *mirrorGenerator) emitConversion(out *strings.Builder, m *mirrorType, to
 			out.WriteString("}\n")
 		}
 	case "IO":
-		g.qualifier("go4t/rt")
+		g.qualifier("github.com/reoring/go4t/rt")
 		g.qualifier("context")
 		if to {
 			fmt.Fprintf(out, "action := v.(rt.IO)\nreturn func(ctx context.Context) (%s, error) { value, err := action(ctx); if err != nil { var zero %s; return zero, rt.ClassifyError(err) }; return %s, nil }\n", g.goType(args[0]), g.goType(args[0]), g.to(args[0], "value"))
@@ -1047,7 +1047,7 @@ func mirrorLess(t types.Type, a, b string) string {
 }
 
 func (g *mirrorGenerator) emitCollectionConversion(out *strings.Builder, m *mirrorType, kind string, args []types.Type, to bool) {
-	g.qualifier("go4t/rt")
+	g.qualifier("github.com/reoring/go4t/rt")
 	if to {
 		fmt.Fprintf(out, "result := make(%s, rt.%sSize(v).(int64))\n", m.goType, kind)
 		if kind == "Map" {

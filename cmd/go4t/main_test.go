@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"go4t/ast"
-	"go4t/types"
+	"github.com/reoring/go4t/ast"
+	"github.com/reoring/go4t/types"
 )
 
 func TestBuildUsesPerProgramDirectories(t *testing.T) {
@@ -17,7 +17,7 @@ func TestBuildUsesPerProgramDirectories(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mod := "module buildtest\n\ngo 1.22\n\nrequire go4t v0.0.0\nreplace go4t => " + root + "\n"
+	mod := "module buildtest\n\ngo 1.22\n\nrequire github.com/reoring/go4t v0.0.0\nreplace github.com/reoring/go4t => " + root + "\n"
 	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(mod), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -119,7 +119,7 @@ func TestWarningsContinueForEveryCommand(t *testing.T) {
 	for _, command := range []string{"check", "build", "run"} {
 		t.Run(command, func(t *testing.T) {
 			dir := t.TempDir()
-			mod := "module warningtest\n\ngo 1.22\n\nrequire go4t v0.0.0\nreplace go4t => " + root + "\n"
+			mod := "module warningtest\n\ngo 1.22\n\nrequire github.com/reoring/go4t v0.0.0\nreplace github.com/reoring/go4t => " + root + "\n"
 			if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(mod), 0o644); err != nil {
 				t.Fatal(err)
 			}
@@ -217,7 +217,7 @@ func TestRunPassesProgramArguments(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mod := "module argstest\n\ngo 1.22\n\nrequire go4t v0.0.0\nreplace go4t => " + root + "\n"
+	mod := "module argstest\n\ngo 1.22\n\nrequire github.com/reoring/go4t v0.0.0\nreplace github.com/reoring/go4t => " + root + "\n"
 	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(mod), 0o644); err != nil {
 		t.Fatal(err)
 	}

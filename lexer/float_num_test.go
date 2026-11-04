@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"go4t/ast"
-	"go4t/lexer"
+	"github.com/reoring/go4t/ast"
+	"github.com/reoring/go4t/lexer"
 )
 
 func TestFloatLiteralTokens(t *testing.T) {

@@ -3,7 +3,7 @@ package types
 import (
 	"fmt"
 
-	"go4t/ast"
+	"github.com/reoring/go4t/ast"
 )
 
 // Local schemes retain the inferred metas until body finalization. Used schemes

@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"strings"
 
-	runtimefs "go4t"
-	"go4t/modules"
+	runtimefs "github.com/reoring/go4t"
+	"github.com/reoring/go4t/modules"
 )
 
 func runInit(args []string) error {
@@ -34,7 +34,7 @@ func runInit(args []string) error {
 	if err != nil {
 		return fmt.Errorf("go4t init: %w", err)
 	}
-	goMod := fmt.Sprintf("module %s\n\ngo 1.22\n\nrequire go4t v0.0.0\n\nreplace go4t => %s\n", args[0], strconv.Quote(runtimeDir))
+	goMod := fmt.Sprintf("module %s\n\ngo 1.22\n\nrequire github.com/reoring/go4t v0.0.0\n\nreplace github.com/reoring/go4t => %s\n", args[0], strconv.Quote(runtimeDir))
 	if err := createManifest(filepath.Join(root, "go.mod"), goMod); err != nil {
 		return err
 	}
@@ -63,7 +63,7 @@ func createManifest(name, content string) error {
 }
 
 func initRuntime(root string) (string, error) {
-	if module, err := modules.ResolveGoModule(root, "go4t"); err == nil {
+	if module, err := modules.ResolveGoModule(root, "github.com/reoring/go4t"); err == nil {
 		return module.Dir, nil
 	}
 	cache, err := os.UserCacheDir()

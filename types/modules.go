@@ -8,7 +8,7 @@ import (
 	"strings"
 	"unicode"
 
-	"go4t/ast"
+	"github.com/reoring/go4t/ast"
 )
 
 // PreludeExports is the deliberately small implicit namespace. A reexported

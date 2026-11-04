@@ -7,7 +7,7 @@ import (
 
 func TestJSONViewShim(t *testing.T) {
 	var loader Loader
-	pkg, err := loader.Load("go4t/extern/testdata/jsonview")
+	pkg, err := loader.Load("github.com/reoring/go4t/extern/testdata/jsonview")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -48,7 +48,7 @@ func TestJSONViewHandleStorage(t *testing.T) {
 	dir := bindingTestModule(t)
 	writeBindingTestFile(t, dir, "main.gt", `package main
 import "std/dyn"
-import f "go:go4t/extern/testdata/jsonview"
+import f "go:github.com/reoring/go4t/extern/testdata/jsonview"
 func keep(h f.Holder) f.Holder { h{n: h.n + 1} }
 func main() IO[Unit] {
  do {
@@ -61,7 +61,7 @@ func main() IO[Unit] {
  }
 }
 `)
-	runBindingTestGo(t, dir, "run", "-mod=mod", "go4t/cmd/go4t", "run", ".")
+	runBindingTestGo(t, dir, "run", "-mod=mod", "github.com/reoring/go4t/cmd/go4t", "run", ".")
 }
 
 func TestJSONViewStructuralInterfacesAndPrecedence(t *testing.T) {
@@ -123,8 +123,8 @@ import (
  "strings"
  "testing"
  "time"
- "go4t/rt"
- f "go4t/extern/testdata/jsonview"
+ "github.com/reoring/go4t/rt"
+ f "github.com/reoring/go4t/extern/testdata/jsonview"
  s "example.test/bindings/shim"
 )
 type dynamic struct { kind string; value any }
@@ -139,7 +139,7 @@ func TestJSONViews(t *testing.T) {
   DynView: func(v any) (string,any) { d:=v.(dynamic); return d.kind,d.value },
  }
  for _,name := range []string{"Holder","Pair"} {
-  rt.RegisterForeignRecord("go4t/extern/testdata/jsonview."+name,func(v []any) any { return v },func(v any,i int) any { return v.([]any)[i] })
+  rt.RegisterForeignRecord("github.com/reoring/go4t/extern/testdata/jsonview."+name,func(v []any) any { return v },func(v any,i int) any { return v.([]any)[i] })
  }
  run := func(action any) any { t.Helper(); v,err:=action.(rt.IO)(context.Background()); if err!=nil { t.Fatal(err) }; return v }
  equal := func(got,want any) { t.Helper(); if !reflect.DeepEqual(got,want) { t.Fatalf("got %#v, want %#v",got,want) } }
@@ -172,7 +172,7 @@ func TestJSONViews(t *testing.T) {
   {"Malformed",func(){ s.Malformed_ToJson(&f.Malformed{}) }},
  } {
   t.Run(tc.name,func(t *testing.T) {
-   defer func(){ got:=recover(); want:="go4t json view: go4t/extern/testdata/jsonview."+tc.name+": "; if got==nil || !strings.HasPrefix(fmt.Sprint(got),want) { t.Fatalf("panic = %v, want %s",got,want) } }()
+   defer func(){ got:=recover(); want:="go4t json view: github.com/reoring/go4t/extern/testdata/jsonview."+tc.name+": "; if got==nil || !strings.HasPrefix(fmt.Sprint(got),want) { t.Fatalf("panic = %v, want %s",got,want) } }()
    tc.call()
   })
  }

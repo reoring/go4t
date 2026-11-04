@@ -12,12 +12,12 @@ import (
 	"path/filepath"
 	"strings"
 
-	"go4t/ast"
-	"go4t/codegen"
-	"go4t/laws"
-	"go4t/lsp"
-	"go4t/modules"
-	"go4t/types"
+	"github.com/reoring/go4t/ast"
+	"github.com/reoring/go4t/codegen"
+	"github.com/reoring/go4t/laws"
+	"github.com/reoring/go4t/lsp"
+	"github.com/reoring/go4t/modules"
+	"github.com/reoring/go4t/types"
 )
 
 func main() {

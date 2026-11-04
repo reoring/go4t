@@ -6,8 +6,8 @@ import (
 	"os"
 	"strconv"
 
-	"go4t/ast"
-	"go4t/lexer"
+	"github.com/reoring/go4t/ast"
+	"github.com/reoring/go4t/lexer"
 )
 
 var kindNames = [...]string{

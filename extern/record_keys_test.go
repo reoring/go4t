@@ -49,7 +49,7 @@ func TestForeignRecordOwnerKeys(t *testing.T) {
  import (
   "reflect"
   "testing"
-  "go4t/rt"
+  "github.com/reoring/go4t/rt"
   s "example.test/bindings/shim_consumer"
  )
  type leftStatus struct { count int64 }

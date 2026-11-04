@@ -8,31 +8,31 @@ import "std/prelude"
 // Updates preserve earlier versions; iteration follows the supplied Ord.
 // Native scalar comparison is used only for prelude Int/String ordering.
 
-extern func emptyMap[K, V]() Map[K, V] = "go4t/rt".EmptyMap
+extern func emptyMap[K, V]() Map[K, V] = "github.com/reoring/go4t/rt".EmptyMap
 
-extern func mapInsertBy[K, V](m Map[K, V], k K, v V, cmp func(K, K) Ordering) Map[K, V] = "go4t/rt".MapInsert
+extern func mapInsertBy[K, V](m Map[K, V], k K, v V, cmp func(K, K) Ordering) Map[K, V] = "github.com/reoring/go4t/rt".MapInsert
 
-extern func mapLookupBy[K, V](m Map[K, V], k K, cmp func(K, K) Ordering) Option[V] = "go4t/rt".MapLookup
+extern func mapLookupBy[K, V](m Map[K, V], k K, cmp func(K, K) Ordering) Option[V] = "github.com/reoring/go4t/rt".MapLookup
 
-extern func mapDeleteBy[K, V](m Map[K, V], k K, cmp func(K, K) Ordering) Map[K, V] = "go4t/rt".MapDelete
+extern func mapDeleteBy[K, V](m Map[K, V], k K, cmp func(K, K) Ordering) Map[K, V] = "github.com/reoring/go4t/rt".MapDelete
 
-extern func mapMemberBy[K, V](m Map[K, V], k K, cmp func(K, K) Ordering) Bool = "go4t/rt".MapMember
+extern func mapMemberBy[K, V](m Map[K, V], k K, cmp func(K, K) Ordering) Bool = "github.com/reoring/go4t/rt".MapMember
 
-extern func mapSize[K, V](m Map[K, V]) Int = "go4t/rt".MapSize
+extern func mapSize[K, V](m Map[K, V]) Int = "github.com/reoring/go4t/rt".MapSize
 
-extern func mapFromListBy[K, V](xs List[(K, V)], cmp func(K, K) Ordering) Map[K, V] = "go4t/rt".MapFromList
+extern func mapFromListBy[K, V](xs List[(K, V)], cmp func(K, K) Ordering) Map[K, V] = "github.com/reoring/go4t/rt".MapFromList
 
-extern func mapToList[K, V](m Map[K, V]) List[(K, V)] = "go4t/rt".MapToList
+extern func mapToList[K, V](m Map[K, V]) List[(K, V)] = "github.com/reoring/go4t/rt".MapToList
 
-extern func mapKeys[K, V](m Map[K, V]) List[K] = "go4t/rt".MapKeys
+extern func mapKeys[K, V](m Map[K, V]) List[K] = "github.com/reoring/go4t/rt".MapKeys
 
-extern func mapValues[K, V](m Map[K, V]) List[V] = "go4t/rt".MapValues
+extern func mapValues[K, V](m Map[K, V]) List[V] = "github.com/reoring/go4t/rt".MapValues
 
-extern func mapUnionBy[K, V](a Map[K, V], b Map[K, V], cmp func(K, K) Ordering) Map[K, V] = "go4t/rt".MapUnion
+extern func mapUnionBy[K, V](a Map[K, V], b Map[K, V], cmp func(K, K) Ordering) Map[K, V] = "github.com/reoring/go4t/rt".MapUnion
 
-extern func mapMap[K, V, W](m Map[K, V], f func(V) W) Map[K, W] = "go4t/rt".MapMap
+extern func mapMap[K, V, W](m Map[K, V], f func(V) W) Map[K, W] = "github.com/reoring/go4t/rt".MapMap
 
-extern func mapFold[K, V, B](m Map[K, V], init B, f func(B, K, V) B) B = "go4t/rt".MapFold
+extern func mapFold[K, V, B](m Map[K, V], init B, f func(B, K, V) B) B = "github.com/reoring/go4t/rt".MapFold
 
 func mapInsert[K Ord, V](m Map[K, V], k K, v V) Map[K, V] {
   mapInsertBy(m, k, v, func(a, b) => compare(a, b))

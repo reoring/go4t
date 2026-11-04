@@ -15,19 +15,19 @@ class Decode[A] {
   decode(j Json) Result[String, A]
 }
 
-extern func toJson(j Json) String = "go4t/rt".ToJson
+extern func toJson(j Json) String = "github.com/reoring/go4t/rt".ToJson
 
-extern func toJsonPretty(j Json) String = "go4t/rt".ToJsonPretty
+extern func toJsonPretty(j Json) String = "github.com/reoring/go4t/rt".ToJsonPretty
 
-extern func parseJson(s String) Result[String, Json] = "go4t/rt".ParseJson
+extern func parseJson(s String) Result[String, Json] = "github.com/reoring/go4t/rt".ParseJson
 
-extern func _jsonObject(fields List[(String, Json)]) Json = "go4t/rt".JsonObject
+extern func _jsonObject(fields List[(String, Json)]) Json = "github.com/reoring/go4t/rt".JsonObject
 
-extern func _jsonInt(n Float) Result[String, Int] = "go4t/rt".JsonInt
+extern func _jsonInt(n Float) Result[String, Int] = "github.com/reoring/go4t/rt".JsonInt
 
-extern func _jsonErrorAt(message String, segment String) String = "go4t/rt".JsonErrorAt
+extern func _jsonErrorAt(message String, segment String) String = "github.com/reoring/go4t/rt".JsonErrorAt
 
-extern func _jsonFieldPath(name String) String = "go4t/rt".JsonFieldPath
+extern func _jsonFieldPath(name String) String = "github.com/reoring/go4t/rt".JsonFieldPath
 
 func _jsonAt[A](segment String, result Result[String, A]) Result[String, A] {
   r.mapErr(result, func(message) => _jsonErrorAt(message, segment))

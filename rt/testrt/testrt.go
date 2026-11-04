@@ -6,7 +6,7 @@ import (
 	"context"
 	"fmt"
 
-	"go4t/rt"
+	"github.com/reoring/go4t/rt"
 )
 
 // Run executes a suspended test exactly once, reports its outcome, and returns

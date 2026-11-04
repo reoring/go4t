@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"go4t/ast"
-	"go4t/modules"
-	"go4t/types"
+	"github.com/reoring/go4t/ast"
+	"github.com/reoring/go4t/modules"
+	"github.com/reoring/go4t/types"
 )
 
 var internalDiagnosticName = regexp.MustCompile(`placeholder\d|\b[A-Z][a-z]+_[A-Z]\w*\b`)

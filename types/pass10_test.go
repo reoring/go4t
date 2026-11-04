@@ -5,14 +5,14 @@ import (
 	"reflect"
 	"testing"
 
-	"go4t/ast"
-	"go4t/parser"
-	"go4t/types"
+	"github.com/reoring/go4t/ast"
+	"github.com/reoring/go4t/parser"
+	"github.com/reoring/go4t/types"
 )
 
 const pass10Debug = pass5Show + `
 class Debug[A] { debug(a A) String }
-extern func debugString(s String) String = "go4t/rt".DebugString
+extern func debugString(s String) String = "github.com/reoring/go4t/rt".DebugString
 instance Debug[Int] { debug(a) { showInt(a) } }
 instance Debug[String] { debug(a) { debugString(a) } }
 `

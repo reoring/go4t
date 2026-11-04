@@ -70,7 +70,7 @@ func Handle(h *owner.Handle) *owner.Handle { return h }
 	writeBindingTestFile(t, dir, "shim_consumer/ownership_test.go", `package shim_consumer_test
 import (
  "testing"
- "go4t/rt"
+ "github.com/reoring/go4t/rt"
  o "example.test/bindings/shim_owner"
  c "example.test/bindings/shim_consumer"
  "example.test/bindings/owner"

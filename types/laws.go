@@ -3,7 +3,7 @@ package types
 import (
 	"strings"
 
-	"go4t/ast"
+	"github.com/reoring/go4t/ast"
 )
 
 func (c *checker) pairLaws(files []*ast.File) {

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"go4t/types"
+	"github.com/reoring/go4t/types"
 )
 
 // The generated program owns all erased record constructors. Register them in

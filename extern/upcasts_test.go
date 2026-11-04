@@ -6,7 +6,7 @@ import (
 )
 
 func TestDirectImportSourceUpcasts(t *testing.T) {
-	const fixture = "go4t/extern/testdata/upcastfixture/"
+	const fixture = "github.com/reoring/go4t/extern/testdata/upcastfixture/"
 	dir := bindingTestModule(t)
 	loader := Loader{Dir: dir}
 	pkg, err := loader.Load(fixture + "p")
@@ -20,8 +20,8 @@ func TestDirectImportSourceUpcasts(t *testing.T) {
 		}
 		for _, tc := range []struct{ name, receiver, shim string }{
 			{"ImplAsI", "Impl", "Impl_AsI"},
-			{"QImplAsI", "go_go4t_extern_testdata_upcastfixture_q.Impl", "QImpl_AsI"},
-			{"RecordAsI", "go_go4t_extern_testdata_upcastfixture_q.Record", "Record_AsI"},
+			{"QImplAsI", "go_github_com_reoring_go4t_extern_testdata_upcastfixture_q.Impl", "QImpl_AsI"},
+			{"RecordAsI", "go_github_com_reoring_go4t_extern_testdata_upcastfixture_q.Record", "Record_AsI"},
 			{"ScalarAsI", "String", "Scalar_AsI"},
 		} {
 			name, _ := bindingName(tc.name, prefix)
@@ -42,16 +42,16 @@ func TestDirectImportSourceUpcasts(t *testing.T) {
 	writeBindingTestFile(t, dir, "shim/upcasts_test.go", `package shim_test
 import (
  "testing"
- "go4t/rt"
- p "go4t/extern/testdata/upcastfixture/p"
- q "go4t/extern/testdata/upcastfixture/q"
+ "github.com/reoring/go4t/rt"
+ p "github.com/reoring/go4t/extern/testdata/upcastfixture/p"
+ q "github.com/reoring/go4t/extern/testdata/upcastfixture/q"
  s "example.test/bindings/shim"
 )
 func TestOwners(t *testing.T) {
  own,foreign := &p.Impl{},&q.Impl{}
  if got:=s.Impl_AsI(own); got!=own || got.(p.I).Speak()!="p" { t.Fatal("own source lost identity") }
  if got:=s.QImpl_AsI(foreign); got!=foreign || got.(p.I).Speak()!="q" { t.Fatal("foreign source lost identity") }
- rt.RegisterForeignRecord("go4t/extern/testdata/upcastfixture/q.Record",func(fields []any) any { return fields },func(v any,i int) any { return v.([]any)[i] })
+ rt.RegisterForeignRecord("github.com/reoring/go4t/extern/testdata/upcastfixture/q.Record",func(fields []any) any { return fields },func(v any,i int) any { return v.([]any)[i] })
  if s.Record_AsI([]any{int64(7)}).(p.I).Speak()!="record" { t.Fatal("foreign record upcast") }
  if got,ok:=s.Scalar_AsI("foreign").(q.Scalar); !ok || got!="foreign" { t.Fatalf("foreign scalar upcast = %T(%v)",got,got) }
 }

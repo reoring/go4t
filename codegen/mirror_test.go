@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"go4t/ast"
-	"go4t/modules"
-	"go4t/types"
+	"github.com/reoring/go4t/ast"
+	"github.com/reoring/go4t/modules"
+	"github.com/reoring/go4t/types"
 )
 
 func mirrorProgram(t *testing.T, files map[string]string) *types.Program {
@@ -137,7 +137,7 @@ import (
  "math"
  "reflect"
  "mirrorcheck/core"
- "go4t/rt"
+ "github.com/reoring/go4t/rt"
 )
 func equal(a, b any) { if !reflect.DeepEqual(a, b) { panic(fmt.Sprintf("round trip: %#v != %#v", a, b)) } }
 func main() {
@@ -271,7 +271,7 @@ func runMirrorConsumer(t *testing.T, generated map[string][]byte, consumer strin
 		}
 	}
 	for name, source := range map[string]string{
-		"go.mod":  "module mirrorcheck\n\ngo 1.22\n\nrequire go4t v0.0.0\nreplace go4t => " + root + "\n",
+		"go.mod":  "module mirrorcheck\n\ngo 1.22\n\nrequire github.com/reoring/go4t v0.0.0\nreplace github.com/reoring/go4t => " + root + "\n",
 		"main.go": consumer,
 	} {
 		if err := os.WriteFile(filepath.Join(dir, name), []byte(source), 0o644); err != nil {
@@ -340,7 +340,7 @@ func TestGoMirrorLegacyHandleWithoutIdentity(t *testing.T) {
 type URL = URLHandle
 type Wrapped = Wrapped { url: URL }
 type Local = LocalHandle
-extern func parse(s String) IO[URL] = "go4t/examples/typed-extern/shim".Parse
+extern func parse(s String) IO[URL] = "github.com/reoring/go4t/examples/typed-extern/shim".Parse
 func host(u URL) URL { u }
 func parsed(s String) IO[URL] { parse(s) }
 func wrapped(v List[Wrapped]) List[Wrapped] { v }
@@ -541,7 +541,7 @@ import (
  "fmt"
  "reflect"
  "mirrorcheck/core"
- "go4t/rt"
+ "github.com/reoring/go4t/rt"
 )
 func equal(a, b any) { if !reflect.DeepEqual(a, b) { panic(fmt.Sprintf("round trip: %#v != %#v", a, b)) } }
 func main() {

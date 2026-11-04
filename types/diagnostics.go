@@ -4,7 +4,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"go4t/ast"
+	"github.com/reoring/go4t/ast"
 )
 
 // Only the failing check traverses source spans. Successful inference continues

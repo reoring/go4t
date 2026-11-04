@@ -11,8 +11,8 @@ import (
 	"sync"
 	"testing"
 
-	"go4t/modules"
-	"go4t/types"
+	"github.com/reoring/go4t/modules"
+	"github.com/reoring/go4t/types"
 )
 
 // go4tBinary builds the CLI once per test run. Documentation programs that
@@ -24,7 +24,7 @@ var go4tBinary = sync.OnceValues(func() (string, error) {
 		return "", err
 	}
 	path := filepath.Join(dir, "go4t")
-	build := exec.Command("go", "build", "-o", path, "go4t/cmd/go4t")
+	build := exec.Command("go", "build", "-o", path, "github.com/reoring/go4t/cmd/go4t")
 	build.Dir = ".."
 	if out, err := build.CombinedOutput(); err != nil {
 		return "", fmt.Errorf("build go4t: %v\n%s", err, out)
@@ -53,7 +53,7 @@ func checkWithCLI(t *testing.T, directory string) error {
 	if err != nil {
 		t.Fatal(err)
 	}
-	module := "module docsexample\n\ngo 1.22\n\nrequire go4t v0.0.0\nreplace go4t => " + strconv.Quote(root) + "\n"
+	module := "module docsexample\n\ngo 1.22\n\nrequire github.com/reoring/go4t v0.0.0\nreplace github.com/reoring/go4t => " + strconv.Quote(root) + "\n"
 	if err := os.WriteFile(filepath.Join(directory, "go.mod"), []byte(module), 0o600); err != nil {
 		t.Fatal(err)
 	}

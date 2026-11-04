@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"go4t/ast"
-	"go4t/modules"
-	"go4t/types"
+	"github.com/reoring/go4t/ast"
+	"github.com/reoring/go4t/modules"
+	"github.com/reoring/go4t/types"
 )
 
 func loadSource(t *testing.T, source string) *types.Program {
@@ -215,7 +215,7 @@ func TestRejectedDependencies(t *testing.T) {
 	errors := diagnosticsByLaw(t, loadFixture(t, "rejected.gt"))
 	for name, want := range map[string]string{
 		"foreignDependency": "law depends on extern example.invalid/foreign.Read",
-		"clonedPrimitive":   "law depends on extern go4t/rt.EqInt",
+		"clonedPrimitive":   "law depends on extern github.com/reoring/go4t/rt.EqInt",
 		"strictArgument":    "law depends on extern example.invalid/foreign.Read",
 		"higherOrder":       "higher-order", "io": "law depends on IO",
 		"loopDependency": "depends on loop which may not terminate",

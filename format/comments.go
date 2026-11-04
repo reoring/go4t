@@ -5,7 +5,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"go4t/ast"
+	"github.com/reoring/go4t/ast"
 )
 
 func compare(a, b ast.Pos) int {

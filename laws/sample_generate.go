@@ -6,9 +6,9 @@ import (
 	"strconv"
 	"strings"
 
-	"go4t/ast"
-	"go4t/parser"
-	"go4t/types"
+	"github.com/reoring/go4t/ast"
+	"github.com/reoring/go4t/parser"
+	"github.com/reoring/go4t/types"
 )
 
 // AddSampleTests adds ordinary checked functions to the unmodified source
@@ -238,12 +238,12 @@ func (g *sampleGenerator) file(original *ast.File, law *ast.LawDecl, info *types
 	var source, body strings.Builder
 	fmt.Fprintf(&source, "package %s\n", g.module.Name)
 	for _, scalar := range []string{"Int", "Float", "String"} {
-		fmt.Fprintf(&source, "extern func %s%s(seed Int, sample Int, offset Int) %s = %q.Sample%s\n", g.prefix, scalar, scalar, "go4t/rt/testrt", scalar)
+		fmt.Fprintf(&source, "extern func %s%s(seed Int, sample Int, offset Int) %s = %q.Sample%s\n", g.prefix, scalar, scalar, "github.com/reoring/go4t/rt/testrt", scalar)
 	}
-	fmt.Fprintf(&source, "extern func %schoice(seed Int, sample Int, offset Int, count Int) Int = %q.SampleChoice\n", g.prefix, "go4t/rt/testrt")
-	fmt.Fprintf(&source, "extern func %sfloatEqual(a Float, b Float) Bool = %q.SampleFloatEqual\n", g.prefix, "go4t/rt/testrt")
-	fmt.Fprintf(&source, "extern func %srun(count Int, check func(Int, Int) String) IO[Bool] = %q.Sample\n", g.prefix, "go4t/rt/testrt")
-	fmt.Fprintf(&source, "extern func %simpossible() String = %q.SampleImpossible\n", g.prefix, "go4t/rt/testrt")
+	fmt.Fprintf(&source, "extern func %schoice(seed Int, sample Int, offset Int, count Int) Int = %q.SampleChoice\n", g.prefix, "github.com/reoring/go4t/rt/testrt")
+	fmt.Fprintf(&source, "extern func %sfloatEqual(a Float, b Float) Bool = %q.SampleFloatEqual\n", g.prefix, "github.com/reoring/go4t/rt/testrt")
+	fmt.Fprintf(&source, "extern func %srun(count Int, check func(Int, Int) String) IO[Bool] = %q.Sample\n", g.prefix, "github.com/reoring/go4t/rt/testrt")
+	fmt.Fprintf(&source, "extern func %simpossible() String = %q.SampleImpossible\n", g.prefix, "github.com/reoring/go4t/rt/testrt")
 	equal := g.reference("eq")
 	if con, _ := typeHead(types.AnnOf(info.Decl.LHS).Type); con != nil && con.Name == "Float" {
 		equal = g.prefix + "floatEqual"

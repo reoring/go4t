@@ -9,7 +9,7 @@ import (
 
 	decide "approvalctl/_decide_gen"
 
-	"go4t/rt"
+	"github.com/reoring/go4t/rt"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )

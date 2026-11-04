@@ -1,13 +1,14 @@
 # go4t for Go developers
 
-Start from the repository checkout with Go 1.22 or newer. `go install ./cmd/go4t`
+With Go 1.22 or newer on PATH, `go install github.com/reoring/go4t/cmd/go4t@latest`
 installs the CLI; add Go's bin directory to PATH. The installed binary embeds its
 runtime, so saved programs can live anywhere: `run`, `test`, and `eval` create a
 temporary Go module when needed and clean it afterward. Keep the Go toolchain on
-PATH. Alternatively use `go run ./cmd/go4t` from the checkout root. Externs outside
-`go4t/rt` and its subpackages need an application Go module providing those packages
-and `go4t`. `go4t init` creates that project; `go4t get` records language
-dependencies in `go4t.mod` while Go manages their versions and checksums.
+PATH. From a repository checkout, `go install ./cmd/go4t` or `go run ./cmd/go4t`
+work the same way. Externs outside `github.com/reoring/go4t/rt` and its
+subpackages need an application Go module providing those packages and
+`github.com/reoring/go4t`. `go4t init` creates that project; `go4t get` records
+language dependencies in `go4t.mod` while Go manages their versions and checksums.
 
 Every `go4t` block below is a complete checkable example, alone or with the files
 in its named group. For ordinary blocks, save as `lesson.gt` and run
@@ -293,7 +294,7 @@ warning; explicit module qualification removes ambiguity.
 
 In a new directory, `go4t init example.com/myapp` creates `go.mod` and
 `go4t.mod`, refusing to overwrite either. The Go module uses `go 1.22`,
-`require go4t v0.0.0` and a local runtime replacement. It first tries
+`require github.com/reoring/go4t v0.0.0` and a local runtime replacement. It first tries
 `go list -m -json go4t` from the current directory and uses its resolved `Dir`.
 If that fails, it extracts the embedded runtime to
 `$XDG_CACHE_HOME/go4t/runtime/<sha256>` on Linux (default

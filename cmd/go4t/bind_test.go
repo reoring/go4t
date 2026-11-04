@@ -6,10 +6,10 @@ import (
 	"strings"
 	"testing"
 
-	"go4t/ast"
-	"go4t/modules"
-	"go4t/parser"
-	"go4t/types"
+	"github.com/reoring/go4t/ast"
+	"github.com/reoring/go4t/modules"
+	"github.com/reoring/go4t/parser"
+	"github.com/reoring/go4t/types"
 )
 
 func TestBindSnapshot(t *testing.T) {
@@ -18,7 +18,7 @@ func TestBindSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 	file := filepath.Join(t.TempDir(), "bindings.gt")
-	if err := run([]string{"bind", "go4t/extern/testdata/bindfixture", "-o", file}); err != nil {
+	if err := run([]string{"bind", "github.com/reoring/go4t/extern/testdata/bindfixture", "-o", file}); err != nil {
 		t.Fatal(err)
 	}
 	got, err := os.ReadFile(file)
@@ -35,7 +35,7 @@ func TestBindSnapshot(t *testing.T) {
 	previous := os.Stdout
 	os.Stdout = stdout
 	t.Cleanup(func() { os.Stdout = previous; stdout.Close() })
-	err = run([]string{"bind", "go4t/extern/testdata/bindfixture"})
+	err = run([]string{"bind", "github.com/reoring/go4t/extern/testdata/bindfixture"})
 	os.Stdout = previous
 	if err != nil {
 		t.Fatal(err)
@@ -54,7 +54,7 @@ func TestBindSnapshot(t *testing.T) {
 
 func TestBindPrefixProducesUsableDeclarations(t *testing.T) {
 	file := filepath.Join(t.TempDir(), "bindings.gt")
-	if err := run([]string{"bind", "go4t/extern/testdata/bindfixture", "--prefix", "fixture", "-o", file}); err != nil {
+	if err := run([]string{"bind", "github.com/reoring/go4t/extern/testdata/bindfixture", "--prefix", "fixture", "-o", file}); err != nil {
 		t.Fatal(err)
 	}
 	got, err := os.ReadFile(file)
@@ -141,7 +141,7 @@ func TestBindErrors(t *testing.T) {
 			t.Errorf("prefix %q: %v", prefix, err)
 		}
 	}
-	if err := run([]string{"bind", "go4t/no-such-extern-package"}); err == nil || !strings.HasPrefix(err.Error(), "go4t:1:1: load Go package ") {
+	if err := run([]string{"bind", "github.com/reoring/go4t/no-such-extern-package"}); err == nil || !strings.HasPrefix(err.Error(), "go4t:1:1: load Go package ") {
 		t.Errorf("missing package: %v", err)
 	}
 	output := filepath.Join(t.TempDir(), "missing", "bindings.gt")

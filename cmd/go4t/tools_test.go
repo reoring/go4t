@@ -12,8 +12,8 @@ import (
 	"strings"
 	"testing"
 
-	"go4t/ast"
-	"go4t/parser"
+	"github.com/reoring/go4t/ast"
+	"github.com/reoring/go4t/parser"
 )
 
 func TestCLIToolsProcess(t *testing.T) {
@@ -37,7 +37,7 @@ func toolsModule(t *testing.T) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	toolsWrite(t, filepath.Join(dir, "go.mod"), "module clitoolstest\n\ngo 1.22\n\nrequire go4t v0.0.0\nreplace go4t => "+strconv.Quote(root)+"\n")
+	toolsWrite(t, filepath.Join(dir, "go.mod"), "module clitoolstest\n\ngo 1.22\n\nrequire github.com/reoring/go4t v0.0.0\nreplace github.com/reoring/go4t => "+strconv.Quote(root)+"\n")
 	return dir
 }
 
@@ -403,7 +403,7 @@ func main() IO[Unit] {
 import (
     "context"
     "clitoolstest/embedded"
-    "go4t/rt"
+    "github.com/reoring/go4t/rt"
 )
 func main() {
     var action rt.IO = embedded.Main()

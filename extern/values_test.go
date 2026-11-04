@@ -77,7 +77,7 @@ const Complex = 1+2i
 import (
  "context"
  "testing"
- "go4t/rt"
+ "github.com/reoring/go4t/rt"
  v "example.test/bindings/values"
  s "example.test/bindings/shim_values"
 )

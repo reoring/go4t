@@ -8,7 +8,7 @@ import (
 func TestScalarSourceUpcasts(t *testing.T) {
 	dir := bindingTestModule(t)
 	loader := Loader{Dir: dir}
-	pkg, err := loader.Load("go4t/extern/testdata/scalarupcastfixture")
+	pkg, err := loader.Load("github.com/reoring/go4t/extern/testdata/scalarupcastfixture")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,7 +36,7 @@ func TestScalarSourceUpcasts(t *testing.T) {
 				t.Errorf("scalar source gained a distinct go4t type: %s", tc.source)
 			}
 		}
-		if strings.Contains(decls, `import go_go4t_extern_testdata_scalarupcastfixture_q `) {
+		if strings.Contains(decls, `import go_github_com_reoring_go4t_extern_testdata_scalarupcastfixture_q `) {
 			t.Errorf("scalar source added an unnecessary binding import:\n%s", decls)
 		}
 		if prefix == "" {
@@ -51,9 +51,9 @@ const scalarUpcastRuntimeTest = `package shim_test
 import (
  "reflect"
  "testing"
- "go4t/rt"
- fixture "go4t/extern/testdata/scalarupcastfixture"
- q "go4t/extern/testdata/scalarupcastfixture/q"
+ "github.com/reoring/go4t/rt"
+ fixture "github.com/reoring/go4t/extern/testdata/scalarupcastfixture"
+ q "github.com/reoring/go4t/extern/testdata/scalarupcastfixture/q"
  s "example.test/bindings/shim"
 )
 func TestScalarUpcasts(t *testing.T) {

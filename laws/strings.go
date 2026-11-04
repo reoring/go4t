@@ -3,8 +3,8 @@ package laws
 import (
 	"sync"
 
-	"go4t/rt"
-	"go4t/types"
+	"github.com/reoring/go4t/rt"
+	"github.com/reoring/go4t/types"
 )
 
 // The runtime's generated-shape ABI is process-global. Serialize the short

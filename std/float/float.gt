@@ -2,45 +2,45 @@ package float
 
 import "std/prelude"
 
-extern func minInt() Int = "go4t/rt".MinInt
+extern func minInt() Int = "github.com/reoring/go4t/rt".MinInt
 
-extern func maxInt() Int = "go4t/rt".MaxInt
+extern func maxInt() Int = "github.com/reoring/go4t/rt".MaxInt
 
-extern func abs(n Int) Int = "go4t/rt".AbsInt
+extern func abs(n Int) Int = "github.com/reoring/go4t/rt".AbsInt
 
-extern func showFloat(f Float) String = "go4t/rt".ShowFloat
+extern func showFloat(f Float) String = "github.com/reoring/go4t/rt".ShowFloat
 
-extern func debugFloat(f Float) String = "go4t/rt".DebugFloat
+extern func debugFloat(f Float) String = "github.com/reoring/go4t/rt".DebugFloat
 
-extern func eqFloat(a Float, b Float) Bool = "go4t/rt".EqFloat
+extern func eqFloat(a Float, b Float) Bool = "github.com/reoring/go4t/rt".EqFloat
 
-extern func ltFloat(a Float, b Float) Bool = "go4t/rt".LtFloat
+extern func ltFloat(a Float, b Float) Bool = "github.com/reoring/go4t/rt".LtFloat
 
-extern func toFloat(n Int) Float = "go4t/rt".ToFloat
+extern func toFloat(n Int) Float = "github.com/reoring/go4t/rt".ToFloat
 
-extern func truncate(f Float) Int = "go4t/rt".Truncate
+extern func truncate(f Float) Int = "github.com/reoring/go4t/rt".Truncate
 
-extern func floor(f Float) Int = "go4t/rt".Floor
+extern func floor(f Float) Int = "github.com/reoring/go4t/rt".Floor
 
-extern func ceil(f Float) Int = "go4t/rt".Ceil
+extern func ceil(f Float) Int = "github.com/reoring/go4t/rt".Ceil
 
-extern func round(f Float) Int = "go4t/rt".Round
+extern func round(f Float) Int = "github.com/reoring/go4t/rt".Round
 
-extern func sqrt(f Float) Float = "go4t/rt".Sqrt
+extern func sqrt(f Float) Float = "github.com/reoring/go4t/rt".Sqrt
 
-extern func pow(x Float, y Float) Float = "go4t/rt".Pow
+extern func pow(x Float, y Float) Float = "github.com/reoring/go4t/rt".Pow
 
-extern func powInt(x Int, y Int) Int = "go4t/rt".PowInt
+extern func powInt(x Int, y Int) Int = "github.com/reoring/go4t/rt".PowInt
 
-extern func parseFloat(s String) Option[Float] = "go4t/rt".ParseFloat
+extern func parseFloat(s String) Option[Float] = "github.com/reoring/go4t/rt".ParseFloat
 
-extern func showFloatFixed(f Float, decimals Int) String = "go4t/rt".ShowFloatFixed
+extern func showFloatFixed(f Float, decimals Int) String = "github.com/reoring/go4t/rt".ShowFloatFixed
 
-extern func absFloat(f Float) Float = "go4t/rt".AbsFloat
+extern func absFloat(f Float) Float = "github.com/reoring/go4t/rt".AbsFloat
 
-extern func nan() Float = "go4t/rt".Nan
+extern func nan() Float = "github.com/reoring/go4t/rt".Nan
 
-extern func isNaN(f Float) Bool = "go4t/rt".IsNaN
+extern func isNaN(f Float) Bool = "github.com/reoring/go4t/rt".IsNaN
 
 instance Show[Float] {
   show(a) {

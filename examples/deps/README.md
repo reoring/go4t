@@ -39,7 +39,7 @@ The local replacement allows this version change without a remote tag. Go may
 also edit go.mod/go.sum; it owns replacements, selected versions and checksums.
 
 For a new application elsewhere, run `go4t init example.com/myapp` in an empty
-directory. This writes both manifests, with Go 1.22 and `require go4t v0.0.0`.
+directory. This writes both manifests, with Go 1.22 and `require github.com/reoring/go4t v0.0.0`.
 If `go list -m -json go4t` resolves from that directory, its `Dir` becomes the
 runtime replacement. Otherwise the embedded runtime is cached at
 `$XDG_CACHE_HOME/go4t/runtime/<sha256>` on Linux, falling back to

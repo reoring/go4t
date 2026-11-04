@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"go/token"
 	"go/types"
-	"go4t/lexer"
-	gfxtypes "go4t/types"
+	"github.com/reoring/go4t/lexer"
+	gfxtypes "github.com/reoring/go4t/types"
 	"sort"
 	"strings"
 	"unicode"
@@ -219,7 +219,7 @@ func (s *mirrorSet) valueMirror(t types.Type, visiting map[types.Type]bool) *for
 		m.kind, m.gt = "time", "Int"
 		return m
 	}
-	if named(t, "go4t/rt", "Unit") {
+	if named(t, "github.com/reoring/go4t/rt", "Unit") {
 		m.kind, m.gt = "unit", "Unit"
 		return m
 	}

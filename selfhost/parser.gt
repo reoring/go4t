@@ -6,8 +6,8 @@ import "std/result"
 import "std/string"
 import "std/float"
 
-extern func startsLowerRune(s String) Bool = "go4t/rt".StartsLower
-extern func startsUpperRune(s String) Bool = "go4t/rt".StartsUpper
+extern func startsLowerRune(s String) Bool = "github.com/reoring/go4t/rt".StartsLower
+extern func startsUpperRune(s String) Bool = "github.com/reoring/go4t/rt".StartsUpper
 
 func identifierBody(s String) String {
   if string.startsWith(s, "_") { identifierBody(string.substring(s, 1, string.strLength(s))) } else { s }

@@ -13,7 +13,7 @@ import "std/map"
 import "std/io"
 import "std/conc"
 import "std/ref"
-import f "go:go4t/extern/testdata/mirrorfixture"
+import f "go:github.com/reoring/go4t/extern/testdata/mirrorfixture"
 func main() IO[Unit] {
  do {
   let r = f.makeRecord()

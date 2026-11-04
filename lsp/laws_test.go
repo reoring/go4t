@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"go4t/format"
+	"github.com/reoring/go4t/format"
 )
 
 func TestLawDiagnosticsAndSymbols(t *testing.T) {

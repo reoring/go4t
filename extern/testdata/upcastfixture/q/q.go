@@ -1,6 +1,6 @@
 package q
 
-import _ "go4t/extern/testdata/upcastfixture/transitive"
+import _ "github.com/reoring/go4t/extern/testdata/upcastfixture/transitive"
 
 type Impl struct { private int }
 

@@ -4,25 +4,25 @@ import "std/list"
 import "std/prelude"
 import "std/string"
 
-extern func emptySet[A]() Set[A] = "go4t/rt".EmptySet
+extern func emptySet[A]() Set[A] = "github.com/reoring/go4t/rt".EmptySet
 
-extern func setInsertBy[A](s Set[A], a A, cmp func(A, A) Ordering) Set[A] = "go4t/rt".SetInsert
+extern func setInsertBy[A](s Set[A], a A, cmp func(A, A) Ordering) Set[A] = "github.com/reoring/go4t/rt".SetInsert
 
-extern func setDeleteBy[A](s Set[A], a A, cmp func(A, A) Ordering) Set[A] = "go4t/rt".SetDelete
+extern func setDeleteBy[A](s Set[A], a A, cmp func(A, A) Ordering) Set[A] = "github.com/reoring/go4t/rt".SetDelete
 
-extern func setMemberBy[A](s Set[A], a A, cmp func(A, A) Ordering) Bool = "go4t/rt".SetMember
+extern func setMemberBy[A](s Set[A], a A, cmp func(A, A) Ordering) Bool = "github.com/reoring/go4t/rt".SetMember
 
-extern func setSize[A](s Set[A]) Int = "go4t/rt".SetSize
+extern func setSize[A](s Set[A]) Int = "github.com/reoring/go4t/rt".SetSize
 
-extern func setFromListBy[A](xs List[A], cmp func(A, A) Ordering) Set[A] = "go4t/rt".SetFromList
+extern func setFromListBy[A](xs List[A], cmp func(A, A) Ordering) Set[A] = "github.com/reoring/go4t/rt".SetFromList
 
-extern func setToList[A](s Set[A]) List[A] = "go4t/rt".SetToList
+extern func setToList[A](s Set[A]) List[A] = "github.com/reoring/go4t/rt".SetToList
 
-extern func setUnionBy[A](a Set[A], b Set[A], cmp func(A, A) Ordering) Set[A] = "go4t/rt".SetUnion
+extern func setUnionBy[A](a Set[A], b Set[A], cmp func(A, A) Ordering) Set[A] = "github.com/reoring/go4t/rt".SetUnion
 
-extern func setIntersectionBy[A](a Set[A], b Set[A], cmp func(A, A) Ordering) Set[A] = "go4t/rt".SetIntersection
+extern func setIntersectionBy[A](a Set[A], b Set[A], cmp func(A, A) Ordering) Set[A] = "github.com/reoring/go4t/rt".SetIntersection
 
-extern func setDifferenceBy[A](a Set[A], b Set[A], cmp func(A, A) Ordering) Set[A] = "go4t/rt".SetDifference
+extern func setDifferenceBy[A](a Set[A], b Set[A], cmp func(A, A) Ordering) Set[A] = "github.com/reoring/go4t/rt".SetDifference
 
 func setInsert[A Ord](s Set[A], a A) Set[A] {
   setInsertBy(s, a, func(x, y) => compare(x, y))

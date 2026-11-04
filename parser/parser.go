@@ -75,8 +75,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"go4t/ast"
-	"go4t/lexer"
+	"github.com/reoring/go4t/ast"
+	"github.com/reoring/go4t/lexer"
 )
 
 type Parser struct {

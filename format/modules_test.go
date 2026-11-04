@@ -3,7 +3,7 @@ package format_test
 import (
 	"testing"
 
-	"go4t/format"
+	"github.com/reoring/go4t/format"
 )
 
 func TestModuleAndLocalDeclarationGolden(t *testing.T) {

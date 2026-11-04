@@ -11,8 +11,8 @@ import (
 	"testing"
 	"unicode"
 
-	"go4t/lexer"
-	"go4t/parser"
+	"github.com/reoring/go4t/lexer"
+	"github.com/reoring/go4t/parser"
 )
 
 // This reader deliberately handles the notation in SPEC rather than treating

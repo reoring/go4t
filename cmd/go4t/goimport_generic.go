@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"go4t/ast"
-	"go4t/extern"
+	"github.com/reoring/go4t/ast"
+	"github.com/reoring/go4t/extern"
 )
 
 // Each tuple has its own companion package. Reordering or repeating calls never

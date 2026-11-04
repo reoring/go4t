@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"strings"
 
-	"go4t/ast"
+	"github.com/reoring/go4t/ast"
 )
 
 const foreignTemplatePrefix = "go4t:generic/"

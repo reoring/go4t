@@ -14,7 +14,7 @@ func TestPass9GeneratedProgram(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mod := "module pass9test\n\ngo 1.22\n\nrequire go4t v0.0.0\nreplace go4t => " + root + "\n"
+	mod := "module pass9test\n\ngo 1.22\n\nrequire github.com/reoring/go4t v0.0.0\nreplace github.com/reoring/go4t => " + root + "\n"
 	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(mod), 0o644); err != nil {
 		t.Fatal(err)
 	}

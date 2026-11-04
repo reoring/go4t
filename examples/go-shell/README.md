@@ -14,7 +14,7 @@ cd "$work"
 go mod init goshell
 go mod edit -require=go4t@v0.0.0 -replace="go4t=$repo"
 mkdir bin
-go build -o "$work/bin/go4t" go4t/cmd/go4t
+go build -o "$work/bin/go4t" github.com/reoring/go4t/cmd/go4t
 export PATH="$work/bin:$PATH"
 cp "$repo/examples/go-shell/core.gt" ./core.gt
 cp "$repo/examples/go-shell/main.go" ./main.go

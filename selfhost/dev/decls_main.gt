@@ -5,7 +5,7 @@ import "std/list"
 import "std/string"
 import "std/result"
 
-extern func declsDevReadFile(path String) IO[String] = "go4t/rt".ReadFile
+extern func declsDevReadFile(path String) IO[String] = "github.com/reoring/go4t/rt".ReadFile
 
 func declsDevSource() String {
   string.join("\n", [

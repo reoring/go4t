@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strconv"
 
-	"go4t/ast"
-	"go4t/types"
+	"github.com/reoring/go4t/ast"
+	"github.com/reoring/go4t/types"
 )
 
 type dictionary struct {
@@ -159,7 +159,7 @@ func (e *evaluator) unfoldMethod(method *ast.InstMethod, dicts []*dictionary, ar
 }
 
 func primitive(ref *ast.ExternRef) bool {
-	if ref.ImportPath != "go4t/rt" {
+	if ref.ImportPath != "github.com/reoring/go4t/rt" {
 		return false
 	}
 	switch ref.Name {

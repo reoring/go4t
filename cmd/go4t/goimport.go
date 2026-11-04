@@ -7,11 +7,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"go4t/ast"
-	"go4t/extern"
-	"go4t/lexer"
-	"go4t/parser"
-	"go4t/types"
+	"github.com/reoring/go4t/ast"
+	"github.com/reoring/go4t/extern"
+	"github.com/reoring/go4t/lexer"
+	"github.com/reoring/go4t/parser"
+	"github.com/reoring/go4t/types"
 )
 
 // goImportBinder reuses content-addressed bindings across compilations.

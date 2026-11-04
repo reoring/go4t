@@ -3,7 +3,7 @@ package laws
 import (
 	"fmt"
 
-	"go4t/ast"
+	"github.com/reoring/go4t/ast"
 )
 
 type rewriteRule struct {

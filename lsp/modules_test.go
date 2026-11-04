@@ -78,7 +78,7 @@ func main() IO[Unit] {
 	if response.Result.URI != "go4t-std:///std/list/list.gt" {
 		t.Fatalf("stdlib definition: %s", data)
 	}
-	data = c.request("go4t/stdlib", map[string]string{"uri": response.Result.URI})
+	data = c.request("github.com/reoring/go4t/stdlib", map[string]string{"uri": response.Result.URI})
 	if !strings.Contains(string(data), "func sort[") {
 		t.Fatalf("embedded source: %s", data)
 	}

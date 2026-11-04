@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"go4t/ast"
+	"github.com/reoring/go4t/ast"
 )
 
 // GenericPrefix marks templates, never executable Go import paths.
@@ -152,7 +152,7 @@ func InstantiateGeneric(loader *Loader, pkg *Package, symbol string, signature *
 // Shim emits a standalone companion so base package cache entries never depend
 // on callers and no converter names collide with the package's ordinary shim.
 func (i *GenericInstance) Shim(shimPath string) ([]byte, error) {
-	g := &shimGenerator{path: shimPath, imports: map[string]string{"context": "context", "go4t/rt": "rt"}, converters: map[string]string{}}
+	g := &shimGenerator{path: shimPath, imports: map[string]string{"context": "context", "github.com/reoring/go4t/rt": "rt"}, converters: map[string]string{}}
 	args := make([]string, len(i.Arguments))
 	for n, t := range i.Arguments {
 		args[n] = g.goType(t)
@@ -357,7 +357,7 @@ func (i *genericInference) native(t ast.Type) (types.Type, error) {
 	case "String":
 		return types.Typ[types.String], nil
 	case "Unit":
-		pkg, err := i.loader.Load("go4t/rt")
+		pkg, err := i.loader.Load("github.com/reoring/go4t/rt")
 		if err != nil {
 			return nil, err
 		}

@@ -12,8 +12,8 @@ import (
 	"strings"
 	"testing"
 
-	"go4t/ast"
-	"go4t/types"
+	"github.com/reoring/go4t/ast"
+	"github.com/reoring/go4t/types"
 )
 
 func TestDataEmission(t *testing.T) {
@@ -710,19 +710,19 @@ func TestFinalMatchArm(t *testing.T) {
 
 func TestExternWrappersAndImportDeduplication(t *testing.T) {
 	p := fixture()
-	extern(p, "foreign", []string{"input"}, []types.Type{types.String}, "go4t/extern/testdata/natural", "Echo")
-	extern(p, "foreignAgain", []string{"value"}, []types.Type{types.Int}, "go4t/extern/testdata/natural", "Echo")
-	extern(p, "unit", nil, nil, "go4t/rt", "UnitValue")
-	extern(p, "showInt", []string{"number"}, []types.Type{types.Int}, "go4t/rt", "ShowInt")
+	extern(p, "foreign", []string{"input"}, []types.Type{types.String}, "github.com/reoring/go4t/extern/testdata/natural", "Echo")
+	extern(p, "foreignAgain", []string{"value"}, []types.Type{types.Int}, "github.com/reoring/go4t/extern/testdata/natural", "Echo")
+	extern(p, "unit", nil, nil, "github.com/reoring/go4t/rt", "UnitValue")
+	extern(p, "showInt", []string{"number"}, []types.Type{types.Int}, "github.com/reoring/go4t/rt", "ShowInt")
 	p.Main.Decl.Body.Result = call(function("unit", fnType()))
 	out := assertSource(t, p,
-		`ext_1 "go4t/extern/testdata/natural"`,
-		`ext_2 "go4t/rt"`,
+		`ext_1 "github.com/reoring/go4t/extern/testdata/natural"`,
+		`ext_2 "github.com/reoring/go4t/rt"`,
 		"func foreign_(input_ any) any {\n\treturn ext_1.Echo(input_)",
 		"return ext_2.UnitValue()",
 		"return ext_2.ShowInt(number_)",
 		"return unit_()")
-	if strings.Count(out, `"go4t/extern/testdata/natural"`) != 1 {
+	if strings.Count(out, `"github.com/reoring/go4t/extern/testdata/natural"`) != 1 {
 		t.Fatalf("extern imports were not deduplicated:\n%s", out)
 	}
 }
@@ -1083,7 +1083,7 @@ func showFixture() (*types.Program, *types.Instance, *types.Instance) {
 	ft := &types.TFunc{Params: []types.Type{a}, Ret: types.String}
 	show.Methods = []*types.Method{{Name: "show", Class: show, Scheme: &types.Scheme{Type: ft}}}
 	p.Classes[show.Name] = show
-	extern(p, "showInt", []string{"value"}, []types.Type{types.Int}, "go4t/rt", "ShowInt")
+	extern(p, "showInt", []string{"value"}, []types.Type{types.Int}, "github.com/reoring/go4t/rt", "ShowInt")
 	showInt := &types.Instance{
 		Class: show, TypeCon: types.Int,
 		Decl: &ast.InstanceDecl{Class: "Show", TypeCon: "Int", Methods: []ast.InstMethod{{
@@ -1223,20 +1223,20 @@ func (f fakeImporter) Import(path string) (*gotypes.Package, error) {
 	switch path {
 	case "context":
 		return f.standard.Import(path)
-	case "go4t/rt":
+	case "github.com/reoring/go4t/rt":
 		funcs = map[string]int{"RunMain": 1, "UnitValue": 0, "ShowInt": 1, "Concat": 1, "MinInt": 0, "MaxInt": 0}
 		for _, name := range strings.Fields("AddInt AddString SubInt MulInt DivInt EqInt LtInt EqString LtString EqBool AddFloat SubFloat MulFloat DivFloat EqFloat LtFloat ShowFloatFixed") {
 			funcs[name] = 2
 		}
 		funcs["NegInt"], funcs["Not"] = 1, 1
 		funcs["NegFloat"], funcs["ShowFloat"] = 1, 1
-	case "go4t/extern/testdata/natural":
+	case "github.com/reoring/go4t/extern/testdata/natural":
 		funcs = map[string]int{"Echo": 1}
 	default:
 		return nil, fmt.Errorf("unexpected import %q", path)
 	}
 	anyType := gotypes.Universe.Lookup("any").Type()
-	if path == "go4t/rt" {
+	if path == "github.com/reoring/go4t/rt" {
 		contextPackage, err := f.standard.Import("context")
 		if err != nil {
 			return nil, err

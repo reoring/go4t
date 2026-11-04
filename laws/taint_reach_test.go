@@ -10,10 +10,10 @@ import (
 	"strings"
 	"testing"
 
-	"go4t/ast"
-	"go4t/modules"
-	"go4t/std"
-	"go4t/types"
+	"github.com/reoring/go4t/ast"
+	"github.com/reoring/go4t/modules"
+	"github.com/reoring/go4t/std"
+	"github.com/reoring/go4t/types"
 )
 
 type reachEntry struct {
@@ -123,7 +123,7 @@ func TestTaintReach(t *testing.T) {
 			}
 			if f.Extern != nil {
 				switch {
-				case e.module == "std/map" && f.Extern.ImportPath == "go4t/rt" && modeledMap(f.Extern.Name):
+				case e.module == "std/map" && f.Extern.ImportPath == "github.com/reoring/go4t/rt" && modeledMap(f.Extern.Name):
 					e.category = "modeled"
 				case (e.module == "std/prelude" || e.module == "std/string") && primitive(f.Extern):
 					e.category = "constant-folding"

@@ -1,7 +1,7 @@
 package main
 
 extern func foreign(n Int) Int = "example.invalid/foreign".Read
-extern func clonedEq(a Int, b Int) Bool = "go4t/rt".EqInt
+extern func clonedEq(a Int, b Int) Bool = "github.com/reoring/go4t/rt".EqInt
 law clonedPrimitive() { clonedEq(1, 1) == true }
 func drop(n Int) Int { 0 }
 law strictArgument(n Int) { drop(foreign(n)) == 0 }

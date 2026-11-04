@@ -5,7 +5,7 @@ import "std/list"
 import "std/string"
 
 // Run against all compiler sources through selfhost/dev/run.py cg_expr.
-extern func cgDevWriteFile(path String, text String) IO[Unit] = "go4t/rt".WriteFile
+extern func cgDevWriteFile(path String, text String) IO[Unit] = "github.com/reoring/go4t/rt".WriteFile
 
 type CGDevCase = CGDevCase{name: String, expression: Core, expected: String, panics: Bool}
 func cgDevCase(name String, expression Core, expected String) CGDevCase {
@@ -143,7 +143,7 @@ func main() IO[Unit] {
   let receiverCtx = ctx{receiver: Some("dictself"), receiverDicts: [("A", "Show")]}
   let receivers = runGen(list.mapM(cgDevReceiverCases(), func(test) => cgDevEmit(receiverCtx, test)), snd(generated))
   let tupleProbe = CLet("x", CTuple([CInt(1), CInt(2)]), CMatch(CTupleField(CLocal("outer"), 5, 0), [CArm{pat: CPTuple([CPWild, CPAs("x", CPTuple([CPWild, CPWild, CPWild])), CPWild]), guard: Some(CPrim("ordLe", [CCtor("Ordering", "EQ", Nil)])), body: CInt(0)}]))
-  let source = "package main\n\nimport \"go4t/rt\"\n\nfunc runExpressions() {\nvar dict_A_Show Show = Show_Int{}\n_ = dict_A_Show\n" + string.strConcat(prelude.fmap(fst(generated), snd)) + "}\n\nfunc runReceiverExpressions(dictself Receiver, dict_B_Show Show) {\n" + string.strConcat(prelude.fmap(fst(receivers), snd)) + "}\n"
+  let source = "package main\n\nimport \"github.com/reoring/go4t/rt\"\n\nfunc runExpressions() {\nvar dict_A_Show Show = Show_Int{}\n_ = dict_A_Show\n" + string.strConcat(prelude.fmap(fst(generated), snd)) + "}\n\nfunc runReceiverExpressions(dictself Receiver, dict_B_Show Show) {\n" + string.strConcat(prelude.fmap(fst(receivers), snd)) + "}\n"
   do {
     list.forEach(append(fst(generated), fst(receivers)), func(pair) => println(fst(pair)))
     if collectTupleArities(tupleProbe) == [2, 3, 5] && usesOrdering(tupleProbe) && !usesOrdering(CInt(0)) && exported("éclair") == "Éclair" {

@@ -8,7 +8,7 @@ import (
 func TestLockValueBoundaries(t *testing.T) {
 	dir := bindingTestModule(t)
 	loader := Loader{Dir: dir}
-	pkg, err := loader.Load("go4t/extern/testdata/lockfixture")
+	pkg, err := loader.Load("github.com/reoring/go4t/extern/testdata/lockfixture")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,8 +58,8 @@ func TestLockValueBoundaries(t *testing.T) {
 import (
  "context"
  "testing"
- "go4t/rt"
- f "go4t/extern/testdata/lockfixture"
+ "github.com/reoring/go4t/rt"
+ f "github.com/reoring/go4t/extern/testdata/lockfixture"
  s "example.test/bindings/shim"
 )
 func TestStorageIdentity(t *testing.T) {

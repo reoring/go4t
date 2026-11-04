@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"go4t/types"
+	"github.com/reoring/go4t/types"
 )
 
 // A term is private to one proof. Checked source nodes and annotations stay

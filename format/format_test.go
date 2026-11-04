@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"go4t/ast"
-	"go4t/format"
-	"go4t/parser"
+	"github.com/reoring/go4t/ast"
+	"github.com/reoring/go4t/format"
+	"github.com/reoring/go4t/parser"
 )
 
 func TestGolden(t *testing.T) {

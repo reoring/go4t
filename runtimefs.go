@@ -55,7 +55,7 @@ func Write(dir string) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
-	mod := fmt.Sprintf("module go4t\n\ngo %s\n", GoVersion())
+	mod := fmt.Sprintf("module github.com/reoring/go4t\n\ngo %s\n", GoVersion())
 	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(mod), 0o644); err != nil {
 		return err
 	}

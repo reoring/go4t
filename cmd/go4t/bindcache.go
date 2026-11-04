@@ -13,9 +13,9 @@ import (
 	"sort"
 	"sync"
 
-	"go4t/ast"
-	"go4t/extern"
-	"go4t/parser"
+	"github.com/reoring/go4t/ast"
+	"github.com/reoring/go4t/extern"
+	"github.com/reoring/go4t/parser"
 )
 
 // Development binaries have no module sum; fingerprint their executable once.

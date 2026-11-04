@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	goextern "go4t/extern"
-	"go4t/types"
+	goextern "github.com/reoring/go4t/extern"
+	"github.com/reoring/go4t/types"
 )
 
 // emitExtern keeps the generated function's any ABI and adapts only its foreign

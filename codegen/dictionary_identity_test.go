@@ -3,8 +3,8 @@ package codegen
 import (
 	"testing"
 
-	"go4t/ast"
-	"go4t/types"
+	"github.com/reoring/go4t/ast"
+	"github.com/reoring/go4t/types"
 )
 
 func TestDictionaryRigidIdentity(t *testing.T) {

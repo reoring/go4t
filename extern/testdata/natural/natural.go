@@ -2,7 +2,7 @@ package natural
 
 import (
 	"errors"
-	"go4t/rt"
+	"github.com/reoring/go4t/rt"
 )
 
 func Echo(value any) any                                 { return value }

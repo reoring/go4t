@@ -15,10 +15,10 @@ import (
 	"testing"
 	"time"
 
-	"go4t/ast"
-	"go4t/lexer"
-	"go4t/modules"
-	"go4t/types"
+	"github.com/reoring/go4t/ast"
+	"github.com/reoring/go4t/lexer"
+	"github.com/reoring/go4t/modules"
+	"github.com/reoring/go4t/types"
 )
 
 const propertySamples = 50
@@ -820,7 +820,7 @@ func propertyRejection(file, law string) string {
 		return ""
 	}
 	return map[string]string{
-		"clonedPrimitive":   "law depends on extern go4t/rt.EqInt",
+		"clonedPrimitive":   "law depends on extern github.com/reoring/go4t/rt.EqInt",
 		"strictArgument":    "law depends on extern example.invalid/foreign.Read",
 		"foreignDependency": "law depends on extern example.invalid/foreign.Read",
 		"higherOrder":       "higher-order",
