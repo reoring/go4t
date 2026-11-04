@@ -86,11 +86,15 @@ func (g *shimGenerator) upcasts(decl *strings.Builder, set *mirrorSet, pkg *Pack
 			if m == nil {
 				m = set.resolve(source, false)
 			}
-			if m == nil || (m.kind != "record" && m.kind != "handle" && m.kind != "jsonscalar") {
+			if m == nil {
+				continue
+			}
+			valueSource := scalarMirror(m) || m.kind == "bytes" || m.kind == "slice" || m.kind == "map"
+			if !valueSource && m.kind != "record" && m.kind != "handle" && m.kind != "jsonscalar" {
 				continue
 			}
 			recv := *m
-			if pointerImplements {
+			if pointerImplements && (!valueSource || !valueImplements) {
 				recv.typ = pointer
 				if m.kind != "handle" {
 					recv.kind, recv.elem = "receiver", m
@@ -133,6 +137,7 @@ func (g *shimGenerator) upcasts(decl *strings.Builder, set *mirrorSet, pkg *Pack
 	}
 	for _, group := range groups {
 		source, m, casts := group.source, group.mirror, group.casts
+		valueSource := scalarMirror(m) || m.kind == "bytes" || m.kind == "slice" || m.kind == "map"
 		sourceName := group.name
 		if source.Obj().Pkg() != pkg.goPackage && names[sourceName] > 1 {
 			alias := set.imports[source.Obj().Pkg().Path()]
@@ -160,6 +165,17 @@ func (g *shimGenerator) upcasts(decl *strings.Builder, set *mirrorSet, pkg *Pack
 			candidates.add(name, display, bindingUpcast, func() {
 				shimName := sourceName + "_" + method
 				fmt.Fprintf(decl, "extern func %s(recv %s) %s = %q.%s\n", name, m.gt, cast.result.gt, g.path, shimName)
+				if valueSource {
+					underlying := *m
+					underlying.typ = source.Underlying()
+					converter := g.conversion(&underlying)
+					value := "value"
+					if cast.recv.kind == "receiver" {
+						value = "&value"
+					}
+					fmt.Fprintf(&g.body, "func %s(recv any) any { value := %s(%sTo(recv,context.Background())); return %s(%s) }\n", shimName, g.goType(source), converter, g.goType(cast.target), value)
+					return
+				}
 				converter := g.conversion(&cast.recv)
 				fmt.Fprintf(&g.body, "func %s(recv any) any { return %s(%sTo(recv,context.Background())) }\n", shimName, g.goType(cast.target), converter)
 			})

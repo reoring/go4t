@@ -73,6 +73,7 @@ Rules (ADR 0003 and ADR 0009, SPEC §8):
   direct imports, with at least one declared in P: for example,
   `client.unstructuredAsObject`. Foreign source homonyms gain an owner qualifier
   (`qImplAsI`); P's own type keeps the unsuffixed name (`implAsI`).
+  Named scalar, bytes, slice and map implementers accept their underlying go4t values in pure upcasts, such as `client.inNamespaceAsListOption(ns)` for a `String` namespace.
 - The standard library binds without a `go.mod`; third-party packages need the
   build module to require them. Shims are written beneath the ignored build
   output (`*_gen/`); `go4t check` writes nothing.

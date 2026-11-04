@@ -22,6 +22,7 @@ func TestDirectImportSourceUpcasts(t *testing.T) {
 			{"ImplAsI", "Impl", "Impl_AsI"},
 			{"QImplAsI", "go_go4t_extern_testdata_upcastfixture_q.Impl", "QImpl_AsI"},
 			{"RecordAsI", "go_go4t_extern_testdata_upcastfixture_q.Record", "Record_AsI"},
+			{"ScalarAsI", "String", "Scalar_AsI"},
 		} {
 			name, _ := bindingName(tc.name, prefix)
 			want := "extern func " + name + "(recv " + tc.receiver + ") I = \"example.test/bindings/shim\"." + tc.shim
@@ -29,7 +30,7 @@ func TestDirectImportSourceUpcasts(t *testing.T) {
 				t.Errorf("missing %q:\n%s", want, decls)
 			}
 		}
-		for _, forbidden := range []string{"// skipped:", "transitive", "unused", "genericAsI", "scalarAsI", "constraintAsI"} {
+		for _, forbidden := range []string{"// skipped:", "transitive", "unused", "genericAsI", "constraintAsI"} {
 			if strings.Contains(decls, forbidden) {
 				t.Errorf("unexpected %q in bindings:\n%s", forbidden, decls)
 			}
@@ -52,6 +53,7 @@ func TestOwners(t *testing.T) {
  if got:=s.QImpl_AsI(foreign); got!=foreign || got.(p.I).Speak()!="q" { t.Fatal("foreign source lost identity") }
  rt.RegisterForeignRecord("go4t/extern/testdata/upcastfixture/q.Record",func(fields []any) any { return fields },func(v any,i int) any { return v.([]any)[i] })
  if s.Record_AsI([]any{int64(7)}).(p.I).Speak()!="record" { t.Fatal("foreign record upcast") }
+ if got,ok:=s.Scalar_AsI("foreign").(q.Scalar); !ok || got!="foreign" { t.Fatalf("foreign scalar upcast = %T(%v)",got,got) }
 }
 `)
 	runBindingTestGo(t, dir, "test", "./shim")
