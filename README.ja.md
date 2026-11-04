@@ -171,18 +171,14 @@ go4t build --emit-go generated hello/main.gt  # Go ソースのみ出力
 
 ## Go プログラムへの埋め込み
 
-1. `decide/decide.gt` に決定ロジックを書く:判断に必要な状態だけを写した `Observed` レコード、
-   アクションの直和型、`func decide(o Observed) Action`。
-2. 生成:`go4t build --emit-go decide --package decide decide/decide.gt`
-   (`//go:generate` に書く)。
-3. Go 側:外部の状態を読み、`Observed` を組み立て、`Decide` を呼び、結果で switch し、作用を実行する。
-   `decide` の中では I/O が起きないことをコンパイラが保証します。
-
-雛形:[examples/go-shell](examples/go-shell)。シェル側も go4t で書くなら Go パッケージを直接
-import します(`import "go:k8s.io/client-go/kubernetes"`)。handle と共有状態を観測する呼び出しは
-`IO`、plain な Go struct は record になり、binding は build 時に生成・キャッシュされます。
-境界の規則、`go:` import、プロジェクトと依存の構成は
-[docs/go-interop.ja.md](docs/go-interop.ja.md) にあります。
+Go の client と reconcile loop を残し、`decide` だけを go4t に移せます
+([go-shell](examples/go-shell)、[node-drain-controller](examples/node-drain-controller))。
+client と loop を Go に残したまま、`observe`/`decide`/`apply` を go4t に移す構成もあります
+([node-drain-shell](examples/node-drain-shell)、[approval-controller](examples/approval-controller))。
+`go:` import を使い、controller 全体を go4t で書くこともできます
+([node-drain-typed](examples/node-drain-typed))。
+境界は情報を失う変換をしません。record はコピーし、handle は同一性を保ちます。
+情報が失われる変換は明示的に行います。手順と規則は [Go 連携](docs/go-interop.ja.md) を参照してください。
 
 ## go4t でないもの
 
@@ -199,10 +195,10 @@ import します(`import "go:k8s.io/client-go/kubernetes"`)。handle と共有�
 
 | ドキュメント | 内容 |
 | --- | --- |
-| [Go 開発者向けチュートリアル](docs/tutorial.md) | 17 の短い章。すべての go4t スニペットを CI で型検査(英語) |
+| [Go 開発者向けチュートリアル](docs/tutorial.md) | 18 の短い章。すべての go4t スニペットを CI で型検査(英語) |
 | [言語仕様](SPEC.md) | 文法、型と作用の規則、deriving、export される Go API、境界表(英語) |
 | [法則](docs/laws.ja.md) | 扱えるもの、扱えないもの、証明の書き方 |
-| [Go 連携](docs/go-interop.ja.md) | 埋め込みの規則、`go:` import、プロジェクトと依存 |
+| [Go 連携](docs/go-interop.ja.md) | 3 つの移行構成、境界の規則、`--emit-go`、`go:` import と依存 |
 | [CLI リファレンス](docs/cli.ja.md) | 全コマンドと終了コード |
 | [Examples](examples/README.ja.md) | 実行できる例と実行コマンド |
 | [検証記録](docs/evaluation.ja.md) | 実際の controller の移植、法則の検証 5 回、Go/`rapid` との比較、`client-go` のスケール実験 |

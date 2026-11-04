@@ -70,7 +70,7 @@ Go + `rapid` との比較で自分たちの主張を切り下げた経緯も含�
 [reoring/client-go-go4t](https://github.com/reoring/client-go-go4t) にあります。
 `RESULTS.md` に検証内容、`CODE_STATS.md` に移植前後のコード統計を記録しています。
 
-## 「決定ロジックしか書けない」の反証
+## controller 全体を go4t で書く
 
 上の結論の根拠は「binding 層が太る」でしたが、太さの正体は生成物(88k 行)をリポジトリに
 コミットする運用でした。`import "go:net/http"` のように Go パッケージを import 時に bind し、
@@ -79,26 +79,77 @@ Go + `rapid` との比較で自分たちの主張を切り下げた経緯も含�
 `examples/node-drain-typed` は observe/apply を含むコントローラ全体を go4t で書き、
 kind クラスタで drain を実行しています。
 
-重要なのは、このとき純粋/IO の境界を一度も緩めていないことです。
-handle(共有状態)を受け取る呼び出しは全部 `IO`、Go の plain struct は record として値コピー、
-という規則で、法則の対象断片は 1 行も変わりませんでした。
-逆に `Time`/`Quantity` のような JSON 表現を持つ型を値として写す規則(ADR 0004 と
-`json.Marshaler` キー)により `corev1.Pod` が record になり、
-Kubernetes オブジェクトから `Observed` への射影関数に法則が付くようになりました
-(「DaemonSet に所有される pod は `DaemonSet` に射影される」など 5 本)。
-法則の対象面積が実際に広がった唯一の場所です。
+**純粋/IO の境界は緩めていません。** handle を受け取る呼び出しは `IO` です。
+当初は JSON 表現を持つ `metav1.Time` や `resource.Quantity` を `dyn.Value` に写し、
+`corev1.Pod` を record として扱いました。この規則は後述の ADR 0011 で見直しています。
+現在は JSON を明示的な変換用のビューとし、元の値は handle として保持します。
 
-## 普通のプログラムと規模
+`corev1.Pod` から決定ロジックの `Pod` への純粋な変換には、さらに 5 本の法則があります。
+`ownerReferences` のどこにあっても DaemonSet の所有を検出する法則はリスト帰納法、
+mirror annotation が所有関係より優先される法則は symbolic `Map` を使います。
+timestamp に依存しないことも検証しています。
+`rapid` の生成器で `ownerReferences` の形を手で決めるのとは異なり、
+法則はすべての形を対象にします。
 
-CLI+HTTP+永続化の todo、ログ集計の logstat、第三者(docs だけを読んだ fresh agent)による
-ghstars/csvpivot/turnstile は、いずれも初回の実行で動きました。
-規模は 5.4k 行の self-hosting コンパイラ(字句・構文・型クラス付き型検査・codegen)が
-現行言語で自分を再生産し、CI が毎回 bootstrap を回しています。
-第三者の摩擦で見つかった JSON の Int 丸め(`9007199254740993` が Float 経由で崩れる)は
-`JInt` の分離で同日に修正し、`std/json` 経由で読んだ Int に対する法則が実行と一致するように
-なりました。
+残った課題は適用範囲ではなくコストでした。240 パッケージの binding を毎回生成すると
+`go4t check` は 47 秒でしたが、パッケージ単位のキャッシュで 1.8 秒になりました。
+`go4t run` は Go パッケージのコンパイルが支配的で、cold 150 秒、warm 85 秒でした。
 
-## 計測された限界
+## 普通のプログラム
+
+**2026-11-04 に、docs と examples だけから書いた 2 本が初回実行で動きました。**
+
+| プログラム | 内容 | 結果 | 証明した法則 |
+| --- | --- | --- | --- |
+| `examples/todo` | `add\|list [--all]\|done\|rm\|serve`、`TODO_FILE` に JSON 保存、導出した `json.Encode/Decode`、`std/http` の `GET/POST /todos`、`POST /todos/<id>/done`、`DELETE /todos/<id>`。`todo.gt` + `main.gt` は約 260 行 | CLI と HTTP は想定どおり。`check` の失敗は法則だけ | 3 |
+| `logstat` | 新規エージェントによる未コミットの調査用プログラム。正規表現、`std/map` 集計、ソート済み表と `--json`、`import "go:path/filepath"` | 30 行中 25 行を処理し、5 行をスキップ。テキストと JSON は正しかった | 3 |
+
+todo の `markDone(markDone(xs, id), id) == markDone(xs, id)` は、
+symbolic record のネストした更新を統合できない証明器の不足を見つけました。
+同日に SPEC §6.5 の規則を追加し、単一コンストラクタの更新を統合、
+後の書き込みを優先し、フィールドを index 順にすると、リスト帰納法で証明できました。
+
+文書に記載した制限も確認しました。`list.length` は accumulator fold のため、
+長さ不変の法則には構造再帰の `count` を使います。
+正規表現の具体例は `law depends on extern go4t/rt.RegexCaptures` で拒否され、
+`go4t test` に書く必要がありました。
+`s.next` が既存の `s.items` に含まれるケースを忘れた誤った法則も、
+正規形が一致しないという診断で拒否されました。
+
+当初不足していた可変参照、ファイルの行ストリーミング、実行ファイル生成は、
+同日の追加実装で IO 専用 `Ref`、`foldLines`/`forEachLine`、
+`go4t build` の実行ファイル出力として入りました。
+ソースだけを出す指定は `--emit-go` です。方向付き channel と native Go binding も追加しました。
+CI は `main.gt` 単体ではなく、複数ファイルの example ディレクトリを実行する形に直しました。
+5 本の実行時間比較では Go と go4t の出力が一致しました。
+朝の比率 1.75〜31.78x は、後述の改善で unboxed 1.6〜4x、
+`mutmap` 5x、永続 Map 更新 19〜24x になりました。
+
+## 規模: self-hosted compiler
+
+**5.4k 行のコンパイラが、現行言語で自分自身を再生成します。**
+2026-11-04 の確認時、`selfhost/` は baseline `6b189c0` では固定点に達していましたが、
+HEAD では `parser.gt:757: expected expression, found "alias"` で失敗し、
+prelude の参照先も存在しませんでした。
+
+同日の修正は deep-worker エージェント 1 つで約 48 分でした。
+4,426 → 5,447 行に増え、`modules.gt`、`derive_higher.gt`、`derive_json.gt` を追加しました。
+`std/` とローカル `go4t.mod`、各種 deriving
+(`Debug`/`Show`/`Functor`/`Foldable`/`Traversable`/`JSON`)、
+複数制約、pipeline と section、`Float`、alias と共通フィールド、
+リストパターン、局所再帰群、IO の暗黙 tail lift (ADR 0005) に対応しています。
+`law` と `proof` は解析しますが、`import "go:…"` は
+`selfhost does not bind Go packages` で拒否します。
+
+`bash selfhost/bootstrap.sh` は主担当の実行で 29.5 秒でした。
+34 example の stdout が `cmd/go4t` とバイト単位で一致しました。
+非決定的な `concurrency` と `sales-report` は終了状態と行数で比較しました。
+`go:` import、network listener、cluster、Go module 依存の 9 件は明示的にスキップし、
+結果は `FIXED POINT: stage2 == stage3` でした。
+残る制限は `bench/PERF.md` の性能と SPEC §9 の型表現力であり、
+大きいプログラムを書けないという制限ではありません。
+
+## 計測された制限への対応
 
 残る限界は言語コアではなく値表現・ライブラリ表面・ツールチェーンにあり、全部数字つきで
 [bench/PERF.md](../bench/PERF.md) にあります。
@@ -106,7 +157,7 @@ ghstars/csvpivot/turnstile は、いずれも初回の実行で動きました�
 | 対象 | Go 比 | 性質 |
 | --- | --- | --- |
 | unboxed で済む計算(sort、Float ループ、木) | 1.6〜4x | native scalar 化で到達 |
-| 永続 `Map` を更新しながら畳む処理 | 19〜24x | 永続性の値段(探索経路コピー 44%、GC 50%)。B-tree 化は -18.7% で棄却 |
+| 永続 `Map` を更新しながら畳む処理 | 19〜24x | 永続性のコスト(探索経路コピー 44%、GC 50%)。B-tree 化は改善 18.7% に対して別の workload が悪化し、棄却 |
 | `std/mutmap`(IO の可変 map) | 5.0x | 直接形式 IO lowering(ADR 0008)で 9.4x から。残りは AVL/GC/割付で IO の固定費は消えた |
 
 Int/String の boxing は全カーネルで CPU の 4% 未満で、「boxed 値表現が原因」という仮説は
@@ -115,4 +166,119 @@ Int/String の boxing は全カーネルで CPU の 4% 未満で、「boxed 値�
 型システムは、式注釈・双方向推論・局所多相で消えるコードを数えて 0 箇所だったため変えて
 いません。
 
-詳細(英語): [evaluation.md](evaluation.md) の各節。
+**計測に基づいて実装を選びました。** native 比較・sort・scalar fold・numeric record の
+非公開 accumulator により、sortints は 0.24 秒 (4.00x)、nbody は 0.30 秒 (1.58x)、
+treefold は 1.75x でした。入力 record は不変のままです。
+共有 immutable map entry 導入後も wordfreq は 2.45 秒 (約 27x)、
+mapheavy は約 2.3 秒 (約 19x) でした。
+order-8 B-tree は mapheavy が 18.7% 改善した一方、
+wordfreq が 5.5% 悪化し、割り当て量も増えたため採用しませんでした。
+replacement metadata の再利用も試して採用しませんでした。
+
+| 対応 | 観測と判断 |
+| --- | --- |
+| 型の使い勝手 | 式注釈・双方向推論・局所多相で改善する箇所は 0。69 箇所の if-else に対し `prelude.when`/`prelude.unless` を追加。引数は strict のままで、選ばれなかった IO は実行しない |
+| generic Go 関数 | 呼び出し箇所で具体化し、skip は slices 40→0、maps 10→0、sync 3→1、sets 25→16、workqueue 90→76。制約は使用箇所で検査し、generic 呼び出しと callback は IO。generic receiver method は未対応 (ADR 0006) |
+| sampled law と帰納法 | `sample(N)` は `go4t test` で実行し、`tested, not proved` と表示。rewrite lemma には使えない。`induction` は網羅的なコンストラクタ帰納法と構造的に小さい仮説の適用を行い、各 arm の tactic 指定と、各 arm に `refl` を使う省略形を用意 (ADR 0007) |
+| direct-style IO | List/Map/Array の要素 unboxing は採用せず、builtin IO の `do` を逐次 Go 文に変換。top-level の自己 tail call は cancellation 検査付き loop (ADR 0008) |
+
+`mutmap` の初期値は 1.13 秒 (9.42x) でした。
+ADR 0008 前の profile は tree 割り当て約 14%、IO closure 約 17%、`Some` 6%、GC 35% でした。
+直接形式への変更では mapheavy-mut が 1.04 → 0.55 秒 (5.00x)、
+peak RSS が 385 → 113 MB となり、`rt.Bind` が profile から消えました。
+目標の 4x には達していません。残りは AVL、GC、比較、node と `Some` の割り当て、
+Int boxing などデータ構造側のコストです。
+評価順序と `tryIO` の捕捉範囲を保ち、`fork`/`foldLines`/`tryIO` 内の
+非 tail 再帰は通常の呼び出しを使います。
+決定的な CI example 41 本の stdout、law harness、self-hosting 固定点で一致を確認しました。
+次の改善は IO 負荷の高い workload で必要になるまで保留です。
+
+## 第三者が使って分かった課題
+
+**4 本とも最初の実行で動きましたが、最初の証明検査やテスト呼び出しまで成功したとは限りません。**
+2026-11-04、新規エージェントが実装を読まず、docs と examples だけから
+logstat、ghstars、csvpivot、turnstile を書きました。
+記録は検証用 checkout の `.tmp/probe-{logstat,ghstars,csvpivot,turnstile}/FRICTION.md`
+にあります。ignored artifact のため、配布物には含まれません。
+
+各 `Verdict:` 行を最初の分類で 1 回だけ数えました。
+プログラム数、失敗コマンド数、独立した不具合数ではなく、観測の件数です。
+
+| プログラム | 初回成功 | 言語の不足 | ライブラリの不足 | 文書の不足 | 自分の誤り | その他 | 合計 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| logstat | 3 | 1 | 1 | 1 | 0 | 1 | 7 |
+| ghstars | 0 | 3 | 2 | 0 | 3 | 0 | 8 |
+| csvpivot | 0 | 2 | 2 | 0 | 0 | 2 | 6 |
+| turnstile | 4 | 0 | 1 | 0 | 3 | 0 | 8 |
+
+「その他」には logstat の総合評価と csvpivot の「まだ障害なし」「文書どおりの境界」を含みます。
+turnstile の「自分の誤り」2 件には文書の不足という副分類もあります。
+誤った法則の診断に成功した 1 件にも、生成 binding を期待するなら言語の不足、という条件があります。
+副分類は重複計上していません。ghstars と csvpivot の初回実行成功は
+`Verdict:` 行の外にあるため、表の初回成功は 0 です。
+
+| 課題 | 対応・判断 |
+| --- | --- |
+| JSON の Int 精度 | turnstile で `9007199254740993` が `9007199254740992` になった。同日に Float 経由の符号化をやめ、Int を正確に保持するよう修正 |
+| HTTP loopback と動的 port | ghstars は全 interface と事前指定 port しか使えなかった。同日に host 指定 API と port zero の割当済み port 通知を追加 |
+| 文書 | 未対応のリスト append 記法を `list.append` に修正。Int 境界 helper は `std/float` と明記。最小 Int literal、条件式を等式の項に使うときの括弧、証明失敗と sampled counterexample の違い、生成 Go 名の調べ方、全体読み込みと streaming の改行処理の一致を説明 |
+| 残る制限 | Float の法則と sort は普遍的証明の対象外。Float 加算は実際に順序に依存する。標準 CSV codec と URL parser はない。調査では Int cents の証明、明示的 sampling、アプリ側の CSV/URL parser を使い、証明済みとは扱わなかった |
+
+## 長時間稼働の検証: node-drain-typed (2026-11-04)
+
+**3 時間で 839 cycle がすべて drain と復旧に成功しました。**
+それまでは 1 reconcile を超える運用の検証がありませんでした。
+`examples/node-drain-typed/soak` は専用 kind cluster
+(worker 1 台、2 replica の Deployment、`minAvailable: 1` の PodDisruptionBudget) で、
+cordon → `MarkDrained` まで evict → `--release` → 代替 pod の待機を繰り返します。
+
+| 指標 | 値 |
+| --- | --- |
+| cycle | 839、すべて drain・復旧 |
+| cycle あたり reconcile | 平均 4.25、最大 16 |
+| cycle あたり実時間 | 平均 0.41 秒、最大 20.8 秒 (PDB back-off) |
+| 1 reconcile の最大 RSS | 35.8〜38.4 MB、3 時間を通じて横ばい |
+| PDB による eviction 拒否 | 49、すべて `TooManyRequests:` prefix で分類し再試行 |
+| 未分類 stderr | `pods "…" not found` が 8 回 (exit 1、次の reconcile は成功) |
+
+8 回の失敗だけが新たな問題でした。observe と apply の間に ReplicaSet が切り替わり、
+観測した pod が消えていました。API error は既に `io.NotFound` と分類されていましたが、
+example がそれを失敗として返していました。
+`evict` は、消えた pod を処理済みとして扱うよう修正しました。
+observe が見つからない node を扱うのと同じ判断です。
+
+`IoError` に `Throttled` コンストラクタは追加しません。
+49 回の back-off を prefix で曖昧さなく分類できたためです。
+cordon は merge patch、eviction は create で、いずれも resourceVersion を持たないため
+`Conflict` は観測されませんでした。`Update` を使う controller が現れるまで追加しません。
+メモリと reconcile 時間に継続的な増加はありませんでした。
+なお prefix による 429 分類は記録時の実装です。
+現在の `evict` は保持された `io.cause` と `apierrors.isTooManyRequests` を使います (ADR 0011 §3C)。
+
+## 既存 controller を層ごとに移行する (2026-11-04)
+
+**Go は 271 → 88 行になり、元の 6 テストは変えていません。**
+`examples/approval-controller` は AppThrust の controller を抽出し、
+3 段階で `observe`・`decide`・`apply` を go4t に移しました。
+Go に残るのは reconcile loop、manager の設定、controller-runtime client です。
+export 側で `*kubernetes.Clientset`、`client.Client`、
+`*unstructured.Unstructured` を同一性を保って渡す必要がありました (SPEC §8.7)。
+`examples/node-drain-shell` では同じ構成を kind cluster で検証しています。
+
+各段階で、未対応ではなく「呼べるが値を失う」binding 規則が見つかりました。
+
+| 発見箇所 | 情報が失われる規則 | 修正 |
+| --- | --- | --- |
+| observe | upcast が同一 package 内だけを探し、`unstructured.Unstructured` を `client.Object` に渡せない | ADR 0009: direct import 間の双方向 upcast |
+| 生成 shim の vet | package 変数・field・receiver が lock を持つ struct をコピー | ADR 0009: address-of shim、lock の値渡しは skip |
+| list option | named string の `client.InNamespace` に upcast がない | ADR 0010: scalar/collection implementer の upcast |
+| apply | `meta.SetStatusCondition(*[]Condition, …)` がコピーを変更 | ADR 0011: 引数 `*T` は `Ref[T]` |
+| apply | `metav1.Time` を JSON に変換し、`UnmarshalJSON` が location を変更 | ADR 0011: JSON は `timeToJson`/`timeFromJson` によるビュー、値そのものは handle |
+| soak | `apierrors.IsTooManyRequests(error)` にメッセージから作り直した error を渡す | ADR 0011: error は `GoError` handle、`Failure` は cause を保持 |
+
+**境界は情報を失う変換をしません (ADR 0011)。**
+全 field が export された struct はコピーし、それ以外は同一性を保持します。
+情報が失われる操作は `…FromJson`・`…Parse` のような名前付き関数か、
+`time.Time` → `Int` のように表で lossy と明記されたものだけです。
+各修正は生成 shim を実行する fixture に固定しました。
+node-drain-typed の 15 法則と warm check 2.4 秒は、どの変更でも変わりませんでした。

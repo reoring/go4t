@@ -1,7 +1,7 @@
 # ADR 0009: package 跨ぎの upcast と、lock を含む値の境界越え
 
 Date: 2026-11-04
-Status: Proposed (design review 1 回反映)
+Status: Accepted (implemented 2026-11-04, f36e1c6; design review 1 回反映)
 
 ## Context
 

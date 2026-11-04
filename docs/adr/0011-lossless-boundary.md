@@ -1,7 +1,7 @@
 # ADR 0011: 境界は変換しない — 可逆な写像か handle、損失は名前付き関数だけ
 
 Date: 2026-11-04
-Status: Proposed
+Status: Accepted (implemented 2026-11-04 in three stages: b9ac77b, 2ca5650, a5dbbb1)
 
 ## Context
 

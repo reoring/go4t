@@ -6,17 +6,18 @@ Commands run from the checkout root. Network-using examples are marked.
 
 | Example | Shows | Run |
 | --- | --- | --- |
-| [go-shell](go-shell) | Minimal Go shell + go4t core template. | `go4t run examples/go-shell/core.gt` |
-| [approval-controller](approval-controller) | Real controller; 6 original tests unchanged. | `cd examples/approval-controller && go generate ./... && go test ./...` |
+| [go-shell](go-shell) | Minimal Go shell + go4t decision-only template. | see its README (generate and run in a temporary Go module) |
+| [approval-controller](approval-controller) | Real AppThrust controller: observe/decide/apply in go4t, Go-owned client and loop; Go reconciler 271 → 88 lines, six original tests unchanged. | `cd examples/approval-controller && go generate ./... && go test ./... -count=1` |
 | [attachment-repair-controller](attachment-repair-controller) | Multi-step workflow decided in go4t; 22 original tests unchanged. | `cd examples/attachment-repair-controller && go generate ./... && go test ./...` |
 | [node-drain-controller](node-drain-controller) | Controller written from scratch with 10 checked laws (cordon-first, DaemonSet transparency, exact timeout). | `go4t check examples/node-drain-controller/decide/decide.gt && cd examples/node-drain-controller && go generate ./... && go test ./...` |
-| [node-drain-typed](node-drain-typed) | The same controller with observe/apply in go4t against the typed clientset via `go:` imports; 15 laws incl. projection laws. | see its README (needs a cluster) |
+| [node-drain-shell](node-drain-shell) | Go-owned native clientset and loop call go4t observe/decide/apply IO functions; 15 decision/projection laws, kind-verified drain and release. | see its README, “Generate and run” (needs a disposable cluster) |
+| [node-drain-typed](node-drain-typed) | Whole controller in go4t through `go:` typed-clientset imports; 15 decision/projection laws; three-hour soak completed 839/839 cycles. | see its README (needs a disposable cluster); [soak commands](node-drain-typed/soak/README.md) |
 | [sql-service](sql-service) | SQLite + Prometheus HTTP service via `go:` imports. | see its README |
 | [go-import](go-import) | `import "go:net/http"` / `go:strings` bound at build time: tuples, handle fields, upcasts, package vars (loopback). | `go4t run examples/go-import` |
 | [go-chan](go-chan) | Receive from Go `time.After`; communicate between producer and consumer fibers through a buffered channel. | `go4t run examples/go-chan` |
 | [go-generics](go-generics) | Generic Go package functions instantiated from concrete call-site types, including callbacks and returned closures in IO. | `go4t run examples/go-generics` |
 | [todo](todo) | CLI + JSON file persistence + `std/http` routes, derived codecs, and 3 checked laws (server uses network). | `go4t run examples/todo -- list` |
-| [typed-extern](typed-extern) | Generated bindings, ABI adapters, opaque method handles. | `go4t run examples/typed-extern` |
+| [typed-extern](typed-extern) | Executes via `go:net/url`; regenerated bindings and ABI shims are inspection output, with handle-containing records. | `go4t run examples/typed-extern` |
 | [deps](deps) | Offline Go-module dependency with local replacement. | `go4t run examples/deps/app` |
 | [calc](calc) | Expression interpreter with `Result` errors. | `go4t run examples/calc/main.gt` |
 | [cards](cards) | Poker classification, derived ordering, seeded `State`. | `go4t run examples/cards/main.gt` |

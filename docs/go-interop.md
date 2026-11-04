@@ -2,39 +2,58 @@
 
 [日本語](go-interop.ja.md)
 
+## Three ways to put go4t in a Go program
+
+Choose how much to move; the same pure decision can serve all three shapes.
+
+| Shape | Who owns the client and loop | What is go4t | Laws reach | Examples |
+| --- | --- | --- | --- | --- |
+| Go shell + go4t decision | Go | `decide` only | Pure decisions; not Go observation or effects | [go-shell](../examples/go-shell), [node-drain-controller](../examples/node-drain-controller), [attachment-repair-controller](../examples/attachment-repair-controller) |
+| Go shell + go4t observe/decide/apply | Go; exported IO functions receive native `*kubernetes.Clientset` or controller-runtime `client.Client` handles | Observation, projection, decision and application | Pure projections and decisions; not API availability or effect success | [node-drain-shell](../examples/node-drain-shell) (kind-verified), [approval-controller](../examples/approval-controller) (real AppThrust controller; Go reconciler 271 → 88 lines, six original tests unchanged) |
+| Whole controller in go4t | go4t, through `import "go:k8s.io/client-go/kubernetes"` | Client setup, observation, decision, application and entry | Pure projections and decisions; not API availability or effect success | [node-drain-typed](../examples/node-drain-typed) ([three-hour soak](../examples/node-drain-typed/soak): 839/839 cycles) |
+
+## The boundary rule
+
+The boundary never converts lossily: it copies all-exported, mirrorable structs
+as records and preserves private or otherwise nonmirrorable state as handles.
+Adding a view does not change that representation.
+Lossy operations belong in named functions (`…ToJson`, `…FromJson`, `…Parse`)
+or SPEC §8 rows explicitly marked lossy, such as `time.Time` → UnixNano `Int`.
+This is [ADR 0011](adr/0011-lossless-boundary.md); the concrete rules follow.
+
+| Consequence | Contract | Reference |
+| --- | --- | --- |
+| Handles by identity | `go:` handles cross `--emit-go` as native `*pkg.T` (struct handles) or `pkg.T` (including interfaces), also inside records and containers. | [SPEC §8.7](../SPEC.md#87-exported-go-api); [ADR 0011](adr/0011-lossless-boundary.md) (boundary invariant) |
+| Cross-package upcasts | Generated conversions such as `client.unstructuredAsObject` preserve handle identity; there is no implicit subtyping. | [SPEC §8.3](../SPEC.md#83-externs-and-bind); [ADR 0009](adr/0009-cross-package-upcasts-and-lock-values.md) |
+| Scalar implementer upcasts | `client.inNamespaceAsListOption(ns)` accepts a `String`; named scalar, bytes, slice and map implementers use their underlying values. | [SPEC §8.3](../SPEC.md#83-externs-and-bind); [ADR 0010](adr/0010-scalar-implementer-upcasts.md) |
+| In-out pointers | Direct `*T` arguments with value mirrors use non-null `Ref[T]` and IO, with writeback even on error; results and fields use `Option[T]`. Pointer-to-handle identity is unchanged. | [SPEC §8.3](../SPEC.md#83-externs-and-bind); [ADR 0011](adr/0011-lossless-boundary.md) |
+| Go errors | Parameters use `GoError`; nullable positions use `Option[GoError]`. Trailing errors fail IO, retaining the cause through `io.tryIOCause` / `io.cause` for pure predicates such as `apierrors.isNotFound(cause)`. | [SPEC §8.3](../SPEC.md#83-externs-and-bind); [ADR 0011](adr/0011-lossless-boundary.md) |
+| Explicit JSON views | JSON-capable types gain `<t>ToJson` / `<t>FromJson` without changing their ordinary mirror; `metav1.Time` remains a handle, not `dyn.Value`. | [SPEC §8.3](../SPEC.md#83-externs-and-bind); [ADR 0011](adr/0011-lossless-boundary.md) |
+| Records containing handles | No derived `Eq` or `Debug`, including handles or `GoError` nested through records, containers or `Option`. | [SPEC §8.3](../SPEC.md#83-externs-and-bind); [ADR 0011](adr/0011-lossless-boundary.md) |
+| Export-name collisions | A function colliding with a type or constructor mirror gets `Fn` (`nodeState` → `NodeStateFn`); the type keeps its name. | [SPEC §8.7](../SPEC.md#87-exported-go-api) |
+
 ## Embedding in a Go program
 
-This is the intended workflow.
-
-1. Write the decision in `decide/decide.gt`: a projection record `Observed`,
-   an action sum, and `func decide(o Observed) Action`.
-2. Generate: `go4t build --emit-go decide --package decide decide/decide.gt`
-   (put it in a `//go:generate` line). The package exports `Decide`, Go mirror
-   types for every record and sum (`ObservedGo`, `ActionRollout{}`,
-   `TtlTtlNanos{F0: …}`), and `Main() rt.IO`.
-3. In Go: read the world, fill `Observed`, call `Decide`, switch on the result,
-   perform the effects. Nothing in `decide` can perform I/O; the compiler
-   enforces it.
+1. Write the entry module in `decide/decide.gt`: for a pure core, define a
+   projection record `Observed`, an action sum and `func decide(o Observed) Action`.
+2. Generate: `go4t build --emit-go decide_gen --package decide decide/decide.gt`
+   (put it in a `//go:generate` line). The package exports `Decide`, reachable
+   Go mirror types (`Observed`, action constructors), and `Main() rt.IO`.
+3. Import the generated package from Go, fill `Observed`, call `Decide` and
+   perform the selected effects. For the second shape, call exported
+   observe/apply functions with the Go-owned handles; an `IO[T]` result exports
+   as `func(context.Context) (T, error)`. The compiler keeps `decide` pure.
 
 Rules that keep the boundary clean (SPEC §8.7, tutorial §12):
 
-- Project only what the decision needs; every call copies the record.
+- Project only what the decision needs.
 - Never cross a sentinel. `Option[Int]` crosses as a pointer-free mirror;
   compare with `Some(x)`, do not unwrap with `-1`.
-- Cross durations and timestamps as `Int` nanoseconds — the representation of
-  `time.Duration` and `UnixNano` — so no rounding happens at the boundary.
+- Project durations and timestamps explicitly as `Int` nanoseconds when that
+  is what the decision needs; a timestamp projection discards location and
+  monotonic metadata, unlike transporting a native handle.
 - A validity flag beside a list becomes a sum per element; "first failure in
   order" then matches the original Go loop exactly.
-- `go:` handles cross as native Go values with identity (`*pkg.T` for opaque
-  structs, `pkg.T` for interfaces), not copied records or enums. A Go shell can
-  own the `*kubernetes.Clientset` and pass it to exported go4t `observe` / `apply`
-  IO functions, or receive the same handle back.
-  [node-drain-shell](../examples/node-drain-shell) demonstrates this with a
-  Go-owned clientset and reconcile loop calling go4t IO against a kind cluster.
-
-Runnable template: [examples/go-shell](../examples/go-shell). Real ports:
-[examples/approval-controller](../examples/approval-controller),
-[examples/attachment-repair-controller](../examples/attachment-repair-controller).
 
 ## Calling Go from go4t
 
@@ -42,46 +61,39 @@ Import a Go package directly; bindings are generated at build time and never
 committed:
 
 ```go4t
-import "go:strings"
-import gohttp "go:net/http"
+package main
 
-let (scheme, rest, found) = strings.cut(url, "://")
-request <- gohttp.newRequest("GET", url, strings.newReader("") |> strings.readerAsReader)
-headers <- gohttp.requestHeader(request)
-gohttp.requestSetHeader(request, map.mapInsert(headers, "X-Who", ["Ada"]))
-response <- gohttp.clientDo(gohttp.defaultClient(), request)
+import "std/io"
+import "std/option"
+import "go:net/url"
+
+func main() IO[Unit] {
+  do {
+    parsed <- url.parse("https://go4t.example/guide")
+    match parsed {
+      None => io.println("no URL")
+      Some(value) => io.println(url.urlHostname(value))
+    }
+  }
+}
 ```
 
-Rules (ADR 0003, ADR 0009 and ADR 0011, SPEC §8):
+Other binding rules ([ADR 0003](adr/0003-import-time-go-bindings.md),
+[SPEC §8.3](../SPEC.md#83-externs-and-bind)):
 
 - Functions, methods, package variables and basic constants become externs;
   exported fields of opaque structs get `<type><Field>` getters and
   `<type>Set<Field>` setters; opaque structs get `new<Type>()`.
 - Anything that receives a mutable handle (method receiver, parameter, field
-  getter) is `IO`: a handle is shared Go state. Error handles are the exception
-  below. By-value records, maps and slices cross as copies and stay pure unless
-  they carry shared state.
-- Direct `*T` parameters with scalar, record, collection or bytes payloads use
-  `Ref[T]` and force `IO`, even for read-only callees. Import `std/ref`, allocate
-  a cell with `ref.new(value)`, pass it to Go, then read back with `ref.get(cell)`.
-  The shim copies the cell's value into Go and writes the changed value back
-  before returning, including on Go errors. `...*T` uses `List[Ref[T]]`.
+  getter) is `IO`: a handle is shared Go state. `GoError` is the exception.
+  By-value records, maps and slices stay pure unless they carry shared state.
+- For in-out cells, import `std/ref`, allocate with `ref.new(value)`, pass the
+  cell to Go and read back with `ref.get(cell)`. `...*T` uses `List[Ref[T]]`.
   Reads and writes each lock the cell; the entire foreign call is not atomic.
-  Results and record fields with value payloads remain `Option[T]`;
-  pointer-to-handle identity and unresolved type-parameter pointer rules are
-  unchanged. A Ref is non-null: native callbacks cannot pass nil for an in-out
-  pointer parameter.
-- Go `error` parameters become the builtin `GoError`, preserving identity;
-  predicates such as `apierrors.isNotFound(cause)` stay pure. Non-trailing
-  results, fields, package variables and container elements use
-  `Option[GoError]` (nil ↔ None); trailing `error` still takes the IO failure
-  path. Use `io.tryIOCause` and `io.cause` to recover a cause, pass it to Go
-  predicates, or explicitly read its message with `io.goErrorMessage`.
-  Direct/callback parameters and `...error` elements cannot represent nil;
+  Native callbacks cannot pass nil for an in-out pointer parameter.
+- Use `io.goErrorMessage` for an explicit error message projection.
+  Direct/callback error parameters and `...error` elements cannot represent nil;
   native callbacks passing nil panic with `go4t error: nil error parameter`.
-  Records containing errors or opaque handles, directly or through records,
-  containers or Option, omit `deriving Eq, Debug`: neither leaf has those
-  instances, and generic Debug derivation cannot render a handle placeholder.
 - `(A, B)` results are tuples, `(A, B, error)` is `IO[(A, B)]`, `(A, bool)` is
   `Option[A]`; `iter.Seq[T]` results are `List[T]`; returned funcs are go4t
   functions. Still unsupported: iterator parameters, generic receiver methods,
@@ -89,39 +101,28 @@ Rules (ADR 0003, ADR 0009 and ADR 0011, SPEC §8):
   three non-error results.
 - Every Go type is declared once, in the module of the package that owns it;
   `net/http` bindings refer to `io.Reader` as `go_io.Reader` and the loader
-  binds `go:io` transitively. There is no subtyping: convert with the generated
-  upcasts (`strings.readerAsReader`, `goio.readCloserAsReader`).
-  In a binding module P, the source type and interface must belong to P or its
-  direct imports, with at least one declared in P: for example,
-  `client.unstructuredAsObject`. Foreign source homonyms gain an owner qualifier
-  (`qImplAsI`); P's own type keeps the unsuffixed name (`implAsI`).
-  Named scalar, bytes, slice and map implementers accept their underlying go4t values in pure upcasts, such as `client.inNamespaceAsListOption(ns)` for a `String` namespace.
+  binds `go:io` transitively. Upcasts include `strings.readerAsReader` and
+  `goio.readCloserAsReader`. In a binding module P, the source type and interface
+  must belong to P or its direct imports, with at least one declared in P.
+  Foreign source homonyms gain an owner qualifier (`qImplAsI`); P's own type
+  keeps the unsuffixed name (`implAsI`).
 - The standard library binds without a `go.mod`; third-party packages need the
   build module to require them. Shims are written beneath the ignored build
   output (`*_gen/`); `go4t check` writes nothing.
-- Each call copies records across the boundary; handles keep identity.
-  Struct-handle package variables, fields and method receivers use addresses
+- Struct-handle package variables, fields and method receivers use addresses
   rather than copying, whether or not they contain locks. True by-value
   parameters, results, container elements and field setters containing locks
   are skipped with `copies lock value T`; `*T` remains a handle. Detection follows
   Go vet's pointer-only `sync.Locker` implementation rule recursively through
   fields, arrays and embedding; embedding the `sync.Locker` interface alone is
   not a lock.
-- JSON interfaces do not choose a representation. An exported nongeneric named
-  `T` implementing `json.Marshaler`, with `*T` implementing `json.Unmarshaler`,
-  keeps its ordinary scalar/record/handle mirror and gains explicit views:
-  `<t>ToJson(recv T) dyn.Value` and `<t>FromJson(v dyn.Value) IO[T]`.
-  ToJson is pure; a failed Marshal panics with
-  `go4t json view: <type>: <err>`. FromJson runs only inside IO, checks
-  cancellation, and preserves conversion errors as Go causes.
+- `<t>ToJson(recv T) dyn.Value` is pure; a failed Marshal panics with
+  `go4t json view: <type>: <err>`. `<t>FromJson(v dyn.Value) IO[T]` checks
+  cancellation and preserves conversion errors as Go causes.
   Existing functions/methods, accessors, constructors/value getters and upcasts
   win name collisions; a skipped view receives the normal collision comment.
-  For example, `metav1.Time` and `resource.Quantity` are handles, while
-  `intstr.IntOrString` remains a record; all three also have JSON views.
-  JSON round trips may normalize locations or otherwise lose information.
-  Ordinary record fields never take that route: by-value Go crossings copy
-  native values (including location), while go4t storage preserves handle boxes.
-  The separate `time.Time` → UnixNano `Int` rule remains explicitly lossy.
+  JSON round trips may normalize locations or otherwise lose information;
+  ordinary record transport never takes that route.
 
 The runnable example is [examples/go-import](../examples/go-import).
 
@@ -171,7 +172,8 @@ receiver-method names; [CLI reference](cli.md) lists the inspection flags.
 Signatures that cannot be mirrored get a skip comment instead of a wrong
 binding. [examples/sql-service](../examples/sql-service) uses `go:` imports for
 SQLite and Prometheus integration; [examples/typed-extern](../examples/typed-extern)
-shows the ABI adapters. `std/http` needs no bindings.
+executes through `go:net/url` and keeps regenerated bindings as inspection output.
+`std/http` needs no bindings.
 
 ## Projects and dependencies
 

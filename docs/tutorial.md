@@ -399,31 +399,18 @@ For one-off exploration, run `go4t eval '1 + 2'` or
 `go4t eval 'testArithmetic()' lesson-tests.gt`. Eval uses Show on the result;
 Unit has no Show, so an `IO[Unit]` expression is not a displayable eval result.
 
-## 9. FFI via go4t bind
+## 9. FFI: import "go:…"
 
-Create `ffi-demo/main.gt` and `ffi-demo/gostd.gt` using the two blocks below.
-The second shows the minimal declarations needed here; replace it with the
-**complete generated output** by running:
-
-```sh
-go4t bind strings --prefix str -o ffi-demo/gostd.gt
-go4t check ffi-demo
-go4t run ffi-demo
-```
+Save this as `ffi-demo/main.gt`, then run `go4t check ffi-demo` and
+`go4t run ffi-demo`. Import a Go package directly; no generated source needs
+to be copied into your project:
 
 ```go4t
 // dir: ffi-demo
 // file: main.gt
 package main
-func main() IO[Unit] { println(strToUpper(strRepeat("go", 3))) }
-```
-
-```go4t
-// dir: ffi-demo
-// file: gostd.gt
-package main
-extern func strRepeat(p0 String, p1 Int) String = "strings".Repeat
-extern func strToUpper(p0 String) String = "strings".ToUpper
+import "go:strings"
+func main() IO[Unit] { println(strings.toUpper(strings.repeat("go", 3))) }
 ```
 
 This prints `GOGOGO`. The generator adapts Go `string` directly and Go `int`
@@ -432,12 +419,25 @@ rt.Unit, rt.IO, []string, []int64 and primitive `(T, bool)` Option results.
 A Go `(T, error)` return maps to `IO[T]`; the adapter defers the Go call and its
 conversions until execution. No Go wrapper is needed for these signatures.
 
-Bind prints skipped-function reasons for callbacks, pointers, generics, variadics,
-unsupported named types/results and uninferable any/rt.IO APIs. Available Go
-functions vary with toolchain version. `--prefix` avoids accidental collisions;
-for another receiving package, pass its sources/directory before `-o`.
-`check` alone does not validate the Go ABI—`build`/`run` do. A pure extern should
-really be pure; signatures are a trust boundary, not a side-effect analyzer.
+Names are qualified by the imported module: Go `ToUpper` becomes
+`strings.toUpper`. Methods use `<type><Method>` with the receiver first,
+such as `strings.builderWriteString(builder, text)`. Exported fields on handles
+get getters such as `url.urlHost(value)` for `net/url.URL.Host`; zero-value
+constructors use `new<Type>()`, such as `strings.newBuilder()`. Existing Go
+constructors keep their arguments (`strings.newReader(text)`).
+
+Bindings and any required Go shims are generated at build time (also when
+loading for `check`) and cached under `os.UserCacheDir()/go4t/bind/<key>/`.
+See the [CLI cache reference](cli.md) for invalidation and `GO4T_CACHE` controls.
+`go4t bind strings` prints the same declarations for inspection or legacy use;
+`go:` is the normal FFI path.
+
+For a `go:` import, the compiler records unsupported signatures and name
+collisions as `// skipped:` lines in the cached `bindings.gt`. Inspect those
+reasons rather than assuming that every Go function is available; the set also
+varies with toolchain version. `check` alone does not validate the Go ABI—
+`build`/`run` do. A pure extern should really be pure; signatures are a trust
+boundary, not a side-effect analyzer.
 
 ## 10. Concurrency without mutable shared state
 
@@ -559,9 +559,11 @@ None on decode. Use an explicit tagged ADT when that distinction matters.
 `go4t build --emit-go DIR --package NAME` exports every public, monomorphic,
 mirrorable top-level function as a typed Go function (SPEC §8.7). The intended
 shape is: Go reads the world, fills one **projection** record, calls a pure
-go4t `decide`, and acts on the returned sum. `examples/approval-controller`
-is a real Kubernetes controller written this way; its original tests pass
-unchanged.
+go4t `decide`, and acts on the returned sum; see [go-shell](../examples/go-shell).
+The client and reconcile loop can also stay in Go while `observe` and `apply`
+move to go4t, as in [node-drain-shell](../examples/node-drain-shell) and
+[approval-controller](../examples/approval-controller), whose original tests
+pass unchanged.
 
 Three rules decide whether the projection is readable. Each one is the same
 correction: a state Go expresses with `(value, ok)`, a sentinel or a flag
@@ -612,7 +614,93 @@ timestamps as `Int` nanoseconds (the representation of `time.Duration` and
 `UnixNano`) so no rounding happens at the boundary. Keep the projection to
 what the decision needs; every call copies it (SPEC §8.7).
 
-## 13. Laws
+## 13. The Go boundary never converts
+
+The boundary never converts **lossily**: all-exported structs copy as records;
+other values cross by identity as opaque handles. Only named conversions (such
+as `…FromJson` or `…Parse`) and SPEC §8 rows explicitly marked lossy may discard
+information. See [ADR 0011](adr/0011-lossless-boundary.md).
+
+In particular, a Go `error` is a `GoError` handle, not a message string.
+`io.tryIOCause` retains it alongside the classified `IoError`, and `io.cause`
+returns `Option[GoError]` for a native predicate:
+
+```go4t
+// dir: boundary-error
+// file: main.gt
+package main
+import "std/io"
+import "go:os"
+func main() IO[Unit] {
+  do {
+    loaded <- io.tryIOCause(io.readFile("/nonexistent"))
+    match loaded {
+      Ok(text) => println(text)
+      Err(failure) => match io.cause(failure) {
+        Some(original) => println("Go says missing: ${os.isNotExist(original)}")
+        None => println(io.ioErrorMessage(failure.error))
+      }
+    }
+  }
+}
+```
+
+Local failures and recovered panics have no Go cause. Use `io.goErrorMessage`
+only when you explicitly want the original message, or `io.ioRaiseCause` to
+rethrow without losing the handle.
+
+A Go `*T` argument used in-out binds as `Ref[T]`: allocate a cell, pass it to
+the Go function, then read the updated value. Pointer results and fields instead
+use `Option[T]`. Here Go's `FlagSet.IntVar` writes its default into a `*int`;
+the bound call writes that value back into the cell:
+
+```go4t
+// dir: boundary-ref
+// file: main.gt
+package main
+import "std/ref"
+import "go:flag"
+func main() IO[Unit] {
+  let flags = flag.newFlagSet("lesson", flag.continueOnError())
+  do {
+    cell <- ref.new(0)
+    flag.flagSetIntVar(flags, cell, "count", 7, "item count")
+    updated <- ref.get(cell)
+    println("default=${updated}")
+  }
+}
+```
+
+This illustrates the in-out writeback during one call, not a live alias for
+later flag parsing. The same cell/call/read pattern updates a list in
+[approval-controller](../examples/approval-controller/decide/apply.gt):
+`meta.setStatusCondition(cell, next)` takes `Ref[List[metav1.Condition]]`.
+
+JSON-capable Go types also expose explicit `<t>ToJson` / `<t>FromJson` views.
+These use `std/dyn.Value`, not the `std/json.Json` tree from §11, and do not
+silently replace a native value with JSON. For example, `go:time` provides
+`time.timeToJson` and `time.timeFromJson`; its `Time` value uses the explicitly
+lossy `Int` nanoseconds mapping in SPEC §8, not the general handle rule:
+
+```go4t
+// dir: boundary-json
+// file: main.gt
+package main
+import "go:time"
+func main() IO[Unit] {
+  let instant = time.unix(0, 0)
+  let view = time.timeToJson(instant)
+  do {
+    restored <- time.timeFromJson(view)
+    println(time.timeFormat(restored, time.rFC3339()))
+  }
+}
+```
+
+`…FromJson` is an `IO` action because decoding can fail; this explicit view is
+not a promise that JSON preserves every detail of the original Go value.
+
+## 14. Laws
 
 Tests check chosen inputs. A `law` states an equation for every value of its
 typed parameters; its same-named `proof` explains how to reduce both sides to
@@ -789,7 +877,7 @@ bits. Sampling can miss counterexamples, does not certify termination, and
 cannot be used as a rewrite lemma. An entirely law-eligible equation must be
 proved instead; `sample` cannot replace a difficult proof.
 
-## 14. Mutable state in IO: Ref
+## 15. Mutable state in IO: Ref
 
 Keep a counter in an opaque `Ref[Int]`. Allocation, reading and modification are
 deferred IO; `modify` runs its pure callback atomically under the cell's lock.
@@ -808,7 +896,7 @@ func main() IO[Unit] {
 }
 ```
 
-## 15. Throughput maps: mutmap and freeze
+## 16. Throughput maps: mutmap and freeze
 
 For update-heavy work, count in an IO-only `MutMap`, then `freeze` an independent
 persistent snapshot. Use `std/map` to read that snapshot in pure code. Here the
@@ -842,7 +930,7 @@ func main() IO[Unit] {
 Later mutations of `counts` cannot change `snapshot`. The lookup/insert pair is
 not a transaction; this example updates sequentially.
 
-## 16. Conditional effects: when and unless
+## 17. Conditional effects: when and unless
 
 `if` always needs an `else`. Import the prelude explicitly for `when` and
 `unless`: they select a `Monad[Unit]` action, using a no-op action otherwise.
@@ -865,11 +953,11 @@ func main() IO[Unit] {
 Only the selected IO effects run. Arguments are still strict: these combinators
 do not defer pure work performed while constructing the action.
 
-## 17. Laws you cannot prove: sample(N)
+## 18. Laws you cannot prove: sample(N)
 
 A regex-based parser depends on untrusted externs, so keep its equation as a
 sampled law rather than claiming a proof. Save this example as `parser.gt`.
-The second law repeats §13's structural example with `induction xs` replacing
+The second law repeats §14's structural example with `induction xs` replacing
 the manual `Nil` / `Cons` arms and self-rewrite.
 
 ```go4t

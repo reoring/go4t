@@ -181,21 +181,14 @@ go4t build --emit-go generated hello/main.gt  # emits Go sources only
 
 ## Embedding in a Go program
 
-1. Write the decision in `decide/decide.gt`: a projection record `Observed`,
-   an action sum, and `func decide(o Observed) Action`.
-2. Generate: `go4t build --emit-go decide --package decide decide/decide.gt`
-   (put it in a `//go:generate` line).
-3. In Go: read the world, fill `Observed`, call `Decide`, switch on the result,
-   perform the effects. Nothing in `decide` can perform I/O; the compiler
-   enforces it.
-
-Runnable template: [examples/go-shell](examples/go-shell). To write the
-shell in go4t instead, import the Go packages directly
-(`import "go:k8s.io/client-go/kubernetes"`); handles and anything that
-observes shared state are `IO`, plain Go structs become records, and the
-bindings are generated and cached at build time. Boundary rules, `go:`
-imports and project/dependency layout are in
-[docs/go-interop.md](docs/go-interop.md).
+Keep the Go client and reconcile loop, moving only `decide` into go4t
+([go-shell](examples/go-shell), [node-drain-controller](examples/node-drain-controller)).
+Keep the Go client and loop but move `observe`/`decide`/`apply` into go4t
+([node-drain-shell](examples/node-drain-shell), [approval-controller](examples/approval-controller)).
+Or write the whole controller in go4t using `go:` imports
+([node-drain-typed](examples/node-drain-typed)).
+The boundary never converts lossily: records copy, handles keep identity; lossy
+projections are explicit. See [Go interop](docs/go-interop.md) for the recipes and rules.
 
 ## What go4t is not
 
@@ -214,10 +207,10 @@ imports and project/dependency layout are in
 
 | Document | Contents |
 | --- | --- |
-| [Tutorial for Go developers](docs/tutorial.md) | Seventeen short lessons; every go4t snippet type-checked in CI. |
+| [Tutorial for Go developers](docs/tutorial.md) | Eighteen short lessons; every go4t snippet type-checked in CI. |
 | [Language specification](SPEC.md) | Grammar, type and effect rules, deriving, exported Go API, boundary tables. |
 | [Laws](docs/laws.md) | What laws cover, what they do not, how proofs are written. |
-| [Go interop](docs/go-interop.md) | Embedding rules, `go:` imports, projects and dependencies. |
+| [Go interop](docs/go-interop.md) | Three migration shapes, the boundary rule, `--emit-go`, `go:` imports and dependencies. |
 | [CLI reference](docs/cli.md) | Every command, exit codes. |
 | [Examples](examples/README.md) | All runnable examples with their commands. |
 | [Evaluation](docs/evaluation.md) | Production ports, law rounds, the Go/`rapid` comparison, the `client-go` scale experiment. |

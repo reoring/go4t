@@ -3,14 +3,68 @@ package docs_test
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
+	"sync"
 	"testing"
 
 	"go4t/modules"
 	"go4t/types"
 )
+
+// go4tBinary builds the CLI once per test run. Documentation programs that
+// import "go:…" need the Go binder, which lives in the CLI, not in a library
+// package; checking them through the real binary is also the honest harness.
+var go4tBinary = sync.OnceValues(func() (string, error) {
+	dir, err := os.MkdirTemp("", "go4t-docs-cli-")
+	if err != nil {
+		return "", err
+	}
+	path := filepath.Join(dir, "go4t")
+	build := exec.Command("go", "build", "-o", path, "go4t/cmd/go4t")
+	build.Dir = ".."
+	if out, err := build.CombinedOutput(); err != nil {
+		return "", fmt.Errorf("build go4t: %v\n%s", err, out)
+	}
+	return path, nil
+})
+
+func usesGoImports(files map[string]string) bool {
+	for _, text := range files {
+		if strings.Contains(text, `"go:`) {
+			return true
+		}
+	}
+	return false
+}
+
+// checkWithCLI runs `go4t check` inside a throwaway Go module that points at
+// this repository, exactly as a user project would.
+func checkWithCLI(t *testing.T, directory string) error {
+	t.Helper()
+	binary, err := go4tBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
+	root, err := filepath.Abs("..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	module := "module docsexample\n\ngo 1.22\n\nrequire go4t v0.0.0\nreplace go4t => " + strconv.Quote(root) + "\n"
+	if err := os.WriteFile(filepath.Join(directory, "go.mod"), []byte(module), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	command := exec.Command(binary, "check", ".")
+	command.Dir = directory
+	out, err := command.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%v\n%s", err, out)
+	}
+	return nil
+}
 
 type docBlock struct {
 	line int
@@ -192,9 +246,16 @@ func TestDocumentationSnippets(t *testing.T) {
 				// These are exactly the loading/typechecking packages used by
 				// go4t check. Like that command, this does not validate foreign
 				// signatures, generate Go, or run effects. Warnings are nonfatal.
-				loaded, err := modules.Load([]string{directory})
-				if err == nil {
-					_, err = types.Check(loaded)
+				// Programs with go: imports go through the CLI, which owns the binder.
+				var err error
+				if usesGoImports(example.files) {
+					err = checkWithCLI(t, directory)
+				} else {
+					loaded, loadErr := modules.Load([]string{directory})
+					err = loadErr
+					if err == nil {
+						_, err = types.Check(loaded)
+					}
 				}
 				if (err != nil) != example.fail {
 					t.Fatalf("%s:%d: expected failure=%v, check error=%v", name, example.line, example.fail, err)

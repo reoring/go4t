@@ -1,7 +1,7 @@
 # ADR 0010: スカラ・コレクション下地の実装型を upcast の source にする
 
 Date: 2026-11-04
-Status: Proposed
+Status: Accepted (implemented 2026-11-04, a0e8e90)
 
 ## Context
 
