@@ -100,9 +100,7 @@ func tacticShape(tactic ast.Tactic) string {
 
 func TestLawProofErrors(t *testing.T) {
 	for _, tc := range []struct{ source, want string }{
-		{"law f(x Int) { x }", "law body must be an equality (lhs == rhs)"},
-		{"law f(x Int) { x != x }", "law body must be an equality (lhs == rhs)"},
-		{"law f() { a == b && c }", "law body must be an equality (lhs == rhs)"},
+		{"law f() { a == b && c }", ambiguousLawBody},
 		{"law f() { a == b; c == d }", `expected "}", found "c"`},
 		{"law f() { let x = 1; x == x }", `expected expression, found "let"`},
 		{"proof f(x Int) { refl }", `expected ")", found "Int"`},

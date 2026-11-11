@@ -999,12 +999,15 @@ triple. Codegen emits `rt_tuple3`/`rt_untuple3` with source directives like Tupl
 ### 6.5 Laws and proofs
 
 A `law` declares an equation universally quantified over its typed parameters
-and any declared type parameters. A `proof` of the same name is required, with
-the same number of parameters; its untyped names rebind those parameters
-positionally. Laws are not callable functions and have no generated Go representation.
+and any declared type parameters. A separate `proof` of the same name has the
+same number of parameters; its untyped names rebind those parameters
+positionally. An inline `proof { tactic }` instead inherits the law's parameter
+names. Without either written proof, the checker supplies `refl`. Laws are not
+callable functions and have no generated Go representation.
 
 ```ebnf
-LawDecl   := 'law' Ident [TParams] '(' [Param {',' Param} [',']] ')' [ ? requires identifier ? Expr ] '{' Expr '==' Expr {Separator} '}'
+LawDecl   := 'law' Ident [TParams] '(' [Param {',' Param} [',']] ')' { ? requires identifier ? Expr } '{' LawBody {Separator} '}' ['proof' TacticBlock]
+LawBody   := Expr '==' Expr | Expr
 ProofDecl := 'proof' Ident '(' [Ident {',' Ident} [',']] ')' TacticBlock
 TacticBlock := '{' {Separator} Tactic {Separator} '}'
 Tactic    := 'refl'
@@ -1050,25 +1053,64 @@ parameter at `Int`. A refutation reports its instantiation, for example
 prove a law. `sample(N)` rejects polymorphic laws, even unused type parameters,
 with `sample does not support type parameters`.
 
-The outermost expression in a law body must be `==`; parenthesize a side
-containing lower-precedence Boolean operators. This `==` is an equation
+When the outermost expression in a law body is `==`, it is an equation
 delimiter, not a call to `Eq`: both sides must have the same type but need no
-`Eq` instance. Equality means **definitional equality** of normalized terms,
-up to renaming bound variables (alpha equivalence), not equality according to a
-user-defined `Eq` instance. There is no eta-equivalence rule.
+`Eq` instance. Otherwise the body must be a Bool expression and states that this
+predicate equals `true`. Equality means **definitional equality** of normalized
+terms, up to renaming bound variables (alpha equivalence), not equality according
+to a user-defined `Eq` instance. There is no eta-equivalence rule.
 
-An optional `requires` Bool expression restricts the equation to arguments
-satisfying that precondition. It has the same parameter scope, purity,
+`==` binds tighter than `&&`, `||` and `|>`. A predicate whose outermost operator
+is one of these lower-precedence operators cannot contain an unparenthesized
+`==` operand at that level. Write `(a && b) == (b && a)` for an equation, or
+`a && (b == b) && a` for a predicate; `a && b == b && a` is ambiguous and rejected.
+Formatting preserves predicate versus equation spelling, including an explicit
+`(p) == true`, rather than converting between them.
+
+An inline proof is recognized by `proof` followed by `{`, also across newlines.
+It belongs to the preceding law and cannot coexist with a separate proof for
+that law. `sample(N)` is allowed inline. Formatting retains every written proof
+and never prints a checker-supplied proof. An implicit proof is not a declaration
+symbol and has no separate hover. If its `refl` fails, the ordinary diagnostic,
+including any counterexample, points at the law body and ends with:
+
+```text
+no proof was written for this law; it was checked by refl
+```
+
+Any number of `requires` Bool expressions restrict the equation to arguments
+satisfying their conjunction, in written order. The conjunction is
+left-associated. Preconditions have the same parameter scope, purity,
 termination, Float and first-order restrictions as the law sides. Before any
-tactic, its normalized top-level `&&` conjuncts (including those exposed by
+tactic, their normalized top-level `&&` conjuncts (including those exposed by
 function unfolding) are checked and assumed in order. A conjunct that normalizes
-to `false` under the preceding conjuncts is an error at the `requires` expression.
+to `false` under the preceding conjuncts is an error at the whole precondition.
 Int intervals also reject impossible bounds beyond the int64 endpoints.
 This check does not apply to `if`/`match` tactic branch assumptions.
 Neither laws nor their preconditions execute at runtime. A `rewrite`, including
 an induction-hypothesis rewrite, must establish the instantiated precondition
 as `true` under the current assumptions before using the equation.
 `sample(N)` does not support laws with `requires`.
+
+The formatter keeps a single `requires` on the header if that line, including
+the opening brace, fits 80 columns. Otherwise, and always for several clauses,
+each clause occupies its own once-indented line and the body brace starts a
+line. Inline proofs follow the law's closing brace:
+
+```go4t
+package main
+
+law bounded(t Int, at Int, now Int)
+  requires 0 <= t && t <= 1000
+  requires 0 <= at && at <= now
+{
+  t <= 1000
+} proof {
+  refl
+}
+
+func main() IO[Unit] { ioPure(unit()) }
+```
 
 | Tactic | Meaning |
 | --- | --- |
@@ -1226,11 +1268,12 @@ normalizer as described above and are therefore eligible. `std/set` and
 eligible. `Float` is forbidden in law parameters, side types and subterms,
 including nested data fields: NaN prevents reflexivity of runtime equality.
 
-Law-related type diagnostics include the following message templates (ordinary
-type mismatch and name-resolution diagnostics still apply):
+Law-related parse and type diagnostics include the following message templates
+(ordinary type mismatch and name-resolution diagnostics still apply):
 
 ```text
-law %s has no proof
+law body must be an equation (lhs == rhs) or a Bool expression, got %s
+ambiguous law body: == binds tighter than && and ||; write (lhs) == (rhs) for an equation, or parenthesize the comparison
 proof %s has no law %s
 duplicate law %s
 duplicate proof %s

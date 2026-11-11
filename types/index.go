@@ -263,6 +263,9 @@ func (b *indexBuilder) declaration(f *ast.File, d ast.Decl) *Symbol {
 		b.laws[d.Name] = s
 		return s
 	case *ast.ProofDecl:
+		if d.Implicit || d.Inline {
+			return nil
+		}
 		info := b.p.Proofs[d.Name]
 		return b.symbol(f, d.Name, ProofSymbol, d, &TFunc{Params: info.Law.ParamTypes, Ret: exprType(info.Law.Decl.LHS)})
 	case *ast.TypeDecl:
@@ -528,7 +531,12 @@ func (b *indexBuilder) collectLocals(f *ast.File, d ast.Decl) {
 			b.params(f, n.Params, &TFunc{Params: info.ParamTypes}, n.Pos, n.End)
 		case *ast.ProofDecl:
 			info := b.p.Proofs[n.Name]
-			b.params(f, n.Params, &TFunc{Params: info.Law.ParamTypes}, n.Pos, n.End)
+			if n.Inline {
+				// Inline parameters are inherited bindings, not source tokens.
+				b.params(f, info.Law.Decl.Params, &TFunc{Params: info.Law.ParamTypes}, n.Pos, n.End)
+			} else if !n.Implicit {
+				b.params(f, n.Params, &TFunc{Params: info.Law.ParamTypes}, n.Pos, n.End)
+			}
 		case *ast.TMatch:
 			var scrutinee ast.Expr = n.Var
 			if n.Scrut != nil {

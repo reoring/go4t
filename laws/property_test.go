@@ -866,6 +866,9 @@ func propertyPolymorphicSource(source string, decl *ast.LawDecl, side int) strin
 // Locate the outer equality in the original token stream so the runtime oracle
 // retains the exact source spelling rather than reusing evaluator serialization.
 func propertyLawSource(source string, decl *ast.LawDecl, side int) string {
+	if decl.Predicate && side == 1 {
+		return "true"
+	}
 	start := propertyOffset(source, decl.Pos)
 	if decl.Requires != nil {
 		start = propertyOffset(source, decl.Requires.GetEnd())
@@ -876,36 +879,82 @@ func propertyLawSource(source string, decl *ast.LawDecl, side int) string {
 	if err != nil {
 		panic(err)
 	}
-	depth, opened, first, delimiter, last := 0, false, 0, 0, 0
-	for _, token := range tokens {
-		if !opened {
-			if token.Text == "{" {
-				opened = true
-				first = propertyOffset(body, token.End)
+	first := 0
+	for tokens[first].Kind != lexer.Punct || tokens[first].Text != "{" {
+		first++
+	}
+	first++
+	for tokens[first].Kind == lexer.Punct && tokens[first].Text == ";" {
+		first++
+	}
+	depth, last := 0, first
+	for i := first; i < len(tokens); i++ {
+		token := tokens[i]
+		if token.Kind == lexer.Punct {
+			if token.Text == "}" && depth == 0 {
+				last = i
+				break
 			}
+			switch token.Text {
+			case "(", "[", "{":
+				depth++
+			case ")", "]", "}":
+				depth--
+			}
+		}
+	}
+	for tokens[last-1].Kind == lexer.Punct && tokens[last-1].Text == ";" {
+		last--
+	}
+	if decl.Predicate {
+		return body[propertyOffset(body, tokens[first].Pos):propertyOffset(body, tokens[last-1].End)]
+	}
+	// A whole equation may itself be parenthesized. Remove only enclosing
+	// pairs, retaining the independent grouping on either side.
+	for tokens[first].Text == "(" && tokens[last-1].Text == ")" {
+		depth = 0
+		encloses := true
+		for i := first; i < last-1; i++ {
+			if tokens[i].Kind == lexer.Punct {
+				switch tokens[i].Text {
+				case "(":
+					depth++
+				case ")":
+					depth--
+				}
+			}
+			if depth == 0 {
+				encloses = false
+				break
+			}
+		}
+		if !encloses {
+			break
+		}
+		first++
+		last--
+	}
+	depth = 0
+	for i := last - 1; i >= first; i-- {
+		token := tokens[i]
+		if token.Kind != lexer.Punct {
 			continue
 		}
 		switch token.Text {
-		case "(", "[", "{":
+		case ")", "]", "}":
 			depth++
-		case ")", "]":
+		case "(", "[", "{":
 			depth--
-		case "}":
-			if depth == 0 {
-				last = propertyOffset(body, token.Pos)
-			} else {
-				depth--
-			}
 		case "==":
 			if depth == 0 {
-				delimiter = propertyOffset(body, token.Pos)
+				if side == 0 {
+					return strings.TrimSpace(body[propertyOffset(body, tokens[first].Pos):propertyOffset(body, token.Pos)])
+				}
+				return strings.TrimSpace(body[propertyOffset(body, token.End):propertyOffset(body, tokens[last-1].End)])
 			}
 		}
 	}
-	if side == 0 {
-		return strings.TrimSpace(body[first:delimiter])
-	}
-	return strings.TrimSpace(body[delimiter+2 : last])
+	panic("law equation has no source delimiter")
 }
 
 func propertyWrite(t *testing.T, path, source string) {

@@ -45,6 +45,8 @@ func FuzzFormat(f *testing.F) {
 	for _, src := range tacticsFormatSeeds {
 		f.Add([]byte(src))
 	}
+	f.Add([]byte(lawSurfaceFixture))
+	f.Add([]byte("package main; law l(a Bool) { a && (a == a) } // between\nproof { refl }"))
 	f.Fuzz(func(t *testing.T, src []byte) {
 		before, err := parser.Parse(string(src))
 		if err != nil {

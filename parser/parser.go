@@ -241,8 +241,26 @@ func (p *Parser) file() *ast.File {
 		p.skipSemis()
 	}
 	for p.tok().Kind != lexer.EOF {
-		f.Decls = append(f.Decls, p.decl())
+		decl := p.decl()
+		f.Decls = append(f.Decls, decl)
 		p.skipSemis()
+		if law, ok := decl.(*ast.LawDecl); ok && p.isK("proof") {
+			next := p.i + 1
+			for p.toks[next].Kind == lexer.Punct && p.toks[next].Text == ";" {
+				next++
+			}
+			if p.toks[next].Kind == lexer.Punct && p.toks[next].Text == "{" {
+				proof := &ast.ProofDecl{Pos: p.next().Pos, Name: law.Name, Inline: true}
+				for _, param := range law.Params {
+					proof.Params = append(proof.Params, ast.Param{Name: param.Name})
+				}
+				p.skipSemis()
+				proof.Body = p.tacticBlock()
+				p.finish(proof)
+				f.Decls = append(f.Decls, proof)
+				p.skipSemis()
+			}
+		}
 	}
 	return f
 }
@@ -572,20 +590,62 @@ func (p *Parser) lawDecl() ast.Decl {
 	d.TParams = p.tparams()
 	d.Params = p.params()
 	p.skipSemis()
-	if p.is(lexer.Ident, "requires") {
+	var clauses []ast.Expr
+	for p.is(lexer.Ident, "requires") {
 		p.next()
-		d.Requires = p.expr()
+		clause := p.expr()
+		clauses = append(clauses, clause)
+		if d.Requires == nil {
+			d.Requires = clause
+		} else {
+			d.Requires = &ast.Binary{ExprBase: ast.ExprBase{Pos: d.Requires.GetPos(), End: clause.GetEnd()}, Op: "&&", L: d.Requires, R: clause}
+		}
 		p.skipSemis()
+	}
+	if len(clauses) > 1 {
+		d.RequiresClauses = clauses
 	}
 	p.expectP("{")
 	p.skipSemis()
-	bodyPos := p.pos()
+	bodyPos, bodyStart := p.pos(), p.i
 	body := p.expr()
-	equality, ok := body.(*ast.Binary)
-	if !ok || equality.Op != "==" {
-		p.fail(bodyPos, "law body must be an equality (lhs == rhs)")
+	if equality, ok := body.(*ast.Binary); ok && equality.Op == "==" {
+		d.LHS, d.RHS = equality.L, equality.R
+	} else {
+		root := body
+		if call, ok := root.(*ast.Call); ok && call.Pipe != nil {
+			root = call.Pipe
+		}
+		if binary, ok := root.(*ast.Binary); ok && (binary.Op == "&&" || binary.Op == "||" || binary.Op == "|>") {
+			// Record grouping depth locally, without adding parentheses to the
+			// AST. Equalities inside grouped operands are deeper than the root.
+			depth, rootDepth, equalityDepth := 0, 0, -1
+			for _, token := range p.toks[bodyStart:p.i] {
+				if token.Kind != lexer.Punct {
+					continue
+				}
+				if token.Pos == binary.Pos {
+					rootDepth = depth
+				}
+				switch token.Text {
+				case "(", "[", "{":
+					depth++
+				case ")", "]", "}":
+					depth--
+				case "==":
+					if equalityDepth < 0 || depth < equalityDepth {
+						equalityDepth = depth
+					}
+				}
+			}
+			if equalityDepth == rootDepth {
+				p.fail(bodyPos, "ambiguous law body: == binds tighter than && and ||; write (lhs) == (rhs) for an equation, or parenthesize the comparison")
+			}
+		}
+		d.Predicate = true
+		d.LHS = body
+		d.RHS = &ast.BoolLit{ExprBase: ast.ExprBase{Pos: bodyPos, End: body.GetEnd()}, Value: true}
 	}
-	d.LHS, d.RHS = equality.L, equality.R
 	p.skipSemis()
 	p.expectP("}")
 	return d

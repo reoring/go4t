@@ -16,7 +16,14 @@ func (c *checker) pairLaws(files []*ast.File) {
 				law := c.program.Laws[decl.Name]
 				law.Proof = c.program.Proofs[decl.Name]
 				if law.Proof == nil {
-					fail(decl.Pos, "law %s has no proof", diagnosticName(decl.Name))
+					pos, end := decl.LHS.GetPos(), decl.RHS.GetEnd()
+					params := make([]ast.Param, len(decl.Params))
+					for i, param := range decl.Params {
+						params[i] = ast.Param{Name: param.Name}
+					}
+					proof := &ast.ProofDecl{Pos: pos, End: end, Name: decl.Name, Params: params, Body: &ast.TRefl{Pos: pos, End: end}, Implicit: true}
+					law.Proof = &ProofInfo{Decl: proof, Law: law, PatVars: make(map[*ast.PVar]Type)}
+					c.program.Proofs[decl.Name] = law.Proof
 				}
 			case *ast.ProofDecl:
 				proof := c.program.Proofs[decl.Name]
@@ -65,9 +72,17 @@ func (c *checker) checkLaws(files []*ast.File) {
 				unify(law.Requires.GetPos(), Bool, b.inferExpected(law.Requires, env, Bool))
 			}
 			left := b.infer(law.LHS, env)
-			right := b.inferExpected(law.RHS, env, left)
-			unify(law.RHS.GetPos(), left, right)
-			b.finish()
+			if law.Predicate {
+				b.inferExpected(law.RHS, env, Bool)
+				b.finish()
+				if prune(left) != Bool {
+					fail(law.LHS.GetPos(), "law body must be an equation (lhs == rhs) or a Bool expression, got %s", left)
+				}
+			} else {
+				right := b.inferExpected(law.RHS, env, left)
+				unify(law.RHS.GetPos(), left, right)
+				b.finish()
+			}
 			if sampled {
 				b.dictionary(law.Pos, Constraint{Class: "Eq", Arg: AnnOf(law.LHS).Type})
 			} else {
