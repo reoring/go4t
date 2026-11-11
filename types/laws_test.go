@@ -53,10 +53,12 @@ func TestLawDiagnostics(t *testing.T) {
 	for _, tt := range []struct {
 		name, source, want string
 	}{
-		{"missing proof", `law identity(x Int) { x == x }`, "law identity has no proof"},
+		{"predicate type", `law identity(x Int) { x }`, "law body must be an equation (lhs == rhs) or a Bool expression, got Int"},
 		{"missing law", `proof identity(x) { refl }`, "proof identity has no law identity"},
 		{"duplicate law", `law identity(x Int) { x == x }; law identity(x Int) { x == x }; proof identity(x) { refl }`, "duplicate law identity"},
 		{"duplicate proof", `law identity(x Int) { x == x }; proof identity(x) { refl }; proof identity(x) { refl }`, "duplicate proof identity"},
+		{"duplicate inline proof", `law identity(x Int) { x == x } proof { refl }; proof identity(x) { refl }`, "duplicate proof identity"},
+		{"duplicate earlier proof", `proof identity(x) { refl }; law identity(x Int) { x == x } proof { refl }`, "duplicate proof identity"},
 		{"law collides with function", `func identity(x Int) Int { x }; law identity(x Int) { x == x }; proof identity(x) { refl }`, "duplicate declaration identity"},
 		{"function collides with law", `law identity(x Int) { x == x }; proof identity(x) { refl }; func identity(x Int) Int { x }`, "duplicate declaration identity"},
 		{"law collides with method", `class C[A] { identity(x A) A }; law identity(x Int) { x == x }; proof identity(x) { refl }`, "duplicate declaration identity"},

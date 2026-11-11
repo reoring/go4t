@@ -41,6 +41,16 @@ func File(f *ast.File) []byte {
 		end()
 	}
 	for _, d := range f.Decls {
+		if proof, ok := d.(*ast.ProofDecl); ok {
+			if proof.Implicit {
+				continue
+			}
+			if proof.Inline {
+				p.text(" ")
+				p.decl(d)
+				continue
+			}
+		}
 		p.newline()
 		p.newline()
 		p.decl(d)
@@ -195,22 +205,53 @@ func (p *printer) decl(decl ast.Decl) {
 		p.tparams(d.TParams)
 		p.params(d.Params)
 		bodyStart := d.Pos
+		wrapped := false
 		if d.Requires != nil {
-			p.text(" requires ")
-			p.expr(d.Requires, 0)
+			clauses := d.RequiresClauses
+			if len(clauses) == 0 {
+				clauses = []ast.Expr{d.Requires}
+			}
+			q := &printer{}
+			q.expr(d.Requires, 0)
+			wrapped = len(clauses) > 1 || strings.Contains(q.b.String(), "\n") || p.col+len(" requires  {")+utf8.RuneCountInString(q.b.String()) > 80
+			if wrapped {
+				p.indent++
+				for _, clause := range clauses {
+					p.newline()
+					p.text("requires ")
+					p.expr(clause, 0)
+				}
+				p.indent--
+				p.newline()
+			} else {
+				p.text(" requires ")
+				p.expr(d.Requires, 0)
+			}
 			bodyStart = d.Requires.GetEnd()
 		}
-		p.text(" ")
+		if !wrapped {
+			p.text(" ")
+		}
 		p.open(p.delimiterBetween('{', bodyStart, exprStart(d.LHS)))
-		// Comparisons do not associate (ADR 0019): a comparison on either side
-		// of the equation keeps its parentheses.
-		p.expr(d.LHS, precedence["=="]+1)
-		p.text(" == ")
-		p.expr(d.RHS, precedence["=="]+1)
+		if d.Predicate {
+			p.lawPredicate(d.LHS, 0)
+		} else {
+			// Comparisons do not associate (ADR 0019): a comparison on either side
+			// of the equation keeps its parentheses.
+			p.expr(d.LHS, precedence["=="]+1)
+			p.text(" == ")
+			p.expr(d.RHS, precedence["=="]+1)
+		}
 		p.close(d.End)
 	case *ast.ProofDecl:
-		p.text("proof " + d.Name)
-		p.params(d.Params)
+		if d.Implicit {
+			return
+		}
+		p.text("proof")
+		if !d.Inline {
+			p.text(" " + d.Name)
+			p.params(d.Params)
+		}
 		p.text(" ")
 		p.tacticBlock(p.delimiterBetween('{', d.Pos, d.Body.GetPos()), d.End, d.Body)
 	case *ast.AliasDecl:
@@ -296,6 +337,33 @@ func (p *printer) decl(decl ast.Decl) {
 		p.close(d.End)
 	default:
 		panic(fmt.Sprintf("format: unsupported declaration %T", d))
+	}
+}
+
+// Comparisons in a predicate's Boolean/pipeline chain need explicit grouping:
+// ordinary expression formatting would recreate an ambiguous law body.
+func (p *printer) lawPredicate(expr ast.Expr, parent int) {
+	binary, ok := expr.(*ast.Binary)
+	if call, yes := expr.(*ast.Call); yes && call.Pipe != nil {
+		binary, ok = call.Pipe, true
+	}
+	if !ok || binary.Op != "&&" && binary.Op != "||" && binary.Op != "|>" {
+		if ok && binary.Op == "==" {
+			parent = precedence["=="] + 1
+		}
+		p.expr(expr, parent)
+		return
+	}
+	defer p.mark(exprStart(expr), expr.GetEnd())()
+	prec := precedence[binary.Op]
+	if prec < parent {
+		p.text("(")
+	}
+	p.lawPredicate(binary.L, prec)
+	p.text(" " + binary.Op + " ")
+	p.lawPredicate(binary.R, prec+1)
+	if prec < parent {
+		p.text(")")
 	}
 }
 

@@ -26,6 +26,8 @@ func FuzzFormat(f *testing.F) {
 	for _, src := range []string{"", "\x00\xff", "package p", "package p\nfunc f() Int { 1 }", "// header\npackage p // tail\n", "package p\nfunc f() String { \"${1}\" }", "package p\nfunc f() Int { 1; (-2) }", "package p\nfunc f() T { x |> g(_, 1) }"} {
 		f.Add([]byte(src))
 	}
+	f.Add([]byte(lawSurfaceFixture))
+	f.Add([]byte("package main; law l(a Bool) { a && (a == a) } // between\nproof { refl }"))
 	f.Fuzz(func(t *testing.T, src []byte) {
 		before, err := parser.Parse(string(src))
 		if err != nil {

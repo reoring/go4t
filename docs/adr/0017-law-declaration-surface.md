@@ -128,3 +128,16 @@ may still rename the law's parameters positionally.
 - The self-hosted compiler must skip the new forms (ADR 0023).
 
 ## Implementation notes
+
+- Implemented without changing the shared AST. The parser records operator
+  grouping depths locally while reading a law body; parentheses do not become
+  AST nodes. The formatter explicitly groups comparisons in predicate chains.
+- Implicit proofs are paired after all written declarations are registered,
+  retained only in the checked program's proof map, and use the law's parameter
+  names. Inline proofs are ordinary adjacent declarations with source-free
+  inherited parameter bindings; tooling resolves their uses to the law header.
+- The open-term property oracle slices predicate bodies from source and uses
+  literal `true` for their synthesized right side. It excludes statement
+  separators and handles parentheses around whole equations.
+- No semantic deviations. Precondition failures retain the whole-precondition
+  location and do not acquire the implicit-`refl` failure note.

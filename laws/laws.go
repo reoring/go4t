@@ -94,10 +94,6 @@ func CheckProgram(p *types.Program) []*types.Error {
 			continue
 		}
 		proof := p.Proofs[name]
-		if proof == nil {
-			errors = append(errors, diagnostic(info.Decl, name, "missing proof"))
-			continue
-		}
 		if _, sampled := proof.Decl.Body.(*ast.TSample); sampled {
 			if err := checkSample(p, info); err != nil {
 				errors = append(errors, diagnostic(info.Decl, name, err.Error()))
@@ -125,9 +121,13 @@ func CheckProgram(p *types.Program) []*types.Error {
 			if failure, yes := err.(*proofFailure); yes {
 				node, message = failure.node, failure.message
 			}
+			if proof.Decl.Implicit && node != law.Requires {
+				node = proof.Decl.Body
+				message += "\nno proof was written for this law; it was checked by refl"
+			}
 			d := diagnostic(node, name, message)
 			d.File = files[proof.Decl]
-			if node == law.Requires {
+			if node == law.Requires || proof.Decl.Implicit {
 				d.File = files[info.Decl]
 			}
 			errors = append(errors, d)

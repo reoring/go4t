@@ -1,0 +1,17 @@
+package main
+
+type Nat = Zero | Succ(Nat) deriving Debug
+func copy(n Nat) Nat { match n { Zero => Zero; Succ(rest) => Succ(copy(rest)) } }
+
+law implicit(a Int) { a + 1 == 1 + a }
+law inline(a Int) { a + 1 == 1 + a } proof { refl }
+law rewritten(a Int) { a + 1 == 1 + a } proof { rewrite implicit(a) { refl } }
+law predicate(a Int) requires 0 <= a requires a < 100 { a + 1 > a }
+law boolean(a Bool) { a || !a } proof { if a { refl } else { refl } }
+law split(a Option[Int]) { a == a } proof { match a { None => refl; Some(n) => refl } }
+law induct(a Nat) { copy(a) == a } proof { induction a }
+law inductArms(a Nat) { copy(a) == a } proof { induction a { Zero => refl; Succ(n) => refl } }
+law separate(a Int) { a == a }
+proof separate(renamed) { refl }
+
+func main() IO[Unit] { ioPure(unit()) }

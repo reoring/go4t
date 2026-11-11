@@ -583,7 +583,8 @@ func renderSentence(s grammarSentence) string {
 var grammarGenerationAllowlist = map[string]string{
 	"Class":    "superclass argument must equal the class parameter, not a fresh identifier",
 	"Instance": "given arguments must reuse parameters declared in this instance head",
-	"LawDecl":  "the outermost body operator must be equality; arbitrary Expr sides may require parentheses",
+	"LawDecl":  "equations and Boolean/pipeline predicates reject unparenthesized equality operands at the predicate's level",
+	"LawBody":  "arbitrary Expr combinations may form an ambiguous Boolean/pipeline predicate; expression constituents are generated separately",
 	"Decl":     "includes the name-dependent Class and Instance declarations",
 	"File":     "includes Decl; imports and all context-free declaration constituents have their own roots",
 }
