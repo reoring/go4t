@@ -231,3 +231,26 @@ variables in newly covered partial-goal sampling, not an accepted false law.
 Case binders now use the disjoint `$case...` namespace, and a focused regression
 test checks the production elaborator preserves every existing case binding.
 
+
+### Review evidence (2026-11-11)
+
+After the seven surface-syntax slices were merged, an independent read-only
+review attacked `absurd`, expression/Bool/bare `match`, bare `induction`,
+alternatives, or-patterns, predicate bodies, implicit and inline proofs,
+several `requires`, law type parameters, constants and the new literals with
+465 hand-written laws (false laws and invalid proofs). No false law was
+accepted. A one-time result: the scratch laws are not in the repository.
+
+Open notes from that review, none turned into an accepted false law:
+
+- A body whose root is `==`, even fully parenthesised, is an equation and is
+  decided definitionally; with a hand-written `Eq` that returns `false`, both
+  `{ (x == x) }` and `{ !(x == x) }` are accepted. By SPEC §6.5, but it is
+  the one place where the two readings of a body disagree.
+- Opaque Go handle types are unit-like to the checker (`type DB = DBHandle`),
+  so a case split could prove two handles equal. Not run (it needs a real
+  binding); it predates this work, and bare `match` only shortens the proof.
+- Bare `induction` selects hypothesis fields by printed type, which elides
+  deep types; terms are untyped and descent is still checked.
+- A law whose dependency is invalid is skipped without its own diagnostic;
+  safe only while every invalid dependency reports an error.
