@@ -19,7 +19,9 @@ CI runs these (`.github/workflows/ci.yml`) on the minimum Go version and on
 the current stable release, plus every `examples/*/main.gt`. The wall-clock
 budgets in `./bench` run in their own job on an idle runner; under
 `go test ./...` they share the machine with every other package and can
-exceed their ceilings on a loaded one.
+exceed their ceilings on a loaded one. The ceilings in `bench/budget.json` are
+recorded on a developer machine; CI multiplies the wall-clock ones by
+`GO4T_BENCH_TIME_SLACK` because its runners are slower and vary.
 
 Fuzz targets exist for the lexer, parser and formatter. They run their seed
 corpus as ordinary tests, and CI fuzzes each for a short fixed time; to fuzz

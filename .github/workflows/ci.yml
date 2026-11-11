@@ -120,4 +120,9 @@ jobs:
           go-version-file: go.mod
           cache: false
       - name: Enforce benchmark budgets
+        # budget.json is recorded on a developer machine. GitHub's runners are
+        # slower and not all alike (the same binaries ran up to 1.09x over
+        # their ceilings there), so wall-clock budgets get this factor.
+        env:
+          GO4T_BENCH_TIME_SLACK: "1.5"
         run: go test ./bench -run . -bench . -benchtime=1x -timeout=12m
