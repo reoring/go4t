@@ -74,6 +74,11 @@ ordered arithmetic, automatic accumulator generalization for other folds, and
 equality of two symbolic maps. Proof length grows with the number of branches; that is the
 specification's complexity, not the prover's.
 
+What a proved law rests on — the normalizer, the termination and taint
+checks, the extern whitelist, the `std/map` and `std/list` models — and how
+that base is tested against the real runtime on every CI run is in
+[laws-trust.md](laws-trust.md).
+
 ## Preconditions and order
 
 ```go4t
