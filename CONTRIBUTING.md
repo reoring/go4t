@@ -15,8 +15,11 @@ bash selfhost/bootstrap.sh   # the self-hosted compiler reproduces its own outpu
 go test ./bench -run . -bench . -benchtime=1x -timeout=12m   # benchmark budgets
 ```
 
-CI runs exactly these (`.github/workflows/ci.yml`), on the minimum Go version
-and on the current stable release, plus every `examples/*/main.gt`.
+CI runs these (`.github/workflows/ci.yml`) on the minimum Go version and on
+the current stable release, plus every `examples/*/main.gt`. The wall-clock
+budgets in `./bench` run in their own job on an idle runner; under
+`go test ./...` they share the machine with every other package and can
+exceed their ceilings on a loaded one.
 
 Fuzz targets exist for the lexer, parser and formatter. They run their seed
 corpus as ordinary tests, and CI fuzzes each for a short fixed time; to fuzz

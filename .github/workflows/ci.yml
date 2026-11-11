@@ -32,9 +32,17 @@ jobs:
           go-version: stable
           cache: false
       - run: go vet ./...
+      # cmd/go4t binds a third-party module with the proxy turned off; it has
+      # to be in the module cache first. That module needs a newer Go than the
+      # minimum, where the tests that use it are skipped.
+      - name: Download modules bound by the tests
+        if: matrix.go == 'stable'
+        working-directory: examples/sql-service
+        run: go mod download
       # The law checker's open-term property test compiles and runs every
-      # fixture; it dominates this step.
-      - run: go test -timeout 30m ./...
+      # fixture; it dominates this step. ./bench holds wall-clock budgets that
+      # are only meaningful on an otherwise idle runner: the bench job owns it.
+      - run: go test -timeout 30m $(go list ./... | grep -v '/bench')
       - name: Run examples
         shell: bash
         run: |
