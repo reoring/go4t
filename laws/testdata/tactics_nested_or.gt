@@ -18,8 +18,8 @@ law scoreBounded(o Option[Kind]) {
 proof scoreBounded(o) {
   match o {
     Some(A | B) => refl
-    | Some(C) => refl
-    | None => refl
+    Some(C) => refl
+    None => refl
   }
 }
 

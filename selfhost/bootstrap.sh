@@ -21,6 +21,7 @@ declare -A SKIP=(
   [sales-service]='starts a TCP listener and makes HTTP requests'
   [go-chan]='imports Go channel fixtures through import-time binding'
   [go-generics]='imports generic Go functions through import-time binding'
+  [surface]='uses or-patterns, the record shorthand, top-level let and bare sections, outside the self-hosted subset (ADR 0023)'
 )
 
 # Classification is explicit; coincident samples cannot establish determinism.

@@ -1143,10 +1143,12 @@ law appendNil[A](xs List[A]) {
 
 func main() IO[Unit] {
   let rows = [Row{sku: "a", qty: 2}, Row{sku: "b", qty: 5}]
-  // An operator section can be a call argument without its own parentheses.
-  println(show(rows |> map(_.qty) |> map(_ * 2)))
-  println(sign(-2))
-  println(show(length(palette)))
+  do {
+    // An operator section can be a call argument without its own parentheses.
+    println(show(rows |> map(_.qty) |> map(_ * 2)))
+    println(sign(-2))
+    println(show(length(palette)))
+  }
 }
 ```
 
