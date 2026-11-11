@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -155,9 +154,6 @@ func BenchmarkPrograms(b *testing.B) {
 // GNU time. This is a regression ceiling, not a statistically stable benchmark.
 // An explicit input directory permits offline runs; absent inputs skip that
 // kernel rather than silently substituting a smaller workload.
-// perfAttempts bounds how often one kernel is rerun before its ceiling fails.
-const perfAttempts = 3
-
 func TestPerfPrograms(t *testing.T) {
 	if _, err := exec.LookPath("/usr/bin/time"); err != nil {
 		t.Skip("performance budgets require /usr/bin/time")
@@ -189,48 +185,32 @@ func TestPerfPrograms(t *testing.T) {
 			source := filepath.Join(checkout, "bench", "perf", w.name, "main.gt")
 			command(t, checkout, compiler, "build", "-o", binary, source)
 			timing := filepath.Join(temp, w.name+".time")
-			limit := limits["perf-"+w.name]
-			// A shared runner adds time and never removes it, so the fastest of a
-			// few runs is the measurement; a real regression is over the ceiling
-			// in every one of them.
-			var elapsed int64
-			for attempt := 1; attempt <= perfAttempts; attempt++ {
-				if _, err := input.Seek(0, io.SeekStart); err != nil {
-					t.Fatal(err)
-				}
-				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-				cmd := exec.CommandContext(ctx, "/usr/bin/time", "-f", "%e", "-o", timing, binary)
-				cmd.Env = append(os.Environ(), "GOMAXPROCS=1", "GOGC=100")
-				cmd.Stdin = input
-				var stdout, stderr bytes.Buffer
-				cmd.Stdout, cmd.Stderr = &stdout, &stderr
-				err := cmd.Run()
-				cancel()
-				if err != nil {
-					t.Fatalf("%s: %v\n%s", w.name, err, stderr.String())
-				}
-				if stdout.String() != w.output {
-					t.Fatalf("%s output = %q, want %q", w.name, stdout.String(), w.output)
-				}
-				data, err := os.ReadFile(timing)
-				if err != nil {
-					t.Fatal(err)
-				}
-				seconds, err := strconv.ParseFloat(strings.TrimSpace(string(data)), 64)
-				if err != nil {
-					t.Fatal(err)
-				}
-				run := int64(seconds * float64(time.Second))
-				t.Logf("%s: run %d of %d: %d ns, ceiling %d ns; checksum matched", w.name, attempt, perfAttempts, run, limit)
-				if attempt == 1 || run < elapsed {
-					elapsed = run
-				}
-				if elapsed <= limit {
-					break
-				}
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			cmd := exec.CommandContext(ctx, "/usr/bin/time", "-f", "%e", "-o", timing, binary)
+			cmd.Env = append(os.Environ(), "GOMAXPROCS=1", "GOGC=100")
+			cmd.Stdin = input
+			var stdout, stderr bytes.Buffer
+			cmd.Stdout, cmd.Stderr = &stdout, &stderr
+			if err := cmd.Run(); err != nil {
+				t.Fatalf("%s: %v\n%s", w.name, err, stderr.String())
 			}
+			if stdout.String() != w.output {
+				t.Fatalf("%s output = %q, want %q", w.name, stdout.String(), w.output)
+			}
+			data, err := os.ReadFile(timing)
+			if err != nil {
+				t.Fatal(err)
+			}
+			seconds, err := strconv.ParseFloat(strings.TrimSpace(string(data)), 64)
+			if err != nil {
+				t.Fatal(err)
+			}
+			elapsed := int64(seconds * float64(time.Second))
+			limit := limits["perf-"+w.name]
+			t.Logf("%s: %d ns, ceiling %d ns; checksum matched", w.name, elapsed, limit)
 			if os.Getenv("GO4T_BENCH_RECORD") == "" && elapsed > limit {
-				t.Fatalf("%s exceeded budget in all %d runs: fastest %d ns > %d ns", w.name, perfAttempts, elapsed, limit)
+				t.Fatalf("%s exceeded budget: %d ns > %d ns", w.name, elapsed, limit)
 			}
 		})
 	}

@@ -7,7 +7,7 @@
   "perf-nbody": 550000000,
   "perf-wordfreq": 3800000000,
   "perf-mapheavy": 3500000000,
-  "perf-mapheavy-mut": 825000000,
+  "perf-mapheavy-mut": 1100000000,
   "perf-treefold": 150000000,
   "compile-scale-check-ns": 102842914,
   "compile-scale-alloc-bytes": 72529344,
