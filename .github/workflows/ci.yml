@@ -66,6 +66,13 @@ jobs:
               go run ./cmd/go4t run "${sources[@]}" -- "${args[@]}" < "$input"
             fi
           done
+      - name: Go decision template (laws, generated code is current, Go tests)
+        working-directory: examples/go-decision-template
+        run: |
+          go run github.com/reoring/go4t/cmd/go4t check decide/decide.gt
+          go generate ./...
+          git diff --exit-code -- .
+          go test ./...
       - name: Bootstrap self-hosted compiler
         run: bash selfhost/bootstrap.sh
   bench:

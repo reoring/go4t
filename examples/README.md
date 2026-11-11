@@ -6,7 +6,8 @@ Commands run from the checkout root. Network-using examples are marked.
 
 | Example | Shows | Run |
 | --- | --- | --- |
-| [go-shell](go-shell) | Minimal Go shell + go4t decision-only template. | see its README (generate and run in a temporary Go module) |
+| [go-decision-template](go-decision-template) | Start here to adopt go4t in a Go repository: one decision in a `.gt` file behind a Go API, `//go:generate`, committed output, laws and a Go test. A copyable Go module. | `cd examples/go-decision-template && go generate ./... && go test ./...` |
+| [go-shell](go-shell) | Go shell + go4t decision: every conversion rule at the Go boundary, exercised one by one. | see its README (generate and run in a temporary Go module) |
 | [approval-controller](approval-controller) | Real AppThrust controller: observe/decide/apply in go4t, Go-owned client and loop; Go reconciler 271 → 88 lines, six original tests unchanged. | `cd examples/approval-controller && go generate ./... && go test ./... -count=1` |
 | [attachment-repair-controller](attachment-repair-controller) | Multi-step workflow decided in go4t; 22 original tests unchanged. | `cd examples/attachment-repair-controller && go generate ./... && go test ./...` |
 | [node-drain-controller](node-drain-controller) | Controller written from scratch with 10 checked laws (cordon-first, DaemonSet transparency, exact timeout). | `go4t check examples/node-drain-controller/decide/decide.gt && cd examples/node-drain-controller && go generate ./... && go test ./...` |
