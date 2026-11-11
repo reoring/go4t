@@ -1,0 +1,16 @@
+package main
+type Ttl = TtlNanos(Int) deriving Debug
+type Timestamp = AtNanos(Int) deriving Debug
+type Freshness = Fresh | Stale deriving Debug
+func freshness(ttl Ttl, observedAt Timestamp, now Int) Freshness {
+  match (ttl, observedAt) {
+    (TtlNanos(t), AtNanos(at)) => if now >= at + t { Stale } else { Fresh }
+  }
+}
+func isStale(value Freshness) Bool { match value { Stale => true; Fresh => false } }
+law staleAfterTtl(t Int, at Int, now Int)
+  requires 0 <= t && t <= 1000000000000 && 0 <= at && at <= now && now <= 4000000000000000000 {
+  isStale(freshness(TtlNanos(t), AtNanos(at), now)) == (now - at >= t)
+}
+proof staleAfterTtl(t, at, now) { if now - at >= t { refl } else { refl } }
+func main() IO[Unit] { ioPure(unit()) }

@@ -21,6 +21,7 @@ type lawGoal struct {
 	Name     string
 	Params   []parameter
 	LHS, RHS ast.Expr
+	Requires ast.Expr
 }
 
 // StepLimit bounds normalization and proof traversal. Exhaustion is an error,
@@ -112,7 +113,10 @@ func CheckProgram(p *types.Program) []*types.Error {
 			continue
 		}
 		env, vars := e.proofEnvironment(law, proof)
-		err = e.prove(law, proof.Decl.Body, env, vars)
+		err = e.assumePrecondition(law, env)
+		if err == nil {
+			err = e.prove(law, proof.Decl.Body, env, vars)
+		}
 		if err != nil {
 			node := ast.Node(proof.Decl)
 			message := err.Error()
@@ -292,10 +296,10 @@ func (e *evaluator) prove(law lawGoal, proof ast.Tactic, env *environment, vars 
 			return fmt.Errorf("condition already decided")
 		}
 		for i, arm := range []ast.Tactic{tactic.Then, tactic.Else} {
-			branch := assumption{condition: condition, value: boolean(i == 0), parent: e.assumptions}
-			e.assumptions = &branch
+			parent := e.assumptions
+			e.addAssumption(condition, i == 0)
 			err := e.prove(law, arm, env, vars)
-			e.assumptions = branch.parent
+			e.assumptions = parent
 			if err != nil {
 				return err
 			}

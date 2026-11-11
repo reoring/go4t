@@ -76,7 +76,7 @@ func (e *evaluator) resume(t *term) (*term, error) {
 			if err != nil {
 				return nil, err
 			}
-			return e.assume(value), nil
+			return e.order(e.assume(value))
 		}
 		for _, arg := range t.args {
 			if !constantTerm(arg) {
@@ -200,7 +200,7 @@ func (e *evaluator) resume(t *term) (*term, error) {
 		}
 		return nil, fmt.Errorf("normalization reached a match with no matching arm")
 	}
-	return e.assume(t), nil
+	return e.order(e.assume(t))
 }
 
 func matchNormal(pattern, value *term, bindings map[int]*term) judgement {

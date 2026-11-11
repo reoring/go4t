@@ -894,7 +894,7 @@ parameters; its untyped names rebind those parameters positionally. Laws are
 not callable functions and have no generated Go representation.
 
 ```ebnf
-LawDecl   := 'law' Ident '(' [Param {',' Param} [',']] ')' '{' Expr '==' Expr {Separator} '}'
+LawDecl   := 'law' Ident '(' [Param {',' Param} [',']] ')' [ ? requires identifier ? Expr ] '{' Expr '==' Expr {Separator} '}'
 ProofDecl := 'proof' Ident '(' [Ident {',' Ident} [',']] ')' TacticBlock
 TacticBlock := '{' {Separator} Tactic {Separator} '}'
 Tactic    := 'refl'
@@ -912,9 +912,10 @@ TacticPattern := '_' | LowerIdent
 TacticRecordFields := '{' ('..' [','] | Ident ':' TacticPattern {',' Ident ':' TacticPattern} [',' '..'] [',']) '}'
 ```
 
-The lexical classes `? sample identifier ?` and `? induction identifier ?`
-match exactly the contextual identifiers `sample` and `induction`, respectively.
-Unlike `refl`, these spellings are not reserved lexer keywords.
+The lexical classes `? sample identifier ?`, `? induction identifier ?` and
+`? requires identifier ?` match exactly the contextual identifiers `sample`,
+`induction` and `requires`, respectively. Unlike `refl`, these spellings are
+not reserved lexer keywords.
 
 The outermost expression in a law body must be `==`; parenthesize a side
 containing lower-precedence Boolean operators. This `==` is an equation
@@ -922,6 +923,15 @@ delimiter, not a call to `Eq`: both sides must have the same type but need no
 `Eq` instance. Equality means **definitional equality** of normalized terms,
 up to renaming bound variables (alpha equivalence), not equality according to a
 user-defined `Eq` instance. There is no eta-equivalence rule.
+
+An optional `requires` Bool expression restricts the equation to arguments
+satisfying that precondition. It has the same parameter scope, purity,
+termination, Float and first-order restrictions as the law sides. Proof starts
+by assuming it true, splitting top-level `&&` conjuncts into separate facts.
+Neither laws nor their preconditions execute at runtime. A `rewrite`, including
+an induction-hypothesis rewrite, must establish the instantiated precondition
+as `true` under the current assumptions before using the equation.
+`sample(N)` does not support laws with `requires`.
 
 | Tactic | Meaning |
 | --- | --- |
@@ -957,12 +967,31 @@ merged. Inside an arm of a stuck `match s`, `s` is assumed equal
 to the arm's pattern, and inside a stuck `if c`, `c` is assumed `true` or
 `false`, so repeated eliminations of the same scrutinee collapse. Int
 `+`, `-`, `*` and unary negation use polynomial normal forms modulo 2^64,
-matching wrapping runtime arithmetic. Comparisons and `/`/`%` are not an
-arithmetic decision procedure, but prelude Int and String comparisons are
+matching wrapping runtime arithmetic. Prelude Int and String comparisons are
 oriented canonically (`a > b` is `b < a`, `a >= b` is `b <= a`) and `==`
-operands are ordered, and `x == x` / `x < x` decide for alpha-equal
-operands. `if` assumptions compare normalized operands, so `now >= at + t`,
-`at + t <= now` and `now >= t + at` describe the same guard.
+operands are ordered. Assumptions from `requires`, proof `if` branches and
+stuck expression `if` arms support two sound order-reasoning layers:
+
+- **Total-order closure:** normalized Int or String operands are opaque atoms.
+  Assumed comparisons and their negations support reflexivity, antisymmetry,
+  transitivity and totality, together with the known order of literals.
+  Thus `a < b && b < c` establishes `a < c`. Arithmetic is not opened here:
+  `a + 1` and `a` are unrelated atoms.
+- **Wrap-free Int arithmetic:** each atom starts with the int64 range, tightened
+  by total-order bounds against literals. Arbitrary-precision integer interval
+  arithmetic checks both comparison operands and their exact polynomial
+  difference, including intermediate monomial products. Only when all fit
+  int64 is `p ⋈ q` canonicalized to `0 ⋈ (q - p)`. Constant differences decide
+  the comparison. A linear nonnegative goal can also follow from one or two
+  assumed canonical nonnegatives plus a nonnegative constant; strictness needs
+  a strict summand or a positive constant. The symmetric rule refutes goals.
+  Coefficient matching is exact over mathematical integers, not modulo 2^64.
+
+If range checks fail, comparisons retain their ordinary wrapping meaning.
+For example `a + 1 > a` needs `requires a < 9223372036854775807`;
+`now >= at + t` and `now - at >= t` coincide only under suitable wrap-free
+ranges. There is no complete arithmetic solver, nonlinear decision procedure,
+String arithmetic, or `/`/`%` order reasoning.
 
 `Map` values are modelled symbolically. A map whose keys are all constants
 (Int, String, Bool or tuples of those) normalizes to a sorted literal; an
@@ -1033,8 +1062,8 @@ The trusted extern whitelist is the ten prelude primitives (`EqInt`, `LtInt`,
 `EqString`, `LtString`, `EqBool`, `ShowInt`, `ShowBool`, `ShowString`,
 `DebugString`, `UnitValue`) plus the 32 `std/string` primitives. Trust is tied to
 the owning standard-library declaration, not merely a matching foreign symbol.
-String primitives fold only when their arguments are constant; they do not
-provide symbolic string reasoning. The 13 `std/map` externs are modelled by the
+String operations fold only when their arguments are constant; beyond total-order
+closure they do not reason about symbolic contents. The 13 `std/map` externs are modelled by the
 normalizer as described above and are therefore eligible. `std/set` and
 `std/array` externs remain tainted. Callback and dictionary implementations must themselves be
 eligible. `Float` is forbidden in law parameters, side types and subterms,
@@ -1058,6 +1087,8 @@ unknown law %s
 arity mismatch: want %d arguments, got %d
 tactic match does not support list patterns
 tactic match does not support literal or as-patterns
+sample does not support requires
+rewrite %s: precondition not established: <normal form>
 ```
 
 Proof verification additionally rejects non-decreasing recursion, cyclic law
@@ -2015,10 +2046,11 @@ with `go generate main.go`.
   Persistent `Map` inserts allocate copied search-path nodes to preserve earlier
   versions; use `std/mutmap` inside IO for update-heavy throughput, then `freeze`
   when a pure persistent snapshot is needed.
-- Laws do not infer comparison transitivity or ordered arithmetic under Int
-  wraparound; variable divisors are tainted. There is no `requires` clause,
-  higher-order quantification or Float law support. Encode guards as Bool
-  equations and split them with `if`. `std/map` is modelled symbolically and eligible;
+- Laws support preconditions (`requires`), total-order comparison closure and
+  the bounded wrap-free Int arithmetic fragment in §6.5, not unrestricted
+  ordered arithmetic under wraparound. Variable divisors are tainted; higher-order
+  quantification and Float expressions remain unsupported. `sample(N)` cannot
+  be combined with `requires`. `std/map` is modelled symbolically and eligible;
   `std/mutmap`, `std/ref`, channels and other handles require IO for observations
   and are never law-eligible. Extern-dependent laws may use `sample(N)`, run by
   `go4t test`, reported as tested rather than proved, and unusable as rewrite lemmas.

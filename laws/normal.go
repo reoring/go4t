@@ -192,10 +192,10 @@ func (e *evaluator) normalIf(value *term) (*term, error) {
 	}
 	var branches [2]*term
 	for i, body := range value.args[1:] {
-		branch := assumption{condition: condition, value: boolean(i == 0), parent: e.assumptions}
-		e.assumptions = &branch
+		parent := e.assumptions
+		e.addAssumption(condition, i == 0)
 		branches[i], err = e.normal(body)
-		e.assumptions = branch.parent
+		e.assumptions = parent
 		if err != nil {
 			return nil, err
 		}
@@ -367,6 +367,8 @@ func (e *evaluator) displayComparison(t *term) (op string, left, right *term) {
 	if t.kind == "unary" && t.name == "!" && len(t.args) == 1 {
 		if op, a, b := e.displayComparison(t.args[0]); op == "==" {
 			return "!=", a, b
+		} else if op == "<" {
+			return "<=", b, a
 		}
 	}
 	if t.kind != "order" || len(t.args) != 1 {

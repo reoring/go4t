@@ -15,7 +15,7 @@ func (e *evaluator) extractLaw(name string) (lawGoal, error) {
 	if info == nil {
 		return lawGoal{}, fmt.Errorf("unknown law %s", name)
 	}
-	law := lawGoal{Name: name, LHS: info.Decl.LHS, RHS: info.Decl.RHS}
+	law := lawGoal{Name: name, LHS: info.Decl.LHS, RHS: info.Decl.RHS, Requires: info.Decl.Requires}
 	for i, param := range info.Decl.Params {
 		typ := info.ParamTypes[i]
 		if reason := e.unsupportedType(typ, true, make(map[string]bool)); reason != "" {
@@ -83,6 +83,13 @@ func (e *evaluator) rewriteRule(current lawGoal, proof *ast.TRewrite, env *envir
 	}
 	if law.Name == current.Name && !decreased {
 		return rewriteRule{}, fmt.Errorf("rewrite %s: induction hypothesis must structurally decrease (nondecreasing self-reference is a cycle)", proof.Law.DisplayName())
+	}
+	condition, err := e.precondition(law, bound)
+	if err != nil {
+		return rewriteRule{}, err
+	}
+	if condition.kind != "bool" || !condition.flag {
+		return rewriteRule{}, fmt.Errorf("rewrite %s: precondition not established: %s", proof.Law.DisplayName(), e.display(condition))
 	}
 	left, right, err := e.equation(law, bound)
 	if err != nil {

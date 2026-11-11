@@ -1,0 +1,12 @@
+package main
+law twoSummands(a Int, b Int, c Int)
+  requires 0 <= a && a <= 100 && 0 <= b && b <= 100 && 0 <= c && c <= 100 && a <= b && b <= c {
+  (a < c + 1) == true
+}
+proof twoSummands(a, b, c) { refl }
+law refuteSummands(a Int, b Int, c Int)
+  requires 0 <= a && a <= 100 && 0 <= b && b <= 100 && 0 <= c && c <= 100 && a <= b && b <= c {
+  (c + 1 <= a) == false
+}
+proof refuteSummands(a, b, c) { refl }
+func main() IO[Unit] { ioPure(unit()) }

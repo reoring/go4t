@@ -50,6 +50,7 @@ func TestOpenTermProperty(t *testing.T) {
 		t.Fatalf("finding law fixtures: %v (%d files)", err, len(fixtures))
 	}
 	laws, sides, comparisons, rejected, floatComparisons := 0, 0, 0, 0, 0
+	skipped := 0
 	floatSamples := make(map[uint64]bool)
 	for _, fixture := range fixtures {
 		t.Run(filepath.Base(fixture), func(t *testing.T) {
@@ -148,6 +149,14 @@ func TestOpenTermProperty(t *testing.T) {
 				var calls []string
 				for v, variant := range variants {
 					e.fuel = StepLimit
+					e.assumptions = variant.assumptions
+					if variant.normal == nil {
+						if err := e.assumePrecondition(law, variant.env); err != nil {
+							t.Fatal(err)
+						}
+					}
+					assumptions := e.assumptions
+					seeds := propertyAssumptionSeeds(assumptions)
 					value := variant.normal
 					runner, termSource := target.runner, target.source
 					if value == nil {
@@ -172,6 +181,8 @@ func TestOpenTermProperty(t *testing.T) {
 					// Retain the open term unchanged across every substitution.
 					nextID := e.nextID
 					rng := rand.New(rand.NewPCG(2119, 4))
+					satisfied := 0
+					e.assumptions = nil
 					for sample := range propertySamples {
 						e.fuel, e.nextID = StepLimit, nextID
 						e.solutions = make(map[int]*term)
@@ -179,10 +190,20 @@ func TestOpenTermProperty(t *testing.T) {
 						hasFloat := false
 						for j, param := range variant.params {
 							v := propertyValue(t, e, rng, param.Type, propertyDepth, sample, j)
+							v = propertySeedValue(v, seeds, sample-5)
 							hasFloat = propertyFloatSamples(v, floatSamples) || hasFloat
 							e.solutions[variant.vars[j].id] = v
 							sigma = append(sigma, param.Name+"="+propertyLiteral(t, e, v))
 						}
+						holds, err := propertyAssumptionsHold(e, assumptions)
+						if err != nil {
+							t.Fatalf("%s/%s: evaluating assumptions: %v", target.law, variant.name, err)
+						}
+						if !holds {
+							skipped++
+							continue
+						}
+						satisfied++
 						args := make([]string, 0, len(law.Params)+len(target.extra))
 						if variant.normal == nil {
 							for _, param := range law.Params {
@@ -251,6 +272,9 @@ func TestOpenTermProperty(t *testing.T) {
 							floatComparisons++
 						}
 					}
+					if err := propertyRequireSamples(target.law+"/"+variant.name, satisfied); err != nil {
+						t.Fatal(err)
+					}
 					e.solutions = make(map[int]*term)
 					sides++
 				}
@@ -296,7 +320,7 @@ func TestOpenTermProperty(t *testing.T) {
 	if floatComparisons == 0 {
 		t.Error("no Float-bearing substitutions were compared")
 	}
-	t.Logf("open-term property: laws=%d side/partial-form targets=%d substitutions=%d per target comparisons=%d Float-bearing substitutions=%d intentional rejections=%d runtime=%s", laws, sides, propertySamples, comparisons, floatComparisons, rejected, time.Since(started))
+	t.Logf("open-term property: laws=%d side/partial-form targets=%d substitutions=%d per target comparisons=%d skipped=%d Float-bearing substitutions=%d intentional rejections=%d runtime=%s", laws, sides, propertySamples, comparisons, skipped, floatComparisons, rejected, time.Since(started))
 }
 
 func TestPropertyFloatTerms(t *testing.T) {
@@ -352,6 +376,7 @@ type propertyVariant struct {
 	env          *environment
 	params       []parameter
 	vars         []*term
+	assumptions  *assumption
 }
 
 func propertyEnvironment(e *evaluator, params []parameter) (*environment, []*term) {
@@ -765,6 +790,9 @@ func propertyOffset(source string, pos ast.Pos) int {
 // retains the exact source spelling rather than reusing evaluator serialization.
 func propertyLawSource(source string, decl *ast.LawDecl, side int) string {
 	start := propertyOffset(source, decl.Pos)
+	if decl.Requires != nil {
+		start = propertyOffset(source, decl.Requires.GetEnd())
+	}
 	end := propertyOffset(source, decl.End)
 	body := source[start:end]
 	tokens, err := lexer.New(body).All()
@@ -829,4 +857,99 @@ func propertyRejection(file, law string) string {
 		"divZero":           "division by zero",
 		"divVariable":       "nonconstant divisor",
 	}[law]
+}
+
+// The caller clears the hypothesis stack before closing these terms: otherwise
+// an assumption could establish itself and admit a violating substitution.
+func propertyAssumptionsHold(e *evaluator, assumptions *assumption) (bool, error) {
+	for a := assumptions; a != nil; a = a.parent {
+		condition, err := e.normal(e.instantiate(a.condition))
+		if err != nil {
+			return false, err
+		}
+		if !alphaEqual(condition, a.value, nil) {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
+func propertyRequireSamples(name string, satisfied int) error {
+	if satisfied == 0 {
+		return fmt.Errorf("%s: no substitution satisfies the assumptions", name)
+	}
+	return nil
+}
+
+func TestPropertyRequiresSatisfyingSubstitution(t *testing.T) {
+	p := loadSource(t, "package main\nlaw impossible(a Int) requires a < a { a == a }\nproof impossible(a) { refl }\nfunc main() IO[Unit] { ioPure(unit()) }")
+	e := newEvaluator(p)
+	law, err := e.extractLaw("impossible")
+	if err != nil {
+		t.Fatal(err)
+	}
+	env, _ := propertyEnvironment(e, law.Params)
+	if err := e.assumePrecondition(law, env); err != nil {
+		t.Fatal(err)
+	}
+	assumptions := e.assumptions
+	e.assumptions = nil
+	holds, err := propertyAssumptionsHold(e, assumptions)
+	if err != nil || holds {
+		t.Fatalf("unsatisfiable fixture: holds=%v err=%v", holds, err)
+	}
+	if err := propertyRequireSamples("impossible", 0); err == nil {
+		t.Fatal("empty satisfying sample set must fail, not silently pass")
+	}
+}
+
+// Retain the five forced Int edges, then try literals actually mentioned by
+// hypotheses. Full-width randomness alone will never exercise e.g. k == 2.
+func propertyAssumptionSeeds(assumptions *assumption) map[string][]*term {
+	seen := make(map[string]*term)
+	var visit func(*term)
+	visit = func(value *term) {
+		if value.kind == "int" || value.kind == "string" {
+			seen[termKey(value)] = value
+		}
+		for _, arg := range value.args {
+			visit(arg)
+		}
+		for _, arm := range value.arms {
+			visit(arm.pattern)
+			visit(arm.guard)
+			visit(arm.body)
+		}
+	}
+	for a := assumptions; a != nil; a = a.parent {
+		visit(a.condition)
+	}
+	keys := make([]string, 0, len(seen))
+	for key := range seen {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	seeds := make(map[string][]*term)
+	for _, key := range keys {
+		value := seen[key]
+		seeds[value.kind] = append(seeds[value.kind], value)
+	}
+	return seeds
+}
+
+func propertySeedValue(value *term, seeds map[string][]*term, index int) *term {
+	if index < 0 {
+		return value
+	}
+	if values := seeds[value.kind]; index < len(values) {
+		return values[index]
+	}
+	// Generated constructor/tuple fields are independent values. Do not mutate
+	// map keys: map generation must retain its own sorting/deduplication.
+	if value.kind == "ctor" || value.kind == "tuple" {
+		for i, arg := range value.args {
+			value.args[i] = propertySeedValue(arg, seeds, index)
+		}
+	}
+	return value
 }

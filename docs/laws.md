@@ -65,12 +65,46 @@ outer parentheses; `stuck on:` uses the same spelling as `LHS:` and `RHS:`.
 What laws cover: first-order data (ADTs, records, `List`, `Option`, `Result`,
 `Map`), "every other field is arbitrary" invariants via `o{field: v}`, gate
 order, early return, idempotence, branch coverage, structural induction
-(including std `filter`/`head`/`append`), and equivalence of two `decide`s.
-What they do not: `Set`/`Array`, reasoning about string contents, order
-reasoning across comparisons (`a < b && b < c ⇒ a < c`), preconditions
-(`requires`), induction through fold-based std functions, and equality of two
-symbolic maps. Proof length grows with the number of branches; that is the
+(including std `filter`/`head`/`append`), equivalence of two `decide`s, and
+conditional equations with `requires`.
+What they do not: `Set`/`Array`, reasoning about string contents, unrestricted
+ordered arithmetic, induction through fold-based std functions, and equality of
+two symbolic maps. Proof length grows with the number of branches; that is the
 specification's complexity, not the prover's.
+
+## Preconditions and order
+
+```go4t
+package main
+law successor(a Int) requires a < 9223372036854775807 {
+  (a + 1 > a) == true
+}
+proof successor(a) { refl }
+func main() IO[Unit] { ioPure(unit()) }
+```
+
+`requires` is contextual, not a reserved word. Its Bool expression obeys the
+same purity, termination, Float and first-order restrictions as the law sides.
+The proof assumes it true, splitting top-level `&&` conjuncts. Rewriting a
+conditional law (including an induction hypothesis) requires its instantiated
+precondition to normalize to `true`. Preconditions generate no runtime checks,
+and `sample` on a law with `requires` is rejected.
+
+Total-order closure treats normalized Int/String terms as opaque atoms:
+`a < b && b < c` establishes `a < c`, even if those terms contain wrapping
+arithmetic. It does not relate `a + 1` to `a`.
+
+For Int arithmetic, literal bounds derived from those facts feed
+arbitrary-precision interval analysis. Only if both operands, their exact
+polynomial difference and intermediate monomials fit int64 does a comparison
+become `0 ⋈ (q - p)`. Constant differences decide; a linear goal may also be
+one or two assumed nonnegative polynomials plus a nonnegative constant.
+Strictness requires a strict summand or a positive constant; the symmetric
+rule refutes comparisons. This is a bounded fragment, not a general solver:
+no nonlinear decision, `/`/`%` reasoning, or String arithmetic.
+Without a wrap-free range, `a + 1 > a` stays unproved and
+`now >= at + t` need not equal `now - at >= t`. See
+[`requires_ttl.gt`](../laws/testdata/requires_ttl.gt) for an elapsed-time TTL law.
 
 ## Structural induction
 

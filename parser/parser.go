@@ -535,6 +535,12 @@ func (p *Parser) lawDecl() ast.Decl {
 	pos := p.next().Pos
 	d := &ast.LawDecl{Pos: pos, Name: p.ident()}
 	d.Params = p.params()
+	p.skipSemis()
+	if p.is(lexer.Ident, "requires") {
+		p.next()
+		d.Requires = p.expr()
+		p.skipSemis()
+	}
 	p.expectP("{")
 	p.skipSemis()
 	bodyPos := p.pos()

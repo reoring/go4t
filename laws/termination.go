@@ -74,6 +74,9 @@ func (e *evaluator) checkDependencies(law *types.LawInfo, proof *types.ProofInfo
 func (e *evaluator) checkEligibility(law *types.LawInfo, proof *types.ProofInfo, termination bool) error {
 	c := &terminationChecker{e: e}
 	root := &terminationNode{name: sourceName(e.p, law.Decl.Name)}
+	if law.Decl.Requires != nil {
+		c.expression(root, law.Decl.Requires, nil, nil, false)
+	}
 	c.expression(root, law.Decl.LHS, nil, nil, false)
 	c.expression(root, law.Decl.RHS, nil, nil, false)
 	// Conditions and rewrite arguments must be total too: a divergent or
@@ -92,6 +95,9 @@ func (e *evaluator) checkEligibility(law *types.LawInfo, proof *types.ProofInfo,
 				referenced := e.p.Laws[tactic.Law.Name]
 				c.expression(root, referenced.Decl.LHS, nil, nil, false)
 				c.expression(root, referenced.Decl.RHS, nil, nil, false)
+				if referenced.Decl.Requires != nil {
+					c.expression(root, referenced.Decl.Requires, nil, nil, false)
+				}
 			}
 		}
 	})

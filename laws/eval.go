@@ -359,9 +359,9 @@ func (e *evaluator) evalExpr(expr ast.Expr, env *environment, dicts dictionaryEn
 }
 
 func (e *evaluator) evalIfBranch(expr ast.Expr, condition *term, flag bool, env *environment, dicts dictionaryEnv) (*term, error) {
-	branch := assumption{condition: condition, value: boolean(flag), parent: e.assumptions}
-	e.assumptions = &branch
-	defer func() { e.assumptions = branch.parent }()
+	parent := e.assumptions
+	e.addAssumption(condition, flag)
+	defer func() { e.assumptions = parent }()
 	value, err := e.eval(expr, env, dicts)
 	if err != nil {
 		return nil, err

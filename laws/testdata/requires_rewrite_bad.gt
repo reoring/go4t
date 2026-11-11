@@ -1,0 +1,6 @@
+package main
+law successor(a Int) requires a < 9223372036854775807 { (a + 1 > a) == true }
+proof successor(a) { refl }
+law missingBound(a Int) { (a + 1 > a) == true }
+proof missingBound(a) { rewrite successor(a) { refl } }
+func main() IO[Unit] { ioPure(unit()) }
