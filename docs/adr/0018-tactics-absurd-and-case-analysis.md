@@ -133,3 +133,101 @@ rewrites. So `if c { refl } else { refl }` can be written `match c`.
 - The self-hosted compiler skips tactics without parsing them (ADR 0023).
 
 ## Implementation notes
+
+The tactic implementation uses the shared `TAbsurd` and `TMatch.Scrut` nodes;
+it adds no AST fields. A syntactically bare lower-case identifier uses `Var`,
+including its existing proof-variable resolution rule. Parenthesized identifiers,
+qualified names and other expressions use `Scrut`. Formatting preserves that
+distinction, the bare flag, alternatives and tactic spans.
+
+### Contradiction certificates
+
+`contradiction` visits assumptions oldest first. While normalizing each
+condition and its assumed value, the evaluator's assumption stack is exactly
+that assumption's predecessor stack. Current case-split solutions remain
+available. The incoming stack is restored on success and error. Opposite Bool
+values and disjoint constructor heads are certificates; disjoint fields inside
+tuples or a shared constructor are checked recursively. Neutral terms, unequal
+symbols and failure to prove an equation are not certificates.
+
+For order facts, `impossibleOrder` adds the proposed fact to the closure of its
+predecessors and rejects strict cycles in Int or String order. Int also rejects
+empty finite intervals. No new arithmetic normalization rule is introduced:
+wraparound expressions remain opaque unless the existing normalizer proves a
+wrap-free reduction. An inconsistent total order or an empty Int interval has
+no runtime valuation, so closing that case cannot prove a false instance.
+
+The failed-`refl` diagnostic invokes the same check and replaces counterexample
+advice only when a certificate exists. Failed `absurd` lists the actual scoped
+assumptions, oldest first, without using them to certify themselves.
+
+### Case analysis and induction
+
+The type checker permits datatypes, tuples and Bool and checks exhaustiveness
+using its existing coverage checker. Only Bool literal patterns are allowed.
+Eligibility scans expression scrutinees with the same dependency checker as
+conditions and rewrite arguments, so divergence, tainted operations and forbidden
+Float computations cannot manufacture branch equations.
+
+A normal form with a constructor, tuple or Bool head is rejected as already
+decided. A normal form that is a proof variable retains that variable's existing
+structural ancestry. Other scrutinees use `refineMatch`, the same branch-local
+equation mechanism as residual expression matches, with fresh pattern symbols
+and no ancestry back to quantified variables. Thus a field of `f(xs)` cannot
+be passed off as a structurally smaller `xs`. Solutions and assumptions are
+restored between alternatives and on failure; every alternative is proved.
+
+Bare case analysis synthesizes exhaustive constructor, tuple or Bool arms only
+inside the evaluator. Each arm selects `absurd` if contradictory and `refl`
+otherwise. Bare induction uses the existing self-rewrite elaboration for
+reachable arms, retaining its structural-descent and precondition checks.
+Deviation from the literal \"after its hypothesis rewrites\" wording: a
+certified contradictory bare-induction arm closes immediately, without trying
+to establish a recursive hypothesis's precondition in an impossible case.
+This is sound because the contradiction alone proves vacuity; the hypothesis
+is not used.
+
+### Parallel pattern integration
+
+As agreed with the integrator, this slice parses, resolves, checks and formats
+top-level tactic-arm alternatives itself. Its recursive tactic-pattern validator
+and evaluator (`ast.Alternatives`) support nested alternatives, but the general
+pattern parser, resolver, type inference, formatter and nested-pattern editor
+index remain owned by ADR 0020's patterns slice. Nested surface-pattern tests
+belong to their integration; the executable grammar here describes the syntax
+available before that merge. Tactic record refinements resolve checked field
+names against constructor metadata rather than relying on pointer identity of
+newly expanded record-pattern nodes.
+
+### Runtime-oracle evidence
+
+`tactics_forms.gt` exercises expression and projection matches, fresh fields and
+wildcards, Bool cases, bare Bool/expression/tuple matches, alternatives,
+normalized-variable splits, induction elaboration and a contradictory if arm.
+The partial-goal traversal also visits generated induction-hypothesis rewrites.
+Both sides of an arm equation are instantiated and normalized with hypotheses
+cleared before accepting a runtime substitution; a mismatched field or head
+is rejected. Every reachable partial goal must have a satisfying sample.
+
+Certified contradictory partial goals have no runtime instance and are omitted
+only after the production contradiction check, not counted as successful
+comparisons. A separate `tactics_no_samples.gt` fixture has an unreachable arm
+outside that incomplete check; the test verifies that its empty satisfying
+sample set fails the oracle. Data-precondition and rejection fixtures live in
+`testdata/tactics/`, outside the unconditional top-level fixture sweep. They
+cover satisfiable and merely unproved `absurd`, data/if/order/expression
+contradictions, and false laws for each new tactic form. Tests also reject
+fabricated structural descent, divergent and tainted scrutinees, and decided
+scrutinees. Parser, type/index, formatter round-trip/fuzz and editor diagnostic
+tests cover the corresponding surface contracts.
+
+The first full runtime-oracle run exposed a pre-existing synthetic-name collision:
+bare induction's `$induction1_0` field binder was overwritten by the generated
+self-rewrite argument with that name. Production `prove` does execute both
+operations, but the old bare arm ends in `refl`, which reads the law environment,
+not that synthetic field name; generated rewrite arguments intentionally read
+the newly installed argument bindings. The observed defect was missing free
+variables in newly covered partial-goal sampling, not an accepted false law.
+Case binders now use the disjoint `$case...` namespace, and a focused regression
+test checks the production elaborator preserves every existing case binding.
+

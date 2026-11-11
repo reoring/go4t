@@ -944,7 +944,11 @@ func propertyAssumptionsHold(e *evaluator, assumptions *assumption) (bool, error
 		if err != nil {
 			return false, err
 		}
-		if !alphaEqual(condition, a.value, nil) {
+		value, err := e.normal(e.instantiate(a.value))
+		if err != nil {
+			return false, err
+		}
+		if !alphaEqual(condition, value, nil) {
 			return false, nil
 		}
 	}

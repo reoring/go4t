@@ -16,6 +16,7 @@ func FuzzFormat(f *testing.F) {
 		"../std/list/list.gt",
 		"../std/string/string.gt",
 		"../laws/testdata/semantics.gt",
+		"../laws/testdata/tactics_forms.gt",
 	} {
 		src, err := os.ReadFile(path)
 		if err != nil {
@@ -40,6 +41,9 @@ func FuzzFormat(f *testing.F) {
 		"(A|B)|C", "A|(B|C)", "-1|-2", "-2.5|3.5", `"a"|"b"`,
 	} {
 		f.Add([]byte("package main\nfunc f(x T) Int { match x { | " + pattern + " => 1 | _ => 0 } }"))
+	}
+	for _, src := range tacticsFormatSeeds {
+		f.Add([]byte(src))
 	}
 	f.Fuzz(func(t *testing.T, src []byte) {
 		before, err := parser.Parse(string(src))

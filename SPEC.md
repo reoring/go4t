@@ -1008,13 +1008,14 @@ LawDecl   := 'law' Ident [TParams] '(' [Param {',' Param} [',']] ')' [ ? require
 ProofDecl := 'proof' Ident '(' [Ident {',' Ident} [',']] ')' TacticBlock
 TacticBlock := '{' {Separator} Tactic {Separator} '}'
 Tactic    := 'refl'
-           | 'match' Ident '{' {Separator} ['|'] {Separator} [TacticArm {ArmSep TacticArm} [ArmSep]] '}'
+           | ? absurd identifier ?
+           | 'match' Expr ['{' {Separator} ['|'] {Separator} [TacticArm {ArmSep TacticArm} [ArmSep]] '}']
            | 'if' Expr TacticBlock 'else' TacticBlock
            | 'rewrite' Name '(' [Expr {',' Expr} [',']] ')' TacticBlock
            | ? sample identifier ? '(' Int ')'
            | ? induction identifier ? Ident ['{' {Separator} ['|'] {Separator} [TacticArm {ArmSep TacticArm} [ArmSep]] '}']
-TacticArm := TacticPattern '=>' Tactic
-TacticPattern := '_' | LowerIdent
+TacticArm := TacticPattern {'|' TacticPattern} '=>' Tactic
+TacticPattern := '_' | LowerIdent | 'true' | 'false'
               | ConstructorName ['(' [TacticPattern {',' TacticPattern} [',']] ')']
               | ConstructorName TacticRecordFields
               | '(' TacticPattern ',' TacticPattern {',' TacticPattern} ')'
@@ -1022,10 +1023,10 @@ TacticPattern := '_' | LowerIdent
 TacticRecordFields := '{' ('..' [','] | Ident ':' TacticPattern {',' Ident ':' TacticPattern} [',' '..'] [',']) '}'
 ```
 
-The lexical classes `? sample identifier ?`, `? induction identifier ?` and
-`? requires identifier ?` match exactly the contextual identifiers `sample`,
-`induction` and `requires`, respectively. Unlike `refl`, these spellings are
-not reserved lexer keywords.
+The lexical classes `? sample identifier ?`, `? induction identifier ?`,
+`? absurd identifier ?` and `? requires identifier ?` match exactly the contextual
+identifiers `sample`, `induction`, `absurd` and `requires`, respectively. Unlike
+`refl`, these spellings are not reserved lexer keywords.
 
 `law name[A, B](params)` quantifies over every choice of `A` and `B`. Law type
 parameters are plain names of kind `*`: constraints are rejected with
@@ -1072,12 +1073,16 @@ as `true` under the current assumptions before using the equation.
 | Tactic | Meaning |
 | --- | --- |
 | `refl` | Normalize both sides under the current assumptions and require identical normal forms. |
-| `match x { C(y) => refl; D => refl }` | Split a proof variable into constructor cases, binding fields. Cases must be exhaustive; nested constructor, record and tuple patterns, variables and `_` are supported, but not literals, guards, as-patterns or list-pattern sugar. Use `Nil`/`Cons` for lists. |
+| `absurd` | Close a case whose assumptions are contradictory. Replay each assumption under current case-split solutions and only the assumptions made before it; a conflicting Bool value or constructor head, or inconsistent Int/String order closure, suffices. Stuck or merely unproved assumptions do not. |
+| `match e { C(y) => refl; D => refl }` | Split an expression of datatype, tuple or Bool type into exhaustive cases. A normal form that is a proof variable uses variable splitting; otherwise assume the normalized expression equals the arm's pattern, with fresh symbols for fields and wildcards. An already decided constructor, tuple or Bool is rejected. The expression has the same termination and taint checks as an `if` condition. |
+| `match c { true => refl; false => refl }` | Split a Bool into its two exhaustive cases. Other literal patterns are rejected. |
+| `match e` | Split into every case of the expression's type, closing contradictory cases with `absurd` and other cases with `refl`. |
+| `match e { A \| B => tactic; C => tactic }` | Run the shared tactic separately for every alternative. Alternatives must bind the same names with matching types. Constructor, record and tuple patterns, variables and `_` are also supported; guards, as-patterns and list-pattern sugar are not. Use `Nil`/`Cons` for lists. |
 | `if condition { refl } else { refl }` | Split on a Bool expression, assuming it true or false in the corresponding branch. |
 | `rewrite name(args) { refl }` | Instantiate a law and replace all occurrences of its left side with its right side in both goal sides, then continue with the nested tactic. A left side that instantiates to a lone free variable is rejected. |
 | `sample(N)` | Test the equation with `go4t test`; do not prove it. This tactic occupies the whole proof body. `N` is an Int literal in 1..100000. All quantified types require usable bounded generators, and the result requires `Eq`; direct Float results compare bits. Equations whose dependencies are all law-eligible are rejected with an instruction to prove them instead. |
 | `induction x { C(y) => tactic; D => tactic }` | Split a quantified datatype variable into exhaustive constructor cases. Before each arm, rewrite with the enclosing law instantiated at every field of the same datatype, leaving other arguments unchanged. Existing structural-descent and argument-order checks apply. |
-| `induction x` | Perform constructor induction with `refl` in every arm after the automatic induction-hypothesis rewrites. |
+| `induction x` | Perform constructor induction, closing contradictory cases with `absurd`, otherwise applying the automatic induction-hypothesis rewrites and `refl`. |
 
 A sampled law is tested, not proved, and cannot be used by `rewrite`. `check`
 validates sampled laws without normalization and emits one positioned
@@ -1238,10 +1243,21 @@ non-exhaustive match; missing: %s
 unknown law %s
 arity mismatch: want %d arguments, got %d
 tactic match does not support list patterns
-tactic match does not support literal or as-patterns
+tactic match supports only the literal patterns true and false
+tactic match does not support as-patterns
+or-pattern alternatives must bind the same variables
+match scrutinee is already decided: <normal form>
+absurd: the assumptions in this case are not contradictory
+assumed: <term> is <true|false|pattern>
 sample does not support requires
 rewrite %s: precondition not established: <normal form>
 ```
+
+A failed `absurd` lists each assumption in source order using the `assumed:`
+template. Contradiction detection is deliberately incomplete. When `refl` fails
+in a case certified contradictory by the same check, its diagnostic ends with
+`this case cannot happen: <term> is <value> here; close it with absurd` instead
+of counterexample advice.
 
 Precondition diagnostics use these templates; `<conjunct>` uses source-spelled
 normalized terms, as above. The longer error form applies after an earlier

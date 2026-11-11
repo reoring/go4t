@@ -272,6 +272,8 @@ func (e *evaluator) prove(law lawGoal, proof ast.Tactic, env *environment, vars 
 		return err
 	}
 	switch tactic := proof.(type) {
+	case *ast.TAbsurd:
+		return e.absurd()
 	case *ast.TRefl:
 		left, right, err := e.goal(law, env)
 		if err != nil {
@@ -285,7 +287,18 @@ func (e *evaluator) prove(law lawGoal, proof ast.Tactic, env *environment, vars 
 				message += "\n" + stuck
 			}
 			message += "\n" + differs
-			return fmt.Errorf("%s\nLHS: %s\nRHS: %s\n%s", message, d.display(left), d.display(right), e.counterexample(law))
+			condition, value, err := e.contradiction()
+			if err != nil {
+				return err
+			}
+			var advice string
+			if condition != nil {
+				d := e.displayTerms(condition, value)
+				advice = fmt.Sprintf("this case cannot happen: %s is %s here; close it with absurd", d.display(condition), d.display(value))
+			} else {
+				advice = e.counterexample(law)
+			}
+			return fmt.Errorf("%s\nLHS: %s\nRHS: %s\n%s", message, d.display(left), d.display(right), advice)
 		}
 	case *ast.TRewrite:
 		rule, err := e.rewriteRule(law, tactic, env, vars)
@@ -327,38 +340,83 @@ func (e *evaluator) prove(law lawGoal, proof ast.Tactic, env *environment, vars 
 			}
 		}
 	case *ast.TMatch:
-		v := vars[tactic.Var.Name]
-		if e.solutions[v.value.id] != nil {
-			return fmt.Errorf("proof variable %s is already split", tactic.Var.Name)
+		scrutinee, v, variable, err := e.tacticScrutinee(tactic, vars)
+		if err != nil {
+			return err
 		}
 		arms := tactic.Arms
 		if tactic.Bare {
 			arms = e.inductionArms(tactic, v.typ)
 		}
 		for _, arm := range arms {
-			branch := copyProofVars(vars)
-			value := e.splitPattern(arm.Pat, v, branch)
-			if value != v.value {
-				e.solutions[v.value.id] = value
-			}
-			body := arm.Body
-			if tactic.Induction {
-				body, err = e.induction(law, tactic, arm, value, v, env, branch)
-				if err != nil {
+			for _, pattern := range ast.Alternatives(arm.Pat) {
+				branch := copyProofVars(vars)
+				if !variable {
+					v.value = e.fresh("$match")
+				}
+				value := e.splitPattern(pattern, v, branch)
+				parent := e.assumptions
+				if variable {
+					if value != v.value {
+						e.solutions[v.value.id] = value
+					}
+				} else {
+					e.refineMatch(scrutinee, value)
+				}
+				body := arm.Body
+				if tactic.Bare {
+					condition, _, contradictionErr := e.contradiction()
+					err = contradictionErr
+					if condition != nil {
+						body = &ast.TAbsurd{Pos: tactic.Pos, End: tactic.End}
+					}
+				}
+				_, closesImpossible := body.(*ast.TAbsurd)
+				if err == nil && tactic.Induction && !(tactic.Bare && closesImpossible) {
+					caseArm := arm
+					caseArm.Pat, caseArm.Body = pattern, body
+					body, err = e.induction(law, tactic, caseArm, value, v, env, branch)
+				}
+				if err == nil {
+					err = e.prove(law, body, env, branch)
+				}
+				e.assumptions = parent
+				if variable {
 					delete(e.solutions, v.value.id)
+				}
+				if err != nil {
 					return err
 				}
-			}
-			err := e.prove(law, body, env, branch)
-			delete(e.solutions, v.value.id)
-			if err != nil {
-				return err
 			}
 		}
 	default:
 		return fmt.Errorf("unsupported proof %T", proof)
 	}
 	return nil
+}
+
+// A normalized proof variable retains its structural ancestry. An arbitrary
+// expression does not: matching f(xs) cannot manufacture a smaller xs.
+func (e *evaluator) tacticScrutinee(tactic *ast.TMatch, vars map[string]proofVar) (*term, proofVar, bool, error) {
+	var expr ast.Expr = tactic.Var
+	if tactic.Scrut != nil {
+		expr = tactic.Scrut
+	}
+	value, err := e.condition(expr, vars)
+	if err != nil {
+		return nil, proofVar{}, false, err
+	}
+	switch value.kind {
+	case "ctor", "tuple", "bool":
+		return nil, proofVar{}, false, fmt.Errorf("match scrutinee is already decided: %s", e.display(value))
+	case "var":
+		for _, v := range vars {
+			if v.value.id == value.id {
+				return value, v, true, nil
+			}
+		}
+	}
+	return value, proofVar{typ: types.AnnOf(expr).Type}, false, nil
 }
 
 func copyProofVars(vars map[string]proofVar) map[string]proofVar {
@@ -382,6 +440,8 @@ func (e *evaluator) splitPattern(pattern ast.Pattern, v proofVar, vars map[strin
 	case *ast.PVar:
 		vars[p.Name] = v
 		return v.value
+	case *ast.PLit:
+		return literalTerm(p.X)
 	case *ast.PTuple:
 		_, fields = typeHead(v.typ)
 		patterns = p.Elems
@@ -389,11 +449,15 @@ func (e *evaluator) splitPattern(pattern ast.Pattern, v proofVar, vars map[strin
 		ctor = e.ctors[p.Name]
 		patterns = p.Args
 	case *ast.PRecord:
-		record := e.p.RecordPats[p]
-		ctor = record.Ctor
+		ctor = e.ctors[p.Ctor]
 		patterns = make([]ast.Pattern, len(ctor.Fields))
-		for i, pattern := range p.Pats {
-			patterns[record.Indexes[i]] = pattern
+		for i, name := range p.Names {
+			for field, fieldName := range ctor.FieldNames {
+				if fieldName == name {
+					patterns[field] = p.Pats[i]
+					break
+				}
+			}
 		}
 	}
 	kind := "tuple"

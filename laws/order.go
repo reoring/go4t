@@ -280,21 +280,35 @@ func (g *orderGraph) bounds(t *term) integerInterval {
 	return r
 }
 
-// impossibleOrder uses the existing int64 intervals only to reject a requires
-// conjunct. It does not extend proof normalization: even endpoint decisions
-// here must never turn a formerly rejected proof into an accepted one.
+// impossibleOrder refutes a proposed comparison against preceding facts.
+// Strict cycles are impossible in both Int and String total orders; Int also
+// has finite endpoint bounds. This is a contradiction check, not a new rewrite.
 func (e *evaluator) impossibleOrder(t *term) (bool, error) {
 	f, ok := comparisonFact(t)
-	if !ok || f.domain != "Int" {
+	if !ok {
 		return false, nil
 	}
 	facts, err := e.orderFacts(f.domain)
 	if err != nil {
 		return false, err
 	}
-	g, err := e.orderClosure(f, facts)
+	g, err := e.orderClosure(f, append(facts, f))
 	if err != nil {
 		return false, err
+	}
+	for i, atom := range g.atoms {
+		if g.reach[i][i] == 2 {
+			return true, nil
+		}
+		if f.domain == "Int" {
+			bounds := g.bounds(atom)
+			if bounds.lo.Cmp(bounds.hi) > 0 {
+				return true, nil
+			}
+		}
+	}
+	if f.domain != "Int" {
+		return false, nil
 	}
 	a, b := g.bounds(f.a), g.bounds(f.b)
 	switch f.op {

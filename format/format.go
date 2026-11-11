@@ -314,6 +314,8 @@ func (p *printer) tactic(tactic ast.Tactic) {
 	switch t := tactic.(type) {
 	case *ast.TRefl:
 		p.text("refl")
+	case *ast.TAbsurd:
+		p.text("absurd")
 	case *ast.TSample:
 		p.text("sample(" + strconv.FormatInt(t.Count, 10) + ")")
 	case *ast.TMatch:
@@ -322,12 +324,23 @@ func (p *printer) tactic(tactic ast.Tactic) {
 		} else {
 			p.text("match ")
 		}
-		p.expr(t.Var, 0)
+		var scrutinee ast.Expr = t.Var
+		if t.Scrut != nil {
+			scrutinee = t.Scrut
+		}
+		// Parentheses preserve the Scrut/Var distinction for `(x)`.
+		if _, ident := t.Scrut.(*ast.Ident); ident {
+			p.text("(")
+			p.expr(scrutinee, 0)
+			p.text(")")
+		} else {
+			p.expr(scrutinee, 0)
+		}
 		if t.Bare {
 			return
 		}
 		p.text(" ")
-		p.open(p.delimiterBetween('{', t.Var.GetEnd(), t.End))
+		p.open(p.delimiterBetween('{', scrutinee.GetEnd(), t.End))
 		for i, arm := range t.Arms {
 			if i > 0 {
 				p.newline()
@@ -371,13 +384,24 @@ func (p *printer) tactic(tactic ast.Tactic) {
 }
 
 func (p *printer) tacticArm(arm ast.TacticArm) {
-	p.pattern(arm.Pat)
+	if alternatives, ok := arm.Pat.(*ast.POr); ok {
+		for i, alternative := range alternatives.Alts {
+			if i > 0 {
+				p.text(" | ")
+			}
+			p.pattern(alternative)
+		}
+	} else {
+		p.pattern(arm.Pat)
+	}
 	p.text(" => ")
 	p.tactic(arm.Body)
 }
 
 func (p *printer) multilineTacticArm(arm ast.TacticArm) bool {
-	if _, simple := arm.Body.(*ast.TRefl); !simple {
+	switch arm.Body.(type) {
+	case *ast.TRefl, *ast.TAbsurd:
+	default:
 		return true
 	}
 	q := &printer{indent: p.indent, col: p.col, comments: p.comments}

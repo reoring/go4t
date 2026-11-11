@@ -1,0 +1,29 @@
+package main
+
+func choose(c Bool) Option[Int] { if c { Some(1) } else { None } }
+func payload(o Option[Int]) Int { match o { Some(n) => n; None => 0 } }
+func len(xs List[Int]) Int { match xs { Nil => 0; Cons(_, rest) => 1 + len(rest) } }
+func app(xs List[Int], ys List[Int]) List[Int] { match xs { Nil => ys; Cons(x, rest) => Cons(x, app(rest, ys)) } }
+law falseAbsurd(x Int) { x == x + 1 }
+proof falseAbsurd(x) { absurd }
+law satisfiable(x Int) requires x > 0 { x == x + 1 }
+proof satisfiable(x) { absurd }
+law merelyUnproved(c Bool) { (if c { 1 } else { 1 }) == 1 }
+proof merelyUnproved(c) { absurd }
+law falseBool(c Bool) { c == true }
+proof falseBool(c) { match c { true => refl; false => refl } }
+law falseExpression(c Bool) { payload(choose(c)) == 0 }
+proof falseExpression(c) { match choose(c) { None => refl; Some(n) => refl } }
+law falseBare(c Bool) { c == true }
+proof falseBare(c) { match c }
+law falseBareExpression(c Bool) { payload(choose(c)) == 0 }
+proof falseBareExpression(c) { match choose(c) }
+law falseAlternatives(c Bool) { c == true }
+proof falseAlternatives(c) { match c { true | false => refl } }
+law falseInduction(xs List[Int]) { len(xs) == 0 }
+proof falseInduction(xs) { induction xs }
+law falseExpressionDescent(xs List[Int]) { len(app(xs, [])) == 0 }
+proof falseExpressionDescent(xs) { match app(xs, []) { Nil => refl; Cons(_, rest) => rewrite falseExpressionDescent(rest) { refl } } }
+law falseAssumption(c Bool) { c == true }
+proof falseAssumption(c) { match choose(c) { Some(n) => absurd; None => absurd } }
+func main() IO[Unit] { ioPure(unit()) }

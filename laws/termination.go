@@ -83,6 +83,10 @@ func (e *evaluator) checkEligibility(law *types.LawInfo, proof *types.ProofInfo,
 	// effectful assumption cannot manufacture a proof of an arbitrary goal.
 	ast.Walk(proof.Decl, func(node ast.Node) {
 		switch tactic := node.(type) {
+		case *ast.TMatch:
+			if tactic.Scrut != nil {
+				c.expression(root, tactic.Scrut, nil, nil, false)
+			}
 		case *ast.TIf:
 			c.expression(root, tactic.Cond, nil, nil, false)
 		case *ast.TRewrite:
