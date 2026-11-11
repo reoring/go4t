@@ -89,7 +89,8 @@ Three things to notice:
   `missing: (TtlNanos(_), InvalidTimestamp)`.
 - Add a **law** and moving the `Stale` guard behind another check, or
   turning `>=` into `>`, fails it for all `t`, `at`, `now`. The proof is
-  usually one word (`refl`) or a case split:
+  usually nothing at all (a law without a proof is checked by `refl`) or a
+  case split:
 
   ```text
   func plausible(t Int, at Int, now Int) Bool {
@@ -97,8 +98,9 @@ Three things to notice:
   }
   law staleOnceElapsed(t Int, at Int, now Int) requires plausible(t, at, now) {
     isStale(freshness(TtlNanos(t), AtNanos(at), now)) == (now - at >= t)
+  } proof {
+    match now - at >= t
   }
-  proof staleOnceElapsed(t, at, now) { if now - at >= t { refl } else { refl } }
   ```
 
   The `requires` clause is the honest part. `Int` wraps, so "elapsed" only

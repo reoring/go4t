@@ -20,9 +20,9 @@ bounded. For the combined language boundary tables see
 [SPEC §10](../SPEC.md#10-boundary-behaviour).
 
 Int bounds live in `std/float`: import it and call `float.minInt()` or
-`float.maxInt()`. The decimal spelling `-9223372036854775808` is not accepted
-as an Int literal: unary minus is applied only after parsing the positive
-magnitude, which is outside Int's range. Use `float.minInt()` instead.
+`float.maxInt()`. Both are ordinary definitions, so a law may use them as
+bounds (`requires a < float.maxInt()`). The literal `-9223372036854775808` is
+also accepted: the magnitude 2^63 is valid directly after a unary minus.
 
 **Law-eligible** classifies function/extern rows by the taint rules in
 [SPEC §6.5](../SPEC.md#65-laws-and-proofs): Yes means untainted, not a guarantee

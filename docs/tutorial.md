@@ -1061,6 +1061,100 @@ Sampled laws can miss counterexamples and cannot be rewrite lemmas.
 In contrast, `induction xs` supplies all constructor arms and tail hypotheses,
 then closes each arm with `refl`; `lenApp` is proved, not sampled.
 
+## 19. Shorter spellings
+
+None of these adds a concept; each removes ceremony from one that is already
+in this tutorial.
+
+```go4t
+package main
+
+// A record whose only constructor has the type's name.
+type Row = {sku: String, qty: Int} deriving Eq, Debug
+
+type State = Pending(Int) | Held | Done deriving Eq, Debug
+
+// A top-level let is a constant: a pure value referenced without ().
+let maxQty = 1_000_000
+
+let palette: List[Int] = [0xFF_00_00, 0x00_FF_00, 0b1111_1111]
+
+// Alternatives share one arm; every constructor is still named, so a new
+// State is a compile error here instead of falling into a catch-all.
+func active(s State) Bool {
+  match s {
+    Pending(_) | Held => true
+    Done => false
+  }
+}
+
+func sign(n Int) String {
+  match n {
+    0 => "zero"
+    | -1 | -2 => "slightly negative"
+    _ => "other"
+  }
+}
+
+func isPending(s State) Bool {
+  match s {
+    Pending(_) => true
+    Held | Done => false
+  }
+}
+
+func payload(s State) Int {
+  match s {
+    Pending(n) => n
+    Held | Done => 0
+  }
+}
+
+// No proof: checked by refl.
+law heldIsActive(n Int) {
+  active(Held) == active(Pending(n))
+}
+
+// A predicate body, several preconditions, and a case split written `match`.
+law roomLeft(q Int)
+  requires 0 <= q
+  requires q < maxQty
+{
+  q + 1 > q
+}
+
+// An inline proof. The Held and Done cases contradict the precondition:
+// absurd closes a case that cannot happen.
+law pendingHasPayload(s State, n Int) requires isPending(s) && payload(s) == n {
+  s == Pending(n)
+} proof {
+  match s {
+    Pending(m) => refl
+    | Held | Done => absurd
+  }
+}
+
+// A law may quantify over types.
+law appendNil[A](xs List[A]) {
+  append(xs, Nil) == xs
+} proof {
+  induction xs
+}
+
+func main() IO[Unit] {
+  let rows = [Row{sku: "a", qty: 2}, Row{sku: "b", qty: 5}]
+  // An operator section can be a call argument without its own parentheses.
+  println(show(rows |> map(_.qty) |> map(_ * 2)))
+  println(sign(-2))
+  println(show(length(palette)))
+}
+```
+
+Three things are rejected on purpose, each with a message that says what to
+write instead: a line that starts with `-` where a statement could end
+(`(-x)` or a trailing `-`), a chained comparison (`(a < b) == c`), and a law
+body such as `a && b == b && a`, where `==` binds tighter than `&&`.
+
 ## Next steps
 
 - [README examples](../README.md#examples) has a command for every example directory,

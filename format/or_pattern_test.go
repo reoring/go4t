@@ -24,3 +24,23 @@ func TestOrPatternRoundTrip(t *testing.T) {
 		t.Fatalf("format = %s, error = %v", got, err)
 	}
 }
+
+// A line cannot start with "-", so the formatter's own output must not put a
+// negative literal pattern at the start of an arm's line.
+func TestNegativeLiteralArmStaysParseable(t *testing.T) {
+	src := "package main\nfunc f(n Int) Int { match n { 0 => 1 | -1 | -0x2 => 2 | -2.5 => 3 | _ => 0 } }\n"
+	out, err := format.Source([]byte(src))
+	if err != nil {
+		t.Fatal(err)
+	}
+	again, err := format.Source(out)
+	if err != nil {
+		t.Fatalf("formatted source does not parse: %v\n%s", err, out)
+	}
+	if string(again) != string(out) {
+		t.Fatalf("not idempotent:\n%s\n---\n%s", out, again)
+	}
+	if !strings.Contains(string(out), "\n    | -1 | -0x2 => 2\n    | -2.5 => 3\n") {
+		t.Fatalf("unexpected layout:\n%s", out)
+	}
+}

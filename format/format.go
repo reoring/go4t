@@ -3,6 +3,7 @@ package format
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -765,7 +766,9 @@ func (p *printer) expr(e ast.Expr, parent int) {
 				p.newline()
 			}
 			end := p.mark(a.Pos, a.End)
-			if !p.inline && p.multilineArm(a) {
+			// A line cannot start with "-" (ADR 0019), so an arm whose pattern
+			// starts with a negative literal takes the leading separator too.
+			if !p.inline && (p.multilineArm(a) || i > 0 && negativePattern(a.Pat)) {
 				p.text("| ")
 			}
 			p.arm(a)
@@ -818,6 +821,21 @@ func (p *printer) arm(a ast.Arm) {
 	}
 	p.text(" => ")
 	p.expr(a.Body, 0)
+}
+
+func negativePattern(pat ast.Pattern) bool {
+	switch pat := pat.(type) {
+	case *ast.POr:
+		return len(pat.Alts) > 0 && negativePattern(pat.Alts[0])
+	case *ast.PLit:
+		switch lit := pat.X.(type) {
+		case *ast.IntLit:
+			return lit.Value < 0 || strings.HasPrefix(lit.Text, "-")
+		case *ast.FloatLit:
+			return math.Signbit(lit.Value)
+		}
+	}
+	return false
 }
 
 func (p *printer) multilineArm(a ast.Arm) bool {

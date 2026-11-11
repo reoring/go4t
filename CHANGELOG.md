@@ -8,6 +8,30 @@ the grammar, standard library and Go ABI may change between minor versions.
 
 ### Added
 
+- **Laws need less ceremony** ([ADR 0017](docs/adr/0017-law-declaration-surface.md)).
+  A law without a proof is checked by `refl`; `} proof { tactic }` gives one
+  inline; a law may carry several `requires` clauses, one per line; and a body
+  may be a Bool expression (`{ a + 1 > a }`).
+- **`absurd` and wider case analysis** ([ADR 0018](docs/adr/0018-tactics-absurd-and-case-analysis.md)).
+  `absurd` closes a case the assumptions rule out, which makes preconditions
+  over data usable (`requires isPending(s)`); a failed `refl` in such a case
+  says so. `match` splits on any expression and on Bool, and `match e` with no
+  arms closes every case.
+- **Laws may quantify over types** ([ADR 0021](docs/adr/0021-polymorphic-laws.md)):
+  `law appendNil[A](xs List[A]) { append(xs, Nil) == xs }`. `rewrite`
+  instantiates the type parameters at each use.
+- **Or-patterns and negative literal patterns** ([ADR 0020](docs/adr/0020-or-patterns.md)):
+  `Pending(_) | Held => true`, `-1 | -2 => …`, nested and in tactic arms.
+- **Int literal forms** ([ADR 0019](docs/adr/0019-lexical-traps-and-numeric-literals.md)):
+  `1_000_000`, `0xFF`, `0b1010`, `0o755`, and `-9223372036854775808`.
+- **Declaration conveniences** ([ADR 0022](docs/adr/0022-declaration-conveniences.md)):
+  `type Row = {qty: Int}`; top-level `let maxQty = 1_000_000`; operator
+  sections as call arguments (`map(xs, _ + 1)`); trailing commas in tuples and
+  type arguments; diagnostics that name the right spelling when a parameter,
+  `let` or record field is annotated in another construct's style.
+- `float.minInt()` and `float.maxInt()` are ordinary definitions and may be
+  used as bounds in laws.
+
 - **`requires` on laws.** `law name(params) requires cond { lhs == rhs }` states
   a precondition; the proof starts with it assumed, and `rewrite` with such a
   law must establish it ([ADR 0012](docs/adr/0012-law-preconditions-and-order-reasoning.md)).
@@ -46,6 +70,19 @@ the grammar, standard library and Go ABI may change between minor versions.
 
 ### Changed
 
+- **Breaking: a line cannot start with `-` where a statement could end.** It
+  used to continue the previous line, so `let y = x` followed by `-y` meant
+  `x - y`. It is now an error that says to end the previous line with `-` or
+  write `(-x)`. `go4t fmt` already writes the parenthesized form.
+- **Breaking: comparison operators do not chain.** `a < b == c` is an error;
+  write `(a < b) == c`. `fmt` no longer drops those parentheses in a law body.
+- The self-hosted compiler skips laws token by token instead of parsing them
+  ([ADR 0023](docs/adr/0023-selfhost-erases-laws-by-token.md)), so law syntax
+  can change without touching it.
+- CI multiplies wall-clock benchmark budgets by `GO4T_BENCH_TIME_SLACK`
+  (1.5): the budgets are recorded on a developer machine and GitHub's runners
+  are slower and vary.
+
 - `go4t build`/`run` of a program that binds many Go packages resolves their
   export data in one `go` invocation instead of one per package (248 → 1 for
   the client-go example; warm build 30 s → 9 s). `go4t run`, `test` and `eval`
@@ -63,6 +100,10 @@ the grammar, standard library and Go ABI may change between minor versions.
 
 ### Fixed
 
+- A law's `requires` was not resolved in its declaring module: a
+  module-qualified name in it was unknown, and an imported module's
+  precondition could bind to a same-named function of the importing program,
+  which accepted a false law.
 - Go 1.27: generated shims referenced unexported type aliases of the bound
   package (`[]pkg.number`) and did not compile; they now spell out the
   aliased type.
