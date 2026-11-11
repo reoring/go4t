@@ -1,0 +1,15 @@
+package main
+law transitive(a Int, b Int, c Int) requires a < b && b < c { (a < c) == true }
+proof transitive(a, b, c) { refl }
+law successor(a Int) requires a < 9223372036854775807 { (a + 1 > a) == true }
+proof successor(a) { refl }
+law deadline(t Int, at Int, now Int)
+  requires 0 <= t && t <= 1000000000000 && 0 <= at && at <= now && now <= 4000000000000000000 {
+  (now >= at + t) == (now - at >= t)
+}
+proof deadline(t, at, now) { refl }
+law rewriteBound(a Int) requires a <= 100 { (a + 1 > a) == true }
+proof rewriteBound(a) { rewrite successor(a) { refl } }
+law stringTransitive(a String, b String, c String) requires a < b && b <= c { (a < c) == true }
+proof stringTransitive(a, b, c) { refl }
+func main() IO[Unit] { ioPure(unit()) }

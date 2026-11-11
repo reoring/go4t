@@ -50,6 +50,7 @@ func Walk(n Node, visit func(Node)) {
 		}
 	case *LawDecl:
 		params(n.Params)
+		walk(n.Requires)
 		walk(n.LHS)
 		walk(n.RHS)
 	case *ProofDecl:

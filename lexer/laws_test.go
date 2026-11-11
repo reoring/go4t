@@ -41,3 +41,10 @@ func TestLawKeywordLayout(t *testing.T) {
 		})
 	}
 }
+
+func TestRequiresContextual(t *testing.T) {
+	got := tokens(t, "requires requiresMore;")
+	if got[0].Kind != lexer.Ident || got[0].Text != "requires" {
+		t.Fatalf("requires must remain an identifier: %#v", got)
+	}
+}

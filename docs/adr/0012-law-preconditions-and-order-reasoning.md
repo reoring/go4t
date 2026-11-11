@@ -118,3 +118,77 @@ closure. Comparisons that involve Float remain excluded as before.
   rewrite; `docs/laws-trust.md` lists them.
 
 ## Implementation notes
+
+Implemented in `ast/ast.go`, `ast/walk.go`, `parser/parser.go`,
+`format/format.go`, `types/laws.go`, and the `laws` evaluator. `LawDecl.Requires`
+is an optional expression; existing expression spans and `ast.Walk` supply
+diagnostic/editor coverage without new span accessors. `requires` stays an
+identifier. The formatter locates the equation body after the precondition,
+including preconditions containing blocks or conditionals.
+
+`laws/requires.go` provides
+`func (e *evaluator) preconditionHolds(law lawGoal, env *environment) (bool, error)`
+for closed-binding filtering inside the package. It temporarily clears proof
+assumptions, so a law's own precondition cannot establish itself. Per integration
+direction this is an internal helper, not an unused exported wrapper.
+The proof entry point assumes the precondition; rewrite checks instantiate it
+without assuming it. Explicit and synthesized induction rewrites share that
+check. Dependency/taint scanning includes both the current and rewritten law's
+preconditions. Sampling is rejected in type checking.
+
+`laws/order.go` implements the final decision fragment:
+
+- Only trusted prelude Int/String comparisons enter total-order closure.
+  The existing runtime equality/less-than term forms are reused; `a <= b`
+  is represented as `!(b < a)`. User dictionaries retain their original
+  semantics. Graph paths retain strictness; equality is mutual reachability,
+  and disequalities strengthen known non-strict edges.
+- Int literal bounds are tightened over mathematical integers, including
+  strict endpoints without overflowing at minInt/maxInt. Polynomial
+  coefficients and differences use `math/big`; the existing modular ring
+  normalizer is unchanged. Both operands, their difference, and intermediate
+  monomial products must fit int64 before canonicalization. Failed checks
+  leave the comparison unchanged.
+- Linear decisions match exact sums of zero, one or two assumed nonnegative
+  polynomials plus a nonnegative constant. A summand may be reused. Strict
+  conclusions require a strict summand or positive constant; reversing the
+  difference supplies refutation. Nonlinear polynomials can be range-checked
+  and canonicalized but are not inputs to the combination decision.
+
+Soundness for wrapping int64: Layer A uses only the runtime total order on
+complete values, never an arithmetic relationship between atoms. Ring normal
+forms already denote the runtime value modulo 2^64. A range-checked integer
+polynomial is that same residue's unique int64 representative; checking the
+exact difference as well makes comparison with zero equivalent to the
+original signed comparison. Exact nonnegative addition is then an ordinary
+integer implication, with strictness preserved as stated. No modular
+coefficient equality is used to justify an ordered implication.
+
+`laws/property_test.go` and `laws/property_proofs_test.go` retain preconditions
+and branch assumptions for open sides and partial goals, close those assumptions
+without an assumption stack, count rejected substitutions, and fail a target
+with no satisfying sample. The existing forced Int prefix includes minInt,
+maxInt, -1, 0 and 1 for every generated atom. After that mandatory prefix,
+literals from the assumptions are tried as extra seeds; otherwise full-width
+randomness cannot exercise branches such as `k == 2`. The `requires_*.gt`
+fixtures cover transitivity, bounded successors, wrap-free versus wrapping deadlines, rejected
+rewrites, two-summand decisions and elapsed-time TTLs. Focused tests also cover
+contextual syntax, walk/spans, formatting, type/taint restrictions, induction
+preconditions, negations, antisymmetry and editor diagnostics.
+
+The authorized compatibility-only change in `selfhost/parser.gt` consumes the
+optional precondition in its erased-law path. It adds no law AST, checking or
+emission there. Bootstrap has an examples-directory comparison loop, not a
+dedicated law fixture registry; no selfhost feature extension was added.
+`SPEC.md` §6.5/§9 and the English/Japanese law guides describe the implemented
+fragment. README and trust-document updates remain with the integrator, outside
+this slice's documentation ownership.
+
+Verification: lexer/parser/format/ast/types tests passed, followed by the full
+laws suite (`go test -v ./laws -timeout 1200s`, 253.586 s). Its open-term oracle
+ran for 252.057 s with 87,436 runtime comparisons and 6,564 rejected substitutions.
+`go test ./docs ./lsp`, `go build ./...`, vet on all touched Go packages and
+`gofmt -l` passed. The built CLI accepted the three positive `requires_*.gt`
+fixtures and rejected the wrapping and missing-precondition fixtures with the
+expected normal-form/precondition diagnostics. Selfhost bootstrap is reserved
+for the integrator and was not run in this slice.

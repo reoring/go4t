@@ -47,6 +47,9 @@ func (c *checker) checkLaws(files []*ast.File) {
 			b := c.body(nil, nil)
 			env := lawParams(law.Params, info.ParamTypes)
 			_, sampled := info.Proof.Decl.Body.(*ast.TSample)
+			if sampled && law.Requires != nil {
+				fail(info.Proof.Decl.Body.GetPos(), "sample does not support requires")
+			}
 			for i, typ := range info.ParamTypes {
 				if !sampled {
 					// Proved laws keep the existing Float boundary.
@@ -54,6 +57,9 @@ func (c *checker) checkLaws(files []*ast.File) {
 				} else {
 					b.sampleParameter(law.Params[i].Pos, typ, make(map[string]bool))
 				}
+			}
+			if law.Requires != nil {
+				unify(law.Requires.GetPos(), Bool, b.inferExpected(law.Requires, env, Bool))
 			}
 			left := b.infer(law.LHS, env)
 			right := b.inferExpected(law.RHS, env, left)

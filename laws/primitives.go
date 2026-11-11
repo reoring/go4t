@@ -278,20 +278,18 @@ func (e *evaluator) binary(x *ast.Binary, env *environment, dicts dictionaryEnv)
 		if err != nil {
 			return nil, err
 		}
-		// Orient only the trusted scalar orders before evaluating compare.
-		// Branch hypotheses then see the same residual as the mirrored source
-		// expression. Arbitrary user Ord dictionaries need not be lawful.
-		op := x.Op
-		if (op == ">" || op == ">=") && len(ds) == 1 &&
-			(ds[0].instance.TypeCon == types.Int || ds[0].instance.TypeCon == types.String) &&
-			e.trustedMapInstance(ds[0].instance) {
-			left, right = right, left
-			if op == ">" {
-				op = "<"
-			} else {
-				op = "<="
+		// Only the trusted scalar dictionaries implement the mathematical
+		// total orders used by the proof checker. Keep their comparisons
+		// explicit instead of residualizing the prelude's compare branches.
+		if len(ds) == 1 && e.trustedMapInstance(ds[0].instance) &&
+			(ds[0].instance.TypeCon == types.Int || ds[0].instance.TypeCon == types.String) {
+			domain := "Int"
+			if ds[0].instance.TypeCon == types.String {
+				domain = "String"
 			}
+			return scalarComparison(domain, x.Op, left, right), nil
 		}
+		op := x.Op
 		method := "compare"
 		if x.Op == "==" || x.Op == "!=" {
 			method = "eq"
