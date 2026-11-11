@@ -192,3 +192,27 @@ ran for 252.057 s with 87,436 runtime comparisons and 6,564 rejected substitutio
 fixtures and rejected the wrapping and missing-precondition fixtures with the
 expected normal-form/precondition diagnostics. Selfhost bootstrap is reserved
 for the integrator and was not run in this slice.
+
+### Review evidence (2026-11-11)
+
+Besides the open-term property test, the decision procedure was attacked once
+by an independent read-only review before merge:
+
+- About 250 hand-written laws aimed at the interval analysis (bounds through
+  `==`, `!=`, negation, compound atoms, products, the int64 extremes), the
+  order closure (strict/non-strict mixing, inconsistent branches, String facts
+  used for Int goals), the nonnegative combination (dropped terms, wrong
+  coefficients, strictness), assumption scope (facts leaking between `if`
+  arms, `match` arms, guards and lambdas), `rewrite` with unestablished
+  preconditions, and `!`/`||` splitting. Every false law was rejected.
+- Differential fuzzing against wrapping int64 semantics: 72,900 random laws
+  (9,741 accepted) and 96,400 lemma/rewrite pairs (5,120 main laws accepted),
+  each accepted law evaluated on an edge grid plus 30,000 random points.
+  No counterexample.
+
+This is a one-time result, not a repeatable check: the fuzz scripts are not in
+the repository. Open notes from that review: roughly a quarter of the accepted
+fuzz laws had a `requires` no grid point satisfied (mostly contradictory
+bounds), so those acceptances are unverified; and a precondition that
+normalizes to `false` makes its law provable by vacuity, which is correct but
+means an accidentally unsatisfiable `requires` is not reported.
