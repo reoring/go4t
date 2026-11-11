@@ -55,7 +55,8 @@ That is not proof that the law holds. If a parameter has no generator, it says
 `counterexample search skipped: no candidates for <type>`. Float-bearing data,
 handles, unsupported map keys and types with no bounded inhabitant are skipped.
 Only unequal closed data normal forms produce a witness; residual neutral terms
-and fuel exhaustion are discarded. Passing proofs never run the search.
+and fuel exhaustion are discarded. Passing proofs only search for a satisfying
+precondition, when they have `requires`; they do not search for counterexamples.
 
 Diagnostic terms use source variable names, adding `#n` only for a real name
 collision within the diagnostic. Polynomials print as `now - at` or
@@ -96,6 +97,35 @@ The proof assumes it true, splitting top-level `&&` conjuncts. Rewriting a
 conditional law (including an induction hypothesis) requires its instantiated
 precondition to normalize to `true`. Preconditions generate no runtime checks,
 and `sample` on a law with `requires` is rejected.
+
+A reusable range can be an ordinary Bool function, for example
+`func inRange(t Int, at Int, now Int) Bool { 0 <= t && t <= 1000 && 0 <= at && at <= now && now <= 2000 }`.
+Write `requires inRange(t, at, now)` on each law: unfolding exposes the same
+conjuncts as writing the range inline.
+
+Conjuncts are checked and assumed in order before any tactic. A provably false
+one rejects the law at its `requires` expression:
+
+```text
+law <name>: requires can never hold: <conjunct> is false given the conditions before it
+```
+
+For the first conjunct, or a whole precondition already false, the message ends
+at `is false`. Impossible `if`/`match` proof branches are not subject to this check.
+The check is incomplete: it does not detect `0 <= a && a <= 10 && a * 2 == 21`.
+The candidate prefix includes the normalized precondition's Int and String
+literals and the Int neighbors without overflowing. If no candidate satisfies
+`requires`, a failed proof ends with
+`no arguments satisfying requires were found in 128 candidates: no counterexample could be tried`.
+A proof that succeeds instead reports:
+
+```text
+warning: law <name>: no arguments satisfying requires were found in 128 candidates; the law may say nothing
+```
+
+The warning does not change the exit status: a bounded search can miss a narrow
+but satisfiable range. An unsupported parameter type means zero candidates
+were tried. Both CLI and editor diagnostics report the warning.
 
 Total-order closure treats normalized Int/String terms as opaque atoms:
 `a < b && b < c` establishes `a < c`, even if those terms contain wrapping

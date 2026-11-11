@@ -397,11 +397,12 @@ func (s *server) check(dir, closed string) error {
 		} else {
 			snap.program = program
 			snap.index = program.PositionIndex()
+			failures := laws.CheckProgram(program)
 			for _, warning := range program.Warnings {
 				path := warning.File
 				byFile[path] = append(byFile[path], Diagnostic{sourceRange(snap.sources[path], warning.Pos, warning.End), 2, "go4t", warning.Msg})
 			}
-			for _, failure := range laws.CheckProgram(program) {
+			for _, failure := range failures {
 				report(ordered[0], failure)
 			}
 		}

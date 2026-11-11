@@ -914,7 +914,8 @@ func propertyRequireSamples(name string, satisfied int) error {
 }
 
 func TestPropertyRequiresSatisfyingSubstitution(t *testing.T) {
-	p := loadSource(t, "package main\nlaw impossible(a Int) requires a < a { a == a }\nproof impossible(a) { refl }\nfunc main() IO[Unit] { ioPure(unit()) }")
+	// Deliberately outside the incomplete precondition refutation fragment.
+	p := loadSource(t, "package main\nlaw impossible(a Int) requires 0 <= a && a <= 10 && a * 2 == 21 { a == a }\nproof impossible(a) { refl }\nfunc main() IO[Unit] { ioPure(unit()) }")
 	e := newEvaluator(p)
 	law, err := e.extractLaw("impossible")
 	if err != nil {

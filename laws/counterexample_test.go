@@ -187,7 +187,7 @@ func main() IO[Unit] { ioPure(unit()) }
 	if !e.candidateType(typ, make(map[string]bool)) {
 		t.Fatal("supported composite type was skipped")
 	}
-	g := e.candidateGenerator(typ, counterexampleDepth, make(map[candidateKey]*candidateGenerator))
+	g := e.candidateGenerator(typ, counterexampleDepth, make(map[candidateKey]*candidateGenerator), nil)
 	if g == nil {
 		t.Fatal("supported composite has no generator")
 	}

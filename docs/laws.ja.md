@@ -40,7 +40,8 @@ counterexample: a = 9223372036854775807
 候補を生成できない型には `counterexample search skipped: no candidates for <type>` と表示します。
 Float や handle を含む型、未対応の Map キー型、深さの上限内で値を作れない型は探索しません。
 両辺が具体的な値まで正規化されて異なるときだけ反例を報告します。
-未簡約の項が残った候補やステップ数の上限に達した候補は捨てます。証明が通れば探索しません。
+未簡約の項が残った候補やステップ数の上限に達した候補は捨てます。
+証明が通った法則では、`requires` があるときだけ前提を満たす引数を探し、反例は探しません。
 
 変数はソースの名前で表示し、一つの診断内で異なる変数の名前が衝突するときだけ `#n` を付けます。
 多項式は `now - at` や `2 * a - b + 1` と表示します。
@@ -73,6 +74,33 @@ Bool 型の前提条件には、等式の両辺と同じ純粋性・停止性・
 帰納法の仮説を含む `rewrite` は、具体化した前提条件が現在の仮定の下で
 `true` に簡約される場合に限り使えます。実行時の検査は生成されません。
 `requires` と `sample` の併用はできません。
+
+範囲は通常の Bool 関数として再利用できます。たとえば
+`func inRange(t Int, at Int, now Int) Bool { 0 <= t && t <= 1000 && 0 <= at && at <= now && now <= 2000 }`
+を定義し、各法則に `requires inRange(t, at, now)` と書きます。
+関数を展開すると、範囲を直接書いたときと同じ仮定が得られます。
+
+証明を始める前に、各条件を順に検査して仮定に加えます。
+それまでの仮定から偽と分かる条件があれば、`requires` の位置にエラーを出します。
+
+```text
+law <name>: requires can never hold: <conjunct> is false given the conditions before it
+```
+
+最初の条件や前提全体が単独で偽になるときは、末尾が `is false` になります。
+証明内の `if`・`match` の不可能な分岐には、この検査を適用しません。
+検査は完全ではなく、`0 <= a && a <= 10 && a * 2 == 21` は検出できません。
+探索候補には、正規化した前提中の Int・String 定数と、桁あふれしない範囲で Int の前後の値も加えます。
+前提を満たす候補がなければ、証明失敗時の末尾は
+`no arguments satisfying requires were found in 128 candidates: no counterexample could be tried`
+になります。証明が通ったときは、代わりに警告を出します。
+
+```text
+warning: law <name>: no arguments satisfying requires were found in 128 candidates; the law may say nothing
+```
+
+狭い範囲では条件を満たす引数を探索で見逃すこともあるため、警告は終了ステータスを変えません。
+引数の型が探索の対象外なら、試した候補数は 0 です。CLI とエディタの両方で警告を表示します。
 
 順序推論は二段階です。
 

@@ -156,7 +156,11 @@ func run(args []string) error {
 		return err
 	}
 	if command == "check" {
+		warningsBefore := len(program.Warnings)
 		failures := laws.CheckProgram(program)
+		for _, warning := range program.Warnings[warningsBefore:] {
+			printWarning("go4t", warning)
+		}
 		for _, notice := range laws.SampleNotices(program) {
 			fmt.Fprintln(os.Stderr, notice)
 		}

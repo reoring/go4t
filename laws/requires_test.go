@@ -49,9 +49,11 @@ func TestPreconditionHolds(t *testing.T) {
 		e.fuel = StepLimit
 		env := child(nil)
 		env.values["a"] = integer(tc.value)
-		if err := e.assumePrecondition(law, env); err != nil {
+		condition, err := e.precondition(law, env)
+		if err != nil {
 			t.Fatal(err)
 		}
+		e.addAssumption(condition, true)
 		got, err := e.preconditionHolds(law, env)
 		if err != nil || got != tc.want {
 			t.Fatalf("%d: got %v, %v; want %v", tc.value, got, err, tc.want)

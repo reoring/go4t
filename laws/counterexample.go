@@ -15,26 +15,42 @@ const (
 	counterexampleDepth      = 3
 )
 
-// counterexample checks the original equation, never a rewritten goal or a
-// branch-local hypothesis. Save the whole evaluator so even an admissibility
-// check consuming fuel or freshening binders cannot affect another diagnostic.
+type candidateSearch struct {
+	message  string
+	witness  bool
+	attempts int
+}
+
 func (e *evaluator) counterexample(law lawGoal) string {
+	return e.searchCandidates(law, false).message
+}
+
+// Search the original law, never a rewritten goal or branch-local hypothesis.
+// Witness-only searches stop at the first admitted binding without evaluating
+// the equation. Restore all evaluator state, including diagnostic fuel.
+func (e *evaluator) searchCandidates(law lawGoal, witnessOnly bool) candidateSearch {
 	saved := *e
 	defer func() { *e = saved }()
+	e.fuel, e.nextID = StepLimit, 0
+	e.assumptions, e.currentGoal, e.renormalizing = nil, nil, false
+	e.solutions = make(map[int]*term)
+	seeds := e.preconditionLiterals(law)
+	result := candidateSearch{}
 	generators := make([]*candidateGenerator, len(law.Params))
 	cache := make(map[candidateKey]*candidateGenerator)
 	for i, param := range law.Params {
 		if e.candidateType(param.Type, make(map[string]bool)) {
-			generators[i] = e.candidateGenerator(param.Type, counterexampleDepth, cache)
+			generators[i] = e.candidateGenerator(param.Type, counterexampleDepth, cache, seeds)
 		}
 		if generators[i] == nil {
-			return "counterexample search skipped: no candidates for " + e.sourceName(types.TypeString(param.Type))
+			result.message = "counterexample search skipped: no candidates for " + e.sourceName(types.TypeString(param.Type))
+			return result
 		}
 	}
 	random := rand.New(rand.NewPCG(1, 0))
 	bindings := child(nil)
-	e.solutions = make(map[int]*term)
 	for candidate := range counterexampleCandidates {
+		result.attempts++
 		e.fuel, e.nextID = StepLimit, 0
 		e.assumptions, e.currentGoal, e.renormalizing = nil, nil, false
 		clear(e.solutions)
@@ -57,6 +73,10 @@ func (e *evaluator) counterexample(law lawGoal) string {
 				continue
 			}
 		}
+		result.witness = true
+		if witnessOnly {
+			return result
+		}
 		left, right, err := e.equation(law, bindings)
 		if err != nil || !closedCandidate(left) || !closedCandidate(right) || alphaEqual(left, right, nil) {
 			continue
@@ -65,9 +85,70 @@ func (e *evaluator) counterexample(law lawGoal) string {
 		for i, param := range law.Params {
 			shown[i] = param.Name + " = " + e.display(bindings.values[param.Name])
 		}
-		return fmt.Sprintf("counterexample: %s\n  LHS: %s\n  RHS: %s", strings.Join(shown, ", "), e.display(left), e.display(right))
+		result.message = fmt.Sprintf("counterexample: %s\n  LHS: %s\n  RHS: %s", strings.Join(shown, ", "), e.display(left), e.display(right))
+		return result
 	}
-	return fmt.Sprintf("no counterexample in %d candidates: the law may hold; this proof needs a case split, rewrite or induction", counterexampleCandidates)
+	if law.Requires != nil && !result.witness {
+		result.message = fmt.Sprintf("no arguments satisfying requires were found in %d candidates: no counterexample could be tried", result.attempts)
+	} else {
+		result.message = fmt.Sprintf("no counterexample in %d candidates: the law may hold; this proof needs a case split, rewrite or induction", result.attempts)
+	}
+	return result
+}
+
+// Traverse the assumption-free normal form in structural order, not map order.
+// Int neighbors are mathematical neighbors: never wrap at int64 endpoints.
+func (e *evaluator) preconditionLiterals(law lawGoal) map[string][]*term {
+	if law.Requires == nil {
+		return nil
+	}
+	env := child(nil)
+	for _, param := range law.Params {
+		env.values[param.Name] = e.fresh(param.Name)
+	}
+	condition, err := e.precondition(law, env)
+	if err != nil {
+		return nil
+	}
+	seeds := make(map[string][]*term)
+	ints, stringsSeen := make(map[int64]bool), make(map[string]bool)
+	addInt := func(n int64) {
+		if !ints[n] {
+			ints[n] = true
+			seeds["int"] = append(seeds["int"], integer(n))
+		}
+	}
+	var visit func(*term)
+	visit = func(t *term) {
+		if t == nil {
+			return
+		}
+		switch t.kind {
+		case "int", "product":
+			addInt(t.number)
+			if t.number > math.MinInt64 {
+				addInt(t.number - 1)
+			}
+			if t.number < math.MaxInt64 {
+				addInt(t.number + 1)
+			}
+		case "string":
+			if !stringsSeen[t.name] {
+				stringsSeen[t.name] = true
+				seeds["string"] = append(seeds["string"], t)
+			}
+		}
+		for _, arg := range t.args {
+			visit(arg)
+		}
+		for _, arm := range t.arms {
+			visit(arm.pattern)
+			visit(arm.guard)
+			visit(arm.body)
+		}
+	}
+	visit(condition)
+	return seeds
 }
 
 // A closed neutral is not a value. In particular, unsupported map operations,
@@ -163,7 +244,7 @@ type candidateKey struct {
 	depth int
 }
 
-func (e *evaluator) candidateGenerator(typ types.Type, depth int, cache map[candidateKey]*candidateGenerator) *candidateGenerator {
+func (e *evaluator) candidateGenerator(typ types.Type, depth int, cache map[candidateKey]*candidateGenerator, seeds map[string][]*term) *candidateGenerator {
 	key := candidateKey{typ: types.Unalias(typ), depth: depth}
 	if g, ok := cache[key]; ok {
 		return g
@@ -193,13 +274,13 @@ func (e *evaluator) candidateGenerator(typ types.Type, depth int, cache map[cand
 		switch {
 		case con.Name == "Map":
 			g.kind, g.edges = "map", counterexampleEdges
-			g.fields = e.candidateFields(args, depth-1, cache)
+			g.fields = e.candidateFields(args, depth-1, cache, seeds)
 			if g.fields == nil {
 				g = nil
 			}
 		case tuple:
 			g.kind = "tuple"
-			g.fields = e.candidateFields(args, depth-1, cache)
+			g.fields = e.candidateFields(args, depth-1, cache, seeds)
 			if g.fields == nil {
 				g = nil
 			} else {
@@ -209,7 +290,7 @@ func (e *evaluator) candidateGenerator(typ types.Type, depth int, cache map[cand
 			g.kind = "choice"
 			data := e.p.DataTypes[con.Name]
 			for _, ctor := range data.Ctors {
-				fields := e.candidateFields(sampleFields(data, args, ctor), depth-1, cache)
+				fields := e.candidateFields(sampleFields(data, args, ctor), depth-1, cache, seeds)
 				if fields != nil {
 					choice := &candidateGenerator{kind: "ctor", ctor: ctor, fields: fields, edges: candidateProduct(fields)}
 					g.choices = append(g.choices, choice)
@@ -224,16 +305,28 @@ func (e *evaluator) candidateGenerator(typ types.Type, depth int, cache map[cand
 		}
 	}
 	if g != nil && len(g.atoms) != 0 {
+		for _, seed := range seeds[g.kind] {
+			found := false
+			for _, atom := range g.atoms {
+				if alphaEqual(atom, seed, nil) {
+					found = true
+					break
+				}
+			}
+			if !found {
+				g.atoms = append(g.atoms, seed)
+			}
+		}
 		g.edges = len(g.atoms)
 	}
 	cache[key] = g
 	return g
 }
 
-func (e *evaluator) candidateFields(fields []types.Type, depth int, cache map[candidateKey]*candidateGenerator) []*candidateGenerator {
+func (e *evaluator) candidateFields(fields []types.Type, depth int, cache map[candidateKey]*candidateGenerator, seeds map[string][]*term) []*candidateGenerator {
 	result := make([]*candidateGenerator, len(fields))
 	for i, field := range fields {
-		result[i] = e.candidateGenerator(field, depth, cache)
+		result[i] = e.candidateGenerator(field, depth, cache, seeds)
 		if result[i] == nil {
 			return nil
 		}
