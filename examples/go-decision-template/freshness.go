@@ -35,7 +35,7 @@ type Evidence struct {
 func Check(e Evidence, now time.Time) (Verdict, time.Duration) {
 	switch result := decide.FreshnessFn(ttl(e.TTL), timestamp(e.ObservedAt), now.UnixNano()).(type) {
 	case decide.FreshnessFresh:
-		return Fresh, time.Duration(result.F0)
+		return Fresh, time.Duration(result.RemainingNanos)
 	case decide.FreshnessStale:
 		return Stale, 0
 	case decide.FreshnessTtlInvalid:
@@ -56,7 +56,7 @@ func ttl(d *time.Duration) decide.Ttl {
 	case *d <= 0:
 		return decide.TtlInvalidTtl{}
 	default:
-		return decide.TtlTtlNanos{F0: d.Nanoseconds()}
+		return decide.TtlTtlNanos{Nanos: d.Nanoseconds()}
 	}
 }
 
@@ -67,6 +67,6 @@ func timestamp(t *time.Time) decide.Timestamp {
 	case t.IsZero():
 		return decide.TimestampInvalidTimestamp{}
 	default:
-		return decide.TimestampAtNanos{F0: t.UnixNano()}
+		return decide.TimestampAtNanos{Nanos: t.UnixNano()}
 	}
 }

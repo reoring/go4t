@@ -1093,15 +1093,15 @@ func prelude_when_(dict_M prelude_Monad, cond_ bool, action_ any) any {
 
 //line std/prelude/prelude.gt:293
 func prelude_snd_(p_ any) any {
-	var _go4t534 any = p_
-	_ = _go4t534
+	var _go4t538 any = p_
+	_ = _go4t538
 //line std/prelude/prelude.gt:295
 	{
-		_go4t535 := _go4t534.(*Tuple2)
-		_ = _go4t535
+		_go4t539 := _go4t538.(*Tuple2)
+		_ = _go4t539
 		{
 			{
-				var b_ any = _go4t535.F1
+				var b_ any = _go4t539.F1
 				_ = b_
 //line std/prelude/prelude.gt:295
 //line std/prelude/prelude.gt:295

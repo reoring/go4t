@@ -5,25 +5,25 @@ import ext_1 "github.com/reoring/go4t/rt"
 
 type dict_float_Show_Float struct{}
 
-//line std/float/float.gt:46
+//line std/float/float.gt:52
 func (dictself dict_float_Show_Float) prelude_Show(a_ any) any {
-//line std/float/float.gt:47
+//line std/float/float.gt:53
 	return float_showFloat_(any(a_).(float64))
 }
 
 type dict_float_Debug_Float struct{}
 
-//line std/float/float.gt:52
+//line std/float/float.gt:58
 func (dictself dict_float_Debug_Float) prelude_Debug(a_ any) any {
-//line std/float/float.gt:53
+//line std/float/float.gt:59
 	return float_debugFloat_(any(a_).(float64))
 }
 
 type dict_float_Eq_Float struct{}
 
-//line std/float/float.gt:58
+//line std/float/float.gt:64
 func (dictself dict_float_Eq_Float) prelude_Eq(a_ any, b_ any) any {
-//line std/float/float.gt:59
+//line std/float/float.gt:65
 	return any(float_eqFloat_(any(a_).(float64), any(b_).(float64))).(bool)
 }
 
@@ -31,120 +31,124 @@ type dict_float_Ord_Float struct {
 	dict_float_Eq_Float
 }
 
-//line std/float/float.gt:64
+//line std/float/float.gt:70
 func (dictself dict_float_Ord_Float) Compare(a_ any, b_ any) any {
-//line std/float/float.gt:65
+//line std/float/float.gt:71
 	if any(float_ltFloat_(any(a_).(float64), any(b_).(float64))).(bool) {
-//line std/float/float.gt:66
+//line std/float/float.gt:72
 		return &prelude_Ordering_LT{}
 	} else {
-//line std/float/float.gt:67
+//line std/float/float.gt:73
 		if any(float_ltFloat_(any(b_).(float64), any(a_).(float64))).(bool) {
-//line std/float/float.gt:68
+//line std/float/float.gt:74
 			return &prelude_Ordering_GT{}
 		} else {
-//line std/float/float.gt:70
+//line std/float/float.gt:76
 			return &prelude_Ordering_EQ{}
 		}
 	}
 }
 
-//line std/float/float.gt:9
+//line std/float/float.gt:15
 func float_abs_(n_ any) any {
 	return ext_1.AbsInt(n_)
 }
 
-//line std/float/float.gt:39
+//line std/float/float.gt:45
 func float_absFloat_(f_ any) any {
 	return ext_1.AbsFloat(f_)
 }
 
-//line std/float/float.gt:25
+//line std/float/float.gt:31
 func float_ceil_(f_ any) any {
 	return ext_1.Ceil(f_)
 }
 
-//line std/float/float.gt:13
+//line std/float/float.gt:19
 func float_debugFloat_(f_ any) any {
 	return ext_1.DebugFloat(f_)
 }
 
-//line std/float/float.gt:15
+//line std/float/float.gt:21
 func float_eqFloat_(a_ any, b_ any) any {
 	return ext_1.EqFloat(a_, b_)
 }
 
-//line std/float/float.gt:23
+//line std/float/float.gt:29
 func float_floor_(f_ any) any {
 	return ext_1.Floor(f_)
 }
 
-//line std/float/float.gt:43
+//line std/float/float.gt:49
 func float_isNaN_(f_ any) any {
 	return ext_1.IsNaN(f_)
 }
 
-//line std/float/float.gt:17
+//line std/float/float.gt:23
 func float_ltFloat_(a_ any, b_ any) any {
 	return ext_1.LtFloat(a_, b_)
 }
 
+//line std/float/float.gt:11
+func float_maxInt_() int64 {
+//line std/float/float.gt:12
+	return int64(9223372036854775807)
+}
+
 //line std/float/float.gt:7
-func float_maxInt_() any {
-	return ext_1.MaxInt()
+func float_minInt_() int64 {
+//line std/float/float.gt:8
+	return ((
+//line std/float/float.gt:8
+	func(a int64) int64 { return -a })(int64(9223372036854775807)) - int64(1))
 }
 
-//line std/float/float.gt:5
-func float_minInt_() any {
-	return ext_1.MinInt()
-}
-
-//line std/float/float.gt:41
+//line std/float/float.gt:47
 func float_nan_() any {
 	return ext_1.Nan()
 }
 
-//line std/float/float.gt:35
+//line std/float/float.gt:41
 func float_parseFloat_(s_ any) any {
 	return ext_1.ParseFloat(s_)
 }
 
-//line std/float/float.gt:31
+//line std/float/float.gt:37
 func float_pow_(x_ any, y_ any) any {
 	return ext_1.Pow(x_, y_)
 }
 
-//line std/float/float.gt:33
+//line std/float/float.gt:39
 func float_powInt_(x_ any, y_ any) any {
 	return ext_1.PowInt(x_, y_)
 }
 
-//line std/float/float.gt:27
+//line std/float/float.gt:33
 func float_round_(f_ any) any {
 	return ext_1.Round(f_)
 }
 
-//line std/float/float.gt:11
+//line std/float/float.gt:17
 func float_showFloat_(f_ any) any {
 	return ext_1.ShowFloat(f_)
 }
 
-//line std/float/float.gt:37
+//line std/float/float.gt:43
 func float_showFloatFixed_(f_ any, decimals_ any) any {
 	return ext_1.ShowFloatFixed(f_, decimals_)
 }
 
-//line std/float/float.gt:29
+//line std/float/float.gt:35
 func float_sqrt_(f_ any) any {
 	return ext_1.Sqrt(f_)
 }
 
-//line std/float/float.gt:21
+//line std/float/float.gt:27
 func float_truncate_(f_ any) any {
 	return ext_1.Truncate(f_)
 }
 
-//line std/float/float.gt:19
+//line std/float/float.gt:25
 func float_toFloat_(n_ any) any {
 	return ext_1.ToFloat(n_)
 }

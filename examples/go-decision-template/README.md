@@ -47,7 +47,8 @@ go test ./...
 ## What the Go side looks like
 
 A sum type becomes a Go interface with one struct per constructor, named
-`<Type><Constructor>`; positional fields are `F0`, `F1`, …; `Int` is `int64`.
+`<Type><Constructor>`. A named payload (`TtlNanos{nanos: Int}`) becomes a named
+field (`Nanos`); an unnamed one would be `F0`, `F1`, …. `Int` is `int64`.
 An exported function keeps its name capitalized, except that a function whose
 name would collide with a type gets an `Fn` suffix — here `freshness` returns
 `Freshness`, so the function is `decide.FreshnessFn`:
@@ -55,7 +56,7 @@ name would collide with a type gets an `Fn` suffix — here `freshness` returns
 ```go
 switch result := decide.FreshnessFn(ttl, observedAt, now.UnixNano()).(type) {
 case decide.FreshnessFresh:
-    return Fresh, time.Duration(result.F0)
+    return Fresh, time.Duration(result.RemainingNanos)
 case decide.FreshnessStale:
     return Stale, 0
 // … one case per constructor
@@ -72,12 +73,17 @@ mapping rules are in [SPEC §8.7](../../SPEC.md#87-exported-go-api) and
 
 `go4t check` proves each `law` in `decide.gt` for all inputs, including the
 boundary a table test usually misses (`now == at + ttl` is stale, not fresh).
-The elapsed-time law carries a `requires` clause: under wrapping `Int`,
-"stale once the TTL has elapsed" is only true while `at + ttl` cannot overflow,
-and the law says so instead of hiding it. The range is a named `Bool`
-function, `plausible`, shared by the time laws; it is also exported, so the Go
-side can check an input against the range the laws cover
-(`decide.Plausible(ttl, at, now)`).
+
+- A law with no proof is checked by `refl`; `} proof { … }` gives one inline.
+- The elapsed-time law carries a `requires` clause: under wrapping `Int`,
+  "stale once the TTL has elapsed" is only true while `at + ttl` cannot
+  overflow, and the law says so instead of hiding it.
+- The range is a named `Bool` function, `plausible`, over two constants
+  (`let maxTtlNanos = 1_000_000_000_000`). All three are exported, so the Go
+  side can test an input against the range the laws cover
+  (`decide.Plausible(ttl, at, now)`).
+- `isStale` names every constructor (`Fresh(_) | TtlInvalid | … => false`), so
+  a new `Freshness` case is a compile error there, not a silent "not stale".
 
 For a larger shape — a controller whose observe and apply stay in Go — see
 [node-drain-controller](../node-drain-controller); for the conversion rules
