@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -31,5 +32,42 @@ func TestExportHashReusesImmutableFile(t *testing.T) {
 	loader.exports["p"] = newFile
 	if got, err := loader.ExportHash("p"); err != nil || got != sha256.Sum256([]byte("export b")) {
 		t.Fatalf("replacement export file retained old hash: %x, %v", got, err)
+	}
+}
+
+func TestLoaderPreload(t *testing.T) {
+	loader := Loader{}
+	paths := []string{"encoding/hex", "net/url", "encoding/hex"}
+	if err := loader.Preload(paths); err != nil {
+		t.Fatal(err)
+	}
+	// No package may invoke Go again after the batch has resolved its exports,
+	// including the JSON interfaces and dependencies required by Load.
+	t.Setenv("PATH", t.TempDir())
+	for _, path := range []string{"encoding/hex", "net/url", "encoding/json", "strings"} {
+		pkg, err := loader.Load(path)
+		if err != nil {
+			t.Fatalf("load preloaded %s: %v", path, err)
+		}
+		if pkg.Path != path || len(pkg.Functions) == 0 {
+			t.Fatalf("incomplete package %s: %#v", path, pkg)
+		}
+	}
+	if err := loader.Preload(paths); err != nil {
+		t.Fatalf("preloading known packages invoked Go again: %v", err)
+	}
+}
+
+func TestLoaderPreloadEmptyAndInvalid(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+	loader := Loader{}
+	if err := loader.Preload(nil); err != nil {
+		t.Fatalf("empty batch invoked Go: %v", err)
+	}
+	for _, path := range []string{"", "-e", "net/..."} {
+		err := loader.Preload([]string{path})
+		if err == nil || !strings.Contains(err.Error(), "invalid Go import path") {
+			t.Errorf("Preload(%q) = %v", path, err)
+		}
 	}
 }

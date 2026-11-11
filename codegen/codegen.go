@@ -102,6 +102,9 @@ func generateInDir(prog *types.Program, goPackage, dir string, options Options) 
 			fmt.Fprintf(&header, "%s %s\n", alias, strconv.Quote(path))
 		}
 	}
+	if err := g.externs.Preload(sortedKeys(g.imports)); err != nil {
+		return nil, err
+	}
 	for _, importPath := range options.SideEffectImports {
 		fmt.Fprintf(&header, "_ %s\n", strconv.Quote(importPath))
 	}

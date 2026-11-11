@@ -98,6 +98,34 @@ func (l *Loader) ExportHash(path string) ([sha256.Size]byte, error) {
 	return sum, nil
 }
 
+// Preload resolves export files for a set of imports in one Go invocation.
+// Subsequent Load calls still validate signatures using the ordinary importer,
+// but do not repeat dependency discovery for every independent package.
+// Call after generating all companion packages, before loading any of them.
+func (l *Loader) Preload(paths []string) error {
+	var pending []string
+	seen := make(map[string]bool, len(paths))
+	for _, path := range paths {
+		if path == "" || strings.HasPrefix(path, "-") || strings.Contains(path, "...") {
+			return fmt.Errorf("invalid Go import path %q", path)
+		}
+		if _, known := l.dependencies[path]; !known && !seen[path] {
+			pending = append(pending, path)
+			seen[path] = true
+		}
+	}
+	if len(pending) == 0 {
+		return nil
+	}
+	// JSON views need these interfaces even when no requested package imports
+	// encoding/json. Include them in the same invocation, not a separate Load.
+	if l.importer == nil && !seen["encoding/json"] {
+		pending = append(pending, "encoding/json")
+	}
+	_, err := l.list(pending...)
+	return err
+}
+
 // Load resolves a package using the active Go toolchain, module replacements,
 // build constraints and export data. Only the standard library is required.
 func (l *Loader) Load(path string) (*Package, error) {
@@ -159,14 +187,19 @@ func (l *Loader) Load(path string) (*Package, error) {
 
 // list records the whole dependency graph in the same invocation that resolves
 // export files. Loading a recorded dependency needs no further Go command.
-func (l *Loader) list(path string) (string, error) {
-	cmd := exec.Command("go", "list", "-json", "-export", "-deps", path)
+func (l *Loader) list(paths ...string) (string, error) {
+	context := "Go packages"
+	if len(paths) == 1 {
+		context = fmt.Sprintf("Go package %q", paths[0])
+	}
+	args := append([]string{"list", "-json", "-export", "-deps"}, paths...)
+	cmd := exec.Command("go", args...)
 	cmd.Dir = l.Dir
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	data, err := cmd.Output()
 	if err != nil {
-		return "", fmt.Errorf("load Go package %q: %s", path, strings.TrimSpace(stderr.String()))
+		return "", fmt.Errorf("load %s: %s", context, strings.TrimSpace(stderr.String()))
 	}
 	if l.exports == nil {
 		l.exports = make(map[string]string)
@@ -182,6 +215,7 @@ func (l *Loader) list(path string) (string, error) {
 	}
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	var target string
+	targets := 0
 	for {
 		var listed struct {
 			ImportPath string
@@ -192,19 +226,25 @@ func (l *Loader) list(path string) (string, error) {
 		if err := decoder.Decode(&listed); err == io.EOF {
 			break
 		} else if err != nil {
-			return "", fmt.Errorf("decode go list for %q: %w", path, err)
+			return "", fmt.Errorf("decode go list for %s: %w", context, err)
 		}
 		l.exports[listed.ImportPath] = listed.Export
 		l.dependencies[listed.ImportPath] = listed.Imports
 		if !listed.DepOnly {
-			if target != "" {
-				return "", fmt.Errorf("expected one Go package for %q", path)
-			}
 			target = listed.ImportPath
+			targets++
 		}
 	}
-	if target == "" {
-		return "", fmt.Errorf("no Go package for %q", path)
+	if len(paths) == 1 {
+		if targets == 0 {
+			return "", fmt.Errorf("no Go package for %q", paths[0])
+		}
+		if targets != 1 {
+			return "", fmt.Errorf("expected one Go package for %q", paths[0])
+		}
+	}
+	if targets != len(paths) {
+		return "", fmt.Errorf("expected %d Go packages for %q, got %d", len(paths), paths, targets)
 	}
 	return target, nil
 }
