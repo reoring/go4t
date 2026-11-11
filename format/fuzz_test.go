@@ -33,6 +33,14 @@ func FuzzFormat(f *testing.F) {
 	} {
 		f.Add([]byte("package p\nfunc f() T { " + expr + " }"))
 	}
+	f.Add([]byte("package main\nfunc f() Int { (func(n | n) => n)(1) }"))
+	for _, pattern := range []string{
+		"A|B", "Some(A|B)", "(A|B,C|D,)", "R{value:A|B}",
+		"[A|B,..rest]", "whole@(A|B)", "whole@A|whole@B",
+		"(A|B)|C", "A|(B|C)", "-1|-2", "-2.5|3.5", `"a"|"b"`,
+	} {
+		f.Add([]byte("package main\nfunc f(x T) Int { match x { | " + pattern + " => 1 | _ => 0 } }"))
+	}
 	f.Fuzz(func(t *testing.T, src []byte) {
 		before, err := parser.Parse(string(src))
 		if err != nil {

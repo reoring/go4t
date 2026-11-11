@@ -594,11 +594,13 @@ constructor lacking one. Unknown receiver type requires annotation:
 Arms    := {Separator} ['|'] {Separator} Arm {ArmSep Arm} [ArmSep]
 ArmSep  := (';' | '|') {';' | '|'}
 Arm     := Pattern ['if' Expr] '=>' Expr
-Pattern := '_' | Int | Float | String | 'true' | 'false'
-         | LowerIdent | LowerIdent '@' Pattern
+Pattern := PatternAlt {'|' PatternAlt}
+PatternAlt := '_' | Int | Float | String | 'true' | 'false'
+         | '-' (Int | Float)
+         | LowerIdent | LowerIdent '@' PatternAlt
          | ConstructorName ['(' [Pattern {',' Pattern} [',']] ')']
          | ConstructorName RecordPatternFields
-         | '(' Pattern ',' Pattern {',' Pattern} ')' | '(' Pattern ')'
+         | '(' Pattern ',' Pattern {',' Pattern} [','] ')' | '(' Pattern ')'
          | '[' [Pattern {',' Pattern} [',' ListRest] [',']] ']'
 ConstructorName := [Ident '.'] UpperIdent
 RecordPatternFields := '{' ('..' [','] | Ident ':' Pattern {',' Ident ':' Pattern} [',' '..'] [',']) '}'
@@ -610,10 +612,29 @@ order: the first matching pattern whose guard is true yields the value. All arms
 have one type. Variables bind once per pattern; guards see them. Record patterns
 must name all fields or use `..`; positional patterns also work for records.
 
+Or-patterns may be nested at any pattern position. An arm `p1 | p2 if g => e`
+means the consecutive arms `p1 if g => e` and `p2 if g => e`, including guard
+evaluation and first-match order. Nested alternatives expand left to right:
+`(A | B, C | D)` means `(A, C)`, `(A, D)`, `(B, C)`, `(B, D)`.
+`@` binds more tightly than `|`; write `whole @ (A | B)` to bind the whole
+value across alternatives. Every alternative must bind the same variable names
+at the same types. A missing name is diagnosed as
+`or-pattern alternatives must bind the same variables; %s is not bound in every alternative`;
+a different type is the ordinary `type mismatch` at the later binding.
+Or-patterns in `let`, lambda parameters or `do` binds are rejected with
+`or-patterns are only allowed in match arms`, even if their union covers the type.
+Exhaustiveness and all later stages use the expansion. A stuck law match assumes
+the scrutinee equal to one alternative in each expanded arm, never the whole
+or-pattern. Formatting keeps the alternatives as `p1 | p2 => e`.
+
+A minus sign followed by an Int or Float token is a negative literal pattern.
+Any other token after the minus is rejected with
+`expected a number after "-" in a pattern`.
+
 Record patterns require at least one field or a rest marker: `C{..}` is valid,
 but `C{}` and `C{, ..}` are not. A nullary positional pattern may be `C` or
-`C()`. Arm separators may repeat or trail the last arm; tuple patterns do not
-allow a trailing comma.
+`C()`. Arm separators may repeat or trail the last arm. Tuple patterns allow
+a trailing comma; `(p,)` is rejected: `a tuple needs at least two elements`.
 
 List patterns desugar in the parser: `[]` is `Nil`, `[p1, p2, p3]` is
 `Cons(p1, Cons(p2, Cons(p3, Nil)))`, and `[p1, p2, ..rest]` is

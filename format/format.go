@@ -664,7 +664,11 @@ func (p *printer) expr(e ast.Expr, parent int) {
 		p.expr(e.Scrut, 0)
 		p.text(" ")
 		p.open(e.Pos)
-		for i, a := range e.Arms {
+		arms := e.Arms
+		if e.SourceArms != nil {
+			arms = e.SourceArms
+		}
+		for i, a := range arms {
 			if i > 0 {
 				p.newline()
 			}
@@ -822,6 +826,19 @@ func (p *printer) record(pos, end ast.Pos, n int, field func(int)) {
 func (p *printer) pattern(pat ast.Pattern) {
 	defer p.mark(pat.GetPos(), pat.GetEnd())()
 	switch a := pat.(type) {
+	case *ast.POr:
+		for i, alt := range a.Alts {
+			if i > 0 {
+				p.text(" | ")
+			}
+			if _, nested := alt.(*ast.POr); nested {
+				p.text("(")
+				p.pattern(alt)
+				p.text(")")
+			} else {
+				p.pattern(alt)
+			}
+		}
 	case *ast.PVar:
 		p.text(a.Name)
 	case *ast.PWild:
@@ -851,7 +868,13 @@ func (p *printer) pattern(pat ast.Pattern) {
 		p.text(")")
 	case *ast.PAs:
 		p.text(a.Name + " @ ")
-		p.pattern(a.Pat)
+		if _, or := a.Pat.(*ast.POr); or {
+			p.text("(")
+			p.pattern(a.Pat)
+			p.text(")")
+		} else {
+			p.pattern(a.Pat)
+		}
 	case *ast.PRecord:
 		p.text(a.Ctor)
 		n := len(a.Names)

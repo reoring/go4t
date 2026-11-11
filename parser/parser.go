@@ -1019,9 +1019,49 @@ func (p *Parser) matchExpr(pos ast.Pos) (expr ast.Expr) {
 
 func (p *Parser) pattern() (pat ast.Pattern) {
 	defer func() { p.finish(pat) }()
+	first := p.patternAlt()
+	if !p.acceptP("|") {
+		return first
+	}
+	or := &ast.POr{Pos: first.GetPos(), Alts: []ast.Pattern{first}}
+	for {
+		or.Alts = append(or.Alts, p.patternAlt())
+		if !p.acceptP("|") {
+			return or
+		}
+	}
+}
+
+func (p *Parser) patternAlt() (pat ast.Pattern) {
+	defer func() { p.finish(pat) }()
 	t := p.tok()
 	switch t.Kind {
 	case lexer.Punct:
+		if t.Text == "-" {
+			p.next()
+			if p.tok().Kind != lexer.Int && p.tok().Kind != lexer.Float {
+				p.fail(p.pos(), `expected a number after "-" in a pattern`)
+			}
+			if literal := p.tok(); literal.Kind == lexer.Int {
+				// Converted with its sign, so the smallest Int is a pattern too.
+				value, err := lexer.ParseInt(literal.Text, true)
+				if err != nil {
+					p.fail(literal.Pos, "integer literal -%s is out of range for Int", literal.Text)
+				}
+				p.next()
+				text := ""
+				if literal.Text != strconv.FormatInt(value, 10)[1:] {
+					text = "-" + literal.Text
+				}
+				return &ast.PLit{Pos: t.Pos, X: &ast.IntLit{ExprBase: ast.ExprBase{Pos: t.Pos, End: p.end()}, Value: value, Text: text}}
+			}
+			lit := p.primary()
+			if n, ok := lit.(*ast.FloatLit); ok {
+				n.Value = -n.Value
+				n.Pos = t.Pos
+			}
+			return &ast.PLit{Pos: t.Pos, X: lit}
+		}
 		if t.Text == "_" {
 			p.next()
 			return &ast.PWild{Pos: t.Pos}
@@ -1036,8 +1076,14 @@ func (p *Parser) pattern() (pat ast.Pattern) {
 				p.expectP(")")
 				return first
 			}
+			if p.isP(")") {
+				p.fail(t.Pos, "a tuple needs at least two elements")
+			}
 			tuple := &ast.PTuple{Pos: t.Pos, Elems: []ast.Pattern{first, p.pattern()}}
 			for p.acceptP(",") {
+				if p.isP(")") {
+					break
+				}
 				tuple.Elems = append(tuple.Elems, p.pattern())
 			}
 			p.expectP(")")
@@ -1056,7 +1102,7 @@ func (p *Parser) pattern() (pat ast.Pattern) {
 			if !unicode.IsLower(first) && first != '_' {
 				p.fail(t.Pos, "as-pattern name must be a lower-case identifier")
 			}
-			return &ast.PAs{Pos: t.Pos, Name: t.Text, Pat: p.pattern()}
+			return &ast.PAs{Pos: t.Pos, Name: t.Text, Pat: p.patternAlt()}
 		}
 		if p.isP("(") {
 			p.next()

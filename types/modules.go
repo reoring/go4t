@@ -510,6 +510,10 @@ func (r *moduleResolver) pattern(p ast.Pattern, vs map[string]bool) {
 		return
 	}
 	switch p := p.(type) {
+	case *ast.POr:
+		for _, alt := range p.Alts {
+			r.pattern(alt, vs)
+		}
 	case *ast.PVar:
 		vs[p.Name] = true
 	case *ast.PAs:

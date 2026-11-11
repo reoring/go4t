@@ -82,3 +82,32 @@ value, including the smallest Int (ADR 0019). Anything else after `-` is
   examples it compiles do not use them (ADR 0023).
 
 ## Implementation notes
+
+The checker validates each source alternative against the scrutinee type,
+unifies same-name bindings at the later binding, and checks the shared guard
+and body once. `types.bodyChecker.expandOrArms` then replaces expression-match
+arms in the resolved checker syntax using `ast.Alternatives`, preserving order
+and sharing the checked guard/body. Copied record-pattern ancestors receive
+their resolved constructor and field-index metadata. Module qualification
+walks `POr` before expansion. Named modules are checked on a syntax copy.
+The unnamed compilation-unit API intentionally annotates the caller's AST
+(existing callers inspect those annotations), so it cannot be changed to clone.
+`ast.Match.SourceArms` retains written arms when expansion occurs; formatting
+and hover use those arms, and checking again restores them before inference.
+The unnamed-unit regression checks the same file twice, compares diagnostics,
+and formats it back to the written or-patterns. `ast.Walk` visits only semantic
+`Arms`, avoiding duplicate visits to the shared bodies.
+
+Coverage, structural-recursion and tail-call analysis, code generation, and law
+evaluation therefore consume ordinary or-free expression arms. Hover walks the
+source alternatives at the already-unified type. Deriving walks source patterns
+before inference and already traverses `POr` via `ast.Walk`.
+No independent or-pattern interpretation is added to the law normalizer:
+residual-match refinement receives exactly one expanded pattern per arm.
+There is no fixed expansion bound; independent nested choices form a Cartesian
+product, so expansion size can be exponential in source size.
+
+Alternation has lower precedence than `@`; parentheses preserve nested
+alternations and `whole @ (A | B)` when formatting. Redundancy diagnostics are
+not currently implemented; repeated alternatives retain ordinary ordered-arm
+semantics.

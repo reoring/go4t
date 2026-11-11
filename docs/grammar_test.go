@@ -612,7 +612,7 @@ func grammarProgram(root, sentence string) (string, bool) {
 		expression = "match value { " + sentence + " }"
 	case "ArmSep":
 		expression = "match value { _ => 1 " + sentence + " _ => 2 }"
-	case "Pattern", "ConstructorName", "LowerIdent":
+	case "Pattern", "PatternAlt", "ConstructorName", "LowerIdent":
 		expression = "match value { " + sentence + " => 1 }"
 	case "RecordPatternFields":
 		expression = "match value { C" + sentence + " => 1 }"
