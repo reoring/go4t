@@ -554,6 +554,10 @@ type Match struct {
 	ExprBase
 	Scrut Expr
 	Arms  []Arm
+	// SourceArms retains written or-patterns when checking expands Arms. It is
+	// nil otherwise. Formatting, hover and rechecking use these source arms;
+	// semantic passes and Walk visit only Arms, never both copies of the body.
+	SourceArms []Arm
 }
 
 // Arm is `pat => body` or `pat if guard => body`.

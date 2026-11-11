@@ -843,7 +843,7 @@ func (p *Parser) sectionExpr(holes *[]*ast.Ident) (expr ast.Expr) {
 		p.expectP("(")
 		for !p.isP(")") {
 			prm := ast.Param{Pos: p.pos()}
-			if p.tok().Kind == lexer.Ident && !isUpper(p.tok().Text) && p.toks[p.i+1].Text != "@" {
+			if p.tok().Kind == lexer.Ident && !isUpper(p.tok().Text) && p.toks[p.i+1].Text != "@" && p.toks[p.i+1].Text != "|" {
 				prm.Name = p.ident()
 				if !p.isP(",") && !p.isP(")") {
 					prm.Type = p.typ()
@@ -975,9 +975,41 @@ func (p *Parser) matchExpr(pos ast.Pos) (expr ast.Expr) {
 
 func (p *Parser) pattern() (pat ast.Pattern) {
 	defer func() { p.finish(pat) }()
+	first := p.patternAlt()
+	if !p.acceptP("|") {
+		return first
+	}
+	or := &ast.POr{Pos: first.GetPos(), Alts: []ast.Pattern{first}}
+	for {
+		or.Alts = append(or.Alts, p.patternAlt())
+		if !p.acceptP("|") {
+			return or
+		}
+	}
+}
+
+func (p *Parser) patternAlt() (pat ast.Pattern) {
+	defer func() { p.finish(pat) }()
 	t := p.tok()
 	switch t.Kind {
 	case lexer.Punct:
+		if t.Text == "-" {
+			p.next()
+			if p.tok().Kind != lexer.Int && p.tok().Kind != lexer.Float {
+				p.fail(p.pos(), `expected a number after "-" in a pattern`)
+			}
+			lit := p.primary()
+			switch n := lit.(type) {
+			case *ast.IntLit:
+				// At merge, the integrator uses lexer.ParseInt(token.Text, true) for signed Int patterns.
+				n.Value = -n.Value
+				n.Pos = t.Pos
+			case *ast.FloatLit:
+				n.Value = -n.Value
+				n.Pos = t.Pos
+			}
+			return &ast.PLit{Pos: t.Pos, X: lit}
+		}
 		if t.Text == "_" {
 			p.next()
 			return &ast.PWild{Pos: t.Pos}
@@ -992,8 +1024,14 @@ func (p *Parser) pattern() (pat ast.Pattern) {
 				p.expectP(")")
 				return first
 			}
+			if p.isP(")") {
+				p.fail(t.Pos, "a tuple needs at least two elements")
+			}
 			tuple := &ast.PTuple{Pos: t.Pos, Elems: []ast.Pattern{first, p.pattern()}}
 			for p.acceptP(",") {
+				if p.isP(")") {
+					break
+				}
 				tuple.Elems = append(tuple.Elems, p.pattern())
 			}
 			p.expectP(")")
@@ -1012,7 +1050,7 @@ func (p *Parser) pattern() (pat ast.Pattern) {
 			if !unicode.IsLower(first) && first != '_' {
 				p.fail(t.Pos, "as-pattern name must be a lower-case identifier")
 			}
-			return &ast.PAs{Pos: t.Pos, Name: t.Text, Pat: p.pattern()}
+			return &ast.PAs{Pos: t.Pos, Name: t.Text, Pat: p.patternAlt()}
 		}
 		if p.isP("(") {
 			p.next()

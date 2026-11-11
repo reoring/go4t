@@ -1,0 +1,64 @@
+package main
+
+type Color = A | B | C deriving Eq, Debug
+type Choice = Left(Int) | Right(Int) deriving Debug
+type Row = Row{color: Color, value: Int} deriving Debug
+
+func color(x Color) Int { match x { A | B => 1; C => 0 } }
+func bound(x Choice) Int { match x { Left(n) | Right(n) => n } }
+func guarded(pair (Int, Int)) Int {
+  match pair { (n, _) | (_, n) if n > 0 => n; _ => 0 }
+}
+func nested(x Option[Color]) Int { match x { Some(A | B) => 1; Some(C) | None => 0 } }
+func record(x Row) Int { match x { Row{color: A | B, value: n} => n; Row{..} => 0 } }
+func literals(x Int) Int { match x { -1 | -2 => 1; _ => 0 } }
+func texts(x String) Int { match x { "a" | "b" => 1; _ => 0 } }
+func list(xs List[Color]) Int { match xs { [A | B, ..rest] => count(rest); _ => 0 } }
+func count(xs List[Color]) Int {
+  match xs { Cons(A | B, rest) => count(rest); Cons(C, rest) => count(rest); Nil => 0 }
+}
+func preserve(x Color) Color { match x { A | B => x; C => C } }
+func collapse(x Color) Color { match x { A | B => A; C => C } }
+
+law expanded(x Color) { color(x) == (match x { A => 1; B => 1; C => 0 }) }
+law bindings(x Choice) { bound(x) == (match x { Left(n) => n; Right(n) => n }) }
+law guardExpansion(pair (Int, Int)) {
+  guarded(pair) == (match pair { (n, _) if n > 0 => n; (_, n) if n > 0 => n; _ => 0 })
+}
+law guardFallback() { guarded((-1, 7)) == 7 }
+law nestedExpansion(x Option[Color]) {
+  nested(x) == (match x { Some(A) => 1; Some(B) => 1; Some(C) => 0; None => 0 })
+}
+law recordExpansion(x Row) {
+  record(x) == (match x { Row{color: A, value: n} => n; Row{color: B, value: n} => n; Row{..} => 0 })
+}
+law literalExpansion(x Int) { literals(x) == (match x { -1 => 1; -2 => 1; _ => 0 }) }
+law textExpansion(x String) { texts(x) == (match x { "a" => 1; "b" => 1; _ => 0 }) }
+law listExpansion(xs List[Color]) {
+  list(xs) == (match xs { [A, ..rest] => count(rest); [B, ..rest] => count(rest); _ => 0 })
+}
+law tupleExpansion(x (Color, Color)) {
+  (match x { (A | B, A | B,) => 1; _ => 0 }) ==
+  (match x { (A, A) => 1; (A, B) => 1; (B, A) => 1; (B, B) => 1; _ => 0 })
+}
+// A stuck match must refine separately with x=A and x=B. Refining the entire
+// A|B arm with its first alternative would incorrectly equate these functions.
+law notWholeAlternative(x Color) { preserve(x) == collapse(x) }
+law notEveryColor(x Color) { color(x) == 1 }
+law notEveryBinding(x Choice) { bound(x) == 0 }
+
+proof expanded(x) { refl }
+proof bindings(x) { refl }
+proof guardExpansion(pair) { refl }
+proof guardFallback() { refl }
+proof nestedExpansion(x) { refl }
+proof recordExpansion(x) { refl }
+proof literalExpansion(x) { refl }
+proof textExpansion(x) { refl }
+proof listExpansion(xs) { refl }
+proof tupleExpansion(x) { refl }
+proof notWholeAlternative(x) { refl }
+proof notEveryColor(x) { refl }
+proof notEveryBinding(x) { refl }
+
+func main() IO[Unit] { ioPure(unit()) }

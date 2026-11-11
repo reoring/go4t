@@ -385,6 +385,10 @@ func (b *indexBuilder) pattern(f *ast.File, p ast.Pattern, t Type, start, end as
 		return
 	}
 	switch p := p.(type) {
+	case *ast.POr:
+		for _, alt := range p.Alts {
+			b.pattern(f, alt, t, start, end)
+		}
 	case *ast.PVar:
 		b.local(f, p.Name, p.Pos, start, end, t, false)
 	case *ast.PAs:
@@ -571,7 +575,11 @@ func (b *indexBuilder) collectLocals(f *ast.File, d ast.Decl) {
 		case *ast.Lambda:
 			b.params(f, n.Params, exprType(n), n.Pos, n.End)
 		case *ast.Match:
-			for _, a := range n.Arms {
+			arms := n.Arms
+			if n.SourceArms != nil {
+				arms = n.SourceArms
+			}
+			for _, a := range arms {
 				b.pattern(f, a.Pat, exprType(n.Scrut), a.Pos, a.End)
 			}
 		case *ast.Block:
