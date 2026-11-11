@@ -205,7 +205,14 @@ func (e *evaluator) evalExpr(expr ast.Expr, env *environment, dicts dictionaryEn
 			}
 			return &term{kind: "ctorfn", ctor: ctor, arity: len(ctor.Fields)}, nil
 		case types.RefFunc:
-			return e.function(x.Name, ds)
+			fn, err := e.function(x.Name, ds)
+			if err != nil {
+				return nil, err
+			}
+			if e.p.Funcs[x.Name].Constant != nil {
+				return e.apply(fn, nil)
+			}
+			return fn, nil
 		case types.RefMethod:
 			ft, ok := types.Unalias(ann.Type).(*types.TFunc)
 			if !ok {

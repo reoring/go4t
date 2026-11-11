@@ -99,3 +99,27 @@ is the Go-flavoured form and sections cover the common one-operator case.
 - These forms are outside the self-hosted compiler's subset (ADR 0023).
 
 ## Implementation notes
+
+Constants are registered as `FuncInfo` entries with an ordinary synthesized
+nullary `FuncDecl`; `FuncInfo.Constant` retains the surface declaration.
+The checker infers a constant identifier as that function's return type.
+Code generation calls the same function emitter and direct-call path, and law
+evaluation applies the same global unfolding machinery with no arguments.
+Termination and extern-taint checking visit that function body. There is no
+initializer cache or second evaluation model.
+
+Registration happens in the checker after module qualification, not solely in
+the resolver, so the single unnamed compilation-unit path is covered too.
+The surface `ConstDecl` is not replaced or mutated into a function; the synthetic
+body shares its value solely for ordinary checking annotations. Re-checking and
+formatting the same unnamed input preserves its syntax. Named modules retain
+the resolver's existing syntax-copy boundary.
+
+Cycle detection follows checked global references, including paths through
+functions, and reports source-spelled constant names in sorted order.
+Function-only recursion remains governed by the existing recursion checks.
+
+The existing parser also accepts compound fixed operands such as `(_ + 2 * 3)`
+and `(1 + 2 < _)`. These pre-existing forms are preserved, and their bare call
+argument forms are accepted identically; §3's "one operator, whole unary operands"
+describes the documented grammar rather than narrowing existing syntax.

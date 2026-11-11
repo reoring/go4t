@@ -175,6 +175,8 @@ func (p *printer) params(params []ast.Param) {
 func (p *printer) decl(decl ast.Decl) {
 	defer p.mark(decl.GetPos(), decl.GetEnd())()
 	switch d := decl.(type) {
+	case *ast.ConstDecl:
+		p.binding(d.Name, nil, d.Type, d.Value)
 	case *ast.FuncDecl:
 		if d.Extern != nil {
 			p.text("extern ")
@@ -227,7 +229,9 @@ func (p *printer) decl(decl ast.Decl) {
 				p.text(" | ")
 			}
 			end := p.mark(c.Pos, c.End)
-			p.text(c.Name)
+			if !d.Shorthand {
+				p.text(c.Name)
+			}
 			if len(c.FieldNames) > 0 {
 				p.record(c.Pos, c.End, len(c.Fields), func(i int) { p.text(c.FieldNames[i] + ": "); p.typ(c.Fields[i]) })
 			} else if len(c.Fields) > 0 {
@@ -596,7 +600,15 @@ func (p *printer) expr(e ast.Expr, parent int) {
 			p.token("(", e.Pos)
 			for i, a := range e.Args {
 				p.comma(i)
-				p.expr(a, 0)
+				if section, ok := a.(*ast.Lambda); ok && section.Section {
+					if _, projection := section.Body.(*ast.Field); projection {
+						p.expr(a, 0)
+					} else {
+						p.expr(section.Body, 0)
+					}
+				} else {
+					p.expr(a, 0)
+				}
 			}
 			p.token(")", closePos(e.End))
 		}

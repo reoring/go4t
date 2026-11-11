@@ -262,6 +262,17 @@ func (p *Parser) decl() (decl ast.Decl) {
 		return p.typeDecl()
 	case "alias":
 		return p.aliasDecl()
+	case "let":
+		pos := p.next().Pos
+		d := &ast.ConstDecl{Pos: pos, Name: p.ident()}
+		if p.acceptP(":") {
+			d.Type = p.typ()
+		} else if p.tok().Kind == lexer.Ident || p.isK("func") {
+			p.fail(p.pos(), `let annotations are written "let x: Int = …"`)
+		}
+		p.expectP("=")
+		d.Value = p.expr()
+		return d
 	case "func":
 		return p.funcDecl(false)
 	case "extern":
@@ -303,7 +314,7 @@ func (p *Parser) tparams() []ast.TypeParam {
 	var out []ast.TypeParam
 	for {
 		out = append(out, p.tparam())
-		if !p.acceptP(",") {
+		if !p.acceptP(",") || p.isP("]") {
 			break
 		}
 	}
@@ -317,6 +328,9 @@ func (p *Parser) params() []ast.Param {
 	for !p.isP(")") {
 		pos := p.pos()
 		name := p.ident()
+		if p.isP(":") {
+			p.fail(p.pos(), `parameters are written "x Int", without ":"`)
+		}
 		typ := p.typ()
 		out = append(out, ast.Param{Pos: pos, End: p.end(), Name: name, Type: typ})
 		if !p.acceptP(",") {
@@ -332,6 +346,7 @@ func (p *Parser) classDecl() ast.Decl {
 	c := &ast.ClassDecl{Pos: pos, Name: p.ident()}
 	p.expectP("[")
 	c.Param = p.tparam()
+	p.acceptP(",")
 	p.expectP("]")
 	if p.acceptP(":") {
 		c.Super = p.qualified()
@@ -339,6 +354,7 @@ func (p *Parser) classDecl() ast.Decl {
 		if n := p.ident(); n != c.Param.Name {
 			p.fail(pos, "superclass must be applied to %s", c.Param.Name)
 		}
+		p.acceptP(",")
 		p.expectP("]")
 	}
 	p.expectP("{")
@@ -373,7 +389,7 @@ func (p *Parser) instanceDecl() ast.Decl {
 				p.fail(paramPos, "duplicate instance type parameter %s", name)
 			}
 			d.Params = append(d.Params, name)
-			if !p.acceptP(",") {
+			if !p.acceptP(",") || tupleHead && p.isP(")") || !tupleHead && p.isP("]") {
 				break
 			}
 		}
@@ -387,6 +403,7 @@ func (p *Parser) instanceDecl() ast.Decl {
 			p.expectP("]")
 		}
 	}
+	p.acceptP(",")
 	p.expectP("]")
 	if p.isK("given") {
 		givenPos := p.next().Pos
@@ -401,6 +418,7 @@ func (p *Parser) instanceDecl() ast.Decl {
 			if !slices.Contains(d.Params, c.Param) {
 				p.fail(paramPos, "undeclared instance type parameter %s", c.Param)
 			}
+			p.acceptP(",")
 			p.expectP("]")
 			c.End = p.end()
 			d.Context = append(d.Context, c)
@@ -436,7 +454,7 @@ func (p *Parser) aliasDecl() ast.Decl {
 	if p.acceptP("[") {
 		for {
 			d.TParams = append(d.TParams, p.ident())
-			if !p.acceptP(",") {
+			if !p.acceptP(",") || p.isP("]") {
 				break
 			}
 		}
@@ -453,7 +471,7 @@ func (p *Parser) typeDecl() ast.Decl {
 	if p.acceptP("[") {
 		for {
 			d.TParams = append(d.TParams, p.ident())
-			if !p.acceptP(",") {
+			if !p.acceptP(",") || p.isP("]") {
 				break
 			}
 		}
@@ -461,10 +479,21 @@ func (p *Parser) typeDecl() ast.Decl {
 	}
 	p.expectP("=")
 	for {
-		c := ast.Ctor{Pos: p.pos(), Name: p.ident()}
+		c := ast.Ctor{Pos: p.pos(), Name: d.Name}
+		if p.isP("{") {
+			if len(d.Ctors) != 0 {
+				p.fail(p.pos(), "the record shorthand declares the only constructor of %s; name the constructors to add alternatives", d.Name)
+			}
+			d.Shorthand = true
+		} else {
+			c.Name = p.ident()
+		}
 		if p.acceptP("(") {
 			for !p.isP(")") {
 				c.Fields = append(c.Fields, p.typ())
+				if p.tok().Kind == lexer.Ident {
+					p.fail(p.pos(), "positional constructor fields have no names; write %s{n: Int} to name them", c.Name)
+				}
 				if !p.acceptP(",") {
 					break
 				}
@@ -478,6 +507,9 @@ func (p *Parser) typeDecl() ast.Decl {
 			}
 			for {
 				c.FieldNames = append(c.FieldNames, p.ident())
+				if p.tok().Kind == lexer.Ident || p.isK("func") {
+					p.fail(p.pos(), `record fields are written "n: Int"`)
+				}
 				p.expectP(":")
 				c.Fields = append(c.Fields, p.typ())
 				p.skipSemis()
@@ -493,6 +525,9 @@ func (p *Parser) typeDecl() ast.Decl {
 		}
 		c.End = p.end()
 		d.Ctors = append(d.Ctors, c)
+		if d.Shorthand && p.isP("|") {
+			p.fail(p.pos(), "the record shorthand declares the only constructor of %s; name the constructors to add alternatives", d.Name)
+		}
 		if !p.acceptP("|") {
 			break
 		}
@@ -712,8 +747,11 @@ func (p *Parser) typ() (typ ast.Type) {
 			p.expectP(")")
 			return first
 		}
+		if p.isP(")") {
+			p.fail(p.pos(), "a tuple needs at least two elements")
+		}
 		tuple := &ast.TupleType{Pos: pos, Elems: []ast.Type{first, p.typ()}}
-		for p.acceptP(",") {
+		for p.acceptP(",") && !p.isP(")") {
 			tuple.Elems = append(tuple.Elems, p.typ())
 		}
 		p.expectP(")")
@@ -723,7 +761,7 @@ func (p *Parser) typ() (typ ast.Type) {
 	if p.acceptP("[") {
 		for {
 			tn.Args = append(tn.Args, p.typ())
-			if !p.acceptP(",") {
+			if !p.acceptP(",") || p.isP("]") {
 				break
 			}
 		}
@@ -792,6 +830,9 @@ func (p *Parser) bindingPattern() (string, ast.Pattern) {
 	if t.Kind == lexer.Ident {
 		first, _ := utf8.DecodeRuneInString(t.Text)
 		next := p.toks[p.i+1]
+		if (unicode.IsLower(first) || first == '_') && (next.Kind == lexer.Ident || next.Kind == lexer.Keyword && next.Text == "func") {
+			p.fail(next.Pos, `let annotations are written "let x: Int = …"`)
+		}
 		if (unicode.IsLower(first) || first == '_') && next.Kind == lexer.Punct && (next.Text == "=" || next.Text == ":" || next.Text == "<-") {
 			return p.ident(), nil
 		}
@@ -843,8 +884,11 @@ func (p *Parser) sectionExpr(holes *[]*ast.Ident) (expr ast.Expr) {
 		p.expectP("(")
 		for !p.isP(")") {
 			prm := ast.Param{Pos: p.pos()}
-			if p.tok().Kind == lexer.Ident && !isUpper(p.tok().Text) && p.toks[p.i+1].Text != "@" {
+			if p.tok().Kind == lexer.Ident && !isUpper(p.tok().Text) && p.toks[p.i+1].Text != "@" && p.toks[p.i+1].Text != "|" {
 				prm.Name = p.ident()
+				if p.isP(":") {
+					p.fail(p.pos(), `parameters are written "x Int", without ":"`)
+				}
 				if !p.isP(",") && !p.isP(")") {
 					prm.Type = p.typ()
 				}
@@ -1239,23 +1283,21 @@ func (p *Parser) postfix() ast.Expr {
 			c := &ast.Call{ExprBase: ast.ExprBase{Pos: pos}, Fn: e}
 			var holes []*ast.Ident
 			for !p.isP(")") {
-				if p.isP("_") {
-					pos := p.pos()
-					var arg ast.Expr
-					if p.toks[p.i+1].Text == "." {
-						var projectionHoles []*ast.Ident
-						body := p.projection(p.placeholder(&projectionHoles))
-						arg = partialLambda(pos, body, projectionHoles, false)
-					} else {
-						arg = p.placeholder(&holes)
-					}
+				pos := p.pos()
+				var argHoles []*ast.Ident
+				arg := p.sectionExpr(&argHoles)
+				if len(argHoles) > 0 {
 					if !p.isP(",") && !p.isP(")") {
-						p.fail(pos, placeholderError)
+						p.fail(argHoles[0].Pos, placeholderError)
 					}
-					c.Args = append(c.Args, arg)
-				} else {
-					c.Args = append(c.Args, p.expr())
+					if arg == argHoles[0] {
+						holes = append(holes, argHoles...)
+					} else {
+						_, projection := arg.(*ast.Field)
+						arg = partialLambda(pos, arg, argHoles, !projection)
+					}
 				}
+				c.Args = append(c.Args, arg)
 				if !p.acceptP(",") {
 					break
 				}
@@ -1420,8 +1462,11 @@ func (p *Parser) primary() (expr ast.Expr) {
 				p.expectP(")")
 				return first
 			}
+			if p.isP(")") {
+				p.fail(p.pos(), "a tuple needs at least two elements")
+			}
 			tuple := &ast.TupleLit{ExprBase: base, Elems: []ast.Expr{first, p.sectionExpr(nil)}}
-			for p.acceptP(",") {
+			for p.acceptP(",") && !p.isP(")") {
 				tuple.Elems = append(tuple.Elems, p.sectionExpr(nil))
 			}
 			p.expectP(")")

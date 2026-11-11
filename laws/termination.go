@@ -298,6 +298,10 @@ func (c *terminationChecker) expression(from *terminationNode, expr ast.Expr, en
 			}
 		case types.RefFunc:
 			result.function = c.function(x.Name, c.resolve(ann.Dicts, dicts))
+			if f := c.e.p.Funcs[x.Name]; f != nil && f.Constant != nil {
+				c.edge(from, result.function, []terminationValue{})
+				return terminationValue{}
+			}
 		case types.RefMethod:
 			if ds := c.resolve(ann.Dicts, dicts); c.err == nil {
 				result.function = c.method(x.Name, ds)

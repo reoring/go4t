@@ -783,11 +783,9 @@ func TestTupleLiteralsAndParentheses(t *testing.T) {
 func TestTupleAndAsPatternErrors(t *testing.T) {
 	for _, tc := range []struct{ name, decl, want string }{
 		{"empty expression", "func f() Int { () }", `expected expression, found ")"`},
-		{"singleton expression comma", "func f() Int { (a,) }", `expected expression, found ")"`},
-		{"expression trailing comma", "func f() Int { (a, b,) }", `expected expression, found ")"`},
+		{"singleton expression comma", "func f() Int { (a,) }", "a tuple needs at least two elements"},
 		{"empty type", "func f(x ()) Int { x }", `expected identifier, found ")"`},
-		{"singleton type comma", "func f(x (A,)) Int { x }", `expected identifier, found ")"`},
-		{"type trailing comma", "func f(x (A, B,)) Int { x }", `expected identifier, found ")"`},
+		{"singleton type comma", "func f(x (A,)) Int { x }", "a tuple needs at least two elements"},
 		{"empty pattern", "func f() Int { match x { () => 0 } }", `expected pattern, found ")"`},
 		{"singleton pattern comma", "func f() Int { match x { (a,) => 0 } }", `expected pattern, found ")"`},
 		{"pattern trailing comma", "func f() Int { match x { (a, b,) => 0 } }", `expected pattern, found ")"`},
@@ -800,7 +798,6 @@ func TestTupleAndAsPatternErrors(t *testing.T) {
 		{"as in expression", "func f() Int { whole @ other }", `expected expression, found "@"`},
 		{"empty tuple head", "instance Show[()] {}", `expected identifier, found ")"`},
 		{"singleton tuple head", "instance Show[(A)] {}", "tuple instance head needs at least two elements"},
-		{"tuple head trailing comma", "instance Show[(A, B,)] {}", `expected identifier, found ")"`},
 		{"duplicate tuple head param", "instance Show[(A, A)] {}", "duplicate instance type parameter A"},
 		{"undeclared tuple context param", "instance Show[(A, B)] given Show[C] {}", "undeclared instance type parameter C"},
 	} {
