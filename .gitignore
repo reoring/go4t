@@ -4,3 +4,6 @@
 report.json
 sales.csv
 omp-session-*.html
+# written by `go4t run examples/io-effects` when run from the checkout root
+/io-effects.log
+/io-effects.report.txt

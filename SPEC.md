@@ -2,9 +2,9 @@
 
 go4t is a statically typed, strict, functional language with Go-flavoured syntax,
 higher-kinded types, type classes, immutable algebraic data, and explicit `IO`.
-It compiles to Go. This document describes the merged Pass 12 implementation;
+It compiles to Go. This document describes the current implementation;
 [the tutorial](docs/tutorial.md) teaches it and [the standard library](docs/stdlib.md)
-lists every source declaration. `DESIGN.md` records historical design contracts,
+lists every source declaration. `docs/history/DESIGN.md` records historical design contracts,
 not an alternative definition of current behaviour.
 
 *Error* means compile-time rejection; *warning* is nonfatal. Grammar below uses

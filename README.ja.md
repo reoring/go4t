@@ -315,7 +315,7 @@ func main() IO[Unit] { ioPure(unit()) }
 | [アーキテクチャの決定](docs/adr/README.md) | 各規則を採用した理由。 |
 | [標準ライブラリ](docs/stdlib.md) | ソースの宣言一覧から生成。 |
 | [エディタ設定](editors/README.md) | stdio LSP と VS Code クライアント。 |
-| [設計履歴](DESIGN.md) | 実装スライスごとの契約。食い違うときは SPEC が優先。 |
+| [設計履歴](docs/history/DESIGN.md) | 実装スライスごとの契約。食い違うときは SPEC が優先。 |
 
 ## ライセンス
 

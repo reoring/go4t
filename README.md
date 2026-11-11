@@ -311,7 +311,7 @@ exact `>=`/`>` boundaries on deadlines, "a full zone is never chosen",
 | [Architecture decisions](docs/adr/README.md) | Why each rule is the way it is. |
 | [Standard library](docs/stdlib.md) | Generated from the source inventory. |
 | [Editor setup](editors/README.md) | stdio LSP and a VS Code client. |
-| [Design history](DESIGN.md) | Slice contracts; SPEC wins where they differ. |
+| [Design history](docs/history/DESIGN.md) | Slice contracts; SPEC wins where they differ. |
 
 ## License
 

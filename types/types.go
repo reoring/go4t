@@ -1,7 +1,7 @@
 // Package types holds the semantic model of a go4t program: kinds, types,
 // schemes, classes, instances and the per-expression annotations produced by
 // Check. The definitions in this file are the contract consumed by codegen;
-// see DESIGN.md.
+// see SPEC.md §5.
 package types
 
 import (

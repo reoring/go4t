@@ -1,5 +1,5 @@
 // Package lexer tokenizes go4t source. Semicolon insertion follows the single
-// Layout rule in DESIGN.md, Pass 7.
+// Layout rule in SPEC.md §1.4.
 package lexer
 
 import (

@@ -9,13 +9,27 @@ permissions:
 
 jobs:
   go:
+    # The minimum supported Go (the `go` line in go.mod) and the current stable
+    # release: bindings are generated from the toolchain's own export data, so
+    # both ends are checked.
+    strategy:
+      fail-fast: false
+      matrix:
+        go: [minimum, stable]
+    name: go (${{ matrix.go }})
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
+        if: matrix.go == 'minimum'
         with:
           go-version-file: go.mod
+          cache: false
+      - uses: actions/setup-go@v5
+        if: matrix.go == 'stable'
+        with:
+          go-version: stable
           cache: false
       - run: go vet ./...
       - run: go test ./...
