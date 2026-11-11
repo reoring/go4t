@@ -200,19 +200,30 @@ func run(args []string) error {
 	}
 	source := "./" + filepath.ToSlash(relative)
 	if command == "build" {
-		return buildBinary(module.dir, source, file, build.outputFile)
+		return buildBinary(module.dir, source, file, build.outputFile, false)
 	}
 	return execute(module.dir, source, file, progArgs)
 }
 
-func buildBinary(root, source, file, output string) error {
-	build := exec.Command("go", "build", "-o", output, source)
-	build.Dir = root
-	build.Stdout, build.Stderr = os.Stdout, os.Stderr
+func buildBinary(root, source, file, output string, temporary bool) error {
+	build := goBuildCommand(root, source, output, temporary)
 	if err := build.Run(); err != nil {
 		return diagnostic(file, fmt.Errorf("go build: %w", err))
 	}
 	return nil
+}
+
+func goBuildCommand(root, source, output string, temporary bool) *exec.Cmd {
+	args := make([]string, 0, 5)
+	args = append(args, "build")
+	if temporary {
+		args = append(args, "-buildvcs=false")
+	}
+	args = append(args, "-o", output, source)
+	build := exec.Command("go", args...)
+	build.Dir = root
+	build.Stdout, build.Stderr = os.Stdout, os.Stderr
+	return build
 }
 
 func execute(root, source, file string, progArgs []string) error {
@@ -225,7 +236,7 @@ func execute(root, source, file string, progArgs []string) error {
 	}
 	defer os.RemoveAll(tmp)
 	bin := filepath.Join(tmp, "prog")
-	if err := buildBinary(root, source, file, bin); err != nil {
+	if err := buildBinary(root, source, file, bin, true); err != nil {
 		return err
 	}
 	process := exec.Command(bin, progArgs...)

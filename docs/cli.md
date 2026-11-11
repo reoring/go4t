@@ -29,6 +29,8 @@ Building requires Go on PATH. The compiler reuses a Go module that provides
 `go4t`, or supplies its embedded runtime in a temporary module without changing
 the user's `go.mod`. Go build diagnostics are printed on stderr and failures
 exit nonzero.
+Temporary binaries for `run`, `test` and `eval` disable Go's VCS stamping
+(`-buildvcs=false`); `build` retains Go's default stamping for shipped binaries.
 
 `go4t get <path>@<version>` runs `go get` and records the selected version in
 `go4t.mod`; it does not generate bindings. Use `import "go:<path>"` to bind Go

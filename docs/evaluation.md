@@ -99,10 +99,18 @@ over Kubernetes objects, and they are the point a `rapid` generator cannot
 reach: writing a generator for `corev1.Pod` means deciding the shape of
 `ownerReferences` by hand, whereas the law quantifies over all of them.
 
-What remains is cost, not reach: `go4t check` regenerated 240 packages of
-bindings on every run (47 s) until the per-package binding cache brought a
-hit to 1.8 s; `go4t run` cold is dominated by compiling the bound packages
-(150 s cold, 85 s warm).
+What remains is cost, not reach, but the old `run` figures (150 s cold / 85 s
+warm) predate the binding cache. On a 30-vCPU AMD Ryzen 9 7950X3D Linux VM with
+Go 1.26.1, measured under concurrent load with warm Go caches, batching export
+discovery reduced `build` from 53.93 / 30.14 s (empty / warm binding cache) to
+31.81 / 8.92 s; a trailing-comment edit fell from 36.08 to 8.72 s. Codegen now
+resolves its extern imports with one `go list` instead of 248; generated Go is
+unchanged. After the change, `check` took 28.88 s cold / 2.57 s warm and proved all 15 laws.
+Both measurement arms disabled VCS stamping to isolate concurrent repository
+commits. Temporary binaries for `run`/`test`/`eval` now do so automatically;
+shipped `build` binaries retain Go's default. See the
+[phase breakdown and commands](../examples/node-drain-typed/README.md#build-cost-remeasurement-2026-11-11);
+these are build measurements, not controller execution times.
 
 ## Ordinary programs
 

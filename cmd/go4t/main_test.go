@@ -4,12 +4,38 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/reoring/go4t/ast"
 	"github.com/reoring/go4t/types"
 )
+
+func TestGoBuildCommandVCS(t *testing.T) {
+	for _, tt := range []struct {
+		command   string
+		temporary bool
+	}{
+		{"build", false},
+		// All three commands execute through execute's temporary binary.
+		{"run", true},
+		{"test", true},
+		{"eval", true},
+	} {
+		t.Run(tt.command, func(t *testing.T) {
+			command := goBuildCommand("module", "./_gen", "prog", tt.temporary)
+			want := []string{"go", "build"}
+			if tt.temporary {
+				want = append(want, "-buildvcs=false")
+			}
+			want = append(want, "-o", "prog", "./_gen")
+			if !reflect.DeepEqual(command.Args, want) || command.Dir != "module" {
+				t.Fatalf("Go command: args=%q dir=%q; want args=%q dir=module", command.Args, command.Dir, want)
+			}
+		})
+	}
+}
 
 func TestBuildUsesPerProgramDirectories(t *testing.T) {
 	dir := t.TempDir()
