@@ -8,6 +8,8 @@ Every source top-level function (including externs) and checked instance method 
 
 The constant-folding whitelist is the ten std/prelude externs plus all 32 std/string externs accepted by laws/primitives.go and laws/strings.go; a similarly named user extern is not trusted. String externs fold only when every argument is constant, using the real go4t/rt implementations. The 13 std/map externs form a separate **modeled** category: symbolic algebra is available only for the eligible Ord comparators in ADR 0002, and other comparators stay neutral rather than tainted. Direct reasons take precedence over transitive reasons: signature IO, signature Float, unlisted extern, then the first body IO/Float/division occurrence in AST order. Concrete checked dictionaries add dependencies on selected methods; dictionary arguments conservatively add all their methods. Abstract dictionary parameters and function parameters are conditional obligations, **not** dependencies on every possible instance: callers must supply eligible implementations. Recursion alone is not taint. Transitive reasons use the shortest discovered tainted-callee path with lexical ties.
 
+The 14 owner-checked std/list structural models in ADR 0014 are classified as **structural-model**. They replace accumulator unfolding while retaining real-body taint and termination checks, including callbacks. Ordinary source definitions and untrusted same-named declarations do not gain these equations.
+
 ## Decision-core judgement
 
 ADR 0001's reach includes constructor case analysis, Bool guards, Int arithmetic and first-order list induction; eligibility does not remove its order-reasoning, accumulator-generalization, termination or higher-order-quantification restrictions. README lines 79–96 describe approval and attachment controllers as pure Decide(Observed) Action logic with constructor-based evidence, TTL and timestamp states. That style remains inside this taint boundary when observations are already parsed and effects stay in the Go shell.
@@ -269,59 +271,59 @@ Counts are disjoint, not all contributing causes. Transitive rows retain the ult
 | `chunksOf` | law-eligible | source | — |
 | `chunksOfAcc` | law-eligible | source | — |
 | `concatMap` | law-eligible | source | — |
-| `count` | law-eligible | source | — |
+| `count` | law-eligible | structural-model | — |
 | `drop` | law-eligible | source | — |
 | `dropWhile` | law-eligible | source | — |
 | `elem` | law-eligible | source | — |
 | `filter` | law-eligible | source | — |
 | `find` | law-eligible | source | — |
-| `findIndex` | law-eligible | source | — |
+| `findIndex` | law-eligible | structural-model | — |
 | `findIndexFrom` | law-eligible | source | — |
-| `flatten` | law-eligible | source | — |
+| `flatten` | law-eligible | structural-model | — |
 | `fold` | law-eligible | source | — |
 | `foldMapList` | law-eligible | source | — |
 | `foldl` | law-eligible | source | — |
 | `forEach` | law-eligible | source | — |
 | `head` | law-eligible | source | — |
-| `indexed` | law-eligible | source | — |
+| `indexed` | law-eligible | structural-model | — |
 | `indexedFrom` | law-eligible | source | — |
-| `init` | law-eligible | source | — |
+| `init` | law-eligible | structural-model | — |
 | `initAcc` | law-eligible | source | — |
-| `intercalate` | law-eligible | source | — |
+| `intercalate` | law-eligible | structural-model | — |
 | `iterate` | law-eligible | source | — |
 | `iterateAcc` | law-eligible | source | — |
 | `last` | law-eligible | source | — |
-| `length` | law-eligible | source | — |
+| `length` | law-eligible | structural-model | — |
 | `lookup` | law-eligible | source | — |
 | `mapM` | law-eligible | source | — |
 | `mapMaybe` | law-eligible | source | — |
 | `maximum` | law-eligible | source | — |
 | `minimum` | law-eligible | source | — |
 | `nub` | law-eligible | source | — |
-| `partition` | law-eligible | source | — |
-| `product` | law-eligible | source | — |
+| `partition` | law-eligible | structural-model | — |
+| `product` | law-eligible | structural-model | — |
 | `range` | law-eligible | source | — |
 | `rangeAcc` | law-eligible | source | — |
 | `replicate` | law-eligible | source | — |
 | `replicateAcc` | law-eligible | source | — |
-| `reverse` | law-eligible | source | — |
+| `reverse` | law-eligible | structural-model | — |
 | `sort` | tainted | transitive | depends on std/list.sortBy (depends on std/array.arrayFromList (unlisted extern github.com/reoring/go4t/rt.ArrayFromList)) |
 | `sortBy` | tainted | transitive | depends on std/array.arrayFromList (unlisted extern github.com/reoring/go4t/rt.ArrayFromList) |
 | `sortOn` | tainted | transitive | depends on std/list.sortBy (depends on std/array.arrayFromList (unlisted extern github.com/reoring/go4t/rt.ArrayFromList)) |
-| `span` | law-eligible | source | — |
+| `span` | law-eligible | structural-model | — |
 | `spanAcc` | law-eligible | source | — |
 | `splitAt` | law-eligible | source | — |
 | `splitAtAcc` | law-eligible | source | — |
-| `sum` | law-eligible | source | — |
+| `sum` | law-eligible | structural-model | — |
 | `tail` | law-eligible | source | — |
 | `take` | law-eligible | source | — |
 | `takeWhile` | law-eligible | source | — |
 | `toList` | law-eligible | source | — |
 | `unfold` | law-eligible | source | — |
 | `unfoldAcc` | law-eligible | source | — |
-| `unzip` | law-eligible | source | — |
+| `unzip` | law-eligible | structural-model | — |
 | `zip` | law-eligible | source | — |
-| `zipWith` | law-eligible | source | — |
+| `zipWith` | law-eligible | structural-model | — |
 | `zipWithAcc` | law-eligible | source | — |
 
 ## `std/map`

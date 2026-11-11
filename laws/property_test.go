@@ -174,11 +174,22 @@ func TestOpenTermProperty(t *testing.T) {
 					rng := rand.New(rand.NewPCG(2119, 4))
 					for sample := range propertySamples {
 						e.fuel, e.nextID = StepLimit, nextID
+						// Longer runtime-oracle substitutions are not proof goals:
+						// allow their concrete readback more fuel, without changing
+						// the production proof budget or open normalization.
+						if strings.HasPrefix(filepath.Base(fixture), "list_models") {
+							e.fuel *= 100
+						}
 						e.solutions = make(map[int]*term)
 						var sigma []string
 						hasFloat := false
 						for j, param := range variant.params {
-							v := propertyValue(t, e, rng, param.Type, propertyDepth, sample, j)
+							var v *term
+							if strings.HasPrefix(filepath.Base(fixture), "list_models") {
+								v = propertyModelValue(t, e, rng, param.Type, sample, j)
+							} else {
+								v = propertyValue(t, e, rng, param.Type, propertyDepth, sample, j)
+							}
 							hasFloat = propertyFloatSamples(v, floatSamples) || hasFloat
 							e.solutions[variant.vars[j].id] = v
 							sigma = append(sigma, param.Name+"="+propertyLiteral(t, e, v))
@@ -560,6 +571,27 @@ func propertyValue(t *testing.T, e *evaluator, rng *rand.Rand, typ types.Type, d
 		fields[i] = propertyValue(t, e, rng, field, depth-1, sample, offset+i)
 	}
 	return &term{kind: "ctor", ctor: ctor, args: fields}
+}
+
+// Give every list-model equation Nil, singleton, long and random tails after
+// open normalization. Nested elements retain the bounded ADT generator; Int
+// fields retain its forced MinInt64/MaxInt64/0/1/-1 prefix and random bits.
+func propertyModelValue(t *testing.T, e *evaluator, rng *rand.Rand, typ types.Type, sample, offset int) *term {
+	con, args := typeHead(typ)
+	if con == nil || con.Name != "List" {
+		return propertyValue(t, e, rng, typ, propertyDepth, sample, offset)
+	}
+	lengths := [...]int{0, 1, 2, 8, 32, 64}
+	size := rng.IntN(17)
+	if sample < len(lengths) {
+		size = lengths[(sample+3*offset)%len(lengths)]
+	}
+	list := e.listNil()
+	for i := range size {
+		item := propertyValue(t, e, rng, args[0], propertyDepth-1, sample, offset+i)
+		list = e.listCons(item, list)
+	}
+	return list
 }
 
 func propertyFloatSamples(value *term, samples map[uint64]bool) bool {

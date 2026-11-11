@@ -1,0 +1,16 @@
+package main
+
+import "std/list"
+import "std/prelude"
+
+func positive(x Int) Bool { x > 0 }
+law findIndexMap(xs List[Int]) { list.findIndex(map(xs, func(x) => x), positive) == list.findIndex(xs, positive) }
+proof findIndexMap(xs) { induction xs }
+law indexedMap(xs List[Int]) { list.indexed(map(xs, func(x) => x)) == list.indexed(xs) }
+proof indexedMap(xs) { induction xs }
+
+// Force traversal of the entire list, not only an early match.
+law findIndexNever(xs List[Int]) { list.findIndex(xs, func(_x) => false) == None }
+proof findIndexNever(xs) { induction xs }
+
+func main() IO[Unit] { ioPure(unit()) }

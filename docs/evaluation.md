@@ -121,9 +121,13 @@ over a symbolic record were not merged. The same-day fix added the rule in
 SPEC §6.5's normalization paragraph: nested single-constructor updates merge,
 later write wins, fields ordered by index. The law then proved by list induction.
 
-Documented limits were hit as predicted. `list.length` is an accumulator
-fold, so `count(markDone(xs, id)) == count(xs)` is stated over a structural
-`count` (SPEC). Regex is not law-eligible: a concrete parsing example,
+Documented limits were hit as predicted. At the time, `list.length`'s accumulator
+fold meant `count(markDone(xs, id)) == count(xs)` was stated over a user-defined
+structural `count` (SPEC). ADR 0014 subsequently lifted this limit with
+owner-checked structural models for selected `std/list` functions; the todo
+example now proves the same preservation law over `list.length`, without the
+structural copy. Runtime accumulator implementations are unchanged.
+Regex is not law-eligible: a concrete parsing example,
 `parseLine("…") == Some(…)`, was rejected with
 `law depends on extern go4t/rt.RegexCaptures`. Concrete examples belong in
 `go4t test` functions. A deliberately false law,

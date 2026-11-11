@@ -49,6 +49,8 @@ type evaluator struct {
 	p                 *types.Program
 	ctors             map[string]*types.Ctor
 	trustedModules    map[string]bool
+	listFunctions     map[string]string
+	listFunctor       *dictionary
 	fuel, nextID      int
 	solutions         map[int]*term
 	assumptions       *assumption
@@ -70,6 +72,7 @@ func newEvaluator(p *types.Program) *evaluator {
 			e.ctors[ctor.Name] = ctor
 		}
 	}
+	e.initListModels()
 	return e
 }
 
@@ -399,6 +402,9 @@ func (e *evaluator) apply(fn *term, args []*term) (*term, error) {
 		if !e.unfoldGlobal(fn, args) {
 			return &term{kind: "call", args: append([]*term{fn}, args...)}, nil
 		}
+		if model := e.listModel(fn.name); model != "" {
+			return e.listOperation(model, args)
+		}
 		f := e.p.Funcs[fn.name]
 		if f.Decl.Extern != nil {
 			return e.extern(f.Decl.Extern, args)
@@ -439,6 +445,9 @@ func (e *evaluator) apply(fn *term, args []*term) (*term, error) {
 // has a constructor head, independent of the surrounding evaluation context.
 // A fixed global's ordered dictionaries identify its termination environment.
 func (e *evaluator) unfoldGlobal(fn *term, args []*term) bool {
+	if model := e.listModel(fn.name); model != "" {
+		return e.unfoldList(model, args)
+	}
 	for _, decrease := range e.decreasing[fn.name] {
 		if sameDictionaries(decrease.dicts, fn.dicts) {
 			arg := args[decrease.position]
