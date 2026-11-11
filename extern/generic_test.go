@@ -1,6 +1,7 @@
 package extern
 
 import (
+	"github.com/reoring/go4t/internal/testgo"
 	"go/types"
 	"strings"
 	"testing"
@@ -16,6 +17,7 @@ func genericFunc(params []ast.Type, ret ast.Type) *ast.FuncType {
 }
 
 func TestGenericMirrors(t *testing.T) {
+	testgo.Require(t, 23, "binds maps.Keys and slices.Sorted")
 	var loader Loader
 	integer, text, boolean := genericType("Int"), genericType("String"), genericType("Bool")
 	for _, tc := range []struct {

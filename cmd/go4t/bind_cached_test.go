@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/reoring/go4t/internal/testgo"
 	"os"
 	"path/filepath"
 	"strings"
@@ -8,6 +9,7 @@ import (
 )
 
 func TestBindCachedPackages(t *testing.T) {
+	testgo.Require(t, 25, "prometheus/client_golang v1.24.1 requires go 1.25")
 	t.Setenv("GOFLAGS", "-mod=mod")
 	t.Setenv("GOPROXY", "off")
 	dir := toolsModule(t)

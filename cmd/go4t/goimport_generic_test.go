@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/reoring/go4t/internal/testgo"
 	"os"
 	"path/filepath"
 	"strings"
@@ -8,6 +9,7 @@ import (
 )
 
 func TestGenericGoImportRun(t *testing.T) {
+	testgo.Require(t, 23, "binds maps.Keys")
 	dir := toolsModule(t)
 	t.Setenv("GO4T_CACHE", t.TempDir())
 	file := toolsWrite(t, filepath.Join(dir, "main.gt"), `package main
@@ -74,6 +76,9 @@ func main() IO[Unit] { expand([1]) }`, "unbounded polymorphic instantiation"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
+			if tc.name == "iterator" {
+				testgo.Require(t, 23, "binds slices.Sorted")
+			}
 			dir := toolsModule(t)
 			file := toolsWrite(t, filepath.Join(dir, "main.gt"), "package main\nimport \"go:slices\"\nimport \"go:sync\"\n"+tc.source+"\n")
 			out, stderr, status := toolsCommand(t, dir, "", "check", file)
