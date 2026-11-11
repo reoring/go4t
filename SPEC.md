@@ -696,15 +696,20 @@ and closure captures count as uses; shadowed bindings have independent use recor
 
 A named function warns once, at its first direct self-call that is not lowered
 to a tail-call loop and has no structurally decreasing argument:
-`sumTo recurses in a non-tail position on a non-structural argument; depth is unbounded and stack exhaustion cannot be recovered. Use an accumulator so the call is a tail call`
+`sumTo calls itself in a non-tail position and no argument is a structural part of its parameter; go4t cannot bound the recursion depth, and stack exhaustion cannot be recovered. Use an accumulator so the call is a tail call`
 (with the function's source name in place of `sumTo`). A call is bounded when
-any argument is a pattern-bound strict subterm of its corresponding parameter.
+any argument is a pattern-bound strict subterm of its corresponding parameter,
+or a chain of record-field/tuple-index projections rooted at that parameter
+or a pattern-bound subterm of it.
 Unlike law termination, earlier arguments need not remain unchanged: this
 warning concerns depth bounded by data, not a lexicographic termination proof.
 Arithmetic such as `n - 1` alone is not structural descent.
 Mutual recursion, local recursive closures and higher-order calls are not
 analysed by this warning. Tail-call result positions include `if`, `match`,
 block results after lets, and directly sequenced IO `do` results.
+For non-IO `do` (including polymorphic monads), scanning stops after the first
+bind or monadic statement's expression because the remainder is a continuation
+closure.
 
 Warnings do not make a successful check fail. The checker reports its first type
 error; the editor discards its old successful index on failure (§8.5).
