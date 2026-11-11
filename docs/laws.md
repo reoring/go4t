@@ -38,7 +38,29 @@ Without parentheses, the left-hand form is rejected with
 `law body must be an equality (lhs == rhs)`; the right-hand form fails with
 `expected expression, found "if"`.
 A failed `refl` shows the two stuck normal forms and the failing proof branch,
-not generated counterexample bindings; `sample` failures provide those bindings.
+then searches for a counterexample using the original law parameter names.
+The normalizer tries 64 edge-case candidates and 64 fixed-seed random candidates,
+each bounded by its step limit; no Go toolchain is needed. For example:
+
+```text
+counterexample: a = 9223372036854775807
+  LHS: false
+  RHS: true
+```
+
+This witness refutes `(a + 1 > a) == true`: Int addition wraps. If no candidate
+refutes the law, the diagnostic says
+`no counterexample in 128 candidates: the law may hold; this proof needs a case split, rewrite or induction`.
+That is not proof that the law holds. If a parameter has no generator, it says
+`counterexample search skipped: no candidates for <type>`. Float-bearing data,
+handles, unsupported map keys and types with no bounded inhabitant are skipped.
+Only unequal closed data normal forms produce a witness; residual neutral terms
+and fuel exhaustion are discarded. Passing proofs never run the search.
+
+Diagnostic terms use source variable names, adding `#n` only for a real name
+collision within the diagnostic. Polynomials print as `now - at` or
+`2 * a - b + 1`. Comparisons keep their canonical orientation but omit redundant
+outer parentheses; `stuck on:` uses the same spelling as `LHS:` and `RHS:`.
 
 What laws cover: first-order data (ADTs, records, `List`, `Option`, `Result`,
 `Map`), "every other field is arbitrary" invariants via `o{field: v}`, gate

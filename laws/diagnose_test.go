@@ -3,7 +3,6 @@ package laws
 import (
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"testing"
 
@@ -19,7 +18,6 @@ proof independentModes(o, other) { refl }
 `
 
 func TestReflDiagnostics(t *testing.T) {
-	ids := regexp.MustCompile(`#[0-9]+`)
 	for _, tc := range []struct {
 		name, fixture, extra, law, stuck, differs string
 	}{
@@ -45,17 +43,17 @@ func TestReflDiagnostics(t *testing.T) {
 		{
 			name: "canonical weak comparison", fixture: "compare.gt", law: "stuckComparison",
 			extra: "\nlaw stuckComparison(c Int, s Int) { decide(c, s) == 0 }\nproof stuckComparison(c, s) { refl }\n",
-			stuck: "stuck on: (s <= 0)", differs: "differs at: if (s <= 0) { 1 } else { 2 } vs 0",
+			stuck: "stuck on: s <= 0", differs: "differs at: if s <= 0 { 1 } else { 2 } vs 0",
 		},
 		{
 			name: "canonical strict comparison", fixture: "compare.gt", law: "stuckComparison",
 			extra: "\nlaw stuckComparison(a Int, b Int) { (if a > b { 1 } else { 2 }) == 0 }\nproof stuckComparison(a, b) { refl }\n",
-			stuck: "stuck on: (b < a)", differs: "differs at: if (b < a) { 1 } else { 2 } vs 0",
+			stuck: "stuck on: b < a", differs: "differs at: if b < a { 1 } else { 2 } vs 0",
 		},
 		{
 			name: "canonical equality", fixture: "compare.gt", law: "stuckComparison",
 			extra: "\nlaw stuckComparison(a Int, b Int) { (if b == a { 1 } else { 2 }) == 0 }\nproof stuckComparison(a, b) { refl }\n",
-			stuck: "stuck on: (a == b)", differs: "differs at: if (a == b) { 1 } else { 2 } vs 0",
+			stuck: "stuck on: a == b", differs: "differs at: if a == b { 1 } else { 2 } vs 0",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -70,9 +68,9 @@ func TestReflDiagnostics(t *testing.T) {
 			for _, line := range lines {
 				switch {
 				case strings.HasPrefix(line, "stuck on: "):
-					stuck = append(stuck, ids.ReplaceAllString(line, ""))
+					stuck = append(stuck, line)
 				case strings.HasPrefix(line, "differs at: "):
-					differs = append(differs, ids.ReplaceAllString(line, ""))
+					differs = append(differs, line)
 				}
 			}
 			if got := strings.Join(stuck, "\n"); got != tc.stuck {
@@ -81,8 +79,8 @@ func TestReflDiagnostics(t *testing.T) {
 			if got := strings.Join(differs, "\n"); got != tc.differs {
 				t.Errorf("difference lines = %q, want %q", got, tc.differs)
 			}
-			// Diagnostic subterms must use the very same fresh IDs as the full
-			// forms, rather than independently normalizing or renaming them.
+			// Subterms must use the same spelling and collision suffixes as
+			// the full forms, without independently renaming their variables.
 			full := ""
 			for _, line := range lines {
 				if strings.HasPrefix(line, "LHS: ") || strings.HasPrefix(line, "RHS: ") {
@@ -120,16 +118,16 @@ func TestDiagnosticStuckOn(t *testing.T) {
 		left, right *term
 		want        string
 	}{
-		{"same sides", choice(x), choice(x), "stuck on: x#1"},
-		{"distinct sides", choice(x), choice(y), "stuck on: x#1\nstuck on: y#2"},
-		{"right only", integer(1), choice(y), "stuck on: y#2"},
-		{"outermost", &term{kind: "if", args: []*term{x, choice(y), integer(0)}}, integer(0), "stuck on: x#1"},
-		{"nested in data", &term{kind: "tuple", args: []*term{integer(0), choice(y)}}, integer(0), "stuck on: y#2"},
-		{"decreasing position", call("recursive", x, y), integer(0), "stuck on: y#2"},
+		{"same sides", choice(x), choice(x), "stuck on: x"},
+		{"distinct sides", choice(x), choice(y), "stuck on: x\nstuck on: y"},
+		{"right only", integer(1), choice(y), "stuck on: y"},
+		{"outermost", &term{kind: "if", args: []*term{x, choice(y), integer(0)}}, integer(0), "stuck on: x"},
+		{"nested in data", &term{kind: "tuple", args: []*term{integer(0), choice(y)}}, integer(0), "stuck on: y"},
+		{"decreasing position", call("recursive", x, y), integer(0), "stuck on: y"},
 		{"nonrecursive", call("ordinary", x, y), integer(0), ""},
 		{"constructor argument", call("recursive", x, &term{kind: "ctor"}), integer(0), ""},
 		{"tuple argument", call("recursive", x, &term{kind: "tuple", args: []*term{y}}), integer(0), ""},
-		{"neutral match", &term{kind: "match", args: []*term{x}}, integer(0), "stuck on: x#1"},
+		{"neutral match", &term{kind: "match", args: []*term{x}}, integer(0), "stuck on: x"},
 		{"known match head", &term{kind: "match", args: []*term{integer(1)}, arms: []normalArm{{guard: y, body: integer(0)}}}, integer(0), ""},
 		{"decided if", choice(boolean(true)), integer(0), ""},
 	} {
@@ -149,7 +147,7 @@ func TestDiagnosticStuckOn(t *testing.T) {
 	}
 	e.fuel, e.nextID = 0, 7
 	stuck, differs := e.diagnose(choice(x), choice(y))
-	if stuck != "stuck on: x#1\nstuck on: y#2" || differs != "differs at: x#1 vs y#2" {
+	if stuck != "stuck on: x\nstuck on: y" || differs != "differs at: x vs y" {
 		t.Fatalf("diagnostics with no evaluation fuel = %q, %q", stuck, differs)
 	}
 	if e.fuel != 0 || e.nextID != 7 {

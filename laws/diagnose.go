@@ -4,23 +4,31 @@ package laws
 // In particular it neither consumes fuel nor freshens binders: subterm IDs must
 // remain identical to the ones in the full LHS/RHS readback.
 func (e *evaluator) diagnose(left, right *term) (stuck, differs string) {
-	stuck = e.displayStuck(e.stuckOn(left), e.stuckOn(right))
+	return e.displayTerms(left, right).diagnose(left, right)
+}
+
+func (d *termDisplay) diagnose(left, right *term) (stuck, differs string) {
+	stuck = d.displayStuck(d.e.stuckOn(left), d.e.stuckOn(right))
 	if a, b := firstDifference(left, right, nil); a != nil {
-		differs = "differs at: " + e.display(a) + " vs " + e.display(b)
+		differs = "differs at: " + d.display(a) + " vs " + d.display(b)
 	}
 	return stuck, differs
 }
 
 func (e *evaluator) displayStuck(left, right *term) string {
+	return e.displayTerms(left, right).displayStuck(left, right)
+}
+
+func (d *termDisplay) displayStuck(left, right *term) string {
 	message := ""
 	if left != nil {
-		message = "stuck on: " + e.display(left)
+		message = "stuck on: " + d.display(left)
 	}
 	if right != nil && (left == nil || !alphaEqual(left, right, nil)) {
 		if message != "" {
 			message += "\n"
 		}
-		message += "stuck on: " + e.display(right)
+		message += "stuck on: " + d.display(right)
 	}
 	return message
 }

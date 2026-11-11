@@ -37,8 +37,12 @@ side and partial proof goal, ~75 000 random substitutions compared with
 `go4t run` output). The admission round also produced the first case of the
 checker catching a *false law*: the author's `fullPassAdmits` forgot that a
 negative quota is rejected, and the diagnostic named the condition
-(`stuck on: if (q < 0) …`) rather than a sample. The record, including the
-Go/`rapid` comparison that cut our own claims down, is in
+(`stuck on: q < 0`, in the current display spelling). Failed `refl` diagnostics
+now also search 128 bounded, deterministic candidates and append a closed
+counterexample when found. No witness is not a proof: the diagnostic instead
+says `no counterexample in 128 candidates: the law may hold; this proof needs a case split, rewrite or induction`,
+or `counterexample search skipped: no candidates for <type>`.
+The record, including the Go/`rapid` comparison that cut our own claims down, is in
 [`docs/adr/0001-equational-laws.md`](adr/0001-equational-laws.md) and
 [`docs/adr/0002-laws-map-and-diagnostics.md`](adr/0002-laws-map-and-diagnostics.md).
 
@@ -297,8 +301,8 @@ Top gaps and disposition:
 - **Documentation corrections:** this change replaces unsupported list-append
   notation with `list.append`, locates Int-bound helpers in `std/float`, explains
   the minimum-Int literal restriction, documents parentheses on conditional
-  equation operands, distinguishes failed-proof diagnostics from sampled
-  counterexample bindings, cross-references generated Go-name inspection, and
+  equation operands, explains bounded counterexample search after a failed
+  proof and runtime sampled-law failures, cross-references generated Go-name inspection, and
   makes whole-file/streaming line-ending parity explicit.
 - **Documented limits remain:** Float laws are outside the proof fragment
   (Float addition is also genuinely order-sensitive); sorting is outside

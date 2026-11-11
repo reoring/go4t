@@ -971,7 +971,27 @@ hand-written `Ord` instances leave every map operation neutral (never tainted).
 When `refl` fails, the diagnostic prints both normal forms, `stuck on:` the
 outermost neutral scrutinee or neutral recursive argument of each side (one
 line when both agree), and `differs at:` the first pair of subterms that are
-not alpha-equal.
+not alpha-equal. Variables retain their source names, with `#n` only for distinct
+variables sharing a name within that diagnostic. Polynomial display uses
+subtraction (`now - at`); comparisons retain their canonical orientation without
+redundant outer parentheses.
+
+The checker then searches the original law's parameters for a counterexample,
+using 64 deterministic edge-case candidates followed by 64 fixed-seed random
+candidates, with the normalization step limit per candidate. This runs inside
+the normalizer, without the Go toolchain, and never changes proof acceptance.
+Only unequal closed data normal forms are evidence; exhausted or residual
+neutral evaluations are discarded. A witness is appended as
+`counterexample: a = 9223372036854775807`, followed by indented `LHS: false` and
+`RHS: true` lines. Otherwise it prints
+`no counterexample in 128 candidates: the law may hold; this proof needs a case split, rewrite or induction`.
+If a parameter cannot be generated, it prints
+`counterexample search skipped: no candidates for <type>`.
+Generators cover Int, Bool, String, Unit, bounded constructor data and tuples,
+lists, and literal maps with Int/String/Bool or tuple keys. Float-bearing and
+handle-bearing types, unsupported map keys and types without a bounded
+inhabitant are skipped. No witness is not a proof, and passing proofs do not
+run this search.
 
 Only the law-reachable fragment must terminate; ordinary programs retain general
 recursion. Recursive calls must leave all preceding arguments unchanged and

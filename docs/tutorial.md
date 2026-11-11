@@ -745,7 +745,14 @@ and checks that the normal forms agree. No `Eq` instance is needed: a law's
 outer `==` means definitional equality, not a call to the runtime equality method.
 Proof parameter names can differ from law names; binding is positional.
 A failed `refl` shows the two stuck normal forms and the failing proof branch,
-not generated counterexample bindings; a failed `sample` supplies those bindings.
+then tries 128 bounded, deterministic candidates for the original law parameters.
+A witness prints `counterexample: ...` and the closed `LHS:`/`RHS:` values.
+Otherwise it prints
+`no counterexample in 128 candidates: the law may hold; this proof needs a case split, rewrite or induction`,
+or `counterexample search skipped: no candidates for <type>` for unsupported
+parameter types. The failed proof stays failed even when no witness is found.
+Source names are preserved (`#n` only on collisions), and subtraction prints
+as `now - at`. See [laws: scope and limits](laws.md) for the search boundaries.
 
 ### Guards: exactly when a finite TTL is stale
 

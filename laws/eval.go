@@ -56,10 +56,14 @@ type evaluator struct {
 	decreasing        map[string][]decreasingPosition
 	decreasingMethods map[*ast.InstMethod][]decreasingPosition
 	currentGoal       *rewriteRule
+	// admissible evaluates a root-law precondition in the candidate environment.
+	// Laws without preconditions admit every candidate.
+	admissible func(*environment) (bool, error)
 }
 
 func newEvaluator(p *types.Program) *evaluator {
 	e := &evaluator{p: p, fuel: StepLimit, ctors: make(map[string]*types.Ctor), solutions: make(map[int]*term), trustedModules: make(map[string]bool)}
+	e.admissible = func(*environment) (bool, error) { return true, nil }
 	for _, module := range p.Modules {
 		if module.ImportPath == "std/prelude" || module.ImportPath == "std/string" || module.ImportPath == "std/map" {
 			e.trustedModules[module.Path] = true
