@@ -69,7 +69,59 @@ func (g *shimGenerator) qualifier(p *types.Package) string {
 	return a
 }
 func (g *shimGenerator) goType(t types.Type) string {
-	return types.TypeString(types.Unalias(t), g.qualifier)
+	return types.TypeString(nameable(types.Unalias(t)), g.qualifier)
+}
+
+// nameable replaces every unexported alias inside t with the type it denotes.
+// A shim lives in its own package and cannot spell `pkg.number`; Go 1.27
+// export data keeps such aliases in element, key and parameter positions.
+func nameable(t types.Type) types.Type {
+	switch t := t.(type) {
+	case *types.Alias:
+		if t.Obj().Pkg() == nil || t.Obj().Exported() {
+			return t
+		}
+		return nameable(types.Unalias(t))
+	case *types.Pointer:
+		return types.NewPointer(nameable(t.Elem()))
+	case *types.Slice:
+		return types.NewSlice(nameable(t.Elem()))
+	case *types.Array:
+		return types.NewArray(nameable(t.Elem()), t.Len())
+	case *types.Map:
+		return types.NewMap(nameable(t.Key()), nameable(t.Elem()))
+	case *types.Chan:
+		return types.NewChan(t.Dir(), nameable(t.Elem()))
+	case *types.Signature:
+		if t.Recv() != nil || t.TypeParams().Len() != 0 {
+			return t
+		}
+		return types.NewSignatureType(nil, nil, nil, nameableTuple(t.Params()), nameableTuple(t.Results()), t.Variadic())
+	case *types.Named:
+		arguments := t.TypeArgs()
+		if arguments.Len() == 0 {
+			return t
+		}
+		rewritten := make([]types.Type, arguments.Len())
+		for i := range rewritten {
+			rewritten[i] = nameable(arguments.At(i))
+		}
+		instance, err := types.Instantiate(nil, t.Origin(), rewritten, false)
+		if err != nil {
+			return t
+		}
+		return instance
+	}
+	return t
+}
+
+func nameableTuple(tuple *types.Tuple) *types.Tuple {
+	variables := make([]*types.Var, tuple.Len())
+	for i := range variables {
+		v := tuple.At(i)
+		variables[i] = types.NewParam(v.Pos(), v.Pkg(), v.Name(), nameable(v.Type()))
+	}
+	return types.NewTuple(variables...)
 }
 func (g *shimGenerator) conversion(m *foreignMirror) string {
 	key := m.kind + ":" + types.TypeString(m.typ, nil) + ":" + m.gt

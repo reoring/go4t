@@ -101,7 +101,7 @@ func TestAwaitFailureAndPanic(t *testing.T) {
 		{"failure", IO(func(context.Context) (any, error) { return nil, wantErr }), "fiber failed"},
 		{"panic string", IO(func(context.Context) (any, error) { panic("broken task") }), "broken task"},
 		{"panic error", IO(func(context.Context) (any, error) { panic(wantErr) }), "fiber failed"},
-		{"panic nil", IO(func(context.Context) (any, error) { panic(nil) }), "panic called with nil argument"},
+		{"panic nil", IO(func(context.Context) (any, error) { panic(nil) }), goNilPanicMessage},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			fiber, err := Fork(tt.io).(IO)(context.Background())

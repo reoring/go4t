@@ -297,7 +297,9 @@ func TestOpenTermProperty(t *testing.T) {
 			}
 			batches.WriteString("ioPure(unit()) } }\n")
 			propertyWrite(t, file, source+helpers.String()+batches.String())
-			ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+			// A kill ceiling for a hung program, not a budget: a shared CI runner
+			// needs well over a minute for the largest fixture.
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 			defer cancel()
 			cmd := exec.CommandContext(ctx, goTool, "run", "./cmd/go4t", "run", file)
 			cmd.Dir = ".."
