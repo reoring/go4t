@@ -92,15 +92,18 @@ Three things to notice:
   usually one word (`refl`) or a case split:
 
   ```text
-  law staleOnceElapsed(t Int, at Int, now Int)
-    requires 0 <= t && t <= 1000000000000 && 0 <= at && at <= now && now <= 4000000000000000000 {
+  func plausible(t Int, at Int, now Int) Bool {
+    0 <= t && t <= 1000000000000 && 0 <= at && at <= now && now <= 4000000000000000000
+  }
+  law staleOnceElapsed(t Int, at Int, now Int) requires plausible(t, at, now) {
     isStale(freshness(TtlNanos(t), AtNanos(at), now)) == (now - at >= t)
   }
   proof staleOnceElapsed(t, at, now) { if now - at >= t { refl } else { refl } }
   ```
 
   The `requires` clause is the honest part. `Int` wraps, so "elapsed" only
-  means what it says while `at + t` cannot overflow. Delete the clause and
+  means what it says while `at + t` cannot overflow. The range is an ordinary
+  `Bool` function, written once and shared by every law that needs it. Delete the clause and
   `go4t check` rejects the law with the input that breaks it:
   `counterexample: t = 9223372036854775807, at = 1, now = 0`.
 

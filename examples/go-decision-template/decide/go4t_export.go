@@ -223,4 +223,5 @@ func fromGo_Int(v int64) any {
 func FreshnessFn(p0 Ttl, p1 Timestamp, p2 int64) Freshness {
 	return toGo_Freshness(decide_freshness_(fromGo_Ttl(p0), fromGo_Timestamp(p1), p2))
 }
-func IsStale(p0 Freshness) bool { return decide_isStale_(fromGo_Freshness(p0)) }
+func IsStale(p0 Freshness) bool                   { return decide_isStale_(fromGo_Freshness(p0)) }
+func Plausible(p0 int64, p1 int64, p2 int64) bool { return decide_plausible_(p0, p1, p2) }

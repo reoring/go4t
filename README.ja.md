@@ -92,13 +92,16 @@ func main() IO[Unit] { println(debug(freshness(TtlNanos(10), AtNanos(5), 12))) }
   証明は通常、単語 1 つ (`refl`) かケース分けで書けます。
 
   ```text
-  law staleOnceElapsed(t Int, at Int, now Int)
-    requires 0 <= t && t <= 1000000000000 && 0 <= at && at <= now && now <= 4000000000000000000 {
+  func plausible(t Int, at Int, now Int) Bool {
+    0 <= t && t <= 1000000000000 && 0 <= at && at <= now && now <= 4000000000000000000
+  }
+  law staleOnceElapsed(t Int, at Int, now Int) requires plausible(t, at, now) {
     isStale(freshness(TtlNanos(t), AtNanos(at), now)) == (now - at >= t)
   }
   proof staleOnceElapsed(t, at, now) { if now - at >= t { refl } else { refl } }
   ```
 
+  範囲は通常の `Bool` 関数として 1 度だけ書き、必要な法則すべてで共有します。
   `requires` 句は飾りではありません。`Int` は桁あふれで折り返すため、
   「経過した」が文字どおりの意味を持つのは `at + t` があふれない範囲だけです。
   この句を消すと、`go4t check` は法則を退け、反例を表示します:

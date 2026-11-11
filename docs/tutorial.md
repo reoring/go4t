@@ -801,8 +801,9 @@ counterexample: t = 9223372036854775807, at = 1, now = 0
   RHS: false
 ```
 
-A `requires` clause states the range in which the sentence is true. The proof
-starts with that precondition assumed, and comparisons are decided only where
+A `requires` clause states the range in which the sentence is true. The range
+is an ordinary `Bool` function, so it is written once and shared by every law
+that needs it. The proof starts with that precondition assumed, and comparisons are decided only where
 the assumptions rule out a wrap:
 
 ```go4t
@@ -823,8 +824,10 @@ func freshness(ttl Ttl, observedAt Timestamp, nowNanos Int) Freshness {
 func isStale(value Freshness) Bool {
   match value { Stale => true; _ => false }
 }
-law staleOnceElapsed(t Int, at Int, now Int)
-  requires 0 <= t && t <= 1000000000000 && 0 <= at && at <= now && now <= 4000000000000000000 {
+func plausible(t Int, at Int, now Int) Bool {
+  0 <= t && t <= 1000000000000 && 0 <= at && at <= now && now <= 4000000000000000000
+}
+law staleOnceElapsed(t Int, at Int, now Int) requires plausible(t, at, now) {
   isStale(freshness(TtlNanos(t), AtNanos(at), now)) == (now - at >= t)
 }
 proof staleOnceElapsed(t, at, now) {

@@ -752,11 +752,17 @@ func decide_isStale_(value_ any) bool {
 	}
 }
 
-//line decide/decide.gt:73
+//line decide/decide.gt:79
 func decide_main_() any {
-//line decide/decide.gt:74
+//line decide/decide.gt:80
 	return io_ioPure_(prelude_unit_())
 }
 
-//line decide/decide.gt:73
+//line decide/decide.gt:49
+func decide_plausible_(t_ int64, at_ int64, now_ int64) bool {
+//line decide/decide.gt:50
+	return (((((int64(0) <= t_) && (t_ <= int64(1000000000000))) && (int64(0) <= at_)) && (at_ <= now_)) && (now_ <= int64(4000000000000000000)))
+}
+
+//line decide/decide.gt:79
 func Main() rt.IO { return decide_main_().(rt.IO) }

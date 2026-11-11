@@ -74,7 +74,10 @@ mapping rules are in [SPEC §8.7](../../SPEC.md#87-exported-go-api) and
 boundary a table test usually misses (`now == at + ttl` is stale, not fresh).
 The elapsed-time law carries a `requires` clause: under wrapping `Int`,
 "stale once the TTL has elapsed" is only true while `at + ttl` cannot overflow,
-and the law says so instead of hiding it.
+and the law says so instead of hiding it. The range is a named `Bool`
+function, `plausible`, shared by the time laws; it is also exported, so the Go
+side can check an input against the range the laws cover
+(`decide.Plausible(ttl, at, now)`).
 
 For a larger shape — a controller whose observe and apply stay in Go — see
 [node-drain-controller](../node-drain-controller); for the conversion rules
