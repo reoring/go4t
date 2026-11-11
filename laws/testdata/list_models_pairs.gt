@@ -1,0 +1,21 @@
+package main
+
+import "std/list"
+import "std/prelude"
+
+func positive(x Int) Bool { x > 0 }
+law mapIdentity(xs List[Int]) { map(xs, func(x) => x) == xs }
+proof mapIdentity(xs) { induction xs }
+
+law unzipMap(xs List[(Int, Int)]) { list.unzip(map(xs, func(x) => x)) == list.unzip(xs) }
+proof unzipMap(xs) { induction xs }
+law partitionMap(xs List[Int]) { list.partition(map(xs, func(x) => x), positive) == list.partition(xs, positive) }
+proof partitionMap(xs) { induction xs }
+law spanMap(xs List[Int]) { list.span(map(xs, func(x) => x), positive) == list.span(xs, positive) }
+proof spanMap(xs) { induction xs { Nil => refl; Cons(x, rest) => rewrite mapIdentity(rest) { refl } } }
+
+// Force traversal of the entire prefix, including long lists.
+law spanAll(xs List[Int]) { list.span(xs, func(_x) => true) == (xs, []) }
+proof spanAll(xs) { induction xs }
+
+func main() IO[Unit] { ioPure(unit()) }

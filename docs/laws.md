@@ -65,11 +65,13 @@ outer parentheses; `stuck on:` uses the same spelling as `LHS:` and `RHS:`.
 What laws cover: first-order data (ADTs, records, `List`, `Option`, `Result`,
 `Map`), "every other field is arbitrary" invariants via `o{field: v}`, gate
 order, early return, idempotence, branch coverage, structural induction
-(including std `filter`/`head`/`append`), equivalence of two `decide`s, and
-conditional equations with `requires`.
+(including std `filter`/`head`/`append` and the owner-checked structural models
+for `length`, `sum`, `product`, `count`, `reverse`, `zipWith`, `unzip`,
+`partition`, `flatten`, `intercalate`, `init`, `span`, `findIndex`, `indexed`),
+equivalence of two `decide`s, and conditional equations with `requires`.
 What they do not: `Set`/`Array`, reasoning about string contents, unrestricted
-ordered arithmetic, induction through fold-based std functions, and equality of
-two symbolic maps. Proof length grows with the number of branches; that is the
+ordered arithmetic, automatic accumulator generalization for other folds, and
+equality of two symbolic maps. Proof length grows with the number of branches; that is the
 specification's complexity, not the prover's.
 
 ## Preconditions and order
@@ -124,8 +126,13 @@ proof appNil(xs) {
 
 This is sugar for constructor `match` plus the existing structural `rewrite`,
 not stronger recursion reasoning. The same descent, argument-order and
-left-to-right rewrite checks apply. Accumulator lemmas still need explicit
-generalization and rewrites.
+left-to-right rewrite checks apply. Library `length` now normalizes structurally,
+so `length(append(xs, ys)) == length(xs) + length(ys)` proves directly by
+`induction xs`. The models replace runtime unfolding only for declarations
+owned by `std/list`; runtime implementations and callback eligibility are
+unchanged. Other accumulator lemmas still need explicit generalization and
+rewrites. [ADR 0014](adr/0014-structural-models-for-std-list.md) records the
+equations, wraparound reasoning and exclusions.
 
 ## Sampled laws: tested, not proved
 

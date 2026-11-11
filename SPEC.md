@@ -1044,13 +1044,19 @@ different laws are rejected, so mutual rewrites cannot certify one another.
 A finite normalization fuel budget also bounds unfolding of open terms;
 exhaustion is an incomplete-normalization error, never a successful proof.
 
-Induction follows the recursion shape of the unfolded function, not the data
-type. Accumulator-based definitions such as `std/list` `length` (a `fold` whose
-accumulator advances at each `Cons`) do not reduce `length(Cons(x, r))` to
-`1 + length(r)`, so an induction hypothesis stated with the accumulator at
-its initial value does not apply. State the law over the fold's accumulator
-(`fold(xs, n, f) == n + ...`) and rewrite with that, or prove over a directly
-structurally recursive function.
+Induction follows the recursion shape of the normalized function, not merely
+the data type. The owner-checked `std/list` functions `length`, `sum`,
+`product`, `count`, `reverse`, `zipWith`, `unzip`, `partition`, `flatten`,
+`intercalate`, `init`, `span`, `findIndex` and `indexed` use structural models
+instead of unfolding their accumulator loops. For example, `length(Nil)` is
+`0` and `length(Cons(x, r))` is `1 + length(r)`, so length-of-append and
+length-preserving-map laws prove by `induction xs` over the library itself.
+The models agree with the runtime, including Int arithmetic modulo 2^64;
+neutral list arguments stay neutral. Same-named user functions are not modelled,
+and callbacks still undergo dependency checks. Other accumulator definitions
+still need a generalized accumulator lemma or a directly structural function;
+arbitrary callbacks cannot be reassociated. See ADR 0014 for the exact models
+and exclusions.
 
 Law dependencies are checked transitively for unsafe operations: IO, untrusted
 externs and potentially panicking arithmetic are tainted. Integer `/` and `%`
@@ -2054,11 +2060,12 @@ with `go generate main.go`.
   `std/mutmap`, `std/ref`, channels and other handles require IO for observations
   and are never law-eligible. Extern-dependent laws may use `sample(N)`, run by
   `go4t test`, reported as tested rather than proved, and unusable as rewrite lemmas.
-  `induction x` supplies constructor arms and induction hypotheses. Accumulator-style
-  functions (including the library's length via a fold) generally need a
-  generalized lemma over the accumulator, with the structurally decreasing
-  argument before any changing accumulator arguments; a simple length induction
-  hypothesis is not sufficient.
+  `induction x` supplies constructor arms and induction hypotheses. The
+  owner-checked `std/list` structural models in §6.5 remove the accumulator
+  obstacle for those functions, including library `length`. Other accumulator
+  functions generally need a generalized lemma, with the structurally decreasing
+  argument before changing accumulator arguments; arbitrary folds are not
+  reassociated.
 - Editor support is the deliberately small protocol surface in §8.5. Historical
   example READMEs can show pre-module spellings; use this specification and the
   checked tutorial for current imports and signatures. `selfhost/` is separately

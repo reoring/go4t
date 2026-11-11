@@ -204,6 +204,15 @@ func (c *terminationChecker) function(name string, dicts []*dictionary) *termina
 	}
 	n := c.node(f.Decl, sourceName(c.e.p, name), f.Decl.Params, f.Decl.Body, nil, nil, bound)
 	n.global, n.dictionaries = name, dicts
+	// Structural models can introduce calls absent from the runtime body.
+	// Certify those callees too; otherwise a neutral append/fmap would unfold
+	// without a decreasing-position certificate.
+	switch c.e.listModel(name) {
+	case "reverse", "flatten", "intercalate":
+		c.function(c.e.listFunctions["append"], nil)
+	case "indexed":
+		c.method("fmap", []*dictionary{c.e.listFunctor})
+	}
 	return n
 }
 

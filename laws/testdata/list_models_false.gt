@@ -1,0 +1,16 @@
+package main
+
+import "std/list"
+
+law falseLengthAppend(xs List[Int], ys List[Int]) { list.length(list.append(xs, ys)) == list.length(xs) }
+proof falseLengthAppend(xs, ys) { induction xs }
+
+// This declaration belongs to main, not std/list. Modelling by spelling would
+// incorrectly certify the false claim that every such length is zero on Nil.
+func length(xs List[Int]) Int { 42 }
+law foreignLength() { length([]) == 0 }
+proof foreignLength() { refl }
+law libraryStillOwned(xs List[Int], ys List[Int]) { list.length(list.append(xs, ys)) == list.length(xs) + list.length(ys) }
+proof libraryStillOwned(xs, ys) { induction xs }
+
+func main() IO[Unit] { ioPure(unit()) }

@@ -1,0 +1,22 @@
+package main
+
+import "std/list"
+import "std/prelude"
+
+func bumped(xs List[Int]) List[Int] { map(xs, func(x) => x + 1) }
+func positive(x Int) Bool { x > 0 }
+
+law lengthAppend(xs List[Int], ys List[Int]) { length(append(xs, ys)) == length(xs) + length(ys) }
+proof lengthAppend(xs, ys) { induction xs }
+law lengthMap(xs List[Int]) { length(bumped(xs)) == length(xs) }
+proof lengthMap(xs) { induction xs }
+law countMap(xs List[Int]) { list.count(bumped(xs), func(x) => x - 1 > 0) == list.count(xs, positive) }
+proof countMap(xs) { induction xs }
+law sumAppend(xs List[Int], ys List[Int]) { list.sum(append(xs, ys)) == list.sum(xs) + list.sum(ys) }
+proof sumAppend(xs, ys) { induction xs }
+law productAppend(xs List[Int], ys List[Int]) { list.product(append(xs, ys)) == list.product(xs) * list.product(ys) }
+proof productAppend(xs, ys) { induction xs }
+law countAll(xs List[Int]) { list.count(xs, func(_x) => true) == length(xs) }
+proof countAll(xs) { induction xs }
+
+func main() IO[Unit] { ioPure(unit()) }

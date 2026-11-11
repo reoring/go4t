@@ -49,11 +49,18 @@ Float や handle を含む型、未対応の Map キー型、深さの上限内�
 
 **扱えるもの:** 関数を含まないデータ(ADT、レコード、`List`、`Option`、`Result`、`Map`)、
 `o{field: v}` による「他のフィールドは任意」型の不変条件、ゲート順、早期 return、冪等性、
-分岐の網羅、構造的帰納(std の `filter`/`head`/`append` を含む)、二つの `decide` の同値性、
-`requires` による前提条件付きの等式。
+分岐の網羅、構造的帰納、二つの `decide` の同値性、`requires` による前提条件付きの等式。
+構造的帰納には std の `filter`/`head`/`append` に加え、
+`std/list` が定義する `length`、`sum`、`product`、`count`、`reverse`、
+`zipWith`、`unzip`、`partition`、`flatten`、`intercalate`、`init`、`span`、
+`findIndex`、`indexed` の構造的モデルも使えます。
+たとえば長さを保存する map や append の法則は、ライブラリ関数のまま証明できます。
+実行時の累積変数による実装は変わらず、Int の周回もモデルに反映されます。
+同名のユーザー関数には適用せず、コールバックの依存検査も省略しません。
+各式と対象外の理由は [ADR 0014](adr/0014-structural-models-for-std-list.md) に記載しています。
 
 **扱えないもの:** `Set`/`Array`、文字列の中身の推論、制限のない整数の順序演算、
-fold ベースの std 関数への帰納、二つの記号的な Map の等式。
+他の fold の累積変数に関する自動的な一般化、二つの記号的な Map の等式。
 
 証明の長さは分岐数に比例しますが、それは仕様自体の複雑さであって証明器の制約ではありません。
 

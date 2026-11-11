@@ -87,11 +87,10 @@ verify proofs.
 | `removeForgets` | Looking up an ID after removing it returns `None`. |
 | `markDoneKeepsLength` | Marking done preserves the number of todos. |
 
-The last law uses the directly recursive `count`, not `std/list`'s `length`.
-`count(Cons(x, rest))` reduces to `1 + count(rest)`, matching the induction
-hypothesis on `rest`. `list.length` uses an accumulator fold: its recursive
-step changes the accumulator, so a hypothesis about the initial accumulator
-alone does not apply. It would need a stronger accumulator lemma instead
+The last law uses `std/list`'s `length` directly. Its owner-checked structural
+model reduces `length(Cons(x, rest))` to `1 + length(rest)`, matching the
+induction hypothesis on `rest`. The runtime still uses its accumulator fold;
+no application-side structural copy is needed
 ([SPEC: laws and proofs](../../SPEC.md#65-laws-and-proofs)).
 
 ## Build a binary
