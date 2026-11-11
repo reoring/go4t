@@ -93,11 +93,13 @@ func main() IO[Unit] { println(debug(freshness(TtlNanos(10), AtNanos(5), 12))) }
 
 Go から使うには、`go4t build --emit-go decide --package decide decide/decide.gt`
 を実行します。通常は `//go:generate` 行から実行します。
-生成されたパッケージは `Decide` と、各レコード・直和型に対応する通常の Go の型を公開します。
+生成されたパッケージは各関数と、各レコード・直和型に対応する通常の Go の型を公開します。
 Go 側は結果に応じて `switch` します。
+(`freshness` は型 `Freshness` を返すため、公開される関数名は `FreshnessFn` です。
+関数名が `decide` なら `decide.Decide` になります。)
 
 ```go
-switch step := decide.Freshness(ttl, observedAt, now.UnixNano()).(type) {
+switch step := decide.FreshnessFn(ttl, observedAt, now.UnixNano()).(type) {
 case decide.FreshnessStale:
     return requeue(ctx, obj)
 case decide.FreshnessTtlInvalid:
@@ -105,6 +107,10 @@ case decide.FreshnessTtlInvalid:
 // …
 }
 ```
+
+[examples/go-decision-template](examples/go-decision-template) は、この決定をそのまま
+コピーして使える Go モジュールにしたものです。`.gt` ファイル 1 つ、`//go:generate` 1 行、
+その前に置く Go の API、Go のテストで構成されています。
 
 ### 同じ決定を、I/O も go4t で
 

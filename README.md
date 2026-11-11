@@ -92,11 +92,13 @@ Three things to notice:
 
 To use it from Go, run `go4t build --emit-go decide --package decide
 decide/decide.gt` (typically from a `//go:generate` line). The generated
-package exports `Decide` and plain Go types for every record and sum, and the
-Go side switches on the result:
+package exports each function and plain Go types for every record and sum, and
+the Go side switches on the result. (`freshness` returns the type `Freshness`,
+so the exported function is `FreshnessFn`; a function named `decide` would be
+`decide.Decide`.)
 
 ```go
-switch step := decide.Freshness(ttl, observedAt, now.UnixNano()).(type) {
+switch step := decide.FreshnessFn(ttl, observedAt, now.UnixNano()).(type) {
 case decide.FreshnessStale:
     return requeue(ctx, obj)
 case decide.FreshnessTtlInvalid:
@@ -104,6 +106,10 @@ case decide.FreshnessTtlInvalid:
 // …
 }
 ```
+
+[examples/go-decision-template](examples/go-decision-template) is this exact
+decision as a Go module you can copy: one `.gt` file, one `//go:generate`
+line, a Go API in front of it, and a Go test.
 
 ### The same decision with its I/O in go4t
 
