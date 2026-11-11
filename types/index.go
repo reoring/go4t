@@ -514,8 +514,18 @@ func (b *indexBuilder) collectLocals(f *ast.File, d ast.Decl) {
 			info := b.p.Proofs[n.Name]
 			b.params(f, n.Params, &TFunc{Params: info.Law.ParamTypes}, n.Pos, n.End)
 		case *ast.TMatch:
+			var scrutinee ast.Expr = n.Var
+			if n.Scrut != nil {
+				scrutinee = n.Scrut
+			}
 			for _, arm := range n.Arms {
-				b.pattern(f, arm.Pat, exprType(n.Var), arm.Pos, arm.End)
+				if or, ok := arm.Pat.(*ast.POr); ok {
+					for _, alternative := range or.Alts {
+						b.pattern(f, alternative, exprType(scrutinee), arm.Pos, arm.End)
+					}
+				} else {
+					b.pattern(f, arm.Pat, exprType(scrutinee), arm.Pos, arm.End)
+				}
 			}
 		case *ast.FuncDecl:
 			for _, tp := range n.TParams {

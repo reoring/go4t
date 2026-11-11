@@ -265,6 +265,7 @@ var grammarLexemes = map[string]struct {
 	"upper-case identifier":       {"C", lexer.Ident},
 	"sample identifier":           {"sample", lexer.Ident},
 	"induction identifier":        {"induction", lexer.Ident},
+	"absurd identifier":           {"absurd", lexer.Ident},
 	"requires identifier":         {"requires", lexer.Ident},
 	"integer literal":             {"1", lexer.Int},
 	"float literal":               {"1.5", lexer.Float},
@@ -566,7 +567,7 @@ func renderSentence(s grammarSentence) string {
 		if atom.lexical {
 			leaf := grammarLexemes[text]
 			text = leaf.text
-			if leaf.kind == lexer.Ident && text != "sample" && text != "induction" {
+			if leaf.kind == lexer.Ident && text != "sample" && text != "induction" && text != "absurd" {
 				text += strconv.Itoa(i)
 			}
 		}

@@ -1,0 +1,38 @@
+package main
+
+type S = Pending(Int) | Done deriving Eq, Debug
+func isPending(s S) Bool { match s { Pending(_) => true; Done => false } }
+func payload(s S) Int { match s { Pending(n) => n; Done => 0 } }
+func bump(s S) S { match s { Pending(n) => Pending(n + 1); Done => Done } }
+law bumpAdds(s S) requires isPending(s) { payload(bump(s)) == payload(s) + 1 }
+proof bumpAdds(s) { match s { Pending(n) => refl; Done => absurd } }
+law bareAdds(s S) requires isPending(s) { payload(bump(s)) == payload(s) + 1 }
+proof bareAdds(s) { match s }
+law inductionAdds(s S) requires isPending(s) { payload(bump(s)) == payload(s) + 1 }
+proof inductionAdds(s) { induction s }
+
+func choose(c Bool) Option[Int] { if c { Some(1) } else { None } }
+law expressionAssumption(c Bool) { c == c }
+proof expressionAssumption(c) {
+  match choose(c) {
+    Some(n) => match c { true => refl; false => absurd }
+    None => match c { true => absurd; false => refl }
+  }
+}
+func ordered(s S, a Int, b Int) Bool { match s { Pending(_) => a < b; Done => true } }
+func stringOrdered(s S, a String, b String) Bool { match s { Pending(_) => a < b; Done => true } }
+law orderContradiction(s S, a Int, b Int) { s == s }
+proof orderContradiction(s, a, b) {
+  if ordered(s, a, b) {
+    if b < a { match s { Pending(_) => absurd; Done => refl } } else { refl }
+  } else { refl }
+}
+law stringOrderContradiction(s S, a String, b String) { s == s }
+proof stringOrderContradiction(s, a, b) {
+  if stringOrdered(s, a, b) {
+    if b < a { match s { Pending(_) => absurd; Done => refl } } else { refl }
+  } else { refl }
+}
+law ifContradiction(s S) { s == s }
+proof ifContradiction(s) { if isPending(s) { match s { Pending(_) => refl; Done => absurd } } else { refl } }
+func main() IO[Unit] { ioPure(unit()) }

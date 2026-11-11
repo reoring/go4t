@@ -527,14 +527,22 @@ func (r *moduleResolver) law(name string, pos ast.Pos) string {
 
 func (r *moduleResolver) tactic(t ast.Tactic, ts, vs map[string]bool) {
 	switch t := t.(type) {
-	case *ast.TRefl, *ast.TSample:
+	case *ast.TRefl, *ast.TAbsurd, *ast.TSample:
 	case *ast.TMatch:
-		if !vs[t.Var.Name] {
+		if t.Scrut != nil {
+			t.Scrut = r.expr(t.Scrut, ts, vs)
+		} else if !vs[t.Var.Name] {
 			r.fail(t.Var.Pos, "match variable %s is not a proof variable", t.Var.DisplayName())
 		}
 		for _, arm := range t.Arms {
 			local := scopeCopy(vs)
-			r.pattern(arm.Pat, local)
+			if or, ok := arm.Pat.(*ast.POr); ok {
+				for _, alternative := range or.Alts {
+					r.pattern(alternative, local)
+				}
+			} else {
+				r.pattern(arm.Pat, local)
+			}
 			r.tactic(arm.Body, ts, local)
 		}
 	case *ast.TIf:

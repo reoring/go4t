@@ -42,17 +42,31 @@ func (e *evaluator) induction(law lawGoal, tactic *ast.TMatch, arm ast.TacticArm
 	return body, nil
 }
 
-// Bare induction elaborates inside the evaluator, not the checked source AST:
-// editor indexes and formatting must never expose synthetic field binders.
+// Bare case analysis elaborates inside the evaluator, not the checked source
+// AST: editor indexes and formatting must not expose synthetic field binders.
 func (e *evaluator) inductionArms(tactic *ast.TMatch, typ types.Type) []ast.TacticArm {
-	con, _ := typeHead(typ)
+	con, fields := typeHead(typ)
+	body := &ast.TRefl{Pos: tactic.Pos, End: tactic.End}
+	if con == types.Bool {
+		return []ast.TacticArm{
+			{Pos: tactic.Pos, End: tactic.End, Pat: &ast.PLit{X: &ast.BoolLit{Value: true}}, Body: body},
+			{Pos: tactic.Pos, End: tactic.End, Pat: &ast.PLit{X: &ast.BoolLit{Value: false}}, Body: body},
+		}
+	}
+	if _, tuple := types.IsTuple(con); tuple {
+		pat := &ast.PTuple{Pos: tactic.Pos, End: tactic.End}
+		for i := range fields {
+			pat.Elems = append(pat.Elems, &ast.PVar{Pos: tactic.Pos, End: tactic.End, Name: fmt.Sprintf("$match%d", i)})
+		}
+		return []ast.TacticArm{{Pos: tactic.Pos, End: tactic.End, Pat: pat, Body: body}}
+	}
 	var arms []ast.TacticArm
 	for ci, ctor := range e.p.DataTypes[con.Name].Ctors {
 		pat := &ast.PCtor{Pos: tactic.Pos, End: tactic.End, Name: ctor.Name}
 		for fi := range ctor.Fields {
-			pat.Args = append(pat.Args, &ast.PVar{Pos: tactic.Pos, End: tactic.End, Name: fmt.Sprintf("$induction%d_%d", ci, fi)})
+			pat.Args = append(pat.Args, &ast.PVar{Pos: tactic.Pos, End: tactic.End, Name: fmt.Sprintf("$case%d_%d", ci, fi)})
 		}
-		arms = append(arms, ast.TacticArm{Pos: tactic.Pos, End: tactic.End, Pat: pat, Body: &ast.TRefl{Pos: tactic.Pos, End: tactic.End}})
+		arms = append(arms, ast.TacticArm{Pos: tactic.Pos, End: tactic.End, Pat: pat, Body: body})
 	}
 	return arms
 }

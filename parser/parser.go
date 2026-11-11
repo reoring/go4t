@@ -589,6 +589,9 @@ func (p *Parser) tactic() (tactic ast.Tactic) {
 	case p.isK("refl"):
 		p.next()
 		return &ast.TRefl{Pos: pos}
+	case p.is(lexer.Ident, "absurd"):
+		p.next()
+		return &ast.TAbsurd{Pos: pos}
 	case p.is(lexer.Ident, "sample"):
 		p.next()
 		p.expectP("(")
@@ -606,10 +609,20 @@ func (p *Parser) tactic() (tactic ast.Tactic) {
 	case p.isK("match"), p.is(lexer.Ident, "induction"):
 		induction := p.tok().Text == "induction"
 		p.next()
-		variable := &ast.Ident{ExprBase: ast.ExprBase{Pos: p.pos()}, Name: p.ident()}
-		p.finish(variable)
-		m := &ast.TMatch{Pos: pos, Var: variable, Induction: induction}
-		if induction && !p.isP("{") {
+		m := &ast.TMatch{Pos: pos, Induction: induction}
+		if induction {
+			m.Var = &ast.Ident{ExprBase: ast.ExprBase{Pos: p.pos()}, Name: p.ident()}
+			p.finish(m.Var)
+		} else {
+			bareIdentifier := p.tok().Kind == lexer.Ident && !isUpper(p.tok().Text)
+			scrutinee := p.expr()
+			if ident, ok := scrutinee.(*ast.Ident); ok && bareIdentifier && !strings.Contains(ident.Name, ".") {
+				m.Var = ident
+			} else {
+				m.Scrut = scrutinee
+			}
+		}
+		if !p.isP("{") {
 			m.Bare = true
 			return m
 		}
@@ -619,6 +632,14 @@ func (p *Parser) tactic() (tactic ast.Tactic) {
 		p.skipSemis()
 		for !p.isP("}") {
 			arm := ast.TacticArm{Pos: p.pos(), Pat: p.pattern()}
+			if p.isP("|") {
+				alternatives := &ast.POr{Pos: arm.Pos, Alts: []ast.Pattern{arm.Pat}}
+				for p.acceptP("|") {
+					alternatives.Alts = append(alternatives.Alts, p.pattern())
+				}
+				p.finish(alternatives)
+				arm.Pat = alternatives
+			}
 			p.checkTacticPattern(arm.Pat)
 			if p.isK("if") {
 				p.fail(p.pos(), "tactic match does not support guards")
@@ -663,6 +684,10 @@ func (p *Parser) tactic() (tactic ast.Tactic) {
 func (p *Parser) checkTacticPattern(pat ast.Pattern) {
 	switch pat := pat.(type) {
 	case *ast.PVar, *ast.PWild:
+	case *ast.POr:
+		for _, alternative := range pat.Alts {
+			p.checkTacticPattern(alternative)
+		}
 	case *ast.PCtor:
 		if pat.List {
 			p.fail(pat.Pos, "tactic match does not support list patterns")
@@ -679,7 +704,9 @@ func (p *Parser) checkTacticPattern(pat ast.Pattern) {
 			p.checkTacticPattern(elem)
 		}
 	case *ast.PLit:
-		p.fail(pat.Pos, "tactic match does not support literal patterns")
+		if _, ok := pat.X.(*ast.BoolLit); !ok {
+			p.fail(pat.Pos, "tactic match supports only the literal patterns true and false")
+		}
 	case *ast.PAs:
 		p.fail(pat.Pos, "tactic match does not support as-patterns")
 	default:

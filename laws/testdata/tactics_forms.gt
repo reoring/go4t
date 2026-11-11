@@ -1,0 +1,41 @@
+package main
+
+type Mode = First | Second | Third deriving Eq, Debug
+type Box = Box{value: Option[Int], flag: Bool} deriving Eq, Debug
+func choose(c Bool) Option[Int] { if c { Some(1) } else { None } }
+func present(o Option[Int]) Bool { match o { Some(_) => true; None => false } }
+func payload(o Option[Int]) Int { match o { Some(n) => n; None => 0 } }
+func identity(o Option[Int]) Option[Int] { o }
+func len(xs List[Int]) Int { match xs { Nil => 0; Cons(_, rest) => 1 + len(rest) } }
+func app(xs List[Int], ys List[Int]) List[Int] { match xs { Nil => ys; Cons(x, rest) => Cons(x, app(rest, ys)) } }
+
+law boolCases(c Bool) { (if c { 1 } else { 1 }) == 1 }
+proof boolCases(c) { match c { true => refl; false => refl } }
+law bareBool(c Bool) { (if c { 2 } else { 2 }) == 2 }
+proof bareBool(c) { match c }
+law bareExpression(c Bool) { (if !c { 3 } else { 3 }) == 3 }
+proof bareExpression(c) { match !c }
+law bareTuple(pair (Int, Bool)) { pair == pair }
+proof bareTuple(pair) { match pair }
+law expression(c Bool) { payload(choose(c)) == (match choose(c) { Some(n) => n; None => 0 }) }
+proof expression(c) { match choose(c) { Some(n) => refl; None => refl } }
+law projection(box Box) { payload(box.value) == (match box.value { Some(n) => n; None => 0 }) }
+proof projection(box) { match box.value { Some(n) => refl; None => refl } }
+law wildcard(c Bool) { choose(c) == choose(c) }
+proof wildcard(c) { match choose(c) { Some(_) => refl; None => refl } }
+law variableExpression(o Option[Int]) { payload(o) == payload(o) }
+proof variableExpression(o) { match identity(o) { Some(n) => refl; None => refl } }
+law alternatives(m Mode) { m == m }
+proof alternatives(m) { match m { First | Second => refl; Third => refl } }
+law boolAlternatives(c Bool) { (if c { 4 } else { 4 }) == 4 }
+proof boolAlternatives(c) { match c { true | false => refl } }
+law induction(xs List[Int], ys List[Int]) { len(app(xs, ys)) == len(xs) + len(ys) }
+proof induction(xs, ys) { induction xs }
+
+law ifAbsurd(o Option[Int]) { o == o }
+proof ifAbsurd(o) {
+  if present(o) {
+    match o { Some(_) => refl; None => absurd }
+  } else { refl }
+}
+func main() IO[Unit] { ioPure(unit()) }

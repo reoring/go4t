@@ -16,6 +16,7 @@ func FuzzFormat(f *testing.F) {
 		"../std/list/list.gt",
 		"../std/string/string.gt",
 		"../laws/testdata/semantics.gt",
+		"../laws/testdata/tactics_forms.gt",
 	} {
 		src, err := os.ReadFile(path)
 		if err != nil {
@@ -24,6 +25,9 @@ func FuzzFormat(f *testing.F) {
 		f.Add(src)
 	}
 	for _, src := range []string{"", "\x00\xff", "package p", "package p\nfunc f() Int { 1 }", "// header\npackage p // tail\n", "package p\nfunc f() String { \"${1}\" }", "package p\nfunc f() Int { 1; (-2) }", "package p\nfunc f() T { x |> g(_, 1) }"} {
+		f.Add([]byte(src))
+	}
+	for _, src := range tacticsFormatSeeds {
 		f.Add([]byte(src))
 	}
 	f.Fuzz(func(t *testing.T, src []byte) {

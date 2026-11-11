@@ -84,7 +84,7 @@ func TestLawDiagnostics(t *testing.T) {
 		{"not callable", `law identity(x Int) { x == x }; proof identity(x) { refl }; func bad() Int { identity(1) }`, "unknown identifier identity"},
 		{"not a value", `law identity(x Int) { x == x }; proof identity(x) { refl }; func bad() Int { identity }`, "unknown identifier identity"},
 		{"primitive split", `law identity(x Int) { x == x }; proof identity(x) { match x { _ => refl } }`, "cannot split Int"},
-		{"bool split", `law identity(x Bool) { x == x }; proof identity(x) { match x { _ => refl } }`, "cannot split Bool"},
+		{"bool coverage", `law identity(x Bool) { x == x }; proof identity(x) { match x { true => refl } }`, "non-exhaustive match; missing: false"},
 		{"unknown split", `law identity(x Int) { x == x }; proof identity(x) { match y { _ => refl } }`, "match variable y is not a proof variable"},
 		{"global split", `func value() Option[Int] { None }; law identity(x Int) { x == x }; proof identity(x) { match value { _ => refl } }`, "match variable value is not a proof variable"},
 		{"if type", `law identity(x Int) { x == x }; proof identity(x) { if x { refl } else { refl } }`, "type mismatch: expected Bool, got Int"},
@@ -367,7 +367,7 @@ func TestLawPatternASTValidation(t *testing.T) {
 			},
 		)
 		_, err := types.Check([]*ast.Module{{Files: files}})
-		if err == nil || !strings.Contains(err.Error(), "tactic match does not support") {
+		if err == nil || !strings.Contains(err.Error(), "tactic match") {
 			t.Errorf("%T: %v", pattern, err)
 		}
 	}
