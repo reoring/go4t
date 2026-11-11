@@ -12,9 +12,10 @@ go4t には、Go にはない次の 3 つがあります。
    `match` にケースが欠けていると、足りないパターンを示すコンパイルエラーになります。
 2. **純粋なコードと作用を分ける。** I/O を行う関数は `IO[A]` 型の値を返します。
    純粋関数からは呼び出せません。コンパイラがこの制約を検査します。
-3. **法則を書く。** 純粋なコードについて等式
-   (`isStale(freshness(TtlNanos(t), AtNanos(at), now)) == (now >= at + t)`)
-   を書くと、`go4t check` が**すべての**入力について証明します。
+3. **法則を書く。** 純粋なコードについて等式を書きます。たとえば
+   「TTL が経過したときに限り stale」は
+   `isStale(freshness(TtlNanos(t), AtNanos(at), now)) == (now - at >= t)` です。
+   `go4t check` は、法則が明記した範囲の**すべての**入力について証明します。
    テストに列挙した入力だけの検査ではありません。
 
 それ以外は、意図的に普段の Go と同じにしています。
@@ -86,10 +87,22 @@ func main() IO[Unit] { println(debug(freshness(TtlNanos(10), AtNanos(5), 12))) }
   関数が扱うべき組み合わせがすべてシグネチャに表れています。
 - `(TtlNanos(_), InvalidTimestamp)` の分岐を削除すると、`go4t check` は
   `missing: (TtlNanos(_), InvalidTimestamp)` で失敗します。
-- **法則** `isStale(freshness(TtlNanos(t), AtNanos(at), now)) == (now >= at + t)`
-  を追加すると、`Stale` のガードを別のチェックの後ろへ動かしたとき、
-  すべての `t`、`at`、`now` を対象とする法則の検証が失敗します。
+- **法則**を追加すると、`Stale` のガードを別のチェックの後ろへ動かしたときや
+  `>=` を `>` に変えたとき、すべての `t`、`at`、`now` を対象とする検証が失敗します。
   証明は通常、単語 1 つ (`refl`) かケース分けで書けます。
+
+  ```text
+  law staleOnceElapsed(t Int, at Int, now Int)
+    requires 0 <= t && t <= 1000000000000 && 0 <= at && at <= now && now <= 4000000000000000000 {
+    isStale(freshness(TtlNanos(t), AtNanos(at), now)) == (now - at >= t)
+  }
+  proof staleOnceElapsed(t, at, now) { if now - at >= t { refl } else { refl } }
+  ```
+
+  `requires` 句は飾りではありません。`Int` は桁あふれで折り返すため、
+  「経過した」が文字どおりの意味を持つのは `at + t` があふれない範囲だけです。
+  この句を消すと、`go4t check` は法則を退け、反例を表示します:
+  `counterexample: t = 9223372036854775807, at = 1, now = 0`。
 
 Go から使うには、`go4t build --emit-go decide --package decide decide/decide.gt`
 を実行します。通常は `//go:generate` 行から実行します。

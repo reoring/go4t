@@ -30,8 +30,7 @@ closed normal forms.
   The budget is a constant number of candidates and the existing step fuel
   per candidate; the search is deterministic, so diagnostics are reproducible.
 - The candidate must satisfy the law's precondition (ADR 0012) when it has
-  one. The search exposes one hook, `admissible(bindings) (bool, error)`,
-  that defaults to `true`; the `requires` implementation supplies it.
+  one: a candidate outside the precondition says nothing about the law.
 - A candidate is reported only if both sides reach closed normal forms and
   those differ. Fuel exhaustion or a residual neutral discards the candidate.
 - Output, appended after the existing `LHS:`/`RHS:` lines:
@@ -98,9 +97,12 @@ closed normal forms.
   depth bound are skipped. Functions and IO remain outside the proof fragment.
   Closed residuals, including unsupported map operations and function normal
   forms, are not counterexamples.
-- The hook is `evaluator.admissible func(*environment) (bool, error)`, initialized
-  to always return `(true, nil)`. Bindings use root law parameter names, not proof
-  aliases or branch locals. A false result or error discards the candidate.
+- A candidate is admitted only if the law's `requires` precondition (ADR 0012)
+  normalizes to `true` for it (`evaluator.preconditionHolds`, evaluated with no
+  proof assumptions). `evaluator.admissible` is an optional further filter, nil
+  in production and used by tests to observe isolation. Bindings use root law
+  parameter names, not proof aliases or branch locals. A false result or error
+  discards the candidate.
   Search evaluates `equation`, bypassing rewritten goals, and restores the whole
   evaluator, including fuel, assumptions, solutions, fresh IDs and rewrite state.
 - Display uses one name-collision context across the diagnostic's full forms,

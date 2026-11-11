@@ -48,8 +48,14 @@ func (e *evaluator) counterexample(law lawGoal) string {
 				bindings.values[param.Name] = g.value(e, 0, random)
 			}
 		}
-		if ok, err := e.admissible(bindings); err != nil || !ok {
+		// A candidate outside the law's precondition says nothing about the law.
+		if ok, err := e.preconditionHolds(law, bindings); err != nil || !ok {
 			continue
+		}
+		if e.admissible != nil {
+			if ok, err := e.admissible(bindings); err != nil || !ok {
+				continue
+			}
 		}
 		left, right, err := e.equation(law, bindings)
 		if err != nil || !closedCandidate(left) || !closedCandidate(right) || alphaEqual(left, right, nil) {

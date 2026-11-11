@@ -17,6 +17,7 @@ func TestCounterexampleDiagnostics(t *testing.T) {
 		{"adt", "counterexample: c = Second(1)\n  LHS: false\n  RHS: true"},
 		{"list", "counterexample: xs = Cons(0, Nil)\n  LHS: Cons(0, Nil)\n  RHS: Nil"},
 		{"mapping", "counterexample: m = map{0: 0}\n  LHS: 1\n  RHS: 0"},
+		{"bounded", "counterexample: a = 0\n  LHS: false\n  RHS: true"},
 		{"weak", "no counterexample in 128 candidates: the law may hold; this proof needs a case split, rewrite or induction"},
 		{"skipped", "counterexample search skipped: no candidates for Opaque"},
 	} {

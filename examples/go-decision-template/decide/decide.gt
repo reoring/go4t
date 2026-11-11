@@ -24,4 +24,52 @@ func isStale(value Freshness) Bool {
   }
 }
 
-func main() IO[Unit] { ioPure(unit()) }
+// ---- Laws: checked by `go4t check` for every input, not generated into Go ----
+
+// The cases that do not depend on time.
+law noTtlIsFresh(at Timestamp, now Int) {
+  freshness(NoTtl, at, now) == Fresh(0)
+}
+
+proof noTtlIsFresh(at, now) {
+  refl
+}
+
+law invalidTtlWins(at Timestamp, now Int) {
+  freshness(InvalidTtl, at, now) == TtlInvalid
+}
+
+proof invalidTtlWins(at, now) {
+  refl
+}
+
+// Stale exactly when the TTL has elapsed, the boundary included.
+//
+// `requires` states the range in which that sentence is true. Int wraps, so
+// without a bound `at + t` can overflow and "elapsed" stops meaning what it
+// says; delete the clause and the checker prints the overflowing input.
+// The range here is: TTL up to 1000 s, timestamps from the epoch to 2096.
+law staleOnceElapsed(t Int, at Int, now Int) requires 0 <= t && t <= 1000000000000 && 0 <= at && at <= now && now <= 4000000000000000000 {
+  isStale(freshness(TtlNanos(t), AtNanos(at), now)) == (now - at >= t)
+}
+
+proof staleOnceElapsed(t, at, now) {
+  if now - at >= t {
+    refl
+  } else {
+    refl
+  }
+}
+
+// Until then, the remaining time is the TTL minus the elapsed time.
+law freshForTheRemainder(t Int, at Int, now Int) requires 0 <= t && t <= 1000000000000 && 0 <= at && at <= now && now <= 4000000000000000000 && now - at < t {
+  freshness(TtlNanos(t), AtNanos(at), now) == Fresh(t - (now - at))
+}
+
+proof freshForTheRemainder(t, at, now) {
+  refl
+}
+
+func main() IO[Unit] {
+  ioPure(unit())
+}

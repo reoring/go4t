@@ -12,10 +12,11 @@ you three things Go does not:
    compile error that names the missing pattern.
 2. **A line between pure code and effects.** Functions that do I/O return
    `IO[A]` values; a pure function cannot call one. The compiler enforces it.
-3. **Laws.** You state an equation about your pure code
-   (`isStale(freshness(TtlNanos(t), AtNanos(at), now)) == (now >= at + t)`)
-   and `go4t check` proves it for **every** input, not for the samples a
-   test happens to list.
+3. **Laws.** You state an equation about your pure code — *stale exactly
+   when the TTL has elapsed*,
+   `isStale(freshness(TtlNanos(t), AtNanos(at), now)) == (now - at >= t)` —
+   and `go4t check` proves it for **every** input in the range the law names,
+   not for the samples a test happens to list.
 
 Everything else is deliberately ordinary: the output is readable Go, builds
 with `go build`, uses `go.mod` for dependencies, and calls any Go package
@@ -86,9 +87,22 @@ Three things to notice:
   the function must handle is visible in its signature.
 - Delete the `(TtlNanos(_), InvalidTimestamp)` arm and `go4t check` fails with
   `missing: (TtlNanos(_), InvalidTimestamp)`.
-- Add a **law** — `isStale(freshness(TtlNanos(t), AtNanos(at), now)) == (now >= at + t)`
-  — and moving the `Stale` guard behind another check fails the law for all
-  `t`, `at`, `now`. The proof is usually one word (`refl`) or a case split.
+- Add a **law** and moving the `Stale` guard behind another check, or
+  turning `>=` into `>`, fails it for all `t`, `at`, `now`. The proof is
+  usually one word (`refl`) or a case split:
+
+  ```text
+  law staleOnceElapsed(t Int, at Int, now Int)
+    requires 0 <= t && t <= 1000000000000 && 0 <= at && at <= now && now <= 4000000000000000000 {
+    isStale(freshness(TtlNanos(t), AtNanos(at), now)) == (now - at >= t)
+  }
+  proof staleOnceElapsed(t, at, now) { if now - at >= t { refl } else { refl } }
+  ```
+
+  The `requires` clause is the honest part. `Int` wraps, so "elapsed" only
+  means what it says while `at + t` cannot overflow. Delete the clause and
+  `go4t check` rejects the law with the input that breaks it:
+  `counterexample: t = 9223372036854775807, at = 1, now = 0`.
 
 To use it from Go, run `go4t build --emit-go decide --package decide
 decide/decide.gt` (typically from a `//go:generate` line). The generated

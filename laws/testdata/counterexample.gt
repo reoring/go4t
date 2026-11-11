@@ -23,6 +23,10 @@ type Opaque = Opaque(Float)
 law skipped(a Opaque, b Opaque) { a == b }
 proof skipped(a, b) { refl }
 
+// The counterexample must come from inside the precondition: 0, not maxInt.
+law bounded(a Int) requires 0 <= a && a <= 10 { (a * 2 > a) == true }
+proof bounded(a) { refl }
+
 law passing(a Int) { a + 1 == 1 + a }
 proof passing(a) { refl }
 

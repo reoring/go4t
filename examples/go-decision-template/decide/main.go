@@ -752,11 +752,11 @@ func decide_isStale_(value_ any) bool {
 	}
 }
 
-//line decide/decide.gt:27
+//line decide/decide.gt:73
 func decide_main_() any {
-//line decide/decide.gt:27
+//line decide/decide.gt:74
 	return io_ioPure_(prelude_unit_())
 }
 
-//line decide/decide.gt:27
+//line decide/decide.gt:73
 func Main() rt.IO { return decide_main_().(rt.IO) }
