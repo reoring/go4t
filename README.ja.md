@@ -212,6 +212,23 @@ bool フラグで表します。判断は早期 return の連鎖になり、
 法則が加えるのは、確率ではなく証明です。
 `if` が 2 つで済む `decide` なら、Go のままで十分です。
 
+証明が届いて生成器が届かないのは、入力の形を人が決めなければならない場面です。
+node-drain controller は DaemonSet の Pod に手を出してはならず、
+Pod は owner reference の*どれか 1 つ*が DaemonSet なら DaemonSet の Pod です。
+
+```text
+law daemonSetOwnerAnywhere(prefix List[meta.OwnerReference], owner meta.OwnerReference, rest List[meta.OwnerReference]) {
+  ownedByDaemonSet(append(prefix, Cons(owner{kind: "DaemonSet"}, rest))) == true
+}
+```
+
+`meta.OwnerReference` は `import "go:…"` で束縛した `k8s.io/apimachinery` の実際の型です。
+この法則は、すべての prefix、すべての suffix、owner の他のすべてのフィールドについて成り立ちます。
+証明は `prefix` に対する帰納法です
+([examples/node-drain-typed](examples/node-drain-typed/decide.gt))。
+同じ性質を `rapid` で試すには、まず owner reference のリストの生成器を書く必要があり、
+検査できるのはその生成器が作るリストについてだけです。
+
 **速度。** 実行コストは推測ではなく計測しています ([bench/PERF.md](bench/PERF.md))。
 値をボックス化せずに済むコードの実行時間は、同等の Go の 1.6〜4 倍です。
 ホットループ内で永続 `Map` を更新すると 19〜24 倍になります。

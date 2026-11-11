@@ -212,6 +212,23 @@ Be honest about the last row: on the same decision core, property-based
 testing with `rapid` caught every mutation we tried; what a law adds is a
 proof instead of a probability. For a `decide` with two `if`s, stay in Go.
 
+Where a proof reaches and a generator does not is input you would have to
+shape by hand. The node-drain controller must leave DaemonSet pods alone, and
+a pod is a DaemonSet pod if *any* of its owner references says so:
+
+```text
+law daemonSetOwnerAnywhere(prefix List[meta.OwnerReference], owner meta.OwnerReference, rest List[meta.OwnerReference]) {
+  ownedByDaemonSet(append(prefix, Cons(owner{kind: "DaemonSet"}, rest))) == true
+}
+```
+
+`meta.OwnerReference` is the real `k8s.io/apimachinery` type, bound with
+`import "go:…"`. The law quantifies over every prefix, every suffix and every
+other field of the owner; its proof is an induction on `prefix`
+([examples/node-drain-typed](examples/node-drain-typed/decide.gt)). A `rapid`
+test of the same property starts by writing a generator for owner-reference
+lists, and is then a statement about the lists that generator produces.
+
 **Speed.** Runtime cost is measured, not guessed ([bench/PERF.md](bench/PERF.md)).
 Code whose values stay unboxed runs at 1.6–4x of the equivalent Go. Updating
 a persistent `Map` inside a hot loop costs 19–24x — that is the price of
