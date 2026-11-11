@@ -1311,7 +1311,7 @@ uses the normal Go build cache, and removes the output binary before each
 iteration; it does not include go4t checking or code generation.
 
 Linux/amd64 Ryzen 9 7950X3D calibration (single iteration, Go 1.26.1,
-before Pass 13 type-print elision; decimal MB/KB, not a CI portability guarantee):
+before type-print elision; decimal MB/KB, not a CI portability guarantee):
 
 | Program | N | Source lines | Check ms | Alloc MB | Sampled peak MB | Go KB | Build ms | Longest error chars |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -2066,14 +2066,15 @@ with `go generate main.go`.
   functions generally need a generalized lemma, with the structurally decreasing
   argument before changing accumulator arguments; arbitrary folds are not
   reassociated.
-- Editor support is the deliberately small protocol surface in §8.5. Historical
-  example READMEs can show pre-module spellings; use this specification and the
-  checked tutorial for current imports and signatures. `selfhost/` is separately
-  owned and is not covered by this language-documentation acceptance.
+- Editor support is the deliberately small protocol surface in §8.5. Some
+  older example READMEs show pre-module spellings; this specification and the
+  checked tutorial give the current imports and signatures. The self-hosted
+  compiler in `selfhost/` implements a subset of the language (for example,
+  it parses laws and discards them) and is not described by this specification.
 
 ## 10. Boundary behaviour
 
-The tables below consolidate the Pass 12 boundary contracts. Function names in
+The tables below consolidate the boundary contracts. Function names in
 library tables are relative to the owning module in §7; an unqualified spelling
 in a table does **not** add an implicit export. [stdlib.md](docs/stdlib.md) gives
 signatures, one-line semantics and boundaries for every actual source declaration,
