@@ -414,37 +414,14 @@ func (c *terminationChecker) block(from *terminationNode, block *ast.Block, env 
 }
 
 func (c *terminationChecker) pattern(pattern ast.Pattern, value terminationValue, env terminationEnv) {
-	var children []ast.Pattern
-	var indexes []int
-	switch p := pattern.(type) {
-	case *ast.PVar:
-		env[p.Name] = value
-		return
-	case *ast.PAs:
-		env[p.Name] = value
-		c.pattern(p.Pat, value, env)
-		return
-	case *ast.PCtor:
-		children = p.Args
-	case *ast.PTuple:
-		children = p.Elems
-	case *ast.PRecord:
-		children = p.Pats
-		indexes = c.e.p.RecordPats[p].Indexes
-	default:
-		return
-	}
-	for i, child := range children {
-		index := i
-		if indexes != nil {
-			index = indexes[i]
-		}
-		field := terminationValue{root: value.root, depth: value.depth + 1}
+	types.BindStructuralPattern(pattern, value, c.e.p.RecordPats, func(value terminationValue, index int) terminationValue {
 		if index < len(value.fields) {
-			field = value.fields[index]
+			return value.fields[index]
 		}
-		c.pattern(child, field, env)
-	}
+		return terminationValue{root: value.root, depth: value.depth + 1}
+	}, func(name string, value terminationValue) {
+		env[name] = value
+	})
 }
 
 func nonzeroLiteral(expr ast.Expr) bool {

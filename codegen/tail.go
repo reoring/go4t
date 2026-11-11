@@ -20,7 +20,7 @@ type tailPlan struct {
 }
 
 func (g *generator) planTail(name string, ref types.RefKind, params []ast.Param, constraints []types.Constraint, body ast.Expr) *tailPlan {
-	plan := &tailPlan{calls: make(map[*ast.Call]bool)}
+	plan := &tailPlan{}
 	if ref == types.RefFunc {
 		if f := g.funcs[name]; f != nil {
 			if app, ok := types.Unalias(g.substitute(f.Scheme.Type.Ret)).(*types.TApp); ok {
@@ -28,66 +28,22 @@ func (g *generator) planTail(name string, ref types.RefKind, params []ast.Param,
 			}
 		}
 	}
-	var visit func(ast.Expr)
-	visit = func(expr ast.Expr) {
-		switch e := expr.(type) {
-		case *ast.Call:
-			id, ok := e.Fn.(*ast.Ident)
-			if !ok || id.Name != name || len(e.Args) != len(params) {
-				return
+	plan.calls = types.TailCalls(name, ref, params, body, func(dicts []types.DictRef) bool {
+		if len(dicts) != len(constraints) {
+			return false
+		}
+		for i, constraint := range constraints {
+			param, ok := constraint.Arg.(*types.TVar)
+			if !ok {
+				return false
 			}
-			ann := g.ann(id)
-			if ann.Ref != ref || len(ann.Dicts) != len(constraints) {
-				return
-			}
-			for i, constraint := range constraints {
-				param, ok := constraint.Arg.(*types.TVar)
-				if !ok {
-					return
-				}
-				expected := g.dict(&types.DictRef{Kind: types.DictParam, Param: param, ParamClass: constraint.Class})
-				if g.dict(&ann.Dicts[i]) != expected {
-					return
-				}
-			}
-			plan.calls[e] = true
-		case *ast.If:
-			visit(e.Then)
-			visit(e.Else)
-		case *ast.Match:
-			for _, arm := range e.Arms {
-				if ref != types.RefLocal || !patternBinds(arm.Pat, name) {
-					visit(arm.Body)
-				}
-			}
-		case *ast.BlockExpr:
-			if ref == types.RefLocal {
-				for _, stmt := range e.Block.Stmts {
-					switch stmt := stmt.(type) {
-					case *ast.LetStmt:
-						if stmt.Name == name || patternBinds(stmt.Pat, name) {
-							return
-						}
-					case *ast.FuncDecl:
-						if stmt.Name == name {
-							return
-						}
-					}
-				}
-			}
-			visit(e.Block.Result)
-		case *ast.Do:
-			if plan.io && g.directIO(e) {
-				visit(e.Result)
+			expected := g.dict(&types.DictRef{Kind: types.DictParam, Param: param, ParamClass: constraint.Class})
+			if g.dict(&dicts[i]) != expected {
+				return false
 			}
 		}
-	}
-	for _, param := range params {
-		if ref == types.RefLocal && (param.Name == name || patternBinds(param.Pat, name)) {
-			return nil
-		}
-	}
-	visit(body)
+		return true
+	}, func(e *ast.Do) bool { return plan.io && g.directIO(e) })
 	if len(plan.calls) == 0 {
 		return nil
 	}
@@ -96,34 +52,6 @@ func (g *generator) planTail(name string, ref types.RefKind, params []ast.Param,
 		plan.params[i] = g.fresh()
 	}
 	return plan
-}
-
-func patternBinds(pattern ast.Pattern, name string) bool {
-	switch p := pattern.(type) {
-	case *ast.PVar:
-		return p.Name == name
-	case *ast.PAs:
-		return p.Name == name || patternBinds(p.Pat, name)
-	case *ast.PTuple:
-		for _, elem := range p.Elems {
-			if patternBinds(elem, name) {
-				return true
-			}
-		}
-	case *ast.PCtor:
-		for _, arg := range p.Args {
-			if patternBinds(arg, name) {
-				return true
-			}
-		}
-	case *ast.PRecord:
-		for _, field := range p.Pats {
-			if patternBinds(field, name) {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 func (g *generator) loopBody(plan *tailPlan, params []ast.Param, result ast.Expr) string {
