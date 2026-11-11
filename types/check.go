@@ -307,6 +307,11 @@ func (c *checker) collectNames(files []*ast.File) {
 				if c.program.Funcs[decl.Name] != nil || c.methods[decl.Name] != nil {
 					fail(decl.Pos, "duplicate declaration %s", diagnosticName(decl.Name))
 				}
+				// ADR 0021 is not implemented yet: reject rather than ignore the
+				// quantifier.
+				if len(decl.TParams) > 0 {
+					fail(decl.Pos, "law type parameters are not supported")
+				}
 				c.program.Laws[decl.Name] = &LawInfo{Decl: decl}
 			case *ast.ProofDecl:
 				checkName(decl.Pos, decl.Name)

@@ -48,6 +48,9 @@ func Walk(n Node, visit func(Node)) {
 		if n.Body != nil {
 			walk(n.Body)
 		}
+	case *ConstDecl:
+		walk(n.Type)
+		walk(n.Value)
 	case *LawDecl:
 		params(n.Params)
 		walk(n.Requires)
@@ -57,7 +60,11 @@ func Walk(n Node, visit func(Node)) {
 		params(n.Params)
 		walk(n.Body)
 	case *TMatch:
-		walk(n.Var)
+		// A typed nil *Ident is not a nil Node.
+		if n.Var != nil {
+			walk(n.Var)
+		}
+		walk(n.Scrut)
 		for i := range n.Arms {
 			walk(&n.Arms[i])
 		}
@@ -196,6 +203,10 @@ func Walk(n Node, visit func(Node)) {
 		}
 	case *PAs:
 		walk(n.Pat)
+	case *POr:
+		for _, p := range n.Alts {
+			walk(p)
+		}
 	}
 }
 

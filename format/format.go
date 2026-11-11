@@ -192,6 +192,7 @@ func (p *printer) decl(decl ast.Decl) {
 		}
 	case *ast.LawDecl:
 		p.text("law " + d.Name)
+		p.tparams(d.TParams)
 		p.params(d.Params)
 		bodyStart := d.Pos
 		if d.Requires != nil {
@@ -201,7 +202,9 @@ func (p *printer) decl(decl ast.Decl) {
 		}
 		p.text(" ")
 		p.open(p.delimiterBetween('{', bodyStart, exprStart(d.LHS)))
-		p.expr(d.LHS, precedence["=="])
+		// Comparisons do not associate (ADR 0019): a comparison on either side
+		// of the equation keeps its parentheses.
+		p.expr(d.LHS, precedence["=="]+1)
 		p.text(" == ")
 		p.expr(d.RHS, precedence["=="]+1)
 		p.close(d.End)

@@ -25,9 +25,17 @@ ADRs written in Japanese carry an English summary.
 | [0014](0014-structural-models-for-std-list.md) | Accumulator-based `std/list` functions get structural models in laws | Accepted |
 | [0015](0015-unbounded-recursion-warning.md) | Warn on non-tail self-recursion that no data structure bounds | Accepted |
 | [0016](0016-requires-satisfiability.md) | A `requires` clause must be satisfiable, and the checker says when it cannot tell | Accepted |
+| [0017](0017-law-declaration-surface.md) | Law declarations: optional and inline proofs, several `requires`, predicate bodies | Accepted |
+| [0018](0018-tactics-absurd-and-case-analysis.md) | Tactics: `absurd`, case analysis on expressions, Bool cases, bare `match` | Accepted |
+| [0019](0019-lexical-traps-and-numeric-literals.md) | A leading `-` is rejected, comparisons do not chain, Int literals get separators and bases | Accepted |
+| [0020](0020-or-patterns.md) | Or-patterns and negative literal patterns | Accepted |
+| [0021](0021-polymorphic-laws.md) | Laws may quantify over types | Accepted |
+| [0022](0022-declaration-conveniences.md) | Record shorthand, top-level `let`, bare operator sections, trailing commas, spelling hints | Accepted |
+| [0023](0023-selfhost-erases-laws-by-token.md) | The self-hosted compiler skips laws token by token and follows the lexical rules | Accepted |
 
 The [standard-library law reach report](../laws-std-reach.md) is a generated
 snapshot maintained by `laws/taint_reach_test.go`, not a decision record.
 
 Reading order for the Go boundary: 0003 → 0006 → 0009 → 0010 → 0011. For
-laws: 0001 → 0002 → 0004 → 0007 → 0012 → 0016 → 0013 → 0014.
+laws: 0001 → 0002 → 0004 → 0007 → 0012 → 0016 → 0013 → 0014 → 0017 → 0018 → 0021.
+For surface syntax: 0019 → 0020 → 0022 → 0023.

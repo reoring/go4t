@@ -105,7 +105,6 @@ func TestLawProofErrors(t *testing.T) {
 		{"law f() { a == b && c }", "law body must be an equality (lhs == rhs)"},
 		{"law f() { a == b; c == d }", `expected "}", found "c"`},
 		{"law f() { let x = 1; x == x }", `expected expression, found "let"`},
-		{"law f[A](x A) { x == x }", `expected "(", found "["`},
 		{"proof f(x Int) { refl }", `expected ")", found "Int"`},
 		{"proof f(x) { if true { refl } }", `expected "else", found "}"`},
 		{"proof f(x) { if true { refl } else if false { refl } else { refl } }", `expected "{", found "if"`},

@@ -534,6 +534,7 @@ func (p *Parser) funcDecl(extern bool) (decl ast.Decl) {
 func (p *Parser) lawDecl() ast.Decl {
 	pos := p.next().Pos
 	d := &ast.LawDecl{Pos: pos, Name: p.ident()}
+	d.TParams = p.tparams()
 	d.Params = p.params()
 	p.skipSemis()
 	if p.is(lexer.Ident, "requires") {

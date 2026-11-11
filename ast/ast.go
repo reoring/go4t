@@ -197,6 +197,9 @@ type TypeDecl struct {
 	TParams  []string
 	Ctors    []Ctor
 	Deriving []string
+	// Shorthand marks `type Name = {fields}` (ADR 0022): the single record
+	// constructor is named after the type. Formatting hint only.
+	Shorthand bool
 }
 
 // AliasDecl is `alias Name[Params] = Type`; aliases have no runtime representation.
@@ -247,19 +250,45 @@ func (*TypeDecl) declNode()     {}
 func (*AliasDecl) declNode()    {}
 func (*FuncDecl) declNode()     {}
 
+// ConstDecl is a top-level `let name [: Type] = value` (ADR 0022): a nullary
+// pure function that is referenced without parentheses. Type is nil when the
+// value is a literal that determines it.
+type ConstDecl struct {
+	Pos     Pos
+	End     Pos
+	NamePos Pos
+	Name    string
+	Type    Type
+	Value   Expr
+}
+
+func (*ConstDecl) declNode()        {}
+func (d *ConstDecl) GetPos() Pos    { return d.Pos }
+func (d *ConstDecl) GetEnd() Pos    { return d.End }
+func (d *ConstDecl) SetEnd(end Pos) { d.End = end }
+
 // ---- laws and proofs (ADR 0001) ----
 
-// LawDecl is `law Name(params) [requires Expr] { lhs == rhs }`. Params are monomorphic
-// typed names (no type parameters). The equality is definitional: both sides
-// must normalise to alpha-equal terms; the Eq instance of the type is not used.
+// LawDecl is `law Name[TParams](params) {requires Expr} { body } [proof {…}]`
+// (ADR 0001, 0017, 0021). The equality is definitional: both sides must
+// normalise to alpha-equal terms; the Eq instance of the type is not used.
 type LawDecl struct {
-	Pos      Pos
-	End      Pos
-	Name     string
-	Params   []Param
-	Requires Expr // Optional Bool precondition; erased with the law.
-	LHS      Expr
-	RHS      Expr
+	Pos     Pos
+	End     Pos
+	Name    string
+	TParams []TypeParam // plain kind-* names; constraints and arities are rejected by the checker
+	Params  []Param
+	// Requires is the whole Bool precondition, erased with the law: the
+	// left-associated && of the written clauses. Every checker reads this.
+	Requires Expr
+	// RequiresClauses lists the written `requires` clauses, the operands of
+	// that chain, when there are several. Formatting hint only, like Call.Pipe.
+	RequiresClauses []Expr
+	LHS             Expr
+	RHS             Expr
+	// Predicate marks a body written as one Bool expression: LHS is that
+	// expression and RHS a synthesized `true`. Formatting hint only.
+	Predicate bool
 }
 
 // ProofDecl is `proof Name(x, y) { tactic }` for the law of the same name.
@@ -270,6 +299,12 @@ type ProofDecl struct {
 	Name   string
 	Params []Param // Name only; Type nil
 	Body   Tactic
+	// Inline marks a proof written as `} proof { tactic }` after its law
+	// (ADR 0017); the parser places it directly after that LawDecl.
+	Inline bool
+	// Implicit marks the `refl` proof the checker supplies for a law that has
+	// none. It never appears in File.Decls and is not a declaration symbol.
+	Implicit bool
 }
 
 type Tactic interface {
@@ -280,6 +315,10 @@ type Tactic interface {
 // TRefl is `refl`: both goal sides normalise to the same term.
 type TRefl struct{ Pos, End Pos }
 
+// TAbsurd is `absurd` (ADR 0018): the assumptions of the current case are
+// contradictory, so the case holds vacuously.
+type TAbsurd struct{ Pos, End Pos }
+
 // TSample is `sample(N)`: runtime testing only, never proof evidence.
 type TSample struct {
 	Pos, End Pos
@@ -288,12 +327,16 @@ type TSample struct {
 
 // TMatch is `match x { pat => tactic ... }`: splits proof variable x by
 // constructor. Patterns are PCtor/PRecord over PVar/PWild/nested PCtor,
-// or PTuple for tuple-typed variables; no literals, guards or as-patterns.
+// PTuple for tuple-typed variables, Bool literals, or POr alternatives;
+// no other literals, guards or as-patterns.
 type TMatch struct {
-	Pos  Pos
-	End  Pos
-	Var  *Ident
-	Arms []TacticArm
+	Pos Pos
+	End Pos
+	Var *Ident
+	// Scrut is the scrutinee when it is not a bare proof variable (ADR 0018);
+	// Var is nil then. Exactly one of Var and Scrut is set.
+	Scrut Expr
+	Arms  []TacticArm
 	// Induction adds structural self-rewrites; Bare supplies every constructor.
 	Induction bool
 	Bare      bool
@@ -339,6 +382,7 @@ func (d *ProofDecl) GetEnd() Pos    { return d.End }
 func (d *ProofDecl) SetEnd(end Pos) { d.End = end }
 
 func (*TRefl) tacticNode()    {}
+func (*TAbsurd) tacticNode()  {}
 func (*TSample) tacticNode()  {}
 func (*TMatch) tacticNode()   {}
 func (*TIf) tacticNode()      {}
@@ -347,6 +391,9 @@ func (*TRewrite) tacticNode() {}
 func (t *TRefl) GetPos() Pos       { return t.Pos }
 func (t *TRefl) GetEnd() Pos       { return t.End }
 func (t *TRefl) SetEnd(end Pos)    { t.End = end }
+func (t *TAbsurd) GetPos() Pos     { return t.Pos }
+func (t *TAbsurd) GetEnd() Pos     { return t.End }
+func (t *TAbsurd) SetEnd(end Pos)  { t.End = end }
 func (t *TSample) GetPos() Pos     { return t.Pos }
 func (t *TSample) GetEnd() Pos     { return t.End }
 func (t *TSample) SetEnd(end Pos)  { t.End = end }
@@ -426,6 +473,10 @@ func (e *Ident) DisplayName() string {
 type IntLit struct {
 	ExprBase
 	Value int64
+	// Text is the source spelling when it is not the plain decimal form of
+	// Value (separators, a base prefix, the smallest Int); empty otherwise and
+	// for synthesized literals. Formatting hint only (ADR 0019).
+	Text string
 }
 
 type FloatLit struct {
@@ -632,6 +683,15 @@ type PAs struct {
 	Pat  Pattern
 }
 
+// POr is `p1 | p2 | ...` (ADR 0020), at least two alternatives. Every
+// alternative binds the same variables. It means the same as writing one arm
+// per alternative, in order; see Alternatives.
+type POr struct {
+	Pos  Pos
+	End  Pos
+	Alts []Pattern
+}
+
 func (*PCtor) patNode()   {}
 func (*PVar) patNode()    {}
 func (*PWild) patNode()   {}
@@ -639,3 +699,4 @@ func (*PLit) patNode()    {}
 func (*PTuple) patNode()  {}
 func (*PAs) patNode()     {}
 func (*PRecord) patNode() {}
+func (*POr) patNode()     {}
