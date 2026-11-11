@@ -378,6 +378,15 @@ func (r *moduleResolver) declaration(d ast.Decl) {
 		r.function(d, ts, make(map[string]bool))
 	case *ast.LawDecl:
 		d.Name = r.scope.laws[d.Name]
+		for _, p := range d.TParams {
+			if len(p.Constraints) != 0 {
+				r.fail(d.Pos, "law type parameters cannot have class constraints")
+			}
+			if p.Arity != 0 {
+				r.fail(d.Pos, "law type parameters cannot be higher-kinded")
+			}
+		}
+		r.tparams(d.TParams, ts)
 		vs := make(map[string]bool, len(d.Params))
 		for _, p := range d.Params {
 			r.typ(p.Type, ts)
@@ -390,6 +399,17 @@ func (r *moduleResolver) declaration(d ast.Decl) {
 		d.RHS = r.expr(d.RHS, ts, vs)
 	case *ast.ProofDecl:
 		d.Name = r.scope.proofs[d.Name]
+		// A proof may precede its law, including in another file of this module.
+		for _, file := range r.scope.module.Files {
+			for _, decl := range file.Decls {
+				law, ok := decl.(*ast.LawDecl)
+				if ok && (law.Name == d.Name || r.scope.laws[law.Name] == d.Name) {
+					for _, p := range law.TParams {
+						ts[p.Name] = true
+					}
+				}
+			}
+		}
 		vs := make(map[string]bool, len(d.Params))
 		for _, p := range d.Params {
 			vs[p.Name] = true

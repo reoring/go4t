@@ -307,11 +307,6 @@ func (c *checker) collectNames(files []*ast.File) {
 				if c.program.Funcs[decl.Name] != nil || c.methods[decl.Name] != nil {
 					fail(decl.Pos, "duplicate declaration %s", diagnosticName(decl.Name))
 				}
-				// ADR 0021 is not implemented yet: reject rather than ignore the
-				// quantifier.
-				if len(decl.TParams) > 0 {
-					fail(decl.Pos, "law type parameters are not supported")
-				}
 				c.program.Laws[decl.Name] = &LawInfo{Decl: decl}
 			case *ast.ProofDecl:
 				checkName(decl.Pos, decl.Name)
@@ -429,8 +424,24 @@ func (c *checker) collectSignatures(files []*ast.File) {
 				c.program.Funcs[decl.Name].Scheme = c.scheme(decl.Pos, decl.TParams, decl.Params, decl.Ret, make(map[string]Type))
 			case *ast.LawDecl:
 				law := c.program.Laws[decl.Name]
+				scope := make(map[string]Type, len(decl.TParams))
+				for _, param := range decl.TParams {
+					checkName(decl.Pos, param.Name)
+					if len(param.Constraints) != 0 {
+						fail(decl.Pos, "law type parameters cannot have class constraints")
+					}
+					if param.Arity != 0 {
+						fail(decl.Pos, "law type parameters cannot be higher-kinded")
+					}
+					if scope[param.Name] != nil {
+						fail(decl.Pos, "duplicate type parameter %s", param.Name)
+					}
+					v := &TVar{Name: param.Name, Kind: KStar{}}
+					scope[param.Name] = v
+					law.TParams = append(law.TParams, v)
+				}
 				for _, param := range decl.Params {
-					law.ParamTypes = append(law.ParamTypes, c.valueType(param.Type, nil))
+					law.ParamTypes = append(law.ParamTypes, c.valueType(param.Type, scope))
 				}
 			}
 		}

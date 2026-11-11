@@ -18,6 +18,9 @@ func (e *evaluator) extractLaw(name string) (lawGoal, error) {
 	law := lawGoal{Name: name, LHS: info.Decl.LHS, RHS: info.Decl.RHS, Requires: info.Decl.Requires}
 	for i, param := range info.Decl.Params {
 		typ := info.ParamTypes[i]
+		// Rigid parameters are opaque to unsupportedType, just as in generic
+		// function bodies. The checker has already scoped them to this law;
+		// no concrete instantiation is used while proving the equation.
 		if reason := e.unsupportedType(typ, true, make(map[string]bool)); reason != "" {
 			return lawGoal{}, fmt.Errorf("parameter %s: %s", param.Name, reason)
 		}

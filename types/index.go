@@ -508,6 +508,9 @@ func (b *indexBuilder) collectLocals(f *ast.File, d ast.Decl) {
 		var tparams []string
 		switch n := n.(type) {
 		case *ast.LawDecl:
+			for _, tp := range n.TParams {
+				tparams = append(tparams, tp.Name)
+			}
 			info := b.p.Laws[n.Name]
 			b.params(f, n.Params, &TFunc{Params: info.ParamTypes}, n.Pos, n.End)
 		case *ast.ProofDecl:

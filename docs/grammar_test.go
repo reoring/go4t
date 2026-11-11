@@ -851,3 +851,19 @@ func TestGrammarGeneratedRejections(t *testing.T) {
 		}
 	}
 }
+
+func TestPolymorphicLawGrammar(t *testing.T) {
+	g := loadSpecGrammar(t)
+	witnesses, err := g.witnesses()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// LawDecl is allowlisted only for its equation delimiter. Exercise its
+	// type-parameter production with fixed, valid equation sides.
+	for _, sentence := range g.expand(g.byName["TParams"], 3, witnesses) {
+		source := "package main; law identity" + renderSentence(sentence) + "(x Int) { x == x }; proof identity(x) { refl }"
+		if _, err := parser.Parse(source); err != nil {
+			t.Fatalf("%s: %v", source, err)
+		}
+	}
+}
