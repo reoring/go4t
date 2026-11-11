@@ -41,10 +41,18 @@ else true false given deriving law proof refl rewrite`.
 
 ### 1.3 Literals and punctuation
 
-- `Int`: decimal digits, signed 64-bit values; a negative number uses unary `-`.
+- `Int`: signed 64-bit values, written as decimal digits or with a `0x`/`0X`
+  hexadecimal, `0b`/`0B` binary or `0o`/`0O` octal prefix. `_` may separate
+  digits or occur once immediately after a base prefix: `1_000_000`, `0xFF_FF`,
+  `0b_1010`, `0o755`. It cannot trail or repeat. Leading zeros do not select
+  octal: `007` is decimal 7. The formatter preserves the literal's spelling.
+  A negative number uses unary `-`, except magnitude 2^63 directly after `-`
+  denotes the smallest Int as a single literal: `-9223372036854775808` or
+  `-0x8000000000000000`. Other out-of-range magnitudes are rejected.
 - `Float`: `Digits '.' Digits [Exponent]` or `Digits Exponent`, where
   `Exponent := ('e' | 'E') ['+' | '-'] Digits`. Examples: `1.5`, `2e3`, `1.0e-3`.
   Neither `1.` nor `.5` is a source Float literal. Overflow is a parse error.
+  Separators and base prefixes are not supported in Float literals.
 - `String`: double-quoted text with Go escapes, e.g. `"a\n"`.
 - Interpolation: `${expr}` inside a string uses `Show`; `$$` means literal `$`.
   Lone dollars and braces outside an interpolation are literal; nested strings
@@ -57,12 +65,16 @@ The lexical leaves of the syntactic grammar are token classes, not literal
 spellings. `LowerIdent` includes private lower-case names; `UpperIdent` includes
 private upper-case names (ignoring leading underscores). Neither includes `_`.
 `String` excludes interpolation; `Interp` contains at least one `${...}`.
+A number immediately followed by a letter or an invalid `_` is one lexical
+error, not separate number and identifier tokens. Tuple indices remain plain
+decimal digits without separators or prefixes.
 
 ```ebnf
 Ident      := ? identifier ?
 LowerIdent := ? lower-case identifier ?
 UpperIdent := ? upper-case identifier ?
 Int        := ? integer literal ?
+TupleIndex := ? decimal digits ?
 Float      := ? float literal ?
 String     := ? string literal ?
 Interp     := ? interpolated string literal ?
@@ -78,10 +90,15 @@ a continuation: `else`, `|`, `||`, `|>`, `.`, `)`, `]`, `given`, `deriving`,
 Newlines inside parentheses, brackets, record declarations/literals/updates and
 record patterns do not separate statements. Fields still need commas.
 
-Thus `else`, match alternatives, operators and pipeline steps may lead a line.
-A leading `-` continues the previous expression: use grouping or an explicit
-semicolon to start a separate negative expression. Explicit semicolons always
-separate statements. Tuple access `t.0.1` is not lexed as a Float literal.
+Thus `else`, match alternatives, operators other than `-` and pipeline steps may
+lead a line. If the previous token can end an expression and the innermost
+delimiter is a brace or absent, a line-leading `-` is an error at that `-`:
+`ambiguous "-" at the start of a line: end the previous line with "-" to subtract, or write (-x) for a negative value`.
+Write `a -` followed by a newline and `b` for subtraction; write `(-x)` for a
+negative statement. A `-` after an operator, `=`, `=>`, `(`, `[` or `,`, or
+inside parentheses/brackets, is unaffected. Blank lines and comments do not
+remove the ambiguity. Explicit semicolons always separate statements.
+Tuple access `t.0.1` is not lexed as a Float literal.
 
 ## 2. Program structure
 
@@ -338,11 +355,16 @@ InferExpr  := 'func' '(' [LParam {',' LParam} [',']] ')' '=>' Expr
             | IfExpr | Binary
 IfExpr     := 'if' Expr Block 'else' (Block | IfExpr)
 LParam     := LowerIdent [Type] | Pattern
-Binary     := Unary {BinOp Unary}                    // precedence below
-BinOp      := '|>' | '||' | '&&' | '==' | '!=' | '<' | '<=' | '>' | '>='
-            | '+' | '-' | '*' | '/' | '%'
+Binary     := Disjunction {'|>' Disjunction}
+Disjunction := Conjunction {'||' Conjunction}
+Conjunction := Comparison {'&&' Comparison}
+Comparison := Sum [CompareOp Sum]
+CompareOp  := '==' | '!=' | '<' | '<=' | '>' | '>='
+Sum        := Product {('+' | '-') Product}
+Product    := Unary {('*' | '/' | '%') Unary}
+BinOp      := '|>' | '||' | '&&' | CompareOp | '+' | '-' | '*' | '/' | '%'
 Unary      := {'-' | '!'} Postfix
-Postfix    := Primary {'(' [CallArg {',' CallArg} [',']] ')' | '.' Ident | '.' Int | RecordFields}
+Postfix    := Primary {'(' [CallArg {',' CallArg} [',']] ')' | '.' Ident | '.' TupleIndex | RecordFields}
 CallArg    := Expr | '_'
 Primary    := Name | Int | Float | String | Interp | 'true' | 'false'
             | ConstructorName RecordFields | '(' InferExpr ')' | '(' InferExpr ',' InferExpr {',' InferExpr} ')'
@@ -354,14 +376,20 @@ LocalFunc  := 'func' Ident '(' [Param {',' Param} [',']] ')' Type Block
 DoStmt     := Pattern '<-' Expr | LetStmt | LocalFunc | Expr
 Section    := '(' '_' BinOp Unary ')' | '(' Unary BinOp '_' ')' | '(' '_' BinOp '_' ')'
             | '(' Projection ')'
-Projection := '_' '.' (Ident | Int) {'.' (Ident | Int)}
+Projection := '_' '.' (Ident | TupleIndex) {'.' (Ident | TupleIndex)}
 RecordFields := '{' Ident ':' Expr {',' Ident ':' Expr} [','] '}'
 ```
 
 Precedence, low to high: `|>`; `||`; `&&`; `== != < <= > >=`; `+ -`;
-`* / %`; unary `- !`; postfix. Binary operators associate left. The grammar's
-`Name` in expression position is resolved against imports versus record fields;
-not every `x.f` is a qualified module name.
+`* / %`; unary `- !`; postfix. Binary operators associate left except comparisons:
+`== != < <= > >=` do not associate, and each operand must have higher precedence.
+A second unparenthesized comparison is an error at its operator:
+`comparison operators do not chain; parenthesize one comparison, as in (a < b) == c`.
+For example, `a < b == c` is rejected; `(a < b) == c` and `a < (b == c)`
+are syntactically valid. The formatter retains grouping on either side of a
+comparison, including both sides of a law equation. There is no chained-comparison
+sugar. The grammar's `Name` in expression position is resolved against imports
+versus record fields; not every `x.f` is a qualified module name.
 
 Unary operators may repeat. Sections have a whole unary operand on each
 non-placeholder side; parenthesise a compound expression, e.g. `(_ + (a + b))`.
@@ -390,6 +418,11 @@ otherwise unresolved arithmetic operands default to Int. Float division is IEEE
 754, including infinities/NaN on zero divisors. Int overflow wraps; Int division
 truncates toward zero and zero division/remainder panics. `Eq`/`Ord` operators
 use the corresponding class semantics (§10.1).
+
+Comparison operators do not chain (§4.1), regardless of operand types. To compare
+a comparison result, parenthesize that operand: `(a < b) == true`.
+Integer source literals must fit Int even though arithmetic overflow wraps; the
+directly negated magnitude 2^63 is the sole exception (§1.3).
 
 ### 4.3 Blocks, lets and local recursion
 
@@ -2124,6 +2157,11 @@ than the shortest Float `show` form.
 | --- | --- |
 | Float exponent without digits / source overflow | `bad float literal: exponent requires digits` / `bad float literal <text>`; `.5` and `1.` are not Float literals |
 | Mixed Int/Float, Float `%` | Rejected; no implicit conversion |
+| Int source range | `integer literal <text> is out of range for Int`; magnitude 2^63 is accepted only directly after unary `-`, producing the smallest Int literal |
+| Int separators | `_` separates digits or follows a base prefix once; malformed placement reports `bad number literal <text>: "_" must separate digits` |
+| Int base digits | Decimal, hexadecimal (`0x`/`0X`), binary (`0b`/`0B`), octal (`0o`/`0O`); missing or invalid base digits report `bad number literal <text>: expected <base> digits after <prefix>` |
+| Number followed by a letter | `bad number literal <text>: a number cannot be followed by a letter`; the entire spelling is rejected |
+| Int notation in Float literals | `digit separators and base prefixes are not supported in Float literals` |
 | Int `+ - *`, negation, abs | Signed int64 wraparound; abs(minInt()) = minInt() |
 | Int `/` and `%` | Truncate toward zero / dividend-signed remainder; zero divisor panics `runtime error: integer divide by zero`; minInt() / -1 = minInt(), minInt() % -1 = 0 |
 | Float `/ 0.0` | Signed infinity or NaN, not an integer-division panic |

@@ -109,3 +109,29 @@ Int := Digits | '0' ('x'|'X') HexDigits | '0' ('b'|'B') BinDigits | '0' ('o'|'O'
   Neither occurs in the repository.
 
 ## Implementation notes
+
+- Implemented the leading-minus rejection in layout lookahead, preserving the
+  position of the offending minus across comments and blank lines. Explicit
+  semicolons and expression-only delimiter contexts remain unambiguous.
+- Comparison parsing tracks operators at each precedence-climbing level;
+  parentheses establish a fresh level. Formatting preserves nested comparison
+  operands and parentheses around negative statements, including folded Ints.
+- `lexer.ParseInt(text string, negative bool) (int64, error)` is the shared
+  conversion for lexically validated raw Int tokens. It accumulates directly
+  with a signed-range bound without stripping/copying separators. The parser's
+  expression, tuple-index and sample-count paths all use it. Tuple indices
+  additionally require plain decimal digits; sample counts retain their own
+  `1..100000` diagnostic.
+- Only the directly negated magnitude 2^63 folds into an `IntLit`; other
+  negations retain their unary AST. `IntLit.Text` is empty for canonical decimal
+  spellings and retains all other spellings, including leading zeroes and the
+  minus of a folded nondecimal/separated minimum.
+- Number scanning rejects the whole malformed spelling. Missing base digits
+  and out-of-base decimal digits use `hexadecimal`, `binary` or `octal` in the
+  expected-digits diagnostic. Float notation with separators or a base prefix
+  takes the Float diagnostic; malformed separators otherwise take precedence
+  over attached-letter diagnostics. Unary overflow names the unsigned token.
+- SPEC's executable grammar now spells out each binary precedence level and
+  distinguishes the plain-decimal `TupleIndex` lexical leaf from `Int`.
+- No deviations from the decision; the self-hosted implementation remains the
+  responsibility of ADR 0023.

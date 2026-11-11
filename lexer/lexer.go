@@ -117,35 +117,36 @@ func (l *Lexer) advance() rune {
 	return r
 }
 
-// needSemi applies all three DESIGN layout conditions at a newline or EOF.
-func (l *Lexer) needSemi() bool {
+// needSemi applies all three SPEC layout conditions at a newline or EOF.
+func (l *Lexer) needSemi() (bool, error) {
 	// Rule 1: only these token classes can end a statement.
 	switch l.lastKind {
 	case Ident, Int, Float, String, InterpTok:
 	case Keyword:
 		if l.lastText != "true" && l.lastText != "false" && l.lastText != "refl" {
-			return false
+			return false, nil
 		}
 	case Punct:
 		switch l.lastText {
 		case ")", "]", "}", "_":
 		default:
-			return false
+			return false, nil
 		}
 	default:
-		return false
+		return false, nil
 	}
 	// Rule 2: the innermost delimiter must be a brace, or absent.
 	if n := len(l.nest); n > 0 && l.nest[n-1] != '{' {
-		return false
+		return false, nil
 	}
 	// Rule 3: a leading continuation token joins the preceding line.
-	return !l.continuationAhead()
+	continues, err := l.continuationAhead()
+	return !continues, err
 }
 
-// continuationAhead recognizes DESIGN's leading continuation tokens after
+// continuationAhead recognizes SPEC's leading continuation tokens after
 // whitespace and line comments without changing source positions.
-func (l *Lexer) continuationAhead() bool {
+func (l *Lexer) continuationAhead() (bool, error) {
 	i := l.i
 	for i < len(l.src) {
 		if unicode.IsSpace(l.src[i]) {
@@ -162,18 +163,29 @@ func (l *Lexer) continuationAhead() bool {
 		break
 	}
 	if i == len(l.src) {
-		return false
+		return false, nil
 	}
 	switch l.src[i] {
-	case '.', ')', ']', '|', '+', '-', '*', '/', '%', '<', '>':
+	case '-':
+		pos := ast.Pos{Line: l.line, Col: l.col}
+		for _, r := range l.src[l.i:i] {
+			if r == '\n' {
+				pos.Line++
+				pos.Col = 1
+			} else {
+				pos.Col++
+			}
+		}
+		return false, fmt.Errorf(`%s: ambiguous "-" at the start of a line: end the previous line with "-" to subtract, or write (-x) for a negative value`, pos)
+	case '.', ')', ']', '|', '+', '*', '/', '%', '<', '>':
 		// Covers single |, binary || and |>, <=, >= and the <- bind arrow.
-		return true
+		return true, nil
 	case '=':
-		return i+1 < len(l.src) && (l.src[i+1] == '=' || l.src[i+1] == '>')
+		return i+1 < len(l.src) && (l.src[i+1] == '=' || l.src[i+1] == '>'), nil
 	case '!':
-		return i+1 < len(l.src) && l.src[i+1] == '='
+		return i+1 < len(l.src) && l.src[i+1] == '=', nil
 	case '&':
-		return i+1 < len(l.src) && l.src[i+1] == '&'
+		return i+1 < len(l.src) && l.src[i+1] == '&', nil
 	case 'e', 'g', 'd':
 		for _, word := range [...]string{"else", "given", "deriving"} {
 			j := 0
@@ -181,11 +193,11 @@ func (l *Lexer) continuationAhead() bool {
 				j++
 			}
 			if j == len(word) {
-				return i+j == len(l.src) || !isIdentRune(l.src[i+j])
+				return i+j == len(l.src) || !isIdentRune(l.src[i+j]), nil
 			}
 		}
 	}
-	return false
+	return false, nil
 }
 
 // All tokenizes the whole input.
@@ -226,8 +238,14 @@ func (l *Lexer) next() (Token, error) {
 	layoutChecked := false
 	for {
 		if l.i >= len(l.src) {
-			if !layoutChecked && l.needSemi() {
-				return l.emit(Token{Kind: Punct, Text: ";", Pos: ast.Pos{Line: l.line, Col: l.col}}), nil
+			if !layoutChecked {
+				semi, err := l.needSemi()
+				if err != nil {
+					return Token{}, err
+				}
+				if semi {
+					return l.emit(Token{Kind: Punct, Text: ";", Pos: ast.Pos{Line: l.line, Col: l.col}}), nil
+				}
 			}
 			return l.emit(Token{Kind: EOF, Pos: ast.Pos{Line: l.line, Col: l.col}}), nil
 		}
@@ -239,7 +257,11 @@ func (l *Lexer) next() (Token, error) {
 				// The previous token and next non-comment token stay the same
 				// across blank lines, so check this boundary only once.
 				layoutChecked = true
-				if l.needSemi() {
+				semi, err := l.needSemi()
+				if err != nil {
+					return Token{}, err
+				}
+				if semi {
 					return l.emit(Token{Kind: Punct, Text: ";", Pos: pos}), nil
 				}
 			}
@@ -265,36 +287,8 @@ func (l *Lexer) next() (Token, error) {
 				return l.emit(Token{Kind: Keyword, Text: s, Pos: pos}), nil
 			}
 			return l.emit(Token{Kind: Ident, Text: s, Pos: pos}), nil
-		case unicode.IsDigit(r):
-			start := l.i
-			for unicode.IsDigit(l.peek(0)) {
-				l.advance()
-			}
-			kind := Int
-			// A number after '.' is a tuple index, including chained t.0.1.
-			if l.lastKind != Punct || l.lastText != "." {
-				if l.peek(0) == '.' && unicode.IsDigit(l.peek(1)) {
-					kind = Float
-					l.advance()
-					for unicode.IsDigit(l.peek(0)) {
-						l.advance()
-					}
-				}
-				if l.peek(0) == 'e' || l.peek(0) == 'E' {
-					kind = Float
-					l.advance()
-					if l.peek(0) == '+' || l.peek(0) == '-' {
-						l.advance()
-					}
-					if !unicode.IsDigit(l.peek(0)) {
-						return Token{}, fmt.Errorf("%s: bad float literal: exponent requires digits", pos)
-					}
-					for unicode.IsDigit(l.peek(0)) {
-						l.advance()
-					}
-				}
-			}
-			return l.emit(Token{Kind: kind, Text: string(l.src[start:l.i]), Pos: pos}), nil
+		case isDigit(r):
+			return l.scanNumber(pos)
 		case r == '"':
 			t, err := l.scanString(pos, true)
 			if err != nil {
@@ -312,6 +306,140 @@ func (l *Lexer) next() (Token, error) {
 		}
 		return Token{}, fmt.Errorf("%s: unexpected character %q", pos, r)
 	}
+}
+
+func isDigit(r rune) bool { return r >= '0' && r <= '9' }
+
+func digitValue(r rune) int {
+	switch {
+	case isDigit(r):
+		return int(r - '0')
+	case r >= 'a' && r <= 'f':
+		return int(r-'a') + 10
+	case r >= 'A' && r <= 'F':
+		return int(r-'A') + 10
+	}
+	return 16
+}
+
+func numberBase(prefix byte) (int, string) {
+	switch prefix {
+	case 'x', 'X':
+		return 16, "hexadecimal"
+	case 'b', 'B':
+		return 2, "binary"
+	case 'o', 'O':
+		return 8, "octal"
+	}
+	return 10, "decimal"
+}
+
+func (l *Lexer) scanNumber(pos ast.Pos) (Token, error) {
+	start := l.i
+	base, name := 10, "decimal"
+	prefix := ""
+	if l.peek(0) == '0' && l.peek(1) < 128 {
+		base, name = numberBase(byte(l.peek(1)))
+		if base != 10 {
+			l.advance()
+			l.advance()
+			prefix = string(l.src[start:l.i])
+		}
+	}
+	digits, separators, badSeparator := 0, false, false
+	previousDigit := prefix != "" // one underscore may follow a base prefix
+	for digitValue(l.peek(0)) < base || l.peek(0) == '_' {
+		r := l.advance()
+		if r == '_' {
+			separators = true
+			if !previousDigit || digitValue(l.peek(0)) >= base {
+				badSeparator = true
+			}
+			previousDigit = false
+		} else {
+			digits++
+			previousDigit = true
+		}
+	}
+	kind := Int
+	// A number after '.' is a tuple index, including chained t.0.1.
+	// The parser rejects any spelling other than plain decimal digits.
+	if l.lastKind != Punct || l.lastText != "." {
+		if l.peek(0) == '.' && isDigit(l.peek(1)) {
+			kind = Float
+			l.advance()
+			for isDigit(l.peek(0)) || l.peek(0) == '_' {
+				separators = separators || l.peek(0) == '_'
+				l.advance()
+			}
+		}
+		exponent := l.peek(0) == 'e' || l.peek(0) == 'E'
+		if prefix != "" {
+			exponent = l.peek(0) == 'p' || l.peek(0) == 'P'
+		}
+		if exponent {
+			kind = Float
+			l.advance()
+			if l.peek(0) == '+' || l.peek(0) == '-' {
+				l.advance()
+			}
+			if !isDigit(l.peek(0)) && l.peek(0) != '_' && !separators && prefix == "" {
+				return Token{}, fmt.Errorf("%s: bad float literal: exponent requires digits", pos)
+			}
+			for isDigit(l.peek(0)) || l.peek(0) == '_' {
+				separators = separators || l.peek(0) == '_'
+				l.advance()
+			}
+		}
+	}
+	suffix := l.peek(0)
+	for isIdentRune(l.peek(0)) {
+		l.advance()
+	}
+	text := string(l.src[start:l.i])
+	switch {
+	case kind == Float && (separators || prefix != ""):
+		return Token{}, fmt.Errorf("%s: digit separators and base prefixes are not supported in Float literals", pos)
+	case badSeparator:
+		return Token{}, fmt.Errorf(`%s: bad number literal %s: "_" must separate digits`, pos, text)
+	case prefix != "" && (digits == 0 || isDigit(suffix)):
+		return Token{}, fmt.Errorf("%s: bad number literal %s: expected %s digits after %s", pos, text, name, prefix)
+	case isIdentRune(suffix):
+		return Token{}, fmt.Errorf("%s: bad number literal %s: a number cannot be followed by a letter", pos, text)
+	}
+	return l.emit(Token{Kind: kind, Text: text, Pos: pos}), nil
+}
+
+// ParseInt converts a lexically validated Int token without discarding its
+// spelling. A negative operand may have magnitude 2^63; positive ones may not.
+// Leading zeroes in decimal tokens do not select octal.
+func ParseInt(text string, negative bool) (int64, error) {
+	base, start := 10, 0
+	if len(text) >= 2 && text[0] == '0' {
+		base, _ = numberBase(text[1])
+		if base != 10 {
+			start = 2
+		}
+	}
+	limit := uint64(1<<63 - 1)
+	if negative {
+		limit++
+	}
+	var value uint64
+	for _, r := range text[start:] {
+		if r == '_' {
+			continue
+		}
+		digit := uint64(digitValue(r))
+		if digit >= uint64(base) || value > (limit-digit)/uint64(base) {
+			return 0, fmt.Errorf("integer literal %s is out of range for Int", text)
+		}
+		value = value*uint64(base) + digit
+	}
+	if negative {
+		return -int64(value), nil
+	}
+	return int64(value), nil
 }
 
 // scanString also skips nested strings without allocating their payloads when

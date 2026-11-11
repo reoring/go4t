@@ -597,7 +597,7 @@ func (p *Parser) tactic() (tactic ast.Tactic) {
 			p.fail(count.Pos, "sample count must be an Int literal in 1..100000")
 		}
 		p.next()
-		n, err := strconv.ParseInt(count.Text, 10, 64)
+		n, err := lexer.ParseInt(count.Text, false)
 		if err != nil || n < 1 || n > 100000 {
 			p.fail(count.Pos, "sample count must be an Int literal in 1..100000")
 		}
@@ -1139,11 +1139,18 @@ func (p *Parser) binary(minPrec int, holes *[]*ast.Ident) ast.Expr {
 	} else {
 		left = p.unary()
 	}
+	compared := false
 	for {
 		t := p.tok()
 		prec, ok := binPrec[t.Text]
 		if t.Kind != lexer.Punct || !ok || prec <= minPrec {
 			return left
+		}
+		if prec == binPrec["=="] {
+			if compared {
+				p.fail(t.Pos, "comparison operators do not chain; parenthesize one comparison, as in (a < b) == c")
+			}
+			compared = true
 		}
 		p.next()
 		right := p.binary(prec, holes)
@@ -1207,6 +1214,17 @@ func (p *Parser) unary() (expr ast.Expr) {
 	t := p.tok()
 	if t.Kind == lexer.Punct && (t.Text == "-" || t.Text == "!") {
 		p.next()
+		if t.Text == "-" && p.tok().Kind == lexer.Int {
+			literal := p.tok()
+			if value, err := lexer.ParseInt(literal.Text, true); err == nil && value == -1<<63 {
+				p.next()
+				text := ""
+				if literal.Text != "9223372036854775808" {
+					text = "-" + literal.Text
+				}
+				return &ast.IntLit{ExprBase: ast.ExprBase{Pos: t.Pos}, Value: value, Text: text}
+			}
+		}
 		return &ast.Unary{ExprBase: ast.ExprBase{Pos: t.Pos}, Op: t.Text, X: p.unary()}
 	}
 	return p.postfix()
@@ -1266,11 +1284,18 @@ func (p *Parser) projection(e ast.Expr) ast.Expr {
 		field := &ast.Field{ExprBase: ast.ExprBase{Pos: pos}, X: e, Index: -1}
 		if t := p.tok(); t.Kind == lexer.Int {
 			p.next()
-			index, err := strconv.Atoi(t.Text)
-			if err != nil {
+			index, err := lexer.ParseInt(t.Text, false)
+			plain := true
+			for _, r := range t.Text {
+				if r < '0' || r > '9' {
+					plain = false
+					break
+				}
+			}
+			if err != nil || !plain || int64(int(index)) != index {
 				p.fail(t.Pos, "bad tuple index %s", t.Text)
 			}
-			field.Name, field.Index = t.Text, index
+			field.Name, field.Index = t.Text, int(index)
 		} else {
 			field.Name = p.ident()
 		}
@@ -1329,11 +1354,15 @@ func (p *Parser) primary() (expr ast.Expr) {
 		return &ast.Ident{ExprBase: base, Name: t.Text}
 	case lexer.Int:
 		p.next()
-		v, err := strconv.ParseInt(t.Text, 10, 64)
+		v, err := lexer.ParseInt(t.Text, false)
 		if err != nil {
-			p.fail(t.Pos, "bad integer literal %s", t.Text)
+			p.fail(t.Pos, "%s", err)
 		}
-		return &ast.IntLit{ExprBase: base, Value: v}
+		text := ""
+		if strings.ContainsRune(t.Text, '_') || len(t.Text) > 1 && t.Text[0] == '0' {
+			text = t.Text
+		}
+		return &ast.IntLit{ExprBase: base, Value: v, Text: text}
 	case lexer.Float:
 		p.next()
 		v, err := strconv.ParseFloat(t.Text, 64)
