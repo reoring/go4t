@@ -139,6 +139,9 @@ func (b *bodyChecker) ident(e *ast.Ident, env *locals, ann *Ann) Type {
 		sub, inst := b.c.instantiate(f.Scheme.TParams)
 		ann.Ref, ann.Inst = RefFunc, inst
 		b.obligations = append(b.obligations, obligation{expr: e, constraints: subConstraints(f.Scheme.Constraints, sub)})
+		if f.Constant != nil {
+			return f.Scheme.Type.Ret
+		}
 		return substitute(f.Scheme.Type, sub)
 	}
 	if m := b.c.methods[e.Name]; m != nil {
@@ -225,6 +228,11 @@ func (b *bodyChecker) inferContext(e ast.Expr, env *locals, expected Type, lift 
 		result = App(b.c.cons[data.Name], item)
 	case *ast.Call:
 		fn := prune(b.infer(e.Fn, env))
+		if id, ok := e.Fn.(*ast.Ident); ok && AnnOf(id).Ref == RefFunc {
+			if f := b.c.program.Funcs[id.Name]; f.Constant != nil {
+				fail(id.Pos, "%s is a constant, not a function; write %s without ()", id.DisplayName(), id.DisplayName())
+			}
+		}
 		ft, ok := fn.(*TFunc)
 		if !ok {
 			ft = &TFunc{Params: make([]Type, len(e.Args)), Ret: b.c.fresh(KStar{})}

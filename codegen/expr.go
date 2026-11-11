@@ -191,6 +191,10 @@ func (g *generator) expr(expr ast.Expr) (code string) {
 			}
 			return mangle(e.Name) + "(" + strings.Join(dicts, ", ") + ")"
 		case types.RefFunc:
+			if f := g.funcs[e.Name]; f != nil && f.Constant != nil {
+				rep = scalar(f.Scheme.Type.Ret)
+				return g.identCall(e, nil)
+			}
 			return g.functionValue(e)
 		case types.RefMethod:
 			if len(ann.Dicts) == 1 {

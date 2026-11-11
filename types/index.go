@@ -244,6 +244,11 @@ func (b *indexBuilder) ctorType(c *Ctor) Type {
 }
 func (b *indexBuilder) declaration(f *ast.File, d ast.Decl) *Symbol {
 	switch d := d.(type) {
+	case *ast.ConstDecl:
+		info := b.p.Funcs[d.Name]
+		s := b.symbol(f, d.Name, VariableSymbol, d, info.Scheme.Type.Ret)
+		b.values[d.Name] = s
+		return s
 	case *ast.FuncDecl:
 		info := b.p.Funcs[d.Name]
 		if info == nil {
@@ -270,7 +275,11 @@ func (b *indexBuilder) declaration(f *ast.File, d ast.Decl) *Symbol {
 		for i := range d.Ctors {
 			c := &d.Ctors[i]
 			cc := data.Ctors[i]
-			child := b.symbol(f, c.Name, ConstructorSymbol, c, b.ctorType(cc))
+			var source ast.Node = c
+			if d.Shorthand {
+				source = d
+			}
+			child := b.symbol(f, c.Name, ConstructorSymbol, source, b.ctorType(cc))
 			b.ctors[c.Name] = child
 			if s != nil && child != nil {
 				s.Children = append(s.Children, child)

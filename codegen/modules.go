@@ -82,6 +82,9 @@ func GenerateInDir(prog *types.Program, goPackage, dir string, options Options) 
 	register := func(old, new, owner string) { renamed[old] = new; owners[new] = owner }
 	for _, f := range prog.Funcs {
 		owner := declarationOwners[f.Decl]
+		if f.Constant != nil {
+			owner = declarationOwners[f.Constant]
+		}
 		register(functionName(f.Name), prefixes[owner]+"_"+sourceName(f.Name)+"_", owner)
 	}
 	for _, m := range prog.Modules {

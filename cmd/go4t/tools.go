@@ -235,6 +235,8 @@ func testHarness(files []*ast.File) (*ast.File, error) {
 	for _, file := range files {
 		for _, decl := range file.Decls {
 			switch d := decl.(type) {
+			case *ast.ConstDecl:
+				names[d.Name] = true
 			case *ast.ClassDecl:
 				for _, method := range d.Methods {
 					names[method.Name] = true

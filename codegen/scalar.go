@@ -511,7 +511,7 @@ func (g *generator) nativeFoldCallback(e ast.Expr, ret string, record *types.Cto
 		return ""
 	}
 	f := g.funcs[id.Name]
-	if f == nil || f.Decl.Extern != nil {
+	if f == nil || f.Constant != nil || f.Decl.Extern != nil {
 		return ""
 	}
 	if record != nil && g.scalarRecordType(f.Scheme.Type.Ret) != record {

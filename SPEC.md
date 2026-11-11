@@ -90,7 +90,7 @@ separate statements. Tuple access `t.0.1` is not lexed as a Float literal.
 ```ebnf
 File       := {Separator} 'package' Ident {Separator} {Import} {Decl {Separator}}
 Import     := 'import' [Ident] String {Separator}
-Decl       := Class | Instance | TypeDecl | AliasDecl | Func | Extern | LawDecl | ProofDecl
+Decl       := Class | Instance | TypeDecl | AliasDecl | Func | Extern | ConstDecl | LawDecl | ProofDecl
 Name       := Ident ['.' Ident]
 Separator  := ';'
 ```
@@ -102,6 +102,10 @@ Types/classes, constructors and values have separate namespaces, so
 `type Sku = Sku(String)` is legal. Duplicate declarations within a namespace are
 errors. Record field names belong to their constructors. Builtin types cannot
 be redeclared.
+
+Top-level `let` declarations introduce constants in the value namespace, with
+the same module qualification, private-name visibility and prelude-shadowing
+warnings as functions (§3.4).
 
 ### 2.2 Modules and resolution
 
@@ -220,12 +224,12 @@ alias parameters have kind `*`; function/class parameters can have higher kinds.
 ### 3.2 Type expressions and parameters
 
 ```ebnf
-Type    := Name ['[' Type {',' Type} ']']
+Type    := Name ['[' Type {',' Type} [','] ']']
          | 'func' '(' [Type {',' Type} [',']] ')' Type
-         | '(' Type ')' | '(' Type ',' Type {',' Type} ')'
-TParams := '[' TParam {',' TParam} ']'
+         | '(' Type ')' | '(' Type ',' Type {',' Type} [','] ')'
+TParams := '[' TParam {',' TParam} [','] ']'
 TParam  := Ident ['[' '_' {',' '_'} ']'] [Name {'+' Name}]
-DataParams := '[' Ident {',' Ident} ']'
+DataParams := '[' Ident {',' Ident} [','] ']'
 ```
 
 A constructor may be partially applied where a higher kind is expected:
@@ -238,16 +242,17 @@ supplies both, regardless of their order. Unrelated constraints remain separate.
 Explicit schemes preserve parameter and constraint order. A class's own parameter
 uses superclass syntax, not a trailing constraint list.
 
-Trailing commas are accepted in function-type parameter lists, but not in
-type applications, tuple types, type-parameter lists, or higher-kind arities.
+Trailing commas are accepted in function-type parameter lists, type applications,
+tuple types and type-parameter lists, but not higher-kind arities.
+A tuple needs at least two elements; `(Int,)` is an error.
 
 ### 3.3 Algebraic data and aliases
 
 ```ebnf
-TypeDecl  := 'type' Ident [DataParams] '=' Ctor {'|' Ctor}
+TypeDecl  := 'type' Ident [DataParams] '=' (RecordTypeFields | Ctor {'|' Ctor})
              ['deriving' Name {',' Name}]
-Ctor      := Ident ['(' [Type {',' Type} [',']] ')'
-             | '{' Ident ':' Type {',' Ident ':' Type} [','] '}']
+Ctor      := Ident ['(' [Type {',' Type} [',']] ')' | RecordTypeFields]
+RecordTypeFields := '{' Ident ':' Type {',' Ident ':' Type} [','] '}'
 AliasDecl := 'alias' Ident [DataParams] '=' Type
 ```
 
@@ -256,6 +261,11 @@ also support positional construction and patterns. Recursive and parameterised
 data are allowed; deriving rules are in §7.2. There are no zero-field record
 constructors. Data and alias parameters are plain names, not constrained or
 higher-kinded function parameters.
+
+`type Row = {qty: Int}` is shorthand for `type Row = Row{qty: Int}`:
+the constructor has the type's name and must be its only constructor.
+Construction, patterns, updates, deriving and the exported Go struct are identical.
+The formatter preserves the written shorthand or explicit constructor spelling.
 
 Aliases share the type namespace, introduce no constructors, and expand before
 inference, field checking and instance resolution. They are transparent, not
@@ -269,13 +279,14 @@ types: `alias Rates = Map[Currency, Float]` prints as `Rates` where used. This i
 presentation provenance, not a new type identity. Type variables and independently
 inferred types are never renamed merely because they equal an alias's body.
 
-### 3.4 Functions and extern declarations
+### 3.4 Functions, constants and extern declarations
 
 ```ebnf
 Func   := 'func' Ident [TParams] '(' [Param {',' Param} [',']] ')' Type Block
 Param  := Ident Type
 Extern := 'extern' 'func' Ident [TParams] '(' [Param {',' Param} [',']] ')' Type
           '=' String '.' Ident
+ConstDecl := 'let' LowerIdent [':' Type] '=' Expr
 ```
 
 Top-level functions have explicitly declared rank-1 type parameters and return
@@ -283,19 +294,30 @@ types. Their final expression must match the return type. Extern declarations
 bind exported package-level Go functions; `check` validates only the go4t type.
 `build`/`run` inspect foreign signatures and generate adapters (§8.3).
 
+A top-level `let` is a nullary pure function referenced without parentheses:
+`let limit = 10` is used as `limit`, not `limit()`. Its type may be omitted
+only for an Int, Float, String or Bool literal (numeric literals may be negated).
+Other values require an annotation, e.g. `let limit: Int = defaultLimit()`.
+Constants have no type parameters and cannot have an IO action type. They may
+refer to other constants and functions; dependency cycles among constants,
+including paths through functions, are rejected. References evaluate their
+function body, not a separately cached initializer. Law eligibility follows
+the value's dependencies. `go4t test` does not discover constants named `test…`;
+`--emit-go` exports a public constant as the nullary Go function `Name() T`.
+
 ### 3.5 Classes and instances
 
 ```ebnf
-Class      := 'class' Ident '[' TParam ']' [':' Name '[' Ident ']']
+Class      := 'class' Ident '[' TParam [','] ']' [':' Name '[' Ident [','] ']']
               '{' {Separator} {MethodSig {Separator}} '}'
 MethodSig  := Ident [TParams] '(' [Param {',' Param} [',']] ')' Type
-Instance   := 'instance' Name '[' Head ']' ['given' Constraint {',' Constraint}]
+Instance   := 'instance' Name '[' Head [','] ']' ['given' Constraint {',' Constraint}]
               '{' {Separator} {InstMethod {Separator}} '}'
 InstMethod := Ident '(' [Ident {',' Ident} [',']] ')' Block
-Head       := Name ['[' HeadArg {',' HeadArg} ']']
-            | '(' Ident ',' Ident {',' Ident} ')'
+Head       := Name ['[' HeadArg {',' HeadArg} [','] ']']
+            | '(' Ident ',' Ident {',' Ident} [','] ')'
 HeadArg    := Ident
-Constraint := Name '[' Ident ']'
+Constraint := Name '[' Ident [','] ']'
 ```
 
 Classes have one parameter, possibly higher-kinded, and at most one superclass
@@ -343,17 +365,17 @@ BinOp      := '|>' | '||' | '&&' | '==' | '!=' | '<' | '<=' | '>' | '>='
             | '+' | '-' | '*' | '/' | '%'
 Unary      := {'-' | '!'} Postfix
 Postfix    := Primary {'(' [CallArg {',' CallArg} [',']] ')' | '.' Ident | '.' Int | RecordFields}
-CallArg    := Expr | '_'
+CallArg    := Expr | '_' | OperatorSection
 Primary    := Name | Int | Float | String | Interp | 'true' | 'false'
-            | ConstructorName RecordFields | '(' InferExpr ')' | '(' InferExpr ',' InferExpr {',' InferExpr} ')'
+            | ConstructorName RecordFields | '(' InferExpr ')' | '(' InferExpr ',' InferExpr {',' InferExpr} [','] ')'
             | '[' [InferExpr {',' InferExpr} [',']] ']' | Block | Section
 Block      := '{' {Separator} {Stmt Separator} Expr {Separator} '}'
 Stmt       := LetStmt | LocalFunc | Expr
 LetStmt    := 'let' Pattern [':' Type] '=' Expr
 LocalFunc  := 'func' Ident '(' [Param {',' Param} [',']] ')' Type Block
 DoStmt     := Pattern '<-' Expr | LetStmt | LocalFunc | Expr
-Section    := '(' '_' BinOp Unary ')' | '(' Unary BinOp '_' ')' | '(' '_' BinOp '_' ')'
-            | '(' Projection ')'
+Section    := '(' OperatorSection ')' | '(' Projection ')'
+OperatorSection := '_' BinOp Unary | Unary BinOp '_' | '_' BinOp '_'
 Projection := '_' '.' (Ident | Int) {'.' (Ident | Int)}
 RecordFields := '{' Ident ':' Expr {',' Ident ':' Expr} [','] '}'
 ```
@@ -396,6 +418,8 @@ use the corresponding class semantics (§10.1).
 A block's value is its final expression. `let x = e` or `let x: T = e` binds
 for the remaining block and shadows an outer binding. Pattern lets must be
 irrefutable, e.g. `let (a, b) = pair` or a single-constructor record pattern.
+Annotations use a colon: `let x Int = 1` is rejected with a spelling hint.
+Tuple expressions accept a trailing comma, e.g. `(a, b,)`; `(a,)` is not a tuple.
 
 A bare-name lambda let, including an annotated lambda, binds its own name
 monomorphically within its body. Free self references are recursive; parameters
@@ -434,6 +458,8 @@ A lambda passed directly to a call gets its parameter types from that argument
 context before checking its body, enabling unannotated field selection there.
 Calls require exact arity; function-valued locals, arguments and fields are callable.
 There is no automatic currying.
+Parameter annotations use `x Int`, not `x: Int`, in both named functions and
+lambdas; the latter spelling receives a targeted hint.
 
 ### 4.5 Pipelines and sections
 
@@ -447,6 +473,13 @@ Parenthesised operator sections permit whole operands `_`: `(_ + 1)`, `(2 * _)`,
 `(_ < _)`, `(_ |> f)`. Two holes mean two parameters, not currying. Nested calls
 have independent placeholder scopes. Fixed arguments are evaluated inside the
 synthesized lambda body, on each application, not when constructing the section.
+
+An operator section that occupies a whole call argument needs no parentheses:
+`map(xs, _ + 1)`, `filter(xs, 0 < _)`, `fold(xs, 0, _ + _)`, and
+`xs |> map(_ + 1)`. Its placeholder scope is independent of the containing call;
+`f(_)` remains a partial call and `f(_.x)` remains a projection argument.
+`f(_ + 1 + 2)` is invalid. Formatting drops parentheses around operator sections
+used directly as call arguments.
 
 Projection sections `(_.field)` and `(_.0)` desugar to `func(x) => x.field`
 and `func(x) => x.0`. Selectors may chain: `(_.a.b)` is one unary lambda,
@@ -644,6 +677,24 @@ ends are exclusive. CLI diagnostics print the source line and a `^~~~` underline
 multiline spans clamp to the first line, missing spans use one caret, and unreadable
 sources retain the positioned message without an excerpt. Tabs, CRLF and EOF are
 handled. Expected types are contextual: `type mismatch: expected T, got U`.
+
+Spelling hints reject, rather than accept, the incorrect syntax:
+
+| Written | Diagnostic at the offending token |
+| --- | --- |
+| `func f(x: Int)`, `func(x: Int) => …` | `parameters are written "x Int", without ":"` |
+| `let x Int = 1` | `let annotations are written "let x: Int = …"` |
+| `type R = R{n Int}` | `record fields are written "n: Int"` |
+| `type T = A(n Int)` | `positional constructor fields have no names; write A{n: Int} to name them` |
+
+Declaration diagnostics:
+
+- `the record shorthand declares the only constructor of Row; name the constructors to add alternatives`
+- `top-level let needs a type unless its value is a literal: let limit: T = …`
+- `a top-level let cannot be an IO action; write func limit() IO[…]`
+- `constant initialization cycle: a, b`
+- `limit is a constant, not a function; write limit without ()`
+- `a tuple needs at least two elements`
 
 Type printing preserves source-written aliases (§3.3). If the complete printed
 type exceeds 160 Unicode characters, subtrees at depth 3 or greater are replaced

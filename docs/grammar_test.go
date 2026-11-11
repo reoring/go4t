@@ -593,7 +593,7 @@ func grammarProgram(root, sentence string) (string, bool) {
 	switch root {
 	case "Expr", "InferExpr", "IfExpr", "Binary", "Unary", "Postfix", "Primary", "Block", "Section", "Ident", "Int", "Float", "String", "Interp":
 		expression = sentence
-	case "CallArg", "Projection":
+	case "CallArg", "Projection", "OperatorSection":
 		expression = "f(" + sentence + ")"
 	case "RecordFields":
 		expression = "C" + sentence
@@ -617,7 +617,7 @@ func grammarProgram(root, sentence string) (string, bool) {
 		expression = "match value { [_, " + sentence + "] => 1 }"
 	case "Type", "Name", "UpperIdent":
 		return "package main; alias T = " + sentence, true
-	case "TypeDecl", "AliasDecl", "Func", "Extern", "Import", "ProofDecl":
+	case "TypeDecl", "AliasDecl", "Func", "Extern", "ConstDecl", "Import", "ProofDecl":
 		return "package main; " + sentence, true
 	case "Tactic":
 		return "package main; proof lawName() { " + sentence + " }", true
@@ -631,7 +631,7 @@ func grammarProgram(root, sentence string) (string, bool) {
 		return "package main; proof lawName(x) { match x { C" + sentence + " => refl } }", true
 	case "Separator":
 		return sentence + " package main", true
-	case "Ctor":
+	case "Ctor", "RecordTypeFields":
 		return "package main; type T = " + sentence, true
 	case "DataParams":
 		return "package main; alias T" + sentence + " = Int", true
@@ -651,7 +651,7 @@ func grammarProgram(root, sentence string) (string, bool) {
 		return "package main; instance C[T[" + sentence + "]] {}", true
 	case "Constraint":
 		// The wrapper declares exactly the name referenced by this constraint.
-		parameter := sentence[strings.LastIndex(sentence, "[")+1 : strings.LastIndex(sentence, "]")]
+		parameter := strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(sentence[strings.LastIndex(sentence, "[")+1:strings.LastIndex(sentence, "]")]), ","))
 		return "package main; instance C[T[" + parameter + "]] given " + sentence + " {}", true
 	default:
 		return "", false

@@ -93,6 +93,8 @@ func qualifyModules(input []*ast.Module) (*moduleResolver, []*ast.File) {
 				switch d := d.(type) {
 				case *ast.FuncDecl:
 					r.declare(s, s.values, d.Name, d.Pos, false)
+				case *ast.ConstDecl:
+					r.declare(s, s.values, d.Name, d.Pos, false)
 				case *ast.LawDecl:
 					if s.laws[d.Name] != "" {
 						r.fail(d.Pos, "duplicate law %s", d.Name)
@@ -376,6 +378,11 @@ func (r *moduleResolver) declaration(d ast.Decl) {
 		r.shadow(d.Name, d.Pos)
 		d.Name = r.scope.values[d.Name]
 		r.function(d, ts, make(map[string]bool))
+	case *ast.ConstDecl:
+		r.shadow(d.Name, d.Pos)
+		d.Name = r.scope.values[d.Name]
+		r.typ(d.Type, ts)
+		d.Value = r.expr(d.Value, ts, make(map[string]bool))
 	case *ast.LawDecl:
 		d.Name = r.scope.laws[d.Name]
 		vs := make(map[string]bool, len(d.Params))
