@@ -1312,6 +1312,11 @@ func prTactic() Parser[Unit] {
       "match" => do { prIdent(); expect(TkPunct, "{"); prTacticArms(); expect(TkPunct, "}"); prelude.pure(unit()) }
       "if" => do { prExpr(); prTacticBlock(); expect(TkKeyword, "else"); prTacticBlock() }
       "rewrite" => do { prQualified(); expect(TkPunct, "("); prDelimited(prExpr, ")"); expect(TkPunct, ")"); prTacticBlock() }
+      "induction" => do {
+        prIdent()
+        arms <- prAccept(TkPunct, "{")
+        if arms { do { prTacticArms(); expect(TkPunct, "}"); prelude.pure(unit()) } } else { prelude.pure(unit()) }
+      }
       _ => prFail(t.pos, "expected proof tactic, found " + prTokenText(t))
     }
   }
