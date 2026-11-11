@@ -693,6 +693,19 @@ hint and requiring context.
 Unused lets, local/lambda parameters, pattern variables and named do binds warn;
 `_`-prefixed bindings and top-level/instance-method parameters are exempt. Guards
 and closure captures count as uses; shadowed bindings have independent use records.
+
+A named function warns once, at its first direct self-call that is not lowered
+to a tail-call loop and has no structurally decreasing argument:
+`sumTo recurses in a non-tail position on a non-structural argument; depth is unbounded and stack exhaustion cannot be recovered. Use an accumulator so the call is a tail call`
+(with the function's source name in place of `sumTo`). A call is bounded when
+any argument is a pattern-bound strict subterm of its corresponding parameter.
+Unlike law termination, earlier arguments need not remain unchanged: this
+warning concerns depth bounded by data, not a lexicographic termination proof.
+Arithmetic such as `n - 1` alone is not structural descent.
+Mutual recursion, local recursive closures and higher-order calls are not
+analysed by this warning. Tail-call result positions include `if`, `match`,
+block results after lets, and directly sequenced IO `do` results.
+
 Warnings do not make a successful check fail. The checker reports its first type
 error; the editor discards its old successful index on failure (§8.5).
 
@@ -1992,8 +2005,10 @@ with `go generate main.go`.
   use the embedded runtime. Generic Go functions bind by call-site monomorphisation;
   generic receiver methods and instantiated generic named types are still skipped.
 - Native scalars/specialization are selective, not universal unboxing. Mutual or
-  non-tail recursion can still consume stack; large allocations remain
-  host-resource bounded. Lazy does not memoise.
+  non-tail recursion can still consume stack; direct non-tail self-recursion
+  without structural descent warns (§5.2). Stack exhaustion is a fatal Go error,
+  not a recoverable panic. Large allocations remain host-resource bounded.
+  Lazy does not memoise.
   Runtime costs are workload-dependent. `bench/PERF.md` records go4t-versus-Go
   measurements for million-element collections, a million-step Float simulation,
   and a depth-20 tree.
