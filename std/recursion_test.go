@@ -40,7 +40,7 @@ func TestStandardLibraryRecursionWarnings(t *testing.T) {
 	source.WriteString("func main() IO[Unit] { ioPure(unit()) }\n")
 	p := recursionProgram(t, source.String())
 	for _, warning := range p.Warnings {
-		if strings.Contains(warning.Msg, "recurses in a non-tail position") {
+		if strings.Contains(warning.Msg, "calls itself in a non-tail position") {
 			t.Error(warning)
 		}
 	}

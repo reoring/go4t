@@ -10,7 +10,7 @@ import (
 	"github.com/reoring/go4t/types"
 )
 
-const recursionMessage = " recurses in a non-tail position on a non-structural argument; depth is unbounded and stack exhaustion cannot be recovered. Use an accumulator so the call is a tail call"
+const recursionMessage = " calls itself in a non-tail position and no argument is a structural part of its parameter; go4t cannot bound the recursion depth, and stack exhaustion cannot be recovered. Use an accumulator so the call is a tail call"
 
 func TestRecursionWarnings(t *testing.T) {
 	for _, tc := range []struct {
@@ -23,6 +23,14 @@ func TestRecursionWarnings(t *testing.T) {
 		{"tree", `type Tree = Leaf | Branch(Tree, Tree); func sumTo(t Tree) Int { match t { Leaf => 0; Branch(l, r) => 1 + sumTo(l) + sumTo(r) } }`, ""},
 		{"tuple and alias", `func sumTo(xs List[Int], n Int) Int { match (xs, n) { (Nil, _) => 0; (Cons(_, r), k) => { let next = r; 1 + sumTo(next, k + 1) } } }`, ""},
 		{"record", `type Tree = Leaf | Branch{left: Tree, right: Tree}; func sumTo(t Tree) Int { match t { Leaf => 0; Branch{right: r, ..} => 1 + sumTo(r) } }`, ""},
+		{"record projection", `type Node = Node{next: Node}; func sumTo(n Node) Int { 1 + sumTo(n.next) }`, ""},
+		{"record tuple projection chain", `type Node = Node{children: (Node, Int)}; func sumTo(n Node) Int { 1 + sumTo(n.children.0) }`, ""},
+		{"tuple record projection chain", `type Node = Node{children: (Node, Int)}; func sumTo(pair (Node, Int)) Int { 1 + sumTo(pair.0.children) }`, ""},
+		{"pattern subterm projection", `type Node = Node{next: Node}; func sumTo(n Node) Int { match n { Node(child) => 1 + sumTo(child.next) } }`, ""},
+		{"projection alias", `type Node = Node{children: (Node, Int)}; func sumTo(n Node) Int { let children = n.children; 1 + sumTo(children.0) }`, ""},
+		{"wrong projection root", `type Node = Node{next: Node}; func sumTo(a Node, b Node) Int { 1 + sumTo(b.next, b) }`, "sumTo(b.next, b)"},
+		{"reconstructed projection", `type Node = Node{next: Node}; func sumTo(n Node) Int { 1 + sumTo(Node{next: n}.next) }`, "sumTo(Node{next: n}.next)"},
+		{"helper projection", `type Node = Node{next: Node}; func keep(n Node) Node { n }; func sumTo(n Node) Int { 1 + sumTo(keep(n).next) }`, "sumTo(keep(n).next)"},
 		{"unchanged prefix", `func sumTo(n Int, xs List[Int]) Int { match xs { Nil => n; Cons(_, r) => n + sumTo(n, r) } }`, ""},
 		{"changed prefix", `func sumTo(n Int, xs List[Int]) Int { match xs { Nil => n; Cons(_, r) => n + sumTo(n - 1, r) } }`, ""},
 		{"take shaped", `func sumTo(n Int, xs List[Int]) List[Int] { if n <= 0 { Nil } else { match xs { Nil => Nil; Cons(x, r) => Cons(x, sumTo(n - 1, r)) } } }`, ""},
@@ -39,6 +47,18 @@ func TestRecursionWarnings(t *testing.T) {
 		{"guard", `func sumTo(n Int) Int { match n { _ if sumTo(n - 1) == 0 => 0; _ => n } }`, "sumTo(n - 1)"},
 		{"IO tail", `func sumTo(n Int) IO[Int] { if n == 0 { 0 } else { do { let k = n - 1; x <- ioPure(k); sumTo(x) } } }`, ""},
 		{"IO bind", `func sumTo(n Int) IO[Int] { do { x <- sumTo(n - 1); ioPure(x + n) } }`, "sumTo(n - 1)"},
+		{"IO later bind", `func sumTo(n Int) IO[Int] { do { _ <- ioPure(unit()); x <- sumTo(n - 1); ioPure(x + n) } }`, "sumTo(n - 1)"},
+		{"parser continuation", `import "std/prelude"; type Parser[A] = Parser(func(Unit) A); instance Functor[Parser] { fmap(p, f) { match p { Parser(run) => Parser(func(u) => f(run(u))) } } }; instance Monad[Parser] { pure(x) { Parser(func(_u) => x) }; bind(p, f) { match p { Parser(run) => Parser(func(u) => match f(run(u)) { Parser(next) => next(u) }) } } }; func sumTo(n Int) Parser[Unit] { do { yes <- Parser(func(_u) => n > 0); if yes { sumTo(n - 1) } else { prelude.pure(unit()) } } }`, ""},
+		{"Option continuation", `func sumTo(n Int) Option[Unit] { do { yes <- Some(n > 0); if yes { sumTo(n - 1) } else { Some(unit()) } } }`, ""},
+		{"Result continuation", `func sumTo(n Int) Result[String, Unit] { do { yes <- Ok(n > 0); if yes { sumTo(n - 1) } else { Ok(unit()) } } }`, ""},
+		{"List continuation", `func sumTo(n Int) List[Unit] { do { yes <- [n > 0]; if yes { sumTo(n - 1) } else { [unit()] } } }`, ""},
+		{"polymorphic continuation", `import "std/prelude"; func sumTo[M[_] Monad](n Int) M[Unit] { do { yes <- prelude.pure(n > 0); if yes { sumTo(n - 1) } else { prelude.pure(unit()) } } }`, ""},
+		{"Option first bind", `func sumTo(n Int) Option[Int] { do { x <- sumTo(n - 1); Some(x + n) } }`, "sumTo(n - 1)"},
+		{"Option first statement", `func sumTo(n Int) Option[Unit] { do { sumTo(n - 1); Some(unit()) } }`, "sumTo(n - 1)"},
+		{"Option first let", `func sumTo(n Int) Option[Int] { do { let x = sumTo(n - 1); x } }`, "sumTo(n - 1)"},
+		{"Option let before first bind", `func sumTo(n Int) Option[Int] { do { let yes = n > 0; x <- sumTo(n - 1); Some(if yes { x } else { n }) } }`, "sumTo(n - 1)"},
+		{"Option let in continuation", `func sumTo(n Int) Option[Int] { do { Some(unit()); let x = sumTo(n - 1); x } }`, ""},
+		{"Option result without bind", `func sumTo(n Int) Option[Int] { do { sumTo(n - 1) } }`, "sumTo(n - 1)"},
 		{"dictionary passthrough", `func sumTo[A Show](n Int, a A) String { if n == 0 { show(a) } else { sumTo(n - 1, a) } }`, ""},
 		{"dictionary change", `func sumTo[A Show](n Int, a A) String { if n == 0 { show(a) } else { sumTo(n - 1, n) } }`, "sumTo(n - 1, n)"},
 		{"tuple reassembly", `func sumTo(xs List[Int]) Int { let (ys, _) = (xs, 0); 1 + sumTo(ys) }`, "sumTo(ys)"},
@@ -62,7 +82,7 @@ func TestRecursionWarnings(t *testing.T) {
 			}
 			var warnings []*types.Error
 			for _, w := range p.Warnings {
-				if strings.Contains(w.Msg, "recurses in a non-tail position") {
+				if strings.Contains(w.Msg, "calls itself in a non-tail position") {
 					warnings = append(warnings, w)
 				}
 			}

@@ -7,7 +7,7 @@ import (
 	"github.com/reoring/go4t/ast"
 )
 
-const recursionWarning = " recurses in a non-tail position on a non-structural argument; depth is unbounded and stack exhaustion cannot be recovered. Use an accumulator so the call is a tail call"
+const recursionWarning = " calls itself in a non-tail position and no argument is a structural part of its parameter; go4t cannot bound the recursion depth, and stack exhaustion cannot be recovered. Use an accumulator so the call is a tail call"
 
 // warnRecursion runs on fully checked bodies, so CLI commands and LSP clients
 // receive the same warnings without importing the law checker or code generator.
@@ -39,7 +39,8 @@ func (p *Program) warnRecursion() {
 			if app, ok := Unalias(scheme.Type.Ret).(*TApp); ok {
 				io = Unalias(app.Fun) == IO
 			}
-			tails := TailCalls(f.Name, RefFunc, f.Params, &ast.BlockExpr{Block: f.Body}, func(dicts []DictRef) bool {
+			scan := recursionScan{program: p, name: f.Name, ioInstance: ioInstance}
+			scan.tails = TailCalls(f.Name, RefFunc, f.Params, &ast.BlockExpr{Block: f.Body}, func(dicts []DictRef) bool {
 				if len(dicts) != len(scheme.Constraints) {
 					return false
 				}
@@ -54,10 +55,8 @@ func (p *Program) warnRecursion() {
 				}
 				return true
 			}, func(e *ast.Do) bool {
-				d := AnnOf(e).Monad
-				return io && ioInstance != nil && d != nil && d.Kind == DictInstance && d.Instance == ioInstance
+				return io && scan.directIO(e)
 			})
-			scan := recursionScan{program: p, name: f.Name, tails: tails}
 			env := make(map[string]recursionValue, len(f.Params))
 			for i, param := range f.Params {
 				env[param.Name] = recursionValue{root: i + 1}
@@ -92,10 +91,18 @@ type recursionValue struct {
 }
 
 type recursionScan struct {
-	program *Program
-	name    string
-	tails   map[*ast.Call]bool
-	bad     *ast.Call
+	program    *Program
+	name       string
+	tails      map[*ast.Call]bool
+	bad        *ast.Call
+	ioInstance *Instance
+}
+
+// directIO uses the resolved dictionary, not the spelling of the block's type.
+// A monad parameter retains Bind continuations, even if a caller supplies IO.
+func (s *recursionScan) directIO(e *ast.Do) bool {
+	d := AnnOf(e).Monad
+	return s.ioInstance != nil && d != nil && d.Kind == DictInstance && d.Instance == s.ioInstance
 }
 
 func (s *recursionScan) pattern(pat ast.Pattern, value recursionValue, env map[string]recursionValue) {
@@ -179,7 +186,8 @@ func (s *recursionScan) expr(expr ast.Expr, env map[string]recursionValue) recur
 			s.expr(item, env)
 		}
 	case *ast.Field:
-		s.expr(x.X, env)
+		value := s.expr(x.X, env)
+		return recursionValue{root: value.root, depth: value.depth + 1}
 	case *ast.Match:
 		value := s.expr(x.Scrut, env)
 		for _, arm := range x.Arms {
@@ -203,15 +211,24 @@ func (s *recursionScan) expr(expr ast.Expr, env map[string]recursionValue) recur
 		}
 	case *ast.Do:
 		env = maps.Clone(env)
+		direct := s.directIO(x)
 		for _, stmt := range x.Stmts {
 			switch stmt := stmt.(type) {
 			case *ast.DoLet:
 				s.bind(stmt.Name, stmt.Pat, s.expr(stmt.Value, env), env)
 			case *ast.DoBind:
 				s.expr(stmt.X, env)
+				// Non-IO Bind evaluates this action directly, but the rest
+				// of the block is a continuation lambda, outside this pass.
+				if !direct {
+					return recursionValue{}
+				}
 				s.bind(stmt.Name, stmt.Pat, recursionValue{}, env)
 			case *ast.DoExpr:
 				s.expr(stmt.X, env)
+				if !direct {
+					return recursionValue{}
+				}
 			case *ast.FuncDecl:
 				env[stmt.Name] = recursionValue{}
 			}
