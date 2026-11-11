@@ -63,3 +63,34 @@ superset, and the Go compiler rejects chains before any program reaches both.
 - `selfhost/parser.gt` loses its tactic parser.
 
 ## Implementation notes
+
+- `prErasedDecl` now consumes the declaration keyword and delegates to a
+  token-depth loop. Only punctuation tokens change the `(`/`[`/`{` depth.
+  A closing brace that returns to depth zero ends the declaration only when
+  semicolon-skipping lookahead finds EOF or a declaration keyword; `proof`
+  followed by an identifier ends it, while inline `proof { ... }` stays in the
+  same skip. Strings and interpolations remain opaque lexer tokens.
+- Deleted the law-header/body parser and all three tactic-parser functions:
+  `prTacticBlock`, `prTactic`, and `prTacticArms`. An unfinished erased
+  declaration reports `unterminated law or proof declaration`.
+- The lexer rejects an ambiguous line-leading minus at that token's position
+  with ADR 0019's diagnostic. It validates digit separators, decimal and
+  prefixed Int spellings, and unsupported Float spellings. Integer conversion
+  accumulates negatively with a pre-multiplication range check; unary minus
+  turns magnitude 2^63 directly into `EInt`, without representing a positive
+  out-of-range intermediate. Tuple indices still use plain decimal scanning.
+- No language-subset expansion or grammar deviation is introduced. The
+  self-hosted sources themselves use only the old decimal literal syntax, so
+  the stage-zero Go compiler can still build them before ADR 0019 lands there.
+  New-syntax smoke programs are compiled by stage1, not by that Go compiler.
+  `selfhost/dev/regression.py` retains an old-syntax, interleaved law/proof
+  program and adds lexical diagnostics; the parser driver covers new literal
+  values and token-structural erasure independently of the Go parser.
+- Removed 47 lines of the former law/tactic parser (27 were tactic functions).
+  After structural skipping and numeric parsing changes, `parser.gt` is seven
+  lines shorter: 1,353 to 1,346 lines.
+- Validation: `bash selfhost/bootstrap.sh` reached
+  `FIXED POINT: stage2 == stage3` with no `FAIL` lines. Stage1-only scratch
+  programs preserved functions around all new law/proof forms, printed all
+  new Int forms including the minimum Int in every base, and rejected the
+  ambiguous line-leading minus with the specified diagnostic.

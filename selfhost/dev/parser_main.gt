@@ -52,7 +52,7 @@ func parserNegatives() List[(String, String)] {
    ("package main\nfunc f() Int { match p { Point{x: 0, x: y} => 0 } }", "2:38: duplicate field x in record pattern"),
    ("package main\nfunc f() Int { match p { Point{.., x: 0} => 0 } }", "2:32: .. must be last in record pattern"),
    ("package main\nfunc f() Int { match p { Whole @ x => 0 } }", "2:26: as-pattern name must be a lower-case identifier"),
-   ("package main\nfunc f() Int { 999999999999999999999999999999999999 }", "2:16: bad integer literal 999999999999999999999999999999999999"),
+   ("package main\nfunc f() Int { 999999999999999999999999999999999999 }", "2:16: integer literal 999999999999999999999999999999999999 is out of range for Int"),
    ("package main\nfunc f() Int { p.999999999999999999999999999999999999 }", "2:18: bad tuple index 999999999999999999999999999999999999"),
    ("package main\nfunc f() String { \"$${x y}\" }", "2:24: expected end of expression, found \"y\"")]
 }
@@ -111,6 +111,10 @@ func parserExpressions() List[(String, String)] {
    ("a < b == c > d", "(((a < b) == c) > d)"),
    ("a != b || c <= d && e >= f", "((a != b) || ((c <= d) && (e >= f)))"),
    ("-f(a) * !!b", "((-f(a)) * (!(!b)))"),
+   ("1_000_000 + 0xFF_FF + 0b1010_0001 + 0o755", "(((1000000 + 65535) + 161) + 493)"),
+   ("0X_FF + 0B_1010 + 0O_755 + 007", "(((255 + 10) + 493) + 7)"),
+   ("-9223372036854775808", "-9223372036854775808"),
+   ("-0x8000000000000000", "-9223372036854775808"),
    ("f(a)(b)", "f(a)(b)"),
    ("(a, (b, c)).1", "(a, (b, c)).1"),
    ("((x))", "x"),
@@ -166,6 +170,11 @@ func parserCheckDetails() IO[Unit] {
       CompileOk(File{decls: Cons(DeclFunc(f), Nil), ..}) if (result.maybe(head(f.tparams), Nil, func(p) => p.constraints)) == ["Eq", "Show"] => println("DETAIL multiple constraints")
       _ => ioFail("multiple constraints did not parse")
     }
+    match parseFile("erased", "package main\nfunc before() Int { 1 }\nlaw f[A](xs List[A]) requires o{a: 1}.a == 1 requires match x { A => true | B => true } { a + 1 > a }\nproof { match f(x) { A | B => refl } }\nlaw implicit(x Int) { x == x }\nfunc after() Int { 2 }\nproof name(x) { absurd }") {
+      CompileOk(File{decls: Cons(DeclFunc(before), Cons(DeclFunc(after), Nil)), ..})
+        if before.name == "before" && after.name == "after" => println("DETAIL token-structural law/proof erasure")
+      _ => ioFail("law/proof erasure consumed an ordinary declaration")
+    }
   }
 }
 
@@ -176,6 +185,6 @@ func main() IO[Unit] {
     list.forEach(parserExpressions(), parserCheckExpression)
     parserCheckDetails()
     list.forEach(zipWithIndex(parserNegatives()), parserCheckNegative)
-    println("PARSER PASS: files, 21 expression shapes, 5 structural checks, 17 diagnostics")
+    println("PARSER PASS: files, expression shapes, structural checks and diagnostics")
   }
 }

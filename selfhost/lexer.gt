@@ -58,7 +58,7 @@ func lexWordEnd(input List[String]) Bool {
 
 func lexContinuation(input List[String]) Bool {
   match input {
-    Cons(r, _) if string.contains(".)]|+-*/%<>", r) => true
+    Cons(r, _) if string.contains(".)]|+*/%<>", r) => true
     Cons("=", Cons(r, _)) => r == "=" || r == ">"
     Cons("!", Cons("=", _)) => true
     Cons("&", Cons("&", _)) => true
@@ -102,12 +102,14 @@ func lexTokens(c LexCursor, canEnd Bool, nest List[String], rev List[Token]) Com
   let gap = lexSkipGap(c, None)
   let cursor = gap.cursor
   let atEnd = match cursor.rest { Nil => true | _ => false }
-  let insertSemi = (result.isSome(gap.newline) || atEnd) && canEnd
-    && lexStatementContext(nest) && !lexContinuation(cursor.rest)
+  let statementGap = (result.isSome(gap.newline) || atEnd) && canEnd && lexStatementContext(nest)
+  let ambiguousMinus = statementGap && (match cursor.rest { Cons("-", _) => true | _ => false })
+  let insertSemi = statementGap && !lexContinuation(cursor.rest)
   let out = if insertSemi {
     Cons(lexToken(TkSemi, ";", result.fromOption(gap.newline, cursor.pos)), rev)
   } else { rev }
-  if atEnd { CompileOk(reverse(Cons(lexToken(TkEOF, "", cursor.pos), out))) }
+  if ambiguousMinus { CompileErr(Diag{pos: cursor.pos, msg: "ambiguous \"-\" at the start of a line: end the previous line with \"-\" to subtract, or write (-x) for a negative value"}) }
+  else if atEnd { CompileOk(reverse(Cons(lexToken(TkEOF, "", cursor.pos), out))) }
   else {
     match (if (match out { Cons(previous, _) => previous.text == "." | _ => false }) && (match cursor.rest { Cons(r, _) => isDigit(r) | _ => false }) { lexDigits(cursor) } else { lexNext(cursor) }) {
       CompileErr(d) => CompileErr(d)
@@ -195,10 +197,63 @@ func lexDigits(c LexCursor) CompileResult[(Token, LexCursor)] {
   let captured = lexTakeWhile(c, isDigit, Nil)
   CompileOk((lexToken(TkInt, string.strConcat(reverse(captured.rev)), c.pos), captured.cursor))
 }
+func lexBase(prefix String) Int {
+  match prefix { "x" => 16 | "X" => 16 | "b" => 2 | "B" => 2 | "o" => 8 | "O" => 8 | _ => 10 }
+}
+func lexDigitValue(r String) Int {
+  match r {
+    "0" => 0 | "1" => 1 | "2" => 2 | "3" => 3 | "4" => 4
+    "5" => 5 | "6" => 6 | "7" => 7 | "8" => 8 | "9" => 9
+    "a" => 10 | "A" => 10 | "b" => 11 | "B" => 11 | "c" => 12 | "C" => 12
+    "d" => 13 | "D" => 13 | "e" => 14 | "E" => 14 | "f" => 15 | "F" => 15
+    _ => -1
+  }
+}
+func lexNumberRune(r String) Bool { isDigit(r) || r == "_" }
+func lexSeparatedDigits(digits List[String], base Int, previous Bool) Bool {
+  match digits {
+    Nil => previous
+    Cons("_", rest) => previous && lexSeparatedDigits(rest, base, false)
+    Cons(r, rest) => lexDigitValue(r) >= 0 && lexDigitValue(r) < base && lexSeparatedDigits(rest, base, true)
+  }
+}
 func lexNumber(c LexCursor) CompileResult[(Token, LexCursor)] {
-  let digits = lexTakeWhile(c, isDigit, Nil)
+  match c.rest {
+    Cons("0", Cons(prefix, _)) if lexBase(prefix) != 10 => lexBasedNumber(c, prefix)
+    _ => lexDecimalNumber(c)
+  }
+}
+func lexBadBaseDigit(digits List[String], base Int, seen Bool) String {
+  match digits {
+    Nil => ""
+    Cons("_", rest) => lexBadBaseDigit(rest, base, seen)
+    Cons(r, rest) => if lexDigitValue(r) >= 0 && lexDigitValue(r) < base {
+      lexBadBaseDigit(rest, base, true)
+    } else if seen && isLetter(r) { "letter" } else { "digit" }
+  }
+}
+func lexBasedNumber(c LexCursor, prefix String) CompileResult[(Token, LexCursor)] {
+  let base = lexBase(prefix)
+  let digits = lexTakeWhile(lexAdvance(lexAdvance(c)), lexIsIdentRune, Nil)
+  let input = reverse(digits.rev)
+  let text = "0" + prefix + string.strConcat(input)
+  let fraction = match digits.cursor.rest { Cons(".", Cons(r, _)) => isDigit(r) | _ => false }
+  let exponent = any(input, func(r) => r == "p" || r == "P")
+  let name = if base == 16 { "hexadecimal" } else if base == 2 { "binary" } else { "octal" }
+  let badDigit = lexBadBaseDigit(input, base, false)
+  if fraction || exponent { CompileErr(Diag{pos: c.pos, msg: "digit separators and base prefixes are not supported in Float literals"}) }
+  else if badDigit == "letter" {
+    CompileErr(Diag{pos: c.pos, msg: "bad number literal " + text + ": a number cannot be followed by a letter"})
+  } else if length(input) == 0 || badDigit == "digit" {
+    CompileErr(Diag{pos: c.pos, msg: "bad number literal " + text + ": expected " + name + " digits after 0" + prefix})
+  } else if !lexSeparatedDigits(input, base, true) {
+    CompileErr(Diag{pos: c.pos, msg: "bad number literal " + text + ": \"_\" must separate digits"})
+  } else { CompileOk((lexToken(TkInt, text, c.pos), digits.cursor)) }
+}
+func lexDecimalNumber(c LexCursor) CompileResult[(Token, LexCursor)] {
+  let digits = lexTakeWhile(c, lexNumberRune, Nil)
   let fraction = match digits.cursor.rest {
-    Cons(".", Cons(d, _)) if isDigit(d) => lexTakeWhile(lexAdvance(digits.cursor), isDigit, Cons(".", digits.rev))
+    Cons(".", Cons(d, _)) if lexNumberRune(d) => lexTakeWhile(lexAdvance(digits.cursor), lexNumberRune, Cons(".", digits.rev))
     _ => digits
   }
   let exponent = match fraction.cursor.rest {
@@ -208,13 +263,49 @@ func lexNumber(c LexCursor) CompileResult[(Token, LexCursor)] {
         Cons(sign, _) if sign == "+" || sign == "-" => LxCapture{cursor: lexAdvance(after), rev: Cons(sign, Cons(e, fraction.rev))}
         _ => LxCapture{cursor: after, rev: Cons(e, fraction.rev)}
       }
-      lexTakeWhile(signed.cursor, isDigit, signed.rev)
+      lexTakeWhile(signed.cursor, lexNumberRune, signed.rev)
     }
     _ => fraction
   }
-  let text = string.strConcat(reverse(exponent.rev))
-  if !result.maybe(head(exponent.rev), false, isDigit) { CompileErr(Diag{pos: c.pos, msg: "bad float literal: exponent requires digits"}) }
-  else { CompileOk((lexToken(if text == string.strConcat(reverse(digits.rev)) { TkInt } else { TkFloat }, text, c.pos), exponent.cursor)) }
+  let floating = length(exponent.rev) != length(digits.rev)
+  let captured = lexTakeWhile(exponent.cursor, lexIsIdentRune, exponent.rev)
+  let input = reverse(captured.rev)
+  let text = string.strConcat(input)
+  if floating && any(input, func(r) => r == "_") {
+    CompileErr(Diag{pos: c.pos, msg: "digit separators and base prefixes are not supported in Float literals"})
+  } else if floating && !result.maybe(head(exponent.rev), false, isDigit) {
+    CompileErr(Diag{pos: c.pos, msg: "bad float literal: exponent requires digits"})
+  } else if length(captured.rev) != length(exponent.rev) {
+    CompileErr(Diag{pos: c.pos, msg: "bad number literal " + text + ": a number cannot be followed by a letter"})
+  } else if !floating && !lexSeparatedDigits(input, 10, false) {
+    CompileErr(Diag{pos: c.pos, msg: "bad number literal " + text + ": \"_\" must separate digits"})
+  } else { CompileOk((lexToken(if floating { TkFloat } else { TkInt }, text, c.pos), captured.cursor)) }
+}
+
+// Accumulate negatively so the smallest Int never needs a positive magnitude.
+// The division guard is checked before multiplication, including for base 16.
+func lexIntValue(text String, negative Bool) Option[Int] {
+  let input = string.chars(text)
+  let (base, digits) = match input {
+    Cons("0", Cons(prefix, rest)) if lexBase(prefix) != 10 => (lexBase(prefix), rest)
+    _ => (10, input)
+  }
+  let limit = if negative { -9223372036854775807 - 1 } else { -9223372036854775807 }
+  match lexIntAcc(digits, base, limit, 0) {
+    Some(value) => Some(if negative { value } else { -value })
+    None => None
+  }
+}
+func lexIntAcc(digits List[String], base Int, limit Int, value Int) Option[Int] {
+  match digits {
+    Nil => Some(value)
+    Cons("_", rest) => lexIntAcc(rest, base, limit, value)
+    Cons(r, rest) => {
+      let digit = lexDigitValue(r)
+      if digit < 0 || digit >= base || value < (limit + digit) / base { None }
+      else { lexIntAcc(rest, base, limit, value * base - digit) }
+    }
+  }
 }
 
 func lexQuoteRune(c String) String {

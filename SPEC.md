@@ -2105,7 +2105,7 @@ with `go generate main.go`.
   older example READMEs show pre-module spellings; this specification and the
   checked tutorial give the current imports and signatures. The self-hosted
   compiler in `selfhost/` implements a subset of the language (for example,
-  it parses laws and discards them) and is not described by this specification.
+  it skips laws without parsing them) and is not described by this specification.
 
 ## 10. Boundary behaviour
 
