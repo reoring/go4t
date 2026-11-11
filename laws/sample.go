@@ -63,6 +63,9 @@ func sampleInhabited(p *types.Program, typ types.Type, depth int) bool {
 }
 
 func checkSample(p *types.Program, law *types.LawInfo) error {
+	if len(law.TParams) != 0 {
+		return fmt.Errorf("sample does not support type parameters")
+	}
 	tactic := law.Proof.Decl.Body.(*ast.TSample)
 	if tactic.Count < 1 || tactic.Count > 100000 {
 		return fmt.Errorf("sample count must be an Int literal in 1..100000")

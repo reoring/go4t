@@ -104,7 +104,7 @@ func TestOpenTermProperty(t *testing.T) {
 			for i := range targets {
 				target := &targets[i]
 				law, _ := e.extractLaw(target.law)
-				target.source = propertyLawSource(string(original), p.Laws[target.law].Decl, target.side)
+				target.source = propertyPolymorphicSource(string(original), p.Laws[target.law].Decl, target.side)
 				target.observer = fmt.Sprintf("propertyObserve%d", i)
 				observation := propertyObservation(t, e, types.AnnOf(target.expr).Type, "value", &target.extra)
 				fmt.Fprintf(&helpers, "\nfunc %s(value %s%s) String { %s }\n", target.observer, propertyType(e, types.AnnOf(target.expr).Type), propertyParams(e, target.extra, true), observation)
@@ -477,6 +477,9 @@ func propertyFields(data *types.DataType, args []types.Type, ctor *types.Ctor) [
 // assuming their first constructor is the base case; List/Option use this same
 // DataType path, not special generators.
 func propertyInhabited(e *evaluator, typ types.Type, depth int) bool {
+	if _, rigid := types.Unalias(typ).(*types.TVar); rigid {
+		return true // The runtime oracle instantiates every law parameter at Int.
+	}
 	con, args := typeHead(typ)
 	if con == nil {
 		return false
@@ -514,6 +517,9 @@ func propertyInhabited(e *evaluator, typ types.Type, depth int) bool {
 
 func propertyValue(t *testing.T, e *evaluator, rng *rand.Rand, typ types.Type, depth, sample, offset int) *term {
 	t.Helper()
+	if _, rigid := types.Unalias(typ).(*types.TVar); rigid {
+		typ = types.Int
+	}
 	con, args := typeHead(typ)
 	if con == nil {
 		t.Fatalf("no first-order generator for %s", typ)
@@ -726,6 +732,9 @@ func propertyQuote(value string) string {
 }
 
 func propertyType(e *evaluator, typ types.Type) string {
+	if _, rigid := types.Unalias(typ).(*types.TVar); rigid {
+		return "Int"
+	}
 	if fn, ok := types.Unalias(typ).(*types.TFunc); ok {
 		params := make([]string, len(fn.Params))
 		for i, param := range fn.Params {
@@ -762,6 +771,9 @@ func propertyParams(e *evaluator, params []parameter, leadingComma bool) string 
 
 func propertyObservation(t *testing.T, e *evaluator, typ types.Type, expr string, extra *[]parameter) string {
 	t.Helper()
+	if _, rigid := types.Unalias(typ).(*types.TVar); rigid {
+		typ = types.Int
+	}
 	if fn, ok := types.Unalias(typ).(*types.TFunc); ok {
 		args := make([]string, len(fn.Params))
 		for i, param := range fn.Params {
@@ -817,6 +829,37 @@ func propertyOffset(source string, pos ast.Pos) int {
 		}
 	}
 	return len(source)
+}
+
+// Instantiate only type-name syntax, never value names or string literals.
+// Normalization and partial-goal construction still use the rigid checked AST.
+func propertyPolymorphicSource(source string, decl *ast.LawDecl, side int) string {
+	body := propertyLawSource(source, decl, side)
+	if len(decl.TParams) == 0 {
+		return body
+	}
+	start := propertyOffset(source, decl.Pos)
+	if decl.Requires != nil {
+		start = propertyOffset(source, decl.Requires.GetEnd())
+	}
+	start += strings.Index(source[start:propertyOffset(source, decl.End)], body)
+	var edits []struct{ offset, length int }
+	ast.Walk([]ast.Expr{decl.LHS, decl.RHS}[side], func(n ast.Node) {
+		name, ok := n.(*ast.TypeName)
+		if !ok {
+			return
+		}
+		for _, param := range decl.TParams {
+			if name.Name == param.Name {
+				edits = append(edits, struct{ offset, length int }{propertyOffset(source, name.Pos) - start, len(param.Name)})
+			}
+		}
+	})
+	sort.Slice(edits, func(i, j int) bool { return edits[i].offset > edits[j].offset })
+	for _, edit := range edits {
+		body = body[:edit.offset] + "Int" + body[edit.offset+edit.length:]
+	}
+	return body
 }
 
 // The AST keeps semantic expression positions (a binary operator, for example).

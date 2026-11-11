@@ -248,9 +248,10 @@ type FuncInfo struct {
 	Decl   *ast.FuncDecl
 }
 
-// LawInfo describes a monomorphic equation, outside the runtime value namespace.
+// LawInfo describes a universally quantified equation outside the value namespace.
 type LawInfo struct {
 	Decl       *ast.LawDecl
+	TParams    []*TVar
 	ParamTypes []Type
 	Proof      *ProofInfo
 }

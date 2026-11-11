@@ -926,13 +926,13 @@ triple. Codegen emits `rt_tuple3`/`rt_untuple3` with source directives like Tupl
 
 ### 6.5 Laws and proofs
 
-A `law` declares an equation universally quantified over its typed, monomorphic
-parameters. A `proof` of the same name is required, with the same number of
-parameters; its untyped names rebind those parameters positionally. Laws are
-not callable functions and have no generated Go representation.
+A `law` declares an equation universally quantified over its typed parameters
+and any declared type parameters. A `proof` of the same name is required, with
+the same number of parameters; its untyped names rebind those parameters
+positionally. Laws are not callable functions and have no generated Go representation.
 
 ```ebnf
-LawDecl   := 'law' Ident '(' [Param {',' Param} [',']] ')' [ ? requires identifier ? Expr ] '{' Expr '==' Expr {Separator} '}'
+LawDecl   := 'law' Ident [TParams] '(' [Param {',' Param} [',']] ')' [ ? requires identifier ? Expr ] '{' Expr '==' Expr {Separator} '}'
 ProofDecl := 'proof' Ident '(' [Ident {',' Ident} [',']] ')' TacticBlock
 TacticBlock := '{' {Separator} Tactic {Separator} '}'
 Tactic    := 'refl'
@@ -954,6 +954,28 @@ The lexical classes `? sample identifier ?`, `? induction identifier ?` and
 `? requires identifier ?` match exactly the contextual identifiers `sample`,
 `induction` and `requires`, respectively. Unlike `refl`, these spellings are
 not reserved lexer keywords.
+
+`law name[A, B](params)` quantifies over every choice of `A` and `B`. Law type
+parameters are plain names of kind `*`: constraints are rejected with
+`law type parameters cannot have class constraints`, and higher kinds with
+`law type parameters cannot be higher-kinded`. Each parameter is rigid in the
+value parameter types, `requires`, both sides, and every tactic expression.
+An unconstrained value of type `A` may be passed, stored or returned, but has no
+`Eq`, `Ord`, `Show` or constructors; a proof cannot split it (`cannot split A`).
+Normalization treats it as an opaque symbol and does not instantiate it.
+The existing Float and higher-order quantified-parameter exclusions remain.
+
+Each use of `rewrite` freshly instantiates a referenced law's type parameters
+and infers them from the argument types, like a generic function call; explicit
+type arguments are not written. The induction hypothesis instead retains the
+enclosing law's rigid type parameters. Imported polymorphic laws use the same
+rules through `rewrite mod.law(args)`.
+
+Counterexample and precondition-witness searches instantiate every law type
+parameter at `Int`. A refutation reports its instantiation, for example
+`counterexample (A = Int, B = Int): xs = …`; finding no counterexample does not
+prove a law. `sample(N)` rejects polymorphic laws, even unused type parameters,
+with `sample does not support type parameters`.
 
 The outermost expression in a law body must be `==`; parenthesize a side
 containing lower-precedence Boolean operators. This `==` is an equation

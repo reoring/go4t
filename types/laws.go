@@ -44,9 +44,12 @@ func (c *checker) checkLaws(files []*ast.File) {
 			}
 			c.decl = decl
 			info := c.program.Laws[law.Name]
-			b := c.body(nil, nil)
+			b := c.body(nil, paramScope(info.TParams))
 			env := lawParams(law.Params, info.ParamTypes)
 			_, sampled := info.Proof.Decl.Body.(*ast.TSample)
+			if sampled && len(info.TParams) != 0 {
+				fail(info.Proof.Decl.Body.GetPos(), "sample does not support type parameters")
+			}
 			if sampled && law.Requires != nil {
 				fail(info.Proof.Decl.Body.GetPos(), "sample does not support requires")
 			}
@@ -81,7 +84,7 @@ func (c *checker) checkLaws(files []*ast.File) {
 			}
 			c.decl = decl
 			info := c.program.Proofs[proof.Name]
-			b := c.body(nil, nil)
+			b := c.body(nil, paramScope(info.Law.TParams))
 			b.tactic(proof.Body, lawParams(proof.Params, info.Law.ParamTypes), info)
 			b.finish()
 			for pat, typ := range info.PatVars {
@@ -196,10 +199,22 @@ func (b *bodyChecker) tactic(t ast.Tactic, env *locals, proof *ProofInfo) {
 		if len(t.Args) != len(law.ParamTypes) {
 			fail(t.Pos, "arity mismatch: want %d arguments, got %d", len(law.ParamTypes), len(t.Args))
 		}
-		*t.Law.AnnSlot() = &Ann{Ref: RefLaw, Type: &TFunc{Params: law.ParamTypes, Ret: AnnOf(law.Decl.LHS).Type}}
+		typ := &TFunc{Params: law.ParamTypes, Ret: AnnOf(law.Decl.LHS).Type}
+		var inst []Type
+		if law == proof.Law {
+			// An induction hypothesis stays at the current rigid parameters.
+			for _, param := range law.TParams {
+				inst = append(inst, param)
+			}
+		} else if len(law.TParams) != 0 {
+			var sub map[*TVar]Type
+			sub, inst = b.c.instantiate(law.TParams)
+			typ = substitute(typ, sub).(*TFunc)
+		}
+		*t.Law.AnnSlot() = &Ann{Ref: RefLaw, Type: typ, Inst: inst}
 		b.exprs = append(b.exprs, t.Law)
 		for i, arg := range t.Args {
-			unify(arg.GetPos(), law.ParamTypes[i], b.inferExpected(arg, env, law.ParamTypes[i]))
+			unify(arg.GetPos(), typ.Params[i], b.inferExpected(arg, env, typ.Params[i]))
 		}
 		b.tactic(t.Body, env, proof)
 	}

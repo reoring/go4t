@@ -1,0 +1,43 @@
+package main
+
+law lengthAppend[A](xs List[A], ys List[A]) {
+  length(append(xs, ys)) == length(xs) + length(ys)
+}
+proof lengthAppend(xs, ys) { induction xs }
+
+law appendNil[A](xs List[A]) { append(xs, Nil) == xs }
+proof appendNil(xs) { induction xs }
+
+law appendAssoc[A](xs List[A], ys List[A], zs List[A]) {
+  append(append(xs, ys), zs) == append(xs, append(ys, zs))
+}
+proof appendAssoc(xs, ys, zs) { induction xs }
+
+law appendNilManual[A](xs List[A]) { append(xs, Nil) == xs }
+proof appendNilManual(xs) {
+  match xs {
+    Nil => refl
+    Cons(x, rest) => rewrite appendNilManual(rest) { refl }
+  }
+}
+
+law twoInstantiations(xs List[Int], ys List[Bool]) {
+  (append(xs, Nil), append(ys, Nil)) == (xs, ys)
+}
+proof twoInstantiations(xs, ys) {
+  rewrite appendNil(xs) { rewrite appendNil(ys) { refl } }
+}
+
+law guarded[A](x A, flag Bool) requires flag {
+  (if flag { Some(x) } else { None }) == Some(x)
+}
+proof guarded(x, flag) { refl }
+
+law annotated[A, B](x A, y B, flag Bool) {
+  ((func(value A) => value)(x), (func(value B) => value)(y)) == (x, y)
+}
+proof annotated(x, y, flag) {
+  if (func(value A) => flag)(x) { refl } else { refl }
+}
+
+func main() IO[Unit] { ioPure(unit()) }
