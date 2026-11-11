@@ -81,3 +81,29 @@ closed normal forms.
 - `docs/laws.md` no longer says a failed `refl` has no counterexample.
 
 ## Implementation notes
+
+- Search budget: 128 attempted candidate environments, comprising 64 bounded
+  mixed-radix edge combinations followed by 64 pseudo-random candidates from
+  `math/rand/v2` PCG seeds `(1, 0)`. Each attempt gets `StepLimit` (10,000)
+  steps shared by admissibility and both equation sides. Rejected, undecided
+  and fuel-exhausted attempts count toward the budget.
+- Enumerators cover Int (`0, 1, -1, minInt, maxInt, 2, -2, 3, -3`, then random
+  bits), Bool, Unit, empty/short Strings, tuples, and ADT/record constructors
+  with a composite-depth budget of three. Lists consequently have at most
+  three elements; maps contain at most three entries with literal Int, String,
+  Bool or recursively tuple-shaped keys. Constructor choices rotate in source
+  order; fields and root parameters use bounded mixed-radix combinations.
+- Float-bearing data (including alternatives that could avoid the Float),
+  handles, unsupported map keys and types without an inhabitant within the
+  depth bound are skipped. Functions and IO remain outside the proof fragment.
+  Closed residuals, including unsupported map operations and function normal
+  forms, are not counterexamples.
+- The hook is `evaluator.admissible func(*environment) (bool, error)`, initialized
+  to always return `(true, nil)`. Bindings use root law parameter names, not proof
+  aliases or branch locals. A false result or error discards the candidate.
+  Search evaluates `equation`, bypassing rewritten goals, and restores the whole
+  evaluator, including fuel, assumptions, solutions, fresh IDs and rewrite state.
+- Display uses one name-collision context across the diagnostic's full forms,
+  stuck terms and differing subterms. Polynomial sign/order changes and
+  precedence-aware parentheses are readback only; normal forms and `alphaEqual`
+  are unchanged. No deviations from the decision.

@@ -237,7 +237,8 @@ func (e *evaluator) prove(law lawGoal, proof ast.Tactic, env *environment, vars 
 		// Preserve the actual failure when the diagnostic's readback also runs
 		// out of fuel or encounters a forbidden dependency.
 		if left, right, readErr := e.goal(law, env); readErr == nil && !strings.Contains(message, "\nLHS: ") {
-			message += fmt.Sprintf("\nLHS: %s\nRHS: %s", e.display(left), e.display(right))
+			d := e.displayTerms(left, right)
+			message += fmt.Sprintf("\nLHS: %s\nRHS: %s", d.display(left), d.display(right))
 		}
 		err = &proofFailure{node: proof, message: message}
 	}()
@@ -251,13 +252,14 @@ func (e *evaluator) prove(law lawGoal, proof ast.Tactic, env *environment, vars 
 			return err
 		}
 		if !alphaEqual(left, right, nil) {
-			stuck, differs := e.diagnose(left, right)
+			d := e.displayTerms(left, right)
+			stuck, differs := d.diagnose(left, right)
 			message := "stuck normal forms differ"
 			if stuck != "" {
 				message += "\n" + stuck
 			}
 			message += "\n" + differs
-			return fmt.Errorf("%s\nLHS: %s\nRHS: %s", message, e.display(left), e.display(right))
+			return fmt.Errorf("%s\nLHS: %s\nRHS: %s\n%s", message, d.display(left), d.display(right), e.counterexample(law))
 		}
 	case *ast.TRewrite:
 		rule, err := e.rewriteRule(law, tactic, env, vars)

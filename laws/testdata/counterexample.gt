@@ -1,0 +1,29 @@
+package main
+
+import "std/map"
+
+type Choice = First | Second(Int)
+
+law overflow(a Int) { (a + 1 > a) == true }
+proof overflow(renamed) { refl }
+
+law adt(c Choice) { (match c { First => true; Second(n) => n == 0 }) == true }
+proof adt(c) { match c { First => refl; Second(local) => refl } }
+
+law list(xs List[Int]) { xs == Nil }
+proof list(xs) { refl }
+
+law mapping(m Map[Int, Int]) { map.mapSize(m) == 0 }
+proof mapping(m) { refl }
+
+law weak(c Choice) { (match c { First => true; Second(n) => true }) == true }
+proof weak(c) { refl }
+
+type Opaque = Opaque(Float)
+law skipped(a Opaque, b Opaque) { a == b }
+proof skipped(a, b) { refl }
+
+law passing(a Int) { a + 1 == 1 + a }
+proof passing(a) { refl }
+
+func main() IO[Unit] { ioPure(unit()) }

@@ -45,7 +45,12 @@ README の比較表の最後の行には注釈が要ります。node-drain の `
 `go4t run` の実行結果と照合する property test で検証しています。
 admission の回では、書き手が誤った法則を検査器が初めて検出しました。
 `fullPassAdmits` が負の quota は拒否されることを忘れていたもので、
-診断は具体例ではなく `stuck on: if (q < 0) …` と条件を示しました。
+診断は条件を示しました。現在の表記では `stuck on: q < 0` です。
+現在は `refl` の失敗後に再現可能な 128 候補を上限付きで探索し、
+両辺が具体的な値まで正規化されて異なるときは反例も表示します。
+反例が見つからないことは証明ではありません。そのときは
+`no counterexample in 128 candidates: the law may hold; this proof needs a case split, rewrite or induction`、
+候補を生成できない型には `counterexample search skipped: no candidates for <type>` と表示します。
 Go + `rapid` との比較で自分たちの主張を切り下げた経緯も含め、記録は
 [`docs/adr/0001-equational-laws.md`](adr/0001-equational-laws.md) と
 [`docs/adr/0002-laws-map-and-diagnostics.md`](adr/0002-laws-map-and-diagnostics.md) にあります。

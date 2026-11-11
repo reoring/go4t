@@ -75,8 +75,8 @@ func assertNormalForms(t *testing.T, err error) {
 func TestCancel(t *testing.T) {
 	for _, tc := range []struct{ file, bad, left, right string }{
 		{"cancel.gt", "", "", ""},
-		{"cancel_bad1.gt", "cancelIdempotent", "LHS: Pending(n#", "RHS: Cancelled(n#"},
-		{"cancel_bad2.gt", "cancelPending", "LHS: Cancelled(0)", "RHS: Cancelled(n#"},
+		{"cancel_bad1.gt", "cancelIdempotent", "LHS: Pending(n)", "RHS: Cancelled(n)"},
+		{"cancel_bad2.gt", "cancelPending", "LHS: Cancelled(0)", "RHS: Cancelled(n)"},
 	} {
 		t.Run(tc.file, func(t *testing.T) {
 			errors := diagnosticsByLaw(t, loadFixture(t, tc.file))

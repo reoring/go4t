@@ -58,6 +58,27 @@ func TestLawCheckAndRun(t *testing.T) {
 	}
 }
 
+func TestCounterexampleLawCLI(t *testing.T) {
+	source, err := os.ReadFile("../../laws/testdata/counterexample_cli.gt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	file := toolsWrite(t, filepath.Join(dir, "diagnostic.gt"), string(source))
+	out, stderr, status := toolsCommand(t, dir, "", "check", file)
+	if status != 1 || out != "" {
+		t.Fatalf("check: status=%d stdout=%q stderr=%q", status, out, stderr)
+	}
+	for _, want := range []string{
+		"counterexample: a = 9223372036854775807\n  LHS: false\n  RHS: true",
+		"no counterexample in 128 candidates: the law may hold; this proof needs a case split, rewrite or induction",
+	} {
+		if !strings.Contains(stderr, want) {
+			t.Fatalf("missing %q:\n%s", want, stderr)
+		}
+	}
+}
+
 func TestSampleLawCLI(t *testing.T) {
 	source, err := os.ReadFile("../../laws/testdata/sample/valid.gt")
 	if err != nil {
