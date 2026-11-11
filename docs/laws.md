@@ -75,6 +75,19 @@ ordered arithmetic, automatic accumulator generalization for other folds, and
 equality of two symbolic maps. Proof length grows with the number of branches; that is the
 specification's complexity, not the prover's.
 
+## Writing less
+
+- A law with no proof is checked by `refl`. `} proof { tactic }` after the body
+  is an inline proof; the separate `proof name(x, y) { … }` form still exists.
+- Several `requires` clauses, one per line, mean their conjunction in order.
+- A body that is a Bool expression (`{ a + 1 > a }`) states that it is `true`.
+  `a && b == b && a` is rejected as ambiguous: `==` binds tighter than `&&`.
+- `absurd` closes a case that the assumptions rule out; `match e` splits on any
+  expression, `match c` with no arms closes every case, and arms may list
+  alternatives (`Held | Done => absurd`).
+- `law name[A](xs List[A])` quantifies over a type. Type parameters take no
+  class constraints, so a value of type `A` can only be moved around.
+
 What a proved law rests on — the normalizer, the termination and taint
 checks, the extern whitelist, the `std/map` and `std/list` models — and how
 that base is tested against the real runtime on every CI run is in

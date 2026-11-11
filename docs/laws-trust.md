@@ -24,7 +24,9 @@ left side and the right side at run time yields the same value.
 | 7 | `std/map` model | The 13 map externs behave as the symbolic model says, for comparators that identify `compare(a, b) == EQ` with `a == b` (prelude Int/String/Bool, derived `Ord`, tuples of those) | `laws/mapterm.go`, [ADR 0002](adr/0002-laws-map-and-diagnostics.md) |
 | 8 | `std/list` models | The structural equations used instead of unfolding 14 accumulator loops (`length`, `sum`, `product`, `count`, `reverse`, `zipWith`, `unzip`, `partition`, `flatten`, `intercalate`, `init`, `span`, `findIndex`, `indexed`) equal the run-time result for every input, Int wraparound included ([ADR 0014](adr/0014-structural-models-for-std-list.md)) | `laws/listterm.go` |
 | 9 | Tactics | `match`/`induction` cases are exhaustive; `rewrite` instantiates a proved law, checks its precondition, and replaces only alpha-equal occurrences; `if` assumes exactly the condition and its negation | `laws/laws.go`, `laws/rewrite.go`, `types/laws.go` |
-| 10 | Front end and code generator | The term the normalizer reasons about is the program that runs: parsing, type-class resolution, deriving expansion and Go emission agree | `parser/`, `types/`, `codegen/`, `rt/` |
+| 10 | Contradiction test | `absurd`, and the automatic closing of a bare `match`/`induction` case, succeed only when an assumption re-normalized under the case split and the assumptions before it has the opposite value, or the order closure is inconsistent ([ADR 0018](adr/0018-tactics-absurd-and-case-analysis.md)) | `laws/absurd.go` |
+| 11 | Law type parameters | A rigid type parameter is an opaque symbol to every reduction; no rule decides anything from its type ([ADR 0021](adr/0021-polymorphic-laws.md)) | `types/laws.go`, `laws/rewrite.go` |
+| 12 | Front end and code generator | The term the normalizer reasons about is the program that runs: parsing, type-class resolution, deriving expansion and Go emission agree | `parser/`, `types/`, `codegen/`, `rt/` |
 
 Trust in rows 6–8 is tied to the **owning standard-library declaration**, not
 to a name: a user function called `length`, or a user `extern` bound to the
@@ -84,11 +86,11 @@ neighbouring false law that must not (`laws/testdata/*_bad*.gt`,
 standard-library declaration and its category
 ([docs/laws-std-reach.md](laws-std-reach.md), `laws/taint_reach_test.go`).
 
-**Fuzzing** covers row 10's front half: the lexer and parser never panic, and
+**Fuzzing** covers row 12's front half: the lexer and parser never panic, and
 `format` is idempotent and preserves the parsed program (`FuzzLexer`,
 `FuzzParser`, `FuzzFormat`; CI fuzzes each for a short fixed time).
 
-**Ports** cover the rest of row 10: two production controllers were moved with
+**Ports** cover the rest of row 12: two production controllers were moved with
 their original Go tests byte-identical as the oracle
 ([docs/evaluation.md](evaluation.md)).
 
@@ -98,18 +100,22 @@ From `go test -v ./laws` on the commit that introduced this page (Go 1.26.1):
 
 | | |
 | --- | ---: |
-| Laws in `laws/testdata` | 298 |
-| Law sides and partial proof goals normalized | 2,176 |
+| Laws in `laws/testdata` | 350 |
+| Law sides and partial proof goals normalized | 2,822 |
 | Substitutions per target | 50 |
-| Normal form vs. runtime comparisons | 102,116 |
-| Substitutions skipped for violating an assumption | 6,684 |
+| Normal form vs. runtime comparisons | 133,292 |
+| Substitutions skipped for violating an assumption | 7,808 |
 | Float-bearing substitutions | 1,242 |
 | Fixtures that are intentionally not normalizable | 9 |
 | Mismatches | 0 |
 
-The same run passes on Go 1.22. The test takes about six minutes on a
+The same run passes on Go 1.22. The test takes about nine minutes on a
 developer machine; it is the reason `go test ./laws` is slow, and that cost is
 deliberate.
+
+Or-patterns add nothing to this list: the checker expands an or-arm into its
+alternatives before any stage here sees it ([ADR 0020](adr/0020-or-patterns.md)).
+A constant is a nullary function ([ADR 0022](adr/0022-declaration-conveniences.md)).
 
 Before the order-reasoning rules were merged they were also attacked once by
 an independent review with hand-written false laws and differential fuzzing
