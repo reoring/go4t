@@ -267,6 +267,7 @@ var grammarLexemes = map[string]struct {
 	"induction identifier":        {"induction", lexer.Ident},
 	"requires identifier":         {"requires", lexer.Ident},
 	"integer literal":             {"1", lexer.Int},
+	"decimal digits":              {"0", lexer.Int},
 	"float literal":               {"1.5", lexer.Float},
 	"string literal":              {`"text"`, lexer.String},
 	"interpolated string literal": {`"${1}"`, lexer.InterpTok},
@@ -591,13 +592,15 @@ var grammarGenerationAllowlist = map[string]string{
 func grammarProgram(root, sentence string) (string, bool) {
 	expression := ""
 	switch root {
-	case "Expr", "InferExpr", "IfExpr", "Binary", "Unary", "Postfix", "Primary", "Block", "Section", "Ident", "Int", "Float", "String", "Interp":
+	case "Expr", "InferExpr", "IfExpr", "Binary", "Disjunction", "Conjunction", "Comparison", "Sum", "Product", "Unary", "Postfix", "Primary", "Block", "Section", "Ident", "Int", "Float", "String", "Interp":
 		expression = sentence
 	case "CallArg", "Projection":
 		expression = "f(" + sentence + ")"
+	case "TupleIndex":
+		expression = "value." + sentence
 	case "RecordFields":
 		expression = "C" + sentence
-	case "BinOp":
+	case "BinOp", "CompareOp":
 		expression = "1 " + sentence + " 1"
 	case "LParam":
 		expression = "func(" + sentence + ") => 1"

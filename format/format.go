@@ -450,8 +450,8 @@ func (p *printer) block(b *ast.Block) {
 	p.close(b.End)
 }
 
-// A leading negative expression is a layout continuation, not a new statement.
-// Parentheses separate it without adding a semantic node.
+// Layout rejects a leading minus where the preceding statement could end.
+// Parentheses are required to keep a negative expression a separate statement.
 func (p *printer) statementExpr(e ast.Expr) {
 	if negativeStart(e) {
 		p.text("(")
@@ -464,6 +464,8 @@ func (p *printer) statementExpr(e ast.Expr) {
 
 func negativeStart(e ast.Expr) bool {
 	switch e := e.(type) {
+	case *ast.IntLit:
+		return e.Value < 0
 	case *ast.Unary:
 		return e.Op == "-"
 	case *ast.Binary:
@@ -511,6 +513,10 @@ func (p *printer) expr(e ast.Expr, parent int) {
 	defer p.mark(exprStart(e), e.GetEnd())()
 	prec := 9
 	switch e := e.(type) {
+	case *ast.IntLit:
+		if e.Value < 0 {
+			prec = 7
+		}
 	case *ast.Binary:
 		prec = precedence[e.Op]
 	case *ast.Call:
@@ -542,7 +548,11 @@ func (p *printer) expr(e ast.Expr, parent int) {
 			p.text(e.Name)
 		}
 	case *ast.IntLit:
-		p.text(strconv.FormatInt(e.Value, 10))
+		if e.Text != "" {
+			p.text(e.Text)
+		} else {
+			p.text(strconv.FormatInt(e.Value, 10))
+		}
 	case *ast.FloatLit:
 		text := strconv.FormatFloat(e.Value, 'g', -1, 64)
 		if !strings.ContainsAny(text, ".eE") {
@@ -709,7 +719,11 @@ func (p *printer) multilineArm(a ast.Arm) bool {
 }
 func (p *printer) binary(e *ast.Binary) {
 	if e.Op != "|>" {
-		p.expr(e.L, precedence[e.Op])
+		leftPrec := precedence[e.Op]
+		if leftPrec == precedence["=="] {
+			leftPrec++
+		}
+		p.expr(e.L, leftPrec)
 		p.text(" " + e.Op + " ")
 		p.expr(e.R, precedence[e.Op]+1)
 		return

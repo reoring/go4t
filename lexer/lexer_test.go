@@ -100,9 +100,6 @@ func TestLayoutMatrix(t *testing.T) {
 		layoutCase{"do-let-annotation", "do {\n let p: (Int,\n String) = (1,\n name)\n pure(p)\n}", "do { let p : ( Int , String ) = ( 1 , name ) ; pure ( p ) ; } ;"},
 		layoutCase{"match-guard", "match xs {\n Some(x) if valid(x)\n && ready()\n => x\n | _ => 0\n}", "match xs { Some ( x ) if valid ( x ) && ready ( ) => x | _ => 0 ; } ;"},
 		layoutCase{"lambda-patterns", "func(\n (a, b),\n _,\n whole @\n Point{x: x, ..},\n c Int\n) => c", "func ( ( a , b ) , _ , whole @ Point { x : x , .. } , c Int ) => c ;"},
-		// DESIGN deliberately treats line-leading -x as continuation, not a
-		// new unary-minus statement. Use 0 - x or parentheses to start one.
-		layoutCase{"leading-unary-minus", "x\n-x;", "x - x ;"},
 	)
 
 	// Rule 3: all leading continuation tokens, plus token-boundary negatives.
@@ -115,7 +112,7 @@ func TestLayoutMatrix(t *testing.T) {
 		{")", ")", true}, {"]", "]", true}, {"given", "given", true},
 		{"deriving", "deriving", true},
 		{"=>", "=>", true}, {"<-", "<-", true},
-		{"+", "+", true}, {"-", "-", true}, {"*", "*", true}, {"/", "/", true},
+		{"+", "+", true}, {"*", "*", true}, {"/", "/", true},
 		{"==", "==", true}, {"!=", "!=", true}, {"<", "<", true}, {"<=", "<=", true},
 		{">", ">", true}, {">=", ">=", true}, {"&&", "&&", true},
 		{"||", "||", true},

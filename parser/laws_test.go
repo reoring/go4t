@@ -37,7 +37,7 @@ func TestLawDeclarations(t *testing.T) {
 func TestLawEqualityPrecedence(t *testing.T) {
 	for _, tc := range []struct{ body, left, right string }{
 		{"a + b == c * d", "(a + b)", "(c * d)"},
-		{"a == b == c", "(a == b)", "c"},
+		{"(a == b) == c", "(a == b)", "c"},
 		{"(a || b) == (c && d)", "(a || b)", "(c && d)"},
 		{"a == (b == c)", "a", "(b == c)"},
 		{"(a == b)", "a", "b"},
