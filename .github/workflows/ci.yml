@@ -47,8 +47,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          toolchain="$(go env GOVERSION)"
+          toolchain="${toolchain#go1.}"
+          toolchain="${toolchain%%[!0-9]*}"
           for source in examples/*/main.gt; do
             directory="${source%/*}"
+            # go-version.txt: the first Go 1.N an example needs, then why.
+            if [[ -f "$directory/go-version.txt" ]]; then
+              { IFS= read -r needs; IFS= read -r reason || true; } < "$directory/go-version.txt"
+              if (( toolchain < ${needs#1.} )); then
+                printf 'skip %s: needs Go %s (%s)\n' "${directory##*/}" "$needs" "$reason"
+                continue
+              fi
+            fi
             if [[ -f "$directory/skip.txt" ]]; then
               reason=
               IFS= read -r reason < "$directory/skip.txt" || true

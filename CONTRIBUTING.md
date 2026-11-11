@@ -60,6 +60,9 @@ go test ./format -run '^$' -fuzz '^FuzzFormat$' -fuzztime 60s
   normal forms with the real runtime. Prefer leaving a term stuck to guessing.
 - **Diagnostics are part of the interface.** Message templates are pinned by
   tests and quoted in the docs; change both together.
+- **Examples run in CI on every supported Go.** An example that binds an API
+  newer than the minimum Go says so in `go-version.txt` (first line `1.N`,
+  second line why) and is skipped below it; `skip.txt` skips one everywhere.
 - **Generated code is not committed** unless an example exists to show it.
   Bindings for `import "go:…"` are produced at build time and cached.
 - Format Go with `gofmt` and go4t with `go4t fmt`. Commit subjects follow
