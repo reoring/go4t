@@ -75,6 +75,20 @@ jobs:
           go test ./...
       - name: Bootstrap self-hosted compiler
         run: bash selfhost/bootstrap.sh
+  fuzz:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: false
+      - name: Fuzz the front end briefly
+        run: |
+          go test ./lexer  -run '^$' -fuzz '^FuzzLexer$'  -fuzztime 30s
+          go test ./parser -run '^$' -fuzz '^FuzzParser$' -fuzztime 30s
+          go test ./format -run '^$' -fuzz '^FuzzFormat$' -fuzztime 30s
   bench:
     runs-on: ubuntu-latest
     timeout-minutes: 15

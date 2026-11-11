@@ -19,10 +19,13 @@ CI runs exactly these (`.github/workflows/ci.yml`), on the minimum Go version
 and on the current stable release, plus every `examples/*/main.gt`.
 
 Fuzz targets exist for the lexer, parser and formatter. They run their seed
-corpus as ordinary tests; to fuzz one:
+corpus as ordinary tests, and CI fuzzes each for a short fixed time; to fuzz
+longer:
 
 ```sh
-go test ./parser -run '^$' -fuzz '^FuzzParse$' -fuzztime 60s
+go test ./lexer  -run '^$' -fuzz '^FuzzLexer$'  -fuzztime 60s
+go test ./parser -run '^$' -fuzz '^FuzzParser$' -fuzztime 60s
+go test ./format -run '^$' -fuzz '^FuzzFormat$' -fuzztime 60s
 ```
 
 ## Where things live
