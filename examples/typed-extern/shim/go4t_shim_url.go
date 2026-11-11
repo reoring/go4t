@@ -63,12 +63,12 @@ func go4tMirror3To(v any, ctx context.Context) go2.URL {
 	result.User = go4tMirror4To(rt.ForeignRecordField("net/url.URL", v, 2), ctx)
 	result.Host = go4tMirror0To(rt.ForeignRecordField("net/url.URL", v, 3), ctx)
 	result.Path = go4tMirror0To(rt.ForeignRecordField("net/url.URL", v, 4), ctx)
-	result.Fragment = go4tMirror0To(rt.ForeignRecordField("net/url.URL", v, 5), ctx)
-	result.RawQuery = go4tMirror0To(rt.ForeignRecordField("net/url.URL", v, 6), ctx)
-	result.RawPath = go4tMirror0To(rt.ForeignRecordField("net/url.URL", v, 7), ctx)
-	result.RawFragment = go4tMirror0To(rt.ForeignRecordField("net/url.URL", v, 8), ctx)
-	result.ForceQuery = go4tMirror5To(rt.ForeignRecordField("net/url.URL", v, 9), ctx)
-	result.OmitHost = go4tMirror5To(rt.ForeignRecordField("net/url.URL", v, 10), ctx)
+	result.RawPath = go4tMirror0To(rt.ForeignRecordField("net/url.URL", v, 5), ctx)
+	result.OmitHost = go4tMirror5To(rt.ForeignRecordField("net/url.URL", v, 6), ctx)
+	result.ForceQuery = go4tMirror5To(rt.ForeignRecordField("net/url.URL", v, 7), ctx)
+	result.RawQuery = go4tMirror0To(rt.ForeignRecordField("net/url.URL", v, 8), ctx)
+	result.Fragment = go4tMirror0To(rt.ForeignRecordField("net/url.URL", v, 9), ctx)
+	result.RawFragment = go4tMirror0To(rt.ForeignRecordField("net/url.URL", v, 10), ctx)
 	return result
 }
 func go4tMirror3From(v go2.URL) any {
@@ -78,12 +78,12 @@ func go4tMirror3From(v go2.URL) any {
 	fields[2] = go4tMirror4From(v.User)
 	fields[3] = go4tMirror0From(v.Host)
 	fields[4] = go4tMirror0From(v.Path)
-	fields[5] = go4tMirror0From(v.Fragment)
-	fields[6] = go4tMirror0From(v.RawQuery)
-	fields[7] = go4tMirror0From(v.RawPath)
-	fields[8] = go4tMirror0From(v.RawFragment)
-	fields[9] = go4tMirror5From(v.ForceQuery)
-	fields[10] = go4tMirror5From(v.OmitHost)
+	fields[5] = go4tMirror0From(v.RawPath)
+	fields[6] = go4tMirror5From(v.OmitHost)
+	fields[7] = go4tMirror5From(v.ForceQuery)
+	fields[8] = go4tMirror0From(v.RawQuery)
+	fields[9] = go4tMirror0From(v.Fragment)
+	fields[10] = go4tMirror0From(v.RawFragment)
 	return rt.ForeignRecord("net/url.URL", fields)
 }
 func go4tMirror2To(v any, ctx context.Context) *go2.URL {
@@ -261,25 +261,6 @@ func go4tMirror12To(v any, ctx context.Context) *go2.URL {
 func go4tMirror12From(v *go2.URL) any {
 	return go4tMirror3From(*v)
 }
-func go4tMirror13To(v any, ctx context.Context) []byte {
-	return []byte(v.(string))
-}
-func go4tMirror13From(v []byte) any {
-	return string(v)
-}
-func URL_AppendBinary(recv any, p0 any) any {
-	return rt.IO(func(ctx context.Context) (any, error) {
-		if err := ctx.Err(); err != nil {
-			return nil, rt.ClassifyError(err)
-		}
-		receiver := go4tMirror12To(recv, ctx)
-		value0, err := receiver.AppendBinary(go4tMirror13To(p0, ctx))
-		if err != nil {
-			return nil, rt.ClassifyError(err)
-		}
-		return go4tMirror13From(value0), nil
-	})
-}
 func URL_EscapedFragment(recv any) any {
 	ctx := context.Background()
 	_ = ctx
@@ -314,6 +295,12 @@ func URL_JoinPath(recv any, p0 any) any {
 	receiver := go4tMirror12To(recv, ctx)
 	value0 := receiver.JoinPath(go4tMirror1To(p0, ctx)...)
 	return go4tMirror2From(value0)
+}
+func go4tMirror13To(v any, ctx context.Context) []byte {
+	return []byte(v.(string))
+}
+func go4tMirror13From(v []byte) any {
+	return string(v)
 }
 func URL_MarshalBinary(recv any) any {
 	return rt.IO(func(ctx context.Context) (any, error) {

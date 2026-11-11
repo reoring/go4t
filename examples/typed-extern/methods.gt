@@ -4,7 +4,7 @@ package main
 import go_fmt "go:fmt"
 
 type Error = Error{op: String, uRL: String, err: Option[GoError]}
-type URL = URL{scheme: String, opaque: String, user: Userinfo, host: String, path: String, fragment: String, rawQuery: String, rawPath: String, rawFragment: String, forceQuery: Bool, omitHost: Bool}
+type URL = URL{scheme: String, opaque: String, user: Userinfo, host: String, path: String, rawPath: String, omitHost: Bool, forceQuery: Bool, rawQuery: String, fragment: String, rawFragment: String}
 type Userinfo = UserinfoHandle
 
 extern func joinPath(p0 String, p1 List[String]) IO[String] = "github.com/reoring/go4t/examples/typed-extern/shim".JoinPath
@@ -23,7 +23,6 @@ extern func errorTimeout(recv Error) Bool = "github.com/reoring/go4t/examples/ty
 extern func errorUnwrap(recv Error) IO[Unit] = "github.com/reoring/go4t/examples/typed-extern/shim".Error_Unwrap
 extern func escapeErrorError(recv String) String = "github.com/reoring/go4t/examples/typed-extern/shim".EscapeError_Error
 extern func invalidHostErrorError(recv String) String = "github.com/reoring/go4t/examples/typed-extern/shim".InvalidHostError_Error
-extern func urlAppendBinary(recv URL, p0 String) IO[String] = "github.com/reoring/go4t/examples/typed-extern/shim".URL_AppendBinary
 extern func urlEscapedFragment(recv URL) String = "github.com/reoring/go4t/examples/typed-extern/shim".URL_EscapedFragment
 extern func urlEscapedPath(recv URL) String = "github.com/reoring/go4t/examples/typed-extern/shim".URL_EscapedPath
 extern func urlHostname(recv URL) String = "github.com/reoring/go4t/examples/typed-extern/shim".URL_Hostname
