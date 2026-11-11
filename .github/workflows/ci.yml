@@ -18,7 +18,7 @@ jobs:
         go: [minimum, stable]
     name: go (${{ matrix.go }})
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -32,7 +32,9 @@ jobs:
           go-version: stable
           cache: false
       - run: go vet ./...
-      - run: go test ./...
+      # The law checker's open-term property test compiles and runs every
+      # fixture; it dominates this step.
+      - run: go test -timeout 30m ./...
       - name: Run examples
         shell: bash
         run: |

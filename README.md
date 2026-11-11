@@ -273,8 +273,17 @@ Proofs combine `refl`, constructor `match`, guard `if`, `rewrite` and
 data (sums, records, lists, maps, `Int`, `String`, …) and the pure functions
 over them; they do not cover I/O, and an equation that depends on an opaque
 Go function can only be *sampled* (`sample(N)`), which `go4t test` runs
-without treating it as proved. What laws can and cannot express is in
-[docs/laws.md](docs/laws.md); worked examples are in
+without treating it as proved.
+
+A law may state a precondition (`requires 0 <= a && a < limit`). `Int` wraps
+at 64 bits, so comparisons are decided only where the assumptions rule a wrap
+out: `a + 1 > a` is rejected without a bound and proved with one. When a proof
+fails, `go4t check` looks for concrete arguments that make the two sides
+differ and prints them, so a false law and a too-short proof look different.
+
+What laws can and cannot express is in [docs/laws.md](docs/laws.md); what a
+"proved" law rests on, and how that base is tested against the real runtime,
+is in [docs/laws-trust.md](docs/laws-trust.md); worked examples are in
 [tutorial §14](docs/tutorial.md#14-laws).
 
 ## Where it has been used
@@ -341,6 +350,7 @@ exact `>=`/`>` boundaries on deadlines, "a full zone is never chosen",
 | [Tutorial for Go developers](docs/tutorial.md) | Eighteen short lessons; every go4t snippet type-checked in CI. |
 | [Language specification](SPEC.md) | Grammar, type and effect rules, deriving, exported Go API, boundary tables. |
 | [Laws](docs/laws.md) | What laws cover, what they do not, how proofs are written. |
+| [What "proved" rests on](docs/laws-trust.md) | The trusted base of the law checker and how each part is checked. |
 | [Go interop](docs/go-interop.md) | Three migration shapes, the boundary rule, `--emit-go`, `go:` imports and dependencies. |
 | [CLI reference](docs/cli.md) | Every command, exit codes. |
 | [Examples](examples/README.md) | All runnable examples with their commands. |
