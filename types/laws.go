@@ -174,12 +174,13 @@ func (b *bodyChecker) tactic(t ast.Tactic, env *locals, proof *ProofInfo) {
 			return
 		}
 		var rows [][]ast.Pattern
-		for _, arm := range t.Arms {
+		for index := range t.Arms {
+			arm := &t.Arms[index]
 			checkTacticPattern(arm.Pat)
-			alternatives := []ast.Pattern{arm.Pat}
-			if or, ok := arm.Pat.(*ast.POr); ok {
-				alternatives = or.Alts
-			}
+			// Expanded once, here: record patterns are identified by node, so
+			// the prover must split on exactly the patterns checked below.
+			alternatives := ast.Alternatives(arm.Pat)
+			arm.Alts = alternatives
 			var bindings *locals
 			for _, alternative := range alternatives {
 				local := newLocals(env)

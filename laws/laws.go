@@ -349,7 +349,11 @@ func (e *evaluator) prove(law lawGoal, proof ast.Tactic, env *environment, vars 
 			arms = e.inductionArms(tactic, v.typ)
 		}
 		for _, arm := range arms {
-			for _, pattern := range ast.Alternatives(arm.Pat) {
+			patterns := arm.Alts
+			if patterns == nil {
+				patterns = ast.Alternatives(arm.Pat)
+			}
+			for _, pattern := range patterns {
 				branch := copyProofVars(vars)
 				if !variable {
 					v.value = e.fresh("$match")

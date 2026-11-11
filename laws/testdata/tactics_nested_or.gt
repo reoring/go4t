@@ -1,0 +1,28 @@
+package main
+
+type Kind = A | B | C deriving Eq, Debug
+
+func score(o Option[Kind]) Int {
+  match o {
+    Some(A | B) => 1
+    Some(C) => 2
+    None => 0
+  }
+}
+
+// A nested alternative in a tactic arm is one case per expanded pattern.
+law scoreBounded(o Option[Kind]) {
+  (score(o) <= 2) == true
+}
+
+proof scoreBounded(o) {
+  match o {
+    Some(A | B) => refl
+    | Some(C) => refl
+    | None => refl
+  }
+}
+
+func main() IO[Unit] {
+  println(show(score(Some(B))))
+}

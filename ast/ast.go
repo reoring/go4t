@@ -347,6 +347,9 @@ type TacticArm struct {
 	End  Pos
 	Pat  Pattern
 	Body Tactic
+	// Alts is Alternatives(Pat) as type-checked: the or-free patterns the
+	// prover splits on. Filled by the checker; nil before checking.
+	Alts []Pattern
 }
 
 // TIf is `if cond { tactic } else { tactic }`: cond is a Bool expression over
