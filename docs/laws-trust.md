@@ -47,7 +47,10 @@ same Go symbol, gets none of it.
 - Nothing about `IO`, externs outside the whitelist, `Float`, `std/set`,
   `std/array`, or string contents beyond constant folding.
 - Nothing about arguments outside its `requires` clause; the precondition is
-  not checked at run time.
+  not checked at run time. A precondition that provably cannot hold is
+  rejected, and one for which the checker finds no satisfying argument is
+  flagged with a warning, but that search is bounded: a law can still be
+  vacuous without either ([ADR 0016](adr/0016-requires-satisfiability.md)).
 - Nothing about resources: allocation failure and stack exhaustion are outside
   the model.
 - A trusted `extern` with a pure type can still perform effects in Go; the

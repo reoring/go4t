@@ -11,6 +11,12 @@ the grammar, standard library and Go ABI may change between minor versions.
 - **`requires` on laws.** `law name(params) requires cond { lhs == rhs }` states
   a precondition; the proof starts with it assumed, and `rewrite` with such a
   law must establish it ([ADR 0012](docs/adr/0012-law-preconditions-and-order-reasoning.md)).
+- **Unsatisfiable preconditions are reported.** A `requires` clause whose
+  conditions contradict each other (`a < 5 && a > 7`) is an error instead of
+  a vacuously true law; when no argument satisfying it is found in the
+  candidate search, a failed proof says so and a successful one carries a
+  warning ([ADR 0016](docs/adr/0016-requires-satisfiability.md)). A range can
+  be written once as a `Bool` function and shared: `requires plausible(t, at, now)`.
 - **Order reasoning for `Int` in laws.** Comparisons are decided by the
   total-order closure of the assumptions (transitivity, antisymmetry), and by
   linear reasoning where interval analysis proves no operand can wrap. `a + 1 > a`
@@ -57,6 +63,9 @@ the grammar, standard library and Go ABI may change between minor versions.
 
 ### Fixed
 
+- Go 1.27: generated shims referenced unexported type aliases of the bound
+  package (`[]pkg.number`) and did not compile; they now spell out the
+  aliased type.
 - `go vet ./...` failed on Go 1.22: the committed `examples/typed-extern` shim
   had been generated with a newer toolchain and referenced
   `url.URL.AppendBinary`. Committed generated bindings are now produced with

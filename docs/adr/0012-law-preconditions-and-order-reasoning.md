@@ -216,3 +216,7 @@ fuzz laws had a `requires` no grid point satisfied (mostly contradictory
 bounds), so those acceptances are unverified; and a precondition that
 normalizes to `false` makes its law provable by vacuity, which is correct but
 means an accidentally unsatisfiable `requires` is not reported.
+
+Follow-up: [ADR 0016](0016-requires-satisfiability.md) rejects a provably
+unsatisfiable `requires` and warns when the candidate search finds no
+argument that satisfies one.
