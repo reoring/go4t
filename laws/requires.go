@@ -1,5 +1,7 @@
 package laws
 
+import "fmt"
+
 // preconditionHolds filters closed parameter bindings without assuming any
 // proof hypotheses, including the law's own precondition. Stuck is not true.
 func (e *evaluator) preconditionHolds(law lawGoal, env *environment) (bool, error) {
@@ -29,8 +31,38 @@ func (e *evaluator) assumePrecondition(law lawGoal, env *environment) error {
 	if err != nil {
 		return err
 	}
-	e.addAssumption(condition, true)
-	return nil
+	// Keep the original normalized facts: re-normalizing a later conjunct can
+	// change its representation under earlier bounds, but must not erase a
+	// fact that existing proofs use.
+	previous := false
+	var assume func(*term) error
+	assume = func(conjunct *term) error {
+		if conjunct.kind == "binary" && conjunct.name == "&&" {
+			if err := assume(conjunct.args[0]); err != nil {
+				return err
+			}
+			return assume(conjunct.args[1])
+		}
+		value, err := e.normal(conjunct)
+		if err != nil {
+			return err
+		}
+		impossible, err := e.impossibleOrder(value)
+		if err != nil {
+			return err
+		}
+		if value.kind == "bool" && !value.flag || impossible {
+			message := fmt.Sprintf("requires can never hold: %s is false", e.display(conjunct))
+			if previous {
+				message += " given the conditions before it"
+			}
+			return &proofFailure{node: law.Requires, message: message}
+		}
+		e.addAssumption(conjunct, true)
+		previous = true
+		return nil
+	}
+	return assume(condition)
 }
 
 // Conjunction elimination is valid only in a true branch. A false conjunction

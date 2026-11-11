@@ -79,6 +79,29 @@ func TestCounterexampleLawCLI(t *testing.T) {
 	}
 }
 
+func TestRequiresLawWarningCLI(t *testing.T) {
+	dir := t.TempDir()
+	file := toolsWrite(t, filepath.Join(dir, "warning.gt"), `package main
+law vacuous(a Int) requires 0 <= a && a <= 10 && a * 2 == 21 { a == a }
+proof vacuous(a) { refl }
+func main() IO[Unit] { ioPure(unit()) }
+`)
+	out, stderr, status := toolsCommand(t, dir, "", "check", file)
+	want := "warning: law vacuous: no arguments satisfying requires were found in 128 candidates; the law may say nothing"
+	if status != 0 || out != "" || !strings.Contains(stderr, file+":2:") || strings.Count(stderr, want) != 1 || !strings.Contains(stderr, "\nlaw vacuous(a Int)") || !strings.Contains(stderr, "^~~~") {
+		t.Fatalf("check: status=%d stdout=%q stderr=%q", status, out, stderr)
+	}
+	toolsWrite(t, file, `package main
+law literal(a Int) requires a == 123456 { (a > 0) == true }
+proof literal(a) { refl }
+func main() IO[Unit] { ioPure(unit()) }
+`)
+	out, stderr, status = toolsCommand(t, dir, "", "check", file)
+	if status != 0 || out != "" || stderr != "" {
+		t.Fatalf("seeded witness: status=%d stdout=%q stderr=%q", status, out, stderr)
+	}
+}
+
 func TestSampleLawCLI(t *testing.T) {
 	source, err := os.ReadFile("../../laws/testdata/sample/valid.gt")
 	if err != nil {

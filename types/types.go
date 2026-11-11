@@ -281,8 +281,8 @@ type Program struct {
 	Main      *FuncInfo
 	// Files in check order: prelude first, then user file(s).
 	Files []*ast.File
-	// Warnings are non-fatal diagnostics (e.g. defaulted type variables),
-	// in source order.
+	// Warnings are non-fatal diagnostics (e.g. defaulted type variables).
+	// Type checking adds them in source order; law checking appends its notices.
 	Warnings []*Error
 	// RecordPats resolves every record pattern to its constructor and the
 	// positional index of each listed field name, in Names order.

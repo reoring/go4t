@@ -96,3 +96,51 @@ published by the language server as warnings.
   the rest.
 
 ## Implementation notes
+
+- `laws/requires.go: assumePrecondition` checks the normalized top-level
+  conjuncts in order, including conjunctions exposed by function unfolding,
+  before any tactic. It retains the original normalized facts for the proof.
+  `addAssumption` is unchanged, so contradictory tactic branches remain legal.
+  Diagnostics use the existing ADR 0013 term display (canonical comparison
+  direction and source variable names); a whole precondition already reduced
+  to `false` is displayed as `false`. Positions refer to the law's `requires`
+  expression, even when its proof is in another file.
+- API: `CheckProgram(p *types.Program) []*types.Error` retains its signature
+  and appends non-fatal diagnostics to `p.Warnings`; no parallel warning
+  return value or callback exists. Identical positioned law warnings are not
+  duplicated on repeated checking. Checked AST nodes remain immutable, but
+  callers must not concurrently share the program being checked. Type-checker
+  warnings retain source order; law warnings follow deterministic dependency
+  order. CLI `check` prints newly appended warnings with `printWarning`; LSP
+  checks laws before publishing the combined channel with severity 2.
+- `laws/counterexample.go: searchCandidates` is shared by failed-proof
+  counterexample search and successful-proof witness search. It resets and
+  restores the whole evaluator, uses assumption-free root bindings, and stops
+  witness-only search at the first admitted candidate without evaluating
+  either equation side. The unchanged budget is 64 edge combinations plus 64
+  random candidates from PCG seeds `(1, 0)`. Unsupported parameter types leave
+  zero attempted candidates (and therefore a zero-candidate warning after a
+  successful proof); failed proofs keep the existing search-skipped message.
+- Literal seeds come from a structural-order traversal of the assumption-free
+  normalized precondition, including Int polynomial coefficients and match
+  arms. Each Int contributes itself, then its predecessor and successor when
+  representable; String literals contribute themselves. Duplicates are removed
+  and seeds extend the existing per-type edge lists, including composite fields.
+  The edge-combination budget and random seed do not change.
+- Refinement to §1: the existing order normalizer does not decide every int64
+  endpoint comparison. `laws/order.go: impossibleOrder` therefore uses its
+  total-order atom intervals to refute required comparisons. It reports false
+  only for **every int64 value consistent with the preceding conjuncts**:
+  strict/non-strict order endpoints cannot overlap as required, equality has
+  disjoint intervals, or disequality has identical singleton intervals.
+  Arithmetic atoms retain their full int64 bounds unless earlier comparisons
+  constrain them; modular expressions are never interpreted as unbounded
+  arithmetic. This refutation is restricted to preconditions, not proof
+  normalization, so it cannot make a previously rejected proof pass.
+  Regression tests retain satisfiable max/min endpoints, a singleton zero
+  range, and `a + 1 < a` (satisfied at maxInt).
+- Intentionally unsatisfiable fixtures are under
+  `laws/testdata/requires_satisfiability/`, outside `TestOpenTermProperty`'s
+  top-level fixture glob. Its zero-satisfying-substitutions regression now uses
+  the deliberately undetected `0 <= a && a <= 10 && a * 2 == 21` case.
+  There are no syntax, dependency or proof-acceptance extensions.

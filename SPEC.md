@@ -931,8 +931,12 @@ user-defined `Eq` instance. There is no eta-equivalence rule.
 
 An optional `requires` Bool expression restricts the equation to arguments
 satisfying that precondition. It has the same parameter scope, purity,
-termination, Float and first-order restrictions as the law sides. Proof starts
-by assuming it true, splitting top-level `&&` conjuncts into separate facts.
+termination, Float and first-order restrictions as the law sides. Before any
+tactic, its normalized top-level `&&` conjuncts (including those exposed by
+function unfolding) are checked and assumed in order. A conjunct that normalizes
+to `false` under the preceding conjuncts is an error at the `requires` expression.
+Int intervals also reject impossible bounds beyond the int64 endpoints.
+This check does not apply to `if`/`match` tactic branch assumptions.
 Neither laws nor their preconditions execute at runtime. A `rewrite`, including
 an induction-hypothesis rewrite, must establish the instantiated precondition
 as `true` under the current assumptions before using the equation.
@@ -1037,8 +1041,18 @@ If a parameter cannot be generated, it prints
 Generators cover Int, Bool, String, Unit, bounded constructor data and tuples,
 lists, and literal maps with Int/String/Bool or tuple keys. Float-bearing and
 handle-bearing types, unsupported map keys and types without a bounded
-inhabitant are skipped. No witness is not a proof, and passing proofs do not
-run this search.
+inhabitant are skipped. No witness is not a proof.
+
+For a law with `requires`, the edge prefix also includes Int and String
+literals from its assumption-free normalized precondition, plus each Int's
+neighbors within the int64 range. Only candidates satisfying the precondition
+are admitted. If none is admitted, a failed `refl` instead ends with
+`no arguments satisfying requires were found in 128 candidates: no counterexample could be tried`.
+A successful proof with `requires` runs the same enumeration until it finds
+one satisfying binding, without evaluating the equation. If none is found it
+emits a non-fatal warning at `requires`; an unsupported parameter type yields
+zero attempted candidates. Laws without `requires` do not run this witness
+search after a successful proof. Bounded witness search never changes acceptance.
 
 Only the law-reachable fragment must terminate; ordinary programs retain general
 recursion. Recursive calls must leave all preceding arguments unchanged and
@@ -1100,6 +1114,17 @@ tactic match does not support list patterns
 tactic match does not support literal or as-patterns
 sample does not support requires
 rewrite %s: precondition not established: <normal form>
+```
+
+Precondition diagnostics use these templates; `<conjunct>` uses source-spelled
+normalized terms, as above. The longer error form applies after an earlier
+conjunct has been assumed:
+
+```text
+law <name>: requires can never hold: <conjunct> is false
+law <name>: requires can never hold: <conjunct> is false given the conditions before it
+no arguments satisfying requires were found in N candidates: no counterexample could be tried
+warning: law <name>: no arguments satisfying requires were found in N candidates; the law may say nothing
 ```
 
 Proof verification additionally rejects non-decreasing recursion, cyclic law
@@ -2061,8 +2086,13 @@ with `go generate main.go`.
   the bounded wrap-free Int arithmetic fragment in §6.5, not unrestricted
   ordered arithmetic under wraparound. Variable divisors are tainted; higher-order
   quantification and Float expressions remain unsupported. `sample(N)` cannot
-  be combined with `requires`. `std/map` is modelled symbolically and eligible;
-  `std/mutmap`, `std/ref`, channels and other handles require IO for observations
+  be combined with `requires`.
+  The unsatisfiability check is incomplete: for example,
+  `0 <= a && a <= 10 && a * 2 == 21` is not refuted symbolically. Failure to
+  find a satisfying argument in the bounded search is only a warning for a
+  proved law, not evidence that the precondition is impossible.
+  `std/map` is modelled symbolically and eligible; `std/mutmap`, `std/ref`,
+  channels and other handles require IO for observations
   and are never law-eligible. Extern-dependent laws may use `sample(N)`, run by
   `go4t test`, reported as tested rather than proved, and unusable as rewrite lemmas.
   `induction x` supplies constructor arms and induction hypotheses. The

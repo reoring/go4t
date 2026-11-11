@@ -280,6 +280,36 @@ func (g *orderGraph) bounds(t *term) integerInterval {
 	return r
 }
 
+// impossibleOrder uses the existing int64 intervals only to reject a requires
+// conjunct. It does not extend proof normalization: even endpoint decisions
+// here must never turn a formerly rejected proof into an accepted one.
+func (e *evaluator) impossibleOrder(t *term) (bool, error) {
+	f, ok := comparisonFact(t)
+	if !ok || f.domain != "Int" {
+		return false, nil
+	}
+	facts, err := e.orderFacts(f.domain)
+	if err != nil {
+		return false, err
+	}
+	g, err := e.orderClosure(f, facts)
+	if err != nil {
+		return false, err
+	}
+	a, b := g.bounds(f.a), g.bounds(f.b)
+	switch f.op {
+	case "<":
+		return a.lo.Cmp(b.hi) >= 0, nil
+	case "<=":
+		return a.lo.Cmp(b.hi) > 0, nil
+	case "==":
+		return a.lo.Cmp(b.hi) > 0 || b.lo.Cmp(a.hi) > 0, nil
+	case "!=":
+		return a.lo.Cmp(a.hi) == 0 && b.lo.Cmp(b.hi) == 0 && a.lo.Cmp(b.lo) == 0, nil
+	}
+	return false, nil
+}
+
 func intervalProduct(a, b integerInterval) integerInterval {
 	values := []*big.Int{
 		new(big.Int).Mul(a.lo, b.lo), new(big.Int).Mul(a.lo, b.hi),
