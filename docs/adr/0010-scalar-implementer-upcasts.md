@@ -1,5 +1,23 @@
 # ADR 0010: スカラ・コレクション下地の実装型を upcast の source にする
 
+## Summary (English)
+
+Context: ADR 0009 still excludes named scalar/collection interface implementers,
+so options such as `client.InNamespace` require an awkward mutable-handle route.
+Options considered: introduce nominal go4t newtypes, generate upcasts using
+existing underlying representations, or retain the handle workaround.
+Decision: Keep the underlying go4t type and generate `<t>As<I>` for named types
+whose mirrors are `int`, `float`, `bool`, `string`, `bytes`, `slice`, or `map`.
+Shims convert the underlying value back to its named Go type, taking an address
+when only `*T` implements the interface; collection conversion still copies.
+ADR 0009's direct-import scope, naming rules, exclusions, and `Implements`-first
+enumeration remain in force; upcasts remain pure.
+Consequences: Bindings such as `client.inNamespaceAsListOption` become available
+without new language types or changes to existing calls.
+Static distinctions lost by underlying-type erasure remain absent, not worsened.
+Status: Accepted and implemented on 2026-11-04 in `a0e8e90`; newtypes remain
+deferred until an actual same-representation mix-up justifies them.
+
 Date: 2026-11-04
 Status: Accepted (implemented 2026-11-04, a0e8e90)
 

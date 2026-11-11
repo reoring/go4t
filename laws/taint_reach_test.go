@@ -240,7 +240,7 @@ func TestTaintReach(t *testing.T) {
 		t.Errorf("modeled extern count = %d, want 13", modeled)
 	}
 	document := reachMarkdown(entries, names)
-	filename := filepath.Join("..", "docs", "adr", "0001-laws-std-reach.md")
+	filename := filepath.Join("..", "docs", "laws-std-reach.md")
 	if os.Getenv("GO4T_UPDATE_TAINT_REACH") == "1" {
 		if err := os.WriteFile(filename, []byte(document), 0644); err != nil {
 			t.Fatal(err)

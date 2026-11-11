@@ -1,5 +1,24 @@
 # ADR 0009: package 跨ぎの upcast と、lock を含む値の境界越え
 
+## Summary (English)
+
+Context: Go binding missed interface conversions from directly imported types
+and generated copies of lock-bearing structs in otherwise addressable storage.
+Options considered: implicit subtyping, dependency-closure upcast enumeration,
+or symmetric direct-import rules; lock boxing and vet suppression were rejected.
+Decision: Generate explicit upcasts when source and interface belong to P or its
+direct imports and at least one belongs to P; imported-source bindings live in P.
+Test `Implements` before resolving foreign types, disambiguate foreign source
+names, and include direct-import export hashes in the binding-cache key.
+For package variables, struct-handle fields, and receivers, preserve addresses
+instead of copying; genuinely by-value lock signatures skip as `copies lock value T`.
+Lock detection follows copylocks-style pointer-only `sync.Locker` implementation,
+recursing through fields and array elements.
+Consequences: Binding growth stays bounded by direct imports and identity is
+preserved; unsafe by-value APIs become unavailable without changing the language.
+Status: Accepted and implemented on 2026-11-04 in `f36e1c6`; scalar upcast sources
+are deferred here and addressed by ADR 0010.
+
 Date: 2026-11-04
 Status: Accepted (implemented 2026-11-04, f36e1c6; design review 1 回反映)
 

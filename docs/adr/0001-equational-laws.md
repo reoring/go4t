@@ -1,5 +1,24 @@
 # ADR 0001: 等式法則 (`law` / `proof`) を型システムとは別層で検査する
 
+## Summary (English)
+
+Context: Exhaustive `match` and pure/`IO` separation do not establish equations
+between decision-core functions, such as idempotence or implementation equivalence.
+Options considered: dependent types, a separate post-type-checking law layer,
+property testing alone, and translation to an external prover.
+Decision: Add `law` / `proof` checking in `laws/` after `types.Check`, retaining HM
+inference and erasing laws and proofs from generated Go.
+Proofs use `refl`, constructor `match`, Boolean `if`, and directed `rewrite`;
+normalization includes Int ring arithmetic with int64 wrapping semantics.
+Termination checks and transitive taint analysis restrict the trusted fragment;
+order reasoning, variable divisors, preconditions, and higher-order universals
+are outside this initial decision.
+Consequences: First-order decision-core equations can be checked universally,
+but soundness depends on normalization agreeing with runtime semantics.
+Open-term property tests compare normalization with execution under substitutions.
+Status: Accepted on 2026-11-02 after PoCs 1–4; implementation and refinements
+are recorded below, with later extensions covered by separate ADRs.
+
 Date: 2026-11-02
 Status: Accepted (2026-11-02; PoC 1–4 完了後に採択)
 
@@ -201,7 +220,7 @@ proof cancelIdempotent(order) {
 - [x] PoC 2（2026-11-02、`laws/`）: 戦術 `If{Hyp, Args, Then, Else}`。仮定の条件は検査済み go4t 関数 `hyp_NAME(params) Bool`（単相のみ）で書き、正規化した条件項と α 同値な Bool 部分項（unfold 後のガード・`if` 条件を含む）を分岐ごとに `true`/`false` に置換する。`law_staleIff: isStale(freshness(TtlNanos(t), AtNanos(at), now)) == (now >= at + t)` が `If` + 両分岐 `Refl` で通り、`Refl` 単独・被演算子を入れ替えた仮定（`now >= t + at`）はスタック（環正規化なし、設計どおり）。定数に決まる条件、arity/型不一致、多相仮定は拒否。分岐失敗は `if hyp then/else` を名指しする。観察: Int の `>=` は `Ord[Int]` 辞書経由で `compare` → `rt.LtInt`/`rt.EqInt` に unfold されるため、スタック正規形は比較ノードではなく展開済み項になる（診断の可読性に影響。PoC 3 の環正規化はこの展開内の被演算子に適用する必要がある）。
 - [x] PoC 3（2026-11-02、`laws/`、`ring.go` `rewrite.go` `resume.go`）: Int 環の正規形（単項式の疎和、原子は順序付き、係数は int64 ラップ。比較・`/ %`・関数適用・残留 `match` は原子で、その被演算子は再帰的に環正規化）。`If` の被演算子入替仮定（`now >= t + at`）が通るようになった。戦術 `Rewrite{Law, Args, In}`: 左→右・全出現、lhs が単独自由変数なら拒否、帰納法仮説は「先行引数不変 + 最初に変わる引数が外側 `Match` の束縛変数」を要求（違反は `induction hypothesis must structurally decrease`）、law 参照グラフ（`Rewrite` 辺 + law 本体内の `law_*` 参照、通常の関数呼び出しは辺でない）の循環を拒否。他 law は再証明せず存在と非循環のみ検査。`len(app(xs, ys)) == len(xs) + len(ys)`、`app(xs, []) == xs`、`app` 結合律が `Match xs` + `Rewrite IH in Refl` で通り、`(a + b) * c == c * b + a * c` と int64 ラップ等式が `Refl` で通る。発見: (1) 誤法則 `len(app) == len(xs) + len(ys) + 1` は Cons ステップが自身の IH で閉じ、Nil 基底で失敗する（健全性には問題なし）。(2) std の `list.length` は累積引数付き `fold` 実装のため、IH（累積 0）が Cons ステップ（累積 1）に合わず閉じない。累積引数の一般化補題が要る＝ADR 到達範囲「累積引数つき帰納」の制約が std 関数に直接当たる。(3) パーサは `-9223372036854775808` リテラルを拒否する（`-9223372036854775807 - 1` と書く）。
 - [x] PoC 4（2026-11-02、`laws/property_test.go`, `laws/property_proofs_test.go`）: 全 fixture の全 `law_*` の両辺、および部分証明（`Match`/`If`/`Rewrite` 途中）の残留目標を正規化してから、決定的 PCG 生成器でパラメータに 50 代入（Int は minInt/maxInt/0/±1 強制、Bool、String（制御文字・Unicode 含む）、`types.DataType` から深さ有界で生成した一階 ADT/List/Option/タプル）。`t σ` は fixture ごとに 1 回コンパイルした実プログラムを `go run ./cmd/go4t run` で実行して `debug` 出力、`n σ` は評価器で代入・定数畳み込みして同じ Debug 形式で描画し比較。430 対象 × 50 = 21,500 比較、**不一致 0**。実行時間約 33 秒（`go test ./laws/` 全体が約 32 秒になる）。Float 法則は skip、意図的に拒否される fixture は拒否理由を厳密に期待。
-- [x] 汚染解析の std 到達範囲表（2026-11-02、`laws/taint_reach_test.go` が `docs/adr/0001-laws-std-reach.md` を生成・スナップショット検証）: 368 宣言中 152 対象内 / 216 汚染。第一理由: 非ホワイトリスト extern 79、Float 59、IO 45、推移 33、除算 0。`std/prelude` 47/47、`std/list` 67/70、`std/result` 18/19、`std/state` 10/10 は対象内。**`std/string` 0/32 と `std/map` 0/26 は全滅**（`rt` extern 実装のため）。`list.sort*` も array extern 経由で汚染。決定コア（コンストラクタで決まる決定・list/Option/Result・Int/Bool/String の Eq/Ord/Show・文字列結合）は対象内だが、`string.trim/split/startsWith/contains/parseInt` と `map` 一式が使えないのは実用上痛い。→ **ホワイトリストの拡張が必要**: `rt` の純粋・全域な string/map 関数に評価器の組み込み意味論（String は定数のときのみ畳み込み、Map は正規形として順序付き連想リストを持つなど）を与える。これは Consequences の「std の一部が対象外」を具体化したもので、採択時に範囲を決める。
+- [x] 汚染解析の std 到達範囲表（2026-11-02、`laws/taint_reach_test.go` が `docs/laws-std-reach.md` を生成・スナップショット検証）: 368 宣言中 152 対象内 / 216 汚染。第一理由: 非ホワイトリスト extern 79、Float 59、IO 45、推移 33、除算 0。`std/prelude` 47/47、`std/list` 67/70、`std/result` 18/19、`std/state` 10/10 は対象内。**`std/string` 0/32 と `std/map` 0/26 は全滅**（`rt` extern 実装のため）。`list.sort*` も array extern 経由で汚染。決定コア（コンストラクタで決まる決定・list/Option/Result・Int/Bool/String の Eq/Ord/Show・文字列結合）は対象内だが、`string.trim/split/startsWith/contains/parseInt` と `map` 一式が使えないのは実用上痛い。→ **ホワイトリストの拡張が必要**: `rt` の純粋・全域な string/map 関数に評価器の組み込み意味論（String は定数のときのみ畳み込み、Map は正規形として順序付き連想リストを持つなど）を与える。これは Consequences の「std の一部が対象外」を具体化したもので、採択時に範囲を決める。
 - [x] `types.Program` の注釈が評価器の入力として十分かを確認した（2026-11-02）。結果は Context「確認済みの事実」末尾を参照。
 - [x] 実装（2026-11-02、採択後）: 文法 `law`/`proof`/`refl`/`rewrite`（`lexer/`, `parser/`, `format/`, `ast/walk.go`, `ast/span.go`）、検査器（`types/laws.go`: `Program.Laws/Proofs`, `RefLaw`, `LawSymbol/ProofSymbol`、func/law は同一名前空間で重複拒否）、`laws.CheckProgram(p) []*types.Error`（PoC の Go API と `law_`/`hyp_` 規約は削除。停止性検査 `laws/termination.go` は SCC 単位で共通の減少位置を要求、law 参照グラフは依存順に証明し循環は SCC ごとに 1 回報告。`std/string` 32 extern を `go4t/rt` の実体で定数畳み込み: 到達範囲は 184/368 対象内、`std/string` 32/32）、`go4t check` 配線（`cmd/go4t/main.go`、失敗は戦術位置に `^~~~` 付き診断、exit 1。`build/run/test/eval` は無視、codegen 出力は law の有無で同一）、LSP 診断・シンボル、SPEC §6.5 / §8 / §9、tutorial §13、README、`docs/stdlib.md` の Law-eligible 列。検証: `go build ./... && go vet ./... && go test ./...` 全パス（`laws` 61s）。tutorial §13 と README の law 例 4 本を実 CLI `go4t check` で実行し exit 0、`cancel_bad1` は `17:53: law cancelIdempotent: stuck normal forms differ` を出力。
 - 保留（2026-11-02 判断: 需要の証拠が出るまで ADR を立てない）:

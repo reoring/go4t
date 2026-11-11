@@ -1,5 +1,22 @@
 # ADR 0005: IO 期待位置への暗黙 lift(`ioPure` の省略)
 
+## Summary (English)
+
+Context: IO-returning examples repeatedly wrap pure branch and final values
+in `ioPure`; changing generic `do` would also affect other Monads.
+Options considered: expected-type lifting, `async func`, allowing `<-` outside
+`do`, or only relaxing branch syntax.
+Decision: Insert `ioPure(e)` only where an established expected type is `IO[T]`,
+the inferred type is not IO-compatible, and it unifies with `T`.
+This covers function tails, `if`/`match` arms, final `do` expressions, and typed
+`let` right-hand sides, not arguments, operands, or list elements.
+Unresolved type variables are not lifted; nested IO is not implicitly flattened.
+Consequences: No new syntax or formatter rewrite is needed, and diagnostics retain
+the original expression type; LSP hover shows the lifted type.
+The pure law fragment, Monad desugaring, and IO representation remain unchanged.
+Status: Accepted and verified on 2026-11-04; removing explicit lifts from the two
+examples produced byte-identical generated Go, including hygienic `ioPure` handling.
+
 Date: 2026-11-04
 Status: Accepted (verified 2026-11-04)
 

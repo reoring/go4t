@@ -5,10 +5,11 @@ the context, the options considered, the decision, and its measured
 consequences; where an ADR has been implemented the status line names the
 commit. SPEC.md states the resulting rules; an ADR explains why.
 
+ADRs written in Japanese carry an English summary.
+
 | ADR | Decision | Status |
 | --- | --- | --- |
 | [0001](0001-equational-laws.md) | Equational laws (`law` / `proof`) are checked by a layer separate from the type system | Accepted |
-| [0001 reach](0001-laws-std-reach.md) | Generated snapshot: which std declarations laws can reach (`laws/taint_reach_test.go`) | Generated |
 | [0002](0002-laws-map-and-diagnostics.md) | `Map` is modelled symbolically in laws; stuck-term diagnostics | Accepted |
 | [0003](0003-import-time-go-bindings.md) | `import "go:…"` binds Go packages at build time; bindings are cached, never committed | Accepted |
 | [0004](0004-laws-float-bearing-data.md) | Float-bearing data types may be law universals; Float values stay unreachable | Accepted |
@@ -19,6 +20,13 @@ commit. SPEC.md states the resulting rules; an ADR explains why.
 | [0009](0009-cross-package-upcasts-and-lock-values.md) | Upcasts across direct imports; shims take addresses instead of copying lock-bearing values | Accepted |
 | [0010](0010-scalar-implementer-upcasts.md) | Named scalar/collection implementers are upcast sources (`client.inNamespaceAsListOption`) | Accepted |
 | [0011](0011-lossless-boundary.md) | The Go boundary never converts lossily: JSON is a view, in-out pointers are `Ref[T]`, errors cross as `GoError` | Accepted |
+| [0012](0012-law-preconditions-and-order-reasoning.md) | Laws may state a `requires` precondition; Int order reasoning is decided only where it is wrap-free | Accepted |
+| [0013](0013-failed-proof-diagnostics.md) | A failed `refl` searches for a counterexample and prints terms in source spelling | Accepted |
+| [0014](0014-structural-models-for-std-list.md) | Accumulator-based `std/list` functions get structural models in laws | Accepted |
+| [0015](0015-unbounded-recursion-warning.md) | Warn on non-tail self-recursion that no data structure bounds | Accepted |
+
+The [standard-library law reach report](../laws-std-reach.md) is a generated
+snapshot maintained by `laws/taint_reach_test.go`, not a decision record.
 
 Reading order for the Go boundary: 0003 → 0006 → 0009 → 0010 → 0011. For
-laws: 0001 → 0002 → 0004 → 0007.
+laws: 0001 → 0002 → 0004 → 0007 → 0012 → 0013 → 0014.
