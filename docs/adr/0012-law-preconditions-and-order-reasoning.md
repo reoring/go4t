@@ -220,3 +220,19 @@ means an accidentally unsatisfiable `requires` is not reported.
 Follow-up: [ADR 0016](0016-requires-satisfiability.md) rejects a provably
 unsatisfiable `requires` and warns when the candidate search finds no
 argument that satisfies one.
+
+### Defect found after the review (2026-11-11)
+
+Module resolution (`types/modules.go`) rewrote a law's two sides into the
+declaring module's scope but skipped its `requires` expression. Two
+consequences, both fixed by resolving the precondition like the sides:
+
+- a module-qualified name in `requires` (`list.length(xs) > 0`) was an unknown
+  identifier, and so was an imported module's own helper;
+- **unsound in a multi-module program**: an imported module's unqualified
+  precondition bound to a same-named declaration of the entry module. A false
+  law `requires ok(a) { (a < 100) == true }` in a library whose `ok` is `true`
+  was accepted when the importing program defined `ok(a)` as `a < 100`.
+
+Neither the single-file property test nor the review's generated laws had more
+than one module. `TestRequiresResolvesInDeclaringModuleCLI` pins both cases.

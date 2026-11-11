@@ -102,6 +102,49 @@ func main() IO[Unit] { ioPure(unit()) }
 	}
 }
 
+// A precondition is resolved in the module that declares the law, like the
+// law's sides: its unqualified names never bind to another module's
+// declarations, and module-qualified names are available.
+func TestRequiresResolvesInDeclaringModuleCLI(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(dir, "lib"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	lib := toolsWrite(t, filepath.Join(dir, "lib", "lib.gt"), `package lib
+func ok(a Int) Bool { true }
+func small(a Int) Bool { a < 100 }
+law bounded(a Int) requires ok(a) { (a < 100) == true }
+proof bounded(a) { refl }
+`)
+	// The entry module's ok is stronger than lib's. Binding lib's precondition
+	// to it would prove the false law above.
+	file := toolsWrite(t, filepath.Join(dir, "main.gt"), `package main
+import "lib"
+func ok(a Int) Bool { a < 100 }
+func main() IO[Unit] { ioPure(unit()) }
+`)
+	out, stderr, status := toolsCommand(t, dir, "", "check", file)
+	if status != 1 || out != "" || !strings.Contains(stderr, lib+":5:") || !strings.Contains(stderr, "law bounded: stuck normal forms differ") || !strings.Contains(stderr, "counterexample: a = 9223372036854775807") {
+		t.Fatalf("captured precondition: status=%d stdout=%q stderr=%q", status, out, stderr)
+	}
+
+	toolsWrite(t, lib, `package lib
+func small(a Int) Bool { a < 100 }
+law bounded(a Int) requires small(a) { (a < 100) == true }
+proof bounded(a) { refl }
+`)
+	toolsWrite(t, file, `package main
+import "lib"
+law viaQualified(a Int) requires lib.small(a) { (a < 100) == true }
+proof viaQualified(a) { refl }
+func main() IO[Unit] { ioPure(unit()) }
+`)
+	out, stderr, status = toolsCommand(t, dir, "", "check", file)
+	if status != 0 || out != "" || stderr != "" {
+		t.Fatalf("own and qualified helpers: status=%d stdout=%q stderr=%q", status, out, stderr)
+	}
+}
+
 func TestSampleLawCLI(t *testing.T) {
 	source, err := os.ReadFile("../../laws/testdata/sample/valid.gt")
 	if err != nil {
