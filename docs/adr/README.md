@@ -24,9 +24,10 @@ ADRs written in Japanese carry an English summary.
 | [0013](0013-failed-proof-diagnostics.md) | A failed `refl` searches for a counterexample and prints terms in source spelling | Accepted |
 | [0014](0014-structural-models-for-std-list.md) | Accumulator-based `std/list` functions get structural models in laws | Accepted |
 | [0015](0015-unbounded-recursion-warning.md) | Warn on non-tail self-recursion that no data structure bounds | Accepted |
+| [0016](0016-requires-satisfiability.md) | A `requires` clause must be satisfiable, and the checker says when it cannot tell | Accepted |
 
 The [standard-library law reach report](../laws-std-reach.md) is a generated
 snapshot maintained by `laws/taint_reach_test.go`, not a decision record.
 
 Reading order for the Go boundary: 0003 → 0006 → 0009 → 0010 → 0011. For
-laws: 0001 → 0002 → 0004 → 0007 → 0012 → 0013 → 0014.
+laws: 0001 → 0002 → 0004 → 0007 → 0012 → 0016 → 0013 → 0014.
