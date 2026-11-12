@@ -8,12 +8,12 @@ import (
 func TestInductionAndRing(t *testing.T) {
 	p := loadFixture(t, "induction.gt")
 	errors := diagnosticsByLaw(t, p)
-	for _, name := range []string{"lenApp", "appNil", "appAssoc", "lenAppAuto", "appNilAuto", "appAssocAuto", "mirrorLeaves", "ringComm", "ringWrap", "ringPowers", "ringNeg", "ringCoefficients", "ringAlpha", "ringResidual", "ringAlphaResidual", "ringDivision", "ringRemainder", "ihOrder", "useDouble", "appPrefix", "boolIdentity"} {
+	for _, name := range []string{"lenApp", "appNil", "appAssoc", "lenAppAuto", "appNilAuto", "appAssocAuto", "mirrorLeaves", "stdLenApp", "ringComm", "ringWrap", "ringPowers", "ringNeg", "ringCoefficients", "ringAlpha", "ringResidual", "ringAlphaResidual", "ringDivision", "ringRemainder", "ihOrder", "useDouble", "appPrefix", "boolIdentity"} {
 		if err := errors[name]; err != nil {
 			t.Errorf("%s: %v", name, err)
 		}
 	}
-	for _, name := range []string{"notDivision", "notOrder", "notString", "wrongLenApp", "stdLenApp", "zeroLen", "oneLen", "expandLen"} {
+	for _, name := range []string{"notDivision", "notOrder", "notString", "wrongLenApp", "zeroLen", "oneLen", "expandLen"} {
 		if errors[name] == nil {
 			t.Errorf("%s unexpectedly proved", name)
 			continue
@@ -31,9 +31,6 @@ func TestInductionAndRing(t *testing.T) {
 	}
 	if cycles != 1 {
 		t.Errorf("cycle reported %d times", cycles)
-	}
-	if err := errors["stdLenApp"]; err != nil && (!strings.Contains(err.Msg, "fold(append(") || !strings.Contains(err.Msg, ", 1, func(")) {
-		t.Errorf("missing accumulator evidence: %v", err)
 	}
 }
 

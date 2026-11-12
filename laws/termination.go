@@ -74,6 +74,9 @@ func (e *evaluator) checkDependencies(law *types.LawInfo, proof *types.ProofInfo
 func (e *evaluator) checkEligibility(law *types.LawInfo, proof *types.ProofInfo, termination bool) error {
 	c := &terminationChecker{e: e}
 	root := &terminationNode{name: sourceName(e.p, law.Decl.Name)}
+	if law.Decl.Requires != nil {
+		c.expression(root, law.Decl.Requires, nil, nil, false)
+	}
 	c.expression(root, law.Decl.LHS, nil, nil, false)
 	c.expression(root, law.Decl.RHS, nil, nil, false)
 	// Conditions and rewrite arguments must be total too: a divergent or
@@ -92,6 +95,9 @@ func (e *evaluator) checkEligibility(law *types.LawInfo, proof *types.ProofInfo,
 				referenced := e.p.Laws[tactic.Law.Name]
 				c.expression(root, referenced.Decl.LHS, nil, nil, false)
 				c.expression(root, referenced.Decl.RHS, nil, nil, false)
+				if referenced.Decl.Requires != nil {
+					c.expression(root, referenced.Decl.Requires, nil, nil, false)
+				}
 			}
 		}
 	})
@@ -198,6 +204,15 @@ func (c *terminationChecker) function(name string, dicts []*dictionary) *termina
 	}
 	n := c.node(f.Decl, sourceName(c.e.p, name), f.Decl.Params, f.Decl.Body, nil, nil, bound)
 	n.global, n.dictionaries = name, dicts
+	// Structural models can introduce calls absent from the runtime body.
+	// Certify those callees too; otherwise a neutral append/fmap would unfold
+	// without a decreasing-position certificate.
+	switch c.e.listModel(name) {
+	case "reverse", "flatten", "intercalate":
+		c.function(c.e.listFunctions["append"], nil)
+	case "indexed":
+		c.method("fmap", []*dictionary{c.e.listFunctor})
+	}
 	return n
 }
 
@@ -414,37 +429,14 @@ func (c *terminationChecker) block(from *terminationNode, block *ast.Block, env 
 }
 
 func (c *terminationChecker) pattern(pattern ast.Pattern, value terminationValue, env terminationEnv) {
-	var children []ast.Pattern
-	var indexes []int
-	switch p := pattern.(type) {
-	case *ast.PVar:
-		env[p.Name] = value
-		return
-	case *ast.PAs:
-		env[p.Name] = value
-		c.pattern(p.Pat, value, env)
-		return
-	case *ast.PCtor:
-		children = p.Args
-	case *ast.PTuple:
-		children = p.Elems
-	case *ast.PRecord:
-		children = p.Pats
-		indexes = c.e.p.RecordPats[p].Indexes
-	default:
-		return
-	}
-	for i, child := range children {
-		index := i
-		if indexes != nil {
-			index = indexes[i]
-		}
-		field := terminationValue{root: value.root, depth: value.depth + 1}
+	types.BindStructuralPattern(pattern, value, c.e.p.RecordPats, func(value terminationValue, index int) terminationValue {
 		if index < len(value.fields) {
-			field = value.fields[index]
+			return value.fields[index]
 		}
-		c.pattern(child, field, env)
-	}
+		return terminationValue{root: value.root, depth: value.depth + 1}
+	}, func(name string, value terminationValue) {
+		env[name] = value
+	})
 }
 
 func nonzeroLiteral(expr ast.Expr) bool {

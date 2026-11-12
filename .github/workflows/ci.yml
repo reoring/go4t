@@ -9,22 +9,57 @@ permissions:
 
 jobs:
   go:
+    # The minimum supported Go (the `go` line in go.mod) and the current stable
+    # release: bindings are generated from the toolchain's own export data, so
+    # both ends are checked.
+    strategy:
+      fail-fast: false
+      matrix:
+        go: [minimum, stable]
+    name: go (${{ matrix.go }})
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
+        if: matrix.go == 'minimum'
         with:
           go-version-file: go.mod
           cache: false
+      - uses: actions/setup-go@v5
+        if: matrix.go == 'stable'
+        with:
+          go-version: stable
+          cache: false
       - run: go vet ./...
-      - run: go test ./...
+      # cmd/go4t binds a third-party module with the proxy turned off; it has
+      # to be in the module cache first. That module needs a newer Go than the
+      # minimum, where the tests that use it are skipped.
+      - name: Download modules bound by the tests
+        if: matrix.go == 'stable'
+        working-directory: examples/sql-service
+        run: go mod download
+      # The law checker's open-term property test compiles and runs every
+      # fixture; it dominates this step. ./bench holds wall-clock budgets that
+      # are only meaningful on an otherwise idle runner: the bench job owns it.
+      - run: go test -timeout 30m $(go list ./... | grep -v '/bench')
       - name: Run examples
         shell: bash
         run: |
           set -euo pipefail
+          toolchain="$(go env GOVERSION)"
+          toolchain="${toolchain#go1.}"
+          toolchain="${toolchain%%[!0-9]*}"
           for source in examples/*/main.gt; do
             directory="${source%/*}"
+            # go-version.txt: the first Go 1.N an example needs, then why.
+            if [[ -f "$directory/go-version.txt" ]]; then
+              { IFS= read -r needs; IFS= read -r reason || true; } < "$directory/go-version.txt"
+              if (( toolchain < ${needs#1.} )); then
+                printf 'skip %s: needs Go %s (%s)\n' "${directory##*/}" "$needs" "$reason"
+                continue
+              fi
+            fi
             if [[ -f "$directory/skip.txt" ]]; then
               reason=
               IFS= read -r reason < "$directory/skip.txt" || true
@@ -52,8 +87,29 @@ jobs:
               go run ./cmd/go4t run "${sources[@]}" -- "${args[@]}" < "$input"
             fi
           done
+      - name: Go decision template (laws, generated code is current, Go tests)
+        working-directory: examples/go-decision-template
+        run: |
+          go run github.com/reoring/go4t/cmd/go4t check decide/decide.gt
+          go generate ./...
+          git diff --exit-code -- .
+          go test ./...
       - name: Bootstrap self-hosted compiler
         run: bash selfhost/bootstrap.sh
+  fuzz:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: false
+      - name: Fuzz the front end briefly
+        run: |
+          go test ./lexer  -run '^$' -fuzz '^FuzzLexer$'  -fuzztime 30s
+          go test ./parser -run '^$' -fuzz '^FuzzParser$' -fuzztime 30s
+          go test ./format -run '^$' -fuzz '^FuzzFormat$' -fuzztime 30s
   bench:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -64,4 +120,9 @@ jobs:
           go-version-file: go.mod
           cache: false
       - name: Enforce benchmark budgets
+        # budget.json is recorded on a developer machine. GitHub's runners are
+        # slower and not all alike (the same binaries ran up to 1.09x over
+        # their ceilings there), so wall-clock budgets get this factor.
+        env:
+          GO4T_BENCH_TIME_SLACK: "1.5"
         run: go test ./bench -run . -bench . -benchtime=1x -timeout=12m

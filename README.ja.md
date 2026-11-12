@@ -12,9 +12,10 @@ go4t には、Go にはない次の 3 つがあります。
    `match` にケースが欠けていると、足りないパターンを示すコンパイルエラーになります。
 2. **純粋なコードと作用を分ける。** I/O を行う関数は `IO[A]` 型の値を返します。
    純粋関数からは呼び出せません。コンパイラがこの制約を検査します。
-3. **法則を書く。** 純粋なコードについて等式
-   (`isStale(freshness(TtlNanos(t), AtNanos(at), now)) == (now >= at + t)`)
-   を書くと、`go4t check` が**すべての**入力について証明します。
+3. **法則を書く。** 純粋なコードについて等式を書きます。たとえば
+   「TTL が経過したときに限り stale」は
+   `isStale(freshness(TtlNanos(t), AtNanos(at), now)) == (now - at >= t)` です。
+   `go4t check` は、法則が明記した範囲の**すべての**入力について証明します。
    テストに列挙した入力だけの検査ではありません。
 
 それ以外は、意図的に普段の Go と同じにしています。
@@ -86,18 +87,35 @@ func main() IO[Unit] { println(debug(freshness(TtlNanos(10), AtNanos(5), 12))) }
   関数が扱うべき組み合わせがすべてシグネチャに表れています。
 - `(TtlNanos(_), InvalidTimestamp)` の分岐を削除すると、`go4t check` は
   `missing: (TtlNanos(_), InvalidTimestamp)` で失敗します。
-- **法則** `isStale(freshness(TtlNanos(t), AtNanos(at), now)) == (now >= at + t)`
-  を追加すると、`Stale` のガードを別のチェックの後ろへ動かしたとき、
-  すべての `t`、`at`、`now` を対象とする法則の検証が失敗します。
+- **法則**を追加すると、`Stale` のガードを別のチェックの後ろへ動かしたときや
+  `>=` を `>` に変えたとき、すべての `t`、`at`、`now` を対象とする検証が失敗します。
   証明は通常、単語 1 つ (`refl`) かケース分けで書けます。
+
+  ```text
+  func plausible(t Int, at Int, now Int) Bool {
+    0 <= t && t <= 1000000000000 && 0 <= at && at <= now && now <= 4000000000000000000
+  }
+  law staleOnceElapsed(t Int, at Int, now Int) requires plausible(t, at, now) {
+    isStale(freshness(TtlNanos(t), AtNanos(at), now)) == (now - at >= t)
+  }
+  proof staleOnceElapsed(t, at, now) { if now - at >= t { refl } else { refl } }
+  ```
+
+  範囲は通常の `Bool` 関数として 1 度だけ書き、必要な法則すべてで共有します。
+  `requires` 句は飾りではありません。`Int` は桁あふれで折り返すため、
+  「経過した」が文字どおりの意味を持つのは `at + t` があふれない範囲だけです。
+  この句を消すと、`go4t check` は法則を退け、反例を表示します:
+  `counterexample: t = 9223372036854775807, at = 1, now = 0`。
 
 Go から使うには、`go4t build --emit-go decide --package decide decide/decide.gt`
 を実行します。通常は `//go:generate` 行から実行します。
-生成されたパッケージは `Decide` と、各レコード・直和型に対応する通常の Go の型を公開します。
+生成されたパッケージは各関数と、各レコード・直和型に対応する通常の Go の型を公開します。
 Go 側は結果に応じて `switch` します。
+(`freshness` は型 `Freshness` を返すため、公開される関数名は `FreshnessFn` です。
+関数名が `decide` なら `decide.Decide` になります。)
 
 ```go
-switch step := decide.Freshness(ttl, observedAt, now.UnixNano()).(type) {
+switch step := decide.FreshnessFn(ttl, observedAt, now.UnixNano()).(type) {
 case decide.FreshnessStale:
     return requeue(ctx, obj)
 case decide.FreshnessTtlInvalid:
@@ -105,6 +123,10 @@ case decide.FreshnessTtlInvalid:
 // …
 }
 ```
+
+[examples/go-decision-template](examples/go-decision-template) は、この決定をそのまま
+コピーして使える Go モジュールにしたものです。`.gt` ファイル 1 つ、`//go:generate` 1 行、
+その前に置く Go の API、Go のテストで構成されています。
 
 ### 同じ決定を、I/O も go4t で
 
@@ -212,6 +234,23 @@ bool フラグで表します。判断は早期 return の連鎖になり、
 法則が加えるのは、確率ではなく証明です。
 `if` が 2 つで済む `decide` なら、Go のままで十分です。
 
+証明が届いて生成器が届かないのは、入力の形を人が決めなければならない場面です。
+node-drain controller は DaemonSet の Pod に手を出してはならず、
+Pod は owner reference の*どれか 1 つ*が DaemonSet なら DaemonSet の Pod です。
+
+```text
+law daemonSetOwnerAnywhere(prefix List[meta.OwnerReference], owner meta.OwnerReference, rest List[meta.OwnerReference]) {
+  ownedByDaemonSet(append(prefix, Cons(owner{kind: "DaemonSet"}, rest))) == true
+}
+```
+
+`meta.OwnerReference` は `import "go:…"` で束縛した `k8s.io/apimachinery` の実際の型です。
+この法則は、すべての prefix、すべての suffix、owner の他のすべてのフィールドについて成り立ちます。
+証明は `prefix` に対する帰納法です
+([examples/node-drain-typed](examples/node-drain-typed/decide.gt))。
+同じ性質を `rapid` で試すには、まず owner reference のリストの生成器を書く必要があり、
+検査できるのはその生成器が作るリストについてだけです。
+
 **速度。** 実行コストは推測ではなく計測しています ([bench/PERF.md](bench/PERF.md))。
 値をボックス化せずに済むコードの実行時間は、同等の Go の 1.6〜4 倍です。
 ホットループ内で永続 `Map` を更新すると 19〜24 倍になります。
@@ -238,7 +277,16 @@ func main() IO[Unit] { ioPure(unit()) }
 それらを扱う純粋関数を対象とします。I/O は対象外です。
 また、不透明な Go 関数に依存する等式は、サンプルによる検査 (`sample(N)`) だけが可能です。
 `go4t test` で実行しますが、証明済みとはみなしません。
+
+法則には前提条件 (`requires 0 <= a && a < limit`) を書けます。
+`Int` は 64 ビットで折り返すため、比較を判定するのは、仮定から桁あふれが起きないと分かる場合だけです。
+`a + 1 > a` は、範囲の指定がなければ退けられ、指定があれば証明できます。
+証明に失敗すると、`go4t check` は両辺が食い違う具体的な引数を探して表示します。
+法則が誤っている場合と、証明が足りない場合を見分けられます。
+
 法則で表せることと表せないことは [docs/laws.md](docs/laws.md)、
+「証明済み」が何に依拠し、それを実際のランタイムとどう突き合わせているかは
+[docs/laws-trust.md](docs/laws-trust.md)、
 具体例は [チュートリアル §14](docs/tutorial.md#14-laws) にあります。
 
 ## 使われてきた場所
@@ -308,6 +356,7 @@ func main() IO[Unit] { ioPure(unit()) }
 | [Go 開発者向けチュートリアル](docs/tutorial.md) | 18 の短い章。すべての go4t スニペットを CI で型検査。 |
 | [言語仕様](SPEC.md) | 文法、型と作用の規則、deriving、公開する Go API、境界表。 |
 | [法則](docs/laws.md) | 法則で扱えること、扱えないこと、証明の書き方。 |
+| [「証明済み」が依拠するもの](docs/laws-trust.md) | 法則検査器が信頼している部分と、それぞれの検査方法。 |
 | [Go 連携](docs/go-interop.md) | 3 つの移行構成、境界の規則、`--emit-go`、`go:` import と依存。 |
 | [CLI リファレンス](docs/cli.md) | 全コマンドと終了コード。 |
 | [例](examples/README.md) | 実行できるすべての例とコマンド。 |
@@ -315,7 +364,7 @@ func main() IO[Unit] { ioPure(unit()) }
 | [アーキテクチャの決定](docs/adr/README.md) | 各規則を採用した理由。 |
 | [標準ライブラリ](docs/stdlib.md) | ソースの宣言一覧から生成。 |
 | [エディタ設定](editors/README.md) | stdio LSP と VS Code クライアント。 |
-| [設計履歴](DESIGN.md) | 実装スライスごとの契約。食い違うときは SPEC が優先。 |
+| [設計履歴](docs/history/DESIGN.md) | 実装スライスごとの契約。食い違うときは SPEC が優先。 |
 
 ## ライセンス
 

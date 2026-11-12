@@ -249,16 +249,17 @@ func (*FuncDecl) declNode()     {}
 
 // ---- laws and proofs (ADR 0001) ----
 
-// LawDecl is `law Name(params) { lhs == rhs }`. Params are monomorphic
+// LawDecl is `law Name(params) [requires Expr] { lhs == rhs }`. Params are monomorphic
 // typed names (no type parameters). The equality is definitional: both sides
 // must normalise to alpha-equal terms; the Eq instance of the type is not used.
 type LawDecl struct {
-	Pos    Pos
-	End    Pos
-	Name   string
-	Params []Param
-	LHS    Expr
-	RHS    Expr
+	Pos      Pos
+	End      Pos
+	Name     string
+	Params   []Param
+	Requires Expr // Optional Bool precondition; erased with the law.
+	LHS      Expr
+	RHS      Expr
 }
 
 // ProofDecl is `proof Name(x, y) { tactic }` for the law of the same name.

@@ -30,6 +30,12 @@ func root(tb testing.TB) string {
 	return path
 }
 
+// budgets reads budget.json. GO4T_BENCH_TIME_SLACK multiplies every
+// wall-clock budget: the ceilings are recorded on one developer machine, and
+// a shared CI runner is a different and varying one (the same binaries took
+// 0.50 s there and 0.83-0.90 s on GitHub's runners, and 4% longer again on an
+// older runner CPU), so CI states its factor instead of each ceiling hiding a
+// margin. Size budgets (bytes, characters) are deterministic and never scaled.
 func budgets(tb testing.TB) map[string]int64 {
 	tb.Helper()
 	data, err := os.ReadFile("budget.json")
@@ -39,6 +45,18 @@ func budgets(tb testing.TB) map[string]int64 {
 	var result map[string]int64
 	if err := json.Unmarshal(data, &result); err != nil {
 		tb.Fatal(err)
+	}
+	slack := 1.0
+	if text := os.Getenv("GO4T_BENCH_TIME_SLACK"); text != "" {
+		slack, err = strconv.ParseFloat(text, 64)
+		if err != nil || slack < 1 {
+			tb.Fatalf("GO4T_BENCH_TIME_SLACK must be a number >= 1, got %q", text)
+		}
+	}
+	for key, limit := range result {
+		if !strings.HasSuffix(key, "-bytes") && !strings.HasSuffix(key, "-chars") {
+			result[key] = int64(float64(limit) * slack)
+		}
 	}
 	return result
 }

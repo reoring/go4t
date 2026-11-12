@@ -1,3 +1,7 @@
+> **Historical.** These are the slice contracts the first implementation was
+> built from. They are kept for the record and are not maintained;
+> [SPEC.md](../../SPEC.md) defines current behaviour and wins wherever they differ.
+
 # go4t — a small Go-flavoured language with HKT, type classes and IO, transpiled to Go
 
 PoC goal: `go4t build examples/http/main.gt` → `examples/http/main_gen.go` → `go run` calls

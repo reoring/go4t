@@ -1,0 +1,8 @@
+package main
+law successor(a Int) { (a + 1 > a) == true }
+proof successor(a) { refl }
+law deadline(t Int, at Int, now Int) requires 0 <= t && 0 <= at && at <= now {
+  (now >= at + t) == (now - at >= t)
+}
+proof deadline(t, at, now) { refl }
+func main() IO[Unit] { ioPure(unit()) }

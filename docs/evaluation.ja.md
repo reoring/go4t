@@ -45,7 +45,12 @@ README の比較表の最後の行には注釈が要ります。node-drain の `
 `go4t run` の実行結果と照合する property test で検証しています。
 admission の回では、書き手が誤った法則を検査器が初めて検出しました。
 `fullPassAdmits` が負の quota は拒否されることを忘れていたもので、
-診断は具体例ではなく `stuck on: if (q < 0) …` と条件を示しました。
+診断は条件を示しました。現在の表記では `stuck on: q < 0` です。
+現在は `refl` の失敗後に再現可能な 128 候補を上限付きで探索し、
+両辺が具体的な値まで正規化されて異なるときは反例も表示します。
+反例が見つからないことは証明ではありません。そのときは
+`no counterexample in 128 candidates: the law may hold; this proof needs a case split, rewrite or induction`、
+候補を生成できない型には `counterexample search skipped: no candidates for <type>` と表示します。
 Go + `rapid` との比較で自分たちの主張を切り下げた経緯も含め、記録は
 [`docs/adr/0001-equational-laws.md`](adr/0001-equational-laws.md) と
 [`docs/adr/0002-laws-map-and-diagnostics.md`](adr/0002-laws-map-and-diagnostics.md) にあります。
@@ -91,9 +96,21 @@ timestamp に依存しないことも検証しています。
 `rapid` の生成器で `ownerReferences` の形を手で決めるのとは異なり、
 法則はすべての形を対象にします。
 
-残った課題は適用範囲ではなくコストでした。240 パッケージの binding を毎回生成すると
-`go4t check` は 47 秒でしたが、パッケージ単位のキャッシュで 1.8 秒になりました。
-`go4t run` は Go パッケージのコンパイルが支配的で、cold 150 秒、warm 85 秒でした。
+残った課題は適用範囲ではなくコストです。ただし、以前の `run` の
+cold 150 秒 / warm 85 秒は binding キャッシュ導入前の値です。
+AMD Ryzen 9 7950X3D の Linux VM (30 vCPU)、Go 1.26.1 で、
+ほかの処理が動く中、Go のビルドキャッシュを温めて再計測しました。
+export data の取得をまとめると、binding キャッシュが空 / warm の `build` は
+53.93 / 30.14 秒から 31.81 / 8.92 秒になりました。
+末尾のコメントだけを変えた後は 36.08 秒から 8.72 秒になりました。
+codegen の `go list` は 248 回から 1 回に減り、生成する Go は変わりません。
+`check` は cold 28.88 秒 / warm 2.57 秒で、15 法則すべてが証明されました。
+計測では、同時に行われるリポジトリの commit の影響を除くため、
+変更前後とも VCS 情報の埋め込みを無効にしました。
+`run`/`test`/`eval` の一時バイナリではこれを自動で無効にし、
+配布用の `build` では Go の既定動作を保ちます。
+[処理別の時間とコマンド](../examples/node-drain-typed/README.md#build-cost-remeasurement-2026-11-11)を参照してください。
+controller は実行せず、ビルドだけを計測した値です。
 
 ## 普通のプログラム
 

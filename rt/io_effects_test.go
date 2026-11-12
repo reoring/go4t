@@ -26,7 +26,7 @@ func TestTryIO(t *testing.T) {
 		{"extern error", IO(func(context.Context) (any, error) { return int64(9), errors.New("extern failed") }), testErr{testIoError{"Failure", "extern failed"}}},
 		{"string panic", IO(func(context.Context) (any, error) { panic("boom") }), testErr{testIoError{"Panic", "boom"}}},
 		{"error panic", IO(func(context.Context) (any, error) { panic(errors.New("panic error")) }), testErr{testIoError{"Panic", "panic error"}}},
-		{"nil panic", IO(func(context.Context) (any, error) { panic(nil) }), testErr{testIoError{"Panic", "panic called with nil argument"}}},
+		{"nil panic", IO(func(context.Context) (any, error) { panic(nil) }), testErr{testIoError{"Panic", goNilPanicMessage}}},
 		{"bind continuation panic", Bind(Pure(Unit{}), func(any) any { panic("continuation") }), testErr{testIoError{"Panic", "continuation"}}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

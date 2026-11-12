@@ -1,5 +1,23 @@
 # ADR 0003: import 時 Go binding と写像の拡張
 
+## Summary (English)
+
+Context: Committing generated Go bindings produced about 88k lines for client-go;
+measurements identified generation workflow and missing mappings as the barriers.
+Options considered: committed bindings, import-time generation, or generation
+during dependency retrieval; typed mappings versus `dyn.Value`; accessors versus
+expanding opaque handles into records.
+Decision: Resolve `import "go:<path>"` through the `modules.GoBinder` port,
+generating bindings in memory/cache and shims under `<out>/go4tbind/<import path>/`.
+Add tuple results, materialized iterator results, returned callbacks, and public
+handle-field accessors; preserve owning-package type identity and explicit upcasts.
+Consequences: Go APIs become reachable without committed generated files.
+Third-party imports require a build-module dependency; unsupported shapes still skip.
+The follow-up cache keys bindings by compiler, Go/export-data and binding inputs.
+Calls observing handles become `IO`; the pure law fragment remains separate.
+Status: Accepted after the 2026-11-02 PoC; the 2026-11-04 cutover removed the old
+committed-binding workflow, while later ADRs refine upcasts and boundary mappings.
+
 Date: 2026-11-02
 Status: Accepted (PoC verified 2026-11-02)
 

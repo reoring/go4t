@@ -2,6 +2,7 @@ package extern
 
 import (
 	"context"
+	"github.com/reoring/go4t/internal/testgo"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -17,7 +18,7 @@ func bindingTestModule(t *testing.T) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	writeBindingTestFile(t, dir, "go.mod", "module example.test/bindings\n\ngo 1.23\n\nrequire github.com/reoring/go4t v0.0.0\nreplace github.com/reoring/go4t => "+filepath.ToSlash(root)+"\n")
+	writeBindingTestFile(t, dir, "go.mod", "module example.test/bindings\n\ngo 1.22\n\nrequire github.com/reoring/go4t v0.0.0\nreplace github.com/reoring/go4t => "+filepath.ToSlash(root)+"\n")
 	return dir
 }
 
@@ -44,6 +45,7 @@ func runBindingTestGo(t *testing.T, dir string, args ...string) {
 }
 
 func TestExtendedBindingShim(t *testing.T) {
+	testgo.Require(t, 23, "the fixture imports iter")
 	dir := bindingTestModule(t)
 	writeBindingTestFile(t, dir, "fixture/fixture.go", extendedBindingFixture)
 	loader := Loader{Dir: dir}
@@ -95,6 +97,7 @@ func TestExtendedBindingShim(t *testing.T) {
 }
 
 func TestStandardExtendedBindings(t *testing.T) {
+	testgo.Require(t, 24, "binds strings.Lines")
 	dir := bindingTestModule(t)
 	loader := Loader{Dir: dir}
 	for _, tc := range []struct {

@@ -192,10 +192,10 @@ func (e *evaluator) normalIf(value *term) (*term, error) {
 	}
 	var branches [2]*term
 	for i, body := range value.args[1:] {
-		branch := assumption{condition: condition, value: boolean(i == 0), parent: e.assumptions}
-		e.assumptions = &branch
+		parent := e.assumptions
+		e.addAssumption(condition, i == 0)
 		branches[i], err = e.normal(body)
-		e.assumptions = branch.parent
+		e.assumptions = parent
 		if err != nil {
 			return nil, err
 		}
@@ -367,6 +367,8 @@ func (e *evaluator) displayComparison(t *term) (op string, left, right *term) {
 	if t.kind == "unary" && t.name == "!" && len(t.args) == 1 {
 		if op, a, b := e.displayComparison(t.args[0]); op == "==" {
 			return "!=", a, b
+		} else if op == "<" {
+			return "<=", b, a
 		}
 	}
 	if t.kind != "order" || len(t.args) != 1 {
@@ -416,31 +418,120 @@ func (e *evaluator) displayOrdering(t *term, name string) bool {
 		t.ctor == e.ctors[name]
 }
 
-// A comparison already delimits its operands. Render canonical sums without
-// redundant parentheses, in source-name order rather than fresh-ID order.
-func (e *evaluator) displayComparisonOperand(t *term) string {
-	if t.kind != "sum" {
-		return e.display(t)
+// A display context belongs to one diagnostic, not one subterm. All of its
+// readbacks therefore agree on the names that actually need disambiguation.
+type termDisplay struct {
+	e     *evaluator
+	names map[string]int
+}
+
+func (e *evaluator) displayTerms(roots ...*term) *termDisplay {
+	d := &termDisplay{e: e, names: make(map[string]int)}
+	var visit func(*term)
+	visit = func(t *term) {
+		if t == nil {
+			return
+		}
+		if t.kind == "var" || t.kind == "bind" {
+			if id, exists := d.names[t.name]; exists && id != t.id {
+				d.names[t.name] = -1
+			} else if !exists {
+				d.names[t.name] = t.id
+			}
+		}
+		for _, arg := range t.args {
+			visit(arg)
+		}
+		for _, arm := range t.arms {
+			visit(arm.pattern)
+			visit(arm.guard)
+			visit(arm.body)
+		}
 	}
-	args := make([]string, len(t.args))
-	for i, arg := range t.args {
-		args[i] = e.display(arg)
+	for _, root := range roots {
+		visit(root)
 	}
-	sort.Strings(args)
-	return strings.Join(args, " + ")
+	return d
 }
 
 func (e *evaluator) display(t *term) string {
-	if op, left, right := e.displayComparison(t); op != "" {
-		return "(" + e.displayComparisonOperand(left) + " " + op + " " + e.displayComparisonOperand(right) + ")"
+	return e.displayTerms(t).display(t)
+}
+
+// Parentheses belong to the surrounding operation. In particular, comparisons
+// in an if condition and sums inside comparisons need no outer parentheses.
+func (d *termDisplay) operand(t *term, minimum int) string {
+	precedence := 8
+	if op, _, _ := d.e.displayComparison(t); op != "" {
+		precedence = 3
+	} else {
+		switch t.kind {
+		case "lambda", "if", "match", "as":
+			precedence = 0
+		case "sum":
+			precedence = 4
+		case "product":
+			precedence = 5
+		case "unary":
+			precedence = 6
+		case "binary":
+			precedence = displayBinaryPrecedence(t.name)
+		}
+	}
+	value := d.display(t)
+	if precedence < minimum {
+		return "(" + value + ")"
+	}
+	return value
+}
+
+func displayBinaryPrecedence(op string) int {
+	switch op {
+	case "||":
+		return 1
+	case "&&":
+		return 2
+	case "==", "!=", "<", "<=", ">", ">=":
+		return 3
+	case "+", "-":
+		return 4
+	default:
+		return 5
+	}
+}
+
+func (d *termDisplay) display(t *term) string {
+	if op, left, right := d.e.displayComparison(t); op != "" {
+		return d.operand(left, 4) + " " + op + " " + d.operand(right, 4)
+	}
+	if t.kind == "sum" || t.kind == "product" {
+		return d.polynomial(t)
 	}
 	args := make([]string, len(t.args))
 	for i, arg := range t.args {
-		args[i] = e.display(arg)
+		minimum := 0
+		switch t.kind {
+		case "binary":
+			minimum = displayBinaryPrecedence(t.name) + i
+		case "unary":
+			minimum = 6
+		case "call", "field", "update":
+			if i == 0 {
+				minimum = 7
+			}
+		}
+		if minimum == 0 {
+			args[i] = d.display(arg)
+		} else {
+			args[i] = d.operand(arg, minimum)
+		}
 	}
 	switch t.kind {
 	case "var", "bind":
-		return t.name + "#" + strconv.Itoa(t.id)
+		if d.names[t.name] == -1 {
+			return t.name + "#" + strconv.Itoa(t.id)
+		}
+		return t.name
 	case "wild":
 		return "_"
 	case "int":
@@ -454,7 +545,7 @@ func (e *evaluator) display(t *term) string {
 	case "unit":
 		return "unit()"
 	case "ctor":
-		name := e.sourceName(t.ctor.Name)
+		name := d.e.sourceName(t.ctor.Name)
 		if len(args) == 0 {
 			return name
 		}
@@ -473,24 +564,12 @@ func (e *evaluator) display(t *term) string {
 		return "fromListFold(" + strings.Join(args, ", ") + ")"
 	case "lambda":
 		return "func(" + strings.Join(args[:len(args)-1], ", ") + ") => " + args[len(args)-1]
-	case "sum":
-		return "(" + strings.Join(args, " + ") + ")"
-	case "product":
-		for i, power := range t.indexes {
-			if power != 1 {
-				args[i] += "^" + strconv.Itoa(power)
-			}
-		}
-		if t.number != 1 {
-			args = append([]string{strconv.FormatInt(t.number, 10)}, args...)
-		}
-		return "(" + strings.Join(args, " * ") + ")"
 	case "global", "method":
-		return e.sourceName(t.name)
+		return d.e.sourceName(t.name)
 	case "binary":
-		return "(" + args[0] + " " + t.name + " " + args[1] + ")"
+		return args[0] + " " + t.name + " " + args[1]
 	case "unary":
-		return "(" + t.name + args[0] + ")"
+		return t.name + args[0]
 	case "if":
 		return "if " + args[0] + " { " + args[1] + " } else { " + args[2] + " }"
 	case "as":
@@ -514,12 +593,80 @@ func (e *evaluator) display(t *term) string {
 		for i, arm := range t.arms {
 			guard := ""
 			if arm.guard.kind != "bool" || !arm.guard.flag {
-				guard = " if " + e.display(arm.guard)
+				guard = " if " + d.display(arm.guard)
 			}
-			arms[i] = e.display(arm.pattern) + guard + " => " + e.display(arm.body)
+			arms[i] = d.display(arm.pattern) + guard + " => " + d.display(arm.body)
 		}
 		return "match " + args[0] + " { " + strings.Join(arms, "; ") + " }"
 	default:
 		return t.name + "(" + strings.Join(args, ", ") + ")"
 	}
+}
+
+func (d *termDisplay) polynomial(t *term) string {
+	type part struct {
+		text               string
+		negative, constant bool
+	}
+	terms := t.args
+	if t.kind != "sum" {
+		terms = []*term{t}
+	}
+	parts := make([]part, len(terms))
+	for i, term := range terms {
+		coefficient := int64(1)
+		switch term.kind {
+		case "int", "product":
+			coefficient = term.number
+		}
+		magnitude := uint64(coefficient)
+		if coefficient < 0 {
+			magnitude = -magnitude // Also handles minInt without signed overflow.
+		}
+		var value string
+		switch term.kind {
+		case "int":
+			value = strconv.FormatUint(magnitude, 10)
+		case "product":
+			factors := make([]string, len(term.args))
+			for j, atom := range term.args {
+				factors[j] = d.operand(atom, 6)
+				if term.indexes[j] != 1 {
+					factors[j] += "^" + strconv.Itoa(term.indexes[j])
+				}
+			}
+			sort.Strings(factors)
+			value = strings.Join(factors, " * ")
+			if magnitude != 1 {
+				value = strconv.FormatUint(magnitude, 10) + " * " + value
+			}
+		default:
+			value = d.operand(term, 5)
+		}
+		parts[i] = part{text: value, negative: coefficient < 0, constant: term.kind == "int"}
+	}
+	sort.SliceStable(parts, func(i, j int) bool {
+		a, b := parts[i], parts[j]
+		if a.constant != b.constant {
+			return !a.constant
+		}
+		if a.negative != b.negative {
+			return !a.negative
+		}
+		return a.text < b.text
+	})
+	var result strings.Builder
+	for i, part := range parts {
+		if part.negative {
+			if i == 0 {
+				result.WriteString("-")
+			} else {
+				result.WriteString(" - ")
+			}
+		} else if i != 0 {
+			result.WriteString(" + ")
+		}
+		result.WriteString(part.text)
+	}
+	return result.String()
 }

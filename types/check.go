@@ -177,6 +177,7 @@ func Check(modules []*ast.Module) (program *Program, err error) {
 	}
 	c.checkLaws(files)
 	c.instantiateForeign()
+	c.program.warnRecursion()
 	return c.program, nil
 }
 

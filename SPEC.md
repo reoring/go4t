@@ -2,9 +2,9 @@
 
 go4t is a statically typed, strict, functional language with Go-flavoured syntax,
 higher-kinded types, type classes, immutable algebraic data, and explicit `IO`.
-It compiles to Go. This document describes the merged Pass 12 implementation;
+It compiles to Go. This document describes the current implementation;
 [the tutorial](docs/tutorial.md) teaches it and [the standard library](docs/stdlib.md)
-lists every source declaration. `DESIGN.md` records historical design contracts,
+lists every source declaration. `docs/history/DESIGN.md` records historical design contracts,
 not an alternative definition of current behaviour.
 
 *Error* means compile-time rejection; *warning* is nonfatal. Grammar below uses
@@ -693,6 +693,24 @@ hint and requiring context.
 Unused lets, local/lambda parameters, pattern variables and named do binds warn;
 `_`-prefixed bindings and top-level/instance-method parameters are exempt. Guards
 and closure captures count as uses; shadowed bindings have independent use records.
+
+A named function warns once, at its first direct self-call that is not lowered
+to a tail-call loop and has no structurally decreasing argument:
+`sumTo calls itself in a non-tail position and no argument is a structural part of its parameter; go4t cannot bound the recursion depth, and stack exhaustion cannot be recovered. Use an accumulator so the call is a tail call`
+(with the function's source name in place of `sumTo`). A call is bounded when
+any argument is a pattern-bound strict subterm of its corresponding parameter,
+or a chain of record-field/tuple-index projections rooted at that parameter
+or a pattern-bound subterm of it.
+Unlike law termination, earlier arguments need not remain unchanged: this
+warning concerns depth bounded by data, not a lexicographic termination proof.
+Arithmetic such as `n - 1` alone is not structural descent.
+Mutual recursion, local recursive closures and higher-order calls are not
+analysed by this warning. Tail-call result positions include `if`, `match`,
+block results after lets, and directly sequenced IO `do` results.
+For non-IO `do` (including polymorphic monads), scanning stops after the first
+bind or monadic statement's expression because the remainder is a continuation
+closure.
+
 Warnings do not make a successful check fail. The checker reports its first type
 error; the editor discards its old successful index on failure (§8.5).
 
@@ -881,7 +899,7 @@ parameters; its untyped names rebind those parameters positionally. Laws are
 not callable functions and have no generated Go representation.
 
 ```ebnf
-LawDecl   := 'law' Ident '(' [Param {',' Param} [',']] ')' '{' Expr '==' Expr {Separator} '}'
+LawDecl   := 'law' Ident '(' [Param {',' Param} [',']] ')' [ ? requires identifier ? Expr ] '{' Expr '==' Expr {Separator} '}'
 ProofDecl := 'proof' Ident '(' [Ident {',' Ident} [',']] ')' TacticBlock
 TacticBlock := '{' {Separator} Tactic {Separator} '}'
 Tactic    := 'refl'
@@ -899,9 +917,10 @@ TacticPattern := '_' | LowerIdent
 TacticRecordFields := '{' ('..' [','] | Ident ':' TacticPattern {',' Ident ':' TacticPattern} [',' '..'] [',']) '}'
 ```
 
-The lexical classes `? sample identifier ?` and `? induction identifier ?`
-match exactly the contextual identifiers `sample` and `induction`, respectively.
-Unlike `refl`, these spellings are not reserved lexer keywords.
+The lexical classes `? sample identifier ?`, `? induction identifier ?` and
+`? requires identifier ?` match exactly the contextual identifiers `sample`,
+`induction` and `requires`, respectively. Unlike `refl`, these spellings are
+not reserved lexer keywords.
 
 The outermost expression in a law body must be `==`; parenthesize a side
 containing lower-precedence Boolean operators. This `==` is an equation
@@ -909,6 +928,19 @@ delimiter, not a call to `Eq`: both sides must have the same type but need no
 `Eq` instance. Equality means **definitional equality** of normalized terms,
 up to renaming bound variables (alpha equivalence), not equality according to a
 user-defined `Eq` instance. There is no eta-equivalence rule.
+
+An optional `requires` Bool expression restricts the equation to arguments
+satisfying that precondition. It has the same parameter scope, purity,
+termination, Float and first-order restrictions as the law sides. Before any
+tactic, its normalized top-level `&&` conjuncts (including those exposed by
+function unfolding) are checked and assumed in order. A conjunct that normalizes
+to `false` under the preceding conjuncts is an error at the `requires` expression.
+Int intervals also reject impossible bounds beyond the int64 endpoints.
+This check does not apply to `if`/`match` tactic branch assumptions.
+Neither laws nor their preconditions execute at runtime. A `rewrite`, including
+an induction-hypothesis rewrite, must establish the instantiated precondition
+as `true` under the current assumptions before using the equation.
+`sample(N)` does not support laws with `requires`.
 
 | Tactic | Meaning |
 | --- | --- |
@@ -944,12 +976,31 @@ merged. Inside an arm of a stuck `match s`, `s` is assumed equal
 to the arm's pattern, and inside a stuck `if c`, `c` is assumed `true` or
 `false`, so repeated eliminations of the same scrutinee collapse. Int
 `+`, `-`, `*` and unary negation use polynomial normal forms modulo 2^64,
-matching wrapping runtime arithmetic. Comparisons and `/`/`%` are not an
-arithmetic decision procedure, but prelude Int and String comparisons are
+matching wrapping runtime arithmetic. Prelude Int and String comparisons are
 oriented canonically (`a > b` is `b < a`, `a >= b` is `b <= a`) and `==`
-operands are ordered, and `x == x` / `x < x` decide for alpha-equal
-operands. `if` assumptions compare normalized operands, so `now >= at + t`,
-`at + t <= now` and `now >= t + at` describe the same guard.
+operands are ordered. Assumptions from `requires`, proof `if` branches and
+stuck expression `if` arms support two sound order-reasoning layers:
+
+- **Total-order closure:** normalized Int or String operands are opaque atoms.
+  Assumed comparisons and their negations support reflexivity, antisymmetry,
+  transitivity and totality, together with the known order of literals.
+  Thus `a < b && b < c` establishes `a < c`. Arithmetic is not opened here:
+  `a + 1` and `a` are unrelated atoms.
+- **Wrap-free Int arithmetic:** each atom starts with the int64 range, tightened
+  by total-order bounds against literals. Arbitrary-precision integer interval
+  arithmetic checks both comparison operands and their exact polynomial
+  difference, including intermediate monomial products. Only when all fit
+  int64 is `p ⋈ q` canonicalized to `0 ⋈ (q - p)`. Constant differences decide
+  the comparison. A linear nonnegative goal can also follow from one or two
+  assumed canonical nonnegatives plus a nonnegative constant; strictness needs
+  a strict summand or a positive constant. The symmetric rule refutes goals.
+  Coefficient matching is exact over mathematical integers, not modulo 2^64.
+
+If range checks fail, comparisons retain their ordinary wrapping meaning.
+For example `a + 1 > a` needs `requires a < 9223372036854775807`;
+`now >= at + t` and `now - at >= t` coincide only under suitable wrap-free
+ranges. There is no complete arithmetic solver, nonlinear decision procedure,
+String arithmetic, or `/`/`%` order reasoning.
 
 `Map` values are modelled symbolically. A map whose keys are all constants
 (Int, String, Bool or tuples of those) normalizes to a sorted literal; an
@@ -971,7 +1022,37 @@ hand-written `Ord` instances leave every map operation neutral (never tainted).
 When `refl` fails, the diagnostic prints both normal forms, `stuck on:` the
 outermost neutral scrutinee or neutral recursive argument of each side (one
 line when both agree), and `differs at:` the first pair of subterms that are
-not alpha-equal.
+not alpha-equal. Variables retain their source names, with `#n` only for distinct
+variables sharing a name within that diagnostic. Polynomial display uses
+subtraction (`now - at`); comparisons retain their canonical orientation without
+redundant outer parentheses.
+
+The checker then searches the original law's parameters for a counterexample,
+using 64 deterministic edge-case candidates followed by 64 fixed-seed random
+candidates, with the normalization step limit per candidate. This runs inside
+the normalizer, without the Go toolchain, and never changes proof acceptance.
+Only unequal closed data normal forms are evidence; exhausted or residual
+neutral evaluations are discarded. A witness is appended as
+`counterexample: a = 9223372036854775807`, followed by indented `LHS: false` and
+`RHS: true` lines. Otherwise it prints
+`no counterexample in 128 candidates: the law may hold; this proof needs a case split, rewrite or induction`.
+If a parameter cannot be generated, it prints
+`counterexample search skipped: no candidates for <type>`.
+Generators cover Int, Bool, String, Unit, bounded constructor data and tuples,
+lists, and literal maps with Int/String/Bool or tuple keys. Float-bearing and
+handle-bearing types, unsupported map keys and types without a bounded
+inhabitant are skipped. No witness is not a proof.
+
+For a law with `requires`, the edge prefix also includes Int and String
+literals from its assumption-free normalized precondition, plus each Int's
+neighbors within the int64 range. Only candidates satisfying the precondition
+are admitted. If none is admitted, a failed `refl` instead ends with
+`no arguments satisfying requires were found in 128 candidates: no counterexample could be tried`.
+A successful proof with `requires` runs the same enumeration until it finds
+one satisfying binding, without evaluating the equation. If none is found it
+emits a non-fatal warning at `requires`; an unsupported parameter type yields
+zero attempted candidates. Laws without `requires` do not run this witness
+search after a successful proof. Bounded witness search never changes acceptance.
 
 Only the law-reachable fragment must terminate; ordinary programs retain general
 recursion. Recursive calls must leave all preceding arguments unchanged and
@@ -982,13 +1063,19 @@ different laws are rejected, so mutual rewrites cannot certify one another.
 A finite normalization fuel budget also bounds unfolding of open terms;
 exhaustion is an incomplete-normalization error, never a successful proof.
 
-Induction follows the recursion shape of the unfolded function, not the data
-type. Accumulator-based definitions such as `std/list` `length` (a `fold` whose
-accumulator advances at each `Cons`) do not reduce `length(Cons(x, r))` to
-`1 + length(r)`, so an induction hypothesis stated with the accumulator at
-its initial value does not apply. State the law over the fold's accumulator
-(`fold(xs, n, f) == n + ...`) and rewrite with that, or prove over a directly
-structurally recursive function.
+Induction follows the recursion shape of the normalized function, not merely
+the data type. The owner-checked `std/list` functions `length`, `sum`,
+`product`, `count`, `reverse`, `zipWith`, `unzip`, `partition`, `flatten`,
+`intercalate`, `init`, `span`, `findIndex` and `indexed` use structural models
+instead of unfolding their accumulator loops. For example, `length(Nil)` is
+`0` and `length(Cons(x, r))` is `1 + length(r)`, so length-of-append and
+length-preserving-map laws prove by `induction xs` over the library itself.
+The models agree with the runtime, including Int arithmetic modulo 2^64;
+neutral list arguments stay neutral. Same-named user functions are not modelled,
+and callbacks still undergo dependency checks. Other accumulator definitions
+still need a generalized accumulator lemma or a directly structural function;
+arbitrary callbacks cannot be reassociated. See ADR 0014 for the exact models
+and exclusions.
 
 Law dependencies are checked transitively for unsafe operations: IO, untrusted
 externs and potentially panicking arithmetic are tainted. Integer `/` and `%`
@@ -1000,8 +1087,8 @@ The trusted extern whitelist is the ten prelude primitives (`EqInt`, `LtInt`,
 `EqString`, `LtString`, `EqBool`, `ShowInt`, `ShowBool`, `ShowString`,
 `DebugString`, `UnitValue`) plus the 32 `std/string` primitives. Trust is tied to
 the owning standard-library declaration, not merely a matching foreign symbol.
-String primitives fold only when their arguments are constant; they do not
-provide symbolic string reasoning. The 13 `std/map` externs are modelled by the
+String operations fold only when their arguments are constant; beyond total-order
+closure they do not reason about symbolic contents. The 13 `std/map` externs are modelled by the
 normalizer as described above and are therefore eligible. `std/set` and
 `std/array` externs remain tainted. Callback and dictionary implementations must themselves be
 eligible. `Float` is forbidden in law parameters, side types and subterms,
@@ -1025,6 +1112,19 @@ unknown law %s
 arity mismatch: want %d arguments, got %d
 tactic match does not support list patterns
 tactic match does not support literal or as-patterns
+sample does not support requires
+rewrite %s: precondition not established: <normal form>
+```
+
+Precondition diagnostics use these templates; `<conjunct>` uses source-spelled
+normalized terms, as above. The longer error form applies after an earlier
+conjunct has been assumed:
+
+```text
+law <name>: requires can never hold: <conjunct> is false
+law <name>: requires can never hold: <conjunct> is false given the conditions before it
+no arguments satisfying requires were found in N candidates: no counterexample could be tried
+warning: law <name>: no arguments satisfying requires were found in N candidates; the law may say nothing
 ```
 
 Proof verification additionally rejects non-decreasing recursion, cyclic law
@@ -1241,7 +1341,7 @@ uses the normal Go build cache, and removes the output binary before each
 iteration; it does not include go4t checking or code generation.
 
 Linux/amd64 Ryzen 9 7950X3D calibration (single iteration, Go 1.26.1,
-before Pass 13 type-print elision; decimal MB/KB, not a CI portability guarantee):
+before type-print elision; decimal MB/KB, not a CI portability guarantee):
 
 | Program | N | Source lines | Check ms | Alloc MB | Sampled peak MB | Go KB | Build ms | Longest error chars |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -1972,34 +2072,44 @@ with `go generate main.go`.
   use the embedded runtime. Generic Go functions bind by call-site monomorphisation;
   generic receiver methods and instantiated generic named types are still skipped.
 - Native scalars/specialization are selective, not universal unboxing. Mutual or
-  non-tail recursion can still consume stack; large allocations remain
-  host-resource bounded. Lazy does not memoise.
+  non-tail recursion can still consume stack; direct non-tail self-recursion
+  without structural descent warns (§5.2). Stack exhaustion is a fatal Go error,
+  not a recoverable panic. Large allocations remain host-resource bounded.
+  Lazy does not memoise.
   Runtime costs are workload-dependent. `bench/PERF.md` records go4t-versus-Go
   measurements for million-element collections, a million-step Float simulation,
   and a depth-20 tree.
   Persistent `Map` inserts allocate copied search-path nodes to preserve earlier
   versions; use `std/mutmap` inside IO for update-heavy throughput, then `freeze`
   when a pure persistent snapshot is needed.
-- Laws do not infer comparison transitivity or ordered arithmetic under Int
-  wraparound; variable divisors are tainted. There is no `requires` clause,
-  higher-order quantification or Float law support. Encode guards as Bool
-  equations and split them with `if`. `std/map` is modelled symbolically and eligible;
-  `std/mutmap`, `std/ref`, channels and other handles require IO for observations
+- Laws support preconditions (`requires`), total-order comparison closure and
+  the bounded wrap-free Int arithmetic fragment in §6.5, not unrestricted
+  ordered arithmetic under wraparound. Variable divisors are tainted; higher-order
+  quantification and Float expressions remain unsupported. `sample(N)` cannot
+  be combined with `requires`.
+  The unsatisfiability check is incomplete: for example,
+  `0 <= a && a <= 10 && a * 2 == 21` is not refuted symbolically. Failure to
+  find a satisfying argument in the bounded search is only a warning for a
+  proved law, not evidence that the precondition is impossible.
+  `std/map` is modelled symbolically and eligible; `std/mutmap`, `std/ref`,
+  channels and other handles require IO for observations
   and are never law-eligible. Extern-dependent laws may use `sample(N)`, run by
   `go4t test`, reported as tested rather than proved, and unusable as rewrite lemmas.
-  `induction x` supplies constructor arms and induction hypotheses. Accumulator-style
-  functions (including the library's length via a fold) generally need a
-  generalized lemma over the accumulator, with the structurally decreasing
-  argument before any changing accumulator arguments; a simple length induction
-  hypothesis is not sufficient.
-- Editor support is the deliberately small protocol surface in §8.5. Historical
-  example READMEs can show pre-module spellings; use this specification and the
-  checked tutorial for current imports and signatures. `selfhost/` is separately
-  owned and is not covered by this language-documentation acceptance.
+  `induction x` supplies constructor arms and induction hypotheses. The
+  owner-checked `std/list` structural models in §6.5 remove the accumulator
+  obstacle for those functions, including library `length`. Other accumulator
+  functions generally need a generalized lemma, with the structurally decreasing
+  argument before changing accumulator arguments; arbitrary folds are not
+  reassociated.
+- Editor support is the deliberately small protocol surface in §8.5. Some
+  older example READMEs show pre-module spellings; this specification and the
+  checked tutorial give the current imports and signatures. The self-hosted
+  compiler in `selfhost/` implements a subset of the language (for example,
+  it parses laws and discards them) and is not described by this specification.
 
 ## 10. Boundary behaviour
 
-The tables below consolidate the Pass 12 boundary contracts. Function names in
+The tables below consolidate the boundary contracts. Function names in
 library tables are relative to the owning module in §7; an unqualified spelling
 in a table does **not** add an implicit export. [stdlib.md](docs/stdlib.md) gives
 signatures, one-line semantics and boundaries for every actual source declaration,

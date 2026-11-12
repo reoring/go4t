@@ -1,5 +1,22 @@
 # ADR 0004: Float を含むデータ型を法則の量化変数に許す
 
+## Summary (English)
+
+Context: A `dyn.Value` constructor contains `Float`, so transitive field inspection
+rejected laws over `corev1.Pod` even when projections ignored timestamps.
+The alternatives are retaining that exclusion or treating hidden Float-bearing
+constructor fields as opaque while still rejecting exposed Float expressions.
+Decision: Adopt the latter in `lawHasFloat` and `unsupportedType`; do not descend
+into constructor fields for Float checks, but retain recursive `IO` inspection.
+Exposed types such as `Float`, `List[Float]`, and `func(Float) …` remain rejected.
+Consequences: Projection laws can quantify Float-bearing data without reasoning
+about Float values; functions that read Float remain outside the trusted fragment.
+Derived `Eq` reaching Float still fails, while definitional equality is unaffected.
+The open-term property harness includes NaN, signed zero, and infinities;
+recorded execution comparisons found no mismatches.
+Status: Accepted and verified on 2026-11-03; Float reduction rules remain deferred
+to a separate ADR if a concrete need appears.
+
 Date: 2026-11-03
 Status: Accepted (verified 2026-11-03)
 

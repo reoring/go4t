@@ -1,0 +1,18 @@
+package main
+
+law v1(a Int) requires a < 5 && a > 7 { (a < 0) == true }
+proof v1(a) { refl }
+law v3(a Int, b Int) requires a < b && b < a { (a == b) == true }
+proof v3(a, b) { refl }
+law never(a Int) requires false { a == a }
+proof never(a) { refl }
+law reflexive(a Int) requires a < a { a == a }
+proof reflexive(a) { refl }
+law above(a Int) requires a > 9223372036854775807 { a == a }
+proof above(a) { refl }
+law below(a Int) requires a < (-9223372036854775807 - 1) { a == a }
+proof below(a) { refl }
+func inRange(t Int, at Int, now Int) Bool { t < at && at < now && now < t }
+law unfolded(t Int, at Int, now Int) requires inRange(t, at, now) { t == t }
+proof unfolded(t, at, now) { refl }
+func main() IO[Unit] { ioPure(unit()) }

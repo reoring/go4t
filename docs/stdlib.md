@@ -30,7 +30,7 @@ of termination or a successful proof. Callbacks and dictionaries must supply
 eligible implementations, and concrete uses must exclude Float and IO.
 No means a direct or transitive unsafe dependency; — marks non-function
 declarations (including instances whose individual methods are classified in
-the [detailed reach report](adr/0001-laws-std-reach.md)).
+the [detailed reach report](laws-std-reach.md)).
 The trusted set includes the ten prelude primitives and all 32 `std/string`
 primitives; string folding requires constant arguments. Map, Set and Array
 externs remain excluded. The detailed report lists the first tainting reason.

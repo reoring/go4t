@@ -70,6 +70,29 @@ func TestLawDiagnosticsAndSymbols(t *testing.T) {
 	}
 }
 
+func TestRequiresLawWarning(t *testing.T) {
+	source := `package main
+law vacuous(a Int) requires 0 <= a && a <= 10 && a * 2 == 21 { a == a }
+proof vacuous(a) { refl }
+func main() IO[Unit] { ioPure(unit()) }
+`
+	file := filepath.Join(t.TempDir(), "warning.gt")
+	uri := fileURI(file)
+	c := client(t)
+	ds := diagnostics(t, c.notify("textDocument/didOpen", openParams(uri, source)))
+	want := "law vacuous: no arguments satisfying requires were found in 128 candidates; the law may say nothing"
+	start := strings.Index(strings.Split(source, "\n")[1], "&& a *")
+	end := strings.Index(strings.Split(source, "\n")[1], " {")
+	if len(ds) != 1 || ds[0].Severity != 2 || ds[0].Source != "go4t" || ds[0].Message != want || ds[0].Range != (Range{Start: Position{1, start}, End: Position{1, end}}) {
+		t.Fatalf("requires warning = %+v", ds)
+	}
+	fixed := strings.Replace(source, "0 <= a && a <= 10 && a * 2 == 21", "a == 123456", 1)
+	ds = diagnostics(t, c.notify("textDocument/didChange", changeParams(uri, fixed, 2)))
+	if len(ds) != 0 {
+		t.Fatalf("seeded witness must clear warning: %+v", ds)
+	}
+}
+
 func TestSampleInductionRoundTrip(t *testing.T) {
 	text := `package main
 import "std/regex"

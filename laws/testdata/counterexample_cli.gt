@@ -1,0 +1,9 @@
+package main
+
+law overflow(a Int) { (a + 1 > a) == true }
+proof overflow(a) { refl }
+
+law weak(b Bool) { (if b { 1 } else { 1 }) == 1 }
+proof weak(b) { refl }
+
+func main() IO[Unit] { ioPure(unit()) }

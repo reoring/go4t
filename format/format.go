@@ -193,8 +193,14 @@ func (p *printer) decl(decl ast.Decl) {
 	case *ast.LawDecl:
 		p.text("law " + d.Name)
 		p.params(d.Params)
+		bodyStart := d.Pos
+		if d.Requires != nil {
+			p.text(" requires ")
+			p.expr(d.Requires, 0)
+			bodyStart = d.Requires.GetEnd()
+		}
 		p.text(" ")
-		p.open(p.delimiterBetween('{', d.Pos, exprStart(d.LHS)))
+		p.open(p.delimiterBetween('{', bodyStart, exprStart(d.LHS)))
 		p.expr(d.LHS, precedence["=="])
 		p.text(" == ")
 		p.expr(d.RHS, precedence["=="]+1)

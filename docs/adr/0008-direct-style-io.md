@@ -1,5 +1,22 @@
 # ADR 0008: IO の直接形式 lowering と値表現の計測結果
 
+## Summary (English)
+
+Context: Allocation profiles refuted boxed element representation as the main
+collection bottleneck: persistent Map path copying and IO closures dominated.
+Alternatives considered: unboxing collection elements, changing persistent Map
+representation, or removing IO Bind/continuation overhead through direct lowering.
+Decision: Lower `do` with a concrete prelude `Monad[IO]` dictionary into one
+`rt.IO` closure with sequential `rt.Run` calls; loop tail self-calls in IO functions.
+Keep erased element representation and persistent Map structure; use `std/mutmap`
+for mutable workloads and pointer-form `mapValue` to avoid its struct boxing.
+Consequences: Laziness, cancellation checks, error classification, evaluation
+order, and non-tail continuations must be preserved.
+Other Monads and polymorphic dictionaries retain the existing `Bind` path;
+the pure `laws/` evaluator is unaffected, and selfhost may retain that path too.
+Status: Accepted; the stated performance target is `mapheavy-mut` at ≤ 4x Go,
+not a measured result of this decision. Further specialization awaits measurements.
+
 Date: 2026-11-04
 Status: Accepted
 

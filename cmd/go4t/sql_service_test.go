@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"github.com/reoring/go4t/internal/testgo"
 	"net"
 	"os"
 	"os/exec"
@@ -17,6 +18,7 @@ import (
 )
 
 func TestSqlServiceExample(t *testing.T) {
+	testgo.Require(t, 25, "prometheus/client_golang v1.24.1 requires go 1.25")
 	offlineDependencies(t)
 	for _, target := range []string{"modernc.org/sqlite@v1.59.0", "github.com/prometheus/client_golang@v1.24.1"} {
 		command := exec.Command("go", "list", "-m", "-json", target)

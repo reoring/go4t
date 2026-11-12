@@ -58,6 +58,93 @@ func TestLawCheckAndRun(t *testing.T) {
 	}
 }
 
+func TestCounterexampleLawCLI(t *testing.T) {
+	source, err := os.ReadFile("../../laws/testdata/counterexample_cli.gt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+	file := toolsWrite(t, filepath.Join(dir, "diagnostic.gt"), string(source))
+	out, stderr, status := toolsCommand(t, dir, "", "check", file)
+	if status != 1 || out != "" {
+		t.Fatalf("check: status=%d stdout=%q stderr=%q", status, out, stderr)
+	}
+	for _, want := range []string{
+		"counterexample: a = 9223372036854775807\n  LHS: false\n  RHS: true",
+		"no counterexample in 128 candidates: the law may hold; this proof needs a case split, rewrite or induction",
+	} {
+		if !strings.Contains(stderr, want) {
+			t.Fatalf("missing %q:\n%s", want, stderr)
+		}
+	}
+}
+
+func TestRequiresLawWarningCLI(t *testing.T) {
+	dir := t.TempDir()
+	file := toolsWrite(t, filepath.Join(dir, "warning.gt"), `package main
+law vacuous(a Int) requires 0 <= a && a <= 10 && a * 2 == 21 { a == a }
+proof vacuous(a) { refl }
+func main() IO[Unit] { ioPure(unit()) }
+`)
+	out, stderr, status := toolsCommand(t, dir, "", "check", file)
+	want := "warning: law vacuous: no arguments satisfying requires were found in 128 candidates; the law may say nothing"
+	if status != 0 || out != "" || !strings.Contains(stderr, file+":2:") || strings.Count(stderr, want) != 1 || !strings.Contains(stderr, "\nlaw vacuous(a Int)") || !strings.Contains(stderr, "^~~~") {
+		t.Fatalf("check: status=%d stdout=%q stderr=%q", status, out, stderr)
+	}
+	toolsWrite(t, file, `package main
+law literal(a Int) requires a == 123456 { (a > 0) == true }
+proof literal(a) { refl }
+func main() IO[Unit] { ioPure(unit()) }
+`)
+	out, stderr, status = toolsCommand(t, dir, "", "check", file)
+	if status != 0 || out != "" || stderr != "" {
+		t.Fatalf("seeded witness: status=%d stdout=%q stderr=%q", status, out, stderr)
+	}
+}
+
+// A precondition is resolved in the module that declares the law, like the
+// law's sides: its unqualified names never bind to another module's
+// declarations, and module-qualified names are available.
+func TestRequiresResolvesInDeclaringModuleCLI(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(dir, "lib"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	lib := toolsWrite(t, filepath.Join(dir, "lib", "lib.gt"), `package lib
+func ok(a Int) Bool { true }
+func small(a Int) Bool { a < 100 }
+law bounded(a Int) requires ok(a) { (a < 100) == true }
+proof bounded(a) { refl }
+`)
+	// The entry module's ok is stronger than lib's. Binding lib's precondition
+	// to it would prove the false law above.
+	file := toolsWrite(t, filepath.Join(dir, "main.gt"), `package main
+import "lib"
+func ok(a Int) Bool { a < 100 }
+func main() IO[Unit] { ioPure(unit()) }
+`)
+	out, stderr, status := toolsCommand(t, dir, "", "check", file)
+	if status != 1 || out != "" || !strings.Contains(stderr, lib+":5:") || !strings.Contains(stderr, "law bounded: stuck normal forms differ") || !strings.Contains(stderr, "counterexample: a = 9223372036854775807") {
+		t.Fatalf("captured precondition: status=%d stdout=%q stderr=%q", status, out, stderr)
+	}
+
+	toolsWrite(t, lib, `package lib
+func small(a Int) Bool { a < 100 }
+law bounded(a Int) requires small(a) { (a < 100) == true }
+proof bounded(a) { refl }
+`)
+	toolsWrite(t, file, `package main
+import "lib"
+law viaQualified(a Int) requires lib.small(a) { (a < 100) == true }
+proof viaQualified(a) { refl }
+func main() IO[Unit] { ioPure(unit()) }
+`)
+	out, stderr, status = toolsCommand(t, dir, "", "check", file)
+	if status != 0 || out != "" || stderr != "" {
+		t.Fatalf("own and qualified helpers: status=%d stdout=%q stderr=%q", status, out, stderr)
+	}
+}
+
 func TestSampleLawCLI(t *testing.T) {
 	source, err := os.ReadFile("../../laws/testdata/sample/valid.gt")
 	if err != nil {

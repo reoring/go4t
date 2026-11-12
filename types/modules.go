@@ -383,6 +383,9 @@ func (r *moduleResolver) declaration(d ast.Decl) {
 			r.typ(p.Type, ts)
 			vs[p.Name] = true
 		}
+		if d.Requires != nil {
+			d.Requires = r.expr(d.Requires, ts, vs)
+		}
 		d.LHS = r.expr(d.LHS, ts, vs)
 		d.RHS = r.expr(d.RHS, ts, vs)
 	case *ast.ProofDecl:

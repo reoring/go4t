@@ -37,8 +37,12 @@ side and partial proof goal, ~75 000 random substitutions compared with
 `go4t run` output). The admission round also produced the first case of the
 checker catching a *false law*: the author's `fullPassAdmits` forgot that a
 negative quota is rejected, and the diagnostic named the condition
-(`stuck on: if (q < 0) …`) rather than a sample. The record, including the
-Go/`rapid` comparison that cut our own claims down, is in
+(`stuck on: q < 0`, in the current display spelling). Failed `refl` diagnostics
+now also search 128 bounded, deterministic candidates and append a closed
+counterexample when found. No witness is not a proof: the diagnostic instead
+says `no counterexample in 128 candidates: the law may hold; this proof needs a case split, rewrite or induction`,
+or `counterexample search skipped: no candidates for <type>`.
+The record, including the Go/`rapid` comparison that cut our own claims down, is in
 [`docs/adr/0001-equational-laws.md`](adr/0001-equational-laws.md) and
 [`docs/adr/0002-laws-map-and-diagnostics.md`](adr/0002-laws-map-and-diagnostics.md).
 
@@ -99,10 +103,18 @@ over Kubernetes objects, and they are the point a `rapid` generator cannot
 reach: writing a generator for `corev1.Pod` means deciding the shape of
 `ownerReferences` by hand, whereas the law quantifies over all of them.
 
-What remains is cost, not reach: `go4t check` regenerated 240 packages of
-bindings on every run (47 s) until the per-package binding cache brought a
-hit to 1.8 s; `go4t run` cold is dominated by compiling the bound packages
-(150 s cold, 85 s warm).
+What remains is cost, not reach, but the old `run` figures (150 s cold / 85 s
+warm) predate the binding cache. On a 30-vCPU AMD Ryzen 9 7950X3D Linux VM with
+Go 1.26.1, measured under concurrent load with warm Go caches, batching export
+discovery reduced `build` from 53.93 / 30.14 s (empty / warm binding cache) to
+31.81 / 8.92 s; a trailing-comment edit fell from 36.08 to 8.72 s. Codegen now
+resolves its extern imports with one `go list` instead of 248; generated Go is
+unchanged. After the change, `check` took 28.88 s cold / 2.57 s warm and proved all 15 laws.
+Both measurement arms disabled VCS stamping to isolate concurrent repository
+commits. Temporary binaries for `run`/`test`/`eval` now do so automatically;
+shipped `build` binaries retain Go's default. See the
+[phase breakdown and commands](../examples/node-drain-typed/README.md#build-cost-remeasurement-2026-11-11);
+these are build measurements, not controller execution times.
 
 ## Ordinary programs
 
@@ -121,9 +133,13 @@ over a symbolic record were not merged. The same-day fix added the rule in
 SPEC §6.5's normalization paragraph: nested single-constructor updates merge,
 later write wins, fields ordered by index. The law then proved by list induction.
 
-Documented limits were hit as predicted. `list.length` is an accumulator
-fold, so `count(markDone(xs, id)) == count(xs)` is stated over a structural
-`count` (SPEC). Regex is not law-eligible: a concrete parsing example,
+Documented limits were hit as predicted. At the time, `list.length`'s accumulator
+fold meant `count(markDone(xs, id)) == count(xs)` was stated over a user-defined
+structural `count` (SPEC). ADR 0014 subsequently lifted this limit with
+owner-checked structural models for selected `std/list` functions; the todo
+example now proves the same preservation law over `list.length`, without the
+structural copy. Runtime accumulator implementations are unchanged.
+Regex is not law-eligible: a concrete parsing example,
 `parseLine("…") == Some(…)`, was rejected with
 `law depends on extern go4t/rt.RegexCaptures`. Concrete examples belong in
 `go4t test` functions. A deliberately false law,
@@ -297,8 +313,8 @@ Top gaps and disposition:
 - **Documentation corrections:** this change replaces unsupported list-append
   notation with `list.append`, locates Int-bound helpers in `std/float`, explains
   the minimum-Int literal restriction, documents parentheses on conditional
-  equation operands, distinguishes failed-proof diagnostics from sampled
-  counterexample bindings, cross-references generated Go-name inspection, and
+  equation operands, explains bounded counterexample search after a failed
+  proof and runtime sampled-law failures, cross-references generated Go-name inspection, and
   makes whole-file/streaming line-ending parity explicit.
 - **Documented limits remain:** Float laws are outside the proof fragment
   (Float addition is also genuinely order-sensitive); sorting is outside

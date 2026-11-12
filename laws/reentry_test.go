@@ -16,7 +16,7 @@ func TestReentry(t *testing.T) {
 	}
 	err := errors["symbolicTail"]
 	assertNormalForms(t, err)
-	for _, want := range []string{"stuck normal forms differ", "_firstEvictable(xs#"} {
+	for _, want := range []string{"stuck normal forms differ", "_firstEvictable(xs)"} {
 		if !strings.Contains(err.Msg, want) {
 			t.Errorf("missing %q: %v", want, err)
 		}

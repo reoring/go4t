@@ -21,6 +21,7 @@ type lawGoal struct {
 	Name     string
 	Params   []parameter
 	LHS, RHS ast.Expr
+	Requires ast.Expr
 }
 
 // StepLimit bounds normalization and proof traversal. Exhaustion is an error,
@@ -29,7 +30,9 @@ const StepLimit = 10000
 
 // CheckProgram verifies proofs and validates sampled laws, including imports.
 // It returns positioned failures; accepted samples are never proof evidence.
-// The checked program and its annotations are never modified.
+// Non-fatal law diagnostics are added to p.Warnings, the compiler's warning
+// channel. Source nodes and annotations are never modified. Callers must finish
+// law checking before publishing warnings and must not share p concurrently.
 func CheckProgram(p *types.Program) []*types.Error {
 	if p == nil {
 		return []*types.Error{{Msg: "nil checked program"}}
@@ -112,7 +115,10 @@ func CheckProgram(p *types.Program) []*types.Error {
 			continue
 		}
 		env, vars := e.proofEnvironment(law, proof)
-		err = e.prove(law, proof.Decl.Body, env, vars)
+		err = e.assumePrecondition(law, env)
+		if err == nil {
+			err = e.prove(law, proof.Decl.Body, env, vars)
+		}
 		if err != nil {
 			node := ast.Node(proof.Decl)
 			message := err.Error()
@@ -121,10 +127,30 @@ func CheckProgram(p *types.Program) []*types.Error {
 			}
 			d := diagnostic(node, name, message)
 			d.File = files[proof.Decl]
+			if node == law.Requires {
+				d.File = files[info.Decl]
+			}
 			errors = append(errors, d)
 			continue
 		}
 		valid[name] = true
+		if law.Requires != nil {
+			result := e.searchCandidates(law, true)
+			if !result.witness {
+				d := diagnostic(law.Requires, name, fmt.Sprintf("no arguments satisfying requires were found in %d candidates; the law may say nothing", result.attempts))
+				d.File = files[info.Decl]
+				duplicate := false
+				for _, warning := range p.Warnings {
+					if warning.File == d.File && warning.Pos == d.Pos && warning.End == d.End && warning.Msg == d.Msg {
+						duplicate = true
+						break
+					}
+				}
+				if !duplicate {
+					p.Warnings = append(p.Warnings, d)
+				}
+			}
+		}
 	}
 	return errors
 }
@@ -191,7 +217,7 @@ type proofVar struct {
 }
 
 type proofFailure struct {
-	node    ast.Tactic
+	node    ast.Node
 	message string
 }
 
@@ -237,7 +263,8 @@ func (e *evaluator) prove(law lawGoal, proof ast.Tactic, env *environment, vars 
 		// Preserve the actual failure when the diagnostic's readback also runs
 		// out of fuel or encounters a forbidden dependency.
 		if left, right, readErr := e.goal(law, env); readErr == nil && !strings.Contains(message, "\nLHS: ") {
-			message += fmt.Sprintf("\nLHS: %s\nRHS: %s", e.display(left), e.display(right))
+			d := e.displayTerms(left, right)
+			message += fmt.Sprintf("\nLHS: %s\nRHS: %s", d.display(left), d.display(right))
 		}
 		err = &proofFailure{node: proof, message: message}
 	}()
@@ -251,13 +278,14 @@ func (e *evaluator) prove(law lawGoal, proof ast.Tactic, env *environment, vars 
 			return err
 		}
 		if !alphaEqual(left, right, nil) {
-			stuck, differs := e.diagnose(left, right)
+			d := e.displayTerms(left, right)
+			stuck, differs := d.diagnose(left, right)
 			message := "stuck normal forms differ"
 			if stuck != "" {
 				message += "\n" + stuck
 			}
 			message += "\n" + differs
-			return fmt.Errorf("%s\nLHS: %s\nRHS: %s", message, e.display(left), e.display(right))
+			return fmt.Errorf("%s\nLHS: %s\nRHS: %s\n%s", message, d.display(left), d.display(right), e.counterexample(law))
 		}
 	case *ast.TRewrite:
 		rule, err := e.rewriteRule(law, tactic, env, vars)
@@ -290,10 +318,10 @@ func (e *evaluator) prove(law lawGoal, proof ast.Tactic, env *environment, vars 
 			return fmt.Errorf("condition already decided")
 		}
 		for i, arm := range []ast.Tactic{tactic.Then, tactic.Else} {
-			branch := assumption{condition: condition, value: boolean(i == 0), parent: e.assumptions}
-			e.assumptions = &branch
+			parent := e.assumptions
+			e.addAssumption(condition, i == 0)
 			err := e.prove(law, arm, env, vars)
-			e.assumptions = branch.parent
+			e.assumptions = parent
 			if err != nil {
 				return err
 			}

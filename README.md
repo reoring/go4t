@@ -12,10 +12,11 @@ you three things Go does not:
    compile error that names the missing pattern.
 2. **A line between pure code and effects.** Functions that do I/O return
    `IO[A]` values; a pure function cannot call one. The compiler enforces it.
-3. **Laws.** You state an equation about your pure code
-   (`isStale(freshness(TtlNanos(t), AtNanos(at), now)) == (now >= at + t)`)
-   and `go4t check` proves it for **every** input, not for the samples a
-   test happens to list.
+3. **Laws.** You state an equation about your pure code — *stale exactly
+   when the TTL has elapsed*,
+   `isStale(freshness(TtlNanos(t), AtNanos(at), now)) == (now - at >= t)` —
+   and `go4t check` proves it for **every** input in the range the law names,
+   not for the samples a test happens to list.
 
 Everything else is deliberately ordinary: the output is readable Go, builds
 with `go build`, uses `go.mod` for dependencies, and calls any Go package
@@ -86,17 +87,35 @@ Three things to notice:
   the function must handle is visible in its signature.
 - Delete the `(TtlNanos(_), InvalidTimestamp)` arm and `go4t check` fails with
   `missing: (TtlNanos(_), InvalidTimestamp)`.
-- Add a **law** — `isStale(freshness(TtlNanos(t), AtNanos(at), now)) == (now >= at + t)`
-  — and moving the `Stale` guard behind another check fails the law for all
-  `t`, `at`, `now`. The proof is usually one word (`refl`) or a case split.
+- Add a **law** and moving the `Stale` guard behind another check, or
+  turning `>=` into `>`, fails it for all `t`, `at`, `now`. The proof is
+  usually one word (`refl`) or a case split:
+
+  ```text
+  func plausible(t Int, at Int, now Int) Bool {
+    0 <= t && t <= 1000000000000 && 0 <= at && at <= now && now <= 4000000000000000000
+  }
+  law staleOnceElapsed(t Int, at Int, now Int) requires plausible(t, at, now) {
+    isStale(freshness(TtlNanos(t), AtNanos(at), now)) == (now - at >= t)
+  }
+  proof staleOnceElapsed(t, at, now) { if now - at >= t { refl } else { refl } }
+  ```
+
+  The `requires` clause is the honest part. `Int` wraps, so "elapsed" only
+  means what it says while `at + t` cannot overflow. The range is an ordinary
+  `Bool` function, written once and shared by every law that needs it. Delete the clause and
+  `go4t check` rejects the law with the input that breaks it:
+  `counterexample: t = 9223372036854775807, at = 1, now = 0`.
 
 To use it from Go, run `go4t build --emit-go decide --package decide
 decide/decide.gt` (typically from a `//go:generate` line). The generated
-package exports `Decide` and plain Go types for every record and sum, and the
-Go side switches on the result:
+package exports each function and plain Go types for every record and sum, and
+the Go side switches on the result. (`freshness` returns the type `Freshness`,
+so the exported function is `FreshnessFn`; a function named `decide` would be
+`decide.Decide`.)
 
 ```go
-switch step := decide.Freshness(ttl, observedAt, now.UnixNano()).(type) {
+switch step := decide.FreshnessFn(ttl, observedAt, now.UnixNano()).(type) {
 case decide.FreshnessStale:
     return requeue(ctx, obj)
 case decide.FreshnessTtlInvalid:
@@ -104,6 +123,10 @@ case decide.FreshnessTtlInvalid:
 // …
 }
 ```
+
+[examples/go-decision-template](examples/go-decision-template) is this exact
+decision as a Go module you can copy: one `.gt` file, one `//go:generate`
+line, a Go API in front of it, and a Go test.
 
 ### The same decision with its I/O in go4t
 
@@ -212,6 +235,23 @@ Be honest about the last row: on the same decision core, property-based
 testing with `rapid` caught every mutation we tried; what a law adds is a
 proof instead of a probability. For a `decide` with two `if`s, stay in Go.
 
+Where a proof reaches and a generator does not is input you would have to
+shape by hand. The node-drain controller must leave DaemonSet pods alone, and
+a pod is a DaemonSet pod if *any* of its owner references says so:
+
+```text
+law daemonSetOwnerAnywhere(prefix List[meta.OwnerReference], owner meta.OwnerReference, rest List[meta.OwnerReference]) {
+  ownedByDaemonSet(append(prefix, Cons(owner{kind: "DaemonSet"}, rest))) == true
+}
+```
+
+`meta.OwnerReference` is the real `k8s.io/apimachinery` type, bound with
+`import "go:…"`. The law quantifies over every prefix, every suffix and every
+other field of the owner; its proof is an induction on `prefix`
+([examples/node-drain-typed](examples/node-drain-typed/decide.gt)). A `rapid`
+test of the same property starts by writing a generator for owner-reference
+lists, and is then a statement about the lists that generator produces.
+
 **Speed.** Runtime cost is measured, not guessed ([bench/PERF.md](bench/PERF.md)).
 Code whose values stay unboxed runs at 1.6–4x of the equivalent Go. Updating
 a persistent `Map` inside a hot loop costs 19–24x — that is the price of
@@ -236,8 +276,17 @@ Proofs combine `refl`, constructor `match`, guard `if`, `rewrite` and
 data (sums, records, lists, maps, `Int`, `String`, …) and the pure functions
 over them; they do not cover I/O, and an equation that depends on an opaque
 Go function can only be *sampled* (`sample(N)`), which `go4t test` runs
-without treating it as proved. What laws can and cannot express is in
-[docs/laws.md](docs/laws.md); worked examples are in
+without treating it as proved.
+
+A law may state a precondition (`requires 0 <= a && a < limit`). `Int` wraps
+at 64 bits, so comparisons are decided only where the assumptions rule a wrap
+out: `a + 1 > a` is rejected without a bound and proved with one. When a proof
+fails, `go4t check` looks for concrete arguments that make the two sides
+differ and prints them, so a false law and a too-short proof look different.
+
+What laws can and cannot express is in [docs/laws.md](docs/laws.md); what a
+"proved" law rests on, and how that base is tested against the real runtime,
+is in [docs/laws-trust.md](docs/laws-trust.md); worked examples are in
 [tutorial §14](docs/tutorial.md#14-laws).
 
 ## Where it has been used
@@ -304,6 +353,7 @@ exact `>=`/`>` boundaries on deadlines, "a full zone is never chosen",
 | [Tutorial for Go developers](docs/tutorial.md) | Eighteen short lessons; every go4t snippet type-checked in CI. |
 | [Language specification](SPEC.md) | Grammar, type and effect rules, deriving, exported Go API, boundary tables. |
 | [Laws](docs/laws.md) | What laws cover, what they do not, how proofs are written. |
+| [What "proved" rests on](docs/laws-trust.md) | The trusted base of the law checker and how each part is checked. |
 | [Go interop](docs/go-interop.md) | Three migration shapes, the boundary rule, `--emit-go`, `go:` imports and dependencies. |
 | [CLI reference](docs/cli.md) | Every command, exit codes. |
 | [Examples](examples/README.md) | All runnable examples with their commands. |
@@ -311,7 +361,7 @@ exact `>=`/`>` boundaries on deadlines, "a full zone is never chosen",
 | [Architecture decisions](docs/adr/README.md) | Why each rule is the way it is. |
 | [Standard library](docs/stdlib.md) | Generated from the source inventory. |
 | [Editor setup](editors/README.md) | stdio LSP and a VS Code client. |
-| [Design history](DESIGN.md) | Slice contracts; SPEC wins where they differ. |
+| [Design history](docs/history/DESIGN.md) | Slice contracts; SPEC wins where they differ. |
 
 ## License
 

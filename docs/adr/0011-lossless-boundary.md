@@ -1,5 +1,24 @@
 # ADR 0011: 境界は変換しない — 可逆な写像か handle、損失は名前付き関数だけ
 
+## Summary (English)
+
+Context: JSON-based representation lost identity, copied pointer arguments lost
+writeback, and classified errors lost their original causes at the Go boundary.
+Options considered: retain these mappings, add special cases or skip APIs, or
+separate reversible representations from explicit views and in-out operations.
+Decision: Choose scalar/record-copy/handle representations independently of JSON;
+generate named `…ToJson` / `…FromJson` views instead of a `jsonscalar` kind.
+Map non-handle pointer arguments to IO-only `Ref[T]` with copy-in/copy-out;
+pointer results and record fields retain their nullable `Option[T]` mapping.
+Preserve original errors in `rt.Failure.Cause` and expose `io.cause` through the
+`GoError` handle, retaining existing failure classification and Go predicates.
+Consequences: Handle-bearing records no longer derive value `Eq`; in-out APIs
+become IO, and retained error causes keep their Go error graphs alive.
+Explicitly documented lossy `time.Time` / `time.Duration` mappings remain;
+`--emit-go` is outside this decision.
+Status: Accepted and implemented on 2026-11-04 in stages `b9ac77b`, `2ca5650`,
+and `a5dbbb1`, in the order error causes, pointer writeback, then JSON views.
+
 Date: 2026-11-04
 Status: Accepted (implemented 2026-11-04 in three stages: b9ac77b, 2ca5650, a5dbbb1)
 

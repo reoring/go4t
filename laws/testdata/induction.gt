@@ -79,7 +79,7 @@ proof double(a) { refl }
 proof useDouble(a) { rewrite double(a) { refl } }
 proof cycleA(a) { rewrite cycleB(a) { refl } }
 proof cycleB(a) { rewrite cycleA(a) { refl } }
-proof stdLenApp(xs, ys) { match xs { Nil => refl; Cons(x, r) => rewrite stdLenApp(r, ys) { refl } } }
+proof stdLenApp(xs, ys) { induction xs }
 proof ihOrder(n, xs, acc) { match xs { Nil => refl; Cons(x, r) => rewrite ihOrder(n, r, x) { refl } } }
 proof zeroLen(xs) { refl }
 proof oneLen(xs) { refl }

@@ -38,17 +38,110 @@ Without parentheses, the left-hand form is rejected with
 `law body must be an equality (lhs == rhs)`; the right-hand form fails with
 `expected expression, found "if"`.
 A failed `refl` shows the two stuck normal forms and the failing proof branch,
-not generated counterexample bindings; `sample` failures provide those bindings.
+then searches for a counterexample using the original law parameter names.
+The normalizer tries 64 edge-case candidates and 64 fixed-seed random candidates,
+each bounded by its step limit; no Go toolchain is needed. For example:
+
+```text
+counterexample: a = 9223372036854775807
+  LHS: false
+  RHS: true
+```
+
+This witness refutes `(a + 1 > a) == true`: Int addition wraps. If no candidate
+refutes the law, the diagnostic says
+`no counterexample in 128 candidates: the law may hold; this proof needs a case split, rewrite or induction`.
+That is not proof that the law holds. If a parameter has no generator, it says
+`counterexample search skipped: no candidates for <type>`. Float-bearing data,
+handles, unsupported map keys and types with no bounded inhabitant are skipped.
+Only unequal closed data normal forms produce a witness; residual neutral terms
+and fuel exhaustion are discarded. Passing proofs only search for a satisfying
+precondition, when they have `requires`; they do not search for counterexamples.
+
+Diagnostic terms use source variable names, adding `#n` only for a real name
+collision within the diagnostic. Polynomials print as `now - at` or
+`2 * a - b + 1`. Comparisons keep their canonical orientation but omit redundant
+outer parentheses; `stuck on:` uses the same spelling as `LHS:` and `RHS:`.
 
 What laws cover: first-order data (ADTs, records, `List`, `Option`, `Result`,
 `Map`), "every other field is arbitrary" invariants via `o{field: v}`, gate
 order, early return, idempotence, branch coverage, structural induction
-(including std `filter`/`head`/`append`), and equivalence of two `decide`s.
-What they do not: `Set`/`Array`, reasoning about string contents, order
-reasoning across comparisons (`a < b && b < c ⇒ a < c`), preconditions
-(`requires`), induction through fold-based std functions, and equality of two
-symbolic maps. Proof length grows with the number of branches; that is the
+(including std `filter`/`head`/`append` and the owner-checked structural models
+for `length`, `sum`, `product`, `count`, `reverse`, `zipWith`, `unzip`,
+`partition`, `flatten`, `intercalate`, `init`, `span`, `findIndex`, `indexed`),
+equivalence of two `decide`s, and conditional equations with `requires`.
+What they do not: `Set`/`Array`, reasoning about string contents, unrestricted
+ordered arithmetic, automatic accumulator generalization for other folds, and
+equality of two symbolic maps. Proof length grows with the number of branches; that is the
 specification's complexity, not the prover's.
+
+What a proved law rests on — the normalizer, the termination and taint
+checks, the extern whitelist, the `std/map` and `std/list` models — and how
+that base is tested against the real runtime on every CI run is in
+[laws-trust.md](laws-trust.md).
+
+## Preconditions and order
+
+```go4t
+package main
+law successor(a Int) requires a < 9223372036854775807 {
+  (a + 1 > a) == true
+}
+proof successor(a) { refl }
+func main() IO[Unit] { ioPure(unit()) }
+```
+
+`requires` is contextual, not a reserved word. Its Bool expression obeys the
+same purity, termination, Float and first-order restrictions as the law sides.
+The proof assumes it true, splitting top-level `&&` conjuncts. Rewriting a
+conditional law (including an induction hypothesis) requires its instantiated
+precondition to normalize to `true`. Preconditions generate no runtime checks,
+and `sample` on a law with `requires` is rejected.
+
+A reusable range can be an ordinary Bool function, for example
+`func inRange(t Int, at Int, now Int) Bool { 0 <= t && t <= 1000 && 0 <= at && at <= now && now <= 2000 }`.
+Write `requires inRange(t, at, now)` on each law: unfolding exposes the same
+conjuncts as writing the range inline.
+
+Conjuncts are checked and assumed in order before any tactic. A provably false
+one rejects the law at its `requires` expression:
+
+```text
+law <name>: requires can never hold: <conjunct> is false given the conditions before it
+```
+
+For the first conjunct, or a whole precondition already false, the message ends
+at `is false`. Impossible `if`/`match` proof branches are not subject to this check.
+The check is incomplete: it does not detect `0 <= a && a <= 10 && a * 2 == 21`.
+The candidate prefix includes the normalized precondition's Int and String
+literals and the Int neighbors without overflowing. If no candidate satisfies
+`requires`, a failed proof ends with
+`no arguments satisfying requires were found in 128 candidates: no counterexample could be tried`.
+A proof that succeeds instead reports:
+
+```text
+warning: law <name>: no arguments satisfying requires were found in 128 candidates; the law may say nothing
+```
+
+The warning does not change the exit status: a bounded search can miss a narrow
+but satisfiable range. An unsupported parameter type means zero candidates
+were tried. Both CLI and editor diagnostics report the warning.
+
+Total-order closure treats normalized Int/String terms as opaque atoms:
+`a < b && b < c` establishes `a < c`, even if those terms contain wrapping
+arithmetic. It does not relate `a + 1` to `a`.
+
+For Int arithmetic, literal bounds derived from those facts feed
+arbitrary-precision interval analysis. Only if both operands, their exact
+polynomial difference and intermediate monomials fit int64 does a comparison
+become `0 ⋈ (q - p)`. Constant differences decide; a linear goal may also be
+one or two assumed nonnegative polynomials plus a nonnegative constant.
+Strictness requires a strict summand or a positive constant; the symmetric
+rule refutes comparisons. This is a bounded fragment, not a general solver:
+no nonlinear decision, `/`/`%` reasoning, or String arithmetic.
+Without a wrap-free range, `a + 1 > a` stays unproved and
+`now >= at + t` need not equal `now - at >= t`. See
+[`requires_ttl.gt`](../laws/testdata/requires_ttl.gt) for an elapsed-time TTL law.
 
 ## Structural induction
 
@@ -68,8 +161,13 @@ proof appNil(xs) {
 
 This is sugar for constructor `match` plus the existing structural `rewrite`,
 not stronger recursion reasoning. The same descent, argument-order and
-left-to-right rewrite checks apply. Accumulator lemmas still need explicit
-generalization and rewrites.
+left-to-right rewrite checks apply. Library `length` now normalizes structurally,
+so `length(append(xs, ys)) == length(xs) + length(ys)` proves directly by
+`induction xs`. The models replace runtime unfolding only for declarations
+owned by `std/list`; runtime implementations and callback eligibility are
+unchanged. Other accumulator lemmas still need explicit generalization and
+rewrites. [ADR 0014](adr/0014-structural-models-for-std-list.md) records the
+equations, wraparound reasoning and exclusions.
 
 ## Sampled laws: tested, not proved
 

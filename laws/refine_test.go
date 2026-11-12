@@ -11,7 +11,7 @@ func TestScrutineeRefinement(t *testing.T) {
 	p := loadFixture(t, "refine.gt")
 	diagnostics := diagnosticsByLaw(t, p)
 	bad := map[string]string{
-		"differentScrutinees": "stuck on: o#1.mode",
+		"differentScrutinees": "stuck on: o.mode",
 		"noSiblingLeak":       "stuck normal forms differ",
 		"noIfSiblingLeak":     "stuck normal forms differ",
 		"differentClosures":   "stuck normal forms differ",
@@ -29,7 +29,7 @@ func TestScrutineeRefinement(t *testing.T) {
 	if len(diagnostics) != len(bad) {
 		t.Fatalf("diagnostics = %v", diagnostics)
 	}
-	if !strings.Contains(diagnostics["differentScrutinees"].Msg, "stuck on: o#1.x") {
+	if !strings.Contains(diagnostics["differentScrutinees"].Msg, "stuck on: o.x") {
 		t.Fatal(diagnostics["differentScrutinees"])
 	}
 
@@ -43,7 +43,7 @@ func TestScrutineeRefinement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "match o#1.mode { DryRun => Skip; Live => Skip }"
+	want := "match o.mode { DryRun => Skip; Live => Skip }"
 	if e.display(left) != want || e.display(right) != want {
 		t.Fatalf("nested normal forms: %s vs %s, want %s", e.display(left), e.display(right), want)
 	}

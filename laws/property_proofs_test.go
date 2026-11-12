@@ -18,6 +18,11 @@ func propertyProofVariants(t *testing.T, e *evaluator, law lawGoal, side int) []
 	t.Helper()
 	var result []propertyVariant
 	env, vars := e.proofEnvironment(law, e.p.Proofs[law.Name])
+	parentAssumptions := e.assumptions
+	if err := e.assumePrecondition(law, env); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { e.assumptions = parentAssumptions }()
 	var visit func(ast.Tactic, map[string]proofVar, string)
 	visit = func(proof ast.Tactic, vars map[string]proofVar, path string) {
 		e.fuel = StepLimit
@@ -25,7 +30,13 @@ func propertyProofVariants(t *testing.T, e *evaluator, law lawGoal, side int) []
 		if err != nil {
 			t.Fatalf("partial proof %s/%s: %v", law.Name, path, err)
 		}
-		variant := propertyVariant{name: path, normal: []*term{left, right}[side]}
+		variant := propertyVariant{name: path, normal: []*term{left, right}[side], env: child(nil)}
+		for _, param := range law.Params {
+			variant.env.values[param.Name] = e.instantiate(env.lookup(param.Name))
+		}
+		for a := e.assumptions; a != nil; a = a.parent {
+			variant.assumptions = &assumption{condition: e.instantiate(a.condition), value: a.value, parent: variant.assumptions}
+		}
 		var names []string
 		for name := range vars {
 			names = append(names, name)
@@ -48,7 +59,8 @@ func propertyProofVariants(t *testing.T, e *evaluator, law lawGoal, side int) []
 		case *ast.TRewrite:
 			rule, err := e.rewriteRule(law, proof, env, vars)
 			if err != nil {
-				if law.Name == "useBare" && strings.Contains(err.Error(), "left side is a free variable") {
+				if law.Name == "useBare" && strings.Contains(err.Error(), "left side is a free variable") ||
+					strings.Contains(err.Error(), "precondition not established:") {
 					return
 				}
 				t.Fatalf("partial rewrite %s/%s: %v", law.Name, path, err)
@@ -72,7 +84,8 @@ func propertyProofVariants(t *testing.T, e *evaluator, law lawGoal, side int) []
 			}
 			parent := e.assumptions
 			for i, arm := range []ast.Tactic{proof.Then, proof.Else} {
-				e.assumptions = &assumption{condition: condition, value: boolean(i == 0), parent: parent}
+				e.assumptions = parent
+				e.addAssumption(condition, i == 0)
 				visit(arm, vars, fmt.Sprintf("%s/if=%t", path, i == 0))
 			}
 			e.assumptions = parent

@@ -265,6 +265,7 @@ var grammarLexemes = map[string]struct {
 	"upper-case identifier":       {"C", lexer.Ident},
 	"sample identifier":           {"sample", lexer.Ident},
 	"induction identifier":        {"induction", lexer.Ident},
+	"requires identifier":         {"requires", lexer.Ident},
 	"integer literal":             {"1", lexer.Int},
 	"float literal":               {"1.5", lexer.Float},
 	"string literal":              {`"text"`, lexer.String},

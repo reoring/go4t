@@ -1,0 +1,26 @@
+package main
+
+import "std/list"
+import "std/prelude"
+
+law mapIdentity(xs List[Int]) { map(xs, func(x) => x) == xs }
+proof mapIdentity(xs) { induction xs }
+law nestedMapIdentity(xs List[List[Int]]) { map(xs, func(x) => x) == xs }
+proof nestedMapIdentity(xs) { induction xs }
+
+law reverseMap(xs List[Int]) { reverse(map(xs, func(x) => x)) == reverse(xs) }
+proof reverseMap(xs) { induction xs }
+law zipWithMap(xs List[Int]) { list.zipWith(map(xs, func(x) => x), map(xs, func(x) => x), func(x, y) => x - y) == list.zipWith(xs, xs, func(x, y) => x - y) }
+proof zipWithMap(xs) { induction xs }
+law flattenMap(xs List[List[Int]]) { list.flatten(map(xs, func(x) => x)) == list.flatten(xs) }
+proof flattenMap(xs) { induction xs }
+law intercalateMap(xs List[List[Int]], sep List[Int]) { list.intercalate(sep, map(xs, func(x) => x)) == list.intercalate(sep, xs) }
+proof intercalateMap(xs, sep) { induction xs { Nil => refl; Cons(x, rest) => rewrite nestedMapIdentity(rest) { refl } } }
+law initMap(xs List[Int]) { list.init(map(xs, func(x) => x)) == list.init(xs) }
+proof initMap(xs) { induction xs { Nil => refl; Cons(x, rest) => rewrite mapIdentity(rest) { refl } } }
+
+// Independent lengths exercise truncation, including a Nil second argument.
+law zipWithInputs(xs List[Int], ys List[Int]) { list.zipWith(xs, ys, func(x, y) => x - y) == list.zipWith(xs, ys, func(x, y) => x - y) }
+proof zipWithInputs(xs, ys) { induction xs }
+
+func main() IO[Unit] { ioPure(unit()) }

@@ -7,6 +7,7 @@
 
 | 例 | 内容 | 実行 |
 | --- | --- | --- |
+| [go-decision-template](go-decision-template) | Go リポジトリに go4t を入れる最初の一歩。決定 1 つを `.gt` に書き、Go の API の後ろに置く。`//go:generate`、生成物のコミット、法則、Go のテストを含む、コピーして使える Go モジュール | `cd examples/go-decision-template && go generate ./... && go test ./...` |
 | [go-shell](go-shell) | 最小の Go 外側 + go4t 決定ロジックの雛形 | `go4t run examples/go-shell/core.gt` |
 | [approval-controller](approval-controller) | 実際の controller。元テスト 6 本無変更 | `cd examples/approval-controller && go generate ./... && go test ./...` |
 | [attachment-repair-controller](attachment-repair-controller) | 複数ステップのワークフローの決定ロジックを go4t 化。元テスト 22 本無変更 | `cd examples/attachment-repair-controller && go generate ./... && go test ./...` |

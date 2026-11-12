@@ -25,7 +25,7 @@ func TestTryIOCause(t *testing.T) {
 		{"nested failure", IO(func(context.Context) (any, error) { return nil, fmt.Errorf("outer: %w", inner) }), testErr{testIoFailure{testIoError{"NotFound", inner.Message}, testSome{original}}}},
 		{"string panic", IO(func(context.Context) (any, error) { panic("boom") }), testErr{testIoFailure{testIoError{"Panic", "boom"}, testNone{}}}},
 		{"error panic", IO(func(context.Context) (any, error) { panic(original) }), testErr{testIoFailure{testIoError{"Panic", original.Error()}, testNone{}}}},
-		{"nil panic", IO(func(context.Context) (any, error) { panic(nil) }), testErr{testIoFailure{testIoError{"Panic", "panic called with nil argument"}, testNone{}}}},
+		{"nil panic", IO(func(context.Context) (any, error) { panic(nil) }), testErr{testIoFailure{testIoError{"Panic", goNilPanicMessage}, testNone{}}}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := TryIOCause(tt.action).(IO)(context.Background())

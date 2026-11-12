@@ -1,5 +1,24 @@
 # ADR 0002: 法則検査での `Map` の記号的扱いと、スタック箇所の診断
 
+## Summary (English)
+
+Context: ADR 0001's field evaluation exposed missing symbolic `Map` support and
+failed `refl` diagnostics that required reading large normal forms.
+Options considered: constant folding only, symbolic maps with algebraic rules,
+or retaining taint; diagnostics could retain full output or identify stuck terms.
+Decision: Model `std/map` using sorted constant-key literals and symbolic
+`insert` chains, with a separate `modeled` extern classification.
+Algebraic rules require the recognized `compare` lambda and prelude/derived
+`Ord` dictionaries; custom comparators remain neutral, not tainted.
+Ordered traversals and map-value comparisons remain limited to literal maps.
+Add `stuck on:` and `differs at:` while retaining complete `LHS:` / `RHS:` output.
+Consequences: Map-bearing decision cores become eligible, using existing `if`
+tactics for symbolic key equality; Map-specific rules require runtime agreement
+checks through the open-term property harness.
+Field evaluations found completeness issues and motivated refinements below;
+the eventual comparison with Go property tests narrows the benefit to universality.
+Status: Accepted; implementation and field-evaluation results are recorded below.
+
 Date: 2026-11-02
 Status: Accepted
 
@@ -76,7 +95,7 @@ ADR 0001 の実地評価（`examples/node-drain-controller`、法則 10 本）�
 
 ### 3. 汚染分類の追加
 
-ADR 0001 の 2 分類（汚染 / ホワイトリスト定数畳み込み）に **「評価器がモデル化する extern」** を加える。`std/map` の extern 13 個がこの分類に入る（`mapInsertBy` 等は `cmp` が上記の形のときのみ規則が適用され、そうでなければ中立。どちらも汚染ではない）。到達範囲表（`docs/adr/0001-laws-std-reach.md`）に分類列を追加し、`std/map` が対象内になることを示す。
+ADR 0001 の 2 分類（汚染 / ホワイトリスト定数畳み込み）に **「評価器がモデル化する extern」** を加える。`std/map` の extern 13 個がこの分類に入る（`mapInsertBy` 等は `cmp` が上記の形のときのみ規則が適用され、そうでなければ中立。どちらも汚染ではない）。到達範囲表（`docs/laws-std-reach.md`）に分類列を追加し、`std/map` が対象内になることを示す。
 
 ### 4. 健全性の検証
 

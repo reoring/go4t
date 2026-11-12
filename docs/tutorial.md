@@ -745,7 +745,14 @@ and checks that the normal forms agree. No `Eq` instance is needed: a law's
 outer `==` means definitional equality, not a call to the runtime equality method.
 Proof parameter names can differ from law names; binding is positional.
 A failed `refl` shows the two stuck normal forms and the failing proof branch,
-not generated counterexample bindings; a failed `sample` supplies those bindings.
+then tries 128 bounded, deterministic candidates for the original law parameters.
+A witness prints `counterexample: ...` and the closed `LHS:`/`RHS:` values.
+Otherwise it prints
+`no counterexample in 128 candidates: the law may hold; this proof needs a case split, rewrite or induction`,
+or `counterexample search skipped: no candidates for <type>` for unsupported
+parameter types. The failed proof stays failed even when no witness is found.
+Source names are preserved (`#n` only on collisions), and subtraction prints
+as `now - at`. See [laws: scope and limits](laws.md) for the search boundaries.
 
 ### Guards: exactly when a finite TTL is stale
 
@@ -779,9 +786,68 @@ proof staleIff(t, at, now) {
 func main() IO[Unit] { ioPure(unit()) }
 ```
 
-`if` adds a true/false assumption to each branch. It does not infer comparison
-transitivity or interchange `>=` with `<=`. It does normalize Int ring
-expressions in operands, so `now >= t + at` would name the same guard.
+`if` adds a true/false assumption to each branch. Int ring expressions in
+operands are normalized, so `now >= t + at` names the same guard.
+
+### Preconditions: stale once the TTL has elapsed
+
+`staleIff` restates the guard. What a reader wants to know is different:
+*is the result stale exactly when `now - at >= t`?* Under wrapping `Int` that
+is false — `at + t` can overflow — and the checker says so with an input:
+
+```text
+counterexample: t = 9223372036854775807, at = 1, now = 0
+  LHS: true
+  RHS: false
+```
+
+A `requires` clause states the range in which the sentence is true. The range
+is an ordinary `Bool` function, so it is written once and shared by every law
+that needs it. The proof starts with that precondition assumed, and comparisons are decided only where
+the assumptions rule out a wrap:
+
+```go4t
+package main
+type Ttl = NoTtl | InvalidTtl | TtlNanos(Int) deriving Eq, Debug
+type Timestamp = NoTimestamp | InvalidTimestamp | AtNanos(Int) deriving Eq, Debug
+type Freshness = Fresh(Int) | TtlInvalid | TimestampMissing | TimestampInvalid | Stale deriving Eq, Debug
+func freshness(ttl Ttl, observedAt Timestamp, nowNanos Int) Freshness {
+  match (ttl, observedAt) {
+    (NoTtl, _) => Fresh(0)
+    (InvalidTtl, _) => TtlInvalid
+    (TtlNanos(_), NoTimestamp) => TimestampMissing
+    (TtlNanos(_), InvalidTimestamp) => TimestampInvalid
+    (TtlNanos(t), AtNanos(at)) if nowNanos >= at + t => Stale
+    (TtlNanos(t), AtNanos(at)) => Fresh(at + t - nowNanos)
+  }
+}
+func isStale(value Freshness) Bool {
+  match value { Stale => true; _ => false }
+}
+func plausible(t Int, at Int, now Int) Bool {
+  0 <= t && t <= 1000000000000 && 0 <= at && at <= now && now <= 4000000000000000000
+}
+law staleOnceElapsed(t Int, at Int, now Int) requires plausible(t, at, now) {
+  isStale(freshness(TtlNanos(t), AtNanos(at), now)) == (now - at >= t)
+}
+proof staleOnceElapsed(t, at, now) {
+  if now - at >= t { refl } else { refl }
+}
+law successor(a Int) requires a < 9223372036854775807 { (a + 1 > a) == true }
+proof successor(a) { refl }
+law transitive(a Int, b Int, c Int) requires a < b && b < c { (a < c) == true }
+proof transitive(a, b, c) { refl }
+func main() IO[Unit] { ioPure(unit()) }
+```
+
+Two things decide comparisons. Assumed facts are closed under the total order
+(`transitive` needs no range: `a`, `b`, `c` are just three values). And where
+the assumptions bound every operand so that nothing can wrap, a comparison is
+treated as integer arithmetic (`successor`, and `now >= at + t` becoming
+`now - at >= t`). Without `requires a < 9223372036854775807`, `successor` is
+rejected with `counterexample: a = 9223372036854775807`. A precondition is
+not checked at run time, and `rewrite` with a law that has one must be able to
+establish it from the current assumptions.
 
 ### Induction: the length of concatenation
 

@@ -1,7 +1,7 @@
 // Package types holds the semantic model of a go4t program: kinds, types,
 // schemes, classes, instances and the per-expression annotations produced by
 // Check. The definitions in this file are the contract consumed by codegen;
-// see DESIGN.md.
+// see SPEC.md §5.
 package types
 
 import (
@@ -281,8 +281,8 @@ type Program struct {
 	Main      *FuncInfo
 	// Files in check order: prelude first, then user file(s).
 	Files []*ast.File
-	// Warnings are non-fatal diagnostics (e.g. defaulted type variables),
-	// in source order.
+	// Warnings are non-fatal diagnostics (e.g. defaulted type variables).
+	// Type checking adds them in source order; law checking appends its notices.
 	Warnings []*Error
 	// RecordPats resolves every record pattern to its constructor and the
 	// positional index of each listed field name, in Names order.

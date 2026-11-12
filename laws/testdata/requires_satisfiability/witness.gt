@@ -1,0 +1,15 @@
+package main
+
+law failed(a Int) requires 0 <= a && a <= 10 && a * 2 == 21 { (a < 0) == true }
+proof failed(a) { refl }
+law vacuous(a Int) requires 0 <= a && a <= 10 && a * 2 == 21 { a == a }
+proof vacuous(a) { refl }
+law literal(a Int) requires a == 123456 { (a > 0) == true }
+proof literal(a) { refl }
+law range(a Int) requires 1000 <= a && a < 2000 { (a > 0) == true }
+proof range(a) { refl }
+law stringLiteral(s String) requires s == "a distant literal" { s == s }
+proof stringLiteral(s) { refl }
+law impossibleBranch(a Int, b Int) { (if a < b && b < a { a == b } else { true }) == true }
+proof impossibleBranch(a, b) { if a < b && b < a { refl } else { refl } }
+func main() IO[Unit] { ioPure(unit()) }

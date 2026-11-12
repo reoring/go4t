@@ -1,0 +1,81 @@
+package decide
+
+type Ttl = NoTtl | InvalidTtl | TtlNanos(Int) deriving Eq, Debug
+
+type Timestamp = NoTimestamp | InvalidTimestamp | AtNanos(Int) deriving Eq, Debug
+
+type Freshness = Fresh(Int) | TtlInvalid | TimestampMissing | TimestampInvalid | Stale deriving Eq, Debug
+
+func freshness(ttl Ttl, observedAt Timestamp, nowNanos Int) Freshness {
+  match (ttl, observedAt) {
+    (NoTtl, _) => Fresh(0)
+    (InvalidTtl, _) => TtlInvalid
+    (TtlNanos(_), NoTimestamp) => TimestampMissing
+    (TtlNanos(_), InvalidTimestamp) => TimestampInvalid
+    (TtlNanos(t), AtNanos(at)) if nowNanos >= at + t => Stale
+    (TtlNanos(t), AtNanos(at)) => Fresh(at + t - nowNanos)
+  }
+}
+
+func isStale(value Freshness) Bool {
+  match value {
+    Stale => true
+    _ => false
+  }
+}
+
+// ---- Laws: checked by `go4t check` for every input, not generated into Go ----
+
+// The cases that do not depend on time.
+law noTtlIsFresh(at Timestamp, now Int) {
+  freshness(NoTtl, at, now) == Fresh(0)
+}
+
+proof noTtlIsFresh(at, now) {
+  refl
+}
+
+law invalidTtlWins(at Timestamp, now Int) {
+  freshness(InvalidTtl, at, now) == TtlInvalid
+}
+
+proof invalidTtlWins(at, now) {
+  refl
+}
+
+// The inputs the time laws talk about: a TTL up to 1000 s, and timestamps from
+// the epoch to 2096 with the observation not in the future. Written once and
+// named, so every law states the same range.
+func plausible(t Int, at Int, now Int) Bool {
+  0 <= t && t <= 1000000000000 && 0 <= at && at <= now && now <= 4000000000000000000
+}
+
+// Stale exactly when the TTL has elapsed, the boundary included.
+//
+// `requires` states the range in which that sentence is true. Int wraps, so
+// without a bound `at + t` can overflow and "elapsed" stops meaning what it
+// says; delete the clause and the checker prints the overflowing input.
+law staleOnceElapsed(t Int, at Int, now Int) requires plausible(t, at, now) {
+  isStale(freshness(TtlNanos(t), AtNanos(at), now)) == (now - at >= t)
+}
+
+proof staleOnceElapsed(t, at, now) {
+  if now - at >= t {
+    refl
+  } else {
+    refl
+  }
+}
+
+// Until then, the remaining time is the TTL minus the elapsed time.
+law freshForTheRemainder(t Int, at Int, now Int) requires plausible(t, at, now) && now - at < t {
+  freshness(TtlNanos(t), AtNanos(at), now) == Fresh(t - (now - at))
+}
+
+proof freshForTheRemainder(t, at, now) {
+  refl
+}
+
+func main() IO[Unit] {
+  ioPure(unit())
+}

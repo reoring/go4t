@@ -1287,6 +1287,9 @@ func prErasedDecl() Parser[Unit] {
     prIdent()
     if keyword.text == "law" { do {
       prParams()
+      prSkipSemis()
+      hasRequires <- prAccept(TkIdent, "requires")
+      if hasRequires { do { prExpr(); prSkipSemis(); prelude.pure(unit()) } } else { prelude.pure(unit()) }
       block <- prBlock()
       if length(block.stmts) == 0 && (match block.result { EBinary(_, "==", _, _) => true | _ => false }) { prelude.pure(unit()) }
       else { prFail(keyword.pos, "law body must be an equation") }
@@ -1309,6 +1312,11 @@ func prTactic() Parser[Unit] {
       "match" => do { prIdent(); expect(TkPunct, "{"); prTacticArms(); expect(TkPunct, "}"); prelude.pure(unit()) }
       "if" => do { prExpr(); prTacticBlock(); expect(TkKeyword, "else"); prTacticBlock() }
       "rewrite" => do { prQualified(); expect(TkPunct, "("); prDelimited(prExpr, ")"); expect(TkPunct, ")"); prTacticBlock() }
+      "induction" => do {
+        prIdent()
+        arms <- prAccept(TkPunct, "{")
+        if arms { do { prTacticArms(); expect(TkPunct, "}"); prelude.pure(unit()) } } else { prelude.pure(unit()) }
+      }
       _ => prFail(t.pos, "expected proof tactic, found " + prTokenText(t))
     }
   }

@@ -152,30 +152,10 @@ proof removeForgets(items, id) {
   }
 }
 
-// Marking done does not change the count. std/list length is an accumulator
-// fold (SPEC: not inductive), so the law is stated over a structural count.
-func count[A](xs List[A]) Int {
-  match xs {
-    Nil => 0
-    Cons(_, rest) => 1 + count(rest)
-  }
-}
+// Marking done preserves the library length; its law model is structural.
 
 law markDoneKeepsLength(items List[Todo], id Int) {
-  count(markDone(items, id)) == count(items)
+  list.length(markDone(items, id)) == list.length(items)
 }
 
-proof markDoneKeepsLength(items, id) {
-  match items {
-    Nil => refl
-    | Cons(t, rest) => if t.id == id {
-      rewrite markDoneKeepsLength(rest, id) {
-        refl
-      }
-    } else {
-      rewrite markDoneKeepsLength(rest, id) {
-        refl
-      }
-    }
-  }
-}
+proof markDoneKeepsLength(items, id) { induction items }
