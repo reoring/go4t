@@ -1,0 +1,53 @@
+package main
+
+// The shorter spellings of tutorial §19 in one program: record shorthand,
+// constants, or-patterns, negative literal patterns, operator sections.
+type Item = {sku: String, qty: Int} deriving Eq, Debug
+
+type State = Pending(Int) | Held | Done deriving Eq, Debug
+
+let reorderBelow = 3
+
+let labels: List[String] = ["low", "ok"]
+
+func active(s State) Bool {
+  match s {
+    Pending(_) | Held => true
+    Done => false
+  }
+}
+
+func trend(delta Int) String {
+  match delta {
+    0 => "flat"
+    | -1 | -2 => "dipping"
+    1 | 2 => "rising"
+    _ => "moving"
+  }
+}
+
+func label(item Item) String {
+  if item.qty < reorderBelow {
+    "${item.sku}: low"
+  } else {
+    "${item.sku}: ok"
+  }
+}
+
+// Every State is named, so this law and `active` break together if one is added.
+law activeUnlessDone(s State) {
+  active(s) == (s != Done)
+} proof {
+  match s
+}
+
+func main() IO[Unit] {
+  let items = [Item{sku: "bolt", qty: 2}, Item{sku: "nut", qty: 9}]
+  do {
+    println(show(items |> map(label)))
+    println(show(items |> map(_.qty) |> map(_ * 2) |> fold(0, _ + _)))
+    println(show([Pending(1), Held, Done] |> map(active)))
+    println(show([-2, 0, 1, 7] |> map(trend)))
+    println(show(length(labels)))
+  }
+}

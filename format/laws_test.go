@@ -83,7 +83,7 @@ proof f(y) {
 
 func TestLawProofExpressionRoundTrip(t *testing.T) {
 	for _, src := range []string{
-		"law f() { a == b == c }",
+		"law f() { (a == b) == c }",
 		"law f() { a == (b == c) }",
 		"law f() { (a || b) == (c && d) }",
 		"law f() { (if true { a } else { b }) == c }",

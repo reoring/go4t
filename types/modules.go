@@ -93,6 +93,8 @@ func qualifyModules(input []*ast.Module) (*moduleResolver, []*ast.File) {
 				switch d := d.(type) {
 				case *ast.FuncDecl:
 					r.declare(s, s.values, d.Name, d.Pos, false)
+				case *ast.ConstDecl:
+					r.declare(s, s.values, d.Name, d.Pos, false)
 				case *ast.LawDecl:
 					if s.laws[d.Name] != "" {
 						r.fail(d.Pos, "duplicate law %s", d.Name)
@@ -376,8 +378,22 @@ func (r *moduleResolver) declaration(d ast.Decl) {
 		r.shadow(d.Name, d.Pos)
 		d.Name = r.scope.values[d.Name]
 		r.function(d, ts, make(map[string]bool))
+	case *ast.ConstDecl:
+		r.shadow(d.Name, d.Pos)
+		d.Name = r.scope.values[d.Name]
+		r.typ(d.Type, ts)
+		d.Value = r.expr(d.Value, ts, make(map[string]bool))
 	case *ast.LawDecl:
 		d.Name = r.scope.laws[d.Name]
+		for _, p := range d.TParams {
+			if len(p.Constraints) != 0 {
+				r.fail(d.Pos, "law type parameters cannot have class constraints")
+			}
+			if p.Arity != 0 {
+				r.fail(d.Pos, "law type parameters cannot be higher-kinded")
+			}
+		}
+		r.tparams(d.TParams, ts)
 		vs := make(map[string]bool, len(d.Params))
 		for _, p := range d.Params {
 			r.typ(p.Type, ts)
@@ -390,6 +406,17 @@ func (r *moduleResolver) declaration(d ast.Decl) {
 		d.RHS = r.expr(d.RHS, ts, vs)
 	case *ast.ProofDecl:
 		d.Name = r.scope.proofs[d.Name]
+		// A proof may precede its law, including in another file of this module.
+		for _, file := range r.scope.module.Files {
+			for _, decl := range file.Decls {
+				law, ok := decl.(*ast.LawDecl)
+				if ok && (law.Name == d.Name || r.scope.laws[law.Name] == d.Name) {
+					for _, p := range law.TParams {
+						ts[p.Name] = true
+					}
+				}
+			}
+		}
 		vs := make(map[string]bool, len(d.Params))
 		for _, p := range d.Params {
 			vs[p.Name] = true
@@ -483,6 +510,10 @@ func (r *moduleResolver) pattern(p ast.Pattern, vs map[string]bool) {
 		return
 	}
 	switch p := p.(type) {
+	case *ast.POr:
+		for _, alt := range p.Alts {
+			r.pattern(alt, vs)
+		}
 	case *ast.PVar:
 		vs[p.Name] = true
 	case *ast.PAs:
@@ -527,14 +558,22 @@ func (r *moduleResolver) law(name string, pos ast.Pos) string {
 
 func (r *moduleResolver) tactic(t ast.Tactic, ts, vs map[string]bool) {
 	switch t := t.(type) {
-	case *ast.TRefl, *ast.TSample:
+	case *ast.TRefl, *ast.TAbsurd, *ast.TSample:
 	case *ast.TMatch:
-		if !vs[t.Var.Name] {
+		if t.Scrut != nil {
+			t.Scrut = r.expr(t.Scrut, ts, vs)
+		} else if !vs[t.Var.Name] {
 			r.fail(t.Var.Pos, "match variable %s is not a proof variable", t.Var.DisplayName())
 		}
 		for _, arm := range t.Arms {
 			local := scopeCopy(vs)
-			r.pattern(arm.Pat, local)
+			if or, ok := arm.Pat.(*ast.POr); ok {
+				for _, alternative := range or.Alts {
+					r.pattern(alternative, local)
+				}
+			} else {
+				r.pattern(arm.Pat, local)
+			}
 			r.tactic(arm.Body, ts, local)
 		}
 	case *ast.TIf:

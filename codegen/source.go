@@ -20,6 +20,9 @@ func (g *generator) indexSources(prog *types.Program) {
 	for _, file := range prog.Files {
 		for _, decl := range file.Decls {
 			g.sources[decl] = file.Name
+			if constant, ok := decl.(*ast.ConstDecl); ok {
+				g.sources[prog.Funcs[constant.Name].Decl] = file.Name
+			}
 			if alias, ok := decl.(*ast.AliasDecl); ok {
 				g.aliases[alias.Name] = alias
 			}

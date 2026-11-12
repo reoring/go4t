@@ -37,7 +37,7 @@ func TestLawDeclarations(t *testing.T) {
 func TestLawEqualityPrecedence(t *testing.T) {
 	for _, tc := range []struct{ body, left, right string }{
 		{"a + b == c * d", "(a + b)", "(c * d)"},
-		{"a == b == c", "(a == b)", "c"},
+		{"(a == b) == c", "(a == b)", "c"},
 		{"(a || b) == (c && d)", "(a || b)", "(c && d)"},
 		{"a == (b == c)", "a", "(b == c)"},
 		{"(a == b)", "a", "b"},
@@ -100,24 +100,20 @@ func tacticShape(tactic ast.Tactic) string {
 
 func TestLawProofErrors(t *testing.T) {
 	for _, tc := range []struct{ source, want string }{
-		{"law f(x Int) { x }", "law body must be an equality (lhs == rhs)"},
-		{"law f(x Int) { x != x }", "law body must be an equality (lhs == rhs)"},
-		{"law f() { a == b && c }", "law body must be an equality (lhs == rhs)"},
+		{"law f() { a == b && c }", ambiguousLawBody},
 		{"law f() { a == b; c == d }", `expected "}", found "c"`},
 		{"law f() { let x = 1; x == x }", `expected expression, found "let"`},
-		{"law f[A](x A) { x == x }", `expected "(", found "["`},
 		{"proof f(x Int) { refl }", `expected ")", found "Int"`},
 		{"proof f(x) { if true { refl } }", `expected "else", found "}"`},
 		{"proof f(x) { if true { refl } else if false { refl } else { refl } }", `expected "{", found "if"`},
 		{"proof f(x) { match x { Some(y) if y > 0 => refl } }", "tactic match does not support guards"},
-		{"proof f(x) { match x { 1 => refl } }", "tactic match does not support literal patterns"},
-		{"proof f(x) { match x { Some(true) => refl } }", "tactic match does not support literal patterns"},
-		{"proof f(x) { match x { R{value: 1.5} => refl } }", "tactic match does not support literal patterns"},
-		{"proof f(x) { match x { (y, \"s\") => refl } }", "tactic match does not support literal patterns"},
+		{"proof f(x) { match x { 1 => refl } }", "tactic match supports only the literal patterns true and false"},
+		{"proof f(x) { match x { R{value: 1.5} => refl } }", "tactic match supports only the literal patterns true and false"},
+		{"proof f(x) { match x { (y, \"s\") => refl } }", "tactic match supports only the literal patterns true and false"},
 		{"proof f(x) { match x { whole @ Some(y) => refl } }", "tactic match does not support as-patterns"},
 		{"proof f(x) { match x { Some(y @ _) => refl } }", "tactic match does not support as-patterns"},
 		{"proof f(x) { match x { [] => refl } }", "tactic match does not support list patterns"},
-		{"proof f(x) { match f(x) { _ => refl } }", `expected "{", found "("`},
+		{"proof f(x) { induction f(x) { _ => refl } }", `expected "}", found "("`},
 		{"proof f(x) { refl; refl }", `expected "}", found "refl"`},
 		{"proof f() { x }", `expected tactic, found "x"`},
 		{"func f() Int { law g() { 1 == 1 }; 1 }", `expected expression, found "law"`},

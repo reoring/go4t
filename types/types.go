@@ -246,11 +246,14 @@ type FuncInfo struct {
 	Name   string
 	Scheme *Scheme
 	Decl   *ast.FuncDecl
+	// Constant retains surface syntax; Decl is its ordinary nullary pure function.
+	Constant *ast.ConstDecl
 }
 
-// LawInfo describes a monomorphic equation, outside the runtime value namespace.
+// LawInfo describes a universally quantified equation outside the value namespace.
 type LawInfo struct {
 	Decl       *ast.LawDecl
+	TParams    []*TVar
 	ParamTypes []Type
 	Proof      *ProofInfo
 }

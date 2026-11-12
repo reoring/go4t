@@ -16,6 +16,7 @@ func FuzzFormat(f *testing.F) {
 		"../std/list/list.gt",
 		"../std/string/string.gt",
 		"../laws/testdata/semantics.gt",
+		"../laws/testdata/tactics_forms.gt",
 	} {
 		src, err := os.ReadFile(path)
 		if err != nil {
@@ -26,6 +27,26 @@ func FuzzFormat(f *testing.F) {
 	for _, src := range []string{"", "\x00\xff", "package p", "package p\nfunc f() Int { 1 }", "// header\npackage p // tail\n", "package p\nfunc f() String { \"${1}\" }", "package p\nfunc f() Int { 1; (-2) }", "package p\nfunc f() T { x |> g(_, 1) }"} {
 		f.Add([]byte(src))
 	}
+	for _, expr := range []string{
+		"a\n- b", "a -\nb", "(a\n- b)", "x == y == z", "a < b == c", "(a < b) == c", "a == (b < c)",
+		"1_000_000", "0xFF_FF", "0b1010", "0o755", "-9223372036854775808", "-0x8000000000000000",
+		"9223372036854775808", "0xFFFFFFFFFFFFFFFFF", "1__0", "1_", "0x", "0b2", "1abc", "1_000.5",
+	} {
+		f.Add([]byte("package p\nfunc f() T { " + expr + " }"))
+	}
+	f.Add([]byte("package main\nfunc f() Int { (func(n | n) => n)(1) }"))
+	for _, pattern := range []string{
+		"A|B", "Some(A|B)", "(A|B,C|D,)", "R{value:A|B}",
+		"[A|B,..rest]", "whole@(A|B)", "whole@A|whole@B",
+		"(A|B)|C", "A|(B|C)", "-1|-2", "-2.5|3.5", `"a"|"b"`,
+	} {
+		f.Add([]byte("package main\nfunc f(x T) Int { match x { | " + pattern + " => 1 | _ => 0 } }"))
+	}
+	for _, src := range tacticsFormatSeeds {
+		f.Add([]byte(src))
+	}
+	f.Add([]byte(lawSurfaceFixture))
+	f.Add([]byte("package main; law l(a Bool) { a && (a == a) } // between\nproof { refl }"))
 	f.Fuzz(func(t *testing.T, src []byte) {
 		before, err := parser.Parse(string(src))
 		if err != nil {

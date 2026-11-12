@@ -3,6 +3,7 @@ package format
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -41,6 +42,16 @@ func File(f *ast.File) []byte {
 		end()
 	}
 	for _, d := range f.Decls {
+		if proof, ok := d.(*ast.ProofDecl); ok {
+			if proof.Implicit {
+				continue
+			}
+			if proof.Inline {
+				p.text(" ")
+				p.decl(d)
+				continue
+			}
+		}
 		p.newline()
 		p.newline()
 		p.decl(d)
@@ -175,6 +186,8 @@ func (p *printer) params(params []ast.Param) {
 func (p *printer) decl(decl ast.Decl) {
 	defer p.mark(decl.GetPos(), decl.GetEnd())()
 	switch d := decl.(type) {
+	case *ast.ConstDecl:
+		p.binding(d.Name, nil, d.Type, d.Value)
 	case *ast.FuncDecl:
 		if d.Extern != nil {
 			p.text("extern ")
@@ -192,22 +205,56 @@ func (p *printer) decl(decl ast.Decl) {
 		}
 	case *ast.LawDecl:
 		p.text("law " + d.Name)
+		p.tparams(d.TParams)
 		p.params(d.Params)
 		bodyStart := d.Pos
+		wrapped := false
 		if d.Requires != nil {
-			p.text(" requires ")
-			p.expr(d.Requires, 0)
+			clauses := d.RequiresClauses
+			if len(clauses) == 0 {
+				clauses = []ast.Expr{d.Requires}
+			}
+			q := &printer{}
+			q.expr(d.Requires, 0)
+			wrapped = len(clauses) > 1 || strings.Contains(q.b.String(), "\n") || p.col+len(" requires  {")+utf8.RuneCountInString(q.b.String()) > 80
+			if wrapped {
+				p.indent++
+				for _, clause := range clauses {
+					p.newline()
+					p.text("requires ")
+					p.expr(clause, 0)
+				}
+				p.indent--
+				p.newline()
+			} else {
+				p.text(" requires ")
+				p.expr(d.Requires, 0)
+			}
 			bodyStart = d.Requires.GetEnd()
 		}
-		p.text(" ")
+		if !wrapped {
+			p.text(" ")
+		}
 		p.open(p.delimiterBetween('{', bodyStart, exprStart(d.LHS)))
-		p.expr(d.LHS, precedence["=="])
-		p.text(" == ")
-		p.expr(d.RHS, precedence["=="]+1)
+		if d.Predicate {
+			p.lawPredicate(d.LHS, 0)
+		} else {
+			// Comparisons do not associate (ADR 0019): a comparison on either side
+			// of the equation keeps its parentheses.
+			p.expr(d.LHS, precedence["=="]+1)
+			p.text(" == ")
+			p.expr(d.RHS, precedence["=="]+1)
+		}
 		p.close(d.End)
 	case *ast.ProofDecl:
-		p.text("proof " + d.Name)
-		p.params(d.Params)
+		if d.Implicit {
+			return
+		}
+		p.text("proof")
+		if !d.Inline {
+			p.text(" " + d.Name)
+			p.params(d.Params)
+		}
 		p.text(" ")
 		p.tacticBlock(p.delimiterBetween('{', d.Pos, d.Body.GetPos()), d.End, d.Body)
 	case *ast.AliasDecl:
@@ -224,7 +271,9 @@ func (p *printer) decl(decl ast.Decl) {
 				p.text(" | ")
 			}
 			end := p.mark(c.Pos, c.End)
-			p.text(c.Name)
+			if !d.Shorthand {
+				p.text(c.Name)
+			}
 			if len(c.FieldNames) > 0 {
 				p.record(c.Pos, c.End, len(c.Fields), func(i int) { p.text(c.FieldNames[i] + ": "); p.typ(c.Fields[i]) })
 			} else if len(c.Fields) > 0 {
@@ -296,6 +345,33 @@ func (p *printer) decl(decl ast.Decl) {
 	}
 }
 
+// Comparisons in a predicate's Boolean/pipeline chain need explicit grouping:
+// ordinary expression formatting would recreate an ambiguous law body.
+func (p *printer) lawPredicate(expr ast.Expr, parent int) {
+	binary, ok := expr.(*ast.Binary)
+	if call, yes := expr.(*ast.Call); yes && call.Pipe != nil {
+		binary, ok = call.Pipe, true
+	}
+	if !ok || binary.Op != "&&" && binary.Op != "||" && binary.Op != "|>" {
+		if ok && binary.Op == "==" {
+			parent = precedence["=="] + 1
+		}
+		p.expr(expr, parent)
+		return
+	}
+	defer p.mark(exprStart(expr), expr.GetEnd())()
+	prec := precedence[binary.Op]
+	if prec < parent {
+		p.text("(")
+	}
+	p.lawPredicate(binary.L, prec)
+	p.text(" " + binary.Op + " ")
+	p.lawPredicate(binary.R, prec+1)
+	if prec < parent {
+		p.text(")")
+	}
+}
+
 func (p *printer) tacticBlock(pos, end ast.Pos, tactic ast.Tactic) {
 	p.open(pos)
 	p.tactic(tactic)
@@ -307,6 +383,8 @@ func (p *printer) tactic(tactic ast.Tactic) {
 	switch t := tactic.(type) {
 	case *ast.TRefl:
 		p.text("refl")
+	case *ast.TAbsurd:
+		p.text("absurd")
 	case *ast.TSample:
 		p.text("sample(" + strconv.FormatInt(t.Count, 10) + ")")
 	case *ast.TMatch:
@@ -315,12 +393,23 @@ func (p *printer) tactic(tactic ast.Tactic) {
 		} else {
 			p.text("match ")
 		}
-		p.expr(t.Var, 0)
+		var scrutinee ast.Expr = t.Var
+		if t.Scrut != nil {
+			scrutinee = t.Scrut
+		}
+		// Parentheses preserve the Scrut/Var distinction for `(x)`.
+		if _, ident := t.Scrut.(*ast.Ident); ident {
+			p.text("(")
+			p.expr(scrutinee, 0)
+			p.text(")")
+		} else {
+			p.expr(scrutinee, 0)
+		}
 		if t.Bare {
 			return
 		}
 		p.text(" ")
-		p.open(p.delimiterBetween('{', t.Var.GetEnd(), t.End))
+		p.open(p.delimiterBetween('{', scrutinee.GetEnd(), t.End))
 		for i, arm := range t.Arms {
 			if i > 0 {
 				p.newline()
@@ -364,13 +453,24 @@ func (p *printer) tactic(tactic ast.Tactic) {
 }
 
 func (p *printer) tacticArm(arm ast.TacticArm) {
-	p.pattern(arm.Pat)
+	if alternatives, ok := arm.Pat.(*ast.POr); ok {
+		for i, alternative := range alternatives.Alts {
+			if i > 0 {
+				p.text(" | ")
+			}
+			p.pattern(alternative)
+		}
+	} else {
+		p.pattern(arm.Pat)
+	}
 	p.text(" => ")
 	p.tactic(arm.Body)
 }
 
 func (p *printer) multilineTacticArm(arm ast.TacticArm) bool {
-	if _, simple := arm.Body.(*ast.TRefl); !simple {
+	switch arm.Body.(type) {
+	case *ast.TRefl, *ast.TAbsurd:
+	default:
 		return true
 	}
 	q := &printer{indent: p.indent, col: p.col, comments: p.comments}
@@ -447,8 +547,8 @@ func (p *printer) block(b *ast.Block) {
 	p.close(b.End)
 }
 
-// A leading negative expression is a layout continuation, not a new statement.
-// Parentheses separate it without adding a semantic node.
+// Layout rejects a leading minus where the preceding statement could end.
+// Parentheses are required to keep a negative expression a separate statement.
 func (p *printer) statementExpr(e ast.Expr) {
 	if negativeStart(e) {
 		p.text("(")
@@ -461,6 +561,8 @@ func (p *printer) statementExpr(e ast.Expr) {
 
 func negativeStart(e ast.Expr) bool {
 	switch e := e.(type) {
+	case *ast.IntLit:
+		return e.Value < 0
 	case *ast.Unary:
 		return e.Op == "-"
 	case *ast.Binary:
@@ -508,6 +610,10 @@ func (p *printer) expr(e ast.Expr, parent int) {
 	defer p.mark(exprStart(e), e.GetEnd())()
 	prec := 9
 	switch e := e.(type) {
+	case *ast.IntLit:
+		if e.Value < 0 {
+			prec = 7
+		}
 	case *ast.Binary:
 		prec = precedence[e.Op]
 	case *ast.Call:
@@ -539,7 +645,11 @@ func (p *printer) expr(e ast.Expr, parent int) {
 			p.text(e.Name)
 		}
 	case *ast.IntLit:
-		p.text(strconv.FormatInt(e.Value, 10))
+		if e.Text != "" {
+			p.text(e.Text)
+		} else {
+			p.text(strconv.FormatInt(e.Value, 10))
+		}
 	case *ast.FloatLit:
 		text := strconv.FormatFloat(e.Value, 'g', -1, 64)
 		if !strings.ContainsAny(text, ".eE") {
@@ -583,7 +693,15 @@ func (p *printer) expr(e ast.Expr, parent int) {
 			p.token("(", e.Pos)
 			for i, a := range e.Args {
 				p.comma(i)
-				p.expr(a, 0)
+				if section, ok := a.(*ast.Lambda); ok && section.Section {
+					if _, projection := section.Body.(*ast.Field); projection {
+						p.expr(a, 0)
+					} else {
+						p.expr(section.Body, 0)
+					}
+				} else {
+					p.expr(a, 0)
+				}
 			}
 			p.token(")", closePos(e.End))
 		}
@@ -639,12 +757,18 @@ func (p *printer) expr(e ast.Expr, parent int) {
 		p.expr(e.Scrut, 0)
 		p.text(" ")
 		p.open(e.Pos)
-		for i, a := range e.Arms {
+		arms := e.Arms
+		if e.SourceArms != nil {
+			arms = e.SourceArms
+		}
+		for i, a := range arms {
 			if i > 0 {
 				p.newline()
 			}
 			end := p.mark(a.Pos, a.End)
-			if !p.inline && p.multilineArm(a) {
+			// A line cannot start with "-" (ADR 0019), so an arm whose pattern
+			// starts with a negative literal takes the leading separator too.
+			if !p.inline && (p.multilineArm(a) || i > 0 && negativePattern(a.Pat)) {
 				p.text("| ")
 			}
 			p.arm(a)
@@ -699,6 +823,21 @@ func (p *printer) arm(a ast.Arm) {
 	p.expr(a.Body, 0)
 }
 
+func negativePattern(pat ast.Pattern) bool {
+	switch pat := pat.(type) {
+	case *ast.POr:
+		return len(pat.Alts) > 0 && negativePattern(pat.Alts[0])
+	case *ast.PLit:
+		switch lit := pat.X.(type) {
+		case *ast.IntLit:
+			return lit.Value < 0 || strings.HasPrefix(lit.Text, "-")
+		case *ast.FloatLit:
+			return math.Signbit(lit.Value)
+		}
+	}
+	return false
+}
+
 func (p *printer) multilineArm(a ast.Arm) bool {
 	q := &printer{indent: p.indent, col: p.col, comments: p.comments}
 	q.arm(a)
@@ -706,7 +845,11 @@ func (p *printer) multilineArm(a ast.Arm) bool {
 }
 func (p *printer) binary(e *ast.Binary) {
 	if e.Op != "|>" {
-		p.expr(e.L, precedence[e.Op])
+		leftPrec := precedence[e.Op]
+		if leftPrec == precedence["=="] {
+			leftPrec++
+		}
+		p.expr(e.L, leftPrec)
 		p.text(" " + e.Op + " ")
 		p.expr(e.R, precedence[e.Op]+1)
 		return
@@ -793,6 +936,19 @@ func (p *printer) record(pos, end ast.Pos, n int, field func(int)) {
 func (p *printer) pattern(pat ast.Pattern) {
 	defer p.mark(pat.GetPos(), pat.GetEnd())()
 	switch a := pat.(type) {
+	case *ast.POr:
+		for i, alt := range a.Alts {
+			if i > 0 {
+				p.text(" | ")
+			}
+			if _, nested := alt.(*ast.POr); nested {
+				p.text("(")
+				p.pattern(alt)
+				p.text(")")
+			} else {
+				p.pattern(alt)
+			}
+		}
 	case *ast.PVar:
 		p.text(a.Name)
 	case *ast.PWild:
@@ -822,7 +978,13 @@ func (p *printer) pattern(pat ast.Pattern) {
 		p.text(")")
 	case *ast.PAs:
 		p.text(a.Name + " @ ")
-		p.pattern(a.Pat)
+		if _, or := a.Pat.(*ast.POr); or {
+			p.text("(")
+			p.pattern(a.Pat)
+			p.text(")")
+		} else {
+			p.pattern(a.Pat)
+		}
 	case *ast.PRecord:
 		p.text(a.Ctor)
 		n := len(a.Names)

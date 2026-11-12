@@ -16,7 +16,14 @@ func (c *checker) pairLaws(files []*ast.File) {
 				law := c.program.Laws[decl.Name]
 				law.Proof = c.program.Proofs[decl.Name]
 				if law.Proof == nil {
-					fail(decl.Pos, "law %s has no proof", diagnosticName(decl.Name))
+					pos, end := decl.LHS.GetPos(), decl.RHS.GetEnd()
+					params := make([]ast.Param, len(decl.Params))
+					for i, param := range decl.Params {
+						params[i] = ast.Param{Name: param.Name}
+					}
+					proof := &ast.ProofDecl{Pos: pos, End: end, Name: decl.Name, Params: params, Body: &ast.TRefl{Pos: pos, End: end}, Implicit: true}
+					law.Proof = &ProofInfo{Decl: proof, Law: law, PatVars: make(map[*ast.PVar]Type)}
+					c.program.Proofs[decl.Name] = law.Proof
 				}
 			case *ast.ProofDecl:
 				proof := c.program.Proofs[decl.Name]
@@ -44,9 +51,12 @@ func (c *checker) checkLaws(files []*ast.File) {
 			}
 			c.decl = decl
 			info := c.program.Laws[law.Name]
-			b := c.body(nil, nil)
+			b := c.body(nil, paramScope(info.TParams))
 			env := lawParams(law.Params, info.ParamTypes)
 			_, sampled := info.Proof.Decl.Body.(*ast.TSample)
+			if sampled && len(info.TParams) != 0 {
+				fail(info.Proof.Decl.Body.GetPos(), "sample does not support type parameters")
+			}
 			if sampled && law.Requires != nil {
 				fail(info.Proof.Decl.Body.GetPos(), "sample does not support requires")
 			}
@@ -62,9 +72,17 @@ func (c *checker) checkLaws(files []*ast.File) {
 				unify(law.Requires.GetPos(), Bool, b.inferExpected(law.Requires, env, Bool))
 			}
 			left := b.infer(law.LHS, env)
-			right := b.inferExpected(law.RHS, env, left)
-			unify(law.RHS.GetPos(), left, right)
-			b.finish()
+			if law.Predicate {
+				b.inferExpected(law.RHS, env, Bool)
+				b.finish()
+				if prune(left) != Bool {
+					fail(law.LHS.GetPos(), "law body must be an equation (lhs == rhs) or a Bool expression, got %s", left)
+				}
+			} else {
+				right := b.inferExpected(law.RHS, env, left)
+				unify(law.RHS.GetPos(), left, right)
+				b.finish()
+			}
 			if sampled {
 				b.dictionary(law.Pos, Constraint{Class: "Eq", Arg: AnnOf(law.LHS).Type})
 			} else {
@@ -81,7 +99,7 @@ func (c *checker) checkLaws(files []*ast.File) {
 			}
 			c.decl = decl
 			info := c.program.Proofs[proof.Name]
-			b := c.body(nil, nil)
+			b := c.body(nil, paramScope(info.Law.TParams))
 			b.tactic(proof.Body, lawParams(proof.Params, info.Law.ParamTypes), info)
 			b.finish()
 			for pat, typ := range info.PatVars {
@@ -108,7 +126,7 @@ func lawParams(params []ast.Param, types []Type) *locals {
 
 func (b *bodyChecker) tactic(t ast.Tactic, env *locals, proof *ProofInfo) {
 	switch t := t.(type) {
-	case *ast.TRefl:
+	case *ast.TRefl, *ast.TAbsurd:
 	case *ast.TSample:
 		if proof.Decl.Body != t {
 			fail(t.Pos, "sample must be the whole proof body")
@@ -117,27 +135,29 @@ func (b *bodyChecker) tactic(t ast.Tactic, env *locals, proof *ProofInfo) {
 			fail(t.Pos, "sample count must be an Int literal in 1..100000")
 		}
 	case *ast.TMatch:
-		typ, _ := env.lookup(t.Var.Name)
-		if typ == nil {
+		var scrutinee ast.Expr = t.Var
+		if t.Scrut != nil {
+			scrutinee = t.Scrut
+		} else if typ, _ := env.lookup(t.Var.Name); typ == nil {
 			fail(t.Var.Pos, "match variable %s is not a proof variable", t.Var.DisplayName())
 		}
-		b.infer(t.Var, env)
+		typ := b.infer(scrutinee, env)
 		head := prune(typ)
 		if app, ok := head.(*TApp); ok {
 			head = prune(app.Fun)
 		}
 		con, ok := head.(*TCon)
 		if !ok {
-			fail(t.Var.Pos, "cannot split %s", typ)
+			fail(scrutinee.GetPos(), "cannot split %s", typ)
 		}
 		_, tuple := IsTuple(con)
-		if !tuple && b.c.program.DataTypes[con.Name] == nil {
-			fail(t.Var.Pos, "cannot split %s", typ)
+		if !tuple && con != Bool && b.c.program.DataTypes[con.Name] == nil {
+			fail(scrutinee.GetPos(), "cannot split %s", typ)
 		}
 		if t.Induction {
 			data := b.c.program.DataTypes[con.Name]
-			if data == nil {
-				fail(t.Var.Pos, "cannot split %s", typ)
+			if data == nil || t.Var == nil {
+				fail(scrutinee.GetPos(), "cannot split %s", typ)
 			}
 			quantified := false
 			for _, param := range proof.Decl.Params {
@@ -150,28 +170,54 @@ func (b *bodyChecker) tactic(t ast.Tactic, env *locals, proof *ProofInfo) {
 				return
 			}
 			for _, arm := range t.Arms {
-				pat, ok := arm.Pat.(*ast.PCtor)
-				if !ok {
-					fail(arm.Pos, "induction arms require constructor patterns with field binders")
-				}
-				for _, field := range pat.Args {
-					switch field.(type) {
-					case *ast.PVar, *ast.PWild:
-					default:
-						fail(field.GetPos(), "induction arms require constructor patterns with field binders")
+				for _, alternative := range ast.Alternatives(arm.Pat) {
+					pat, ok := alternative.(*ast.PCtor)
+					if !ok {
+						fail(arm.Pos, "induction arms require constructor patterns with field binders")
+					}
+					for _, field := range pat.Args {
+						switch field.(type) {
+						case *ast.PVar, *ast.PWild:
+						default:
+							fail(field.GetPos(), "induction arms require constructor patterns with field binders")
+						}
 					}
 				}
 			}
 		}
-		rows := make([][]ast.Pattern, len(t.Arms))
-		for i, arm := range t.Arms {
+		if t.Bare {
+			return
+		}
+		var rows [][]ast.Pattern
+		for index := range t.Arms {
+			arm := &t.Arms[index]
 			checkTacticPattern(arm.Pat)
-			local := newLocals(env)
-			b.patVars = proof.PatVars
-			b.pattern(arm.Pat, typ, local)
-			b.patVars = nil
-			rows[i] = []ast.Pattern{arm.Pat}
-			b.tactic(arm.Body, local, proof)
+			// Expanded once, here: record patterns are identified by node, so
+			// the prover must split on exactly the patterns checked below.
+			alternatives := ast.Alternatives(arm.Pat)
+			arm.Alts = alternatives
+			var bindings *locals
+			for _, alternative := range alternatives {
+				local := newLocals(env)
+				b.patVars = proof.PatVars
+				b.pattern(alternative, typ, local)
+				b.patVars = nil
+				if bindings != nil {
+					if len(bindings.values) != len(local.values) {
+						fail(arm.Pos, "or-pattern alternatives must bind the same variables")
+					}
+					for name, expected := range bindings.values {
+						actual := local.values[name]
+						if actual == nil {
+							fail(arm.Pos, "or-pattern alternatives must bind the same variables")
+						}
+						unify(arm.Pos, expected, actual)
+					}
+				}
+				bindings = local
+				rows = append(rows, []ast.Pattern{alternative})
+			}
+			b.tactic(arm.Body, bindings, proof)
 		}
 		missing := b.c.uncovered(rows, []Type{typ}, 5)
 		if len(missing) != 0 {
@@ -196,10 +242,22 @@ func (b *bodyChecker) tactic(t ast.Tactic, env *locals, proof *ProofInfo) {
 		if len(t.Args) != len(law.ParamTypes) {
 			fail(t.Pos, "arity mismatch: want %d arguments, got %d", len(law.ParamTypes), len(t.Args))
 		}
-		*t.Law.AnnSlot() = &Ann{Ref: RefLaw, Type: &TFunc{Params: law.ParamTypes, Ret: AnnOf(law.Decl.LHS).Type}}
+		typ := &TFunc{Params: law.ParamTypes, Ret: AnnOf(law.Decl.LHS).Type}
+		var inst []Type
+		if law == proof.Law {
+			// An induction hypothesis stays at the current rigid parameters.
+			for _, param := range law.TParams {
+				inst = append(inst, param)
+			}
+		} else if len(law.TParams) != 0 {
+			var sub map[*TVar]Type
+			sub, inst = b.c.instantiate(law.TParams)
+			typ = substitute(typ, sub).(*TFunc)
+		}
+		*t.Law.AnnSlot() = &Ann{Ref: RefLaw, Type: typ, Inst: inst}
 		b.exprs = append(b.exprs, t.Law)
 		for i, arg := range t.Args {
-			unify(arg.GetPos(), law.ParamTypes[i], b.inferExpected(arg, env, law.ParamTypes[i]))
+			unify(arg.GetPos(), typ.Params[i], b.inferExpected(arg, env, typ.Params[i]))
 		}
 		b.tactic(t.Body, env, proof)
 	}
@@ -208,6 +266,14 @@ func (b *bodyChecker) tactic(t ast.Tactic, env *locals, proof *ProofInfo) {
 func checkTacticPattern(p ast.Pattern) {
 	switch p := p.(type) {
 	case *ast.PVar, *ast.PWild:
+	case *ast.POr:
+		for _, alternative := range p.Alts {
+			checkTacticPattern(alternative)
+		}
+	case *ast.PLit:
+		if _, ok := p.X.(*ast.BoolLit); !ok {
+			fail(p.Pos, "tactic match supports only the literal patterns true and false")
+		}
 	case *ast.PCtor:
 		if p.List {
 			fail(p.Pos, "tactic match does not support list patterns")
@@ -224,7 +290,7 @@ func checkTacticPattern(p ast.Pattern) {
 			checkTacticPattern(elem)
 		}
 	default:
-		fail(p.GetPos(), "tactic match does not support literal or as-patterns")
+		fail(p.GetPos(), "tactic match does not support as-patterns")
 	}
 }
 

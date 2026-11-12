@@ -353,14 +353,14 @@ func (dictself dict_result_Debug_Result) prelude_Debug(a_ any) any {
 
 //line std/result/result.gt:108
 func result_either_(r_ any, onErr_ any, onOk_ any) any {
-	var _go4t498 any = r_
-	_ = _go4t498
+	var _go4t502 any = r_
+	_ = _go4t502
 //line std/result/result.gt:110
-	switch _go4t499 := _go4t498.(type) {
+	switch _go4t503 := _go4t502.(type) {
 	case *result_Result_Err:
-		_ = _go4t499
+		_ = _go4t503
 		{
-			var e_ any = _go4t499.F0
+			var e_ any = _go4t503.F0
 			_ = e_
 //line std/result/result.gt:110
 //line std/result/result.gt:110
@@ -369,10 +369,10 @@ func result_either_(r_ any, onErr_ any, onOk_ any) any {
 	}
 //line std/result/result.gt:111
 	{
-		_go4t500 := _go4t498.(*result_Result_Ok)
-		_ = _go4t500
+		_go4t504 := _go4t502.(*result_Result_Ok)
+		_ = _go4t504
 		{
-			var a_ any = _go4t500.F0
+			var a_ any = _go4t504.F0
 			_ = a_
 //line std/result/result.gt:111
 //line std/result/result.gt:111
@@ -383,22 +383,22 @@ func result_either_(r_ any, onErr_ any, onOk_ any) any {
 
 //line std/result/result.gt:38
 func result_fromOption_(o_ any, d_ any) any {
-	var _go4t501 any = o_
-	_ = _go4t501
+	var _go4t505 any = o_
+	_ = _go4t505
 //line std/result/result.gt:40
-	switch _go4t502 := _go4t501.(type) {
+	switch _go4t506 := _go4t505.(type) {
 	case *prelude_Option_None:
-		_ = _go4t502
+		_ = _go4t506
 //line std/result/result.gt:40
 //line std/result/result.gt:40
 		return d_
 	}
 //line std/result/result.gt:41
 	{
-		_go4t503 := _go4t501.(*prelude_Option_Some)
-		_ = _go4t503
+		_go4t507 := _go4t505.(*prelude_Option_Some)
+		_ = _go4t507
 		{
-			var a_ any = _go4t503.F0
+			var a_ any = _go4t507.F0
 			_ = a_
 //line std/result/result.gt:41
 //line std/result/result.gt:41
@@ -409,12 +409,12 @@ func result_fromOption_(o_ any, d_ any) any {
 
 //line std/result/result.gt:73
 func result_fromResult_(r_ any, d_ any) any {
-	var _go4t504 any = r_
-	_ = _go4t504
+	var _go4t508 any = r_
+	_ = _go4t508
 //line std/result/result.gt:75
-	switch _go4t505 := _go4t504.(type) {
+	switch _go4t509 := _go4t508.(type) {
 	case *result_Result_Err:
-		_ = _go4t505
+		_ = _go4t509
 		{
 //line std/result/result.gt:75
 //line std/result/result.gt:75
@@ -423,10 +423,10 @@ func result_fromResult_(r_ any, d_ any) any {
 	}
 //line std/result/result.gt:76
 	{
-		_go4t506 := _go4t504.(*result_Result_Ok)
-		_ = _go4t506
+		_go4t510 := _go4t508.(*result_Result_Ok)
+		_ = _go4t510
 		{
-			var a_ any = _go4t506.F0
+			var a_ any = _go4t510.F0
 			_ = a_
 //line std/result/result.gt:76
 //line std/result/result.gt:76
@@ -437,12 +437,12 @@ func result_fromResult_(r_ any, d_ any) any {
 
 //line std/result/result.gt:101
 func result_isErr_(r_ any) bool {
-	var _go4t507 any = r_
-	_ = _go4t507
+	var _go4t511 any = r_
+	_ = _go4t511
 //line std/result/result.gt:103
-	switch _go4t508 := _go4t507.(type) {
+	switch _go4t512 := _go4t511.(type) {
 	case *result_Result_Err:
-		_ = _go4t508
+		_ = _go4t512
 		{
 //line std/result/result.gt:103
 //line std/result/result.gt:103
@@ -451,8 +451,8 @@ func result_isErr_(r_ any) bool {
 	}
 //line std/result/result.gt:104
 	{
-		_go4t509 := _go4t507.(*result_Result_Ok)
-		_ = _go4t509
+		_go4t513 := _go4t511.(*result_Result_Ok)
+		_ = _go4t513
 		{
 //line std/result/result.gt:104
 //line std/result/result.gt:104
@@ -463,20 +463,20 @@ func result_isErr_(r_ any) bool {
 
 //line std/result/result.gt:59
 func result_isNone_(o_ any) bool {
-	var _go4t510 any = o_
-	_ = _go4t510
+	var _go4t514 any = o_
+	_ = _go4t514
 //line std/result/result.gt:61
-	switch _go4t511 := _go4t510.(type) {
+	switch _go4t515 := _go4t514.(type) {
 	case *prelude_Option_None:
-		_ = _go4t511
+		_ = _go4t515
 //line std/result/result.gt:61
 //line std/result/result.gt:61
 		return true
 	}
 //line std/result/result.gt:62
 	{
-		_go4t512 := _go4t510.(*prelude_Option_Some)
-		_ = _go4t512
+		_go4t516 := _go4t514.(*prelude_Option_Some)
+		_ = _go4t516
 		{
 //line std/result/result.gt:62
 //line std/result/result.gt:62
@@ -487,12 +487,12 @@ func result_isNone_(o_ any) bool {
 
 //line std/result/result.gt:94
 func result_isOk_(r_ any) bool {
-	var _go4t513 any = r_
-	_ = _go4t513
+	var _go4t517 any = r_
+	_ = _go4t517
 //line std/result/result.gt:96
-	switch _go4t514 := _go4t513.(type) {
+	switch _go4t518 := _go4t517.(type) {
 	case *result_Result_Err:
-		_ = _go4t514
+		_ = _go4t518
 		{
 //line std/result/result.gt:96
 //line std/result/result.gt:96
@@ -501,8 +501,8 @@ func result_isOk_(r_ any) bool {
 	}
 //line std/result/result.gt:97
 	{
-		_go4t515 := _go4t513.(*result_Result_Ok)
-		_ = _go4t515
+		_go4t519 := _go4t517.(*result_Result_Ok)
+		_ = _go4t519
 		{
 //line std/result/result.gt:97
 //line std/result/result.gt:97
@@ -513,20 +513,20 @@ func result_isOk_(r_ any) bool {
 
 //line std/result/result.gt:52
 func result_isSome_(o_ any) bool {
-	var _go4t516 any = o_
-	_ = _go4t516
+	var _go4t520 any = o_
+	_ = _go4t520
 //line std/result/result.gt:54
-	switch _go4t517 := _go4t516.(type) {
+	switch _go4t521 := _go4t520.(type) {
 	case *prelude_Option_None:
-		_ = _go4t517
+		_ = _go4t521
 //line std/result/result.gt:54
 //line std/result/result.gt:54
 		return false
 	}
 //line std/result/result.gt:55
 	{
-		_go4t518 := _go4t516.(*prelude_Option_Some)
-		_ = _go4t518
+		_go4t522 := _go4t520.(*prelude_Option_Some)
+		_ = _go4t522
 		{
 //line std/result/result.gt:55
 //line std/result/result.gt:55
@@ -537,14 +537,14 @@ func result_isSome_(o_ any) bool {
 
 //line std/result/result.gt:115
 func result_liftResult_(dict_E prelude_Show, r_ any) any {
-	var _go4t519 any = r_
-	_ = _go4t519
+	var _go4t523 any = r_
+	_ = _go4t523
 //line std/result/result.gt:117
-	switch _go4t520 := _go4t519.(type) {
+	switch _go4t524 := _go4t523.(type) {
 	case *result_Result_Err:
-		_ = _go4t520
+		_ = _go4t524
 		{
-			var e_ any = _go4t520.F0
+			var e_ any = _go4t524.F0
 			_ = e_
 //line std/result/result.gt:117
 //line std/result/result.gt:117
@@ -553,10 +553,10 @@ func result_liftResult_(dict_E prelude_Show, r_ any) any {
 	}
 //line std/result/result.gt:118
 	{
-		_go4t521 := _go4t519.(*result_Result_Ok)
-		_ = _go4t521
+		_go4t525 := _go4t523.(*result_Result_Ok)
+		_ = _go4t525
 		{
-			var a_ any = _go4t521.F0
+			var a_ any = _go4t525.F0
 			_ = a_
 //line std/result/result.gt:118
 //line std/result/result.gt:118
@@ -567,14 +567,14 @@ func result_liftResult_(dict_E prelude_Show, r_ any) any {
 
 //line std/result/result.gt:66
 func result_mapErr_(r_ any, f_ any) any {
-	var _go4t522 any = r_
-	_ = _go4t522
+	var _go4t526 any = r_
+	_ = _go4t526
 //line std/result/result.gt:68
-	switch _go4t523 := _go4t522.(type) {
+	switch _go4t527 := _go4t526.(type) {
 	case *result_Result_Err:
-		_ = _go4t523
+		_ = _go4t527
 		{
-			var e_ any = _go4t523.F0
+			var e_ any = _go4t527.F0
 			_ = e_
 //line std/result/result.gt:68
 //line std/result/result.gt:68
@@ -583,10 +583,10 @@ func result_mapErr_(r_ any, f_ any) any {
 	}
 //line std/result/result.gt:69
 	{
-		_go4t524 := _go4t522.(*result_Result_Ok)
-		_ = _go4t524
+		_go4t528 := _go4t526.(*result_Result_Ok)
+		_ = _go4t528
 		{
-			var a_ any = _go4t524.F0
+			var a_ any = _go4t528.F0
 			_ = a_
 //line std/result/result.gt:69
 //line std/result/result.gt:69
@@ -597,22 +597,22 @@ func result_mapErr_(r_ any, f_ any) any {
 
 //line std/result/result.gt:45
 func result_maybe_(o_ any, d_ any, f_ any) any {
-	var _go4t525 any = o_
-	_ = _go4t525
+	var _go4t529 any = o_
+	_ = _go4t529
 //line std/result/result.gt:47
-	switch _go4t526 := _go4t525.(type) {
+	switch _go4t530 := _go4t529.(type) {
 	case *prelude_Option_None:
-		_ = _go4t526
+		_ = _go4t530
 //line std/result/result.gt:47
 //line std/result/result.gt:47
 		return d_
 	}
 //line std/result/result.gt:48
 	{
-		_go4t527 := _go4t525.(*prelude_Option_Some)
-		_ = _go4t527
+		_go4t531 := _go4t529.(*prelude_Option_Some)
+		_ = _go4t531
 		{
-			var a_ any = _go4t527.F0
+			var a_ any = _go4t531.F0
 			_ = a_
 //line std/result/result.gt:48
 //line std/result/result.gt:48
@@ -623,22 +623,22 @@ func result_maybe_(o_ any, d_ any, f_ any) any {
 
 //line std/result/result.gt:80
 func result_okOr_(o_ any, e_ any) any {
-	var _go4t528 any = o_
-	_ = _go4t528
+	var _go4t532 any = o_
+	_ = _go4t532
 //line std/result/result.gt:82
-	switch _go4t529 := _go4t528.(type) {
+	switch _go4t533 := _go4t532.(type) {
 	case *prelude_Option_None:
-		_ = _go4t529
+		_ = _go4t533
 //line std/result/result.gt:82
 //line std/result/result.gt:82
 		return &result_Result_Err{F0: e_}
 	}
 //line std/result/result.gt:83
 	{
-		_go4t530 := _go4t528.(*prelude_Option_Some)
-		_ = _go4t530
+		_go4t534 := _go4t532.(*prelude_Option_Some)
+		_ = _go4t534
 		{
-			var a_ any = _go4t530.F0
+			var a_ any = _go4t534.F0
 			_ = a_
 //line std/result/result.gt:83
 //line std/result/result.gt:83
@@ -649,12 +649,12 @@ func result_okOr_(o_ any, e_ any) any {
 
 //line std/result/result.gt:87
 func result_toOption_(r_ any) any {
-	var _go4t531 any = r_
-	_ = _go4t531
+	var _go4t535 any = r_
+	_ = _go4t535
 //line std/result/result.gt:89
-	switch _go4t532 := _go4t531.(type) {
+	switch _go4t536 := _go4t535.(type) {
 	case *result_Result_Err:
-		_ = _go4t532
+		_ = _go4t536
 		{
 //line std/result/result.gt:89
 //line std/result/result.gt:89
@@ -663,10 +663,10 @@ func result_toOption_(r_ any) any {
 	}
 //line std/result/result.gt:90
 	{
-		_go4t533 := _go4t531.(*result_Result_Ok)
-		_ = _go4t533
+		_go4t537 := _go4t535.(*result_Result_Ok)
+		_ = _go4t537
 		{
-			var a_ any = _go4t533.F0
+			var a_ any = _go4t537.F0
 			_ = a_
 //line std/result/result.gt:90
 //line std/result/result.gt:90

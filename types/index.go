@@ -244,6 +244,11 @@ func (b *indexBuilder) ctorType(c *Ctor) Type {
 }
 func (b *indexBuilder) declaration(f *ast.File, d ast.Decl) *Symbol {
 	switch d := d.(type) {
+	case *ast.ConstDecl:
+		info := b.p.Funcs[d.Name]
+		s := b.symbol(f, d.Name, VariableSymbol, d, info.Scheme.Type.Ret)
+		b.values[d.Name] = s
+		return s
 	case *ast.FuncDecl:
 		info := b.p.Funcs[d.Name]
 		if info == nil {
@@ -258,6 +263,9 @@ func (b *indexBuilder) declaration(f *ast.File, d ast.Decl) *Symbol {
 		b.laws[d.Name] = s
 		return s
 	case *ast.ProofDecl:
+		if d.Implicit || d.Inline {
+			return nil
+		}
 		info := b.p.Proofs[d.Name]
 		return b.symbol(f, d.Name, ProofSymbol, d, &TFunc{Params: info.Law.ParamTypes, Ret: exprType(info.Law.Decl.LHS)})
 	case *ast.TypeDecl:
@@ -270,7 +278,11 @@ func (b *indexBuilder) declaration(f *ast.File, d ast.Decl) *Symbol {
 		for i := range d.Ctors {
 			c := &d.Ctors[i]
 			cc := data.Ctors[i]
-			child := b.symbol(f, c.Name, ConstructorSymbol, c, b.ctorType(cc))
+			var source ast.Node = c
+			if d.Shorthand {
+				source = d
+			}
+			child := b.symbol(f, c.Name, ConstructorSymbol, source, b.ctorType(cc))
 			b.ctors[c.Name] = child
 			if s != nil && child != nil {
 				s.Children = append(s.Children, child)
@@ -385,6 +397,10 @@ func (b *indexBuilder) pattern(f *ast.File, p ast.Pattern, t Type, start, end as
 		return
 	}
 	switch p := p.(type) {
+	case *ast.POr:
+		for _, alt := range p.Alts {
+			b.pattern(f, alt, t, start, end)
+		}
 	case *ast.PVar:
 		b.local(f, p.Name, p.Pos, start, end, t, false)
 	case *ast.PAs:
@@ -508,14 +524,32 @@ func (b *indexBuilder) collectLocals(f *ast.File, d ast.Decl) {
 		var tparams []string
 		switch n := n.(type) {
 		case *ast.LawDecl:
+			for _, tp := range n.TParams {
+				tparams = append(tparams, tp.Name)
+			}
 			info := b.p.Laws[n.Name]
 			b.params(f, n.Params, &TFunc{Params: info.ParamTypes}, n.Pos, n.End)
 		case *ast.ProofDecl:
 			info := b.p.Proofs[n.Name]
-			b.params(f, n.Params, &TFunc{Params: info.Law.ParamTypes}, n.Pos, n.End)
+			if n.Inline {
+				// Inline parameters are inherited bindings, not source tokens.
+				b.params(f, info.Law.Decl.Params, &TFunc{Params: info.Law.ParamTypes}, n.Pos, n.End)
+			} else if !n.Implicit {
+				b.params(f, n.Params, &TFunc{Params: info.Law.ParamTypes}, n.Pos, n.End)
+			}
 		case *ast.TMatch:
+			var scrutinee ast.Expr = n.Var
+			if n.Scrut != nil {
+				scrutinee = n.Scrut
+			}
 			for _, arm := range n.Arms {
-				b.pattern(f, arm.Pat, exprType(n.Var), arm.Pos, arm.End)
+				if or, ok := arm.Pat.(*ast.POr); ok {
+					for _, alternative := range or.Alts {
+						b.pattern(f, alternative, exprType(scrutinee), arm.Pos, arm.End)
+					}
+				} else {
+					b.pattern(f, arm.Pat, exprType(scrutinee), arm.Pos, arm.End)
+				}
 			}
 		case *ast.FuncDecl:
 			for _, tp := range n.TParams {
@@ -571,7 +605,11 @@ func (b *indexBuilder) collectLocals(f *ast.File, d ast.Decl) {
 		case *ast.Lambda:
 			b.params(f, n.Params, exprType(n), n.Pos, n.End)
 		case *ast.Match:
-			for _, a := range n.Arms {
+			arms := n.Arms
+			if n.SourceArms != nil {
+				arms = n.SourceArms
+			}
+			for _, a := range arms {
 				b.pattern(f, a.Pat, exprType(n.Scrut), a.Pos, a.End)
 			}
 		case *ast.Block:

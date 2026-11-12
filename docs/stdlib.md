@@ -20,9 +20,9 @@ bounded. For the combined language boundary tables see
 [SPEC §10](../SPEC.md#10-boundary-behaviour).
 
 Int bounds live in `std/float`: import it and call `float.minInt()` or
-`float.maxInt()`. The decimal spelling `-9223372036854775808` is not accepted
-as an Int literal: unary minus is applied only after parsing the positive
-magnitude, which is outside Int's range. Use `float.minInt()` instead.
+`float.maxInt()`. Both are ordinary definitions, so a law may use them as
+bounds (`requires a < float.maxInt()`). The literal `-9223372036854775808` is
+also accepted: the magnitude 2^63 is valid directly after a unary minus.
 
 **Law-eligible** classifies function/extern rows by the taint rules in
 [SPEC §6.5](../SPEC.md#65-laws-and-proofs): Yes means untainted, not a guarantee
@@ -146,8 +146,8 @@ Source: [`float/float.gt`](../std/float/float.gt). 24 top-level declarations.
 
 | Source signature | Semantics | Boundary behaviour | Law-eligible |
 | --- | --- | --- | --- |
-| `extern func minInt() Int = "github.com/reoring/go4t/rt".MinInt` | Return the minimum signed 64-bit Int. | Exactly -9223372036854775808. | No |
-| `extern func maxInt() Int = "github.com/reoring/go4t/rt".MaxInt` | Return the maximum signed 64-bit Int. | Exactly 9223372036854775807. | No |
+| `func minInt() Int` | Return the minimum signed 64-bit Int. | Exactly -9223372036854775808. | No |
+| `func maxInt() Int` | Return the maximum signed 64-bit Int. | Exactly 9223372036854775807. | No |
 | `extern func abs(n Int) Int = "github.com/reoring/go4t/rt".AbsInt` | Return the wrapping integer absolute value. | abs(minInt()) = minInt(), not a saturating positive value. | No |
 | `extern func showFloat(f Float) String = "github.com/reoring/go4t/rt".ShowFloat` | Render Float with Go's shortest round-trippable g format. | NaN, +Inf, -Inf printed literally; integral Float need not have a decimal point. | No |
 | `extern func debugFloat(f Float) String = "github.com/reoring/go4t/rt".DebugFloat` | Structural Float rendering via `strconv.FormatFloat(f, 'g', -1, 64)`. | Append .0 only when the result contains none of `.`, `e`, `NaN`, `Inf`; exponents and nonfinite forms unchanged. | No |

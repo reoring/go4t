@@ -1,0 +1,5 @@
+package main
+func alwaysSome(c Bool) Option[Int] { if c { Some(1) } else { Some(1) } }
+law noSamples(c Bool) { c == c }
+proof noSamples(c) { match alwaysSome(c) { Some(_) => refl; None => refl } }
+func main() IO[Unit] { ioPure(unit()) }

@@ -265,8 +265,10 @@ var grammarLexemes = map[string]struct {
 	"upper-case identifier":       {"C", lexer.Ident},
 	"sample identifier":           {"sample", lexer.Ident},
 	"induction identifier":        {"induction", lexer.Ident},
+	"absurd identifier":           {"absurd", lexer.Ident},
 	"requires identifier":         {"requires", lexer.Ident},
 	"integer literal":             {"1", lexer.Int},
+	"decimal digits":              {"0", lexer.Int},
 	"float literal":               {"1.5", lexer.Float},
 	"string literal":              {`"text"`, lexer.String},
 	"interpolated string literal": {`"${1}"`, lexer.InterpTok},
@@ -566,7 +568,7 @@ func renderSentence(s grammarSentence) string {
 		if atom.lexical {
 			leaf := grammarLexemes[text]
 			text = leaf.text
-			if leaf.kind == lexer.Ident && text != "sample" && text != "induction" {
+			if leaf.kind == lexer.Ident && text != "sample" && text != "induction" && text != "absurd" {
 				text += strconv.Itoa(i)
 			}
 		}
@@ -583,7 +585,8 @@ func renderSentence(s grammarSentence) string {
 var grammarGenerationAllowlist = map[string]string{
 	"Class":    "superclass argument must equal the class parameter, not a fresh identifier",
 	"Instance": "given arguments must reuse parameters declared in this instance head",
-	"LawDecl":  "the outermost body operator must be equality; arbitrary Expr sides may require parentheses",
+	"LawDecl":  "equations and Boolean/pipeline predicates reject unparenthesized equality operands at the predicate's level",
+	"LawBody":  "arbitrary Expr combinations may form an ambiguous Boolean/pipeline predicate; expression constituents are generated separately",
 	"Decl":     "includes the name-dependent Class and Instance declarations",
 	"File":     "includes Decl; imports and all context-free declaration constituents have their own roots",
 }
@@ -591,13 +594,15 @@ var grammarGenerationAllowlist = map[string]string{
 func grammarProgram(root, sentence string) (string, bool) {
 	expression := ""
 	switch root {
-	case "Expr", "InferExpr", "IfExpr", "Binary", "Unary", "Postfix", "Primary", "Block", "Section", "Ident", "Int", "Float", "String", "Interp":
+	case "Expr", "InferExpr", "IfExpr", "Binary", "Disjunction", "Conjunction", "Comparison", "Sum", "Product", "Unary", "Postfix", "Primary", "Block", "Section", "Ident", "Int", "Float", "String", "Interp":
 		expression = sentence
-	case "CallArg", "Projection":
+	case "CallArg", "Projection", "OperatorSection":
 		expression = "f(" + sentence + ")"
+	case "TupleIndex":
+		expression = "value." + sentence
 	case "RecordFields":
 		expression = "C" + sentence
-	case "BinOp":
+	case "BinOp", "CompareOp":
 		expression = "1 " + sentence + " 1"
 	case "LParam":
 		expression = "func(" + sentence + ") => 1"
@@ -609,7 +614,7 @@ func grammarProgram(root, sentence string) (string, bool) {
 		expression = "match value { " + sentence + " }"
 	case "ArmSep":
 		expression = "match value { _ => 1 " + sentence + " _ => 2 }"
-	case "Pattern", "ConstructorName", "LowerIdent":
+	case "Pattern", "PatternAlt", "ConstructorName", "LowerIdent":
 		expression = "match value { " + sentence + " => 1 }"
 	case "RecordPatternFields":
 		expression = "match value { C" + sentence + " => 1 }"
@@ -617,7 +622,7 @@ func grammarProgram(root, sentence string) (string, bool) {
 		expression = "match value { [_, " + sentence + "] => 1 }"
 	case "Type", "Name", "UpperIdent":
 		return "package main; alias T = " + sentence, true
-	case "TypeDecl", "AliasDecl", "Func", "Extern", "Import", "ProofDecl":
+	case "TypeDecl", "AliasDecl", "Func", "Extern", "ConstDecl", "Import", "ProofDecl":
 		return "package main; " + sentence, true
 	case "Tactic":
 		return "package main; proof lawName() { " + sentence + " }", true
@@ -631,7 +636,7 @@ func grammarProgram(root, sentence string) (string, bool) {
 		return "package main; proof lawName(x) { match x { C" + sentence + " => refl } }", true
 	case "Separator":
 		return sentence + " package main", true
-	case "Ctor":
+	case "Ctor", "RecordTypeFields":
 		return "package main; type T = " + sentence, true
 	case "DataParams":
 		return "package main; alias T" + sentence + " = Int", true
@@ -651,7 +656,7 @@ func grammarProgram(root, sentence string) (string, bool) {
 		return "package main; instance C[T[" + sentence + "]] {}", true
 	case "Constraint":
 		// The wrapper declares exactly the name referenced by this constraint.
-		parameter := sentence[strings.LastIndex(sentence, "[")+1 : strings.LastIndex(sentence, "]")]
+		parameter := strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(sentence[strings.LastIndex(sentence, "[")+1:strings.LastIndex(sentence, "]")]), ","))
 		return "package main; instance C[T[" + parameter + "]] given " + sentence + " {}", true
 	default:
 		return "", false
@@ -848,6 +853,22 @@ func TestGrammarGeneratedRejections(t *testing.T) {
 		}
 		if !rejected {
 			t.Errorf("%s: invalid grammar failed to expose parser error %q", tc.root, tc.want)
+		}
+	}
+}
+
+func TestPolymorphicLawGrammar(t *testing.T) {
+	g := loadSpecGrammar(t)
+	witnesses, err := g.witnesses()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// LawDecl is allowlisted only for its equation delimiter. Exercise its
+	// type-parameter production with fixed, valid equation sides.
+	for _, sentence := range g.expand(g.byName["TParams"], 3, witnesses) {
+		source := "package main; law identity" + renderSentence(sentence) + "(x Int) { x == x }; proof identity(x) { refl }"
+		if _, err := parser.Parse(source); err != nil {
+			t.Fatalf("%s: %v", source, err)
 		}
 	}
 }

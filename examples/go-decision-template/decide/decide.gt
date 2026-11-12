@@ -1,10 +1,12 @@
 package decide
 
-type Ttl = NoTtl | InvalidTtl | TtlNanos(Int) deriving Eq, Debug
+// Payloads are named (`TtlNanos{nanos: Int}`), so the Go side reads
+// `ttl.Nanos`, not a positional `F0`.
+type Ttl = NoTtl | InvalidTtl | TtlNanos{nanos: Int} deriving Eq, Debug
 
-type Timestamp = NoTimestamp | InvalidTimestamp | AtNanos(Int) deriving Eq, Debug
+type Timestamp = NoTimestamp | InvalidTimestamp | AtNanos{nanos: Int} deriving Eq, Debug
 
-type Freshness = Fresh(Int) | TtlInvalid | TimestampMissing | TimestampInvalid | Stale deriving Eq, Debug
+type Freshness = Fresh{remainingNanos: Int} | TtlInvalid | TimestampMissing | TimestampInvalid | Stale deriving Eq, Debug
 
 func freshness(ttl Ttl, observedAt Timestamp, nowNanos Int) Freshness {
   match (ttl, observedAt) {
@@ -17,37 +19,34 @@ func freshness(ttl Ttl, observedAt Timestamp, nowNanos Int) Freshness {
   }
 }
 
+// Every constructor is named: adding one to Freshness makes this fail to
+// compile instead of silently counting as "not stale".
 func isStale(value Freshness) Bool {
   match value {
     Stale => true
-    _ => false
+    Fresh(_) | TtlInvalid | TimestampMissing | TimestampInvalid => false
   }
 }
 
 // ---- Laws: checked by `go4t check` for every input, not generated into Go ----
 
-// The cases that do not depend on time.
+// The cases that do not depend on time. A law with no proof is checked by refl.
 law noTtlIsFresh(at Timestamp, now Int) {
   freshness(NoTtl, at, now) == Fresh(0)
-}
-
-proof noTtlIsFresh(at, now) {
-  refl
 }
 
 law invalidTtlWins(at Timestamp, now Int) {
   freshness(InvalidTtl, at, now) == TtlInvalid
 }
 
-proof invalidTtlWins(at, now) {
-  refl
-}
-
 // The inputs the time laws talk about: a TTL up to 1000 s, and timestamps from
-// the epoch to 2096 with the observation not in the future. Written once and
-// named, so every law states the same range.
+// the epoch to 2096 with the observation not in the future.
+let maxTtlNanos = 1_000_000_000_000
+
+let maxNowNanos = 4_000_000_000_000_000_000
+
 func plausible(t Int, at Int, now Int) Bool {
-  0 <= t && t <= 1000000000000 && 0 <= at && at <= now && now <= 4000000000000000000
+  0 <= t && t <= maxTtlNanos && 0 <= at && at <= now && now <= maxNowNanos
 }
 
 // Stale exactly when the TTL has elapsed, the boundary included.
@@ -57,23 +56,16 @@ func plausible(t Int, at Int, now Int) Bool {
 // says; delete the clause and the checker prints the overflowing input.
 law staleOnceElapsed(t Int, at Int, now Int) requires plausible(t, at, now) {
   isStale(freshness(TtlNanos(t), AtNanos(at), now)) == (now - at >= t)
-}
-
-proof staleOnceElapsed(t, at, now) {
-  if now - at >= t {
-    refl
-  } else {
-    refl
-  }
+} proof {
+  match now - at >= t
 }
 
 // Until then, the remaining time is the TTL minus the elapsed time.
-law freshForTheRemainder(t Int, at Int, now Int) requires plausible(t, at, now) && now - at < t {
+law freshForTheRemainder(t Int, at Int, now Int)
+  requires plausible(t, at, now)
+  requires now - at < t
+{
   freshness(TtlNanos(t), AtNanos(at), now) == Fresh(t - (now - at))
-}
-
-proof freshForTheRemainder(t, at, now) {
-  refl
 }
 
 func main() IO[Unit] {

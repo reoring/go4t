@@ -23,7 +23,12 @@ func FuzzLexer(f *testing.F) {
 		}
 		f.Add(src)
 	}
-	for _, src := range []string{"", "\x00\xff", "α\nβ", "x\r\n// end", "1e+", "\"${\"nested\"}\"", "([{}])", "\"unterminated"} {
+	for _, src := range []string{
+		"", "\x00\xff", "α\nβ", "x\r\n// end", "1e+", "\"${\"nested\"}\"", "([{}])", "\"unterminated",
+		"a\n- b", "a -\nb", "(a\n- b)", "1_000_000", "0xFF_FF", "0b1010", "0o755",
+		"-9223372036854775808", "-0x8000000000000000", "9223372036854775808", "0xFFFFFFFFFFFFFFFFF",
+		"1__0", "1_", "0x", "0b2", "1abc", "1_000.5",
+	} {
 		f.Add([]byte(src))
 	}
 	f.Fuzz(func(t *testing.T, src []byte) {

@@ -71,13 +71,13 @@ func pair(a Int, b String) (Int, String) { (a, b) }
 }
 
 func TestPipePartialMisuseRejectedBeforeChecking(t *testing.T) {
-	for _, expression := range []string{"_", "(_)", "add(1 + _, 2)"} {
+	for _, expression := range []string{"_", "(_)", "add(1 + _ + 2, 2)"} {
 		source := "package main\nfunc value() Int {\n  " + expression + "\n}"
 		_, err := parser.Parse(source)
 		column := 3
 		if expression == "(_)" {
 			column++
-		} else if expression == "add(1 + _, 2)" {
+		} else if expression == "add(1 + _ + 2, 2)" {
 			column += 8
 		}
 		want := fmt.Sprintf("3:%d: _ is only valid as a placeholder in a call or operator section", column)

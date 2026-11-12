@@ -26,6 +26,13 @@ func propertyProofVariants(t *testing.T, e *evaluator, law lawGoal, side int) []
 	var visit func(ast.Tactic, map[string]proofVar, string)
 	visit = func(proof ast.Tactic, vars map[string]proofVar, path string) {
 		e.fuel = StepLimit
+		if condition, _, err := e.contradiction(); err != nil {
+			t.Fatalf("partial proof %s/%s contradiction: %v", law.Name, path, err)
+		} else if condition != nil {
+			// A certified impossible case has no runtime instance. Do not
+			// pretend to compare one; reachable cases still require samples.
+			return
+		}
 		left, right, err := e.goal(law, env)
 		if err != nil {
 			t.Fatalf("partial proof %s/%s: %v", law.Name, path, err)
@@ -35,7 +42,7 @@ func propertyProofVariants(t *testing.T, e *evaluator, law lawGoal, side int) []
 			variant.env.values[param.Name] = e.instantiate(env.lookup(param.Name))
 		}
 		for a := e.assumptions; a != nil; a = a.parent {
-			variant.assumptions = &assumption{condition: e.instantiate(a.condition), value: a.value, parent: variant.assumptions}
+			variant.assumptions = &assumption{condition: e.instantiate(a.condition), value: e.instantiate(a.value), parent: variant.assumptions}
 		}
 		var names []string
 		for name := range vars {
@@ -55,7 +62,7 @@ func propertyProofVariants(t *testing.T, e *evaluator, law lawGoal, side int) []
 		variant.source = propertyTermSource(t, e, variant.normal)
 		result = append(result, variant)
 		switch proof := proof.(type) {
-		case *ast.TRefl:
+		case *ast.TRefl, *ast.TAbsurd:
 		case *ast.TRewrite:
 			rule, err := e.rewriteRule(law, proof, env, vars)
 			if err != nil {
@@ -90,16 +97,45 @@ func propertyProofVariants(t *testing.T, e *evaluator, law lawGoal, side int) []
 			}
 			e.assumptions = parent
 		case *ast.TMatch:
-			v := vars[proof.Var.Name]
-			for i, arm := range proof.Arms {
-				branch := copyProofVars(vars)
-				value := e.splitPattern(arm.Pat, v, branch)
-				propertySplitVariables(e, value, v.typ, branch)
-				if value != v.value {
-					e.solutions[v.value.id] = value
+			scrutinee, v, variable, err := e.tacticScrutinee(proof, vars)
+			if err != nil {
+				t.Fatalf("partial match %s/%s: %v", law.Name, path, err)
+			}
+			arms := proof.Arms
+			if proof.Bare {
+				arms = e.inductionArms(proof, v.typ)
+			}
+			for i, arm := range arms {
+				for j, pattern := range ast.Alternatives(arm.Pat) {
+					branch := copyProofVars(vars)
+					if !variable {
+						v.value = e.fresh("$match")
+					}
+					value := e.splitPattern(pattern, v, branch)
+					propertySplitVariables(e, value, v.typ, branch)
+					parent := e.assumptions
+					if variable {
+						if value != v.value {
+							e.solutions[v.value.id] = value
+						}
+					} else {
+						e.refineMatch(scrutinee, value)
+					}
+					body := arm.Body
+					if proof.Induction {
+						caseArm := arm
+						caseArm.Pat = pattern
+						body, err = e.induction(law, proof, caseArm, value, v, env, branch)
+						if err != nil {
+							t.Fatal(err)
+						}
+					}
+					visit(body, branch, fmt.Sprintf("%s/match=%d.%d", path, i, j))
+					e.assumptions = parent
+					if variable {
+						delete(e.solutions, v.value.id)
+					}
 				}
-				visit(arm.Body, branch, fmt.Sprintf("%s/match=%d", path, i))
-				delete(e.solutions, v.value.id)
 			}
 		default:
 			t.Fatalf("unsupported property proof %T", proof)
@@ -338,4 +374,78 @@ func propertyReference(e *evaluator, name string) string {
 		}
 	}
 	return e.sourceName(name)
+}
+
+func TestTacticProofAssumptions(t *testing.T) {
+	e := newEvaluator(loadFixture(t, "tactics_forms.gt"))
+	law, err := e.extractLaw("expression")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var checked bool
+	for _, variant := range propertyProofVariants(t, e, law, 0) {
+		if !strings.Contains(variant.name, "/match=0.0") {
+			continue
+		}
+		checked = true
+		e.assumptions = nil
+		for _, test := range []struct {
+			flag  bool
+			field int64
+			want  bool
+		}{{true, 1, true}, {true, 2, false}, {false, 1, false}} {
+			clear(e.solutions)
+			for i, param := range variant.params {
+				con, _ := typeHead(param.Type)
+				if con == types.Bool {
+					e.solutions[variant.vars[i].id] = boolean(test.flag)
+				} else {
+					e.solutions[variant.vars[i].id] = integer(test.field)
+				}
+			}
+			holds, err := propertyAssumptionsHold(e, variant.assumptions)
+			if err != nil || holds != test.want {
+				t.Fatalf("flag=%t field=%d: holds=%v err=%v", test.flag, test.field, holds, err)
+			}
+		}
+	}
+	if !checked {
+		t.Fatal("expression-match partial goal was not visited")
+	}
+}
+
+func TestTacticProofRequiresSatisfyingSubstitution(t *testing.T) {
+	e := newEvaluator(loadFixture(t, "tactics/tactics_no_samples.gt"))
+	law, err := e.extractLaw("noSamples")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var checked bool
+	for _, variant := range propertyProofVariants(t, e, law, 0) {
+		if !strings.Contains(variant.name, "/match=1.0") {
+			continue
+		}
+		checked = true
+		e.assumptions = nil
+		satisfied := 0
+		for _, flag := range []bool{false, true} {
+			clear(e.solutions)
+			for _, variable := range variant.vars {
+				e.solutions[variable.id] = boolean(flag)
+			}
+			holds, err := propertyAssumptionsHold(e, variant.assumptions)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if holds {
+				satisfied++
+			}
+		}
+		if err := propertyRequireSamples(variant.name, satisfied); err == nil {
+			t.Fatal("an expression arm with no satisfying substitution must fail the oracle")
+		}
+	}
+	if !checked {
+		t.Fatal("unreachable but uncertified expression arm was not visited")
+	}
 }

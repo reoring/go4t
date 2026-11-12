@@ -38,9 +38,22 @@ func (e *evaluator) searchCandidates(law lawGoal, witnessOnly bool) candidateSea
 	result := candidateSearch{}
 	generators := make([]*candidateGenerator, len(law.Params))
 	cache := make(map[candidateKey]*candidateGenerator)
+	var sub map[*types.TVar]types.Type
+	var typeBindings []string
+	if info := e.p.Laws[law.Name]; info != nil && len(info.TParams) != 0 {
+		sub = make(map[*types.TVar]types.Type, len(info.TParams))
+		for _, param := range info.TParams {
+			sub[param] = types.Int
+			typeBindings = append(typeBindings, param.Name+" = Int")
+		}
+	}
 	for i, param := range law.Params {
-		if e.candidateType(param.Type, make(map[string]bool)) {
-			generators[i] = e.candidateGenerator(param.Type, counterexampleDepth, cache, seeds)
+		typ := param.Type
+		if sub != nil {
+			typ = substituteType(typ, sub)
+		}
+		if e.candidateType(typ, make(map[string]bool)) {
+			generators[i] = e.candidateGenerator(typ, counterexampleDepth, cache, seeds)
 		}
 		if generators[i] == nil {
 			result.message = "counterexample search skipped: no candidates for " + e.sourceName(types.TypeString(param.Type))
@@ -85,7 +98,11 @@ func (e *evaluator) searchCandidates(law lawGoal, witnessOnly bool) candidateSea
 		for i, param := range law.Params {
 			shown[i] = param.Name + " = " + e.display(bindings.values[param.Name])
 		}
-		result.message = fmt.Sprintf("counterexample: %s\n  LHS: %s\n  RHS: %s", strings.Join(shown, ", "), e.display(left), e.display(right))
+		header := "counterexample"
+		if len(typeBindings) != 0 {
+			header += " (" + strings.Join(typeBindings, ", ") + ")"
+		}
+		result.message = fmt.Sprintf("%s: %s\n  LHS: %s\n  RHS: %s", header, strings.Join(shown, ", "), e.display(left), e.display(right))
 		return result
 	}
 	if law.Requires != nil && !result.witness {

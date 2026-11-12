@@ -146,6 +146,10 @@ func Check(modules []*ast.Module) (program *Program, err error) {
 					b := c.body(f.Scheme.Constraints, paramScope(f.Scheme.TParams))
 					b.check(decl.Params, f.Scheme.Type, decl.Body)
 				}
+			case *ast.ConstDecl:
+				f := c.program.Funcs[decl.Name]
+				b := c.body(nil, nil)
+				b.check(nil, f.Scheme.Type, f.Decl.Body)
 			case *ast.InstanceDecl:
 				inst := c.instDecls[decl]
 				head := inst.head()
@@ -175,6 +179,7 @@ func Check(modules []*ast.Module) (program *Program, err error) {
 			}
 		}
 	}
+	c.checkConstantCycles()
 	c.checkLaws(files)
 	c.instantiateForeign()
 	c.program.warnRecursion()
@@ -299,6 +304,9 @@ func (c *checker) collectNames(files []*ast.File) {
 			case *ast.FuncDecl:
 				c.reserveValue(decl.Pos, decl.Name)
 				c.program.Funcs[decl.Name] = &FuncInfo{Name: decl.Name, Decl: decl}
+			case *ast.ConstDecl:
+				c.reserveValue(decl.Pos, decl.Name)
+				c.program.Funcs[decl.Name] = &FuncInfo{Name: decl.Name, Decl: constantFunction(decl), Constant: decl}
 			case *ast.LawDecl:
 				checkName(decl.Pos, decl.Name)
 				if c.program.Laws[decl.Name] != nil {
@@ -422,10 +430,32 @@ func (c *checker) collectSignatures(files []*ast.File) {
 				}
 			case *ast.FuncDecl:
 				c.program.Funcs[decl.Name].Scheme = c.scheme(decl.Pos, decl.TParams, decl.Params, decl.Ret, make(map[string]Type))
+			case *ast.ConstDecl:
+				f := c.program.Funcs[decl.Name]
+				f.Scheme = c.scheme(decl.Pos, nil, nil, f.Decl.Ret, nil)
+				if ioItem(f.Scheme.Type.Ret) != nil {
+					fail(decl.Pos, "a top-level let cannot be an IO action; write func %s() IO[…]", diagnosticName(decl.Name))
+				}
 			case *ast.LawDecl:
 				law := c.program.Laws[decl.Name]
+				scope := make(map[string]Type, len(decl.TParams))
+				for _, param := range decl.TParams {
+					checkName(decl.Pos, param.Name)
+					if len(param.Constraints) != 0 {
+						fail(decl.Pos, "law type parameters cannot have class constraints")
+					}
+					if param.Arity != 0 {
+						fail(decl.Pos, "law type parameters cannot be higher-kinded")
+					}
+					if scope[param.Name] != nil {
+						fail(decl.Pos, "duplicate type parameter %s", param.Name)
+					}
+					v := &TVar{Name: param.Name, Kind: KStar{}}
+					scope[param.Name] = v
+					law.TParams = append(law.TParams, v)
+				}
 				for _, param := range decl.Params {
-					law.ParamTypes = append(law.ParamTypes, c.valueType(param.Type, nil))
+					law.ParamTypes = append(law.ParamTypes, c.valueType(param.Type, scope))
 				}
 			}
 		}

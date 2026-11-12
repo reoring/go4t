@@ -241,8 +241,26 @@ func (p *Parser) file() *ast.File {
 		p.skipSemis()
 	}
 	for p.tok().Kind != lexer.EOF {
-		f.Decls = append(f.Decls, p.decl())
+		decl := p.decl()
+		f.Decls = append(f.Decls, decl)
 		p.skipSemis()
+		if law, ok := decl.(*ast.LawDecl); ok && p.isK("proof") {
+			next := p.i + 1
+			for p.toks[next].Kind == lexer.Punct && p.toks[next].Text == ";" {
+				next++
+			}
+			if p.toks[next].Kind == lexer.Punct && p.toks[next].Text == "{" {
+				proof := &ast.ProofDecl{Pos: p.next().Pos, Name: law.Name, Inline: true}
+				for _, param := range law.Params {
+					proof.Params = append(proof.Params, ast.Param{Name: param.Name})
+				}
+				p.skipSemis()
+				proof.Body = p.tacticBlock()
+				p.finish(proof)
+				f.Decls = append(f.Decls, proof)
+				p.skipSemis()
+			}
+		}
 	}
 	return f
 }
@@ -262,6 +280,17 @@ func (p *Parser) decl() (decl ast.Decl) {
 		return p.typeDecl()
 	case "alias":
 		return p.aliasDecl()
+	case "let":
+		pos := p.next().Pos
+		d := &ast.ConstDecl{Pos: pos, Name: p.ident()}
+		if p.acceptP(":") {
+			d.Type = p.typ()
+		} else if p.tok().Kind == lexer.Ident || p.isK("func") {
+			p.fail(p.pos(), `let annotations are written "let x: Int = …"`)
+		}
+		p.expectP("=")
+		d.Value = p.expr()
+		return d
 	case "func":
 		return p.funcDecl(false)
 	case "extern":
@@ -303,7 +332,7 @@ func (p *Parser) tparams() []ast.TypeParam {
 	var out []ast.TypeParam
 	for {
 		out = append(out, p.tparam())
-		if !p.acceptP(",") {
+		if !p.acceptP(",") || p.isP("]") {
 			break
 		}
 	}
@@ -317,6 +346,9 @@ func (p *Parser) params() []ast.Param {
 	for !p.isP(")") {
 		pos := p.pos()
 		name := p.ident()
+		if p.isP(":") {
+			p.fail(p.pos(), `parameters are written "x Int", without ":"`)
+		}
 		typ := p.typ()
 		out = append(out, ast.Param{Pos: pos, End: p.end(), Name: name, Type: typ})
 		if !p.acceptP(",") {
@@ -332,6 +364,7 @@ func (p *Parser) classDecl() ast.Decl {
 	c := &ast.ClassDecl{Pos: pos, Name: p.ident()}
 	p.expectP("[")
 	c.Param = p.tparam()
+	p.acceptP(",")
 	p.expectP("]")
 	if p.acceptP(":") {
 		c.Super = p.qualified()
@@ -339,6 +372,7 @@ func (p *Parser) classDecl() ast.Decl {
 		if n := p.ident(); n != c.Param.Name {
 			p.fail(pos, "superclass must be applied to %s", c.Param.Name)
 		}
+		p.acceptP(",")
 		p.expectP("]")
 	}
 	p.expectP("{")
@@ -373,7 +407,7 @@ func (p *Parser) instanceDecl() ast.Decl {
 				p.fail(paramPos, "duplicate instance type parameter %s", name)
 			}
 			d.Params = append(d.Params, name)
-			if !p.acceptP(",") {
+			if !p.acceptP(",") || tupleHead && p.isP(")") || !tupleHead && p.isP("]") {
 				break
 			}
 		}
@@ -387,6 +421,7 @@ func (p *Parser) instanceDecl() ast.Decl {
 			p.expectP("]")
 		}
 	}
+	p.acceptP(",")
 	p.expectP("]")
 	if p.isK("given") {
 		givenPos := p.next().Pos
@@ -401,6 +436,7 @@ func (p *Parser) instanceDecl() ast.Decl {
 			if !slices.Contains(d.Params, c.Param) {
 				p.fail(paramPos, "undeclared instance type parameter %s", c.Param)
 			}
+			p.acceptP(",")
 			p.expectP("]")
 			c.End = p.end()
 			d.Context = append(d.Context, c)
@@ -436,7 +472,7 @@ func (p *Parser) aliasDecl() ast.Decl {
 	if p.acceptP("[") {
 		for {
 			d.TParams = append(d.TParams, p.ident())
-			if !p.acceptP(",") {
+			if !p.acceptP(",") || p.isP("]") {
 				break
 			}
 		}
@@ -453,7 +489,7 @@ func (p *Parser) typeDecl() ast.Decl {
 	if p.acceptP("[") {
 		for {
 			d.TParams = append(d.TParams, p.ident())
-			if !p.acceptP(",") {
+			if !p.acceptP(",") || p.isP("]") {
 				break
 			}
 		}
@@ -461,10 +497,21 @@ func (p *Parser) typeDecl() ast.Decl {
 	}
 	p.expectP("=")
 	for {
-		c := ast.Ctor{Pos: p.pos(), Name: p.ident()}
+		c := ast.Ctor{Pos: p.pos(), Name: d.Name}
+		if p.isP("{") {
+			if len(d.Ctors) != 0 {
+				p.fail(p.pos(), "the record shorthand declares the only constructor of %s; name the constructors to add alternatives", d.Name)
+			}
+			d.Shorthand = true
+		} else {
+			c.Name = p.ident()
+		}
 		if p.acceptP("(") {
 			for !p.isP(")") {
 				c.Fields = append(c.Fields, p.typ())
+				if p.tok().Kind == lexer.Ident {
+					p.fail(p.pos(), "positional constructor fields have no names; write %s{n: Int} to name them", c.Name)
+				}
 				if !p.acceptP(",") {
 					break
 				}
@@ -478,6 +525,9 @@ func (p *Parser) typeDecl() ast.Decl {
 			}
 			for {
 				c.FieldNames = append(c.FieldNames, p.ident())
+				if p.tok().Kind == lexer.Ident || p.isK("func") {
+					p.fail(p.pos(), `record fields are written "n: Int"`)
+				}
 				p.expectP(":")
 				c.Fields = append(c.Fields, p.typ())
 				p.skipSemis()
@@ -493,6 +543,9 @@ func (p *Parser) typeDecl() ast.Decl {
 		}
 		c.End = p.end()
 		d.Ctors = append(d.Ctors, c)
+		if d.Shorthand && p.isP("|") {
+			p.fail(p.pos(), "the record shorthand declares the only constructor of %s; name the constructors to add alternatives", d.Name)
+		}
 		if !p.acceptP("|") {
 			break
 		}
@@ -534,22 +587,65 @@ func (p *Parser) funcDecl(extern bool) (decl ast.Decl) {
 func (p *Parser) lawDecl() ast.Decl {
 	pos := p.next().Pos
 	d := &ast.LawDecl{Pos: pos, Name: p.ident()}
+	d.TParams = p.tparams()
 	d.Params = p.params()
 	p.skipSemis()
-	if p.is(lexer.Ident, "requires") {
+	var clauses []ast.Expr
+	for p.is(lexer.Ident, "requires") {
 		p.next()
-		d.Requires = p.expr()
+		clause := p.expr()
+		clauses = append(clauses, clause)
+		if d.Requires == nil {
+			d.Requires = clause
+		} else {
+			d.Requires = &ast.Binary{ExprBase: ast.ExprBase{Pos: d.Requires.GetPos(), End: clause.GetEnd()}, Op: "&&", L: d.Requires, R: clause}
+		}
 		p.skipSemis()
+	}
+	if len(clauses) > 1 {
+		d.RequiresClauses = clauses
 	}
 	p.expectP("{")
 	p.skipSemis()
-	bodyPos := p.pos()
+	bodyPos, bodyStart := p.pos(), p.i
 	body := p.expr()
-	equality, ok := body.(*ast.Binary)
-	if !ok || equality.Op != "==" {
-		p.fail(bodyPos, "law body must be an equality (lhs == rhs)")
+	if equality, ok := body.(*ast.Binary); ok && equality.Op == "==" {
+		d.LHS, d.RHS = equality.L, equality.R
+	} else {
+		root := body
+		if call, ok := root.(*ast.Call); ok && call.Pipe != nil {
+			root = call.Pipe
+		}
+		if binary, ok := root.(*ast.Binary); ok && (binary.Op == "&&" || binary.Op == "||" || binary.Op == "|>") {
+			// Record grouping depth locally, without adding parentheses to the
+			// AST. Equalities inside grouped operands are deeper than the root.
+			depth, rootDepth, equalityDepth := 0, 0, -1
+			for _, token := range p.toks[bodyStart:p.i] {
+				if token.Kind != lexer.Punct {
+					continue
+				}
+				if token.Pos == binary.Pos {
+					rootDepth = depth
+				}
+				switch token.Text {
+				case "(", "[", "{":
+					depth++
+				case ")", "]", "}":
+					depth--
+				case "==":
+					if equalityDepth < 0 || depth < equalityDepth {
+						equalityDepth = depth
+					}
+				}
+			}
+			if equalityDepth == rootDepth {
+				p.fail(bodyPos, "ambiguous law body: == binds tighter than && and ||; write (lhs) == (rhs) for an equation, or parenthesize the comparison")
+			}
+		}
+		d.Predicate = true
+		d.LHS = body
+		d.RHS = &ast.BoolLit{ExprBase: ast.ExprBase{Pos: bodyPos, End: body.GetEnd()}, Value: true}
 	}
-	d.LHS, d.RHS = equality.L, equality.R
 	p.skipSemis()
 	p.expectP("}")
 	return d
@@ -588,6 +684,9 @@ func (p *Parser) tactic() (tactic ast.Tactic) {
 	case p.isK("refl"):
 		p.next()
 		return &ast.TRefl{Pos: pos}
+	case p.is(lexer.Ident, "absurd"):
+		p.next()
+		return &ast.TAbsurd{Pos: pos}
 	case p.is(lexer.Ident, "sample"):
 		p.next()
 		p.expectP("(")
@@ -596,7 +695,7 @@ func (p *Parser) tactic() (tactic ast.Tactic) {
 			p.fail(count.Pos, "sample count must be an Int literal in 1..100000")
 		}
 		p.next()
-		n, err := strconv.ParseInt(count.Text, 10, 64)
+		n, err := lexer.ParseInt(count.Text, false)
 		if err != nil || n < 1 || n > 100000 {
 			p.fail(count.Pos, "sample count must be an Int literal in 1..100000")
 		}
@@ -605,10 +704,20 @@ func (p *Parser) tactic() (tactic ast.Tactic) {
 	case p.isK("match"), p.is(lexer.Ident, "induction"):
 		induction := p.tok().Text == "induction"
 		p.next()
-		variable := &ast.Ident{ExprBase: ast.ExprBase{Pos: p.pos()}, Name: p.ident()}
-		p.finish(variable)
-		m := &ast.TMatch{Pos: pos, Var: variable, Induction: induction}
-		if induction && !p.isP("{") {
+		m := &ast.TMatch{Pos: pos, Induction: induction}
+		if induction {
+			m.Var = &ast.Ident{ExprBase: ast.ExprBase{Pos: p.pos()}, Name: p.ident()}
+			p.finish(m.Var)
+		} else {
+			bareIdentifier := p.tok().Kind == lexer.Ident && !isUpper(p.tok().Text)
+			scrutinee := p.expr()
+			if ident, ok := scrutinee.(*ast.Ident); ok && bareIdentifier && !strings.Contains(ident.Name, ".") {
+				m.Var = ident
+			} else {
+				m.Scrut = scrutinee
+			}
+		}
+		if !p.isP("{") {
 			m.Bare = true
 			return m
 		}
@@ -618,6 +727,14 @@ func (p *Parser) tactic() (tactic ast.Tactic) {
 		p.skipSemis()
 		for !p.isP("}") {
 			arm := ast.TacticArm{Pos: p.pos(), Pat: p.pattern()}
+			if p.isP("|") {
+				alternatives := &ast.POr{Pos: arm.Pos, Alts: []ast.Pattern{arm.Pat}}
+				for p.acceptP("|") {
+					alternatives.Alts = append(alternatives.Alts, p.pattern())
+				}
+				p.finish(alternatives)
+				arm.Pat = alternatives
+			}
 			p.checkTacticPattern(arm.Pat)
 			if p.isK("if") {
 				p.fail(p.pos(), "tactic match does not support guards")
@@ -662,6 +779,10 @@ func (p *Parser) tactic() (tactic ast.Tactic) {
 func (p *Parser) checkTacticPattern(pat ast.Pattern) {
 	switch pat := pat.(type) {
 	case *ast.PVar, *ast.PWild:
+	case *ast.POr:
+		for _, alternative := range pat.Alts {
+			p.checkTacticPattern(alternative)
+		}
 	case *ast.PCtor:
 		if pat.List {
 			p.fail(pat.Pos, "tactic match does not support list patterns")
@@ -678,7 +799,9 @@ func (p *Parser) checkTacticPattern(pat ast.Pattern) {
 			p.checkTacticPattern(elem)
 		}
 	case *ast.PLit:
-		p.fail(pat.Pos, "tactic match does not support literal patterns")
+		if _, ok := pat.X.(*ast.BoolLit); !ok {
+			p.fail(pat.Pos, "tactic match supports only the literal patterns true and false")
+		}
 	case *ast.PAs:
 		p.fail(pat.Pos, "tactic match does not support as-patterns")
 	default:
@@ -711,8 +834,11 @@ func (p *Parser) typ() (typ ast.Type) {
 			p.expectP(")")
 			return first
 		}
+		if p.isP(")") {
+			p.fail(p.pos(), "a tuple needs at least two elements")
+		}
 		tuple := &ast.TupleType{Pos: pos, Elems: []ast.Type{first, p.typ()}}
-		for p.acceptP(",") {
+		for p.acceptP(",") && !p.isP(")") {
 			tuple.Elems = append(tuple.Elems, p.typ())
 		}
 		p.expectP(")")
@@ -722,7 +848,7 @@ func (p *Parser) typ() (typ ast.Type) {
 	if p.acceptP("[") {
 		for {
 			tn.Args = append(tn.Args, p.typ())
-			if !p.acceptP(",") {
+			if !p.acceptP(",") || p.isP("]") {
 				break
 			}
 		}
@@ -791,6 +917,9 @@ func (p *Parser) bindingPattern() (string, ast.Pattern) {
 	if t.Kind == lexer.Ident {
 		first, _ := utf8.DecodeRuneInString(t.Text)
 		next := p.toks[p.i+1]
+		if (unicode.IsLower(first) || first == '_') && (next.Kind == lexer.Ident || next.Kind == lexer.Keyword && next.Text == "func") {
+			p.fail(next.Pos, `let annotations are written "let x: Int = …"`)
+		}
 		if (unicode.IsLower(first) || first == '_') && next.Kind == lexer.Punct && (next.Text == "=" || next.Text == ":" || next.Text == "<-") {
 			return p.ident(), nil
 		}
@@ -842,8 +971,11 @@ func (p *Parser) sectionExpr(holes *[]*ast.Ident) (expr ast.Expr) {
 		p.expectP("(")
 		for !p.isP(")") {
 			prm := ast.Param{Pos: p.pos()}
-			if p.tok().Kind == lexer.Ident && !isUpper(p.tok().Text) && p.toks[p.i+1].Text != "@" {
+			if p.tok().Kind == lexer.Ident && !isUpper(p.tok().Text) && p.toks[p.i+1].Text != "@" && p.toks[p.i+1].Text != "|" {
 				prm.Name = p.ident()
+				if p.isP(":") {
+					p.fail(p.pos(), `parameters are written "x Int", without ":"`)
+				}
 				if !p.isP(",") && !p.isP(")") {
 					prm.Type = p.typ()
 				}
@@ -974,9 +1106,49 @@ func (p *Parser) matchExpr(pos ast.Pos) (expr ast.Expr) {
 
 func (p *Parser) pattern() (pat ast.Pattern) {
 	defer func() { p.finish(pat) }()
+	first := p.patternAlt()
+	if !p.acceptP("|") {
+		return first
+	}
+	or := &ast.POr{Pos: first.GetPos(), Alts: []ast.Pattern{first}}
+	for {
+		or.Alts = append(or.Alts, p.patternAlt())
+		if !p.acceptP("|") {
+			return or
+		}
+	}
+}
+
+func (p *Parser) patternAlt() (pat ast.Pattern) {
+	defer func() { p.finish(pat) }()
 	t := p.tok()
 	switch t.Kind {
 	case lexer.Punct:
+		if t.Text == "-" {
+			p.next()
+			if p.tok().Kind != lexer.Int && p.tok().Kind != lexer.Float {
+				p.fail(p.pos(), `expected a number after "-" in a pattern`)
+			}
+			if literal := p.tok(); literal.Kind == lexer.Int {
+				// Converted with its sign, so the smallest Int is a pattern too.
+				value, err := lexer.ParseInt(literal.Text, true)
+				if err != nil {
+					p.fail(literal.Pos, "integer literal -%s is out of range for Int", literal.Text)
+				}
+				p.next()
+				text := ""
+				if literal.Text != strconv.FormatInt(value, 10)[1:] {
+					text = "-" + literal.Text
+				}
+				return &ast.PLit{Pos: t.Pos, X: &ast.IntLit{ExprBase: ast.ExprBase{Pos: t.Pos, End: p.end()}, Value: value, Text: text}}
+			}
+			lit := p.primary()
+			if n, ok := lit.(*ast.FloatLit); ok {
+				n.Value = -n.Value
+				n.Pos = t.Pos
+			}
+			return &ast.PLit{Pos: t.Pos, X: lit}
+		}
 		if t.Text == "_" {
 			p.next()
 			return &ast.PWild{Pos: t.Pos}
@@ -991,8 +1163,14 @@ func (p *Parser) pattern() (pat ast.Pattern) {
 				p.expectP(")")
 				return first
 			}
+			if p.isP(")") {
+				p.fail(t.Pos, "a tuple needs at least two elements")
+			}
 			tuple := &ast.PTuple{Pos: t.Pos, Elems: []ast.Pattern{first, p.pattern()}}
 			for p.acceptP(",") {
+				if p.isP(")") {
+					break
+				}
 				tuple.Elems = append(tuple.Elems, p.pattern())
 			}
 			p.expectP(")")
@@ -1011,7 +1189,7 @@ func (p *Parser) pattern() (pat ast.Pattern) {
 			if !unicode.IsLower(first) && first != '_' {
 				p.fail(t.Pos, "as-pattern name must be a lower-case identifier")
 			}
-			return &ast.PAs{Pos: t.Pos, Name: t.Text, Pat: p.pattern()}
+			return &ast.PAs{Pos: t.Pos, Name: t.Text, Pat: p.patternAlt()}
 		}
 		if p.isP("(") {
 			p.next()
@@ -1138,11 +1316,18 @@ func (p *Parser) binary(minPrec int, holes *[]*ast.Ident) ast.Expr {
 	} else {
 		left = p.unary()
 	}
+	compared := false
 	for {
 		t := p.tok()
 		prec, ok := binPrec[t.Text]
 		if t.Kind != lexer.Punct || !ok || prec <= minPrec {
 			return left
+		}
+		if prec == binPrec["=="] {
+			if compared {
+				p.fail(t.Pos, "comparison operators do not chain; parenthesize one comparison, as in (a < b) == c")
+			}
+			compared = true
 		}
 		p.next()
 		right := p.binary(prec, holes)
@@ -1206,6 +1391,17 @@ func (p *Parser) unary() (expr ast.Expr) {
 	t := p.tok()
 	if t.Kind == lexer.Punct && (t.Text == "-" || t.Text == "!") {
 		p.next()
+		if t.Text == "-" && p.tok().Kind == lexer.Int {
+			literal := p.tok()
+			if value, err := lexer.ParseInt(literal.Text, true); err == nil && value == -1<<63 {
+				p.next()
+				text := ""
+				if literal.Text != "9223372036854775808" {
+					text = "-" + literal.Text
+				}
+				return &ast.IntLit{ExprBase: ast.ExprBase{Pos: t.Pos}, Value: value, Text: text}
+			}
+		}
 		return &ast.Unary{ExprBase: ast.ExprBase{Pos: t.Pos}, Op: t.Text, X: p.unary()}
 	}
 	return p.postfix()
@@ -1220,23 +1416,21 @@ func (p *Parser) postfix() ast.Expr {
 			c := &ast.Call{ExprBase: ast.ExprBase{Pos: pos}, Fn: e}
 			var holes []*ast.Ident
 			for !p.isP(")") {
-				if p.isP("_") {
-					pos := p.pos()
-					var arg ast.Expr
-					if p.toks[p.i+1].Text == "." {
-						var projectionHoles []*ast.Ident
-						body := p.projection(p.placeholder(&projectionHoles))
-						arg = partialLambda(pos, body, projectionHoles, false)
-					} else {
-						arg = p.placeholder(&holes)
-					}
+				pos := p.pos()
+				var argHoles []*ast.Ident
+				arg := p.sectionExpr(&argHoles)
+				if len(argHoles) > 0 {
 					if !p.isP(",") && !p.isP(")") {
-						p.fail(pos, placeholderError)
+						p.fail(argHoles[0].Pos, placeholderError)
 					}
-					c.Args = append(c.Args, arg)
-				} else {
-					c.Args = append(c.Args, p.expr())
+					if arg == argHoles[0] {
+						holes = append(holes, argHoles...)
+					} else {
+						_, projection := arg.(*ast.Field)
+						arg = partialLambda(pos, arg, argHoles, !projection)
+					}
 				}
+				c.Args = append(c.Args, arg)
 				if !p.acceptP(",") {
 					break
 				}
@@ -1265,11 +1459,18 @@ func (p *Parser) projection(e ast.Expr) ast.Expr {
 		field := &ast.Field{ExprBase: ast.ExprBase{Pos: pos}, X: e, Index: -1}
 		if t := p.tok(); t.Kind == lexer.Int {
 			p.next()
-			index, err := strconv.Atoi(t.Text)
-			if err != nil {
+			index, err := lexer.ParseInt(t.Text, false)
+			plain := true
+			for _, r := range t.Text {
+				if r < '0' || r > '9' {
+					plain = false
+					break
+				}
+			}
+			if err != nil || !plain || int64(int(index)) != index {
 				p.fail(t.Pos, "bad tuple index %s", t.Text)
 			}
-			field.Name, field.Index = t.Text, index
+			field.Name, field.Index = t.Text, int(index)
 		} else {
 			field.Name = p.ident()
 		}
@@ -1328,11 +1529,15 @@ func (p *Parser) primary() (expr ast.Expr) {
 		return &ast.Ident{ExprBase: base, Name: t.Text}
 	case lexer.Int:
 		p.next()
-		v, err := strconv.ParseInt(t.Text, 10, 64)
+		v, err := lexer.ParseInt(t.Text, false)
 		if err != nil {
-			p.fail(t.Pos, "bad integer literal %s", t.Text)
+			p.fail(t.Pos, "%s", err)
 		}
-		return &ast.IntLit{ExprBase: base, Value: v}
+		text := ""
+		if strings.ContainsRune(t.Text, '_') || len(t.Text) > 1 && t.Text[0] == '0' {
+			text = t.Text
+		}
+		return &ast.IntLit{ExprBase: base, Value: v, Text: text}
 	case lexer.Float:
 		p.next()
 		v, err := strconv.ParseFloat(t.Text, 64)
@@ -1390,8 +1595,11 @@ func (p *Parser) primary() (expr ast.Expr) {
 				p.expectP(")")
 				return first
 			}
+			if p.isP(")") {
+				p.fail(p.pos(), "a tuple needs at least two elements")
+			}
 			tuple := &ast.TupleLit{ExprBase: base, Elems: []ast.Expr{first, p.sectionExpr(nil)}}
-			for p.acceptP(",") {
+			for p.acceptP(",") && !p.isP(")") {
 				tuple.Elems = append(tuple.Elems, p.sectionExpr(nil))
 			}
 			p.expectP(")")

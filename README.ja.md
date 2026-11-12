@@ -89,7 +89,8 @@ func main() IO[Unit] { println(debug(freshness(TtlNanos(10), AtNanos(5), 12))) }
   `missing: (TtlNanos(_), InvalidTimestamp)` で失敗します。
 - **法則**を追加すると、`Stale` のガードを別のチェックの後ろへ動かしたときや
   `>=` を `>` に変えたとき、すべての `t`、`at`、`now` を対象とする検証が失敗します。
-  証明は通常、単語 1 つ (`refl`) かケース分けで書けます。
+  証明は通常、何も書かないか(proof のない法則は `refl` で検査されます)、
+  ケース分けで書けます。
 
   ```text
   func plausible(t Int, at Int, now Int) Bool {
@@ -97,8 +98,9 @@ func main() IO[Unit] { println(debug(freshness(TtlNanos(10), AtNanos(5), 12))) }
   }
   law staleOnceElapsed(t Int, at Int, now Int) requires plausible(t, at, now) {
     isStale(freshness(TtlNanos(t), AtNanos(at), now)) == (now - at >= t)
+  } proof {
+    match now - at >= t
   }
-  proof staleOnceElapsed(t, at, now) { if now - at >= t { refl } else { refl } }
   ```
 
   範囲は通常の `Bool` 関数として 1 度だけ書き、必要な法則すべてで共有します。

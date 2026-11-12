@@ -24,7 +24,7 @@ List structure, filtering, folds, append, Option (in std/prelude) and Result com
 | `std/chan` | 0 | 6 | 6 |
 | `std/conc` | 0 | 8 | 8 |
 | `std/dyn` | 0 | 2 | 2 |
-| `std/float` | 0 | 24 | 24 |
+| `std/float` | 2 | 22 | 24 |
 | `std/http` | 3 | 13 | 16 |
 | `std/io` | 6 | 35 | 41 |
 | `std/json` | 16 | 23 | 39 |
@@ -39,7 +39,7 @@ List structure, filtering, folds, append, Option (in std/prelude) and Result com
 | `std/set` | 0 | 20 | 20 |
 | `std/state` | 10 | 0 | 10 |
 | `std/string` | 32 | 0 | 32 |
-| **Total** | **230** | **170** | **400** |
+| **Total** | **232** | **168** | **400** |
 
 ## First-reason breakdown
 
@@ -47,7 +47,7 @@ Counts are disjoint, not all contributing causes. Transitive rows retain the ult
 
 | First reason | Count |
 | --- | ---: |
-| extern | 41 |
+| extern | 39 |
 | IO result | 70 |
 | Float | 27 |
 | division/modulo | 0 |
@@ -119,8 +119,8 @@ Counts are disjoint, not all contributing causes. Transitive rows retain the ult
 | `floor` | tainted | Float | Float in signature |
 | `isNaN` | tainted | Float | Float in signature |
 | `ltFloat` | tainted | Float | Float in signature |
-| `maxInt` | tainted | extern | unlisted extern github.com/reoring/go4t/rt.MaxInt |
-| `minInt` | tainted | extern | unlisted extern github.com/reoring/go4t/rt.MinInt |
+| `maxInt` | law-eligible | source | — |
+| `minInt` | law-eligible | source | — |
 | `nan` | tainted | Float | Float in signature |
 | `parseFloat` | tainted | Float | Float in signature |
 | `pow` | tainted | Float | Float in signature |

@@ -104,7 +104,7 @@ func TestOpenTermProperty(t *testing.T) {
 			for i := range targets {
 				target := &targets[i]
 				law, _ := e.extractLaw(target.law)
-				target.source = propertyLawSource(string(original), p.Laws[target.law].Decl, target.side)
+				target.source = propertyPolymorphicSource(string(original), p.Laws[target.law].Decl, target.side)
 				target.observer = fmt.Sprintf("propertyObserve%d", i)
 				observation := propertyObservation(t, e, types.AnnOf(target.expr).Type, "value", &target.extra)
 				fmt.Fprintf(&helpers, "\nfunc %s(value %s%s) String { %s }\n", target.observer, propertyType(e, types.AnnOf(target.expr).Type), propertyParams(e, target.extra, true), observation)
@@ -477,6 +477,9 @@ func propertyFields(data *types.DataType, args []types.Type, ctor *types.Ctor) [
 // assuming their first constructor is the base case; List/Option use this same
 // DataType path, not special generators.
 func propertyInhabited(e *evaluator, typ types.Type, depth int) bool {
+	if _, rigid := types.Unalias(typ).(*types.TVar); rigid {
+		return true // The runtime oracle instantiates every law parameter at Int.
+	}
 	con, args := typeHead(typ)
 	if con == nil {
 		return false
@@ -514,6 +517,9 @@ func propertyInhabited(e *evaluator, typ types.Type, depth int) bool {
 
 func propertyValue(t *testing.T, e *evaluator, rng *rand.Rand, typ types.Type, depth, sample, offset int) *term {
 	t.Helper()
+	if _, rigid := types.Unalias(typ).(*types.TVar); rigid {
+		typ = types.Int
+	}
 	con, args := typeHead(typ)
 	if con == nil {
 		t.Fatalf("no first-order generator for %s", typ)
@@ -726,6 +732,9 @@ func propertyQuote(value string) string {
 }
 
 func propertyType(e *evaluator, typ types.Type) string {
+	if _, rigid := types.Unalias(typ).(*types.TVar); rigid {
+		return "Int"
+	}
 	if fn, ok := types.Unalias(typ).(*types.TFunc); ok {
 		params := make([]string, len(fn.Params))
 		for i, param := range fn.Params {
@@ -762,6 +771,9 @@ func propertyParams(e *evaluator, params []parameter, leadingComma bool) string 
 
 func propertyObservation(t *testing.T, e *evaluator, typ types.Type, expr string, extra *[]parameter) string {
 	t.Helper()
+	if _, rigid := types.Unalias(typ).(*types.TVar); rigid {
+		typ = types.Int
+	}
 	if fn, ok := types.Unalias(typ).(*types.TFunc); ok {
 		args := make([]string, len(fn.Params))
 		for i, param := range fn.Params {
@@ -819,10 +831,44 @@ func propertyOffset(source string, pos ast.Pos) int {
 	return len(source)
 }
 
+// Instantiate only type-name syntax, never value names or string literals.
+// Normalization and partial-goal construction still use the rigid checked AST.
+func propertyPolymorphicSource(source string, decl *ast.LawDecl, side int) string {
+	body := propertyLawSource(source, decl, side)
+	if len(decl.TParams) == 0 {
+		return body
+	}
+	start := propertyOffset(source, decl.Pos)
+	if decl.Requires != nil {
+		start = propertyOffset(source, decl.Requires.GetEnd())
+	}
+	start += strings.Index(source[start:propertyOffset(source, decl.End)], body)
+	var edits []struct{ offset, length int }
+	ast.Walk([]ast.Expr{decl.LHS, decl.RHS}[side], func(n ast.Node) {
+		name, ok := n.(*ast.TypeName)
+		if !ok {
+			return
+		}
+		for _, param := range decl.TParams {
+			if name.Name == param.Name {
+				edits = append(edits, struct{ offset, length int }{propertyOffset(source, name.Pos) - start, len(param.Name)})
+			}
+		}
+	})
+	sort.Slice(edits, func(i, j int) bool { return edits[i].offset > edits[j].offset })
+	for _, edit := range edits {
+		body = body[:edit.offset] + "Int" + body[edit.offset+edit.length:]
+	}
+	return body
+}
+
 // The AST keeps semantic expression positions (a binary operator, for example).
 // Locate the outer equality in the original token stream so the runtime oracle
 // retains the exact source spelling rather than reusing evaluator serialization.
 func propertyLawSource(source string, decl *ast.LawDecl, side int) string {
+	if decl.Predicate && side == 1 {
+		return "true"
+	}
 	start := propertyOffset(source, decl.Pos)
 	if decl.Requires != nil {
 		start = propertyOffset(source, decl.Requires.GetEnd())
@@ -833,36 +879,82 @@ func propertyLawSource(source string, decl *ast.LawDecl, side int) string {
 	if err != nil {
 		panic(err)
 	}
-	depth, opened, first, delimiter, last := 0, false, 0, 0, 0
-	for _, token := range tokens {
-		if !opened {
-			if token.Text == "{" {
-				opened = true
-				first = propertyOffset(body, token.End)
+	first := 0
+	for tokens[first].Kind != lexer.Punct || tokens[first].Text != "{" {
+		first++
+	}
+	first++
+	for tokens[first].Kind == lexer.Punct && tokens[first].Text == ";" {
+		first++
+	}
+	depth, last := 0, first
+	for i := first; i < len(tokens); i++ {
+		token := tokens[i]
+		if token.Kind == lexer.Punct {
+			if token.Text == "}" && depth == 0 {
+				last = i
+				break
 			}
+			switch token.Text {
+			case "(", "[", "{":
+				depth++
+			case ")", "]", "}":
+				depth--
+			}
+		}
+	}
+	for tokens[last-1].Kind == lexer.Punct && tokens[last-1].Text == ";" {
+		last--
+	}
+	if decl.Predicate {
+		return body[propertyOffset(body, tokens[first].Pos):propertyOffset(body, tokens[last-1].End)]
+	}
+	// A whole equation may itself be parenthesized. Remove only enclosing
+	// pairs, retaining the independent grouping on either side.
+	for tokens[first].Text == "(" && tokens[last-1].Text == ")" {
+		depth = 0
+		encloses := true
+		for i := first; i < last-1; i++ {
+			if tokens[i].Kind == lexer.Punct {
+				switch tokens[i].Text {
+				case "(":
+					depth++
+				case ")":
+					depth--
+				}
+			}
+			if depth == 0 {
+				encloses = false
+				break
+			}
+		}
+		if !encloses {
+			break
+		}
+		first++
+		last--
+	}
+	depth = 0
+	for i := last - 1; i >= first; i-- {
+		token := tokens[i]
+		if token.Kind != lexer.Punct {
 			continue
 		}
 		switch token.Text {
-		case "(", "[", "{":
+		case ")", "]", "}":
 			depth++
-		case ")", "]":
+		case "(", "[", "{":
 			depth--
-		case "}":
-			if depth == 0 {
-				last = propertyOffset(body, token.Pos)
-			} else {
-				depth--
-			}
 		case "==":
 			if depth == 0 {
-				delimiter = propertyOffset(body, token.Pos)
+				if side == 0 {
+					return strings.TrimSpace(body[propertyOffset(body, tokens[first].Pos):propertyOffset(body, token.Pos)])
+				}
+				return strings.TrimSpace(body[propertyOffset(body, token.End):propertyOffset(body, tokens[last-1].End)])
 			}
 		}
 	}
-	if side == 0 {
-		return strings.TrimSpace(body[first:delimiter])
-	}
-	return strings.TrimSpace(body[delimiter+2 : last])
+	panic("law equation has no source delimiter")
 }
 
 func propertyWrite(t *testing.T, path, source string) {
@@ -901,7 +993,11 @@ func propertyAssumptionsHold(e *evaluator, assumptions *assumption) (bool, error
 		if err != nil {
 			return false, err
 		}
-		if !alphaEqual(condition, a.value, nil) {
+		value, err := e.normal(e.instantiate(a.value))
+		if err != nil {
+			return false, err
+		}
+		if !alphaEqual(condition, value, nil) {
 			return false, nil
 		}
 	}

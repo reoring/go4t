@@ -1,0 +1,12 @@
+package main
+
+let bound = 10
+let limit: Int = bound + 1
+
+law bounded(n Int) requires n < limit { (n < limit) == true }
+proof bounded(n) { refl }
+
+law refuted(n Int) requires n < limit { n == limit }
+proof refuted(n) { refl }
+
+func main() IO[Unit] { ioPure(unit()) }

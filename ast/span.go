@@ -100,3 +100,7 @@ func (n *PAs) SetEnd(p Pos) { n.End = p }
 func (n *TacticArm) GetPos() Pos  { return n.Pos }
 func (n *TacticArm) GetEnd() Pos  { return n.End }
 func (n *TacticArm) SetEnd(p Pos) { n.End = p }
+
+func (n *POr) GetPos() Pos  { return n.Pos }
+func (n *POr) GetEnd() Pos  { return n.End }
+func (n *POr) SetEnd(p Pos) { n.End = p }

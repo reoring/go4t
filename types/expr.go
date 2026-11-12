@@ -139,6 +139,9 @@ func (b *bodyChecker) ident(e *ast.Ident, env *locals, ann *Ann) Type {
 		sub, inst := b.c.instantiate(f.Scheme.TParams)
 		ann.Ref, ann.Inst = RefFunc, inst
 		b.obligations = append(b.obligations, obligation{expr: e, constraints: subConstraints(f.Scheme.Constraints, sub)})
+		if f.Constant != nil {
+			return f.Scheme.Type.Ret
+		}
 		return substitute(f.Scheme.Type, sub)
 	}
 	if m := b.c.methods[e.Name]; m != nil {
@@ -225,6 +228,11 @@ func (b *bodyChecker) inferContext(e ast.Expr, env *locals, expected Type, lift 
 		result = App(b.c.cons[data.Name], item)
 	case *ast.Call:
 		fn := prune(b.infer(e.Fn, env))
+		if id, ok := e.Fn.(*ast.Ident); ok && AnnOf(id).Ref == RefFunc {
+			if f := b.c.program.Funcs[id.Name]; f.Constant != nil {
+				fail(id.Pos, "%s is a constant, not a function; write %s without ()", id.DisplayName(), id.DisplayName())
+			}
+		}
 		ft, ok := fn.(*TFunc)
 		if !ok {
 			ft = &TFunc{Params: make([]Type, len(e.Args)), Ret: b.c.fresh(KStar{})}
@@ -306,6 +314,9 @@ func (b *bodyChecker) inferContext(e ast.Expr, env *locals, expected Type, lift 
 		result = b.inferTail(&e.Then, env, expected)
 		unify(e.Else.GetPos(), result, b.inferTail(&e.Else, env, expected))
 	case *ast.Match:
+		if e.SourceArms != nil {
+			e.Arms = e.SourceArms
+		}
 		scrut := b.infer(e.Scrut, env)
 		result = b.c.fresh(KStar{})
 		if expected != nil {
@@ -320,6 +331,7 @@ func (b *bodyChecker) inferContext(e ast.Expr, env *locals, expected Type, lift 
 			}
 			unify(arm.Body.GetPos(), result, b.inferTail(&arm.Body, local, result))
 		}
+		b.expandOrArms(e)
 		b.matches = append(b.matches, e)
 	case *ast.Do:
 		local := newLocals(env)
@@ -421,6 +433,11 @@ func (b *bodyChecker) monadic(e ast.Expr, head Type, env *locals) Type {
 }
 
 func (b *bodyChecker) irrefutablePattern(pos ast.Pos, pat ast.Pattern, typ Type, env *locals, context string) {
+	ast.Walk(pat, func(n ast.Node) {
+		if _, ok := n.(*ast.POr); ok {
+			fail(n.GetPos(), "or-patterns are only allowed in match arms")
+		}
+	})
 	b.pattern(pat, typ, env)
 	b.patterns = append(b.patterns, patternCheck{pos: pos, pat: pat, typ: typ, context: context})
 }
@@ -454,6 +471,57 @@ func bindPattern(pos ast.Pos, name string, expected Type, env *locals) {
 
 func (b *bodyChecker) pattern(p ast.Pattern, expected Type, env *locals) {
 	switch p := p.(type) {
+	case *ast.POr:
+		var first *locals
+		for _, alt := range p.Alts {
+			local := newLocals(env.parent)
+			uses := len(b.localUses)
+			b.pattern(alt, expected, local)
+			if first == nil {
+				first = local
+				continue
+			}
+			// Alternatives share one guard/body and therefore one usage record.
+			b.localUses = b.localUses[:uses]
+			missing := ""
+			for name := range first.values {
+				if local.values[name] == nil && (missing == "" || name < missing) {
+					missing = name
+				}
+			}
+			for name := range local.values {
+				if first.values[name] == nil && (missing == "" || name < missing) {
+					missing = name
+				}
+			}
+			if missing != "" {
+				fail(alt.GetPos(), "or-pattern alternatives must bind the same variables; %s is not bound in every alternative", missing)
+			}
+			ast.Walk(alt, func(n ast.Node) {
+				var name string
+				switch n := n.(type) {
+				case *ast.PVar:
+					name = n.Name
+				case *ast.PAs:
+					name = n.Name
+				}
+				if name != "" {
+					unify(n.GetPos(), first.values[name], local.values[name])
+				}
+			})
+		}
+		if first == nil {
+			fail(p.Pos, "or-pattern needs at least one alternative")
+		}
+		for name, typ := range first.values {
+			bindPattern(p.Pos, name, typ, env)
+			if use := first.uses[name]; use != nil {
+				if env.uses == nil {
+					env.uses = make(map[string]*localUse)
+				}
+				env.uses[name] = use
+			}
+		}
 	case *ast.PWild:
 	case *ast.PVar:
 		bindPattern(p.Pos, p.Name, expected, env)
@@ -505,5 +573,49 @@ func (b *bodyChecker) pattern(p ast.Pattern, expected Type, env *locals) {
 		for i, arg := range p.Args {
 			b.pattern(arg, fields[i], env)
 		}
+	}
+}
+
+// expandOrArms runs after inference, on the resolved checker syntax. Every
+// downstream consumer (coverage, recursion, codegen and law normalization) sees
+// exactly the same ordered, or-free arms, with a shared checked guard and body.
+func (b *bodyChecker) expandOrArms(m *ast.Match) {
+	var arms []ast.Arm
+	for i, arm := range m.Arms {
+		hasOr := false
+		ast.Walk(arm.Pat, func(n ast.Node) {
+			if _, ok := n.(*ast.POr); ok {
+				hasOr = true
+			}
+		})
+		if !hasOr {
+			if arms != nil {
+				arms = append(arms, arm)
+			}
+			continue
+		}
+		alternatives := ast.Alternatives(arm.Pat)
+		if arms == nil {
+			arms = append(make([]ast.Arm, 0, len(m.Arms)+len(alternatives)-1), m.Arms[:i]...)
+		}
+		for _, pat := range alternatives {
+			// Expansion copies record ancestors of POr; retain their resolved
+			// field indexes just as for the original checked record patterns.
+			ast.Walk(pat, func(n ast.Node) {
+				if record, ok := n.(*ast.PRecord); ok && b.c.program.RecordPats[record].Ctor == nil {
+					ctor := b.c.ctors[record.Ctor]
+					b.c.program.RecordPats[record] = RecordPat{
+						Ctor: ctor, Indexes: recordIndexes(record.Pos, ctor, record.Names, !record.Rest),
+					}
+				}
+			})
+			expanded := arm
+			expanded.Pat = pat
+			arms = append(arms, expanded)
+		}
+	}
+	if arms != nil {
+		m.SourceArms = m.Arms
+		m.Arms = arms
 	}
 }

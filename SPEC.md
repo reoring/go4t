@@ -41,10 +41,18 @@ else true false given deriving law proof refl rewrite`.
 
 ### 1.3 Literals and punctuation
 
-- `Int`: decimal digits, signed 64-bit values; a negative number uses unary `-`.
+- `Int`: signed 64-bit values, written as decimal digits or with a `0x`/`0X`
+  hexadecimal, `0b`/`0B` binary or `0o`/`0O` octal prefix. `_` may separate
+  digits or occur once immediately after a base prefix: `1_000_000`, `0xFF_FF`,
+  `0b_1010`, `0o755`. It cannot trail or repeat. Leading zeros do not select
+  octal: `007` is decimal 7. The formatter preserves the literal's spelling.
+  A negative number uses unary `-`, except magnitude 2^63 directly after `-`
+  denotes the smallest Int as a single literal: `-9223372036854775808` or
+  `-0x8000000000000000`. Other out-of-range magnitudes are rejected.
 - `Float`: `Digits '.' Digits [Exponent]` or `Digits Exponent`, where
   `Exponent := ('e' | 'E') ['+' | '-'] Digits`. Examples: `1.5`, `2e3`, `1.0e-3`.
   Neither `1.` nor `.5` is a source Float literal. Overflow is a parse error.
+  Separators and base prefixes are not supported in Float literals.
 - `String`: double-quoted text with Go escapes, e.g. `"a\n"`.
 - Interpolation: `${expr}` inside a string uses `Show`; `$$` means literal `$`.
   Lone dollars and braces outside an interpolation are literal; nested strings
@@ -57,12 +65,16 @@ The lexical leaves of the syntactic grammar are token classes, not literal
 spellings. `LowerIdent` includes private lower-case names; `UpperIdent` includes
 private upper-case names (ignoring leading underscores). Neither includes `_`.
 `String` excludes interpolation; `Interp` contains at least one `${...}`.
+A number immediately followed by a letter or an invalid `_` is one lexical
+error, not separate number and identifier tokens. Tuple indices remain plain
+decimal digits without separators or prefixes.
 
 ```ebnf
 Ident      := ? identifier ?
 LowerIdent := ? lower-case identifier ?
 UpperIdent := ? upper-case identifier ?
 Int        := ? integer literal ?
+TupleIndex := ? decimal digits ?
 Float      := ? float literal ?
 String     := ? string literal ?
 Interp     := ? interpolated string literal ?
@@ -78,10 +90,15 @@ a continuation: `else`, `|`, `||`, `|>`, `.`, `)`, `]`, `given`, `deriving`,
 Newlines inside parentheses, brackets, record declarations/literals/updates and
 record patterns do not separate statements. Fields still need commas.
 
-Thus `else`, match alternatives, operators and pipeline steps may lead a line.
-A leading `-` continues the previous expression: use grouping or an explicit
-semicolon to start a separate negative expression. Explicit semicolons always
-separate statements. Tuple access `t.0.1` is not lexed as a Float literal.
+Thus `else`, match alternatives, operators other than `-` and pipeline steps may
+lead a line. If the previous token can end an expression and the innermost
+delimiter is a brace or absent, a line-leading `-` is an error at that `-`:
+`ambiguous "-" at the start of a line: end the previous line with "-" to subtract, or write (-x) for a negative value`.
+Write `a -` followed by a newline and `b` for subtraction; write `(-x)` for a
+negative statement. A `-` after an operator, `=`, `=>`, `(`, `[` or `,`, or
+inside parentheses/brackets, is unaffected. Blank lines and comments do not
+remove the ambiguity. Explicit semicolons always separate statements.
+Tuple access `t.0.1` is not lexed as a Float literal.
 
 ## 2. Program structure
 
@@ -90,7 +107,7 @@ separate statements. Tuple access `t.0.1` is not lexed as a Float literal.
 ```ebnf
 File       := {Separator} 'package' Ident {Separator} {Import} {Decl {Separator}}
 Import     := 'import' [Ident] String {Separator}
-Decl       := Class | Instance | TypeDecl | AliasDecl | Func | Extern | LawDecl | ProofDecl
+Decl       := Class | Instance | TypeDecl | AliasDecl | Func | Extern | ConstDecl | LawDecl | ProofDecl
 Name       := Ident ['.' Ident]
 Separator  := ';'
 ```
@@ -102,6 +119,10 @@ Types/classes, constructors and values have separate namespaces, so
 `type Sku = Sku(String)` is legal. Duplicate declarations within a namespace are
 errors. Record field names belong to their constructors. Builtin types cannot
 be redeclared.
+
+Top-level `let` declarations introduce constants in the value namespace, with
+the same module qualification, private-name visibility and prelude-shadowing
+warnings as functions (§3.4).
 
 ### 2.2 Modules and resolution
 
@@ -220,12 +241,12 @@ alias parameters have kind `*`; function/class parameters can have higher kinds.
 ### 3.2 Type expressions and parameters
 
 ```ebnf
-Type    := Name ['[' Type {',' Type} ']']
+Type    := Name ['[' Type {',' Type} [','] ']']
          | 'func' '(' [Type {',' Type} [',']] ')' Type
-         | '(' Type ')' | '(' Type ',' Type {',' Type} ')'
-TParams := '[' TParam {',' TParam} ']'
+         | '(' Type ')' | '(' Type ',' Type {',' Type} [','] ')'
+TParams := '[' TParam {',' TParam} [','] ']'
 TParam  := Ident ['[' '_' {',' '_'} ']'] [Name {'+' Name}]
-DataParams := '[' Ident {',' Ident} ']'
+DataParams := '[' Ident {',' Ident} [','] ']'
 ```
 
 A constructor may be partially applied where a higher kind is expected:
@@ -238,16 +259,17 @@ supplies both, regardless of their order. Unrelated constraints remain separate.
 Explicit schemes preserve parameter and constraint order. A class's own parameter
 uses superclass syntax, not a trailing constraint list.
 
-Trailing commas are accepted in function-type parameter lists, but not in
-type applications, tuple types, type-parameter lists, or higher-kind arities.
+Trailing commas are accepted in function-type parameter lists, type applications,
+tuple types and type-parameter lists, but not higher-kind arities.
+A tuple needs at least two elements; `(Int,)` is an error.
 
 ### 3.3 Algebraic data and aliases
 
 ```ebnf
-TypeDecl  := 'type' Ident [DataParams] '=' Ctor {'|' Ctor}
+TypeDecl  := 'type' Ident [DataParams] '=' (RecordTypeFields | Ctor {'|' Ctor})
              ['deriving' Name {',' Name}]
-Ctor      := Ident ['(' [Type {',' Type} [',']] ')'
-             | '{' Ident ':' Type {',' Ident ':' Type} [','] '}']
+Ctor      := Ident ['(' [Type {',' Type} [',']] ')' | RecordTypeFields]
+RecordTypeFields := '{' Ident ':' Type {',' Ident ':' Type} [','] '}'
 AliasDecl := 'alias' Ident [DataParams] '=' Type
 ```
 
@@ -256,6 +278,11 @@ also support positional construction and patterns. Recursive and parameterised
 data are allowed; deriving rules are in §7.2. There are no zero-field record
 constructors. Data and alias parameters are plain names, not constrained or
 higher-kinded function parameters.
+
+`type Row = {qty: Int}` is shorthand for `type Row = Row{qty: Int}`:
+the constructor has the type's name and must be its only constructor.
+Construction, patterns, updates, deriving and the exported Go struct are identical.
+The formatter preserves the written shorthand or explicit constructor spelling.
 
 Aliases share the type namespace, introduce no constructors, and expand before
 inference, field checking and instance resolution. They are transparent, not
@@ -269,13 +296,14 @@ types: `alias Rates = Map[Currency, Float]` prints as `Rates` where used. This i
 presentation provenance, not a new type identity. Type variables and independently
 inferred types are never renamed merely because they equal an alias's body.
 
-### 3.4 Functions and extern declarations
+### 3.4 Functions, constants and extern declarations
 
 ```ebnf
 Func   := 'func' Ident [TParams] '(' [Param {',' Param} [',']] ')' Type Block
 Param  := Ident Type
 Extern := 'extern' 'func' Ident [TParams] '(' [Param {',' Param} [',']] ')' Type
           '=' String '.' Ident
+ConstDecl := 'let' LowerIdent [':' Type] '=' Expr
 ```
 
 Top-level functions have explicitly declared rank-1 type parameters and return
@@ -283,19 +311,30 @@ types. Their final expression must match the return type. Extern declarations
 bind exported package-level Go functions; `check` validates only the go4t type.
 `build`/`run` inspect foreign signatures and generate adapters (§8.3).
 
+A top-level `let` is a nullary pure function referenced without parentheses:
+`let limit = 10` is used as `limit`, not `limit()`. Its type may be omitted
+only for an Int, Float, String or Bool literal (numeric literals may be negated).
+Other values require an annotation, e.g. `let limit: Int = defaultLimit()`.
+Constants have no type parameters and cannot have an IO action type. They may
+refer to other constants and functions; dependency cycles among constants,
+including paths through functions, are rejected. References evaluate their
+function body, not a separately cached initializer. Law eligibility follows
+the value's dependencies. `go4t test` does not discover constants named `test…`;
+`--emit-go` exports a public constant as the nullary Go function `Name() T`.
+
 ### 3.5 Classes and instances
 
 ```ebnf
-Class      := 'class' Ident '[' TParam ']' [':' Name '[' Ident ']']
+Class      := 'class' Ident '[' TParam [','] ']' [':' Name '[' Ident [','] ']']
               '{' {Separator} {MethodSig {Separator}} '}'
 MethodSig  := Ident [TParams] '(' [Param {',' Param} [',']] ')' Type
-Instance   := 'instance' Name '[' Head ']' ['given' Constraint {',' Constraint}]
+Instance   := 'instance' Name '[' Head [','] ']' ['given' Constraint {',' Constraint}]
               '{' {Separator} {InstMethod {Separator}} '}'
 InstMethod := Ident '(' [Ident {',' Ident} [',']] ')' Block
-Head       := Name ['[' HeadArg {',' HeadArg} ']']
-            | '(' Ident ',' Ident {',' Ident} ')'
+Head       := Name ['[' HeadArg {',' HeadArg} [','] ']']
+            | '(' Ident ',' Ident {',' Ident} [','] ')'
 HeadArg    := Ident
-Constraint := Name '[' Ident ']'
+Constraint := Name '[' Ident [','] ']'
 ```
 
 Classes have one parameter, possibly higher-kinded, and at most one superclass
@@ -338,30 +377,41 @@ InferExpr  := 'func' '(' [LParam {',' LParam} [',']] ')' '=>' Expr
             | IfExpr | Binary
 IfExpr     := 'if' Expr Block 'else' (Block | IfExpr)
 LParam     := LowerIdent [Type] | Pattern
-Binary     := Unary {BinOp Unary}                    // precedence below
-BinOp      := '|>' | '||' | '&&' | '==' | '!=' | '<' | '<=' | '>' | '>='
-            | '+' | '-' | '*' | '/' | '%'
+Binary     := Disjunction {'|>' Disjunction}
+Disjunction := Conjunction {'||' Conjunction}
+Conjunction := Comparison {'&&' Comparison}
+Comparison := Sum [CompareOp Sum]
+CompareOp  := '==' | '!=' | '<' | '<=' | '>' | '>='
+Sum        := Product {('+' | '-') Product}
+Product    := Unary {('*' | '/' | '%') Unary}
+BinOp      := '|>' | '||' | '&&' | CompareOp | '+' | '-' | '*' | '/' | '%'
 Unary      := {'-' | '!'} Postfix
-Postfix    := Primary {'(' [CallArg {',' CallArg} [',']] ')' | '.' Ident | '.' Int | RecordFields}
-CallArg    := Expr | '_'
+Postfix    := Primary {'(' [CallArg {',' CallArg} [',']] ')' | '.' Ident | '.' TupleIndex | RecordFields}
+CallArg    := Expr | '_' | OperatorSection
 Primary    := Name | Int | Float | String | Interp | 'true' | 'false'
-            | ConstructorName RecordFields | '(' InferExpr ')' | '(' InferExpr ',' InferExpr {',' InferExpr} ')'
+            | ConstructorName RecordFields | '(' InferExpr ')' | '(' InferExpr ',' InferExpr {',' InferExpr} [','] ')'
             | '[' [InferExpr {',' InferExpr} [',']] ']' | Block | Section
 Block      := '{' {Separator} {Stmt Separator} Expr {Separator} '}'
 Stmt       := LetStmt | LocalFunc | Expr
 LetStmt    := 'let' Pattern [':' Type] '=' Expr
 LocalFunc  := 'func' Ident '(' [Param {',' Param} [',']] ')' Type Block
 DoStmt     := Pattern '<-' Expr | LetStmt | LocalFunc | Expr
-Section    := '(' '_' BinOp Unary ')' | '(' Unary BinOp '_' ')' | '(' '_' BinOp '_' ')'
-            | '(' Projection ')'
-Projection := '_' '.' (Ident | Int) {'.' (Ident | Int)}
+Section    := '(' OperatorSection ')' | '(' Projection ')'
+OperatorSection := '_' BinOp Unary | Unary BinOp '_' | '_' BinOp '_'
+Projection := '_' '.' (Ident | TupleIndex) {'.' (Ident | TupleIndex)}
 RecordFields := '{' Ident ':' Expr {',' Ident ':' Expr} [','] '}'
 ```
 
 Precedence, low to high: `|>`; `||`; `&&`; `== != < <= > >=`; `+ -`;
-`* / %`; unary `- !`; postfix. Binary operators associate left. The grammar's
-`Name` in expression position is resolved against imports versus record fields;
-not every `x.f` is a qualified module name.
+`* / %`; unary `- !`; postfix. Binary operators associate left except comparisons:
+`== != < <= > >=` do not associate, and each operand must have higher precedence.
+A second unparenthesized comparison is an error at its operator:
+`comparison operators do not chain; parenthesize one comparison, as in (a < b) == c`.
+For example, `a < b == c` is rejected; `(a < b) == c` and `a < (b == c)`
+are syntactically valid. The formatter retains grouping on either side of a
+comparison, including both sides of a law equation. There is no chained-comparison
+sugar. The grammar's `Name` in expression position is resolved against imports
+versus record fields; not every `x.f` is a qualified module name.
 
 Unary operators may repeat. Sections have a whole unary operand on each
 non-placeholder side; parenthesise a compound expression, e.g. `(_ + (a + b))`.
@@ -391,11 +441,18 @@ otherwise unresolved arithmetic operands default to Int. Float division is IEEE
 truncates toward zero and zero division/remainder panics. `Eq`/`Ord` operators
 use the corresponding class semantics (§10.1).
 
+Comparison operators do not chain (§4.1), regardless of operand types. To compare
+a comparison result, parenthesize that operand: `(a < b) == true`.
+Integer source literals must fit Int even though arithmetic overflow wraps; the
+directly negated magnitude 2^63 is the sole exception (§1.3).
+
 ### 4.3 Blocks, lets and local recursion
 
 A block's value is its final expression. `let x = e` or `let x: T = e` binds
 for the remaining block and shadows an outer binding. Pattern lets must be
 irrefutable, e.g. `let (a, b) = pair` or a single-constructor record pattern.
+Annotations use a colon: `let x Int = 1` is rejected with a spelling hint.
+Tuple expressions accept a trailing comma, e.g. `(a, b,)`; `(a,)` is not a tuple.
 
 A bare-name lambda let, including an annotated lambda, binds its own name
 monomorphically within its body. Free self references are recursive; parameters
@@ -434,6 +491,8 @@ A lambda passed directly to a call gets its parameter types from that argument
 context before checking its body, enabling unannotated field selection there.
 Calls require exact arity; function-valued locals, arguments and fields are callable.
 There is no automatic currying.
+Parameter annotations use `x Int`, not `x: Int`, in both named functions and
+lambdas; the latter spelling receives a targeted hint.
 
 ### 4.5 Pipelines and sections
 
@@ -447,6 +506,13 @@ Parenthesised operator sections permit whole operands `_`: `(_ + 1)`, `(2 * _)`,
 `(_ < _)`, `(_ |> f)`. Two holes mean two parameters, not currying. Nested calls
 have independent placeholder scopes. Fixed arguments are evaluated inside the
 synthesized lambda body, on each application, not when constructing the section.
+
+An operator section that occupies a whole call argument needs no parentheses:
+`map(xs, _ + 1)`, `filter(xs, 0 < _)`, `fold(xs, 0, _ + _)`, and
+`xs |> map(_ + 1)`. Its placeholder scope is independent of the containing call;
+`f(_)` remains a partial call and `f(_.x)` remains a projection argument.
+`f(_ + 1 + 2)` is invalid. Formatting drops parentheses around operator sections
+used directly as call arguments.
 
 Projection sections `(_.field)` and `(_.0)` desugar to `func(x) => x.field`
 and `func(x) => x.0`. Selectors may chain: `(_.a.b)` is one unary lambda,
@@ -528,11 +594,13 @@ constructor lacking one. Unknown receiver type requires annotation:
 Arms    := {Separator} ['|'] {Separator} Arm {ArmSep Arm} [ArmSep]
 ArmSep  := (';' | '|') {';' | '|'}
 Arm     := Pattern ['if' Expr] '=>' Expr
-Pattern := '_' | Int | Float | String | 'true' | 'false'
-         | LowerIdent | LowerIdent '@' Pattern
+Pattern := PatternAlt {'|' PatternAlt}
+PatternAlt := '_' | Int | Float | String | 'true' | 'false'
+         | '-' (Int | Float)
+         | LowerIdent | LowerIdent '@' PatternAlt
          | ConstructorName ['(' [Pattern {',' Pattern} [',']] ')']
          | ConstructorName RecordPatternFields
-         | '(' Pattern ',' Pattern {',' Pattern} ')' | '(' Pattern ')'
+         | '(' Pattern ',' Pattern {',' Pattern} [','] ')' | '(' Pattern ')'
          | '[' [Pattern {',' Pattern} [',' ListRest] [',']] ']'
 ConstructorName := [Ident '.'] UpperIdent
 RecordPatternFields := '{' ('..' [','] | Ident ':' Pattern {',' Ident ':' Pattern} [',' '..'] [',']) '}'
@@ -544,10 +612,29 @@ order: the first matching pattern whose guard is true yields the value. All arms
 have one type. Variables bind once per pattern; guards see them. Record patterns
 must name all fields or use `..`; positional patterns also work for records.
 
+Or-patterns may be nested at any pattern position. An arm `p1 | p2 if g => e`
+means the consecutive arms `p1 if g => e` and `p2 if g => e`, including guard
+evaluation and first-match order. Nested alternatives expand left to right:
+`(A | B, C | D)` means `(A, C)`, `(A, D)`, `(B, C)`, `(B, D)`.
+`@` binds more tightly than `|`; write `whole @ (A | B)` to bind the whole
+value across alternatives. Every alternative must bind the same variable names
+at the same types. A missing name is diagnosed as
+`or-pattern alternatives must bind the same variables; %s is not bound in every alternative`;
+a different type is the ordinary `type mismatch` at the later binding.
+Or-patterns in `let`, lambda parameters or `do` binds are rejected with
+`or-patterns are only allowed in match arms`, even if their union covers the type.
+Exhaustiveness and all later stages use the expansion. A stuck law match assumes
+the scrutinee equal to one alternative in each expanded arm, never the whole
+or-pattern. Formatting keeps the alternatives as `p1 | p2 => e`.
+
+A minus sign followed by an Int or Float token is a negative literal pattern.
+Any other token after the minus is rejected with
+`expected a number after "-" in a pattern`.
+
 Record patterns require at least one field or a rest marker: `C{..}` is valid,
 but `C{}` and `C{, ..}` are not. A nullary positional pattern may be `C` or
-`C()`. Arm separators may repeat or trail the last arm; tuple patterns do not
-allow a trailing comma.
+`C()`. Arm separators may repeat or trail the last arm. Tuple patterns allow
+a trailing comma; `(p,)` is rejected: `a tuple needs at least two elements`.
 
 List patterns desugar in the parser: `[]` is `Nil`, `[p1, p2, p3]` is
 `Cons(p1, Cons(p2, Cons(p3, Nil)))`, and `[p1, p2, ..rest]` is
@@ -644,6 +731,24 @@ ends are exclusive. CLI diagnostics print the source line and a `^~~~` underline
 multiline spans clamp to the first line, missing spans use one caret, and unreadable
 sources retain the positioned message without an excerpt. Tabs, CRLF and EOF are
 handled. Expected types are contextual: `type mismatch: expected T, got U`.
+
+Spelling hints reject, rather than accept, the incorrect syntax:
+
+| Written | Diagnostic at the offending token |
+| --- | --- |
+| `func f(x: Int)`, `func(x: Int) => …` | `parameters are written "x Int", without ":"` |
+| `let x Int = 1` | `let annotations are written "let x: Int = …"` |
+| `type R = R{n Int}` | `record fields are written "n: Int"` |
+| `type T = A(n Int)` | `positional constructor fields have no names; write A{n: Int} to name them` |
+
+Declaration diagnostics:
+
+- `the record shorthand declares the only constructor of Row; name the constructors to add alternatives`
+- `top-level let needs a type unless its value is a literal: let limit: T = …`
+- `a top-level let cannot be an IO action; write func limit() IO[…]`
+- `constant initialization cycle: a, b`
+- `limit is a constant, not a function; write limit without ()`
+- `a tuple needs at least two elements`
 
 Type printing preserves source-written aliases (§3.3). If the complete printed
 type exceeds 160 Unicode characters, subtrees at depth 3 or greater are replaced
@@ -893,23 +998,27 @@ triple. Codegen emits `rt_tuple3`/`rt_untuple3` with source directives like Tupl
 
 ### 6.5 Laws and proofs
 
-A `law` declares an equation universally quantified over its typed, monomorphic
-parameters. A `proof` of the same name is required, with the same number of
-parameters; its untyped names rebind those parameters positionally. Laws are
-not callable functions and have no generated Go representation.
+A `law` declares an equation universally quantified over its typed parameters
+and any declared type parameters. A separate `proof` of the same name has the
+same number of parameters; its untyped names rebind those parameters
+positionally. An inline `proof { tactic }` instead inherits the law's parameter
+names. Without either written proof, the checker supplies `refl`. Laws are not
+callable functions and have no generated Go representation.
 
 ```ebnf
-LawDecl   := 'law' Ident '(' [Param {',' Param} [',']] ')' [ ? requires identifier ? Expr ] '{' Expr '==' Expr {Separator} '}'
+LawDecl   := 'law' Ident [TParams] '(' [Param {',' Param} [',']] ')' { ? requires identifier ? Expr } '{' LawBody {Separator} '}' ['proof' TacticBlock]
+LawBody   := Expr '==' Expr | Expr
 ProofDecl := 'proof' Ident '(' [Ident {',' Ident} [',']] ')' TacticBlock
 TacticBlock := '{' {Separator} Tactic {Separator} '}'
 Tactic    := 'refl'
-           | 'match' Ident '{' {Separator} ['|'] {Separator} [TacticArm {ArmSep TacticArm} [ArmSep]] '}'
+           | ? absurd identifier ?
+           | 'match' Expr ['{' {Separator} ['|'] {Separator} [TacticArm {ArmSep TacticArm} [ArmSep]] '}']
            | 'if' Expr TacticBlock 'else' TacticBlock
            | 'rewrite' Name '(' [Expr {',' Expr} [',']] ')' TacticBlock
            | ? sample identifier ? '(' Int ')'
            | ? induction identifier ? Ident ['{' {Separator} ['|'] {Separator} [TacticArm {ArmSep TacticArm} [ArmSep]] '}']
-TacticArm := TacticPattern '=>' Tactic
-TacticPattern := '_' | LowerIdent
+TacticArm := TacticPattern {'|' TacticPattern} '=>' Tactic
+TacticPattern := '_' | LowerIdent | 'true' | 'false'
               | ConstructorName ['(' [TacticPattern {',' TacticPattern} [',']] ')']
               | ConstructorName TacticRecordFields
               | '(' TacticPattern ',' TacticPattern {',' TacticPattern} ')'
@@ -917,24 +1026,65 @@ TacticPattern := '_' | LowerIdent
 TacticRecordFields := '{' ('..' [','] | Ident ':' TacticPattern {',' Ident ':' TacticPattern} [',' '..'] [',']) '}'
 ```
 
-The lexical classes `? sample identifier ?`, `? induction identifier ?` and
-`? requires identifier ?` match exactly the contextual identifiers `sample`,
-`induction` and `requires`, respectively. Unlike `refl`, these spellings are
-not reserved lexer keywords.
+The lexical classes `? sample identifier ?`, `? induction identifier ?`,
+`? absurd identifier ?` and `? requires identifier ?` match exactly the contextual
+identifiers `sample`, `induction`, `absurd` and `requires`, respectively. Unlike
+`refl`, these spellings are not reserved lexer keywords.
 
-The outermost expression in a law body must be `==`; parenthesize a side
-containing lower-precedence Boolean operators. This `==` is an equation
+`law name[A, B](params)` quantifies over every choice of `A` and `B`. Law type
+parameters are plain names of kind `*`: constraints are rejected with
+`law type parameters cannot have class constraints`, and higher kinds with
+`law type parameters cannot be higher-kinded`. Each parameter is rigid in the
+value parameter types, `requires`, both sides, and every tactic expression.
+An unconstrained value of type `A` may be passed, stored or returned, but has no
+`Eq`, `Ord`, `Show` or constructors; a proof cannot split it (`cannot split A`).
+Normalization treats it as an opaque symbol and does not instantiate it.
+The existing Float and higher-order quantified-parameter exclusions remain.
+
+Each use of `rewrite` freshly instantiates a referenced law's type parameters
+and infers them from the argument types, like a generic function call; explicit
+type arguments are not written. The induction hypothesis instead retains the
+enclosing law's rigid type parameters. Imported polymorphic laws use the same
+rules through `rewrite mod.law(args)`.
+
+Counterexample and precondition-witness searches instantiate every law type
+parameter at `Int`. A refutation reports its instantiation, for example
+`counterexample (A = Int, B = Int): xs = …`; finding no counterexample does not
+prove a law. `sample(N)` rejects polymorphic laws, even unused type parameters,
+with `sample does not support type parameters`.
+
+When the outermost expression in a law body is `==`, it is an equation
 delimiter, not a call to `Eq`: both sides must have the same type but need no
-`Eq` instance. Equality means **definitional equality** of normalized terms,
-up to renaming bound variables (alpha equivalence), not equality according to a
-user-defined `Eq` instance. There is no eta-equivalence rule.
+`Eq` instance. Otherwise the body must be a Bool expression and states that this
+predicate equals `true`. Equality means **definitional equality** of normalized
+terms, up to renaming bound variables (alpha equivalence), not equality according
+to a user-defined `Eq` instance. There is no eta-equivalence rule.
 
-An optional `requires` Bool expression restricts the equation to arguments
-satisfying that precondition. It has the same parameter scope, purity,
+`==` binds tighter than `&&`, `||` and `|>`. A predicate whose outermost operator
+is one of these lower-precedence operators cannot contain an unparenthesized
+`==` operand at that level. Write `(a && b) == (b && a)` for an equation, or
+`a && (b == b) && a` for a predicate; `a && b == b && a` is ambiguous and rejected.
+Formatting preserves predicate versus equation spelling, including an explicit
+`(p) == true`, rather than converting between them.
+
+An inline proof is recognized by `proof` followed by `{`, also across newlines.
+It belongs to the preceding law and cannot coexist with a separate proof for
+that law. `sample(N)` is allowed inline. Formatting retains every written proof
+and never prints a checker-supplied proof. An implicit proof is not a declaration
+symbol and has no separate hover. If its `refl` fails, the ordinary diagnostic,
+including any counterexample, points at the law body and ends with:
+
+```text
+no proof was written for this law; it was checked by refl
+```
+
+Any number of `requires` Bool expressions restrict the equation to arguments
+satisfying their conjunction, in written order. The conjunction is
+left-associated. Preconditions have the same parameter scope, purity,
 termination, Float and first-order restrictions as the law sides. Before any
-tactic, its normalized top-level `&&` conjuncts (including those exposed by
+tactic, their normalized top-level `&&` conjuncts (including those exposed by
 function unfolding) are checked and assumed in order. A conjunct that normalizes
-to `false` under the preceding conjuncts is an error at the `requires` expression.
+to `false` under the preceding conjuncts is an error at the whole precondition.
 Int intervals also reject impossible bounds beyond the int64 endpoints.
 This check does not apply to `if`/`match` tactic branch assumptions.
 Neither laws nor their preconditions execute at runtime. A `rewrite`, including
@@ -942,15 +1092,39 @@ an induction-hypothesis rewrite, must establish the instantiated precondition
 as `true` under the current assumptions before using the equation.
 `sample(N)` does not support laws with `requires`.
 
+The formatter keeps a single `requires` on the header if that line, including
+the opening brace, fits 80 columns. Otherwise, and always for several clauses,
+each clause occupies its own once-indented line and the body brace starts a
+line. Inline proofs follow the law's closing brace:
+
+```go4t
+package main
+
+law bounded(t Int, at Int, now Int)
+  requires 0 <= t && t <= 1000
+  requires 0 <= at && at <= now
+{
+  t <= 1000
+} proof {
+  refl
+}
+
+func main() IO[Unit] { ioPure(unit()) }
+```
+
 | Tactic | Meaning |
 | --- | --- |
 | `refl` | Normalize both sides under the current assumptions and require identical normal forms. |
-| `match x { C(y) => refl; D => refl }` | Split a proof variable into constructor cases, binding fields. Cases must be exhaustive; nested constructor, record and tuple patterns, variables and `_` are supported, but not literals, guards, as-patterns or list-pattern sugar. Use `Nil`/`Cons` for lists. |
+| `absurd` | Close a case whose assumptions are contradictory. Replay each assumption under current case-split solutions and only the assumptions made before it; a conflicting Bool value or constructor head, or inconsistent Int/String order closure, suffices. Stuck or merely unproved assumptions do not. |
+| `match e { C(y) => refl; D => refl }` | Split an expression of datatype, tuple or Bool type into exhaustive cases. A normal form that is a proof variable uses variable splitting; otherwise assume the normalized expression equals the arm's pattern, with fresh symbols for fields and wildcards. An already decided constructor, tuple or Bool is rejected. The expression has the same termination and taint checks as an `if` condition. |
+| `match c { true => refl; false => refl }` | Split a Bool into its two exhaustive cases. Other literal patterns are rejected. |
+| `match e` | Split into every case of the expression's type, closing contradictory cases with `absurd` and other cases with `refl`. |
+| `match e { A \| B => tactic; C => tactic }` | Run the shared tactic separately for every alternative. Alternatives must bind the same names with matching types. Constructor, record and tuple patterns, variables and `_` are also supported; guards, as-patterns and list-pattern sugar are not. Use `Nil`/`Cons` for lists. |
 | `if condition { refl } else { refl }` | Split on a Bool expression, assuming it true or false in the corresponding branch. |
 | `rewrite name(args) { refl }` | Instantiate a law and replace all occurrences of its left side with its right side in both goal sides, then continue with the nested tactic. A left side that instantiates to a lone free variable is rejected. |
 | `sample(N)` | Test the equation with `go4t test`; do not prove it. This tactic occupies the whole proof body. `N` is an Int literal in 1..100000. All quantified types require usable bounded generators, and the result requires `Eq`; direct Float results compare bits. Equations whose dependencies are all law-eligible are rejected with an instruction to prove them instead. |
 | `induction x { C(y) => tactic; D => tactic }` | Split a quantified datatype variable into exhaustive constructor cases. Before each arm, rewrite with the enclosing law instantiated at every field of the same datatype, leaving other arguments unchanged. Existing structural-descent and argument-order checks apply. |
-| `induction x` | Perform constructor induction with `refl` in every arm after the automatic induction-hypothesis rewrites. |
+| `induction x` | Perform constructor induction, closing contradictory cases with `absurd`, otherwise applying the automatic induction-hypothesis rewrites and `refl`. |
 
 A sampled law is tested, not proved, and cannot be used by `rewrite`. `check`
 validates sampled laws without normalization and emits one positioned
@@ -1094,11 +1268,12 @@ normalizer as described above and are therefore eligible. `std/set` and
 eligible. `Float` is forbidden in law parameters, side types and subterms,
 including nested data fields: NaN prevents reflexivity of runtime equality.
 
-Law-related type diagnostics include the following message templates (ordinary
-type mismatch and name-resolution diagnostics still apply):
+Law-related parse and type diagnostics include the following message templates
+(ordinary type mismatch and name-resolution diagnostics still apply):
 
 ```text
-law %s has no proof
+law body must be an equation (lhs == rhs) or a Bool expression, got %s
+ambiguous law body: == binds tighter than && and ||; write (lhs) == (rhs) for an equation, or parenthesize the comparison
 proof %s has no law %s
 duplicate law %s
 duplicate proof %s
@@ -1111,10 +1286,21 @@ non-exhaustive match; missing: %s
 unknown law %s
 arity mismatch: want %d arguments, got %d
 tactic match does not support list patterns
-tactic match does not support literal or as-patterns
+tactic match supports only the literal patterns true and false
+tactic match does not support as-patterns
+or-pattern alternatives must bind the same variables
+match scrutinee is already decided: <normal form>
+absurd: the assumptions in this case are not contradictory
+assumed: <term> is <true|false|pattern>
 sample does not support requires
 rewrite %s: precondition not established: <normal form>
 ```
+
+A failed `absurd` lists each assumption in source order using the `assumed:`
+template. Contradiction detection is deliberately incomplete. When `refl` fails
+in a case certified contradictory by the same check, its diagnostic ends with
+`this case cannot happen: <term> is <value> here; close it with absurd` instead
+of counterexample advice.
 
 Precondition diagnostics use these templates; `<conjunct>` uses source-spelled
 normalized terms, as above. The longer error form applies after an earlier
@@ -2105,7 +2291,7 @@ with `go generate main.go`.
   older example READMEs show pre-module spellings; this specification and the
   checked tutorial give the current imports and signatures. The self-hosted
   compiler in `selfhost/` implements a subset of the language (for example,
-  it parses laws and discards them) and is not described by this specification.
+  it skips laws without parsing them) and is not described by this specification.
 
 ## 10. Boundary behaviour
 
@@ -2124,6 +2310,11 @@ than the shortest Float `show` form.
 | --- | --- |
 | Float exponent without digits / source overflow | `bad float literal: exponent requires digits` / `bad float literal <text>`; `.5` and `1.` are not Float literals |
 | Mixed Int/Float, Float `%` | Rejected; no implicit conversion |
+| Int source range | `integer literal <text> is out of range for Int`; magnitude 2^63 is accepted only directly after unary `-`, producing the smallest Int literal |
+| Int separators | `_` separates digits or follows a base prefix once; malformed placement reports `bad number literal <text>: "_" must separate digits` |
+| Int base digits | Decimal, hexadecimal (`0x`/`0X`), binary (`0b`/`0B`), octal (`0o`/`0O`); missing or invalid base digits report `bad number literal <text>: expected <base> digits after <prefix>` |
+| Number followed by a letter | `bad number literal <text>: a number cannot be followed by a letter`; the entire spelling is rejected |
+| Int notation in Float literals | `digit separators and base prefixes are not supported in Float literals` |
 | Int `+ - *`, negation, abs | Signed int64 wraparound; abs(minInt()) = minInt() |
 | Int `/` and `%` | Truncate toward zero / dividend-signed remainder; zero divisor panics `runtime error: integer divide by zero`; minInt() / -1 = minInt(), minInt() % -1 = 0 |
 | Float `/ 0.0` | Signed infinity or NaN, not an integer-division panic |

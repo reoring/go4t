@@ -780,7 +780,7 @@ func prPattern() Parser[Pattern] {
     t <- prPeek()
     match t.kind {
       TkIdent => prIdentPattern(t)
-      TkInt => do { value <- prInteger(t, "bad integer literal "); prelude.pure(PInt(t.pos, value)) }
+      TkInt => do { value <- prInteger(t, false, false); prelude.pure(PInt(t.pos, value)) }
       TkFloat => do { prFloat(t); prelude.pure(PFloat(t.pos, t.text)) }
       TkString => do { prNext(); prelude.pure(PString(t.pos, t.text)) }
       TkKeyword if t.text == "true" || t.text == "false" =>
@@ -897,8 +897,17 @@ func prUnary() Parser[Expr] {
     t <- prPeek()
     if t.kind == TkPunct && (t.text == "-" || t.text == "!") { do {
       prNext()
-      value <- prUnary()
-      prelude.pure(EUnary(t.pos, t.text, value))
+      next <- prPeek()
+      if t.text == "-" && next.kind == TkInt { do {
+        value <- prInteger(next, true, false)
+        if value == -9223372036854775807 - 1 { prelude.pure(EInt(t.pos, value)) } else { do {
+          primary <- prPostfix(EInt(next.pos, -value))
+          prelude.pure(EUnary(t.pos, t.text, prProjection(primary)))
+        } }
+      } } else { do {
+        value <- prUnary()
+        prelude.pure(EUnary(t.pos, t.text, value))
+      } }
     } } else { do { value <- prPrimary(); out <- prPostfix(value); prelude.pure(prProjection(out)) } }
   }
 }
@@ -913,12 +922,13 @@ func prFloat(t Token) Parser[Unit] {
   }
 }
 
-func prInteger(t Token, prefix String) Parser[Int] {
+func prInteger(t Token, negative Bool, tupleIndex Bool) Parser[Int] {
   do {
     prNext()
-    match string.parseInt(t.text) {
+    match lexIntValue(t.text, negative) {
       Some(value) => prelude.pure(value)
-      None => prFail(t.pos, prefix + t.text)
+      None => prFail(t.pos, if tupleIndex { "bad tuple index " + t.text }
+        else { "integer literal " + t.text + " is out of range for Int" })
     }
   }
 }
@@ -935,7 +945,7 @@ func prPostfix(value Expr) Parser[Expr] {
       prNext()
       field <- prPeek()
       selected <- if field.kind == TkInt { do {
-        index <- prInteger(field, "bad tuple index ")
+        index <- prInteger(field, false, true)
         prelude.pure(ETupleField(t.pos, value, index))
       } } else { do { name <- prIdent(); prelude.pure(EField(t.pos, value, name)) } }
       prPostfix(selected)
@@ -1015,7 +1025,7 @@ func prPrimary() Parser[Expr] {
           prelude.pure(ERecordLit(t.pos, t.text, fields))
         } } else { prelude.pure(EIdent(t.pos, t.text)) }
       }
-      TkInt => do { value <- prInteger(t, "bad integer literal "); prelude.pure(EInt(t.pos, value)) }
+      TkInt => do { value <- prInteger(t, false, false); prelude.pure(EInt(t.pos, value)) }
       TkFloat => do { prFloat(t); prelude.pure(EFloat(t.pos, t.text)) }
       TkString => do { prNext(); prelude.pure(EString(t.pos, t.text)) }
       TkInterp => do {
@@ -1281,51 +1291,34 @@ func prListPattern(pos Pos) Parser[Pattern] {
   }
 }
 
-func prErasedDecl() Parser[Unit] {
-  do {
-    keyword <- prNext()
-    prIdent()
-    if keyword.text == "law" { do {
-      prParams()
-      prSkipSemis()
-      hasRequires <- prAccept(TkIdent, "requires")
-      if hasRequires { do { prExpr(); prSkipSemis(); prelude.pure(unit()) } } else { prelude.pure(unit()) }
-      block <- prBlock()
-      if length(block.stmts) == 0 && (match block.result { EBinary(_, "==", _, _) => true | _ => false }) { prelude.pure(unit()) }
-      else { prFail(keyword.pos, "law body must be an equation") }
-    } } else { do {
-      expect(TkPunct, "(")
-      prDelimited(prIdent, ")")
-      expect(TkPunct, ")")
-      prTacticBlock()
-    } }
-  }
-}
-func prTacticBlock() Parser[Unit] {
-  do { expect(TkPunct, "{"); prSkipSemis(); prTactic(); prSkipSemis(); expect(TkPunct, "}"); prelude.pure(unit()) }
-}
-func prTactic() Parser[Unit] {
+// Laws and proofs are erased structurally, including inline proofs. No term or
+// tactic grammar is consulted; strings and interpolations are already tokens.
+func prErasedDecl() Parser[Unit] { do { prNext(); prErasedTokens(0) } }
+func prErasedTokens(depth Int) Parser[Unit] {
   do {
     t <- prNext()
-    match t.text {
-      "refl" => prelude.pure(unit())
-      "match" => do { prIdent(); expect(TkPunct, "{"); prTacticArms(); expect(TkPunct, "}"); prelude.pure(unit()) }
-      "if" => do { prExpr(); prTacticBlock(); expect(TkKeyword, "else"); prTacticBlock() }
-      "rewrite" => do { prQualified(); expect(TkPunct, "("); prDelimited(prExpr, ")"); expect(TkPunct, ")"); prTacticBlock() }
-      "induction" => do {
-        prIdent()
-        arms <- prAccept(TkPunct, "{")
-        if arms { do { prTacticArms(); expect(TkPunct, "}"); prelude.pure(unit()) } } else { prelude.pure(unit()) }
-      }
-      _ => prFail(t.pos, "expected proof tactic, found " + prTokenText(t))
-    }
-  }
-}
-func prTacticArms() Parser[Unit] {
-  do {
-    prArmSeparators()
-    end <- prIs(TkPunct, "}")
-    if end { prelude.pure(unit()) } else { do { prPattern(); expect(TkPunct, "=>"); prTactic(); prTacticArms() } }
+    if t.kind == TkEOF { prFail(t.pos, "unterminated law or proof declaration") } else { do {
+      let nextDepth = if t.kind != TkPunct { depth }
+        else if string.contains("([{", t.text) { depth + 1 }
+        else if string.contains(")]}", t.text) { depth - 1 } else { depth }
+      end <- if prMatches(t, TkPunct, "}") && nextDepth == 0 {
+        prLookahead(do {
+          prSkipSemis()
+          next <- prPeek()
+          if prMatches(next, TkKeyword, "proof") { do {
+            prNext()
+            name <- prPeek()
+            prelude.pure(name.kind == TkIdent)
+          } } else {
+            prelude.pure(next.kind == TkEOF || (next.kind == TkKeyword && (match next.text {
+              "law" => true | "func" => true | "extern" => true | "type" => true
+              "alias" => true | "class" => true | "instance" => true | "let" => true | _ => false
+            })))
+          }
+        })
+      } else { prelude.pure(false) }
+      if end { prelude.pure(unit()) } else { prErasedTokens(nextDepth) }
+    } }
   }
 }
 

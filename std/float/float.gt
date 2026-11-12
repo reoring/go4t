@@ -2,9 +2,15 @@ package float
 
 import "std/prelude"
 
-extern func minInt() Int = "github.com/reoring/go4t/rt".MinInt
+// The bounds are ordinary definitions, not externs, so laws may use them
+// (`requires a < float.maxInt()`).
+func minInt() Int {
+  (-9223372036854775807 - 1)
+}
 
-extern func maxInt() Int = "github.com/reoring/go4t/rt".MaxInt
+func maxInt() Int {
+  9223372036854775807
+}
 
 extern func abs(n Int) Int = "github.com/reoring/go4t/rt".AbsInt
 

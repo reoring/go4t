@@ -1,0 +1,60 @@
+package main
+
+// Int literal forms and the layout rule for a leading minus. Both compilers
+// (the Go one and the self-hosted one) must read these the same way; the
+// bootstrap compares their output.
+type State = Pending(Int) | Done deriving Eq, Debug
+
+func isPending(s State) Bool {
+  match s {
+    Pending(_) => true
+    Done => false
+  }
+}
+
+func payload(s State) Int {
+  match s {
+    Pending(n) => n
+    Done => 0
+  }
+}
+
+// Laws are erased by the self-hosted compiler whatever their form.
+law pendingPayload(s State, n Int) requires isPending(s) && payload(s) == n {
+  s == Pending(n)
+} proof {
+  match s {
+    Pending(m) => refl
+    Done => absurd
+  }
+}
+
+law roomLeft(q Int)
+  requires 0 <= q
+  requires q < 1_000_000
+{
+  q + 1 > q
+}
+
+law appendNil[A](xs List[A]) {
+  append(xs, Nil) == xs
+} proof {
+  induction xs
+}
+
+func difference(a Int, b Int) Int {
+  a - b
+}
+
+func negated(a Int) Int {
+  let b = a
+  (-b)
+}
+
+func main() IO[Unit] {
+  do {
+    println(show([1_000_000, 0xFF_FF, 0b1010_0001, 0o755, 007]))
+    println(show([-9223372036854775808, -0x8000000000000000, 9223372036854775807]))
+    println(show([difference(10, 3), negated(4), payload(Pending(0x10))]))
+  }
+}

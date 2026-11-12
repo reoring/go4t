@@ -1,0 +1,12 @@
+package main
+
+law allEqual[A](x A, y A) { x == y }
+proof allEqual(x, y) { refl }
+
+law bothTypes[A, B](x A, y A, z B) { (x, z) == (y, z) }
+proof bothTypes(x, y, z) { refl }
+
+law wrongLength[A](xs List[A]) { length(xs) == 0 }
+proof wrongLength(xs) { refl }
+
+func main() IO[Unit] { ioPure(unit()) }
