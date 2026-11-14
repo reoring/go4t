@@ -2010,7 +2010,10 @@ original go4t record. Unsupported methods get `// skipped: Type.Method (reason)`
 
 Handles are **opaque**, not ordinary data constructors: matching, `deriving`,
 and `show` on a handle are undefined. Obtain them from bound Go constructors,
-not by constructing the nullary handle constructor. The shim accepts `recv any`,
+not by constructing the nullary handle constructor. A law proof may not
+case-split a handle: `go4t check` rejects any proof pattern naming a handle
+constructor, including the arms bare `match` and `induction` elaborate, since
+two handles are distinct Go identities, not one constructor. The shim accepts `recv any`,
 then checks and asserts the original Go receiver type before calling the method.
 A wrong dynamic type panics with
 `go4t shim: Type_Method: receiver is <dynamic Go type>`. A typed nil pointer
