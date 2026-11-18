@@ -8,6 +8,11 @@ the grammar, standard library and Go ABI may change between minor versions.
 
 ### Added
 
+- **Agent skill** (`skills/go4t-dev/SKILL.md`). Instructions for coding agents
+  that write go4t: keep `decide` and its laws in go4t and the I/O in Go, how to
+  state laws for a controller, and how to read `go4t check` failures. Its
+  example is checked with the other documentation snippets.
+
 - **Laws need less ceremony** ([ADR 0017](docs/adr/0017-law-declaration-surface.md)).
   A law without a proof is checked by `refl`; `} proof { tactic }` gives one
   inline; a law may carry several `requires` clauses, one per line; and a body

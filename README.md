@@ -363,6 +363,7 @@ exact `>=`/`>` boundaries on deadlines, "a full zone is never chosen",
 | [Architecture decisions](docs/adr/README.md) | Why each rule is the way it is. |
 | [Standard library](docs/stdlib.md) | Generated from the source inventory. |
 | [Editor setup](editors/README.md) | stdio LSP and a VS Code client. |
+| [Agent skill](skills/go4t-dev/SKILL.md) | Instructions for coding agents writing go4t: the decide-in-go4t shape, law-writing practice, how to read `go4t check` failures. Its example is type-checked in CI. |
 | [Design history](docs/history/DESIGN.md) | Slice contracts; SPEC wins where they differ. |
 
 ## License

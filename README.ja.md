@@ -366,6 +366,7 @@ func main() IO[Unit] { ioPure(unit()) }
 | [アーキテクチャの決定](docs/adr/README.md) | 各規則を採用した理由。 |
 | [標準ライブラリ](docs/stdlib.md) | ソースの宣言一覧から生成。 |
 | [エディタ設定](editors/README.md) | stdio LSP と VS Code クライアント。 |
+| [エージェント向けスキル](skills/go4t-dev/SKILL.md) | go4t を書くコーディングエージェント向けの手順(英語)。決定を go4t で書く形、法則の書き方、`go4t check` のエラーの読み方。例は CI で型検査されます。 |
 | [設計履歴](docs/history/DESIGN.md) | 実装スライスごとの契約。食い違うときは SPEC が優先。 |
 
 ## ライセンス

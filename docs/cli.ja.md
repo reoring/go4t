@@ -46,8 +46,8 @@ Go のビルド診断は stderr に出力し、失敗時は非ゼロで終了し
 
 ## ドキュメントのテスト
 
-`go test ./docs ./std` が SPEC、tutorial、stdlib、`docs/laws.md`、英語 README の
-すべての `go4t` fence を取り出し、`go4t check` と同じローダと型検査器にかけます。
+`go test ./docs ./std` が SPEC、tutorial、stdlib、`docs/laws.md`、英語 README、
+`skills/go4t-dev/SKILL.md` のすべての `go4t` fence を取り出し、`go4t check` と同じローダと型検査器にかけます。
 `go4t error` fence は拒否されなければなりません。
 
 `selfhost/` は別管理の進行中セルフホストコンパイラで、リリース対象ではありません。

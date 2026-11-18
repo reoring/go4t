@@ -62,7 +62,7 @@ misses, disabled caching, and cache errors on stderr.
 ## Documentation tests
 
 `go test ./docs ./std` extracts every `go4t` fence from SPEC, tutorial, stdlib,
-`docs/laws.md` and the README and runs the same loader and type checker as
+`docs/laws.md`, the README and `skills/go4t-dev/SKILL.md` and runs the same loader and type checker as
 `go4t check`; `go4t error` fences must be rejected.
 
 `selfhost/` is a separately owned in-progress self-hosting compiler and is not
