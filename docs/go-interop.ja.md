@@ -37,8 +37,9 @@ record としてコピーし、非公開の状態などミラーできないも�
 1. `decide/decide.gt` に entry module を書きます。純粋な決定ロジックなら、必要な状態を写す
    `Observed` record、action の直和型、`func decide(o Observed) Action` を定義します。
 2. `go4t build --emit-go decide_gen --package decide decide/decide.gt` で生成します
-   (`//go:generate` に記載)。生成 package は `Decide`、到達可能な Go ミラー型
-   (`Observed`、action のコンストラクタ)、`Main() rt.IO` を export します。
+   (`//go:generate` に記載)。生成パッケージは `Decide` と、そこから使う Go ミラー型
+   (`Observed`、action のコンストラクタ) を公開します。`main` を定義したときだけ
+   `Main() rt.IO` も公開します。判断だけを行うライブラリには不要です。
 3. Go から生成 package を import し、`Observed` を埋めて `Decide` を呼び、選んだ作用を実行します。
    2 つ目の構成では、Go が持つ handle を export された observe/apply 関数に渡します。
    `IO[T]` の戻り値は `func(context.Context) (T, error)` として export されます。
@@ -103,7 +104,10 @@ func main() IO[Unit] {
   binding module P では、元の型と interface は P または direct import に属し、少なくとも一方は P の宣言である必要があります。
   外部の同名型には owner の修飾を付け (`qImplAsI`)、P 自身の型は修飾なし (`implAsI`) です。
 - 標準ライブラリは `go.mod` なしで bind できます。第三者 package は build module の require が必要です。
-  shim は ignored の build 出力 (`*_gen/`) 配下に書き、`go4t check` は何も書きません。
+  型検査とキャッシュの単位は Go パッケージです。型検査後、必要なラッパーと変換関数だけを
+  `<out>/go4tbind/` に出力します。推移的な依存先にあるエラー分類関数も登録しますが、
+  そのパッケージ内の未使用関数までは出力しません。`go4t check` はビルド結果を書き込みません。
+  `go4t bind` では従来どおり、そのパッケージで対応する API をすべて確認できます。
 - struct handle の package 変数、field、method receiver は、lock の有無にかかわらず address を使います。
   lock を含む実際の値渡し引数、戻り値、container 要素、field setter は `copies lock value T` で skip し、
   `*T` は handle のままです。検出は Go vet と同じ pointer-only `sync.Locker` 実装の規則で、

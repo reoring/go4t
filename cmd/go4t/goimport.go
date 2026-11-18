@@ -24,13 +24,15 @@ type goImportBinder struct {
 	bound             map[string]*ast.Module
 	visited           map[string]bool
 	sideEffectImports []string
+	shims             map[string]pendingShim
+	emitted           map[string][]byte
 }
 
 func newGoImportBinder(directory string) *goImportBinder {
 	if root, err := moduleRoot(directory); err == nil {
 		directory = root
 	}
-	return &goImportBinder{loader: extern.Loader{Dir: directory}}
+	return &goImportBinder{loader: extern.Loader{Dir: directory}, shims: make(map[string]pendingShim)}
 }
 
 func (b *goImportBinder) Bind(importPath string) (*ast.Module, error) {
@@ -95,14 +97,7 @@ func (b *goImportBinder) Bind(importPath string) (*ast.Module, error) {
 	}
 	file.Name = "go:" + importPath + "/bindings.gt"
 	if b.outputDir != "" {
-		shimDir := filepath.Join(b.outputDir, "go4tbind", filepath.FromSlash(importPath))
-		if err := os.MkdirAll(shimDir, 0o755); err != nil {
-			return nil, err
-		}
-		shimFile := filepath.Join(shimDir, "go4t_shim_"+goIdentifier(path.Base(importPath))+".go")
-		if err := os.WriteFile(shimFile, shim, 0o644); err != nil {
-			return nil, err
-		}
+		b.shims[shimPath] = pendingShim{importPath, "go4t_shim_" + goIdentifier(path.Base(importPath)) + ".go", shim}
 	}
 	module := &ast.Module{Name: file.Package, Files: []*ast.File{file}, ForeignRecordKeys: metadata.RecordKeys, ForeignHandleKeys: metadata.HandleKeys}
 	module.ForeignBindings = &genericGoBindings{binder: b, owner: importPath, shimPath: shimPath, baseEntry: entry}
@@ -110,11 +105,6 @@ func (b *goImportBinder) Bind(importPath string) (*ast.Module, error) {
 		b.bound = make(map[string]*ast.Module)
 	}
 	b.bound[importPath] = module
-	if b.outputDir != "" {
-		if err := b.bindClassifiers(importPath); err != nil {
-			return nil, err
-		}
-	}
 	return module, nil
 }
 

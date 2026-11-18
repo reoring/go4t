@@ -298,6 +298,12 @@ func checkInferenceExamples(t *testing.T) {
 		if goImports {
 			return nil
 		}
+		// A directory without main is a library (ADR 0025): its first file
+		// names the fixture, so a single-file library keeps the key it had
+		// while it still carried a placeholder main.
+		if len(mains) == 0 {
+			mains, helpers = helpers[:1], helpers[1:]
+		}
 		for _, main := range mains {
 			t.Run(filepath.ToSlash(main), func(t *testing.T) {
 				loaded, err := modules.Load(append([]string{main}, helpers...))

@@ -25,6 +25,11 @@
 ファイル入力なら `FILE_gen` に残ります。
 `--emit-go DIR` はソースのみを出力し、`-o` とは併用できません。
 `--package NAME` は `--emit-go` を指定したときだけ使えます。
+`check` と `main` 以外のパッケージ名で生成するライブラリでは、`main` は省略できます。
+定義する場合は `func main() IO[Unit]` とし、ライブラリでは `Main() rt.IO` として公開されます。
+`run`、実行ファイルのビルド、パッケージ名を `main` にした `--emit-go` では `main` が必要です。
+たとえば、`main` のないライブラリを `run` で実行すると次のエラーになります:
+`run: an executable needs func main() IO[Unit]; use build --emit-go DIR --package NAME for a library without main`。
 
 ビルドには PATH 上の Go が必要です。
 `go4t` を提供する Go module があれば、それを使います。

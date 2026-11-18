@@ -339,8 +339,8 @@ func isIOBool(typ ast.Type) bool {
 }
 
 // temporaryBuild holds the module and source directory for test/eval runs.
-// Both exist before imports are loaded so Go bindings can write their shims
-// beneath the source directory; neither replaces a program's build output.
+// Both exist before imports are loaded to establish the final shim import
+// paths; neither replaces a program's build output.
 type temporaryBuild struct {
 	module buildModule
 	dir    string
@@ -384,7 +384,7 @@ func (t *temporaryBuild) run(program *types.Program, file string) error {
 	if err := t.module.checkForeign(program); err != nil {
 		return err
 	}
-	sources, err := codegen.GenerateInDir(program, "main", t.module.dir, codegen.Options{SideEffectImports: t.binder.sideEffectImports})
+	sources, err := codegen.GenerateInDir(program, "main", t.module.dir, codegen.Options{PrepareExterns: t.binder.emitShims})
 	if err != nil {
 		return diagnostic(file, err)
 	}

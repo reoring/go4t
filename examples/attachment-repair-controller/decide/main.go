@@ -14,18 +14,6 @@ type Tuple3 struct {
 	F2 any
 }
 
-//line std/prelude/prelude.gt:37
-func ord_lt(o any) bool { _, ok := o.(*prelude_Ordering_LT); return ok }
-
-//line std/prelude/prelude.gt:37
-func ord_le(o any) bool { _, ok := o.(*prelude_Ordering_GT); return !ok }
-
-//line std/prelude/prelude.gt:37
-func ord_gt(o any) bool { _, ok := o.(*prelude_Ordering_GT); return ok }
-
-//line std/prelude/prelude.gt:37
-func ord_ge(o any) bool { _, ok := o.(*prelude_Ordering_LT); return !ok }
-
 type decide_Action interface{ isAction() }
 
 type decide_Action_ObserveInitial struct{}
@@ -637,7 +625,7 @@ func rt_tuple3(a, b, c any) any { return &Tuple3{F0: a, F1: b, F2: c} }
 //line std/list/list.gt:6
 func rt_untuple3(p any) (any, any, any) { t := p.(*Tuple3); return t.F0, t.F1, t.F2 }
 
-//line std/prelude/prelude.gt:37
+//line std/prelude/prelude.gt:41
 func rt_orderingOf(o any) int {
 	switch o.(type) {
 	case *prelude_Ordering_LT:
@@ -661,10 +649,10 @@ func init() {
 //line std/list/list.gt:6
 		func() any { return &list_List_Nil{} },
 		Some:
-//line std/prelude/prelude.gt:43
+//line std/prelude/prelude.gt:47
 		func(a any) any { return &prelude_Option_Some{F0: a} },
 		None:
-//line std/prelude/prelude.gt:43
+//line std/prelude/prelude.gt:47
 		func() any { return &prelude_Option_None{} },
 		Uncons:
 //line std/list/list.gt:6
@@ -675,7 +663,7 @@ func init() {
 			return nil, nil, false
 		},
 		OptionValue:
-//line std/prelude/prelude.gt:43
+//line std/prelude/prelude.gt:47
 		func(v any) (any, bool) {
 			if s, ok := v.(*prelude_Option_Some); ok {
 				return s.F0, true
@@ -702,76 +690,22 @@ func init() {
 	rt.Shapes.Err = rt_err
 }
 
-//line std/io/io.gt:5
-func rt_ioError(kind string, msg string) any {
-	switch kind {
-	case "NotFound":
-		return &io_IoError_NotFound{F0: msg}
-	case "PermissionDenied":
-		return &io_IoError_PermissionDenied{F0: msg}
-	case "AlreadyExists":
-		return &io_IoError_AlreadyExists{F0: msg}
-	case "Timeout":
-		return &io_IoError_Timeout{}
-	case "Cancelled":
-		return &io_IoError_Cancelled{}
-	case "Panic":
-		return &io_IoError_Panic{F0: msg}
-	case "Network":
-		return &io_IoError_Network{F0: msg}
-	case "Failure":
-		return &io_IoError_Failure{F0: msg}
-	default:
-		panic("rt.Shapes.IoError: invalid kind")
-	}
-}
-
-//line std/io/io.gt:5
-func rt_ioErrorOf(v any) (string, string) {
-	switch v := v.(type) {
-	case *io_IoError_NotFound:
-		return "NotFound", v.F0.(string)
-	case *io_IoError_PermissionDenied:
-		return "PermissionDenied", v.F0.(string)
-	case *io_IoError_AlreadyExists:
-		return "AlreadyExists", v.F0.(string)
-	case *io_IoError_Timeout:
-		return "Timeout", "context deadline exceeded"
-	case *io_IoError_Cancelled:
-		return "Cancelled", "context canceled"
-	case *io_IoError_Panic:
-		return "Panic", v.F0.(string)
-	case *io_IoError_Network:
-		return "Network", v.F0.(string)
-	case *io_IoError_Failure:
-		return "Failure", v.F0.(string)
-	default:
-		panic("rt.Shapes.IoErrorOf: invalid IoError")
-	}
-}
-
-//line std/io/io.gt:5
-func init() {
-	rt.Shapes.IoError = rt_ioError
-	rt.Shapes.IoErrorOf = rt_ioErrorOf
-}
-
 type dict_decide_Eq_Timestamp struct{}
 
 //line decide/decide.gt:8
 func (dictself dict_decide_Eq_Timestamp) prelude_Eq(a_ any, b_ any) any {
-	var _go4t196 any = &Tuple2{F0: a_, F1: b_}
-	_ = _go4t196
+	var _go4t10 any = &Tuple2{F0: a_, F1: b_}
+	_ = _go4t10
 //line decide/decide.gt:8
-	switch _go4t197 := _go4t196.(type) {
+	switch _go4t11 := _go4t10.(type) {
 	case *Tuple2:
-		_ = _go4t197
-		switch _go4t199 := _go4t197.F0.(type) {
+		_ = _go4t11
+		switch _go4t13 := _go4t11.F0.(type) {
 		case *decide_Timestamp_NoTimestamp:
-			_ = _go4t199
-			switch _go4t198 := _go4t197.F1.(type) {
+			_ = _go4t13
+			switch _go4t12 := _go4t11.F1.(type) {
 			case *decide_Timestamp_NoTimestamp:
-				_ = _go4t198
+				_ = _go4t12
 //line decide/decide.gt:8
 //line decide/decide.gt:8
 				return true
@@ -779,15 +713,15 @@ func (dictself dict_decide_Eq_Timestamp) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:8
-	switch _go4t200 := _go4t196.(type) {
+	switch _go4t14 := _go4t10.(type) {
 	case *Tuple2:
-		_ = _go4t200
-		switch _go4t202 := _go4t200.F0.(type) {
+		_ = _go4t14
+		switch _go4t16 := _go4t14.F0.(type) {
 		case *decide_Timestamp_InvalidTimestamp:
-			_ = _go4t202
-			switch _go4t201 := _go4t200.F1.(type) {
+			_ = _go4t16
+			switch _go4t15 := _go4t14.F1.(type) {
 			case *decide_Timestamp_InvalidTimestamp:
-				_ = _go4t201
+				_ = _go4t15
 //line decide/decide.gt:8
 //line decide/decide.gt:8
 				return true
@@ -795,20 +729,20 @@ func (dictself dict_decide_Eq_Timestamp) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:8
-	switch _go4t203 := _go4t196.(type) {
+	switch _go4t17 := _go4t10.(type) {
 	case *Tuple2:
-		_ = _go4t203
-		switch _go4t205 := _go4t203.F0.(type) {
+		_ = _go4t17
+		switch _go4t19 := _go4t17.F0.(type) {
 		case *decide_Timestamp_AtNanos:
-			_ = _go4t205
+			_ = _go4t19
 			{
-				var x0_ int64 = any(_go4t205.F0).(int64)
+				var x0_ int64 = any(_go4t19.F0).(int64)
 				_ = x0_
-				switch _go4t204 := _go4t203.F1.(type) {
+				switch _go4t18 := _go4t17.F1.(type) {
 				case *decide_Timestamp_AtNanos:
-					_ = _go4t204
+					_ = _go4t18
 					{
-						var y0_ int64 = any(_go4t204.F0).(int64)
+						var y0_ int64 = any(_go4t18.F0).(int64)
 						_ = y0_
 //line decide/decide.gt:8
 //line decide/decide.gt:8
@@ -830,30 +764,30 @@ type dict_decide_Debug_Timestamp struct{}
 
 //line decide/decide.gt:8
 func (dictself dict_decide_Debug_Timestamp) prelude_Debug(a_ any) any {
-	var _go4t206 any = a_
-	_ = _go4t206
+	var _go4t20 any = a_
+	_ = _go4t20
 //line decide/decide.gt:8
-	switch _go4t207 := _go4t206.(type) {
+	switch _go4t21 := _go4t20.(type) {
 	case *decide_Timestamp_NoTimestamp:
-		_ = _go4t207
+		_ = _go4t21
 //line decide/decide.gt:8
 //line decide/decide.gt:8
 		return "NoTimestamp"
 	}
 //line decide/decide.gt:8
-	switch _go4t208 := _go4t206.(type) {
+	switch _go4t22 := _go4t20.(type) {
 	case *decide_Timestamp_InvalidTimestamp:
-		_ = _go4t208
+		_ = _go4t22
 //line decide/decide.gt:8
 //line decide/decide.gt:8
 		return "InvalidTimestamp"
 	}
 //line decide/decide.gt:8
 	{
-		_go4t209 := _go4t206.(*decide_Timestamp_AtNanos)
-		_ = _go4t209
+		_go4t23 := _go4t20.(*decide_Timestamp_AtNanos)
+		_ = _go4t23
 		{
-			var x0_ int64 = any(_go4t209.F0).(int64)
+			var x0_ int64 = any(_go4t23.F0).(int64)
 			_ = x0_
 //line decide/decide.gt:8
 //line decide/decide.gt:8
@@ -866,83 +800,83 @@ type dict_decide_Eq_Approval struct{}
 
 //line decide/decide.gt:11
 func (dictself dict_decide_Eq_Approval) prelude_Eq(a_ any, b_ any) any {
-	var _go4t210 any = &Tuple2{F0: a_, F1: b_}
-	_ = _go4t210
+	var _go4t24 any = &Tuple2{F0: a_, F1: b_}
+	_ = _go4t24
 //line decide/decide.gt:11
 	{
-		_go4t211 := _go4t210.(*Tuple2)
-		_ = _go4t211
+		_go4t25 := _go4t24.(*Tuple2)
+		_ = _go4t25
 		{
-			_go4t213 := _go4t211.F0.(*decide_Approval_Approval)
-			_ = _go4t213
+			_go4t27 := _go4t25.F0.(*decide_Approval_Approval)
+			_ = _go4t27
 			{
-				var x0_ bool = any(_go4t213.F0).(bool)
+				var x0_ bool = any(_go4t27.F0).(bool)
 				_ = x0_
 				{
-					var x1_ bool = any(_go4t213.F1).(bool)
+					var x1_ bool = any(_go4t27.F1).(bool)
 					_ = x1_
 					{
-						var x2_ bool = any(_go4t213.F2).(bool)
+						var x2_ bool = any(_go4t27.F2).(bool)
 						_ = x2_
 						{
-							var x3_ any = _go4t213.F3
+							var x3_ any = _go4t27.F3
 							_ = x3_
 							{
-								var x4_ bool = any(_go4t213.F4).(bool)
+								var x4_ bool = any(_go4t27.F4).(bool)
 								_ = x4_
 								{
-									var x5_ bool = any(_go4t213.F5).(bool)
+									var x5_ bool = any(_go4t27.F5).(bool)
 									_ = x5_
 									{
-										var x6_ bool = any(_go4t213.F6).(bool)
+										var x6_ bool = any(_go4t27.F6).(bool)
 										_ = x6_
 										{
-											var x7_ any = _go4t213.F7
+											var x7_ any = _go4t27.F7
 											_ = x7_
 											{
-												var x8_ any = _go4t213.F8
+												var x8_ any = _go4t27.F8
 												_ = x8_
 												{
-													var x9_ any = _go4t213.F9
+													var x9_ any = _go4t27.F9
 													_ = x9_
 													{
-														var x10_ any = _go4t213.F10
+														var x10_ any = _go4t27.F10
 														_ = x10_
 														{
-															_go4t212 := _go4t211.F1.(*decide_Approval_Approval)
-															_ = _go4t212
+															_go4t26 := _go4t25.F1.(*decide_Approval_Approval)
+															_ = _go4t26
 															{
-																var y0_ bool = any(_go4t212.F0).(bool)
+																var y0_ bool = any(_go4t26.F0).(bool)
 																_ = y0_
 																{
-																	var y1_ bool = any(_go4t212.F1).(bool)
+																	var y1_ bool = any(_go4t26.F1).(bool)
 																	_ = y1_
 																	{
-																		var y2_ bool = any(_go4t212.F2).(bool)
+																		var y2_ bool = any(_go4t26.F2).(bool)
 																		_ = y2_
 																		{
-																			var y3_ any = _go4t212.F3
+																			var y3_ any = _go4t26.F3
 																			_ = y3_
 																			{
-																				var y4_ bool = any(_go4t212.F4).(bool)
+																				var y4_ bool = any(_go4t26.F4).(bool)
 																				_ = y4_
 																				{
-																					var y5_ bool = any(_go4t212.F5).(bool)
+																					var y5_ bool = any(_go4t26.F5).(bool)
 																					_ = y5_
 																					{
-																						var y6_ bool = any(_go4t212.F6).(bool)
+																						var y6_ bool = any(_go4t26.F6).(bool)
 																						_ = y6_
 																						{
-																							var y7_ any = _go4t212.F7
+																							var y7_ any = _go4t26.F7
 																							_ = y7_
 																							{
-																								var y8_ any = _go4t212.F8
+																								var y8_ any = _go4t26.F8
 																								_ = y8_
 																								{
-																									var y9_ any = _go4t212.F9
+																									var y9_ any = _go4t26.F9
 																									_ = y9_
 																									{
-																										var y10_ any = _go4t212.F10
+																										var y10_ any = _go4t26.F10
 																										_ = y10_
 //line decide/decide.gt:11
 //line decide/decide.gt:11
@@ -978,44 +912,44 @@ type dict_decide_Debug_Approval struct{}
 
 //line decide/decide.gt:11
 func (dictself dict_decide_Debug_Approval) prelude_Debug(a_ any) any {
-	var _go4t214 any = a_
-	_ = _go4t214
+	var _go4t28 any = a_
+	_ = _go4t28
 //line decide/decide.gt:11
 	{
-		_go4t215 := _go4t214.(*decide_Approval_Approval)
-		_ = _go4t215
+		_go4t29 := _go4t28.(*decide_Approval_Approval)
+		_ = _go4t29
 		{
-			var x0_ bool = any(_go4t215.F0).(bool)
+			var x0_ bool = any(_go4t29.F0).(bool)
 			_ = x0_
 			{
-				var x1_ bool = any(_go4t215.F1).(bool)
+				var x1_ bool = any(_go4t29.F1).(bool)
 				_ = x1_
 				{
-					var x2_ bool = any(_go4t215.F2).(bool)
+					var x2_ bool = any(_go4t29.F2).(bool)
 					_ = x2_
 					{
-						var x3_ any = _go4t215.F3
+						var x3_ any = _go4t29.F3
 						_ = x3_
 						{
-							var x4_ bool = any(_go4t215.F4).(bool)
+							var x4_ bool = any(_go4t29.F4).(bool)
 							_ = x4_
 							{
-								var x5_ bool = any(_go4t215.F5).(bool)
+								var x5_ bool = any(_go4t29.F5).(bool)
 								_ = x5_
 								{
-									var x6_ bool = any(_go4t215.F6).(bool)
+									var x6_ bool = any(_go4t29.F6).(bool)
 									_ = x6_
 									{
-										var x7_ any = _go4t215.F7
+										var x7_ any = _go4t29.F7
 										_ = x7_
 										{
-											var x8_ any = _go4t215.F8
+											var x8_ any = _go4t29.F8
 											_ = x8_
 											{
-												var x9_ any = _go4t215.F9
+												var x9_ any = _go4t29.F9
 												_ = x9_
 												{
-													var x10_ any = _go4t215.F10
+													var x10_ any = _go4t29.F10
 													_ = x10_
 //line decide/decide.gt:11
 //line decide/decide.gt:11
@@ -1038,18 +972,18 @@ type dict_decide_Eq_ApprovalRead struct{}
 
 //line decide/decide.gt:25
 func (dictself dict_decide_Eq_ApprovalRead) prelude_Eq(a_ any, b_ any) any {
-	var _go4t216 any = &Tuple2{F0: a_, F1: b_}
-	_ = _go4t216
+	var _go4t30 any = &Tuple2{F0: a_, F1: b_}
+	_ = _go4t30
 //line decide/decide.gt:25
-	switch _go4t217 := _go4t216.(type) {
+	switch _go4t31 := _go4t30.(type) {
 	case *Tuple2:
-		_ = _go4t217
-		switch _go4t219 := _go4t217.F0.(type) {
+		_ = _go4t31
+		switch _go4t33 := _go4t31.F0.(type) {
 		case *decide_ApprovalRead_NoRef:
-			_ = _go4t219
-			switch _go4t218 := _go4t217.F1.(type) {
+			_ = _go4t33
+			switch _go4t32 := _go4t31.F1.(type) {
 			case *decide_ApprovalRead_NoRef:
-				_ = _go4t218
+				_ = _go4t32
 //line decide/decide.gt:25
 //line decide/decide.gt:25
 				return true
@@ -1057,15 +991,15 @@ func (dictself dict_decide_Eq_ApprovalRead) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:25
-	switch _go4t220 := _go4t216.(type) {
+	switch _go4t34 := _go4t30.(type) {
 	case *Tuple2:
-		_ = _go4t220
-		switch _go4t222 := _go4t220.F0.(type) {
+		_ = _go4t34
+		switch _go4t36 := _go4t34.F0.(type) {
 		case *decide_ApprovalRead_ReadFailed:
-			_ = _go4t222
-			switch _go4t221 := _go4t220.F1.(type) {
+			_ = _go4t36
+			switch _go4t35 := _go4t34.F1.(type) {
 			case *decide_ApprovalRead_ReadFailed:
-				_ = _go4t221
+				_ = _go4t35
 //line decide/decide.gt:25
 //line decide/decide.gt:25
 				return true
@@ -1073,15 +1007,15 @@ func (dictself dict_decide_Eq_ApprovalRead) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:25
-	switch _go4t223 := _go4t216.(type) {
+	switch _go4t37 := _go4t30.(type) {
 	case *Tuple2:
-		_ = _go4t223
-		switch _go4t225 := _go4t223.F0.(type) {
+		_ = _go4t37
+		switch _go4t39 := _go4t37.F0.(type) {
 		case *decide_ApprovalRead_Missing:
-			_ = _go4t225
-			switch _go4t224 := _go4t223.F1.(type) {
+			_ = _go4t39
+			switch _go4t38 := _go4t37.F1.(type) {
 			case *decide_ApprovalRead_Missing:
-				_ = _go4t224
+				_ = _go4t38
 //line decide/decide.gt:25
 //line decide/decide.gt:25
 				return true
@@ -1089,20 +1023,20 @@ func (dictself dict_decide_Eq_ApprovalRead) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:25
-	switch _go4t226 := _go4t216.(type) {
+	switch _go4t40 := _go4t30.(type) {
 	case *Tuple2:
-		_ = _go4t226
-		switch _go4t228 := _go4t226.F0.(type) {
+		_ = _go4t40
+		switch _go4t42 := _go4t40.F0.(type) {
 		case *decide_ApprovalRead_Read:
-			_ = _go4t228
+			_ = _go4t42
 			{
-				var x0_ any = _go4t228.F0
+				var x0_ any = _go4t42.F0
 				_ = x0_
-				switch _go4t227 := _go4t226.F1.(type) {
+				switch _go4t41 := _go4t40.F1.(type) {
 				case *decide_ApprovalRead_Read:
-					_ = _go4t227
+					_ = _go4t41
 					{
-						var y0_ any = _go4t227.F0
+						var y0_ any = _go4t41.F0
 						_ = y0_
 //line decide/decide.gt:25
 //line decide/decide.gt:25
@@ -1124,38 +1058,38 @@ type dict_decide_Debug_ApprovalRead struct{}
 
 //line decide/decide.gt:25
 func (dictself dict_decide_Debug_ApprovalRead) prelude_Debug(a_ any) any {
-	var _go4t229 any = a_
-	_ = _go4t229
+	var _go4t43 any = a_
+	_ = _go4t43
 //line decide/decide.gt:25
-	switch _go4t230 := _go4t229.(type) {
+	switch _go4t44 := _go4t43.(type) {
 	case *decide_ApprovalRead_NoRef:
-		_ = _go4t230
+		_ = _go4t44
 //line decide/decide.gt:25
 //line decide/decide.gt:25
 		return "NoRef"
 	}
 //line decide/decide.gt:25
-	switch _go4t231 := _go4t229.(type) {
+	switch _go4t45 := _go4t43.(type) {
 	case *decide_ApprovalRead_ReadFailed:
-		_ = _go4t231
+		_ = _go4t45
 //line decide/decide.gt:25
 //line decide/decide.gt:25
 		return "ReadFailed"
 	}
 //line decide/decide.gt:25
-	switch _go4t232 := _go4t229.(type) {
+	switch _go4t46 := _go4t43.(type) {
 	case *decide_ApprovalRead_Missing:
-		_ = _go4t232
+		_ = _go4t46
 //line decide/decide.gt:25
 //line decide/decide.gt:25
 		return "Missing"
 	}
 //line decide/decide.gt:25
 	{
-		_go4t233 := _go4t229.(*decide_ApprovalRead_Read)
-		_ = _go4t233
+		_go4t47 := _go4t43.(*decide_ApprovalRead_Read)
+		_ = _go4t47
 		{
-			var x0_ any = _go4t233.F0
+			var x0_ any = _go4t47.F0
 			_ = x0_
 //line decide/decide.gt:25
 //line decide/decide.gt:25
@@ -1168,18 +1102,18 @@ type dict_decide_Eq_Mode struct{}
 
 //line decide/decide.gt:26
 func (dictself dict_decide_Eq_Mode) prelude_Eq(a_ any, b_ any) any {
-	var _go4t234 any = &Tuple2{F0: a_, F1: b_}
-	_ = _go4t234
+	var _go4t48 any = &Tuple2{F0: a_, F1: b_}
+	_ = _go4t48
 //line decide/decide.gt:26
-	switch _go4t235 := _go4t234.(type) {
+	switch _go4t49 := _go4t48.(type) {
 	case *Tuple2:
-		_ = _go4t235
-		switch _go4t237 := _go4t235.F0.(type) {
+		_ = _go4t49
+		switch _go4t51 := _go4t49.F0.(type) {
 		case *decide_Mode_DryRun:
-			_ = _go4t237
-			switch _go4t236 := _go4t235.F1.(type) {
+			_ = _go4t51
+			switch _go4t50 := _go4t49.F1.(type) {
 			case *decide_Mode_DryRun:
-				_ = _go4t236
+				_ = _go4t50
 //line decide/decide.gt:26
 //line decide/decide.gt:26
 				return true
@@ -1187,20 +1121,20 @@ func (dictself dict_decide_Eq_Mode) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:26
-	switch _go4t238 := _go4t234.(type) {
+	switch _go4t52 := _go4t48.(type) {
 	case *Tuple2:
-		_ = _go4t238
-		switch _go4t240 := _go4t238.F0.(type) {
+		_ = _go4t52
+		switch _go4t54 := _go4t52.F0.(type) {
 		case *decide_Mode_Live:
-			_ = _go4t240
+			_ = _go4t54
 			{
-				var x0_ any = _go4t240.F0
+				var x0_ any = _go4t54.F0
 				_ = x0_
-				switch _go4t239 := _go4t238.F1.(type) {
+				switch _go4t53 := _go4t52.F1.(type) {
 				case *decide_Mode_Live:
-					_ = _go4t239
+					_ = _go4t53
 					{
-						var y0_ any = _go4t239.F0
+						var y0_ any = _go4t53.F0
 						_ = y0_
 //line decide/decide.gt:26
 //line decide/decide.gt:26
@@ -1222,22 +1156,22 @@ type dict_decide_Debug_Mode struct{}
 
 //line decide/decide.gt:26
 func (dictself dict_decide_Debug_Mode) prelude_Debug(a_ any) any {
-	var _go4t241 any = a_
-	_ = _go4t241
+	var _go4t55 any = a_
+	_ = _go4t55
 //line decide/decide.gt:26
-	switch _go4t242 := _go4t241.(type) {
+	switch _go4t56 := _go4t55.(type) {
 	case *decide_Mode_DryRun:
-		_ = _go4t242
+		_ = _go4t56
 //line decide/decide.gt:26
 //line decide/decide.gt:26
 		return "DryRun"
 	}
 //line decide/decide.gt:26
 	{
-		_go4t243 := _go4t241.(*decide_Mode_Live)
-		_ = _go4t243
+		_go4t57 := _go4t55.(*decide_Mode_Live)
+		_ = _go4t57
 		{
-			var x0_ any = _go4t243.F0
+			var x0_ any = _go4t57.F0
 			_ = x0_
 //line decide/decide.gt:26
 //line decide/decide.gt:26
@@ -1250,18 +1184,18 @@ type dict_decide_Eq_ObsReason struct{}
 
 //line decide/decide.gt:31
 func (dictself dict_decide_Eq_ObsReason) prelude_Eq(a_ any, b_ any) any {
-	var _go4t244 any = &Tuple2{F0: a_, F1: b_}
-	_ = _go4t244
+	var _go4t58 any = &Tuple2{F0: a_, F1: b_}
+	_ = _go4t58
 //line decide/decide.gt:31
-	switch _go4t245 := _go4t244.(type) {
+	switch _go4t59 := _go4t58.(type) {
 	case *Tuple2:
-		_ = _go4t245
-		switch _go4t247 := _go4t245.F0.(type) {
+		_ = _go4t59
+		switch _go4t61 := _go4t59.F0.(type) {
 		case *decide_ObsReason_AttachmentDeletionInProgress:
-			_ = _go4t247
-			switch _go4t246 := _go4t245.F1.(type) {
+			_ = _go4t61
+			switch _go4t60 := _go4t59.F1.(type) {
 			case *decide_ObsReason_AttachmentDeletionInProgress:
-				_ = _go4t246
+				_ = _go4t60
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 				return true
@@ -1269,15 +1203,15 @@ func (dictself dict_decide_Eq_ObsReason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:31
-	switch _go4t248 := _go4t244.(type) {
+	switch _go4t62 := _go4t58.(type) {
 	case *Tuple2:
-		_ = _go4t248
-		switch _go4t250 := _go4t248.F0.(type) {
+		_ = _go4t62
+		switch _go4t64 := _go4t62.F0.(type) {
 		case *decide_ObsReason_AttachmentDriverMismatch:
-			_ = _go4t250
-			switch _go4t249 := _go4t248.F1.(type) {
+			_ = _go4t64
+			switch _go4t63 := _go4t62.F1.(type) {
 			case *decide_ObsReason_AttachmentDriverMismatch:
-				_ = _go4t249
+				_ = _go4t63
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 				return true
@@ -1285,15 +1219,15 @@ func (dictself dict_decide_Eq_ObsReason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:31
-	switch _go4t251 := _go4t244.(type) {
+	switch _go4t65 := _go4t58.(type) {
 	case *Tuple2:
-		_ = _go4t251
-		switch _go4t253 := _go4t251.F0.(type) {
+		_ = _go4t65
+		switch _go4t67 := _go4t65.F0.(type) {
 		case *decide_ObsReason_AttachmentTargetMismatch:
-			_ = _go4t253
-			switch _go4t252 := _go4t251.F1.(type) {
+			_ = _go4t67
+			switch _go4t66 := _go4t65.F1.(type) {
 			case *decide_ObsReason_AttachmentTargetMismatch:
-				_ = _go4t252
+				_ = _go4t66
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 				return true
@@ -1301,15 +1235,15 @@ func (dictself dict_decide_Eq_ObsReason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:31
-	switch _go4t254 := _go4t244.(type) {
+	switch _go4t68 := _go4t58.(type) {
 	case *Tuple2:
-		_ = _go4t254
-		switch _go4t256 := _go4t254.F0.(type) {
+		_ = _go4t68
+		switch _go4t70 := _go4t68.F0.(type) {
 		case *decide_ObsReason_CurrentAttachmentNotUnique:
-			_ = _go4t256
-			switch _go4t255 := _go4t254.F1.(type) {
+			_ = _go4t70
+			switch _go4t69 := _go4t68.F1.(type) {
 			case *decide_ObsReason_CurrentAttachmentNotUnique:
-				_ = _go4t255
+				_ = _go4t69
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 				return true
@@ -1317,15 +1251,15 @@ func (dictself dict_decide_Eq_ObsReason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:31
-	switch _go4t257 := _go4t244.(type) {
+	switch _go4t71 := _go4t58.(type) {
 	case *Tuple2:
-		_ = _go4t257
-		switch _go4t259 := _go4t257.F0.(type) {
+		_ = _go4t71
+		switch _go4t73 := _go4t71.F0.(type) {
 		case *decide_ObsReason_CurrentNodeNotFound:
-			_ = _go4t259
-			switch _go4t258 := _go4t257.F1.(type) {
+			_ = _go4t73
+			switch _go4t72 := _go4t71.F1.(type) {
 			case *decide_ObsReason_CurrentNodeNotFound:
-				_ = _go4t258
+				_ = _go4t72
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 				return true
@@ -1333,15 +1267,15 @@ func (dictself dict_decide_Eq_ObsReason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:31
-	switch _go4t260 := _go4t244.(type) {
+	switch _go4t74 := _go4t58.(type) {
 	case *Tuple2:
-		_ = _go4t260
-		switch _go4t262 := _go4t260.F0.(type) {
+		_ = _go4t74
+		switch _go4t76 := _go4t74.F0.(type) {
 		case *decide_ObsReason_CurrentNodeNotReady:
-			_ = _go4t262
-			switch _go4t261 := _go4t260.F1.(type) {
+			_ = _go4t76
+			switch _go4t75 := _go4t74.F1.(type) {
 			case *decide_ObsReason_CurrentNodeNotReady:
-				_ = _go4t261
+				_ = _go4t75
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 				return true
@@ -1349,15 +1283,15 @@ func (dictself dict_decide_Eq_ObsReason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:31
-	switch _go4t263 := _go4t244.(type) {
+	switch _go4t77 := _go4t58.(type) {
 	case *Tuple2:
-		_ = _go4t263
-		switch _go4t265 := _go4t263.F0.(type) {
+		_ = _go4t77
+		switch _go4t79 := _go4t77.F0.(type) {
 		case *decide_ObsReason_NodeDeletionInProgress:
-			_ = _go4t265
-			switch _go4t264 := _go4t263.F1.(type) {
+			_ = _go4t79
+			switch _go4t78 := _go4t77.F1.(type) {
 			case *decide_ObsReason_NodeDeletionInProgress:
-				_ = _go4t264
+				_ = _go4t78
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 				return true
@@ -1365,15 +1299,15 @@ func (dictself dict_decide_Eq_ObsReason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:31
-	switch _go4t266 := _go4t244.(type) {
+	switch _go4t80 := _go4t58.(type) {
 	case *Tuple2:
-		_ = _go4t266
-		switch _go4t268 := _go4t266.F0.(type) {
+		_ = _go4t80
+		switch _go4t82 := _go4t80.F0.(type) {
 		case *decide_ObsReason_NodeObservationFailed:
-			_ = _go4t268
-			switch _go4t267 := _go4t266.F1.(type) {
+			_ = _go4t82
+			switch _go4t81 := _go4t80.F1.(type) {
 			case *decide_ObsReason_NodeObservationFailed:
-				_ = _go4t267
+				_ = _go4t81
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 				return true
@@ -1381,15 +1315,15 @@ func (dictself dict_decide_Eq_ObsReason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:31
-	switch _go4t269 := _go4t244.(type) {
+	switch _go4t83 := _go4t58.(type) {
 	case *Tuple2:
-		_ = _go4t269
-		switch _go4t271 := _go4t269.F0.(type) {
+		_ = _go4t83
+		switch _go4t85 := _go4t83.F0.(type) {
 		case *decide_ObsReason_NodeTargetNotUnique:
-			_ = _go4t271
-			switch _go4t270 := _go4t269.F1.(type) {
+			_ = _go4t85
+			switch _go4t84 := _go4t83.F1.(type) {
 			case *decide_ObsReason_NodeTargetNotUnique:
-				_ = _go4t270
+				_ = _go4t84
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 				return true
@@ -1397,15 +1331,15 @@ func (dictself dict_decide_Eq_ObsReason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:31
-	switch _go4t272 := _go4t244.(type) {
+	switch _go4t86 := _go4t58.(type) {
 	case *Tuple2:
-		_ = _go4t272
-		switch _go4t274 := _go4t272.F0.(type) {
+		_ = _go4t86
+		switch _go4t88 := _go4t86.F0.(type) {
 		case *decide_ObsReason_PersistentVolumeBindingMismatch:
-			_ = _go4t274
-			switch _go4t273 := _go4t272.F1.(type) {
+			_ = _go4t88
+			switch _go4t87 := _go4t86.F1.(type) {
 			case *decide_ObsReason_PersistentVolumeBindingMismatch:
-				_ = _go4t273
+				_ = _go4t87
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 				return true
@@ -1413,15 +1347,15 @@ func (dictself dict_decide_Eq_ObsReason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:31
-	switch _go4t275 := _go4t244.(type) {
+	switch _go4t89 := _go4t58.(type) {
 	case *Tuple2:
-		_ = _go4t275
-		switch _go4t277 := _go4t275.F0.(type) {
+		_ = _go4t89
+		switch _go4t91 := _go4t89.F0.(type) {
 		case *decide_ObsReason_PersistentVolumeClaimNotBound:
-			_ = _go4t277
-			switch _go4t276 := _go4t275.F1.(type) {
+			_ = _go4t91
+			switch _go4t90 := _go4t89.F1.(type) {
 			case *decide_ObsReason_PersistentVolumeClaimNotBound:
-				_ = _go4t276
+				_ = _go4t90
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 				return true
@@ -1429,15 +1363,15 @@ func (dictself dict_decide_Eq_ObsReason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:31
-	switch _go4t278 := _go4t244.(type) {
+	switch _go4t92 := _go4t58.(type) {
 	case *Tuple2:
-		_ = _go4t278
-		switch _go4t280 := _go4t278.F0.(type) {
+		_ = _go4t92
+		switch _go4t94 := _go4t92.F0.(type) {
 		case *decide_ObsReason_PersistentVolumeClaimNotFound:
-			_ = _go4t280
-			switch _go4t279 := _go4t278.F1.(type) {
+			_ = _go4t94
+			switch _go4t93 := _go4t92.F1.(type) {
 			case *decide_ObsReason_PersistentVolumeClaimNotFound:
-				_ = _go4t279
+				_ = _go4t93
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 				return true
@@ -1445,15 +1379,15 @@ func (dictself dict_decide_Eq_ObsReason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:31
-	switch _go4t281 := _go4t244.(type) {
+	switch _go4t95 := _go4t58.(type) {
 	case *Tuple2:
-		_ = _go4t281
-		switch _go4t283 := _go4t281.F0.(type) {
+		_ = _go4t95
+		switch _go4t97 := _go4t95.F0.(type) {
 		case *decide_ObsReason_PersistentVolumeClaimReadFailed:
-			_ = _go4t283
-			switch _go4t282 := _go4t281.F1.(type) {
+			_ = _go4t97
+			switch _go4t96 := _go4t95.F1.(type) {
 			case *decide_ObsReason_PersistentVolumeClaimReadFailed:
-				_ = _go4t282
+				_ = _go4t96
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 				return true
@@ -1461,15 +1395,15 @@ func (dictself dict_decide_Eq_ObsReason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:31
-	switch _go4t284 := _go4t244.(type) {
+	switch _go4t98 := _go4t58.(type) {
 	case *Tuple2:
-		_ = _go4t284
-		switch _go4t286 := _go4t284.F0.(type) {
+		_ = _go4t98
+		switch _go4t100 := _go4t98.F0.(type) {
 		case *decide_ObsReason_PersistentVolumeNotBound:
-			_ = _go4t286
-			switch _go4t285 := _go4t284.F1.(type) {
+			_ = _go4t100
+			switch _go4t99 := _go4t98.F1.(type) {
 			case *decide_ObsReason_PersistentVolumeNotBound:
-				_ = _go4t285
+				_ = _go4t99
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 				return true
@@ -1477,15 +1411,15 @@ func (dictself dict_decide_Eq_ObsReason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:31
-	switch _go4t287 := _go4t244.(type) {
+	switch _go4t101 := _go4t58.(type) {
 	case *Tuple2:
-		_ = _go4t287
-		switch _go4t289 := _go4t287.F0.(type) {
+		_ = _go4t101
+		switch _go4t103 := _go4t101.F0.(type) {
 		case *decide_ObsReason_PersistentVolumeNotFound:
-			_ = _go4t289
-			switch _go4t288 := _go4t287.F1.(type) {
+			_ = _go4t103
+			switch _go4t102 := _go4t101.F1.(type) {
 			case *decide_ObsReason_PersistentVolumeNotFound:
-				_ = _go4t288
+				_ = _go4t102
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 				return true
@@ -1493,15 +1427,15 @@ func (dictself dict_decide_Eq_ObsReason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:31
-	switch _go4t290 := _go4t244.(type) {
+	switch _go4t104 := _go4t58.(type) {
 	case *Tuple2:
-		_ = _go4t290
-		switch _go4t292 := _go4t290.F0.(type) {
+		_ = _go4t104
+		switch _go4t106 := _go4t104.F0.(type) {
 		case *decide_ObsReason_PersistentVolumeReadFailed:
-			_ = _go4t292
-			switch _go4t291 := _go4t290.F1.(type) {
+			_ = _go4t106
+			switch _go4t105 := _go4t104.F1.(type) {
 			case *decide_ObsReason_PersistentVolumeReadFailed:
-				_ = _go4t291
+				_ = _go4t105
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 				return true
@@ -1509,15 +1443,15 @@ func (dictself dict_decide_Eq_ObsReason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:31
-	switch _go4t293 := _go4t244.(type) {
+	switch _go4t107 := _go4t58.(type) {
 	case *Tuple2:
-		_ = _go4t293
-		switch _go4t295 := _go4t293.F0.(type) {
+		_ = _go4t107
+		switch _go4t109 := _go4t107.F0.(type) {
 		case *decide_ObsReason_PodObservationFailed:
-			_ = _go4t295
-			switch _go4t294 := _go4t293.F1.(type) {
+			_ = _go4t109
+			switch _go4t108 := _go4t107.F1.(type) {
 			case *decide_ObsReason_PodObservationFailed:
-				_ = _go4t294
+				_ = _go4t108
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 				return true
@@ -1525,15 +1459,15 @@ func (dictself dict_decide_Eq_ObsReason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:31
-	switch _go4t296 := _go4t244.(type) {
+	switch _go4t110 := _go4t58.(type) {
 	case *Tuple2:
-		_ = _go4t296
-		switch _go4t298 := _go4t296.F0.(type) {
+		_ = _go4t110
+		switch _go4t112 := _go4t110.F0.(type) {
 		case *decide_ObsReason_PodTargetNotUnique:
-			_ = _go4t298
-			switch _go4t297 := _go4t296.F1.(type) {
+			_ = _go4t112
+			switch _go4t111 := _go4t110.F1.(type) {
 			case *decide_ObsReason_PodTargetNotUnique:
-				_ = _go4t297
+				_ = _go4t111
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 				return true
@@ -1541,15 +1475,15 @@ func (dictself dict_decide_Eq_ObsReason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:31
-	switch _go4t299 := _go4t244.(type) {
+	switch _go4t113 := _go4t58.(type) {
 	case *Tuple2:
-		_ = _go4t299
-		switch _go4t301 := _go4t299.F0.(type) {
+		_ = _go4t113
+		switch _go4t115 := _go4t113.F0.(type) {
 		case *decide_ObsReason_StaleAttachmentNotUnique:
-			_ = _go4t301
-			switch _go4t300 := _go4t299.F1.(type) {
+			_ = _go4t115
+			switch _go4t114 := _go4t113.F1.(type) {
 			case *decide_ObsReason_StaleAttachmentNotUnique:
-				_ = _go4t300
+				_ = _go4t114
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 				return true
@@ -1557,15 +1491,15 @@ func (dictself dict_decide_Eq_ObsReason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:31
-	switch _go4t302 := _go4t244.(type) {
+	switch _go4t116 := _go4t58.(type) {
 	case *Tuple2:
-		_ = _go4t302
-		switch _go4t304 := _go4t302.F0.(type) {
+		_ = _go4t116
+		switch _go4t118 := _go4t116.F0.(type) {
 		case *decide_ObsReason_StaleNodeNotFound:
-			_ = _go4t304
-			switch _go4t303 := _go4t302.F1.(type) {
+			_ = _go4t118
+			switch _go4t117 := _go4t116.F1.(type) {
 			case *decide_ObsReason_StaleNodeNotFound:
-				_ = _go4t303
+				_ = _go4t117
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 				return true
@@ -1573,15 +1507,15 @@ func (dictself dict_decide_Eq_ObsReason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:31
-	switch _go4t305 := _go4t244.(type) {
+	switch _go4t119 := _go4t58.(type) {
 	case *Tuple2:
-		_ = _go4t305
-		switch _go4t307 := _go4t305.F0.(type) {
+		_ = _go4t119
+		switch _go4t121 := _go4t119.F0.(type) {
 		case *decide_ObsReason_StaleNodeReadinessAmbiguous:
-			_ = _go4t307
-			switch _go4t306 := _go4t305.F1.(type) {
+			_ = _go4t121
+			switch _go4t120 := _go4t119.F1.(type) {
 			case *decide_ObsReason_StaleNodeReadinessAmbiguous:
-				_ = _go4t306
+				_ = _go4t120
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 				return true
@@ -1589,15 +1523,15 @@ func (dictself dict_decide_Eq_ObsReason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:31
-	switch _go4t308 := _go4t244.(type) {
+	switch _go4t122 := _go4t58.(type) {
 	case *Tuple2:
-		_ = _go4t308
-		switch _go4t310 := _go4t308.F0.(type) {
+		_ = _go4t122
+		switch _go4t124 := _go4t122.F0.(type) {
 		case *decide_ObsReason_StaleNodeRecovered:
-			_ = _go4t310
-			switch _go4t309 := _go4t308.F1.(type) {
+			_ = _go4t124
+			switch _go4t123 := _go4t122.F1.(type) {
 			case *decide_ObsReason_StaleNodeRecovered:
-				_ = _go4t309
+				_ = _go4t123
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 				return true
@@ -1605,15 +1539,15 @@ func (dictself dict_decide_Eq_ObsReason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:31
-	switch _go4t311 := _go4t244.(type) {
+	switch _go4t125 := _go4t58.(type) {
 	case *Tuple2:
-		_ = _go4t311
-		switch _go4t313 := _go4t311.F0.(type) {
+		_ = _go4t125
+		switch _go4t127 := _go4t125.F0.(type) {
 		case *decide_ObsReason_StorageCapabilityDeletionInProgress:
-			_ = _go4t313
-			switch _go4t312 := _go4t311.F1.(type) {
+			_ = _go4t127
+			switch _go4t126 := _go4t125.F1.(type) {
 			case *decide_ObsReason_StorageCapabilityDeletionInProgress:
-				_ = _go4t312
+				_ = _go4t126
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 				return true
@@ -1621,15 +1555,15 @@ func (dictself dict_decide_Eq_ObsReason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:31
-	switch _go4t314 := _go4t244.(type) {
+	switch _go4t128 := _go4t58.(type) {
 	case *Tuple2:
-		_ = _go4t314
-		switch _go4t316 := _go4t314.F0.(type) {
+		_ = _go4t128
+		switch _go4t130 := _go4t128.F0.(type) {
 		case *decide_ObsReason_StorageCapabilityNotFound:
-			_ = _go4t316
-			switch _go4t315 := _go4t314.F1.(type) {
+			_ = _go4t130
+			switch _go4t129 := _go4t128.F1.(type) {
 			case *decide_ObsReason_StorageCapabilityNotFound:
-				_ = _go4t315
+				_ = _go4t129
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 				return true
@@ -1637,15 +1571,15 @@ func (dictself dict_decide_Eq_ObsReason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:31
-	switch _go4t317 := _go4t244.(type) {
+	switch _go4t131 := _go4t58.(type) {
 	case *Tuple2:
-		_ = _go4t317
-		switch _go4t319 := _go4t317.F0.(type) {
+		_ = _go4t131
+		switch _go4t133 := _go4t131.F0.(type) {
 		case *decide_ObsReason_StorageCapabilityReadFailed:
-			_ = _go4t319
-			switch _go4t318 := _go4t317.F1.(type) {
+			_ = _go4t133
+			switch _go4t132 := _go4t131.F1.(type) {
 			case *decide_ObsReason_StorageCapabilityReadFailed:
-				_ = _go4t318
+				_ = _go4t132
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 				return true
@@ -1653,15 +1587,15 @@ func (dictself dict_decide_Eq_ObsReason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:31
-	switch _go4t320 := _go4t244.(type) {
+	switch _go4t134 := _go4t58.(type) {
 	case *Tuple2:
-		_ = _go4t320
-		switch _go4t322 := _go4t320.F0.(type) {
+		_ = _go4t134
+		switch _go4t136 := _go4t134.F0.(type) {
 		case *decide_ObsReason_StorageClassMismatch:
-			_ = _go4t322
-			switch _go4t321 := _go4t320.F1.(type) {
+			_ = _go4t136
+			switch _go4t135 := _go4t134.F1.(type) {
 			case *decide_ObsReason_StorageClassMismatch:
-				_ = _go4t321
+				_ = _go4t135
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 				return true
@@ -1669,15 +1603,15 @@ func (dictself dict_decide_Eq_ObsReason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:31
-	switch _go4t323 := _go4t244.(type) {
+	switch _go4t137 := _go4t58.(type) {
 	case *Tuple2:
-		_ = _go4t323
-		switch _go4t325 := _go4t323.F0.(type) {
+		_ = _go4t137
+		switch _go4t139 := _go4t137.F0.(type) {
 		case *decide_ObsReason_StorageClassMissing:
-			_ = _go4t325
-			switch _go4t324 := _go4t323.F1.(type) {
+			_ = _go4t139
+			switch _go4t138 := _go4t137.F1.(type) {
 			case *decide_ObsReason_StorageClassMissing:
-				_ = _go4t324
+				_ = _go4t138
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 				return true
@@ -1685,15 +1619,15 @@ func (dictself dict_decide_Eq_ObsReason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:31
-	switch _go4t326 := _go4t244.(type) {
+	switch _go4t140 := _go4t58.(type) {
 	case *Tuple2:
-		_ = _go4t326
-		switch _go4t328 := _go4t326.F0.(type) {
+		_ = _go4t140
+		switch _go4t142 := _go4t140.F0.(type) {
 		case *decide_ObsReason_TargetDeletionInProgress:
-			_ = _go4t328
-			switch _go4t327 := _go4t326.F1.(type) {
+			_ = _go4t142
+			switch _go4t141 := _go4t140.F1.(type) {
 			case *decide_ObsReason_TargetDeletionInProgress:
-				_ = _go4t327
+				_ = _go4t141
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 				return true
@@ -1701,15 +1635,15 @@ func (dictself dict_decide_Eq_ObsReason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:31
-	switch _go4t329 := _go4t244.(type) {
+	switch _go4t143 := _go4t58.(type) {
 	case *Tuple2:
-		_ = _go4t329
-		switch _go4t331 := _go4t329.F0.(type) {
+		_ = _go4t143
+		switch _go4t145 := _go4t143.F0.(type) {
 		case *decide_ObsReason_TargetReferenceMissing:
-			_ = _go4t331
-			switch _go4t330 := _go4t329.F1.(type) {
+			_ = _go4t145
+			switch _go4t144 := _go4t143.F1.(type) {
 			case *decide_ObsReason_TargetReferenceMissing:
-				_ = _go4t330
+				_ = _go4t144
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 				return true
@@ -1717,15 +1651,15 @@ func (dictself dict_decide_Eq_ObsReason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:31
-	switch _go4t332 := _go4t244.(type) {
+	switch _go4t146 := _go4t58.(type) {
 	case *Tuple2:
-		_ = _go4t332
-		switch _go4t334 := _go4t332.F0.(type) {
+		_ = _go4t146
+		switch _go4t148 := _go4t146.F0.(type) {
 		case *decide_ObsReason_TerminatingPodUsesClaim:
-			_ = _go4t334
-			switch _go4t333 := _go4t332.F1.(type) {
+			_ = _go4t148
+			switch _go4t147 := _go4t146.F1.(type) {
 			case *decide_ObsReason_TerminatingPodUsesClaim:
-				_ = _go4t333
+				_ = _go4t147
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 				return true
@@ -1733,15 +1667,15 @@ func (dictself dict_decide_Eq_ObsReason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:31
-	switch _go4t335 := _go4t244.(type) {
+	switch _go4t149 := _go4t58.(type) {
 	case *Tuple2:
-		_ = _go4t335
-		switch _go4t337 := _go4t335.F0.(type) {
+		_ = _go4t149
+		switch _go4t151 := _go4t149.F0.(type) {
 		case *decide_ObsReason_VolumeAttachmentObservationFailed:
-			_ = _go4t337
-			switch _go4t336 := _go4t335.F1.(type) {
+			_ = _go4t151
+			switch _go4t150 := _go4t149.F1.(type) {
 			case *decide_ObsReason_VolumeAttachmentObservationFailed:
-				_ = _go4t336
+				_ = _go4t150
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 				return true
@@ -1749,15 +1683,15 @@ func (dictself dict_decide_Eq_ObsReason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:31
-	switch _go4t338 := _go4t244.(type) {
+	switch _go4t152 := _go4t58.(type) {
 	case *Tuple2:
-		_ = _go4t338
-		switch _go4t340 := _go4t338.F0.(type) {
+		_ = _go4t152
+		switch _go4t154 := _go4t152.F0.(type) {
 		case *decide_ObsReason_VolumeAttachmentSetNotUnique:
-			_ = _go4t340
-			switch _go4t339 := _go4t338.F1.(type) {
+			_ = _go4t154
+			switch _go4t153 := _go4t152.F1.(type) {
 			case *decide_ObsReason_VolumeAttachmentSetNotUnique:
-				_ = _go4t339
+				_ = _go4t153
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 				return true
@@ -1765,15 +1699,15 @@ func (dictself dict_decide_Eq_ObsReason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:31
-	switch _go4t341 := _go4t244.(type) {
+	switch _go4t155 := _go4t58.(type) {
 	case *Tuple2:
-		_ = _go4t341
-		switch _go4t343 := _go4t341.F0.(type) {
+		_ = _go4t155
+		switch _go4t157 := _go4t155.F0.(type) {
 		case *decide_ObsReason_AttachmentSetChanged:
-			_ = _go4t343
-			switch _go4t342 := _go4t341.F1.(type) {
+			_ = _go4t157
+			switch _go4t156 := _go4t155.F1.(type) {
 			case *decide_ObsReason_AttachmentSetChanged:
-				_ = _go4t342
+				_ = _go4t156
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 				return true
@@ -1781,15 +1715,15 @@ func (dictself dict_decide_Eq_ObsReason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:31
-	switch _go4t344 := _go4t244.(type) {
+	switch _go4t158 := _go4t58.(type) {
 	case *Tuple2:
-		_ = _go4t344
-		switch _go4t346 := _go4t344.F0.(type) {
+		_ = _go4t158
+		switch _go4t160 := _go4t158.F0.(type) {
 		case *decide_ObsReason_AttachmentStateChanged:
-			_ = _go4t346
-			switch _go4t345 := _go4t344.F1.(type) {
+			_ = _go4t160
+			switch _go4t159 := _go4t158.F1.(type) {
 			case *decide_ObsReason_AttachmentStateChanged:
-				_ = _go4t345
+				_ = _go4t159
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 				return true
@@ -1797,15 +1731,15 @@ func (dictself dict_decide_Eq_ObsReason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:31
-	switch _go4t347 := _go4t244.(type) {
+	switch _go4t161 := _go4t58.(type) {
 	case *Tuple2:
-		_ = _go4t347
-		switch _go4t349 := _go4t347.F0.(type) {
+		_ = _go4t161
+		switch _go4t163 := _go4t161.F0.(type) {
 		case *decide_ObsReason_CurrentAttachmentIdentityChanged:
-			_ = _go4t349
-			switch _go4t348 := _go4t347.F1.(type) {
+			_ = _go4t163
+			switch _go4t162 := _go4t161.F1.(type) {
 			case *decide_ObsReason_CurrentAttachmentIdentityChanged:
-				_ = _go4t348
+				_ = _go4t162
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 				return true
@@ -1813,15 +1747,15 @@ func (dictself dict_decide_Eq_ObsReason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:31
-	switch _go4t350 := _go4t244.(type) {
+	switch _go4t164 := _go4t58.(type) {
 	case *Tuple2:
-		_ = _go4t350
-		switch _go4t352 := _go4t350.F0.(type) {
+		_ = _go4t164
+		switch _go4t166 := _go4t164.F0.(type) {
 		case *decide_ObsReason_CurrentAttachmentTargetChanged:
-			_ = _go4t352
-			switch _go4t351 := _go4t350.F1.(type) {
+			_ = _go4t166
+			switch _go4t165 := _go4t164.F1.(type) {
 			case *decide_ObsReason_CurrentAttachmentTargetChanged:
-				_ = _go4t351
+				_ = _go4t165
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 				return true
@@ -1829,15 +1763,15 @@ func (dictself dict_decide_Eq_ObsReason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:31
-	switch _go4t353 := _go4t244.(type) {
+	switch _go4t167 := _go4t58.(type) {
 	case *Tuple2:
-		_ = _go4t353
-		switch _go4t355 := _go4t353.F0.(type) {
+		_ = _go4t167
+		switch _go4t169 := _go4t167.F0.(type) {
 		case *decide_ObsReason_CurrentNodeIdentityChanged:
-			_ = _go4t355
-			switch _go4t354 := _go4t353.F1.(type) {
+			_ = _go4t169
+			switch _go4t168 := _go4t167.F1.(type) {
 			case *decide_ObsReason_CurrentNodeIdentityChanged:
-				_ = _go4t354
+				_ = _go4t168
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 				return true
@@ -1845,15 +1779,15 @@ func (dictself dict_decide_Eq_ObsReason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:31
-	switch _go4t356 := _go4t244.(type) {
+	switch _go4t170 := _go4t58.(type) {
 	case *Tuple2:
-		_ = _go4t356
-		switch _go4t358 := _go4t356.F0.(type) {
+		_ = _go4t170
+		switch _go4t172 := _go4t170.F0.(type) {
 		case *decide_ObsReason_StaleAttachmentTargetChanged:
-			_ = _go4t358
-			switch _go4t357 := _go4t356.F1.(type) {
+			_ = _go4t172
+			switch _go4t171 := _go4t170.F1.(type) {
 			case *decide_ObsReason_StaleAttachmentTargetChanged:
-				_ = _go4t357
+				_ = _go4t171
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 				return true
@@ -1861,15 +1795,15 @@ func (dictself dict_decide_Eq_ObsReason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:31
-	switch _go4t359 := _go4t244.(type) {
+	switch _go4t173 := _go4t58.(type) {
 	case *Tuple2:
-		_ = _go4t359
-		switch _go4t361 := _go4t359.F0.(type) {
+		_ = _go4t173
+		switch _go4t175 := _go4t173.F0.(type) {
 		case *decide_ObsReason_StaleNodeIdentityChanged:
-			_ = _go4t361
-			switch _go4t360 := _go4t359.F1.(type) {
+			_ = _go4t175
+			switch _go4t174 := _go4t173.F1.(type) {
 			case *decide_ObsReason_StaleNodeIdentityChanged:
-				_ = _go4t360
+				_ = _go4t174
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 				return true
@@ -1877,15 +1811,15 @@ func (dictself dict_decide_Eq_ObsReason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:31
-	switch _go4t362 := _go4t244.(type) {
+	switch _go4t176 := _go4t58.(type) {
 	case *Tuple2:
-		_ = _go4t362
-		switch _go4t364 := _go4t362.F0.(type) {
+		_ = _go4t176
+		switch _go4t178 := _go4t176.F0.(type) {
 		case *decide_ObsReason_TargetBindingIdentityChanged:
-			_ = _go4t364
-			switch _go4t363 := _go4t362.F1.(type) {
+			_ = _go4t178
+			switch _go4t177 := _go4t176.F1.(type) {
 			case *decide_ObsReason_TargetBindingIdentityChanged:
-				_ = _go4t363
+				_ = _go4t177
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 				return true
@@ -1904,324 +1838,324 @@ type dict_decide_Debug_ObsReason struct{}
 
 //line decide/decide.gt:31
 func (dictself dict_decide_Debug_ObsReason) prelude_Debug(a_ any) any {
-	var _go4t365 any = a_
-	_ = _go4t365
+	var _go4t179 any = a_
+	_ = _go4t179
 //line decide/decide.gt:31
-	switch _go4t366 := _go4t365.(type) {
+	switch _go4t180 := _go4t179.(type) {
 	case *decide_ObsReason_AttachmentDeletionInProgress:
-		_ = _go4t366
+		_ = _go4t180
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "AttachmentDeletionInProgress"
 	}
 //line decide/decide.gt:31
-	switch _go4t367 := _go4t365.(type) {
+	switch _go4t181 := _go4t179.(type) {
 	case *decide_ObsReason_AttachmentDriverMismatch:
-		_ = _go4t367
+		_ = _go4t181
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "AttachmentDriverMismatch"
 	}
 //line decide/decide.gt:31
-	switch _go4t368 := _go4t365.(type) {
+	switch _go4t182 := _go4t179.(type) {
 	case *decide_ObsReason_AttachmentTargetMismatch:
-		_ = _go4t368
+		_ = _go4t182
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "AttachmentTargetMismatch"
 	}
 //line decide/decide.gt:31
-	switch _go4t369 := _go4t365.(type) {
+	switch _go4t183 := _go4t179.(type) {
 	case *decide_ObsReason_CurrentAttachmentNotUnique:
-		_ = _go4t369
+		_ = _go4t183
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "CurrentAttachmentNotUnique"
 	}
 //line decide/decide.gt:31
-	switch _go4t370 := _go4t365.(type) {
+	switch _go4t184 := _go4t179.(type) {
 	case *decide_ObsReason_CurrentNodeNotFound:
-		_ = _go4t370
+		_ = _go4t184
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "CurrentNodeNotFound"
 	}
 //line decide/decide.gt:31
-	switch _go4t371 := _go4t365.(type) {
+	switch _go4t185 := _go4t179.(type) {
 	case *decide_ObsReason_CurrentNodeNotReady:
-		_ = _go4t371
+		_ = _go4t185
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "CurrentNodeNotReady"
 	}
 //line decide/decide.gt:31
-	switch _go4t372 := _go4t365.(type) {
+	switch _go4t186 := _go4t179.(type) {
 	case *decide_ObsReason_NodeDeletionInProgress:
-		_ = _go4t372
+		_ = _go4t186
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "NodeDeletionInProgress"
 	}
 //line decide/decide.gt:31
-	switch _go4t373 := _go4t365.(type) {
+	switch _go4t187 := _go4t179.(type) {
 	case *decide_ObsReason_NodeObservationFailed:
-		_ = _go4t373
+		_ = _go4t187
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "NodeObservationFailed"
 	}
 //line decide/decide.gt:31
-	switch _go4t374 := _go4t365.(type) {
+	switch _go4t188 := _go4t179.(type) {
 	case *decide_ObsReason_NodeTargetNotUnique:
-		_ = _go4t374
+		_ = _go4t188
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "NodeTargetNotUnique"
 	}
 //line decide/decide.gt:31
-	switch _go4t375 := _go4t365.(type) {
+	switch _go4t189 := _go4t179.(type) {
 	case *decide_ObsReason_PersistentVolumeBindingMismatch:
-		_ = _go4t375
+		_ = _go4t189
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "PersistentVolumeBindingMismatch"
 	}
 //line decide/decide.gt:31
-	switch _go4t376 := _go4t365.(type) {
+	switch _go4t190 := _go4t179.(type) {
 	case *decide_ObsReason_PersistentVolumeClaimNotBound:
-		_ = _go4t376
+		_ = _go4t190
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "PersistentVolumeClaimNotBound"
 	}
 //line decide/decide.gt:31
-	switch _go4t377 := _go4t365.(type) {
+	switch _go4t191 := _go4t179.(type) {
 	case *decide_ObsReason_PersistentVolumeClaimNotFound:
-		_ = _go4t377
+		_ = _go4t191
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "PersistentVolumeClaimNotFound"
 	}
 //line decide/decide.gt:31
-	switch _go4t378 := _go4t365.(type) {
+	switch _go4t192 := _go4t179.(type) {
 	case *decide_ObsReason_PersistentVolumeClaimReadFailed:
-		_ = _go4t378
+		_ = _go4t192
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "PersistentVolumeClaimReadFailed"
 	}
 //line decide/decide.gt:31
-	switch _go4t379 := _go4t365.(type) {
+	switch _go4t193 := _go4t179.(type) {
 	case *decide_ObsReason_PersistentVolumeNotBound:
-		_ = _go4t379
+		_ = _go4t193
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "PersistentVolumeNotBound"
 	}
 //line decide/decide.gt:31
-	switch _go4t380 := _go4t365.(type) {
+	switch _go4t194 := _go4t179.(type) {
 	case *decide_ObsReason_PersistentVolumeNotFound:
-		_ = _go4t380
+		_ = _go4t194
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "PersistentVolumeNotFound"
 	}
 //line decide/decide.gt:31
-	switch _go4t381 := _go4t365.(type) {
+	switch _go4t195 := _go4t179.(type) {
 	case *decide_ObsReason_PersistentVolumeReadFailed:
-		_ = _go4t381
+		_ = _go4t195
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "PersistentVolumeReadFailed"
 	}
 //line decide/decide.gt:31
-	switch _go4t382 := _go4t365.(type) {
+	switch _go4t196 := _go4t179.(type) {
 	case *decide_ObsReason_PodObservationFailed:
-		_ = _go4t382
+		_ = _go4t196
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "PodObservationFailed"
 	}
 //line decide/decide.gt:31
-	switch _go4t383 := _go4t365.(type) {
+	switch _go4t197 := _go4t179.(type) {
 	case *decide_ObsReason_PodTargetNotUnique:
-		_ = _go4t383
+		_ = _go4t197
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "PodTargetNotUnique"
 	}
 //line decide/decide.gt:31
-	switch _go4t384 := _go4t365.(type) {
+	switch _go4t198 := _go4t179.(type) {
 	case *decide_ObsReason_StaleAttachmentNotUnique:
-		_ = _go4t384
+		_ = _go4t198
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "StaleAttachmentNotUnique"
 	}
 //line decide/decide.gt:31
-	switch _go4t385 := _go4t365.(type) {
+	switch _go4t199 := _go4t179.(type) {
 	case *decide_ObsReason_StaleNodeNotFound:
-		_ = _go4t385
+		_ = _go4t199
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "StaleNodeNotFound"
 	}
 //line decide/decide.gt:31
-	switch _go4t386 := _go4t365.(type) {
+	switch _go4t200 := _go4t179.(type) {
 	case *decide_ObsReason_StaleNodeReadinessAmbiguous:
-		_ = _go4t386
+		_ = _go4t200
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "StaleNodeReadinessAmbiguous"
 	}
 //line decide/decide.gt:31
-	switch _go4t387 := _go4t365.(type) {
+	switch _go4t201 := _go4t179.(type) {
 	case *decide_ObsReason_StaleNodeRecovered:
-		_ = _go4t387
+		_ = _go4t201
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "StaleNodeRecovered"
 	}
 //line decide/decide.gt:31
-	switch _go4t388 := _go4t365.(type) {
+	switch _go4t202 := _go4t179.(type) {
 	case *decide_ObsReason_StorageCapabilityDeletionInProgress:
-		_ = _go4t388
+		_ = _go4t202
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "StorageCapabilityDeletionInProgress"
 	}
 //line decide/decide.gt:31
-	switch _go4t389 := _go4t365.(type) {
+	switch _go4t203 := _go4t179.(type) {
 	case *decide_ObsReason_StorageCapabilityNotFound:
-		_ = _go4t389
+		_ = _go4t203
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "StorageCapabilityNotFound"
 	}
 //line decide/decide.gt:31
-	switch _go4t390 := _go4t365.(type) {
+	switch _go4t204 := _go4t179.(type) {
 	case *decide_ObsReason_StorageCapabilityReadFailed:
-		_ = _go4t390
+		_ = _go4t204
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "StorageCapabilityReadFailed"
 	}
 //line decide/decide.gt:31
-	switch _go4t391 := _go4t365.(type) {
+	switch _go4t205 := _go4t179.(type) {
 	case *decide_ObsReason_StorageClassMismatch:
-		_ = _go4t391
+		_ = _go4t205
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "StorageClassMismatch"
 	}
 //line decide/decide.gt:31
-	switch _go4t392 := _go4t365.(type) {
+	switch _go4t206 := _go4t179.(type) {
 	case *decide_ObsReason_StorageClassMissing:
-		_ = _go4t392
+		_ = _go4t206
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "StorageClassMissing"
 	}
 //line decide/decide.gt:31
-	switch _go4t393 := _go4t365.(type) {
+	switch _go4t207 := _go4t179.(type) {
 	case *decide_ObsReason_TargetDeletionInProgress:
-		_ = _go4t393
+		_ = _go4t207
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "TargetDeletionInProgress"
 	}
 //line decide/decide.gt:31
-	switch _go4t394 := _go4t365.(type) {
+	switch _go4t208 := _go4t179.(type) {
 	case *decide_ObsReason_TargetReferenceMissing:
-		_ = _go4t394
+		_ = _go4t208
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "TargetReferenceMissing"
 	}
 //line decide/decide.gt:31
-	switch _go4t395 := _go4t365.(type) {
+	switch _go4t209 := _go4t179.(type) {
 	case *decide_ObsReason_TerminatingPodUsesClaim:
-		_ = _go4t395
+		_ = _go4t209
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "TerminatingPodUsesClaim"
 	}
 //line decide/decide.gt:31
-	switch _go4t396 := _go4t365.(type) {
+	switch _go4t210 := _go4t179.(type) {
 	case *decide_ObsReason_VolumeAttachmentObservationFailed:
-		_ = _go4t396
+		_ = _go4t210
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "VolumeAttachmentObservationFailed"
 	}
 //line decide/decide.gt:31
-	switch _go4t397 := _go4t365.(type) {
+	switch _go4t211 := _go4t179.(type) {
 	case *decide_ObsReason_VolumeAttachmentSetNotUnique:
-		_ = _go4t397
+		_ = _go4t211
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "VolumeAttachmentSetNotUnique"
 	}
 //line decide/decide.gt:31
-	switch _go4t398 := _go4t365.(type) {
+	switch _go4t212 := _go4t179.(type) {
 	case *decide_ObsReason_AttachmentSetChanged:
-		_ = _go4t398
+		_ = _go4t212
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "AttachmentSetChanged"
 	}
 //line decide/decide.gt:31
-	switch _go4t399 := _go4t365.(type) {
+	switch _go4t213 := _go4t179.(type) {
 	case *decide_ObsReason_AttachmentStateChanged:
-		_ = _go4t399
+		_ = _go4t213
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "AttachmentStateChanged"
 	}
 //line decide/decide.gt:31
-	switch _go4t400 := _go4t365.(type) {
+	switch _go4t214 := _go4t179.(type) {
 	case *decide_ObsReason_CurrentAttachmentIdentityChanged:
-		_ = _go4t400
+		_ = _go4t214
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "CurrentAttachmentIdentityChanged"
 	}
 //line decide/decide.gt:31
-	switch _go4t401 := _go4t365.(type) {
+	switch _go4t215 := _go4t179.(type) {
 	case *decide_ObsReason_CurrentAttachmentTargetChanged:
-		_ = _go4t401
+		_ = _go4t215
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "CurrentAttachmentTargetChanged"
 	}
 //line decide/decide.gt:31
-	switch _go4t402 := _go4t365.(type) {
+	switch _go4t216 := _go4t179.(type) {
 	case *decide_ObsReason_CurrentNodeIdentityChanged:
-		_ = _go4t402
+		_ = _go4t216
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "CurrentNodeIdentityChanged"
 	}
 //line decide/decide.gt:31
-	switch _go4t403 := _go4t365.(type) {
+	switch _go4t217 := _go4t179.(type) {
 	case *decide_ObsReason_StaleAttachmentTargetChanged:
-		_ = _go4t403
+		_ = _go4t217
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "StaleAttachmentTargetChanged"
 	}
 //line decide/decide.gt:31
-	switch _go4t404 := _go4t365.(type) {
+	switch _go4t218 := _go4t179.(type) {
 	case *decide_ObsReason_StaleNodeIdentityChanged:
-		_ = _go4t404
+		_ = _go4t218
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "StaleNodeIdentityChanged"
 	}
 //line decide/decide.gt:31
 	{
-		_go4t405 := _go4t365.(*decide_ObsReason_TargetBindingIdentityChanged)
-		_ = _go4t405
+		_go4t219 := _go4t179.(*decide_ObsReason_TargetBindingIdentityChanged)
+		_ = _go4t219
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "TargetBindingIdentityChanged"
@@ -2232,324 +2166,324 @@ type dict_decide_Show_ObsReason struct{}
 
 //line decide/decide.gt:31
 func (dictself dict_decide_Show_ObsReason) prelude_Show(a_ any) any {
-	var _go4t406 any = a_
-	_ = _go4t406
+	var _go4t220 any = a_
+	_ = _go4t220
 //line decide/decide.gt:31
-	switch _go4t407 := _go4t406.(type) {
+	switch _go4t221 := _go4t220.(type) {
 	case *decide_ObsReason_AttachmentDeletionInProgress:
-		_ = _go4t407
+		_ = _go4t221
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "AttachmentDeletionInProgress"
 	}
 //line decide/decide.gt:31
-	switch _go4t408 := _go4t406.(type) {
+	switch _go4t222 := _go4t220.(type) {
 	case *decide_ObsReason_AttachmentDriverMismatch:
-		_ = _go4t408
+		_ = _go4t222
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "AttachmentDriverMismatch"
 	}
 //line decide/decide.gt:31
-	switch _go4t409 := _go4t406.(type) {
+	switch _go4t223 := _go4t220.(type) {
 	case *decide_ObsReason_AttachmentTargetMismatch:
-		_ = _go4t409
+		_ = _go4t223
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "AttachmentTargetMismatch"
 	}
 //line decide/decide.gt:31
-	switch _go4t410 := _go4t406.(type) {
+	switch _go4t224 := _go4t220.(type) {
 	case *decide_ObsReason_CurrentAttachmentNotUnique:
-		_ = _go4t410
+		_ = _go4t224
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "CurrentAttachmentNotUnique"
 	}
 //line decide/decide.gt:31
-	switch _go4t411 := _go4t406.(type) {
+	switch _go4t225 := _go4t220.(type) {
 	case *decide_ObsReason_CurrentNodeNotFound:
-		_ = _go4t411
+		_ = _go4t225
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "CurrentNodeNotFound"
 	}
 //line decide/decide.gt:31
-	switch _go4t412 := _go4t406.(type) {
+	switch _go4t226 := _go4t220.(type) {
 	case *decide_ObsReason_CurrentNodeNotReady:
-		_ = _go4t412
+		_ = _go4t226
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "CurrentNodeNotReady"
 	}
 //line decide/decide.gt:31
-	switch _go4t413 := _go4t406.(type) {
+	switch _go4t227 := _go4t220.(type) {
 	case *decide_ObsReason_NodeDeletionInProgress:
-		_ = _go4t413
+		_ = _go4t227
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "NodeDeletionInProgress"
 	}
 //line decide/decide.gt:31
-	switch _go4t414 := _go4t406.(type) {
+	switch _go4t228 := _go4t220.(type) {
 	case *decide_ObsReason_NodeObservationFailed:
-		_ = _go4t414
+		_ = _go4t228
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "NodeObservationFailed"
 	}
 //line decide/decide.gt:31
-	switch _go4t415 := _go4t406.(type) {
+	switch _go4t229 := _go4t220.(type) {
 	case *decide_ObsReason_NodeTargetNotUnique:
-		_ = _go4t415
+		_ = _go4t229
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "NodeTargetNotUnique"
 	}
 //line decide/decide.gt:31
-	switch _go4t416 := _go4t406.(type) {
+	switch _go4t230 := _go4t220.(type) {
 	case *decide_ObsReason_PersistentVolumeBindingMismatch:
-		_ = _go4t416
+		_ = _go4t230
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "PersistentVolumeBindingMismatch"
 	}
 //line decide/decide.gt:31
-	switch _go4t417 := _go4t406.(type) {
+	switch _go4t231 := _go4t220.(type) {
 	case *decide_ObsReason_PersistentVolumeClaimNotBound:
-		_ = _go4t417
+		_ = _go4t231
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "PersistentVolumeClaimNotBound"
 	}
 //line decide/decide.gt:31
-	switch _go4t418 := _go4t406.(type) {
+	switch _go4t232 := _go4t220.(type) {
 	case *decide_ObsReason_PersistentVolumeClaimNotFound:
-		_ = _go4t418
+		_ = _go4t232
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "PersistentVolumeClaimNotFound"
 	}
 //line decide/decide.gt:31
-	switch _go4t419 := _go4t406.(type) {
+	switch _go4t233 := _go4t220.(type) {
 	case *decide_ObsReason_PersistentVolumeClaimReadFailed:
-		_ = _go4t419
+		_ = _go4t233
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "PersistentVolumeClaimReadFailed"
 	}
 //line decide/decide.gt:31
-	switch _go4t420 := _go4t406.(type) {
+	switch _go4t234 := _go4t220.(type) {
 	case *decide_ObsReason_PersistentVolumeNotBound:
-		_ = _go4t420
+		_ = _go4t234
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "PersistentVolumeNotBound"
 	}
 //line decide/decide.gt:31
-	switch _go4t421 := _go4t406.(type) {
+	switch _go4t235 := _go4t220.(type) {
 	case *decide_ObsReason_PersistentVolumeNotFound:
-		_ = _go4t421
+		_ = _go4t235
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "PersistentVolumeNotFound"
 	}
 //line decide/decide.gt:31
-	switch _go4t422 := _go4t406.(type) {
+	switch _go4t236 := _go4t220.(type) {
 	case *decide_ObsReason_PersistentVolumeReadFailed:
-		_ = _go4t422
+		_ = _go4t236
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "PersistentVolumeReadFailed"
 	}
 //line decide/decide.gt:31
-	switch _go4t423 := _go4t406.(type) {
+	switch _go4t237 := _go4t220.(type) {
 	case *decide_ObsReason_PodObservationFailed:
-		_ = _go4t423
+		_ = _go4t237
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "PodObservationFailed"
 	}
 //line decide/decide.gt:31
-	switch _go4t424 := _go4t406.(type) {
+	switch _go4t238 := _go4t220.(type) {
 	case *decide_ObsReason_PodTargetNotUnique:
-		_ = _go4t424
+		_ = _go4t238
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "PodTargetNotUnique"
 	}
 //line decide/decide.gt:31
-	switch _go4t425 := _go4t406.(type) {
+	switch _go4t239 := _go4t220.(type) {
 	case *decide_ObsReason_StaleAttachmentNotUnique:
-		_ = _go4t425
+		_ = _go4t239
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "StaleAttachmentNotUnique"
 	}
 //line decide/decide.gt:31
-	switch _go4t426 := _go4t406.(type) {
+	switch _go4t240 := _go4t220.(type) {
 	case *decide_ObsReason_StaleNodeNotFound:
-		_ = _go4t426
+		_ = _go4t240
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "StaleNodeNotFound"
 	}
 //line decide/decide.gt:31
-	switch _go4t427 := _go4t406.(type) {
+	switch _go4t241 := _go4t220.(type) {
 	case *decide_ObsReason_StaleNodeReadinessAmbiguous:
-		_ = _go4t427
+		_ = _go4t241
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "StaleNodeReadinessAmbiguous"
 	}
 //line decide/decide.gt:31
-	switch _go4t428 := _go4t406.(type) {
+	switch _go4t242 := _go4t220.(type) {
 	case *decide_ObsReason_StaleNodeRecovered:
-		_ = _go4t428
+		_ = _go4t242
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "StaleNodeRecovered"
 	}
 //line decide/decide.gt:31
-	switch _go4t429 := _go4t406.(type) {
+	switch _go4t243 := _go4t220.(type) {
 	case *decide_ObsReason_StorageCapabilityDeletionInProgress:
-		_ = _go4t429
+		_ = _go4t243
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "StorageCapabilityDeletionInProgress"
 	}
 //line decide/decide.gt:31
-	switch _go4t430 := _go4t406.(type) {
+	switch _go4t244 := _go4t220.(type) {
 	case *decide_ObsReason_StorageCapabilityNotFound:
-		_ = _go4t430
+		_ = _go4t244
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "StorageCapabilityNotFound"
 	}
 //line decide/decide.gt:31
-	switch _go4t431 := _go4t406.(type) {
+	switch _go4t245 := _go4t220.(type) {
 	case *decide_ObsReason_StorageCapabilityReadFailed:
-		_ = _go4t431
+		_ = _go4t245
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "StorageCapabilityReadFailed"
 	}
 //line decide/decide.gt:31
-	switch _go4t432 := _go4t406.(type) {
+	switch _go4t246 := _go4t220.(type) {
 	case *decide_ObsReason_StorageClassMismatch:
-		_ = _go4t432
+		_ = _go4t246
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "StorageClassMismatch"
 	}
 //line decide/decide.gt:31
-	switch _go4t433 := _go4t406.(type) {
+	switch _go4t247 := _go4t220.(type) {
 	case *decide_ObsReason_StorageClassMissing:
-		_ = _go4t433
+		_ = _go4t247
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "StorageClassMissing"
 	}
 //line decide/decide.gt:31
-	switch _go4t434 := _go4t406.(type) {
+	switch _go4t248 := _go4t220.(type) {
 	case *decide_ObsReason_TargetDeletionInProgress:
-		_ = _go4t434
+		_ = _go4t248
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "TargetDeletionInProgress"
 	}
 //line decide/decide.gt:31
-	switch _go4t435 := _go4t406.(type) {
+	switch _go4t249 := _go4t220.(type) {
 	case *decide_ObsReason_TargetReferenceMissing:
-		_ = _go4t435
+		_ = _go4t249
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "TargetReferenceMissing"
 	}
 //line decide/decide.gt:31
-	switch _go4t436 := _go4t406.(type) {
+	switch _go4t250 := _go4t220.(type) {
 	case *decide_ObsReason_TerminatingPodUsesClaim:
-		_ = _go4t436
+		_ = _go4t250
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "TerminatingPodUsesClaim"
 	}
 //line decide/decide.gt:31
-	switch _go4t437 := _go4t406.(type) {
+	switch _go4t251 := _go4t220.(type) {
 	case *decide_ObsReason_VolumeAttachmentObservationFailed:
-		_ = _go4t437
+		_ = _go4t251
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "VolumeAttachmentObservationFailed"
 	}
 //line decide/decide.gt:31
-	switch _go4t438 := _go4t406.(type) {
+	switch _go4t252 := _go4t220.(type) {
 	case *decide_ObsReason_VolumeAttachmentSetNotUnique:
-		_ = _go4t438
+		_ = _go4t252
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "VolumeAttachmentSetNotUnique"
 	}
 //line decide/decide.gt:31
-	switch _go4t439 := _go4t406.(type) {
+	switch _go4t253 := _go4t220.(type) {
 	case *decide_ObsReason_AttachmentSetChanged:
-		_ = _go4t439
+		_ = _go4t253
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "AttachmentSetChanged"
 	}
 //line decide/decide.gt:31
-	switch _go4t440 := _go4t406.(type) {
+	switch _go4t254 := _go4t220.(type) {
 	case *decide_ObsReason_AttachmentStateChanged:
-		_ = _go4t440
+		_ = _go4t254
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "AttachmentStateChanged"
 	}
 //line decide/decide.gt:31
-	switch _go4t441 := _go4t406.(type) {
+	switch _go4t255 := _go4t220.(type) {
 	case *decide_ObsReason_CurrentAttachmentIdentityChanged:
-		_ = _go4t441
+		_ = _go4t255
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "CurrentAttachmentIdentityChanged"
 	}
 //line decide/decide.gt:31
-	switch _go4t442 := _go4t406.(type) {
+	switch _go4t256 := _go4t220.(type) {
 	case *decide_ObsReason_CurrentAttachmentTargetChanged:
-		_ = _go4t442
+		_ = _go4t256
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "CurrentAttachmentTargetChanged"
 	}
 //line decide/decide.gt:31
-	switch _go4t443 := _go4t406.(type) {
+	switch _go4t257 := _go4t220.(type) {
 	case *decide_ObsReason_CurrentNodeIdentityChanged:
-		_ = _go4t443
+		_ = _go4t257
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "CurrentNodeIdentityChanged"
 	}
 //line decide/decide.gt:31
-	switch _go4t444 := _go4t406.(type) {
+	switch _go4t258 := _go4t220.(type) {
 	case *decide_ObsReason_StaleAttachmentTargetChanged:
-		_ = _go4t444
+		_ = _go4t258
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "StaleAttachmentTargetChanged"
 	}
 //line decide/decide.gt:31
-	switch _go4t445 := _go4t406.(type) {
+	switch _go4t259 := _go4t220.(type) {
 	case *decide_ObsReason_StaleNodeIdentityChanged:
-		_ = _go4t445
+		_ = _go4t259
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "StaleNodeIdentityChanged"
 	}
 //line decide/decide.gt:31
 	{
-		_go4t446 := _go4t406.(*decide_ObsReason_TargetBindingIdentityChanged)
-		_ = _go4t446
+		_go4t260 := _go4t220.(*decide_ObsReason_TargetBindingIdentityChanged)
+		_ = _go4t260
 //line decide/decide.gt:31
 //line decide/decide.gt:31
 		return "TargetBindingIdentityChanged"
@@ -2560,29 +2494,29 @@ type dict_decide_Eq_Observation struct{}
 
 //line decide/decide.gt:72
 func (dictself dict_decide_Eq_Observation) prelude_Eq(a_ any, b_ any) any {
-	var _go4t447 any = &Tuple2{F0: a_, F1: b_}
-	_ = _go4t447
+	var _go4t261 any = &Tuple2{F0: a_, F1: b_}
+	_ = _go4t261
 //line decide/decide.gt:72
-	switch _go4t448 := _go4t447.(type) {
+	switch _go4t262 := _go4t261.(type) {
 	case *Tuple2:
-		_ = _go4t448
-		switch _go4t450 := _go4t448.F0.(type) {
+		_ = _go4t262
+		switch _go4t264 := _go4t262.F0.(type) {
 		case *decide_Observation_ObsBlocked:
-			_ = _go4t450
+			_ = _go4t264
 			{
-				var x0_ any = _go4t450.F0
+				var x0_ any = _go4t264.F0
 				_ = x0_
 				{
-					var x1_ any = _go4t450.F1
+					var x1_ any = _go4t264.F1
 					_ = x1_
-					switch _go4t449 := _go4t448.F1.(type) {
+					switch _go4t263 := _go4t262.F1.(type) {
 					case *decide_Observation_ObsBlocked:
-						_ = _go4t449
+						_ = _go4t263
 						{
-							var y0_ any = _go4t449.F0
+							var y0_ any = _go4t263.F0
 							_ = y0_
 							{
-								var y1_ any = _go4t449.F1
+								var y1_ any = _go4t263.F1
 								_ = y1_
 //line decide/decide.gt:72
 //line decide/decide.gt:72
@@ -2595,20 +2529,20 @@ func (dictself dict_decide_Eq_Observation) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:72
-	switch _go4t451 := _go4t447.(type) {
+	switch _go4t265 := _go4t261.(type) {
 	case *Tuple2:
-		_ = _go4t451
-		switch _go4t453 := _go4t451.F0.(type) {
+		_ = _go4t265
+		switch _go4t267 := _go4t265.F0.(type) {
 		case *decide_Observation_ObsOk:
-			_ = _go4t453
+			_ = _go4t267
 			{
-				var x0_ any = _go4t453.F0
+				var x0_ any = _go4t267.F0
 				_ = x0_
-				switch _go4t452 := _go4t451.F1.(type) {
+				switch _go4t266 := _go4t265.F1.(type) {
 				case *decide_Observation_ObsOk:
-					_ = _go4t452
+					_ = _go4t266
 					{
-						var y0_ any = _go4t452.F0
+						var y0_ any = _go4t266.F0
 						_ = y0_
 //line decide/decide.gt:72
 //line decide/decide.gt:72
@@ -2630,17 +2564,17 @@ type dict_decide_Debug_Observation struct{}
 
 //line decide/decide.gt:72
 func (dictself dict_decide_Debug_Observation) prelude_Debug(a_ any) any {
-	var _go4t454 any = a_
-	_ = _go4t454
+	var _go4t268 any = a_
+	_ = _go4t268
 //line decide/decide.gt:72
-	switch _go4t455 := _go4t454.(type) {
+	switch _go4t269 := _go4t268.(type) {
 	case *decide_Observation_ObsBlocked:
-		_ = _go4t455
+		_ = _go4t269
 		{
-			var x0_ any = _go4t455.F0
+			var x0_ any = _go4t269.F0
 			_ = x0_
 			{
-				var x1_ any = _go4t455.F1
+				var x1_ any = _go4t269.F1
 				_ = x1_
 //line decide/decide.gt:72
 //line decide/decide.gt:72
@@ -2650,10 +2584,10 @@ func (dictself dict_decide_Debug_Observation) prelude_Debug(a_ any) any {
 	}
 //line decide/decide.gt:72
 	{
-		_go4t456 := _go4t454.(*decide_Observation_ObsOk)
-		_ = _go4t456
+		_go4t270 := _go4t268.(*decide_Observation_ObsOk)
+		_ = _go4t270
 		{
-			var x0_ any = _go4t456.F0
+			var x0_ any = _go4t270.F0
 			_ = x0_
 //line decide/decide.gt:72
 //line decide/decide.gt:72
@@ -2666,18 +2600,18 @@ type dict_decide_Eq_Target struct{}
 
 //line decide/decide.gt:73
 func (dictself dict_decide_Eq_Target) prelude_Eq(a_ any, b_ any) any {
-	var _go4t457 any = &Tuple2{F0: a_, F1: b_}
-	_ = _go4t457
+	var _go4t271 any = &Tuple2{F0: a_, F1: b_}
+	_ = _go4t271
 //line decide/decide.gt:73
-	switch _go4t458 := _go4t457.(type) {
+	switch _go4t272 := _go4t271.(type) {
 	case *Tuple2:
-		_ = _go4t458
-		switch _go4t460 := _go4t458.F0.(type) {
+		_ = _go4t272
+		switch _go4t274 := _go4t272.F0.(type) {
 		case *decide_Target_Present:
-			_ = _go4t460
-			switch _go4t459 := _go4t458.F1.(type) {
+			_ = _go4t274
+			switch _go4t273 := _go4t272.F1.(type) {
 			case *decide_Target_Present:
-				_ = _go4t459
+				_ = _go4t273
 //line decide/decide.gt:73
 //line decide/decide.gt:73
 				return true
@@ -2685,15 +2619,15 @@ func (dictself dict_decide_Eq_Target) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:73
-	switch _go4t461 := _go4t457.(type) {
+	switch _go4t275 := _go4t271.(type) {
 	case *Tuple2:
-		_ = _go4t461
-		switch _go4t463 := _go4t461.F0.(type) {
+		_ = _go4t275
+		switch _go4t277 := _go4t275.F0.(type) {
 		case *decide_Target_Deleting:
-			_ = _go4t463
-			switch _go4t462 := _go4t461.F1.(type) {
+			_ = _go4t277
+			switch _go4t276 := _go4t275.F1.(type) {
 			case *decide_Target_Deleting:
-				_ = _go4t462
+				_ = _go4t276
 //line decide/decide.gt:73
 //line decide/decide.gt:73
 				return true
@@ -2701,15 +2635,15 @@ func (dictself dict_decide_Eq_Target) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:73
-	switch _go4t464 := _go4t457.(type) {
+	switch _go4t278 := _go4t271.(type) {
 	case *Tuple2:
-		_ = _go4t464
-		switch _go4t466 := _go4t464.F0.(type) {
+		_ = _go4t278
+		switch _go4t280 := _go4t278.F0.(type) {
 		case *decide_Target_Absent:
-			_ = _go4t466
-			switch _go4t465 := _go4t464.F1.(type) {
+			_ = _go4t280
+			switch _go4t279 := _go4t278.F1.(type) {
 			case *decide_Target_Absent:
-				_ = _go4t465
+				_ = _go4t279
 //line decide/decide.gt:73
 //line decide/decide.gt:73
 				return true
@@ -2728,28 +2662,28 @@ type dict_decide_Debug_Target struct{}
 
 //line decide/decide.gt:73
 func (dictself dict_decide_Debug_Target) prelude_Debug(a_ any) any {
-	var _go4t467 any = a_
-	_ = _go4t467
+	var _go4t281 any = a_
+	_ = _go4t281
 //line decide/decide.gt:73
-	switch _go4t468 := _go4t467.(type) {
+	switch _go4t282 := _go4t281.(type) {
 	case *decide_Target_Present:
-		_ = _go4t468
+		_ = _go4t282
 //line decide/decide.gt:73
 //line decide/decide.gt:73
 		return "Present"
 	}
 //line decide/decide.gt:73
-	switch _go4t469 := _go4t467.(type) {
+	switch _go4t283 := _go4t281.(type) {
 	case *decide_Target_Deleting:
-		_ = _go4t469
+		_ = _go4t283
 //line decide/decide.gt:73
 //line decide/decide.gt:73
 		return "Deleting"
 	}
 //line decide/decide.gt:73
 	{
-		_go4t470 := _go4t467.(*decide_Target_Absent)
-		_ = _go4t470
+		_go4t284 := _go4t281.(*decide_Target_Absent)
+		_ = _go4t284
 //line decide/decide.gt:73
 //line decide/decide.gt:73
 		return "Absent"
@@ -2760,41 +2694,41 @@ type dict_decide_Eq_AuthOkObs struct{}
 
 //line decide/decide.gt:76
 func (dictself dict_decide_Eq_AuthOkObs) prelude_Eq(a_ any, b_ any) any {
-	var _go4t471 any = &Tuple2{F0: a_, F1: b_}
-	_ = _go4t471
+	var _go4t285 any = &Tuple2{F0: a_, F1: b_}
+	_ = _go4t285
 //line decide/decide.gt:76
 	{
-		_go4t472 := _go4t471.(*Tuple2)
-		_ = _go4t472
+		_go4t286 := _go4t285.(*Tuple2)
+		_ = _go4t286
 		{
-			_go4t474 := _go4t472.F0.(*decide_AuthOkObs_AuthOkObs)
-			_ = _go4t474
+			_go4t288 := _go4t286.F0.(*decide_AuthOkObs_AuthOkObs)
+			_ = _go4t288
 			{
-				var x0_ any = _go4t474.F0
+				var x0_ any = _go4t288.F0
 				_ = x0_
 				{
-					var x1_ any = _go4t474.F1
+					var x1_ any = _go4t288.F1
 					_ = x1_
 					{
-						var x2_ bool = any(_go4t474.F2).(bool)
+						var x2_ bool = any(_go4t288.F2).(bool)
 						_ = x2_
 						{
-							var x3_ any = _go4t474.F3
+							var x3_ any = _go4t288.F3
 							_ = x3_
 							{
-								_go4t473 := _go4t472.F1.(*decide_AuthOkObs_AuthOkObs)
-								_ = _go4t473
+								_go4t287 := _go4t286.F1.(*decide_AuthOkObs_AuthOkObs)
+								_ = _go4t287
 								{
-									var y0_ any = _go4t473.F0
+									var y0_ any = _go4t287.F0
 									_ = y0_
 									{
-										var y1_ any = _go4t473.F1
+										var y1_ any = _go4t287.F1
 										_ = y1_
 										{
-											var y2_ bool = any(_go4t473.F2).(bool)
+											var y2_ bool = any(_go4t287.F2).(bool)
 											_ = y2_
 											{
-												var y3_ any = _go4t473.F3
+												var y3_ any = _go4t287.F3
 												_ = y3_
 //line decide/decide.gt:76
 //line decide/decide.gt:76
@@ -2816,23 +2750,23 @@ type dict_decide_Debug_AuthOkObs struct{}
 
 //line decide/decide.gt:76
 func (dictself dict_decide_Debug_AuthOkObs) prelude_Debug(a_ any) any {
-	var _go4t475 any = a_
-	_ = _go4t475
+	var _go4t289 any = a_
+	_ = _go4t289
 //line decide/decide.gt:76
 	{
-		_go4t476 := _go4t475.(*decide_AuthOkObs_AuthOkObs)
-		_ = _go4t476
+		_go4t290 := _go4t289.(*decide_AuthOkObs_AuthOkObs)
+		_ = _go4t290
 		{
-			var x0_ any = _go4t476.F0
+			var x0_ any = _go4t290.F0
 			_ = x0_
 			{
-				var x1_ any = _go4t476.F1
+				var x1_ any = _go4t290.F1
 				_ = x1_
 				{
-					var x2_ bool = any(_go4t476.F2).(bool)
+					var x2_ bool = any(_go4t290.F2).(bool)
 					_ = x2_
 					{
-						var x3_ any = _go4t476.F3
+						var x3_ any = _go4t290.F3
 						_ = x3_
 //line decide/decide.gt:76
 //line decide/decide.gt:76
@@ -2848,29 +2782,29 @@ type dict_decide_Eq_AuthorizedObservation struct{}
 
 //line decide/decide.gt:77
 func (dictself dict_decide_Eq_AuthorizedObservation) prelude_Eq(a_ any, b_ any) any {
-	var _go4t477 any = &Tuple2{F0: a_, F1: b_}
-	_ = _go4t477
+	var _go4t291 any = &Tuple2{F0: a_, F1: b_}
+	_ = _go4t291
 //line decide/decide.gt:77
-	switch _go4t478 := _go4t477.(type) {
+	switch _go4t292 := _go4t291.(type) {
 	case *Tuple2:
-		_ = _go4t478
-		switch _go4t480 := _go4t478.F0.(type) {
+		_ = _go4t292
+		switch _go4t294 := _go4t292.F0.(type) {
 		case *decide_AuthorizedObservation_AuthBlocked:
-			_ = _go4t480
+			_ = _go4t294
 			{
-				var x0_ any = _go4t480.F0
+				var x0_ any = _go4t294.F0
 				_ = x0_
 				{
-					var x1_ any = _go4t480.F1
+					var x1_ any = _go4t294.F1
 					_ = x1_
-					switch _go4t479 := _go4t478.F1.(type) {
+					switch _go4t293 := _go4t292.F1.(type) {
 					case *decide_AuthorizedObservation_AuthBlocked:
-						_ = _go4t479
+						_ = _go4t293
 						{
-							var y0_ any = _go4t479.F0
+							var y0_ any = _go4t293.F0
 							_ = y0_
 							{
-								var y1_ any = _go4t479.F1
+								var y1_ any = _go4t293.F1
 								_ = y1_
 //line decide/decide.gt:77
 //line decide/decide.gt:77
@@ -2883,20 +2817,20 @@ func (dictself dict_decide_Eq_AuthorizedObservation) prelude_Eq(a_ any, b_ any) 
 		}
 	}
 //line decide/decide.gt:77
-	switch _go4t481 := _go4t477.(type) {
+	switch _go4t295 := _go4t291.(type) {
 	case *Tuple2:
-		_ = _go4t481
-		switch _go4t483 := _go4t481.F0.(type) {
+		_ = _go4t295
+		switch _go4t297 := _go4t295.F0.(type) {
 		case *decide_AuthorizedObservation_AuthOk:
-			_ = _go4t483
+			_ = _go4t297
 			{
-				var x0_ any = _go4t483.F0
+				var x0_ any = _go4t297.F0
 				_ = x0_
-				switch _go4t482 := _go4t481.F1.(type) {
+				switch _go4t296 := _go4t295.F1.(type) {
 				case *decide_AuthorizedObservation_AuthOk:
-					_ = _go4t482
+					_ = _go4t296
 					{
-						var y0_ any = _go4t482.F0
+						var y0_ any = _go4t296.F0
 						_ = y0_
 //line decide/decide.gt:77
 //line decide/decide.gt:77
@@ -2918,17 +2852,17 @@ type dict_decide_Debug_AuthorizedObservation struct{}
 
 //line decide/decide.gt:77
 func (dictself dict_decide_Debug_AuthorizedObservation) prelude_Debug(a_ any) any {
-	var _go4t484 any = a_
-	_ = _go4t484
+	var _go4t298 any = a_
+	_ = _go4t298
 //line decide/decide.gt:77
-	switch _go4t485 := _go4t484.(type) {
+	switch _go4t299 := _go4t298.(type) {
 	case *decide_AuthorizedObservation_AuthBlocked:
-		_ = _go4t485
+		_ = _go4t299
 		{
-			var x0_ any = _go4t485.F0
+			var x0_ any = _go4t299.F0
 			_ = x0_
 			{
-				var x1_ any = _go4t485.F1
+				var x1_ any = _go4t299.F1
 				_ = x1_
 //line decide/decide.gt:77
 //line decide/decide.gt:77
@@ -2938,10 +2872,10 @@ func (dictself dict_decide_Debug_AuthorizedObservation) prelude_Debug(a_ any) an
 	}
 //line decide/decide.gt:77
 	{
-		_go4t486 := _go4t484.(*decide_AuthorizedObservation_AuthOk)
-		_ = _go4t486
+		_go4t300 := _go4t298.(*decide_AuthorizedObservation_AuthOk)
+		_ = _go4t300
 		{
-			var x0_ any = _go4t486.F0
+			var x0_ any = _go4t300.F0
 			_ = x0_
 //line decide/decide.gt:77
 //line decide/decide.gt:77
@@ -2954,18 +2888,18 @@ type dict_decide_Eq_DeleteResult struct{}
 
 //line decide/decide.gt:78
 func (dictself dict_decide_Eq_DeleteResult) prelude_Eq(a_ any, b_ any) any {
-	var _go4t487 any = &Tuple2{F0: a_, F1: b_}
-	_ = _go4t487
+	var _go4t301 any = &Tuple2{F0: a_, F1: b_}
+	_ = _go4t301
 //line decide/decide.gt:78
-	switch _go4t488 := _go4t487.(type) {
+	switch _go4t302 := _go4t301.(type) {
 	case *Tuple2:
-		_ = _go4t488
-		switch _go4t490 := _go4t488.F0.(type) {
+		_ = _go4t302
+		switch _go4t304 := _go4t302.F0.(type) {
 		case *decide_DeleteResult_Deleted:
-			_ = _go4t490
-			switch _go4t489 := _go4t488.F1.(type) {
+			_ = _go4t304
+			switch _go4t303 := _go4t302.F1.(type) {
 			case *decide_DeleteResult_Deleted:
-				_ = _go4t489
+				_ = _go4t303
 //line decide/decide.gt:78
 //line decide/decide.gt:78
 				return true
@@ -2973,15 +2907,15 @@ func (dictself dict_decide_Eq_DeleteResult) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:78
-	switch _go4t491 := _go4t487.(type) {
+	switch _go4t305 := _go4t301.(type) {
 	case *Tuple2:
-		_ = _go4t491
-		switch _go4t493 := _go4t491.F0.(type) {
+		_ = _go4t305
+		switch _go4t307 := _go4t305.F0.(type) {
 		case *decide_DeleteResult_CasFailed:
-			_ = _go4t493
-			switch _go4t492 := _go4t491.F1.(type) {
+			_ = _go4t307
+			switch _go4t306 := _go4t305.F1.(type) {
 			case *decide_DeleteResult_CasFailed:
-				_ = _go4t492
+				_ = _go4t306
 //line decide/decide.gt:78
 //line decide/decide.gt:78
 				return true
@@ -2989,15 +2923,15 @@ func (dictself dict_decide_Eq_DeleteResult) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:78
-	switch _go4t494 := _go4t487.(type) {
+	switch _go4t308 := _go4t301.(type) {
 	case *Tuple2:
-		_ = _go4t494
-		switch _go4t496 := _go4t494.F0.(type) {
+		_ = _go4t308
+		switch _go4t310 := _go4t308.F0.(type) {
 		case *decide_DeleteResult_DeleteFailed:
-			_ = _go4t496
-			switch _go4t495 := _go4t494.F1.(type) {
+			_ = _go4t310
+			switch _go4t309 := _go4t308.F1.(type) {
 			case *decide_DeleteResult_DeleteFailed:
-				_ = _go4t495
+				_ = _go4t309
 //line decide/decide.gt:78
 //line decide/decide.gt:78
 				return true
@@ -3016,28 +2950,28 @@ type dict_decide_Debug_DeleteResult struct{}
 
 //line decide/decide.gt:78
 func (dictself dict_decide_Debug_DeleteResult) prelude_Debug(a_ any) any {
-	var _go4t497 any = a_
-	_ = _go4t497
+	var _go4t311 any = a_
+	_ = _go4t311
 //line decide/decide.gt:78
-	switch _go4t498 := _go4t497.(type) {
+	switch _go4t312 := _go4t311.(type) {
 	case *decide_DeleteResult_Deleted:
-		_ = _go4t498
+		_ = _go4t312
 //line decide/decide.gt:78
 //line decide/decide.gt:78
 		return "Deleted"
 	}
 //line decide/decide.gt:78
-	switch _go4t499 := _go4t497.(type) {
+	switch _go4t313 := _go4t311.(type) {
 	case *decide_DeleteResult_CasFailed:
-		_ = _go4t499
+		_ = _go4t313
 //line decide/decide.gt:78
 //line decide/decide.gt:78
 		return "CasFailed"
 	}
 //line decide/decide.gt:78
 	{
-		_go4t500 := _go4t497.(*decide_DeleteResult_DeleteFailed)
-		_ = _go4t500
+		_go4t314 := _go4t311.(*decide_DeleteResult_DeleteFailed)
+		_ = _go4t314
 //line decide/decide.gt:78
 //line decide/decide.gt:78
 		return "DeleteFailed"
@@ -3048,89 +2982,89 @@ type dict_decide_Eq_Observed struct{}
 
 //line decide/decide.gt:80
 func (dictself dict_decide_Eq_Observed) prelude_Eq(a_ any, b_ any) any {
-	var _go4t501 any = &Tuple2{F0: a_, F1: b_}
-	_ = _go4t501
+	var _go4t315 any = &Tuple2{F0: a_, F1: b_}
+	_ = _go4t315
 //line decide/decide.gt:80
 	{
-		_go4t502 := _go4t501.(*Tuple2)
-		_ = _go4t502
+		_go4t316 := _go4t315.(*Tuple2)
+		_ = _go4t316
 		{
-			_go4t504 := _go4t502.F0.(*decide_Observed_Observed)
-			_ = _go4t504
+			_go4t318 := _go4t316.F0.(*decide_Observed_Observed)
+			_ = _go4t318
 			{
-				var x0_ any = _go4t504.F0
+				var x0_ any = _go4t318.F0
 				_ = x0_
 				{
-					var x1_ bool = any(_go4t504.F1).(bool)
+					var x1_ bool = any(_go4t318.F1).(bool)
 					_ = x1_
 					{
-						var x2_ int64 = any(_go4t504.F2).(int64)
+						var x2_ int64 = any(_go4t318.F2).(int64)
 						_ = x2_
 						{
-							var x3_ bool = any(_go4t504.F3).(bool)
+							var x3_ bool = any(_go4t318.F3).(bool)
 							_ = x3_
 							{
-								var x4_ bool = any(_go4t504.F4).(bool)
+								var x4_ bool = any(_go4t318.F4).(bool)
 								_ = x4_
 								{
-									var x5_ bool = any(_go4t504.F5).(bool)
+									var x5_ bool = any(_go4t318.F5).(bool)
 									_ = x5_
 									{
-										var x6_ any = _go4t504.F6
+										var x6_ any = _go4t318.F6
 										_ = x6_
 										{
-											var x7_ int64 = any(_go4t504.F7).(int64)
+											var x7_ int64 = any(_go4t318.F7).(int64)
 											_ = x7_
 											{
-												var x8_ int64 = any(_go4t504.F8).(int64)
+												var x8_ int64 = any(_go4t318.F8).(int64)
 												_ = x8_
 												{
-													var x9_ any = _go4t504.F9
+													var x9_ any = _go4t318.F9
 													_ = x9_
 													{
-														var x10_ any = _go4t504.F10
+														var x10_ any = _go4t318.F10
 														_ = x10_
 														{
-															var x11_ any = _go4t504.F11
+															var x11_ any = _go4t318.F11
 															_ = x11_
 															{
-																_go4t503 := _go4t502.F1.(*decide_Observed_Observed)
-																_ = _go4t503
+																_go4t317 := _go4t316.F1.(*decide_Observed_Observed)
+																_ = _go4t317
 																{
-																	var y0_ any = _go4t503.F0
+																	var y0_ any = _go4t317.F0
 																	_ = y0_
 																	{
-																		var y1_ bool = any(_go4t503.F1).(bool)
+																		var y1_ bool = any(_go4t317.F1).(bool)
 																		_ = y1_
 																		{
-																			var y2_ int64 = any(_go4t503.F2).(int64)
+																			var y2_ int64 = any(_go4t317.F2).(int64)
 																			_ = y2_
 																			{
-																				var y3_ bool = any(_go4t503.F3).(bool)
+																				var y3_ bool = any(_go4t317.F3).(bool)
 																				_ = y3_
 																				{
-																					var y4_ bool = any(_go4t503.F4).(bool)
+																					var y4_ bool = any(_go4t317.F4).(bool)
 																					_ = y4_
 																					{
-																						var y5_ bool = any(_go4t503.F5).(bool)
+																						var y5_ bool = any(_go4t317.F5).(bool)
 																						_ = y5_
 																						{
-																							var y6_ any = _go4t503.F6
+																							var y6_ any = _go4t317.F6
 																							_ = y6_
 																							{
-																								var y7_ int64 = any(_go4t503.F7).(int64)
+																								var y7_ int64 = any(_go4t317.F7).(int64)
 																								_ = y7_
 																								{
-																									var y8_ int64 = any(_go4t503.F8).(int64)
+																									var y8_ int64 = any(_go4t317.F8).(int64)
 																									_ = y8_
 																									{
-																										var y9_ any = _go4t503.F9
+																										var y9_ any = _go4t317.F9
 																										_ = y9_
 																										{
-																											var y10_ any = _go4t503.F10
+																											var y10_ any = _go4t317.F10
 																											_ = y10_
 																											{
-																												var y11_ any = _go4t503.F11
+																												var y11_ any = _go4t317.F11
 																												_ = y11_
 //line decide/decide.gt:80
 //line decide/decide.gt:80
@@ -3168,47 +3102,47 @@ type dict_decide_Debug_Observed struct{}
 
 //line decide/decide.gt:80
 func (dictself dict_decide_Debug_Observed) prelude_Debug(a_ any) any {
-	var _go4t505 any = a_
-	_ = _go4t505
+	var _go4t319 any = a_
+	_ = _go4t319
 //line decide/decide.gt:80
 	{
-		_go4t506 := _go4t505.(*decide_Observed_Observed)
-		_ = _go4t506
+		_go4t320 := _go4t319.(*decide_Observed_Observed)
+		_ = _go4t320
 		{
-			var x0_ any = _go4t506.F0
+			var x0_ any = _go4t320.F0
 			_ = x0_
 			{
-				var x1_ bool = any(_go4t506.F1).(bool)
+				var x1_ bool = any(_go4t320.F1).(bool)
 				_ = x1_
 				{
-					var x2_ int64 = any(_go4t506.F2).(int64)
+					var x2_ int64 = any(_go4t320.F2).(int64)
 					_ = x2_
 					{
-						var x3_ bool = any(_go4t506.F3).(bool)
+						var x3_ bool = any(_go4t320.F3).(bool)
 						_ = x3_
 						{
-							var x4_ bool = any(_go4t506.F4).(bool)
+							var x4_ bool = any(_go4t320.F4).(bool)
 							_ = x4_
 							{
-								var x5_ bool = any(_go4t506.F5).(bool)
+								var x5_ bool = any(_go4t320.F5).(bool)
 								_ = x5_
 								{
-									var x6_ any = _go4t506.F6
+									var x6_ any = _go4t320.F6
 									_ = x6_
 									{
-										var x7_ int64 = any(_go4t506.F7).(int64)
+										var x7_ int64 = any(_go4t320.F7).(int64)
 										_ = x7_
 										{
-											var x8_ int64 = any(_go4t506.F8).(int64)
+											var x8_ int64 = any(_go4t320.F8).(int64)
 											_ = x8_
 											{
-												var x9_ any = _go4t506.F9
+												var x9_ any = _go4t320.F9
 												_ = x9_
 												{
-													var x10_ any = _go4t506.F10
+													var x10_ any = _go4t320.F10
 													_ = x10_
 													{
-														var x11_ any = _go4t506.F11
+														var x11_ any = _go4t320.F11
 														_ = x11_
 //line decide/decide.gt:80
 //line decide/decide.gt:80
@@ -3232,18 +3166,18 @@ type dict_decide_Eq_Reason struct{}
 
 //line decide/decide.gt:95
 func (dictself dict_decide_Eq_Reason) prelude_Eq(a_ any, b_ any) any {
-	var _go4t507 any = &Tuple2{F0: a_, F1: b_}
-	_ = _go4t507
+	var _go4t321 any = &Tuple2{F0: a_, F1: b_}
+	_ = _go4t321
 //line decide/decide.gt:95
-	switch _go4t508 := _go4t507.(type) {
+	switch _go4t322 := _go4t321.(type) {
 	case *Tuple2:
-		_ = _go4t508
-		switch _go4t510 := _go4t508.F0.(type) {
+		_ = _go4t322
+		switch _go4t324 := _go4t322.F0.(type) {
 		case *decide_Reason_ApprovalReferenceMissing:
-			_ = _go4t510
-			switch _go4t509 := _go4t508.F1.(type) {
+			_ = _go4t324
+			switch _go4t323 := _go4t322.F1.(type) {
 			case *decide_Reason_ApprovalReferenceMissing:
-				_ = _go4t509
+				_ = _go4t323
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 				return true
@@ -3251,15 +3185,15 @@ func (dictself dict_decide_Eq_Reason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:95
-	switch _go4t511 := _go4t507.(type) {
+	switch _go4t325 := _go4t321.(type) {
 	case *Tuple2:
-		_ = _go4t511
-		switch _go4t513 := _go4t511.F0.(type) {
+		_ = _go4t325
+		switch _go4t327 := _go4t325.F0.(type) {
 		case *decide_Reason_ApprovalReadFailed:
-			_ = _go4t513
-			switch _go4t512 := _go4t511.F1.(type) {
+			_ = _go4t327
+			switch _go4t326 := _go4t325.F1.(type) {
 			case *decide_Reason_ApprovalReadFailed:
-				_ = _go4t512
+				_ = _go4t326
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 				return true
@@ -3267,15 +3201,15 @@ func (dictself dict_decide_Eq_Reason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:95
-	switch _go4t514 := _go4t507.(type) {
+	switch _go4t328 := _go4t321.(type) {
 	case *Tuple2:
-		_ = _go4t514
-		switch _go4t516 := _go4t514.F0.(type) {
+		_ = _go4t328
+		switch _go4t330 := _go4t328.F0.(type) {
 		case *decide_Reason_ApprovalDeletionInProgress:
-			_ = _go4t516
-			switch _go4t515 := _go4t514.F1.(type) {
+			_ = _go4t330
+			switch _go4t329 := _go4t328.F1.(type) {
 			case *decide_Reason_ApprovalDeletionInProgress:
-				_ = _go4t515
+				_ = _go4t329
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 				return true
@@ -3283,15 +3217,15 @@ func (dictself dict_decide_Eq_Reason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:95
-	switch _go4t517 := _go4t507.(type) {
+	switch _go4t331 := _go4t321.(type) {
 	case *Tuple2:
-		_ = _go4t517
-		switch _go4t519 := _go4t517.F0.(type) {
+		_ = _go4t331
+		switch _go4t333 := _go4t331.F0.(type) {
 		case *decide_Reason_ApprovalReferenceMismatch:
-			_ = _go4t519
-			switch _go4t518 := _go4t517.F1.(type) {
+			_ = _go4t333
+			switch _go4t332 := _go4t331.F1.(type) {
 			case *decide_Reason_ApprovalReferenceMismatch:
-				_ = _go4t518
+				_ = _go4t332
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 				return true
@@ -3299,15 +3233,15 @@ func (dictself dict_decide_Eq_Reason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:95
-	switch _go4t520 := _go4t507.(type) {
+	switch _go4t334 := _go4t321.(type) {
 	case *Tuple2:
-		_ = _go4t520
-		switch _go4t522 := _go4t520.F0.(type) {
+		_ = _go4t334
+		switch _go4t336 := _go4t334.F0.(type) {
 		case *decide_Reason_ApprovalOperationIdentityMismatch:
-			_ = _go4t522
-			switch _go4t521 := _go4t520.F1.(type) {
+			_ = _go4t336
+			switch _go4t335 := _go4t334.F1.(type) {
 			case *decide_Reason_ApprovalOperationIdentityMismatch:
-				_ = _go4t521
+				_ = _go4t335
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 				return true
@@ -3315,15 +3249,15 @@ func (dictself dict_decide_Eq_Reason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:95
-	switch _go4t523 := _go4t507.(type) {
+	switch _go4t337 := _go4t321.(type) {
 	case *Tuple2:
-		_ = _go4t523
-		switch _go4t525 := _go4t523.F0.(type) {
+		_ = _go4t337
+		switch _go4t339 := _go4t337.F0.(type) {
 		case *decide_Reason_ApprovalOperationGenerationMismatch:
-			_ = _go4t525
-			switch _go4t524 := _go4t523.F1.(type) {
+			_ = _go4t339
+			switch _go4t338 := _go4t337.F1.(type) {
 			case *decide_Reason_ApprovalOperationGenerationMismatch:
-				_ = _go4t524
+				_ = _go4t338
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 				return true
@@ -3331,15 +3265,15 @@ func (dictself dict_decide_Eq_Reason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:95
-	switch _go4t526 := _go4t507.(type) {
+	switch _go4t340 := _go4t321.(type) {
 	case *Tuple2:
-		_ = _go4t526
-		switch _go4t528 := _go4t526.F0.(type) {
+		_ = _go4t340
+		switch _go4t342 := _go4t340.F0.(type) {
 		case *decide_Reason_ApprovalTargetBindingMismatch:
-			_ = _go4t528
-			switch _go4t527 := _go4t526.F1.(type) {
+			_ = _go4t342
+			switch _go4t341 := _go4t340.F1.(type) {
 			case *decide_Reason_ApprovalTargetBindingMismatch:
-				_ = _go4t527
+				_ = _go4t341
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 				return true
@@ -3347,15 +3281,15 @@ func (dictself dict_decide_Eq_Reason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:95
-	switch _go4t529 := _go4t507.(type) {
+	switch _go4t343 := _go4t321.(type) {
 	case *Tuple2:
-		_ = _go4t529
-		switch _go4t531 := _go4t529.F0.(type) {
+		_ = _go4t343
+		switch _go4t345 := _go4t343.F0.(type) {
 		case *decide_Reason_ApprovalEvidenceIncomplete:
-			_ = _go4t531
-			switch _go4t530 := _go4t529.F1.(type) {
+			_ = _go4t345
+			switch _go4t344 := _go4t343.F1.(type) {
 			case *decide_Reason_ApprovalEvidenceIncomplete:
-				_ = _go4t530
+				_ = _go4t344
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 				return true
@@ -3363,15 +3297,15 @@ func (dictself dict_decide_Eq_Reason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:95
-	switch _go4t532 := _go4t507.(type) {
+	switch _go4t346 := _go4t321.(type) {
 	case *Tuple2:
-		_ = _go4t532
-		switch _go4t534 := _go4t532.F0.(type) {
+		_ = _go4t346
+		switch _go4t348 := _go4t346.F0.(type) {
 		case *decide_Reason_ApprovalTimeInvalid:
-			_ = _go4t534
-			switch _go4t533 := _go4t532.F1.(type) {
+			_ = _go4t348
+			switch _go4t347 := _go4t346.F1.(type) {
 			case *decide_Reason_ApprovalTimeInvalid:
-				_ = _go4t533
+				_ = _go4t347
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 				return true
@@ -3379,15 +3313,15 @@ func (dictself dict_decide_Eq_Reason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:95
-	switch _go4t535 := _go4t507.(type) {
+	switch _go4t349 := _go4t321.(type) {
 	case *Tuple2:
-		_ = _go4t535
-		switch _go4t537 := _go4t535.F0.(type) {
+		_ = _go4t349
+		switch _go4t351 := _go4t349.F0.(type) {
 		case *decide_Reason_ApprovalWindowInvalid:
-			_ = _go4t537
-			switch _go4t536 := _go4t535.F1.(type) {
+			_ = _go4t351
+			switch _go4t350 := _go4t349.F1.(type) {
 			case *decide_Reason_ApprovalWindowInvalid:
-				_ = _go4t536
+				_ = _go4t350
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 				return true
@@ -3395,15 +3329,15 @@ func (dictself dict_decide_Eq_Reason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:95
-	switch _go4t538 := _go4t507.(type) {
+	switch _go4t352 := _go4t321.(type) {
 	case *Tuple2:
-		_ = _go4t538
-		switch _go4t540 := _go4t538.F0.(type) {
+		_ = _go4t352
+		switch _go4t354 := _go4t352.F0.(type) {
 		case *decide_Reason_ApprovalExpired:
-			_ = _go4t540
-			switch _go4t539 := _go4t538.F1.(type) {
+			_ = _go4t354
+			switch _go4t353 := _go4t352.F1.(type) {
 			case *decide_Reason_ApprovalExpired:
-				_ = _go4t539
+				_ = _go4t353
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 				return true
@@ -3411,15 +3345,15 @@ func (dictself dict_decide_Eq_Reason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:95
-	switch _go4t541 := _go4t507.(type) {
+	switch _go4t355 := _go4t321.(type) {
 	case *Tuple2:
-		_ = _go4t541
-		switch _go4t543 := _go4t541.F0.(type) {
+		_ = _go4t355
+		switch _go4t357 := _go4t355.F0.(type) {
 		case *decide_Reason_ApprovalNoLongerAccepted:
-			_ = _go4t543
-			switch _go4t542 := _go4t541.F1.(type) {
+			_ = _go4t357
+			switch _go4t356 := _go4t355.F1.(type) {
 			case *decide_Reason_ApprovalNoLongerAccepted:
-				_ = _go4t542
+				_ = _go4t356
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 				return true
@@ -3427,15 +3361,15 @@ func (dictself dict_decide_Eq_Reason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:95
-	switch _go4t544 := _go4t507.(type) {
+	switch _go4t358 := _go4t321.(type) {
 	case *Tuple2:
-		_ = _go4t544
-		switch _go4t546 := _go4t544.F0.(type) {
+		_ = _go4t358
+		switch _go4t360 := _go4t358.F0.(type) {
 		case *decide_Reason_ApprovalRejected:
-			_ = _go4t546
-			switch _go4t545 := _go4t544.F1.(type) {
+			_ = _go4t360
+			switch _go4t359 := _go4t358.F1.(type) {
 			case *decide_Reason_ApprovalRejected:
-				_ = _go4t545
+				_ = _go4t359
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 				return true
@@ -3443,15 +3377,15 @@ func (dictself dict_decide_Eq_Reason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:95
-	switch _go4t547 := _go4t507.(type) {
+	switch _go4t361 := _go4t321.(type) {
 	case *Tuple2:
-		_ = _go4t547
-		switch _go4t549 := _go4t547.F0.(type) {
+		_ = _go4t361
+		switch _go4t363 := _go4t361.F0.(type) {
 		case *decide_Reason_ApprovalSuperseded:
-			_ = _go4t549
-			switch _go4t548 := _go4t547.F1.(type) {
+			_ = _go4t363
+			switch _go4t362 := _go4t361.F1.(type) {
 			case *decide_Reason_ApprovalSuperseded:
-				_ = _go4t548
+				_ = _go4t362
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 				return true
@@ -3459,15 +3393,15 @@ func (dictself dict_decide_Eq_Reason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:95
-	switch _go4t550 := _go4t507.(type) {
+	switch _go4t364 := _go4t321.(type) {
 	case *Tuple2:
-		_ = _go4t550
-		switch _go4t552 := _go4t550.F0.(type) {
+		_ = _go4t364
+		switch _go4t366 := _go4t364.F0.(type) {
 		case *decide_Reason_ApprovalObservationSuperseded:
-			_ = _go4t552
-			switch _go4t551 := _go4t550.F1.(type) {
+			_ = _go4t366
+			switch _go4t365 := _go4t364.F1.(type) {
 			case *decide_Reason_ApprovalObservationSuperseded:
-				_ = _go4t551
+				_ = _go4t365
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 				return true
@@ -3475,15 +3409,15 @@ func (dictself dict_decide_Eq_Reason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:95
-	switch _go4t553 := _go4t507.(type) {
+	switch _go4t367 := _go4t321.(type) {
 	case *Tuple2:
-		_ = _go4t553
-		switch _go4t555 := _go4t553.F0.(type) {
+		_ = _go4t367
+		switch _go4t369 := _go4t367.F0.(type) {
 		case *decide_Reason_ApprovalBindingChanged:
-			_ = _go4t555
-			switch _go4t554 := _go4t553.F1.(type) {
+			_ = _go4t369
+			switch _go4t368 := _go4t367.F1.(type) {
 			case *decide_Reason_ApprovalBindingChanged:
-				_ = _go4t554
+				_ = _go4t368
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 				return true
@@ -3491,15 +3425,15 @@ func (dictself dict_decide_Eq_Reason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:95
-	switch _go4t556 := _go4t507.(type) {
+	switch _go4t370 := _go4t321.(type) {
 	case *Tuple2:
-		_ = _go4t556
-		switch _go4t558 := _go4t556.F0.(type) {
+		_ = _go4t370
+		switch _go4t372 := _go4t370.F0.(type) {
 		case *decide_Reason_FeatureGateDisabled:
-			_ = _go4t558
-			switch _go4t557 := _go4t556.F1.(type) {
+			_ = _go4t372
+			switch _go4t371 := _go4t370.F1.(type) {
 			case *decide_Reason_FeatureGateDisabled:
-				_ = _go4t557
+				_ = _go4t371
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 				return true
@@ -3507,15 +3441,15 @@ func (dictself dict_decide_Eq_Reason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:95
-	switch _go4t559 := _go4t507.(type) {
+	switch _go4t373 := _go4t321.(type) {
 	case *Tuple2:
-		_ = _go4t559
-		switch _go4t561 := _go4t559.F0.(type) {
+		_ = _go4t373
+		switch _go4t375 := _go4t373.F0.(type) {
 		case *decide_Reason_DeletionStateLost:
-			_ = _go4t561
-			switch _go4t560 := _go4t559.F1.(type) {
+			_ = _go4t375
+			switch _go4t374 := _go4t373.F1.(type) {
 			case *decide_Reason_DeletionStateLost:
-				_ = _go4t560
+				_ = _go4t374
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 				return true
@@ -3523,15 +3457,15 @@ func (dictself dict_decide_Eq_Reason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:95
-	switch _go4t562 := _go4t507.(type) {
+	switch _go4t376 := _go4t321.(type) {
 	case *Tuple2:
-		_ = _go4t562
-		switch _go4t564 := _go4t562.F0.(type) {
+		_ = _go4t376
+		switch _go4t378 := _go4t376.F0.(type) {
 		case *decide_Reason_DeleteCompareAndSwapFailed:
-			_ = _go4t564
-			switch _go4t563 := _go4t562.F1.(type) {
+			_ = _go4t378
+			switch _go4t377 := _go4t376.F1.(type) {
 			case *decide_Reason_DeleteCompareAndSwapFailed:
-				_ = _go4t563
+				_ = _go4t377
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 				return true
@@ -3539,15 +3473,15 @@ func (dictself dict_decide_Eq_Reason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:95
-	switch _go4t565 := _go4t507.(type) {
+	switch _go4t379 := _go4t321.(type) {
 	case *Tuple2:
-		_ = _go4t565
-		switch _go4t567 := _go4t565.F0.(type) {
+		_ = _go4t379
+		switch _go4t381 := _go4t379.F0.(type) {
 		case *decide_Reason_DeleteRequestFailed:
-			_ = _go4t567
-			switch _go4t566 := _go4t565.F1.(type) {
+			_ = _go4t381
+			switch _go4t380 := _go4t379.F1.(type) {
 			case *decide_Reason_DeleteRequestFailed:
-				_ = _go4t566
+				_ = _go4t380
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 				return true
@@ -3566,164 +3500,164 @@ type dict_decide_Debug_Reason struct{}
 
 //line decide/decide.gt:95
 func (dictself dict_decide_Debug_Reason) prelude_Debug(a_ any) any {
-	var _go4t568 any = a_
-	_ = _go4t568
+	var _go4t382 any = a_
+	_ = _go4t382
 //line decide/decide.gt:95
-	switch _go4t569 := _go4t568.(type) {
+	switch _go4t383 := _go4t382.(type) {
 	case *decide_Reason_ApprovalReferenceMissing:
-		_ = _go4t569
+		_ = _go4t383
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 		return "ApprovalReferenceMissing"
 	}
 //line decide/decide.gt:95
-	switch _go4t570 := _go4t568.(type) {
+	switch _go4t384 := _go4t382.(type) {
 	case *decide_Reason_ApprovalReadFailed:
-		_ = _go4t570
+		_ = _go4t384
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 		return "ApprovalReadFailed"
 	}
 //line decide/decide.gt:95
-	switch _go4t571 := _go4t568.(type) {
+	switch _go4t385 := _go4t382.(type) {
 	case *decide_Reason_ApprovalDeletionInProgress:
-		_ = _go4t571
+		_ = _go4t385
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 		return "ApprovalDeletionInProgress"
 	}
 //line decide/decide.gt:95
-	switch _go4t572 := _go4t568.(type) {
+	switch _go4t386 := _go4t382.(type) {
 	case *decide_Reason_ApprovalReferenceMismatch:
-		_ = _go4t572
+		_ = _go4t386
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 		return "ApprovalReferenceMismatch"
 	}
 //line decide/decide.gt:95
-	switch _go4t573 := _go4t568.(type) {
+	switch _go4t387 := _go4t382.(type) {
 	case *decide_Reason_ApprovalOperationIdentityMismatch:
-		_ = _go4t573
+		_ = _go4t387
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 		return "ApprovalOperationIdentityMismatch"
 	}
 //line decide/decide.gt:95
-	switch _go4t574 := _go4t568.(type) {
+	switch _go4t388 := _go4t382.(type) {
 	case *decide_Reason_ApprovalOperationGenerationMismatch:
-		_ = _go4t574
+		_ = _go4t388
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 		return "ApprovalOperationGenerationMismatch"
 	}
 //line decide/decide.gt:95
-	switch _go4t575 := _go4t568.(type) {
+	switch _go4t389 := _go4t382.(type) {
 	case *decide_Reason_ApprovalTargetBindingMismatch:
-		_ = _go4t575
+		_ = _go4t389
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 		return "ApprovalTargetBindingMismatch"
 	}
 //line decide/decide.gt:95
-	switch _go4t576 := _go4t568.(type) {
+	switch _go4t390 := _go4t382.(type) {
 	case *decide_Reason_ApprovalEvidenceIncomplete:
-		_ = _go4t576
+		_ = _go4t390
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 		return "ApprovalEvidenceIncomplete"
 	}
 //line decide/decide.gt:95
-	switch _go4t577 := _go4t568.(type) {
+	switch _go4t391 := _go4t382.(type) {
 	case *decide_Reason_ApprovalTimeInvalid:
-		_ = _go4t577
+		_ = _go4t391
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 		return "ApprovalTimeInvalid"
 	}
 //line decide/decide.gt:95
-	switch _go4t578 := _go4t568.(type) {
+	switch _go4t392 := _go4t382.(type) {
 	case *decide_Reason_ApprovalWindowInvalid:
-		_ = _go4t578
+		_ = _go4t392
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 		return "ApprovalWindowInvalid"
 	}
 //line decide/decide.gt:95
-	switch _go4t579 := _go4t568.(type) {
+	switch _go4t393 := _go4t382.(type) {
 	case *decide_Reason_ApprovalExpired:
-		_ = _go4t579
+		_ = _go4t393
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 		return "ApprovalExpired"
 	}
 //line decide/decide.gt:95
-	switch _go4t580 := _go4t568.(type) {
+	switch _go4t394 := _go4t382.(type) {
 	case *decide_Reason_ApprovalNoLongerAccepted:
-		_ = _go4t580
+		_ = _go4t394
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 		return "ApprovalNoLongerAccepted"
 	}
 //line decide/decide.gt:95
-	switch _go4t581 := _go4t568.(type) {
+	switch _go4t395 := _go4t382.(type) {
 	case *decide_Reason_ApprovalRejected:
-		_ = _go4t581
+		_ = _go4t395
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 		return "ApprovalRejected"
 	}
 //line decide/decide.gt:95
-	switch _go4t582 := _go4t568.(type) {
+	switch _go4t396 := _go4t382.(type) {
 	case *decide_Reason_ApprovalSuperseded:
-		_ = _go4t582
+		_ = _go4t396
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 		return "ApprovalSuperseded"
 	}
 //line decide/decide.gt:95
-	switch _go4t583 := _go4t568.(type) {
+	switch _go4t397 := _go4t382.(type) {
 	case *decide_Reason_ApprovalObservationSuperseded:
-		_ = _go4t583
+		_ = _go4t397
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 		return "ApprovalObservationSuperseded"
 	}
 //line decide/decide.gt:95
-	switch _go4t584 := _go4t568.(type) {
+	switch _go4t398 := _go4t382.(type) {
 	case *decide_Reason_ApprovalBindingChanged:
-		_ = _go4t584
+		_ = _go4t398
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 		return "ApprovalBindingChanged"
 	}
 //line decide/decide.gt:95
-	switch _go4t585 := _go4t568.(type) {
+	switch _go4t399 := _go4t382.(type) {
 	case *decide_Reason_FeatureGateDisabled:
-		_ = _go4t585
+		_ = _go4t399
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 		return "FeatureGateDisabled"
 	}
 //line decide/decide.gt:95
-	switch _go4t586 := _go4t568.(type) {
+	switch _go4t400 := _go4t382.(type) {
 	case *decide_Reason_DeletionStateLost:
-		_ = _go4t586
+		_ = _go4t400
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 		return "DeletionStateLost"
 	}
 //line decide/decide.gt:95
-	switch _go4t587 := _go4t568.(type) {
+	switch _go4t401 := _go4t382.(type) {
 	case *decide_Reason_DeleteCompareAndSwapFailed:
-		_ = _go4t587
+		_ = _go4t401
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 		return "DeleteCompareAndSwapFailed"
 	}
 //line decide/decide.gt:95
 	{
-		_go4t588 := _go4t568.(*decide_Reason_DeleteRequestFailed)
-		_ = _go4t588
+		_go4t402 := _go4t382.(*decide_Reason_DeleteRequestFailed)
+		_ = _go4t402
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 		return "DeleteRequestFailed"
@@ -3734,164 +3668,164 @@ type dict_decide_Show_Reason struct{}
 
 //line decide/decide.gt:95
 func (dictself dict_decide_Show_Reason) prelude_Show(a_ any) any {
-	var _go4t589 any = a_
-	_ = _go4t589
+	var _go4t403 any = a_
+	_ = _go4t403
 //line decide/decide.gt:95
-	switch _go4t590 := _go4t589.(type) {
+	switch _go4t404 := _go4t403.(type) {
 	case *decide_Reason_ApprovalReferenceMissing:
-		_ = _go4t590
+		_ = _go4t404
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 		return "ApprovalReferenceMissing"
 	}
 //line decide/decide.gt:95
-	switch _go4t591 := _go4t589.(type) {
+	switch _go4t405 := _go4t403.(type) {
 	case *decide_Reason_ApprovalReadFailed:
-		_ = _go4t591
+		_ = _go4t405
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 		return "ApprovalReadFailed"
 	}
 //line decide/decide.gt:95
-	switch _go4t592 := _go4t589.(type) {
+	switch _go4t406 := _go4t403.(type) {
 	case *decide_Reason_ApprovalDeletionInProgress:
-		_ = _go4t592
+		_ = _go4t406
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 		return "ApprovalDeletionInProgress"
 	}
 //line decide/decide.gt:95
-	switch _go4t593 := _go4t589.(type) {
+	switch _go4t407 := _go4t403.(type) {
 	case *decide_Reason_ApprovalReferenceMismatch:
-		_ = _go4t593
+		_ = _go4t407
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 		return "ApprovalReferenceMismatch"
 	}
 //line decide/decide.gt:95
-	switch _go4t594 := _go4t589.(type) {
+	switch _go4t408 := _go4t403.(type) {
 	case *decide_Reason_ApprovalOperationIdentityMismatch:
-		_ = _go4t594
+		_ = _go4t408
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 		return "ApprovalOperationIdentityMismatch"
 	}
 //line decide/decide.gt:95
-	switch _go4t595 := _go4t589.(type) {
+	switch _go4t409 := _go4t403.(type) {
 	case *decide_Reason_ApprovalOperationGenerationMismatch:
-		_ = _go4t595
+		_ = _go4t409
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 		return "ApprovalOperationGenerationMismatch"
 	}
 //line decide/decide.gt:95
-	switch _go4t596 := _go4t589.(type) {
+	switch _go4t410 := _go4t403.(type) {
 	case *decide_Reason_ApprovalTargetBindingMismatch:
-		_ = _go4t596
+		_ = _go4t410
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 		return "ApprovalTargetBindingMismatch"
 	}
 //line decide/decide.gt:95
-	switch _go4t597 := _go4t589.(type) {
+	switch _go4t411 := _go4t403.(type) {
 	case *decide_Reason_ApprovalEvidenceIncomplete:
-		_ = _go4t597
+		_ = _go4t411
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 		return "ApprovalEvidenceIncomplete"
 	}
 //line decide/decide.gt:95
-	switch _go4t598 := _go4t589.(type) {
+	switch _go4t412 := _go4t403.(type) {
 	case *decide_Reason_ApprovalTimeInvalid:
-		_ = _go4t598
+		_ = _go4t412
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 		return "ApprovalTimeInvalid"
 	}
 //line decide/decide.gt:95
-	switch _go4t599 := _go4t589.(type) {
+	switch _go4t413 := _go4t403.(type) {
 	case *decide_Reason_ApprovalWindowInvalid:
-		_ = _go4t599
+		_ = _go4t413
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 		return "ApprovalWindowInvalid"
 	}
 //line decide/decide.gt:95
-	switch _go4t600 := _go4t589.(type) {
+	switch _go4t414 := _go4t403.(type) {
 	case *decide_Reason_ApprovalExpired:
-		_ = _go4t600
+		_ = _go4t414
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 		return "ApprovalExpired"
 	}
 //line decide/decide.gt:95
-	switch _go4t601 := _go4t589.(type) {
+	switch _go4t415 := _go4t403.(type) {
 	case *decide_Reason_ApprovalNoLongerAccepted:
-		_ = _go4t601
+		_ = _go4t415
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 		return "ApprovalNoLongerAccepted"
 	}
 //line decide/decide.gt:95
-	switch _go4t602 := _go4t589.(type) {
+	switch _go4t416 := _go4t403.(type) {
 	case *decide_Reason_ApprovalRejected:
-		_ = _go4t602
+		_ = _go4t416
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 		return "ApprovalRejected"
 	}
 //line decide/decide.gt:95
-	switch _go4t603 := _go4t589.(type) {
+	switch _go4t417 := _go4t403.(type) {
 	case *decide_Reason_ApprovalSuperseded:
-		_ = _go4t603
+		_ = _go4t417
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 		return "ApprovalSuperseded"
 	}
 //line decide/decide.gt:95
-	switch _go4t604 := _go4t589.(type) {
+	switch _go4t418 := _go4t403.(type) {
 	case *decide_Reason_ApprovalObservationSuperseded:
-		_ = _go4t604
+		_ = _go4t418
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 		return "ApprovalObservationSuperseded"
 	}
 //line decide/decide.gt:95
-	switch _go4t605 := _go4t589.(type) {
+	switch _go4t419 := _go4t403.(type) {
 	case *decide_Reason_ApprovalBindingChanged:
-		_ = _go4t605
+		_ = _go4t419
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 		return "ApprovalBindingChanged"
 	}
 //line decide/decide.gt:95
-	switch _go4t606 := _go4t589.(type) {
+	switch _go4t420 := _go4t403.(type) {
 	case *decide_Reason_FeatureGateDisabled:
-		_ = _go4t606
+		_ = _go4t420
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 		return "FeatureGateDisabled"
 	}
 //line decide/decide.gt:95
-	switch _go4t607 := _go4t589.(type) {
+	switch _go4t421 := _go4t403.(type) {
 	case *decide_Reason_DeletionStateLost:
-		_ = _go4t607
+		_ = _go4t421
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 		return "DeletionStateLost"
 	}
 //line decide/decide.gt:95
-	switch _go4t608 := _go4t589.(type) {
+	switch _go4t422 := _go4t403.(type) {
 	case *decide_Reason_DeleteCompareAndSwapFailed:
-		_ = _go4t608
+		_ = _go4t422
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 		return "DeleteCompareAndSwapFailed"
 	}
 //line decide/decide.gt:95
 	{
-		_go4t609 := _go4t589.(*decide_Reason_DeleteRequestFailed)
-		_ = _go4t609
+		_go4t423 := _go4t403.(*decide_Reason_DeleteRequestFailed)
+		_ = _go4t423
 //line decide/decide.gt:95
 //line decide/decide.gt:95
 		return "DeleteRequestFailed"
@@ -3902,23 +3836,23 @@ type dict_decide_Eq_ReasonCode struct{}
 
 //line decide/decide.gt:104
 func (dictself dict_decide_Eq_ReasonCode) prelude_Eq(a_ any, b_ any) any {
-	var _go4t610 any = &Tuple2{F0: a_, F1: b_}
-	_ = _go4t610
+	var _go4t424 any = &Tuple2{F0: a_, F1: b_}
+	_ = _go4t424
 //line decide/decide.gt:104
-	switch _go4t611 := _go4t610.(type) {
+	switch _go4t425 := _go4t424.(type) {
 	case *Tuple2:
-		_ = _go4t611
-		switch _go4t613 := _go4t611.F0.(type) {
+		_ = _go4t425
+		switch _go4t427 := _go4t425.F0.(type) {
 		case *decide_ReasonCode_Decided:
-			_ = _go4t613
+			_ = _go4t427
 			{
-				var x0_ any = _go4t613.F0
+				var x0_ any = _go4t427.F0
 				_ = x0_
-				switch _go4t612 := _go4t611.F1.(type) {
+				switch _go4t426 := _go4t425.F1.(type) {
 				case *decide_ReasonCode_Decided:
-					_ = _go4t612
+					_ = _go4t426
 					{
-						var y0_ any = _go4t612.F0
+						var y0_ any = _go4t426.F0
 						_ = y0_
 //line decide/decide.gt:104
 //line decide/decide.gt:104
@@ -3929,20 +3863,20 @@ func (dictself dict_decide_Eq_ReasonCode) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:104
-	switch _go4t614 := _go4t610.(type) {
+	switch _go4t428 := _go4t424.(type) {
 	case *Tuple2:
-		_ = _go4t614
-		switch _go4t616 := _go4t614.F0.(type) {
+		_ = _go4t428
+		switch _go4t430 := _go4t428.F0.(type) {
 		case *decide_ReasonCode_FromObservation:
-			_ = _go4t616
+			_ = _go4t430
 			{
-				var x0_ any = _go4t616.F0
+				var x0_ any = _go4t430.F0
 				_ = x0_
-				switch _go4t615 := _go4t614.F1.(type) {
+				switch _go4t429 := _go4t428.F1.(type) {
 				case *decide_ReasonCode_FromObservation:
-					_ = _go4t615
+					_ = _go4t429
 					{
-						var y0_ any = _go4t615.F0
+						var y0_ any = _go4t429.F0
 						_ = y0_
 //line decide/decide.gt:104
 //line decide/decide.gt:104
@@ -3964,14 +3898,14 @@ type dict_decide_Debug_ReasonCode struct{}
 
 //line decide/decide.gt:104
 func (dictself dict_decide_Debug_ReasonCode) prelude_Debug(a_ any) any {
-	var _go4t617 any = a_
-	_ = _go4t617
+	var _go4t431 any = a_
+	_ = _go4t431
 //line decide/decide.gt:104
-	switch _go4t618 := _go4t617.(type) {
+	switch _go4t432 := _go4t431.(type) {
 	case *decide_ReasonCode_Decided:
-		_ = _go4t618
+		_ = _go4t432
 		{
-			var x0_ any = _go4t618.F0
+			var x0_ any = _go4t432.F0
 			_ = x0_
 //line decide/decide.gt:104
 //line decide/decide.gt:104
@@ -3980,10 +3914,10 @@ func (dictself dict_decide_Debug_ReasonCode) prelude_Debug(a_ any) any {
 	}
 //line decide/decide.gt:104
 	{
-		_go4t619 := _go4t617.(*decide_ReasonCode_FromObservation)
-		_ = _go4t619
+		_go4t433 := _go4t431.(*decide_ReasonCode_FromObservation)
+		_ = _go4t433
 		{
-			var x0_ any = _go4t619.F0
+			var x0_ any = _go4t433.F0
 			_ = x0_
 //line decide/decide.gt:104
 //line decide/decide.gt:104
@@ -3996,41 +3930,41 @@ type dict_decide_Eq_Status struct{}
 
 //line decide/decide.gt:109
 func (dictself dict_decide_Eq_Status) prelude_Eq(a_ any, b_ any) any {
-	var _go4t620 any = &Tuple2{F0: a_, F1: b_}
-	_ = _go4t620
+	var _go4t434 any = &Tuple2{F0: a_, F1: b_}
+	_ = _go4t434
 //line decide/decide.gt:109
-	switch _go4t621 := _go4t620.(type) {
+	switch _go4t435 := _go4t434.(type) {
 	case *Tuple2:
-		_ = _go4t621
-		switch _go4t623 := _go4t621.F0.(type) {
+		_ = _go4t435
+		switch _go4t437 := _go4t435.F0.(type) {
 		case *decide_Status_Blocked:
-			_ = _go4t623
+			_ = _go4t437
 			{
-				var x0_ any = _go4t623.F0
+				var x0_ any = _go4t437.F0
 				_ = x0_
 				{
-					var x1_ any = _go4t623.F1
+					var x1_ any = _go4t437.F1
 					_ = x1_
 					{
-						var x2_ any = _go4t623.F2
+						var x2_ any = _go4t437.F2
 						_ = x2_
 						{
-							var x3_ bool = any(_go4t623.F3).(bool)
+							var x3_ bool = any(_go4t437.F3).(bool)
 							_ = x3_
-							switch _go4t622 := _go4t621.F1.(type) {
+							switch _go4t436 := _go4t435.F1.(type) {
 							case *decide_Status_Blocked:
-								_ = _go4t622
+								_ = _go4t436
 								{
-									var y0_ any = _go4t622.F0
+									var y0_ any = _go4t436.F0
 									_ = y0_
 									{
-										var y1_ any = _go4t622.F1
+										var y1_ any = _go4t436.F1
 										_ = y1_
 										{
-											var y2_ any = _go4t622.F2
+											var y2_ any = _go4t436.F2
 											_ = y2_
 											{
-												var y3_ bool = any(_go4t622.F3).(bool)
+												var y3_ bool = any(_go4t436.F3).(bool)
 												_ = y3_
 //line decide/decide.gt:109
 //line decide/decide.gt:109
@@ -4047,32 +3981,32 @@ func (dictself dict_decide_Eq_Status) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:109
-	switch _go4t624 := _go4t620.(type) {
+	switch _go4t438 := _go4t434.(type) {
 	case *Tuple2:
-		_ = _go4t624
-		switch _go4t626 := _go4t624.F0.(type) {
+		_ = _go4t438
+		switch _go4t440 := _go4t438.F0.(type) {
 		case *decide_Status_Running:
-			_ = _go4t626
+			_ = _go4t440
 			{
-				var x0_ any = _go4t626.F0
+				var x0_ any = _go4t440.F0
 				_ = x0_
 				{
-					var x1_ any = _go4t626.F1
+					var x1_ any = _go4t440.F1
 					_ = x1_
 					{
-						var x2_ bool = any(_go4t626.F2).(bool)
+						var x2_ bool = any(_go4t440.F2).(bool)
 						_ = x2_
-						switch _go4t625 := _go4t624.F1.(type) {
+						switch _go4t439 := _go4t438.F1.(type) {
 						case *decide_Status_Running:
-							_ = _go4t625
+							_ = _go4t439
 							{
-								var y0_ any = _go4t625.F0
+								var y0_ any = _go4t439.F0
 								_ = y0_
 								{
-									var y1_ any = _go4t625.F1
+									var y1_ any = _go4t439.F1
 									_ = y1_
 									{
-										var y2_ bool = any(_go4t625.F2).(bool)
+										var y2_ bool = any(_go4t439.F2).(bool)
 										_ = y2_
 //line decide/decide.gt:109
 //line decide/decide.gt:109
@@ -4087,32 +4021,32 @@ func (dictself dict_decide_Eq_Status) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:109
-	switch _go4t627 := _go4t620.(type) {
+	switch _go4t441 := _go4t434.(type) {
 	case *Tuple2:
-		_ = _go4t627
-		switch _go4t629 := _go4t627.F0.(type) {
+		_ = _go4t441
+		switch _go4t443 := _go4t441.F0.(type) {
 		case *decide_Status_Succeeded:
-			_ = _go4t629
+			_ = _go4t443
 			{
-				var x0_ any = _go4t629.F0
+				var x0_ any = _go4t443.F0
 				_ = x0_
 				{
-					var x1_ any = _go4t629.F1
+					var x1_ any = _go4t443.F1
 					_ = x1_
 					{
-						var x2_ bool = any(_go4t629.F2).(bool)
+						var x2_ bool = any(_go4t443.F2).(bool)
 						_ = x2_
-						switch _go4t628 := _go4t627.F1.(type) {
+						switch _go4t442 := _go4t441.F1.(type) {
 						case *decide_Status_Succeeded:
-							_ = _go4t628
+							_ = _go4t442
 							{
-								var y0_ any = _go4t628.F0
+								var y0_ any = _go4t442.F0
 								_ = y0_
 								{
-									var y1_ any = _go4t628.F1
+									var y1_ any = _go4t442.F1
 									_ = y1_
 									{
-										var y2_ bool = any(_go4t628.F2).(bool)
+										var y2_ bool = any(_go4t442.F2).(bool)
 										_ = y2_
 //line decide/decide.gt:109
 //line decide/decide.gt:109
@@ -4127,15 +4061,15 @@ func (dictself dict_decide_Eq_Status) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:109
-	switch _go4t630 := _go4t620.(type) {
+	switch _go4t444 := _go4t434.(type) {
 	case *Tuple2:
-		_ = _go4t630
-		switch _go4t632 := _go4t630.F0.(type) {
+		_ = _go4t444
+		switch _go4t446 := _go4t444.F0.(type) {
 		case *decide_Status_AwaitingApproval:
-			_ = _go4t632
-			switch _go4t631 := _go4t630.F1.(type) {
+			_ = _go4t446
+			switch _go4t445 := _go4t444.F1.(type) {
 			case *decide_Status_AwaitingApproval:
-				_ = _go4t631
+				_ = _go4t445
 //line decide/decide.gt:109
 //line decide/decide.gt:109
 				return true
@@ -4143,15 +4077,15 @@ func (dictself dict_decide_Eq_Status) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:109
-	switch _go4t633 := _go4t620.(type) {
+	switch _go4t447 := _go4t434.(type) {
 	case *Tuple2:
-		_ = _go4t633
-		switch _go4t635 := _go4t633.F0.(type) {
+		_ = _go4t447
+		switch _go4t449 := _go4t447.F0.(type) {
 		case *decide_Status_Authorized:
-			_ = _go4t635
-			switch _go4t634 := _go4t633.F1.(type) {
+			_ = _go4t449
+			switch _go4t448 := _go4t447.F1.(type) {
 			case *decide_Status_Authorized:
-				_ = _go4t634
+				_ = _go4t448
 //line decide/decide.gt:109
 //line decide/decide.gt:109
 				return true
@@ -4159,15 +4093,15 @@ func (dictself dict_decide_Eq_Status) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:109
-	switch _go4t636 := _go4t620.(type) {
+	switch _go4t450 := _go4t434.(type) {
 	case *Tuple2:
-		_ = _go4t636
-		switch _go4t638 := _go4t636.F0.(type) {
+		_ = _go4t450
+		switch _go4t452 := _go4t450.F0.(type) {
 		case *decide_Status_Committed:
-			_ = _go4t638
-			switch _go4t637 := _go4t636.F1.(type) {
+			_ = _go4t452
+			switch _go4t451 := _go4t450.F1.(type) {
 			case *decide_Status_Committed:
-				_ = _go4t637
+				_ = _go4t451
 //line decide/decide.gt:109
 //line decide/decide.gt:109
 				return true
@@ -4186,23 +4120,23 @@ type dict_decide_Debug_Status struct{}
 
 //line decide/decide.gt:109
 func (dictself dict_decide_Debug_Status) prelude_Debug(a_ any) any {
-	var _go4t639 any = a_
-	_ = _go4t639
+	var _go4t453 any = a_
+	_ = _go4t453
 //line decide/decide.gt:109
-	switch _go4t640 := _go4t639.(type) {
+	switch _go4t454 := _go4t453.(type) {
 	case *decide_Status_Blocked:
-		_ = _go4t640
+		_ = _go4t454
 		{
-			var x0_ any = _go4t640.F0
+			var x0_ any = _go4t454.F0
 			_ = x0_
 			{
-				var x1_ any = _go4t640.F1
+				var x1_ any = _go4t454.F1
 				_ = x1_
 				{
-					var x2_ any = _go4t640.F2
+					var x2_ any = _go4t454.F2
 					_ = x2_
 					{
-						var x3_ bool = any(_go4t640.F3).(bool)
+						var x3_ bool = any(_go4t454.F3).(bool)
 						_ = x3_
 //line decide/decide.gt:109
 //line decide/decide.gt:109
@@ -4213,17 +4147,17 @@ func (dictself dict_decide_Debug_Status) prelude_Debug(a_ any) any {
 		}
 	}
 //line decide/decide.gt:109
-	switch _go4t641 := _go4t639.(type) {
+	switch _go4t455 := _go4t453.(type) {
 	case *decide_Status_Running:
-		_ = _go4t641
+		_ = _go4t455
 		{
-			var x0_ any = _go4t641.F0
+			var x0_ any = _go4t455.F0
 			_ = x0_
 			{
-				var x1_ any = _go4t641.F1
+				var x1_ any = _go4t455.F1
 				_ = x1_
 				{
-					var x2_ bool = any(_go4t641.F2).(bool)
+					var x2_ bool = any(_go4t455.F2).(bool)
 					_ = x2_
 //line decide/decide.gt:109
 //line decide/decide.gt:109
@@ -4233,17 +4167,17 @@ func (dictself dict_decide_Debug_Status) prelude_Debug(a_ any) any {
 		}
 	}
 //line decide/decide.gt:109
-	switch _go4t642 := _go4t639.(type) {
+	switch _go4t456 := _go4t453.(type) {
 	case *decide_Status_Succeeded:
-		_ = _go4t642
+		_ = _go4t456
 		{
-			var x0_ any = _go4t642.F0
+			var x0_ any = _go4t456.F0
 			_ = x0_
 			{
-				var x1_ any = _go4t642.F1
+				var x1_ any = _go4t456.F1
 				_ = x1_
 				{
-					var x2_ bool = any(_go4t642.F2).(bool)
+					var x2_ bool = any(_go4t456.F2).(bool)
 					_ = x2_
 //line decide/decide.gt:109
 //line decide/decide.gt:109
@@ -4253,25 +4187,25 @@ func (dictself dict_decide_Debug_Status) prelude_Debug(a_ any) any {
 		}
 	}
 //line decide/decide.gt:109
-	switch _go4t643 := _go4t639.(type) {
+	switch _go4t457 := _go4t453.(type) {
 	case *decide_Status_AwaitingApproval:
-		_ = _go4t643
+		_ = _go4t457
 //line decide/decide.gt:109
 //line decide/decide.gt:109
 		return "AwaitingApproval"
 	}
 //line decide/decide.gt:109
-	switch _go4t644 := _go4t639.(type) {
+	switch _go4t458 := _go4t453.(type) {
 	case *decide_Status_Authorized:
-		_ = _go4t644
+		_ = _go4t458
 //line decide/decide.gt:109
 //line decide/decide.gt:109
 		return "Authorized"
 	}
 //line decide/decide.gt:109
 	{
-		_go4t645 := _go4t639.(*decide_Status_Committed)
-		_ = _go4t645
+		_go4t459 := _go4t453.(*decide_Status_Committed)
+		_ = _go4t459
 //line decide/decide.gt:109
 //line decide/decide.gt:109
 		return "Committed"
@@ -4282,18 +4216,18 @@ type dict_decide_Eq_Action struct{}
 
 //line decide/decide.gt:118
 func (dictself dict_decide_Eq_Action) prelude_Eq(a_ any, b_ any) any {
-	var _go4t646 any = &Tuple2{F0: a_, F1: b_}
-	_ = _go4t646
+	var _go4t460 any = &Tuple2{F0: a_, F1: b_}
+	_ = _go4t460
 //line decide/decide.gt:118
-	switch _go4t647 := _go4t646.(type) {
+	switch _go4t461 := _go4t460.(type) {
 	case *Tuple2:
-		_ = _go4t647
-		switch _go4t649 := _go4t647.F0.(type) {
+		_ = _go4t461
+		switch _go4t463 := _go4t461.F0.(type) {
 		case *decide_Action_ObserveInitial:
-			_ = _go4t649
-			switch _go4t648 := _go4t647.F1.(type) {
+			_ = _go4t463
+			switch _go4t462 := _go4t461.F1.(type) {
 			case *decide_Action_ObserveInitial:
-				_ = _go4t648
+				_ = _go4t462
 //line decide/decide.gt:118
 //line decide/decide.gt:118
 				return true
@@ -4301,15 +4235,15 @@ func (dictself dict_decide_Eq_Action) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:118
-	switch _go4t650 := _go4t646.(type) {
+	switch _go4t464 := _go4t460.(type) {
 	case *Tuple2:
-		_ = _go4t650
-		switch _go4t652 := _go4t650.F0.(type) {
+		_ = _go4t464
+		switch _go4t466 := _go4t464.F0.(type) {
 		case *decide_Action_ObserveAuthorized:
-			_ = _go4t652
-			switch _go4t651 := _go4t650.F1.(type) {
+			_ = _go4t466
+			switch _go4t465 := _go4t464.F1.(type) {
 			case *decide_Action_ObserveAuthorized:
-				_ = _go4t651
+				_ = _go4t465
 //line decide/decide.gt:118
 //line decide/decide.gt:118
 				return true
@@ -4317,20 +4251,20 @@ func (dictself dict_decide_Eq_Action) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:118
-	switch _go4t653 := _go4t646.(type) {
+	switch _go4t467 := _go4t460.(type) {
 	case *Tuple2:
-		_ = _go4t653
-		switch _go4t655 := _go4t653.F0.(type) {
+		_ = _go4t467
+		switch _go4t469 := _go4t467.F0.(type) {
 		case *decide_Action_DeleteStale:
-			_ = _go4t655
+			_ = _go4t469
 			{
-				var x0_ any = _go4t655.F0
+				var x0_ any = _go4t469.F0
 				_ = x0_
-				switch _go4t654 := _go4t653.F1.(type) {
+				switch _go4t468 := _go4t467.F1.(type) {
 				case *decide_Action_DeleteStale:
-					_ = _go4t654
+					_ = _go4t468
 					{
-						var y0_ any = _go4t654.F0
+						var y0_ any = _go4t468.F0
 						_ = y0_
 //line decide/decide.gt:118
 //line decide/decide.gt:118
@@ -4341,20 +4275,20 @@ func (dictself dict_decide_Eq_Action) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:118
-	switch _go4t656 := _go4t646.(type) {
+	switch _go4t470 := _go4t460.(type) {
 	case *Tuple2:
-		_ = _go4t656
-		switch _go4t658 := _go4t656.F0.(type) {
+		_ = _go4t470
+		switch _go4t472 := _go4t470.F0.(type) {
 		case *decide_Action_Publish:
-			_ = _go4t658
+			_ = _go4t472
 			{
-				var x0_ any = _go4t658.F0
+				var x0_ any = _go4t472.F0
 				_ = x0_
-				switch _go4t657 := _go4t656.F1.(type) {
+				switch _go4t471 := _go4t470.F1.(type) {
 				case *decide_Action_Publish:
-					_ = _go4t657
+					_ = _go4t471
 					{
-						var y0_ any = _go4t657.F0
+						var y0_ any = _go4t471.F0
 						_ = y0_
 //line decide/decide.gt:118
 //line decide/decide.gt:118
@@ -4376,30 +4310,30 @@ type dict_decide_Debug_Action struct{}
 
 //line decide/decide.gt:118
 func (dictself dict_decide_Debug_Action) prelude_Debug(a_ any) any {
-	var _go4t659 any = a_
-	_ = _go4t659
+	var _go4t473 any = a_
+	_ = _go4t473
 //line decide/decide.gt:118
-	switch _go4t660 := _go4t659.(type) {
+	switch _go4t474 := _go4t473.(type) {
 	case *decide_Action_ObserveInitial:
-		_ = _go4t660
+		_ = _go4t474
 //line decide/decide.gt:118
 //line decide/decide.gt:118
 		return "ObserveInitial"
 	}
 //line decide/decide.gt:118
-	switch _go4t661 := _go4t659.(type) {
+	switch _go4t475 := _go4t473.(type) {
 	case *decide_Action_ObserveAuthorized:
-		_ = _go4t661
+		_ = _go4t475
 //line decide/decide.gt:118
 //line decide/decide.gt:118
 		return "ObserveAuthorized"
 	}
 //line decide/decide.gt:118
-	switch _go4t662 := _go4t659.(type) {
+	switch _go4t476 := _go4t473.(type) {
 	case *decide_Action_DeleteStale:
-		_ = _go4t662
+		_ = _go4t476
 		{
-			var x0_ any = _go4t662.F0
+			var x0_ any = _go4t476.F0
 			_ = x0_
 //line decide/decide.gt:118
 //line decide/decide.gt:118
@@ -4408,10 +4342,10 @@ func (dictself dict_decide_Debug_Action) prelude_Debug(a_ any) any {
 	}
 //line decide/decide.gt:118
 	{
-		_go4t663 := _go4t659.(*decide_Action_Publish)
-		_ = _go4t663
+		_go4t477 := _go4t473.(*decide_Action_Publish)
+		_ = _go4t477
 		{
-			var x0_ any = _go4t663.F0
+			var x0_ any = _go4t477.F0
 			_ = x0_
 //line decide/decide.gt:118
 //line decide/decide.gt:118
@@ -4424,18 +4358,18 @@ type dict_decide_Eq_ApprovalState struct{}
 
 //line decide/decide.gt:120
 func (dictself dict_decide_Eq_ApprovalState) prelude_Eq(a_ any, b_ any) any {
-	var _go4t664 any = &Tuple2{F0: a_, F1: b_}
-	_ = _go4t664
+	var _go4t478 any = &Tuple2{F0: a_, F1: b_}
+	_ = _go4t478
 //line decide/decide.gt:120
-	switch _go4t665 := _go4t664.(type) {
+	switch _go4t479 := _go4t478.(type) {
 	case *Tuple2:
-		_ = _go4t665
-		switch _go4t667 := _go4t665.F0.(type) {
+		_ = _go4t479
+		switch _go4t481 := _go4t479.F0.(type) {
 		case *decide_ApprovalState_Pending:
-			_ = _go4t667
-			switch _go4t666 := _go4t665.F1.(type) {
+			_ = _go4t481
+			switch _go4t480 := _go4t479.F1.(type) {
 			case *decide_ApprovalState_Pending:
-				_ = _go4t666
+				_ = _go4t480
 //line decide/decide.gt:120
 //line decide/decide.gt:120
 				return true
@@ -4443,15 +4377,15 @@ func (dictself dict_decide_Eq_ApprovalState) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:120
-	switch _go4t668 := _go4t664.(type) {
+	switch _go4t482 := _go4t478.(type) {
 	case *Tuple2:
-		_ = _go4t668
-		switch _go4t670 := _go4t668.F0.(type) {
+		_ = _go4t482
+		switch _go4t484 := _go4t482.F0.(type) {
 		case *decide_ApprovalState_Accepted:
-			_ = _go4t670
-			switch _go4t669 := _go4t668.F1.(type) {
+			_ = _go4t484
+			switch _go4t483 := _go4t482.F1.(type) {
 			case *decide_ApprovalState_Accepted:
-				_ = _go4t669
+				_ = _go4t483
 //line decide/decide.gt:120
 //line decide/decide.gt:120
 				return true
@@ -4459,15 +4393,15 @@ func (dictself dict_decide_Eq_ApprovalState) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:120
-	switch _go4t671 := _go4t664.(type) {
+	switch _go4t485 := _go4t478.(type) {
 	case *Tuple2:
-		_ = _go4t671
-		switch _go4t673 := _go4t671.F0.(type) {
+		_ = _go4t485
+		switch _go4t487 := _go4t485.F0.(type) {
 		case *decide_ApprovalState_Rejected:
-			_ = _go4t673
-			switch _go4t672 := _go4t671.F1.(type) {
+			_ = _go4t487
+			switch _go4t486 := _go4t485.F1.(type) {
 			case *decide_ApprovalState_Rejected:
-				_ = _go4t672
+				_ = _go4t486
 //line decide/decide.gt:120
 //line decide/decide.gt:120
 				return true
@@ -4475,15 +4409,15 @@ func (dictself dict_decide_Eq_ApprovalState) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:120
-	switch _go4t674 := _go4t664.(type) {
+	switch _go4t488 := _go4t478.(type) {
 	case *Tuple2:
-		_ = _go4t674
-		switch _go4t676 := _go4t674.F0.(type) {
+		_ = _go4t488
+		switch _go4t490 := _go4t488.F0.(type) {
 		case *decide_ApprovalState_Superseded:
-			_ = _go4t676
-			switch _go4t675 := _go4t674.F1.(type) {
+			_ = _go4t490
+			switch _go4t489 := _go4t488.F1.(type) {
 			case *decide_ApprovalState_Superseded:
-				_ = _go4t675
+				_ = _go4t489
 //line decide/decide.gt:120
 //line decide/decide.gt:120
 				return true
@@ -4491,15 +4425,15 @@ func (dictself dict_decide_Eq_ApprovalState) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:120
-	switch _go4t677 := _go4t664.(type) {
+	switch _go4t491 := _go4t478.(type) {
 	case *Tuple2:
-		_ = _go4t677
-		switch _go4t679 := _go4t677.F0.(type) {
+		_ = _go4t491
+		switch _go4t493 := _go4t491.F0.(type) {
 		case *decide_ApprovalState_Expired:
-			_ = _go4t679
-			switch _go4t678 := _go4t677.F1.(type) {
+			_ = _go4t493
+			switch _go4t492 := _go4t491.F1.(type) {
 			case *decide_ApprovalState_Expired:
-				_ = _go4t678
+				_ = _go4t492
 //line decide/decide.gt:120
 //line decide/decide.gt:120
 				return true
@@ -4507,15 +4441,15 @@ func (dictself dict_decide_Eq_ApprovalState) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:120
-	switch _go4t680 := _go4t664.(type) {
+	switch _go4t494 := _go4t478.(type) {
 	case *Tuple2:
-		_ = _go4t680
-		switch _go4t682 := _go4t680.F0.(type) {
+		_ = _go4t494
+		switch _go4t496 := _go4t494.F0.(type) {
 		case *decide_ApprovalState_Unknown:
-			_ = _go4t682
-			switch _go4t681 := _go4t680.F1.(type) {
+			_ = _go4t496
+			switch _go4t495 := _go4t494.F1.(type) {
 			case *decide_ApprovalState_Unknown:
-				_ = _go4t681
+				_ = _go4t495
 //line decide/decide.gt:120
 //line decide/decide.gt:120
 				return true
@@ -4534,52 +4468,52 @@ type dict_decide_Debug_ApprovalState struct{}
 
 //line decide/decide.gt:120
 func (dictself dict_decide_Debug_ApprovalState) prelude_Debug(a_ any) any {
-	var _go4t683 any = a_
-	_ = _go4t683
+	var _go4t497 any = a_
+	_ = _go4t497
 //line decide/decide.gt:120
-	switch _go4t684 := _go4t683.(type) {
+	switch _go4t498 := _go4t497.(type) {
 	case *decide_ApprovalState_Pending:
-		_ = _go4t684
+		_ = _go4t498
 //line decide/decide.gt:120
 //line decide/decide.gt:120
 		return "Pending"
 	}
 //line decide/decide.gt:120
-	switch _go4t685 := _go4t683.(type) {
+	switch _go4t499 := _go4t497.(type) {
 	case *decide_ApprovalState_Accepted:
-		_ = _go4t685
+		_ = _go4t499
 //line decide/decide.gt:120
 //line decide/decide.gt:120
 		return "Accepted"
 	}
 //line decide/decide.gt:120
-	switch _go4t686 := _go4t683.(type) {
+	switch _go4t500 := _go4t497.(type) {
 	case *decide_ApprovalState_Rejected:
-		_ = _go4t686
+		_ = _go4t500
 //line decide/decide.gt:120
 //line decide/decide.gt:120
 		return "Rejected"
 	}
 //line decide/decide.gt:120
-	switch _go4t687 := _go4t683.(type) {
+	switch _go4t501 := _go4t497.(type) {
 	case *decide_ApprovalState_Superseded:
-		_ = _go4t687
+		_ = _go4t501
 //line decide/decide.gt:120
 //line decide/decide.gt:120
 		return "Superseded"
 	}
 //line decide/decide.gt:120
-	switch _go4t688 := _go4t683.(type) {
+	switch _go4t502 := _go4t497.(type) {
 	case *decide_ApprovalState_Expired:
-		_ = _go4t688
+		_ = _go4t502
 //line decide/decide.gt:120
 //line decide/decide.gt:120
 		return "Expired"
 	}
 //line decide/decide.gt:120
 	{
-		_go4t689 := _go4t683.(*decide_ApprovalState_Unknown)
-		_ = _go4t689
+		_go4t503 := _go4t497.(*decide_ApprovalState_Unknown)
+		_ = _go4t503
 //line decide/decide.gt:120
 //line decide/decide.gt:120
 		return "Unknown"
@@ -4588,17 +4522,17 @@ func (dictself dict_decide_Debug_ApprovalState) prelude_Debug(a_ any) any {
 
 //line decide/decide.gt:288
 func decide__approvalDigest_(o_ any) any {
-	var _go4t690 any = any(o_).(*decide_Observed_Observed).F0
-	_ = _go4t690
+	var _go4t504 any = any(o_).(*decide_Observed_Observed).F0
+	_ = _go4t504
 //line decide/decide.gt:290
-	switch _go4t691 := _go4t690.(type) {
+	switch _go4t505 := _go4t504.(type) {
 	case *decide_Mode_Live:
-		_ = _go4t691
-		switch _go4t692 := _go4t691.F0.(type) {
+		_ = _go4t505
+		switch _go4t506 := _go4t505.F0.(type) {
 		case *decide_ApprovalRead_Read:
-			_ = _go4t692
+			_ = _go4t506
 			{
-				var a_ any = _go4t692.F0
+				var a_ any = _go4t506.F0
 				_ = a_
 //line decide/decide.gt:290
 //line decide/decide.gt:290
@@ -4616,84 +4550,84 @@ func decide__approvalDigest_(o_ any) any {
 
 //line decide/decide.gt:299
 func decide__approvalMessage_(reason_ any) any {
-	var _go4t693 any = reason_
-	_ = _go4t693
+	var _go4t507 any = reason_
+	_ = _go4t507
 //line decide/decide.gt:301
-	switch _go4t694 := _go4t693.(type) {
+	switch _go4t508 := _go4t507.(type) {
 	case *decide_Reason_ApprovalReferenceMissing:
-		_ = _go4t694
+		_ = _go4t508
 //line decide/decide.gt:301
 //line decide/decide.gt:301
 		return "Non-dry-run attachment repair requires approvalRef"
 	}
 //line decide/decide.gt:302
-	switch _go4t695 := _go4t693.(type) {
+	switch _go4t509 := _go4t507.(type) {
 	case *decide_Reason_ApprovalReadFailed:
-		_ = _go4t695
+		_ = _go4t509
 //line decide/decide.gt:302
 //line decide/decide.gt:302
 		return "Attachment repair approval could not be read"
 	}
 //line decide/decide.gt:303
-	switch _go4t696 := _go4t693.(type) {
+	switch _go4t510 := _go4t507.(type) {
 	case *decide_Reason_ApprovalDeletionInProgress:
-		_ = _go4t696
+		_ = _go4t510
 //line decide/decide.gt:303
 //line decide/decide.gt:303
 		return "Attachment repair approval is deleting"
 	}
 //line decide/decide.gt:304
-	switch _go4t697 := _go4t693.(type) {
+	switch _go4t511 := _go4t507.(type) {
 	case *decide_Reason_ApprovalReferenceMismatch:
-		_ = _go4t697
+		_ = _go4t511
 //line decide/decide.gt:304
 //line decide/decide.gt:304
 		return "Operation does not reference this attachment repair approval"
 	}
 //line decide/decide.gt:305
-	switch _go4t698 := _go4t693.(type) {
+	switch _go4t512 := _go4t507.(type) {
 	case *decide_Reason_ApprovalOperationIdentityMismatch:
-		_ = _go4t698
+		_ = _go4t512
 //line decide/decide.gt:305
 //line decide/decide.gt:305
 		return "Approval does not reference the exact operation UID"
 	}
 //line decide/decide.gt:306
-	switch _go4t699 := _go4t693.(type) {
+	switch _go4t513 := _go4t507.(type) {
 	case *decide_Reason_ApprovalOperationGenerationMismatch:
-		_ = _go4t699
+		_ = _go4t513
 //line decide/decide.gt:306
 //line decide/decide.gt:306
 		return "Approval does not reference the exact operation generation"
 	}
 //line decide/decide.gt:307
-	switch _go4t700 := _go4t693.(type) {
+	switch _go4t514 := _go4t507.(type) {
 	case *decide_Reason_ApprovalTargetBindingMismatch:
-		_ = _go4t700
+		_ = _go4t514
 //line decide/decide.gt:307
 //line decide/decide.gt:307
 		return "Approval does not reference the exact operation target binding"
 	}
 //line decide/decide.gt:308
-	switch _go4t701 := _go4t693.(type) {
+	switch _go4t515 := _go4t507.(type) {
 	case *decide_Reason_ApprovalEvidenceIncomplete:
-		_ = _go4t701
+		_ = _go4t515
 //line decide/decide.gt:308
 //line decide/decide.gt:308
 		return "Attachment repair approval evidence is incomplete"
 	}
 //line decide/decide.gt:309
-	switch _go4t702 := _go4t693.(type) {
+	switch _go4t516 := _go4t507.(type) {
 	case *decide_Reason_ApprovalTimeInvalid:
-		_ = _go4t702
+		_ = _go4t516
 //line decide/decide.gt:309
 //line decide/decide.gt:309
 		return "Attachment repair approval time is invalid"
 	}
 //line decide/decide.gt:310
-	switch _go4t703 := _go4t693.(type) {
+	switch _go4t517 := _go4t507.(type) {
 	case *decide_Reason_ApprovalWindowInvalid:
-		_ = _go4t703
+		_ = _go4t517
 //line decide/decide.gt:310
 //line decide/decide.gt:310
 		return "Attachment repair approval window is invalid"
@@ -4708,48 +4642,48 @@ func decide__approvalMessage_(reason_ any) any {
 
 //line decide/decide.gt:225
 func decide__approvalState_(o_ any, read_ any) any {
-	var _go4t704 any = read_
-	_ = _go4t704
+	var _go4t518 any = read_
+	_ = _go4t518
 //line decide/decide.gt:227
-	switch _go4t705 := _go4t704.(type) {
+	switch _go4t519 := _go4t518.(type) {
 	case *decide_ApprovalRead_NoRef:
-		_ = _go4t705
+		_ = _go4t519
 //line decide/decide.gt:227
 //line decide/decide.gt:227
 		return &result_Result_Err{F0: &decide_Reason_ApprovalReferenceMissing{}}
 	}
 //line decide/decide.gt:228
-	switch _go4t706 := _go4t704.(type) {
+	switch _go4t520 := _go4t518.(type) {
 	case *decide_ApprovalRead_ReadFailed:
-		_ = _go4t706
+		_ = _go4t520
 //line decide/decide.gt:228
 //line decide/decide.gt:228
 		return &result_Result_Err{F0: &decide_Reason_ApprovalReadFailed{}}
 	}
 //line decide/decide.gt:229
-	switch _go4t707 := _go4t704.(type) {
+	switch _go4t521 := _go4t518.(type) {
 	case *decide_ApprovalRead_Missing:
-		_ = _go4t707
+		_ = _go4t521
 //line decide/decide.gt:229
 //line decide/decide.gt:229
 		return &result_Result_Ok{F0: &decide_ApprovalState_Pending{}}
 	}
 //line decide/decide.gt:230
 	{
-		_go4t711 := _go4t704.(*decide_ApprovalRead_Read)
-		_ = _go4t711
+		_go4t525 := _go4t518.(*decide_ApprovalRead_Read)
+		_ = _go4t525
 		{
-			var a_ any = _go4t711.F0
+			var a_ any = _go4t525.F0
 			_ = a_
 //line decide/decide.gt:230
-			var _go4t708 any = decide__bindingProblem_(o_, a_)
-			_ = _go4t708
+			var _go4t522 any = decide__bindingProblem_(o_, a_)
+			_ = _go4t522
 //line decide/decide.gt:231
-			switch _go4t709 := _go4t708.(type) {
+			switch _go4t523 := _go4t522.(type) {
 			case *prelude_Option_Some:
-				_ = _go4t709
+				_ = _go4t523
 				{
-					var reason_ any = _go4t709.F0
+					var reason_ any = _go4t523.F0
 					_ = reason_
 //line decide/decide.gt:231
 //line decide/decide.gt:231
@@ -4758,8 +4692,8 @@ func decide__approvalState_(o_ any, read_ any) any {
 			}
 //line decide/decide.gt:232
 			{
-				_go4t710 := _go4t708.(*prelude_Option_None)
-				_ = _go4t710
+				_go4t524 := _go4t522.(*prelude_Option_None)
+				_ = _go4t524
 //line decide/decide.gt:232
 //line decide/decide.gt:233
 				if !decide__before_(any(any(o_).(*decide_Observed_Observed).F7).(int64), any(a_).(*decide_Approval_Approval).F8) {
@@ -4776,14 +4710,14 @@ func decide__approvalState_(o_ any, read_ any) any {
 
 //line decide/decide.gt:271
 func decide__before_(nowNanos_ int64, t_ any) bool {
-	var _go4t712 any = t_
-	_ = _go4t712
+	var _go4t526 any = t_
+	_ = _go4t526
 //line decide/decide.gt:273
-	switch _go4t713 := _go4t712.(type) {
+	switch _go4t527 := _go4t526.(type) {
 	case *decide_Timestamp_AtNanos:
-		_ = _go4t713
+		_ = _go4t527
 		{
-			var at_ int64 = any(_go4t713.F0).(int64)
+			var at_ int64 = any(_go4t527.F0).(int64)
 			_ = at_
 //line decide/decide.gt:273
 //line decide/decide.gt:273
@@ -4830,23 +4764,23 @@ func decide__bindingProblem_(o_ any, a_ any) any {
 //line decide/decide.gt:254
 							return &prelude_Option_Some{F0: &decide_Reason_ApprovalEvidenceIncomplete{}}
 						} else {
-							var _go4t714 any = &Tuple2{F0: any(a_).(*decide_Approval_Approval).F7, F1: any(a_).(*decide_Approval_Approval).F8}
-							_ = _go4t714
+							var _go4t528 any = &Tuple2{F0: any(a_).(*decide_Approval_Approval).F7, F1: any(a_).(*decide_Approval_Approval).F8}
+							_ = _go4t528
 //line decide/decide.gt:257
-							switch _go4t715 := _go4t714.(type) {
+							switch _go4t529 := _go4t528.(type) {
 							case *Tuple2:
-								_ = _go4t715
-								switch _go4t717 := _go4t715.F0.(type) {
+								_ = _go4t529
+								switch _go4t531 := _go4t529.F0.(type) {
 								case *decide_Timestamp_AtNanos:
-									_ = _go4t717
+									_ = _go4t531
 									{
-										var approvedAt_ int64 = any(_go4t717.F0).(int64)
+										var approvedAt_ int64 = any(_go4t531.F0).(int64)
 										_ = approvedAt_
-										switch _go4t716 := _go4t715.F1.(type) {
+										switch _go4t530 := _go4t529.F1.(type) {
 										case *decide_Timestamp_AtNanos:
-											_ = _go4t716
+											_ = _go4t530
 											{
-												var expiresAt_ int64 = any(_go4t716.F0).(int64)
+												var expiresAt_ int64 = any(_go4t530.F0).(int64)
 												_ = expiresAt_
 //line decide/decide.gt:257
 //line decide/decide.gt:258
@@ -4869,12 +4803,12 @@ func decide__bindingProblem_(o_ any, a_ any) any {
 								}
 							}
 //line decide/decide.gt:265
-							switch _go4t718 := _go4t714.(type) {
+							switch _go4t532 := _go4t528.(type) {
 							case *Tuple2:
-								_ = _go4t718
-								switch _go4t719 := _go4t718.F0.(type) {
+								_ = _go4t532
+								switch _go4t533 := _go4t532.F0.(type) {
 								case *decide_Timestamp_AtNanos:
-									_ = _go4t719
+									_ = _go4t533
 									{
 										{
 //line decide/decide.gt:265
@@ -4886,8 +4820,8 @@ func decide__bindingProblem_(o_ any, a_ any) any {
 							}
 //line decide/decide.gt:266
 							{
-								_go4t720 := _go4t714.(*Tuple2)
-								_ = _go4t720
+								_go4t534 := _go4t528.(*Tuple2)
+								_ = _go4t534
 								{
 									{
 //line decide/decide.gt:266
@@ -4925,28 +4859,28 @@ func decide__decideAuthorized_(o_ any, committed_ bool) any {
 //line decide/decide.gt:180
 				return &decide_Action_Publish{F0: decide__blocked_("ValidateApproval", &decide_Reason_ApprovalBindingChanged{}, "Approval binding no longer matches the authorized observation")}
 			} else {
-				var _go4t721 any = any(o_).(*decide_Observed_Observed).F10
-				_ = _go4t721
+				var _go4t535 any = any(o_).(*decide_Observed_Observed).F10
+				_ = _go4t535
 //line decide/decide.gt:183
-				switch _go4t722 := _go4t721.(type) {
+				switch _go4t536 := _go4t535.(type) {
 				case *prelude_Option_None:
-					_ = _go4t722
+					_ = _go4t536
 //line decide/decide.gt:183
 //line decide/decide.gt:183
 					return &decide_Action_ObserveAuthorized{}
 				}
 //line decide/decide.gt:184
-				switch _go4t723 := _go4t721.(type) {
+				switch _go4t537 := _go4t535.(type) {
 				case *prelude_Option_Some:
-					_ = _go4t723
-					switch _go4t724 := _go4t723.F0.(type) {
+					_ = _go4t537
+					switch _go4t538 := _go4t537.F0.(type) {
 					case *decide_AuthorizedObservation_AuthBlocked:
-						_ = _go4t724
+						_ = _go4t538
 						{
-							var reason_ any = _go4t724.F0
+							var reason_ any = _go4t538.F0
 							_ = reason_
 							{
-								var message_ any = _go4t724.F1
+								var message_ any = _go4t538.F1
 								_ = message_
 //line decide/decide.gt:184
 //line decide/decide.gt:184
@@ -4957,13 +4891,13 @@ func decide__decideAuthorized_(o_ any, committed_ bool) any {
 				}
 //line decide/decide.gt:185
 				{
-					_go4t725 := _go4t721.(*prelude_Option_Some)
-					_ = _go4t725
-					switch _go4t726 := _go4t725.F0.(type) {
+					_go4t539 := _go4t535.(*prelude_Option_Some)
+					_ = _go4t539
+					switch _go4t540 := _go4t539.F0.(type) {
 					case *decide_AuthorizedObservation_AuthOk:
-						_ = _go4t726
+						_ = _go4t540
 						{
-							var obs_ any = _go4t726.F0
+							var obs_ any = _go4t540.F0
 							_ = obs_
 //line decide/decide.gt:185
 //line decide/decide.gt:186
@@ -4991,52 +4925,52 @@ func decide__decideAuthorized_(o_ any, committed_ bool) any {
 
 //line decide/decide.gt:157
 func decide__decideAwaiting_(o_ any, state_ any, digest_ any) any {
-	var _go4t727 any = state_
-	_ = _go4t727
+	var _go4t541 any = state_
+	_ = _go4t541
 //line decide/decide.gt:159
-	switch _go4t728 := _go4t727.(type) {
+	switch _go4t542 := _go4t541.(type) {
 	case *decide_ApprovalState_Pending:
-		_ = _go4t728
+		_ = _go4t542
 //line decide/decide.gt:159
 //line decide/decide.gt:159
 		return &decide_Action_Publish{F0: &decide_Status_AwaitingApproval{}}
 	}
 //line decide/decide.gt:160
-	switch _go4t729 := _go4t727.(type) {
+	switch _go4t543 := _go4t541.(type) {
 	case *decide_ApprovalState_Unknown:
-		_ = _go4t729
+		_ = _go4t543
 //line decide/decide.gt:160
 //line decide/decide.gt:160
 		return &decide_Action_Publish{F0: &decide_Status_AwaitingApproval{}}
 	}
 //line decide/decide.gt:161
-	switch _go4t730 := _go4t727.(type) {
+	switch _go4t544 := _go4t541.(type) {
 	case *decide_ApprovalState_Rejected:
-		_ = _go4t730
+		_ = _go4t544
 //line decide/decide.gt:161
 //line decide/decide.gt:161
 		return &decide_Action_Publish{F0: decide__blocked_("ValidateApproval", &decide_Reason_ApprovalRejected{}, "Attachment repair approval was rejected")}
 	}
 //line decide/decide.gt:162
-	switch _go4t731 := _go4t727.(type) {
+	switch _go4t545 := _go4t541.(type) {
 	case *decide_ApprovalState_Superseded:
-		_ = _go4t731
+		_ = _go4t545
 //line decide/decide.gt:162
 //line decide/decide.gt:162
 		return &decide_Action_Publish{F0: decide__blocked_("ValidateApproval", &decide_Reason_ApprovalSuperseded{}, "Attachment repair approval was superseded by newer observation evidence")}
 	}
 //line decide/decide.gt:163
-	switch _go4t732 := _go4t727.(type) {
+	switch _go4t546 := _go4t541.(type) {
 	case *decide_ApprovalState_Expired:
-		_ = _go4t732
+		_ = _go4t546
 //line decide/decide.gt:163
 //line decide/decide.gt:163
 		return &decide_Action_Publish{F0: decide__blocked_("ValidateApproval", &decide_Reason_ApprovalExpired{}, "Attachment repair approval expired before deletion authorization")}
 	}
 //line decide/decide.gt:164
 	{
-		_go4t733 := _go4t727.(*decide_ApprovalState_Accepted)
-		_ = _go4t733
+		_go4t547 := _go4t541.(*decide_ApprovalState_Accepted)
+		_ = _go4t547
 //line decide/decide.gt:164
 //line decide/decide.gt:165
 		if !any((dict_prelude_Eq_String{}).prelude_Eq(decide__approvalDigest_(o_), digest_)).(bool) {
@@ -5057,12 +4991,12 @@ func decide__decideAwaiting_(o_ any, state_ any, digest_ any) any {
 
 //line decide/decide.gt:199
 func decide__decideCommitted_(o_ any, obs_ any, approved_ any) any {
-	var _go4t734 any = any(obs_).(*decide_AuthOkObs_AuthOkObs).F0
-	_ = _go4t734
+	var _go4t548 any = any(obs_).(*decide_AuthOkObs_AuthOkObs).F0
+	_ = _go4t548
 //line decide/decide.gt:201
-	switch _go4t743 := _go4t734.(type) {
+	switch _go4t557 := _go4t548.(type) {
 	case *decide_Target_Present:
-		_ = _go4t743
+		_ = _go4t557
 //line decide/decide.gt:201
 //line decide/decide.gt:202
 		if any(any(o_).(*decide_Observed_Observed).F5).(bool) {
@@ -5074,35 +5008,35 @@ func decide__decideCommitted_(o_ any, obs_ any, approved_ any) any {
 //line decide/decide.gt:205
 				return &decide_Action_Publish{F0: decide__blocked_("DeleteExactAttachment", &decide_Reason_ApprovalObservationSuperseded{}, "Live observation changed after approval; no attachment was deleted")}
 			} else {
-				var _go4t735 any = any(o_).(*decide_Observed_Observed).F11
-				_ = _go4t735
+				var _go4t549 any = any(o_).(*decide_Observed_Observed).F11
+				_ = _go4t549
 //line decide/decide.gt:208
-				switch _go4t736 := _go4t735.(type) {
+				switch _go4t550 := _go4t549.(type) {
 				case *prelude_Option_None:
-					_ = _go4t736
+					_ = _go4t550
 //line decide/decide.gt:208
 //line decide/decide.gt:208
 					return &decide_Action_DeleteStale{F0: any(obs_).(*decide_AuthOkObs_AuthOkObs).F3}
 				}
 //line decide/decide.gt:209
-				switch _go4t737 := _go4t735.(type) {
+				switch _go4t551 := _go4t549.(type) {
 				case *prelude_Option_Some:
-					_ = _go4t737
-					switch _go4t738 := _go4t737.F0.(type) {
+					_ = _go4t551
+					switch _go4t552 := _go4t551.F0.(type) {
 					case *decide_DeleteResult_CasFailed:
-						_ = _go4t738
+						_ = _go4t552
 //line decide/decide.gt:209
 //line decide/decide.gt:209
 						return &decide_Action_Publish{F0: decide__blocked_("DeleteExactAttachment", &decide_Reason_DeleteCompareAndSwapFailed{}, "The exact deletion target changed before compare-and-swap delete")}
 					}
 				}
 //line decide/decide.gt:210
-				switch _go4t739 := _go4t735.(type) {
+				switch _go4t553 := _go4t549.(type) {
 				case *prelude_Option_Some:
-					_ = _go4t739
-					switch _go4t740 := _go4t739.F0.(type) {
+					_ = _go4t553
+					switch _go4t554 := _go4t553.F0.(type) {
 					case *decide_DeleteResult_DeleteFailed:
-						_ = _go4t740
+						_ = _go4t554
 //line decide/decide.gt:210
 //line decide/decide.gt:210
 						return &decide_Action_Publish{F0: decide__blocked_("DeleteExactAttachment", &decide_Reason_DeleteRequestFailed{}, "The exact stale attachment delete request failed")}
@@ -5110,11 +5044,11 @@ func decide__decideCommitted_(o_ any, obs_ any, approved_ any) any {
 				}
 //line decide/decide.gt:211
 				{
-					_go4t741 := _go4t735.(*prelude_Option_Some)
-					_ = _go4t741
-					switch _go4t742 := _go4t741.F0.(type) {
+					_go4t555 := _go4t549.(*prelude_Option_Some)
+					_ = _go4t555
+					switch _go4t556 := _go4t555.F0.(type) {
 					case *decide_DeleteResult_Deleted:
-						_ = _go4t742
+						_ = _go4t556
 //line decide/decide.gt:211
 //line decide/decide.gt:211
 						return &decide_Action_Publish{F0: &decide_Status_Running{F0: "WaitForConvergence", F1: "Exact stale attachment deletion was requested", F2: true}}
@@ -5125,17 +5059,17 @@ func decide__decideCommitted_(o_ any, obs_ any, approved_ any) any {
 		}
 	}
 //line decide/decide.gt:214
-	switch _go4t744 := _go4t734.(type) {
+	switch _go4t558 := _go4t548.(type) {
 	case *decide_Target_Deleting:
-		_ = _go4t744
+		_ = _go4t558
 //line decide/decide.gt:214
 //line decide/decide.gt:214
 		return &decide_Action_Publish{F0: &decide_Status_Running{F0: "WaitForConvergence", F1: "Authorized stale attachment deletion is converging", F2: true}}
 	}
 //line decide/decide.gt:215
 	{
-		_go4t745 := _go4t734.(*decide_Target_Absent)
-		_ = _go4t745
+		_go4t559 := _go4t548.(*decide_Target_Absent)
+		_ = _go4t559
 //line decide/decide.gt:215
 //line decide/decide.gt:216
 		if any(any(obs_).(*decide_AuthOkObs_AuthOkObs).F2).(bool) {
@@ -5175,28 +5109,28 @@ func decide__decideLive_(o_ any, state_ any) any {
 					}
 				}
 			} else {
-				var _go4t746 any = any(o_).(*decide_Observed_Observed).F9
-				_ = _go4t746
+				var _go4t560 any = any(o_).(*decide_Observed_Observed).F9
+				_ = _go4t560
 //line decide/decide.gt:150
-				switch _go4t747 := _go4t746.(type) {
+				switch _go4t561 := _go4t560.(type) {
 				case *prelude_Option_None:
-					_ = _go4t747
+					_ = _go4t561
 //line decide/decide.gt:150
 //line decide/decide.gt:150
 					return &decide_Action_ObserveInitial{}
 				}
 //line decide/decide.gt:151
-				switch _go4t748 := _go4t746.(type) {
+				switch _go4t562 := _go4t560.(type) {
 				case *prelude_Option_Some:
-					_ = _go4t748
-					switch _go4t749 := _go4t748.F0.(type) {
+					_ = _go4t562
+					switch _go4t563 := _go4t562.F0.(type) {
 					case *decide_Observation_ObsBlocked:
-						_ = _go4t749
+						_ = _go4t563
 						{
-							var reason_ any = _go4t749.F0
+							var reason_ any = _go4t563.F0
 							_ = reason_
 							{
-								var message_ any = _go4t749.F1
+								var message_ any = _go4t563.F1
 								_ = message_
 //line decide/decide.gt:151
 //line decide/decide.gt:151
@@ -5207,13 +5141,13 @@ func decide__decideLive_(o_ any, state_ any) any {
 				}
 //line decide/decide.gt:152
 				{
-					_go4t750 := _go4t746.(*prelude_Option_Some)
-					_ = _go4t750
-					switch _go4t751 := _go4t750.F0.(type) {
+					_go4t564 := _go4t560.(*prelude_Option_Some)
+					_ = _go4t564
+					switch _go4t565 := _go4t564.F0.(type) {
 					case *decide_Observation_ObsOk:
-						_ = _go4t751
+						_ = _go4t565
 						{
-							var digest_ any = _go4t751.F0
+							var digest_ any = _go4t565.F0
 							_ = digest_
 //line decide/decide.gt:152
 //line decide/decide.gt:152
@@ -5271,35 +5205,35 @@ func decide__phase_(phase_ any) any {
 
 //line decide/decide.gt:122
 func decide_decide_(o_ any) any {
-	var _go4t755 any = any(o_).(*decide_Observed_Observed).F0
-	_ = _go4t755
+	var _go4t566 any = any(o_).(*decide_Observed_Observed).F0
+	_ = _go4t566
 //line decide/decide.gt:124
-	switch _go4t762 := _go4t755.(type) {
+	switch _go4t573 := _go4t566.(type) {
 	case *decide_Mode_DryRun:
-		_ = _go4t762
+		_ = _go4t573
 //line decide/decide.gt:124
-		var _go4t756 any = any(o_).(*decide_Observed_Observed).F9
-		_ = _go4t756
+		var _go4t567 any = any(o_).(*decide_Observed_Observed).F9
+		_ = _go4t567
 //line decide/decide.gt:125
-		switch _go4t757 := _go4t756.(type) {
+		switch _go4t568 := _go4t567.(type) {
 		case *prelude_Option_None:
-			_ = _go4t757
+			_ = _go4t568
 //line decide/decide.gt:125
 //line decide/decide.gt:125
 			return &decide_Action_ObserveInitial{}
 		}
 //line decide/decide.gt:126
-		switch _go4t758 := _go4t756.(type) {
+		switch _go4t569 := _go4t567.(type) {
 		case *prelude_Option_Some:
-			_ = _go4t758
-			switch _go4t759 := _go4t758.F0.(type) {
+			_ = _go4t569
+			switch _go4t570 := _go4t569.F0.(type) {
 			case *decide_Observation_ObsBlocked:
-				_ = _go4t759
+				_ = _go4t570
 				{
-					var reason_ any = _go4t759.F0
+					var reason_ any = _go4t570.F0
 					_ = reason_
 					{
-						var message_ any = _go4t759.F1
+						var message_ any = _go4t570.F1
 						_ = message_
 //line decide/decide.gt:126
 //line decide/decide.gt:126
@@ -5310,11 +5244,11 @@ func decide_decide_(o_ any) any {
 		}
 //line decide/decide.gt:127
 		{
-			_go4t760 := _go4t756.(*prelude_Option_Some)
-			_ = _go4t760
-			switch _go4t761 := _go4t760.F0.(type) {
+			_go4t571 := _go4t567.(*prelude_Option_Some)
+			_ = _go4t571
+			switch _go4t572 := _go4t571.F0.(type) {
 			case *decide_Observation_ObsOk:
-				_ = _go4t761
+				_ = _go4t572
 				{
 //line decide/decide.gt:127
 //line decide/decide.gt:127
@@ -5326,20 +5260,20 @@ func decide_decide_(o_ any) any {
 	}
 //line decide/decide.gt:129
 	{
-		_go4t766 := _go4t755.(*decide_Mode_Live)
-		_ = _go4t766
+		_go4t577 := _go4t566.(*decide_Mode_Live)
+		_ = _go4t577
 		{
-			var approval_ any = _go4t766.F0
+			var approval_ any = _go4t577.F0
 			_ = approval_
 //line decide/decide.gt:129
-			var _go4t763 any = decide__approvalState_(o_, approval_)
-			_ = _go4t763
+			var _go4t574 any = decide__approvalState_(o_, approval_)
+			_ = _go4t574
 //line decide/decide.gt:130
-			switch _go4t764 := _go4t763.(type) {
+			switch _go4t575 := _go4t574.(type) {
 			case *result_Result_Err:
-				_ = _go4t764
+				_ = _go4t575
 				{
-					var reason_ any = _go4t764.F0
+					var reason_ any = _go4t575.F0
 					_ = reason_
 //line decide/decide.gt:130
 //line decide/decide.gt:130
@@ -5348,10 +5282,10 @@ func decide_decide_(o_ any) any {
 			}
 //line decide/decide.gt:131
 			{
-				_go4t765 := _go4t763.(*result_Result_Ok)
-				_ = _go4t765
+				_go4t576 := _go4t574.(*result_Result_Ok)
+				_ = _go4t576
 				{
-					var state_ any = _go4t765.F0
+					var state_ any = _go4t576.F0
 					_ = state_
 //line decide/decide.gt:131
 //line decide/decide.gt:131
@@ -5361,12 +5295,3 @@ func decide_decide_(o_ any) any {
 		}
 	}
 }
-
-//line decide/decide.gt:315
-func decide_main_() any {
-//line decide/decide.gt:315
-	return io_ioPure_(prelude_unit_())
-}
-
-//line decide/decide.gt:315
-func Main() rt.IO { return decide_main_().(rt.IO) }

@@ -40,7 +40,9 @@ Without parentheses, the left-hand form is rejected with
 A failed `refl` shows the two stuck normal forms and the failing proof branch,
 then searches for a counterexample using the original law parameter names.
 The normalizer tries 64 edge-case candidates and 64 fixed-seed random candidates,
-each bounded by its step limit; no Go toolchain is needed. For example:
+each bounded by its step limit; no Go toolchain is needed. Alongside standard
+values such as `""` and `0`, it tries String and Int literals from the law,
+its `requires` clause and the functions they call. For example:
 
 ```text
 counterexample: a = 9223372036854775807

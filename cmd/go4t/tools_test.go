@@ -331,6 +331,34 @@ func TestBuildOutputOverride(t *testing.T) {
 	}
 }
 
+func TestOptionalLibraryMain(t *testing.T) {
+	dir := toolsModule(t)
+	file := toolsWrite(t, filepath.Join(dir, "shard.gt"), "package shard\nfunc value() Int { 1 }\n")
+	library := []string{"build", "--emit-go", "out", "--package", "shard", "."}
+	for _, args := range [][]string{{"check", "."}, library} {
+		if _, stderr, status := toolsCommand(t, dir, "", args...); status != 0 {
+			t.Fatalf("%v: %s", args, stderr)
+		}
+	}
+	src, err := os.ReadFile(filepath.Join(dir, "out", "main.go"))
+	if err != nil || strings.Contains(string(src), "func Main()") {
+		t.Fatalf("unexpected generated entry: %v\n%s", err, src)
+	}
+	for _, args := range [][]string{{"run", "."}, {"build", "-o", "prog", "."}, {"build", "--emit-go", "out", "."}} {
+		_, stderr, status := toolsCommand(t, dir, "", args...)
+		if status != 1 || !strings.Contains(stderr, args[0]+": an executable needs func main() IO[Unit]; use build --emit-go DIR --package NAME for a library without main") {
+			t.Errorf("%v: status=%d stderr=%q", args, status, stderr)
+		}
+	}
+	toolsWrite(t, file, "package shard\nfunc main() Int { 1 }\n")
+	for _, args := range [][]string{{"check", "."}, library} {
+		_, stderr, status := toolsCommand(t, dir, "", args...)
+		if status != 1 || !strings.Contains(stderr, "main must have type func() IO[Unit]") {
+			t.Errorf("%v: status=%d stderr=%q", args, status, stderr)
+		}
+	}
+}
+
 func TestBuildRejectsDirectoryOutput(t *testing.T) {
 	dir := toolsModule(t)
 	file := toolsWrite(t, filepath.Join(dir, "source.gt"), "package main\nfunc main() IO[Unit] { ioPure(unit()) }\n")
@@ -514,6 +542,7 @@ func TestGoShellExample(t *testing.T) {
 	// The same marker-based sweep as ordinary modules removes obsolete exports
 	// when the output directory is subsequently used for package main sources.
 	owned := toolsWrite(t, filepath.Join(output, "user.go"), "package main\n")
+	toolsWrite(t, input, string(source)+"\nfunc main() IO[Unit] { ioPure(unit()) }\n")
 	if err := run([]string{"build", "--emit-go", output, input}); err != nil {
 		t.Fatal(err)
 	}

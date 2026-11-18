@@ -145,7 +145,7 @@ func TestOutsideModuleCleansFailedExecution(t *testing.T) {
 }
 
 func TestBuildOutsideModule(t *testing.T) {
-	for _, name := range []string{"standalone", "unrelated module", "output override", "Go import"} {
+	for _, name := range []string{"standalone", "unrelated module", "output override", "Go import", "Go shim"} {
 		t.Run(name, func(t *testing.T) {
 			dir, temporary := t.TempDir(), t.TempDir()
 			t.Setenv("TMPDIR", temporary)
@@ -164,6 +164,9 @@ func TestBuildOutsideModule(t *testing.T) {
 			case "Go import":
 				source = "package main\nimport \"go:strings\"\nfunc main() IO[Unit] { println(strings.toUpper(\"hi\")) }\n"
 				want = "HI\n"
+			case "Go shim":
+				source = "package main\nimport \"go:strings\"\nfunc main() IO[Unit] { let (a, b, _) = strings.cut(\"a:b\", \":\"); println(a + b) }\n"
+				want = "ab\n"
 			}
 			file := toolsWrite(t, filepath.Join(inputDir, "main.gt"), source)
 			bin := filepath.Join(dir, "main")
@@ -184,9 +187,14 @@ func TestBuildOutsideModule(t *testing.T) {
 			if _, err := os.Stat(filepath.Join(output, "main.go")); err != nil {
 				t.Fatal(err)
 			}
-			if name == "Go import" {
-				if _, err := os.Stat(filepath.Join(output, "go4tbind", "strings", "go4t_shim_strings.go")); err != nil {
-					t.Fatalf("generated shim missing: %v", err)
+			shim := filepath.Join(output, "go4tbind", "strings", "go4t_shim_strings.go")
+			if name == "Go shim" {
+				if _, err := os.Stat(shim); err != nil {
+					t.Fatalf("reachable shim missing: %v", err)
+				}
+			} else if name == "Go import" {
+				if _, err := os.Stat(shim); !os.IsNotExist(err) {
+					t.Fatalf("natural-ABI call emitted an unused shim: %v", err)
 				}
 			}
 			if name == "unrelated module" {

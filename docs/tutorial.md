@@ -1164,5 +1164,5 @@ body such as `a && b == b && a`, where `==` binds tighter than `&&`.
 - [stdlib](stdlib.md) gives the exact signature and boundary of every declaration.
 - [Editor setup](../editors/README.md) configures `go4t lsp`; `go4t fmt -w FILE`
   formats source without type checking, and `go4t fmt -l DIR` is a formatting gate.
-- `go4t build --emit-go DIR --package embedded FILE` emits a Go package with
-  `Main() rt.IO` for a Go caller to run; it emits sources, not an executable.
+- `go4t build --emit-go DIR --package embedded FILE` emits an importable Go
+  package, not an executable. It exports `Main() rt.IO` only if `FILE` declares `main`.

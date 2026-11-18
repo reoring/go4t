@@ -354,6 +354,9 @@ func (e *evaluator) prove(law lawGoal, proof ast.Tactic, env *environment, vars 
 				patterns = ast.Alternatives(arm.Pat)
 			}
 			for _, pattern := range patterns {
+				if handle := e.handlePattern(pattern); handle != "" {
+					return fmt.Errorf("cannot case-split opaque handle %s: a handle carries Go identity the checker cannot see", handle)
+				}
 				branch := copyProofVars(vars)
 				if !variable {
 					v.value = e.fresh("$match")
@@ -421,6 +424,34 @@ func (e *evaluator) tacticScrutinee(tactic *ast.TMatch, vars map[string]proofVar
 		}
 	}
 	return value, proofVar{typ: types.AnnOf(expr).Type}, false, nil
+}
+
+// handlePattern names the opaque handle type a pattern would refine, if any.
+// A handle's binding declaration has one nullary constructor, but its values
+// are distinct Go identities: refining two handles to that constructor would
+// prove them equal.
+func (e *evaluator) handlePattern(pattern ast.Pattern) string {
+	var name string
+	var nested []ast.Pattern
+	switch p := pattern.(type) {
+	case *ast.PTuple:
+		nested = p.Elems
+	case *ast.PCtor:
+		name, nested = p.Name, p.Args
+	case *ast.PRecord:
+		name, nested = p.Ctor, p.Pats
+	}
+	if ctor := e.ctors[name]; ctor != nil {
+		if _, handle := e.p.ForeignHandleKeys[ctor.Data.Name]; handle {
+			return ctor.Data.Name
+		}
+	}
+	for _, sub := range nested {
+		if handle := e.handlePattern(sub); handle != "" {
+			return handle
+		}
+	}
+	return ""
 }
 
 func copyProofVars(vars map[string]proofVar) map[string]proofVar {

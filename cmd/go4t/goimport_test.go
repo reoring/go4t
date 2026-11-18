@@ -8,6 +8,48 @@ import (
 	"testing"
 )
 
+func TestEmitReachableGoShims(t *testing.T) {
+	dir := toolsModule(t)
+	t.Setenv("GO4T_CACHE", t.TempDir())
+	input := toolsWrite(t, filepath.Join(dir, "core.gt"), `package core
+import "go:strings"
+func reader(s String) strings.Reader { strings.newReader(s) }
+`)
+	emit := func() {
+		t.Helper()
+		if _, stderr, status := toolsCommand(t, dir, "", "build", "--emit-go", "out", "--package", "core", input); status != 0 {
+			t.Fatal(stderr)
+		}
+	}
+	emit()
+	shim := filepath.Join(dir, "out/go4tbind/strings/go4t_shim_strings.go")
+	read := func() string {
+		t.Helper()
+		source, err := os.ReadFile(shim)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(source)
+	}
+	first := read()
+	if !strings.Contains(first, "func NewReader(") || strings.Contains(first, "func Cut(") {
+		t.Fatalf("unexpected wrappers:\n%s", first)
+	}
+	emit()
+	if first != read() {
+		t.Fatal("cold and warm shim bytes differ")
+	}
+	toolsWrite(t, input, "package core\nfunc value() Int { 1 }\n")
+	user := toolsWrite(t, filepath.Join(filepath.Dir(shim), "user.go"), "package strings\n")
+	emit()
+	if _, err := os.Stat(shim); !os.IsNotExist(err) {
+		t.Fatalf("obsolete generated shim: %v", err)
+	}
+	if _, err := os.Stat(user); err != nil {
+		t.Fatalf("unrelated file: %v", err)
+	}
+}
+
 func TestGoImportTransitiveClassifier(t *testing.T) {
 	dir := toolsModule(t)
 	cache := t.TempDir()

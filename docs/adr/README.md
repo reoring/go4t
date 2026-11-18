@@ -32,6 +32,9 @@ ADRs written in Japanese carry an English summary.
 | [0021](0021-polymorphic-laws.md) | Laws may quantify over types | Accepted |
 | [0022](0022-declaration-conveniences.md) | Record shorthand, top-level `let`, bare operator sections, trailing commas, spelling hints | Accepted |
 | [0023](0023-selfhost-erases-laws-by-token.md) | The self-hosted compiler skips laws token by token and follows the lexical rules | Accepted |
+| [0024](0024-literal-seeded-counterexamples.md) | Bounded counterexample search includes literals from the law and its callees | Accepted |
+| [0025](0025-optional-library-entry.md) | Only executable output requires `main` | Accepted |
+| [0026](0026-reachable-binding-output.md) | Check and cache whole Go packages; emit only reachable declarations and companions | Accepted |
 
 The [standard-library law reach report](../laws-std-reach.md) is a generated
 snapshot maintained by `laws/taint_reach_test.go`, not a decision record.

@@ -67,7 +67,3 @@ law freshForTheRemainder(t Int, at Int, now Int)
 {
   freshness(TtlNanos(t), AtNanos(at), now) == Fresh(t - (now - at))
 }
-
-func main() IO[Unit] {
-  ioPure(unit())
-}

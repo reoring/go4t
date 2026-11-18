@@ -74,7 +74,7 @@ func bad() Box[Int] { fmap(Boxed(1), func(x) => x) }` + main, "no instance Funct
 		{"kind mismatch", `instance Functor[Int] { fmap(fa, f) { fa } }` + main, "kind mismatch"},
 		{"non exhaustive", `func bad(x Option[Int]) Int { match x { Some(a) => a } }` + main, "non-exhaustive match"},
 		{"wrong main", `func main() Int { 1 }`, "main must have type func() IO[Unit]"},
-		{"missing main", `func other() Int { 1 }`, "main must have type func() IO[Unit]"},
+		{"missing main", `func other() Int { 1 }`, ""},
 		{"duplicate instance", `instance Functor[Option] { fmap(fa, f) { fa } }` + main, "duplicate instance Functor[Option]"},
 		{"rigid type", `func bad[A](x A) A { 1 }` + main, "type mismatch: expected A, got Int"},
 		{"occurs check", `func bad() Unit { let f = func(x) => x(x); unit() }` + main, "occurs check"},

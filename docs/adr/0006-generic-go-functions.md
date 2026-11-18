@@ -2,6 +2,8 @@
 
 Date: 2026-11-04
 Status: Accepted / Implemented (2026-11-04; bounded function scope below)
+See [ADR 0026](0026-reachable-binding-output.md) for when a cached concrete
+companion is written to build output. Its tuple identity and checking rules remain unchanged.
 
 ## Context
 

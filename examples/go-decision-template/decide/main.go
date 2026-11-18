@@ -14,18 +14,6 @@ type Tuple3 struct {
 	F2 any
 }
 
-//line std/prelude/prelude.gt:41
-func ord_lt(o any) bool { _, ok := o.(*prelude_Ordering_LT); return ok }
-
-//line std/prelude/prelude.gt:41
-func ord_le(o any) bool { _, ok := o.(*prelude_Ordering_GT); return !ok }
-
-//line std/prelude/prelude.gt:41
-func ord_gt(o any) bool { _, ok := o.(*prelude_Ordering_GT); return ok }
-
-//line std/prelude/prelude.gt:41
-func ord_ge(o any) bool { _, ok := o.(*prelude_Ordering_LT); return !ok }
-
 type decide_Freshness interface{ isFreshness() }
 
 type decide_Freshness_Fresh struct {
@@ -158,108 +146,22 @@ func init() {
 	}
 }
 
-//line std/result/result.gt:5
-func rt_ok(a any) any { return &result_Result_Ok{F0: a} }
-
-//line std/result/result.gt:5
-func rt_err(e any) any { return &result_Result_Err{F0: e} }
-
-//line std/result/result.gt:5
-func init() {
-	rt.Shapes.Ok = rt_ok
-	rt.Shapes.Err = rt_err
-}
-
-//line std/io/io.gt:5
-func rt_ioError(kind string, msg string) any {
-	switch kind {
-	case "NotFound":
-		return &io_IoError_NotFound{F0: msg}
-	case "PermissionDenied":
-		return &io_IoError_PermissionDenied{F0: msg}
-	case "AlreadyExists":
-		return &io_IoError_AlreadyExists{F0: msg}
-	case "Timeout":
-		return &io_IoError_Timeout{}
-	case "Cancelled":
-		return &io_IoError_Cancelled{}
-	case "Panic":
-		return &io_IoError_Panic{F0: msg}
-	case "Network":
-		return &io_IoError_Network{F0: msg}
-	case "Failure":
-		return &io_IoError_Failure{F0: msg}
-	default:
-		panic("rt.Shapes.IoError: invalid kind")
-	}
-}
-
-//line std/io/io.gt:5
-func rt_ioErrorOf(v any) (string, string) {
-	switch v := v.(type) {
-	case *io_IoError_NotFound:
-		return "NotFound", v.F0.(string)
-	case *io_IoError_PermissionDenied:
-		return "PermissionDenied", v.F0.(string)
-	case *io_IoError_AlreadyExists:
-		return "AlreadyExists", v.F0.(string)
-	case *io_IoError_Timeout:
-		return "Timeout", "context deadline exceeded"
-	case *io_IoError_Cancelled:
-		return "Cancelled", "context canceled"
-	case *io_IoError_Panic:
-		return "Panic", v.F0.(string)
-	case *io_IoError_Network:
-		return "Network", v.F0.(string)
-	case *io_IoError_Failure:
-		return "Failure", v.F0.(string)
-	default:
-		panic("rt.Shapes.IoErrorOf: invalid IoError")
-	}
-}
-
-//line std/io/io.gt:5
-func init() {
-	rt.Shapes.IoError = rt_ioError
-	rt.Shapes.IoErrorOf = rt_ioErrorOf
-}
-
-//line std/io/io.gt:9
-func init() {
-	rt.RegisterForeignRecord("github.com/reoring/go4t/rt.IoFailure",
-//line std/io/io.gt:9
-		func(fields []any) any { return &io_IoFailure_IoFailure{F0: fields[0], F1: fields[1]} },
-//line std/io/io.gt:9
-		func(value any, index int) any {
-			v := value.(*io_IoFailure_IoFailure)
-			_ = v
-			switch index {
-			case 0:
-				return v.F0
-			case 1:
-				return v.F1
-			default:
-				panic("go4t foreign record: invalid field index")
-			}
-		})
-}
-
 type dict_decide_Eq_Ttl struct{}
 
 //line decide/decide.gt:5
 func (dictself dict_decide_Eq_Ttl) prelude_Eq(a_ any, b_ any) any {
-	var _go4t199 any = &Tuple2{F0: a_, F1: b_}
-	_ = _go4t199
+	var _go4t0 any = &Tuple2{F0: a_, F1: b_}
+	_ = _go4t0
 //line decide/decide.gt:5
-	switch _go4t200 := _go4t199.(type) {
+	switch _go4t1 := _go4t0.(type) {
 	case *Tuple2:
-		_ = _go4t200
-		switch _go4t202 := _go4t200.F0.(type) {
+		_ = _go4t1
+		switch _go4t3 := _go4t1.F0.(type) {
 		case *decide_Ttl_NoTtl:
-			_ = _go4t202
-			switch _go4t201 := _go4t200.F1.(type) {
+			_ = _go4t3
+			switch _go4t2 := _go4t1.F1.(type) {
 			case *decide_Ttl_NoTtl:
-				_ = _go4t201
+				_ = _go4t2
 //line decide/decide.gt:5
 //line decide/decide.gt:5
 				return true
@@ -267,15 +169,15 @@ func (dictself dict_decide_Eq_Ttl) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:5
-	switch _go4t203 := _go4t199.(type) {
+	switch _go4t4 := _go4t0.(type) {
 	case *Tuple2:
-		_ = _go4t203
-		switch _go4t205 := _go4t203.F0.(type) {
+		_ = _go4t4
+		switch _go4t6 := _go4t4.F0.(type) {
 		case *decide_Ttl_InvalidTtl:
-			_ = _go4t205
-			switch _go4t204 := _go4t203.F1.(type) {
+			_ = _go4t6
+			switch _go4t5 := _go4t4.F1.(type) {
 			case *decide_Ttl_InvalidTtl:
-				_ = _go4t204
+				_ = _go4t5
 //line decide/decide.gt:5
 //line decide/decide.gt:5
 				return true
@@ -283,20 +185,20 @@ func (dictself dict_decide_Eq_Ttl) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:5
-	switch _go4t206 := _go4t199.(type) {
+	switch _go4t7 := _go4t0.(type) {
 	case *Tuple2:
-		_ = _go4t206
-		switch _go4t208 := _go4t206.F0.(type) {
+		_ = _go4t7
+		switch _go4t9 := _go4t7.F0.(type) {
 		case *decide_Ttl_TtlNanos:
-			_ = _go4t208
+			_ = _go4t9
 			{
-				var x0_ int64 = any(_go4t208.F0).(int64)
+				var x0_ int64 = any(_go4t9.F0).(int64)
 				_ = x0_
-				switch _go4t207 := _go4t206.F1.(type) {
+				switch _go4t8 := _go4t7.F1.(type) {
 				case *decide_Ttl_TtlNanos:
-					_ = _go4t207
+					_ = _go4t8
 					{
-						var y0_ int64 = any(_go4t207.F0).(int64)
+						var y0_ int64 = any(_go4t8.F0).(int64)
 						_ = y0_
 //line decide/decide.gt:5
 //line decide/decide.gt:5
@@ -318,30 +220,30 @@ type dict_decide_Debug_Ttl struct{}
 
 //line decide/decide.gt:5
 func (dictself dict_decide_Debug_Ttl) prelude_Debug(a_ any) any {
-	var _go4t209 any = a_
-	_ = _go4t209
+	var _go4t10 any = a_
+	_ = _go4t10
 //line decide/decide.gt:5
-	switch _go4t210 := _go4t209.(type) {
+	switch _go4t11 := _go4t10.(type) {
 	case *decide_Ttl_NoTtl:
-		_ = _go4t210
+		_ = _go4t11
 //line decide/decide.gt:5
 //line decide/decide.gt:5
 		return "NoTtl"
 	}
 //line decide/decide.gt:5
-	switch _go4t211 := _go4t209.(type) {
+	switch _go4t12 := _go4t10.(type) {
 	case *decide_Ttl_InvalidTtl:
-		_ = _go4t211
+		_ = _go4t12
 //line decide/decide.gt:5
 //line decide/decide.gt:5
 		return "InvalidTtl"
 	}
 //line decide/decide.gt:5
 	{
-		_go4t212 := _go4t209.(*decide_Ttl_TtlNanos)
-		_ = _go4t212
+		_go4t13 := _go4t10.(*decide_Ttl_TtlNanos)
+		_ = _go4t13
 		{
-			var x0_ int64 = any(_go4t212.F0).(int64)
+			var x0_ int64 = any(_go4t13.F0).(int64)
 			_ = x0_
 //line decide/decide.gt:5
 //line decide/decide.gt:5
@@ -354,18 +256,18 @@ type dict_decide_Eq_Timestamp struct{}
 
 //line decide/decide.gt:7
 func (dictself dict_decide_Eq_Timestamp) prelude_Eq(a_ any, b_ any) any {
-	var _go4t213 any = &Tuple2{F0: a_, F1: b_}
-	_ = _go4t213
+	var _go4t14 any = &Tuple2{F0: a_, F1: b_}
+	_ = _go4t14
 //line decide/decide.gt:7
-	switch _go4t214 := _go4t213.(type) {
+	switch _go4t15 := _go4t14.(type) {
 	case *Tuple2:
-		_ = _go4t214
-		switch _go4t216 := _go4t214.F0.(type) {
+		_ = _go4t15
+		switch _go4t17 := _go4t15.F0.(type) {
 		case *decide_Timestamp_NoTimestamp:
-			_ = _go4t216
-			switch _go4t215 := _go4t214.F1.(type) {
+			_ = _go4t17
+			switch _go4t16 := _go4t15.F1.(type) {
 			case *decide_Timestamp_NoTimestamp:
-				_ = _go4t215
+				_ = _go4t16
 //line decide/decide.gt:7
 //line decide/decide.gt:7
 				return true
@@ -373,15 +275,15 @@ func (dictself dict_decide_Eq_Timestamp) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:7
-	switch _go4t217 := _go4t213.(type) {
+	switch _go4t18 := _go4t14.(type) {
 	case *Tuple2:
-		_ = _go4t217
-		switch _go4t219 := _go4t217.F0.(type) {
+		_ = _go4t18
+		switch _go4t20 := _go4t18.F0.(type) {
 		case *decide_Timestamp_InvalidTimestamp:
-			_ = _go4t219
-			switch _go4t218 := _go4t217.F1.(type) {
+			_ = _go4t20
+			switch _go4t19 := _go4t18.F1.(type) {
 			case *decide_Timestamp_InvalidTimestamp:
-				_ = _go4t218
+				_ = _go4t19
 //line decide/decide.gt:7
 //line decide/decide.gt:7
 				return true
@@ -389,20 +291,20 @@ func (dictself dict_decide_Eq_Timestamp) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:7
-	switch _go4t220 := _go4t213.(type) {
+	switch _go4t21 := _go4t14.(type) {
 	case *Tuple2:
-		_ = _go4t220
-		switch _go4t222 := _go4t220.F0.(type) {
+		_ = _go4t21
+		switch _go4t23 := _go4t21.F0.(type) {
 		case *decide_Timestamp_AtNanos:
-			_ = _go4t222
+			_ = _go4t23
 			{
-				var x0_ int64 = any(_go4t222.F0).(int64)
+				var x0_ int64 = any(_go4t23.F0).(int64)
 				_ = x0_
-				switch _go4t221 := _go4t220.F1.(type) {
+				switch _go4t22 := _go4t21.F1.(type) {
 				case *decide_Timestamp_AtNanos:
-					_ = _go4t221
+					_ = _go4t22
 					{
-						var y0_ int64 = any(_go4t221.F0).(int64)
+						var y0_ int64 = any(_go4t22.F0).(int64)
 						_ = y0_
 //line decide/decide.gt:7
 //line decide/decide.gt:7
@@ -424,30 +326,30 @@ type dict_decide_Debug_Timestamp struct{}
 
 //line decide/decide.gt:7
 func (dictself dict_decide_Debug_Timestamp) prelude_Debug(a_ any) any {
-	var _go4t223 any = a_
-	_ = _go4t223
+	var _go4t24 any = a_
+	_ = _go4t24
 //line decide/decide.gt:7
-	switch _go4t224 := _go4t223.(type) {
+	switch _go4t25 := _go4t24.(type) {
 	case *decide_Timestamp_NoTimestamp:
-		_ = _go4t224
+		_ = _go4t25
 //line decide/decide.gt:7
 //line decide/decide.gt:7
 		return "NoTimestamp"
 	}
 //line decide/decide.gt:7
-	switch _go4t225 := _go4t223.(type) {
+	switch _go4t26 := _go4t24.(type) {
 	case *decide_Timestamp_InvalidTimestamp:
-		_ = _go4t225
+		_ = _go4t26
 //line decide/decide.gt:7
 //line decide/decide.gt:7
 		return "InvalidTimestamp"
 	}
 //line decide/decide.gt:7
 	{
-		_go4t226 := _go4t223.(*decide_Timestamp_AtNanos)
-		_ = _go4t226
+		_go4t27 := _go4t24.(*decide_Timestamp_AtNanos)
+		_ = _go4t27
 		{
-			var x0_ int64 = any(_go4t226.F0).(int64)
+			var x0_ int64 = any(_go4t27.F0).(int64)
 			_ = x0_
 //line decide/decide.gt:7
 //line decide/decide.gt:7
@@ -460,23 +362,23 @@ type dict_decide_Eq_Freshness struct{}
 
 //line decide/decide.gt:9
 func (dictself dict_decide_Eq_Freshness) prelude_Eq(a_ any, b_ any) any {
-	var _go4t227 any = &Tuple2{F0: a_, F1: b_}
-	_ = _go4t227
+	var _go4t28 any = &Tuple2{F0: a_, F1: b_}
+	_ = _go4t28
 //line decide/decide.gt:9
-	switch _go4t228 := _go4t227.(type) {
+	switch _go4t29 := _go4t28.(type) {
 	case *Tuple2:
-		_ = _go4t228
-		switch _go4t230 := _go4t228.F0.(type) {
+		_ = _go4t29
+		switch _go4t31 := _go4t29.F0.(type) {
 		case *decide_Freshness_Fresh:
-			_ = _go4t230
+			_ = _go4t31
 			{
-				var x0_ int64 = any(_go4t230.F0).(int64)
+				var x0_ int64 = any(_go4t31.F0).(int64)
 				_ = x0_
-				switch _go4t229 := _go4t228.F1.(type) {
+				switch _go4t30 := _go4t29.F1.(type) {
 				case *decide_Freshness_Fresh:
-					_ = _go4t229
+					_ = _go4t30
 					{
-						var y0_ int64 = any(_go4t229.F0).(int64)
+						var y0_ int64 = any(_go4t30.F0).(int64)
 						_ = y0_
 //line decide/decide.gt:9
 //line decide/decide.gt:9
@@ -487,15 +389,15 @@ func (dictself dict_decide_Eq_Freshness) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:9
-	switch _go4t231 := _go4t227.(type) {
+	switch _go4t32 := _go4t28.(type) {
 	case *Tuple2:
-		_ = _go4t231
-		switch _go4t233 := _go4t231.F0.(type) {
+		_ = _go4t32
+		switch _go4t34 := _go4t32.F0.(type) {
 		case *decide_Freshness_TtlInvalid:
-			_ = _go4t233
-			switch _go4t232 := _go4t231.F1.(type) {
+			_ = _go4t34
+			switch _go4t33 := _go4t32.F1.(type) {
 			case *decide_Freshness_TtlInvalid:
-				_ = _go4t232
+				_ = _go4t33
 //line decide/decide.gt:9
 //line decide/decide.gt:9
 				return true
@@ -503,15 +405,15 @@ func (dictself dict_decide_Eq_Freshness) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:9
-	switch _go4t234 := _go4t227.(type) {
+	switch _go4t35 := _go4t28.(type) {
 	case *Tuple2:
-		_ = _go4t234
-		switch _go4t236 := _go4t234.F0.(type) {
+		_ = _go4t35
+		switch _go4t37 := _go4t35.F0.(type) {
 		case *decide_Freshness_TimestampMissing:
-			_ = _go4t236
-			switch _go4t235 := _go4t234.F1.(type) {
+			_ = _go4t37
+			switch _go4t36 := _go4t35.F1.(type) {
 			case *decide_Freshness_TimestampMissing:
-				_ = _go4t235
+				_ = _go4t36
 //line decide/decide.gt:9
 //line decide/decide.gt:9
 				return true
@@ -519,15 +421,15 @@ func (dictself dict_decide_Eq_Freshness) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:9
-	switch _go4t237 := _go4t227.(type) {
+	switch _go4t38 := _go4t28.(type) {
 	case *Tuple2:
-		_ = _go4t237
-		switch _go4t239 := _go4t237.F0.(type) {
+		_ = _go4t38
+		switch _go4t40 := _go4t38.F0.(type) {
 		case *decide_Freshness_TimestampInvalid:
-			_ = _go4t239
-			switch _go4t238 := _go4t237.F1.(type) {
+			_ = _go4t40
+			switch _go4t39 := _go4t38.F1.(type) {
 			case *decide_Freshness_TimestampInvalid:
-				_ = _go4t238
+				_ = _go4t39
 //line decide/decide.gt:9
 //line decide/decide.gt:9
 				return true
@@ -535,15 +437,15 @@ func (dictself dict_decide_Eq_Freshness) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:9
-	switch _go4t240 := _go4t227.(type) {
+	switch _go4t41 := _go4t28.(type) {
 	case *Tuple2:
-		_ = _go4t240
-		switch _go4t242 := _go4t240.F0.(type) {
+		_ = _go4t41
+		switch _go4t43 := _go4t41.F0.(type) {
 		case *decide_Freshness_Stale:
-			_ = _go4t242
-			switch _go4t241 := _go4t240.F1.(type) {
+			_ = _go4t43
+			switch _go4t42 := _go4t41.F1.(type) {
 			case *decide_Freshness_Stale:
-				_ = _go4t241
+				_ = _go4t42
 //line decide/decide.gt:9
 //line decide/decide.gt:9
 				return true
@@ -562,14 +464,14 @@ type dict_decide_Debug_Freshness struct{}
 
 //line decide/decide.gt:9
 func (dictself dict_decide_Debug_Freshness) prelude_Debug(a_ any) any {
-	var _go4t243 any = a_
-	_ = _go4t243
+	var _go4t44 any = a_
+	_ = _go4t44
 //line decide/decide.gt:9
-	switch _go4t244 := _go4t243.(type) {
+	switch _go4t45 := _go4t44.(type) {
 	case *decide_Freshness_Fresh:
-		_ = _go4t244
+		_ = _go4t45
 		{
-			var x0_ int64 = any(_go4t244.F0).(int64)
+			var x0_ int64 = any(_go4t45.F0).(int64)
 			_ = x0_
 //line decide/decide.gt:9
 //line decide/decide.gt:9
@@ -577,33 +479,33 @@ func (dictself dict_decide_Debug_Freshness) prelude_Debug(a_ any) any {
 		}
 	}
 //line decide/decide.gt:9
-	switch _go4t245 := _go4t243.(type) {
+	switch _go4t46 := _go4t44.(type) {
 	case *decide_Freshness_TtlInvalid:
-		_ = _go4t245
+		_ = _go4t46
 //line decide/decide.gt:9
 //line decide/decide.gt:9
 		return "TtlInvalid"
 	}
 //line decide/decide.gt:9
-	switch _go4t246 := _go4t243.(type) {
+	switch _go4t47 := _go4t44.(type) {
 	case *decide_Freshness_TimestampMissing:
-		_ = _go4t246
+		_ = _go4t47
 //line decide/decide.gt:9
 //line decide/decide.gt:9
 		return "TimestampMissing"
 	}
 //line decide/decide.gt:9
-	switch _go4t247 := _go4t243.(type) {
+	switch _go4t48 := _go4t44.(type) {
 	case *decide_Freshness_TimestampInvalid:
-		_ = _go4t247
+		_ = _go4t48
 //line decide/decide.gt:9
 //line decide/decide.gt:9
 		return "TimestampInvalid"
 	}
 //line decide/decide.gt:9
 	{
-		_go4t248 := _go4t243.(*decide_Freshness_Stale)
-		_ = _go4t248
+		_go4t49 := _go4t44.(*decide_Freshness_Stale)
+		_ = _go4t49
 //line decide/decide.gt:9
 //line decide/decide.gt:9
 		return "Stale"
@@ -612,15 +514,15 @@ func (dictself dict_decide_Debug_Freshness) prelude_Debug(a_ any) any {
 
 //line decide/decide.gt:11
 func decide_freshness_(ttl_ any, observedAt_ any, nowNanos_ int64) any {
-	var _go4t268 any = &Tuple2{F0: ttl_, F1: observedAt_}
-	_ = _go4t268
+	var _go4t50 any = &Tuple2{F0: ttl_, F1: observedAt_}
+	_ = _go4t50
 //line decide/decide.gt:13
-	switch _go4t269 := _go4t268.(type) {
+	switch _go4t51 := _go4t50.(type) {
 	case *Tuple2:
-		_ = _go4t269
-		switch _go4t270 := _go4t269.F0.(type) {
+		_ = _go4t51
+		switch _go4t52 := _go4t51.F0.(type) {
 		case *decide_Ttl_NoTtl:
-			_ = _go4t270
+			_ = _go4t52
 			{
 //line decide/decide.gt:13
 //line decide/decide.gt:13
@@ -629,12 +531,12 @@ func decide_freshness_(ttl_ any, observedAt_ any, nowNanos_ int64) any {
 		}
 	}
 //line decide/decide.gt:14
-	switch _go4t271 := _go4t268.(type) {
+	switch _go4t53 := _go4t50.(type) {
 	case *Tuple2:
-		_ = _go4t271
-		switch _go4t272 := _go4t271.F0.(type) {
+		_ = _go4t53
+		switch _go4t54 := _go4t53.F0.(type) {
 		case *decide_Ttl_InvalidTtl:
-			_ = _go4t272
+			_ = _go4t54
 			{
 //line decide/decide.gt:14
 //line decide/decide.gt:14
@@ -643,16 +545,16 @@ func decide_freshness_(ttl_ any, observedAt_ any, nowNanos_ int64) any {
 		}
 	}
 //line decide/decide.gt:15
-	switch _go4t273 := _go4t268.(type) {
+	switch _go4t55 := _go4t50.(type) {
 	case *Tuple2:
-		_ = _go4t273
-		switch _go4t275 := _go4t273.F0.(type) {
+		_ = _go4t55
+		switch _go4t57 := _go4t55.F0.(type) {
 		case *decide_Ttl_TtlNanos:
-			_ = _go4t275
+			_ = _go4t57
 			{
-				switch _go4t274 := _go4t273.F1.(type) {
+				switch _go4t56 := _go4t55.F1.(type) {
 				case *decide_Timestamp_NoTimestamp:
-					_ = _go4t274
+					_ = _go4t56
 //line decide/decide.gt:15
 //line decide/decide.gt:15
 					return &decide_Freshness_TimestampMissing{}
@@ -661,16 +563,16 @@ func decide_freshness_(ttl_ any, observedAt_ any, nowNanos_ int64) any {
 		}
 	}
 //line decide/decide.gt:16
-	switch _go4t276 := _go4t268.(type) {
+	switch _go4t58 := _go4t50.(type) {
 	case *Tuple2:
-		_ = _go4t276
-		switch _go4t278 := _go4t276.F0.(type) {
+		_ = _go4t58
+		switch _go4t60 := _go4t58.F0.(type) {
 		case *decide_Ttl_TtlNanos:
-			_ = _go4t278
+			_ = _go4t60
 			{
-				switch _go4t277 := _go4t276.F1.(type) {
+				switch _go4t59 := _go4t58.F1.(type) {
 				case *decide_Timestamp_InvalidTimestamp:
-					_ = _go4t277
+					_ = _go4t59
 //line decide/decide.gt:16
 //line decide/decide.gt:16
 					return &decide_Freshness_TimestampInvalid{}
@@ -679,20 +581,20 @@ func decide_freshness_(ttl_ any, observedAt_ any, nowNanos_ int64) any {
 		}
 	}
 //line decide/decide.gt:17
-	switch _go4t279 := _go4t268.(type) {
+	switch _go4t61 := _go4t50.(type) {
 	case *Tuple2:
-		_ = _go4t279
-		switch _go4t281 := _go4t279.F0.(type) {
+		_ = _go4t61
+		switch _go4t63 := _go4t61.F0.(type) {
 		case *decide_Ttl_TtlNanos:
-			_ = _go4t281
+			_ = _go4t63
 			{
-				var t_ int64 = any(_go4t281.F0).(int64)
+				var t_ int64 = any(_go4t63.F0).(int64)
 				_ = t_
-				switch _go4t280 := _go4t279.F1.(type) {
+				switch _go4t62 := _go4t61.F1.(type) {
 				case *decide_Timestamp_AtNanos:
-					_ = _go4t280
+					_ = _go4t62
 					{
-						var at_ int64 = any(_go4t280.F0).(int64)
+						var at_ int64 = any(_go4t62.F0).(int64)
 						_ = at_
 //line decide/decide.gt:17
 						if nowNanos_ >= (at_ + t_) {
@@ -707,19 +609,19 @@ func decide_freshness_(ttl_ any, observedAt_ any, nowNanos_ int64) any {
 	}
 //line decide/decide.gt:18
 	{
-		_go4t282 := _go4t268.(*Tuple2)
-		_ = _go4t282
-		switch _go4t284 := _go4t282.F0.(type) {
+		_go4t64 := _go4t50.(*Tuple2)
+		_ = _go4t64
+		switch _go4t66 := _go4t64.F0.(type) {
 		case *decide_Ttl_TtlNanos:
-			_ = _go4t284
+			_ = _go4t66
 			{
-				var t_ int64 = any(_go4t284.F0).(int64)
+				var t_ int64 = any(_go4t66.F0).(int64)
 				_ = t_
-				switch _go4t283 := _go4t282.F1.(type) {
+				switch _go4t65 := _go4t64.F1.(type) {
 				case *decide_Timestamp_AtNanos:
-					_ = _go4t283
+					_ = _go4t65
 					{
-						var at_ int64 = any(_go4t283.F0).(int64)
+						var at_ int64 = any(_go4t65.F0).(int64)
 						_ = at_
 //line decide/decide.gt:18
 //line decide/decide.gt:18
@@ -734,20 +636,20 @@ func decide_freshness_(ttl_ any, observedAt_ any, nowNanos_ int64) any {
 
 //line decide/decide.gt:24
 func decide_isStale_(value_ any) bool {
-	var _go4t299 any = value_
-	_ = _go4t299
+	var _go4t67 any = value_
+	_ = _go4t67
 //line decide/decide.gt:26
-	switch _go4t300 := _go4t299.(type) {
+	switch _go4t68 := _go4t67.(type) {
 	case *decide_Freshness_Stale:
-		_ = _go4t300
+		_ = _go4t68
 //line decide/decide.gt:26
 //line decide/decide.gt:26
 		return true
 	}
 //line decide/decide.gt:27
-	switch _go4t301 := _go4t299.(type) {
+	switch _go4t69 := _go4t67.(type) {
 	case *decide_Freshness_Fresh:
-		_ = _go4t301
+		_ = _go4t69
 		{
 //line decide/decide.gt:27
 //line decide/decide.gt:27
@@ -755,35 +657,29 @@ func decide_isStale_(value_ any) bool {
 		}
 	}
 //line decide/decide.gt:27
-	switch _go4t302 := _go4t299.(type) {
+	switch _go4t70 := _go4t67.(type) {
 	case *decide_Freshness_TtlInvalid:
-		_ = _go4t302
+		_ = _go4t70
 //line decide/decide.gt:27
 //line decide/decide.gt:27
 		return false
 	}
 //line decide/decide.gt:27
-	switch _go4t303 := _go4t299.(type) {
+	switch _go4t71 := _go4t67.(type) {
 	case *decide_Freshness_TimestampMissing:
-		_ = _go4t303
+		_ = _go4t71
 //line decide/decide.gt:27
 //line decide/decide.gt:27
 		return false
 	}
 //line decide/decide.gt:27
 	{
-		_go4t304 := _go4t299.(*decide_Freshness_TimestampInvalid)
-		_ = _go4t304
+		_go4t72 := _go4t67.(*decide_Freshness_TimestampInvalid)
+		_ = _go4t72
 //line decide/decide.gt:27
 //line decide/decide.gt:27
 		return false
 	}
-}
-
-//line decide/decide.gt:71
-func decide_main_() any {
-//line decide/decide.gt:72
-	return io_ioPure_(prelude_unit_())
 }
 
 //line decide/decide.gt:46
@@ -803,6 +699,3 @@ func decide_plausible_(t_ int64, at_ int64, now_ int64) bool {
 //line decide/decide.gt:49
 	return (((((int64(0) <= t_) && (t_ <= decide_maxTtlNanos_())) && (int64(0) <= at_)) && (at_ <= now_)) && (now_ <= decide_maxNowNanos_()))
 }
-
-//line decide/decide.gt:71
-func Main() rt.IO { return decide_main_().(rt.IO) }

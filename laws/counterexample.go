@@ -6,6 +6,7 @@ import (
 	"math/rand/v2"
 	"strings"
 
+	"github.com/reoring/go4t/ast"
 	"github.com/reoring/go4t/types"
 )
 
@@ -34,7 +35,7 @@ func (e *evaluator) searchCandidates(law lawGoal, witnessOnly bool) candidateSea
 	e.fuel, e.nextID = StepLimit, 0
 	e.assumptions, e.currentGoal, e.renormalizing = nil, nil, false
 	e.solutions = make(map[int]*term)
-	seeds := e.preconditionLiterals(law)
+	seeds := e.candidateLiterals(law)
 	result := candidateSearch{}
 	generators := make([]*candidateGenerator, len(law.Params))
 	cache := make(map[candidateKey]*candidateGenerator)
@@ -113,28 +114,25 @@ func (e *evaluator) searchCandidates(law lawGoal, witnessOnly bool) candidateSea
 	return result
 }
 
-// Traverse the assumption-free normal form in structural order, not map order.
-// Int neighbors are mathematical neighbors: never wrap at int64 endpoints.
-func (e *evaluator) preconditionLiterals(law lawGoal) map[string][]*term {
-	if law.Requires == nil {
-		return nil
-	}
-	env := child(nil)
-	for _, param := range law.Params {
-		env.values[param.Name] = e.fresh(param.Name)
-	}
-	condition, err := e.precondition(law, env)
-	if err != nil {
-		return nil
-	}
+// Candidate atoms are hints, never evidence. Keep their order independent of
+// maps, and their number bounded even for a law over a large call graph.
+func (e *evaluator) candidateLiterals(law lawGoal) map[string][]*term {
 	seeds := make(map[string][]*term)
 	ints, stringsSeen := make(map[int64]bool), make(map[string]bool)
 	addInt := func(n int64) {
-		if !ints[n] {
+		if !ints[n] && len(ints) < counterexampleEdges {
 			ints[n] = true
 			seeds["int"] = append(seeds["int"], integer(n))
 		}
 	}
+	addString := func(s string) {
+		if !stringsSeen[s] && len(stringsSeen) < counterexampleEdges {
+			stringsSeen[s] = true
+			seeds["string"] = append(seeds["string"], text(s))
+		}
+	}
+	// Keep normalized precondition literals and their non-wrapping neighbors
+	// first: a calculated bound need not occur verbatim in the source.
 	var visit func(*term)
 	visit = func(t *term) {
 		if t == nil {
@@ -150,10 +148,7 @@ func (e *evaluator) preconditionLiterals(law lawGoal) map[string][]*term {
 				addInt(t.number + 1)
 			}
 		case "string":
-			if !stringsSeen[t.name] {
-				stringsSeen[t.name] = true
-				seeds["string"] = append(seeds["string"], t)
-			}
+			addString(t.name)
 		}
 		for _, arg := range t.args {
 			visit(arg)
@@ -164,7 +159,49 @@ func (e *evaluator) preconditionLiterals(law lawGoal) map[string][]*term {
 			visit(arm.body)
 		}
 	}
-	visit(condition)
+	if law.Requires != nil {
+		env := child(nil)
+		for _, param := range law.Params {
+			env.values[param.Name] = e.fresh(param.Name)
+		}
+		if condition, err := e.precondition(law, env); err == nil {
+			visit(condition)
+		}
+	}
+	source := func(n ast.Node) {
+		switch x := n.(type) {
+		case *ast.IntLit:
+			addInt(x.Value)
+		case *ast.Unary:
+			if v, ok := x.X.(*ast.IntLit); ok && x.Op == "-" {
+				addInt(-v.Value)
+			}
+		case *ast.StringLit:
+			addString(x.Value)
+		}
+	}
+	ast.Walk(law.Requires, source)
+	ast.Walk(law.LHS, source)
+	ast.Walk(law.RHS, source)
+	// Eligibility already resolved function values and dictionary methods.
+	// Nested functions' syntax was walked with their enclosing declaration;
+	// still follow their edges to reach callees outside it.
+	seen := make(map[*terminationNode]bool)
+	var walk func([]terminationEdge)
+	walk = func(edges []terminationEdge) {
+		for _, edge := range edges {
+			n := edge.to
+			if seen[n] {
+				continue
+			}
+			seen[n] = true
+			if n.global != "" || n.method != nil {
+				ast.Walk(n.decl, source)
+			}
+			walk(n.edges)
+		}
+	}
+	walk(e.lawEdges)
 	return seeds
 }
 
@@ -322,9 +359,10 @@ func (e *evaluator) candidateGenerator(typ types.Type, depth int, cache map[cand
 		}
 	}
 	if g != nil && len(g.atoms) != 0 {
+		defaults := g.atoms // seeds are already unique among themselves
 		for _, seed := range seeds[g.kind] {
 			found := false
-			for _, atom := range g.atoms {
+			for _, atom := range defaults {
 				if alphaEqual(atom, seed, nil) {
 					found = true
 					break

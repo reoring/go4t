@@ -248,8 +248,12 @@ Open notes from that review, none turned into an accepted false law:
   `{ (x == x) }` and `{ !(x == x) }` are accepted. By SPEC §6.5, but it is
   the one place where the two readings of a body disagree.
 - Opaque Go handle types are unit-like to the checker (`type DB = DBHandle`),
-  so a case split could prove two handles equal. Not run (it needs a real
-  binding); it predates this work, and bare `match` only shortens the proof.
+  so a case split could prove two handles equal. Run later against
+  `go:strings`: `law (a Reader, b Reader) { a == b }` was accepted with
+  `match a { strings.ReaderHandle => match b }`. It predated this work. Fixed:
+  a proof pattern naming a handle constructor, written or elaborated by bare
+  `match`/`induction`, is rejected (`cannot case-split opaque handle`).
+  Constructing a handle constructor in source remains undefined (SPEC §8.3).
 - Bare `induction` selects hypothesis fields by printed type, which elides
   deep types; terms are untyped and descent is still checked.
 - A law whose dependency is invalid is skipped without its own diagnostic;

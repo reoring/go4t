@@ -57,6 +57,7 @@ type evaluator struct {
 	renormalizing     bool
 	decreasing        map[string][]decreasingPosition
 	decreasingMethods map[*ast.InstMethod][]decreasingPosition
+	lawEdges          []terminationEdge
 	currentGoal       *rewriteRule
 	// admissible, when set, further restricts counterexample candidates that
 	// already satisfy the law's precondition. Production code leaves it nil;

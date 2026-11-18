@@ -91,10 +91,6 @@ func isTimedOut(a Action) Bool {
   }
 }
 
-func main() IO[Unit] {
-  ioPure(unit())
-}
-
 // ---- Laws -----------------------------------------------------------------
 // A withdrawn request never touches a node we did not cordon.
 law withdrawnIsNoop(o Observed) {
