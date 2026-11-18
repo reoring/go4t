@@ -20,6 +20,8 @@ committed-binding workflow, while later ADRs refine upcasts and boundary mapping
 
 Date: 2026-11-02
 Status: Accepted (PoC verified 2026-11-02)
+Build-output policy superseded by [ADR 0026](0026-reachable-binding-output.md):
+imports still bind and cache whole packages; loading no longer writes whole shims.
 
 ## Context
 

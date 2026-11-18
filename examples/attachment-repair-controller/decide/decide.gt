@@ -311,5 +311,3 @@ func _approvalMessage(reason Reason) String {
     _ => ""
   }
 }
-
-func main() IO[Unit] { ioPure(unit()) }

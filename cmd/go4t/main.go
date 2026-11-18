@@ -172,11 +172,15 @@ func run(args []string) error {
 		}
 		return nil
 	}
+	if build.goPackage == "main" && program.Main == nil {
+		entry := files[len(files)-1].Files[0].Name
+		return diagnostic(entry, fmt.Errorf("%s: an executable needs func main() IO[Unit]; use build --emit-go DIR --package NAME for a library without main", command))
+	}
 
 	if err := module.checkForeign(program); err != nil {
 		return err
 	}
-	sources, err := codegen.GenerateInDir(program, build.goPackage, module.dir, codegen.Options{SideEffectImports: binder.sideEffectImports})
+	sources, err := codegen.GenerateInDir(program, build.goPackage, module.dir, codegen.Options{PrepareExterns: binder.emitShims})
 	if err != nil {
 		var generated *types.Error
 		if errors.As(err, &generated) {
@@ -191,7 +195,7 @@ func run(args []string) error {
 		return diagnostic(file, err)
 	}
 	if sourceDir != dir {
-		if err := retainBuildSources(sourceDir, dir, sources); err != nil {
+		if err := retainBuildSources(dir, sources, binder.emitted); err != nil {
 			return diagnostic(file, err)
 		}
 	}

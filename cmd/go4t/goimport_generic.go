@@ -96,13 +96,7 @@ func (g *genericGoBindings) Instantiate(symbol string, signature *ast.FuncType) 
 			}
 		}
 	}
-	dir := filepath.Join(g.binder.outputDir, "go4tbind", filepath.FromSlash(g.owner), "instances", "i"+key)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return nil, err
-	}
-	if err := os.WriteFile(filepath.Join(dir, "shim.go"), source, 0o644); err != nil {
-		return nil, err
-	}
+	g.binder.shims[shimPath] = pendingShim{g.owner, "shim.go", source}
 	return ref, nil
 }
 

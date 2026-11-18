@@ -14,18 +14,6 @@ type Tuple3 struct {
 	F2 any
 }
 
-//line std/prelude/prelude.gt:37
-func ord_lt(o any) bool { _, ok := o.(*prelude_Ordering_LT); return ok }
-
-//line std/prelude/prelude.gt:37
-func ord_le(o any) bool { _, ok := o.(*prelude_Ordering_GT); return !ok }
-
-//line std/prelude/prelude.gt:37
-func ord_gt(o any) bool { _, ok := o.(*prelude_Ordering_GT); return ok }
-
-//line std/prelude/prelude.gt:37
-func ord_ge(o any) bool { _, ok := o.(*prelude_Ordering_LT); return !ok }
-
 type decide_Action interface{ isAction() }
 
 type decide_Action_Noop struct{}
@@ -166,7 +154,7 @@ func rt_tuple3(a, b, c any) any { return &Tuple3{F0: a, F1: b, F2: c} }
 //line std/list/list.gt:6
 func rt_untuple3(p any) (any, any, any) { t := p.(*Tuple3); return t.F0, t.F1, t.F2 }
 
-//line std/prelude/prelude.gt:37
+//line std/prelude/prelude.gt:41
 func rt_orderingOf(o any) int {
 	switch o.(type) {
 	case *prelude_Ordering_LT:
@@ -190,10 +178,10 @@ func init() {
 //line std/list/list.gt:6
 		func() any { return &list_List_Nil{} },
 		Some:
-//line std/prelude/prelude.gt:43
+//line std/prelude/prelude.gt:47
 		func(a any) any { return &prelude_Option_Some{F0: a} },
 		None:
-//line std/prelude/prelude.gt:43
+//line std/prelude/prelude.gt:47
 		func() any { return &prelude_Option_None{} },
 		Uncons:
 //line std/list/list.gt:6
@@ -204,7 +192,7 @@ func init() {
 			return nil, nil, false
 		},
 		OptionValue:
-//line std/prelude/prelude.gt:43
+//line std/prelude/prelude.gt:47
 		func(v any) (any, bool) {
 			if s, ok := v.(*prelude_Option_Some); ok {
 				return s.F0, true
@@ -219,88 +207,22 @@ func init() {
 	}
 }
 
-//line std/result/result.gt:5
-func rt_ok(a any) any { return &result_Result_Ok{F0: a} }
-
-//line std/result/result.gt:5
-func rt_err(e any) any { return &result_Result_Err{F0: e} }
-
-//line std/result/result.gt:5
-func init() {
-	rt.Shapes.Ok = rt_ok
-	rt.Shapes.Err = rt_err
-}
-
-//line std/io/io.gt:5
-func rt_ioError(kind string, msg string) any {
-	switch kind {
-	case "NotFound":
-		return &io_IoError_NotFound{F0: msg}
-	case "PermissionDenied":
-		return &io_IoError_PermissionDenied{F0: msg}
-	case "AlreadyExists":
-		return &io_IoError_AlreadyExists{F0: msg}
-	case "Timeout":
-		return &io_IoError_Timeout{}
-	case "Cancelled":
-		return &io_IoError_Cancelled{}
-	case "Panic":
-		return &io_IoError_Panic{F0: msg}
-	case "Network":
-		return &io_IoError_Network{F0: msg}
-	case "Failure":
-		return &io_IoError_Failure{F0: msg}
-	default:
-		panic("rt.Shapes.IoError: invalid kind")
-	}
-}
-
-//line std/io/io.gt:5
-func rt_ioErrorOf(v any) (string, string) {
-	switch v := v.(type) {
-	case *io_IoError_NotFound:
-		return "NotFound", v.F0.(string)
-	case *io_IoError_PermissionDenied:
-		return "PermissionDenied", v.F0.(string)
-	case *io_IoError_AlreadyExists:
-		return "AlreadyExists", v.F0.(string)
-	case *io_IoError_Timeout:
-		return "Timeout", "context deadline exceeded"
-	case *io_IoError_Cancelled:
-		return "Cancelled", "context canceled"
-	case *io_IoError_Panic:
-		return "Panic", v.F0.(string)
-	case *io_IoError_Network:
-		return "Network", v.F0.(string)
-	case *io_IoError_Failure:
-		return "Failure", v.F0.(string)
-	default:
-		panic("rt.Shapes.IoErrorOf: invalid IoError")
-	}
-}
-
-//line std/io/io.gt:5
-func init() {
-	rt.Shapes.IoError = rt_ioError
-	rt.Shapes.IoErrorOf = rt_ioErrorOf
-}
-
 type dict_decide_Eq_NodeState struct{}
 
 //line decide/decide.gt:9
 func (dictself dict_decide_Eq_NodeState) prelude_Eq(a_ any, b_ any) any {
-	var _go4t196 any = &Tuple2{F0: a_, F1: b_}
-	_ = _go4t196
+	var _go4t20 any = &Tuple2{F0: a_, F1: b_}
+	_ = _go4t20
 //line decide/decide.gt:9
-	switch _go4t197 := _go4t196.(type) {
+	switch _go4t21 := _go4t20.(type) {
 	case *Tuple2:
-		_ = _go4t197
-		switch _go4t199 := _go4t197.F0.(type) {
+		_ = _go4t21
+		switch _go4t23 := _go4t21.F0.(type) {
 		case *decide_NodeState_Schedulable:
-			_ = _go4t199
-			switch _go4t198 := _go4t197.F1.(type) {
+			_ = _go4t23
+			switch _go4t22 := _go4t21.F1.(type) {
 			case *decide_NodeState_Schedulable:
-				_ = _go4t198
+				_ = _go4t22
 //line decide/decide.gt:9
 //line decide/decide.gt:9
 				return true
@@ -308,15 +230,15 @@ func (dictself dict_decide_Eq_NodeState) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:9
-	switch _go4t200 := _go4t196.(type) {
+	switch _go4t24 := _go4t20.(type) {
 	case *Tuple2:
-		_ = _go4t200
-		switch _go4t202 := _go4t200.F0.(type) {
+		_ = _go4t24
+		switch _go4t26 := _go4t24.F0.(type) {
 		case *decide_NodeState_Cordoned:
-			_ = _go4t202
-			switch _go4t201 := _go4t200.F1.(type) {
+			_ = _go4t26
+			switch _go4t25 := _go4t24.F1.(type) {
 			case *decide_NodeState_Cordoned:
-				_ = _go4t201
+				_ = _go4t25
 //line decide/decide.gt:9
 //line decide/decide.gt:9
 				return true
@@ -324,15 +246,15 @@ func (dictself dict_decide_Eq_NodeState) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:9
-	switch _go4t203 := _go4t196.(type) {
+	switch _go4t27 := _go4t20.(type) {
 	case *Tuple2:
-		_ = _go4t203
-		switch _go4t205 := _go4t203.F0.(type) {
+		_ = _go4t27
+		switch _go4t29 := _go4t27.F0.(type) {
 		case *decide_NodeState_Missing:
-			_ = _go4t205
-			switch _go4t204 := _go4t203.F1.(type) {
+			_ = _go4t29
+			switch _go4t28 := _go4t27.F1.(type) {
 			case *decide_NodeState_Missing:
-				_ = _go4t204
+				_ = _go4t28
 //line decide/decide.gt:9
 //line decide/decide.gt:9
 				return true
@@ -351,28 +273,28 @@ type dict_decide_Debug_NodeState struct{}
 
 //line decide/decide.gt:9
 func (dictself dict_decide_Debug_NodeState) prelude_Debug(a_ any) any {
-	var _go4t206 any = a_
-	_ = _go4t206
+	var _go4t30 any = a_
+	_ = _go4t30
 //line decide/decide.gt:9
-	switch _go4t207 := _go4t206.(type) {
+	switch _go4t31 := _go4t30.(type) {
 	case *decide_NodeState_Schedulable:
-		_ = _go4t207
+		_ = _go4t31
 //line decide/decide.gt:9
 //line decide/decide.gt:9
 		return "Schedulable"
 	}
 //line decide/decide.gt:9
-	switch _go4t208 := _go4t206.(type) {
+	switch _go4t32 := _go4t30.(type) {
 	case *decide_NodeState_Cordoned:
-		_ = _go4t208
+		_ = _go4t32
 //line decide/decide.gt:9
 //line decide/decide.gt:9
 		return "Cordoned"
 	}
 //line decide/decide.gt:9
 	{
-		_go4t209 := _go4t206.(*decide_NodeState_Missing)
-		_ = _go4t209
+		_go4t33 := _go4t30.(*decide_NodeState_Missing)
+		_ = _go4t33
 //line decide/decide.gt:9
 //line decide/decide.gt:9
 		return "Missing"
@@ -383,18 +305,18 @@ type dict_decide_Eq_PodKind struct{}
 
 //line decide/decide.gt:12
 func (dictself dict_decide_Eq_PodKind) prelude_Eq(a_ any, b_ any) any {
-	var _go4t210 any = &Tuple2{F0: a_, F1: b_}
-	_ = _go4t210
+	var _go4t34 any = &Tuple2{F0: a_, F1: b_}
+	_ = _go4t34
 //line decide/decide.gt:12
-	switch _go4t211 := _go4t210.(type) {
+	switch _go4t35 := _go4t34.(type) {
 	case *Tuple2:
-		_ = _go4t211
-		switch _go4t213 := _go4t211.F0.(type) {
+		_ = _go4t35
+		switch _go4t37 := _go4t35.F0.(type) {
 		case *decide_PodKind_Managed:
-			_ = _go4t213
-			switch _go4t212 := _go4t211.F1.(type) {
+			_ = _go4t37
+			switch _go4t36 := _go4t35.F1.(type) {
 			case *decide_PodKind_Managed:
-				_ = _go4t212
+				_ = _go4t36
 //line decide/decide.gt:12
 //line decide/decide.gt:12
 				return true
@@ -402,15 +324,15 @@ func (dictself dict_decide_Eq_PodKind) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:12
-	switch _go4t214 := _go4t210.(type) {
+	switch _go4t38 := _go4t34.(type) {
 	case *Tuple2:
-		_ = _go4t214
-		switch _go4t216 := _go4t214.F0.(type) {
+		_ = _go4t38
+		switch _go4t40 := _go4t38.F0.(type) {
 		case *decide_PodKind_DaemonSet:
-			_ = _go4t216
-			switch _go4t215 := _go4t214.F1.(type) {
+			_ = _go4t40
+			switch _go4t39 := _go4t38.F1.(type) {
 			case *decide_PodKind_DaemonSet:
-				_ = _go4t215
+				_ = _go4t39
 //line decide/decide.gt:12
 //line decide/decide.gt:12
 				return true
@@ -418,15 +340,15 @@ func (dictself dict_decide_Eq_PodKind) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:12
-	switch _go4t217 := _go4t210.(type) {
+	switch _go4t41 := _go4t34.(type) {
 	case *Tuple2:
-		_ = _go4t217
-		switch _go4t219 := _go4t217.F0.(type) {
+		_ = _go4t41
+		switch _go4t43 := _go4t41.F0.(type) {
 		case *decide_PodKind_Mirror:
-			_ = _go4t219
-			switch _go4t218 := _go4t217.F1.(type) {
+			_ = _go4t43
+			switch _go4t42 := _go4t41.F1.(type) {
 			case *decide_PodKind_Mirror:
-				_ = _go4t218
+				_ = _go4t42
 //line decide/decide.gt:12
 //line decide/decide.gt:12
 				return true
@@ -445,28 +367,28 @@ type dict_decide_Debug_PodKind struct{}
 
 //line decide/decide.gt:12
 func (dictself dict_decide_Debug_PodKind) prelude_Debug(a_ any) any {
-	var _go4t220 any = a_
-	_ = _go4t220
+	var _go4t44 any = a_
+	_ = _go4t44
 //line decide/decide.gt:12
-	switch _go4t221 := _go4t220.(type) {
+	switch _go4t45 := _go4t44.(type) {
 	case *decide_PodKind_Managed:
-		_ = _go4t221
+		_ = _go4t45
 //line decide/decide.gt:12
 //line decide/decide.gt:12
 		return "Managed"
 	}
 //line decide/decide.gt:12
-	switch _go4t222 := _go4t220.(type) {
+	switch _go4t46 := _go4t44.(type) {
 	case *decide_PodKind_DaemonSet:
-		_ = _go4t222
+		_ = _go4t46
 //line decide/decide.gt:12
 //line decide/decide.gt:12
 		return "DaemonSet"
 	}
 //line decide/decide.gt:12
 	{
-		_go4t223 := _go4t220.(*decide_PodKind_Mirror)
-		_ = _go4t223
+		_go4t47 := _go4t44.(*decide_PodKind_Mirror)
+		_ = _go4t47
 //line decide/decide.gt:12
 //line decide/decide.gt:12
 		return "Mirror"
@@ -477,29 +399,29 @@ type dict_decide_Eq_Pod struct{}
 
 //line decide/decide.gt:14
 func (dictself dict_decide_Eq_Pod) prelude_Eq(a_ any, b_ any) any {
-	var _go4t224 any = &Tuple2{F0: a_, F1: b_}
-	_ = _go4t224
+	var _go4t48 any = &Tuple2{F0: a_, F1: b_}
+	_ = _go4t48
 //line decide/decide.gt:14
 	{
-		_go4t225 := _go4t224.(*Tuple2)
-		_ = _go4t225
+		_go4t49 := _go4t48.(*Tuple2)
+		_ = _go4t49
 		{
-			_go4t227 := _go4t225.F0.(*decide_Pod_Pod)
-			_ = _go4t227
+			_go4t51 := _go4t49.F0.(*decide_Pod_Pod)
+			_ = _go4t51
 			{
-				var x0_ any = _go4t227.F0
+				var x0_ any = _go4t51.F0
 				_ = x0_
 				{
-					var x1_ any = _go4t227.F1
+					var x1_ any = _go4t51.F1
 					_ = x1_
 					{
-						_go4t226 := _go4t225.F1.(*decide_Pod_Pod)
-						_ = _go4t226
+						_go4t50 := _go4t49.F1.(*decide_Pod_Pod)
+						_ = _go4t50
 						{
-							var y0_ any = _go4t226.F0
+							var y0_ any = _go4t50.F0
 							_ = y0_
 							{
-								var y1_ any = _go4t226.F1
+								var y1_ any = _go4t50.F1
 								_ = y1_
 //line decide/decide.gt:14
 //line decide/decide.gt:14
@@ -517,17 +439,17 @@ type dict_decide_Debug_Pod struct{}
 
 //line decide/decide.gt:14
 func (dictself dict_decide_Debug_Pod) prelude_Debug(a_ any) any {
-	var _go4t228 any = a_
-	_ = _go4t228
+	var _go4t52 any = a_
+	_ = _go4t52
 //line decide/decide.gt:14
 	{
-		_go4t229 := _go4t228.(*decide_Pod_Pod)
-		_ = _go4t229
+		_go4t53 := _go4t52.(*decide_Pod_Pod)
+		_ = _go4t53
 		{
-			var x0_ any = _go4t229.F0
+			var x0_ any = _go4t53.F0
 			_ = x0_
 			{
-				var x1_ any = _go4t229.F1
+				var x1_ any = _go4t53.F1
 				_ = x1_
 //line decide/decide.gt:14
 //line decide/decide.gt:14
@@ -541,18 +463,18 @@ type dict_decide_Eq_Deadline struct{}
 
 //line decide/decide.gt:16
 func (dictself dict_decide_Eq_Deadline) prelude_Eq(a_ any, b_ any) any {
-	var _go4t230 any = &Tuple2{F0: a_, F1: b_}
-	_ = _go4t230
+	var _go4t54 any = &Tuple2{F0: a_, F1: b_}
+	_ = _go4t54
 //line decide/decide.gt:16
-	switch _go4t231 := _go4t230.(type) {
+	switch _go4t55 := _go4t54.(type) {
 	case *Tuple2:
-		_ = _go4t231
-		switch _go4t233 := _go4t231.F0.(type) {
+		_ = _go4t55
+		switch _go4t57 := _go4t55.F0.(type) {
 		case *decide_Deadline_NoDeadline:
-			_ = _go4t233
-			switch _go4t232 := _go4t231.F1.(type) {
+			_ = _go4t57
+			switch _go4t56 := _go4t55.F1.(type) {
 			case *decide_Deadline_NoDeadline:
-				_ = _go4t232
+				_ = _go4t56
 //line decide/decide.gt:16
 //line decide/decide.gt:16
 				return true
@@ -560,20 +482,20 @@ func (dictself dict_decide_Eq_Deadline) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:16
-	switch _go4t234 := _go4t230.(type) {
+	switch _go4t58 := _go4t54.(type) {
 	case *Tuple2:
-		_ = _go4t234
-		switch _go4t236 := _go4t234.F0.(type) {
+		_ = _go4t58
+		switch _go4t60 := _go4t58.F0.(type) {
 		case *decide_Deadline_DeadlineAt:
-			_ = _go4t236
+			_ = _go4t60
 			{
-				var x0_ int64 = any(_go4t236.F0).(int64)
+				var x0_ int64 = any(_go4t60.F0).(int64)
 				_ = x0_
-				switch _go4t235 := _go4t234.F1.(type) {
+				switch _go4t59 := _go4t58.F1.(type) {
 				case *decide_Deadline_DeadlineAt:
-					_ = _go4t235
+					_ = _go4t59
 					{
-						var y0_ int64 = any(_go4t235.F0).(int64)
+						var y0_ int64 = any(_go4t59.F0).(int64)
 						_ = y0_
 //line decide/decide.gt:16
 //line decide/decide.gt:16
@@ -595,22 +517,22 @@ type dict_decide_Debug_Deadline struct{}
 
 //line decide/decide.gt:16
 func (dictself dict_decide_Debug_Deadline) prelude_Debug(a_ any) any {
-	var _go4t237 any = a_
-	_ = _go4t237
+	var _go4t61 any = a_
+	_ = _go4t61
 //line decide/decide.gt:16
-	switch _go4t238 := _go4t237.(type) {
+	switch _go4t62 := _go4t61.(type) {
 	case *decide_Deadline_NoDeadline:
-		_ = _go4t238
+		_ = _go4t62
 //line decide/decide.gt:16
 //line decide/decide.gt:16
 		return "NoDeadline"
 	}
 //line decide/decide.gt:16
 	{
-		_go4t239 := _go4t237.(*decide_Deadline_DeadlineAt)
-		_ = _go4t239
+		_go4t63 := _go4t61.(*decide_Deadline_DeadlineAt)
+		_ = _go4t63
 		{
-			var x0_ int64 = any(_go4t239.F0).(int64)
+			var x0_ int64 = any(_go4t63.F0).(int64)
 			_ = x0_
 //line decide/decide.gt:16
 //line decide/decide.gt:16
@@ -623,59 +545,59 @@ type dict_decide_Eq_Observed struct{}
 
 //line decide/decide.gt:18
 func (dictself dict_decide_Eq_Observed) prelude_Eq(a_ any, b_ any) any {
-	var _go4t240 any = &Tuple2{F0: a_, F1: b_}
-	_ = _go4t240
+	var _go4t64 any = &Tuple2{F0: a_, F1: b_}
+	_ = _go4t64
 //line decide/decide.gt:18
 	{
-		_go4t241 := _go4t240.(*Tuple2)
-		_ = _go4t241
+		_go4t65 := _go4t64.(*Tuple2)
+		_ = _go4t65
 		{
-			_go4t243 := _go4t241.F0.(*decide_Observed_Observed)
-			_ = _go4t243
+			_go4t67 := _go4t65.F0.(*decide_Observed_Observed)
+			_ = _go4t67
 			{
-				var x0_ bool = any(_go4t243.F0).(bool)
+				var x0_ bool = any(_go4t67.F0).(bool)
 				_ = x0_
 				{
-					var x1_ any = _go4t243.F1
+					var x1_ any = _go4t67.F1
 					_ = x1_
 					{
-						var x2_ bool = any(_go4t243.F2).(bool)
+						var x2_ bool = any(_go4t67.F2).(bool)
 						_ = x2_
 						{
-							var x3_ any = _go4t243.F3
+							var x3_ any = _go4t67.F3
 							_ = x3_
 							{
-								var x4_ any = _go4t243.F4
+								var x4_ any = _go4t67.F4
 								_ = x4_
 								{
-									var x5_ any = _go4t243.F5
+									var x5_ any = _go4t67.F5
 									_ = x5_
 									{
-										var x6_ int64 = any(_go4t243.F6).(int64)
+										var x6_ int64 = any(_go4t67.F6).(int64)
 										_ = x6_
 										{
-											_go4t242 := _go4t241.F1.(*decide_Observed_Observed)
-											_ = _go4t242
+											_go4t66 := _go4t65.F1.(*decide_Observed_Observed)
+											_ = _go4t66
 											{
-												var y0_ bool = any(_go4t242.F0).(bool)
+												var y0_ bool = any(_go4t66.F0).(bool)
 												_ = y0_
 												{
-													var y1_ any = _go4t242.F1
+													var y1_ any = _go4t66.F1
 													_ = y1_
 													{
-														var y2_ bool = any(_go4t242.F2).(bool)
+														var y2_ bool = any(_go4t66.F2).(bool)
 														_ = y2_
 														{
-															var y3_ any = _go4t242.F3
+															var y3_ any = _go4t66.F3
 															_ = y3_
 															{
-																var y4_ any = _go4t242.F4
+																var y4_ any = _go4t66.F4
 																_ = y4_
 																{
-																	var y5_ any = _go4t242.F5
+																	var y5_ any = _go4t66.F5
 																	_ = y5_
 																	{
-																		var y6_ int64 = any(_go4t242.F6).(int64)
+																		var y6_ int64 = any(_go4t66.F6).(int64)
 																		_ = y6_
 //line decide/decide.gt:18
 //line decide/decide.gt:18
@@ -703,32 +625,32 @@ type dict_decide_Debug_Observed struct{}
 
 //line decide/decide.gt:18
 func (dictself dict_decide_Debug_Observed) prelude_Debug(a_ any) any {
-	var _go4t244 any = a_
-	_ = _go4t244
+	var _go4t68 any = a_
+	_ = _go4t68
 //line decide/decide.gt:18
 	{
-		_go4t245 := _go4t244.(*decide_Observed_Observed)
-		_ = _go4t245
+		_go4t69 := _go4t68.(*decide_Observed_Observed)
+		_ = _go4t69
 		{
-			var x0_ bool = any(_go4t245.F0).(bool)
+			var x0_ bool = any(_go4t69.F0).(bool)
 			_ = x0_
 			{
-				var x1_ any = _go4t245.F1
+				var x1_ any = _go4t69.F1
 				_ = x1_
 				{
-					var x2_ bool = any(_go4t245.F2).(bool)
+					var x2_ bool = any(_go4t69.F2).(bool)
 					_ = x2_
 					{
-						var x3_ any = _go4t245.F3
+						var x3_ any = _go4t69.F3
 						_ = x3_
 						{
-							var x4_ any = _go4t245.F4
+							var x4_ any = _go4t69.F4
 							_ = x4_
 							{
-								var x5_ any = _go4t245.F5
+								var x5_ any = _go4t69.F5
 								_ = x5_
 								{
-									var x6_ int64 = any(_go4t245.F6).(int64)
+									var x6_ int64 = any(_go4t69.F6).(int64)
 									_ = x6_
 //line decide/decide.gt:18
 //line decide/decide.gt:18
@@ -747,18 +669,18 @@ type dict_decide_Eq_FailReason struct{}
 
 //line decide/decide.gt:28
 func (dictself dict_decide_Eq_FailReason) prelude_Eq(a_ any, b_ any) any {
-	var _go4t246 any = &Tuple2{F0: a_, F1: b_}
-	_ = _go4t246
+	var _go4t70 any = &Tuple2{F0: a_, F1: b_}
+	_ = _go4t70
 //line decide/decide.gt:28
-	switch _go4t247 := _go4t246.(type) {
+	switch _go4t71 := _go4t70.(type) {
 	case *Tuple2:
-		_ = _go4t247
-		switch _go4t249 := _go4t247.F0.(type) {
+		_ = _go4t71
+		switch _go4t73 := _go4t71.F0.(type) {
 		case *decide_FailReason_NodeMissing:
-			_ = _go4t249
-			switch _go4t248 := _go4t247.F1.(type) {
+			_ = _go4t73
+			switch _go4t72 := _go4t71.F1.(type) {
 			case *decide_FailReason_NodeMissing:
-				_ = _go4t248
+				_ = _go4t72
 //line decide/decide.gt:28
 //line decide/decide.gt:28
 				return true
@@ -766,15 +688,15 @@ func (dictself dict_decide_Eq_FailReason) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:28
-	switch _go4t250 := _go4t246.(type) {
+	switch _go4t74 := _go4t70.(type) {
 	case *Tuple2:
-		_ = _go4t250
-		switch _go4t252 := _go4t250.F0.(type) {
+		_ = _go4t74
+		switch _go4t76 := _go4t74.F0.(type) {
 		case *decide_FailReason_TimedOut:
-			_ = _go4t252
-			switch _go4t251 := _go4t250.F1.(type) {
+			_ = _go4t76
+			switch _go4t75 := _go4t74.F1.(type) {
 			case *decide_FailReason_TimedOut:
-				_ = _go4t251
+				_ = _go4t75
 //line decide/decide.gt:28
 //line decide/decide.gt:28
 				return true
@@ -793,20 +715,20 @@ type dict_decide_Debug_FailReason struct{}
 
 //line decide/decide.gt:28
 func (dictself dict_decide_Debug_FailReason) prelude_Debug(a_ any) any {
-	var _go4t253 any = a_
-	_ = _go4t253
+	var _go4t77 any = a_
+	_ = _go4t77
 //line decide/decide.gt:28
-	switch _go4t254 := _go4t253.(type) {
+	switch _go4t78 := _go4t77.(type) {
 	case *decide_FailReason_NodeMissing:
-		_ = _go4t254
+		_ = _go4t78
 //line decide/decide.gt:28
 //line decide/decide.gt:28
 		return "NodeMissing"
 	}
 //line decide/decide.gt:28
 	{
-		_go4t255 := _go4t253.(*decide_FailReason_TimedOut)
-		_ = _go4t255
+		_go4t79 := _go4t77.(*decide_FailReason_TimedOut)
+		_ = _go4t79
 //line decide/decide.gt:28
 //line decide/decide.gt:28
 		return "TimedOut"
@@ -817,18 +739,18 @@ type dict_decide_Eq_Action struct{}
 
 //line decide/decide.gt:30
 func (dictself dict_decide_Eq_Action) prelude_Eq(a_ any, b_ any) any {
-	var _go4t256 any = &Tuple2{F0: a_, F1: b_}
-	_ = _go4t256
+	var _go4t80 any = &Tuple2{F0: a_, F1: b_}
+	_ = _go4t80
 //line decide/decide.gt:30
-	switch _go4t257 := _go4t256.(type) {
+	switch _go4t81 := _go4t80.(type) {
 	case *Tuple2:
-		_ = _go4t257
-		switch _go4t259 := _go4t257.F0.(type) {
+		_ = _go4t81
+		switch _go4t83 := _go4t81.F0.(type) {
 		case *decide_Action_Noop:
-			_ = _go4t259
-			switch _go4t258 := _go4t257.F1.(type) {
+			_ = _go4t83
+			switch _go4t82 := _go4t81.F1.(type) {
 			case *decide_Action_Noop:
-				_ = _go4t258
+				_ = _go4t82
 //line decide/decide.gt:30
 //line decide/decide.gt:30
 				return true
@@ -836,15 +758,15 @@ func (dictself dict_decide_Eq_Action) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:30
-	switch _go4t260 := _go4t256.(type) {
+	switch _go4t84 := _go4t80.(type) {
 	case *Tuple2:
-		_ = _go4t260
-		switch _go4t262 := _go4t260.F0.(type) {
+		_ = _go4t84
+		switch _go4t86 := _go4t84.F0.(type) {
 		case *decide_Action_Cordon:
-			_ = _go4t262
-			switch _go4t261 := _go4t260.F1.(type) {
+			_ = _go4t86
+			switch _go4t85 := _go4t84.F1.(type) {
 			case *decide_Action_Cordon:
-				_ = _go4t261
+				_ = _go4t85
 //line decide/decide.gt:30
 //line decide/decide.gt:30
 				return true
@@ -852,15 +774,15 @@ func (dictself dict_decide_Eq_Action) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:30
-	switch _go4t263 := _go4t256.(type) {
+	switch _go4t87 := _go4t80.(type) {
 	case *Tuple2:
-		_ = _go4t263
-		switch _go4t265 := _go4t263.F0.(type) {
+		_ = _go4t87
+		switch _go4t89 := _go4t87.F0.(type) {
 		case *decide_Action_Uncordon:
-			_ = _go4t265
-			switch _go4t264 := _go4t263.F1.(type) {
+			_ = _go4t89
+			switch _go4t88 := _go4t87.F1.(type) {
 			case *decide_Action_Uncordon:
-				_ = _go4t264
+				_ = _go4t88
 //line decide/decide.gt:30
 //line decide/decide.gt:30
 				return true
@@ -868,20 +790,20 @@ func (dictself dict_decide_Eq_Action) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:30
-	switch _go4t266 := _go4t256.(type) {
+	switch _go4t90 := _go4t80.(type) {
 	case *Tuple2:
-		_ = _go4t266
-		switch _go4t268 := _go4t266.F0.(type) {
+		_ = _go4t90
+		switch _go4t92 := _go4t90.F0.(type) {
 		case *decide_Action_Evict:
-			_ = _go4t268
+			_ = _go4t92
 			{
-				var x0_ any = _go4t268.F0
+				var x0_ any = _go4t92.F0
 				_ = x0_
-				switch _go4t267 := _go4t266.F1.(type) {
+				switch _go4t91 := _go4t90.F1.(type) {
 				case *decide_Action_Evict:
-					_ = _go4t267
+					_ = _go4t91
 					{
-						var y0_ any = _go4t267.F0
+						var y0_ any = _go4t91.F0
 						_ = y0_
 //line decide/decide.gt:30
 //line decide/decide.gt:30
@@ -892,20 +814,20 @@ func (dictself dict_decide_Eq_Action) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:30
-	switch _go4t269 := _go4t256.(type) {
+	switch _go4t93 := _go4t80.(type) {
 	case *Tuple2:
-		_ = _go4t269
-		switch _go4t271 := _go4t269.F0.(type) {
+		_ = _go4t93
+		switch _go4t95 := _go4t93.F0.(type) {
 		case *decide_Action_Wait:
-			_ = _go4t271
+			_ = _go4t95
 			{
-				var x0_ any = _go4t271.F0
+				var x0_ any = _go4t95.F0
 				_ = x0_
-				switch _go4t270 := _go4t269.F1.(type) {
+				switch _go4t94 := _go4t93.F1.(type) {
 				case *decide_Action_Wait:
-					_ = _go4t270
+					_ = _go4t94
 					{
-						var y0_ any = _go4t270.F0
+						var y0_ any = _go4t94.F0
 						_ = y0_
 //line decide/decide.gt:30
 //line decide/decide.gt:30
@@ -916,15 +838,15 @@ func (dictself dict_decide_Eq_Action) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:30
-	switch _go4t272 := _go4t256.(type) {
+	switch _go4t96 := _go4t80.(type) {
 	case *Tuple2:
-		_ = _go4t272
-		switch _go4t274 := _go4t272.F0.(type) {
+		_ = _go4t96
+		switch _go4t98 := _go4t96.F0.(type) {
 		case *decide_Action_MarkDrained:
-			_ = _go4t274
-			switch _go4t273 := _go4t272.F1.(type) {
+			_ = _go4t98
+			switch _go4t97 := _go4t96.F1.(type) {
 			case *decide_Action_MarkDrained:
-				_ = _go4t273
+				_ = _go4t97
 //line decide/decide.gt:30
 //line decide/decide.gt:30
 				return true
@@ -932,20 +854,20 @@ func (dictself dict_decide_Eq_Action) prelude_Eq(a_ any, b_ any) any {
 		}
 	}
 //line decide/decide.gt:30
-	switch _go4t275 := _go4t256.(type) {
+	switch _go4t99 := _go4t80.(type) {
 	case *Tuple2:
-		_ = _go4t275
-		switch _go4t277 := _go4t275.F0.(type) {
+		_ = _go4t99
+		switch _go4t101 := _go4t99.F0.(type) {
 		case *decide_Action_MarkFailed:
-			_ = _go4t277
+			_ = _go4t101
 			{
-				var x0_ any = _go4t277.F0
+				var x0_ any = _go4t101.F0
 				_ = x0_
-				switch _go4t276 := _go4t275.F1.(type) {
+				switch _go4t100 := _go4t99.F1.(type) {
 				case *decide_Action_MarkFailed:
-					_ = _go4t276
+					_ = _go4t100
 					{
-						var y0_ any = _go4t276.F0
+						var y0_ any = _go4t100.F0
 						_ = y0_
 //line decide/decide.gt:30
 //line decide/decide.gt:30
@@ -967,38 +889,38 @@ type dict_decide_Debug_Action struct{}
 
 //line decide/decide.gt:30
 func (dictself dict_decide_Debug_Action) prelude_Debug(a_ any) any {
-	var _go4t278 any = a_
-	_ = _go4t278
+	var _go4t102 any = a_
+	_ = _go4t102
 //line decide/decide.gt:30
-	switch _go4t279 := _go4t278.(type) {
+	switch _go4t103 := _go4t102.(type) {
 	case *decide_Action_Noop:
-		_ = _go4t279
+		_ = _go4t103
 //line decide/decide.gt:30
 //line decide/decide.gt:30
 		return "Noop"
 	}
 //line decide/decide.gt:30
-	switch _go4t280 := _go4t278.(type) {
+	switch _go4t104 := _go4t102.(type) {
 	case *decide_Action_Cordon:
-		_ = _go4t280
+		_ = _go4t104
 //line decide/decide.gt:30
 //line decide/decide.gt:30
 		return "Cordon"
 	}
 //line decide/decide.gt:30
-	switch _go4t281 := _go4t278.(type) {
+	switch _go4t105 := _go4t102.(type) {
 	case *decide_Action_Uncordon:
-		_ = _go4t281
+		_ = _go4t105
 //line decide/decide.gt:30
 //line decide/decide.gt:30
 		return "Uncordon"
 	}
 //line decide/decide.gt:30
-	switch _go4t282 := _go4t278.(type) {
+	switch _go4t106 := _go4t102.(type) {
 	case *decide_Action_Evict:
-		_ = _go4t282
+		_ = _go4t106
 		{
-			var x0_ any = _go4t282.F0
+			var x0_ any = _go4t106.F0
 			_ = x0_
 //line decide/decide.gt:30
 //line decide/decide.gt:30
@@ -1006,11 +928,11 @@ func (dictself dict_decide_Debug_Action) prelude_Debug(a_ any) any {
 		}
 	}
 //line decide/decide.gt:30
-	switch _go4t283 := _go4t278.(type) {
+	switch _go4t107 := _go4t102.(type) {
 	case *decide_Action_Wait:
-		_ = _go4t283
+		_ = _go4t107
 		{
-			var x0_ any = _go4t283.F0
+			var x0_ any = _go4t107.F0
 			_ = x0_
 //line decide/decide.gt:30
 //line decide/decide.gt:30
@@ -1018,19 +940,19 @@ func (dictself dict_decide_Debug_Action) prelude_Debug(a_ any) any {
 		}
 	}
 //line decide/decide.gt:30
-	switch _go4t284 := _go4t278.(type) {
+	switch _go4t108 := _go4t102.(type) {
 	case *decide_Action_MarkDrained:
-		_ = _go4t284
+		_ = _go4t108
 //line decide/decide.gt:30
 //line decide/decide.gt:30
 		return "MarkDrained"
 	}
 //line decide/decide.gt:30
 	{
-		_go4t285 := _go4t278.(*decide_Action_MarkFailed)
-		_ = _go4t285
+		_go4t109 := _go4t102.(*decide_Action_MarkFailed)
+		_ = _go4t109
 		{
-			var x0_ any = _go4t285.F0
+			var x0_ any = _go4t109.F0
 			_ = x0_
 //line decide/decide.gt:30
 //line decide/decide.gt:30
@@ -1046,14 +968,14 @@ func decide__drain_(o_ any) any {
 //line decide/decide.gt:54
 		return &decide_Action_MarkFailed{F0: &decide_FailReason_TimedOut{}}
 	} else {
-		var _go4t286 any = any(o_).(*decide_Observed_Observed).F4
-		_ = _go4t286
+		var _go4t110 any = any(o_).(*decide_Observed_Observed).F4
+		_ = _go4t110
 //line decide/decide.gt:57
-		switch _go4t287 := _go4t286.(type) {
+		switch _go4t111 := _go4t110.(type) {
 		case *prelude_Option_Some:
-			_ = _go4t287
+			_ = _go4t111
 			{
-				var msg_ any = _go4t287.F0
+				var msg_ any = _go4t111.F0
 				_ = msg_
 //line decide/decide.gt:57
 //line decide/decide.gt:57
@@ -1062,8 +984,8 @@ func decide__drain_(o_ any) any {
 		}
 //line decide/decide.gt:58
 		{
-			_go4t288 := _go4t286.(*prelude_Option_None)
-			_ = _go4t288
+			_go4t112 := _go4t110.(*prelude_Option_None)
+			_ = _go4t112
 //line decide/decide.gt:58
 //line decide/decide.gt:58
 			return decide__evictNext_(any(o_).(*decide_Observed_Observed).F3)
@@ -1073,14 +995,14 @@ func decide__drain_(o_ any) any {
 
 //line decide/decide.gt:70
 func decide__evictNext_(pods_ any) any {
-	var _go4t289 any = decide__firstEvictable_(pods_)
-	_ = _go4t289
+	var _go4t113 any = decide__firstEvictable_(pods_)
+	_ = _go4t113
 //line decide/decide.gt:72
-	switch _go4t290 := _go4t289.(type) {
+	switch _go4t114 := _go4t113.(type) {
 	case *prelude_Option_Some:
-		_ = _go4t290
+		_ = _go4t114
 		{
-			var name_ any = _go4t290.F0
+			var name_ any = _go4t114.F0
 			_ = name_
 //line decide/decide.gt:72
 //line decide/decide.gt:72
@@ -1089,8 +1011,8 @@ func decide__evictNext_(pods_ any) any {
 	}
 //line decide/decide.gt:73
 	{
-		_go4t291 := _go4t289.(*prelude_Option_None)
-		_ = _go4t291
+		_go4t115 := _go4t113.(*prelude_Option_None)
+		_ = _go4t115
 //line decide/decide.gt:73
 //line decide/decide.gt:73
 		return &decide_Action_MarkDrained{}
@@ -1099,14 +1021,14 @@ func decide__evictNext_(pods_ any) any {
 
 //line decide/decide.gt:63
 func decide__expired_(now_ int64, d_ any) bool {
-	var _go4t292 any = d_
-	_ = _go4t292
+	var _go4t116 any = d_
+	_ = _go4t116
 //line decide/decide.gt:65
-	switch _go4t293 := _go4t292.(type) {
+	switch _go4t117 := _go4t116.(type) {
 	case *decide_Deadline_DeadlineAt:
-		_ = _go4t293
+		_ = _go4t117
 		{
-			var at_ int64 = any(_go4t293.F0).(int64)
+			var at_ int64 = any(_go4t117.F0).(int64)
 			_ = at_
 //line decide/decide.gt:65
 //line decide/decide.gt:65
@@ -1115,8 +1037,8 @@ func decide__expired_(now_ int64, d_ any) bool {
 	}
 //line decide/decide.gt:66
 	{
-		_go4t294 := _go4t292.(*decide_Deadline_NoDeadline)
-		_ = _go4t294
+		_go4t118 := _go4t116.(*decide_Deadline_NoDeadline)
+		_ = _go4t118
 //line decide/decide.gt:66
 //line decide/decide.gt:66
 		return false
@@ -1124,38 +1046,38 @@ func decide__expired_(now_ int64, d_ any) bool {
 }
 
 //line decide/decide.gt:77
-func decide__firstEvictable_(_go4t295 any) any {
+func decide__firstEvictable_(_go4t119 any) any {
 	for {
 		{
-			var pods_ any = _go4t295
+			var pods_ any = _go4t119
 			_ = pods_
-			var _go4t296 any = pods_
-			_ = _go4t296
+			var _go4t120 any = pods_
+			_ = _go4t120
 //line decide/decide.gt:79
-			switch _go4t297 := _go4t296.(type) {
+			switch _go4t121 := _go4t120.(type) {
 			case *list_List_Nil:
-				_ = _go4t297
+				_ = _go4t121
 //line decide/decide.gt:79
 //line decide/decide.gt:79
 				return &prelude_Option_None{}
 			}
 //line decide/decide.gt:80
 			{
-				_go4t301 := _go4t296.(*list_List_Cons)
-				_ = _go4t301
+				_go4t125 := _go4t120.(*list_List_Cons)
+				_ = _go4t125
 				{
-					var p_ any = _go4t301.F0
+					var p_ any = _go4t125.F0
 					_ = p_
 					{
-						var rest_ any = _go4t301.F1
+						var rest_ any = _go4t125.F1
 						_ = rest_
 //line decide/decide.gt:80
-						var _go4t298 any = any(p_).(*decide_Pod_Pod).F1
-						_ = _go4t298
+						var _go4t122 any = any(p_).(*decide_Pod_Pod).F1
+						_ = _go4t122
 //line decide/decide.gt:81
-						switch _go4t299 := _go4t298.(type) {
+						switch _go4t123 := _go4t122.(type) {
 						case *decide_PodKind_Managed:
-							_ = _go4t299
+							_ = _go4t123
 //line decide/decide.gt:81
 //line decide/decide.gt:81
 							return &prelude_Option_Some{F0: any(p_).(*decide_Pod_Pod).F0}
@@ -1164,8 +1086,8 @@ func decide__firstEvictable_(_go4t295 any) any {
 						{
 //line decide/decide.gt:82
 //line decide/decide.gt:82
-							var _go4t300 any = rest_
-							_go4t295 = _go4t300
+							var _go4t124 any = rest_
+							_go4t119 = _go4t124
 							continue
 						}
 					}
@@ -1177,16 +1099,16 @@ func decide__firstEvictable_(_go4t295 any) any {
 
 //line decide/decide.gt:45
 func decide__release_(o_ any) any {
-	var _go4t302 any = &Tuple2{F0: any(o_).(*decide_Observed_Observed).F1, F1: any(any(o_).(*decide_Observed_Observed).F2).(bool)}
-	_ = _go4t302
+	var _go4t126 any = &Tuple2{F0: any(o_).(*decide_Observed_Observed).F1, F1: any(any(o_).(*decide_Observed_Observed).F2).(bool)}
+	_ = _go4t126
 //line decide/decide.gt:47
-	switch _go4t303 := _go4t302.(type) {
+	switch _go4t127 := _go4t126.(type) {
 	case *Tuple2:
-		_ = _go4t303
-		switch _go4t304 := _go4t303.F0.(type) {
+		_ = _go4t127
+		switch _go4t128 := _go4t127.F0.(type) {
 		case *decide_NodeState_Cordoned:
-			_ = _go4t304
-			if any(_go4t303.F1).(bool) == true {
+			_ = _go4t128
+			if any(_go4t127.F1).(bool) == true {
 //line decide/decide.gt:47
 //line decide/decide.gt:47
 				return &decide_Action_Uncordon{}
@@ -1208,28 +1130,28 @@ func decide_decide_(o_ any) any {
 //line decide/decide.gt:34
 		return decide__release_(o_)
 	} else {
-		var _go4t308 any = any(o_).(*decide_Observed_Observed).F1
-		_ = _go4t308
+		var _go4t129 any = any(o_).(*decide_Observed_Observed).F1
+		_ = _go4t129
 //line decide/decide.gt:37
-		switch _go4t309 := _go4t308.(type) {
+		switch _go4t130 := _go4t129.(type) {
 		case *decide_NodeState_Missing:
-			_ = _go4t309
+			_ = _go4t130
 //line decide/decide.gt:37
 //line decide/decide.gt:37
 			return &decide_Action_MarkFailed{F0: &decide_FailReason_NodeMissing{}}
 		}
 //line decide/decide.gt:38
-		switch _go4t310 := _go4t308.(type) {
+		switch _go4t131 := _go4t129.(type) {
 		case *decide_NodeState_Schedulable:
-			_ = _go4t310
+			_ = _go4t131
 //line decide/decide.gt:38
 //line decide/decide.gt:38
 			return &decide_Action_Cordon{}
 		}
 //line decide/decide.gt:39
 		{
-			_go4t311 := _go4t308.(*decide_NodeState_Cordoned)
-			_ = _go4t311
+			_go4t132 := _go4t129.(*decide_NodeState_Cordoned)
+			_ = _go4t132
 //line decide/decide.gt:39
 //line decide/decide.gt:39
 			return decide__drain_(o_)
@@ -1239,15 +1161,15 @@ func decide_decide_(o_ any) any {
 
 //line decide/decide.gt:87
 func decide_isTimedOut_(a_ any) bool {
-	var _go4t342 any = a_
-	_ = _go4t342
+	var _go4t142 any = a_
+	_ = _go4t142
 //line decide/decide.gt:89
-	switch _go4t343 := _go4t342.(type) {
+	switch _go4t143 := _go4t142.(type) {
 	case *decide_Action_MarkFailed:
-		_ = _go4t343
-		switch _go4t344 := _go4t343.F0.(type) {
+		_ = _go4t143
+		switch _go4t144 := _go4t143.F0.(type) {
 		case *decide_FailReason_TimedOut:
-			_ = _go4t344
+			_ = _go4t144
 //line decide/decide.gt:89
 //line decide/decide.gt:89
 			return true
@@ -1260,12 +1182,3 @@ func decide_isTimedOut_(a_ any) bool {
 		return false
 	}
 }
-
-//line decide/decide.gt:94
-func decide_main_() any {
-//line decide/decide.gt:95
-	return io_ioPure_(prelude_unit_())
-}
-
-//line decide/decide.gt:94
-func Main() rt.IO { return decide_main_().(rt.IO) }

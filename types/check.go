@@ -652,17 +652,16 @@ func (c *checker) superclassArgs(inst, parent *Instance) ([]DictRef, bool) {
 
 func (c *checker) checkMain() {
 	f := c.program.Funcs[c.mainName]
-	pos := ast.Pos{Line: 1, Col: 1}
-	if f != nil {
-		c.file = c.sources[f.Decl]
-		c.decl = f.Decl
-		pos = f.Decl.Pos
-		if len(f.Scheme.TParams) == 0 && len(f.Scheme.Type.Params) == 0 {
-			if app, ok := prune(f.Scheme.Type.Ret).(*TApp); ok && prune(app.Fun) == IO && len(app.Args) == 1 && prune(app.Args[0]) == Unit {
-				c.program.Main = f
-				return
-			}
+	if f == nil {
+		return
+	}
+	c.file = c.sources[f.Decl]
+	c.decl = f.Decl
+	if len(f.Scheme.TParams) == 0 && len(f.Scheme.Type.Params) == 0 {
+		if app, ok := prune(f.Scheme.Type.Ret).(*TApp); ok && prune(app.Fun) == IO && len(app.Args) == 1 && prune(app.Args[0]) == Unit {
+			c.program.Main = f
+			return
 		}
 	}
-	fail(pos, "main must have type func() IO[Unit]")
+	fail(f.Decl.Pos, "main must have type func() IO[Unit]")
 }

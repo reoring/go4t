@@ -79,6 +79,9 @@ func (e *evaluator) checkEligibility(law *types.LawInfo, proof *types.ProofInfo,
 	}
 	c.expression(root, law.Decl.LHS, nil, nil, false)
 	c.expression(root, law.Decl.RHS, nil, nil, false)
+	// Keep just the law's roots for diagnostic search. Proof tactics can
+	// introduce other dependencies, which must not influence its candidates.
+	lawEdges := root.edges
 	// Conditions and rewrite arguments must be total too: a divergent or
 	// effectful assumption cannot manufacture a proof of an arbitrary goal.
 	ast.Walk(proof.Decl, func(node ast.Node) {
@@ -138,6 +141,7 @@ func (e *evaluator) checkEligibility(law *types.LawInfo, proof *types.ProofInfo,
 	}
 	e.decreasing = c.decreasing
 	e.decreasingMethods = c.decreasingMethods
+	e.lawEdges = lawEdges
 	return nil
 }
 

@@ -9,6 +9,28 @@ import (
 	"github.com/reoring/go4t/types"
 )
 
+func TestCounterexampleSourceLiterals(t *testing.T) {
+	p := loadSource(t, `package main
+func exceptional(s String) Bool { match s { "pending" => true; _ => false } }
+func accepts(s String) Bool { exceptional(s) }
+func allowed(n Int) Bool { n == -45678 }
+law transitive(s String) { accepts(s) == false }
+law body(n Int) { (n != 12345) == true }
+law guard(n Int) requires allowed(n) { n == 0 }
+func main() IO[Unit] { ioPure(unit()) }
+`)
+	got := diagnosticsByLaw(t, p)
+	for name, want := range map[string]string{
+		"transitive": "counterexample: s = \"pending\"\n  LHS: true\n  RHS: false",
+		"body":       "counterexample: n = 12345\n  LHS: false\n  RHS: true",
+		"guard":      "counterexample: n = -45678\n  LHS: -45678\n  RHS: 0",
+	} {
+		if err := got[name]; err == nil || !strings.Contains(err.Msg, want) {
+			t.Errorf("%s: want %s; got %v", name, want, err)
+		}
+	}
+}
+
 func TestCounterexampleDiagnostics(t *testing.T) {
 	p := loadFixture(t, "counterexample.gt")
 	first, second := diagnosticsByLaw(t, p), diagnosticsByLaw(t, p)

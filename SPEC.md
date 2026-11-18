@@ -113,8 +113,9 @@ Separator  := ';'
 ```
 
 Imports precede declarations. Top-level declarations in one module are mutually
-visible, including recursion across files. `check`, `build` and `run` require an
-entry `func main() IO[Unit]`; `test` and `eval` replace the entry (§8).
+visible, including recursion across files. An entry-module `main`, if declared,
+must have type `func main() IO[Unit]`. It is required for executable output
+and `run`, not for `check` or library output. `test` and `eval` replace the entry (§8).
 Types/classes, constructors and values have separate namespaces, so
 `type Sku = Sku(String)` is legal. Duplicate declarations within a namespace are
 errors. Record field names belong to their constructors. Builtin types cannot
@@ -905,9 +906,10 @@ func main() IO[Unit] {
 An effect executes with an implicit cancellation/deadline environment: in Go,
 `rt.IO` is `func(ctx context.Context) (any, error)`. This is not a source-language
 value and does not change purity. `RunMain` supplies a background context cancelled
-by SIGINT/SIGTERM; cancellation reports `error: cancelled` and exits 1. Embedders
-run the action returned by `Main() rt.IO` with their own context. Bind passes the
-same context through both actions and checks it before starting the continuation.
+by SIGINT/SIGTERM; cancellation reports `error: cancelled` and exits 1. When a
+library exports `Main() rt.IO`, its Go caller runs the returned action with its
+own context. Bind passes the same context through both actions and checks it
+before starting the continuation.
 A `do` block whose Monad is the standard `Monad[IO]` instance (`std/io`) is
 lowered to one deferred action whose steps run in sequence through `rt.Run`,
 which performs the same checks as Bind (cancellation before each step, error
@@ -1217,9 +1219,11 @@ lists, and literal maps with Int/String/Bool or tuple keys. Float-bearing and
 handle-bearing types, unsupported map keys and types without a bounded
 inhabitant are skipped. No witness is not a proof.
 
-For a law with `requires`, the edge prefix also includes Int and String
-literals from its assumption-free normalized precondition, plus each Int's
-neighbors within the int64 range. Only candidates satisfying the precondition
+The candidate pool adds up to 64 distinct hints each for Int and String.
+First come literals from the assumption-free normalized precondition (if any)
+and their in-range Int neighbors; then come source literals from `requires`,
+both law operands, and their transitive function dependencies. Bool and Unit
+already enumerate all values. Only candidates satisfying the precondition
 are admitted. If none is admitted, a failed `refl` instead ends with
 `no arguments satisfying requires were found in 128 candidates: no counterexample could be tried`.
 A successful proof with `requires` runs the same enumeration until it finds
@@ -1499,9 +1503,12 @@ index order, Map values key order.
 
 ### 8.1 Go generation and performance (informative)
 
-The compiler emits **one Go file per go4t module in one Go package**, not separate
-Go packages. `main.go` is the entry; dependency basenames use sanitized path tails
-and deterministic collision suffixes. Names/dictionaries are module-prefixed.
+The compiler emits the entry module and its reachable dependencies **in one Go
+package**, with no file for an empty dependency. All entry declarations are
+roots, not just `main`: dependencies include function values, types and fields,
+instance dictionaries, Go export conversions and runtime shape initializers.
+`main.go` is the entry; dependency basenames use sanitized path tails and
+deterministic collision suffixes. Names/dictionaries are module-prefixed.
 `codegen.Generate(*types.Program, string) (map[string][]byte, error)` is the public
 generator. The module loader feeds `types.Check([]*ast.Module)`, with entry last.
 
@@ -1547,7 +1554,7 @@ The std fixture imports every embedded std module into one compiled program
 concatenation is skipped: std modules have distinct `package` declarations and
 qualified references such as `prelude.pure` and `r.Err`; flattening them is not a
 semantics-preserving operation. The fixture preserves those namespaces, then
-checks, generates and builds the entire module graph together.
+checks the whole module graph and builds the declarations the entry uses.
 
 Classes become interfaces and instances dictionary structs; constrained functions
 receive dictionaries. Known Int/Bool/Float locals, parameters/results, pattern
@@ -1645,7 +1652,7 @@ go4t lsp
   Generated Go sources remain in `<first-file-stem>_gen/` or `<DIR>/_gen/`.
   `--emit-go DIR` emits sources only and is incompatible with `-o`.
   `--package NAME` requires `--emit-go` and defaults to `main`. Other package
-  names expose `func Main() rt.IO` and the typed entry-module API in §8.7.
+  names expose the typed entry-module API in §8.7, without requiring `main`.
   NAME is a valid non-keyword Go identifier other than `_`.
   Flags can precede or follow inputs. Rewrites remove obsolete compiler-generated
   Go files, including `go4t_export.go`, and preserve unrelated output-directory files.
@@ -1942,7 +1949,7 @@ except those remaining predicates prefix `Xxx: `. Packages without matching
 predicates emit no classifier. `rt.ClassifyError` preserves nil and existing
 `*rt.Failure` values (including wrapped failures), then tries classifiers in
 registration order before its OS/context/network defaults. Classifiers of every
-importable package in a bound `go:` package's transitive Go dependency closure are
+importable package in a reachable Go binding's transitive Go dependency closure are
 registered automatically during package initialization, before IO executes,
 without a separate user import. No other binding semantics are inferred from names.
 Every newly classified `rt.Failure` stores the original error in `Cause`,
@@ -2114,8 +2121,9 @@ and wrappers for eligible functions of the **entry module**. Every exported
 mirror type carries a Go doc comment naming its go4t declaration and how to
 construct and switch on it (enum constants for all-nullary sums, one struct per
 constructor for payload sums, field mapping for records), so the Go shape can
-be read from the generated file without trial compilation. `Main() rt.IO`
-remains available; ordinary executable builds do not generate this API.
+be read from the generated file without trial compilation. A library exports
+`Main() rt.IO` only if its entry module declares `main`. Ordinary executable
+builds do not generate this API.
 See [the Go shell example](examples/go-shell) for a Go controller shell calling
 pure go4t decision logic.
 

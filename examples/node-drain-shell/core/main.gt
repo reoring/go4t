@@ -121,6 +121,3 @@ func reconcile(cs kube.Clientset, d Drain) IO[Outcome] {
     Outcome(action, next)
   }
 }
-
-// The Go shell owns construction, scheduling and execution of these IO values.
-func main() IO[Unit] { ioPure(unit()) }

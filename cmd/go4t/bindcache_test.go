@@ -25,6 +25,7 @@ func TestGoImportBindingCache(t *testing.T) {
 		}
 		t.Run(name, func(t *testing.T) {
 			entry := ""
+			var template []byte
 			bind := func() {
 				t.Helper()
 				binder := newGoImportBinder(dir)
@@ -46,6 +47,9 @@ func TestGoImportBindingCache(t *testing.T) {
 					t.Fatalf("binding cache lost handle identity: %v", module.ForeignHandleKeys)
 				}
 				entry = binder.cacheEntries[importPath]
+				if build {
+					template = binder.shims[binder.shimPrefix+"/"+importPath].source
+				}
 			}
 			bind()
 			if entry == "" {
@@ -69,10 +73,8 @@ func TestGoImportBindingCache(t *testing.T) {
 				}
 			}
 			output := filepath.Join(dir, "out", "go4tbind", filepath.FromSlash(importPath), "go4t_shim_mirrorfixture.go")
-			if build {
-				if err := os.Remove(output); err != nil {
-					t.Fatal(err)
-				}
+			if _, err := os.Stat(output); !os.IsNotExist(err) {
+				t.Fatalf("loading bindings wrote program output: %v", err)
 			}
 			bind()
 			for _, file := range []string{bindingFile, shimFile, filepath.Join(entry, "metadata.json"), filepath.Join(entry, "classifier")} {
@@ -81,11 +83,8 @@ func TestGoImportBindingCache(t *testing.T) {
 					t.Fatalf("cache hit rewrote %s: %v", file, err)
 				}
 			}
-			if build {
-				got, err := os.ReadFile(output)
-				if err != nil || !bytes.Equal(got, shim) {
-					t.Fatalf("cache hit did not restore exact shim bytes: %v", err)
-				}
+			if build && !bytes.Equal(template, shim) {
+				t.Fatal("cache hit did not restore the complete shim template")
 			}
 			toolsWrite(t, bindingFile, "package !!!\n")
 			bind()

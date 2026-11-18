@@ -24,6 +24,12 @@ another executable path; an existing directory is rejected. Generated sources
 remain in `DIR/_gen` for a directory input or `FILE_gen` for a file input.
 `--emit-go DIR` selects source-only output and cannot be combined with `-o`.
 `--package NAME` is available only with `--emit-go`.
+`check` and non-`main` library packages do not require an entry point. If
+declared, `main` must have type `func main() IO[Unit]`; a library exposes
+it as `Main() rt.IO`. `run`, executable builds, and `--emit-go` with the
+default package `main` require this entry point.
+For example, running a library without one reports
+`run: an executable needs func main() IO[Unit]; use build --emit-go DIR --package NAME for a library without main`.
 
 Building requires Go on PATH. The compiler reuses a Go module that provides
 `go4t`, or supplies its embedded runtime in a temporary module without changing

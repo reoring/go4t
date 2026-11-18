@@ -201,5 +201,3 @@ func _evidenceFresh(plan Plan, nowNanos Int) Verdict {
     (TtlNanos(ttl), AtNanos(observedAt)) => Accepted(observedAt + ttl - nowNanos)
   }
 }
-
-func main() IO[Unit] { ioPure(unit()) }

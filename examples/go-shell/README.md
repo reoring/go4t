@@ -89,5 +89,4 @@ Enums always print their constructor names, independently of `Debug`.
 
 `_helper` stays private. The generic `identity[A]` is not exported and is
 explained by `// not exported: identity (type parameters)` in `go4t_export.go`.
-The empty go4t `main` retains the existing `Main() rt.IO` embedding entry point;
-the decision call does not need it.
+There is no go4t `main`: the Go shell calls `Decide` directly.

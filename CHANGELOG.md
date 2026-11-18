@@ -70,6 +70,12 @@ the grammar, standard library and Go ABI may change between minor versions.
 
 ### Changed
 
+- Checking and emitting an importable library no longer require a go4t `main`.
+  Executable builds still require it; libraries export `Main()` only when declared.
+- Generated Go now includes only dependencies reachable from the entry module,
+  including the shims, converters and dictionaries its typed exports need.
+- Failed proofs also try Int and String literals from the law and its callees,
+  so a branch keyed on an application-specific value can yield a counterexample.
 - **Breaking: a line cannot start with `-` where a statement could end.** It
   used to continue the previous line, so `let y = x` followed by `-y` meant
   `x - y`. It is now an error that says to end the previous line with `-` or

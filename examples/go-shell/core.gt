@@ -31,4 +31,3 @@ func echoObserved(o Observed) Observed { o }
 func echoPhase(p Phase) Phase { p }
 func echoOption(o Option[List[String]]) Option[List[String]] { o }
 func identity[A](value A) A { value }
-func main() IO[Unit] { ioPure(unit()) }

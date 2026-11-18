@@ -1,4 +1,4 @@
-// Package codegen lowers a checked go4t program to one Go file per module.
+// Package codegen lowers a checked program's reachable declarations to Go.
 // Checked scalar values use native Go types; erased boundaries and type classes
 // use any values and Go dictionaries.
 // Constrained instances store their context dictionaries on the method receiver;
@@ -36,8 +36,8 @@ import (
 )
 
 // generate lowers declarations before module naming and file partitioning.
-// An empty goPackage selects main; other names expose Main() rt.IO for embedding instead of
-// a Go main function. The input must carry the fully zonked annotations from Check.
+// An empty goPackage selects main; other names expose a declared entry as Main() rt.IO
+// for embedding. The input must carry the fully zonked annotations from Check.
 // Extern functions adapt checked natural Go signatures or forward the any ABI.
 func generate(prog *types.Program, goPackage string) (source []byte, err error) {
 	return generateInDir(prog, goPackage, "", Options{})
@@ -286,15 +286,16 @@ func generateInDir(prog *types.Program, goPackage, dir string, options Options) 
 		out.WriteString(g.emitFunction(spec.function, spec.name))
 		g.special, g.typeArgs = nil, nil
 	}
-	if prog.Main == nil {
+	if prog.Main != nil {
+		g.fileName = g.sources[prog.Main.Decl]
+		out.WriteString(g.line(prog.Main.Decl.Pos))
+		if goPackage == "main" {
+			fmt.Fprintf(&out, "func main() { rt.RunMain(%s()) }\n", functionName(prog.Main.Name))
+		} else {
+			fmt.Fprintf(&out, "func Main() rt.IO { return %s().(rt.IO) }\n", functionName(prog.Main.Name))
+		}
+	} else if goPackage == "main" {
 		return nil, fmt.Errorf("program has no main function")
-	}
-	g.fileName = g.sources[prog.Main.Decl]
-	out.WriteString(g.line(prog.Main.Decl.Pos))
-	if goPackage == "main" {
-		fmt.Fprintf(&out, "func main() { rt.RunMain(%s()) }\n", functionName(prog.Main.Name))
-	} else {
-		fmt.Fprintf(&out, "func Main() rt.IO { return %s().(rt.IO) }\n", functionName(prog.Main.Name))
 	}
 	if g.contextIO {
 		header.WriteString("import \"context\"\n")

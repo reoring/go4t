@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -12,7 +13,43 @@ import (
 	"github.com/reoring/go4t/types"
 )
 
-func TestGenerateFilesAndRuntimeShapes(t *testing.T) {
+func TestReachableBindingsAndSignature(t *testing.T) {
+	p := mirrorProgram(t, map[string]string{
+		"main.gt": `package core
+import "binding"
+func keep(x binding.Payload) binding.Payload { x }
+func upper(s String) String { binding.upper(s) }
+`,
+		"binding/binding.gt": `package binding
+type Payload = Payload{count: Int} deriving Debug
+type Unused = Unused(String)
+extern func upper(s String) String = "strings".ToUpper
+extern func lower(s String) String = "strings".ToLower
+`,
+	})
+	out, err := Generate(p, "core")
+	if err != nil {
+		t.Fatal(err)
+	}
+	bindings := string(out["binding.go"])
+	for _, want := range []string{"ToUpper", "binding_Payload_Payload"} {
+		if !strings.Contains(bindings, want) {
+			t.Errorf("missing reachable %s", want)
+		}
+	}
+	if strings.Contains(bindings, "ToLower") || strings.Contains(bindings, "Unused") {
+		t.Errorf("unused binding or type was emitted:\n%s", bindings)
+	}
+	if !strings.Contains(string(out["go4t_export.go"]), "func Keep(p0 BindingPayload) BindingPayload") {
+		t.Fatal("omitted type that only occurs in an export signature")
+	}
+	again, err := Generate(p, "core")
+	if err != nil || !reflect.DeepEqual(out, again) {
+		t.Fatalf("nondeterministic emission: %v", err)
+	}
+}
+
+func TestGenerateReachableModuleFiles(t *testing.T) {
 	loaded, err := modules.Load([]string{"../examples/modules"})
 	if err != nil {
 		t.Fatal(err)
@@ -25,15 +62,15 @@ func TestGenerateFilesAndRuntimeShapes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(generated) != len(loaded) {
-		t.Fatalf("got %d files for %d modules", len(generated), len(loaded))
+	if generated["result.go"] != nil {
+		t.Fatal("unused standard Result module was emitted")
 	}
 	geometry := string(generated["geometry.go"])
 	if !strings.Contains(geometry, "func geometry_squaredDistance_") || !strings.Contains(geometry, "func geometry_translate_") || strings.Contains(geometry, "func main()") {
 		t.Fatalf("geometry ownership:\n%s", geometry)
 	}
 	main := string(generated["main.go"])
-	for _, text := range []string{"rt.Shapes = rt.ShapeFuncs", "list_List_Cons", "prelude_Option_Some", "result_Result_Ok", "Tuple2", "geometry_squaredDistance_"} {
+	for _, text := range []string{"geometry_squaredDistance_", "geometry_translate_"} {
 		if !strings.Contains(main, text) {
 			t.Errorf("entry missing %q", text)
 		}
@@ -41,6 +78,21 @@ func TestGenerateFilesAndRuntimeShapes(t *testing.T) {
 	want := "point: (3, 4)\nsquared distance: 25\ntranslated: Point{x: 4, y: 6}\nlocal map: 42\n"
 	if output := runGeneratedModules(t, generated); output != want {
 		t.Fatalf("output = %q, want %q", output, want)
+	}
+}
+
+func TestGenerateReachableRuntimeShapes(t *testing.T) {
+	p := mirrorProgram(t, map[string]string{"main.gt": `package core
+func values(xs List[Option[Result[String, Int]]]) List[Option[Result[String, Int]]] { xs }
+`})
+	generated, err := Generate(p, "core")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, text := range []string{"rt.Shapes = rt.ShapeFuncs", "list_List_Cons", "prelude_Option_Some", "result_Result_Ok", "Tuple2"} {
+		if !strings.Contains(string(generated["main.go"]), text) {
+			t.Errorf("entry missing reachable shape %q", text)
+		}
 	}
 }
 

@@ -85,12 +85,12 @@ func main() IO[Unit] { ioPure(unit()) }
 	if err != nil {
 		t.Fatal(err)
 	}
-	seeds := e.preconditionLiterals(law)
+	seeds := e.candidateLiterals(law)
 	var ints []int64
 	for _, seed := range seeds["int"] {
 		ints = append(ints, seed.number)
 	}
-	if want := []int64{math.MaxInt64, math.MaxInt64 - 1, math.MinInt64, math.MinInt64 + 1}; !reflect.DeepEqual(ints, want) {
+	if want := []int64{math.MaxInt64, math.MaxInt64 - 1, math.MinInt64, math.MinInt64 + 1, 1}; !reflect.DeepEqual(ints, want) {
 		t.Fatalf("literal neighbors = %v, want %v", ints, want)
 	}
 	g := e.candidateGenerator(types.Int, counterexampleDepth, make(map[candidateKey]*candidateGenerator), seeds)

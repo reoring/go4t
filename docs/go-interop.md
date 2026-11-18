@@ -37,8 +37,9 @@ This is [ADR 0011](adr/0011-lossless-boundary.md); the concrete rules follow.
 1. Write the entry module in `decide/decide.gt`: for a pure core, define a
    projection record `Observed`, an action sum and `func decide(o Observed) Action`.
 2. Generate: `go4t build --emit-go decide_gen --package decide decide/decide.gt`
-   (put it in a `//go:generate` line). The package exports `Decide`, reachable
-   Go mirror types (`Observed`, action constructors), and `Main() rt.IO`.
+   (put it in a `//go:generate` line). The package exports `Decide` and reachable
+   Go mirror types (`Observed`, action constructors). It also exports `Main() rt.IO`
+   if the go4t entry module declares `main`; a decision library can omit it.
 3. Import the generated package from Go, fill `Observed`, call `Decide` and
    perform the selected effects. For the second shape, call exported
    observe/apply functions with the Go-owned handles; an `IO[T]` result exports
@@ -107,8 +108,12 @@ Other binding rules ([ADR 0003](adr/0003-import-time-go-bindings.md),
   Foreign source homonyms gain an owner qualifier (`qImplAsI`); P's own type
   keeps the unsuffixed name (`implAsI`).
 - The standard library binds without a `go.mod`; third-party packages need the
-  build module to require them. Shims are written beneath the ignored build
-  output (`*_gen/`); `go4t check` writes nothing.
+  build module to require them. Import-time checking and caching cover whole
+  packages. After checking, the compiler writes only reachable wrappers and
+  their converters under `<out>/go4tbind/`. This includes initialization for
+  transitive error classifiers, not every function in a classifier's package.
+  `go4t check` writes no build output; explicit `go4t bind` still exposes the
+  package's full supported API.
 - Struct-handle package variables, fields and method receivers use addresses
   rather than copying, whether or not they contain locks. True by-value
   parameters, results, container elements and field setters containing locks
